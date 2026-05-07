@@ -106,11 +106,32 @@ Next.js App Router (Vercel Edge / Node.js)
 | Supabase Webhook（未来） | API Route |
 | 其他一切 | 禁止新增 API Route |
 
+## Bracket 适配层
+
+所有 `brackets-manager` 调用必须经过 `src/lib/bracket/index.ts`，禁止在业务代码中直接 import 第三方库：
+
+```
+src/lib/bracket/index.ts
+  ├── generateBracket()   → brackets-manager create
+  ├── advanceMatch()      → brackets-manager update.match
+  └── serializeBracket()  → brackets-viewer 数据格式
+```
+
+原因：`brackets-manager` 维护活跃度有限，换库时只需修改适配层，不影响业务代码。
+
 ## Realtime 订阅范围
 
-| 表 | 订阅方 | 触发场景 |
-|---|---|---|
-| `captain_votes` | 投票页面（所有登录用户） | 实时票数更新 |
-| `draft_state` | 选秀围观页 + 队长面板 | 当前轮次 / 倒计时更新 |
-| `draft_picks` | 选秀围观页 | 新 pick 动画 |
-| `season_registrations` | 报名页（位置计数） | 位置满员实时关闭 |
+**Realtime 是高成本能力，不是默认能力。** 订阅范围严格限定如下：
+
+| 表 | 订阅方 | 触发场景 | 是否必须 |
+|---|---|---|---|
+| `draft_state` | 选秀围观页 + 队长面板 | 轮次 / 倒计时推进 | ✅ 必须 |
+| `draft_picks` | 选秀围观页 | 新 pick 动画 | ✅ 必须 |
+| `captain_votes` | 投票页面 | 实时票数（也可轮询替代） | 可选 |
+
+**明确不使用 Realtime 的表**（用 RSC 刷新或轮询）：
+`season_registrations`、`teams`、`team_members`、`matches`、`users`、`audit_logs`
+
+**位置满员检测**：不使用 Realtime 订阅 `season_registrations`，改用提交报名时的服务端 COUNT 校验 + 页面加载时静态展示（位置满员时刷新后即显示，不需要推送）。
+
+**禁止** `supabase.channel("*")` 或订阅上述列表以外的表。

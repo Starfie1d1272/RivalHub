@@ -2,68 +2,111 @@
 
 ## 状态机
 
+详细状态迁移规则见 `docs/state-machines.md` § 3（DraftState）。
+
 ```
-[idle]
-  → admin 确认队长，调用 initDraft()
-[active: round=1, teamIdx=0, deadline=now+3min]
-  → 队长 pick / autoPick
-  → nextTurn()
-[active: round=1, teamIdx=1, deadline=now+3min]
-  → ...（共 8 支队伍，第 1 轮 1→8 正向）
-[active: round=2, teamIdx=7, deadline=now+3min]
-  → ...（第 2 轮 8→1 反向，蛇形）
-  → ...
-[active: round=6, 最后一队]
-  → 所有 pick 完成 → completeDraft()
-[finished]
+not_started
+  ↓ [admin: start]
+active (round=1, team[0], deadline=now+3min)
+  ↓ captain pick / autoPick / admin pause
+  ...（共 6 轮 × 8 队 = 48 picks）
+completed
+  → 自动触发 season.status = playing
 ```
 
-蛇形规则（round 奇数正向，偶数反向）：
+蛇形顺序（round 奇数正向，偶数反向）：
 ```
 Round 1: team[0] → team[1] → ... → team[7]
 Round 2: team[7] → team[6] → ... → team[0]
-Round 3: team[0] → ...
 ...
 Round 6: team[7] → ...
 ```
-共 6 轮 × 8 队 = 48 picks（48 名普通队员 + 8 名队长 = 56 人）。
 
 ---
 
-## draft_state 字段语义
+## Pick 事务边界（核心并发约束）
 
-| 字段 | 说明 |
-|---|---|
-| `current_round` | 当前轮次（1-6） |
-| `current_team_id` | 当前应该 pick 的队伍 ID |
-| `round_deadline` | 当前队伍的超时时间（UTC） |
-| `is_active` | 选秀是否进行中 |
-
----
-
-## 并发安全
-
-### 行锁机制
+**一次合法 pick 必须包含以下 8 步，且全部在同一 Postgres 事务内完成：**
 
 ```sql
 BEGIN;
-SELECT * FROM draft_state WHERE season_id = $1 FOR UPDATE;
--- 后续所有 check 和 INSERT 在同一事务内
--- 其他并发请求在此 SELECT FOR UPDATE 阻塞
-INSERT INTO draft_picks ...;
-UPDATE draft_state SET current_team_id = $next_team, round_deadline = $new_deadline;
+
+-- 1. 行锁：锁住当前赛季的选秀状态，阻塞并发请求
+SELECT * FROM draft_state
+  WHERE season_id = $seasonId
+  FOR UPDATE;
+
+-- 2. 校验：draft_state.is_active = true
+--          current_team_id = $teamId（轮到该队了）
+--          round_deadline > NOW()（未超时）
+
+-- 3. 校验：目标选手未被选（draft_picks 中不存在该 registration_id）
+
+-- 4. 校验：同主选位置约束（该队同位置已选 < 3 人）
+SELECT COUNT(*) FROM team_members tm
+  JOIN season_registrations sr ON sr.id = tm.registration_id
+  WHERE tm.team_id = $teamId
+    AND sr.primary_position = $targetPosition;
+-- 若 COUNT >= 3 → ROLLBACK，返回错误
+
+-- 5. 幂等检查：若 client_request_id 已存在于 draft_picks，直接返回成功
+SELECT id FROM draft_picks WHERE client_request_id = $clientRequestId;
+
+-- 6. INSERT draft_picks
+INSERT INTO draft_picks (season_id, team_id, registration_id, round,
+  pick_number, auto_picked, client_request_id)
+VALUES (...);
+
+-- 7. INSERT team_members
+INSERT INTO team_members (team_id, registration_id, is_starter)
+VALUES ($teamId, $registrationId, <按 round 判断首发/替补>);
+
+-- 8. UPDATE draft_state：推进到下一队 / 下一轮 / completed
+UPDATE draft_state
+  SET current_team_id = $nextTeamId,
+      current_round   = $nextRound,
+      round_deadline  = NOW() + INTERVAL '3 minutes',
+      is_active       = $stillActive,   -- 最后一 pick 后设为 false
+      updated_at      = NOW()
+  WHERE season_id = $seasonId;
+
 COMMIT;
+
+-- ⚠️ Realtime 广播必须在 COMMIT 之后触发
+-- 不允许在事务内部发送 Realtime 消息
+-- 实现：commit 成功后，Server Action 返回前调用广播
 ```
 
-### 幂等性（`client_request_id`）
+**违反此规则的常见错误：**
+- 在步骤 5 之前 INSERT（丢失幂等保护）
+- 遗漏步骤 7（team_members 未写入）
+- 在 COMMIT 前广播 Realtime（导致客户端看到中间态）
+- 将步骤拆分为多个独立事务（破坏原子性）
 
-客户端每次点击"选择"生成唯一 UUID 作为 `client_request_id`：
-- 首次请求：正常插入 draft_picks
-- 网络超时后重试（同 ID）：检查 `UNIQUE(client_request_id)`，若已存在则返回成功而不重复插入
+---
+
+## Realtime 广播时序
+
+```
+Server Action pickPlayer()
+  └── db.transaction(8 步)
+        └── COMMIT ← 必须先到这里
+  └── supabase.channel("draft-live").send({...})  ← 然后才广播
+  └── return { success: true }
+```
+
+**为什么广播必须在 commit 后**：如果广播在 commit 前失败或事务回滚，客户端将看到一个"幽灵 pick"，导致 UI 和数据库不一致。
+
+---
+
+## 幂等性（`client_request_id`）
+
+客户端每次点击"选择"前生成唯一 UUID，按钮 disabled 后锁定该 ID：
 
 ```typescript
 // 客户端
-const clientRequestId = crypto.randomUUID(); // 按钮 disabled 前生成
+const [clientRequestId] = useState(() => crypto.randomUUID());
+// 点击后按钮立即 disabled，同一 ID 的重试请求会被步骤 5 短路
 await pickPlayer(teamId, registrationId, clientRequestId);
 ```
 
@@ -71,10 +114,9 @@ await pickPlayer(teamId, registrationId, clientRequestId);
 
 ## Vercel Cron 超时自动 pick
 
-### 触发配置
+### 配置（vercel.json，Phase 12 添加）
 
 ```json
-// vercel.json
 {
   "crons": [{
     "path": "/api/cron/draft-timeout",
@@ -83,67 +125,43 @@ await pickPlayer(teamId, registrationId, clientRequestId);
 }
 ```
 
-每分钟触发一次，仅当选秀活跃且当前队伍已超时时执行 `autoPick`。
+### autoPick 流程
 
-### autoPick 逻辑
-
-```
-1. 查询 draft_state WHERE is_active = true AND round_deadline < NOW()
-2. 找出当前队伍已选择的 primary_position 分布
-3. 从剩余未选选手中过滤同位置 ≤ 2 人的（确保选后不超 3 人）
-4. 按 peak_rating DESC 排序，取第 1 名
-5. 以 auto_pick=true 调用 pickPlayer 事务
-```
+1. 查询 `draft_state WHERE is_active = true AND round_deadline < NOW()`
+2. 若不存在，直接返回（大多数情况）
+3. 找出当前队伍的位置分布，确定同位置 ≤ 2 人的可选范围
+4. 从剩余未选选手中按 `peak_rating DESC` 取第 1 名
+5. 以 `auto_picked = true` 走相同的 8 步事务
 
 ### 安全验证
 
 ```typescript
-// /api/cron/draft-timeout/route.ts
-const authHeader = req.headers.get("authorization");
+const authHeader = request.headers.get("authorization");
 if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-  return new Response("Unauthorized", { status: 401 });
+  return Response.json({ error: "Unauthorized" }, { status: 401 });
 }
 ```
 
 ---
 
-## 同位置约束（≤ 3 人）
+## 首发 / 替补判断规则
 
-每次 pick 时在事务内校验：
+| 轮次 | 身份 |
+|---|---|
+| Round 1–4 | 首发（`is_starter = true`） |
+| Round 5–6 | 替补（`is_starter = false`） |
 
-```sql
-SELECT COUNT(*) FROM team_members tm
-JOIN season_registrations sr ON sr.id = tm.registration_id
-WHERE tm.team_id = $teamId
-  AND sr.primary_position = $targetPosition;
--- 若 COUNT >= 3，拒绝 pick，返回错误
-```
+加上队长本人，每队 5 首发 + 2 替补 = 7 人（对应 `season.starterCount`）。
 
 ---
 
-## 前端 Realtime 更新
+## Realtime 订阅范围
 
-选秀直播间通过 Supabase Realtime 订阅：
+选秀相关的 Realtime 订阅仅限以下两张表：
 
-```typescript
-supabase
-  .channel("draft-live")
-  .on("postgres_changes", { event: "*", schema: "public", table: "draft_state" }, handler)
-  .on("postgres_changes", { event: "INSERT", schema: "public", table: "draft_picks" }, handler)
-  .subscribe();
-```
+| 表 | 事件 | 订阅方 |
+|---|---|---|
+| `draft_state` | `UPDATE` | 围观页 + 队长面板 |
+| `draft_picks` | `INSERT` | 围观页（新 pick 动画） |
 
-每次 pick 完成后，所有订阅客户端收到推送，自动刷新：
-- 当前轮次 / 当前队伍高亮
-- 倒计时重置（从新的 `round_deadline` 计算）
-- 已选队员格子填入
-
----
-
-## 选秀结束后
-
-选秀完成（6 轮 × 8 队）后：
-1. `draft_state.is_active = false`
-2. 赛季状态从 `drafting` 变为 `playing`
-3. 队伍展示页解锁（`/[seasonSlug]/teams`）
-4. 管理员可在 `/admin/[seasonSlug]/matches` 创建赛程
+**禁止**订阅 `teams`、`team_members`、`season_registrations` 的 Realtime（它们通过正常 RSC 刷新即可）。

@@ -1,5 +1,5 @@
 {
-  "id": "cd7b61e5-5775-49ea-80f0-19a7f83dd08b",
+  "id": "9d4d83e7-4b16-44e7-88c4-61eea6aa8db6",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -409,6 +409,50 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "registration_mode": {
+          "name": "registration_mode",
+          "type": "registration_mode",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'solo'"
+        },
+        "has_captain_voting": {
+          "name": "has_captain_voting",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "has_draft": {
+          "name": "has_draft",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "bracket_type": {
+          "name": "bracket_type",
+          "type": "bracket_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'double_elim'"
+        },
+        "team_size": {
+          "name": "team_size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 7
+        },
+        "starter_count": {
+          "name": "starter_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 5
         },
         "start_at": {
           "name": "start_at",
@@ -940,6 +984,23 @@
     }
   },
   "enums": {
+    "public.bracket_type": {
+      "name": "bracket_type",
+      "schema": "public",
+      "values": [
+        "double_elim",
+        "single_elim",
+        "round_robin"
+      ]
+    },
+    "public.registration_mode": {
+      "name": "registration_mode",
+      "schema": "public",
+      "values": [
+        "solo",
+        "team"
+      ]
+    },
     "public.season_kind": {
       "name": "season_kind",
       "schema": "public",

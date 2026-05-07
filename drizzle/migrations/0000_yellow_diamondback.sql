@@ -1,3 +1,5 @@
+CREATE TYPE "public"."bracket_type" AS ENUM('double_elim', 'single_elim', 'round_robin');--> statement-breakpoint
+CREATE TYPE "public"."registration_mode" AS ENUM('solo', 'team');--> statement-breakpoint
 CREATE TYPE "public"."season_kind" AS ENUM('rivals', 'major');--> statement-breakpoint
 CREATE TYPE "public"."season_status" AS ENUM('draft', 'registration', 'voting', 'drafting', 'playing', 'finished', 'archived');--> statement-breakpoint
 CREATE TYPE "public"."position" AS ENUM('entry', 'awper', 'support', 'lurker', 'igl');--> statement-breakpoint
@@ -57,6 +59,12 @@ CREATE TABLE "seasons" (
 	"kind" "season_kind" NOT NULL,
 	"status" "season_status" DEFAULT 'draft' NOT NULL,
 	"theme_color" text,
+	"registration_mode" "registration_mode" DEFAULT 'solo' NOT NULL,
+	"has_captain_voting" boolean DEFAULT true NOT NULL,
+	"has_draft" boolean DEFAULT true NOT NULL,
+	"bracket_type" "bracket_type" DEFAULT 'double_elim',
+	"team_size" integer DEFAULT 7 NOT NULL,
+	"starter_count" integer DEFAULT 5 NOT NULL,
 	"start_at" timestamp with time zone,
 	"end_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,

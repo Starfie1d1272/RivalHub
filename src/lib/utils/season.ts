@@ -1,23 +1,61 @@
-// TODO: 实现赛季工具函数
-// - isRegistrationOpen(season)：赛季是否处于报名阶段
-// - isVotingOpen(season)：赛季是否处于投票阶段
-// - isDraftActive(season)：赛季是否处于选秀阶段
-// - getSeasonPhaseLabel(season)：返回当前阶段的中文标签
+// Season capability 工具函数
+// 所有判断均基于 season capability 字段，禁止读取 season.kind
+// TODO: 实现各函数体
 
-import type { Season } from "@/types/season";
+import type { Season, SeasonStatus } from "@/types/season";
 
-export function isRegistrationOpen(_season: Season): boolean {
-  throw new Error("not implemented");
+// ── 阶段判断（基于 status）────────────────────────────────────────────────
+
+export function isRegistrationOpen(season: Season): boolean {
+  return season.status === "registration";
 }
 
-export function isVotingOpen(_season: Season): boolean {
-  throw new Error("not implemented");
+export function isVotingOpen(season: Season): boolean {
+  return season.status === "voting";
 }
 
-export function isDraftActive(_season: Season): boolean {
-  throw new Error("not implemented");
+export function isDraftActive(season: Season): boolean {
+  return season.status === "drafting";
 }
 
-export function getSeasonPhaseLabel(_season: Season): string {
-  throw new Error("not implemented");
+export function isPlaying(season: Season): boolean {
+  return season.status === "playing";
+}
+
+// ── Capability 判断（路由守卫、UI 条件渲染的唯一入口）─────────────────────
+
+/** 是否展示队长投票入口 */
+export function showCaptainVoting(season: Season): boolean {
+  return season.hasCaptainVoting;
+}
+
+/** 是否展示蛇形选秀入口 */
+export function showDraft(season: Season): boolean {
+  return season.hasDraft;
+}
+
+/** 是否展示 Bracket 视图 */
+export function showBracket(season: Season): boolean {
+  return season.bracketType !== null;
+}
+
+/** 是否为个人报名模式 */
+export function isSoloRegistration(season: Season): boolean {
+  return season.registrationMode === "solo";
+}
+
+// ── 展示工具 ──────────────────────────────────────────────────────────────
+
+/** 当前阶段中文标签 */
+export function getSeasonPhaseLabel(season: Season): string {
+  const labels: Record<SeasonStatus, string> = {
+    draft: "未发布",
+    registration: "报名中",
+    voting: "投票中",
+    drafting: "选秀中",
+    playing: "进行中",
+    finished: "已结束",
+    archived: "已归档",
+  };
+  return labels[season.status];
 }

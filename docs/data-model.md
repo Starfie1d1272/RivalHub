@@ -18,9 +18,15 @@ erDiagram
     uuid id PK
     text slug UK "e.g. rivals-2026-spring"
     text name
-    season_kind kind "rivals | major"
+    season_kind kind "仅展示用，业务逻辑读 capability"
     season_status status
     text theme_color
+    registration_mode registration_mode "solo | team"
+    bool has_captain_voting
+    bool has_draft
+    bracket_type bracket_type "double_elim | single_elim | round_robin | null"
+    int team_size
+    int starter_count
     timestamp start_at
     timestamp end_at
     timestamp created_at
@@ -136,8 +142,23 @@ erDiagram
 ### `season_kind`
 | 值 | 说明 |
 |---|---|
-| `rivals` | NJU Rivals 春季赛（强制选秀） |
-| `major` | NJU Major 秋季赛（自由组队，v2 实装） |
+| `rivals` | NJU Rivals 春季赛（仅展示标记） |
+| `major` | NJU Major 秋季赛（仅展示标记） |
+
+> ⚠️ `kind` 仅用于界面展示，业务逻辑不得读取此字段做功能分支。所有功能门控读 capability 字段（`hasDraft`、`hasCaptainVoting` 等）。
+
+### `registration_mode`
+| 值 | 说明 |
+|---|---|
+| `solo` | 个人报名（Rivals 模式） |
+| `team` | 队伍整体报名（Major v2 模式） |
+
+### `bracket_type`
+| 值 | 说明 |
+|---|---|
+| `double_elim` | 双败淘汰 |
+| `single_elim` | 单败淘汰 |
+| `round_robin` | 循环赛 |
 
 ### `season_status`
 | 值 | 说明 |

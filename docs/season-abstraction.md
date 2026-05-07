@@ -6,6 +6,31 @@
 
 ---
 
+## Capability 驱动（核心）
+
+多赛事的功能差异不通过 `season.kind` 判断，而是通过 `seasons` 表上的 capability 字段控制：
+
+| 字段 | 类型 | Rivals 默认 | Major 默认 | 说明 |
+|---|---|---|---|---|
+| `registrationMode` | `solo \| team` | `solo` | `team` | 个人报名 vs 队伍报名 |
+| `hasCaptainVoting` | `boolean` | `true` | `false` | 是否有队长投票环节 |
+| `hasDraft` | `boolean` | `true` | `false` | 是否有蛇形选秀 |
+| `bracketType` | `double_elim \| ...` | `double_elim` | `double_elim` | Bracket 类型 |
+| `teamSize` | `integer` | `7` | `5` | 每队人数 |
+| `starterCount` | `integer` | `5` | `5` | 首发人数 |
+
+**这意味着**：未来新增娱乐赛、All-Star 赛、1v1 赛等，只需在数据库里配置一行不同的 capability，不需要修改任何业务代码。
+
+```typescript
+// ❌ 禁止
+if (season.kind === "rivals") { showDraftPage() }
+
+// ✅ 正确
+if (season.hasDraft) { showDraftPage() }
+```
+
+---
+
 ## `seasonSlug` 路由解析
 
 所有公开页面和管理后台均以 `[seasonSlug]` 为路由前缀：
@@ -24,20 +49,19 @@
 
 ---
 
-## `kind` 字段触发的差异
+## Capability 决定的功能差异
 
-| 功能点 | `rivals` | `major` |
-|---|---|---|
-| 报名表单 | 标准表单（位置限制 15 人/位置） | v2：自由组队，无位置限制 |
-| 队伍组建 | 蛇形选秀（强制） | v2：自由组队 + admin 审批 |
-| 选秀页面 | 实装 | v1：显示"敬请期待" |
-| 队长投票 | 实装 | v2 实装 |
-| 参赛资格 | 仅校内（含毕业生）+ 严格段位门槛 | v2：允许最多 2 名外校 |
+| 功能点 | capability 判断 | Rivals | Major |
+|---|---|---|---|
+| 报名表单类型 | `registrationMode` | `solo`（个人） | `team`（队伍，v2） |
+| 队长投票入口 | `hasCaptainVoting` | `true` | `false` |
+| 蛇形选秀入口 | `hasDraft` | `true` | `false` |
+| Bracket 视图 | `bracketType !== null` | `double_elim` | `double_elim` |
 
-**v1 代码中 `kind` 检查的位置**：
-- `[seasonSlug]/draft/page.tsx`：`if (season.kind !== "rivals") return <ComingSoon />`
+**v1 代码中 capability 检查的位置**（统一用 `lib/utils/season.ts` 的工具函数）：
+- `[seasonSlug]/draft/page.tsx`：`if (!showDraft(season)) return <ComingSoon />`
 - `[seasonSlug]/draft/captain/page.tsx`：同上
-- `[seasonSlug]/captains/page.tsx`：同上
+- `[seasonSlug]/captains/page.tsx`：`if (!showCaptainVoting(season)) return <ComingSoon />`
 
 ---
 
@@ -107,7 +131,7 @@ return (
 
 Major 赛事差异化实装时需要修改的模块：
 1. `src/lib/validators/registration.ts`：新增 Major 专用字段（外校标志、学院）
-2. `src/actions/register.ts`：按 `season.kind` 分支校验逻辑
-3. `src/app/[seasonSlug]/register/page.tsx`：按 `kind` 渲染不同表单
+2. `src/actions/register.ts`：按 `season.registrationMode` 分支校验逻辑（不用 kind）
+3. `src/app/[seasonSlug]/register/page.tsx`：按 `registrationMode` 渲染不同表单
 4. Major 自由组队相关页面（新增路由，无需破坏现有 Rivals 路由）
 5. `docs/season-abstraction.md` 更新差异表格
