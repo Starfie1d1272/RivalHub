@@ -55,7 +55,7 @@ Next.js App Router (Vercel Edge / Node.js)
 
 - `schema/` — Drizzle 表定义，10 张表，严格 `season_id` 外键
 - `client.ts` — Drizzle + pg Pool 单例，通过 `DATABASE_URL` 连接 Supabase
-- `seed.ts` — 种子数据（Rivals 2026 Spring + Major 2026 Autumn 占位）
+- `seed.ts` — 种子数据（示例赛季占位：选秀联赛 + 公开赛）
 
 ### Lib 层（`src/lib/`）
 

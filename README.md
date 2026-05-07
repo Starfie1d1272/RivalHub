@@ -30,8 +30,8 @@
 
 ### 前置条件
 
-- Node.js ≥ 20（见 `.nvmrc`）
-- pnpm ≥ 9
+- Node.js ≥ 22（见 `.nvmrc`）
+- pnpm 11（由 `package.json` 的 `packageManager` 字段锁定）
 - Supabase 账号（Phase 2+ 需要）
 
 ### 步骤

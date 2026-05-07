@@ -128,17 +128,17 @@ tests/e2e/
 
 ## CI 触发规则
 
+`.github/workflows/ci.yml` 已配置，在 `push`（main/dev）和 `pull_request`（main/dev）时触发：
+
 ```yaml
-# .github/workflows/ci.yml（未来添加）
-on: [push, pull_request]
-jobs:
-  test:
-    - pnpm install
-    - pnpm tsc --noEmit
-    - pnpm build
-    - pnpm test           # Vitest
-    - pnpm test:e2e       # Playwright（staging URL 或 localhost）
+steps:
+  - pnpm install --frozen-lockfile
+  - pnpm tsc --noEmit
+  - pnpm test           # Vitest
+  - pnpm build
 ```
+
+E2E 测试（Playwright）当前未纳入 CI，计划 Phase 12 接入。
 
 ---
 

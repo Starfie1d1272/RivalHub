@@ -99,7 +99,7 @@ GROUP BY primary_position;
 | `email` | 邮箱（用于 Magic Link） | 有效 email 格式 |
 | `steam64` | Steam 64 位 ID | 17 位纯数字 |
 | `qq` | QQ 号 | 5-12 位数字 |
-| `primaryPosition` | 主选位置 | 枚举值之一 |
+| `primaryPosition` | 主选位置 | `season.positions` 中的合法值 |
 | `peakRating` | 历史最高 rating | 整数 0-30000 |
 | `screenshotUrl` | 近两周天梯截图 | 上传后获得 URL |
 | 反作弊承诺勾选 | | must be true |
