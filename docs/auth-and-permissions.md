@@ -133,9 +133,10 @@ CREATE POLICY "draft_state_public_read" ON draft_state
 CREATE POLICY "draft_picks_public_read" ON draft_picks
   FOR SELECT USING (true);
 
--- captain_votes: 只能读 count（不暴露谁投了谁）
--- 实际做法：Realtime 订阅 season_registrations 的 vote_count 聚合视图
--- 而非直接订阅 captain_votes 表
+-- captain_votes: 公开 SELECT，前端订阅 INSERT/DELETE 后自行 COUNT 聚合
+-- （不需要单独的物化视图；不暴露 voter_registration_id 时可在 SELECT policy 中 column-level 限制）
+CREATE POLICY "captain_votes_public_read" ON captain_votes
+  FOR SELECT USING (true);
 ```
 
 ---

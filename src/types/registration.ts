@@ -19,13 +19,13 @@ export interface Registration {
   updatedAt: Date;
 }
 
-/** 位置中文标签 */
+/** 位置中文标签（主称 / 次称） */
 export const POSITION_LABELS: Record<Position, string> = {
   igl: "IGL（指挥）",
   awper: "AWPer（狙击手）",
-  entry: "Entry（突破手）",
-  lurker: "Lurker（自由人）",
-  support: "Support（主防）",
+  entry: "Opener / Entry（突破手）",
+  lurker: "Closer / Lurker（自由人）",
+  support: "Anchor / Support（主防）",
 };
 
 /** 审核状态中文标签 */

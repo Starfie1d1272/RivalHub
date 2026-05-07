@@ -170,13 +170,6 @@ erDiagram
 | `solo` | 个人报名（Rivals 模式） |
 | `team` | 队伍整体报名（Major v2 模式） |
 
-### `bracket_type`
-| 值 | 说明 |
-|---|---|
-| `double_elim` | 双败淘汰 |
-| `single_elim` | 单败淘汰 |
-| `round_robin` | 循环赛 |
-
 ### `season_status`
 | 值 | 说明 |
 |---|---|
@@ -226,8 +219,21 @@ erDiagram
 | `bo3` | 三局两胜，正赛大部分轮次 |
 | `bo5` | 五局三胜，仅总决赛 |
 
-### `qualifier_format` / `playoff_format`
-排位赛与正赛各自的赛制，独立配置。`null` 表示该阶段不存在。
+### `qualifier_format`
+| 值 | 说明 |
+|---|---|
+| `round_robin` | 循环赛（Rivals 28 场单循环 BO1） |
+| `swiss` | 瑞士轮（保留扩展） |
+| `null` | 无排位赛阶段 |
+
+### `playoff_format`
+| 值 | 说明 |
+|---|---|
+| `double_elim` | 双败淘汰（Rivals 默认） |
+| `single_elim` | 单败淘汰 |
+| `null` | 无正赛阶段 |
+
+> 排位赛与正赛各自的赛制独立配置；任一为 `null` 时跳过该阶段。业务代码读 `qualifierFormat` / `playoffFormat`，不读 `season.kind`。
 
 ### `side`
 | 值 | 说明 |

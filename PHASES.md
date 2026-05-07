@@ -23,7 +23,7 @@
 ## Phase 2 — 数据层
 
 - [ ] 创建 Supabase 项目（Postgres + Auth + Storage）
-- [ ] `pnpm db:push` 推送所有表（8 张）
+- [ ] `pnpm db:push` 推送所有表（10 张）
 - [ ] RLS：默认拒绝所有，按表逐条开放最小权限
 - [ ] Storage bucket：`registration-screenshots`（私有，需 admin 可查）
 - [ ] 运行种子脚本：Rivals 2026 Spring + Major 2026 Autumn 占位行

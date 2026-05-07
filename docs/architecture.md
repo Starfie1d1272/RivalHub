@@ -53,7 +53,7 @@ Next.js App Router (Vercel Edge / Node.js)
 
 ### DB 层（`src/db/`）
 
-- `schema/` — Drizzle 表定义，8 张表，严格 `season_id` 外键
+- `schema/` — Drizzle 表定义，10 张表，严格 `season_id` 外键
 - `client.ts` — Drizzle + pg Pool 单例，通过 `DATABASE_URL` 连接 Supabase
 - `seed.ts` — 种子数据（Rivals 2026 Spring + Major 2026 Autumn 占位）
 
@@ -64,7 +64,7 @@ Next.js App Router (Vercel Edge / Node.js)
 - `realtime/subscribe.ts` — Supabase Realtime 订阅封装
 - `validators/` — Zod schema（中文错误消息）
 - `utils/date.ts` — UTC ↔ Asia/Shanghai
-- `utils/season.ts` — slug 解析与赛季状态判断
+- `utils/season.ts` — capability 判断（`showDraft` / `showCaptainVoting` / `showQualifier` / `showPlayoffBracket` 等），是路由守卫与 UI 条件渲染的唯一入口
 - `utils/cn.ts` — Tailwind class merge 工具
 
 ## 数据流：报名写入

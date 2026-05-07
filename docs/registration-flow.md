@@ -9,7 +9,7 @@
   ├── 否（已截止 / 未开放） → 显示"报名未开放"提示
   └── 是 → 渲染报名表单
         ↓
-        实时展示各位置已报名人数（Supabase Realtime）
+        展示各位置已报名人数（页面加载时静态渲染，提交后服务端二次校验）
         ↓
 用户填写表单并上传截图
   ↓
@@ -57,23 +57,24 @@ const screenshotUrl = data?.path; // 相对路径，存入 DB
 
 ## 位置满员检测
 
-### 前端实时刷新
+### 前端展示（不使用 Realtime）
 
-```typescript
-// 客户端组件订阅 season_registrations 的变化
-supabase
-  .channel("position-counts")
-  .on("postgres_changes", {
-    event: "*",
-    schema: "public",
-    table: "season_registrations",
-    filter: `season_id=eq.${seasonId}`,
-  }, () => {
-    // 重新 fetch 各位置计数
-    refreshPositionCounts();
-  })
-  .subscribe();
+`season_registrations` 不在 Realtime 订阅白名单内（见 `docs/architecture.md`「Realtime 订阅范围」）。位置已报名人数仅在页面加载时由 Server Component 查询并静态渲染——满员状态以"提交时服务端二次校验 + 提交失败时 Toast 提示"为最终拦截层，不依赖前端推送。
+
+```tsx
+// app/[seasonSlug]/register/page.tsx (Server Component)
+const counts = await db
+  .select({ position: registrations.primaryPosition, count: count() })
+  .from(registrations)
+  .where(and(
+    eq(registrations.seasonId, season.id),
+    inArray(registrations.status, ["pending", "approved"]),
+  ))
+  .groupBy(registrations.primaryPosition);
+// 传入 Client 表单组件做 disabled 渲染
 ```
+
+报名提交后调用 `revalidatePath(\`/\${seasonSlug}/register\`)` 让下一次访问拿到最新计数。
 
 ### 满员判断（后端）
 

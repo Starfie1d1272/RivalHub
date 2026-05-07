@@ -32,7 +32,7 @@
 
 1. **业务逻辑全部走 Server Actions**，仅 Cron 触发用 API Route。
 2. **多赛事抽象 day-1 到位**：所有赛事相关表含 `season_id` 外键，路由前缀 `/[seasonSlug]/...`，禁止在 v1 写死 Rivals 赛季 ID。
-3. **不做物化计数**：位置满员等聚合靠 `COUNT GROUP BY`，前端用 Supabase Realtime 实时刷新。
+3. **不做物化计数**：位置满员等聚合靠 `COUNT GROUP BY`，页面加载时由 Server Component 一次性渲染；提交时服务端再做一次校验。Realtime 仅用于下方白名单的三张表，禁止订阅 `season_registrations`。
 4. **Server Components 为主**，仅 Realtime 订阅 / 表单 / 倒计时等局部标注 `"use client"`。
 5. **选秀并发安全**：Postgres 事务 + `SELECT ... FOR UPDATE` 行锁，`client_request_id` 幂等，8 步全在同一事务（见 `docs/draft-flow.md`）。
 6. **所有管理操作写 audit_logs**，不允许跳过。
