@@ -44,6 +44,55 @@ POST /admin/login (Server Action: adminLogin)
 
 ---
 
+## 角色定义
+
+| 角色 | 标识方式 | 说明 |
+|---|---|---|
+| `guest` | 未登录 | 访问公开页面 |
+| `user` | Supabase Auth session | 登录但未报名当前赛季 |
+| `registered` | season_registrations 存在记录（任意 status）| 已提交本届报名 |
+| `approved` | registrations.status = `approved` | 审核通过的选手 |
+| `captain` | teams.captain_registration_id 指向自己 | 当前赛季的队长 |
+| `admin` | iron-session.isAdmin = true | 赛委会管理员（v1 单一角色，v2 可拆 super_admin / admin / observer） |
+
+> **v2 规划**：admin 角色拆分为 `super_admin / admin / observer`，并在 audit_log 记录 actor_role。v1 暂用单一 admin。
+
+---
+
+## 能力 × 角色矩阵
+
+| 能力 | guest | user | registered | approved | captain | admin |
+|---|---|---|---|---|---|---|
+| 查看赛季 hero / 规则书 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 查看队伍列表 / 详情 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 查看赛程 / Bracket / 比赛详情 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 查看自己的报名状态 | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 提交报名 | ❌ | ✅ | ❌（已报名） | ❌ | ❌ | ❌ |
+| 投队长票 | ❌ | ❌ | ✅(仅 voting 阶段) | ✅ | ✅ | ✅ |
+| 撤票 | ❌ | ❌ | ✅(仅 voting 阶段) | ✅ | ✅ | ✅ |
+| 围观选秀 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 操作选秀 pick | ❌ | ❌ | ❌ | ❌ | ✅(仅自己回合) | ✅(代选/调试) |
+| 查看选秀历史记录 | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 审核报名 | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| 确认队长名单 | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| 启动 / 暂停选秀 | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| 录入比分 | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| 查看 audit log | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| 生成 / 访问私有 Storage 签名 URL | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+
+### 校验位置
+
+| 能力类型 | 校验位置 |
+|---|---|
+| 公开能力 | 无 |
+| user / registered / approved 能力 | Server Action 内 `await requireAuthenticatedUser()` + 业务条件查询 |
+| captain 能力 | Server Action 内验证 `team.captainRegistrationId` 与当前用户 registration_id 一致 |
+| admin 能力 | Server Action 内 `await requireAdmin()`（首行） |
+
+**禁止仅在客户端隐藏按钮就视为已校验**。所有 Server Action 必须在服务端做权限校验。
+
+---
+
 ## Supabase RLS 策略
 
 ### 默认原则：拒绝一切

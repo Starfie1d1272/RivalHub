@@ -108,6 +108,57 @@ import { generateBracket, advanceMatch } from "@/lib/bracket";
 
 ---
 
+## Server Action 返回规范
+
+所有 Server Action 必须返回 `ActionResult<T>`（见 `src/types/action.ts`），禁止抛出异常给客户端、禁止返回原始值。
+
+```typescript
+// ✅ 正确
+import { ok, fail } from "@/types/action";
+import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
+
+export async function submitRegistration(input: RegistrationFormData) {
+  try {
+    const id = await db.transaction(...);
+    return ok({ id });
+  } catch (e) {
+    if (e instanceof AppError) {
+      return fail({ code: e.code, message: e.message });
+    }
+    return fail({ code: ErrorCode.INTERNAL_ERROR, message: ERROR_MESSAGES.INTERNAL_ERROR });
+  }
+}
+
+// ❌ 禁止
+return { ok: true };          // 字段名不统一
+throw new Error("...");        // 直接抛给客户端
+return null;                   // 成功/失败语义不明
+```
+
+错误码统一定义在 `src/lib/errors.ts` 的 `ErrorCode` 中，新增错误必须先添加到那里。
+
+---
+
+## 缓存策略（Next.js 15）
+
+| 路由类型 | 缓存策略 | 触发刷新 |
+|---|---|---|
+| `/[seasonSlug]/draft/**` | `force-dynamic` | 不缓存（实时性强） |
+| `/[seasonSlug]/draft/captain` | `force-dynamic` | 同上 |
+| `/admin/**` | `force-dynamic` | 不缓存 |
+| `/[seasonSlug]/register` | RSC 默认 | 报名提交后 `revalidatePath` |
+| `/[seasonSlug]/captains` | RSC 默认 + Realtime | 投票变化时 `revalidatePath` |
+| `/[seasonSlug]/teams` | RSC 默认（赛季进入 playing 后基本不变） | 选秀完成时 `revalidatePath` |
+| `/[seasonSlug]/matches/**` | RSC 默认 | 录入比分时 `revalidatePath` |
+| `/seasons` `/rules` | 静态 | 仅 deploy 时刷新 |
+
+**约束**：
+- `force-dynamic` 只在选秀和后台路由使用，避免全站不缓存导致 RSC 退化
+- `revalidatePath` 在 Server Action 成功后调用，传入具体路径，不要 `revalidatePath("/")`
+- 不引入 Redis；Supabase + Next.js 默认缓存足够
+
+---
+
 ## 目录索引
 
 ```
@@ -176,10 +227,11 @@ pnpm seed              # 运行种子脚本（阶段2+ 有真实 DB 后使用）
 | `PHASES.md` | 12 阶段 checkbox 路线图 |
 | `docs/state-machines.md` | 所有实体状态机（必读） |
 | `docs/draft-flow.md` | 选秀事务边界与并发安全（必读） |
+| `docs/data-integrity.md` | DB 与应用层约束分工、Storage bucket、soft delete 策略（必读） |
 | `docs/architecture.md` | 整体架构与模块边界 |
 | `docs/data-model.md` | ER 图 + 字段定义 |
 | `docs/season-abstraction.md` | capability 驱动的多赛事设计 |
-| `docs/auth-and-permissions.md` | 鉴权流程与 RLS 策略 |
+| `docs/auth-and-permissions.md` | 鉴权流程、能力×角色矩阵、RLS 策略 |
 | `docs/registration-flow.md` | 报名表单与截图直传 |
 | `docs/ui-design.md` | 页面级视觉设计 |
 | `docs/ui-tokens.md` | 设计 tokens |
