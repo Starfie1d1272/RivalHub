@@ -1,0 +1,42 @@
+import type { Config } from "tailwindcss";
+
+const config: Config = {
+  content: [
+    "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
+  ],
+  darkMode: "class",
+  theme: {
+    extend: {
+      fontFamily: {
+        sans: ["var(--font-inter)", "var(--font-noto-sans-sc)", "sans-serif"],
+      },
+      colors: {
+        // Design tokens — see docs/ui-tokens.md for full specification
+        // Rivals theme
+        "rivals-primary": "var(--rivals-primary)",
+        "rivals-secondary": "var(--rivals-secondary)",
+        // Major theme
+        "major-primary": "var(--major-primary)",
+        "major-secondary": "var(--major-secondary)",
+        // Background layers
+        "bg-base": "var(--bg-base)",
+        "bg-elevated": "var(--bg-elevated)",
+        "bg-overlay": "var(--bg-overlay)",
+        // Text layers
+        "text-primary": "var(--text-primary)",
+        "text-secondary": "var(--text-secondary)",
+        "text-muted": "var(--text-muted)",
+      },
+      borderRadius: {
+        lg: "var(--radius)",
+        md: "calc(var(--radius) - 2px)",
+        sm: "calc(var(--radius) - 4px)",
+      },
+    },
+  },
+  plugins: [],
+};
+
+export default config;
