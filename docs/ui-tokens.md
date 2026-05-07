@@ -28,30 +28,18 @@
 |---|---|---|
 | `--border` | `#30363d` | 卡片边框、分割线、表格行线 |
 
-### Rivals 主题色（橙青）
-
-| Token | 值 | 用途 |
-|---|---|---|
-| `--rivals-primary` | `#f97316` | 主要按钮、链接、强调 |
-| `--rivals-primary-hover` | `#ea6c0a` | 悬停态 |
-| `--rivals-primary-active` | `#c2560a` | 按下态 |
-| `--rivals-secondary` | `#22d3ee` | 标签、次级强调 |
-| `--rivals-secondary-hover` | `#06b6d4` | 悬停态 |
-
-### Major 主题色（红金）
-
-| Token | 值 | 用途 |
-|---|---|---|
-| `--major-primary` | `#ef4444` | 主要按钮、链接 |
-| `--major-primary-hover` | `#dc2626` | 悬停态 |
-| `--major-primary-active` | `#b91c1c` | 按下态 |
-| `--major-secondary` | `#f59e0b` | 次级强调 |
-
 ### 赛季动态主题色
 
-通过 CSS 变量 `--season-primary` 在赛季 layout 中注入，业务组件统一用 `var(--season-primary)`：
-- Rivals 页面：`--season-primary: var(--rivals-primary)`
-- Major 页面：`--season-primary: var(--major-primary)`
+每个赛季通过 `seasons.theme_color` 配置独立主题色，在赛季 layout 中注入 `--season-primary` CSS 变量。业务组件统一使用 `var(--season-primary)`，无需关心具体颜色值。
+
+示例主题色参考：
+
+| 风格 | 值 | 适用场景 |
+|---|---|---|
+| 橙色 | `#f97316` | 选秀联赛等活力型赛事 |
+| 红色 | `#ef4444` | 杯赛等竞技型赛事 |
+| 蓝色 | `#3b82f6` | 休闲赛等友好型赛事 |
+| 青色 | `#06b6d4` | 表演赛等娱乐型赛事 |
 
 ### 语义色
 

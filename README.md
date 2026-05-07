@@ -1,13 +1,12 @@
 # RivalHub
 
-> CS2 社群赛事管理平台 — 支持 NJU Rivals & NJU Major
-> 报名 · 选秀 · 赛程一体化
+> 开源电竞赛事管理平台 — 报名 · 选秀 · 赛程一体化
 
 ## 功能概览
 
 | 功能 | 说明 | 状态 |
 |---|---|---|
-| 多赛事抽象 | Rivals / Major 多届共存，路由前缀 `/[seasonSlug]/` | ✅ 架构就绪 |
+| 多赛事抽象 | capability 驱动多赛事共存，路由前缀 `/[seasonSlug]/` | ✅ 架构就绪 |
 | 玩家报名 | 表单校验、截图直传 Storage、位置实时满员 | 🔄 Phase 4 |
 | 管理员审核 | 通过 / 拒绝 / 等待名单 + audit log | 🔄 Phase 5 |
 | 队长投票 | 全体选手投票，Realtime 票数，得票前 8 名为队长 | 🔄 Phase 6 |

@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-RivalHub 是面向 CS2 社群赛事的多赛事管理平台，当前支持 NJU Rivals（春季）和 NJU Major（秋季）两个赛事品牌的全流程运营：报名 → 审核 → 队长投票 → 蛇形选秀 → 队伍展示 → 赛程 + Bracket 视图 → 部署。
+RivalHub 是开源电竞赛事管理平台，通过 capability 驱动的多赛事模型支持各类赛制（选秀联赛、公开赛、杯赛等）的全流程运营：报名 → 审核 → 队长投票 → 蛇形选秀 → 队伍展示 → 赛程 + Bracket 视图 → 部署。
 
 当前阶段：**Phase 1（脚手架）已完成，Phase 2+ 为业务实现。**
 
@@ -31,7 +31,7 @@ RivalHub 是面向 CS2 社群赛事的多赛事管理平台，当前支持 NJU R
 ## 架构原则（必须遵守）
 
 1. **业务逻辑全部走 Server Actions**，仅 Cron 触发用 API Route。
-2. **多赛事抽象 day-1 到位**：所有赛事相关表含 `season_id` 外键，路由前缀 `/[seasonSlug]/...`，禁止在 v1 写死 Rivals 赛季 ID。
+2. **多赛事抽象 day-1 到位**：所有赛事相关表含 `season_id` 外键，路由前缀 `/[seasonSlug]/...`，禁止硬编码赛季 ID 或 slug。
 3. **不做物化计数**：位置满员等聚合靠 `COUNT GROUP BY`，页面加载时由 Server Component 一次性渲染；提交时服务端再做一次校验。Realtime 仅用于下方白名单的三张表，禁止订阅 `season_registrations`。
 4. **Server Components 为主**，仅 Realtime 订阅 / 表单 / 倒计时等局部标注 `"use client"`。
 5. **选秀并发安全**：Postgres 事务 + `SELECT ... FOR UPDATE` 行锁，`client_request_id` 幂等，8 步全在同一事务（见 `docs/draft-flow.md`）。
@@ -46,8 +46,8 @@ RivalHub 是面向 CS2 社群赛事的多赛事管理平台，当前支持 NJU R
 
 ```typescript
 // ❌ 绝对禁止——这是 if 地狱的起点
-if (season.kind === "rivals") { ... }
-if (season.kind === "major") { ... }
+if (season.kind === "联赛") { ... }
+if (season.kind === "杯赛") { ... }
 
 // ✅ 正确——读 capability 字段
 if (season.hasDraft) { ... }
@@ -55,8 +55,8 @@ if (season.hasCaptainVoting) { ... }
 if (season.registrationMode === "solo") { ... }
 ```
 
-`season.kind` 仅用于界面展示和历史记录。所有功能门控必须读 capability 字段。
-新增赛事类型时，只需在种子数据里配置 capability，不改业务代码。
+`season.kind` 是自由文本标记，仅用于界面展示和筛选。所有功能门控必须读 capability 字段。
+新增赛事类型时，只需在数据库里配置 capability，不改业务代码。
 
 ### ❌ 禁止在事务外广播 Realtime
 
@@ -212,11 +212,19 @@ pnpm seed              # 运行种子脚本（阶段2+ 有真实 DB 后使用）
 
 ## 其他约束提醒
 
-- **禁止在 v1 实现 Major 业务**：Major 相关路由占位显示"敬请期待"，v2 实装。
 - **禁止跳过 audit_log**：任何 admin action（审核、确认队长、录入比分）都必须写 audit_logs。
 - **禁止物化计数字段**：如 `position_count`、`vote_count` 等字段不在 schema 里，靠查询聚合。
 - **禁止在 Server Action 外写 DB 逻辑**：页面文件只做数据读取（RSC fetch），写操作必须是 Server Action。
 - **shadcn 组件按需 add**：`pnpm dlx shadcn@latest add button`，不要手工写 shadcn 组件。
+
+---
+
+## 分支管理
+
+- `main` 分支受保护，始终可部署，仅通过 PR 合入
+- `dev` 为日常开发集成分支，功能完成后通过 PR 合回 `main`
+- 所有改动必须在功能分支上开发，通过 PR 合入 `dev`
+- 分支命名规范：`feat/`（新功能）、`fix/`（修复）、`docs/`（文档）、`refactor/`（重构）、`chore/`（配置/依赖）
 
 ---
 

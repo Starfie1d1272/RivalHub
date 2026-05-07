@@ -1,12 +1,10 @@
 import { db } from "./client";
 import { seasons } from "./schema/seasons";
 import {
-  RIVALS_DEFAULT_CAPABILITIES,
-  MAJOR_DEFAULT_CAPABILITIES,
+  DRAFT_LEAGUE_PRESET,
+  OPEN_TOURNAMENT_PRESET,
 } from "@/types/season";
 
-// TODO: 扩展为完整种子（含 admin invite code 校验记录、测试报名等）
-// 当前仅插入两个赛季占位（Rivals 2026 Spring + Major 2026 Autumn）
 export async function seed() {
   console.log("Seeding database...");
 
@@ -14,20 +12,20 @@ export async function seed() {
     .insert(seasons)
     .values([
       {
-        slug: "rivals-2026-spring",
-        name: "NJU Rivals 2026 Spring",
-        kind: "rivals",
+        slug: "spring-2026-league",
+        name: "2026 春季选秀联赛",
+        kind: "联赛",
         status: "draft",
         themeColor: "#f97316",
-        ...RIVALS_DEFAULT_CAPABILITIES,
+        ...DRAFT_LEAGUE_PRESET,
       },
       {
-        slug: "major-2026-autumn",
-        name: "NJU Major 2026 Autumn",
-        kind: "major",
+        slug: "autumn-2026-open",
+        name: "2026 秋季公开赛",
+        kind: "杯赛",
         status: "draft",
         themeColor: "#ef4444",
-        ...MAJOR_DEFAULT_CAPABILITIES,
+        ...OPEN_TOURNAMENT_PRESET,
       },
     ])
     .onConflictDoNothing();

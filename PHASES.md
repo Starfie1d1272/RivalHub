@@ -1,6 +1,6 @@
 # RivalHub · v1 开发路线图
 
-> 所有阶段均在 Rivals 单赛事内推进，但每个新增表/路由/组件都按多赛事抽象设计（带 `season_id`、走 `/[seasonSlug]/...`）。
+> 所有阶段均基于单赛事推进，但每个新增表/路由/组件都按多赛事抽象设计（带 `season_id`、走 `/[seasonSlug]/...`）。
 > 每阶段结束 commit + push，在此文件更新 checkbox。
 
 ---
@@ -26,7 +26,7 @@
 - [ ] `pnpm db:push` 推送所有表（10 张）
 - [ ] RLS：默认拒绝所有，按表逐条开放最小权限
 - [ ] Storage bucket：`registration-screenshots`（私有，需 admin 可查）
-- [ ] 运行种子脚本：Rivals 2026 Spring + Major 2026 Autumn 占位行
+- [ ] 运行种子脚本：两个示例赛季占位行
 - [ ] 验证 Drizzle Studio 可查询
 
 ---
@@ -34,17 +34,16 @@
 ## Phase 3 — 全局 UI
 
 - [ ] shadcn 基础组件安装（Button / Card / Badge / Input / Select / Toast / Dialog）
-- [ ] Header：多赛季导航（Active 赛季 + Major 显示"敬请期待"）
-- [ ] Footer：社团信息、Github 链接
+- [ ] Header：多赛季导航（Active 赛季 + draft 状态赛季显示"敬请期待"）
+- [ ] Footer：品牌信息、Github 链接
 - [ ] 首页：活跃赛季检测 + 跳转
-- [ ] `/seasons`：历史赛季归档（v1 只显示 Rivals 2026）
-- [ ] `/rules`：规则书（从 docx 提取 Markdown）
+- [ ] `/seasons`：历史赛季归档
 - [ ] 赛季 layout：注入 `theme_color` CSS variable
 - [ ] Tailwind tokens 落地（见 `docs/ui-tokens.md`）
 
 ---
 
-## Phase 4 — 报名系统（Rivals）
+## Phase 4 — 报名系统
 
 - [ ] `submitRegistration` Server Action（Zod 校验 + DB 写入）
 - [ ] 位置满员校验（COUNT GROUP BY + 前端 Realtime）
@@ -130,6 +129,8 @@
 
 ## v2 计划（不在 v1 范围）
 
-- NJU Major 秋季赛报名 / 自由组队表单 / 赛程业务实装
+- 多游戏/多赛制支持（位置系统已泛化，需扩展 UI 适配）
+- 自由组队模式赛事完整实现
 - 历史赛季归档多届展示
-- 用户账号设置页（Steam / QQ 修改）
+- 用户账号设置页
+- i18n 多语言支持

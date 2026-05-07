@@ -14,12 +14,6 @@ const config: Config = {
       },
       colors: {
         // Design tokens — see docs/ui-tokens.md for full specification
-        // Rivals theme
-        "rivals-primary": "var(--rivals-primary)",
-        "rivals-secondary": "var(--rivals-secondary)",
-        // Major theme
-        "major-primary": "var(--major-primary)",
-        "major-secondary": "var(--major-secondary)",
         // Background layers
         "bg-base": "var(--bg-base)",
         "bg-elevated": "var(--bg-elevated)",

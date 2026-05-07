@@ -1,6 +1,6 @@
-// 共享赛季类型——与 Drizzle schema 枚举对齐
+// 共享赛季类型——与 Drizzle schema 对齐
 
-export type SeasonKind = "rivals" | "major";
+export type SeasonKind = string;
 
 export type SeasonStatus =
   | "draft"
@@ -24,7 +24,7 @@ export type PlayoffFormat = "double_elim" | "single_elim";
  * if (season.hasDraft) { ... }
  *
  * // ❌ 禁止
- * if (season.kind === "rivals") { ... }
+ * if (season.kind === "联赛") { ... }
  */
 export interface SeasonCapabilities {
   registrationMode: RegistrationMode;
@@ -36,6 +36,8 @@ export interface SeasonCapabilities {
   playoffFormat: PlayoffFormat | null;
   teamSize: number;
   starterCount: number;
+  /** 该赛季可用的位置标识符列表 */
+  positions: string[];
 }
 
 export interface Season extends SeasonCapabilities {
@@ -52,10 +54,12 @@ export interface Season extends SeasonCapabilities {
   updatedAt: Date;
 }
 
-// ── 种子默认值 ────────────────────────────────────────────────────────────
+// ── Capability 预设 ───────────────────────────────────────────────────────
 
-/** Rivals 赛事的默认 capability 配置（排位赛 28 场 BO1 + 双败正赛）*/
-export const RIVALS_DEFAULT_CAPABILITIES: SeasonCapabilities = {
+const CS2_POSITIONS = ["igl", "awper", "entry", "lurker", "support"];
+
+/** 选秀联赛预设：个人报名 → 队长投票 → 蛇形选秀 → 循环赛 + 双败淘汰 */
+export const DRAFT_LEAGUE_PRESET: SeasonCapabilities = {
   registrationMode: "solo",
   hasCaptainVoting: true,
   hasDraft: true,
@@ -63,10 +67,11 @@ export const RIVALS_DEFAULT_CAPABILITIES: SeasonCapabilities = {
   playoffFormat: "double_elim",
   teamSize: 7,
   starterCount: 5,
+  positions: CS2_POSITIONS,
 };
 
-/** Major 赛事的默认 capability 配置（v2，自由组队 + 双败）*/
-export const MAJOR_DEFAULT_CAPABILITIES: SeasonCapabilities = {
+/** 公开赛预设：自由组队报名 → 循环赛 + 双败淘汰 */
+export const OPEN_TOURNAMENT_PRESET: SeasonCapabilities = {
   registrationMode: "team",
   hasCaptainVoting: false,
   hasDraft: false,
@@ -74,7 +79,18 @@ export const MAJOR_DEFAULT_CAPABILITIES: SeasonCapabilities = {
   playoffFormat: "double_elim",
   teamSize: 5,
   starterCount: 5,
+  positions: CS2_POSITIONS,
 };
+
+/** 所有预设的快捷索引 */
+export const CAPABILITY_PRESETS = {
+  "draft-league": DRAFT_LEAGUE_PRESET,
+  "open-tournament": OPEN_TOURNAMENT_PRESET,
+} as const;
+
+// 向后兼容别名
+export const RIVALS_DEFAULT_CAPABILITIES = DRAFT_LEAGUE_PRESET;
+export const MAJOR_DEFAULT_CAPABILITIES = OPEN_TOURNAMENT_PRESET;
 
 // ── 展示标签 ─────────────────────────────────────────────────────────────
 

@@ -16,9 +16,9 @@ erDiagram
 
   seasons {
     uuid id PK
-    text slug UK "e.g. rivals-2026-spring"
+    text slug UK "e.g. spring-2026-league"
     text name
-    season_kind kind "仅展示用，业务逻辑读 capability"
+    text kind "自由文本标记，仅展示用"
     season_status status
     text theme_color
     registration_mode registration_mode "solo | team"
@@ -28,6 +28,7 @@ erDiagram
     playoff_format playoff_format "double_elim | single_elim | null"
     int team_size
     int starter_count
+    text[] positions "该赛季可用位置列表"
     timestamp start_at
     timestamp end_at
     timestamp created_at
@@ -38,8 +39,8 @@ erDiagram
     uuid id PK
     uuid user_id FK
     uuid season_id FK
-    position primary_position
-    position secondary_position
+    text primary_position
+    text secondary_position
     int peak_rating
     text screenshot_url
     registration_status status
@@ -156,19 +157,17 @@ erDiagram
 
 ## 枚举值
 
-### `season_kind`
-| 值 | 说明 |
-|---|---|
-| `rivals` | NJU Rivals 春季赛（仅展示标记） |
-| `major` | NJU Major 秋季赛（仅展示标记） |
+### `season.kind`（自由文本，非枚举）
 
-> ⚠️ `kind` 仅用于界面展示，业务逻辑不得读取此字段做功能分支。所有功能门控读 capability 字段（`hasDraft`、`hasCaptainVoting` 等）。
+`kind` 是自由文本字段，部署者可自定义任意值（如 "联赛"、"杯赛"、"表演赛"、"league" 等）。
+
+> ⚠️ `kind` 仅用于界面展示和筛选，业务逻辑不得读取此字段做功能分支。所有功能门控读 capability 字段（`hasDraft`、`hasCaptainVoting` 等）。
 
 ### `registration_mode`
 | 值 | 说明 |
 |---|---|
-| `solo` | 个人报名（Rivals 模式） |
-| `team` | 队伍整体报名（Major v2 模式） |
+| `solo` | 个人报名 |
+| `team` | 队伍整体报名 |
 
 ### `season_status`
 | 值 | 说明 |
@@ -181,7 +180,10 @@ erDiagram
 | `finished` | 赛季已结束 |
 | `archived` | 历史归档 |
 
-### `position`
+### `position`（赛季可配置，非固定枚举）
+
+位置列表存储在 `seasons.positions` 数组列中，每个赛季可自定义。默认值为 CS2 五位置：
+
 | 值 | 游戏内名称 |
 |---|---|
 | `igl` | 指挥（IGL） |
@@ -189,6 +191,8 @@ erDiagram
 | `entry` | 突破手（Opener/Entry） |
 | `lurker` | 自由人（Closer/Lurker） |
 | `support` | 主防（Anchor/Support） |
+
+报名时 Server Action 从 `season.positions` 读取合法值做动态校验。
 
 ### `registration_status`
 | 值 | 说明 |
@@ -209,7 +213,7 @@ erDiagram
 ### `match_stage`
 | 值 | 说明 |
 |---|---|
-| `qualifier` | 排位赛（28 场单循环 BO1） |
+| `qualifier` | 排位赛 |
 | `playoff` | 正赛（双败淘汰） |
 
 ### `match_format`
@@ -222,14 +226,14 @@ erDiagram
 ### `qualifier_format`
 | 值 | 说明 |
 |---|---|
-| `round_robin` | 循环赛（Rivals 28 场单循环 BO1） |
+| `round_robin` | 循环赛 |
 | `swiss` | 瑞士轮（保留扩展） |
 | `null` | 无排位赛阶段 |
 
 ### `playoff_format`
 | 值 | 说明 |
 |---|---|
-| `double_elim` | 双败淘汰（Rivals 默认） |
+| `double_elim` | 双败淘汰 |
 | `single_elim` | 单败淘汰 |
 | `null` | 无正赛阶段 |
 

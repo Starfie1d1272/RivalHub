@@ -1,9 +1,6 @@
 import { pgTable, uuid, text, boolean, timestamp, integer, pgEnum, unique } from "drizzle-orm/pg-core";
 import { users } from "./users";
 import { seasons } from "./seasons";
-
-// TODO: add position enum values aligned with CS2 roles
-export const positionEnum = pgEnum("position", ["entry", "awper", "support", "lurker", "igl"]);
 export const registrationStatusEnum = pgEnum("registration_status", [
   "pending",
   "approved",
@@ -17,8 +14,8 @@ export const seasonRegistrations = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     userId: uuid("user_id").notNull().references(() => users.id),
     seasonId: uuid("season_id").notNull().references(() => seasons.id),
-    primaryPosition: positionEnum("primary_position").notNull(),
-    secondaryPosition: positionEnum("secondary_position"),
+    primaryPosition: text("primary_position").notNull(),
+    secondaryPosition: text("secondary_position"),
     peakRating: integer("peak_rating"),
     screenshotUrl: text("screenshot_url"),
     status: registrationStatusEnum("status").notNull().default("pending"),

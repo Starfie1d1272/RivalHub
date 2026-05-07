@@ -11,19 +11,6 @@
   --text-secondary: #8b949e;
   --text-muted: #484f58;
 
-  /* Rivals theme — orange/teal */
-  --rivals-primary: #f97316;
-  --rivals-primary-hover: #ea6c0a;
-  --rivals-primary-active: #c2560a;
-  --rivals-secondary: #22d3ee;
-  --rivals-secondary-hover: #06b6d4;
-
-  /* Major theme — red */
-  --major-primary: #ef4444;
-  --major-primary-hover: #dc2626;
-  --major-primary-active: #b91c1c;
-  --major-secondary: #f59e0b;
-
   /* Separator */
   --border: #30363d;
 
