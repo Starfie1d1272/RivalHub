@@ -94,6 +94,15 @@ pnpm db:generate      # 离线生成迁移 SQL（不连接 DB）
 
 ## 贡献指南
 
+### 分支工作流
+
+- **日常工作分支是 `dev`**
+- 文档、配置、小修复 → 直接 push `dev`
+- 功能开发 → 从 `dev` 开分支（`feat/xxx`）→ PR 合回 `dev`
+- 阶段里程碑 → `dev` → `main` PR
+
+### 开发规范
+
 1. 在 `PHASES.md` 中找到对应阶段，阅读 `docs/` 相关文档后再动手。
 2. 每个 Server Action 必须有对应的 Zod 校验和 audit log（admin 操作）。
 3. PR 标题格式：`[phase-N] 简短描述`，附带通过的 `pnpm tsc --noEmit` 和 `pnpm test`。
