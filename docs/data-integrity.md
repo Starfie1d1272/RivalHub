@@ -22,7 +22,7 @@
 | 主次位置不同 | — | Zod refine | |
 | peak_rating 范围 | — | Zod | DB 不强制（数据来源可信度低） |
 | 状态合法迁移 | — | Server Action 校验 | 见 `state-machines.md` |
-| 位置上限 ≤ 15 | — | Server Action `COUNT GROUP BY` | 不做 DB 触发器 |
+| 同位置审核通过上限 ≤ MAX_PER_POSITION（默认 15） | — | Server Action（报名提交校验 pending+approved；审核通过时只统计 approved） | 赛季级别，非队级别；队内同位置 ≤ 2 由 draft_picks 章节约束 |
 | **captain_votes** | | | |
 | 不能给同一人投两票 | `UNIQUE(voter_id, candidate_id)` | — | |
 | 不能给自己投票 | — | Server Action | DB CHECK 也可，但应用层够用 |
