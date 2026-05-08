@@ -42,12 +42,22 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   return (
     <div className="container mx-auto px-4 py-12 max-w-3xl space-y-8">
       {/* 导航 */}
-      <Link
-        href={`/${seasonSlug}/matches`}
-        className="text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-      >
-        ← 返回赛程总览
-      </Link>
+      <div className="flex items-center gap-4">
+        <Link
+          href={`/${seasonSlug}/matches`}
+          className="text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+        >
+          ← 返回赛程总览
+        </Link>
+        {match.stage === "playoff" && match.bracketNodeId && (
+          <Link
+            href={`/${seasonSlug}/matches#bracket`}
+            className="text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+          >
+            查看对阵图 →
+          </Link>
+        )}
+      </div>
 
       {/* 头部：比赛信息 */}
       <Card className="p-6 space-y-4">

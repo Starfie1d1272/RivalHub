@@ -9,6 +9,7 @@ import { GeneratePlayoffCard } from "@/components/matches/GeneratePlayoffCard";
 import { StandingsTable } from "@/components/matches/StandingsTable";
 import { MatchStatusBadge } from "@/components/matches/MatchStatusBadge";
 import { ScoreInput } from "@/components/matches/ScoreInput";
+import { ScheduledAtInput } from "@/components/matches/ScheduledAtInput";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -168,12 +169,16 @@ export default async function AdminMatchesPage({ params }: AdminMatchesPageProps
                         {m.status !== "finished" && m.status !== "cancelled" && (
                           <>
                             <Separator />
+                            <ScheduledAtInput
+                              matchId={m.id}
+                              currentScheduledAt={m.scheduledAt}
+                            />
                             <ScoreInput
                               matchId={m.id}
                               teamAName={teamAName}
                               teamBName={teamBName}
                               currentStatus={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"}
-                              isBO1
+                              format={m.format as "bo1" | "bo3" | "bo5"}
                             />
                           </>
                         )}
@@ -222,12 +227,16 @@ export default async function AdminMatchesPage({ params }: AdminMatchesPageProps
                         {m.status !== "finished" && m.status !== "cancelled" && (
                           <>
                             <Separator />
+                            <ScheduledAtInput
+                              matchId={m.id}
+                              currentScheduledAt={m.scheduledAt}
+                            />
                             <ScoreInput
                               matchId={m.id}
                               teamAName={teamAName}
                               teamBName={teamBName}
                               currentStatus={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"}
-                              isBO1={false}
+                              format={m.format as "bo1" | "bo3" | "bo5"}
                             />
                           </>
                         )}

@@ -137,13 +137,13 @@
 **自动生成流程**
 - [x] admin 页面「生成赛程」按钮：赛季状态为 `playing` 且尚无 matches 时可用
 - [x] Server Action `generateSchedule(seasonId)`：按赛制 insert 所有 `matches`（`status: scheduled`，`scheduledAt: null`）
-- [ ] 管理员在赛程列表逐场填入 `scheduledAt`（已有 `updateMatchStatus`，`scheduledAt` 编辑 UI 待补）
+- [x] 管理员在赛程列表逐场填入 `scheduledAt`（`ScheduledAtInput` 组件 + `updateMatchScheduledAt` Server Action）
 
 **Bracket 视图**
 - [x] `brackets-manager` 双败淘汰赛数据结构初始化
 - [x] `brackets-viewer` 渲染集成（注入 season theme_color）
 - [x] `/[seasonSlug]/matches` 总览页（bracket 图 + 赛程列表联动）
-- [ ] 比赛详情页与 bracket 节点双向跳转
+- [x] 比赛详情页与 bracket 节点双向跳转（BracketView 点击跳转 + 详情页"查看对阵图"回链）
 
 ---
 

@@ -64,6 +64,13 @@ export default async function MatchesPage({ params }: MatchesPageProps) {
     ),
   };
 
+  // bracketNodeId（字符串）→ matchId（UUID），用于 BracketView 点击跳转
+  const matchNodeMap = new Map<string, string>(
+    playoffMatches
+      .filter((m) => m.bracketNodeId !== null)
+      .map((m) => [m.bracketNodeId!, m.id])
+  );
+
   const hasQualifier = !!season.qualifierFormat;
   const hasPlayoff = !!season.playoffFormat;
 
@@ -141,9 +148,14 @@ export default async function MatchesPage({ params }: MatchesPageProps) {
           <TabsContent value="playoff" className="space-y-8">
             {/* Bracket 图 */}
             {playoffBracketData.stage.length > 0 && (
-              <section className="space-y-3">
+              <section id="bracket" className="space-y-3">
                 <h2 className="text-lg font-semibold text-[var(--text-primary)]">对阵图</h2>
-                <BracketView data={playoffBracketData} themeColor={season.themeColor} />
+                <BracketView
+                  data={playoffBracketData}
+                  themeColor={season.themeColor}
+                  matchNodeMap={matchNodeMap}
+                  seasonSlug={seasonSlug}
+                />
               </section>
             )}
 

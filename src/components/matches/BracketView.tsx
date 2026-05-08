@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import Script from "next/script";
 import type { BracketData } from "@/lib/bracket";
 
@@ -21,14 +22,20 @@ declare global {
 interface BracketViewProps {
   data: BracketData;
   themeColor?: string | null;
+  /** bracketNodeId（数字字符串）→ matchId（UUID），用于点击 bracket 节点跳转详情 */
+  matchNodeMap?: Map<string, string>;
+  seasonSlug?: string;
 }
 
-export function BracketView({ data, themeColor }: BracketViewProps) {
+export function BracketView({ data, themeColor, matchNodeMap, seasonSlug }: BracketViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scriptReady, setScriptReady] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     if (!scriptReady || !window.bracketsViewer || data.stage.length === 0) return;
+
+    let cancelled = false;
 
     window.bracketsViewer.render(
       {
@@ -38,8 +45,26 @@ export function BracketView({ data, themeColor }: BracketViewProps) {
         matchGames: [],
       },
       { selector: "#bracket-container", clear: true }
-    );
-  }, [scriptReady, data]);
+    ).then(() => {
+      if (cancelled || !containerRef.current || !matchNodeMap || !seasonSlug) return;
+      // brackets-viewer renders match elements with data-id attribute
+      const matchEls = containerRef.current.querySelectorAll<HTMLElement>("[data-id]");
+      matchEls.forEach((el) => {
+        const bracketId = el.getAttribute("data-id");
+        if (!bracketId) return;
+        const matchId = matchNodeMap.get(bracketId);
+        if (!matchId) return;
+        el.style.cursor = "pointer";
+        el.title = "点击查看比赛详情";
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          router.push(`/${seasonSlug}/matches/${matchId}`);
+        });
+      });
+    });
+
+    return () => { cancelled = true; };
+  }, [scriptReady, data, matchNodeMap, seasonSlug, router]);
 
   if (data.stage.length === 0) {
     return (

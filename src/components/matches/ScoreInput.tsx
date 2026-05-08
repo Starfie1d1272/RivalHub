@@ -12,12 +12,27 @@ interface ScoreInputProps {
   teamAName: string;
   teamBName: string;
   currentStatus: "scheduled" | "in_progress" | "finished" | "cancelled";
-  /** BO1 排位赛：输入实际回合数（如 13:8）；BO3/BO5：输入系列赛图数（如 2:1） */
-  isBO1?: boolean;
+  format: "bo1" | "bo3" | "bo5";
 }
 
-export function ScoreInput({ matchId, teamAName, teamBName, currentStatus, isBO1 = false }: ScoreInputProps) {
-  const scoreLabel = isBO1 ? "回合数" : "系列赛比分";
+const MAX_WINS: Record<string, number | null> = { bo1: null, bo3: 2, bo5: 3 };
+const SCORE_LABELS: Record<string, string> = { bo1: "回合数", bo3: "系列赛比分（地图胜场）", bo5: "系列赛比分（地图胜场）" };
+
+function validateSeriesScore(format: string, a: number, b: number): string | null {
+  if (isNaN(a) || isNaN(b) || a < 0 || b < 0) return "请输入有效的非负整数";
+  if (a === b) return "系列赛不能平局";
+  const maxWins = MAX_WINS[format];
+  if (maxWins !== null) {
+    const winner = Math.max(a, b);
+    const loser = Math.min(a, b);
+    if (winner !== maxWins || loser >= maxWins) {
+      return `${format.toUpperCase()} 比分不合法（胜者须恰好赢 ${maxWins} 图，如 ${maxWins}:0 或 ${maxWins}:${maxWins - 1}）`;
+    }
+  }
+  return null;
+}
+
+export function ScoreInput({ matchId, teamAName, teamBName, currentStatus, format }: ScoreInputProps) {
   const [scoreA, setScoreA] = useState("");
   const [scoreB, setScoreB] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -37,12 +52,9 @@ export function ScoreInput({ matchId, teamAName, teamBName, currentStatus, isBO1
     e.preventDefault();
     const a = parseInt(scoreA, 10);
     const b = parseInt(scoreB, 10);
-    if (isNaN(a) || isNaN(b) || a < 0 || b < 0) {
-      toast.error("请输入有效的非负整数比分");
-      return;
-    }
-    if (a === b) {
-      toast.error("系列赛不能平局");
+    const err = validateSeriesScore(format, a, b);
+    if (err) {
+      toast.error(err);
       return;
     }
     startTransition(async () => {
@@ -87,7 +99,7 @@ export function ScoreInput({ matchId, teamAName, teamBName, currentStatus, isBO1
 
       {currentStatus === "in_progress" && (
         <form onSubmit={handleSubmit} className="space-y-3">
-          <p className="text-xs text-[var(--text-secondary)]">{scoreLabel}</p>
+          <p className="text-xs text-[var(--text-secondary)]">{SCORE_LABELS[format]}</p>
           <div className="flex items-end gap-3">
             <div className="space-y-1">
               <Label className="text-xs text-[var(--text-secondary)]">{teamAName}</Label>
