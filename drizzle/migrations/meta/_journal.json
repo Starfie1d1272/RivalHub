@@ -15,6 +15,13 @@
       "when": 1778257780916,
       "tag": "0001_colorful_black_cat",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1778263091081,
+      "tag": "0002_fair_ikaris",
+      "breakpoints": true
     }
   ]
 }
