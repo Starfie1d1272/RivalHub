@@ -31,7 +31,11 @@ Next.js App Router (Vercel Edge / Node.js)
 
 路由前缀：
 - `/[seasonSlug]/...` — 公开赛季页面（无需登录）
-- `/admin/[seasonSlug]/...` — 管理员后台（iron-session 保护）
+- `/login` — Magic Link 登录页（已有账号的选手/管理员）
+- `/invite` — 邀请码提权页（需已登录，URL 接收 `?code=xxx`）
+- `/auth/callback` — Supabase Auth 回调（upsert users + 建 session）
+- `/admin/[seasonSlug]/...` — 管理员后台（`rivalhub-session` 或 `rivalhub-admin` 保护）
+- `/admin/login` — Root 紧急登录（用户名+密码）
 - `/api/cron/...` — Vercel Cron 触发（CRON_SECRET 验证）
 
 ### Server Actions 层（`src/actions/`）
@@ -46,7 +50,8 @@ Next.js App Router (Vercel Edge / Node.js)
 | 文件 | 职责 |
 |---|---|
 | `register.ts` | 提交报名、检查位置满员 |
-| `admin.ts` | 管理员登录/注册、审核报名、邀请码管理、密码修改、管理员管理 |
+| `auth.ts` | 发送 Magic Link、邀请码提权（claimInviteCode）、退出登录 |
+| `admin.ts` | Root 登录、审核报名、邀请码管理（createInviteCode + seasonId）、密码修改、管理员管理 |
 | `captains.ts` | 投 / 撤销队长票 |
 | `draft.ts` | pick 选手、autoPick 超时 |
 | `matches.ts` | 创建比赛、录入比分（含 match_maps）、取消比赛 |
@@ -59,7 +64,7 @@ Next.js App Router (Vercel Edge / Node.js)
 
 ### Lib 层（`src/lib/`）
 
-- `auth/session.ts` — iron-session（管理员）
+- `auth/session.ts` — 双 Cookie iron-session：`rivalhub-session`（所有用户）+ `rivalhub-admin`（root 紧急）；`requireAdmin` / `requireSuperAdmin` / `requireSeasonAdmin` / `requireAuth`
 - `auth/supabase.ts` — Supabase client（用户 magic link + Storage）
 - `realtime/subscribe.ts` — Supabase Realtime 订阅封装
 - `config/` — 报名默认配置（位置、段位、上限等，`REGISTRATION_DEFAULTS`）

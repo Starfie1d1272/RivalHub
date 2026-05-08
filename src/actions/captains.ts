@@ -14,7 +14,7 @@ import {
 } from "@/db/schema";
 import { fail, ok, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
-import { requireAdmin } from "@/lib/auth/session";
+import { requireSeasonAdmin } from "@/lib/auth/session";
 import {
   castVoteSchema,
   confirmCaptainsSchema,
@@ -154,7 +154,7 @@ export async function confirmCaptains(
   }
 
   try {
-    const admin = await requireAdmin();
+    const admin = await requireSeasonAdmin(parsed.data.seasonId);
     const result = await db.transaction(async (tx) => {
       const season = await tx.query.seasons.findFirst({
         where: eq(seasons.id, parsed.data.seasonId),
@@ -253,7 +253,7 @@ export async function confirmCaptains(
       await tx.insert(auditLogs).values({
         seasonId: season.id,
         action: "captains.confirm",
-        actorId: admin.adminUsername,
+        actorId: admin.email,
         targetId: season.id,
         targetType: "season",
         meta: {

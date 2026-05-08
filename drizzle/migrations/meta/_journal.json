@@ -8,6 +8,13 @@
       "when": 1778163806347,
       "tag": "0000_massive_warlock",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1778257780916,
+      "tag": "0001_colorful_black_cat",
+      "breakpoints": true
     }
   ]
 }

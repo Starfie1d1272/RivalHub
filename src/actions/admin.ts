@@ -3,12 +3,17 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { randomBytes } from "crypto";
-import { eq, and, count, inArray, desc, sql } from "drizzle-orm";
+import { eq, and, count, desc, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons, seasonRegistrations, auditLogs, adminUsers, adminInvites } from "@/db/schema";
 import { ok, fail } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
-import { requireAdmin, getAdminSession } from "@/lib/auth/session";
+import {
+  auditActorId,
+  requireSeasonAdmin,
+  requireSuperAdmin,
+  getAdminSession,
+} from "@/lib/auth/session";
 import { verifyPassword, hashPassword } from "@/lib/utils/password";
 import { MAX_PER_POSITION } from "@/lib/validators/registration";
 
@@ -88,6 +93,9 @@ export async function adminLogin(username: string, password: string) {
   }
   if (!user.isActive) {
     return fail({ code: ErrorCode.UNAUTHORIZED, message: "该账户已被停用" });
+  }
+  if (user.role !== "super_admin") {
+    return fail({ code: ErrorCode.UNAUTHORIZED, message: "请使用 Magic Link 登录管理员账号" });
   }
   if (!verifyPassword(password, user.passwordHash)) {
     return fail({ code: ErrorCode.UNAUTHORIZED, message: "用户名或密码错误" });
@@ -173,7 +181,6 @@ interface ReviewInput {
 }
 
 export async function reviewRegistration(input: ReviewInput) {
-  const admin = await requireAdmin();
   const { registrationId, status: targetStatus, reason } = input;
 
   if (!["approved", "rejected", "waitlisted"].includes(targetStatus)) {
@@ -181,6 +188,15 @@ export async function reviewRegistration(input: ReviewInput) {
   }
 
   try {
+    const existingReg = await db.query.seasonRegistrations.findFirst({
+      where: eq(seasonRegistrations.id, registrationId),
+      columns: { seasonId: true },
+    });
+    if (!existingReg) {
+      throw new AppError(ErrorCode.NOT_FOUND, "报名记录不存在");
+    }
+    const admin = await requireSeasonAdmin(existingReg.seasonId);
+
     // 事务内完成状态校验 + 位置检查 + 更新 + audit_log
     await db.transaction(async (tx) => {
       const reg = await tx.query.seasonRegistrations.findFirst({
@@ -224,7 +240,7 @@ export async function reviewRegistration(input: ReviewInput) {
       await tx.insert(auditLogs).values({
         seasonId: reg.seasonId,
         action: `registration.${targetStatus}`,
-        actorId: admin.adminUsername ?? "admin",
+        actorId: auditActorId(admin),
         targetId: registrationId,
         targetType: "registration",
         meta: {
@@ -232,6 +248,7 @@ export async function reviewRegistration(input: ReviewInput) {
           to: targetStatus,
           reason: reason ?? null,
           primaryPosition: reg.primaryPosition,
+          actorEmail: admin.email,
         },
       });
     });
@@ -263,35 +280,57 @@ export async function reviewRegistration(input: ReviewInput) {
 
 export async function createInviteCode(input: {
   role?: "admin" | "super_admin";
+  seasonId?: string;
   maxUses?: number;
   expiresInHours?: number;
 }) {
-  const admin = await requireAdmin();
-  const { role = "admin", maxUses = 1, expiresInHours } = input;
+  const admin = await requireSuperAdmin();
+  const { role = "admin", seasonId, maxUses = 1, expiresInHours } = input;
 
-  if (role === "super_admin" && admin.adminRole !== "super_admin") {
-    return fail({ code: ErrorCode.FORBIDDEN, message: "仅超级管理员可创建 super_admin 邀请码" });
+  if (role === "admin" && !seasonId) {
+    return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请选择赛季范围" });
+  }
+  if (role === "admin" && seasonId) {
+    const season = await db.query.seasons.findFirst({
+      where: eq(seasons.id, seasonId),
+      columns: { id: true },
+    });
+    if (!season) {
+      return fail({ code: ErrorCode.SEASON_NOT_FOUND, message: ERROR_MESSAGES.SEASON_NOT_FOUND });
+    }
   }
   const code = randomBytes(8).toString("hex");
 
   const expiresAt = expiresInHours
     ? new Date(Date.now() + expiresInHours * 3600_000)
     : null;
+  const inviteSeasonId = role === "admin" ? seasonId! : null;
 
-  await db.insert(adminInvites).values({
-    code,
-    createdBy: admin.adminId,
-    role,
-    maxUses,
-    expiresAt,
-  });
+  const [invite] = await db
+    .insert(adminInvites)
+    .values({
+      code,
+      createdBy: auditActorId(admin),
+      role,
+      seasonId: inviteSeasonId,
+      maxUses,
+      expiresAt,
+    })
+    .returning({ id: adminInvites.id });
 
   revalidatePath("/admin/invites");
-  return ok({ code, role, maxUses, expiresAt: expiresAt?.toISOString() ?? null });
+  return ok({
+    id: invite.id,
+    code,
+    role,
+    seasonId: inviteSeasonId,
+    maxUses,
+    expiresAt: expiresAt?.toISOString() ?? null,
+  });
 }
 
 export async function deactivateInviteCode(inviteId: string) {
-  await requireAdmin();
+  await requireSuperAdmin();
 
   await db
     .update(adminInvites)
@@ -303,7 +342,7 @@ export async function deactivateInviteCode(inviteId: string) {
 }
 
 export async function getInviteCodes() {
-  await requireAdmin();
+  await requireSuperAdmin();
 
   const invites = await db
     .select()
@@ -317,14 +356,17 @@ export async function getInviteCodes() {
 // ── 修改密码 ──────────────────────────────────────────
 
 export async function changePassword(currentPassword: string, newPassword: string) {
-  const admin = await requireAdmin();
+  const admin = await requireSuperAdmin();
 
   if (!newPassword || newPassword.length < 8) {
     return fail({ code: ErrorCode.VALIDATION_FAILED, message: "新密码至少 8 个字符" });
   }
+  if (admin.authSource !== "root" || !admin.legacyAdminId) {
+    return fail({ code: ErrorCode.FORBIDDEN, message: "Magic Link 用户无需在此修改密码" });
+  }
 
   const user = await db.query.adminUsers.findFirst({
-    where: eq(adminUsers.id, admin.adminId!),
+    where: eq(adminUsers.id, admin.legacyAdminId),
   });
   if (!user) {
     return fail({ code: ErrorCode.NOT_FOUND, message: "管理员账户不存在" });
@@ -344,7 +386,7 @@ export async function changePassword(currentPassword: string, newPassword: strin
 // ── 管理员列表 ────────────────────────────────────────
 
 export async function listAdminUsers() {
-  await requireAdmin();
+  await requireSuperAdmin();
 
   const rows = await db
     .select()
@@ -355,14 +397,10 @@ export async function listAdminUsers() {
 }
 
 export async function deactivateAdminUser(adminId: string) {
-  const admin = await requireAdmin();
+  const admin = await requireSuperAdmin();
 
-  if (admin.adminId === adminId) {
+  if (admin.authSource === "root" && admin.legacyAdminId === adminId) {
     return fail({ code: ErrorCode.VALIDATION_FAILED, message: "不能停用自己的账户" });
-  }
-
-  if (admin.adminRole !== "super_admin") {
-    return fail({ code: ErrorCode.FORBIDDEN, message: "仅超级管理员可执行此操作" });
   }
 
   const target = await db.query.adminUsers.findFirst({
@@ -385,11 +423,7 @@ export async function deactivateAdminUser(adminId: string) {
 }
 
 export async function reactivateAdminUser(adminId: string) {
-  const admin = await requireAdmin();
-
-  if (admin.adminRole !== "super_admin") {
-    return fail({ code: ErrorCode.FORBIDDEN, message: "仅超级管理员可执行此操作" });
-  }
+  await requireSuperAdmin();
 
   await db
     .update(adminUsers)

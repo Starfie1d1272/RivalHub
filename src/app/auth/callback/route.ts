@@ -1,18 +1,52 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { db } from "@/db/client";
+import { users } from "@/db/schema/users";
+import { createUserSession } from "@/lib/auth/session";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/";
+  const next = safeNextPath(searchParams.get("next"));
 
-  if (code) {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    );
-    await supabase.auth.exchangeCodeForSession(code);
+  if (!code) {
+    return NextResponse.redirect(new URL("/login", request.url));
   }
 
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  );
+
+  const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+  if (error || !data.user?.email) {
+    return NextResponse.redirect(new URL("/login", request.url));
+  }
+
+  const email = data.user.email;
+  const authId = data.user.id;
+
+  const [user] = await db
+    .insert(users)
+    .values({ email, authId })
+    .onConflictDoUpdate({
+      target: users.email,
+      set: { authId, updatedAt: new Date() },
+    })
+    .returning();
+
+  await createUserSession({
+    userId: user.id,
+    email: user.email,
+    role: user.role,
+    adminSeasonIds: user.adminSeasonIds,
+    authSource: "user",
+  });
+
   return NextResponse.redirect(new URL(next, request.url));
+}
+
+function safeNextPath(next: string | null): string {
+  if (!next || !next.startsWith("/") || next.startsWith("//")) return "/";
+  return next;
 }

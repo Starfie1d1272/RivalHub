@@ -14,6 +14,7 @@ interface InviteRow {
   id: string;
   code: string;
   role: "super_admin" | "admin";
+  seasonId: string | null;
   maxUses: number;
   usedCount: number;
   usedByUsernames: string[];
@@ -22,21 +23,32 @@ interface InviteRow {
   createdAt: string;
 }
 
+interface SeasonOption {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 export function InviteManager({
   invites: initialInvites,
+  seasons,
 }: {
   invites: InviteRow[];
+  seasons: SeasonOption[];
 }) {
   const [invites, setInvites] = useState(initialInvites);
   const [role, setRole] = useState<"admin" | "super_admin">("admin");
+  const [seasonId, setSeasonId] = useState(seasons[0]?.id ?? "");
   const [maxUses, setMaxUses] = useState(1);
   const [expiresInHours, setExpiresInHours] = useState("");
   const [isPending, startTransition] = useTransition();
+  const seasonNameById = new Map(seasons.map((season) => [season.id, season.name]));
 
   function handleCreate() {
     startTransition(async () => {
       const result = await createInviteCode({
         role,
+        seasonId: role === "admin" ? seasonId : undefined,
         maxUses: maxUses || 1,
         expiresInHours: expiresInHours ? Number(expiresInHours) : undefined,
       });
@@ -46,9 +58,10 @@ export function InviteManager({
         toast.success(`邀请码已生成：${result.data.code}`);
         setInvites((prev) => [
           {
-            id: "",
+            id: result.data.id,
             code: result.data.code,
             role: result.data.role,
+            seasonId: result.data.seasonId,
             maxUses: result.data.maxUses,
             usedCount: 0,
             usedByUsernames: [],
@@ -98,6 +111,23 @@ export function InviteManager({
               <option value="super_admin">超级管理员</option>
             </select>
           </div>
+          {role === "admin" && (
+            <div className="space-y-1 min-w-44">
+              <Label htmlFor="inv-season">赛季范围</Label>
+              <select
+                id="inv-season"
+                className="h-9 rounded-md border border-[var(--border)] bg-transparent px-3 text-sm w-full"
+                value={seasonId}
+                onChange={(e) => setSeasonId(e.target.value)}
+              >
+                {seasons.map((season) => (
+                  <option key={season.id} value={season.id}>
+                    {season.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="space-y-1 w-20">
             <Label htmlFor="inv-uses">次数</Label>
             <Input
@@ -122,7 +152,7 @@ export function InviteManager({
           <Button
             size="sm"
             onClick={handleCreate}
-            disabled={isPending}
+            disabled={isPending || (role === "admin" && !seasonId)}
           >
             生成邀请码
           </Button>
@@ -148,6 +178,9 @@ export function InviteManager({
                   <Badge variant="outline" className="text-xs">
                     {inv.role === "super_admin" ? "超级管理员" : "管理员"}
                   </Badge>
+                  {inv.role === "admin" && inv.seasonId && (
+                    <span>范围：{seasonNameById.get(inv.seasonId) ?? inv.seasonId}</span>
+                  )}
                   <span>
                     使用 {inv.usedCount}/{inv.maxUses}
                   </span>

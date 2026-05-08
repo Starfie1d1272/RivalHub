@@ -26,20 +26,26 @@ export default async function AdminSettingsPage() {
 
   return (
     <div className="min-h-screen">
-      <AdminNav username={admin.adminUsername} />
+      <AdminNav email={admin.email} />
 
       <div className="container mx-auto px-4 py-8 max-w-2xl space-y-10">
         <div>
           <h1 className="text-2xl font-bold mb-2">系统设置</h1>
           <p className="text-sm text-[var(--text-secondary)]">
-            当前登录：{admin.adminUsername}
+            当前登录：{admin.email}
           </p>
         </div>
 
         {/* 修改密码 */}
         <section className="space-y-4">
           <h2 className="text-base font-semibold text-[var(--text-primary)]">修改密码</h2>
-          <ChangePasswordForm />
+          {admin.authSource === "root" ? (
+            <ChangePasswordForm />
+          ) : (
+            <Card className="p-4 text-sm text-[var(--text-secondary)]">
+              Magic Link 登录用户无需在后台修改密码。
+            </Card>
+          )}
         </section>
 
         {/* 环境变量状态 */}

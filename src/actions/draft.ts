@@ -6,7 +6,7 @@ import { db } from "@/db/client";
 import { seasons, teams, draftState, auditLogs } from "@/db/schema";
 import { ok, fail, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
-import { requireAdmin } from "@/lib/auth/session";
+import { auditActorId, requireSeasonAdmin } from "@/lib/auth/session";
 import {
   startDraftSchema,
   pauseDraftSchema,
@@ -23,14 +23,13 @@ import { getSnakeOrder } from "@/lib/draft/rules";
 export async function startDraft(
   input: StartDraftInput,
 ): Promise<ActionResult<{ draftStateId: string }>> {
-  const admin = await requireAdmin();
-
   const parsed = startDraftSchema.safeParse(input);
   if (!parsed.success) {
     return failValidation("启动选秀参数无效");
   }
 
   const { seasonId } = parsed.data;
+  const admin = await requireSeasonAdmin(seasonId);
 
   try {
     const result = await db.transaction(async (tx) => {
@@ -106,10 +105,10 @@ export async function startDraft(
       await tx.insert(auditLogs).values({
         seasonId,
         action: "draft.start",
-        actorId: admin.adminUsername,
+        actorId: auditActorId(admin),
         targetId: seasonId,
         targetType: "season",
-        meta: { firstTeamId, roundDeadline: deadline.toISOString() },
+        meta: { firstTeamId, roundDeadline: deadline.toISOString(), actorEmail: admin.email },
       });
 
       return { draftStateId: draft.id, slug: season.slug };
@@ -128,12 +127,11 @@ export async function startDraft(
 export async function pauseDraft(
   input: PauseDraftInput,
 ): Promise<ActionResult<{ paused: boolean }>> {
-  const admin = await requireAdmin();
-
   const parsed = pauseDraftSchema.safeParse(input);
   if (!parsed.success) {
     return failValidation("暂停选秀参数无效");
   }
+  const admin = await requireSeasonAdmin(parsed.data.seasonId);
 
   try {
     const result = await db.transaction(async (tx) => {
@@ -155,9 +153,10 @@ export async function pauseDraft(
       await tx.insert(auditLogs).values({
         seasonId: parsed.data.seasonId,
         action: "draft.pause",
-        actorId: admin.adminUsername,
+        actorId: auditActorId(admin),
         targetId: ds.id,
         targetType: "draft_state",
+        meta: { actorEmail: admin.email },
       });
 
       const season = await tx.query.seasons.findFirst({
@@ -179,12 +178,11 @@ export async function pauseDraft(
 export async function resumeDraft(
   input: ResumeDraftInput,
 ): Promise<ActionResult<{ resumed: boolean }>> {
-  const admin = await requireAdmin();
-
   const parsed = resumeDraftSchema.safeParse(input);
   if (!parsed.success) {
     return failValidation("恢复选秀参数无效");
   }
+  const admin = await requireSeasonAdmin(parsed.data.seasonId);
 
   try {
     const result = await db.transaction(async (tx) => {
@@ -211,10 +209,10 @@ export async function resumeDraft(
       await tx.insert(auditLogs).values({
         seasonId: parsed.data.seasonId,
         action: "draft.resume",
-        actorId: admin.adminUsername,
+        actorId: auditActorId(admin),
         targetId: ds.id,
         targetType: "draft_state",
-        meta: { roundDeadline: deadline.toISOString() },
+        meta: { roundDeadline: deadline.toISOString(), actorEmail: admin.email },
       });
 
       const season = await tx.query.seasons.findFirst({

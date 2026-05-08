@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { eq, count, asc, and } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons, matches, teams } from "@/db/schema";
-import { requireAdmin } from "@/lib/auth/session";
+import { requireSeasonAdmin } from "@/lib/auth/session";
 import { calculateStandings } from "@/lib/standings";
 import { GenerateScheduleCard } from "@/components/matches/GenerateScheduleCard";
 import { GeneratePlayoffCard } from "@/components/matches/GeneratePlayoffCard";
@@ -24,13 +24,13 @@ interface AdminMatchesPageProps {
 const FORMAT_LABELS = { bo1: "BO1", bo3: "BO3", bo5: "BO5" };
 
 export default async function AdminMatchesPage({ params }: AdminMatchesPageProps) {
-  await requireAdmin();
   const { seasonSlug } = await params;
 
   const season = await db.query.seasons.findFirst({
     where: eq(seasons.slug, seasonSlug),
   });
   if (!season) notFound();
+  await requireSeasonAdmin(season.id);
 
   const [allTeams, allMatches] = await Promise.all([
     db.query.teams.findMany({
