@@ -147,6 +147,19 @@
 
 ---
 
+## Phase 11.5 — 玩家数据展示（player-stats 录入已完成，展示待做）
+
+OCR 录入流程已完成（PR #28），数据保存在 `match_player_stats` 表。待补展示侧：
+
+- [ ] **比赛详情页数据表**：`/[seasonSlug]/matches/[matchId]` 每张地图下方加 K/D/A、ADR、RWS、Rating、WE 数据表格（Server Component，读 `getPlayerStatsByMap`）
+- [ ] **个人统计聚合**：用户主页展示跨地图赛事数据（场均 K/D/A、Rating 等，按赛季分组）
+- [ ] **赛季排行榜**：`/[seasonSlug]/stats` 页面，按 Rating/ADR/KD 等指标排名（类似 HLTV Stats 页）
+- [ ] **队伍聚合统计**：队伍场均数据（团队 ADR、胜率等）
+
+> 以上均为 v1 拓展功能，可按需推进，不阻塞 Phase 12 部署。
+
+---
+
 ## Phase 12 — 部署上线
 
 - [ ] Vercel 环境变量配置
