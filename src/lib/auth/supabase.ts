@@ -1,18 +1,35 @@
-// TODO: 实现 Supabase client 工厂
-// - createServerClient()：Server Component / Server Action 用（使用 cookies()）
-// - createBrowserClient()：Client Component 用（单例）
-// - createServiceClient()：Server Action 内部操作（Service Role Key，绕过 RLS）
+import { createClient } from "@supabase/supabase-js";
 
-import type { SupabaseClient } from "@supabase/supabase-js";
-
-export function createServerClient(): SupabaseClient {
-  throw new Error("not implemented");
+/**
+ * 服务端专用客户端（Service Role Key，绕过 RLS）
+ * 仅在 Server Action / API Route 中使用，禁止暴露给浏览器
+ */
+export function createServiceClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    }
+  );
 }
 
-export function createBrowserClient(): SupabaseClient {
-  throw new Error("not implemented");
+/**
+ * 浏览器客户端（anon key）
+ * 在 Client Component 中使用，受 RLS 约束
+ */
+export function createBrowserClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
 }
 
-export function createServiceClient(): SupabaseClient {
-  throw new Error("not implemented");
-}
+/**
+ * Server Component 客户端
+ * Phase 5 接入 cookie-based Auth 后替换为 @supabase/ssr 版本
+ */
+export { createServiceClient as createServerClient };
