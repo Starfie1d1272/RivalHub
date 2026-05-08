@@ -56,7 +56,7 @@ export interface Season extends SeasonCapabilities {
 
 // ── Capability 预设 ───────────────────────────────────────────────────────
 
-const CS2_POSITIONS = ["igl", "awper", "entry", "lurker", "support"];
+const CS2_POSITIONS = ["igl", "awper", "opener", "closer", "anchor"];
 
 /** 选秀联赛预设：个人报名 → 队长投票 → 蛇形选秀 → 循环赛 + 双败淘汰 */
 export const DRAFT_LEAGUE_PRESET: SeasonCapabilities = {

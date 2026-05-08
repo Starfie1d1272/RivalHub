@@ -11,12 +11,9 @@
         ↓
         展示各位置已报名人数（页面加载时静态渲染，提交后服务端二次校验）
         ↓
-用户填写表单并上传截图
+用户填写表单（含 NJUBox 截图分享链接）
   ↓
 客户端 Zod 校验通过
-  ↓
-截图直传 Supabase Storage（客户端直接上传，不经 Next.js 服务器）
-  获得 screenshot_url
   ↓
 调用 submitRegistration Server Action
   ↓
@@ -33,24 +30,13 @@
 
 ---
 
-## 截图直传（Supabase Storage）
+## 截图上传
 
-**为什么客户端直传**：避免截图经过 Next.js 服务器，减少带宽和延迟。
+**当前方案（v1）**：选手将 5 张天梯截图上传至 NJUBox（https://box.nju.edu.cn），获取分享链接后填入报名表单的「NJUBox 分享链接」字段。提交时直接存储该 URL。
 
-```typescript
-// 客户端组件（表单提交前）
-const { data, error } = await supabase.storage
-  .from("registration-screenshots")
-  .upload(`${seasonId}/${userId}/${fileName}`, file, {
-    contentType: file.type,
-    upsert: true,
-  });
-const screenshotUrl = data?.path; // 相对路径，存入 DB
-```
-
-**Bucket 配置**：
-- 名称：`registration-screenshots`
-- 权限：**私有**（不公开访问）
+**未来方案（Phase 5+）**：支持客户端直传 Supabase Storage，避免依赖第三方图床。
+- Bucket 名称：`registration-screenshots`
+- 权限：私有（不公开访问）
 - 管理员审核时通过 Service Role 生成签名 URL（有效期 1 小时）
 
 ---
@@ -97,20 +83,33 @@ GROUP BY primary_position;
 | 字段 | 说明 | 校验规则 |
 |---|---|---|
 | `email` | 邮箱（用于 Magic Link） | 有效 email 格式 |
-| `steam64` | Steam 64 位 ID | 17 位纯数字 |
+| `studentId` | 学号 | 非空；毕业生填「毕业年份+学院」 |
 | `qq` | QQ 号 | 5-12 位数字 |
+| `perfectId` | 完美平台 ID | 非空 |
+| `steamName` | Steam 昵称 | 非空 |
+| `steam64` | Steam 64 位 ID | 17 位纯数字 |
+| `steamProfileUrl` | Steam 个人资料链接 | steamcommunity.com 域名 |
 | `primaryPosition` | 主选位置 | `season.positions` 中的合法值 |
-| `peakRating` | 历史最高 rating | 整数 0-30000 |
-| `screenshotUrl` | 近两周天梯截图 | 上传后获得 URL |
-| 反作弊承诺勾选 | | must be true |
+| `secondaryPosition` | 次选位置 | 不可与主选相同 |
+| `peakRank` | 历史最高段位 | 合法段位值（D~S魔王） |
+| `peakRankSeason` | 取得最高段位的赛季 | 非空，如 "S1 2026" |
+| `peakRating` | 历史最高 Rating | 整数 0-50000 |
+| `currentSeasonPeakRank` | 当前赛季最高段位 | 合法段位值 |
+| `currentRating` | 当前赛季 Rating | 整数 0-50000 |
+| `screenshotUrl` | 天梯截图 NJUBox 分享链接 | HTTPS URL |
+| `gameplayStyle` | 游戏风格自述 | ≤100 字 |
+| `antiCheatPledge` | 反作弊承诺勾选 | 必须为 true |
 
 ### 选填字段
 
 | 字段 | 说明 |
 |---|---|
-| `secondaryPosition` | 次选位置（不能与主选相同） |
-| `notes` | 游戏风格自述（≤100字） |
+| `peakWe` | 历史最高 WE |
+| `currentWe` | 当前赛季 WE |
+| `competitionHistory` | 历史比赛经历（≤500 字） |
+| `highlightVideoUrl` | 高光视频链接 |
 | `willingToBeCaptain` | 是否愿意担任队长（默认 false） |
+| `notes` | 备注（≤500 字） |
 
 ---
 

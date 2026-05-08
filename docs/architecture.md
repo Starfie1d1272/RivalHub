@@ -62,6 +62,7 @@ Next.js App Router (Vercel Edge / Node.js)
 - `auth/session.ts` — iron-session（管理员）
 - `auth/supabase.ts` — Supabase client（用户 magic link + Storage）
 - `realtime/subscribe.ts` — Supabase Realtime 订阅封装
+- `config/` — 报名默认配置（位置、段位、上限等，`REGISTRATION_DEFAULTS`）
 - `validators/` — Zod schema（中文错误消息）
 - `utils/date.ts` — UTC ↔ Asia/Shanghai
 - `utils/season.ts` — capability 判断（`showDraft` / `showCaptainVoting` / `showQualifier` / `showPlayoffBracket` 等），是路由守卫与 UI 条件渲染的唯一入口
@@ -70,13 +71,16 @@ Next.js App Router (Vercel Edge / Node.js)
 ## 数据流：报名写入
 
 ```
-用户填写表单
+用户填写表单（含 NJUBox 截图分享链接）
   → React Hook Form 校验（客户端 Zod）
   → submitRegistration Server Action
     → Zod 服务端二次校验
+    → Upsert users（按 email）
+    → 检查重复报名（UNIQUE user+season）
+    → 检查位置满员（COUNT GROUP BY）
     → DB: INSERT season_registrations
     → Supabase Auth: sendMagicLink(email)
-  → 页面重定向至"报名成功"
+  → 页面展示"报名成功" + 邮件提示
 ```
 
 ## 数据流：选秀 pick（并发安全）

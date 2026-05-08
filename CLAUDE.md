@@ -4,7 +4,7 @@
 
 RivalHub 是开源电竞赛事管理平台，通过 capability 驱动的多赛事模型支持各类赛制（选秀联赛、公开赛、杯赛等）的全流程运营：报名 → 审核 → 队长投票 → 蛇形选秀 → 队伍展示 → 赛程 + Bracket 视图 → 部署。
 
-当前阶段：**Phase 1（脚手架）已完成，Phase 2+ 为业务实现。**
+当前阶段：**Phase 4（报名系统）基本完成，Phase 5+ 待推进。**
 
 ---
 
@@ -146,7 +146,7 @@ return null;                   // 成功/失败语义不明
 | `/[seasonSlug]/draft/**` | `force-dynamic` | 不缓存（实时性强） |
 | `/[seasonSlug]/draft/captain` | `force-dynamic` | 同上 |
 | `/admin/**` | `force-dynamic` | 不缓存 |
-| `/[seasonSlug]/register` | RSC 默认 | 报名提交后 `revalidatePath` |
+| `/[seasonSlug]/register` | `force-dynamic` | 报名提交后 `revalidatePath` |
 | `/[seasonSlug]/captains` | RSC 默认 + Realtime | 投票变化时 `revalidatePath` |
 | `/[seasonSlug]/teams` | RSC 默认（赛季进入 playing 后基本不变） | 选秀完成时 `revalidatePath` |
 | `/[seasonSlug]/matches/**` | RSC 默认 | 录入比分时 `revalidatePath` |
@@ -175,6 +175,7 @@ src/
 ├── lib/
 │   ├── auth/         # session.ts（iron-session）+ supabase.ts
 │   ├── bracket/      # brackets-manager 适配层（禁止绕过）
+│   ├── config/       # 报名默认配置（REGISTRATION_DEFAULTS）
 │   ├── realtime/     # Supabase Realtime 订阅辅助
 │   ├── validators/   # Zod schema（registration / vote）
 │   └── utils/        # date（UTC/CST）+ season（capability 工具）+ cn

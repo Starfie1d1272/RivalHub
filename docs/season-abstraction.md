@@ -19,7 +19,7 @@
 | `playoffFormat` | `double_elim \| single_elim \| null` | `double_elim` | `double_elim` | 正赛赛制 |
 | `teamSize` | `integer` | `7` | `5` | 每队人数 |
 | `starterCount` | `integer` | `5` | `5` | 首发人数 |
-| `positions` | `text[]` | `["igl","awper",...]` | `["igl","awper",...]` | 该赛季可用位置列表 |
+| `positions` | `text[]` | `["igl","awper","opener","closer","anchor"]` | `["igl","awper","opener","closer","anchor"]` | 该赛季可用位置列表 |
 
 **为什么 qualifier 与 playoff 拆开**：有些赛事可能仅有排位赛或仅有正赛，必须能独立配置。
 
@@ -47,7 +47,7 @@ if (season.hasDraft) { showDraftPage() }
 
 每个赛季通过 `positions` 数组列定义该赛季可用的位置标识符。报名时 Server Action 从 `season.positions` 读取合法值做 Zod 校验。
 
-默认值为 CS2 五位置：`["igl", "awper", "entry", "lurker", "support"]`。
+默认值为 CS2 五位置：`["igl", "awper", "opener", "closer", "anchor"]`。
 
 不同游戏的赛事可以配置不同的位置列表（如 LOL 的 "top", "jungle", "mid", "adc", "support"），无需修改代码。
 

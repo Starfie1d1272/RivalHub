@@ -41,8 +41,17 @@ erDiagram
     uuid season_id FK
     text primary_position
     text secondary_position
+    text peak_rank
+    text peak_rank_season
     int peak_rating
-    text screenshot_url
+    int peak_we
+    text current_season_peak_rank
+    int current_rating
+    int current_we
+    text[] screenshot_urls
+    text gameplay_style
+    text competition_history
+    text highlight_video_url
     registration_status status
     bool willing_to_be_captain
     text notes
@@ -188,9 +197,9 @@ erDiagram
 |---|---|
 | `igl` | 指挥（IGL） |
 | `awper` | 狙击手（AWPer） |
-| `entry` | 突破手（Opener/Entry） |
-| `lurker` | 自由人（Closer/Lurker） |
-| `support` | 主防（Anchor/Support） |
+| `opener` | 突破手（Opener） |
+| `closer` | 自由人/残局（Closer） |
+| `anchor` | 主防（Anchor） |
 
 报名时 Server Action 从 `season.positions` 读取合法值做动态校验。
 

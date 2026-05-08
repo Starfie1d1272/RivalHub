@@ -49,7 +49,7 @@ export const seasons = pgTable("seasons", {
   // 首发人数
   starterCount: integer("starter_count").notNull().default(5),
   // 该赛季可用的位置标识符列表（应用层 Zod 校验报名时引用此列表）
-  positions: text("positions").array().notNull().default(sql`ARRAY['igl','awper','entry','lurker','support']`),
+  positions: text("positions").array().notNull().default(sql`ARRAY['igl','awper','opener','closer','anchor']`),
   // ──────────────────────────────────────────────────────────────────────
 
   startAt: timestamp("start_at", { withTimezone: true }),

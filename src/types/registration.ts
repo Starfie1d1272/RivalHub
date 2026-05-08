@@ -1,6 +1,6 @@
 // 共享报名类型
 
-export type Position = "igl" | "awper" | "entry" | "lurker" | "support";
+export type Position = "igl" | "awper" | "opener" | "closer" | "anchor";
 
 export type RegistrationStatus = "pending" | "approved" | "rejected" | "waitlisted";
 
@@ -23,9 +23,9 @@ export interface Registration {
 export const POSITION_LABELS: Record<Position, string> = {
   igl: "IGL（指挥）",
   awper: "AWPer（狙击手）",
-  entry: "Opener / Entry（突破手）",
-  lurker: "Closer / Lurker（自由人）",
-  support: "Anchor / Support（主防）",
+  opener: "Opener（突破手）",
+  closer: "Closer（自由人/残局）",
+  anchor: "Anchor（主防）",
 };
 
 /** 审核状态中文标签 */
