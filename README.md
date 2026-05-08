@@ -12,8 +12,8 @@
 | 队长投票 | 全体选手投票，Realtime 票数，得票前 8 名为队长 | 🔄 Phase 6 |
 | 蛇形选秀直播间 | Realtime 围观，倒计时，剩余选手池 | 🔄 Phase 7 |
 | 队长选秀面板 | 事务行锁、幂等 pick、超时 Cron 自动递补 | 🔄 Phase 8 |
-| 队伍展示 | 7 人阵容按位置排版 | 🔄 Phase 9 |
-| 赛程管理 | 比赛详情 + 比分录入 + 状态机 | 🔄 Phase 10 |
+| 队伍展示 | 7 人阵容按位置排版，首发/替补分区，队长 badge | ✅ Phase 9 |
+| 赛程管理 | 比赛详情 + 地图结果 + 管理员录分/取消 | ✅ Phase 10 |
 | Bracket 视图 | `brackets-manager` 双败淘汰图 | 🔄 Phase 11 |
 | 部署上线 | Vercel + 自定义域名 + Cron + E2E 验证 | 🔄 Phase 12 |
 

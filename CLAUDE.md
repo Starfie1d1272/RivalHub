@@ -177,7 +177,7 @@ src/
 │   ├── bracket/      # brackets-manager 适配层（禁止绕过）
 │   ├── config/       # 报名默认配置（REGISTRATION_DEFAULTS）
 │   ├── realtime/     # Supabase Realtime 订阅辅助
-│   ├── validators/   # Zod schema（registration / vote）
+│   ├── validators/   # Zod schema（registration / vote / match）
 │   └── utils/        # date（UTC/CST）+ season（capability 工具）+ password（scrypt）+ cn
 ├── components/
 │   ├── layout/       # Header / Footer

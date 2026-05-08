@@ -47,11 +47,11 @@ erDiagram
     text secondary_position
     text peak_rank
     text peak_rank_season
-    int peak_rating
-    int peak_we
+    real peak_rating "0.01–3.00，两位小数"
+    real peak_we "0.0–16.0，一位小数，可选"
     text current_season_peak_rank
-    int current_rating
-    int current_we
+    real current_rating "0.01–3.00，两位小数"
+    real current_we "0.0–16.0，一位小数，可选"
     text[] screenshot_urls
     text gameplay_style
     text competition_history

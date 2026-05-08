@@ -20,7 +20,9 @@
 | **season_registrations** | | | |
 | 一人一赛季只一份 | `UNIQUE(user_id, season_id)` | — | |
 | 主次位置不同 | — | Zod refine | |
-| peak_rating 范围 | — | Zod | DB 不强制（数据来源可信度低） |
+| peak_rating / current_rating 范围 | — | Zod（0.01–3.00，两位小数）| DB 存 real；范围/精度由应用层保证 |
+| peak_we / current_we 范围 | — | Zod（0.0–16.0，一位小数，可选）| 同上 |
+| 报名段位门槛 | — | Zod refine（跨字段）+ Server Action | 当前赛季 ≥ A 或历史最高 ≥ A+，两者满足一即可 |
 | 状态合法迁移 | — | Server Action 校验 | 见 `state-machines.md` |
 | 同位置审核通过上限 ≤ MAX_PER_POSITION（默认 15） | — | Server Action（报名提交校验 pending+approved；审核通过时只统计 approved） | 赛季级别，非队级别；队内同位置 ≤ 2 由 draft_picks 章节约束 |
 | **captain_votes** | | | |

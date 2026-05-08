@@ -124,7 +124,7 @@ export function RegistrationForm({
       setValueAs: (v: string) =>
         v === "" || v === undefined || v === null
           ? undefined
-          : parseInt(String(v), 10),
+          : parseFloat(String(v)),
     });
 
   return (
@@ -324,9 +324,10 @@ export function RegistrationForm({
               <Input
                 id="peakRating"
                 type="number"
-                placeholder="如 14500"
-                min={0}
-                max={50000}
+                placeholder="如 1.48"
+                min={0.01}
+                max={3.00}
+                step={0.01}
                 className={inputCls}
                 {...numRegister("peakRating")}
               />
@@ -339,9 +340,10 @@ export function RegistrationForm({
               <Input
                 id="peakWe"
                 type="number"
-                placeholder="如 8000"
+                placeholder="如 8.5"
                 min={0}
-                max={50000}
+                max={16.0}
+                step={0.1}
                 className={inputCls}
                 {...numRegister("peakWe")}
               />
@@ -388,9 +390,10 @@ export function RegistrationForm({
               <Input
                 id="currentRating"
                 type="number"
-                placeholder="如 13000"
-                min={0}
-                max={50000}
+                placeholder="如 1.35"
+                min={0.01}
+                max={3.00}
+                step={0.01}
                 className={inputCls}
                 {...numRegister("currentRating")}
               />
@@ -403,9 +406,10 @@ export function RegistrationForm({
               <Input
                 id="currentWe"
                 type="number"
-                placeholder="如 7500"
+                placeholder="如 7.5"
                 min={0}
-                max={50000}
+                max={16.0}
+                step={0.1}
                 className={inputCls}
                 {...numRegister("currentWe")}
               />

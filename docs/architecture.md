@@ -49,7 +49,7 @@ Next.js App Router (Vercel Edge / Node.js)
 | `admin.ts` | 管理员登录/注册、审核报名、邀请码管理、密码修改、管理员管理 |
 | `captains.ts` | 投 / 撤销队长票 |
 | `draft.ts` | pick 选手、autoPick 超时 |
-| `matches.ts` | 创建比赛、录入比分、更新 bracket |
+| `matches.ts` | 创建比赛、录入比分（含 match_maps）、取消比赛 |
 
 ### DB 层（`src/db/`）
 
@@ -63,7 +63,7 @@ Next.js App Router (Vercel Edge / Node.js)
 - `auth/supabase.ts` — Supabase client（用户 magic link + Storage）
 - `realtime/subscribe.ts` — Supabase Realtime 订阅封装
 - `config/` — 报名默认配置（位置、段位、上限等，`REGISTRATION_DEFAULTS`）
-- `validators/` — Zod schema（中文错误消息）
+- `validators/` — Zod schema（中文错误消息）：`registration.ts`（含段位门槛跨字段校验）、`match.ts`（createMatch / recordMatchResult）
 - `utils/date.ts` — UTC ↔ Asia/Shanghai
 - `utils/season.ts` — capability 判断（`showDraft` / `showCaptainVoting` / `showQualifier` / `showPlayoffBracket` 等），是路由守卫与 UI 条件渲染的唯一入口
 - `utils/cn.ts` — Tailwind class merge 工具

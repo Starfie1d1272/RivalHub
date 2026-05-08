@@ -1,21 +1,28 @@
-// TODO: 实现 UTC ↔ Asia/Shanghai 时间转换工具
-// - formatCST(date)：将 UTC Date 格式化为中文本地时间字符串
-// - parseCST(str)：将 Asia/Shanghai 时间字符串解析为 UTC Date
-// - getCountdownSeconds(deadline)：计算距截止时间的秒数
-// - isDeadlinePassed(deadline)：判断截止时间是否已过
+const CST_LOCALE = "zh-CN";
+const CST_TZ = "Asia/Shanghai";
 
-export function formatCST(_date: Date | string): string {
-  throw new Error("not implemented");
+export function formatCST(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return d.toLocaleString(CST_LOCALE, {
+    timeZone: CST_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
-export function parseCST(_str: string): Date {
-  throw new Error("not implemented");
+export function parseCST(str: string): Date {
+  return new Date(str);
 }
 
-export function getCountdownSeconds(_deadline: Date | string): number {
-  throw new Error("not implemented");
+export function getCountdownSeconds(deadline: Date | string): number {
+  const d = typeof deadline === "string" ? new Date(deadline) : deadline;
+  return Math.max(0, Math.floor((d.getTime() - Date.now()) / 1000));
 }
 
-export function isDeadlinePassed(_deadline: Date | string): boolean {
-  throw new Error("not implemented");
+export function isDeadlinePassed(deadline: Date | string): boolean {
+  const d = typeof deadline === "string" ? new Date(deadline) : deadline;
+  return d.getTime() <= Date.now();
 }

@@ -148,10 +148,10 @@ cancelled
 
 | 当前状态 | 可迁移至 | 触发方 | 备注 |
 |---|---|---|---|
-| `scheduled` | `in_progress` | admin | 比赛开始 |
+| `scheduled` | `in_progress` | admin | 比赛开始（Phase 10 admin UI 尚未实现此按钮，预留） |
 | `scheduled` | `cancelled` | admin | 双方队伍弃权或赛程调整 |
-| `in_progress` | `finished` | admin | 录入比分，必须同时更新 bracket |
-| `in_progress` | `cancelled` | admin | 特殊情况（不影响已进行局数的 bracket） |
+| `in_progress` | `finished` | admin | 录入比分（`recordMatchResult` 接受 scheduled 或 in_progress） |
+| `in_progress` | `cancelled` | admin | 特殊情况（**当前 `cancelMatch` 仅允许 scheduled → cancelled；in_progress → cancelled 待 Phase 11 补充**） |
 
 ### 禁止迁移
 
@@ -160,7 +160,7 @@ cancelled
 
 ### 比分录入规则
 
-比分录入时必须同步调用 `lib/bracket/advanceMatch()`，不允许仅更新 `matches` 表而不推进 bracket。
+Phase 10 `recordMatchResult` 仅更新 `matches` 表和 `match_maps`，bracket 推进（`lib/bracket/advanceMatch()`）在 Phase 11 完成后接入。
 
 ### BO3 / BO5 系列赛与 match_maps 关系
 

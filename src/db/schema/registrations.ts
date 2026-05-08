@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, boolean, timestamp, integer, pgEnum, unique } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, boolean, timestamp, integer, real, pgEnum, unique } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { users } from "./users";
 import { seasons } from "./seasons";
@@ -24,13 +24,15 @@ export const seasonRegistrations = pgTable(
     // ── 段位 · 历史最高 ──────────────────────────────
     peakRank: text("peak_rank").notNull(),              // e.g. "A+"
     peakRankSeason: text("peak_rank_season").notNull(),  // e.g. "S1 2026"
-    peakRating: integer("peak_rating").notNull(),
-    peakWe: integer("peak_we"),
+    // rating：完美平台 Rating，0.01–3.00，两位小数
+    peakRating: real("peak_rating").notNull(),
+    // WE：Win Effect，0.0–16.0，一位小数
+    peakWe: real("peak_we"),
 
     // ── 段位 · 当前赛季最高 ──────────────────────────
     currentSeasonPeakRank: text("current_season_peak_rank").notNull(),
-    currentRating: integer("current_rating").notNull(),
-    currentWe: integer("current_we"),
+    currentRating: real("current_rating").notNull(),
+    currentWe: real("current_we"),
 
     // ── 截图（5 张天梯近期对局）─────────────────────
     screenshotUrls: text("screenshot_urls")

@@ -93,19 +93,27 @@ GROUP BY primary_position;
 | `secondaryPosition` | 次选位置 | 不可与主选相同 |
 | `peakRank` | 历史最高段位 | 合法段位值（D~S魔王） |
 | `peakRankSeason` | 取得最高段位的赛季 | 非空，如 "S1 2026" |
-| `peakRating` | 历史最高 Rating | 整数 0-50000 |
-| `currentSeasonPeakRank` | 当前赛季最高段位 | 合法段位值 |
-| `currentRating` | 当前赛季 Rating | 整数 0-50000 |
+| `peakRating` | 历史最高完美平台 Rating | 0.01–3.00，两位小数（均值约 1.0） |
+| `currentSeasonPeakRank` | 当前赛季最高段位 | 合法段位值；**报名门槛见下** |
+| `currentRating` | 当前赛季 Rating | 0.01–3.00，两位小数 |
 | `screenshotUrl` | 天梯截图 NJUBox 分享链接 | HTTPS URL |
 | `gameplayStyle` | 游戏风格自述 | ≤100 字 |
 | `antiCheatPledge` | 反作弊承诺勾选 | 必须为 true |
+
+### 报名段位门槛
+
+**以下两个条件满足其一即可报名**：
+- 当前赛季最高段位 ≥ **A**（含）
+- 历史最高段位 ≥ **A+**（含）
+
+校验在 Zod schema（客户端）和 Server Action（服务端）两层执行。
 
 ### 选填字段
 
 | 字段 | 说明 |
 |---|---|
-| `peakWe` | 历史最高 WE |
-| `currentWe` | 当前赛季 WE |
+| `peakWe` | 历史最高 Win Effect，0.0–16.0，一位小数（均值约 8.0） |
+| `currentWe` | 当前赛季 WE，同上 |
 | `competitionHistory` | 历史比赛经历（≤500 字） |
 | `highlightVideoUrl` | 高光视频链接 |
 | `willingToBeCaptain` | 是否愿意担任队长（默认 false） |

@@ -100,24 +100,35 @@
 
 ---
 
-## Phase 9 — 队伍展示页
+## Phase 9 — 队伍展示页 ✅
 
-- [ ] `/[seasonSlug]/teams` 列表页（8 队卡片）
-- [ ] `/[seasonSlug]/teams/[teamId]` 详情页（7 人按位置排版，队长标识）
-
----
-
-## Phase 10 — 比赛详情
-
-- [ ] `createMatch` / `recordMatchResult` Server Action
-- [ ] `/[seasonSlug]/matches/[matchId]` 详情页（双方阵容、比分、地图结果、状态机）
-- [ ] `/admin/[seasonSlug]/matches` 管理员录入比分
-- [ ] 比赛状态机：`scheduled → in_progress → finished`
+- [x] `/[seasonSlug]/teams` 列表页（8 队卡片，按 draftOrder 排序）
+- [x] `/[seasonSlug]/teams/[teamId]` 详情页（首发/替补分区，队长 badge）
 
 ---
 
-## Phase 11 — Bracket 视图
+## Phase 10 — 比赛详情 ✅
 
+- [x] `createMatch` / `recordMatchResult` / `cancelMatch` Server Action
+- [x] `/[seasonSlug]/matches/[matchId]` 详情页（双方阵容、比分、地图结果、状态）
+- [x] `/admin/[seasonSlug]/matches` 管理员赛程表（创建/录分/取消）
+- [x] 比赛状态机：`scheduled → in_progress → finished`，`scheduled → cancelled`
+
+---
+
+## Phase 11 — Bracket 视图 + 自动生成赛程
+
+**赛制支持**
+- [ ] 单循环排位赛（Round Robin）：按 `draftOrder` 为种子，生成所有两两对阵的 `matches` 行
+- [ ] 双败淘汰正赛（Double Elimination）：排位赛结束后按名次分配种子，`brackets-manager` 生成 bracket 结构，写入 `matches`
+- [ ] （远期）三败瑞士轮：用于 Major 预选，需自行实现配对算法，单独子 Phase
+
+**自动生成流程**
+- [ ] admin 页面「生成赛程」按钮：赛季状态为 `playing` 且尚无 matches 时可用
+- [ ] Server Action `generateSchedule(seasonId, type)`：按赛制 insert 所有 `matches`（`status: scheduled`，`scheduledAt: null`）
+- [ ] 管理员在赛程列表逐场填入 `scheduledAt`
+
+**Bracket 视图**
 - [ ] `brackets-manager` 双败淘汰赛数据结构初始化
 - [ ] `brackets-viewer` 渲染集成（注入 season theme_color）
 - [ ] `/[seasonSlug]/matches` 总览页（bracket 图 + 赛程列表联动）
