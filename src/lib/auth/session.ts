@@ -45,7 +45,6 @@ export async function requireAdmin(): Promise<AdminSessionData> {
 /** Server Component 用：非管理员返回 null，由调用方 redirect */
 export async function checkAdminSession(): Promise<AdminSessionData | null> {
   const session = await getAdminSession();
-  console.log("[checkAdminSession] isAdmin:", session.isAdmin, "username:", session.adminUsername);
   if (!session.isAdmin) return null;
   return session;
 }

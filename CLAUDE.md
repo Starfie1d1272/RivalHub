@@ -95,7 +95,7 @@ import { generateBracket, advanceMatch } from "@/lib/bracket";
 | `captain_votes` | 投票页实时票数（可选，也可轮询） |
 
 **不应该用 Realtime 的表：**
-`registrations`、`teams`、`team_members`、`matches`、`users`、`audit_logs`
+`registrations`、`teams`、`team_members`、`matches`、`users`、`audit_logs`、`admin_users`、`admin_invites`
 
 禁止 `supabase.channel("*")` 或订阅上面列表以外的表。
 
@@ -169,20 +169,21 @@ src/
 │   └── api/cron/     # Vercel Cron API Route
 ├── actions/          # Server Actions（所有业务逻辑入口）
 ├── db/
-│   ├── schema/       # Drizzle 表定义（10 张表）
+│   ├── schema/       # Drizzle 表定义（12 张表）
 │   ├── client.ts     # Drizzle client 单例
-│   └── seed.ts       # 种子数据
+│   └── seed.ts       # 种子数据（赛季 + 根管理员 RivalHub_root）
 ├── lib/
 │   ├── auth/         # session.ts（iron-session）+ supabase.ts
 │   ├── bracket/      # brackets-manager 适配层（禁止绕过）
 │   ├── config/       # 报名默认配置（REGISTRATION_DEFAULTS）
 │   ├── realtime/     # Supabase Realtime 订阅辅助
 │   ├── validators/   # Zod schema（registration / vote）
-│   └── utils/        # date（UTC/CST）+ season（capability 工具）+ cn
+│   └── utils/        # date（UTC/CST）+ season（capability 工具）+ password（scrypt）+ cn
 ├── components/
 │   ├── layout/       # Header / Footer
 │   ├── ui/           # shadcn 组件（按需 add）
 │   ├── register/     # 报名业务组件
+│   ├── admin/        # 管理后台业务组件
 │   ├── draft/        # 选秀业务组件
 │   ├── captains/     # 队长投票业务组件
 │   ├── teams/        # 队伍展示业务组件

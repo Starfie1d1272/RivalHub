@@ -53,6 +53,15 @@
 | pickedByTeamId 属于 match 双方 | — | Server Action | DB 无法表达跨表约束 |
 | **audit_logs** | | | |
 | 不允许修改 | RLS DENY UPDATE/DELETE | — | append-only |
+| **admin_users** | | | |
+| username 唯一 | `UNIQUE(username)` | — | |
+| is_active 默认 true | DB DEFAULT | — | |
+| RivalHub_root 不允许停用 | — | Server Action | |
+| 不允许停用自己 | — | Server Action | |
+| **admin_invites** | | | |
+| code 唯一 | `UNIQUE(code)` | — | |
+| usedCount 不超过 maxUses | — | Server Action（事务内） | |
+| expiresAt 过期的不能用 | — | Server Action | |
 
 ---
 

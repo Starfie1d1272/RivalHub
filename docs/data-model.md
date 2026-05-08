@@ -146,6 +146,31 @@ erDiagram
     timestamp created_at
   }
 
+  admin_users {
+    uuid id PK
+    text username UK
+    text password_hash "scrypt(salt+password)"
+    admin_role role
+    bool is_active
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  admin_invites {
+    uuid id PK
+    text code UK
+    uuid created_by FK
+    admin_role role
+    int max_uses
+    int used_count
+    text[] used_by_usernames
+    timestamp expires_at
+    bool is_active
+    timestamp created_at
+  }
+
+  admin_users ||--o{ admin_invites : "creates"
+
   users ||--o{ season_registrations : "has"
   seasons ||--o{ season_registrations : "contains"
   seasons ||--o{ teams : "has"
@@ -211,6 +236,12 @@ erDiagram
 | `rejected` | 已拒绝 |
 | `waitlisted` | 等待名单 |
 
+### `admin_role`
+| 值 | 说明 |
+|---|---|
+| `super_admin` | 超级管理员（可管理其他管理员） |
+| `admin` | 普通管理员（审核报名等日常操作） |
+
 ### `match_status`
 | 值 | 说明 |
 |---|---|
@@ -267,6 +298,8 @@ erDiagram
 | `draft_state` | `UNIQUE(season_id)` |
 | `draft_picks` | `UNIQUE(client_request_id)` |
 | `match_maps` | `UNIQUE(match_id, map_order)` |
+| `admin_users` | `UNIQUE(username)` |
+| `admin_invites` | `UNIQUE(code)` |
 
 建议索引（`drizzle-kit` 迁移中添加）：
 - `season_registrations(season_id, status)` — 审核列表过滤

@@ -46,16 +46,16 @@ Next.js App Router (Vercel Edge / Node.js)
 | 文件 | 职责 |
 |---|---|
 | `register.ts` | 提交报名、检查位置满员 |
-| `admin.ts` | 登录、审核报名、确认队长 |
+| `admin.ts` | 管理员登录/注册、审核报名、邀请码管理、密码修改、管理员管理 |
 | `captains.ts` | 投 / 撤销队长票 |
 | `draft.ts` | pick 选手、autoPick 超时 |
 | `matches.ts` | 创建比赛、录入比分、更新 bracket |
 
 ### DB 层（`src/db/`）
 
-- `schema/` — Drizzle 表定义，10 张表，严格 `season_id` 外键
-- `client.ts` — Drizzle + pg Pool 单例，通过 `DATABASE_URL` 连接 Supabase
-- `seed.ts` — 种子数据（示例赛季占位：选秀联赛 + 公开赛）
+- `schema/` — Drizzle 表定义，12 张表（含 `admin_users` + `admin_invites`），严格 `season_id` 外键
+- `client.ts` — Drizzle + pg Pool 单例（IPv4），通过 `DATABASE_URL` 连接 Supabase
+- `seed.ts` — 种子数据（示例赛季 + 根管理员 RivalHub_root）
 
 ### Lib 层（`src/lib/`）
 

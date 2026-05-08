@@ -23,21 +23,40 @@
 
 ### 2. 管理员 — iron-session 加密 Cookie
 
-管理员使用 invite code + password 登录，获得加密 session cookie：
+管理员使用用户名 + 密码登录，通过 `admin_users` 表进行 scrypt 密码验证：
 
 ```
 POST /admin/login (Server Action: adminLogin)
-  → 校验 inviteCode === process.env.ADMIN_INVITE_CODE
-  → 校验 password === process.env.ADMIN_PASSWORD (bcrypt)
-  → getIronSession() → session.isAdmin = true → session.save()
-  → 重定向到 /admin/[seasonSlug]/registrations
+  → 查询 admin_users 表按 username
+  → 校验 is_active = true
+  → scrypt 验证 password vs password_hash
+  → getIronSession() → session.isAdmin = true + adminId/username/role → session.save()
+  → 重定向到 /admin（管理仪表盘）
 ```
+
+新管理员通过邀请码注册：
+```
+POST /admin/register (Server Action: registerAdmin)
+  → 校验邀请码（admin_invites.code，检查 isActive / usedCount / expiresAt）
+  → 自设用户名 + 密码（scrypt 哈希存储）
+  → INSERT admin_users，更新邀请码使用次数
+  → 自动登录 → 重定向到 /admin
+```
+
+根管理员通过 `pnpm seed` 创建（`RivalHub_root` / `RivalHub_password`，super_admin 角色）。
+
+管理员角色分级：
+- `super_admin`：可管理其他管理员（停用/启用），创建 super_admin 邀请码
+- `admin`：审核报名等日常操作
 
 管理员能做：
 - 审核所有报名（通过 / 拒绝 / 等待名单）
-- 确认前 8 名队长，生成 teams + draft_order
-- 控制选秀流程（开始 / 暂停 / 强制跳过）
-- 录入比赛比分
+- 创建/撤销管理员邀请码
+- 停用/启用其他管理员（仅 super_admin）
+- 修改自己的密码
+- 确认前 8 名队长，生成 teams + draft_order（Phase 6）
+- 控制选秀流程（Phase 7-8）
+- 录入比赛比分（Phase 10）
 - 查看 audit_logs
 
 **所有管理操作必须先调用 `requireAdmin()`，否则抛出 Unauthorized 错误。**
