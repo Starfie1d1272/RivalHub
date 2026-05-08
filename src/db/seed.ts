@@ -97,9 +97,9 @@ export async function seed() {
       igl: "awper", awper: "opener", opener: "closer", closer: "anchor", anchor: "igl",
     };
     const RANKS   = ["A++", "A+",  "A+",  "A",   "A",   "B++", "B+"];
-    // rating: 0.01–3.00 两位小数；we: 0.0–16.0 一位小数
-    const RATINGS = [1.52,  1.38,  1.35,  1.18,  1.12,  0.95,  0.82];
-    const WES     = [8.5,   9.2,   7.8,   6.5,   7.1,   5.8,   4.9];
+    // rating 均值约 1.0，we 均值约 8.0
+    const RATINGS = [1.35,  1.15,  1.12,  1.00,  0.98,  0.88,  0.80];
+    const WES     = [10.5,  9.2,   8.8,   8.0,   7.8,   6.5,   6.0];
     const STYLES  = ["积极进攻", "狙击支撑", "先锋突破", "残局收割", "稳守反推", "辅助支撑", "灵活游走"];
 
     // 创建 56 个用户
