@@ -9,7 +9,7 @@ erDiagram
     uuid auth_id UK "Supabase auth.users"
     text email UK
     user_role role "user | season_admin | super_admin，默认 user"
-    uuid[] admin_season_ids "season_admin 管辖赛季列表，默认空数组"
+    uuid[] admin_season_id "season_admin 管辖赛季列表，默认空数组"
     text student_id "学号；毕业生填毕业年份+学院"
     text qq
     text perfect_id "完美平台 ID"
@@ -165,7 +165,7 @@ erDiagram
   admin_invites {
     uuid id PK
     text code UK
-    uuid created_by FK
+    text created_by "创建者标识（root:xxx 或 users.id）"
     admin_role role "admin(→season_admin) | super_admin"
     uuid season_id FK "season_admin 邀请绑定赛季，super_admin 邀请为 null"
     int max_uses
@@ -176,7 +176,8 @@ erDiagram
     timestamp created_at
   }
 
-  admin_users ||--o{ admin_invites : "creates"
+
+
 
   users ||--o{ season_registrations : "has"
   seasons ||--o{ season_registrations : "contains"

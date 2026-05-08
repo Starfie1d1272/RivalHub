@@ -83,7 +83,9 @@ export async function claimInviteCode(code: string): Promise<ActionResult<{ role
         return fail({ code: ErrorCode.VALIDATION_FAILED, message: "赛季管理员邀请码缺少赛季范围" });
       }
 
-      const newRole = invite.role === "super_admin" ? "super_admin" : "season_admin";
+      const targetRole = invite.role === "super_admin" ? "super_admin" : "season_admin";
+      // 已有 super_admin 的用户不会被降级
+      const newRole = session.role === "super_admin" ? "super_admin" : targetRole;
       const updateSet: {
         role: "user" | "season_admin" | "super_admin";
         updatedAt: Date;
