@@ -418,20 +418,18 @@ export function RegistrationForm({
       {/* ═══════════════════════════════════════ 天梯截图 ═══ */}
       <section>
         <SectionTitle>近两周天梯截图</SectionTitle>
-        <div className="rounded-md bg-[var(--bg-overlay)] border border-[var(--border)] p-4 mb-4">
-          <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
-            请将近两周 5 场天梯对局截图上传至
-            <a
-              href="https://box.nju.edu.cn"
-              target="_blank"
-              rel="noreferrer"
-              className="text-[var(--season-primary)] hover:underline mx-1"
-            >
-              NJUBox
-            </a>
-            并获取分享链接，粘贴到下方。
-          </p>
-        </div>
+        <p className="text-sm text-[var(--text-secondary)] mb-4">
+          请将近两周 5 场天梯对局截图上传至
+          <a
+            href="https://box.nju.edu.cn"
+            target="_blank"
+            rel="noreferrer"
+            className="text-[var(--season-primary)] hover:underline mx-1"
+          >
+            NJUBox
+          </a>
+          并获取分享链接，粘贴到下方。
+        </p>
         <div>
           <Label htmlFor="screenshotUrl" className="text-[var(--text-secondary)] mb-1.5 block">
             NJUBox 分享链接 <Required />
