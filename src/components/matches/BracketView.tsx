@@ -35,6 +35,8 @@ export function BracketView({ data, themeColor, matchNodeMap, seasonSlug }: Brac
   useEffect(() => {
     if (!scriptReady || !window.bracketsViewer || data.stage.length === 0) return;
 
+    let cancelled = false;
+
     window.bracketsViewer.render(
       {
         stages: data.stage,
@@ -44,8 +46,8 @@ export function BracketView({ data, themeColor, matchNodeMap, seasonSlug }: Brac
       },
       { selector: "#bracket-container", clear: true }
     ).then(() => {
+      if (cancelled || !containerRef.current || !matchNodeMap || !seasonSlug) return;
       // brackets-viewer renders match elements with data-id attribute
-      if (!containerRef.current || !matchNodeMap || !seasonSlug) return;
       const matchEls = containerRef.current.querySelectorAll<HTMLElement>("[data-id]");
       matchEls.forEach((el) => {
         const bracketId = el.getAttribute("data-id");
@@ -60,6 +62,8 @@ export function BracketView({ data, themeColor, matchNodeMap, seasonSlug }: Brac
         });
       });
     });
+
+    return () => { cancelled = true; };
   }, [scriptReady, data, matchNodeMap, seasonSlug, router]);
 
   if (data.stage.length === 0) {
