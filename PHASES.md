@@ -74,10 +74,10 @@
 
 ## Phase 6 — 队长投票
 
-- [ ] `castVote` / `retractVote` Server Action（每人最多 3 票，幂等约束）
-- [ ] `/[seasonSlug]/captains` 投票页（Realtime 实时票数）
-- [ ] `/admin/[seasonSlug]/captains` 确认前 8 名队长、生成 teams + draft_order
-- [ ] 投票结果公示
+- [x] `castVote` / `retractVote` Server Action（每人最多 3 票，幂等约束）
+- [x] `/[seasonSlug]/captains` 投票页（Realtime 实时票数 + 轮询兜底）
+- [x] `/admin/[seasonSlug]/captains` 确认前 8 名队长、生成 teams + draft_order
+- [x] 投票结果公示
 
 ---
 

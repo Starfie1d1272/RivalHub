@@ -9,7 +9,7 @@
 | 多赛事抽象 | capability 驱动多赛事共存，路由前缀 `/[seasonSlug]/` | ✅ 架构就绪 |
 | 玩家报名 | Zod 校验、位置满员检测、NJUBox 截图链接、Magic Link 邮件 | ✅ Phase 4 基本完成 |
 | 管理员审核 | 通过 / 拒绝 / 等待名单 + audit log + 邀请码管理 + 管理员账户管理 | ✅ Phase 5 |
-| 队长投票 | 全体选手投票，Realtime 票数，得票前 8 名为队长 | 🔄 Phase 6 |
+| 队长投票 | 全体选手投票，Realtime 票数，得票前 8 名为队长 | ✅ Phase 6 |
 | 蛇形选秀直播间 | Realtime 围观，倒计时，剩余选手池 | 🔄 Phase 7 |
 | 队长选秀面板 | 事务行锁、幂等 pick、超时 Cron 自动递补 | 🔄 Phase 8 |
 | 队伍展示 | 7 人阵容按位置排版，首发/替补分区，队长 badge | ✅ Phase 9 |
