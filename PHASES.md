@@ -1,7 +1,15 @@
-# RivalHub · v1 开发路线图
+# RivalHub · 开发路线图
 
 > 所有阶段均基于单赛事推进，但每个新增表/路由/组件都按多赛事抽象设计（带 `season_id`、走 `/[seasonSlug]/...`）。
 > 每阶段结束 commit + push，在此文件更新 checkbox。
+
+## 版本映射
+
+| 版本 | 分支 | 覆盖阶段 | 目标 |
+|---|---|---|---|
+| **v1** | `main` / `dev` | Phase 1–12 | 2026 NJU Rivals（春季赛）正常运行 |
+| **v2** | `v2` | Phase 11 Swiss 子 Phase | 2026 NJU Major（秋季赛）适配与准备 |
+| **v3** | `v3` | 远期 | 泛用多游戏多赛制平台 |
 
 ---
 
