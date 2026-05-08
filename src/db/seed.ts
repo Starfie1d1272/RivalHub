@@ -12,6 +12,14 @@ export async function seed() {
     .insert(seasons)
     .values([
       {
+        slug: "2026-nju-rivals",
+        name: "2026 NJU Rivals",
+        kind: "选秀联赛",
+        status: "registration",
+        themeColor: "#f97316",
+        ...DRAFT_LEAGUE_PRESET,
+      },
+      {
         slug: "spring-2026-league",
         name: "2026 春季选秀联赛",
         kind: "联赛",
