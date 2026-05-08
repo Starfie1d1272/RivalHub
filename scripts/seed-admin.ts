@@ -8,11 +8,12 @@ function hashPassword(password: string): string {
 }
 
 async function main() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pool = new pg.Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
     family: 4,
-  });
+  } as any);
 
   // Insert root admin
   const pwHash = hashPassword("RivalHub_password");

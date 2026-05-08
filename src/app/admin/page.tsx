@@ -37,7 +37,7 @@ export default async function AdminDashboardPage() {
           <div className="space-y-3">
             {allSeasons.map((s) => (
               <Link key={s.id} href={`/admin/${s.slug}/registrations`}>
-                <Card className="p-4 hover:bg-[var(--surface)] transition-colors cursor-pointer flex items-center justify-between">
+                <Card className="p-4 hover:bg-[var(--bg-elevated)] transition-colors cursor-pointer flex items-center justify-between">
                   <div>
                     <span className="font-medium">{s.name}</span>
                     <span className="text-sm text-[var(--text-secondary)] ml-2">

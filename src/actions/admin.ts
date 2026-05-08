@@ -21,12 +21,15 @@ async function createAdminSession(user: {
   username: string;
   role: "super_admin" | "admin";
 }) {
+  console.log("[createAdminSession] creating session for", user.username);
   const session = await getAdminSession();
+  console.log("[createAdminSession] got session, setting fields");
   session.isAdmin = true;
   session.adminId = user.id;
   session.adminUsername = user.username;
   session.adminRole = user.role;
   await session.save();
+  console.log("[createAdminSession] session.save() completed");
 }
 
 // ── 状态机（数据驱动） ──────────────────────────────────
@@ -91,13 +94,18 @@ async function checkPositionAvailability(seasonId: string, primaryPosition: stri
 // ── 管理员登录 ──────────────────────────────────────────
 
 export async function adminLogin(username: string, password: string) {
+  console.log("[adminLogin] called with username:", username);
+
   if (!username || !password) {
+    console.log("[adminLogin] empty username or password");
     return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请输入用户名和密码" });
   }
 
   const user = await db.query.adminUsers.findFirst({
     where: eq(adminUsers.username, username),
   });
+  console.log("[adminLogin] user found:", !!user);
+
   if (!user) {
     return fail({ code: ErrorCode.UNAUTHORIZED, message: "用户名或密码错误" });
   }
@@ -105,10 +113,13 @@ export async function adminLogin(username: string, password: string) {
     return fail({ code: ErrorCode.UNAUTHORIZED, message: "该账户已被停用" });
   }
   if (!verifyPassword(password, user.passwordHash)) {
+    console.log("[adminLogin] password mismatch");
     return fail({ code: ErrorCode.UNAUTHORIZED, message: "用户名或密码错误" });
   }
 
+  console.log("[adminLogin] login success, setting session");
   await createAdminSession(user);
+  console.log("[adminLogin] session saved, redirecting to /admin");
   redirect("/admin");
 }
 

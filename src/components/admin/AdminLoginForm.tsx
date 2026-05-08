@@ -16,11 +16,24 @@ export function AdminLoginForm() {
     e.preventDefault();
     setError("");
 
+    if (!username.trim() || !password) {
+      setError("请输入用户名和密码");
+      return;
+    }
+
     startTransition(async () => {
-      const result = await adminLogin(username, password);
-      // adminLogin redirects on success, so we only get here on failure
-      if (!result.success) {
-        setError(result.error.message);
+      try {
+        const result = await adminLogin(username, password);
+        // adminLogin redirects on success, so we only get here on failure
+        if (!result) {
+          setError("服务器未响应，请刷新页面后重试");
+          return;
+        }
+        if (!result.success) {
+          setError(result.error.message);
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "登录失败，请稍后重试");
       }
     });
   }

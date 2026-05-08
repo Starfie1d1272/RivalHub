@@ -20,7 +20,7 @@ export function AdminNav({
   ];
 
   return (
-    <div className="border-b border-[var(--border)] bg-[var(--surface)]/50">
+    <div className="border-b border-[var(--border)] bg-[var(--bg-elevated)]/95">
       <div className="container mx-auto px-4 h-12 flex items-center justify-between text-sm">
         <div className="flex items-center gap-6">
           <Link
@@ -46,9 +46,7 @@ export function AdminNav({
           </nav>
         </div>
         {username && (
-          <span className="text-[var(--text-secondary)]">
-            {username}
-          </span>
+          <span className="text-[var(--text-secondary)]">{username}</span>
         )}
       </div>
     </div>
