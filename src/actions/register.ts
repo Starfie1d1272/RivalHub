@@ -54,28 +54,29 @@ export async function submitRegistration(input: RegistrationFormData) {
       throw new AppError(ErrorCode.REGISTRATION_CLOSED, ERROR_MESSAGES.REGISTRATION_CLOSED);
     }
 
-    // 3. Upsert 用户
+    // 3. Upsert 用户（含所有基础信息字段）
     let user = await db.query.users.findFirst({
       where: eq(users.email, data.email),
     });
+    const userFields = {
+      steam64: data.steam64,
+      qq: data.qq,
+      studentId: data.studentId,
+      perfectId: data.perfectId,
+      steamName: data.steamName,
+      steamProfileUrl: data.steamProfileUrl,
+    };
+
     if (!user) {
       const [created] = await db
         .insert(users)
-        .values({
-          email: data.email,
-          steam64: data.steam64,
-          qq: data.qq,
-        })
+        .values({ email: data.email, ...userFields })
         .returning();
       user = created;
-    } else if (data.steam64 || data.qq) {
+    } else {
       await db
         .update(users)
-        .set({
-          steam64: data.steam64 ?? user.steam64,
-          qq: data.qq ?? user.qq,
-          updatedAt: new Date(),
-        })
+        .set({ ...userFields, updatedAt: new Date() })
         .where(eq(users.id, user.id));
     }
 
@@ -105,6 +106,14 @@ export async function submitRegistration(input: RegistrationFormData) {
     }
 
     // 6. 插入报名记录
+    const screenshotUrls = [
+      data.screenshotUrl1,
+      data.screenshotUrl2,
+      data.screenshotUrl3,
+      data.screenshotUrl4,
+      data.screenshotUrl5,
+    ];
+
     const [registration] = await db
       .insert(seasonRegistrations)
       .values({
@@ -112,8 +121,17 @@ export async function submitRegistration(input: RegistrationFormData) {
         seasonId: data.seasonId,
         primaryPosition: data.primaryPosition,
         secondaryPosition: data.secondaryPosition,
+        peakRank: data.peakRank,
+        peakRankSeason: data.peakRankSeason,
         peakRating: data.peakRating,
-        screenshotUrl: data.screenshotUrl,
+        peakWe: data.peakWe,
+        currentSeasonPeakRank: data.currentSeasonPeakRank,
+        currentRating: data.currentRating,
+        currentWe: data.currentWe,
+        screenshotUrls,
+        gameplayStyle: data.gameplayStyle,
+        competitionHistory: data.competitionHistory,
+        highlightVideoUrl: data.highlightVideoUrl,
         willingToBeCaptain: data.willingToBeCaptain,
         notes: data.notes,
       })
