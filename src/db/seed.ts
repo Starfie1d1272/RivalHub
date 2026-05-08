@@ -1,13 +1,16 @@
 import { db } from "./client";
 import { seasons } from "./schema/seasons";
+import { adminUsers } from "./schema/admin-users";
 import {
   DRAFT_LEAGUE_PRESET,
   OPEN_TOURNAMENT_PRESET,
 } from "@/types/season";
+import { hashPassword } from "@/lib/utils/password";
 
 export async function seed() {
   console.log("Seeding database...");
 
+  // 1. 赛季种子数据
   await db
     .insert(seasons)
     .values([
@@ -37,6 +40,23 @@ export async function seed() {
       },
     ])
     .onConflictDoNothing();
+
+  // 2. 根管理员（幂等）
+  const [root] = await db
+    .insert(adminUsers)
+    .values({
+      username: "RivalHub_root",
+      passwordHash: hashPassword("RivalHub_password"),
+      role: "super_admin",
+    })
+    .onConflictDoNothing()
+    .returning();
+
+  if (root) {
+    console.log("Created root admin: RivalHub_root");
+  } else {
+    console.log("Root admin already exists, skipping.");
+  }
 
   console.log("Seed complete.");
 }
