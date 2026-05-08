@@ -1,0 +1,172 @@
+"use server";
+
+import { eq, and } from "drizzle-orm";
+import { db } from "@/db/client";
+import { matchMaps } from "@/db/schema/match-maps";
+import { matches } from "@/db/schema/matches";
+import { matchPlayerStats } from "@/db/schema/player-stats";
+import { auditLogs } from "@/db/schema/audit";
+import { users } from "@/db/schema/users";
+import { seasonRegistrations } from "@/db/schema/registrations";
+import { ok, fail } from "@/types/action";
+import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
+import { extractScoreboardFromBase64 } from "@/lib/ocr/scoreboard";
+import type { PlayerRowOCR } from "@/lib/ocr/scoreboard";
+import { requireAdmin, auditActorId } from "@/lib/auth/session";
+
+export type PlayerStatsDraft = PlayerRowOCR & {
+  userId: string | null;
+};
+
+export type PlayerOption = {
+  userId: string;
+  perfectName: string;
+};
+
+/**
+ * 从截图 base64 提取记分板数据（不写库），返回草稿供管理员确认。
+ * 同时返回赛季中所有已匹配玩家列表供下拉选择。
+ */
+export async function extractStatsFromScreenshot(
+  mapId: string,
+  base64Image: string,
+  mimeType: "image/jpeg" | "image/png" | "image/webp" = "image/jpeg"
+) {
+  try {
+    await requireAdmin();
+
+    const map = await db.query.matchMaps.findFirst({
+      where: eq(matchMaps.id, mapId),
+    });
+    if (!map) throw new AppError(ErrorCode.NOT_FOUND, "地图记录不存在");
+
+    const match = await db.query.matches.findFirst({
+      where: eq(matches.id, map.matchId),
+    });
+    if (!match) throw new AppError(ErrorCode.NOT_FOUND, "比赛记录不存在");
+
+    // 赛季中所有 approved 选手（用于精确昵称匹配 + 下拉选择）
+    const seasonPlayers = await db
+      .select({
+        userId: users.id,
+        perfectName: users.perfectName,
+      })
+      .from(users)
+      .innerJoin(seasonRegistrations, eq(seasonRegistrations.userId, users.id))
+      .where(
+        and(
+          eq(seasonRegistrations.seasonId, match.seasonId),
+          eq(seasonRegistrations.status, "approved")
+        )
+      );
+
+    const nameToUserId = new Map<string, string>();
+    for (const p of seasonPlayers) {
+      if (p.perfectName) {
+        nameToUserId.set(p.perfectName.toLowerCase(), p.userId);
+      }
+    }
+
+    const ocrResult = await extractScoreboardFromBase64(base64Image, mimeType);
+
+    const drafts: PlayerStatsDraft[] = ocrResult.players.map((row) => {
+      const name = row.perfectName as string;
+      return {
+        ...row,
+        perfectName: name,
+        userId: nameToUserId.get(name.toLowerCase()) ?? null,
+      };
+    });
+
+    const playerOptions: PlayerOption[] = seasonPlayers.map((p) => ({
+      userId: p.userId,
+      perfectName: p.perfectName ?? "(未填写昵称)",
+    }));
+
+    return ok({ drafts, playerOptions });
+  } catch (e) {
+    if (e instanceof AppError) {
+      return fail({ code: e.code, message: e.message });
+    }
+    console.error("[extractStatsFromScreenshot]", e);
+    return fail({ code: ErrorCode.INTERNAL_ERROR, message: "OCR 识别失败，请检查截图格式后重试" });
+  }
+}
+
+/**
+ * 保存管理员确认后的玩家数据（幂等：先删同 mapId 旧数据，再批量插入）。
+ */
+export async function savePlayerStats(
+  mapId: string,
+  stats: PlayerStatsDraft[]
+) {
+  try {
+    const session = await requireAdmin();
+    const actor = auditActorId(session);
+
+    const map = await db.query.matchMaps.findFirst({
+      where: eq(matchMaps.id, mapId),
+    });
+    if (!map) throw new AppError(ErrorCode.NOT_FOUND, "地图记录不存在");
+
+    const match = await db.query.matches.findFirst({
+      where: eq(matches.id, map.matchId),
+    });
+    if (!match) throw new AppError(ErrorCode.NOT_FOUND, "比赛记录不存在");
+
+    await db.transaction(async (tx) => {
+      await tx.delete(matchPlayerStats).where(eq(matchPlayerStats.mapId, mapId));
+
+      if (stats.length > 0) {
+        await tx.insert(matchPlayerStats).values(
+          stats.map((s) => ({
+            matchId: map.matchId,
+            mapId,
+            perfectName: s.perfectName as string,
+            userId: s.userId ?? undefined,
+            kills: s.kills ?? undefined,
+            deaths: s.deaths ?? undefined,
+            assists: s.assists ?? undefined,
+            hsPercent: s.hsPercent ?? undefined,
+            firstKills: s.firstKills ?? undefined,
+            multiKills: s.multiKills ?? undefined,
+            clutches: s.clutches ?? undefined,
+            adr: s.adr ?? undefined,
+            rws: s.rws ?? undefined,
+            ratingPro: s.ratingPro ?? undefined,
+            we: s.we ?? undefined,
+            verifiedByAdmin: actor,
+            verifiedAt: new Date(),
+          }))
+        );
+      }
+
+      await tx.insert(auditLogs).values({
+        seasonId: match.seasonId,
+        action: "match.save_player_stats",
+        actorId: actor,
+        targetId: mapId,
+        targetType: "match_map",
+        meta: { playerCount: stats.length, matchId: map.matchId },
+      });
+    });
+
+    return ok({ saved: stats.length });
+  } catch (e) {
+    if (e instanceof AppError) {
+      return fail({ code: e.code, message: e.message });
+    }
+    console.error("[savePlayerStats]", e);
+    return fail({ code: ErrorCode.INTERNAL_ERROR, message: ERROR_MESSAGES.INTERNAL_ERROR });
+  }
+}
+
+/**
+ * 查询某张地图已保存的玩家数据
+ */
+export async function getPlayerStatsByMap(mapId: string) {
+  return db.query.matchPlayerStats.findMany({
+    where: eq(matchPlayerStats.mapId, mapId),
+    orderBy: (t, { desc }) => [desc(t.ratingPro)],
+  });
+}

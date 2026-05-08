@@ -11,6 +11,7 @@ import { MatchStatusBadge } from "@/components/matches/MatchStatusBadge";
 import { ScoreInput } from "@/components/matches/ScoreInput";
 import { MapByMapInput } from "@/components/matches/MapByMapInput";
 import { ScheduledAtInput } from "@/components/matches/ScheduledAtInput";
+import { StatsOCRPanel } from "@/components/matches/StatsOCRPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -65,6 +66,24 @@ export default async function AdminMatchesPage({ params }: AdminMatchesPageProps
   const teamMap = new Map(allTeams.map((t) => [t.id, t.name]));
   const qualifierMatches = allMatches.filter((m) => m.stage === "qualifier");
   const playoffMatches = allMatches.filter((m) => m.stage === "playoff");
+
+  // 已完成比赛的地图列表（用于 OCR 录入面板）
+  const finishedMatchIds = allMatches
+    .filter((m) => m.status === "finished")
+    .map((m) => m.id);
+  const allMaps =
+    finishedMatchIds.length > 0
+      ? await db.query.matchMaps.findMany({
+          where: inArray(matchMaps.matchId, finishedMatchIds),
+          orderBy: (t, { asc }) => [asc(t.mapOrder)],
+        })
+      : [];
+  const mapsByMatch = new Map<string, typeof allMaps>();
+  for (const map of allMaps) {
+    const arr = mapsByMatch.get(map.matchId) ?? [];
+    arr.push(map);
+    mapsByMatch.set(map.matchId, arr);
+  }
 
   const matchCount = allMatches.length;
   const qualifierCount = qualifierMatches.length;
@@ -200,6 +219,12 @@ export default async function AdminMatchesPage({ params }: AdminMatchesPageProps
                             />
                           </>
                         )}
+                        {m.status === "finished" && (mapsByMatch.get(m.id) ?? []).map((map) => (
+                          <div key={map.id}>
+                            <Separator />
+                            <StatsOCRPanel mapId={map.id} mapName={map.mapName} />
+                          </div>
+                        ))}
                       </Card>
                     );
                   })}
@@ -277,6 +302,12 @@ export default async function AdminMatchesPage({ params }: AdminMatchesPageProps
                             )}
                           </>
                         )}
+                        {m.status === "finished" && (mapsByMatch.get(m.id) ?? []).map((map) => (
+                          <div key={map.id}>
+                            <Separator />
+                            <StatsOCRPanel mapId={map.id} mapName={map.mapName} />
+                          </div>
+                        ))}
                       </Card>
                     );
                   })}
