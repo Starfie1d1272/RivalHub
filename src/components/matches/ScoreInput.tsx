@@ -12,9 +12,12 @@ interface ScoreInputProps {
   teamAName: string;
   teamBName: string;
   currentStatus: "scheduled" | "in_progress" | "finished" | "cancelled";
+  /** BO1 排位赛：输入实际回合数（如 13:8）；BO3/BO5：输入系列赛图数（如 2:1） */
+  isBO1?: boolean;
 }
 
-export function ScoreInput({ matchId, teamAName, teamBName, currentStatus }: ScoreInputProps) {
+export function ScoreInput({ matchId, teamAName, teamBName, currentStatus, isBO1 = false }: ScoreInputProps) {
+  const scoreLabel = isBO1 ? "回合数" : "系列赛比分";
   const [scoreA, setScoreA] = useState("");
   const [scoreB, setScoreB] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -84,6 +87,7 @@ export function ScoreInput({ matchId, teamAName, teamBName, currentStatus }: Sco
 
       {currentStatus === "in_progress" && (
         <form onSubmit={handleSubmit} className="space-y-3">
+          <p className="text-xs text-[var(--text-secondary)]">{scoreLabel}</p>
           <div className="flex items-end gap-3">
             <div className="space-y-1">
               <Label className="text-xs text-[var(--text-secondary)]">{teamAName}</Label>

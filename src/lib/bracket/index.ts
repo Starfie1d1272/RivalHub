@@ -208,6 +208,33 @@ export function serializeBracket(
   return { stage, match, participant };
 }
 
+/**
+ * 用积分榜顺序更新正赛 stage 的种子，并返回确定的第一轮对阵。
+ * 在所有排位赛结束后、管理员点击「生成正赛」时调用。
+ *
+ * @param seededTeamNames  按种子排序的队伍名称数组（seed 1 在 index 0）
+ * @param currentData      当前 seasons.bracket_data
+ */
+export async function seedPlayoff(
+  seededTeamNames: string[],
+  currentData: Database
+): Promise<{ updatedData: Database; resolvedMatches: ResolvedBracketMatch[] }> {
+  const { manager } = buildManager(currentData);
+
+  const stages = currentData.stage as Array<{ id: number; name: string }>;
+  const playoffStage = stages.find((s) => s.name === "正赛");
+  if (!playoffStage) throw new Error("正赛 stage 未找到，请先生成赛程");
+
+  // 用实际队伍名替换 TBD seed
+  await manager.update.seeding(playoffStage.id, seededTeamNames);
+
+  // 重新导出，找出已确定双方的第一轮对阵
+  const updatedData = await manager.export();
+  const resolvedMatches = collectResolvedMatches(updatedData);
+
+  return { updatedData, resolvedMatches };
+}
+
 // ─── 内部工具 ───────────────────────────────────────────────────────────────
 
 /**
