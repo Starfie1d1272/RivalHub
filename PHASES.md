@@ -57,18 +57,21 @@
 
 ## Phase 5 — 管理审核 ✅
 
-- [x] iron-session 接入（`getAdminSession` / `requireAdmin` + session 含 adminId/username/role）
-- [x] `admin_users` + `admin_invites` 表（scrypt 密码哈希 + 邀请码追踪）
+- [x] iron-session 接入（双 Cookie：`rivalhub-session` 全用户 + `rivalhub-admin` root 紧急）
+- [x] `admin_users` + `admin_invites` 表（scrypt 密码哈希 + 邀请码追踪，含 `seasonId`）
 - [x] 种子脚本写入根管理员 `RivalHub_root` + 自动生成 `ADMIN_SESSION_SECRET`
-- [x] `/admin/login` 登录页（用户名 + 密码，DB 查询 + scrypt 验证）
-- [x] `/admin/register` 邀请码注册页（新管理员自设用户名密码）
+- [x] `/admin/login` 登录页（Root 用户名+密码紧急入口）
+- [x] `/login` 选手/管理员 Magic Link 统一登录页
+- [x] `/invite?code=xxx` 邀请码提权页（`claimInviteCode` → 更新 users.role + adminSeasonIds）
+- [x] `/auth/callback` Supabase Auth 回调（upsert users + 建 rivalhub-session）
+- [x] `users.role` 角色体系（user / season_admin / super_admin）+ `adminSeasonIds`
 - [x] `/admin/[seasonSlug]/registrations` 审核列表 + 状态迁移校验
-- [x] 通过 / 拒绝 / 等待名单 Server Action + audit log（含审核人用户名）
+- [x] 通过 / 拒绝 / 等待名单 Server Action + audit log（含审核人邮箱）
 - [x] 报名截图预览（NJUBox URL 跳转查看）
-- [x] `/admin/invites` 邀请码管理（创建 / 撤销 / 查看使用记录）
+- [x] `/admin/invites` 邀请码管理（创建含 seasonId / 撤销 / 查看使用记录）
 - [x] `/admin/users` 管理员列表（停用 / 重新启用）
-- [x] `/admin/settings` 修改密码
-- [x] 管理后台统一导航栏 + 仪表盘
+- [x] `/admin/settings` 修改密码 + 环境变量状态面板
+- [x] 管理后台统一导航栏 + 退出登录按钮
 
 ---
 

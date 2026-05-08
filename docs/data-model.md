@@ -8,6 +8,8 @@ erDiagram
     uuid id PK
     uuid auth_id UK "Supabase auth.users"
     text email UK
+    user_role role "user | season_admin | super_admin，默认 user"
+    uuid[] admin_season_ids "season_admin 管辖赛季列表，默认空数组"
     text student_id "学号；毕业生填毕业年份+学院"
     text qq
     text perfect_id "完美平台 ID"
@@ -164,7 +166,8 @@ erDiagram
     uuid id PK
     text code UK
     uuid created_by FK
-    admin_role role
+    admin_role role "admin(→season_admin) | super_admin"
+    uuid season_id FK "season_admin 邀请绑定赛季，super_admin 邀请为 null"
     int max_uses
     int used_count
     text[] used_by_usernames
@@ -200,6 +203,13 @@ erDiagram
 `kind` 是自由文本字段，部署者可自定义任意值（如 "联赛"、"杯赛"、"表演赛"、"league" 等）。
 
 > ⚠️ `kind` 仅用于界面展示和筛选，业务逻辑不得读取此字段做功能分支。所有功能门控读 capability 字段（`hasDraft`、`hasCaptainVoting` 等）。
+
+### `user_role`
+| 值 | 说明 |
+|---|---|
+| `user` | 普通选手（默认） |
+| `season_admin` | 赛季管理员（通过邀请码提权，管辖赛季由 `adminSeasonIds` 控制） |
+| `super_admin` | 超级管理员（通过邀请码提权，管理所有赛季） |
 
 ### `registration_mode`
 | 值 | 说明 |
