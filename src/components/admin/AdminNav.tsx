@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useTransition } from "react";
+import { toast } from "sonner";
+import { logoutUser } from "@/actions/auth";
 
 const NAV_ITEMS = [
   { label: "赛季列表", href: "/admin" },
@@ -12,7 +15,6 @@ const NAV_ITEMS = [
 
 function isActive(href: string, pathname: string): boolean {
   if (href === "/admin") {
-    // 高亮「赛季列表」：仪表盘或任何 /admin/[seasonSlug]/... 路由
     return (
       pathname === "/admin" ||
       (pathname.startsWith("/admin/") &&
@@ -22,8 +24,18 @@ function isActive(href: string, pathname: string): boolean {
   return pathname === href || pathname.startsWith(href + "/");
 }
 
-export function AdminNav({ username }: { username?: string }) {
+export function AdminNav({ email }: { email?: string }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  function handleLogout() {
+    startTransition(async () => {
+      await logoutUser();
+      toast.success("已退出登录");
+      router.push("/login");
+    });
+  }
 
   return (
     <div className="border-b border-[var(--border)] bg-[var(--bg-elevated)]/95">
@@ -48,9 +60,18 @@ export function AdminNav({ username }: { username?: string }) {
             ))}
           </nav>
         </div>
-        {username && (
-          <span className="text-[var(--text-secondary)]">{username}</span>
-        )}
+        <div className="flex items-center gap-3">
+          {email && (
+            <span className="text-[var(--text-secondary)]">{email}</span>
+          )}
+          <button
+            onClick={handleLogout}
+            disabled={isPending}
+            className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors disabled:opacity-50"
+          >
+            {isPending ? "退出中…" : "退出登录"}
+          </button>
+        </div>
       </div>
     </div>
   );

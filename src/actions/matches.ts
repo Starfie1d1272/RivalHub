@@ -133,7 +133,7 @@ export async function generateSchedule(
     await db.insert(auditLogs).values({
       seasonId,
       action: "match.generate_schedule",
-      actorId: session.adminUsername,
+      actorId: session.email,
       targetId: seasonId,
       targetType: "season",
       meta: { matchCount },
@@ -190,7 +190,7 @@ export async function createMatch(
     await db.insert(auditLogs).values({
       seasonId,
       action: "match.create",
-      actorId: session.adminUsername,
+      actorId: session.email,
       targetId: newMatch.id,
       targetType: "match",
       meta: { teamAId, teamBId, stage, format },
@@ -230,7 +230,7 @@ export async function updateMatchStatus(
     await db.insert(auditLogs).values({
       seasonId: match.seasonId,
       action: "match.status_update",
-      actorId: session.adminUsername,
+      actorId: session.email,
       targetId: matchId,
       targetType: "match",
       meta: { from: match.status, to: nextStatus },
@@ -334,7 +334,7 @@ export async function recordMatchResult(
     await db.insert(auditLogs).values({
       seasonId: match.seasonId,
       action: "match.record_result",
-      actorId: session.adminUsername,
+      actorId: session.email,
       targetId: matchId,
       targetType: "match",
       meta: { scoreA, scoreB },
@@ -495,7 +495,7 @@ export async function generatePlayoff(
     await db.insert(auditLogs).values({
       seasonId,
       action: "match.generate_playoff",
-      actorId: session.adminUsername,
+      actorId: session.email,
       targetId: seasonId,
       targetType: "season",
       meta: { matchCount, seeds: seededNames },

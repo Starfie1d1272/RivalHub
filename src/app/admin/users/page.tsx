@@ -22,11 +22,11 @@ export default async function AdminUsersPage() {
 
   return (
     <div className="min-h-screen">
-      <AdminNav username={admin.adminUsername} />
+      <AdminNav email={admin.email} />
 
       <div className="container mx-auto px-4 py-8 max-w-2xl">
         <h1 className="text-2xl font-bold mb-6">管理员列表</h1>
-        <AdminUserList users={users} currentAdminId={admin.adminId} />
+        <AdminUserList users={users} currentAdminId={admin.userId} />
       </div>
     </div>
   );

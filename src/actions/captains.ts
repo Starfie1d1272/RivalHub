@@ -253,7 +253,7 @@ export async function confirmCaptains(
       await tx.insert(auditLogs).values({
         seasonId: season.id,
         action: "captains.confirm",
-        actorId: admin.adminUsername,
+        actorId: admin.email,
         targetId: season.id,
         targetType: "season",
         meta: {

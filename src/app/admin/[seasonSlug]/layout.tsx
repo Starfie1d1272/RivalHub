@@ -13,7 +13,7 @@ export default async function AdminSeasonLayout({
 
   return (
     <div className="min-h-screen">
-      <AdminNav username={admin.adminUsername} />
+      <AdminNav email={admin.email} />
       {children}
     </div>
   );

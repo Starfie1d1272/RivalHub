@@ -26,13 +26,13 @@ export default async function AdminSettingsPage() {
 
   return (
     <div className="min-h-screen">
-      <AdminNav username={admin.adminUsername} />
+      <AdminNav email={admin.email} />
 
       <div className="container mx-auto px-4 py-8 max-w-2xl space-y-10">
         <div>
           <h1 className="text-2xl font-bold mb-2">系统设置</h1>
           <p className="text-sm text-[var(--text-secondary)]">
-            当前登录：{admin.adminUsername}
+            当前登录：{admin.email}
           </p>
         </div>
 

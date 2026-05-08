@@ -8,7 +8,7 @@ import { db } from "@/db/client";
 import { seasons, seasonRegistrations, auditLogs, adminUsers, adminInvites } from "@/db/schema";
 import { ok, fail } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
-import { requireAdmin, getAdminSession } from "@/lib/auth/session";
+import { requireAdmin, requireSuperAdmin, getAdminSession } from "@/lib/auth/session";
 import { verifyPassword, hashPassword } from "@/lib/utils/password";
 import { MAX_PER_POSITION } from "@/lib/validators/registration";
 
@@ -224,7 +224,7 @@ export async function reviewRegistration(input: ReviewInput) {
       await tx.insert(auditLogs).values({
         seasonId: reg.seasonId,
         action: `registration.${targetStatus}`,
-        actorId: admin.adminUsername ?? "admin",
+        actorId: admin.email ?? "admin",
         targetId: registrationId,
         targetType: "registration",
         meta: {
@@ -263,13 +263,14 @@ export async function reviewRegistration(input: ReviewInput) {
 
 export async function createInviteCode(input: {
   role?: "admin" | "super_admin";
+  seasonId?: string;
   maxUses?: number;
   expiresInHours?: number;
 }) {
   const admin = await requireAdmin();
-  const { role = "admin", maxUses = 1, expiresInHours } = input;
+  const { role = "admin", seasonId, maxUses = 1, expiresInHours } = input;
 
-  if (role === "super_admin" && admin.adminRole !== "super_admin") {
+  if (role === "super_admin" && admin.role !== "super_admin") {
     return fail({ code: ErrorCode.FORBIDDEN, message: "仅超级管理员可创建 super_admin 邀请码" });
   }
   const code = randomBytes(8).toString("hex");
@@ -280,8 +281,9 @@ export async function createInviteCode(input: {
 
   await db.insert(adminInvites).values({
     code,
-    createdBy: admin.adminId,
+    createdBy: admin.userId,
     role,
+    seasonId: seasonId ?? null,
     maxUses,
     expiresAt,
   });
@@ -324,7 +326,7 @@ export async function changePassword(currentPassword: string, newPassword: strin
   }
 
   const user = await db.query.adminUsers.findFirst({
-    where: eq(adminUsers.id, admin.adminId!),
+    where: eq(adminUsers.id, admin.userId),
   });
   if (!user) {
     return fail({ code: ErrorCode.NOT_FOUND, message: "管理员账户不存在" });
@@ -357,11 +359,11 @@ export async function listAdminUsers() {
 export async function deactivateAdminUser(adminId: string) {
   const admin = await requireAdmin();
 
-  if (admin.adminId === adminId) {
+  if (admin.userId === adminId) {
     return fail({ code: ErrorCode.VALIDATION_FAILED, message: "不能停用自己的账户" });
   }
 
-  if (admin.adminRole !== "super_admin") {
+  if (admin.role !== "super_admin") {
     return fail({ code: ErrorCode.FORBIDDEN, message: "仅超级管理员可执行此操作" });
   }
 
@@ -385,9 +387,9 @@ export async function deactivateAdminUser(adminId: string) {
 }
 
 export async function reactivateAdminUser(adminId: string) {
-  const admin = await requireAdmin();
+  const admin = await requireSuperAdmin();
 
-  if (admin.adminRole !== "super_admin") {
+  if (admin.role !== "super_admin") {
     return fail({ code: ErrorCode.FORBIDDEN, message: "仅超级管理员可执行此操作" });
   }
 

@@ -1,5 +1,4 @@
 import { AdminLoginForm } from "@/components/admin/AdminLoginForm";
-import Link from "next/link";
 
 export default function AdminLoginPage() {
   return (
@@ -18,15 +17,6 @@ export default function AdminLoginPage() {
           </p>
         </div>
         <AdminLoginForm />
-        <p className="text-center text-sm text-[var(--text-secondary)]">
-          没有账户？{" "}
-          <Link
-            href="/admin/register"
-            className="underline hover:text-[var(--text-primary)]"
-          >
-            使用邀请码注册
-          </Link>
-        </p>
       </div>
     </div>
   );
