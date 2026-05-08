@@ -3,19 +3,19 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "NODE_OPTIONS='--dns-result-order=ipv4first' next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
-    "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio",
+    "db:push": "NODE_OPTIONS='--dns-result-order=ipv4first' drizzle-kit push",
+    "db:studio": "NODE_OPTIONS='--dns-result-order=ipv4first' drizzle-kit studio",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
-    "seed": "tsx --env-file .env.local scripts/seed.ts"
+    "seed": "NODE_OPTIONS='--dns-result-order=ipv4first' tsx --env-file .env.local scripts/seed.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",
