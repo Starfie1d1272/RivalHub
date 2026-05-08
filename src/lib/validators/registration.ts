@@ -1,35 +1,21 @@
 import { z } from "zod";
+import { REGISTRATION_DEFAULTS } from "@/lib/config/registration-defaults";
+import type { PositionValue, RankValue } from "@/lib/config/registration-defaults";
 
-// ── 位置 ──────────────────────────────────────────────
-export const positionValues = ["igl", "awper", "entry", "lurker", "support"] as const;
-export type Position = (typeof positionValues)[number];
+// ── 从配置派生位置常量 ──────────────────────────────
+export const positionValues = REGISTRATION_DEFAULTS.positions.values;
+export type Position = PositionValue;
 
-export const POSITION_LABELS: Record<Position, { cn: string; en: string; full: string }> = {
-  igl:     { cn: "指挥",       en: "IGL",              full: "IGL（指挥）" },
-  awper:   { cn: "狙击手",     en: "AWPer",            full: "AWPer（狙击手）" },
-  entry:   { cn: "突破手",     en: "Opener (Entry)",   full: "Opener (Entry)（突破手）" },
-  lurker:  { cn: "自由人/残局", en: "Closer (Lurker)",  full: "Closer (Lurker)（自由人/残局）" },
-  support: { cn: "主防",       en: "Anchor (Support)", full: "Anchor (Support)（主防）" },
-};
+export const POSITION_LABELS = REGISTRATION_DEFAULTS.positions.labels;
 
-// ── 段位 ──────────────────────────────────────────────
-export const rankValues = ["B", "B+", "A", "A+", "S", "S+", "G", "G+"] as const;
-export type Rank = (typeof rankValues)[number];
+// ── 从配置派生段位常量 ──────────────────────────────
+export const rankValues = REGISTRATION_DEFAULTS.ranks.values;
+export type Rank = RankValue;
 
-export const RANK_LABELS: Record<Rank, string> = {
-  "B":  "B",
-  "B+": "B+",
-  "A":  "A",
-  "A+": "A+",
-  "S":  "S",
-  "S+": "S+",
-  "G":  "G",
-  "G+": "G+",
-};
+export const RANK_LABELS = REGISTRATION_DEFAULTS.ranks.labels;
 
-// ── 每个主选位置报名上限 ─────────────────────────────
-// 8 队 × 7 人 = 56，5 个位置各约 11，预留 buffer 到 15
-export const MAX_PER_POSITION = 15;
+// ── 每位置报名上限 ──────────────────────────────────
+export const MAX_PER_POSITION = REGISTRATION_DEFAULTS.maxPerPosition;
 
 // ── 验证 schema ──────────────────────────────────────
 export const registrationSchema = z
@@ -123,6 +109,8 @@ export const registrationSchema = z
       .optional(),
 
     // ── 截图（5 张天梯近期对局 URL）──
+    // 截图数量由 REGISTRATION_DEFAULTS.screenshotCount 控制，
+    // 但 Zod schema 仍需显式列出每个字段（Zod 不支持动态 key 推导）
     screenshotUrl1: z
       .string()
       .min(1, "请填写第 1 张截图链接")

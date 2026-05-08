@@ -45,12 +45,13 @@
 
 ## Phase 4 — 报名系统
 
-- [ ] `submitRegistration` Server Action（Zod 校验 + DB 写入）
-- [ ] 位置满员校验（COUNT GROUP BY + 前端 Realtime）
-- [ ] 截图上传 Storage（客户端直传 presigned URL）
-- [ ] `/[seasonSlug]/register` 表单页
-- [ ] 报名成功页 + Magic Link 邮件触发
-- [ ] 报名已截止 / 位置已满的错误态 UI
+- [x] `submitRegistration` Server Action（Zod 校验 + DB 写入）
+- [x] 位置满员校验（COUNT GROUP BY）
+- [ ] 截图上传 Storage（客户端直传 presigned URL）→ 当前为 URL 粘贴
+- [x] `/[seasonSlug]/register` 表单页
+- [x] 报名成功页 + Magic Link 邮件触发
+- [x] 报名已截止 / 位置已满的错误态 UI
+- [ ] **TODO**: 将 `src/lib/config/registration-defaults.ts` 迁移到 `seasons.registration_config JSONB`，实现赛事级可配置（Phase 7-8 后台管理）
 
 ---
 
