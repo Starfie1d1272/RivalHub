@@ -113,7 +113,7 @@ function MemberRow({ member }: { member: RosterMember }) {
 
       <div className="text-right shrink-0">
         <p className="text-sm font-medium text-[var(--text-primary)]">{member.peakRank}</p>
-        <p className="text-xs text-[var(--text-muted)]">{member.currentRating} pts</p>
+        <p className="text-xs text-[var(--text-muted)]">RT {member.currentRating.toFixed(2)}</p>
       </div>
     </div>
   );

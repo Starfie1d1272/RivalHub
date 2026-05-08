@@ -77,17 +77,25 @@ export const registrationSchema = z
       .string()
       .min(1, "请填写取得最高段位的赛季（如 S1 2026）"),
 
+    // Rating：完美平台 Rating，0.01–3.00，两位小数
     peakRating: z
       .number({ invalid_type_error: "请输入数字" })
-      .int("请输入整数")
-      .min(0, "Rating 不能为负")
-      .max(50000, "Rating 最大 50000"),
+      .min(0.01, "Rating 最小 0.01")
+      .max(3.00, "Rating 最大 3.00")
+      .refine(
+        (v) => Math.round(v * 100) / 100 === v,
+        "Rating 最多保留两位小数",
+      ),
 
+    // WE：Win Effect，0.0–16.0，一位小数
     peakWe: z
       .number({ invalid_type_error: "请输入数字" })
-      .int("请输入整数")
       .min(0, "WE 不能为负")
-      .max(50000, "WE 最大 50000")
+      .max(16.0, "WE 最大 16.0")
+      .refine(
+        (v) => Math.round(v * 10) / 10 === v,
+        "WE 最多保留一位小数",
+      )
       .optional(),
 
     // ── 段位 · 当前赛季最高 ──
@@ -97,15 +105,21 @@ export const registrationSchema = z
 
     currentRating: z
       .number({ invalid_type_error: "请输入数字" })
-      .int("请输入整数")
-      .min(0, "Rating 不能为负")
-      .max(50000, "Rating 最大 50000"),
+      .min(0.01, "Rating 最小 0.01")
+      .max(3.00, "Rating 最大 3.00")
+      .refine(
+        (v) => Math.round(v * 100) / 100 === v,
+        "Rating 最多保留两位小数",
+      ),
 
     currentWe: z
       .number({ invalid_type_error: "请输入数字" })
-      .int("请输入整数")
       .min(0, "WE 不能为负")
-      .max(50000, "WE 最大 50000")
+      .max(16.0, "WE 最大 16.0")
+      .refine(
+        (v) => Math.round(v * 10) / 10 === v,
+        "WE 最多保留一位小数",
+      )
       .optional(),
 
     // ── 天梯截图（NJUBox 分享链接）──

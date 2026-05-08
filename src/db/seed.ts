@@ -96,8 +96,10 @@ export async function seed() {
     const SECONDARY_MAP: Record<string, string> = {
       igl: "awper", awper: "opener", opener: "closer", closer: "anchor", anchor: "igl",
     };
-    const RANKS   = ["A++", "A+", "A+",  "A",    "A",    "B++",  "B+"];
-    const RATINGS = [1480,  1350, 1320,  1200,   1150,   980,    850];
+    const RANKS   = ["A++", "A+",  "A+",  "A",   "A",   "B++", "B+"];
+    // rating: 0.01–3.00 两位小数；we: 0.0–16.0 一位小数
+    const RATINGS = [1.52,  1.38,  1.35,  1.18,  1.12,  0.95,  0.82];
+    const WES     = [8.5,   9.2,   7.8,   6.5,   7.1,   5.8,   4.9];
     const STYLES  = ["积极进攻", "狙击支撑", "先锋突破", "残局收割", "稳守反推", "辅助支撑", "灵活游走"];
 
     // 创建 56 个用户
@@ -128,8 +130,10 @@ export async function seed() {
             peakRank: RANKS[i % 7],
             peakRankSeason: "S1 2025",
             peakRating: RATINGS[i % 7],
+            peakWe: WES[i % 7],
             currentSeasonPeakRank: RANKS[i % 7],
-            currentRating: RATINGS[i % 7] - 50,
+            currentRating: Math.round((RATINGS[i % 7] - 0.05) * 100) / 100,
+            currentWe: Math.round((WES[i % 7] - 0.3) * 10) / 10,
             gameplayStyle: STYLES[i % 7],
             status: "approved" as const,
             willingToBeCaptain: i % 7 === 0,
