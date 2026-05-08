@@ -29,7 +29,12 @@ export type DB = typeof db;
 function shouldUseSsl(databaseUrl?: string): boolean {
   if (!databaseUrl) return false;
 
-  const url = new URL(databaseUrl);
-  if (url.searchParams.get("sslmode") === "disable") return false;
-  return !["localhost", "127.0.0.1", "::1"].includes(url.hostname);
+  try {
+    const url = new URL(databaseUrl);
+    if (url.searchParams.get("sslmode") === "disable") return false;
+    return !["localhost", "127.0.0.1", "::1"].includes(url.hostname);
+  } catch {
+    console.error("[db] malformed DATABASE_URL, defaulting to SSL enabled");
+    return true;
+  }
 }

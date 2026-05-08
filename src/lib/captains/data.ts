@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, count, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { captainVotes, seasonRegistrations, users, teams } from "@/db/schema";
 import { compareCaptainSeedCandidates, selectCaptainSeeds } from "@/lib/captains/rules";
@@ -108,6 +108,6 @@ export async function getCaptainVotingData(seasonId: string): Promise<CaptainVot
 }
 
 export async function getSeasonTeamCount(seasonId: string): Promise<number> {
-  const rows = await db.select({ id: teams.id }).from(teams).where(eq(teams.seasonId, seasonId));
-  return rows.length;
+  const [row] = await db.select({ count: count() }).from(teams).where(eq(teams.seasonId, seasonId));
+  return Number(row?.count ?? 0);
 }

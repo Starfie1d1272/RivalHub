@@ -14,7 +14,7 @@ import {
 } from "@/db/schema";
 import { fail, ok, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
-import { requireSeasonAdmin } from "@/lib/auth/session";
+import { requireAuth, requireSeasonAdmin } from "@/lib/auth/session";
 import {
   castVoteSchema,
   confirmCaptainsSchema,
@@ -38,6 +38,7 @@ export async function castVote(
   }
 
   try {
+    const session = await requireAuth();
     const voteId = await db.transaction(async (tx) => {
       const voter = await tx.query.seasonRegistrations.findFirst({
         where: eq(seasonRegistrations.id, parsed.data.voterRegistrationId),
@@ -47,6 +48,9 @@ export async function castVote(
       });
       if (!voter || !candidate) {
         throw new AppError(ErrorCode.NOT_FOUND, "报名记录不存在");
+      }
+      if (voter.userId !== session.userId) {
+        throw new AppError(ErrorCode.FORBIDDEN, ERROR_MESSAGES.FORBIDDEN);
       }
 
       const season = await tx.query.seasons.findFirst({
@@ -91,6 +95,9 @@ export async function castVote(
     await revalidateCaptainPaths(parsed.data.voterRegistrationId);
     return ok({ voteId });
   } catch (e) {
+    if (isPgUniqueViolation(e)) {
+      return fail({ code: ErrorCode.VOTE_DUPLICATE, message: ERROR_MESSAGES.VOTE_DUPLICATE });
+    }
     return actionError("castVote", e);
   }
 }
@@ -104,6 +111,7 @@ export async function retractVote(
   }
 
   try {
+    const session = await requireAuth();
     await db.transaction(async (tx) => {
       const voter = await tx.query.seasonRegistrations.findFirst({
         where: eq(seasonRegistrations.id, parsed.data.voterRegistrationId),
@@ -113,6 +121,9 @@ export async function retractVote(
       });
       if (!voter || !candidate) {
         throw new AppError(ErrorCode.NOT_FOUND, "报名记录不存在");
+      }
+      if (voter.userId !== session.userId) {
+        throw new AppError(ErrorCode.FORBIDDEN, ERROR_MESSAGES.FORBIDDEN);
       }
       if (voter.seasonId !== candidate.seasonId) {
         throw new AppError(ErrorCode.CAPTAIN_NOT_ELIGIBLE, ERROR_MESSAGES.CAPTAIN_NOT_ELIGIBLE);
@@ -303,4 +314,8 @@ function actionError(scope: string, e: unknown): ActionResult<never> {
   }
   console.error(`[${scope}]`, e);
   return fail({ code: ErrorCode.INTERNAL_ERROR, message: ERROR_MESSAGES.INTERNAL_ERROR });
+}
+
+function isPgUniqueViolation(e: unknown): boolean {
+  return typeof e === "object" && e !== null && "code" in e && (e as { code: string }).code === "23505";
 }

@@ -44,7 +44,7 @@ export function validateCaptainVote({
     return ErrorCode.CAPTAIN_NOT_ELIGIBLE;
   }
   if (voter.status !== "approved") {
-    return ErrorCode.UNAUTHORIZED;
+    return ErrorCode.FORBIDDEN;
   }
   if (candidate.status !== "approved" || !candidate.willingToBeCaptain) {
     return ErrorCode.CAPTAIN_NOT_ELIGIBLE;
@@ -62,13 +62,7 @@ export function validateCaptainVote({
 }
 
 export function selectCaptainSeeds<T extends CaptainSeedCandidate>(candidates: T[]): T[] {
-  return [...candidates]
-    .sort((a, b) => {
-      if (b.voteCount !== a.voteCount) return b.voteCount - a.voteCount;
-      if (b.peakRating !== a.peakRating) return b.peakRating - a.peakRating;
-      return createdAtTime(a.createdAt) - createdAtTime(b.createdAt);
-    })
-    .slice(0, CAPTAIN_TEAM_COUNT);
+  return [...candidates].sort(compareCaptainSeedCandidates).slice(0, CAPTAIN_TEAM_COUNT);
 }
 
 export function compareCaptainSeedCandidates(

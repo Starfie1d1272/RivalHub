@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useTransition } from "react";
 import { RefreshCw, Undo2, Vote } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -8,14 +8,6 @@ import { castVote, retractVote } from "@/actions/captains";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { createBrowserClient } from "@/lib/auth/supabase";
 import { MAX_CAPTAIN_VOTES } from "@/lib/captains/rules";
 import { POSITION_LABELS } from "@/lib/validators/registration";
@@ -28,7 +20,7 @@ import type {
 interface CaptainVotingPanelProps {
   seasonName: string;
   seasonStatus: string;
-  voters: CaptainVoterOption[];
+  currentVoter: CaptainVoterOption | null;
   candidates: CaptainCandidateRow[];
   votes: CaptainVoteRecord[];
 }
@@ -36,12 +28,11 @@ interface CaptainVotingPanelProps {
 export function CaptainVotingPanel({
   seasonName,
   seasonStatus,
-  voters,
+  currentVoter,
   candidates,
   votes,
 }: CaptainVotingPanelProps) {
   const router = useRouter();
-  const [selectedVoterId, setSelectedVoterId] = useState<string>(voters[0]?.id ?? "");
   const [isPending, startTransition] = useTransition();
   const isVotingOpen = seasonStatus === "voting";
 
@@ -51,13 +42,8 @@ export function CaptainVotingPanel({
     return () => window.clearInterval(timer);
   }, [isVotingOpen, router]);
 
-  const selectedVotes = useMemo(
-    () => votes.filter((vote) => vote.voterRegistrationId === selectedVoterId),
-    [selectedVoterId, votes],
-  );
-  const selectedCandidateIds = new Set(
-    selectedVotes.map((vote) => vote.candidateRegistrationId),
-  );
+  // votes 已在服务端按当前用户过滤
+  const votedCandidateIds = new Set(votes.map((vote) => vote.candidateRegistrationId));
   const maxVotes = Math.max(1, ...candidates.map((candidate) => candidate.voteCount));
 
   useEffect(() => {
@@ -78,14 +64,14 @@ export function CaptainVotingPanel({
   }, [isVotingOpen, router]);
 
   function handleCast(candidateId: string) {
-    if (!selectedVoterId) {
-      toast.error("请选择投票身份");
+    if (!currentVoter) {
+      toast.error("请先登录并完成报名审核");
       return;
     }
 
     startTransition(async () => {
       const result = await castVote({
-        voterRegistrationId: selectedVoterId,
+        voterRegistrationId: currentVoter.id,
         candidateRegistrationId: candidateId,
       });
       if (!result.success) {
@@ -98,9 +84,10 @@ export function CaptainVotingPanel({
   }
 
   function handleRetract(candidateId: string) {
+    if (!currentVoter) return;
     startTransition(async () => {
       const result = await retractVote({
-        voterRegistrationId: selectedVoterId,
+        voterRegistrationId: currentVoter.id,
         candidateRegistrationId: candidateId,
       });
       if (!result.success) {
@@ -118,42 +105,41 @@ export function CaptainVotingPanel({
         <Card className="p-4">
           <div className="space-y-3">
             <div>
-              <h2 className="text-base font-semibold">投票身份</h2>
+              <h2 className="text-base font-semibold">我的投票</h2>
               <p className="mt-1 text-sm text-[var(--text-secondary)]">
                 每名已通过报名的选手最多投 {MAX_CAPTAIN_VOTES} 票。
               </p>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="voter">选择选手</Label>
-              <Select value={selectedVoterId} onValueChange={setSelectedVoterId}>
-                <SelectTrigger id="voter">
-                  <SelectValue placeholder="选择报名身份" />
-                </SelectTrigger>
-                <SelectContent>
-                  {voters.map((voter) => (
-                    <SelectItem key={voter.id} value={voter.id}>
-                      {voter.displayName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {currentVoter ? (
+              <>
+                <div className="rounded-md border border-[var(--border)] p-3 text-sm">
+                  <p className="font-medium">{currentVoter.displayName}</p>
+                  <p className="mt-0.5 text-[var(--text-secondary)]">
+                    {positionLabel(currentVoter.primaryPosition)} · Peak {currentVoter.peakRating}
+                  </p>
+                </div>
 
-            <div className="rounded-md border border-[var(--border)] p-3 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-[var(--text-secondary)]">已投</span>
-                <span className="font-medium">
-                  {selectedVotes.length} / {MAX_CAPTAIN_VOTES}
-                </span>
-              </div>
-              <div className="mt-2 h-2 rounded-full bg-muted">
-                <div
-                  className="h-2 rounded-full bg-[var(--season-primary)] transition-all"
-                  style={{ width: `${(selectedVotes.length / MAX_CAPTAIN_VOTES) * 100}%` }}
-                />
-              </div>
-            </div>
+                <div className="rounded-md border border-[var(--border)] p-3 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[var(--text-secondary)]">已投</span>
+                    <span className="font-medium">
+                      {votes.length} / {MAX_CAPTAIN_VOTES}
+                    </span>
+                  </div>
+                  <div className="mt-2 h-2 rounded-full bg-muted">
+                    <div
+                      className="h-2 rounded-full bg-[var(--season-primary)] transition-all"
+                      style={{ width: `${(votes.length / MAX_CAPTAIN_VOTES) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p className="rounded-md border border-[var(--border)] p-3 text-sm text-[var(--text-secondary)]">
+                请先登录并通过报名审核后方可投票。
+              </p>
+            )}
 
             <Button
               type="button"
@@ -188,13 +174,13 @@ export function CaptainVotingPanel({
         ) : (
           <div className="space-y-3">
             {candidates.map((candidate, index) => {
-              const hasVoted = selectedCandidateIds.has(candidate.id);
+              const hasVoted = votedCandidateIds.has(candidate.id);
               const voteDisabled =
                 !isVotingOpen ||
                 isPending ||
-                !selectedVoterId ||
-                selectedVoterId === candidate.id ||
-                (!hasVoted && selectedVotes.length >= MAX_CAPTAIN_VOTES);
+                !currentVoter ||
+                currentVoter.id === candidate.id ||
+                (!hasVoted && votes.length >= MAX_CAPTAIN_VOTES);
 
               return (
                 <Card key={candidate.id} className="p-4">
