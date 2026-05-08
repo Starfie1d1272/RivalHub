@@ -14,50 +14,85 @@ import { MAX_PER_POSITION } from "@/lib/validators/registration";
 
 type RegistrationStatus = "pending" | "approved" | "rejected" | "waitlisted";
 
-const VALID_TRANSITIONS: Record<RegistrationStatus, {
-  allowed: RegistrationStatus[];
-  seasonStatusCheck?: (seasonStatus: string) => boolean;
-  positionCheck?: boolean; // 是否需要检查位置余量
-}> = {
-  pending: {
-    allowed: ["approved", "rejected", "waitlisted"],
-    seasonStatusCheck: (s) => s === "registration" || s === "voting",
-  },
-  waitlisted: {
-    allowed: ["approved", "rejected"],
-    seasonStatusCheck: (s) => s === "registration" || s === "voting",
-    positionCheck: true,
-  },
-  approved: {
-    allowed: ["rejected"],
-    seasonStatusCheck: (s) => s === "registration",
-  },
-  rejected: {
-    allowed: ["approved"],
-    seasonStatusCheck: (s) => s === "registration",
-    positionCheck: true,
-  },
-};
-
+// 逐目标状态校验赛季条件（而非逐当前状态共用同一函数）
+// 这样可以精确建模：同一个 pending 状态下，不同目标有不同的赛季约束
 function validateTransition(
   current: RegistrationStatus,
   target: RegistrationStatus,
   seasonStatus: string,
 ): void {
-  const rule = VALID_TRANSITIONS[current];
-  if (!rule || !rule.allowed.includes(target)) {
+  // 禁止迁移集
+  const forbidden: Record<RegistrationStatus, RegistrationStatus[]> = {
+    pending: [],
+    waitlisted: [],
+    approved: ["pending"],
+    rejected: ["pending"],
+  };
+  const blocked = forbidden[current];
+  if (blocked?.includes(target)) {
     throw new AppError(
       ErrorCode.REGISTRATION_INVALID_TRANSITION,
       `不允许从 ${current} 变更为 ${target}`,
     );
   }
-  // 对需要赛季状态检查的迁移做校验（reject 全阶段允许，不做限制）
-  if (rule.seasonStatusCheck && !rule.seasonStatusCheck(seasonStatus)) {
+
+  // 赛季状态条件（精确到 (current, target) 对）
+  if (current === "pending") {
+    if ((target === "approved" || target === "waitlisted") && seasonStatus !== "registration") {
+      // 文档: pending→waitlisted 仅 registration; pending→approved 仅 registration 或 voting
+      if (!(target === "approved" && seasonStatus === "voting")) {
+        throw new AppError(
+          ErrorCode.SEASON_INVALID_STATUS,
+          `当前赛季状态不允许此操作（${seasonStatus}）`,
+        );
+      }
+    }
+  }
+
+  if (current === "waitlisted" && target === "approved") {
+    if (seasonStatus !== "registration" && seasonStatus !== "voting") {
+      throw new AppError(
+        ErrorCode.SEASON_INVALID_STATUS,
+        `当前赛季状态不允许此操作（${seasonStatus}）`,
+      );
+    }
+  }
+
+  if (current === "approved" && target === "rejected") {
+    if (seasonStatus !== "registration") {
+      throw new AppError(
+        ErrorCode.SEASON_INVALID_STATUS,
+        `已进入 ${seasonStatus} 阶段，不允许撤销已通过的报名`,
+      );
+    }
+  }
+
+  if (current === "rejected" && target === "approved") {
+    if (seasonStatus !== "registration") {
+      throw new AppError(
+        ErrorCode.SEASON_INVALID_STATUS,
+        `当前赛季状态不允许此操作（${seasonStatus}）`,
+      );
+    }
+  }
+
+  // 检查目标是否在合法集合内
+  const allowed: Record<RegistrationStatus, RegistrationStatus[]> = {
+    pending: ["approved", "rejected", "waitlisted"],
+    waitlisted: ["approved", "rejected"],
+    approved: ["rejected"],
+    rejected: ["approved"],
+  };
+  if (!allowed[current]?.includes(target)) {
     throw new AppError(
-      ErrorCode.SEASON_INVALID_STATUS,
-      `当前赛季状态不允许此操作（${seasonStatus}）`,
+      ErrorCode.REGISTRATION_INVALID_TRANSITION,
+      `不允许从 ${current} 变更为 ${target}`,
     );
   }
+}
+
+function needsPositionCheck(current: RegistrationStatus, target: RegistrationStatus): boolean {
+  return target === "approved" && (current === "waitlisted" || current === "rejected");
 }
 
 // ── 管理员登录 ──────────────────────────────────────────
