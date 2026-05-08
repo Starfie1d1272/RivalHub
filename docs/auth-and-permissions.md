@@ -72,9 +72,8 @@ POST /admin/register (Server Action: registerAdmin)
 | `registered` | season_registrations 存在记录（任意 status）| 已提交本届报名 |
 | `approved` | registrations.status = `approved` | 审核通过的选手 |
 | `captain` | teams.captain_registration_id 指向自己 | 当前赛季的队长 |
-| `admin` | iron-session.isAdmin = true | 赛委会管理员（v1 单一角色，v2 可拆 super_admin / admin / observer） |
-
-> **v2 规划**：admin 角色拆分为 `super_admin / admin / observer`，并在 audit_log 记录 actor_role。v1 暂用单一 admin。
+| `admin` | iron-session.adminRole = "admin" | 普通管理员（报名审核、邀请码创建等日常操作） |
+| `super_admin` | iron-session.adminRole = "super_admin" | 超级管理员（可额外停用/启用其他管理员、创建 super_admin 邀请码） |
 
 ---
 
@@ -166,11 +165,21 @@ CREATE POLICY "captain_votes_public_read" ON captain_votes
 // src/lib/auth/session.ts
 interface AdminSessionData {
   isAdmin: boolean;
-  seasonSlug?: string; // 可选赛季范围限定
+  adminId?: string;
+  adminUsername?: string;
+  adminRole?: "super_admin" | "admin";
+}
+
+// requireAdmin() 返回的收窄类型——保证所有字段非空
+interface AuthenticatedAdmin extends AdminSessionData {
+  isAdmin: true;
+  adminId: string;
+  adminUsername: string;
+  adminRole: "super_admin" | "admin";
 }
 
 const sessionOptions = {
-  password: process.env.ADMIN_SESSION_SECRET, // ≥ 32 字符随机串
+  password: process.env.ADMIN_SESSION_SECRET, // ≥ 32 字符随机串，由 pnpm seed 自动生成
   cookieName: "rivalhub-admin",
   cookieOptions: {
     secure: process.env.NODE_ENV === "production",
@@ -180,6 +189,10 @@ const sessionOptions = {
   },
 };
 ```
+
+**使用规范**：
+- Server Action 鉴权：`await requireAdmin()` —— 非管理员抛 `UNAUTHORIZED`，返回 `AuthenticatedAdmin`（含 adminId/adminUsername/adminRole，无需 `!` 断言）
+- Server Component 鉴权：`await checkAdminSession()` —— 非管理员返回 `null`，由调用方 `redirect`
 
 ---
 
