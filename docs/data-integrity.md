@@ -67,41 +67,21 @@
 
 ---
 
-## Phase 2 时建议补充的 DB 约束
+## ✅ 已落地的 DB 约束（chore/db-constraints，2026-05-09）
 
-以下约束当前 schema 未加，建议在 Phase 2（数据层）补 DDL：
+以下约束已通过 Drizzle `unique()` / `check()` 加入 schema，并经 `db:generate` + `db:push` 推送至 Supabase：
 
-```sql
--- teams
-ALTER TABLE teams ADD CONSTRAINT teams_season_draft_order_unique
-  UNIQUE (season_id, draft_order);
+| 表 | 约束 | 说明 |
+|---|---|---|
+| `teams` | `UNIQUE(season_id, draft_order)` | 同赛季选秀顺位不重复 |
+| `team_members` | `UNIQUE(registration_id)` | 一名选手只能进一支队 |
+| `draft_picks` | `UNIQUE(season_id, registration_id)` | 同赛季选手不可被选两次 |
+| `matches` | `CHECK team_a_id != team_b_id` | 双方不能是同一支队 |
+| `matches` | `CHECK score_a/b >= 0` | 系列赛比分非负 |
+| `match_maps` | `CHECK map_order BETWEEN 1 AND 5` | 图序号合法范围 |
+| `match_maps` | `CHECK score_a/b >= 0` | 单图比分非负（无上限，兼容加时赛） |
 
--- team_members（一名选手在一赛季只能进一队）
--- 因为 team_members 没有直接 season_id，需通过 teams 表关联
--- 简化做法：在 registration_id 上加 UNIQUE
-ALTER TABLE team_members ADD CONSTRAINT team_members_registration_unique
-  UNIQUE (registration_id);
-
--- draft_picks（同选手不能选两次）
-ALTER TABLE draft_picks ADD CONSTRAINT draft_picks_season_registration_unique
-  UNIQUE (season_id, registration_id);
-
--- matches
-ALTER TABLE matches ADD CONSTRAINT matches_teams_different
-  CHECK (team_a_id != team_b_id);
-ALTER TABLE matches ADD CONSTRAINT matches_score_nonnegative
-  CHECK ((score_a IS NULL OR score_a >= 0)
-     AND (score_b IS NULL OR score_b >= 0));
-
--- match_maps
-ALTER TABLE match_maps ADD CONSTRAINT match_maps_score_range
-  CHECK ((score_a IS NULL OR (score_a >= 0 AND score_a <= 30))
-     AND (score_b IS NULL OR (score_b >= 0 AND score_b <= 30)));
-ALTER TABLE match_maps ADD CONSTRAINT match_maps_order_range
-  CHECK (map_order >= 1 AND map_order <= 5);
-```
-
-实施方式：通过 Drizzle 的 `unique()` / `check()` 函数加进 schema，再 `db:generate`。
+> **注**：`match_maps` 单图比分未设 30 分上限，原因是 CS2 加时赛轮次数不定。
 
 ---
 
