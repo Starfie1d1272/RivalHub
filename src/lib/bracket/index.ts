@@ -1,15 +1,19 @@
 // Bracket 适配层——所有 brackets-manager 调用必须经过此模块
 // 禁止在业务代码中直接 import brackets-manager
 //
-// 阶段说明：一个赛季可有两个 stage——qualifier（排位赛）+ playoff（正赛）
-// brackets-manager 原生支持多 stage，对应 BracketStage[] 数组
+// 持久化策略：bracket 完整状态（Database JSON）存储在 seasons.bracket_data
+// 每次 advanceMatch 调用时：读取 → 重建内存 manager → 更新 → 序列化写回
 //
-// BO5 总决赛胜者组冠军 2-ban 优势在 BP 模块处理（不在此适配层）
-//
-// TODO: Phase 11 实装各函数体
+// 参与者 ID 映射：seeding 按 draft_order ASC 排列
+// 即 participant[n].id === n 对应 teams[n]（draft_order = n+1 的队伍）
 
+import { BracketsManager } from "brackets-manager";
+import { InMemoryDatabase } from "brackets-memory-db";
+import { Status } from "brackets-model";
+import type { Database } from "brackets-manager";
 import type { Match } from "@/types/match";
 import type { QualifierFormat, PlayoffFormat } from "@/types/season";
+import type { Team } from "@/db/schema/teams";
 
 export interface BracketStage {
   id: number;
@@ -21,8 +25,8 @@ export interface BracketMatch {
   id: number;
   stageId: number;
   roundNumber: number;
-  opponent1: { id: number; score: number | null; result?: "win" | "loss" } | null;
-  opponent2: { id: number; score: number | null; result?: "win" | "loss" } | null;
+  opponent1: { id: number | null; score: number | null; result?: "win" | "loss" } | null;
+  opponent2: { id: number | null; score: number | null; result?: "win" | "loss" } | null;
 }
 
 export interface BracketData {
@@ -31,38 +35,212 @@ export interface BracketData {
   participant: { id: number; name: string }[];
 }
 
+// 封装的"已确定双方"比赛信息，供调用者批量创建 DB match 记录
+export interface ResolvedBracketMatch {
+  bracketMatchId: number;
+  stageId: number;
+  teamAParticipantId: number;
+  teamBParticipantId: number;
+  roundNumber: number;
+}
+
+function buildManager(data: Database): { manager: BracketsManager; db: InMemoryDatabase } {
+  const db = new InMemoryDatabase();
+  db.setData(data);
+  const manager = new BracketsManager(db);
+  return { manager, db };
+}
+
 /**
- * 根据队伍列表与赛季 capability 初始化赛季 bracket 数据结构
- * 排位赛 + 正赛分别生成 stage（任一为 null 时不生成对应 stage）
- * 实现时调用 brackets-manager 的 manager.create()
+ * 根据队伍列表与赛季 capability 初始化赛季 bracket。
+ * 返回序列化后的 Database JSON 以及所有已确定对阵的 bracket match。
+ * 调用方负责：将 data 写入 seasons.bracket_data，对每个 resolved match 创建 DB 记录。
+ *
+ * teams 必须按 draft_order ASC 排列（draft_order=1 → participantId=0）。
  */
 export async function generateBracket(
-  _seasonId: string,
-  _teamIds: string[],
-  _config: {
+  teams: Team[],
+  config: {
     qualifierFormat: QualifierFormat | null;
     playoffFormat: PlayoffFormat | null;
   }
-): Promise<BracketData> {
-  throw new Error("not implemented");
+): Promise<{ data: Database; resolvedMatches: ResolvedBracketMatch[] }> {
+  const db = new InMemoryDatabase();
+  const manager = new BracketsManager(db);
+
+  const seeding = teams.map((t) => t.name);
+
+  if (config.qualifierFormat !== null) {
+    // 排位赛 stage（round_robin 或 swiss；swiss 暂不支持，统一用 round_robin）
+    await manager.create.stage({
+      tournamentId: 0,
+      name: "排位赛",
+      type: "round_robin",
+      seeding,
+      settings: {
+        groupCount: 1,
+        roundRobinMode: "simple",
+      },
+    });
+  }
+
+  if (config.playoffFormat !== null) {
+    const type =
+      config.playoffFormat === "double_elim" ? "double_elimination" : "single_elimination";
+    await manager.create.stage({
+      tournamentId: 0,
+      name: "正赛",
+      type,
+      seeding: config.qualifierFormat !== null
+        // 排位赛结束后才确定晋级顺序；先全部 TBD
+        ? new Array(teams.length).fill(null)
+        : seeding,
+      settings: {
+        grandFinal: "double",
+        seedOrdering: ["inner_outer"],
+      },
+    });
+  }
+
+  const data = await manager.export();
+  const resolvedMatches = collectResolvedMatches(data);
+
+  return { data, resolvedMatches };
 }
 
 /**
- * 推进一场比赛结果，更新 bracket 状态
- * 实现时调用 brackets-manager 的 manager.update.match()
+ * 推进一场比赛结果，更新 bracket 状态机，写回序列化数据。
+ * 返回新出现的已确定对阵（供调用方创建新 DB match 记录）。
+ *
+ * @param bracketNodeId  matches.bracket_node_id（brackets-manager match ID 字符串）
+ * @param scoreA         TeamA 系列赛胜图数
+ * @param scoreB         TeamB 系列赛胜图数
+ * @param currentData    当前 seasons.bracket_data
  */
 export async function advanceMatch(
-  _seasonId: string,
-  _match: Match
-): Promise<void> {
-  throw new Error("not implemented");
+  bracketNodeId: string,
+  scoreA: number,
+  scoreB: number,
+  currentData: Database
+): Promise<{ updatedData: Database; newResolvedMatches: ResolvedBracketMatch[] }> {
+  const { manager, db } = buildManager(currentData);
+
+  const matchId = parseInt(bracketNodeId, 10);
+  const isWinA = scoreA > scoreB;
+
+  await manager.update.match({
+    id: matchId,
+    opponent1: { score: scoreA, result: isWinA ? "win" : "loss" },
+    opponent2: { score: scoreB, result: isWinA ? "loss" : "win" },
+    status: Status.Completed,
+  });
+
+  const updatedData = await manager.export();
+
+  // 找出本次更新后新增的已确定对阵（对比更新前已有的 bracketMatchId 集合）
+  const prevResolved = new Set(collectResolvedMatches(currentData).map((m) => m.bracketMatchId));
+  const allResolved = collectResolvedMatches(updatedData);
+  const newResolvedMatches = allResolved.filter((m) => !prevResolved.has(m.bracketMatchId));
+
+  return { updatedData, newResolvedMatches };
 }
 
 /**
- * 从数据库读取 bracket 数据，序列化为 brackets-viewer 可消费的格式
+ * 从 seasons.bracket_data 序列化为 brackets-viewer 可消费的格式。
+ * 若 bracket 尚未生成（data 为 null），返回空结构。
  */
-export async function serializeBracket(
-  _seasonId: string
-): Promise<BracketData> {
-  throw new Error("not implemented");
+export function serializeBracket(
+  data: Database | null,
+  teams: Team[]
+): BracketData {
+  if (!data) {
+    return { stage: [], match: [], participant: [] };
+  }
+
+  // participant 表只有 name；id 顺序对应 teams 按 draft_order 排列
+  const participant = (data.participant as Array<{ id: number; name: string }>).map((p) => ({
+    id: p.id,
+    name: p.name,
+  }));
+
+  // round 表：按 stageId+number 查找 roundNumber
+  const roundMap = new Map<number, number>();
+  for (const r of data.round as Array<{ id: number; stage_id: number; number: number }>) {
+    roundMap.set(r.id, r.number);
+  }
+
+  const stage: BracketStage[] = (
+    data.stage as Array<{ id: number; name: string; type: string }>
+  ).map((s) => ({
+    id: s.id,
+    name: s.name,
+    type: s.type as BracketStage["type"],
+  }));
+
+  const match: BracketMatch[] = (
+    data.match as Array<{
+      id: number;
+      stage_id: number;
+      round_id: number;
+      opponent1: { id: number | null; score: number | null; result?: string } | null;
+      opponent2: { id: number | null; score: number | null; result?: string } | null;
+    }>
+  ).map((m) => ({
+    id: m.id,
+    stageId: m.stage_id,
+    roundNumber: roundMap.get(m.round_id) ?? 0,
+    opponent1: m.opponent1
+      ? {
+          id: m.opponent1.id,
+          score: m.opponent1.score ?? null,
+          result: m.opponent1.result as "win" | "loss" | undefined,
+        }
+      : null,
+    opponent2: m.opponent2
+      ? {
+          id: m.opponent2.id,
+          score: m.opponent2.score ?? null,
+          result: m.opponent2.result as "win" | "loss" | undefined,
+        }
+      : null,
+  }));
+
+  return { stage, match, participant };
+}
+
+// ─── 内部工具 ───────────────────────────────────────────────────────────────
+
+/**
+ * 从 Database JSON 中筛选出双方参与者均已确定的比赛（非 TBD/BYE）。
+ */
+function collectResolvedMatches(data: Database): ResolvedBracketMatch[] {
+  const roundMap = new Map<number, { stageId: number; number: number }>();
+  for (const r of data.round as Array<{ id: number; stage_id: number; number: number }>) {
+    roundMap.set(r.id, { stageId: r.stage_id, number: r.number });
+  }
+
+  const resolved: ResolvedBracketMatch[] = [];
+  for (const m of data.match as Array<{
+    id: number;
+    round_id: number;
+    opponent1: { id: number | null } | null;
+    opponent2: { id: number | null } | null;
+  }>) {
+    if (
+      m.opponent1?.id !== null &&
+      m.opponent1?.id !== undefined &&
+      m.opponent2?.id !== null &&
+      m.opponent2?.id !== undefined
+    ) {
+      const round = roundMap.get(m.round_id);
+      resolved.push({
+        bracketMatchId: m.id,
+        stageId: round?.stageId ?? 0,
+        teamAParticipantId: m.opponent1.id,
+        teamBParticipantId: m.opponent2.id,
+        roundNumber: round?.number ?? 0,
+      });
+    }
+  }
+  return resolved;
 }

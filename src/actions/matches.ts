@@ -1,287 +1,352 @@
 "use server";
 
-import { eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { eq, and, count, asc } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons } from "@/db/schema/seasons";
-import { teams } from "@/db/schema/teams";
-
-import { matches } from "@/db/schema/matches";
-import { matchMaps } from "@/db/schema/match-maps";
-import { auditLogs } from "@/db/schema/audit";
+import { seasons, matches, teams, auditLogs } from "@/db/schema";
+import { ok, fail } from "@/types/action";
+import type { ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { requireAdmin } from "@/lib/auth/session";
-import { ok, fail, type ActionResult } from "@/types/action";
-import {
-  createMatchSchema,
-  recordMatchResultSchema,
-  type CreateMatchInput,
-  type RecordMatchResultInput,
-} from "@/lib/validators/match";
+import { generateBracket, advanceMatch as bracketAdvance } from "@/lib/bracket";
+import type { Database } from "brackets-manager";
 
-const FORMAT_MAX_MAPS: Record<string, number> = { bo1: 1, bo3: 3, bo5: 5 };
+// ── 状态机 ────────────────────────────────────────────────────────────────
 
-export async function createMatch(
-  input: CreateMatchInput
-): Promise<ActionResult<{ matchId: string }>> {
+type MatchStatus = "scheduled" | "in_progress" | "finished" | "cancelled";
+
+const MATCH_TRANSITIONS: Partial<Record<`${MatchStatus}→${MatchStatus}`, true>> = {
+  "scheduled→in_progress": true,
+  "scheduled→cancelled": true,
+  "in_progress→finished": true,
+  "in_progress→cancelled": true,
+};
+
+function assertMatchTransition(current: MatchStatus, next: MatchStatus): void {
+  const key = `${current}→${next}` as `${MatchStatus}→${MatchStatus}`;
+  if (!MATCH_TRANSITIONS[key]) {
+    throw new AppError(
+      ErrorCode.MATCH_INVALID_TRANSITION,
+      `比赛状态不允许从 ${current} 变更为 ${next}`
+    );
+  }
+}
+
+// ── 查询工具 ──────────────────────────────────────────────────────────────
+
+async function getSeasonOrThrow(seasonId: string) {
+  const season = await db.query.seasons.findFirst({
+    where: eq(seasons.id, seasonId),
+  });
+  if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
+  return season;
+}
+
+async function getMatchOrThrow(matchId: string) {
+  const match = await db.query.matches.findFirst({
+    where: eq(matches.id, matchId),
+  });
+  if (!match) throw new AppError(ErrorCode.MATCH_NOT_FOUND, ERROR_MESSAGES.MATCH_NOT_FOUND);
+  return match;
+}
+
+// ── 一键生成赛程 ──────────────────────────────────────────────────────────
+
+/**
+ * 根据赛季 capability 一键生成赛程。
+ * 赛季必须处于 playing 状态，且当前无任何比赛记录（幂等保护）。
+ */
+export async function generateSchedule(
+  seasonId: string
+): Promise<ActionResult<{ matchCount: number }>> {
   try {
-    const admin = await requireAdmin();
+    const session = await requireAdmin();
+    const season = await getSeasonOrThrow(seasonId);
 
-    const parsed = createMatchSchema.safeParse(input);
-    if (!parsed.success) {
-      return fail({
-        code: ErrorCode.VALIDATION_FAILED,
-        message: ERROR_MESSAGES.VALIDATION_FAILED,
-        fieldErrors: Object.fromEntries(
-          Object.entries(parsed.error.flatten().fieldErrors).map(([k, v]) => [
-            k,
-            v?.[0] ?? "",
-          ])
-        ),
-      });
-    }
-
-    const { seasonId, teamAId, teamBId, stage, format, scheduledAt } = parsed.data;
-
-    if (teamAId === teamBId) {
-      return fail({ code: ErrorCode.VALIDATION_FAILED, message: "两支队伍不能相同" });
-    }
-
-    const season = await db.query.seasons.findFirst({
-      where: eq(seasons.id, seasonId),
-    });
-    if (!season) {
-      return fail({ code: ErrorCode.SEASON_NOT_FOUND, message: ERROR_MESSAGES.SEASON_NOT_FOUND });
-    }
     if (season.status !== "playing") {
-      return fail({
-        code: ErrorCode.SEASON_INVALID_STATUS,
-        message: "只有处于 playing 状态的赛季才能创建比赛",
-      });
+      throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有在赛季进行中才能生成赛程");
     }
 
-    const [teamA, teamB] = await db
-      .select()
-      .from(teams)
-      .where(inArray(teams.id, [teamAId, teamBId]));
-    if (!teamA || !teamB) {
-      return fail({ code: ErrorCode.NOT_FOUND, message: "队伍不存在" });
-    }
-    if (teamA.seasonId !== seasonId || teamB.seasonId !== seasonId) {
-      return fail({ code: ErrorCode.VALIDATION_FAILED, message: "队伍不属于该赛季" });
+    const [{ value: existingCount }] = await db
+      .select({ value: count() })
+      .from(matches)
+      .where(eq(matches.seasonId, seasonId));
+
+    if (existingCount > 0) {
+      throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "赛程已生成，不可重复生成");
     }
 
-    const matchId = await db.transaction(async (tx) => {
-      // 在事务内再次校验队伍归属，防止并发创建时队伍已被移走
-      const txTeams = await tx
-        .select({ id: teams.id, seasonId: teams.seasonId })
-        .from(teams)
-        .where(inArray(teams.id, [teamAId, teamBId]));
-      const txTeamA = txTeams.find((t) => t.id === teamAId);
-      const txTeamB = txTeams.find((t) => t.id === teamBId);
-      if (!txTeamA || !txTeamB) {
-        throw new AppError(ErrorCode.NOT_FOUND, "队伍不存在");
-      }
-      if (txTeamA.seasonId !== seasonId || txTeamB.seasonId !== seasonId) {
-        throw new AppError(ErrorCode.VALIDATION_FAILED, "队伍不属于该赛季");
-      }
+    // 按 draft_order ASC 取队伍（决定 participantId 顺序）
+    const seasonTeams = await db.query.teams.findMany({
+      where: eq(teams.seasonId, seasonId),
+      orderBy: [asc(teams.draftOrder)],
+    });
 
-      const [match] = await tx
-        .insert(matches)
-        .values({
-          seasonId,
-          teamAId,
-          teamBId,
-          stage,
-          format,
-          status: "scheduled",
-          scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
-        })
-        .returning({ id: matches.id });
+    if (seasonTeams.length < 2) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "队伍数量不足，无法生成赛程");
+    }
 
-      await tx.insert(auditLogs).values({
+    const { data, resolvedMatches } = await generateBracket(seasonTeams, {
+      qualifierFormat: season.qualifierFormat ?? null,
+      playoffFormat: season.playoffFormat ?? null,
+    });
+
+    // 确定 qualifier stage id（若存在）
+    const dbStages = data.stage as Array<{ id: number; name: string }>;
+    const qualifierStageId = season.qualifierFormat
+      ? (dbStages.find((s) => s.name === "排位赛")?.id ?? null)
+      : null;
+
+    // 批量创建 match 记录
+    let matchCount = 0;
+    for (const bm of resolvedMatches) {
+      const teamA = seasonTeams[bm.teamAParticipantId];
+      const teamB = seasonTeams[bm.teamBParticipantId];
+      if (!teamA || !teamB) continue;
+
+      const stage = qualifierStageId !== null && bm.stageId === qualifierStageId
+        ? "qualifier"
+        : "playoff";
+      // 排位赛默认 BO1，正赛第一轮 BO3
+      const format = stage === "qualifier" ? "bo1" : "bo3";
+
+      await db.insert(matches).values({
         seasonId,
-        action: "match.create",
-        actorId: admin.adminId,
-        targetId: match.id,
-        targetType: "match",
-        meta: { stage, format, teamAId, teamBId },
+        teamAId: teamA.id,
+        teamBId: teamB.id,
+        stage,
+        format,
+        status: "scheduled",
+        bracketNodeId: bm.bracketMatchId.toString(),
       });
+      matchCount++;
+    }
 
-      return match.id;
+    // 持久化 bracket JSON
+    await db
+      .update(seasons)
+      .set({ bracketData: data as Database, updatedAt: new Date() })
+      .where(eq(seasons.id, seasonId));
+
+    // Audit
+    await db.insert(auditLogs).values({
+      seasonId,
+      action: "match.generate_schedule",
+      actorId: session.adminUsername,
+      targetId: seasonId,
+      targetType: "season",
+      meta: { matchCount },
     });
 
     revalidatePath(`/admin/${season.slug}/matches`);
-    return ok({ matchId });
+    revalidatePath(`/${season.slug}/matches`);
+
+    return ok({ matchCount });
   } catch (e) {
-    if (e instanceof AppError) {
-      return fail({ code: e.code, message: e.message });
+    if (e instanceof AppError) return fail({ code: e.code, message: e.message });
+    console.error("[generateSchedule]", e);
+    return fail({ code: ErrorCode.INTERNAL_ERROR, message: ERROR_MESSAGES.INTERNAL_ERROR });
+  }
+}
+
+// ── 创建单场比赛 ──────────────────────────────────────────────────────────
+
+/**
+ * 手动创建一场比赛（无 bracket 节点关联）。
+ */
+export async function createMatch(
+  seasonId: string,
+  teamAId: string,
+  teamBId: string,
+  stage: "qualifier" | "playoff",
+  format: "bo1" | "bo3" | "bo5"
+): Promise<ActionResult<{ matchId: string }>> {
+  try {
+    const session = await requireAdmin();
+
+    if (teamAId === teamBId) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "双方队伍不能相同");
     }
+
+    const season = await getSeasonOrThrow(seasonId);
+
+    // 校验两支队伍属于本赛季
+    const teamRows = await db.query.teams.findMany({
+      where: and(
+        eq(teams.seasonId, seasonId),
+      ),
+    });
+    const teamIds = new Set(teamRows.map((t) => t.id));
+    if (!teamIds.has(teamAId) || !teamIds.has(teamBId)) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "队伍不属于该赛季");
+    }
+
+    const [newMatch] = await db
+      .insert(matches)
+      .values({ seasonId, teamAId, teamBId, stage, format, status: "scheduled" })
+      .returning({ id: matches.id });
+
+    await db.insert(auditLogs).values({
+      seasonId,
+      action: "match.create",
+      actorId: session.adminUsername,
+      targetId: newMatch.id,
+      targetType: "match",
+      meta: { teamAId, teamBId, stage, format },
+    });
+
+    revalidatePath(`/admin/${season.slug}/matches`);
+    revalidatePath(`/${season.slug}/matches`);
+
+    return ok({ matchId: newMatch.id });
+  } catch (e) {
+    if (e instanceof AppError) return fail({ code: e.code, message: e.message });
     console.error("[createMatch]", e);
     return fail({ code: ErrorCode.INTERNAL_ERROR, message: ERROR_MESSAGES.INTERNAL_ERROR });
   }
 }
 
-export async function recordMatchResult(
-  input: RecordMatchResultInput
-): Promise<ActionResult<{ matchId: string }>> {
+// ── 更新比赛状态 ──────────────────────────────────────────────────────────
+
+/**
+ * 将比赛状态推进一步（scheduled→in_progress，scheduled/in_progress→cancelled）。
+ */
+export async function updateMatchStatus(
+  matchId: string,
+  nextStatus: "in_progress" | "cancelled"
+): Promise<ActionResult<void>> {
   try {
-    const admin = await requireAdmin();
+    const session = await requireAdmin();
+    const match = await getMatchOrThrow(matchId);
+    assertMatchTransition(match.status as MatchStatus, nextStatus);
 
-    const parsed = recordMatchResultSchema.safeParse(input);
-    if (!parsed.success) {
-      return fail({
-        code: ErrorCode.VALIDATION_FAILED,
-        message: ERROR_MESSAGES.VALIDATION_FAILED,
-        fieldErrors: Object.fromEntries(
-          Object.entries(parsed.error.flatten().fieldErrors).map(([k, v]) => [
-            k,
-            v?.[0] ?? "",
-          ])
-        ),
-      });
-    }
+    await db
+      .update(matches)
+      .set({ status: nextStatus, updatedAt: new Date() })
+      .where(eq(matches.id, matchId));
 
-    const { matchId, scoreA, scoreB, maps } = parsed.data;
-
-    const match = await db.query.matches.findFirst({
-      where: eq(matches.id, matchId),
-    });
-    if (!match) {
-      return fail({ code: ErrorCode.MATCH_NOT_FOUND, message: ERROR_MESSAGES.MATCH_NOT_FOUND });
-    }
-    if (match.status === "finished" || match.status === "cancelled") {
-      return fail({
-        code: ErrorCode.MATCH_INVALID_TRANSITION,
-        message: ERROR_MESSAGES.MATCH_INVALID_TRANSITION,
-      });
-    }
-
-    if (maps && maps.length > 0) {
-      const maxMaps = FORMAT_MAX_MAPS[match.format] ?? 1;
-      if (maps.length > maxMaps) {
-        return fail({
-          code: ErrorCode.MATCH_FORMAT_MISMATCH,
-          message: `${match.format.toUpperCase()} 最多 ${maxMaps} 张图，提交了 ${maps.length} 张`,
-        });
-      }
-      const mapOrders = maps.map((m) => m.mapOrder);
-      if (new Set(mapOrders).size !== mapOrders.length) {
-        return fail({
-          code: ErrorCode.MATCH_MAP_ORDER_CONFLICT,
-          message: ERROR_MESSAGES.MATCH_MAP_ORDER_CONFLICT,
-        });
-      }
-      const mapNames = maps.map((m) => m.mapName);
-      if (new Set(mapNames).size !== mapNames.length) {
-        return fail({
-          code: ErrorCode.MATCH_MAP_DUPLICATE,
-          message: ERROR_MESSAGES.MATCH_MAP_DUPLICATE,
-        });
-      }
-    }
-
-    const season = await db.query.seasons.findFirst({
-      where: eq(seasons.id, match.seasonId),
-    });
-    if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
-
-    await db.transaction(async (tx) => {
-      if (maps && maps.length > 0) {
-        await tx.delete(matchMaps).where(eq(matchMaps.matchId, matchId));
-        await tx.insert(matchMaps).values(
-          maps.map((m) => ({
-            matchId,
-            mapOrder: m.mapOrder,
-            mapName: m.mapName,
-            pickedByTeamId: m.pickedByTeamId ?? null,
-            teamAStartSide: m.teamAStartSide ?? null,
-            scoreA: m.scoreA,
-            scoreB: m.scoreB,
-            completedAt: new Date(),
-          }))
-        );
-      }
-
-      await tx
-        .update(matches)
-        .set({
-          scoreA,
-          scoreB,
-          status: "finished",
-          completedAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .where(eq(matches.id, matchId));
-
-      await tx.insert(auditLogs).values({
-        seasonId: match.seasonId,
-        action: "match.record_result",
-        actorId: admin.adminId,
-        targetId: matchId,
-        targetType: "match",
-        meta: { scoreA, scoreB, mapCount: maps?.length ?? 0 },
-      });
+    const season = await getSeasonOrThrow(match.seasonId);
+    await db.insert(auditLogs).values({
+      seasonId: match.seasonId,
+      action: "match.status_update",
+      actorId: session.adminUsername,
+      targetId: matchId,
+      targetType: "match",
+      meta: { from: match.status, to: nextStatus },
     });
 
-    revalidatePath(`/${season.slug}/matches/${matchId}`);
     revalidatePath(`/admin/${season.slug}/matches`);
-    return ok({ matchId });
+    revalidatePath(`/${season.slug}/matches`);
+    revalidatePath(`/${season.slug}/matches/${matchId}`);
+
+    return ok(undefined);
   } catch (e) {
-    if (e instanceof AppError) {
-      return fail({ code: e.code, message: e.message });
-    }
-    console.error("[recordMatchResult]", e);
+    if (e instanceof AppError) return fail({ code: e.code, message: e.message });
+    console.error("[updateMatchStatus]", e);
     return fail({ code: ErrorCode.INTERNAL_ERROR, message: ERROR_MESSAGES.INTERNAL_ERROR });
   }
 }
 
-export async function cancelMatch(
-  matchId: string
-): Promise<ActionResult<{ matchId: string }>> {
+// ── 录入比赛结果 ──────────────────────────────────────────────────────────
+
+/**
+ * 录入系列赛比分，将比赛标记为 finished，并推进 bracket。
+ * 若 bracket 中因此产生新的已确定对阵，自动创建对应 DB match 记录。
+ */
+export async function recordMatchResult(
+  matchId: string,
+  scoreA: number,
+  scoreB: number
+): Promise<ActionResult<void>> {
   try {
-    const admin = await requireAdmin();
+    const session = await requireAdmin();
 
-    const match = await db.query.matches.findFirst({
-      where: eq(matches.id, matchId),
-    });
-    if (!match) {
-      return fail({ code: ErrorCode.MATCH_NOT_FOUND, message: ERROR_MESSAGES.MATCH_NOT_FOUND });
+    if (!Number.isInteger(scoreA) || !Number.isInteger(scoreB) || scoreA < 0 || scoreB < 0) {
+      throw new AppError(ErrorCode.MATCH_INVALID_SCORE, "比分必须为非负整数");
     }
-    if (match.status !== "scheduled") {
-      return fail({
-        code: ErrorCode.MATCH_INVALID_TRANSITION,
-        message: "只有 scheduled 状态的比赛可以取消",
-      });
+    if (scoreA === scoreB) {
+      throw new AppError(ErrorCode.MATCH_INVALID_SCORE, "系列赛不能平局，必须分出胜负");
     }
 
-    const season = await db.query.seasons.findFirst({
-      where: eq(seasons.id, match.seasonId),
-    });
-    if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
+    const match = await getMatchOrThrow(matchId);
+    assertMatchTransition(match.status as MatchStatus, "finished");
 
-    await db.transaction(async (tx) => {
-      await tx
-        .update(matches)
-        .set({ status: "cancelled", updatedAt: new Date() })
-        .where(eq(matches.id, matchId));
+    const season = await getSeasonOrThrow(match.seasonId);
 
-      await tx.insert(auditLogs).values({
-        seasonId: match.seasonId,
-        action: "match.cancel",
-        actorId: admin.adminId,
-        targetId: matchId,
-        targetType: "match",
+    await db
+      .update(matches)
+      .set({
+        scoreA,
+        scoreB,
+        status: "finished",
+        completedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(matches.id, matchId));
+
+    // 推进 bracket（若 bracket 已初始化）
+    if (season.bracketData && match.bracketNodeId) {
+      const { updatedData, newResolvedMatches } = await bracketAdvance(
+        match.bracketNodeId,
+        scoreA,
+        scoreB,
+        season.bracketData as Database
+      );
+
+      // 持久化更新后的 bracket JSON
+      await db
+        .update(seasons)
+        .set({ bracketData: updatedData as Database, updatedAt: new Date() })
+        .where(eq(seasons.id, match.seasonId));
+
+      // 获取队伍列表（用于 participantId → teamId 映射）
+      const seasonTeams = await db.query.teams.findMany({
+        where: eq(teams.seasonId, match.seasonId),
+        orderBy: [asc(teams.draftOrder)],
       });
+
+      // 为新确定对阵创建 match 记录
+      for (const bm of newResolvedMatches) {
+        const teamA = seasonTeams[bm.teamAParticipantId];
+        const teamB = seasonTeams[bm.teamBParticipantId];
+        if (!teamA || !teamB) continue;
+
+        // 正赛阶段的 stage 列表名为"正赛"
+        const dbStages = updatedData.stage as Array<{ id: number; name: string }>;
+        const playoffStageId = dbStages.find((s) => s.name === "正赛")?.id;
+        const stage = playoffStageId !== undefined && bm.stageId === playoffStageId
+          ? "playoff"
+          : "qualifier";
+
+        await db.insert(matches).values({
+          seasonId: match.seasonId,
+          teamAId: teamA.id,
+          teamBId: teamB.id,
+          stage,
+          format: "bo3",
+          status: "scheduled",
+          bracketNodeId: bm.bracketMatchId.toString(),
+        });
+      }
+    }
+
+    await db.insert(auditLogs).values({
+      seasonId: match.seasonId,
+      action: "match.record_result",
+      actorId: session.adminUsername,
+      targetId: matchId,
+      targetType: "match",
+      meta: { scoreA, scoreB },
     });
 
     revalidatePath(`/admin/${season.slug}/matches`);
-    return ok({ matchId });
+    revalidatePath(`/${season.slug}/matches`);
+    revalidatePath(`/${season.slug}/matches/${matchId}`);
+
+    return ok(undefined);
   } catch (e) {
-    if (e instanceof AppError) {
-      return fail({ code: e.code, message: e.message });
-    }
-    console.error("[cancelMatch]", e);
+    if (e instanceof AppError) return fail({ code: e.code, message: e.message });
+    console.error("[recordMatchResult]", e);
     return fail({ code: ErrorCode.INTERNAL_ERROR, message: ERROR_MESSAGES.INTERNAL_ERROR });
   }
 }
