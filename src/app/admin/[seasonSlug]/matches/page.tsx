@@ -178,7 +178,7 @@ export default async function AdminMatchesPage({ params }: AdminMatchesPageProps
                               teamAName={teamAName}
                               teamBName={teamBName}
                               currentStatus={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"}
-                              isBO1
+                              format={m.format as "bo1" | "bo3" | "bo5"}
                             />
                           </>
                         )}
@@ -236,7 +236,7 @@ export default async function AdminMatchesPage({ params }: AdminMatchesPageProps
                               teamAName={teamAName}
                               teamBName={teamBName}
                               currentStatus={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"}
-                              isBO1={false}
+                              format={m.format as "bo1" | "bo3" | "bo5"}
                             />
                           </>
                         )}

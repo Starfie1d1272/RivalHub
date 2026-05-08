@@ -268,6 +268,19 @@ export async function recordMatchResult(
     }
 
     const match = await getMatchOrThrow(matchId);
+
+    // BO3/BO5 校验系列赛胜场数：胜者恰好达到 maxWins，败者不得超过 maxWins-1
+    const maxWins = match.format === "bo3" ? 2 : match.format === "bo5" ? 3 : null;
+    if (maxWins !== null) {
+      const winner = Math.max(scoreA, scoreB);
+      const loser = Math.min(scoreA, scoreB);
+      if (winner !== maxWins || loser >= maxWins) {
+        throw new AppError(
+          ErrorCode.MATCH_INVALID_SCORE,
+          `${match.format.toUpperCase()} 系列赛比分不合法（胜者须恰好赢 ${maxWins} 图）`
+        );
+      }
+    }
     const session = await requireSeasonAdmin(match.seasonId);
     assertMatchTransition(match.status as MatchStatus, "finished");
 
