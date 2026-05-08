@@ -62,6 +62,7 @@ export default async function TeamsPage({ params }: TeamsPageProps) {
   const allMembers = await db
     .select({
       teamId: teamMembers.teamId,
+      registrationId: teamMembers.registrationId,
       isStarter: teamMembers.isStarter,
       primaryPosition: seasonRegistrations.primaryPosition,
       steamName: users.steamName,
@@ -78,17 +79,11 @@ export default async function TeamsPage({ params }: TeamsPageProps) {
     membersByTeam.set(row.teamId, list);
   }
 
-  const captainRegIds = seasonTeams.map((t) => t.captainRegistrationId);
-  const captainRows = await db
-    .select({
-      registrationId: seasonRegistrations.id,
-      steamName: users.steamName,
-    })
-    .from(seasonRegistrations)
-    .innerJoin(users, eq(seasonRegistrations.userId, users.id))
-    .where(inArray(seasonRegistrations.id, captainRegIds));
-
-  const captainMap = new Map(captainRows.map((r) => [r.registrationId, r.steamName]));
+  const captainMap = new Map(
+    allMembers
+      .filter((m) => seasonTeams.some((t) => t.captainRegistrationId === m.registrationId))
+      .map((m) => [m.registrationId, m.steamName])
+  );
 
   const teamCards: TeamCardData[] = seasonTeams.map((team) => ({
     id: team.id,

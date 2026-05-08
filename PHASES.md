@@ -116,8 +116,19 @@
 
 ---
 
-## Phase 11 — Bracket 视图
+## Phase 11 — Bracket 视图 + 自动生成赛程
 
+**赛制支持**
+- [ ] 单循环排位赛（Round Robin）：按 `draftOrder` 为种子，生成所有两两对阵的 `matches` 行
+- [ ] 双败淘汰正赛（Double Elimination）：排位赛结束后按名次分配种子，`brackets-manager` 生成 bracket 结构，写入 `matches`
+- [ ] （远期）三败瑞士轮：用于 Major 预选，需自行实现配对算法，单独子 Phase
+
+**自动生成流程**
+- [ ] admin 页面「生成赛程」按钮：赛季状态为 `playing` 且尚无 matches 时可用
+- [ ] Server Action `generateSchedule(seasonId, type)`：按赛制 insert 所有 `matches`（`status: scheduled`，`scheduledAt: null`）
+- [ ] 管理员在赛程列表逐场填入 `scheduledAt`
+
+**Bracket 视图**
 - [ ] `brackets-manager` 双败淘汰赛数据结构初始化
 - [ ] `brackets-viewer` 渲染集成（注入 season theme_color）
 - [ ] `/[seasonSlug]/matches` 总览页（bracket 图 + 赛程列表联动）

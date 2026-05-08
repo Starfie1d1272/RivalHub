@@ -79,14 +79,34 @@ export function RecordResultForm({
       return;
     }
 
-    const maps = mapEntries.map((m, i) => ({
-      mapOrder: i + 1,
-      mapName: m.mapName,
-      pickedByTeamId: m.pickedByTeamId,
-      teamAStartSide: m.teamAStartSide,
-      scoreA: parseInt(m.scoreA, 10) || 0,
-      scoreB: parseInt(m.scoreB, 10) || 0,
-    }));
+    const maps: {
+      mapOrder: number;
+      mapName: string;
+      pickedByTeamId: string | null;
+      teamAStartSide: "t" | "ct" | null;
+      scoreA: number;
+      scoreB: number;
+    }[] = [];
+    for (const [i, m] of mapEntries.entries()) {
+      const mA = parseInt(m.scoreA, 10);
+      const mB = parseInt(m.scoreB, 10);
+      if (isNaN(mA) || isNaN(mB) || mA < 0 || mB < 0) {
+        toast.error(`第 ${i + 1} 张图比分不完整`);
+        return;
+      }
+      if (!m.mapName) {
+        toast.error(`第 ${i + 1} 张图请选择地图`);
+        return;
+      }
+      maps.push({
+        mapOrder: i + 1,
+        mapName: m.mapName,
+        pickedByTeamId: m.pickedByTeamId,
+        teamAStartSide: m.teamAStartSide,
+        scoreA: mA,
+        scoreB: mB,
+      });
+    }
 
     startTransition(async () => {
       const result = await recordMatchResult({ matchId, scoreA: sA, scoreB: sB, maps });

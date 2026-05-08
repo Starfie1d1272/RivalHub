@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db/client";
 import { seasons } from "@/db/schema/seasons";
@@ -72,6 +72,20 @@ export async function createMatch(
     }
 
     const matchId = await db.transaction(async (tx) => {
+      // 在事务内再次校验队伍归属，防止并发创建时队伍已被移走
+      const txTeams = await tx
+        .select({ id: teams.id, seasonId: teams.seasonId })
+        .from(teams)
+        .where(inArray(teams.id, [teamAId, teamBId]));
+      const txTeamA = txTeams.find((t) => t.id === teamAId);
+      const txTeamB = txTeams.find((t) => t.id === teamBId);
+      if (!txTeamA || !txTeamB) {
+        throw new AppError(ErrorCode.NOT_FOUND, "队伍不存在");
+      }
+      if (txTeamA.seasonId !== seasonId || txTeamB.seasonId !== seasonId) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "队伍不属于该赛季");
+      }
+
       const [match] = await tx
         .insert(matches)
         .values({
@@ -250,7 +264,7 @@ export async function cancelMatch(
       await tx
         .update(matches)
         .set({ status: "cancelled", updatedAt: new Date() })
-        .where(and(eq(matches.id, matchId), eq(matches.status, "scheduled")));
+        .where(eq(matches.id, matchId));
 
       await tx.insert(auditLogs).values({
         seasonId: match.seasonId,

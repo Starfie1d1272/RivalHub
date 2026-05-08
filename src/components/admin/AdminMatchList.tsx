@@ -7,6 +7,16 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Table,
   TableBody,
   TableCell,
@@ -74,12 +84,15 @@ interface AdminMatchListProps {
 export function AdminMatchList({ seasonId, seasonSlug, matches, teams }: AdminMatchListProps) {
   const [showCreate, setShowCreate] = useState(false);
   const [recordTarget, setRecordTarget] = useState<MatchRow | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<string | null>(null);
   const [cancelPending, startCancelTransition] = useTransition();
 
-  function handleCancel(matchId: string) {
-    if (!confirm("确认取消该场比赛？")) return;
+  function confirmCancel() {
+    if (!cancelTarget) return;
+    const id = cancelTarget;
+    setCancelTarget(null);
     startCancelTransition(async () => {
-      const result = await cancelMatch(matchId);
+      const result = await cancelMatch(id);
       if (!result.success) toast.error(result.error.message);
       else toast.success("比赛已取消");
     });
@@ -160,7 +173,7 @@ export function AdminMatchList({ seasonId, seasonSlug, matches, teams }: AdminMa
                           size="sm"
                           variant="outline"
                           disabled={cancelPending}
-                          onClick={() => handleCancel(m.id)}
+                          onClick={() => setCancelTarget(m.id)}
                           className="text-red-400 border-red-400/20 hover:bg-red-400/10"
                         >
                           取消
@@ -188,6 +201,27 @@ export function AdminMatchList({ seasonId, seasonSlug, matches, teams }: AdminMa
           />
         </DialogContent>
       </Dialog>
+
+      {/* 取消比赛确认 */}
+      <AlertDialog open={!!cancelTarget} onOpenChange={(open) => { if (!open) setCancelTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认取消比赛</AlertDialogTitle>
+            <AlertDialogDescription>
+              取消后无法恢复，该场比赛将标记为「已取消」。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>返回</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmCancel}
+              className="bg-red-500 hover:bg-red-600"
+            >
+              确认取消
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* 录入结果 Dialog */}
       <Dialog open={!!recordTarget} onOpenChange={(open) => { if (!open) setRecordTarget(null); }}>
