@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export function AdminLoginForm() {
-  const [inviteCode, setInviteCode] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -17,7 +17,7 @@ export function AdminLoginForm() {
     setError("");
 
     startTransition(async () => {
-      const result = await adminLogin(inviteCode, password);
+      const result = await adminLogin(username, password);
       // adminLogin redirects on success, so we only get here on failure
       if (!result.success) {
         setError(result.error.message);
@@ -28,15 +28,16 @@ export function AdminLoginForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-2">
-        <Label htmlFor="invite-code">邀请码</Label>
+        <Label htmlFor="username">用户名</Label>
         <Input
-          id="invite-code"
+          id="username"
           type="text"
-          value={inviteCode}
-          onChange={(e) => setInviteCode(e.target.value)}
-          placeholder="请输入管理员邀请码"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          placeholder="请输入管理员用户名"
           required
           autoFocus
+          autoComplete="username"
         />
       </div>
 
@@ -47,8 +48,9 @@ export function AdminLoginForm() {
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="请输入管理员密码"
+          placeholder="请输入密码"
           required
+          autoComplete="current-password"
         />
       </div>
 

@@ -4,7 +4,9 @@ import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 
 export interface AdminSessionData {
   isAdmin: boolean;
-  seasonSlug?: string;
+  adminId?: string;
+  adminUsername?: string;
+  adminRole?: "super_admin" | "admin";
 }
 
 function sessionOptions() {

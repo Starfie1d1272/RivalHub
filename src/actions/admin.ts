@@ -2,26 +2,25 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { eq, and, count, inArray } from "drizzle-orm";
+import { randomBytes } from "crypto";
+import { eq, and, count, inArray, desc } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, seasonRegistrations, auditLogs } from "@/db/schema";
+import { seasons, seasonRegistrations, auditLogs, adminUsers, adminInvites } from "@/db/schema";
 import { ok, fail } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { requireAdmin, getAdminSession } from "@/lib/auth/session";
+import { verifyPassword, hashPassword } from "@/lib/utils/password";
 import { MAX_PER_POSITION } from "@/lib/validators/registration";
 
 // ── 状态迁移合法性校验 ────────────────────────────────────
 
 type RegistrationStatus = "pending" | "approved" | "rejected" | "waitlisted";
 
-// 逐目标状态校验赛季条件（而非逐当前状态共用同一函数）
-// 这样可以精确建模：同一个 pending 状态下，不同目标有不同的赛季约束
 function validateTransition(
   current: RegistrationStatus,
   target: RegistrationStatus,
   seasonStatus: string,
 ): void {
-  // 禁止迁移集
   const forbidden: Record<RegistrationStatus, RegistrationStatus[]> = {
     pending: [],
     waitlisted: [],
@@ -36,10 +35,9 @@ function validateTransition(
     );
   }
 
-  // 赛季状态条件（精确到 (current, target) 对）
+  // (current, target) → 赛季条件
   if (current === "pending") {
     if ((target === "approved" || target === "waitlisted") && seasonStatus !== "registration") {
-      // 文档: pending→waitlisted 仅 registration; pending→approved 仅 registration 或 voting
       if (!(target === "approved" && seasonStatus === "voting")) {
         throw new AppError(
           ErrorCode.SEASON_INVALID_STATUS,
@@ -48,7 +46,6 @@ function validateTransition(
       }
     }
   }
-
   if (current === "waitlisted" && target === "approved") {
     if (seasonStatus !== "registration" && seasonStatus !== "voting") {
       throw new AppError(
@@ -57,7 +54,6 @@ function validateTransition(
       );
     }
   }
-
   if (current === "approved" && target === "rejected") {
     if (seasonStatus !== "registration") {
       throw new AppError(
@@ -66,7 +62,6 @@ function validateTransition(
       );
     }
   }
-
   if (current === "rejected" && target === "approved") {
     if (seasonStatus !== "registration") {
       throw new AppError(
@@ -76,7 +71,6 @@ function validateTransition(
     }
   }
 
-  // 检查目标是否在合法集合内
   const allowed: Record<RegistrationStatus, RegistrationStatus[]> = {
     pending: ["approved", "rejected", "waitlisted"],
     waitlisted: ["approved", "rejected"],
@@ -91,32 +85,98 @@ function validateTransition(
   }
 }
 
-function needsPositionCheck(current: RegistrationStatus, target: RegistrationStatus): boolean {
-  return target === "approved" && (current === "waitlisted" || current === "rejected");
-}
-
 // ── 管理员登录 ──────────────────────────────────────────
 
-export async function adminLogin(inviteCode: string, password: string) {
-  const correctInvite = process.env.ADMIN_INVITE_CODE;
-  const correctPassword = process.env.ADMIN_PASSWORD;
-
-  if (!correctInvite || !correctPassword) {
-    return fail({
-      code: ErrorCode.INTERNAL_ERROR,
-      message: "管理员凭据未配置，请联系系统管理员设置 ADMIN_INVITE_CODE 和 ADMIN_PASSWORD 环境变量",
-    });
+export async function adminLogin(username: string, password: string) {
+  if (!username || !password) {
+    return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请输入用户名和密码" });
   }
 
-  if (inviteCode !== correctInvite) {
-    return fail({ code: ErrorCode.UNAUTHORIZED, message: "邀请码错误" });
+  const user = await db.query.adminUsers.findFirst({
+    where: eq(adminUsers.username, username),
+  });
+  if (!user) {
+    return fail({ code: ErrorCode.UNAUTHORIZED, message: "用户名或密码错误" });
   }
-  if (password !== correctPassword) {
-    return fail({ code: ErrorCode.UNAUTHORIZED, message: "密码错误" });
+
+  if (!verifyPassword(password, user.passwordHash)) {
+    return fail({ code: ErrorCode.UNAUTHORIZED, message: "用户名或密码错误" });
   }
 
   const session = await getAdminSession();
   session.isAdmin = true;
+  session.adminId = user.id;
+  session.adminUsername = user.username;
+  session.adminRole = user.role;
+  await session.save();
+
+  redirect("/admin");
+}
+
+// ── 管理员注册（需有效邀请码）───────────────────────────
+
+export async function registerAdmin(
+  username: string,
+  password: string,
+  inviteCode: string,
+) {
+  if (!username || username.length < 3) {
+    return fail({ code: ErrorCode.VALIDATION_FAILED, message: "用户名至少 3 个字符" });
+  }
+  if (!password || password.length < 8) {
+    return fail({ code: ErrorCode.VALIDATION_FAILED, message: "密码至少 8 个字符" });
+  }
+
+  // 检查邀请码
+  const invite = await db.query.adminInvites.findFirst({
+    where: eq(adminInvites.code, inviteCode),
+  });
+  if (!invite) {
+    return fail({ code: ErrorCode.UNAUTHORIZED, message: "邀请码无效" });
+  }
+  if (!invite.isActive) {
+    return fail({ code: ErrorCode.UNAUTHORIZED, message: "邀请码已失效" });
+  }
+  if (invite.usedCount >= invite.maxUses) {
+    return fail({ code: ErrorCode.UNAUTHORIZED, message: "邀请码已用完" });
+  }
+  if (invite.expiresAt && new Date(invite.expiresAt) < new Date()) {
+    return fail({ code: ErrorCode.UNAUTHORIZED, message: "邀请码已过期" });
+  }
+
+  // 检查用户名是否已存在
+  const existing = await db.query.adminUsers.findFirst({
+    where: eq(adminUsers.username, username),
+  });
+  if (existing) {
+    return fail({ code: ErrorCode.VALIDATION_FAILED, message: "用户名已被使用" });
+  }
+
+  // 创建管理员账户
+  const [newAdmin] = await db
+    .insert(adminUsers)
+    .values({
+      username,
+      passwordHash: hashPassword(password),
+      role: invite.role,
+    })
+    .returning();
+
+  // 更新邀请码使用次数
+  await db
+    .update(adminInvites)
+    .set({
+      usedCount: invite.usedCount + 1,
+      isActive: invite.usedCount + 1 >= invite.maxUses ? false : invite.isActive,
+    })
+    .where(eq(adminInvites.id, invite.id));
+
+  // 自动登录
+  const session = await getAdminSession();
+  session.isAdmin = true;
+  session.adminId = newAdmin.id;
+  session.adminUsername = newAdmin.username;
+  session.adminRole = newAdmin.role;
   await session.save();
 
   redirect("/admin");
@@ -131,19 +191,15 @@ interface ReviewInput {
 }
 
 export async function reviewRegistration(input: ReviewInput) {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
   const { registrationId, status: targetStatus, reason } = input;
 
   if (!["approved", "rejected", "waitlisted"].includes(targetStatus)) {
-    return fail({
-      code: ErrorCode.VALIDATION_FAILED,
-      message: "无效的审核状态",
-    });
+    return fail({ code: ErrorCode.VALIDATION_FAILED, message: "无效的审核状态" });
   }
 
   try {
-    // 1. 查报名记录
     const reg = await db.query.seasonRegistrations.findFirst({
       where: eq(seasonRegistrations.id, registrationId),
     });
@@ -151,7 +207,6 @@ export async function reviewRegistration(input: ReviewInput) {
       throw new AppError(ErrorCode.NOT_FOUND, "报名记录不存在");
     }
 
-    // 2. 查所属赛季
     const season = await db.query.seasons.findFirst({
       where: eq(seasons.id, reg.seasonId),
     });
@@ -159,14 +214,8 @@ export async function reviewRegistration(input: ReviewInput) {
       throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
     }
 
-    // 3. 校验状态迁移合法性
-    validateTransition(
-      reg.status as RegistrationStatus,
-      targetStatus,
-      season.status,
-    );
+    validateTransition(reg.status as RegistrationStatus, targetStatus, season.status);
 
-    // 4. 如果要通过，检查位置余量
     if (targetStatus === "approved") {
       const [posCount] = await db
         .select({ count: count() })
@@ -183,20 +232,15 @@ export async function reviewRegistration(input: ReviewInput) {
       }
     }
 
-    // 5. 更新状态
     await db
       .update(seasonRegistrations)
-      .set({
-        status: targetStatus,
-        updatedAt: new Date(),
-      })
+      .set({ status: targetStatus, updatedAt: new Date() })
       .where(eq(seasonRegistrations.id, registrationId));
 
-    // 6. 写 audit log
     await db.insert(auditLogs).values({
       seasonId: reg.seasonId,
       action: `registration.${targetStatus}`,
-      actorId: "admin",
+      actorId: admin.adminUsername ?? "admin",
       targetId: registrationId,
       targetType: "registration",
       meta: {
@@ -216,4 +260,56 @@ export async function reviewRegistration(input: ReviewInput) {
     console.error("[reviewRegistration]", e);
     return fail({ code: ErrorCode.INTERNAL_ERROR, message: ERROR_MESSAGES.INTERNAL_ERROR });
   }
+}
+
+// ── 邀请码管理 ──────────────────────────────────────────
+
+export async function createInviteCode(input: {
+  role?: "admin" | "super_admin";
+  maxUses?: number;
+  expiresInHours?: number;
+}) {
+  await requireAdmin();
+
+  const { role = "admin", maxUses = 1, expiresInHours } = input;
+  const code = randomBytes(8).toString("hex");
+
+  const expiresAt = expiresInHours
+    ? new Date(Date.now() + expiresInHours * 3600_000)
+    : null;
+
+  await db.insert(adminInvites).values({
+    code,
+    createdBy: (await requireAdmin()).adminId!,
+    role,
+    maxUses,
+    expiresAt,
+  });
+
+  revalidatePath("/admin/invites");
+  return ok({ code, role, maxUses, expiresAt: expiresAt?.toISOString() ?? null });
+}
+
+export async function deactivateInviteCode(inviteId: string) {
+  await requireAdmin();
+
+  await db
+    .update(adminInvites)
+    .set({ isActive: false })
+    .where(eq(adminInvites.id, inviteId));
+
+  revalidatePath("/admin/invites");
+  return ok(undefined);
+}
+
+export async function getInviteCodes() {
+  await requireAdmin();
+
+  const invites = await db
+    .select()
+    .from(adminInvites)
+    .orderBy(desc(adminInvites.createdAt))
+    .limit(50);
+
+  return ok(invites);
 }
