@@ -6,7 +6,6 @@ import { APP_BRAND } from "@/lib/branding";
 import { SEASON_STATUS_LABELS } from "@/types/season";
 import { StatusDot } from "@/components/ui/status-dot";
 import type { Season } from "@/db/schema/seasons";
-import type { SeasonStatus } from "@/types/season";
 
 export default async function HomePage() {
   const allSeasons = await db
@@ -17,8 +16,8 @@ export default async function HomePage() {
   const activeSeasons = allSeasons.filter(
     (s) => s.status !== "archived" && s.status !== "draft"
   );
-  const featured = activeSeasons[0] as Season | undefined;
-  const others = activeSeasons.slice(1) as Season[];
+  const featured = activeSeasons[0];
+  const others = activeSeasons.slice(1);
 
   return (
     <div className="container mx-auto px-4 py-16 sm:py-24">
@@ -77,9 +76,9 @@ function FeaturedSeasonCard({ season }: { season: Season }) {
       <div className="p-6 sm:p-8 grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-6 items-center">
         <div>
           <div className="flex items-center gap-2 mb-3 text-xs">
-            <StatusDot status={season.status as SeasonStatus} />
+            <StatusDot status={season.status} />
             <span className="text-[var(--text-secondary)] uppercase tracking-wider">
-              {SEASON_STATUS_LABELS[season.status as SeasonStatus]}
+              {SEASON_STATUS_LABELS[season.status]}
             </span>
             <span className="text-[var(--text-muted)]">·</span>
             <span className="text-[var(--text-muted)]">{season.kind}</span>
@@ -112,9 +111,9 @@ function CompactSeasonCard({ season }: { season: Season }) {
       <div className="h-0.5 w-full" style={{ backgroundColor: season.themeColor ?? "#f97316" }} />
       <div className="p-5">
         <div className="flex items-center gap-2 mb-2 text-xs">
-          <StatusDot status={season.status as SeasonStatus} />
+          <StatusDot status={season.status} />
           <span className="text-[var(--text-secondary)]">
-            {SEASON_STATUS_LABELS[season.status as SeasonStatus]}
+            {SEASON_STATUS_LABELS[season.status]}
           </span>
         </div>
         <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-1">{season.name}</h3>

@@ -5,7 +5,6 @@ import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
 import { SEASON_STATUS_LABELS } from "@/types/season";
 import { StatusDot } from "@/components/ui/status-dot";
-import type { SeasonStatus } from "@/types/season";
 
 export const metadata: Metadata = { title: "所有赛季" };
 
@@ -37,9 +36,9 @@ export default async function SeasonsPage() {
               <div className="h-1 w-full" style={{ backgroundColor: season.themeColor ?? "#f97316" }} />
               <div className="p-5">
                 <div className="flex items-center gap-2 mb-3 text-xs">
-                  <StatusDot status={season.status as SeasonStatus} />
+                  <StatusDot status={season.status} />
                   <span className="text-[var(--text-secondary)]">
-                    {SEASON_STATUS_LABELS[season.status as SeasonStatus]}
+                    {SEASON_STATUS_LABELS[season.status]}
                   </span>
                   <span className="text-[var(--text-muted)]">·</span>
                   <span className="text-[var(--text-muted)]">{season.kind}</span>
