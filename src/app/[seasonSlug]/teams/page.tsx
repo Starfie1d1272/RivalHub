@@ -3,12 +3,11 @@ import { eq, asc, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons, teams, teamMembers, seasonRegistrations, users } from "@/db/schema";
 import { TeamCard } from "@/components/teams/TeamCard";
+import { CS2_POSITIONS } from "@/types/season";
 
 interface TeamsPageProps {
   params: Promise<{ seasonSlug: string }>;
 }
-
-const POSITION_ORDER = ["igl", "awper", "opener", "closer", "anchor"];
 
 export default async function TeamsPage({ params }: TeamsPageProps) {
   const { seasonSlug } = await params;
@@ -67,8 +66,8 @@ export default async function TeamsPage({ params }: TeamsPageProps) {
             }))
             .sort((a, b) => {
               if (a.isStarter !== b.isStarter) return a.isStarter ? -1 : 1;
-              const ai = POSITION_ORDER.indexOf(a.primaryPosition);
-              const bi = POSITION_ORDER.indexOf(b.primaryPosition);
+              const ai = CS2_POSITIONS.indexOf(a.primaryPosition as never);
+              const bi = CS2_POSITIONS.indexOf(b.primaryPosition as never);
               return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
             });
 

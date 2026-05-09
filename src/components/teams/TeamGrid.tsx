@@ -3,14 +3,7 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-
-const POSITION_LABELS: Record<string, string> = {
-  igl: "IGL",
-  awper: "AWP",
-  opener: "Opener",
-  closer: "Closer",
-  anchor: "Anchor",
-};
+import { POSITION_LABELS } from "@/lib/validators/registration";
 
 export interface TeamCardData {
   id: string;
@@ -66,7 +59,7 @@ export function TeamGrid({ teams, seasonSlug }: TeamGridProps) {
                     variant="outline"
                     className="text-xs border-[var(--border)] text-[var(--text-secondary)]"
                   >
-                    {POSITION_LABELS[m.primaryPosition] ?? m.primaryPosition}
+                    {POSITION_LABELS[m.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? m.primaryPosition}
                   </Badge>
                 ))}
               </div>
