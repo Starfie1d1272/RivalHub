@@ -67,10 +67,10 @@ GSL Group A (8 队)              GSL Group B (8 队)
 | IEM Cologne Major 2026 | [Liquipedia](https://liquipedia.net/counterstrike/Intel_Extreme_Masters/2026/Cologne) | 16 队 Swiss → 8 进 Stage 2 | 16 队 Swiss（8 Stage 1 + **8 直邀**）→ 8 进 Stage 3 | 16 队 Swiss（8 Stage 2 + **8 直邀**）→ 8 进 Playoffs |
 | — Playoffs | 同上 | — | — | 8 队 Single Elim（Bo3 + Bo5 决赛） |
 
-**Stage 2 和 Stage 3 各有 8 支外部直邀队伍加入**，这是 Major 的独有特征。
+**32 队全部报名，按 VRS 种子划分进入阶段**：种子 #17-32 打 Stage 1，种子 #9-16 从 Stage 2 开始，种子 #1-8 从 Stage 3 开始。高位种子轮空到后续阶段——和 IEM 小组第一直通四强是同一个概念，只是作用在阶段之间。
 
 **当前框架能否表达**：⚠️ 线性 StagePlan 支持多阶段，但两个能力缺失：
-1. 外部队伍在中期阶段加入（当前假设所有队伍在 Stage 1 前确定）
+1. 不同种子队伍在后续阶段才进入（当前假设所有队伍参与 Stage 1）
 2. Swiss executor 本身未实现
 
 ---
@@ -95,9 +95,9 @@ GSL Group A (8 队)              GSL Group B (8 队)
 | 1 | **Swiss executor** | PGL 系列 + Major 全部阶段 + ESL PL | 模式 2、3 |
 | 2 | **GSL 小组 executor** | IEM 全系列 + BLAST 全系列 | 模式 1 |
 | 3 | **分层晋级（advanceTiers）** | 所有使用模式 1 的赛事 | 模式 1 |
-| 4 | **外部队伍加入阶段** | Major Stage 2/3 | 模式 3 |
+| 4 | **种子轮空（高位种子从后续阶段开始）** | Major Stage 2/3 | 模式 3 |
 
-注：(2) 和 (3) 是同一模式的两个面——GSL 小组必然搭配分层晋级，建议一起实现。
+注：(2) 和 (3) 是同一模式的两个面——GSL 小组必然搭配分层晋级，建议一起实现。(4) 本质是分层晋级的阶段间版本，和 (3) 是同构问题。
 
 ---
 
@@ -130,7 +130,7 @@ GSL Group A (8 队)              GSL Group B (8 队)
 
 ### P1（v2.5）
 
-5. **外部队伍加入**：`StageConfig.teamSource: "previous_stage" | "external" | "mixed"` — 解锁 Major Stage 2/3 的完整建模
+5. **种子轮空**：高位种子从后面阶段开始比赛（Major Stage 2/3）— 队伍全部报名但不同种子从不同阶段进入
 
 ### P2（v3）
 
