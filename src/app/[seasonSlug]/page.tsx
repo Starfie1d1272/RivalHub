@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { UserPlus, Vote, Users, Swords, Shuffle } from "lucide-react";
 import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
-import { SEASON_STATUS_LABELS } from "@/types/season";
+import { normalizeStagePlan, SEASON_STATUS_LABELS } from "@/types/season";
 import type { SeasonStatus } from "@/types/season";
 
 interface SeasonPageProps {
@@ -18,6 +18,7 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
     where: eq(seasons.slug, seasonSlug),
   });
   if (!season) notFound();
+  const hasMatches = normalizeStagePlan(season.stagePlan).length > 0;
 
   const quickLinks = [
     {
@@ -53,7 +54,7 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
       label: "赛程对决",
       description: "Bracket + 战报",
       icon: Swords,
-      show: season.qualifierFormat !== null || season.playoffFormat !== null,
+      show: hasMatches,
     },
   ].filter((l) => l.show);
 

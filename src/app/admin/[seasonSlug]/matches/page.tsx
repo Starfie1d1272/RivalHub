@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { getFirstStageOfType, normalizeStagePlan } from "@/types/season";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -64,8 +65,13 @@ export default async function AdminMatchesPage({ params }: AdminMatchesPageProps
   }
 
   const teamMap = new Map(allTeams.map((t) => [t.id, t.name]));
-  const qualifierMatches = allMatches.filter((m) => m.stage === "qualifier");
-  const playoffMatches = allMatches.filter((m) => m.stage === "playoff");
+  const stagePlan = normalizeStagePlan(season.stagePlan);
+  const qualifierStage = getFirstStageOfType(stagePlan, ["round_robin", "swiss"]);
+  const playoffStage = getFirstStageOfType(stagePlan, ["double_elim", "single_elim"]);
+  const qualifierKey = qualifierStage?.key ?? "qualifier";
+  const playoffKey = playoffStage?.key ?? "playoff";
+  const qualifierMatches = allMatches.filter((m) => m.stage === qualifierKey);
+  const playoffMatches = allMatches.filter((m) => m.stage === playoffKey);
 
   // 已完成比赛的地图列表（用于 OCR 录入面板）
   const finishedMatchIds = allMatches
@@ -98,19 +104,19 @@ export default async function AdminMatchesPage({ params }: AdminMatchesPageProps
 
   // 是否可以生成正赛
   const canGeneratePlayoff =
-    !!season.qualifierFormat &&
-    !!season.playoffFormat &&
+    !!qualifierStage &&
+    !!playoffStage &&
     allQualifierFinished &&
     playoffCount === 0;
 
   // 积分榜（有排位赛时计算）
   const standings =
-    season.qualifierFormat && qualifierCount > 0
-      ? await calculateStandings(season.id, allTeams)
+    qualifierStage && qualifierCount > 0
+      ? await calculateStandings(season.id, allTeams, qualifierKey)
       : [];
 
-  const hasQualifier = !!season.qualifierFormat;
-  const hasPlayoff = !!season.playoffFormat;
+  const hasQualifier = !!qualifierStage;
+  const hasPlayoff = !!playoffStage;
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl space-y-6">
@@ -139,8 +145,7 @@ export default async function AdminMatchesPage({ params }: AdminMatchesPageProps
       {canGenerate && (
         <GenerateScheduleCard
           seasonId={season.id}
-          qualifierFormat={season.qualifierFormat ?? null}
-          playoffFormat={season.playoffFormat ?? null}
+          stagePlan={stagePlan}
           teamCount={allTeams.length}
         />
       )}
@@ -152,15 +157,15 @@ export default async function AdminMatchesPage({ params }: AdminMatchesPageProps
 
       {/* Tab 面板 */}
       {matchCount > 0 && (
-        <Tabs defaultValue={hasQualifier ? "qualifier" : "playoff"}>
+        <Tabs defaultValue={hasQualifier ? qualifierKey : playoffKey}>
           <TabsList>
-            {hasQualifier && <TabsTrigger value="qualifier">排位赛</TabsTrigger>}
-            {hasPlayoff && <TabsTrigger value="playoff">正赛</TabsTrigger>}
+            {qualifierStage && <TabsTrigger value={qualifierKey}>{qualifierStage.name}</TabsTrigger>}
+            {playoffStage && <TabsTrigger value={playoffKey}>{playoffStage.name}</TabsTrigger>}
           </TabsList>
 
           {/* 排位赛面板 */}
           {hasQualifier && (
-            <TabsContent value="qualifier" className="space-y-6 mt-4">
+            <TabsContent value={qualifierKey} className="space-y-6 mt-4">
               {/* 积分榜 */}
               {standings.length > 0 && (
                 <section className="space-y-2">
@@ -235,7 +240,7 @@ export default async function AdminMatchesPage({ params }: AdminMatchesPageProps
 
           {/* 正赛面板 */}
           {hasPlayoff && (
-            <TabsContent value="playoff" className="space-y-3 mt-4">
+            <TabsContent value={playoffKey} className="space-y-3 mt-4">
               <h2 className="text-base font-semibold text-[var(--text-primary)]">赛程</h2>
               {playoffMatches.length === 0 ? (
                 <Card className="p-8 text-center text-[var(--text-secondary)]">

@@ -12,8 +12,29 @@ export type SeasonStatus =
   | "archived";
 
 export type RegistrationMode = "solo" | "team";
-export type QualifierFormat = "round_robin" | "swiss";
-export type PlayoffFormat = "double_elim" | "single_elim";
+export type StageType = "round_robin" | "double_elim" | "single_elim" | "swiss";
+export type PlayerType = "enrolled" | "graduated" | "external";
+
+export interface StageConfig {
+  key: string;
+  name: string;
+  type: StageType;
+  teamCount: number;
+  advance: number;
+  seeds?: number[];
+}
+
+export type StagePlan = StageConfig[];
+
+export interface RegistrationConfig {
+  allowedPlayerTypes: PlayerType[];
+  rankThreshold: {
+    currentMin: string | null;
+    peakMin: string | null;
+  };
+  maxPerPosition: number;
+  screenshotCount: number;
+}
 
 /**
  * Capability 字段——业务逻辑的唯一判断依据。
@@ -30,10 +51,10 @@ export interface SeasonCapabilities {
   registrationMode: RegistrationMode;
   hasCaptainVoting: boolean;
   hasDraft: boolean;
-  /** 排位赛赛制；null = 无排位赛阶段 */
-  qualifierFormat: QualifierFormat | null;
-  /** 正赛赛制；null = 无正赛阶段（如纯排位赛娱乐赛）*/
-  playoffFormat: PlayoffFormat | null;
+  /** 赛事阶段计划；空数组 = 无赛程阶段 */
+  stagePlan: StagePlan;
+  /** 报名规则配置 */
+  registrationConfig: RegistrationConfig;
   teamSize: number;
   starterCount: number;
   /** 该赛季可用的位置标识符列表 */
@@ -58,13 +79,25 @@ export interface Season extends SeasonCapabilities {
 
 export const CS2_POSITIONS = ["igl", "awper", "opener", "closer", "anchor"];
 
+export const RIVALS_STAGE_PLAN: StagePlan = [
+  { key: "qualifier", name: "排位赛", type: "round_robin", teamCount: 8, advance: 8 },
+  { key: "playoff", name: "正赛", type: "double_elim", teamCount: 8, advance: 1 },
+];
+
+export const RIVALS_REGISTRATION_CONFIG: RegistrationConfig = {
+  allowedPlayerTypes: ["enrolled"],
+  rankThreshold: { currentMin: "A", peakMin: "A+" },
+  maxPerPosition: 15,
+  screenshotCount: 1,
+};
+
 /** 选秀联赛预设：个人报名 → 队长投票 → 蛇形选秀 → 循环赛 + 双败淘汰 */
 export const DRAFT_LEAGUE_PRESET: SeasonCapabilities = {
   registrationMode: "solo",
   hasCaptainVoting: true,
   hasDraft: true,
-  qualifierFormat: "round_robin",
-  playoffFormat: "double_elim",
+  stagePlan: RIVALS_STAGE_PLAN,
+  registrationConfig: RIVALS_REGISTRATION_CONFIG,
   teamSize: 7,
   starterCount: 5,
   positions: CS2_POSITIONS,
@@ -75,8 +108,8 @@ export const OPEN_TOURNAMENT_PRESET: SeasonCapabilities = {
   registrationMode: "team",
   hasCaptainVoting: false,
   hasDraft: false,
-  qualifierFormat: "round_robin",
-  playoffFormat: "double_elim",
+  stagePlan: RIVALS_STAGE_PLAN,
+  registrationConfig: RIVALS_REGISTRATION_CONFIG,
   teamSize: 5,
   starterCount: 5,
   positions: CS2_POSITIONS,
@@ -113,3 +146,62 @@ export const SEASON_STATUS_TONE: Record<SeasonStatus, "live" | "soon" | "done"> 
   finished:     "done",
   archived:     "done",
 };
+
+export const PLAYER_TYPE_LABELS: Record<PlayerType, string> = {
+  enrolled: "在校",
+  graduated: "毕业",
+  external: "外校",
+};
+
+export const STAGE_TYPE_LABELS: Record<StageType, string> = {
+  round_robin: "单循环",
+  double_elim: "双败淘汰",
+  single_elim: "单败淘汰",
+  swiss: "瑞士轮",
+};
+
+export function normalizeRegistrationConfig(
+  config: Partial<RegistrationConfig> | null | undefined,
+): RegistrationConfig {
+  return {
+    allowedPlayerTypes:
+      config?.allowedPlayerTypes?.length ? config.allowedPlayerTypes : RIVALS_REGISTRATION_CONFIG.allowedPlayerTypes,
+    rankThreshold: {
+      currentMin: config?.rankThreshold?.currentMin ?? RIVALS_REGISTRATION_CONFIG.rankThreshold.currentMin,
+      peakMin: config?.rankThreshold?.peakMin ?? RIVALS_REGISTRATION_CONFIG.rankThreshold.peakMin,
+    },
+    maxPerPosition: config?.maxPerPosition ?? RIVALS_REGISTRATION_CONFIG.maxPerPosition,
+    screenshotCount: config?.screenshotCount ?? RIVALS_REGISTRATION_CONFIG.screenshotCount,
+  };
+}
+
+export function normalizeStagePlan(stagePlan: StagePlan | null | undefined): StagePlan {
+  return stagePlan ?? RIVALS_STAGE_PLAN;
+}
+
+export function getStageByKey(stagePlan: StagePlan | null | undefined, key: string): StageConfig | null {
+  return normalizeStagePlan(stagePlan).find((stage) => stage.key === key) ?? null;
+}
+
+export function getFirstStage(stagePlan: StagePlan | null | undefined): StageConfig | null {
+  return normalizeStagePlan(stagePlan)[0] ?? null;
+}
+
+export function getNextStage(stagePlan: StagePlan | null | undefined, key: string): StageConfig | null {
+  const stages = normalizeStagePlan(stagePlan);
+  const index = stages.findIndex((stage) => stage.key === key);
+  return index >= 0 ? stages[index + 1] ?? null : null;
+}
+
+export function getPreviousStage(stagePlan: StagePlan | null | undefined, key: string): StageConfig | null {
+  const stages = normalizeStagePlan(stagePlan);
+  const index = stages.findIndex((stage) => stage.key === key);
+  return index > 0 ? stages[index - 1] ?? null : null;
+}
+
+export function getFirstStageOfType(
+  stagePlan: StagePlan | null | undefined,
+  types: readonly StageType[],
+): StageConfig | null {
+  return normalizeStagePlan(stagePlan).find((stage) => types.includes(stage.type)) ?? null;
+}

@@ -5,6 +5,7 @@ import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
 import { getPositionCounts } from "@/actions/register";
 import { RegistrationForm } from "@/components/register/RegistrationForm";
+import { normalizeRegistrationConfig } from "@/types/season";
 
 export const dynamic = "force-dynamic";
 
@@ -66,6 +67,8 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
           seasonId={season.id}
           seasonName={season.name}
           positionCounts={positionCounts}
+          positions={season.positions}
+          registrationConfig={normalizeRegistrationConfig(season.registrationConfig)}
         />
       </div>
 

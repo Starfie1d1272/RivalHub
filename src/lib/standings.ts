@@ -37,12 +37,13 @@ export interface TeamStanding {
  */
 export async function calculateStandings(
   seasonId: string,
-  teams: Team[]
+  teams: Team[],
+  stageKey = "qualifier",
 ): Promise<TeamStanding[]> {
   const finishedMatches = await db.query.matches.findMany({
     where: and(
       eq(matches.seasonId, seasonId),
-      eq(matches.stage, "qualifier"),
+      eq(matches.stage, stageKey),
       eq(matches.status, "finished")
     ),
   });

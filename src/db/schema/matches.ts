@@ -10,9 +10,6 @@ export const matchStatusEnum = pgEnum("match_status", [
   "cancelled",
 ]);
 
-// 比赛阶段：排位赛 / 正赛
-export const matchStageEnum = pgEnum("match_stage", ["qualifier", "playoff"]);
-
 // 比赛格式：BO1 / BO3 / BO5（决定 BP 流程与图数）
 export const matchFormatEnum = pgEnum("match_format", ["bo1", "bo3", "bo5"]);
 
@@ -23,7 +20,8 @@ export const matches = pgTable("matches", {
   teamBId: uuid("team_b_id").notNull().references(() => teams.id),
 
   // ── 比赛元数据 ────────────────────────────────────────────────────────
-  stage: matchStageEnum("stage").notNull(),                              // qualifier | playoff
+  stage: text("stage").notNull(),                                        // StageConfig.key
+  round: integer("round"),                                               // swiss round; null for round_robin / elim
   format: matchFormatEnum("format").notNull().default("bo1"),            // bo1 | bo3 | bo5
   // ──────────────────────────────────────────────────────────────────────
 

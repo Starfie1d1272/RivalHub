@@ -7,11 +7,12 @@ import { users, seasons, seasonRegistrations } from "@/db/schema";
 import { ok, fail } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import {
-  registrationSchema,
-  MAX_PER_POSITION,
+  buildRegistrationSchema,
+  registrationSeedSchema,
   type RegistrationFormData,
 } from "@/lib/validators/registration";
 import { createServiceClient } from "@/lib/auth/supabase";
+import { normalizeRegistrationConfig } from "@/types/season";
 
 /**
  * 提交报名
@@ -24,12 +25,11 @@ import { createServiceClient } from "@/lib/auth/supabase";
  * 7. 发送 Magic Link 邮件（非关键，失败不影响报名）
  */
 export async function submitRegistration(input: RegistrationFormData) {
-  // 1. 校验
-  const parsed = registrationSchema.safeParse(input);
-  if (!parsed.success) {
+  const seedParsed = registrationSeedSchema.safeParse(input);
+  if (!seedParsed.success) {
     const fieldErrors: Record<string, string> = {};
     for (const [field, errors] of Object.entries(
-      parsed.error.flatten().fieldErrors
+      seedParsed.error.flatten().fieldErrors
     )) {
       if (errors?.[0]) fieldErrors[field] = errors[0];
     }
@@ -40,12 +40,10 @@ export async function submitRegistration(input: RegistrationFormData) {
     });
   }
 
-  const data = parsed.data;
-
   try {
     // 2. 查赛季
     const season = await db.query.seasons.findFirst({
-      where: eq(seasons.id, data.seasonId),
+      where: eq(seasons.id, seedParsed.data.seasonId),
     });
     if (!season) {
       throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
@@ -53,6 +51,24 @@ export async function submitRegistration(input: RegistrationFormData) {
     if (season.status !== "registration") {
       throw new AppError(ErrorCode.REGISTRATION_CLOSED, ERROR_MESSAGES.REGISTRATION_CLOSED);
     }
+
+    const registrationConfig = normalizeRegistrationConfig(season.registrationConfig);
+    const parsed = buildRegistrationSchema(registrationConfig, season.positions).safeParse(input);
+    if (!parsed.success) {
+      const fieldErrors: Record<string, string> = {};
+      for (const [field, errors] of Object.entries(
+        parsed.error.flatten().fieldErrors
+      )) {
+        if (errors?.[0]) fieldErrors[field] = errors[0];
+      }
+      return fail({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: "输入校验失败，请检查各字段",
+        fieldErrors,
+      });
+    }
+
+    const data = parsed.data;
 
     // 3. Upsert 用户（含所有基础信息字段）
     let user = await db.query.users.findFirst({
@@ -101,18 +117,17 @@ export async function submitRegistration(input: RegistrationFormData) {
           eq(seasonRegistrations.primaryPosition, data.primaryPosition)
         )
       );
-    if (Number(posCount?.count ?? 0) >= MAX_PER_POSITION) {
+    if (Number(posCount?.count ?? 0) >= registrationConfig.maxPerPosition) {
       throw new AppError(ErrorCode.POSITION_FULL, ERROR_MESSAGES.POSITION_FULL);
     }
 
     // 6. 插入报名记录
-    const screenshotUrls = [data.screenshotUrl];
-
     const [registration] = await db
       .insert(seasonRegistrations)
       .values({
         userId: user.id,
         seasonId: data.seasonId,
+        playerType: data.playerType,
         primaryPosition: data.primaryPosition,
         secondaryPosition: data.secondaryPosition,
         peakRank: data.peakRank,
@@ -122,7 +137,7 @@ export async function submitRegistration(input: RegistrationFormData) {
         currentSeasonPeakRank: data.currentSeasonPeakRank,
         currentRating: data.currentRating,
         currentWe: data.currentWe,
-        screenshotUrls,
+        screenshotUrls: data.screenshotUrls,
         gameplayStyle: data.gameplayStyle,
         competitionHistory: data.competitionHistory,
         highlightVideoUrl: data.highlightVideoUrl,

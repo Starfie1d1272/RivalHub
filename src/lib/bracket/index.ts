@@ -12,8 +12,10 @@ import { InMemoryDatabase } from "brackets-memory-db";
 import { Status } from "brackets-model";
 import type { Database } from "brackets-manager";
 import type { Match } from "@/types/match";
-import type { QualifierFormat, PlayoffFormat } from "@/types/season";
 import type { Team } from "@/db/schema/teams";
+
+type QualifierFormat = "round_robin" | "swiss";
+type PlayoffFormat = "double_elim" | "single_elim";
 
 export interface BracketStage {
   id: number;
@@ -63,6 +65,8 @@ export async function generateBracket(
   config: {
     qualifierFormat: QualifierFormat | null;
     playoffFormat: PlayoffFormat | null;
+    qualifierName?: string;
+    playoffName?: string;
   }
 ): Promise<{ data: Database; resolvedMatches: ResolvedBracketMatch[] }> {
   const db = new InMemoryDatabase();
@@ -74,7 +78,7 @@ export async function generateBracket(
     // 排位赛 stage（round_robin 或 swiss；swiss 暂不支持，统一用 round_robin）
     await manager.create.stage({
       tournamentId: 0,
-      name: "排位赛",
+      name: config.qualifierName ?? "排位赛",
       type: "round_robin",
       seeding,
       settings: {
@@ -89,7 +93,7 @@ export async function generateBracket(
       config.playoffFormat === "double_elim" ? "double_elimination" : "single_elimination";
     await manager.create.stage({
       tournamentId: 0,
-      name: "正赛",
+      name: config.playoffName ?? "正赛",
       type,
       seeding: config.qualifierFormat !== null
         // 排位赛结束后才确定晋级顺序；先全部 TBD
@@ -217,13 +221,14 @@ export function serializeBracket(
  */
 export async function seedPlayoff(
   seededTeamNames: string[],
-  currentData: Database
+  currentData: Database,
+  stageName = "正赛",
 ): Promise<{ updatedData: Database; resolvedMatches: ResolvedBracketMatch[] }> {
   const { manager } = buildManager(currentData);
 
   const stages = currentData.stage as Array<{ id: number; name: string }>;
-  const playoffStage = stages.find((s) => s.name === "正赛");
-  if (!playoffStage) throw new Error("正赛 stage 未找到，请先生成赛程");
+  const playoffStage = stages.find((s) => s.name === stageName);
+  if (!playoffStage) throw new Error(`${stageName} stage 未找到，请先生成赛程`);
 
   // 用实际队伍名替换 TBD seed
   await manager.update.seeding(playoffStage.id, seededTeamNames);

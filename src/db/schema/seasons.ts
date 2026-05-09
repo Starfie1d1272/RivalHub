@@ -1,6 +1,7 @@
 import { pgTable, uuid, text, integer, boolean, timestamp, pgEnum, json } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import type { Database } from "brackets-manager";
+import type { RegistrationConfig, StagePlan } from "@/types/season";
 
 export const seasonStatusEnum = pgEnum("season_status", [
   "draft",        // 未发布
@@ -14,16 +15,6 @@ export const seasonStatusEnum = pgEnum("season_status", [
 
 // 报名模式：solo = 个人报名，team = 队伍整体报名
 export const registrationModeEnum = pgEnum("registration_mode", ["solo", "team"]);
-
-// 排位赛 / 正赛各自的赛制（拆开是因为一个赛季可能两阶段不同制）
-export const qualifierFormatEnum = pgEnum("qualifier_format", [
-  "round_robin",  // 单循环
-  "swiss",        // 瑞士轮（备选）
-]);
-export const playoffFormatEnum = pgEnum("playoff_format", [
-  "double_elim",  // 双败淘汰
-  "single_elim",  // 单败淘汰
-]);
 
 export const seasons = pgTable("seasons", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -41,10 +32,13 @@ export const seasons = pgTable("seasons", {
   hasCaptainVoting: boolean("has_captain_voting").notNull().default(true),
   // 是否有蛇形选秀环节
   hasDraft: boolean("has_draft").notNull().default(true),
-  // 排位赛赛制（null = 无排位赛阶段）
-  qualifierFormat: qualifierFormatEnum("qualifier_format").default("round_robin"),
-  // 正赛赛制（null = 无正赛阶段，纯排位赛）
-  playoffFormat: playoffFormatEnum("playoff_format").default("double_elim"),
+  // 赛制阶段计划；matches.stage 存这里的 StageConfig.key
+  stagePlan: json("stage_plan").$type<StagePlan>().notNull().default(sql`'[]'::json`),
+  // 报名配置；缺失字段由应用层 fallback 到默认配置
+  registrationConfig: json("registration_config")
+    .$type<RegistrationConfig>()
+    .notNull()
+    .default(sql`'{}'::json`),
   // 每支队伍总人数（含队长）
   teamSize: integer("team_size").notNull().default(7),
   // 首发人数

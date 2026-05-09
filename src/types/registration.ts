@@ -11,7 +11,8 @@ export interface Registration {
   primaryPosition: Position;
   secondaryPosition: Position | null;
   peakRating: number | null;
-  screenshotUrl: string | null;
+  playerType: "enrolled" | "graduated" | "external";
+  screenshotUrls: string[];
   status: RegistrationStatus;
   willingToBeCaptain: boolean;
   notes: string | null;

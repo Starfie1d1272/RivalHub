@@ -36,6 +36,13 @@
       "when": 1746806400000,
       "tag": "0004_player_stats",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1778341013690,
+      "tag": "0005_supreme_magus",
+      "breakpoints": true
     }
   ]
 }

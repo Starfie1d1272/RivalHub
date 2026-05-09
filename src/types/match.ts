@@ -1,7 +1,7 @@
 // 共享比赛类型
 
 export type MatchStatus = "scheduled" | "in_progress" | "finished" | "cancelled";
-export type MatchStage = "qualifier" | "playoff";
+export type MatchStage = string;
 export type MatchFormat = "bo1" | "bo3" | "bo5";
 export type Side = "t" | "ct";
 
@@ -11,6 +11,7 @@ export interface Match {
   teamAId: string;
   teamBId: string;
   stage: MatchStage;
+  round: number | null;
   format: MatchFormat;
   /** 系列赛比分（如 BO3 中 2:1）；单图比分见 MatchMap */
   scoreA: number | null;
@@ -49,7 +50,7 @@ export const MATCH_STATUS_LABELS: Record<MatchStatus, string> = {
   cancelled: "已取消",
 };
 
-export const MATCH_STAGE_LABELS: Record<MatchStage, string> = {
+export const MATCH_STAGE_LABELS: Record<string, string> = {
   qualifier: "排位赛",
   playoff: "正赛",
 };

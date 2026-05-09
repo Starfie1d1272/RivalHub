@@ -1,0 +1,31 @@
+import { and, count, eq } from "drizzle-orm";
+import { sql } from "drizzle-orm";
+import { db } from "@/db/client";
+import { matches } from "@/db/schema";
+import type { StageExecutor } from "./types";
+
+export const roundRobinExecutor: StageExecutor = {
+  async initialize() {
+    throw new Error("round_robin initialize is orchestrated by generateSchedule");
+  },
+
+  async isComplete(seasonId, stageKey) {
+    const [{ value: total }] = await db
+      .select({ value: count() })
+      .from(matches)
+      .where(and(eq(matches.seasonId, seasonId), eq(matches.stage, stageKey)));
+    if (total === 0) return false;
+
+    const [{ value: active }] = await db
+      .select({ value: count() })
+      .from(matches)
+      .where(
+        and(
+          eq(matches.seasonId, seasonId),
+          eq(matches.stage, stageKey),
+          sql`${matches.status} in ('scheduled', 'in_progress')`,
+        ),
+      );
+    return active === 0;
+  },
+};

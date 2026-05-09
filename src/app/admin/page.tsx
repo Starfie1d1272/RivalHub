@@ -26,11 +26,18 @@ export default async function AdminDashboardPage() {
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold">赛季列表</h1>
           {admin.role === "super_admin" && (
-            <Link href="/admin/invites">
-              <Button variant="outline" size="sm">
-                管理邀请码
-              </Button>
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link href={"/admin/seasons/new" as never}>
+                <Button size="sm">
+                  新建赛季
+                </Button>
+              </Link>
+              <Link href="/admin/invites">
+                <Button variant="outline" size="sm">
+                  管理邀请码
+                </Button>
+              </Link>
+            </div>
           )}
         </div>
 
@@ -39,17 +46,27 @@ export default async function AdminDashboardPage() {
         ) : (
           <div className="space-y-3">
             {allSeasons.map((s) => (
-              <Link key={s.id} href={`/admin/${s.slug}/registrations`}>
-                <Card className="p-4 hover:bg-[var(--bg-elevated)] transition-colors cursor-pointer flex items-center justify-between">
+              <Card key={s.id} className="p-4 flex items-center justify-between gap-4">
+                <Link
+                  href={`/admin/${s.slug}/registrations`}
+                  className="min-w-0 flex-1 hover:text-[var(--text-primary)] transition-colors"
+                >
                   <div>
                     <span className="font-medium">{s.name}</span>
                     <span className="text-sm text-[var(--text-secondary)] ml-2">
                       {s.slug}
                     </span>
                   </div>
+                </Link>
+                <div className="flex items-center gap-2">
                   <Badge variant="outline">{s.status}</Badge>
-                </Card>
-              </Link>
+                  {admin.role === "super_admin" && (
+                    <Link href={`/admin/${s.slug}/settings` as never}>
+                      <Button variant="outline" size="sm">设置</Button>
+                    </Link>
+                  )}
+                </div>
+              </Card>
             ))}
           </div>
         )}

@@ -1,20 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import {
-  registrationSchema,
+  buildRegistrationSchema,
   positionValues,
   POSITION_LABELS,
   rankValues,
   RANK_LABELS,
-  MAX_PER_POSITION,
+  PLAYER_TYPE_LABELS,
   type RegistrationFormData,
   type RegistrationInput,
 } from "@/lib/validators/registration";
+import { normalizeRegistrationConfig, type RegistrationConfig, type PlayerType } from "@/types/season";
 
 import { submitRegistration } from "@/actions/register";
 import { Button } from "@/components/ui/button";
@@ -33,15 +34,28 @@ interface RegistrationFormProps {
   seasonId: string;
   seasonName: string;
   positionCounts: Record<string, number>;
+  positions: string[];
+  registrationConfig: RegistrationConfig;
 }
 
 export function RegistrationForm({
   seasonId,
   seasonName,
   positionCounts,
+  positions,
+  registrationConfig: inputRegistrationConfig,
 }: RegistrationFormProps) {
   const [submitted, setSubmitted] = useState(false);
   const [submittedEmail, setSubmittedEmail] = useState("");
+  const registrationConfig = useMemo(
+    () => normalizeRegistrationConfig(inputRegistrationConfig),
+    [inputRegistrationConfig],
+  );
+  const schema = useMemo(
+    () => buildRegistrationSchema(registrationConfig, positions),
+    [registrationConfig, positions],
+  );
+  const activePositions = positions.length > 0 ? positions : [...positionValues];
 
   const {
     register,
@@ -50,10 +64,12 @@ export function RegistrationForm({
     watch,
     formState: { errors, isSubmitting },
   } = useForm<RegistrationInput, unknown, RegistrationFormData>({
-    resolver: zodResolver(registrationSchema),
+    resolver: zodResolver(schema),
     defaultValues: {
       seasonId,
       willingToBeCaptain: false,
+      playerType: registrationConfig.allowedPlayerTypes[0],
+      screenshotUrls: Array.from({ length: registrationConfig.screenshotCount }, () => ""),
     },
   });
 
@@ -93,20 +109,28 @@ export function RegistrationForm({
 
   // ── 工具函数 ──
   const FieldError = ({ name }: { name: string }) => {
-    const err = (errors as Record<string, { message?: string }>)[name];
-    return err?.message ? (
-      <p className="text-xs text-red-400 mt-1">{err.message}</p>
+    const err = name.split(".").reduce<unknown>((acc, key) => {
+      if (acc && typeof acc === "object") return (acc as Record<string, unknown>)[key];
+      return undefined;
+    }, errors);
+    const message =
+      err && typeof err === "object" && "message" in err
+        ? String((err as { message?: unknown }).message)
+        : "";
+    return message ? (
+      <p className="text-xs text-red-400 mt-1">{message}</p>
     ) : null;
   };
 
   const positionFull = (pos: string) =>
-    (positionCounts[pos] ?? 0) >= MAX_PER_POSITION;
+    (positionCounts[pos] ?? 0) >= registrationConfig.maxPerPosition;
 
   const positionLabel = (pos: string) => {
     const p = POSITION_LABELS[pos as keyof typeof POSITION_LABELS];
     const cnt = positionCounts[pos] ?? 0;
-    const full = cnt >= MAX_PER_POSITION;
-    return `${p.full}  ${full ? "已满" : `${cnt}/${MAX_PER_POSITION}`}`;
+    const label = p?.full ?? pos;
+    const full = cnt >= registrationConfig.maxPerPosition;
+    return `${label}  ${full ? "已满" : `${cnt}/${registrationConfig.maxPerPosition}`}`;
   };
 
   const SectionTitle = ({ children }: { children: React.ReactNode }) => (
@@ -154,6 +178,34 @@ export function RegistrationForm({
               <Input id="studentId" placeholder="毕业生填「毕业年份+学院」" className={inputCls} {...register("studentId")} />
               <FieldError name="studentId" />
             </div>
+            <div>
+              <Label className="text-[var(--text-secondary)] mb-1.5 block">
+                身份类型 <Required />
+              </Label>
+              <Select
+                defaultValue={registrationConfig.allowedPlayerTypes[0]}
+                onValueChange={(v) =>
+                  setValue("playerType", v as PlayerType, {
+                    shouldValidate: true,
+                  })
+                }
+              >
+                <SelectTrigger className={inputCls}>
+                  <SelectValue placeholder="选择身份类型" />
+                </SelectTrigger>
+                <SelectContent>
+                  {registrationConfig.allowedPlayerTypes.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {PLAYER_TYPE_LABELS[type]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FieldError name="playerType" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="qq" className="text-[var(--text-secondary)] mb-1.5 block">
                 QQ 号 <Required />
@@ -232,7 +284,7 @@ export function RegistrationForm({
                 <SelectValue placeholder="选择主选位置" />
               </SelectTrigger>
               <SelectContent>
-                {positionValues.map((pos) => (
+                {activePositions.map((pos) => (
                   <SelectItem key={pos} value={pos} disabled={positionFull(pos)}>
                     {positionLabel(pos)}
                   </SelectItem>
@@ -241,7 +293,7 @@ export function RegistrationForm({
             </Select>
             <FieldError name="primaryPosition" />
             <p className="text-xs text-[var(--text-muted)] mt-1">
-              每个位置最多 {MAX_PER_POSITION} 人，满员后自动关闭
+              每个位置最多 {registrationConfig.maxPerPosition} 人，满员后自动关闭
             </p>
           </div>
 
@@ -260,9 +312,9 @@ export function RegistrationForm({
                 <SelectValue placeholder="选择次选位置" />
               </SelectTrigger>
               <SelectContent>
-                {positionValues.map((pos) => (
+                {activePositions.map((pos) => (
                   <SelectItem key={pos} value={pos}>
-                    {POSITION_LABELS[pos].full}
+                    {POSITION_LABELS[pos as keyof typeof POSITION_LABELS]?.full ?? pos}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -423,7 +475,7 @@ export function RegistrationForm({
       <section>
         <SectionTitle>近两周天梯截图</SectionTitle>
         <p className="text-sm text-[var(--text-secondary)] mb-4">
-          请将近两周 5 场天梯对局截图上传至
+          请将近两周天梯对局截图上传至
           <a
             href="https://box.nju.edu.cn"
             target="_blank"
@@ -434,18 +486,23 @@ export function RegistrationForm({
           </a>
           并获取分享链接，粘贴到下方。
         </p>
-        <div>
-          <Label htmlFor="screenshotUrl" className="text-[var(--text-secondary)] mb-1.5 block">
-            NJUBox 分享链接 <Required />
-          </Label>
-          <Input
-            id="screenshotUrl"
-            type="url"
-            placeholder="https://box.nju.edu.cn/d/..."
-            className={inputCls}
-            {...register("screenshotUrl")}
-          />
-          <FieldError name="screenshotUrl" />
+        <div className="space-y-3">
+          {Array.from({ length: registrationConfig.screenshotCount }, (_, index) => (
+            <div key={index}>
+              <Label htmlFor={`screenshotUrls.${index}`} className="text-[var(--text-secondary)] mb-1.5 block">
+                NJUBox 分享链接 {registrationConfig.screenshotCount > 1 ? index + 1 : ""} <Required />
+              </Label>
+              <Input
+                id={`screenshotUrls.${index}`}
+                type="url"
+                placeholder="https://box.nju.edu.cn/d/..."
+                className={inputCls}
+                {...register(`screenshotUrls.${index}`)}
+              />
+              <FieldError name={`screenshotUrls.${index}`} />
+            </div>
+          ))}
+          <FieldError name="screenshotUrls" />
         </div>
       </section>
 

@@ -15,7 +15,7 @@ import {
   getAdminSession,
 } from "@/lib/auth/session";
 import { verifyPassword, hashPassword } from "@/lib/utils/password";
-import { MAX_PER_POSITION } from "@/lib/validators/registration";
+import { normalizeRegistrationConfig } from "@/types/season";
 
 // ── 共享工具 ────────────────────────────────────────────
 
@@ -227,7 +227,8 @@ export async function reviewRegistration(input: ReviewInput) {
               eq(seasonRegistrations.status, "approved"),
             ),
           );
-        if (Number(posCount?.count ?? 0) >= MAX_PER_POSITION) {
+        const registrationConfig = normalizeRegistrationConfig(season.registrationConfig);
+        if (Number(posCount?.count ?? 0) >= registrationConfig.maxPerPosition) {
           throw new AppError(ErrorCode.POSITION_FULL, ERROR_MESSAGES.POSITION_FULL);
         }
       }

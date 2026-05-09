@@ -10,12 +10,12 @@ interface MatchCardProps {
   teamBName: string;
   scoreA: number | null;
   scoreB: number | null;
-  stage: "qualifier" | "playoff";
+  stage: string;
   format: "bo1" | "bo3" | "bo5";
   status: "scheduled" | "in_progress" | "finished" | "cancelled";
 }
 
-const STAGE_LABELS = { qualifier: "排位赛", playoff: "正赛" };
+const STAGE_LABELS: Record<string, string> = { qualifier: "排位赛", playoff: "正赛" };
 const FORMAT_LABELS = { bo1: "BO1", bo3: "BO3", bo5: "BO5" };
 
 export function MatchCard({
@@ -44,7 +44,7 @@ export function MatchCard({
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <Badge variant="outline" className="text-xs text-[var(--text-secondary)]">
-              {STAGE_LABELS[stage]}
+              {STAGE_LABELS[stage] ?? stage}
             </Badge>
             <Badge variant="outline" className="text-xs text-[var(--text-secondary)]">
               {FORMAT_LABELS[format]}

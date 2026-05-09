@@ -46,8 +46,16 @@ async function main() {
       registrationMode: "solo",
       hasCaptainVoting: true,
       hasDraft: true,
-      qualifierFormat: "round_robin",
-      playoffFormat: "double_elim",
+      stagePlan: JSON.stringify([
+        { key: "qualifier", name: "排位赛", type: "round_robin", teamCount: 8, advance: 8 },
+        { key: "playoff", name: "正赛", type: "double_elim", teamCount: 8, advance: 1 },
+      ]),
+      registrationConfig: JSON.stringify({
+        allowedPlayerTypes: ["enrolled"],
+        rankThreshold: { currentMin: "A", peakMin: "A+" },
+        maxPerPosition: 15,
+        screenshotCount: 1,
+      }),
       teamSize: 7,
       starterCount: 5,
       positions: "{igl,awper,opener,closer,anchor}",
@@ -61,8 +69,16 @@ async function main() {
       registrationMode: "solo",
       hasCaptainVoting: true,
       hasDraft: true,
-      qualifierFormat: "round_robin",
-      playoffFormat: "double_elim",
+      stagePlan: JSON.stringify([
+        { key: "qualifier", name: "排位赛", type: "round_robin", teamCount: 8, advance: 8 },
+        { key: "playoff", name: "正赛", type: "double_elim", teamCount: 8, advance: 1 },
+      ]),
+      registrationConfig: JSON.stringify({
+        allowedPlayerTypes: ["enrolled"],
+        rankThreshold: { currentMin: "A", peakMin: "A+" },
+        maxPerPosition: 15,
+        screenshotCount: 1,
+      }),
       teamSize: 7,
       starterCount: 5,
       positions: "{igl,awper,opener,closer,anchor}",
@@ -76,8 +92,16 @@ async function main() {
       registrationMode: "team",
       hasCaptainVoting: false,
       hasDraft: false,
-      qualifierFormat: "round_robin",
-      playoffFormat: "double_elim",
+      stagePlan: JSON.stringify([
+        { key: "qualifier", name: "排位赛", type: "round_robin", teamCount: 8, advance: 8 },
+        { key: "playoff", name: "正赛", type: "double_elim", teamCount: 8, advance: 1 },
+      ]),
+      registrationConfig: JSON.stringify({
+        allowedPlayerTypes: ["enrolled"],
+        rankThreshold: { currentMin: "A", peakMin: "A+" },
+        maxPerPosition: 15,
+        screenshotCount: 1,
+      }),
       teamSize: 5,
       starterCount: 5,
       positions: "{igl,awper,opener,closer,anchor}",
@@ -86,13 +110,13 @@ async function main() {
     await pool.query(
       `INSERT INTO seasons (slug, name, kind, status, theme_color,
         registration_mode, has_captain_voting, has_draft,
-        qualifier_format, playoff_format, team_size, starter_count, positions)
+        stage_plan, registration_config, team_size, starter_count, positions)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
        ON CONFLICT (slug) DO NOTHING`,
       [
         season.slug, season.name, season.kind, season.status,
         season.themeColor, season.registrationMode, season.hasCaptainVoting,
-        season.hasDraft, season.qualifierFormat, season.playoffFormat,
+        season.hasDraft, season.stagePlan, season.registrationConfig,
         season.teamSize, season.starterCount, season.positions,
       ],
     );

@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BracketView } from "@/components/matches/BracketView";
 import { MatchCard } from "@/components/matches/MatchCard";
 import { StandingsTable } from "@/components/matches/StandingsTable";
+import { getFirstStageOfType, normalizeStagePlan } from "@/types/season";
 import type { Database } from "brackets-manager";
 
 export const dynamic = "force-dynamic";
@@ -36,13 +37,18 @@ export default async function MatchesPage({ params }: MatchesPageProps) {
   ]);
 
   const teamMap = new Map(allTeams.map((t) => [t.id, t.name]));
+  const stagePlan = normalizeStagePlan(season.stagePlan);
+  const qualifierStage = getFirstStageOfType(stagePlan, ["round_robin", "swiss"]);
+  const playoffStage = getFirstStageOfType(stagePlan, ["double_elim", "single_elim"]);
+  const qualifierKey = qualifierStage?.key ?? "qualifier";
+  const playoffKey = playoffStage?.key ?? "playoff";
 
-  const qualifierMatches = allMatches.filter((m) => m.stage === "qualifier");
-  const playoffMatches = allMatches.filter((m) => m.stage === "playoff");
+  const qualifierMatches = allMatches.filter((m) => m.stage === qualifierKey);
+  const playoffMatches = allMatches.filter((m) => m.stage === playoffKey);
 
   // 积分榜（仅当有排位赛时计算）
-  const standings = season.qualifierFormat
-    ? await calculateStandings(season.id, allTeams)
+  const standings = qualifierStage
+    ? await calculateStandings(season.id, allTeams, qualifierKey)
     : [];
 
   const allQualifierFinished =
@@ -58,9 +64,9 @@ export default async function MatchesPage({ params }: MatchesPageProps) {
   // 正赛 stage 的 bracket 数据（筛出正赛 stage）
   const playoffBracketData = {
     ...bracketData,
-    stage: bracketData.stage.filter((s) => s.name === "正赛"),
+    stage: bracketData.stage.filter((s) => s.name === playoffStage?.name),
     match: bracketData.match.filter((m) =>
-      bracketData.stage.some((s) => s.name === "正赛" && s.id === m.stageId)
+      bracketData.stage.some((s) => s.name === playoffStage?.name && s.id === m.stageId)
     ),
   };
 
@@ -71,8 +77,8 @@ export default async function MatchesPage({ params }: MatchesPageProps) {
       .map((m) => [m.bracketNodeId!, m.id])
   );
 
-  const hasQualifier = !!season.qualifierFormat;
-  const hasPlayoff = !!season.playoffFormat;
+  const hasQualifier = !!qualifierStage;
+  const hasPlayoff = !!playoffStage;
 
   if (allMatches.length === 0 && allTeams.length === 0) {
     return (
@@ -86,15 +92,15 @@ export default async function MatchesPage({ params }: MatchesPageProps) {
     <div className="container mx-auto px-4 py-12 max-w-5xl space-y-8">
       <h1 className="text-3xl font-bold text-[var(--text-primary)]">赛程总览</h1>
 
-      <Tabs defaultValue={hasQualifier ? "qualifier" : "playoff"} className="w-full">
+      <Tabs defaultValue={hasQualifier ? qualifierKey : playoffKey} className="w-full">
         <TabsList className="mb-6">
-          {hasQualifier && <TabsTrigger value="qualifier">排位赛</TabsTrigger>}
-          {hasPlayoff && <TabsTrigger value="playoff">正赛</TabsTrigger>}
+          {qualifierStage && <TabsTrigger value={qualifierKey}>{qualifierStage.name}</TabsTrigger>}
+          {playoffStage && <TabsTrigger value={playoffKey}>{playoffStage.name}</TabsTrigger>}
         </TabsList>
 
         {/* ── 排位赛面板 ─────────────────────────────────────────── */}
         {hasQualifier && (
-          <TabsContent value="qualifier" className="space-y-8">
+          <TabsContent value={qualifierKey} className="space-y-8">
             {/* 积分榜 */}
             {standings.length > 0 && (
               <section className="space-y-3">
@@ -126,7 +132,7 @@ export default async function MatchesPage({ params }: MatchesPageProps) {
                       teamBName={teamMap.get(m.teamBId) ?? "未知队伍"}
                       scoreA={m.scoreA}
                       scoreB={m.scoreB}
-                      stage="qualifier"
+                      stage={qualifierKey}
                       format={m.format as "bo1" | "bo3" | "bo5"}
                       status={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"}
                     />
@@ -145,7 +151,7 @@ export default async function MatchesPage({ params }: MatchesPageProps) {
 
         {/* ── 正赛面板 ───────────────────────────────────────────── */}
         {hasPlayoff && (
-          <TabsContent value="playoff" className="space-y-8">
+          <TabsContent value={playoffKey} className="space-y-8">
             {/* Bracket 图 */}
             {playoffBracketData.stage.length > 0 && (
               <section id="bracket" className="space-y-3">
@@ -173,7 +179,7 @@ export default async function MatchesPage({ params }: MatchesPageProps) {
                       teamBName={teamMap.get(m.teamBId) ?? "TBD"}
                       scoreA={m.scoreA}
                       scoreB={m.scoreB}
-                      stage="playoff"
+                      stage={playoffKey}
                       format={m.format as "bo1" | "bo3" | "bo5"}
                       status={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"}
                     />

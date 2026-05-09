@@ -2,7 +2,7 @@
 // 所有判断均基于 season capability 字段，禁止读取 season.kind
 // TODO: 实现各函数体
 
-import type { Season, SeasonStatus } from "@/types/season";
+import { getFirstStageOfType, normalizeStagePlan, type Season, type SeasonStatus } from "@/types/season";
 
 // ── 阶段判断（基于 status）────────────────────────────────────────────────
 
@@ -36,12 +36,16 @@ export function showDraft(season: Season): boolean {
 
 /** 是否展示排位赛视图 */
 export function showQualifier(season: Season): boolean {
-  return season.qualifierFormat !== null;
+  return !!getFirstStageOfType(season.stagePlan, ["round_robin", "swiss"]);
 }
 
 /** 是否展示正赛 Bracket 视图 */
 export function showPlayoffBracket(season: Season): boolean {
-  return season.playoffFormat !== null;
+  return !!getFirstStageOfType(season.stagePlan, ["double_elim", "single_elim"]);
+}
+
+export function showMatches(season: Season): boolean {
+  return normalizeStagePlan(season.stagePlan).length > 0;
 }
 
 /** 是否为个人报名模式 */
