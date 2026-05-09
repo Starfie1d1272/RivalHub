@@ -1,0 +1,233 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
+import { Menu, X } from "lucide-react";
+import { toast } from "sonner";
+import { APP_BRAND } from "@/lib/branding";
+import { cn } from "@/lib/utils/cn";
+import { SEASON_STATUS_LABELS } from "@/types/season";
+import { logoutUser } from "@/actions/auth";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import type { Season } from "@/db/schema/seasons";
+import type { UserSession } from "@/lib/auth/session";
+
+interface HeaderClientProps {
+  seasons: Season[];
+  session: UserSession | null;
+}
+
+function AvatarButton({ email }: { email: string }) {
+  const initial = email.charAt(0).toUpperCase();
+  return (
+    <span
+      className="inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-semibold text-white"
+      style={{ backgroundColor: "var(--season-primary, #f97316)" }}
+    >
+      {initial}
+    </span>
+  );
+}
+
+export function HeaderClient({ seasons, session }: HeaderClientProps) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const navLinks = seasons.map((s) => ({
+    href: `/${s.slug}`,
+    label: s.name,
+    badge: SEASON_STATUS_LABELS[s.status] ?? s.status,
+    active: pathname.startsWith(`/${s.slug}`),
+  }));
+
+  async function handleLogout() {
+    const result = await logoutUser();
+    if (result.success) {
+      toast.success("已退出登录");
+      router.push("/");
+    } else {
+      toast.error("退出失败，请重试");
+    }
+  }
+
+  const isAdmin = session && session.role !== "user";
+
+  return (
+    <header className="sticky top-0 z-50 border-b border-[var(--border)] bg-[var(--bg-elevated)]/95 backdrop-blur">
+      <div className="container mx-auto px-4 h-14 flex items-center justify-between">
+        {/* Logo */}
+        <Link
+          href="/"
+          className="font-bold text-lg text-[var(--text-primary)] hover:text-white transition-colors"
+        >
+          {APP_BRAND.name}
+        </Link>
+
+        {/* Desktop nav */}
+        <nav className="hidden sm:flex items-center gap-1">
+          {navLinks.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href as never}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors",
+                link.active
+                  ? "bg-[var(--bg-overlay)] text-[var(--text-primary)]"
+                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-overlay)]"
+              )}
+            >
+              {link.label}
+              <span className="text-xs px-1.5 py-0.5 rounded-sm bg-[var(--bg-base)] text-[var(--text-muted)]">
+                {link.badge}
+              </span>
+            </Link>
+          ))}
+          <Link
+            href="/seasons"
+            className={cn(
+              "px-3 py-1.5 rounded-md text-sm transition-colors",
+              pathname === "/seasons"
+                ? "bg-[var(--bg-overlay)] text-[var(--text-primary)]"
+                : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-overlay)]"
+            )}
+          >
+            历史赛季
+          </Link>
+        </nav>
+
+        {/* 右侧：用户区域 + mobile hamburger */}
+        <div className="flex items-center gap-2">
+          {/* 用户区域（仅桌面） */}
+          <div className="hidden sm:block">
+            {session ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--season-primary,#f97316)] rounded-full">
+                    <AvatarButton email={session.email} />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  {isAdmin && (
+                    <>
+                      <DropdownMenuItem asChild>
+                        <Link href="/admin" className="cursor-pointer">
+                          管理后台
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
+                  <DropdownMenuItem asChild>
+                    <Link href="/invite" className="cursor-pointer">
+                      使用邀请码
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-red-500 focus:text-red-500 cursor-pointer"
+                    onSelect={handleLogout}
+                  >
+                    退出登录
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Link
+                href="/login"
+                className="px-3 py-1.5 rounded-md text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-overlay)] transition-colors"
+              >
+                登录
+              </Link>
+            )}
+          </div>
+
+          {/* Mobile hamburger */}
+          <button
+            className="sm:hidden p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+            onClick={() => setMobileOpen((o) => !o)}
+            aria-label="菜单"
+          >
+            {mobileOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile menu */}
+      {mobileOpen && (
+        <div className="sm:hidden border-t border-[var(--border)] bg-[var(--bg-elevated)] px-4 py-3 flex flex-col gap-1">
+          {navLinks.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href as never}
+              onClick={() => setMobileOpen(false)}
+              className="flex items-center justify-between px-3 py-2 rounded-md text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-overlay)]"
+            >
+              {link.label}
+              <span className="text-xs text-[var(--text-muted)]">{link.badge}</span>
+            </Link>
+          ))}
+          <Link
+            href="/seasons"
+            onClick={() => setMobileOpen(false)}
+            className="px-3 py-2 rounded-md text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-overlay)]"
+          >
+            历史赛季
+          </Link>
+
+          {/* 移动端用户区域 */}
+          <div className="mt-2 pt-2 border-t border-[var(--border)] flex flex-col gap-1">
+            {session ? (
+              <>
+                <div className="flex items-center gap-2 px-3 py-1.5">
+                  <AvatarButton email={session.email} />
+                  <span className="text-sm text-[var(--text-muted)] truncate">{session.email}</span>
+                </div>
+                {isAdmin && (
+                  <Link
+                    href="/admin"
+                    onClick={() => setMobileOpen(false)}
+                    className="px-3 py-2 rounded-md text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-overlay)]"
+                  >
+                    管理后台
+                  </Link>
+                )}
+                <Link
+                  href="/invite"
+                  onClick={() => setMobileOpen(false)}
+                  className="px-3 py-2 rounded-md text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-overlay)]"
+                >
+                  使用邀请码
+                </Link>
+                <button
+                  onClick={() => {
+                    setMobileOpen(false);
+                    void handleLogout();
+                  }}
+                  className="text-left px-3 py-2 rounded-md text-sm text-red-500 hover:bg-[var(--bg-overlay)]"
+                >
+                  退出登录
+                </button>
+              </>
+            ) : (
+              <Link
+                href="/login"
+                onClick={() => setMobileOpen(false)}
+                className="px-3 py-2 rounded-md text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-overlay)]"
+              >
+                登录
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
+    </header>
+  );
+}
