@@ -49,8 +49,12 @@ GSL Group A (8 队)              GSL Group B (8 队)
 **StagePlan 表达**（Swiss executor v2 实现后即可）：
 ```json
 [
-  { "key": "swiss", "name": "瑞士轮", "type": "swiss", "teamCount": 16, "advance": 8 },
-  { "key": "playoff", "name": "淘汰赛", "type": "single_elim", "teamCount": 8, "advance": 1 }
+  { "key": "swiss", "type": "swiss", "teamCount": 16,
+    "advanceTiers": [{ "placement": "*", "count": 8 }],
+    "matchFormat": "bo3" },
+  { "key": "playoff", "type": "single_elim", "teamCount": 8,
+    "advanceTiers": [{ "placement": "1st", "count": 1 }],
+    "matchFormat": "bo3" }
 ]
 ```
 
@@ -105,27 +109,9 @@ GSL Group A (8 队)              GSL Group B (8 队)
 
 ### P0（v2 — 解锁 IEM + BLAST + PGL + Major，覆盖 >90% S-Tier 赛事）
 
-1. **`StageConfig` 扩展**：新增 `advanceTiers` 和 `groupCount`
-   ```typescript
-   interface StageConfig {
-     key: string;
-     name: string;
-     type: StageType;  // 新增 "gsl_group"
-     teamCount: number;
-     advance?: number;  // 简单晋级（向后兼容）
-     // 新增：分层晋级（模式 1）
-     advanceTiers?: Array<{
-       placement: "1st" | "2nd" | "3rd";
-       targetRound: "semifinal" | "quarterfinal";
-       count: number;
-     }>;
-     groupCount?: number;  // 新增：并行分组数
-     seeds?: number[];     // 已有：Swiss 种子
-   }
-   ```
-
-2. **Swiss executor**（已在 v2 计划中）— 解锁模式 2 和 3
-3. **GSL 小组 executor** — 解锁模式 1（固定对阵，不需要 brackets-manager）
+1. **`StageConfig` 扩展**：新增 `advanceTiers`、`groupCount`、`matchFormat`、`hasThirdPlaceMatch`；删除 `advance` 字段。详见 `2026-05-10-stage-framework-v2-design.md` §二。
+2. **Swiss executor** — 解锁模式 2 和 3
+3. **GSL 小组 executor** — 解锁模式 1
 4. **single_elim executor 独立实现** — 支持 `advanceTiers` 输入，正确处理 6 队分层 bracket + 季军赛
 
 ### P1（v2.5）
