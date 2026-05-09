@@ -1,41 +1,11 @@
 import Link from "next/link";
-import { UserPlus, Vote, Users, Swords } from "lucide-react";
 import { notFound } from "next/navigation";
+import { eq } from "drizzle-orm";
+import { UserPlus, Vote, Users, Swords, Shuffle } from "lucide-react";
+import { db } from "@/db/client";
+import { seasons } from "@/db/schema";
 import { SEASON_STATUS_LABELS } from "@/types/season";
 import type { SeasonStatus } from "@/types/season";
-
-// Mock season data — replaced with DB query in Phase 4+
-const MOCK_SEASONS: Record<string, {
-  name: string;
-  kind: string;
-  status: string;
-  description: string;
-  themeColor: string;
-  schedule: string;
-}> = {
-  "2026-nju-rivals": {
-    name: "2026 NJU Rivals",
-    kind: "选秀联赛",
-    status: "registration",
-    description: "南京大学 CS2 社群选秀联赛，56 选手 · 8 队伍 · 双败淘汰。报名开放至 2026 春季。",
-    themeColor: "#f97316",
-    schedule: "2026 年春季",
-  },
-};
-
-interface QuickLink {
-  href: string;
-  label: string;
-  description: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
-}
-
-const QUICK_LINKS: QuickLink[] = [
-  { href: "register", label: "立即报名",  description: "提交报名信息",    icon: UserPlus },
-  { href: "captains", label: "队长投票",  description: "为心仪队长投票",  icon: Vote },
-  { href: "teams",    label: "队伍阵容",  description: "8 队选手分布",    icon: Users },
-  { href: "matches",  label: "赛程对决",  description: "Bracket + 战报", icon: Swords },
-];
 
 interface SeasonPageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -43,12 +13,52 @@ interface SeasonPageProps {
 
 export default async function SeasonPage({ params }: SeasonPageProps) {
   const { seasonSlug } = await params;
-  const season = MOCK_SEASONS[seasonSlug];
+
+  const season = await db.query.seasons.findFirst({
+    where: eq(seasons.slug, seasonSlug),
+  });
   if (!season) notFound();
+
+  const quickLinks = [
+    {
+      href: `/${seasonSlug}/register`,
+      label: "立即报名",
+      description: "提交报名信息",
+      icon: UserPlus,
+      show: true,
+    },
+    {
+      href: `/${seasonSlug}/captains`,
+      label: "队长投票",
+      description: "为心仪队长投票",
+      icon: Vote,
+      show: season.hasCaptainVoting,
+    },
+    {
+      href: `/${seasonSlug}/draft`,
+      label: "选秀直播间",
+      description: "实时观看选秀进度",
+      icon: Shuffle,
+      show: season.hasDraft,
+    },
+    {
+      href: `/${seasonSlug}/teams`,
+      label: "队伍阵容",
+      description: "查看各队选手分布",
+      icon: Users,
+      show: true,
+    },
+    {
+      href: `/${seasonSlug}/matches`,
+      label: "赛程对决",
+      description: "Bracket + 战报",
+      icon: Swords,
+      show: season.qualifierFormat !== null || season.playoffFormat !== null,
+    },
+  ].filter((l) => l.show);
 
   return (
     <div className="container mx-auto px-4 py-10">
-      {/* Hero with theme glow */}
       <div className="season-glow relative mb-12 pt-6">
         <div className="flex items-center gap-3 mb-4 text-xs uppercase tracking-wider">
           <span
@@ -62,24 +72,17 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
             {SEASON_STATUS_LABELS[season.status as SeasonStatus] ?? season.status}
           </span>
           <span className="text-[var(--text-muted)]">{season.kind}</span>
-          <span className="text-[var(--text-muted)]">·</span>
-          <span className="text-[var(--text-muted)] tabular">{season.schedule}</span>
         </div>
-
         <h1 className="text-4xl sm:text-5xl font-bold text-[var(--text-primary)] mb-4 leading-tight">
           {season.name}
         </h1>
-        <p className="text-[var(--text-secondary)] text-base sm:text-lg max-w-2xl leading-relaxed">
-          {season.description}
-        </p>
       </div>
 
-      {/* Quick links */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {QUICK_LINKS.map(({ href, label, description, icon: Icon }) => (
+        {quickLinks.map(({ href, label, description, icon: Icon }) => (
           <Link
             key={href}
-            href={`/${seasonSlug}/${href}` as never}
+            href={href as never}
             className="card-elevated group flex flex-col gap-2 p-5 rounded-lg border border-[var(--border)]"
           >
             <div
