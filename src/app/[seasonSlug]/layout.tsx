@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
 import { Breadcrumb } from "@/components/layout/breadcrumb";
+import { SeasonNav } from "@/components/layout/season-nav";
 import { hexToRgbString } from "@/lib/utils/color";
 
 interface SeasonLayoutProps {
@@ -48,6 +49,13 @@ export default async function SeasonLayout({ children, params }: SeasonLayoutPro
           ]}
         />
       </div>
+      <SeasonNav
+        slug={season.slug}
+        hasCaptainVoting={season.hasCaptainVoting}
+        hasDraft={season.hasDraft}
+        qualifierFormat={season.qualifierFormat}
+        playoffFormat={season.playoffFormat}
+      />
       {children}
     </div>
   );
