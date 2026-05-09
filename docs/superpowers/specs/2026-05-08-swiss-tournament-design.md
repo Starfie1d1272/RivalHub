@@ -2,6 +2,7 @@
 
 > 状态：已确认 · 2026-05-08
 > 目标分支：待定
+> **注意**：本文档中的 `StageConfig` 定义（`advance: number`）已被 `2026-05-10-stage-framework-v2-design.md` 取代（`advanceTiers: AdvanceTier[]`），以 v2 design 为准。
 
 ---
 

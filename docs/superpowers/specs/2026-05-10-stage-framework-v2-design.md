@@ -12,7 +12,7 @@
 
 Liquipedia 抓取验证发现（7 个赛事页面），2025-2026 CS2 大赛在采样范围内观察到 3 种主流赛制模式，其中 IEM/BLAST 的 GSL 分组 + 分层晋级当前框架无法表达。
 
-这篇 spec 定义 v2 框架扩展，将覆盖率从 Rivals（1 种赛制）扩展到采样中 7/7 赛事可建模。
+这篇 spec 定义 v2 框架扩展，将覆盖率从 Rivals（1 种赛制）扩展到采样中 7/7 赛事的阶段结构可建模。Major 的种子轮空（高位种子从后续阶段进入）在 v2.5 补全。
 
 ---
 
@@ -63,14 +63,15 @@ v2 阶段拓扑：**restricted linear pipeline**——`Stage_i → Stage_{i+1}` 
 
 ## 四、StageConfig 扩展
 
-### 2.1 `advance` → `advanceTiers`
+### 4.1 `advance` → `advanceTiers`
 
 `advance: number` 被 `advanceTiers` 替代。`advanceTiers` 是一个有序数组，描述"什么名次 → 多少人 → 进入下一阶段的哪个入口"：
 
 ```typescript
 interface AdvanceTier {
   /** 名次标识："*" = 全部晋级；"1st"/"2nd"/"3rd" 等 = 分层晋级。
-   *  Zod 在 Server Action 端校验有效值，类型层面保持 string 以允许赛事自定义扩展。 */
+   *  Zod 在 Server Action 端校验有效值，类型层面保持 string 以允许赛事自定义扩展。
+   *  当 placement 为 "*" 时，count 必须等于该阶段 teamCount（Zod 校验），表示全员晋级。 */
   placement: string;
   /** 该名次每组晋级队伍数；groupCount > 1 时总晋级数 = count × groupCount */
   count: number;
@@ -91,13 +92,13 @@ interface StageConfig {
 }
 ```
 
-### 2.2 新增 `StageType`
+### 4.2 新增 `StageType`
 
 ```typescript
 type StageType = "round_robin" | "double_elim" | "single_elim" | "swiss" | "gsl_group";
 ```
 
-### 2.3 `targetRound` 有效值
+### 4.3 `targetRound` 有效值
 
 与 `matches.entry_round` 共享同一组值：
 
@@ -110,13 +111,13 @@ type StageType = "round_robin" | "double_elim" | "single_elim" | "swiss" | "gsl_
 | `final` | 决赛 |
 | `third_place` | 季军赛 |
 
-### 2.4 `count` 语义
+### 4.4 `count` 语义
 
 `advanceTiers[].count` 表示**每组**该名次的队伍数。`groupCount > 1` 时总晋级数 = `count × groupCount`。
 
 例如 IEM Rio (`groupCount: 2`)，`{ placement: "1st", count: 1 }` →每组 1 支 2-0 队，共 2 支晋级到 semifinal。
 
-### 2.5 matchFormat 默认值
+### 4.5 matchFormat 默认值
 
 | 字段 | 默认值 | 说明 |
 |---|---|---|
@@ -133,11 +134,11 @@ type StageType = "round_robin" | "double_elim" | "single_elim" | "swiss" | "gsl_
 | `double_elim` | `bo3` | 正赛；决赛可从 BO3 改为 BO5 |
 | `single_elim` | `bo3` | 淘汰赛；决赛可从 BO3 改为 BO5 |
 
-### 2.6 字段语义
+### 4.6 字段语义
 | `hasThirdPlaceMatch` | `false` | 季军赛（PGL Astana / ESL PL 使用） |
 | `seeds` | `[]` | Swiss 初始种子（1-based 排名），非 Swiss 阶段忽略 |
 
-### 2.7 配置示例
+### 4.7 配置示例
 
 **Rivals（等价改写）**：
 ```json
@@ -199,7 +200,7 @@ type StageType = "round_robin" | "double_elim" | "single_elim" | "swiss" | "gsl_
 
 ## 五、阶段间晋级契约（核心新增）
 
-### 3.1 `QualifiedTeam`
+### 5.1 `QualifiedTeam`
 
 每个阶段完成后，executor 产出结构化的晋级结果，作为下一阶段的输入：
 
@@ -213,7 +214,7 @@ interface QualifiedTeam {
 }
 ```
 
-### 3.2 `StageExecutor` 接口
+### 5.2 `StageExecutor` 接口
 
 ```typescript
 interface StageExecutor {
@@ -249,7 +250,7 @@ interface StageExecutor {
 - 新增 `getQualifiers` 方法（所有 executor 必须实现）
 - 其余签名不变
 
-### 3.3 数据流
+### 5.3 数据流
 
 ```
 generateSchedule(seasonId)
@@ -270,16 +271,19 @@ generateSchedule(seasonId)
               └─ single_elim: 根据 qualifiers[].placement 映射 targetRound，处理 bye
 ```
 
-### 3.4 `initializeStage` 泛化
+### 5.4 `initializeStage` 泛化
 
 ```typescript
 export async function initializeStage(seasonId: string, stageKey: string) {
   const season = await getSeasonOrThrow(seasonId);
+  // normalizeStagePlan: 解析 JSONB，兼容 advance → advanceTiers 旧格式，返回 StageConfig[]
   const stagePlan = normalizeStagePlan(season.stagePlan);
   const stage = getStageByKey(stagePlan, stageKey);
   const prevStage = getPreviousStage(stagePlan, stageKey);
   const prevExecutor = prevStage ? getExecutor(prevStage.type) : null;
   const executor = getExecutor(stage.type);
+
+  const teams = await getSeasonTeams(seasonId);
 
   // 从上一阶段计算晋级结果
   const qualifiers = prevExecutor && prevStage
@@ -298,7 +302,7 @@ export async function initializeStage(seasonId: string, stageKey: string) {
 
 ## 六、新增 Executor
 
-### 4.1 GSL Group Executor
+### 6.1 GSL Group Executor
 
 **`initialize`**：`groupCount > 1` 时蛇形分配（种子 #1→A, #2→B, #3→B, #4→A, ...）。组内对阵完全确定性。
 
@@ -311,7 +315,14 @@ Round 4 (2场): R2败者 vs R3胜者 ×2 → 2-1 晋级, 1-2 淘汰
 ```
 产出排名（gsl_group.placement）：`1st` (2-0), `2nd` (2-1), `3rd` (1-2)。
 
-**4 队 GSL**（BLAST Rivals）：每组 5 场，产出 1st/2nd/3rd（四进三）。
+**4 队 GSL 组内对阵**（BLAST Rivals，5 场/组）：
+```
+Round 1 (2场): 1vs4, 2vs3
+Round 2 (1场): W(1/4)vsW(2/3) → 2-0 晋级
+Round 3 (1场): L(1/4)vsL(2/3) → 0-2 淘汰
+Round 4 (1场): R2败者 vs R3胜者 → 2-1 晋级, 1-2 淘汰
+```
+产出排名：`1st` (2-0), `2nd` (2-1), `3rd` (1-2)。结构与 8 队 GSL 完全同构，仅首轮对阵数和队伍数缩减。
 
 **`round` 列**：存 GSL 内轮次号（1-4）。
 
@@ -321,7 +332,7 @@ Round 4 (2场): R2败者 vs R3胜者 ×2 → 2-1 晋级, 1-2 淘汰
 
 **扩展性 caveat**：当前 executor 覆盖 ESL-style 标准 GSL（固定对阵）。未来如需支持 cross-group dynamic reseeding（最高种子 vs 最低种子）、rematch avoidance、decider ordering 等变体，应通过 `StageConfig` 扩展参数或新增 executor 变体实现，不重写现有 GSL executor。
 
-### 4.2 Swiss Executor
+### 6.2 Swiss Executor
 
 详见 `2026-05-08-swiss-tournament-design.md`。框架层面关键行为：
 
@@ -338,7 +349,7 @@ Round 4 (2场): R2败者 vs R3胜者 ×2 → 2-1 晋级, 1-2 淘汰
 
 `single-elim.ts` 独立实现（不再委托 double-elim）。
 
-### 5.1 Bye（轮空）
+### 7.1 Bye（轮空）
 
 `initialize` 接收 `qualifiers: QualifiedTeam[]`，用 `placement` 映射到 `advanceTiers[].targetRound`，直通四强的队伍不参与八强轮 match 生成：
 
@@ -359,18 +370,18 @@ qualifiers:
   Final: SF1 winner vs SF2 winner
 ```
 
-2nd vs 3rd 的跨组交叉配对由 executor 内置。
+2nd vs 3rd 的跨组交叉配对由 executor 内置。当前 executor 假设 `groupCount ≤ 2`；> 2 组的 cross-group 配对规则需在 v3 扩展。
 
-### 5.1.1 TBD 参赛方策略
+### 7.1.1 TBD 参赛方策略
 
 `matches.teamAId` / `teamBId` 为 NOT NULL，无法存储"待定"参赛方。
 **策略**：`initialize` 只生成双方参赛队均已确定的 matches（如 QF）；SF 在有 TBD 参赛方时不创建行，等 QF 完成后由现有的 bracket 推进逻辑（`recordMatchResult` → `advanceMatch`）自动创建下一轮 match。此行为与当前 v1 `double_elim` executor 的 bracket 推进逻辑一致，无需改 schema。
 
-### 5.2 季军赛
+### 7.2 季军赛
 
 `config.hasThirdPlaceMatch = true` 时，两场半决赛败者自动生成一场季军赛（`entry_round: "third_place"`）。
 
-### 5.3 `matches.entry_round`
+### 7.3 `matches.entry_round`
 
 新增列，标记该比赛属于 bracket 的哪个入口轮次：
 
@@ -387,7 +398,7 @@ ALTER TABLE matches ADD CONSTRAINT matches_entry_round_check
 
 ## 八、数据迁移
 
-### 6.1 `advance` → `advanceTiers`
+### 8.1 `advance` → `advanceTiers`
 
 ```sql
 UPDATE seasons
@@ -415,7 +426,7 @@ WHERE stage_plan IS NOT NULL AND jsonb_typeof(stage_plan) = 'array';
 
 **部署顺序**：先部署代码（代码同时兼容 `advance` 和 `advanceTiers`，优先读 `advanceTiers`，fallback 到 `advance`），确认线上正常后再跑 migration 彻底删除 `advance` 字段。读兼容期至少一个部署窗口，避免读写不一致。
 
-### 6.2 `matches.entry_round` 列
+### 8.2 `matches.entry_round` 列
 
 ```sql
 ALTER TABLE matches ADD COLUMN entry_round text;
@@ -453,7 +464,7 @@ export const RIVALS_STAGE_PLAN: StagePlan = [
 | `src/lib/formats/swiss.ts` | 新建，Swiss executor |
 | `src/lib/formats/single-elim.ts` | 独立实现（bye + 季军赛） |
 | `src/lib/formats/round-robin.ts` | 加 `getQualifiers` 实现（读 standings） |
-| `src/lib/formats/double-elim.ts` | 加 `getQualifiers` 实现 |
+| `src/lib/formats/double-elim.ts` | 加 `getQualifiers` 实现（末尾 stage 时返回冠军队；虽不会被 `initializeStage` 调用，但接口要求统一实现） |
 | `src/lib/formats/index.ts` | 注册表加 gsl_group + swiss |
 | `src/actions/matches.ts` | `initializeStage` 泛化：调用 `prevExecutor.getQualifiers()` → 传入下一 executor |
 | `src/db/schema/matches.ts` | 加 `entry_round` 列 + check constraint |

@@ -143,7 +143,7 @@ GSL 4 队小组更简单——仅 5 场比赛，两组共 10 场。
 ## 六、不改动的部分
 
 - `src/lib/bracket/` 适配层保持不动
-- `StageExecutor` 接口保持不动（新增 executor 实现即可）
+- `StageExecutor` 接口签名扩展（`initialize` 新增 `qualifiers` 参数，新增 `getQualifiers` 方法），详见 v2 design §五
 - v1 Rivals 双败淘汰逻辑零改动
 
 ---
