@@ -8,7 +8,7 @@
 
 ## 一、已验证赛制分类
 
-经 Liquipedia 抓取验证，2025-2026 CS2 大赛只有 **3 种赛制模式**：
+经 Liquipedia 抓取验证（7 个赛事页面），2025-2026 CS2 大赛在本次采样范围内观察到 **3 种主流赛制模式**：
 
 ### 模式 1：GSL 小组 → 6-team Single Elim（分层晋级）
 
@@ -107,7 +107,7 @@ GSL Group A (8 队)              GSL Group B (8 队)
 
 ## 四、建议优先级
 
-### P0（v2 — 解锁 IEM + BLAST + PGL + Major，覆盖 >90% S-Tier 赛事）
+### P0（v2 — 解锁 IEM + BLAST + PGL + Major，覆盖采样中 7/7 赛事）
 
 1. **`StageConfig` 扩展**：新增 `advanceTiers`、`groupCount`、`matchFormat`、`hasThirdPlaceMatch`；删除 `advance` 字段。详见 `2026-05-10-stage-framework-v2-design.md` §二。
 2. **Swiss executor** — 解锁模式 2 和 3
