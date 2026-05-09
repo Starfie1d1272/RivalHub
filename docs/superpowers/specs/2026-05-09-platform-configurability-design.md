@@ -50,12 +50,18 @@ player_type TEXT NOT NULL DEFAULT 'enrolled'
 
 #### matches 表
 
-新增：
+当前 `matches.stage` 已存在，类型为 `match_stage` enum（`qualifier | playoff`），且为 `NOT NULL`。本次不是新增 `stage`，而是迁移：
 
 ```sql
-stage TEXT        -- stage 名称，与 StagePlan[n].name 对应；旧数据为 null
-round INTEGER     -- 瑞士轮轮次（1–5）；round_robin/elim 为 null
+stage TEXT NOT NULL  -- 存 StagePlan[n].key，不存展示名
+round INTEGER        -- 瑞士轮轮次（1–5）；round_robin/elim 为 null
 ```
+
+迁移要求：
+
+- `matches.stage = 'qualifier'` 继续映射到 `stagePlan` 中 `key = 'qualifier'` 的阶段
+- `matches.stage = 'playoff'` 继续映射到 `stagePlan` 中 `key = 'playoff'` 的阶段
+- 删除 `matchStageEnum` 前必须先完成列类型迁移，避免 enum drop 影响历史数据
 
 #### 类型定义
 
@@ -65,7 +71,8 @@ round INTEGER     -- 瑞士轮轮次（1–5）；round_robin/elim 为 null
 type StageType = "round_robin" | "double_elim" | "single_elim" | "swiss";
 
 interface StageConfig {
-  name: string;       // "排位赛" | "正赛" | "Stage 1" | "Playoff" 等
+  key: string;        // 稳定业务标识："qualifier" | "playoff" | "stage-1" 等，写入 matches.stage
+  name: string;       // 展示名："排位赛" | "正赛" | "Stage 1" | "Playoff" 等，可改名/i18n
   type: StageType;
   teamCount: number;
   advance: number;    // 晋级队伍数；0 = 决赛阶段（无下一阶段）
@@ -89,8 +96,8 @@ Rivals 默认 stagePlan：
 
 ```json
 [
-  { "name": "排位赛", "type": "round_robin", "teamCount": 8, "advance": 8 },
-  { "name": "正赛",   "type": "double_elim", "teamCount": 8, "advance": 1 }
+  { "key": "qualifier", "name": "排位赛", "type": "round_robin", "teamCount": 8, "advance": 8 },
+  { "key": "playoff",   "name": "正赛",   "type": "double_elim", "teamCount": 8, "advance": 1 }
 ]
 ```
 
@@ -119,10 +126,10 @@ interface StageExecutor {
   initialize(seasonId: string, config: StageConfig, teams: Team[]): Promise<{ matchCount: number }>;
 
   /** 逐轮推进（仅 Swiss 需要；淘汰赛 initialize 一次性生成全部对阵） */
-  advanceRound?(seasonId: string, stageName: string): Promise<{ matchCount: number }>;
+  advanceRound?(seasonId: string, stageKey: string): Promise<{ matchCount: number }>;
 
   /** 该阶段是否已完成（所有 match finished，且无 active 参赛方） */
-  isComplete(seasonId: string, stageName: string): Promise<boolean>;
+  isComplete(seasonId: string, stageKey: string): Promise<boolean>;
 }
 ```
 
@@ -160,16 +167,24 @@ export function getExecutor(type: string): StageExecutor {
 
 #### Server Action 改造
 
-现有 `generateSchedule` 重构为遍历 stagePlan，一次性 initialize 所有阶段（对 round_robin/elim 适用）：
+现有 `generateSchedule` 重构为初始化第一个 stage，而不是一次性初始化所有阶段：
 
 ```typescript
-for (const stageConfig of season.stagePlan) {
-  const executor = getExecutor(stageConfig.type);
-  await executor.initialize(seasonId, stageConfig, teams);
-}
+const [firstStage] = season.stagePlan;
+const executor = getExecutor(firstStage.type);
+await executor.initialize(seasonId, firstStage, teams);
 ```
 
-新增 `initializeStage(seasonId, stageName)` ——供管理员手动触发下一阶段（Swiss stage 间晋级用，v2 实际使用）。
+原因：当前 Rivals 流程是 `round_robin` 完成后，根据积分榜重新 seed `double_elim` 正赛。若在 `generateSchedule` 时一次性初始化 `double_elim`，会提前锁定正赛种子，破坏现有 `generatePlayoff` 的语义。
+
+新增 `initializeStage(seasonId, stageKey)`：
+
+- 根据 `stagePlan` 找到指定 stage
+- 校验前置 stage 已完成
+- 根据上一 stage 的结果计算晋级/种子
+- 初始化该 stage 的 matches
+- v1 中可替代现有 `generatePlayoff`
+- v2 中用于 Swiss stage 间晋级
 
 **不改动**：`src/lib/bracket/` 适配层，round-robin/double-elim 执行器内部调用它，外部只看 StageExecutor 接口。
 
@@ -183,13 +198,41 @@ for (const stageConfig of season.stagePlan) {
 
 #### 字段变更
 
-`registrationSchema`（`src/lib/validators/registration.ts`）从 `REGISTRATION_DEFAULTS` 读取的硬编码值，改为从 `season.registrationConfig` 读取：
+`registrationSchema`（`src/lib/validators/registration.ts`）不能继续作为单一模块级静态 schema 使用。当前 Server Action 是先 `registrationSchema.safeParse(input)`，再查 season；配置化后需要改为 schema factory：
+
+```typescript
+function buildRegistrationSchema(
+  config: RegistrationConfig,
+  positions: readonly string[],
+) {
+  // 返回基于当前 season 配置的 Zod schema
+}
+```
+
+Server Action 校验流程改为：
+
+1. 用轻量 schema 只解析 `seasonId`
+2. 查询 season，合并 `season.registrationConfig ?? REGISTRATION_DEFAULTS`
+3. 调用 `buildRegistrationSchema(config, season.positions)` 生成完整 schema
+4. 用完整 schema 校验表单输入
+
+Client 表单也需要拿到同一份 config，用于 resolver、字段显示和名额文案。
+
+配置项：
 
 - 段位门槛：从 `registrationConfig.rankThreshold` 读，`null` 则跳过段位校验
 - 每位置上限：`registrationConfig.maxPerPosition`
 - 截图数量：`registrationConfig.screenshotCount`
 
 `playerType` 字段加入报名表单（下拉：在校 / 毕业 / 外校），提交时 Server Action 校验 `playerType` 是否在 `registrationConfig.allowedPlayerTypes` 内。
+
+截图字段改为数组形态：
+
+```typescript
+screenshotUrls: string[] // min/max 均由 registrationConfig.screenshotCount 控制
+```
+
+现有单个 `screenshotUrl` 输入仅作为 UI 兼容过渡，最终写入 DB 的仍是 `season_registrations.screenshot_urls`。
 
 #### 向后兼容
 
@@ -275,7 +318,7 @@ src/actions/seasons.ts
 |---|---|
 | `src/db/schema/seasons.ts` | 删 `qualifierFormat`/`playoffFormat` 枚举列，加 `stagePlan`/`registrationConfig` JSONB |
 | `src/db/schema/registrations.ts` | 加 `playerType` 列 |
-| `src/db/schema/matches.ts` | 加 `stage`/`round` 列 |
+| `src/db/schema/matches.ts` | `stage` 从 enum 迁移为 text，存 StageConfig.key；新增 `round` 列 |
 | `src/db/schema/index.ts` | 导出更新 |
 | `src/types/season.ts` | 废弃旧 Format 类型，新增 `StageConfig`/`StagePlan`/`RegistrationConfig` |
 | `src/lib/formats/types.ts` | 新建，`StageExecutor` 接口 |
@@ -285,7 +328,7 @@ src/actions/seasons.ts
 | `src/lib/formats/index.ts` | 新建，注册表 |
 | `src/lib/validators/registration.ts` | 段位门槛/上限改从 season config 读 |
 | `src/actions/seasons.ts` | 新建，`createSeason`/`updateSeason`/`deleteSeason` |
-| `src/actions/matches.ts` | `generateSchedule` 改为遍历 stagePlan，加 `initializeStage` |
+| `src/actions/matches.ts` | `generateSchedule` 改为初始化首个 stage，加 `initializeStage` 替代/承接 `generatePlayoff` |
 | `src/app/admin/seasons/new/page.tsx` | 新建 |
 | `src/app/admin/[seasonSlug]/settings/page.tsx` | 新建 |
 | `src/app/admin/page.tsx` | 加「新建赛季」入口 |
@@ -300,5 +343,8 @@ src/actions/seasons.ts
 
 - 所有 Server Action 返回 `ActionResult<T>`，写 `audit_logs`
 - `stagePlan` 和 `registrationConfig` 在 Server Action 内用 Zod 校验后再写 DB
+- `stagePlan` 必须用 `key` 作为稳定业务标识；`name` 只用于展示
+- `matches.stage` 迁移必须保护历史 `qualifier` / `playoff` 数据
+- 多阶段赛制不得一次性初始化所有 stage；下一阶段必须在上一阶段完成后显式初始化
 - 不引入新 npm 包（shadcn 组件按需 add）
 - 不改动 P7/P8 选秀相关文件
