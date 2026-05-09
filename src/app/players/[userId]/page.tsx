@@ -7,18 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import Image from "next/image";
 import Link from "next/link";
+import { POSITION_LABELS } from "@/lib/validators/registration";
 
 interface PlayerPageProps {
   params: Promise<{ userId: string }>;
 }
-
-const POSITION_LABELS: Record<string, string> = {
-  igl: "IGL",
-  awper: "AWP",
-  opener: "Opener",
-  closer: "Closer",
-  anchor: "Anchor",
-};
 
 function pct(n: number, d: number) {
   if (d === 0) return "—";
@@ -153,10 +146,10 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
             {latestReg && (
               <>
                 <Badge variant="outline" className="text-[var(--primary)]">
-                  {POSITION_LABELS[latestReg.primaryPosition] ?? latestReg.primaryPosition}
+                  {POSITION_LABELS[latestReg.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? latestReg.primaryPosition}
                 </Badge>
                 <Badge variant="outline" className="text-[var(--text-secondary)]">
-                  {POSITION_LABELS[latestReg.secondaryPosition] ?? latestReg.secondaryPosition}
+                  {POSITION_LABELS[latestReg.secondaryPosition as keyof typeof POSITION_LABELS]?.cn ?? latestReg.secondaryPosition}
                 </Badge>
               </>
             )}
@@ -226,7 +219,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
                     </div>
                     <div className="flex gap-2 items-center flex-wrap">
                       <Badge variant="outline" className="text-xs text-[var(--primary)]">
-                        {POSITION_LABELS[reg.primaryPosition] ?? reg.primaryPosition}
+                        {POSITION_LABELS[reg.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? reg.primaryPosition}
                       </Badge>
                       <span className="text-xs text-[var(--text-secondary)]">
                         峰值 {reg.peakRank}（{reg.peakRankSeason}）

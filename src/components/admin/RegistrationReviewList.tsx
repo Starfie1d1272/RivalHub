@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { POSITION_LABELS } from "@/lib/validators/registration";
+import { REGISTRATION_STATUS_LABELS } from "@/types/registration";
 
 // ── 类型 ──────────────────────────────────────────────
 
@@ -47,13 +48,6 @@ const STATUS_STYLES: Record<string, string> = {
   waitlisted: "bg-blue-500/10 text-blue-600 border-blue-500/20",
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  pending: "待审核",
-  approved: "已通过",
-  rejected: "已拒绝",
-  waitlisted: "等待名单",
-};
-
 // ── 位置标签 ──────────────────────────────────────────
 
 function positionLabel(key: string): string {
@@ -84,7 +78,7 @@ export function RegistrationReviewList({ registrations }: Props) {
   };
 
   function handleReview(registrationId: string, status: "approved" | "rejected" | "waitlisted") {
-    const label = STATUS_LABELS[status];
+    const label = REGISTRATION_STATUS_LABELS[status];
     startTransition(async () => {
       const result = await reviewRegistration({ registrationId, status });
       if (!result.success) {
@@ -124,7 +118,7 @@ export function RegistrationReviewList({ registrations }: Props) {
       {/* 列表 */}
       {filtered.length === 0 ? (
         <p className="text-[var(--text-secondary)] py-8 text-center">
-          暂无{STATUS_LABELS[filter] ?? ""}报名
+          暂无{filter !== "all" ? REGISTRATION_STATUS_LABELS[filter] : ""}报名
         </p>
       ) : (
         <div className="space-y-3">
@@ -136,7 +130,7 @@ export function RegistrationReviewList({ registrations }: Props) {
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium">{r.steamName ?? r.email}</span>
                     <Badge variant="outline" className={STATUS_STYLES[r.status]}>
-                      {STATUS_LABELS[r.status]}
+                      {REGISTRATION_STATUS_LABELS[r.status as keyof typeof REGISTRATION_STATUS_LABELS]}
                     </Badge>
                     {r.willingToBeCaptain && (
                       <Badge variant="secondary" className="text-xs">

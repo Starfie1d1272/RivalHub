@@ -56,7 +56,7 @@ export interface Season extends SeasonCapabilities {
 
 // ── Capability 预设 ───────────────────────────────────────────────────────
 
-const CS2_POSITIONS = ["igl", "awper", "opener", "closer", "anchor"];
+export const CS2_POSITIONS = ["igl", "awper", "opener", "closer", "anchor"];
 
 /** 选秀联赛预设：个人报名 → 队长投票 → 蛇形选秀 → 循环赛 + 双败淘汰 */
 export const DRAFT_LEAGUE_PRESET: SeasonCapabilities = {
@@ -102,4 +102,14 @@ export const SEASON_STATUS_LABELS: Record<SeasonStatus, string> = {
   playing: "进行中",
   finished: "已结束",
   archived: "已归档",
+};
+
+export const SEASON_STATUS_TONE: Record<SeasonStatus, "live" | "soon" | "done"> = {
+  draft:        "soon",
+  registration: "live",
+  voting:       "live",
+  drafting:     "live",
+  playing:      "live",
+  finished:     "done",
+  archived:     "done",
 };

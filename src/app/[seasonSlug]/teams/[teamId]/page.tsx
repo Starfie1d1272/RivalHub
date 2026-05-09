@@ -5,19 +5,12 @@ import { seasons, teams, teamMembers, seasonRegistrations, users, matches, match
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import Link from "next/link";
+import { POSITION_LABELS } from "@/lib/validators/registration";
+import { CS2_POSITIONS } from "@/types/season";
 
 interface TeamDetailPageProps {
   params: Promise<{ seasonSlug: string; teamId: string }>;
 }
-
-const POSITION_ORDER = ["igl", "awper", "opener", "closer", "anchor"];
-const POSITION_LABELS: Record<string, string> = {
-  igl: "IGL",
-  awper: "AWP",
-  opener: "Opener",
-  closer: "Closer",
-  anchor: "Anchor",
-};
 
 function pct(n: number, d: number) {
   if (d === 0) return "—";
@@ -53,8 +46,8 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
   const starters = roster
     .filter((r) => r.isStarter)
     .sort((a, b) => {
-      const ai = POSITION_ORDER.indexOf(a.primaryPosition);
-      const bi = POSITION_ORDER.indexOf(b.primaryPosition);
+      const ai = CS2_POSITIONS.indexOf(a.primaryPosition as never);
+      const bi = CS2_POSITIONS.indexOf(b.primaryPosition as never);
       return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
     });
   const subs = roster.filter((r) => !r.isStarter);
@@ -183,7 +176,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
                 </span>
               </div>
               <span className="text-sm text-[var(--text-secondary)]">
-                {POSITION_LABELS[p.primaryPosition] ?? p.primaryPosition}
+                {POSITION_LABELS[p.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? p.primaryPosition}
               </span>
             </div>
           ))}
@@ -195,7 +188,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
                 <div key={p.registrationId} className="flex items-center justify-between opacity-70">
                   <span className="text-sm text-[var(--text-primary)]">{p.steamName ?? "未知选手"}</span>
                   <span className="text-xs text-[var(--text-secondary)]">
-                    {POSITION_LABELS[p.primaryPosition] ?? p.primaryPosition}
+                    {POSITION_LABELS[p.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? p.primaryPosition}
                   </span>
                 </div>
               ))}

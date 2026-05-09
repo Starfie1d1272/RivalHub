@@ -5,13 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { formatCST } from "@/lib/utils/date";
-
-const STATUS_LABELS: Record<string, string> = {
-  scheduled: "未开始",
-  in_progress: "进行中",
-  finished: "已结束",
-  cancelled: "已取消",
-};
+import { MATCH_STATUS_LABELS } from "@/types/match";
+import type { MatchStatus } from "@/types/match";
 
 const STATUS_STYLES: Record<string, string> = {
   scheduled: "bg-blue-500/10 text-blue-400 border-blue-500/20",
@@ -82,7 +77,7 @@ export function MatchDetail({ match }: { match: MatchDetailData }) {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2 flex-wrap">
             <Badge className={`text-xs ${STATUS_STYLES[match.status] ?? ""}`}>
-              {STATUS_LABELS[match.status] ?? match.status}
+              {MATCH_STATUS_LABELS[match.status as MatchStatus] ?? match.status}
             </Badge>
             <Badge variant="outline" className="text-xs border-[var(--border)] text-[var(--text-secondary)]">
               {FORMAT_LABELS[match.format] ?? match.format}

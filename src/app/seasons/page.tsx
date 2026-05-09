@@ -1,18 +1,10 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { SEASON_STATUS_LABELS } from "@/types/season";
+import type { SeasonStatus } from "@/types/season";
+import { StatusDot } from "@/components/ui/status-dot";
 
 export const metadata: Metadata = { title: "历史赛季" };
-
-type SeasonStatus = "registration" | "voting" | "drafting" | "playing" | "finished" | "upcoming";
-
-const STATUS_CONFIG: Record<SeasonStatus, { label: string; tone: "live" | "soon" | "done" }> = {
-  registration: { label: "报名中",   tone: "live" },
-  voting:       { label: "投票中",   tone: "live" },
-  drafting:     { label: "选秀中",   tone: "live" },
-  playing:      { label: "进行中",   tone: "live" },
-  finished:     { label: "已结束",   tone: "done" },
-  upcoming:     { label: "敬请期待", tone: "soon" },
-};
 
 // Mock data — replaced with DB query in Phase 4+
 const seasons: Array<{
@@ -25,18 +17,6 @@ const seasons: Array<{
 }> = [
   { slug: "2026-nju-rivals", name: "2026 NJU Rivals", kind: "选秀联赛", status: "registration", themeColor: "#f97316", schedule: "2026 年春季" },
 ];
-
-function StatusDot({ tone }: { tone: "live" | "soon" | "done" }) {
-  const colorMap = { live: "bg-emerald-400", soon: "bg-amber-400", done: "bg-zinc-500" };
-  return (
-    <span className="relative flex h-2 w-2">
-      {tone === "live" && (
-        <span className={`absolute inline-flex h-full w-full animate-ping rounded-full ${colorMap[tone]} opacity-60`} />
-      )}
-      <span className={`relative inline-flex h-2 w-2 rounded-full ${colorMap[tone]}`} />
-    </span>
-  );
-}
 
 export default function SeasonsPage() {
   return (
@@ -53,7 +33,6 @@ export default function SeasonsPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {seasons.map((season) => {
-            const cfg = STATUS_CONFIG[season.status];
             return (
               <Link
                 key={season.slug}
@@ -63,8 +42,8 @@ export default function SeasonsPage() {
                 <div className="h-1 w-full" style={{ backgroundColor: season.themeColor }} />
                 <div className="p-5">
                   <div className="flex items-center gap-2 mb-3 text-xs">
-                    <StatusDot tone={cfg.tone} />
-                    <span className="text-[var(--text-secondary)]">{cfg.label}</span>
+                    <StatusDot status={season.status} />
+                    <span className="text-[var(--text-secondary)]">{SEASON_STATUS_LABELS[season.status]}</span>
                     <span className="text-[var(--text-muted)]">·</span>
                     <span className="text-[var(--text-muted)]">{season.kind}</span>
                   </div>

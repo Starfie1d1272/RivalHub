@@ -6,20 +6,13 @@ import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import { APP_BRAND } from "@/lib/branding";
 import { cn } from "@/lib/utils/cn";
+import { SEASON_STATUS_LABELS } from "@/types/season";
+import type { SeasonStatus } from "@/types/season";
 
 // Mock seasons — replaced with DB query in Phase 4+
 const mockSeasons = [
   { slug: "2026-nju-rivals", name: "2026 NJU Rivals", status: "registration" as const },
 ];
-
-const STATUS_LABEL: Record<string, string> = {
-  registration: "报名中",
-  voting: "投票中",
-  drafting: "选秀中",
-  playing: "进行中",
-  finished: "已结束",
-  upcoming: "敬请期待",
-};
 
 export function Header() {
   const pathname = usePathname();
@@ -28,7 +21,7 @@ export function Header() {
   const navLinks = mockSeasons.map((s) => ({
     href: `/${s.slug}`,
     label: s.name,
-    badge: STATUS_LABEL[s.status] ?? s.status,
+    badge: SEASON_STATUS_LABELS[s.status as SeasonStatus] ?? s.status,
     active: pathname.startsWith(`/${s.slug}`),
   }));
 

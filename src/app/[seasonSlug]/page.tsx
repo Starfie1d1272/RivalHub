@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { UserPlus, Vote, Users, Swords } from "lucide-react";
 import { notFound } from "next/navigation";
+import { SEASON_STATUS_LABELS } from "@/types/season";
+import type { SeasonStatus } from "@/types/season";
 
 // Mock season data — replaced with DB query in Phase 4+
 const MOCK_SEASONS: Record<string, {
@@ -19,15 +21,6 @@ const MOCK_SEASONS: Record<string, {
     themeColor: "#f97316",
     schedule: "2026 年春季",
   },
-};
-
-const STATUS_LABEL: Record<string, string> = {
-  registration: "报名中",
-  voting: "投票中",
-  drafting: "选秀中",
-  playing: "进行中",
-  finished: "已结束",
-  upcoming: "敬请期待",
 };
 
 interface QuickLink {
@@ -66,7 +59,7 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
               color: "var(--season-primary)",
             }}
           >
-            {STATUS_LABEL[season.status] ?? season.status}
+            {SEASON_STATUS_LABELS[season.status as SeasonStatus] ?? season.status}
           </span>
           <span className="text-[var(--text-muted)]">{season.kind}</span>
           <span className="text-[var(--text-muted)]">·</span>

@@ -19,14 +19,7 @@ export interface Registration {
   updatedAt: Date;
 }
 
-/** 位置中文标签（主称 / 次称） */
-export const POSITION_LABELS: Record<Position, string> = {
-  igl: "IGL（指挥）",
-  awper: "AWPer（狙击手）",
-  opener: "Opener（突破手）",
-  closer: "Closer（自由人/残局）",
-  anchor: "Anchor（主防）",
-};
+export { POSITION_LABELS } from "@/lib/validators/registration";
 
 /** 审核状态中文标签 */
 export const REGISTRATION_STATUS_LABELS: Record<RegistrationStatus, string> = {

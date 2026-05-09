@@ -1,17 +1,9 @@
 import Link from "next/link";
 import { ArrowRight, Trophy } from "lucide-react";
 import { APP_BRAND } from "@/lib/branding";
-
-type SeasonStatus = "registration" | "voting" | "drafting" | "playing" | "finished" | "upcoming";
-
-const STATUS_CONFIG: Record<SeasonStatus, { label: string; tone: "live" | "soon" | "done" }> = {
-  registration: { label: "报名中",   tone: "live" },
-  voting:       { label: "投票中",   tone: "live" },
-  drafting:     { label: "选秀中",   tone: "live" },
-  playing:      { label: "进行中",   tone: "live" },
-  finished:     { label: "已结束",   tone: "done" },
-  upcoming:     { label: "敬请期待", tone: "soon" },
-};
+import { SEASON_STATUS_LABELS } from "@/types/season";
+import type { SeasonStatus } from "@/types/season";
+import { StatusDot } from "@/components/ui/status-dot";
 
 // Mock data — replaced with DB query in Phase 4+
 const seasons: Array<{
@@ -33,22 +25,6 @@ const seasons: Array<{
     schedule: "2026 年春季",
   },
 ];
-
-function StatusDot({ tone }: { tone: "live" | "soon" | "done" }) {
-  const colorMap = {
-    live: "bg-emerald-400",
-    soon: "bg-amber-400",
-    done: "bg-zinc-500",
-  };
-  return (
-    <span className="relative flex h-2 w-2">
-      {tone === "live" && (
-        <span className={`absolute inline-flex h-full w-full animate-ping rounded-full ${colorMap[tone]} opacity-60`} />
-      )}
-      <span className={`relative inline-flex h-2 w-2 rounded-full ${colorMap[tone]}`} />
-    </span>
-  );
-}
 
 export default function HomePage() {
   const activeSeasons = seasons.filter((s) => s.status !== "finished");
@@ -111,7 +87,6 @@ export default function HomePage() {
 }
 
 function FeaturedSeasonCard({ season }: { season: (typeof seasons)[number] }) {
-  const cfg = STATUS_CONFIG[season.status];
   return (
     <Link
       href={`/${season.slug}` as never}
@@ -123,8 +98,8 @@ function FeaturedSeasonCard({ season }: { season: (typeof seasons)[number] }) {
       <div className="p-6 sm:p-8 grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-6 items-center">
         <div>
           <div className="flex items-center gap-2 mb-3 text-xs">
-            <StatusDot tone={cfg.tone} />
-            <span className="text-[var(--text-secondary)] uppercase tracking-wider">{cfg.label}</span>
+            <StatusDot status={season.status} />
+            <span className="text-[var(--text-secondary)] uppercase tracking-wider">{SEASON_STATUS_LABELS[season.status]}</span>
             <span className="text-[var(--text-muted)]">·</span>
             <span className="text-[var(--text-muted)]">{season.kind}</span>
           </div>
@@ -154,7 +129,6 @@ function FeaturedSeasonCard({ season }: { season: (typeof seasons)[number] }) {
 }
 
 function CompactSeasonCard({ season }: { season: (typeof seasons)[number] }) {
-  const cfg = STATUS_CONFIG[season.status];
   return (
     <Link
       href={`/${season.slug}` as never}
@@ -163,8 +137,8 @@ function CompactSeasonCard({ season }: { season: (typeof seasons)[number] }) {
       <div className="h-0.5 w-full" style={{ backgroundColor: season.themeColor }} />
       <div className="p-5">
         <div className="flex items-center gap-2 mb-2 text-xs">
-          <StatusDot tone={cfg.tone} />
-          <span className="text-[var(--text-secondary)]">{cfg.label}</span>
+          <StatusDot status={season.status} />
+          <span className="text-[var(--text-secondary)]">{SEASON_STATUS_LABELS[season.status]}</span>
         </div>
         <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-1">{season.name}</h3>
         <p className="text-sm text-[var(--text-muted)]">{season.kind}</p>

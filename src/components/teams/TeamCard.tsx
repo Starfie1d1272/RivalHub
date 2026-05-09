@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { POSITION_LABELS } from "@/lib/validators/registration";
 
 interface PlayerPreview {
   name: string;
@@ -16,14 +17,6 @@ interface TeamCardProps {
   draftOrder: number;
   players: PlayerPreview[];
 }
-
-const POSITION_LABELS: Record<string, string> = {
-  igl: "IGL",
-  awper: "AWP",
-  opener: "Opener",
-  closer: "Closer",
-  anchor: "Anchor",
-};
 
 export function TeamCard({ teamId, teamName, seasonSlug, draftOrder, players }: TeamCardProps) {
   const starters = players.filter((p) => p.isStarter);
@@ -52,7 +45,7 @@ export function TeamCard({ teamId, teamName, seasonSlug, draftOrder, players }: 
                   <span className="text-sm text-[var(--text-primary)]">{p.name}</span>
                 </div>
                 <span className="text-xs text-[var(--text-secondary)]">
-                  {POSITION_LABELS[p.primaryPosition] ?? p.primaryPosition}
+                  {POSITION_LABELS[p.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? p.primaryPosition}
                 </span>
               </div>
             ))}
