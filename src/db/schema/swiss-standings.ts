@@ -30,3 +30,4 @@ export const swissStandings = pgTable(
 
 export type SwissStanding = typeof swissStandings.$inferSelect;
 export type NewSwissStanding = typeof swissStandings.$inferInsert;
+export type SwissStatus = "active" | "advanced" | "eliminated";

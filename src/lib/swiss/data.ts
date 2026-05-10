@@ -1,7 +1,7 @@
 import { eq, and, asc } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matches, swissStandings, teams } from "@/db/schema";
-import type { SwissStanding } from "@/db/schema/swiss-standings";
+import type { SwissStanding, SwissStatus } from "@/db/schema/swiss-standings";
 
 export interface SwissTeamSlot {
   teamId: string;
@@ -9,7 +9,7 @@ export interface SwissTeamSlot {
   seed: number;
   wins: number;
   losses: number;
-  status: string; // active | advanced | eliminated
+  status: SwissStatus;
   buScore: number;
 }
 
@@ -50,27 +50,27 @@ export async function getSwissViewData(
   stageKey: string,
   stageName: string,
 ): Promise<SwissViewData> {
-  // 1. 所有 standings
-  const standings = await db.query.swissStandings.findMany({
-    where: and(
-      eq(swissStandings.seasonId, seasonId),
-      eq(swissStandings.stage, stageKey),
-    ),
-    orderBy: [asc(swissStandings.seed)],
-  });
-
-  // 2. 所有 matches
-  const allMatches = await db.query.matches.findMany({
-    where: and(
-      eq(matches.seasonId, seasonId),
-      eq(matches.stage, stageKey),
-    ),
-    orderBy: [asc(matches.round), asc(matches.createdAt)],
-  });
-
-  // 3. 队伍名称
-  const teamRows = await db.query.teams.findMany({
-    where: eq(teams.seasonId, seasonId),
+  // 三次查询包进事务，保证快照一致性（防止 advanceRound 并发写导致视图撕裂）
+  const [standings, allMatches, teamRows] = await db.transaction(async (tx) => {
+    return Promise.all([
+      tx.query.swissStandings.findMany({
+        where: and(
+          eq(swissStandings.seasonId, seasonId),
+          eq(swissStandings.stage, stageKey),
+        ),
+        orderBy: [asc(swissStandings.seed)],
+      }),
+      tx.query.matches.findMany({
+        where: and(
+          eq(matches.seasonId, seasonId),
+          eq(matches.stage, stageKey),
+        ),
+        orderBy: [asc(matches.round), asc(matches.createdAt)],
+      }),
+      tx.query.teams.findMany({
+        where: eq(teams.seasonId, seasonId),
+      }),
+    ]);
   });
   const teamNameMap = new Map(teamRows.map((t) => [t.id, t.name]));
 
@@ -81,7 +81,7 @@ export async function getSwissViewData(
     seed: s.seed,
     wins: s.wins,
     losses: s.losses,
-    status: s.status,
+    status: s.status as SwissStatus,
     buScore: s.buScore,
   }));
 
