@@ -4,7 +4,7 @@
 
 RivalHub 是开源电竞赛事管理平台，通过 capability 驱动的多赛事模型支持各类赛制（选秀联赛、公开赛、杯赛等）的全流程运营：报名 → 审核 → 队长投票 → 蛇形选秀 → 队伍展示 → 赛程 + Bracket 视图 → 部署。
 
-当前阶段：**Phase 1–6 + 9–11 + 11.5 已完成，Phase 7–8（选秀）待推进，auth-v2 统一身份系统已完成。Phase 11 平台配置化（stagePlan/registrationConfig JSON + StageExecutor 框架 + Admin 赛季管理 UI）已落地。**
+当前阶段：**Phase 1–6 + 9–11 + 11.5 已完成，Phase 7–8（选秀）待推进，Phase 12（部署）待推进。v2 赛制引擎（StageExecutor v2 + Swiss/GSL/SingleElim executor + entrySeeds 种子轮空 + finalFormat 决赛 BO5）已在 dev 落地。**
 
 ## 版本路线图
 
@@ -189,7 +189,7 @@ src/
 ├── lib/
 │   ├── auth/         # session.ts（双 Cookie iron-session）+ supabase.ts
 │   ├── bracket/      # brackets-manager 适配层（禁止绕过）
-│   ├── formats/       # StageExecutor 接口 + 赛制执行器（round-robin/double-elim/single-elim）
+│   ├── formats/       # StageExecutor 接口 + 赛制执行器（round-robin/double-elim/single-elim/swiss/gsl-group）+ _shared 工具
 │   ├── config/       # 报名默认配置（REGISTRATION_DEFAULTS）
 │   ├── realtime/     # Supabase Realtime 订阅辅助
 │   ├── validators/   # Zod schema（registration / vote / match）

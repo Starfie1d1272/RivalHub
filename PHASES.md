@@ -131,9 +131,13 @@
 
 **赛制支持**
 - [x] 单循环排位赛（Round Robin）：按 `draftOrder` 为种子，生成所有两两对阵的 `matches` 行
-- [x] 双败淘汰正赛（Double Elimination）：排位赛结束后按名次分配种子，`brackets-manager` 生成 bracket 结构，写入 `matches`
-- [x] 单败淘汰（Single Elimination）：委托 double-elim executor，通过 `config.type` 自动区分
-- [ ] 三败瑞士轮：用于 Major 预选，需自行实现配对算法 → 设计文档在 `docs/superpowers/specs/2026-05-08-swiss-tournament-design.md`，v2 分支实现
+- [x] 双败淘汰正赛（Double Elimination）：排位赛后按名次分配种子，`brackets-manager` 生成 bracket 结构
+- [x] 单败淘汰（Single Elimination）：独立 executor，支持 bye（`entrySeeds` 种子轮空 + qualifiers 晋级合并）、季军赛占位、cross-group 交叉配对
+- [x] 三败瑞士轮（Swiss）：Buchholz 评分 + slide 配对 + 交手回避，advanceRound 逐轮推进，decider 自动 BO3（`isWinAndIn`/`isLossAndOut`）
+- [x] GSL 小组赛（GSL Group）：蛇形分配，确定性对阵（4/8 队组），4 轮推进，`getQualifiers` 按组内战绩产出 placement+group
+- [x] StageExecutor v2 接口：`initialize(seasonId, config, teams, qualifiers?)` + `getQualifiers(seasonId, config)` 打通阶段间晋级数据流
+- [x] `entrySeeds` 种子轮空机制：高位种子跳过前置阶段直入后续 Swiss（Major Stage 2/3）
+- [x] `finalFormat` 决赛 BO5 覆写：淘汰赛决赛自动使用 BO5，其余场次用 `matchFormat`
 
 **平台配置化（PR #38）**
 - [x] `seasons` 表：`qualifierFormat`/`playoffFormat` 枚举列 → `stagePlan`/`registrationConfig` JSONB（migration 0005 + backfill）
@@ -184,14 +188,13 @@ OCR 录入流程已完成（PR #28），数据保存在 `match_player_stats` 表
 
 ---
 
-## v2 计划（不在 v1 范围）
+## v2 计划（dev 已预实现赛制引擎，待 v2 分支 UI/集成）
 
-- 多游戏/多赛制支持（位置系统已泛化，需扩展 UI 适配）
+- **赛制引擎**（dev 已落地）：Swiss / GSL Group / Single Elim 独立 executor + entrySeeds 种子轮空 + finalFormat 决赛 BO5 + `getQualifiers()` 阶段间数据流
+- **MAJOR_STAGE_PLAN 预设**（dev 已落地）：32 队 3 轮 Swiss（stage1/2/3 BO1，decider BO3）+ Single Elim 淘汰赛（BO3，决赛 BO5）
+- 多游戏/多赛制位置系统 UI 适配
 - 自由组队模式赛事完整实现
 - 历史赛季归档多届展示
 - 用户账号设置页
 - i18n 多语言支持
-- **[ 待调研 ] 赛后玩家数据自动化**：每图打完后自动拉取 KDA / Rating / WE 等个人数据，无需 admin 手动录入。
-  - Valve 官匹有分享码方案（`CSGO-xxxxx`），但完美平台 / LAN 赛不适用，需另行调研
-  - 方向：完美平台赛后 API 逆向 / CS2 服务器 GOTV demo 解析 / 赛事组委提供数据导出
-  - 落地前需确认数据来源和维护成本
+- 赛后玩家数据自动化（待调研）

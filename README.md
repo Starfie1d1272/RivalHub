@@ -7,10 +7,10 @@
 | 版本 | 目标赛事 | 关键能力 | 分支 |
 |---|---|---|---|
 | **v1** | 2026 NJU Rivals（春季赛） | 8 队选秀联赛全流程 | `main` / `dev` |
-| **v2** | 2026 NJU Major（秋季赛） | 32 队公开赛：3 轮瑞士轮 + 单败淘汰 | `v2` |
+| **v2** | 2026 NJU Major（秋季赛） | 32 队公开赛：3 轮瑞士轮 + 单败淘汰（BO3，决赛 BO5） | `v2` |
 | **v3** | 泛用赛事平台 | 多游戏、多赛制可配置 | `v3` |
 
-当前开发聚焦 v1。v2 在 `v2` 分支并行推进。
+v1 聚焦 NJU Rivals 选秀联赛全流程。v2 赛制引擎（Swiss / GSL / SingleElim + StageExecutor v2）已在 `dev` 预落地。
 
 ## 功能概览
 
@@ -25,9 +25,9 @@
 | 队伍展示 | 7 人阵容按位置排版，首发/替补分区，队长 badge | ✅ Phase 9 |
 | 赛程管理 | 比赛详情 + 地图结果 + 管理员录分 / 取消 | ✅ Phase 10 |
 | BO3/BO5 逐图录入 | 按图录入回合数，大比分自动统计，达到 maxWins 自动结束系列赛并推进 bracket | ✅ Phase 10+ |
-| 比赛时间编辑 | 管理员设置 / 清除各场 `scheduledAt`，写 audit log | ✅ Phase 11 |
-| Bracket 视图 | `brackets-manager` 双败淘汰图，bracket 节点↔比赛详情双向跳转 | ✅ Phase 11 |
-| 平台配置化 | `stagePlan`/`registrationConfig` JSONB 驱动赛制+报名规则，StageExecutor 框架，Admin 赛季管理 UI | ✅ Phase 11 |
+| Bracket 视图 | `brackets-manager` 双败/单败淘汰图，bracket 节点↔比赛详情双向跳转 | ✅ Phase 11 |
+| 平台配置化 | `stagePlan`/`registrationConfig` JSONB，StageExecutor 框架（5 个 executor），Admin 赛季管理 UI | ✅ Phase 11 |
+| 赛制引擎 v2 | Swiss (Buchholz+slide配对) / GSL Group (蛇形分配) / Single Elim (bye+季军赛) + entrySeeds 种子轮空 + finalFormat 决赛 BO5 | ✅ dev |
 | 玩家数据 OCR | 管理员上传完美平台记分板截图 → SiliconFlow Qwen-VL 识别 → 人工审核确认 → 写入数据库 | ✅ Phase 11.5 |
 | 部署上线 | Vercel + 自定义域名 + Cron + E2E 验证 | 🔄 Phase 12 |
 
@@ -104,6 +104,7 @@ pnpm db:generate      # 离线生成迁移 SQL（不连接 DB）
 | `docs/ui-design.md` | 页面级视觉设计与 ASCII 线框 |
 | `docs/ui-tokens.md` | 设计 tokens（色板/字体/间距） |
 | `docs/testing.md` | 测试策略与配置 |
+| `docs/superpowers/specs/` | v2 赛制设计文档（Swiss / StageFramework / CS2 赛事调研） |
 | `CLAUDE.md` | 面向 Claude Code 的工程手册 |
 
 ## 贡献指南

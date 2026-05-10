@@ -458,18 +458,23 @@ export const RIVALS_STAGE_PLAN: StagePlan = [
 
 | 文件 | 改动 | 状态 |
 |---|---|---|
-| `src/lib/formats/types.ts` | `StageExecutor` 接口扩展 | ✅ `fix/swiss-review-fixes` |
-| `src/lib/formats/swiss.ts` | Swiss executor 完整实现 | ✅ `feat/swiss-executor` + `fix/swiss-review-fixes` |
-| `src/lib/formats/index.ts` | 注册 swiss | ✅ `feat/swiss-executor` |
-| `src/lib/formats/round-robin.ts` | `getQualifiers` + 签名更新 | ✅ `fix/swiss-review-fixes` |
-| `src/lib/formats/double-elim.ts` | `getQualifiers` 占位（返回 `[]`） | ✅ `fix/swiss-review-fixes` |
-| `src/lib/formats/single-elim.ts` | `getQualifiers` 占位（返回 `[]`） | ✅ `fix/swiss-review-fixes` |
-| `src/lib/formats/gsl-group.ts` | 新建 GSL executor | ⬜ follow-up |
-| `src/types/season.ts` | `StageConfig` 扩展 + `AdvanceTier` + `QualifiedTeam` | ⬜ follow-up |
-| `src/db/schema/matches.ts` | `entry_round` 列 | ⬜ follow-up |
-| `src/actions/matches.ts` | `initializeStage` 泛化 | ⬜ follow-up |
-| migration | `advance` → `advanceTiers` + `entry_round` | ⬜ follow-up |
-| `src/components/admin/SeasonForm.tsx` | 预设更新 | ⬜ follow-up |
+| `src/lib/formats/types.ts` | `StageExecutor` 接口扩展 | ✅ |
+| `src/lib/formats/swiss.ts` | Swiss executor 完整实现 + BO1/BO3 decider 覆写 | ✅ |
+| `src/lib/formats/index.ts` | 注册 swiss + gsl_group | ✅ |
+| `src/lib/formats/round-robin.ts` | `getQualifiers` + 签名更新 + isStageComplete 共享 | ✅ |
+| `src/lib/formats/double-elim.ts` | `getQualifiers` 完整实现（冠军 + 亚军） | ✅ |
+| `src/lib/formats/single-elim.ts` | 独立 executor（bye + 季军赛 + entry_round + getQualifiers） | ✅ |
+| `src/lib/formats/gsl-group.ts` | 新建 GSL executor（蛇形分配 + 4 轮推进 + getQualifiers） | ✅ |
+| `src/lib/formats/_shared.ts` | isStageComplete 共享工具 | ✅ |
+| `src/types/season.ts` | `StageConfig` 扩展 + `AdvanceTier` + `QualifiedTeam` + `entrySeeds` + `finalFormat` + `MAJOR_STAGE_PLAN` | ✅ |
+| `src/actions/seasons.ts` | Zod schema 更新（gsl_group + entrySeeds + finalFormat） | ✅ |
+| `src/db/schema/matches.ts` | `entry_round` 列 | ✅ |
+| `src/actions/matches.ts` | `initializeStage` 泛化（getQualifiers 管道 + entrySeeds 合并）+ 事务保护 + finalFormat 解析 | ✅ |
+| migration | `0007_advance_to_advance_tiers` + `0008_entry_round` | ✅ |
+| `src/components/admin/SeasonForm.tsx` | Major 32 队预设 | ✅ |
+| `tests/unit/lib/formats/swiss.test.ts` | 11 tests | ✅ |
+| `tests/unit/lib/formats/single-elim.test.ts` | 7 tests | ✅ |
+| `tests/unit/lib/formats/gsl-group.test.ts` | 11 tests | ✅ |
 
 ---
 
