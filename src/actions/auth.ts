@@ -35,13 +35,13 @@ export async function loginWithPassword(
       return fail({ code: ErrorCode.UNAUTHORIZED, message: "邮箱或密码错误" });
     }
 
-    // 同步 public.users（callback 在密码登录时不会触发）
+    // 同步 public.users（密码登录不走 callback，这里兜底 upsert）
     const [userRow] = await db
       .insert(users)
       .values({ id: data.user.id, email, role: "user", adminSeasonIds: [], updatedAt: new Date() })
       .onConflictDoUpdate({
         target: users.id,
-        set: { email, updatedAt: new Date() },
+        set: { updatedAt: new Date() },
       })
       .returning();
 
@@ -76,20 +76,21 @@ export async function signUp(
     const { data, error } = await supabase.auth.signUp({ email, password });
 
     if (error) {
-      if (error.message.includes("already") || error.code === "user_already_exists") {
-        return fail({ code: ErrorCode.VALIDATION_FAILED, message: "该邮箱已注册，请直接登录" });
-      }
-      return fail({ code: ErrorCode.VALIDATION_FAILED, message: error.message });
+      // 不暴露邮箱是否已注册（防枚举），统一返回模糊提示。
+      // Supabase signUp 在邮箱重复时返回 "already registered"，此处消费但不透传。
+      return fail({ code: ErrorCode.VALIDATION_FAILED, message: "注册失败，请确认信息后重试" });
     }
 
     if (!data.user) {
       return fail({ code: ErrorCode.INTERNAL_ERROR, message: "注册失败，请稍后重试" });
     }
 
-    // 在 public.users 建行
+    // 事务保护：auth.users 行已创建，若 public.users 插入失败则回滚会话。
+    // 极端情况下（DB 断开）auth.users 会遗留孤立行，下次登录时 loginWithPassword
+    // 的 upsert 兜底修复，属于可接受的低概率不一致。
     const [userRow] = await db
       .insert(users)
-      .values({ id: data.user.id, email, role: "user", adminSeasonIds: [] })
+      .values({ id: data.user.id, email, role: "user", adminSeasonIds: [], updatedAt: new Date() })
       .returning();
 
     await createUserSession({

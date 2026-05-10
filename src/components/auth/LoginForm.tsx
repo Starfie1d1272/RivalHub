@@ -1,35 +1,41 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card } from "@/components/ui/card";
 import { loginWithPassword, signUp } from "@/actions/auth";
 
 type Mode = "login" | "register";
+
+/** 校验重定向目标：只允许本站相对路径，防 open redirect */
+function safeRedirect(raw: string | null): string {
+  if (!raw) return "/";
+  return raw.startsWith("/") && !raw.startsWith("//") ? raw : "/";
+}
 
 export function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState<Mode>("login");
   const [isPending, startTransition] = useTransition();
+  const redirectRef = useRef(safeRedirect(new URLSearchParams(
+    typeof window !== "undefined" ? window.location.search : ""
+  ).get("next")));
 
-  function handleSubmit(e: React.FormEvent) {
+  const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     startTransition(async () => {
       const action = mode === "login" ? loginWithPassword : signUp;
       const result = await action(email, password);
       if (result.success) {
-        window.location.href = window.location.search.includes("next=")
-          ? new URLSearchParams(window.location.search).get("next") ?? "/"
-          : "/";
+        window.location.href = redirectRef.current;
       } else {
         toast.error(result.error.message);
       }
     });
-  }
+  }, [email, password, mode]);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -89,9 +95,14 @@ export function LoginForm() {
       </Button>
 
       <p className="text-xs text-center text-[var(--text-secondary)]">
-        {mode === "register"
-          ? "已有账号？切换到登录"
-          : "首次参赛？切换到注册创建账号"}
+        {mode === "register" ? "已有账号？" : "首次参赛？"}
+        <button
+          type="button"
+          onClick={() => setMode(mode === "login" ? "register" : "login")}
+          className="ml-0.5 underline hover:text-[var(--text-primary)]"
+        >
+          {mode === "register" ? "切换到登录" : "切换到注册"}
+        </button>
       </p>
     </form>
   );
