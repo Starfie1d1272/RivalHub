@@ -1,6 +1,7 @@
 import { eq, and, asc } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matches, swissStandings, teams } from "@/db/schema";
+import type { SwissStanding } from "@/db/schema/swiss-standings";
 
 export interface SwissTeamSlot {
   teamId: string;
@@ -205,14 +206,3 @@ function groupMatchesByRecord(
       matchups,
     }));
 }
-
-type SwissStanding = {
-  seasonId: string;
-  stage: string;
-  teamId: string;
-  seed: number;
-  wins: number;
-  losses: number;
-  buScore: number;
-  status: string;
-};

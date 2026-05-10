@@ -1,9 +1,12 @@
 import { doubleElimExecutor } from "./double-elim";
 import type { StageExecutor } from "./types";
 
-// double-elim 的 initialize 已通过 config.type 自动区分单/双败，
-// isComplete 只查 match 状态不关心赛制，两者直接复用。
 export const singleElimExecutor: StageExecutor = {
-  initialize: doubleElimExecutor.initialize,
+  initialize(seasonId, config, teams, _qualifiers) {
+    return doubleElimExecutor.initialize(seasonId, config, teams, _qualifiers);
+  },
   isComplete: doubleElimExecutor.isComplete,
+  async getQualifiers(_seasonId, _config) {
+    return [];
+  },
 };

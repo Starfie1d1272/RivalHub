@@ -454,6 +454,25 @@ export const RIVALS_STAGE_PLAN: StagePlan = [
 
 ---
 
+## 实现进度
+
+| 文件 | 改动 | 状态 |
+|---|---|---|
+| `src/lib/formats/types.ts` | `StageExecutor` 接口扩展 | ✅ `fix/swiss-review-fixes` |
+| `src/lib/formats/swiss.ts` | Swiss executor 完整实现 | ✅ `feat/swiss-executor` + `fix/swiss-review-fixes` |
+| `src/lib/formats/index.ts` | 注册 swiss | ✅ `feat/swiss-executor` |
+| `src/lib/formats/round-robin.ts` | `getQualifiers` + 签名更新 | ✅ `fix/swiss-review-fixes` |
+| `src/lib/formats/double-elim.ts` | `getQualifiers` 占位（返回 `[]`） | ✅ `fix/swiss-review-fixes` |
+| `src/lib/formats/single-elim.ts` | `getQualifiers` 占位（返回 `[]`） | ✅ `fix/swiss-review-fixes` |
+| `src/lib/formats/gsl-group.ts` | 新建 GSL executor | ⬜ follow-up |
+| `src/types/season.ts` | `StageConfig` 扩展 + `AdvanceTier` + `QualifiedTeam` | ⬜ follow-up |
+| `src/db/schema/matches.ts` | `entry_round` 列 | ⬜ follow-up |
+| `src/actions/matches.ts` | `initializeStage` 泛化 | ⬜ follow-up |
+| migration | `advance` → `advanceTiers` + `entry_round` | ⬜ follow-up |
+| `src/components/admin/SeasonForm.tsx` | 预设更新 | ⬜ follow-up |
+
+---
+
 ## 十、改动文件清单
 
 | 文件 | 改动 |

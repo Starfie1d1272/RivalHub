@@ -26,6 +26,15 @@ export interface StageConfig {
 
 export type StagePlan = StageConfig[];
 
+/** 阶段晋级结果，由 executor.getQualifiers() 返回 */
+export interface QualifiedTeam {
+  teamId: string;
+  /** 对应 advanceTiers[].placement，如 "1st"、"2nd"、"*" */
+  placement: string;
+  /** 分组标识；groupCount > 1 时填充，单组阶段为 undefined */
+  group?: string;
+}
+
 export interface RegistrationConfig {
   allowedPlayerTypes: PlayerType[];
   rankThreshold: {

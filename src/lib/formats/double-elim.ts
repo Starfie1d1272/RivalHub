@@ -8,9 +8,10 @@ import { calculateStandings } from "@/lib/standings";
 import { getPreviousStage, normalizeStagePlan } from "@/types/season";
 import type { StageExecutor } from "./types";
 import type { Database } from "brackets-manager";
+import type { QualifiedTeam } from "@/types/season";
 
 export const doubleElimExecutor: StageExecutor = {
-  async initialize(seasonId, config, teams) {
+  async initialize(seasonId, config, teams, _qualifiers) {
     const season = await db.query.seasons.findFirst({
       where: eq(seasons.id, seasonId),
     });
@@ -123,5 +124,9 @@ export const doubleElimExecutor: StageExecutor = {
         ),
       );
     return active === 0;
+  },
+
+  async getQualifiers(_seasonId, _config) {
+    return [];
   },
 };

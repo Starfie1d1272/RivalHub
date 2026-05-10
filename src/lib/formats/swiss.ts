@@ -1,9 +1,9 @@
 import { and, eq, asc, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matches, swissStandings, teams as teamsTable } from "@/db/schema";
+import { matches, swissStandings } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import type { StageExecutor } from "./types";
-import type { StageConfig } from "@/types/season";
+import type { StageConfig, QualifiedTeam } from "@/types/season";
 import type { Team } from "@/db/schema/teams";
 
 // ── 常量 ───────────────────────────────────────────────
@@ -32,7 +32,7 @@ interface MatchPair {
 // ── Executor ───────────────────────────────────────────
 
 export const swissExecutor: StageExecutor = {
-  async initialize(seasonId, config, teams) {
+  async initialize(seasonId, config, teams, _qualifiers) {
     if (!config.seeds || config.seeds.length !== teams.length) {
       throw new AppError(
         ErrorCode.VALIDATION_FAILED,
@@ -125,7 +125,19 @@ export const swissExecutor: StageExecutor = {
       // 4. 更新 wins/losses
       for (const m of roundMatches) {
         if (m.status === "cancelled") continue;
-        const winA = (m.scoreA ?? 0) > (m.scoreB ?? 0);
+        if (m.scoreA === null || m.scoreB === null) {
+          throw new AppError(
+            ErrorCode.VALIDATION_FAILED,
+            `第 ${currentRound} 轮比赛 ${m.id} 比分未录入`,
+          );
+        }
+        if (m.scoreA === m.scoreB) {
+          throw new AppError(
+            ErrorCode.VALIDATION_FAILED,
+            `第 ${currentRound} 轮比赛 ${m.id} 出现平局，瑞士轮不允许平局`,
+          );
+        }
+        const winA = m.scoreA > m.scoreB;
         if (winA) {
           await tx
             .update(swissStandings)
@@ -278,6 +290,21 @@ export const swissExecutor: StageExecutor = {
     if (standings.length === 0) return false;
     return standings.every((s) => s.status !== "active");
   },
+
+  async getQualifiers(seasonId, config) {
+    const rows = await db.query.swissStandings.findMany({
+      where: and(
+        eq(swissStandings.seasonId, seasonId),
+        eq(swissStandings.stage, config.key),
+        eq(swissStandings.status, "advanced"),
+      ),
+      orderBy: [asc(swissStandings.seed)],
+    });
+    return rows.map((r) => ({
+      teamId: r.teamId,
+      placement: "*",
+    }));
+  },
 };
 
 // ── 配对算法 ───────────────────────────────────────────
@@ -395,10 +422,16 @@ function slidePair(
         }
       }
       if (!found) {
-        // 退而求其次：与第二个配对
+        const fallback = remaining[1];
+        if (opponents.get(top.teamId)?.has(fallback.teamId)) {
+          throw new AppError(
+            ErrorCode.VALIDATION_FAILED,
+            `无法为 ${top.teamId} 配对：所有同战绩候选均已交手`,
+          );
+        }
         used.add(top.teamId);
-        used.add(remaining[1].teamId);
-        result.push({ teamAId: top.teamId, teamBId: remaining[1].teamId, format: "bo1" });
+        used.add(fallback.teamId);
+        result.push({ teamAId: top.teamId, teamBId: fallback.teamId, format: "bo1" });
       }
     }
   }
