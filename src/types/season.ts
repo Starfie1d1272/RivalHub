@@ -32,6 +32,8 @@ export interface StageConfig {
   advanceTiers: AdvanceTier[];
   groupCount?: number;
   matchFormat?: "bo1" | "bo3" | "bo5";
+  /** 决赛 BO5 覆写（仅对淘汰赛阶段生效）。不设置则回退到 matchFormat。 */
+  finalFormat?: "bo3" | "bo5";
   hasThirdPlaceMatch?: boolean;
   seeds?: number[];
   /** 直接进入本阶段的种子队数（非上一阶段晋级）。
@@ -175,6 +177,7 @@ export const MAJOR_STAGE_PLAN: StagePlan = [
     key: "playoff", name: "淘汰赛", type: "single_elim", teamCount: 8,
     advanceTiers: [{ placement: "1st", count: 1 }],
     matchFormat: "bo3",
+    finalFormat: "bo5",
   },
 ];
 

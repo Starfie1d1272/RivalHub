@@ -5,7 +5,6 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import { normalizeStagePlan } from "@/types/season";
 import type { StageExecutor } from "./types";
 import type { StageConfig, QualifiedTeam } from "@/types/season";
-import type { Team } from "@/db/schema/teams";
 
 // ── 常量 ───────────────────────────────────────────────
 

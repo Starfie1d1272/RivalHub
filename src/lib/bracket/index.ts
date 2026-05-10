@@ -17,6 +17,13 @@ import type { Team } from "@/db/schema/teams";
 type QualifierFormat = "round_robin" | "swiss";
 type PlayoffFormat = "double_elim" | "single_elim";
 
+/** brackets-manager stage 的轻量引用（仅 id + name） */
+export type BracketStageRef = { id: number; name: string };
+/** brackets-manager participant 的轻量引用 */
+export type BracketParticipantRef = { id: number; name: string };
+/** brackets-manager round 的轻量引用 */
+export type BracketRoundRef = { id: number; stage_id: number; number: number };
+
 export interface BracketStage {
   id: number;
   tournament_id?: number;
@@ -179,7 +186,7 @@ export function serializeBracket(
   }
 
   // participant 表只有 name；id 顺序对应 teams 按 draft_order 排列
-  const participant = (data.participant as Array<{ id: number; name: string }>).map((p) => ({
+  const participant = (data.participant as BracketParticipantRef[]).map((p) => ({
     id: p.id,
     name: p.name,
   }));
@@ -258,7 +265,7 @@ export async function seedPlayoff(
 ): Promise<{ updatedData: Database; resolvedMatches: ResolvedBracketMatch[] }> {
   const { manager } = buildManager(currentData);
 
-  const stages = currentData.stage as Array<{ id: number; name: string }>;
+  const stages = currentData.stage as BracketStageRef[];
   const playoffStage = stages.find((s) => s.name === stageName);
   if (!playoffStage) throw new Error(`${stageName} stage 未找到，请先生成赛程`);
 
@@ -279,7 +286,7 @@ export async function seedPlayoff(
  */
 function collectResolvedMatches(data: Database): ResolvedBracketMatch[] {
   const roundMap = new Map<number, { stageId: number; number: number }>();
-  for (const r of data.round as Array<{ id: number; stage_id: number; number: number }>) {
+  for (const r of data.round as BracketRoundRef[]) {
     roundMap.set(r.id, { stageId: r.stage_id, number: r.number });
   }
 

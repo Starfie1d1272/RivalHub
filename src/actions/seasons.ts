@@ -28,6 +28,7 @@ const stageConfigSchema = z.object({
   })),
   groupCount: z.number().int().min(1).optional(),
   matchFormat: z.enum(["bo1", "bo3", "bo5"]).optional(),
+  finalFormat: z.enum(["bo3", "bo5"]).optional(),
   hasThirdPlaceMatch: z.boolean().optional(),
   seeds: z.array(z.number().int().positive()).optional(),
   entrySeeds: z.number().int().min(0).optional(),

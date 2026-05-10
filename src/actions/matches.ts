@@ -8,7 +8,7 @@ import { ok, fail } from "@/types/action";
 import type { ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { requireSeasonAdmin } from "@/lib/auth/session";
-import { advanceMatch as bracketAdvance } from "@/lib/bracket";
+import { advanceMatch as bracketAdvance, type BracketStageRef, type ResolvedBracketMatch } from "@/lib/bracket";
 import { getExecutor } from "@/lib/formats";
 import {
   getFirstStage,
@@ -16,6 +16,21 @@ import {
   normalizeStagePlan,
 } from "@/types/season";
 import type { Database } from "brackets-manager";
+
+// ── 工具 ────────────────────────────────────────────────────────────────
+
+/** 根据阶段配置和轮次决定比赛格式（淘汰赛决赛可用 finalFormat 覆写为 BO5） */
+function resolveMatchFormat(
+  stagePlan: ReturnType<typeof normalizeStagePlan>,
+  stageKey: string,
+  roundNumber: number,
+): "bo1" | "bo3" | "bo5" {
+  const sc = stagePlan.find((s) => s.key === stageKey);
+  if (!sc) return "bo3";
+  const totalRounds = Math.log2(sc.teamCount);
+  if (roundNumber === totalRounds && sc.finalFormat) return sc.finalFormat;
+  return sc.matchFormat ?? "bo3";
+}
 
 // ── 状态机 ────────────────────────────────────────────────────────────────
 
@@ -167,18 +182,22 @@ export async function createMatch(
       throw new AppError(ErrorCode.VALIDATION_FAILED, "队伍不属于该赛季");
     }
 
-    const [newMatch] = await db
-      .insert(matches)
-      .values({ seasonId, teamAId, teamBId, stage, format, status: "scheduled" })
-      .returning({ id: matches.id });
+    const [newMatch] = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(matches)
+        .values({ seasonId, teamAId, teamBId, stage, format, status: "scheduled" })
+        .returning({ id: matches.id });
 
-    await db.insert(auditLogs).values({
-      seasonId,
-      action: "match.create",
-      actorId: session.email,
-      targetId: newMatch.id,
-      targetType: "match",
-      meta: { teamAId, teamBId, stage, format },
+      await tx.insert(auditLogs).values({
+        seasonId,
+        action: "match.create",
+        actorId: session.email,
+        targetId: row.id,
+        targetType: "match",
+        meta: { teamAId, teamBId, stage, format },
+      });
+
+      return [row];
     });
 
     revalidatePath(`/admin/${season.slug}/matches`);
@@ -206,24 +225,26 @@ export async function updateMatchStatus(
     const session = await requireSeasonAdmin(match.seasonId);
     assertMatchTransition(match.status as MatchStatus, nextStatus);
 
-    await db
-      .update(matches)
-      .set({ status: nextStatus, updatedAt: new Date() })
-      .where(eq(matches.id, matchId));
+    const seasonForStatus = await getSeasonOrThrow(match.seasonId);
+    await db.transaction(async (tx) => {
+      await tx
+        .update(matches)
+        .set({ status: nextStatus, updatedAt: new Date() })
+        .where(eq(matches.id, matchId));
 
-    const season = await getSeasonOrThrow(match.seasonId);
-    await db.insert(auditLogs).values({
-      seasonId: match.seasonId,
-      action: "match.status_update",
-      actorId: session.email,
-      targetId: matchId,
-      targetType: "match",
-      meta: { from: match.status, to: nextStatus },
+      await tx.insert(auditLogs).values({
+        seasonId: match.seasonId,
+        action: "match.status_update",
+        actorId: session.email,
+        targetId: matchId,
+        targetType: "match",
+        meta: { from: match.status, to: nextStatus },
+      });
     });
 
-    revalidatePath(`/admin/${season.slug}/matches`);
-    revalidatePath(`/${season.slug}/matches`);
-    revalidatePath(`/${season.slug}/matches/${matchId}`);
+    revalidatePath(`/admin/${seasonForStatus.slug}/matches`);
+    revalidatePath(`/${seasonForStatus.slug}/matches`);
+    revalidatePath(`/${seasonForStatus.slug}/matches/${matchId}`);
 
     return ok(undefined);
   } catch (e) {
@@ -271,19 +292,21 @@ export async function recordMatchResult(
 
     const season = await getSeasonOrThrow(match.seasonId);
 
-    await db
-      .update(matches)
-      .set({
-        scoreA,
-        scoreB,
-        status: "finished",
-        completedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(matches.id, matchId));
+    // 事务保护：score 更新 + bracket 推进 + audit 原子化
+    await db.transaction(async (tx) => {
+      await tx
+        .update(matches)
+        .set({
+          scoreA,
+          scoreB,
+          status: "finished",
+          completedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(matches.id, matchId));
 
-    // 推进 bracket（若 bracket 已初始化）
-    if (season.bracketData && match.bracketNodeId) {
+      // 推进 bracket（若 bracket 已初始化）
+      if (season.bracketData && match.bracketNodeId) {
       const { updatedData, newResolvedMatches } = await bracketAdvance(
         match.bracketNodeId,
         scoreA,
@@ -292,7 +315,7 @@ export async function recordMatchResult(
       );
 
       // 持久化更新后的 bracket JSON
-      await db
+      await tx
         .update(seasons)
         .set({ bracketData: updatedData as Database, updatedAt: new Date() })
         .where(eq(seasons.id, match.seasonId));
@@ -304,29 +327,30 @@ export async function recordMatchResult(
       });
 
       // 为新确定对阵创建 match 记录
+      const rmrStagePlan = normalizeStagePlan(season.stagePlan);
       for (const bm of newResolvedMatches) {
         const teamA = seasonTeams[bm.teamAParticipantId];
         const teamB = seasonTeams[bm.teamBParticipantId];
         if (!teamA || !teamB) continue;
 
-        const dbStages = updatedData.stage as Array<{ id: number; name: string }>;
+        const dbStages = updatedData.stage as BracketStageRef[];
         const bmStageName = dbStages.find((s) => s.id === bm.stageId)?.name;
-        const stage = normalizeStagePlan(season.stagePlan).find((s) => s.name === bmStageName)?.key
+        const stage = rmrStagePlan.find((s) => s.name === bmStageName)?.key
           ?? match.stage;
 
-        await db.insert(matches).values({
+        await tx.insert(matches).values({
           seasonId: match.seasonId,
           teamAId: teamA.id,
           teamBId: teamB.id,
           stage,
-          format: "bo3",
+          format: resolveMatchFormat(rmrStagePlan, stage, bm.roundNumber),
           status: "scheduled",
           bracketNodeId: bm.bracketMatchId.toString(),
         });
       }
     }
 
-    await db.insert(auditLogs).values({
+    await tx.insert(auditLogs).values({
       seasonId: match.seasonId,
       action: "match.record_result",
       actorId: session.email,
@@ -334,6 +358,7 @@ export async function recordMatchResult(
       targetType: "match",
       meta: { scoreA, scoreB },
     });
+    }); // end db.transaction
 
     revalidatePath(`/admin/${season.slug}/matches`);
     revalidatePath(`/${season.slug}/matches`);
@@ -411,12 +436,7 @@ export async function recordMapResult(
 
     // 如果系列赛结束且有 bracket，提前计算 bracket 推进结果（纯计算，不写 DB）
     let updatedBracketData: Database | null = null;
-    let resolvedMatches: Array<{
-      teamAParticipantId: number;
-      teamBParticipantId: number;
-      bracketMatchId: number;
-      stageId: number;
-    }> = [];
+    let resolvedMatches: ResolvedBracketMatch[] = [];
     let seasonTeams: Awaited<ReturnType<typeof db.query.teams.findMany>> = [];
 
     if (seriesFinished && season.bracketData && match.bracketNodeId) {
@@ -458,20 +478,21 @@ export async function recordMapResult(
 
         if (updatedBracketData) {
           await tx.update(seasons).set({ bracketData: updatedBracketData, updatedAt: new Date() }).where(eq(seasons.id, match.seasonId));
+          const rmrStagePlan2 = normalizeStagePlan(season.stagePlan);
           for (const bm of resolvedMatches) {
             const teamA = seasonTeams[bm.teamAParticipantId];
             const teamB = seasonTeams[bm.teamBParticipantId];
             if (!teamA || !teamB) continue;
-            const dbStages = updatedBracketData.stage as Array<{ id: number; name: string }>;
+            const dbStages = updatedBracketData.stage as BracketStageRef[];
             const bmStageName = dbStages.find((s) => s.id === bm.stageId)?.name;
-            const stage = normalizeStagePlan(season.stagePlan).find((s) => s.name === bmStageName)?.key
+            const stage = rmrStagePlan2.find((s) => s.name === bmStageName)?.key
               ?? match.stage;
             await tx.insert(matches).values({
               seasonId: match.seasonId,
               teamAId: teamA.id,
               teamBId: teamB.id,
               stage,
-              format: "bo3",
+              format: resolveMatchFormat(rmrStagePlan2, stage, bm.roundNumber),
               status: "scheduled",
               bracketNodeId: bm.bracketMatchId.toString(),
             });
@@ -519,24 +540,26 @@ export async function updateMatchScheduledAt(
       throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "已结束或已取消的比赛不能修改时间");
     }
 
-    await db
-      .update(matches)
-      .set({ scheduledAt, updatedAt: new Date() })
-      .where(eq(matches.id, matchId));
+    const seasonForSch = await getSeasonOrThrow(match.seasonId);
+    await db.transaction(async (tx) => {
+      await tx
+        .update(matches)
+        .set({ scheduledAt, updatedAt: new Date() })
+        .where(eq(matches.id, matchId));
 
-    const season = await getSeasonOrThrow(match.seasonId);
-    await db.insert(auditLogs).values({
-      seasonId: match.seasonId,
-      action: "match.update_scheduled_at",
-      actorId: session.email,
-      targetId: matchId,
-      targetType: "match",
-      meta: { scheduledAt: scheduledAt?.toISOString() ?? null },
+      await tx.insert(auditLogs).values({
+        seasonId: match.seasonId,
+        action: "match.update_scheduled_at",
+        actorId: session.email,
+        targetId: matchId,
+        targetType: "match",
+        meta: { scheduledAt: scheduledAt?.toISOString() ?? null },
+      });
     });
 
-    revalidatePath(`/admin/${season.slug}/matches`);
-    revalidatePath(`/${season.slug}/matches`);
-    revalidatePath(`/${season.slug}/matches/${matchId}`);
+    revalidatePath(`/admin/${seasonForSch.slug}/matches`);
+    revalidatePath(`/${seasonForSch.slug}/matches`);
+    revalidatePath(`/${seasonForSch.slug}/matches/${matchId}`);
 
     return ok(undefined);
   } catch (e) {
@@ -632,10 +655,21 @@ export async function initializeStage(
 }
 
 /**
- * 向后兼容现有 UI：Rivals 的正赛 stage key 默认为 playoff。
+ * 向后兼容现有 UI：自动查找 stagePlan 中最后一个淘汰赛阶段并初始化。
  */
 export async function generatePlayoff(
   seasonId: string
 ): Promise<ActionResult<{ matchCount: number }>> {
-  return initializeStage(seasonId, "playoff");
+  const season = await getSeasonOrThrow(seasonId);
+  const stagePlan = normalizeStagePlan(season.stagePlan);
+  const playoff = [...stagePlan].reverse().find(
+    (s) => s.type === "double_elim" || s.type === "single_elim",
+  );
+  if (!playoff) {
+    return fail({
+      code: ErrorCode.SEASON_CAPABILITY_DISABLED,
+      message: "该赛季没有淘汰赛阶段",
+    });
+  }
+  return initializeStage(seasonId, playoff.key);
 }

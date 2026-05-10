@@ -1,14 +1,14 @@
-import { and, count, desc, eq } from "drizzle-orm";
-import { sql } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matches, seasons, teams } from "@/db/schema";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
-import { generateBracket, seedPlayoff } from "@/lib/bracket";
+import { generateBracket, seedPlayoff, type BracketStageRef, type BracketParticipantRef } from "@/lib/bracket";
 import { getPreviousStage, normalizeStagePlan } from "@/types/season";
 import type { StageExecutor } from "./types";
 import type { Database } from "brackets-manager";
 import type { QualifiedTeam } from "@/types/season";
 import type { Team } from "@/db/schema/teams";
+import { isStageComplete } from "./_shared";
 
 // ── entry_round 映射 ──────────────────────────────────────────────────────────
 
@@ -95,7 +95,7 @@ export const singleElimExecutor: StageExecutor = {
         playoffName: config.name,
       });
 
-      const bracketStages = data.stage as Array<{ id: number; name: string }>;
+      const bracketStages = data.stage as BracketStageRef[];
       const stageId = bracketStages.find((s) => s.name === config.name)?.id ?? null;
       let matchCount = 0;
 
@@ -147,11 +147,11 @@ export const singleElimExecutor: StageExecutor = {
     );
 
     const nameToTeam = new Map(teams.map((t) => [t.name, t]));
-    const participants = updatedData.participant as Array<{ id: number; name: string }>;
+    const participants = updatedData.participant as BracketParticipantRef[];
     const participantIdToTeam = new Map(
       participants.map((p) => [p.id, nameToTeam.get(p.name)]),
     );
-    const bracketStages = updatedData.stage as Array<{ id: number; name: string }>;
+    const bracketStages = updatedData.stage as BracketStageRef[];
     const stageId = bracketStages.find((s) => s.name === config.name)?.id ?? null;
     let matchCount = 0;
 
@@ -183,23 +183,7 @@ export const singleElimExecutor: StageExecutor = {
   },
 
   async isComplete(seasonId, stageKey) {
-    const [{ value: total }] = await db
-      .select({ value: count() })
-      .from(matches)
-      .where(and(eq(matches.seasonId, seasonId), eq(matches.stage, stageKey)));
-    if (total === 0) return false;
-
-    const [{ value: active }] = await db
-      .select({ value: count() })
-      .from(matches)
-      .where(
-        and(
-          eq(matches.seasonId, seasonId),
-          eq(matches.stage, stageKey),
-          sql`${matches.status} in ('scheduled', 'in_progress')`,
-        ),
-      );
-    return active === 0;
+    return isStageComplete(seasonId, stageKey);
   },
 
   async getQualifiers(seasonId, config) {

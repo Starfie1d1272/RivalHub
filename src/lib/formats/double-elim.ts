@@ -1,14 +1,14 @@
-import { and, count, desc, eq } from "drizzle-orm";
-import { sql } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matches, seasons } from "@/db/schema";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
-import { generateBracket, seedPlayoff } from "@/lib/bracket";
+import { generateBracket, seedPlayoff, type BracketStageRef, type BracketParticipantRef } from "@/lib/bracket";
 import { calculateStandings } from "@/lib/standings";
 import { getPreviousStage, normalizeStagePlan } from "@/types/season";
 import type { StageExecutor } from "./types";
 import type { Database } from "brackets-manager";
 import type { QualifiedTeam } from "@/types/season";
+import { isStageComplete } from "./_shared";
 
 export const doubleElimExecutor: StageExecutor = {
   async initialize(seasonId, config, teams, _qualifiers) {
@@ -29,7 +29,7 @@ export const doubleElimExecutor: StageExecutor = {
         playoffFormat,
         playoffName: config.name,
       });
-      const bracketStages = data.stage as Array<{ id: number; name: string }>;
+      const bracketStages = data.stage as BracketStageRef[];
       const stageId = bracketStages.find((stage) => stage.name === config.name)?.id ?? null;
       let matchCount = 0;
 
@@ -77,11 +77,11 @@ export const doubleElimExecutor: StageExecutor = {
       .where(eq(seasons.id, seasonId));
 
     const nameToTeam = new Map(teams.map((team) => [team.name, team]));
-    const participants = updatedData.participant as Array<{ id: number; name: string }>;
+    const participants = updatedData.participant as BracketParticipantRef[];
     const participantIdToTeam = new Map(
       participants.map((participant) => [participant.id, nameToTeam.get(participant.name)]),
     );
-    const bracketStages = updatedData.stage as Array<{ id: number; name: string }>;
+    const bracketStages = updatedData.stage as BracketStageRef[];
     const stageId = bracketStages.find((stage) => stage.name === config.name)?.id ?? null;
     let matchCount = 0;
 
@@ -107,27 +107,10 @@ export const doubleElimExecutor: StageExecutor = {
   },
 
   async isComplete(seasonId, stageKey) {
-    const [{ value: total }] = await db
-      .select({ value: count() })
-      .from(matches)
-      .where(and(eq(matches.seasonId, seasonId), eq(matches.stage, stageKey)));
-    if (total === 0) return false;
-
-    const [{ value: active }] = await db
-      .select({ value: count() })
-      .from(matches)
-      .where(
-        and(
-          eq(matches.seasonId, seasonId),
-          eq(matches.stage, stageKey),
-          sql`${matches.status} in ('scheduled', 'in_progress')`,
-        ),
-      );
-    return active === 0;
+    return isStageComplete(seasonId, stageKey);
   },
 
   async getQualifiers(seasonId, config) {
-    // 找到该 stage 最高轮次的已结束比赛 → 胜者 = 冠军
     const stageMatches = await db.query.matches.findMany({
       where: and(
         eq(matches.seasonId, seasonId),
@@ -139,13 +122,21 @@ export const doubleElimExecutor: StageExecutor = {
 
     if (stageMatches.length === 0) return [];
 
-    // 最高 round 的 match 为决赛；如果有 bracket reset 则取最后一场
+    // 最高 round 的 match 为决赛（含可能的 bracket reset）
     const finalMatch = stageMatches[0];
 
     if (finalMatch.scoreA === null || finalMatch.scoreB === null) return [];
     if (finalMatch.scoreA === finalMatch.scoreB) return [];
 
     const winnerId = finalMatch.scoreA > finalMatch.scoreB ? finalMatch.teamAId : finalMatch.teamBId;
-    return [{ teamId: winnerId, placement: "1st" }];
+    const loserId = finalMatch.scoreA > finalMatch.scoreB ? finalMatch.teamBId : finalMatch.teamAId;
+
+    const result: QualifiedTeam[] = [{ teamId: winnerId, placement: "1st" }];
+
+    if (config.advanceTiers.some((t) => t.placement === "2nd")) {
+      result.push({ teamId: loserId, placement: "2nd" });
+    }
+
+    return result;
   },
 };

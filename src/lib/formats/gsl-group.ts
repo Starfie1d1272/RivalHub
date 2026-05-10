@@ -1,7 +1,7 @@
-import { and, count, eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matches } from "@/db/schema";
-import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
+import { AppError, ErrorCode } from "@/lib/errors";
 import type { StageExecutor } from "./types";
 import type { Team } from "@/db/schema/teams";
 import type { QualifiedTeam } from "@/types/season";
@@ -277,7 +277,7 @@ export const gslGroupExecutor: StageExecutor = {
       where: and(eq(matches.seasonId, seasonId), eq(matches.stage, stageKey)),
     });
     if (allMatches.length === 0) return false;
-    return allMatches.every((m) => m.status === "finished");
+    return allMatches.every((m) => m.status === "finished" || m.status === "cancelled");
   },
 };
 
