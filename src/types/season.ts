@@ -219,18 +219,7 @@ export function normalizeRegistrationConfig(
 }
 
 export function normalizeStagePlan(stagePlan: StagePlan | null | undefined): StagePlan {
-  const plan = stagePlan ?? RIVALS_STAGE_PLAN;
-  return plan.map((stage) => {
-    // 兼容旧 advance 字段：自动转换为 advanceTiers
-    const raw = stage as StageConfig & { advance?: number };
-    if (raw.advance !== undefined && (!raw.advanceTiers || raw.advanceTiers.length === 0)) {
-      return {
-        ...stage,
-        advanceTiers: [{ placement: "*", count: raw.advance }],
-      };
-    }
-    return stage;
-  });
+  return stagePlan ?? RIVALS_STAGE_PLAN;
 }
 
 export function getStageByKey(stagePlan: StagePlan | null | undefined, key: string): StageConfig | null {
