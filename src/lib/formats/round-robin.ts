@@ -1,15 +1,17 @@
 import { and, count, eq } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matches, seasons } from "@/db/schema";
+import { matches, seasons, teams } from "@/db/schema";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { generateBracket } from "@/lib/bracket";
+import { calculateStandings } from "@/lib/standings";
 import { getFirstStageOfType, normalizeStagePlan } from "@/types/season";
+import type { QualifiedTeam } from "@/types/season";
 import type { StageExecutor } from "./types";
 import type { Database } from "brackets-manager";
 
 export const roundRobinExecutor: StageExecutor = {
-  async initialize(seasonId, config, teams) {
+  async initialize(seasonId, config, teams, _qualifiers) {
     const season = await db.query.seasons.findFirst({
       where: eq(seasons.id, seasonId),
     });
@@ -78,5 +80,17 @@ export const roundRobinExecutor: StageExecutor = {
         ),
       );
     return active === 0;
+  },
+
+  async getQualifiers(seasonId, config) {
+    const seasonTeams = await db.query.teams.findMany({
+      where: eq(teams.seasonId, seasonId),
+    });
+    const standings = await calculateStandings(seasonId, seasonTeams, config.key);
+    const advanceCount = config.advance ?? 0;
+    return standings.slice(0, advanceCount).map((s) => ({
+      teamId: s.teamId,
+      placement: "*",
+    }));
   },
 };

@@ -43,6 +43,13 @@
       "when": 1778341013690,
       "tag": "0005_supreme_magus",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1778408316538,
+      "tag": "0006_lame_silver_centurion",
+      "breakpoints": true
     }
   ]
 }

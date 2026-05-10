@@ -1,8 +1,25 @@
 # 瑞士轮赛制 + 泛化 Stage 体系设计
 
 > 状态：已确认 · 2026-05-08
-> 目标分支：待定
+> 目标分支：`feat/swiss-executor`（PR #39）→ `fix/swiss-review-fixes`（本次）
 > **注意**：本文档中的 `StageConfig` 定义（`advance: number`）已被 `2026-05-10-stage-framework-v2-design.md` 取代（`advanceTiers: AdvanceTier[]`），以 v2 design 为准。
+
+## 实现状态
+
+| 需求 | 状态 |
+|------|------|
+| R1 种子配对（上半区 vs 下半区） | ✅ `feat/swiss-executor` |
+| `advanceRound`：wins/losses 更新 → BU 重算 → slide pairing + 避重赛 | ✅ `feat/swiss-executor` |
+| BO3 升级（晋级局 / 淘汰局） | ✅ `feat/swiss-executor` |
+| `isComplete` 完赛检测 | ✅ `feat/swiss-executor` |
+| `swiss_standings` 表 | ✅ `feat/swiss-executor` |
+| `getQualifiers` 方法 | ✅ `fix/swiss-review-fixes` |
+| `StageExecutor` 接口 v2 对齐（`qualifiers` 参数） | ✅ `fix/swiss-review-fixes` |
+| `advance` → `advanceTiers` 迁移 | ⬜ follow-up |
+| Swiss → playoff 阶段衔接（`initializeStage` 泛化） | ⬜ follow-up |
+| Swiss executor 测试 | ✅ `fix/swiss-review-fixes` |
+
+详见 `2026-05-10-swiss-implementation-status.md`。
 
 ---
 

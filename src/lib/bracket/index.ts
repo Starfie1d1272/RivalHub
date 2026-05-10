@@ -19,21 +19,38 @@ type PlayoffFormat = "double_elim" | "single_elim";
 
 export interface BracketStage {
   id: number;
+  tournament_id?: number;
   name: string;
+  number?: number;
   type: "double_elimination" | "single_elimination" | "round_robin";
+  settings?: Record<string, unknown>;
 }
 
 export interface BracketMatch {
   id: number;
-  stageId: number;
-  roundNumber: number;
+  stage_id: number;
+  group_id: number;
+  round_id: number;
+  number: number;
+  status: number;
   opponent1: { id: number | null; score: number | null; result?: "win" | "loss" } | null;
   opponent2: { id: number | null; score: number | null; result?: "win" | "loss" } | null;
+}
+
+export interface BracketMatchGame {
+  id: number;
+  parent_id: number;
+  stage_id?: number;
+  number?: number;
+  status?: number;
+  opponent1?: { id: number | null; score: number | null; result?: "win" | "loss" } | null;
+  opponent2?: { id: number | null; score: number | null; result?: "win" | "loss" } | null;
 }
 
 export interface BracketData {
   stage: BracketStage[];
   match: BracketMatch[];
+  match_game: BracketMatchGame[];
   participant: { id: number; name: string }[];
 }
 
@@ -158,7 +175,7 @@ export function serializeBracket(
   teams: Team[]
 ): BracketData {
   if (!data) {
-    return { stage: [], match: [], participant: [] };
+    return { stage: [], match: [], match_game: [], participant: [] };
   }
 
   // participant 表只有 name；id 顺序对应 teams 按 draft_order 排列
@@ -167,32 +184,42 @@ export function serializeBracket(
     name: p.name,
   }));
 
-  // round 表：按 stageId+number 查找 roundNumber
-  const roundMap = new Map<number, number>();
-  for (const r of data.round as Array<{ id: number; stage_id: number; number: number }>) {
-    roundMap.set(r.id, r.number);
-  }
-
   const stage: BracketStage[] = (
-    data.stage as Array<{ id: number; name: string; type: string }>
+    data.stage as Array<{
+      id: number;
+      tournament_id?: number;
+      name: string;
+      number?: number;
+      type: string;
+      settings?: Record<string, unknown>;
+    }>
   ).map((s) => ({
     id: s.id,
+    tournament_id: s.tournament_id,
     name: s.name,
+    number: s.number,
     type: s.type as BracketStage["type"],
+    settings: s.settings ?? {},
   }));
 
   const match: BracketMatch[] = (
     data.match as Array<{
       id: number;
       stage_id: number;
+      group_id: number;
       round_id: number;
+      number: number;
+      status: number;
       opponent1: { id: number | null; score: number | null; result?: string } | null;
       opponent2: { id: number | null; score: number | null; result?: string } | null;
     }>
   ).map((m) => ({
     id: m.id,
-    stageId: m.stage_id,
-    roundNumber: roundMap.get(m.round_id) ?? 0,
+    stage_id: m.stage_id,
+    group_id: m.group_id,
+    round_id: m.round_id,
+    number: m.number,
+    status: m.status,
     opponent1: m.opponent1
       ? {
           id: m.opponent1.id,
@@ -209,7 +236,12 @@ export function serializeBracket(
       : null,
   }));
 
-  return { stage, match, participant };
+  return {
+    stage,
+    match,
+    match_game: (data.match_game as unknown as BracketMatchGame[] | undefined) ?? [],
+    participant,
+  };
 }
 
 /**
