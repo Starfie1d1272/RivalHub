@@ -58,8 +58,8 @@ describe("swissExecutor", () => {
         undefined,
       );
 
-      // 1 batch standings insert + 4 individual match inserts = 5 insert calls
-      expect(mockInsert).toHaveBeenCalledTimes(5);
+      // 1 batch standings insert + 1 batch match insert = 2 insert calls
+      expect(mockInsert).toHaveBeenCalledTimes(2);
       expect(result.matchCount).toBe(4);
     });
 

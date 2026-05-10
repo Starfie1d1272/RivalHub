@@ -67,16 +67,18 @@ export const swissExecutor: StageExecutor = {
       pairs.push({ teamAId: sorted[i].id, teamBId: sorted[i + half].id, format: "bo1" });
     }
 
-    for (const p of pairs) {
-      await db.insert(matches).values({
-        seasonId,
-        teamAId: p.teamAId,
-        teamBId: p.teamBId,
-        stage: config.key,
-        round: 1,
-        format: p.format,
-        status: "scheduled",
-      });
+    if (pairs.length > 0) {
+      await db.insert(matches).values(
+        pairs.map((p) => ({
+          seasonId,
+          teamAId: p.teamAId,
+          teamBId: p.teamBId,
+          stage: config.key,
+          round: 1,
+          format: p.format,
+          status: "scheduled" as const,
+        })),
+      );
     }
 
     return { matchCount: pairs.length };
