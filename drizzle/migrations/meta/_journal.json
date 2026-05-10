@@ -50,6 +50,13 @@
       "when": 1778408316538,
       "tag": "0006_lame_silver_centurion",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1778440000000,
+      "tag": "0007_advance_to_advance_tiers",
+      "breakpoints": true
     }
   ]
 }

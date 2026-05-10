@@ -15,12 +15,24 @@ export type RegistrationMode = "solo" | "team";
 export type StageType = "round_robin" | "double_elim" | "single_elim" | "swiss";
 export type PlayerType = "enrolled" | "graduated" | "external";
 
+export interface AdvanceTier {
+  /** 名次标识："*" = 全部晋级；"1st"/"2nd"/"3rd" 等 = 分层晋级 */
+  placement: string;
+  /** 该名次每组晋级队伍数；groupCount > 1 时总晋级数 = count × groupCount */
+  count: number;
+  /** 进入下一阶段的 bracket 入口轮次；默认不指定则由 executor 决定 */
+  targetRound?: string;
+}
+
 export interface StageConfig {
   key: string;
   name: string;
   type: StageType;
   teamCount: number;
-  advance: number;
+  advanceTiers: AdvanceTier[];
+  groupCount?: number;
+  matchFormat?: "bo1" | "bo3" | "bo5";
+  hasThirdPlaceMatch?: boolean;
   seeds?: number[];
 }
 
@@ -89,8 +101,16 @@ export interface Season extends SeasonCapabilities {
 export const CS2_POSITIONS = ["igl", "awper", "opener", "closer", "anchor"];
 
 export const RIVALS_STAGE_PLAN: StagePlan = [
-  { key: "qualifier", name: "排位赛", type: "round_robin", teamCount: 8, advance: 8 },
-  { key: "playoff", name: "正赛", type: "double_elim", teamCount: 8, advance: 1 },
+  {
+    key: "qualifier", name: "排位赛", type: "round_robin", teamCount: 8,
+    advanceTiers: [{ placement: "*", count: 8 }],
+    matchFormat: "bo1",
+  },
+  {
+    key: "playoff", name: "正赛", type: "double_elim", teamCount: 8,
+    advanceTiers: [{ placement: "1st", count: 1 }],
+    matchFormat: "bo3",
+  },
 ];
 
 export const RIVALS_REGISTRATION_CONFIG: RegistrationConfig = {
@@ -198,7 +218,18 @@ export function normalizeRegistrationConfig(
 }
 
 export function normalizeStagePlan(stagePlan: StagePlan | null | undefined): StagePlan {
-  return stagePlan ?? RIVALS_STAGE_PLAN;
+  const plan = stagePlan ?? RIVALS_STAGE_PLAN;
+  return plan.map((stage) => {
+    // 兼容旧 advance 字段：自动转换为 advanceTiers
+    const raw = stage as StageConfig & { advance?: number };
+    if (raw.advance !== undefined && (!raw.advanceTiers || raw.advanceTiers.length === 0)) {
+      return {
+        ...stage,
+        advanceTiers: [{ placement: "*", count: raw.advance }],
+      };
+    }
+    return stage;
+  });
 }
 
 export function getStageByKey(stagePlan: StagePlan | null | undefined, key: string): StageConfig | null {

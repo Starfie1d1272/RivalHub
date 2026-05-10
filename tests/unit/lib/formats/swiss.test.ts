@@ -87,7 +87,7 @@ const mockConfig = {
   name: "瑞士轮",
   type: "swiss" as const,
   teamCount: 8,
-  advance: 8,
+  advanceTiers: [{ placement: "*" as const, count: 8 }],
   seeds: [1, 2, 3, 4, 5, 6, 7, 8],
 };
 

@@ -87,7 +87,7 @@ export const roundRobinExecutor: StageExecutor = {
       where: eq(teams.seasonId, seasonId),
     });
     const standings = await calculateStandings(seasonId, seasonTeams, config.key);
-    const advanceCount = config.advance ?? 0;
+    const advanceCount = config.advanceTiers.reduce((sum, t) => sum + t.count, 0);
     return standings.slice(0, advanceCount).map((s) => ({
       teamId: s.teamId,
       placement: "*",

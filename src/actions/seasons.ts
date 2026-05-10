@@ -21,7 +21,14 @@ const stageConfigSchema = z.object({
   name: z.string().min(1),
   type: z.enum(["round_robin", "double_elim", "single_elim", "swiss"]),
   teamCount: z.number().int().min(2).max(128),
-  advance: z.number().int().min(0).max(128),
+  advanceTiers: z.array(z.object({
+    placement: z.string().min(1),
+    count: z.number().int().min(1),
+    targetRound: z.string().optional(),
+  })),
+  groupCount: z.number().int().min(1).optional(),
+  matchFormat: z.enum(["bo1", "bo3", "bo5"]).optional(),
+  hasThirdPlaceMatch: z.boolean().optional(),
   seeds: z.array(z.number().int().positive()).optional(),
 });
 
