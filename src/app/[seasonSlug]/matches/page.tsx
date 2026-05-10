@@ -68,11 +68,25 @@ export default async function MatchesPage({ params }: MatchesPageProps) {
     allTeams
   );
 
-  // 过滤掉没有 match 的 stage（如排位赛 round_robin，matches 存在 DB 里但不在 bracket 中）
-  const stageIdsWithMatches = new Set(fullBracketData.match.map((m) => m.stageId));
+  // 正赛 stage 的 bracket 数据；brackets-viewer 需要 stage 和 match 同步过滤。
+  const playoffBracketStageIds = new Set(
+    fullBracketData.stage
+      .filter((s) => s.name === playoffStage?.name)
+      .map((s) => s.id),
+  );
+  const playoffBracketMatchIds = new Set(
+    fullBracketData.match
+      .filter((m) => playoffBracketStageIds.has(m.stage_id))
+      .map((m) => m.id),
+  );
   const bracketData = {
     ...fullBracketData,
-    stage: fullBracketData.stage.filter((s) => stageIdsWithMatches.has(s.id)),
+    stage: fullBracketData.stage.filter((s) => playoffBracketStageIds.has(s.id)),
+    match: fullBracketData.match.filter((m) => playoffBracketStageIds.has(m.stage_id)),
+    match_game: fullBracketData.match_game.filter((game) => {
+      const parentId = game.parent_id;
+      return typeof parentId === "number" && playoffBracketMatchIds.has(parentId);
+    }),
   };
 
   // bracketNodeId（字符串）→ matchId（UUID），用于 BracketView 点击跳转

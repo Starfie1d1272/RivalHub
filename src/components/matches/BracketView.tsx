@@ -40,14 +40,14 @@ export function BracketView({ data, themeColor, matchNodeMap, seasonSlug }: Brac
           stages: data.stage,
           matches: data.match,
           participants: data.participant,
-          matchGames: [],
+          matchGames: data.match_game,
         },
         { selector: "#bracket-container", clear: true }
       )
       .then(() => {
         if (!containerRef.current || !matchNodeMap || !seasonSlug) return;
-        containerRef.current.querySelectorAll<HTMLElement>("[data-id]").forEach((el) => {
-          const bracketId = el.getAttribute("data-id");
+        containerRef.current.querySelectorAll<HTMLElement>("[data-match-id]").forEach((el) => {
+          const bracketId = el.getAttribute("data-match-id");
           if (!bracketId) return;
           const matchId = matchNodeMap.get(bracketId);
           if (!matchId) return;
@@ -82,7 +82,7 @@ export function BracketView({ data, themeColor, matchNodeMap, seasonSlug }: Brac
         style={themeColor ? ({ "--primary-color": themeColor } as React.CSSProperties) : undefined}
         className="overflow-x-auto"
       >
-        <div id="bracket-container" ref={containerRef} />
+        <div id="bracket-container" className="brackets-viewer" ref={containerRef} />
       </div>
     </>
   );
