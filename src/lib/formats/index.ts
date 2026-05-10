@@ -4,19 +4,18 @@ import type { StageExecutor } from "./types";
 import { roundRobinExecutor } from "./round-robin";
 import { doubleElimExecutor } from "./double-elim";
 import { singleElimExecutor } from "./single-elim";
+import { swissExecutor } from "./swiss";
 
 const EXECUTORS: Partial<Record<StageType, StageExecutor>> = {
   round_robin: roundRobinExecutor,
   double_elim: doubleElimExecutor,
   single_elim: singleElimExecutor,
+  swiss: swissExecutor,
 };
 
 export function getExecutor(type: StageType): StageExecutor {
   const executor = EXECUTORS[type];
   if (!executor) {
-    if (type === "swiss") {
-      throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "Swiss 执行器将在 v2 接入");
-    }
     throw new AppError(ErrorCode.INTERNAL_ERROR, `未知赛制: ${type}`);
   }
   return executor;

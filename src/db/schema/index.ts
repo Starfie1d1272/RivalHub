@@ -10,3 +10,4 @@ export * from "./audit";
 export * from "./admin-users";
 export * from "./admin-invites";
 export * from "./player-stats";
+export * from "./swiss-standings";
