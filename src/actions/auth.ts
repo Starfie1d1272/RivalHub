@@ -16,30 +16,94 @@ import {
   destroyUserSession,
 } from "@/lib/auth/session";
 
-export async function sendMagicLink(email: string): Promise<ActionResult<{ email: string }>> {
+export async function loginWithPassword(
+  email: string,
+  password: string,
+): Promise<ActionResult<{ email: string }>> {
   if (!email || !email.includes("@")) {
     return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请输入有效的邮箱地址" });
+  }
+  if (!password || password.length < 6) {
+    return fail({ code: ErrorCode.VALIDATION_FAILED, message: "密码至少 6 位" });
   }
 
   try {
     const supabase = createServiceClient();
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        shouldCreateUser: true,
-        emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
-      },
-    });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
-      // Supabase intentionally avoids account enumeration; keep UI response generic.
-      console.warn("[sendMagicLink]", error.message);
+      return fail({ code: ErrorCode.UNAUTHORIZED, message: "邮箱或密码错误" });
     }
+
+    // 同步 public.users（callback 在密码登录时不会触发）
+    const [userRow] = await db
+      .insert(users)
+      .values({ id: data.user.id, email, role: "user", adminSeasonIds: [], updatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: users.id,
+        set: { email, updatedAt: new Date() },
+      })
+      .returning();
+
+    await createUserSession({
+      userId: userRow.id,
+      email: userRow.email,
+      role: userRow.role,
+      adminSeasonIds: userRow.adminSeasonIds,
+      authSource: "user",
+    });
 
     return ok({ email });
   } catch (e) {
-    console.error("[sendMagicLink]", e);
-    return fail({ code: ErrorCode.INTERNAL_ERROR, message: "发送失败，请稍后重试" });
+    console.error("[loginWithPassword]", e);
+    return fail({ code: ErrorCode.INTERNAL_ERROR, message: "登录失败，请稍后重试" });
+  }
+}
+
+export async function signUp(
+  email: string,
+  password: string,
+): Promise<ActionResult<{ email: string }>> {
+  if (!email || !email.includes("@")) {
+    return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请输入有效的邮箱地址" });
+  }
+  if (!password || password.length < 6) {
+    return fail({ code: ErrorCode.VALIDATION_FAILED, message: "密码至少 6 位" });
+  }
+
+  try {
+    const supabase = createServiceClient();
+    const { data, error } = await supabase.auth.signUp({ email, password });
+
+    if (error) {
+      if (error.message.includes("already") || error.code === "user_already_exists") {
+        return fail({ code: ErrorCode.VALIDATION_FAILED, message: "该邮箱已注册，请直接登录" });
+      }
+      return fail({ code: ErrorCode.VALIDATION_FAILED, message: error.message });
+    }
+
+    if (!data.user) {
+      return fail({ code: ErrorCode.INTERNAL_ERROR, message: "注册失败，请稍后重试" });
+    }
+
+    // 在 public.users 建行
+    const [userRow] = await db
+      .insert(users)
+      .values({ id: data.user.id, email, role: "user", adminSeasonIds: [] })
+      .returning();
+
+    await createUserSession({
+      userId: userRow.id,
+      email: userRow.email,
+      role: userRow.role,
+      adminSeasonIds: userRow.adminSeasonIds,
+      authSource: "user",
+    });
+
+    return ok({ email });
+  } catch (e) {
+    console.error("[signUp]", e);
+    return fail({ code: ErrorCode.INTERNAL_ERROR, message: "注册失败，请稍后重试" });
   }
 }
 
