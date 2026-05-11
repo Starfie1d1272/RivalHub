@@ -1,46 +1,14 @@
 "use server";
 
-import { eq, and, or } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matchRosters, matchRosterPlayers, teamMembers, teams, matches, seasons, seasonRegistrations } from "@/db/schema";
+import { matchRosters, matchRosterPlayers, teamMembers, seasons, auditLogs } from "@/db/schema";
 import { ok, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { requireAuth, requireSeasonAdmin } from "@/lib/auth/session";
 import { getMatchOrThrow, actionError } from "@/lib/action-utils";
 import { revalidateMatchPaths } from "@/lib/revalidation";
-
-/**
- * 获取队长所属的队伍 ID（用于 roster 提交的队长身份校验）。
- * 链路：userId → seasonRegistrations.id → teams.captainRegistrationId。
- */
-export async function getTeamIdForCaptain(
-  userId: string,
-  match: Awaited<ReturnType<typeof getMatchOrThrow>>,
-): Promise<string | null> {
-  const [reg] = await db
-    .select({ id: seasonRegistrations.id })
-    .from(seasonRegistrations)
-    .where(
-      and(
-        eq(seasonRegistrations.userId, userId),
-        eq(seasonRegistrations.seasonId, match.seasonId),
-      ),
-    );
-  if (!reg) return null;
-
-  const [team] = await db
-    .select({ id: teams.id })
-    .from(teams)
-    .where(
-      and(
-        eq(teams.captainRegistrationId, reg.id),
-        or(eq(teams.id, match.teamAId), eq(teams.id, match.teamBId)),
-      ),
-    );
-
-  if (!team) return null;
-  return team.id === match.teamAId ? match.teamAId : match.teamBId;
-}
+import { getTeamIdForCaptain } from "./_shared";
 
 /**
  * 队长提交比赛名单（5 首发 + 0~2 替补）。
@@ -161,12 +129,21 @@ export async function unlockMatchRoster(
     }
 
     const match = await getMatchOrThrow(roster.matchId);
-    await requireSeasonAdmin(match.seasonId);
+    const admin = await requireSeasonAdmin(match.seasonId);
 
     await db
       .update(matchRosters)
       .set({ status: "unlocked", updatedAt: new Date() })
       .where(eq(matchRosters.id, rosterId));
+
+    await db.insert(auditLogs).values({
+      seasonId: match.seasonId,
+      action: "match.unlock_roster",
+      actorId: admin.email,
+      targetId: rosterId,
+      targetType: "match_roster",
+      meta: { matchId: roster.matchId, teamId: roster.teamId },
+    });
 
     const season = await db.query.seasons.findFirst({
       where: eq(seasons.id, match.seasonId),

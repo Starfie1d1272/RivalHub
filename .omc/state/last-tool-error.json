@@ -1,7 +1,0 @@
-{
-  "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"rtk grep \\\"getWinThreshold\\\" src/lib/match-transitions.ts\",\"description\":\"Check match-transitions exports\"}",
-  "error": "Exit code 1\n0 matches for 'getWinThreshold'",
-  "timestamp": "2026-05-11T21:13:48.530Z",
-  "retry_count": 1
-}

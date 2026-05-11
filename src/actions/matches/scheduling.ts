@@ -1,14 +1,14 @@
 "use server";
 
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matchTimeProposals, matches } from "@/db/schema";
+import { matchTimeProposals, matches, auditLogs } from "@/db/schema";
 import { ok, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { requireAuth, requireSeasonAdmin } from "@/lib/auth/session";
 import { getMatchOrThrow, getSeasonOrThrow, actionError } from "@/lib/action-utils";
 import { revalidateMatchPaths } from "@/lib/revalidation";
-import { getTeamIdForCaptain } from "./roster";
+import { getTeamIdForCaptain } from "./_shared";
 
 /**
  * 队长提议比赛时间。
@@ -102,6 +102,17 @@ export async function respondToTimeProposal(
           .update(matches)
           .set({ scheduledAt: proposal.proposedTime, updatedAt: new Date() })
           .where(eq(matches.id, match.id));
+
+        // 过期同场比赛所有其他 pending 提议
+        await tx
+          .update(matchTimeProposals)
+          .set({ status: "expired", updatedAt: new Date() })
+          .where(
+            and(
+              eq(matchTimeProposals.matchId, match.id),
+              eq(matchTimeProposals.status, "pending"),
+            ),
+          );
       }
     });
 
@@ -153,6 +164,16 @@ export async function forceSetMatchTime(
         .update(matches)
         .set({ scheduledAt: time, updatedAt: new Date() })
         .where(eq(matches.id, matchId));
+
+      // 审计
+      await tx.insert(auditLogs).values({
+        seasonId: match.seasonId,
+        action: "match.force_set_time",
+        actorId: admin.email,
+        targetId: matchId,
+        targetType: "match",
+        meta: { scheduledAt: time.toISOString() },
+      });
     });
 
     const season = await getSeasonOrThrow(match.seasonId);
