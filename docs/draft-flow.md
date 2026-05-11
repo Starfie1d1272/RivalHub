@@ -36,21 +36,23 @@ SELECT * FROM draft_state
   WHERE season_id = $seasonId
   FOR UPDATE;
 
--- 2. 校验：draft_state.is_active = true
+-- 2. 幂等检查：若 client_request_id 已存在于 draft_picks，
+--    且 season/team/registration 与本次请求一致，直接返回成功
+SELECT id FROM draft_picks WHERE client_request_id = $clientRequestId;
+
+-- 3. 校验：draft_state.is_active = true
 --          current_team_id = $teamId（轮到该队了）
 --          round_deadline > NOW()（未超时）
+--          当前登录用户是该队 captain
 
--- 3. 校验：目标选手未被选（draft_picks 中不存在该 registration_id）
+-- 4. 校验：目标选手未被选（draft_picks 中不存在该 registration_id）
 
--- 4. 校验：同主选位置约束（该队同位置已选 < 2 人）
+-- 5. 校验：同主选位置约束（该队同位置已选 < 2 人，包含队长）
 SELECT COUNT(*) FROM team_members tm
   JOIN season_registrations sr ON sr.id = tm.registration_id
   WHERE tm.team_id = $teamId
     AND sr.primary_position = $targetPosition;
--- 若 COUNT >= 3 → ROLLBACK，返回错误
-
--- 5. 幂等检查：若 client_request_id 已存在于 draft_picks，直接返回成功
-SELECT id FROM draft_picks WHERE client_request_id = $clientRequestId;
+-- 若 COUNT >= 2 → ROLLBACK，返回错误
 
 -- 6. INSERT draft_picks
 INSERT INTO draft_picks (season_id, team_id, registration_id, round,
@@ -78,7 +80,7 @@ COMMIT;
 ```
 
 **违反此规则的常见错误：**
-- 在步骤 5 之前 INSERT（丢失幂等保护）
+- 在步骤 2 之前 INSERT（丢失幂等保护）
 - 遗漏步骤 7（team_members 未写入）
 - 在 COMMIT 前广播 Realtime（导致客户端看到中间态）
 - 将步骤拆分为多个独立事务（破坏原子性）
@@ -106,9 +108,11 @@ Server Action pickPlayer()
 ```typescript
 // 客户端
 const [clientRequestId] = useState(() => crypto.randomUUID());
-// 点击后按钮立即 disabled，同一 ID 的重试请求会被步骤 5 短路
+// 点击后按钮立即 disabled，同一 ID 的重试请求会被步骤 2 短路
 await pickPlayer(teamId, registrationId, clientRequestId);
 ```
+
+重复请求必须允许在 `draft_state` 已经推进到下一队之后返回成功，因此幂等检查要在当前轮次校验之前完成；若同一个 `client_request_id` 被不同 season/team/registration 复用，应返回校验错误。
 
 ---
 
