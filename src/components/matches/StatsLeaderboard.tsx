@@ -1,3 +1,4 @@
+import React from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { POSITION_LABELS } from "@/lib/validators/registration";
