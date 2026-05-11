@@ -4,6 +4,8 @@ import {
   getNextTeamId,
   isDraftComplete,
   computeTeamPositionCounts,
+  canPickPosition,
+  isStarterRound,
 } from "@/lib/draft/rules";
 
 function team(id: string, draftOrder: number) {
@@ -116,5 +118,29 @@ describe("computeTeamPositionCounts", () => {
   it("returns empty map for no members", () => {
     const result = computeTeamPositionCounts([]);
     expect(result.size).toBe(0);
+  });
+});
+
+describe("isStarterRound", () => {
+  it("marks rounds 1-4 as starters", () => {
+    expect(isStarterRound(1)).toBe(true);
+    expect(isStarterRound(4)).toBe(true);
+  });
+
+  it("marks rounds 5-6 as substitutes", () => {
+    expect(isStarterRound(5)).toBe(false);
+    expect(isStarterRound(6)).toBe(false);
+  });
+});
+
+describe("canPickPosition", () => {
+  it("allows a position while the team has fewer than two players there", () => {
+    expect(canPickPosition(0)).toBe(true);
+    expect(canPickPosition(1)).toBe(true);
+  });
+
+  it("rejects a position once the team already has two players there", () => {
+    expect(canPickPosition(2)).toBe(false);
+    expect(canPickPosition(3)).toBe(false);
   });
 });
