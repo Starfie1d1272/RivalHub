@@ -144,3 +144,7 @@ vite.config.ts.timestamp-*
 # Word temp files
 ~$*
 .vercel
+
+# Claude Code / OMC internal state
+.omc/
+.superpowers/

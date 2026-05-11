@@ -53,8 +53,11 @@ Next.js App Router (Vercel Edge / Node.js)
 | `auth.ts` | 发送 Magic Link、邀请码提权（claimInviteCode）、退出登录 |
 | `admin.ts` | Root 登录、审核报名、邀请码管理（createInviteCode + seasonId）、密码修改、管理员管理 |
 | `captains.ts` | 投 / 撤销队长票 |
-| `draft.ts` | pick 选手、autoPick 超时 |
-| `matches.ts` | 生成赛程（generateSchedule）、初始化阶段（initializeStage）、创建比赛、录入比分（含 match_maps）、取消比赛、设置 scheduledAt |
+| `draft/state.ts` | 选秀状态管理（startDraft / pauseDraft / resumeDraft） |
+| `draft/picks.ts` | 选秀操作（pickPlayer / autoPick / skipDraftTurn / runDraftTimeoutCron） |
+| `draft/queries.ts` | 选秀查询（getDraftState / getDraftPool） |
+| `matches/schedule.ts` | 赛程生成（generateSchedule / initializeStage / generatePlayoff / createMatch） |
+| `matches/results.ts` | 比赛结果（recordMatchResult / recordMapResult / updateMatchStatus / updateMatchScheduledAt） |
 | `seasons.ts` | 赛季 CRUD（createSeason / updateSeason / deleteSeason / publishSeason） |
 | `player-stats.ts` | OCR 识别记分板截图（extractStatsFromScreenshot）、保存玩家数据（savePlayerStats）、查询地图数据（getPlayerStatsByMap） |
 
@@ -76,6 +79,8 @@ Next.js App Router (Vercel Edge / Node.js)
 - `utils/date.ts` — UTC ↔ Asia/Shanghai
 - `utils/season.ts` — capability 判断（`showDraft` / `showCaptainVoting` / `showQualifier` / `showPlayoffBracket` 等），是路由守卫与 UI 条件渲染的唯一入口
 - `utils/cn.ts` — Tailwind class merge 工具
+- `action-utils.ts` — 共享错误处理（failValidation / actionError / isPgUniqueViolation）+ DB 查询工具（getSeasonOrThrow / getMatchOrThrow / getRegistrationOrThrow）
+- `revalidation.ts` — 集中路径重验证（revalidateSeasonPaths / revalidateMatchPaths）
 
 ## 数据流：报名写入
 

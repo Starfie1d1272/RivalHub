@@ -11,6 +11,7 @@ import { users } from "@/db/schema/users";
 import { seasonRegistrations } from "@/db/schema/registrations";
 import { ok, fail } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
+import { actionError } from "@/lib/action-utils";
 import { extractScoreboardFromBase64 } from "@/lib/ocr";
 import type { PlayerRowOCR } from "@/lib/ocr";
 import { requireAdmin, auditActorId, requireAuth } from "@/lib/auth/session";
@@ -155,11 +156,7 @@ export async function savePlayerStats(
 
     return ok({ saved: stats.length });
   } catch (e) {
-    if (e instanceof AppError) {
-      return fail({ code: e.code, message: e.message });
-    }
-    console.error("[savePlayerStats]", e);
-    return fail({ code: ErrorCode.INTERNAL_ERROR, message: ERROR_MESSAGES.INTERNAL_ERROR });
+    return actionError("savePlayerStats", e);
   }
 }
 

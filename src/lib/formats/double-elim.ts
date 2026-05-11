@@ -63,7 +63,14 @@ export const doubleElimExecutor: StageExecutor = {
       throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "请先一键生成赛程");
     }
 
-    const standings = await calculateStandings(seasonId, teams, previousStage.key);
+    const finishedMatches = await db.query.matches.findMany({
+      where: and(
+        eq(matches.seasonId, seasonId),
+        eq(matches.stage, previousStage.key),
+        eq(matches.status, "finished"),
+      ),
+    });
+    const standings = calculateStandings(teams, finishedMatches);
     const seededNames = standings.slice(0, config.teamCount).map((standing) => standing.teamName);
     const { updatedData, resolvedMatches } = await seedPlayoff(
       seededNames,

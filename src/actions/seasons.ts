@@ -7,6 +7,7 @@ import { db } from "@/db/client";
 import { auditLogs, seasonRegistrations, seasons } from "@/db/schema";
 import { ok, fail, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
+import { actionError } from "@/lib/action-utils";
 import { auditActorId, requireSuperAdmin } from "@/lib/auth/session";
 import {
   RIVALS_REGISTRATION_CONFIG,
@@ -47,6 +48,7 @@ const registrationConfigSchema = z.object({
   }),
   maxPerPosition: z.number().int().min(1).max(50),
   screenshotCount: z.number().int().min(1).max(5),
+  maxTotal: z.number().int().min(1).max(1000),
 });
 
 const seasonFormBaseSchema = z.object({
@@ -169,9 +171,7 @@ export async function createSeason(input: SeasonFormInput): Promise<ActionResult
     revalidatePath("/admin");
     return ok({ seasonId: season.id, slug: season.slug });
   } catch (e) {
-    if (e instanceof AppError) return fail({ code: e.code, message: e.message });
-    console.error("[createSeason]", e);
-    return fail({ code: ErrorCode.INTERNAL_ERROR, message: ERROR_MESSAGES.INTERNAL_ERROR });
+    return actionError("createSeason", e);
   }
 }
 
@@ -256,9 +256,7 @@ export async function updateSeason(input: SeasonFormInput): Promise<ActionResult
     revalidatePath(`/admin/${existing.slug}/settings`);
     return ok({ slug: existing.slug });
   } catch (e) {
-    if (e instanceof AppError) return fail({ code: e.code, message: e.message });
-    console.error("[updateSeason]", e);
-    return fail({ code: ErrorCode.INTERNAL_ERROR, message: ERROR_MESSAGES.INTERNAL_ERROR });
+    return actionError("updateSeason", e);
   }
 }
 
@@ -293,9 +291,7 @@ export async function publishSeason(seasonId: string): Promise<ActionResult<{ sl
     revalidatePath("/seasons");
     return ok({ slug: season.slug });
   } catch (e) {
-    if (e instanceof AppError) return fail({ code: e.code, message: e.message });
-    console.error("[publishSeason]", e);
-    return fail({ code: ErrorCode.INTERNAL_ERROR, message: ERROR_MESSAGES.INTERNAL_ERROR });
+    return actionError("publishSeason", e);
   }
 }
 
@@ -331,8 +327,6 @@ export async function deleteSeason(seasonId: string): Promise<ActionResult<void>
     revalidatePath("/admin");
     return ok(undefined);
   } catch (e) {
-    if (e instanceof AppError) return fail({ code: e.code, message: e.message });
-    console.error("[deleteSeason]", e);
-    return fail({ code: ErrorCode.INTERNAL_ERROR, message: ERROR_MESSAGES.INTERNAL_ERROR });
+    return actionError("deleteSeason", e);
   }
 }

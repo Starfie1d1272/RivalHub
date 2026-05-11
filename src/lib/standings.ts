@@ -10,10 +10,8 @@
 // BO1 场景下：matches.scoreA/scoreB 存储的是回合数（如 13、8），
 // 胜者 = 回合数更高的一方（不允许平局）。
 
-import { eq, and, or, inArray } from "drizzle-orm";
-import { db } from "@/db/client";
-import { matches } from "@/db/schema";
 import type { Team } from "@/db/schema/teams";
+import type { Match } from "@/db/schema/matches";
 
 export interface TeamStanding {
   teamId: string;
@@ -32,22 +30,13 @@ export interface TeamStanding {
 }
 
 /**
- * 计算指定赛季排位赛积分榜，返回按种子排序的结果。
- * 仅统计 status = 'finished' 的 qualifier 场次。
+ * 计算积分榜，返回按种子排序的结果。
+ * 这是一个纯函数，不访问数据库。调用方负责传入已完成比赛。
  */
-export async function calculateStandings(
-  seasonId: string,
+export function calculateStandings(
   teams: Team[],
-  stageKey = "qualifier",
-): Promise<TeamStanding[]> {
-  const finishedMatches = await db.query.matches.findMany({
-    where: and(
-      eq(matches.seasonId, seasonId),
-      eq(matches.stage, stageKey),
-      eq(matches.status, "finished")
-    ),
-  });
-
+  finishedMatches: Match[],
+): TeamStanding[] {
   // 初始化每支队伍的数据
   const stats = new Map<string, { wins: number; losses: number; netRounds: number; totalRoundsWon: number }>();
   for (const t of teams) {
@@ -61,14 +50,13 @@ export async function calculateStandings(
 
     const scoreA = m.scoreA;
     const scoreB = m.scoreB;
-    const aWon = scoreA > scoreB;
 
     a.totalRoundsWon += scoreA;
     b.totalRoundsWon += scoreB;
     a.netRounds += scoreA - scoreB;
     b.netRounds += scoreB - scoreA;
-    if (aWon) { a.wins++; b.losses++; }
-    else       { b.wins++; a.losses++; }
+    if (scoreA > scoreB) { a.wins++; b.losses++; }
+    else { b.wins++; a.losses++; }
   }
 
   const standings: TeamStanding[] = teams.map((t) => {
@@ -86,7 +74,7 @@ export async function calculateStandings(
     const h2h = finishedMatches.find(
       (m) =>
         (m.teamAId === a.teamId && m.teamBId === b.teamId) ||
-        (m.teamAId === b.teamId && m.teamBId === a.teamId)
+        (m.teamAId === b.teamId && m.teamBId === a.teamId),
     );
     if (h2h) {
       const aWonH2H =

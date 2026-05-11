@@ -9,6 +9,7 @@ import { adminInvites } from "@/db/schema/admin-invites";
 import { ok, fail } from "@/types/action";
 import { ErrorCode } from "@/lib/errors";
 import type { ActionResult } from "@/types/action";
+import { actionError } from "@/lib/action-utils";
 import {
   requireAuth,
   createUserSession,
@@ -55,8 +56,7 @@ export async function loginWithPassword(
 
     return ok({ email });
   } catch (e) {
-    console.error("[loginWithPassword]", e);
-    return fail({ code: ErrorCode.INTERNAL_ERROR, message: "登录失败，请稍后重试" });
+    return actionError("loginWithPassword", e);
   }
 }
 
@@ -103,8 +103,7 @@ export async function signUp(
 
     return ok({ email });
   } catch (e) {
-    console.error("[signUp]", e);
-    return fail({ code: ErrorCode.INTERNAL_ERROR, message: "注册失败，请稍后重试" });
+    return actionError("signUp", e);
   }
 }
 
@@ -114,8 +113,7 @@ export async function logoutUser(): Promise<ActionResult<undefined>> {
     await destroyAdminSession();
     return ok(undefined);
   } catch (e) {
-    console.error("[logoutUser]", e);
-    return fail({ code: ErrorCode.INTERNAL_ERROR, message: "退出失败，请稍后重试" });
+    return actionError("logoutUser", e);
   }
 }
 
@@ -201,7 +199,6 @@ export async function claimInviteCode(code: string): Promise<ActionResult<{ role
     revalidatePath("/admin");
     return ok({ role: newRole });
   } catch (e) {
-    console.error("[claimInviteCode]", e);
-    return fail({ code: ErrorCode.INTERNAL_ERROR, message: "提权失败，请稍后重试" });
+    return actionError("claimInviteCode", e);
   }
 }

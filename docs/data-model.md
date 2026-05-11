@@ -31,7 +31,7 @@ erDiagram
     bool has_captain_voting
     bool has_draft
     json stage_plan "StageConfig[]"
-    json registration_config "RegistrationConfig"
+    json registration_config "RegistrationConfig (含 maxTotal)"
     int min_team_size
     int max_team_size
     json team_registration_config "TeamRegistrationConfig"
@@ -363,13 +363,46 @@ erDiagram
 - `captain_votes(candidate_registration_id)` — 票数聚合
 - `draft_picks(season_id, round, pick_number)` — 选秀顺序查询
 - `matches(season_id, status)` — 赛程过滤
+- `match_time_proposals(match_id, status)` — 时间协商查询
+- `match_rosters(match_id)` — 名单查询
+- `match_roster_players(roster_id)` — 名单成员查询
+
+---
+
+## Phase 2 新增表（Sub-project 2）
+
+### `match_time_proposals` — 比赛时间协商
+| 列 | 类型 | 说明 |
+|---|---|---|
+| `id` | uuid PK | |
+| `match_id` | uuid FK → matches.id | 关联比赛 |
+| `proposed_by` | uuid FK → users.id | 提议队长 |
+| `force_assigned_by` | uuid FK → users.id | 管理员强制指定（nullable） |
+| `status` | text | pending / accepted / rejected / expired |
+| `proposed_time` | timestamptz | 提议的比赛时间 |
+| `response_at` | timestamptz | 回应时间 |
+| `reject_reason` | text | 拒绝原因（≤200 字） |
+
+### `match_rosters` + `match_roster_players` — 赛前名单提交
+| 表 | 列 | 类型 | 说明 |
+|---|---|---|---|
+| `match_rosters` | `id` | uuid PK | |
+| | `match_id` | uuid FK → matches.id UNIQUE | 每场比赛一条记录 |
+| | `submitted_by` | uuid FK → users.id | 提交队长 |
+| | `status` | text | submitted / unlocked |
+| | `locked_at` | timestamptz | 提交锁定时间 |
+| `match_roster_players` | `roster_id` | uuid FK → match_rosters.id CASCADE | |
+| | `team_member_id` | uuid FK → team_members.id | |
+| | `is_starter` | boolean | true = 首发（5人），false = 替补（≤2人） |
+| | PK | unique(roster_id, team_member_id) | |
 
 ---
 
 ## 强制约束（来自规则书）
 
 1. 每个主选位置上限 15 人（应用层 Server Action 校验，不用 DB 触发器）。
-2. 每位选手每届赛事只能投 3 票（应用层计数校验）。
-3. 每队同主选位置不超过 2 人（选秀 pick 时 Server Action 校验）。
-4. 选秀共 6 轮，每队选 6 人（队长本人 + 6 pick = 7 人）。
-5. 时间字段统一 UTC 存储，`Asia/Shanghai` 展示。
+2. 总报名人数上限 56 人（`registrationConfig.maxTotal`，应用层校验）。
+3. 每位选手每届赛事只能投 3 票（应用层计数校验）。
+4. 每队同主选位置不超过 2 人（选秀 pick 时 Server Action 校验）。
+5. 选秀共 6 轮，每队选 6 人（队长本人 + 6 pick = 7 人）。
+6. 时间字段统一 UTC 存储，`Asia/Shanghai` 展示。

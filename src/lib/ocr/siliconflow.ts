@@ -1,10 +1,12 @@
 import { ocrResponseSchema, type ScoreboardOCRResult, type OCRProvider } from "./types";
 
 const DEFAULT_API_URL = "https://api.siliconflow.cn/v1/chat/completions";
-const DEFAULT_MODEL = "Qwen/Qwen3-VL-8B-Instruct";
+const DEFAULT_MODEL = "PaddlePaddle/PaddleOCR-VL-1.5";
 
 const SYSTEM_PROMPT = `你是一个电竞赛事数据录入助手。用户会发送一张完美平台（Perfect World）CS2 赛后记分板截图。
 请精确识别截图中所有玩家的统计数据，以 JSON 格式返回，不要添加任何解释文字。
+
+你必须只输出合法 JSON，不要输出 Markdown 代码块，不要输出解释文字。
 
 输出格式（严格遵守）：
 {
@@ -35,6 +37,78 @@ const SYSTEM_PROMPT = `你是一个电竞赛事数据录入助手。用户会发
 - 如果某个格子无法识别或为空，填 null
 - 不要推断或捏造任何数据`;
 
+function extractJson(text: string): unknown {
+  const cleaned = text
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/```$/i, "")
+    .trim();
+
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error("模型没有返回可解析 JSON");
+    return JSON.parse(match[0]);
+  }
+}
+
+interface CallParams {
+  apiUrl: string;
+  apiKey: string;
+  model: string;
+  base64Image: string;
+  mimeType: string;
+  withResponseFormat: boolean;
+}
+
+async function callAPI(params: CallParams) {
+  const body: Record<string, unknown> = {
+    model: params.model,
+    messages: [
+      { role: "system", content: SYSTEM_PROMPT },
+      {
+        role: "user",
+        content: [
+          {
+            type: "image_url",
+            image_url: { url: `data:${params.mimeType};base64,${params.base64Image}` },
+          },
+          { type: "text", text: "请识别并返回这张完美平台记分板截图中所有玩家的数据。" },
+        ],
+      },
+    ],
+    max_tokens: 4096,
+    temperature: 0,
+  };
+
+  if (params.withResponseFormat) {
+    body.response_format = { type: "json_object" };
+  }
+
+  const response = await fetch(params.apiUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${params.apiKey}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    const status = response.status;
+    return { ok: false, status, text } as const;
+  }
+
+  const json = await response.json();
+  const content = json?.choices?.[0]?.message?.content;
+  if (!content) {
+    throw new Error("SiliconFlow API 返回为空");
+  }
+  return { ok: true, content } as const;
+}
+
 async function extract(base64Image: string, mimeType: string): Promise<ScoreboardOCRResult> {
   const apiKey = process.env.SILICONFLOW_API_KEY;
   if (!apiKey) {
@@ -44,51 +118,22 @@ async function extract(base64Image: string, mimeType: string): Promise<Scoreboar
   const apiUrl = process.env.SILICONFLOW_API_URL || DEFAULT_API_URL;
   const model = process.env.SILICONFLOW_MODEL || DEFAULT_MODEL;
 
-  const response = await fetch(apiUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        {
-          role: "user",
-          content: [
-            {
-              type: "image_url",
-              image_url: { url: `data:${mimeType};base64,${base64Image}` },
-            },
-            { type: "text", text: "请识别并返回这张完美平台记分板截图中所有玩家的数据。" },
-          ],
-        },
-      ],
-      response_format: { type: "json_object" },
-      max_tokens: 2048,
-      temperature: 0,
-    }),
-  });
+  const callParams: CallParams = { apiUrl, apiKey, model, base64Image, mimeType, withResponseFormat: true };
 
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`SiliconFlow API 错误 ${response.status}: ${text}`);
+  // 第一次尝试：带 response_format json_object（LLM 模型支持，VL 模型可能拒绝）
+  let result = await callAPI(callParams);
+
+  // 如果是 400 错误，可能是模型不支持 response_format，回退到不带 response_format
+  if (!result.ok && result.status === 400) {
+    callParams.withResponseFormat = false;
+    result = await callAPI(callParams);
   }
 
-  const json = await response.json();
-  const content = json?.choices?.[0]?.message?.content;
-  if (!content) {
-    throw new Error("SiliconFlow API 返回为空");
+  if (!result.ok) {
+    throw new Error(`SiliconFlow API 错误 ${result.status}: ${result.text}`);
   }
 
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(content);
-  } catch {
-    throw new Error(`无法解析 API 返回的 JSON: ${content.slice(0, 200)}`);
-  }
-
+  const parsed = extractJson(result.content);
   const validated = ocrResponseSchema.safeParse(parsed);
   if (!validated.success) {
     const issues = validated.error.issues.map((i) => i.message).join("; ");

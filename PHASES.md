@@ -181,9 +181,11 @@
 
 - [x] vercel.json 创建（Cron Job 配置）
 - [x] `/api/cron/draft-timeout` 接入 `runDraftTimeoutCron` + CRON_SECRET 鉴权
+- [x] Sub-project 1 完成：代码整理 + 配置修正（config 合并、action-utils/revalidation、standings 解耦、draft/matches 拆分、测试覆盖、文档对齐）
 - [ ] Vercel Dashboard 环境变量配置
 - [ ] Vercel 首次部署
 - [ ] 自定义域名绑定
+- [ ] Sub-project 2：比赛时间协商 + 赛前名单提交（see docs/superpowers/specs/2026-05-12-match-time-roster-design.md）
 - [ ] Playwright E2E 跑关键路径（注册 → 投票 → 选秀 → 比赛）
 - [ ] 性能基准（LCP / FCP）验收
 

@@ -16,7 +16,8 @@
 | `hasCaptainVoting` | `boolean` | `true` | `false` | 是否有队长投票环节 |
 | `hasDraft` | `boolean` | `true` | `false` | 是否有蛇形选秀 |
 | `stagePlan` | `StagePlan` | `round_robin -> double_elim` | `round_robin -> double_elim` | 多阶段赛制计划，`matches.stage` 存阶段 `key` |
-| `registrationConfig` | `RegistrationConfig` | Rivals 默认报名规则 | Rivals 默认报名规则 | 身份类型、段位门槛、位置上限、截图数量 |
+| `registrationConfig` | `RegistrationConfig` | Rivals 默认（含 maxTotal: 56） | Rivals 默认 | 身份类型、段位门槛、位置上限、截图数量、总人数上限 |
+
 | `minTeamSize` | `integer` | `7` | `5` | 每队最少人数 |
 | `maxTeamSize` | `integer` | `7` | `9` | 每队最多人数 |
 | `starterCount` | `integer` | `5` | `5` | 首发人数 |
@@ -124,14 +125,19 @@ return (
 
 ---
 
+## 配置源
+
+`src/types/season.ts` 是配置定义的 source of truth。所有 `RegistrationConfig`（含 `maxTotal`）、`StagePlan`、`TeamRegistrationConfig` 均在此定义并导出。`RIVALS_REGISTRATION_CONFIG`（默认 `maxTotal: 56`）和 `MAJOR_REGISTRATION_CONFIG`（默认 `maxTotal: 256`）为两个内置预设。
+
 ## Capability 预设
 
-`src/types/season.ts` 提供两个内置预设，通过 `CAPABILITY_PRESETS` 索引访问：
+`src/types/season.ts` 提供三个内置预设，通过 `CAPABILITY_PRESETS` 索引访问：
 
 | 预设名 | 说明 |
 |---|---|
 | `draft-league` | 选秀联赛（个人报名 → 投票 → 选秀 → 循环赛 + 双败） |
 | `open-tournament` | 公开赛（队伍报名 → 循环赛 + 双败） |
+| `major` | Major 公开赛（32 队 3 轮 Swiss + 单败淘汰） |
 
 部署者可以基于预设创建赛季，也可以完全自定义每个 capability 字段。
 

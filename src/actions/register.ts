@@ -6,12 +6,8 @@ import { db } from "@/db/client";
 import { users, seasons, seasonRegistrations } from "@/db/schema";
 import { ok, fail } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
-import {
-  buildRegistrationSchema,
-  registrationSeedSchema,
-  type RegistrationFormData,
-} from "@/lib/validators/registration";
-import { createServiceClient } from "@/lib/auth/supabase";
+import { actionError } from "@/lib/action-utils";
+import { buildRegistrationSchema, registrationSeedSchema, type RegistrationFormData } from "@/lib/validators/registration";
 import { normalizeRegistrationConfig } from "@/types/season";
 
 /**
@@ -20,9 +16,9 @@ import { normalizeRegistrationConfig } from "@/types/season";
  * 2. 检查赛季存在且状态为 registration
  * 3. Upsert 用户（按 email）
  * 4. 检查是否重复报名
- * 5. 检查位置名额
- * 6. 插入报名记录
- * 7. 发送 Magic Link 邮件（非关键，失败不影响报名）
+ * 5. 检查全局总报名人数上限
+ * 6. 检查位置名额
+ * 7. 插入报名记录
  */
 export async function submitRegistration(input: RegistrationFormData) {
   const seedParsed = registrationSeedSchema.safeParse(input);
@@ -107,7 +103,16 @@ export async function submitRegistration(input: RegistrationFormData) {
       throw new AppError(ErrorCode.REGISTRATION_DUPLICATE, ERROR_MESSAGES.REGISTRATION_DUPLICATE);
     }
 
-    // 5. 位置名额检查
+    // 5. 全局总报名人数上限检查
+    const [totalCount] = await db
+      .select({ count: count() })
+      .from(seasonRegistrations)
+      .where(eq(seasonRegistrations.seasonId, data.seasonId));
+    if (Number(totalCount?.count ?? 0) >= registrationConfig.maxTotal) {
+      throw new AppError(ErrorCode.REGISTRATION_FULL, ERROR_MESSAGES.REGISTRATION_FULL);
+    }
+
+    // 6a. 事务插入报名记录
     const [posCount] = await db
       .select({ count: count() })
       .from(seasonRegistrations)
@@ -146,25 +151,10 @@ export async function submitRegistration(input: RegistrationFormData) {
       })
       .returning();
 
-    // 7. 发送 Magic Link（失败不阻断报名）
-    try {
-      const supabase = createServiceClient();
-      await supabase.auth.signInWithOtp({
-        email: data.email,
-        options: { shouldCreateUser: true },
-      });
-    } catch (mailErr) {
-      console.warn("[submitRegistration] magic link failed:", mailErr);
-    }
-
     revalidatePath(`/${season.slug}/register`);
     return ok({ registrationId: registration.id, email: data.email });
   } catch (e) {
-    if (e instanceof AppError) {
-      return fail({ code: e.code, message: e.message });
-    }
-    console.error("[submitRegistration]", e);
-    return fail({ code: ErrorCode.INTERNAL_ERROR, message: ERROR_MESSAGES.INTERNAL_ERROR });
+    return actionError("submitRegistration", e);
   }
 }
 

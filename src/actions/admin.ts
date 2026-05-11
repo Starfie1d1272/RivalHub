@@ -8,6 +8,7 @@ import { db } from "@/db/client";
 import { seasons, seasonRegistrations, auditLogs, adminUsers, adminInvites } from "@/db/schema";
 import { ok, fail } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
+import { actionError } from "@/lib/action-utils";
 import {
   auditActorId,
   requireSeasonAdmin,
@@ -229,11 +230,7 @@ export async function reviewRegistration(input: ReviewInput) {
     if (season) revalidatePath(`/admin/${season.slug}/registrations`);
     return ok({ id: registrationId, status: targetStatus });
   } catch (e) {
-    if (e instanceof AppError) {
-      return fail({ code: e.code, message: e.message });
-    }
-    console.error("[reviewRegistration]", e);
-    return fail({ code: ErrorCode.INTERNAL_ERROR, message: ERROR_MESSAGES.INTERNAL_ERROR });
+    return actionError("reviewRegistration", e);
   }
 }
 

@@ -3,6 +3,7 @@ import { REGISTRATION_DEFAULTS } from "@/lib/config/registration-defaults";
 import {
   PLAYER_TYPE_LABELS,
   normalizeRegistrationConfig,
+  RIVALS_REGISTRATION_CONFIG,
   type PlayerType,
   type RegistrationConfig,
 } from "@/types/season";
@@ -21,15 +22,6 @@ export type Rank = RankValue;
 export const RANK_LABELS = REGISTRATION_DEFAULTS.ranks.labels;
 export { PLAYER_TYPE_LABELS };
 
-// ── 默认报名配置 ────────────────────────────────────
-export const DEFAULT_REGISTRATION_CONFIG: RegistrationConfig = {
-  allowedPlayerTypes: ["enrolled"],
-  rankThreshold: { currentMin: "A", peakMin: "A+" },
-  maxPerPosition: REGISTRATION_DEFAULTS.maxPerPosition,
-  screenshotCount: REGISTRATION_DEFAULTS.screenshotCount,
-};
-
-export const MAX_PER_POSITION = DEFAULT_REGISTRATION_CONFIG.maxPerPosition;
 export const RANK_ORDER = REGISTRATION_DEFAULTS.ranks.values;
 
 export const registrationSeedSchema = z.object({
@@ -71,7 +63,7 @@ export function buildRegistrationSchema(
   const positions = nonEmptyAllowed(inputPositions, positionValues);
   const allowedPlayerTypes = nonEmptyAllowed<PlayerType>(
     config.allowedPlayerTypes,
-    DEFAULT_REGISTRATION_CONFIG.allowedPlayerTypes,
+    RIVALS_REGISTRATION_CONFIG.allowedPlayerTypes,
   );
 
   return z
@@ -238,7 +230,7 @@ export function buildRegistrationSchema(
 }
 
 export const registrationSchema = buildRegistrationSchema(
-  DEFAULT_REGISTRATION_CONFIG,
+  RIVALS_REGISTRATION_CONFIG,
   positionValues,
 );
 

@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matches, seasons, teams } from "@/db/schema";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
@@ -70,7 +70,14 @@ export const roundRobinExecutor: StageExecutor = {
     const seasonTeams = await db.query.teams.findMany({
       where: eq(teams.seasonId, seasonId),
     });
-    const standings = await calculateStandings(seasonId, seasonTeams, config.key);
+    const finishedMatches = await db.query.matches.findMany({
+      where: and(
+        eq(matches.seasonId, seasonId),
+        eq(matches.stage, config.key),
+        eq(matches.status, "finished"),
+      ),
+    });
+    const standings = calculateStandings(seasonTeams, finishedMatches);
     const advanceCount = config.advanceTiers.reduce((sum, t) => sum + t.count, 0);
     return standings.slice(0, advanceCount).map((s) => ({
       teamId: s.teamId,

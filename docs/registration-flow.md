@@ -23,16 +23,16 @@
   ├── 已满 → 返回错误"该位置已满员"
   └── 未满 → INSERT season_registrations（status=pending）
               ↓
-              触发 Magic Link 邮件（supabase.auth.signInWithOtp）
+              触发 Magic Link 邮件（supabase.auth.signInToOtp）→ **v1 已移除 Magic Link 发送步骤，改用 email+password 登录**
               ↓
-              返回成功 → 页面跳转"报名成功，请查收邮件"
+              返回成功 → 页面跳转"报名成功"
 ```
 
 ---
 
 ## 截图上传
 
-**当前方案（v1）**：选手将 5 张天梯截图上传至 NJUBox（https://box.nju.edu.cn），获取分享链接后填入报名表单的「NJUBox 分享链接」字段。提交时直接存储该 URL。
+**当前方案（v1）**：选手将天梯截图上传至 NJUBox（https://box.nju.edu.cn），获取分享链接后填入报名表单的「NJUBox 分享链接」字段。提交时直接存储该 URL。截图数量由 `registrationConfig.screenshotCount` 控制（默认 1 张）。
 
 **未来方案（Phase 5+）**：支持客户端直传 Supabase Storage，避免依赖第三方图床。
 - Bucket 名称：`registration-screenshots`
@@ -41,6 +41,12 @@
 
 ---
 
+## 总人数上限
+
+除位置满员检测外，赛季还有全局报名人数上限（`registrationConfig.maxTotal`，默认 56 人）。到达后新报名被拒绝，返回"报名总人数已达上限"。
+
+---
+  
 ## 位置满员检测
 
 ### 前端展示（不使用 Realtime）
@@ -82,7 +88,7 @@ GROUP BY primary_position;
 
 | 字段 | 说明 | 校验规则 |
 |---|---|---|
-| `email` | 邮箱（用于 Magic Link） | 有效 email 格式 |
+| `email` | 邮箱（用于登录） | 有效 email 格式 |
 | `studentId` | 学号 | 非空；毕业生填「毕业年份+学院」 |
 | `qq` | QQ 号 | 5-12 位数字 |
 | `perfectName` | 完美平台昵称（记分板显示名） | 非空 |
@@ -102,11 +108,16 @@ GROUP BY primary_position;
 
 ### 报名段位门槛
 
-**以下两个条件满足其一即可报名**：
-- 当前赛季最高段位 ≥ **A**（含）
-- 历史最高段位 ≥ **A+**（含）
+**以下两个条件满足其一即可报名**（当前赛季最高段位 ≥ **A** 或历史最高段位 ≥ **A+**）：
+- 在校生（`enrolled`）和毕业生（`graduated`）均可报名
 
 校验在 Zod schema（客户端）和 Server Action（服务端）两层执行。
+
+### 报名人数限制
+
+- 总报名人数上限 `maxTotal`：默认 56 人（8 队 × 7 人/队），到达后新报名被拒绝
+- 每位置上限 `maxPerPosition`：默认 15 人，由 Server Action COUNT GROUP BY 校验
+- `allowedPlayerTypes`：允许的选手身份类型，默认 `["enrolled", "graduated"]`
 
 ### 选填字段
 
@@ -121,14 +132,12 @@ GROUP BY primary_position;
 
 ---
 
-## Magic Link 与 users 表关联
+## 用户认证流程
 
-用户首次点击 Magic Link：
-1. Supabase Auth 创建 `auth.users` 记录
-2. 通过 Supabase Auth webhook（或 after-login callback）在 `public.users` 插入记录，`auth_id` 关联
-3. 将 `season_registrations.user_id` 更新为新创建的 `users.id`
-
-**v1 简化方案**：报名时先以 email 作为临时标识存入 `season_registrations`，Magic Link 点击后再关联 `users.id`（通过 Supabase Auth trigger）。
+用户首次报名后：
+1. 报名时邮件触发 Supabase Auth Magic Link（如启用）或 Email+Password 注册
+2. 通过 Supabase Auth callback 在 `public.users` 插入记录，`auth_id` 关联
+3. 后续登录通过 `iron-session` 保存会话状态
 
 ---
 
@@ -140,4 +149,5 @@ GROUP BY primary_position;
 | 位置已满 | "该位置主选名额已满，可选择其他位置报名" |
 | 已报名过 | "您已提交报名，请等待审核结果通知" |
 | 截图上传失败 | "截图上传失败，请检查网络后重试" |
+| 总人数已满 | "报名总人数已达上限" |
 | 提交失败（网络） | Toast 错误提示 + 允许重新提交（幂等）|

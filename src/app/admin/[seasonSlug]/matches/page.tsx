@@ -110,9 +110,10 @@ export default async function AdminMatchesPage({ params }: AdminMatchesPageProps
     playoffCount === 0;
 
   // 积分榜（有排位赛时计算）
+  const finishedQualifierMatches = qualifierMatches.filter((m) => m.status === "finished");
   const standings =
     qualifierStage && qualifierCount > 0
-      ? await calculateStandings(season.id, allTeams, qualifierKey)
+      ? calculateStandings(allTeams, finishedQualifierMatches)
       : [];
 
   const hasQualifier = !!qualifierStage;

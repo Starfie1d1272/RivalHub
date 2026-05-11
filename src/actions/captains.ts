@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { and, count, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
@@ -12,7 +11,7 @@ import {
   teams,
   users,
 } from "@/db/schema";
-import { fail, ok, type ActionResult } from "@/types/action";
+import { ok, fail, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { requireAuth, requireSeasonAdmin } from "@/lib/auth/session";
 import {
@@ -28,6 +27,8 @@ import {
   selectCaptainSeeds,
   validateCaptainVote,
 } from "@/lib/captains/rules";
+import { failValidation, actionError, isPgUniqueViolation } from "@/lib/action-utils";
+import { revalidateSeasonPaths } from "@/lib/revalidation";
 
 export async function castVote(
   input: CastVoteInput,
@@ -276,11 +277,7 @@ export async function confirmCaptains(
       return { seasonSlug: season.slug, teamIds: createdTeamIds };
     });
 
-    revalidatePath(`/${result.seasonSlug}/captains`);
-    revalidatePath(`/${result.seasonSlug}/teams`);
-    revalidatePath(`/${result.seasonSlug}/draft`);
-    revalidatePath(`/admin/${result.seasonSlug}/captains`);
-    revalidatePath(`/admin/${result.seasonSlug}/draft`);
+    revalidateSeasonPaths(result.seasonSlug, ["captains", "teams", "draft", "adminCaptains", "adminDraft"]);
     return ok({ teamIds: result.teamIds });
   } catch (e) {
     return actionError("confirmCaptains", e);
@@ -293,29 +290,11 @@ async function revalidateCaptainPaths(registrationId: string) {
     columns: { seasonId: true },
   });
   if (!registration) return;
-
   const season = await db.query.seasons.findFirst({
     where: eq(seasons.id, registration.seasonId),
     columns: { slug: true },
   });
   if (!season) return;
-
-  revalidatePath(`/${season.slug}/captains`);
-  revalidatePath(`/admin/${season.slug}/captains`);
+  revalidateSeasonPaths(season.slug, ["captains", "adminCaptains"]);
 }
 
-function failValidation(message: string): ActionResult<never> {
-  return fail({ code: ErrorCode.VALIDATION_FAILED, message });
-}
-
-function actionError(scope: string, e: unknown): ActionResult<never> {
-  if (e instanceof AppError) {
-    return fail({ code: e.code, message: e.message });
-  }
-  console.error(`[${scope}]`, e);
-  return fail({ code: ErrorCode.INTERNAL_ERROR, message: ERROR_MESSAGES.INTERNAL_ERROR });
-}
-
-function isPgUniqueViolation(e: unknown): boolean {
-  return typeof e === "object" && e !== null && "code" in e && (e as { code: string }).code === "23505";
-}

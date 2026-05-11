@@ -61,6 +61,8 @@ export interface RegistrationConfig {
   };
   maxPerPosition: number;
   screenshotCount: number;
+  /** 总报名人数上限，默认 56。到达后新报名被拒绝 */
+  maxTotal: number;
 }
 
 export interface TeamRegistrationConfig {
@@ -148,14 +150,16 @@ export const RIVALS_STAGE_PLAN: StagePlan = [
     key: "playoff", name: "正赛", type: "double_elim", teamCount: 8,
     advanceTiers: [{ placement: "1st", count: 1 }],
     matchFormat: "bo3",
+    finalFormat: "bo5",
   },
 ];
 
 export const RIVALS_REGISTRATION_CONFIG: RegistrationConfig = {
-  allowedPlayerTypes: ["enrolled"],
+  allowedPlayerTypes: ["enrolled", "graduated"],
   rankThreshold: { currentMin: "A", peakMin: "A+" },
   maxPerPosition: 15,
   screenshotCount: 1,
+  maxTotal: 56,
 };
 
 /** 选秀联赛预设：个人报名 → 队长投票 → 蛇形选秀 → 循环赛 + 双败淘汰 */
@@ -235,6 +239,7 @@ export const MAJOR_REGISTRATION_CONFIG: RegistrationConfig = {
   rankThreshold: { currentMin: null, peakMin: null },
   maxPerPosition: 50,
   screenshotCount: 1,
+  maxTotal: 256,
 };
 
 /** 所有预设的快捷索引 */
@@ -320,6 +325,7 @@ export function normalizeRegistrationConfig(
     },
     maxPerPosition: config?.maxPerPosition ?? RIVALS_REGISTRATION_CONFIG.maxPerPosition,
     screenshotCount: config?.screenshotCount ?? RIVALS_REGISTRATION_CONFIG.screenshotCount,
+    maxTotal: config?.maxTotal ?? RIVALS_REGISTRATION_CONFIG.maxTotal,
   };
 }
 
