@@ -47,7 +47,7 @@ function emptyToNull(value: string): string | null {
 function slugFromName(name: string): string {
   if (!name) return "";
   return name
-    .replace(/[^\w\s一-鿿-]/g, "")
+    .replace(/[^\w\s-]/g, "")
     .replace(/\s+/g, "-")
     .toLowerCase()
     .replace(/-+/g, "-")
