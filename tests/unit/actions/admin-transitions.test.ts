@@ -44,7 +44,7 @@ describe("TRANSITION_RULES", () => {
 
   it("不允许 finished→approved 这样的非法迁移", () => {
     // finished 不是合法的 RegistrationStatus，所以 TRANSITION_RULES 中没有此项
-    expect(TRANSITION_RULES["finished→approved"]).toBeUndefined();
+    expect("finished→approved" in TRANSITION_RULES).toBe(false);
   });
 });
 
