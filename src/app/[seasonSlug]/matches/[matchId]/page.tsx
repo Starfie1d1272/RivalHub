@@ -1,12 +1,17 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons, matches, teams, matchMaps } from "@/db/schema";
+import { matchPlayerStats } from "@/db/schema/player-stats";
+import { matchMvpVotes } from "@/db/schema/mvp-votes";
 import { MatchStatusBadge } from "@/components/matches/MatchStatusBadge";
+import { MatchMvpVote } from "@/components/matches/MatchMvpVote";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { PlayerStatsTable } from "@/components/matches/PlayerStatsTable";
+import { getMatchMvpResults } from "@/actions/player-stats";
+import { getUserSession } from "@/lib/auth/session";
 
 interface MatchDetailPageProps {
   params: Promise<{ seasonSlug: string; matchId: string }>;
@@ -39,6 +44,54 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   ]);
 
   const isFinished = match.status === "finished";
+
+  // ── MVP 投票数据 ──────────────────────────────────────────────
+  let mvpCandidates: {
+    userId: string | null;
+    perfectName: string;
+    ratingPro: number | null;
+  }[] = [];
+  let mvpVoteResults: Awaited<ReturnType<typeof getMatchMvpResults>> = [];
+  let userVoted: string | null = null;
+
+  if (isFinished) {
+    const allStats = (
+      await Promise.all(
+        maps.map((m) =>
+          db.query.matchPlayerStats.findMany({
+            where: eq(matchPlayerStats.mapId, m.id),
+          })
+        )
+      )
+    ).flat();
+
+    const seen = new Set<string>();
+    mvpCandidates = allStats
+      .filter((s) => {
+        const key = s.userId ?? s.perfectName;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .map((s) => ({
+        userId: s.userId,
+        perfectName: s.perfectName,
+        ratingPro: s.ratingPro,
+      }));
+
+    mvpVoteResults = await getMatchMvpResults(match.id);
+
+    const userSession = await getUserSession();
+    if (userSession?.userId) {
+      const existingVote = await db.query.matchMvpVotes.findFirst({
+        where: and(
+          eq(matchMvpVotes.matchId, match.id),
+          eq(matchMvpVotes.voterUserId, userSession.userId),
+        ),
+      });
+      if (existingVote) userVoted = existingVote.playerName;
+    }
+  }
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-3xl space-y-8">
@@ -140,6 +193,16 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
             ))}
           </div>
         </section>
+      )}
+
+      {/* MVP 投票 */}
+      {isFinished && mvpCandidates.length > 0 && (
+        <MatchMvpVote
+          matchId={match.id}
+          candidates={mvpCandidates}
+          currentVotes={mvpVoteResults}
+          userVotedPlayerName={userVoted}
+        />
       )}
     </div>
   );
