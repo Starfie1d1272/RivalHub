@@ -23,6 +23,41 @@ import {
   resolveMatchFormat,
 } from "@/lib/match-transitions";
 
+/**
+ * 将 bracket 推进后解析出的新对阵批量写入 matches 表。
+ * recordMatchResult 和 recordMapResult 共用。
+ */
+async function insertResolvedBracketMatches(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  seasonId: string,
+  defaultStage: string,
+  updatedData: Database,
+  resolvedMatches: ResolvedBracketMatch[],
+  stagePlan: ReturnType<typeof normalizeStagePlan>,
+) {
+  const seasonTeams = await db.query.teams.findMany({
+    where: eq(teams.seasonId, seasonId),
+    orderBy: [asc(teams.draftOrder)],
+  });
+  const dbStages = updatedData.stage as BracketStageRef[];
+  for (const bm of resolvedMatches) {
+    const teamA = seasonTeams[bm.teamAParticipantId];
+    const teamB = seasonTeams[bm.teamBParticipantId];
+    if (!teamA || !teamB) continue;
+    const bmStageName = dbStages.find((s) => s.id === bm.stageId)?.name;
+    const stage = stagePlan.find((s) => s.name === bmStageName)?.key ?? defaultStage;
+    await tx.insert(matches).values({
+      seasonId,
+      teamAId: teamA.id,
+      teamBId: teamB.id,
+      stage,
+      format: resolveMatchFormat(stagePlan, stage, bm.roundNumber),
+      status: "scheduled",
+      bracketNodeId: bm.bracketMatchId.toString(),
+    });
+  }
+}
+
 // ── 查询工具 ──────────────────────────────────────────────────────────────
 
 async function getSeasonOrThrow(seasonId: string) {
@@ -277,48 +312,24 @@ export async function recordMatchResult(
 
       // 推进 bracket（若 bracket 已初始化）
       if (season.bracketData && match.bracketNodeId) {
-      const { updatedData, newResolvedMatches } = await bracketAdvance(
-        match.bracketNodeId,
-        scoreA,
-        scoreB,
-        season.bracketData as Database
-      );
+        const { updatedData, newResolvedMatches } = await bracketAdvance(
+          match.bracketNodeId,
+          scoreA,
+          scoreB,
+          season.bracketData as Database
+        );
 
-      // 持久化更新后的 bracket JSON
-      await tx
-        .update(seasons)
-        .set({ bracketData: updatedData as Database, updatedAt: new Date() })
-        .where(eq(seasons.id, match.seasonId));
+        await tx
+          .update(seasons)
+          .set({ bracketData: updatedData as Database, updatedAt: new Date() })
+          .where(eq(seasons.id, match.seasonId));
 
-      // 获取队伍列表（用于 participantId → teamId 映射）
-      const seasonTeams = await db.query.teams.findMany({
-        where: eq(teams.seasonId, match.seasonId),
-        orderBy: [asc(teams.draftOrder)],
-      });
-
-      // 为新确定对阵创建 match 记录
-      const rmrStagePlan = normalizeStagePlan(season.stagePlan);
-      for (const bm of newResolvedMatches) {
-        const teamA = seasonTeams[bm.teamAParticipantId];
-        const teamB = seasonTeams[bm.teamBParticipantId];
-        if (!teamA || !teamB) continue;
-
-        const dbStages = updatedData.stage as BracketStageRef[];
-        const bmStageName = dbStages.find((s) => s.id === bm.stageId)?.name;
-        const stage = rmrStagePlan.find((s) => s.name === bmStageName)?.key
-          ?? match.stage;
-
-        await tx.insert(matches).values({
-          seasonId: match.seasonId,
-          teamAId: teamA.id,
-          teamBId: teamB.id,
-          stage,
-          format: resolveMatchFormat(rmrStagePlan, stage, bm.roundNumber),
-          status: "scheduled",
-          bracketNodeId: bm.bracketMatchId.toString(),
-        });
+        await insertResolvedBracketMatches(
+          tx, match.seasonId, match.stage,
+          updatedData as Database, newResolvedMatches,
+          normalizeStagePlan(season.stagePlan),
+        );
       }
-    }
 
     await tx.insert(auditLogs).values({
       seasonId: match.seasonId,
@@ -407,7 +418,6 @@ export async function recordMapResult(
     // 如果系列赛结束且有 bracket，提前计算 bracket 推进结果（纯计算，不写 DB）
     let updatedBracketData: Database | null = null;
     let resolvedMatches: ResolvedBracketMatch[] = [];
-    let seasonTeams: Awaited<ReturnType<typeof db.query.teams.findMany>> = [];
 
     if (seriesFinished && season.bracketData && match.bracketNodeId) {
       const { updatedData, newResolvedMatches } = await bracketAdvance(
@@ -418,10 +428,6 @@ export async function recordMapResult(
       );
       updatedBracketData = updatedData as Database;
       resolvedMatches = newResolvedMatches;
-      seasonTeams = await db.query.teams.findMany({
-        where: eq(teams.seasonId, match.seasonId),
-        orderBy: [asc(teams.draftOrder)],
-      });
     }
 
     // 所有写操作放入同一事务，确保原子性
@@ -448,25 +454,11 @@ export async function recordMapResult(
 
         if (updatedBracketData) {
           await tx.update(seasons).set({ bracketData: updatedBracketData, updatedAt: new Date() }).where(eq(seasons.id, match.seasonId));
-          const rmrStagePlan2 = normalizeStagePlan(season.stagePlan);
-          for (const bm of resolvedMatches) {
-            const teamA = seasonTeams[bm.teamAParticipantId];
-            const teamB = seasonTeams[bm.teamBParticipantId];
-            if (!teamA || !teamB) continue;
-            const dbStages = updatedBracketData.stage as BracketStageRef[];
-            const bmStageName = dbStages.find((s) => s.id === bm.stageId)?.name;
-            const stage = rmrStagePlan2.find((s) => s.name === bmStageName)?.key
-              ?? match.stage;
-            await tx.insert(matches).values({
-              seasonId: match.seasonId,
-              teamAId: teamA.id,
-              teamBId: teamB.id,
-              stage,
-              format: resolveMatchFormat(rmrStagePlan2, stage, bm.roundNumber),
-              status: "scheduled",
-              bracketNodeId: bm.bracketMatchId.toString(),
-            });
-          }
+          await insertResolvedBracketMatches(
+            tx, match.seasonId, match.stage,
+            updatedBracketData, resolvedMatches,
+            normalizeStagePlan(season.stagePlan),
+          );
         }
       }
 
