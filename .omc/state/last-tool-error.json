@@ -1,7 +1,7 @@
 {
   "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"rtk gh pr merge 57 --merge --subject \\\"feat: season form redesign with preset system, team config, and form-based stage editor\\\" --body \\\" \\\" 2>&1\",\"description\":\"Merge PR #57\"}",
-  "error": "Exit code 1\nX Pull request Starfie1d1272/RivalHub#57 is not mergeable: the base branch policy prohibits the merge.\nTo have the pull request merged after all the requirements have been met, add the `--auto` flag.\nTo use administrator privileges to immediately merge the pull request, add the `--admin` flag.",
-  "timestamp": "2026-05-11T17:28:32.419Z",
+  "tool_input_preview": "{\"command\":\"rtk git branch -f dev origin/main && rtk git push origin dev --force-with-lease 2>&1\",\"description\":\"Reset dev to main HEAD and force push\"}",
+  "error": "Exit code 1\nok\nFAILED: git push\nremote: error: GH013: Repository rule violations found for refs/heads/dev.        \nremote: Review all repository rules at https://github.com/Starfie1d1272/RivalHub/rules?ref=refs%2Fheads%2Fdev        \nremote: \nremote: - Cannot force-push to this branch        \nremote: \nTo https://github.com/Starfie1d1272/RivalHub.git\n ! [remote rejected] dev -> dev (push declined due to repository rule violations)\nerror: failed to push some refs to 'https://github.com/Starfie1d127...",
+  "timestamp": "2026-05-11T19:20:51.722Z",
   "retry_count": 1
 }

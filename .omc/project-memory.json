@@ -52,8 +52,8 @@
     "runtime": "Node.js 20.0.0"
   },
   "build": {
-    "buildCommand": "rtk tsc --noEmit 2>&1 | tail -2 && pnpm test 2>&1 | tail -3 && rtk git add -A && rtk git commit --amend --no-edit && rtk git push --force-with-lease",
-    "testCommand": "rtk tsc --noEmit 2>&1 | tail -2 && pnpm test 2>&1 | tail -3 && rtk git add -A && rtk git commit --amend --no-edit && rtk git push --force-with-lease",
+    "buildCommand": "rtk tsc --noEmit 2>&1 | tail -5",
+    "testCommand": "pnpm test 2>&1 | tail -5",
     "lintCommand": "pnpm lint",
     "devCommand": "pnpm dev",
     "scripts": {
@@ -285,6 +285,12 @@
       "type": "file"
     },
     {
+      "path": "src/lib/validators/registration.ts",
+      "accessCount": 7,
+      "lastAccessed": 1778527442494,
+      "type": "file"
+    },
+    {
       "path": "tests/unit/actions/admin-transitions.test.ts",
       "accessCount": 6,
       "lastAccessed": 1778471071089,
@@ -300,6 +306,18 @@
       "path": "src/db/schema/index.ts",
       "accessCount": 6,
       "lastAccessed": 1778481012699,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/errors.ts",
+      "accessCount": 6,
+      "lastAccessed": 1778527393836,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/config/registration-defaults.ts",
+      "accessCount": 5,
+      "lastAccessed": 1778527557360,
       "type": "file"
     },
     {
@@ -324,12 +342,6 @@
       "path": "src/db/schema/mvp-votes.ts",
       "accessCount": 3,
       "lastAccessed": 1778480128864,
-      "type": "file"
-    },
-    {
-      "path": "src/lib/errors.ts",
-      "accessCount": 3,
-      "lastAccessed": 1778480395439,
       "type": "file"
     },
     {
@@ -396,18 +408,6 @@
       "path": "src/app/[seasonSlug]/stats/page.tsx",
       "accessCount": 2,
       "lastAccessed": 1778481724698,
-      "type": "file"
-    },
-    {
-      "path": "src/lib/validators/registration.ts",
-      "accessCount": 2,
-      "lastAccessed": 1778520146297,
-      "type": "file"
-    },
-    {
-      "path": "src/lib/config/registration-defaults.ts",
-      "accessCount": 2,
-      "lastAccessed": 1778520199753,
       "type": "file"
     },
     {

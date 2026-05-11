@@ -89,6 +89,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
   const [peakMin, setPeakMin] = useState(defaultConfig.rankThreshold.peakMin ?? NO_RANK);
   const [maxPerPosition, setMaxPerPosition] = useState(defaultConfig.maxPerPosition);
   const [screenshotCount, setScreenshotCount] = useState(defaultConfig.screenshotCount);
+  const [maxTotal, setMaxTotal] = useState(defaultConfig.maxTotal);
   const [teamConfig, setTeamConfig] = useState<TeamRegistrationConfig>(defaultTeamConfig);
 
   const coreLocked = mode === "edit" && initial?.status !== "draft";
@@ -166,6 +167,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
       },
       maxPerPosition,
       screenshotCount,
+      maxTotal,
     };
 
     return {

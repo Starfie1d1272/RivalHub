@@ -47,6 +47,7 @@ const registrationConfigSchema = z.object({
   }),
   maxPerPosition: z.number().int().min(1).max(50),
   screenshotCount: z.number().int().min(1).max(5),
+  maxTotal: z.number().int().min(1).max(1000),
 });
 
 const seasonFormBaseSchema = z.object({
