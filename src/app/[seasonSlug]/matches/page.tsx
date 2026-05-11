@@ -49,8 +49,9 @@ export default async function MatchesPage({ params }: MatchesPageProps) {
   const playoffMatches = allMatches.filter((m) => m.stage === playoffKey);
 
   // 积分榜（仅当有 round_robin 排位赛时计算）
+  const finishedQualifierMatches = qualifierMatches.filter((m) => m.status === "finished");
   const standings = qualifierStage && qualifierStage.type !== "swiss"
-    ? await calculateStandings(season.id, allTeams, qualifierKey)
+    ? calculateStandings(allTeams, finishedQualifierMatches)
     : [];
 
   // 瑞士轮视图数据（仅当有 swiss 排位赛时查询）
