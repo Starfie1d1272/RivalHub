@@ -52,8 +52,8 @@
     "runtime": "Node.js 20.0.0"
   },
   "build": {
-    "buildCommand": "rtk tsc --noEmit 2>&1 | tail -5",
-    "testCommand": "pnpm test 2>&1 | tail -10",
+    "buildCommand": "rtk tsc --noEmit 2>&1 | tail -3 && pnpm test 2>&1 | tail -3",
+    "testCommand": "rtk tsc --noEmit 2>&1 | tail -3 && pnpm test 2>&1 | tail -3",
     "lintCommand": "pnpm lint",
     "devCommand": "pnpm dev",
     "scripts": {
@@ -207,15 +207,15 @@
   },
   "hotPaths": [
     {
-      "path": "src/actions/matches.ts",
-      "accessCount": 26,
-      "lastAccessed": 1778529686557,
+      "path": "src/app/[seasonSlug]/matches/[matchId]/page.tsx",
+      "accessCount": 38,
+      "lastAccessed": 1778533915141,
       "type": "file"
     },
     {
-      "path": "src/app/[seasonSlug]/matches/[matchId]/page.tsx",
-      "accessCount": 25,
-      "lastAccessed": 1778532717873,
+      "path": "src/actions/matches.ts",
+      "accessCount": 26,
+      "lastAccessed": 1778529686557,
       "type": "file"
     },
     {
@@ -232,8 +232,8 @@
     },
     {
       "path": "src/actions/player-stats.ts",
-      "accessCount": 14,
-      "lastAccessed": 1778528476778,
+      "accessCount": 16,
+      "lastAccessed": 1778533420273,
       "type": "file"
     },
     {
@@ -264,6 +264,12 @@
       "path": "src/app/api/cron/draft-timeout/route.ts",
       "accessCount": 9,
       "lastAccessed": 1778529232751,
+      "type": "file"
+    },
+    {
+      "path": "src/actions/admin.ts",
+      "accessCount": 9,
+      "lastAccessed": 1778533417193,
       "type": "file"
     },
     {
@@ -312,12 +318,6 @@
       "path": "src/components/layout/season-nav.tsx",
       "accessCount": 7,
       "lastAccessed": 1778480779186,
-      "type": "file"
-    },
-    {
-      "path": "src/actions/admin.ts",
-      "accessCount": 7,
-      "lastAccessed": 1778528284481,
       "type": "file"
     },
     {

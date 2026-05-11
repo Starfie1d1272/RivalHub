@@ -1,6 +1,6 @@
 "use server";
 
-import { eq, and } from "drizzle-orm";
+import { eq, and, or } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matchRosters, matchRosterPlayers, teamMembers, teams, matches, seasons, seasonRegistrations } from "@/db/schema";
 import { ok, type ActionResult } from "@/types/action";
@@ -13,12 +13,11 @@ import { revalidateMatchPaths } from "@/lib/revalidation";
  * 获取队长所属的队伍 ID（用于 roster 提交的队长身份校验）。
  * 链路：userId → seasonRegistrations.id → teams.captainRegistrationId。
  */
-async function getTeamIdForCaptain(
+export async function getTeamIdForCaptain(
   userId: string,
   match: Awaited<ReturnType<typeof getMatchOrThrow>>,
 ): Promise<string | null> {
-  // 1. 查找用户在该赛季的报名记录
-  const [regA] = await db
+  const [reg] = await db
     .select({ id: seasonRegistrations.id })
     .from(seasonRegistrations)
     .where(
@@ -27,33 +26,20 @@ async function getTeamIdForCaptain(
         eq(seasonRegistrations.seasonId, match.seasonId),
       ),
     );
-  if (!regA) return null;
+  if (!reg) return null;
 
-  // 2. 检查该报名记录是否为 teamA 的队长
-  const [teamA] = await db
+  const [team] = await db
     .select({ id: teams.id })
     .from(teams)
     .where(
       and(
-        eq(teams.id, match.teamAId),
-        eq(teams.captainRegistrationId, regA.id),
+        eq(teams.captainRegistrationId, reg.id),
+        or(eq(teams.id, match.teamAId), eq(teams.id, match.teamBId)),
       ),
     );
-  if (teamA) return match.teamAId;
 
-  // 3. 检查 teamB
-  const [teamB] = await db
-    .select({ id: teams.id })
-    .from(teams)
-    .where(
-      and(
-        eq(teams.id, match.teamBId),
-        eq(teams.captainRegistrationId, regA.id),
-      ),
-    );
-  if (teamB) return match.teamBId;
-
-  return null;
+  if (!team) return null;
+  return team.id === match.teamAId ? match.teamAId : match.teamBId;
 }
 
 /**

@@ -14,6 +14,7 @@ import {
   assertMatchTransition,
   resolveMatchFormat,
 } from "@/lib/match-transitions";
+import { getWinThreshold } from "@/types/match";
 import { actionError, getSeasonOrThrow, getMatchOrThrow } from "@/lib/action-utils";
 import { revalidateMatchPaths } from "@/lib/revalidation";
 import { normalizeStagePlan } from "@/types/season";
@@ -114,7 +115,7 @@ export async function recordMatchResult(
     const match = await getMatchOrThrow(matchId);
 
     // BO3/BO5 校验系列赛胜场数：胜者恰好达到 maxWins，败者不得超过 maxWins-1
-    const maxWins = match.format === "bo3" ? 2 : match.format === "bo5" ? 3 : null;
+    const maxWins = match.format === "bo1" ? null : getWinThreshold(match.format);
     if (maxWins !== null) {
       const winner = Math.max(scoreA, scoreB);
       const loser = Math.min(scoreA, scoreB);
@@ -216,8 +217,8 @@ export async function recordMapResult(
       throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛未在进行中");
     }
 
-    const maxWins = match.format === "bo3" ? 2 : 3;
-    const maxMaps = match.format === "bo3" ? 3 : 5;
+    const maxWins = getWinThreshold(match.format);
+    const maxMaps = match.format === "bo5" ? 5 : 3;
 
     if (mapOrder < 1 || mapOrder > maxMaps) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, `${match.format.toUpperCase()} 图序号须在 1-${maxMaps} 之间`);

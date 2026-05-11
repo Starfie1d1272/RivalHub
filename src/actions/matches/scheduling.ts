@@ -1,48 +1,14 @@
 "use server";
 
-import { eq, and, or } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matchTimeProposals, matches, teams, seasonRegistrations } from "@/db/schema";
+import { matchTimeProposals, matches } from "@/db/schema";
 import { ok, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { requireAuth, requireSeasonAdmin } from "@/lib/auth/session";
 import { getMatchOrThrow, getSeasonOrThrow, actionError } from "@/lib/action-utils";
 import { revalidateMatchPaths } from "@/lib/revalidation";
-
-/**
- * 检查当前用户是否为参赛队伍（teamA 或 teamB）的队长。
- * 通过 userId -> seasonRegistrations.id -> teams.captainRegistrationId 链路判定。
- */
-async function isTeamCaptain(
-  userId: string,
-  match: Awaited<ReturnType<typeof getMatchOrThrow>>,
-): Promise<boolean> {
-  // 1. 查找用户在该赛季的报名记录
-  const [reg] = await db
-    .select({ id: seasonRegistrations.id })
-    .from(seasonRegistrations)
-    .where(
-      and(
-        eq(seasonRegistrations.userId, userId),
-        eq(seasonRegistrations.seasonId, match.seasonId),
-      ),
-    );
-
-  if (!reg) return false;
-
-  // 2. 检查该报名记录是否为 teamA 或 teamB 的队长
-  const [team] = await db
-    .select({ id: teams.id })
-    .from(teams)
-    .where(
-      and(
-        eq(teams.captainRegistrationId, reg.id),
-        or(eq(teams.id, match.teamAId), eq(teams.id, match.teamBId)),
-      ),
-    );
-
-  return !!team;
-}
+import { getTeamIdForCaptain } from "./roster";
 
 /**
  * 队长提议比赛时间。
@@ -60,7 +26,7 @@ export async function proposeMatchTime(
       throw new AppError(ErrorCode.VALIDATION_FAILED, "只能在 scheduled 状态下提议时间");
     }
 
-    if (!(await isTeamCaptain(session.userId, match))) {
+    if (!(await getTeamIdForCaptain(session.userId, match))) {
       throw new AppError(ErrorCode.FORBIDDEN, "只有队长可以提议时间");
     }
 
@@ -110,7 +76,7 @@ export async function respondToTimeProposal(
     if (proposal.proposedBy === session.userId) {
       throw new AppError(ErrorCode.FORBIDDEN, "不能回应自己的提议");
     }
-    if (!(await isTeamCaptain(session.userId, match))) {
+    if (!(await getTeamIdForCaptain(session.userId, match))) {
       throw new AppError(ErrorCode.FORBIDDEN, "只有对方队长可以回应");
     }
 

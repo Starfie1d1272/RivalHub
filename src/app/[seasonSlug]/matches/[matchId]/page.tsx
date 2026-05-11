@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { eq, and, or } from "drizzle-orm";
+import { eq, and, or, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons, matches, teams, matchMaps, users, seasonRegistrations, teamMembers } from "@/db/schema";
 import { matchPlayerStats } from "@/db/schema/player-stats";
@@ -51,14 +51,12 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
 
   const isFinished = match.status === "finished";
 
-  // ── 时间协商与名单数据 ───────────────────────────────────────
-  const [timeProposals, roster] = await Promise.all([
+  // ── 时间协商、名单、session（并行）────────────────────────────
+  const [timeProposals, roster, userSession] = await Promise.all([
     getTimeProposals(match.id),
     getMatchRoster(match.id),
+    getUserSession(),
   ]);
-
-  // ── 用户 session（后续多处使用）───────────────────────────────
-  const userSession = await getUserSession();
 
   // ── MVP 投票数据 ──────────────────────────────────────────────
   let mvpCandidates: {
@@ -70,15 +68,9 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   let userVoted: string | null = null;
 
   if (isFinished) {
-    const allStats = (
-      await Promise.all(
-        maps.map((m) =>
-          db.query.matchPlayerStats.findMany({
-            where: eq(matchPlayerStats.mapId, m.id),
-          })
-        )
-      )
-    ).flat();
+    const allStats = await db.query.matchPlayerStats.findMany({
+      where: eq(matchPlayerStats.matchId, match.id),
+    });
 
     const seen = new Set<string>();
     mvpCandidates = allStats
@@ -107,6 +99,21 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
     }
   }
 
+  // ── 团队人员数据（一次性查询，供队长检测 + 名单视图共用）──
+  const allTeamMembers = await db
+    .select({
+      id: teamMembers.id,
+      teamId: teamMembers.teamId,
+      steamName: users.steamName,
+      primaryPosition: seasonRegistrations.primaryPosition,
+    })
+    .from(teamMembers)
+    .innerJoin(seasonRegistrations, eq(teamMembers.registrationId, seasonRegistrations.id))
+    .innerJoin(users, eq(seasonRegistrations.userId, users.id))
+    .where(
+      inArray(teamMembers.teamId, [match.teamAId, match.teamBId]),
+    );
+
   // ── 队长身份与管理员检测 ─────────────────────────────────────
   let isCaptainA = false;
   let isCaptainB = false;
@@ -131,24 +138,13 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
 
       if (isCaptainA || isCaptainB) {
         const captainTeamId = isCaptainA ? match.teamAId : match.teamBId;
-        const rows = await db
-          .select({
-            id: teamMembers.id,
-            steamName: users.steamName,
-            primaryPosition: seasonRegistrations.primaryPosition,
-          })
-          .from(teamMembers)
-          .innerJoin(
-            seasonRegistrations,
-            eq(teamMembers.registrationId, seasonRegistrations.id),
-          )
-          .innerJoin(users, eq(seasonRegistrations.userId, users.id))
-          .where(eq(teamMembers.teamId, captainTeamId));
-        captainTeamMembers = rows.map((r) => ({
-          id: r.id,
-          steamName: r.steamName ?? "未知",
-          primaryPosition: r.primaryPosition,
-        }));
+        captainTeamMembers = allTeamMembers
+          .filter((m) => m.teamId === captainTeamId)
+          .map((r) => ({
+            id: r.id,
+            steamName: r.steamName ?? "未知",
+            primaryPosition: r.primaryPosition,
+          }));
       }
     }
   }
@@ -163,26 +159,6 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   let teamBRoster: RosterPlayer[] | null = null;
 
   if (roster) {
-    const allTeamMembers = await db
-      .select({
-        id: teamMembers.id,
-        teamId: teamMembers.teamId,
-        steamName: users.steamName,
-        primaryPosition: seasonRegistrations.primaryPosition,
-      })
-      .from(teamMembers)
-      .innerJoin(
-        seasonRegistrations,
-        eq(teamMembers.registrationId, seasonRegistrations.id),
-      )
-      .innerJoin(users, eq(seasonRegistrations.userId, users.id))
-      .where(
-        or(
-          eq(teamMembers.teamId, match.teamAId),
-          eq(teamMembers.teamId, match.teamBId),
-        ),
-      );
-
     const rosterPlayerMap = new Map(
       roster.players.map((p) => [p.teamMemberId, p.isStarter]),
     );

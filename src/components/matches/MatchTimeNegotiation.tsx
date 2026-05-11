@@ -6,6 +6,7 @@ import { proposeMatchTime, respondToTimeProposal, forceSetMatchTime } from "@/ac
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { formatCST } from "@/lib/utils/date";
 import type { matchTimeProposals } from "@/db/schema/match-time-proposals";
 
 type Proposal = typeof matchTimeProposals.$inferSelect;
@@ -17,11 +18,6 @@ interface MatchTimeNegotiationProps {
   isAdmin: boolean;
   currentScheduledAt: Date | null;
   initialProposals: Proposal[];
-}
-
-function formatCST(date: Date | string | null): string {
-  if (!date) return "待协商";
-  return new Date(date).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" });
 }
 
 export function MatchTimeNegotiation({
@@ -92,7 +88,7 @@ export function MatchTimeNegotiation({
       <div className="flex items-center gap-2">
         <span className="text-sm font-medium">比赛时间：</span>
         <span className="text-sm">
-          {formatCST(currentScheduledAt)}
+          {currentScheduledAt ? formatCST(currentScheduledAt) : "待协商"}
         </span>
       </div>
 

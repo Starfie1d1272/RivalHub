@@ -1,4 +1,5 @@
 import type { matchTimeProposals } from "@/db/schema/match-time-proposals";
+import { formatCST } from "@/lib/utils/date";
 
 type Proposal = typeof matchTimeProposals.$inferSelect;
 
@@ -19,11 +20,6 @@ const STATUS_COLORS: Record<string, string> = {
   rejected: "text-red-600",
   expired: "text-gray-400",
 };
-
-function formatCST(date: Date | string | null): string {
-  if (!date) return "—";
-  return new Date(date).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" });
-}
 
 export function TimeProposalHistory({ proposals }: TimeProposalHistoryProps) {
   if (proposals.length === 0) {
