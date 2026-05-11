@@ -3,6 +3,8 @@ import {
   DRAFT_TEAMS,
 } from "@/types/draft";
 
+export const DRAFT_POSITION_LIMIT_PER_TEAM = 2;
+
 export interface DraftTeamOrder {
   id: string;
   draftOrder: number;
@@ -77,4 +79,22 @@ export function computeTeamPositionCounts(
     teamMap.set(m.primaryPosition, (teamMap.get(m.primaryPosition) ?? 0) + 1);
   }
   return byTeam;
+}
+
+/**
+ * Round 1-4 是首发 pick；Round 5-6 是替补 pick。
+ * 队长在 confirmCaptains 时已作为首发写入 team_members。
+ */
+export function isStarterRound(round: number): boolean {
+  return round >= 1 && round <= 4;
+}
+
+/**
+ * 每队同一主选位置最多 2 人，包含队长本人。
+ */
+export function canPickPosition(
+  currentCount: number,
+  limit = DRAFT_POSITION_LIMIT_PER_TEAM,
+): boolean {
+  return currentCount < limit;
 }
