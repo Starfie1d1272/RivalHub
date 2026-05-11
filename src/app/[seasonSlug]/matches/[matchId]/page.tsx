@@ -173,6 +173,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
       }));
   }
 
+  const captainRoster = isCaptainA ? rosterA : isCaptainB ? rosterB : null;
   const teamARoster: RosterPlayer[] | null = rosterA
     ? buildRoster(rosterA, allTeamMembers, match.teamAId)
     : null;
@@ -302,7 +303,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
               <MatchRosterForm
                 matchId={match.id}
                 teamMembers={captainTeamMembers}
-                hasExistingRoster={(isCaptainA ? rosterA : rosterB)?.status === "submitted"}
+                hasExistingRoster={captainRoster?.status === "submitted"}
               />
             </Card>
           )}
