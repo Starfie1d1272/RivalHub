@@ -1,6 +1,5 @@
 // Season capability 工具函数
 // 所有判断均基于 season capability 字段，禁止读取 season.kind
-// TODO: 实现各函数体
 
 import { getFirstStageOfType, normalizeStagePlan, type Season, type SeasonStatus } from "@/types/season";
 

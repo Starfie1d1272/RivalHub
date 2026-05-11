@@ -92,7 +92,7 @@
 
 ---
 
-## Phase 7 — 选秀直播间（围观）
+## Phase 7 — 选秀直播间（围观）✅
 
 - [x] `draftState` + `draftPicks` Realtime 订阅（`DraftLiveRoom` 订阅两张表，10 秒轮询兜底）
 - [x] `/[seasonSlug]/draft` 围观页：8 队网格 + 倒计时 + 剩余选手池（`DraftLiveRoom` / `TeamDraftGrid` / `PlayerPool` / `DraftCountdown`）
@@ -101,7 +101,7 @@
 
 ---
 
-## Phase 8 — 选秀队长端 + 超时 Cron
+## Phase 8 — 选秀队长端 + 超时 Cron ✅
 
 - [x] `pickPlayer` Server Action（Postgres 事务 + SELECT FOR UPDATE + 幂等键）
 - [x] 同位置 ≤ 2 人约束校验
@@ -165,23 +165,24 @@
 
 ---
 
-## Phase 11.5 — 玩家数据展示（player-stats 录入已完成，展示待做）
+## Phase 11.5 — 玩家数据展示 ✅
 
-OCR 录入流程已完成（PR #28），数据保存在 `match_player_stats` 表。待补展示侧：
-
-- [ ] **比赛详情页数据表**：`/[seasonSlug]/matches/[matchId]` 每张地图下方加 K/D/A、ADR、RWS、Rating、WE 数据表格（Server Component，读 `getPlayerStatsByMap`）
-- [ ] **个人统计聚合**：用户主页展示跨地图赛事数据（场均 K/D/A、Rating 等，按赛季分组）
-- [ ] **赛季排行榜**：`/[seasonSlug]/stats` 页面，按 Rating/ADR/KD 等指标排名（类似 HLTV Stats 页）
-- [ ] **队伍聚合统计**：队伍场均数据（团队 ADR、胜率等）
-
-> 以上均为 v1 拓展功能，可按需推进，不阻塞 Phase 12 部署。
+- [x] **比赛详情页数据表**：`PlayerStatsTable` Server Component，每图 Team A / Team B 双栏 K/D/A/ADR/Rating
+- [x] **单场 MVP 投票**：`match_mvp_votes` 表 + `castMatchMvpVote` / `getMatchMvpResults` actions + `MatchMvpVote` Client Component
+- [x] **选手跨赛季数据聚合**：`/players/[userId]` 页新增「个人数据」section（加权平均 Rating/ADR/K-D/WE + 按赛季分组）
+- [x] **赛季排行榜**：`/[seasonSlug]/stats`，URL searchParams 驱动排序（Rating/ADR/K-D/WE/KPR/场次）+ 位置筛选（IGL/AWPer/Opener/Closer/Anchor）
+- [x] **队伍统计卡片**：`/[seasonSlug]/teams/[teamId]` 页新增「队伍数据」（场均 Rating/ADR/K-D/WE + 各位置最佳选手）
+- [x] `showStats` capability + SeasonNav 入口 + QuickLinks
+- [x] 组件单元测试（2 test files, 7 tests）
 
 ---
 
 ## Phase 12 — 部署上线
 
-- [ ] Vercel 环境变量配置
-- [ ] Vercel Cron 接入（`/api/cron/draft-timeout`）
+- [x] vercel.json 创建（Cron Job 配置）
+- [x] `/api/cron/draft-timeout` 接入 `runDraftTimeoutCron` + CRON_SECRET 鉴权
+- [ ] Vercel Dashboard 环境变量配置
+- [ ] Vercel 首次部署
 - [ ] 自定义域名绑定
 - [ ] Playwright E2E 跑关键路径（注册 → 投票 → 选秀 → 比赛）
 - [ ] 性能基准（LCP / FCP）验收

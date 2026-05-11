@@ -20,15 +20,15 @@ v1 聚焦 NJU Rivals 选秀联赛全流程。v2 赛制引擎（Swiss / GSL / Sin
 | 玩家报名 | Zod 校验、位置满员检测、NJUBox 截图链接、Magic Link 邮件 | ✅ Phase 4 |
 | 管理员审核 | 通过 / 拒绝 / 等待名单 + audit log + 邀请码管理 + 管理员账户管理 | ✅ Phase 5 |
 | 队长投票 | 全体选手投票，Realtime 票数，得票前 8 名为队长 | ✅ Phase 6 |
-| 蛇形选秀直播间 | Realtime 围观，倒计时，剩余选手池 | 🔄 Phase 7 |
-| 队长选秀面板 | 事务行锁、幂等 pick、超时 Cron 自动递补 | 🔄 Phase 8 |
+| 蛇形选秀直播间 | Realtime 围观，倒计时，剩余选手池 | ✅ Phase 7 |
+| 队长选秀面板 | 事务行锁、幂等 pick、超时 Cron 自动递补 | ✅ Phase 8 |
 | 队伍展示 | 7 人阵容按位置排版，首发/替补分区，队长 badge | ✅ Phase 9 |
 | 赛程管理 | 比赛详情 + 地图结果 + 管理员录分 / 取消 | ✅ Phase 10 |
-| BO3/BO5 逐图录入 | 按图录入回合数，大比分自动统计，达到 maxWins 自动结束系列赛并推进 bracket | ✅ Phase 10+ |
 | Bracket 视图 | `brackets-manager` 双败/单败淘汰图，bracket 节点↔比赛详情双向跳转 | ✅ Phase 11 |
 | 平台配置化 | `stagePlan`/`registrationConfig` JSONB，StageExecutor 框架（5 个 executor），Admin 赛季管理 UI | ✅ Phase 11 |
-| 赛制引擎 v2 | Swiss (Buchholz+slide配对) / GSL Group (蛇形分配) / Single Elim (bye+季军赛) + entrySeeds 种子轮空 + finalFormat 决赛 BO5 | ✅ dev |
+| 赛制引擎 v2 | Swiss (Buchholz+slide) / GSL Group (蛇形分配) / Single Elim (bye+季军赛) + entrySeeds 种子轮空 + finalFormat 决赛 BO5 | ✅ dev |
 | 玩家数据 OCR | 管理员上传完美平台记分板截图 → SiliconFlow Qwen-VL 识别 → 人工审核确认 → 写入数据库 | ✅ Phase 11.5 |
+| 玩家数据展示 | 比赛数据表 + MVP 投票 + 选手跨赛季聚合 + 赛季排行榜 + 队伍统计卡片 | ✅ Phase 11.5 |
 | 部署上线 | Vercel + 自定义域名 + Cron + E2E 验证 | 🔄 Phase 12 |
 
 ## 技术栈
@@ -84,11 +84,11 @@ pnpm db:generate      # 离线生成迁移 SQL（不连接 DB）
 
 ## 部署（Vercel）
 
-1. 在 Vercel 导入仓库，配置 `.env.example` 中的所有环境变量。
-2. 在 Vercel 项目设置 → Cron Jobs 添加：
-   - `*/1 * * * *` → `/api/cron/draft-timeout`（仅选秀活跃期需要，可通过 `ENABLE_DRAFT_CRON` 控制）
-3. 绑定自定义域名。
-4. 运行 `pnpm test:e2e` 对生产 URL 验证关键路径。
+1. 在 Vercel 导入仓库（`dev` 分支），配置 `.env.example` 中的所有环境变量（含 `CRON_SECRET`）。
+2. `vercel.json` 已配置 Cron Job：`* * * * *` → `/api/cron/draft-timeout`，部署后自动生效。
+3. 首次部署后运行 `pnpm db:push && pnpm seed` 迁移数据库。
+4. 绑定自定义域名，更新 `NEXT_PUBLIC_APP_URL`。
+5. 运行 `pnpm test:e2e` 对生产 URL 验证关键路径。
 
 ## 文档索引
 

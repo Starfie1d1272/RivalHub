@@ -166,6 +166,15 @@ erDiagram
     timestamp created_at
   }
 
+  match_mvp_votes {
+    uuid id PK
+    uuid match_id FK
+    uuid player_user_id FK "可 null：未注册选手"
+    text player_name "兜底显示名"
+    uuid voter_user_id FK
+    timestamp created_at
+  }
+
   audit_logs {
     uuid id PK
     uuid season_id FK
@@ -344,6 +353,7 @@ erDiagram
 | `admin_users` | `UNIQUE(username)` |
 | `admin_invites` | `UNIQUE(code)` |
 | `match_player_stats` | `UNIQUE(map_id, perfect_name)` |
+| `match_mvp_votes` | `UNIQUE(match_id, voter_user_id)` |
 
 建议索引（`drizzle-kit` 迁移中添加）：
 - `season_registrations(season_id, status)` — 审核列表过滤
