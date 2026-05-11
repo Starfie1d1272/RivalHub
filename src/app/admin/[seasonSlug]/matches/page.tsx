@@ -91,6 +91,24 @@ export default async function AdminMatchesPage({ params }: AdminMatchesPageProps
     mapsByMatch.set(map.matchId, arr);
   }
 
+  // 已完成比赛的地图列表（用于 OCR 录入面板）
+  const finishedMatchIds = allMatches
+    .filter((m) => m.status === "finished")
+    .map((m) => m.id);
+  const allMaps =
+    finishedMatchIds.length > 0
+      ? await db.query.matchMaps.findMany({
+          where: inArray(matchMaps.matchId, finishedMatchIds),
+          orderBy: (t, { asc }) => [asc(t.mapOrder)],
+        })
+      : [];
+  const mapsByMatch = new Map<string, typeof allMaps>();
+  for (const map of allMaps) {
+    const arr = mapsByMatch.get(map.matchId) ?? [];
+    arr.push(map);
+    mapsByMatch.set(map.matchId, arr);
+  }
+
   const matchCount = allMatches.length;
   const qualifierCount = qualifierMatches.length;
   const playoffCount = playoffMatches.length;
