@@ -4,7 +4,9 @@
 2026-05-11
 
 ## 目标
-重构 `/admin/seasons/new` 表单，以队伍报名 + Major 赛制为默认，按报名模式差异化显示字段，改进 UX。
+重构 `/admin/seasons/new` 表单，以队伍报名 + Major 赛制为默认，按报名模式差异化显示字段，赛制配置完全表单化，改进 UX。
+
+---
 
 ## 1. 顶部预设下拉
 
@@ -20,15 +22,19 @@
 |------|-----------|------------|
 | kind | "Major" | "选秀联赛" |
 | registrationMode | team | solo |
-| teamSize | 9 | 7 |
+| maxTeamSize | 9 | 7 |
+| minTeamSize | 5 | 7 |
 | starterCount | 5 | 5 |
-| hasCaptainVoting | false | false（默认不勾） |
-| hasDraft | false | false（默认不勾） |
-| positions | []（隐藏） | igl,awper,opener,closer,anchor |
+| hasCaptainVoting | false（隐藏） | true（默认勾选） |
+| hasDraft | false（隐藏） | true（默认勾选） |
+| positions | ["igl","awper","opener","closer","anchor"]（可选填） | 同左（必填） |
+| registrationConfig | 隐藏 | RIVALS_REGISTRATION_CONFIG |
+| teamRegistrationConfig | MAJOR_TEAM_CONFIG | 隐藏 |
 | stagePlan | MAJOR_STAGE_PLAN | RIVALS_STAGE_PLAN |
-| registrationConfig | {}（隐藏） | RIVALS_REGISTRATION_CONFIG |
 
-选完预设后可以手动修改任意字段。
+选完预设后可以手动修改任意字段（二次确认弹窗："应用预设将覆盖当前所有配置，是否继续？"）。
+
+---
 
 ## 2. 基础信息
 
@@ -43,86 +49,264 @@
 ### Slug 自动生成规则
 - 输入 "2026 NJU Major" → `2026-nju-major`
 - 输入 "2026 NJU Rivals 春季赛" → `2026-nju-rivals-chun-ji-sai`
-- 中文用 pinyin-pro 或简化规则转换
+- 中文用简化规则转换
 - 用户可覆盖手写
+
+---
 
 ## 3. Capability（按报名模式差异化）
 
 ### Team 模式（Major 默认）
 
 ```
-┌─ 报名模式: [队伍报名 ▾] ─────────────────┐
-│                                             │
-│  每队人数上限: [9]                           │
-│  首发人数:     [5]                           │
-│                                             │
-│  (队长投票、蛇形选秀、位置列表隐藏)         │
-└─────────────────────────────────────────────┘
+┌─ 报名模式: [队伍报名 ▾] ────────────────────────────┐
+│                                                     │
+│  位置列表: [igl,awper,opener,closer,anchor]          │
+│  说明: 可选填，不填位置则不参与排行榜和最佳五人组评选  │
+│  每队人数上限: [9]                                   │
+│  每队人数下限: [5]                                   │
+│  首发人数:     [5]                                   │
+│                                                     │
+│  (队长投票、蛇形选秀隐藏)                             │
+└─────────────────────────────────────────────────────┘
 ```
+
+- `hasCaptainVoting` 和 `hasDraft` 强制设为 `false`，不可见
+- `positions` 显示但可选，带说明文字
 
 ### Solo 模式（Rivals 默认）
 
 ```
-┌─ 报名模式: [个人报名 ▾] ─────────────────┐
-│                                             │
-│  位置列表: [igl,awper,opener,closer,anchor] │
-│  每队人数: [7]                              │
-│  首发人数: [5]                              │
-│  ☐ 队长投票                                  │
-│  ☐ 蛇形选秀                                  │
-└─────────────────────────────────────────────┘
+┌─ 报名模式: [个人报名 ▾] ────────────────────────────┐
+│                                                     │
+│  位置列表: [igl,awper,opener,closer,anchor]          │
+│  每队人数上限: [7]                                  │
+│  每队人数下限: [7]                                  │
+│  首发人数: [5]                                      │
+│  ☑ 队长投票                                         │
+│  ☑ 蛇形选秀                                         │
+└─────────────────────────────────────────────────────┘
 ```
 
-切换报名模式时自动设置隐藏字段的默认值（投票/选秀→false）。
+- `hasCaptainVoting` 和 `hasDraft` 默认勾选
+- 切换报名模式时：Solo→Team 时自动隐藏投票/选秀并设为 false；Team→Solo 时显示并恢复为 true
 
-## 4. 报名配置（仅 Solo 显示）
+---
 
-Team 模式整块隐藏（队伍报名不涉及段位门槛、位置名额、截图）。
+## 4. 报名配置（按模式差异化）
 
-| 字段 | 值 | 说明 |
+### 4.1 Solo 模式 — 个人报名配置（RegistrationConfig）
+
+| 字段 | 类型 | 说明 |
 |------|------|------|
 | 允许选手类型 | 多选：在校/毕业/外校 | 勾选哪些身份可报名 |
-| 当前段位门槛 | 下拉 | 本赛季段位不低于此 |
-| 历史段位门槛 | 下拉 | 历史最高段位不低于此 |
+| 当前段位门槛 | 下拉 | 本赛季段位不低于此（可选"无门槛"） |
+| 历史段位门槛 | 下拉 | 历史最高段位不低于此（可选"无门槛"） |
 | 每位置上限 | 数字 | 每位置最多报名人数 |
 | 截图数量 | 数字 | 报名需上传几张截图 |
 
-## 5. 赛制配置
+### 4.2 Team 模式 — 队伍报名配置（TeamRegistrationConfig）
 
-下拉选择预设 + 可视化展示 + 自定义 JSON：
+#### 身份/学校约束
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `allowExternal` | boolean | false | 是否允许外校选手 |
+| `graduateCountsAsHome` | boolean | true | 毕业生是否算本校 |
+| `minHomeMembers` | number | 5 | 每队最少本校人数 |
+| `minEnrolledMembers` | number | 0 | 每队最少在校生人数 |
+| `maxExternalMembers` | number | 0 | 每队最多外校人数上限 |
+
+> **注**：`minTeamSize` / `maxTeamSize` 是 seasons 表列（见第6节），不放在此 JSONB 中，避免重复。
+
+#### 位置分配
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `requirePositions` | boolean | false | 是否强制每个队员分配位置 |
+| `maxPerPositionPerTeam` | number | 2 | 同队同一位置最多几人 |
+
+#### 队伍管理
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `captainCanKick` | boolean | true | 队长能否移除队员 |
+| `captainCanTransfer` | boolean | true | 队长能否转让队长身份 |
+| `lockAfterRegistration` | boolean | true | 报名截止后锁定队伍成员 |
+| `requireUniqueTeamName` | boolean | true | 队伍名是否要求唯一 |
+| `requireTeamLogo` | boolean | false | 是否强制上传队伍 Logo |
+
+### 4.3 切换行为
+
+- Solo 模式 → 显示 RegistrationConfig 区块，隐藏 TeamRegistrationConfig 区块
+- Team 模式 → 隐藏 RegistrationConfig 区块，显示 TeamRegistrationConfig 区块
+- 切换时保留各区块的填写内容
+
+---
+
+## 5. 赛制配置（完全表单化）
+
+### 5.1 阶段编辑器
+
+每个阶段一张卡片，所有字段表单化填写：
 
 ```
-赛制: [Major 32队 ▾]
-      ├ Major 32队    → 3轮瑞士轮 BO1 → 单败淘汰 BO3(决赛BO5)
-      ├ Rivals 8队    → 单循环 BO1 → 双败淘汰 BO3
-      └ 自定义 JSON   → 展开编辑器
+┌─ 阶段 1 ──────────────────────────────────────────┐
+│  阶段名称: [瑞士轮阶段______]                       │
+│  阶段标识: [stage1]（自动从名称生成，可手动改）      │
+│  赛制类型: [Swiss ▾]                               │
+│  队伍数:   [16]         比赛 BO: [BO1 ▾]            │
+│  分组数:   [4]                                     │
+│  晋级规则: [全部晋级 ▾] → 取前 [8___] 名            │
+│  ☐ 三四名决赛                                       │
+│  (决赛 BO 覆写 — 非淘汰赛不显示)                    │
+│  [× 删除阶段]                                      │
+└────────────────────────────────────────────────────┘
+┌─ 阶段 2 ──────────────────────────────────────────┐
+│  阶段名称: [淘汰赛阶段______]                       │
+│  阶段标识: [stage2]                                 │
+│  赛制类型: [Single Elim ▾]                         │
+│  队伍数:   [8]          比赛 BO: [BO3 ▾]            │
+│  晋级规则: [冠军→1] [亚军→1]                        │
+│  ☑ 三四名决赛                                       │
+│  决赛 BO 覆写: [BO5 ▾]                              │
+│  [× 删除阶段]                                      │
+└────────────────────────────────────────────────────┘
+
+[+ 添加阶段]
 ```
 
-选自定义时显示**带注释的 JSON 编辑区**：
+### 5.2 阶段字段按 type 动态显示
 
-```json
-[
-  {
-    "key": "stage1",           // 阶段唯一标识（英文）
-    "name": "阶段一",          // 展示名称（中文）
-    "type": "swiss",           // 赛制: round_robin | single_elim | double_elim | swiss | gsl_group
-    "teamCount": 16,           // 参赛队伍数
-    "matchFormat": "bo1",      // 比赛 BO 数: bo1 | bo3 | bo5
-    "advanceTiers": [
-      { "placement": "*", "count": 8 }  // "*"=全部晋级 / "1st"=冠军 / "2nd"=亚军
-    ],
-    "seeds": null,             // [可选] 种子队编号，null=按 draft_order 自动取前 teamCount
-    "entrySeeds": null,        // [可选] 直入本阶段种子数（非首阶段使用）
-    "finalFormat": null,       // [可选] 决赛 BO 覆写，仅淘汰赛阶段生效
-    "groupCount": 1,           // [可选] 分组数，swiss/gsl 使用
-    "hasThirdPlaceMatch": false // [可选] 三四名决赛
-  }
-]
+| 赛制类型 | 显示字段 | 隐藏字段 |
+|---------|---------|---------|
+| round_robin | 名称、标识、队伍数、BO、晋级规则、分组数 | 决赛BO覆写、种子数 |
+| single_elim | 名称、标识、队伍数、BO、晋级规则、三四名决赛、决赛BO覆写 | 分组数 |
+| double_elim | 名称、标识、队伍数、BO、三四名决赛、决赛BO覆写 | 分组数、晋级规则 |
+| swiss | 名称、标识、队伍数、BO、分组数、晋级规则 | 决赛BO覆写 |
+| gsl_group | 名称、标识、队伍数、BO、分组数、晋级规则 | 决赛BO覆写 |
+
+### 5.3 预设应用
+
+底部下拉 + 应用按钮，一键覆盖所有阶段：
+
+```
+预设: [Major 32队 ▾]  [应用预设]
+      ├ Major 32队     → 3轮瑞士轮 BO1 → 单败淘汰 BO3(决赛BO5)
+      ├ Rivals 8队     → 单循环 BO1 → 双败淘汰 BO3
+      └ 空赛制         → 清除所有阶段
 ```
 
-## 6. 暂不涉及（后续单独做）
+点击"应用预设"弹出确认："当前赛制配置将被覆盖，是否继续？"
 
-- **弹性队伍人数**：Major 预设 teamSize=9，但队伍报名支持 5-9 人灵活添加/删除队员。需要在 schema 加 `minTeamSize` + 队伍管理页面。
-- 后端校验逻辑变更
-- DB schema 变更
-- 赛制 executor 修改
+### 5.4 阶段标识自动生成
+
+从阶段名称自动生成 key：
+- "瑞士轮阶段" → `swiss`
+- "淘汰赛阶段" → `knockout`
+- "排位赛阶段" → `ranking`
+- 用户可手动修改，key 仅限英文/数字/下划线
+
+### 5.5 StagePlan 数据结构（不变）
+
+```typescript
+interface StageConfig {
+  key: string;
+  name: string;
+  type: "round_robin" | "single_elim" | "double_elim" | "swiss" | "gsl_group";
+  teamCount: number;
+  matchFormat: "bo1" | "bo3" | "bo5";
+  advanceTiers: { placement: string; count: number }[];
+  seeds?: number[] | null;
+  entrySeeds?: number | null;
+  finalFormat?: "bo1" | "bo3" | "bo5" | null;
+  groupCount?: number;
+  hasThirdPlaceMatch?: boolean;
+}
+```
+
+---
+
+## 6. DB Schema 变更
+
+### seasons 表
+
+| 变更 | 说明 |
+|------|------|
+| 新增 `min_team_size` | integer, default 5 |
+| 重命名 `team_size` → `max_team_size` | integer, default 7 |
+| 新增 `team_registration_config` | jsonb, default `'{}'`，存 TeamRegistrationConfig |
+
+### migration 要点
+
+- 现有 solo 赛季 `max_team_size` = 原 `team_size` 值，`min_team_size` = 原 `team_size` 值
+- 现有 solo 赛季 `team_registration_config` = `'{}'`
+
+---
+
+## 7. 类型与常量
+
+### 7.1 TeamRegistrationConfig 类型（`src/types/season.ts`）
+
+```typescript
+export interface TeamRegistrationConfig {
+  allowExternal: boolean;
+  graduateCountsAsHome: boolean;
+  minHomeMembers: number;
+  minEnrolledMembers: number;
+  maxExternalMembers: number;
+  requirePositions: boolean;
+  maxPerPositionPerTeam: number;
+  captainCanKick: boolean;
+  captainCanTransfer: boolean;
+  lockAfterRegistration: boolean;
+  requireUniqueTeamName: boolean;
+  requireTeamLogo: boolean;
+}
+```
+
+### 7.2 预设常量
+
+```typescript
+export const MAJOR_TEAM_CONFIG: TeamRegistrationConfig = {
+  allowExternal: false,
+  graduateCountsAsHome: true,
+  minHomeMembers: 5,
+  minEnrolledMembers: 0,
+  maxExternalMembers: 0,
+  requirePositions: false,
+  maxPerPositionPerTeam: 2,
+  captainCanKick: true,
+  captainCanTransfer: true,
+  lockAfterRegistration: true,
+  requireUniqueTeamName: true,
+  requireTeamLogo: false,
+};
+```
+
+---
+
+## 8. 实施范围
+
+全部纳入本次实现：
+
+1. SeasonForm 组件重构（预设下拉、差异化字段显示、位置可选、投票/选秀默认值修正）
+2. 赛制配置完全表单化（阶段编辑器、动态字段、预设应用）
+3. RegistrationConfig 区块（Solo 专用）
+4. TeamRegistrationConfig 区块 + 类型定义（Team 专用）
+5. DB schema：新增 `min_team_size`、`team_registration_config`、重命名 `team_size` → `max_team_size`
+6. `createSeason` / `updateSeason` Server Action 适配
+7. 赛季编辑页同步更新
+8. 预设常量（MAJOR_TEAM_CONFIG 等）
+9. Slug 自动生成
+10. 主题色色块选择器
+
+---
+
+## 9. 不变项目
+
+- `RegistrationConfig` 类型保持不变
+- `stagePlan` 存 JSONB 格式不变，仅前端编辑方式改为表单
+- 业务逻辑不读 `season.kind` 的原则不变
+- Server Action 返回 `ActionResult<T>` 规范不变
+- 预设常量值不变
