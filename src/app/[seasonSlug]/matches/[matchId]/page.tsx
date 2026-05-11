@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, matches, teams, matchMaps } from "@/db/schema";
+import { seasons, matches, teams, matchMaps, users, seasonRegistrations, teamMembers } from "@/db/schema";
 import { matchPlayerStats } from "@/db/schema/player-stats";
 import { matchMvpVotes } from "@/db/schema/mvp-votes";
 import { MatchStatusBadge } from "@/components/matches/MatchStatusBadge";
@@ -10,7 +10,13 @@ import { MatchMvpVote } from "@/components/matches/MatchMvpVote";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { PlayerStatsTable } from "@/components/matches/PlayerStatsTable";
+import { TimeProposalHistory } from "@/components/matches/TimeProposalHistory";
+import { MatchTimeNegotiation } from "@/components/matches/MatchTimeNegotiation";
+import { MatchRosterView } from "@/components/matches/MatchRosterView";
+import { MatchRosterForm } from "@/components/matches/MatchRosterForm";
 import { getMatchMvpResults } from "@/actions/player-stats";
+import { getTimeProposals } from "@/actions/matches/scheduling";
+import { getMatchRoster } from "@/actions/matches/roster";
 import { getUserSession } from "@/lib/auth/session";
 
 interface MatchDetailPageProps {
@@ -44,6 +50,15 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   ]);
 
   const isFinished = match.status === "finished";
+
+  // ── 时间协商与名单数据 ───────────────────────────────────────
+  const [timeProposals, roster] = await Promise.all([
+    getTimeProposals(match.id),
+    getMatchRoster(match.id),
+  ]);
+
+  // ── 用户 session（后续多处使用）───────────────────────────────
+  const userSession = await getUserSession();
 
   // ── MVP 投票数据 ──────────────────────────────────────────────
   let mvpCandidates: {
@@ -81,7 +96,6 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
 
     mvpVoteResults = await getMatchMvpResults(match.id);
 
-    const userSession = await getUserSession();
     if (userSession?.userId) {
       const existingVote = await db.query.matchMvpVotes.findFirst({
         where: and(
@@ -91,6 +105,103 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
       });
       if (existingVote) userVoted = existingVote.playerName;
     }
+  }
+
+  // ── 队长身份与管理员检测 ─────────────────────────────────────
+  let isCaptainA = false;
+  let isCaptainB = false;
+  let isSeasonAdmin = false;
+  let captainTeamMembers: { id: string; steamName: string; primaryPosition: string }[] = [];
+
+  if (userSession?.userId) {
+    isSeasonAdmin =
+      userSession.role === "super_admin" ||
+      (userSession.role === "season_admin" &&
+        userSession.adminSeasonIds.includes(season.id));
+
+    const reg = await db.query.seasonRegistrations.findFirst({
+      where: and(
+        eq(seasonRegistrations.userId, userSession.userId),
+        eq(seasonRegistrations.seasonId, season.id),
+      ),
+    });
+    if (reg) {
+      isCaptainA = teamA?.captainRegistrationId === reg.id;
+      isCaptainB = teamB?.captainRegistrationId === reg.id;
+
+      if (isCaptainA || isCaptainB) {
+        const captainTeamId = isCaptainA ? match.teamAId : match.teamBId;
+        const rows = await db
+          .select({
+            id: teamMembers.id,
+            steamName: users.steamName,
+            primaryPosition: seasonRegistrations.primaryPosition,
+          })
+          .from(teamMembers)
+          .innerJoin(
+            seasonRegistrations,
+            eq(teamMembers.registrationId, seasonRegistrations.id),
+          )
+          .innerJoin(users, eq(seasonRegistrations.userId, users.id))
+          .where(eq(teamMembers.teamId, captainTeamId));
+        captainTeamMembers = rows.map((r) => ({
+          id: r.id,
+          steamName: r.steamName ?? "未知",
+          primaryPosition: r.primaryPosition,
+        }));
+      }
+    }
+  }
+
+  // ── 名单视图数据 ────────────────────────────────────────────
+  interface RosterPlayer {
+    steamName: string;
+    primaryPosition: string;
+    isStarter: boolean;
+  }
+  let teamARoster: RosterPlayer[] | null = null;
+  let teamBRoster: RosterPlayer[] | null = null;
+
+  if (roster) {
+    const allTeamMembers = await db
+      .select({
+        id: teamMembers.id,
+        teamId: teamMembers.teamId,
+        steamName: users.steamName,
+        primaryPosition: seasonRegistrations.primaryPosition,
+      })
+      .from(teamMembers)
+      .innerJoin(
+        seasonRegistrations,
+        eq(teamMembers.registrationId, seasonRegistrations.id),
+      )
+      .innerJoin(users, eq(seasonRegistrations.userId, users.id))
+      .where(
+        or(
+          eq(teamMembers.teamId, match.teamAId),
+          eq(teamMembers.teamId, match.teamBId),
+        ),
+      );
+
+    const rosterPlayerMap = new Map(
+      roster.players.map((p) => [p.teamMemberId, p.isStarter]),
+    );
+    const rosterPlayerIds = new Set(roster.players.map((p) => p.teamMemberId));
+
+    const toRoster = (
+      members: typeof allTeamMembers,
+      teamId: string,
+    ): RosterPlayer[] =>
+      members
+        .filter((m) => m.teamId === teamId && rosterPlayerIds.has(m.id))
+        .map((m) => ({
+          steamName: m.steamName ?? "未知",
+          primaryPosition: m.primaryPosition,
+          isStarter: rosterPlayerMap.get(m.id) ?? false,
+        }));
+
+    teamARoster = toRoster(allTeamMembers, match.teamAId);
+    teamBRoster = toRoster(allTeamMembers, match.teamBId);
   }
 
   return (
@@ -192,6 +303,56 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
               </Card>
             ))}
           </div>
+        </section>
+      )}
+
+      {/* 赛前名单 */}
+      {match.status !== "finished" && (
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+            赛前名单
+          </h2>
+          <Card className="p-4">
+            <MatchRosterView
+              teamAName={teamA?.name ?? "队伍 A"}
+              teamARoster={teamARoster}
+              teamBName={teamB?.name ?? "队伍 B"}
+              teamBRoster={teamBRoster}
+            />
+          </Card>
+          {(isCaptainA || isCaptainB) && (
+            <Card className="p-4 space-y-3">
+              <h3 className="text-sm font-medium">提交名单</h3>
+              <MatchRosterForm
+                matchId={match.id}
+                teamMembers={captainTeamMembers}
+                hasExistingRoster={roster?.status === "submitted"}
+              />
+            </Card>
+          )}
+        </section>
+      )}
+
+      {/* 比赛时间协商 */}
+      {match.status === "scheduled" && (
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+            比赛时间协商
+          </h2>
+          <Card className="p-4 space-y-4">
+            <MatchTimeNegotiation
+              matchId={match.id}
+              isCaptainA={isCaptainA}
+              isCaptainB={isCaptainB}
+              isAdmin={isSeasonAdmin}
+              currentScheduledAt={match.scheduledAt}
+              initialProposals={timeProposals}
+            />
+          </Card>
+          <Card className="p-4">
+            <h3 className="text-sm font-medium mb-2">协商历史</h3>
+            <TimeProposalHistory proposals={timeProposals} />
+          </Card>
         </section>
       )}
 
