@@ -7,6 +7,7 @@ import { Breadcrumb } from "@/components/layout/breadcrumb";
 import { SeasonNav } from "@/components/layout/season-nav";
 import { hexToRgbString } from "@/lib/utils/color";
 import { normalizeStagePlan } from "@/types/season";
+import { showStats } from "@/lib/utils/season";
 
 interface SeasonLayoutProps {
   children: React.ReactNode;
@@ -55,6 +56,7 @@ export default async function SeasonLayout({ children, params }: SeasonLayoutPro
         hasCaptainVoting={season.hasCaptainVoting}
         hasDraft={season.hasDraft}
         hasMatches={normalizeStagePlan(season.stagePlan).length > 0}
+        hasStats={showStats(season)}
       />
       {children}
     </div>

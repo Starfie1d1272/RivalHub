@@ -9,6 +9,7 @@ interface SeasonNavProps {
   hasCaptainVoting: boolean;
   hasDraft: boolean;
   hasMatches: boolean;
+  hasStats: boolean;
 }
 
 interface NavItem {
@@ -21,6 +22,7 @@ export function SeasonNav({
   hasCaptainVoting,
   hasDraft,
   hasMatches,
+  hasStats,
 }: SeasonNavProps) {
   const pathname = usePathname();
 
@@ -31,6 +33,7 @@ export function SeasonNav({
     ...(hasDraft ? [{ label: "选秀", href: `/${slug}/draft` }] : []),
     { label: "队伍", href: `/${slug}/teams` },
     ...(hasMatches ? [{ label: "赛程", href: `/${slug}/matches` }] : []),
+    ...(hasStats ? [{ label: "数据统计", href: `/${slug}/stats` }] : []),
   ];
 
   return (

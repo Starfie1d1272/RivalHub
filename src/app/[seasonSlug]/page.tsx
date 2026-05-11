@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
-import { UserPlus, Vote, Users, Swords, Shuffle } from "lucide-react";
+import { UserPlus, Vote, Users, Swords, Shuffle, BarChart3 } from "lucide-react";
 import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
 import { normalizeStagePlan, SEASON_STATUS_LABELS } from "@/types/season";
 import type { SeasonStatus } from "@/types/season";
+import { showStats } from "@/lib/utils/season";
 
 interface SeasonPageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -55,6 +56,13 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
       description: "Bracket + 战报",
       icon: Swords,
       show: hasMatches,
+    },
+    {
+      href: `/${seasonSlug}/stats`,
+      label: "数据统计",
+      description: "赛季排行榜与个人数据",
+      icon: BarChart3,
+      show: showStats(season),
     },
   ].filter((l) => l.show);
 
