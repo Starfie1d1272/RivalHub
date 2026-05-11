@@ -52,7 +52,7 @@
     "runtime": "Node.js 20.0.0"
   },
   "build": {
-    "buildCommand": "rtk tsc --noEmit 2>&1 | tail -10",
+    "buildCommand": "rtk tsc --noEmit 2>&1 | tail -5",
     "testCommand": "rtk gh pr create --title \"dev → main: Phase 8-12 功能合并\" --body \"$(cat <<'EOF'\n## Summary\n\n合并 dev 分支的 Phase 8–12 所有功能到 main，准备首次部署。\n\n### 主要变更\n\n- **Phase 8 选秀核心** — 蛇形选秀完整流程（队长面板、围观页、超时自动 pick、事务并发安全）\n- **v2 赛制引擎** — 5 个 StageExecutor（round-robin / double-elim / single-elim / swiss / gsl-group）、advanceTiers 取代 advance、entrySeeds 种子轮空\n- **Phase 11.5 选手数据** — 排行榜（多排序+位置筛选）、MVP 投票、选手个人页跨赛季数据聚合、队伍数据卡片\n- **认证系统** — Email+Password 登录替代 Magic Link（#46）\n- **测试覆盖** — validator / state machine / lib / format executor / server action / component 共 80+ 测试\n- **部署准备** — vercel.json cron 配置、CRON_SECRET、GitHub Actions CI\n\n### 文件变更\n\n共 50 个提交，涉及约 120+ 文件。\n\n## Test plan\n\n- [ ] 本地 `pnpm dev` 启动正常\n- [ ] `pnpm tsc --noEmit` 类型检查通过\n- [ ] `pnpm test` 全部通过\n- [ ] Vercel 预览部署正常\n- [ ] 生产环境可正常访问\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\nEOF\n)\"",
     "lintCommand": "pnpm lint",
     "devCommand": "pnpm dev",
@@ -219,6 +219,12 @@
       "type": "file"
     },
     {
+      "path": "src/db/client.ts",
+      "accessCount": 13,
+      "lastAccessed": 1778497844408,
+      "type": "file"
+    },
+    {
       "path": "src/app/players/[userId]/page.tsx",
       "accessCount": 11,
       "lastAccessed": 1778480545536,
@@ -306,12 +312,6 @@
       "path": "src/db/schema/registrations.ts",
       "accessCount": 4,
       "lastAccessed": 1778482696757,
-      "type": "file"
-    },
-    {
-      "path": "src/db/client.ts",
-      "accessCount": 4,
-      "lastAccessed": 1778489271940,
       "type": "file"
     },
     {

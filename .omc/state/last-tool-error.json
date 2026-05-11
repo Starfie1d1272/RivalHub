@@ -1,7 +1,7 @@
 {
   "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"rtk git fetch origin main && git checkout dev && git merge origin/main\",\"description\":\"Merge main into dev to check conflicts\"}",
-  "error": "Exit code 1\nok fetched (1 new refs)\nAlready on 'dev'\nYour branch is up to date with 'origin/dev'.\nAuto-merging PHASES.md\nCONFLICT (content): Merge conflict in PHASES.md\nAuto-merging README.md\nCONFLICT (content): Merge conflict in README.md\nAuto-merging docs/architecture.md\nCONFLICT (content): Merge conflict in docs/architecture.md\nAuto-merging docs/data-model.md\nCONFLICT (content): Merge conflict in docs/data-model.md\nAuto-merging docs/registration-flow.md\nAuto-merging drizzle/migrations/meta/_j...",
-  "timestamp": "2026-05-11T10:03:09.048Z",
+  "tool_input_preview": "{\"command\":\"rtk curl -s -o /dev/null -w \\\"%{http_code}\\\" https://match.starfie1d.top/\",\"description\":\"Test homepage status\"}",
+  "error": "Exit code 35\nFAILED: curl 000",
+  "timestamp": "2026-05-11T11:05:44.742Z",
   "retry_count": 1
 }

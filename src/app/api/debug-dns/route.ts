@@ -38,8 +38,27 @@ export async function GET() {
     results.supabaseCom = `FAIL: ${(e as Error).message}`;
   }
 
-  // 5. DATABASE_URL availability
-  results.hasDatabaseUrl = !!process.env.DATABASE_URL;
+  // 5. Check if supabase.co zone delegates to this subdomain
+  try {
+    results.supaNs = (await dns.resolveNs("supabase.co")).join(", ");
+  } catch (e) {
+    results.supaNs = `FAIL: ${(e as Error).message}`;
+  }
+  try {
+    results.supaSoa = JSON.stringify(await dns.resolveSoa("supabase.co"));
+  } catch (e) {
+    results.supaSoa = `FAIL: ${(e as Error).message}`;
+  }
+
+  // 6. DATABASE_URL availability
+  try {
+    const dbUrl = process.env.DATABASE_URL;
+    if (dbUrl) {
+      const url = new URL(dbUrl);
+      results.dbHostname = url.hostname;
+      results.dbPort = url.port;
+    }
+  } catch { results.dbHostname = "parse error"; }
 
   return NextResponse.json(results);
 }
