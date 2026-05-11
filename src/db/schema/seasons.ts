@@ -1,7 +1,7 @@
 import { pgTable, uuid, text, integer, boolean, timestamp, pgEnum, json } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import type { Database } from "brackets-manager";
-import type { RegistrationConfig, StagePlan } from "@/types/season";
+import type { RegistrationConfig, StagePlan, TeamRegistrationConfig } from "@/types/season";
 
 export const seasonStatusEnum = pgEnum("season_status", [
   "draft",        // 未发布
@@ -39,8 +39,15 @@ export const seasons = pgTable("seasons", {
     .$type<RegistrationConfig>()
     .notNull()
     .default(sql`'{}'::json`),
-  // 每支队伍总人数（含队长）
-  teamSize: integer("team_size").notNull().default(7),
+  // 队伍报名配置；缺失字段由应用层 fallback 到默认配置
+  teamRegistrationConfig: json("team_registration_config")
+    .$type<TeamRegistrationConfig>()
+    .notNull()
+    .default(sql`'{}'::json`),
+  // 每支队伍最少人数
+  minTeamSize: integer("min_team_size").notNull().default(5),
+  // 每支队伍最多人数
+  maxTeamSize: integer("max_team_size").notNull().default(7),
   // 首发人数
   starterCount: integer("starter_count").notNull().default(5),
   // 该赛季可用的位置标识符列表（应用层 Zod 校验报名时引用此列表）
