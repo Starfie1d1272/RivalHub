@@ -95,13 +95,13 @@ export function RegistrationForm({
         <h2 className="text-2xl font-bold text-[var(--text-primary)]">报名成功！</h2>
         <p className="text-[var(--text-secondary)] max-w-sm">
           已收到你的 <span className="font-medium text-[var(--text-primary)]">{seasonName}</span> 报名。
-          一封登录链接已发送至
+          报名邮箱：
         </p>
         <p className="font-mono text-sm px-3 py-1.5 rounded-md bg-[var(--bg-overlay)] text-[var(--text-primary)]">
           {submittedEmail}
         </p>
         <p className="text-sm text-[var(--text-muted)] max-w-xs">
-          管理员审核通过后会另行通知。你可以随时用邮件中的链接登录查看进度。
+          管理员审核通过后会另行通知，届时可使用邮箱和密码登录查看进度。
         </p>
       </div>
     );

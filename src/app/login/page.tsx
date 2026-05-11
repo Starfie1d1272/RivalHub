@@ -7,7 +7,7 @@ export default function LoginPage() {
         <div className="space-y-1 text-center">
           <h1 className="text-2xl font-bold text-[var(--text-primary)]">选手登录</h1>
           <p className="text-sm text-[var(--text-secondary)]">
-            输入邮箱，我们将发送一条登录链接
+            使用邮箱和密码登录
           </p>
         </div>
         <LoginForm />
