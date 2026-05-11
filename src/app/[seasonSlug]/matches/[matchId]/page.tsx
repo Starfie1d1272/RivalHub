@@ -6,6 +6,7 @@ import { seasons, matches, teams, matchMaps } from "@/db/schema";
 import { MatchStatusBadge } from "@/components/matches/MatchStatusBadge";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { PlayerStatsTable } from "@/components/matches/PlayerStatsTable";
 
 interface MatchDetailPageProps {
   params: Promise<{ seasonSlug: string; matchId: string }>;
@@ -132,6 +133,9 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                     )}
                   </div>
                 </div>
+                {isFinished && (
+                  <PlayerStatsTable matchId={match.id} mapId={map.id} />
+                )}
               </Card>
             ))}
           </div>
