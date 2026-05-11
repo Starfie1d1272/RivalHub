@@ -1,10 +1,11 @@
 "use server";
 
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matchMaps } from "@/db/schema/match-maps";
 import { matches } from "@/db/schema/matches";
 import { matchPlayerStats } from "@/db/schema/player-stats";
+import { matchMvpVotes } from "@/db/schema/mvp-votes";
 import { auditLogs } from "@/db/schema/audit";
 import { users } from "@/db/schema/users";
 import { seasonRegistrations } from "@/db/schema/registrations";
@@ -12,7 +13,8 @@ import { ok, fail } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { extractScoreboardFromBase64 } from "@/lib/ocr";
 import type { PlayerRowOCR } from "@/lib/ocr";
-import { requireAdmin, auditActorId } from "@/lib/auth/session";
+import { requireAdmin, auditActorId, requireAuth } from "@/lib/auth/session";
+import { revalidatePath } from "next/cache";
 
 export type PlayerStatsDraft = PlayerRowOCR & {
   userId: string | null;
@@ -169,4 +171,57 @@ export async function getPlayerStatsByMap(mapId: string) {
     where: eq(matchPlayerStats.mapId, mapId),
     orderBy: (t, { desc }) => [desc(t.ratingPro)],
   });
+}
+
+export async function castMatchMvpVote(
+  matchId: string,
+  playerUserId: string | null,
+  playerName: string,
+) {
+  try {
+    const session = await requireAuth();
+    if (!session?.userId) {
+      return fail({ code: ErrorCode.UNAUTHORIZED, message: "请先登录" });
+    }
+
+    const match = await db.query.matches.findFirst({
+      where: eq(matches.id, matchId),
+    });
+    if (!match) throw new AppError(ErrorCode.MATCH_NOT_FOUND, ERROR_MESSAGES.MATCH_NOT_FOUND);
+    if (match.status !== "finished") {
+      return fail({ code: ErrorCode.MATCH_INVALID_TRANSITION, message: "比赛尚未结束" });
+    }
+
+    await db.insert(matchMvpVotes).values({
+      matchId,
+      playerUserId: playerUserId ?? undefined,
+      playerName,
+      voterUserId: session.userId,
+    });
+
+    revalidatePath(`/${match.seasonId}/matches/${matchId}`);
+    return ok(undefined);
+  } catch (e) {
+    if (e instanceof AppError) return fail({ code: e.code, message: e.message });
+    if (e instanceof Error && e.message.includes("uniq_voter_per_match")) {
+      return fail({ code: ErrorCode.VOTE_DUPLICATE, message: "您已为本场比赛投过 MVP 票" });
+    }
+    console.error("[castMatchMvpVote]", e);
+    return fail({ code: ErrorCode.INTERNAL_ERROR, message: ERROR_MESSAGES.INTERNAL_ERROR });
+  }
+}
+
+export async function getMatchMvpResults(matchId: string) {
+  const votes = await db
+    .select({
+      playerUserId: matchMvpVotes.playerUserId,
+      playerName: matchMvpVotes.playerName,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(matchMvpVotes)
+    .where(eq(matchMvpVotes.matchId, matchId))
+    .groupBy(matchMvpVotes.playerUserId, matchMvpVotes.playerName)
+    .orderBy((t) => desc(t.count));
+
+  return votes;
 }
