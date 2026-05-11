@@ -11,8 +11,11 @@ import { auditActorId, requireSuperAdmin } from "@/lib/auth/session";
 import {
   RIVALS_REGISTRATION_CONFIG,
   RIVALS_STAGE_PLAN,
+  MAJOR_TEAM_CONFIG,
   normalizeRegistrationConfig,
+  normalizeTeamRegistrationConfig,
   type RegistrationConfig,
+  type TeamRegistrationConfig,
   type StagePlan,
 } from "@/types/season";
 
@@ -58,17 +61,37 @@ const seasonFormBaseSchema = z.object({
   registrationMode: z.enum(["solo", "team"]),
   hasCaptainVoting: z.boolean(),
   hasDraft: z.boolean(),
-  teamSize: z.number().int().min(1).max(20),
+  minTeamSize: z.number().int().min(1).max(20),
+  maxTeamSize: z.number().int().min(1).max(20),
   starterCount: z.number().int().min(1).max(20),
   positions: z.array(z.string().min(1)).min(1),
   stagePlan: stagePlanSchema,
   registrationConfig: registrationConfigSchema,
+  teamRegistrationConfig: z.object({
+    allowExternal: z.boolean(),
+    graduateCountsAsHome: z.boolean(),
+    minHomeMembers: z.number().int().min(0),
+    minEnrolledMembers: z.number().int().min(0),
+    maxExternalMembers: z.number().int().min(0),
+    requirePositions: z.boolean(),
+    maxPerPositionPerTeam: z.number().int().min(1),
+    captainCanKick: z.boolean(),
+    captainCanTransfer: z.boolean(),
+    lockAfterRegistration: z.boolean(),
+    requireUniqueTeamName: z.boolean(),
+    requireTeamLogo: z.boolean(),
+  }).optional(),
 });
 
-const seasonFormSchema = seasonFormBaseSchema.refine((data) => data.starterCount <= data.teamSize, {
-  path: ["starterCount"],
-  message: "首发人数不能超过队伍人数",
-});
+const seasonFormSchema = seasonFormBaseSchema
+  .refine((data) => data.starterCount <= data.maxTeamSize, {
+    path: ["starterCount"],
+    message: "首发人数不能超过队伍上限",
+  })
+  .refine((data) => data.minTeamSize <= data.maxTeamSize, {
+    path: ["minTeamSize"],
+    message: "最小人数不能超过最大人数",
+  });
 
 export type SeasonFormInput = z.input<typeof seasonFormSchema>;
 
@@ -121,11 +144,15 @@ export async function createSeason(input: SeasonFormInput): Promise<ActionResult
       registrationMode: data.registrationMode,
       hasCaptainVoting: data.hasCaptainVoting,
       hasDraft: data.hasDraft,
-      teamSize: data.teamSize,
+      minTeamSize: data.minTeamSize,
+      maxTeamSize: data.maxTeamSize,
       starterCount: data.starterCount,
       positions: data.positions,
       stagePlan: data.stagePlan as StagePlan,
       registrationConfig: normalizeRegistrationConfig(data.registrationConfig as RegistrationConfig),
+      teamRegistrationConfig: normalizeTeamRegistrationConfig(
+        (data.teamRegistrationConfig ?? {}) as TeamRegistrationConfig,
+      ),
       startAt: toDate(data.startAt),
       endAt: toDate(data.endAt),
     }).returning({ id: seasons.id, slug: seasons.slug });
@@ -151,10 +178,15 @@ export async function createSeason(input: SeasonFormInput): Promise<ActionResult
 export async function updateSeason(input: SeasonFormInput): Promise<ActionResult<{ slug: string }>> {
   try {
     const admin = await requireSuperAdmin();
-    const updateSchema = seasonFormBaseSchema.extend({ id: z.string().uuid() }).refine(
-      (data) => data.starterCount <= data.teamSize,
-      { path: ["starterCount"], message: "首发人数不能超过队伍人数" },
-    );
+    const updateSchema = seasonFormBaseSchema.extend({ id: z.string().uuid() })
+      .refine(
+        (data) => data.starterCount <= data.maxTeamSize,
+        { path: ["starterCount"], message: "首发人数不能超过队伍上限" },
+      )
+      .refine(
+        (data) => data.minTeamSize <= data.maxTeamSize,
+        { path: ["minTeamSize"], message: "最小人数不能超过最大人数" },
+      );
     const parsed = updateSchema.safeParse(input);
     if (!parsed.success) {
       return fail({
@@ -180,7 +212,8 @@ export async function updateSeason(input: SeasonFormInput): Promise<ActionResult
         existing.registrationMode !== data.registrationMode ||
         existing.hasCaptainVoting !== data.hasCaptainVoting ||
         existing.hasDraft !== data.hasDraft ||
-        existing.teamSize !== data.teamSize ||
+        existing.maxTeamSize !== data.maxTeamSize ||
+        existing.minTeamSize !== data.minTeamSize ||
         existing.starterCount !== data.starterCount ||
         JSON.stringify(existing.positions) !== JSON.stringify(data.positions) ||
         JSON.stringify(existing.stagePlan) !== JSON.stringify(data.stagePlan);
@@ -196,11 +229,15 @@ export async function updateSeason(input: SeasonFormInput): Promise<ActionResult
       registrationMode: data.registrationMode,
       hasCaptainVoting: data.hasCaptainVoting,
       hasDraft: data.hasDraft,
-      teamSize: data.teamSize,
+      minTeamSize: data.minTeamSize,
+      maxTeamSize: data.maxTeamSize,
       starterCount: data.starterCount,
       positions: data.positions,
       stagePlan: data.stagePlan as StagePlan,
       registrationConfig: normalizeRegistrationConfig(data.registrationConfig as RegistrationConfig),
+      teamRegistrationConfig: normalizeTeamRegistrationConfig(
+        (data.teamRegistrationConfig ?? {}) as TeamRegistrationConfig,
+      ),
       startAt: toDate(data.startAt),
       endAt: toDate(data.endAt),
       updatedAt: new Date(),
@@ -299,8 +336,3 @@ export async function deleteSeason(seasonId: string): Promise<ActionResult<void>
     return fail({ code: ErrorCode.INTERNAL_ERROR, message: ERROR_MESSAGES.INTERNAL_ERROR });
   }
 }
-
-export const DEFAULT_SEASON_FORM_VALUES = {
-  stagePlan: RIVALS_STAGE_PLAN,
-  registrationConfig: RIVALS_REGISTRATION_CONFIG,
-};

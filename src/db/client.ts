@@ -4,20 +4,19 @@ import * as schema from "./schema";
 
 const connectionString = process.env.DATABASE_URL;
 
-// Supabase direct connection requires SSL; local Docker/Postgres does not.
-// Production: use Supabase Transaction Pooler URL for connection pooling.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const pgConfig: any = {
   connectionString,
+  // Supabase pooler requires SSL; local Docker/Postgres does not
   ssl: shouldUseSsl(connectionString) ? { rejectUnauthorized: false } : undefined,
-  family: 4, // force IPv4 to avoid DNS resolution issues with Supabase
-  max: 10,
-  idleTimeoutMillis: 30000,
+  family: 4,
+  // Vercel serverless: keep pool small to avoid connection exhaustion
+  max: 1,
+  idleTimeoutMillis: 10000,
   connectionTimeoutMillis: 10000,
 };
 const pool = new Pool(pgConfig);
 
-// Prevent pool-level errors from crashing the Next.js process
 pool.on("error", (err) => {
   console.error("[db] pool error:", err.message);
 });

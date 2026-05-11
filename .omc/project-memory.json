@@ -52,8 +52,8 @@
     "runtime": "Node.js 20.0.0"
   },
   "build": {
-    "buildCommand": "rtk tsc --noEmit 2>&1 | tail -10",
-    "testCommand": "rtk gh pr create --title \"dev → main: Phase 8-12 功能合并\" --body \"$(cat <<'EOF'\n## Summary\n\n合并 dev 分支的 Phase 8–12 所有功能到 main，准备首次部署。\n\n### 主要变更\n\n- **Phase 8 选秀核心** — 蛇形选秀完整流程（队长面板、围观页、超时自动 pick、事务并发安全）\n- **v2 赛制引擎** — 5 个 StageExecutor（round-robin / double-elim / single-elim / swiss / gsl-group）、advanceTiers 取代 advance、entrySeeds 种子轮空\n- **Phase 11.5 选手数据** — 排行榜（多排序+位置筛选）、MVP 投票、选手个人页跨赛季数据聚合、队伍数据卡片\n- **认证系统** — Email+Password 登录替代 Magic Link（#46）\n- **测试覆盖** — validator / state machine / lib / format executor / server action / component 共 80+ 测试\n- **部署准备** — vercel.json cron 配置、CRON_SECRET、GitHub Actions CI\n\n### 文件变更\n\n共 50 个提交，涉及约 120+ 文件。\n\n## Test plan\n\n- [ ] 本地 `pnpm dev` 启动正常\n- [ ] `pnpm tsc --noEmit` 类型检查通过\n- [ ] `pnpm test` 全部通过\n- [ ] Vercel 预览部署正常\n- [ ] 生产环境可正常访问\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\nEOF\n)\"",
+    "buildCommand": "rtk tsc --noEmit 2>&1 | tail -2 && pnpm test 2>&1 | tail -3 && rtk git add -A && rtk git commit --amend --no-edit && rtk git push --force-with-lease",
+    "testCommand": "rtk tsc --noEmit 2>&1 | tail -2 && pnpm test 2>&1 | tail -3 && rtk git add -A && rtk git commit --amend --no-edit && rtk git push --force-with-lease",
     "lintCommand": "pnpm lint",
     "devCommand": "pnpm dev",
     "scripts": {
@@ -213,6 +213,12 @@
       "type": "file"
     },
     {
+      "path": "src/db/client.ts",
+      "accessCount": 18,
+      "lastAccessed": 1778516934899,
+      "type": "file"
+    },
+    {
       "path": "src/actions/matches.ts",
       "accessCount": 13,
       "lastAccessed": 1778492637715,
@@ -267,15 +273,15 @@
       "type": "file"
     },
     {
-      "path": "src/components/layout/season-nav.tsx",
-      "accessCount": 7,
-      "lastAccessed": 1778480779186,
+      "path": "src/lib/utils/season.ts",
+      "accessCount": 8,
+      "lastAccessed": 1778520143540,
       "type": "file"
     },
     {
-      "path": "src/lib/utils/season.ts",
+      "path": "src/components/layout/season-nav.tsx",
       "accessCount": 7,
-      "lastAccessed": 1778486812795,
+      "lastAccessed": 1778480779186,
       "type": "file"
     },
     {
@@ -309,9 +315,9 @@
       "type": "file"
     },
     {
-      "path": "src/db/client.ts",
+      "path": "drizzle/migrations/meta/_journal.json",
       "accessCount": 4,
-      "lastAccessed": 1778489271940,
+      "lastAccessed": 1778513619045,
       "type": "file"
     },
     {
@@ -345,6 +351,12 @@
       "type": "file"
     },
     {
+      "path": "drizzle.config.ts",
+      "accessCount": 3,
+      "lastAccessed": 1778513279230,
+      "type": "file"
+    },
+    {
       "path": "tests/unit/lib/formats/double-elim.test.ts",
       "accessCount": 2,
       "lastAccessed": 1778470648147,
@@ -360,12 +372,6 @@
       "path": "docs/superpowers/plans/2026-05-11-player-stats-display-plan.md",
       "accessCount": 2,
       "lastAccessed": 1778478421785,
-      "type": "file"
-    },
-    {
-      "path": "drizzle/migrations/meta/_journal.json",
-      "accessCount": 2,
-      "lastAccessed": 1778479236347,
       "type": "file"
     },
     {
@@ -393,9 +399,15 @@
       "type": "file"
     },
     {
-      "path": "drizzle.config.ts",
+      "path": "src/lib/validators/registration.ts",
       "accessCount": 2,
-      "lastAccessed": 1778484255247,
+      "lastAccessed": 1778520146297,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/config/registration-defaults.ts",
+      "accessCount": 2,
+      "lastAccessed": 1778520199753,
       "type": "file"
     },
     {
@@ -480,18 +492,6 @@
       "path": "src/lib/draft/rules.ts",
       "accessCount": 1,
       "lastAccessed": 1778480094974,
-      "type": "file"
-    },
-    {
-      "path": "src/lib/validators/registration.ts",
-      "accessCount": 1,
-      "lastAccessed": 1778481000642,
-      "type": "file"
-    },
-    {
-      "path": "src/lib/config/registration-defaults.ts",
-      "accessCount": 1,
-      "lastAccessed": 1778481011048,
       "type": "file"
     },
     {

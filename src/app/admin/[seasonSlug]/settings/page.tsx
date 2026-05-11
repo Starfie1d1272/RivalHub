@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
 import { requireSuperAdmin } from "@/lib/auth/session";
-import { normalizeRegistrationConfig, normalizeStagePlan } from "@/types/season";
+import { normalizeRegistrationConfig, normalizeStagePlan, normalizeTeamRegistrationConfig } from "@/types/season";
 import { SeasonForm } from "@/components/admin/SeasonForm";
 
 interface SeasonSettingsPageProps {
@@ -44,11 +44,13 @@ export default async function SeasonSettingsPage({ params }: SeasonSettingsPageP
           registrationMode: season.registrationMode,
           hasCaptainVoting: season.hasCaptainVoting,
           hasDraft: season.hasDraft,
-          teamSize: season.teamSize,
+          maxTeamSize: season.maxTeamSize,
+          minTeamSize: season.minTeamSize,
           starterCount: season.starterCount,
           positions: season.positions,
           stagePlan: normalizeStagePlan(season.stagePlan),
           registrationConfig: normalizeRegistrationConfig(season.registrationConfig),
+          teamRegistrationConfig: normalizeTeamRegistrationConfig(season.teamRegistrationConfig),
         }}
       />
     </div>

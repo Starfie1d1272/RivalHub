@@ -22,7 +22,7 @@ v1 聚焦 NJU Rivals 选秀联赛全流程。v2 赛制引擎（Swiss / GSL / Sin
 | 队长投票 | 全体选手投票，Realtime 票数，得票前 8 名为队长 | ✅ Phase 6 |
 | 蛇形选秀直播间 | Realtime 围观，倒计时，剩余选手池 | ✅ Phase 7 |
 | 队长选秀面板 | 事务行锁、幂等 pick、超时 Cron 自动递补 | ✅ Phase 8 |
-| 队伍展示 | 7 人阵容按位置排版，首发/替补分区，队长 badge | ✅ Phase 9 |
+| 队伍展示 | 阵容按位置排版，首发/替补分区，队长 badge | ✅ Phase 9 |
 | 赛程管理 | 比赛详情 + 地图结果 + 管理员录分 / 取消 | ✅ Phase 10 |
 | Bracket 视图 | `brackets-manager` 双败/单败淘汰图，bracket 节点↔比赛详情双向跳转 | ✅ Phase 11 |
 | 平台配置化 | `stagePlan`/`registrationConfig` JSONB，StageExecutor 框架（5 个 executor），Admin 赛季管理 UI | ✅ Phase 11 |
@@ -84,11 +84,12 @@ pnpm db:generate      # 离线生成迁移 SQL（不连接 DB）
 
 ## 部署（Vercel）
 
-1. 在 Vercel 导入仓库（`dev` 分支），配置 `.env.example` 中的所有环境变量（含 `CRON_SECRET`）。
-2. `vercel.json` 已配置 Cron Job：`* * * * *` → `/api/cron/draft-timeout`，部署后自动生效。
-3. 首次部署后运行 `pnpm db:push && pnpm seed` 迁移数据库。
+> 详细配置见 **[docs/deployment.md](docs/deployment.md)**——Session Pooler 连接、环境变量清单、常见问题。
+
+1. 在 Vercel 导入仓库（`main` 分支），配置所有环境变量。
+2. `vercel.json` 已配置 Cron Job，部署后自动生效。
+3. 数据库迁移通过 Drizzle 或 Supabase Dashboard 执行。
 4. 绑定自定义域名，更新 `NEXT_PUBLIC_APP_URL`。
-5. 运行 `pnpm test:e2e` 对生产 URL 验证关键路径。
 
 ## 文档索引
 
@@ -104,6 +105,7 @@ pnpm db:generate      # 离线生成迁移 SQL（不连接 DB）
 | `docs/ui-design.md` | 页面级视觉设计与 ASCII 线框 |
 | `docs/ui-tokens.md` | 设计 tokens（色板/字体/间距） |
 | `docs/testing.md` | 测试策略与配置 |
+| `docs/deployment.md` | Vercel 部署注意事项 |
 | `docs/superpowers/specs/` | v2 赛制设计文档（Swiss / StageFramework / CS2 赛事调研） |
 | `CLAUDE.md` | 面向 Claude Code 的工程手册 |
 

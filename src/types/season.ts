@@ -63,6 +63,36 @@ export interface RegistrationConfig {
   screenshotCount: number;
 }
 
+export interface TeamRegistrationConfig {
+  allowExternal: boolean;
+  graduateCountsAsHome: boolean;
+  minHomeMembers: number;
+  minEnrolledMembers: number;
+  maxExternalMembers: number;
+  requirePositions: boolean;
+  maxPerPositionPerTeam: number;
+  captainCanKick: boolean;
+  captainCanTransfer: boolean;
+  lockAfterRegistration: boolean;
+  requireUniqueTeamName: boolean;
+  requireTeamLogo: boolean;
+}
+
+export const MAJOR_TEAM_CONFIG: TeamRegistrationConfig = {
+  allowExternal: false,
+  graduateCountsAsHome: true,
+  minHomeMembers: 5,
+  minEnrolledMembers: 0,
+  maxExternalMembers: 0,
+  requirePositions: false,
+  maxPerPositionPerTeam: 2,
+  captainCanKick: true,
+  captainCanTransfer: true,
+  lockAfterRegistration: true,
+  requireUniqueTeamName: true,
+  requireTeamLogo: false,
+};
+
 /**
  * Capability 字段——业务逻辑的唯一判断依据。
  * 禁止用 season.kind 做功能分支，统一读这组字段。
@@ -82,7 +112,9 @@ export interface SeasonCapabilities {
   stagePlan: StagePlan;
   /** 报名规则配置 */
   registrationConfig: RegistrationConfig;
-  teamSize: number;
+  teamRegistrationConfig: TeamRegistrationConfig;
+  maxTeamSize: number;
+  minTeamSize: number;
   starterCount: number;
   /** 该赛季可用的位置标识符列表 */
   positions: string[];
@@ -133,7 +165,22 @@ export const DRAFT_LEAGUE_PRESET: SeasonCapabilities = {
   hasDraft: true,
   stagePlan: RIVALS_STAGE_PLAN,
   registrationConfig: RIVALS_REGISTRATION_CONFIG,
-  teamSize: 7,
+  teamRegistrationConfig: {
+    allowExternal: false,
+    graduateCountsAsHome: false,
+    minHomeMembers: 0,
+    minEnrolledMembers: 0,
+    maxExternalMembers: 0,
+    requirePositions: false,
+    maxPerPositionPerTeam: 0,
+    captainCanKick: false,
+    captainCanTransfer: false,
+    lockAfterRegistration: false,
+    requireUniqueTeamName: false,
+    requireTeamLogo: false,
+  },
+  maxTeamSize: 7,
+  minTeamSize: 7,
   starterCount: 5,
   positions: CS2_POSITIONS,
 };
@@ -145,7 +192,9 @@ export const OPEN_TOURNAMENT_PRESET: SeasonCapabilities = {
   hasDraft: false,
   stagePlan: RIVALS_STAGE_PLAN,
   registrationConfig: RIVALS_REGISTRATION_CONFIG,
-  teamSize: 5,
+  teamRegistrationConfig: MAJOR_TEAM_CONFIG,
+  maxTeamSize: 5,
+  minTeamSize: 5,
   starterCount: 5,
   positions: CS2_POSITIONS,
 };
@@ -193,12 +242,14 @@ export const CAPABILITY_PRESETS = {
   "draft-league": DRAFT_LEAGUE_PRESET,
   "open-tournament": OPEN_TOURNAMENT_PRESET,
   major: {
-    registrationMode: "team",
+    registrationMode: "team" as const,
     hasCaptainVoting: false,
     hasDraft: false,
     stagePlan: MAJOR_STAGE_PLAN,
     registrationConfig: MAJOR_REGISTRATION_CONFIG,
-    teamSize: 5,
+    teamRegistrationConfig: MAJOR_TEAM_CONFIG,
+    maxTeamSize: 9,
+    minTeamSize: 5,
     starterCount: 5,
     positions: CS2_POSITIONS,
   },
@@ -269,6 +320,27 @@ export function normalizeRegistrationConfig(
     },
     maxPerPosition: config?.maxPerPosition ?? RIVALS_REGISTRATION_CONFIG.maxPerPosition,
     screenshotCount: config?.screenshotCount ?? RIVALS_REGISTRATION_CONFIG.screenshotCount,
+  };
+}
+
+type PartialTeamConfig = Partial<TeamRegistrationConfig>;
+
+export function normalizeTeamRegistrationConfig(
+  config: PartialTeamConfig | null | undefined,
+): TeamRegistrationConfig {
+  return {
+    allowExternal: config?.allowExternal ?? MAJOR_TEAM_CONFIG.allowExternal,
+    graduateCountsAsHome: config?.graduateCountsAsHome ?? MAJOR_TEAM_CONFIG.graduateCountsAsHome,
+    minHomeMembers: config?.minHomeMembers ?? MAJOR_TEAM_CONFIG.minHomeMembers,
+    minEnrolledMembers: config?.minEnrolledMembers ?? MAJOR_TEAM_CONFIG.minEnrolledMembers,
+    maxExternalMembers: config?.maxExternalMembers ?? MAJOR_TEAM_CONFIG.maxExternalMembers,
+    requirePositions: config?.requirePositions ?? MAJOR_TEAM_CONFIG.requirePositions,
+    maxPerPositionPerTeam: config?.maxPerPositionPerTeam ?? MAJOR_TEAM_CONFIG.maxPerPositionPerTeam,
+    captainCanKick: config?.captainCanKick ?? MAJOR_TEAM_CONFIG.captainCanKick,
+    captainCanTransfer: config?.captainCanTransfer ?? MAJOR_TEAM_CONFIG.captainCanTransfer,
+    lockAfterRegistration: config?.lockAfterRegistration ?? MAJOR_TEAM_CONFIG.lockAfterRegistration,
+    requireUniqueTeamName: config?.requireUniqueTeamName ?? MAJOR_TEAM_CONFIG.requireUniqueTeamName,
+    requireTeamLogo: config?.requireTeamLogo ?? MAJOR_TEAM_CONFIG.requireTeamLogo,
   };
 }
 

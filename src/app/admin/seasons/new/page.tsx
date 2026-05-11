@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { requireSuperAdmin } from "@/lib/auth/session";
-import { RIVALS_REGISTRATION_CONFIG, RIVALS_STAGE_PLAN } from "@/types/season";
+import { RIVALS_REGISTRATION_CONFIG, MAJOR_STAGE_PLAN, CS2_POSITIONS } from "@/types/season";
 import { SeasonForm } from "@/components/admin/SeasonForm";
 
 export default async function NewSeasonPage() {
@@ -17,18 +17,19 @@ export default async function NewSeasonPage() {
         initial={{
           name: "",
           slug: "",
-          kind: "选秀联赛",
+          kind: "Major",
           status: "draft",
           themeColor: "#f97316",
           startAt: null,
           endAt: null,
-          registrationMode: "solo",
-          hasCaptainVoting: true,
-          hasDraft: true,
-          teamSize: 7,
+          registrationMode: "team",
+          hasCaptainVoting: false,
+          hasDraft: false,
+          maxTeamSize: 9,
+          minTeamSize: 5,
           starterCount: 5,
-          positions: ["igl", "awper", "opener", "closer", "anchor"],
-          stagePlan: RIVALS_STAGE_PLAN,
+          positions: CS2_POSITIONS,
+          stagePlan: MAJOR_STAGE_PLAN,
           registrationConfig: RIVALS_REGISTRATION_CONFIG,
         }}
       />

@@ -32,7 +32,9 @@ erDiagram
     bool has_draft
     json stage_plan "StageConfig[]"
     json registration_config "RegistrationConfig"
-    int team_size
+    int min_team_size
+    int max_team_size
+    json team_registration_config "TeamRegistrationConfig"
     int starter_count
     text[] positions "该赛季可用位置列表"
     json bracket_data "brackets-manager state"

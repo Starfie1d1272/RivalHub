@@ -17,9 +17,11 @@
 | `hasDraft` | `boolean` | `true` | `false` | 是否有蛇形选秀 |
 | `stagePlan` | `StagePlan` | `round_robin -> double_elim` | `round_robin -> double_elim` | 多阶段赛制计划，`matches.stage` 存阶段 `key` |
 | `registrationConfig` | `RegistrationConfig` | Rivals 默认报名规则 | Rivals 默认报名规则 | 身份类型、段位门槛、位置上限、截图数量 |
-| `teamSize` | `integer` | `7` | `5` | 每队人数 |
+| `minTeamSize` | `integer` | `7` | `5` | 每队最少人数 |
+| `maxTeamSize` | `integer` | `7` | `9` | 每队最多人数 |
 | `starterCount` | `integer` | `5` | `5` | 首发人数 |
-| `positions` | `text[]` | `["igl","awper","opener","closer","anchor"]` | `["igl","awper","opener","closer","anchor"]` | 该赛季可用位置列表 |
+| `teamRegistrationConfig` | `TeamRegistrationConfig` | `{}` | MAJOR_TEAM_CONFIG | 队伍报名配置（身份/学校约束、位置分配、队伍管理权限） |
+| `positions` | `text[]` | `["igl","awper","opener","closer","anchor"]` | `["igl","awper","opener","closer","anchor"]` | 该赛季可用位置列表（Team 模式下可选填） |
 
 **为什么使用 stagePlan**：有些赛事可能仅有排位赛、仅有正赛，或有多个 Swiss / Playoff 阶段。用 `stagePlan` 的阶段数组统一描述，业务代码读取稳定的 `stage.key`，展示使用可变的 `stage.name`。
 

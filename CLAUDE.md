@@ -270,3 +270,4 @@ pnpm seed              # 运行种子脚本（阶段2+ 有真实 DB 后使用）
 | `docs/ui-design.md` | 页面级视觉设计 |
 | `docs/ui-tokens.md` | 设计 tokens |
 | `docs/testing.md` | 测试策略 |
+| `docs/deployment.md` | Vercel 部署注意事项（Session Pooler 配置） |
