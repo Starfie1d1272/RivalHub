@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
-import { eq, or, and, inArray } from "drizzle-orm";
+import { eq, or, and, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons, teams, teamMembers, seasonRegistrations, users, matches, matchMaps } from "@/db/schema";
+import { matchPlayerStats } from "@/db/schema/player-stats";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import Link from "next/link";
@@ -134,6 +135,71 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
 
   const played = totalWins + totalLosses;
 
+  // ── 队伍聚合统计 ──────────────────────────────────────────────────
+  const teamStatRows = roster.length
+    ? await db.execute(sql`
+        SELECT
+          round(avg(mps.rating_pro)::numeric, 2) as avg_rating,
+          round(avg(mps.adr)::numeric, 1) as avg_adr,
+          round(avg(mps.kills)::numeric, 1) as avg_kills,
+          round(avg(mps.deaths)::numeric, 1) as avg_deaths,
+          round(avg(mps.we)::numeric, 1) as avg_we,
+          sr.primary_position,
+          mps.perfect_name,
+          mps.rating_pro
+        FROM match_player_stats mps
+        JOIN season_registrations sr ON sr.user_id = mps.user_id AND sr.season_id = ${season.id}
+        JOIN team_members tm ON tm.registration_id = sr.id
+        WHERE tm.team_id = ${teamId}
+          AND mps.verified_by_admin IS NOT NULL
+        GROUP BY sr.primary_position, mps.perfect_name, mps.rating_pro
+      `)
+    : [];
+
+  interface TeamStatRow {
+    avg_rating: number;
+    avg_adr: number;
+    avg_kills: number;
+    avg_deaths: number;
+    avg_we: number;
+    primary_position: string;
+    perfect_name: string;
+    rating_pro: number;
+  }
+
+  const typedStats = teamStatRows as unknown as TeamStatRow[];
+
+  const teamAvgRating =
+    typedStats.length > 0
+      ? (typedStats.reduce((s, r) => s + Number(r.avg_rating), 0) / typedStats.length).toFixed(2)
+      : null;
+  const teamAvgAdr =
+    typedStats.length > 0
+      ? (typedStats.reduce((s, r) => s + Number(r.avg_adr), 0) / typedStats.length).toFixed(1)
+      : null;
+  const teamAvgKd =
+    typedStats.length > 0
+      ? (() => {
+          const k = typedStats.reduce((s, r) => s + Number(r.avg_kills), 0);
+          const d = typedStats.reduce((s, r) => s + Number(r.avg_deaths), 0);
+          return d > 0 ? (k / d).toFixed(2) : null;
+        })()
+      : null;
+  const teamAvgWe =
+    typedStats.length > 0
+      ? (typedStats.reduce((s, r) => s + Number(r.avg_we), 0) / typedStats.length).toFixed(1)
+      : null;
+
+  // 每位置最高 Rating 选手
+  const positionBest = new Map<string, { name: string; rating: number }>();
+  for (const r of typedStats) {
+    const pos = r.primary_position;
+    const existing = positionBest.get(pos);
+    if (!existing || Number(r.rating_pro) > existing.rating) {
+      positionBest.set(pos, { name: r.perfect_name, rating: Number(r.rating_pro) });
+    }
+  }
+
   return (
     <div className="container mx-auto px-4 py-12 max-w-4xl space-y-10">
 
@@ -196,6 +262,43 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
           )}
         </Card>
       </section>
+
+      {/* 队伍数据 */}
+      {teamAvgRating && (
+        <section className="space-y-4">
+          <h2 className="text-lg font-semibold text-[var(--text-primary)]">队伍数据</h2>
+          <Card className="p-5 space-y-4">
+            <div className="grid grid-cols-4 gap-4 text-center">
+              {[
+                { label: "场均 Rating", value: teamAvgRating },
+                { label: "场均 ADR", value: teamAvgAdr },
+                { label: "场均 K/D", value: teamAvgKd },
+                { label: "场均 WE", value: teamAvgWe },
+              ].map(({ label, value }) => (
+                <div key={label}>
+                  <p className="text-xl font-bold text-[var(--season-primary)]">
+                    {value ?? "—"}
+                  </p>
+                  <p className="text-[10px] text-[var(--text-muted)] mt-0.5">
+                    {label}
+                  </p>
+                </div>
+              ))}
+            </div>
+            {positionBest.size > 0 && (
+              <div className="text-[11px] text-[var(--text-muted)] border-t border-[var(--border)] pt-3">
+                {[...positionBest.entries()]
+                  .map(([pos, info]) => {
+                    const label =
+                      POSITION_LABELS[pos as keyof typeof POSITION_LABELS]?.cn ?? pos;
+                    return `${label} ${info.name} (${info.rating.toFixed(2)})`;
+                  })
+                  .join(" · ")}
+              </div>
+            )}
+          </Card>
+        </section>
+      )}
 
       {/* 地图胜率 */}
       {sortedMaps.length > 0 && (
