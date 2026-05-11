@@ -10,8 +10,8 @@ import { users } from "@/db/schema/users";
 import { seasonRegistrations } from "@/db/schema/registrations";
 import { ok, fail } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
-import { extractScoreboardFromBase64 } from "@/lib/ocr/scoreboard";
-import type { PlayerRowOCR } from "@/lib/ocr/scoreboard";
+import { extractScoreboardFromBase64 } from "@/lib/ocr";
+import type { PlayerRowOCR } from "@/lib/ocr";
 import { requireAdmin, auditActorId } from "@/lib/auth/session";
 
 export type PlayerStatsDraft = PlayerRowOCR & {
