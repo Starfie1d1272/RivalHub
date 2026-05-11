@@ -64,6 +64,13 @@
       "when": 1778460000000,
       "tag": "0008_entry_round",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1747008000000,
+      "tag": "0009_team_registration_config",
+      "breakpoints": true
     }
   ]
 }
