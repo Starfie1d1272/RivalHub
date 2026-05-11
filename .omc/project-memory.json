@@ -52,8 +52,8 @@
     "runtime": "Node.js 20.0.0"
   },
   "build": {
-    "buildCommand": "rtk tsc --noEmit 2>&1 | head -80",
-    "testCommand": "pnpm test 2>&1 | tail -20",
+    "buildCommand": "rtk tsc --noEmit 2>&1 | head -10",
+    "testCommand": "rtk tsc --noEmit 2>&1 | tail -3 && pnpm test 2>&1 | tail -5 && rtk git add -A && rtk git commit -m \"fix: simplify — use CS2_POSITIONS constant, structuredClone, remove dead code and useMemo\" && rtk git push",
     "lintCommand": "pnpm lint",
     "devCommand": "pnpm dev",
     "scripts": {
@@ -214,8 +214,8 @@
     },
     {
       "path": "src/db/client.ts",
-      "accessCount": 17,
-      "lastAccessed": 1778505199244,
+      "accessCount": 18,
+      "lastAccessed": 1778516934899,
       "type": "file"
     },
     {
@@ -273,15 +273,15 @@
       "type": "file"
     },
     {
-      "path": "src/components/layout/season-nav.tsx",
-      "accessCount": 7,
-      "lastAccessed": 1778480779186,
+      "path": "src/lib/utils/season.ts",
+      "accessCount": 8,
+      "lastAccessed": 1778520143540,
       "type": "file"
     },
     {
-      "path": "src/lib/utils/season.ts",
+      "path": "src/components/layout/season-nav.tsx",
       "accessCount": 7,
-      "lastAccessed": 1778486812795,
+      "lastAccessed": 1778480779186,
       "type": "file"
     },
     {
@@ -399,6 +399,18 @@
       "type": "file"
     },
     {
+      "path": "src/lib/validators/registration.ts",
+      "accessCount": 2,
+      "lastAccessed": 1778520146297,
+      "type": "file"
+    },
+    {
+      "path": "src/lib/config/registration-defaults.ts",
+      "accessCount": 2,
+      "lastAccessed": 1778520199753,
+      "type": "file"
+    },
+    {
       "path": "src/lib/registration-transitions.ts",
       "accessCount": 1,
       "lastAccessed": 1778471048710,
@@ -480,18 +492,6 @@
       "path": "src/lib/draft/rules.ts",
       "accessCount": 1,
       "lastAccessed": 1778480094974,
-      "type": "file"
-    },
-    {
-      "path": "src/lib/validators/registration.ts",
-      "accessCount": 1,
-      "lastAccessed": 1778481000642,
-      "type": "file"
-    },
-    {
-      "path": "src/lib/config/registration-defaults.ts",
-      "accessCount": 1,
-      "lastAccessed": 1778481011048,
       "type": "file"
     },
     {

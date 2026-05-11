@@ -74,7 +74,7 @@ export function StagePlanEditor({ value, onChange }: StagePlanEditorProps) {
     }
     if (!confirm("当前赛制配置将被覆盖，是否继续？")) return;
     const plan = preset === "major" ? MAJOR_STAGE_PLAN : RIVALS_STAGE_PLAN;
-    onChange(JSON.parse(JSON.stringify(plan)));
+    onChange(structuredClone(plan));
   }
 
   return (

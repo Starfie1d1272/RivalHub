@@ -1,7 +1,7 @@
 {
   "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"rtk grep -rn \\\"\\\\.teamSize\\\" /Users/starfie1d/GitHub/RivalHub/src/ --include=\\\"*.ts\\\" --include=\\\"*.tsx\\\" 2>/dev/null; rtk grep -rn \\\"teamSize:\\\" /Users/starfie1d/GitHub/RivalHub/src/ --in...",
-  "error": "Exit code 1",
-  "timestamp": "2026-05-11T16:15:52.800Z",
+  "tool_input_preview": "{\"command\":\"rtk grep \\\"import.*CS2_POSITIONS\\\" src/components/admin/SeasonForm.tsx\",\"description\":\"Check CS2_POSITIONS import\"}",
+  "error": "Exit code 1\n0 matches for 'import.*CS2_POSITIONS'",
+  "timestamp": "2026-05-11T17:27:00.084Z",
   "retry_count": 1
 }

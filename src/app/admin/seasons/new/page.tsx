@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { requireSuperAdmin } from "@/lib/auth/session";
-import { RIVALS_REGISTRATION_CONFIG, MAJOR_STAGE_PLAN } from "@/types/season";
+import { RIVALS_REGISTRATION_CONFIG, MAJOR_STAGE_PLAN, CS2_POSITIONS } from "@/types/season";
 import { SeasonForm } from "@/components/admin/SeasonForm";
 
 export default async function NewSeasonPage() {
@@ -28,7 +28,7 @@ export default async function NewSeasonPage() {
           maxTeamSize: 9,
           minTeamSize: 5,
           starterCount: 5,
-          positions: ["igl", "awper", "opener", "closer", "anchor"],
+          positions: CS2_POSITIONS,
           stagePlan: MAJOR_STAGE_PLAN,
           registrationConfig: RIVALS_REGISTRATION_CONFIG,
         }}

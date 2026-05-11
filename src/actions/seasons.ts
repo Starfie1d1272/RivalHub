@@ -336,8 +336,3 @@ export async function deleteSeason(seasonId: string): Promise<ActionResult<void>
     return fail({ code: ErrorCode.INTERNAL_ERROR, message: ERROR_MESSAGES.INTERNAL_ERROR });
   }
 }
-
-export const DEFAULT_SEASON_FORM_VALUES = {
-  stagePlan: RIVALS_STAGE_PLAN,
-  registrationConfig: RIVALS_REGISTRATION_CONFIG,
-};

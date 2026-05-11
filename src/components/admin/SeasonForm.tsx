@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { createSeason, deleteSeason, publishSeason, updateSeason, type SeasonFormInput } from "@/actions/seasons";
 import {
+  CS2_POSITIONS,
   PLAYER_TYPE_LABELS,
   RIVALS_REGISTRATION_CONFIG,
   RIVALS_STAGE_PLAN,
@@ -76,7 +77,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
   const [minTeamSize, setMinTeamSize] = useState(initial?.minTeamSize ?? 5);
   const [starterCount, setStarterCount] = useState(initial?.starterCount ?? 5);
   const [positionsText, setPositionsText] = useState(
-    (initial?.positions ?? ["igl", "awper", "opener", "closer", "anchor"]).join(","),
+    (initial?.positions ?? CS2_POSITIONS).join(","),
   );
   const [stagePlan, setStagePlan] = useState<StagePlan>(
     initial?.stagePlan ?? MAJOR_STAGE_PLAN,
@@ -93,10 +94,9 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
   const coreLocked = mode === "edit" && initial?.status !== "draft";
   const title = mode === "create" ? "新建赛季" : "赛季设置";
 
-  const fieldHelp = useMemo(() => {
-    if (!coreLocked) return null;
-    return "当前赛季不在 draft 状态，slug、赛制、队伍规模等核心配置不可修改。";
-  }, [coreLocked]);
+  const fieldHelp = coreLocked
+    ? "当前赛季不在 draft 状态，slug、赛制、队伍规模等核心配置不可修改。"
+    : null;
 
   function togglePlayerType(type: PlayerType) {
     setAllowedPlayerTypes((current) => {
@@ -116,7 +116,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
       setMinTeamSize(5);
       setStarterCount(5);
       setPositionsText("igl,awper,opener,closer,anchor");
-      setStagePlan(JSON.parse(JSON.stringify(MAJOR_STAGE_PLAN)));
+      setStagePlan(structuredClone(MAJOR_STAGE_PLAN));
       setAllowedPlayerTypes(["enrolled", "graduated"]);
       setCurrentMin(NO_RANK);
       setPeakMin(NO_RANK);
@@ -130,7 +130,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
       setMinTeamSize(7);
       setStarterCount(5);
       setPositionsText("igl,awper,opener,closer,anchor");
-      setStagePlan(JSON.parse(JSON.stringify(RIVALS_STAGE_PLAN)));
+      setStagePlan(structuredClone(RIVALS_STAGE_PLAN));
       setAllowedPlayerTypes(["enrolled"]);
       setCurrentMin("A");
       setPeakMin("A+");
