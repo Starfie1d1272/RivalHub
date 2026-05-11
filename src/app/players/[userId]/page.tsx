@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { eq, or, and, asc, inArray } from "drizzle-orm";
+import { eq, or, and, asc, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { users, seasonRegistrations, seasons, teams, teamMembers, matches } from "@/db/schema";
 import { getSteamAvatar } from "@/lib/steam";
@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import Image from "next/image";
 import Link from "next/link";
 import { POSITION_LABELS } from "@/lib/validators/registration";
+import { matchPlayerStats } from "@/db/schema/player-stats";
 
 interface PlayerPageProps {
   params: Promise<{ userId: string }>;
@@ -120,6 +121,35 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
   // 最新报名的主位置
   const latestReg = registrations[registrations.length - 1];
 
+  // ── 个人数据统计（跨赛季）─────────────────────────────────────
+  const playerStats = await db
+    .select({
+      seasonName: seasons.name,
+      seasonSlug: seasons.slug,
+      seasonCreatedAt: seasons.createdAt,
+      maps: sql<number>`count(distinct ${matchPlayerStats.mapId})::int`,
+      avgKills: sql<number>`round(avg(${matchPlayerStats.kills})::numeric, 1)`,
+      avgDeaths: sql<number>`round(avg(${matchPlayerStats.deaths})::numeric, 1)`,
+      avgAssists: sql<number>`round(avg(${matchPlayerStats.assists})::numeric, 1)`,
+      avgRating: sql<number>`round(avg(${matchPlayerStats.ratingPro})::numeric, 2)`,
+      avgAdr: sql<number>`round(avg(${matchPlayerStats.adr})::numeric, 1)`,
+      avgWe: sql<number>`round(avg(${matchPlayerStats.we})::numeric, 1)`,
+      avgHs: sql<number>`round(avg(${matchPlayerStats.hsPercent})::numeric, 0)`,
+      totalKills: sql<number>`sum(${matchPlayerStats.kills})::int`,
+      totalDeaths: sql<number>`sum(${matchPlayerStats.deaths})::int`,
+    })
+    .from(matchPlayerStats)
+    .innerJoin(matches, eq(matchPlayerStats.matchId, matches.id))
+    .innerJoin(seasons, eq(matches.seasonId, seasons.id))
+    .where(
+      and(
+        eq(matchPlayerStats.userId, userId),
+        sql`${matchPlayerStats.verifiedByAdmin} IS NOT NULL`,
+      )
+    )
+    .groupBy(seasons.id, seasons.name, seasons.slug, seasons.createdAt)
+    .orderBy(asc(seasons.createdAt));
+
   return (
     <div className="container mx-auto px-4 py-12 max-w-3xl space-y-10">
 
@@ -192,6 +222,129 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
               </span>
             </p>
           )}
+        </section>
+      )}
+
+      {/* 个人数据 */}
+      {playerStats.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-base font-semibold text-[var(--text-primary)]">
+            个人数据
+          </h2>
+
+          {/* 生涯总计 */}
+          <Card className="p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="text-[var(--primary)]">
+                生涯总计
+              </Badge>
+              <span className="text-xs text-[var(--text-secondary)]">
+                {playerStats.reduce((s, x) => s + x.maps, 0)} 图
+              </span>
+            </div>
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 text-center">
+              {[
+                {
+                  label: "Rating",
+                  value: (
+                    playerStats.reduce((s, x) => s + x.avgRating * x.maps, 0) /
+                    playerStats.reduce((s, x) => s + x.maps, 0)
+                  ).toFixed(2),
+                },
+                {
+                  label: "ADR",
+                  value: (
+                    playerStats.reduce((s, x) => s + x.avgAdr * x.maps, 0) /
+                    playerStats.reduce((s, x) => s + x.maps, 0)
+                  ).toFixed(1),
+                },
+                {
+                  label: "K/D",
+                  value:
+                    playerStats.reduce((s, x) => s + x.totalKills, 0) > 0 &&
+                    playerStats.reduce((s, x) => s + x.totalDeaths, 0) > 0
+                      ? (
+                          playerStats.reduce((s, x) => s + x.totalKills, 0) /
+                          playerStats.reduce((s, x) => s + x.totalDeaths, 0)
+                        ).toFixed(2)
+                      : "—",
+                },
+                {
+                  label: "WE",
+                  value: (
+                    playerStats.reduce((s, x) => s + x.avgWe * x.maps, 0) /
+                    playerStats.reduce((s, x) => s + x.maps, 0)
+                  ).toFixed(1),
+                },
+                {
+                  label: "场均击杀",
+                  value: (
+                    playerStats.reduce((s, x) => s + x.totalKills, 0) /
+                    playerStats.reduce((s, x) => s + x.maps, 0)
+                  ).toFixed(1),
+                },
+                {
+                  label: "HS%",
+                  value: Math.round(
+                    playerStats.reduce((s, x) => s + x.avgHs * x.maps, 0) /
+                      playerStats.reduce((s, x) => s + x.maps, 0)
+                  ) + "%",
+                },
+              ].map(({ label, value }) => (
+                <div key={label}>
+                  <p className="text-lg font-bold text-[var(--text-primary)]">
+                    {value}
+                  </p>
+                  <p className="text-[10px] text-[var(--text-muted)] mt-0.5">
+                    {label}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          {/* 按赛季分组 */}
+          {[...playerStats].reverse().map((ps) => (
+            <Card key={ps.seasonSlug} className="p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Link
+                  href={
+                    `/${ps.seasonSlug}/stats` as any
+                  }
+                  className="text-sm font-semibold text-[var(--text-primary)] hover:text-[var(--primary)] transition-colors"
+                >
+                  {ps.seasonName}
+                </Link>
+                <span className="text-[11px] text-[var(--text-muted)]">
+                  {ps.maps} 图 · 场均 {ps.avgKills}-{ps.avgDeaths}-{ps.avgAssists}
+                </span>
+              </div>
+              <div className="flex gap-4 text-xs text-[var(--text-secondary)]">
+                <span>
+                  Rating{" "}
+                  <span className="text-[var(--primary)] font-semibold">
+                    {ps.avgRating}
+                  </span>
+                </span>
+                <span>
+                  ADR{" "}
+                  <span className="text-[var(--text-primary)]">{ps.avgAdr}</span>
+                </span>
+                <span>
+                  K/D{" "}
+                  <span className="text-[var(--text-primary)]">
+                    {ps.avgDeaths > 0
+                      ? (ps.totalKills / ps.totalDeaths).toFixed(2)
+                      : "—"}
+                  </span>
+                </span>
+                <span>
+                  WE{" "}
+                  <span className="text-[var(--text-primary)]">{ps.avgWe}</span>
+                </span>
+              </div>
+            </Card>
+          ))}
         </section>
       )}
 
