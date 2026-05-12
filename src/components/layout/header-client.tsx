@@ -110,7 +110,7 @@ export function HeaderClient({ seasons, session }: HeaderClientProps) {
             {session ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--season-primary,#f97316)] rounded-full">
+                  <button className="focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] rounded-full">
                     <AvatarButton email={session.email} />
                   </button>
                 </DropdownMenuTrigger>
