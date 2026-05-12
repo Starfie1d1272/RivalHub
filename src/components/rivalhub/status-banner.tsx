@@ -1,5 +1,3 @@
-import { cn } from "@/lib/utils/cn";
-
 type Tone = "info" | "success" | "warn" | "error" | "live";
 
 const TONE_CONFIG: Record<Tone, { color: string; glyph: string }> = {
