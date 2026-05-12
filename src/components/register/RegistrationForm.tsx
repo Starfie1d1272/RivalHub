@@ -236,10 +236,17 @@ export function RegistrationForm({
             <Label htmlFor="email" className="text-[var(--color-fg-mid)] mb-1.5 block">
               电子邮件 <Required />
             </Label>
-            <Input id="email" type="email" placeholder="your@email.com" className={inputCls} {...emailField} />
+            <div className="relative">
+              <Input id="email" type="email" placeholder="your@email.com" className={inputCls} {...emailField} />
+              {loadedDraftEmail && (
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded" style={{ background: "var(--color-ok)22", color: "var(--color-ok)" }}>
+                  草稿已恢复
+                </span>
+              )}
+            </div>
             <FieldError name="email" />
             <p className="text-xs text-[var(--color-fg-dim)] mt-1">
-              用于接收登录链接、审核通知和草稿找回
+              输入邮箱后自动恢复已保存的草稿。同时用于接收登录链接和审核通知。
               {loadingDraftEmail && " · 正在查询草稿…"}
             </p>
           </div>
