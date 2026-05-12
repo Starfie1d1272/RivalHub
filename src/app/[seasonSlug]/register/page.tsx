@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
-import { getPositionCounts } from "@/actions/register";
+import { getPositionCounts, getApprovedCount } from "@/actions/register";
 import { RegistrationForm } from "@/components/register/RegistrationForm";
 import { normalizeRegistrationConfig } from "@/types/season";
 import { Panel, StatusBanner, PosChip } from "@/components/rivalhub";
@@ -59,6 +59,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
   }
 
   const positionCounts = await getPositionCounts(season.id);
+  const approvedCount = await getApprovedCount(season.id);
   const regConfig = normalizeRegistrationConfig(season.registrationConfig);
   const maxPerPos = regConfig.maxPerPosition;
   const registrationWindow = getRegistrationWindowState(season);
@@ -69,8 +70,6 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
     const label = POSITION_LABELS[pos as keyof typeof POSITION_LABELS]?.en ?? pos;
     return { pos, label, cur, max: maxPerPos };
   });
-  const totalApproved = capacityEntries.reduce((sum, e) => sum + e.cur, 0);
-  const maxTotal = regConfig.maxTotal;
 
   return (
     <div className="container mx-auto px-4 py-10 max-w-2xl">
@@ -126,10 +125,10 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
             })}
             <div className="flex justify-between items-center pt-2" style={{ borderTop: "1px solid var(--color-border)" }}>
               <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--color-fg-dim)", fontFamily: "var(--font-display)" }}>
-                Total
+                Approved
               </span>
               <span className="font-bold" style={{ fontFamily: "var(--font-mono)", fontSize: 13, color: "var(--color-fg)" }}>
-                {totalApproved} / {maxTotal}
+                {approvedCount} / {regConfig.maxTotal}
               </span>
             </div>
           </div>
