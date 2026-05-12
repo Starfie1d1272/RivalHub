@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasonRegistrations, seasons } from "@/db/schema";
 import { CaptainVotingPanel } from "@/components/captains/CaptainVotingPanel";
-import { Card } from "@/components/ui/card";
+import { Panel } from "@/components/rivalhub";
 import { getCaptainVotingData } from "@/lib/captains/data";
 import { getUserSession } from "@/lib/auth/session";
 
@@ -23,12 +23,12 @@ export default async function CaptainsPage({ params }: CaptainsPageProps) {
   if (!season.hasCaptainVoting) {
     return (
       <main className="container mx-auto max-w-5xl px-4 py-10">
-        <Card className="p-8">
+        <Panel pad={32}>
           <h1 className="text-2xl font-bold">队长投票 · {season.name}</h1>
           <p className="mt-2 text-sm text-[var(--color-fg-mid)]">
             该赛季未启用队长投票。
           </p>
-        </Card>
+        </Panel>
       </main>
     );
   }
