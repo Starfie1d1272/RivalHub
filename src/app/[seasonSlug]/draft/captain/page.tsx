@@ -6,8 +6,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasonRegistrations, seasons, teams } from "@/db/schema";
 import { CaptainDraftPanel } from "@/components/draft/CaptainDraftPanel";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Panel, Btn } from "@/components/rivalhub";
 import { getUserSession } from "@/lib/auth/session";
 import { getDraftData, type DraftTeamSlot } from "@/lib/draft/data";
 
@@ -142,15 +141,15 @@ function UnavailableCard({
 }) {
   return (
     <main className="container mx-auto max-w-4xl px-4 py-10">
-      <Card className="p-8">
+      <Panel pad={32}>
         <h1 className="text-2xl font-bold">{title}</h1>
         <p className="mt-2 text-sm text-[var(--color-fg-mid)]">{message}</p>
         {href && action && (
-          <Button asChild className="mt-4" variant="secondary">
+          <Btn ghost asChild className="mt-4">
             <Link href={href}>{action}</Link>
-          </Button>
+          </Btn>
         )}
-      </Card>
+      </Panel>
     </main>
   );
 }
