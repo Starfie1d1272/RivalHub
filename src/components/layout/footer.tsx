@@ -28,7 +28,7 @@ export function Footer() {
           RULES
         </Link>
         <span>PRIVACY</span>
-        <span style={{ color: "var(--color-accent)" }}>v4.0-A</span>
+        <span style={{ color: "var(--color-accent)" }}>{APP_BRAND.version}</span>
       </div>
     </footer>
   );
