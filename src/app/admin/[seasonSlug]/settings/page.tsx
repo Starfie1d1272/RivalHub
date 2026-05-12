@@ -12,7 +12,9 @@ interface SeasonSettingsPageProps {
 
 function toDateTimeInput(value: Date | null): string | null {
   if (!value) return null;
-  return value.toISOString().slice(0, 16);
+  // 将 UTC 转为 CST (UTC+8) 显示在 datetime-local 输入框中
+  const d = new Date(value.getTime() + 8 * 3600 * 1000);
+  return d.toISOString().slice(0, 16);
 }
 
 export default async function SeasonSettingsPage({ params }: SeasonSettingsPageProps) {

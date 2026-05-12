@@ -3,20 +3,13 @@ import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { UserPlus, Vote, Users, Swords, Shuffle, BarChart3 } from "lucide-react";
 import { db } from "@/db/client";
-import { seasons } from "@/db/schema";
+import { seasons, matches } from "@/db/schema";
 import { normalizeStagePlan } from "@/types/season";
 import type { SeasonStatus } from "@/types/season";
 import { showStats } from "@/lib/utils/season";
 import { StatusPill, Panel, Marker } from "@/components/rivalhub";
 
-const ALL_PHASES = [
-  { key: "register", label: "REGISTER", after: "registration" as SeasonStatus, required: true },
-  { key: "vote", label: "VOTE", after: "voting" as SeasonStatus, required: "hasCaptainVoting" as const },
-  { key: "draft", label: "DRAFT", after: "drafting" as SeasonStatus, required: "hasDraft" as const },
-  { key: "qualifiers", label: "REGULAR", after: "playing" as SeasonStatus, required: true },
-  { key: "playoffs", label: "PLAYOFFS", after: "finished" as SeasonStatus, required: true },
-  { key: "finals", label: "FINALS", after: "archived" as SeasonStatus, required: true },
-];
+const STATUS_ORDER: SeasonStatus[] = ["draft", "registration", "voting", "drafting", "playing", "finished", "archived"];
 
 interface SeasonPageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -29,14 +22,85 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
     where: eq(seasons.slug, seasonSlug),
   });
   if (!season) notFound();
-  const hasMatches = normalizeStagePlan(season.stagePlan).length > 0;
+  const stagePlan = normalizeStagePlan(season.stagePlan);
+  const hasMatches = stagePlan.length > 0;
 
-  const PHASES = ALL_PHASES.filter((phase) => {
-    if (phase.required === true) return true;
-    if (phase.required === "hasCaptainVoting") return season.hasCaptainVoting;
-    if (phase.required === "hasDraft") return season.hasDraft;
-    return false;
+  // 查询已初始化的赛程阶段（有 match 记录的 stage）
+  const matchStageRows = await db
+    .select({ stage: matches.stage })
+    .from(matches)
+    .where(eq(matches.seasonId, season.id));
+  const initializedStages = new Set(matchStageRows.map((r) => r.stage));
+
+  // ── 动态阶段列表 ──────────────────────────────────────────
+  interface Phase {
+    key: string;
+    label: string;
+    done: boolean;
+  }
+
+  const currentStatusIdx = STATUS_ORDER.indexOf(season.status);
+  const phases: Phase[] = [];
+
+  // 赛前阶段（capability 驱动）
+  const preMatchRules: { key: string; label: string; doneAfter: SeasonStatus }[] = [
+    { key: "register", label: "REGISTER", doneAfter: "registration" },
+  ];
+  if (season.hasCaptainVoting) {
+    preMatchRules.push({ key: "vote", label: "VOTE", doneAfter: "voting" });
+  }
+  if (season.hasDraft) {
+    preMatchRules.push({ key: "draft", label: "DRAFT", doneAfter: "drafting" });
+  }
+  for (const rule of preMatchRules) {
+    phases.push({
+      key: rule.key,
+      label: rule.label,
+      done: currentStatusIdx > STATUS_ORDER.indexOf(rule.doneAfter),
+    });
+  }
+
+  // 比赛阶段（从 stagePlan 读取）
+  if (stagePlan.length > 0) {
+    // 确定当前 match stage 索引，-1 = 尚未进入 playing
+    let currentMatchIdx = -1;
+    if (currentStatusIdx >= STATUS_ORDER.indexOf("playing")) {
+      if (currentStatusIdx > STATUS_ORDER.indexOf("playing")) {
+        // finished / archived → 所有阶段完成
+        currentMatchIdx = stagePlan.length;
+      } else {
+        // playing → 找到最后一个已初始化的阶段
+        let lastInit = -1;
+        for (let i = stagePlan.length - 1; i >= 0; i--) {
+          if (initializedStages.has(stagePlan[i].key)) {
+            lastInit = i;
+            break;
+          }
+        }
+        currentMatchIdx = Math.max(0, lastInit);
+      }
+    }
+
+    for (let i = 0; i < stagePlan.length; i++) {
+      const stage = stagePlan[i];
+      phases.push({
+        key: stage.key,
+        label: stage.key.toUpperCase(),
+        done: i < currentMatchIdx,
+      });
+    }
+  }
+
+  // 结束标记
+  phases.push({
+    key: "finished",
+    label: "FINISHED",
+    done: currentStatusIdx > STATUS_ORDER.indexOf("finished"),
   });
+
+  // 找当前阶段（第一个未完成的）
+  let currentPhaseIdx = phases.findIndex((p) => !p.done);
+  if (currentPhaseIdx === -1) currentPhaseIdx = phases.length - 1;
 
   const quickLinks = [
     {
@@ -97,49 +161,43 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
 
       {/* Phase tracker */}
       <Panel pad={0}>
-        <div className="grid" style={{ gridTemplateColumns: `repeat(${PHASES.length}, 1fr)` }}>
-          {(() => {
-            const statusOrder: SeasonStatus[] = ["draft", "registration", "voting", "drafting", "playing", "finished", "archived"];
-            const currentIdx = statusOrder.indexOf(season.status);
-            const thresholdIdx = Object.fromEntries(PHASES.map((p) => [p.key, statusOrder.indexOf(p.after)]));
-            return PHASES.map((phase, i) => {
-              const phaseDone = currentIdx >= thresholdIdx[phase.key];
-              const prevKey = i > 0 ? PHASES[i - 1].key : "";
-              const isCurrent = !phaseDone && (i === 0 || currentIdx >= (thresholdIdx[prevKey] ?? Infinity));
-              return (
-                <div key={phase.key}
-                  className="relative"
-                  style={{
-                    padding: "18px 16px",
-                    borderRight: i < PHASES.length - 1 ? "1px solid var(--color-border)" : "none",
-                    background: isCurrent ? "var(--color-panel-hi)" : "transparent",
-                  }}
-                >
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <div className="grid place-items-center font-bold rounded-sm" style={{
-                      width: 16, height: 16,
-                      border: `1px solid ${phaseDone ? "var(--color-ok)" : isCurrent ? "var(--color-accent)" : "var(--color-border)"}`,
-                      background: phaseDone ? "var(--color-ok)22" : isCurrent ? "var(--color-accent)22" : "transparent",
-                      fontFamily: "var(--font-mono)", fontSize: 10,
-                      color: phaseDone ? "var(--color-ok)" : isCurrent ? "var(--color-accent)" : "var(--color-fg-dim)",
-                    }}>
-                      {phaseDone ? "✓" : i + 1}
-                    </div>
-                    <div className="uppercase" style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--color-fg-dim)", letterSpacing: "var(--tracking-label)" }}>
-                      STEP {i + 1}
-                    </div>
-                  </div>
-                  <div className="font-semibold" style={{
-                    fontFamily: "var(--font-display)", fontSize: 14,
-                    color: phaseDone ? "var(--color-fg)" : isCurrent ? "var(--color-accent)" : "var(--color-fg-mid)",
-                    letterSpacing: "0.04em",
+        <div className="grid" style={{ gridTemplateColumns: `repeat(${phases.length}, 1fr)` }}>
+          {phases.map((phase, i) => {
+            const isCurrent = i === currentPhaseIdx;
+            const isDone = phase.done;
+            return (
+              <div key={phase.key}
+                className="relative"
+                style={{
+                  padding: "18px 16px",
+                  borderRight: i < phases.length - 1 ? "1px solid var(--color-border)" : "none",
+                  background: isCurrent ? "var(--color-panel-hi)" : "transparent",
+                }}
+              >
+                <div className="flex items-center gap-2 mb-1.5">
+                  <div className="grid place-items-center font-bold rounded-sm" style={{
+                    width: 16, height: 16,
+                    border: `1px solid ${isDone ? "var(--color-ok)" : isCurrent ? "var(--color-accent)" : "var(--color-border)"}`,
+                    background: isDone ? "var(--color-ok)22" : isCurrent ? "var(--color-accent)22" : "transparent",
+                    fontFamily: "var(--font-mono)", fontSize: 10,
+                    color: isDone ? "var(--color-ok)" : isCurrent ? "var(--color-accent)" : "var(--color-fg-dim)",
                   }}>
-                    {phase.label}
+                    {isDone ? "✓" : i + 1}
+                  </div>
+                  <div className="uppercase" style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--color-fg-dim)", letterSpacing: "var(--tracking-label)" }}>
+                    STEP {i + 1}
                   </div>
                 </div>
-              );
-            });
-          })()}
+                <div className="font-semibold" style={{
+                  fontFamily: "var(--font-display)", fontSize: 14,
+                  color: isDone ? "var(--color-fg)" : isCurrent ? "var(--color-accent)" : "var(--color-fg-mid)",
+                  letterSpacing: "0.04em",
+                }}>
+                  {phase.label}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </Panel>
 

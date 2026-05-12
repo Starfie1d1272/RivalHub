@@ -66,9 +66,11 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
   // 位置容量数据
   const capacityEntries = season.positions.map((pos) => {
     const cur = positionCounts[pos] ?? 0;
-    const label = POSITION_LABELS[pos as keyof typeof POSITION_LABELS]?.cn ?? pos;
+    const label = POSITION_LABELS[pos as keyof typeof POSITION_LABELS]?.en ?? pos;
     return { pos, label, cur, max: maxPerPos };
   });
+  const totalApproved = capacityEntries.reduce((sum, e) => sum + e.cur, 0);
+  const maxTotal = regConfig.maxTotal;
 
   return (
     <div className="container mx-auto px-4 py-10 max-w-2xl">
@@ -90,7 +92,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
       </div>
 
       <div className="mb-6">
-        <Panel label="位置实时容量">
+        <Panel label="实时容量">
           <div className="grid gap-2.5">
             {capacityEntries.map(({ pos, label, cur, max }) => {
               const pct = Math.min((cur / max) * 100, 100);
@@ -122,6 +124,14 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
                 </div>
               );
             })}
+            <div className="flex justify-between items-center pt-2" style={{ borderTop: "1px solid var(--color-border)" }}>
+              <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--color-fg-dim)", fontFamily: "var(--font-display)" }}>
+                Total
+              </span>
+              <span className="font-bold" style={{ fontFamily: "var(--font-mono)", fontSize: 13, color: "var(--color-fg)" }}>
+                {totalApproved} / {maxTotal}
+              </span>
+            </div>
           </div>
         </Panel>
       </div>
