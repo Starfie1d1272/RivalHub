@@ -1,11 +1,11 @@
 type Tone = "info" | "success" | "warn" | "error" | "live";
 
 const TONE_CONFIG: Record<Tone, { color: string; glyph: string }> = {
-  info:    { color: "var(--color-accent)", glyph: "●" },
-  success: { color: "var(--color-ok)",     glyph: "✓" },
-  warn:    { color: "var(--color-warn)",   glyph: "▲" },
-  error:   { color: "var(--color-danger)", glyph: "✕" },
-  live:    { color: "var(--color-danger)", glyph: "●" },
+  info:    { color: "#ff6b1a", glyph: "●" },
+  success: { color: "#4dd47a", glyph: "✓" },
+  warn:    { color: "#ffc44d", glyph: "▲" },
+  error:   { color: "#ff5470", glyph: "✕" },
+  live:    { color: "#ff5470", glyph: "●" },
 };
 
 interface StatusBannerProps {

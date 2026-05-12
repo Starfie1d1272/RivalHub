@@ -15,7 +15,7 @@ export function InlineConfirm({
   onConfirm,
   onCancel,
 }: InlineConfirmProps) {
-  const c = danger ? "var(--color-danger)" : "var(--color-warn)";
+  const c = danger ? "#ff5470" : "#ffc44d";
   return (
     <div
       className="grid gap-3 items-center rounded-sm border px-4 py-3"
