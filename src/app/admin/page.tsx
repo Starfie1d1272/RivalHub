@@ -4,7 +4,6 @@ import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
 import { checkAdminSession } from "@/lib/auth/session";
 import { Panel, Btn, StatusPill, Marker } from "@/components/rivalhub";
-import { AdminSidebar } from "@/components/admin/AdminSidebar";
 
 export default async function AdminDashboardPage() {
   const admin = (await checkAdminSession())!;
@@ -21,10 +20,8 @@ export default async function AdminDashboardPage() {
         : [];
 
   return (
-    <div className="grid min-h-screen" style={{ gridTemplateColumns: "200px 1fr" }}>
-      <AdminSidebar />
-      <div className="p-8 max-w-2xl">
-        <div className="flex items-center justify-between mb-6">
+    <div className="p-8 max-w-2xl">
+      <div className="flex items-center justify-between mb-6">
           <Marker>赛季管理</Marker>
           {admin.role === "super_admin" && (
             <div className="flex items-center gap-2">
@@ -68,6 +65,5 @@ export default async function AdminDashboardPage() {
           </div>
         )}
       </div>
-    </div>
   );
 }
