@@ -36,9 +36,9 @@
 | 行 | 展示 | 数据来源 |
 |---|---|---|
 | 位置 bar | `12 / 15` — 提交/上限 | `getPositionCounts()` (全部提交，不变) |
-| Total | `已通过：32 / 56` | 新增 `getApprovedCount(seasonId)` 查询 |
+| Total | `Approved: 32 / 56` | 新增 `getApprovedCount(seasonId)` 查询 |
 
-底部 Total 行文案从 `Total X / Y` 改为 `已通过：X / Y`。
+底部 Total 行文案从 `Total X / Y` 改为 `Approved: X / Y`。
 
 ### 数据库影响
 
