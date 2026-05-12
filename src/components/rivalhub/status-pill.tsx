@@ -1,4 +1,6 @@
-const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
+import type { SeasonStatus } from "@/types/season";
+
+const STATUS_CONFIG: Record<SeasonStatus | string, { color: string; label: string }> = {
   live:         { color: "#ff5470", label: "● LIVE" },
   finished:     { color: "#525a6a", label: "FT" },
   scheduled:    { color: "#8e96a3", label: "UPCOMING" },
@@ -10,7 +12,7 @@ const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
 };
 
 interface StatusPillProps {
-  status: string;
+  status: SeasonStatus | string;
 }
 
 export function StatusPill({ status }: StatusPillProps) {

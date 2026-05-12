@@ -57,7 +57,6 @@ export function ErrorState({
           <Btn primary onClick={onRetry}>
             ↻ 重试
           </Btn>
-          <Btn ghost>查看日志</Btn>
         </div>
       )}
     </div>

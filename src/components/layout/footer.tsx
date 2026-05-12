@@ -1,3 +1,5 @@
+import { APP_BRAND } from "@/lib/branding";
+
 export function Footer() {
   return (
     <footer
@@ -11,7 +13,7 @@ export function Footer() {
         letterSpacing: "var(--tracking-ticker)",
       }}
     >
-      <div>RIVALHUB · OPEN SOURCE ESPORTS TOURNAMENT PLATFORM</div>
+      <div>{APP_BRAND.name.toUpperCase()} · OPEN SOURCE ESPORTS TOURNAMENT PLATFORM</div>
       <div className="flex gap-3.5">
         <span>GITHUB ↗</span>
         <span>RULES</span>

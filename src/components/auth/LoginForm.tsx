@@ -37,13 +37,13 @@ export function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="flex rounded-lg bg-[var(--bg-secondary)] p-0.5">
+      <div className="flex rounded-lg bg-[var(--color-panel-low)] p-0.5">
         <button
           type="button"
           onClick={() => setMode("login")}
           className={`flex-1 rounded-md py-1.5 text-sm font-medium transition-colors ${
             mode === "login"
-              ? "bg-[var(--bg-primary)] text-[var(--color-fg)] shadow-sm"
+              ? "bg-[var(--color-panel)] text-[var(--color-fg)] shadow-sm"
               : "text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
           }`}
         >
@@ -54,7 +54,7 @@ export function LoginForm() {
           onClick={() => setMode("register")}
           className={`flex-1 rounded-md py-1.5 text-sm font-medium transition-colors ${
             mode === "register"
-              ? "bg-[var(--bg-primary)] text-[var(--color-fg)] shadow-sm"
+              ? "bg-[var(--color-panel)] text-[var(--color-fg)] shadow-sm"
               : "text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
           }`}
         >

@@ -95,7 +95,7 @@ export function HeaderClient({ seasons, session }: HeaderClientProps) {
           >
             R
           </span>
-          RIVALHUB
+          {APP_BRAND.name.toUpperCase()}
         </Link>
 
         {/* Desktop nav */}
