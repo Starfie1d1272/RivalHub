@@ -3,8 +3,7 @@ import { eq, or, and, asc, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { users, seasonRegistrations, seasons, teams, teamMembers, matches } from "@/db/schema";
 import { getSteamAvatar } from "@/lib/steam";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
+import { Panel, Stat, PosChip } from "@/components/rivalhub";
 import Image from "next/image";
 import Link from "next/link";
 import { POSITION_LABELS } from "@/lib/validators/registration";
@@ -22,7 +21,7 @@ function pct(n: number, d: number) {
 function AvatarFallback({ name }: { name: string }) {
   const initials = name.slice(0, 2).toUpperCase();
   return (
-    <div className="w-24 h-24 rounded-full bg-[var(--surface-elevated)] border border-[var(--color-border)] flex items-center justify-center text-2xl font-bold text-[var(--color-fg-mid)]">
+    <div className="w-24 h-24 rounded-full bg-[var(--color-panel-hi)] border border-[var(--color-border)] flex items-center justify-center text-2xl font-bold text-[var(--color-fg-mid)]">
       {initials}
     </div>
   );
@@ -175,12 +174,8 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
           <div className="flex flex-wrap items-center gap-2">
             {latestReg && (
               <>
-                <Badge variant="outline" className="text-[var(--primary)]">
-                  {POSITION_LABELS[latestReg.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? latestReg.primaryPosition}
-                </Badge>
-                <Badge variant="outline" className="text-[var(--color-fg-mid)]">
-                  {POSITION_LABELS[latestReg.secondaryPosition as keyof typeof POSITION_LABELS]?.cn ?? latestReg.secondaryPosition}
-                </Badge>
+                <PosChip pos={POSITION_LABELS[latestReg.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? latestReg.primaryPosition} />
+                <PosChip pos={POSITION_LABELS[latestReg.secondaryPosition as keyof typeof POSITION_LABELS]?.cn ?? latestReg.secondaryPosition} />
               </>
             )}
             {user.steamProfileUrl && (
@@ -188,7 +183,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
                 href={user.steamProfileUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs text-[var(--color-fg-mid)] hover:text-[var(--primary)] transition-colors"
+                className="text-xs text-[var(--color-fg-mid)] hover:text-[var(--color-accent)] transition-colors"
               >
                 Steam ↗
               </a>
@@ -200,19 +195,12 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
       {/* 职业生涯战绩 */}
       {played > 0 && (
         <section className="space-y-3">
-          <h2 className="text-base font-semibold text-[var(--color-fg)]">职业生涯战绩</h2>
+          <div style={{fontFamily:"var(--font-mono)", fontSize:11, color:"var(--color-fg-mid)", letterSpacing:"var(--tracking-label)", textTransform:"uppercase", marginBottom:12}}>职业生涯战绩</div>
           <div className="grid grid-cols-4 gap-3">
-            {[
-              { label: "出场", value: played },
-              { label: "胜", value: totalWins },
-              { label: "负", value: totalLosses },
-              { label: "胜率", value: pct(totalWins, played) },
-            ].map(({ label, value }) => (
-              <Card key={label} className="p-4 text-center">
-                <p className="text-xl font-bold text-[var(--color-fg)]">{value}</p>
-                <p className="text-xs text-[var(--color-fg-mid)] mt-1">{label}</p>
-              </Card>
-            ))}
+            <Stat label="出场" value={played} />
+            <Stat label="胜" value={totalWins} />
+            <Stat label="负" value={totalLosses} />
+            <Stat label="胜率" value={pct(totalWins, played)} />
           </div>
           {totalNetRounds !== 0 && (
             <p className="text-xs text-[var(--color-fg-mid)] px-1">
@@ -228,21 +216,14 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
       {/* 个人数据 */}
       {playerStats.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-base font-semibold text-[var(--color-fg)]">
-            个人数据
-          </h2>
+            <div style={{fontFamily:"var(--font-mono)", fontSize:11, color:"var(--color-fg-mid)", letterSpacing:"var(--tracking-label)", textTransform:"uppercase", marginBottom:12}}>个人数据</div>
 
           {/* 生涯总计 */}
-          <Card className="p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="text-[var(--primary)]">
-                生涯总计
-              </Badge>
-              <span className="text-xs text-[var(--color-fg-mid)]">
-                {playerStats.reduce((s, x) => s + x.maps, 0)} 图
-              </span>
-            </div>
-            <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 text-center">
+          <Panel label="生涯总计">
+            <span className="text-xs text-[var(--color-fg-mid)]">
+              {playerStats.reduce((s, x) => s + x.maps, 0)} 图
+            </span>
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 text-center mt-3">
               {[
                 {
                   label: "Rating",
@@ -301,17 +282,17 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
                 </div>
               ))}
             </div>
-          </Card>
+          </Panel>
 
           {/* 按赛季分组 */}
           {[...playerStats].reverse().map((ps) => (
-            <Card key={ps.seasonSlug} className="p-4">
+            <Panel key={ps.seasonSlug} pad={16}>
               <div className="flex items-center gap-2 mb-2">
                 <Link
                   href={
                     `/${ps.seasonSlug}/stats` as any
                   }
-                  className="text-sm font-semibold text-[var(--color-fg)] hover:text-[var(--primary)] transition-colors"
+                  className="text-sm font-semibold text-[var(--color-fg)] hover:text-[var(--color-accent)] transition-colors"
                 >
                   {ps.seasonName}
                 </Link>
@@ -322,7 +303,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
               <div className="flex gap-4 text-xs text-[var(--color-fg-mid)]">
                 <span>
                   Rating{" "}
-                  <span className="text-[var(--primary)] font-semibold">
+                  <span className="text-[var(--color-accent)] font-semibold">
                     {ps.avgRating}
                   </span>
                 </span>
@@ -343,7 +324,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
                   <span className="text-[var(--color-fg)]">{ps.avgWe}</span>
                 </span>
               </div>
-            </Card>
+            </Panel>
           ))}
         </section>
       )}
@@ -351,61 +332,61 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
       {/* 赛季记录 */}
       {registrations.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-base font-semibold text-[var(--color-fg)]">参赛记录</h2>
+          <div style={{fontFamily:"var(--font-mono)", fontSize:11, color:"var(--color-fg-mid)", letterSpacing:"var(--tracking-label)", textTransform:"uppercase", marginBottom:12}}>参赛记录</div>
           <div className="space-y-3">
             {[...registrations].reverse().map((reg) => {
               const teamInfo = regIdToTeam.get(reg.id);
               return (
-                <Card key={reg.id} className="p-5 space-y-3">
-                  {/* 赛季标题行 */}
-                  <div className="flex items-start justify-between gap-2 flex-wrap">
-                    <div className="space-y-0.5">
-                      <p className="font-semibold text-[var(--color-fg)]">{reg.seasonName}</p>
-                      {teamInfo && (
-                        <Link
-                          href={`/${teamInfo.seasonSlug}/teams/${teamInfo.teamId}`}
-                          className="text-xs text-[var(--color-fg-mid)] hover:text-[var(--primary)] transition-colors"
-                        >
-                          {teamInfo.teamName} ↗
-                        </Link>
-                      )}
+                <Panel key={reg.id} pad={20}>
+                  <div className="space-y-3">
+                    {/* 赛季标题行 */}
+                    <div className="flex items-start justify-between gap-2 flex-wrap">
+                      <div className="space-y-0.5">
+                        <p className="font-semibold text-[var(--color-fg)]">{reg.seasonName}</p>
+                        {teamInfo && (
+                          <Link
+                            href={`/${teamInfo.seasonSlug}/teams/${teamInfo.teamId}`}
+                            className="text-xs text-[var(--color-fg-mid)] hover:text-[var(--color-accent)] transition-colors"
+                          >
+                            {teamInfo.teamName} ↗
+                          </Link>
+                        )}
+                      </div>
+                      <div className="flex gap-2 items-center flex-wrap">
+                        <PosChip pos={POSITION_LABELS[reg.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? reg.primaryPosition} />
+                        <span className="text-xs text-[var(--color-fg-mid)]">
+                          峰值 {reg.peakRank}（{reg.peakRankSeason}）
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex gap-2 items-center flex-wrap">
-                      <Badge variant="outline" className="text-xs text-[var(--primary)]">
-                        {POSITION_LABELS[reg.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? reg.primaryPosition}
-                      </Badge>
-                      <span className="text-xs text-[var(--color-fg-mid)]">
-                        峰值 {reg.peakRank}（{reg.peakRankSeason}）
-                      </span>
-                    </div>
+
+                    {/* 风格描述 */}
+                    {reg.gameplayStyle && (
+                      <p className="text-sm text-[var(--color-fg-mid)] leading-relaxed">
+                        {reg.gameplayStyle}
+                      </p>
+                    )}
+
+                    {/* 参赛历史 */}
+                    {reg.competitionHistory && (
+                      <p className="text-xs text-[var(--color-fg-mid)] opacity-80 leading-relaxed border-t border-[var(--color-border)] pt-2">
+                        {reg.competitionHistory}
+                      </p>
+                    )}
+
+                    {/* 高光视频 */}
+                    {reg.highlightVideoUrl && (
+                      <a
+                        href={reg.highlightVideoUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-xs text-[var(--color-accent)] hover:underline"
+                      >
+                        🎬 高光视频
+                      </a>
+                    )}
                   </div>
-
-                  {/* 风格描述 */}
-                  {reg.gameplayStyle && (
-                    <p className="text-sm text-[var(--color-fg-mid)] leading-relaxed">
-                      {reg.gameplayStyle}
-                    </p>
-                  )}
-
-                  {/* 参赛历史 */}
-                  {reg.competitionHistory && (
-                    <p className="text-xs text-[var(--color-fg-mid)] opacity-80 leading-relaxed border-t border-[var(--color-border)] pt-2">
-                      {reg.competitionHistory}
-                    </p>
-                  )}
-
-                  {/* 高光视频 */}
-                  {reg.highlightVideoUrl && (
-                    <a
-                      href={reg.highlightVideoUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 text-xs text-[var(--primary)] hover:underline"
-                    >
-                      🎬 高光视频
-                    </a>
-                  )}
-                </Card>
+                </Panel>
               );
             })}
           </div>
@@ -413,7 +394,9 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
       )}
 
       {registrations.length === 0 && (
-        <Card className="p-8 text-center text-[var(--color-fg-mid)]">暂无参赛记录</Card>
+        <Panel pad={32} className="text-center">
+          <p className="text-[var(--color-fg-mid)]">暂无参赛记录</p>
+        </Panel>
       )}
     </div>
   );
