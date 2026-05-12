@@ -57,16 +57,16 @@ export default async function HomePage() {
             </div>
             <div className="flex gap-2.5 mt-5.5 flex-wrap">
               {featured && (
-                <Btn primary>
+                <Btn primary asChild>
                   <Link href={`/${featured.slug}`}>进入赛季 →</Link>
                 </Btn>
               )}
               {featured && featured.registrationMode === "solo" && (
-                <Btn>
+                <Btn asChild>
                   <Link href={`/${featured.slug}/register`}>报名参赛</Link>
                 </Btn>
               )}
-              <Btn ghost>
+              <Btn ghost asChild>
                 <Link href="/seasons">查看所有赛季</Link>
               </Btn>
             </div>
@@ -122,7 +122,7 @@ export default async function HomePage() {
                   {featured.kind}
                 </span>
               </div>
-              <Btn full>
+              <Btn full asChild>
                 <Link href={`/${featured.slug}`} className="w-full">
                   进入赛季 →
                 </Link>

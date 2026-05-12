@@ -7,6 +7,7 @@ interface BtnProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   danger?: boolean;
   full?: boolean;
   small?: boolean;
+  asChild?: boolean;
 }
 
 export function Btn({
@@ -16,6 +17,7 @@ export function Btn({
   danger,
   full,
   small,
+  asChild,
   className,
   disabled,
   ...props
@@ -30,6 +32,7 @@ export function Btn({
       variant={variant}
       size={small ? "sm" : "default"}
       disabled={disabled}
+      asChild={asChild}
       className={cn(
         full && "w-full",
         "rounded-sm",
