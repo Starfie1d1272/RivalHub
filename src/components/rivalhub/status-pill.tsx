@@ -1,11 +1,12 @@
 const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
-  live:      { color: "#ff5470", label: "● LIVE" },
-  finished:  { color: "#525a6a", label: "FT" },
-  scheduled: { color: "#8e96a3", label: "UPCOMING" },
-  open:      { color: "#4dd47a", label: "● OPEN" },
-  voting:    { color: "#ffc44d", label: "● VOTING" },
-  drafting:  { color: "#ff6b1a", label: "● DRAFTING" },
-  playing:   { color: "#4dd47a", label: "● PLAYING" },
+  live:         { color: "#ff5470", label: "● LIVE" },
+  finished:     { color: "#525a6a", label: "FT" },
+  scheduled:    { color: "#8e96a3", label: "UPCOMING" },
+  open:         { color: "#4dd47a", label: "● OPEN" },
+  registration: { color: "#4dd47a", label: "● OPEN" },
+  voting:       { color: "#ffc44d", label: "● VOTING" },
+  drafting:     { color: "#ff6b1a", label: "● DRAFTING" },
+  playing:      { color: "#4dd47a", label: "● PLAYING" },
 };
 
 interface StatusPillProps {

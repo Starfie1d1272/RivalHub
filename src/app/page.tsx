@@ -1,13 +1,11 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
 import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
 import { APP_BRAND } from "@/lib/branding";
 import { SEASON_STATUS_LABELS } from "@/types/season";
-import { StatusDot } from "@/components/ui/status-dot";
-import type { Season } from "@/db/schema/seasons";
+import { Panel, Btn, Marker, StatusPill } from "@/components/rivalhub";
 
 export default async function HomePage() {
   const allSeasons = await db
@@ -22,105 +20,215 @@ export default async function HomePage() {
   const others = activeSeasons.slice(1);
 
   return (
-    <div className="container mx-auto px-4 py-16 sm:py-24">
+    <div className="mx-auto px-9 py-8 max-w-[1240px] grid gap-7">
       {/* Hero */}
-      <div className="max-w-3xl mb-16">
-        <div className="inline-flex items-center gap-2 px-3 py-1 mb-6 rounded-full border border-[var(--color-border)] bg-[var(--color-panel)]/50 text-xs text-[var(--color-fg-mid)]">
-          <span>开源 · 多赛事 · 数据驱动</span>
-        </div>
-        <h1 className="text-4xl sm:text-5xl font-bold text-[var(--color-fg)] mb-4 leading-tight">
-          {APP_BRAND.name}
-          <span className="block text-[var(--color-fg-mid)] text-2xl sm:text-3xl font-medium mt-2">
-            电竞社群赛事管理平台
-          </span>
-        </h1>
-        <p className="text-[var(--color-fg-mid)] text-base sm:text-lg max-w-xl leading-relaxed">
-          {APP_BRAND.description}
-        </p>
-      </div>
-
-      {featured ? (
-        <section>
-          <div className="flex items-baseline justify-between mb-6">
-            <h2 className="text-lg font-semibold text-[var(--color-fg)]">当前赛季</h2>
-            <span className="text-sm text-[var(--color-fg-dim)] tabular">
-              共 {activeSeasons.length} 个进行中
-            </span>
+      <div className="grid gap-6" style={{ gridTemplateColumns: "1.6fr 1fr" }}>
+        <Panel className="overflow-hidden relative" pad={0}>
+          <div className="p-7 relative z-10">
+            <div
+              className="mb-3 font-bold"
+              style={{
+                fontFamily: "var(--font-mono)",
+                fontSize: 11,
+                color: "var(--color-accent)",
+                letterSpacing: "var(--tracking-eyebrow)",
+              }}
+            >
+              [ RIVALHUB / S4 — SPRING 2026 ]
+            </div>
+            <h1
+              className="font-semibold leading-[0.95] m-0"
+              style={{
+                fontFamily: "var(--font-display)",
+                fontSize: 56,
+                letterSpacing: "var(--tracking-tight-2)",
+                color: "var(--color-fg)",
+              }}
+            >
+              {APP_BRAND.name}
+              <br />
+              <span style={{ color: "var(--color-accent)" }}>SPRING SPLIT</span>
+            </h1>
+            <div
+              className="mt-3.5 max-w-[520px] leading-relaxed"
+              style={{ color: "var(--color-fg-mid)", fontSize: 14 }}
+            >
+              {APP_BRAND.description}
+            </div>
+            <div className="flex gap-2.5 mt-5.5 flex-wrap">
+              {featured && (
+                <Btn primary>
+                  <Link href={`/${featured.slug}`}>进入赛季 →</Link>
+                </Btn>
+              )}
+              {featured && featured.registrationMode === "solo" && (
+                <Btn>
+                  <Link href={`/${featured.slug}/register`}>报名参赛</Link>
+                </Btn>
+              )}
+              <Btn ghost>
+                <Link href="/seasons">查看所有赛季</Link>
+              </Btn>
+            </div>
           </div>
-          <FeaturedSeasonCard season={featured} />
-          {others.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-              {others.map((s) => (
-                <CompactSeasonCard key={s.id} season={s} />
-              ))}
+          <div
+            aria-hidden
+            className="absolute inset-0 opacity-50"
+            style={{
+              background: `
+                radial-gradient(circle at 90% 10%, var(--color-accent)22 0, transparent 40%),
+                repeating-linear-gradient(0deg, transparent 0 32px, var(--color-border)40 32px 33px)
+              `,
+            }}
+          />
+        </Panel>
+
+        {/* LIVE Panel */}
+        <Panel label="CURRENT SEASON">
+          {featured ? (
+            <div className="grid gap-3.5">
+              <div>
+                <div
+                  className="uppercase"
+                  style={{
+                    fontFamily: "var(--font-mono)",
+                    fontSize: 10,
+                    color: "var(--color-fg-dim)",
+                    letterSpacing: "var(--tracking-label)",
+                  }}
+                >
+                  {SEASON_STATUS_LABELS[featured.status]}
+                </div>
+                <div
+                  className="mt-1 font-semibold"
+                  style={{
+                    fontFamily: "var(--font-display)",
+                    fontSize: 20,
+                    color: "var(--color-fg)",
+                  }}
+                >
+                  {featured.name}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <StatusPill status={featured.status} />
+                <span
+                  style={{
+                    fontFamily: "var(--font-mono)",
+                    fontSize: 11,
+                    color: "var(--color-fg-mid)",
+                  }}
+                >
+                  {featured.kind}
+                </span>
+              </div>
+              <Btn full>
+                <Link href={`/${featured.slug}`} className="w-full">
+                  进入赛季 →
+                </Link>
+              </Btn>
+            </div>
+          ) : (
+            <div
+              style={{
+                fontFamily: "var(--font-mono)",
+                fontSize: 12,
+                color: "var(--color-fg-mid)",
+                textAlign: "center",
+                padding: "24px 0",
+              }}
+            >
+              暂无进行中的赛季
             </div>
           )}
-        </section>
-      ) : (
-        <div className="text-center text-[var(--color-fg-mid)] py-16">
-          <p className="text-lg mb-2">暂无进行中的赛季</p>
-          <Link href="/seasons" className="text-sm underline hover:text-[var(--color-fg)]">
-            查看历史赛季
-          </Link>
+        </Panel>
+      </div>
+
+      {/* Nav tiles */}
+      {featured && (
+        <div>
+          <Marker num={1} sub="NAVIGATION">
+            入口
+          </Marker>
+          <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
+            {[
+              { href: `/${featured.slug}/register`, label: "报名参赛", mono: "REGISTER", meta: "个人报名" },
+              { href: `/${featured.slug}/captains`, label: "队长投票", mono: "CAPTAINS", meta: "实时票数" },
+              { href: `/${featured.slug}/draft`, label: "选秀直播间", mono: "DRAFT ROOM", meta: "● LIVE" },
+              { href: `/${featured.slug}/teams`, label: "战队阵容", mono: "TEAMS", meta: "8 支战队" },
+              { href: `/${featured.slug}/matches`, label: "赛程", mono: "MATCHES", meta: "Bracket · 赛果" },
+              { href: `/${featured.slug}/stats`, label: "数据排行", mono: "STATS", meta: "Rating · ADR" },
+              { href: "/seasons", label: "历史赛季", mono: "ARCHIVE", meta: "浏览回顾" },
+              { href: "/login", label: "登录后台", mono: "LOGIN", meta: "管理员 · 队长" },
+            ].map((tile) => (
+              <Link key={tile.href} href={tile.href as never} className="group">
+                <Panel className="transition-colors hover:border-[var(--color-border-hi)]">
+                  <div
+                    className="flex items-center gap-2 mb-1.5"
+                    style={{
+                      fontFamily: "var(--font-mono)",
+                      fontSize: 10,
+                      color: "var(--color-fg-dim)",
+                      letterSpacing: "var(--tracking-label)",
+                    }}
+                  >
+                    {tile.mono}
+                  </div>
+                  <div
+                    className="font-semibold"
+                    style={{
+                      fontFamily: "var(--font-sans)",
+                      fontSize: 14,
+                      color: "var(--color-fg)",
+                    }}
+                  >
+                    {tile.label}
+                  </div>
+                </Panel>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Other seasons */}
+      {others.length > 0 && (
+        <div>
+          <Marker num={2} sub="MORE">
+            其他赛季
+          </Marker>
+          <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
+            {others.map((s) => (
+              <Link key={s.id} href={`/${s.slug}` as never}>
+                <Panel className="transition-colors hover:border-[var(--color-border-hi)]">
+                  <div className="flex items-center gap-2 mb-2">
+                    <StatusPill status={s.status} />
+                    <span
+                      style={{
+                        fontFamily: "var(--font-mono)",
+                        fontSize: 10,
+                        color: "var(--color-fg-dim)",
+                      }}
+                    >
+                      {s.kind}
+                    </span>
+                  </div>
+                  <div
+                    className="font-semibold"
+                    style={{
+                      fontFamily: "var(--font-sans)",
+                      fontSize: 16,
+                      color: "var(--color-fg)",
+                    }}
+                  >
+                    {s.name}
+                  </div>
+                </Panel>
+              </Link>
+            ))}
+          </div>
         </div>
       )}
     </div>
-  );
-}
-
-function FeaturedSeasonCard({ season }: { season: Season }) {
-  return (
-    <Link
-      href={`/${season.slug}` as never}
-      className="group block rounded-xl border border-[var(--color-border)] bg-[var(--color-panel)] overflow-hidden"
-    >
-      <div className="h-1 w-full" style={{ backgroundColor: season.themeColor ?? "#f97316" }} />
-      <div className="p-6 sm:p-8 grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-6 items-center">
-        <div>
-          <div className="flex items-center gap-2 mb-3 text-xs">
-            <StatusDot status={season.status} />
-            <span className="text-[var(--color-fg-mid)] uppercase tracking-wider">
-              {SEASON_STATUS_LABELS[season.status]}
-            </span>
-            <span className="text-[var(--color-fg-dim)]">·</span>
-            <span className="text-[var(--color-fg-dim)]">{season.kind}</span>
-          </div>
-          <h3 className="text-2xl sm:text-3xl font-bold text-[var(--color-fg)] mb-2">
-            {season.name}
-          </h3>
-        </div>
-        <div
-          className="hidden sm:flex items-center gap-2 px-5 py-3 rounded-lg text-sm font-semibold text-[var(--color-fg)] border transition-colors"
-          style={{
-            backgroundColor: `${season.themeColor ?? "#f97316"}1a`,
-            borderColor: `${season.themeColor ?? "#f97316"}40`,
-          }}
-        >
-          进入赛季
-          <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-        </div>
-      </div>
-    </Link>
-  );
-}
-
-function CompactSeasonCard({ season }: { season: Season }) {
-  return (
-    <Link
-      href={`/${season.slug}` as never}
-      className="block rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] overflow-hidden"
-    >
-      <div className="h-0.5 w-full" style={{ backgroundColor: season.themeColor ?? "#f97316" }} />
-      <div className="p-5">
-        <div className="flex items-center gap-2 mb-2 text-xs">
-          <StatusDot status={season.status} />
-          <span className="text-[var(--color-fg-mid)]">
-            {SEASON_STATUS_LABELS[season.status]}
-          </span>
-        </div>
-        <h3 className="text-lg font-semibold text-[var(--color-fg)] mb-1">{season.name}</h3>
-        <p className="text-sm text-[var(--color-fg-dim)]">{season.kind}</p>
-      </div>
-    </Link>
   );
 }
