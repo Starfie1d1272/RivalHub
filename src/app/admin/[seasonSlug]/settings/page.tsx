@@ -40,6 +40,7 @@ export default async function SeasonSettingsPage({ params }: SeasonSettingsPageP
           status: season.status,
           themeColor: season.themeColor,
           startAt: toDateTimeInput(season.startAt),
+          registrationDeadline: toDateTimeInput(season.registrationDeadline),
           endAt: toDateTimeInput(season.endAt),
           registrationMode: season.registrationMode,
           hasCaptainVoting: season.hasCaptainVoting,

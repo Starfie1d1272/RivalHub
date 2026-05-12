@@ -59,6 +59,7 @@ const seasonFormBaseSchema = z.object({
   status: z.enum(["draft", "registration", "voting", "drafting", "playing", "finished", "archived"]).optional(),
   themeColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, "主题色需为 #RRGGBB 格式").nullable(),
   startAt: z.string().nullable(),
+  registrationDeadline: z.string().nullable(),
   endAt: z.string().nullable(),
   registrationMode: z.enum(["solo", "team"]),
   hasCaptainVoting: z.boolean(),
@@ -156,6 +157,7 @@ export async function createSeason(input: SeasonFormInput): Promise<ActionResult
         (data.teamRegistrationConfig ?? {}) as TeamRegistrationConfig,
       ),
       startAt: toDate(data.startAt),
+      registrationDeadline: toDate(data.registrationDeadline),
       endAt: toDate(data.endAt),
     }).returning({ id: seasons.id, slug: seasons.slug });
 
@@ -239,6 +241,7 @@ export async function updateSeason(input: SeasonFormInput): Promise<ActionResult
         (data.teamRegistrationConfig ?? {}) as TeamRegistrationConfig,
       ),
       startAt: toDate(data.startAt),
+      registrationDeadline: toDate(data.registrationDeadline),
       endAt: toDate(data.endAt),
       updatedAt: new Date(),
     }).where(eq(seasons.id, data.id));

@@ -1,6 +1,7 @@
 export * from "./users";
 export * from "./seasons";
 export * from "./registrations";
+export * from "./registration-drafts";
 export * from "./teams";
 export * from "./votes";
 export * from "./draft";

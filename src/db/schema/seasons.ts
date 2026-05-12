@@ -58,6 +58,7 @@ export const seasons = pgTable("seasons", {
   bracketData: json("bracket_data").$type<Database>(),
 
   startAt: timestamp("start_at", { withTimezone: true }),
+  registrationDeadline: timestamp("registration_deadline", { withTimezone: true }),
   endAt: timestamp("end_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
