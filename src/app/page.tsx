@@ -1,23 +1,40 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
+import { and, eq, not } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
 import { APP_BRAND } from "@/lib/branding";
 import { SEASON_STATUS_LABELS } from "@/types/season";
-import { Panel, Btn, Marker, StatusPill } from "@/components/rivalhub";
+import { Panel, Btn, Marker, StatusPill, EmptyState } from "@/components/rivalhub";
 
 export default async function HomePage() {
-  const allSeasons = await db
+  const activeSeasons = await db
     .select()
     .from(seasons)
+    .where(
+      and(
+        not(eq(seasons.status, "archived")),
+        not(eq(seasons.status, "draft"))
+      )
+    )
     .orderBy(seasons.createdAt);
 
-  const activeSeasons = allSeasons.filter(
-    (s) => s.status !== "archived" && s.status !== "draft"
-  );
   const featured = activeSeasons[0];
   const others = activeSeasons.slice(1);
+
+  if (!featured) {
+    return (
+      <div className="mx-auto px-9 py-8 max-w-[1240px]">
+        <Panel>
+          <EmptyState
+            title="暂无进行中的赛季"
+            sub="请通过管理后台创建赛季。"
+          />
+        </Panel>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto px-9 py-8 max-w-[1240px] grid gap-7">
@@ -56,12 +73,10 @@ export default async function HomePage() {
               {APP_BRAND.description}
             </div>
             <div className="flex gap-2.5 mt-5.5 flex-wrap">
-              {featured && (
-                <Btn primary asChild>
-                  <Link href={`/${featured.slug}`}>进入赛季 →</Link>
-                </Btn>
-              )}
-              {featured && featured.registrationMode === "solo" && (
+              <Btn primary asChild>
+                <Link href={`/${featured.slug}`}>进入赛季 →</Link>
+              </Btn>
+              {featured.registrationMode === "solo" && (
                 <Btn asChild>
                   <Link href={`/${featured.slug}/register`}>报名参赛</Link>
                 </Btn>
@@ -85,11 +100,71 @@ export default async function HomePage() {
 
         {/* LIVE Panel */}
         <Panel label="CURRENT SEASON">
-          {featured ? (
-            <div className="grid gap-3.5">
-              <div>
+          <div className="grid gap-3.5">
+            <div>
+              <div
+                className="uppercase"
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 10,
+                  color: "var(--color-fg-dim)",
+                  letterSpacing: "var(--tracking-label)",
+                }}
+              >
+                {SEASON_STATUS_LABELS[featured.status]}
+              </div>
+              <div
+                className="mt-1 font-semibold"
+                style={{
+                  fontFamily: "var(--font-display)",
+                  fontSize: 20,
+                  color: "var(--color-fg)",
+                }}
+              >
+                {featured.name}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <StatusPill status={featured.status} />
+              <span
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 11,
+                  color: "var(--color-fg-mid)",
+                }}
+              >
+                {featured.kind}
+              </span>
+            </div>
+            <Btn full asChild>
+              <Link href={`/${featured.slug}`} className="w-full">
+                进入赛季 →
+              </Link>
+            </Btn>
+          </div>
+        </Panel>
+      </div>
+
+      {/* Nav tiles */}
+      <div>
+        <Marker num={1} sub="NAVIGATION">
+          入口
+        </Marker>
+        <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
+          {[
+            { href: `/${featured.slug}/register`, label: "报名参赛", mono: "REGISTER", meta: "个人报名" },
+            { href: `/${featured.slug}/captains`, label: "队长投票", mono: "CAPTAINS", meta: "实时票数" },
+            { href: `/${featured.slug}/draft`, label: "选秀直播间", mono: "DRAFT ROOM", meta: "● LIVE" },
+            { href: `/${featured.slug}/teams`, label: "战队阵容", mono: "TEAMS", meta: "8 支战队" },
+            { href: `/${featured.slug}/matches`, label: "赛程", mono: "MATCHES", meta: "Bracket · 赛果" },
+            { href: `/${featured.slug}/stats`, label: "数据排行", mono: "STATS", meta: "Rating · ADR" },
+            { href: "/seasons", label: "历史赛季", mono: "ARCHIVE", meta: "浏览回顾" },
+            { href: "/login", label: "登录后台", mono: "LOGIN", meta: "管理员 · 队长" },
+          ].map((tile) => (
+            <Link key={tile.href} href={tile.href as never} className="group">
+              <Panel className="transition-colors hover:border-[var(--color-border-hi)]">
                 <div
-                  className="uppercase"
+                  className="flex items-center gap-2 mb-1.5"
                   style={{
                     fontFamily: "var(--font-mono)",
                     fontSize: 10,
@@ -97,99 +172,23 @@ export default async function HomePage() {
                     letterSpacing: "var(--tracking-label)",
                   }}
                 >
-                  {SEASON_STATUS_LABELS[featured.status]}
+                  {tile.mono}
                 </div>
                 <div
-                  className="mt-1 font-semibold"
+                  className="font-semibold"
                   style={{
-                    fontFamily: "var(--font-display)",
-                    fontSize: 20,
+                    fontFamily: "var(--font-sans)",
+                    fontSize: 14,
                     color: "var(--color-fg)",
                   }}
                 >
-                  {featured.name}
+                  {tile.label}
                 </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <StatusPill status={featured.status} />
-                <span
-                  style={{
-                    fontFamily: "var(--font-mono)",
-                    fontSize: 11,
-                    color: "var(--color-fg-mid)",
-                  }}
-                >
-                  {featured.kind}
-                </span>
-              </div>
-              <Btn full asChild>
-                <Link href={`/${featured.slug}`} className="w-full">
-                  进入赛季 →
-                </Link>
-              </Btn>
-            </div>
-          ) : (
-            <div
-              style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: 12,
-                color: "var(--color-fg-mid)",
-                textAlign: "center",
-                padding: "24px 0",
-              }}
-            >
-              暂无进行中的赛季
-            </div>
-          )}
-        </Panel>
-      </div>
-
-      {/* Nav tiles */}
-      {featured && (
-        <div>
-          <Marker num={1} sub="NAVIGATION">
-            入口
-          </Marker>
-          <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
-            {[
-              { href: `/${featured.slug}/register`, label: "报名参赛", mono: "REGISTER", meta: "个人报名" },
-              { href: `/${featured.slug}/captains`, label: "队长投票", mono: "CAPTAINS", meta: "实时票数" },
-              { href: `/${featured.slug}/draft`, label: "选秀直播间", mono: "DRAFT ROOM", meta: "● LIVE" },
-              { href: `/${featured.slug}/teams`, label: "战队阵容", mono: "TEAMS", meta: "8 支战队" },
-              { href: `/${featured.slug}/matches`, label: "赛程", mono: "MATCHES", meta: "Bracket · 赛果" },
-              { href: `/${featured.slug}/stats`, label: "数据排行", mono: "STATS", meta: "Rating · ADR" },
-              { href: "/seasons", label: "历史赛季", mono: "ARCHIVE", meta: "浏览回顾" },
-              { href: "/login", label: "登录后台", mono: "LOGIN", meta: "管理员 · 队长" },
-            ].map((tile) => (
-              <Link key={tile.href} href={tile.href as never} className="group">
-                <Panel className="transition-colors hover:border-[var(--color-border-hi)]">
-                  <div
-                    className="flex items-center gap-2 mb-1.5"
-                    style={{
-                      fontFamily: "var(--font-mono)",
-                      fontSize: 10,
-                      color: "var(--color-fg-dim)",
-                      letterSpacing: "var(--tracking-label)",
-                    }}
-                  >
-                    {tile.mono}
-                  </div>
-                  <div
-                    className="font-semibold"
-                    style={{
-                      fontFamily: "var(--font-sans)",
-                      fontSize: 14,
-                      color: "var(--color-fg)",
-                    }}
-                  >
-                    {tile.label}
-                  </div>
-                </Panel>
-              </Link>
-            ))}
-          </div>
+              </Panel>
+            </Link>
+          ))}
         </div>
-      )}
+      </div>
 
       {/* Other seasons */}
       {others.length > 0 && (
