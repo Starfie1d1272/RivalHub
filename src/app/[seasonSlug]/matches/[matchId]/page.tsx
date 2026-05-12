@@ -390,6 +390,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
               isCaptainA={isCaptainA}
               isCaptainB={isCaptainB}
               isAdmin={isSeasonAdmin}
+              currentUserId={userSession?.userId}
               currentScheduledAt={match.scheduledAt}
               initialProposals={timeProposals}
             />
