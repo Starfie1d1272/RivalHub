@@ -138,6 +138,7 @@ erDiagram
     match_status status
     text bracket_node_id
     timestamp scheduled_at
+    timestamp completion_deadline
     timestamp completed_at
     timestamp created_at
     timestamp updated_at
@@ -313,6 +314,13 @@ erDiagram
 | `in_progress` | 进行中 |
 | `finished` | 已结束 |
 | `cancelled` | 已取消 |
+
+### `matches.completion_deadline`
+管理员可为每场未结束比赛设置“最晚完成时间”。队长时间协商截止时间由应用层计算为：
+
+`time_confirmation_cutoff = completion_deadline - 24 hours`
+
+截止后队长不能再提议、接受或拒绝时间，管理员仍可强制指定 `scheduled_at` 作为运营兜底。`scheduled_at` 不允许晚于 `completion_deadline`。
 
 ### `matches.stage`
 `matches.stage` 是文本字段，存 `StagePlan[n].key`，不存展示名。Rivals 默认继续使用：

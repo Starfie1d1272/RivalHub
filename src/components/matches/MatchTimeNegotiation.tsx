@@ -18,6 +18,7 @@ interface MatchTimeNegotiationProps {
   isAdmin: boolean;
   currentUserId?: string;
   currentScheduledAt: Date | null;
+  currentCompletionDeadline: Date | null;
   initialProposals: Proposal[];
 }
 
@@ -28,6 +29,7 @@ export function MatchTimeNegotiation({
   isAdmin,
   currentUserId,
   currentScheduledAt,
+  currentCompletionDeadline,
   initialProposals,
 }: MatchTimeNegotiationProps) {
   const [isPending, startTransition] = useTransition();
@@ -37,6 +39,14 @@ export function MatchTimeNegotiation({
   const isCaptain = isCaptainA || isCaptainB;
 
   const pendingProposal = initialProposals.find((p) => p.status === "pending");
+  const completionDeadline = currentCompletionDeadline
+    ? new Date(currentCompletionDeadline)
+    : null;
+  const confirmationCutoff = completionDeadline
+    ? new Date(completionDeadline.getTime() - 24 * 60 * 60 * 1000)
+    : null;
+  const isNegotiationClosed =
+    confirmationCutoff !== null && Date.now() >= confirmationCutoff.getTime();
   const isOpponentProposal =
     pendingProposal !== undefined &&
     isCaptain &&
@@ -107,7 +117,7 @@ export function MatchTimeNegotiation({
             <Button
               size="sm"
               onClick={() => handleRespond("accept")}
-              disabled={isPending}
+              disabled={isPending || isNegotiationClosed}
             >
               接受
             </Button>
@@ -115,7 +125,7 @@ export function MatchTimeNegotiation({
               size="sm"
               variant="outline"
               onClick={() => setRejectingId(pendingProposal.id)}
-              disabled={isPending}
+              disabled={isPending || isNegotiationClosed}
             >
               拒绝
             </Button>
@@ -134,7 +144,7 @@ export function MatchTimeNegotiation({
                 size="sm"
                 variant="destructive"
                 onClick={() => handleRespond("reject")}
-                disabled={isPending || !rejectReason.trim()}
+                disabled={isPending || isNegotiationClosed || !rejectReason.trim()}
               >
                 确认拒绝
               </Button>
@@ -144,7 +154,7 @@ export function MatchTimeNegotiation({
       )}
 
       {/* 队长提议表单 */}
-      {isCaptain && !isOpponentProposal && (
+      {isCaptain && !isOpponentProposal && !isNegotiationClosed && (
         <div className="space-y-2">
           <Label htmlFor="propose-time">提议新时间</Label>
           <div className="flex gap-2">
@@ -153,6 +163,7 @@ export function MatchTimeNegotiation({
               type="datetime-local"
               value={proposedTime}
               onChange={(e) => setProposedTime(e.target.value)}
+              max={completionDeadline ? toLocalDatetimeValue(completionDeadline) : undefined}
             />
             <Button
               onClick={handlePropose}
@@ -163,6 +174,20 @@ export function MatchTimeNegotiation({
           </div>
         </div>
       )}
+
+      <div className="rounded border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-3 text-xs text-[var(--color-fg-mid)]">
+        <div>
+          最晚完成时间：{completionDeadline ? formatCST(completionDeadline) : "管理员暂未设置"}
+        </div>
+        <div>
+          协商截止时间：{confirmationCutoff ? formatCST(confirmationCutoff) : "设置最晚完成时间后自动生成"}
+        </div>
+        {isNegotiationClosed && (
+          <div className="mt-1 text-[var(--color-danger)]">
+            队长时间协商已截止，请联系管理员指定比赛时间。
+          </div>
+        )}
+      </div>
 
       {/* 管理员强制指定 */}
       {isAdmin && (
@@ -175,6 +200,7 @@ export function MatchTimeNegotiation({
               type="datetime-local"
               value={proposedTime}
               onChange={(e) => setProposedTime(e.target.value)}
+              max={completionDeadline ? toLocalDatetimeValue(completionDeadline) : undefined}
             />
             <Button
               variant="destructive"
@@ -188,4 +214,10 @@ export function MatchTimeNegotiation({
       )}
     </div>
   );
+}
+
+function toLocalDatetimeValue(date: Date): string {
+  const d = new Date(date);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }

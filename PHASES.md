@@ -32,8 +32,8 @@
 
 - [x] 创建 Supabase 项目（Postgres + Auth + Storage）
 - [x] `pnpm db:push` / 直接 SQL 迁移推送所有表
-- [ ] RLS：默认拒绝所有，按表逐条开放最小权限（暂缓，Phase 12 前完成）
-- [ ] Storage bucket：`registration-screenshots`（暂缓；截图改用 NJUBox 分享链接）
+- [ ] RLS：默认拒绝所有，按表逐条开放最小权限（生产 Supabase Dashboard 手动核对）
+- [x] 截图存储方案改为 NJUBox 分享链接，不使用 `registration-screenshots` bucket
 - [x] 运行种子脚本：示例赛季占位行
 - [x] 验证 Drizzle Studio 可查询
 
@@ -55,9 +55,9 @@
 
 - [x] `submitRegistration` Server Action（Zod 校验 + DB 写入）
 - [x] 位置满员校验（COUNT GROUP BY）
-- [ ] 截图上传 Storage（客户端直传 presigned URL）→ 当前为 URL 粘贴
+- [x] 截图使用 NJUBox 分享链接粘贴（一个链接内包含近两周 5 场截图）
 - [x] `/[seasonSlug]/register` 表单页
-- [x] 报名成功页 + Magic Link 邮件触发
+- [x] 报名成功页 + 邮箱密码账号登录
 - [x] 报名已截止 / 位置已满的错误态 UI
 - [x] 报名配置化：`seasons.registration_config JSONB` 驱动段位门槛/身份类型/位置上限/截图数量（PR #38）
 
@@ -69,9 +69,9 @@
 - [x] `admin_users` + `admin_invites` 表（scrypt 密码哈希 + 邀请码追踪，含 `seasonId`）
 - [x] 种子脚本写入根管理员 `RivalHub_root` + 自动生成 `ADMIN_SESSION_SECRET`
 - [x] `/admin/login` 登录页（Root 用户名+密码紧急入口）
-- [x] `/login` 选手/管理员 Magic Link 统一登录页
+- [x] `/login` 选手/管理员邮箱+密码登录 / 注册页
 - [x] `/invite?code=xxx` 邀请码提权页（`claimInviteCode` → 更新 users.role + adminSeasonIds）
-- [x] `/auth/callback` Supabase Auth 回调（upsert users + 建 rivalhub-session）
+- [x] `/auth/callback` Supabase Auth 回调兼容入口（生产不依赖邮件确认）
 - [x] `users.role` 角色体系（user / season_admin / super_admin）+ `adminSeasonIds`
 - [x] `/admin/[seasonSlug]/registrations` 审核列表 + 状态迁移校验
 - [x] 通过 / 拒绝 / 等待名单 Server Action + audit log（含审核人邮箱）
@@ -179,14 +179,14 @@
 
 ## Phase 12 — 部署上线
 
-- [x] vercel.json 创建（Cron Job 配置）
+- [x] `/api/cron/draft-timeout` Cron endpoint 创建（当前由 GitHub Actions 每分钟触发）
 - [x] `/api/cron/draft-timeout` 接入 `runDraftTimeoutCron` + CRON_SECRET 鉴权
 - [x] Sub-project 1 完成：代码整理 + 配置修正（config 合并、action-utils/revalidation、standings 解耦、draft/matches 拆分、测试覆盖、文档对齐）
 - [x] **Tactical Grid 设计系统全站迁移**（PR #64 → main，v0.2.0）：CSS tokens 重写 + 14 个 RivalHub 组件 + shadcn 覆盖 + 17 页面迁移 + 规则书渲染 + Admin 布局重构 + 品牌素材入库
-- [ ] Vercel Dashboard 环境变量配置
-- [ ] Vercel 首次部署
-- [ ] 自定义域名绑定
-- [ ] Sub-project 2：比赛时间协商 + 赛前名单提交（see docs/superpowers/specs/2026-05-12-match-time-roster-design.md）
+- [x] Vercel Dashboard 环境变量配置
+- [x] Vercel 首次部署
+- [x] 自定义域名绑定（`match.starfie1d.top`）
+- [x] Sub-project 2：比赛时间协商 + 赛前名单提交（轻量版已落地；过程文档已归档）
 - [ ] Playwright E2E 跑关键路径（注册 → 投票 → 选秀 → 比赛）
 - [ ] 性能基准（LCP / FCP）验收
 

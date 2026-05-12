@@ -1,14 +1,13 @@
 /**
  * 报名系统默认配置
  *
- * TODO (Phase 7-8): 将这些配置迁移到 seasons.registration_config JSONB 列，
- * 实现赛事级可配置。迁移后，此文件作为 fallback 默认值保留。
+ * 赛季级业务上限已迁移到 seasons.registration_config JSONB 列，
+ * 此文件保留位置与段位等 fallback 默认值。
  *
  * 当前为 CS2 完美平台选秀联赛的默认设置：
  * - 5 个标准 CS2 位置
  * - 完美平台当前段位体系（D~魔王S）
  * - 每位置 15 人上限（8 队 × 7 人 = 56，5 位置各约 11，预留 buffer）
- * - 5 张天梯截图
  */
 
 export const REGISTRATION_DEFAULTS = {

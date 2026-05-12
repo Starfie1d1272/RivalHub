@@ -116,9 +116,21 @@ await pickPlayer(teamId, registrationId, clientRequestId);
 
 ---
 
-## Vercel Cron 超时自动 pick
+## Cron 超时自动 pick
 
-### 配置（vercel.json，Phase 12 添加）
+### 当前生产配置（GitHub Actions）
+
+当前生产由 `.github/workflows/cron.yml` 每分钟调用：
+
+```text
+https://match.starfie1d.top/api/cron/draft-timeout
+```
+
+请求必须携带 `Authorization: Bearer $CRON_SECRET`。Vercel 环境变量和 GitHub Actions Secret 需要保持一致。
+
+### 可选配置（Vercel Cron）
+
+若后续迁回 Vercel Cron，可使用：
 
 ```json
 {

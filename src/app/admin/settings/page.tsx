@@ -33,7 +33,7 @@ export default async function AdminSettingsPage() {
             <ChangePasswordForm />
           ) : (
             <Panel pad={16} className="text-sm text-[var(--color-fg-mid)]">
-              Magic Link 登录用户无需在后台修改密码。
+              邮箱密码用户请在登录页或 Supabase Auth 流程中管理密码；此处仅用于 Root 紧急账号。
             </Panel>
           )}
         </section>

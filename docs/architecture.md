@@ -31,12 +31,12 @@ Next.js App Router (Vercel Edge / Node.js)
 
 路由前缀：
 - `/[seasonSlug]/...` — 公开赛季页面（无需登录）
-- `/login` — Magic Link 登录页（已有账号的选手/管理员）
+- `/login` — 邮箱+密码登录 / 注册页（生产关闭邮件确认，不依赖 Magic Link）
 - `/invite` — 邀请码提权页（需已登录，URL 接收 `?code=xxx`）
-- `/auth/callback` — Supabase Auth 回调（upsert users + 建 session）
+- `/auth/callback` — Supabase Auth 回调兼容入口（生产主链路不依赖）
 - `/admin/[seasonSlug]/...` — 管理员后台（`rivalhub-session` 或 `rivalhub-admin` 保护）
 - `/admin/login` — Root 紧急登录（用户名+密码）
-- `/api/cron/...` — Vercel Cron 触发（CRON_SECRET 验证）
+- `/api/cron/...` — Cron endpoint（当前由 GitHub Actions 触发，CRON_SECRET 验证）
 
 ### Server Actions 层（`src/actions/`）
 
@@ -50,7 +50,7 @@ Next.js App Router (Vercel Edge / Node.js)
 | 文件 | 职责 |
 |---|---|
 | `register.ts` | 提交报名、检查位置满员 |
-| `auth.ts` | 发送 Magic Link、邀请码提权（claimInviteCode）、退出登录 |
+| `auth.ts` | 邮箱+密码注册 / 登录、邀请码提权（claimInviteCode）、退出登录 |
 | `admin.ts` | Root 登录、审核报名、邀请码管理（createInviteCode + seasonId）、密码修改、管理员管理 |
 | `captains.ts` | 投 / 撤销队长票 |
 | `draft/state.ts` | 选秀状态管理（startDraft / pauseDraft / resumeDraft） |
@@ -70,7 +70,7 @@ Next.js App Router (Vercel Edge / Node.js)
 ### Lib 层（`src/lib/`）
 
 - `auth/session.ts` — 双 Cookie iron-session：`rivalhub-session`（所有用户）+ `rivalhub-admin`（root 紧急）；`requireAdmin` / `requireSuperAdmin` / `requireSeasonAdmin` / `requireAuth`
-- `auth/supabase.ts` — Supabase client（用户 magic link + Storage）
+- `auth/supabase.ts` — Supabase client（Server Action 调用 Auth；浏览器端用于 Realtime）
 - `ocr/scoreboard.ts` — SiliconFlow Qwen-VL 记分板识别（base64 → Zod 校验 → PlayerRowOCR[]），不写库，结果返回给 action 供 admin 确认
 - `realtime/subscribe.ts` — Supabase Realtime 订阅封装
 - `formats/` — StageExecutor 接口 + 赛制执行器（round-robin / double-elim / single-elim / swiss 预留）；注册表 `index.ts` 按 `StageType` 分发
@@ -93,8 +93,7 @@ Next.js App Router (Vercel Edge / Node.js)
     → 检查重复报名（UNIQUE user+season）
     → 检查位置满员（COUNT GROUP BY）
     → DB: INSERT season_registrations
-    → Supabase Auth: sendMagicLink(email)
-  → 页面展示"报名成功" + 邮件提示
+  → 页面展示"报名成功"；选手通过 /login 使用邮箱+密码登录
 ```
 
 ## 数据流：选秀 pick（并发安全）
@@ -120,7 +119,7 @@ Next.js App Router (Vercel Edge / Node.js)
 | 操作 | 入口 |
 |---|---|
 | 所有业务写操作 | Server Action |
-| Vercel Cron 触发（HTTP GET 无 body） | API Route |
+| Cron 触发（HTTP GET 无 body） | API Route |
 | Supabase Webhook（未来） | API Route |
 | 其他一切 | 禁止新增 API Route |
 

@@ -26,11 +26,11 @@
   ↓
 服务端 Zod 二次校验
   ↓
-检查位置是否已满（COUNT GROUP BY，带 FOR SHARE 防竞争）
+检查位置是否已满（COUNT GROUP BY）
   ├── 已满 → 返回错误"该位置已满员"
   └── 未满 → INSERT season_registrations（status=pending）
               ↓
-              触发 Magic Link 邮件（supabase.auth.signInToOtp）→ **v1 已移除 Magic Link 发送步骤，改用 email+password 登录**
+              不发送登录邮件；选手通过 /login 使用邮箱+密码登录
               ↓
               返回成功 → 页面跳转"报名成功"
 ```
@@ -63,9 +63,9 @@
 
 ## 截图上传
 
-**当前方案（v1）**：选手将天梯截图上传至 NJUBox（https://box.nju.edu.cn），获取分享链接后填入报名表单的「NJUBox 分享链接」字段。提交时直接存储该 URL。截图数量由 `registrationConfig.screenshotCount` 控制（默认 1 张）。
+**当前方案（v1）**：选手将近两周 5 场天梯截图上传至 NJUBox（https://box.nju.edu.cn），获取 1 个分享链接后填入报名表单的「NJUBox 分享链接」字段。提交时直接存储该 URL。`registrationConfig.screenshotCount` 控制链接字段数量，Rivals 默认 1 个链接。
 
-**未来方案（Phase 5+）**：支持客户端直传 Supabase Storage，避免依赖第三方图床。
+**未来方案**：支持客户端直传 Supabase Storage，避免依赖第三方图床。
 - Bucket 名称：`registration-screenshots`
 - 权限：私有（不公开访问）
 - 管理员审核时通过 Service Role 生成签名 URL（有效期 1 小时）
@@ -133,7 +133,7 @@ GROUP BY primary_position;
 | `peakRating` | 历史最高完美平台 Rating | 0.01–3.00，两位小数（均值约 1.0） |
 | `currentSeasonPeakRank` | 当前赛季最高段位 | 合法段位值；**报名门槛见下** |
 | `currentRating` | 当前赛季 Rating | 0.01–3.00，两位小数 |
-| `screenshotUrls` | 天梯截图 NJUBox 分享链接数组 | 数量由 `registrationConfig.screenshotCount` 控制 |
+| `screenshotUrls` | 天梯截图 NJUBox 分享链接数组 | Rivals 默认 1 个链接；链接内容需包含近两周 5 场截图 |
 | `gameplayStyle` | 游戏风格自述 | ≤100 字 |
 | `antiCheatPledge` | 反作弊承诺勾选 | 必须为 true |
 
@@ -165,10 +165,12 @@ GROUP BY primary_position;
 
 ## 用户认证流程
 
-用户首次报名后：
-1. 报名时邮件触发 Supabase Auth Magic Link（如启用）或 Email+Password 注册
-2. 通过 Supabase Auth callback 在 `public.users` 插入记录，`auth_id` 关联
-3. 后续登录通过 `iron-session` 保存会话状态
+用户通过 `/login` 使用邮箱+密码注册或登录。生产环境关闭 Supabase 邮件确认，不依赖 Magic Link。
+
+登录成功后：
+1. Server Action 调用 Supabase Auth `signUp` 或 `signInWithPassword`
+2. 同步 `public.users`，并用 `iron-session` 写入 `rivalhub-session`
+3. 后续权限判断读取 `users.role` 与 `adminSeasonIds`
 
 ---
 
@@ -181,6 +183,6 @@ GROUP BY primary_position;
 | 报名提交已截止 | "报名提交已截止" |
 | 位置已满 | "该位置主选名额已满，可选择其他位置报名" |
 | 已报名过 | "您已提交报名，请等待审核结果通知" |
-| 截图上传失败 | "截图上传失败，请检查网络后重试" |
+| 截图链接无效 | "请输入有效的链接（以 http:// 或 https:// 开头）" |
 | 总人数已满 | "报名总人数已达上限" |
 | 提交失败（网络） | Toast 错误提示 + 允许重新提交（幂等）|

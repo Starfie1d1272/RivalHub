@@ -58,7 +58,7 @@
 | 数值字段非负 | — | Zod nonnegative（OCR 后校验） | DB 未加 CHECK，由 OCR Zod schema 保证 |
 | 保存前人工审核 | — | Server Action（admin 确认后写库） | OCR 结果不直接入库，需 admin 二次确认 |
 | **audit_logs** | | | |
-| 不允许修改 | RLS DENY UPDATE/DELETE | — | append-only |
+| 不允许修改 | — | 仅 Server Action 写入，不提供修改入口 | append-only 语义由应用层维护 |
 | **admin_users** | | | |
 | username 唯一 | `UNIQUE(username)` | — | |
 | is_active 默认 true | DB DEFAULT | — | |
@@ -119,11 +119,15 @@
 
 ## Supabase Storage Bucket 策略
 
+v1 当前不依赖 Supabase Storage 保存报名截图。报名截图使用 NJUBox 分享链接，直接存储在 `season_registrations.screenshot_urls`。
+
+以下 bucket 规划仅作为后续扩展参考。
+
 ### Bucket 列表
 
 | Bucket 名 | 是否 public | 访问方式 | 用途 |
 |---|---|---|---|
-| `registration-screenshots` | ❌ private | Service Role 生成签名 URL | 报名天梯截图、活跃度截图 |
+| `registration-screenshots` | ❌ private | Service Role 生成签名 URL | 报名天梯截图、活跃度截图（后续可选） |
 | `avatars` | ✅ public | 直接 URL | 用户头像、队伍头像（v2） |
 | `highlights` | ❌ private | Service Role 生成签名 URL | 高光视频（可选填，admin 审核用） |
 | `match-replays` | ❌ private | Service Role 生成签名 URL | demo 文件（v2 可选） |

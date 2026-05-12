@@ -1,6 +1,6 @@
 "use server";
 
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matchTimeProposals, matches, auditLogs } from "@/db/schema";
 import { ok, type ActionResult } from "@/types/action";
@@ -9,6 +9,8 @@ import { requireAuth, requireSeasonAdmin } from "@/lib/auth/session";
 import { getMatchOrThrow, getSeasonOrThrow, actionError } from "@/lib/action-utils";
 import { revalidateMatchPaths } from "@/lib/revalidation";
 import { getTeamIdForCaptain } from "./_shared";
+
+const TIME_CONFIRMATION_BUFFER_HOURS = 24;
 
 /**
  * 队长提议比赛时间。
@@ -25,6 +27,8 @@ export async function proposeMatchTime(
     if (match.status !== "scheduled") {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "只能在 scheduled 状态下提议时间");
     }
+    assertBeforeTimeConfirmationCutoff(match.completionDeadline);
+    assertProposedTimeFitsDeadline(proposedTime, match.completionDeadline);
 
     if (!(await getTeamIdForCaptain(session.userId, match))) {
       throw new AppError(ErrorCode.FORBIDDEN, "只有队长可以提议时间");
@@ -72,6 +76,10 @@ export async function respondToTimeProposal(
     }
 
     const match = await getMatchOrThrow(proposal.matchId);
+    assertBeforeTimeConfirmationCutoff(match.completionDeadline);
+    if (action === "accept") {
+      assertProposedTimeFitsDeadline(proposal.proposedTime, match.completionDeadline);
+    }
 
     if (proposal.proposedBy === session.userId) {
       throw new AppError(ErrorCode.FORBIDDEN, "不能回应自己的提议");
@@ -136,6 +144,7 @@ export async function forceSetMatchTime(
   try {
     const match = await getMatchOrThrow(matchId);
     const admin = await requireSeasonAdmin(match.seasonId);
+    assertProposedTimeFitsDeadline(time, match.completionDeadline);
 
     await db.transaction(async (tx) => {
       // 过期所有 pending 提议
@@ -193,4 +202,36 @@ export async function getTimeProposals(matchId: string) {
     where: eq(matchTimeProposals.matchId, matchId),
     orderBy: (tps, { desc }) => [desc(tps.createdAt)],
   });
+}
+
+function getTimeConfirmationCutoff(
+  completionDeadline: Date | null,
+): Date | null {
+  if (!completionDeadline) return null;
+  return new Date(completionDeadline.getTime() - TIME_CONFIRMATION_BUFFER_HOURS * 60 * 60 * 1000);
+}
+
+function assertBeforeTimeConfirmationCutoff(completionDeadline: Date | null): void {
+  const cutoff = getTimeConfirmationCutoff(completionDeadline);
+  if (cutoff && Date.now() >= cutoff.getTime()) {
+    throw new AppError(
+      ErrorCode.VALIDATION_FAILED,
+      "时间协商已截止，请联系管理员指定比赛时间",
+    );
+  }
+}
+
+function assertProposedTimeFitsDeadline(
+  proposedTime: Date,
+  completionDeadline: Date | null,
+): void {
+  if (Number.isNaN(proposedTime.getTime())) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "请输入有效的比赛时间");
+  }
+  if (proposedTime.getTime() <= Date.now()) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "比赛时间必须晚于当前时间");
+  }
+  if (completionDeadline && proposedTime.getTime() > completionDeadline.getTime()) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "比赛时间不能晚于最晚完成时间");
+  }
 }

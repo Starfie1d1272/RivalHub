@@ -217,6 +217,7 @@ export default async function AdminMatchesPage({ params }: AdminMatchesPageProps
                             <ScheduledAtInput
                               matchId={m.id}
                               currentScheduledAt={m.scheduledAt}
+                              currentCompletionDeadline={m.completionDeadline}
                             />
                             <ScoreInput
                               matchId={m.id}
@@ -279,6 +280,7 @@ export default async function AdminMatchesPage({ params }: AdminMatchesPageProps
                             <ScheduledAtInput
                               matchId={m.id}
                               currentScheduledAt={m.scheduledAt}
+                              currentCompletionDeadline={m.completionDeadline}
                             />
                             {m.status === "in_progress" && m.format !== "bo1" ? (
                               <MapByMapInput

@@ -148,10 +148,10 @@ cancelled
 
 | 当前状态 | 可迁移至 | 触发方 | 备注 |
 |---|---|---|---|
-| `scheduled` | `in_progress` | admin | 比赛开始（Phase 10 admin UI 尚未实现此按钮，预留） |
+| `scheduled` | `in_progress` | admin | 比赛开始 |
 | `scheduled` | `cancelled` | admin | 双方队伍弃权或赛程调整 |
 | `in_progress` | `finished` | admin | 录入比分（`recordMatchResult` 接受 scheduled 或 in_progress） |
-| `in_progress` | `cancelled` | admin | 特殊情况（**当前 `cancelMatch` 仅允许 scheduled → cancelled；in_progress → cancelled 待 Phase 11 补充**） |
+| `in_progress` | `cancelled` | admin | 特殊情况 |
 
 ### 禁止迁移
 
@@ -160,7 +160,7 @@ cancelled
 
 ### 比分录入规则
 
-Phase 10 `recordMatchResult` 仅更新 `matches` 表和 `match_maps`，bracket 推进（`lib/bracket/advanceMatch()`）在 Phase 11 完成后接入。
+`recordMatchResult` / `recordMapResult` 更新 `matches` 和 `match_maps`；若比赛关联 bracket 节点，会通过 `lib/bracket/advanceMatch()` 推进并生成后续比赛。
 
 ### BO3 / BO5 系列赛与 match_maps 关系
 
@@ -195,9 +195,11 @@ completed (scoreA + scoreB 非 null + completedAt 写入)
 
 ---
 
-## 5. MatchTimeProposal（比赛时间协商）— 占位
+## 5. MatchTimeProposal（比赛时间协商）
 
-> Sub-project 2 将添加完整状态机。当前 `match_time_proposals` 表支持 `pending → accepted | rejected`（队长互相同意/拒绝）和 `expired`（管理员强制指定时过期旧提议）。
+当前 `match_time_proposals` 表支持 `pending → accepted | rejected`（队长互相同意/拒绝）和 `expired`（管理员强制指定或其他提议被接受时过期旧提议）。
+
+比赛可设置 `matches.completion_deadline` 作为最晚完成时间。队长时间协商的操作截止为 `completion_deadline - 24h`：截止后队长不能再提议、接受或拒绝，需由管理员强制指定比赛时间。任何 `proposed_time` / `scheduled_at` 都不能晚于 `completion_deadline`。
 
 ### 状态图
 

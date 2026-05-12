@@ -352,3 +352,56 @@ export async function updateMatchScheduledAt(
     return actionError("updateMatchScheduledAt", e);
   }
 }
+
+// ── 更新比赛最晚完成时间 ──────────────────────────────────────────────────
+
+/**
+ * 设置或清除比赛的最晚完成时间。
+ * 队长时间协商的确认截止时间 = completionDeadline - 24h。
+ */
+export async function updateMatchCompletionDeadline(
+  matchId: string,
+  completionDeadline: Date | null
+): Promise<ActionResult<void>> {
+  try {
+    const match = await getMatchOrThrow(matchId);
+    const session = await requireSeasonAdmin(match.seasonId);
+
+    if (match.status === "finished" || match.status === "cancelled") {
+      throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "已结束或已取消的比赛不能修改最晚完成时间");
+    }
+    if (completionDeadline && completionDeadline.getTime() <= Date.now()) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "最晚完成时间必须晚于当前时间");
+    }
+    if (
+      completionDeadline &&
+      match.scheduledAt &&
+      match.scheduledAt.getTime() > completionDeadline.getTime()
+    ) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "最晚完成时间不能早于已设定的比赛时间");
+    }
+
+    const season = await getSeasonOrThrow(match.seasonId);
+    await db.transaction(async (tx) => {
+      await tx
+        .update(matches)
+        .set({ completionDeadline, updatedAt: new Date() })
+        .where(eq(matches.id, matchId));
+
+      await tx.insert(auditLogs).values({
+        seasonId: match.seasonId,
+        action: "match.update_completion_deadline",
+        actorId: session.email,
+        targetId: matchId,
+        targetType: "match",
+        meta: { completionDeadline: completionDeadline?.toISOString() ?? null },
+      });
+    });
+
+    revalidateMatchPaths(season.slug, matchId);
+
+    return ok(undefined);
+  } catch (e) {
+    return actionError("updateMatchCompletionDeadline", e);
+  }
+}

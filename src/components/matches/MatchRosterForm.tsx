@@ -24,12 +24,25 @@ export function MatchRosterForm({
 }: MatchRosterFormProps) {
   const [isPending, startTransition] = useTransition();
   const [selectedStarterIds, setSelectedStarterIds] = useState<string[]>([]);
+  const [selectedSubstituteIds, setSelectedSubstituteIds] = useState<string[]>([]);
 
   const toggleStarter = (id: string) => {
     setSelectedStarterIds((prev) =>
       prev.includes(id)
         ? prev.filter((x) => x !== id)
         : prev.length < 5
+          ? [...prev, id]
+          : prev,
+    );
+    setSelectedSubstituteIds((prev) => prev.filter((x) => x !== id));
+  };
+
+  const toggleSubstitute = (id: string) => {
+    if (selectedStarterIds.includes(id)) return;
+    setSelectedSubstituteIds((prev) =>
+      prev.includes(id)
+        ? prev.filter((x) => x !== id)
+        : prev.length < 2
           ? [...prev, id]
           : prev,
     );
@@ -41,7 +54,7 @@ export function MatchRosterForm({
       return;
     }
     startTransition(async () => {
-      const result = await submitMatchRoster(matchId, selectedStarterIds, []);
+      const result = await submitMatchRoster(matchId, selectedStarterIds, selectedSubstituteIds);
       if (result.success) {
         toast.success("名单提交成功");
       } else {
@@ -52,24 +65,53 @@ export function MatchRosterForm({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap gap-2">
-        {teamMembers.map((m) => (
-          <button
-            key={m.id}
-            type="button"
-            onClick={() => toggleStarter(m.id)}
-            className={`rounded border px-3 py-1 text-sm transition ${
-              selectedStarterIds.includes(m.id)
-                ? "bg-primary text-primary-foreground"
-                : "hover:bg-accent"
-            }`}
-          >
-            {m.steamName} ({m.primaryPosition})
-          </button>
-        ))}
+      <div className="space-y-2">
+        <p className="text-sm font-medium">首发</p>
+        <div className="flex flex-wrap gap-2">
+          {teamMembers.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => toggleStarter(m.id)}
+              className={`rounded border px-3 py-1 text-sm transition ${
+                selectedStarterIds.includes(m.id)
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-accent"
+              }`}
+            >
+              {m.steamName} ({m.primaryPosition})
+            </button>
+          ))}
+        </div>
       </div>
       <p className="text-sm text-muted-foreground">
         已选 {selectedStarterIds.length}/5 名首发
+      </p>
+
+      <div className="space-y-2">
+        <p className="text-sm font-medium">替补</p>
+        <div className="flex flex-wrap gap-2">
+          {teamMembers.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => toggleSubstitute(m.id)}
+              disabled={selectedStarterIds.includes(m.id)}
+              className={`rounded border px-3 py-1 text-sm transition ${
+                selectedSubstituteIds.includes(m.id)
+                  ? "bg-primary text-primary-foreground"
+                  : selectedStarterIds.includes(m.id)
+                    ? "cursor-not-allowed opacity-50"
+                    : "hover:bg-accent"
+              }`}
+            >
+              {m.steamName} ({m.primaryPosition})
+            </button>
+          ))}
+        </div>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        已选 {selectedSubstituteIds.length}/2 名替补（可不选）
       </p>
       {!hasExistingRoster && (
         <Button

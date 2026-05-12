@@ -1,5 +1,7 @@
 # Vercel 部署注意事项
 
+生产域名：`https://match.starfie1d.top`。
+
 ## 数据库连接
 
 ### 为什么 Vercel 连不上 Supabase
@@ -54,5 +56,28 @@ const pgConfig = {
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service_role key（仅服务端） |
 | `ADMIN_SESSION_SECRET` | iron-session 加密密钥 |
 | `ADMIN_INVITE_CODE` | 管理员邀请码 |
-| `CRON_SECRET` | Vercel Cron 鉴权密钥 |
-| `NEXT_PUBLIC_APP_URL` | 应用生产 URL |
+| `CRON_SECRET` | Cron endpoint 鉴权密钥 |
+| `NEXT_PUBLIC_APP_URL` | 应用生产 URL（`https://match.starfie1d.top`） |
+| `STEAM_API_KEY` | 可选，用于抓取选手 Steam 头像 |
+| `SILICONFLOW_API_KEY` | 可选，用于玩家数据 OCR |
+
+## Cron
+
+`/api/cron/draft-timeout` 负责选秀超时自动 pick，并通过 `Authorization: Bearer $CRON_SECRET` 鉴权。
+
+当前生产调用由 `.github/workflows/cron.yml` 每分钟触发：
+
+```text
+https://match.starfie1d.top/api/cron/draft-timeout
+```
+
+因此需要同时配置：
+
+- Vercel 环境变量：`CRON_SECRET`
+- GitHub Actions Secret：`CRON_SECRET`
+
+若后续迁回 Vercel Cron，再更新 `vercel.json` 并确认计划支持所需频率。
+
+## Auth
+
+生产登录使用 Supabase email+password，Supabase 邮件确认关闭，不依赖邮件确认或 Magic Link。`/auth/callback` 仅作为兼容入口保留。

@@ -32,7 +32,7 @@ tests/unit/
 │   ├── date.test.ts
 │   └── season.test.ts
 └── actions/
-    └── (TODO: Server Action 单元测试，需 mock db client)
+    └── actions/                 # 少量 Server Action 状态迁移测试
 ```
 
 ### 集成测试（`tests/integration/`）
@@ -41,24 +41,19 @@ tests/unit/
 - Drizzle schema 结构与 DB 一致性
 - Server Action 完整链路（mock Supabase，用真实 SQL in-memory 或 testcontainers）
 
-**数据库方案（待 Phase 2 确认）**：
-- 方案 A：Supabase local（`supabase start`），启动一个本地 Supabase
-- 方案 B：`testcontainers` 启动 Postgres 容器，仅运行 Drizzle schema（不含 Auth/Storage）
-
-**v1 暂用方案 A**（Supabase CLI 本地），CI 中可用方案 B 替代。
+当前集成测试以 schema 和纯逻辑校验为主，不启动真实 Supabase。完整 Server Action 链路由上线前手动冒烟覆盖。
 
 ```
 tests/integration/
 └── db/
-    ├── schema.test.ts         # 验证 Drizzle schema 生成的迁移 SQL 结构正确
-    └── registration.test.ts   # Phase 4 后补充
+    └── schema.test.ts         # 验证 Drizzle schema 生成的迁移 SQL 结构正确
 ```
 
 ### E2E 测试（`tests/e2e/`）
 
 **什么测**：关键业务路径的完整流转，跑在真实（或 staging）浏览器。
 
-**关键路径（Phase 12 验收）**：
+**关键路径（上线验收）**：
 1. 首页访问 → 赛季卡片跳转
 2. 报名表单填写 → 提交成功
 3. 管理员登录 → 审核通过一条报名
@@ -69,11 +64,7 @@ tests/integration/
 ```
 tests/e2e/
 └── flows/
-    ├── home.spec.ts           # 首页访问验证（Phase 1 hello-world）
-    ├── registration.spec.ts   # Phase 4 后补充
-    ├── admin.spec.ts          # Phase 5 后补充
-    ├── draft.spec.ts          # Phase 8 后补充
-    └── bracket.spec.ts        # Phase 11 后补充
+    └── home.spec.ts           # 当前已有首页 smoke
 ```
 
 ---
@@ -138,7 +129,7 @@ steps:
   - pnpm build
 ```
 
-E2E 测试（Playwright）当前未纳入 CI，计划 Phase 12 接入。
+E2E 测试（Playwright）当前未纳入 CI。上线前需要人工或 staging 冒烟覆盖：注册/登录、报名、审核、投票、选秀、赛程录分。
 
 ---
 

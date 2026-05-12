@@ -56,7 +56,7 @@ export async function adminLogin(username: string, password: string) {
     return fail({ code: ErrorCode.UNAUTHORIZED, message: "该账户已被停用" });
   }
   if (user.role !== "super_admin") {
-    return fail({ code: ErrorCode.UNAUTHORIZED, message: "请使用 Magic Link 登录管理员账号" });
+    return fail({ code: ErrorCode.UNAUTHORIZED, message: "请使用 /login 的邮箱密码入口登录管理员账号" });
   }
   if (!verifyPassword(password, user.passwordHash)) {
     return fail({ code: ErrorCode.UNAUTHORIZED, message: "用户名或密码错误" });
@@ -320,7 +320,7 @@ export async function changePassword(currentPassword: string, newPassword: strin
     return fail({ code: ErrorCode.VALIDATION_FAILED, message: "新密码至少 8 个字符" });
   }
   if (admin.authSource !== "root" || !admin.legacyAdminId) {
-    return fail({ code: ErrorCode.FORBIDDEN, message: "Magic Link 用户无需在此修改密码" });
+    return fail({ code: ErrorCode.FORBIDDEN, message: "该页面仅支持修改 Root 紧急账号密码" });
   }
 
   const user = await db.query.adminUsers.findFirst({

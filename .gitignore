@@ -148,3 +148,5 @@ vite.config.ts.timestamp-*
 # Claude Code / OMC internal state
 .omc/
 .superpowers/
+.codex/
+.claude/

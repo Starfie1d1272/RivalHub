@@ -16,7 +16,7 @@
 | `hasCaptainVoting` | `boolean` | `true` | `false` | 是否有队长投票环节 |
 | `hasDraft` | `boolean` | `true` | `false` | 是否有蛇形选秀 |
 | `stagePlan` | `StagePlan` | `round_robin -> double_elim` | `round_robin -> double_elim` | 多阶段赛制计划，`matches.stage` 存阶段 `key` |
-| `registrationConfig` | `RegistrationConfig` | Rivals 默认（含 maxTotal: 56） | Rivals 默认 | 身份类型、段位门槛、位置上限、截图数量、总人数上限 |
+| `registrationConfig` | `RegistrationConfig` | Rivals 默认（含 maxTotal: 56） | Rivals 默认 | 身份类型、段位门槛、位置上限、截图链接数量、总人数上限 |
 
 | `minTeamSize` | `integer` | `7` | `5` | 每队最少人数 |
 | `maxTeamSize` | `integer` | `7` | `9` | 每队最多人数 |

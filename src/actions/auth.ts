@@ -10,6 +10,7 @@ import { ok, fail } from "@/types/action";
 import { ErrorCode } from "@/lib/errors";
 import type { ActionResult } from "@/types/action";
 import { actionError } from "@/lib/action-utils";
+import { normalizeEmail } from "@/lib/utils/email";
 import {
   requireAuth,
   createUserSession,
@@ -27,10 +28,11 @@ export async function loginWithPassword(
   if (!password || password.length < 6) {
     return fail({ code: ErrorCode.VALIDATION_FAILED, message: "密码至少 6 位" });
   }
+  const normalizedEmail = normalizeEmail(email);
 
   try {
     const supabase = createServiceClient();
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
 
     if (error) {
       return fail({ code: ErrorCode.UNAUTHORIZED, message: "邮箱或密码错误" });
@@ -39,10 +41,16 @@ export async function loginWithPassword(
     // 同步 public.users（密码登录不走 callback，这里兜底 upsert）
     const [userRow] = await db
       .insert(users)
-      .values({ id: data.user.id, email, role: "user", adminSeasonIds: [], updatedAt: new Date() })
+      .values({
+        email: normalizedEmail,
+        authId: data.user.id,
+        role: "user",
+        adminSeasonIds: [],
+        updatedAt: new Date(),
+      })
       .onConflictDoUpdate({
-        target: users.id,
-        set: { updatedAt: new Date() },
+        target: users.email,
+        set: { authId: data.user.id, updatedAt: new Date() },
       })
       .returning();
 
@@ -54,7 +62,7 @@ export async function loginWithPassword(
       authSource: "user",
     });
 
-    return ok({ email });
+    return ok({ email: normalizedEmail });
   } catch (e) {
     return actionError("loginWithPassword", e);
   }
@@ -70,10 +78,11 @@ export async function signUp(
   if (!password || password.length < 6) {
     return fail({ code: ErrorCode.VALIDATION_FAILED, message: "密码至少 6 位" });
   }
+  const normalizedEmail = normalizeEmail(email);
 
   try {
     const supabase = createServiceClient();
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabase.auth.signUp({ email: normalizedEmail, password });
 
     if (error) {
       // 不暴露邮箱是否已注册（防枚举），统一返回模糊提示。
@@ -90,7 +99,17 @@ export async function signUp(
     // 的 upsert 兜底修复，属于可接受的低概率不一致。
     const [userRow] = await db
       .insert(users)
-      .values({ id: data.user.id, email, role: "user", adminSeasonIds: [], updatedAt: new Date() })
+      .values({
+        email: normalizedEmail,
+        authId: data.user.id,
+        role: "user",
+        adminSeasonIds: [],
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: users.email,
+        set: { authId: data.user.id, updatedAt: new Date() },
+      })
       .returning();
 
     await createUserSession({
@@ -101,7 +120,7 @@ export async function signUp(
       authSource: "user",
     });
 
-    return ok({ email });
+    return ok({ email: normalizedEmail });
   } catch (e) {
     return actionError("signUp", e);
   }

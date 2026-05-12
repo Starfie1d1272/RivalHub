@@ -392,6 +392,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
               isAdmin={isSeasonAdmin}
               currentUserId={userSession?.userId}
               currentScheduledAt={match.scheduledAt}
+              currentCompletionDeadline={match.completionDeadline}
               initialProposals={timeProposals}
             />
           </Panel>

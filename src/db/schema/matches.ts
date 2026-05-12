@@ -35,6 +35,7 @@ export const matches = pgTable("matches", {
   bracketNodeId: text("bracket_node_id"),  // brackets-manager 节点引用
 
   scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+  completionDeadline: timestamp("completion_deadline", { withTimezone: true }),
   completedAt: timestamp("completed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
