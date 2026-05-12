@@ -35,7 +35,12 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
     .where(eq(matches.seasonId, season.id));
   const initializedStages = new Set(matchStageRows.map((r) => r.stage));
 
-  // ── 动态阶段列表 ──────────────────────────────────────────
+  const STAGE_DISPLAY: Record<string, string> = {
+  qualifier: "QUALIFIER",
+  playoff: "PLAYOFFS",
+};
+
+// ── 动态阶段列表 ──────────────────────────────────────────
   interface Phase {
     key: string;
     label: string;
@@ -86,7 +91,7 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
       const stage = stagePlan[i];
       phases.push({
         key: stage.key,
-        label: stage.name || stage.key.toUpperCase(),
+        label: STAGE_DISPLAY[stage.key] || stage.key.toUpperCase(),
         done: i < currentMatchIdx,
       });
     }

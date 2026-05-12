@@ -246,7 +246,7 @@ export function RegistrationForm({
             </div>
             <FieldError name="email" />
             <p className="text-xs text-[var(--color-fg-dim)] mt-1">
-              输入邮箱后自动恢复已保存的草稿。同时用于接收登录链接和审核通知。
+              输入邮箱后自动恢复已保存的草稿。同时用于接收审核通知。
               {loadingDraftEmail && " · 正在查询草稿…"}
             </p>
           </div>
