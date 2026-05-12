@@ -16,6 +16,7 @@ interface MatchTimeNegotiationProps {
   isCaptainA: boolean;
   isCaptainB: boolean;
   isAdmin: boolean;
+  currentUserId?: string;
   currentScheduledAt: Date | null;
   initialProposals: Proposal[];
 }
@@ -25,6 +26,7 @@ export function MatchTimeNegotiation({
   isCaptainA,
   isCaptainB,
   isAdmin,
+  currentUserId,
   currentScheduledAt,
   initialProposals,
 }: MatchTimeNegotiationProps) {
@@ -36,7 +38,10 @@ export function MatchTimeNegotiation({
 
   const pendingProposal = initialProposals.find((p) => p.status === "pending");
   const isOpponentProposal =
-    pendingProposal !== undefined && isCaptain;
+    pendingProposal !== undefined &&
+    isCaptain &&
+    currentUserId !== undefined &&
+    pendingProposal.proposedBy !== currentUserId;
 
   const handlePropose = () => {
     if (!proposedTime) return;

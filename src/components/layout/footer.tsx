@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { APP_BRAND } from "@/lib/branding";
 
 export function Footer() {
@@ -15,8 +16,17 @@ export function Footer() {
     >
       <div>{APP_BRAND.name.toUpperCase()} · OPEN SOURCE ESPORTS TOURNAMENT PLATFORM</div>
       <div className="flex gap-3.5">
-        <span>GITHUB ↗</span>
-        <span>RULES</span>
+        <a
+          href={APP_BRAND.repositoryUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="hover:text-[var(--color-fg)] transition-colors"
+        >
+          GITHUB ↗
+        </a>
+        <Link href="/rules" className="hover:text-[var(--color-fg)] transition-colors">
+          RULES
+        </Link>
         <span>PRIVACY</span>
         <span style={{ color: "var(--color-accent)" }}>v4.0-A</span>
       </div>

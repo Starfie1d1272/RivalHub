@@ -30,8 +30,8 @@ export function StatusPill({ status }: StatusPillProps) {
         fontSize: 10,
         letterSpacing: "var(--tracking-label)",
         color: cfg.color,
-        borderColor: cfg.color + "55",
-        background: cfg.color + "12",
+        borderColor: `color-mix(in srgb, ${cfg.color} 33%, transparent)`,
+        background: `color-mix(in srgb, ${cfg.color} 7%, transparent)`,
       }}
     >
       {cfg.label}
