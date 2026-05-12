@@ -189,17 +189,6 @@ export function HeaderClient({ seasons, session }: HeaderClientProps) {
             )}
           </div>
 
-          <div
-            className="hidden sm:block"
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: 11,
-              color: "var(--color-fg-mid)",
-            }}
-          >
-            <span style={{ color: "var(--color-accent)" }}>●</span> 1,247 online
-          </div>
-
           {/* Mobile hamburger */}
           <button
             className="sm:hidden p-2 text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"

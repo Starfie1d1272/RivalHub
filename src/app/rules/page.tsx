@@ -151,6 +151,27 @@ export default function RulesPage() {
           <p>
             用于其他平台主战玩家自评门槛。最终是否符合资格仍以完美平台数据为准；若主战其他平台，需在报名时附上对应平台账号链接供赛委会核验。
           </p>
+          <div className="mt-3 overflow-x-auto">
+            <table
+              className="w-full border-collapse text-sm"
+              style={{ border: "1px solid var(--color-border)" }}
+            >
+              <thead>
+                <tr style={{ background: "var(--color-panel-low)" }}>
+                  <th className="px-3 py-2 text-left font-bold" style={{ border: "1px solid var(--color-border)" }}>完美平台</th>
+                  <th className="px-3 py-2 text-left font-bold" style={{ border: "1px solid var(--color-border)" }}>5E 平台</th>
+                  <th className="px-3 py-2 text-left font-bold" style={{ border: "1px solid var(--color-border)" }}>官匹</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="px-3 py-2" style={{ border: "1px solid var(--color-border)" }}>A / A+（最低门槛）</td>
+                  <td className="px-3 py-2" style={{ border: "1px solid var(--color-border)" }}>A / A+</td>
+                  <td className="px-3 py-2" style={{ border: "1px solid var(--color-border)" }}>18000</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </Section>
       </Panel>
 

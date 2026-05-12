@@ -34,7 +34,7 @@ export default async function HomePage() {
                 letterSpacing: "var(--tracking-eyebrow)",
               }}
             >
-              [ RIVALHUB / S4 — SPRING 2026 ]
+              [ RIVALHUB / {featured.slug.replace(/-/g, " ").toUpperCase()} ]
             </div>
             <h1
               className="font-semibold leading-[0.95] m-0"
@@ -47,7 +47,7 @@ export default async function HomePage() {
             >
               {APP_BRAND.name}
               <br />
-              <span style={{ color: "var(--color-accent)" }}>SPRING SPLIT</span>
+              <span style={{ color: "var(--color-accent)" }}>{featured.name}</span>
             </h1>
             <div
               className="mt-3.5 max-w-[520px] leading-relaxed"
