@@ -130,7 +130,11 @@ export interface Season extends SeasonCapabilities {
   kind: SeasonKind;
   status: SeasonStatus;
   themeColor: string | null;
+  /** 报名提交开放时间；赛季发布后页面可见，但 now < startAt 时只能保存草稿。 */
   startAt: Date | null;
+  /** 报名提交截止时间；超过后草稿和提交都关闭。 */
+  registrationDeadline: Date | null;
+  /** 赛季结束时间，仅用于展示/归档，不控制报名窗口。 */
   endAt: Date | null;
   createdAt: Date;
   updatedAt: Date;

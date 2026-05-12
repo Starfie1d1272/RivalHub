@@ -67,6 +67,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
   const [kind, setKind] = useState(initial?.kind ?? "Major");
   const [themeColor, setThemeColor] = useState(initial?.themeColor ?? "#f97316");
   const [startAt, setStartAt] = useState(initial?.startAt ?? "");
+  const [registrationDeadline, setRegistrationDeadline] = useState(initial?.registrationDeadline ?? "");
   const [endAt, setEndAt] = useState(initial?.endAt ?? "");
   const [registrationMode, setRegistrationMode] = useState<"solo" | "team">(
     initial?.registrationMode ?? "team",
@@ -177,6 +178,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
       kind,
       themeColor: emptyToNull(themeColor),
       startAt: emptyToNull(startAt),
+      registrationDeadline: emptyToNull(registrationDeadline),
       endAt: emptyToNull(endAt),
       registrationMode,
       hasCaptainVoting: registrationMode === "team" ? false : hasCaptainVoting,
@@ -184,7 +186,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
       minTeamSize,
       maxTeamSize,
       starterCount,
-      positions: positionsText.split(",").map((item) => item.trim()).filter(Boolean),
+      positions: positionsText.split(",").map((item: string) => item.trim()).filter(Boolean),
       stagePlan,
       registrationConfig,
       teamRegistrationConfig: teamConfig,
@@ -287,11 +289,26 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
             <ThemeColorPicker value={themeColor} onChange={setThemeColor} />
           </div>
           <div>
-            <Label htmlFor="start-at">开始时间</Label>
+            <Label htmlFor="start-at">报名开始时间</Label>
             <Input id="start-at" type="datetime-local" value={startAt ?? ""} onChange={(e) => setStartAt(e.target.value)} />
+            <p className="text-xs text-muted-foreground mt-1">
+              赛季发布后页面立即可见；到此时间前只能保存草稿。
+            </p>
           </div>
           <div>
-            <Label htmlFor="end-at">结束时间</Label>
+            <Label htmlFor="registration-deadline">报名截止时间</Label>
+            <Input
+              id="registration-deadline"
+              type="datetime-local"
+              value={registrationDeadline ?? ""}
+              onChange={(e) => setRegistrationDeadline(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              截止后关闭草稿保存和正式提交。
+            </p>
+          </div>
+          <div>
+            <Label htmlFor="end-at">赛季结束时间</Label>
             <Input id="end-at" type="datetime-local" value={endAt ?? ""} onChange={(e) => setEndAt(e.target.value)} />
           </div>
         </div>

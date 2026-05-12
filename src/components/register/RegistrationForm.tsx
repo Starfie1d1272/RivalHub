@@ -17,7 +17,10 @@ import {
 } from "@/lib/validators/registration";
 import { normalizeRegistrationConfig, type RegistrationConfig, type PlayerType } from "@/types/season";
 
-import { submitRegistration } from "@/actions/register";
+import { loadRegistrationDraft, saveRegistrationDraft, submitRegistration } from "@/actions/register";
+import type { RegistrationWindowState } from "@/lib/registration/window";
+import { normalizeEmail } from "@/lib/utils/email";
+import { compactUndefined } from "@/lib/utils/object";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,6 +39,7 @@ interface RegistrationFormProps {
   positionCounts: Record<string, number>;
   positions: string[];
   registrationConfig: RegistrationConfig;
+  windowState: RegistrationWindowState;
 }
 
 export function RegistrationForm({
@@ -44,9 +48,15 @@ export function RegistrationForm({
   positionCounts,
   positions,
   registrationConfig: inputRegistrationConfig,
+  windowState,
 }: RegistrationFormProps) {
+  const { canSaveDraft, canSubmit, message: windowMessage } = windowState;
   const [submitted, setSubmitted] = useState(false);
   const [submittedEmail, setSubmittedEmail] = useState("");
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [loadingDraftEmail, setLoadingDraftEmail] = useState<string | null>(null);
+  const [lastBlurredEmail, setLastBlurredEmail] = useState<string | null>(null);
+  const [loadedDraftEmail, setLoadedDraftEmail] = useState<string | null>(null);
   const registrationConfig = useMemo(
     () => normalizeRegistrationConfig(inputRegistrationConfig),
     [inputRegistrationConfig],
@@ -60,6 +70,8 @@ export function RegistrationForm({
   const {
     register,
     handleSubmit,
+    getValues,
+    reset,
     setValue,
     watch,
     formState: { errors, isSubmitting },
@@ -74,6 +86,11 @@ export function RegistrationForm({
   });
 
   const onSubmit = async (data: RegistrationFormData) => {
+    if (!canSubmit) {
+      toast.error(windowMessage ?? "报名提交暂未开放");
+      return;
+    }
+
     const result = await submitRegistration(data);
     if (result.success) {
       setSubmittedEmail(data.email);
@@ -86,6 +103,61 @@ export function RegistrationForm({
       }
     }
   };
+
+  const handleSaveDraft = async () => {
+    const values = getValues();
+    const email = typeof values.email === "string" ? normalizeEmail(values.email) : "";
+    if (!email) {
+      toast.error("请先填写邮箱，再保存草稿");
+      return;
+    }
+    if (!canSaveDraft) {
+      toast.error(windowMessage ?? "草稿保存已关闭");
+      return;
+    }
+
+    setSavingDraft(true);
+    try {
+      const result = await saveRegistrationDraft({
+        seasonId,
+        email,
+        payload: compactUndefined({ ...values, seasonId, email }) as Record<string, unknown>,
+      });
+      if (result.success) {
+        toast.success("草稿已保存");
+        setLoadedDraftEmail(email);
+      } else {
+        toast.error(result.error.message);
+      }
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
+  const emailField = register("email", {
+    onBlur: async (event) => {
+      const email = normalizeEmail(event.target.value);
+      if (!email || email === lastBlurredEmail) return;
+      setLastBlurredEmail(email);
+      setLoadingDraftEmail(email);
+      try {
+        const result = await loadRegistrationDraft(seasonId, email);
+        if (result.success && result.data.payload) {
+          const draftValues = result.data.payload as Partial<RegistrationInput>;
+          reset({
+            ...getValues(),
+            ...draftValues,
+            seasonId,
+            email,
+          } as RegistrationInput);
+          setLoadedDraftEmail(email);
+          toast.success("已加载保存的报名草稿");
+        }
+      } finally {
+        setLoadingDraftEmail(null);
+      }
+    },
+  });
 
   // ── 提交成功页 ──
   if (submitted) {
@@ -164,9 +236,12 @@ export function RegistrationForm({
             <Label htmlFor="email" className="text-[var(--color-fg-mid)] mb-1.5 block">
               电子邮件 <Required />
             </Label>
-            <Input id="email" type="email" placeholder="your@email.com" className={inputCls} {...register("email")} />
+            <Input id="email" type="email" placeholder="your@email.com" className={inputCls} {...emailField} />
             <FieldError name="email" />
-            <p className="text-xs text-[var(--color-fg-dim)] mt-1">用于接收登录链接和审核通知</p>
+            <p className="text-xs text-[var(--color-fg-dim)] mt-1">
+              用于接收登录链接、审核通知和草稿找回
+              {loadingDraftEmail && " · 正在查询草稿…"}
+            </p>
           </div>
 
           {/* 学号 + QQ */}
@@ -631,22 +706,40 @@ export function RegistrationForm({
         <FieldError name="antiCheatPledge" />
       </section>
 
-      {/* ═══════════════════════════════════════ 提交 ═══ */}
-      <Button
-        type="submit"
-        disabled={isSubmitting}
-        className="w-full h-11 text-base font-semibold"
-        style={{ backgroundColor: "var(--color-accent)", color: "#fff" }}
-      >
-        {isSubmitting ? (
-          <>
-            <Loader2 size={16} className="animate-spin mr-2" />
-            提交中…
-          </>
-        ) : (
-          "提交报名"
-        )}
-      </Button>
+      {/* ═══════════════════════════════════════ 草稿 / 提交 ═══ */}
+      <div className="grid grid-cols-1 sm:grid-cols-[180px_1fr] gap-3">
+        <Button
+          type="button"
+          variant="outline"
+          disabled={!canSaveDraft || savingDraft}
+          className="h-11 text-base font-semibold"
+          onClick={handleSaveDraft}
+        >
+          {savingDraft ? (
+            <>
+              <Loader2 size={16} className="animate-spin mr-2" />
+              保存中…
+            </>
+          ) : (
+            "保存草稿"
+          )}
+        </Button>
+        <Button
+          type="submit"
+          disabled={!canSubmit || isSubmitting}
+          className="h-11 text-base font-semibold"
+          style={{ backgroundColor: canSubmit ? "var(--color-accent)" : "var(--color-panel-hi)", color: "#fff" }}
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 size={16} className="animate-spin mr-2" />
+              提交中…
+            </>
+          ) : (
+            canSubmit ? "提交报名" : windowMessage ?? "报名提交暂未开放"
+          )}
+        </Button>
+      </div>
     </form>
   );
 }

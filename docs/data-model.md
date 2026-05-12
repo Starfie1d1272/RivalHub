@@ -38,8 +38,18 @@ erDiagram
     int starter_count
     text[] positions "该赛季可用位置列表"
     json bracket_data "brackets-manager state"
-    timestamp start_at
-    timestamp end_at
+    timestamp start_at "报名提交开放时间"
+    timestamp registration_deadline "报名提交截止时间"
+    timestamp end_at "赛季结束时间"
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  registration_drafts {
+    uuid id PK
+    uuid season_id FK
+    text email
+    json payload "未校验表单快照"
     timestamp created_at
     timestamp updated_at
   }
@@ -347,6 +357,7 @@ erDiagram
 |---|---|
 | `users` | `UNIQUE(email)`, `UNIQUE(auth_id)` |
 | `seasons` | `UNIQUE(slug)` |
+| `registration_drafts` | `UNIQUE(season_id, email)` |
 | `season_registrations` | `UNIQUE(user_id, season_id)` |
 | `captain_votes` | `UNIQUE(voter_registration_id, candidate_registration_id)` |
 | `draft_state` | `UNIQUE(season_id)` |
@@ -360,6 +371,7 @@ erDiagram
 建议索引（`drizzle-kit` 迁移中添加）：
 - `season_registrations(season_id, status)` — 审核列表过滤
 - `season_registrations(season_id, primary_position)` — 位置计数
+- `registration_drafts(season_id, email)` — 草稿找回
 - `captain_votes(candidate_registration_id)` — 票数聚合
 - `draft_picks(season_id, round, pick_number)` — 选秀顺序查询
 - `matches(season_id, status)` — 赛程过滤

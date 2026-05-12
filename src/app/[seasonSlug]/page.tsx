@@ -9,13 +9,13 @@ import type { SeasonStatus } from "@/types/season";
 import { showStats } from "@/lib/utils/season";
 import { StatusPill, Panel, Marker } from "@/components/rivalhub";
 
-const PHASES: { key: string; label: string; after: SeasonStatus }[] = [
-  { key: "register", label: "REGISTER", after: "registration" },
-  { key: "vote", label: "VOTE", after: "voting" },
-  { key: "draft", label: "DRAFT", after: "drafting" },
-  { key: "qualifiers", label: "REGULAR", after: "playing" },
-  { key: "playoffs", label: "PLAYOFFS", after: "finished" },
-  { key: "finals", label: "FINALS", after: "archived" },
+const ALL_PHASES = [
+  { key: "register", label: "REGISTER", after: "registration" as SeasonStatus, required: true },
+  { key: "vote", label: "VOTE", after: "voting" as SeasonStatus, required: "hasCaptainVoting" as const },
+  { key: "draft", label: "DRAFT", after: "drafting" as SeasonStatus, required: "hasDraft" as const },
+  { key: "qualifiers", label: "REGULAR", after: "playing" as SeasonStatus, required: true },
+  { key: "playoffs", label: "PLAYOFFS", after: "finished" as SeasonStatus, required: true },
+  { key: "finals", label: "FINALS", after: "archived" as SeasonStatus, required: true },
 ];
 
 interface SeasonPageProps {
@@ -30,6 +30,13 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
   });
   if (!season) notFound();
   const hasMatches = normalizeStagePlan(season.stagePlan).length > 0;
+
+  const PHASES = ALL_PHASES.filter((phase) => {
+    if (phase.required === true) return true;
+    if (phase.required === "hasCaptainVoting") return season.hasCaptainVoting;
+    if (phase.required === "hasDraft") return season.hasDraft;
+    return false;
+  });
 
   const quickLinks = [
     {

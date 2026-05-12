@@ -21,6 +21,7 @@ export default async function NewSeasonPage() {
           status: "draft",
           themeColor: "#f97316",
           startAt: null,
+          registrationDeadline: null,
           endAt: null,
           registrationMode: "team",
           hasCaptainVoting: false,

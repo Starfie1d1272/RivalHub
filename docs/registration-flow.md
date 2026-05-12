@@ -7,13 +7,20 @@
   ↓
 检查赛季状态是否为 registration（Server Component fetch）
   ├── 否（已截止 / 未开放） → 显示"报名未开放"提示
-  └── 是 → 渲染报名表单
+  └── 是 → 渲染报名表单（赛季发布后可见）
+        ↓
+        根据时间窗口计算操作权限：
+          - now < startAt：可保存草稿，不可正式提交
+          - startAt <= now < registrationDeadline：可保存草稿，可正式提交
+          - now >= registrationDeadline：草稿和提交均关闭
         ↓
         展示各位置已报名人数（页面加载时静态渲染，提交后服务端二次校验）
         ↓
 用户填写表单（含 NJUBox 截图分享链接）
   ↓
-客户端 Zod 校验通过
+保存草稿：只要求 seasonId + email，写入 registration_drafts，不占名额、不进入审核
+  或
+正式提交：客户端 Zod 校验通过
   ↓
 调用 submitRegistration Server Action
   ↓
@@ -27,6 +34,30 @@
               ↓
               返回成功 → 页面跳转"报名成功"
 ```
+
+---
+
+## 时间语义
+
+- `seasons.status = registration`：赛季已发布，赛季页和报名页对外可见。
+- `seasons.startAt`：报名提交开放时间。为空时表示发布后立即可提交。
+- `seasons.registrationDeadline`：报名提交截止时间。为空时表示不设截止。
+- `seasons.endAt`：赛季结束时间，仅用于展示/归档，不控制报名窗口。
+
+报名表单在 `registration` 状态下始终可浏览。正式提交必须满足 `startAt <= now < registrationDeadline`；开始前可以保存草稿，截止后草稿保存和正式提交都关闭。
+
+---
+
+## 草稿与正式报名
+
+草稿独立存储在 `registration_drafts`：
+
+- 唯一键：`(season_id, email)`，重复保存会覆盖旧草稿。
+- `payload` 保存表单快照，不执行完整报名校验。
+- 草稿不写入 `season_registrations`，不占总人数/位置名额，不进入管理员审核。
+- 正式提交成功后删除同 `season_id + email` 的草稿。
+
+正式报名仍写入 `season_registrations(status = pending)`，并执行完整 Zod 校验、重复报名检查、总人数上限和位置上限检查。
 
 ---
 
@@ -146,6 +177,8 @@ GROUP BY primary_position;
 | 场景 | 提示 |
 |---|---|
 | 赛季不在报名阶段 | "报名通道未开放，请关注赛委会公告" |
+| 报名提交尚未开放 | "报名提交尚未开放，可以先保存草稿" |
+| 报名提交已截止 | "报名提交已截止" |
 | 位置已满 | "该位置主选名额已满，可选择其他位置报名" |
 | 已报名过 | "您已提交报名，请等待审核结果通知" |
 | 截图上传失败 | "截图上传失败，请检查网络后重试" |

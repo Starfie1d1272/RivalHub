@@ -2,13 +2,109 @@
 
 import { revalidatePath } from "next/cache";
 import { eq, and, count } from "drizzle-orm";
+import { z } from "zod";
 import { db } from "@/db/client";
-import { users, seasons, seasonRegistrations } from "@/db/schema";
+import { users, seasons, seasonRegistrations, registrationDrafts } from "@/db/schema";
 import { ok, fail } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { actionError } from "@/lib/action-utils";
 import { buildRegistrationSchema, registrationSeedSchema, type RegistrationFormData } from "@/lib/validators/registration";
 import { normalizeRegistrationConfig } from "@/types/season";
+import { getRegistrationWindowState } from "@/lib/registration/window";
+import { normalizeEmail } from "@/lib/utils/email";
+import { compactUndefined } from "@/lib/utils/object";
+
+const draftSchema = z.object({
+  seasonId: z.string().uuid("赛季 ID 格式不正确"),
+  email: z.string().email("请先填写有效邮箱"),
+  payload: z.record(z.unknown()).default({}),
+});
+
+export async function saveRegistrationDraft(input: unknown) {
+  const parsed = draftSchema.safeParse(input);
+  if (!parsed.success) {
+    return fail({
+      code: ErrorCode.VALIDATION_FAILED,
+      message: "草稿保存失败，请先填写有效邮箱",
+      fieldErrors: Object.fromEntries(
+        parsed.error.issues.map((issue) => [issue.path.join("."), issue.message]),
+      ),
+    });
+  }
+
+  try {
+    const season = await db.query.seasons.findFirst({
+      where: eq(seasons.id, parsed.data.seasonId),
+    });
+    if (!season) {
+      throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
+    }
+
+    const windowState = getRegistrationWindowState(season);
+    if (!windowState.canSaveDraft) {
+      throw new AppError(ErrorCode.REGISTRATION_CLOSED, windowState.message);
+    }
+
+    const email = normalizeEmail(parsed.data.email);
+    const payload = {
+      ...(compactUndefined(parsed.data.payload) as Record<string, unknown>),
+      seasonId: parsed.data.seasonId,
+      email,
+    };
+
+    await db
+      .insert(registrationDrafts)
+      .values({
+        seasonId: parsed.data.seasonId,
+        email,
+        payload,
+      })
+      .onConflictDoUpdate({
+        target: [registrationDrafts.seasonId, registrationDrafts.email],
+        set: { payload, updatedAt: new Date() },
+      });
+
+    revalidatePath(`/${season.slug}/register`);
+    return ok({ email });
+  } catch (e) {
+    return actionError("saveRegistrationDraft", e);
+  }
+}
+
+export async function loadRegistrationDraft(seasonId: string, email: string) {
+  const parsed = draftSchema.pick({ seasonId: true, email: true }).safeParse({ seasonId, email });
+  if (!parsed.success) {
+    return fail({
+      code: ErrorCode.VALIDATION_FAILED,
+      message: "请输入有效邮箱后再加载草稿",
+    });
+  }
+
+  try {
+    const season = await db.query.seasons.findFirst({
+      where: eq(seasons.id, parsed.data.seasonId),
+    });
+    if (!season) {
+      throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
+    }
+
+    const windowState = getRegistrationWindowState(season);
+    if (!windowState.canSaveDraft && !windowState.canSubmit) {
+      throw new AppError(ErrorCode.REGISTRATION_CLOSED, windowState.message);
+    }
+
+    const draft = await db.query.registrationDrafts.findFirst({
+      where: and(
+        eq(registrationDrafts.seasonId, parsed.data.seasonId),
+        eq(registrationDrafts.email, normalizeEmail(parsed.data.email)),
+      ),
+    });
+
+    return ok({ payload: draft?.payload ?? null });
+  } catch (e) {
+    return actionError("loadRegistrationDraft", e);
+  }
+}
 
 /**
  * 提交报名
@@ -44,8 +140,9 @@ export async function submitRegistration(input: RegistrationFormData) {
     if (!season) {
       throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
     }
-    if (season.status !== "registration") {
-      throw new AppError(ErrorCode.REGISTRATION_CLOSED, ERROR_MESSAGES.REGISTRATION_CLOSED);
+    const windowState = getRegistrationWindowState(season);
+    if (!windowState.canSubmit) {
+      throw new AppError(ErrorCode.REGISTRATION_CLOSED, windowState.message);
     }
 
     const registrationConfig = normalizeRegistrationConfig(season.registrationConfig);
@@ -68,7 +165,7 @@ export async function submitRegistration(input: RegistrationFormData) {
 
     // 3. Upsert 用户（含所有基础信息字段）
     let user = await db.query.users.findFirst({
-      where: eq(users.email, data.email),
+      where: eq(users.email, normalizeEmail(data.email)),
     });
     const userFields = {
       steam64: data.steam64,
@@ -82,7 +179,7 @@ export async function submitRegistration(input: RegistrationFormData) {
     if (!user) {
       const [created] = await db
         .insert(users)
-        .values({ email: data.email, ...userFields })
+        .values({ email: normalizeEmail(data.email), ...userFields })
         .returning();
       user = created;
     } else {
@@ -150,6 +247,15 @@ export async function submitRegistration(input: RegistrationFormData) {
         notes: data.notes,
       })
       .returning();
+
+    await db
+      .delete(registrationDrafts)
+      .where(
+        and(
+          eq(registrationDrafts.seasonId, data.seasonId),
+          eq(registrationDrafts.email, normalizeEmail(data.email)),
+        ),
+      );
 
     revalidatePath(`/${season.slug}/register`);
     return ok({ registrationId: registration.id, email: data.email });

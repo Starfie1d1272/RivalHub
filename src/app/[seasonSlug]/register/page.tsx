@@ -8,6 +8,8 @@ import { RegistrationForm } from "@/components/register/RegistrationForm";
 import { normalizeRegistrationConfig } from "@/types/season";
 import { Panel, StatusBanner, PosChip } from "@/components/rivalhub";
 import { POSITION_LABELS } from "@/lib/validators/registration";
+import { getRegistrationWindowState, getWindowTone } from "@/lib/registration/window";
+import { formatCST } from "@/lib/utils/date";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +61,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
   const positionCounts = await getPositionCounts(season.id);
   const regConfig = normalizeRegistrationConfig(season.registrationConfig);
   const maxPerPos = regConfig.maxPerPosition;
+  const registrationWindow = getRegistrationWindowState(season);
 
   // 位置容量数据
   const capacityEntries = season.positions.map((pos) => {
@@ -75,6 +78,17 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
       </div>
 
       {/* 位置实时容量 */}
+      <div className="mb-6">
+        <StatusBanner
+          tone={getWindowTone(registrationWindow.phase, registrationWindow.canSubmit)}
+          title={registrationWindow.message}
+          sub={[
+            season.startAt ? `报名开始：${formatCST(season.startAt)}` : "报名开始：发布后立即开放",
+            season.registrationDeadline ? `报名截止：${formatCST(season.registrationDeadline)}` : "报名截止：未设置",
+          ].join(" · ")}
+        />
+      </div>
+
       <div className="mb-6">
         <Panel label="位置实时容量">
           <div className="grid gap-2.5">
@@ -118,7 +132,8 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
           seasonName={season.name}
           positionCounts={positionCounts}
           positions={season.positions}
-          registrationConfig={normalizeRegistrationConfig(season.registrationConfig)}
+          registrationConfig={regConfig}
+          windowState={registrationWindow}
         />
       </Panel>
 

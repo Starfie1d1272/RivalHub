@@ -182,6 +182,7 @@
 - [x] vercel.json 创建（Cron Job 配置）
 - [x] `/api/cron/draft-timeout` 接入 `runDraftTimeoutCron` + CRON_SECRET 鉴权
 - [x] Sub-project 1 完成：代码整理 + 配置修正（config 合并、action-utils/revalidation、standings 解耦、draft/matches 拆分、测试覆盖、文档对齐）
+- [x] **Tactical Grid 设计系统全站迁移**（PR #64 → main，v0.2.0）：CSS tokens 重写 + 14 个 RivalHub 组件 + shadcn 覆盖 + 17 页面迁移 + 规则书渲染 + Admin 布局重构 + 品牌素材入库
 - [ ] Vercel Dashboard 环境变量配置
 - [ ] Vercel 首次部署
 - [ ] 自定义域名绑定
