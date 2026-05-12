@@ -17,6 +17,7 @@ import {
 } from "@/lib/auth/session";
 import { verifyPassword, hashPassword } from "@/lib/utils/password";
 import { normalizeRegistrationConfig } from "@/types/season";
+import { maybeAdvanceFromRegistration } from "@/actions/transitions";
 import {
   type RegistrationStatus,
   TRANSITION_RULES,
@@ -213,6 +214,11 @@ export async function reviewRegistration(input: ReviewInput) {
           actorEmail: admin.email,
         },
       });
+
+      // 审批通过后检查是否满足自动推进条件
+      if (targetStatus === "approved") {
+        await maybeAdvanceFromRegistration(tx, reg.seasonId);
+      }
     });
 
     // revalidatePath 放在事务外（事务成功后刷新缓存）
