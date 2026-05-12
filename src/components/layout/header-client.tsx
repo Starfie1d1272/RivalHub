@@ -61,31 +61,66 @@ export function HeaderClient({ seasons, session }: HeaderClientProps) {
   const isAdmin = session && session.role !== "user";
 
   return (
-    <header className="sticky top-0 z-50 border-b border-[var(--color-border)] bg-[var(--color-panel)]/95 backdrop-blur">
-      <div className="container mx-auto px-4 h-14 flex items-center justify-between">
+    <header
+      className="sticky top-0 z-50 border-b backdrop-blur"
+      style={{
+        padding: "12px 28px",
+        background: "var(--color-panel-low)" + "e6",
+        borderColor: "var(--color-border)",
+        display: "grid",
+        gridTemplateColumns: "auto 1fr auto",
+        gap: 24,
+        alignItems: "center",
+      }}
+    >
         {/* Logo */}
         <Link
           href="/"
-          className="font-bold text-lg text-[var(--color-fg)] hover:text-white transition-colors"
+          className="flex items-center gap-2.5 font-bold text-base text-[var(--color-fg)] hover:text-[var(--color-fg)] transition-colors"
+          style={{
+            fontFamily: "var(--font-display)",
+            fontWeight: 700,
+            letterSpacing: "var(--tracking-tight-1)",
+          }}
         >
-          {APP_BRAND.name}
+          <span
+            className="grid place-items-center font-extrabold text-base rounded-sm"
+            style={{
+              width: 28,
+              height: 28,
+              background: "var(--color-accent)",
+              color: "var(--color-accent-fg)",
+              fontFamily: "var(--font-mono)",
+            }}
+          >
+            R
+          </span>
+          RIVALHUB
         </Link>
 
         {/* Desktop nav */}
-        <nav className="hidden sm:flex items-center gap-1">
+        <nav className="hidden sm:flex items-center justify-center gap-0.5 flex-wrap">
           {navLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href as never}
               className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors",
+                "flex items-center gap-1.5 px-3 py-1.5 text-xs transition-colors",
                 link.active
-                  ? "bg-[var(--color-panel-hi)] text-[var(--color-fg)]"
-                  : "text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] hover:bg-[var(--color-panel-hi)]"
+                  ? "bg-[var(--color-panel)] border border-[var(--color-border)] border-b-[var(--color-accent)] text-[var(--color-fg)] font-semibold"
+                  : "text-[var(--color-fg-mid)] border border-transparent hover:text-[var(--color-fg)] font-medium",
+                "rounded-sm"
               )}
+              style={{ fontFamily: "var(--font-sans)" }}
             >
               {link.label}
-              <span className="text-xs px-1.5 py-0.5 rounded-sm bg-[var(--color-bg)] text-[var(--color-fg-dim)]">
+              <span
+                className="text-xs px-1.5 py-0.5 rounded-sm"
+                style={{
+                  background: "var(--color-panel-low)",
+                  color: "var(--color-fg-dim)",
+                }}
+              >
                 {link.badge}
               </span>
             </Link>
@@ -93,11 +128,12 @@ export function HeaderClient({ seasons, session }: HeaderClientProps) {
           <Link
             href="/seasons"
             className={cn(
-              "px-3 py-1.5 rounded-md text-sm transition-colors",
+              "px-3 py-1.5 text-xs rounded-sm transition-colors border border-transparent",
               pathname === "/seasons"
-                ? "bg-[var(--color-panel-hi)] text-[var(--color-fg)]"
-                : "text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] hover:bg-[var(--color-panel-hi)]"
+                ? "bg-[var(--color-panel)] border-[var(--color-border)] text-[var(--color-fg)] font-semibold"
+                : "text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] font-medium"
             )}
+            style={{ fontFamily: "var(--font-sans)" }}
           >
             历史赛季
           </Link>
@@ -142,11 +178,26 @@ export function HeaderClient({ seasons, session }: HeaderClientProps) {
             ) : (
               <Link
                 href="/login"
-                className="px-3 py-1.5 rounded-md text-sm font-medium text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] hover:bg-[var(--color-panel-hi)] transition-colors"
+                className="px-2 py-1 rounded-sm text-xs font-bold text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] border border-[var(--color-border)] transition-colors"
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  letterSpacing: "var(--tracking-label)",
+                }}
               >
-                登录
+                LOGIN
               </Link>
             )}
+          </div>
+
+          <div
+            className="hidden sm:block"
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: 11,
+              color: "var(--color-fg-mid)",
+            }}
+          >
+            <span style={{ color: "var(--color-accent)" }}>●</span> 1,247 online
           </div>
 
           {/* Mobile hamburger */}
@@ -158,7 +209,6 @@ export function HeaderClient({ seasons, session }: HeaderClientProps) {
             {mobileOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>
-      </div>
 
       {/* Mobile menu */}
       {mobileOpen && (

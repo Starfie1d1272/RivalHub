@@ -1,29 +1,22 @@
-import Link from "next/link";
-import { APP_BRAND } from "@/lib/branding";
-
 export function Footer() {
   return (
-    <footer className="border-t border-[var(--color-border)] py-6 mt-auto">
-      <div className="container mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-sm text-[var(--color-fg-dim)]">
-        <span>
-          {APP_BRAND.footerLabel} · {new Date().getFullYear()}
-        </span>
-        <div className="flex items-center gap-4">
-          <Link
-            href="/seasons"
-            className="hover:text-[var(--color-fg-mid)] transition-colors"
-          >
-            历史赛季
-          </Link>
-          <a
-            href={APP_BRAND.repositoryUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="hover:text-[var(--color-fg-mid)] transition-colors"
-          >
-            GitHub
-          </a>
-        </div>
+    <footer
+      className="flex justify-between items-center"
+      style={{
+        padding: "20px 28px",
+        borderTop: "1px solid var(--color-border)",
+        fontFamily: "var(--font-mono)",
+        fontSize: 11,
+        color: "var(--color-fg-dim)",
+        letterSpacing: "var(--tracking-ticker)",
+      }}
+    >
+      <div>RIVALHUB · OPEN SOURCE ESPORTS TOURNAMENT PLATFORM</div>
+      <div className="flex gap-3.5">
+        <span>GITHUB ↗</span>
+        <span>RULES</span>
+        <span>PRIVACY</span>
+        <span style={{ color: "var(--color-accent)" }}>v4.0-A</span>
       </div>
     </footer>
   );
