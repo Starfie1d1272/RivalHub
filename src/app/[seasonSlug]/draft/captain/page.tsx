@@ -6,8 +6,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasonRegistrations, seasons, teams } from "@/db/schema";
 import { CaptainDraftPanel } from "@/components/draft/CaptainDraftPanel";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Panel, Btn } from "@/components/rivalhub";
 import { getUserSession } from "@/lib/auth/session";
 import { getDraftData, type DraftTeamSlot } from "@/lib/draft/data";
 
@@ -30,12 +29,12 @@ export default async function DraftCaptainPage({ params }: DraftCaptainPageProps
   if (!season) notFound();
 
   if (!season.hasDraft) {
-    return <UnavailableCard title={`队长选人 · ${season.name}`} message="该赛季未启用蛇形选秀。" />;
+    return <UnavailablePanel title={`队长选人 · ${season.name}`} message="该赛季未启用蛇形选秀。" />;
   }
 
   if (season.status !== "drafting") {
     return (
-      <UnavailableCard
+      <UnavailablePanel
         title={`队长选人 · ${season.name}`}
         message="当前不在选秀阶段，队长面板暂不可用。"
         href={`/${seasonSlug}/draft` as Route}
@@ -47,7 +46,7 @@ export default async function DraftCaptainPage({ params }: DraftCaptainPageProps
   const session = await getUserSession();
   if (!session) {
     return (
-      <UnavailableCard
+      <UnavailablePanel
         title={`队长选人 · ${season.name}`}
         message="请先登录队长账号后再进入选人面板。"
         href="/login"
@@ -77,7 +76,7 @@ export default async function DraftCaptainPage({ params }: DraftCaptainPageProps
 
   if (!captainTeam) {
     return (
-      <UnavailableCard
+      <UnavailablePanel
         title={`队长选人 · ${season.name}`}
         message="当前账号不是本赛季队长，无法操作队长选人面板。"
         href={`/${seasonSlug}/draft` as Route}
@@ -89,7 +88,7 @@ export default async function DraftCaptainPage({ params }: DraftCaptainPageProps
   const data = await getDraftData(season.id);
   if (!data.state) {
     return (
-      <UnavailableCard
+      <UnavailablePanel
         title={`队长选人 · ${season.name}`}
         message="选秀尚未启动，等待管理员开启后再操作。"
       />
@@ -105,7 +104,7 @@ export default async function DraftCaptainPage({ params }: DraftCaptainPageProps
     <main className="container mx-auto max-w-5xl px-4 py-10">
       <div className="mb-8">
         <h1 className="text-3xl font-bold">队长选人 · {season.name}</h1>
-        <p className="mt-2 text-sm text-[var(--text-secondary)]">
+        <p className="mt-2 text-sm text-[var(--color-fg-mid)]">
           当前队长端只在轮到本队时开放选择；重复点击会通过请求 ID 幂等处理。
         </p>
       </div>
@@ -129,7 +128,7 @@ export default async function DraftCaptainPage({ params }: DraftCaptainPageProps
   );
 }
 
-function UnavailableCard({
+function UnavailablePanel({
   title,
   message,
   href,
@@ -142,15 +141,15 @@ function UnavailableCard({
 }) {
   return (
     <main className="container mx-auto max-w-4xl px-4 py-10">
-      <Card className="p-8">
+      <Panel pad={32}>
         <h1 className="text-2xl font-bold">{title}</h1>
-        <p className="mt-2 text-sm text-[var(--text-secondary)]">{message}</p>
+        <p className="mt-2 text-sm text-[var(--color-fg-mid)]">{message}</p>
         {href && action && (
-          <Button asChild className="mt-4" variant="secondary">
+          <Btn ghost asChild className="mt-4">
             <Link href={href}>{action}</Link>
-          </Button>
+          </Btn>
         )}
-      </Card>
+      </Panel>
     </main>
   );
 }

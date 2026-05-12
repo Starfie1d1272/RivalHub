@@ -39,24 +39,24 @@ export function TeamRosterCard({ teamName, draftOrder, seasonSlug, members }: Te
       <div className="flex items-center gap-3">
         <Link
           href={`/${seasonSlug}/teams`}
-          className="text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+          className="text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] transition-colors"
         >
           ← 所有队伍
         </Link>
       </div>
 
       <div>
-        <p className="text-sm text-[var(--text-muted)] mb-1">选秀顺序 #{draftOrder}</p>
-        <h1 className="text-3xl font-bold text-[var(--text-primary)]">{teamName}</h1>
+        <p className="text-sm text-[var(--color-fg-dim)] mb-1">选秀顺序 #{draftOrder}</p>
+        <h1 className="text-3xl font-bold text-[var(--color-fg)]">{teamName}</h1>
       </div>
 
-      <Card className="bg-[var(--bg-elevated)] border-[var(--border)] overflow-hidden">
-        <div className="p-4 border-b border-[var(--border)]">
-          <h2 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wide">
+      <Card className="bg-[var(--color-panel)] border-[var(--color-border)] overflow-hidden">
+        <div className="p-4 border-b border-[var(--color-border)]">
+          <h2 className="text-sm font-semibold text-[var(--color-fg-mid)] uppercase tracking-wide">
             首发阵容
           </h2>
         </div>
-        <div className="divide-y divide-[var(--border)]">
+        <div className="divide-y divide-[var(--color-border)]">
           {starters.map((m) => (
             <MemberRow key={m.id} member={m} />
           ))}
@@ -64,13 +64,13 @@ export function TeamRosterCard({ teamName, draftOrder, seasonSlug, members }: Te
       </Card>
 
       {subs.length > 0 && (
-        <Card className="bg-[var(--bg-elevated)] border-[var(--border)] overflow-hidden">
-          <div className="p-4 border-b border-[var(--border)]">
-            <h2 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wide">
+        <Card className="bg-[var(--color-panel)] border-[var(--color-border)] overflow-hidden">
+          <div className="p-4 border-b border-[var(--color-border)]">
+            <h2 className="text-sm font-semibold text-[var(--color-fg-mid)] uppercase tracking-wide">
               替补
             </h2>
           </div>
-          <div className="divide-y divide-[var(--border)]">
+          <div className="divide-y divide-[var(--color-border)]">
             {subs.map((m) => (
               <MemberRow key={m.id} member={m} />
             ))}
@@ -89,7 +89,7 @@ function MemberRow({ member }: { member: RosterMember }) {
       <div className="w-24 shrink-0">
         <Badge
           variant="outline"
-          className="text-xs border-[var(--border)] text-[var(--season-primary)]"
+          className="text-xs border-[var(--color-border)] text-[var(--color-accent)]"
         >
           {posLabel?.en ?? member.primaryPosition}
         </Badge>
@@ -97,23 +97,23 @@ function MemberRow({ member }: { member: RosterMember }) {
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="font-medium text-[var(--text-primary)] truncate">
+          <span className="font-medium text-[var(--color-fg)] truncate">
             {member.steamName ?? "—"}
           </span>
           {member.isCaptain && (
-            <Badge className="text-xs bg-[var(--season-primary)]/10 text-[var(--season-primary)] border-[var(--season-primary)]/20 shrink-0">
+            <Badge className="text-xs bg-[var(--color-accent)]/10 text-[var(--color-accent)] border-[var(--color-accent)]/20 shrink-0">
               队长
             </Badge>
           )}
         </div>
         {posLabel && (
-          <p className="text-xs text-[var(--text-muted)]">{posLabel.cn}</p>
+          <p className="text-xs text-[var(--color-fg-dim)]">{posLabel.cn}</p>
         )}
       </div>
 
       <div className="text-right shrink-0">
-        <p className="text-sm font-medium text-[var(--text-primary)]">{member.peakRank}</p>
-        <p className="text-xs text-[var(--text-muted)]">RT {member.currentRating.toFixed(2)}</p>
+        <p className="text-sm font-medium text-[var(--color-fg)]">{member.peakRank}</p>
+        <p className="text-xs text-[var(--color-fg-dim)]">RT {member.currentRating.toFixed(2)}</p>
       </div>
     </div>
   );

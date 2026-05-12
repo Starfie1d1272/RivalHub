@@ -106,37 +106,37 @@ export function CaptainVotingPanel({
           <div className="space-y-3">
             <div>
               <h2 className="text-base font-semibold">我的投票</h2>
-              <p className="mt-1 text-sm text-[var(--text-secondary)]">
+              <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
                 每名已通过报名的选手最多投 {MAX_CAPTAIN_VOTES} 票。
               </p>
             </div>
 
             {currentVoter ? (
               <>
-                <div className="rounded-md border border-[var(--border)] p-3 text-sm">
+                <div className="rounded-md border border-[var(--color-border)] p-3 text-sm">
                   <p className="font-medium">{currentVoter.displayName}</p>
-                  <p className="mt-0.5 text-[var(--text-secondary)]">
+                  <p className="mt-0.5 text-[var(--color-fg-mid)]">
                     {positionLabel(currentVoter.primaryPosition)} · Peak {currentVoter.peakRating}
                   </p>
                 </div>
 
-                <div className="rounded-md border border-[var(--border)] p-3 text-sm">
+                <div className="rounded-md border border-[var(--color-border)] p-3 text-sm">
                   <div className="flex items-center justify-between">
-                    <span className="text-[var(--text-secondary)]">已投</span>
+                    <span className="text-[var(--color-fg-mid)]">已投</span>
                     <span className="font-medium">
                       {votes.length} / {MAX_CAPTAIN_VOTES}
                     </span>
                   </div>
                   <div className="mt-2 h-2 rounded-full bg-muted">
                     <div
-                      className="h-2 rounded-full bg-[var(--season-primary)] transition-all"
+                      className="h-2 rounded-full bg-[var(--color-accent)] transition-all"
                       style={{ width: `${(votes.length / MAX_CAPTAIN_VOTES) * 100}%` }}
                     />
                   </div>
                 </div>
               </>
             ) : (
-              <p className="rounded-md border border-[var(--border)] p-3 text-sm text-[var(--text-secondary)]">
+              <p className="rounded-md border border-[var(--color-border)] p-3 text-sm text-[var(--color-fg-mid)]">
                 请先登录并通过报名审核后方可投票。
               </p>
             )}
@@ -158,7 +158,7 @@ export function CaptainVotingPanel({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-xl font-semibold">{seasonName} 队长候选</h2>
-            <p className="mt-1 text-sm text-[var(--text-secondary)]">
+            <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
               当前状态：{seasonStatus}
             </p>
           </div>
@@ -168,7 +168,7 @@ export function CaptainVotingPanel({
         </div>
 
         {candidates.length === 0 ? (
-          <Card className="p-8 text-center text-sm text-[var(--text-secondary)]">
+          <Card className="p-8 text-center text-sm text-[var(--color-fg-mid)]">
             暂无符合条件的队长候选人
           </Card>
         ) : (
@@ -197,13 +197,13 @@ export function CaptainVotingPanel({
                           </Badge>
                         )}
                       </div>
-                      <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                      <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
                         {positionLabel(candidate.primaryPosition)} · Peak {candidate.peakRating} ·
                         Current {candidate.currentRating}
                       </p>
                       <div className="mt-3 h-2 rounded-full bg-muted">
                         <div
-                          className="h-2 rounded-full bg-[var(--season-primary)] transition-all"
+                          className="h-2 rounded-full bg-[var(--color-accent)] transition-all"
                           style={{ width: `${(candidate.voteCount / maxVotes) * 100}%` }}
                         />
                       </div>
@@ -212,7 +212,7 @@ export function CaptainVotingPanel({
                     <div className="flex items-center gap-3 sm:shrink-0">
                       <div className="w-14 text-right">
                         <div className="text-lg font-semibold">{candidate.voteCount}</div>
-                        <div className="text-xs text-[var(--text-secondary)]">票</div>
+                        <div className="text-xs text-[var(--color-fg-mid)]">票</div>
                       </div>
                       {hasVoted ? (
                         <Button

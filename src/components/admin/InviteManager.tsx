@@ -101,7 +101,7 @@ export function InviteManager({
             <Label htmlFor="inv-role">角色</Label>
             <select
               id="inv-role"
-              className="h-9 rounded-md border border-[var(--border)] bg-transparent px-3 text-sm"
+              className="h-9 rounded-md border border-[var(--color-border)] bg-transparent px-3 text-sm"
               value={role}
               onChange={(e) =>
                 setRole(e.target.value as "admin" | "super_admin")
@@ -116,7 +116,7 @@ export function InviteManager({
               <Label htmlFor="inv-season">赛季范围</Label>
               <select
                 id="inv-season"
-                className="h-9 rounded-md border border-[var(--border)] bg-transparent px-3 text-sm w-full"
+                className="h-9 rounded-md border border-[var(--color-border)] bg-transparent px-3 text-sm w-full"
                 value={seasonId}
                 onChange={(e) => setSeasonId(e.target.value)}
               >
@@ -164,7 +164,7 @@ export function InviteManager({
       {/* 邀请码列表 */}
       <h2 className="font-medium">历史邀请码</h2>
       {invites.length === 0 ? (
-        <p className="text-sm text-[var(--text-secondary)]">暂无邀请码</p>
+        <p className="text-sm text-[var(--color-fg-mid)]">暂无邀请码</p>
       ) : (
         <div className="space-y-2">
           {invites.map((inv) => (
@@ -174,7 +174,7 @@ export function InviteManager({
             >
               <div className="flex-1 min-w-0">
                 <code className="text-sm font-mono">{inv.code}</code>
-                <div className="flex items-center gap-2 mt-1 text-xs text-[var(--text-secondary)]">
+                <div className="flex items-center gap-2 mt-1 text-xs text-[var(--color-fg-mid)]">
                   <Badge variant="outline" className="text-xs">
                     {inv.role === "super_admin" ? "超级管理员" : "管理员"}
                   </Badge>

@@ -2,9 +2,7 @@
 
 import { useState, useTransition, useCallback, useRef } from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Field, Btn } from "@/components/rivalhub";
 import { loginWithPassword, signUp } from "@/actions/auth";
 
 type Mode = "login" | "register";
@@ -39,14 +37,14 @@ export function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="flex rounded-lg bg-[var(--bg-secondary)] p-0.5">
+      <div className="flex rounded-lg bg-[var(--color-panel-low)] p-0.5">
         <button
           type="button"
           onClick={() => setMode("login")}
           className={`flex-1 rounded-md py-1.5 text-sm font-medium transition-colors ${
             mode === "login"
-              ? "bg-[var(--bg-primary)] text-[var(--text-primary)] shadow-sm"
-              : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              ? "bg-[var(--color-panel)] text-[var(--color-fg)] shadow-sm"
+              : "text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
           }`}
         >
           登录
@@ -56,50 +54,46 @@ export function LoginForm() {
           onClick={() => setMode("register")}
           className={`flex-1 rounded-md py-1.5 text-sm font-medium transition-colors ${
             mode === "register"
-              ? "bg-[var(--bg-primary)] text-[var(--text-primary)] shadow-sm"
-              : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              ? "bg-[var(--color-panel)] text-[var(--color-fg)] shadow-sm"
+              : "text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
           }`}
         >
           注册
         </button>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="email">邮箱地址</Label>
-        <Input
-          id="email"
-          type="email"
-          placeholder="you@example.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          autoFocus
-        />
-      </div>
+      <Field
+        id="email"
+        label="邮箱地址"
+        type="email"
+        placeholder="you@example.com"
+        value={email}
+        onChange={setEmail}
+        required
+        autoFocus
+      />
 
-      <div className="space-y-2">
-        <Label htmlFor="password">密码</Label>
-        <Input
-          id="password"
-          type="password"
-          placeholder={mode === "register" ? "至少 6 位" : "输入密码"}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          minLength={6}
-        />
-      </div>
+      <Field
+        id="password"
+        label="密码"
+        type="password"
+        placeholder={mode === "register" ? "至少 6 位" : "输入密码"}
+        value={password}
+        onChange={setPassword}
+        required
+        minLength={6}
+      />
 
-      <Button type="submit" className="w-full" disabled={isPending}>
+      <Btn type="submit" full disabled={isPending}>
         {isPending ? "处理中…" : mode === "login" ? "登录" : "注册"}
-      </Button>
+      </Btn>
 
-      <p className="text-xs text-center text-[var(--text-secondary)]">
+      <p className="text-xs text-center text-[var(--color-fg-mid)]">
         {mode === "register" ? "已有账号？" : "首次参赛？"}
         <button
           type="button"
           onClick={() => setMode(mode === "login" ? "register" : "login")}
-          className="ml-0.5 underline hover:text-[var(--text-primary)]"
+          className="ml-0.5 underline hover:text-[var(--color-fg)]"
         >
           {mode === "register" ? "切换到登录" : "切换到注册"}
         </button>

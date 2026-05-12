@@ -1,7 +1,7 @@
 // Season capability 工具函数
 // 所有判断均基于 season capability 字段，禁止读取 season.kind
 
-import { getFirstStageOfType, normalizeStagePlan, type Season, type SeasonStatus } from "@/types/season";
+import { getFirstStageOfType, normalizeStagePlan, type Season } from "@/types/season";
 
 // ── 阶段判断（基于 status）────────────────────────────────────────────────
 
@@ -57,18 +57,4 @@ export function isSoloRegistration(season: Season): boolean {
 /** 是否展示数据统计入口（赛季 playing 或 finished 时有比赛数据可看） */
 export function showStats(season: Season): boolean {
   return season.status === "playing" || season.status === "finished" || season.status === "archived";
-}
-
-/** 当前阶段中文标签 */
-export function getSeasonPhaseLabel(season: Season): string {
-  const labels: Record<SeasonStatus, string> = {
-    draft: "未发布",
-    registration: "报名中",
-    voting: "投票中",
-    drafting: "选秀中",
-    playing: "进行中",
-    finished: "已结束",
-    archived: "已归档",
-  };
-  return labels[season.status];
 }

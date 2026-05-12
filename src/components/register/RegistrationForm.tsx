@@ -92,15 +92,15 @@ export function RegistrationForm({
     return (
       <div className="flex flex-col items-center text-center py-16 gap-4">
         <CheckCircle2 size={48} className="text-emerald-400" />
-        <h2 className="text-2xl font-bold text-[var(--text-primary)]">报名成功！</h2>
-        <p className="text-[var(--text-secondary)] max-w-sm">
-          已收到你的 <span className="font-medium text-[var(--text-primary)]">{seasonName}</span> 报名。
+        <h2 className="text-2xl font-bold text-[var(--color-fg)]">报名成功！</h2>
+        <p className="text-[var(--color-fg-mid)] max-w-sm">
+          已收到你的 <span className="font-medium text-[var(--color-fg)]">{seasonName}</span> 报名。
           报名邮箱：
         </p>
-        <p className="font-mono text-sm px-3 py-1.5 rounded-md bg-[var(--bg-overlay)] text-[var(--text-primary)]">
+        <p className="font-mono text-sm px-3 py-1.5 rounded-md bg-[var(--color-panel-hi)] text-[var(--color-fg)]">
           {submittedEmail}
         </p>
-        <p className="text-sm text-[var(--text-muted)] max-w-xs">
+        <p className="text-sm text-[var(--color-fg-dim)] max-w-xs">
           管理员审核通过后会另行通知，届时可使用邮箱和密码登录查看进度。
         </p>
       </div>
@@ -134,14 +134,14 @@ export function RegistrationForm({
   };
 
   const SectionTitle = ({ children }: { children: React.ReactNode }) => (
-    <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-4 pb-2 border-b border-[var(--border)]">
+    <h2 className="text-lg font-semibold text-[var(--color-fg)] mb-4 pb-2 border-b border-[var(--color-border)]">
       {children}
     </h2>
   );
 
   const Required = () => <span className="text-red-400">*</span>;
 
-  const inputCls = "bg-[var(--bg-overlay)] border-[var(--border)]";
+  const inputCls = "bg-[var(--color-panel-hi)] border-[var(--color-border)]";
 
   const numRegister = (name: keyof RegistrationInput) =>
     register(name, {
@@ -161,25 +161,25 @@ export function RegistrationForm({
         <div className="space-y-4">
           {/* 邮箱 */}
           <div>
-            <Label htmlFor="email" className="text-[var(--text-secondary)] mb-1.5 block">
+            <Label htmlFor="email" className="text-[var(--color-fg-mid)] mb-1.5 block">
               电子邮件 <Required />
             </Label>
             <Input id="email" type="email" placeholder="your@email.com" className={inputCls} {...register("email")} />
             <FieldError name="email" />
-            <p className="text-xs text-[var(--text-muted)] mt-1">用于接收登录链接和审核通知</p>
+            <p className="text-xs text-[var(--color-fg-dim)] mt-1">用于接收登录链接和审核通知</p>
           </div>
 
           {/* 学号 + QQ */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="studentId" className="text-[var(--text-secondary)] mb-1.5 block">
+              <Label htmlFor="studentId" className="text-[var(--color-fg-mid)] mb-1.5 block">
                 学号 <Required />
               </Label>
               <Input id="studentId" placeholder="毕业生填「毕业年份+学院」" className={inputCls} {...register("studentId")} />
               <FieldError name="studentId" />
             </div>
             <div>
-              <Label className="text-[var(--text-secondary)] mb-1.5 block">
+              <Label className="text-[var(--color-fg-mid)] mb-1.5 block">
                 身份类型 <Required />
               </Label>
               <Select
@@ -207,7 +207,7 @@ export function RegistrationForm({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="qq" className="text-[var(--text-secondary)] mb-1.5 block">
+              <Label htmlFor="qq" className="text-[var(--color-fg-mid)] mb-1.5 block">
                 QQ 号 <Required />
               </Label>
               <Input id="qq" placeholder="123456789" className={inputCls} {...register("qq")} />
@@ -217,7 +217,7 @@ export function RegistrationForm({
 
           {/* 完美昵称 */}
           <div>
-            <Label htmlFor="perfectName" className="text-[var(--text-secondary)] mb-1.5 block">
+            <Label htmlFor="perfectName" className="text-[var(--color-fg-mid)] mb-1.5 block">
               完美平台昵称 <Required />
             </Label>
             <Input id="perfectName" placeholder="完美对战平台昵称" className={inputCls} {...register("perfectName")} />
@@ -227,14 +227,14 @@ export function RegistrationForm({
           {/* Steam 昵称 + Steam64 */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="steamName" className="text-[var(--text-secondary)] mb-1.5 block">
+              <Label htmlFor="steamName" className="text-[var(--color-fg-mid)] mb-1.5 block">
                 Steam 昵称 <Required />
               </Label>
               <Input id="steamName" placeholder="Steam 显示名称" className={inputCls} {...register("steamName")} />
               <FieldError name="steamName" />
             </div>
             <div>
-              <Label htmlFor="steam64" className="text-[var(--text-secondary)] mb-1.5 block">
+              <Label htmlFor="steam64" className="text-[var(--color-fg-mid)] mb-1.5 block">
                 Steam 64 位 ID <Required />
               </Label>
               <Input
@@ -249,7 +249,7 @@ export function RegistrationForm({
 
           {/* Steam 个人资料链接 */}
           <div>
-            <Label htmlFor="steamProfileUrl" className="text-[var(--text-secondary)] mb-1.5 block">
+            <Label htmlFor="steamProfileUrl" className="text-[var(--color-fg-mid)] mb-1.5 block">
               Steam 个人资料链接 <Required />
             </Label>
             <Input
@@ -260,7 +260,7 @@ export function RegistrationForm({
               {...register("steamProfileUrl")}
             />
             <FieldError name="steamProfileUrl" />
-            <p className="text-xs text-[var(--text-muted)] mt-1">请确保个人资料设置为公开</p>
+            <p className="text-xs text-[var(--color-fg-dim)] mt-1">请确保个人资料设置为公开</p>
           </div>
         </div>
       </section>
@@ -270,7 +270,7 @@ export function RegistrationForm({
         <SectionTitle>位置选择</SectionTitle>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <Label className="text-[var(--text-secondary)] mb-1.5 block">
+            <Label className="text-[var(--color-fg-mid)] mb-1.5 block">
               主选位置 <Required />
             </Label>
             <Select
@@ -292,13 +292,13 @@ export function RegistrationForm({
               </SelectContent>
             </Select>
             <FieldError name="primaryPosition" />
-            <p className="text-xs text-[var(--text-muted)] mt-1">
+            <p className="text-xs text-[var(--color-fg-dim)] mt-1">
               每个位置最多 {registrationConfig.maxPerPosition} 人，满员后自动关闭
             </p>
           </div>
 
           <div>
-            <Label className="text-[var(--text-secondary)] mb-1.5 block">
+            <Label className="text-[var(--color-fg-mid)] mb-1.5 block">
               次选位置 <Required />
             </Label>
             <Select
@@ -320,7 +320,7 @@ export function RegistrationForm({
               </SelectContent>
             </Select>
             <FieldError name="secondaryPosition" />
-            <p className="text-xs text-[var(--text-muted)] mt-1">不能与主选位置相同</p>
+            <p className="text-xs text-[var(--color-fg-dim)] mt-1">不能与主选位置相同</p>
           </div>
         </div>
       </section>
@@ -331,7 +331,7 @@ export function RegistrationForm({
         <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <Label className="text-[var(--text-secondary)] mb-1.5 block">
+              <Label className="text-[var(--color-fg-mid)] mb-1.5 block">
                 历史最高段位 <Required />
               </Label>
               <Select
@@ -355,7 +355,7 @@ export function RegistrationForm({
               <FieldError name="peakRank" />
             </div>
             <div>
-              <Label htmlFor="peakRankSeason" className="text-[var(--text-secondary)] mb-1.5 block">
+              <Label htmlFor="peakRankSeason" className="text-[var(--color-fg-mid)] mb-1.5 block">
                 对应赛季 <Required />
               </Label>
               <Input
@@ -370,7 +370,7 @@ export function RegistrationForm({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="peakRating" className="text-[var(--text-secondary)] mb-1.5 block">
+              <Label htmlFor="peakRating" className="text-[var(--color-fg-mid)] mb-1.5 block">
                 Rating <Required />
               </Label>
               <Input
@@ -386,7 +386,7 @@ export function RegistrationForm({
               <FieldError name="peakRating" />
             </div>
             <div>
-              <Label htmlFor="peakWe" className="text-[var(--text-secondary)] mb-1.5 block">
+              <Label htmlFor="peakWe" className="text-[var(--color-fg-mid)] mb-1.5 block">
                 WE（选填）
               </Label>
               <Input
@@ -410,7 +410,7 @@ export function RegistrationForm({
         <SectionTitle>段位信息 · 当前赛季最高</SectionTitle>
         <div className="space-y-4">
           <div>
-            <Label className="text-[var(--text-secondary)] mb-1.5 block">
+            <Label className="text-[var(--color-fg-mid)] mb-1.5 block">
               当前赛季最高段位 <Required />
             </Label>
             <Select
@@ -436,7 +436,7 @@ export function RegistrationForm({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="currentRating" className="text-[var(--text-secondary)] mb-1.5 block">
+              <Label htmlFor="currentRating" className="text-[var(--color-fg-mid)] mb-1.5 block">
                 Rating <Required />
               </Label>
               <Input
@@ -452,7 +452,7 @@ export function RegistrationForm({
               <FieldError name="currentRating" />
             </div>
             <div>
-              <Label htmlFor="currentWe" className="text-[var(--text-secondary)] mb-1.5 block">
+              <Label htmlFor="currentWe" className="text-[var(--color-fg-mid)] mb-1.5 block">
                 WE（选填）
               </Label>
               <Input
@@ -474,13 +474,13 @@ export function RegistrationForm({
       {/* ═══════════════════════════════════════ 天梯截图 ═══ */}
       <section>
         <SectionTitle>近两周天梯截图</SectionTitle>
-        <p className="text-sm text-[var(--text-secondary)] mb-4">
+        <p className="text-sm text-[var(--color-fg-mid)] mb-4">
           请将近两周天梯对局截图上传至
           <a
             href="https://box.nju.edu.cn"
             target="_blank"
             rel="noreferrer"
-            className="text-[var(--season-primary)] hover:underline mx-1"
+            className="text-[var(--color-accent)] hover:underline mx-1"
           >
             NJUBox
           </a>
@@ -489,7 +489,7 @@ export function RegistrationForm({
         <div className="space-y-3">
           {Array.from({ length: registrationConfig.screenshotCount }, (_, index) => (
             <div key={index}>
-              <Label htmlFor={`screenshotUrls.${index}`} className="text-[var(--text-secondary)] mb-1.5 block">
+              <Label htmlFor={`screenshotUrls.${index}`} className="text-[var(--color-fg-mid)] mb-1.5 block">
                 NJUBox 分享链接 {registrationConfig.screenshotCount > 1 ? index + 1 : ""} <Required />
               </Label>
               <Input
@@ -511,7 +511,7 @@ export function RegistrationForm({
         <SectionTitle>风格与经历</SectionTitle>
         <div className="space-y-4">
           <div>
-            <Label htmlFor="gameplayStyle" className="text-[var(--text-secondary)] mb-1.5 block">
+            <Label htmlFor="gameplayStyle" className="text-[var(--color-fg-mid)] mb-1.5 block">
               游戏风格自述 <Required />
             </Label>
             <Textarea
@@ -523,14 +523,14 @@ export function RegistrationForm({
             />
             <div className="flex justify-between mt-1">
               <FieldError name="gameplayStyle" />
-              <span className="text-xs text-[var(--text-muted)] ml-auto">
+              <span className="text-xs text-[var(--color-fg-dim)] ml-auto">
                 {watch("gameplayStyle")?.length ?? 0}/100
               </span>
             </div>
           </div>
 
           <div>
-            <Label htmlFor="competitionHistory" className="text-[var(--text-secondary)] mb-1.5 block">
+            <Label htmlFor="competitionHistory" className="text-[var(--color-fg-mid)] mb-1.5 block">
               历史比赛经历（选填）
             </Label>
             <Textarea
@@ -542,14 +542,14 @@ export function RegistrationForm({
             />
             <div className="flex justify-between mt-1">
               <FieldError name="competitionHistory" />
-              <span className="text-xs text-[var(--text-muted)] ml-auto">
+              <span className="text-xs text-[var(--color-fg-dim)] ml-auto">
                 {watch("competitionHistory")?.length ?? 0}/500
               </span>
             </div>
           </div>
 
           <div>
-            <Label htmlFor="highlightVideoUrl" className="text-[var(--text-secondary)] mb-1.5 block">
+            <Label htmlFor="highlightVideoUrl" className="text-[var(--color-fg-mid)] mb-1.5 block">
               高光视频链接（选填）
             </Label>
             <Input
@@ -572,21 +572,21 @@ export function RegistrationForm({
             <input
               id="willingToBeCaptain"
               type="checkbox"
-              className="mt-0.5 h-4 w-4 accent-[var(--season-primary)]"
+              className="mt-0.5 h-4 w-4 accent-[var(--color-accent)]"
               {...register("willingToBeCaptain")}
             />
             <div>
-              <Label htmlFor="willingToBeCaptain" className="text-[var(--text-primary)] cursor-pointer">
+              <Label htmlFor="willingToBeCaptain" className="text-[var(--color-fg)] cursor-pointer">
                 我愿意参与队长竞选
               </Label>
-              <p className="text-xs text-[var(--text-muted)] mt-0.5">
+              <p className="text-xs text-[var(--color-fg-dim)] mt-0.5">
                 勾选后将出现在队长投票候选人列表中
               </p>
             </div>
           </div>
 
           <div>
-            <Label htmlFor="notes" className="text-[var(--text-secondary)] mb-1.5 block">
+            <Label htmlFor="notes" className="text-[var(--color-fg-mid)] mb-1.5 block">
               备注（选填）
             </Label>
             <Textarea
@@ -598,7 +598,7 @@ export function RegistrationForm({
             />
             <div className="flex justify-between mt-1">
               <FieldError name="notes" />
-              <span className="text-xs text-[var(--text-muted)] ml-auto">
+              <span className="text-xs text-[var(--color-fg-dim)] ml-auto">
                 {watch("notes")?.length ?? 0}/500
               </span>
             </div>
@@ -620,10 +620,10 @@ export function RegistrationForm({
             }
           />
           <div>
-            <Label htmlFor="antiCheatPledge" className="text-[var(--text-primary)] cursor-pointer font-medium">
+            <Label htmlFor="antiCheatPledge" className="text-[var(--color-fg)] cursor-pointer font-medium">
               反作弊承诺 <Required />
             </Label>
-            <p className="text-sm text-[var(--text-secondary)] mt-1">
+            <p className="text-sm text-[var(--color-fg-mid)] mt-1">
               我承诺在参赛期间不使用任何作弊软件或外挂。一经发现，接受取消资格处理。
             </p>
           </div>
@@ -636,7 +636,7 @@ export function RegistrationForm({
         type="submit"
         disabled={isSubmitting}
         className="w-full h-11 text-base font-semibold"
-        style={{ backgroundColor: "var(--season-primary)", color: "#fff" }}
+        style={{ backgroundColor: "var(--color-accent)", color: "#fff" }}
       >
         {isSubmitting ? (
           <>

@@ -1,102 +1,113 @@
 @import "tailwindcss";
 
-:root {
-  /* Background layers */
-  --bg-base: #0a0d14;
-  --bg-elevated: #12161f;
-  --bg-overlay: #1a2030;
+@theme {
+  /* Surfaces */
+  --color-bg: #0a0c10;
+  --color-panel: #10131a;
+  --color-panel-hi: #161a24;
+  --color-panel-low: #0d1016;
 
-  /* Text layers */
-  --text-primary: #e6edf3;
-  --text-secondary: #8b949e;
-  --text-muted: #484f58;
+  /* Borders */
+  --color-border: #1f2530;
+  --color-border-hi: #2c3340;
 
-  /* Separator */
-  --border: #232a36;
-  --border-strong: #2d3441;
+  /* Text */
+  --color-fg: #e7ecf3;
+  --color-fg-mid: #8e96a3;
+  --color-fg-dim: #525a6a;
 
-  /* Radius */
-  --radius: 0.5rem;
+  /* Accent */
+  --color-accent: #ff6b1a;
+  --color-accent-soft: rgba(255, 107, 26, 0.12);
+  --color-accent-edge: rgba(255, 107, 26, 0.34);
+  --color-accent-fg: #0a0c10;
 
-  /* shadcn CSS variable mappings (dark theme, mapped from bg tokens) */
-  --background: 218 28% 6%;
-  --foreground: 213 27% 94%;
-  --card: 220 24% 10%;
-  --card-foreground: 213 27% 94%;
-  --popover: 220 24% 10%;
-  --popover-foreground: 213 27% 94%;
-  --primary: 213 27% 94%;
-  --primary-foreground: 218 28% 6%;
-  --secondary: 220 20% 14%;
-  --secondary-foreground: 213 27% 94%;
-  --muted: 220 20% 14%;
-  --muted-foreground: 215 9% 55%;
-  --accent: 220 20% 14%;
-  --accent-foreground: 213 27% 94%;
-  --destructive: 0 84% 60%;
-  --destructive-foreground: 0 0% 98%;
-  --border: 218 18% 18%;
-  --input: 218 18% 18%;
-  --ring: 213 27% 94%;
+  /* Status */
+  --color-ok: #4dd47a;
+  --color-warn: #ffc44d;
+  --color-danger: #ff5470;
 
-  /* Season theme color (overridden per-season in layout) */
-  --season-primary: #f97316;
-  --season-primary-rgb: 249, 115, 22;
+  /* Typography */
+  --font-sans: "Geist", "Noto Sans SC", system-ui, sans-serif;
+  --font-display: "Geist", "Noto Sans SC", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* Letter spacing */
+  --tracking-tight-2: -0.02em;
+  --tracking-tight-1: -0.01em;
+  --tracking-label: 0.12em;
+  --tracking-ticker: 0.08em;
+  --tracking-eyebrow: 0.18em;
+
+  /* Radii */
+  --radius-sm: 0px;
+  --radius-md: 2px;
+  --radius-lg: 3px;
+  --radius: 3px;
+
+  /* Background */
+  --background-image-grid-hairline: linear-gradient(
+      rgba(31, 37, 48, 0.4) 1px,
+      transparent 1px
+    ),
+    linear-gradient(90deg, rgba(31, 37, 48, 0.4) 1px, transparent 1px);
+  --background-size-grid: 32px 32px;
+
+  /* Skeleton animation */
+  --animate-skeleton-sweep: skeleton-sweep 1.4s ease-in-out infinite;
 }
 
-/* Body: dark base + faint top ambient gradient + barely-visible grid */
-body {
-  background-color: var(--bg-base);
-  background-image:
-    radial-gradient(ellipse 90% 50% at 50% -10%, rgba(255, 255, 255, 0.035), transparent 60%),
-    linear-gradient(rgba(255, 255, 255, 0.012) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.012) 1px, transparent 1px);
-  background-size: auto, 48px 48px, 48px 48px;
-  background-attachment: fixed;
-  color: var(--text-primary);
-  font-family: var(--font-inter), var(--font-noto-sans-sc), sans-serif;
-  font-feature-settings: "cv11", "ss01";
+@keyframes skeleton-sweep {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
-/* Tabular numerals for stats and counts */
-.tabular {
-  font-variant-numeric: tabular-nums;
+@layer base {
+  :root {
+    /* shadcn-compatible CSS variables */
+    --background: 220 16% 6%;
+    --foreground: 220 18% 93%;
+    --card: 222 16% 9%;
+    --card-foreground: 220 18% 93%;
+    --popover: 222 16% 9%;
+    --popover-foreground: 220 18% 93%;
+    --primary: 21 100% 55%;
+    --primary-foreground: 220 16% 6%;
+    --secondary: 222 16% 12%;
+    --secondary-foreground: 220 18% 93%;
+    --muted: 222 16% 10%;
+    --muted-foreground: 220 10% 60%;
+    --accent: 21 100% 55%;
+    --accent-foreground: 220 16% 6%;
+    --destructive: 348 100% 66%;
+    --destructive-foreground: 220 18% 93%;
+    --border: 220 22% 16%;
+    --input: 220 22% 16%;
+    --ring: 21 100% 55%;
+    --radius: 3px;
+  }
+
+  body {
+    background-color: var(--color-bg);
+    background-image: var(--background-image-grid-hairline);
+    background-size: var(--background-size-grid);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01";
+  }
 }
 
-/* Card with subtle gradient + inner highlight */
-.card-elevated {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.018) 0%, transparent 100%),
-    var(--bg-elevated);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    0 1px 2px rgba(0, 0, 0, 0.2);
-  transition: transform 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
-}
-
-.card-elevated:hover {
-  border-color: var(--border-strong);
-  transform: translateY(-2px);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 8px 24px rgba(0, 0, 0, 0.3);
-}
-
-/* Season-themed glow used in season hero */
-.season-glow {
-  position: relative;
-}
-
-.season-glow::before {
-  content: "";
-  position: absolute;
-  inset: -10% -5% auto -5%;
-  height: 320px;
-  background: radial-gradient(
-    ellipse 60% 100% at 50% 0%,
-    rgba(var(--season-primary-rgb), 0.18),
-    transparent 70%
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--card)) 0%,
+    hsl(var(--border)) 40%,
+    hsl(var(--card)) 80%
   );
-  pointer-events: none;
-  z-index: -1;
+  background-size: 200% 100%;
+  animation: var(--animate-skeleton-sweep);
 }

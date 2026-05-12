@@ -44,8 +44,8 @@ export function GeneratePlayoffCard({ seasonId, stageKey, stageName, standings }
     <Card className="p-6 border-dashed border-2 space-y-4">
       <div className="flex items-center justify-between">
         <div className="space-y-1">
-          <h2 className="text-lg font-bold text-[var(--text-primary)]">排位赛已全部结束</h2>
-          <p className="text-sm text-[var(--text-secondary)]">
+          <h2 className="text-lg font-bold text-[var(--color-fg)]">排位赛已全部结束</h2>
+          <p className="text-sm text-[var(--color-fg-mid)]">
             可根据积分榜生成{stageName}第一轮对阵
           </p>
         </div>
@@ -65,7 +65,7 @@ export function GeneratePlayoffCard({ seasonId, stageKey, stageName, standings }
                         <span className="font-bold text-[var(--primary)] w-5 inline-block">#{s.seed}</span>
                         {" "}{s.teamName}
                       </span>
-                      <span className="text-[var(--text-secondary)]">
+                      <span className="text-[var(--color-fg-mid)]">
                         {s.wins}W {s.losses}L &nbsp; 净{s.netRounds > 0 ? "+" : ""}{s.netRounds}
                       </span>
                     </div>

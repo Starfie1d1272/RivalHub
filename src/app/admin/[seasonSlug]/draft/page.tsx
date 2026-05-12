@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { eq, count } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons, teams } from "@/db/schema";
+import { Marker } from "@/components/rivalhub";
 import { DraftAdminPanel } from "@/components/draft/DraftAdminPanel";
 import { getDraftData } from "@/lib/draft/data";
 
@@ -35,10 +36,7 @@ export default async function AdminDraftPage({ params }: AdminDraftPageProps) {
   return (
     <main className="container mx-auto max-w-6xl px-4 py-8">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold">选秀管理 · {season.name}</h1>
-        <p className="mt-2 text-sm text-[var(--text-secondary)]">
-          启动、暂停、恢复选秀流程。选秀开始后选手可围观实时进度。
-        </p>
+        <Marker sub="启动、暂停、恢复选秀流程。选秀开始后选手可围观实时进度。">选秀管理 · {season.name}</Marker>
       </div>
 
       <DraftAdminPanel

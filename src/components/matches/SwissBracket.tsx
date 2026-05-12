@@ -15,7 +15,7 @@ interface SwissBracketProps {
 export function SwissBracket({ data, seasonSlug }: SwissBracketProps) {
   if (data.rounds.length === 0) {
     return (
-      <div className="py-16 text-center text-[var(--text-secondary)] text-sm">
+      <div className="py-16 text-center text-[var(--color-fg-mid)] text-sm">
         瑞士轮赛程尚未生成
       </div>
     );
@@ -60,7 +60,7 @@ function SwissColumn({
     <div className={`flex-1 min-w-[160px] max-w-[200px] ${statusColor[round.status]}`}>
       {/* 轮次标题 */}
       <div className="text-center mb-2">
-        <span className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+        <span className="text-xs font-semibold text-[var(--color-fg-mid)] uppercase tracking-wider">
           {round.status === "upcoming" && round.groups.length === 0
             ? `R${round.round}`
             : `第 ${round.round} 轮`}
@@ -81,7 +81,7 @@ function SwissColumn({
           />
         ))}
         {round.status === "upcoming" && round.groups.length === 0 && (
-          <div className="py-8 text-center text-[var(--text-muted)] text-xs">
+          <div className="py-8 text-center text-[var(--color-fg-dim)] text-xs">
             —
           </div>
         )}
@@ -108,7 +108,7 @@ function SwissMatchupGroup({
             ? "bg-red-500/10 text-red-400"
             : isAdvancedRecord(group.record)
               ? "bg-emerald-500/10 text-emerald-400"
-              : "bg-[var(--bg-overlay)] text-[var(--text-secondary)]"
+              : "bg-[var(--color-panel-hi)] text-[var(--color-fg-mid)]"
         }`}
       >
         {group.record}
@@ -142,7 +142,7 @@ function SwissMatchupRow({
   return (
     <Link
       href={`/${seasonSlug}/matches/${match.matchId}`}
-      className="block rounded border border-[var(--border)] bg-[var(--bg-elevated)] hover:border-[var(--border-strong)] transition-colors p-2"
+      className="block rounded border border-[var(--color-border)] bg-[var(--color-panel)] hover:border-[var(--color-border-hi)] transition-colors p-2"
     >
       {/* Team A */}
       <div className="flex items-center justify-between gap-1 text-xs">
@@ -150,9 +150,9 @@ function SwissMatchupRow({
           className={`truncate flex-1 ${
             isFinished
               ? winA
-                ? "text-[var(--text-primary)] font-medium"
-                : "text-[var(--text-muted)]"
-              : "text-[var(--text-primary)]"
+                ? "text-[var(--color-fg)] font-medium"
+                : "text-[var(--color-fg-dim)]"
+              : "text-[var(--color-fg)]"
           }`}
         >
           {match.teamAName}
@@ -162,7 +162,7 @@ function SwissMatchupRow({
             className={`tabular shrink-0 ${
               winA
                 ? "text-emerald-400 font-semibold"
-                : "text-[var(--text-muted)]"
+                : "text-[var(--color-fg-dim)]"
             }`}
           >
             {match.scoreA}
@@ -176,9 +176,9 @@ function SwissMatchupRow({
           className={`truncate flex-1 ${
             isFinished
               ? winB
-                ? "text-[var(--text-primary)] font-medium"
-                : "text-[var(--text-muted)]"
-              : "text-[var(--text-primary)]"
+                ? "text-[var(--color-fg)] font-medium"
+                : "text-[var(--color-fg-dim)]"
+              : "text-[var(--color-fg)]"
           }`}
         >
           {match.teamBName}
@@ -188,7 +188,7 @@ function SwissMatchupRow({
             className={`tabular shrink-0 ${
               winB
                 ? "text-emerald-400 font-semibold"
-                : "text-[var(--text-muted)]"
+                : "text-[var(--color-fg-dim)]"
             }`}
           >
             {match.scoreB}
@@ -198,13 +198,13 @@ function SwissMatchupRow({
 
       {/* 状态标签 */}
       {!isFinished && (
-        <div className="mt-1 text-[10px] text-[var(--text-muted)]">
+        <div className="mt-1 text-[10px] text-[var(--color-fg-dim)]">
           {match.status === "in_progress" ? (
             <span className="text-amber-400">进行中</span>
           ) : match.status === "cancelled" ? (
             <span className="text-red-400">已取消</span>
           ) : (
-            <span className="text-[var(--text-muted)]">{match.format.toUpperCase()}</span>
+            <span className="text-[var(--color-fg-dim)]">{match.format.toUpperCase()}</span>
           )}
         </div>
       )}
@@ -238,12 +238,12 @@ function AdvancementColumn({
             {advanced.map((t) => (
               <div
                 key={t.teamId}
-                className="flex items-center justify-between text-xs px-2 py-1 rounded bg-[var(--bg-elevated)] border border-[var(--border)]"
+                className="flex items-center justify-between text-xs px-2 py-1 rounded bg-[var(--color-panel)] border border-[var(--color-border)]"
               >
-                <span className="text-[var(--text-primary)] truncate">
+                <span className="text-[var(--color-fg)] truncate">
                   {t.teamName}
                 </span>
-                <span className="text-[var(--text-muted)] ml-1 tabular">
+                <span className="text-[var(--color-fg-dim)] ml-1 tabular">
                   {t.wins}:{t.losses}
                 </span>
               </div>
@@ -262,12 +262,12 @@ function AdvancementColumn({
             {eliminated.map((t) => (
               <div
                 key={t.teamId}
-                className="flex items-center justify-between text-xs px-2 py-1 rounded bg-[var(--bg-elevated)] border border-[var(--border)] opacity-60"
+                className="flex items-center justify-between text-xs px-2 py-1 rounded bg-[var(--color-panel)] border border-[var(--color-border)] opacity-60"
               >
-                <span className="text-[var(--text-muted)] truncate">
+                <span className="text-[var(--color-fg-dim)] truncate">
                   {t.teamName}
                 </span>
-                <span className="text-[var(--text-muted)] ml-1 tabular">
+                <span className="text-[var(--color-fg-dim)] ml-1 tabular">
                   {t.wins}:{t.losses}
                 </span>
               </div>
@@ -278,7 +278,7 @@ function AdvancementColumn({
 
       {/* 未定 */}
       {advanced.length === 0 && eliminated.length === 0 && (
-        <div className="py-8 text-center text-[var(--text-muted)] text-xs">
+        <div className="py-8 text-center text-[var(--color-fg-dim)] text-xs">
           —
         </div>
       )}

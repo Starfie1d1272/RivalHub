@@ -10,8 +10,8 @@ const pgConfig: any = {
   // Supabase pooler requires SSL; local Docker/Postgres does not
   ssl: shouldUseSsl(connectionString) ? { rejectUnauthorized: false } : undefined,
   family: 4,
-  // Vercel serverless: keep pool small to avoid connection exhaustion
-  max: 1,
+  // local dev needs headroom for concurrent RSC queries; serverless uses 1
+  max: process.env.NODE_ENV === "production" ? 1 : 10,
   idleTimeoutMillis: 10000,
   connectionTimeoutMillis: 10000,
 };

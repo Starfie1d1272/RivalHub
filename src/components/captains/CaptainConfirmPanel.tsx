@@ -50,13 +50,13 @@ export function CaptainConfirmPanel({
       <section className="space-y-3">
         <div>
           <h2 className="text-xl font-semibold">当前前 {CAPTAIN_TEAM_COUNT} 队长</h2>
-          <p className="mt-1 text-sm text-[var(--text-secondary)]">
+          <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
             排序规则：票数优先，其次历史最高 Rating，再按报名时间。
           </p>
         </div>
 
         {seeds.length === 0 ? (
-          <Card className="p-8 text-center text-sm text-[var(--text-secondary)]">
+          <Card className="p-8 text-center text-sm text-[var(--color-fg-mid)]">
             暂无可确认的候选人
           </Card>
         ) : (
@@ -69,7 +69,7 @@ export function CaptainConfirmPanel({
                       <Badge variant="default">#{index + 1}</Badge>
                       <h3 className="font-semibold">{candidate.displayName}</h3>
                     </div>
-                    <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                    <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
                       {positionLabel(candidate.primaryPosition)} · Peak {candidate.peakRating} ·
                       Current {candidate.currentRating}
                     </p>
@@ -77,9 +77,9 @@ export function CaptainConfirmPanel({
                   <div className="flex items-center gap-4 text-sm">
                     <div className="text-right">
                       <div className="text-lg font-semibold tabular">{candidate.voteCount}</div>
-                      <div className="text-xs text-[var(--text-secondary)]">票</div>
+                      <div className="text-xs text-[var(--color-fg-mid)]">票</div>
                     </div>
-                    <ShieldCheck className="size-5 text-[var(--season-primary)]" />
+                    <ShieldCheck className="size-5 text-[var(--color-accent)]" />
                   </div>
                 </div>
               </Card>
@@ -93,22 +93,22 @@ export function CaptainConfirmPanel({
           <div className="space-y-4">
             <div>
               <h2 className="text-base font-semibold">确认操作</h2>
-              <p className="mt-1 text-sm text-[var(--text-secondary)]">
+              <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
                 确认后会生成队伍、写入队长成员，并将赛季推进到 drafting。
               </p>
             </div>
 
-            <div className="space-y-2 rounded-md border border-[var(--border)] p-3 text-sm">
+            <div className="space-y-2 rounded-md border border-[var(--color-border)] p-3 text-sm">
               <div className="flex justify-between">
-                <span className="text-[var(--text-secondary)]">赛季状态</span>
+                <span className="text-[var(--color-fg-mid)]">赛季状态</span>
                 <span>{seasonStatus}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-[var(--text-secondary)]">候选人数</span>
+                <span className="text-[var(--color-fg-mid)]">候选人数</span>
                 <span>{candidates.length}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-[var(--text-secondary)]">已生成队伍</span>
+                <span className="text-[var(--color-fg-mid)]">已生成队伍</span>
                 <span>{teamCount}</span>
               </div>
             </div>
@@ -124,7 +124,7 @@ export function CaptainConfirmPanel({
             </Button>
 
             {!canConfirm && (
-              <p className="text-xs text-[var(--text-secondary)]">
+              <p className="text-xs text-[var(--color-fg-mid)]">
                 仅可在 voting 状态、尚未生成队伍且候选人不少于 {CAPTAIN_TEAM_COUNT} 人时确认。
               </p>
             )}

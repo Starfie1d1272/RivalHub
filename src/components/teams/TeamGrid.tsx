@@ -27,7 +27,7 @@ export function TeamGrid({ teams, seasonSlug }: TeamGridProps) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center">
         <div className="text-4xl mb-4">🏆</div>
-        <p className="text-[var(--text-secondary)]">暂无队伍数据</p>
+        <p className="text-[var(--color-fg-mid)]">暂无队伍数据</p>
       </div>
     );
   }
@@ -38,17 +38,17 @@ export function TeamGrid({ teams, seasonSlug }: TeamGridProps) {
         const starters = team.members.filter((m) => m.isStarter);
         return (
           <Link key={team.id} href={`/${seasonSlug}/teams/${team.id}`}>
-            <Card className="p-5 bg-[var(--bg-elevated)] border border-[var(--border)] hover:border-[var(--season-primary)] transition-colors cursor-pointer h-full">
+            <Card className="p-5 bg-[var(--color-panel)] border border-[var(--color-border)] hover:border-[var(--color-accent)] transition-colors cursor-pointer h-full">
               <div className="flex items-start justify-between mb-3">
                 <div>
-                  <p className="text-xs text-[var(--text-muted)] mb-0.5">
+                  <p className="text-xs text-[var(--color-fg-dim)] mb-0.5">
                     选秀顺序 #{team.draftOrder}
                   </p>
-                  <h3 className="font-bold text-lg text-[var(--text-primary)]">{team.name}</h3>
+                  <h3 className="font-bold text-lg text-[var(--color-fg)]">{team.name}</h3>
                 </div>
               </div>
 
-              <p className="text-sm text-[var(--text-secondary)] mb-3">
+              <p className="text-sm text-[var(--color-fg-mid)] mb-3">
                 队长：{team.captainSteamName ?? "—"}
               </p>
 
@@ -57,7 +57,7 @@ export function TeamGrid({ teams, seasonSlug }: TeamGridProps) {
                   <Badge
                     key={i}
                     variant="outline"
-                    className="text-xs border-[var(--border)] text-[var(--text-secondary)]"
+                    className="text-xs border-[var(--color-border)] text-[var(--color-fg-mid)]"
                   >
                     {POSITION_LABELS[m.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? m.primaryPosition}
                   </Badge>

@@ -19,7 +19,7 @@ export function DraftCountdown({ deadline, isActive }: DraftCountdownProps) {
 
   if (!deadline) {
     return (
-      <span className="text-sm text-[var(--text-muted)] tabular">
+      <span className="text-sm text-[var(--color-fg-dim)] tabular">
         --:--
       </span>
     );
@@ -28,7 +28,7 @@ export function DraftCountdown({ deadline, isActive }: DraftCountdownProps) {
   if (!isActive) {
     const remaining = getCountdownSeconds(deadline, now);
     return (
-      <span className="text-sm text-[var(--text-muted)] tabular">
+      <span className="text-sm text-[var(--color-fg-dim)] tabular">
         {formatTime(remaining)}
       </span>
     );
@@ -48,7 +48,7 @@ export function DraftCountdown({ deadline, isActive }: DraftCountdownProps) {
   return (
     <span
       className={`tabular text-sm font-medium ${
-        urgent ? "text-red-400 animate-pulse" : "text-[var(--text-primary)]"
+        urgent ? "text-red-400 animate-pulse" : "text-[var(--color-fg)]"
       }`}
     >
       {formatTime(remaining)}

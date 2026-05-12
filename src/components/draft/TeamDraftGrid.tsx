@@ -28,7 +28,7 @@ export function TeamDraftGrid({
 
   if (sorted.length === 0) {
     return (
-      <div className="py-24 text-center text-[var(--text-muted)]">
+      <div className="py-24 text-center text-[var(--color-fg-dim)]">
         <p className="text-lg">暂无队伍数据</p>
       </div>
     );
@@ -47,27 +47,27 @@ export function TeamDraftGrid({
             key={team.teamId}
             className={`rounded-lg border p-3 sm:p-4 transition-colors ${
               isCurrent
-                ? "border-[var(--season-primary)] bg-[var(--season-primary)]/5"
-                : "border-[var(--border)] bg-[var(--bg-elevated)]"
+                ? "border-[var(--color-accent)] bg-[var(--color-accent)]/5"
+                : "border-[var(--color-border)] bg-[var(--color-panel)]"
             }`}
           >
             {/* 队名 + draft order */}
             <div className="flex items-baseline justify-between mb-2">
-              <h3 className="text-sm font-bold text-[var(--text-primary)] truncate">
+              <h3 className="text-sm font-bold text-[var(--color-fg)] truncate">
                 {team.teamName}
               </h3>
-              <span className="text-xs text-[var(--text-muted)] tabular">
+              <span className="text-xs text-[var(--color-fg-dim)] tabular">
                 #{team.draftOrder}
               </span>
             </div>
 
             {/* 队长 */}
             <div className="text-xs mb-1">
-              <span className="text-[var(--text-muted)]">队长 </span>
-              <span className="text-[var(--text-primary)] font-medium">
+              <span className="text-[var(--color-fg-dim)]">队长 </span>
+              <span className="text-[var(--color-fg)] font-medium">
                 {team.captain.steamName}
               </span>
-              <span className="text-[var(--text-muted)] ml-1">
+              <span className="text-[var(--color-fg-dim)] ml-1">
                 {POS_SHORT[team.captain.primaryPosition] ?? team.captain.primaryPosition}
               </span>
             </div>
@@ -75,13 +75,13 @@ export function TeamDraftGrid({
             {/* 已选队员 */}
             {team.members.map((m) => (
               <div key={m.registrationId} className="text-xs mb-0.5">
-                <span className="text-[var(--text-secondary)]">
+                <span className="text-[var(--color-fg-mid)]">
                   R{m.pickRound}P{m.pickNumber}{" "}
                 </span>
-                <span className="text-[var(--text-primary)]">
+                <span className="text-[var(--color-fg)]">
                   {m.steamName}
                 </span>
-                <span className="text-[var(--text-muted)] ml-1">
+                <span className="text-[var(--color-fg-dim)] ml-1">
                   {POS_SHORT[m.primaryPosition] ?? m.primaryPosition}
                 </span>
                 {m.autoPicked && (
@@ -94,7 +94,7 @@ export function TeamDraftGrid({
             {Array.from({ length: emptySlots }).map((_, i) => (
               <div
                 key={`empty-${i}`}
-                className="text-xs text-[var(--text-muted)] mb-0.5"
+                className="text-xs text-[var(--color-fg-dim)] mb-0.5"
               >
                 ??? · ??? · 待选
               </div>
@@ -106,7 +106,7 @@ export function TeamDraftGrid({
             )}
 
             {isCurrent && (
-              <div className="mt-2 text-xs font-medium text-[var(--season-primary)]">
+              <div className="mt-2 text-xs font-medium text-[var(--color-accent)]">
                 第 {currentRound} 轮 · 选择中…
               </div>
             )}

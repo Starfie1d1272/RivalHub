@@ -48,8 +48,8 @@ export function GenerateScheduleCard({
   return (
     <Card className="p-6 border-dashed border-2 text-center space-y-4">
       <div className="space-y-2">
-        <h2 className="text-xl font-bold text-[var(--text-primary)]">赛程尚未生成</h2>
-        <p className="text-[var(--text-secondary)] text-sm">
+        <h2 className="text-xl font-bold text-[var(--color-fg)]">赛程尚未生成</h2>
+        <p className="text-[var(--color-fg-mid)] text-sm">
           共 {teamCount} 支队伍参赛
           {stagePlan.map((stage) => (
             <span key={stage.key}>

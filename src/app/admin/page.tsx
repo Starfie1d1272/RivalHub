@@ -3,9 +3,7 @@ import { inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
 import { checkAdminSession } from "@/lib/auth/session";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Panel, Btn, StatusPill, Marker } from "@/components/rivalhub";
 
 export default async function AdminDashboardPage() {
   const admin = (await checkAdminSession())!;
@@ -22,54 +20,47 @@ export default async function AdminDashboardPage() {
         : [];
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-2xl">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold">赛季列表</h1>
+    <div className="p-8 max-w-2xl">
+      <div className="flex items-center justify-between mb-6">
+          <Marker>赛季管理</Marker>
           {admin.role === "super_admin" && (
             <div className="flex items-center gap-2">
-              <Link href={"/admin/seasons/new" as never}>
-                <Button size="sm">
-                  新建赛季
-                </Button>
-              </Link>
-              <Link href="/admin/invites">
-                <Button variant="outline" size="sm">
-                  管理邀请码
-                </Button>
-              </Link>
+              <Btn small asChild>
+                <Link href="/admin/seasons/new">新建赛季</Link>
+              </Btn>
             </div>
           )}
         </div>
 
         {allSeasons.length === 0 ? (
-          <p className="text-[var(--text-secondary)]">暂无赛季数据</p>
+          <p className="text-[var(--color-fg-mid)]">暂无赛季数据</p>
         ) : (
           <div className="space-y-3">
             {allSeasons.map((s) => (
-              <Card key={s.id} className="p-4 flex items-center justify-between gap-4">
+              <Panel key={s.id} pad={16} className="flex items-center justify-between gap-4">
                 <Link
                   href={`/admin/${s.slug}/registrations`}
-                  className="min-w-0 flex-1 hover:text-[var(--text-primary)] transition-colors"
+                  className="min-w-0 flex-1 hover:text-[var(--color-fg)] transition-colors"
                 >
                   <div>
                     <span className="font-medium">{s.name}</span>
-                    <span className="text-sm text-[var(--text-secondary)] ml-2">
+                    <span className="text-sm text-[var(--color-fg-mid)] ml-2">
                       {s.slug}
                     </span>
                   </div>
                 </Link>
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline">{s.status}</Badge>
+                  <StatusPill status={s.status} />
                   {admin.role === "super_admin" && (
-                    <Link href={`/admin/${s.slug}/settings` as never}>
-                      <Button variant="outline" size="sm">设置</Button>
-                    </Link>
+                    <Btn small asChild>
+                      <Link href={`/admin/${s.slug}/settings`}>设置</Link>
+                    </Btn>
                   )}
                 </div>
-              </Card>
+              </Panel>
             ))}
           </div>
         )}
-    </div>
+      </div>
   );
 }

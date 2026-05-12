@@ -39,8 +39,8 @@ export default async function SeasonLayout({ children, params }: SeasonLayoutPro
     <div
       data-season={seasonSlug}
       style={{
-        "--season-primary": themeColor,
-        "--season-primary-rgb": hexToRgbString(themeColor),
+        "--color-accent": themeColor,
+        "--color-accent-rgb": hexToRgbString(themeColor),
       } as React.CSSProperties}
     >
       <div className="container mx-auto px-4 pt-6">

@@ -50,7 +50,7 @@ export function StatsLeaderboard({
 }: StatsLeaderboardProps) {
   if (rows.length === 0) {
     return (
-      <Card className="p-8 text-center text-[var(--text-secondary)]">
+      <Card className="p-8 text-center text-[var(--color-fg-mid)]">
         该赛季暂无已确认的玩家数据
       </Card>
     );
@@ -66,8 +66,8 @@ export function StatsLeaderboard({
             href={`/${seasonSlug}/stats?sort=${key}${position ? `&position=${position}` : ""}`}
             className={`inline-block px-3 py-1.5 rounded text-xs font-medium transition-colors ${
               sort === key
-                ? "bg-[var(--season-primary)] text-white"
-                : "border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                ? "bg-[var(--color-accent)] text-white"
+                : "border border-[var(--color-border)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
             }`}
           >
             {label}
@@ -83,8 +83,8 @@ export function StatsLeaderboard({
             href={`/${seasonSlug}/stats?sort=${sort}${key ? `&position=${key}` : ""}`}
             className={`inline-block px-2.5 py-1 rounded text-[11px] transition-colors ${
               position === key
-                ? "bg-[var(--bg-overlay)] text-[var(--text-primary)] font-medium"
-                : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                ? "bg-[var(--color-panel-hi)] text-[var(--color-fg)] font-medium"
+                : "text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
             }`}
           >
             {label}
@@ -96,7 +96,7 @@ export function StatsLeaderboard({
       <Card className="p-0 overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-[var(--border)] text-[var(--text-secondary)] text-xs uppercase tracking-wide">
+            <tr className="border-b border-[var(--color-border)] text-[var(--color-fg-mid)] text-xs uppercase tracking-wide">
               <th className="px-4 py-3 text-left w-8">#</th>
               <th className="px-4 py-3 text-left">选手</th>
               <th className="px-4 py-3 text-left">位置</th>
@@ -107,13 +107,13 @@ export function StatsLeaderboard({
               <th className="px-4 py-3 text-center">K/D</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[var(--border)]">
+          <tbody className="divide-y divide-[var(--color-border)]">
             {rows.map((r, i) => (
               <tr key={r.userId ?? r.perfectName}>
-                <td className="px-4 py-3 text-[var(--text-muted)] text-xs">
+                <td className="px-4 py-3 text-[var(--color-fg-dim)] text-xs">
                   {i + 1}
                 </td>
-                <td className="px-4 py-3 font-medium text-[var(--text-primary)]">
+                <td className="px-4 py-3 font-medium text-[var(--color-fg)]">
                   {r.userId ? (
                     <Link
                       href={`/players/${r.userId}`}
@@ -125,12 +125,12 @@ export function StatsLeaderboard({
                     r.perfectName
                   )}
                 </td>
-                <td className="px-4 py-3 text-xs text-[var(--text-secondary)]">
+                <td className="px-4 py-3 text-xs text-[var(--color-fg-mid)]">
                   {r.position
                     ? POSITION_LABELS[r.position as keyof typeof POSITION_LABELS]?.cn ?? r.position
                     : "—"}
                 </td>
-                <td className="px-4 py-3 text-xs text-[var(--text-secondary)]">
+                <td className="px-4 py-3 text-xs text-[var(--color-fg-mid)]">
                   {r.teamId ? (
                     <Link
                       href={`/${seasonSlug}/teams/${r.teamId}`}
@@ -142,22 +142,22 @@ export function StatsLeaderboard({
                     r.teamName ?? "—"
                   )}
                 </td>
-                <td className="px-4 py-3 text-center tabular-nums text-[var(--text-secondary)]">
+                <td className="px-4 py-3 text-center tabular-nums text-[var(--color-fg-mid)]">
                   {r.maps}
                 </td>
                 <td
                   className={`px-4 py-3 text-center tabular-nums font-semibold ${
                     r.avgRating >= 1.2
-                      ? "text-[var(--season-primary)]"
-                      : "text-[var(--text-primary)]"
+                      ? "text-[var(--color-accent)]"
+                      : "text-[var(--color-fg)]"
                   }`}
                 >
                   {r.avgRating.toFixed(2)}
                 </td>
-                <td className="px-4 py-3 text-center tabular-nums text-[var(--text-primary)]">
+                <td className="px-4 py-3 text-center tabular-nums text-[var(--color-fg)]">
                   {r.avgAdr.toFixed(1)}
                 </td>
-                <td className="px-4 py-3 text-center tabular-nums text-[var(--text-primary)]">
+                <td className="px-4 py-3 text-center tabular-nums text-[var(--color-fg)]">
                   {r.avgDeaths > 0
                     ? (r.avgKills / r.avgDeaths).toFixed(2)
                     : "—"}

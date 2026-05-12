@@ -12,7 +12,7 @@ const STATUS_STYLES: Record<string, string> = {
   scheduled: "bg-blue-500/10 text-blue-400 border-blue-500/20",
   in_progress: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
   finished: "bg-green-500/10 text-green-400 border-green-500/20",
-  cancelled: "bg-[var(--text-muted)]/10 text-[var(--text-muted)] border-[var(--border)]",
+  cancelled: "bg-[var(--color-fg-dim)]/10 text-[var(--color-fg-dim)] border-[var(--color-border)]",
 };
 
 const FORMAT_LABELS: Record<string, string> = {
@@ -66,33 +66,33 @@ export function MatchDetail({ match }: { match: MatchDetailData }) {
       <div>
         <Link
           href={`/${match.seasonSlug}/matches`}
-          className="text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+          className="text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] transition-colors"
         >
           ← 赛程总览
         </Link>
       </div>
 
       {/* 比赛头部 */}
-      <Card className="bg-[var(--bg-elevated)] border-[var(--border)] p-6">
+      <Card className="bg-[var(--color-panel)] border-[var(--color-border)] p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2 flex-wrap">
             <Badge className={`text-xs ${STATUS_STYLES[match.status] ?? ""}`}>
               {MATCH_STATUS_LABELS[match.status as MatchStatus] ?? match.status}
             </Badge>
-            <Badge variant="outline" className="text-xs border-[var(--border)] text-[var(--text-secondary)]">
+            <Badge variant="outline" className="text-xs border-[var(--color-border)] text-[var(--color-fg-mid)]">
               {FORMAT_LABELS[match.format] ?? match.format}
             </Badge>
-            <Badge variant="outline" className="text-xs border-[var(--border)] text-[var(--text-secondary)]">
+            <Badge variant="outline" className="text-xs border-[var(--color-border)] text-[var(--color-fg-mid)]">
               {STAGE_LABELS[match.stage] ?? match.stage}
             </Badge>
           </div>
           {match.scheduledAt && !isFinished && (
-            <p className="text-sm text-[var(--text-muted)]">
+            <p className="text-sm text-[var(--color-fg-dim)]">
               {formatCST(match.scheduledAt)}
             </p>
           )}
           {match.completedAt && isFinished && (
-            <p className="text-sm text-[var(--text-muted)]">
+            <p className="text-sm text-[var(--color-fg-dim)]">
               {formatCST(match.completedAt)}
             </p>
           )}
@@ -100,34 +100,34 @@ export function MatchDetail({ match }: { match: MatchDetailData }) {
 
         <div className="flex items-center justify-center gap-6">
           <Link href={`/${match.seasonSlug}/teams/${match.teamAId}`} className="text-right flex-1 hover:opacity-80 transition-opacity">
-            <p className="text-xl font-bold text-[var(--text-primary)] truncate">{match.teamAName}</p>
+            <p className="text-xl font-bold text-[var(--color-fg)] truncate">{match.teamAName}</p>
           </Link>
 
           <div className="text-center shrink-0 px-4">
             {hasScore ? (
-              <p className="text-4xl font-bold text-[var(--text-primary)] tabular-nums">
-                {match.scoreA} <span className="text-[var(--text-muted)]">:</span> {match.scoreB}
+              <p className="text-4xl font-bold text-[var(--color-fg)] tabular-nums">
+                {match.scoreA} <span className="text-[var(--color-fg-dim)]">:</span> {match.scoreB}
               </p>
             ) : (
-              <p className="text-2xl font-bold text-[var(--text-muted)]">VS</p>
+              <p className="text-2xl font-bold text-[var(--color-fg-dim)]">VS</p>
             )}
           </div>
 
           <Link href={`/${match.seasonSlug}/teams/${match.teamBId}`} className="text-left flex-1 hover:opacity-80 transition-opacity">
-            <p className="text-xl font-bold text-[var(--text-primary)] truncate">{match.teamBName}</p>
+            <p className="text-xl font-bold text-[var(--color-fg)] truncate">{match.teamBName}</p>
           </Link>
         </div>
       </Card>
 
       {/* 地图结果 */}
       {match.maps.length > 0 && (
-        <Card className="bg-[var(--bg-elevated)] border-[var(--border)] overflow-hidden">
-          <div className="p-4 border-b border-[var(--border)]">
-            <h2 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wide">
+        <Card className="bg-[var(--color-panel)] border-[var(--color-border)] overflow-hidden">
+          <div className="p-4 border-b border-[var(--color-border)]">
+            <h2 className="text-sm font-semibold text-[var(--color-fg-mid)] uppercase tracking-wide">
               地图结果
             </h2>
           </div>
-          <div className="divide-y divide-[var(--border)]">
+          <div className="divide-y divide-[var(--color-border)]">
             {match.maps.map((m) => (
               <MapRow key={m.mapOrder} map={m} teamAName={match.teamAName} teamBName={match.teamBName} />
             ))}
@@ -151,23 +151,23 @@ function MapRow({
 
   return (
     <div className="flex items-center gap-4 px-4 py-3">
-      <div className="w-6 shrink-0 text-center text-xs text-[var(--text-muted)] font-mono">
+      <div className="w-6 shrink-0 text-center text-xs text-[var(--color-fg-dim)] font-mono">
         G{map.mapOrder}
       </div>
 
       <div className="flex-1 min-w-0">
-        <p className="font-medium text-sm text-[var(--text-primary)]">{map.mapName}</p>
+        <p className="font-medium text-sm text-[var(--color-fg)]">{map.mapName}</p>
         <div className="flex items-center gap-2 mt-0.5">
           {map.pickedByTeamName && (
-            <span className="text-xs text-[var(--text-muted)]">
+            <span className="text-xs text-[var(--color-fg-dim)]">
               {map.pickedByTeamName} pick
             </span>
           )}
           {!map.pickedByTeamName && (
-            <span className="text-xs text-[var(--text-muted)]">决胜图</span>
+            <span className="text-xs text-[var(--color-fg-dim)]">决胜图</span>
           )}
           {map.teamAStartSide && (
-            <span className="text-xs text-[var(--text-muted)]">
+            <span className="text-xs text-[var(--color-fg-dim)]">
               · {teamAName} 起始 {SIDE_LABELS[map.teamAStartSide]}
             </span>
           )}
@@ -176,11 +176,11 @@ function MapRow({
 
       {hasScore && (
         <div className="shrink-0 text-right">
-          <p className="font-bold tabular-nums text-[var(--text-primary)]">
+          <p className="font-bold tabular-nums text-[var(--color-fg)]">
             {map.scoreA} : {map.scoreB}
           </p>
           {map.scoreA !== null && map.scoreB !== null && (
-            <p className="text-xs text-[var(--text-muted)]">
+            <p className="text-xs text-[var(--color-fg-dim)]">
               {map.scoreA > map.scoreB ? teamAName : teamBName} 胜
             </p>
           )}

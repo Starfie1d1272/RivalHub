@@ -19,8 +19,8 @@ export default async function InvitePage({ searchParams }: Props) {
     <main className="min-h-screen flex items-center justify-center p-4">
       <div className="w-full max-w-sm space-y-6">
         <div className="space-y-1">
-          <h1 className="text-2xl font-bold text-[var(--text-primary)]">使用邀请码</h1>
-          <p className="text-sm text-[var(--text-secondary)]">
+          <h1 className="text-2xl font-bold text-[var(--color-fg)]">使用邀请码</h1>
+          <p className="text-sm text-[var(--color-fg-mid)]">
             输入邀请码以获取管理员权限
           </p>
         </div>

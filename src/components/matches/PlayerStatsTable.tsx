@@ -70,7 +70,7 @@ export async function PlayerStatsTable({ matchId, mapId }: PlayerStatsTableProps
 
   if (teamA.length === 0 && teamB.length === 0) {
     return (
-      <p className="text-xs text-[var(--text-muted)] py-2">
+      <p className="text-xs text-[var(--color-fg-dim)] py-2">
         暂无玩家数据
       </p>
     );
@@ -96,8 +96,8 @@ function StatTeamBlock({
   cols: string[];
 }) {
   return (
-    <div className="rounded-md bg-[var(--bg-overlay)] p-3">
-      <p className="text-[11px] text-[var(--text-secondary)] mb-2 font-medium">
+    <div className="rounded-md bg-[var(--color-panel-hi)] p-3">
+      <p className="text-[11px] text-[var(--color-fg-mid)] mb-2 font-medium">
         {label}
       </p>
       <div
@@ -105,7 +105,7 @@ function StatTeamBlock({
         style={{ gridTemplateColumns: `1.5fr repeat(${cols.length - 1}, 1fr)` }}
       >
         {cols.map((c) => (
-          <span key={c} className="text-[var(--text-muted)] text-[10px]">
+          <span key={c} className="text-[var(--color-fg-dim)] text-[10px]">
             {c}
           </span>
         ))}
@@ -120,19 +120,19 @@ function StatTeamBlock({
 function PlayerStatRow({ stat }: { stat: StatRow }) {
   return (
     <>
-      <span className="text-[var(--text-primary)] truncate">
+      <span className="text-[var(--color-fg)] truncate">
         {stat.perfectName}
       </span>
-      <span className="tabular-nums text-[var(--text-primary)]">
+      <span className="tabular-nums text-[var(--color-fg)]">
         {stat.kills ?? "—"}
       </span>
-      <span className="tabular-nums text-[var(--text-primary)]">
+      <span className="tabular-nums text-[var(--color-fg)]">
         {stat.deaths ?? "—"}
       </span>
-      <span className="tabular-nums text-[var(--text-primary)]">
+      <span className="tabular-nums text-[var(--color-fg)]">
         {stat.assists ?? "—"}
       </span>
-      <span className="tabular-nums text-[var(--text-secondary)]">
+      <span className="tabular-nums text-[var(--color-fg-mid)]">
         {stat.adr != null ? stat.adr.toFixed(1) : "—"}
       </span>
       <span
@@ -140,8 +140,8 @@ function PlayerStatRow({ stat }: { stat: StatRow }) {
         style={{
           color:
             stat.ratingPro != null && stat.ratingPro >= 1.2
-              ? "var(--season-primary)"
-              : "var(--text-primary)",
+              ? "var(--color-accent)"
+              : "var(--color-fg)",
         }}
       >
         {stat.ratingPro != null ? stat.ratingPro.toFixed(2) : "—"}

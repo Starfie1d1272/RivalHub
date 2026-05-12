@@ -25,6 +25,23 @@ interface BracketViewProps {
   seasonSlug?: string;
 }
 
+function bracketThemeStyle(themeColor?: string | null): React.CSSProperties {
+  return {
+    "--primary-background": "var(--color-bg)",
+    "--secondary-background": "var(--color-panel)",
+    "--match-background": "var(--color-panel-hi)",
+    "--font-color": "var(--color-fg)",
+    "--label-color": "var(--color-fg-mid)",
+    "--hint-color": "var(--color-fg-muted)",
+    "--connector-color": "var(--color-border-hi)",
+    "--border-color": "var(--color-border)",
+    "--border-hover-color": "var(--color-accent)",
+    "--border-selected-color": themeColor ?? "var(--color-accent)",
+    "--win-color": "var(--color-success)",
+    "--loss-color": "var(--color-danger)",
+  } as React.CSSProperties;
+}
+
 export function BracketView({ data, themeColor, matchNodeMap, seasonSlug }: BracketViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scriptReady, setScriptReady] = useState(false);
@@ -64,7 +81,7 @@ export function BracketView({ data, themeColor, matchNodeMap, seasonSlug }: Brac
 
   if (data.stage.length === 0) {
     return (
-      <div className="flex items-center justify-center py-16 text-[var(--text-secondary)]">
+      <div className="flex items-center justify-center py-16 text-[var(--color-fg-mid)]">
         赛程尚未生成
       </div>
     );
@@ -79,10 +96,14 @@ export function BracketView({ data, themeColor, matchNodeMap, seasonSlug }: Brac
         onReady={() => setScriptReady(true)}
       />
       <div
-        style={themeColor ? ({ "--primary-color": themeColor } as React.CSSProperties) : undefined}
         className="overflow-x-auto"
       >
-        <div id="bracket-container" className="brackets-viewer" ref={containerRef} />
+        <div
+          id="bracket-container"
+          className="brackets-viewer"
+          ref={containerRef}
+          style={bracketThemeStyle(themeColor)}
+        />
       </div>
     </>
   );

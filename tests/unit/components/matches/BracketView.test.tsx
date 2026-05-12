@@ -90,4 +90,19 @@ describe("BracketView", () => {
 
     expect(push).toHaveBeenCalledWith("/spring-2026/matches/match-uuid");
   });
+
+  it("overrides brackets-viewer theme variables for Tactical Grid", async () => {
+    const { BracketView } = await import("@/components/matches/BracketView");
+
+    render(<BracketView data={bracketData} themeColor="#ff6b1a" />);
+
+    const container = document.querySelector("#bracket-container") as HTMLElement;
+
+    expect(container.style.getPropertyValue("--primary-background")).toBe("var(--color-bg)");
+    expect(container.style.getPropertyValue("--secondary-background")).toBe("var(--color-panel)");
+    expect(container.style.getPropertyValue("--match-background")).toBe("var(--color-panel-hi)");
+    expect(container.style.getPropertyValue("--font-color")).toBe("var(--color-fg)");
+    expect(container.style.getPropertyValue("--connector-color")).toBe("var(--color-border-hi)");
+    expect(container.style.getPropertyValue("--border-selected-color")).toBe("#ff6b1a");
+  });
 });

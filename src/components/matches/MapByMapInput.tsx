@@ -90,9 +90,9 @@ export function MapByMapInput({
     <div className="space-y-3">
       {/* 系列赛进度 */}
       <div className="flex items-center gap-3">
-        <span className="text-xs text-[var(--text-secondary)]">{format.toUpperCase()} 进度</span>
+        <span className="text-xs text-[var(--color-fg-mid)]">{format.toUpperCase()} 进度</span>
         <span className="font-mono font-bold text-[var(--primary)]">{mapWinsA} : {mapWinsB}</span>
-        <span className="text-xs text-[var(--text-secondary)]">（先赢 {maxWins} 图胜）</span>
+        <span className="text-xs text-[var(--color-fg-mid)]">（先赢 {maxWins} 图胜）</span>
       </div>
 
       {/* 已完成的图 */}
@@ -102,12 +102,12 @@ export function MapByMapInput({
             const pickedByName = m.pickedByTeamId === teamAId ? teamAName
               : m.pickedByTeamId === teamBId ? teamBName : null;
             return (
-              <div key={m.mapOrder} className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+              <div key={m.mapOrder} className="flex items-center gap-2 text-xs text-[var(--color-fg-mid)]">
                 <span className="w-4">#{m.mapOrder}</span>
-                <span className="font-medium text-[var(--text-primary)]">{m.mapName}</span>
+                <span className="font-medium text-[var(--color-fg)]">{m.mapName}</span>
                 {pickedByName
                   ? <Badge variant="outline" className="text-xs">{pickedByName} pick</Badge>
-                  : <Badge variant="outline" className="text-xs text-[var(--text-muted)]">决胜图</Badge>}
+                  : <Badge variant="outline" className="text-xs text-[var(--color-fg-dim)]">决胜图</Badge>}
                 {m.teamAStartSide && (
                   <span>{teamAName} {SIDE_LABELS[m.teamAStartSide]}先</span>
                 )}
@@ -121,12 +121,12 @@ export function MapByMapInput({
 
       {/* 录入下一图 */}
       {!seriesFinished && nextMapOrder <= maxMaps && (
-        <form onSubmit={handleSubmit} className="space-y-3 pt-1 border-t border-[var(--border)]">
-          <p className="text-xs font-medium text-[var(--text-secondary)] pt-2">录入第 {nextMapOrder} 图</p>
+        <form onSubmit={handleSubmit} className="space-y-3 pt-1 border-t border-[var(--color-border)]">
+          <p className="text-xs font-medium text-[var(--color-fg-mid)] pt-2">录入第 {nextMapOrder} 图</p>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div className="space-y-1">
-              <Label className="text-xs text-[var(--text-secondary)]">地图</Label>
+              <Label className="text-xs text-[var(--color-fg-mid)]">地图</Label>
               <Select value={mapName} onValueChange={setMapName}>
                 <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="选择" /></SelectTrigger>
                 <SelectContent>
@@ -138,7 +138,7 @@ export function MapByMapInput({
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs text-[var(--text-secondary)]">Pick 方</Label>
+              <Label className="text-xs text-[var(--color-fg-mid)]">Pick 方</Label>
               <Select value={pickedBy} onValueChange={setPickedBy}>
                 <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -150,7 +150,7 @@ export function MapByMapInput({
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs text-[var(--text-secondary)]">{teamAName} 起始边</Label>
+              <Label className="text-xs text-[var(--color-fg-mid)]">{teamAName} 起始边</Label>
               <Select value={teamAStartSide} onValueChange={setTeamAStartSide}>
                 <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -162,11 +162,11 @@ export function MapByMapInput({
             </div>
 
             <div className="space-y-1 col-span-2 sm:col-span-1">
-              <Label className="text-xs text-[var(--text-secondary)]">回合数</Label>
+              <Label className="text-xs text-[var(--color-fg-mid)]">回合数</Label>
               <div className="flex items-center gap-1">
                 <Input type="number" min="0" value={scoreA} onChange={(e) => setScoreA(e.target.value)}
                   className="w-14 text-center h-8 text-xs" placeholder="0" />
-                <span className="text-[var(--text-secondary)] text-xs">:</span>
+                <span className="text-[var(--color-fg-mid)] text-xs">:</span>
                 <Input type="number" min="0" value={scoreB} onChange={(e) => setScoreB(e.target.value)}
                   className="w-14 text-center h-8 text-xs" placeholder="0" />
               </div>

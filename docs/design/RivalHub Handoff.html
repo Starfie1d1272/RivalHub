@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<title>RivalHub · Design Handoff</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0a0c10;
+    --panel: #10131a;
+    --panel-hi: #161a24;
+    --panel-low: #0d1016;
+    --border: #1f2530;
+    --border-hi: #2c3340;
+    --text: #e7ecf3;
+    --text-mid: #8e96a3;
+    --text-dim: #525a6a;
+    --accent: #ff6b1a;
+    --danger: #ff5470;
+    --ok: #4dd47a;
+    --warn: #ffc44d;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); }
+  body {
+    font-family: 'Geist', 'Noto Sans SC', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.55;
+    background-image: linear-gradient(rgba(31,37,48,0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(31,37,48,0.4) 1px, transparent 1px);
+    background-size: 32px 32px;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 60px 36px 120px; }
+  .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+
+  header.hero { border-bottom: 1px solid var(--border); padding-bottom: 32px; margin-bottom: 48px; }
+  .eyebrow { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent); letter-spacing: 0.18em; }
+  h1 { font-size: 56px; font-weight: 600; letter-spacing: -0.02em; margin: 6px 0 4px; line-height: 1; }
+  .sub { color: var(--text-mid); font-size: 14px; max-width: 720px; line-height: 1.7; }
+
+  h2 { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin: 56px 0 4px; display: flex; align-items: baseline; gap: 14px; }
+  h2 .num { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent); letter-spacing: 0.14em; font-weight: 700; }
+  h2 .line { flex: 1; height: 1px; background: var(--border); }
+  h2 + .sub { margin: 4px 0 22px; font-size: 13px; }
+
+  h3 { font-size: 14px; font-weight: 600; letter-spacing: 0.04em; margin: 28px 0 12px; color: var(--text); }
+
+  .grid-cols { display: grid; gap: 12px; }
+  .grid-4 { grid-template-columns: repeat(4, 1fr); }
+  .grid-3 { grid-template-columns: repeat(3, 1fr); }
+  .grid-2 { grid-template-columns: 1fr 1fr; }
+
+  /* Color swatch */
+  .swatch {
+    background: var(--panel); border: 1px solid var(--border); padding: 14px;
+    display: grid; grid-template-columns: 56px 1fr; gap: 14px; align-items: center;
+  }
+  .swatch .chip { width: 56px; height: 56px; border: 1px solid var(--border); }
+  .swatch .meta { min-width: 0; }
+  .swatch .name { font-size: 13px; font-weight: 600; color: var(--text); }
+  .swatch .hex { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-mid); letter-spacing: 0.04em; }
+  .swatch .role { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-dim); letter-spacing: 0.1em; margin-top: 2px; }
+
+  /* Token row */
+  table.tokens { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--border); }
+  table.tokens th, table.tokens td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+  table.tokens th { font-size: 10px; color: var(--text-dim); letter-spacing: 0.14em; font-weight: 700; background: var(--panel-low); }
+  table.tokens td.val { color: var(--accent); }
+  table.tokens td.desc { color: var(--text-mid); font-family: 'Geist', sans-serif; }
+  table.tokens tr:last-child td { border-bottom: none; }
+
+  /* Type sample */
+  .type-row { display: grid; grid-template-columns: 120px 1fr; gap: 24px; padding: 18px 0; border-bottom: 1px solid var(--border); align-items: baseline; }
+  .type-row:last-child { border-bottom: none; }
+  .type-meta { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-mid); letter-spacing: 0.06em; line-height: 1.6; }
+  .type-meta .lab { color: var(--text-dim); font-size: 10px; letter-spacing: 0.14em; display: block; }
+
+  pre { background: var(--panel-low); border: 1px solid var(--border); border-left: 3px solid var(--accent); padding: 16px 20px; overflow-x: auto; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.7; color: var(--text); margin: 12px 0; }
+  pre .k { color: var(--accent); }
+  pre .s { color: #9bd0a0; }
+  pre .c { color: var(--text-dim); font-style: italic; }
+  pre .p { color: var(--text-mid); }
+
+  /* Component spec */
+  .spec {
+    display: grid; grid-template-columns: 200px 1fr 1fr 1fr; gap: 0;
+    background: var(--panel); border: 1px solid var(--border);
+  }
+  .spec > div { padding: 12px 14px; border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); font-size: 12px; }
+  .spec > div:nth-child(4n) { border-right: none; }
+  .spec > div:nth-last-child(-n+4) { border-bottom: none; }
+  .spec .head { background: var(--panel-low); font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-dim); letter-spacing: 0.12em; font-weight: 700; }
+  .spec .name { font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--text); font-size: 12px; }
+  .spec .shadcn { font-family: 'JetBrains Mono', monospace; color: var(--accent); font-size: 11px; }
+  .spec .file { font-family: 'JetBrains Mono', monospace; color: var(--text-mid); font-size: 11px; }
+  .spec .notes { color: var(--text-mid); font-size: 12px; line-height: 1.5; }
+
+  /* Pill */
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 8px; font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    font-weight: 700; letter-spacing: 0.1em; border: 1px solid currentColor;
+    background: rgba(255,255,255,0.04);
+  }
+  .pill.ok { color: var(--ok); }
+  .pill.warn { color: var(--warn); }
+  .pill.acc { color: var(--accent); }
+
+  /* Spacing scale */
+  .space-row { display: grid; grid-template-columns: 80px 60px 60px 1fr; gap: 14px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .space-bar { height: 14px; background: var(--accent); }
+  .space-row .lab { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text); font-weight: 700; }
+  .space-row .px { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-mid); }
+  .space-row .use { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-dim); }
+
+  /* Radius scale */
+  .radii { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .radii .r { background: var(--panel); border: 1px solid var(--border); padding: 18px; text-align: center; }
+  .radii .r .demo { height: 56px; background: var(--accent); margin-bottom: 10px; }
+  .radii .r .name { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text); letter-spacing: 0.08em; }
+  .radii .r .val { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-mid); margin-top: 2px; }
+
+  /* Bullets */
+  ul.bullets { padding: 0; margin: 14px 0; list-style: none; }
+  ul.bullets li { padding: 8px 0 8px 18px; position: relative; font-size: 13px; color: var(--text); line-height: 1.6; border-bottom: 1px dashed var(--border); }
+  ul.bullets li:last-child { border-bottom: none; }
+  ul.bullets li::before { content: "▸"; position: absolute; left: 0; color: var(--accent); }
+  ul.bullets li code { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--accent); background: var(--accent); background: rgba(255,107,26,0.1); padding: 1px 5px; border: 1px solid rgba(255,107,26,0.25); }
+
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .navback {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 12px; border: 1px solid var(--border);
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-mid);
+    letter-spacing: 0.12em; margin-bottom: 24px;
+  }
+  .navback:hover { color: var(--accent); border-color: var(--accent); text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <a href="RivalHub Redesign.html" class="navback">← BACK TO PROTOTYPE</a>
+
+  <header class="hero">
+    <div class="eyebrow">[ HANDOFF · A · TACTICAL GRID · 2026 SPRING ]</div>
+    <h1>RivalHub<br/>Design System</h1>
+    <p class="sub">面向工程交付的设计令牌、组件映射与迁移指南。所有令牌来自原型 <span class="mono" style="color:var(--accent)">RivalHub Redesign.html</span> · 与 <span class="mono" style="color:var(--accent)">variants.jsx</span> 中 <span class="mono">variantA_TacticalGrid</span> 一致 · 可直接拷贝到 Tailwind / CSS 变量系统中,与现有 shadcn/ui 组件并存。</p>
+  </header>
+
+  <!-- 01 COLORS -->
+  <h2><span class="num">[ 01 ]</span> Colors <span class="line"></span></h2>
+  <p class="sub">单色 + 一个霓虹强调色。所有面板色都靠近黑色 · 边框是色彩系统中真正"画线"的工具 · 不要用纯白文字 (#fff)。</p>
+
+  <h3>背景与表面</h3>
+  <div class="grid-cols grid-4">
+    <div class="swatch"><div class="chip" style="background:#0a0c10"></div><div class="meta"><div class="name">--bg</div><div class="hex">#0a0c10</div><div class="role">PAGE BACKGROUND</div></div></div>
+    <div class="swatch"><div class="chip" style="background:#0d1016"></div><div class="meta"><div class="name">--panel-low</div><div class="hex">#0d1016</div><div class="role">INPUT · ROW HOVER LOW</div></div></div>
+    <div class="swatch"><div class="chip" style="background:#10131a"></div><div class="meta"><div class="name">--panel</div><div class="hex">#10131a</div><div class="role">CARD · DEFAULT</div></div></div>
+    <div class="swatch"><div class="chip" style="background:#161a24"></div><div class="meta"><div class="name">--panel-hi</div><div class="hex">#161a24</div><div class="role">CARD ELEVATED · HEADER</div></div></div>
+  </div>
+
+  <h3>边框与文字</h3>
+  <div class="grid-cols grid-4">
+    <div class="swatch"><div class="chip" style="background:#1f2530"></div><div class="meta"><div class="name">--border</div><div class="hex">#1f2530</div><div class="role">DIVIDER · HAIRLINE</div></div></div>
+    <div class="swatch"><div class="chip" style="background:#2c3340"></div><div class="meta"><div class="name">--border-hi</div><div class="hex">#2c3340</div><div class="role">FOCUS · HOVER BORDER</div></div></div>
+    <div class="swatch"><div class="chip" style="background:#525a6a"></div><div class="meta"><div class="name">--text-dim</div><div class="hex">#525a6a</div><div class="role">LABELS · METADATA</div></div></div>
+    <div class="swatch"><div class="chip" style="background:#8e96a3"></div><div class="meta"><div class="name">--text-mid</div><div class="hex">#8e96a3</div><div class="role">SECONDARY TEXT</div></div></div>
+    <div class="swatch"><div class="chip" style="background:#e7ecf3"></div><div class="meta"><div class="name">--text</div><div class="hex">#e7ecf3</div><div class="role">PRIMARY TEXT (NOT #fff)</div></div></div>
+  </div>
+
+  <h3>强调色 · Status</h3>
+  <div class="grid-cols grid-4">
+    <div class="swatch"><div class="chip" style="background:#ff6b1a"></div><div class="meta"><div class="name">--accent</div><div class="hex">#ff6b1a</div><div class="role">PRIMARY · CTA · LIVE TICK</div></div></div>
+    <div class="swatch"><div class="chip" style="background:#ff5470"></div><div class="meta"><div class="name">--danger</div><div class="hex">#ff5470</div><div class="role">ERROR · LOSS · LIVE DOT</div></div></div>
+    <div class="swatch"><div class="chip" style="background:#4dd47a"></div><div class="meta"><div class="name">--ok</div><div class="hex">#4dd47a</div><div class="role">SUCCESS · WIN · ONLINE</div></div></div>
+    <div class="swatch"><div class="chip" style="background:#ffc44d"></div><div class="meta"><div class="name">--warn</div><div class="hex">#ffc44d</div><div class="role">PENDING · DEADLINE NEAR</div></div></div>
+  </div>
+
+  <h3>使用规则</h3>
+  <ul class="bullets">
+    <li>背景层次只能从 <code>bg → panel-low → panel → panel-hi</code> 单向递进。同一组件内最多用两层 · 不要堆三层卡片。</li>
+    <li>边框 <code>border</code> 用于结构分割 · <code>border-hi</code> 仅在 hover/focus 出现 · 不要把边框当背景色用。</li>
+    <li>主色 <code>accent</code> 一屏只用一次 (一个主 CTA + 一组数据高亮)。其余用 <code>text</code> · <code>text-mid</code> 表达层级。</li>
+    <li>状态色不互相替代:胜场用 <code>ok</code> · LIVE 用 <code>danger</code> · 等待中用 <code>warn</code>。</li>
+    <li>所有颜色加透明度时用 8-bit hex 后缀 (<code>+ "1f"</code> ≈ 12% · <code>+ "55"</code> ≈ 33%)。</li>
+  </ul>
+
+  <!-- 02 TYPOGRAPHY -->
+  <h2><span class="num">[ 02 ]</span> Typography <span class="line"></span></h2>
+  <p class="sub">三个字体家族 · 严格分工。<span class="mono" style="color:var(--accent)">Geist</span> 做正文与展示标题 · <span class="mono" style="color:var(--accent)">JetBrains Mono</span> 承担所有"机器味"标签与数字 · <span class="mono" style="color:var(--accent)">Noto Sans SC</span> 自动 fallback 给中文。</p>
+
+  <h3>Type Scale</h3>
+  <div>
+    <div class="type-row">
+      <div class="type-meta"><span class="lab">DISPLAY · XL</span>Geist 600 · 56/60<br/>letter-spacing -0.02em</div>
+      <div style="font-family:'Geist'; font-weight:600; font-size:56px; letter-spacing:-0.02em; line-height:1;">2026 Spring</div>
+    </div>
+    <div class="type-row">
+      <div class="type-meta"><span class="lab">DISPLAY · LG</span>Geist 600 · 32/38<br/>letter-spacing -0.015em</div>
+      <div style="font-family:'Geist'; font-weight:600; font-size:32px; letter-spacing:-0.015em;">激活管理员权限</div>
+    </div>
+    <div class="type-row">
+      <div class="type-meta"><span class="lab">DISPLAY · MD</span>Geist 600 · 22/26<br/>letter-spacing -0.01em</div>
+      <div style="font-family:'Geist'; font-weight:600; font-size:22px; letter-spacing:-0.01em;">VOID · ASCEND · MERIDIAN</div>
+    </div>
+    <div class="type-row">
+      <div class="type-meta"><span class="lab">BODY · BASE</span>Geist 400 · 14/22</div>
+      <div style="font-family:'Geist'; font-size:14px; line-height:1.55; color:var(--text-mid);">所有面板色都靠近黑色 · 边框是色彩系统中真正"画线"的工具 · 不要用纯白文字。</div>
+    </div>
+    <div class="type-row">
+      <div class="type-meta"><span class="lab">MONO · BASE</span>JetBrains Mono 500 · 12/18</div>
+      <div style="font-family:'JetBrains Mono'; font-weight:500; font-size:12px;">RATING 1.28 · ADR 92.1 · K-D 1.31</div>
+    </div>
+    <div class="type-row">
+      <div class="type-meta"><span class="lab">MONO · LABEL</span>JetBrains Mono 700 · 10/14<br/>letter-spacing 0.12em · UPPER</div>
+      <div style="font-family:'JetBrains Mono'; font-weight:700; font-size:10px; letter-spacing:0.12em; color:var(--text-mid);">[ DRAFT · ROUND 03 · ON CLOCK ]</div>
+    </div>
+    <div class="type-row">
+      <div class="type-meta"><span class="lab">MONO · TICKER</span>JetBrains Mono 500 · 11/14<br/>letter-spacing 0.08em</div>
+      <div style="font-family:'JetBrains Mono'; font-weight:500; font-size:11px; letter-spacing:0.08em; color:var(--text-dim);">● LIVE · DRAFT R3 P18 · MERIDIAN ON CLOCK 01:27</div>
+    </div>
+  </div>
+
+  <h3>规则</h3>
+  <ul class="bullets">
+    <li>所有"标签"必须 mono · 全大写 · letter-spacing 至少 0.10em。中文标签不全大写 · 但保留 mono + tracking。</li>
+    <li>所有数字 (rating · ADR · 比分 · 时间 · ID) 用 mono · 永远右对齐。tabular-nums 已是 JetBrains Mono 默认。</li>
+    <li>正文不用 mono。叙述性段落 / 按钮 / 表格主体内容用 Geist。</li>
+    <li>展示标题用 Geist 600 · letter-spacing 负值。永远不要给中文展示标题加 letter-spacing 正值。</li>
+  </ul>
+
+  <!-- 03 SPACING -->
+  <h2><span class="num">[ 03 ]</span> Spacing <span class="line"></span></h2>
+  <p class="sub">4 像素基线。所有 padding · margin · gap 都是 <code style="font-family:'JetBrains Mono'; color:var(--accent)">4 · 8 · 12 · 16 · 24 · 32 · 48 · 64</code> 之一。</p>
+  <div>
+    <div class="space-row"><div class="lab">space-1</div><div class="px">4 px</div><div><div class="space-bar" style="width:4px"></div></div><div class="use">CHIP INTERIOR · ICON GAP</div></div>
+    <div class="space-row"><div class="lab">space-2</div><div class="px">8 px</div><div><div class="space-bar" style="width:8px"></div></div><div class="use">BUTTON V-PADDING · INPUT-LABEL GAP</div></div>
+    <div class="space-row"><div class="lab">space-3</div><div class="px">12 px</div><div><div class="space-bar" style="width:12px"></div></div><div class="use">CARD INTERNAL GAP · TABLE CELL</div></div>
+    <div class="space-row"><div class="lab">space-4</div><div class="px">16 px</div><div><div class="space-bar" style="width:16px"></div></div><div class="use">CARD PADDING · DEFAULT GAP</div></div>
+    <div class="space-row"><div class="lab">space-6</div><div class="px">24 px</div><div><div class="space-bar" style="width:24px"></div></div><div class="use">SECTION INTERNAL · TWO-COL GAP</div></div>
+    <div class="space-row"><div class="lab">space-8</div><div class="px">32 px</div><div><div class="space-bar" style="width:32px"></div></div><div class="use">PAGE PADDING · SECTION SEPARATOR</div></div>
+    <div class="space-row"><div class="lab">space-12</div><div class="px">48 px</div><div><div class="space-bar" style="width:48px"></div></div><div class="use">HERO PADDING · SECTION HEADER</div></div>
+    <div class="space-row" style="border-bottom:none"><div class="lab">space-16</div><div class="px">64 px</div><div><div class="space-bar" style="width:64px"></div></div><div class="use">PAGE TOP · BETWEEN MAJOR BLOCKS</div></div>
+  </div>
+
+  <!-- 04 RADII / BORDERS -->
+  <h2><span class="num">[ 04 ]</span> Radii &amp; Borders <span class="line"></span></h2>
+  <p class="sub">几何接近"零圆角"。Tactical Grid 方向克制 · 不用大圆角。</p>
+  <div class="radii">
+    <div class="r"><div class="demo" style="border-radius:0"></div><div class="name">RSM</div><div class="val">0 px · chips, buttons, badges</div></div>
+    <div class="r"><div class="demo" style="border-radius:2px"></div><div class="name">RMD</div><div class="val">2 px · stat tiles, avatars</div></div>
+    <div class="r"><div class="demo" style="border-radius:3px"></div><div class="name">RLG</div><div class="val">3 px · cards, panels</div></div>
+    <div class="r"><div class="demo" style="border-radius:999px"></div><div class="name">RPILL</div><div class="val">999 px · progress bars only</div></div>
+  </div>
+  <ul class="bullets">
+    <li>所有边框都是 <code>1px solid var(--border)</code> · 永远不要超过 1px。</li>
+    <li>状态色边框用 <code>color + "55"</code> (≈33%) 透明度 · 配 <code>color + "10"</code> 填充。</li>
+    <li>左侧 3px 强调色边 (border-left) 是公司唯一"装饰性"边框 · 用于 StatusBanner / 关键卡片。</li>
+  </ul>
+
+  <!-- 05 TAILWIND CONFIG -->
+  <h2><span class="num">[ 05 ]</span> Tailwind Config Patch <span class="line"></span></h2>
+  <p class="sub">直接合并到现有 <code style="font-family:'JetBrains Mono'; color:var(--accent)">tailwind.config.ts</code> · 配合 shadcn 的 CSS 变量系统使用 (<a href="https://ui.shadcn.com/docs/theming">shadcn theming docs</a>)。</p>
+
+<pre><span class="c">// tailwind.config.ts</span>
+<span class="k">import</span> type <span class="p">{</span> Config <span class="p">}</span> <span class="k">from</span> <span class="s">"tailwindcss"</span>
+
+<span class="k">export default</span> <span class="p">{</span>
+  darkMode: <span class="p">[</span><span class="s">"class"</span><span class="p">]</span>,
+  theme: <span class="p">{</span>
+    extend: <span class="p">{</span>
+      colors: <span class="p">{</span>
+        <span class="c">// surfaces · single ramp, dark → light</span>
+        bg:         <span class="s">"#0a0c10"</span>,
+        panel:      <span class="p">{</span> DEFAULT: <span class="s">"#10131a"</span>, hi: <span class="s">"#161a24"</span>, low: <span class="s">"#0d1016"</span> <span class="p">}</span>,
+
+        <span class="c">// borders</span>
+        border:     <span class="p">{</span> DEFAULT: <span class="s">"#1f2530"</span>, hi: <span class="s">"#2c3340"</span> <span class="p">}</span>,
+
+        <span class="c">// text</span>
+        fg:         <span class="p">{</span> DEFAULT: <span class="s">"#e7ecf3"</span>, mid: <span class="s">"#8e96a3"</span>, dim: <span class="s">"#525a6a"</span> <span class="p">}</span>,
+
+        <span class="c">// accent + status</span>
+        accent:     <span class="p">{</span>
+          DEFAULT: <span class="s">"#ff6b1a"</span>,        <span class="c">// the only chromatic color</span>
+          fg:      <span class="s">"#0a0c10"</span>,        <span class="c">// text on accent bg</span>
+          soft:    <span class="s">"rgba(255,107,26,0.12)"</span>,
+          edge:    <span class="s">"rgba(255,107,26,0.34)"</span>,
+        <span class="p">}</span>,
+        ok:         <span class="s">"#4dd47a"</span>,
+        warn:       <span class="s">"#ffc44d"</span>,
+        danger:     <span class="s">"#ff5470"</span>,
+      <span class="p">}</span>,
+
+      fontFamily: <span class="p">{</span>
+        sans:    <span class="p">[</span><span class="s">"Geist"</span>, <span class="s">"Noto Sans SC"</span>, <span class="s">"system-ui"</span>, <span class="s">"sans-serif"</span><span class="p">]</span>,
+        display: <span class="p">[</span><span class="s">"Geist"</span>, <span class="s">"Noto Sans SC"</span>, <span class="s">"system-ui"</span>, <span class="s">"sans-serif"</span><span class="p">]</span>,
+        mono:    <span class="p">[</span><span class="s">"JetBrains Mono"</span>, <span class="s">"ui-monospace"</span>, <span class="s">"monospace"</span><span class="p">]</span>,
+      <span class="p">}</span>,
+
+      letterSpacing: <span class="p">{</span>
+        <span class="s">"tight-2"</span>:  <span class="s">"-0.02em"</span>,    <span class="c">// display xl</span>
+        <span class="s">"tight-1"</span>:  <span class="s">"-0.01em"</span>,
+        <span class="s">"label"</span>:    <span class="s">"0.12em"</span>,     <span class="c">// mono labels</span>
+        <span class="s">"ticker"</span>:   <span class="s">"0.08em"</span>,
+        <span class="s">"eyebrow"</span>:  <span class="s">"0.18em"</span>,     <span class="c">// section eyebrow</span>
+      <span class="p">}</span>,
+
+      borderRadius: <span class="p">{</span>
+        sm: <span class="s">"0px"</span>,   <span class="c">// chips · buttons · badges</span>
+        md: <span class="s">"2px"</span>,   <span class="c">// stat tiles · avatars</span>
+        lg: <span class="s">"3px"</span>,   <span class="c">// cards · panels</span>
+      <span class="p">}</span>,
+
+      backgroundImage: <span class="p">{</span>
+        <span class="s">"grid-hairline"</span>:
+          <span class="s">"linear-gradient(rgba(31,37,48,.4) 1px, transparent 1px), linear-gradient(90deg, rgba(31,37,48,.4) 1px, transparent 1px)"</span>,
+      <span class="p">}</span>,
+      backgroundSize: <span class="p">{</span> grid32: <span class="s">"32px 32px"</span> <span class="p">}</span>,
+    <span class="p">}</span>,
+  <span class="p">}</span>,
+  plugins: <span class="p">[]</span>,
+<span class="p">}</span> <span class="k">satisfies</span> Config</pre>
+
+  <h3>CSS 变量 (复制到 <span class="mono" style="color:var(--accent)">app/globals.css</span>)</h3>
+<pre><span class="c">/* shadcn-compatible CSS variables · drop into :root under @layer base */</span>
+:root <span class="p">{</span>
+  <span class="c">/* Tactical Grid · dark by default */</span>
+  --background: 220 16% 6%;       <span class="c">/* #0a0c10 */</span>
+  --foreground: 220 18% 93%;      <span class="c">/* #e7ecf3 */</span>
+  --card: 222 16% 9%;             <span class="c">/* #10131a */</span>
+  --card-foreground: 220 18% 93%;
+  --popover: 222 16% 9%;
+  --popover-foreground: 220 18% 93%;
+  --primary: 21 100% 55%;         <span class="c">/* #ff6b1a · accent */</span>
+  --primary-foreground: 220 16% 6%;
+  --secondary: 222 16% 12%;       <span class="c">/* #161a24 · panel-hi */</span>
+  --secondary-foreground: 220 18% 93%;
+  --muted: 222 16% 10%;
+  --muted-foreground: 220 10% 60%;<span class="c"> /* #8e96a3 */</span>
+  --accent: 21 100% 55%;
+  --accent-foreground: 220 16% 6%;
+  --destructive: 348 100% 66%;    <span class="c">/* #ff5470 */</span>
+  --destructive-foreground: 220 18% 93%;
+  --border: 220 22% 16%;          <span class="c">/* #1f2530 */</span>
+  --input: 220 22% 16%;
+  --ring: 21 100% 55%;
+  --radius: 3px;                  <span class="c">/* cards · the largest radius used */</span>
+<span class="p">}</span></pre>
+
+  <!-- 06 COMPONENT SPEC -->
+  <h2><span class="num">[ 06 ]</span> Component Mapping <span class="line"></span></h2>
+  <p class="sub">原型组件 → 现有 shadcn 组件迁移路径。绝大多数情况只需替换 className · 不重写结构。</p>
+
+  <div class="spec">
+    <div class="head">PROTOTYPE</div>
+    <div class="head">SHADCN BASE</div>
+    <div class="head">CHANGES</div>
+    <div class="head">SOURCE</div>
+
+    <div class="name">&lt;Btn primary&gt;</div>
+    <div class="shadcn">&lt;Button&gt;</div>
+    <div class="notes">添加 <code>uppercase:false</code> · <code>rounded-sm</code> · accent variant 设为 default</div>
+    <div class="file">components.jsx · Btn</div>
+
+    <div class="name">&lt;Btn ghost&gt;</div>
+    <div class="shadcn">&lt;Button variant="ghost"&gt;</div>
+    <div class="notes">直接复用 · text-fg-mid</div>
+    <div class="file">components.jsx · Btn</div>
+
+    <div class="name">&lt;Btn danger&gt;</div>
+    <div class="shadcn">&lt;Button variant="destructive"&gt;</div>
+    <div class="notes">danger 在原型里是 ghost-like · 改 outline 风格而非实底</div>
+    <div class="file">components.jsx · Btn</div>
+
+    <div class="name">&lt;Panel label&gt;</div>
+    <div class="shadcn">&lt;Card&gt; + &lt;CardHeader&gt;</div>
+    <div class="notes">header 改为 mono · uppercase · text-fg-dim · text-xs · tracking-label</div>
+    <div class="file">components.jsx · Panel</div>
+
+    <div class="name">&lt;StatusBanner&gt;</div>
+    <div class="shadcn">&lt;Alert&gt;</div>
+    <div class="notes">加 <code>border-l-[3px] border-l-{tone}</code> · 五种 tone 各自变体</div>
+    <div class="file">states.jsx · StatusBanner</div>
+
+    <div class="name">&lt;InlineConfirm&gt;</div>
+    <div class="shadcn">&lt;Alert&gt; + &lt;AlertDialog&gt;?</div>
+    <div class="notes">不要用 Dialog · 必须 inline · 用 Alert + 两个 Button</div>
+    <div class="file">states.jsx · InlineConfirm</div>
+
+    <div class="name">&lt;Skeleton&gt;</div>
+    <div class="shadcn">&lt;Skeleton&gt;</div>
+    <div class="notes">替换默认 pulse 动画为 linear sweep · 见下方 keyframe</div>
+    <div class="file">states.jsx · Skeleton</div>
+
+    <div class="name">&lt;EmptyState&gt;</div>
+    <div class="shadcn">—</div>
+    <div class="notes">新组件 · 但全部用现有 Card + Button 拼装 · 不需要新 primitive</div>
+    <div class="file">states.jsx · EmptyState</div>
+
+    <div class="name">&lt;Stat&gt; / &lt;MiniStat&gt;</div>
+    <div class="shadcn">—</div>
+    <div class="notes">新组件 · 但只是 <code>&lt;div&gt;</code> + tailwind · 不需要新 primitive</div>
+    <div class="file">components.jsx · Stat</div>
+
+    <div class="name">&lt;TeamBadge&gt; / &lt;Avatar&gt;</div>
+    <div class="shadcn">&lt;Avatar&gt;</div>
+    <div class="notes">用 fallback 模式 · 配色用 team.color · 改 rounded-sm</div>
+    <div class="file">components.jsx</div>
+
+    <div class="name">&lt;PosChip&gt; / &lt;StatusPill&gt;</div>
+    <div class="shadcn">&lt;Badge&gt;</div>
+    <div class="notes">font-mono · uppercase · 5 种状态对应 5 种 variant</div>
+    <div class="file">components.jsx</div>
+
+    <div class="name">&lt;Field&gt;</div>
+    <div class="shadcn">&lt;Label&gt; + &lt;Input&gt;</div>
+    <div class="notes">Label 用 mono + tracking · 直接组合现有组件</div>
+    <div class="file">components.jsx · Field</div>
+
+    <div class="name">&lt;PlayerRadar&gt;</div>
+    <div class="shadcn">+ recharts</div>
+    <div class="notes">用 <code>recharts.RadarChart</code> · 主题色映射 fill/stroke 到 --accent</div>
+    <div class="file">screens-7.jsx</div>
+
+    <div class="name">Rating Timeline 折线图</div>
+    <div class="shadcn">+ recharts</div>
+    <div class="notes"><code>AreaChart</code> · stroke=#ff6b1a · fill 用 accent-soft</div>
+    <div class="file">screens-7.jsx</div>
+
+    <div class="name">Bracket</div>
+    <div class="shadcn">—</div>
+    <div class="notes">手写 grid · 推荐做成 <code>&lt;Bracket rounds={...} /&gt;</code> 单组件</div>
+    <div class="file">screens-3.jsx</div>
+  </div>
+
+  <h3>Skeleton 动画</h3>
+<pre><span class="c">/* globals.css · 替换 shadcn 默认 Skeleton 的 animate-pulse */</span>
+@keyframes skeleton-sweep <span class="p">{</span>
+  <span class="k">0%</span>   <span class="p">{</span> background-position: 200% 0; <span class="p">}</span>
+  <span class="k">100%</span> <span class="p">{</span> background-position: -200% 0; <span class="p">}</span>
+<span class="p">}</span>
+.skeleton <span class="p">{</span>
+  background: linear-gradient(90deg, hsl(var(--card)) 0%, hsl(var(--border)) 40%, hsl(var(--card)) 80%);
+  background-size: 200% 100%;
+  animation: skeleton-sweep 1.4s ease-in-out infinite;
+<span class="p">}</span></pre>
+
+  <!-- 07 PATTERNS -->
+  <h2><span class="num">[ 07 ]</span> Composition Patterns <span class="line"></span></h2>
+  <ul class="bullets">
+    <li><strong>Eyebrow + Title + Sub</strong> · 所有页面顶部三件套。eyebrow 用 mono 大写 + tracking-eyebrow · title 用 display · sub 用 fg-mid。</li>
+    <li><strong>Mono labels everywhere</strong> · 任何 "label" (列标题 · KV pair key · section 编号) 一律 mono 10px 大写 tracking-label。</li>
+    <li><strong>Right-align numbers</strong> · 表格中所有数字列 <code>text-right</code> + <code>font-mono</code> + <code>tabular-nums</code>。</li>
+    <li><strong>One accent per fold</strong> · 一屏首屏只允许一个 accent CTA + 一个 accent 数据高亮 (例:trending up · #1 rank)。</li>
+    <li><strong>Bracket as a Card</strong> · bracket / leaderboard 行点击都跳详情页 · 不开 modal。</li>
+    <li><strong>Inline confirm &gt; Modal</strong> · 危险操作首选 InlineConfirm · Modal 仅用于跨上下文 (登录 · 上传)。</li>
+    <li><strong>Live tick 用 box-shadow</strong> · <code>box-shadow: 0 0 6px var(--danger)</code> 给 LIVE 状态点。不要 blur 整个组件。</li>
+    <li><strong>Hairline grid 在 body</strong> · 不要给单个卡片再叠网格。整页 background 一次性铺。</li>
+  </ul>
+
+  <!-- 08 ROUTES -->
+  <h2><span class="num">[ 08 ]</span> Routes Map <span class="line"></span></h2>
+  <table class="tokens">
+    <thead><tr><th>ROUTE</th><th>SCREEN</th><th>FILE</th><th>STATUS</th></tr></thead>
+    <tbody>
+      <tr><td class="val">/</td><td class="desc">Landing</td><td>screens-1.jsx · LandingScreen</td><td><span class="pill ok">DESIGN COMPLETE</span></td></tr>
+      <tr><td class="val">/seasons/[id]</td><td class="desc">Season home</td><td>screens-1.jsx · SeasonHomeScreen</td><td><span class="pill ok">DESIGN COMPLETE</span></td></tr>
+      <tr><td class="val">/seasons/[id]/register</td><td class="desc">Player registration</td><td>screens-2.jsx · RegisterScreen</td><td><span class="pill ok">DESIGN COMPLETE</span></td></tr>
+      <tr><td class="val">/seasons/[id]/captains</td><td class="desc">Captain voting</td><td>screens-2.jsx · CaptainsScreen</td><td><span class="pill ok">DESIGN COMPLETE</span></td></tr>
+      <tr><td class="val">/seasons/[id]/draft</td><td class="desc">Live draft room</td><td>screens-3.jsx · DraftScreen</td><td><span class="pill ok">DESIGN COMPLETE</span></td></tr>
+      <tr><td class="val">/seasons/[id]/teams</td><td class="desc">Teams list</td><td>screens-4.jsx · TeamsScreen</td><td><span class="pill ok">DESIGN COMPLETE</span></td></tr>
+      <tr><td class="val">/teams/[id]</td><td class="desc">Team detail</td><td>screens-4.jsx · TeamDetailScreen</td><td><span class="pill ok">DESIGN COMPLETE</span></td></tr>
+      <tr><td class="val">/seasons/[id]/matches</td><td class="desc">Matches · bracket / list / calendar</td><td>screens-5.jsx · MatchesScreen</td><td><span class="pill ok">DESIGN COMPLETE</span></td></tr>
+      <tr><td class="val">/matches/[id]</td><td class="desc">Match detail · scoreboard</td><td>screens-5.jsx · MatchDetailScreen</td><td><span class="pill ok">DESIGN COMPLETE</span></td></tr>
+      <tr><td class="val">/seasons/[id]/stats</td><td class="desc">Stats leaderboard</td><td>screens-6.jsx · StatsScreen</td><td><span class="pill ok">DESIGN COMPLETE</span></td></tr>
+      <tr><td class="val">/admin</td><td class="desc">Admin console</td><td>screens-6.jsx · AdminScreen</td><td><span class="pill ok">DESIGN COMPLETE</span></td></tr>
+      <tr><td class="val">/players/[id]</td><td class="desc">Player profile · all seasons</td><td>screens-7.jsx · PlayerProfileScreen</td><td><span class="pill ok">DESIGN COMPLETE</span></td></tr>
+      <tr><td class="val">/login</td><td class="desc">Magic link + password</td><td>screens-7.jsx · LoginScreen</td><td><span class="pill ok">DESIGN COMPLETE</span></td></tr>
+      <tr><td class="val">/invite</td><td class="desc">Invite code redemption</td><td>screens-7.jsx · InviteScreen</td><td><span class="pill ok">DESIGN COMPLETE</span></td></tr>
+      <tr><td class="val">—</td><td class="desc">States gallery (design-only)</td><td>states.jsx · StatesScreen</td><td><span class="pill acc">DESIGN REVIEW</span></td></tr>
+      <tr><td class="val">/m/*</td><td class="desc">Mobile responsive</td><td>—</td><td><span class="pill warn">PENDING</span></td></tr>
+    </tbody>
+  </table>
+
+  <!-- 09 NEXT STEPS -->
+  <h2><span class="num">[ 09 ]</span> Engineering Handoff Checklist <span class="line"></span></h2>
+  <ul class="bullets">
+    <li><strong>导入字体</strong> · 在 <code>app/layout.tsx</code> 用 <code>next/font/google</code> 加载 Geist + JetBrains Mono · 中文 fallback 留给系统。</li>
+    <li><strong>合并 Tailwind config</strong> · 把第 5 节 patch 合并进 <code>tailwind.config.ts</code> · 不删除 shadcn 默认变量。</li>
+    <li><strong>替换 CSS 变量</strong> · 把第 5 节 <code>:root</code> 写进 <code>globals.css</code> 的 <code>@layer base</code>。</li>
+    <li><strong>建立 components 目录</strong> · <code>components/ui/</code> 放 shadcn 原件 · <code>components/rivalhub/</code> 放本设计系统新组件 (Btn-wrapper · Panel · StatusBanner · Stat · MiniStat · TeamBadge · PosChip · EmptyState · ErrorState · InlineConfirm · Field-wrapper · Bracket)。</li>
+    <li><strong>页面顺序</strong> · 建议: Landing → Login/Invite → Season home → Register → Captains → Draft → Teams/Team → Matches/Match → Stats → Player → Admin。先打通"看"再打通"操作"。</li>
+    <li><strong>实时部分</strong> · Draft room + Live ticker 需要 WebSocket 或 SSE · Match scoreboard 可定期 poll。</li>
+    <li><strong>Recharts 主题</strong> · 写一个 <code>chartTheme.ts</code> 把 stroke/fill 全部映射到 CSS 变量 · 避免每个图表重复定义。</li>
+    <li><strong>Mobile</strong> · 当前未做移动端 · 下一阶段需要为 Landing · Match · Stats · Player 四页做窄屏版本。</li>
+    <li><strong>命名规则</strong> · 组件文件 <code>PascalCase.tsx</code> · 工具文件 <code>kebab-case.ts</code> · CSS 变量 kebab-case · TS 类型 PascalCase。</li>
+  </ul>
+
+</div>
+</body>
+</html>

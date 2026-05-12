@@ -117,7 +117,7 @@ export function RegistrationReviewList({ registrations }: Props) {
 
       {/* 列表 */}
       {filtered.length === 0 ? (
-        <p className="text-[var(--text-secondary)] py-8 text-center">
+        <p className="text-[var(--color-fg-mid)] py-8 text-center">
           暂无{filter !== "all" ? REGISTRATION_STATUS_LABELS[filter] : ""}报名
         </p>
       ) : (
@@ -139,7 +139,7 @@ export function RegistrationReviewList({ registrations }: Props) {
                     )}
                   </div>
 
-                  <div className="text-sm text-[var(--text-secondary)] space-y-0.5">
+                  <div className="text-sm text-[var(--color-fg-mid)] space-y-0.5">
                     <p>
                       位置：{positionLabel(r.primaryPosition)}（主）|{" "}
                       {positionLabel(r.secondaryPosition)}（次）
@@ -163,7 +163,7 @@ export function RegistrationReviewList({ registrations }: Props) {
                               href={r.steamProfileUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="underline hover:text-[var(--text-primary)]"
+                              className="underline hover:text-[var(--color-fg)]"
                             >
                               Steam 主页
                             </a>
@@ -185,7 +185,7 @@ export function RegistrationReviewList({ registrations }: Props) {
                           href={url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-xs underline text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                          className="text-xs underline text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
                         >
                           截图 {i + 1}
                         </a>

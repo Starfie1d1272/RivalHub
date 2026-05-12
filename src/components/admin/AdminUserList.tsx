@@ -62,7 +62,7 @@ export function AdminUserList({ users, currentAdminId }: { users: AdminUserRow[]
             <span className="font-medium">
               {u.username}
               {u.id === currentAdminId && (
-                <span className="text-xs text-[var(--text-secondary)] ml-1">（你）</span>
+                <span className="text-xs text-[var(--color-fg-mid)] ml-1">（你）</span>
               )}
             </span>
             <Badge variant={u.role === "super_admin" ? "default" : "outline"}>
@@ -78,7 +78,7 @@ export function AdminUserList({ users, currentAdminId }: { users: AdminUserRow[]
             )}
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+          <div className="flex items-center gap-2 text-xs text-[var(--color-fg-mid)]">
             <span>
               创建于 {new Date(u.createdAt).toLocaleDateString("zh-CN")}
             </span>

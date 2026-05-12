@@ -99,10 +99,10 @@ export function ScoreInput({ matchId, teamAName, teamBName, currentStatus, forma
 
       {currentStatus === "in_progress" && (
         <form onSubmit={handleSubmit} className="space-y-3">
-          <p className="text-xs text-[var(--text-secondary)]">{SCORE_LABELS[format]}</p>
+          <p className="text-xs text-[var(--color-fg-mid)]">{SCORE_LABELS[format]}</p>
           <div className="flex items-end gap-3">
             <div className="space-y-1">
-              <Label className="text-xs text-[var(--text-secondary)]">{teamAName}</Label>
+              <Label className="text-xs text-[var(--color-fg-mid)]">{teamAName}</Label>
               <Input
                 type="number"
                 min="0"
@@ -112,9 +112,9 @@ export function ScoreInput({ matchId, teamAName, teamBName, currentStatus, forma
                 placeholder="0"
               />
             </div>
-            <span className="text-[var(--text-secondary)] mb-2">:</span>
+            <span className="text-[var(--color-fg-mid)] mb-2">:</span>
             <div className="space-y-1">
-              <Label className="text-xs text-[var(--text-secondary)]">{teamBName}</Label>
+              <Label className="text-xs text-[var(--color-fg-mid)]">{teamBName}</Label>
               <Input
                 type="number"
                 min="0"

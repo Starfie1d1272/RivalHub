@@ -7,8 +7,8 @@ import { matchPlayerStats } from "@/db/schema/player-stats";
 import { matchMvpVotes } from "@/db/schema/mvp-votes";
 import { MatchStatusBadge } from "@/components/matches/MatchStatusBadge";
 import { MatchMvpVote } from "@/components/matches/MatchMvpVote";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
+import { Panel, PosChip, TeamBadge } from "@/components/rivalhub";
+import { MATCH_FORMAT_LABELS, MATCH_STAGE_LABELS } from "@/types/match";
 import { PlayerStatsTable } from "@/components/matches/PlayerStatsTable";
 import { TimeProposalHistory } from "@/components/matches/TimeProposalHistory";
 import { MatchTimeNegotiation } from "@/components/matches/MatchTimeNegotiation";
@@ -23,9 +23,13 @@ interface MatchDetailPageProps {
   params: Promise<{ seasonSlug: string; matchId: string }>;
 }
 
-const FORMAT_LABELS = { bo1: "BO1", bo3: "BO3", bo5: "BO5" };
-const STAGE_LABELS = { qualifier: "排位赛", playoff: "正赛" };
 const SIDE_LABELS = { t: "T 方", ct: "CT 方" };
+
+const TEAM_COLORS = ["#ff6b1a", "#3aa1ff", "#a8ff3a", "#ff3a7a", "#9b6bff", "#ffd23a", "#3affc7", "#ff8a3a"];
+
+function teamBadgeData(name: string, idx: number): { tag: string; color: string } {
+  return { tag: name.slice(0, 3).toUpperCase(), color: TEAM_COLORS[idx % TEAM_COLORS.length] };
+}
 
 export default async function MatchDetailPage({ params }: MatchDetailPageProps) {
   const { seasonSlug, matchId } = await params;
@@ -187,88 +191,152 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
       <div className="flex items-center gap-4">
         <Link
           href={`/${seasonSlug}/matches`}
-          className="text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+          className="text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] transition-colors"
         >
           ← 返回赛程总览
         </Link>
         {match.stage === "playoff" && match.bracketNodeId && (
           <Link
             href={`/${seasonSlug}/matches#bracket`}
-            className="text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+            className="text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] transition-colors"
           >
             查看对阵图 →
           </Link>
         )}
       </div>
 
-      {/* 头部：比赛信息 */}
-      <Card className="p-6 space-y-4">
-        <div className="flex items-center gap-2 flex-wrap">
-          <Badge variant="outline" className="text-[var(--text-secondary)]">
-            {STAGE_LABELS[match.stage as keyof typeof STAGE_LABELS]}
-          </Badge>
-          <Badge variant="outline" className="text-[var(--text-secondary)]">
-            {FORMAT_LABELS[match.format as keyof typeof FORMAT_LABELS]}
-          </Badge>
-          <MatchStatusBadge status={match.status as "scheduled" | "in_progress" | "finished" | "cancelled"} />
+      {/* Hero header */}
+      <div
+        className="grid items-center gap-6 px-8 py-8 border-b"
+        style={{
+          gridTemplateColumns: "1fr auto 1fr",
+          background: teamA && teamB
+            ? `linear-gradient(90deg, ${teamBadgeData(teamA.name, 0).color}15 0%, transparent 35%, transparent 65%, ${teamBadgeData(teamB.name, 1).color}15 100%)`
+            : `var(--color-panel-low)`,
+          borderColor: "var(--color-border)",
+          borderRadius: "var(--radius-lg)",
+          border: `1px solid var(--color-border)`,
+        }}
+      >
+        {/* Team A */}
+        <div className="flex items-center gap-4 justify-end">
+          <div className="text-right min-w-0">
+            <div
+              className="font-bold"
+              style={{
+                fontFamily: "var(--font-display)",
+                fontSize: 28,
+                color: "var(--color-fg)",
+                letterSpacing: "var(--tracking-tight-1)",
+              }}
+            >
+              {teamA?.name ?? "未知队伍"}
+            </div>
+          </div>
+          {teamA && <TeamBadge team={teamBadgeData(teamA.name, 0)} size={64} />}
         </div>
 
-        <div className="flex items-center justify-center gap-6 py-4">
-          <span className="text-2xl font-bold text-[var(--text-primary)]">
-            {teamA?.name ?? "未知队伍"}
-          </span>
-          <div className="text-center">
-            {isFinished ? (
-              <span className="text-4xl font-mono font-bold text-[var(--primary)]">
-                {match.scoreA ?? 0}&nbsp;:&nbsp;{match.scoreB ?? 0}
-              </span>
-            ) : (
-              <span className="text-3xl font-bold text-[var(--text-secondary)]">vs</span>
-            )}
+        {/* Score / VS */}
+        <div className="text-center px-4">
+          {match.status === "in_progress" && (
+            <div
+              className="inline-block mb-2 px-2.5 py-0.5 rounded-sm font-bold"
+              style={{
+                background: "var(--color-danger)",
+                color: "var(--color-accent-fg)",
+                fontFamily: "var(--font-mono)",
+                fontSize: 10,
+                letterSpacing: "var(--tracking-label)",
+              }}
+            >
+              ● LIVE
+            </div>
+          )}
+          {isFinished ? (
+            <div
+              className="font-bold"
+              style={{
+                fontFamily: "var(--font-mono)",
+                fontSize: 56,
+                color: "var(--color-fg)",
+                letterSpacing: "-0.04em",
+                lineHeight: 1,
+              }}
+            >
+              {match.scoreA ?? 0}
+              <span className="mx-3" style={{ color: "var(--color-fg-dim)", fontSize: 24 }}>:</span>
+              {match.scoreB ?? 0}
+            </div>
+          ) : (
+            <div
+              className="font-bold"
+              style={{
+                fontFamily: "var(--font-display)",
+                fontSize: 42,
+                color: "var(--color-fg-dim)",
+                letterSpacing: "var(--tracking-tight-1)",
+              }}
+            >
+              VS
+            </div>
+          )}
+          <div className="mt-2 flex items-center justify-center gap-2 flex-wrap">
+            <PosChip pos={MATCH_STAGE_LABELS[match.stage] ?? match.stage} />
+            <PosChip pos={MATCH_FORMAT_LABELS[match.format] ?? match.format} />
+            <MatchStatusBadge status={match.status as "scheduled" | "in_progress" | "finished" | "cancelled"} />
           </div>
-          <span className="text-2xl font-bold text-[var(--text-primary)]">
-            {teamB?.name ?? "未知队伍"}
-          </span>
         </div>
-      </Card>
+
+        {/* Team B */}
+        <div className="flex items-center gap-4">
+          {teamB && <TeamBadge team={teamBadgeData(teamB.name, 1)} size={64} />}
+          <div className="min-w-0">
+            <div
+              className="font-bold"
+              style={{
+                fontFamily: "var(--font-display)",
+                fontSize: 28,
+                color: "var(--color-fg)",
+                letterSpacing: "var(--tracking-tight-1)",
+              }}
+            >
+              {teamB?.name ?? "未知队伍"}
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* 单图结果 */}
       {maps.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-lg font-semibold text-[var(--text-primary)]">地图结果</h2>
+          <h2 className="text-lg font-semibold text-[var(--color-fg)]">地图结果</h2>
           <div className="space-y-2">
             {maps.map((map) => (
-              <Card key={map.id} className="p-4">
+              <Panel key={map.id} pad={16}>
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
-                    <span className="text-xs text-[var(--text-secondary)] w-5">
+                    <span className="text-xs text-[var(--color-fg-mid)] w-5">
                       #{map.mapOrder}
                     </span>
-                    <span className="font-medium text-[var(--text-primary)]">{map.mapName}</span>
+                    <span className="font-medium text-[var(--color-fg)]">{map.mapName}</span>
                     {map.pickedByTeamId === match.teamAId && (
-                      <Badge variant="outline" className="text-xs">
-                        {teamA?.name} Pick
-                      </Badge>
+                      <PosChip pos={`${teamA?.name} Pick`} />
                     )}
                     {map.pickedByTeamId === match.teamBId && (
-                      <Badge variant="outline" className="text-xs">
-                        {teamB?.name} Pick
-                      </Badge>
+                      <PosChip pos={`${teamB?.name} Pick`} />
                     )}
                     {map.pickedByTeamId === null && (
-                      <Badge variant="outline" className="text-xs text-[var(--text-secondary)]">
-                        决胜图
-                      </Badge>
+                      <PosChip pos="决胜图" />
                     )}
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                     {map.teamAStartSide && (
-                      <span className="text-[var(--text-secondary)]">
+                      <span className="text-[var(--color-fg-mid)]">
                         {teamA?.name} {SIDE_LABELS[map.teamAStartSide]}先
                       </span>
                     )}
                     {map.scoreA !== null && map.scoreB !== null && (
-                      <span className="font-mono font-bold text-[var(--text-primary)]">
+                      <span className="font-mono font-bold text-[var(--color-fg)]">
                         {map.scoreA}&nbsp;:&nbsp;{map.scoreB}
                       </span>
                     )}
@@ -277,7 +345,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                 {isFinished && (
                   <PlayerStatsTable matchId={match.id} mapId={map.id} />
                 )}
-              </Card>
+              </Panel>
             ))}
           </div>
         </section>
@@ -286,26 +354,26 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
       {/* 赛前名单 */}
       {match.status !== "finished" && (
         <section className="space-y-3">
-          <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+          <h2 className="text-lg font-semibold text-[var(--color-fg)]">
             赛前名单
           </h2>
-          <Card className="p-4">
+          <Panel pad={16}>
             <MatchRosterView
               teamAName={teamA?.name ?? "队伍 A"}
               teamARoster={teamARoster}
               teamBName={teamB?.name ?? "队伍 B"}
               teamBRoster={teamBRoster}
             />
-          </Card>
+          </Panel>
           {(isCaptainA || isCaptainB) && (
-            <Card className="p-4 space-y-3">
+            <Panel pad={16}>
               <h3 className="text-sm font-medium">提交名单</h3>
               <MatchRosterForm
                 matchId={match.id}
                 teamMembers={captainTeamMembers}
                 hasExistingRoster={captainRoster?.status === "submitted"}
               />
-            </Card>
+            </Panel>
           )}
         </section>
       )}
@@ -313,23 +381,24 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
       {/* 比赛时间协商 */}
       {match.status === "scheduled" && (
         <section className="space-y-3">
-          <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+          <h2 className="text-lg font-semibold text-[var(--color-fg)]">
             比赛时间协商
           </h2>
-          <Card className="p-4 space-y-4">
+          <Panel pad={16}>
             <MatchTimeNegotiation
               matchId={match.id}
               isCaptainA={isCaptainA}
               isCaptainB={isCaptainB}
               isAdmin={isSeasonAdmin}
+              currentUserId={userSession?.userId}
               currentScheduledAt={match.scheduledAt}
               initialProposals={timeProposals}
             />
-          </Card>
-          <Card className="p-4">
+          </Panel>
+          <Panel pad={16}>
             <h3 className="text-sm font-medium mb-2">协商历史</h3>
             <TimeProposalHistory proposals={timeProposals} />
-          </Card>
+          </Panel>
         </section>
       )}
 

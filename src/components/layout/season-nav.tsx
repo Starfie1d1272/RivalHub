@@ -37,7 +37,7 @@ export function SeasonNav({
   ];
 
   return (
-    <nav className="border-b border-[var(--border)]">
+    <nav className="border-b border-[var(--color-border)]">
       <div className="container mx-auto px-4">
         <ul className="flex overflow-x-auto gap-1">
           {items.map(({ label, href }) => {
@@ -53,8 +53,8 @@ export function SeasonNav({
                   className={cn(
                     "inline-block px-3 py-3 text-sm font-medium border-b-2 transition-colors",
                     isActive
-                      ? "border-[var(--season-primary)] text-[var(--text-primary)]"
-                      : "border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
+                      ? "border-[var(--color-accent)] text-[var(--color-fg)]"
+                      : "border-transparent text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]",
                   )}
                 >
                   {label}

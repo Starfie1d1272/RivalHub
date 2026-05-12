@@ -39,7 +39,7 @@ export function PlayerPool({ players, seasonPositions }: PlayerPoolProps) {
 
   if (total === 0) {
     return (
-      <div className="py-12 text-center text-[var(--text-muted)] text-sm">
+      <div className="py-12 text-center text-[var(--color-fg-dim)] text-sm">
         所有选手已被选完
       </div>
     );
@@ -53,8 +53,8 @@ export function PlayerPool({ players, seasonPositions }: PlayerPoolProps) {
           onClick={() => setFilter("all")}
           className={`text-xs px-2 py-1 rounded transition-colors ${
             filter === "all"
-              ? "bg-[var(--season-primary)] text-white"
-              : "bg-[var(--bg-overlay)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              ? "bg-[var(--color-accent)] text-white"
+              : "bg-[var(--color-panel-hi)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
           }`}
         >
           全部 ({total})
@@ -68,8 +68,8 @@ export function PlayerPool({ players, seasonPositions }: PlayerPoolProps) {
               disabled={count === 0}
               className={`text-xs px-2 py-1 rounded transition-colors ${
                 pos === filter
-                  ? "bg-[var(--season-primary)] text-white"
-                  : "bg-[var(--bg-overlay)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-30"
+                  ? "bg-[var(--color-accent)] text-white"
+                  : "bg-[var(--color-panel-hi)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] disabled:opacity-30"
               }`}
             >
               {POSITION_LABELS[pos as keyof typeof POSITION_LABELS]?.en ?? pos} ({count})
@@ -85,12 +85,12 @@ export function PlayerPool({ players, seasonPositions }: PlayerPoolProps) {
           return list.map((p) => (
             <div
               key={p.registrationId}
-              className="flex items-center justify-between text-xs px-2 py-1.5 rounded bg-[var(--bg-elevated)] border border-[var(--border)]"
+              className="flex items-center justify-between text-xs px-2 py-1.5 rounded bg-[var(--color-panel)] border border-[var(--color-border)]"
             >
-              <span className="text-[var(--text-primary)] truncate">
+              <span className="text-[var(--color-fg)] truncate">
                 {p.steamName}
               </span>
-              <span className="text-[var(--text-muted)] tabular ml-1 shrink-0">
+              <span className="text-[var(--color-fg-dim)] tabular ml-1 shrink-0">
                 {p.peakRank} {p.peakRating.toFixed(2)}
               </span>
             </div>

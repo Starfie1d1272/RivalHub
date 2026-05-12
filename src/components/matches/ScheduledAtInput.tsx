@@ -53,7 +53,7 @@ export function ScheduledAtInput({ matchId, currentScheduledAt }: ScheduledAtInp
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
-      <span className="text-xs text-[var(--text-secondary)] shrink-0">比赛时间</span>
+      <span className="text-xs text-[var(--color-fg-mid)] shrink-0">比赛时间</span>
       <Input
         type="datetime-local"
         value={value}
@@ -65,7 +65,7 @@ export function ScheduledAtInput({ matchId, currentScheduledAt }: ScheduledAtInp
         保存
       </Button>
       {currentScheduledAt && (
-        <Button size="sm" variant="ghost" className="h-8 text-xs text-[var(--text-secondary)]" onClick={handleClear} disabled={isPending}>
+        <Button size="sm" variant="ghost" className="h-8 text-xs text-[var(--color-fg-mid)]" onClick={handleClear} disabled={isPending}>
           清除
         </Button>
       )}

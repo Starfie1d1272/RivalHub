@@ -4,6 +4,7 @@ import { db } from "@/db/client";
 import { seasons, matches, teams } from "@/db/schema";
 import { serializeBracket } from "@/lib/bracket";
 import { calculateStandings } from "@/lib/standings";
+import { Panel, Marker } from "@/components/rivalhub";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BracketView } from "@/components/matches/BracketView";
 import { MatchCard } from "@/components/matches/MatchCard";
@@ -102,7 +103,7 @@ export default async function MatchesPage({ params }: MatchesPageProps) {
 
   if (allMatches.length === 0 && allTeams.length === 0) {
     return (
-      <div className="container mx-auto px-4 py-16 text-center text-[var(--text-secondary)]">
+      <div className="container mx-auto px-4 py-16 text-center text-[var(--color-fg-mid)]">
         赛程尚未生成，敬请期待
       </div>
     );
@@ -110,8 +111,9 @@ export default async function MatchesPage({ params }: MatchesPageProps) {
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-5xl space-y-8">
-      <h1 className="text-3xl font-bold text-[var(--text-primary)]">赛程总览</h1>
+      <Marker sub={season.name}>赛程总览</Marker>
 
+      <Panel pad={24}>
       <Tabs defaultValue={hasQualifier ? qualifierKey : playoffKey} className="w-full">
         <TabsList className="mb-6">
           {qualifierStage && <TabsTrigger value={qualifierKey}>{qualifierStage.name}</TabsTrigger>}
@@ -124,7 +126,7 @@ export default async function MatchesPage({ params }: MatchesPageProps) {
             {/* Swiss 视图 */}
             {swissData ? (
               <section className="space-y-3">
-                <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+                <h2 className="text-lg font-semibold text-[var(--color-fg)]">
                   {qualifierStage?.name ?? "瑞士轮"}
                 </h2>
                 <SwissBracket data={swissData} seasonSlug={seasonSlug} />
@@ -135,7 +137,7 @@ export default async function MatchesPage({ params }: MatchesPageProps) {
                 {standings.length > 0 && (
                   <section className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <h2 className="text-lg font-semibold text-[var(--text-primary)]">积分榜</h2>
+                      <h2 className="text-lg font-semibold text-[var(--color-fg)]">积分榜</h2>
                       {allQualifierFinished && (
                         <span className="text-xs text-green-600 font-medium">最终排名</span>
                       )}
@@ -151,7 +153,7 @@ export default async function MatchesPage({ params }: MatchesPageProps) {
                 {/* 赛程列表 */}
                 {qualifierMatches.length > 0 && (
                   <section className="space-y-3">
-                    <h2 className="text-lg font-semibold text-[var(--text-primary)]">赛程</h2>
+                    <h2 className="text-lg font-semibold text-[var(--color-fg)]">赛程</h2>
                     <div className="space-y-2">
                       {qualifierMatches.map((m) => (
                         <MatchCard
@@ -172,7 +174,7 @@ export default async function MatchesPage({ params }: MatchesPageProps) {
                 )}
 
                 {qualifierMatches.length === 0 && (
-                  <div className="text-center py-16 text-[var(--text-secondary)]">
+                  <div className="text-center py-16 text-[var(--color-fg-mid)]">
                     排位赛赛程尚未生成
                   </div>
                 )}
@@ -187,7 +189,7 @@ export default async function MatchesPage({ params }: MatchesPageProps) {
             {/* Bracket 图 */}
             {bracketData.stage.length > 0 && (
               <section id="bracket" className="space-y-3">
-                <h2 className="text-lg font-semibold text-[var(--text-primary)]">对阵图</h2>
+                <h2 className="text-lg font-semibold text-[var(--color-fg)]">对阵图</h2>
                 <BracketView
                   data={bracketData}
                   themeColor={season.themeColor}
@@ -200,7 +202,7 @@ export default async function MatchesPage({ params }: MatchesPageProps) {
             {/* 正赛赛程列表 */}
             {playoffMatches.length > 0 && (
               <section className="space-y-3">
-                <h2 className="text-lg font-semibold text-[var(--text-primary)]">赛程</h2>
+                <h2 className="text-lg font-semibold text-[var(--color-fg)]">赛程</h2>
                 <div className="space-y-2">
                   {playoffMatches.map((m) => (
                     <MatchCard
@@ -221,7 +223,7 @@ export default async function MatchesPage({ params }: MatchesPageProps) {
             )}
 
             {playoffMatches.length === 0 && (
-              <div className="text-center py-16 text-[var(--text-secondary)]">
+              <div className="text-center py-16 text-[var(--color-fg-mid)]">
                 {allQualifierFinished
                   ? "正赛即将开始，敬请期待"
                   : "正赛将在排位赛结束后生成"}
@@ -230,6 +232,7 @@ export default async function MatchesPage({ params }: MatchesPageProps) {
           </TabsContent>
         )}
       </Tabs>
+      </Panel>
     </div>
   );
 }

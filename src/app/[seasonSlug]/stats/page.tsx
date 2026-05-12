@@ -8,6 +8,7 @@ import { teamMembers } from "@/db/schema/teams";
 import { teams } from "@/db/schema/teams";
 import { sql } from "drizzle-orm";
 import { StatsLeaderboard } from "@/components/matches/StatsLeaderboard";
+import { Marker } from "@/components/rivalhub";
 import type { Metadata } from "next";
 
 interface StatsPageProps {
@@ -95,14 +96,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-5xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-[var(--text-primary)]">
-          赛季排行榜
-        </h1>
-        <p className="text-sm text-[var(--text-secondary)] mt-1">
-          {season.name} · 最少 3 图
-        </p>
-      </div>
+      <Marker sub={season.name + " · 最少 3 图"}>赛季排行榜</Marker>
       <StatsLeaderboard
         rows={leaderboardRows}
         sort={sort}

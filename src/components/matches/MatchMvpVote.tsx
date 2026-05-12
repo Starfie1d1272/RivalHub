@@ -53,20 +53,20 @@ export function MatchMvpVote({
   );
 
   return (
-    <Card className="p-5 space-y-4 border-[var(--border)]">
+    <Card className="p-5 space-y-4 border-[var(--color-border)]">
       <div className="flex items-center justify-between">
-        <h3 className="text-base font-semibold text-[var(--text-primary)]">
+        <h3 className="text-base font-semibold text-[var(--color-fg)]">
           本场 MVP 投票
         </h3>
         {votedName && (
-          <span className="text-xs text-[var(--text-secondary)]">
+          <span className="text-xs text-[var(--color-fg-mid)]">
             你已投票: <span className="text-[var(--primary)]">{votedName}</span>
           </span>
         )}
         {leading && (
-          <span className="text-xs text-[var(--text-secondary)]">
+          <span className="text-xs text-[var(--color-fg-mid)]">
             当前领先:{" "}
-            <span className="text-[var(--season-primary)] font-semibold">
+            <span className="text-[var(--color-accent)] font-semibold">
               {leading.playerName} ({leading.count} 票)
             </span>
           </span>
@@ -88,21 +88,21 @@ export function MatchMvpVote({
               onClick={() => handleVote(c.userId, c.perfectName)}
               className={`flex items-center justify-between rounded-md p-2.5 text-left transition-colors ${
                 isVoted
-                  ? "bg-[rgba(var(--season-primary-rgb),0.12)] ring-1 ring-inset ring-[var(--season-primary)]"
+                  ? "bg-[rgba(255, 107, 26,0.12)] ring-1 ring-inset ring-[var(--color-accent)]"
                   : votedName
-                  ? "bg-[var(--bg-overlay)] cursor-not-allowed"
-                  : "bg-[var(--bg-overlay)] hover:bg-[var(--bg-elevated)] cursor-pointer"
+                  ? "bg-[var(--color-panel-hi)] cursor-not-allowed"
+                  : "bg-[var(--color-panel-hi)] hover:bg-[var(--color-panel)] cursor-pointer"
               }`}
             >
-              <span className="text-[var(--text-primary)]">
+              <span className="text-[var(--color-fg)]">
                 {c.perfectName}
-                <span className="text-[11px] text-[var(--text-muted)] ml-1.5">
+                <span className="text-[11px] text-[var(--color-fg-dim)] ml-1.5">
                   ({c.ratingPro?.toFixed(2) ?? "—"})
                 </span>
               </span>
               <span
                 className={`tabular-nums text-xs font-semibold ${
-                  isVoted ? "text-[var(--season-primary)]" : "text-[var(--text-secondary)]"
+                  isVoted ? "text-[var(--color-accent)]" : "text-[var(--color-fg-mid)]"
                 }`}
               >
                 {count} 票

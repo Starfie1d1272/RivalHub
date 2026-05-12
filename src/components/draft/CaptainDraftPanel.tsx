@@ -108,11 +108,11 @@ export function CaptainDraftPanel({
 
   return (
     <div className="space-y-5">
-      <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] p-4">
+      <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-[var(--text-primary)]">{teamName}</h2>
-            <p className="mt-1 text-sm text-[var(--text-secondary)]">
+            <h2 className="text-lg font-semibold text-[var(--color-fg)]">{teamName}</h2>
+            <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
               {isCurrentCaptainTurn
                 ? `第 ${currentRound ?? "-"} 轮，轮到你选择`
                 : currentTeamName
@@ -121,7 +121,7 @@ export function CaptainDraftPanel({
             </p>
           </div>
           <div className="flex items-center gap-2 text-sm">
-            <Clock className="size-4 text-[var(--text-muted)]" aria-hidden="true" />
+            <Clock className="size-4 text-[var(--color-fg-dim)]" aria-hidden="true" />
             <DraftCountdown deadline={roundDeadline} isActive={isDraftActive} />
           </div>
         </div>
@@ -140,7 +140,7 @@ export function CaptainDraftPanel({
         )}
       </div>
 
-      <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] p-4">
+      <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] p-4">
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <Button
             type="button"
@@ -169,7 +169,7 @@ export function CaptainDraftPanel({
         </div>
 
         {visiblePlayers.length === 0 ? (
-          <div className="py-12 text-center text-sm text-[var(--text-muted)]">
+          <div className="py-12 text-center text-sm text-[var(--color-fg-dim)]">
             当前筛选下没有可选选手
           </div>
         ) : (
@@ -184,13 +184,13 @@ export function CaptainDraftPanel({
               return (
                 <div
                   key={player.registrationId}
-                  className="flex min-h-20 items-center justify-between gap-3 rounded-md border border-[var(--border)] bg-[var(--bg-overlay)] px-3 py-2"
+                  className="flex min-h-20 items-center justify-between gap-3 rounded-md border border-[var(--color-border)] bg-[var(--color-panel-hi)] px-3 py-2"
                 >
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-medium text-[var(--text-primary)]">
+                    <div className="truncate text-sm font-medium text-[var(--color-fg)]">
                       {player.steamName}
                     </div>
-                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--text-muted)]">
+                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--color-fg-dim)]">
                       <span>{positionLabel(player.primaryPosition)}</span>
                       <span>{player.peakRank} {player.peakRating.toFixed(2)}</span>
                       <span>副选 {positionLabel(player.secondaryPosition)}</span>

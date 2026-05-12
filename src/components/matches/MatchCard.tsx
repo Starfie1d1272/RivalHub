@@ -31,22 +31,22 @@ export function MatchCard({
 }: MatchCardProps) {
   return (
     <Link href={`/${seasonSlug}/matches/${matchId}`}>
-      <Card className="p-4 hover:bg-[var(--surface-elevated)] transition-colors cursor-pointer">
+      <Card className="p-4 hover:bg-[var(--color-panel-hi)] transition-colors cursor-pointer">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            <span className="font-semibold truncate text-[var(--text-primary)]">{teamAName}</span>
-            <span className="text-[var(--text-secondary)] text-sm shrink-0">
+            <span className="font-semibold truncate text-[var(--color-fg)]">{teamAName}</span>
+            <span className="text-[var(--color-fg-mid)] text-sm shrink-0">
               {status === "finished"
                 ? `${scoreA ?? 0} : ${scoreB ?? 0}`
                 : "vs"}
             </span>
-            <span className="font-semibold truncate text-[var(--text-primary)]">{teamBName}</span>
+            <span className="font-semibold truncate text-[var(--color-fg)]">{teamBName}</span>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <Badge variant="outline" className="text-xs text-[var(--text-secondary)]">
+            <Badge variant="outline" className="text-xs text-[var(--color-fg-mid)]">
               {STAGE_LABELS[stage] ?? stage}
             </Badge>
-            <Badge variant="outline" className="text-xs text-[var(--text-secondary)]">
+            <Badge variant="outline" className="text-xs text-[var(--color-fg-mid)]">
               {FORMAT_LABELS[format]}
             </Badge>
             <MatchStatusBadge status={status} />

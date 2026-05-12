@@ -6,6 +6,8 @@ import { seasons } from "@/db/schema";
 import { getPositionCounts } from "@/actions/register";
 import { RegistrationForm } from "@/components/register/RegistrationForm";
 import { normalizeRegistrationConfig } from "@/types/season";
+import { Panel, StatusBanner, PosChip } from "@/components/rivalhub";
+import { POSITION_LABELS } from "@/lib/validators/registration";
 
 export const dynamic = "force-dynamic";
 
@@ -41,28 +43,76 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
     };
     return (
       <div className="container mx-auto px-4 py-16 max-w-2xl">
-        <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-10 text-center">
-          <h1 className="text-2xl font-bold text-[var(--text-primary)] mb-3">
-            {season.name}
-          </h1>
-          <p className="text-[var(--text-secondary)]">
-            {statusMessages[season.status] ?? "报名通道当前不可用。"}
-          </p>
+        <Panel pad={40}>
+        <div className="text-center">
+          <StatusBanner
+            tone="info"
+            title={season.name}
+            sub={statusMessages[season.status] ?? "报名通道当前不可用。"}
+          />
         </div>
+      </Panel>
       </div>
     );
   }
 
   const positionCounts = await getPositionCounts(season.id);
+  const regConfig = normalizeRegistrationConfig(season.registrationConfig);
+  const maxPerPos = regConfig.maxPerPosition;
+
+  // 位置容量数据
+  const capacityEntries = season.positions.map((pos) => {
+    const cur = positionCounts[pos] ?? 0;
+    const label = POSITION_LABELS[pos as keyof typeof POSITION_LABELS]?.cn ?? pos;
+    return { pos, label, cur, max: maxPerPos };
+  });
 
   return (
     <div className="container mx-auto px-4 py-10 max-w-2xl">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-[var(--text-primary)] mb-1">报名</h1>
-        <p className="text-[var(--text-secondary)]">{season.name}</p>
+        <h1 className="text-3xl font-bold text-[var(--color-fg)] mb-1">报名</h1>
+        <p className="text-[var(--color-fg-mid)]">{season.name}</p>
       </div>
 
-      <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-6 sm:p-8">
+      {/* 位置实时容量 */}
+      <div className="mb-6">
+        <Panel label="位置实时容量">
+          <div className="grid gap-2.5">
+            {capacityEntries.map(({ pos, label, cur, max }) => {
+              const pct = Math.min((cur / max) * 100, 100);
+              const full = cur >= max;
+              const warn = !full && pct > 80;
+              return (
+                <div key={pos} className="grid items-center gap-3" style={{ gridTemplateColumns: "72px 1fr 72px" }}>
+                  <PosChip pos={label} />
+                  <div className="h-1 rounded-full overflow-hidden" style={{ background: "var(--color-border)" }}>
+                    <div
+                      className="h-full transition-all"
+                      style={{
+                        width: `${pct}%`,
+                        background: full ? "var(--color-danger)" : warn ? "var(--color-warn)" : "var(--color-accent)",
+                      }}
+                    />
+                  </div>
+                  <div
+                    className="text-right font-bold"
+                    style={{
+                      fontFamily: "var(--font-mono)",
+                      fontSize: 11,
+                      color: full ? "var(--color-danger)" : "var(--color-fg-mid)",
+                    }}
+                  >
+                    {cur} / {max}
+                    {full && <span className="ml-1">FULL</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Panel>
+      </div>
+
+      <Panel pad={24}>
         <RegistrationForm
           seasonId={season.id}
           seasonName={season.name}
@@ -70,9 +120,9 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
           positions={season.positions}
           registrationConfig={normalizeRegistrationConfig(season.registrationConfig)}
         />
-      </div>
+      </Panel>
 
-      <p className="text-xs text-[var(--text-muted)] text-center mt-6">
+      <p className="text-xs text-[var(--color-fg-dim)] text-center mt-6">
         提交即视为同意参赛规则。报名信息提交后不可自行修改，如需更改请联系管理员。
       </p>
     </div>

@@ -73,27 +73,27 @@ export function DraftLiveRoom({
   return (
     <div className="space-y-6">
       {/* 顶部状态栏 */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)]">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)]">
         <div className="flex items-center gap-4 flex-wrap">
           <div className="text-sm">
-            <span className="text-[var(--text-secondary)]">进度 </span>
-            <span className="text-[var(--text-primary)] font-semibold tabular">
+            <span className="text-[var(--color-fg-mid)]">进度 </span>
+            <span className="text-[var(--color-fg)] font-semibold tabular">
               {totalPicks} / {maxPicks}
             </span>
           </div>
           {state && (
             <div className="text-sm">
-              <span className="text-[var(--text-secondary)]">第 </span>
-              <span className="text-[var(--text-primary)] font-semibold tabular">
+              <span className="text-[var(--color-fg-mid)]">第 </span>
+              <span className="text-[var(--color-fg)] font-semibold tabular">
                 {state.currentRound}
               </span>
-              <span className="text-[var(--text-secondary)]"> / {DRAFT_TOTAL_ROUNDS} 轮</span>
+              <span className="text-[var(--color-fg-mid)]"> / {DRAFT_TOTAL_ROUNDS} 轮</span>
             </div>
           )}
           {pickingTeam && isLive && (
             <div className="text-sm">
-              <span className="text-[var(--text-secondary)]">当前 </span>
-              <span className="text-[var(--season-primary)] font-semibold">
+              <span className="text-[var(--color-fg-mid)]">当前 </span>
+              <span className="text-[var(--color-accent)] font-semibold">
                 {pickingTeam.teamName}
               </span>
             </div>
@@ -101,7 +101,7 @@ export function DraftLiveRoom({
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs text-[var(--text-muted)]">
+          <span className="text-xs text-[var(--color-fg-dim)]">
             {isLive ? "倒计时" : "已暂停"}
           </span>
           <DraftCountdown
@@ -113,7 +113,7 @@ export function DraftLiveRoom({
 
       {/* 队伍网格 */}
       <section>
-        <h2 className="text-sm font-semibold text-[var(--text-secondary)] mb-3 uppercase tracking-wider">
+        <h2 className="text-sm font-semibold text-[var(--color-fg-mid)] mb-3 uppercase tracking-wider">
           队伍阵容
         </h2>
         <TeamDraftGrid
@@ -126,7 +126,7 @@ export function DraftLiveRoom({
 
       {/* 蛇形顺序指示 */}
       {isLive && snakeOrder.length > 0 && (
-        <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] overflow-x-auto">
+        <div className="flex items-center gap-1.5 text-xs text-[var(--color-fg-dim)] overflow-x-auto">
           <span>蛇形顺序：</span>
           {snakeOrder.map((tid) => {
             const t = teams.find((tt) => tt.teamId === tid);
@@ -136,8 +136,8 @@ export function DraftLiveRoom({
                 key={tid}
                 className={`px-1.5 py-0.5 rounded tabular ${
                   isNow
-                    ? "bg-[var(--season-primary)] text-white font-medium"
-                    : "text-[var(--text-secondary)]"
+                    ? "bg-[var(--color-accent)] text-white font-medium"
+                    : "text-[var(--color-fg-mid)]"
                 }`}
               >
                 {t?.teamName ?? tid.slice(0, 6)}
@@ -150,7 +150,7 @@ export function DraftLiveRoom({
       {/* 已完成 pick 历史 */}
       {completedPicks.length > 0 && (
         <section>
-          <h2 className="text-sm font-semibold text-[var(--text-secondary)] mb-3 uppercase tracking-wider">
+          <h2 className="text-sm font-semibold text-[var(--color-fg-mid)] mb-3 uppercase tracking-wider">
             选秀记录
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-1 text-xs">
@@ -159,13 +159,13 @@ export function DraftLiveRoom({
               return (
                 <div
                   key={`${pick.registrationId}-${pick.pickNumber}`}
-                  className="px-2 py-1 rounded bg-[var(--bg-elevated)] border border-[var(--border)] truncate"
+                  className="px-2 py-1 rounded bg-[var(--color-panel)] border border-[var(--color-border)] truncate"
                   title={`R${pick.round}P${pick.pickNumber} ${team?.teamName}: ${pick.steamName}${pick.autoPicked ? " (自动)" : ""}`}
                 >
-                  <span className="text-[var(--text-muted)] tabular">
+                  <span className="text-[var(--color-fg-dim)] tabular">
                     R{pick.round}P{pick.pickNumber}{" "}
                   </span>
-                  <span className="text-[var(--text-primary)]">
+                  <span className="text-[var(--color-fg)]">
                     {pick.steamName}
                   </span>
                   {pick.autoPicked && (
@@ -180,7 +180,7 @@ export function DraftLiveRoom({
 
       {/* 选手池 */}
       <section>
-        <h2 className="text-sm font-semibold text-[var(--text-secondary)] mb-3 uppercase tracking-wider">
+        <h2 className="text-sm font-semibold text-[var(--color-fg-mid)] mb-3 uppercase tracking-wider">
           剩余选手池 ({remainingPlayers.length})
         </h2>
         <PlayerPool players={remainingPlayers} seasonPositions={seasonPositions} />
