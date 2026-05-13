@@ -63,12 +63,14 @@ const pgConfig = {
 
 ## Cron
 
-`/api/cron/draft-timeout` 负责选秀超时自动 pick，并通过 `Authorization: Bearer $CRON_SECRET` 鉴权。
+Cron endpoint 均通过 `Authorization: Bearer $CRON_SECRET` 鉴权。
 
 当前生产调用由 `.github/workflows/cron.yml` 每分钟触发：
 
 ```text
 https://match.starfie1d.top/api/cron/draft-timeout
+https://match.starfie1d.top/api/cron/check-registration-deadline
+https://match.starfie1d.top/api/cron/match-time-auto-award
 ```
 
 因此需要同时配置：

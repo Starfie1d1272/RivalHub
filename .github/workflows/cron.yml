@@ -19,3 +19,8 @@ jobs:
           curl -s -o /dev/null -w "%{http_code}" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             "https://match.starfie1d.top/api/cron/check-registration-deadline"
+      - name: Match time auto award
+        run: |
+          curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://match.starfie1d.top/api/cron/match-time-auto-award"

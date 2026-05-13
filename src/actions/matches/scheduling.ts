@@ -1,8 +1,8 @@
 "use server";
 
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNotNull, isNull, lte } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matchTimeProposals, matches, auditLogs } from "@/db/schema";
+import { matchTimeProposals, matches, auditLogs, seasons } from "@/db/schema";
 import { ok, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { requireAuth, requireSeasonAdmin } from "@/lib/auth/session";
@@ -11,6 +11,12 @@ import { revalidateMatchPaths } from "@/lib/revalidation";
 import { getTeamIdForCaptain } from "./_shared";
 
 const TIME_CONFIRMATION_BUFFER_HOURS = 24;
+
+export interface MatchTimeAutoAwardCronSummary {
+  processed: number;
+  awarded: number;
+  skipped: number;
+}
 
 /**
  * 队长提议比赛时间。
@@ -195,12 +201,119 @@ export async function forceSetMatchTime(
 }
 
 /**
+ * 协商截止后自动采用最早创建的 pending 时间提议。
+ */
+export async function runMatchTimeAutoAwardCron(
+  now = new Date(),
+): Promise<MatchTimeAutoAwardCronSummary> {
+  const cutoffThreshold = new Date(
+    now.getTime() + TIME_CONFIRMATION_BUFFER_HOURS * 60 * 60 * 1000,
+  );
+
+  const candidateMatches = await db.query.matches.findMany({
+    where: and(
+      eq(matches.status, "scheduled"),
+      isNull(matches.scheduledAt),
+      isNotNull(matches.completionDeadline),
+      lte(matches.completionDeadline, cutoffThreshold),
+    ),
+  });
+
+  let awarded = 0;
+  let skipped = 0;
+
+  for (const match of candidateMatches) {
+    const result = await autoAwardMatchTime(match.id, now);
+    if (result.awarded) {
+      awarded += 1;
+      revalidateMatchPaths(result.seasonSlug, match.id);
+    } else {
+      skipped += 1;
+    }
+  }
+
+  return { processed: candidateMatches.length, awarded, skipped };
+}
+
+/**
  * 查询某场比赛的所有时间提议（按创建时间倒序）。
  */
 export async function getTimeProposals(matchId: string) {
   return db.query.matchTimeProposals.findMany({
     where: eq(matchTimeProposals.matchId, matchId),
     orderBy: (tps, { desc }) => [desc(tps.createdAt)],
+  });
+}
+
+async function autoAwardMatchTime(
+  matchId: string,
+  now: Date,
+): Promise<{ awarded: true; seasonSlug: string } | { awarded: false }> {
+  return db.transaction(async (tx) => {
+    const match = await tx.query.matches.findFirst({
+      where: eq(matches.id, matchId),
+    });
+    if (!match || match.status !== "scheduled" || match.scheduledAt || !match.completionDeadline) {
+      return { awarded: false };
+    }
+
+    const cutoff = getTimeConfirmationCutoff(match.completionDeadline);
+    if (!cutoff || now.getTime() < cutoff.getTime()) {
+      return { awarded: false };
+    }
+
+    const proposal = await tx.query.matchTimeProposals.findFirst({
+      where: and(
+        eq(matchTimeProposals.matchId, match.id),
+        eq(matchTimeProposals.status, "pending"),
+      ),
+      orderBy: (tps, { asc }) => [asc(tps.createdAt)],
+    });
+    if (!proposal) {
+      return { awarded: false };
+    }
+
+    const season = await tx.query.seasons.findFirst({
+      where: eq(seasons.id, match.seasonId),
+    });
+    if (!season) {
+      return { awarded: false };
+    }
+
+    await tx
+      .update(matches)
+      .set({ scheduledAt: proposal.proposedTime, updatedAt: now })
+      .where(eq(matches.id, match.id));
+
+    await tx
+      .update(matchTimeProposals)
+      .set({ status: "expired", updatedAt: now })
+      .where(
+        and(
+          eq(matchTimeProposals.matchId, match.id),
+          eq(matchTimeProposals.status, "pending"),
+        ),
+      );
+
+    await tx
+      .update(matchTimeProposals)
+      .set({ status: "accepted", responseAt: now, updatedAt: now })
+      .where(eq(matchTimeProposals.id, proposal.id));
+
+    await tx.insert(auditLogs).values({
+      seasonId: match.seasonId,
+      action: "match.auto_award_time",
+      actorId: "system",
+      targetId: match.id,
+      targetType: "match",
+      meta: {
+        proposalId: proposal.id,
+        proposedBy: proposal.proposedBy,
+        scheduledAt: proposal.proposedTime.toISOString(),
+      },
+    });
+
+    return { awarded: true, seasonSlug: season.slug };
   });
 }
 

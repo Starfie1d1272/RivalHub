@@ -85,6 +85,7 @@ password: RivalHub_password
 
 - `https://match.starfie1d.top/api/cron/draft-timeout` — 选秀超时自动递补
 - `https://match.starfie1d.top/api/cron/check-registration-deadline` — 报名截止/满员自动推进赛季
+- `https://match.starfie1d.top/api/cron/match-time-auto-award` — 比赛时间协商截止后自动采用最早提议
 
 更多细节见 [docs/deployment.md](./docs/deployment.md)。
 
