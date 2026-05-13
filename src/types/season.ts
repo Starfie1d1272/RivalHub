@@ -378,7 +378,7 @@ export function normalizeRegistrationConfig(
     maxPerPosition: config?.maxPerPosition ?? RIVALS_REGISTRATION_CONFIG.maxPerPosition,
     screenshotCount: config?.screenshotCount ?? RIVALS_REGISTRATION_CONFIG.screenshotCount,
     maxTotal: config?.maxTotal ?? RIVALS_REGISTRATION_CONFIG.maxTotal,
-    mapPool: config?.mapPool?.length ? config.mapPool : RIVALS_REGISTRATION_CONFIG.mapPool,
+    mapPool: config?.mapPool?.length ? [...new Set(config.mapPool)] : RIVALS_REGISTRATION_CONFIG.mapPool,
   };
 }
 

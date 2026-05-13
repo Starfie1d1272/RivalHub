@@ -21,7 +21,7 @@ export function MapPreferenceChips({
   compact = false,
   minLevel = "basic",
 }: MapPreferenceChipsProps) {
-  const threshold = minLevel === "playable" ? 2 : 1;
+  const threshold = mapPreferenceWeight(minLevel);
   const visible = preferences
     .filter((preference) => mapPreferenceWeight(preference.level) >= threshold)
     .sort((a, b) => mapPreferenceWeight(b.level) - mapPreferenceWeight(a.level));

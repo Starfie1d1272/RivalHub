@@ -219,8 +219,9 @@ export async function submitRegistration(input: RegistrationFormData) {
       throw new AppError(ErrorCode.POSITION_FULL, ERROR_MESSAGES.POSITION_FULL);
     }
 
-    // 更新用户资料，首次报名或更换 steam 账号时刷新头像缓存
-    const avatarUrl = user.avatarUrl && user.steam64 === data.steam64
+    // 更新用户资料，首次报名或更换 steam 账号时刷新头像缓存；steam64 为空时清除旧头像
+    const steamChanged = user.steam64 !== data.steam64;
+    const avatarUrl = !steamChanged
       ? user.avatarUrl
       : (data.steam64 ? (await getSteamAvatar(data.steam64)) ?? null : null);
 
