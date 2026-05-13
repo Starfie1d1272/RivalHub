@@ -30,6 +30,7 @@ const baseProps = {
   players: [
     {
       registrationId: "33333333-3333-4333-8333-333333333333",
+      userId: "55555555-5555-4555-8555-555555555555",
       steamName: "Neo",
       primaryPosition: "igl",
       secondaryPosition: "anchor",
@@ -79,5 +80,14 @@ describe("CaptainDraftPanel", () => {
 
     expect(button).toBeDisabled();
     expect(pickPlayerMock).not.toHaveBeenCalled();
+  });
+
+  it("links players to their profile pages", () => {
+    render(<CaptainDraftPanel {...baseProps} />);
+
+    expect(screen.getByRole("link", { name: "Neo" })).toHaveAttribute(
+      "href",
+      `/players/${baseProps.players[0].userId}`,
+    );
   });
 });

@@ -5,9 +5,11 @@ import { seasons, teams, teamMembers, seasonRegistrations, users, matches, match
 import { matchPlayerStats } from "@/db/schema/player-stats";
 import { Panel, Stat, Marker, PosChip } from "@/components/rivalhub";
 import { MapPreferenceChips } from "@/components/rivalhub/map-preference-chips";
+import { TeamNameForm } from "@/components/teams/TeamNameForm";
 import Link from "next/link";
 import { POSITION_LABELS } from "@/lib/validators/registration";
 import { CS2_POSITIONS } from "@/types/season";
+import { getUserSession } from "@/lib/auth/session";
 
 interface TeamDetailPageProps {
   params: Promise<{ seasonSlug: string; teamId: string }>;
@@ -30,6 +32,17 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
     where: and(eq(teams.id, teamId), eq(teams.seasonId, season.id)),
   });
   if (!team) notFound();
+
+  const session = await getUserSession();
+  const currentUserRegistration = session
+    ? await db.query.seasonRegistrations.findFirst({
+        where: and(
+          eq(seasonRegistrations.seasonId, season.id),
+          eq(seasonRegistrations.userId, session.userId),
+        ),
+      })
+    : null;
+  const canEditTeamName = currentUserRegistration?.id === team.captainRegistrationId;
 
   // ── 阵容 ──────────────────────────────────────────────────────────────
   const roster = await db
@@ -212,6 +225,11 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
           <span className="text-[var(--color-fg)]">#{team.draftOrder}</span>
         </p>
         <Marker>{team.name}</Marker>
+        {canEditTeamName && (
+          <div className="max-w-md pt-3">
+            <TeamNameForm teamId={team.id} initialName={team.name} />
+          </div>
+        )}
       </div>
 
       {/* 整体战绩 */}

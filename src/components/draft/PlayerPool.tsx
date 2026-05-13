@@ -1,6 +1,8 @@
 "use client";
 
+import React from "react";
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import type { DraftPlayerRow } from "@/lib/draft/data";
 import { POSITION_LABELS } from "@/lib/validators/registration";
 import { MapPreferenceChips } from "@/components/rivalhub/map-preference-chips";
@@ -89,9 +91,12 @@ export function PlayerPool({ players, seasonPositions }: PlayerPoolProps) {
               className="space-y-1.5 rounded bg-[var(--color-panel)] border border-[var(--color-border)] px-2 py-1.5"
             >
               <div className="flex items-center justify-between text-xs">
-                <span className="text-[var(--color-fg)] truncate">
+                <Link
+                  href={`/players/${p.userId}`}
+                  className="text-[var(--color-fg)] truncate hover:text-[var(--color-accent)]"
+                >
                   {p.steamName}
-                </span>
+                </Link>
                 <span className="text-[var(--color-fg-dim)] tabular ml-1 shrink-0">
                   {p.peakRank} {p.peakRating.toFixed(2)}
                 </span>

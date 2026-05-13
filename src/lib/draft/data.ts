@@ -31,6 +31,7 @@ export interface DraftTeamSlot {
 
 export interface DraftPlayerRow {
   registrationId: string;
+  userId: string;
   steamName: string;
   primaryPosition: string;
   secondaryPosition: string;
@@ -131,6 +132,7 @@ export async function getDraftData(seasonId: string): Promise<DraftFullData> {
   const remainingRows = await db
     .select({
       registrationId: seasonRegistrations.id,
+      userId: seasonRegistrations.userId,
       steamName: users.steamName,
       primaryPosition: seasonRegistrations.primaryPosition,
       secondaryPosition: seasonRegistrations.secondaryPosition,
@@ -152,6 +154,7 @@ export async function getDraftData(seasonId: string): Promise<DraftFullData> {
     .filter((r) => !pickedRegIds.has(r.registrationId) && !captainRegIds.has(r.registrationId))
     .map((r) => ({
       registrationId: r.registrationId,
+      userId: r.userId,
       steamName: r.steamName ?? "未知选手",
       primaryPosition: r.primaryPosition,
       secondaryPosition: r.secondaryPosition,

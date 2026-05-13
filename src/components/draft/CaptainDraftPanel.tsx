@@ -2,6 +2,7 @@
 
 import React from "react";
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Check, Clock, Loader2 } from "lucide-react";
 import { pickPlayer } from "@/actions/draft";
@@ -14,6 +15,7 @@ import type { MapPreference } from "@/types/season";
 
 export interface CaptainDraftPlayer {
   registrationId: string;
+  userId: string;
   steamName: string;
   primaryPosition: string;
   secondaryPosition: string;
@@ -190,9 +192,12 @@ export function CaptainDraftPanel({
                   className="flex min-h-20 items-center justify-between gap-3 rounded-md border border-[var(--color-border)] bg-[var(--color-panel-hi)] px-3 py-2"
                 >
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-medium text-[var(--color-fg)]">
+                    <Link
+                      href={`/players/${player.userId}`}
+                      className="block truncate text-sm font-medium text-[var(--color-fg)] hover:text-[var(--color-accent)]"
+                    >
                       {player.steamName}
-                    </div>
+                    </Link>
                     <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--color-fg-dim)]">
                       <span>{positionLabel(player.primaryPosition)}</span>
                       <span>{player.peakRank} {player.peakRating.toFixed(2)}</span>
