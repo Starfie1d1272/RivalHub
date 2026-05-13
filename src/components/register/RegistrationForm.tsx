@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -16,11 +16,13 @@ import {
   type RegistrationInput,
 } from "@/lib/validators/registration";
 import { normalizeRegistrationConfig, type RegistrationConfig, type PlayerType } from "@/types/season";
+import { MAP_PREFERENCE_LEVELS, MAP_PREFERENCE_LABELS, type MapPreferenceLevel } from "@/types/season";
 
 import { loadRegistrationDraft, saveRegistrationDraft, submitRegistration } from "@/actions/register";
 import type { RegistrationWindowState } from "@/lib/registration/window";
 import { normalizeEmail } from "@/lib/utils/email";
 import { compactUndefined } from "@/lib/utils/object";
+import { defaultMapPreferences, mapLabel, normalizeMapPreferences } from "@/lib/maps";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,6 +42,7 @@ interface RegistrationFormProps {
   positions: string[];
   registrationConfig: RegistrationConfig;
   windowState: RegistrationWindowState;
+  currentUserEmail?: string | null;
 }
 
 export function RegistrationForm({
@@ -49,6 +52,7 @@ export function RegistrationForm({
   positions,
   registrationConfig: inputRegistrationConfig,
   windowState,
+  currentUserEmail,
 }: RegistrationFormProps) {
   const { canSaveDraft, canSubmit, message: windowMessage } = windowState;
   const [submitted, setSubmitted] = useState(false);
@@ -62,8 +66,8 @@ export function RegistrationForm({
     [inputRegistrationConfig],
   );
   const schema = useMemo(
-    () => buildRegistrationSchema(registrationConfig, positions),
-    [registrationConfig, positions],
+    () => buildRegistrationSchema(registrationConfig, positions, { requirePassword: !currentUserEmail }),
+    [currentUserEmail, registrationConfig, positions],
   );
   const activePositions = positions.length > 0 ? positions : [...positionValues];
 
@@ -79,9 +83,13 @@ export function RegistrationForm({
     resolver: zodResolver(schema),
     defaultValues: {
       seasonId,
+      email: currentUserEmail ?? "",
       willingToBeCaptain: false,
       playerType: registrationConfig.allowedPlayerTypes[0],
+      password: "",
+      confirmPassword: "",
       screenshotUrls: Array.from({ length: registrationConfig.screenshotCount }, () => ""),
+      mapPreferences: defaultMapPreferences(registrationConfig.mapPool),
     },
   });
 
@@ -118,10 +126,11 @@ export function RegistrationForm({
 
     setSavingDraft(true);
     try {
+      const { password: _password, confirmPassword: _confirmPassword, ...draftValues } = values;
       const result = await saveRegistrationDraft({
         seasonId,
         email,
-        payload: compactUndefined({ ...values, seasonId, email }) as Record<string, unknown>,
+        payload: compactUndefined({ ...draftValues, seasonId, email }) as Record<string, unknown>,
       });
       if (result.success) {
         toast.success("草稿已保存", {
@@ -135,28 +144,51 @@ export function RegistrationForm({
     }
   };
 
-  const emailField = register("email", {
-    onBlur: async (event) => {
-      const email = normalizeEmail(event.target.value);
-      if (!email || email === lastBlurredEmail) return;
-      setLastBlurredEmail(email);
-      setLoadingDraftEmail(email);
+  const loadDraftForEmail = useCallback(
+    async (email: string, options: { silent?: boolean } = {}) => {
+      const normalized = normalizeEmail(email);
+      if (!normalized) return;
+
+      setLoadingDraftEmail(normalized);
       try {
-        const result = await loadRegistrationDraft(seasonId, email);
+        const result = await loadRegistrationDraft(seasonId, normalized);
         if (result.success && result.data.payload) {
           const draftValues = result.data.payload as Partial<RegistrationInput>;
           reset({
             ...getValues(),
             ...draftValues,
             seasonId,
-            email,
+            email: normalized,
+            mapPreferences: normalizeMapPreferences(
+              draftValues.mapPreferences,
+              registrationConfig.mapPool,
+            ),
           } as RegistrationInput);
-          setLoadedDraftEmail(email);
-          toast.success("已加载保存的报名草稿");
+          setLoadedDraftEmail(normalized);
+          if (!options.silent) {
+            toast.success("已加载保存的报名草稿");
+          }
         }
       } finally {
         setLoadingDraftEmail(null);
       }
+    },
+    [getValues, registrationConfig.mapPool, reset, seasonId],
+  );
+
+  useEffect(() => {
+    if (!currentUserEmail || loadedDraftEmail === currentUserEmail) return;
+    setLastBlurredEmail(currentUserEmail);
+    void loadDraftForEmail(currentUserEmail);
+  }, [currentUserEmail, loadedDraftEmail, loadDraftForEmail]);
+
+  const emailField = register("email", {
+    onBlur: async (event) => {
+      if (currentUserEmail) return;
+      const email = normalizeEmail(event.target.value);
+      if (!email || email === lastBlurredEmail) return;
+      setLastBlurredEmail(email);
+      await loadDraftForEmail(email);
     },
   });
 
@@ -222,7 +254,24 @@ export function RegistrationForm({
         v === "" || v === undefined || v === null
           ? undefined
           : parseFloat(String(v)),
-    });
+        });
+
+  const setMapLevel = (map: string, level: MapPreferenceLevel) => {
+    const current = watch("mapPreferences") ?? defaultMapPreferences(registrationConfig.mapPool);
+    const next = registrationConfig.mapPool.map((item) => ({
+      map: item,
+      level: item === map
+        ? level
+        : current.find((preference) => preference.map === item)?.level ?? "basic",
+    }));
+    setValue("mapPreferences", next, { shouldValidate: true });
+  };
+
+  const mapPreferences = watch("mapPreferences") ?? defaultMapPreferences(registrationConfig.mapPool);
+  const playableCount = mapPreferences.filter((preference) =>
+    ["playable", "proficient", "strong"].includes(preference.level),
+  ).length;
+  const strongCount = mapPreferences.filter((preference) => preference.level === "strong").length;
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
@@ -238,7 +287,14 @@ export function RegistrationForm({
               电子邮件 <Required />
             </Label>
             <div className="relative">
-              <Input id="email" type="email" placeholder="your@email.com" className={inputCls} {...emailField} />
+              <Input
+                id="email"
+                type="email"
+                placeholder="your@email.com"
+                className={inputCls}
+                readOnly={!!currentUserEmail}
+                {...emailField}
+              />
               {loadedDraftEmail && (
                 <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded" style={{ background: "var(--color-ok)22", color: "var(--color-ok)" }}>
                   草稿已恢复
@@ -247,10 +303,51 @@ export function RegistrationForm({
             </div>
             <FieldError name="email" />
             <p className="text-xs text-[var(--color-fg-dim)] mt-1">
-              输入邮箱后自动恢复已保存的草稿。同时用于接收审核通知。
+              {currentUserEmail
+                ? "已登录报名，邮箱将绑定到当前账号。"
+                : "输入邮箱后自动恢复已保存的草稿。同时用于接收审核通知。"}
               {loadingDraftEmail && " · 正在查询草稿…"}
             </p>
           </div>
+
+          {/* 登录密码 */}
+          {currentUserEmail ? (
+            <div className="rounded border border-[var(--color-border)] bg-[var(--color-panel-hi)] px-3 py-2 text-sm text-[var(--color-fg-mid)]">
+              已登录为 <span className="font-mono text-[var(--color-fg)]">{currentUserEmail}</span>，
+              {loadingDraftEmail ? "正在自动恢复草稿…" : "已自动检查草稿，提交后可直接用该账号查看审核进度。"}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="password" className="text-[var(--color-fg-mid)] mb-1.5 block">
+                  登录密码 <Required />
+                </Label>
+                <Input
+                  id="password"
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder="至少 6 位"
+                  className={inputCls}
+                  {...register("password")}
+                />
+                <FieldError name="password" />
+              </div>
+              <div>
+                <Label htmlFor="confirmPassword" className="text-[var(--color-fg-mid)] mb-1.5 block">
+                  确认密码 <Required />
+                </Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder="再次输入密码"
+                  className={inputCls}
+                  {...register("confirmPassword")}
+                />
+                <FieldError name="confirmPassword" />
+              </div>
+            </div>
+          )}
 
           {/* 学号 + QQ */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -558,11 +655,63 @@ export function RegistrationForm({
         </div>
       </section>
 
+      {/* ═══════════════════════════════════════ 地图熟练度 ═══ */}
+      <section>
+        <SectionTitle>地图熟练度</SectionTitle>
+        <div className="mb-4 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+          <div className="rounded border border-[var(--color-border)] bg-[var(--color-panel-hi)] px-3 py-2">
+            <div className="font-mono text-[var(--color-fg-dim)]">PLAYABLE</div>
+            <div className="mt-1 text-sm font-semibold text-[var(--color-fg)]">{playableCount}/3+</div>
+          </div>
+          <div className="rounded border border-[var(--color-border)] bg-[var(--color-panel-hi)] px-3 py-2">
+            <div className="font-mono text-[var(--color-fg-dim)]">STRONG</div>
+            <div className="mt-1 text-sm font-semibold text-[var(--color-fg)]">{strongCount}/3</div>
+          </div>
+          <div className="col-span-2 rounded border border-[var(--color-border)] bg-[var(--color-panel-hi)] px-3 py-2 text-[var(--color-fg-mid)]">
+            每张图选择一个档位；至少 3 张达到「能打」，「强图」最多 3 张。
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          {registrationConfig.mapPool.map((map) => {
+            const currentLevel =
+              mapPreferences.find((preference) => preference.map === map)?.level ?? "basic";
+            return (
+              <div
+                key={map}
+                className="grid gap-2 rounded border border-[var(--color-border)] bg-[var(--color-panel)] p-2 sm:grid-cols-[96px_1fr]"
+              >
+                <div className="flex items-center text-sm font-semibold text-[var(--color-fg)]">
+                  {mapLabel(map)}
+                </div>
+                <div className="grid grid-cols-5 gap-1">
+                  {MAP_PREFERENCE_LEVELS.map((level) => (
+                    <button
+                      key={level}
+                      type="button"
+                      onClick={() => setMapLevel(map, level)}
+                      className={`min-h-9 rounded border px-1 text-xs font-medium transition-colors ${
+                        currentLevel === level
+                          ? "border-[var(--color-accent)] bg-[var(--color-accent)] text-white"
+                          : "border-[var(--color-border)] bg-[var(--color-panel-hi)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
+                      }`}
+                    >
+                      {MAP_PREFERENCE_LABELS[level]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+          <FieldError name="mapPreferences" />
+        </div>
+      </section>
+
       {/* ═══════════════════════════════════════ 天梯截图 ═══ */}
       <section>
         <SectionTitle>近两周天梯截图</SectionTitle>
         <p className="text-sm text-[var(--color-fg-mid)] mb-4">
-          请将近两周天梯对局截图上传至
+          可将近两周天梯对局截图上传至
           <a
             href="https://box.nju.edu.cn"
             target="_blank"
@@ -571,13 +720,13 @@ export function RegistrationForm({
           >
             NJUBox
           </a>
-          并获取分享链接，粘贴到下方。
+          并获取分享链接，粘贴到下方。未准备好也可以先留空。
         </p>
         <div className="space-y-3">
           {Array.from({ length: registrationConfig.screenshotCount }, (_, index) => (
             <div key={index}>
               <Label htmlFor={`screenshotUrls.${index}`} className="text-[var(--color-fg-mid)] mb-1.5 block">
-                NJUBox 分享链接 {registrationConfig.screenshotCount > 1 ? index + 1 : ""} <Required />
+                NJUBox 分享链接 {registrationConfig.screenshotCount > 1 ? index + 1 : ""}（选填）
               </Label>
               <Input
                 id={`screenshotUrls.${index}`}

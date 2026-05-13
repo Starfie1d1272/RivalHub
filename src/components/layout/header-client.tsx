@@ -22,10 +22,22 @@ import type { UserSession } from "@/lib/auth/session";
 interface HeaderClientProps {
   seasons: Season[];
   session: UserSession | null;
+  avatarUrl?: string | null;
 }
 
-function AvatarButton({ email }: { email: string }) {
+function AvatarButton({ email, avatarUrl }: { email: string; avatarUrl?: string | null }) {
   const initial = email.charAt(0).toUpperCase();
+  if (avatarUrl) {
+    return (
+      <img
+        src={avatarUrl}
+        alt={email}
+        className="inline-flex w-8 h-8 rounded-full border border-[var(--color-border)] object-cover"
+        referrerPolicy="no-referrer"
+      />
+    );
+  }
+
   return (
     <span
       className="inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-semibold text-white"
@@ -36,7 +48,7 @@ function AvatarButton({ email }: { email: string }) {
   );
 }
 
-export function HeaderClient({ seasons, session }: HeaderClientProps) {
+export function HeaderClient({ seasons, session, avatarUrl }: HeaderClientProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -142,7 +154,7 @@ export function HeaderClient({ seasons, session }: HeaderClientProps) {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button className="focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] rounded-full">
-                    <AvatarButton email={session.email} />
+                    <AvatarButton email={session.email} avatarUrl={avatarUrl} />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-44">
@@ -221,7 +233,7 @@ export function HeaderClient({ seasons, session }: HeaderClientProps) {
             {session ? (
               <>
                 <div className="flex items-center gap-2 px-3 py-1.5">
-                  <AvatarButton email={session.email} />
+                  <AvatarButton email={session.email} avatarUrl={avatarUrl} />
                   <span className="text-sm text-[var(--color-fg-dim)] truncate">{session.email}</span>
                 </div>
                 {isAdmin && (

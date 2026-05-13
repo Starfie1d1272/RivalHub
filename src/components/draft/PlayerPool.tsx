@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { DraftPlayerRow } from "@/lib/draft/data";
 import { POSITION_LABELS } from "@/lib/validators/registration";
+import { MapPreferenceChips } from "@/components/rivalhub/map-preference-chips";
 
 interface PlayerPoolProps {
   players: DraftPlayerRow[];
@@ -85,14 +86,17 @@ export function PlayerPool({ players, seasonPositions }: PlayerPoolProps) {
           return list.map((p) => (
             <div
               key={p.registrationId}
-              className="flex items-center justify-between text-xs px-2 py-1.5 rounded bg-[var(--color-panel)] border border-[var(--color-border)]"
+              className="space-y-1.5 rounded bg-[var(--color-panel)] border border-[var(--color-border)] px-2 py-1.5"
             >
-              <span className="text-[var(--color-fg)] truncate">
-                {p.steamName}
-              </span>
-              <span className="text-[var(--color-fg-dim)] tabular ml-1 shrink-0">
-                {p.peakRank} {p.peakRating.toFixed(2)}
-              </span>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-[var(--color-fg)] truncate">
+                  {p.steamName}
+                </span>
+                <span className="text-[var(--color-fg-dim)] tabular ml-1 shrink-0">
+                  {p.peakRank} {p.peakRating.toFixed(2)}
+                </span>
+              </div>
+              <MapPreferenceChips preferences={p.mapPreferences} compact minLevel="playable" />
             </div>
           ));
         })}

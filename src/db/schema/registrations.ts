@@ -1,7 +1,8 @@
-import { pgTable, uuid, text, boolean, timestamp, integer, real, pgEnum, unique } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, boolean, timestamp, integer, real, pgEnum, unique, jsonb } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { users } from "./users";
 import { seasons } from "./seasons";
+import type { MapPreference } from "@/types/season";
 
 export const registrationStatusEnum = pgEnum("registration_status", [
   "pending",
@@ -42,6 +43,12 @@ export const seasonRegistrations = pgTable(
       .array()
       .notNull()
       .default(sql`'{}'::text[]`),
+
+    // ── 当前赛季地图偏好（每张图一个熟练度）────────────
+    mapPreferences: jsonb("map_preferences")
+      .$type<MapPreference[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
 
     // ── 风格与经历 ───────────────────────────────────
     gameplayStyle: text("gameplay_style").notNull(),     // ≤100 字

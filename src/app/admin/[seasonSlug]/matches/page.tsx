@@ -15,7 +15,7 @@ import { StatsOCRPanel } from "@/components/matches/StatsOCRPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Panel, StatusPill } from "@/components/rivalhub";
 import { Separator } from "@/components/ui/separator";
-import { getFirstStageOfType, normalizeStagePlan } from "@/types/season";
+import { getFirstStageOfType, normalizeRegistrationConfig, normalizeStagePlan } from "@/types/season";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -65,6 +65,7 @@ export default async function AdminMatchesPage({ params }: AdminMatchesPageProps
 
   const teamMap = new Map(allTeams.map((t) => [t.id, t.name]));
   const stagePlan = normalizeStagePlan(season.stagePlan);
+  const mapPool = normalizeRegistrationConfig(season.registrationConfig).mapPool;
   const qualifierStage = getFirstStageOfType(stagePlan, ["round_robin", "swiss"]);
   const playoffStage = getFirstStageOfType(stagePlan, ["double_elim", "single_elim"]);
   const qualifierKey = qualifierStage?.key ?? "qualifier";
@@ -298,6 +299,7 @@ export default async function AdminMatchesPage({ params }: AdminMatchesPageProps
                                   pickedByTeamId: r.pickedByTeamId,
                                   teamAStartSide: r.teamAStartSide as "t" | "ct" | null,
                                 }))}
+                                mapPool={mapPool}
                               />
                             ) : (
                               <ScoreInput

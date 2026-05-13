@@ -50,6 +50,7 @@ const registrationConfigSchema = z.object({
   maxPerPosition: z.number().int().min(1).max(50),
   screenshotCount: z.number().int().min(1).max(5),
   maxTotal: z.number().int().min(1).max(1000),
+  mapPool: z.array(z.string().min(1).regex(/^de_[a-z0-9_]+$/)).min(3).max(12),
 });
 
 const seasonFormBaseSchema = z.object({

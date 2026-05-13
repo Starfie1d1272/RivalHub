@@ -1,3 +1,5 @@
+import type { MapPreference } from "@/types/season";
+
 // 共享报名类型
 
 export type Position = "igl" | "awper" | "opener" | "closer" | "anchor";
@@ -13,6 +15,7 @@ export interface Registration {
   peakRating: number | null;
   playerType: "enrolled" | "graduated" | "external";
   screenshotUrls: string[];
+  mapPreferences: MapPreference[];
   status: RegistrationStatus;
   willingToBeCaptain: boolean;
   notes: string | null;

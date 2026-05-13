@@ -8,11 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { recordMapResult } from "@/actions/matches";
-
-const CS2_MAP_POOL = [
-  "de_mirage", "de_inferno", "de_nuke", "de_ancient",
-  "de_dust2", "de_anubis", "de_train",
-];
+import { mapLabel } from "@/lib/maps";
 
 interface CompletedMap {
   mapOrder: number;
@@ -31,12 +27,13 @@ interface MapByMapInputProps {
   teamAId: string;
   teamBId: string;
   completedMaps: CompletedMap[];
+  mapPool: string[];
 }
 
 const SIDE_LABELS = { t: "T 方", ct: "CT 方" };
 
 export function MapByMapInput({
-  matchId, format, teamAName, teamBName, teamAId, teamBId, completedMaps,
+  matchId, format, teamAName, teamBName, teamAId, teamBId, completedMaps, mapPool,
 }: MapByMapInputProps) {
   const maxWins = format === "bo3" ? 2 : 3;
   const maxMaps = format === "bo3" ? 3 : 5;
@@ -51,7 +48,7 @@ export function MapByMapInput({
   const seriesFinished = mapWinsA >= maxWins || mapWinsB >= maxWins;
   const nextMapOrder = completedMaps.length + 1;
   const usedMapNames = new Set(completedMaps.map((m) => m.mapName));
-  const availableMaps = CS2_MAP_POOL.filter((m) => !usedMapNames.has(m));
+  const availableMaps = mapPool.filter((m) => !usedMapNames.has(m));
 
   const [mapName, setMapName] = useState("");
   const [pickedBy, setPickedBy] = useState<string>("decider"); // teamAId | teamBId | "decider"
@@ -104,7 +101,7 @@ export function MapByMapInput({
             return (
               <div key={m.mapOrder} className="flex items-center gap-2 text-xs text-[var(--color-fg-mid)]">
                 <span className="w-4">#{m.mapOrder}</span>
-                <span className="font-medium text-[var(--color-fg)]">{m.mapName}</span>
+                <span className="font-medium text-[var(--color-fg)]">{mapLabel(m.mapName)}</span>
                 {pickedByName
                   ? <Badge variant="outline" className="text-xs">{pickedByName} pick</Badge>
                   : <Badge variant="outline" className="text-xs text-[var(--color-fg-dim)]">决胜图</Badge>}
@@ -131,7 +128,7 @@ export function MapByMapInput({
                 <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="选择" /></SelectTrigger>
                 <SelectContent>
                   {availableMaps.map((m) => (
-                    <SelectItem key={m} value={m} className="text-xs">{m}</SelectItem>
+                    <SelectItem key={m} value={m} className="text-xs">{mapLabel(m)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

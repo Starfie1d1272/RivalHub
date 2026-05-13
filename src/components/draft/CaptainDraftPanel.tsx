@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { DraftCountdown } from "./DraftCountdown";
 import { canPickPosition } from "@/lib/draft/rules";
 import { POSITION_LABELS } from "@/lib/validators/registration";
+import { MapPreferenceChips } from "@/components/rivalhub/map-preference-chips";
+import type { MapPreference } from "@/types/season";
 
 export interface CaptainDraftPlayer {
   registrationId: string;
@@ -17,6 +19,7 @@ export interface CaptainDraftPlayer {
   secondaryPosition: string;
   peakRank: string;
   peakRating: number;
+  mapPreferences: MapPreference[];
 }
 
 interface CaptainDraftPanelProps {
@@ -194,6 +197,9 @@ export function CaptainDraftPanel({
                       <span>{positionLabel(player.primaryPosition)}</span>
                       <span>{player.peakRank} {player.peakRating.toFixed(2)}</span>
                       <span>副选 {positionLabel(player.secondaryPosition)}</span>
+                    </div>
+                    <div className="mt-2">
+                      <MapPreferenceChips preferences={player.mapPreferences} compact minLevel="playable" />
                     </div>
                   </div>
                   <Button

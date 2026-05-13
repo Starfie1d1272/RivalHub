@@ -8,6 +8,8 @@ import { users, seasons, seasonRegistrations, registrationDrafts } from "@/db/sc
 import { ok, fail } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { actionError } from "@/lib/action-utils";
+import { createServiceClient } from "@/lib/auth/supabase";
+import { createUserSession, getUserSession } from "@/lib/auth/session";
 import { buildRegistrationSchema, registrationSeedSchema, type RegistrationFormData } from "@/lib/validators/registration";
 import { normalizeRegistrationConfig } from "@/types/season";
 import { getRegistrationWindowState } from "@/lib/registration/window";
@@ -145,8 +147,11 @@ export async function submitRegistration(input: RegistrationFormData) {
       throw new AppError(ErrorCode.REGISTRATION_CLOSED, windowState.message);
     }
 
+    const session = await getUserSession();
     const registrationConfig = normalizeRegistrationConfig(season.registrationConfig);
-    const parsed = buildRegistrationSchema(registrationConfig, season.positions).safeParse(input);
+    const parsed = buildRegistrationSchema(registrationConfig, season.positions, {
+      requirePassword: !session,
+    }).safeParse(input);
     if (!parsed.success) {
       const fieldErrors: Record<string, string> = {};
       for (const [field, errors] of Object.entries(
@@ -162,11 +167,24 @@ export async function submitRegistration(input: RegistrationFormData) {
     }
 
     const data = parsed.data;
+    const normalizedEmail = normalizeEmail(data.email);
+    if (session && normalizedEmail !== normalizeEmail(session.email)) {
+      return fail({
+        code: ErrorCode.FORBIDDEN,
+        message: "已登录报名只能使用当前登录邮箱",
+      });
+    }
 
-    // 3. Upsert 用户（含所有基础信息字段）
-    let user = await db.query.users.findFirst({
-      where: eq(users.email, normalizeEmail(data.email)),
-    });
+    // 3. 查找用户，后续在名额校验通过后再创建/绑定 Auth
+    let user = session
+      ? await db.query.users.findFirst({ where: eq(users.id, session.userId) })
+      : await db.query.users.findFirst({ where: eq(users.email, normalizedEmail) });
+    if (session && !user) {
+      return fail({
+        code: ErrorCode.UNAUTHORIZED,
+        message: "登录状态异常，请重新登录后再报名",
+      });
+    }
     const userFields = {
       steam64: data.steam64,
       qq: data.qq,
@@ -176,28 +194,33 @@ export async function submitRegistration(input: RegistrationFormData) {
       steamProfileUrl: data.steamProfileUrl,
     };
 
-    if (!user) {
-      const [created] = await db
-        .insert(users)
-        .values({ email: normalizeEmail(data.email), ...userFields })
-        .returning();
-      user = created;
-    } else {
-      await db
-        .update(users)
-        .set({ ...userFields, updatedAt: new Date() })
-        .where(eq(users.id, user.id));
+    // 4. 重复报名检查
+    if (user) {
+      const existing = await db.query.seasonRegistrations.findFirst({
+        where: and(
+          eq(seasonRegistrations.userId, user.id),
+          eq(seasonRegistrations.seasonId, data.seasonId)
+        ),
+      });
+      if (existing) {
+        throw new AppError(ErrorCode.REGISTRATION_DUPLICATE, ERROR_MESSAGES.REGISTRATION_DUPLICATE);
+      }
     }
 
-    // 4. 重复报名检查
-    const existing = await db.query.seasonRegistrations.findFirst({
-      where: and(
-        eq(seasonRegistrations.userId, user.id),
-        eq(seasonRegistrations.seasonId, data.seasonId)
-      ),
-    });
-    if (existing) {
-      throw new AppError(ErrorCode.REGISTRATION_DUPLICATE, ERROR_MESSAGES.REGISTRATION_DUPLICATE);
+    let shouldCreateUserSession = false;
+    if (!session && user?.authId) {
+      const supabase = createServiceClient();
+      const { data: authData, error } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password: data.password,
+      });
+      if (error || authData.user?.id !== user.authId) {
+        return fail({
+          code: ErrorCode.UNAUTHORIZED,
+          message: "此邮箱已注册，请输入正确密码后再提交报名",
+        });
+      }
+      shouldCreateUserSession = true;
     }
 
     // 5. 全局总报名人数上限检查（仅统计已通过，被拒/候补不占名额）
@@ -228,6 +251,52 @@ export async function submitRegistration(input: RegistrationFormData) {
       throw new AppError(ErrorCode.POSITION_FULL, ERROR_MESSAGES.POSITION_FULL);
     }
 
+    // 6b. 创建或复用 Supabase Auth 账号
+    let authId = user?.authId ?? null;
+    if (!authId && session) {
+      return fail({
+        code: ErrorCode.UNAUTHORIZED,
+        message: "账号尚未完成登录绑定，请重新注册或联系管理员",
+      });
+    }
+
+    if (!authId) {
+      const supabase = createServiceClient();
+      const { data: authData, error } = await supabase.auth.signUp({
+        email: normalizedEmail,
+        password: data.password,
+      });
+
+      if (error || !authData.user) {
+        return fail({
+          code: ErrorCode.VALIDATION_FAILED,
+          message: "账号创建失败，请确认邮箱和密码后重试",
+        });
+      }
+
+      authId = authData.user.id;
+      shouldCreateUserSession = true;
+    }
+
+    if (!user) {
+      const [created] = await db
+        .insert(users)
+        .values({ email: normalizedEmail, authId, ...userFields })
+        .returning();
+      user = created;
+    } else {
+      const [updated] = await db
+        .update(users)
+        .set({ authId, ...userFields, updatedAt: new Date() })
+        .where(eq(users.id, user.id))
+        .returning();
+      user = updated;
+    }
+
+    if (!user) {
+      throw new AppError(ErrorCode.INTERNAL_ERROR, ERROR_MESSAGES.INTERNAL_ERROR);
+    }
+
     // 6. 插入报名记录
     const [registration] = await db
       .insert(seasonRegistrations)
@@ -245,6 +314,7 @@ export async function submitRegistration(input: RegistrationFormData) {
         currentRating: data.currentRating,
         currentWe: data.currentWe,
         screenshotUrls: data.screenshotUrls,
+        mapPreferences: data.mapPreferences,
         gameplayStyle: data.gameplayStyle,
         competitionHistory: data.competitionHistory,
         highlightVideoUrl: data.highlightVideoUrl,
@@ -258,9 +328,19 @@ export async function submitRegistration(input: RegistrationFormData) {
       .where(
         and(
           eq(registrationDrafts.seasonId, data.seasonId),
-          eq(registrationDrafts.email, normalizeEmail(data.email)),
+          eq(registrationDrafts.email, normalizedEmail),
         ),
       );
+
+    if (shouldCreateUserSession) {
+      await createUserSession({
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+        adminSeasonIds: user.adminSeasonIds,
+        authSource: "user",
+      });
+    }
 
     revalidatePath(`/${season.slug}/register`);
     return ok({ registrationId: registration.id, email: data.email });

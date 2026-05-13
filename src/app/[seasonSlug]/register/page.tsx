@@ -10,6 +10,7 @@ import { Panel, StatusBanner, PosChip } from "@/components/rivalhub";
 import { POSITION_LABELS } from "@/lib/validators/registration";
 import { getRegistrationWindowState, getWindowTone } from "@/lib/registration/window";
 import { formatCST } from "@/lib/utils/date";
+import { getUserSession } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -63,6 +64,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
   const regConfig = normalizeRegistrationConfig(season.registrationConfig);
   const maxPerPos = regConfig.maxPerPosition;
   const registrationWindow = getRegistrationWindowState(season);
+  const userSession = await getUserSession();
 
   // 位置容量数据
   const capacityEntries = season.positions.map((pos) => {
@@ -143,6 +145,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
           positions={season.positions}
           registrationConfig={regConfig}
           windowState={registrationWindow}
+          currentUserEmail={userSession?.email ?? null}
         />
       </Panel>
 

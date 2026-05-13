@@ -38,8 +38,19 @@ function validData(overrides?: Record<string, any>) {
     peakRating: 1.5,
     currentSeasonPeakRank: "A",
     currentRating: 1.2,
-    screenshotUrls: ["https://example.com/screenshot.png"],
+    screenshotUrls: [],
+    mapPreferences: [
+      { map: "de_mirage", level: "strong" },
+      { map: "de_inferno", level: "proficient" },
+      { map: "de_nuke", level: "playable" },
+      { map: "de_ancient", level: "basic" },
+      { map: "de_dust2", level: "basic" },
+      { map: "de_anubis", level: "basic" },
+      { map: "de_train", level: "none" },
+    ],
     gameplayStyle: "激进突破",
+    password: "secret123",
+    confirmPassword: "secret123",
     antiCheatPledge: true,
     ...overrides,
   };
@@ -108,9 +119,34 @@ describe("buildRegistrationSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("rejects wrong screenshot count", () => {
+  it("accepts empty screenshot links", () => {
     const schema = buildSchema();
     const result = schema.safeParse(validData({ screenshotUrls: [] }));
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects mismatched passwords", () => {
+    const schema = buildSchema();
+    const result = schema.safeParse(validData({ confirmPassword: "different123" }));
     expect(result.success).toBe(false);
   });
+
+  it("rejects map preferences outside the season map pool", () => {
+    const schema = buildSchema();
+    const result = schema.safeParse(
+      validData({
+        mapPreferences: [
+          { map: "de_cache", level: "strong" },
+          { map: "de_inferno", level: "proficient" },
+          { map: "de_nuke", level: "playable" },
+          { map: "de_ancient", level: "basic" },
+          { map: "de_dust2", level: "basic" },
+          { map: "de_anubis", level: "basic" },
+          { map: "de_train", level: "none" },
+        ],
+      }),
+    );
+    expect(result.success).toBe(false);
+  });
+
 });
