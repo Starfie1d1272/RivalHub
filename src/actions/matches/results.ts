@@ -17,7 +17,7 @@ import {
 import { getWinThreshold } from "@/types/match";
 import { actionError, getSeasonOrThrow, getMatchOrThrow } from "@/lib/action-utils";
 import { revalidateMatchPaths } from "@/lib/revalidation";
-import { normalizeStagePlan } from "@/types/season";
+import { normalizeRegistrationConfig, normalizeStagePlan } from "@/types/season";
 
 /**
  * 将 bracket 推进后解析出的新对阵批量写入 matches 表。
@@ -217,6 +217,12 @@ export async function recordMapResult(
       throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛未在进行中");
     }
 
+    const season = await getSeasonOrThrow(match.seasonId);
+    const mapPool = normalizeRegistrationConfig(season.registrationConfig).mapPool;
+    if (!mapPool.includes(mapName)) {
+      throw new AppError(ErrorCode.MATCH_MAP_INVALID, "地图不在当前赛季图池中");
+    }
+
     const maxWins = getWinThreshold(match.format);
     const maxMaps = match.format === "bo5" ? 5 : 3;
 
@@ -242,7 +248,6 @@ export async function recordMapResult(
       else mapWinsB++;
     }
 
-    const season = await getSeasonOrThrow(match.seasonId);
     const seriesFinished = mapWinsA >= maxWins || mapWinsB >= maxWins;
 
     // 如果系列赛结束且有 bracket，提前计算 bracket 推进结果（纯计算，不写 DB）

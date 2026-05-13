@@ -1,7 +1,8 @@
 import { db } from "@/db/client";
-import { seasons } from "@/db/schema";
+import { seasons, users } from "@/db/schema";
 import { getUserSession } from "@/lib/auth/session";
 import { HeaderClient } from "./header-client";
+import { eq } from "drizzle-orm";
 
 export async function Header() {
   const [allSeasons, session] = await Promise.all([
@@ -13,5 +14,12 @@ export async function Header() {
     (s) => s.status !== "archived" && s.status !== "draft"
   );
 
-  return <HeaderClient seasons={publicSeasons} session={session} />;
+  const currentUser = session
+    ? await db.query.users.findFirst({
+        where: eq(users.id, session.userId),
+        columns: { avatarUrl: true },
+      })
+    : null;
+
+  return <HeaderClient seasons={publicSeasons} session={session} avatarUrl={currentUser?.avatarUrl ?? null} />;
 }

@@ -51,7 +51,8 @@ RivalHub 是 Next.js 15 App Router 应用，部署在 Vercel，数据层使用 S
 |---|---|---|---|
 | 3.1 资格要求 | 段位门槛、身份类型、Steam/QQ/学号信息 | 已实现 | `src/lib/validators/registration.ts`、`src/types/season.ts` |
 | 3.2 报名信息 | 基础信息、段位与 WE、位置、风格、经历、高光链接、反作弊承诺 | 已实现 | `src/components/register/RegistrationForm.tsx` |
-| 3.2 近两周 5 场截图 | 通过 1 个 NJUBox 分享链接提交，链接内应包含 5 场截图 | 已实现，需运营文案强调 | `RIVALS_REGISTRATION_CONFIG.screenshotCount = 1` |
+| 3.2 地图熟练度 | 赛季配置图池；每图 5 档熟练度，至少 3 张能打，强图最多 3 张 | 已实现 | `src/types/season.ts`、`src/lib/validators/registration.ts` |
+| 3.2 近两周 5 场截图 | 可选提交 1 个 NJUBox 分享链接，链接内建议包含近两周 5 场截图 | 已实现 | `RIVALS_REGISTRATION_CONFIG.screenshotCount = 1` |
 | 3.3 报名审核 | pending / approved / rejected / waitlisted + audit log | 已实现 | `src/actions/admin.ts` |
 | 3.3 位置主选上限 15 | 页面展示位置余量，提交和审核时服务端二次校验 | 已实现 | `src/actions/register.ts`、`src/actions/admin.ts` |
 | 3.3 队长录取 | 候选人投票、前 8 生成队伍，票数决定顺位 | 已实现 | `src/actions/captains.ts` |

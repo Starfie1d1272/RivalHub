@@ -192,7 +192,7 @@
 | `currentSeasonPeakRank` | 请选择当前赛季最高段位 / 段位未达到报名资格 |
 | `currentRating` | 请输入数字 / Rating 最小 0.01 / Rating 最大 3.00 / Rating 最多保留两位小数 |
 | `currentWe` | 请输入数字 / WE 不能为负 / WE 最大 16.0 / WE 最多保留一位小数 |
-| `screenshotUrls` | 请填写 NJUBox 分享链接 / 请输入有效的链接 / 请填写 N 个截图链接 |
+| `screenshotUrls` | 请输入有效的链接 / 最多填写 N 个截图链接 |
 | `gameplayStyle` | 请填写游戏风格自述 / 游戏风格自述不超过 100 字 |
 | `competitionHistory` | 历史比赛经历不超过 500 字 |
 | `highlightVideoUrl` | 请输入有效的链接（以 http:// 或 https:// 开头） |

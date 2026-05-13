@@ -41,6 +41,10 @@ const baseProps = {
 describe("RegistrationForm", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    loadRegistrationDraftMock.mockResolvedValue({
+      success: true,
+      data: { payload: null },
+    });
     saveRegistrationDraftMock.mockResolvedValue({
       success: true,
       data: { email: "player@example.com" },
@@ -91,6 +95,44 @@ describe("RegistrationForm", () => {
       expect(selects[2]).toHaveTextContent("Anchor（主防）");
       expect(selects[3]).toHaveTextContent("钻石S");
       expect(selects[4]).toHaveTextContent("黄金S");
+    });
+  });
+
+  it("shows logged-in email as readonly", async () => {
+    render(<RegistrationForm {...baseProps} currentUserEmail="player@example.com" />);
+
+    await waitFor(() => {
+      expect(loadRegistrationDraftMock).toHaveBeenCalledWith(
+        baseProps.seasonId,
+        "player@example.com",
+      );
+    });
+    expect(screen.getByLabelText(/电子邮件/)).toHaveValue("player@example.com");
+  });
+
+  it("auto-loads the logged-in user's draft", async () => {
+    loadRegistrationDraftMock.mockResolvedValue({
+      success: true,
+      data: {
+        payload: {
+          seasonId: baseProps.seasonId,
+          email: "player@example.com",
+          perfectName: "草稿昵称",
+          playerType: "graduated",
+        },
+      },
+    });
+
+    render(<RegistrationForm {...baseProps} currentUserEmail="player@example.com" />);
+
+    await waitFor(() => {
+      expect(loadRegistrationDraftMock).toHaveBeenCalledWith(
+        baseProps.seasonId,
+        "player@example.com",
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByLabelText(/完美平台昵称/)).toHaveValue("草稿昵称");
     });
   });
 });

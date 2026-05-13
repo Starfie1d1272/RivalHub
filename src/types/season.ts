@@ -14,6 +14,12 @@ export type SeasonStatus =
 export type RegistrationMode = "solo" | "team";
 export type StageType = "round_robin" | "double_elim" | "single_elim" | "swiss" | "gsl_group";
 export type PlayerType = "enrolled" | "graduated" | "external";
+export type MapPreferenceLevel = "none" | "basic" | "playable" | "proficient" | "strong";
+
+export interface MapPreference {
+  map: string;
+  level: MapPreferenceLevel;
+}
 
 export interface AdvanceTier {
   /** 名次标识："*" = 全部晋级；"1st"/"2nd"/"3rd" 等 = 分层晋级 */
@@ -63,6 +69,8 @@ export interface RegistrationConfig {
   screenshotCount: number;
   /** 总报名人数上限，默认 56。到达后新报名被拒绝 */
   maxTotal: number;
+  /** 当前赛季 CS2 图池；报名地图偏好和比赛录入共用这组配置 */
+  mapPool: string[];
 }
 
 export interface TeamRegistrationConfig {
@@ -143,6 +151,44 @@ export interface Season extends SeasonCapabilities {
 // ── Capability 预设 ───────────────────────────────────────────────────────
 
 export const CS2_POSITIONS = ["igl", "awper", "opener", "closer", "anchor"];
+export const DEFAULT_CS2_MAP_POOL = [
+  "de_mirage",
+  "de_inferno",
+  "de_nuke",
+  "de_ancient",
+  "de_dust2",
+  "de_anubis",
+  "de_train",
+] as const;
+
+export const MAP_LABELS: Record<string, string> = {
+  de_mirage: "Mirage",
+  de_inferno: "Inferno",
+  de_nuke: "Nuke",
+  de_ancient: "Ancient",
+  de_dust2: "Dust2",
+  de_anubis: "Anubis",
+  de_train: "Train",
+  de_cache: "Cache",
+  de_overpass: "Overpass",
+  de_vertigo: "Vertigo",
+};
+
+export const MAP_PREFERENCE_LEVELS: readonly MapPreferenceLevel[] = [
+  "none",
+  "basic",
+  "playable",
+  "proficient",
+  "strong",
+] as const;
+
+export const MAP_PREFERENCE_LABELS: Record<MapPreferenceLevel, string> = {
+  none: "不会",
+  basic: "认路",
+  playable: "能打",
+  proficient: "熟练",
+  strong: "强图",
+};
 
 export const RIVALS_STAGE_PLAN: StagePlan = [
   {
@@ -164,6 +210,7 @@ export const RIVALS_REGISTRATION_CONFIG: RegistrationConfig = {
   maxPerPosition: 15,
   screenshotCount: 1,
   maxTotal: 56,
+  mapPool: [...DEFAULT_CS2_MAP_POOL],
 };
 
 /** 选秀联赛预设：个人报名 → 队长投票 → 蛇形选秀 → 循环赛 + 双败淘汰 */
@@ -244,6 +291,7 @@ export const MAJOR_REGISTRATION_CONFIG: RegistrationConfig = {
   maxPerPosition: 50,
   screenshotCount: 1,
   maxTotal: 256,
+  mapPool: [...DEFAULT_CS2_MAP_POOL],
 };
 
 /** 所有预设的快捷索引 */
@@ -330,6 +378,7 @@ export function normalizeRegistrationConfig(
     maxPerPosition: config?.maxPerPosition ?? RIVALS_REGISTRATION_CONFIG.maxPerPosition,
     screenshotCount: config?.screenshotCount ?? RIVALS_REGISTRATION_CONFIG.screenshotCount,
     maxTotal: config?.maxTotal ?? RIVALS_REGISTRATION_CONFIG.maxTotal,
+    mapPool: config?.mapPool?.length ? [...new Set(config.mapPool)] : RIVALS_REGISTRATION_CONFIG.mapPool,
   };
 }
 

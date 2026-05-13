@@ -2,11 +2,14 @@ import { z } from "zod";
 import { REGISTRATION_DEFAULTS } from "@/lib/config/registration-defaults";
 import {
   PLAYER_TYPE_LABELS,
+  MAP_PREFERENCE_LEVELS,
   normalizeRegistrationConfig,
   RIVALS_REGISTRATION_CONFIG,
+  type MapPreferenceLevel,
   type PlayerType,
   type RegistrationConfig,
 } from "@/types/season";
+import { PLAYABLE_MAP_LEVELS } from "@/lib/maps";
 import type { PositionValue, RankValue } from "@/lib/config/registration-defaults";
 
 // ── 从配置派生位置常量 ──────────────────────────────
@@ -65,6 +68,7 @@ export function buildRegistrationSchema(
     config.allowedPlayerTypes,
     RIVALS_REGISTRATION_CONFIG.allowedPlayerTypes,
   );
+  const mapPool = config.mapPool.length ? config.mapPool : RIVALS_REGISTRATION_CONFIG.mapPool;
 
   return z
     .object({
@@ -179,11 +183,26 @@ export function buildRegistrationSchema(
       // ── 天梯截图（NJUBox 分享链接）──
       screenshotUrls: z
         .array(
-          z.string().min(1, "请填写 NJUBox 分享链接").refine((v) => /^https?:\/\/.+/.test(v), {
-            message: "请输入有效的链接（以 http:// 或 https:// 开头）",
+          z
+            .string()
+            .trim()
+            .refine((v) => !v || /^https?:\/\/.+/.test(v), {
+              message: "请输入有效的链接（以 http:// 或 https:// 开头）",
+            }),
+        )
+        .max(config.screenshotCount, `最多填写 ${config.screenshotCount} 个截图链接`)
+        .transform((urls) => urls.map((url) => url.trim()).filter(Boolean)),
+
+      mapPreferences: z
+        .array(
+          z.object({
+            map: z.string().refine((v) => mapPool.includes(v), {
+              message: "地图不在当前赛季图池中",
+            }),
+            level: z.enum(MAP_PREFERENCE_LEVELS as [MapPreferenceLevel, ...MapPreferenceLevel[]]),
           }),
         )
-        .length(config.screenshotCount, `请填写 ${config.screenshotCount} 个截图链接`),
+        .length(mapPool.length, "请为当前图池中的每张地图选择熟练度"),
 
       // ── 风格与经历 ──
       gameplayStyle: z
@@ -215,6 +234,38 @@ export function buildRegistrationSchema(
     .refine((data) => data.secondaryPosition !== data.primaryPosition, {
       message: "次选位置不能与主选位置相同",
       path: ["secondaryPosition"],
+    })
+    .superRefine((data, ctx) => {
+      const seen = new Set<string>();
+      let playableCount = 0;
+      let strongCount = 0;
+      for (const preference of data.mapPreferences) {
+        if (seen.has(preference.map)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "地图偏好不能重复",
+            path: ["mapPreferences"],
+          });
+          break;
+        }
+        seen.add(preference.map);
+        if (PLAYABLE_MAP_LEVELS.has(preference.level)) playableCount++;
+        if (preference.level === "strong") strongCount++;
+      }
+      if (playableCount < 3) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "请至少选择 3 张达到「能打」及以上的地图",
+          path: ["mapPreferences"],
+        });
+      }
+      if (strongCount > 3) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "「强图」最多选择 3 张",
+          path: ["mapPreferences"],
+        });
+      }
     })
     .refine(
       (data) => {

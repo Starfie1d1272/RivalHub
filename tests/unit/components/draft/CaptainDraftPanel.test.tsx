@@ -35,6 +35,11 @@ const baseProps = {
       secondaryPosition: "anchor",
       peakRank: "S",
       peakRating: 2.01,
+      mapPreferences: [
+        { map: "de_mirage", level: "strong" as const },
+        { map: "de_nuke", level: "playable" as const },
+        { map: "de_inferno", level: "proficient" as const },
+      ],
     },
   ],
   seasonPositions: ["igl", "anchor"],

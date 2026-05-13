@@ -4,6 +4,7 @@ import { db } from "@/db/client";
 import { seasons, teams, teamMembers, seasonRegistrations, users, matches, matchMaps } from "@/db/schema";
 import { matchPlayerStats } from "@/db/schema/player-stats";
 import { Panel, Stat, Marker, PosChip } from "@/components/rivalhub";
+import { MapPreferenceChips } from "@/components/rivalhub/map-preference-chips";
 import Link from "next/link";
 import { POSITION_LABELS } from "@/lib/validators/registration";
 import { CS2_POSITIONS } from "@/types/season";
@@ -36,6 +37,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
       registrationId: teamMembers.registrationId,
       isStarter: teamMembers.isStarter,
       primaryPosition: seasonRegistrations.primaryPosition,
+      mapPreferences: seasonRegistrations.mapPreferences,
       steamName: users.steamName,
     })
     .from(teamMembers)
@@ -233,9 +235,14 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
                     {p.steamName ?? "未知选手"}
                   </span>
                 </div>
-                <span className="text-sm text-[var(--color-fg-mid)]">
-                  {POSITION_LABELS[p.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? p.primaryPosition}
-                </span>
+                <div className="text-right">
+                  <span className="text-sm text-[var(--color-fg-mid)]">
+                    {POSITION_LABELS[p.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? p.primaryPosition}
+                  </span>
+                  <div className="mt-1 flex justify-end">
+                    <MapPreferenceChips preferences={p.mapPreferences ?? []} compact minLevel="playable" />
+                  </div>
+                </div>
               </div>
             ))}
 

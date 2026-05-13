@@ -8,11 +8,13 @@ import { users, seasons, seasonRegistrations, registrationDrafts } from "@/db/sc
 import { ok, fail } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { actionError } from "@/lib/action-utils";
+import { getUserSession } from "@/lib/auth/session";
 import { buildRegistrationSchema, registrationSeedSchema, type RegistrationFormData } from "@/lib/validators/registration";
 import { normalizeRegistrationConfig } from "@/types/season";
 import { getRegistrationWindowState } from "@/lib/registration/window";
 import { normalizeEmail } from "@/lib/utils/email";
 import { compactUndefined } from "@/lib/utils/object";
+import { getSteamAvatar } from "@/lib/steam";
 
 const draftSchema = z.object({
   seasonId: z.string().uuid("赛季 ID 格式不正确"),
@@ -107,14 +109,8 @@ export async function loadRegistrationDraft(seasonId: string, email: string) {
 }
 
 /**
- * 提交报名
- * 1. Zod 校验
- * 2. 检查赛季存在且状态为 registration
- * 3. Upsert 用户（按 email）
- * 4. 检查是否重复报名
- * 5. 检查全局总报名人数上限
- * 6. 检查位置名额
- * 7. 插入报名记录
+ * 提交报名。
+ * 要求已登录；未登录请先跳转 /login。
  */
 export async function submitRegistration(input: RegistrationFormData) {
   const seedParsed = registrationSeedSchema.safeParse(input);
@@ -133,7 +129,6 @@ export async function submitRegistration(input: RegistrationFormData) {
   }
 
   try {
-    // 2. 查赛季
     const season = await db.query.seasons.findFirst({
       where: eq(seasons.id, seedParsed.data.seasonId),
     });
@@ -143,6 +138,14 @@ export async function submitRegistration(input: RegistrationFormData) {
     const windowState = getRegistrationWindowState(season);
     if (!windowState.canSubmit) {
       throw new AppError(ErrorCode.REGISTRATION_CLOSED, windowState.message);
+    }
+
+    const session = await getUserSession();
+    if (!session) {
+      return fail({
+        code: ErrorCode.UNAUTHORIZED,
+        message: "请先登录或注册账号后再报名",
+      });
     }
 
     const registrationConfig = normalizeRegistrationConfig(season.registrationConfig);
@@ -162,34 +165,24 @@ export async function submitRegistration(input: RegistrationFormData) {
     }
 
     const data = parsed.data;
-
-    // 3. Upsert 用户（含所有基础信息字段）
-    let user = await db.query.users.findFirst({
-      where: eq(users.email, normalizeEmail(data.email)),
-    });
-    const userFields = {
-      steam64: data.steam64,
-      qq: data.qq,
-      studentId: data.studentId,
-      perfectName: data.perfectName,
-      steamName: data.steamName,
-      steamProfileUrl: data.steamProfileUrl,
-    };
-
-    if (!user) {
-      const [created] = await db
-        .insert(users)
-        .values({ email: normalizeEmail(data.email), ...userFields })
-        .returning();
-      user = created;
-    } else {
-      await db
-        .update(users)
-        .set({ ...userFields, updatedAt: new Date() })
-        .where(eq(users.id, user.id));
+    const normalizedEmail = normalizeEmail(data.email);
+    if (normalizedEmail !== normalizeEmail(session.email)) {
+      return fail({
+        code: ErrorCode.FORBIDDEN,
+        message: "报名邮箱必须与登录邮箱一致",
+      });
     }
 
-    // 4. 重复报名检查
+    const user = await db.query.users.findFirst({
+      where: eq(users.id, session.userId),
+    });
+    if (!user) {
+      return fail({
+        code: ErrorCode.UNAUTHORIZED,
+        message: "账号数据异常，请重新登录后再报名",
+      });
+    }
+
     const existing = await db.query.seasonRegistrations.findFirst({
       where: and(
         eq(seasonRegistrations.userId, user.id),
@@ -200,7 +193,6 @@ export async function submitRegistration(input: RegistrationFormData) {
       throw new AppError(ErrorCode.REGISTRATION_DUPLICATE, ERROR_MESSAGES.REGISTRATION_DUPLICATE);
     }
 
-    // 5. 全局总报名人数上限检查（仅统计已通过，被拒/候补不占名额）
     const [totalCount] = await db
       .select({ count: count() })
       .from(seasonRegistrations)
@@ -214,7 +206,6 @@ export async function submitRegistration(input: RegistrationFormData) {
       throw new AppError(ErrorCode.REGISTRATION_FULL, ERROR_MESSAGES.REGISTRATION_FULL);
     }
 
-    // 6a. 事务插入报名记录
     const [posCount] = await db
       .select({ count: count() })
       .from(seasonRegistrations)
@@ -228,7 +219,31 @@ export async function submitRegistration(input: RegistrationFormData) {
       throw new AppError(ErrorCode.POSITION_FULL, ERROR_MESSAGES.POSITION_FULL);
     }
 
-    // 6. 插入报名记录
+    // 更新用户资料，首次报名或更换 steam 账号时刷新头像缓存；steam64 为空时清除旧头像
+    const steamChanged = user.steam64 !== data.steam64;
+    const avatarUrl = !steamChanged
+      ? user.avatarUrl
+      : (data.steam64 ? (await getSteamAvatar(data.steam64)) ?? null : null);
+
+    const [updatedUser] = await db
+      .update(users)
+      .set({
+        steam64: data.steam64,
+        qq: data.qq,
+        studentId: data.studentId,
+        perfectName: data.perfectName,
+        steamName: data.steamName,
+        steamProfileUrl: data.steamProfileUrl,
+        avatarUrl: avatarUrl ?? undefined,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, user.id))
+      .returning();
+
+    if (!updatedUser) {
+      throw new AppError(ErrorCode.INTERNAL_ERROR, ERROR_MESSAGES.INTERNAL_ERROR);
+    }
+
     const [registration] = await db
       .insert(seasonRegistrations)
       .values({
@@ -245,6 +260,7 @@ export async function submitRegistration(input: RegistrationFormData) {
         currentRating: data.currentRating,
         currentWe: data.currentWe,
         screenshotUrls: data.screenshotUrls,
+        mapPreferences: data.mapPreferences,
         gameplayStyle: data.gameplayStyle,
         competitionHistory: data.competitionHistory,
         highlightVideoUrl: data.highlightVideoUrl,
@@ -258,7 +274,7 @@ export async function submitRegistration(input: RegistrationFormData) {
       .where(
         and(
           eq(registrationDrafts.seasonId, data.seasonId),
-          eq(registrationDrafts.email, normalizeEmail(data.email)),
+          eq(registrationDrafts.email, normalizedEmail),
         ),
       );
 
@@ -271,7 +287,6 @@ export async function submitRegistration(input: RegistrationFormData) {
 
 /**
  * 查询某赛季各位置当前报名人数
- * 用于表单页展示名额余量
  */
 export async function getPositionCounts(
   seasonId: string
@@ -288,7 +303,6 @@ export async function getPositionCounts(
   return Object.fromEntries(rows.map((r) => [r.position, Number(r.count)]));
 }
 
-/** 查询某赛季已通过审批的总人数 */
 export async function getApprovedCount(seasonId: string): Promise<number> {
   const [row] = await db
     .select({ count: count() })

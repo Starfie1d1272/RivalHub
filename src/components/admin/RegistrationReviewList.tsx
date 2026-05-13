@@ -9,6 +9,8 @@ import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { POSITION_LABELS } from "@/lib/validators/registration";
 import { REGISTRATION_STATUS_LABELS } from "@/types/registration";
+import { MapPreferenceChips } from "@/components/rivalhub/map-preference-chips";
+import type { MapPreference } from "@/types/season";
 
 // ── 类型 ──────────────────────────────────────────────
 
@@ -22,6 +24,7 @@ export interface RegistrationRow {
   currentSeasonPeakRank: string;
   currentRating: number;
   screenshotUrls: string[];
+  mapPreferences: MapPreference[];
   gameplayStyle: string;
   competitionHistory: string | null;
   notes: string | null;
@@ -174,6 +177,10 @@ export function RegistrationReviewList({ registrations }: Props) {
                     {r.gameplayStyle && <p>风格：{r.gameplayStyle}</p>}
                     {r.competitionHistory && <p>比赛经历：{r.competitionHistory}</p>}
                     {r.notes && <p>备注：{r.notes}</p>}
+                  </div>
+
+                  <div className="mt-2">
+                    <MapPreferenceChips preferences={r.mapPreferences} minLevel="playable" />
                   </div>
 
                   {/* 截图链接 */}

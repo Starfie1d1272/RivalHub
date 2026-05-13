@@ -9,6 +9,7 @@ import {
   users,
 } from "@/db/schema";
 import { DRAFT_TEAMS, DRAFT_TOTAL_ROUNDS } from "@/types/draft";
+import type { MapPreference } from "@/types/season";
 import { getSnakeOrder } from "./rules";
 
 // ── 数据类型 ─────────────────────────────────────────────
@@ -35,6 +36,7 @@ export interface DraftPlayerRow {
   secondaryPosition: string;
   peakRank: string;
   peakRating: number;
+  mapPreferences: MapPreference[];
 }
 
 export interface DraftLiveState {
@@ -134,6 +136,7 @@ export async function getDraftData(seasonId: string): Promise<DraftFullData> {
       secondaryPosition: seasonRegistrations.secondaryPosition,
       peakRank: seasonRegistrations.peakRank,
       peakRating: seasonRegistrations.peakRating,
+      mapPreferences: seasonRegistrations.mapPreferences,
     })
     .from(seasonRegistrations)
     .leftJoin(users, eq(seasonRegistrations.userId, users.id))
@@ -154,6 +157,7 @@ export async function getDraftData(seasonId: string): Promise<DraftFullData> {
       secondaryPosition: r.secondaryPosition,
       peakRank: r.peakRank,
       peakRating: r.peakRating ?? 0,
+      mapPreferences: r.mapPreferences ?? [],
     }));
 
   // 5. 组装队伍数据

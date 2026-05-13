@@ -4,6 +4,7 @@ import { db } from "@/db/client";
 import { users, seasonRegistrations, seasons, teams, teamMembers, matches } from "@/db/schema";
 import { getSteamAvatar } from "@/lib/steam";
 import { Panel, Stat, PosChip } from "@/components/rivalhub";
+import { MapPreferenceChips } from "@/components/rivalhub/map-preference-chips";
 import Image from "next/image";
 import Link from "next/link";
 import { POSITION_LABELS } from "@/lib/validators/registration";
@@ -55,6 +56,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
       peakRating: seasonRegistrations.peakRating,
       currentSeasonPeakRank: seasonRegistrations.currentSeasonPeakRank,
       currentRating: seasonRegistrations.currentRating,
+      mapPreferences: seasonRegistrations.mapPreferences,
       gameplayStyle: seasonRegistrations.gameplayStyle,
       competitionHistory: seasonRegistrations.competitionHistory,
       highlightVideoUrl: seasonRegistrations.highlightVideoUrl,
@@ -123,7 +125,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
   const played = totalWins + totalLosses;
 
   // ── Steam 头像 ────────────────────────────────────────────────────────
-  const avatarUrl = user.steam64 ? await getSteamAvatar(user.steam64) : null;
+  const avatarUrl = user.avatarUrl ?? (user.steam64 ? await getSteamAvatar(user.steam64) : null);
 
   // 最新报名的主位置
   const latestReg = registrations[registrations.length - 1];
@@ -199,6 +201,15 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
           </div>
         </div>
       </div>
+
+      {latestReg && (
+        <section className="space-y-3">
+          <SectionHeading>地图偏好</SectionHeading>
+          <Panel>
+            <MapPreferenceChips preferences={latestReg.mapPreferences ?? []} minLevel="basic" />
+          </Panel>
+        </section>
+      )}
 
       {/* 职业生涯战绩 */}
       {played > 0 && (

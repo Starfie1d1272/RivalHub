@@ -20,6 +20,7 @@ export const users = pgTable("users", {
   steamName: text("steam_name"),          // Steam 昵称
   steam64: text("steam64"),               // Steam 64 位 ID
   steamProfileUrl: text("steam_profile_url"), // Steam 个人资料链接
+  avatarUrl: text("avatar_url"),               // Steam 头像 URL（报名时写入缓存；存量 NULL 数据在 player page 有 runtime fallback）
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

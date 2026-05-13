@@ -25,6 +25,15 @@ function validInput() {
     currentRating: 1.95,
     currentWe: 8.0,
     screenshotUrls: ["https://box.nju.edu.cn/some-link"],
+    mapPreferences: [
+      { map: "de_mirage", level: "strong" },
+      { map: "de_inferno", level: "proficient" },
+      { map: "de_nuke", level: "playable" },
+      { map: "de_ancient", level: "basic" },
+      { map: "de_dust2", level: "basic" },
+      { map: "de_anubis", level: "basic" },
+      { map: "de_train", level: "none" },
+    ],
     gameplayStyle: "进攻型步枪手",
     competitionHistory: "参加过校级比赛",
     willingToBeCaptain: true,
@@ -104,10 +113,42 @@ describe("buildRegistrationSchema", () => {
     expect(r.success).toBe(true);
   });
 
-  it("拒绝截图数量不匹配", () => {
+  it("接受截图链接为空", () => {
     const r = schema.safeParse({
       ...validInput(),
       screenshotUrls: [],
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("拒绝能打地图少于 3 张", () => {
+    const r = schema.safeParse({
+      ...validInput(),
+      mapPreferences: [
+        { map: "de_mirage", level: "strong" },
+        { map: "de_inferno", level: "basic" },
+        { map: "de_nuke", level: "basic" },
+        { map: "de_ancient", level: "basic" },
+        { map: "de_dust2", level: "basic" },
+        { map: "de_anubis", level: "basic" },
+        { map: "de_train", level: "none" },
+      ],
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("拒绝强图超过 3 张", () => {
+    const r = schema.safeParse({
+      ...validInput(),
+      mapPreferences: [
+        { map: "de_mirage", level: "strong" },
+        { map: "de_inferno", level: "strong" },
+        { map: "de_nuke", level: "strong" },
+        { map: "de_ancient", level: "strong" },
+        { map: "de_dust2", level: "playable" },
+        { map: "de_anubis", level: "basic" },
+        { map: "de_train", level: "none" },
+      ],
     });
     expect(r.success).toBe(false);
   });

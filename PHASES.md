@@ -8,8 +8,8 @@
 | 版本 | 分支 | 覆盖阶段 | 目标 |
 |---|---|---|---|
 | **v1** | `main` / `dev` | Phase 1–12 | 2026 NJU Rivals（春季赛）正常运行 |
-| **v2** | `v2` | Phase 11 Swiss 子 Phase | 2026 NJU Major（秋季赛）适配与准备 |
-| **v3** | `v3` | 远期 | 泛用多游戏多赛制平台 |
+| **v2** | `dev`（功能分支） | Phase 11 Swiss 子 Phase | 2026 NJU Major（秋季赛）适配与准备 |
+| **v3** | `dev`（功能分支） | 远期 | 泛用多游戏多赛制平台 |
 
 ---
 
@@ -192,7 +192,7 @@
 
 ---
 
-## v2 计划（dev 已预实现赛制引擎，待 v2 分支 UI/集成）
+## v2 计划（dev 已预实现赛制引擎，待功能分支 UI/集成）
 
 - **赛制引擎**（dev 已落地）：Swiss / GSL Group / Single Elim 独立 executor + entrySeeds 种子轮空 + finalFormat 决赛 BO5 + `getQualifiers()` 阶段间数据流
 - **MAJOR_STAGE_PLAN 预设**（dev 已落地）：32 队 3 轮 Swiss（stage1/2/3 BO1，decider BO3）+ Single Elim 淘汰赛（BO3，决赛 BO5）

@@ -11,6 +11,7 @@ import {
   RIVALS_STAGE_PLAN,
   MAJOR_STAGE_PLAN,
   MAJOR_TEAM_CONFIG,
+  DEFAULT_CS2_MAP_POOL,
   type PlayerType,
   type RegistrationConfig,
   type TeamRegistrationConfig,
@@ -91,6 +92,9 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
   const [maxPerPosition, setMaxPerPosition] = useState(defaultConfig.maxPerPosition);
   const [screenshotCount, setScreenshotCount] = useState(defaultConfig.screenshotCount);
   const [maxTotal, setMaxTotal] = useState(defaultConfig.maxTotal);
+  const [mapPoolText, setMapPoolText] = useState(
+    (defaultConfig.mapPool ?? DEFAULT_CS2_MAP_POOL).join(","),
+  );
   const [teamConfig, setTeamConfig] = useState<TeamRegistrationConfig>(defaultTeamConfig);
 
   const coreLocked = mode === "edit" && initial?.status !== "draft";
@@ -124,6 +128,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
       setPeakMin(NO_RANK);
       setMaxPerPosition(50);
       setScreenshotCount(1);
+      setMapPoolText([...DEFAULT_CS2_MAP_POOL].join(","));
       setTeamConfig(MAJOR_TEAM_CONFIG);
     } else {
       setKind("选秀联赛");
@@ -138,6 +143,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
       setPeakMin("A+");
       setMaxPerPosition(15);
       setScreenshotCount(1);
+      setMapPoolText([...DEFAULT_CS2_MAP_POOL].join(","));
     }
   }
 
@@ -169,6 +175,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
       maxPerPosition,
       screenshotCount,
       maxTotal,
+      mapPool: mapPoolText.split(",").map((item: string) => item.trim()).filter(Boolean),
     };
 
     return {
@@ -412,6 +419,18 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
             <div>
               <Label htmlFor="screenshot-count">截图链接数量</Label>
               <Input id="screenshot-count" type="number" min={1} max={5} value={screenshotCount} onChange={(e) => setScreenshotCount(Number(e.target.value))} />
+            </div>
+            <div className="sm:col-span-2">
+              <Label htmlFor="map-pool">比赛图池</Label>
+              <Input
+                id="map-pool"
+                value={mapPoolText}
+                onChange={(e) => setMapPoolText(e.target.value)}
+                placeholder="de_mirage,de_inferno,de_nuke..."
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                逗号分隔，报名地图熟练度和比赛录入会使用同一组地图。
+              </p>
             </div>
           </div>
         </section>

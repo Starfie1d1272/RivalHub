@@ -16,6 +16,7 @@ erDiagram
     text steam_name "Steam 昵称"
     text steam64 "Steam 64-bit ID"
     text steam_profile_url "Steam 个人资料链接"
+    text avatar_url "Steam 头像 URL（报名时缓存；旧数据缺失时 player page fallback 实时获取）"
     timestamp created_at
     timestamp updated_at
   }
