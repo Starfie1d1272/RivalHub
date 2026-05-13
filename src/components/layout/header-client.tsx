@@ -83,18 +83,13 @@ export function HeaderClient({ seasons, session }: HeaderClientProps) {
             letterSpacing: "var(--tracking-tight-1)",
           }}
         >
-          <span
-            className="grid place-items-center font-extrabold text-base rounded-sm"
-            style={{
-              width: 28,
-              height: 28,
-              background: "var(--color-accent)",
-              color: "var(--color-accent-fg)",
-              fontFamily: "var(--font-mono)",
-            }}
-          >
-            R
-          </span>
+          <img
+            src="/brand/rivalhub/favicon-32-transparent.png"
+            alt=""
+            width={28}
+            height={28}
+            className="rounded-sm"
+          />
           {APP_BRAND.name.toUpperCase()}
         </Link>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -266,7 +266,7 @@ export function RegistrationForm({
                 身份类型 <Required />
               </Label>
               <Select
-                defaultValue={registrationConfig.allowedPlayerTypes[0]}
+                value={watch("playerType") ?? registrationConfig.allowedPlayerTypes[0]}
                 onValueChange={(v) =>
                   setValue("playerType", v as PlayerType, {
                     shouldValidate: true,
@@ -357,6 +357,7 @@ export function RegistrationForm({
               主选位置 <Required />
             </Label>
             <Select
+              value={watch("primaryPosition") ?? ""}
               onValueChange={(v) =>
                 setValue("primaryPosition", v as RegistrationFormData["primaryPosition"], {
                   shouldValidate: true,
@@ -385,6 +386,7 @@ export function RegistrationForm({
               次选位置 <Required />
             </Label>
             <Select
+              value={watch("secondaryPosition") ?? ""}
               onValueChange={(v) =>
                 setValue("secondaryPosition", v as RegistrationFormData["primaryPosition"], {
                   shouldValidate: true,
@@ -418,6 +420,7 @@ export function RegistrationForm({
                 历史最高段位 <Required />
               </Label>
               <Select
+                value={watch("peakRank") ?? ""}
                 onValueChange={(v) =>
                   setValue("peakRank", v as RegistrationFormData["peakRank"], {
                     shouldValidate: true,
@@ -497,6 +500,7 @@ export function RegistrationForm({
               当前赛季最高段位 <Required />
             </Label>
             <Select
+              value={watch("currentSeasonPeakRank") ?? ""}
               onValueChange={(v) =>
                 setValue("currentSeasonPeakRank", v as RegistrationFormData["currentSeasonPeakRank"], {
                   shouldValidate: true,

@@ -28,6 +28,15 @@ export const metadata: Metadata = {
     default: APP_BRAND.name,
   },
   description: APP_BRAND.description,
+  icons: {
+    icon: [
+      { url: "/brand/rivalhub/favicon-32-transparent.png", sizes: "32x32", type: "image/png" },
+      { url: "/brand/rivalhub/icon-192-transparent.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: [
+      { url: "/brand/rivalhub/apple-touch-icon-transparent.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
 };
 
 export default function RootLayout({
