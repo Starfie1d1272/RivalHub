@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { deactivateAdminUser, reactivateAdminUser } from "@/actions/admin";
+import { revokeUserAdminRole } from "@/actions/admin";
+import { formatCST } from "@/lib/utils/date";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -10,101 +11,87 @@ import { Separator } from "@/components/ui/separator";
 
 interface AdminUserRow {
   id: string;
-  username: string;
-  role: "super_admin" | "admin";
-  isActive: boolean;
+  email: string;
+  role: "super_admin" | "season_admin";
+  adminSeasonIds: string[];
   createdAt: string;
-  updatedAt: string;
 }
 
-export function AdminUserList({ users, currentAdminId }: { users: AdminUserRow[]; currentAdminId?: string }) {
+interface AdminUserListProps {
+  users: AdminUserRow[];
+  seasonMap: Record<string, string>;
+  currentUserId: string;
+}
+
+export function AdminUserList({ users, seasonMap, currentUserId }: AdminUserListProps) {
   const [, startTransition] = useTransition();
   const [localUsers, setLocalUsers] = useState(users);
 
-  function handleDeactivate(id: string, username: string) {
+  function handleRevoke(id: string) {
     startTransition(async () => {
-      const result = await deactivateAdminUser(id);
+      const result = await revokeUserAdminRole(id);
       if (!result.success) {
         toast.error(result.error.message);
       } else {
-        toast.success(`${username} 已停用`);
-        setLocalUsers((prev) =>
-          prev.map((u) => (u.id === id ? { ...u, isActive: false } : u)),
-        );
+        toast.success("已撤销管理员权限");
+        setLocalUsers((prev) => prev.filter((u) => u.id !== id));
       }
     });
   }
 
-  function handleReactivate(id: string, username: string) {
-    startTransition(async () => {
-      const result = await reactivateAdminUser(id);
-      if (!result.success) {
-        toast.error(result.error.message);
-      } else {
-        toast.success(`${username} 已重新启用`);
-        setLocalUsers((prev) =>
-          prev.map((u) => (u.id === id ? { ...u, isActive: true } : u)),
-        );
-      }
-    });
+  if (localUsers.length === 0) {
+    return (
+      <p className="text-sm text-[var(--color-fg-mid)] py-4 text-center">
+        暂无管理员用户
+      </p>
+    );
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 mt-4">
       {localUsers.map((u) => (
         <Card
           key={u.id}
-          className={`p-3 flex items-center justify-between gap-4 ${
-            !u.isActive ? "opacity-60" : ""
-          }`}
+          className="p-3 flex items-center justify-between gap-4"
         >
-          <div className="flex items-center gap-3 min-w-0">
-            <span className="font-medium">
-              {u.username}
-              {u.id === currentAdminId && (
+          <div className="flex items-center gap-3 min-w-0 flex-wrap">
+            <span className="font-medium text-sm truncate">
+              {u.email}
+              {u.id === currentUserId && (
                 <span className="text-xs text-[var(--color-fg-mid)] ml-1">（你）</span>
               )}
             </span>
             <Badge variant={u.role === "super_admin" ? "default" : "outline"}>
-              {u.role === "super_admin" ? "超级管理员" : "管理员"}
+              {u.role === "super_admin" ? "超级管理员" : "赛季管理员"}
             </Badge>
-            {!u.isActive && (
-              <Badge
-                variant="outline"
-                className="bg-red-500/10 text-red-600 border-red-500/20"
-              >
-                已停用
-              </Badge>
-            )}
+            {u.role === "season_admin" &&
+              u.adminSeasonIds.map((sid) => {
+                const name = seasonMap[sid];
+                if (!name) return null;
+                return (
+                  <span
+                    key={sid}
+                    className="text-xs text-[var(--color-fg-dim)]"
+                  >
+                    {name}
+                  </span>
+                );
+              })}
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-[var(--color-fg-mid)]">
-            <span>
-              创建于 {new Date(u.createdAt).toLocaleDateString("zh-CN")}
-            </span>
-
-            {u.username !== "RivalHub_root" && u.id !== currentAdminId && (
+          <div className="flex items-center gap-2 text-xs text-[var(--color-fg-mid)] shrink-0">
+            <span>创建于 {formatCST(u.createdAt)}</span>
+            {u.id !== currentUserId && (
               <>
                 <Separator orientation="vertical" className="h-3" />
-                {u.isActive ? (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-xs h-auto py-0"
-                    onClick={() => handleDeactivate(u.id, u.username)}
-                  >
-                    停用
-                  </Button>
-                ) : (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-xs h-auto py-0"
-                    onClick={() => handleReactivate(u.id, u.username)}
-                  >
-                    重新启用
-                  </Button>
-                )}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-xs h-auto py-0 text-red-500 hover:text-red-600"
+                  onClick={() => handleRevoke(u.id)}
+                >
+                  撤销权限
+                </Button>
               </>
             )}
           </div>

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { submitMatchRoster } from "@/actions/matches/roster";
 import { Button } from "@/components/ui/button";
+import { PosChip, StatusPill } from "@/components/rivalhub";
 
 interface TeamMember {
   id: string;
@@ -23,6 +24,14 @@ export function MatchRosterForm({
   hasExistingRoster,
 }: MatchRosterFormProps) {
   const [isPending, startTransition] = useTransition();
+
+  function playerBtnClass(isSelected: boolean, isDisabled = false) {
+    const base = "flex flex-col items-start gap-1 rounded border p-2 text-left transition-colors";
+    if (isDisabled) return `${base} cursor-not-allowed border-[var(--color-border)] opacity-40`;
+    return isSelected
+      ? `${base} border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-fg)]`
+      : `${base} border-[var(--color-border)] text-[var(--color-fg)] hover:border-[var(--color-accent)]/50`;
+  }
   const [selectedStarterIds, setSelectedStarterIds] = useState<string[]>([]);
   const [selectedSubstituteIds, setSelectedSubstituteIds] = useState<string[]>([]);
 
@@ -64,32 +73,34 @@ export function MatchRosterForm({
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium text-[var(--color-fg)]">提交赛前名单</span>
+        {hasExistingRoster && <StatusPill status="finished" />}
+      </div>
+
       <div className="space-y-2">
-        <p className="text-sm font-medium">首发</p>
+        <p className="text-sm font-medium text-[var(--color-fg)]">首发</p>
         <div className="flex flex-wrap gap-2">
           {teamMembers.map((m) => (
             <button
               key={m.id}
               type="button"
               onClick={() => toggleStarter(m.id)}
-              className={`rounded border px-3 py-1 text-sm transition ${
-                selectedStarterIds.includes(m.id)
-                  ? "bg-primary text-primary-foreground"
-                  : "hover:bg-accent"
-              }`}
+              className={playerBtnClass(selectedStarterIds.includes(m.id))}
             >
-              {m.steamName} ({m.primaryPosition})
+              <span className="text-sm font-medium">{m.steamName}</span>
+              <PosChip pos={m.primaryPosition} />
             </button>
           ))}
         </div>
+        <p className="text-sm text-[var(--color-fg-dim)]">
+          已选 {selectedStarterIds.length}/5 名首发
+        </p>
       </div>
-      <p className="text-sm text-muted-foreground">
-        已选 {selectedStarterIds.length}/5 名首发
-      </p>
 
       <div className="space-y-2">
-        <p className="text-sm font-medium">替补</p>
+        <p className="text-sm font-medium text-[var(--color-fg)]">替补</p>
         <div className="flex flex-wrap gap-2">
           {teamMembers.map((m) => (
             <button
@@ -97,22 +108,21 @@ export function MatchRosterForm({
               type="button"
               onClick={() => toggleSubstitute(m.id)}
               disabled={selectedStarterIds.includes(m.id)}
-              className={`rounded border px-3 py-1 text-sm transition ${
-                selectedSubstituteIds.includes(m.id)
-                  ? "bg-primary text-primary-foreground"
-                  : selectedStarterIds.includes(m.id)
-                    ? "cursor-not-allowed opacity-50"
-                    : "hover:bg-accent"
-              }`}
+              className={playerBtnClass(
+                selectedSubstituteIds.includes(m.id),
+                selectedStarterIds.includes(m.id),
+              )}
             >
-              {m.steamName} ({m.primaryPosition})
+              <span className="text-sm font-medium">{m.steamName}</span>
+              <PosChip pos={m.primaryPosition} />
             </button>
           ))}
         </div>
+        <p className="text-sm text-[var(--color-fg-dim)]">
+          已选 {selectedSubstituteIds.length}/2 名替补（可不选）
+        </p>
       </div>
-      <p className="text-sm text-muted-foreground">
-        已选 {selectedSubstituteIds.length}/2 名替补（可不选）
-      </p>
+
       {!hasExistingRoster && (
         <Button
           onClick={handleSubmit}
@@ -123,9 +133,12 @@ export function MatchRosterForm({
         </Button>
       )}
       {hasExistingRoster && (
-        <p className="text-sm text-yellow-600">
-          名单已锁定，联系管理员解锁后可重新提交。
-        </p>
+        <div className="flex items-center gap-2">
+          <StatusPill status="finished" />
+          <span className="text-sm text-[var(--color-fg-dim)]">
+            名单已锁定，如需修改请联系管理员
+          </span>
+        </div>
       )}
     </div>
   );

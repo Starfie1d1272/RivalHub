@@ -1,12 +1,13 @@
 import { notFound } from "next/navigation";
 import { eq, desc } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, seasonRegistrations, users } from "@/db/schema";
+import { seasons, seasonRegistrations, users, registrationDrafts } from "@/db/schema";
 import { Marker } from "@/components/rivalhub";
 import {
   RegistrationReviewList,
   type RegistrationRow,
 } from "@/components/admin/RegistrationReviewList";
+import { DraftRegistrationTable } from "@/components/admin/DraftRegistrationTable";
 
 interface PageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -21,36 +22,43 @@ export default async function AdminRegistrationsPage({ params }: PageProps) {
   });
   if (!season) notFound();
 
-  // 2. 查报名记录 + 用户信息
-  const rows = await db
-    .select({
-      id: seasonRegistrations.id,
-      primaryPosition: seasonRegistrations.primaryPosition,
-      secondaryPosition: seasonRegistrations.secondaryPosition,
-      peakRank: seasonRegistrations.peakRank,
-      peakRankSeason: seasonRegistrations.peakRankSeason,
-      peakRating: seasonRegistrations.peakRating,
-      currentSeasonPeakRank: seasonRegistrations.currentSeasonPeakRank,
-      currentRating: seasonRegistrations.currentRating,
-      screenshotUrls: seasonRegistrations.screenshotUrls,
-      mapPreferences: seasonRegistrations.mapPreferences,
-      gameplayStyle: seasonRegistrations.gameplayStyle,
-      competitionHistory: seasonRegistrations.competitionHistory,
-      notes: seasonRegistrations.notes,
-      willingToBeCaptain: seasonRegistrations.willingToBeCaptain,
-      status: seasonRegistrations.status,
-      createdAt: seasonRegistrations.createdAt,
-      email: users.email,
-      studentId: users.studentId,
-      steamName: users.steamName,
-      steam64: users.steam64,
-      steamProfileUrl: users.steamProfileUrl,
-      qq: users.qq,
-    })
-    .from(seasonRegistrations)
-    .leftJoin(users, eq(seasonRegistrations.userId, users.id))
-    .where(eq(seasonRegistrations.seasonId, season.id))
-    .orderBy(desc(seasonRegistrations.createdAt));
+  // 2. 并行查报名记录 + 草稿
+  const [rows, drafts] = await Promise.all([
+    db
+      .select({
+        id: seasonRegistrations.id,
+        primaryPosition: seasonRegistrations.primaryPosition,
+        secondaryPosition: seasonRegistrations.secondaryPosition,
+        peakRank: seasonRegistrations.peakRank,
+        peakRankSeason: seasonRegistrations.peakRankSeason,
+        peakRating: seasonRegistrations.peakRating,
+        currentSeasonPeakRank: seasonRegistrations.currentSeasonPeakRank,
+        currentRating: seasonRegistrations.currentRating,
+        screenshotUrls: seasonRegistrations.screenshotUrls,
+        mapPreferences: seasonRegistrations.mapPreferences,
+        gameplayStyle: seasonRegistrations.gameplayStyle,
+        competitionHistory: seasonRegistrations.competitionHistory,
+        notes: seasonRegistrations.notes,
+        willingToBeCaptain: seasonRegistrations.willingToBeCaptain,
+        status: seasonRegistrations.status,
+        createdAt: seasonRegistrations.createdAt,
+        email: users.email,
+        studentId: users.studentId,
+        steamName: users.steamName,
+        steam64: users.steam64,
+        steamProfileUrl: users.steamProfileUrl,
+        qq: users.qq,
+      })
+      .from(seasonRegistrations)
+      .leftJoin(users, eq(seasonRegistrations.userId, users.id))
+      .where(eq(seasonRegistrations.seasonId, season.id))
+      .orderBy(desc(seasonRegistrations.createdAt)),
+    db
+      .select()
+      .from(registrationDrafts)
+      .where(eq(registrationDrafts.seasonId, season.id))
+      .orderBy(desc(registrationDrafts.updatedAt)),
+  ]);
 
   const registrations: RegistrationRow[] = rows.map((r) => ({
     ...r,
@@ -71,10 +79,12 @@ export default async function AdminRegistrationsPage({ params }: PageProps) {
   return (
     <div className="container mx-auto px-4 py-8 max-w-3xl">
       <div className="mb-6">
-        <Marker sub={`共 ${registrations.length} 份报名 · 赛季状态：${season.status}`}>报名审核 · {season.name}</Marker>
+        <Marker sub={`${registrations.length} 份已提交 · ${drafts.length} 份草稿 · 赛季状态：${season.status}`}>报名审核 · {season.name}</Marker>
       </div>
 
       <RegistrationReviewList registrations={registrations} />
+
+      <DraftRegistrationTable drafts={drafts} />
     </div>
   );
 }

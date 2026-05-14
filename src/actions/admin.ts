@@ -5,10 +5,10 @@ import { redirect } from "next/navigation";
 import { randomBytes } from "crypto";
 import { eq, and, count, desc, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, seasonRegistrations, auditLogs, adminUsers, adminInvites } from "@/db/schema";
+import { seasons, seasonRegistrations, auditLogs, adminUsers, adminInvites, users } from "@/db/schema";
 import { ok, fail } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
-import { actionError } from "@/lib/action-utils";
+import { actionError, failValidation } from "@/lib/action-utils";
 import {
   auditActorId,
   requireSeasonAdmin,
@@ -395,4 +395,45 @@ export async function reactivateAdminUser(adminId: string) {
 
   revalidatePath("/admin/users");
   return ok(undefined);
+}
+
+// ── 撤销用户管理员权限 ─────────────────────────────────────
+
+export async function revokeUserAdminRole(userId: string) {
+  try {
+    const session = await requireSuperAdmin();
+
+    if (userId === session.userId) {
+      return failValidation("不能撤销自己的权限");
+    }
+
+    const target = await db.query.users.findFirst({
+      where: eq(users.id, userId),
+      columns: { id: true, role: true },
+    });
+    if (!target) {
+      throw new AppError(ErrorCode.NOT_FOUND, "用户不存在");
+    }
+
+    await db.transaction(async (tx) => {
+      await tx
+        .update(users)
+        .set({ role: "user", adminSeasonIds: [], updatedAt: new Date() })
+        .where(eq(users.id, userId));
+
+      await tx.insert(auditLogs).values({
+        seasonId: null,
+        action: "admin.revoke_role",
+        actorId: auditActorId(session),
+        targetId: userId,
+        targetType: "user",
+        meta: { from: target.role },
+      });
+    });
+
+    revalidatePath("/admin/users");
+    return ok(undefined);
+  } catch (e) {
+    return actionError("revokeUserAdminRole", e);
+  }
 }

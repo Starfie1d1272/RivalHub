@@ -32,6 +32,7 @@ Next.js App Router (Vercel Edge / Node.js)
 路由前缀：
 - `/[seasonSlug]/...` — 公开赛季页面（无需登录）
 - `/login` — 邮箱+密码登录 / 注册页（生产关闭邮件确认，不依赖 Magic Link）
+- `/settings/password` — 用户修改密码（需登录）
 - `/invite` — 邀请码提权页（需已登录，URL 接收 `?code=xxx`）
 - `/auth/callback` — Supabase Auth 回调兼容入口（生产主链路不依赖）
 - `/admin/[seasonSlug]/...` — 管理员后台（`rivalhub-session` 或 `rivalhub-admin` 保护）
@@ -49,9 +50,11 @@ Next.js App Router (Vercel Edge / Node.js)
 
 | 文件 | 职责 |
 |---|---|
+| `account.ts` | 用户账号（修改密码） |
 | `register.ts` | 提交报名、检查位置满员 |
 | `auth.ts` | 邮箱+密码注册 / 登录、邀请码提权（claimInviteCode）、退出登录 |
-| `admin.ts` | Root 登录、审核报名、邀请码管理（createInviteCode + seasonId）、密码修改、管理员管理 |
+| `admin.ts` | Root 登录、审核报名、邀请码管理（createInviteCode + seasonId）、密码修改、管理员管理、撤销管理员权限 |
+| `teams.ts` | 队伍管理（修改队名、上传队伍图标到 Supabase Storage） |
 | `captains.ts` | 投 / 撤销队长票 |
 | `draft/state.ts` | 选秀状态管理（startDraft / pauseDraft / resumeDraft） |
 | `draft/picks.ts` | 选秀操作（pickPlayer / autoPick / skipDraftTurn / runDraftTimeoutCron） |
@@ -63,7 +66,7 @@ Next.js App Router (Vercel Edge / Node.js)
 
 ### DB 层（`src/db/`）
 
-- `schema/` — Drizzle 表定义，13 张表（含 `admin_users` + `admin_invites` + `match_player_stats`），严格 `season_id` 外键
+- `schema/` — Drizzle 表定义，18 张表（含 `admin_users` + `admin_invites` + `match_player_stats` + `registration_drafts`），严格 `season_id` 外键
 - `client.ts` — Drizzle + pg Pool 单例（IPv4），通过 `DATABASE_URL` 连接 Supabase
 - `seed.ts` — 种子数据（示例赛季 + 根管理员 RivalHub_root）
 
@@ -74,7 +77,7 @@ Next.js App Router (Vercel Edge / Node.js)
 - `ocr/scoreboard.ts` — SiliconFlow Qwen-VL 记分板识别（base64 → Zod 校验 → PlayerRowOCR[]），不写库，结果返回给 action 供 admin 确认
 - `realtime/subscribe.ts` — Supabase Realtime 订阅封装
 - `formats/` — StageExecutor 接口 + 赛制执行器（round-robin / double-elim / single-elim / swiss 预留）；注册表 `index.ts` 按 `StageType` 分发
-- `config/` — 报名默认配置（位置、段位、上限等，`REGISTRATION_DEFAULTS`），赛季级配置已迁移至 `seasons.registration_config`
+- `config/` — 共享常量配置（报名默认值 / 上传限制 / 密码约束 / 队伍名长度约束）
 - `validators/` — Zod schema（中文错误消息）：`registration.ts`（含段位门槛跨字段校验）、`match.ts`（createMatch / recordMatchResult）
 - `utils/date.ts` — UTC ↔ Asia/Shanghai
 - `utils/season.ts` — capability 判断（`showDraft` / `showCaptainVoting` / `showQualifier` / `showPlayoffBracket` 等），是路由守卫与 UI 条件渲染的唯一入口

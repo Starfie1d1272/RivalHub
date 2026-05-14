@@ -84,6 +84,7 @@ erDiagram
     uuid id PK
     uuid season_id FK
     text name
+    text logo_url "可空；Supabase Storage team-logos bucket 公开 URL"
     uuid captain_registration_id FK
     int draft_order "1-based 蛇形顺位"
     timestamp created_at

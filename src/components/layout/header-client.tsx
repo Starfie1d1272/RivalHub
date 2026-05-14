@@ -71,6 +71,7 @@ export function HeaderClient({ seasons, session, avatarUrl }: HeaderClientProps)
   }
 
   const isAdmin = session && session.role !== "user";
+  const isSuperAdmin = session?.role === "super_admin";
 
   return (
     <header
@@ -169,10 +170,17 @@ export function HeaderClient({ seasons, session, avatarUrl }: HeaderClientProps)
                     </>
                   )}
                   <DropdownMenuItem asChild>
-                    <Link href="/invite" className="cursor-pointer">
-                      使用邀请码
+                    <Link href={"/settings/password" as never} className="cursor-pointer">
+                      修改密码
                     </Link>
                   </DropdownMenuItem>
+                  {!isSuperAdmin && (
+                    <DropdownMenuItem asChild>
+                      <Link href="/invite" className="cursor-pointer">
+                        使用邀请码
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     className="text-red-500 focus:text-red-500 cursor-pointer"
@@ -246,12 +254,21 @@ export function HeaderClient({ seasons, session, avatarUrl }: HeaderClientProps)
                   </Link>
                 )}
                 <Link
-                  href="/invite"
+                  href={"/settings/password" as never}
                   onClick={() => setMobileOpen(false)}
                   className="px-3 py-2 rounded-md text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] hover:bg-[var(--color-panel-hi)]"
                 >
-                  使用邀请码
+                  修改密码
                 </Link>
+                {!isSuperAdmin && (
+                  <Link
+                    href="/invite"
+                    onClick={() => setMobileOpen(false)}
+                    className="px-3 py-2 rounded-md text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] hover:bg-[var(--color-panel-hi)]"
+                  >
+                    使用邀请码
+                  </Link>
+                )}
                 <button
                   onClick={() => {
                     setMobileOpen(false);

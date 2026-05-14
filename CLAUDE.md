@@ -4,7 +4,7 @@
 
 RivalHub 是开源电竞赛事管理平台，通过 capability 驱动的多赛事模型支持各类赛制（选秀联赛、公开赛、杯赛等）的全流程运营：报名 → 审核 → 队长投票 → 蛇形选秀 → 队伍展示 → 赛程 + Bracket 视图 → 部署。
 
-当前阶段：**v1.1.2 生产运行中，站点部署在 `match.starfie1d.top`。v2 赛制引擎（StageExecutor + 5 个 executor + entrySeeds 种子轮空 + finalFormat 决赛 BO5）代码已就绪，待 2026 NJU Major 赛季开始时启用。**
+当前阶段：**v1.3.0 生产运行中，站点部署在 `match.starfie1d.top`。v2 赛制引擎（StageExecutor + 5 个 executor + entrySeeds 种子轮空 + finalFormat 决赛 BO5）代码已就绪，待 2026 NJU Major 赛季开始时启用。**
 
 ## 版本路线图
 
@@ -50,7 +50,7 @@ npm version major
 | ORM | Drizzle ORM |
 | 表单 | React Hook Form + Zod（中文校验消息） |
 | 鉴权 | Supabase Auth（email+password；生产关闭邮件确认，不依赖 Magic Link）+ iron-session（双 Cookie：`rivalhub-session` 全用户 + `rivalhub-admin` root 紧急） |
-| 定时任务 | GitHub Actions 每分钟调用 `/api/cron/draft-timeout`（选秀超时自动 pick） |
+| 定时任务 | GitHub Actions 每分钟调用 `/api/cron/draft-timeout`（选秀超时自动 pick）+ `/api/cron/match-time-auto-award`（比赛时间协商截止自动裁定） |
 | Bracket 渲染 | `brackets-manager` + `brackets-viewer`（经 `lib/bracket/` 适配层访问） |
 | 单元/集成测试 | Vitest + React Testing Library + jsdom |
 | E2E 测试 | Playwright |
@@ -179,7 +179,7 @@ return null;                   // 成功/失败语义不明
 | `/admin/**` | `force-dynamic` | 不缓存 |
 | `/[seasonSlug]/register` | `force-dynamic` | 报名提交后 `revalidatePath` |
 | `/[seasonSlug]/captains` | RSC 默认 + Realtime | 投票变化时 `revalidatePath` |
-| `/[seasonSlug]/teams` | RSC 默认（赛季进入 playing 后基本不变） | 选秀完成时 `revalidatePath` |
+| `/[seasonSlug]/teams` | RSC 默认（赛季进入 playing 后基本不变） | 选秀完成/logo 上传时 `revalidatePath` |
 | `/[seasonSlug]/matches/**` | RSC 默认 | 录入比分时 `revalidatePath` |
 | `/rules` | 静态 | 完整规则书（9 章，Tactical Grid 排版） |
 
@@ -198,22 +198,30 @@ src/
 │   ├── [seasonSlug]/ # 公开赛季页面（注册/投票/选秀/队伍/赛程/数据统计）
 │   ├── players/       # 选手主页（跨赛季战绩 + 个人数据）
 │   ├── login/         # 邮箱+密码登录 / 注册页
+│   ├── settings/     # 用户设置（修改密码等）
 │   ├── invite/       # 邀请码提权页（?code=xxx）
 │   ├── auth/callback # Supabase Auth 回调兼容入口（生产不依赖邮件确认）
 │   ├── admin/        # 管理员后台（rivalhub-session / rivalhub-admin 保护）
 │   └── api/cron/     # Cron API Route（当前由 GitHub Actions 触发）
 ├── actions/          # Server Actions（所有业务逻辑入口）
+│   ├── account.ts    # 用户账号（修改密码）
+│   ├── admin.ts      # 管理员操作（审核/邀请码/撤销权限）
+│   ├── auth.ts       # 邮箱+密码注册/登录/退出
+│   ├── captains.ts   # 队长投票
+│   ├── draft/        # 选秀（state / picks / queries）
+│   ├── matches/      # 赛程（schedule / results / roster）
+│   ├── register.ts   # 报名提交
 │   ├── seasons.ts    # 赛季 CRUD（create/update/delete/publish）
-│   ├── ...
+│   └── teams.ts      # 队伍（修改队名/上传图标）
 ├── db/
-│   ├── schema/       # Drizzle 表定义（15 张表）
+│   ├── schema/       # Drizzle 表定义（18 张表）
 │   ├── client.ts     # Drizzle client 单例（pg Pool，错误处理 + 超时配置）
 │   └── seed.ts       # 种子数据（赛季 + 根管理员 RivalHub_root）
 ├── lib/
 │   ├── auth/         # session.ts（双 Cookie iron-session）+ supabase.ts
 │   ├── bracket/      # brackets-manager 适配层（禁止绕过）
 │   ├── formats/       # StageExecutor 接口 + 赛制执行器（round-robin/double-elim/single-elim/swiss/gsl-group）+ _shared 工具
-│   ├── config/       # 报名默认配置（REGISTRATION_DEFAULTS）
+│   ├── config/       # 共享常量配置（报名默认值/上传限制/密码约束/队伍配置）
 │   ├── realtime/     # Supabase Realtime 订阅辅助
 │   ├── validators/   # Zod schema（registration / vote / match）
 │   └── utils/        # date（UTC/CST）+ season（capability 工具）+ password（scrypt）+ cn
@@ -223,6 +231,7 @@ src/
 │   ├── rivalhub/     # Tactical Grid 组件（14 个：Panel/Btn/Field/Marker/Stat/MiniStat/
 │   │                 #   StatusBanner/InlineConfirm/EmptyState/ErrorState/Skeleton/Spinner/
 │   │                 #   TeamBadge/PosChip/StatusPill）
+│   ├── settings/     # 用户设置组件（ChangePasswordForm）
 │   ├── register/     # 报名业务组件
 │   ├── admin/        # 管理后台业务组件（AdminSidebar 侧边栏 + 统一 layout）
 │   ├── draft/        # 选秀业务组件

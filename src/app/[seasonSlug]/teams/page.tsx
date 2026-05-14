@@ -80,6 +80,7 @@ export default async function TeamsPage({ params }: TeamsPageProps) {
               teamName={team.name}
               seasonSlug={seasonSlug}
               draftOrder={team.draftOrder}
+              logoUrl={team.logoUrl}
               players={members}
             />
           );

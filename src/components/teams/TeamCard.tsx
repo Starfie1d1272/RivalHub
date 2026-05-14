@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Panel, PosChip } from "@/components/rivalhub";
 import { POSITION_LABELS } from "@/lib/validators/registration";
 
@@ -14,21 +15,33 @@ interface TeamCardProps {
   teamName: string;
   seasonSlug: string;
   draftOrder: number;
+  logoUrl?: string | null;
   players: PlayerPreview[];
 }
 
-export function TeamCard({ teamId, teamName, seasonSlug, draftOrder, players }: TeamCardProps) {
+export function TeamCard({ teamId, teamName, seasonSlug, draftOrder, logoUrl, players }: TeamCardProps) {
   const starters = players.filter((p) => p.isStarter);
   const subs = players.filter((p) => !p.isStarter);
+  const initial = teamName.trim()[0]?.toUpperCase() ?? "?";
 
   return (
     <Link href={`/${seasonSlug}/teams/${teamId}`}>
       <Panel className="hover:border-[var(--color-border-hi)] transition-colors cursor-pointer h-full">
         <div className="space-y-4">
-          {/* 队名 */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-[var(--color-fg-mid)]">#{draftOrder}</span>
-            <h3 className="font-bold text-lg text-[var(--color-fg)]">{teamName}</h3>
+          {/* 队名 + logo */}
+          <div className="flex items-center gap-3">
+            {/* 小 logo：40×40 */}
+            <div className="relative w-10 h-10 rounded-md overflow-hidden shrink-0 border border-[var(--color-border)] bg-[var(--color-bg-subtle)] flex items-center justify-center">
+              {logoUrl ? (
+                <Image src={logoUrl} alt={`${teamName} logo`} fill className="object-cover" />
+              ) : (
+                <span className="text-sm font-bold text-[var(--color-fg-dim)]">{initial}</span>
+              )}
+            </div>
+            <div>
+              <span className="text-xs text-[var(--color-fg-mid)]">#{draftOrder}</span>
+              <h3 className="font-bold text-lg text-[var(--color-fg)] leading-tight">{teamName}</h3>
+            </div>
           </div>
 
           {/* 首发阵容 */}

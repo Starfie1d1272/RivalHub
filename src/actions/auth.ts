@@ -10,6 +10,7 @@ import { ok, fail } from "@/types/action";
 import { ErrorCode } from "@/lib/errors";
 import type { ActionResult } from "@/types/action";
 import { actionError } from "@/lib/action-utils";
+import { MIN_PASSWORD_LENGTH } from "@/lib/config/auth-config";
 import { normalizeEmail } from "@/lib/utils/email";
 import {
   requireAuth,
@@ -25,8 +26,8 @@ export async function loginWithPassword(
   if (!email || !email.includes("@")) {
     return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请输入有效的邮箱地址" });
   }
-  if (!password || password.length < 6) {
-    return fail({ code: ErrorCode.VALIDATION_FAILED, message: "密码至少 6 位" });
+  if (!password || password.length < MIN_PASSWORD_LENGTH) {
+    return fail({ code: ErrorCode.VALIDATION_FAILED, message: `密码至少 ${MIN_PASSWORD_LENGTH} 位` });
   }
   const normalizedEmail = normalizeEmail(email);
 
@@ -75,8 +76,8 @@ export async function signUp(
   if (!email || !email.includes("@")) {
     return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请输入有效的邮箱地址" });
   }
-  if (!password || password.length < 6) {
-    return fail({ code: ErrorCode.VALIDATION_FAILED, message: "密码至少 6 位" });
+  if (!password || password.length < MIN_PASSWORD_LENGTH) {
+    return fail({ code: ErrorCode.VALIDATION_FAILED, message: `密码至少 ${MIN_PASSWORD_LENGTH} 位` });
   }
   const normalizedEmail = normalizeEmail(email);
 
