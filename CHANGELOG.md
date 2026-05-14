@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - 首页 Hero 两栏布局移动端溢出，改为响应式堆叠 + 标题字号缩小
 - 赛季首页阶段流程图移动端裁切，改为 flex 横向滑动 + 桌面端等宽
+- 队伍详情页移动端布局：战绩/数据 grid 响应式折行，阵容行 truncate 防溢出，地图/对阵表格 overflow-x-auto
+- 首页导航 tiles `repeat(4,1fr)` 硬编码 grid → Tailwind `grid-cols-2 lg:grid-cols-4`
+- 首页历史赛季 `repeat(3,1fr)` 硬编码 grid → `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3`
+- Footer 移动端：版权信息与链接竖排堆叠 + 居中
+- MatchCard 移动端：队伍名与标签竖排堆叠，队名字号缩小
 
 ## [1.4.1] - 2026-05-14
 

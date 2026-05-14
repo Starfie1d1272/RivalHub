@@ -4,17 +4,9 @@ import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { fetchAuditLogs, type AuditLogFilters } from "@/actions/audit";
 import { formatCST } from "@/lib/utils/date";
+import type { AuditLog as DBAuditLog } from "@/db/schema/audit";
 
-interface AuditLog {
-  id: string;
-  seasonId: string | null;
-  action: string;
-  actorId: string | null;
-  targetId: string | null;
-  targetType: string | null;
-  meta: Record<string, unknown> | null;
-  createdAt: string;
-}
+type AuditLog = Omit<DBAuditLog, "createdAt" | "meta"> & { createdAt: string; meta: Record<string, unknown> | null };
 
 interface Props {
   initialLogs: AuditLog[];

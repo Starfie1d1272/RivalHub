@@ -17,11 +17,6 @@ interface AdminLogsPageProps {
   }>;
 }
 
-function parsePage(value: string | undefined) {
-  const page = Number(value);
-  return Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
-}
-
 export default async function AdminLogsPage({ searchParams }: AdminLogsPageProps) {
   try {
     await requireSuperAdmin();
@@ -32,7 +27,7 @@ export default async function AdminLogsPage({ searchParams }: AdminLogsPageProps
   const params = await searchParams;
   const [logsResult, seasonsResult] = await Promise.all([
     fetchAuditLogs({
-      page: parsePage(params.page),
+      page: params.page ? Number(params.page) : undefined,
       pageSize: 50,
       action: params.action,
       actorId: params.actor,

@@ -13,7 +13,7 @@ import {
 } from "@/db/schema";
 import { ok, fail, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
-import { requireAuth, requireSeasonAdmin } from "@/lib/auth/session";
+import { auditActorId, requireAuth, requireSeasonAdmin } from "@/lib/auth/session";
 import {
   castVoteSchema,
   confirmCaptainsSchema,
@@ -282,8 +282,8 @@ export async function confirmCaptains(
 
       await tx.insert(auditLogs).values({
         seasonId: season.id,
-        action: "captains.confirm",
-        actorId: admin.email,
+        action: "captain.confirm",
+        actorId: auditActorId(admin),
         targetId: season.id,
         targetType: "season",
         meta: {

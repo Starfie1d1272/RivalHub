@@ -242,7 +242,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
       </div>
 
       {/* 整体战绩 */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-3 sm:gap-4">
         <Stat label="出场" value={played} />
         <Stat label="胜" value={totalWins} />
         <Stat label="负" value={totalLosses} />
@@ -253,17 +253,17 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
         <Panel label="阵容" pad={20}>
           <div className="space-y-3">
             {starters.map((p) => (
-              <div key={p.registrationId} className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
+              <div key={p.registrationId} className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                   {p.registrationId === team.captainRegistrationId && (
                     <PosChip pos="C" small />
                   )}
-                  <span className="font-medium text-[var(--color-fg)]">
+                  <span className="font-medium text-[var(--color-fg)] truncate text-sm sm:text-base">
                     {p.steamName ?? "未知选手"}
                   </span>
                 </div>
-                <div className="text-right">
-                  <span className="text-sm text-[var(--color-fg-mid)]">
+                <div className="text-right shrink-0">
+                  <span className="text-xs sm:text-sm text-[var(--color-fg-mid)]">
                     {POSITION_LABELS[p.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? p.primaryPosition}
                   </span>
                   <div className="mt-1 flex justify-end">
@@ -277,9 +277,9 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
               <div className="border-t border-[var(--color-border)] pt-3 space-y-2">
                 <p className="text-xs text-[var(--color-fg-mid)] font-medium uppercase tracking-wide">替补</p>
                 {subs.map((p) => (
-                  <div key={p.registrationId} className="flex items-center justify-between opacity-70">
-                    <span className="text-sm text-[var(--color-fg)]">{p.steamName ?? "未知选手"}</span>
-                    <span className="text-xs text-[var(--color-fg-mid)]">
+                  <div key={p.registrationId} className="flex items-center justify-between gap-2 opacity-70">
+                    <span className="text-sm text-[var(--color-fg)] truncate">{p.steamName ?? "未知选手"}</span>
+                    <span className="text-xs text-[var(--color-fg-mid)] shrink-0">
                       {POSITION_LABELS[p.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? p.primaryPosition}
                     </span>
                   </div>
@@ -295,7 +295,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
         <section>
           <Panel label="队伍数据" pad={20}>
             <div className="space-y-4">
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
                 <Stat label="场均 Rating" value={teamAvgRating ?? "—"} accent />
                 <Stat label="场均 ADR" value={teamAvgAdr ?? "—"} accent />
                 <Stat label="场均 K/D" value={teamAvgKd ?? "—"} accent />
@@ -321,7 +321,8 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
       {sortedMaps.length > 0 && (
         <section>
           <Panel pad={0} className="overflow-hidden" label="地图胜率">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[400px]">
               <thead>
                 <tr className="border-b border-[var(--color-border)] text-[var(--color-fg-mid)] text-xs uppercase tracking-wide">
                   <th className="px-5 py-3 text-left font-medium">地图</th>
@@ -345,6 +346,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
                 ))}
               </tbody>
             </table>
+            </div>
           </Panel>
         </section>
       )}
@@ -353,7 +355,8 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
       {h2hList.length > 0 && (
         <section>
           <Panel pad={0} className="overflow-hidden" label="历史对阵">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[320px]">
               <thead>
                 <tr className="border-b border-[var(--color-border)] text-[var(--color-fg-mid)] text-xs uppercase tracking-wide">
                   <th className="px-5 py-3 text-left font-medium">对手</th>
@@ -387,6 +390,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
                 })}
               </tbody>
             </table>
+            </div>
           </Panel>
         </section>
       )}

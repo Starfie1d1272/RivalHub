@@ -5,7 +5,7 @@ import pkg from "@/../package.json";
 export function Footer() {
   return (
     <footer
-      className="flex justify-between items-center"
+      className="flex flex-col items-center gap-2 sm:flex-row sm:justify-between sm:items-center text-center sm:text-left"
       style={{
         padding: "20px 28px",
         borderTop: "1px solid var(--color-border)",
@@ -16,7 +16,7 @@ export function Footer() {
       }}
     >
       <div>{APP_BRAND.name.toUpperCase()} · OPEN SOURCE ESPORTS TOURNAMENT PLATFORM</div>
-      <div className="flex gap-3.5">
+      <div className="flex gap-3.5 flex-wrap justify-center">
         <a
           href={APP_BRAND.repositoryUrl}
           target="_blank"

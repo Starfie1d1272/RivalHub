@@ -149,7 +149,7 @@ export default async function HomePage() {
         <Marker num={1} sub="NAVIGATION">
           入口
         </Marker>
-        <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {[
             { href: `/${featured.slug}/register`, label: "报名参赛", mono: "REGISTER", meta: "个人报名" },
             { href: `/${featured.slug}/captains`, label: "队长投票", mono: "CAPTAINS", meta: "实时票数" },
@@ -195,7 +195,7 @@ export default async function HomePage() {
           <Marker num={2} sub="MORE">
             其他赛季
           </Marker>
-          <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {others.map((s) => (
               <Link key={s.id} href={`/${s.slug}` as never}>
                 <Panel className="transition-colors hover:border-[var(--color-border-hi)]">
