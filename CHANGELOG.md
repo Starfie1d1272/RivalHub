@@ -5,6 +5,22 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-05-14
+
+### Added
+- 管理后台操作日志浏览页面：新增 `AuditLogTable` 与 `/admin/logs`，支持查看审计事件、操作者、目标与元数据。
+- Server Actions 单元测试基础设施：新增 session mock、fixture、audit helper，并覆盖 auth、admin、captains、register、seasons、teams 等核心 actions。
+
+### Changed
+- 报名页显示当前用户报名状态；审核通过前允许自行修改并重新回到待审核，审核通过后锁定。
+- 管理后台报名审核列表按提交时间升序展示，优先处理更早报名的选手。
+- “等待名单”文案统一调整为“候补名单”，并更新报名状态机文档。
+- 多个管理与用户操作补齐 audit_log 写入。
+
+### Fixed
+- 头像菜单新增“我的主页”入口，修复登录用户无法从右上角进入个人主页的问题。
+- “撤销通过”现在回到待审核，而不是误标为已拒绝。
+
 ## [1.3.2] - 2026-05-14
 
 ### Changed
@@ -104,6 +120,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.4.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.3.2...v1.4.0
+[1.3.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.3.1...v1.3.2
+[1.3.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.1.2...v1.2.0
 [1.1.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.1.1...v1.1.2
