@@ -5,6 +5,21 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.1] - 2026-05-14
+
+### Fixed
+- 下拉菜单项间距不均与内容区背景透明问题
+- 个人主页 Steam 头像加载失败（新增 `avatars.steamstatic.com` 到 Next.js remotePatterns）
+
+### Changed
+- 全站用户名显示统一为 `steamName`（回退 `email`）：Header 下拉菜单、管理后台用户列表/设置页、审计日志操作人列、玩家主页
+- 审计日志操作人列从原始 ID 改为可读名称（actorNameMap）
+- 玩家主页数据增强：新增 MVP 票数、RWS、HS%、首杀、多杀、残局等统计
+- 报名记录卡片重设计为紧凑两行布局，补 `peakWe`
+- 新增 `perfectName` 显示
+- 提取 `wAvg`/`sAvg` 工具函数并添加单元测试（8 case）
+- 玩家主页报名/个人数据查询并行化（`Promise.all`）
+
 ## [1.4.0] - 2026-05-14
 
 ### Added
