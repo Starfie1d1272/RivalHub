@@ -13,7 +13,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { Season } from "@/db/schema/seasons";
@@ -23,6 +22,7 @@ interface HeaderClientProps {
   seasons: Season[];
   session: UserSession | null;
   avatarUrl?: string | null;
+  steamName?: string | null;
 }
 
 function AvatarButton({ email, avatarUrl }: { email: string; avatarUrl?: string | null }) {
@@ -48,7 +48,7 @@ function AvatarButton({ email, avatarUrl }: { email: string; avatarUrl?: string 
   );
 }
 
-export function HeaderClient({ seasons, session, avatarUrl }: HeaderClientProps) {
+export function HeaderClient({ seasons, session, avatarUrl, steamName }: HeaderClientProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -155,19 +155,16 @@ export function HeaderClient({ seasons, session, avatarUrl }: HeaderClientProps)
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button className="focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] rounded-full">
-                    <AvatarButton email={session.email} avatarUrl={avatarUrl} />
+                    <AvatarButton email={steamName ?? session.email} avatarUrl={avatarUrl} />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuContent align="end" className="w-44 bg-[var(--color-panel)] border-[var(--color-border)]">
                   {isAdmin && (
-                    <>
-                      <DropdownMenuItem asChild>
-                        <Link href="/admin" className="cursor-pointer">
-                          管理后台
-                        </Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                    </>
+                    <DropdownMenuItem asChild>
+                      <Link href="/admin" className="cursor-pointer">
+                        管理后台
+                      </Link>
+                    </DropdownMenuItem>
                   )}
                   <DropdownMenuItem asChild>
                     <Link href={`/players/${session.userId}`} className="cursor-pointer">
@@ -186,7 +183,6 @@ export function HeaderClient({ seasons, session, avatarUrl }: HeaderClientProps)
                       </Link>
                     </DropdownMenuItem>
                   )}
-                  <DropdownMenuSeparator />
                   <DropdownMenuItem
                     className="text-red-500 focus:text-red-500 cursor-pointer"
                     onSelect={handleLogout}
@@ -246,8 +242,8 @@ export function HeaderClient({ seasons, session, avatarUrl }: HeaderClientProps)
             {session ? (
               <>
                 <div className="flex items-center gap-2 px-3 py-1.5">
-                  <AvatarButton email={session.email} avatarUrl={avatarUrl} />
-                  <span className="text-sm text-[var(--color-fg-dim)] truncate">{session.email}</span>
+                  <AvatarButton email={steamName ?? session.email} avatarUrl={avatarUrl} />
+                  <span className="text-sm text-[var(--color-fg-dim)] truncate">{steamName ?? session.email}</span>
                 </div>
                 {isAdmin && (
                   <Link

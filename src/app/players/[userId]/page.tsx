@@ -9,6 +9,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { POSITION_LABELS } from "@/lib/validators/registration";
 import { matchPlayerStats } from "@/db/schema/player-stats";
+import { matchMvpVotes } from "@/db/schema/mvp-votes";
+import { wAvg, sAvg } from "@/lib/utils/stats";
 
 interface PlayerPageProps {
   params: Promise<{ userId: string }>;
@@ -44,35 +46,73 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
   });
   if (!user) notFound();
 
-  // ── 所有已批准的报名记录（按赛季时间降序）─────────────────────────────
-  const registrations = await db
-    .select({
-      id: seasonRegistrations.id,
-      seasonId: seasonRegistrations.seasonId,
-      primaryPosition: seasonRegistrations.primaryPosition,
-      secondaryPosition: seasonRegistrations.secondaryPosition,
-      peakRank: seasonRegistrations.peakRank,
-      peakRankSeason: seasonRegistrations.peakRankSeason,
-      peakRating: seasonRegistrations.peakRating,
-      currentSeasonPeakRank: seasonRegistrations.currentSeasonPeakRank,
-      currentRating: seasonRegistrations.currentRating,
-      mapPreferences: seasonRegistrations.mapPreferences,
-      gameplayStyle: seasonRegistrations.gameplayStyle,
-      competitionHistory: seasonRegistrations.competitionHistory,
-      highlightVideoUrl: seasonRegistrations.highlightVideoUrl,
-      status: seasonRegistrations.status,
-      seasonName: seasons.name,
-      seasonSlug: seasons.slug,
-    })
-    .from(seasonRegistrations)
-    .innerJoin(seasons, eq(seasonRegistrations.seasonId, seasons.id))
-    .where(
-      and(
-        eq(seasonRegistrations.userId, userId),
-        eq(seasonRegistrations.status, "approved"),
+  // ── 并行：报名记录 / MVP / 个人数据 / Steam 头像 ──────────────────────
+  const [registrations, mvpRows, playerStats, avatarUrl] = await Promise.all([
+    db
+      .select({
+        id: seasonRegistrations.id,
+        seasonId: seasonRegistrations.seasonId,
+        primaryPosition: seasonRegistrations.primaryPosition,
+        secondaryPosition: seasonRegistrations.secondaryPosition,
+        peakRank: seasonRegistrations.peakRank,
+        peakRankSeason: seasonRegistrations.peakRankSeason,
+        peakRating: seasonRegistrations.peakRating,
+        peakWe: seasonRegistrations.peakWe,
+        currentSeasonPeakRank: seasonRegistrations.currentSeasonPeakRank,
+        currentRating: seasonRegistrations.currentRating,
+        mapPreferences: seasonRegistrations.mapPreferences,
+        highlightVideoUrl: seasonRegistrations.highlightVideoUrl,
+        status: seasonRegistrations.status,
+        seasonName: seasons.name,
+        seasonSlug: seasons.slug,
+      })
+      .from(seasonRegistrations)
+      .innerJoin(seasons, eq(seasonRegistrations.seasonId, seasons.id))
+      .where(
+        and(
+          eq(seasonRegistrations.userId, userId),
+          eq(seasonRegistrations.status, "approved"),
+        )
       )
-    )
-    .orderBy(asc(seasons.createdAt));
+      .orderBy(asc(seasons.createdAt)),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(matchMvpVotes)
+      .where(eq(matchMvpVotes.playerUserId, userId)),
+    db
+      .select({
+        seasonName: seasons.name,
+        seasonSlug: seasons.slug,
+        seasonCreatedAt: seasons.createdAt,
+        maps: sql<number>`count(distinct ${matchPlayerStats.mapId})::int`,
+        avgKills: sql<number>`round(avg(${matchPlayerStats.kills})::numeric, 1)`,
+        avgDeaths: sql<number>`round(avg(${matchPlayerStats.deaths})::numeric, 1)`,
+        avgAssists: sql<number>`round(avg(${matchPlayerStats.assists})::numeric, 1)`,
+        avgRating: sql<number>`round(avg(${matchPlayerStats.ratingPro})::numeric, 2)`,
+        avgAdr: sql<number>`round(avg(${matchPlayerStats.adr})::numeric, 1)`,
+        avgWe: sql<number>`round(avg(${matchPlayerStats.we})::numeric, 1)`,
+        avgHs: sql<number>`round(avg(${matchPlayerStats.hsPercent})::numeric, 0)`,
+        avgRws: sql<number>`round(avg(${matchPlayerStats.rws})::numeric, 2)`,
+        totalKills: sql<number>`sum(${matchPlayerStats.kills})::int`,
+        totalDeaths: sql<number>`sum(${matchPlayerStats.deaths})::int`,
+        totalFirstKills: sql<number>`sum(${matchPlayerStats.firstKills})::int`,
+        totalMultiKills: sql<number>`sum(${matchPlayerStats.multiKills})::int`,
+        totalClutches: sql<number>`sum(${matchPlayerStats.clutches})::int`,
+      })
+      .from(matchPlayerStats)
+      .innerJoin(matches, eq(matchPlayerStats.matchId, matches.id))
+      .innerJoin(seasons, eq(matches.seasonId, seasons.id))
+      .where(
+        and(
+          eq(matchPlayerStats.userId, userId),
+          sql`${matchPlayerStats.verifiedByAdmin} IS NOT NULL`,
+        )
+      )
+      .groupBy(seasons.id, seasons.name, seasons.slug, seasons.createdAt)
+      .orderBy(asc(seasons.createdAt)),
+    user.avatarUrl ?? (user.steam64 ? getSteamAvatar(user.steam64) : null),
+  ]);
+  const mvpRow = mvpRows[0];
 
   // ── 队伍归属（registrationId → team）────────────────────────────────
   const allRegIds = registrations.map((r) => r.id);
@@ -124,40 +164,14 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
 
   const played = totalWins + totalLosses;
 
-  // ── Steam 头像 ────────────────────────────────────────────────────────
-  const avatarUrl = user.avatarUrl ?? (user.steam64 ? await getSteamAvatar(user.steam64) : null);
-
   // 最新报名的主位置
   const latestReg = registrations[registrations.length - 1];
 
-  // ── 个人数据统计（跨赛季）─────────────────────────────────────
-  const playerStats = await db
-    .select({
-      seasonName: seasons.name,
-      seasonSlug: seasons.slug,
-      seasonCreatedAt: seasons.createdAt,
-      maps: sql<number>`count(distinct ${matchPlayerStats.mapId})::int`,
-      avgKills: sql<number>`round(avg(${matchPlayerStats.kills})::numeric, 1)`,
-      avgDeaths: sql<number>`round(avg(${matchPlayerStats.deaths})::numeric, 1)`,
-      avgAssists: sql<number>`round(avg(${matchPlayerStats.assists})::numeric, 1)`,
-      avgRating: sql<number>`round(avg(${matchPlayerStats.ratingPro})::numeric, 2)`,
-      avgAdr: sql<number>`round(avg(${matchPlayerStats.adr})::numeric, 1)`,
-      avgWe: sql<number>`round(avg(${matchPlayerStats.we})::numeric, 1)`,
-      avgHs: sql<number>`round(avg(${matchPlayerStats.hsPercent})::numeric, 0)`,
-      totalKills: sql<number>`sum(${matchPlayerStats.kills})::int`,
-      totalDeaths: sql<number>`sum(${matchPlayerStats.deaths})::int`,
-    })
-    .from(matchPlayerStats)
-    .innerJoin(matches, eq(matchPlayerStats.matchId, matches.id))
-    .innerJoin(seasons, eq(matches.seasonId, seasons.id))
-    .where(
-      and(
-        eq(matchPlayerStats.userId, userId),
-        sql`${matchPlayerStats.verifiedByAdmin} IS NOT NULL`,
-      )
-    )
-    .groupBy(seasons.id, seasons.name, seasons.slug, seasons.createdAt)
-    .orderBy(asc(seasons.createdAt));
+  // ── 生涯总计预计算 ──────────────────────────────────────────────────
+  const totalMaps = playerStats.reduce((s, x) => s + x.maps, 0);
+  const totalKillsAll = playerStats.reduce((s, x) => s + x.totalKills, 0);
+  const totalDeathsAll = playerStats.reduce((s, x) => s + x.totalDeaths, 0);
+  const mvpCount = mvpRow?.count ?? 0;
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-3xl space-y-10">
@@ -170,7 +184,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
             alt={user.steamName ?? "选手头像"}
             width={96}
             height={96}
-            className="rounded-full border border-[var(--color-border)]"
+            className="rounded-full border border-[var(--color-border)] object-cover"
           />
         ) : (
           <AvatarFallback name={user.steamName ?? user.email} />
@@ -180,6 +194,11 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
           <h1 className="text-3xl font-black text-[var(--color-fg)]">
             {user.steamName ?? "未知选手"}
           </h1>
+          {user.perfectName && (
+            <p className="text-xs" style={{ fontFamily: "var(--font-mono)", color: "var(--color-fg-dim)" }}>
+              完美平台：{user.perfectName}
+            </p>
+          )}
 
           <div className="flex flex-wrap items-center gap-2">
             {latestReg && (
@@ -215,11 +234,12 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
       {played > 0 && (
         <section className="space-y-3">
           <SectionHeading>职业生涯战绩</SectionHeading>
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
             <Stat label="出场" value={played} />
             <Stat label="胜" value={totalWins} />
             <Stat label="负" value={totalLosses} />
             <Stat label="胜率" value={pct(totalWins, played)} />
+            <Stat label="MVP" value={mvpCount > 0 ? mvpCount : "—"} />
           </div>
           {totalNetRounds !== 0 && (
             <p className="text-xs text-[var(--color-fg-mid)] px-1">
@@ -240,55 +260,29 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
           {/* 生涯总计 */}
           <Panel label="生涯总计">
             <span className="text-xs text-[var(--color-fg-mid)]">
-              {playerStats.reduce((s, x) => s + x.maps, 0)} 图
+              {totalMaps} 图
             </span>
-            <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 text-center mt-3">
+            <div className="grid grid-cols-4 sm:grid-cols-5 gap-3 text-center mt-3">
               {[
-                {
-                  label: "Rating",
-                  value: (
-                    playerStats.reduce((s, x) => s + x.avgRating * x.maps, 0) /
-                    playerStats.reduce((s, x) => s + x.maps, 0)
-                  ).toFixed(2),
-                },
-                {
-                  label: "ADR",
-                  value: (
-                    playerStats.reduce((s, x) => s + x.avgAdr * x.maps, 0) /
-                    playerStats.reduce((s, x) => s + x.maps, 0)
-                  ).toFixed(1),
-                },
+                { label: "Rating", value: wAvg(playerStats, "avgRating", 2) },
+                { label: "ADR", value: wAvg(playerStats, "avgAdr") },
+                { label: "RWS", value: wAvg(playerStats, "avgRws", 2) },
                 {
                   label: "K/D",
-                  value:
-                    playerStats.reduce((s, x) => s + x.totalKills, 0) > 0 &&
-                    playerStats.reduce((s, x) => s + x.totalDeaths, 0) > 0
-                      ? (
-                          playerStats.reduce((s, x) => s + x.totalKills, 0) /
-                          playerStats.reduce((s, x) => s + x.totalDeaths, 0)
-                        ).toFixed(2)
-                      : "—",
+                  value: totalKillsAll > 0 && totalDeathsAll > 0
+                    ? (totalKillsAll / totalDeathsAll).toFixed(2)
+                    : "—",
                 },
-                {
-                  label: "WE",
-                  value: (
-                    playerStats.reduce((s, x) => s + x.avgWe * x.maps, 0) /
-                    playerStats.reduce((s, x) => s + x.maps, 0)
-                  ).toFixed(1),
-                },
-                {
-                  label: "场均击杀",
-                  value: (
-                    playerStats.reduce((s, x) => s + x.totalKills, 0) /
-                    playerStats.reduce((s, x) => s + x.maps, 0)
-                  ).toFixed(1),
-                },
+                { label: "WE", value: wAvg(playerStats, "avgWe") },
+                { label: "场均击杀", value: sAvg(playerStats, "totalKills") },
+                { label: "首杀", value: sAvg(playerStats, "totalFirstKills") },
+                { label: "多杀", value: sAvg(playerStats, "totalMultiKills") },
+                { label: "残局", value: sAvg(playerStats, "totalClutches") },
                 {
                   label: "HS%",
-                  value: Math.round(
-                    playerStats.reduce((s, x) => s + x.avgHs * x.maps, 0) /
-                      playerStats.reduce((s, x) => s + x.maps, 0)
-                  ) + "%",
+                  value: totalMaps > 0
+                    ? Math.round(playerStats.reduce((s, x) => s + x.avgHs * x.maps, 0) / totalMaps) + "%"
+                    : "—",
                 },
               ].map(({ label, value }) => (
                 <div key={label}>
@@ -317,7 +311,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
                   {ps.maps} 图 · 场均 {ps.avgKills}-{ps.avgDeaths}-{ps.avgAssists}
                 </span>
               </div>
-              <div className="flex gap-4 text-xs text-[var(--color-fg-mid)]">
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--color-fg-mid)]">
                 <span>
                   Rating{" "}
                   <span className="text-[var(--color-accent)] font-semibold">
@@ -327,6 +321,10 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
                 <span>
                   ADR{" "}
                   <span className="text-[var(--color-fg)]">{ps.avgAdr}</span>
+                </span>
+                <span>
+                  RWS{" "}
+                  <span className="text-[var(--color-fg)]">{ps.avgRws}</span>
                 </span>
                 <span>
                   K/D{" "}
@@ -340,6 +338,10 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
                   WE{" "}
                   <span className="text-[var(--color-fg)]">{ps.avgWe}</span>
                 </span>
+                <span>
+                  HS{" "}
+                  <span className="text-[var(--color-fg)]">{ps.avgHs}%</span>
+                </span>
               </div>
             </Panel>
           ))}
@@ -350,16 +352,18 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
       {registrations.length > 0 && (
         <section className="space-y-3">
           <SectionHeading>参赛记录</SectionHeading>
-          <div className="space-y-3">
+          <div className="space-y-2">
             {[...registrations].reverse().map((reg) => {
               const teamInfo = regIdToTeam.get(reg.id);
+              const posLabel = POSITION_LABELS[reg.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? reg.primaryPosition;
+              const peakParts = [`${reg.peakRank} (${reg.peakRankSeason})`, `Rating ${reg.peakRating.toFixed(2)}`];
+              if (reg.peakWe != null) peakParts.push(`WE ${reg.peakWe.toFixed(1)}`);
               return (
-                <Panel key={reg.id} pad={20}>
-                  <div className="space-y-3">
-                    {/* 赛季标题行 */}
-                    <div className="flex items-start justify-between gap-2 flex-wrap">
-                      <div className="space-y-0.5">
-                        <p className="font-semibold text-[var(--color-fg)]">{reg.seasonName}</p>
+                <Panel key={reg.id} pad={16}>
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-sm text-[var(--color-fg)]">{reg.seasonName}</span>
                         {teamInfo && (
                           <Link
                             href={`/${teamInfo.seasonSlug}/teams/${teamInfo.teamId}`}
@@ -369,35 +373,19 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
                           </Link>
                         )}
                       </div>
-                      <div className="flex gap-2 items-center flex-wrap">
-                        <PosChip pos={POSITION_LABELS[reg.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? reg.primaryPosition} />
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <PosChip pos={posLabel} />
                         <span className="text-xs text-[var(--color-fg-mid)]">
-                          峰值 {reg.peakRank}（{reg.peakRankSeason}）
+                          {peakParts.join(" · ")}
                         </span>
                       </div>
                     </div>
-
-                    {/* 风格描述 */}
-                    {reg.gameplayStyle && (
-                      <p className="text-sm text-[var(--color-fg-mid)] leading-relaxed">
-                        {reg.gameplayStyle}
-                      </p>
-                    )}
-
-                    {/* 参赛历史 */}
-                    {reg.competitionHistory && (
-                      <p className="text-xs text-[var(--color-fg-mid)] opacity-80 leading-relaxed border-t border-[var(--color-border)] pt-2">
-                        {reg.competitionHistory}
-                      </p>
-                    )}
-
-                    {/* 高光视频 */}
                     {reg.highlightVideoUrl && (
                       <a
                         href={reg.highlightVideoUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 text-xs text-[var(--color-accent)] hover:underline"
+                        className="text-xs text-[var(--color-accent)] hover:underline shrink-0"
                       >
                         🎬 高光视频
                       </a>

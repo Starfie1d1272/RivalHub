@@ -32,6 +32,7 @@ export default async function AdminUsersPage() {
         users={adminUsers.map((u) => ({
           id: u.id,
           email: u.email,
+          steamName: u.steamName,
           role: u.role as "super_admin" | "season_admin",
           adminSeasonIds: u.adminSeasonIds,
           createdAt: u.createdAt.toISOString(),

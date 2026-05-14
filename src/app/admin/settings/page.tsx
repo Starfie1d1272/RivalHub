@@ -1,3 +1,6 @@
+import { eq } from "drizzle-orm";
+import { db } from "@/db/client";
+import { users } from "@/db/schema";
 import { checkAdminSession } from "@/lib/auth/session";
 import { ChangePasswordForm } from "@/components/admin/ChangePasswordForm";
 import { Panel, StatusPill, Marker } from "@/components/rivalhub";
@@ -19,11 +22,16 @@ const ENV_VARS = [
 
 export default async function AdminSettingsPage() {
   const admin = (await checkAdminSession())!;
+  const adminUser = await db.query.users.findFirst({
+    where: eq(users.id, admin.userId),
+    columns: { steamName: true },
+  });
+  const adminDisplayName = adminUser?.steamName ?? admin.email;
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-2xl space-y-10">
         <div>
-          <Marker sub={`当前登录：${admin.email}`}>系统设置</Marker>
+          <Marker sub={`当前登录：${adminDisplayName}`}>系统设置</Marker>
         </div>
 
         {/* 修改密码 */}
