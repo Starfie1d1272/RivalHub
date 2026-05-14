@@ -22,7 +22,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm tsc --noEmit
+      - run: pnpm type-check
 
       - run: pnpm test
 

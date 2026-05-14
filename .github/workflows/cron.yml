@@ -11,16 +11,16 @@ jobs:
     steps:
       - name: Draft timeout
         run: |
-          curl -s -o /dev/null -w "%{http_code}" \
+          curl -fsS \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             "https://match.starfie1d.top/api/cron/draft-timeout"
       - name: Check registration deadline
         run: |
-          curl -s -o /dev/null -w "%{http_code}" \
+          curl -fsS \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             "https://match.starfie1d.top/api/cron/check-registration-deadline"
       - name: Match time auto award
         run: |
-          curl -s -o /dev/null -w "%{http_code}" \
+          curl -fsS \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             "https://match.starfie1d.top/api/cron/match-time-auto-award"
