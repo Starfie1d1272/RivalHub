@@ -7,6 +7,7 @@ export const teams = pgTable("teams", {
   id: uuid("id").primaryKey().defaultRandom(),
   seasonId: uuid("season_id").notNull().references(() => seasons.id),
   name: text("name").notNull(),
+  logoUrl: text("logo_url"),
   captainRegistrationId: uuid("captain_registration_id")
     .notNull()
     .references(() => seasonRegistrations.id),

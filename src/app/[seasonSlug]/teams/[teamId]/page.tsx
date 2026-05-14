@@ -6,6 +6,7 @@ import { matchPlayerStats } from "@/db/schema/player-stats";
 import { Panel, Stat, Marker, PosChip } from "@/components/rivalhub";
 import { MapPreferenceChips } from "@/components/rivalhub/map-preference-chips";
 import { TeamNameForm } from "@/components/teams/TeamNameForm";
+import { TeamLogoUpload } from "@/components/teams/TeamLogoUpload";
 import Link from "next/link";
 import { POSITION_LABELS } from "@/lib/validators/registration";
 import { CS2_POSITIONS } from "@/types/season";
@@ -218,18 +219,26 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
     <div className="container mx-auto px-4 py-12 max-w-4xl space-y-10">
 
       {/* 队伍标题 */}
-      <div className="space-y-1">
-        <p className="text-xs text-[var(--color-fg-mid)]">
-          <Link href={`/${seasonSlug}/teams`} className="hover:underline">参赛队伍</Link>
-          {" / "}
-          <span className="text-[var(--color-fg)]">#{team.draftOrder}</span>
-        </p>
-        <Marker>{team.name}</Marker>
-        {canEditTeamName && (
-          <div className="max-w-md pt-3">
-            <TeamNameForm teamId={team.id} initialName={team.name} />
-          </div>
-        )}
+      <div className="flex items-start gap-5">
+        <TeamLogoUpload
+          teamId={team.id}
+          currentLogoUrl={team.logoUrl ?? null}
+          teamName={team.name}
+          canEdit={canEditTeamName}
+        />
+        <div className="space-y-1 min-w-0">
+          <p className="text-xs text-[var(--color-fg-mid)]">
+            <Link href={`/${seasonSlug}/teams`} className="hover:underline">参赛队伍</Link>
+            {" / "}
+            <span className="text-[var(--color-fg)]">#{team.draftOrder}</span>
+          </p>
+          <Marker>{team.name}</Marker>
+          {canEditTeamName && (
+            <div className="max-w-md pt-3">
+              <TeamNameForm teamId={team.id} initialName={team.name} />
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 整体战绩 */}
