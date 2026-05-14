@@ -10,6 +10,7 @@ import Link from "next/link";
 import { POSITION_LABELS } from "@/lib/validators/registration";
 import { matchPlayerStats } from "@/db/schema/player-stats";
 import { matchMvpVotes } from "@/db/schema/mvp-votes";
+import { wAvg, sAvg } from "@/lib/utils/stats";
 
 interface PlayerPageProps {
   params: Promise<{ userId: string }>;
@@ -170,14 +171,6 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
   const totalMaps = playerStats.reduce((s, x) => s + x.maps, 0);
   const totalKillsAll = playerStats.reduce((s, x) => s + x.totalKills, 0);
   const totalDeathsAll = playerStats.reduce((s, x) => s + x.totalDeaths, 0);
-  function wAvg(field: (x: (typeof playerStats)[number]) => number, precision = 1) {
-    if (totalMaps === 0) return "—";
-    return (playerStats.reduce((s, x) => s + field(x) * x.maps, 0) / totalMaps).toFixed(precision);
-  }
-  function sAvg(field: (x: (typeof playerStats)[number]) => number, precision = 1) {
-    if (totalMaps === 0) return "—";
-    return (playerStats.reduce((s, x) => s + field(x), 0) / totalMaps).toFixed(precision);
-  }
   const mvpCount = mvpRow?.count ?? 0;
 
   return (
@@ -271,20 +264,20 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
             </span>
             <div className="grid grid-cols-4 sm:grid-cols-5 gap-3 text-center mt-3">
               {[
-                { label: "Rating", value: wAvg((x) => x.avgRating, 2) },
-                { label: "ADR", value: wAvg((x) => x.avgAdr) },
-                { label: "RWS", value: wAvg((x) => x.avgRws, 2) },
+                { label: "Rating", value: wAvg(playerStats, "avgRating", 2) },
+                { label: "ADR", value: wAvg(playerStats, "avgAdr") },
+                { label: "RWS", value: wAvg(playerStats, "avgRws", 2) },
                 {
                   label: "K/D",
                   value: totalKillsAll > 0 && totalDeathsAll > 0
                     ? (totalKillsAll / totalDeathsAll).toFixed(2)
                     : "—",
                 },
-                { label: "WE", value: wAvg((x) => x.avgWe) },
-                { label: "场均击杀", value: sAvg((x) => x.totalKills) },
-                { label: "首杀", value: sAvg((x) => x.totalFirstKills) },
-                { label: "多杀", value: sAvg((x) => x.totalMultiKills) },
-                { label: "残局", value: sAvg((x) => x.totalClutches) },
+                { label: "WE", value: wAvg(playerStats, "avgWe") },
+                { label: "场均击杀", value: sAvg(playerStats, "totalKills") },
+                { label: "首杀", value: sAvg(playerStats, "totalFirstKills") },
+                { label: "多杀", value: sAvg(playerStats, "totalMultiKills") },
+                { label: "残局", value: sAvg(playerStats, "totalClutches") },
                 {
                   label: "HS%",
                   value: totalMaps > 0
