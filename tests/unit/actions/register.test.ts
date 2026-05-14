@@ -271,16 +271,52 @@ describe("submitRegistration()", () => {
     }
   });
 
-  it("已报名返回 REGISTRATION_DUPLICATE", async () => {
+  it("已通过报名返回 REGISTRATION_DUPLICATE", async () => {
     setupHappyPathBase();
     userFindFirstMock.mockResolvedValue(USER);
-    registrationFindFirstMock.mockResolvedValue({ id: REG_ID });
+    registrationFindFirstMock.mockResolvedValue({ id: REG_ID, status: "approved" });
 
     const result = await submitRegistration(VALID_INPUT as never);
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error.code).toBe(ErrorCode.REGISTRATION_DUPLICATE);
     }
+  });
+
+  it("待审核报名可更新并保持待审核", async () => {
+    setupHappyPathBase();
+    userFindFirstMock.mockResolvedValue(USER);
+    registrationFindFirstMock.mockResolvedValue({ id: REG_ID, status: "pending" });
+
+    mockSelectCount(0);
+    mockSelectCount(0);
+    mockUpdateReturning([{ ...USER, steam64: VALID_INPUT.steam64 }]);
+
+    updateMock.mockReturnValueOnce({
+      set: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          returning: vi.fn().mockResolvedValue([{ id: REG_ID, status: "pending" }]),
+        }),
+      }),
+    });
+
+    deleteMock.mockReturnValueOnce({
+      where: vi.fn().mockResolvedValue(undefined),
+    });
+
+    insertMock.mockReturnValueOnce({
+      values: vi.fn((vals: unknown) => {
+        insertValuesCalls.push(vals);
+        return Promise.resolve();
+      }),
+    });
+
+    const result = await submitRegistration(VALID_INPUT as never);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.registrationId).toBe(REG_ID);
+    }
+    expectAuditLog(insertValuesCalls, "registration.submit", { actorId: USER_ID, targetId: REG_ID });
   });
 
   it("正常提交成功：insert registration + delete draft + audit_log", async () => {
