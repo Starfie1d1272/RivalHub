@@ -31,7 +31,7 @@ export function TeamCard({ teamId, teamName, seasonSlug, draftOrder, logoUrl, pl
           {/* 队名 + logo */}
           <div className="flex items-center gap-3">
             {/* 小 logo：40×40 */}
-            <div className="relative w-10 h-10 rounded-full overflow-hidden shrink-0 border border-[var(--color-border)] bg-[var(--color-bg-subtle)] flex items-center justify-center">
+            <div className="relative w-10 h-10 rounded-md overflow-hidden shrink-0 border border-[var(--color-border)] bg-[var(--color-bg-subtle)] flex items-center justify-center">
               {logoUrl ? (
                 <Image src={logoUrl} alt={`${teamName} logo`} fill className="object-cover" />
               ) : (

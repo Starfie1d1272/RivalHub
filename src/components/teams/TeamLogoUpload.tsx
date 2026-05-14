@@ -70,7 +70,7 @@ export function TeamLogoUpload({
       {/* 头像主体：80×80 圆形 */}
       <div
         className={[
-          "relative w-20 h-20 rounded-full overflow-hidden",
+          "relative w-20 h-20 rounded-lg overflow-hidden",
           "border-2 border-[var(--color-border)] bg-[var(--color-bg-subtle)]",
           "flex items-center justify-center select-none",
           canEdit ? "cursor-pointer group" : "",
@@ -93,14 +93,14 @@ export function TeamLogoUpload({
 
         {/* 上传中蒙层 */}
         {isPending && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full">
+          <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-lg">
             <Spinner />
           </div>
         )}
 
         {/* 悬停蒙层（仅 canEdit） */}
         {canEdit && !isPending && (
-          <div className="absolute inset-0 hidden group-hover:flex items-center justify-center bg-black/50 rounded-full">
+          <div className="absolute inset-0 hidden group-hover:flex items-center justify-center bg-black/50 rounded-lg">
             <span className="text-[10px] font-medium text-white leading-tight text-center px-1">
               更换<br />图标
             </span>
