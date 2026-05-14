@@ -5,6 +5,11 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2026-05-14
+
+### Fixed
+- 管理后台选秀控制/赛程管理页面崩溃：`teams` 表缺 `logo_url` 列导致 Postgres 查询报错（补迁移 `0015_team_logo_url.sql`）
+
 ## [1.3.0] - 2026-05-14
 
 ### Added
