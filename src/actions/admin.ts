@@ -124,6 +124,15 @@ export async function registerAdmin(
       })
       .where(eq(adminInvites.id, invite.id));
 
+    await tx.insert(auditLogs).values({
+      seasonId: null,
+      action: "admin.register",
+      actorId: username,
+      targetId: newAdmin.id,
+      targetType: "admin_user",
+      meta: { role: invite.role, inviteId: invite.id },
+    });
+
     return ok(newAdmin);
   });
 
@@ -281,6 +290,15 @@ export async function createInviteCode(input: {
     })
     .returning({ id: adminInvites.id });
 
+  await db.insert(auditLogs).values({
+    seasonId: inviteSeasonId,
+    action: "admin.create_invite",
+    actorId: auditActorId(admin),
+    targetId: invite.id,
+    targetType: "admin_invite",
+    meta: { role, maxUses, expiresAt: expiresAt?.toISOString() ?? null },
+  });
+
   revalidatePath("/admin/invites");
   return ok({
     id: invite.id,
@@ -293,12 +311,20 @@ export async function createInviteCode(input: {
 }
 
 export async function deactivateInviteCode(inviteId: string) {
-  await requireSuperAdmin();
+  const admin = await requireSuperAdmin();
 
   await db
     .update(adminInvites)
     .set({ isActive: false })
     .where(eq(adminInvites.id, inviteId));
+
+  await db.insert(auditLogs).values({
+    seasonId: null,
+    action: "admin.deactivate_invite",
+    actorId: auditActorId(admin),
+    targetId: inviteId,
+    targetType: "admin_invite",
+  });
 
   revalidatePath("/admin/invites");
   return ok(undefined);
@@ -343,6 +369,14 @@ export async function changePassword(currentPassword: string, newPassword: strin
     .set({ passwordHash: hashPassword(newPassword), updatedAt: new Date() })
     .where(eq(adminUsers.id, user.id));
 
+  await db.insert(auditLogs).values({
+    seasonId: null,
+    action: "admin.change_password",
+    actorId: auditActorId(admin),
+    targetId: user.id,
+    targetType: "admin_user",
+  });
+
   return ok(undefined);
 }
 
@@ -381,17 +415,34 @@ export async function deactivateAdminUser(adminId: string) {
     .set({ isActive: false, updatedAt: new Date() })
     .where(eq(adminUsers.id, adminId));
 
+  await db.insert(auditLogs).values({
+    seasonId: null,
+    action: "admin.deactivate_user",
+    actorId: auditActorId(admin),
+    targetId: adminId,
+    targetType: "admin_user",
+    meta: { targetUsername: target.username },
+  });
+
   revalidatePath("/admin/users");
   return ok(undefined);
 }
 
 export async function reactivateAdminUser(adminId: string) {
-  await requireSuperAdmin();
+  const admin = await requireSuperAdmin();
 
   await db
     .update(adminUsers)
     .set({ isActive: true, updatedAt: new Date() })
     .where(eq(adminUsers.id, adminId));
+
+  await db.insert(auditLogs).values({
+    seasonId: null,
+    action: "admin.reactivate_user",
+    actorId: auditActorId(admin),
+    targetId: adminId,
+    targetType: "admin_user",
+  });
 
   revalidatePath("/admin/users");
   return ok(undefined);

@@ -93,6 +93,15 @@ export async function castVote(
       return vote.id;
     });
 
+    await db.insert(auditLogs).values({
+      seasonId: null,
+      action: "captain.cast_vote",
+      actorId: session.userId,
+      targetId: parsed.data.candidateRegistrationId,
+      targetType: "captain_vote",
+      meta: { voteId, voterRegistrationId: parsed.data.voterRegistrationId },
+    });
+
     await revalidateCaptainPaths(parsed.data.voterRegistrationId);
     return ok({ voteId });
   } catch (e) {
@@ -148,6 +157,15 @@ export async function retractVote(
             eq(captainVotes.candidateRegistrationId, candidate.id),
           ),
         );
+    });
+
+    await db.insert(auditLogs).values({
+      seasonId: null,
+      action: "captain.retract_vote",
+      actorId: session.userId,
+      targetId: parsed.data.candidateRegistrationId,
+      targetType: "captain_vote",
+      meta: { voterRegistrationId: parsed.data.voterRegistrationId },
     });
 
     await revalidateCaptainPaths(parsed.data.voterRegistrationId);

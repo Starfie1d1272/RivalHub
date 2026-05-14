@@ -4,8 +4,7 @@ import { revalidatePath } from "next/cache";
 import { eq, sql, type SQL } from "drizzle-orm";
 import { createServiceClient } from "@/lib/auth/supabase";
 import { db } from "@/db/client";
-import { users } from "@/db/schema/users";
-import { adminInvites } from "@/db/schema/admin-invites";
+import { users, adminInvites, auditLogs } from "@/db/schema";
 import { ok, fail } from "@/types/action";
 import { ErrorCode } from "@/lib/errors";
 import type { ActionResult } from "@/types/action";
@@ -207,6 +206,15 @@ export async function claimInviteCode(code: string): Promise<ActionResult<{ role
           usedByUsernames: sql`array_append(${adminInvites.usedByUsernames}, ${session.email})`,
         })
         .where(eq(adminInvites.id, invite.id));
+
+      await tx.insert(auditLogs).values({
+        seasonId: invite.seasonId,
+        action: "user.claim_invite",
+        actorId: session.userId,
+        targetId: session.userId,
+        targetType: "user",
+        meta: { inviteId: invite.id, newRole, email: session.email },
+      });
 
       return ok({ updatedUser, newRole });
     });

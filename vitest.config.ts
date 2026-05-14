@@ -13,11 +13,17 @@ export default defineConfig({
       reporter: ["text", "json", "html"],
       include: ["src/**"],
       exclude: ["src/app/**", "src/components/ui/**"],
+      thresholds: {
+        lines: 30,
+        functions: 60,
+        branches: 50,
+      },
     },
   },
   resolve: {
     alias: {
       "@": resolve(__dirname, "./src"),
+      tests: resolve(__dirname, "./tests"),
     },
   },
 });

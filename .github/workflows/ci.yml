@@ -24,6 +24,6 @@ jobs:
 
       - run: pnpm type-check
 
-      - run: pnpm test
+      - run: pnpm test:coverage
 
       - run: pnpm build

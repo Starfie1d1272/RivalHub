@@ -50,6 +50,15 @@ export async function proposeMatchTime(
       })
       .returning({ id: matchTimeProposals.id });
 
+    await db.insert(auditLogs).values({
+      seasonId: match.seasonId,
+      action: "match.propose_time",
+      actorId: session.userId,
+      targetId: matchId,
+      targetType: "match",
+      meta: { proposalId: proposal.id, proposedTime: proposedTime.toISOString() },
+    });
+
     const season = await getSeasonOrThrow(match.seasonId);
     revalidateMatchPaths(season.slug, matchId);
 
@@ -129,6 +138,15 @@ export async function respondToTimeProposal(
             ),
           );
       }
+    });
+
+    await db.insert(auditLogs).values({
+      seasonId: match.seasonId,
+      action: "match.respond_time_proposal",
+      actorId: session.userId,
+      targetId: proposalId,
+      targetType: "match_time_proposal",
+      meta: { matchId: match.id, action, rejectReason: rejectReason ?? null },
     });
 
     const season = await getSeasonOrThrow(match.seasonId);
