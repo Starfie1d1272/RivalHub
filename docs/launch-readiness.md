@@ -1,6 +1,6 @@
 # 上线前审查
 
-> 审查日期：2026-05-13。生产域名：`https://match.starfie1d.top`。
+> 审查日期：2026-05-14。生产域名：`https://match.starfie1d.top`。
 
 本文用于上线前最后一轮人工复核：先给出代码架构，再对照规则书中需要网站承载的功能，最后列出上线前剩余风险。
 
@@ -44,6 +44,7 @@ RivalHub 是 Next.js 15 App Router 应用，部署在 Vercel，数据层使用 S
 | `/admin/[seasonSlug]/matches` | 已实现 |
 | `/admin/[seasonSlug]/settings`、`/admin/seasons/new` | 已实现 |
 | `/admin/invites`、`/admin/users`、`/admin/settings` | 已实现 |
+| `/settings/password` | 已实现 |
 
 ## 规则书网站功能对照
 
@@ -62,8 +63,8 @@ RivalHub 是 Next.js 15 App Router 应用，部署在 Vercel，数据层使用 S
 | 5.1 排位赛 | 8 队单循环 28 场 BO1，积分榜按规则排序 | 已实现 | `src/lib/formats/round-robin.ts`、`src/lib/standings.ts` |
 | 5.2 正赛 | 8 队双败，常规 BO3，总决赛 BO5 | 已实现 | `RIVALS_STAGE_PLAN`、`src/lib/formats/double-elim.ts` |
 | 5.3 BP 规则 | 网站记录地图、pick 方、起始边、比分；BP 本身线下手动执行 | 已实现到 v1 范围 | `src/actions/matches/results.ts`、`src/components/matches/MapByMapInput.tsx` |
-| 6.1 比赛时间确认 | 队长提议时间、对方接受/拒绝、管理员强制指定 | 部分实现 | `src/actions/matches/scheduling.ts` |
-| 6.1 赛前名单 | 队长提交 5 首发 + 最多 2 替补，开赛前 2 小时锁定 | 已实现 | `src/actions/matches/roster.ts`、`src/components/matches/MatchRosterForm.tsx` |
+| 6.1 比赛时间确认 | 队长提议时间、对方接受/拒绝、管理员强制指定、协商截止自动裁定（PR #80） | 已实现 | `src/actions/matches/scheduling.ts` |
+| 6.1 赛前名单 | 队长提交 5 首发 + 最多 2 替补，开赛前 2 小时锁定；UI 重设计（PR #83） | 已实现 | `src/actions/matches/roster.ts`、`src/components/matches/MatchRosterForm.tsx` |
 | 6.2-6.6 比赛执行 | 规则书展示流程；网站负责赛程、详情、录分、统计 | 已实现到 v1 范围 | `/rules`、`src/app/[seasonSlug]/matches/**` |
 | 7 反作弊条款 | 报名反作弊承诺；规则书公示处罚 | 已实现 | `RegistrationForm`、`/rules` |
 | 8-9 赛委会与联系方式 | 规则书公示 | 已实现 | `src/app/rules/page.tsx` |
@@ -72,11 +73,11 @@ RivalHub 是 Next.js 15 App Router 应用，部署在 Vercel，数据层使用 S
 
 | 风险 | 影响 | 建议 |
 |---|---|---|
-| 时间协商是轻量版 | 已支持管理员设置最晚完成时间，并自动用 `最晚完成时间 - 24h` 作为队长协商截止；仍不支持多候选时间和截止后自动采用首个合法时间 | v1 可上线但需在运营流程中保留“管理员最终指定兜底”；后续补完整状态机 |
 | RLS 未在迁移中落地 | Server Actions 直连 DB 不受影响；Realtime 直接读依赖 Supabase 侧策略 | 上线前在 Supabase Dashboard 核对 Realtime 三表读策略，避免公开订阅失败 |
 | E2E 覆盖不足 | `tests/e2e` 目前只有首页 smoke，不覆盖报名→审核→投票→选秀→录分 | 上线前至少手动跑一遍生产或 staging 冒烟流程，并补 Playwright 关键路径 |
 | 定时任务不在 `vercel.json` | 当前 `vercel.json` 为空，超时选秀由 GitHub Actions 每分钟调用生产 Cron endpoint | 保持 `.github/workflows/cron.yml` 的 `CRON_SECRET` 与生产一致；若迁回 Vercel Cron，需确认计划支持分钟级频率 |
-| 文档曾混用 Magic Link 与 email+password | 生产实际使用 email+password，Supabase 邮件确认关闭 | 已统一为“生产不依赖 Magic Link”口径 |
+| 队伍图标孤儿文件 | Storage 上传成功但 DB 事务失败会产生无引用的 blob | `upsert: true` 重试可覆盖；后续可加定期清理 job |
+| 文档曾混用 Magic Link 与 email+password | 生产实际使用 email+password，Supabase 邮件确认关闭 | 已统一为”生产不依赖 Magic Link”口径 |
 
 ## 上线检查清单
 

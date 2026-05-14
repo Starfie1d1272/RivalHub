@@ -32,7 +32,8 @@
 | 仅 voting 阶段可投 | — | Server Action | 读 season.status |
 | **teams** | | | |
 | 队伍属于赛季 | `season_id` FK | — | |
-| draft_order 唯一（赛季内）| `UNIQUE(season_id, draft_order)` | — | **建议 Phase 6 添加** |
+| draft_order 唯一（赛季内）| `UNIQUE(season_id, draft_order)` | — | |
+| logo_url 无唯一约束 | — | — | Supabase Storage 公开 URL，队长上传 |
 | **team_members** | | | |
 | 一名选手只能在一队 | `UNIQUE(registration_id)` | — | **建议添加**（赛季内） |
 | **draft_state** | | | |
@@ -121,12 +122,15 @@
 
 v1 当前不依赖 Supabase Storage 保存报名截图。报名截图使用 NJUBox 分享链接，直接存储在 `season_registrations.screenshot_urls`。
 
+`team-logos` bucket 用于队伍图标上传（public，限制 1 MB / jpg+png+webp）。
+
 以下 bucket 规划仅作为后续扩展参考。
 
 ### Bucket 列表
 
 | Bucket 名 | 是否 public | 访问方式 | 用途 |
 |---|---|---|---|
+| `team-logos` | ✅ public | 直接 URL | 队伍图标（已启用，80×80 方形，队长上传） |
 | `registration-screenshots` | ❌ private | Service Role 生成签名 URL | 报名天梯截图、活跃度截图（后续可选） |
 | `avatars` | ✅ public | 直接 URL | 用户头像、队伍头像（v2） |
 | `highlights` | ❌ private | Service Role 生成签名 URL | 高光视频（可选填，admin 审核用） |

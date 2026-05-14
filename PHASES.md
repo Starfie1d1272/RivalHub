@@ -79,7 +79,9 @@
 - [x] `/admin/invites` 邀请码管理（创建含 seasonId / 撤销 / 查看使用记录）
 - [x] `/admin/users` 管理员列表（停用 / 重新启用）
 - [x] `/admin/settings` 修改密码 + 环境变量状态面板
+- [x] `/settings/password` 用户修改密码（验证原密码 + Supabase Admin API 更新）
 - [x] 管理后台统一导航栏 + 退出登录按钮
+- [x] `/admin/[seasonSlug]/registrations` 报名草稿查看（`DraftRegistrationTable`，并行查询 `registration_drafts`）
 
 ---
 
@@ -115,6 +117,7 @@
 
 - [x] `/[seasonSlug]/teams` 列表页（8 队卡片，按 draftOrder 排序）
 - [x] `/[seasonSlug]/teams/[teamId]` 详情页（首发/替补分区，队长 badge）
+- [x] 队伍图标上传（`TeamLogoUpload` 组件 + `uploadTeamLogo` action + Supabase Storage `team-logos` bucket）
 
 ---
 
@@ -124,6 +127,7 @@
 - [x] `/[seasonSlug]/matches/[matchId]` 详情页（双方阵容、比分、地图结果、状态）
 - [x] `/admin/[seasonSlug]/matches` 管理员赛程表（创建/录分/取消）
 - [x] 比赛状态机：`scheduled → in_progress → finished`，`scheduled → cancelled`
+- [x] `MatchRosterForm` 视觉重设计（PosChip 位置标签、CSS 变量卡片样式、StatusPill 锁定态）
 
 ---
 
@@ -192,13 +196,13 @@
 
 ---
 
-## v2 计划（dev 已预实现赛制引擎，待功能分支 UI/集成）
+- **v2 计划（dev 已预实现赛制引擎，待功能分支 UI/集成）**
 
 - **赛制引擎**（dev 已落地）：Swiss / GSL Group / Single Elim 独立 executor + entrySeeds 种子轮空 + finalFormat 决赛 BO5 + `getQualifiers()` 阶段间数据流
 - **MAJOR_STAGE_PLAN 预设**（dev 已落地）：32 队 3 轮 Swiss（stage1/2/3 BO1，decider BO3）+ Single Elim 淘汰赛（BO3，决赛 BO5）
 - 多游戏/多赛制位置系统 UI 适配
 - 自由组队模式赛事完整实现
 - 历史赛季归档多届展示
-- 用户账号设置页
+- 用户账号设置页（修改密码已落地 v1.2.0）
 - i18n 多语言支持
 - 赛后玩家数据自动化（待调研）
