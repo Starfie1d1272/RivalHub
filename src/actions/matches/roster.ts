@@ -103,6 +103,15 @@ export async function submitMatchRoster(
       return rosterId;
     });
 
+    await db.insert(auditLogs).values({
+      seasonId: match.seasonId,
+      action: "match.submit_roster",
+      actorId: session.userId,
+      targetId: rosterId,
+      targetType: "match_roster",
+      meta: { matchId, teamId, starters: starterIds.length, substitutes: substituteIds.length },
+    });
+
     const season = await db.query.seasons.findFirst({
       where: eq(seasons.id, match.seasonId),
     });

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { eq, and, count } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
-import { users, seasons, seasonRegistrations, registrationDrafts } from "@/db/schema";
+import { users, seasons, seasonRegistrations, registrationDrafts, auditLogs } from "@/db/schema";
 import { ok, fail } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { actionError } from "@/lib/action-utils";
@@ -277,6 +277,15 @@ export async function submitRegistration(input: RegistrationFormData) {
           eq(registrationDrafts.email, normalizedEmail),
         ),
       );
+
+    await db.insert(auditLogs).values({
+      seasonId: data.seasonId,
+      action: "registration.submit",
+      actorId: session.userId,
+      targetId: registration.id,
+      targetType: "registration",
+      meta: { email: data.email, primaryPosition: data.primaryPosition },
+    });
 
     revalidatePath(`/${season.slug}/register`);
     return ok({ registrationId: registration.id, email: data.email });
