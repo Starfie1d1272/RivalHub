@@ -63,6 +63,11 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons }: Props) {
   const currentDateFrom = searchParams.get("dateFrom") ?? "";
   const currentDateTo = searchParams.get("dateTo") ?? "";
 
+  useEffect(() => {
+    setLocalAction(currentAction);
+    setLocalActor(currentActor);
+  }, [currentAction, currentActor]);
+
   const updateParams = useCallback(
     (updates: Record<string, string>) => {
       const params = new URLSearchParams(searchParams.toString());
