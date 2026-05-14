@@ -5,6 +5,14 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.2] - 2026-05-14
+
+### Changed
+- README、CLAUDE.md、AGENTS.md 版本号同步至 1.3.2
+- CI workflow：`pnpm tsc --noEmit` → `pnpm type-check`（包含 Next route typegen）
+- Cron workflow：curl 加 `-fsS` flag，接口返回非 200 时 step 失败
+- CLAUDE.md 版本号规范：明确 `npm version` 同步生成 tag，移除"合并后打 tag"表述
+
 ## [1.3.1] - 2026-05-14
 
 ### Fixed

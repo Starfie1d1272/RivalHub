@@ -2,11 +2,11 @@
 
 RivalHub 是一个面向高校电竞赛事的开源赛事管理平台，覆盖报名、审核、队长投票、蛇形选秀、队伍展示、赛程管理、Bracket、比分录入、数据统计与上线部署。
 
-当前 `1.3.0` 版本服务于 **2026 NJU Rivals 春季赛**：8 支队伍、队长投票、蛇形选秀、排位赛 + 双败淘汰，生产站点部署在 [match.starfie1d.top](https://match.starfie1d.top)。
+当前 `1.3.2` 版本服务于 **2026 NJU Rivals 春季赛**：8 支队伍、队长投票、蛇形选秀、排位赛 + 双败淘汰，生产站点部署在 [match.starfie1d.top](https://match.starfie1d.top)。
 
 ## 功能状态
 
-| 模块 | 1.3.0 能力 |
+| 模块 | 1.3.2 能力 |
 |---|----|
 | 赛季管理 | capability 驱动的多赛事模型，`/[seasonSlug]` 路由，动态 PhaseTracker 阶段追踪 |
 | 报名 | 邮箱密码账号、自动草稿恢复、Zod 校验、位置/人数上限（仅统计 approved）、NJUBox 截图链接 |
