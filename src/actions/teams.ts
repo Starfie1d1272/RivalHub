@@ -7,10 +7,11 @@ import { auditLogs, seasonRegistrations, seasons, teams } from "@/db/schema";
 import { actionError, failValidation } from "@/lib/action-utils";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { auditActorId, requireAuth } from "@/lib/auth/session";
+import { revalidateSeasonPaths } from "@/lib/revalidation";
 import { ok, type ActionResult } from "@/types/action";
 
-const MIN_TEAM_NAME_LENGTH = 2;
-const MAX_TEAM_NAME_LENGTH = 32;
+export const MIN_TEAM_NAME_LENGTH = 2;
+export const MAX_TEAM_NAME_LENGTH = 32;
 
 export async function updateTeamName(
   teamId: string,
@@ -63,10 +64,8 @@ export async function updateTeamName(
       return { seasonSlug: season.slug };
     });
 
-    revalidatePath(`/${result.seasonSlug}/teams`);
+    revalidateSeasonPaths(result.seasonSlug, ["teams", "draft", "draftCaptain"]);
     revalidatePath(`/${result.seasonSlug}/teams/${teamId}`);
-    revalidatePath(`/${result.seasonSlug}/draft`);
-    revalidatePath(`/${result.seasonSlug}/draft/captain`);
 
     return ok(undefined);
   } catch (e) {

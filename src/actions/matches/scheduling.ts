@@ -219,14 +219,19 @@ export async function runMatchTimeAutoAwardCron(
     ),
   });
 
+  const results = await Promise.all(
+    candidateMatches.map(async (match) => {
+      const result = await autoAwardMatchTime(match.id, now);
+      return { matchId: match.id, result };
+    }),
+  );
+
   let awarded = 0;
   let skipped = 0;
-
-  for (const match of candidateMatches) {
-    const result = await autoAwardMatchTime(match.id, now);
+  for (const { matchId, result } of results) {
     if (result.awarded) {
       awarded += 1;
-      revalidateMatchPaths(result.seasonSlug, match.id);
+      revalidateMatchPaths(result.seasonSlug, matchId);
     } else {
       skipped += 1;
     }
