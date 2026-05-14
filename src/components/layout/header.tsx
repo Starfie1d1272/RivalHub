@@ -17,9 +17,9 @@ export async function Header() {
   const currentUser = session
     ? await db.query.users.findFirst({
         where: eq(users.id, session.userId),
-        columns: { avatarUrl: true },
+        columns: { avatarUrl: true, steamName: true },
       })
     : null;
 
-  return <HeaderClient seasons={publicSeasons} session={session} avatarUrl={currentUser?.avatarUrl ?? null} />;
+  return <HeaderClient seasons={publicSeasons} session={session} avatarUrl={currentUser?.avatarUrl ?? null} steamName={currentUser?.steamName ?? null} />;
 }

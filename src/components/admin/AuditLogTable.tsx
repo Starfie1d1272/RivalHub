@@ -20,6 +20,7 @@ interface Props {
   initialLogs: AuditLog[];
   initialTotal: number;
   seasons: { id: string; name: string }[];
+  initialActorNameMap: Record<string, string>;
 }
 
 const ACTION_CATEGORIES: Record<string, { label: string; color: string }> = {
@@ -40,13 +41,14 @@ function getCategory(action: string) {
 
 const PAGE_SIZE = 50;
 
-export function AuditLogTable({ initialLogs, initialTotal, seasons }: Props) {
+export function AuditLogTable({ initialLogs, initialTotal, seasons, initialActorNameMap }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
   const [logs, setLogs] = useState(initialLogs);
   const [total, setTotal] = useState(initialTotal);
+  const [actorNameMap, setActorNameMap] = useState(initialActorNameMap);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // 本地输入状态（用于 debounce，避免每次按键触发请求）
@@ -110,6 +112,7 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons }: Props) {
       if (result.success) {
         setLogs(result.data.logs);
         setTotal(result.data.total);
+        if (result.data.actorNameMap) setActorNameMap(result.data.actorNameMap);
       }
     });
   }, [currentPage, currentAction, currentActor, currentSeason, currentDateFrom, currentDateTo]);
@@ -290,7 +293,7 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons }: Props) {
                     <span style={{ color: "var(--color-fg)" }}>{log.action}</span>
                   </td>
                   <td className="px-3 py-2 truncate max-w-[140px]" style={{ color: "var(--color-fg-mid)" }}>
-                    {log.actorId ?? "-"}
+                    {log.actorId ? (actorNameMap[log.actorId] ?? log.actorId.slice(0, 8)) : "—"}
                   </td>
                   <td className="px-3 py-2" style={{ color: "var(--color-fg-mid)" }}>
                     {log.targetType && (

@@ -1,8 +1,8 @@
 "use server";
 
-import { and, desc, eq, gte, lt, count, like } from "drizzle-orm";
+import { and, desc, eq, gte, lt, or, count, like, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { auditLogs, seasons } from "@/db/schema";
+import { auditLogs, seasons, users } from "@/db/schema";
 import { ok } from "@/types/action";
 import { requireSuperAdmin } from "@/lib/auth/session";
 import { actionError } from "@/lib/action-utils";
@@ -79,7 +79,22 @@ export async function fetchAuditLogs(filters: AuditLogFilters = {}) {
       meta: r.meta as Record<string, unknown> | null,
     }));
 
-    return ok({ logs, total: Number(totalRow?.count ?? 0) });
+    // 构建 actorId → Steam 名称映射
+    const actorIds = [...new Set(logs.map((l) => l.actorId).filter((id): id is string => id != null))];
+    const actorNameMap: Record<string, string> = {};
+    if (actorIds.length) {
+      const actorUsers = await db
+        .select({ id: users.id, email: users.email, steamName: users.steamName })
+        .from(users)
+        .where(or(inArray(users.id, actorIds), inArray(users.email, actorIds)));
+      for (const u of actorUsers) {
+        const name = u.steamName ?? u.email;
+        actorNameMap[u.id] = name;
+        if (u.email) actorNameMap[u.email] = name;
+      }
+    }
+
+    return ok({ logs, total: Number(totalRow?.count ?? 0), actorNameMap });
   } catch (e) {
     return actionError("fetchAuditLogs", e);
   }

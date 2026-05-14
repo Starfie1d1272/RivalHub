@@ -12,6 +12,7 @@ import { Separator } from "@/components/ui/separator";
 interface AdminUserRow {
   id: string;
   email: string;
+  steamName: string | null;
   role: "super_admin" | "season_admin";
   adminSeasonIds: string[];
   createdAt: string;
@@ -56,7 +57,7 @@ export function AdminUserList({ users, seasonMap, currentUserId }: AdminUserList
         >
           <div className="flex items-center gap-3 min-w-0 flex-wrap">
             <span className="font-medium text-sm truncate">
-              {u.email}
+              {u.steamName ?? u.email}
               {u.id === currentUserId && (
                 <span className="text-xs text-[var(--color-fg-mid)] ml-1">（你）</span>
               )}
