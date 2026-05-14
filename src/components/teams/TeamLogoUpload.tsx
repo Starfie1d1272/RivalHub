@@ -5,6 +5,7 @@ import Image from "next/image";
 import { toast } from "sonner";
 import { Spinner } from "@/components/rivalhub";
 import { uploadTeamLogo } from "@/actions/teams";
+import { LOGO_MAX_BYTES, LOGO_ALLOWED_TYPES } from "@/lib/config/upload-limits";
 
 interface TeamLogoUploadProps {
   teamId: string;
@@ -23,6 +24,7 @@ export function TeamLogoUpload({
   const [previewUrl, setPreviewUrl] = useState<string | null>(currentLogoUrl);
   const [isPending, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
+  const lastConfirmedUrlRef = useRef<string | null>(currentLogoUrl);
 
   const initial = teamName.trim()[0]?.toUpperCase() ?? "?";
 
@@ -30,17 +32,16 @@ export function TeamLogoUpload({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // 前端预校验（后端仍会二次校验）
-    if (file.size > 1_048_576) {
+    // 前端预校验，后端会二次验证
+    if (file.size > LOGO_MAX_BYTES) {
       toast.error("文件大小不能超过 1 MB");
       return;
     }
-    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+    if (!(LOGO_ALLOWED_TYPES as readonly string[]).includes(file.type)) {
       toast.error("请上传 JPG、PNG 或 WebP 格式图片");
       return;
     }
 
-    // 即时预览
     const objectUrl = URL.createObjectURL(file);
     setPreviewUrl(objectUrl);
 
@@ -49,19 +50,17 @@ export function TeamLogoUpload({
 
     startTransition(async () => {
       const result = await uploadTeamLogo(teamId, formData);
+      URL.revokeObjectURL(objectUrl);
       if (result.success) {
-        // 用服务端返回的永久 URL 替换 blob URL
-        URL.revokeObjectURL(objectUrl);
+        lastConfirmedUrlRef.current = result.data.logoUrl;
         setPreviewUrl(result.data.logoUrl);
         toast.success("队伍图标已更新");
       } else {
-        URL.revokeObjectURL(objectUrl);
-        setPreviewUrl(currentLogoUrl);
+        setPreviewUrl(lastConfirmedUrlRef.current);
         toast.error(result.error.message);
       }
     });
 
-    // 清空 input，允许重复上传同一文件
     e.target.value = "";
   }
 

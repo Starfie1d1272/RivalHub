@@ -4,8 +4,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { submitMatchRoster } from "@/actions/matches/roster";
 import { Button } from "@/components/ui/button";
-import { PosChip } from "@/components/rivalhub/pos-chip";
-import { StatusPill } from "@/components/rivalhub/status-pill";
+import { PosChip, StatusPill } from "@/components/rivalhub";
 
 interface TeamMember {
   id: string;
@@ -25,6 +24,14 @@ export function MatchRosterForm({
   hasExistingRoster,
 }: MatchRosterFormProps) {
   const [isPending, startTransition] = useTransition();
+
+  function playerBtnClass(isSelected: boolean, isDisabled = false) {
+    const base = "flex flex-col items-start gap-1 rounded border p-2 text-left transition-colors";
+    if (isDisabled) return `${base} cursor-not-allowed border-[var(--color-border)] opacity-40`;
+    return isSelected
+      ? `${base} border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-fg)]`
+      : `${base} border-[var(--color-border)] text-[var(--color-fg)] hover:border-[var(--color-accent)]/50`;
+  }
   const [selectedStarterIds, setSelectedStarterIds] = useState<string[]>([]);
   const [selectedSubstituteIds, setSelectedSubstituteIds] = useState<string[]>([]);
 
@@ -67,13 +74,11 @@ export function MatchRosterForm({
 
   return (
     <div className="space-y-4">
-      {/* 标题区域 */}
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-[var(--color-fg)]">提交赛前名单</span>
         {hasExistingRoster && <StatusPill status="finished" />}
       </div>
 
-      {/* 首发选择 */}
       <div className="space-y-2">
         <p className="text-sm font-medium text-[var(--color-fg)]">首发</p>
         <div className="flex flex-wrap gap-2">
@@ -82,12 +87,7 @@ export function MatchRosterForm({
               key={m.id}
               type="button"
               onClick={() => toggleStarter(m.id)}
-              className={[
-                "flex flex-col items-start gap-1 rounded border p-2 text-left transition-colors",
-                selectedStarterIds.includes(m.id)
-                  ? "border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-fg)]"
-                  : "border-[var(--color-border)] text-[var(--color-fg)] hover:border-[var(--color-accent)]/50",
-              ].join(" ")}
+              className={playerBtnClass(selectedStarterIds.includes(m.id))}
             >
               <span className="text-sm font-medium">{m.steamName}</span>
               <PosChip pos={m.primaryPosition} />
@@ -99,7 +99,6 @@ export function MatchRosterForm({
         </p>
       </div>
 
-      {/* 替补选择 */}
       <div className="space-y-2">
         <p className="text-sm font-medium text-[var(--color-fg)]">替补</p>
         <div className="flex flex-wrap gap-2">
@@ -109,14 +108,10 @@ export function MatchRosterForm({
               type="button"
               onClick={() => toggleSubstitute(m.id)}
               disabled={selectedStarterIds.includes(m.id)}
-              className={[
-                "flex flex-col items-start gap-1 rounded border p-2 text-left transition-colors",
-                selectedSubstituteIds.includes(m.id)
-                  ? "border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-fg)]"
-                  : selectedStarterIds.includes(m.id)
-                    ? "cursor-not-allowed border-[var(--color-border)] opacity-40"
-                    : "border-[var(--color-border)] text-[var(--color-fg)] hover:border-[var(--color-accent)]/50",
-              ].join(" ")}
+              className={playerBtnClass(
+                selectedSubstituteIds.includes(m.id),
+                selectedStarterIds.includes(m.id),
+              )}
             >
               <span className="text-sm font-medium">{m.steamName}</span>
               <PosChip pos={m.primaryPosition} />
@@ -128,7 +123,6 @@ export function MatchRosterForm({
         </p>
       </div>
 
-      {/* 提交 / 锁定状态 */}
       {!hasExistingRoster && (
         <Button
           onClick={handleSubmit}

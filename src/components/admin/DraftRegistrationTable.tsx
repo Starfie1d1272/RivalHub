@@ -1,5 +1,8 @@
 import type { RegistrationDraft } from "@/db/schema/registration-drafts";
 import { Marker, Panel, EmptyState } from "@/components/rivalhub";
+import { formatCST } from "@/lib/utils/date";
+
+const str = (v: unknown) => (typeof v === "string" ? v : "—");
 
 interface DraftRegistrationTableProps {
   drafts: RegistrationDraft[];
@@ -30,9 +33,9 @@ export function DraftRegistrationTable({ drafts }: DraftRegistrationTableProps) 
               <tbody>
                 {drafts.map((draft) => {
                   const p = draft.payload;
-                  const steamName = typeof p.steamName === "string" ? p.steamName : "—";
-                  const primaryPosition = typeof p.primaryPosition === "string" ? p.primaryPosition : "—";
-                  const peakRank = typeof p.peakRank === "string" ? p.peakRank : "—";
+                  const steamName = str(p.steamName);
+                  const primaryPosition = str(p.primaryPosition);
+                  const peakRank = str(p.peakRank);
                   return (
                     <tr key={draft.id} className="border-b border-[var(--color-border)]/50">
                       <td className="py-2 text-[var(--color-fg)]">{draft.email}</td>
@@ -40,7 +43,7 @@ export function DraftRegistrationTable({ drafts }: DraftRegistrationTableProps) 
                       <td className="py-2 text-[var(--color-fg)]">{primaryPosition}</td>
                       <td className="py-2 text-[var(--color-fg)]">{peakRank}</td>
                       <td className="py-2 text-[var(--color-fg-dim)] tabular-nums">
-                        {new Date(draft.updatedAt).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })}
+                        {formatCST(draft.updatedAt)}
                       </td>
                     </tr>
                   );
