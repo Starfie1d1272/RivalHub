@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { revokeUserAdminRole } from "@/actions/admin";
+import { getDisplayName } from "@/lib/utils/display-name";
 import { formatCST } from "@/lib/utils/date";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +14,8 @@ interface AdminUserRow {
   id: string;
   email: string;
   steamName: string | null;
+  displayName: string | null;
+  perfectName: string | null;
   role: "super_admin" | "season_admin";
   adminSeasonIds: string[];
   createdAt: string;
@@ -57,7 +60,7 @@ export function AdminUserList({ users, seasonMap, currentUserId }: AdminUserList
         >
           <div className="flex items-center gap-3 min-w-0 flex-wrap">
             <span className="font-medium text-sm truncate">
-              {u.steamName ?? u.email}
+              {getDisplayName(u)}
               {u.id === currentUserId && (
                 <span className="text-xs text-[var(--color-fg-mid)] ml-1">（你）</span>
               )}

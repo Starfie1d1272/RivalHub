@@ -2,6 +2,7 @@ import { and, asc, count, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { captainVotes, seasonRegistrations, users, teams } from "@/db/schema";
 import { compareCaptainSeedCandidates, selectCaptainSeeds } from "@/lib/captains/rules";
+import { getDisplayName } from "@/lib/utils/display-name";
 
 export interface CaptainVoterOption {
   id: string;
@@ -42,6 +43,8 @@ export async function getCaptainVotingData(seasonId: string): Promise<CaptainVot
       createdAt: seasonRegistrations.createdAt,
       email: users.email,
       steamName: users.steamName,
+      displayName: users.displayName,
+      perfectName: users.perfectName,
     })
     .from(seasonRegistrations)
     .leftJoin(users, eq(seasonRegistrations.userId, users.id))
@@ -75,7 +78,7 @@ export async function getCaptainVotingData(seasonId: string): Promise<CaptainVot
 
   const voters: CaptainVoterOption[] = registrations.map((r) => ({
     id: r.id,
-    displayName: r.steamName ?? r.email ?? "未命名选手",
+    displayName: getDisplayName({ displayName: r.displayName, perfectName: r.perfectName, steamName: r.steamName, email: r.email }),
     email: r.email ?? "",
     primaryPosition: r.primaryPosition,
     peakRank: r.peakRank,
@@ -87,7 +90,7 @@ export async function getCaptainVotingData(seasonId: string): Promise<CaptainVot
     .map((r) => ({
       id: r.id,
       registrationId: r.id,
-      displayName: r.steamName ?? r.email ?? "未命名选手",
+      displayName: getDisplayName({ displayName: r.displayName, perfectName: r.perfectName, steamName: r.steamName, email: r.email }),
       email: r.email ?? "",
       primaryPosition: r.primaryPosition,
       peakRank: r.peakRank,

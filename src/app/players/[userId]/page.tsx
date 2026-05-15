@@ -3,6 +3,7 @@ import { eq, or, and, asc, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { users, seasonRegistrations, seasons, teams, teamMembers, matches } from "@/db/schema";
 import { resolveAvatarUrl } from "@/lib/steam";
+import { getDisplayName } from "@/lib/utils/display-name";
 import { Panel, Stat, PosChip } from "@/components/rivalhub";
 import { MapPreferenceChips } from "@/components/rivalhub/map-preference-chips";
 import Image from "next/image";
@@ -181,18 +182,18 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
         {avatarUrl ? (
           <Image
             src={avatarUrl}
-            alt={user.steamName ?? "选手头像"}
+            alt={getDisplayName(user)}
             width={96}
             height={96}
             className="rounded-full border border-[var(--color-border)] object-cover"
           />
         ) : (
-          <AvatarFallback name={user.steamName ?? user.email} />
+          <AvatarFallback name={getDisplayName(user)} />
         )}
 
         <div className="space-y-2">
           <h1 className="text-3xl font-black text-[var(--color-fg)]">
-            {user.steamName ?? "未知选手"}
+            {getDisplayName(user)}
           </h1>
           {user.perfectName && (
             <p className="text-xs" style={{ fontFamily: "var(--font-mono)", color: "var(--color-fg-dim)" }}>

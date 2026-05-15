@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DRAFT_TOTAL_ROUNDS } from "@/types/draft";
 import { createBrowserClient } from "@/lib/auth/supabase";
+import { getDisplayName } from "@/lib/utils/display-name";
 import { DraftCountdown } from "./DraftCountdown";
 import { TeamDraftGrid } from "./TeamDraftGrid";
 import { PlayerPool } from "./PlayerPool";
@@ -40,10 +41,10 @@ export function DraftLiveRoom({
   const removeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showPickNotification = useCallback(
-    (payload: { steamName?: string; team_id?: string }) => {
+    (payload: { steamName?: string; displayName?: string | null; perfectName?: string | null; team_id?: string }) => {
       const teamName =
         teams.find((t) => t.teamId === payload.team_id)?.teamName ?? "未知队伍";
-      const playerName = payload.steamName ?? "未知选手";
+      const playerName = getDisplayName(payload);
 
       setNotification({ teamName, playerName });
       setNotificationVisible(true);
@@ -115,6 +116,8 @@ export function DraftLiveRoom({
       if (latestPick) {
         showPickNotification({
           steamName: latestPick.steamName,
+          displayName: latestPick.displayName,
+          perfectName: latestPick.perfectName,
           team_id: latestPick.teamId,
         });
       }
@@ -232,13 +235,13 @@ export function DraftLiveRoom({
                 <div
                   key={`${pick.registrationId}-${pick.pickNumber}`}
                   className="px-2 py-1 rounded bg-[var(--color-panel)] border border-[var(--color-border)] truncate"
-                  title={`R${pick.round}P${pick.pickNumber} ${team?.teamName}: ${pick.steamName}${pick.autoPicked ? " (自动)" : ""}`}
+                  title={`R${pick.round}P${pick.pickNumber} ${team?.teamName}: ${getDisplayName(pick)}${pick.autoPicked ? " (自动)" : ""}`}
                 >
                   <span className="text-[var(--color-fg-dim)] tabular">
                     R{pick.round}P{pick.pickNumber}{" "}
                   </span>
                   <span className="text-[var(--color-fg)]">
-                    {pick.steamName}
+                    {getDisplayName(pick)}
                   </span>
                   {pick.autoPicked && (
                     <span className="text-amber-400 ml-0.5">{"⚡"}</span>

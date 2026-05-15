@@ -168,7 +168,7 @@ export function HeaderClient({ seasons, session, avatarUrl, steamName, displayNa
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button className="focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] rounded-full">
-                    <AvatarButton email={steamName ?? session.email} avatarUrl={avatarUrl} imgError={imgError} onImgError={() => setImgError(true)} />
+                    <AvatarButton email={displayName ?? steamName ?? session.email} avatarUrl={avatarUrl} imgError={imgError} onImgError={() => setImgError(true)} />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-44 bg-[var(--color-panel)] border-[var(--color-border)]">
@@ -263,8 +263,8 @@ export function HeaderClient({ seasons, session, avatarUrl, steamName, displayNa
             {session ? (
               <>
                 <div className="flex items-center gap-2 px-3 py-1.5">
-                  <AvatarButton email={steamName ?? session.email} avatarUrl={avatarUrl} imgError={imgError} onImgError={() => setImgError(true)} />
-                  <span className="text-sm text-[var(--color-fg-dim)] truncate">{steamName ?? session.email}</span>
+                  <AvatarButton email={displayName ?? steamName ?? session.email} avatarUrl={avatarUrl} imgError={imgError} onImgError={() => setImgError(true)} />
+                  <span className="text-sm text-[var(--color-fg-dim)] truncate">{displayName ?? steamName ?? session.email}</span>
                 </div>
                 {isAdmin && (
                   <Link

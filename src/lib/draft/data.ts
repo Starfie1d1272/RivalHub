@@ -18,7 +18,7 @@ export interface DraftTeamSlot {
   teamId: string;
   teamName: string;
   draftOrder: number;
-  captain: { steamName: string; primaryPosition: string };
+  captain: { steamName: string; displayName: string | null; perfectName: string | null; primaryPosition: string };
   members: {
     registrationId: string;
     steamName: string;
@@ -61,6 +61,8 @@ export interface DraftFullData {
     teamId: string;
     registrationId: string;
     steamName: string;
+    displayName: string | null;
+    perfectName: string | null;
     primaryPosition: string;
     round: number;
     pickNumber: number;
@@ -119,6 +121,8 @@ export async function getDraftData(seasonId: string): Promise<DraftFullData> {
       pickNumber: draftPicks.pickNumber,
       autoPicked: draftPicks.autoPicked,
       steamName: users.steamName,
+      displayName: users.displayName,
+      perfectName: users.perfectName,
       primaryPosition: seasonRegistrations.primaryPosition,
     })
     .from(draftPicks)
@@ -218,6 +222,8 @@ export async function getDraftData(seasonId: string): Promise<DraftFullData> {
       draftOrder: t.draftOrder,
       captain: {
         steamName: captain?.steamName ?? "未知队长",
+        displayName: captain?.displayName ?? null,
+        perfectName: captain?.perfectName ?? null,
         primaryPosition: captain?.primaryPosition ?? "未知",
       },
       members: drafted,
@@ -248,6 +254,8 @@ export async function getDraftData(seasonId: string): Promise<DraftFullData> {
       teamId: p.teamId,
       registrationId: p.registrationId,
       steamName: p.steamName ?? "未知选手",
+      displayName: p.displayName ?? null,
+      perfectName: p.perfectName ?? null,
       primaryPosition: p.primaryPosition,
       round: p.round,
       pickNumber: p.pickNumber,

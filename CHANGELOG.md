@@ -5,6 +5,14 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.2] - 2026-05-16
+
+### Fixed
+- 全站统一 `getDisplayName()` 消除所有 `steamName` 裸显示：选手页、Header、队长投票/确认、选秀直播/网格、比赛名单/表单、管理员列表/审核/设置、审计日志、队伍阵容卡片（19 文件，约 20 处）
+- 数据层查询同步扩展 `displayName` + `perfectName` 列（captains / draft / captain confirm / audit / admin registrations）
+- `resolveAvatarUrl` 改为优先从 Steam API 拉取最新头像，DB 缓存兜底，解决过期 CDN 链接客户端 onError 不触发的边缘情况
+- 赛季首页 `quickLinks` 快捷导航补「选手名单」卡片入口（v1.7.0 新增 /players 页面时遗漏）
+
 ## [1.7.1] - 2026-05-15
 
 ### Fixed

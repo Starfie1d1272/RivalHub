@@ -6,9 +6,13 @@ import { submitMatchRoster } from "@/actions/matches/roster";
 import { Button } from "@/components/ui/button";
 import { PosChip, StatusPill } from "@/components/rivalhub";
 
+import { getDisplayName } from "@/lib/utils/display-name";
+
 interface TeamMember {
   id: string;
   steamName: string;
+  displayName: string | null;
+  perfectName: string | null;
   primaryPosition: string;
 }
 
@@ -89,7 +93,7 @@ export function MatchRosterForm({
               onClick={() => toggleStarter(m.id)}
               className={playerBtnClass(selectedStarterIds.includes(m.id))}
             >
-              <span className="text-sm font-medium">{m.steamName}</span>
+              <span className="text-sm font-medium">{getDisplayName(m)}</span>
               <PosChip pos={m.primaryPosition} />
             </button>
           ))}
@@ -113,7 +117,7 @@ export function MatchRosterForm({
                 selectedStarterIds.includes(m.id),
               )}
             >
-              <span className="text-sm font-medium">{m.steamName}</span>
+              <span className="text-sm font-medium">{getDisplayName(m)}</span>
               <PosChip pos={m.primaryPosition} />
             </button>
           ))}

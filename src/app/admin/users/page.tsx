@@ -33,6 +33,8 @@ export default async function AdminUsersPage() {
           id: u.id,
           email: u.email,
           steamName: u.steamName,
+          displayName: u.displayName,
+          perfectName: u.perfectName,
           role: u.role as "super_admin" | "season_admin",
           adminSeasonIds: u.adminSeasonIds,
           createdAt: u.createdAt.toISOString(),

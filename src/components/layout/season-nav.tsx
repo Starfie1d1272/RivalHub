@@ -11,7 +11,6 @@ interface SeasonNavProps {
   hasDraft: boolean;
   hasMatches: boolean;
   hasStats: boolean;
-  /** 是否有已审核通过的选手，控制「选手」导航项的显示 */
   hasPlayers: boolean;
 }
 

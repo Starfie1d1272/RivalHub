@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getDisplayName } from "@/lib/utils/display-name";
 import type { DraftTeamSlot } from "@/lib/draft/data";
 
 const POS_SHORT: Record<string, string> = {
@@ -89,7 +90,7 @@ export function TeamDraftGrid({
                   <div className="flex items-center justify-between py-1">
                     <span className="text-xs text-[var(--color-fg-mid)]">
                       <span className="text-[var(--color-fg-dim)]">队长 </span>
-                      {team.captain.steamName}
+                      {getDisplayName(team.captain)}
                     </span>
                     <span className="font-mono text-[10px] text-[var(--color-fg-dim)] uppercase">
                       {POS_SHORT[team.captain.primaryPosition] ??
@@ -103,7 +104,7 @@ export function TeamDraftGrid({
                       className="flex items-center justify-between py-1"
                     >
                       <span className="text-xs text-[var(--color-fg)]">
-                        {m.steamName}
+                        {getDisplayName(m)}
                         {m.autoPicked && (
                           <span className="text-amber-400 ml-0.5">⚡</span>
                         )}
@@ -169,7 +170,7 @@ export function TeamDraftGrid({
               <div className="text-xs mb-1">
                 <span className="text-[var(--color-fg-dim)]">队长 </span>
                 <span className="text-[var(--color-fg)] font-medium">
-                  {team.captain.steamName}
+                  {getDisplayName(team.captain)}
                 </span>
                 <span className="text-[var(--color-fg-dim)] ml-1">
                   {POS_SHORT[team.captain.primaryPosition] ??
@@ -183,7 +184,7 @@ export function TeamDraftGrid({
                   <span className="text-[var(--color-fg-mid)]">
                     R{m.pickRound}P{m.pickNumber}{" "}
                   </span>
-                  <span className="text-[var(--color-fg)]">{m.steamName}</span>
+                  <span className="text-[var(--color-fg)]">{getDisplayName(m)}</span>
                   <span className="text-[var(--color-fg-dim)] ml-1">
                     {POS_SHORT[m.primaryPosition] ?? m.primaryPosition}
                   </span>

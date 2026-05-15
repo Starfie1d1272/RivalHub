@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq, count, or, and, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import { UserPlus, Vote, Users, Swords, Shuffle, BarChart3 } from "lucide-react";
+import { UserPlus, Vote, Users, Swords, Shuffle, BarChart3, UserRoundSearch } from "lucide-react";
 import { db } from "@/db/client";
 import { seasons, matches, teams, seasonRegistrations } from "@/db/schema";
 import { formatCSTShortDate } from "@/lib/utils/date";
@@ -151,6 +151,13 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
       label: "立即报名",
       description: "提交报名信息",
       icon: UserPlus,
+      show: true,
+    },
+    {
+      href: `/${seasonSlug}/players`,
+      label: "选手名单",
+      description: "已通过审核的参赛选手",
+      icon: UserRoundSearch,
       show: true,
     },
     {

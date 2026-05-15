@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { users } from "@/db/schema";
 import { checkAdminSession } from "@/lib/auth/session";
+import { getDisplayName } from "@/lib/utils/display-name";
 import { ChangePasswordForm } from "@/components/admin/ChangePasswordForm";
 import { Panel, StatusPill, Marker } from "@/components/rivalhub";
 
@@ -24,9 +25,9 @@ export default async function AdminSettingsPage() {
   const admin = (await checkAdminSession())!;
   const adminUser = await db.query.users.findFirst({
     where: eq(users.id, admin.userId),
-    columns: { steamName: true },
+    columns: { steamName: true, displayName: true, perfectName: true },
   });
-  const adminDisplayName = adminUser?.steamName ?? admin.email;
+  const adminDisplayName = adminUser ? getDisplayName(adminUser) : admin.email;
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-2xl space-y-10">
