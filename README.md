@@ -2,17 +2,17 @@
 
 RivalHub 是一个面向高校电竞赛事的开源赛事管理平台，覆盖报名、审核、队长投票、蛇形选秀、队伍展示、赛程管理、Bracket、比分录入、数据统计与上线部署。
 
-当前 `1.4.0` 版本服务于 **2026 NJU Rivals 春季赛**：8 支队伍、队长投票、蛇形选秀、排位赛 + 双败淘汰，生产站点部署在 [match.starfie1d.top](https://match.starfie1d.top)。
+当前 `1.6.0` 版本服务于 **2026 NJU Rivals 春季赛**：8 支队伍、队长投票、蛇形选秀、排位赛 + 双败淘汰，生产站点部署在 [match.starfie1d.top](https://match.starfie1d.top)。
 
 ## 功能状态
 
-| 模块 | 1.4.0 能力 |
+| 模块 | 1.6.0 能力 |
 |---|----|
-| 赛季管理 | capability 驱动的多赛事模型，`/[seasonSlug]` 路由，动态 PhaseTracker 阶段追踪 |
+| 赛季管理 | capability 驱动的多赛事模型，`/[seasonSlug]` 路由，动态 PhaseTracker 阶段追踪，NEXT MATCHES 面板 + Stat 四格（playing 阶段）；SeasonNav / PhaseTracker 应用 ScrollHint 横滚提示 |
 | 报名 | 邮箱密码账号、自动草稿恢复、Zod 校验、位置/人数上限（仅统计 approved）、NJUBox 截图链接 |
 | 审核 | 管理员审核、候补名单、邀请码提权、审批通过自动推进赛季状态、操作审计 |
-| 队长投票 | 每人最多 3 票，Realtime 刷新票数 |
-| 选秀 | 队长面板、围观直播间、倒计时、事务行锁、幂等 pick、超时自动递补 |
+| 队长投票 | 每人最多 3 票，Realtime 刷新票数；移动端切换卡片列表（`CaptainVotingPanel` 双模式） |
+| 选秀 | 队长面板、围观直播间、倒计时、事务行锁、幂等 pick、超时自动递补；移动端 `TeamDraftGrid` 手风琴列表 |
 | 队伍 | 阵容展示、首发/替补、队长标识、队伍图标上传 |
 | 比赛 | 赛程、Bracket（Tactical Grid 暗色主题）、地图结果、比分录入 |
 | 协商 | 比赛时间提议/接受/拒绝、管理员强制设定、协商截止自动裁定、阵容提交（视觉重设计） |
@@ -122,7 +122,6 @@ pnpm seed         # 创建 Root 管理员
 
 | 文档 | 内容 |
 |---|---|
-| [PHASES.md](./PHASES.md) | 开发阶段与完成情况 |
 | [CHANGELOG.md](./CHANGELOG.md) | 版本发布记录 |
 | [CLAUDE.md](./CLAUDE.md) | 项目工程手册与 AI 协作约束 |
 | [docs/launch-readiness.md](./docs/launch-readiness.md) | 1.0.0 上线前规则与功能对照 |
@@ -152,6 +151,12 @@ pnpm type-check
 pnpm test
 pnpm build
 ```
+
+## 待办
+
+- RLS：默认拒绝所有，按表逐条开放最小权限（Supabase Dashboard 手动核对）
+- Playwright E2E 跑关键路径（注册 → 投票 → 选秀 → 比赛）
+- 性能基准（LCP / FCP）验收
 
 ## License
 
