@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { DraftTeamSlot } from "@/lib/draft/data";
 
 const POS_SHORT: Record<string, string> = {
@@ -23,6 +24,8 @@ export function TeamDraftGrid({
   totalRounds,
   currentRound,
 }: TeamDraftGridProps) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
   // sort by draftOrder
   const sorted = [...teams].sort((a, b) => a.draftOrder - b.draftOrder);
 
@@ -35,84 +38,185 @@ export function TeamDraftGrid({
   }
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-      {sorted.map((team) => {
-        const isCurrent = team.teamId === currentTeamId;
-        const maxSlots = totalRounds; // 6 picks per team
-        const filledSlots = team.members.length;
-        const emptySlots = Math.max(0, maxSlots - filledSlots);
+    <>
+      {/* 移动端：手风琴列表 */}
+      <div className="md:hidden space-y-2">
+        {sorted.map((team) => {
+          const isCurrent = team.teamId === currentTeamId;
+          const isExpanded = isCurrent || expandedId === team.teamId;
+          const emptySlots = Math.max(0, totalRounds - team.members.length);
 
-        return (
-          <div
-            key={team.teamId}
-            className={`rounded-lg border p-3 sm:p-4 transition-colors ${
-              isCurrent
-                ? "border-[var(--color-accent)] bg-[var(--color-accent)]/5"
-                : "border-[var(--color-border)] bg-[var(--color-panel)]"
-            }`}
-          >
-            {/* 队名 + draft order */}
-            <div className="flex items-baseline justify-between mb-2">
-              <h3 className="text-sm font-bold text-[var(--color-fg)] truncate">
-                {team.teamName}
-              </h3>
-              <span className="text-xs text-[var(--color-fg-dim)] tabular">
-                #{team.draftOrder}
-              </span>
-            </div>
-
-            {/* 队长 */}
-            <div className="text-xs mb-1">
-              <span className="text-[var(--color-fg-dim)]">队长 </span>
-              <span className="text-[var(--color-fg)] font-medium">
-                {team.captain.steamName}
-              </span>
-              <span className="text-[var(--color-fg-dim)] ml-1">
-                {POS_SHORT[team.captain.primaryPosition] ?? team.captain.primaryPosition}
-              </span>
-            </div>
-
-            {/* 已选队员 */}
-            {team.members.map((m) => (
-              <div key={m.registrationId} className="text-xs mb-0.5">
-                <span className="text-[var(--color-fg-mid)]">
-                  R{m.pickRound}P{m.pickNumber}{" "}
+          return (
+            <div
+              key={team.teamId}
+              className={`border rounded-sm transition-colors ${
+                isCurrent
+                  ? "border-[var(--color-accent)] bg-[var(--color-accent)]/5"
+                  : "border-[var(--color-border)] bg-[var(--color-panel)]"
+              }`}
+            >
+              {/* 折叠头部 */}
+              <button
+                className="w-full flex items-center justify-between px-3 py-2 text-left"
+                onClick={() =>
+                  !isCurrent &&
+                  setExpandedId(isExpanded ? null : team.teamId)
+                }
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  {isCurrent && (
+                    <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] animate-pulse" />
+                  )}
+                  <span
+                    className={`text-sm font-bold truncate ${
+                      isCurrent
+                        ? "text-[var(--color-accent)]"
+                        : "text-[var(--color-fg)]"
+                    }`}
+                  >
+                    {team.teamName}
+                  </span>
+                </div>
+                <span className="font-mono text-xs text-[var(--color-fg-dim)] shrink-0 ml-2">
+                  {team.members.length}/{totalRounds}
                 </span>
-                <span className="text-[var(--color-fg)]">
-                  {m.steamName}
+              </button>
+
+              {/* 展开内容 */}
+              {isExpanded && (
+                <div className="px-3 pb-3 space-y-1 border-t border-[var(--color-border)]">
+                  {/* 队长行 */}
+                  <div className="flex items-center justify-between py-1">
+                    <span className="text-xs text-[var(--color-fg-mid)]">
+                      <span className="text-[var(--color-fg-dim)]">队长 </span>
+                      {team.captain.steamName}
+                    </span>
+                    <span className="font-mono text-[10px] text-[var(--color-fg-dim)] uppercase">
+                      {POS_SHORT[team.captain.primaryPosition] ??
+                        team.captain.primaryPosition}
+                    </span>
+                  </div>
+                  {/* 已选队员 */}
+                  {team.members.map((m) => (
+                    <div
+                      key={m.registrationId}
+                      className="flex items-center justify-between py-1"
+                    >
+                      <span className="text-xs text-[var(--color-fg)]">
+                        {m.steamName}
+                        {m.autoPicked && (
+                          <span className="text-amber-400 ml-0.5">⚡</span>
+                        )}
+                      </span>
+                      <span className="font-mono text-[10px] text-[var(--color-fg-dim)] uppercase">
+                        {POS_SHORT[m.primaryPosition] ?? m.primaryPosition}
+                      </span>
+                    </div>
+                  ))}
+                  {/* 空位占位 */}
+                  {Array.from({ length: emptySlots }).map((_, i) => (
+                    <div key={`empty-${i}`} className="py-1">
+                      <span className="font-mono text-[10px] text-[var(--color-fg-dim)]">
+                        — 待选
+                      </span>
+                    </div>
+                  ))}
+                  {emptySlots === 0 && (
+                    <div className="py-1 text-xs text-emerald-400">
+                      阵容已满
+                    </div>
+                  )}
+                  {isCurrent && (
+                    <div className="pt-1 text-xs font-medium text-[var(--color-accent)]">
+                      第 {currentRound} 轮 · 选择中…
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 桌面端：原有 Grid */}
+      <div className="hidden md:grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {sorted.map((team) => {
+          const isCurrent = team.teamId === currentTeamId;
+          const maxSlots = totalRounds; // 6 picks per team
+          const filledSlots = team.members.length;
+          const emptySlots = Math.max(0, maxSlots - filledSlots);
+
+          return (
+            <div
+              key={team.teamId}
+              className={`rounded-lg border p-3 sm:p-4 transition-colors ${
+                isCurrent
+                  ? "border-[var(--color-accent)] bg-[var(--color-accent)]/5"
+                  : "border-[var(--color-border)] bg-[var(--color-panel)]"
+              }`}
+            >
+              {/* 队名 + draft order */}
+              <div className="flex items-baseline justify-between mb-2">
+                <h3 className="text-sm font-bold text-[var(--color-fg)] truncate">
+                  {team.teamName}
+                </h3>
+                <span className="text-xs text-[var(--color-fg-dim)] tabular">
+                  #{team.draftOrder}
+                </span>
+              </div>
+
+              {/* 队长 */}
+              <div className="text-xs mb-1">
+                <span className="text-[var(--color-fg-dim)]">队长 </span>
+                <span className="text-[var(--color-fg)] font-medium">
+                  {team.captain.steamName}
                 </span>
                 <span className="text-[var(--color-fg-dim)] ml-1">
-                  {POS_SHORT[m.primaryPosition] ?? m.primaryPosition}
+                  {POS_SHORT[team.captain.primaryPosition] ??
+                    team.captain.primaryPosition}
                 </span>
-                {m.autoPicked && (
-                  <span className="text-amber-400 ml-0.5">⚡</span>
-                )}
               </div>
-            ))}
 
-            {/* 空位 */}
-            {Array.from({ length: emptySlots }).map((_, i) => (
-              <div
-                key={`empty-${i}`}
-                className="text-xs text-[var(--color-fg-dim)] mb-0.5"
-              >
-                ??? · ??? · 待选
-              </div>
-            ))}
+              {/* 已选队员 */}
+              {team.members.map((m) => (
+                <div key={m.registrationId} className="text-xs mb-0.5">
+                  <span className="text-[var(--color-fg-mid)]">
+                    R{m.pickRound}P{m.pickNumber}{" "}
+                  </span>
+                  <span className="text-[var(--color-fg)]">{m.steamName}</span>
+                  <span className="text-[var(--color-fg-dim)] ml-1">
+                    {POS_SHORT[m.primaryPosition] ?? m.primaryPosition}
+                  </span>
+                  {m.autoPicked && (
+                    <span className="text-amber-400 ml-0.5">⚡</span>
+                  )}
+                </div>
+              ))}
 
-            {/* 满员标记 */}
-            {emptySlots === 0 && (
-              <div className="text-xs text-emerald-400 mt-1">阵容已满</div>
-            )}
+              {/* 空位 */}
+              {Array.from({ length: emptySlots }).map((_, i) => (
+                <div
+                  key={`empty-${i}`}
+                  className="text-xs text-[var(--color-fg-dim)] mb-0.5"
+                >
+                  ??? · ??? · 待选
+                </div>
+              ))}
 
-            {isCurrent && (
-              <div className="mt-2 text-xs font-medium text-[var(--color-accent)]">
-                第 {currentRound} 轮 · 选择中…
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
+              {/* 满员标记 */}
+              {emptySlots === 0 && (
+                <div className="text-xs text-emerald-400 mt-1">阵容已满</div>
+              )}
+
+              {isCurrent && (
+                <div className="mt-2 text-xs font-medium text-[var(--color-accent)]">
+                  第 {currentRound} 轮 · 选择中…
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </>
   );
 }

@@ -59,7 +59,10 @@ export default async function CaptainsPage({ params }: CaptainsPageProps) {
   return (
     <main className="container mx-auto max-w-6xl px-4 py-10">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold">队长投票 · {season.name}</h1>
+        <p className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-accent)] uppercase mb-1">
+          {season.name} · CAPTAINS
+        </p>
+        <h1 className="text-3xl font-semibold tracking-tight text-[var(--color-fg)]">队长投票</h1>
         <p className="mt-2 text-sm text-[var(--color-fg-mid)]">
           公开票数与当前前 8 会定时刷新；赛季进入 drafting 后本页保留最终结果。
         </p>

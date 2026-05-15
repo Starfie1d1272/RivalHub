@@ -82,7 +82,7 @@ export default async function DraftPage({ params }: DraftPageProps) {
             <Panel pad={0}>
               <div className="grid grid-cols-2 md:grid-cols-4 items-stretch">
                 {/* LIVE indicator */}
-                <div className="flex items-center gap-3.5 min-w-0" style={{ padding: "16px 20px", borderRight: "1px solid var(--color-border)" }}>
+                <div className="flex items-center gap-3.5 min-w-0 md:border-r border-[var(--color-border)]" style={{ padding: "16px 20px" }}>
                   <div className="shrink-0" style={{ width: 8, height: 40, background: "var(--color-danger)", boxShadow: "0 0 12px var(--color-danger)" }} />
                   <div className="min-w-0">
                     <div className="font-bold uppercase truncate" style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--color-danger)", letterSpacing: "var(--tracking-eyebrow)" }}>
@@ -98,7 +98,7 @@ export default async function DraftPage({ params }: DraftPageProps) {
                 </div>
 
                 {/* Current pick */}
-                <div className="flex items-center gap-3.5 min-w-0" style={{ padding: "16px 20px", borderRight: "1px solid var(--color-border)" }}>
+                <div className="flex items-center gap-3.5 min-w-0 md:border-r border-[var(--color-border)]" style={{ padding: "16px 20px" }}>
                   <div className="shrink-0" style={{ width: 56, height: 56, background: "var(--color-accent)22", border: "1px solid var(--color-accent)55", borderRadius: "var(--radius-sm)", display: "grid", placeItems: "center", fontFamily: "var(--font-mono)", fontWeight: 700, fontSize: 20, color: "var(--color-accent)" }}>
                     P
                   </div>
@@ -116,7 +116,7 @@ export default async function DraftPage({ params }: DraftPageProps) {
                 </div>
 
                 {/* Timer */}
-                <div className="min-w-0" style={{ padding: "16px 20px", borderRight: "1px solid var(--color-border)" }}>
+                <div className="min-w-0 md:border-r border-[var(--color-border)]" style={{ padding: "16px 20px" }}>
                   <div className="uppercase truncate" style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--color-fg-dim)", letterSpacing: "var(--tracking-label)" }}>
                     TIMER
                   </div>

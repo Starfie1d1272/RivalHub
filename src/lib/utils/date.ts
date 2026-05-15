@@ -41,3 +41,8 @@ export function isDeadlinePassed(deadline: Date | string): boolean {
   const d = typeof deadline === "string" ? new Date(deadline) : deadline;
   return d.getTime() <= Date.now();
 }
+
+export function formatCSTShortDate(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return d.toLocaleDateString(CST_LOCALE, { timeZone: CST_TZ, month: "short", day: "numeric" });
+}

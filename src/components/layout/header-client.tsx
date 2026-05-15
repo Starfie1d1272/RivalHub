@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
 import { toast } from "sonner";
 import { APP_BRAND } from "@/lib/branding";
@@ -52,6 +52,10 @@ export function HeaderClient({ seasons, session, avatarUrl, steamName }: HeaderC
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
 
   const navLinks = seasons.map((s) => ({
     href: `/${s.slug}`,

@@ -28,8 +28,8 @@
   --color-danger: #ff5470;
 
   /* Typography */
-  --font-sans: "Geist", "Noto Sans SC", system-ui, sans-serif;
-  --font-display: "Geist", "Noto Sans SC", system-ui, sans-serif;
+  --font-sans: var(--font-geist), var(--font-noto-sans-sc), system-ui, sans-serif;
+  --font-display: var(--font-geist), var(--font-noto-sans-sc), system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
   /* Letter spacing */

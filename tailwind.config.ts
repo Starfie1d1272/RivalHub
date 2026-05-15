@@ -10,7 +10,7 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["var(--font-inter)", "var(--font-noto-sans-sc)", "sans-serif"],
+        sans: ["var(--font-geist)", "var(--font-noto-sans-sc)", "sans-serif"],
       },
       colors: {
         // Design tokens — see docs/ui-tokens.md for full specification

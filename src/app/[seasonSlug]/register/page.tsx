@@ -124,8 +124,10 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
   return (
     <div className="container mx-auto px-4 py-10 max-w-2xl">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-[var(--color-fg)] mb-1">报名</h1>
-        <p className="text-[var(--color-fg-mid)]">{season.name}</p>
+        <p className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-accent)] uppercase mb-1">
+          {season.name} · REGISTER
+        </p>
+        <h1 className="text-3xl font-semibold tracking-tight text-[var(--color-fg)]">报名参赛</h1>
       </div>
 
       {/* 位置实时容量 */}

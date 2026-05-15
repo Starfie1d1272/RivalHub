@@ -5,6 +5,28 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-05-15
+
+### Added
+- 赛季首页：playing 阶段展示 NEXT MATCHES 面板（近 4 场未完赛比赛，含队名/时间/阶段）
+- 赛季首页：底部四格 Stat 统计条（队伍数 / 已批准选手数 / 比赛进度 / 当前阶段）
+- 首页 CURRENT SEASON 面板：补充队伍数 / 选手数 / 赛季阶段三栏 MiniStat
+- 新增 `ScrollHint` 组件，横向滚动容器左右渐变遮罩，提示用户可滑动
+
+### Fixed
+- `CaptainVotingPanel`：移动端（< md）切换为候选人卡片列表（票数进度条 + 投票按钮），桌面端保留原表格布局
+- `TeamDraftGrid`：移动端（< md）改为手风琴列表，当前选秀队自动展开，其余可点击折叠展开
+- 选秀状态栏 `borderRight` inline style 改为 `md:border-r`，2 列时不再贴边
+- `globals.css` `--font-sans` / `--font-display` 改为引用 `var(--font-geist)`，修复 next/font 哈希后字体回退问题
+- `tailwind.config.ts` 清理残留 `--font-inter` 引用，统一为 `var(--font-geist)`
+- 首页容器内边距 `px-9` → `px-4 lg:px-9`，375px 设备多出 40px 内容空间
+- Header 移动端菜单监听 `pathname` 变化自动关闭，覆盖浏览器前进/后退场景
+
+### Changed
+- `SeasonNav` tab 导航应用 `ScrollHint`，多 tab 横向滑动时显示渐变遮罩
+- 赛季首页 Phase Tracker 应用 `ScrollHint`
+- 队长投票页、报名页标题统一为 Eyebrow + Title + Sub 模式（mono 小标 + 大标题 + 副标题）
+
 ## [1.5.0] - 2026-05-15
 
 ### Added

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils/cn";
+import { ScrollHint } from "@/components/rivalhub";
 
 interface SeasonNavProps {
   slug: string;
@@ -39,7 +40,8 @@ export function SeasonNav({
   return (
     <nav className="border-b border-[var(--color-border)]">
       <div className="container mx-auto px-4">
-        <ul className="flex overflow-x-auto gap-1">
+        <ScrollHint>
+        <ul className="flex gap-1">
           {items.map(({ label, href }) => {
             const isHome = href === `/${slug}`;
             const isActive = isHome
@@ -63,6 +65,7 @@ export function SeasonNav({
             );
           })}
         </ul>
+        </ScrollHint>
       </div>
     </nav>
   );

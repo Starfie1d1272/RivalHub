@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { eq, count, or, and, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { UserPlus, Vote, Users, Swords, Shuffle, BarChart3 } from "lucide-react";
 import { db } from "@/db/client";
-import { seasons, matches } from "@/db/schema";
+import { seasons, matches, teams, seasonRegistrations } from "@/db/schema";
+import { formatCSTShortDate } from "@/lib/utils/date";
 import { normalizeStagePlan } from "@/types/season";
 import type { SeasonStatus } from "@/types/season";
 import { showStats } from "@/lib/utils/season";
-import { StatusPill, Panel, Marker } from "@/components/rivalhub";
+import { StatusPill, Panel, Marker, ScrollHint, Stat } from "@/components/rivalhub";
 
 const STATUS_IDX: Record<SeasonStatus, number> = {
   draft: 0, registration: 1, voting: 2, drafting: 3,
@@ -34,6 +36,46 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
     .from(matches)
     .where(eq(matches.seasonId, season.id));
   const initializedStages = new Set(matchStageRows.map((r) => r.stage));
+
+  // ── 统计数据 + 即将到来的比赛 ────────────────────────────────────────
+  const teamA = alias(teams, "team_a");
+  const teamB = alias(teams, "team_b");
+
+  const upcomingMatchesQuery = season.status === "playing"
+    ? db
+        .select({
+          id: matches.id,
+          status: matches.status,
+          scheduledAt: matches.scheduledAt,
+          stage: matches.stage,
+          teamAName: teamA.name,
+          teamBName: teamB.name,
+        })
+        .from(matches)
+        .leftJoin(teamA, eq(matches.teamAId, teamA.id))
+        .leftJoin(teamB, eq(matches.teamBId, teamB.id))
+        .where(
+          and(
+            eq(matches.seasonId, season.id),
+            or(eq(matches.status, "scheduled"), eq(matches.status, "in_progress"))
+          )
+        )
+        .orderBy(matches.scheduledAt)
+        .limit(4)
+    : null;
+
+  const [[teamCountRow], [approvedCountRow], [matchCountRow], upcomingMatches] =
+    await Promise.all([
+      db.select({ value: count() }).from(teams).where(eq(teams.seasonId, season.id)),
+      db.select({ value: count() }).from(seasonRegistrations).where(
+        and(eq(seasonRegistrations.seasonId, season.id), eq(seasonRegistrations.status, "approved"))
+      ),
+      db.select({
+        total: count(),
+        finished: sql<number>`count(*) filter (where ${matches.status} = 'finished')`,
+      }).from(matches).where(eq(matches.seasonId, season.id)),
+      upcomingMatchesQuery ?? Promise.resolve([] as { id: string; status: string; scheduledAt: Date | null; stage: string; teamAName: string | null; teamBName: string | null }[]),
+    ]);
 
   // ── 动态阶段列表 ──────────────────────────────────────────
   interface Phase {
@@ -162,7 +204,7 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
 
       {/* Phase tracker */}
       <Panel pad={0}>
-        <div className="overflow-x-auto">
+        <ScrollHint fromColor="var(--color-panel)">
         <div className="flex">
           {phases.map((phase, i) => {
             const isCurrent = i === currentPhaseIdx;
@@ -201,8 +243,48 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
             );
           })}
         </div>
-        </div>
+        </ScrollHint>
       </Panel>
+
+      {/* NEXT MATCHES */}
+      {upcomingMatches.length > 0 && (
+        <>
+          <Marker sub="已安排的比赛">近期对决</Marker>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {upcomingMatches.map((match) => (
+              <Link key={match.id} href={`/${seasonSlug}/matches` as never}>
+                <Panel className="transition-colors hover:border-[var(--color-border-hi)]">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <span className="text-sm font-semibold text-[var(--color-fg)] truncate">
+                        {match.teamAName ?? "TBD"}
+                      </span>
+                      <span className="font-mono text-xs text-[var(--color-fg-dim)] shrink-0">VS</span>
+                      <span className="text-sm font-semibold text-[var(--color-fg)] truncate">
+                        {match.teamBName ?? "TBD"}
+                      </span>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      {match.status === "in_progress" ? (
+                        <span className="font-mono text-[11px] text-[var(--color-ok)]">● LIVE</span>
+                      ) : match.scheduledAt ? (
+                        <span className="font-mono text-[11px] text-[var(--color-fg-dim)]">
+                          {formatCSTShortDate(match.scheduledAt)}
+                        </span>
+                      ) : (
+                        <span className="font-mono text-[11px] text-[var(--color-fg-dim)]">待定</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="mt-1.5 font-mono text-[10px] text-[var(--color-fg-dim)] uppercase tracking-wider">
+                    {match.stage}
+                  </div>
+                </Panel>
+              </Link>
+            ))}
+          </div>
+        </>
+      )}
 
       <Marker sub="快速访问各功能模块">赛季导航</Marker>
 
@@ -226,6 +308,19 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
             </Panel>
           </Link>
         ))}
+      </div>
+
+      {/* Stat 四格 */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Stat label="TEAMS" value={teamCountRow?.value ?? 0} />
+        <Stat label="PLAYERS" value={approvedCountRow?.value ?? 0} />
+        <Stat
+          label="MATCHES"
+          value={(matchCountRow?.total ?? 0) > 0
+            ? `${matchCountRow?.finished ?? 0}/${matchCountRow?.total ?? 0}`
+            : "—"}
+        />
+        <Stat label="STAGE" value={season.status.toUpperCase()} accent />
       </div>
     </div>
   );
