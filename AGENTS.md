@@ -36,6 +36,13 @@ npm version minor    # 1.3.2 → 1.4.0
 npm version major    # 1.4.0 → 2.0.0
 ```
 
+**push 时必须带 tag**：`npm version` 只创建本地 tag，普通 `git push` 不会推送。GitHub Release workflow（`.github/workflows/release.yml`）由 `v*` tag 触发，tag 不到远程就不会发布。
+
+```bash
+git push origin dev --follow-tags    # ✅ 推送提交并带上本地 tag
+git push origin v1.6.0               # 或单独推 tag
+```
+
 每次 main 合并都需经过 `pnpm type-check` + `pnpm test` + `pnpm build` 全绿。
 
 ---
