@@ -24,6 +24,7 @@ import {
 } from "@/lib/validators/vote";
 import {
   CAPTAIN_TEAM_COUNT,
+  MIN_VOTES_FOR_CONFIRM,
   selectCaptainSeeds,
   validateCaptainVote,
 } from "@/lib/captains/rules";
@@ -208,6 +209,23 @@ export async function confirmCaptains(
         .where(eq(teams.seasonId, season.id));
       if (Number(existingTeamCount?.count ?? 0) > 0) {
         throw new AppError(ErrorCode.VALIDATION_FAILED, "该赛季已生成队伍");
+      }
+
+      // 防止投票尚未开始或参与不足就确认队长
+      const [voteCountRow] = await tx
+        .select({ count: count() })
+        .from(captainVotes)
+        .innerJoin(
+          seasonRegistrations,
+          eq(captainVotes.candidateRegistrationId, seasonRegistrations.id),
+        )
+        .where(eq(seasonRegistrations.seasonId, season.id));
+      const totalVotes = Number(voteCountRow?.count ?? 0);
+      if (totalVotes < MIN_VOTES_FOR_CONFIRM) {
+        throw new AppError(
+          ErrorCode.VOTING_MINIMUM_NOT_MET,
+          `当前仅有 ${totalVotes} 票，至少需要 ${MIN_VOTES_FOR_CONFIRM} 票才能确认队长`,
+        );
       }
 
       const candidates = await tx

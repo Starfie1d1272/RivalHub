@@ -178,7 +178,7 @@ export function CaptainVotingPanel({
 
                   {/* 位置信息 */}
                   <p className="text-xs text-[var(--color-fg-mid)] mb-2">
-                    {positionLabel(candidate.primaryPosition)} · Peak {candidate.peakRating} · Current {candidate.currentRating}
+                    {positionLabel(candidate.primaryPosition)} · Peak {candidate.peakRank} · RT {candidate.peakRating} · Current RT {candidate.currentRating}
                   </p>
 
                   {/* 票数进度条 */}
@@ -228,7 +228,7 @@ export function CaptainVotingPanel({
                   <div className="rounded-md border border-[var(--color-border)] p-3 text-sm">
                     <p className="font-medium">{currentVoter.displayName}</p>
                     <p className="mt-0.5 text-[var(--color-fg-mid)]">
-                      {positionLabel(currentVoter.primaryPosition)} · Peak {currentVoter.peakRating}
+                      {positionLabel(currentVoter.primaryPosition)} · Peak {currentVoter.peakRank} · RT {currentVoter.peakRating}
                     </p>
                   </div>
 
@@ -310,8 +310,8 @@ export function CaptainVotingPanel({
                           )}
                         </div>
                         <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
-                          {positionLabel(candidate.primaryPosition)} · Peak {candidate.peakRating} ·
-                          Current {candidate.currentRating}
+                          {positionLabel(candidate.primaryPosition)} · Peak {candidate.peakRank} ·
+                          RT {candidate.peakRating} · Current RT {candidate.currentRating}
                         </p>
                         <div className="mt-3 h-2 rounded-full bg-muted">
                           <div

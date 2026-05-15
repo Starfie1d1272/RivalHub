@@ -68,6 +68,18 @@ export default async function CaptainsPage({ params }: CaptainsPageProps) {
         </p>
       </div>
 
+      {season.status === "voting" && (
+        <div className="mb-6 rounded-sm border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/5 p-4 text-sm text-[var(--color-fg-mid)]">
+          <p className="font-medium text-[var(--color-fg)] mb-1">关于选秀顺序</p>
+          <p>
+            第一轮选秀将<strong className="text-[var(--color-fg)]">逆向进行</strong>
+            ——排位最靠后的队伍最先选人，依次轮到排位靠前的队伍。
+            请根据候选人的<strong className="text-[var(--color-fg)]">实际实力</strong>（而非关系远近）进行投票，
+            以确保选秀公平。
+          </p>
+        </div>
+      )}
+
       <CaptainVotingPanel
         seasonName={season.name}
         seasonStatus={season.status}

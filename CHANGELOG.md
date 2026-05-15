@@ -5,6 +5,17 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.1] - 2026-05-15
+
+### Fixed
+- 队伍详情页 `db.execute()` 返回类型错误：未取 `.rows` 直接当数组迭代，无比赛数据时 500 报错
+
+### Added
+- 队长投票页：候选人卡片新增最高分段（Peak A+/S 等）与 RT 双字段展示
+- 投票页说明：选秀第一轮逆向进行（排位最后的最先选人），引导按实力投票
+- 确认队长二次弹窗：点击按钮后弹出不可撤销警告 + 队长名单确认，防误触
+- 确认队长服务端校验：至少 3 票才允许确认，投票不足时返回 `VOTING_MINIMUM_NOT_MET`
+
 ## [1.6.0] - 2026-05-15
 
 ### Added

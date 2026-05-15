@@ -8,6 +8,7 @@ export interface CaptainVoterOption {
   displayName: string;
   email: string;
   primaryPosition: string;
+  peakRank: string;
   peakRating: number;
 }
 
@@ -34,6 +35,7 @@ export async function getCaptainVotingData(seasonId: string): Promise<CaptainVot
     .select({
       id: seasonRegistrations.id,
       primaryPosition: seasonRegistrations.primaryPosition,
+      peakRank: seasonRegistrations.peakRank,
       peakRating: seasonRegistrations.peakRating,
       currentRating: seasonRegistrations.currentRating,
       willingToBeCaptain: seasonRegistrations.willingToBeCaptain,
@@ -76,6 +78,7 @@ export async function getCaptainVotingData(seasonId: string): Promise<CaptainVot
     displayName: r.steamName ?? r.email ?? "未命名选手",
     email: r.email ?? "",
     primaryPosition: r.primaryPosition,
+    peakRank: r.peakRank,
     peakRating: r.peakRating,
   }));
 
@@ -87,6 +90,7 @@ export async function getCaptainVotingData(seasonId: string): Promise<CaptainVot
       displayName: r.steamName ?? r.email ?? "未命名选手",
       email: r.email ?? "",
       primaryPosition: r.primaryPosition,
+      peakRank: r.peakRank,
       peakRating: r.peakRating,
       currentRating: r.currentRating,
       createdAt: r.createdAt.toISOString(),

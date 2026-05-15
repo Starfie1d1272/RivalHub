@@ -2,6 +2,8 @@ import { ErrorCode, type ErrorCode as ErrorCodeValue } from "@/lib/errors";
 
 export const MAX_CAPTAIN_VOTES = 3;
 export const CAPTAIN_TEAM_COUNT = 8;
+/** 确认队长前至少需要的总投票数（防止投票尚未开始就确认） */
+export const MIN_VOTES_FOR_CONFIRM = 3;
 
 export interface CaptainVoteSeason {
   status: string;

@@ -151,7 +151,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
   const played = totalWins + totalLosses;
 
   // ── 队伍聚合统计 ──────────────────────────────────────────────────
-  const teamStatRows = roster.length
+  const teamStatResult = roster.length
     ? await db.execute(sql`
         SELECT
           round(avg(mps.rating_pro)::numeric, 2) as avg_rating,
@@ -169,7 +169,9 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
           AND mps.verified_by_admin IS NOT NULL
         GROUP BY sr.primary_position, mps.perfect_name, mps.rating_pro
       `)
-    : [];
+    : null;
+
+  const teamStatRows: Record<string, unknown>[] = teamStatResult?.rows ?? [];
 
   interface TeamStatRow {
     avg_rating: number;

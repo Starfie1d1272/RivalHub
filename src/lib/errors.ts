@@ -41,6 +41,7 @@ export const ErrorCode = {
   VOTE_SELF: "VOTE_SELF",
   VOTE_DUPLICATE: "VOTE_DUPLICATE",
   CAPTAIN_NOT_ELIGIBLE: "CAPTAIN_NOT_ELIGIBLE",
+  VOTING_MINIMUM_NOT_MET: "VOTING_MINIMUM_NOT_MET",
 
   // ── Draft ───────────────────────────────────────
   DRAFT_NOT_ACTIVE: "DRAFT_NOT_ACTIVE",
@@ -96,6 +97,7 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   VOTE_SELF: "不能给自己投票",
   VOTE_DUPLICATE: "您已为该候选人投票",
   CAPTAIN_NOT_ELIGIBLE: "该候选人不符合队长资格",
+  VOTING_MINIMUM_NOT_MET: "投票数不足，至少需要一定数量的投票后才能确认队长",
 
   DRAFT_NOT_ACTIVE: "选秀未进行中",
   DRAFT_NOT_YOUR_TURN: "当前轮次不是您的队伍",
