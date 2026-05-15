@@ -99,7 +99,7 @@
 - [x] `draftState` + `draftPicks` Realtime 订阅（`DraftLiveRoom` 订阅两张表，10 秒轮询兜底）
 - [x] `/[seasonSlug]/draft` 围观页：8 队网格 + 倒计时 + 剩余选手池（`DraftLiveRoom` / `TeamDraftGrid` / `PlayerPool` / `DraftCountdown`）
 - [x] 已选 / 当前轮次高亮
-- [ ] 手机端响应式布局
+- [x] 手机端响应式布局（TeamDraftGrid 手风琴 + CaptainVotingPanel 双模式，v1.6.0）
 
 ---
 

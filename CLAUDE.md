@@ -228,9 +228,9 @@ src/
 ├── components/
 │   ├── layout/       # Header / Footer
 │   ├── ui/           # shadcn 组件（按需 add，已覆盖 button/input/badge/card/skeleton/select）
-│   ├── rivalhub/     # Tactical Grid 组件（14 个：Panel/Btn/Field/Marker/Stat/MiniStat/
+│   ├── rivalhub/     # Tactical Grid 组件（15 个：Panel/Btn/Field/Marker/Stat/MiniStat/
 │   │                 #   StatusBanner/InlineConfirm/EmptyState/ErrorState/Skeleton/Spinner/
-│   │                 #   TeamBadge/PosChip/StatusPill）
+│   │                 #   TeamBadge/PosChip/StatusPill/ScrollHint）
 │   ├── settings/     # 用户设置组件（ChangePasswordForm）
 │   ├── register/     # 报名业务组件
 │   ├── admin/        # 管理后台业务组件（AdminSidebar 侧边栏 + 统一 layout）
