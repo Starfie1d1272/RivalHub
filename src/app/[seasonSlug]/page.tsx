@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { eq, count, or, and } from "drizzle-orm";
+import { eq, count, or, and, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { UserPlus, Vote, Users, Swords, Shuffle, BarChart3 } from "lucide-react";
 import { db } from "@/db/client";
 import { seasons, matches, teams, seasonRegistrations } from "@/db/schema";
+import { formatCSTShortDate } from "@/lib/utils/date";
 import { normalizeStagePlan } from "@/types/season";
 import type { SeasonStatus } from "@/types/season";
 import { showStats } from "@/lib/utils/season";
@@ -40,20 +41,8 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
   const teamA = alias(teams, "team_a");
   const teamB = alias(teams, "team_b");
 
-  const [[teamCountRow], [approvedCountRow], [finishedCountRow], [totalCountRow]] =
-    await Promise.all([
-      db.select({ value: count() }).from(teams).where(eq(teams.seasonId, season.id)),
-      db.select({ value: count() }).from(seasonRegistrations).where(
-        and(eq(seasonRegistrations.seasonId, season.id), eq(seasonRegistrations.status, "approved"))
-      ),
-      db.select({ value: count() }).from(matches).where(
-        and(eq(matches.seasonId, season.id), eq(matches.status, "finished"))
-      ),
-      db.select({ value: count() }).from(matches).where(eq(matches.seasonId, season.id)),
-    ]);
-
-  const upcomingMatches = season.status === "playing"
-    ? await db
+  const upcomingMatchesQuery = season.status === "playing"
+    ? db
         .select({
           id: matches.id,
           status: matches.status,
@@ -73,7 +62,20 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
         )
         .orderBy(matches.scheduledAt)
         .limit(4)
-    : [];
+    : null;
+
+  const [[teamCountRow], [approvedCountRow], [matchCountRow], upcomingMatches] =
+    await Promise.all([
+      db.select({ value: count() }).from(teams).where(eq(teams.seasonId, season.id)),
+      db.select({ value: count() }).from(seasonRegistrations).where(
+        and(eq(seasonRegistrations.seasonId, season.id), eq(seasonRegistrations.status, "approved"))
+      ),
+      db.select({
+        total: count(),
+        finished: sql<number>`count(*) filter (where ${matches.status} = 'finished')`,
+      }).from(matches).where(eq(matches.seasonId, season.id)),
+      upcomingMatchesQuery ?? Promise.resolve([] as { id: string; status: string; scheduledAt: Date | null; stage: string; teamAName: string | null; teamBName: string | null }[]),
+    ]);
 
   // ── 动态阶段列表 ──────────────────────────────────────────
   interface Phase {
@@ -267,7 +269,7 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
                         <span className="font-mono text-[11px] text-[var(--color-ok)]">● LIVE</span>
                       ) : match.scheduledAt ? (
                         <span className="font-mono text-[11px] text-[var(--color-fg-dim)]">
-                          {new Date(match.scheduledAt).toLocaleDateString("zh-CN", { month: "short", day: "numeric" })}
+                          {formatCSTShortDate(match.scheduledAt)}
                         </span>
                       ) : (
                         <span className="font-mono text-[11px] text-[var(--color-fg-dim)]">待定</span>
@@ -314,8 +316,8 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
         <Stat label="PLAYERS" value={approvedCountRow?.value ?? 0} />
         <Stat
           label="MATCHES"
-          value={(totalCountRow?.value ?? 0) > 0
-            ? `${finishedCountRow?.value ?? 0}/${totalCountRow?.value ?? 0}`
+          value={(matchCountRow?.total ?? 0) > 0
+            ? `${matchCountRow?.finished ?? 0}/${matchCountRow?.total ?? 0}`
             : "—"}
         />
         <Stat label="STAGE" value={season.status.toUpperCase()} accent />
