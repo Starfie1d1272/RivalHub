@@ -1,3 +1,5 @@
+import React from "react";
+
 interface PosChipProps {
   pos: string;
   small?: boolean;

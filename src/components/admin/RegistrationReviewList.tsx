@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { POSITION_LABELS } from "@/lib/validators/registration";
+import { positionLabel } from "@/lib/validators/registration";
 import { REGISTRATION_STATUS_LABELS } from "@/types/registration";
 import { MapPreferenceChips } from "@/components/rivalhub/map-preference-chips";
 import type { MapPreference } from "@/types/season";
@@ -52,10 +52,6 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 // ── 位置标签 ──────────────────────────────────────────
-
-function positionLabel(key: string): string {
-  return POSITION_LABELS[key as keyof typeof POSITION_LABELS]?.cn ?? key;
-}
 
 // ── 组件 ──────────────────────────────────────────────
 

@@ -17,7 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { CAPTAIN_TEAM_COUNT } from "@/lib/captains/rules";
-import { POSITION_LABELS } from "@/lib/validators/registration";
+import { positionLabel } from "@/lib/validators/registration";
 import type { CaptainCandidateRow } from "@/lib/captains/data";
 
 interface CaptainConfirmPanelProps {
@@ -193,6 +193,3 @@ export function CaptainConfirmPanel({
   );
 }
 
-function positionLabel(key: string): string {
-  return POSITION_LABELS[key as keyof typeof POSITION_LABELS]?.cn ?? key;
-}

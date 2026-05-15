@@ -4,8 +4,13 @@ import React from "react";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { DraftPlayerRow } from "@/lib/draft/data";
-import { POSITION_LABELS } from "@/lib/validators/registration";
+import { positionLabel } from "@/lib/validators/registration";
 import { MapPreferenceChips } from "@/components/rivalhub/map-preference-chips";
+import { PosChip } from "@/components/rivalhub/pos-chip";
+import { getDisplayName } from "@/lib/utils/display-name";
+import { sortByRank } from "@/lib/utils/rank";
+
+const FILTER_ALL = "all";
 
 interface PlayerPoolProps {
   players: DraftPlayerRow[];
@@ -13,7 +18,7 @@ interface PlayerPoolProps {
 }
 
 export function PlayerPool({ players, seasonPositions }: PlayerPoolProps) {
-  const [filter, setFilter] = useState<string>("all");
+  const [filter, setFilter] = useState<string>(FILTER_ALL);
 
   const grouped = useMemo(() => {
     const map = new Map<string, DraftPlayerRow[]>();
@@ -33,10 +38,13 @@ export function PlayerPool({ players, seasonPositions }: PlayerPoolProps) {
     return ordered;
   }, [grouped, seasonPositions]);
 
-  const positions: readonly string[] =
-    filter === "all"
-      ? positionOptions
-      : positionOptions.filter((position) => position === filter);
+  const sortedPlayers = useMemo(() => {
+    const filtered =
+      filter === FILTER_ALL
+        ? players
+        : players.filter((p) => p.primaryPosition === filter);
+    return sortByRank(filtered);
+  }, [players, filter]);
 
   const total = players.length;
 
@@ -50,12 +58,12 @@ export function PlayerPool({ players, seasonPositions }: PlayerPoolProps) {
 
   return (
     <div>
-      {/* 筛选栏 */}
+      {/* Filter bar */}
       <div className="flex items-center gap-2 mb-3 flex-wrap">
         <button
-          onClick={() => setFilter("all")}
+          onClick={() => setFilter(FILTER_ALL)}
           className={`text-xs px-2 py-1 rounded transition-colors ${
-            filter === "all"
+            filter === FILTER_ALL
               ? "bg-[var(--color-accent)] text-white"
               : "bg-[var(--color-panel-hi)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
           }`}
@@ -67,7 +75,7 @@ export function PlayerPool({ players, seasonPositions }: PlayerPoolProps) {
           return (
             <button
               key={pos}
-              onClick={() => setFilter(pos === filter ? "all" : pos)}
+              onClick={() => setFilter(pos === filter ? FILTER_ALL : pos)}
               disabled={count === 0}
               className={`text-xs px-2 py-1 rounded transition-colors ${
                 pos === filter
@@ -75,35 +83,88 @@ export function PlayerPool({ players, seasonPositions }: PlayerPoolProps) {
                   : "bg-[var(--color-panel-hi)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] disabled:opacity-30"
               }`}
             >
-              {POSITION_LABELS[pos as keyof typeof POSITION_LABELS]?.en ?? pos} ({count})
+              {positionLabel(pos)} ({count})
             </button>
           );
         })}
       </div>
 
-      {/* 选手列表 */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5 max-h-64 overflow-y-auto">
-        {positions.flatMap((pos) => {
-          const list = grouped.get(pos) ?? [];
-          return list.map((p) => (
+      {/* Unified sorted list */}
+      <div className="space-y-1 max-h-96 overflow-y-auto">
+        {sortedPlayers.map((p) => {
+          const displayedName = getDisplayName(p);
+          return (
             <div
               key={p.registrationId}
-              className="space-y-1.5 rounded bg-[var(--color-panel)] border border-[var(--color-border)] px-2 py-1.5"
+              className="rounded-md border border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-2"
             >
-              <div className="flex items-center justify-between text-xs">
+              {/* Desktop: single row */}
+              <div className="hidden md:flex items-center gap-3">
+                <span
+                  className="inline-flex shrink-0 items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-bold"
+                  style={{
+                    fontFamily: "var(--font-mono)",
+                    color: "var(--color-fg)",
+                    borderColor: "var(--color-border)",
+                    background: "var(--color-panel-hi)",
+                  }}
+                >
+                  {p.peakRank}
+                </span>
                 <Link
                   href={`/players/${p.userId}`}
-                  className="text-[var(--color-fg)] truncate hover:text-[var(--color-accent)]"
+                  className="min-w-0 truncate text-sm font-medium text-[var(--color-fg)] hover:text-[var(--color-accent)]"
                 >
-                  {p.steamName}
+                  {displayedName}
                 </Link>
-                <span className="text-[var(--color-fg-dim)] tabular ml-1 shrink-0">
-                  {p.peakRank} {p.peakRating.toFixed(2)}
+                <PosChip pos={positionLabel(p.primaryPosition)} small />
+                <span
+                  className="shrink-0 text-xs tabular-nums text-[var(--color-fg-mid)]"
+                  style={{ fontFamily: "var(--font-mono)" }}
+                >
+                  {p.peakRating.toFixed(2)}
                 </span>
+                <div className="min-w-0 flex-1">
+                  <MapPreferenceChips preferences={p.mapPreferences} compact minLevel="playable" />
+                </div>
               </div>
-              <MapPreferenceChips preferences={p.mapPreferences} compact minLevel="playable" />
+
+              {/* Mobile: two rows */}
+              <div className="md:hidden space-y-1">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="inline-flex shrink-0 items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-bold"
+                    style={{
+                      fontFamily: "var(--font-mono)",
+                      color: "var(--color-fg)",
+                      borderColor: "var(--color-border)",
+                      background: "var(--color-panel-hi)",
+                    }}
+                  >
+                    {p.peakRank}
+                  </span>
+                  <Link
+                    href={`/players/${p.userId}`}
+                    className="min-w-0 truncate text-sm font-medium text-[var(--color-fg)] hover:text-[var(--color-accent)]"
+                  >
+                    {displayedName}
+                  </Link>
+                  <PosChip pos={positionLabel(p.primaryPosition)} small />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span
+                    className="shrink-0 text-xs tabular-nums text-[var(--color-fg-mid)]"
+                    style={{ fontFamily: "var(--font-mono)" }}
+                  >
+                    {p.peakRating.toFixed(2)}
+                  </span>
+                  <div className="min-w-0">
+                    <MapPreferenceChips preferences={p.mapPreferences} compact minLevel="playable" />
+                  </div>
+                </div>
+              </div>
             </div>
-          ));
+          );
         })}
       </div>
     </div>

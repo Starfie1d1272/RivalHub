@@ -50,7 +50,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     ? sql`AND ${seasonRegistrations.primaryPosition} = ${position}`
     : sql``;
 
-  const rows = await db.execute(sql`
+  const { rows } = await db.execute(sql`
     SELECT
       mps.user_id,
       mps.perfect_name,
@@ -80,7 +80,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     LIMIT 100
   `);
 
-  const leaderboardRows = (rows as unknown as Record<string, unknown>[]).map((r) => ({
+  const leaderboardRows = rows.map((r) => ({
     userId: r.user_id as string | null,
     perfectName: r.perfect_name as string,
     position: r.primary_position as string | null,

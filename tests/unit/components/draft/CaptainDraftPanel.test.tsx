@@ -32,6 +32,9 @@ const baseProps = {
       registrationId: "33333333-3333-4333-8333-333333333333",
       userId: "55555555-5555-4555-8555-555555555555",
       steamName: "Neo",
+      perfectName: null,
+      displayName: null,
+      email: "neo@test.com",
       primaryPosition: "igl",
       secondaryPosition: "anchor",
       peakRank: "S",
@@ -44,6 +47,8 @@ const baseProps = {
     },
   ],
   seasonPositions: ["igl", "anchor"],
+  rosterMembers: [],
+  captainPosition: "igl",
 };
 
 describe("CaptainDraftPanel", () => {
@@ -62,7 +67,9 @@ describe("CaptainDraftPanel", () => {
     const user = userEvent.setup();
     render(<CaptainDraftPanel {...baseProps} />);
 
-    await user.click(screen.getByRole("button", { name: /选择 Neo/ }));
+    // 桌面端和移动端都会渲染按钮，取第一个
+    const [desktopBtn] = screen.getAllByRole("button", { name: /选择 Neo/ });
+    await user.click(desktopBtn);
 
     expect(pickPlayerMock).toHaveBeenCalledWith({
       seasonId: baseProps.seasonId,
@@ -76,16 +83,17 @@ describe("CaptainDraftPanel", () => {
   it("disables players whose primary position already reached the team cap", () => {
     render(<CaptainDraftPanel {...baseProps} positionCounts={{ igl: 2 }} />);
 
-    const button = screen.getByRole("button", { name: /Neo 已达上限/ });
+    const [desktopBtn] = screen.getAllByRole("button", { name: /Neo 已满/ });
 
-    expect(button).toBeDisabled();
+    expect(desktopBtn).toBeDisabled();
     expect(pickPlayerMock).not.toHaveBeenCalled();
   });
 
   it("links players to their profile pages", () => {
     render(<CaptainDraftPanel {...baseProps} />);
 
-    expect(screen.getByRole("link", { name: "Neo" })).toHaveAttribute(
+    const [desktopLink] = screen.getAllByRole("link", { name: "Neo" });
+    expect(desktopLink).toHaveAttribute(
       "href",
       `/players/${baseProps.players[0].userId}`,
     );

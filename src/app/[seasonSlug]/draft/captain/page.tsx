@@ -123,6 +123,8 @@ export default async function DraftCaptainPage({ params }: DraftCaptainPageProps
         positionCounts={positionCounts}
         players={data.remainingPlayers}
         seasonPositions={season.positions}
+        rosterMembers={captainTeamSlot?.members ?? []}
+        captainPosition={captainTeamSlot?.captain.primaryPosition ?? "未知"}
       />
     </main>
   );

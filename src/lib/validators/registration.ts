@@ -18,6 +18,19 @@ export type Position = PositionValue;
 
 export const POSITION_LABELS = REGISTRATION_DEFAULTS.positions.labels;
 
+export function positionLabel(position: string): string {
+  return POSITION_LABELS[position as keyof typeof POSITION_LABELS]?.en ?? position;
+}
+
+/** 位置单字母缩写 */
+export const POS_ABBR: Record<string, string> = {
+  opener: "O",
+  closer: "C",
+  anchor: "A",
+  igl: "I",
+  awper: "W",
+};
+
 // ── 从配置派生段位常量 ──────────────────────────────
 export const rankValues = REGISTRATION_DEFAULTS.ranks.values;
 export type Rank = RankValue;

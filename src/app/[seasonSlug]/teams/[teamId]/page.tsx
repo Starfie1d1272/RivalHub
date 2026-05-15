@@ -11,6 +11,7 @@ import Link from "next/link";
 import { POSITION_LABELS } from "@/lib/validators/registration";
 import { CS2_POSITIONS } from "@/types/season";
 import { getUserSession } from "@/lib/auth/session";
+import { getDisplayName } from "@/lib/utils/display-name";
 
 interface TeamDetailPageProps {
   params: Promise<{ seasonSlug: string; teamId: string }>;
@@ -45,19 +46,35 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
     : null;
   const canEditTeamName = currentUserRegistration?.id === team.captainRegistrationId;
 
-  // ── 阵容 ──────────────────────────────────────────────────────────────
-  const roster = await db
-    .select({
-      registrationId: teamMembers.registrationId,
-      isStarter: teamMembers.isStarter,
-      primaryPosition: seasonRegistrations.primaryPosition,
-      mapPreferences: seasonRegistrations.mapPreferences,
-      steamName: users.steamName,
-    })
-    .from(teamMembers)
-    .innerJoin(seasonRegistrations, eq(teamMembers.registrationId, seasonRegistrations.id))
-    .innerJoin(users, eq(seasonRegistrations.userId, users.id))
-    .where(eq(teamMembers.teamId, teamId));
+  // ── 阵容 + 赛果（并行） ──────────────────────────────────────────────
+  const [roster, teamMatches] = await Promise.all([
+    db
+      .select({
+        registrationId: teamMembers.registrationId,
+        isStarter: teamMembers.isStarter,
+        primaryPosition: seasonRegistrations.primaryPosition,
+        mapPreferences: seasonRegistrations.mapPreferences,
+        steamName: users.steamName,
+        perfectName: users.perfectName,
+        email: users.email,
+        qq: users.qq,
+      })
+      .from(teamMembers)
+      .innerJoin(seasonRegistrations, eq(teamMembers.registrationId, seasonRegistrations.id))
+      .innerJoin(users, eq(seasonRegistrations.userId, users.id))
+      .where(eq(teamMembers.teamId, teamId)),
+    db.query.matches.findMany({
+      where: and(
+        eq(matches.seasonId, season.id),
+        eq(matches.status, "finished"),
+        or(eq(matches.teamAId, teamId), eq(matches.teamBId, teamId)),
+      ),
+    }),
+  ]);
+
+  const isTeamMember = currentUserRegistration
+    ? roster.some((r) => r.registrationId === currentUserRegistration.id)
+    : false;
 
   const starters = roster
     .filter((r) => r.isStarter)
@@ -67,15 +84,6 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
       return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
     });
   const subs = roster.filter((r) => !r.isStarter);
-
-  // ── 赛果（已完赛） ─────────────────────────────────────────────────────
-  const teamMatches = await db.query.matches.findMany({
-    where: and(
-      eq(matches.seasonId, season.id),
-      eq(matches.status, "finished"),
-      or(eq(matches.teamAId, teamId), eq(matches.teamBId, teamId))
-    ),
-  });
 
   // 对手队名
   const opponentIds = [
@@ -261,7 +269,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
                     <PosChip pos="C" small />
                   )}
                   <span className="font-medium text-[var(--color-fg)] truncate text-sm sm:text-base">
-                    {p.steamName ?? "未知选手"}
+                    {getDisplayName(p)}
                   </span>
                 </div>
                 <div className="text-right shrink-0">
@@ -280,7 +288,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
                 <p className="text-xs text-[var(--color-fg-mid)] font-medium uppercase tracking-wide">替补</p>
                 {subs.map((p) => (
                   <div key={p.registrationId} className="flex items-center justify-between gap-2 opacity-70">
-                    <span className="text-sm text-[var(--color-fg)] truncate">{p.steamName ?? "未知选手"}</span>
+                    <span className="text-sm text-[var(--color-fg)] truncate">{getDisplayName(p)}</span>
                     <span className="text-xs text-[var(--color-fg-mid)] shrink-0">
                       {POSITION_LABELS[p.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? p.primaryPosition}
                     </span>
@@ -291,6 +299,28 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
           </div>
         </Panel>
       </section>
+
+      {/* 队内联系方式（仅同队成员可见） */}
+      {isTeamMember && (
+        <section>
+          <Panel label="队内联系方式" pad={20}>
+            <p className="text-xs text-[var(--color-fg-mid)] mb-4">仅同队成员可见</p>
+            <div className="space-y-3">
+              {roster.map((p) => (
+                <div key={p.registrationId} className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-[var(--color-fg)]">
+                    {getDisplayName(p)}
+                  </span>
+                  <div className="flex items-center gap-4 text-sm text-[var(--color-fg-mid)]">
+                    {p.qq && <span>QQ: {p.qq}</span>}
+                    {p.email && <span>邮箱: {p.email}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Panel>
+        </section>
+      )}
 
       {/* 队伍数据 */}
       {teamAvgRating && (

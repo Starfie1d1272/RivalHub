@@ -23,6 +23,7 @@ interface HeaderClientProps {
   session: UserSession | null;
   avatarUrl?: string | null;
   steamName?: string | null;
+  displayName?: string | null;
 }
 
 function AvatarButton({ email, avatarUrl }: { email: string; avatarUrl?: string | null }) {
@@ -48,7 +49,7 @@ function AvatarButton({ email, avatarUrl }: { email: string; avatarUrl?: string 
   );
 }
 
-export function HeaderClient({ seasons, session, avatarUrl, steamName }: HeaderClientProps) {
+export function HeaderClient({ seasons, session, avatarUrl, steamName, displayName }: HeaderClientProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -176,6 +177,14 @@ export function HeaderClient({ seasons, session, avatarUrl, steamName }: HeaderC
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
+                    <Link href={"/settings" as never} className="cursor-pointer flex items-center gap-1.5">
+                      修改昵称
+                      {!displayName && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-orange-500 flex-shrink-0" />
+                      )}
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
                     <Link href={"/settings/password" as never} className="cursor-pointer">
                       修改密码
                     </Link>
@@ -264,6 +273,16 @@ export function HeaderClient({ seasons, session, avatarUrl, steamName }: HeaderC
                   className="px-3 py-2 rounded-md text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] hover:bg-[var(--color-panel-hi)]"
                 >
                   我的主页
+                </Link>
+                <Link
+                  href={"/settings" as never}
+                  onClick={() => setMobileOpen(false)}
+                  className="px-3 py-2 rounded-md text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] hover:bg-[var(--color-panel-hi)] flex items-center gap-1.5"
+                >
+                  修改昵称
+                  {!displayName && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500 flex-shrink-0" />
+                  )}
                 </Link>
                 <Link
                   href={"/settings/password" as never}

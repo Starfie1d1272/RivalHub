@@ -5,6 +5,7 @@ import { seasons, teams, teamMembers, seasonRegistrations, users } from "@/db/sc
 import { Panel, Marker } from "@/components/rivalhub";
 import { TeamCard } from "@/components/teams/TeamCard";
 import { CS2_POSITIONS } from "@/types/season";
+import { getDisplayName } from "@/lib/utils/display-name";
 
 interface TeamsPageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -39,6 +40,8 @@ export default async function TeamsPage({ params }: TeamsPageProps) {
       isStarter: teamMembers.isStarter,
       primaryPosition: seasonRegistrations.primaryPosition,
       steamName: users.steamName,
+      perfectName: users.perfectName,
+      email: users.email,
     })
     .from(teamMembers)
     .innerJoin(teams, eq(teamMembers.teamId, teams.id))
@@ -61,7 +64,7 @@ export default async function TeamsPage({ params }: TeamsPageProps) {
         {allTeams.map((team) => {
           const members = (membersByTeam.get(team.id) ?? [])
             .map((m) => ({
-              name: m.steamName ?? "未知选手",
+              name: getDisplayName(m),
               primaryPosition: m.primaryPosition,
               isStarter: m.isStarter,
               isCaptain: m.registrationId === m.captainRegId,

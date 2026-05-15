@@ -17,6 +17,7 @@ export const users = pgTable("users", {
   studentId: text("student_id"),          // 学号，毕业生填"毕业年份+学院"
   qq: text("qq"),
   perfectName: text("perfect_name"),       // 完美平台昵称
+  displayName: text("display_name"),        // 用户自定义昵称（展示优先级最高）
   steamName: text("steam_name"),          // Steam 昵称
   steam64: text("steam64"),               // Steam 64 位 ID
   steamProfileUrl: text("steam_profile_url"), // Steam 个人资料链接

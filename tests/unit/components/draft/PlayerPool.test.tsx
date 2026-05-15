@@ -12,6 +12,9 @@ describe("PlayerPool", () => {
           {
             registrationId: "reg-1",
             userId: "user-1",
+            displayName: null,
+            perfectName: null,
+            email: "neo@example.com",
             steamName: "Neo",
             primaryPosition: "igl",
             secondaryPosition: "anchor",
@@ -23,9 +26,8 @@ describe("PlayerPool", () => {
       />,
     );
 
-    expect(screen.getByRole("link", { name: "Neo" })).toHaveAttribute(
-      "href",
-      "/players/user-1",
-    );
+    // 桌面端和移动端都会渲染链接，取第一个
+    const [desktopLink] = screen.getAllByRole("link", { name: "Neo" });
+    expect(desktopLink).toHaveAttribute("href", "/players/user-1");
   });
 });

@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { createBrowserClient } from "@/lib/auth/supabase";
 import { MAX_CAPTAIN_VOTES } from "@/lib/captains/rules";
-import { POSITION_LABELS } from "@/lib/validators/registration";
+import { positionLabel } from "@/lib/validators/registration";
 import type {
   CaptainCandidateRow,
   CaptainVoteRecord,
@@ -359,6 +359,3 @@ export function CaptainVotingPanel({
   );
 }
 
-function positionLabel(key: string): string {
-  return POSITION_LABELS[key as keyof typeof POSITION_LABELS]?.cn ?? key;
-}

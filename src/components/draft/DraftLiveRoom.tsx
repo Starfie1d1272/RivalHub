@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DRAFT_TOTAL_ROUNDS } from "@/types/draft";
 import { createBrowserClient } from "@/lib/auth/supabase";
@@ -16,6 +16,11 @@ interface DraftLiveRoomProps {
   seasonPositions: string[];
 }
 
+interface PickNotification {
+  teamName: string;
+  playerName: string;
+}
+
 export function DraftLiveRoom({
   data,
   seasonId,
@@ -27,6 +32,40 @@ export function DraftLiveRoom({
     data;
 
   const isLive = state?.isActive ?? false;
+
+  // Pick notification state
+  const [notification, setNotification] = useState<PickNotification | null>(null);
+  const [notificationVisible, setNotificationVisible] = useState(false);
+  const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const removeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showPickNotification = useCallback(
+    (payload: { steamName?: string; team_id?: string }) => {
+      const teamName =
+        teams.find((t) => t.teamId === payload.team_id)?.teamName ?? "未知队伍";
+      const playerName = payload.steamName ?? "未知选手";
+
+      setNotification({ teamName, playerName });
+      setNotificationVisible(true);
+
+      if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+      if (removeTimerRef.current) clearTimeout(removeTimerRef.current);
+      fadeTimerRef.current = setTimeout(() => {
+        setNotificationVisible(false);
+        // Remove from DOM after fade-out transition
+        removeTimerRef.current = setTimeout(() => setNotification(null), 300);
+      }, 3000);
+    },
+    [teams],
+  );
+
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+      if (removeTimerRef.current) clearTimeout(removeTimerRef.current);
+    };
+  }, []);
 
   // 轮询兜底（10 秒刷新）
   useEffect(() => {
@@ -57,7 +96,9 @@ export function DraftLiveRoom({
           table: "draft_picks",
           filter: `season_id=eq.${seasonId}`,
         },
-        () => router.refresh(),
+        () => {
+          router.refresh();
+        },
       )
       .subscribe();
 
@@ -66,12 +107,43 @@ export function DraftLiveRoom({
     };
   }, [router, seasonId]);
 
+  // Watch for new picks via completedPicks changes
+  const prevPickCountRef = useRef(completedPicks.length);
+  useEffect(() => {
+    if (completedPicks.length > prevPickCountRef.current) {
+      const latestPick = completedPicks[completedPicks.length - 1];
+      if (latestPick) {
+        showPickNotification({
+          steamName: latestPick.steamName,
+          team_id: latestPick.teamId,
+        });
+      }
+    }
+    prevPickCountRef.current = completedPicks.length;
+  }, [completedPicks, showPickNotification]);
+
   // 确定当前选秀队
   const pickingTeamId = isLive ? state?.currentTeamId ?? null : null;
   const pickingTeam = teams.find((t) => t.teamId === pickingTeamId);
 
   return (
     <div className="space-y-6">
+      {/* Pick notification banner */}
+      {notification && (
+        <div
+          className="fixed top-0 left-0 right-0 z-50 flex items-center justify-center px-4 py-3 text-sm font-medium text-white transition-opacity duration-300"
+          style={{
+            background: "var(--color-accent)",
+            opacity: notificationVisible ? 1 : 0,
+            pointerEvents: notificationVisible ? "auto" : "none",
+          }}
+          role="status"
+          aria-live="polite"
+        >
+          {"🎯"} {notification.teamName} 选择了 {notification.playerName}
+        </div>
+      )}
+
       {/* 顶部状态栏 */}
       <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)]">
         <div className="flex items-center gap-4 flex-wrap">
@@ -169,7 +241,7 @@ export function DraftLiveRoom({
                     {pick.steamName}
                   </span>
                   {pick.autoPicked && (
-                    <span className="text-amber-400 ml-0.5">⚡</span>
+                    <span className="text-amber-400 ml-0.5">{"⚡"}</span>
                   )}
                 </div>
               );

@@ -4,19 +4,27 @@ import React from "react";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Clock, Loader2 } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Clock, Loader2 } from "lucide-react";
 import { pickPlayer } from "@/actions/draft";
 import { Button } from "@/components/ui/button";
 import { DraftCountdown } from "./DraftCountdown";
 import { canPickPosition } from "@/lib/draft/rules";
-import { POSITION_LABELS } from "@/lib/validators/registration";
+import { positionLabel } from "@/lib/validators/registration";
 import { MapPreferenceChips } from "@/components/rivalhub/map-preference-chips";
+import { PosChip } from "@/components/rivalhub/pos-chip";
+import { getDisplayName } from "@/lib/utils/display-name";
+import { sortByRank } from "@/lib/utils/rank";
 import type { MapPreference } from "@/types/season";
+
+const FILTER_ALL = "all";
 
 export interface CaptainDraftPlayer {
   registrationId: string;
   userId: string;
   steamName: string;
+  perfectName: string | null;
+  displayName: string | null;
+  email: string | null;
   primaryPosition: string;
   secondaryPosition: string;
   peakRank: string;
@@ -36,10 +44,9 @@ interface CaptainDraftPanelProps {
   positionCounts: Record<string, number>;
   players: CaptainDraftPlayer[];
   seasonPositions: string[];
-}
-
-function positionLabel(position: string): string {
-  return POSITION_LABELS[position as keyof typeof POSITION_LABELS]?.en ?? position;
+  /** Already picked members for roster summary */
+  rosterMembers: { steamName: string; perfectName: string | null; displayName: string | null; primaryPosition: string }[];
+  captainPosition: string;
 }
 
 export function CaptainDraftPanel({
@@ -54,11 +61,14 @@ export function CaptainDraftPanel({
   positionCounts,
   players,
   seasonPositions,
+  rosterMembers,
+  captainPosition,
 }: CaptainDraftPanelProps) {
   const router = useRouter();
-  const [filter, setFilter] = useState("all");
+  const [filter, setFilter] = useState(FILTER_ALL);
   const [pendingRegistrationId, setPendingRegistrationId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [rosterOpen, setRosterOpen] = useState(false);
 
   const grouped = useMemo(() => {
     const map = new Map<string, CaptainDraftPlayer[]>();
@@ -78,10 +88,13 @@ export function CaptainDraftPanel({
     return ordered;
   }, [grouped, seasonPositions]);
 
-  const visiblePlayers =
-    filter === "all"
-      ? players
-      : players.filter((player) => player.primaryPosition === filter);
+  const sortedPlayers = useMemo(() => {
+    const filtered =
+      filter === FILTER_ALL
+        ? players
+        : players.filter((player) => player.primaryPosition === filter);
+    return sortByRank(filtered);
+  }, [players, filter]);
 
   const canSubmit = isDraftActive && isCurrentCaptainTurn && pendingRegistrationId === null;
 
@@ -106,13 +119,16 @@ export function CaptainDraftPanel({
 
     setMessage({
       type: "success",
-      text: result.data.completed ? "选秀已完成" : `${player.steamName} 已加入队伍`,
+      text: result.data.completed
+        ? "选秀已完成"
+        : `${getDisplayName(player)} 已加入队伍`,
     });
     router.refresh();
   }
 
   return (
     <div className="space-y-5">
+      {/* Header */}
       <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -145,13 +161,61 @@ export function CaptainDraftPanel({
         )}
       </div>
 
+      {/* Roster Summary (collapsible) */}
+      <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setRosterOpen(!rosterOpen)}
+          className="flex w-full items-center gap-2 px-4 py-3 text-sm font-medium text-[var(--color-fg)] hover:bg-[var(--color-panel-hi)] transition-colors"
+        >
+          {rosterOpen ? (
+            <ChevronDown className="size-4 text-[var(--color-fg-dim)]" />
+          ) : (
+            <ChevronRight className="size-4 text-[var(--color-fg-dim)]" />
+          )}
+          我的阵容（{rosterMembers.length + 1} 人）
+        </button>
+        {rosterOpen && (
+          <div className="border-t border-[var(--color-border)] px-4 py-3 space-y-3">
+            {/* Position occupation */}
+            <div className="flex flex-wrap gap-2 text-xs text-[var(--color-fg-mid)]">
+              {seasonPositions.map((pos) => {
+                const count = positionCounts[pos] ?? 0;
+                const full = !canPickPosition(count);
+                return (
+                  <span
+                    key={pos}
+                    className={full ? "text-red-400" : ""}
+                  >
+                    {positionLabel(pos)} {count}/2
+                  </span>
+                );
+              })}
+            </div>
+            {/* Members list */}
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-xs text-[var(--color-fg)]">
+                <PosChip pos={positionLabel(captainPosition)} small />
+                <span className="text-[var(--color-accent)]">队长</span>
+              </div>
+              {rosterMembers.map((member, i) => (
+                <div key={i} className="flex items-center gap-2 text-xs text-[var(--color-fg)]">
+                  <PosChip pos={positionLabel(member.primaryPosition)} small />
+                  <span>{getDisplayName(member)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] p-4">
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <Button
             type="button"
             size="sm"
-            variant={filter === "all" ? "default" : "secondary"}
-            onClick={() => setFilter("all")}
+            variant={filter === FILTER_ALL ? "default" : "secondary"}
+            onClick={() => setFilter(FILTER_ALL)}
           >
             全部 {players.length}
           </Button>
@@ -165,7 +229,7 @@ export function CaptainDraftPanel({
                 size="sm"
                 variant={filter === position ? "default" : "secondary"}
                 disabled={count === 0}
-                onClick={() => setFilter(filter === position ? "all" : position)}
+                onClick={() => setFilter(filter === position ? FILTER_ALL : position)}
               >
                 {positionLabel(position)} {teamCount}/2 · {count}
               </Button>
@@ -173,54 +237,140 @@ export function CaptainDraftPanel({
           })}
         </div>
 
-        {visiblePlayers.length === 0 ? (
+        {sortedPlayers.length === 0 ? (
           <div className="py-12 text-center text-sm text-[var(--color-fg-dim)]">
             当前筛选下没有可选选手
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-            {visiblePlayers.map((player) => {
+          <div className="space-y-1">
+            {sortedPlayers.map((player) => {
               const positionCount = positionCounts[player.primaryPosition] ?? 0;
               const positionOpen = canPickPosition(positionCount);
               const isPending = pendingRegistrationId === player.registrationId;
               const disabled = !canSubmit || !positionOpen || isPending;
-              const buttonLabel = positionOpen ? `选择 ${player.steamName}` : `${player.steamName} 已达上限`;
+              const displayedName = getDisplayName(player);
 
               return (
                 <div
                   key={player.registrationId}
-                  className="flex min-h-20 items-center justify-between gap-3 rounded-md border border-[var(--color-border)] bg-[var(--color-panel-hi)] px-3 py-2"
+                  className={`rounded-md border border-[var(--color-border)] bg-[var(--color-panel-hi)] px-3 py-2 transition-opacity ${
+                    !positionOpen ? "opacity-40" : ""
+                  }`}
                 >
-                  <div className="min-w-0">
+                  <div className="hidden md:flex items-center gap-3">
+                    {/* Rank badge */}
+                    <span
+                      className="inline-flex shrink-0 items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-bold"
+                      style={{
+                        fontFamily: "var(--font-mono)",
+                        color: "var(--color-fg)",
+                        borderColor: "var(--color-border)",
+                        background: "var(--color-panel)",
+                      }}
+                    >
+                      {player.peakRank}
+                    </span>
+
+                    {/* Name (clickable) */}
                     <Link
                       href={`/players/${player.userId}`}
-                      className="block truncate text-sm font-medium text-[var(--color-fg)] hover:text-[var(--color-accent)]"
+                      className="min-w-0 truncate text-sm font-medium text-[var(--color-fg)] hover:text-[var(--color-accent)]"
                     >
-                      {player.steamName}
+                      {displayedName}
                     </Link>
-                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--color-fg-dim)]">
-                      <span>{positionLabel(player.primaryPosition)}</span>
-                      <span>{player.peakRank} {player.peakRating.toFixed(2)}</span>
-                      <span>副选 {positionLabel(player.secondaryPosition)}</span>
-                    </div>
-                    <div className="mt-2">
+
+                    {/* Primary position */}
+                    <PosChip pos={positionLabel(player.primaryPosition)} small />
+
+                    {/* Secondary position */}
+                    <span className="shrink-0 text-xs text-[var(--color-fg-dim)]">
+                      副选 {positionLabel(player.secondaryPosition)}
+                    </span>
+
+                    {/* Rating */}
+                    <span
+                      className="shrink-0 text-xs tabular-nums text-[var(--color-fg-mid)]"
+                      style={{ fontFamily: "var(--font-mono)" }}
+                    >
+                      {player.peakRating.toFixed(2)}
+                    </span>
+
+                    {/* Map preferences */}
+                    <div className="min-w-0 flex-1">
                       <MapPreferenceChips preferences={player.mapPreferences} compact minLevel="playable" />
                     </div>
+
+                    {/* Pick button */}
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={disabled}
+                      aria-label={positionOpen ? `选择 ${displayedName}` : `${displayedName} 已满`}
+                      onClick={() => void handlePick(player)}
+                      className="shrink-0"
+                    >
+                      {isPending ? (
+                        <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                      ) : positionOpen ? (
+                        <Check className="size-4" aria-hidden="true" />
+                      ) : null}
+                      {positionOpen ? "选择" : "已满"}
+                    </Button>
                   </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={disabled}
-                    aria-label={buttonLabel}
-                    onClick={() => void handlePick(player)}
-                  >
-                    {isPending ? (
-                      <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                    ) : positionOpen ? (
-                      <Check className="size-4" aria-hidden="true" />
-                    ) : null}
-                    {positionOpen ? "选择" : "已达上限"}
-                  </Button>
+
+                  <div className="md:hidden space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="inline-flex shrink-0 items-center rounded-sm border px-1.5 py-0.5 text-[10px] font-bold"
+                        style={{
+                          fontFamily: "var(--font-mono)",
+                          color: "var(--color-fg)",
+                          borderColor: "var(--color-border)",
+                          background: "var(--color-panel)",
+                        }}
+                      >
+                        {player.peakRank}
+                      </span>
+                      <Link
+                        href={`/players/${player.userId}`}
+                        className="min-w-0 truncate text-sm font-medium text-[var(--color-fg)] hover:text-[var(--color-accent)]"
+                      >
+                        {displayedName}
+                      </Link>
+                      <PosChip pos={positionLabel(player.primaryPosition)} small />
+                      <span className="text-xs text-[var(--color-fg-dim)]">
+                        副选 {positionLabel(player.secondaryPosition)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span
+                          className="shrink-0 text-xs tabular-nums text-[var(--color-fg-mid)]"
+                          style={{ fontFamily: "var(--font-mono)" }}
+                        >
+                          {player.peakRating.toFixed(2)}
+                        </span>
+                        <div className="min-w-0">
+                          <MapPreferenceChips preferences={player.mapPreferences} compact minLevel="playable" />
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={disabled}
+                        aria-label={positionOpen ? `选择 ${displayedName}` : `${displayedName} 已满`}
+                        onClick={() => void handlePick(player)}
+                        className="shrink-0"
+                      >
+                        {isPending ? (
+                          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                        ) : positionOpen ? (
+                          <Check className="size-4" aria-hidden="true" />
+                        ) : null}
+                        {positionOpen ? "选择" : "已满"}
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               );
             })}

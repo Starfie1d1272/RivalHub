@@ -5,6 +5,30 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-05-15
+
+### Added
+- **选手名单页** `/[seasonSlug]/players`：展示已审核通过的报名选手，支持按位置筛选，卡片展示段位/Rating/所属队伍
+- **赛季导航**「选手」入口（按 approved 报名数 > 0 条件渲染，遵循 capability 门控）
+- **`getDisplayName()` 工具函数**：统一展示名称派生（displayName > perfectName > steamName > email），全站替代 `steamName ?? "未知选手"`
+- **display_name 系统**：users 表新增 `display_name` 字段，设置页支持修改昵称，Header 未设置时橙色提示
+- **选秀队长面板重构**：按段位+Rt 排序统一列表（替代旧的分列布局），满员位置灰显禁用，新增队长阵容摘要可折叠面板
+- **选秀观众端增强**：pick 通知 Banner 3 秒淡出动画，选手池统一排序
+- **队伍联系方式**：同队成员可见 QQ 与邮箱（仅队伍详情页渲染）
+- `public/favicon.ico`：静态 favicon 防止路由被 `[seasonSlug]` 吞噬
+
+### Fixed
+- 统计页 `db.execute()` 返回 `QueryResult { rows }` 对象直接当数组迭代 bug（与 1.6.1 队伍详情页同类问题）
+- DraftLiveRoom 通知双重触发（Realtime INSERT + completedPicks 竞态）
+- DraftLiveRoom `positionLabel(steamName)` 参数错误
+
+### Changed
+- `positionLabel` 6 文件重复定义提取为共享函数
+- `sortByRank` 提取为泛型工具函数 `src/lib/utils/rank.ts`
+- 并行化队伍详情页 roster + matches 查询（`Promise.all`）
+- `POS_ABBR` 移入 `registration.ts` 与位置常量共处
+- layout.tsx season 查询用 `React.cache()` 去重
+
 ## [1.6.1] - 2026-05-15
 
 ### Fixed

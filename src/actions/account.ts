@@ -1,6 +1,7 @@
 "use server";
 
 import { eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 import { db } from "@/db/client";
 import { users, auditLogs } from "@/db/schema";
 import { createServiceClient } from "@/lib/auth/supabase";
@@ -53,5 +54,28 @@ export async function changeUserPassword(
     return ok(undefined);
   } catch (e) {
     return actionError("changeUserPassword", e);
+  }
+}
+
+/** 修改自定义昵称（2-20 字符） */
+export async function updateDisplayName(
+  displayName: string,
+): Promise<ActionResult<void>> {
+  const trimmed = displayName.trim();
+  if (trimmed.length < 2) return failValidation("昵称至少 2 个字符");
+  if (trimmed.length > 20) return failValidation("昵称最多 20 个字符");
+
+  try {
+    const session = await requireAuth();
+
+    await db
+      .update(users)
+      .set({ displayName: trimmed, updatedAt: new Date() })
+      .where(eq(users.id, session.userId));
+
+    revalidatePath("/settings");
+    return ok(undefined);
+  } catch (e) {
+    return actionError("updateDisplayName", e);
   }
 }
