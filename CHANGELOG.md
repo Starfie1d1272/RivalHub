@@ -5,6 +5,19 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.4] - 2026-05-16
+
+### Fixed
+- 审计日志 `actorId` 为 `"system"` 等非 UUID 字符串时触发 Postgres `22P02` 类型转换错误
+
+### Added
+- 审计日志目标列可读名称解析：按 targetType 批量查询对应表，显示用户名/赛季名/队名/比赛对阵等（替代截断 UUID）
+- 审计日志 40+ action 中文别名映射，hover 显示原始字符串
+- 操作类型筛选改为 `<optgroup>` 分组下拉菜单（管理/报名/投票/选秀/赛程/赛季/队伍/用户）
+
+### Changed
+- CLAUDE.md、README.md、docs/architecture.md 同步至 v1.7.4：补齐 actions 目录索引、cron 端点
+
 ## [1.7.3] - 2026-05-16
 
 ### Fixed
@@ -232,6 +245,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.7.4]: https://github.com/Starfie1d1272/RivalHub/compare/v1.7.3...v1.7.4
+[1.7.3]: https://github.com/Starfie1d1272/RivalHub/compare/v1.7.2...v1.7.3
+[1.7.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.7.1...v1.7.2
+[1.7.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.7.0...v1.7.1
+[1.7.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.6.1...v1.7.0
+[1.6.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.6.0...v1.6.1
+[1.6.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.5.0...v1.6.0
+[1.5.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.4.1...v1.5.0
+[1.4.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.3.2...v1.4.0
 [1.3.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.3.0...v1.3.1

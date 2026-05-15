@@ -12,7 +12,9 @@ Next.js App Router (Vercel Edge / Node.js)
   │     ├── src/db/client
   │     └── src/lib/auth/session (iron-session)
   ├── API Route (Cron only)
-  │     └── /api/cron/draft-timeout
+  │     ├── /api/cron/draft-timeout
+  │     ├── /api/cron/check-registration-deadline
+  │     └── /api/cron/match-time-auto-award
   └── Client Components ("use client")
         └── Supabase Realtime (ws)
               └── Supabase Postgres (LISTEN/NOTIFY)
@@ -62,7 +64,11 @@ Next.js App Router (Vercel Edge / Node.js)
 | `matches/schedule.ts` | 赛程生成（generateSchedule / initializeStage / generatePlayoff / createMatch） |
 | `matches/results.ts` | 比赛结果（recordMatchResult / recordMapResult / updateMatchStatus / updateMatchScheduledAt） |
 | `seasons.ts` | 赛季 CRUD（createSeason / updateSeason / deleteSeason / publishSeason） |
+| `transitions.ts` | 赛季阶段自动推进（autoAdvanceSeason） |
+| `audit.ts` | 审计日志查询（fetchAuditLogs / getAuditSeasons），含 actor/target 可读名称批量解析 |
 | `player-stats.ts` | OCR 识别记分板截图（extractStatsFromScreenshot）、保存玩家数据（savePlayerStats）、查询地图数据（getPlayerStatsByMap） |
+| `matches/scheduling.ts` | 比赛时间协商（proposeMatchTime / respondToTimeProposal / forceSetMatchTime / autoAwardMatchTime） |
+| `matches/roster.ts` | 比赛阵容提交与解锁（submitMatchRoster / unlockMatchRoster） |
 
 ### DB 层（`src/db/`）
 

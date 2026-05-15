@@ -41,12 +41,13 @@ export default async function AdminLogsPage({ searchParams }: AdminLogsPageProps
   const logs = logsResult.success ? logsResult.data.logs : [];
   const total = logsResult.success ? logsResult.data.total : 0;
   const actorNameMap = logsResult.success ? (logsResult.data.actorNameMap ?? {}) : {};
+  const targetNameMap = logsResult.success ? (logsResult.data.targetNameMap ?? {}) : {};
   const seasons = seasonsResult.success ? seasonsResult.data : [];
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       <Marker>操作日志</Marker>
-      <AuditLogTable initialLogs={logs} initialTotal={total} seasons={seasons} initialActorNameMap={actorNameMap} />
+      <AuditLogTable initialLogs={logs} initialTotal={total} seasons={seasons} initialActorNameMap={actorNameMap} initialTargetNameMap={targetNameMap} />
     </div>
   );
 }

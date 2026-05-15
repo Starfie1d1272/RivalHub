@@ -4,7 +4,7 @@
 
 RivalHub 是开源电竞赛事管理平台，通过 capability 驱动的多赛事模型支持各类赛制（选秀联赛、公开赛、杯赛等）的全流程运营：报名 → 审核 → 队长投票 → 蛇形选秀 → 队伍展示 → 赛程 + Bracket 视图 → 部署。
 
-当前阶段：**v1.6.0，站点部署在 `match.starfie1d.top`。v2 赛制引擎（StageExecutor + 5 个 executor + entrySeeds 种子轮空 + finalFormat 决赛 BO5）代码已就绪，待 2026 NJU Major 赛季开始时启用。**
+当前阶段：**v1.7.4，站点部署在 `match.starfie1d.top`。v2 赛制引擎（StageExecutor + 5 个 executor + entrySeeds 种子轮空 + finalFormat 决赛 BO5）代码已就绪，待 2026 NJU Major 赛季开始时启用。**
 
 ## 版本路线图
 
@@ -59,7 +59,7 @@ git push origin v1.6.0               # 或单独推 tag
 | ORM | Drizzle ORM |
 | 表单 | React Hook Form + Zod（中文校验消息） |
 | 鉴权 | Supabase Auth（email+password；生产关闭邮件确认，不依赖 Magic Link）+ iron-session（双 Cookie：`rivalhub-session` 全用户 + `rivalhub-admin` root 紧急） |
-| 定时任务 | GitHub Actions 每分钟调用 `/api/cron/draft-timeout`（选秀超时自动 pick）+ `/api/cron/match-time-auto-award`（比赛时间协商截止自动裁定） |
+| 定时任务 | GitHub Actions 每分钟调用 `/api/cron/draft-timeout`（选秀超时自动 pick）+ `/api/cron/check-registration-deadline`（报名截止/满员自动推进）+ `/api/cron/match-time-auto-award`（比赛时间协商截止自动裁定） |
 | Bracket 渲染 | `brackets-manager` + `brackets-viewer`（经 `lib/bracket/` 适配层访问） |
 | 单元/集成测试 | Vitest + React Testing Library + jsdom |
 | E2E 测试 | Playwright |
@@ -215,12 +215,15 @@ src/
 ├── actions/          # Server Actions（所有业务逻辑入口）
 │   ├── account.ts    # 用户账号（修改密码）
 │   ├── admin.ts      # 管理员操作（审核/邀请码/撤销权限）
+│   ├── audit.ts      # 审计日志查询（含 actor/target 可读名称解析）
 │   ├── auth.ts       # 邮箱+密码注册/登录/退出
 │   ├── captains.ts   # 队长投票
 │   ├── draft/        # 选秀（state / picks / queries）
-│   ├── matches/      # 赛程（schedule / results / roster）
+│   ├── matches/      # 赛程（schedule / results / roster / scheduling）
+│   ├── player-stats.ts # 玩家数据（OCR 识别 / 保存 / 查询）
 │   ├── register.ts   # 报名提交
 │   ├── seasons.ts    # 赛季 CRUD（create/update/delete/publish）
+│   ├── transitions.ts # 赛季阶段自动推进
 │   └── teams.ts      # 队伍（修改队名/上传图标）
 ├── db/
 │   ├── schema/       # Drizzle 表定义（18 张表）

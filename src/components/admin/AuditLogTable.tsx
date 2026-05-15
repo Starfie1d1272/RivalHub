@@ -13,6 +13,7 @@ interface Props {
   initialTotal: number;
   seasons: { id: string; name: string }[];
   initialActorNameMap: Record<string, string>;
+  initialTargetNameMap: Record<string, string>;
 }
 
 const ACTION_CATEGORIES: Record<string, { label: string; color: string }> = {
@@ -32,9 +33,52 @@ function getCategory(action: string) {
   return ACTION_CATEGORIES[prefix] ?? { label: prefix, color: "var(--color-fg-dim)" };
 }
 
+const ACTION_LABELS: Record<string, string> = {
+  "admin.create_invite": "创建邀请码",
+  "admin.deactivate_invite": "停用邀请码",
+  "admin.register": "管理员注册",
+  "admin.change_password": "修改密码",
+  "admin.revoke_role": "撤销权限",
+  "admin.deactivate_user": "停用用户",
+  "admin.reactivate_user": "恢复用户",
+  "registration.submit": "提交报名",
+  "captain.cast_vote": "投票",
+  "captain.retract_vote": "撤回投票",
+  "captain.confirm": "确认队长",
+  "draft.start": "开始选秀",
+  "draft.pick": "选秀选人",
+  "draft.skip_turn": "跳过回合",
+  "draft.pause": "暂停选秀",
+  "draft.resume": "恢复选秀",
+  "match.generate_schedule": "生成赛程",
+  "match.initialize_stage": "初始化阶段",
+  "match.create": "创建比赛",
+  "match.record_result": "录入比分",
+  "match.record_map_result": "录入地图比分",
+  "match.save_player_stats": "录入选手数据",
+  "match.status_update": "更新比赛状态",
+  "match.submit_roster": "提交阵容",
+  "match.unlock_roster": "解锁阵容",
+  "match.propose_time": "提议比赛时间",
+  "match.respond_time_proposal": "回应时间提议",
+  "match.force_set_time": "强制设定时间",
+  "match.auto_award_time": "自动裁定时间",
+  "match.update_scheduled_at": "更新比赛时间",
+  "match.update_completion_deadline": "更新完赛截止",
+  "season.create": "创建赛季",
+  "season.update": "更新赛季",
+  "season.publish": "发布赛季",
+  "season.deleted": "删除赛季",
+  "season.auto_advance": "自动推进阶段",
+  "team.rename": "队伍改名",
+  "team.upload_logo": "上传队标",
+  "user.change_password": "修改密码",
+  "user.claim_invite": "使用邀请码",
+};
+
 const PAGE_SIZE = 50;
 
-export function AuditLogTable({ initialLogs, initialTotal, seasons, initialActorNameMap }: Props) {
+export function AuditLogTable({ initialLogs, initialTotal, seasons, initialActorNameMap, initialTargetNameMap }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
@@ -42,13 +86,11 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, initialActor
   const [logs, setLogs] = useState(initialLogs);
   const [total, setTotal] = useState(initialTotal);
   const [actorNameMap, setActorNameMap] = useState(initialActorNameMap);
+  const [targetNameMap, setTargetNameMap] = useState(initialTargetNameMap);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  // 本地输入状态（用于 debounce，避免每次按键触发请求）
-  const [localAction, setLocalAction] = useState(searchParams.get("action") ?? "");
   const [localActor, setLocalActor] = useState(searchParams.get("actor") ?? "");
 
-  const actionTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const actorTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const currentPage = Number(searchParams.get("page") ?? "1");
@@ -59,9 +101,8 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, initialActor
   const currentDateTo = searchParams.get("dateTo") ?? "";
 
   useEffect(() => {
-    setLocalAction(currentAction);
     setLocalActor(currentActor);
-  }, [currentAction, currentActor]);
+  }, [currentActor]);
 
   const updateParams = useCallback(
     (updates: Record<string, string>) => {
@@ -106,6 +147,7 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, initialActor
         setLogs(result.data.logs);
         setTotal(result.data.total);
         if (result.data.actorNameMap) setActorNameMap(result.data.actorNameMap);
+        if (result.data.targetNameMap) setTargetNameMap(result.data.targetNameMap);
       }
     });
   }, [currentPage, currentAction, currentActor, currentSeason, currentDateFrom, currentDateTo]);
@@ -121,7 +163,6 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, initialActor
 
   useEffect(() => {
     return () => {
-      clearTimeout(actionTimerRef.current);
       clearTimeout(actorTimerRef.current);
     };
   }, []);
@@ -139,21 +180,31 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, initialActor
           <label className="block text-xs mb-1" style={{ color: "var(--color-fg-dim)" }}>
             操作类型
           </label>
-          <input
-            type="text"
-            placeholder="如 admin.create_invite"
-            value={localAction}
-            onChange={(e) => {
-              setLocalAction(e.target.value);
-              debouncedUpdateParam("action", e.target.value, actionTimerRef);
-            }}
+          <select
+            value={currentAction}
+            onChange={(e) => updateParams({ action: e.target.value })}
             className="w-full px-2 py-1.5 rounded text-xs"
             style={{
               background: "var(--color-panel-low)",
               border: "1px solid var(--color-border)",
               color: "var(--color-fg)",
             }}
-          />
+          >
+            <option value="">全部操作</option>
+            {Object.entries(ACTION_CATEGORIES).reduce<[string, [string, string][]][]>((groups, [prefix, cat]) => {
+              const items = Object.entries(ACTION_LABELS).filter(([k]) => k.startsWith(prefix + "."));
+              if (items.length && !groups.some(([label]) => label === cat.label)) {
+                groups.push([cat.label, items]);
+              }
+              return groups;
+            }, []).map(([groupLabel, items]) => (
+              <optgroup key={groupLabel} label={groupLabel}>
+                {items.map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
         </div>
         <div>
           <label className="block text-xs mb-1" style={{ color: "var(--color-fg-dim)" }}>
@@ -283,7 +334,7 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, initialActor
                     >
                       {cat.label}
                     </span>
-                    <span style={{ color: "var(--color-fg)" }}>{log.action}</span>
+                    <span title={log.action} style={{ color: "var(--color-fg)" }}>{ACTION_LABELS[log.action] ?? log.action}</span>
                   </td>
                   <td className="px-3 py-2 truncate max-w-[140px]" style={{ color: "var(--color-fg-mid)" }}>
                     {log.actorId ? (actorNameMap[log.actorId] ?? log.actorId.slice(0, 8)) : "—"}
@@ -292,8 +343,8 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, initialActor
                     {log.targetType && (
                       <span className="opacity-60 mr-1">{log.targetType}:</span>
                     )}
-                    <span className="truncate inline-block max-w-[100px] align-bottom">
-                      {log.targetId?.slice(0, 8) ?? "-"}
+                    <span className="truncate inline-block max-w-[160px] align-bottom" title={log.targetId ?? undefined}>
+                      {(log.targetId && targetNameMap[log.targetId]) || log.targetId?.slice(0, 8) || "-"}
                     </span>
                   </td>
                   <td className="px-3 py-2">
