@@ -5,6 +5,19 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.1] - 2026-05-15
+
+### Fixed
+- Header 头像过期 CDN 链接显示浏览器蓝色问号：AvatarButton 增加 onError 回退 + Header 服务端增加 `getSteamAvatar()` 实时拉取回退（与选手页统一）
+- Header mobile menu 关闭重开时 imgError 状态重置导致重复加载失败图片
+- 选手名单页位置筛选项仅含 3 个中文标签，改为全部 5 个 positionValues 英文标签（IGL / AWPer / Opener / Closer / Anchor）
+- 选手名单卡片 Position 标签改为英文 `positionLabel()`
+- 赛季导航 `hasPlayers` 计数比较增加 `Number()` 包裹，防 bigint→string 类型失效
+
+### Changed
+- 注册页位置标签切换 `positionLabel()` 替代内联 `POSITION_LABELS[].en`
+- 提取 `resolveAvatarUrl()` 共享函数到 `steam.ts`，消除 Header 与选手页重复
+
 ## [1.7.0] - 2026-05-15
 
 ### Added
