@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
-import { matchPlayerStats } from "@/db/schema/player-stats";
 import { seasonRegistrations } from "@/db/schema/registrations";
 import { teamMembers } from "@/db/schema/teams";
 import { teams } from "@/db/schema/teams";
@@ -37,12 +36,12 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
 
   const sortColumn = (() => {
     switch (sort) {
-      case "adr": return sql`avg(${matchPlayerStats.adr})`;
-      case "kd": return sql`CASE WHEN sum(${matchPlayerStats.deaths}) > 0 THEN round((sum(${matchPlayerStats.kills}) / sum(${matchPlayerStats.deaths}))::numeric, 2) ELSE 0 END`;
-      case "we": return sql`avg(${matchPlayerStats.we})`;
-      case "kpr": return sql`round((sum(${matchPlayerStats.kills}) / count(*))::numeric, 1)`;
+      case "adr": return sql`avg(mps.adr)`;
+      case "kd": return sql`CASE WHEN sum(mps.deaths) > 0 THEN round((sum(mps.kills) / sum(mps.deaths))::numeric, 2) ELSE 0 END`;
+      case "we": return sql`avg(mps.we)`;
+      case "kpr": return sql`round((sum(mps.kills) / count(*))::numeric, 1)`;
       case "maps": return sql`count(*)`;
-      default: return sql`avg(${matchPlayerStats.ratingPro})`;
+      default: return sql`avg(mps.rating_pro)`;
     }
   })();
 
