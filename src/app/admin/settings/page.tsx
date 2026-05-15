@@ -27,7 +27,7 @@ export default async function AdminSettingsPage() {
     where: eq(users.id, admin.userId),
     columns: { steamName: true, displayName: true, perfectName: true },
   });
-  const adminDisplayName = getDisplayName(adminUser ?? { email: admin.email });
+  const adminDisplayName = adminUser ? getDisplayName(adminUser) : admin.email;
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-2xl space-y-10">
