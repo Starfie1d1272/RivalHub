@@ -1,12 +1,12 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
-import { and, eq, not } from "drizzle-orm";
+import { and, eq, not, count } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons } from "@/db/schema";
+import { seasons, teams, seasonRegistrations } from "@/db/schema";
 import { APP_BRAND } from "@/lib/branding";
 import { SEASON_STATUS_LABELS } from "@/types/season";
-import { Panel, Btn, Marker, StatusPill, EmptyState } from "@/components/rivalhub";
+import { Panel, Btn, Marker, StatusPill, EmptyState, MiniStat } from "@/components/rivalhub";
 
 export default async function HomePage() {
   const activeSeasons = await db
@@ -35,6 +35,13 @@ export default async function HomePage() {
       </div>
     );
   }
+
+  const [[featuredTeamCount], [featuredPlayerCount]] = await Promise.all([
+    db.select({ value: count() }).from(teams).where(eq(teams.seasonId, featured.id)),
+    db.select({ value: count() }).from(seasonRegistrations).where(
+      and(eq(seasonRegistrations.seasonId, featured.id), eq(seasonRegistrations.status, "approved"))
+    ),
+  ]);
 
   return (
     <div className="mx-auto px-4 lg:px-9 py-8 max-w-[1240px] grid gap-7">
@@ -134,6 +141,11 @@ export default async function HomePage() {
               >
                 {featured.kind}
               </span>
+            </div>
+            <div className="grid grid-cols-3 gap-2 py-3 border-y border-[var(--color-border)]">
+              <MiniStat label="TEAMS" value={featuredTeamCount?.value ?? 0} />
+              <MiniStat label="PLAYERS" value={featuredPlayerCount?.value ?? 0} accent />
+              <MiniStat label="STAGE" value={featured.status.toUpperCase()} />
             </div>
             <Btn full asChild>
               <Link href={`/${featured.slug}`} className="w-full">
