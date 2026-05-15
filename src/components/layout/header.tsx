@@ -1,7 +1,7 @@
 import { db } from "@/db/client";
 import { seasons, users } from "@/db/schema";
 import { getUserSession } from "@/lib/auth/session";
-import { getSteamAvatar } from "@/lib/steam";
+import { resolveAvatarUrl } from "@/lib/steam";
 import { HeaderClient } from "./header-client";
 import { eq } from "drizzle-orm";
 
@@ -22,9 +22,10 @@ export async function Header() {
       })
     : null;
 
-  // 与选手个人页面保持一致：缓存 avatarUrl 优先，null 时从 Steam API 实时拉取
-  const avatarUrl = currentUser?.avatarUrl
-    ?? (currentUser?.steam64 ? await getSteamAvatar(currentUser.steam64) : null);
+  const avatarUrl = await resolveAvatarUrl({
+    avatarUrl: currentUser?.avatarUrl,
+    steam64: currentUser?.steam64,
+  });
 
   return (
     <HeaderClient

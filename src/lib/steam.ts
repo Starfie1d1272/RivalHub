@@ -23,3 +23,11 @@ export async function getSteamAvatar(steam64: string): Promise<string | null> {
     return null;
   }
 }
+
+/** DB 缓存的 avatarUrl 优先，为 null 时从 Steam API 实时拉取 */
+export async function resolveAvatarUrl(user: {
+  avatarUrl?: string | null;
+  steam64?: string | null;
+}): Promise<string | null> {
+  return user.avatarUrl ?? (user.steam64 ? await getSteamAvatar(user.steam64) : null);
+}

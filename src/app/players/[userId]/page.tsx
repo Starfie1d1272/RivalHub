@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { eq, or, and, asc, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { users, seasonRegistrations, seasons, teams, teamMembers, matches } from "@/db/schema";
-import { getSteamAvatar } from "@/lib/steam";
+import { resolveAvatarUrl } from "@/lib/steam";
 import { Panel, Stat, PosChip } from "@/components/rivalhub";
 import { MapPreferenceChips } from "@/components/rivalhub/map-preference-chips";
 import Image from "next/image";
@@ -110,7 +110,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
       )
       .groupBy(seasons.id, seasons.name, seasons.slug, seasons.createdAt)
       .orderBy(asc(seasons.createdAt)),
-    user.avatarUrl ?? (user.steam64 ? getSteamAvatar(user.steam64) : null),
+    resolveAvatarUrl({ avatarUrl: user.avatarUrl, steam64: user.steam64 }),
   ]);
   const mvpRow = mvpRows[0];
 

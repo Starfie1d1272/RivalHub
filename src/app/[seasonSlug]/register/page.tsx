@@ -8,7 +8,7 @@ import { RegistrationForm } from "@/components/register/RegistrationForm";
 import { normalizeRegistrationConfig } from "@/types/season";
 import { REGISTRATION_STATUS_LABELS } from "@/types/registration";
 import { Panel, StatusBanner, PosChip } from "@/components/rivalhub";
-import { POSITION_LABELS } from "@/lib/validators/registration";
+import { positionLabel } from "@/lib/validators/registration";
 import { getRegistrationWindowState, getWindowTone } from "@/lib/registration/window";
 import { formatCST } from "@/lib/utils/date";
 import { getUserSession } from "@/lib/auth/session";
@@ -117,7 +117,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
   // 位置容量数据
   const capacityEntries = season.positions.map((pos) => {
     const cur = positionCounts[pos] ?? 0;
-    const label = POSITION_LABELS[pos as keyof typeof POSITION_LABELS]?.en ?? pos;
+    const label = positionLabel(pos);
     return { pos, label, cur, max: maxPerPos };
   });
 
