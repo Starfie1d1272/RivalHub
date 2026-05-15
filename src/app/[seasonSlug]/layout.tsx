@@ -1,6 +1,6 @@
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { cache } from "react";
 import { eq, and, count } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons, seasonRegistrations } from "@/db/schema";
@@ -34,7 +34,6 @@ export default async function SeasonLayout({ children, params }: SeasonLayoutPro
 
   if (!season) notFound();
 
-  // 查询已通过审核的报名数，用于决定是否显示「选手」导航项
   const [approvedResult] = await db
     .select({ cnt: count() })
     .from(seasonRegistrations)

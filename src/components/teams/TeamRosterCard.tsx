@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { getDisplayName } from "@/lib/utils/display-name";
 
 const POSITION_LABELS: Record<string, { cn: string; en: string }> = {
   igl:    { cn: "指挥",        en: "IGL" },
@@ -16,6 +17,8 @@ const POSITION_LABELS: Record<string, { cn: string; en: string }> = {
 export interface RosterMember {
   id: string;
   steamName: string | null;
+  displayName: string | null;
+  perfectName: string | null;
   primaryPosition: string;
   peakRank: string;
   currentRating: number;
@@ -98,7 +101,7 @@ function MemberRow({ member }: { member: RosterMember }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="font-medium text-[var(--color-fg)] truncate">
-            {member.steamName ?? "—"}
+            {getDisplayName(member)}
           </span>
           {member.isCaptain && (
             <Badge className="text-xs bg-[var(--color-accent)]/10 text-[var(--color-accent)] border-[var(--color-accent)]/20 shrink-0">

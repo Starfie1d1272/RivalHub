@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { positionLabel } from "@/lib/validators/registration";
+import { getDisplayName } from "@/lib/utils/display-name";
 import { REGISTRATION_STATUS_LABELS } from "@/types/registration";
 import { MapPreferenceChips } from "@/components/rivalhub/map-preference-chips";
 import type { MapPreference } from "@/types/season";
@@ -35,6 +36,8 @@ export interface RegistrationRow {
   email: string;
   studentId: string | null;
   steamName: string | null;
+  displayName: string | null;
+  perfectName: string | null;
   steam64: string | null;
   steamProfileUrl: string | null;
   qq: string | null;
@@ -127,7 +130,7 @@ export function RegistrationReviewList({ registrations }: Props) {
                 {/* 左侧：用户信息 */}
                 <div className="flex-1 min-w-0 space-y-1.5">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium">{r.steamName ?? r.email}</span>
+                    <span className="font-medium">{getDisplayName(r)}</span>
                     <Badge variant="outline" className={STATUS_STYLES[r.status]}>
                       {REGISTRATION_STATUS_LABELS[r.status as keyof typeof REGISTRATION_STATUS_LABELS]}
                     </Badge>

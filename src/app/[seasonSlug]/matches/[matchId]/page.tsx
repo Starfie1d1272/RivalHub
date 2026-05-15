@@ -110,6 +110,8 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
       id: teamMembers.id,
       teamId: teamMembers.teamId,
       steamName: users.steamName,
+      displayName: users.displayName,
+      perfectName: users.perfectName,
       primaryPosition: seasonRegistrations.primaryPosition,
     })
     .from(teamMembers)
@@ -123,7 +125,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   let isCaptainA = false;
   let isCaptainB = false;
   let isSeasonAdmin = false;
-  let captainTeamMembers: { id: string; steamName: string; primaryPosition: string }[] = [];
+  let captainTeamMembers: { id: string; steamName: string; displayName: string | null; perfectName: string | null; primaryPosition: string }[] = [];
 
   if (userSession?.userId) {
     isSeasonAdmin =
@@ -148,6 +150,8 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
           .map((r) => ({
             id: r.id,
             steamName: r.steamName ?? "未知",
+            displayName: r.displayName ?? null,
+            perfectName: r.perfectName ?? null,
             primaryPosition: r.primaryPosition,
           }));
       }
@@ -157,6 +161,8 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   // ── 名单视图数据 ────────────────────────────────────────────
   interface RosterPlayer {
     steamName: string;
+    displayName: string | null;
+    perfectName: string | null;
     primaryPosition: string;
     isStarter: boolean;
   }
@@ -172,6 +178,8 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
       .filter((m) => m.teamId === teamId && playerIds.has(m.id))
       .map((m) => ({
         steamName: m.steamName ?? "未知",
+        displayName: m.displayName ?? null,
+        perfectName: m.perfectName ?? null,
         primaryPosition: m.primaryPosition,
         isStarter: playerMap.get(m.id) ?? false,
       }));

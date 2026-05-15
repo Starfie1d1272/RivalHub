@@ -1,5 +1,9 @@
+import { getDisplayName } from "@/lib/utils/display-name";
+
 interface RosterPlayer {
   steamName: string;
+  displayName: string | null;
+  perfectName: string | null;
   primaryPosition: string;
   isStarter: boolean;
 }
@@ -27,7 +31,7 @@ export function MatchRosterView({
               .filter((p) => p.isStarter)
               .map((p, i) => (
                 <li key={i}>
-                  {p.steamName} — {p.primaryPosition}
+                  {getDisplayName(p)} — {p.primaryPosition}
                 </li>
               ))}
             {teamARoster.filter((p) => !p.isStarter).length > 0 && (
@@ -35,7 +39,7 @@ export function MatchRosterView({
                 替补：
                 {teamARoster
                   .filter((p) => !p.isStarter)
-                  .map((p) => p.steamName)
+                  .map((p) => getDisplayName(p))
                   .join("、")}
               </li>
             )}
@@ -52,7 +56,7 @@ export function MatchRosterView({
               .filter((p) => p.isStarter)
               .map((p, i) => (
                 <li key={i}>
-                  {p.steamName} — {p.primaryPosition}
+                  {getDisplayName(p)} — {p.primaryPosition}
                 </li>
               ))}
             {teamBRoster.filter((p) => !p.isStarter).length > 0 && (
@@ -60,7 +64,7 @@ export function MatchRosterView({
                 替补：
                 {teamBRoster
                   .filter((p) => !p.isStarter)
-                  .map((p) => p.steamName)
+                  .map((p) => getDisplayName(p))
                   .join("、")}
               </li>
             )}
