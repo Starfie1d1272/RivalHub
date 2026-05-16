@@ -11,7 +11,7 @@ import { canPickPosition } from "@/lib/draft/rules";
 import { positionLabel } from "@/lib/validators/registration";
 import { MapPreferenceChips } from "@/components/rivalhub/map-preference-chips";
 import { PosChip } from "@/components/rivalhub/pos-chip";
-
+import { PlayerInfoPopover } from "./PlayerInfoPopover";
 import { getDisplayName } from "@/lib/utils/display-name";
 import { sortByRank } from "@/lib/utils/rank";
 import { selectAutoPickCandidate } from "@/lib/draft/auto-pick";
@@ -101,8 +101,10 @@ export function CaptainDraftPanel({
     return players.find((p) => p.registrationId === candidate.registrationId) ?? null;
   }, [players, positionCounts, isDraftActive, isCurrentCaptainTurn]);
 
+  const canSubmit = isDraftActive && isCurrentCaptainTurn && pendingRegistrationId === null;
+
   async function handlePick(player: DraftPlayerRow) {
-    if (!canPickPosition(positionCounts[player.primaryPosition] ?? 0)) return;
+    if (!canSubmit || !canPickPosition(positionCounts[player.primaryPosition] ?? 0)) return;
 
     setPendingRegistrationId(player.registrationId);
     setMessage(null);
@@ -282,6 +284,7 @@ export function CaptainDraftPanel({
               const positionCount = positionCounts[player.primaryPosition] ?? 0;
               const positionOpen = canPickPosition(positionCount);
               const isPending = pendingRegistrationId === player.registrationId;
+              const disabled = !canSubmit || !positionOpen || isPending;
               const displayedName = getDisplayName(player);
 
               return (
@@ -354,11 +357,18 @@ export function CaptainDraftPanel({
                       <MapPreferenceChips preferences={player.mapPreferences} compact minLevel="playable" />
                     </div>
 
+                    <PlayerInfoPopover
+                      gameplayStyle={player.gameplayStyle}
+                      notes={player.notes}
+                      competitionHistory={player.competitionHistory}
+                    />
+
                     {/* Pick button */}
+                    {!isReadonly && (
                       <Button
                         type="button"
                         size="sm"
-                        disabled={isPending || !positionOpen}
+                        disabled={disabled}
                         aria-label={positionOpen ? `选择 ${displayedName}` : `${displayedName} 已满`}
                         onClick={() => void handlePick(player)}
                         className="shrink-0"
@@ -370,6 +380,7 @@ export function CaptainDraftPanel({
                         ) : null}
                         {positionOpen ? "选择" : "已满"}
                       </Button>
+                    )}
                   </div>
 
                   <div className="md:hidden space-y-1.5">
@@ -425,11 +436,17 @@ export function CaptainDraftPanel({
                         <div className="min-w-0">
                           <MapPreferenceChips preferences={player.mapPreferences} compact minLevel="playable" />
                         </div>
+                        <PlayerInfoPopover
+                          gameplayStyle={player.gameplayStyle}
+                          notes={player.notes}
+                          competitionHistory={player.competitionHistory}
+                        />
                       </div>
+                      {!isReadonly && (
                         <Button
                           type="button"
                           size="sm"
-                          disabled={isPending || !positionOpen}
+                          disabled={disabled}
                           aria-label={positionOpen ? `选择 ${displayedName}` : `${displayedName} 已满`}
                           onClick={() => void handlePick(player)}
                           className="shrink-0"
@@ -441,6 +458,7 @@ export function CaptainDraftPanel({
                           ) : null}
                           {positionOpen ? "选择" : "已满"}
                         </Button>
+                      )}
                     </div>
                   </div>
                 </div>

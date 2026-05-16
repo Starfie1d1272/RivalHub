@@ -6,6 +6,8 @@ import { Panel, Marker } from "@/components/rivalhub";
 import { TeamCard } from "@/components/teams/TeamCard";
 import { CS2_POSITIONS } from "@/types/season";
 import { getDisplayName } from "@/lib/utils/display-name";
+import { checkAdminSession } from "@/lib/auth/session";
+import { AdminShortcut } from "@/components/layout/AdminShortcut";
 
 interface TeamsPageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -14,9 +16,10 @@ interface TeamsPageProps {
 export default async function TeamsPage({ params }: TeamsPageProps) {
   const { seasonSlug } = await params;
 
-  const season = await db.query.seasons.findFirst({
-    where: eq(seasons.slug, seasonSlug),
-  });
+  const [season, adminSession] = await Promise.all([
+    db.query.seasons.findFirst({ where: eq(seasons.slug, seasonSlug) }),
+    checkAdminSession(),
+  ]);
   if (!season) notFound();
 
   const allTeams = await db.query.teams.findMany({
@@ -57,7 +60,12 @@ export default async function TeamsPage({ params }: TeamsPageProps) {
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-5xl space-y-8">
-      <Marker sub={season.name}>参赛队伍</Marker>
+      <div className="flex items-center justify-between">
+        <Marker sub={season.name}>参赛队伍</Marker>
+        {adminSession && (
+          <AdminShortcut href={`/admin/${seasonSlug}/settings`} label="赛季管理" />
+        )}
+      </div>
 
       <Panel pad={20}>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

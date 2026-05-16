@@ -7,6 +7,8 @@ import { DraftLiveRoom } from "@/components/draft/DraftLiveRoom";
 import { Panel, Marker } from "@/components/rivalhub";
 import { getDraftData } from "@/lib/draft/data";
 import { SEASON_STATUS_LABELS } from "@/types/season";
+import { checkAdminSession } from "@/lib/auth/session";
+import { AdminShortcut } from "@/components/layout/AdminShortcut";
 
 export const dynamic = "force-dynamic";
 
@@ -21,9 +23,10 @@ export async function generateMetadata({ params }: DraftPageProps): Promise<Meta
 
 export default async function DraftPage({ params }: DraftPageProps) {
   const { seasonSlug } = await params;
-  const season = await db.query.seasons.findFirst({
-    where: eq(seasons.slug, seasonSlug),
-  });
+  const [season, adminSession] = await Promise.all([
+    db.query.seasons.findFirst({ where: eq(seasons.slug, seasonSlug) }),
+    checkAdminSession(),
+  ]);
   if (!season) notFound();
 
   if (!season.hasDraft) {
@@ -41,12 +44,15 @@ export default async function DraftPage({ params }: DraftPageProps) {
 
   if (season.status !== "drafting") {
     const stageLabel = SEASON_STATUS_LABELS[season.status] ?? season.status;
+    const draftFinished = season.status === "playing" || season.status === "finished";
     return (
       <main className="container mx-auto max-w-5xl px-4 py-10">
         <Panel pad={32}>
           <h1 className="text-2xl font-bold">选秀直播间 · {season.name}</h1>
           <p className="mt-2 text-sm text-[var(--color-fg-mid)]">
-            选秀尚未开放 · 当前阶段：{stageLabel}
+            {draftFinished
+              ? "选秀已结束"
+              : `选秀尚未开放 · 当前阶段：${stageLabel}`}
           </p>
         </Panel>
       </main>
@@ -70,6 +76,14 @@ export default async function DraftPage({ params }: DraftPageProps) {
             以下为只读预览，包含已报名选手与队伍信息。选秀开始后页面会自动切换为直播模式。
           </p>
         </div>
+        <div className="mb-4">
+          <a
+            href={`/${seasonSlug}/draft/captain`}
+            className="inline-flex items-center gap-2 rounded-md border border-[var(--color-accent)] bg-[var(--color-accent)]/10 px-4 py-2 text-sm font-medium text-[var(--color-accent)] hover:bg-[var(--color-accent)]/20 transition-colors"
+          >
+            进入队长选人面板 →
+          </a>
+        </div>
 
         <DraftLiveRoom
           data={data}
@@ -84,9 +98,25 @@ export default async function DraftPage({ params }: DraftPageProps) {
 
   return (
     <main className="container mx-auto max-w-7xl px-4 py-10">
-      <Marker sub="实时更新选秀进度，队伍阵容与选手池自动刷新。">
-        选秀直播间 · {season.name}
-      </Marker>
+      <div className="flex items-center justify-between">
+        <Marker sub="实时更新选秀进度，队伍阵容与选手池自动刷新。">
+          选秀直播间 · {season.name}
+        </Marker>
+        {adminSession && (
+          <AdminShortcut href={`/admin/${seasonSlug}/draft`} />
+        )}
+      </div>
+
+      {data.state.isActive && (
+        <div className="mt-4">
+          <a
+            href={`/${seasonSlug}/draft/captain`}
+            className="inline-flex items-center gap-2 rounded-md border border-[var(--color-accent)] bg-[var(--color-accent)]/10 px-4 py-2 text-sm font-medium text-[var(--color-accent)] hover:bg-[var(--color-accent)]/20 transition-colors"
+          >
+            进入队长选人面板 →
+          </a>
+        </div>
+      )}
 
       {data.state.isActive && (
         <Panel pad={0}>

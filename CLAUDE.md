@@ -59,7 +59,7 @@ git push origin v1.6.0               # 或单独推 tag
 | ORM | Drizzle ORM |
 | 表单 | React Hook Form + Zod（中文校验消息） |
 | 鉴权 | Supabase Auth（email+password；生产关闭邮件确认，不依赖 Magic Link）+ iron-session（双 Cookie：`rivalhub-session` 全用户 + `rivalhub-admin` root 紧急） |
-| 定时任务 | GitHub Actions 每分钟调用 `/api/cron/draft-timeout`（选秀超时自动 pick）+ `/api/cron/check-registration-deadline`（报名截止/满员自动推进）+ `/api/cron/match-time-auto-award`（比赛时间协商截止自动裁定） |
+| 定时任务 | GitHub Actions 每 5 分钟调用 `/api/cron/draft-timeout`（选秀超时自动 pick）+ `/api/cron/check-registration-deadline`（报名截止/满员自动推进）+ `/api/cron/match-time-auto-award`（比赛时间协商截止自动裁定） |
 | Bracket 渲染 | `brackets-manager` + `brackets-viewer`（经 `lib/bracket/` 适配层访问） |
 | 单元/集成测试 | Vitest + React Testing Library + jsdom |
 | E2E 测试 | Playwright |
@@ -219,7 +219,7 @@ src/
 │   ├── auth.ts       # 邮箱+密码注册/登录/退出
 │   ├── captains.ts   # 队长投票
 │   ├── draft/        # 选秀（state / picks / queries）
-│   ├── matches/      # 赛程（schedule / results / roster / scheduling）
+│   ├── matches/      # 赛程（schedule / results / roster / scheduling / score）
 │   ├── player-stats.ts # 玩家数据（OCR 识别 / 保存 / 查询）
 │   ├── register.ts   # 报名提交
 │   ├── seasons.ts    # 赛季 CRUD（create/update/delete/publish）
@@ -238,7 +238,7 @@ src/
 │   ├── validators/   # Zod schema（registration / vote / match）
 │   └── utils/        # date（UTC/CST）+ season（capability 工具）+ password（scrypt）+ cn
 ├── components/
-│   ├── layout/       # Header / Footer
+│   ├── layout/       # Header / Footer / AdminShortcut
 │   ├── ui/           # shadcn 组件（按需 add，已覆盖 button/input/badge/card/skeleton/select）
 │   ├── rivalhub/     # Tactical Grid 组件（15 个：Panel/Btn/Field/Marker/Stat/MiniStat/
 │   │                 #   StatusBanner/InlineConfirm/EmptyState/ErrorState/Skeleton/Spinner/
@@ -249,7 +249,7 @@ src/
 │   ├── draft/        # 选秀业务组件
 │   ├── captains/     # 队长投票业务组件
 │   ├── teams/        # 队伍展示业务组件
-│   └── matches/      # 赛程 / bracket 业务组件
+│   └── matches/      # 赛程 / bracket 业务组件（MatchCard / MatchDetail / MatchTeamFilter / CreateMatchForm / AdminMatchFilter / ScoreInput / MapByMapInput / ScheduledAtInput / MatchStatusBadge / BatchDeadlineCard / StatsOCRPanel）
 └── types/            # 共享 TypeScript 类型
 ```
 

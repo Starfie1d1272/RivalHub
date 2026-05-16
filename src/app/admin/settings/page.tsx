@@ -19,6 +19,12 @@ const ENV_VARS = [
     description: "生产环境选秀超时自动 pick 所需，本地开发可不填。",
     required: false,
   },
+  {
+    key: "SILICONFLOW_API_KEY",
+    label: "SiliconFlow OCR API Key",
+    description: "用于玩家数据截图 OCR 识别。在 SiliconFlow 平台申请。",
+    required: false,
+  },
 ] as const;
 
 export default async function AdminSettingsPage() {

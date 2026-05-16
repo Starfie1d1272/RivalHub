@@ -26,6 +26,7 @@ describe("PlayerPool", () => {
             gameplayStyle: null,
             notes: null,
             competitionHistory: null,
+            createdAt: new Date("2025-01-01T00:00:00Z"),
           },
         ]}
       />,

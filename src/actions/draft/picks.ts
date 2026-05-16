@@ -608,6 +608,7 @@ async function getAutoPickCandidates(
       peakRank: seasonRegistrations.peakRank,
       currentRank: seasonRegistrations.currentSeasonPeakRank,
       currentRating: seasonRegistrations.currentRating,
+      createdAt: seasonRegistrations.createdAt,
     })
     .from(seasonRegistrations)
     .where(
@@ -626,6 +627,7 @@ async function getAutoPickCandidates(
       peakRank: candidate.peakRank,
       currentRank: candidate.currentRank,
       currentRating: candidate.currentRating,
+      createdAt: candidate.createdAt,
     }));
 }
 

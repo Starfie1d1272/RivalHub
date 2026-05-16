@@ -8,6 +8,7 @@ export interface AutoPickCandidate {
   peakRating: number;
   currentRank: string;
   currentRating: number;
+  createdAt: Date;
 }
 
 export function selectAutoPickCandidate(
@@ -29,7 +30,7 @@ export function selectAutoPickCandidate(
     if (curRankA !== curRankB) return curRankB - curRankA;
     if (a.currentRating !== b.currentRating) return b.currentRating - a.currentRating;
 
-    return a.registrationId.localeCompare(b.registrationId);
+    return a.createdAt.getTime() - b.createdAt.getTime();
   });
 
   // Round 1: prefer positions with zero current members (completely vacant)

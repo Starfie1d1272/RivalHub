@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { InlineConfirm } from "@/components/rivalhub";
 import { recordMatchResult, updateMatchStatus } from "@/actions/matches";
 
 interface ScoreInputProps {
@@ -35,6 +36,7 @@ function validateSeriesScore(format: string, a: number, b: number): string | nul
 export function ScoreInput({ matchId, teamAName, teamBName, currentStatus, format }: ScoreInputProps) {
   const [scoreA, setScoreA] = useState("");
   const [scoreB, setScoreB] = useState("");
+  const [showStartConfirm, setShowStartConfirm] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   function handleStart() {
@@ -87,13 +89,24 @@ export function ScoreInput({ matchId, teamAName, teamBName, currentStatus, forma
   return (
     <div className="space-y-3">
       {currentStatus === "scheduled" && (
-        <div className="flex gap-2">
-          <Button size="sm" onClick={handleStart} disabled={isPending}>
-            开始比赛
-          </Button>
-          <Button size="sm" variant="outline" onClick={handleCancel} disabled={isPending}>
-            取消比赛
-          </Button>
+        <div className="space-y-3">
+          {showStartConfirm ? (
+            <InlineConfirm
+              title="确认开始比赛？"
+              sub="开始后比赛状态将变为「进行中」"
+              onConfirm={handleStart}
+              onCancel={() => setShowStartConfirm(false)}
+            />
+          ) : (
+            <div className="flex gap-2">
+              <Button size="sm" onClick={() => setShowStartConfirm(true)} disabled={isPending}>
+                开始比赛
+              </Button>
+              <Button size="sm" variant="outline" onClick={handleCancel} disabled={isPending}>
+                取消比赛
+              </Button>
+            </div>
+          )}
         </div>
       )}
 

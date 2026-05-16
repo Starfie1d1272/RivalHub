@@ -9,6 +9,7 @@ const candidates = [
     peakRank: "S",
     currentRank: "S",
     currentRating: 2.4,
+    createdAt: new Date("2025-01-01T00:00:00Z"),
   },
   {
     registrationId: "igl-best-open-position",
@@ -17,6 +18,7 @@ const candidates = [
     peakRank: "S",
     currentRank: "A+",
     currentRating: 2.15,
+    createdAt: new Date("2025-01-02T00:00:00Z"),
   },
   {
     registrationId: "anchor-low",
@@ -25,6 +27,7 @@ const candidates = [
     peakRank: "A",
     currentRank: "A",
     currentRating: 1.65,
+    createdAt: new Date("2025-01-03T00:00:00Z"),
   },
 ];
 

@@ -6,6 +6,8 @@ import { requireSeasonAdmin } from "@/lib/auth/session";
 import { calculateStandings } from "@/lib/standings";
 import { GenerateScheduleCard } from "@/components/matches/GenerateScheduleCard";
 import { GeneratePlayoffCard } from "@/components/matches/GeneratePlayoffCard";
+import { CreateMatchForm } from "@/components/matches/CreateMatchForm";
+import { AdminMatchFilter } from "@/components/matches/AdminMatchFilter";
 import { StandingsTable } from "@/components/matches/StandingsTable";
 import { MatchStatusBadge } from "@/components/matches/MatchStatusBadge";
 import { ScoreInput } from "@/components/matches/ScoreInput";
@@ -17,18 +19,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Panel, StatusPill } from "@/components/rivalhub";
 import { Separator } from "@/components/ui/separator";
 import { getFirstStageOfType, normalizeRegistrationConfig, normalizeStagePlan } from "@/types/season";
+import { MATCH_FORMAT_LABELS } from "@/types/match";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
 interface AdminMatchesPageProps {
   params: Promise<{ seasonSlug: string }>;
+  searchParams: Promise<{ stage?: string; status?: string }>;
 }
 
-const FORMAT_LABELS = { bo1: "BO1", bo3: "BO3", bo5: "BO5" };
-
-export default async function AdminMatchesPage({ params }: AdminMatchesPageProps) {
+export default async function AdminMatchesPage({ params, searchParams }: AdminMatchesPageProps) {
   const { seasonSlug } = await params;
+  const { stage: filterStage, status: filterStatus } = await searchParams;
 
   const season = await db.query.seasons.findFirst({
     where: eq(seasons.slug, seasonSlug),
@@ -71,8 +74,10 @@ export default async function AdminMatchesPage({ params }: AdminMatchesPageProps
   const playoffStage = getFirstStageOfType(stagePlan, ["double_elim", "single_elim"]);
   const qualifierKey = qualifierStage?.key ?? "qualifier";
   const playoffKey = playoffStage?.key ?? "playoff";
-  const qualifierMatches = allMatches.filter((m) => m.stage === qualifierKey);
-  const playoffMatches = allMatches.filter((m) => m.stage === playoffKey);
+  const statusFilter = (m: { status: string }) =>
+    !filterStatus || filterStatus === "all" || m.status === filterStatus;
+  const qualifierMatches = allMatches.filter((m) => m.stage === qualifierKey).filter(statusFilter);
+  const playoffMatches = allMatches.filter((m) => m.stage === playoffKey).filter(statusFilter);
 
   // 已完成比赛的地图列表（用于 OCR 录入面板）
   const finishedMatchIds = allMatches
@@ -157,13 +162,27 @@ export default async function AdminMatchesPage({ params }: AdminMatchesPageProps
         <h1 className="text-2xl font-bold text-[var(--color-fg)]">
           比赛管理 · {season.name}
         </h1>
-        <Link
-          href={`/${seasonSlug}/matches`}
-          className="text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] transition-colors"
-        >
-          查看公开赛程 →
-        </Link>
+        <div className="flex items-center gap-3">
+          {allTeams.length >= 2 && stagePlan.length > 0 && (
+            <CreateMatchForm
+              seasonId={season.id}
+              teams={allTeams.map((t) => ({ id: t.id, name: t.name }))}
+              stages={stagePlan.map((s) => ({ key: s.key, name: s.name }))}
+            />
+          )}
+          <Link
+            href={`/${seasonSlug}/matches`}
+            className="text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] transition-colors"
+          >
+            查看公开赛程 →
+          </Link>
+        </div>
       </div>
+
+      {/* 筛选 */}
+      {matchCount > 0 && (
+        <AdminMatchFilter stages={stagePlan.map((s) => ({ key: s.key, name: s.name }))} />
+      )}
 
       {/* 赛季状态提示 */}
       {season.status !== "playing" && matchCount === 0 && (
@@ -200,7 +219,7 @@ export default async function AdminMatchesPage({ params }: AdminMatchesPageProps
 
       {/* Tab 面板 */}
       {matchCount > 0 && (
-        <Tabs defaultValue={hasQualifier ? qualifierKey : playoffKey}>
+        <Tabs defaultValue={filterStage && filterStage !== "all" ? filterStage : (hasQualifier ? qualifierKey : playoffKey)}>
           <TabsList>
             {qualifierStage && <TabsTrigger value={qualifierKey}>{qualifierStage.name}</TabsTrigger>}
             {playoffStage && <TabsTrigger value={playoffKey}>{playoffStage.name}</TabsTrigger>}
@@ -243,7 +262,7 @@ export default async function AdminMatchesPage({ params }: AdminMatchesPageProps
                             <span className="font-semibold">{teamBName}</span>
                           </div>
                           <div className="flex items-center gap-2">
-                            <StatusPill status={FORMAT_LABELS[m.format as keyof typeof FORMAT_LABELS]} />
+                            <StatusPill status={MATCH_FORMAT_LABELS[m.format as keyof typeof MATCH_FORMAT_LABELS]} />
                             <MatchStatusBadge
                               status={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"}
                             />
@@ -306,7 +325,7 @@ export default async function AdminMatchesPage({ params }: AdminMatchesPageProps
                             <span className="font-semibold">{teamBName}</span>
                           </div>
                           <div className="flex items-center gap-2">
-                            <StatusPill status={FORMAT_LABELS[m.format as keyof typeof FORMAT_LABELS]} />
+                            <StatusPill status={MATCH_FORMAT_LABELS[m.format as keyof typeof MATCH_FORMAT_LABELS]} />
                             <MatchStatusBadge
                               status={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"}
                             />

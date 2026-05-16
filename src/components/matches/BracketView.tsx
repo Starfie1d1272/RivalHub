@@ -62,19 +62,45 @@ export function BracketView({ data, themeColor, matchNodeMap, seasonSlug }: Brac
         { selector: "#bracket-container", clear: true }
       )
       .then(() => {
-        if (!containerRef.current || !matchNodeMap || !seasonSlug) return;
-        containerRef.current.querySelectorAll<HTMLElement>("[data-match-id]").forEach((el) => {
-          const bracketId = el.getAttribute("data-match-id");
-          if (!bracketId) return;
-          const matchId = matchNodeMap.get(bracketId);
-          if (!matchId) return;
-          el.style.cursor = "pointer";
-          el.title = "点击查看比赛详情";
-          el.addEventListener("click", (e) => {
+        if (!containerRef.current) return;
+
+        // 将 brackets-viewer 默认的 "BYE" 文本替换为 "TBD"
+        const walker = document.createTreeWalker(
+          containerRef.current,
+          NodeFilter.SHOW_TEXT,
+          null,
+        );
+        let node: Text | null;
+        while ((node = walker.nextNode() as Text | null)) {
+          if (node.textContent === "BYE") {
+            node.textContent = "TBD";
+          }
+        }
+
+        if (matchNodeMap && seasonSlug) {
+          containerRef.current.querySelectorAll<HTMLElement>("[data-match-id]").forEach((el) => {
+            const bracketId = el.getAttribute("data-match-id");
+            if (!bracketId) return;
+            if (!matchNodeMap.has(bracketId)) return;
+            el.style.cursor = "pointer";
+            el.title = "点击查看比赛详情";
+          });
+
+          const handleClick = (e: MouseEvent) => {
+            const target = (e.target as HTMLElement).closest<HTMLElement>("[data-match-id]");
+            if (!target) return;
+            const bracketId = target.getAttribute("data-match-id");
+            if (!bracketId) return;
+            const matchId = matchNodeMap.get(bracketId);
+            if (!matchId) return;
             e.stopPropagation();
             router.push(`/${seasonSlug}/matches/${matchId}`);
-          });
-        });
+          };
+          containerRef.current.addEventListener("click", handleClick);
+          return () => {
+            containerRef.current?.removeEventListener("click", handleClick);
+          };
+        }
       })
       .catch(console.error);
   }, [scriptReady, data, matchNodeMap, seasonSlug, router]);

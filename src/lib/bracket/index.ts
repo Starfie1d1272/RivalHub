@@ -124,7 +124,7 @@ export async function generateBracket(
         ? new Array(teams.length).fill(null)
         : seeding,
       settings: {
-        grandFinal: "double",
+        grandFinal: "simple",
         seedOrdering: ["inner_outer"],
       },
     });

@@ -49,6 +49,7 @@ const baseProps = {
 		gameplayStyle: "进攻型选手",
 		notes: null,
 		competitionHistory: null,
+		createdAt: new Date("2025-01-01T00:00:00Z"),
     },
   ],
   seasonPositions: ["igl", "anchor"],

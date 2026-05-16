@@ -48,6 +48,7 @@ export interface DraftPlayerRow {
   gameplayStyle: string | null;
   notes: string | null;
   competitionHistory: string | null;
+  createdAt: Date;
 }
 
 export interface DraftLiveState {
@@ -164,6 +165,7 @@ export async function getDraftData(seasonId: string): Promise<DraftFullData> {
       gameplayStyle: seasonRegistrations.gameplayStyle,
       notes: seasonRegistrations.notes,
       competitionHistory: seasonRegistrations.competitionHistory,
+      createdAt: seasonRegistrations.createdAt,
     })
     .from(seasonRegistrations)
     .leftJoin(users, eq(seasonRegistrations.userId, users.id))
@@ -194,6 +196,7 @@ export async function getDraftData(seasonId: string): Promise<DraftFullData> {
       gameplayStyle: r.gameplayStyle ?? null,
       notes: r.notes ?? null,
       competitionHistory: r.competitionHistory ?? null,
+      createdAt: r.createdAt,
     }));
 
   // 5. 组装队伍数据

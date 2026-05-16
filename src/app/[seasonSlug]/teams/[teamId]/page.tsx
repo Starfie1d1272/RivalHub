@@ -4,6 +4,7 @@ import { db } from "@/db/client";
 import { seasons, teams, teamMembers, seasonRegistrations, users, matches, matchMaps } from "@/db/schema";
 import { matchPlayerStats } from "@/db/schema/player-stats";
 import { Panel, Stat, Marker, PosChip } from "@/components/rivalhub";
+import { MatchCard } from "@/components/matches/MatchCard";
 import { MapPreferenceChips } from "@/components/rivalhub/map-preference-chips";
 import { TeamNameForm } from "@/components/teams/TeamNameForm";
 import { TeamLogoUpload } from "@/components/teams/TeamLogoUpload";
@@ -46,8 +47,8 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
     : null;
   const canEditTeamName = currentUserRegistration?.id === team.captainRegistrationId;
 
-  // ── 阵容 + 赛果（并行） ──────────────────────────────────────────────
-  const [roster, teamMatches] = await Promise.all([
+  // ── 阵容 + 赛果 + 即将进行的比赛（并行） ─────────────────────────────────
+  const [roster, teamMatches, upcomingMatches] = await Promise.all([
     db
       .select({
         registrationId: teamMembers.registrationId,
@@ -70,6 +71,13 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
         or(eq(matches.teamAId, teamId), eq(matches.teamBId, teamId)),
       ),
     }),
+    db.query.matches.findMany({
+      where: and(
+        eq(matches.seasonId, season.id),
+        or(eq(matches.teamAId, teamId), eq(matches.teamBId, teamId)),
+        inArray(matches.status, ["scheduled", "in_progress"]),
+      ),
+    }),
   ]);
 
   const isTeamMember = currentUserRegistration
@@ -85,11 +93,12 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
     });
   const subs = roster.filter((r) => !r.isStarter);
 
-  // 对手队名
+  // 对手队名（包含已完成和即将进行的比赛对手）
   const opponentIds = [
-    ...new Set(
-      teamMatches.map((m) => (m.teamAId === teamId ? m.teamBId : m.teamAId))
-    ),
+    ...new Set([
+      ...teamMatches.map((m) => (m.teamAId === teamId ? m.teamBId : m.teamAId)),
+      ...upcomingMatches.map((m) => (m.teamAId === teamId ? m.teamBId : m.teamAId)),
+    ]),
   ];
   const opponentTeams = opponentIds.length
     ? await db.query.teams.findMany({
@@ -257,6 +266,33 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
         <Stat label="胜" value={totalWins} />
         <Stat label="负" value={totalLosses} />
       </div>
+
+      {/* 即将进行的比赛 */}
+      {upcomingMatches.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold text-[var(--color-fg)]">即将进行的比赛</h2>
+          <div className="space-y-2">
+            {upcomingMatches.map((m) => {
+              const oppId = m.teamAId === teamId ? m.teamBId : m.teamAId;
+              const oppTeam = teamNameMap.get(oppId);
+              return (
+                <MatchCard
+                  key={m.id}
+                  matchId={m.id}
+                  seasonSlug={seasonSlug}
+                  teamAName={m.teamAId === teamId ? team.name : (oppTeam?.name ?? "TBD")}
+                  teamBName={m.teamBId === teamId ? team.name : (oppTeam?.name ?? "TBD")}
+                  scoreA={m.scoreA}
+                  scoreB={m.scoreB}
+                  stage={m.stage}
+                  format={m.format as "bo1" | "bo3" | "bo5"}
+                  status={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"}
+                />
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* 阵容 */}
       <section>

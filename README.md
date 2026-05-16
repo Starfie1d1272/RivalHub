@@ -2,7 +2,7 @@
 
 RivalHub 是一个面向高校电竞赛事的开源赛事管理平台，覆盖报名、审核、队长投票、蛇形选秀、队伍展示、赛程管理、Bracket、比分录入、数据统计与上线部署。
 
-当前 `1.8.0` 版本服务于 **2026 NJU Rivals 春季赛**：8 支队伍、队长投票、蛇形选秀、排位赛 + 双败淘汰，生产站点部署在 [match.starfie1d.top](https://match.starfie1d.top)。
+当前 `1.11.0` 版本服务于 **2026 NJU Rivals 春季赛**：8 支队伍、队长投票、蛇形选秀、排位赛 + 双败淘汰，生产站点部署在 [match.starfie1d.top](https://match.starfie1d.top)。
 
 ## 功能状态
 
@@ -83,7 +83,7 @@ password: RivalHub_password
 5. 在 GitHub Actions Secrets 配置 `CRON_SECRET`。
 6. 合并到 `main` 后由 Vercel 部署生产站点。
 
-当前 GitHub Actions Cron 每分钟触发两个端点（见 `.github/workflows/cron.yml`）：
+当前 GitHub Actions Cron 每 5 分钟触发以下端点（见 `.github/workflows/cron.yml`）：
 
 - `https://match.starfie1d.top/api/cron/draft-timeout` — 选秀超时自动递补
 - `https://match.starfie1d.top/api/cron/check-registration-deadline` — 报名截止/满员自动推进赛季

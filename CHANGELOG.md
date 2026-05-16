@@ -5,6 +5,28 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.12.0] - 2026-05-17
+
+### Added
+- **管理员快捷入口**：公开页面（赛季首页/赛程/选秀/队伍）对管理员显示齿轮图标入口，直接跳转到对应后台管理页面
+- **赛程队伍筛选**：赛程总览页支持按队伍筛选比赛（`?team=teamId`），管理员后台支持按阶段/状态筛选
+- **队伍详情即将进行的比赛**：`/[seasonSlug]/teams/[teamId]` 展示该队 scheduled/in_progress 状态的比赛列表
+- **后台新增比赛**：管理后台赛程页新增「新增比赛」Dialog 表单，支持选择队伍/阶段/赛制创建比赛
+- **系统设置 OCR Key**：管理员设置页展示 `SILICONFLOW_API_KEY` 配置状态（有/无）
+- **单场比赛队伍头像**：`MatchDetail` 展示双方队伍 logo，无 logo 时 fallback 为圆形首字母
+
+### Fixed
+- **shadcn/Tailwind v4 颜色桥接**：`@theme` 块补充 shadcn CSS 变量映射，修复按钮/Tab 颜色不渲染
+- **Grand Final 赛制**：双败决赛从 `double`（两场 Grand Final）改为 `simple`（单场 BO5）
+- **Bracket BYE→TBD**：brackets-viewer 中未确定对手从 "BYE" 改为 "TBD"
+- **选秀状态文案**：区分「选秀已结束」（playing/finished）与「选秀尚未开放」，不再一律显示"尚未开放"
+- **近期对决链接**：赛季首页 NEXT MATCHES 链接从赛程列表页改为具体比赛详情页
+- **状态标签措辞**：`scheduled` 从"已排期"改为"待进行"，与"待定"（时间未定）语义区分
+- **赛季导航间距**：SeasonNav 与 Stat 四格之间添加间距
+- **UI 增强**：赛程总览排位赛/正赛 Tab 样式增强（可见边框+背景）；"开始比赛"按钮加 InlineConfirm 二次确认
+- **auto-pick tiebreaker**：段位相同时从随机 UUID 改为 `createdAt` 报名时间比较
+- **Cron 调度修正**：GitHub Actions 从 `* * * * *` 改为 `*/5 * * * *`，避免隐性限流导致实际 1 小时才执行一次
+
 ## [1.11.0] - 2026-05-16
 
 ### Added
