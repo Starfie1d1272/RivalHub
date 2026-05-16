@@ -41,12 +41,15 @@ export default async function DraftPage({ params }: DraftPageProps) {
 
   if (season.status !== "drafting") {
     const stageLabel = SEASON_STATUS_LABELS[season.status] ?? season.status;
+    const draftFinished = season.status === "playing" || season.status === "finished";
     return (
       <main className="container mx-auto max-w-5xl px-4 py-10">
         <Panel pad={32}>
           <h1 className="text-2xl font-bold">选秀直播间 · {season.name}</h1>
           <p className="mt-2 text-sm text-[var(--color-fg-mid)]">
-            选秀尚未开放 · 当前阶段：{stageLabel}
+            {draftFinished
+              ? "选秀已结束"
+              : `选秀尚未开放 · 当前阶段：${stageLabel}`}
           </p>
         </Panel>
       </main>
