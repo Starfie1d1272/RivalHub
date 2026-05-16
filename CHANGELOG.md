@@ -26,7 +26,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **UI 增强**：赛程总览排位赛/正赛 Tab 样式增强（可见边框+背景）；"开始比赛"按钮加 InlineConfirm 二次确认
 - **auto-pick tiebreaker**：段位相同时从随机 UUID 改为 `createdAt` 报名时间比较
 - **Cron 调度修正**：GitHub Actions 从 `* * * * *` 改为 `*/5 * * * *`，避免隐性限流导致实际 1 小时才执行一次
-- **CS2 段位体系**：同步完美平台 2026 年段位更新（序号 S3→S5）
 
 ## [1.11.0] - 2026-05-16
 
