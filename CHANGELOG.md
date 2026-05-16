@@ -5,6 +5,17 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.0] - 2026-05-16
+
+### Added
+- **队长面板选手搜索框**：支持按选手名模糊搜索，可与位置筛选联合使用
+- **超时自动选人提示**：队长轮次时显示 auto-pick 候选人及优先级规则说明
+- **双段位/Rating 显示**：同时展示历史最高段位+当前赛季段位，Rating 不同时并列显示
+
+### Fixed
+- **位置标签统一**：TeamDraftGrid 位置标识从中文混合改为统一英文（IGL/AWPer/Opener/Closer/Anchor）
+- **观众 refresh debounce**：DraftLiveRoom 3s 节流防止 Realtime+轮询突发连接池压力
+
 ## [1.10.1] - 2026-05-16
 
 ### Fixed
@@ -298,6 +309,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [1.6.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.4.0...v1.4.1
+[1.11.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.10.1...v1.11.0
 [1.4.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.3.2...v1.4.0
 [1.3.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.3.0...v1.3.1
