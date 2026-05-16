@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { eq, and, or, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons, matches, teams, matchMaps, users, seasonRegistrations, teamMembers } from "@/db/schema";
@@ -239,7 +240,21 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
               {teamA?.name ?? "未知队伍"}
             </div>
           </div>
-          {teamA && <div className="w-12 h-12 sm:w-16 sm:h-16"><TeamBadge team={teamBadgeData(teamA.name, 0)} size={64} /></div>}
+          {teamA && (
+            <div className="w-12 h-12 sm:w-16 sm:h-16 shrink-0">
+              {teamA.logoUrl ? (
+                <Image
+                  src={teamA.logoUrl}
+                  alt={teamA.name}
+                  width={64}
+                  height={64}
+                  className="w-full h-full rounded-full object-cover"
+                />
+              ) : (
+                <TeamBadge team={teamBadgeData(teamA.name, 0)} size={64} />
+              )}
+            </div>
+          )}
         </div>
 
         {/* Score / VS */}
@@ -294,7 +309,21 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
 
         {/* Team B */}
         <div className="flex items-center gap-4">
-          {teamB && <div className="w-12 h-12 sm:w-16 sm:h-16"><TeamBadge team={teamBadgeData(teamB.name, 1)} size={64} /></div>}
+          {teamB && (
+            <div className="w-12 h-12 sm:w-16 sm:h-16 shrink-0">
+              {teamB.logoUrl ? (
+                <Image
+                  src={teamB.logoUrl}
+                  alt={teamB.name}
+                  width={64}
+                  height={64}
+                  className="w-full h-full rounded-full object-cover"
+                />
+              ) : (
+                <TeamBadge team={teamBadgeData(teamB.name, 1)} size={64} />
+              )}
+            </div>
+          )}
           <div className="min-w-0">
             <div
               className="font-bold text-lg sm:text-[28px]"

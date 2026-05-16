@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -44,8 +45,10 @@ export interface MatchDetailData {
   id: string;
   teamAName: string;
   teamAId: string;
+  teamALogoUrl: string | null;
   teamBName: string;
   teamBId: string;
+  teamBLogoUrl: string | null;
   format: string;
   stage: string;
   status: string;
@@ -99,8 +102,15 @@ export function MatchDetail({ match }: { match: MatchDetailData }) {
         </div>
 
         <div className="flex items-center justify-center gap-6">
-          <Link href={`/${match.seasonSlug}/teams/${match.teamAId}`} className="text-right flex-1 hover:opacity-80 transition-opacity">
+          <Link href={`/${match.seasonSlug}/teams/${match.teamAId}`} className="text-right flex-1 hover:opacity-80 transition-opacity flex items-center justify-end gap-3">
             <p className="text-xl font-bold text-[var(--color-fg)] truncate">{match.teamAName}</p>
+            {match.teamALogoUrl ? (
+              <Image src={match.teamALogoUrl} alt={match.teamAName} width={40} height={40} className="w-10 h-10 rounded-full object-cover shrink-0" />
+            ) : (
+              <div className="w-10 h-10 rounded-full bg-[var(--color-border)] flex items-center justify-center shrink-0">
+                <span className="text-xs font-bold text-[var(--color-fg-mid)]">{match.teamAName.slice(0, 2)}</span>
+              </div>
+            )}
           </Link>
 
           <div className="text-center shrink-0 px-4">
@@ -113,7 +123,14 @@ export function MatchDetail({ match }: { match: MatchDetailData }) {
             )}
           </div>
 
-          <Link href={`/${match.seasonSlug}/teams/${match.teamBId}`} className="text-left flex-1 hover:opacity-80 transition-opacity">
+          <Link href={`/${match.seasonSlug}/teams/${match.teamBId}`} className="text-left flex-1 hover:opacity-80 transition-opacity flex items-center gap-3">
+            {match.teamBLogoUrl ? (
+              <Image src={match.teamBLogoUrl} alt={match.teamBName} width={40} height={40} className="w-10 h-10 rounded-full object-cover shrink-0" />
+            ) : (
+              <div className="w-10 h-10 rounded-full bg-[var(--color-border)] flex items-center justify-center shrink-0">
+                <span className="text-xs font-bold text-[var(--color-fg-mid)]">{match.teamBName.slice(0, 2)}</span>
+              </div>
+            )}
             <p className="text-xl font-bold text-[var(--color-fg)] truncate">{match.teamBName}</p>
           </Link>
         </div>
