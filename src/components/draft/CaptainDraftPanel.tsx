@@ -11,7 +11,7 @@ import { canPickPosition } from "@/lib/draft/rules";
 import { positionLabel } from "@/lib/validators/registration";
 import { MapPreferenceChips } from "@/components/rivalhub/map-preference-chips";
 import { PosChip } from "@/components/rivalhub/pos-chip";
-import { PlayerInfoPopover } from "./PlayerInfoPopover";
+
 import { getDisplayName } from "@/lib/utils/display-name";
 import { sortByRank } from "@/lib/utils/rank";
 import { selectAutoPickCandidate } from "@/lib/draft/auto-pick";
@@ -354,12 +354,6 @@ export function CaptainDraftPanel({
                       <MapPreferenceChips preferences={player.mapPreferences} compact minLevel="playable" />
                     </div>
 
-                    <PlayerInfoPopover
-                      gameplayStyle={player.gameplayStyle}
-                      notes={player.notes}
-                      competitionHistory={player.competitionHistory}
-                    />
-
                     {/* Pick button */}
                       <Button
                         type="button"
@@ -431,11 +425,6 @@ export function CaptainDraftPanel({
                         <div className="min-w-0">
                           <MapPreferenceChips preferences={player.mapPreferences} compact minLevel="playable" />
                         </div>
-                        <PlayerInfoPopover
-                          gameplayStyle={player.gameplayStyle}
-                          notes={player.notes}
-                          competitionHistory={player.competitionHistory}
-                        />
                       </div>
                         <Button
                           type="button"
