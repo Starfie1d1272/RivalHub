@@ -5,6 +5,16 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.10.0] - 2026-05-16
+
+### Added
+- **选秀预览模式**：选秀页在非 drafting 状态展示只读选手池，队长可提前查看选手信息（含风格/备注/经历 hover 卡片）研究阵容
+- **选手个人页信息增强**：`/players/[userId]` 新增"选手自述"区块，展示风格、备注、比赛经历
+
+### Changed
+- **自动选人优先级升级**：从单一 peakRating 改为 5 级排序（peakRank → peakRating → currentRank → currentRating → registrationId），并优先填补队伍完全空缺的位置
+- **sortByRank 排序扩展**：支持可选 currentRank / currentRating 字段，队长面板和选手池排序自动受益
+
 ## [1.9.0] - 2026-05-16
 
 ### Added
@@ -269,6 +279,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.10.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.7.4...v1.8.0
 [1.7.4]: https://github.com/Starfie1d1272/RivalHub/compare/v1.7.3...v1.7.4
