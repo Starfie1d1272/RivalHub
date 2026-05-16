@@ -64,7 +64,6 @@ export function MatchDetail({ match }: { match: MatchDetailData }) {
         </Link>
       </div>
 
-      {/* 比赛头部 */}
       <Card className="bg-[var(--color-panel)] border-[var(--color-border)] p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2 flex-wrap">
@@ -125,7 +124,6 @@ export function MatchDetail({ match }: { match: MatchDetailData }) {
         </div>
       </Card>
 
-      {/* 地图结果 */}
       {match.maps.length > 0 && (
         <Card className="bg-[var(--color-panel)] border-[var(--color-border)] overflow-hidden">
           <div className="p-4 border-b border-[var(--color-border)]">

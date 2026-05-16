@@ -78,7 +78,6 @@ export function CreateMatchForm({ seasonId, teams, stages }: CreateMatchFormProp
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          {/* 队伍 A */}
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-[var(--color-fg-mid)]">队伍 A</label>
             <Select value={teamAId} onValueChange={setTeamAId}>
@@ -93,7 +92,6 @@ export function CreateMatchForm({ seasonId, teams, stages }: CreateMatchFormProp
             </Select>
           </div>
 
-          {/* 队伍 B */}
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-[var(--color-fg-mid)]">队伍 B</label>
             <Select value={teamBId} onValueChange={setTeamBId}>
@@ -108,7 +106,6 @@ export function CreateMatchForm({ seasonId, teams, stages }: CreateMatchFormProp
             </Select>
           </div>
 
-          {/* 阶段 */}
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-[var(--color-fg-mid)]">阶段</label>
             <Select value={stage} onValueChange={setStage}>
@@ -123,7 +120,6 @@ export function CreateMatchForm({ seasonId, teams, stages }: CreateMatchFormProp
             </Select>
           </div>
 
-          {/* 赛制 */}
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-[var(--color-fg-mid)]">赛制</label>
             <Select value={format} onValueChange={(v) => setFormat(v as "bo1" | "bo3" | "bo5")}>

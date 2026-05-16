@@ -6,9 +6,6 @@ interface AdminShortcutProps {
   label?: string;
 }
 
-/**
- * 管理员快捷入口按钮。仅在服务端确认管理员身份后渲染。
- */
 export function AdminShortcut({ href, label = "管理" }: AdminShortcutProps) {
   return (
     <Link

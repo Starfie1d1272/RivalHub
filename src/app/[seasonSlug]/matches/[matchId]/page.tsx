@@ -35,14 +35,11 @@ function teamBadgeData(name: string, idx: number): { tag: string; color: string 
 export default async function MatchDetailPage({ params }: MatchDetailPageProps) {
   const { seasonSlug, matchId } = await params;
 
-  const season = await db.query.seasons.findFirst({
-    where: eq(seasons.slug, seasonSlug),
-  });
+  const [season, match] = await Promise.all([
+    db.query.seasons.findFirst({ where: eq(seasons.slug, seasonSlug) }),
+    db.query.matches.findFirst({ where: eq(matches.id, matchId) }),
+  ]);
   if (!season) notFound();
-
-  const match = await db.query.matches.findFirst({
-    where: eq(matches.id, matchId),
-  });
   if (!match || match.seasonId !== season.id) notFound();
 
   const [teamA, teamB, maps] = await Promise.all([

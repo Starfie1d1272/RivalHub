@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Panel, StatusPill } from "@/components/rivalhub";
 import { Separator } from "@/components/ui/separator";
 import { getFirstStageOfType, normalizeRegistrationConfig, normalizeStagePlan } from "@/types/season";
+import { MATCH_FORMAT_LABELS } from "@/types/match";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -27,8 +28,6 @@ interface AdminMatchesPageProps {
   params: Promise<{ seasonSlug: string }>;
   searchParams: Promise<{ stage?: string; status?: string }>;
 }
-
-const FORMAT_LABELS = { bo1: "BO1", bo3: "BO3", bo5: "BO5" };
 
 export default async function AdminMatchesPage({ params, searchParams }: AdminMatchesPageProps) {
   const { seasonSlug } = await params;
@@ -263,7 +262,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                             <span className="font-semibold">{teamBName}</span>
                           </div>
                           <div className="flex items-center gap-2">
-                            <StatusPill status={FORMAT_LABELS[m.format as keyof typeof FORMAT_LABELS]} />
+                            <StatusPill status={MATCH_FORMAT_LABELS[m.format as keyof typeof MATCH_FORMAT_LABELS]} />
                             <MatchStatusBadge
                               status={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"}
                             />
@@ -326,7 +325,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                             <span className="font-semibold">{teamBName}</span>
                           </div>
                           <div className="flex items-center gap-2">
-                            <StatusPill status={FORMAT_LABELS[m.format as keyof typeof FORMAT_LABELS]} />
+                            <StatusPill status={MATCH_FORMAT_LABELS[m.format as keyof typeof MATCH_FORMAT_LABELS]} />
                             <MatchStatusBadge
                               status={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"}
                             />

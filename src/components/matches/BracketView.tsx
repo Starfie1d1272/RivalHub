@@ -77,19 +77,30 @@ export function BracketView({ data, themeColor, matchNodeMap, seasonSlug }: Brac
           }
         }
 
-        if (!matchNodeMap || !seasonSlug) return;
-        containerRef.current.querySelectorAll<HTMLElement>("[data-match-id]").forEach((el) => {
-          const bracketId = el.getAttribute("data-match-id");
-          if (!bracketId) return;
-          const matchId = matchNodeMap.get(bracketId);
-          if (!matchId) return;
-          el.style.cursor = "pointer";
-          el.title = "点击查看比赛详情";
-          el.addEventListener("click", (e) => {
+        if (matchNodeMap && seasonSlug) {
+          containerRef.current.querySelectorAll<HTMLElement>("[data-match-id]").forEach((el) => {
+            const bracketId = el.getAttribute("data-match-id");
+            if (!bracketId) return;
+            if (!matchNodeMap.has(bracketId)) return;
+            el.style.cursor = "pointer";
+            el.title = "点击查看比赛详情";
+          });
+
+          const handleClick = (e: MouseEvent) => {
+            const target = (e.target as HTMLElement).closest<HTMLElement>("[data-match-id]");
+            if (!target) return;
+            const bracketId = target.getAttribute("data-match-id");
+            if (!bracketId) return;
+            const matchId = matchNodeMap.get(bracketId);
+            if (!matchId) return;
             e.stopPropagation();
             router.push(`/${seasonSlug}/matches/${matchId}`);
-          });
-        });
+          };
+          containerRef.current.addEventListener("click", handleClick);
+          return () => {
+            containerRef.current?.removeEventListener("click", handleClick);
+          };
+        }
       })
       .catch(console.error);
   }, [scriptReady, data, matchNodeMap, seasonSlug, router]);
