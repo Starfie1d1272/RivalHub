@@ -62,7 +62,7 @@ waitlisted
 
 approved
   ├─ [admin: revoke]  → pending    ← 仅在赛季 registration 阶段允许
-  └─ [admin: reject]  → rejected   ← 仅在赛季 registration 阶段允许
+  └─ [admin: reject]  → rejected   ← 在赛季 registration 或 voting 阶段允许（已被选秀选中的选手除外）
 
 rejected
   ├─ [admin: approve] → approved   ← 仅在赛季 registration 阶段允许
@@ -79,13 +79,13 @@ rejected
 | `waitlisted` | `approved` | admin | 赛季 status = registration 或 voting，且位置未满 |
 | `waitlisted` | `rejected` | admin | 任意阶段 |
 | `approved` | `pending` | admin | 赛季 status = registration（撤销通过，回到待审核） |
-| `approved` | `rejected` | admin | 赛季 status = registration（已进入 voting/drafting 后不允许） |
+| `approved` | `rejected` | admin | 赛季 status = registration 或 voting（已被选秀选中时禁止） |
 | `rejected` | `approved` | admin | 赛季 status = registration，且位置未满 |
 | `rejected` | `pending` | admin | 赛季 status = registration |
 
 ### 禁止迁移
 
-- 赛季进入 `voting` 或之后，禁止 `approved → rejected`
+- 赛季进入 `drafting` 或之后，禁止 `approved → rejected`（voting 阶段允许，但已被选秀选中的选手不得撤回）
 
 ---
 
@@ -203,13 +203,16 @@ completed (scoreA + scoreB 非 null + completedAt 写入)
 
 比赛可设置 `matches.completion_deadline` 作为最晚完成时间。队长时间协商的操作截止为 `completion_deadline - 24h`：截止后队长不能再提议、接受或拒绝，需由管理员强制指定比赛时间。任何 `proposed_time` / `scheduled_at` 都不能晚于 `completion_deadline`。
 
+**单条提议 24h 超时自动采纳**：对方队长 24 小时内未回应某条提议，cron（`match-time-auto-award`）自动将该提议 accept，同时将同场比赛其余 pending 提议设为 expired。
+
 ### 状态图
 
 ```
 pending
   ├─ [other captain: accept]  → accepted  (同时更新 matches.scheduledAt)
   ├─ [other captain: reject]  → rejected  (附带 rejectReason)
-  └─ [admin: force-set]       → expired   (旧提议过期)
+  ├─ [cron: 24h timeout]      → accepted  (对方 24h 未回应自动采纳，同场其余 pending → expired)
+  └─ [admin: force-set / other proposal accepted] → expired
 ```
 
 ---

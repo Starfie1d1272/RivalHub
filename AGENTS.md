@@ -4,7 +4,7 @@
 
 RivalHub 是开源电竞赛事管理平台，通过 capability 驱动的多赛事模型支持各类赛制（选秀联赛、公开赛、杯赛等）的全流程运营：报名 → 审核 → 队长投票 → 蛇形选秀 → 队伍展示 → 赛程 + Bracket 视图 → 部署。
 
-当前阶段：**v1.6.0，站点部署在 `match.starfie1d.top`。v2 赛制引擎（StageExecutor + 5 个 executor + entrySeeds 种子轮空 + finalFormat 决赛 BO5）代码已就绪，待 2026 NJU Major 赛季开始时启用。**
+当前阶段：**v1.8.0，站点部署在 `match.starfie1d.top`。v2 赛制引擎（StageExecutor + 5 个 executor + entrySeeds 种子轮空 + finalFormat 决赛 BO5）代码已就绪，待 2026 NJU Major 赛季开始时启用。**
 
 ## 版本路线图
 
@@ -57,7 +57,7 @@ git push origin v1.6.0               # 或单独推 tag
 | ORM | Drizzle ORM |
 | 表单 | React Hook Form + Zod（中文校验消息） |
 | 鉴权 | Supabase Auth（email+password；生产关闭邮件确认，不依赖 Magic Link）+ iron-session（双 Cookie：`rivalhub-session` 全用户 + `rivalhub-admin` root 紧急） |
-| 定时任务 | GitHub Actions 每分钟调用 `/api/cron/draft-timeout`（选秀超时自动 pick）+ `/api/cron/match-time-auto-award`（比赛时间协商截止自动裁定） |
+| 定时任务 | GitHub Actions 每分钟调用 `/api/cron/draft-timeout`（选秀超时自动 pick）+ `/api/cron/check-registration-deadline`（报名截止/满员自动推进）+ `/api/cron/match-time-auto-award`（比赛时间协商截止自动裁定） |
 | Bracket 渲染 | `brackets-manager` + `brackets-viewer`（经 `lib/bracket/` 适配层访问） |
 | 单元/集成测试 | Vitest + React Testing Library + jsdom |
 | E2E 测试 | Playwright |
@@ -205,13 +205,13 @@ src/
 │   ├── [seasonSlug]/ # 公开赛季页面（注册/投票/选秀/队伍/赛程/数据统计）
 │   ├── players/       # 选手主页（跨赛季战绩 + 个人数据）
 │   ├── login/         # 邮箱+密码登录 / 注册页
-│   ├── settings/     # 用户设置（修改密码等）
+│   ├── settings/     # 用户设置（个人信息 + 修改密码）
 │   ├── invite/       # 邀请码提权页（?code=xxx）
 │   ├── auth/callback # Supabase Auth 回调兼容入口（生产不依赖邮件确认）
 │   ├── admin/        # 管理员后台（rivalhub-session / rivalhub-admin 保护）
 │   └── api/cron/     # Cron API Route（当前由 GitHub Actions 触发）
 ├── actions/          # Server Actions（所有业务逻辑入口）
-│   ├── account.ts    # 用户账号（修改密码）
+│   ├── account.ts    # 用户账号（修改密码、个人信息 updateProfile）
 │   ├── admin.ts      # 管理员操作（审核/邀请码/撤销权限）
 │   ├── auth.ts       # 邮箱+密码注册/登录/退出
 │   ├── captains.ts   # 队长投票
@@ -238,7 +238,7 @@ src/
 │   ├── rivalhub/     # Tactical Grid 组件（15 个：Panel/Btn/Field/Marker/Stat/MiniStat/
 │   │                 #   StatusBanner/InlineConfirm/EmptyState/ErrorState/Skeleton/Spinner/
 │   │                 #   TeamBadge/PosChip/StatusPill/ScrollHint）
-│   ├── settings/     # 用户设置组件（ChangePasswordForm）
+│   ├── settings/     # 用户设置组件（ProfileForm / ChangePasswordForm）
 │   ├── register/     # 报名业务组件
 │   ├── admin/        # 管理后台业务组件（AdminSidebar 侧边栏 + 统一 layout）
 │   ├── draft/        # 选秀业务组件

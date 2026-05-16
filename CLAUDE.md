@@ -4,7 +4,7 @@
 
 RivalHub 是开源电竞赛事管理平台，通过 capability 驱动的多赛事模型支持各类赛制（选秀联赛、公开赛、杯赛等）的全流程运营：报名 → 审核 → 队长投票 → 蛇形选秀 → 队伍展示 → 赛程 + Bracket 视图 → 部署。
 
-当前阶段：**v1.7.4，站点部署在 `match.starfie1d.top`。v2 赛制引擎（StageExecutor + 5 个 executor + entrySeeds 种子轮空 + finalFormat 决赛 BO5）代码已就绪，待 2026 NJU Major 赛季开始时启用。**
+当前阶段：**v1.8.0，站点部署在 `match.starfie1d.top`。v2 赛制引擎（StageExecutor + 5 个 executor + entrySeeds 种子轮空 + finalFormat 决赛 BO5）代码已就绪，待 2026 NJU Major 赛季开始时启用。**
 
 ## 版本路线图
 
@@ -207,13 +207,13 @@ src/
 │   ├── [seasonSlug]/ # 公开赛季页面（注册/投票/选秀/队伍/赛程/数据统计）
 │   ├── players/       # 选手主页（跨赛季战绩 + 个人数据）
 │   ├── login/         # 邮箱+密码登录 / 注册页
-│   ├── settings/     # 用户设置（修改密码等）
+│   ├── settings/     # 用户设置（个人信息 + 修改密码）
 │   ├── invite/       # 邀请码提权页（?code=xxx）
 │   ├── auth/callback # Supabase Auth 回调兼容入口（生产不依赖邮件确认）
 │   ├── admin/        # 管理员后台（rivalhub-session / rivalhub-admin 保护）
 │   └── api/cron/     # Cron API Route（当前由 GitHub Actions 触发）
 ├── actions/          # Server Actions（所有业务逻辑入口）
-│   ├── account.ts    # 用户账号（修改密码）
+│   ├── account.ts    # 用户账号（修改密码、个人信息 updateProfile）
 │   ├── admin.ts      # 管理员操作（审核/邀请码/撤销权限）
 │   ├── audit.ts      # 审计日志查询（含 actor/target 可读名称解析）
 │   ├── auth.ts       # 邮箱+密码注册/登录/退出
@@ -243,7 +243,7 @@ src/
 │   ├── rivalhub/     # Tactical Grid 组件（15 个：Panel/Btn/Field/Marker/Stat/MiniStat/
 │   │                 #   StatusBanner/InlineConfirm/EmptyState/ErrorState/Skeleton/Spinner/
 │   │                 #   TeamBadge/PosChip/StatusPill/ScrollHint）
-│   ├── settings/     # 用户设置组件（ChangePasswordForm）
+│   ├── settings/     # 用户设置组件（ProfileForm / ChangePasswordForm）
 │   ├── register/     # 报名业务组件
 │   ├── admin/        # 管理后台业务组件（AdminSidebar 侧边栏 + 统一 layout）
 │   ├── draft/        # 选秀业务组件
