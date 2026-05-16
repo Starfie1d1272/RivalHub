@@ -43,6 +43,9 @@ export interface DraftPlayerRow {
   peakRank: string;
   peakRating: number;
   mapPreferences: MapPreference[];
+  gameplayStyle: string | null;
+  notes: string | null;
+  competitionHistory: string | null;
 }
 
 export interface DraftLiveState {
@@ -154,6 +157,9 @@ export async function getDraftData(seasonId: string): Promise<DraftFullData> {
       peakRank: seasonRegistrations.peakRank,
       peakRating: seasonRegistrations.peakRating,
       mapPreferences: seasonRegistrations.mapPreferences,
+      gameplayStyle: seasonRegistrations.gameplayStyle,
+      notes: seasonRegistrations.notes,
+      competitionHistory: seasonRegistrations.competitionHistory,
     })
     .from(seasonRegistrations)
     .leftJoin(users, eq(seasonRegistrations.userId, users.id))
@@ -179,6 +185,9 @@ export async function getDraftData(seasonId: string): Promise<DraftFullData> {
       peakRank: r.peakRank,
       peakRating: r.peakRating ?? 0,
       mapPreferences: r.mapPreferences ?? [],
+      gameplayStyle: r.gameplayStyle ?? null,
+      notes: r.notes ?? null,
+      competitionHistory: r.competitionHistory ?? null,
     }));
 
   // 5. 组装队伍数据

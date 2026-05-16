@@ -1,7 +1,6 @@
 "use client";
 
-import React from "react";
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Check, ChevronDown, ChevronRight, Clock, Loader2 } from "lucide-react";
@@ -12,25 +11,12 @@ import { canPickPosition } from "@/lib/draft/rules";
 import { positionLabel } from "@/lib/validators/registration";
 import { MapPreferenceChips } from "@/components/rivalhub/map-preference-chips";
 import { PosChip } from "@/components/rivalhub/pos-chip";
+import { PlayerInfoPopover } from "./PlayerInfoPopover";
 import { getDisplayName } from "@/lib/utils/display-name";
 import { sortByRank } from "@/lib/utils/rank";
-import type { MapPreference } from "@/types/season";
+import type { DraftPlayerRow } from "@/lib/draft/data";
 
 const FILTER_ALL = "all";
-
-export interface CaptainDraftPlayer {
-  registrationId: string;
-  userId: string;
-  steamName: string;
-  perfectName: string | null;
-  displayName: string | null;
-  email: string | null;
-  primaryPosition: string;
-  secondaryPosition: string;
-  peakRank: string;
-  peakRating: number;
-  mapPreferences: MapPreference[];
-}
 
 interface CaptainDraftPanelProps {
   seasonId: string;
@@ -42,7 +28,7 @@ interface CaptainDraftPanelProps {
   isDraftActive: boolean;
   isCurrentCaptainTurn: boolean;
   positionCounts: Record<string, number>;
-  players: CaptainDraftPlayer[];
+  players: DraftPlayerRow[];
   seasonPositions: string[];
   /** Already picked members for roster summary */
   rosterMembers: { steamName: string; perfectName: string | null; displayName: string | null; primaryPosition: string }[];
@@ -71,7 +57,7 @@ export function CaptainDraftPanel({
   const [rosterOpen, setRosterOpen] = useState(false);
 
   const grouped = useMemo(() => {
-    const map = new Map<string, CaptainDraftPlayer[]>();
+    const map = new Map<string, DraftPlayerRow[]>();
     for (const player of players) {
       const list = map.get(player.primaryPosition) ?? [];
       list.push(player);
@@ -98,7 +84,7 @@ export function CaptainDraftPanel({
 
   const canSubmit = isDraftActive && isCurrentCaptainTurn && pendingRegistrationId === null;
 
-  async function handlePick(player: CaptainDraftPlayer) {
+  async function handlePick(player: DraftPlayerRow) {
     if (!canSubmit || !canPickPosition(positionCounts[player.primaryPosition] ?? 0)) return;
 
     setPendingRegistrationId(player.registrationId);
@@ -300,6 +286,12 @@ export function CaptainDraftPanel({
                       <MapPreferenceChips preferences={player.mapPreferences} compact minLevel="playable" />
                     </div>
 
+                    <PlayerInfoPopover
+                      gameplayStyle={player.gameplayStyle}
+                      notes={player.notes}
+                      competitionHistory={player.competitionHistory}
+                    />
+
                     {/* Pick button */}
                     <Button
                       type="button"
@@ -353,6 +345,11 @@ export function CaptainDraftPanel({
                         <div className="min-w-0">
                           <MapPreferenceChips preferences={player.mapPreferences} compact minLevel="playable" />
                         </div>
+                        <PlayerInfoPopover
+                          gameplayStyle={player.gameplayStyle}
+                          notes={player.notes}
+                          competitionHistory={player.competitionHistory}
+                        />
                       </div>
                       <Button
                         type="button"

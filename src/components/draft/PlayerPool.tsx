@@ -7,6 +7,7 @@ import type { DraftPlayerRow } from "@/lib/draft/data";
 import { positionLabel } from "@/lib/validators/registration";
 import { MapPreferenceChips } from "@/components/rivalhub/map-preference-chips";
 import { PosChip } from "@/components/rivalhub/pos-chip";
+import { PlayerInfoPopover } from "./PlayerInfoPopover";
 import { getDisplayName } from "@/lib/utils/display-name";
 import { sortByRank } from "@/lib/utils/rank";
 
@@ -130,6 +131,11 @@ export function PlayerPool({ players, seasonPositions }: PlayerPoolProps) {
                 <div className="min-w-0 flex-1">
                   <MapPreferenceChips preferences={p.mapPreferences} compact minLevel="playable" />
                 </div>
+                <PlayerInfoPopover
+                  gameplayStyle={p.gameplayStyle}
+                  notes={p.notes}
+                  competitionHistory={p.competitionHistory}
+                />
               </div>
 
               {/* Mobile: two rows */}
@@ -167,6 +173,11 @@ export function PlayerPool({ players, seasonPositions }: PlayerPoolProps) {
                   <div className="min-w-0">
                     <MapPreferenceChips preferences={p.mapPreferences} compact minLevel="playable" />
                   </div>
+                  <PlayerInfoPopover
+                    gameplayStyle={p.gameplayStyle}
+                    notes={p.notes}
+                    competitionHistory={p.competitionHistory}
+                  />
                 </div>
               </div>
             </div>

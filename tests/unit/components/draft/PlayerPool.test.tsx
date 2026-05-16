@@ -21,6 +21,9 @@ describe("PlayerPool", () => {
             peakRank: "S",
             peakRating: 2.01,
             mapPreferences: [],
+            gameplayStyle: null,
+            notes: null,
+            competitionHistory: null,
           },
         ]}
       />,

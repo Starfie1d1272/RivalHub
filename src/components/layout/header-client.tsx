@@ -186,7 +186,7 @@ export function HeaderClient({ seasons, session, avatarUrl, steamName, displayNa
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link href={"/settings" as never} className="cursor-pointer flex items-center gap-1.5">
-                      修改昵称
+                      个人信息
                       {!displayName && (
                         <span className="w-1.5 h-1.5 rounded-full bg-orange-500 flex-shrink-0" />
                       )}
@@ -287,7 +287,7 @@ export function HeaderClient({ seasons, session, avatarUrl, steamName, displayNa
                   onClick={() => setMobileOpen(false)}
                   className="px-3 py-2 rounded-md text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] hover:bg-[var(--color-panel-hi)] flex items-center gap-1.5"
                 >
-                  修改昵称
+                  个人信息
                   {!displayName && (
                     <span className="w-1.5 h-1.5 rounded-full bg-orange-500 flex-shrink-0" />
                   )}

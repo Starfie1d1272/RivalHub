@@ -5,6 +5,17 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.0] - 2026-05-16
+
+### Added
+- **选秀选手悬停信息卡片**：选手行末尾新增 info 图标，hover 弹出风格/备注/比赛经历；仅在有内容时显示图标，不增加视觉噪音；支持 PlayerPool 观众页和 CaptainDraftPanel 队长面板
+
+### Changed
+- **菜单"个人信息"重命名**：右上角下拉"修改昵称"→"个人信息"，与 `/settings` 页面标题对齐
+
+### Refactored
+- **DraftPlayerRow 类型统一**：删除 `CaptainDraftPlayer` 重复接口，统一使用 `DraftPlayerRow`
+
 ## [1.8.0] - 2026-05-16
 
 ### Added
@@ -258,6 +269,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.9.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.7.4...v1.8.0
 [1.7.4]: https://github.com/Starfie1d1272/RivalHub/compare/v1.7.3...v1.7.4
 [1.7.3]: https://github.com/Starfie1d1272/RivalHub/compare/v1.7.2...v1.7.3
