@@ -44,7 +44,7 @@ export interface MatchMap {
 // ── 标签 ─────────────────────────────────────────────────────────────────
 
 export const MATCH_STATUS_LABELS: Record<MatchStatus, string> = {
-  scheduled: "已排期",
+  scheduled: "待进行",
   in_progress: "进行中",
   finished: "已结束",
   cancelled: "已取消",
