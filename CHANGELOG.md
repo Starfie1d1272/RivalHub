@@ -5,6 +5,19 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] - 2026-05-16
+
+### Added
+- **个人信息设置页**：`/settings` 扩展为完整个人信息表单，支持自助修改 displayName / perfectName / steamName / steam64 / steamProfileUrl / QQ / 学号，全站实时生效
+- **时间协商 UI 重构**：显示所有 pending 提议（不再只显示第一条）；双方队长均可随时提议新时间；每条提议显示 24h 自动采纳倒计时
+- **时间提议 24h 超时自动采纳**：cron 新增逻辑，单条提议超过 24h 未被对方回应则自动采纳（独立于 deadline 裁定机制）
+- **批量设置比赛截止时间**：管理后台赛程页新增「批量设置截止时间」面板，按 stage / round / entryRound 分组一键设置，解决单循环多场逐一设置负担
+- **选手列表页副位置**：卡片显示副位置；位置筛选改为"主/副位置 OR 匹配"，筛选某位置时副位置也该位置的选手同步出现
+- **选秀围观页 PlayerPool 副位置**：桌面/移动端均显示副位置标签；位置筛选同步支持副位置匹配
+
+### Fixed
+- 投票阶段可撤回误审批：`approved→rejected` / `approved→pending` 允许 voting 阶段操作；已被选秀选中的选手禁止撤回
+
 ## [1.7.4] - 2026-05-16
 
 ### Fixed
