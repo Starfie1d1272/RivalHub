@@ -7,6 +7,8 @@ import { DraftLiveRoom } from "@/components/draft/DraftLiveRoom";
 import { Panel, Marker } from "@/components/rivalhub";
 import { getDraftData } from "@/lib/draft/data";
 import { SEASON_STATUS_LABELS } from "@/types/season";
+import { checkAdminSession } from "@/lib/auth/session";
+import { AdminShortcut } from "@/components/layout/AdminShortcut";
 
 export const dynamic = "force-dynamic";
 
@@ -21,9 +23,10 @@ export async function generateMetadata({ params }: DraftPageProps): Promise<Meta
 
 export default async function DraftPage({ params }: DraftPageProps) {
   const { seasonSlug } = await params;
-  const season = await db.query.seasons.findFirst({
-    where: eq(seasons.slug, seasonSlug),
-  });
+  const [season, adminSession] = await Promise.all([
+    db.query.seasons.findFirst({ where: eq(seasons.slug, seasonSlug) }),
+    checkAdminSession(),
+  ]);
   if (!season) notFound();
 
   if (!season.hasDraft) {
@@ -95,9 +98,14 @@ export default async function DraftPage({ params }: DraftPageProps) {
 
   return (
     <main className="container mx-auto max-w-7xl px-4 py-10">
-      <Marker sub="实时更新选秀进度，队伍阵容与选手池自动刷新。">
-        选秀直播间 · {season.name}
-      </Marker>
+      <div className="flex items-center justify-between">
+        <Marker sub="实时更新选秀进度，队伍阵容与选手池自动刷新。">
+          选秀直播间 · {season.name}
+        </Marker>
+        {adminSession && (
+          <AdminShortcut href={`/admin/${seasonSlug}/draft`} />
+        )}
+      </div>
 
       {data.state.isActive && (
         <div className="mt-4">

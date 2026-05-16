@@ -10,6 +10,8 @@ import { normalizeStagePlan } from "@/types/season";
 import type { SeasonStatus } from "@/types/season";
 import { showStats } from "@/lib/utils/season";
 import { StatusPill, Panel, Marker, ScrollHint, Stat } from "@/components/rivalhub";
+import { checkAdminSession } from "@/lib/auth/session";
+import { AdminShortcut } from "@/components/layout/AdminShortcut";
 
 const STATUS_IDX: Record<SeasonStatus, number> = {
   draft: 0, registration: 1, voting: 2, drafting: 3,
@@ -23,9 +25,10 @@ interface SeasonPageProps {
 export default async function SeasonPage({ params }: SeasonPageProps) {
   const { seasonSlug } = await params;
 
-  const season = await db.query.seasons.findFirst({
-    where: eq(seasons.slug, seasonSlug),
-  });
+  const [season, adminSession] = await Promise.all([
+    db.query.seasons.findFirst({ where: eq(seasons.slug, seasonSlug) }),
+    checkAdminSession(),
+  ]);
   if (!season) notFound();
   const stagePlan = normalizeStagePlan(season.stagePlan);
   const hasMatches = stagePlan.length > 0;
@@ -204,9 +207,14 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
           <StatusPill status={season.status} />
           <span className="text-[var(--color-fg-dim)]">{season.kind}</span>
         </div>
-        <h1 className="text-4xl sm:text-5xl font-bold text-[var(--color-fg)] mb-4 leading-tight">
-          {season.name}
-        </h1>
+        <div className="flex items-center gap-3 mb-4">
+          <h1 className="text-4xl sm:text-5xl font-bold text-[var(--color-fg)] leading-tight">
+            {season.name}
+          </h1>
+          {adminSession && (
+            <AdminShortcut href={`/admin/${seasonSlug}/settings`} />
+          )}
+        </div>
       </div>
 
       {/* Phase tracker */}
