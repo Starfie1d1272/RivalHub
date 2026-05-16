@@ -3,6 +3,7 @@ import { eq, or, and, asc, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { users, seasonRegistrations, seasons, teams, teamMembers, matches } from "@/db/schema";
 import { resolveAvatarUrl } from "@/lib/steam";
+import { PLAYER_INFO_FIELDS } from "@/components/draft/PlayerInfoPopover";
 import { getDisplayName } from "@/lib/utils/display-name";
 import { Panel, Stat, PosChip } from "@/components/rivalhub";
 import { MapPreferenceChips } from "@/components/rivalhub/map-preference-chips";
@@ -63,6 +64,9 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
         currentRating: seasonRegistrations.currentRating,
         mapPreferences: seasonRegistrations.mapPreferences,
         highlightVideoUrl: seasonRegistrations.highlightVideoUrl,
+        gameplayStyle: seasonRegistrations.gameplayStyle,
+        notes: seasonRegistrations.notes,
+        competitionHistory: seasonRegistrations.competitionHistory,
         status: seasonRegistrations.status,
         seasonName: seasons.name,
         seasonSlug: seasons.slug,
@@ -230,6 +234,42 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
           </Panel>
         </section>
       )}
+
+      {/* 选手自述 */}
+      {latestReg &&
+        (latestReg.gameplayStyle?.trim() ||
+          latestReg.notes?.trim() ||
+          latestReg.competitionHistory?.trim()) && (
+          <section className="space-y-3">
+            <SectionHeading>选手自述</SectionHeading>
+            <Panel pad={16}>
+              <div className="space-y-2">
+                {PLAYER_INFO_FIELDS
+                  .map(({ key, label }) => {
+                    const value = latestReg[key as keyof typeof latestReg] as string | null;
+                    return { value: value?.trim(), label };
+                  })
+                  .filter((s) => s.value)
+                  .map(({ value, label }) => (
+                    <div key={label}>
+                      <span
+                        className="text-xs font-semibold"
+                        style={{
+                          fontFamily: "var(--font-mono)",
+                          color: "var(--color-fg-mid)",
+                        }}
+                      >
+                        {label}
+                      </span>
+                      <p className="text-sm text-[var(--color-fg)] mt-0.5">
+                        {value}
+                      </p>
+                    </div>
+                  ))}
+              </div>
+            </Panel>
+          </section>
+        )}
 
       {/* 职业生涯战绩 */}
       {played > 0 && (

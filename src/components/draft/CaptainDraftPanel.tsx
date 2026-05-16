@@ -33,6 +33,7 @@ interface CaptainDraftPanelProps {
   /** Already picked members for roster summary */
   rosterMembers: { steamName: string; perfectName: string | null; displayName: string | null; primaryPosition: string }[];
   captainPosition: string;
+  readonly?: boolean;
 }
 
 export function CaptainDraftPanel({
@@ -49,6 +50,7 @@ export function CaptainDraftPanel({
   seasonPositions,
   rosterMembers,
   captainPosition,
+  readonly: isReadonly,
 }: CaptainDraftPanelProps) {
   const router = useRouter();
   const [filter, setFilter] = useState(FILTER_ALL);
@@ -115,85 +117,89 @@ export function CaptainDraftPanel({
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold text-[var(--color-fg)]">{teamName}</h2>
-            <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
-              {isCurrentCaptainTurn
-                ? `第 ${currentRound ?? "-"} 轮，轮到你选择`
-                : currentTeamName
-                  ? `等待 ${currentTeamName} 选择`
-                  : "等待选秀状态更新"}
-            </p>
+      {!isReadonly && (
+        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-[var(--color-fg)]">{teamName}</h2>
+              <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
+                {isCurrentCaptainTurn
+                  ? `第 ${currentRound ?? "-"} 轮，轮到你选择`
+                  : currentTeamName
+                    ? `等待 ${currentTeamName} 选择`
+                    : "等待选秀状态更新"}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <Clock className="size-4 text-[var(--color-fg-dim)]" aria-hidden="true" />
+              <DraftCountdown deadline={roundDeadline} isActive={isDraftActive} />
+            </div>
           </div>
-          <div className="flex items-center gap-2 text-sm">
-            <Clock className="size-4 text-[var(--color-fg-dim)]" aria-hidden="true" />
-            <DraftCountdown deadline={roundDeadline} isActive={isDraftActive} />
-          </div>
-        </div>
 
-        {message && (
-          <div
-            className={`mt-3 rounded-md border px-3 py-2 text-sm ${
-              message.type === "success"
-                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-                : "border-red-500/30 bg-red-500/10 text-red-300"
-            }`}
-            role="status"
-          >
-            {message.text}
-          </div>
-        )}
-      </div>
+          {message && (
+            <div
+              className={`mt-3 rounded-md border px-3 py-2 text-sm ${
+                message.type === "success"
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                  : "border-red-500/30 bg-red-500/10 text-red-300"
+              }`}
+              role="status"
+            >
+              {message.text}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Roster Summary (collapsible) */}
-      <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] overflow-hidden">
-        <button
-          type="button"
-          onClick={() => setRosterOpen(!rosterOpen)}
-          className="flex w-full items-center gap-2 px-4 py-3 text-sm font-medium text-[var(--color-fg)] hover:bg-[var(--color-panel-hi)] transition-colors"
-        >
-          {rosterOpen ? (
-            <ChevronDown className="size-4 text-[var(--color-fg-dim)]" />
-          ) : (
-            <ChevronRight className="size-4 text-[var(--color-fg-dim)]" />
-          )}
-          我的阵容（{rosterMembers.length + 1} 人）
-        </button>
-        {rosterOpen && (
-          <div className="border-t border-[var(--color-border)] px-4 py-3 space-y-3">
-            {/* Position occupation */}
-            <div className="flex flex-wrap gap-2 text-xs text-[var(--color-fg-mid)]">
-              {seasonPositions.map((pos) => {
-                const count = positionCounts[pos] ?? 0;
-                const full = !canPickPosition(count);
-                return (
-                  <span
-                    key={pos}
-                    className={full ? "text-red-400" : ""}
-                  >
-                    {positionLabel(pos)} {count}/2
-                  </span>
-                );
-              })}
-            </div>
-            {/* Members list */}
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-xs text-[var(--color-fg)]">
-                <PosChip pos={positionLabel(captainPosition)} small />
-                <span className="text-[var(--color-accent)]">队长</span>
+      {!isReadonly && (
+        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setRosterOpen(!rosterOpen)}
+            className="flex w-full items-center gap-2 px-4 py-3 text-sm font-medium text-[var(--color-fg)] hover:bg-[var(--color-panel-hi)] transition-colors"
+          >
+            {rosterOpen ? (
+              <ChevronDown className="size-4 text-[var(--color-fg-dim)]" />
+            ) : (
+              <ChevronRight className="size-4 text-[var(--color-fg-dim)]" />
+            )}
+            我的阵容（{rosterMembers.length + 1} 人）
+          </button>
+          {rosterOpen && (
+            <div className="border-t border-[var(--color-border)] px-4 py-3 space-y-3">
+              {/* Position occupation */}
+              <div className="flex flex-wrap gap-2 text-xs text-[var(--color-fg-mid)]">
+                {seasonPositions.map((pos) => {
+                  const count = positionCounts[pos] ?? 0;
+                  const full = !canPickPosition(count);
+                  return (
+                    <span
+                      key={pos}
+                      className={full ? "text-red-400" : ""}
+                    >
+                      {positionLabel(pos)} {count}/2
+                    </span>
+                  );
+                })}
               </div>
-              {rosterMembers.map((member, i) => (
-                <div key={i} className="flex items-center gap-2 text-xs text-[var(--color-fg)]">
-                  <PosChip pos={positionLabel(member.primaryPosition)} small />
-                  <span>{getDisplayName(member)}</span>
+              {/* Members list */}
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-xs text-[var(--color-fg)]">
+                  <PosChip pos={positionLabel(captainPosition)} small />
+                  <span className="text-[var(--color-accent)]">队长</span>
                 </div>
-              ))}
+                {rosterMembers.map((member, i) => (
+                  <div key={i} className="flex items-center gap-2 text-xs text-[var(--color-fg)]">
+                    <PosChip pos={positionLabel(member.primaryPosition)} small />
+                    <span>{getDisplayName(member)}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] p-4">
         <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -293,21 +299,23 @@ export function CaptainDraftPanel({
                     />
 
                     {/* Pick button */}
-                    <Button
-                      type="button"
-                      size="sm"
-                      disabled={disabled}
-                      aria-label={positionOpen ? `选择 ${displayedName}` : `${displayedName} 已满`}
-                      onClick={() => void handlePick(player)}
-                      className="shrink-0"
-                    >
-                      {isPending ? (
-                        <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                      ) : positionOpen ? (
-                        <Check className="size-4" aria-hidden="true" />
-                      ) : null}
-                      {positionOpen ? "选择" : "已满"}
-                    </Button>
+                    {!isReadonly && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={disabled}
+                        aria-label={positionOpen ? `选择 ${displayedName}` : `${displayedName} 已满`}
+                        onClick={() => void handlePick(player)}
+                        className="shrink-0"
+                      >
+                        {isPending ? (
+                          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                        ) : positionOpen ? (
+                          <Check className="size-4" aria-hidden="true" />
+                        ) : null}
+                        {positionOpen ? "选择" : "已满"}
+                      </Button>
+                    )}
                   </div>
 
                   <div className="md:hidden space-y-1.5">
@@ -351,21 +359,23 @@ export function CaptainDraftPanel({
                           competitionHistory={player.competitionHistory}
                         />
                       </div>
-                      <Button
-                        type="button"
-                        size="sm"
-                        disabled={disabled}
-                        aria-label={positionOpen ? `选择 ${displayedName}` : `${displayedName} 已满`}
-                        onClick={() => void handlePick(player)}
-                        className="shrink-0"
-                      >
-                        {isPending ? (
-                          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                        ) : positionOpen ? (
-                          <Check className="size-4" aria-hidden="true" />
-                        ) : null}
-                        {positionOpen ? "选择" : "已满"}
-                      </Button>
+                      {!isReadonly && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={disabled}
+                          aria-label={positionOpen ? `选择 ${displayedName}` : `${displayedName} 已满`}
+                          onClick={() => void handlePick(player)}
+                          className="shrink-0"
+                        >
+                          {isPending ? (
+                            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                          ) : positionOpen ? (
+                            <Check className="size-4" aria-hidden="true" />
+                          ) : null}
+                          {positionOpen ? "选择" : "已满"}
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>
