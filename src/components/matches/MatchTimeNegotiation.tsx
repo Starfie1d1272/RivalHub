@@ -6,7 +6,7 @@ import { proposeMatchTime, respondToTimeProposal, forceSetMatchTime } from "@/ac
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { formatCST } from "@/lib/utils/date";
+import { formatCST, parseCSTInput, toCSTDateTimeInput } from "@/lib/utils/date";
 import type { matchTimeProposals } from "@/db/schema/match-time-proposals";
 
 type Proposal = typeof matchTimeProposals.$inferSelect;
@@ -53,7 +53,9 @@ export function MatchTimeNegotiation({
   const handlePropose = () => {
     if (!proposedTime) return;
     startTransition(async () => {
-      const result = await proposeMatchTime(matchId, new Date(proposedTime));
+      const parsed = parseCSTInput(proposedTime);
+      if (!parsed) { toast.error("请输入有效的时间"); return; }
+      const result = await proposeMatchTime(matchId, parsed);
       if (result.success) {
         toast.success("时间提议已发送");
         setProposedTime("");
@@ -80,7 +82,9 @@ export function MatchTimeNegotiation({
   const handleForceSet = () => {
     if (!proposedTime) return;
     startTransition(async () => {
-      const result = await forceSetMatchTime(matchId, new Date(proposedTime));
+      const parsed = parseCSTInput(proposedTime);
+      if (!parsed) { toast.error("请输入有效的时间"); return; }
+      const result = await forceSetMatchTime(matchId, parsed);
       if (result.success) {
         toast.success("比赛时间已设定");
         setProposedTime("");
@@ -195,7 +199,7 @@ export function MatchTimeNegotiation({
               type="datetime-local"
               value={proposedTime}
               onChange={(e) => setProposedTime(e.target.value)}
-              max={completionDeadline ? toLocalDatetimeValue(completionDeadline) : undefined}
+              max={completionDeadline ? toCSTDateTimeInput(completionDeadline) ?? undefined : undefined}
             />
             <Button
               onClick={handlePropose}
@@ -236,7 +240,7 @@ export function MatchTimeNegotiation({
               type="datetime-local"
               value={proposedTime}
               onChange={(e) => setProposedTime(e.target.value)}
-              max={completionDeadline ? toLocalDatetimeValue(completionDeadline) : undefined}
+              max={completionDeadline ? toCSTDateTimeInput(completionDeadline) ?? undefined : undefined}
             />
             <Button
               variant="destructive"
@@ -250,10 +254,4 @@ export function MatchTimeNegotiation({
       )}
     </div>
   );
-}
-
-function toLocalDatetimeValue(date: Date): string {
-  const d = new Date(date);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }

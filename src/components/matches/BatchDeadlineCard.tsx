@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Panel } from "@/components/rivalhub";
+import { parseCSTInput } from "@/lib/utils/date";
 
 interface RoundGroup {
   label: string;
@@ -35,6 +36,8 @@ export function BatchDeadlineCard({ seasonId, groups }: BatchDeadlineCardProps) 
     const key = getGroupKey(group);
     const value = deadlines[key];
     if (!value) return;
+    const deadline = parseCSTInput(value);
+    if (!deadline) return;
 
     startTransition(async () => {
       const result = await batchSetCompletionDeadline({
@@ -42,7 +45,7 @@ export function BatchDeadlineCard({ seasonId, groups }: BatchDeadlineCardProps) 
         stage: group.stage,
         round: group.round,
         entryRound: group.entryRound,
-        completionDeadline: new Date(value),
+        completionDeadline: deadline,
       });
       if (result.success) {
         toast.success(`已为 ${result.data.updated} 场比赛设置截止时间`);

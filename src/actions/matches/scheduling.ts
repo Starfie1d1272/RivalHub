@@ -300,21 +300,16 @@ async function autoAcceptExpiredProposals(
     ),
   });
 
+  const settled = await Promise.allSettled(
+    expiredProposals.map((p) => autoAcceptSingleProposal(p.id, p.matchId, now)),
+  );
+
   let awarded = 0;
   let skipped = 0;
   let failed = 0;
-
-  for (const proposal of expiredProposals) {
-    try {
-      const accepted = await autoAcceptSingleProposal(proposal.id, proposal.matchId, now);
-      if (accepted) {
-        awarded += 1;
-      } else {
-        skipped += 1;
-      }
-    } catch {
-      failed += 1;
-    }
+  for (const item of settled) {
+    if (item.status === "rejected") { failed += 1; continue; }
+    if (item.value) { awarded += 1; } else { skipped += 1; }
   }
 
   return { processed: expiredProposals.length, awarded, skipped, failed };
