@@ -101,10 +101,8 @@ export function CaptainDraftPanel({
     return players.find((p) => p.registrationId === candidate.registrationId) ?? null;
   }, [players, positionCounts, isDraftActive, isCurrentCaptainTurn]);
 
-  const canSubmit = isDraftActive && isCurrentCaptainTurn && pendingRegistrationId === null;
-
   async function handlePick(player: DraftPlayerRow) {
-    if (!canSubmit || !canPickPosition(positionCounts[player.primaryPosition] ?? 0)) return;
+    if (!canPickPosition(positionCounts[player.primaryPosition] ?? 0)) return;
 
     setPendingRegistrationId(player.registrationId);
     setMessage(null);
@@ -284,7 +282,6 @@ export function CaptainDraftPanel({
               const positionCount = positionCounts[player.primaryPosition] ?? 0;
               const positionOpen = canPickPosition(positionCount);
               const isPending = pendingRegistrationId === player.registrationId;
-              const disabled = !canSubmit || !positionOpen || isPending;
               const displayedName = getDisplayName(player);
 
               return (
@@ -364,11 +361,10 @@ export function CaptainDraftPanel({
                     />
 
                     {/* Pick button */}
-                    {!isReadonly && (
                       <Button
                         type="button"
                         size="sm"
-                        disabled={disabled}
+                        disabled={isPending || !positionOpen}
                         aria-label={positionOpen ? `选择 ${displayedName}` : `${displayedName} 已满`}
                         onClick={() => void handlePick(player)}
                         className="shrink-0"
@@ -380,7 +376,6 @@ export function CaptainDraftPanel({
                         ) : null}
                         {positionOpen ? "选择" : "已满"}
                       </Button>
-                    )}
                   </div>
 
                   <div className="md:hidden space-y-1.5">
@@ -442,11 +437,10 @@ export function CaptainDraftPanel({
                           competitionHistory={player.competitionHistory}
                         />
                       </div>
-                      {!isReadonly && (
                         <Button
                           type="button"
                           size="sm"
-                          disabled={disabled}
+                          disabled={isPending || !positionOpen}
                           aria-label={positionOpen ? `选择 ${displayedName}` : `${displayedName} 已满`}
                           onClick={() => void handlePick(player)}
                           className="shrink-0"
@@ -458,7 +452,6 @@ export function CaptainDraftPanel({
                           ) : null}
                           {positionOpen ? "选择" : "已满"}
                         </Button>
-                      )}
                     </div>
                   </div>
                 </div>
