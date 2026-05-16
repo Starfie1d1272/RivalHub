@@ -12,14 +12,14 @@ export interface DraftTeamOrder {
 
 /**
  * 获取指定轮次的蛇形选秀顺序
- * 奇数轮正向（draftOrder 升序），偶数轮反向（draftOrder 降序）
+ * 奇数轮反向（draftOrder 降序，后位先选），偶数轮正向（draftOrder 升序）
  */
 export function getSnakeOrder(
   teams: DraftTeamOrder[],
   round: number,
 ): DraftTeamOrder[] {
   const sorted = [...teams].sort((a, b) => a.draftOrder - b.draftOrder);
-  return round % 2 === 1 ? sorted : sorted.reverse();
+  return round % 2 === 1 ? sorted.reverse() : sorted;
 }
 
 /**

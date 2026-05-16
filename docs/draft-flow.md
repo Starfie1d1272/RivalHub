@@ -14,12 +14,12 @@ completed
   → 自动触发 season.status = playing
 ```
 
-蛇形顺序（round 奇数正向，偶数反向）：
+蛇形顺序（round 奇数反向即后位先选，偶数正向）：
 ```
-Round 1: team[0] → team[1] → ... → team[7]
-Round 2: team[7] → team[6] → ... → team[0]
+Round 1: team[7] → team[6] → ... → team[0]
+Round 2: team[0] → team[1] → ... → team[7]
 ...
-Round 6: team[7] → ...
+Round 6: team[0] → ... → team[7]
 ```
 
 ---

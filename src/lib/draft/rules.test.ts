@@ -27,49 +27,47 @@ const teams = [
 ];
 
 describe("getSnakeOrder", () => {
-  it("round 1: lowest draftOrder picks first (forward)", () => {
+  it("round 1: highest draftOrder picks first (reverse)", () => {
     const order = getSnakeOrder(teams, 1);
-    expect(order.map((t) => t.draftOrder)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(order.map((t) => t.draftOrder)).toEqual([8, 7, 6, 5, 4, 3, 2, 1]);
   });
 
-  it("round 2: reverse order", () => {
+  it("round 2: forward order", () => {
     const order = getSnakeOrder(teams, 2);
-    expect(order.map((t) => t.draftOrder)).toEqual([8, 7, 6, 5, 4, 3, 2, 1]);
-  });
-
-  it("round 3: forward again", () => {
-    const order = getSnakeOrder(teams, 3);
     expect(order.map((t) => t.draftOrder)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
   });
 
-  it("round 4: reverse", () => {
-    const order = getSnakeOrder(teams, 4);
+  it("round 3: reverse again", () => {
+    const order = getSnakeOrder(teams, 3);
     expect(order.map((t) => t.draftOrder)).toEqual([8, 7, 6, 5, 4, 3, 2, 1]);
+  });
+
+  it("round 4: forward", () => {
+    const order = getSnakeOrder(teams, 4);
+    expect(order.map((t) => t.draftOrder)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
   });
 });
 
 describe("getNextTeamId", () => {
   it("advances to next team within same round", () => {
-    const result = getNextTeamId(teams, "t1", 1);
-    expect(result).toEqual({ teamId: "t2", nextRound: 1 });
-  });
-
-  it("at end of forward round, flips to next round with reverse order", () => {
     const result = getNextTeamId(teams, "t8", 1);
-    expect(result).toEqual({ teamId: "t8", nextRound: 2 });
+    expect(result).toEqual({ teamId: "t7", nextRound: 1 });
   });
 
-  it("at end of reverse round, flips to forward next round", () => {
-    // Round 2 is reverse, last to pick is t1
-    const result = getNextTeamId(teams, "t1", 2);
-    expect(result).toEqual({ teamId: "t1", nextRound: 3 });
+  it("at end of reverse round, flips to next round with forward order", () => {
+    const result = getNextTeamId(teams, "t1", 1);
+    expect(result).toEqual({ teamId: "t1", nextRound: 2 });
   });
 
-  it("returns null when draft is complete (round > 6)", () => {
-    // DRAFT_TOTAL_ROUNDS = 6, last pick in round 6 is the last pick
-    // After that, getNextTeamId should return null
-    // Actually round 6 end returns nextRound=7 which exceeds total
-    const result = getNextTeamId(teams, "t8", 7);
+  it("at end of forward round, flips to reverse next round", () => {
+    // Round 2 is forward, last to pick is t8
+    const result = getNextTeamId(teams, "t8", 2);
+    expect(result).toEqual({ teamId: "t8", nextRound: 3 });
+  });
+
+  it("returns null when draft is complete (end of round 6)", () => {
+    // Round 6 is even (forward), last to pick is t8
+    const result = getNextTeamId(teams, "t8", 6);
     expect(result).toBeNull();
   });
 
