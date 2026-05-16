@@ -3,7 +3,7 @@ import { eq, or, and, asc, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { users, seasonRegistrations, seasons, teams, teamMembers, matches } from "@/db/schema";
 import { resolveAvatarUrl } from "@/lib/steam";
-import { PLAYER_INFO_FIELDS } from "@/components/draft/PlayerInfoPopover";
+import { PLAYER_INFO_FIELDS } from "@/lib/utils/player-info-fields";
 import { getDisplayName } from "@/lib/utils/display-name";
 import { Panel, Stat, PosChip } from "@/components/rivalhub";
 import { MapPreferenceChips } from "@/components/rivalhub/map-preference-chips";

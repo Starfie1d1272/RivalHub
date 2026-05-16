@@ -2,12 +2,7 @@
 
 import React, { useCallback, useRef, useState } from "react";
 import { Info } from "lucide-react";
-
-export const PLAYER_INFO_FIELDS = [
-  { key: "gameplayStyle", label: "风格" },
-  { key: "notes", label: "备注" },
-  { key: "competitionHistory", label: "经历" },
-] as const;
+import { PLAYER_INFO_FIELDS } from "@/lib/utils/player-info-fields";
 
 interface PlayerInfoPopoverProps {
   gameplayStyle: string | null;
