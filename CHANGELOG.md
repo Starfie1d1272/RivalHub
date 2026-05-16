@@ -5,7 +5,7 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.11.1] - 2026-05-17
+## [1.12.0] - 2026-05-17
 
 ### Added
 - **管理员快捷入口**：公开页面（赛季首页/赛程/选秀/队伍）对管理员显示齿轮图标入口，直接跳转到对应后台管理页面
