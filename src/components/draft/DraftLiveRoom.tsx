@@ -15,6 +15,7 @@ interface DraftLiveRoomProps {
   seasonId: string;
   seasonSlug: string;
   seasonPositions: string[];
+  readonly?: boolean;
 }
 
 interface PickNotification {
@@ -27,6 +28,7 @@ export function DraftLiveRoom({
   seasonId,
   seasonSlug: _seasonSlug,
   seasonPositions,
+  readonly: isReadonly,
 }: DraftLiveRoomProps) {
   const router = useRouter();
   const { state, teams, snakeOrder, remainingPlayers, completedPicks, totalPicks, maxPicks } =
@@ -68,14 +70,16 @@ export function DraftLiveRoom({
     };
   }, []);
 
-  // 轮询兜底（10 秒刷新）
+  // 轮询兜底（10 秒刷新）—— 仅直播模式
   useEffect(() => {
+    if (isReadonly) return;
     const timer = window.setInterval(() => router.refresh(), 10_000);
     return () => window.clearInterval(timer);
-  }, [router]);
+  }, [router, isReadonly]);
 
-  // Realtime 订阅
+  // Realtime 订阅 —— 仅直播模式
   useEffect(() => {
+    if (isReadonly) return;
     const supabase = createBrowserClient();
     const channel = supabase
       .channel(`draft-live:${seasonId}`)
@@ -106,7 +110,7 @@ export function DraftLiveRoom({
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [router, seasonId]);
+  }, [router, seasonId, isReadonly]);
 
   // Watch for new picks via completedPicks changes
   const prevPickCountRef = useRef(completedPicks.length);
@@ -131,8 +135,8 @@ export function DraftLiveRoom({
 
   return (
     <div className="space-y-6">
-      {/* Pick notification banner */}
-      {notification && (
+      {/* Pick notification banner —— 仅直播模式 */}
+      {!isReadonly && notification && (
         <div
           className="fixed top-0 left-0 right-0 z-50 flex items-center justify-center px-4 py-3 text-sm font-medium text-white transition-opacity duration-300"
           style={{
@@ -147,44 +151,46 @@ export function DraftLiveRoom({
         </div>
       )}
 
-      {/* 顶部状态栏 */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)]">
-        <div className="flex items-center gap-4 flex-wrap">
-          <div className="text-sm">
-            <span className="text-[var(--color-fg-mid)]">进度 </span>
-            <span className="text-[var(--color-fg)] font-semibold tabular">
-              {totalPicks} / {maxPicks}
-            </span>
-          </div>
-          {state && (
+      {/* 顶部状态栏 —— 仅直播模式 */}
+      {!isReadonly && (
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)]">
+          <div className="flex items-center gap-4 flex-wrap">
             <div className="text-sm">
-              <span className="text-[var(--color-fg-mid)]">第 </span>
+              <span className="text-[var(--color-fg-mid)]">进度 </span>
               <span className="text-[var(--color-fg)] font-semibold tabular">
-                {state.currentRound}
-              </span>
-              <span className="text-[var(--color-fg-mid)]"> / {DRAFT_TOTAL_ROUNDS} 轮</span>
-            </div>
-          )}
-          {pickingTeam && isLive && (
-            <div className="text-sm">
-              <span className="text-[var(--color-fg-mid)]">当前 </span>
-              <span className="text-[var(--color-accent)] font-semibold">
-                {pickingTeam.teamName}
+                {totalPicks} / {maxPicks}
               </span>
             </div>
-          )}
-        </div>
+            {state && (
+              <div className="text-sm">
+                <span className="text-[var(--color-fg-mid)]">第 </span>
+                <span className="text-[var(--color-fg)] font-semibold tabular">
+                  {state.currentRound}
+                </span>
+                <span className="text-[var(--color-fg-mid)]"> / {DRAFT_TOTAL_ROUNDS} 轮</span>
+              </div>
+            )}
+            {pickingTeam && isLive && (
+              <div className="text-sm">
+                <span className="text-[var(--color-fg-mid)]">当前 </span>
+                <span className="text-[var(--color-accent)] font-semibold">
+                  {pickingTeam.teamName}
+                </span>
+              </div>
+            )}
+          </div>
 
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-[var(--color-fg-dim)]">
-            {isLive ? "倒计时" : "已暂停"}
-          </span>
-          <DraftCountdown
-            deadline={state?.roundDeadline ?? null}
-            isActive={isLive}
-          />
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-[var(--color-fg-dim)]">
+              {isLive ? "倒计时" : "已暂停"}
+            </span>
+            <DraftCountdown
+              deadline={state?.roundDeadline ?? null}
+              isActive={isLive}
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* 队伍网格 */}
       <section>
@@ -199,8 +205,8 @@ export function DraftLiveRoom({
         />
       </section>
 
-      {/* 蛇形顺序指示 */}
-      {isLive && snakeOrder.length > 0 && (
+      {/* 蛇形顺序指示 —— 仅直播模式 */}
+      {!isReadonly && isLive && snakeOrder.length > 0 && (
         <div className="flex items-center gap-1.5 text-xs text-[var(--color-fg-dim)] overflow-x-auto">
           <span>蛇形顺序：</span>
           {snakeOrder.map((tid) => {
@@ -222,8 +228,8 @@ export function DraftLiveRoom({
         </div>
       )}
 
-      {/* 已完成 pick 历史 */}
-      {completedPicks.length > 0 && (
+      {/* 已完成 pick 历史 —— 仅直播模式 */}
+      {!isReadonly && completedPicks.length > 0 && (
         <section>
           <h2 className="text-sm font-semibold text-[var(--color-fg-mid)] mb-3 uppercase tracking-wider">
             选秀记录
@@ -256,7 +262,7 @@ export function DraftLiveRoom({
       {/* 选手池 */}
       <section>
         <h2 className="text-sm font-semibold text-[var(--color-fg-mid)] mb-3 uppercase tracking-wider">
-          剩余选手池 ({remainingPlayers.length})
+          {isReadonly ? "选手池" : "剩余选手池"} ({remainingPlayers.length})
         </h2>
         <PlayerPool players={remainingPlayers} seasonPositions={seasonPositions} />
       </section>

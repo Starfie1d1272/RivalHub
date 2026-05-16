@@ -39,6 +39,8 @@ const baseProps = {
       secondaryPosition: "anchor",
       peakRank: "S",
       peakRating: 2.01,
+      currentRank: "A+",
+      currentRating: 2.05,
       mapPreferences: [
         { map: "de_mirage", level: "strong" as const },
         { map: "de_nuke", level: "playable" as const },

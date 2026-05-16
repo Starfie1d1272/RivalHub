@@ -42,6 +42,8 @@ export interface DraftPlayerRow {
   secondaryPosition: string;
   peakRank: string;
   peakRating: number;
+  currentRank: string;
+  currentRating: number;
   mapPreferences: MapPreference[];
   gameplayStyle: string | null;
   notes: string | null;
@@ -156,6 +158,8 @@ export async function getDraftData(seasonId: string): Promise<DraftFullData> {
       secondaryPosition: seasonRegistrations.secondaryPosition,
       peakRank: seasonRegistrations.peakRank,
       peakRating: seasonRegistrations.peakRating,
+      currentRank: seasonRegistrations.currentSeasonPeakRank,
+      currentRating: seasonRegistrations.currentRating,
       mapPreferences: seasonRegistrations.mapPreferences,
       gameplayStyle: seasonRegistrations.gameplayStyle,
       notes: seasonRegistrations.notes,
@@ -184,6 +188,8 @@ export async function getDraftData(seasonId: string): Promise<DraftFullData> {
       secondaryPosition: r.secondaryPosition,
       peakRank: r.peakRank,
       peakRating: r.peakRating ?? 0,
+      currentRank: r.currentRank,
+      currentRating: r.currentRating ?? 0,
       mapPreferences: r.mapPreferences ?? [],
       gameplayStyle: r.gameplayStyle ?? null,
       notes: r.notes ?? null,

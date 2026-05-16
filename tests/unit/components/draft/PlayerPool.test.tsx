@@ -20,6 +20,8 @@ describe("PlayerPool", () => {
             secondaryPosition: "anchor",
             peakRank: "S",
             peakRating: 2.01,
+            currentRank: "A+",
+            currentRating: 2.05,
             mapPreferences: [],
             gameplayStyle: null,
             notes: null,

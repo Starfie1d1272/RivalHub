@@ -6,6 +6,7 @@ import { seasons } from "@/db/schema";
 import { DraftLiveRoom } from "@/components/draft/DraftLiveRoom";
 import { Panel, Marker } from "@/components/rivalhub";
 import { getDraftData } from "@/lib/draft/data";
+import { SEASON_STATUS_LABELS } from "@/types/season";
 
 export const dynamic = "force-dynamic";
 
@@ -38,23 +39,34 @@ export default async function DraftPage({ params }: DraftPageProps) {
     );
   }
 
+  // 预览模式：选秀未开始，展示只读选手池供队长提前研究
   if (season.status !== "drafting") {
-    const messages: Record<string, string> = {
-      draft: "选秀尚未开放，赛季仍在筹备中。",
-      registration: "报名阶段结束后才会开始选秀，请耐心等待。",
-      voting: "队长投票进行中，投票结束后将进入选秀阶段。",
-      playing: "选秀已结束，赛季正在进行中。",
-      finished: "该赛季已结束。",
-      archived: "该赛季已归档。",
-    };
+    const data = await getDraftData(season.id);
+    const stageLabel = SEASON_STATUS_LABELS[season.status] ?? season.status;
+
     return (
-      <main className="container mx-auto max-w-5xl px-4 py-10">
-        <Panel pad={32}>
-          <h1 className="text-2xl font-bold">选秀直播间 · {season.name}</h1>
-          <p className="mt-2 text-sm text-[var(--color-fg-mid)]">
-            {messages[season.status] ?? "选秀当前不可用。"}
+      <main className="container mx-auto max-w-7xl px-4 py-10">
+        <Marker sub="选秀开始前，队长可提前查看选手池研究阵容。">
+          选秀预览 · {season.name}
+        </Marker>
+
+        <div className="mb-6 rounded-lg border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/5 px-4 py-3">
+          <p className="text-sm text-[var(--color-fg-mid)]">
+            选秀尚未开始 · 当前阶段：{" "}
+            <span className="text-[var(--color-accent)] font-medium">{stageLabel}</span>
           </p>
-        </Panel>
+          <p className="mt-1 text-xs text-[var(--color-fg-dim)]">
+            以下为只读预览，包含已报名选手与队伍信息。选秀开始后页面会自动切换为直播模式。
+          </p>
+        </div>
+
+        <DraftLiveRoom
+          data={data}
+          seasonId={season.id}
+          seasonSlug={seasonSlug}
+          seasonPositions={season.positions}
+          readonly
+        />
       </main>
     );
   }

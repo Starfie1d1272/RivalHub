@@ -3,6 +3,12 @@
 import React, { useCallback, useRef, useState } from "react";
 import { Info } from "lucide-react";
 
+export const PLAYER_INFO_FIELDS = [
+  { key: "gameplayStyle", label: "风格" },
+  { key: "notes", label: "备注" },
+  { key: "competitionHistory", label: "经历" },
+] as const;
+
 interface PlayerInfoPopoverProps {
   gameplayStyle: string | null;
   notes: string | null;
@@ -15,11 +21,12 @@ export function PlayerInfoPopover({ gameplayStyle, notes, competitionHistory }: 
   const iconRef = useRef<HTMLButtonElement | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  const sections = [
-    { value: gameplayStyle?.trim(), label: "风格" },
-    { value: notes?.trim(), label: "备注" },
-    { value: competitionHistory?.trim(), label: "经历" },
-  ].filter((s) => s.value);
+  const sections = PLAYER_INFO_FIELDS
+    .map(({ key, label }) => {
+      const valueMap: Record<string, string | null> = { gameplayStyle, notes, competitionHistory };
+      return { value: valueMap[key]?.trim() ?? "", label };
+    })
+    .filter((s) => s.value);
 
   const show = useCallback(() => {
     clearTimeout(timerRef.current);
