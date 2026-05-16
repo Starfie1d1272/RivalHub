@@ -2,6 +2,8 @@ import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MatchStatusBadge } from "./MatchStatusBadge";
+import { MATCH_FORMAT_LABELS, MATCH_STAGE_LABELS } from "@/types/match";
+import type { MatchFormat } from "@/types/match";
 
 interface MatchCardProps {
   matchId: string;
@@ -11,12 +13,9 @@ interface MatchCardProps {
   scoreA: number | null;
   scoreB: number | null;
   stage: string;
-  format: "bo1" | "bo3" | "bo5";
+  format: MatchFormat;
   status: "scheduled" | "in_progress" | "finished" | "cancelled";
 }
-
-const STAGE_LABELS: Record<string, string> = { qualifier: "排位赛", playoff: "正赛" };
-const FORMAT_LABELS = { bo1: "BO1", bo3: "BO3", bo5: "BO5" };
 
 export function MatchCard({
   matchId,
@@ -44,10 +43,10 @@ export function MatchCard({
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <Badge variant="outline" className="text-xs text-[var(--color-fg-mid)]">
-              {STAGE_LABELS[stage] ?? stage}
+              {MATCH_STAGE_LABELS[stage] ?? stage}
             </Badge>
             <Badge variant="outline" className="text-xs text-[var(--color-fg-mid)]">
-              {FORMAT_LABELS[format]}
+              {MATCH_FORMAT_LABELS[format]}
             </Badge>
             <MatchStatusBadge status={status} />
           </div>

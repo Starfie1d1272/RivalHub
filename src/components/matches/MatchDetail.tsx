@@ -6,25 +6,14 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { formatCST } from "@/lib/utils/date";
-import { MATCH_STATUS_LABELS } from "@/types/match";
-import type { MatchStatus } from "@/types/match";
+import { MATCH_STATUS_LABELS, MATCH_FORMAT_LABELS, MATCH_STAGE_LABELS } from "@/types/match";
+import type { MatchStatus, MatchFormat } from "@/types/match";
 
-const STATUS_STYLES: Record<string, string> = {
+const STATUS_HERO_STYLES: Record<string, string> = {
   scheduled: "bg-blue-500/10 text-blue-400 border-blue-500/20",
   in_progress: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
   finished: "bg-green-500/10 text-green-400 border-green-500/20",
   cancelled: "bg-[var(--color-fg-dim)]/10 text-[var(--color-fg-dim)] border-[var(--color-border)]",
-};
-
-const FORMAT_LABELS: Record<string, string> = {
-  bo1: "BO1",
-  bo3: "BO3",
-  bo5: "BO5",
-};
-
-const STAGE_LABELS: Record<string, string> = {
-  qualifier: "排位赛",
-  playoff: "正赛",
 };
 
 const SIDE_LABELS: Record<string, string> = {
@@ -79,14 +68,14 @@ export function MatchDetail({ match }: { match: MatchDetailData }) {
       <Card className="bg-[var(--color-panel)] border-[var(--color-border)] p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2 flex-wrap">
-            <Badge className={`text-xs ${STATUS_STYLES[match.status] ?? ""}`}>
+            <Badge className={`text-xs ${STATUS_HERO_STYLES[match.status] ?? ""}`}>
               {MATCH_STATUS_LABELS[match.status as MatchStatus] ?? match.status}
             </Badge>
             <Badge variant="outline" className="text-xs border-[var(--color-border)] text-[var(--color-fg-mid)]">
-              {FORMAT_LABELS[match.format] ?? match.format}
+              {MATCH_FORMAT_LABELS[match.format as MatchFormat] ?? match.format}
             </Badge>
             <Badge variant="outline" className="text-xs border-[var(--color-border)] text-[var(--color-fg-mid)]">
-              {STAGE_LABELS[match.stage] ?? match.stage}
+              {MATCH_STAGE_LABELS[match.stage] ?? match.stage}
             </Badge>
           </div>
           {match.scheduledAt && !isFinished && (
