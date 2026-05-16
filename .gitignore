@@ -149,4 +149,5 @@ vite.config.ts.timestamp-*
 .omc/
 .superpowers/
 .codex/
-.claude/
+.claude/*
+!.claude/skills
