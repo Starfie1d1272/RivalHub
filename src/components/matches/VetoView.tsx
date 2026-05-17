@@ -1,6 +1,6 @@
 import { db } from "@/db/client";
 import { matchVetoSteps } from "@/db/schema/match-veto-steps";
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { SIDE_LABELS } from "@/types/match";
 import { mapLabel } from "@/lib/maps";
 import { Panel } from "@/components/rivalhub";
@@ -34,10 +34,11 @@ export async function VetoView({
   teamAId,
   teamBId,
 }: Props) {
-  const steps = await db.query.matchVetoSteps.findMany({
-    where: eq(matchVetoSteps.matchId, matchId),
-    orderBy: (t, { asc }) => [asc(t.stepOrder)],
-  });
+  const steps = await db
+    .select()
+    .from(matchVetoSteps)
+    .where(eq(matchVetoSteps.matchId, matchId))
+    .orderBy(asc(matchVetoSteps.stepOrder));
 
   if (steps.length === 0) return null;
 
