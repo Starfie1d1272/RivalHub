@@ -22,6 +22,7 @@ import { VetoView } from "@/components/matches/VetoView";
 import { getMatchMvpResults } from "@/actions/player-stats";
 import { getTimeProposals } from "@/actions/matches/scheduling";
 import { getMatchRoster } from "@/actions/matches/roster";
+import { sumNums, avgNums, weightedAvgNums } from "@/lib/utils/stats";
 import { getUserSession } from "@/lib/auth/session";
 
 interface MatchDetailPageProps {
@@ -65,7 +66,17 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   let mvpCandidates: {
     userId: string | null;
     perfectName: string;
+    kills: number | null;
+    deaths: number | null;
+    assists: number | null;
+    hsPercent: number | null;
+    firstKills: number | null;
+    multiKills: number | null;
+    clutches: number | null;
+    adr: number | null;
+    rws: number | null;
     ratingPro: number | null;
+    we: number | null;
   }[] = [];
   let mvpVoteResults: Awaited<ReturnType<typeof getMatchMvpResults>> = [];
   let userVoted: string | null = null;
@@ -75,19 +86,35 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
       where: eq(matchPlayerStats.matchId, match.id),
     });
 
-    const seen = new Set<string>();
-    mvpCandidates = allStats
-      .filter((s) => {
-        const key = s.userId ?? s.perfectName;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      })
-      .map((s) => ({
-        userId: s.userId,
-        perfectName: s.perfectName,
-        ratingPro: s.ratingPro,
-      }));
+    // 按玩家分组，跨地图聚合
+    const groupMap = new Map<string, typeof allStats>();
+    for (const s of allStats) {
+      const key = s.userId ?? `name:${s.perfectName}`;
+      const list = groupMap.get(key) ?? [];
+      list.push(s);
+      groupMap.set(key, list);
+    }
+
+    const aggregated = Array.from(groupMap.values()).map((rows) => ({
+      userId: rows[0].userId,
+      perfectName: rows[0].perfectName,
+      kills: sumNums(rows.map((r) => r.kills)),
+      deaths: sumNums(rows.map((r) => r.deaths)),
+      assists: sumNums(rows.map((r) => r.assists)),
+      hsPercent: weightedAvgNums(rows.map((r) => r.hsPercent), rows.map((r) => r.kills)),
+      firstKills: sumNums(rows.map((r) => r.firstKills)),
+      multiKills: sumNums(rows.map((r) => r.multiKills)),
+      clutches: sumNums(rows.map((r) => r.clutches)),
+      adr: avgNums(rows.map((r) => r.adr)),
+      rws: avgNums(rows.map((r) => r.rws)),
+      ratingPro: avgNums(rows.map((r) => r.ratingPro)),
+      we: avgNums(rows.map((r) => r.we)),
+    }));
+
+    // 按平均 Rating 降序，取前 4
+    mvpCandidates = aggregated
+      .sort((a, b) => (b.ratingPro ?? 0) - (a.ratingPro ?? 0))
+      .slice(0, 4);
 
     mvpVoteResults = await getMatchMvpResults(match.id);
 
@@ -479,6 +506,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
           candidates={mvpCandidates}
           currentVotes={mvpVoteResults}
           userVotedPlayerName={userVoted}
+          completedAt={match.completedAt?.toISOString() ?? null}
         />
       )}
     </div>

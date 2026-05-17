@@ -5,6 +5,26 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.15.0] - 2026-05-18
+
+### Added
+- **MVP 投票重构**：候选人由全部选手改为 Rating 前 4 名；候选人大卡展示完整数据（K/D/A/ADR/RWS/HS%/FK/MK/残局/Rating/WE）；多地图数据智能聚合（击杀类求和、场均类取均值、HS% 按击杀加权）；比赛结束 24 小时后自动截止投票并展示最终 MVP
+- **赛程管理队伍筛选**：AdminMatchFilter 新增队伍下拉筛选；赛程按「进行中→已排期(越近越靠前)→已完成→已取消」排序
+- **地图结果表格** PlayerStatsTable 新增 HS%/FK/MK/残局列
+- `sumNums` / `avgNums` / `weightedAvgNums` 通用聚合函数（`src/lib/utils/stats.ts`）
+- `MVP_DEADLINE_MS` 共享常量 + `getMatchPlayerOptions` / `getMatchVetoSteps` action
+- **管理后台比赛详情增加队伍筛选** + 按开赛时间排序
+
+### Changed
+- **BP 录入流程优化**：BP 仅在比赛「进行中」时可用；打开对话框自动回填已保存数据（不再每次重置）
+- **OCR 面板视图/编辑双模式**：已有数据时显示只读表格 +「重新录入」按钮；挂载时自动加载已保存数据
+- **管理后台比赛列表增加队伍筛选** + 按开赛时间排序
+
+### Fixed
+- **管理后台 OCR「暂无数据」**：公开页已有数据但管理后台显示空白的 bug
+- **BP 对话框错误处理**：异步加载失败不再卡 loading
+- **StatsOCRPanel useEffect**：加 cleanup 标志防止卸载后 setState
+
 ## [1.14.3] - 2026-05-17
 
 ### Added

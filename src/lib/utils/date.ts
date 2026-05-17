@@ -42,6 +42,9 @@ export function isDeadlinePassed(deadline: Date | string): boolean {
   return d.getTime() <= Date.now();
 }
 
+/** MVP 投票截止窗口：比赛结束后 24 小时 */
+export const MVP_DEADLINE_MS = 24 * 60 * 60 * 1000;
+
 export function formatCSTShortDate(date: Date | string): string {
   const d = typeof date === "string" ? new Date(date) : date;
   return d.toLocaleDateString(CST_LOCALE, { timeZone: CST_TZ, month: "short", day: "numeric" });

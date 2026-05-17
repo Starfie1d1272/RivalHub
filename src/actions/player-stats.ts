@@ -13,6 +13,7 @@ import { teamMembers } from "@/db/schema/teams";
 import { ok, fail } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { actionError } from "@/lib/action-utils";
+import { MVP_DEADLINE_MS } from "@/lib/utils/date";
 import { extractScoreboardFromBase64 } from "@/lib/ocr";
 import type { PlayerRowOCR } from "@/lib/ocr";
 import { requireAdmin, auditActorId, requireAuth } from "@/lib/auth/session";
@@ -179,6 +180,40 @@ export async function getPlayerStatsByMap(mapId: string) {
   });
 }
 
+/**
+ * 获取某张地图对应比赛的两队选手列表（用于 OCR 编辑时的下拉匹配）
+ */
+export async function getMatchPlayerOptions(mapId: string): Promise<PlayerOption[]> {
+  try {
+    await requireAdmin();
+    const map = await db.query.matchMaps.findFirst({ where: eq(matchMaps.id, mapId) });
+    if (!map) return [];
+    const match = await db.query.matches.findFirst({ where: eq(matches.id, map.matchId) });
+    if (!match) return [];
+
+    const teamMemberRows = await db
+      .select({ registrationId: teamMembers.registrationId })
+      .from(teamMembers)
+      .where(inArray(teamMembers.teamId, [match.teamAId, match.teamBId]));
+
+    const teamRegistrationIds = teamMemberRows.map((r) => r.registrationId);
+    if (!teamRegistrationIds.length) return [];
+
+    const seasonPlayers = await db
+      .select({ userId: users.id, perfectName: users.perfectName })
+      .from(users)
+      .innerJoin(seasonRegistrations, eq(seasonRegistrations.userId, users.id))
+      .where(inArray(seasonRegistrations.id, teamRegistrationIds));
+
+    return seasonPlayers.map((p) => ({
+      userId: p.userId,
+      perfectName: p.perfectName ?? "(未填写昵称)",
+    }));
+  } catch {
+    return [];
+  }
+}
+
 export async function castMatchMvpVote(
   matchId: string,
   playerUserId: string | null,
@@ -196,6 +231,14 @@ export async function castMatchMvpVote(
     if (!match) throw new AppError(ErrorCode.MATCH_NOT_FOUND, ERROR_MESSAGES.MATCH_NOT_FOUND);
     if (match.status !== "finished") {
       return fail({ code: ErrorCode.MATCH_INVALID_TRANSITION, message: "比赛尚未结束" });
+    }
+
+    // 比赛结束 24 小时后停止投票
+    if (match.completedAt) {
+      const deadline = match.completedAt.getTime() + MVP_DEADLINE_MS;
+      if (Date.now() >= deadline) {
+        return fail({ code: ErrorCode.MATCH_INVALID_TRANSITION, message: "MVP 投票已截止" });
+      }
     }
 
     await db.insert(matchMvpVotes).values({

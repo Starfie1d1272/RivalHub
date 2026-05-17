@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { saveVetoSteps, type VetoStepInput } from "@/actions/matches/veto";
+import { saveVetoSteps, getMatchVetoSteps, type VetoStepInput } from "@/actions/matches/veto";
 import { mapLabel } from "@/lib/maps";
 import type { VetoActionType } from "@/types/match";
 import { SIDE_LABELS } from "@/types/match";
@@ -104,6 +104,7 @@ export function VetoInputDialog({
   const [steps, setSteps] = useState<StepEdit[]>(() =>
     buildTemplate(format, teamAId, teamBId),
   );
+  const [loading, setLoading] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   function teamName(teamId: string | null) {
@@ -161,12 +162,32 @@ export function VetoInputDialog({
     });
   }
 
-  function handleOpenChange(next: boolean) {
+  async function handleOpenChange(next: boolean) {
     if (next) {
-      // 每次打开对话框时重置为模板
-      setSteps(buildTemplate(format, teamAId, teamBId));
+      setLoading(true);
+      setOpen(true);
+      try {
+        const existing = await getMatchVetoSteps(matchId);
+        if (existing.length > 0) {
+          setSteps(
+            existing.map((s) => ({
+              actionType: s.actionType as VetoActionType,
+              mapName: s.mapName,
+              teamId: s.teamId,
+              side: s.side as "t" | "ct" | null,
+            })),
+          );
+        } else {
+          setSteps(buildTemplate(format, teamAId, teamBId));
+        }
+      } catch {
+        setSteps(buildTemplate(format, teamAId, teamBId));
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      setOpen(false);
     }
-    setOpen(next);
   }
 
   return (
@@ -183,6 +204,9 @@ export function VetoInputDialog({
           </DialogTitle>
         </DialogHeader>
 
+        {loading ? (
+          <p className="text-sm text-[var(--color-fg-mid)] py-4">加载中…</p>
+        ) : null}
         <div className="space-y-3">
           {steps.map((step, i) => (
             <div

@@ -28,14 +28,36 @@ import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
+const STATUS_SORT_ORDER: Record<string, number> = {
+  in_progress: 0,
+  scheduled: 1,
+  finished: 2,
+  cancelled: 3,
+};
+
+function sortMatches<T extends { status: string; scheduledAt: Date | null }>(list: T[]): T[] {
+  return [...list].sort((a, b) => {
+    const diff = (STATUS_SORT_ORDER[a.status] ?? 9) - (STATUS_SORT_ORDER[b.status] ?? 9);
+    if (diff !== 0) return diff;
+    // 同状态：有排期的按时间升序，null 排最后
+    if (a.status === "scheduled" || a.status === "in_progress") {
+      if (!a.scheduledAt && !b.scheduledAt) return 0;
+      if (!a.scheduledAt) return 1;
+      if (!b.scheduledAt) return -1;
+      return a.scheduledAt.getTime() - b.scheduledAt.getTime();
+    }
+    return 0;
+  });
+}
+
 interface AdminMatchesPageProps {
   params: Promise<{ seasonSlug: string }>;
-  searchParams: Promise<{ stage?: string; status?: string }>;
+  searchParams: Promise<{ stage?: string; status?: string; team?: string }>;
 }
 
 export default async function AdminMatchesPage({ params, searchParams }: AdminMatchesPageProps) {
   const { seasonSlug } = await params;
-  const { stage: filterStage, status: filterStatus } = await searchParams;
+  const { stage: filterStage, status: filterStatus, team: filterTeam } = await searchParams;
 
   const season = await db.query.seasons.findFirst({
     where: eq(seasons.slug, seasonSlug),
@@ -80,8 +102,14 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
   const playoffKey = playoffStage?.key ?? "playoff";
   const statusFilter = (m: { status: string }) =>
     !filterStatus || filterStatus === "all" || m.status === filterStatus;
-  const qualifierMatches = allMatches.filter((m) => m.stage === qualifierKey).filter(statusFilter);
-  const playoffMatches = allMatches.filter((m) => m.stage === playoffKey).filter(statusFilter);
+  const teamFilter = (m: { teamAId: string; teamBId: string }) =>
+    !filterTeam || filterTeam === "all" || m.teamAId === filterTeam || m.teamBId === filterTeam;
+  const qualifierMatches = sortMatches(
+    allMatches.filter((m) => m.stage === qualifierKey).filter(statusFilter).filter(teamFilter)
+  );
+  const playoffMatches = sortMatches(
+    allMatches.filter((m) => m.stage === playoffKey).filter(statusFilter).filter(teamFilter)
+  );
 
   // 已完成比赛的地图列表（用于 OCR 录入面板）
   const finishedMatchIds = allMatches
@@ -290,7 +318,10 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
 
       {/* 筛选 */}
       {matchCount > 0 && (
-        <AdminMatchFilter stages={stagePlan.map((s) => ({ key: s.key, name: s.name }))} />
+        <AdminMatchFilter
+          stages={stagePlan.map((s) => ({ key: s.key, name: s.name }))}
+          teams={allTeams.map((t) => ({ id: t.id, name: t.name }))}
+        />
       )}
 
       {/* 赛季状态提示 */}
@@ -392,7 +423,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                             teamARoster={rosterByMatch.get(m.id)?.get(m.teamAId) ?? null}
                             teamBRoster={rosterByMatch.get(m.id)?.get(m.teamBId) ?? null}
                           />
-                          {(m.status === "scheduled" || m.status === "in_progress") && (
+                          {m.status === "in_progress" && (
                             <VetoInputDialog
                               matchId={m.id}
                               format={m.format as "bo1" | "bo3" | "bo5"}

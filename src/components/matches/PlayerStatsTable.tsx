@@ -1,5 +1,5 @@
 import React from "react";
-import { eq, and, inArray, or } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matchPlayerStats } from "@/db/schema/player-stats";
 import { teamMembers } from "@/db/schema/teams";
@@ -53,7 +53,6 @@ async function getStatsGroupedByTeam(mapId: string, matchId: string) {
 
   const teamA = stats.filter((s) => s.userId && userIdToTeam.get(s.userId) === matchData.teamAId);
   const teamB = stats.filter((s) => s.userId && userIdToTeam.get(s.userId) === matchData.teamBId);
-
   const unmatched = stats.filter((s) => !s.userId || !userIdToTeam.has(s.userId));
   const half = Math.ceil(unmatched.length / 2);
 
@@ -70,9 +69,7 @@ export async function PlayerStatsTable({ matchId, mapId }: PlayerStatsTableProps
 
   if (teamA.length === 0 && teamB.length === 0) {
     return (
-      <p className="text-xs text-[var(--color-fg-dim)] py-2">
-        暂无玩家数据
-      </p>
+      <p className="text-xs text-[var(--color-fg-dim)] py-2">暂无玩家数据</p>
     );
   }
 
@@ -80,8 +77,8 @@ export async function PlayerStatsTable({ matchId, mapId }: PlayerStatsTableProps
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
-      <StatTeamBlock label="Team A" players={teamA} cols={cols} />
-      <StatTeamBlock label="Team B" players={teamB} cols={cols} />
+      <StatTeamBlock label="队伍 A" players={teamA} cols={cols} />
+      <StatTeamBlock label="队伍 B" players={teamB} cols={cols} />
     </div>
   );
 }

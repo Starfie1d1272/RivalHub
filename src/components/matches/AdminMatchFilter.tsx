@@ -14,8 +14,14 @@ interface StageOption {
   name: string;
 }
 
+interface TeamOption {
+  id: string;
+  name: string;
+}
+
 interface AdminMatchFilterProps {
   stages: StageOption[];
+  teams?: TeamOption[];
 }
 
 const STATUS_OPTIONS = [
@@ -26,12 +32,13 @@ const STATUS_OPTIONS = [
   { value: "cancelled", label: "已取消" },
 ];
 
-export function AdminMatchFilter({ stages }: AdminMatchFilterProps) {
+export function AdminMatchFilter({ stages, teams }: AdminMatchFilterProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const currentStage = searchParams.get("stage") ?? "all";
   const currentStatus = searchParams.get("status") ?? "all";
+  const currentTeam = searchParams.get("team") ?? "all";
 
   function updateFilter(key: string, value: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -68,6 +75,20 @@ export function AdminMatchFilter({ stages }: AdminMatchFilterProps) {
           ))}
         </SelectContent>
       </Select>
+
+      {teams && teams.length > 0 && (
+        <Select value={currentTeam} onValueChange={(v) => updateFilter("team", v)}>
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="队伍筛选" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">全部队伍</SelectItem>
+            {teams.map((t) => (
+              <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
     </div>
   );
 }

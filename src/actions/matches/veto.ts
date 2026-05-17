@@ -115,3 +115,13 @@ export async function saveVetoSteps(
     return actionError("saveVetoSteps", e);
   }
 }
+
+/**
+ * 查询某场比赛已保存的 BP 步骤（按顺序）
+ */
+export async function getMatchVetoSteps(matchId: string) {
+  return db.query.matchVetoSteps.findMany({
+    where: eq(matchVetoSteps.matchId, matchId),
+    orderBy: (t, { asc }) => [asc(t.stepOrder)],
+  });
+}
