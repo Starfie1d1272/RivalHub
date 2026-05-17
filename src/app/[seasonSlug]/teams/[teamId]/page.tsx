@@ -267,33 +267,6 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
         <Stat label="负" value={totalLosses} />
       </div>
 
-      {/* 即将进行的比赛 */}
-      {upcomingMatches.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold text-[var(--color-fg)]">即将进行的比赛</h2>
-          <div className="space-y-2">
-            {upcomingMatches.map((m) => {
-              const oppId = m.teamAId === teamId ? m.teamBId : m.teamAId;
-              const oppTeam = teamNameMap.get(oppId);
-              return (
-                <MatchCard
-                  key={m.id}
-                  matchId={m.id}
-                  seasonSlug={seasonSlug}
-                  teamAName={m.teamAId === teamId ? team.name : (oppTeam?.name ?? "TBD")}
-                  teamBName={m.teamBId === teamId ? team.name : (oppTeam?.name ?? "TBD")}
-                  scoreA={m.scoreA}
-                  scoreB={m.scoreB}
-                  stage={m.stage}
-                  format={m.format as "bo1" | "bo3" | "bo5"}
-                  status={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"}
-                />
-              );
-            })}
-          </div>
-        </section>
-      )}
-
       {/* 阵容 */}
       <section>
         <Panel label="阵容" pad={20}>
@@ -335,6 +308,68 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
           </div>
         </Panel>
       </section>
+
+      {/* 即将进行的比赛 */}
+      {upcomingMatches.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold text-[var(--color-fg)]">即将进行的比赛</h2>
+          <div className="space-y-2">
+            {upcomingMatches.map((m) => {
+              const oppId = m.teamAId === teamId ? m.teamBId : m.teamAId;
+              const oppTeam = teamNameMap.get(oppId);
+              return (
+                <MatchCard
+                  key={m.id}
+                  matchId={m.id}
+                  seasonSlug={seasonSlug}
+                  teamAName={m.teamAId === teamId ? team.name : (oppTeam?.name ?? "TBD")}
+                  teamBName={m.teamBId === teamId ? team.name : (oppTeam?.name ?? "TBD")}
+                  scoreA={m.scoreA}
+                  scoreB={m.scoreB}
+                  stage={m.stage}
+                  format={m.format as "bo1" | "bo3" | "bo5"}
+                  status={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"}
+                  scheduledAt={m.scheduledAt}
+                />
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* 历史战绩 */}
+      {teamMatches.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold text-[var(--color-fg)]">历史战绩</h2>
+          <div className="space-y-2">
+            {[...teamMatches]
+              .sort((a, b) => {
+                const aTime = a.scheduledAt?.getTime() ?? a.createdAt.getTime();
+                const bTime = b.scheduledAt?.getTime() ?? b.createdAt.getTime();
+                return bTime - aTime;
+              })
+              .map((m) => {
+                const oppId = m.teamAId === teamId ? m.teamBId : m.teamAId;
+                const oppTeam = teamNameMap.get(oppId);
+                return (
+                  <MatchCard
+                    key={m.id}
+                    matchId={m.id}
+                    seasonSlug={seasonSlug}
+                    teamAName={m.teamAId === teamId ? team.name : (oppTeam?.name ?? "TBD")}
+                    teamBName={m.teamBId === teamId ? team.name : (oppTeam?.name ?? "TBD")}
+                    scoreA={m.scoreA}
+                    scoreB={m.scoreB}
+                    stage={m.stage}
+                    format={m.format as "bo1" | "bo3" | "bo5"}
+                    status={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"}
+                    scheduledAt={m.scheduledAt}
+                  />
+                );
+              })}
+          </div>
+        </section>
+      )}
 
       {/* 队内联系方式（仅同队成员可见） */}
       {isTeamMember && (

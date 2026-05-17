@@ -1,4 +1,4 @@
-import { ocrResponseSchema, playerRowSchema, type ScoreboardOCRResult, type OCRProvider } from "./types";
+import { ocrResponseSchema, playerRowLenientSchema, type ScoreboardOCRResult, type OCRProvider, type PlayerRowOCR } from "./types";
 
 const DEFAULT_API_URL = "https://api.siliconflow.cn/v1/chat/completions";
 const DEFAULT_MODEL = "PaddlePaddle/PaddleOCR-VL-1.5";
@@ -141,15 +141,18 @@ async function extract(base64Image: string, mimeType: string): Promise<Scoreboar
     throw new Error(`OCR 结果格式校验失败: ${issues}`);
   }
 
-  // 逐行宽松校验：单行失败则丢弃，不拖累整批
-  const validPlayers = structure.data.players.filter((row, idx) => {
-    const r = playerRowSchema.safeParse(row);
+  // 逐行校验：仅丢弃无法识别玩家名称的行，数值字段尽力转换
+  const validPlayers: PlayerRowOCR[] = [];
+  let idx = 0;
+  for (const row of structure.data.players) {
+    const r = playerRowLenientSchema.safeParse(row);
     if (!r.success) {
-      console.warn(`[OCR] 第 ${idx + 1} 行校验失败，已丢弃`, r.error.issues);
-      return false;
+      console.warn(`[OCR] 第 ${idx + 1} 行无有效玩家名称，已丢弃`, r.error.issues);
+    } else {
+      validPlayers.push(r.data);
     }
-    return true;
-  });
+    idx++;
+  }
 
   if (validPlayers.length === 0) {
     throw new Error("OCR 结果格式校验失败：没有可用的玩家数据行");

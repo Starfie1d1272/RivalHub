@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MatchStatusBadge } from "./MatchStatusBadge";
 import { MATCH_FORMAT_LABELS, MATCH_STAGE_LABELS } from "@/types/match";
+import { formatCSTShortDate } from "@/lib/utils/date";
 import type { MatchFormat } from "@/types/match";
 
 interface MatchCardProps {
@@ -15,6 +16,7 @@ interface MatchCardProps {
   stage: string;
   format: MatchFormat;
   status: "scheduled" | "in_progress" | "finished" | "cancelled";
+  scheduledAt?: Date | string | null;
 }
 
 export function MatchCard({
@@ -27,7 +29,15 @@ export function MatchCard({
   stage,
   format,
   status,
+  scheduledAt,
 }: MatchCardProps) {
+  const timeText =
+    status === "scheduled" && scheduledAt
+      ? formatCSTShortDate(scheduledAt)
+      : status === "scheduled" && !scheduledAt
+        ? "未排期"
+        : null;
+
   return (
     <Link href={`/${seasonSlug}/matches/${matchId}`}>
       <Card className="p-4 hover:bg-[var(--color-panel-hi)] transition-colors cursor-pointer">
@@ -42,6 +52,9 @@ export function MatchCard({
             <span className="font-semibold truncate text-[var(--color-fg)] text-sm sm:text-base">{teamBName}</span>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            {timeText && (
+              <span className="text-xs text-[var(--color-fg-mid)]">{timeText}</span>
+            )}
             <Badge variant="outline" className="text-xs text-[var(--color-fg-mid)]">
               {MATCH_STAGE_LABELS[stage] ?? stage}
             </Badge>

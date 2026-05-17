@@ -5,6 +5,13 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.14.1] - 2026-05-17
+
+### Fixed
+- **OCR 校验彻底放宽**：顶层仅校验数组结构（不再因单行缺字段整批丢弃），行级仅要求玩家名称非空，数值字段自动转换（`"15"` → `15`、`"N/A"` → `null`），移除所有范围上限
+- **赛程总览显示比赛时间**：MatchCard 已排期显示日期、未排期显示「未排期」
+- **队伍详情页补全**：新增「历史战绩」列表（比分/BO1·BO3/阶段/详情链接），调整顺序为阵容→即将进行→历史战绩
+
 ## [1.14.0] - 2026-05-17
 
 ### Added

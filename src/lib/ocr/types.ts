@@ -1,5 +1,20 @@
 import { z } from "zod";
 
+// 尽力将任意值转为 number，无法转换则返回 null
+const numOrNull = z.preprocess(
+  (v) => {
+    if (v === null || v === undefined) return null;
+    if (typeof v === "number" && !Number.isNaN(v)) return v;
+    if (typeof v === "string") {
+      const n = Number(v);
+      if (!Number.isNaN(n)) return n;
+    }
+    return null;
+  },
+  z.number().nullable().default(null),
+);
+
+// 严格版（保留供参考）
 export const playerRowSchema = z.object({
   perfectName: z.string(),
   kills: z.number().int().nonnegative().nullable().default(null),
@@ -15,12 +30,30 @@ export const playerRowSchema = z.object({
   we: z.number().min(0).max(16).nullable().default(null),
 });
 
-export const ocrResponseSchema = z.object({
-  players: z.array(playerRowSchema).min(1).max(20),
+// 宽松版：仅要求 perfectName 非空，数值字段尽力转换，不设上下限
+export const playerRowLenientSchema = z.object({
+  perfectName: z.string().min(1),
+  kills: numOrNull,
+  deaths: numOrNull,
+  assists: numOrNull,
+  hsPercent: numOrNull,
+  firstKills: numOrNull,
+  multiKills: numOrNull,
+  clutches: numOrNull,
+  adr: numOrNull,
+  rws: numOrNull,
+  ratingPro: numOrNull,
+  we: numOrNull,
 });
 
-export type PlayerRowOCR = z.infer<typeof playerRowSchema>;
-export type ScoreboardOCRResult = z.infer<typeof ocrResponseSchema>;
+export const ocrResponseSchema = z.object({
+  // 顶层仅校验 players 是数组（1-20 个元素），不做逐行字段校验
+  // 逐行过滤在 siliconflow.ts 中用 playerRowLenientSchema 完成
+  players: z.array(z.unknown()).min(1).max(20),
+});
+
+export type PlayerRowOCR = z.infer<typeof playerRowLenientSchema>;
+export type ScoreboardOCRResult = { players: PlayerRowOCR[] };
 
 export interface OCRProvider {
   name: string;

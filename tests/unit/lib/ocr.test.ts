@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { playerRowSchema, ocrResponseSchema } from "@/lib/ocr/types";
+import { playerRowSchema, playerRowLenientSchema, ocrResponseSchema } from "@/lib/ocr/types";
 import type { OCRProvider } from "@/lib/ocr/types";
 
-describe("ocrResponseSchema", () => {
+describe("ocrResponseSchema (宽松)", () => {
   it("接受合法 OCR 结果", () => {
     const data = {
       players: [
@@ -54,15 +54,51 @@ describe("ocrResponseSchema", () => {
     expect(r.success).toBe(false);
   });
 
-  it("拒绝缺少 perfectName", () => {
+  it("顶层仅校验数组结构，不拒绝缺少 perfectName 的行（由行级过滤处理）", () => {
     const r = ocrResponseSchema.safeParse({
       players: [{ kills: 10 }],
     });
+    // 顶层通过，缺少 perfectName 的行在 siliconflow.ts 行级过滤中丢弃
+    expect(r.success).toBe(true);
+  });
+
+  it("超出传统范围的值仍然接受", () => {
+    const r = ocrResponseSchema.safeParse({
+      players: [{ perfectName: "x", hsPercent: 150, we: 20 }],
+    });
+    expect(r.success).toBe(true);
+  });
+});
+
+describe("playerRowLenientSchema", () => {
+  it("字符串数值自动转换", () => {
+    const r = playerRowLenientSchema.safeParse({
+      perfectName: "x", kills: "15", adr: "85.5",
+    });
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.kills).toBe(15);
+      expect(r.data.adr).toBe(85.5);
+    }
+  });
+
+  it("不可转换的字符串置为 null", () => {
+    const r = playerRowLenientSchema.safeParse({
+      perfectName: "x", kills: "N/A",
+    });
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.kills).toBeNull();
+    }
+  });
+
+  it("拒绝空 perfectName", () => {
+    const r = playerRowLenientSchema.safeParse({ perfectName: "" });
     expect(r.success).toBe(false);
   });
 });
 
-describe("playerRowSchema", () => {
+describe("playerRowSchema (严格)", () => {
   it("we 范围 0-16", () => {
     expect(playerRowSchema.safeParse({ perfectName: "x", we: 0 }).success).toBe(true);
     expect(playerRowSchema.safeParse({ perfectName: "x", we: 16 }).success).toBe(true);
