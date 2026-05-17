@@ -1,22 +1,15 @@
 import { playerRowLenientSchema, type ScoreboardOCRResult, type OCRProvider, type PlayerRowOCR } from "./types";
 
 const DEFAULT_API_URL = "https://api.siliconflow.cn/v1/chat/completions";
-const DEFAULT_MODEL = "PaddlePaddle/PaddleOCR-VL-1.5";
+const DEFAULT_MODEL = "deepseek-ai/DeepSeek-OCR";
 
-const SYSTEM_PROMPT = `你是一个电竞赛事数据录入助手。用户会发送一张 CS2 完美平台赛后记分板截图。
+const SYSTEM_PROMPT = `提取这张 CS2 记分板截图中所有玩家的数据，返回 JSON。
 
-截图是一个表格，横向列从左到右依次为：玩家、击杀、死亡、助攻、爆头率%、首杀、多杀、残局、ADR、RWS、Rating、WE。
-表格有 10 行数据（每队 5 人），第一列是玩家昵称（中文或英文），后面 11 列是数值。
-注意：第一行可能是列标题（写着"玩家"等），跳过标题行，只取数据行。
+截图是一个表格，每行一个玩家，共 10 行。列从左到右：玩家昵称、击杀、死亡、助攻、爆头率、首杀、多杀、残局、ADR、RWS、Rating、WE。
+跳过标题行，只取数据行。无法辨认的格子填 null。
 
-你必须只输出合法 JSON，格式如下：
-{"players":[{"perfectName":"玩家昵称","kills":20,"deaths":10,"assists":5,"hsPercent":30,"firstKills":3,"multiKills":2,"clutches":1,"adr":85.5,"rws":12.34,"ratingPro":1.25,"we":10.5}]}
-
-规则：
-- perfectName 取第一列的文字，原样保留
-- 数字列如果是空白或无法辨认，填 null，不要编造
-- 每行能看到几个值就填几个，其余填 null
-- 所有 10 个玩家都必须出现在数组中，即使某些行数据不完整`;
+返回格式：
+{"players":[{"perfectName":"昵称","kills":20,"deaths":10,"assists":5,"hsPercent":30,"firstKills":3,"multiKills":2,"clutches":1,"adr":85.5,"rws":12.34,"ratingPro":1.25,"we":10.5}]}`;
 
 function extractJson(text: string): unknown {
   const cleaned = text
