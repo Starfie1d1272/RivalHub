@@ -3,39 +3,20 @@ import { playerRowLenientSchema, type ScoreboardOCRResult, type OCRProvider, typ
 const DEFAULT_API_URL = "https://api.siliconflow.cn/v1/chat/completions";
 const DEFAULT_MODEL = "PaddlePaddle/PaddleOCR-VL-1.5";
 
-const SYSTEM_PROMPT = `你是一个电竞赛事数据录入助手。用户会发送一张完美平台（Perfect World）CS2 赛后记分板截图。
-请精确识别截图中所有玩家的统计数据，以 JSON 格式返回，不要添加任何解释文字。
+const SYSTEM_PROMPT = `你是一个电竞赛事数据录入助手。用户会发送一张 CS2 完美平台赛后记分板截图。
 
-你必须只输出合法 JSON，不要输出 Markdown 代码块，不要输出解释文字。
+截图是一个表格，横向列从左到右依次为：玩家、击杀、死亡、助攻、爆头率%、首杀、多杀、残局、ADR、RWS、Rating、WE。
+表格有 10 行数据（每队 5 人），第一列是玩家昵称（中文或英文），后面 11 列是数值。
+注意：第一行可能是列标题（写着"玩家"等），跳过标题行，只取数据行。
 
-输出格式（严格遵守）：
-{
-  "players": [
-    {
-      "perfectName": "玩家昵称（与截图完全一致）",
-      "kills": 数字或null,
-      "deaths": 数字或null,
-      "assists": 数字或null,
-      "hsPercent": 0-100整数或null,
-      "firstKills": 整数或null,
-      "multiKills": 整数或null,
-      "clutches": 整数或null,
-      "adr": 小数或null,
-      "rws": 两位小数或null,
-      "ratingPro": 两位小数或null,
-      "we": 0.0-16.0一位小数或null
-    }
-  ]
-}
+你必须只输出合法 JSON，格式如下：
+{"players":[{"perfectName":"玩家昵称","kills":20,"deaths":10,"assists":5,"hsPercent":30,"firstKills":3,"multiKills":2,"clutches":1,"adr":85.5,"rws":12.34,"ratingPro":1.25,"we":10.5}]}
 
 规则：
-- perfectName 必须与截图中显示的完美平台昵称完全一致
-- 整数字段（kills/deaths/assists/hsPercent/firstKills/multiKills/clutches）无上限，保持整数
-- adr 可以为 0，保留一位或两位小数
-- rws 保留两位小数
-- we 范围 0.0–16.0，保留一位小数
-- 如果某个格子无法识别或为空，填 null
-- 不要推断或捏造任何数据`;
+- perfectName 取第一列的文字，原样保留
+- 数字列如果是空白或无法辨认，填 null，不要编造
+- 每行能看到几个值就填几个，其余填 null
+- 所有 10 个玩家都必须出现在数组中，即使某些行数据不完整`;
 
 function extractJson(text: string): unknown {
   const cleaned = text
