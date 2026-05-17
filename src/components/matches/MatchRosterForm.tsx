@@ -20,13 +20,20 @@ interface MatchRosterFormProps {
   matchId: string;
   teamMembers: TeamMember[];
   hasExistingRoster: boolean;
+  scheduledAt: Date | null;
 }
 
 export function MatchRosterForm({
   matchId,
   teamMembers,
   hasExistingRoster,
+  scheduledAt,
 }: MatchRosterFormProps) {
+  const hoursUntilMatch = scheduledAt
+    ? Math.floor((scheduledAt.getTime() - Date.now()) / (1000 * 60 * 60))
+    : null;
+  const isWithin2Hours = hoursUntilMatch !== null && hoursUntilMatch < 2;
+  const isMatchStarted = hoursUntilMatch !== null && hoursUntilMatch <= 0;
   const [isPending, startTransition] = useTransition();
 
   function playerBtnClass(isSelected: boolean, isDisabled = false) {
@@ -78,6 +85,28 @@ export function MatchRosterForm({
 
   return (
     <div className="space-y-4">
+      {isMatchStarted ? (
+        <div className="rounded border border-[var(--color-red)]/30 bg-[var(--color-red)]/5 p-3">
+          <p className="text-sm text-[var(--color-fg)]">比赛已开始，名单不可修改</p>
+          <p className="text-xs text-[var(--color-fg-dim)] mt-1">
+            如需调整请联系管理员
+          </p>
+        </div>
+      ) : isWithin2Hours ? (
+        <div className="rounded border border-[var(--color-yellow)]/30 bg-[var(--color-yellow)]/5 p-3">
+          <p className="text-sm text-[var(--color-fg)]">距开赛不足 2 小时，名单已锁定</p>
+          <p className="text-xs text-[var(--color-fg-dim)] mt-1">
+            如需修改请联系管理员解锁
+          </p>
+        </div>
+      ) : hoursUntilMatch !== null ? (
+        <div className="rounded border border-[var(--color-border)] bg-[var(--color-panel)] p-2">
+          <p className="text-xs text-[var(--color-fg-dim)]">
+            距开赛还有 {hoursUntilMatch} 小时，请在确认比赛时间前提交名单。裁判在正式开赛时会检查队员信息，队员不正确将无法进行比赛。
+          </p>
+        </div>
+      ) : null}
+
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-[var(--color-fg)]">提交赛前名单</span>
         {hasExistingRoster && <StatusPill status="finished" />}
@@ -127,7 +156,7 @@ export function MatchRosterForm({
         </p>
       </div>
 
-      {!hasExistingRoster && (
+      {!hasExistingRoster && !isWithin2Hours && !isMatchStarted && (
         <Button
           onClick={handleSubmit}
           disabled={isPending || selectedStarterIds.length !== 5}

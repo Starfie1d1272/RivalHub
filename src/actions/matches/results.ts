@@ -2,7 +2,7 @@
 
 import { eq, asc, and, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, matches, matchMaps, matchVetoSteps, matchRosters, matchRosterPlayers, teams, auditLogs } from "@/db/schema";
+import { seasons, matches, matchMaps, matchVetoSteps, matchRosters, matchRosterPlayers, teams, teamMembers, auditLogs } from "@/db/schema";
 import { ok } from "@/types/action";
 import type { ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -74,6 +74,38 @@ export async function updateMatchStatus(
         .update(matches)
         .set({ status: nextStatus, updatedAt: new Date() })
         .where(eq(matches.id, matchId));
+
+      // 开赛时自动为两队填充默认名单（若尚未提交）
+      if (nextStatus === "in_progress") {
+        for (const teamId of [match.teamAId, match.teamBId]) {
+          const existing = await tx.query.matchRosters.findFirst({
+            where: and(
+              eq(matchRosters.matchId, matchId),
+              eq(matchRosters.teamId, teamId),
+            ),
+          });
+          if (!existing) {
+            const starterIds = await tx
+              .select({ id: teamMembers.id })
+              .from(teamMembers)
+              .where(eq(teamMembers.teamId, teamId))
+              .limit(5);
+            if (starterIds.length > 0) {
+              const [roster] = await tx
+                .insert(matchRosters)
+                .values({ matchId, teamId, submittedBy: session.userId })
+                .returning({ id: matchRosters.id });
+              await tx.insert(matchRosterPlayers).values(
+                starterIds.map((s, i) => ({
+                  rosterId: roster.id,
+                  teamMemberId: s.id,
+                  isStarter: true,
+                })),
+              );
+            }
+          }
+        }
+      }
 
       await tx.insert(auditLogs).values({
         seasonId: match.seasonId,

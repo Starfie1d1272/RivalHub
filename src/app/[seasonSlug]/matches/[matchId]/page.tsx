@@ -439,6 +439,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                 matchId={match.id}
                 teamMembers={captainTeamMembers}
                 hasExistingRoster={captainRoster?.status === "submitted"}
+                scheduledAt={match.scheduledAt}
               />
             </Panel>
           )}
@@ -461,6 +462,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
               currentScheduledAt={match.scheduledAt}
               currentCompletionDeadline={match.completionDeadline}
               initialProposals={timeProposals}
+              hasSubmittedRoster={captainRoster?.status === "submitted"}
             />
           </Panel>
           <Panel pad={16}>

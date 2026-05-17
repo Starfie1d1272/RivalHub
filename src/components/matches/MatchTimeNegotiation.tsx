@@ -22,6 +22,7 @@ interface MatchTimeNegotiationProps {
   currentScheduledAt: Date | null;
   currentCompletionDeadline: Date | null;
   initialProposals: Proposal[];
+  hasSubmittedRoster?: boolean;
 }
 
 export function MatchTimeNegotiation({
@@ -33,6 +34,7 @@ export function MatchTimeNegotiation({
   currentScheduledAt,
   currentCompletionDeadline,
   initialProposals,
+  hasSubmittedRoster = true,
 }: MatchTimeNegotiationProps) {
   const [isPending, startTransition] = useTransition();
   const [proposedTime, setProposedTime] = useState("");
@@ -96,6 +98,15 @@ export function MatchTimeNegotiation({
 
   return (
     <div className="space-y-4">
+      {isCaptain && !hasSubmittedRoster && (
+        <div className="rounded border border-[var(--color-yellow)]/30 bg-[var(--color-yellow)]/5 p-3">
+          <p className="text-sm text-[var(--color-fg)]">请先提交赛前名单</p>
+          <p className="text-xs text-[var(--color-fg-dim)] mt-1">
+            在确认比赛时间之前，请先在「提交名单」中选择 5 名首发队员。裁判在正式开赛时会检查队员信息，队员不正确将无法进行比赛。
+          </p>
+        </div>
+      )}
+
       {/* 当前确定的比赛时间 */}
       <div className="flex items-center gap-2">
         <span className="text-sm font-medium">比赛时间：</span>
