@@ -1,7 +1,7 @@
 import { playerRowLenientSchema, type ScoreboardOCRResult, type OCRProvider, type PlayerRowOCR } from "./types";
 
 const DEFAULT_API_URL = "https://api.siliconflow.cn/v1/chat/completions";
-const DEFAULT_MODEL = "Qwen/Qwen2.5-VL-7B-Instruct";
+const DEFAULT_MODEL = "deepseek-ai/DeepSeek-OCR";
 
 const SYSTEM_PROMPT = `提取这张 CS2 记分板截图中所有玩家的数据，返回 JSON。
 
