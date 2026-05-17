@@ -384,7 +384,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
           <h2 className="text-lg font-semibold text-[var(--color-fg)]">比赛结果</h2>
           <Panel pad={16}>
             <p className="text-sm text-[var(--color-fg-mid)]">
-              BO1 系列赛总分：{match.scoreA} : {match.scoreB}
+              {MATCH_FORMAT_LABELS[match.format] ?? match.format.toUpperCase()} 系列赛总分：{match.scoreA} : {match.scoreB}
             </p>
           </Panel>
         </section>
