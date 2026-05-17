@@ -10,6 +10,19 @@ import { getMatchOrThrow, actionError } from "@/lib/action-utils";
 import { revalidateMatchPaths } from "@/lib/revalidation";
 import { getTeamIdForCaptain } from "./_shared";
 
+async function validateTeamMembers(teamId: string, memberIds: string[]): Promise<void> {
+  const rows = await db
+    .select({ id: teamMembers.id })
+    .from(teamMembers)
+    .where(eq(teamMembers.teamId, teamId));
+  const validIds = new Set(rows.map((r) => r.id));
+  for (const id of memberIds) {
+    if (!validIds.has(id)) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "队员不属于本队");
+    }
+  }
+}
+
 /**
  * 队长提交比赛名单（5 首发 + 0~2 替补）。
  * - 比赛状态需为 scheduled 或 in_progress
@@ -43,18 +56,7 @@ export async function submitMatchRoster(
       throw new AppError(ErrorCode.VALIDATION_FAILED, "替补不能超过 2 人");
     }
 
-    // 验证所有队员属于本队
-    const allIds = [...starterIds, ...substituteIds];
-    const memberRows = await db
-      .select({ id: teamMembers.id })
-      .from(teamMembers)
-      .where(eq(teamMembers.teamId, teamId));
-    const memberIdSet = new Set(memberRows.map((r) => r.id));
-    for (const id of allIds) {
-      if (!memberIdSet.has(id)) {
-        throw new AppError(ErrorCode.VALIDATION_FAILED, "队员不属于本队");
-      }
-    }
+    await validateTeamMembers(teamId, [...starterIds, ...substituteIds]);
 
     // 2 小时窗口检查
     if (match.scheduledAt) {
@@ -188,18 +190,7 @@ export async function updateMatchRoster(
       throw new AppError(ErrorCode.VALIDATION_FAILED, "替补不能超过 2 人");
     }
 
-    // 验证所有队员属于本队
-    const allIds = [...starterIds, ...substituteIds];
-    const memberRows = await db
-      .select({ id: teamMembers.id })
-      .from(teamMembers)
-      .where(eq(teamMembers.teamId, teamId));
-    const memberIdSet = new Set(memberRows.map((r) => r.id));
-    for (const id of allIds) {
-      if (!memberIdSet.has(id)) {
-        throw new AppError(ErrorCode.VALIDATION_FAILED, "队员不属于本队");
-      }
-    }
+    await validateTeamMembers(teamId, [...starterIds, ...substituteIds]);
 
     const rosterId = await db.transaction(async (tx) => {
       const existing = await tx.query.matchRosters.findFirst({
