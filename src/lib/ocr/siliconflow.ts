@@ -1,4 +1,4 @@
-import { ocrResponseSchema, type ScoreboardOCRResult, type OCRProvider } from "./types";
+import { ocrResponseSchema, playerRowSchema, type ScoreboardOCRResult, type OCRProvider } from "./types";
 
 const DEFAULT_API_URL = "https://api.siliconflow.cn/v1/chat/completions";
 const DEFAULT_MODEL = "PaddlePaddle/PaddleOCR-VL-1.5";
@@ -134,13 +134,28 @@ async function extract(base64Image: string, mimeType: string): Promise<Scoreboar
   }
 
   const parsed = extractJson(result.content);
-  const validated = ocrResponseSchema.safeParse(parsed);
-  if (!validated.success) {
-    const issues = validated.error.issues.map((i) => i.message).join("; ");
+  const structure = ocrResponseSchema.safeParse(parsed);
+  if (!structure.success) {
+    // 顶层结构不对（players 不是数组或为空），直接报错
+    const issues = structure.error.issues.map((i) => i.message).join("; ");
     throw new Error(`OCR 结果格式校验失败: ${issues}`);
   }
 
-  return validated.data;
+  // 逐行宽松校验：单行失败则丢弃，不拖累整批
+  const validPlayers = structure.data.players.filter((row, idx) => {
+    const r = playerRowSchema.safeParse(row);
+    if (!r.success) {
+      console.warn(`[OCR] 第 ${idx + 1} 行校验失败，已丢弃`, r.error.issues);
+      return false;
+    }
+    return true;
+  });
+
+  if (validPlayers.length === 0) {
+    throw new Error("OCR 结果格式校验失败：没有可用的玩家数据行");
+  }
+
+  return { players: validPlayers };
 }
 
 export const siliconflowProvider: OCRProvider = {

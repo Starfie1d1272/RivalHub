@@ -86,7 +86,9 @@ export async function saveVetoSteps(
             mapOrder: i + 1,
             mapName: s.mapName,
             pickedByTeamId: s.actionType === "pick" ? s.teamId : null,
-            teamAStartSide: s.side ?? null,
+            teamAStartSide: s.side
+              ? s.teamId === match.teamAId ? s.side : s.side === "t" ? "ct" : "t"
+              : null,
           })),
         );
       }
