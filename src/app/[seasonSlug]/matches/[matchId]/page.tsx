@@ -11,10 +11,12 @@ import { MatchMvpVote } from "@/components/matches/MatchMvpVote";
 import { Panel, PosChip, TeamBadge } from "@/components/rivalhub";
 import { MATCH_FORMAT_LABELS, MATCH_STAGE_LABELS } from "@/types/match";
 import { PlayerStatsTable } from "@/components/matches/PlayerStatsTable";
+import { StatsOCRPanel } from "@/components/matches/StatsOCRPanel";
 import { TimeProposalHistory } from "@/components/matches/TimeProposalHistory";
 import { MatchTimeNegotiation } from "@/components/matches/MatchTimeNegotiation";
 import { MatchRosterView } from "@/components/matches/MatchRosterView";
 import { MatchRosterForm } from "@/components/matches/MatchRosterForm";
+import { VetoView } from "@/components/matches/VetoView";
 import { getMatchMvpResults } from "@/actions/player-stats";
 import { getTimeProposals } from "@/actions/matches/scheduling";
 import { getMatchRoster } from "@/actions/matches/roster";
@@ -336,6 +338,15 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
         </div>
       </div>
 
+      {/* BP 流程 */}
+      <VetoView
+        matchId={match.id}
+        teamAName={teamA?.name ?? "队伍 A"}
+        teamBName={teamB?.name ?? "队伍 B"}
+        teamAId={match.teamAId}
+        teamBId={match.teamBId}
+      />
+
       {/* 单图结果 */}
       {maps.length > 0 ? (
         <section className="space-y-3">
@@ -374,6 +385,9 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                 </div>
                 {isFinished && (
                   <PlayerStatsTable matchId={match.id} mapId={map.id} />
+                )}
+                {isFinished && isSeasonAdmin && (
+                  <StatsOCRPanel mapId={map.id} mapName={map.mapName} />
                 )}
               </Panel>
             ))}
