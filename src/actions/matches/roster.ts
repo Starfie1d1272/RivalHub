@@ -1,6 +1,6 @@
 "use server";
 
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matchRosters, matchRosterPlayers, teamMembers, seasons, auditLogs } from "@/db/schema";
 import { ok, type ActionResult } from "@/types/action";
@@ -14,12 +14,9 @@ async function validateTeamMembers(teamId: string, memberIds: string[]): Promise
   const rows = await db
     .select({ id: teamMembers.id })
     .from(teamMembers)
-    .where(eq(teamMembers.teamId, teamId));
-  const validIds = new Set(rows.map((r) => r.id));
-  for (const id of memberIds) {
-    if (!validIds.has(id)) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, "队员不属于本队");
-    }
+    .where(and(eq(teamMembers.teamId, teamId), inArray(teamMembers.id, memberIds)));
+  if (rows.length !== new Set(memberIds).size) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "队员不属于本队");
   }
 }
 
