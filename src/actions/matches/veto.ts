@@ -101,7 +101,7 @@ export async function saveVetoSteps(
       });
     });
 
-    if (season) revalidateMatchPaths(season.slug, matchId);
+    revalidateMatchPaths(season.slug, matchId);
 
     return ok(undefined);
   } catch (e) {

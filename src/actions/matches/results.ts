@@ -14,7 +14,7 @@ import {
   assertMatchTransition,
   resolveMatchFormat,
 } from "@/lib/match-transitions";
-import { getWinThreshold } from "@/types/match";
+import { getMaxMaps, getWinThreshold } from "@/types/match";
 import { actionError, getSeasonOrThrow, getMatchOrThrow } from "@/lib/action-utils";
 import { revalidateMatchPaths, revalidateSeasonPaths } from "@/lib/revalidation";
 import { normalizeRegistrationConfig, normalizeStagePlan } from "@/types/season";
@@ -224,48 +224,15 @@ export async function recordMapResult(
     }
 
     const maxWins = getWinThreshold(match.format);
-    const maxMaps = match.format === "bo5" ? 5 : match.format === "bo3" ? 3 : 1;
+    const maxMaps = getMaxMaps(match.format);
 
     if (mapOrder < 1 || mapOrder > maxMaps) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, `${match.format.toUpperCase()} 图序号须在 1-${maxMaps} 之间`);
     }
 
-    // 检查同图名是否已存在（应用层约束）
-    const existingMaps = await db.query.matchMaps.findMany({
-      where: eq(matchMaps.matchId, matchId),
-    });
-    if (existingMaps.some((m) => m.mapName === mapName)) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, `地图 ${mapName} 在本场比赛中已存在`);
-    }
+    // 所有写操作及其依赖的读操作放入同一事务，防止 TOCTOU
+    let seriesFinished = false;
 
-    // 统计加入本图后的地图胜场（纯计算，不写 DB）
-    const allMaps = [...existingMaps, { scoreA, scoreB }];
-    let mapWinsA = 0;
-    let mapWinsB = 0;
-    for (const m of allMaps) {
-      if (m.scoreA === null || m.scoreB === null) continue;
-      if (m.scoreA > m.scoreB) mapWinsA++;
-      else mapWinsB++;
-    }
-
-    const seriesFinished = mapWinsA >= maxWins || mapWinsB >= maxWins;
-
-    // 如果系列赛结束且有 bracket，提前计算 bracket 推进结果（纯计算，不写 DB）
-    let updatedBracketData: Database | null = null;
-    let resolvedMatches: ResolvedBracketMatch[] = [];
-
-    if (seriesFinished && season.bracketData && match.bracketNodeId) {
-      const { updatedData, newResolvedMatches } = await bracketAdvance(
-        match.bracketNodeId,
-        mapWinsA,
-        mapWinsB,
-        season.bracketData as Database
-      );
-      updatedBracketData = updatedData as Database;
-      resolvedMatches = newResolvedMatches;
-    }
-
-    // 所有写操作放入同一事务，确保原子性
     await db.transaction(async (tx) => {
       // BO1 从 scheduled 自动转换为 in_progress
       if (match.format === "bo1" && match.status === "scheduled") {
@@ -274,6 +241,26 @@ export async function recordMapResult(
           .set({ status: "in_progress", updatedAt: new Date() })
           .where(eq(matches.id, matchId));
       }
+
+      // 事务内读快照，防止并发插入同名地图
+      const existingMaps = await tx.query.matchMaps.findMany({
+        where: eq(matchMaps.matchId, matchId),
+      });
+      if (existingMaps.some((m) => m.mapName === mapName)) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, `地图 ${mapName} 在本场比赛中已存在`);
+      }
+
+      // 统计加入本图后的地图胜场
+      const allMaps = [...existingMaps, { scoreA, scoreB }];
+      let mapWinsA = 0;
+      let mapWinsB = 0;
+      for (const m of allMaps) {
+        if (m.scoreA === null || m.scoreB === null) continue;
+        if (m.scoreA > m.scoreB) mapWinsA++;
+        else mapWinsB++;
+      }
+
+      seriesFinished = mapWinsA >= maxWins || mapWinsB >= maxWins;
 
       await tx.insert(matchMaps).values({
         matchId,
@@ -295,11 +282,17 @@ export async function recordMapResult(
           updatedAt: new Date(),
         }).where(eq(matches.id, matchId));
 
-        if (updatedBracketData) {
-          await tx.update(seasons).set({ bracketData: updatedBracketData, updatedAt: new Date() }).where(eq(seasons.id, match.seasonId));
+        if (season.bracketData && match.bracketNodeId) {
+          const { updatedData, newResolvedMatches } = await bracketAdvance(
+            match.bracketNodeId,
+            mapWinsA,
+            mapWinsB,
+            season.bracketData as Database
+          );
+          await tx.update(seasons).set({ bracketData: updatedData as Database, updatedAt: new Date() }).where(eq(seasons.id, match.seasonId));
           await insertResolvedBracketMatches(
             tx, match.seasonId, match.stage,
-            updatedBracketData, resolvedMatches,
+            updatedData as Database, newResolvedMatches,
             normalizeStagePlan(season.stagePlan),
           );
         }
