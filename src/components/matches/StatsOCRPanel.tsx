@@ -116,6 +116,13 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
     setDrafts((prev) => prev.filter((_, i) => i !== idx));
   }
 
+  function handleAddRow() {
+    setDrafts((prev) => [
+      ...prev,
+      { perfectName: "", userId: null, kills: null, deaths: null, assists: null, hsPercent: null, firstKills: null, multiKills: null, clutches: null, adr: null, rws: null, ratingPro: null, we: null },
+    ]);
+  }
+
   async function handleSave() {
     setSaving(true);
     setError(null);
@@ -148,7 +155,7 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
         {mapName} — 玩家数据录入（OCR 识别）
       </h4>
 
-      <div className="flex gap-2 items-center">
+      <div className="flex gap-2 items-center flex-wrap">
         <input
           ref={fileRef}
           type="file"
@@ -160,15 +167,19 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
           onClick={handleExtract}
           disabled={extracting}
         >
-          {extracting ? "识别中…" : "识别截图"}
+          {extracting ? "识别中…" : "OCR 识别截图"}
         </Button>
+        <Button size="sm" variant="outline" onClick={handleAddRow}>
+          添加行
+        </Button>
+        {saved && <span className="text-xs text-green-500">已保存</span>}
       </div>
 
       {error && (
         <p className="text-sm text-red-500">{error}</p>
       )}
 
-      {drafts.length > 0 && (
+      {drafts.length > 0 ? (
         <>
           <div className="overflow-x-auto rounded border">
             <Table className="text-xs">
@@ -256,6 +267,10 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
             )}
           </div>
         </>
+      ) : (
+        <p className="text-sm text-[var(--color-fg-mid)] py-4">
+          暂无数据。点击「OCR 识别截图」自动提取，或点击「添加行」手动录入。
+        </p>
       )}
     </div>
   );
