@@ -260,6 +260,33 @@ export async function castMatchMvpVote(
   }
 }
 
+/** 确定并持久化比赛 MVP 胜者。已锁定时直接返回；投票未截止则返回 null。幂等。 */
+export async function ensureMvpWinner(matchId: string): Promise<string | null> {
+  try {
+    const match = await db.query.matches.findFirst({
+      where: eq(matches.id, matchId),
+      columns: { id: true, status: true, completedAt: true, mvpWinnerUserId: true },
+    });
+    if (!match || match.status !== "finished" || !match.completedAt) return null;
+    if (match.mvpWinnerUserId) return match.mvpWinnerUserId;
+    if (Date.now() < match.completedAt.getTime() + MVP_DEADLINE_MS) return null;
+
+    const results = await getMatchMvpResults(matchId);
+    if (results.length === 0) return null;
+    const winner = results[0]; // 已按 count DESC 排
+
+    await db
+      .update(matches)
+      .set({ mvpWinnerUserId: winner.playerUserId, updatedAt: new Date() })
+      .where(eq(matches.id, matchId));
+
+    return winner.playerUserId;
+  } catch (e) {
+    console.error("[ensureMvpWinner]", e);
+    return null;
+  }
+}
+
 export async function getMatchMvpResults(matchId: string) {
   const votes = await db
     .select({

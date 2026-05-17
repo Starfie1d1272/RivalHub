@@ -11,8 +11,18 @@ import Image from "next/image";
 import Link from "next/link";
 import { POSITION_LABELS } from "@/lib/validators/registration";
 import { matchPlayerStats } from "@/db/schema/player-stats";
-import { matchMvpVotes } from "@/db/schema/mvp-votes";
 import { wAvg, sAvg } from "@/lib/utils/stats";
+
+/**
+ * 统计玩家 MVP 获胜次数（从 matches.mvp_winner_user_id 直读，已持久化缓存）。
+ */
+async function getMvpWinCount(userId: string): Promise<number> {
+  const rows = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(matches)
+    .where(eq(matches.mvpWinnerUserId, userId));
+  return rows[0]?.count ?? 0;
+}
 
 interface PlayerPageProps {
   params: Promise<{ userId: string }>;
@@ -48,8 +58,8 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
   });
   if (!user) notFound();
 
-  // ── 并行：报名记录 / MVP / 个人数据 / Steam 头像 ──────────────────────
-  const [registrations, mvpRows, playerStats, avatarUrl] = await Promise.all([
+  // ── 并行：报名记录 / MVP 胜场 / 个人数据 / Steam 头像 ──────────────────
+  const [registrations, mvpWinCount, playerStats, avatarUrl] = await Promise.all([
     db
       .select({
         id: seasonRegistrations.id,
@@ -80,10 +90,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
         )
       )
       .orderBy(asc(seasons.createdAt)),
-    db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(matchMvpVotes)
-      .where(eq(matchMvpVotes.playerUserId, userId)),
+    getMvpWinCount(userId),
     db
       .select({
         seasonName: seasons.name,
@@ -117,7 +124,6 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
       .orderBy(asc(seasons.createdAt)),
     resolveAvatarUrl({ avatarUrl: user.avatarUrl, steam64: user.steam64 }),
   ]);
-  const mvpRow = mvpRows[0];
 
   // ── 队伍归属（registrationId → team）────────────────────────────────
   const allRegIds = registrations.map((r) => r.id);
@@ -176,7 +182,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
   const totalMaps = playerStats.reduce((s, x) => s + x.maps, 0);
   const totalKillsAll = playerStats.reduce((s, x) => s + x.totalKills, 0);
   const totalDeathsAll = playerStats.reduce((s, x) => s + x.totalDeaths, 0);
-  const mvpCount = mvpRow?.count ?? 0;
+  const mvpCount = mvpWinCount;
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-3xl space-y-10">
@@ -280,7 +286,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
             <Stat label="胜" value={totalWins} />
             <Stat label="负" value={totalLosses} />
             <Stat label="胜率" value={pct(totalWins, played)} />
-            <Stat label="MVP" value={mvpCount > 0 ? mvpCount : "—"} />
+            <Stat label="单场MVP" value={mvpCount > 0 ? mvpCount : "—"} />
           </div>
           {totalNetRounds !== 0 && (
             <p className="text-xs text-[var(--color-fg-mid)] px-1">

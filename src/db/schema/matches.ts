@@ -37,6 +37,7 @@ export const matches = pgTable("matches", {
   scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
   completionDeadline: timestamp("completion_deadline", { withTimezone: true }),
   completedAt: timestamp("completed_at", { withTimezone: true }),
+  mvpWinnerUserId: uuid("mvp_winner_user_id"), // 投票截止后锁定的 MVP 胜者
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({

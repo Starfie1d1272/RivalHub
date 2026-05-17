@@ -5,6 +5,14 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.15.1] - 2026-05-18
+
+### Fixed
+- **MVP 次数统计修正**：选手个人页 MVP 计数从「总票数」改为「单场 MVP 获奖次数」；新增 `matches.mvp_winner_user_id` 持久化缓存，避免每次页面访问遍历全表投票记录；UI 标签改为「单场MVP」
+
+### Added
+- `ensureMvpWinner(matchId)` — 投票截止后首次访问比赛页时自动锁定 MVP 胜者（幂等）
+
 ## [1.15.0] - 2026-05-18
 
 ### Added

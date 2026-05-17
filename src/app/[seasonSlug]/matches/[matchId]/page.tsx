@@ -19,7 +19,7 @@ import { MatchTimeNegotiation } from "@/components/matches/MatchTimeNegotiation"
 import { MatchRosterView } from "@/components/matches/MatchRosterView";
 import { MatchRosterForm } from "@/components/matches/MatchRosterForm";
 import { VetoView } from "@/components/matches/VetoView";
-import { getMatchMvpResults } from "@/actions/player-stats";
+import { getMatchMvpResults, ensureMvpWinner } from "@/actions/player-stats";
 import { getTimeProposals } from "@/actions/matches/scheduling";
 import { getMatchRoster } from "@/actions/matches/roster";
 import { sumNums, avgNums, weightedAvgNums } from "@/lib/utils/stats";
@@ -117,6 +117,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
       .slice(0, 4);
 
     mvpVoteResults = await getMatchMvpResults(match.id);
+    ensureMvpWinner(match.id); // 懒加载持久化 MVP 胜者（不阻塞渲染）
 
     if (userSession?.userId) {
       const existingVote = await db.query.matchMvpVotes.findFirst({
