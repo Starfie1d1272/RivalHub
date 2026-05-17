@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import { eq, count, asc, and, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, matches, teams, matchMaps } from "@/db/schema";
+import { seasons, matches, teams, matchMaps, teamMembers, matchRosters, matchRosterPlayers } from "@/db/schema";
+import { users, seasonRegistrations } from "@/db/schema";
 import { requireSeasonAdmin } from "@/lib/auth/session";
 import { calculateStandings } from "@/lib/standings";
 import { GenerateScheduleCard } from "@/components/matches/GenerateScheduleCard";
@@ -13,7 +14,10 @@ import { MatchStatusBadge } from "@/components/matches/MatchStatusBadge";
 import { ScoreInput } from "@/components/matches/ScoreInput";
 import { MapByMapInput } from "@/components/matches/MapByMapInput";
 import { ScheduledAtInput } from "@/components/matches/ScheduledAtInput";
+import { VetoInputDialog } from "@/components/matches/VetoInputDialog";
+import { AdminRosterDialog } from "@/components/matches/AdminRosterDialog";
 import { StatsOCRPanel } from "@/components/matches/StatsOCRPanel";
+import { DeleteMatchButton } from "@/components/matches/DeleteMatchButton";
 import { BatchDeadlineCard } from "@/components/matches/BatchDeadlineCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Panel, StatusPill } from "@/components/rivalhub";
@@ -52,7 +56,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
 
   // 查进行中的比赛的地图记录（供 MapByMapInput 用）
   const inProgressMatchIds = allMatches
-    .filter((m) => m.status === "in_progress" && m.format !== "bo1")
+    .filter((m) => m.status === "in_progress")
     .map((m) => m.id);
   const allMapRecords = inProgressMatchIds.length > 0
     ? await db.query.matchMaps.findMany({
@@ -154,6 +158,86 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
       }
     }
     batchDeadlineGroups.push(...groupMap.values());
+  }
+
+  // ── 人员名单查询（供 AdminRosterDialog 用）───────────────────
+  interface TeamMemberData {
+    id: string;
+    teamId: string;
+    steamName: string;
+    displayName: string | null;
+    perfectName: string | null;
+    primaryPosition: string;
+  }
+  interface RosterData {
+    starters: string[];
+    substitutes: string[];
+    status: string | null;
+  }
+  let allTeamMembers: TeamMemberData[] = [];
+  const rosterByMatch = new Map<string, Map<string, RosterData>>();
+
+  if (matchCount > 0) {
+    const displayedMatchIds = qualifierMatches
+      .map((m) => m.id)
+      .concat(playoffMatches.map((m) => m.id));
+
+    const [members, rosters] = await Promise.all([
+      db
+        .select({
+          id: teamMembers.id,
+          teamId: teamMembers.teamId,
+          steamName: users.steamName,
+          displayName: users.displayName,
+          perfectName: users.perfectName,
+          primaryPosition: seasonRegistrations.primaryPosition,
+        })
+        .from(teamMembers)
+        .innerJoin(
+          seasonRegistrations,
+          eq(teamMembers.registrationId, seasonRegistrations.id),
+        )
+        .innerJoin(users, eq(seasonRegistrations.userId, users.id))
+        .where(inArray(teamMembers.teamId, allTeams.map((t) => t.id))),
+      displayedMatchIds.length > 0
+        ? db.query.matchRosters.findMany({
+            where: inArray(matchRosters.matchId, displayedMatchIds),
+            with: { players: true },
+          })
+        : ([] as (typeof matchRosters.$inferSelect & {
+            players: (typeof matchRosterPlayers.$inferSelect)[];
+          })[]),
+    ]);
+
+    allTeamMembers = members.map((r) => ({
+      id: r.id,
+      teamId: r.teamId,
+      steamName: r.steamName ?? "未知",
+      displayName: r.displayName ?? null,
+      perfectName: r.perfectName ?? null,
+      primaryPosition: r.primaryPosition,
+    }));
+
+    for (const roster of rosters) {
+      const matchMap =
+        rosterByMatch.get(roster.matchId) ??
+        new Map<string, RosterData>();
+      const starters: string[] = [];
+      const substitutes: string[] = [];
+      for (const p of roster.players) {
+        if (p.isStarter) {
+          starters.push(p.teamMemberId);
+        } else {
+          substitutes.push(p.teamMemberId);
+        }
+      }
+      matchMap.set(roster.teamId, {
+        starters,
+        substitutes,
+        status: roster.status,
+      });
+      rosterByMatch.set(roster.matchId, matchMap);
+    }
   }
 
   return (
@@ -271,11 +355,33 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                         {m.status !== "finished" && m.status !== "cancelled" && (
                           <>
                             <Separator />
+                            <AdminRosterDialog
+                              matchId={m.id}
+                              teamAName={teamAName}
+                              teamBName={teamBName}
+                              teamAId={m.teamAId}
+                              teamBId={m.teamBId}
+                              teamAMembers={allTeamMembers.filter((t) => t.teamId === m.teamAId)}
+                              teamBMembers={allTeamMembers.filter((t) => t.teamId === m.teamBId)}
+                              teamARoster={rosterByMatch.get(m.id)?.get(m.teamAId) ?? null}
+                              teamBRoster={rosterByMatch.get(m.id)?.get(m.teamBId) ?? null}
+                            />
                             <ScheduledAtInput
                               matchId={m.id}
                               currentScheduledAt={m.scheduledAt}
                               currentCompletionDeadline={m.completionDeadline}
                             />
+                            {m.status === "scheduled" && (
+                              <VetoInputDialog
+                                matchId={m.id}
+                                format={m.format as "bo1" | "bo3" | "bo5"}
+                                teamAName={teamAName}
+                                teamBName={teamBName}
+                                teamAId={m.teamAId}
+                                teamBId={m.teamBId}
+                                mapPool={mapPool}
+                              />
+                            )}
                             <ScoreInput
                               matchId={m.id}
                               teamAName={teamAName}
@@ -283,6 +389,9 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                               currentStatus={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"}
                               format={m.format as "bo1" | "bo3" | "bo5"}
                             />
+                            {m.status === "scheduled" && (
+                              <DeleteMatchButton matchId={m.id} />
+                            )}
                           </>
                         )}
                         {m.status === "finished" && (mapsByMatch.get(m.id) ?? []).map((map) => (
@@ -334,15 +443,26 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                         {m.status !== "finished" && m.status !== "cancelled" && (
                           <>
                             <Separator />
+                            <AdminRosterDialog
+                              matchId={m.id}
+                              teamAName={teamAName}
+                              teamBName={teamBName}
+                              teamAId={m.teamAId}
+                              teamBId={m.teamBId}
+                              teamAMembers={allTeamMembers.filter((t) => t.teamId === m.teamAId)}
+                              teamBMembers={allTeamMembers.filter((t) => t.teamId === m.teamBId)}
+                              teamARoster={rosterByMatch.get(m.id)?.get(m.teamAId) ?? null}
+                              teamBRoster={rosterByMatch.get(m.id)?.get(m.teamBId) ?? null}
+                            />
                             <ScheduledAtInput
                               matchId={m.id}
                               currentScheduledAt={m.scheduledAt}
                               currentCompletionDeadline={m.completionDeadline}
                             />
-                            {m.status === "in_progress" && m.format !== "bo1" ? (
+                            {m.status === "in_progress" ? (
                               <MapByMapInput
                                 matchId={m.id}
-                                format={m.format as "bo3" | "bo5"}
+                                format={m.format as "bo1" | "bo3" | "bo5"}
                                 teamAName={teamAName}
                                 teamBName={teamBName}
                                 teamAId={m.teamAId}
@@ -358,13 +478,29 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                                 mapPool={mapPool}
                               />
                             ) : (
-                              <ScoreInput
-                                matchId={m.id}
-                                teamAName={teamAName}
-                                teamBName={teamBName}
-                                currentStatus={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"}
-                                format={m.format as "bo1" | "bo3" | "bo5"}
-                              />
+                              <>
+                                {m.status === "scheduled" && (
+                                  <VetoInputDialog
+                                    matchId={m.id}
+                                    format={m.format as "bo1" | "bo3" | "bo5"}
+                                    teamAName={teamAName}
+                                    teamBName={teamBName}
+                                    teamAId={m.teamAId}
+                                    teamBId={m.teamBId}
+                                    mapPool={mapPool}
+                                  />
+                                )}
+                                <ScoreInput
+                                  matchId={m.id}
+                                  teamAName={teamAName}
+                                  teamBName={teamBName}
+                                  currentStatus={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"}
+                                  format={m.format as "bo1" | "bo3" | "bo5"}
+                                />
+                                {m.status === "scheduled" && (
+                                  <DeleteMatchButton matchId={m.id} />
+                                )}
+                              </>
                             )}
                           </>
                         )}

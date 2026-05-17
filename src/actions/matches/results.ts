@@ -2,11 +2,11 @@
 
 import { eq, asc, and, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, matches, matchMaps, teams, auditLogs } from "@/db/schema";
+import { seasons, matches, matchMaps, matchVetoSteps, matchRosters, matchRosterPlayers, teams, auditLogs } from "@/db/schema";
 import { ok } from "@/types/action";
 import type { ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { requireSeasonAdmin } from "@/lib/auth/session";
+import { requireSeasonAdmin, auditActorId } from "@/lib/auth/session";
 import { advanceMatch as bracketAdvance, type BracketStageRef, type ResolvedBracketMatch } from "@/lib/bracket";
 import type { Database } from "brackets-manager";
 import {
@@ -14,7 +14,7 @@ import {
   assertMatchTransition,
   resolveMatchFormat,
 } from "@/lib/match-transitions";
-import { getWinThreshold } from "@/types/match";
+import { getMaxMaps, getWinThreshold } from "@/types/match";
 import { actionError, getSeasonOrThrow, getMatchOrThrow } from "@/lib/action-utils";
 import { revalidateMatchPaths, revalidateSeasonPaths } from "@/lib/revalidation";
 import { normalizeRegistrationConfig, normalizeStagePlan } from "@/types/season";
@@ -188,7 +188,7 @@ export async function recordMatchResult(
 /**
  * 录入一张地图的比赛结果。
  * 系统根据已完成地图自动计算大比分，达到 maxWins 时自动结束系列赛并推进 bracket。
- * 仅用于 BO3/BO5；BO1 继续走 recordMatchResult。
+ * 支持 BO1/BO3/BO5；BO1 也可继续走 recordMatchResult 直接录入总分。
  */
 export async function recordMapResult(
   matchId: string,
@@ -210,11 +210,11 @@ export async function recordMapResult(
     const match = await getMatchOrThrow(matchId);
     const session = await requireSeasonAdmin(match.seasonId);
 
-    if (match.format === "bo1") {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, "BO1 请使用直接录入比分功能");
-    }
-    if (match.status !== "in_progress") {
-      throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛未在进行中");
+    const isStatusAllowed = match.format === "bo1"
+      ? match.status === "in_progress" || match.status === "scheduled"
+      : match.status === "in_progress";
+    if (!isStatusAllowed) {
+      throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛状态不允许录入地图结果");
     }
 
     const season = await getSeasonOrThrow(match.seasonId);
@@ -224,49 +224,44 @@ export async function recordMapResult(
     }
 
     const maxWins = getWinThreshold(match.format);
-    const maxMaps = match.format === "bo5" ? 5 : 3;
+    const maxMaps = getMaxMaps(match.format);
 
     if (mapOrder < 1 || mapOrder > maxMaps) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, `${match.format.toUpperCase()} 图序号须在 1-${maxMaps} 之间`);
     }
 
-    // 检查同图名是否已存在（应用层约束）
-    const existingMaps = await db.query.matchMaps.findMany({
-      where: eq(matchMaps.matchId, matchId),
-    });
-    if (existingMaps.some((m) => m.mapName === mapName)) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, `地图 ${mapName} 在本场比赛中已存在`);
-    }
+    // 所有写操作及其依赖的读操作放入同一事务，防止 TOCTOU
+    let seriesFinished = false;
 
-    // 统计加入本图后的地图胜场（纯计算，不写 DB）
-    const allMaps = [...existingMaps, { scoreA, scoreB }];
-    let mapWinsA = 0;
-    let mapWinsB = 0;
-    for (const m of allMaps) {
-      if (m.scoreA === null || m.scoreB === null) continue;
-      if (m.scoreA > m.scoreB) mapWinsA++;
-      else mapWinsB++;
-    }
-
-    const seriesFinished = mapWinsA >= maxWins || mapWinsB >= maxWins;
-
-    // 如果系列赛结束且有 bracket，提前计算 bracket 推进结果（纯计算，不写 DB）
-    let updatedBracketData: Database | null = null;
-    let resolvedMatches: ResolvedBracketMatch[] = [];
-
-    if (seriesFinished && season.bracketData && match.bracketNodeId) {
-      const { updatedData, newResolvedMatches } = await bracketAdvance(
-        match.bracketNodeId,
-        mapWinsA,
-        mapWinsB,
-        season.bracketData as Database
-      );
-      updatedBracketData = updatedData as Database;
-      resolvedMatches = newResolvedMatches;
-    }
-
-    // 所有写操作放入同一事务，确保原子性
     await db.transaction(async (tx) => {
+      // BO1 从 scheduled 自动转换为 in_progress
+      if (match.format === "bo1" && match.status === "scheduled") {
+        await tx
+          .update(matches)
+          .set({ status: "in_progress", updatedAt: new Date() })
+          .where(eq(matches.id, matchId));
+      }
+
+      // 事务内读快照，防止并发插入同名地图
+      const existingMaps = await tx.query.matchMaps.findMany({
+        where: eq(matchMaps.matchId, matchId),
+      });
+      if (existingMaps.some((m) => m.mapName === mapName)) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, `地图 ${mapName} 在本场比赛中已存在`);
+      }
+
+      // 统计加入本图后的地图胜场
+      const allMaps = [...existingMaps, { scoreA, scoreB }];
+      let mapWinsA = 0;
+      let mapWinsB = 0;
+      for (const m of allMaps) {
+        if (m.scoreA === null || m.scoreB === null) continue;
+        if (m.scoreA > m.scoreB) mapWinsA++;
+        else mapWinsB++;
+      }
+
+      seriesFinished = mapWinsA >= maxWins || mapWinsB >= maxWins;
+
       await tx.insert(matchMaps).values({
         matchId,
         mapOrder,
@@ -287,11 +282,17 @@ export async function recordMapResult(
           updatedAt: new Date(),
         }).where(eq(matches.id, matchId));
 
-        if (updatedBracketData) {
-          await tx.update(seasons).set({ bracketData: updatedBracketData, updatedAt: new Date() }).where(eq(seasons.id, match.seasonId));
+        if (season.bracketData && match.bracketNodeId) {
+          const { updatedData, newResolvedMatches } = await bracketAdvance(
+            match.bracketNodeId,
+            mapWinsA,
+            mapWinsB,
+            season.bracketData as Database
+          );
+          await tx.update(seasons).set({ bracketData: updatedData as Database, updatedAt: new Date() }).where(eq(seasons.id, match.seasonId));
           await insertResolvedBracketMatches(
             tx, match.seasonId, match.stage,
-            updatedBracketData, resolvedMatches,
+            updatedData as Database, newResolvedMatches,
             normalizeStagePlan(season.stagePlan),
           );
         }
@@ -482,5 +483,66 @@ export async function batchSetCompletionDeadline(input: {
     return ok({ updated: matchIds.length });
   } catch (e) {
     return actionError("batchSetCompletionDeadline", e);
+  }
+}
+
+// ── 删除比赛 ──────────────────────────────────────────────────────────────
+
+/**
+ * 删除一场「已排期」状态的比赛，级联删除相关地图记录、BP 数据及人员名单。
+ * 已开始的比赛、由 Bracket 自动生成的比赛不允许删除。
+ */
+export async function deleteMatch(matchId: string): Promise<ActionResult<void>> {
+  try {
+    const match = await getMatchOrThrow(matchId);
+    const session = await requireSeasonAdmin(match.seasonId);
+
+    if (match.status !== "scheduled") {
+      throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "仅可删除「已排期」状态的比赛");
+    }
+
+    if (match.bracketNodeId) {
+      throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "无法删除 Bracket 自动生成的比赛");
+    }
+
+    const season = await getSeasonOrThrow(match.seasonId);
+
+    await db.transaction(async (tx) => {
+      // 级联删除相关数据
+      await tx.delete(matchVetoSteps).where(eq(matchVetoSteps.matchId, matchId));
+      await tx.delete(matchMaps).where(eq(matchMaps.matchId, matchId));
+
+      // matchRosterPlayers 需先查询 rosterIds
+      const rosterIds = await tx
+        .select({ id: matchRosters.id })
+        .from(matchRosters)
+        .where(eq(matchRosters.matchId, matchId));
+      if (rosterIds.length > 0) {
+        await tx.delete(matchRosterPlayers).where(
+          inArray(
+            matchRosterPlayers.rosterId,
+            rosterIds.map((r) => r.id),
+          ),
+        );
+      }
+      await tx.delete(matchRosters).where(eq(matchRosters.matchId, matchId));
+
+      // 最后删除比赛本身
+      await tx.delete(matches).where(eq(matches.id, matchId));
+
+      await tx.insert(auditLogs).values({
+        seasonId: match.seasonId,
+        action: "match.delete",
+        actorId: auditActorId(session),
+        targetId: matchId,
+        targetType: "match",
+        meta: { stage: match.stage, format: match.format, teamAId: match.teamAId, teamBId: match.teamBId },
+      });
+    });
+
+    revalidateMatchPaths(season.slug, matchId);
+    return ok(undefined);
+  } catch (e) {
+    return actionError("deleteMatch", e);
   }
 }

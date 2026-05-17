@@ -10,6 +10,19 @@ import { getMatchOrThrow, actionError } from "@/lib/action-utils";
 import { revalidateMatchPaths } from "@/lib/revalidation";
 import { getTeamIdForCaptain } from "./_shared";
 
+async function validateTeamMembers(teamId: string, memberIds: string[]): Promise<void> {
+  const rows = await db
+    .select({ id: teamMembers.id })
+    .from(teamMembers)
+    .where(eq(teamMembers.teamId, teamId));
+  const validIds = new Set(rows.map((r) => r.id));
+  for (const id of memberIds) {
+    if (!validIds.has(id)) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "队员不属于本队");
+    }
+  }
+}
+
 /**
  * 队长提交比赛名单（5 首发 + 0~2 替补）。
  * - 比赛状态需为 scheduled 或 in_progress
@@ -43,18 +56,7 @@ export async function submitMatchRoster(
       throw new AppError(ErrorCode.VALIDATION_FAILED, "替补不能超过 2 人");
     }
 
-    // 验证所有队员属于本队
-    const allIds = [...starterIds, ...substituteIds];
-    const memberRows = await db
-      .select({ id: teamMembers.id })
-      .from(teamMembers)
-      .where(eq(teamMembers.teamId, teamId));
-    const memberIdSet = new Set(memberRows.map((r) => r.id));
-    for (const id of allIds) {
-      if (!memberIdSet.has(id)) {
-        throw new AppError(ErrorCode.VALIDATION_FAILED, "队员不属于本队");
-      }
-    }
+    await validateTeamMembers(teamId, [...starterIds, ...substituteIds]);
 
     // 2 小时窗口检查
     if (match.scheduledAt) {
@@ -168,6 +170,86 @@ export async function unlockMatchRoster(
 /**
  * 查询某场比赛的名单（含首发/替补队员）。
  */
+/**
+ * 管理员强制修改比赛名单（覆盖已提交名单）。
+ */
+export async function updateMatchRoster(
+  matchId: string,
+  teamId: string,
+  starterIds: string[],
+  substituteIds: string[] = [],
+): Promise<ActionResult<{ rosterId: string }>> {
+  try {
+    const match = await getMatchOrThrow(matchId);
+    const session = await requireSeasonAdmin(match.seasonId);
+
+    if (starterIds.length !== 5) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "必须选择 5 名首发");
+    }
+    if (substituteIds.length > 2) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "替补不能超过 2 人");
+    }
+
+    await validateTeamMembers(teamId, [...starterIds, ...substituteIds]);
+
+    const rosterId = await db.transaction(async (tx) => {
+      const existing = await tx.query.matchRosters.findFirst({
+        where: and(
+          eq(matchRosters.matchId, matchId),
+          eq(matchRosters.teamId, teamId),
+        ),
+      });
+
+      let rosterId: string;
+      if (existing) {
+        rosterId = existing.id;
+        await tx
+          .update(matchRosters)
+          .set({
+            status: "submitted",
+            submittedBy: session.userId,
+            lockedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(matchRosters.id, existing.id));
+        await tx
+          .delete(matchRosterPlayers)
+          .where(eq(matchRosterPlayers.rosterId, existing.id));
+      } else {
+        const [row] = await tx
+          .insert(matchRosters)
+          .values({ matchId, teamId, submittedBy: session.userId })
+          .returning({ id: matchRosters.id });
+        rosterId = row.id;
+      }
+
+      await tx.insert(matchRosterPlayers).values([
+        ...starterIds.map((id) => ({ rosterId, teamMemberId: id, isStarter: true })),
+        ...substituteIds.map((id) => ({ rosterId, teamMemberId: id, isStarter: false })),
+      ]);
+      return rosterId;
+    });
+
+    await db.insert(auditLogs).values({
+      seasonId: match.seasonId,
+      action: "match.admin_update_roster",
+      actorId: session.email,
+      targetId: rosterId,
+      targetType: "match_roster",
+      meta: { matchId, teamId, starters: starterIds.length, substitutes: substituteIds.length },
+    });
+
+    const season = await db.query.seasons.findFirst({
+      where: eq(seasons.id, match.seasonId),
+    });
+    if (season) revalidateMatchPaths(season.slug, matchId);
+
+    return ok({ rosterId });
+  } catch (e) {
+    return actionError("updateMatchRoster", e);
+  }
+}
+
 export async function getMatchRoster(matchId: string, teamId: string) {
   const roster = await db.query.matchRosters.findFirst({
     where: and(

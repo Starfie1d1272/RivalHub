@@ -5,6 +5,30 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.0] - 2026-05-17
+
+### Added
+- **BO1 地图记录**：MapByMapInput 扩展 bo1 格式，recordMapResult 解除 BO1 限制，BO1 从 scheduled 自动推进到 in_progress
+- **BP 选图流程**：match_veto_steps 表 + saveVetoSteps Server Action + VetoInputDialog（管理员录入 Dialog，BO1/BO3/BO5 模板） + VetoView（HLTV 风格纵向展示，ban 红 / pick 绿 / decider 黄）
+- **管理员名单管理**：updateMatchRoster action + AdminRosterDialog（复选框选择 5 首发 + 2 替补，首发排序）
+- **比赛详情页 OCR 入口**：已完图下方对管理员显示 StatsOCRPanel（OCR 数据录入）
+- **比赛详情页分图 Tab 切换**：地图结果从纵向列表改为 Tab 切换，支持地图结构预展示 + BO1 fallback 展示系列总分
+- **比赛删除功能**：deleteMatch Server Action + DeleteMatchButton（InlineConfirm 二次确认，级联删除 BP/地图/名单数据，禁删 bracket 生成比赛）
+
+### Fixed
+- **recordMapResult 状态准入**：scheduled 仅 BO1 可用，BO3/BO5 必须 in_progress（防止跳过开始比赛步骤）
+- **BO1 fallback**：使用 `match.format` 替代硬编码 "BO1"
+- **BP 服务端校验**：地图名/队伍/去重/图池合法性校验，防止绕过客户端直接调 API
+- **TOCTOU 竞态**：recordMapResult 地图重复检查移入事务内部
+- **side 列类型**：match_veto_steps.side 从 text 改为 sideEnum
+- **VETO_STEP_COUNT**：常量对齐实际 buildTemplate 步骤数（统一 7 步）
+- **_journal.json**：补齐 0011-0017 缺失迁移条目
+
+### Changed
+- **消除重复**：提取 SIDE_LABELS（4 处→1）、getMaxMaps()（2 处→1）、validateTeamMembers()（2 处→1）
+- **移除 orphan**：MatchDetail.tsx（已被内联 server component 替代）
+- **清理 JSX 注释**：移除叙述性注释
+
 ## [1.12.0] - 2026-05-17
 
 ### Added

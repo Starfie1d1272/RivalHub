@@ -5,6 +5,8 @@ export type MatchStage = string;
 export type MatchFormat = "bo1" | "bo3" | "bo5";
 export type Side = "t" | "ct";
 
+export const SIDE_LABELS: Record<Side, string> = { t: "T 方", ct: "CT 方" };
+
 export interface Match {
   id: string;
   seasonId: string;
@@ -67,9 +69,9 @@ export type VetoActionType = "ban" | "pick" | "side_pick" | "decider";
 
 /** 每种 format 的 BP 步骤数（用于 UI 进度条 / 校验）*/
 export const VETO_STEP_COUNT: Record<MatchFormat, number> = {
-  bo1: 4,   // ban×3 + side_pick×1
-  bo3: 7,   // ban×2 + pick×2 + side_pick×2 + ban×2 + decider 起始边
-  bo5: 9,   // ban×2 (Team A 优势) + pick×4 + side_pick×4 + decider 刀赛
+  bo1: 7,   // ban×6 + decider
+  bo3: 7,   // ban×2 + pick×2 + ban×2 + decider
+  bo5: 7,   // ban×2 + pick×4 + decider（knife round）
 };
 
 // ── 工具函数 ─────────────────────────────────────────────────────────────
@@ -81,6 +83,15 @@ export function getWinner(match: Match): string | null {
   if (match.scoreA > match.scoreB) return match.teamAId;
   if (match.scoreB > match.scoreA) return match.teamBId;
   return null;
+}
+
+/** 该 format 最多地图数 */
+export function getMaxMaps(format: MatchFormat): number {
+  switch (format) {
+    case "bo1": return 1;
+    case "bo3": return 3;
+    case "bo5": return 5;
+  }
 }
 
 /** 该 format 系列赛获胜所需的图数 */

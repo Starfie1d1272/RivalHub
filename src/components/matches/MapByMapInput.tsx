@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { recordMapResult } from "@/actions/matches";
+import { getMaxMaps, getWinThreshold, SIDE_LABELS } from "@/types/match";
 import { mapLabel } from "@/lib/maps";
 
 interface CompletedMap {
@@ -21,7 +22,7 @@ interface CompletedMap {
 
 interface MapByMapInputProps {
   matchId: string;
-  format: "bo3" | "bo5";
+  format: "bo1" | "bo3" | "bo5";
   teamAName: string;
   teamBName: string;
   teamAId: string;
@@ -30,13 +31,11 @@ interface MapByMapInputProps {
   mapPool: string[];
 }
 
-const SIDE_LABELS = { t: "T 方", ct: "CT 方" };
-
 export function MapByMapInput({
   matchId, format, teamAName, teamBName, teamAId, teamBId, completedMaps, mapPool,
 }: MapByMapInputProps) {
-  const maxWins = format === "bo3" ? 2 : 3;
-  const maxMaps = format === "bo3" ? 3 : 5;
+  const maxWins = getWinThreshold(format);
+  const maxMaps = getMaxMaps(format);
 
   let mapWinsA = 0;
   let mapWinsB = 0;
@@ -85,14 +84,12 @@ export function MapByMapInput({
 
   return (
     <div className="space-y-3">
-      {/* 系列赛进度 */}
       <div className="flex items-center gap-3">
         <span className="text-xs text-[var(--color-fg-mid)]">{format.toUpperCase()} 进度</span>
         <span className="font-mono font-bold text-[var(--primary)]">{mapWinsA} : {mapWinsB}</span>
         <span className="text-xs text-[var(--color-fg-mid)]">（先赢 {maxWins} 图胜）</span>
       </div>
 
-      {/* 已完成的图 */}
       {completedMaps.length > 0 && (
         <div className="space-y-1">
           {completedMaps.map((m) => {
@@ -116,7 +113,6 @@ export function MapByMapInput({
         </div>
       )}
 
-      {/* 录入下一图 */}
       {!seriesFinished && nextMapOrder <= maxMaps && (
         <form onSubmit={handleSubmit} className="space-y-3 pt-1 border-t border-[var(--color-border)]">
           <p className="text-xs font-medium text-[var(--color-fg-mid)] pt-2">录入第 {nextMapOrder} 图</p>
@@ -151,8 +147,8 @@ export function MapByMapInput({
               <Select value={teamAStartSide} onValueChange={setTeamAStartSide}>
                 <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="t" className="text-xs">T 方</SelectItem>
-                  <SelectItem value="ct" className="text-xs">CT 方</SelectItem>
+                  <SelectItem value="t" className="text-xs">{SIDE_LABELS.t}</SelectItem>
+                  <SelectItem value="ct" className="text-xs">{SIDE_LABELS.ct}</SelectItem>
                   <SelectItem value="none" className="text-xs">不填</SelectItem>
                 </SelectContent>
               </Select>

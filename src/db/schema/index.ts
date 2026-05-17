@@ -15,3 +15,4 @@ export * from "./swiss-standings";
 export * from "./mvp-votes";
 export * from "./match-time-proposals";
 export * from "./match-rosters";
+export * from "./match-veto-steps";
