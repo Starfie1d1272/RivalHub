@@ -22,7 +22,7 @@ interface MatchTimeNegotiationProps {
   currentScheduledAt: Date | null;
   currentCompletionDeadline: Date | null;
   initialProposals: Proposal[];
-  hasSubmittedRoster?: boolean;
+  hasSubmittedRoster: boolean;
 }
 
 export function MatchTimeNegotiation({
@@ -34,7 +34,7 @@ export function MatchTimeNegotiation({
   currentScheduledAt,
   currentCompletionDeadline,
   initialProposals,
-  hasSubmittedRoster = true,
+  hasSubmittedRoster = false,
 }: MatchTimeNegotiationProps) {
   const [isPending, startTransition] = useTransition();
   const [proposedTime, setProposedTime] = useState("");

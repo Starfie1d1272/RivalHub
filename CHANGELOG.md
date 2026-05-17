@@ -5,6 +5,21 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.1] - 2026-05-17
+
+### Added
+- **开赛自动填名单**：点「开始比赛」时自动为两队取前 5 人作为默认首发（若队长未提交）
+- **队长名单时间提示**：比赛详情页显示距开赛剩余时间、2 小时内锁警告、裁判检查提醒
+- **时间协商名单提醒**：队长未提交名单时显示黄色警告条「请先提交赛前名单」
+
+### Fixed
+- **删除放开**：`deleteMatch` 移除 status 限制，所有非 bracket 比赛均可删除
+- **后台布局优化**：AdminRosterDialog/VetoInputDialog 同行排列 + 每场比赛底部「查看公开页 ↗」链接
+- **Drizzle 关系查询崩溃**：`VetoView` 和 admin roster 查询改用 `db.select()` 绕过 `buildRelationalQueryWithoutPK`
+- **TOCTOU 竞态**：`recordMapResult` 地图重复检查移入事务内部
+- **hasSubmittedRoster 默认值**：从 `true` 改为 `false`，忘记传 prop 时不会静默隐藏名单提醒
+- **auto-fill 确定性**：默认队员按 `joinedAt` 排序，移除未用变量
+
 ## [1.13.0] - 2026-05-17
 
 ### Added

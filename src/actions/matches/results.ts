@@ -77,32 +77,34 @@ export async function updateMatchStatus(
 
       // 开赛时自动为两队填充默认名单（若尚未提交）
       if (nextStatus === "in_progress") {
+        const existingRosters = await tx.query.matchRosters.findMany({
+          where: and(
+            eq(matchRosters.matchId, matchId),
+            inArray(matchRosters.teamId, [match.teamAId, match.teamBId]),
+          ),
+        });
+        const existingTeamIds = new Set(existingRosters.map((r) => r.teamId));
+
         for (const teamId of [match.teamAId, match.teamBId]) {
-          const existing = await tx.query.matchRosters.findFirst({
-            where: and(
-              eq(matchRosters.matchId, matchId),
-              eq(matchRosters.teamId, teamId),
-            ),
-          });
-          if (!existing) {
-            const starterIds = await tx
-              .select({ id: teamMembers.id })
-              .from(teamMembers)
-              .where(eq(teamMembers.teamId, teamId))
-              .limit(5);
-            if (starterIds.length > 0) {
-              const [roster] = await tx
-                .insert(matchRosters)
-                .values({ matchId, teamId, submittedBy: session.userId })
-                .returning({ id: matchRosters.id });
-              await tx.insert(matchRosterPlayers).values(
-                starterIds.map((s, i) => ({
-                  rosterId: roster.id,
-                  teamMemberId: s.id,
-                  isStarter: true,
-                })),
-              );
-            }
+          if (existingTeamIds.has(teamId)) continue;
+          const starterIds = await tx
+            .select({ id: teamMembers.id })
+            .from(teamMembers)
+            .where(eq(teamMembers.teamId, teamId))
+            .orderBy(asc(teamMembers.joinedAt))
+            .limit(5);
+          if (starterIds.length > 0) {
+            const [roster] = await tx
+              .insert(matchRosters)
+              .values({ matchId, teamId, submittedBy: session.userId })
+              .returning({ id: matchRosters.id });
+            await tx.insert(matchRosterPlayers).values(
+              starterIds.map((s) => ({
+                rosterId: roster.id,
+                teamMemberId: s.id,
+                isStarter: true,
+              })),
+            );
           }
         }
       }
@@ -215,7 +217,7 @@ export async function recordMatchResult(
   }
 }
 
-// ── 录入单图结果（BO3/BO5） ───────────────────────────────────────────────
+// ── 录入单图结果（BO1/BO3/BO5） ───────────────────────────────────────────────
 
 /**
  * 录入一张地图的比赛结果。
