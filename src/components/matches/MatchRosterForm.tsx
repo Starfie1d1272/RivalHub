@@ -105,11 +105,18 @@ export function MatchRosterForm({
             距开赛还有 {hoursUntilMatch} 小时，请在确认比赛时间前提交名单。裁判在正式开赛时会检查队员信息，队员不正确将无法进行比赛。
           </p>
         </div>
-      ) : null}
+      ) : (
+        <div className="rounded border border-[var(--color-border)] bg-[var(--color-panel)] p-3">
+          <p className="text-sm text-[var(--color-fg-dim)]">比赛时间未确定</p>
+          <p className="text-xs text-[var(--color-fg-dim)] mt-1">
+            请等待管理员设置比赛时间或通过时间协商确认时间后，再提交名单
+          </p>
+        </div>
+      )}
 
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-[var(--color-fg)]">提交赛前名单</span>
-        {hasExistingRoster && <StatusPill status="finished" />}
+        {hasExistingRoster && <span className="text-xs text-[var(--color-fg-dim)]">已提交</span>}
       </div>
 
       <div className="space-y-2">
@@ -166,12 +173,9 @@ export function MatchRosterForm({
         </Button>
       )}
       {hasExistingRoster && (
-        <div className="flex items-center gap-2">
-          <StatusPill status="finished" />
-          <span className="text-sm text-[var(--color-fg-dim)]">
-            名单已锁定，如需修改请联系管理员
-          </span>
-        </div>
+        <p className="text-xs text-[var(--color-fg-dim)]">
+          名单已提交，如需修改请联系管理员
+        </p>
       )}
     </div>
   );
