@@ -75,7 +75,7 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
     try {
       const base64 = await fileToBase64(file);
       const mimeType = file.type as "image/jpeg" | "image/png" | "image/webp";
-      const result = await extractStatsFromScreenshot(mapId, base64, mimeType);
+      const result = await extractStatsFromScreenshot({ mapId, base64Image: base64, mimeType });
 
       if (!result.success) {
         setError(result.error.message);

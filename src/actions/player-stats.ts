@@ -32,10 +32,13 @@ export type PlayerOption = {
  * 同时返回赛季中所有已匹配玩家列表供下拉选择。
  */
 export async function extractStatsFromScreenshot(
-  mapId: string,
-  base64Image: string,
-  mimeType: "image/jpeg" | "image/png" | "image/webp" = "image/jpeg"
+  input: {
+    mapId: string;
+    base64Image: string;
+    mimeType: "image/jpeg" | "image/png" | "image/webp";
+  },
 ) {
+  const { mapId, base64Image, mimeType } = input;
   try {
     await requireAdmin();
 
