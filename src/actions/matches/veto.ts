@@ -2,12 +2,13 @@
 
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matchVetoSteps, matchMaps, matches, auditLogs } from "@/db/schema";
+import { matchVetoSteps, matchMaps, auditLogs } from "@/db/schema";
 import { ok, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { requireSeasonAdmin, auditActorId } from "@/lib/auth/session";
-import { getMatchOrThrow, actionError } from "@/lib/action-utils";
+import { getMatchOrThrow, getSeasonOrThrow, actionError } from "@/lib/action-utils";
 import { revalidateMatchPaths } from "@/lib/revalidation";
+import { normalizeRegistrationConfig } from "@/types/season";
 import type { VetoActionType } from "@/types/match";
 
 export interface VetoStepInput {
@@ -36,6 +37,23 @@ export async function saveVetoSteps(
       throw new AppError(ErrorCode.VALIDATION_FAILED, "BP 步骤不能为空");
     }
 
+    // 服务端输入校验
+    if (steps.some((s) => !s.mapName.trim())) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "所有步骤必须指定地图");
+    }
+    if (steps.some((s) => s.actionType !== "decider" && !s.teamId)) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "非 decider 步骤必须指定操作队伍");
+    }
+    const mapNames = steps.map((s) => s.mapName);
+    if (new Set(mapNames).size !== mapNames.length) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "地图不能重复");
+    }
+    const season = await getSeasonOrThrow(match.seasonId);
+    const mapPool = normalizeRegistrationConfig(season.registrationConfig).mapPool;
+    if (steps.some((s) => !mapPool.includes(s.mapName))) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "地图不属于当前赛季图池");
+    }
+
     await db.transaction(async (tx) => {
       // 清除旧记录（支持重复录入）
       await tx
@@ -61,15 +79,16 @@ export async function saveVetoSteps(
 
       await tx.delete(matchMaps).where(eq(matchMaps.matchId, matchId));
 
-      let mapOrder = 1;
-      for (const s of playMaps) {
-        await tx.insert(matchMaps).values({
-          matchId,
-          mapOrder: mapOrder++,
-          mapName: s.mapName,
-          pickedByTeamId: s.actionType === "pick" ? s.teamId : null,
-          teamAStartSide: s.side ?? null,
-        });
+      if (playMaps.length > 0) {
+        await tx.insert(matchMaps).values(
+          playMaps.map((s, i) => ({
+            matchId,
+            mapOrder: i + 1,
+            mapName: s.mapName,
+            pickedByTeamId: s.actionType === "pick" ? s.teamId : null,
+            teamAStartSide: s.side ?? null,
+          })),
+        );
       }
 
       await tx.insert(auditLogs).values({
@@ -82,9 +101,6 @@ export async function saveVetoSteps(
       });
     });
 
-    const season = await db.query.seasons.findFirst({
-      where: (t, { eq: e }) => e(t.id, match.seasonId),
-    });
     if (season) revalidateMatchPaths(season.slug, matchId);
 
     return ok(undefined);
