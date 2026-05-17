@@ -370,7 +370,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                             />
                           </div>
                         </div>
-                        <Separator />
+                        {m.status !== "cancelled" && <Separator />}
                         {m.status !== "finished" && m.status !== "cancelled" && (
                           <>
                             <div className="flex flex-wrap items-center gap-2">
@@ -468,7 +468,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                             />
                           </div>
                         </div>
-                        <Separator />
+                        {m.status !== "cancelled" && <Separator />}
                         {m.status !== "finished" && m.status !== "cancelled" && (
                           <>
                             <div className="flex flex-wrap items-center gap-2">
