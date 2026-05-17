@@ -200,10 +200,28 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
         .innerJoin(users, eq(seasonRegistrations.userId, users.id))
         .where(inArray(teamMembers.teamId, allTeams.map((t) => t.id))),
       displayedMatchIds.length > 0
-        ? db.query.matchRosters.findMany({
-            where: inArray(matchRosters.matchId, displayedMatchIds),
-            with: { players: true },
-          })
+        ? (async () => {
+            const rosters = await db
+              .select()
+              .from(matchRosters)
+              .where(inArray(matchRosters.matchId, displayedMatchIds));
+            if (rosters.length === 0) return [] as typeof rosters & { players: (typeof matchRosterPlayers.$inferSelect)[] }[];
+            const rosterIds = rosters.map((r) => r.id);
+            const players = await db
+              .select()
+              .from(matchRosterPlayers)
+              .where(inArray(matchRosterPlayers.rosterId, rosterIds));
+            const playerMap = new Map<string, (typeof matchRosterPlayers.$inferSelect)[]>();
+            for (const p of players) {
+              const list = playerMap.get(p.rosterId) ?? [];
+              list.push(p);
+              playerMap.set(p.rosterId, list);
+            }
+            return rosters.map((r) => ({
+              ...r,
+              players: playerMap.get(r.id) ?? [],
+            }));
+          })()
         : ([] as (typeof matchRosters.$inferSelect & {
             players: (typeof matchRosterPlayers.$inferSelect)[];
           })[]),
