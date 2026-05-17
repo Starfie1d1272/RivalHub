@@ -102,7 +102,7 @@ export function MatchRosterForm({
       ) : hoursUntilMatch !== null ? (
         <div className="rounded border border-[var(--color-border)] bg-[var(--color-panel)] p-2">
           <p className="text-xs text-[var(--color-fg-dim)]">
-            距开赛还有 {hoursUntilMatch} 小时，请在确认比赛时间前提交名单。裁判在正式开赛时会检查队员信息，队员不正确将无法进行比赛。
+            距开赛还有 {hoursUntilMatch} 小时。开赛前 2 小时名单将锁定，届时无法修改，请在此之前提交名单。裁判在开赛时会检查队员信息，队员不正确将无法进行比赛。
           </p>
         </div>
       ) : (
