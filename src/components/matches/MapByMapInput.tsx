@@ -21,7 +21,7 @@ interface CompletedMap {
 
 interface MapByMapInputProps {
   matchId: string;
-  format: "bo3" | "bo5";
+  format: "bo1" | "bo3" | "bo5";
   teamAName: string;
   teamBName: string;
   teamAId: string;
@@ -35,8 +35,8 @@ const SIDE_LABELS = { t: "T 方", ct: "CT 方" };
 export function MapByMapInput({
   matchId, format, teamAName, teamBName, teamAId, teamBId, completedMaps, mapPool,
 }: MapByMapInputProps) {
-  const maxWins = format === "bo3" ? 2 : 3;
-  const maxMaps = format === "bo3" ? 3 : 5;
+  const maxWins = format === "bo1" ? 1 : format === "bo3" ? 2 : 3;
+  const maxMaps = format === "bo1" ? 1 : format === "bo3" ? 3 : 5;
 
   let mapWinsA = 0;
   let mapWinsB = 0;

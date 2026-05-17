@@ -188,7 +188,7 @@ export async function recordMatchResult(
 /**
  * 录入一张地图的比赛结果。
  * 系统根据已完成地图自动计算大比分，达到 maxWins 时自动结束系列赛并推进 bracket。
- * 仅用于 BO3/BO5；BO1 继续走 recordMatchResult。
+ * 支持 BO1/BO3/BO5；BO1 也可继续走 recordMatchResult 直接录入总分。
  */
 export async function recordMapResult(
   matchId: string,
@@ -210,11 +210,8 @@ export async function recordMapResult(
     const match = await getMatchOrThrow(matchId);
     const session = await requireSeasonAdmin(match.seasonId);
 
-    if (match.format === "bo1") {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, "BO1 请使用直接录入比分功能");
-    }
-    if (match.status !== "in_progress") {
-      throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛未在进行中");
+    if (match.status !== "in_progress" && match.status !== "scheduled") {
+      throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛状态不允许录入地图结果");
     }
 
     const season = await getSeasonOrThrow(match.seasonId);
@@ -224,7 +221,7 @@ export async function recordMapResult(
     }
 
     const maxWins = getWinThreshold(match.format);
-    const maxMaps = match.format === "bo5" ? 5 : 3;
+    const maxMaps = match.format === "bo5" ? 5 : match.format === "bo3" ? 3 : 1;
 
     if (mapOrder < 1 || mapOrder > maxMaps) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, `${match.format.toUpperCase()} 图序号须在 1-${maxMaps} 之间`);
@@ -267,6 +264,14 @@ export async function recordMapResult(
 
     // 所有写操作放入同一事务，确保原子性
     await db.transaction(async (tx) => {
+      // BO1 从 scheduled 自动转换为 in_progress
+      if (match.format === "bo1" && match.status === "scheduled") {
+        await tx
+          .update(matches)
+          .set({ status: "in_progress", updatedAt: new Date() })
+          .where(eq(matches.id, matchId));
+      }
+
       await tx.insert(matchMaps).values({
         matchId,
         mapOrder,

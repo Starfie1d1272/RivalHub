@@ -52,7 +52,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
 
   // 查进行中的比赛的地图记录（供 MapByMapInput 用）
   const inProgressMatchIds = allMatches
-    .filter((m) => m.status === "in_progress" && m.format !== "bo1")
+    .filter((m) => m.status === "in_progress")
     .map((m) => m.id);
   const allMapRecords = inProgressMatchIds.length > 0
     ? await db.query.matchMaps.findMany({
@@ -339,10 +339,10 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                               currentScheduledAt={m.scheduledAt}
                               currentCompletionDeadline={m.completionDeadline}
                             />
-                            {m.status === "in_progress" && m.format !== "bo1" ? (
+                            {m.status === "in_progress" ? (
                               <MapByMapInput
                                 matchId={m.id}
-                                format={m.format as "bo3" | "bo5"}
+                                format={m.format as "bo1" | "bo3" | "bo5"}
                                 teamAName={teamAName}
                                 teamBName={teamBName}
                                 teamAId={m.teamAId}

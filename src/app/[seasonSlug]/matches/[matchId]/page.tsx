@@ -337,7 +337,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
       </div>
 
       {/* 单图结果 */}
-      {maps.length > 0 && (
+      {maps.length > 0 ? (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold text-[var(--color-fg)]">地图结果</h2>
           <div className="space-y-2">
@@ -379,7 +379,16 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
             ))}
           </div>
         </section>
-      )}
+      ) : isFinished && match.scoreA != null && match.scoreB != null ? (
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold text-[var(--color-fg)]">比赛结果</h2>
+          <Panel pad={16}>
+            <p className="text-sm text-[var(--color-fg-mid)]">
+              BO1 系列赛总分：{match.scoreA} : {match.scoreB}
+            </p>
+          </Panel>
+        </section>
+      ) : null}
 
       {/* 赛前名单 */}
       {match.status !== "finished" && (
