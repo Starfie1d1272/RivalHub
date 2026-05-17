@@ -92,6 +92,8 @@ async function extract(base64Image: string, mimeType: string): Promise<Scoreboar
   const apiUrl = process.env.SILICONFLOW_API_URL || DEFAULT_API_URL;
   const model = process.env.SILICONFLOW_MODEL || DEFAULT_MODEL;
 
+  console.error("[OCR] 图片大小:", base64Image.length, "bytes (base64), MIME:", mimeType, "模型:", model);
+
   const callParams: CallParams = { apiUrl, apiKey, model, base64Image, mimeType, withResponseFormat: true };
 
   // 第一次尝试：带 response_format json_object（LLM 模型支持，VL 模型可能拒绝）
@@ -99,6 +101,7 @@ async function extract(base64Image: string, mimeType: string): Promise<Scoreboar
 
   // 如果是 400 错误，可能是模型不支持 response_format，回退到不带 response_format
   if (!result.ok && result.status === 400) {
+    console.error("[OCR] response_format 被拒（400），回退无格式重试");
     callParams.withResponseFormat = false;
     result = await callAPI(callParams);
   }
