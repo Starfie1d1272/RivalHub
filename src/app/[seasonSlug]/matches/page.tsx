@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { eq, and, asc, count } from "drizzle-orm";
+import { eq, asc } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons, matches, teams } from "@/db/schema";
 import { serializeBracket } from "@/lib/bracket";
@@ -68,7 +68,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
       const aTime = a.scheduledAt?.getTime() ?? Infinity;
       const bTime = b.scheduledAt?.getTime() ?? Infinity;
       if (aTime !== bTime) return aTime - bTime;
-      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      return a.createdAt.getTime() - b.createdAt.getTime();
     });
 
   const splitMatches = (list: typeof allMatches) => ({

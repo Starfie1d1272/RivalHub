@@ -176,6 +176,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
   }
   let allTeamMembers: TeamMemberData[] = [];
   const rosterByMatch = new Map<string, Map<string, RosterData>>();
+  const teamMembersByTeam = new Map<string, TeamMemberData[]>();
 
   if (matchCount > 0) {
     const displayedMatchIds = qualifierMatches
@@ -235,6 +236,12 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
       perfectName: r.perfectName ?? null,
       primaryPosition: r.primaryPosition,
     }));
+
+    for (const t of allTeamMembers) {
+      const arr = teamMembersByTeam.get(t.teamId) ?? [];
+      arr.push(t);
+      teamMembersByTeam.set(t.teamId, arr);
+    }
 
     for (const roster of rosters) {
       const matchMap =
@@ -380,8 +387,8 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                             teamBName={teamBName}
                             teamAId={m.teamAId}
                             teamBId={m.teamBId}
-                            teamAMembers={allTeamMembers.filter((t) => t.teamId === m.teamAId)}
-                            teamBMembers={allTeamMembers.filter((t) => t.teamId === m.teamBId)}
+                            teamAMembers={teamMembersByTeam.get(m.teamAId) ?? []}
+                            teamBMembers={teamMembersByTeam.get(m.teamBId) ?? []}
                             teamARoster={rosterByMatch.get(m.id)?.get(m.teamAId) ?? null}
                             teamBRoster={rosterByMatch.get(m.id)?.get(m.teamBId) ?? null}
                           />
@@ -478,8 +485,8 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                                 teamBName={teamBName}
                                 teamAId={m.teamAId}
                                 teamBId={m.teamBId}
-                                teamAMembers={allTeamMembers.filter((t) => t.teamId === m.teamAId)}
-                                teamBMembers={allTeamMembers.filter((t) => t.teamId === m.teamBId)}
+                                teamAMembers={teamMembersByTeam.get(m.teamAId) ?? []}
+                                teamBMembers={teamMembersByTeam.get(m.teamBId) ?? []}
                                 teamARoster={rosterByMatch.get(m.id)?.get(m.teamAId) ?? null}
                                 teamBRoster={rosterByMatch.get(m.id)?.get(m.teamBId) ?? null}
                               />

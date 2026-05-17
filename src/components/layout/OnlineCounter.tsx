@@ -15,11 +15,12 @@ export function OnlineCounter() {
   }, []);
 
   useEffect(() => {
-    touchSession().then(() => fetchCount());
+    let mounted = true;
+    touchSession().then(() => { if (mounted) fetchCount(); });
     const id = setInterval(() => {
-      touchSession().then(() => fetchCount());
+      touchSession().then(() => { if (mounted) fetchCount(); });
     }, 120_000); // 每 2 分钟心跳
-    return () => clearInterval(id);
+    return () => { clearInterval(id); mounted = false; };
   }, [fetchCount]);
 
   if (count === null) return null;

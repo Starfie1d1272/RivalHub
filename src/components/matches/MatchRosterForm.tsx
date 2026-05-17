@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { submitMatchRoster } from "@/actions/matches/roster";
 import { Button } from "@/components/ui/button";
-import { PosChip, StatusPill } from "@/components/rivalhub";
+import { PosChip } from "@/components/rivalhub";
 
 import { getDisplayName } from "@/lib/utils/display-name";
 

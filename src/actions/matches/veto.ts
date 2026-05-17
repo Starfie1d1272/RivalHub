@@ -11,6 +11,12 @@ import { revalidateMatchPaths } from "@/lib/revalidation";
 import { normalizeRegistrationConfig } from "@/types/season";
 import type { VetoActionType } from "@/types/match";
 
+function resolveTeamASide(selectedSide: string, selectingTeamId: string | null, teamAId: string): "t" | "ct" | null {
+  if (!selectedSide || !selectingTeamId) return null;
+  if (selectingTeamId === teamAId) return selectedSide as "t" | "ct";
+  return selectedSide === "t" ? "ct" : "t";
+}
+
 export interface VetoStepInput {
   actionType: VetoActionType;
   mapName: string;
@@ -86,9 +92,7 @@ export async function saveVetoSteps(
             mapOrder: i + 1,
             mapName: s.mapName,
             pickedByTeamId: s.actionType === "pick" ? s.teamId : null,
-            teamAStartSide: s.side
-              ? s.teamId === match.teamAId ? s.side : s.side === "t" ? "ct" : "t"
-              : null,
+            teamAStartSide: resolveTeamASide(s.side ?? "", s.teamId, match.teamAId),
           })),
         );
       }
