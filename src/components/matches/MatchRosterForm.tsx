@@ -74,7 +74,7 @@ export function MatchRosterForm({
       return;
     }
     startTransition(async () => {
-      const result = await submitMatchRoster(matchId, selectedStarterIds, selectedSubstituteIds);
+      const result = await submitMatchRoster(matchId, { starterIds: selectedStarterIds, substituteIds: selectedSubstituteIds });
       if (result.success) {
         toast.success("名单提交成功");
       } else {

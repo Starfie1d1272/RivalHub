@@ -30,9 +30,9 @@ async function validateTeamMembers(teamId: string, memberIds: string[]): Promise
  */
 export async function submitMatchRoster(
   matchId: string,
-  starterIds: string[],
-  substituteIds: string[] = [],
+  input: { starterIds: string[]; substituteIds?: string[] },
 ): Promise<ActionResult<{ rosterId: string }>> {
+  const { starterIds, substituteIds = [] } = input;
   try {
     const session = await requireAuth();
     const match = await getMatchOrThrow(matchId);
@@ -169,9 +169,9 @@ export async function unlockMatchRoster(
 export async function updateMatchRoster(
   matchId: string,
   teamId: string,
-  starterIds: string[],
-  substituteIds: string[] = [],
+  input: { starterIds: string[]; substituteIds?: string[] },
 ): Promise<ActionResult<{ rosterId: string }>> {
+  const { starterIds, substituteIds = [] } = input;
   try {
     const match = await getMatchOrThrow(matchId);
     const session = await requireSeasonAdmin(match.seasonId);

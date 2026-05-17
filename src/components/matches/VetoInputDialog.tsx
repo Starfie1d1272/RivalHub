@@ -151,7 +151,7 @@ export function VetoInputDialog({
         teamId: s.teamId,
         side: s.side,
       }));
-      const result = await saveVetoSteps(matchId, inputs);
+      const result = await saveVetoSteps(matchId, { steps: inputs });
       if (result.success) {
         toast.success("BP 已保存");
         setOpen(false);
