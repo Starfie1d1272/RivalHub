@@ -62,6 +62,23 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
   const qualifierMatches = qualifierMatchesAll.filter(matchFilter);
   const playoffMatches = playoffMatchesAll.filter(matchFilter);
 
+  // 排序：已排期（由近及远）→ 未排期
+  const sortMatchList = (list: typeof allMatches) =>
+    [...list].sort((a, b) => {
+      const aTime = a.scheduledAt?.getTime() ?? Infinity;
+      const bTime = b.scheduledAt?.getTime() ?? Infinity;
+      if (aTime !== bTime) return aTime - bTime;
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    });
+
+  const splitMatches = (list: typeof allMatches) => ({
+    active: sortMatchList(list.filter((m) => m.status !== "finished" && m.status !== "cancelled")),
+    done: sortMatchList(list.filter((m) => m.status === "finished" || m.status === "cancelled")),
+  });
+
+  const { active: qualifierActive, done: qualifierDone } = splitMatches(qualifierMatches);
+  const { active: playoffActive, done: playoffDone } = splitMatches(playoffMatches);
+
   // 积分榜（仅当有 round_robin 排位赛时计算，使用未筛选的全部排位赛）
   const finishedQualifierMatches = qualifierMatchesAll.filter((m) => m.status === "finished");
   const standings = qualifierStage && qualifierStage.type !== "swiss"
@@ -173,29 +190,38 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
                 )}
 
                 {/* 赛程列表 */}
-                {qualifierMatches.length > 0 && (
+                {qualifierMatchesAll.length > 0 && (
                   <section className="space-y-3">
-                    <h2 className="text-lg font-semibold text-[var(--color-fg)]">赛程</h2>
-                    <div className="space-y-2">
-                      {qualifierMatches.map((m) => (
-                        <MatchCard
-                          key={m.id}
-                          matchId={m.id}
-                          seasonSlug={seasonSlug}
-                          teamAName={teamMap.get(m.teamAId) ?? "未知队伍"}
-                          teamBName={teamMap.get(m.teamBId) ?? "未知队伍"}
-                          scoreA={m.scoreA}
-                          scoreB={m.scoreB}
-                          stage={qualifierKey}
-                          format={m.format as "bo1" | "bo3" | "bo5"}
-                          status={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"}
-                        />
-                      ))}
-                    </div>
+                    <Tabs defaultValue="active" className="w-full">
+                      <TabsList className="bg-[var(--color-panel)] border border-[var(--color-border)] p-1">
+                        <TabsTrigger value="active" className="text-xs data-[state=active]:bg-[var(--color-accent)] data-[state=active]:text-[var(--color-accent-fg)]">待进行</TabsTrigger>
+                        <TabsTrigger value="done" className="text-xs data-[state=active]:bg-[var(--color-accent)] data-[state=active]:text-[var(--color-accent-fg)]">已结束</TabsTrigger>
+                      </TabsList>
+                      <TabsContent value="active" className="mt-4 space-y-2">
+                        {qualifierActive.length > 0 ? qualifierActive.map((m) => (
+                          <MatchCard key={m.id} matchId={m.id} seasonSlug={seasonSlug}
+                            teamAName={teamMap.get(m.teamAId) ?? "未知队伍"} teamBName={teamMap.get(m.teamBId) ?? "未知队伍"}
+                            scoreA={m.scoreA} scoreB={m.scoreB} stage={qualifierKey}
+                            format={m.format as "bo1" | "bo3" | "bo5"} status={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"} />
+                        )) : (
+                          <div className="text-center py-8 text-[var(--color-fg-mid)] text-sm">暂无待进行比赛</div>
+                        )}
+                      </TabsContent>
+                      <TabsContent value="done" className="mt-4 space-y-2">
+                        {qualifierDone.length > 0 ? qualifierDone.map((m) => (
+                          <MatchCard key={m.id} matchId={m.id} seasonSlug={seasonSlug}
+                            teamAName={teamMap.get(m.teamAId) ?? "未知队伍"} teamBName={teamMap.get(m.teamBId) ?? "未知队伍"}
+                            scoreA={m.scoreA} scoreB={m.scoreB} stage={qualifierKey}
+                            format={m.format as "bo1" | "bo3" | "bo5"} status={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"} />
+                        )) : (
+                          <div className="text-center py-8 text-[var(--color-fg-mid)] text-sm">暂无已结束比赛</div>
+                        )}
+                      </TabsContent>
+                    </Tabs>
                   </section>
                 )}
 
-                {qualifierMatches.length === 0 && (
+                {qualifierMatchesAll.length === 0 && (
                   <div className="text-center py-16 text-[var(--color-fg-mid)]">
                     排位赛赛程尚未生成
                   </div>
@@ -222,29 +248,38 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
             )}
 
             {/* 正赛赛程列表 */}
-            {playoffMatches.length > 0 && (
+            {playoffMatchesAll.length > 0 && (
               <section className="space-y-3">
-                <h2 className="text-lg font-semibold text-[var(--color-fg)]">赛程</h2>
-                <div className="space-y-2">
-                  {playoffMatches.map((m) => (
-                    <MatchCard
-                      key={m.id}
-                      matchId={m.id}
-                      seasonSlug={seasonSlug}
-                      teamAName={teamMap.get(m.teamAId) ?? "TBD"}
-                      teamBName={teamMap.get(m.teamBId) ?? "TBD"}
-                      scoreA={m.scoreA}
-                      scoreB={m.scoreB}
-                      stage={playoffKey}
-                      format={m.format as "bo1" | "bo3" | "bo5"}
-                      status={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"}
-                    />
-                  ))}
-                </div>
+                <Tabs defaultValue="active" className="w-full">
+                  <TabsList className="bg-[var(--color-panel)] border border-[var(--color-border)] p-1">
+                    <TabsTrigger value="active" className="text-xs data-[state=active]:bg-[var(--color-accent)] data-[state=active]:text-[var(--color-accent-fg)]">待进行</TabsTrigger>
+                    <TabsTrigger value="done" className="text-xs data-[state=active]:bg-[var(--color-accent)] data-[state=active]:text-[var(--color-accent-fg)]">已结束</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="active" className="mt-4 space-y-2">
+                    {playoffActive.length > 0 ? playoffActive.map((m) => (
+                      <MatchCard key={m.id} matchId={m.id} seasonSlug={seasonSlug}
+                        teamAName={teamMap.get(m.teamAId) ?? "TBD"} teamBName={teamMap.get(m.teamBId) ?? "TBD"}
+                        scoreA={m.scoreA} scoreB={m.scoreB} stage={playoffKey}
+                        format={m.format as "bo1" | "bo3" | "bo5"} status={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"} />
+                    )) : (
+                      <div className="text-center py-8 text-[var(--color-fg-mid)] text-sm">暂无待进行比赛</div>
+                    )}
+                  </TabsContent>
+                  <TabsContent value="done" className="mt-4 space-y-2">
+                    {playoffDone.length > 0 ? playoffDone.map((m) => (
+                      <MatchCard key={m.id} matchId={m.id} seasonSlug={seasonSlug}
+                        teamAName={teamMap.get(m.teamAId) ?? "TBD"} teamBName={teamMap.get(m.teamBId) ?? "TBD"}
+                        scoreA={m.scoreA} scoreB={m.scoreB} stage={playoffKey}
+                        format={m.format as "bo1" | "bo3" | "bo5"} status={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"} />
+                    )) : (
+                      <div className="text-center py-8 text-[var(--color-fg-mid)] text-sm">暂无已结束比赛</div>
+                    )}
+                  </TabsContent>
+                </Tabs>
               </section>
             )}
 
-            {playoffMatches.length === 0 && (
+            {playoffMatchesAll.length === 0 && (
               <div className="text-center py-16 text-[var(--color-fg-mid)]">
                 {allQualifierFinished
                   ? "正赛即将开始，敬请期待"
