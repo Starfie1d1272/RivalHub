@@ -26,8 +26,9 @@ export interface VetoStepInput {
 
 export async function saveVetoSteps(
   matchId: string,
-  steps: VetoStepInput[],
+  input: { steps: VetoStepInput[] },
 ): Promise<ActionResult<void>> {
+  const { steps } = input;
   try {
     const match = await getMatchOrThrow(matchId);
     const session = await requireSeasonAdmin(match.seasonId);

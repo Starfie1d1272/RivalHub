@@ -109,8 +109,7 @@ function RosterTeamSection({
       const result = await updateMatchRoster(
         matchId,
         teamId,
-        starterIds,
-        substituteIds,
+        { starterIds, substituteIds },
       );
       if (result.success) {
         toast.success(`${teamName} 名单已更新`);
