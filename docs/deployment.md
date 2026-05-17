@@ -8,24 +8,31 @@
 
 Supabase 直接数据库主机名 `db.<project_ref>.supabase.co` 只有 IPv6 记录（无 A 记录），Vercel 无法通过 IPv6 访问，导致 `ENOTFOUND`。
 
-### 解决方案：Session Pooler
+### 解决方案：Transaction Pooler（推荐）
 
-使用 Supabase Session Pooler 主机名，它同时有 IPv4 和 IPv6 记录。
+Session Pooler（5432）在 serverless 场景下容易连接池耗尽（`EMAXCONNSESSION`，pool_size=15）。Transaction Pooler（6543，PgBouncer 事务模式）将数千客户端连接复用到少量实际连接，专为 serverless 设计。
 
 ```
-DATABASE_URL=postgresql://postgres.<project_ref>:<password>@aws-1-us-east-1.pooler.supabase.com:5432/postgres
+DATABASE_URL=postgresql://postgres.<project_ref>:<password>@aws-1-us-east-1.pooler.supabase.com:6543/postgres
 ```
 
 | 项 | 值 |
 |----|-----|
 | 主机名 | `aws-1-us-east-1.pooler.supabase.com`（具体节点看 Supabase Dashboard） |
-| 端口 | **5432**（Session Pooler，非 Transaction Pooler 的 6543） |
+| 端口 | **6543**（Transaction Pooler） |
 | 用户名 | `postgres.<project_ref>`（必须带 project ref，Pooler 用它识别租户） |
 | SSL | 需要，`rejectUnauthorized: false` |
 
+### 回滚：切回 Session Pooler
+
+```
+# 1. Vercel env → DATABASE_URL 端口改回 5432
+# 2. db/client.ts → 删除 prepare: false，max 改回 1
+```
+
 ### Pooler 节点
 
-每个 Supabase 项目分配的 Pooler 节点不同（`aws-0` / `aws-1`），不能猜测。去 Supabase Dashboard → Project Settings → Database → Connection string → Session Pooler 查看。
+每个 Supabase 项目分配的 Pooler 节点不同（`aws-0` / `aws-1`），不能猜测。去 Supabase Dashboard → Project Settings → Database → Connection string 查看。
 
 ### db/client.ts 配置
 
@@ -33,8 +40,9 @@ DATABASE_URL=postgresql://postgres.<project_ref>:<password>@aws-1-us-east-1.pool
 const pgConfig = {
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },
-  max: 1,                   // Vercel serverless 必须限制池大小
-  idleTimeoutMillis: 10000,
+  prepare: false,            // Transaction Pooler 不支持 prepared statements
+  max: 3,                    // 允许单实例内并行查询
+  idleTimeoutMillis: 5000,
   connectionTimeoutMillis: 10000,
 };
 ```
@@ -45,6 +53,7 @@ const pgConfig = {
 - **不要本地测试 Pooler 连接**：本地 DNS 可能返回虚假 IP，以 Vercel 运行时日志为准
 - **Hobby 计划**：数据库 90 天不活跃会被暂停，定期访问保持活跃
 - **生产环境变量**：所有 Supabase 相关变量（`DATABASE_URL`、`NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_ANON_KEY`、`SUPABASE_SERVICE_ROLE_KEY`）需在 Vercel Dashboard 设置
+- **在线人数轮询**：每 5 分钟心跳，`user_sessions` 表写入失败时静默跳过
 
 ## 环境变量清单
 

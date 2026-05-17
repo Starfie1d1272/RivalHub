@@ -26,7 +26,7 @@ export function OnlineCounter() {
         .catch(() => {}); // user_sessions 表不存在时静默跳过
     };
     tick();
-    const id = setInterval(tick, 120_000); // 每 2 分钟心跳
+    const id = setInterval(tick, 300_000); // 每 5 分钟心跳
     return () => { clearInterval(id); mounted = false; };
   }, [fetchCount]);
 

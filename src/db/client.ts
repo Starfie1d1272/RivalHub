@@ -7,12 +7,12 @@ const connectionString = process.env.DATABASE_URL;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const pgConfig: any = {
   connectionString,
-  // Supabase pooler requires SSL; local Docker/Postgres does not
   ssl: shouldUseSsl(connectionString) ? { rejectUnauthorized: false } : undefined,
-  family: 4,
-  // local dev needs headroom for concurrent RSC queries; serverless uses 1
-  max: process.env.NODE_ENV === "production" ? 1 : 10,
-  idleTimeoutMillis: 10000,
+  // Transaction Pooler (port 6543) 共享连接池，适合 serverless
+  // 回退 Session Pooler (port 5432) 时删除 prepare: false 并调回 max: 1
+  prepare: false,
+  max: process.env.NODE_ENV === "production" ? 3 : 10,
+  idleTimeoutMillis: 5000,
   connectionTimeoutMillis: 10000,
 };
 const pool = new Pool(pgConfig);
