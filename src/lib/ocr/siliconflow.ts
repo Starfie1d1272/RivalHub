@@ -133,7 +133,10 @@ async function extract(base64Image: string, mimeType: string): Promise<Scoreboar
     throw new Error(`SiliconFlow API 错误 ${result.status}: ${result.text}`);
   }
 
+  console.error("[OCR] 模型原始返回:", result.content);
+
   const parsed = extractJson(result.content);
+  console.error("[OCR] JSON 解析结果:", JSON.stringify(parsed).slice(0, 500));
 
   // 兼容 LLM 可能的外层包装：{ players } / { data: { players } } / 直接数组
   let rawPlayers: unknown[];
