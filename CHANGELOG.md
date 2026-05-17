@@ -5,6 +5,19 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.14.3] - 2026-05-17
+
+### Added
+- **OCR 面板始终可见**：不再依赖识别结果才显示编辑表格，新增「添加行」按钮支持纯手动录入
+
+### Fixed
+- **OCR 大截图序列化崩溃**：extractStatsFromScreenshot 参数装箱，修复 React Flight 对数组内大字符串按 `.length` 计入 arraySizeLimit（1e6）导致的 "Maximum array nesting exceeded" 错误
+- **Server Action 数组序列化**：savePlayerStats / saveVetoSteps / submitMatchRoster / updateMatchRoster 数组参数统一包在对象中，避免 Next.js 序列化限制
+- **OCR 调试日志恢复**：移除过度的 DEBUG gate，日志恢复无条件输出以便生产排查
+
+### Changed
+- **数据库连接切 Transaction Pooler**：端口 5432 → 6543，`prepare: false`，连接池 max 1 → 3
+
 ## [1.14.2] - 2026-05-17
 
 ### Fixed
@@ -406,6 +419,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [1.6.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.4.0...v1.4.1
+[1.14.3]: https://github.com/Starfie1d1272/RivalHub/compare/v1.14.2...v1.14.3
+[1.14.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.14.1...v1.14.2
+[1.14.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.14.0...v1.14.1
+[1.14.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.13.1...v1.14.0
+[1.13.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.13.0...v1.13.1
+[1.13.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.12.0...v1.13.0
+[1.12.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.11.0...v1.12.0
 [1.11.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.10.1...v1.11.0
 [1.4.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.3.2...v1.4.0
 [1.3.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.3.1...v1.3.2
