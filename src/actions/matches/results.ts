@@ -497,10 +497,6 @@ export async function deleteMatch(matchId: string): Promise<ActionResult<void>> 
     const match = await getMatchOrThrow(matchId);
     const session = await requireSeasonAdmin(match.seasonId);
 
-    if (match.status !== "scheduled") {
-      throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "仅可删除「已排期」状态的比赛");
-    }
-
     if (match.bracketNodeId) {
       throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "无法删除 Bracket 自动生成的比赛");
     }

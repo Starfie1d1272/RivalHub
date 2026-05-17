@@ -181,6 +181,17 @@ erDiagram
     timestamp created_at
   }
 
+  match_veto_steps {
+    uuid id PK
+    uuid match_id FK
+    int step_order
+    text action_type "ban | pick | decider"
+    text map_name "如 de_inferno"
+    uuid team_id FK "执行队伍，decider 为 null"
+    side side "t | ct | null"
+    timestamp created_at
+  }
+
   match_mvp_votes {
     uuid id PK
     uuid match_id FK
@@ -235,6 +246,7 @@ erDiagram
   seasons ||--o{ draft_picks : "records"
   seasons ||--o{ matches : "hosts"
   seasons ||--o{ audit_logs : "logs"
+  matches ||--o{ match_veto_steps : "records_veto"
   matches ||--o{ match_maps : "consists_of"
   matches ||--o{ match_player_stats : "has"
   match_maps ||--o{ match_player_stats : "has"
@@ -373,6 +385,7 @@ erDiagram
 | `draft_state` | `UNIQUE(season_id)` |
 | `draft_picks` | `UNIQUE(client_request_id)` |
 | `match_maps` | `UNIQUE(match_id, map_order)` |
+| `match_veto_steps` | `UNIQUE(match_id, step_order)` |
 | `admin_users` | `UNIQUE(username)` |
 | `admin_invites` | `UNIQUE(code)` |
 | `match_player_stats` | `UNIQUE(map_id, perfect_name)` |

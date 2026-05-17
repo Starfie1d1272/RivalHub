@@ -4,7 +4,7 @@
 
 RivalHub 是开源电竞赛事管理平台，通过 capability 驱动的多赛事模型支持各类赛制（选秀联赛、公开赛、杯赛等）的全流程运营：报名 → 审核 → 队长投票 → 蛇形选秀 → 队伍展示 → 赛程 + Bracket 视图 → 部署。
 
-当前阶段：**v1.11.0，站点部署在 `match.starfie1d.top`。v2 赛制引擎（StageExecutor + 5 个 executor + entrySeeds 种子轮空 + finalFormat 决赛 BO5）代码已就绪，待 2026 NJU Major 赛季开始时启用。**
+当前阶段：**v1.13.0，站点部署在 `match.starfie1d.top`。比赛模块已深度补齐（BO1/BP/Roster/OCR/Tab/删除）。v2 赛制引擎（StageExecutor + 5 个 executor + entrySeeds 种子轮空 + finalFormat 决赛 BO5）代码已就绪，待 2026 NJU Major 赛季开始时启用。**
 
 ## 版本路线图
 
@@ -219,14 +219,14 @@ src/
 │   ├── auth.ts       # 邮箱+密码注册/登录/退出
 │   ├── captains.ts   # 队长投票
 │   ├── draft/        # 选秀（state / picks / queries）
-│   ├── matches/      # 赛程（schedule / results / roster / scheduling / score）
+│   ├── matches/      # 赛程（schedule / results / roster / veto / scheduling / score）
 │   ├── player-stats.ts # 玩家数据（OCR 识别 / 保存 / 查询）
 │   ├── register.ts   # 报名提交
 │   ├── seasons.ts    # 赛季 CRUD（create/update/delete/publish）
 │   ├── transitions.ts # 赛季阶段自动推进
 │   └── teams.ts      # 队伍（修改队名/上传图标）
 ├── db/
-│   ├── schema/       # Drizzle 表定义（18 张表）
+│   ├── schema/       # Drizzle 表定义（19 张表，含 match_veto_steps）
 │   ├── client.ts     # Drizzle client 单例（pg Pool，错误处理 + 超时配置）
 │   └── seed.ts       # 种子数据（赛季 + 根管理员 RivalHub_root）
 ├── lib/
@@ -249,7 +249,7 @@ src/
 │   ├── draft/        # 选秀业务组件
 │   ├── captains/     # 队长投票业务组件
 │   ├── teams/        # 队伍展示业务组件
-│   └── matches/      # 赛程 / bracket 业务组件（MatchCard / MatchDetail / MatchTeamFilter / CreateMatchForm / AdminMatchFilter / ScoreInput / MapByMapInput / ScheduledAtInput / MatchStatusBadge / BatchDeadlineCard / StatsOCRPanel）
+│   └── matches/      # 赛程 / bracket 业务组件（MatchCard / MatchTeamFilter / CreateMatchForm / AdminMatchFilter / ScoreInput / MapByMapInput / ScheduledAtInput / MatchStatusBadge / BatchDeadlineCard / StatsOCRPanel / VetoInputDialog / VetoView / AdminRosterDialog / DeleteMatchButton）
 └── types/            # 共享 TypeScript 类型
 ```
 

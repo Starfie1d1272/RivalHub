@@ -61,11 +61,33 @@ const pgConfig = {
 | `STEAM_API_KEY` | 可选，用于抓取选手 Steam 头像 |
 | `SILICONFLOW_API_KEY` | 可选，用于玩家数据 OCR |
 
+## 生产环境排错
+
+### Vercel Runtime Logs 优先原则
+
+生产环境报错时，**第一步永远是查 Vercel Runtime Logs**，凭堆栈推断错误源很容易猜错（堆栈是 minified 的，没有表名/路由信息）。
+
+使用 MCP `get_runtime_logs` 过滤 `level=error`，看 Method + Path 列确定是哪个路由崩溃，再针对该路由的查询进行排查。
+
+### 数据库迁移
+
+新增表/列后，Schema 定义只在代码中，**生产数据库不会自动同步**：
+
+```bash
+pnpm db:push    # 将 Drizzle schema 推送到 Supabase 生产数据库
+```
+
+### Drizzle 关系查询已知陷阱
+
+`matchRosterPlayers` 是全库唯一没有 `primaryKey()` 的表（用 `unique()` 复合约束）。任何 `db.query.matchRosters.findMany/findFirst({ with: { players: true } })` 都会触发 Drizzle 的 `buildRelationalQueryWithoutPK` 路径。若引用表解析失败会抛 `Cannot read properties of undefined (reading 'referencedTable')`。
+
+**修复方式**：拆为两个独立 `db.select()` + 应用层 join，绕过关系查询构建器。
+
 ## Cron
 
 Cron endpoint 均通过 `Authorization: Bearer $CRON_SECRET` 鉴权。
 
-当前生产调用由 `.github/workflows/cron.yml` 每分钟触发：
+当前生产调用由 `.github/workflows/cron.yml` 每 5 分钟触发：
 
 ```text
 https://match.starfie1d.top/api/cron/draft-timeout
@@ -73,7 +95,7 @@ https://match.starfie1d.top/api/cron/check-registration-deadline
 https://match.starfie1d.top/api/cron/match-time-auto-award
 ```
 
-因此需要同时配置：
+Vercel Cron 当前未使用（依赖 GitHub Actions 调度）。需同时配置：
 
 - Vercel 环境变量：`CRON_SECRET`
 - GitHub Actions Secret：`CRON_SECRET`

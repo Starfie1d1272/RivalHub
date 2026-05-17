@@ -370,36 +370,38 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                             />
                           </div>
                         </div>
+                        <Separator />
                         {m.status !== "finished" && m.status !== "cancelled" && (
                           <>
-                            <Separator />
-                            <AdminRosterDialog
-                              matchId={m.id}
-                              teamAName={teamAName}
-                              teamBName={teamBName}
-                              teamAId={m.teamAId}
-                              teamBId={m.teamBId}
-                              teamAMembers={allTeamMembers.filter((t) => t.teamId === m.teamAId)}
-                              teamBMembers={allTeamMembers.filter((t) => t.teamId === m.teamBId)}
-                              teamARoster={rosterByMatch.get(m.id)?.get(m.teamAId) ?? null}
-                              teamBRoster={rosterByMatch.get(m.id)?.get(m.teamBId) ?? null}
-                            />
+                            <div className="flex flex-wrap items-center gap-2">
+                              <AdminRosterDialog
+                                matchId={m.id}
+                                teamAName={teamAName}
+                                teamBName={teamBName}
+                                teamAId={m.teamAId}
+                                teamBId={m.teamBId}
+                                teamAMembers={allTeamMembers.filter((t) => t.teamId === m.teamAId)}
+                                teamBMembers={allTeamMembers.filter((t) => t.teamId === m.teamBId)}
+                                teamARoster={rosterByMatch.get(m.id)?.get(m.teamAId) ?? null}
+                                teamBRoster={rosterByMatch.get(m.id)?.get(m.teamBId) ?? null}
+                              />
+                              {m.status === "scheduled" && (
+                                <VetoInputDialog
+                                  matchId={m.id}
+                                  format={m.format as "bo1" | "bo3" | "bo5"}
+                                  teamAName={teamAName}
+                                  teamBName={teamBName}
+                                  teamAId={m.teamAId}
+                                  teamBId={m.teamBId}
+                                  mapPool={mapPool}
+                                />
+                              )}
+                            </div>
                             <ScheduledAtInput
                               matchId={m.id}
                               currentScheduledAt={m.scheduledAt}
                               currentCompletionDeadline={m.completionDeadline}
                             />
-                            {m.status === "scheduled" && (
-                              <VetoInputDialog
-                                matchId={m.id}
-                                format={m.format as "bo1" | "bo3" | "bo5"}
-                                teamAName={teamAName}
-                                teamBName={teamBName}
-                                teamAId={m.teamAId}
-                                teamBId={m.teamBId}
-                                mapPool={mapPool}
-                              />
-                            )}
                             <ScoreInput
                               matchId={m.id}
                               teamAName={teamAName}
@@ -407,17 +409,25 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                               currentStatus={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"}
                               format={m.format as "bo1" | "bo3" | "bo5"}
                             />
-                            {m.status === "scheduled" && (
-                              <DeleteMatchButton matchId={m.id} />
-                            )}
                           </>
                         )}
                         {m.status === "finished" && (mapsByMatch.get(m.id) ?? []).map((map) => (
                           <div key={map.id}>
-                            <Separator />
                             <StatsOCRPanel mapId={map.id} mapName={map.mapName} />
                           </div>
                         ))}
+                        <div className="flex items-center justify-between gap-2">
+                          <Link
+                            href={`/${seasonSlug}/matches/${m.id}`}
+                            className="text-xs text-[var(--color-fg-dim)] hover:text-[var(--color-fg)] transition-colors"
+                            target="_blank"
+                          >
+                            查看公开页 ↗
+                          </Link>
+                          {m.bracketNodeId == null && (
+                            <DeleteMatchButton matchId={m.id} />
+                          )}
+                        </div>
                       </Panel>
                     );
                   })}
@@ -458,20 +468,33 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                             />
                           </div>
                         </div>
+                        <Separator />
                         {m.status !== "finished" && m.status !== "cancelled" && (
                           <>
-                            <Separator />
-                            <AdminRosterDialog
-                              matchId={m.id}
-                              teamAName={teamAName}
-                              teamBName={teamBName}
-                              teamAId={m.teamAId}
-                              teamBId={m.teamBId}
-                              teamAMembers={allTeamMembers.filter((t) => t.teamId === m.teamAId)}
-                              teamBMembers={allTeamMembers.filter((t) => t.teamId === m.teamBId)}
-                              teamARoster={rosterByMatch.get(m.id)?.get(m.teamAId) ?? null}
-                              teamBRoster={rosterByMatch.get(m.id)?.get(m.teamBId) ?? null}
-                            />
+                            <div className="flex flex-wrap items-center gap-2">
+                              <AdminRosterDialog
+                                matchId={m.id}
+                                teamAName={teamAName}
+                                teamBName={teamBName}
+                                teamAId={m.teamAId}
+                                teamBId={m.teamBId}
+                                teamAMembers={allTeamMembers.filter((t) => t.teamId === m.teamAId)}
+                                teamBMembers={allTeamMembers.filter((t) => t.teamId === m.teamBId)}
+                                teamARoster={rosterByMatch.get(m.id)?.get(m.teamAId) ?? null}
+                                teamBRoster={rosterByMatch.get(m.id)?.get(m.teamBId) ?? null}
+                              />
+                              {m.status === "scheduled" && (
+                                <VetoInputDialog
+                                  matchId={m.id}
+                                  format={m.format as "bo1" | "bo3" | "bo5"}
+                                  teamAName={teamAName}
+                                  teamBName={teamBName}
+                                  teamAId={m.teamAId}
+                                  teamBId={m.teamBId}
+                                  mapPool={mapPool}
+                                />
+                              )}
+                            </div>
                             <ScheduledAtInput
                               matchId={m.id}
                               currentScheduledAt={m.scheduledAt}
@@ -496,38 +519,33 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                                 mapPool={mapPool}
                               />
                             ) : (
-                              <>
-                                {m.status === "scheduled" && (
-                                  <VetoInputDialog
-                                    matchId={m.id}
-                                    format={m.format as "bo1" | "bo3" | "bo5"}
-                                    teamAName={teamAName}
-                                    teamBName={teamBName}
-                                    teamAId={m.teamAId}
-                                    teamBId={m.teamBId}
-                                    mapPool={mapPool}
-                                  />
-                                )}
-                                <ScoreInput
-                                  matchId={m.id}
-                                  teamAName={teamAName}
-                                  teamBName={teamBName}
-                                  currentStatus={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"}
-                                  format={m.format as "bo1" | "bo3" | "bo5"}
-                                />
-                                {m.status === "scheduled" && (
-                                  <DeleteMatchButton matchId={m.id} />
-                                )}
-                              </>
+                              <ScoreInput
+                                matchId={m.id}
+                                teamAName={teamAName}
+                                teamBName={teamBName}
+                                currentStatus={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"}
+                                format={m.format as "bo1" | "bo3" | "bo5"}
+                              />
                             )}
                           </>
                         )}
                         {m.status === "finished" && (mapsByMatch.get(m.id) ?? []).map((map) => (
                           <div key={map.id}>
-                            <Separator />
                             <StatsOCRPanel mapId={map.id} mapName={map.mapName} />
                           </div>
                         ))}
+                        <div className="flex items-center justify-between gap-2">
+                          <Link
+                            href={`/${seasonSlug}/matches/${m.id}`}
+                            className="text-xs text-[var(--color-fg-dim)] hover:text-[var(--color-fg)] transition-colors"
+                            target="_blank"
+                          >
+                            查看公开页 ↗
+                          </Link>
+                          {m.bracketNodeId == null && (
+                            <DeleteMatchButton matchId={m.id} />
+                          )}
+                        </div>
                       </Panel>
                     );
                   })}
