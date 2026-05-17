@@ -5,6 +5,23 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.14.0] - 2026-05-17
+
+### Added
+- **在线人数统计**：`user_sessions` 表 + `OnlineCounter` 组件，每 2 分钟心跳，5 分钟内有活动的用户计为在线
+- **赛程总览子 Tab**：排位赛/正赛内分「待进行」「已结束」子 Tab，已排期比赛按时间由近及远排序
+- **BP 选边归属修正**：decider 步骤选边由对方选择时正确翻转 Team A 起始边
+- **OCR 逐行宽松解析**：单行校验失败跳过而非整批丢弃，兼容不同格式截图
+- **名单 2 小时窗口锁定**：距开赛 >2h 自由提交/修改，<2h 锁定，玩家按钮同步禁用
+
+### Fixed
+- **BP 录入放开 in_progress**：saveVetoSteps 允许 in_progress 状态，标准流程「开始→BP→比分」
+- **VetoInputDialog 双 Tab 面板同步**：排位赛和正赛都可见
+- **名单 UI 状态修正**：StatusPill "finished" 绿色误导 → 纯文字 "已提交"，倒计时文案加 2h 锁定警告
+
+### Changed
+- **Simplify 审查修复**：预索引 teamMembersByTeam（O(1) 查表）、移除冗余 new Date()、提取 resolveTeamASide helper
+
 ## [1.13.1] - 2026-05-17
 
 ### Added
