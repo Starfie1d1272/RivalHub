@@ -4,6 +4,10 @@ import {
   parseCST,
   getCountdownSeconds,
   isDeadlinePassed,
+  formatCSTDateTime,
+  formatCSTShortDate,
+  parseCSTInput,
+  toCSTDateTimeInput,
 } from "@/lib/utils/date";
 
 describe("formatCST", () => {
@@ -62,5 +66,53 @@ describe("isDeadlinePassed", () => {
     expect(isDeadlinePassed(new Date(Date.now() - 10_000).toISOString())).toBe(
       true
     );
+  });
+});
+
+describe("formatCSTDateTime", () => {
+  it("返回 CST 月日+时间格式", () => {
+    // 2026-06-01T06:00:00.000Z = 北京时间 14:00
+    const d = new Date("2026-06-01T06:00:00.000Z");
+    const result = formatCSTDateTime(d);
+    expect(result).toContain("14:00");
+    expect(result).toMatch(/6月1日/);
+  });
+
+  it("字符串输入也可处理", () => {
+    const result = formatCSTDateTime("2026-12-15T10:30:00.000Z");
+    expect(result).toContain("18:30");
+    expect(result).toMatch(/12月15日/);
+  });
+});
+
+describe("formatCSTShortDate", () => {
+  it("返回 CST 月日格式", () => {
+    const d = new Date("2026-06-01T06:00:00.000Z");
+    const result = formatCSTShortDate(d);
+    expect(result).toMatch(/6月1日/);
+  });
+});
+
+describe("parseCSTInput", () => {
+  it("含 +08:00 偏移的 datetime-local 值解析为 Date", () => {
+    const d = parseCSTInput("2026-06-01T14:00");
+    expect(d instanceof Date).toBe(true);
+    expect(d?.toISOString()).toBe("2026-06-01T06:00:00.000Z");
+  });
+
+  it("null 返回 null", () => {
+    expect(parseCSTInput(null)).toBeNull();
+  });
+});
+
+describe("toCSTDateTimeInput", () => {
+  it("UTC Date 转为 CST datetime-local 字符串", () => {
+    const d = new Date("2026-06-01T06:00:00.000Z");
+    const result = toCSTDateTimeInput(d);
+    expect(result).toMatch(/2026-06-01T14:00/);
+  });
+
+  it("null 返回 null", () => {
+    expect(toCSTDateTimeInput(null)).toBeNull();
   });
 });
