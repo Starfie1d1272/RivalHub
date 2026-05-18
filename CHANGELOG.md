@@ -26,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **admin 赛程**：`in_progress` 卡片左侧 3px accent 竖线标识；操作区改用 `<details>` 折叠，默认收起
 - `--color-fg-muted`（未定义 token）修复为 `--color-fg-dim`
 - admin 赛程 className 拼接改用 `cn()` 工具函数，消除无效 template literal
+- **全站 hardcoded Tailwind 颜色替换为 design tokens**：MatchTimeNegotiation/MatchRosterView/MatchRosterForm/TimeProposalHistory/SwissBracket/MatchStatusBadge/StandingsTable 等 30+ 组件统一使用 `--color-ok`/`--color-danger`/`--color-warn`/`--color-info` token 体系
+- `--color-yellow`/`--color-red`/`--color-surface-muted` 等无效 token 全部修复
+- CLAUDE.md 组件清单与实际文件同步，补充 `scripts/check-claude-md.sh` 校验脚本
 
 ## [1.15.1] - 2026-05-18
 
