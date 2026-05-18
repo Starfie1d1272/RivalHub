@@ -5,6 +5,14 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.17.1] - 2026-05-19
+
+### Fixed
+- **已结束比赛时间显示**：赛程页"已结束"标签页现在显示比赛完成时间（`completed_at`，无则回退到 `scheduled_at`）
+- **已结束比赛排序**：已结束比赛改为按完成时间从近到远降序排列
+- **队伍页地图池**：地图胜率/ban 率表格改用赛季 `registrationConfig.mapPool`，不再硬编码 `DEFAULT_CS2_MAP_POOL`
+- **默认地图池**：`DEFAULT_CS2_MAP_POOL` 将 `de_train` 更新为 `de_overpass`（当前赛季活跃图池）
+
 ## [1.17.0] - 2026-05-19
 
 ### Added
@@ -528,6 +536,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [1.6.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.4.0...v1.4.1
+[1.17.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.17.0...v1.17.1
 [1.17.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.16.1...v1.17.0
 [1.4.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.3.2...v1.4.0
 [1.3.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.3.1...v1.3.2
