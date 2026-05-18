@@ -95,6 +95,14 @@ git commit -m "docs: CHANGELOG ${NEW_VER}"
 - `AGENTS.md`：`当前阶段：**vX.Y.Z**`
 - `README.md`：版本徽章或描述
 
+**额外校验**：运行 `zsh scripts/check-claude-md.sh` 确保 CLAUDE.md 组件清单与实际文件一致。
+
+```bash
+zsh scripts/check-claude-md.sh
+```
+
+如有不一致，立即修复 CLAUDE.md 中的组件列表。
+
 ```bash
 # 查找需要更新的行
 grep -n "v${PREV_VER}" CLAUDE.md AGENTS.md README.md
