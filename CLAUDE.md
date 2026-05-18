@@ -253,8 +253,8 @@ src/
 │   │                 #   DraftLiveRoom / PlayerInfoPopover / PlayerPool / TeamDraftGrid）
 │   ├── captains/     # 队长投票组件（2 个：CaptainConfirmPanel / CaptainVotingPanel）
 │   ├── teams/        # 队伍组件（5 个：TeamCard / TeamGrid / TeamLogoUpload / TeamNameForm / TeamRosterCard）
-│   └── matches/      # 赛程组件（27 个：MatchCard / MatchTeamFilter / CreateMatchForm /
-│                     #   AdminMatchFilter / AdminRosterDialog / BatchDeadlineCard / BracketView /
+│   └── matches/      # 赛程组件（28 个：MatchCard / MatchTeamFilter / CreateMatchForm /
+│                     #   AdminMatchFilter / AdminMatchRow / AdminRosterDialog / BatchDeadlineCard / BracketView /
 │                     #   DeleteMatchButton / GeneratePlayoffCard / GenerateScheduleCard /
 │                     #   MapByMapInput / MatchMvpVote / MatchRosterForm / MatchRosterView /
 │                     #   MatchStatusBadge / MatchTabsSection / MatchTimeNegotiation /

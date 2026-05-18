@@ -56,7 +56,7 @@ echo "rivalhub/"
 check_dir rivalhub "Btn" "EmptyState" "ErrorState" "Field" "InlineConfirm" "MapPreferenceChips" "Marker" "Panel" "PhaseStep" "PosChip" "ScrollHint" "Skeleton" "Stat" "StatusBanner" "StatusPill" "TeamBadge"
 
 echo "matches/"
-check_dir matches "AdminMatchFilter" "AdminRosterDialog" "BatchDeadlineCard" "BracketView" "CreateMatchForm" "DeleteMatchButton" "GeneratePlayoffCard" "GenerateScheduleCard" "MapByMapInput" "MatchCard" "MatchMvpVote" "MatchRosterForm" "MatchRosterView" "MatchStatusBadge" "MatchTabsSection" "MatchTeamFilter" "MatchTimeNegotiation" "PlayerStatsTable" "ScheduledAtInput" "ScoreInput" "StandingsTable" "StatsLeaderboard" "StatsOCRPanel" "SwissBracket" "TimeProposalHistory" "VetoInputDialog" "VetoView"
+check_dir matches "AdminMatchFilter" "AdminMatchRow" "AdminRosterDialog" "BatchDeadlineCard" "BracketView" "CreateMatchForm" "DeleteMatchButton" "GeneratePlayoffCard" "GenerateScheduleCard" "MapByMapInput" "MatchCard" "MatchMvpVote" "MatchRosterForm" "MatchRosterView" "MatchStatusBadge" "MatchTabsSection" "MatchTeamFilter" "MatchTimeNegotiation" "PlayerStatsTable" "ScheduledAtInput" "ScoreInput" "StandingsTable" "StatsLeaderboard" "StatsOCRPanel" "SwissBracket" "TimeProposalHistory" "VetoInputDialog" "VetoView"
 
 echo "admin/"
 check_dir admin "AdminLoginForm" "AdminRegisterForm" "AdminSidebar" "AdminUserList" "AuditLogTable" "ChangePasswordForm" "DraftRegistrationTable" "InviteManager" "RegistrationReviewList" "SeasonForm" "SeasonSubNav" "StagePlanEditor" "TeamConfigForm" "ThemeColorPicker"
