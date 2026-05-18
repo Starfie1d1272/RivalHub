@@ -45,6 +45,11 @@
   --color-warn: #ffc44d;
   --color-danger: #ff5470;
 
+  /* Info */
+  --color-info: #4a9eff;
+  --color-info-soft: rgba(74, 158, 255, 0.12);
+  --color-info-edge: rgba(74, 158, 255, 0.34);
+
   /* Typography */
   --font-sans: var(--font-geist), var(--font-noto-sans-sc), system-ui, sans-serif;
   --font-display: var(--font-geist), var(--font-noto-sans-sc), system-ui, sans-serif;
