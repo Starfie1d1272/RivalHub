@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { positionLabel } from "@/lib/validators/registration";
 import { getDisplayName } from "@/lib/utils/display-name";
 import { REGISTRATION_STATUS_LABELS } from "@/types/registration";
-import { MapPreferenceChips } from "@/components/rivalhub/map-preference-chips";
+import { MapPreferenceChips } from "@/components/rivalhub/MapPreferenceChips";
 import type { MapPreference } from "@/types/season";
 
 // ── 类型 ──────────────────────────────────────────────

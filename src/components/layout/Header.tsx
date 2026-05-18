@@ -2,7 +2,7 @@ import { db } from "@/db/client";
 import { seasons, users } from "@/db/schema";
 import { getUserSession } from "@/lib/auth/session";
 import { resolveAvatarUrl } from "@/lib/steam";
-import { HeaderClient } from "./header-client";
+import { HeaderClient } from "./HeaderClient";
 import { eq } from "drizzle-orm";
 
 export async function Header() {

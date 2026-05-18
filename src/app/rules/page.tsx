@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { Marker } from "@/components/rivalhub/marker";
-import { Panel } from "@/components/rivalhub/panel";
+import { Marker } from "@/components/rivalhub/Marker";
+import { Panel } from "@/components/rivalhub/Panel";
 
 export const metadata: Metadata = {
   title: "规则书 | NJU Rivals 2026 Spring",

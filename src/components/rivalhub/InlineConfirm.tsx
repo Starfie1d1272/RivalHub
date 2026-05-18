@@ -1,4 +1,4 @@
-import { Btn } from "./btn";
+import { Btn } from "./Btn";
 
 interface InlineConfirmProps {
   title: string;

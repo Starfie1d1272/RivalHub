@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, JetBrains_Mono, Noto_Sans_SC } from "next/font/google";
 import "./globals.css";
-import { Header } from "@/components/layout/header";
-import { Footer } from "@/components/layout/footer";
+import { Header } from "@/components/layout/Header";
+import { Footer } from "@/components/layout/Footer";
 import { Analytics } from "@vercel/analytics/next";
 import { Toaster } from "@/components/ui/sonner";
 import { APP_BRAND } from "@/lib/branding";

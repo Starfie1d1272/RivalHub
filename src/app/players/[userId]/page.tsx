@@ -6,7 +6,7 @@ import { resolveAvatarUrl } from "@/lib/steam";
 import { PLAYER_INFO_FIELDS } from "@/lib/utils/player-info-fields";
 import { getDisplayName } from "@/lib/utils/display-name";
 import { Panel, Stat, PosChip } from "@/components/rivalhub";
-import { MapPreferenceChips } from "@/components/rivalhub/map-preference-chips";
+import { MapPreferenceChips } from "@/components/rivalhub/MapPreferenceChips";
 import Image from "next/image";
 import Link from "next/link";
 import { POSITION_LABELS } from "@/lib/validators/registration";

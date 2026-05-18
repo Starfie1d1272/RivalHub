@@ -5,7 +5,7 @@ import { seasons, teams, teamMembers, seasonRegistrations, users, matches } from
 import { matchPlayerStats } from "@/db/schema/player-stats";
 import { Panel, Stat, Marker, PosChip, Btn } from "@/components/rivalhub";
 import { MatchCard } from "@/components/matches/MatchCard";
-import { MapPreferenceChips } from "@/components/rivalhub/map-preference-chips";
+import { MapPreferenceChips } from "@/components/rivalhub/MapPreferenceChips";
 import { TeamNameForm } from "@/components/teams/TeamNameForm";
 import { TeamLogoUpload } from "@/components/teams/TeamLogoUpload";
 import Link from "next/link";

@@ -238,7 +238,7 @@ src/
 │   ├── validators/   # Zod schema（registration / vote / match）
 │   └── utils/        # date（UTC/CST）+ season（capability 工具）+ password（scrypt）+ cn
 ├── components/
-│   ├── layout/       # Header / Footer / AdminShortcut / header-client / season-nav / breadcrumb / OnlineCounter
+│   ├── layout/       # Header / Footer / AdminShortcut / HeaderClient / SeasonNav / Breadcrumb / OnlineCounter
 │   ├── ui/           # shadcn 组件（按需 add，已覆盖 button/input/badge/card/skeleton/select/dialog/tabs/table/textarea）
 │   ├── rivalhub/     # Tactical Grid 组件（16 个：Panel/Btn/Field/Marker/Stat/
 │   │                 #   StatusBanner/InlineConfirm/EmptyState/ErrorState/Skeleton/
