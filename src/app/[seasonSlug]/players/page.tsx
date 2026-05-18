@@ -125,7 +125,7 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
                 href={`/players/${reg.userId}` as never}
                 className="block"
               >
-                <Panel className="h-full hover:border-[var(--color-accent)] transition-colors cursor-pointer">
+                <Panel hoverable className="h-full cursor-pointer">
                   <div className="flex items-start justify-between gap-2 mb-3">
                     <span className="font-semibold text-[var(--color-fg)] truncate text-base">
                       {displayName}

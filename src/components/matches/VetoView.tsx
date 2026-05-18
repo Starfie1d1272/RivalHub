@@ -21,10 +21,10 @@ const ACTION_VERBS: Record<string, string> = {
 };
 
 const ACTION_COLORS: Record<string, string> = {
-  ban: "#ef4444",
-  pick: "#22c55e",
+  ban: "var(--color-danger)",
+  pick: "var(--color-ok)",
   side_pick: "#a78bfa",
-  decider: "#eab308",
+  decider: "var(--color-info)",
 };
 
 export async function VetoView({

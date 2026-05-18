@@ -42,6 +42,16 @@ const POSITIONS = [
   { key: "anchor", label: "Anchor" },
 ];
 
+// 列 key → 表格列对应关系
+const SORT_COL_MAP: Record<string, string> = {
+  rating: "rating",
+  adr: "adr",
+  kd: "kd",
+  we: "we",
+  kpr: "kpr",
+  maps: "maps",
+};
+
 export function StatsLeaderboard({
   rows,
   sort,
@@ -56,6 +66,9 @@ export function StatsLeaderboard({
     );
   }
 
+  const sortColBg = "rgba(255,107,26,0.04)";
+  const accentText = "var(--color-accent)";
+
   return (
     <div>
       {/* 排序 Tab */}
@@ -64,9 +77,9 @@ export function StatsLeaderboard({
           <a
             key={key}
             href={`/${seasonSlug}/stats?sort=${key}${position ? `&position=${position}` : ""}`}
-            className={`inline-block px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+            className={`inline-block font-mono text-[10px] px-2.5 py-1 uppercase tracking-wider rounded transition-colors ${
               sort === key
-                ? "bg-[var(--color-accent)] text-white"
+                ? "bg-[var(--color-accent)] text-[var(--color-accent-fg)]"
                 : "border border-[var(--color-border)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
             }`}
           >
@@ -81,10 +94,10 @@ export function StatsLeaderboard({
           <a
             key={key}
             href={`/${seasonSlug}/stats?sort=${sort}${key ? `&position=${key}` : ""}`}
-            className={`inline-block px-2.5 py-1 rounded text-[11px] transition-colors ${
+            className={`inline-block font-mono text-[10px] px-2.5 py-1 uppercase tracking-wider rounded transition-colors ${
               position === key
-                ? "bg-[var(--color-panel-hi)] text-[var(--color-fg)] font-medium"
-                : "text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
+                ? "bg-[var(--color-accent)] text-[var(--color-accent-fg)]"
+                : "border border-[var(--color-border)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
             }`}
           >
             {label}
@@ -102,17 +115,42 @@ export function StatsLeaderboard({
               <th className="px-4 py-3 text-left">选手</th>
               <th className="px-4 py-3 text-left hidden sm:table-cell">位置</th>
               <th className="px-4 py-3 text-left hidden sm:table-cell">队伍</th>
-              <th className="px-4 py-3 text-center hidden sm:table-cell">图数</th>
-              <th className="px-4 py-3 text-center">Rating</th>
-              <th className="px-4 py-3 text-center hidden sm:table-cell">ADR</th>
-              <th className="px-4 py-3 text-center hidden sm:table-cell">K/D</th>
+              <th
+                className="px-4 py-3 text-center hidden sm:table-cell"
+                style={SORT_COL_MAP[sort] === "maps" ? { background: sortColBg, color: accentText } : undefined}
+              >
+                图数
+              </th>
+              <th
+                className="px-4 py-3 text-center"
+                style={SORT_COL_MAP[sort] === "rating" ? { background: sortColBg, color: accentText } : undefined}
+              >
+                Rating
+              </th>
+              <th
+                className="px-4 py-3 text-center hidden sm:table-cell"
+                style={SORT_COL_MAP[sort] === "adr" ? { background: sortColBg, color: accentText } : undefined}
+              >
+                ADR
+              </th>
+              <th
+                className="px-4 py-3 text-center hidden sm:table-cell"
+                style={SORT_COL_MAP[sort] === "kd" ? { background: sortColBg, color: accentText } : undefined}
+              >
+                K/D
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--color-border)]">
             {rows.map((r, i) => (
               <tr key={r.userId ?? r.perfectName}>
-                <td className="px-4 py-3 text-[var(--color-fg-dim)] text-xs">
-                  {i + 1}
+                <td className="px-4 py-3 text-xs">
+                  <span
+                    className={i < 3 ? "font-bold" : "text-[var(--color-fg-dim)]"}
+                    style={i < 3 ? { color: accentText } : undefined}
+                  >
+                    {i + 1}
+                  </span>
                 </td>
                 <td className="px-4 py-3 font-medium text-[var(--color-fg)]">
                   {r.userId ? (
@@ -143,22 +181,50 @@ export function StatsLeaderboard({
                     r.teamName ?? "—"
                   )}
                 </td>
-                <td className="px-4 py-3 text-center tabular-nums text-[var(--color-fg-mid)] hidden sm:table-cell">
+                <td
+                  className={`px-4 py-3 text-center tabular-nums hidden sm:table-cell ${
+                    sort === "maps" ? "font-semibold" : "text-[var(--color-fg-mid)]"
+                  }`}
+                  style={
+                    sort === "maps"
+                      ? { background: sortColBg, color: accentText }
+                      : undefined
+                  }
+                >
                   {r.maps}
                 </td>
                 <td
                   className={`px-4 py-3 text-center tabular-nums font-semibold ${
-                    r.avgRating >= 1.2
+                    r.avgRating >= 1.2 || sort === "rating"
                       ? "text-[var(--color-accent)]"
                       : "text-[var(--color-fg)]"
                   }`}
+                  style={sort === "rating" ? { background: sortColBg } : undefined}
                 >
                   {r.avgRating.toFixed(2)}
                 </td>
-                <td className="px-4 py-3 text-center tabular-nums text-[var(--color-fg)] hidden sm:table-cell">
+                <td
+                  className={`px-4 py-3 text-center tabular-nums hidden sm:table-cell ${
+                    sort === "adr" ? "font-semibold" : "text-[var(--color-fg)]"
+                  }`}
+                  style={
+                    sort === "adr"
+                      ? { background: sortColBg, color: accentText }
+                      : undefined
+                  }
+                >
                   {r.avgAdr.toFixed(1)}
                 </td>
-                <td className="px-4 py-3 text-center tabular-nums text-[var(--color-fg)] hidden sm:table-cell">
+                <td
+                  className={`px-4 py-3 text-center tabular-nums hidden sm:table-cell ${
+                    sort === "kd" ? "font-semibold" : "text-[var(--color-fg)]"
+                  }`}
+                  style={
+                    sort === "kd"
+                      ? { background: sortColBg, color: accentText }
+                      : undefined
+                  }
+                >
                   {r.avgDeaths > 0
                     ? (r.avgKills / r.avgDeaths).toFixed(2)
                     : "—"}

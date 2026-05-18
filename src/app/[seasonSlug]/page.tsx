@@ -9,7 +9,7 @@ import { formatCSTShortDate } from "@/lib/utils/date";
 import { normalizeStagePlan } from "@/types/season";
 import type { SeasonStatus } from "@/types/season";
 import { showStats } from "@/lib/utils/season";
-import { StatusPill, Panel, Marker, ScrollHint, Stat } from "@/components/rivalhub";
+import { StatusPill, Panel, Marker, ScrollHint, Stat, PhaseStep } from "@/components/rivalhub";
 import { checkAdminSession } from "@/lib/auth/session";
 import { AdminShortcut } from "@/components/layout/AdminShortcut";
 
@@ -220,44 +220,18 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
       {/* Phase tracker */}
       <Panel pad={0}>
         <ScrollHint fromColor="var(--color-panel)">
-        <div className="flex">
-          {phases.map((phase, i) => {
-            const isCurrent = i === currentPhaseIdx;
-            const isDone = phase.done;
-            return (
-              <div key={phase.key}
-                className="relative flex-1 min-w-[120px]"
-                style={{
-                  padding: "18px 16px",
-                  borderRight: i < phases.length - 1 ? "1px solid var(--color-border)" : "none",
-                  background: isCurrent ? "var(--color-panel-hi)" : "transparent",
-                }}
-              >
-                <div className="flex items-center gap-2 mb-1.5">
-                  <div className="grid place-items-center font-bold rounded-sm" style={{
-                    width: 16, height: 16,
-                    border: `1px solid ${isDone ? "var(--color-ok)" : isCurrent ? "var(--color-accent)" : "var(--color-border)"}`,
-                    background: isDone ? "var(--color-ok)22" : isCurrent ? "var(--color-accent)22" : "transparent",
-                    fontFamily: "var(--font-mono)", fontSize: 10,
-                    color: isDone ? "var(--color-ok)" : isCurrent ? "var(--color-accent)" : "var(--color-fg-dim)",
-                  }}>
-                    {isDone ? "✓" : i + 1}
-                  </div>
-                  <div className="uppercase" style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--color-fg-dim)", letterSpacing: "var(--tracking-label)" }}>
-                    STEP {i + 1}
-                  </div>
-                </div>
-                <div className="font-semibold" style={{
-                  fontFamily: "var(--font-display)", fontSize: 14,
-                  color: isDone ? "var(--color-fg)" : isCurrent ? "var(--color-accent)" : "var(--color-fg-mid)",
-                  letterSpacing: "0.04em",
-                }}>
-                  {phase.label}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+          <div className="flex">
+            {phases.map((phase, i) => (
+              <PhaseStep
+                key={phase.key}
+                label={phase.label}
+                stepNumber={i + 1}
+                isDone={phase.done}
+                isCurrent={i === currentPhaseIdx}
+                isLast={i === phases.length - 1}
+              />
+            ))}
+          </div>
         </ScrollHint>
       </Panel>
 
@@ -303,10 +277,10 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
 
       <Marker sub="快速访问各功能模块">赛季导航</Marker>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {quickLinks.map(({ href, label, description, icon: Icon }) => (
           <Link key={href} href={href as never} className="group">
-            <Panel>
+            <Panel hoverable>
               <div className="flex flex-col gap-2">
                 <div
                   className="inline-flex items-center justify-center w-10 h-10 rounded-md mb-1 transition-colors"

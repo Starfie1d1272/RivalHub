@@ -251,7 +251,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
         <Panel label="阵容" pad={20}>
           <div className="space-y-3">
             {starters.map((p) => (
-              <div key={p.registrationId} className="flex items-center justify-between gap-2">
+              <div key={p.registrationId} className="flex items-center justify-between gap-2 hover:bg-[var(--color-panel-hi)] transition-colors rounded px-2 -mx-2">
                 <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                   {p.registrationId === team.captainRegistrationId && (
                     <PosChip pos="C" small />
@@ -275,7 +275,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
               <div className="border-t border-[var(--color-border)] pt-3 space-y-2">
                 <p className="text-xs text-[var(--color-fg-mid)] font-medium uppercase tracking-wide">替补</p>
                 {subs.map((p) => (
-                  <div key={p.registrationId} className="flex items-center justify-between gap-2 opacity-70">
+                  <div key={p.registrationId} className="flex items-center justify-between gap-2 opacity-70 hover:bg-[var(--color-panel-hi)] transition-colors rounded px-2 -mx-2">
                     <span className="text-sm text-[var(--color-fg)] truncate">{getDisplayName(p)}</span>
                     <span className="text-xs text-[var(--color-fg-mid)] shrink-0">
                       {POSITION_LABELS[p.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? p.primaryPosition}

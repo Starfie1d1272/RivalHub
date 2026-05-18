@@ -12,3 +12,4 @@ export { TeamBadge } from "./team-badge";
 export { PosChip } from "./pos-chip";
 export { StatusPill } from "./status-pill";
 export { ScrollHint } from "./scroll-hint";
+export { PhaseStep } from "./phase-step";
