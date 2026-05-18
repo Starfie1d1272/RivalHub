@@ -5,6 +5,28 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.16.0] - 2026-05-18
+
+### Added
+- **UI Optimization v2 — 全站视觉增强**：首页三态动态 Hero（registration/voting/playing 渐变底色 + 网格背景纹理）；首页三层导航（Tier1 accent 卡片 / Tier2 grid-cols-4 / Tier3 ghost 按钮）；首页归档赛季区块
+- **PhaseStep 组件重写**：水平连接线布局，24×24 方形图标，步骤居中对齐；已完成段连接线变绿色
+- **赛季页双栏布局**：playing 状态展示 NEXT MATCHES + STANDINGS 双列；非 playing 状态降级为 Quick Links
+- **Panel 组件增强**：新增 `hoverable` / `teamColor` prop；`label` 为字符串时 CardHeader 始终应用 mono 样式
+- **`--color-info` token 系列**：新增 info / info-soft / info-edge 语义色（蓝色辅助标注）
+- **地图胜率颜色编码**：≥ 60% 绿色 / ≤ 40% 红色 / 中间段默认前景色
+- **首页投票排行卡片化**：grid 三列布局（排名 / 候选人 / 票数），第一名 accent 边框高亮
+- **管理后台 Season 卡片**：直接展示快捷操作按钮，无需跳转
+
+### Changed
+- **设计 token 体系**：全站字体更新为 Geist + JetBrains Mono + Noto Sans SC；新增 tracking 系列 token
+- **在线人数计数器**移至 Header 右侧，Tab 下划线样式精简
+- **赛季页**：新增 `getStandings` 共享函数，积分榜数据与 STANDINGS 面板对齐
+
+### Fixed
+- **admin 赛程**：`in_progress` 卡片左侧 3px accent 竖线标识；操作区改用 `<details>` 折叠，默认收起
+- `--color-fg-muted`（未定义 token）修复为 `--color-fg-dim`
+- admin 赛程 className 拼接改用 `cn()` 工具函数，消除无效 template literal
+
 ## [1.15.1] - 2026-05-18
 
 ### Fixed
@@ -434,6 +456,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.16.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.15.1...v1.16.0
+[1.15.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.15.0...v1.15.1
+[1.15.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.14.3...v1.15.0
 [1.10.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.10.0...v1.10.1
 [1.10.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.8.0...v1.9.0
