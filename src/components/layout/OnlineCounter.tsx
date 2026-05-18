@@ -33,8 +33,9 @@ export function OnlineCounter() {
   if (count === null) return null;
 
   return (
-    <span className="text-xs text-[var(--color-fg-dim)]">
-      {count} 人在线
+    <span className="font-mono text-[11px] text-[var(--color-fg-mid)] select-none">
+      <span style={{ color: "var(--color-accent)" }}>●</span>{" "}
+      {count.toLocaleString()}
     </span>
   );
 }

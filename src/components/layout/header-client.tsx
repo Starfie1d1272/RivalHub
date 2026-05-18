@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { Season } from "@/db/schema/seasons";
 import type { UserSession } from "@/lib/auth/session";
+import { OnlineCounter } from "./OnlineCounter";
 
 interface HeaderClientProps {
   seasons: Season[];
@@ -128,8 +129,8 @@ export function HeaderClient({ seasons, session, avatarUrl, steamName, displayNa
               className={cn(
                 "flex items-center gap-1.5 px-3 py-1.5 text-xs transition-colors",
                 link.active
-                  ? "bg-[var(--color-panel)] border border-[var(--color-border)] border-b-[var(--color-accent)] text-[var(--color-fg)] font-semibold"
-                  : "text-[var(--color-fg-mid)] border border-transparent hover:text-[var(--color-fg)] font-medium",
+                  ? "bg-[var(--color-panel)] border-b border-[var(--color-accent)] text-[var(--color-fg)] font-semibold"
+                  : "text-[var(--color-fg-mid)] border-b border-transparent hover:text-[var(--color-fg)] font-medium",
                 "rounded-sm"
               )}
               style={{ fontFamily: "var(--font-sans)" }}
@@ -151,8 +152,8 @@ export function HeaderClient({ seasons, session, avatarUrl, steamName, displayNa
             className={cn(
               "px-3 py-1.5 text-xs rounded-sm transition-colors border border-transparent",
               pathname === "/seasons"
-                ? "bg-[var(--color-panel)] border-[var(--color-border)] text-[var(--color-fg)] font-semibold"
-                : "text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] font-medium"
+                ? "bg-[var(--color-panel)] border-b border-[var(--color-accent)] text-[var(--color-fg)] font-semibold"
+                : "text-[var(--color-fg-mid)] border-b border-transparent hover:text-[var(--color-fg)] font-medium"
             )}
             style={{ fontFamily: "var(--font-sans)" }}
           >
@@ -160,8 +161,13 @@ export function HeaderClient({ seasons, session, avatarUrl, steamName, displayNa
           </Link>
         </nav>
 
-        {/* 右侧：用户区域 + mobile hamburger */}
-        <div className="flex items-center gap-2">
+        {/* 右侧：在线人数 + 用户区域 + mobile hamburger */}
+        <div className="flex items-center gap-3">
+          {/* 在线人数 */}
+          <div className="hidden sm:flex items-center">
+            <OnlineCounter />
+          </div>
+
           {/* 用户区域（仅桌面） */}
           <div className="hidden sm:block">
             {session ? (
