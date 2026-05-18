@@ -13,6 +13,7 @@ import { StandingsTable } from "@/components/matches/StandingsTable";
 import { SwissBracket } from "@/components/matches/SwissBracket";
 import { getSwissViewData } from "@/lib/swiss/data";
 import { getFirstStageOfType, normalizeStagePlan } from "@/types/season";
+import { isMatchFormat, isMatchStatus } from "@/types/match";
 import { checkAdminSession } from "@/lib/auth/session";
 import { AdminShortcut } from "@/components/layout/AdminShortcut";
 import type { Database } from "brackets-manager";
@@ -202,7 +203,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
                           <MatchCard key={m.id} matchId={m.id} seasonSlug={seasonSlug}
                             teamAName={teamMap.get(m.teamAId) ?? "未知队伍"} teamBName={teamMap.get(m.teamBId) ?? "未知队伍"}
                             scoreA={m.scoreA} scoreB={m.scoreB} stage={qualifierKey}
-                            format={m.format as "bo1" | "bo3" | "bo5"} status={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"}
+                            format={isMatchFormat(m.format) ? m.format : "bo1"} status={isMatchStatus(m.status) ? m.status : "scheduled"}
                             scheduledAt={m.scheduledAt} />
                         )) : (
                           <div className="text-center py-8 text-[var(--color-fg-mid)] text-sm">暂无待进行比赛</div>
@@ -213,7 +214,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
                           <MatchCard key={m.id} matchId={m.id} seasonSlug={seasonSlug}
                             teamAName={teamMap.get(m.teamAId) ?? "未知队伍"} teamBName={teamMap.get(m.teamBId) ?? "未知队伍"}
                             scoreA={m.scoreA} scoreB={m.scoreB} stage={qualifierKey}
-                            format={m.format as "bo1" | "bo3" | "bo5"} status={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"}
+                            format={isMatchFormat(m.format) ? m.format : "bo1"} status={isMatchStatus(m.status) ? m.status : "scheduled"}
                             scheduledAt={m.scheduledAt} />
                         )) : (
                           <div className="text-center py-8 text-[var(--color-fg-mid)] text-sm">暂无已结束比赛</div>
@@ -262,7 +263,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
                       <MatchCard key={m.id} matchId={m.id} seasonSlug={seasonSlug}
                         teamAName={teamMap.get(m.teamAId) ?? "TBD"} teamBName={teamMap.get(m.teamBId) ?? "TBD"}
                         scoreA={m.scoreA} scoreB={m.scoreB} stage={playoffKey}
-                        format={m.format as "bo1" | "bo3" | "bo5"} status={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"}
+                        format={isMatchFormat(m.format) ? m.format : "bo1"} status={isMatchStatus(m.status) ? m.status : "scheduled"}
                         scheduledAt={m.scheduledAt} />
                     )) : (
                       <div className="text-center py-8 text-[var(--color-fg-mid)] text-sm">暂无待进行比赛</div>
@@ -273,7 +274,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
                       <MatchCard key={m.id} matchId={m.id} seasonSlug={seasonSlug}
                         teamAName={teamMap.get(m.teamAId) ?? "TBD"} teamBName={teamMap.get(m.teamBId) ?? "TBD"}
                         scoreA={m.scoreA} scoreB={m.scoreB} stage={playoffKey}
-                        format={m.format as "bo1" | "bo3" | "bo5"} status={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"}
+                        format={isMatchFormat(m.format) ? m.format : "bo1"} status={isMatchStatus(m.status) ? m.status : "scheduled"}
                         scheduledAt={m.scheduledAt} />
                     )) : (
                       <div className="text-center py-8 text-[var(--color-fg-mid)] text-sm">暂无已结束比赛</div>

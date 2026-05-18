@@ -14,7 +14,7 @@ import {
   assertMatchTransition,
   resolveMatchFormat,
 } from "@/lib/match-transitions";
-import { getMaxMaps, getWinThreshold } from "@/types/match";
+import { getMaxMaps, getWinThreshold, isMatchStatus } from "@/types/match";
 import { actionError, getSeasonOrThrow, getMatchOrThrow } from "@/lib/action-utils";
 import { revalidateMatchPaths, revalidateSeasonPaths } from "@/lib/revalidation";
 import { normalizeRegistrationConfig, normalizeStagePlan } from "@/types/season";
@@ -66,7 +66,10 @@ export async function updateMatchStatus(
   try {
     const match = await getMatchOrThrow(matchId);
     const session = await requireSeasonAdmin(match.seasonId);
-    assertMatchTransition(match.status as MatchStatus, nextStatus);
+    if (!isMatchStatus(match.status)) {
+      throw new AppError(ErrorCode.INTERNAL_ERROR, `无效的比赛状态: ${match.status}`);
+    }
+    assertMatchTransition(match.status, nextStatus);
 
     const seasonForStatus = await getSeasonOrThrow(match.seasonId);
     await db.transaction(async (tx) => {
@@ -161,7 +164,10 @@ export async function recordMatchResult(
       }
     }
     const session = await requireSeasonAdmin(match.seasonId);
-    assertMatchTransition(match.status as MatchStatus, "finished");
+    if (!isMatchStatus(match.status)) {
+      throw new AppError(ErrorCode.INTERNAL_ERROR, `无效的比赛状态: ${match.status}`);
+    }
+    assertMatchTransition(match.status, "finished");
 
     const season = await getSeasonOrThrow(match.seasonId);
 

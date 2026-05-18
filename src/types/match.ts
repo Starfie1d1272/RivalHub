@@ -102,3 +102,15 @@ export function getWinThreshold(format: MatchFormat): number {
     case "bo5": return 3;
   }
 }
+
+// ── 类型守卫 ─────────────────────────────────────────────────────────────────
+
+const _MATCH_STATUSES = ["scheduled", "in_progress", "finished", "cancelled"] as const;
+const _MATCH_FORMATS = ["bo1", "bo3", "bo5"] as const;
+
+export function isMatchStatus(v: string): v is MatchStatus {
+  return (_MATCH_STATUSES as readonly string[]).includes(v);
+}
+export function isMatchFormat(v: string): v is MatchFormat {
+  return (_MATCH_FORMATS as readonly string[]).includes(v);
+}
