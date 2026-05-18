@@ -11,7 +11,7 @@ CLAUDE_MD="$ROOT/CLAUDE.md"
 errors=0
 
 # ui/ 目录为 shadcn 按需组件，不纳入校验
-DIRS=(layout rivalhub matches admin draft captains teams register settings)
+DIRS=(auth layout rivalhub matches admin draft captains teams register settings)
 
 echo "Checking CLAUDE.md against src/components/..."
 

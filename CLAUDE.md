@@ -243,6 +243,7 @@ src/
 │   ├── rivalhub/     # Tactical Grid 组件（16 个：Panel/Btn/Field/Marker/Stat/
 │   │                 #   StatusBanner/InlineConfirm/EmptyState/ErrorState/Skeleton/
 │   │                 #   TeamBadge/PosChip/StatusPill/ScrollHint/PhaseStep/MapPreferenceChips）
+│   ├── auth/         # 登录/邀请组件（2 个：LoginForm / ClaimInviteForm）
 │   ├── settings/     # 用户设置组件（ProfileForm / ChangePasswordForm）
 │   ├── register/     # 报名组件（RegistrationForm）
 │   ├── admin/        # 管理后台组件（14 个：AdminLoginForm / AdminRegisterForm / AdminSidebar /

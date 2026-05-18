@@ -79,18 +79,21 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     LIMIT 100
   `);
 
+  // db.execute 原始 SQL 中 numeric 类型由 pg 驱动返回字符串，需显式转换
+  const toNum = (v: unknown) => (v == null ? 0 : Number(v));
+
   const leaderboardRows = rows.map((r) => ({
     userId: r.user_id as string | null,
     perfectName: r.perfect_name as string,
     position: r.primary_position as string | null,
     teamName: r.team_name as string | null,
     teamId: r.team_id as string | null,
-    maps: r.maps as number,
-    avgRating: r.avg_rating as number,
-    avgAdr: r.avg_adr as number,
-    avgKills: r.avg_kills as number,
-    avgDeaths: r.avg_deaths as number,
-    avgWe: r.avg_we as number,
+    maps: toNum(r.maps),
+    avgRating: toNum(r.avg_rating),
+    avgAdr: toNum(r.avg_adr),
+    avgKills: toNum(r.avg_kills),
+    avgDeaths: toNum(r.avg_deaths),
+    avgWe: toNum(r.avg_we),
   }));
 
   return (
