@@ -4,7 +4,7 @@
 
 RivalHub 是开源电竞赛事管理平台，通过 capability 驱动的多赛事模型支持各类赛制（选秀联赛、公开赛、杯赛等）的全流程运营：报名 → 审核 → 队长投票 → 蛇形选秀 → 队伍展示 → 赛程 + Bracket 视图 → 部署。
 
-当前阶段：**v1.16.0，站点部署在 `match.starfie1d.top`。比赛模块已深度补齐（BO1/BP/Roster/OCR/Tab/删除）。UI Optimization v2 已上线（动态 Hero / PhaseStep / 双栏赛季页 / design token 体系）。v2 赛制引擎（StageExecutor + 5 个 executor + entrySeeds 种子轮空 + finalFormat 决赛 BO5）代码已就绪，待 2026 NJU Major 赛季开始时启用。**
+当前阶段：**v1.17.1，站点部署在 `match.starfie1d.top`。比赛模块已深度补齐（BO1/BP/Roster/OCR/Tab/删除）。UI Optimization v2 已上线（动态 Hero / PhaseStep / 双栏赛季页 / design token 体系）。v2 赛制引擎（StageExecutor + 5 个 executor + entrySeeds 种子轮空 + finalFormat 决赛 BO5）代码已就绪，待 2026 NJU Major 赛季开始时启用。**
 
 ## 版本路线图
 
