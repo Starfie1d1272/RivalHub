@@ -144,21 +144,25 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
 
   const matchCount = allMatches.length;
   const qualifierCount = qualifierMatches.length;
-  const playoffCount = playoffMatches.length;
+
+  // 不受界面筛选影响，用于判断正赛是否已生成
+  const allPlayoffCount = allMatches.filter((m) => m.stage === playoffKey).length;
+  // 不受界面筛选影响，用于判断排位赛是否全部结束
+  const allQualifierMatches = allMatches.filter((m) => m.stage === qualifierKey);
 
   const canGenerate = season.status === "playing" && matchCount === 0 && allTeams.length >= 2;
 
-  // 是否所有排位赛已结束
+  // 是否所有排位赛已结束（基于全量数据，不受筛选影响）
   const allQualifierFinished =
-    qualifierCount > 0 &&
-    qualifierMatches.every((m) => m.status === "finished" || m.status === "cancelled");
+    allQualifierMatches.length > 0 &&
+    allQualifierMatches.every((m) => m.status === "finished" || m.status === "cancelled");
 
   // 是否可以生成正赛
   const canGeneratePlayoff =
     !!qualifierStage &&
     !!playoffStage &&
     allQualifierFinished &&
-    playoffCount === 0;
+    allPlayoffCount === 0;
 
   // 积分榜（有排位赛时计算）
   const finishedQualifierMatches = qualifierMatches.filter((m) => m.status === "finished");

@@ -291,6 +291,7 @@ pnpm seed              # 运行种子脚本（阶段2+ 有真实 DB 后使用）
 - **禁止物化计数字段**：如 `position_count`、`vote_count` 等字段不在 schema 里，靠查询聚合。
 - **禁止在 Server Action 外写 DB 逻辑**：页面文件只做数据读取（RSC fetch），写操作必须是 Server Action。
 - **shadcn 组件按需 add**：`pnpm dlx shadcn@latest add button`，不要手工写 shadcn 组件。
+- **组件文件统一 PascalCase 命名**：`src/components/` 下所有 `.tsx` 文件名与其 export 名保持一致（如 `MatchCard.tsx` export `MatchCard`）。`ui/` 目录（shadcn）除外。新增后运行 `zsh scripts/check-claude-md.sh` 确认 CLAUDE.md 已记录。
 
 ---
 
