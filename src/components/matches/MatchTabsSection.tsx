@@ -38,7 +38,7 @@ export function MatchTabsSection({
         <TabsTrigger value="active" className="text-xs data-[state=active]:bg-[var(--color-accent)] data-[state=active]:text-[var(--color-accent-fg)]">待进行</TabsTrigger>
         <TabsTrigger value="done" className="text-xs data-[state=active]:bg-[var(--color-accent)] data-[state=active]:text-[var(--color-accent-fg)]">已结束</TabsTrigger>
       </TabsList>
-      <TabsContent value="active" className="mt-4 space-y-2">
+      <TabsContent value="active" className="mt-4 space-y-3">
         {activeMatches.length > 0 ? activeMatches.map((m) => (
           <MatchCard
             key={m.id}
@@ -57,7 +57,7 @@ export function MatchTabsSection({
           <div className="text-center py-8 text-[var(--color-fg-mid)] text-sm">暂无待进行比赛</div>
         )}
       </TabsContent>
-      <TabsContent value="done" className="mt-4 space-y-2">
+      <TabsContent value="done" className="mt-4 space-y-3">
         {doneMatches.length > 0 ? doneMatches.map((m) => (
           <MatchCard
             key={m.id}
