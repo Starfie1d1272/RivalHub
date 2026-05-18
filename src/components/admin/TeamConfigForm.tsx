@@ -85,7 +85,7 @@ export function TeamConfigForm({ value, maxTeamSize = 9, onChange }: TeamConfigF
             />
           </div>
         </div>
-        <p className="text-xs text-muted-foreground mt-1">
+        <p className="text-xs text-[var(--color-fg-dim)] mt-1">
           不强制分配位置时，未分配位置的队员不参与排行榜和最佳五人组评选
         </p>
       </div>

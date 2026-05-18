@@ -211,7 +211,7 @@ export function HeaderClient({ seasons, session, avatarUrl, steamName, displayNa
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuItem
-                    className="text-red-500 focus:text-red-500 cursor-pointer"
+                    className="text-[var(--color-danger)] focus:text-[var(--color-danger)] cursor-pointer"
                     onSelect={handleLogout}
                   >
                     退出登录
@@ -319,7 +319,7 @@ export function HeaderClient({ seasons, session, avatarUrl, steamName, displayNa
                     setMobileOpen(false);
                     void handleLogout();
                   }}
-                  className="text-left px-3 py-2 rounded-md text-sm text-red-500 hover:bg-[var(--color-panel-hi)]"
+                  className="text-left px-3 py-2 rounded-md text-sm text-[var(--color-danger)] hover:bg-[var(--color-panel-hi)]"
                 >
                   退出登录
                 </button>

@@ -135,7 +135,7 @@ export function CreateMatchForm({ seasonId, teams, stages }: CreateMatchFormProp
           </div>
 
           {teamAId && teamBId && teamAId === teamBId && (
-            <p className="text-xs text-red-500">双方队伍不能相同</p>
+            <p className="text-xs text-[var(--color-danger)]">双方队伍不能相同</p>
           )}
         </div>
 

@@ -228,7 +228,7 @@ export function RegistrationForm({
         ? String((err as { message?: unknown }).message)
         : "";
     return message ? (
-      <p className="text-xs text-red-400 mt-1">{message}</p>
+      <p className="text-xs text-[var(--color-danger)] mt-1">{message}</p>
     ) : null;
   };
 
@@ -249,7 +249,7 @@ export function RegistrationForm({
     </h2>
   );
 
-  const Required = () => <span className="text-red-400">*</span>;
+  const Required = () => <span className="text-[var(--color-danger)]">*</span>;
 
   const inputCls = "bg-[var(--color-panel-hi)] border-[var(--color-border)]";
 

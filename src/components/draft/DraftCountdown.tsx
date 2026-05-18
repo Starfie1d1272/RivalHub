@@ -36,7 +36,7 @@ export function DraftCountdown({ deadline, isActive }: DraftCountdownProps) {
 
   if (isDeadlinePassed(deadline, now)) {
     return (
-      <span className="text-sm text-red-400 font-medium tabular">
+      <span className="text-sm text-[var(--color-danger)] font-medium tabular">
         已超时
       </span>
     );
@@ -48,7 +48,7 @@ export function DraftCountdown({ deadline, isActive }: DraftCountdownProps) {
   return (
     <span
       className={`tabular text-sm font-medium ${
-        urgent ? "text-red-400 animate-pulse" : "text-[var(--color-fg)]"
+        urgent ? "text-[var(--color-danger)] animate-pulse" : "text-[var(--color-fg)]"
       }`}
     >
       {formatTime(remaining)}

@@ -77,7 +77,7 @@ export function GenerateScheduleCard({
                   单循环 {teamCount} 队 → 共 {(teamCount * (teamCount - 1)) / 2} 场 BO1。
                 </span>
               )}
-              <span className="block text-yellow-600 font-medium">
+              <span className="block text-[var(--color-warn)] font-medium">
                 生成后无法重置，请确认队伍名单已完整。
               </span>
             </DialogDescription>

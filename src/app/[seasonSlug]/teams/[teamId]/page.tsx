@@ -490,8 +490,8 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
                           </Link>
                         ) : "未知队伍"}
                       </td>
-                      <td className="px-5 py-3 text-center text-green-500">{h.wins}</td>
-                      <td className="px-5 py-3 text-center text-red-500">{h.losses}</td>
+                      <td className="px-5 py-3 text-center text-[var(--color-ok)]">{h.wins}</td>
+                      <td className="px-5 py-3 text-center text-[var(--color-danger)]">{h.losses}</td>
                       <td className="px-5 py-3 text-right font-semibold text-[var(--color-fg)]">
                         {pct(h.wins, h.wins + h.losses).text}
                       </td>

@@ -105,9 +105,9 @@ function SwissMatchupGroup({
       <div
         className={`text-xs font-medium mb-1.5 px-1.5 py-0.5 rounded text-center ${
           isEliminatedRecord(group.record)
-            ? "bg-red-500/10 text-red-400"
+            ? "bg-[rgba(255,84,112,0.08)] text-[var(--color-danger)]"
             : isAdvancedRecord(group.record)
-              ? "bg-emerald-500/10 text-emerald-400"
+              ? "bg-[rgba(77,212,122,0.10)] text-[var(--color-ok)]"
               : "bg-[var(--color-panel-hi)] text-[var(--color-fg-mid)]"
         }`}
       >
@@ -200,9 +200,9 @@ function SwissMatchupRow({
       {!isFinished && (
         <div className="mt-1 text-[10px] text-[var(--color-fg-dim)]">
           {match.status === "in_progress" ? (
-            <span className="text-amber-400">进行中</span>
+            <span className="text-[var(--color-info)]">进行中</span>
           ) : match.status === "cancelled" ? (
-            <span className="text-red-400">已取消</span>
+            <span className="text-[var(--color-danger)]">已取消</span>
           ) : (
             <span className="text-[var(--color-fg-dim)]">{match.format.toUpperCase()}</span>
           )}
@@ -255,7 +255,7 @@ function AdvancementColumn({
       {/* 淘汰 */}
       {eliminated.length > 0 && (
         <div>
-          <div className="text-xs font-medium mb-1.5 px-1.5 py-0.5 rounded text-center bg-red-500/10 text-red-400">
+          <div className="text-xs font-medium mb-1.5 px-1.5 py-0.5 rounded text-center bg-[rgba(255,84,112,0.08)] text-[var(--color-danger)]">
             淘汰 ({eliminated.length})
           </div>
           <div className="space-y-1">

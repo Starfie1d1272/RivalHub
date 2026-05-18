@@ -157,8 +157,8 @@ export function CaptainDraftPanel({
             <div
               className={`mt-3 rounded-md border px-3 py-2 text-sm ${
                 message.type === "success"
-                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-                  : "border-red-500/30 bg-red-500/10 text-red-300"
+                  ? "border-[rgba(77,212,122,0.3)] bg-[rgba(77,212,122,0.10)] text-[var(--color-ok)]"
+                  : "border-[rgba(255,84,112,0.3)] bg-[rgba(255,84,112,0.08)] text-[var(--color-danger)]"
               }`}
               role="status"
             >
@@ -193,7 +193,7 @@ export function CaptainDraftPanel({
                   return (
                     <span
                       key={pos}
-                      className={full ? "text-red-400" : ""}
+                      className={full ? "text-[var(--color-danger)]" : ""}
                     >
                       {positionLabel(pos)} {count}/2
                     </span>

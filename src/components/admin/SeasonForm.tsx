@@ -282,7 +282,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
             <div>
               <Label htmlFor="season-slug">Slug</Label>
               <Input id="season-slug" value={slug} onChange={(e) => setSlug(e.target.value)} />
-              <p className="text-xs text-muted-foreground mt-1">URL 路径标识，输入名称后自动生成，可手动修改</p>
+              <p className="text-xs text-[var(--color-fg-dim)] mt-1">URL 路径标识，输入名称后自动生成，可手动修改</p>
             </div>
             <div><Label htmlFor="season-kind">类型</Label><Input id="season-kind" value={kind} onChange={(e) => setKind(e.target.value)} /></div>
             <div><Label>主题色</Label><ThemeColorPicker value={themeColor} onChange={setThemeColor} /></div>
@@ -370,7 +370,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">{title}</h1>
-        {fieldHelp && <p className="text-sm text-yellow-600">{fieldHelp}</p>}
+        {fieldHelp && <p className="text-sm text-[var(--color-warn)]">{fieldHelp}</p>}
       </div>
 
       {/* Panel 1: 基础信息 */}
@@ -383,7 +383,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
           <div>
             <Label htmlFor="season-slug">Slug</Label>
             <Input id="season-slug" value={slug} disabled onChange={(e) => setSlug(e.target.value)} />
-            <p className="text-xs text-muted-foreground mt-1">编辑时不可修改 slug</p>
+            <p className="text-xs text-[var(--color-fg-dim)] mt-1">编辑时不可修改 slug</p>
           </div>
           <div>
             <Label htmlFor="season-kind">类型</Label>
@@ -403,12 +403,12 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
           <div>
             <Label htmlFor="start-at">报名开始时间</Label>
             <Input id="start-at" type="datetime-local" value={startAt ?? ""} onChange={(e) => setStartAt(e.target.value)} />
-            <p className="text-xs text-muted-foreground mt-1">赛季发布后页面立即可见；到此时间前只能保存草稿。</p>
+            <p className="text-xs text-[var(--color-fg-dim)] mt-1">赛季发布后页面立即可见；到此时间前只能保存草稿。</p>
           </div>
           <div>
             <Label htmlFor="registration-deadline">报名截止时间</Label>
             <Input id="registration-deadline" type="datetime-local" value={registrationDeadline ?? ""} onChange={(e) => setRegistrationDeadline(e.target.value)} />
-            <p className="text-xs text-muted-foreground mt-1">截止后关闭草稿保存和正式提交。</p>
+            <p className="text-xs text-[var(--color-fg-dim)] mt-1">截止后关闭草稿保存和正式提交。</p>
           </div>
           <div>
             <Label htmlFor="end-at">赛季结束时间</Label>
@@ -485,7 +485,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
             <div className="sm:col-span-2">
               <Label htmlFor="map-pool">比赛图池</Label>
               <Input id="map-pool" value={mapPoolText} onChange={(e) => setMapPoolText(e.target.value)} placeholder="de_mirage,de_inferno,de_nuke..." />
-              <p className="text-xs text-muted-foreground mt-1">逗号分隔，报名地图熟练度和比赛录入会使用同一组地图。</p>
+              <p className="text-xs text-[var(--color-fg-dim)] mt-1">逗号分隔，报名地图熟练度和比赛录入会使用同一组地图。</p>
             </div>
           </div>
           <SaveBtn />

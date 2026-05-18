@@ -178,7 +178,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
                     <div className="flex items-center justify-between">
                       <h2 className="text-lg font-semibold text-[var(--color-fg)]">积分榜</h2>
                       {allQualifierFinished && (
-                        <span className="text-xs text-green-600 font-medium">最终排名</span>
+                        <span className="text-xs text-[var(--color-ok)] font-medium">最终排名</span>
                       )}
                     </div>
                     <StandingsTable

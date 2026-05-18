@@ -173,7 +173,7 @@ export function MapByMapInput({
       )}
 
       {seriesFinished && (
-        <p className="text-xs text-green-600 font-medium">
+        <p className="text-xs text-[var(--color-ok)] font-medium">
           系列赛结束：{mapWinsA > mapWinsB ? teamAName : teamBName} 胜 {Math.max(mapWinsA, mapWinsB)}:{Math.min(mapWinsA, mapWinsB)}
         </p>
       )}

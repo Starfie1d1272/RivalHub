@@ -266,7 +266,7 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
           </div>
 
           {error && (
-            <p className="text-sm text-red-500">{error}</p>
+            <p className="text-sm text-[var(--color-danger)]">{error}</p>
           )}
 
           {drafts.length > 0 ? (
@@ -331,7 +331,7 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-7 w-7 p-0 text-red-400"
+                            className="h-7 w-7 p-0 text-[var(--color-danger)]"
                             onClick={() => handleDeleteRow(idx)}
                             title="删除此行"
                           >

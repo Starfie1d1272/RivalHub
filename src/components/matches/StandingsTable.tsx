@@ -45,10 +45,10 @@ export function StandingsTable({ standings, seasonSlug, isFinal }: StandingsTabl
                   {s.teamName}
                 </Link>
               </td>
-              <td className="py-3 px-3 text-center tabular-nums text-green-600 font-medium">
+              <td className="py-3 px-3 text-center tabular-nums text-[var(--color-ok)] font-medium">
                 {s.wins}
               </td>
-              <td className="py-3 px-3 text-center tabular-nums text-red-500 font-medium">
+              <td className="py-3 px-3 text-center tabular-nums text-[var(--color-danger)] font-medium">
                 {s.losses}
               </td>
               <td className="py-3 px-3 text-center tabular-nums text-[var(--color-fg)]">

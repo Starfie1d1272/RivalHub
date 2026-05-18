@@ -32,7 +32,7 @@ function bracketThemeStyle(themeColor?: string | null): React.CSSProperties {
     "--match-background": "var(--color-panel-hi)",
     "--font-color": "var(--color-fg)",
     "--label-color": "var(--color-fg-mid)",
-    "--hint-color": "var(--color-fg-muted)",
+    "--hint-color": "var(--color-fg-dim)",
     "--connector-color": "var(--color-border-hi)",
     "--border-color": "var(--color-border)",
     "--border-hover-color": "var(--color-accent)",

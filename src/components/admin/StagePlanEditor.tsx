@@ -167,7 +167,7 @@ export function StagePlanEditor({ value, onChange }: StagePlanEditorProps) {
                     <SelectItem value="2nd">亚军</SelectItem>
                   </SelectContent>
                 </Select>
-                <span className="text-sm text-muted-foreground">取前</span>
+                <span className="text-sm text-[var(--color-fg-mid)]">取前</span>
                 <Input
                   type="number" min={1}
                   className="w-20"
@@ -176,7 +176,7 @@ export function StagePlanEditor({ value, onChange }: StagePlanEditorProps) {
                     advanceTiers: [{ ...stage.advanceTiers[0], placement: stage.advanceTiers[0]?.placement ?? "*", count: Number(e.target.value) }],
                   }))}
                 />
-                <span className="text-sm text-muted-foreground">名</span>
+                <span className="text-sm text-[var(--color-fg-mid)]">名</span>
               </div>
             </div>
             )}

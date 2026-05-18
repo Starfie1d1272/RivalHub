@@ -91,7 +91,7 @@ export function AdminUserList({ users, seasonMap, currentUserId }: AdminUserList
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="text-xs h-auto py-0 text-red-500 hover:text-red-600"
+                  className="text-xs h-auto py-0 text-[var(--color-danger)] hover:text-[var(--color-danger)]"
                   onClick={() => handleRevoke(u.id)}
                 >
                   撤销权限

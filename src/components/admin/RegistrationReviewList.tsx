@@ -48,10 +48,10 @@ type FilterStatus = "all" | "pending" | "approved" | "rejected" | "waitlisted";
 // ── 状态徽章 ──────────────────────────────────────────
 
 const STATUS_STYLES: Record<string, string> = {
-  pending: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
-  approved: "bg-green-500/10 text-green-600 border-green-500/20",
-  rejected: "bg-red-500/10 text-red-600 border-red-500/20",
-  waitlisted: "bg-blue-500/10 text-blue-600 border-blue-500/20",
+  pending:    "bg-[rgba(255,196,77,0.10)] text-[var(--color-warn)] border-[rgba(255,196,77,0.3)]",
+  approved:   "bg-[rgba(77,212,122,0.10)] text-[var(--color-ok)] border-[rgba(77,212,122,0.3)]",
+  rejected:   "bg-[rgba(255,84,112,0.08)] text-[var(--color-danger)] border-[rgba(255,84,112,0.3)]",
+  waitlisted: "bg-[var(--color-info-soft)] text-[var(--color-info)] border-[var(--color-info-edge)]",
 };
 
 // ── 位置标签 ──────────────────────────────────────────
