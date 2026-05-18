@@ -26,6 +26,13 @@ export default async function HomePage() {
   const featured = activeSeasons[0];
   const others = activeSeasons.slice(1);
 
+  const archivedSeasons = await db
+    .select()
+    .from(seasons)
+    .where(eq(seasons.status, "archived"))
+    .orderBy(desc(seasons.createdAt))
+    .limit(6);
+
   if (!featured) {
     return (
       <div className="mx-auto px-4 lg:px-9 py-8 max-w-[1240px]">
@@ -635,6 +642,45 @@ export default async function HomePage() {
           </Marker>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {others.map((s) => (
+              <Link key={s.id} href={`/${s.slug}` as never}>
+                <Panel className="transition-colors hover:border-[var(--color-border-hi)]">
+                  <div className="flex items-center gap-2 mb-2">
+                    <StatusPill status={s.status} />
+                    <span
+                      style={{
+                        fontFamily: "var(--font-mono)",
+                        fontSize: 10,
+                        color: "var(--color-fg-dim)",
+                      }}
+                    >
+                      {s.kind}
+                    </span>
+                  </div>
+                  <div
+                    className="font-semibold"
+                    style={{
+                      fontFamily: "var(--font-sans)",
+                      fontSize: 16,
+                      color: "var(--color-fg)",
+                    }}
+                  >
+                    {s.name}
+                  </div>
+                </Panel>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Archive */}
+      {archivedSeasons.length > 0 && (
+        <div>
+          <Marker num={3} sub="ARCHIVE">
+            历届赛季
+          </Marker>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {archivedSeasons.map((s) => (
               <Link key={s.id} href={`/${s.slug}` as never}>
                 <Panel className="transition-colors hover:border-[var(--color-border-hi)]">
                   <div className="flex items-center gap-2 mb-2">

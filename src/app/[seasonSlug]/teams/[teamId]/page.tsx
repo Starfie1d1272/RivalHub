@@ -21,8 +21,10 @@ interface TeamDetailPageProps {
 }
 
 function pct(n: number, d: number) {
-  if (d === 0) return "—";
-  return `${Math.round((n / d) * 100)}%`;
+  if (d === 0) return { text: "—", color: "var(--color-fg-muted)" as string };
+  const v = Math.round((n / d) * 100);
+  const color = v >= 60 ? "var(--color-ok)" : v <= 40 ? "var(--color-danger)" : "var(--color-fg)";
+  return { text: `${v}%`, color };
 }
 
 export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
@@ -423,8 +425,11 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
                       <td className="px-5 py-3 text-center">
                         {stat !== undefined ? (
                           <>
-                            <div className="font-semibold text-[var(--color-fg)]">
-                              {pct(stat.wins, stat.played)}
+                            <div
+                              className="font-semibold"
+                              style={{ color: pct(stat.wins, stat.played).color }}
+                            >
+                              {pct(stat.wins, stat.played).text}
                             </div>
                             <div className="text-xs text-[var(--color-fg-mid)]">{stat.played} 场</div>
                           </>
@@ -436,7 +441,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
                         {bpMatchCount > 0 ? (
                           <>
                             <div className="font-semibold text-[var(--color-fg)]">
-                              {pct(bans, bpMatchCount)}
+                              {pct(bans, bpMatchCount).text}
                             </div>
                             <div className="text-xs text-[var(--color-fg-mid)]">{bpMatchCount} 对局</div>
                           </>
@@ -485,7 +490,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
                       <td className="px-5 py-3 text-center text-green-500">{h.wins}</td>
                       <td className="px-5 py-3 text-center text-red-500">{h.losses}</td>
                       <td className="px-5 py-3 text-right font-semibold text-[var(--color-fg)]">
-                        {pct(h.wins, h.wins + h.losses)}
+                        {pct(h.wins, h.wins + h.losses).text}
                       </td>
                     </tr>
                   );
