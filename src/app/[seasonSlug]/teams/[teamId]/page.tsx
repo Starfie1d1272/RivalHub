@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { eq, or, and, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, teams, teamMembers, seasonRegistrations, users, matches, matchMaps } from "@/db/schema";
+import { seasons, teams, teamMembers, seasonRegistrations, users, matches } from "@/db/schema";
 import { matchPlayerStats } from "@/db/schema/player-stats";
 import { Panel, Stat, Marker, PosChip } from "@/components/rivalhub";
 import { MatchCard } from "@/components/matches/MatchCard";
@@ -10,9 +10,11 @@ import { TeamNameForm } from "@/components/teams/TeamNameForm";
 import { TeamLogoUpload } from "@/components/teams/TeamLogoUpload";
 import Link from "next/link";
 import { POSITION_LABELS } from "@/lib/validators/registration";
-import { CS2_POSITIONS } from "@/types/season";
+import { CS2_POSITIONS, DEFAULT_CS2_MAP_POOL } from "@/types/season";
 import { getUserSession } from "@/lib/auth/session";
 import { getDisplayName } from "@/lib/utils/display-name";
+import { getTeamMapWinStats, getTeamBanStats } from "@/lib/teams/data";
+import { mapLabel } from "@/lib/maps";
 
 interface TeamDetailPageProps {
   params: Promise<{ seasonSlug: string; teamId: string }>;
@@ -118,35 +120,12 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
     else totalLosses++;
   }
 
-  // ── 地图统计 ──────────────────────────────────────────────────────────
+  // ── 地图表现统计 ──────────────────────────────────────────────────────────
   const matchIds = teamMatches.map((m) => m.id);
-  const allMaps = matchIds.length
-    ? await db.query.matchMaps.findMany({
-        where: and(
-          inArray(matchMaps.matchId, matchIds),
-          // 只统计有比分的图
-        ),
-      })
-    : [];
-
-  // 每图胜率（需要知道 teamA/B 关系）
-  const matchTeamMap = new Map(teamMatches.map((m) => [m.id, m]));
-  interface MapStat { wins: number; played: number }
-  const mapStats = new Map<string, MapStat>();
-  for (const mp of allMaps) {
-    if (mp.scoreA === null || mp.scoreB === null) continue;
-    const match = matchTeamMap.get(mp.matchId);
-    if (!match) continue;
-    const isA = match.teamAId === teamId;
-    const myScore = isA ? mp.scoreA : mp.scoreB;
-    const oppScore = isA ? mp.scoreB : mp.scoreA;
-    const prev = mapStats.get(mp.mapName) ?? { wins: 0, played: 0 };
-    mapStats.set(mp.mapName, {
-      wins: prev.wins + (myScore > oppScore ? 1 : 0),
-      played: prev.played + 1,
-    });
-  }
-  const sortedMaps = [...mapStats.entries()].sort((a, b) => b[1].played - a[1].played);
+  const [mapStats, { banCount, bpMatchCount }] = await Promise.all([
+    getTeamMapWinStats(teamId, teamMatches),
+    getTeamBanStats(teamId, matchIds),
+  ]);
 
   // ── 历史对阵（按对手分组） ─────────────────────────────────────────────
   interface HeadToHead { opponentId: string; wins: number; losses: number }
@@ -420,39 +399,59 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
         </section>
       )}
 
-      {/* 地图胜率 */}
-      {sortedMaps.length > 0 && (
-        <section>
-          <Panel pad={0} className="overflow-hidden" label="地图胜率">
-            <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[400px]">
+      {/* 地图表现 */}
+      <section>
+        <Panel pad={0} className="overflow-hidden" label="地图表现">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[340px]">
               <thead>
                 <tr className="border-b border-[var(--color-border)] text-[var(--color-fg-mid)] text-xs uppercase tracking-wide">
                   <th className="px-5 py-3 text-left font-medium">地图</th>
-                  <th className="px-5 py-3 text-center font-medium">出场</th>
-                  <th className="px-5 py-3 text-center font-medium">胜</th>
-                  <th className="px-5 py-3 text-center font-medium">负</th>
-                  <th className="px-5 py-3 text-right font-medium">胜率</th>
+                  <th className="px-5 py-3 text-center font-medium">胜率</th>
+                  <th className="px-5 py-3 text-center font-medium">ban 率</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--color-border)]">
-                {sortedMaps.map(([mapName, stat]) => (
-                  <tr key={mapName}>
-                    <td className="px-5 py-3 font-medium text-[var(--color-fg)]">{mapName}</td>
-                    <td className="px-5 py-3 text-center text-[var(--color-fg-mid)]">{stat.played}</td>
-                    <td className="px-5 py-3 text-center text-green-500">{stat.wins}</td>
-                    <td className="px-5 py-3 text-center text-red-500">{stat.played - stat.wins}</td>
-                    <td className="px-5 py-3 text-right font-semibold text-[var(--color-fg)]">
-                      {pct(stat.wins, stat.played)}
-                    </td>
-                  </tr>
-                ))}
+                {DEFAULT_CS2_MAP_POOL.map((mapName) => {
+                  const stat = mapStats.get(mapName);
+                  const bans = banCount.get(mapName) ?? 0;
+                  return (
+                    <tr key={mapName}>
+                      <td className="px-5 py-3 font-medium text-[var(--color-fg)]">
+                        {mapLabel(mapName)}
+                      </td>
+                      <td className="px-5 py-3 text-center">
+                        {stat !== undefined ? (
+                          <>
+                            <div className="font-semibold text-[var(--color-fg)]">
+                              {pct(stat.wins, stat.played)}
+                            </div>
+                            <div className="text-xs text-[var(--color-fg-mid)]">{stat.played} 场</div>
+                          </>
+                        ) : (
+                          <span className="text-[var(--color-fg-muted)]">—</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3 text-center">
+                        {bpMatchCount > 0 ? (
+                          <>
+                            <div className="font-semibold text-[var(--color-fg)]">
+                              {pct(bans, bpMatchCount)}
+                            </div>
+                            <div className="text-xs text-[var(--color-fg-mid)]">{bpMatchCount} 对局</div>
+                          </>
+                        ) : (
+                          <span className="text-[var(--color-fg-muted)]">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
-            </div>
-          </Panel>
-        </section>
-      )}
+          </div>
+        </Panel>
+      </section>
 
       {/* 历史对阵 */}
       {h2hList.length > 0 && (
