@@ -3,7 +3,6 @@ import { seasons, users } from "@/db/schema";
 import { getUserSession } from "@/lib/auth/session";
 import { resolveAvatarUrl } from "@/lib/steam";
 import { HeaderClient } from "./header-client";
-import { OnlineCounter } from "./OnlineCounter";
 import { eq } from "drizzle-orm";
 
 export async function Header() {
@@ -38,15 +37,12 @@ export async function Header() {
   }
 
   return (
-    <>
-      <HeaderClient
-        seasons={publicSeasons}
-        session={session}
-        avatarUrl={avatarUrl}
-        steamName={currentUser?.steamName ?? null}
-        displayName={currentUser?.displayName ?? null}
-      />
-      <OnlineCounter />
-    </>
+    <HeaderClient
+      seasons={publicSeasons}
+      session={session}
+      avatarUrl={avatarUrl}
+      steamName={currentUser?.steamName ?? null}
+      displayName={currentUser?.displayName ?? null}
+    />
   );
 }

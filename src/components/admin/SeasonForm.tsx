@@ -20,6 +20,7 @@ import {
 import { rankValues, RANK_LABELS } from "@/lib/validators/registration";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Panel } from "@/components/rivalhub";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -245,15 +246,23 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
     });
   }
 
-  return (
-    <Card className="p-6 space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold">{title}</h1>
-        {fieldHelp && <p className="text-sm text-yellow-600 mt-2">{fieldHelp}</p>}
+  const SaveBtn = () => (
+    mode === "edit" ? (
+      <div className="flex justify-end pt-2">
+        <Button type="button" size="sm" disabled={isPending} onClick={handleSubmit}>
+          {isPending ? "保存中…" : "保存"}
+        </Button>
       </div>
+    ) : null
+  );
 
-      {/* Preset selector */}
-      {mode === "create" && (
+  if (mode === "create") {
+    return (
+      <Card className="p-6 space-y-8">
+        <div>
+          <h1 className="text-2xl font-bold">{title}</h1>
+        </div>
+
         <section className="space-y-2">
           <Label>快速预设</Label>
           <Select onValueChange={(v) => v !== "__none__" && applyPreset(v as "major" | "rivals")}>
@@ -265,11 +274,107 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
             </SelectContent>
           </Select>
         </section>
-      )}
 
-      {/* Basic info */}
-      <section className="space-y-4">
-        <h2 className="font-semibold">基础信息</h2>
+        <section className="space-y-4">
+          <h2 className="font-semibold">基础信息</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div><Label htmlFor="season-name">名称</Label><Input id="season-name" value={name} onChange={(e) => setName(e.target.value)} /></div>
+            <div>
+              <Label htmlFor="season-slug">Slug</Label>
+              <Input id="season-slug" value={slug} onChange={(e) => setSlug(e.target.value)} />
+              <p className="text-xs text-muted-foreground mt-1">URL 路径标识，输入名称后自动生成，可手动修改</p>
+            </div>
+            <div><Label htmlFor="season-kind">类型</Label><Input id="season-kind" value={kind} onChange={(e) => setKind(e.target.value)} /></div>
+            <div><Label>主题色</Label><ThemeColorPicker value={themeColor} onChange={setThemeColor} /></div>
+            <div>
+              <Label htmlFor="start-at">报名开始时间</Label>
+              <Input id="start-at" type="datetime-local" value={startAt ?? ""} onChange={(e) => setStartAt(e.target.value)} />
+            </div>
+            <div>
+              <Label htmlFor="registration-deadline">报名截止时间</Label>
+              <Input id="registration-deadline" type="datetime-local" value={registrationDeadline ?? ""} onChange={(e) => setRegistrationDeadline(e.target.value)} />
+            </div>
+            <div><Label htmlFor="end-at">赛季结束时间</Label><Input id="end-at" type="datetime-local" value={endAt ?? ""} onChange={(e) => setEndAt(e.target.value)} /></div>
+          </div>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="font-semibold">Capability</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <Label>报名模式</Label>
+              <Select value={registrationMode} onValueChange={(v) => handleRegistrationModeChange(v as "solo" | "team")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="solo">个人报名</SelectItem>
+                  <SelectItem value="team">队伍报名</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div><Label htmlFor="positions">位置列表</Label><Input id="positions" value={positionsText} onChange={(e) => setPositionsText(e.target.value)} /></div>
+            <div><Label htmlFor="max-team-size">每队人数上限</Label><Input id="max-team-size" type="number" min={1} value={maxTeamSize} onChange={(e) => setMaxTeamSize(Number(e.target.value))} /></div>
+            <div><Label htmlFor="min-team-size">每队人数下限</Label><Input id="min-team-size" type="number" min={1} value={minTeamSize} onChange={(e) => setMinTeamSize(Number(e.target.value))} /></div>
+            <div><Label htmlFor="starter-count">首发人数</Label><Input id="starter-count" type="number" min={1} value={starterCount} onChange={(e) => setStarterCount(Number(e.target.value))} /></div>
+          </div>
+          {registrationMode === "solo" && (
+            <div className="flex flex-wrap gap-4 text-sm">
+              <label className="flex items-center gap-2"><input type="checkbox" checked={hasCaptainVoting} onChange={(e) => setHasCaptainVoting(e.target.checked)} />队长投票</label>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={hasDraft} onChange={(e) => setHasDraft(e.target.checked)} />蛇形选秀</label>
+            </div>
+          )}
+        </section>
+
+        {registrationMode === "solo" && (
+          <section className="space-y-4">
+            <h2 className="font-semibold">报名配置</h2>
+            <div className="flex flex-wrap gap-4 text-sm">
+              {PLAYER_TYPES.map((type) => (
+                <label key={type} className="flex items-center gap-2">
+                  <input type="checkbox" checked={allowedPlayerTypes.includes(type)} onChange={() => togglePlayerType(type)} />
+                  {PLAYER_TYPE_LABELS[type]}
+                </label>
+              ))}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div><Label>当前段位门槛</Label><Select value={currentMin} onValueChange={setCurrentMin}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value={NO_RANK}>无门槛</SelectItem>{rankValues.map((rank) => (<SelectItem key={rank} value={rank}>{RANK_LABELS[rank]}</SelectItem>))}</SelectContent></Select></div>
+              <div><Label>历史段位门槛</Label><Select value={peakMin} onValueChange={setPeakMin}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value={NO_RANK}>无门槛</SelectItem>{rankValues.map((rank) => (<SelectItem key={rank} value={rank}>{RANK_LABELS[rank]}</SelectItem>))}</SelectContent></Select></div>
+              <div><Label htmlFor="max-position">每位置上限</Label><Input id="max-position" type="number" min={1} max={50} value={maxPerPosition} onChange={(e) => setMaxPerPosition(Number(e.target.value))} /></div>
+              <div><Label htmlFor="screenshot-count">截图链接数量</Label><Input id="screenshot-count" type="number" min={1} max={5} value={screenshotCount} onChange={(e) => setScreenshotCount(Number(e.target.value))} /></div>
+              <div className="sm:col-span-2"><Label htmlFor="map-pool">比赛图池</Label><Input id="map-pool" value={mapPoolText} onChange={(e) => setMapPoolText(e.target.value)} placeholder="de_mirage,de_inferno,de_nuke..." /></div>
+            </div>
+          </section>
+        )}
+
+        {registrationMode === "team" && (
+          <section className="space-y-4">
+            <h2 className="font-semibold">队伍报名配置</h2>
+            <TeamConfigForm value={teamConfig} maxTeamSize={maxTeamSize} onChange={setTeamConfig} />
+          </section>
+        )}
+
+        <section className="space-y-4">
+          <h2 className="font-semibold">赛制配置</h2>
+          <StagePlanEditor value={stagePlan} onChange={setStagePlan} />
+        </section>
+
+        <div className="flex justify-end">
+          <Button type="button" disabled={isPending} onClick={handleSubmit}>
+            {isPending ? "创建中…" : "创建赛季"}
+          </Button>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">{title}</h1>
+        {fieldHelp && <p className="text-sm text-yellow-600">{fieldHelp}</p>}
+      </div>
+
+      {/* Panel 1: 基础信息 */}
+      <Panel label="基础信息" pad={20}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="season-name">名称</Label>
@@ -277,15 +382,8 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
           </div>
           <div>
             <Label htmlFor="season-slug">Slug</Label>
-            <Input
-              id="season-slug"
-              value={slug}
-              disabled={mode === "edit"}
-              onChange={(e) => setSlug(e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              URL 路径标识，输入名称后自动生成，可手动修改
-            </p>
+            <Input id="season-slug" value={slug} disabled onChange={(e) => setSlug(e.target.value)} />
+            <p className="text-xs text-muted-foreground mt-1">编辑时不可修改 slug</p>
           </div>
           <div>
             <Label htmlFor="season-kind">类型</Label>
@@ -295,35 +393,33 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
             <Label>主题色</Label>
             <ThemeColorPicker value={themeColor} onChange={setThemeColor} />
           </div>
+        </div>
+        <SaveBtn />
+      </Panel>
+
+      {/* Panel 2: 时间设置 */}
+      <Panel label="时间设置" pad={20}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="start-at">报名开始时间</Label>
             <Input id="start-at" type="datetime-local" value={startAt ?? ""} onChange={(e) => setStartAt(e.target.value)} />
-            <p className="text-xs text-muted-foreground mt-1">
-              赛季发布后页面立即可见；到此时间前只能保存草稿。
-            </p>
+            <p className="text-xs text-muted-foreground mt-1">赛季发布后页面立即可见；到此时间前只能保存草稿。</p>
           </div>
           <div>
             <Label htmlFor="registration-deadline">报名截止时间</Label>
-            <Input
-              id="registration-deadline"
-              type="datetime-local"
-              value={registrationDeadline ?? ""}
-              onChange={(e) => setRegistrationDeadline(e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              截止后关闭草稿保存和正式提交。
-            </p>
+            <Input id="registration-deadline" type="datetime-local" value={registrationDeadline ?? ""} onChange={(e) => setRegistrationDeadline(e.target.value)} />
+            <p className="text-xs text-muted-foreground mt-1">截止后关闭草稿保存和正式提交。</p>
           </div>
           <div>
             <Label htmlFor="end-at">赛季结束时间</Label>
             <Input id="end-at" type="datetime-local" value={endAt ?? ""} onChange={(e) => setEndAt(e.target.value)} />
           </div>
         </div>
-      </section>
+        <SaveBtn />
+      </Panel>
 
-      {/* Capability */}
-      <section className="space-y-4">
-        <h2 className="font-semibold">Capability</h2>
+      {/* Panel 3: 能力开关 */}
+      <Panel label="能力配置" pad={20}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label>报名模式</Label>
@@ -338,51 +434,27 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
           <div>
             <Label htmlFor="positions">位置列表</Label>
             <Input id="positions" value={positionsText} disabled={coreLocked} onChange={(e) => setPositionsText(e.target.value)} />
-            {registrationMode === "team" && (
-              <p className="text-xs text-muted-foreground mt-1">
-                可选填，不填位置则不参与排行榜和最佳五人组评选
-              </p>
-            )}
           </div>
-          <div>
-            <Label htmlFor="max-team-size">每队人数上限</Label>
-            <Input id="max-team-size" type="number" min={1} value={maxTeamSize} disabled={coreLocked} onChange={(e) => setMaxTeamSize(Number(e.target.value))} />
-          </div>
-          <div>
-            <Label htmlFor="min-team-size">每队人数下限</Label>
-            <Input id="min-team-size" type="number" min={1} value={minTeamSize} disabled={coreLocked} onChange={(e) => setMinTeamSize(Number(e.target.value))} />
-          </div>
-          <div>
-            <Label htmlFor="starter-count">首发人数</Label>
-            <Input id="starter-count" type="number" min={1} value={starterCount} disabled={coreLocked} onChange={(e) => setStarterCount(Number(e.target.value))} />
-          </div>
+          <div><Label htmlFor="max-team-size">每队人数上限</Label><Input id="max-team-size" type="number" min={1} value={maxTeamSize} disabled={coreLocked} onChange={(e) => setMaxTeamSize(Number(e.target.value))} /></div>
+          <div><Label htmlFor="min-team-size">每队人数下限</Label><Input id="min-team-size" type="number" min={1} value={minTeamSize} disabled={coreLocked} onChange={(e) => setMinTeamSize(Number(e.target.value))} /></div>
+          <div><Label htmlFor="starter-count">首发人数</Label><Input id="starter-count" type="number" min={1} value={starterCount} disabled={coreLocked} onChange={(e) => setStarterCount(Number(e.target.value))} /></div>
         </div>
         {registrationMode === "solo" && (
-          <div className="flex flex-wrap gap-4 text-sm">
-            <label className="flex items-center gap-2">
-              <input type="checkbox" checked={hasCaptainVoting} disabled={coreLocked} onChange={(e) => setHasCaptainVoting(e.target.checked)} />
-              队长投票
-            </label>
-            <label className="flex items-center gap-2">
-              <input type="checkbox" checked={hasDraft} disabled={coreLocked} onChange={(e) => setHasDraft(e.target.checked)} />
-              蛇形选秀
-            </label>
+          <div className="flex flex-wrap gap-4 text-sm mt-4">
+            <label className="flex items-center gap-2"><input type="checkbox" checked={hasCaptainVoting} disabled={coreLocked} onChange={(e) => setHasCaptainVoting(e.target.checked)} />队长投票</label>
+            <label className="flex items-center gap-2"><input type="checkbox" checked={hasDraft} disabled={coreLocked} onChange={(e) => setHasDraft(e.target.checked)} />蛇形选秀</label>
           </div>
         )}
-      </section>
+        <SaveBtn />
+      </Panel>
 
-      {/* Registration config — solo mode only */}
+      {/* Panel 4: 报名规则 (solo) / 队伍报名配置 (team) */}
       {registrationMode === "solo" && (
-        <section className="space-y-4">
-          <h2 className="font-semibold">报名配置</h2>
-          <div className="flex flex-wrap gap-4 text-sm">
+        <Panel label="报名规则" pad={20}>
+          <div className="flex flex-wrap gap-4 text-sm mb-4">
             {PLAYER_TYPES.map((type) => (
               <label key={type} className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={allowedPlayerTypes.includes(type)}
-                  onChange={() => togglePlayerType(type)}
-                />
+                <input type="checkbox" checked={allowedPlayerTypes.includes(type)} onChange={() => togglePlayerType(type)} />
                 {PLAYER_TYPE_LABELS[type]}
               </label>
             ))}
@@ -394,9 +466,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NO_RANK}>无门槛</SelectItem>
-                  {rankValues.map((rank) => (
-                    <SelectItem key={rank} value={rank}>{RANK_LABELS[rank]}</SelectItem>
-                  ))}
+                  {rankValues.map((rank) => (<SelectItem key={rank} value={rank}>{RANK_LABELS[rank]}</SelectItem>))}
                 </SelectContent>
               </Select>
             </div>
@@ -406,70 +476,45 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NO_RANK}>无门槛</SelectItem>
-                  {rankValues.map((rank) => (
-                    <SelectItem key={rank} value={rank}>{RANK_LABELS[rank]}</SelectItem>
-                  ))}
+                  {rankValues.map((rank) => (<SelectItem key={rank} value={rank}>{RANK_LABELS[rank]}</SelectItem>))}
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label htmlFor="max-position">每位置上限</Label>
-              <Input id="max-position" type="number" min={1} max={50} value={maxPerPosition} onChange={(e) => setMaxPerPosition(Number(e.target.value))} />
-            </div>
-            <div>
-              <Label htmlFor="screenshot-count">截图链接数量</Label>
-              <Input id="screenshot-count" type="number" min={1} max={5} value={screenshotCount} onChange={(e) => setScreenshotCount(Number(e.target.value))} />
-            </div>
+            <div><Label htmlFor="max-position">每位置上限</Label><Input id="max-position" type="number" min={1} max={50} value={maxPerPosition} onChange={(e) => setMaxPerPosition(Number(e.target.value))} /></div>
+            <div><Label htmlFor="screenshot-count">截图链接数量</Label><Input id="screenshot-count" type="number" min={1} max={5} value={screenshotCount} onChange={(e) => setScreenshotCount(Number(e.target.value))} /></div>
             <div className="sm:col-span-2">
               <Label htmlFor="map-pool">比赛图池</Label>
-              <Input
-                id="map-pool"
-                value={mapPoolText}
-                onChange={(e) => setMapPoolText(e.target.value)}
-                placeholder="de_mirage,de_inferno,de_nuke..."
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                逗号分隔，报名地图熟练度和比赛录入会使用同一组地图。
-              </p>
+              <Input id="map-pool" value={mapPoolText} onChange={(e) => setMapPoolText(e.target.value)} placeholder="de_mirage,de_inferno,de_nuke..." />
+              <p className="text-xs text-muted-foreground mt-1">逗号分隔，报名地图熟练度和比赛录入会使用同一组地图。</p>
             </div>
           </div>
-        </section>
+          <SaveBtn />
+        </Panel>
       )}
-
-      {/* Team registration config — team mode only */}
       {registrationMode === "team" && (
-        <section className="space-y-4">
-          <h2 className="font-semibold">队伍报名配置</h2>
+        <Panel label="队伍报名配置" pad={20}>
           <TeamConfigForm value={teamConfig} maxTeamSize={maxTeamSize} onChange={setTeamConfig} />
-        </section>
+          <SaveBtn />
+        </Panel>
       )}
 
-      {/* Stage plan */}
-      <section className="space-y-4">
-        <h2 className="font-semibold">赛制配置</h2>
+      {/* Panel 5: 赛程阶段 */}
+      <Panel label="赛程阶段" pad={20}>
         <StagePlanEditor value={stagePlan} onChange={setStagePlan} />
-      </section>
+        <SaveBtn />
+      </Panel>
 
-      {/* Actions */}
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          {mode === "edit" && initial?.status === "draft" && (
-            <Button type="button" variant="destructive" disabled={isPending} onClick={handleDelete}>
-              删除赛季
-            </Button>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {mode === "edit" && initial?.status === "draft" && (
-            <Button type="button" variant="outline" disabled={isPending} onClick={handlePublish}>
-              发布
-            </Button>
-          )}
-          <Button type="button" disabled={isPending} onClick={handleSubmit}>
-            {isPending ? "保存中…" : mode === "create" ? "创建赛季" : "保存设置"}
+      {/* 底部操作区（发布 / 删除） */}
+      {initial?.status === "draft" && (
+        <div className="flex items-center justify-between gap-3 pt-2">
+          <Button type="button" variant="destructive" disabled={isPending} onClick={handleDelete}>
+            删除赛季
+          </Button>
+          <Button type="button" variant="outline" disabled={isPending} onClick={handlePublish}>
+            发布赛季
           </Button>
         </div>
-      </div>
-    </Card>
+      )}
+    </div>
   );
 }

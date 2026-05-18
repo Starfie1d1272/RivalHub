@@ -21,6 +21,7 @@ import { DeleteMatchButton } from "@/components/matches/DeleteMatchButton";
 import { BatchDeadlineCard } from "@/components/matches/BatchDeadlineCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Panel, StatusPill } from "@/components/rivalhub";
+import { cn } from "@/lib/utils/cn";
 import { Separator } from "@/components/ui/separator";
 import { getFirstStageOfType, normalizeRegistrationConfig, normalizeStagePlan } from "@/types/season";
 import { MATCH_FORMAT_LABELS } from "@/types/match";
@@ -390,7 +391,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                     const teamAName = teamMap.get(m.teamAId) ?? "未知队伍";
                     const teamBName = teamMap.get(m.teamBId) ?? "未知队伍";
                     return (
-                      <Panel key={m.id} pad={16} className="space-y-3">
+                      <Panel key={m.id} pad={16} className={cn("space-y-3", m.status === "in_progress" && "border-l-[3px] border-[var(--color-accent)]")}>
                         <div className="flex items-center justify-between gap-4 flex-wrap">
                           <div className="flex items-center gap-3">
                             <span className="font-semibold">{teamAName}</span>
@@ -408,52 +409,61 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                             />
                           </div>
                         </div>
-                        {m.status !== "cancelled" && <Separator />}
-                        {m.status !== "finished" && m.status !== "cancelled" && (
-                          <>
-                            <div className="flex flex-wrap items-center gap-2">
-                          <AdminRosterDialog
-                            matchId={m.id}
-                            teamAName={teamAName}
-                            teamBName={teamBName}
-                            teamAId={m.teamAId}
-                            teamBId={m.teamBId}
-                            teamAMembers={teamMembersByTeam.get(m.teamAId) ?? []}
-                            teamBMembers={teamMembersByTeam.get(m.teamBId) ?? []}
-                            teamARoster={rosterByMatch.get(m.id)?.get(m.teamAId) ?? null}
-                            teamBRoster={rosterByMatch.get(m.id)?.get(m.teamBId) ?? null}
-                          />
-                          {m.status === "in_progress" && (
-                            <VetoInputDialog
-                              matchId={m.id}
-                              format={m.format as "bo1" | "bo3" | "bo5"}
-                              teamAName={teamAName}
-                              teamBName={teamBName}
-                              teamAId={m.teamAId}
-                              teamBId={m.teamBId}
-                              mapPool={mapPool}
-                            />
-                          )}
-                        </div>
-                        <ScheduledAtInput
-                          matchId={m.id}
-                          currentScheduledAt={m.scheduledAt}
-                          currentCompletionDeadline={m.completionDeadline}
-                        />
-                        <ScoreInput
-                          matchId={m.id}
-                          teamAName={teamAName}
-                          teamBName={teamBName}
-                          currentStatus={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"}
-                          format={m.format as "bo1" | "bo3" | "bo5"}
-                        />
-                          </>
+                        {m.status !== "cancelled" && (
+                          <details open={m.status === "in_progress" ? true : undefined}>
+                            <summary className="cursor-pointer select-none list-none text-[11px] font-mono text-[var(--color-fg-dim)] hover:text-[var(--color-fg)] py-1 transition-colors">
+                              {m.status === "finished" ? "▸ 数据录入" : "▸ 操作"}
+                            </summary>
+                            <div className="space-y-3 pt-2">
+                              <Separator />
+                              {m.status !== "finished" && (
+                                <>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <AdminRosterDialog
+                                      matchId={m.id}
+                                      teamAName={teamAName}
+                                      teamBName={teamBName}
+                                      teamAId={m.teamAId}
+                                      teamBId={m.teamBId}
+                                      teamAMembers={teamMembersByTeam.get(m.teamAId) ?? []}
+                                      teamBMembers={teamMembersByTeam.get(m.teamBId) ?? []}
+                                      teamARoster={rosterByMatch.get(m.id)?.get(m.teamAId) ?? null}
+                                      teamBRoster={rosterByMatch.get(m.id)?.get(m.teamBId) ?? null}
+                                    />
+                                    {m.status === "in_progress" && (
+                                      <VetoInputDialog
+                                        matchId={m.id}
+                                        format={m.format as "bo1" | "bo3" | "bo5"}
+                                        teamAName={teamAName}
+                                        teamBName={teamBName}
+                                        teamAId={m.teamAId}
+                                        teamBId={m.teamBId}
+                                        mapPool={mapPool}
+                                      />
+                                    )}
+                                  </div>
+                                  <ScheduledAtInput
+                                    matchId={m.id}
+                                    currentScheduledAt={m.scheduledAt}
+                                    currentCompletionDeadline={m.completionDeadline}
+                                  />
+                                  <ScoreInput
+                                    matchId={m.id}
+                                    teamAName={teamAName}
+                                    teamBName={teamBName}
+                                    currentStatus={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"}
+                                    format={m.format as "bo1" | "bo3" | "bo5"}
+                                  />
+                                </>
+                              )}
+                              {m.status === "finished" && (mapsByMatch.get(m.id) ?? []).map((map) => (
+                                <div key={map.id}>
+                                  <StatsOCRPanel mapId={map.id} mapName={map.mapName} />
+                                </div>
+                              ))}
+                            </div>
+                          </details>
                         )}
-                        {m.status === "finished" && (mapsByMatch.get(m.id) ?? []).map((map) => (
-                          <div key={map.id}>
-                            <StatsOCRPanel mapId={map.id} mapName={map.mapName} />
-                          </div>
-                        ))}
                         <div className="flex items-center justify-between gap-2">
                           <Link
                             href={`/${seasonSlug}/matches/${m.id}`}
@@ -488,7 +498,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                     const teamAName = teamMap.get(m.teamAId) ?? "TBD";
                     const teamBName = teamMap.get(m.teamBId) ?? "TBD";
                     return (
-                      <Panel key={m.id} pad={16} className="space-y-3">
+                      <Panel key={m.id} pad={16} className={cn("space-y-3", m.status === "in_progress" && "border-l-[3px] border-[var(--color-accent)]")}>
                         <div className="flex items-center justify-between gap-4 flex-wrap">
                           <div className="flex items-center gap-3">
                             <span className="font-semibold">{teamAName}</span>
@@ -506,72 +516,81 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                             />
                           </div>
                         </div>
-                        {m.status !== "cancelled" && <Separator />}
-                        {m.status !== "finished" && m.status !== "cancelled" && (
-                          <>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <AdminRosterDialog
-                                matchId={m.id}
-                                teamAName={teamAName}
-                                teamBName={teamBName}
-                                teamAId={m.teamAId}
-                                teamBId={m.teamBId}
-                                teamAMembers={teamMembersByTeam.get(m.teamAId) ?? []}
-                                teamBMembers={teamMembersByTeam.get(m.teamBId) ?? []}
-                                teamARoster={rosterByMatch.get(m.id)?.get(m.teamAId) ?? null}
-                                teamBRoster={rosterByMatch.get(m.id)?.get(m.teamBId) ?? null}
-                              />
-                              {(m.status === "scheduled" || m.status === "in_progress") && (
-                                <VetoInputDialog
-                                  matchId={m.id}
-                                  format={m.format as "bo1" | "bo3" | "bo5"}
-                                  teamAName={teamAName}
-                                  teamBName={teamBName}
-                                  teamAId={m.teamAId}
-                                  teamBId={m.teamBId}
-                                  mapPool={mapPool}
-                                />
+                        {m.status !== "cancelled" && (
+                          <details open={m.status === "in_progress" ? true : undefined}>
+                            <summary className="cursor-pointer select-none list-none text-[11px] font-mono text-[var(--color-fg-dim)] hover:text-[var(--color-fg)] py-1 transition-colors">
+                              {m.status === "finished" ? "▸ 数据录入" : "▸ 操作"}
+                            </summary>
+                            <div className="space-y-3 pt-2">
+                              <Separator />
+                              {m.status !== "finished" && (
+                                <>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <AdminRosterDialog
+                                      matchId={m.id}
+                                      teamAName={teamAName}
+                                      teamBName={teamBName}
+                                      teamAId={m.teamAId}
+                                      teamBId={m.teamBId}
+                                      teamAMembers={teamMembersByTeam.get(m.teamAId) ?? []}
+                                      teamBMembers={teamMembersByTeam.get(m.teamBId) ?? []}
+                                      teamARoster={rosterByMatch.get(m.id)?.get(m.teamAId) ?? null}
+                                      teamBRoster={rosterByMatch.get(m.id)?.get(m.teamBId) ?? null}
+                                    />
+                                    {(m.status === "scheduled" || m.status === "in_progress") && (
+                                      <VetoInputDialog
+                                        matchId={m.id}
+                                        format={m.format as "bo1" | "bo3" | "bo5"}
+                                        teamAName={teamAName}
+                                        teamBName={teamBName}
+                                        teamAId={m.teamAId}
+                                        teamBId={m.teamBId}
+                                        mapPool={mapPool}
+                                      />
+                                    )}
+                                  </div>
+                                  <ScheduledAtInput
+                                    matchId={m.id}
+                                    currentScheduledAt={m.scheduledAt}
+                                    currentCompletionDeadline={m.completionDeadline}
+                                  />
+                                  {m.status === "in_progress" ? (
+                                    <MapByMapInput
+                                      matchId={m.id}
+                                      format={m.format as "bo1" | "bo3" | "bo5"}
+                                      teamAName={teamAName}
+                                      teamBName={teamBName}
+                                      teamAId={m.teamAId}
+                                      teamBId={m.teamBId}
+                                      completedMaps={(mapsByMatchId.get(m.id) ?? []).map((r) => ({
+                                        mapOrder: r.mapOrder,
+                                        mapName: r.mapName,
+                                        scoreA: r.scoreA ?? 0,
+                                        scoreB: r.scoreB ?? 0,
+                                        pickedByTeamId: r.pickedByTeamId,
+                                        teamAStartSide: r.teamAStartSide as "t" | "ct" | null,
+                                      }))}
+                                      mapPool={mapPool}
+                                    />
+                                  ) : (
+                                    <ScoreInput
+                                      matchId={m.id}
+                                      teamAName={teamAName}
+                                      teamBName={teamBName}
+                                      currentStatus={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"}
+                                      format={m.format as "bo1" | "bo3" | "bo5"}
+                                    />
+                                  )}
+                                </>
                               )}
+                              {m.status === "finished" && (mapsByMatch.get(m.id) ?? []).map((map) => (
+                                <div key={map.id}>
+                                  <StatsOCRPanel mapId={map.id} mapName={map.mapName} />
+                                </div>
+                              ))}
                             </div>
-                            <ScheduledAtInput
-                              matchId={m.id}
-                              currentScheduledAt={m.scheduledAt}
-                              currentCompletionDeadline={m.completionDeadline}
-                            />
-                            {m.status === "in_progress" ? (
-                              <MapByMapInput
-                                matchId={m.id}
-                                format={m.format as "bo1" | "bo3" | "bo5"}
-                                teamAName={teamAName}
-                                teamBName={teamBName}
-                                teamAId={m.teamAId}
-                                teamBId={m.teamBId}
-                                completedMaps={(mapsByMatchId.get(m.id) ?? []).map((r) => ({
-                                  mapOrder: r.mapOrder,
-                                  mapName: r.mapName,
-                                  scoreA: r.scoreA ?? 0,
-                                  scoreB: r.scoreB ?? 0,
-                                  pickedByTeamId: r.pickedByTeamId,
-                                  teamAStartSide: r.teamAStartSide as "t" | "ct" | null,
-                                }))}
-                                mapPool={mapPool}
-                              />
-                            ) : (
-                              <ScoreInput
-                                matchId={m.id}
-                                teamAName={teamAName}
-                                teamBName={teamBName}
-                                currentStatus={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"}
-                                format={m.format as "bo1" | "bo3" | "bo5"}
-                              />
-                            )}
-                          </>
+                          </details>
                         )}
-                        {m.status === "finished" && (mapsByMatch.get(m.id) ?? []).map((map) => (
-                          <div key={map.id}>
-                            <StatsOCRPanel mapId={map.id} mapName={map.mapName} />
-                          </div>
-                        ))}
                         <div className="flex items-center justify-between gap-2">
                           <Link
                             href={`/${seasonSlug}/matches/${m.id}`}

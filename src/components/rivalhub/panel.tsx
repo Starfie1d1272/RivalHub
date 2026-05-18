@@ -5,15 +5,23 @@ interface PanelProps {
   children: React.ReactNode;
   className?: string;
   hi?: boolean;
-  label?: string;
+  label?: React.ReactNode;
   pad?: number;
+  hoverable?: boolean;
+  teamColor?: string;
 }
 
-export function Panel({ children, className, hi, label, pad = 16 }: PanelProps) {
+export function Panel({ children, className, hi, label, pad = 16, hoverable, teamColor }: PanelProps) {
   return (
     <Card
-      className={cn(className)}
-      style={{ background: hi ? "var(--color-panel-hi)" : "var(--color-panel)" }}
+      className={cn(
+        hoverable && "transition-all duration-[180ms] ease-out hover:-translate-y-0.5 hover:border-[var(--color-border-hi)] hover:shadow-[0_4px_20px_rgba(255,107,26,0.03)]",
+        className
+      )}
+      style={{
+        background: hi ? "var(--color-panel-hi)" : "var(--color-panel)",
+        ...(teamColor ? { borderTop: `3px solid ${teamColor}` } : {}),
+      }}
     >
       {label && (
         <CardHeader
@@ -27,7 +35,7 @@ export function Panel({ children, className, hi, label, pad = 16 }: PanelProps) 
             textTransform: "uppercase",
           }}
         >
-          {label}
+          {typeof label === "string" ? <span>{label}</span> : label}
         </CardHeader>
       )}
       <div style={{ padding: pad }}>{children}</div>

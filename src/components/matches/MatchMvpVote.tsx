@@ -82,6 +82,7 @@ export function MatchMvpVote({
     }
   }
   const mvp = allVotes.reduce((a, b) => (a.count >= b.count ? a : b), allVotes[0]);
+  const maxVoteCount = Math.max(...allVotes.map((v) => v.count));
   const mvpStats = candidates.find((c) => c.perfectName === mvp?.playerName);
 
   // ── 投票截止：展示 MVP 结果 ──
@@ -164,18 +165,22 @@ export function MatchMvpVote({
         </span>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {candidates.map((c) => {
           const v = optimisticVotes.find((x) => x.playerName === c.perfectName);
           const count = v?.count ?? 0;
           const isVoted = votedName === c.perfectName;
+          const isLeading = count === maxVoteCount && count > 0;
 
           return (
             <button
               key={c.perfectName}
               disabled={!!votedName || isPending}
               onClick={() => handleVote(c.userId, c.perfectName)}
-              className={cardStyle(isVoted, !!votedName)}
+              className={[
+                cardStyle(isVoted, !!votedName),
+                isLeading && !isVoted ? "border border-[var(--color-accent)] bg-[var(--color-accent-soft)]" : "",
+              ].join(" ").trim()}
             >
               <div className="flex items-center justify-between mb-2">
                 <span className="font-semibold text-[var(--color-fg)]">

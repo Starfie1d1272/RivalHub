@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Card } from "@/components/ui/card";
+import { Panel } from "@/components/rivalhub";
 import { Badge } from "@/components/ui/badge";
 import { MatchStatusBadge } from "./MatchStatusBadge";
 import { MATCH_FORMAT_LABELS, MATCH_STAGE_LABELS } from "@/types/match";
@@ -39,8 +39,8 @@ export function MatchCard({
         : null;
 
   return (
-    <Link href={`/${seasonSlug}/matches/${matchId}`}>
-      <Card className="p-4 hover:bg-[var(--color-panel-hi)] transition-colors cursor-pointer">
+    <Link href={`/${seasonSlug}/matches/${matchId}`} className="cursor-pointer">
+      <Panel hoverable pad={16}>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <span className="font-semibold truncate text-[var(--color-fg)] text-sm sm:text-base">{teamAName}</span>
@@ -64,7 +64,7 @@ export function MatchCard({
             <MatchStatusBadge status={status} />
           </div>
         </div>
-      </Card>
+      </Panel>
     </Link>
   );
 }

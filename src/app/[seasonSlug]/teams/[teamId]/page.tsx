@@ -21,8 +21,10 @@ interface TeamDetailPageProps {
 }
 
 function pct(n: number, d: number) {
-  if (d === 0) return "—";
-  return `${Math.round((n / d) * 100)}%`;
+  if (d === 0) return { text: "—", color: "var(--color-fg-dim)" };
+  const v = Math.round((n / d) * 100);
+  const color = v >= 60 ? "var(--color-ok)" : v <= 40 ? "var(--color-danger)" : "var(--color-fg)";
+  return { text: `${v}%`, color };
 }
 
 export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
@@ -251,7 +253,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
         <Panel label="阵容" pad={20}>
           <div className="space-y-3">
             {starters.map((p) => (
-              <div key={p.registrationId} className="flex items-center justify-between gap-2">
+              <div key={p.registrationId} className="flex items-center justify-between gap-2 hover:bg-[var(--color-panel-hi)] transition-colors rounded px-2 -mx-2">
                 <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                   {p.registrationId === team.captainRegistrationId && (
                     <PosChip pos="C" small />
@@ -275,7 +277,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
               <div className="border-t border-[var(--color-border)] pt-3 space-y-2">
                 <p className="text-xs text-[var(--color-fg-mid)] font-medium uppercase tracking-wide">替补</p>
                 {subs.map((p) => (
-                  <div key={p.registrationId} className="flex items-center justify-between gap-2 opacity-70">
+                  <div key={p.registrationId} className="flex items-center justify-between gap-2 opacity-70 hover:bg-[var(--color-panel-hi)] transition-colors rounded px-2 -mx-2">
                     <span className="text-sm text-[var(--color-fg)] truncate">{getDisplayName(p)}</span>
                     <span className="text-xs text-[var(--color-fg-mid)] shrink-0">
                       {POSITION_LABELS[p.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? p.primaryPosition}
@@ -421,27 +423,33 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
                         {mapLabel(mapName)}
                       </td>
                       <td className="px-5 py-3 text-center">
-                        {stat !== undefined ? (
-                          <>
-                            <div className="font-semibold text-[var(--color-fg)]">
-                              {pct(stat.wins, stat.played)}
-                            </div>
-                            <div className="text-xs text-[var(--color-fg-mid)]">{stat.played} 场</div>
-                          </>
-                        ) : (
-                          <span className="text-[var(--color-fg-muted)]">—</span>
+                        {stat !== undefined ? (() => {
+                          const wr = pct(stat.wins, stat.played);
+                          return (
+                            <>
+                              <div
+                                className="font-semibold"
+                                style={{ color: wr.color }}
+                              >
+                                {wr.text}
+                              </div>
+                              <div className="text-xs text-[var(--color-fg-mid)]">{stat.played} 场</div>
+                            </>
+                          );
+                        })() : (
+                          <span className="text-[var(--color-fg-dim)]">—</span>
                         )}
                       </td>
                       <td className="px-5 py-3 text-center">
                         {bpMatchCount > 0 ? (
                           <>
                             <div className="font-semibold text-[var(--color-fg)]">
-                              {pct(bans, bpMatchCount)}
+                              {pct(bans, bpMatchCount).text}
                             </div>
                             <div className="text-xs text-[var(--color-fg-mid)]">{bpMatchCount} 对局</div>
                           </>
                         ) : (
-                          <span className="text-[var(--color-fg-muted)]">—</span>
+                          <span className="text-[var(--color-fg-dim)]">—</span>
                         )}
                       </td>
                     </tr>
@@ -485,7 +493,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
                       <td className="px-5 py-3 text-center text-green-500">{h.wins}</td>
                       <td className="px-5 py-3 text-center text-red-500">{h.losses}</td>
                       <td className="px-5 py-3 text-right font-semibold text-[var(--color-fg)]">
-                        {pct(h.wins, h.wins + h.losses)}
+                        {pct(h.wins, h.wins + h.losses).text}
                       </td>
                     </tr>
                   );
