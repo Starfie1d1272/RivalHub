@@ -626,16 +626,18 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
           : "未排期"}
       </div>
 
-      {/* 赛季综合对比 */}
-      <TeamStatsCompare
-        teamAName={teamA?.name ?? "队伍 A"}
-        teamBName={teamB?.name ?? "队伍 B"}
-        statA={{ ...recordA, ...teamAvgA }}
-        statB={{ ...recordB, ...teamAvgB }}
-      />
+      {/* 赛季综合对比（赛前） */}
+      {!isFinished && (
+        <TeamStatsCompare
+          teamAName={teamA?.name ?? "队伍 A"}
+          teamBName={teamB?.name ?? "队伍 B"}
+          statA={{ ...recordA, ...teamAvgA }}
+          statB={{ ...recordB, ...teamAvgB }}
+        />
+      )}
 
-      {/* 地图池雷达图 */}
-      {mapPool.length > 0 && (
+      {/* 地图池雷达图（赛前） */}
+      {!isFinished && mapPool.length > 0 && (
         <Panel label="地图池">
           <MapPoolRadarChart
             mapPool={mapPool}
@@ -647,15 +649,17 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
         </Panel>
       )}
 
-      {/* 历史交锋 */}
-      <MatchHeadToHead
-        teamAName={teamA?.name ?? "队伍 A"}
-        teamBName={teamB?.name ?? "队伍 B"}
-        teamAWins={h2hWinsA}
-        teamBWins={h2hWinsB}
-        matches={h2hMatches}
-        seasonSlug={seasonSlug}
-      />
+      {/* 历史交锋（赛前） */}
+      {!isFinished && (
+        <MatchHeadToHead
+          teamAName={teamA?.name ?? "队伍 A"}
+          teamBName={teamB?.name ?? "队伍 B"}
+          teamAWins={h2hWinsA}
+          teamBWins={h2hWinsB}
+          matches={h2hMatches}
+          seasonSlug={seasonSlug}
+        />
+      )}
 
       {/* BP 流程（进行中 / 已结束时显示） */}
       {match.status !== "scheduled" && (
@@ -758,8 +762,8 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
         </section>
       ) : null}
 
-      {/* 阵容对比（双方名单提交后，有赛季数据时显示） */}
-      {showLineupsH2H && (
+      {/* 阵容对比（赛前，双方名单提交后且有赛季数据时显示） */}
+      {!isFinished && showLineupsH2H && (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold text-[var(--color-fg)]">阵容对比</h2>
           <MatchLineupsH2H

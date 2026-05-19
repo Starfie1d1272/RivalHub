@@ -183,14 +183,12 @@ export function MapPoolRadarChart({
           );
         })}
 
-        {/* Legend */}
-        <g transform="translate(272, 340)">
+        {/* Legend — 左下角横向排列，避免与雷达图重合 */}
+        <g transform="translate(14, 362)">
           <rect x={0} y={0} width={10} height={10} fill={A_FILL} stroke={A_STROKE} strokeWidth={1} />
           <text x={14} y={9} fontSize={10} fill="var(--color-fg-mid)">{teamAName}</text>
-        </g>
-        <g transform="translate(272, 356)">
-          <rect x={0} y={0} width={10} height={10} fill={B_FILL} stroke={B_STROKE} strokeWidth={1} />
-          <text x={14} y={9} fontSize={10} fill="var(--color-fg-mid)">{teamBName}</text>
+          <rect x={76} y={0} width={10} height={10} fill={B_FILL} stroke={B_STROKE} strokeWidth={1} />
+          <text x={90} y={9} fontSize={10} fill="var(--color-fg-mid)">{teamBName}</text>
         </g>
       </svg>
     </div>
