@@ -5,6 +5,15 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.19.2] - 2026-05-20
+
+### Fixed
+- **选手页与 H2H FKPR/CPR/KPR 口径统一**：选手页生涯总计从场均改为 per-round 率，与排行榜一致；MatchLineupsH2H FKPR 改为 ×100 显示
+
+### Changed
+- **六维雷达图权重优化**：每维主指标权重提升（FKPR 0.65 / MKPR 0.70 / CPR 0.70 / APR 0.45），少死分权重提升至 0.35
+- **Z-score 缩放系数调整**：乘数 15 → 22，拉开分数分布使顶尖选手能达到满分
+
 ## [1.19.1] - 2026-05-20
 
 ### Fixed
@@ -616,6 +625,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [1.6.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.4.0...v1.4.1
+[1.19.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.19.1...v1.19.2
 [1.19.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.19.0...v1.19.1
 [1.19.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.18.1...v1.19.0
 [1.18.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.18.0...v1.18.1
