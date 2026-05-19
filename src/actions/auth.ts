@@ -82,18 +82,23 @@ export async function signUp(
   const normalizedEmail = normalizeEmail(email);
 
   // Turnstile 验证码校验
-  if (turnstileToken) {
-    const verifyResult = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        secret: process.env.TURNSTILE_SECRET_KEY,
-        response: turnstileToken,
-      }),
-    });
-    const verifyData = await verifyResult.json() as { success: boolean };
-    if (!verifyData.success) {
-      return fail({ code: ErrorCode.VALIDATION_FAILED, message: "验证码校验失败，请刷新后重试" });
+  const secretKey = process.env.TURNSTILE_SECRET_KEY;
+  if (secretKey) {
+    if (!turnstileToken) {
+      return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请完成验证码校验" });
+    }
+    try {
+      const verifyResult = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ secret: secretKey, response: turnstileToken }),
+      });
+      const verifyData = await verifyResult.json() as { success: boolean };
+      if (!verifyData.success) {
+        return fail({ code: ErrorCode.VALIDATION_FAILED, message: "验证码校验失败，请刷新后重试" });
+      }
+    } catch {
+      return fail({ code: ErrorCode.INTERNAL_ERROR, message: "验证服务暂不可用，请稍后重试" });
     }
   }
 

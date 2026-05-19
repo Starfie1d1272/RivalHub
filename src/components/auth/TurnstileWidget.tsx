@@ -27,13 +27,17 @@ export function TurnstileWidget({ onVerify, onError }: TurnstileWidgetProps) {
   useEffect(() => { onErrorRef.current = onError; }, [onError]);
 
   const renderWidget = useCallback(() => {
-    if (ref.current && window.turnstile) {
-      widgetId.current = window.turnstile.render(ref.current, {
-        sitekey: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "",
-        callback: (token: string) => onVerifyRef.current(token),
-        "error-callback": () => onErrorRef.current?.(),
-      });
+    if (!ref.current || !window.turnstile) return;
+    const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+    if (!siteKey) {
+      onErrorRef.current?.();
+      return;
     }
+    widgetId.current = window.turnstile.render(ref.current, {
+      sitekey: siteKey,
+      callback: (token: string) => onVerifyRef.current(token),
+      "error-callback": () => onErrorRef.current?.(),
+    });
   }, []);
 
   useEffect(() => {
