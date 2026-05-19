@@ -34,11 +34,17 @@
   --color-fg-mid: #8e96a3;
   --color-fg-dim: #525a6a;
 
-  /* Accent */
+  /* Accent (team A) */
   --color-accent: #ff6b1a;
   --color-accent-soft: rgba(255, 107, 26, 0.12);
   --color-accent-edge: rgba(255, 107, 26, 0.34);
   --color-accent-fg: #0a0c10;
+
+  /* Accent B (team B / contrasting entity) */
+  --color-accent-b: #3aa1ff;
+  --color-accent-b-soft: rgba(58, 161, 255, 0.12);
+  --color-accent-b-edge: rgba(58, 161, 255, 0.34);
+  --color-accent-b-fg: #0a0c10;
 
   /* Status */
   --color-ok: #4dd47a;

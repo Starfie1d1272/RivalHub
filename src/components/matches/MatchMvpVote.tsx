@@ -180,7 +180,7 @@ export function MatchMvpVote({
         </span>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         {candidates.map((c) => {
           const v = optimisticVotes.find((x) => x.playerName === c.perfectName);
           const count = v?.count ?? 0;

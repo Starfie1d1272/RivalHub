@@ -15,14 +15,14 @@ export function InlineConfirm({
   onConfirm,
   onCancel,
 }: InlineConfirmProps) {
-  const c = danger ? "#ff5470" : "#ffc44d";
+  const c = danger ? "var(--color-danger)" : "var(--color-warn)";
   return (
     <div
       className="grid gap-3 items-center rounded-sm border px-4 py-3"
       style={{
         gridTemplateColumns: "1fr auto",
-        background: c + "0d",
-        borderColor: c + "55",
+        background: `color-mix(in srgb, ${c} 5%, transparent)`,
+        borderColor: `color-mix(in srgb, ${c} 33%, transparent)`,
         borderLeft: `3px solid ${c}`,
       }}
     >

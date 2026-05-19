@@ -1,16 +1,16 @@
 import type { SeasonStatus } from "@/types/season";
 
 const STATUS_CONFIG: Record<SeasonStatus | string, { color: string; label: string }> = {
-  draft:        { color: "#525a6a", label: "DRAFT" },
-  archived:     { color: "#525a6a", label: "ARCHIVED" },
-  live:         { color: "#ff5470", label: "● LIVE" },
-  finished:     { color: "#525a6a", label: "FT" },
-  scheduled:    { color: "#8e96a3", label: "UPCOMING" },
-  open:         { color: "#4dd47a", label: "● OPEN" },
-  registration: { color: "#4dd47a", label: "● OPEN" },
-  voting:       { color: "#ffc44d", label: "● VOTING" },
-  drafting:     { color: "#ff6b1a", label: "● DRAFTING" },
-  playing:      { color: "#4dd47a", label: "● PLAYING" },
+  draft:        { color: "var(--color-fg-dim)", label: "DRAFT" },
+  archived:     { color: "var(--color-fg-dim)", label: "ARCHIVED" },
+  live:         { color: "var(--color-danger)", label: "● LIVE" },
+  finished:     { color: "var(--color-fg-dim)", label: "FT" },
+  scheduled:    { color: "var(--color-fg-mid)", label: "UPCOMING" },
+  open:         { color: "var(--color-ok)", label: "● OPEN" },
+  registration: { color: "var(--color-ok)", label: "● OPEN" },
+  voting:       { color: "var(--color-warn)", label: "● VOTING" },
+  drafting:     { color: "var(--color-accent)", label: "● DRAFTING" },
+  playing:      { color: "var(--color-ok)", label: "● PLAYING" },
 };
 
 interface StatusPillProps {

@@ -210,41 +210,57 @@ src/
 │   ├── auth/callback # Supabase Auth 回调兼容入口（生产不依赖邮件确认）
 │   ├── admin/        # 管理员后台（rivalhub-session / rivalhub-admin 保护）
 │   └── api/cron/     # Cron API Route（当前由 GitHub Actions 触发）
-├── actions/          # Server Actions（所有业务逻辑入口）
-│   ├── account.ts    # 用户账号（修改密码、个人信息 updateProfile）
-│   ├── admin.ts      # 管理员操作（审核/邀请码/撤销权限）
-│   ├── auth.ts       # 邮箱+密码注册/登录/退出
-│   ├── captains.ts   # 队长投票
-│   ├── draft/        # 选秀（state / picks / queries）
-│   ├── matches/      # 赛程（schedule / results / roster）
-│   ├── register.ts   # 报名提交
-│   ├── seasons.ts    # 赛季 CRUD（create/update/delete/publish）
-│   └── teams.ts      # 队伍（修改队名/上传图标）
-├── db/
-│   ├── schema/       # Drizzle 表定义（18 张表）
-│   ├── client.ts     # Drizzle client 单例（pg Pool，错误处理 + 超时配置）
-│   └── seed.ts       # 种子数据（赛季 + 根管理员 RivalHub_root）
-├── lib/
-│   ├── auth/         # session.ts（双 Cookie iron-session）+ supabase.ts
-│   ├── bracket/      # brackets-manager 适配层（禁止绕过）
-│   ├── formats/       # StageExecutor 接口 + 赛制执行器（round-robin/double-elim/single-elim/swiss/gsl-group）+ _shared 工具
-│   ├── config/       # 共享常量配置（报名默认值/上传限制/密码约束/队伍配置）
-│   ├── realtime/     # Supabase Realtime 订阅辅助
-│   ├── validators/   # Zod schema（registration / vote / match）
-│   └── utils/        # date（UTC/CST）+ season（capability 工具）+ password（scrypt）+ cn
-├── components/
-│   ├── layout/       # Header / Footer
-│   ├── ui/           # shadcn 组件（按需 add，已覆盖 button/input/badge/card/skeleton/select）
-│   ├── rivalhub/     # Tactical Grid 组件（15 个：Panel/Btn/Field/Marker/Stat/MiniStat/
-│   │                 #   StatusBanner/InlineConfirm/EmptyState/ErrorState/Skeleton/Spinner/
-│   │                 #   TeamBadge/PosChip/StatusPill/ScrollHint）
-│   ├── settings/     # 用户设置组件（ProfileForm / ChangePasswordForm）
-│   ├── register/     # 报名业务组件
-│   ├── admin/        # 管理后台业务组件（AdminSidebar 侧边栏 + 统一 layout）
-│   ├── draft/        # 选秀业务组件
-│   ├── captains/     # 队长投票业务组件
-│   ├── teams/        # 队伍展示业务组件
-│   └── matches/      # 赛程 / bracket 业务组件
+│   ├── actions/          # Server Actions（所有业务逻辑入口）
+│   │   ├── account.ts    # 用户账号（修改密码、个人信息 updateProfile）
+│   │   ├── admin.ts      # 管理员操作（审核/邀请码/撤销权限）
+│   │   ├── audit.ts      # 审计日志查询（含 actor/target 可读名称解析）
+│   │   ├── auth.ts       # 邮箱+密码注册/登录/退出
+│   │   ├── captains.ts   # 队长投票
+│   │   ├── draft/        # 选秀（state / picks / queries）
+│   │   ├── matches/      # 赛程（schedule / results / roster / veto / scheduling / score）
+│   │   ├── player-stats.ts # 玩家数据（OCR 识别 / 保存 / 查询）
+│   │   ├── register.ts   # 报名提交
+│   │   ├── seasons.ts    # 赛季 CRUD（create/update/delete/publish）
+│   │   ├── transitions.ts # 赛季阶段自动推进
+│   │   └── teams.ts      # 队伍（修改队名/上传图标）
+│   ├── db/
+│   │   ├── schema/       # Drizzle 表定义（19 张表，含 match_veto_steps）
+│   │   ├── client.ts     # Drizzle client 单例（pg Pool，错误处理 + 超时配置）
+│   │   └── seed.ts       # 种子数据（赛季 + 根管理员 RivalHub_root）
+│   ├── lib/
+│   │   ├── auth/         # session.ts（双 Cookie iron-session）+ supabase.ts
+│   │   ├── bracket/      # brackets-manager 适配层（禁止绕过）
+│   │   ├── formats/       # StageExecutor 接口 + 赛制执行器（round-robin/double-elim/single-elim/swiss/gsl-group）+ _shared 工具
+│   │   ├── config/       # 共享常量配置（报名默认值/上传限制/密码约束/队伍配置）
+│   │   ├── realtime/     # Supabase Realtime 订阅辅助
+│   │   ├── validators/   # Zod schema（registration / vote / match）
+│   │   └── utils/        # date（UTC/CST）+ season（capability 工具）+ password（scrypt）+ cn
+│   ├── components/
+│   │   ├── layout/       # Header / Footer / AdminShortcut / HeaderClient / SeasonNav / Breadcrumb / OnlineCounter
+│   │   ├── ui/           # shadcn 组件（按需 add，已覆盖 button/input/badge/card/skeleton/select/dialog/tabs/table/textarea）
+│   │   ├── rivalhub/     # Tactical Grid 组件（16 个：Panel/Btn/Field/Marker/Stat/
+│   │   │                 #   StatusBanner/InlineConfirm/EmptyState/ErrorState/Skeleton/
+│   │   │                 #   TeamBadge/PosChip/StatusPill/ScrollHint/PhaseStep/MapPreferenceChips）
+│   │   ├── auth/         # 登录/邀请组件（2 个：LoginForm / ClaimInviteForm）
+│   │   ├── settings/     # 用户设置组件（ProfileForm / ChangePasswordForm）
+│   │   ├── register/     # 报名组件（RegistrationForm）
+│   │   ├── admin/        # 管理后台组件（14 个：AdminLoginForm / AdminRegisterForm / AdminSidebar /
+│   │   │                 #   AdminUserList / AuditLogTable / ChangePasswordForm / DraftRegistrationTable /
+│   │   │                 #   InviteManager / RegistrationReviewList / SeasonForm / SeasonSubNav /
+│   │   │                 #   StagePlanEditor / TeamConfigForm / ThemeColorPicker）
+│   │   ├── draft/        # 选秀组件（7 个：CaptainDraftPanel / DraftAdminPanel / DraftCountdown /
+│   │   │                 #   DraftLiveRoom / PlayerInfoPopover / PlayerPool / TeamDraftGrid）
+│   │   ├── captains/     # 队长投票组件（2 个：CaptainConfirmPanel / CaptainVotingPanel）
+│   │   ├── teams/        # 队伍组件（5 个：TeamCard / TeamGrid / TeamLogoUpload / TeamNameForm / TeamRosterCard）
+│   │   └── matches/      # 赛程组件（28 个：MatchCard / MatchTeamFilter / CreateMatchForm /
+│   │                     #   AdminMatchFilter / AdminMatchRow / AdminRosterDialog / BatchDeadlineCard / BracketView /
+│   │                     #   DeleteMatchButton / GeneratePlayoffCard / GenerateScheduleCard /
+│   │                     #   MapByMapInput / MatchMvpVote / MatchRosterForm / MatchRosterView /
+│   │                     #   MatchStatusBadge / MatchTabsSection / MatchTimeNegotiation /
+│   │                     #   PlayerStatsTable / ScheduledAtInput / ScoreInput / StandingsTable /
+│   │                     #   StatsLeaderboard / StatsOCRPanel / SwissBracket / TimeProposalHistory /
+│   │                     #   VetoInputDialog / VetoView）
+│   └── types/            # 共享 TypeScript 类型
 └── types/            # 共享 TypeScript 类型
 ```
 

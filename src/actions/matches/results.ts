@@ -668,3 +668,49 @@ export async function deleteMatch(matchId: string): Promise<ActionResult<void>> 
     return actionError("deleteMatch", e);
   }
 }
+
+// ── 修改完成时间 ──────────────────────────────────────────────────────────
+
+/**
+ * 更新已完成比赛的 completed_at 时间戳。
+ * 仅允许 status === "finished" 的比赛修改。
+ */
+export async function updateMatchCompletedAt(
+  matchId: string,
+  completedAtStr: string | null,
+): Promise<ActionResult<void>> {
+  try {
+    const match = await getMatchOrThrow(matchId);
+    const session = await requireSeasonAdmin(match.seasonId);
+
+    if (match.status !== "finished") {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "只有已完成的比赛才能修改完成时间");
+    }
+
+    const { parseCSTInput } = await import("@/lib/utils/date");
+    const completedAt = parseCSTInput(completedAtStr);
+
+    const season = await getSeasonOrThrow(match.seasonId);
+
+    await db.transaction(async (tx) => {
+      await tx
+        .update(matches)
+        .set({ completedAt, updatedAt: new Date() })
+        .where(eq(matches.id, matchId));
+
+      await tx.insert(auditLogs).values({
+        seasonId: match.seasonId,
+        action: "update_match_completed_at",
+        actorId: auditActorId(session),
+        targetId: matchId,
+        targetType: "match",
+        meta: { completedAt: completedAt?.toISOString() ?? null },
+      });
+    });
+
+    revalidateMatchPaths(season.slug, matchId);
+    return ok(undefined);
+  } catch (e) {
+    return actionError("updateMatchCompletedAt", e);
+  }
+}

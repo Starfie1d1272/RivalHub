@@ -30,14 +30,23 @@
 | `--color-fg-mid` | `#8e96a3` | 辅助说明、元信息 |
 | `--color-fg-dim` | `#525a6a` | 占位符、禁用态、标签 |
 
-### 强调色（Accent）
+### 强调色（Accent A / 团队 A）
 
 | Token | 值 | 用途 |
 |---|---|---|
-| `--color-accent` | `#ff6b1a` | 主 CTA、当前状态、高亮 |
+| `--color-accent` | `#ff6b1a` | 主 CTA、当前状态、高亮、团队 A primary |
 | `--color-accent-soft` | `rgba(255,107,26,0.12)` | 浅底色背景 |
 | `--color-accent-edge` | `rgba(255,107,26,0.34)` | 边框高亮 |
 | `--color-accent-fg` | `#0a0c10` | accent 背景上的文字色 |
+
+### 强调色（Accent B / 团队 B）
+
+| Token | 值 | 用途 |
+|---|---|---|
+| `--color-accent-b` | `#3aa1ff` | 团队 B primary、对比实体 |
+| `--color-accent-b-soft` | `rgba(58,161,255,0.12)` | 浅底色背景 |
+| `--color-accent-b-edge` | `rgba(58,161,255,0.34)` | 边框高亮 |
+| `--color-accent-b-fg` | `#0a0c10` | accent-b 背景上的文字色 |
 
 ### 语义色
 

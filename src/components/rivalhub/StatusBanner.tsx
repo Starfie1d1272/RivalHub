@@ -1,11 +1,11 @@
 type Tone = "info" | "success" | "warn" | "error" | "live";
 
 const TONE_CONFIG: Record<Tone, { color: string; glyph: string }> = {
-  info:    { color: "#ff6b1a", glyph: "●" },
-  success: { color: "#4dd47a", glyph: "✓" },
-  warn:    { color: "#ffc44d", glyph: "▲" },
-  error:   { color: "#ff5470", glyph: "✕" },
-  live:    { color: "#ff5470", glyph: "●" },
+  info:    { color: "var(--color-accent)", glyph: "●" },
+  success: { color: "var(--color-ok)", glyph: "✓" },
+  warn:    { color: "var(--color-warn)", glyph: "▲" },
+  error:   { color: "var(--color-danger)", glyph: "✕" },
+  live:    { color: "var(--color-danger)", glyph: "●" },
 };
 
 interface StatusBannerProps {
@@ -23,15 +23,15 @@ export function StatusBanner({
   action,
   onDismiss,
 }: StatusBannerProps) {
-  const config = TONE_CONFIG[tone];
+  const c = TONE_CONFIG[tone].color;
   return (
     <div
       className="grid gap-3.5 items-center rounded-sm border px-4 py-2.5"
       style={{
         gridTemplateColumns: "auto 1fr auto auto",
-        background: config.color + "10",
-        borderColor: config.color + "55",
-        borderLeft: `3px solid ${config.color}`,
+        background: `color-mix(in srgb, ${c} 6%, transparent)`,
+        borderColor: `color-mix(in srgb, ${c} 33%, transparent)`,
+        borderLeft: `3px solid ${c}`,
       }}
     >
       <div
@@ -39,15 +39,15 @@ export function StatusBanner({
         style={{
           width: 22,
           height: 22,
-          color: config.color,
-          borderColor: config.color + "55",
-          border: `1px solid ${config.color}55`,
-          background: config.color + "1f",
+          color: c,
+          borderColor: `color-mix(in srgb, ${c} 33%, transparent)`,
+          border: `1px solid color-mix(in srgb, ${c} 33%, transparent)`,
+          background: `color-mix(in srgb, ${c} 12%, transparent)`,
           fontFamily: "var(--font-mono)",
           fontSize: 11,
         }}
       >
-        {config.glyph}
+        {TONE_CONFIG[tone].glyph}
       </div>
       <div className="min-w-0">
         <div

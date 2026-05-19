@@ -73,14 +73,14 @@ export async function getTeamMapWinStats(
   return mapStats;
 }
 
-/** Ban 统计：返回每图 ban 次数 + 参与 BP 的对局总数（ban 率分母） */
-export async function getTeamBanStats(
+async function getTeamVetoActionStats(
   teamId: string,
   matchIds: string[],
-): Promise<{ banCount: Map<string, number>; bpMatchCount: number }> {
-  if (!matchIds.length) return { banCount: new Map(), bpMatchCount: 0 };
+  actionType: "ban" | "pick",
+): Promise<{ count: Map<string, number>; bpMatchCount: number }> {
+  if (!matchIds.length) return { count: new Map(), bpMatchCount: 0 };
 
-  const [bpMatches, bans] = await Promise.all([
+  const [bpMatches, actions] = await Promise.all([
     db
       .selectDistinct({ matchId: matchVetoSteps.matchId })
       .from(matchVetoSteps)
@@ -91,16 +91,34 @@ export async function getTeamBanStats(
       .where(
         and(
           inArray(matchVetoSteps.matchId, matchIds),
-          eq(matchVetoSteps.actionType, "ban"),
+          eq(matchVetoSteps.actionType, actionType),
           eq(matchVetoSteps.teamId, teamId),
         ),
       ),
   ]);
 
-  const banCount = new Map<string, number>();
-  for (const b of bans) {
-    banCount.set(b.mapName, (banCount.get(b.mapName) ?? 0) + 1);
+  const count = new Map<string, number>();
+  for (const a of actions) {
+    count.set(a.mapName, (count.get(a.mapName) ?? 0) + 1);
   }
 
-  return { banCount, bpMatchCount: bpMatches.length };
+  return { count, bpMatchCount: bpMatches.length };
+}
+
+/** Ban 统计：返回每图 ban 次数 + 参与 BP 的对局总数（ban 率分母） */
+export async function getTeamBanStats(
+  teamId: string,
+  matchIds: string[],
+): Promise<{ banCount: Map<string, number>; bpMatchCount: number }> {
+  const { count, bpMatchCount } = await getTeamVetoActionStats(teamId, matchIds, "ban");
+  return { banCount: count, bpMatchCount };
+}
+
+/** Pick 统计：返回每图 pick 次数 + 参与 BP 的对局总数（pick 率分母） */
+export async function getTeamPickStats(
+  teamId: string,
+  matchIds: string[],
+): Promise<{ pickCount: Map<string, number>; bpMatchCount: number }> {
+  const { count, bpMatchCount } = await getTeamVetoActionStats(teamId, matchIds, "pick");
+  return { pickCount: count, bpMatchCount };
 }

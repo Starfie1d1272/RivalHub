@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import { eq, or, and, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons, teams, teamMembers, seasonRegistrations, users, matches } from "@/db/schema";
-import { matchPlayerStats } from "@/db/schema/player-stats";
 import { Panel, Stat, Marker, PosChip, Btn } from "@/components/rivalhub";
 import { MatchCard } from "@/components/matches/MatchCard";
 import { MapPreferenceChips } from "@/components/rivalhub/MapPreferenceChips";
@@ -99,7 +98,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
     });
   const subs = roster.filter((r) => !r.isStarter);
 
-  // 对手队名（包含已完成和即将进行的比赛对手）
+  // 对手队名
   const opponentIds = [
     ...new Set([
       ...teamMatches.map((m) => (m.teamAId === teamId ? m.teamBId : m.teamAId)),
@@ -107,13 +106,11 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
     ]),
   ];
   const opponentTeams = opponentIds.length
-    ? await db.query.teams.findMany({
-        where: inArray(teams.id, opponentIds),
-      })
+    ? await db.query.teams.findMany({ where: inArray(teams.id, opponentIds) })
     : [];
   const teamNameMap = new Map(opponentTeams.map((t) => [t.id, t]));
 
-  // 整体胜负统计
+  // 整体胜负
   let totalWins = 0;
   let totalLosses = 0;
   for (const m of teamMatches) {
@@ -123,17 +120,19 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
     if (myScore > oppScore) totalWins++;
     else totalLosses++;
   }
+  const played = totalWins + totalLosses;
+  const winRate = played > 0 ? `${Math.round((totalWins / played) * 100)}%` : "—";
 
   const seasonMapPool = normalizeRegistrationConfig(season.registrationConfig).mapPool;
 
-  // ── 地图表现统计 ──────────────────────────────────────────────────────────
+  // 地图表现统计
   const matchIds = teamMatches.map((m) => m.id);
   const [mapStats, { banCount, bpMatchCount }] = await Promise.all([
     getTeamMapWinStats(teamId, teamMatches),
     getTeamBanStats(teamId, matchIds),
   ]);
 
-  // ── 历史对阵（按对手分组） ─────────────────────────────────────────────
+  // 历史对阵（按对手分组）
   interface HeadToHead { opponentId: string; wins: number; losses: number }
   const h2hMap = new Map<string, HeadToHead>();
   for (const m of teamMatches) {
@@ -150,81 +149,74 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
   }
   const h2hList = [...h2hMap.values()].sort((a, b) => b.wins + b.losses - (a.wins + a.losses));
 
-  const played = totalWins + totalLosses;
-
-  // ── 队伍聚合统计 ──────────────────────────────────────────────────
+  // 队伍 + 选手统计（每人聚合，用于阵容内联和队伍均值）
   const teamStatResult = roster.length
     ? await db.execute(sql`
         SELECT
-          round(avg(mps.rating_pro)::numeric, 2) as avg_rating,
-          round(avg(mps.adr)::numeric, 1) as avg_adr,
-          round(avg(mps.kills)::numeric, 1) as avg_kills,
-          round(avg(mps.deaths)::numeric, 1) as avg_deaths,
-          round(avg(mps.we)::numeric, 1) as avg_we,
-          sr.primary_position,
-          mps.perfect_name,
-          mps.rating_pro,
-          mps.user_id
+          mps.user_id,
+          count(*)::int                                                      AS maps,
+          round(avg(mps.rating_pro)::numeric, 2)                            AS avg_rating,
+          round(avg(mps.adr)::numeric, 1)                                   AS avg_adr,
+          round(avg(mps.we)::numeric, 1)                                    AS avg_we,
+          sum(mps.kills)::int                                                AS total_kills,
+          sum(mps.deaths)::int                                               AS total_deaths,
+          CASE WHEN sum(mps.deaths) > 0
+            THEN round(sum(mps.kills)::numeric / sum(mps.deaths), 2)
+            ELSE NULL END                                                    AS kd_ratio
         FROM match_player_stats mps
         JOIN season_registrations sr ON sr.user_id = mps.user_id AND sr.season_id = ${season.id}
         JOIN team_members tm ON tm.registration_id = sr.id
         WHERE tm.team_id = ${teamId}
           AND mps.verified_by_admin IS NOT NULL
-        GROUP BY sr.primary_position, mps.perfect_name, mps.rating_pro, mps.user_id
+        GROUP BY mps.user_id
       `)
     : null;
 
-  const teamStatRows: Record<string, unknown>[] = teamStatResult?.rows ?? [];
-
   interface TeamStatRow {
+    user_id: string | null;
+    maps: number;
     avg_rating: number;
     avg_adr: number;
-    avg_kills: number;
-    avg_deaths: number;
     avg_we: number;
-    primary_position: string;
-    perfect_name: string;
-    rating_pro: number;
-    user_id?: string | null;
+    total_kills: number;
+    total_deaths: number;
+    kd_ratio: number | null;
   }
+  const typedStats = (teamStatResult?.rows ?? []) as unknown as TeamStatRow[];
 
-  const typedStats = teamStatRows as unknown as TeamStatRow[];
-
-  const teamAvgRating =
-    typedStats.length > 0
-      ? (typedStats.reduce((s, r) => s + Number(r.avg_rating), 0) / typedStats.length).toFixed(2)
-      : null;
-  const teamAvgAdr =
-    typedStats.length > 0
-      ? (typedStats.reduce((s, r) => s + Number(r.avg_adr), 0) / typedStats.length).toFixed(1)
-      : null;
-  const teamAvgKd =
-    typedStats.length > 0
-      ? (() => {
-          const k = typedStats.reduce((s, r) => s + Number(r.avg_kills), 0);
-          const d = typedStats.reduce((s, r) => s + Number(r.avg_deaths), 0);
-          return d > 0 ? (k / d).toFixed(2) : null;
-        })()
-      : null;
-  const teamAvgWe =
-    typedStats.length > 0
-      ? (typedStats.reduce((s, r) => s + Number(r.avg_we), 0) / typedStats.length).toFixed(1)
-      : null;
-
-  // 每位置最高 Rating 选手
-  const positionBest = new Map<string, { name: string; rating: number; userId?: string | null }>();
+  // 选手数据 map（用于阵容内联显示）
+  interface PlayerStats { maps: number; avgRating: number; avgAdr: number; kdRatio: number | null }
+  const playerStatsMap = new Map<string, PlayerStats>();
   for (const r of typedStats) {
-    const pos = r.primary_position;
-    const existing = positionBest.get(pos);
-    if (!existing || Number(r.rating_pro) > existing.rating) {
-      positionBest.set(pos, { name: r.perfect_name, rating: Number(r.rating_pro), userId: r.user_id });
+    if (r.user_id) {
+      playerStatsMap.set(r.user_id as string, {
+        maps: Number(r.maps),
+        avgRating: Number(r.avg_rating),
+        avgAdr: Number(r.avg_adr),
+        kdRatio: r.kd_ratio != null ? Number(r.kd_ratio) : null,
+      });
     }
   }
+
+  // 队伍均值（K/D 用总杀/总死，避免平均的平均）
+  const hasStats = typedStats.length > 0;
+  const teamAvgRating = hasStats
+    ? (typedStats.reduce((s, r) => s + Number(r.avg_rating), 0) / typedStats.length).toFixed(2)
+    : null;
+  const teamAvgAdr = hasStats
+    ? (typedStats.reduce((s, r) => s + Number(r.avg_adr), 0) / typedStats.length).toFixed(1)
+    : null;
+  const totalK = typedStats.reduce((s, r) => s + Number(r.total_kills), 0);
+  const totalD = typedStats.reduce((s, r) => s + Number(r.total_deaths), 0);
+  const teamAvgKd = totalD > 0 ? (totalK / totalD).toFixed(2) : null;
+  const teamAvgWe = hasStats
+    ? (typedStats.reduce((s, r) => s + Number(r.avg_we), 0) / typedStats.length).toFixed(1)
+    : null;
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-4xl space-y-10">
 
-      {/* 队伍标题 */}
+      {/* 1. 队伍标题 */}
       <div className="flex items-start gap-5">
         <div className="flex flex-col items-center gap-2">
           <TeamLogoUpload
@@ -235,9 +227,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
           />
           {isAdmin && team.logoUrl && (
             <Btn small ghost asChild>
-              <a href={team.logoUrl} target="_blank" rel="noopener noreferrer">
-                下载头像
-              </a>
+              <a href={team.logoUrl} target="_blank" rel="noopener noreferrer">下载头像</a>
             </Btn>
           )}
         </div>
@@ -256,68 +246,212 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
         </div>
       </div>
 
-      {/* 整体战绩 */}
-      <div className="grid grid-cols-3 gap-3 sm:gap-4">
+      {/* 2. 综合数据：战绩 + 均值合并为 2×4 grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         <Stat label="出场" value={played} />
         <Stat label="胜" value={totalWins} />
         <Stat label="负" value={totalLosses} />
+        <Stat label="胜率" value={winRate} />
+        {teamAvgRating && (
+          <>
+            <Stat label="场均 Rating" value={teamAvgRating} accent />
+            <Stat label="场均 ADR" value={teamAvgAdr ?? "—"} accent />
+            <Stat label="场均 K/D" value={teamAvgKd ?? "—"} accent />
+            <Stat label="场均 WE" value={teamAvgWe ?? "—"} accent />
+          </>
+        )}
       </div>
 
-      {/* 阵容 */}
+      {/* 3. 阵容（首发 + 替补，均显示数据和地图偏好） */}
       <section>
         <Panel label="阵容" pad={20}>
-          <div className="space-y-3">
-            {starters.map((p) => (
-              <div key={p.registrationId} className="flex items-center justify-between gap-2 hover:bg-[var(--color-panel-hi)] transition-colors rounded px-2 -mx-2">
-                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                  {p.registrationId === team.captainRegistrationId && (
-                    <PosChip pos="C" small />
-                  )}
-                  {p.userId ? (
-                    <Link href={`/players/${p.userId}`} className="font-medium text-[var(--color-fg)] truncate text-sm sm:text-base hover:text-[var(--color-accent)] transition-colors">
-                      {getDisplayName(p)}
-                    </Link>
-                  ) : (
-                    <span className="font-medium text-[var(--color-fg)] truncate text-sm sm:text-base">
-                      {getDisplayName(p)}
-                    </span>
-                  )}
-                </div>
-                <div className="text-right shrink-0">
-                  <span className="text-xs sm:text-sm text-[var(--color-fg-mid)]">
-                    {POSITION_LABELS[p.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? p.primaryPosition}
-                  </span>
-                  <div className="mt-1 flex justify-end">
-                    <MapPreferenceChips preferences={p.mapPreferences ?? []} compact minLevel="playable" />
+          <div className="divide-y divide-[var(--color-border)]">
+            {starters.map((p) => {
+              const stats = p.userId ? playerStatsMap.get(p.userId) : undefined;
+              return (
+                <div key={p.registrationId} className="py-2.5 px-2 -mx-2 hover:bg-[var(--color-panel-hi)] transition-colors rounded">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        {p.registrationId === team.captainRegistrationId && <PosChip pos="C" small />}
+                        {p.userId ? (
+                          <Link href={`/players/${p.userId}`} className="font-medium text-sm sm:text-base text-[var(--color-fg)] truncate hover:text-[var(--color-accent)] transition-colors">
+                            {getDisplayName(p)}
+                          </Link>
+                        ) : (
+                          <span className="font-medium text-sm sm:text-base text-[var(--color-fg)] truncate">
+                            {getDisplayName(p)}
+                          </span>
+                        )}
+                      </div>
+                      {stats && (
+                        <div className="flex items-center gap-2 mt-0.5 text-[11px] text-[var(--color-fg-mid)] tabular-nums">
+                          <span>{stats.maps}图</span>
+                          <span className="text-[var(--color-fg-dim)]">·</span>
+                          <span style={stats.avgRating >= 1.2 ? { color: "var(--color-accent)" } : undefined}>
+                            {stats.avgRating.toFixed(2)} RT
+                          </span>
+                          <span className="text-[var(--color-fg-dim)]">·</span>
+                          <span>{stats.avgAdr.toFixed(1)} ADR</span>
+                          <span className="text-[var(--color-fg-dim)]">·</span>
+                          <span>{stats.kdRatio != null ? stats.kdRatio.toFixed(2) : "—"} K/D</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="text-xs text-[var(--color-fg-mid)]">
+                        {POSITION_LABELS[p.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? p.primaryPosition}
+                      </span>
+                      <div className="mt-1 flex justify-end">
+                        <MapPreferenceChips preferences={p.mapPreferences ?? []} compact minLevel="playable" />
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             {subs.length > 0 && (
-              <div className="border-t border-[var(--color-border)] pt-3 space-y-2">
-                <p className="text-xs text-[var(--color-fg-mid)] font-medium uppercase tracking-wide">替补</p>
-                {subs.map((p) => (
-                  <div key={p.registrationId} className="flex items-center justify-between gap-2 opacity-70 hover:bg-[var(--color-panel-hi)] transition-colors rounded px-2 -mx-2">
-                    {p.userId ? (
-                      <Link href={`/players/${p.userId}`} className="text-sm text-[var(--color-fg)] truncate hover:text-[var(--color-accent)] transition-colors">
-                        {getDisplayName(p)}
-                      </Link>
-                    ) : (
-                      <span className="text-sm text-[var(--color-fg)] truncate">{getDisplayName(p)}</span>
-                    )}
-                    <span className="text-xs text-[var(--color-fg-mid)] shrink-0">
-                      {POSITION_LABELS[p.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? p.primaryPosition}
-                    </span>
-                  </div>
-                ))}
-              </div>
+              <>
+                <div className="pt-3 pb-1">
+                  <p className="text-xs text-[var(--color-fg-mid)] font-medium uppercase tracking-wide">替补</p>
+                </div>
+                {subs.map((p) => {
+                  const stats = p.userId ? playerStatsMap.get(p.userId) : undefined;
+                  return (
+                    <div key={p.registrationId} className="py-2.5 px-2 -mx-2 opacity-70 hover:bg-[var(--color-panel-hi)] transition-colors rounded">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            {p.userId ? (
+                              <Link href={`/players/${p.userId}`} className="text-sm text-[var(--color-fg)] truncate hover:text-[var(--color-accent)] transition-colors">
+                                {getDisplayName(p)}
+                              </Link>
+                            ) : (
+                              <span className="text-sm text-[var(--color-fg)] truncate">{getDisplayName(p)}</span>
+                            )}
+                          </div>
+                          {stats && (
+                            <div className="flex items-center gap-2 mt-0.5 text-[11px] text-[var(--color-fg-mid)] tabular-nums">
+                              <span>{stats.maps}图</span>
+                              <span className="text-[var(--color-fg-dim)]">·</span>
+                              <span style={stats.avgRating >= 1.2 ? { color: "var(--color-accent)" } : undefined}>
+                                {stats.avgRating.toFixed(2)} RT
+                              </span>
+                              <span className="text-[var(--color-fg-dim)]">·</span>
+                              <span>{stats.avgAdr.toFixed(1)} ADR</span>
+                              <span className="text-[var(--color-fg-dim)]">·</span>
+                              <span>{stats.kdRatio != null ? stats.kdRatio.toFixed(2) : "—"} K/D</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="text-xs text-[var(--color-fg-mid)]">
+                            {POSITION_LABELS[p.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? p.primaryPosition}
+                          </span>
+                          <div className="mt-1 flex justify-end">
+                            <MapPreferenceChips preferences={p.mapPreferences ?? []} compact minLevel="playable" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
             )}
           </div>
         </Panel>
       </section>
 
-      {/* 即将进行的比赛 */}
+      {/* 4. 地图表现 */}
+      <section>
+        <Panel pad={0} className="overflow-hidden" label="地图表现">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[340px]">
+              <thead>
+                <tr className="border-b border-[var(--color-border)] text-[var(--color-fg-mid)] text-xs uppercase tracking-wide">
+                  <th className="px-5 py-3 text-left font-medium">地图</th>
+                  <th className="px-5 py-3 text-center font-medium">胜率</th>
+                  <th className="px-5 py-3 text-center font-medium">ban 率</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--color-border)]">
+                {seasonMapPool.map((mapName) => {
+                  const stat = mapStats.get(mapName);
+                  const bans = banCount.get(mapName) ?? 0;
+                  return (
+                    <tr key={mapName}>
+                      <td className="px-5 py-3 font-medium text-[var(--color-fg)]">{mapLabel(mapName)}</td>
+                      <td className="px-5 py-3 text-center">
+                        {stat !== undefined ? (() => {
+                          const wr = pct(stat.wins, stat.played);
+                          return (
+                            <>
+                              <div className="font-semibold" style={{ color: wr.color }}>{wr.text}</div>
+                              <div className="text-xs text-[var(--color-fg-mid)]">{stat.played} 场</div>
+                            </>
+                          );
+                        })() : <span className="text-[var(--color-fg-dim)]">—</span>}
+                      </td>
+                      <td className="px-5 py-3 text-center">
+                        {bpMatchCount > 0 ? (
+                          <>
+                            <div className="font-semibold text-[var(--color-fg)]">{pct(bans, bpMatchCount).text}</div>
+                            <div className="text-xs text-[var(--color-fg-mid)]">{bpMatchCount} 对局</div>
+                          </>
+                        ) : <span className="text-[var(--color-fg-dim)]">—</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+      </section>
+
+      {/* 5. 历史对阵 */}
+      {h2hList.length > 0 && (
+        <section>
+          <Panel pad={0} className="overflow-hidden" label="历史对阵">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[320px]">
+                <thead>
+                  <tr className="border-b border-[var(--color-border)] text-[var(--color-fg-mid)] text-xs uppercase tracking-wide">
+                    <th className="px-5 py-3 text-left font-medium">对手</th>
+                    <th className="px-5 py-3 text-center font-medium">胜</th>
+                    <th className="px-5 py-3 text-center font-medium">负</th>
+                    <th className="px-5 py-3 text-right font-medium">胜率</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--color-border)]">
+                  {h2hList.map((h) => {
+                    const opp = teamNameMap.get(h.opponentId);
+                    return (
+                      <tr key={h.opponentId}>
+                        <td className="px-5 py-3 font-medium text-[var(--color-fg)]">
+                          {opp ? (
+                            <Link href={`/${seasonSlug}/teams/${opp.id}`} className="hover:underline hover:text-[var(--color-accent)]">
+                              {opp.name}
+                            </Link>
+                          ) : "未知队伍"}
+                        </td>
+                        <td className="px-5 py-3 text-center text-[var(--color-ok)]">{h.wins}</td>
+                        <td className="px-5 py-3 text-center text-[var(--color-danger)]">{h.losses}</td>
+                        <td className="px-5 py-3 text-right font-semibold text-[var(--color-fg)]">
+                          {pct(h.wins, h.wins + h.losses).text}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
+        </section>
+      )}
+
+      {/* 6. 即将进行的比赛 */}
       {upcomingMatches.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold text-[var(--color-fg)]">即将进行的比赛</h2>
@@ -345,7 +479,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
         </section>
       )}
 
-      {/* 历史战绩 */}
+      {/* 7. 历史战绩 */}
       {teamMatches.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold text-[var(--color-fg)]">历史战绩</h2>
@@ -379,7 +513,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
         </section>
       )}
 
-      {/* 队内联系方式（仅同队成员可见） */}
+      {/* 8. 队内联系方式（仅同队成员可见） */}
       {isTeamMember && (
         <section>
           <Panel label="队内联系方式" pad={20}>
@@ -392,9 +526,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
                       {getDisplayName(p)}
                     </Link>
                   ) : (
-                    <span className="text-sm font-medium text-[var(--color-fg)]">
-                      {getDisplayName(p)}
-                    </span>
+                    <span className="text-sm font-medium text-[var(--color-fg)]">{getDisplayName(p)}</span>
                   )}
                   <div className="flex items-center gap-4 text-sm text-[var(--color-fg-mid)]">
                     {p.qq && <span>QQ: {p.qq}</span>}
@@ -407,150 +539,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
         </section>
       )}
 
-      {/* 队伍数据 */}
-      {teamAvgRating && (
-        <section>
-          <Panel label="队伍数据" pad={20}>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-                <Stat label="场均 Rating" value={teamAvgRating ?? "—"} accent />
-                <Stat label="场均 ADR" value={teamAvgAdr ?? "—"} accent />
-                <Stat label="场均 K/D" value={teamAvgKd ?? "—"} accent />
-                <Stat label="场均 WE" value={teamAvgWe ?? "—"} accent />
-              </div>
-              {positionBest.size > 0 && (
-                <div className="text-[11px] text-[var(--color-fg-dim)] border-t border-[var(--color-border)] pt-3">
-                  {[...positionBest.entries()]
-                    .map(([pos, info], i) => {
-                      const label =
-                        POSITION_LABELS[pos as keyof typeof POSITION_LABELS]?.cn ?? pos;
-                      return (
-                        <span key={pos}>
-                          {i > 0 && " · "}
-                          {label}{" "}
-                          {info.userId ? (
-                            <Link href={`/players/${info.userId}`} className="hover:text-[var(--color-accent)] transition-colors">
-                              {info.name}
-                            </Link>
-                          ) : (
-                            info.name
-                          )}
-                          {" "}({info.rating.toFixed(2)})
-                        </span>
-                      );
-                    })}
-                </div>
-              )}
-            </div>
-          </Panel>
-        </section>
-      )}
-
-      {/* 地图表现 */}
-      <section>
-        <Panel pad={0} className="overflow-hidden" label="地图表现">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[340px]">
-              <thead>
-                <tr className="border-b border-[var(--color-border)] text-[var(--color-fg-mid)] text-xs uppercase tracking-wide">
-                  <th className="px-5 py-3 text-left font-medium">地图</th>
-                  <th className="px-5 py-3 text-center font-medium">胜率</th>
-                  <th className="px-5 py-3 text-center font-medium">ban 率</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--color-border)]">
-                {seasonMapPool.map((mapName) => {
-                  const stat = mapStats.get(mapName);
-                  const bans = banCount.get(mapName) ?? 0;
-                  return (
-                    <tr key={mapName}>
-                      <td className="px-5 py-3 font-medium text-[var(--color-fg)]">
-                        {mapLabel(mapName)}
-                      </td>
-                      <td className="px-5 py-3 text-center">
-                        {stat !== undefined ? (() => {
-                          const wr = pct(stat.wins, stat.played);
-                          return (
-                            <>
-                              <div
-                                className="font-semibold"
-                                style={{ color: wr.color }}
-                              >
-                                {wr.text}
-                              </div>
-                              <div className="text-xs text-[var(--color-fg-mid)]">{stat.played} 场</div>
-                            </>
-                          );
-                        })() : (
-                          <span className="text-[var(--color-fg-dim)]">—</span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3 text-center">
-                        {bpMatchCount > 0 ? (
-                          <>
-                            <div className="font-semibold text-[var(--color-fg)]">
-                              {pct(bans, bpMatchCount).text}
-                            </div>
-                            <div className="text-xs text-[var(--color-fg-mid)]">{bpMatchCount} 对局</div>
-                          </>
-                        ) : (
-                          <span className="text-[var(--color-fg-dim)]">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </Panel>
-      </section>
-
-      {/* 历史对阵 */}
-      {h2hList.length > 0 && (
-        <section>
-          <Panel pad={0} className="overflow-hidden" label="历史对阵">
-            <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[320px]">
-              <thead>
-                <tr className="border-b border-[var(--color-border)] text-[var(--color-fg-mid)] text-xs uppercase tracking-wide">
-                  <th className="px-5 py-3 text-left font-medium">对手</th>
-                  <th className="px-5 py-3 text-center font-medium">胜</th>
-                  <th className="px-5 py-3 text-center font-medium">负</th>
-                  <th className="px-5 py-3 text-right font-medium">胜率</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--color-border)]">
-                {h2hList.map((h) => {
-                  const opp = teamNameMap.get(h.opponentId);
-                  return (
-                    <tr key={h.opponentId}>
-                      <td className="px-5 py-3 font-medium text-[var(--color-fg)]">
-                        {opp ? (
-                          <Link
-                            href={`/${seasonSlug}/teams/${opp.id}`}
-                            className="hover:underline hover:text-[var(--color-accent)]"
-                          >
-                            {opp.name}
-                          </Link>
-                        ) : "未知队伍"}
-                      </td>
-                      <td className="px-5 py-3 text-center text-[var(--color-ok)]">{h.wins}</td>
-                      <td className="px-5 py-3 text-center text-[var(--color-danger)]">{h.losses}</td>
-                      <td className="px-5 py-3 text-right font-semibold text-[var(--color-fg)]">
-                        {pct(h.wins, h.wins + h.losses).text}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            </div>
-          </Panel>
-        </section>
-      )}
-
-      {/* 无赛果时的空态 */}
+      {/* 无赛果空态 */}
       {played === 0 && (
         <Panel pad={32} className="text-center text-[var(--color-fg-mid)]">
           暂无比赛记录

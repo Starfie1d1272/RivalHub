@@ -18,9 +18,9 @@ export function ErrorState({
       <div
         className="inline-flex items-center gap-2 px-2.5 py-1 mb-3.5 rounded-sm border"
         style={{
-          borderColor: "#ff547055",
-          background: "#ff547010",
-          color: "#ff5470",
+          borderColor: "color-mix(in srgb, var(--color-danger) 33%, transparent)",
+          background: "color-mix(in srgb, var(--color-danger) 6%, transparent)",
+          color: "var(--color-danger)",
           fontFamily: "var(--font-mono)",
           fontSize: 11,
           letterSpacing: "var(--tracking-label)",

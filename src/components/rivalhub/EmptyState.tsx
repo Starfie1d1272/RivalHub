@@ -21,11 +21,11 @@ export function EmptyState({
           width: 56,
           height: 56,
           borderColor: accent
-            ? "#ff6b1a55"
+            ? "color-mix(in srgb, var(--color-accent) 33%, transparent)"
             : "var(--color-border)",
-          border: `1px solid ${accent ? "#ff6b1a55" : "var(--color-border)"}`,
+          border: `1px solid ${accent ? "color-mix(in srgb, var(--color-accent) 33%, transparent)" : "var(--color-border)"}`,
           background: accent
-            ? "#ff6b1a10"
+            ? "color-mix(in srgb, var(--color-accent) 6%, transparent)"
             : "var(--color-panel-low)",
           color: accent ? "var(--color-accent)" : "var(--color-fg-dim)",
           borderRadius: "var(--radius-md)",
