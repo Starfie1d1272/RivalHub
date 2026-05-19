@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { eq, or, and, asc, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { users, seasonRegistrations, seasons, teams, teamMembers, matches } from "@/db/schema";
+import { users, seasonRegistrations, seasons, teams, teamMembers, matches, matchMaps } from "@/db/schema";
 import { resolveAvatarUrl } from "@/lib/steam";
 import { PLAYER_INFO_FIELDS } from "@/lib/utils/player-info-fields";
 import { getDisplayName } from "@/lib/utils/display-name";
@@ -114,9 +114,11 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
         totalFirstKills: sql<number>`sum(${matchPlayerStats.firstKills})::int`,
         totalMultiKills: sql<number>`sum(${matchPlayerStats.multiKills})::int`,
         totalClutches: sql<number>`sum(${matchPlayerStats.clutches})::int`,
+        totalRounds: sql<number>`sum(COALESCE(${matchMaps.scoreA} + ${matchMaps.scoreB}, ${matches.scoreA} + ${matches.scoreB}))::int`,
       })
       .from(matchPlayerStats)
       .innerJoin(matches, eq(matchPlayerStats.matchId, matches.id))
+      .innerJoin(matchMaps, eq(matchPlayerStats.mapId, matchMaps.id))
       .innerJoin(seasons, eq(matches.seasonId, seasons.id))
       .where(
         and(
@@ -196,6 +198,9 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
   const totalMaps = playerStats.reduce((s, x) => s + x.maps, 0);
   const totalKillsAll = playerStats.reduce((s, x) => s + x.totalKills, 0);
   const totalDeathsAll = playerStats.reduce((s, x) => s + x.totalDeaths, 0);
+  const totalFirstKillsAll = playerStats.reduce((s, x) => s + x.totalFirstKills, 0);
+  const totalClutchesAll = playerStats.reduce((s, x) => s + x.totalClutches, 0);
+  const totalRoundsAll = playerStats.reduce((s, x) => s + (x as any).totalRounds, 0);
   const mvpCount = mvpWinCount;
 
   return (
@@ -335,10 +340,10 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
                     : "—",
                 },
                 { label: "WE", value: wAvg(playerStats, "avgWe") },
-                { label: "场均击杀", value: sAvg(playerStats, "totalKills") },
-                { label: "首杀", value: sAvg(playerStats, "totalFirstKills") },
+                { label: "KPR", value: totalRoundsAll > 0 ? (totalKillsAll / totalRoundsAll).toFixed(2) : "—" },
+                { label: "FKPR /100r", value: totalRoundsAll > 0 ? (totalFirstKillsAll / totalRoundsAll * 100).toFixed(1) : "—" },
                 { label: "多杀", value: sAvg(playerStats, "totalMultiKills") },
-                { label: "残局", value: sAvg(playerStats, "totalClutches") },
+                { label: "CPR /100r", value: totalRoundsAll > 0 ? (totalClutchesAll / totalRoundsAll * 100).toFixed(1) : "—" },
                 {
                   label: "HS%",
                   value: totalMaps > 0

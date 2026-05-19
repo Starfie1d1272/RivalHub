@@ -231,10 +231,10 @@ export function MatchLineupsH2H({
           format={(v) => `${v.toFixed(0)}%`}
         />
         <StatRow
-          label="FKPR"
+          label="FKPR /100r"
           aVal={pa.fkpr}
           bVal={pb.fkpr}
-          format={(v) => v.toFixed(1)}
+          format={(v) => (v * 100).toFixed(1)}
         />
         <StatRow
           label="WE"
