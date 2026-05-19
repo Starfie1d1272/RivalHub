@@ -86,8 +86,8 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
         THEN round(sum(mps.kills)::numeric / sum(mps.deaths), 2)
         ELSE NULL END                                                        AS kd_ratio,
       round(${kprExpr}::numeric, 2)                                         AS kpr,
-      round(${fkprExpr}::numeric, 2)                                        AS fkpr,
-      round(${cprExpr}::numeric, 2)                                         AS cpr
+      round(${fkprExpr}::numeric, 4)                                        AS fkpr,
+      round(${cprExpr}::numeric, 4)                                         AS cpr
     FROM match_player_stats mps
     JOIN matches m ON m.id = mps.match_id
     JOIN match_maps mm ON mm.id = mps.map_id
