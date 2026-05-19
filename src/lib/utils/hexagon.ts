@@ -65,7 +65,7 @@ function zScore(value: number, mean: number, std: number): number {
   if (!Number.isFinite(value) || !Number.isFinite(mean) || !Number.isFinite(std) || std < 1e-9) {
     return 50;
   }
-  return clamp(50 + ((value - mean) / std) * 20);
+  return clamp(50 + ((value - mean) / std) * 22);
 }
 
 /** Z-score 反向标准化：低值 → 高分（少死分专用） */
@@ -73,7 +73,7 @@ function zScoreInverse(value: number, mean: number, std: number): number {
   if (!Number.isFinite(value) || !Number.isFinite(mean) || !Number.isFinite(std) || std < 1e-9) {
     return 50;
   }
-  return clamp(50 + ((mean - value) / std) * 20);
+  return clamp(50 + ((mean - value) / std) * 22);
 }
 
 /** 小样本收缩：回合数不足 threshold 时向 50 靠拢 */
