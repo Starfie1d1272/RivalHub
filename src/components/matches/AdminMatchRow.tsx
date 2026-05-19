@@ -10,6 +10,8 @@ import { VetoInputDialog } from "@/components/matches/VetoInputDialog";
 import { AdminRosterDialog } from "@/components/matches/AdminRosterDialog";
 import { StatsOCRPanel } from "@/components/matches/StatsOCRPanel";
 import { DeleteMatchButton } from "@/components/matches/DeleteMatchButton";
+import { CompletedAtInput } from "@/components/matches/CompletedAtInput";
+import { toCSTDateTimeInput } from "@/lib/utils/date";
 import { MATCH_FORMAT_LABELS } from "@/types/match";
 
 export interface TeamMemberData {
@@ -39,6 +41,7 @@ interface AdminMatchRowProps {
     teamAId: string;
     teamBId: string;
     bracketNodeId: string | null;
+    completedAt: Date | null;
   };
   teamAName: string;
   teamBName: string;
@@ -172,6 +175,10 @@ export function AdminMatchRow({
                   format={match.format}
                   currentScoreA={match.scoreA}
                   currentScoreB={match.scoreB}
+                />
+                <CompletedAtInput
+                  matchId={match.id}
+                  initialValue={toCSTDateTimeInput(match.completedAt)}
                 />
                 {finishedMaps.map((map) => (
                   <div key={map.id}>

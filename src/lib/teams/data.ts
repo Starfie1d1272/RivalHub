@@ -104,3 +104,35 @@ export async function getTeamBanStats(
 
   return { banCount, bpMatchCount: bpMatches.length };
 }
+
+/** Pick 统计：返回每图 pick 次数 + 参与 BP 的对局总数（pick 率分母） */
+export async function getTeamPickStats(
+  teamId: string,
+  matchIds: string[],
+): Promise<{ pickCount: Map<string, number>; bpMatchCount: number }> {
+  if (!matchIds.length) return { pickCount: new Map(), bpMatchCount: 0 };
+
+  const [bpMatches, picks] = await Promise.all([
+    db
+      .selectDistinct({ matchId: matchVetoSteps.matchId })
+      .from(matchVetoSteps)
+      .where(inArray(matchVetoSteps.matchId, matchIds)),
+    db
+      .select({ mapName: matchVetoSteps.mapName })
+      .from(matchVetoSteps)
+      .where(
+        and(
+          inArray(matchVetoSteps.matchId, matchIds),
+          eq(matchVetoSteps.actionType, "pick"),
+          eq(matchVetoSteps.teamId, teamId),
+        ),
+      ),
+  ]);
+
+  const pickCount = new Map<string, number>();
+  for (const p of picks) {
+    pickCount.set(p.mapName, (pickCount.get(p.mapName) ?? 0) + 1);
+  }
+
+  return { pickCount, bpMatchCount: bpMatches.length };
+}
