@@ -45,12 +45,12 @@ export interface HexagonScores {
 // ─── 六维权重配置 ─────────────────────────────────────────────────────────────
 
 export const DIMENSION_WEIGHTS = Object.freeze({
-  firepower:   Object.freeze({ kpr: 0.35, adr: 0.35, kd: 0.15, mkpr: 0.15 }),
-  opening:     Object.freeze({ fkpr: 0.50, we: 0.30, adr: 0.20 }),
-  multikill:   Object.freeze({ mkpr: 0.55, kpr: 0.25, adr: 0.20 }),
-  clutch:      Object.freeze({ cpr: 0.55, kd: 0.25, rws: 0.20 }),
-  support:     Object.freeze({ apr: 0.35, kda: 0.25, we: 0.20, rws: 0.20 }),
-  consistency: Object.freeze({ ratingPro: 0.40, dprInverse: 0.30, rws: 0.20, kd: 0.10 }),
+  firepower:   Object.freeze({ kpr: 0.40, adr: 0.35, mkpr: 0.15, kd: 0.10 }),
+  opening:     Object.freeze({ fkpr: 0.65, we: 0.25, adr: 0.10 }),
+  multikill:   Object.freeze({ mkpr: 0.70, kpr: 0.20, adr: 0.10 }),
+  clutch:      Object.freeze({ cpr: 0.70, rws: 0.20, kd: 0.10 }),
+  support:     Object.freeze({ apr: 0.45, kda: 0.25, we: 0.20, rws: 0.10 }),
+  consistency: Object.freeze({ ratingPro: 0.40, dprInverse: 0.35, kd: 0.15, rws: 0.10 }),
 });
 
 // ─── 内部标准化辅助函数 ───────────────────────────────────────────────────────
@@ -65,7 +65,7 @@ function zScore(value: number, mean: number, std: number): number {
   if (!Number.isFinite(value) || !Number.isFinite(mean) || !Number.isFinite(std) || std < 1e-9) {
     return 50;
   }
-  return clamp(50 + ((value - mean) / std) * 15);
+  return clamp(50 + ((value - mean) / std) * 20);
 }
 
 /** Z-score 反向标准化：低值 → 高分（少死分专用） */
@@ -73,7 +73,7 @@ function zScoreInverse(value: number, mean: number, std: number): number {
   if (!Number.isFinite(value) || !Number.isFinite(mean) || !Number.isFinite(std) || std < 1e-9) {
     return 50;
   }
-  return clamp(50 + ((mean - value) / std) * 15);
+  return clamp(50 + ((mean - value) / std) * 20);
 }
 
 /** 小样本收缩：回合数不足 threshold 时向 50 靠拢 */
