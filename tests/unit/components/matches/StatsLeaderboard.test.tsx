@@ -33,7 +33,8 @@ describe("StatsLeaderboard", () => {
             userId: "u1", perfectName: "张三", position: "awper",
             teamName: "Alpha", teamId: "t1",
             maps: 10, avgRating: 1.25, avgAdr: 92.3,
-            avgKills: 20.5, avgDeaths: 10.1, avgWe: 10.5,
+            avgRws: 12.5, avgWe: 10.5, avgHs: 45.0,
+            kdRatio: 2.03, kpr: 20.5, avgFk: 2.1, avgClutch: 0.3,
           },
         ]}
       />
@@ -54,7 +55,8 @@ describe("StatsLeaderboard", () => {
             userId: "u1", perfectName: "李四", position: "opener",
             teamName: "Beta", teamId: "t2",
             maps: 5, avgRating: 1.1, avgAdr: 88.0,
-            avgKills: 18.0, avgDeaths: 12.0, avgWe: 8.5,
+            avgRws: 10.0, avgWe: 8.5, avgHs: 38.0,
+            kdRatio: 1.50, kpr: 18.0, avgFk: 1.8, avgClutch: 0.2,
           },
         ]}
       />
@@ -73,7 +75,8 @@ describe("StatsLeaderboard", () => {
             userId: "u1", perfectName: "王五", position: "awper",
             teamName: "Gamma", teamId: "t3",
             maps: 8, avgRating: 1.3, avgAdr: 90.0,
-            avgKills: 22.0, avgDeaths: 9.0, avgWe: 11.0,
+            avgRws: 13.0, avgWe: 11.0, avgHs: 42.0,
+            kdRatio: 2.44, kpr: 22.0, avgFk: 2.3, avgClutch: 0.4,
           },
         ]}
       />

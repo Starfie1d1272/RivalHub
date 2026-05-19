@@ -12,9 +12,13 @@ interface LeaderboardRow {
   maps: number;
   avgRating: number;
   avgAdr: number;
-  avgKills: number;
-  avgDeaths: number;
+  avgRws: number;
   avgWe: number;
+  avgHs: number;
+  kdRatio: number | null;
+  kpr: number;
+  avgFk: number;
+  avgClutch: number;
 }
 
 interface StatsLeaderboardProps {
@@ -25,39 +29,98 @@ interface StatsLeaderboardProps {
 }
 
 const SORT_OPTIONS = [
-  { key: "rating", label: "Rating" },
-  { key: "adr", label: "ADR" },
-  { key: "kd", label: "K/D" },
-  { key: "we", label: "WE" },
-  { key: "kpr", label: "KPR" },
-  { key: "maps", label: "场次" },
+  { key: "rating",  label: "Rating" },
+  { key: "adr",     label: "ADR" },
+  { key: "kd",      label: "K/D" },
+  { key: "kpr",     label: "KPR" },
+  { key: "hs",      label: "HS%" },
+  { key: "we",      label: "WE" },
+  { key: "rws",     label: "RWS" },
+  { key: "fk",      label: "首杀" },
+  { key: "clutch",  label: "残局" },
+  { key: "maps",    label: "场次" },
 ];
 
 const POSITIONS = [
-  { key: "", label: "全部位置" },
-  { key: "igl", label: "IGL" },
-  { key: "awper", label: "AWPer" },
+  { key: "",        label: "全部" },
+  { key: "igl",    label: "IGL" },
+  { key: "awper",  label: "AWPer" },
   { key: "opener", label: "Opener" },
   { key: "closer", label: "Closer" },
   { key: "anchor", label: "Anchor" },
 ];
 
-// 列 key → 表格列对应关系
-const SORT_COL_MAP: Record<string, string> = {
-  rating: "rating",
-  adr: "adr",
-  kd: "kd",
-  we: "we",
-  kpr: "kpr",
-  maps: "maps",
-};
+interface ColDef {
+  key: string;
+  label: string;
+  getValue: (r: LeaderboardRow) => number | null;
+  format: (v: number | null) => string;
+}
 
-export function StatsLeaderboard({
-  rows,
-  sort,
-  position,
-  seasonSlug,
-}: StatsLeaderboardProps) {
+const COLS: ColDef[] = [
+  {
+    key: "maps",
+    label: "图数",
+    getValue: (r) => r.maps,
+    format: (v) => String(v ?? 0),
+  },
+  {
+    key: "rating",
+    label: "Rating",
+    getValue: (r) => r.avgRating,
+    format: (v) => (v ?? 0).toFixed(2),
+  },
+  {
+    key: "adr",
+    label: "ADR",
+    getValue: (r) => r.avgAdr,
+    format: (v) => (v ?? 0).toFixed(1),
+  },
+  {
+    key: "kd",
+    label: "K/D",
+    getValue: (r) => r.kdRatio,
+    format: (v) => (v != null ? v.toFixed(2) : "—"),
+  },
+  {
+    key: "kpr",
+    label: "KPR",
+    getValue: (r) => r.kpr,
+    format: (v) => (v ?? 0).toFixed(2),
+  },
+  {
+    key: "hs",
+    label: "HS%",
+    getValue: (r) => r.avgHs,
+    format: (v) => (v ?? 0).toFixed(1) + "%",
+  },
+  {
+    key: "we",
+    label: "WE",
+    getValue: (r) => r.avgWe,
+    format: (v) => (v ?? 0).toFixed(1),
+  },
+  {
+    key: "rws",
+    label: "RWS",
+    getValue: (r) => r.avgRws,
+    format: (v) => (v ?? 0).toFixed(2),
+  },
+  {
+    key: "fk",
+    label: "首杀/图",
+    getValue: (r) => r.avgFk,
+    format: (v) => (v ?? 0).toFixed(2),
+  },
+  {
+    key: "clutch",
+    label: "残局/图",
+    getValue: (r) => r.avgClutch,
+    format: (v) => (v ?? 0).toFixed(2),
+  },
+];
+
+export function StatsLeaderboard({ rows, sort, position, seasonSlug }: StatsLeaderboardProps) {
   if (rows.length === 0) {
     return (
       <Panel pad={32} className="text-center text-[var(--color-fg-mid)]">
@@ -93,134 +156,93 @@ export function StatsLeaderboard({
         ))}
       </div>
 
-      {/* 表格 */}
+      {/* 表格：min-w 确保桌面端不压缩，移动端横向滚动 */}
       <Panel pad={0} className="overflow-hidden">
         <div className="overflow-x-auto">
-        <table className="w-full text-sm min-w-[480px]">
-          <thead>
-            <tr className="border-b border-[var(--color-border)] text-[var(--color-fg-mid)] text-xs uppercase tracking-wide">
-              <th className="px-4 py-3 text-left w-8">#</th>
-              <th className="px-4 py-3 text-left">选手</th>
-              <th className="px-4 py-3 text-left hidden sm:table-cell">位置</th>
-              <th className="px-4 py-3 text-left hidden sm:table-cell">队伍</th>
-              <th
-                className="px-4 py-3 text-center hidden sm:table-cell"
-                style={SORT_COL_MAP[sort] === "maps" ? { background: sortColBg, color: accentText } : undefined}
-              >
-                图数
-              </th>
-              <th
-                className="px-4 py-3 text-center"
-                style={SORT_COL_MAP[sort] === "rating" ? { background: sortColBg, color: accentText } : undefined}
-              >
-                Rating
-              </th>
-              <th
-                className="px-4 py-3 text-center hidden sm:table-cell"
-                style={SORT_COL_MAP[sort] === "adr" ? { background: sortColBg, color: accentText } : undefined}
-              >
-                ADR
-              </th>
-              <th
-                className="px-4 py-3 text-center hidden sm:table-cell"
-                style={SORT_COL_MAP[sort] === "kd" ? { background: sortColBg, color: accentText } : undefined}
-              >
-                K/D
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[var(--color-border)]">
-            {rows.map((r, i) => (
-              <tr key={r.userId ?? r.perfectName}>
-                <td className="px-4 py-3 text-xs">
-                  <span
-                    className={i < 3 ? "font-bold" : "text-[var(--color-fg-dim)]"}
-                    style={i < 3 ? { color: accentText } : undefined}
+          <table className="w-full text-sm min-w-[900px]">
+            <thead>
+              <tr className="border-b border-[var(--color-border)] text-[var(--color-fg-mid)] text-xs uppercase tracking-wide">
+                <th className="px-3 py-3 text-left w-8">#</th>
+                <th className="px-3 py-3 text-left">选手</th>
+                <th className="px-3 py-3 text-left">位置</th>
+                <th className="px-3 py-3 text-left">队伍</th>
+                {COLS.map((col) => (
+                  <th
+                    key={col.key}
+                    className="px-3 py-3 text-center whitespace-nowrap"
+                    style={sort === col.key ? { background: sortColBg, color: accentText } : undefined}
                   >
-                    {i + 1}
-                  </span>
-                </td>
-                <td className="px-4 py-3 font-medium text-[var(--color-fg)]">
-                  {r.userId ? (
-                    <Link
-                      href={`/players/${r.userId}`}
-                      className="hover:text-[var(--color-accent)] transition-colors"
-                    >
-                      {r.perfectName}
-                    </Link>
-                  ) : (
-                    r.perfectName
-                  )}
-                </td>
-                <td className="px-4 py-3 text-xs text-[var(--color-fg-mid)] hidden sm:table-cell">
-                  {r.position
-                    ? POSITION_LABELS[r.position as keyof typeof POSITION_LABELS]?.cn ?? r.position
-                    : "—"}
-                </td>
-                <td className="px-4 py-3 text-xs text-[var(--color-fg-mid)] hidden sm:table-cell">
-                  {r.teamId ? (
-                    <Link
-                      href={`/${seasonSlug}/teams/${r.teamId}`}
-                      className="hover:text-[var(--color-accent)] transition-colors"
-                    >
-                      {r.teamName ?? "—"}
-                    </Link>
-                  ) : (
-                    r.teamName ?? "—"
-                  )}
-                </td>
-                <td
-                  className={`px-4 py-3 text-center tabular-nums hidden sm:table-cell ${
-                    sort === "maps" ? "font-semibold" : "text-[var(--color-fg-mid)]"
-                  }`}
-                  style={
-                    sort === "maps"
-                      ? { background: sortColBg, color: accentText }
-                      : undefined
-                  }
-                >
-                  {r.maps}
-                </td>
-                <td
-                  className={`px-4 py-3 text-center tabular-nums font-semibold ${
-                    r.avgRating >= 1.2 || sort === "rating"
-                      ? "text-[var(--color-accent)]"
-                      : "text-[var(--color-fg)]"
-                  }`}
-                  style={sort === "rating" ? { background: sortColBg } : undefined}
-                >
-                  {r.avgRating.toFixed(2)}
-                </td>
-                <td
-                  className={`px-4 py-3 text-center tabular-nums hidden sm:table-cell ${
-                    sort === "adr" ? "font-semibold" : "text-[var(--color-fg)]"
-                  }`}
-                  style={
-                    sort === "adr"
-                      ? { background: sortColBg, color: accentText }
-                      : undefined
-                  }
-                >
-                  {r.avgAdr.toFixed(1)}
-                </td>
-                <td
-                  className={`px-4 py-3 text-center tabular-nums hidden sm:table-cell ${
-                    sort === "kd" ? "font-semibold" : "text-[var(--color-fg)]"
-                  }`}
-                  style={
-                    sort === "kd"
-                      ? { background: sortColBg, color: accentText }
-                      : undefined
-                  }
-                >
-                  {r.avgDeaths > 0
-                    ? (r.avgKills / r.avgDeaths).toFixed(2)
-                    : "—"}
-                </td>
+                    {col.label}
+                  </th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-[var(--color-border)]">
+              {rows.map((r, i) => (
+                <tr key={r.userId ?? r.perfectName} className="hover:bg-[var(--color-surface-raised)] transition-colors">
+                  <td className="px-3 py-2.5 text-xs">
+                    <span
+                      className={i < 3 ? "font-bold" : "text-[var(--color-fg-dim)]"}
+                      style={i < 3 ? { color: accentText } : undefined}
+                    >
+                      {i + 1}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5 font-medium text-[var(--color-fg)]">
+                    {r.userId ? (
+                      <Link
+                        href={`/players/${r.userId}`}
+                        className="hover:text-[var(--color-accent)] transition-colors"
+                      >
+                        {r.perfectName}
+                      </Link>
+                    ) : (
+                      r.perfectName
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5 text-xs text-[var(--color-fg-mid)]">
+                    {r.position
+                      ? (POSITION_LABELS[r.position as keyof typeof POSITION_LABELS]?.cn ?? r.position)
+                      : "—"}
+                  </td>
+                  <td className="px-3 py-2.5 text-xs text-[var(--color-fg-mid)]">
+                    {r.teamId ? (
+                      <Link
+                        href={`/${seasonSlug}/teams/${r.teamId}`}
+                        className="hover:text-[var(--color-accent)] transition-colors"
+                      >
+                        {r.teamName ?? "—"}
+                      </Link>
+                    ) : (
+                      r.teamName ?? "—"
+                    )}
+                  </td>
+                  {COLS.map((col) => {
+                    const val = col.getValue(r);
+                    const isSort = sort === col.key;
+                    const isHighRating = col.key === "rating" && (val ?? 0) >= 1.2;
+                    return (
+                      <td
+                        key={col.key}
+                        className={`px-3 py-2.5 text-center tabular-nums ${
+                          isSort || isHighRating ? "font-semibold" : "text-[var(--color-fg)]"
+                        }`}
+                        style={
+                          isSort
+                            ? { background: sortColBg, color: accentText }
+                            : isHighRating
+                            ? { color: accentText }
+                            : undefined
+                        }
+                      >
+                        {col.format(val)}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </Panel>
     </div>
