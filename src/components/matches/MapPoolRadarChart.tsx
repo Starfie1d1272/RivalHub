@@ -17,11 +17,7 @@ interface MapPoolRadarChartProps {
   teamBData: Map<string, MapData>;
 }
 
-// 对应 --color-accent / --color-accent-b；SVG 表现属性不支持 CSS var，用匹配常量
-const A_FILL = "rgba(255,107,26,0.25)";
-const A_STROKE = "#ff6b1a";
-const B_FILL = "rgba(58,161,255,0.25)";
-const B_STROKE = "#3aa1ff";
+// Team A / Team B colors via CSS design tokens（SVG inline style 支持 CSS var）
 
 const METRICS = [
   { key: "win" as const, label: "Win%" },
@@ -152,16 +148,14 @@ export function MapPoolRadarChart({
         {/* Team B polygon */}
         <polygon
           points={dataPolygon(teamBData)}
-          fill={B_FILL}
-          stroke={B_STROKE}
+          style={{ fill: "var(--color-accent-b-soft)", stroke: "var(--color-accent-b)" }}
           strokeWidth={1.5}
         />
 
         {/* Team A polygon */}
         <polygon
           points={dataPolygon(teamAData)}
-          fill={A_FILL}
-          stroke={A_STROKE}
+          style={{ fill: "var(--color-accent-soft)", stroke: "var(--color-accent)" }}
           strokeWidth={1.5}
         />
 
@@ -190,14 +184,14 @@ export function MapPoolRadarChart({
         <span className="inline-flex items-center gap-1.5">
           <span
             className="inline-block w-2.5 h-2.5 shrink-0 border"
-            style={{ background: A_FILL, borderColor: A_STROKE }}
+            style={{ background: "var(--color-accent-soft)", borderColor: "var(--color-accent)" }}
           />
           {teamAName}
         </span>
         <span className="inline-flex items-center gap-1.5">
           <span
             className="inline-block w-2.5 h-2.5 shrink-0 border"
-            style={{ background: B_FILL, borderColor: B_STROKE }}
+            style={{ background: "var(--color-accent-b-soft)", borderColor: "var(--color-accent-b)" }}
           />
           {teamBName}
         </span>

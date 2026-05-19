@@ -17,8 +17,8 @@ interface LeaderboardRow {
   avgHs: number;
   kdRatio: number | null;
   kpr: number;
-  avgFk: number;
-  avgClutch: number;
+  fkpr: number;
+  cpr: number;
 }
 
 interface StatsLeaderboardProps {
@@ -36,8 +36,8 @@ const SORT_OPTIONS = [
   { key: "hs",      label: "HS%" },
   { key: "we",      label: "WE" },
   { key: "rws",     label: "RWS" },
-  { key: "fk",      label: "首杀" },
-  { key: "clutch",  label: "残局" },
+  { key: "fk",      label: "FKPR" },
+  { key: "clutch",  label: "CPR" },
   { key: "maps",    label: "场次" },
 ];
 
@@ -108,14 +108,14 @@ const COLS: ColDef[] = [
   },
   {
     key: "fk",
-    label: "首杀/图",
-    getValue: (r) => r.avgFk,
+    label: "FKPR",
+    getValue: (r) => r.fkpr,
     format: (v) => (v ?? 0).toFixed(2),
   },
   {
     key: "clutch",
-    label: "残局/图",
-    getValue: (r) => r.avgClutch,
+    label: "CPR",
+    getValue: (r) => r.cpr,
     format: (v) => (v ?? 0).toFixed(2),
   },
 ];

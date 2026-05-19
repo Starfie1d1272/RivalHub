@@ -34,7 +34,7 @@ describe("StatsLeaderboard", () => {
             teamName: "Alpha", teamId: "t1",
             maps: 10, avgRating: 1.25, avgAdr: 92.3,
             avgRws: 12.5, avgWe: 10.5, avgHs: 45.0,
-            kdRatio: 2.03, kpr: 20.5, avgFk: 2.1, avgClutch: 0.3,
+            kdRatio: 2.03, kpr: 20.5, fkpr: 2.1, cpr: 0.3,
           },
         ]}
       />
@@ -56,7 +56,7 @@ describe("StatsLeaderboard", () => {
             teamName: "Beta", teamId: "t2",
             maps: 5, avgRating: 1.1, avgAdr: 88.0,
             avgRws: 10.0, avgWe: 8.5, avgHs: 38.0,
-            kdRatio: 1.50, kpr: 18.0, avgFk: 1.8, avgClutch: 0.2,
+            kdRatio: 1.50, kpr: 18.0, fkpr: 1.8, cpr: 0.2,
           },
         ]}
       />
@@ -76,7 +76,7 @@ describe("StatsLeaderboard", () => {
             teamName: "Gamma", teamId: "t3",
             maps: 8, avgRating: 1.3, avgAdr: 90.0,
             avgRws: 13.0, avgWe: 11.0, avgHs: 42.0,
-            kdRatio: 2.44, kpr: 22.0, avgFk: 2.3, avgClutch: 0.4,
+            kdRatio: 2.44, kpr: 22.0, fkpr: 2.3, cpr: 0.4,
           },
         ]}
       />

@@ -11,7 +11,7 @@ interface PlayerStats {
   avgAdr: number;
   kdRatio: number | null;
   avgHs: number;
-  avgFk: number;
+  fkpr: number;
   avgWe: number;
 }
 
@@ -231,9 +231,9 @@ export function MatchLineupsH2H({
           format={(v) => `${v.toFixed(0)}%`}
         />
         <StatRow
-          label="首杀/图"
-          aVal={pa.avgFk}
-          bVal={pb.avgFk}
+          label="FKPR"
+          aVal={pa.fkpr}
+          bVal={pb.fkpr}
           format={(v) => v.toFixed(1)}
         />
         <StatRow

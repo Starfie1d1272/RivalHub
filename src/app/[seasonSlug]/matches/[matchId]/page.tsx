@@ -259,6 +259,11 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   const radarDataB = buildRadarData(mapPool, mapWinB, pickStatsB, banStatsB);
 
   // 首发选手赛季数据（用于 MatchLineupsH2H）
+  const matchRoundsMap = new Map<string, number>();
+  for (const m of [...seasonMatchesA, ...seasonMatchesB]) {
+    matchRoundsMap.set(m.id, (m.scoreA ?? 0) + (m.scoreB ?? 0));
+  }
+
   function buildLineupsPlayers(rows: MPS[], starterUserIds: string[]) {
     const grouped = new Map<string, MPS[]>();
     for (const r of rows) {
@@ -275,6 +280,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
       const totalKills = sumNums(playerRows.map((r) => r.kills)) ?? 0;
       const totalDeaths = sumNums(playerRows.map((r) => r.deaths)) ?? 0;
       const firstKills = sumNums(playerRows.map((r) => r.firstKills)) ?? 0;
+      const totalRounds = sumNums(playerRows.map((r) => matchRoundsMap.get(r.matchId) ?? 0)) ?? 0;
       return {
         userId,
         perfectName,
@@ -283,7 +289,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
         avgAdr: avgNums(playerRows.map((r) => r.adr)) ?? 0,
         kdRatio: totalDeaths > 0 ? totalKills / totalDeaths : null,
         avgHs: avgNums(playerRows.map((r) => r.hsPercent)) ?? 0,
-        avgFk: playerRows.length > 0 ? firstKills / playerRows.length : 0,
+        fkpr: totalRounds > 0 ? firstKills / totalRounds : 0,
         avgWe: avgNums(playerRows.map((r) => r.we)) ?? 0,
       };
     });
@@ -626,7 +632,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
           : "未排期"}
       </div>
 
-      {/* 赛季综合对比（赛前） */}
+      {/* 赛季综合对比（比赛未结束时显示） */}
       {!isFinished && (
         <TeamStatsCompare
           teamAName={teamA?.name ?? "队伍 A"}
@@ -636,7 +642,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
         />
       )}
 
-      {/* 地图池雷达图（赛前） */}
+      {/* 地图池雷达图（比赛未结束时显示） */}
       {!isFinished && mapPool.length > 0 && (
         <Panel label="地图池">
           <MapPoolRadarChart
@@ -649,7 +655,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
         </Panel>
       )}
 
-      {/* 历史交锋（赛前） */}
+      {/* 历史交锋（比赛未结束时显示） */}
       {!isFinished && (
         <MatchHeadToHead
           teamAName={teamA?.name ?? "队伍 A"}
@@ -762,7 +768,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
         </section>
       ) : null}
 
-      {/* 阵容对比（赛前，双方名单提交后且有赛季数据时显示） */}
+      {/* 阵容对比（比赛未结束时显示，双方名单提交后且有赛季数据时显示） */}
       {!isFinished && showLineupsH2H && (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold text-[var(--color-fg)]">阵容对比</h2>

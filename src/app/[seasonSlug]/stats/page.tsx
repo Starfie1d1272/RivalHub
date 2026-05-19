@@ -31,16 +31,34 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
   });
   if (!season) notFound();
 
+  // 每图回合数：优先用 map 级比分（BO3/BO5），BO1 fallback 到 match 级比分
+  const totalRounds = sql`COALESCE(mm.score_a + mm.score_b, m.score_a + m.score_b)`;
+
+  // 回合加权平均（ADR / HS%）：sum(metric × rounds) / sum(rounds)
+  const weightedAvg = (col: string) =>
+    sql`CASE WHEN sum(${totalRounds}) > 0 THEN sum(${sql.raw(col)} * ${totalRounds})::numeric / sum(${totalRounds}) ELSE NULL END`;
+
+  // 每回合率（KPR / FKPR / CPR）：sum(count) / sum(rounds)
+  const perRoundRate = (col: string) =>
+    sql`CASE WHEN sum(${totalRounds}) > 0 THEN sum(${sql.raw(col)})::numeric / sum(${totalRounds}) ELSE NULL END`;
+
+  // 各指标的聚合表达式（sortColumn 和 SELECT 共用）
+  const adrExpr    = weightedAvg("mps.adr");
+  const hsExpr     = weightedAvg("mps.hs_percent");
+  const kprExpr    = perRoundRate("mps.kills");
+  const fkprExpr   = perRoundRate("mps.first_kills");
+  const cprExpr    = perRoundRate("mps.clutches");
+
   const sortColumn = (() => {
     switch (sort) {
-      case "adr":    return sql`avg(mps.adr)`;
-      case "kd":     return sql`CASE WHEN sum(mps.deaths) > 0 THEN sum(mps.kills)::numeric / sum(mps.deaths) ELSE 0 END`;
-      case "kpr":    return sql`sum(mps.kills)::numeric / count(*)`;
-      case "hs":     return sql`avg(mps.hs_percent)`;
+      case "adr":    return adrExpr;
+      case "kd":     return sql`CASE WHEN sum(mps.deaths) > 0 THEN sum(mps.kills)::numeric / sum(mps.deaths) ELSE NULL END`;
+      case "kpr":    return kprExpr;
+      case "hs":     return hsExpr;
       case "we":     return sql`avg(mps.we)`;
       case "rws":    return sql`avg(mps.rws)`;
-      case "fk":     return sql`sum(mps.first_kills)::numeric / count(*)`;
-      case "clutch": return sql`sum(mps.clutches)::numeric / count(*)`;
+      case "fk":     return fkprExpr;
+      case "clutch": return cprExpr;
       case "maps":   return sql`count(*)`;
       default:       return sql`avg(mps.rating_pro)`;
     }
@@ -60,18 +78,19 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
       t.id    AS team_id,
       count(*)::int                                                          AS maps,
       round(avg(mps.rating_pro)::numeric, 2)                                AS avg_rating,
-      round(avg(mps.adr)::numeric, 1)                                       AS avg_adr,
+      round(${adrExpr}::numeric, 1)                                         AS avg_adr,
       round(avg(mps.rws)::numeric, 2)                                       AS avg_rws,
       round(avg(mps.we)::numeric, 1)                                        AS avg_we,
-      round(avg(mps.hs_percent)::numeric, 1)                                AS avg_hs,
+      round(${hsExpr}::numeric, 1)                                          AS avg_hs,
       CASE WHEN sum(mps.deaths) > 0
         THEN round(sum(mps.kills)::numeric / sum(mps.deaths), 2)
         ELSE NULL END                                                        AS kd_ratio,
-      round(sum(mps.kills)::numeric    / count(*), 2)                       AS kpr,
-      round(sum(mps.first_kills)::numeric / count(*), 2)                    AS avg_fk,
-      round(sum(mps.clutches)::numeric    / count(*), 2)                    AS avg_clutch
+      round(${kprExpr}::numeric, 2)                                         AS kpr,
+      round(${fkprExpr}::numeric, 2)                                        AS fkpr,
+      round(${cprExpr}::numeric, 2)                                         AS cpr
     FROM match_player_stats mps
     JOIN matches m ON m.id = mps.match_id
+    JOIN match_maps mm ON mm.id = mps.map_id
     LEFT JOIN season_registrations sr
       ON sr.user_id = mps.user_id AND sr.season_id = m.season_id
     LEFT JOIN team_members tm ON tm.registration_id = sr.id
@@ -102,8 +121,8 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     avgHs:      toNum(r.avg_hs),
     kdRatio:    toNumOrNull(r.kd_ratio),
     kpr:        toNum(r.kpr),
-    avgFk:      toNum(r.avg_fk),
-    avgClutch:  toNum(r.avg_clutch),
+    fkpr:       toNum(r.fkpr),
+    cpr:        toNum(r.cpr),
   }));
 
   return (
