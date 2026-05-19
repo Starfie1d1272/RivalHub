@@ -30,6 +30,7 @@ export interface RadarPlayer {
   scores: HexagonScores;
   color?: string;
   strokeColor?: string;
+  strokeWidth?: number;
 }
 
 interface PlayerRadarChartProps {
@@ -83,7 +84,7 @@ function scorePos(cx: number, cy: number, r: number, i: number, score: number) {
 export function PlayerRadarChart({ players, size = 300 }: PlayerRadarChartProps) {
   if (players.length === 0) return null;
 
-  const capped = players.slice(0, 5);
+  const capped = players.slice(0, 6);
   const cx = size / 2;
   const cy = size / 2;
   const r = size * 0.35;
@@ -137,7 +138,7 @@ export function PlayerRadarChart({ players, size = 300 }: PlayerRadarChartProps)
               fill={color}
               fillOpacity={0.15}
               stroke={stroke}
-              strokeWidth={1.5}
+              strokeWidth={player.strokeWidth ?? 1.5}
               strokeOpacity={0.8}
             />
           );

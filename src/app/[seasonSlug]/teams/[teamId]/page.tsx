@@ -450,6 +450,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
                   name: "队伍均值",
                   scores: teamScores,
                   color: "var(--color-fg)",
+                  strokeWidth: 3,
                 },
               ]}
               size={320}
