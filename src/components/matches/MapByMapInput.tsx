@@ -20,6 +20,13 @@ interface CompletedMap {
   teamAStartSide: "t" | "ct" | null;
 }
 
+interface PendingMap {
+  mapOrder: number;
+  mapName: string;
+  pickedByTeamId: string | null;
+  teamAStartSide: "t" | "ct" | null;
+}
+
 interface MapByMapInputProps {
   matchId: string;
   format: "bo1" | "bo3" | "bo5";
@@ -28,11 +35,13 @@ interface MapByMapInputProps {
   teamAId: string;
   teamBId: string;
   completedMaps: CompletedMap[];
+  pendingMaps?: PendingMap[];
   mapPool: string[];
 }
 
 export function MapByMapInput({
-  matchId, format, teamAName, teamBName, teamAId, teamBId, completedMaps, mapPool,
+  matchId, format, teamAName, teamBName, teamAId, teamBId,
+  completedMaps, pendingMaps = [], mapPool,
 }: MapByMapInputProps) {
   const maxWins = getWinThreshold(format);
   const maxMaps = getMaxMaps(format);
@@ -45,34 +54,49 @@ export function MapByMapInput({
   }
 
   const seriesFinished = mapWinsA >= maxWins || mapWinsB >= maxWins;
-  const nextMapOrder = completedMaps.length + 1;
+
+  // BP 引导模式：下一张待打图（来自 BP 预占行）
+  const nextPending = pendingMaps[0] ?? null;
+  const nextMapOrder = nextPending?.mapOrder ?? completedMaps.length + 1;
+
+  // 手动模式的地图选择
   const usedMapNames = new Set(completedMaps.map((m) => m.mapName));
   const availableMaps = mapPool.filter((m) => !usedMapNames.has(m));
 
-  const [mapName, setMapName] = useState("");
-  const [pickedBy, setPickedBy] = useState<string>("decider"); // teamAId | teamBId | "decider"
-  const [teamAStartSide, setTeamAStartSide] = useState<string>("none"); // "t" | "ct" | "none"
+  const [manualMapName, setManualMapName] = useState("");
+  const [manualPickedBy, setManualPickedBy] = useState<string>("decider");
+  const [teamAStartSide, setTeamAStartSide] = useState<string>("none");
   const [scoreA, setScoreA] = useState("");
   const [scoreB, setScoreB] = useState("");
   const [isPending, startTransition] = useTransition();
 
+  function resolvePickedByName(teamId: string | null) {
+    if (teamId === teamAId) return teamAName;
+    if (teamId === teamBId) return teamBName;
+    return "决胜图";
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!mapName) { toast.error("请选择地图"); return; }
     const a = parseInt(scoreA, 10);
     const b = parseInt(scoreB, 10);
     if (isNaN(a) || isNaN(b) || a < 0 || b < 0) { toast.error("请输入有效的非负整数"); return; }
     if (a === b) { toast.error("单图不能平局"); return; }
 
-    const pickedByTeamId = pickedBy === "decider" ? null : pickedBy;
+    const resolvedMapName = nextPending?.mapName ?? manualMapName;
+    if (!resolvedMapName) { toast.error("请选择地图"); return; }
+
+    const pickedByTeamId = nextPending
+      ? nextPending.pickedByTeamId
+      : (manualPickedBy === "decider" ? null : manualPickedBy);
     const side = teamAStartSide === "none" ? null : teamAStartSide as "t" | "ct";
 
     startTransition(async () => {
-      const result = await recordMapResult(matchId, nextMapOrder, mapName, a, b, pickedByTeamId, side);
+      const result = await recordMapResult(matchId, nextMapOrder, resolvedMapName, a, b, pickedByTeamId, side);
       if (result.success) {
         toast.success(result.data.seriesFinished ? "系列赛结束，大比分已自动更新" : `第 ${nextMapOrder} 图已录入`);
-        setMapName("");
-        setPickedBy("decider");
+        setManualMapName("");
+        setManualPickedBy("decider");
         setTeamAStartSide("none");
         setScoreA("");
         setScoreB("");
@@ -90,57 +114,73 @@ export function MapByMapInput({
         <span className="text-xs text-[var(--color-fg-mid)]">（先赢 {maxWins} 图胜）</span>
       </div>
 
+      {/* 已完成的图 */}
       {completedMaps.length > 0 && (
         <div className="space-y-1">
-          {completedMaps.map((m) => {
-            const pickedByName = m.pickedByTeamId === teamAId ? teamAName
-              : m.pickedByTeamId === teamBId ? teamBName : null;
-            return (
-              <div key={m.mapOrder} className="flex items-center gap-2 text-xs text-[var(--color-fg-mid)]">
-                <span className="w-4">#{m.mapOrder}</span>
-                <span className="font-medium text-[var(--color-fg)]">{mapLabel(m.mapName)}</span>
-                {pickedByName
-                  ? <Badge variant="outline" className="text-xs">{pickedByName} pick</Badge>
-                  : <Badge variant="outline" className="text-xs text-[var(--color-fg-dim)]">决胜图</Badge>}
-                {m.teamAStartSide && (
-                  <span>{teamAName} {SIDE_LABELS[m.teamAStartSide]}先</span>
-                )}
-                <Badge variant="outline" className="text-xs font-mono">{m.scoreA} : {m.scoreB}</Badge>
-                <span>{m.scoreA > m.scoreB ? teamAName : teamBName} 胜</span>
-              </div>
-            );
-          })}
+          {completedMaps.map((m) => (
+            <div key={m.mapOrder} className="flex items-center gap-2 text-xs text-[var(--color-fg-mid)]">
+              <span className="w-4">#{m.mapOrder}</span>
+              <span className="font-medium text-[var(--color-fg)]">{mapLabel(m.mapName)}</span>
+              <Badge variant="outline" className="text-xs">
+                {resolvePickedByName(m.pickedByTeamId)} {m.pickedByTeamId ? "pick" : ""}
+              </Badge>
+              {m.teamAStartSide && <span>{teamAName} {SIDE_LABELS[m.teamAStartSide]}先</span>}
+              <Badge variant="outline" className="text-xs font-mono">{m.scoreA} : {m.scoreB}</Badge>
+              <span>{m.scoreA > m.scoreB ? teamAName : teamBName} 胜</span>
+            </div>
+          ))}
         </div>
       )}
 
       {!seriesFinished && nextMapOrder <= maxMaps && (
         <form onSubmit={handleSubmit} className="space-y-3 pt-1 border-t border-[var(--color-border)]">
-          <p className="text-xs font-medium text-[var(--color-fg-mid)] pt-2">录入第 {nextMapOrder} 图</p>
+          {nextPending ? (
+            // BP 引导模式：地图和 pick 方从 BP 读取
+            <div className="flex items-center gap-2 pt-2">
+              <span className="text-xs text-[var(--color-fg-mid)]">第 {nextPending.mapOrder} 图</span>
+              <span className="text-xs font-medium text-[var(--color-fg)]">{mapLabel(nextPending.mapName)}</span>
+              <Badge variant="outline" className="text-xs">
+                {resolvePickedByName(nextPending.pickedByTeamId)} {nextPending.pickedByTeamId ? "pick" : ""}
+              </Badge>
+              {nextPending.teamAStartSide && (
+                <span className="text-xs text-[var(--color-fg-mid)]">
+                  {teamAName} {SIDE_LABELS[nextPending.teamAStartSide]}先（BP）
+                </span>
+              )}
+            </div>
+          ) : (
+            // 手动模式：选择地图和 pick 方
+            <p className="text-xs font-medium text-[var(--color-fg-mid)] pt-2">录入第 {nextMapOrder} 图</p>
+          )}
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="space-y-1">
-              <Label className="text-xs text-[var(--color-fg-mid)]">地图</Label>
-              <Select value={mapName} onValueChange={setMapName}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="选择" /></SelectTrigger>
-                <SelectContent>
-                  {availableMaps.map((m) => (
-                    <SelectItem key={m} value={m} className="text-xs">{mapLabel(m)}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {!nextPending && (
+              <>
+                <div className="space-y-1">
+                  <Label className="text-xs text-[var(--color-fg-mid)]">地图</Label>
+                  <Select value={manualMapName} onValueChange={setManualMapName}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="选择" /></SelectTrigger>
+                    <SelectContent>
+                      {availableMaps.map((m) => (
+                        <SelectItem key={m} value={m} className="text-xs">{mapLabel(m)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <div className="space-y-1">
-              <Label className="text-xs text-[var(--color-fg-mid)]">Pick 方</Label>
-              <Select value={pickedBy} onValueChange={setPickedBy}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={teamAId} className="text-xs">{teamAName}</SelectItem>
-                  <SelectItem value={teamBId} className="text-xs">{teamBName}</SelectItem>
-                  <SelectItem value="decider" className="text-xs">决胜图</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-[var(--color-fg-mid)]">Pick 方</Label>
+                  <Select value={manualPickedBy} onValueChange={setManualPickedBy}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={teamAId} className="text-xs">{teamAName}</SelectItem>
+                      <SelectItem value={teamBId} className="text-xs">{teamBName}</SelectItem>
+                      <SelectItem value="decider" className="text-xs">决胜图</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
 
             <div className="space-y-1">
               <Label className="text-xs text-[var(--color-fg-mid)]">{teamAName} 起始边</Label>

@@ -33,10 +33,11 @@ export async function saveVetoSteps(
     const match = await getMatchOrThrow(matchId);
     const session = await requireSeasonAdmin(match.seasonId);
 
-    if (match.status !== "scheduled" && match.status !== "in_progress") {
+    const allowedStatuses = ["scheduled", "in_progress", "finished"] as const;
+    if (!(allowedStatuses as readonly string[]).includes(match.status)) {
       throw new AppError(
         ErrorCode.MATCH_INVALID_TRANSITION,
-        "仅「待进行」或「进行中」状态的比赛可录入 BP",
+        "仅「待进行」「进行中」或「已结束」状态的比赛可录入 BP",
       );
     }
 
@@ -61,11 +62,13 @@ export async function saveVetoSteps(
       throw new AppError(ErrorCode.VALIDATION_FAILED, "地图不属于当前赛季图池");
     }
 
+    const playMaps = steps.filter(
+      (s) => s.actionType === "pick" || s.actionType === "decider",
+    );
+
     await db.transaction(async (tx) => {
-      // 清除旧记录（支持重复录入）
-      await tx
-        .delete(matchVetoSteps)
-        .where(eq(matchVetoSteps.matchId, matchId));
+      // 清除旧 BP 记录（支持重复录入）
+      await tx.delete(matchVetoSteps).where(eq(matchVetoSteps.matchId, matchId));
 
       // 写入 BP 步骤
       await tx.insert(matchVetoSteps).values(
@@ -79,23 +82,46 @@ export async function saveVetoSteps(
         })),
       );
 
-      // 从 pick / decider 步骤自动创建 match_maps 记录
-      const playMaps = steps.filter(
-        (s) => s.actionType === "pick" || s.actionType === "decider",
-      );
-
-      await tx.delete(matchMaps).where(eq(matchMaps.matchId, matchId));
-
-      if (playMaps.length > 0) {
-        await tx.insert(matchMaps).values(
-          playMaps.map((s, i) => ({
-            matchId,
-            mapOrder: i + 1,
-            mapName: s.mapName,
-            pickedByTeamId: s.actionType === "pick" ? s.teamId : null,
-            teamAStartSide: resolveTeamASide(s.side ?? "", s.teamId, match.teamAId),
-          })),
-        );
+      // 比赛已结束时：仅在无 match_maps 记录时重建（供赛后 OCR 使用），
+      // 有记录（含已录入比分的行）时跳过，保护历史数据。
+      if (match.status === "finished") {
+        const existingMaps = await tx.query.matchMaps.findMany({
+          where: eq(matchMaps.matchId, matchId),
+        });
+        if (existingMaps.length === 0 && playMaps.length > 0) {
+          await tx.insert(matchMaps).values(
+            playMaps.map((s, i) => ({
+              matchId,
+              mapOrder: i + 1,
+              mapName: s.mapName,
+              pickedByTeamId: s.actionType === "pick" ? s.teamId : null,
+              teamAStartSide: resolveTeamASide(s.side ?? "", s.teamId, match.teamAId),
+            })),
+          );
+        }
+      } else {
+        // 进行中 / 待进行：若已有带比分的地图行则拒绝覆盖
+        const existingMaps = await tx.query.matchMaps.findMany({
+          where: eq(matchMaps.matchId, matchId),
+        });
+        if (existingMaps.some((m) => m.scoreA != null)) {
+          throw new AppError(
+            ErrorCode.VALIDATION_FAILED,
+            "已有地图录入了比分，无法重新录入 BP。如需补录请在赛后操作。",
+          );
+        }
+        await tx.delete(matchMaps).where(eq(matchMaps.matchId, matchId));
+        if (playMaps.length > 0) {
+          await tx.insert(matchMaps).values(
+            playMaps.map((s, i) => ({
+              matchId,
+              mapOrder: i + 1,
+              mapName: s.mapName,
+              pickedByTeamId: s.actionType === "pick" ? s.teamId : null,
+              teamAStartSide: resolveTeamASide(s.side ?? "", s.teamId, match.teamAId),
+            })),
+          );
+        }
       }
 
       await tx.insert(auditLogs).values({
@@ -104,7 +130,7 @@ export async function saveVetoSteps(
         actorId: auditActorId(session),
         targetId: matchId,
         targetType: "match",
-        meta: { format: match.format, stepCount: steps.length },
+        meta: { format: match.format, stepCount: steps.length, postMatch: match.status === "finished" },
       });
     });
 

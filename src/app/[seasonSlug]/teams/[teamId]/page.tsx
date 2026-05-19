@@ -14,6 +14,10 @@ import { getUserSession, checkAdminSession } from "@/lib/auth/session";
 import { getDisplayName } from "@/lib/utils/display-name";
 import { getTeamMapWinStats, getTeamBanStats } from "@/lib/teams/data";
 import { mapLabel } from "@/lib/maps";
+import { getSeasonHexagonScores } from "@/actions/hexagon";
+import { computeTeamDimensions } from "@/lib/utils/hexagon";
+import type { HexagonScores } from "@/lib/utils/hexagon";
+import { PlayerRadarChart } from "@/components/matches/PlayerRadarChart";
 
 interface TeamDetailPageProps {
   params: Promise<{ seasonSlug: string; teamId: string }>;
@@ -131,6 +135,20 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
     getTeamMapWinStats(teamId, teamMatches),
     getTeamBanStats(teamId, matchIds),
   ]);
+
+  // 六维雷达图数据
+  const starterUserIds = starters.map((s) => s.userId).filter(Boolean) as string[];
+  const hexagonByPlayer = new Map<string, HexagonScores>();
+  if (starterUserIds.length > 0) {
+    const seasonScores = await getSeasonHexagonScores(season.id);
+    for (const uid of starterUserIds) {
+      const s = seasonScores.get(uid);
+      if (s) hexagonByPlayer.set(uid, s);
+    }
+  }
+  const teamScores = hexagonByPlayer.size > 0
+    ? computeTeamDimensions([...hexagonByPlayer.values()])
+    : null;
 
   // 历史对阵（按对手分组）
   interface HeadToHead { opponentId: string; wins: number; losses: number }
@@ -410,7 +428,36 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
         </Panel>
       </section>
 
-      {/* 5. 历史对阵 */}
+      {/* 5. 队伍能力图 */}
+      {teamScores && hexagonByPlayer.size > 0 && (
+        <section className="space-y-3">
+          <Panel label="队伍能力图" pad={16}>
+            <PlayerRadarChart
+              players={[
+                ...[...hexagonByPlayer.entries()].map(([uid, scores]) => {
+                  const player = starters.find((s) => s.userId === uid);
+                  return {
+                    name: player ? (player.perfectName ?? player.steamName ?? "未知") : uid,
+                    scores,
+                  };
+                }),
+                {
+                  name: "队伍均值",
+                  scores: teamScores,
+                  color: "var(--color-fg)",
+                  strokeWidth: 3,
+                },
+              ]}
+              size={320}
+            />
+          </Panel>
+          <p className="text-[11px] text-[var(--color-fg-dim)] px-1 leading-relaxed">
+            队伍六维 = 当前阵容选手六维均值，六维评分在本赛事内标准化。
+          </p>
+        </section>
+      )}
+
+      {/* 6. 历史对阵 */}
       {h2hList.length > 0 && (
         <section>
           <Panel pad={0} className="overflow-hidden" label="历史对阵">
@@ -451,7 +498,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
         </section>
       )}
 
-      {/* 6. 即将进行的比赛 */}
+      {/* 7. 即将进行的比赛 */}
       {upcomingMatches.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold text-[var(--color-fg)]">即将进行的比赛</h2>
@@ -479,7 +526,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
         </section>
       )}
 
-      {/* 7. 历史战绩 */}
+      {/* 8. 历史战绩 */}
       {teamMatches.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold text-[var(--color-fg)]">历史战绩</h2>
@@ -513,7 +560,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
         </section>
       )}
 
-      {/* 8. 队内联系方式（仅同队成员可见） */}
+      {/* 9. 队内联系方式（仅同队成员可见） */}
       {isTeamMember && (
         <section>
           <Panel label="队内联系方式" pad={20}>

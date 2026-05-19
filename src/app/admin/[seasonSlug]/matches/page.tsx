@@ -28,14 +28,27 @@ const STATUS_SORT_ORDER: Record<string, number> = {
 };
 
 function mapCompletedMaps(records: { mapOrder: number; mapName: string; scoreA: number | null; scoreB: number | null; pickedByTeamId: string | null; teamAStartSide: string | null }[]) {
-  return records.map((r) => ({
-    mapOrder: r.mapOrder,
-    mapName: r.mapName,
-    scoreA: r.scoreA ?? 0,
-    scoreB: r.scoreB ?? 0,
-    pickedByTeamId: r.pickedByTeamId,
-    teamAStartSide: r.teamAStartSide as "t" | "ct" | null,
-  }));
+  return records
+    .filter((r) => r.scoreA !== null)
+    .map((r) => ({
+      mapOrder: r.mapOrder,
+      mapName: r.mapName,
+      scoreA: r.scoreA as number,
+      scoreB: r.scoreB as number,
+      pickedByTeamId: r.pickedByTeamId,
+      teamAStartSide: r.teamAStartSide as "t" | "ct" | null,
+    }));
+}
+
+function mapPendingMaps(records: { mapOrder: number; mapName: string; scoreA: number | null; pickedByTeamId: string | null; teamAStartSide: string | null }[]) {
+  return records
+    .filter((r) => r.scoreA === null)
+    .map((r) => ({
+      mapOrder: r.mapOrder,
+      mapName: r.mapName,
+      pickedByTeamId: r.pickedByTeamId,
+      teamAStartSide: r.teamAStartSide as "t" | "ct" | null,
+    }));
 }
 
 function mapFinishedMaps(records: { id: string; mapName: string }[]) {
@@ -406,6 +419,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                         teamARoster={rosterByMatch.get(m.id)?.get(m.teamAId) ?? null}
                         teamBRoster={rosterByMatch.get(m.id)?.get(m.teamBId) ?? null}
                         completedMaps={mapCompletedMaps(mapsByMatchId.get(m.id) ?? [])}
+                        pendingMaps={mapPendingMaps(mapsByMatchId.get(m.id) ?? [])}
                         finishedMaps={mapFinishedMaps(mapsByMatch.get(m.id) ?? [])}
                       />
                     );
@@ -442,6 +456,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                         teamARoster={rosterByMatch.get(m.id)?.get(m.teamAId) ?? null}
                         teamBRoster={rosterByMatch.get(m.id)?.get(m.teamBId) ?? null}
                         completedMaps={mapCompletedMaps(mapsByMatchId.get(m.id) ?? [])}
+                        pendingMaps={mapPendingMaps(mapsByMatchId.get(m.id) ?? [])}
                         finishedMaps={mapFinishedMaps(mapsByMatch.get(m.id) ?? [])}
                       />
                     );

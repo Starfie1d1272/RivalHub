@@ -21,13 +21,17 @@ import { MatchRosterForm } from "@/components/matches/MatchRosterForm";
 import { VetoView } from "@/components/matches/VetoView";
 import { MapPoolRadarChart } from "@/components/matches/MapPoolRadarChart";
 import { MatchLineupsH2H } from "@/components/matches/MatchLineupsH2H";
+import { PlayerRadarChart } from "@/components/matches/PlayerRadarChart";
 import { TeamStatsCompare } from "@/components/matches/TeamStatsCompare";
 import { MatchHeadToHead } from "@/components/matches/MatchHeadToHead";
 import { MatchSummaryStats } from "@/components/matches/MatchSummaryStats";
 import { getMatchMvpResults, ensureMvpWinner } from "@/actions/player-stats";
 import { getTimeProposals } from "@/actions/matches/scheduling";
 import { getMatchRoster } from "@/actions/matches/roster";
+import { getSeasonHexagonScores } from "@/actions/hexagon";
 import { sumNums, avgNums, weightedAvgNums } from "@/lib/utils/stats";
+import { computeTeamDimensions } from "@/lib/utils/hexagon";
+import type { HexagonScores } from "@/lib/utils/hexagon";
 import { getUserSession } from "@/lib/auth/session";
 import { formatCSTDateTime } from "@/lib/utils/date";
 import { normalizeRegistrationConfig } from "@/types/season";
@@ -124,7 +128,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   const isFinished = match.status === "finished";
 
   // Phase 3: 所有独立查询并行
-  const [timeProposals, rosterA, rosterB, userSession, allTeamMembers, seasonMatchesA, seasonMatchesB] =
+  const [timeProposals, rosterA, rosterB, userSession, allTeamMembers, seasonMatchesA, seasonMatchesB, seasonHexagonScores] =
     await Promise.all([
       getTimeProposals(match.id),
       getMatchRoster(match.id, match.teamAId),
@@ -146,6 +150,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
         .where(inArray(teamMembers.teamId, [match.teamAId, match.teamBId])),
       getSeasonFinishedMatches(season.id, match.teamAId),
       getSeasonFinishedMatches(season.id, match.teamBId),
+      getSeasonHexagonScores(season.id),
     ]);
 
   // 从赛季对局列表计算战绩、H2H
@@ -257,6 +262,17 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   // 雷达图数据
   const radarDataA = buildRadarData(mapPool, mapWinA, pickStatsA, banStatsA);
   const radarDataB = buildRadarData(mapPool, mapWinB, pickStatsB, banStatsB);
+
+  // 双方阵容六维雷达图
+  const hexA = starterAUserIds
+    .map((uid) => seasonHexagonScores.get(uid))
+    .filter((s): s is HexagonScores => s != null);
+  const hexB = starterBUserIds
+    .map((uid) => seasonHexagonScores.get(uid))
+    .filter((s): s is HexagonScores => s != null);
+  const teamHexA = hexA.length > 0 ? computeTeamDimensions(hexA) : null;
+  const teamHexB = hexB.length > 0 ? computeTeamDimensions(hexB) : null;
+  const showHexComparison = teamHexA != null && teamHexB != null && !isFinished;
 
   // 首发选手赛季数据（用于 MatchLineupsH2H）
   const matchRoundsMap = new Map<string, number>();
@@ -778,6 +794,23 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
             teamAPlayers={lineupsPlayersA}
             teamBPlayers={lineupsPlayersB}
           />
+        </section>
+      )}
+
+      {showHexComparison && (
+        <section className="space-y-3">
+          <Panel label="六维能力对比" pad={16}>
+            <PlayerRadarChart
+              players={[
+                { name: teamA?.name ?? "队伍 A", scores: teamHexA, color: "var(--color-accent)", strokeColor: "var(--color-accent)" },
+                { name: teamB?.name ?? "队伍 B", scores: teamHexB, color: "var(--color-accent-b)", strokeColor: "var(--color-accent-b)" },
+              ]}
+              size={320}
+            />
+          </Panel>
+          <p className="text-[11px] text-[var(--color-fg-dim)] px-1 leading-relaxed">
+            双方预计出场阵容六维均值对比，六维评分在本赛事内标准化。
+          </p>
         </section>
       )}
 

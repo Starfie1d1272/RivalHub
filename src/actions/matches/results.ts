@@ -169,6 +169,14 @@ export async function recordMatchResult(
     }
     assertMatchTransition(match.status, "finished");
 
+    const hasVeto = await db.query.matchVetoSteps.findFirst({
+      where: eq(matchVetoSteps.matchId, matchId),
+      columns: { id: true },
+    });
+    if (!hasVeto) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "请先录入 BP 再录入比分");
+    }
+
     const season = await getSeasonOrThrow(match.seasonId);
 
     // 事务保护：score 更新 + bracket 推进 + audit 原子化
@@ -258,11 +266,16 @@ export async function recordMapResult(
     const match = await getMatchOrThrow(matchId);
     const session = await requireSeasonAdmin(match.seasonId);
 
-    const isStatusAllowed = match.format === "bo1"
-      ? match.status === "in_progress" || match.status === "scheduled"
-      : match.status === "in_progress";
-    if (!isStatusAllowed) {
+    if (match.status !== "in_progress") {
       throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛状态不允许录入地图结果");
+    }
+
+    const hasVeto = await db.query.matchVetoSteps.findFirst({
+      where: eq(matchVetoSteps.matchId, matchId),
+      columns: { id: true },
+    });
+    if (!hasVeto) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "请先录入 BP 再录入地图结果");
     }
 
     const season = await getSeasonOrThrow(match.seasonId);
@@ -282,24 +295,18 @@ export async function recordMapResult(
     let seriesFinished = false;
 
     await db.transaction(async (tx) => {
-      // BO1 从 scheduled 自动转换为 in_progress
-      if (match.format === "bo1" && match.status === "scheduled") {
-        await tx
-          .update(matches)
-          .set({ status: "in_progress", updatedAt: new Date() })
-          .where(eq(matches.id, matchId));
-      }
-
-      // 事务内读快照，防止并发插入同名地图
+      // 事务内读快照
       const existingMaps = await tx.query.matchMaps.findMany({
         where: eq(matchMaps.matchId, matchId),
       });
-      if (existingMaps.some((m) => m.mapName === mapName)) {
-        throw new AppError(ErrorCode.VALIDATION_FAILED, `地图 ${mapName} 在本场比赛中已存在`);
+      const existingRow = existingMaps.find((m) => m.mapName === mapName);
+      if (existingRow && existingRow.scoreA !== null) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, `地图 ${mapName} 已录入比分`);
       }
 
-      // 统计加入本图后的地图胜场
-      const allMaps = [...existingMaps, { scoreA, scoreB }];
+      // 统计加入本图后的地图胜场（已有比分的图 + 本图）
+      const scoredMaps = existingMaps.filter((m) => m.scoreA !== null);
+      const allMaps = [...scoredMaps, { scoreA, scoreB }];
       let mapWinsA = 0;
       let mapWinsB = 0;
       for (const m of allMaps) {
@@ -310,16 +317,29 @@ export async function recordMapResult(
 
       seriesFinished = mapWinsA >= maxWins || mapWinsB >= maxWins;
 
-      await tx.insert(matchMaps).values({
-        matchId,
-        mapOrder,
-        mapName,
-        pickedByTeamId,
-        teamAStartSide,
-        scoreA,
-        scoreB,
-        completedAt: new Date(),
-      });
+      if (existingRow) {
+        // BP 预占行：填入比分（pickedByTeamId / teamAStartSide 保留 BP 记录，除非调用方覆盖）
+        await tx.update(matchMaps)
+          .set({
+            scoreA,
+            scoreB,
+            pickedByTeamId: pickedByTeamId ?? existingRow.pickedByTeamId,
+            teamAStartSide: teamAStartSide ?? existingRow.teamAStartSide,
+            completedAt: new Date(),
+          })
+          .where(eq(matchMaps.id, existingRow.id));
+      } else {
+        await tx.insert(matchMaps).values({
+          matchId,
+          mapOrder,
+          mapName,
+          pickedByTeamId,
+          teamAStartSide,
+          scoreA,
+          scoreB,
+          completedAt: new Date(),
+        });
+      }
 
       if (seriesFinished) {
         await tx.update(matches).set({

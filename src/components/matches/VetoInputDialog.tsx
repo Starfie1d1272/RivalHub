@@ -22,6 +22,7 @@ import { saveVetoSteps, getMatchVetoSteps, type VetoStepInput } from "@/actions/
 import { mapLabel } from "@/lib/maps";
 import type { VetoActionType } from "@/types/match";
 import { SIDE_LABELS } from "@/types/match";
+import { cn } from "@/lib/utils/cn";
 
 interface Props {
   matchId: string;
@@ -31,6 +32,7 @@ interface Props {
   teamAId: string;
   teamBId: string;
   mapPool: string[];
+  matchStatus?: string;
 }
 
 interface StepEdit {
@@ -99,6 +101,7 @@ export function VetoInputDialog({
   teamAId,
   teamBId,
   mapPool,
+  matchStatus,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [steps, setSteps] = useState<StepEdit[]>(() =>
@@ -204,6 +207,12 @@ export function VetoInputDialog({
           </DialogTitle>
         </DialogHeader>
 
+        {matchStatus === "finished" && (
+          <p className="text-xs text-[var(--color-fg-mid)] bg-[var(--color-panel-low)] px-3 py-2 rounded-md">
+            赛后补录：仅更新 BP 步骤，不重建地图记录（已有比分行不受影响）
+          </p>
+        )}
+
         {loading ? (
           <p className="text-sm text-[var(--color-fg-mid)] py-4">加载中…</p>
         ) : null}
@@ -225,23 +234,35 @@ export function VetoInputDialog({
 
               {/* 执行队伍 */}
               {step.actionType === "decider" && step.teamId === null ? (
-                <span className="text-sm text-[var(--color-fg-mid)] w-24">
+                <span className="text-sm text-[var(--color-fg-mid)] w-16">
                   刀赛/剩余
                 </span>
               ) : (
-                <div className="w-24">
-                  <Select
-                    value={step.teamId ?? ""}
-                    onValueChange={(v) => updateStep(i, { teamId: v || null })}
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => updateStep(i, { teamId: teamAId })}
+                    className={cn(
+                      "px-2.5 py-1 text-xs rounded border transition-colors",
+                      step.teamId === teamAId
+                        ? "bg-[var(--color-accent)] text-white border-[var(--color-accent)]"
+                        : "border-[var(--color-border)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
+                    )}
                   >
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="选择队伍" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={teamAId}>{teamAName}</SelectItem>
-                      <SelectItem value={teamBId}>{teamBName}</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    A
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateStep(i, { teamId: teamBId })}
+                    className={cn(
+                      "px-2.5 py-1 text-xs rounded border transition-colors",
+                      step.teamId === teamBId
+                        ? "bg-[var(--color-accent-b)] text-white border-[var(--color-accent-b)]"
+                        : "border-[var(--color-border)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
+                    )}
+                  >
+                    B
+                  </button>
                 </div>
               )}
 

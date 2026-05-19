@@ -12,6 +12,9 @@ import Link from "next/link";
 import { POSITION_LABELS } from "@/lib/validators/registration";
 import { matchPlayerStats } from "@/db/schema/player-stats";
 import { wAvg, sAvg } from "@/lib/utils/stats";
+import { getSeasonHexagonScores } from "@/actions/hexagon";
+import type { HexagonScores } from "@/lib/utils/hexagon";
+import { PlayerRadarChart } from "@/components/matches/PlayerRadarChart";
 
 /**
  * 统计玩家 MVP 获胜次数（从 matches.mvp_winner_user_id 直读，已持久化缓存）。
@@ -93,6 +96,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
     getMvpWinCount(userId),
     db
       .select({
+        seasonId: seasons.id,
         seasonName: seasons.name,
         seasonSlug: seasons.slug,
         seasonCreatedAt: seasons.createdAt,
@@ -124,6 +128,16 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
       .orderBy(asc(seasons.createdAt)),
     resolveAvatarUrl({ avatarUrl: user.avatarUrl, steam64: user.steam64 }),
   ]);
+
+  // ── 六维数据：仅对有数据的赛季查询 ──────────────────────────────────
+  const hexagonBySeasonSlug = new Map<string, HexagonScores>();
+  await Promise.all(
+    playerStats.map(async (ps) => {
+      const m = await getSeasonHexagonScores(ps.seasonId);
+      const s = m.get(userId);
+      if (s) hexagonBySeasonSlug.set(ps.seasonSlug, s);
+    })
+  );
 
   // ── 队伍归属（registrationId → team）────────────────────────────────
   const allRegIds = registrations.map((r) => r.id);
@@ -392,6 +406,31 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
               </div>
             </Panel>
           ))}
+
+          {/* 六维能力图 */}
+          {hexagonBySeasonSlug.size > 0 && (
+            <div className="space-y-3 mt-4">
+              <SectionHeading>六维能力图</SectionHeading>
+              {[...playerStats].reverse().map((ps) => {
+                const scores = hexagonBySeasonSlug.get(ps.seasonSlug);
+                if (!scores) return null;
+                return (
+                  <Panel key={ps.seasonSlug} pad={16}>
+                    <div className="text-xs font-semibold text-[var(--color-fg-mid)] mb-3">
+                      {ps.seasonName}
+                    </div>
+                    <PlayerRadarChart
+                      players={[{ name: getDisplayName(user), scores, color: "var(--color-accent)" }]}
+                      size={280}
+                    />
+                  </Panel>
+                );
+              })}
+              <p className="text-[11px] text-[var(--color-fg-dim)] px-1 leading-relaxed">
+                六维评分在本赛事内标准化，适合同一赛事内横向比较，不建议跨赛事直接对比。
+              </p>
+            </div>
+          )}
         </section>
       )}
 

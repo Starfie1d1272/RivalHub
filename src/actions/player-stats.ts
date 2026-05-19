@@ -242,6 +242,24 @@ export async function castMatchMvpVote(
       return fail({ code: ErrorCode.UNAUTHORIZED, message: "请先登录" });
     }
 
+    // 注册 24h 后才能投票
+    const [userRow] = await db
+      .select({ createdAt: users.createdAt })
+      .from(users)
+      .where(eq(users.id, session.userId))
+      .limit(1);
+
+    if (!userRow?.createdAt) {
+      return fail({ code: ErrorCode.UNAUTHORIZED, message: "账号状态异常，请重新登录" });
+    }
+    const hoursSinceRegistration = (Date.now() - userRow.createdAt.getTime()) / 3_600_000;
+    if (hoursSinceRegistration < 24) {
+      return fail({
+        code: ErrorCode.MATCH_VOTE_TOO_EARLY,
+        message: ERROR_MESSAGES.MATCH_VOTE_TOO_EARLY,
+      });
+    }
+
     const match = await db.query.matches.findFirst({
       where: eq(matches.id, matchId),
     });

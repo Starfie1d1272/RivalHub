@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { Panel } from "@/components/rivalhub";
 
@@ -24,6 +25,11 @@ export default function LoginPage() {
           </p>
         </div>
         <LoginForm />
+        <p className="text-center mt-3">
+          <Link href="/forgot-password" className="text-xs text-[var(--color-fg-mid)] hover:text-[var(--color-accent)] transition-colors">
+            忘记密码？
+          </Link>
+        </p>
       </Panel>
     </div>
   );

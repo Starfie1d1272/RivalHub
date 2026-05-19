@@ -60,6 +60,12 @@ interface AdminMatchRowProps {
     pickedByTeamId: string | null;
     teamAStartSide: "t" | "ct" | null;
   }[];
+  pendingMaps: {
+    mapOrder: number;
+    mapName: string;
+    pickedByTeamId: string | null;
+    teamAStartSide: "t" | "ct" | null;
+  }[];
   finishedMaps: { id: string; mapName: string }[];
 }
 
@@ -75,6 +81,7 @@ export function AdminMatchRow({
   teamARoster,
   teamBRoster,
   completedMaps,
+  pendingMaps,
   finishedMaps,
 }: AdminMatchRowProps) {
   return (
@@ -152,6 +159,7 @@ export function AdminMatchRow({
                     teamAId={match.teamAId}
                     teamBId={match.teamBId}
                     completedMaps={completedMaps}
+                    pendingMaps={pendingMaps}
                     mapPool={mapPool}
                   />
                 ) : (
@@ -167,6 +175,18 @@ export function AdminMatchRow({
             )}
             {match.status === "finished" && (
               <>
+                <div className="flex flex-wrap items-center gap-2">
+                  <VetoInputDialog
+                    matchId={match.id}
+                    format={match.format}
+                    teamAName={teamAName}
+                    teamBName={teamBName}
+                    teamAId={match.teamAId}
+                    teamBId={match.teamBId}
+                    mapPool={mapPool}
+                    matchStatus="finished"
+                  />
+                </div>
                 <ScoreInput
                   matchId={match.id}
                   teamAName={teamAName}

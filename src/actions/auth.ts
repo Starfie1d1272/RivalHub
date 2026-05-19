@@ -71,6 +71,7 @@ export async function loginWithPassword(
 export async function signUp(
   email: string,
   password: string,
+  turnstileToken?: string,
 ): Promise<ActionResult<{ email: string }>> {
   if (!email || !email.includes("@")) {
     return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请输入有效的邮箱地址" });
@@ -79,6 +80,27 @@ export async function signUp(
     return fail({ code: ErrorCode.VALIDATION_FAILED, message: `密码至少 ${MIN_PASSWORD_LENGTH} 位` });
   }
   const normalizedEmail = normalizeEmail(email);
+
+  // Turnstile 验证码校验
+  const secretKey = process.env.TURNSTILE_SECRET_KEY;
+  if (secretKey) {
+    if (!turnstileToken) {
+      return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请完成验证码校验" });
+    }
+    try {
+      const verifyResult = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ secret: secretKey, response: turnstileToken }),
+      });
+      const verifyData = await verifyResult.json() as { success: boolean };
+      if (!verifyData.success) {
+        return fail({ code: ErrorCode.VALIDATION_FAILED, message: "验证码校验失败，请刷新后重试" });
+      }
+    } catch {
+      return fail({ code: ErrorCode.INTERNAL_ERROR, message: "验证服务暂不可用，请稍后重试" });
+    }
+  }
 
   try {
     const supabase = createServiceClient();
@@ -123,6 +145,30 @@ export async function signUp(
     return ok({ email: normalizedEmail });
   } catch (e) {
     return actionError("signUp", e);
+  }
+}
+
+export async function sendPasswordResetEmail(email: string): Promise<ActionResult<undefined>> {
+  if (!email || !email.includes("@")) {
+    return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请输入有效的邮箱地址" });
+  }
+  const normalizedEmail = normalizeEmail(email);
+
+  try {
+    const supabase = createServiceClient();
+    const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/reset-password`,
+    });
+
+    if (error) {
+      // 不暴露邮箱是否存在（防枚举），统一返回成功提示
+      if (process.env.NODE_ENV === "development") {
+        console.warn("[sendPasswordResetEmail]", error.message);
+      }
+    }
+    return ok(undefined);
+  } catch (e) {
+    return actionError("sendPasswordResetEmail", e);
   }
 }
 

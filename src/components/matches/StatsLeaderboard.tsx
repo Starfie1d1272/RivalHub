@@ -36,8 +36,8 @@ const SORT_OPTIONS = [
   { key: "hs",      label: "HS%" },
   { key: "we",      label: "WE" },
   { key: "rws",     label: "RWS" },
-  { key: "fk",      label: "FKPR" },
-  { key: "clutch",  label: "CPR" },
+  { key: "fk",      label: "FKPR /100r" },
+  { key: "clutch",  label: "CPR /100r" },
   { key: "maps",    label: "场次" },
 ];
 
@@ -108,15 +108,15 @@ const COLS: ColDef[] = [
   },
   {
     key: "fk",
-    label: "FKPR",
+    label: "FKPR /100r",
     getValue: (r) => r.fkpr,
-    format: (v) => (v ?? 0).toFixed(2),
+    format: (v) => (v != null ? (v * 100).toFixed(1) : "—"),
   },
   {
     key: "clutch",
-    label: "CPR",
+    label: "CPR /100r",
     getValue: (r) => r.cpr,
-    format: (v) => (v ?? 0).toFixed(2),
+    format: (v) => (v != null ? (v * 100).toFixed(1) : "—"),
   },
 ];
 

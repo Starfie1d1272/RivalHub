@@ -58,6 +58,7 @@ export const ErrorCode = {
   MATCH_MAP_DUPLICATE: "MATCH_MAP_DUPLICATE",          // 同一 mapName 出现两次
   MATCH_MAP_ORDER_CONFLICT: "MATCH_MAP_ORDER_CONFLICT",// mapOrder 已存在
   MATCH_FORMAT_MISMATCH: "MATCH_FORMAT_MISMATCH",      // BO1 录入 2 张图等
+  MATCH_VOTE_TOO_EARLY: "MATCH_VOTE_TOO_EARLY",
 } as const;
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
@@ -112,4 +113,5 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   MATCH_MAP_DUPLICATE: "同一张图不能在系列赛中出现两次",
   MATCH_MAP_ORDER_CONFLICT: "该图序号已被使用",
   MATCH_FORMAT_MISMATCH: "提交的图数与比赛 BO 格式不一致",
+  MATCH_VOTE_TOO_EARLY: "账号注册满 24 小时后可参与投票",
 };
