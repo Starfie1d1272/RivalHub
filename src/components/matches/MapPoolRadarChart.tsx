@@ -183,14 +183,25 @@ export function MapPoolRadarChart({
           );
         })}
 
-        {/* Legend — 左下角横向排列，避免与雷达图重合 */}
-        <g transform="translate(14, 362)">
-          <rect x={0} y={0} width={10} height={10} fill={A_FILL} stroke={A_STROKE} strokeWidth={1} />
-          <text x={14} y={9} fontSize={10} fill="var(--color-fg-mid)">{teamAName}</text>
-          <rect x={76} y={0} width={10} height={10} fill={B_FILL} stroke={B_STROKE} strokeWidth={1} />
-          <text x={90} y={9} fontSize={10} fill="var(--color-fg-mid)">{teamBName}</text>
-        </g>
       </svg>
-    </div>
+
+      {/* Legend — 卡片底部，不受 SVG viewBox 约束 */}
+      <div className="flex items-center gap-4 text-xs text-[var(--color-fg-mid)]">
+        <span className="inline-flex items-center gap-1.5">
+          <span
+            className="inline-block w-2.5 h-2.5 shrink-0 border"
+            style={{ background: A_FILL, borderColor: A_STROKE }}
+          />
+          {teamAName}
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span
+            className="inline-block w-2.5 h-2.5 shrink-0 border"
+            style={{ background: B_FILL, borderColor: B_STROKE }}
+          />
+          {teamBName}
+        </span>
+      </div>
+      </div>
   );
 }
