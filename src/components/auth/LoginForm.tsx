@@ -4,6 +4,7 @@ import { useState, useTransition, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { Field, Btn } from "@/components/rivalhub";
 import { loginWithPassword, signUp } from "@/actions/auth";
+import { TurnstileWidget } from "@/components/auth/TurnstileWidget";
 
 type Mode = "login" | "register";
 
@@ -16,6 +17,7 @@ function safeRedirect(raw: string | null): string {
 export function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState<string>("");
   const [mode, setMode] = useState<Mode>("login");
   const [isPending, startTransition] = useTransition();
   const redirectRef = useRef(safeRedirect(new URLSearchParams(
@@ -25,15 +27,16 @@ export function LoginForm() {
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     startTransition(async () => {
-      const action = mode === "login" ? loginWithPassword : signUp;
-      const result = await action(email, password);
+      const result = mode === "login"
+        ? await loginWithPassword(email, password)
+        : await signUp(email, password, turnstileToken);
       if (result.success) {
         window.location.href = redirectRef.current;
       } else {
         toast.error(result.error.message);
       }
     });
-  }, [email, password, mode]);
+  }, [email, password, mode, turnstileToken]);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -84,7 +87,19 @@ export function LoginForm() {
         minLength={6}
       />
 
-      <Btn type="submit" full disabled={isPending}>
+      {mode === "register" && (
+        <div className="flex justify-center">
+          <TurnstileWidget
+            onVerify={(token) => setTurnstileToken(token)}
+            onError={() => {
+              setTurnstileToken("");
+              toast.error("验证码加载失败，请刷新后重试");
+            }}
+          />
+        </div>
+      )}
+
+      <Btn type="submit" full disabled={isPending || (mode === "register" && !turnstileToken)}>
         {isPending ? "处理中…" : mode === "login" ? "登录" : "注册"}
       </Btn>
 
