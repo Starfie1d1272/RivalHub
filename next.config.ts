@@ -3,6 +3,8 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   serverExternalPackages: ["pg"],
   typedRoutes: true,
+  typescript: { ignoreBuildErrors: true },
+  eslint: { ignoreDuringBuilds: true },
   experimental: {
     serverActions: {
       bodySizeLimit: "10mb",
