@@ -140,19 +140,42 @@ describe("computeDimensions", () => {
     }
   });
 
-  it("平均选手（所有指标等于 mean）经 shrink 后得分接近 50", () => {
-    const players = [
-      makePlayer({ userId: "u1", kpr: 0.6 }),
-      makePlayer({ userId: "u2", kpr: 1.0 }),
-    ];
-    const stats = computeEventStats(players);
-    // 均值为 0.8 的选手
-    const avg = makePlayer({ userId: "avg", kpr: 0.8, totalRounds: 60 });
-    // 注意：其他指标也需要等于 mean；这里用简单单指标偏差为 0 的场景
-    const scores = computeDimensions(avg, stats);
-    // 由于其他指标也有偏差，只验证范围
-    expect(scores.firepower).toBeGreaterThanOrEqual(0);
-    expect(scores.firepower).toBeLessThanOrEqual(100);
+  it("所有指标均等于 mean 的选手六维应接近 50", () => {
+    // 构造镜像对：每个指标互为关于中点对称
+    const p1 = makePlayer({
+      userId: "low",
+      kpr: 0.4, dpr: 0.4, apr: 0.2, kd: 0.7, kda: 1.0,
+      fkpr: 0.05, mkpr: 0.05, cpr: 0.02, adr: 60,
+      rws: 0.15, we: 0.3, ratingPro: 0.7,
+    });
+    const p2 = makePlayer({
+      userId: "high",
+      kpr: 1.2, dpr: 0.8, apr: 0.6, kd: 1.5, kda: 2.0,
+      fkpr: 0.15, mkpr: 0.25, cpr: 0.08, adr: 100,
+      rws: 0.35, we: 0.7, ratingPro: 1.3,
+    });
+    const stats = computeEventStats([p1, p2]);
+    // 中点选手所有指标恰好等于 mean
+    const mid = makePlayer({
+      userId: "mid",
+      kpr: 0.8, dpr: 0.6, apr: 0.4, kd: 1.1, kda: 1.5,
+      fkpr: 0.10, mkpr: 0.15, cpr: 0.05, adr: 80,
+      rws: 0.25, we: 0.5, ratingPro: 1.0,
+      totalRounds: 60,
+    });
+    const scores = computeDimensions(mid, stats);
+    for (const key of Object.keys(scores) as (keyof HexagonScores)[]) {
+      expect(scores[key], `${key} 应接近 50`).toBeCloseTo(50, 0);
+    }
+  });
+
+  it("totalRounds=0 时六维应全部为 50（完全归中性）", () => {
+    const p = makePlayer({ userId: "zero", totalRounds: 0 });
+    const stats = computeEventStats([p]);
+    const scores = computeDimensions(p, stats);
+    for (const key of Object.keys(scores) as (keyof HexagonScores)[]) {
+      expect(scores[key], `${key} 应为 50`).toBeCloseTo(50);
+    }
   });
 });
 

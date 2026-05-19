@@ -44,26 +44,14 @@ export interface HexagonScores {
 
 // ─── 六维权重配置 ─────────────────────────────────────────────────────────────
 
-export const DIMENSION_WEIGHTS = {
-  firepower: {
-    kpr: 0.35, adr: 0.35, kd: 0.15, mkpr: 0.15,
-  },
-  opening: {
-    fkpr: 0.50, we: 0.30, adr: 0.20,
-  },
-  multikill: {
-    mkpr: 0.55, kpr: 0.25, adr: 0.20,
-  },
-  clutch: {
-    cpr: 0.55, kd: 0.25, rws: 0.20,
-  },
-  support: {
-    apr: 0.35, kda: 0.25, we: 0.20, rws: 0.20,
-  },
-  consistency: {
-    ratingPro: 0.40, dprInverse: 0.30, rws: 0.20, kd: 0.10,
-  },
-} as const;
+export const DIMENSION_WEIGHTS = Object.freeze({
+  firepower:   Object.freeze({ kpr: 0.35, adr: 0.35, kd: 0.15, mkpr: 0.15 }),
+  opening:     Object.freeze({ fkpr: 0.50, we: 0.30, adr: 0.20 }),
+  multikill:   Object.freeze({ mkpr: 0.55, kpr: 0.25, adr: 0.20 }),
+  clutch:      Object.freeze({ cpr: 0.55, kd: 0.25, rws: 0.20 }),
+  support:     Object.freeze({ apr: 0.35, kda: 0.25, we: 0.20, rws: 0.20 }),
+  consistency: Object.freeze({ ratingPro: 0.40, dprInverse: 0.30, rws: 0.20, kd: 0.10 }),
+});
 
 // ─── 内部标准化辅助函数 ───────────────────────────────────────────────────────
 
@@ -74,13 +62,17 @@ function clamp(v: number): number {
 
 /** Z-score 标准化：高值 → 高分 */
 function zScore(value: number, mean: number, std: number): number {
-  if (std === 0) return 50;
+  if (!Number.isFinite(value) || !Number.isFinite(mean) || !Number.isFinite(std) || std < 1e-9) {
+    return 50;
+  }
   return clamp(50 + ((value - mean) / std) * 15);
 }
 
 /** Z-score 反向标准化：低值 → 高分（少死分专用） */
 function zScoreInverse(value: number, mean: number, std: number): number {
-  if (std === 0) return 50;
+  if (!Number.isFinite(value) || !Number.isFinite(mean) || !Number.isFinite(std) || std < 1e-9) {
+    return 50;
+  }
   return clamp(50 + ((mean - value) / std) * 15);
 }
 
@@ -92,10 +84,15 @@ function shrink(score: number, rounds: number, threshold = 60): number {
 
 // ─── 公开函数 ─────────────────────────────────────────────────────────────────
 
-const METRIC_KEYS: MetricKey[] = [
+const METRIC_KEYS = [
   "kpr", "dpr", "apr", "kd", "kda",
   "fkpr", "mkpr", "cpr", "adr", "rws", "we", "ratingPro",
-];
+] as const satisfies readonly MetricKey[];
+
+type _MetricKeysExhaustive = Exclude<MetricKey, (typeof METRIC_KEYS)[number]> extends never
+  ? true
+  : ["METRIC_KEYS missing keys"];
+const _checkMetricKeys: _MetricKeysExhaustive = true;
 
 /**
  * 计算赛事统计量（mean + std），供多次调用复用。
@@ -137,7 +134,8 @@ export function computeDimensions(
   const { mean, std } = stats;
 
   // 预计算所有指标的标准化分数
-  const z: Record<string, number> = {};
+  type ZKey = MetricKey | "dprInverse";
+  const z = {} as Record<ZKey, number>;
   for (const key of METRIC_KEYS) {
     z[key] = zScore(player[key], mean[key], std[key]);
   }
