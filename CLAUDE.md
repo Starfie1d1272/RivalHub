@@ -4,7 +4,7 @@
 
 RivalHub 是开源电竞赛事管理平台，通过 capability 驱动的多赛事模型支持各类赛制（选秀联赛、公开赛、杯赛等）的全流程运营：报名 → 审核 → 队长投票 → 蛇形选秀 → 队伍展示 → 赛程 + Bracket 视图 → 部署。
 
-当前阶段：**v1.20.0，站点部署在 `match.starfie1d.top`。比赛模块已深度补齐（BO1/BP/Roster/OCR/Tab/删除）。UI Optimization v2 已上线（动态 Hero / PhaseStep / 双栏赛季页 / design token 体系）。v2 赛制引擎（StageExecutor + 5 个 executor + entrySeeds 种子轮空 + finalFormat 决赛 BO5）代码已就绪，待 2026 NJU Major 赛季开始时启用。**
+当前阶段：**v1.20.3，站点部署在 `match.starfie1d.top`。比赛模块已深度补齐（BO1/BP/Roster/OCR/Tab/删除）。UI Optimization v2 已上线（动态 Hero / PhaseStep / 双栏赛季页 / design token 体系）。v2 赛制引擎（StageExecutor + 5 个 executor + entrySeeds 种子轮空 + finalFormat 决赛 BO5）代码已就绪，待 2026 NJU Major 赛季开始时启用。**
 
 ## 版本路线图
 
@@ -246,7 +246,11 @@ src/
 │   ├── auth/         # 登录/邀请组件（5 个：LoginForm / ClaimInviteForm / TurnstileWidget /
 │   │                 #   ForgotPasswordForm / ResetPasswordForm）
 │   ├── settings/     # 用户设置组件（ProfileForm / ChangePasswordForm）
-│   ├── register/     # 报名组件（RegistrationForm）
+│   ├── home/         # 首页组件（4 个：HomeHero / HomeNavigation / HomeSeasonPanel / SeasonCardGrid）
+│   ├── register/     # 报名组件（9 个：RegistrationForm / RegistrationSuccess /
+│   │                 #   RegistrationSectionTitle / MapPreferenceSection / ScreenshotLinksSection /
+│   │                 #   AntiCheatPledgeSection / RegistrationSubmitBar /
+│   │                 #   RegistrationExperienceSection / RegistrationOtherSection）
 │   ├── admin/        # 管理后台组件（15 个：AdminLoginForm / AdminRegisterForm / AdminSidebar /
 │   │                 #   AdminUserList / AuditLogTable / ChangePasswordForm / DraftRegistrationTable /
 │   │                 #   InviteManager / RegistrationReviewList / SeasonForm / SeasonSubNav /
@@ -258,7 +262,7 @@ src/
 │   └── matches/      # 赛程组件（36 个：MatchCard / MatchTeamFilter / CreateMatchForm /
 │                     #   AdminMatchFilter / AdminMatchRow / AdminRosterDialog / BatchDeadlineCard / BracketView /
 │                     #   CompletedAtInput / DeleteMatchButton / GeneratePlayoffCard / GenerateScheduleCard /
-│                     #   MapByMapInput / MapPoolRadarChart / MatchHeadToHead / MatchLineupsH2H /
+│                     #   MapByMapInput / MapPoolRadarChart / MatchHeadToHead / MatchHeroHeader / MatchLineupsH2H /
 │                     #   MatchMvpVote / MatchRosterForm / MatchRosterView / MatchStatusBadge /
 │                     #   MatchSummaryStats / MatchTabsSection / MatchTimeNegotiation /
 │                     #   PlayerRadarChart / PlayerStatsTable / ScheduledAtInput / ScoreInput /
@@ -321,6 +325,8 @@ pnpm seed              # 运行种子脚本（阶段2+ 有真实 DB 后使用）
 | 文档 | 内容 |
 |---|---|
 | `CHANGELOG.md` | 版本发布记录（Keep a Changelog 格式） |
+| `docs/README.md` | 文档入口与维护规则 |
+| `docs/code-map.md` | 代码结构地图与修改入口 |
 | `docs/state-machines.md` | 所有实体状态机（必读） |
 | `docs/draft-flow.md` | 选秀事务边界与并发安全（必读） |
 | `docs/data-integrity.md` | DB 与应用层约束分工、Storage bucket、soft delete 策略（必读） |

@@ -1,37 +1,37 @@
 # RivalHub
 
-RivalHub 是一个面向高校电竞赛事的开源赛事管理平台，覆盖报名、审核、队长投票、蛇形选秀、队伍展示、赛程管理、Bracket、比分录入、数据统计与上线部署。
+RivalHub 是一个面向高校电竞赛事的开源赛事管理平台，用于支撑从报名、审核、队长投票、选秀、队伍展示、赛程管理、比分录入到数据统计的完整赛事运营流程。
 
-当前 `1.16.1` 版本服务于 **2026 NJU Rivals 春季赛**：8 支队伍、队长投票、蛇形选秀、排位赛 + 双败淘汰，生产站点部署在 [match.starfie1d.top](https://match.starfie1d.top)。
+项目采用 capability 驱动的多赛事模型。赛季能力由配置决定，公开路由以 `seasonSlug` 区分，避免把具体赛事、赛制或阶段硬编码进业务逻辑。
 
-## 功能状态
+生产站点：[match.starfie1d.top](https://match.starfie1d.top)
 
-| 模块 | 1.16.1 能力 |
-|---|----|
-| 赛季管理 | capability 驱动的多赛事模型，`/[seasonSlug]` 路由，动态 PhaseTracker 阶段追踪，NEXT MATCHES 面板 + Stat 四格（playing 阶段）；SeasonNav / PhaseTracker 应用 ScrollHint 横滚提示 |
-| 报名 | 邮箱密码账号、自动草稿恢复、Zod 校验、位置/人数上限（仅统计 approved）、NJUBox 截图链接 |
-| 审核 | 管理员审核、候补名单、邀请码提权、审批通过自动推进赛季状态、操作审计 |
-| 选手 | `/[seasonSlug]/players` 选手名单页，按主/副位置 OR 筛选，卡片展示段位/Rating/副位置/所属队伍；全站选手名可点击跳转个人主页 |
-| 队长投票 | 每人最多 3 票，Realtime 刷新票数；移动端切换卡片列表（`CaptainVotingPanel` 双模式） |
-| 选秀 | 队长面板按段位+Rt 排序统一列表、满员位置灰显禁用、可折叠阵容摘要；围观直播间 pick 通知 Banner 3 秒淡出；事务行锁、幂等 pick、超时自动递补 |
-| 队伍 | 阵容展示、首发/替补、队长标识、队伍图标上传、管理员下载头像；同队成员可见 QQ/邮箱联系方式；队伍名可点击跳转详情 |
-| 比赛 | 赛程、Bracket（Tactical Grid 暗色主题）、地图结果、比分录入；赛前名单/MVP 结果/赛后数据表选手名可点击跳转个人主页 |
-| 协商 | 比赛时间提议/接受/拒绝（双方队长均可随时提议）、24h 未回应自动采纳、管理员强制设定、协商截止自动裁定、管理员批量设置截止时间（按阶段/轮次） |
-| 账号 | 邮箱+密码注册/登录、个人信息自助修改（perfectName/steamName/steam64/steamProfileUrl/QQ/学号）、修改密码、`getDisplayName()` 统一展示名派生 |
-| 数据 | 完美平台截图 OCR、比赛数据表、MVP 投票、选手/队伍统计、后台操作日志 |
-| 部署 | Vercel + Supabase + GitHub Actions Cron（选秀超时 + 报名截止自动推进 + 比赛时间协商自动裁定） |
+## 核心能力
+
+| 模块 | 能力 |
+|---|---|
+| 赛季 | 多赛季路由、能力开关、阶段状态机、赛季发布与归档 |
+| 报名 | 邮箱账号、表单校验、草稿恢复、位置与人数限制、截图链接 |
+| 审核 | 管理员审核、候补名单、邀请码提权、操作审计 |
+| 队长投票 | 候选人确认、限票规则、票数展示与实时更新 |
+| 选秀 | 蛇形选秀、事务行锁、幂等 pick、超时自动递补 |
+| 队伍 | 阵容展示、队长标识、队名与队徽管理、队员联系方式可见性 |
+| 比赛 | 赛程、Bracket、BP / 地图结果、阵容提交、比分录入、MVP 投票 |
+| 协商 | 比赛时间提议、接受/拒绝、管理员强制设定、截止自动裁定 |
+| 数据 | OCR 录入、选手/队伍统计、排行榜、审计日志 |
+| 运维 | Vercel 部署、Supabase 数据库、GitHub Actions Cron |
 
 ## 技术栈
 
 | 层 | 选型 |
 |---|---|
-| Web | Next.js 15 App Router, React 19, TypeScript strict |
-| UI | Tailwind CSS v4, shadcn/ui, 自定义 Tactical Grid 组件 |
+| Web | Next.js App Router, React, TypeScript strict |
+| UI | Tailwind CSS, shadcn/ui, 自定义 Tactical Grid 组件 |
 | 数据 | Supabase Postgres, Auth, Realtime, Storage |
 | ORM | Drizzle ORM |
 | 表单 | React Hook Form, Zod |
-| 鉴权 | Supabase email+password + iron-session |
-| 赛程图 | `brackets-manager` / `brackets-viewer`，经 `src/lib/bracket` 适配 |
+| 鉴权 | Supabase email/password + iron-session |
+| Bracket | `brackets-manager` / `brackets-viewer`，经 `src/lib/bracket` 适配 |
 | 测试 | Vitest, React Testing Library, Playwright |
 | 部署 | Vercel |
 
@@ -47,14 +47,12 @@ pnpm dev
 
 本地开发地址：`http://localhost:3000`
 
-`pnpm seed` 会创建 Root 管理员：
+`pnpm seed` 会创建初始 Root 管理员。首次部署后请尽快在后台修改默认密码。
 
 ```text
 username: RivalHub_root
 password: RivalHub_password
 ```
-
-首次部署后请尽快在后台修改默认密码。
 
 ## 环境变量
 
@@ -62,49 +60,40 @@ password: RivalHub_password
 
 | 变量 | 用途 |
 |---|---|
-| `DATABASE_URL` | Supabase Postgres 连接串；Vercel 生产建议使用 Session Pooler |
+| `DATABASE_URL` | Supabase Postgres 连接串；生产建议使用 Session Pooler |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase 项目 URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 浏览器端 Supabase anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | 服务端 Supabase service role key |
 | `ADMIN_SESSION_SECRET` | iron-session 加密密钥，至少 32 字符 |
 | `NEXT_PUBLIC_APP_URL` | 应用公开 URL |
-| `CRON_SECRET` | 选秀超时 Cron 鉴权密钥 |
-| `STEAM_API_KEY` | 可选，抓取选手 Steam 头像 |
+| `CRON_SECRET` | Cron API 鉴权密钥 |
+| `STEAM_API_KEY` | 可选，抓取 Steam 头像 |
 | `SILICONFLOW_API_KEY` | 可选，玩家数据 OCR |
+
+不要把 `SUPABASE_SERVICE_ROLE_KEY` 暴露到任何 `NEXT_PUBLIC_` 变量中。
 
 ## 部署
 
 生产部署目标是 Vercel + Supabase：
 
-1. 在 Supabase 创建项目并应用 Drizzle 迁移。
-2. 在 Vercel 配置 `.env.example` 中的环境变量。
-3. 生产 `DATABASE_URL` 使用 Supabase Dashboard 提供的 **Session Pooler** 连接串。
+1. 在 Supabase 创建项目并应用 Drizzle schema / migration。
+2. 在 Vercel 配置 `.env.example` 中列出的环境变量。
+3. 生产 `DATABASE_URL` 使用 Supabase Dashboard 提供的 Session Pooler 连接串。
 4. 运行 `pnpm seed` 或等价脚本创建 Root 管理员。
 5. 在 GitHub Actions Secrets 配置 `CRON_SECRET`。
 6. 合并到 `main` 后由 Vercel 部署生产站点。
 
-当前 GitHub Actions Cron 每 5 分钟触发以下端点（见 `.github/workflows/cron.yml`）：
+Cron 由 GitHub Actions 调用，端点与频率见 [.github/workflows/cron.yml](./.github/workflows/cron.yml)。部署细节见 [docs/deployment.md](./docs/deployment.md)。
 
-- `https://match.starfie1d.top/api/cron/draft-timeout` — 选秀超时自动递补
-- `https://match.starfie1d.top/api/cron/check-registration-deadline` — 报名截止/满员自动推进赛季
-- `https://match.starfie1d.top/api/cron/match-time-auto-award` — 比赛时间协商截止后自动采用最早提议
+## 安全边界
 
-更多细节见 [docs/deployment.md](./docs/deployment.md)。
+- 业务写操作走 Server Actions；Cron 触发才使用 API Route。
+- 浏览器只订阅必要的 Supabase Realtime 表。
+- 管理操作必须写入审计日志。
+- 生产环境启用 RLS；除公开实时表外，不给浏览器直接访问业务表的 policy。
+- 第三方服务密钥只放服务端环境变量。
 
-## 数据库与安全
-
-RivalHub 的业务写操作走 Server Actions，浏览器只使用 Supabase Realtime 订阅少数公开变化。
-
-上线推荐的 RLS 形态：
-
-| 表 | 浏览器权限 |
-|---|---|
-| `draft_state` | `SELECT` + Realtime |
-| `draft_picks` | `SELECT` + Realtime |
-| `captain_votes` | `SELECT` + Realtime |
-| 其它业务表 | 启用 RLS，但不创建浏览器访问 policy |
-
-不要把 `SUPABASE_SERVICE_ROLE_KEY` 暴露到任何 `NEXT_PUBLIC_` 变量中。
+更多权限与 RLS 细节见 [docs/auth-and-permissions.md](./docs/auth-and-permissions.md)。
 
 ## 常用命令
 
@@ -119,31 +108,6 @@ pnpm db:push      # 推送 schema 到数据库
 pnpm seed         # 创建 Root 管理员
 ```
 
-## 文档
-
-| 文档 | 内容 |
-|---|---|
-| [CHANGELOG.md](./CHANGELOG.md) | 版本发布记录 |
-| [CLAUDE.md](./CLAUDE.md) | 项目工程手册与 AI 协作约束 |
-| [docs/launch-readiness.md](./docs/launch-readiness.md) | 上线前 / 线上常态运营核对清单 |
-| [docs/architecture.md](./docs/architecture.md) | 架构与模块边界 |
-| [docs/data-model.md](./docs/data-model.md) | 数据模型、ER 图、约束 |
-| [docs/auth-and-permissions.md](./docs/auth-and-permissions.md) | 鉴权、权限与 RLS 策略 |
-| [docs/registration-flow.md](./docs/registration-flow.md) | 报名流程 |
-| [docs/draft-flow.md](./docs/draft-flow.md) | 选秀事务与并发安全 |
-| [docs/state-machines.md](./docs/state-machines.md) | 关键业务状态机 |
-| [docs/deployment.md](./docs/deployment.md) | Vercel/Supabase 部署手册 |
-| [docs/testing.md](./docs/testing.md) | 测试策略 |
-
-## 分支与发布
-
-| 分支 | 用途 |
-|---|---|
-| `main` | 生产部署分支，只通过 PR 合入 |
-| `dev` | 日常集成分支，直推用于快速迭代 |
-
-v2/v3 版本分支在对应版本开发启动时从 `main` 创建，不常驻维护。
-
 发布前至少运行：
 
 ```bash
@@ -152,9 +116,26 @@ pnpm test
 pnpm build
 ```
 
-## 待办
+## 文档
 
-见 [issue #87](https://github.com/Starfie1d1272/RivalHub/issues/87)（v1 上线后验收 + v2/v3 远期规划）。
+| 文档 | 内容 |
+|---|---|
+| [AGENTS.md](./AGENTS.md) | 项目工程手册与 AI 协作约束 |
+| [docs/README.md](./docs/README.md) | 文档入口与维护规则 |
+| [docs/code-map.md](./docs/code-map.md) | 代码结构地图与修改入口 |
+| [docs/architecture.md](./docs/architecture.md) | 架构与模块边界 |
+| [docs/data-model.md](./docs/data-model.md) | 数据模型与约束 |
+| [docs/data-integrity.md](./docs/data-integrity.md) | 数据一致性与 Storage 策略 |
+| [docs/auth-and-permissions.md](./docs/auth-and-permissions.md) | 鉴权、权限与 RLS 策略 |
+| [docs/season-abstraction.md](./docs/season-abstraction.md) | capability 驱动的多赛事设计 |
+| [docs/registration-flow.md](./docs/registration-flow.md) | 报名流程 |
+| [docs/draft-flow.md](./docs/draft-flow.md) | 选秀事务与并发安全 |
+| [docs/state-machines.md](./docs/state-machines.md) | 关键业务状态机 |
+| [docs/deployment.md](./docs/deployment.md) | Vercel / Supabase 部署手册 |
+| [docs/testing.md](./docs/testing.md) | 测试策略 |
+| [CHANGELOG.md](./CHANGELOG.md) | 版本发布记录 |
+
+历史设计稿、一次性计划和过程材料已归档到 [docs/archive](./docs/archive)，不作为当前实现的事实来源。
 
 ## License
 
