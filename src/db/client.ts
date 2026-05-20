@@ -11,7 +11,7 @@ function createPool(): Pool {
   } else {
     try {
       const url = new URL(connectionString);
-      console.error("[db] 连接目标:", url.hostname, "SSL:", shouldUseSsl(connectionString) ? "on" : "off");
+      console.log("[db] 连接目标:", url.hostname, "SSL:", shouldUseSsl(connectionString) ? "on" : "off");
     } catch {
       console.error("[db] DATABASE_URL 格式异常，pg 可能解析失败:", String(connectionString).slice(0, 80));
     }
