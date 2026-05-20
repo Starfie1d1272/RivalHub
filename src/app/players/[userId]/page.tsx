@@ -11,7 +11,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { POSITION_LABELS } from "@/lib/validators/registration";
 import { matchPlayerStats } from "@/db/schema/player-stats";
-import { wAvg, sAvg } from "@/lib/utils/stats";
+import { wAvg } from "@/lib/utils/stats";
 import { getSeasonHexagonScores } from "@/actions/hexagon";
 import type { HexagonScores } from "@/lib/utils/hexagon";
 import { PlayerRadarChart } from "@/components/matches/PlayerRadarChart";
@@ -199,6 +199,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
   const totalKillsAll = playerStats.reduce((s, x) => s + x.totalKills, 0);
   const totalDeathsAll = playerStats.reduce((s, x) => s + x.totalDeaths, 0);
   const totalFirstKillsAll = playerStats.reduce((s, x) => s + x.totalFirstKills, 0);
+  const totalMultiKillsAll = playerStats.reduce((s, x) => s + x.totalMultiKills, 0);
   const totalClutchesAll = playerStats.reduce((s, x) => s + x.totalClutches, 0);
   const totalRoundsAll = playerStats.reduce((s, x) => s + (x as any).totalRounds, 0);
   const mvpCount = mvpWinCount;
@@ -342,7 +343,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
                 { label: "WE", value: wAvg(playerStats, "avgWe") },
                 { label: "KPR", value: totalRoundsAll > 0 ? (totalKillsAll / totalRoundsAll).toFixed(2) : "—" },
                 { label: "FKPR /100r", value: totalRoundsAll > 0 ? (totalFirstKillsAll / totalRoundsAll * 100).toFixed(1) : "—" },
-                { label: "多杀", value: sAvg(playerStats, "totalMultiKills") },
+                { label: "MKPR /100r", value: totalRoundsAll > 0 ? (totalMultiKillsAll / totalRoundsAll * 100).toFixed(1) : "—" },
                 { label: "CPR /100r", value: totalRoundsAll > 0 ? (totalClutchesAll / totalRoundsAll * 100).toFixed(1) : "—" },
                 {
                   label: "HS%",

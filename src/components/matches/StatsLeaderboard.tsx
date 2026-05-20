@@ -18,6 +18,7 @@ interface LeaderboardRow {
   kdRatio: number | null;
   kpr: number;
   fkpr: number;
+  mkpr: number;
   cpr: number;
 }
 
@@ -37,6 +38,7 @@ const SORT_OPTIONS = [
   { key: "we",      label: "WE" },
   { key: "rws",     label: "RWS" },
   { key: "fk",      label: "FKPR /100r" },
+  { key: "mk",      label: "MKPR /100r" },
   { key: "clutch",  label: "CPR /100r" },
   { key: "maps",    label: "场次" },
 ];
@@ -110,6 +112,12 @@ const COLS: ColDef[] = [
     key: "fk",
     label: "FKPR /100r",
     getValue: (r) => r.fkpr,
+    format: (v) => (v != null ? (v * 100).toFixed(1) : "—"),
+  },
+  {
+    key: "mk",
+    label: "MKPR /100r",
+    getValue: (r) => r.mkpr,
     format: (v) => (v != null ? (v * 100).toFixed(1) : "—"),
   },
   {

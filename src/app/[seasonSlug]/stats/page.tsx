@@ -47,6 +47,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
   const hsExpr     = weightedAvg("mps.hs_percent");
   const kprExpr    = perRoundRate("mps.kills");
   const fkprExpr   = perRoundRate("mps.first_kills");
+  const mkprExpr   = perRoundRate("mps.multi_kills");
   const cprExpr    = perRoundRate("mps.clutches");
 
   const sortColumn = (() => {
@@ -58,6 +59,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
       case "we":     return sql`avg(mps.we)`;
       case "rws":    return sql`avg(mps.rws)`;
       case "fk":     return fkprExpr;
+      case "mk":     return mkprExpr;
       case "clutch": return cprExpr;
       case "maps":   return sql`count(*)`;
       default:       return sql`avg(mps.rating_pro)`;
@@ -87,6 +89,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
         ELSE NULL END                                                        AS kd_ratio,
       round(${kprExpr}::numeric, 2)                                         AS kpr,
       round(${fkprExpr}::numeric, 4)                                        AS fkpr,
+      round(${mkprExpr}::numeric, 4)                                        AS mkpr,
       round(${cprExpr}::numeric, 4)                                         AS cpr
     FROM match_player_stats mps
     JOIN matches m ON m.id = mps.match_id
@@ -122,6 +125,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     kdRatio:    toNumOrNull(r.kd_ratio),
     kpr:        toNum(r.kpr),
     fkpr:       toNum(r.fkpr),
+    mkpr:       toNum(r.mkpr),
     cpr:        toNum(r.cpr),
   }));
 

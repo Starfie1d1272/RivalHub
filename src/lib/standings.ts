@@ -64,11 +64,10 @@ export function calculateStandings(
     return { teamId: t.id, teamName: t.name, draftOrder: t.draftOrder, ...s, seed: 0 };
   });
 
-  // 排序：胜场 → 净胜 → 总胜回合 → 相互战绩 → draftOrder（稳定）
+  // 排序：胜场 → 净胜回合 → 相互战绩 → 总胜回合 → draftOrder（稳定）
   standings.sort((a, b) => {
     if (b.wins !== a.wins) return b.wins - a.wins;
     if (b.netRounds !== a.netRounds) return b.netRounds - a.netRounds;
-    if (b.totalRoundsWon !== a.totalRoundsWon) return b.totalRoundsWon - a.totalRoundsWon;
 
     // 相互战绩：查 finishedMatches 中两队之间的比赛
     const h2h = finishedMatches.find(
@@ -83,6 +82,8 @@ export function calculateStandings(
       if (aWonH2H) return -1;
       return 1;
     }
+
+    if (b.totalRoundsWon !== a.totalRoundsWon) return b.totalRoundsWon - a.totalRoundsWon;
 
     // 最终 fallback：draftOrder（选秀顺位）
     return a.draftOrder - b.draftOrder;

@@ -45,16 +45,33 @@ export default async function DraftPage({ params }: DraftPageProps) {
   if (season.status !== "drafting") {
     const stageLabel = SEASON_STATUS_LABELS[season.status] ?? season.status;
     const draftFinished = season.status === "playing" || season.status === "finished";
+
+    if (!draftFinished) {
+      return (
+        <main className="container mx-auto max-w-5xl px-4 py-10 space-y-8">
+          <Panel pad={32}>
+            <h1 className="text-2xl font-bold">选秀直播间 · {season.name}</h1>
+            <p className="mt-2 text-sm text-[var(--color-fg-mid)]">
+              选秀尚未开放 · 当前阶段：{stageLabel}
+            </p>
+          </Panel>
+        </main>
+      );
+    }
+
+    const data = await getDraftData(season.id);
     return (
-      <main className="container mx-auto max-w-5xl px-4 py-10 space-y-8">
-        <Panel pad={32}>
-          <h1 className="text-2xl font-bold">选秀直播间 · {season.name}</h1>
-          <p className="mt-2 text-sm text-[var(--color-fg-mid)]">
-            {draftFinished
-              ? "选秀已结束"
-              : `选秀尚未开放 · 当前阶段：${stageLabel}`}
-          </p>
-        </Panel>
+      <main className="container mx-auto max-w-7xl px-4 py-10 space-y-8">
+        <Marker sub="选秀已结束，以下为完整选人记录。">
+          选秀回顾 · {season.name}
+        </Marker>
+        <DraftLiveRoom
+          data={data}
+          seasonId={season.id}
+          seasonSlug={seasonSlug}
+          seasonPositions={season.positions}
+          readonly
+        />
       </main>
     );
   }

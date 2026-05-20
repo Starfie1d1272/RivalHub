@@ -237,8 +237,8 @@ export function DraftLiveRoom({
         </div>
       )}
 
-      {/* 已完成 pick 历史 —— 仅直播模式 */}
-      {!isReadonly && completedPicks.length > 0 && (
+      {/* 已完成 pick 历史 */}
+      {completedPicks.length > 0 && (
         <section>
           <h2 className="text-sm font-semibold text-[var(--color-fg-mid)] mb-3 uppercase tracking-wider">
             选秀记录

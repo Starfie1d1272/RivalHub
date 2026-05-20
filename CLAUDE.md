@@ -4,7 +4,7 @@
 
 RivalHub 是开源电竞赛事管理平台，通过 capability 驱动的多赛事模型支持各类赛制（选秀联赛、公开赛、杯赛等）的全流程运营：报名 → 审核 → 队长投票 → 蛇形选秀 → 队伍展示 → 赛程 + Bracket 视图 → 部署。
 
-当前阶段：**v1.17.1，站点部署在 `match.starfie1d.top`。比赛模块已深度补齐（BO1/BP/Roster/OCR/Tab/删除）。UI Optimization v2 已上线（动态 Hero / PhaseStep / 双栏赛季页 / design token 体系）。v2 赛制引擎（StageExecutor + 5 个 executor + entrySeeds 种子轮空 + finalFormat 决赛 BO5）代码已就绪，待 2026 NJU Major 赛季开始时启用。**
+当前阶段：**v1.20.0，站点部署在 `match.starfie1d.top`。比赛模块已深度补齐（BO1/BP/Roster/OCR/Tab/删除）。UI Optimization v2 已上线（动态 Hero / PhaseStep / 双栏赛季页 / design token 体系）。v2 赛制引擎（StageExecutor + 5 个 executor + entrySeeds 种子轮空 + finalFormat 决赛 BO5）代码已就绪，待 2026 NJU Major 赛季开始时启用。**
 
 ## 版本路线图
 
@@ -243,25 +243,27 @@ src/
 │   ├── rivalhub/     # Tactical Grid 组件（16 个：Panel/Btn/Field/Marker/Stat/
 │   │                 #   StatusBanner/InlineConfirm/EmptyState/ErrorState/Skeleton/
 │   │                 #   TeamBadge/PosChip/StatusPill/ScrollHint/PhaseStep/MapPreferenceChips）
-│   ├── auth/         # 登录/邀请组件（2 个：LoginForm / ClaimInviteForm）
+│   ├── auth/         # 登录/邀请组件（5 个：LoginForm / ClaimInviteForm / TurnstileWidget /
+│   │                 #   ForgotPasswordForm / ResetPasswordForm）
 │   ├── settings/     # 用户设置组件（ProfileForm / ChangePasswordForm）
 │   ├── register/     # 报名组件（RegistrationForm）
-│   ├── admin/        # 管理后台组件（14 个：AdminLoginForm / AdminRegisterForm / AdminSidebar /
+│   ├── admin/        # 管理后台组件（15 个：AdminLoginForm / AdminRegisterForm / AdminSidebar /
 │   │                 #   AdminUserList / AuditLogTable / ChangePasswordForm / DraftRegistrationTable /
 │   │                 #   InviteManager / RegistrationReviewList / SeasonForm / SeasonSubNav /
-│   │                 #   StagePlanEditor / TeamConfigForm / ThemeColorPicker）
+│   │                 #   StagePlanEditor / TeamConfigForm / ThemeColorPicker / UserSearchBar）
 │   ├── draft/        # 选秀组件（7 个：CaptainDraftPanel / DraftAdminPanel / DraftCountdown /
 │   │                 #   DraftLiveRoom / PlayerInfoPopover / PlayerPool / TeamDraftGrid）
 │   ├── captains/     # 队长投票组件（2 个：CaptainConfirmPanel / CaptainVotingPanel）
 │   ├── teams/        # 队伍组件（5 个：TeamCard / TeamGrid / TeamLogoUpload / TeamNameForm / TeamRosterCard）
-│   └── matches/      # 赛程组件（28 个：MatchCard / MatchTeamFilter / CreateMatchForm /
+│   └── matches/      # 赛程组件（36 个：MatchCard / MatchTeamFilter / CreateMatchForm /
 │                     #   AdminMatchFilter / AdminMatchRow / AdminRosterDialog / BatchDeadlineCard / BracketView /
-│                     #   DeleteMatchButton / GeneratePlayoffCard / GenerateScheduleCard /
-│                     #   MapByMapInput / MatchMvpVote / MatchRosterForm / MatchRosterView /
-│                     #   MatchStatusBadge / MatchTabsSection / MatchTimeNegotiation /
-│                     #   PlayerStatsTable / ScheduledAtInput / ScoreInput / StandingsTable /
-│                     #   StatsLeaderboard / StatsOCRPanel / SwissBracket / TimeProposalHistory /
-│                     #   VetoInputDialog / VetoView）
+│                     #   CompletedAtInput / DeleteMatchButton / GeneratePlayoffCard / GenerateScheduleCard /
+│                     #   MapByMapInput / MapPoolRadarChart / MatchHeadToHead / MatchLineupsH2H /
+│                     #   MatchMvpVote / MatchRosterForm / MatchRosterView / MatchStatusBadge /
+│                     #   MatchSummaryStats / MatchTabsSection / MatchTimeNegotiation /
+│                     #   PlayerRadarChart / PlayerStatsTable / ScheduledAtInput / ScoreInput /
+│                     #   StandingsTable / StatsLeaderboard / StatsOCRPanel / SwissBracket /
+│                     #   TeamStatsCompare / TimeProposalHistory / VetoInputDialog / VetoView）
 └── types/            # 共享 TypeScript 类型
 ```
 

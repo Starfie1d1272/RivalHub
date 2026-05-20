@@ -263,7 +263,7 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
                         border: "1px solid var(--color-border)",
                       }}
                     >
-                      <div className="flex items-center gap-8">
+                      <div className="flex items-center gap-8 flex-1 min-w-0">
                         <div className="min-w-0 flex-1 flex items-center justify-end gap-2">
                           <span className="text-sm font-semibold text-[var(--color-fg)] truncate">
                             {match.teamAName ?? "TBD"}
