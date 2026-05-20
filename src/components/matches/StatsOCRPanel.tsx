@@ -133,6 +133,8 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
 
       setDrafts(result.data.drafts);
       setPlayerOptions(result.data.playerOptions);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "OCR 请求失败，请检查网络连接后重试");
     } finally {
       setExtracting(false);
     }

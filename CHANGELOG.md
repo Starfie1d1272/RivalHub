@@ -5,6 +5,13 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.20.4] - 2026-05-21
+
+### Fixed
+- **OCR 静默失败**：前端 `handleExtract` 补上缺失的 catch 块，Server Action 调用抛异常时显示错误信息而非静默吞掉
+- **DB 冷启动脆弱性**：Vercel 函数冷启动时 `DATABASE_URL` 偶发为空/残值导致 pg Pool 绑定错误地址，现连接失败自动重建 Pool 并重读环境变量
+- **OCR 日志可诊断性**：`siliconflow.ts` 每个处理步骤（JSON 解析→players 提取→逐行校验）设独立 try/catch + 日志，失败时精确定位
+
 ## [1.20.3] - 2026-05-20
 
 ### Changed
