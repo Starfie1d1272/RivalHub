@@ -5,6 +5,17 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.20.3] - 2026-05-20
+
+### Changed
+- **项目文档瘦身**：重写 README 为长期维护入口，新增 `docs/README.md` 与 `docs/code-map.md`，将历史设计交付物和过程材料归档到 `docs/archive/`
+- **大文件拆分**：拆分比赛详情页、首页与报名表单的大块展示组件，提取比赛详情、赛果、阵容与时间协商相关纯规则
+- **工程手册同步**：更新 CLAUDE.md / AGENTS.md 组件清单与发布约束，扩展组件清单校验脚本覆盖首页组件
+
+### Added
+- **关键规则测试**：补充比赛详情统计、赛果规则、首页导航规则与报名表单工具测试
+- **TODO 测试清理**：将 roster、scheduling、round-robin 中的测试 TODO 替换为可执行测试
+
 ## [1.20.2] - 2026-05-20
 
 ### Fixed
@@ -624,6 +635,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.20.3]: https://github.com/Starfie1d1272/RivalHub/compare/v1.20.2...v1.20.3
 [1.20.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.19.2...v1.20.0
 [1.19.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.19.1...v1.19.2
 [1.19.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.19.0...v1.19.1

@@ -18,6 +18,12 @@ import { getMaxMaps, getWinThreshold, isMatchStatus } from "@/types/match";
 import { actionError, getSeasonOrThrow, getMatchOrThrow } from "@/lib/action-utils";
 import { revalidateMatchPaths, revalidateSeasonPaths } from "@/lib/revalidation";
 import { normalizeRegistrationConfig, normalizeStagePlan } from "@/types/season";
+import {
+  computeSeriesScoreAfterMap,
+  isValidCS2RoundScore,
+  validateMapScore,
+  validateSeriesScore,
+} from "@/lib/matches/result-rules";
 
 /**
  * 将 bracket 推进后解析出的新对阵批量写入 matches 表。
@@ -142,27 +148,8 @@ export async function recordMatchResult(
   scoreB: number
 ): Promise<ActionResult<void>> {
   try {
-    if (!Number.isInteger(scoreA) || !Number.isInteger(scoreB) || scoreA < 0 || scoreB < 0) {
-      throw new AppError(ErrorCode.MATCH_INVALID_SCORE, "比分必须为非负整数");
-    }
-    if (scoreA === scoreB) {
-      throw new AppError(ErrorCode.MATCH_INVALID_SCORE, "系列赛不能平局，必须分出胜负");
-    }
-
     const match = await getMatchOrThrow(matchId);
-
-    // BO3/BO5 校验系列赛胜场数：胜者恰好达到 maxWins，败者不得超过 maxWins-1
-    const maxWins = match.format === "bo1" ? null : getWinThreshold(match.format);
-    if (maxWins !== null) {
-      const winner = Math.max(scoreA, scoreB);
-      const loser = Math.min(scoreA, scoreB);
-      if (winner !== maxWins || loser >= maxWins) {
-        throw new AppError(
-          ErrorCode.MATCH_INVALID_SCORE,
-          `${match.format.toUpperCase()} 系列赛比分不合法（胜者须恰好赢 ${maxWins} 图）`
-        );
-      }
-    }
+    validateSeriesScore(match.format, scoreA, scoreB);
     const session = await requireSeasonAdmin(match.seasonId);
     if (!isMatchStatus(match.status)) {
       throw new AppError(ErrorCode.INTERNAL_ERROR, `无效的比赛状态: ${match.status}`);
@@ -248,20 +235,7 @@ export async function recordMapResult(
   teamAStartSide: "t" | "ct" | null
 ): Promise<ActionResult<{ seriesFinished: boolean }>> {
   try {
-    if (!Number.isInteger(scoreA) || !Number.isInteger(scoreB) || scoreA < 0 || scoreB < 0) {
-      throw new AppError(ErrorCode.MATCH_INVALID_SCORE, "比分必须为非负整数");
-    }
-    if (scoreA === scoreB) {
-      throw new AppError(ErrorCode.MATCH_INVALID_SCORE, "单图不能平局");
-    }
-    const mapWinner = Math.max(scoreA, scoreB);
-    const mapLoser = Math.min(scoreA, scoreB);
-    if (!isValidCS2RoundScore(mapWinner, mapLoser)) {
-      throw new AppError(
-        ErrorCode.MATCH_INVALID_SCORE,
-        "单图比分不合法，胜者回合数须满足 13 + 3k（如 13、16、19、22…）"
-      );
-    }
+    validateMapScore(scoreA, scoreB);
 
     const match = await getMatchOrThrow(matchId);
     const session = await requireSeasonAdmin(match.seasonId);
@@ -284,7 +258,6 @@ export async function recordMapResult(
       throw new AppError(ErrorCode.MATCH_MAP_INVALID, "地图不在当前赛季图池中");
     }
 
-    const maxWins = getWinThreshold(match.format);
     const maxMaps = getMaxMaps(match.format);
 
     if (mapOrder < 1 || mapOrder > maxMaps) {
@@ -304,18 +277,9 @@ export async function recordMapResult(
         throw new AppError(ErrorCode.VALIDATION_FAILED, `地图 ${mapName} 已录入比分`);
       }
 
-      // 统计加入本图后的地图胜场（已有比分的图 + 本图）
-      const scoredMaps = existingMaps.filter((m) => m.scoreA !== null);
-      const allMaps = [...scoredMaps, { scoreA, scoreB }];
-      let mapWinsA = 0;
-      let mapWinsB = 0;
-      for (const m of allMaps) {
-        if (m.scoreA === null || m.scoreB === null) continue;
-        if (m.scoreA > m.scoreB) mapWinsA++;
-        else mapWinsB++;
-      }
-
-      seriesFinished = mapWinsA >= maxWins || mapWinsB >= maxWins;
+      const seriesScore = computeSeriesScoreAfterMap(match.format, existingMaps, scoreA, scoreB);
+      const { mapWinsA, mapWinsB } = seriesScore;
+      seriesFinished = seriesScore.seriesFinished;
 
       if (existingRow) {
         // BP 预占行：填入比分（pickedByTeamId / teamAStartSide 保留 BP 记录，除非调用方覆盖）
@@ -555,11 +519,6 @@ export async function batchSetCompletionDeadline(input: {
 }
 
 // ── 修正已完成比赛的比分 ──────────────────────────────────────────────────
-
-// CS2 MR12：胜者回合数合法条件：winner >= 13 且 (winner - 13) % 3 === 0
-function isValidCS2RoundScore(winner: number, loser: number): boolean {
-  return winner >= 13 && (winner - 13) % 3 === 0 && loser < winner;
-}
 
 /**
  * 修正已完成比赛的比分（仅更新分数，不改变胜负判定和 bracket 晋级结果）。

@@ -8,6 +8,11 @@ import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { requireAuth, requireSeasonAdmin } from "@/lib/auth/session";
 import { getMatchOrThrow, actionError } from "@/lib/action-utils";
 import { revalidateMatchPaths } from "@/lib/revalidation";
+import {
+  assertAllMembersBelongToTeam,
+  assertRosterSubmissionOpen,
+  validateRosterSelection,
+} from "@/lib/matches/roster-rules";
 import { getTeamIdForCaptain } from "./_shared";
 
 async function validateTeamMembers(teamId: string, memberIds: string[]): Promise<void> {
@@ -15,9 +20,7 @@ async function validateTeamMembers(teamId: string, memberIds: string[]): Promise
     .select({ id: teamMembers.id })
     .from(teamMembers)
     .where(and(eq(teamMembers.teamId, teamId), inArray(teamMembers.id, memberIds)));
-  if (rows.length !== new Set(memberIds).size) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "队员不属于本队");
-  }
+  assertAllMembersBelongToTeam(memberIds, rows.map((row) => row.id));
 }
 
 /**
@@ -46,23 +49,10 @@ export async function submitMatchRoster(
       throw new AppError(ErrorCode.FORBIDDEN, "只有队长可以提交名单");
     }
 
-    if (starterIds.length !== 5) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, "必须选择 5 名首发");
-    }
-    if (substituteIds.length > 2) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, "替补不能超过 2 人");
-    }
+    validateRosterSelection(starterIds, substituteIds);
 
     await validateTeamMembers(teamId, [...starterIds, ...substituteIds]);
-
-    // 2 小时窗口检查
-    if (match.scheduledAt) {
-      const hoursUntilMatch =
-        (match.scheduledAt.getTime() - Date.now()) / (1000 * 60 * 60);
-      if (hoursUntilMatch < 2) {
-        throw new AppError(ErrorCode.VALIDATION_FAILED, "距开赛不足 2 小时，无法提交名单");
-      }
-    }
+    assertRosterSubmissionOpen(match.scheduledAt);
 
     const rosterId = await db.transaction(async (tx) => {
       const existing = await tx.query.matchRosters.findFirst({
@@ -176,12 +166,7 @@ export async function updateMatchRoster(
     const match = await getMatchOrThrow(matchId);
     const session = await requireSeasonAdmin(match.seasonId);
 
-    if (starterIds.length !== 5) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, "必须选择 5 名首发");
-    }
-    if (substituteIds.length > 2) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, "替补不能超过 2 人");
-    }
+    validateRosterSelection(starterIds, substituteIds);
 
     await validateTeamMembers(teamId, [...starterIds, ...substituteIds]);
 

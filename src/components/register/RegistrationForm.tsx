@@ -4,7 +4,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { CheckCircle2, Loader2 } from "lucide-react";
 import {
   buildRegistrationSchema,
   positionValues,
@@ -16,14 +15,13 @@ import {
   type RegistrationInput,
 } from "@/lib/validators/registration";
 import { normalizeRegistrationConfig, type RegistrationConfig, type PlayerType } from "@/types/season";
-import { MAP_PREFERENCE_LEVELS, MAP_PREFERENCE_LABELS, type MapPreferenceLevel } from "@/types/season";
+import { type MapPreferenceLevel } from "@/types/season";
 
 import { loadRegistrationDraft, saveRegistrationDraft, submitRegistration } from "@/actions/register";
 import type { RegistrationWindowState } from "@/lib/registration/window";
 import { normalizeEmail } from "@/lib/utils/email";
 import { compactUndefined } from "@/lib/utils/object";
-import { defaultMapPreferences, mapLabel, normalizeMapPreferences, PLAYABLE_MAP_LEVELS } from "@/lib/maps";
-import { Button } from "@/components/ui/button";
+import { defaultMapPreferences, normalizeMapPreferences } from "@/lib/maps";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -34,6 +32,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { AntiCheatPledgeSection } from "./AntiCheatPledgeSection";
+import { RegistrationExperienceSection } from "./RegistrationExperienceSection";
+import { MapPreferenceSection } from "./MapPreferenceSection";
+import { RegistrationOtherSection } from "./RegistrationOtherSection";
+import { RegistrationSectionTitle } from "./RegistrationSectionTitle";
+import { RegistrationSubmitBar } from "./RegistrationSubmitBar";
+import { RegistrationSuccess } from "./RegistrationSuccess";
+import { ScreenshotLinksSection } from "./ScreenshotLinksSection";
+import {
+  buildPositionLabel,
+  countMapPreferenceLevels,
+  isPositionFull,
+} from "./registration-form-utils";
 
 interface RegistrationFormProps {
   seasonId: string;
@@ -199,22 +210,7 @@ export function RegistrationForm({
 
   // ── 提交成功页 ──
   if (submitted) {
-    return (
-      <div className="flex flex-col items-center text-center py-16 gap-4">
-        <CheckCircle2 size={48} className="text-[var(--color-ok)]" />
-        <h2 className="text-2xl font-bold text-[var(--color-fg)]">报名成功！</h2>
-        <p className="text-[var(--color-fg-mid)] max-w-sm">
-          已收到你的 <span className="font-medium text-[var(--color-fg)]">{seasonName}</span> 报名。
-          报名邮箱：
-        </p>
-        <p className="font-mono text-sm px-3 py-1.5 rounded-md bg-[var(--color-panel-hi)] text-[var(--color-fg)]">
-          {submittedEmail}
-        </p>
-        <p className="text-sm text-[var(--color-fg-dim)] max-w-xs">
-          管理员审核通过后会另行通知，届时可使用邮箱和密码登录查看进度。
-        </p>
-      </div>
-    );
+    return <RegistrationSuccess seasonName={seasonName} submittedEmail={submittedEmail} />;
   }
 
   // ── 工具函数 ──
@@ -232,22 +228,10 @@ export function RegistrationForm({
     ) : null;
   };
 
-  const positionFull = (pos: string) =>
-    (positionCounts[pos] ?? 0) >= registrationConfig.maxPerPosition;
+  const positionFull = (pos: string) => isPositionFull(pos, positionCounts, registrationConfig.maxPerPosition);
 
-  const positionLabel = (pos: string) => {
-    const p = POSITION_LABELS[pos as keyof typeof POSITION_LABELS];
-    const cnt = positionCounts[pos] ?? 0;
-    const label = p?.full ?? pos;
-    const full = cnt >= registrationConfig.maxPerPosition;
-    return `${label}  ${full ? "已满" : `${cnt}/${registrationConfig.maxPerPosition}`}`;
-  };
-
-  const SectionTitle = ({ children }: { children: React.ReactNode }) => (
-    <h2 className="text-lg font-semibold text-[var(--color-fg)] mb-4 pb-2 border-b border-[var(--color-border)]">
-      {children}
-    </h2>
-  );
+  const positionLabel = (pos: string) =>
+    buildPositionLabel(pos, positionCounts, registrationConfig.maxPerPosition);
 
   const Required = () => <span className="text-[var(--color-danger)]">*</span>;
 
@@ -273,10 +257,7 @@ export function RegistrationForm({
   };
 
   const mapPreferences = watch("mapPreferences") ?? defaultMapPreferences(registrationConfig.mapPool);
-  const playableCount = mapPreferences.filter((preference) =>
-    PLAYABLE_MAP_LEVELS.has(preference.level),
-  ).length;
-  const strongCount = mapPreferences.filter((preference) => preference.level === "strong").length;
+  const { playableCount, strongCount } = countMapPreferenceLevels(mapPreferences);
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
@@ -284,7 +265,7 @@ export function RegistrationForm({
 
       {/* ═══════════════════════════════════════ 基础信息 ═══ */}
       <section>
-        <SectionTitle>基础信息</SectionTitle>
+        <RegistrationSectionTitle>基础信息</RegistrationSectionTitle>
         <div className="space-y-4">
           {/* 邮箱 */}
           <div>
@@ -413,7 +394,7 @@ export function RegistrationForm({
 
       {/* ═══════════════════════════════════════ 位置选择 ═══ */}
       <section>
-        <SectionTitle>位置选择</SectionTitle>
+        <RegistrationSectionTitle>位置选择</RegistrationSectionTitle>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label className="text-[var(--color-fg-mid)] mb-1.5 block">
@@ -475,7 +456,7 @@ export function RegistrationForm({
 
       {/* ═══════════════════════════════════════ 段位 · 历史最高 ═══ */}
       <section>
-        <SectionTitle>段位信息 · 历史最高</SectionTitle>
+        <RegistrationSectionTitle>段位信息 · 历史最高</RegistrationSectionTitle>
         <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -556,7 +537,7 @@ export function RegistrationForm({
 
       {/* ═══════════════════════════════════════ 段位 · 当前赛季最高 ═══ */}
       <section>
-        <SectionTitle>段位信息 · 当前赛季最高</SectionTitle>
+        <RegistrationSectionTitle>段位信息 · 当前赛季最高</RegistrationSectionTitle>
         <div className="space-y-4">
           <div>
             <Label className="text-[var(--color-fg-mid)] mb-1.5 block">
@@ -622,252 +603,55 @@ export function RegistrationForm({
       </section>
 
       {/* ═══════════════════════════════════════ 地图熟练度 ═══ */}
-      <section>
-        <SectionTitle>地图熟练度</SectionTitle>
-        <div className="mb-4 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-          <div className="rounded border border-[var(--color-border)] bg-[var(--color-panel-hi)] px-3 py-2">
-            <div className="font-mono text-[var(--color-fg-dim)]">PLAYABLE</div>
-            <div className="mt-1 text-sm font-semibold text-[var(--color-fg)]">{playableCount}/3+</div>
-          </div>
-          <div className="rounded border border-[var(--color-border)] bg-[var(--color-panel-hi)] px-3 py-2">
-            <div className="font-mono text-[var(--color-fg-dim)]">STRONG</div>
-            <div className="mt-1 text-sm font-semibold text-[var(--color-fg)]">{strongCount}/3</div>
-          </div>
-          <div className="col-span-2 rounded border border-[var(--color-border)] bg-[var(--color-panel-hi)] px-3 py-2 text-[var(--color-fg-mid)]">
-            每张图选择一个档位；至少 3 张达到「能打」，「强图」最多 3 张。
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          {registrationConfig.mapPool.map((map) => {
-            const currentLevel =
-              mapPreferences.find((preference) => preference.map === map)?.level ?? "basic";
-            return (
-              <div
-                key={map}
-                className="grid gap-2 rounded border border-[var(--color-border)] bg-[var(--color-panel)] p-2 sm:grid-cols-[96px_1fr]"
-              >
-                <div className="flex items-center text-sm font-semibold text-[var(--color-fg)]">
-                  {mapLabel(map)}
-                </div>
-                <div className="grid grid-cols-3 sm:grid-cols-5 gap-1">
-                  {MAP_PREFERENCE_LEVELS.map((level) => (
-                    <button
-                      key={level}
-                      type="button"
-                      onClick={() => setMapLevel(map, level)}
-                      className={`min-h-9 rounded border px-1 text-xs font-medium transition-colors ${
-                        currentLevel === level
-                          ? "border-[var(--color-accent)] bg-[var(--color-accent)] text-white"
-                          : "border-[var(--color-border)] bg-[var(--color-panel-hi)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
-                      }`}
-                    >
-                      {MAP_PREFERENCE_LABELS[level]}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-          <FieldError name="mapPreferences" />
-        </div>
-      </section>
+      <MapPreferenceSection
+        mapPool={registrationConfig.mapPool}
+        mapPreferences={mapPreferences}
+        playableCount={playableCount}
+        strongCount={strongCount}
+        error={<FieldError name="mapPreferences" />}
+        onSetMapLevel={setMapLevel}
+      />
 
       {/* ═══════════════════════════════════════ 天梯截图 ═══ */}
-      <section>
-        <SectionTitle>近两周天梯截图</SectionTitle>
-        <p className="text-sm text-[var(--color-fg-mid)] mb-4">
-          可将近两周天梯对局截图上传至
-          <a
-            href="https://box.nju.edu.cn"
-            target="_blank"
-            rel="noreferrer"
-            className="text-[var(--color-accent)] hover:underline mx-1"
-          >
-            NJUBox
-          </a>
-          并获取分享链接，粘贴到下方。未准备好也可以先留空。
-        </p>
-        <div className="space-y-3">
-          {Array.from({ length: registrationConfig.screenshotCount }, (_, index) => (
-            <div key={index}>
-              <Label htmlFor={`screenshotUrls.${index}`} className="text-[var(--color-fg-mid)] mb-1.5 block">
-                NJUBox 分享链接 {registrationConfig.screenshotCount > 1 ? index + 1 : ""}（选填）
-              </Label>
-              <Input
-                id={`screenshotUrls.${index}`}
-                type="url"
-                placeholder="https://box.nju.edu.cn/d/..."
-                className={inputCls}
-                {...register(`screenshotUrls.${index}`)}
-              />
-              <FieldError name={`screenshotUrls.${index}`} />
-            </div>
-          ))}
-          <FieldError name="screenshotUrls" />
-        </div>
-      </section>
+      <ScreenshotLinksSection
+        screenshotCount={registrationConfig.screenshotCount}
+        inputClassName={inputCls}
+        register={register}
+        renderError={(name) => <FieldError name={name} />}
+      />
 
-      {/* ═══════════════════════════════════════ 风格与经历 ═══ */}
-      <section>
-        <SectionTitle>风格与经历</SectionTitle>
-        <div className="space-y-4">
-          <div>
-            <Label htmlFor="gameplayStyle" className="text-[var(--color-fg-mid)] mb-1.5 block">
-              游戏风格自述 <Required />
-            </Label>
-            <Textarea
-              id="gameplayStyle"
-              rows={3}
-              placeholder="简要描述你的游戏风格、擅长打法等（100 字以内）"
-              className={`${inputCls} resize-none`}
-              {...register("gameplayStyle")}
-            />
-            <div className="flex justify-between mt-1">
-              <FieldError name="gameplayStyle" />
-              <span className="text-xs text-[var(--color-fg-dim)] ml-auto">
-                {watch("gameplayStyle")?.length ?? 0}/100
-              </span>
-            </div>
-          </div>
+      <RegistrationExperienceSection
+        inputClassName={inputCls}
+        register={register}
+        watch={watch}
+        renderError={(name) => <FieldError name={name} />}
+      />
 
-          <div>
-            <Label htmlFor="competitionHistory" className="text-[var(--color-fg-mid)] mb-1.5 block">
-              历史比赛经历（选填）
-            </Label>
-            <Textarea
-              id="competitionHistory"
-              rows={3}
-              placeholder="参加过的比赛、成绩等…"
-              className={`${inputCls} resize-none`}
-              {...register("competitionHistory")}
-            />
-            <div className="flex justify-between mt-1">
-              <FieldError name="competitionHistory" />
-              <span className="text-xs text-[var(--color-fg-dim)] ml-auto">
-                {watch("competitionHistory")?.length ?? 0}/500
-              </span>
-            </div>
-          </div>
+      <RegistrationOtherSection
+        inputClassName={inputCls}
+        register={register}
+        watch={watch}
+        renderError={(name) => <FieldError name={name} />}
+      />
 
-          <div>
-            <Label htmlFor="highlightVideoUrl" className="text-[var(--color-fg-mid)] mb-1.5 block">
-              高光视频链接（选填）
-            </Label>
-            <Input
-              id="highlightVideoUrl"
-              type="url"
-              placeholder="njubox 或其他链接，命名格式：完美ID_主选位置.mp4（≤3 分钟）"
-              className={inputCls}
-              {...register("highlightVideoUrl")}
-            />
-            <FieldError name="highlightVideoUrl" />
-          </div>
-        </div>
-      </section>
+      <AntiCheatPledgeSection
+        defaultChecked={!!initialValues?.antiCheatPledge}
+        error={<FieldError name="antiCheatPledge" />}
+        onCheckedChange={(checked) =>
+          setValue("antiCheatPledge", checked as true, {
+            shouldValidate: true,
+          })
+        }
+      />
 
-      {/* ═══════════════════════════════════════ 其他 ═══ */}
-      <section>
-        <SectionTitle>其他</SectionTitle>
-        <div className="space-y-4">
-          <div className="flex items-start gap-3">
-            <input
-              id="willingToBeCaptain"
-              type="checkbox"
-              className="mt-0.5 h-4 w-4 accent-[var(--color-accent)]"
-              {...register("willingToBeCaptain")}
-            />
-            <div>
-              <Label htmlFor="willingToBeCaptain" className="text-[var(--color-fg)] cursor-pointer">
-                我愿意参与队长竞选
-              </Label>
-              <p className="text-xs text-[var(--color-fg-dim)] mt-0.5">
-                勾选后将出现在队长投票候选人列表中
-              </p>
-            </div>
-          </div>
-
-          <div>
-            <Label htmlFor="notes" className="text-[var(--color-fg-mid)] mb-1.5 block">
-              备注（选填）
-            </Label>
-            <Textarea
-              id="notes"
-              rows={3}
-              placeholder="时间冲突、特殊情况等可在此说明…"
-              className={`${inputCls} resize-none`}
-              {...register("notes")}
-            />
-            <div className="flex justify-between mt-1">
-              <FieldError name="notes" />
-              <span className="text-xs text-[var(--color-fg-dim)] ml-auto">
-                {watch("notes")?.length ?? 0}/500
-              </span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════ 反作弊承诺 ═══ */}
-      <section className="rounded-lg border p-4" style={{ borderColor: "rgba(255,196,77,0.4)", background: "rgba(255,196,77,0.05)" }}>
-        <div className="flex items-start gap-3">
-          <input
-            id="antiCheatPledge"
-            type="checkbox"
-            defaultChecked={!!initialValues?.antiCheatPledge}
-            className="mt-0.5 h-4 w-4 accent-amber-400"
-            onChange={(e) =>
-              setValue("antiCheatPledge", e.target.checked as true, {
-                shouldValidate: true,
-              })
-            }
-          />
-          <div>
-            <Label htmlFor="antiCheatPledge" className="text-[var(--color-fg)] cursor-pointer font-medium">
-              反作弊承诺 <Required />
-            </Label>
-            <p className="text-sm text-[var(--color-fg-mid)] mt-1">
-              我承诺在参赛期间不使用任何作弊软件或外挂。一经发现，接受取消资格处理。
-            </p>
-          </div>
-        </div>
-        <FieldError name="antiCheatPledge" />
-      </section>
-
-      {/* ═══════════════════════════════════════ 草稿 / 提交 ═══ */}
-      <div className="grid grid-cols-1 sm:grid-cols-[180px_1fr] gap-3">
-        <Button
-          type="button"
-          variant="outline"
-          disabled={!canSaveDraft || savingDraft}
-          className="h-11 text-base font-semibold"
-          onClick={handleSaveDraft}
-        >
-          {savingDraft ? (
-            <>
-              <Loader2 size={16} className="animate-spin mr-2" />
-              保存中…
-            </>
-          ) : (
-            "保存草稿"
-          )}
-        </Button>
-        <Button
-          type="submit"
-          disabled={!canSubmit || isSubmitting}
-          className="h-11 text-base font-semibold"
-          style={{ backgroundColor: canSubmit ? "var(--color-accent)" : "var(--color-panel-hi)", color: "#fff" }}
-        >
-          {isSubmitting ? (
-            <>
-              <Loader2 size={16} className="animate-spin mr-2" />
-              提交中…
-            </>
-          ) : (
-            canSubmit ? submitLabel ?? "提交报名" : windowMessage ?? "报名提交暂未开放"
-          )}
-        </Button>
-      </div>
+      <RegistrationSubmitBar
+        canSaveDraft={canSaveDraft}
+        canSubmit={canSubmit}
+        isSubmitting={isSubmitting}
+        savingDraft={savingDraft}
+        submitText={canSubmit ? submitLabel ?? "提交报名" : windowMessage ?? "报名提交暂未开放"}
+        onSaveDraft={handleSaveDraft}
+      />
     </form>
   );
 }

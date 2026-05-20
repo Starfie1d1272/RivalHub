@@ -1,17 +1,14 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
-import Image from "next/image";
-import { eq, and, or, inArray, isNotNull } from "drizzle-orm";
+import { eq, and, inArray, isNotNull } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons, matches, teams, matchMaps, users, seasonRegistrations, teamMembers } from "@/db/schema";
 import { matchPlayerStats } from "@/db/schema/player-stats";
 import { matchMvpVotes } from "@/db/schema/mvp-votes";
-import { MatchStatusBadge } from "@/components/matches/MatchStatusBadge";
 import { MatchMvpVote } from "@/components/matches/MatchMvpVote";
-import { Panel, PosChip, TeamBadge } from "@/components/rivalhub";
+import { Panel, PosChip } from "@/components/rivalhub";
 import { mapLabel } from "@/lib/maps";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MATCH_FORMAT_LABELS, MATCH_STAGE_LABELS, SIDE_LABELS } from "@/types/match";
+import { MATCH_FORMAT_LABELS, SIDE_LABELS } from "@/types/match";
 import { PlayerStatsTable } from "@/components/matches/PlayerStatsTable";
 import { StatsOCRPanel } from "@/components/matches/StatsOCRPanel";
 import { TimeProposalHistory } from "@/components/matches/TimeProposalHistory";
@@ -29,79 +26,26 @@ import { getMatchMvpResults, ensureMvpWinner } from "@/actions/player-stats";
 import { getTimeProposals } from "@/actions/matches/scheduling";
 import { getMatchRoster } from "@/actions/matches/roster";
 import { getSeasonHexagonScores } from "@/actions/hexagon";
-import { sumNums, avgNums, weightedAvgNums } from "@/lib/utils/stats";
 import { computeTeamDimensions } from "@/lib/utils/hexagon";
 import type { HexagonScores } from "@/lib/utils/hexagon";
 import { getUserSession } from "@/lib/auth/session";
-import { formatCSTDateTime } from "@/lib/utils/date";
 import { normalizeRegistrationConfig } from "@/types/season";
-import { getTeamMapWinStats, getTeamPickStats, getTeamBanStats, type MapWinStats } from "@/lib/teams/data";
+import { getTeamMapWinStats, getTeamPickStats, getTeamBanStats } from "@/lib/teams/data";
+import {
+  aggregateFinishedPlayerStats,
+  buildLineupsPlayers,
+  buildRadarData,
+  buildRoster,
+  computeRecord,
+  computeTeamAvgStats,
+  type MatchPlayerStatsRow,
+  type RosterPlayer,
+} from "@/lib/matches/detail-stats";
+import { getSeasonFinishedMatches } from "@/lib/matches/detail-data";
+import { MatchHeroHeader } from "@/components/matches/MatchHeroHeader";
 
 interface MatchDetailPageProps {
   params: Promise<{ seasonSlug: string; matchId: string }>;
-}
-
-type MPS = typeof matchPlayerStats.$inferSelect;
-
-const TEAM_COLORS = ["#ff6b1a", "#3aa1ff", "#a8ff3a", "#ff3a7a", "#9b6bff", "#ffd23a", "#3affc7", "#ff8a3a"];
-
-function teamBadgeData(name: string, idx: number): { tag: string; color: string } {
-  return { tag: name.slice(0, 3).toUpperCase(), color: TEAM_COLORS[idx % TEAM_COLORS.length] };
-}
-
-function computeRecord(
-  teamId: string,
-  matchList: { teamAId: string; teamBId: string; scoreA: number | null; scoreB: number | null }[],
-): { wins: number; losses: number } {
-  let wins = 0;
-  let losses = 0;
-  for (const m of matchList) {
-    const isA = m.teamAId === teamId;
-    const myScore = isA ? (m.scoreA ?? 0) : (m.scoreB ?? 0);
-    const oppScore = isA ? (m.scoreB ?? 0) : (m.scoreA ?? 0);
-    if (myScore > oppScore) wins++;
-    else if (myScore < oppScore) losses++;
-  }
-  return { wins, losses };
-}
-
-function computeTeamAvgStats(rows: MPS[]) {
-  if (!rows.length) return { avgRating: null, avgAdr: null, avgKd: null };
-  const totalKills = sumNums(rows.map((r) => r.kills)) ?? 0;
-  const totalDeaths = sumNums(rows.map((r) => r.deaths)) ?? 0;
-  return {
-    avgRating: avgNums(rows.map((r) => r.ratingPro)),
-    avgAdr: avgNums(rows.map((r) => r.adr)),
-    avgKd: totalDeaths > 0 ? totalKills / totalDeaths : null,
-  };
-}
-
-function buildRadarData(
-  mapPool: string[],
-  mapWin: Map<string, MapWinStats>,
-  pickStats: { pickCount: Map<string, number>; bpMatchCount: number },
-  banStats: { banCount: Map<string, number>; bpMatchCount: number },
-): Map<string, { winRate: number; pickRate: number; banRate: number }> {
-  const data = new Map<string, { winRate: number; pickRate: number; banRate: number }>();
-  for (const map of mapPool) {
-    const win = mapWin.get(map);
-    data.set(map, {
-      winRate: win && win.played > 0 ? (win.wins / win.played) * 100 : 0,
-      pickRate: pickStats.bpMatchCount > 0 ? ((pickStats.pickCount.get(map) ?? 0) / pickStats.bpMatchCount) * 100 : 0,
-      banRate: banStats.bpMatchCount > 0 ? ((banStats.banCount.get(map) ?? 0) / banStats.bpMatchCount) * 100 : 0,
-    });
-  }
-  return data;
-}
-
-async function getSeasonFinishedMatches(seasonId: string, teamId: string) {
-  return db.query.matches.findMany({
-    where: and(
-      eq(matches.seasonId, seasonId),
-      eq(matches.status, "finished"),
-      or(eq(matches.teamAId, teamId), eq(matches.teamBId, teamId)),
-    ),
-  });
 }
 
 export default async function MatchDetailPage({ params }: MatchDetailPageProps) {
@@ -237,7 +181,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
             isNotNull(matchPlayerStats.verifiedByAdmin),
           ),
         )
-      : ([] as MPS[]),
+      : ([] as MatchPlayerStatsRow[]),
     teamBUserIds.length > 0 && matchIdsB.length > 0
       ? db.select().from(matchPlayerStats).where(
           and(
@@ -246,7 +190,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
             isNotNull(matchPlayerStats.verifiedByAdmin),
           ),
         )
-      : ([] as MPS[]),
+      : ([] as MatchPlayerStatsRow[]),
   ]);
 
   // 首发选手赛季数据从 teamRawStats 内存过滤（启动者是队伍成员子集）
@@ -280,73 +224,14 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
     matchRoundsMap.set(m.id, (m.scoreA ?? 0) + (m.scoreB ?? 0));
   }
 
-  function buildLineupsPlayers(rows: MPS[], starterUserIds: string[]) {
-    const grouped = new Map<string, MPS[]>();
-    for (const r of rows) {
-      if (!r.userId) continue;
-      const list = grouped.get(r.userId) ?? [];
-      list.push(r);
-      grouped.set(r.userId, list);
-    }
-    return starterUserIds.map((userId) => {
-      const playerRows = grouped.get(userId) ?? [];
-      const member = userIdToMember.get(userId);
-      const perfectName =
-        playerRows[0]?.perfectName ?? member?.perfectName ?? member?.displayName ?? member?.steamName ?? "未知";
-      const totalKills = sumNums(playerRows.map((r) => r.kills)) ?? 0;
-      const totalDeaths = sumNums(playerRows.map((r) => r.deaths)) ?? 0;
-      const firstKills = sumNums(playerRows.map((r) => r.firstKills)) ?? 0;
-      const totalRounds = sumNums(playerRows.map((r) => matchRoundsMap.get(r.matchId) ?? 0)) ?? 0;
-      return {
-        userId,
-        perfectName,
-        maps: playerRows.length,
-        avgRating: avgNums(playerRows.map((r) => r.ratingPro)) ?? 0,
-        avgAdr: avgNums(playerRows.map((r) => r.adr)) ?? 0,
-        kdRatio: totalDeaths > 0 ? totalKills / totalDeaths : null,
-        avgHs: avgNums(playerRows.map((r) => r.hsPercent)) ?? 0,
-        fkpr: totalRounds > 0 ? firstKills / totalRounds : 0,
-        avgWe: avgNums(playerRows.map((r) => r.we)) ?? 0,
-      };
-    });
-  }
-
-  const lineupsPlayersA = buildLineupsPlayers(starterStatsA, starterAUserIds);
-  const lineupsPlayersB = buildLineupsPlayers(starterStatsB, starterBUserIds);
+  const lineupsPlayersA = buildLineupsPlayers(starterStatsA, starterAUserIds, userIdToMember, matchRoundsMap);
+  const lineupsPlayersB = buildLineupsPlayers(starterStatsB, starterBUserIds, userIdToMember, matchRoundsMap);
   const showLineupsH2H =
     lineupsPlayersA.length > 0 &&
     lineupsPlayersB.length > 0 &&
     (lineupsPlayersA.some((p) => p.maps > 0) || lineupsPlayersB.some((p) => p.maps > 0));
 
   // 队长 / 管理员权限检查
-  interface RosterPlayer {
-    steamName: string;
-    displayName: string | null;
-    perfectName: string | null;
-    primaryPosition: string;
-    isStarter: boolean;
-    userId?: string | null;
-  }
-
-  function buildRoster(
-    roster: NonNullable<Awaited<ReturnType<typeof getMatchRoster>>>,
-    members: typeof allTeamMembers,
-    teamId: string,
-  ): RosterPlayer[] {
-    const playerMap = new Map(roster.players.map((p) => [p.teamMemberId, p.isStarter]));
-    const playerIds = new Set(roster.players.map((p) => p.teamMemberId));
-    return members
-      .filter((m) => m.teamId === teamId && playerIds.has(m.id))
-      .map((m) => ({
-        steamName: m.steamName ?? "未知",
-        displayName: m.displayName ?? null,
-        perfectName: m.perfectName ?? null,
-        primaryPosition: m.primaryPosition,
-        isStarter: playerMap.get(m.id) ?? false,
-        userId: m.userId ?? null,
-      }));
-  }
-
   let isCaptainA = false;
   let isCaptainB = false;
   let isSeasonAdmin = false;
@@ -430,48 +315,9 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
       where: eq(matchPlayerStats.matchId, match.id),
     });
 
-    const groupMap = new Map<string, typeof allStats>();
-    for (const s of allStats) {
-      const key = s.userId ?? `name:${s.perfectName}`;
-      const list = groupMap.get(key) ?? [];
-      list.push(s);
-      groupMap.set(key, list);
-    }
-
-    const aggregated = Array.from(groupMap.values()).map((rows) => ({
-      userId: rows[0].userId,
-      perfectName: rows[0].perfectName,
-      kills: sumNums(rows.map((r) => r.kills)),
-      deaths: sumNums(rows.map((r) => r.deaths)),
-      assists: sumNums(rows.map((r) => r.assists)),
-      hsPercent: weightedAvgNums(rows.map((r) => r.hsPercent), rows.map((r) => r.kills)),
-      firstKills: sumNums(rows.map((r) => r.firstKills)),
-      multiKills: sumNums(rows.map((r) => r.multiKills)),
-      clutches: sumNums(rows.map((r) => r.clutches)),
-      adr: avgNums(rows.map((r) => r.adr)),
-      rws: avgNums(rows.map((r) => r.rws)),
-      ratingPro: avgNums(rows.map((r) => r.ratingPro)),
-      we: avgNums(rows.map((r) => r.we)),
-    }));
-
-    mvpCandidates = aggregated
-      .sort((a, b) => (b.ratingPro ?? 0) - (a.ratingPro ?? 0))
-      .slice(0, 4);
-
-    // 整场汇总（BO3/BO5 用，带 teamId）
-    summaryPlayers = aggregated
-      .map((p) => ({
-        ...p,
-        teamId: p.userId ? (userIdToTeamId.get(p.userId) ?? "") : "",
-        mapsPlayed: groupMap.get(p.userId ?? `name:${p.perfectName}`)?.length ?? 1,
-        kills: p.kills ?? 0,
-        deaths: p.deaths ?? 0,
-        assists: p.assists ?? 0,
-        firstKills: p.firstKills ?? 0,
-        multiKills: p.multiKills ?? 0,
-        clutches: p.clutches ?? 0,
-      }))
-      .filter((p) => p.teamId === match.teamAId || p.teamId === match.teamBId);
+    const aggregatedStats = aggregateFinishedPlayerStats(allStats, userIdToTeamId, match.teamAId, match.teamBId);
+    mvpCandidates = aggregatedStats.mvpCandidates;
+    summaryPlayers = aggregatedStats.summaryPlayers;
 
     mvpVoteResults = await getMatchMvpResults(match.id);
     ensureMvpWinner(match.id);
@@ -492,161 +338,13 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-3xl space-y-8">
-      {/* 导航 */}
-      <div className="flex items-center gap-4">
-        <Link
-          href={`/${seasonSlug}/matches`}
-          className="text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] transition-colors"
-        >
-          ← 返回赛程总览
-        </Link>
-        {match.stage === "playoff" && match.bracketNodeId && (
-          <Link
-            href={`/${seasonSlug}/matches#bracket`}
-            className="text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] transition-colors"
-          >
-            查看对阵图 →
-          </Link>
-        )}
-      </div>
-
-      {/* Hero header */}
-      <div
-        className="flex flex-col sm:grid sm:grid-cols-[1fr_auto_1fr] items-center gap-6 px-8 py-8"
-        style={{
-          background:
-            teamA && teamB
-              ? `linear-gradient(90deg, ${teamBadgeData(teamA.name, 0).color}15 0%, transparent 35%, transparent 65%, ${teamBadgeData(teamB.name, 1).color}15 100%)`
-              : `var(--color-panel-low)`,
-          borderRadius: "var(--radius-lg)",
-          border: `1px solid var(--color-border)`,
-        }}
-      >
-        {/* Team A */}
-        <div className="flex items-center gap-4 justify-end">
-          <div className="text-right min-w-0">
-            <Link
-              href={`/${seasonSlug}/teams/${match.teamAId}`}
-              className="font-bold text-lg sm:text-[28px] hover:text-[var(--color-accent)] transition-colors"
-              style={{
-                fontFamily: "var(--font-display)",
-                color: "var(--color-fg)",
-                letterSpacing: "var(--tracking-tight-1)",
-              }}
-            >
-              {teamA?.name ?? "未知队伍"}
-            </Link>
-          </div>
-          {teamA && (
-            <div className="w-12 h-12 sm:w-16 sm:h-16 shrink-0">
-              {teamA.logoUrl ? (
-                <Image
-                  src={teamA.logoUrl}
-                  alt={teamA.name}
-                  width={64}
-                  height={64}
-                  className="w-full h-full rounded-full object-cover"
-                />
-              ) : (
-                <TeamBadge team={teamBadgeData(teamA.name, 0)} size={64} />
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* 比分 / VS */}
-        <div className="text-center px-4">
-          {match.status === "in_progress" && (
-            <div
-              className="inline-block mb-2 px-2.5 py-0.5 rounded-sm font-bold"
-              style={{
-                background: "var(--color-danger)",
-                color: "var(--color-accent-fg)",
-                fontFamily: "var(--font-mono)",
-                fontSize: 10,
-                letterSpacing: "var(--tracking-label)",
-              }}
-            >
-              ● LIVE
-            </div>
-          )}
-          {isFinished ? (
-            <div
-              className="font-bold text-4xl sm:text-[56px]"
-              style={{
-                fontFamily: "var(--font-mono)",
-                color: "var(--color-fg)",
-                letterSpacing: "-0.04em",
-                lineHeight: 1,
-              }}
-            >
-              {match.scoreA ?? 0}
-              <span className="mx-3" style={{ color: "var(--color-fg-dim)", fontSize: 24 }}>:</span>
-              {match.scoreB ?? 0}
-            </div>
-          ) : (
-            <div
-              className="font-bold"
-              style={{
-                fontFamily: "var(--font-display)",
-                fontSize: 42,
-                color: "var(--color-fg-dim)",
-                letterSpacing: "var(--tracking-tight-1)",
-              }}
-            >
-              VS
-            </div>
-          )}
-          <div className="mt-2 flex items-center justify-center gap-2 flex-wrap">
-            <PosChip pos={MATCH_STAGE_LABELS[match.stage] ?? match.stage} />
-            <PosChip pos={MATCH_FORMAT_LABELS[match.format] ?? match.format} />
-            <MatchStatusBadge status={match.status as "scheduled" | "in_progress" | "finished" | "cancelled"} />
-          </div>
-        </div>
-
-        {/* Team B */}
-        <div className="flex items-center gap-4">
-          {teamB && (
-            <div className="w-12 h-12 sm:w-16 sm:h-16 shrink-0">
-              {teamB.logoUrl ? (
-                <Image
-                  src={teamB.logoUrl}
-                  alt={teamB.name}
-                  width={64}
-                  height={64}
-                  className="w-full h-full rounded-full object-cover"
-                />
-              ) : (
-                <TeamBadge team={teamBadgeData(teamB.name, 1)} size={64} />
-              )}
-            </div>
-          )}
-          <div className="min-w-0">
-            <Link
-              href={`/${seasonSlug}/teams/${match.teamBId}`}
-              className="font-bold text-lg sm:text-[28px] hover:text-[var(--color-accent)] transition-colors"
-              style={{
-                fontFamily: "var(--font-display)",
-                color: "var(--color-fg)",
-                letterSpacing: "var(--tracking-tight-1)",
-              }}
-            >
-              {teamB?.name ?? "未知队伍"}
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      {/* 时间显示 */}
-      <div className="text-center text-xs text-[var(--color-fg-dim)]">
-        {isFinished
-          ? match.completedAt
-            ? `完成于 ${formatCSTDateTime(match.completedAt)}`
-            : "结束时间未记录"
-          : match.scheduledAt
-          ? `计划于 ${formatCSTDateTime(match.scheduledAt)}`
-          : "未排期"}
-      </div>
+      <MatchHeroHeader
+        seasonSlug={seasonSlug}
+        match={match}
+        teamA={teamA}
+        teamB={teamB}
+        isFinished={isFinished}
+      />
 
       {/* 赛季综合对比（比赛未结束时显示） */}
       {!isFinished && (

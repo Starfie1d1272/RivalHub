@@ -8,9 +8,14 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import { requireAuth, requireSeasonAdmin } from "@/lib/auth/session";
 import { getMatchOrThrow, getSeasonOrThrow, actionError } from "@/lib/action-utils";
 import { revalidateMatchPaths } from "@/lib/revalidation";
+import {
+  TIME_CONFIRMATION_BUFFER_HOURS,
+  assertBeforeTimeConfirmationCutoff,
+  assertProposedTimeFitsDeadline,
+  getTimeConfirmationCutoff,
+} from "@/lib/matches/time-rules";
 import { getTeamIdForCaptain } from "./_shared";
 
-const TIME_CONFIRMATION_BUFFER_HOURS = 24;
 const PROPOSAL_AUTO_ACCEPT_HOURS = 24;
 
 export interface MatchTimeAutoAwardCronSummary {
@@ -458,36 +463,4 @@ async function autoAwardMatchTime(
 
     return { awarded: true, seasonSlug: season.slug };
   });
-}
-
-function getTimeConfirmationCutoff(
-  completionDeadline: Date | null,
-): Date | null {
-  if (!completionDeadline) return null;
-  return new Date(completionDeadline.getTime() - TIME_CONFIRMATION_BUFFER_HOURS * 60 * 60 * 1000);
-}
-
-function assertBeforeTimeConfirmationCutoff(completionDeadline: Date | null): void {
-  const cutoff = getTimeConfirmationCutoff(completionDeadline);
-  if (cutoff && Date.now() >= cutoff.getTime()) {
-    throw new AppError(
-      ErrorCode.VALIDATION_FAILED,
-      "时间协商已截止，请联系管理员指定比赛时间",
-    );
-  }
-}
-
-function assertProposedTimeFitsDeadline(
-  proposedTime: Date,
-  completionDeadline: Date | null,
-): void {
-  if (Number.isNaN(proposedTime.getTime())) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "请输入有效的比赛时间");
-  }
-  if (proposedTime.getTime() <= Date.now()) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "比赛时间必须晚于当前时间");
-  }
-  if (completionDeadline && proposedTime.getTime() > completionDeadline.getTime()) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "比赛时间不能晚于最晚完成时间");
-  }
 }
