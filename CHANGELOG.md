@@ -5,11 +5,17 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.20.5] - 2026-05-21
+
+### Fixed
+- **DB Pool 重建后重试查询**：连接失败重建 Pool 后自动重试当次查询，并发重建合并去重，避免冷启动首请求 Load failed
+- **CI type-check**：修复 Proxy 类型循环引用与 `pool.query` 重载签名不兼容，确保无增量缓存 CI 环境通过
+
 ## [1.20.4] - 2026-05-21
 
 ### Fixed
 - **OCR 静默失败**：前端 `handleExtract` 补上缺失的 catch 块，Server Action 调用抛异常时显示错误信息而非静默吞掉
-- **DB 冷启动脆弱性**：Vercel 函数冷启动时 `DATABASE_URL` 偶发为空/残值导致 pg Pool 绑定错误地址，现连接失败自动重建 Pool 并重读环境变量
+- **DB 冷启动自愈**：Vercel 函数冷启动时 `DATABASE_URL` 偶发为空/残值导致 pg Pool 绑定错误地址，现连接失败自动重建 Pool 并重读环境变量
 - **OCR 日志可诊断性**：`siliconflow.ts` 每个处理步骤（JSON 解析→players 提取→逐行校验）设独立 try/catch + 日志，失败时精确定位
 
 ## [1.20.3] - 2026-05-20
@@ -642,7 +648,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.20.5]: https://github.com/Starfie1d1272/RivalHub/compare/v1.20.4...v1.20.5
+[1.20.4]: https://github.com/Starfie1d1272/RivalHub/compare/v1.20.3...v1.20.4
 [1.20.3]: https://github.com/Starfie1d1272/RivalHub/compare/v1.20.2...v1.20.3
+[1.20.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.20.1...v1.20.2
+[1.20.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.20.0...v1.20.1
 [1.20.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.19.2...v1.20.0
 [1.19.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.19.1...v1.19.2
 [1.19.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.19.0...v1.19.1
