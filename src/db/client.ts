@@ -52,13 +52,21 @@ export const db = new Proxy({} as DB, {
 export type DB = NodePgDatabase<typeof schema>;
 export type TxDb = Parameters<Parameters<DB["transaction"]>[0]>[0];
 
-// Vercel 冷启动 env 延迟保护：连接级错误时重读 DATABASE_URL 并重建 Pool
-function rebuildPool() {
-  pool.end().catch(() => {});
-  pool = createPool();
-  _db = drizzle(pool, { schema });
-  setupPoolGuard(pool);
-  console.error("[db] Pool 已重建");
+// Vercel 冷启动 env 延迟保护：连接级错误时重读 DATABASE_URL 并重建 Pool，重试查询
+let rebuilding: Promise<void> | null = null;
+
+async function rebuildPool(): Promise<void> {
+  // 合并并发重建请求
+  if (rebuilding) return rebuilding;
+  rebuilding = (async () => {
+    await pool.end().catch(() => {});
+    pool = createPool();
+    _db = drizzle(pool, { schema });
+    setupPoolGuard(pool);
+    console.error("[db] Pool 已重建");
+    rebuilding = null;
+  })();
+  return rebuilding;
 }
 
 function setupPoolGuard(p: Pool) {
@@ -73,14 +81,20 @@ function setupPoolGuard(p: Pool) {
   const _orig = (p as any).query.bind(p);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (p as any).query = async function (...args: any[]) {
-    try {
-      return await _orig(...args);
-    } catch (err: unknown) {
-      const e = err as NodeJS.ErrnoException;
-      if (e.code === "ECONNREFUSED" || e.code === "ENOTFOUND" || e.message?.includes("Connection terminated")) {
-        rebuildPool();
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        return await _orig(...args);
+      } catch (err: unknown) {
+        const e = err as NodeJS.ErrnoException;
+        if (
+          attempt === 0 &&
+          (e.code === "ECONNREFUSED" || e.code === "ENOTFOUND" || e.message?.includes("Connection terminated"))
+        ) {
+          await rebuildPool();
+          continue; // 重试查询
+        }
+        throw err;
       }
-      throw err;
     }
   };
 }
