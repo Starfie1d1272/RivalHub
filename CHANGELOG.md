@@ -5,6 +5,13 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.20.1] - 2026-05-20
+
+### Fixed
+- **移动端布局**：首页 Next Match 区块右侧溢出修复（stage + 时间改为右侧竖排）；MatchCard badges 行加 flex-wrap 避免窄屏换行溢出；TeamCard 队名加 break-words、选手名加 truncate
+- **MatchCard 对战对称**：TeamA 队名改为右对齐，vs / 比分居中，布局对称
+- **队伍页六维雷达图**：改为取上场最多的前 5 名队员（原为首发标记），更准确反映实际出场情况
+
 ## [1.20.0] - 2026-05-20
 
 ### Added

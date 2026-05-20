@@ -39,9 +39,9 @@ export function TeamCard({ teamId, teamName, seasonSlug, draftOrder, logoUrl, pl
                 <span className="text-sm font-bold text-[var(--color-fg-dim)]">{initial}</span>
               )}
             </div>
-            <div>
+            <div className="min-w-0">
               <span className="text-xs text-[var(--color-fg-mid)]">#{draftOrder}</span>
-              <h3 className="font-bold text-lg text-[var(--color-fg)] leading-tight">{teamName}</h3>
+              <h3 className="font-bold text-lg text-[var(--color-fg)] leading-tight break-words">{teamName}</h3>
             </div>
           </div>
 
@@ -49,14 +49,14 @@ export function TeamCard({ teamId, teamName, seasonSlug, draftOrder, logoUrl, pl
           <div className="space-y-1.5">
             {starters.map((p) => (
               <div key={p.name} className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 min-w-0">
                   {p.isCaptain && <PosChip pos="C" small />}
                   {p.userId ? (
-                    <Link href={`/players/${p.userId}`} className="text-sm text-[var(--color-fg)] hover:text-[var(--color-accent)] transition-colors">
+                    <Link href={`/players/${p.userId}`} className="text-sm text-[var(--color-fg)] hover:text-[var(--color-accent)] transition-colors truncate">
                       {p.name}
                     </Link>
                   ) : (
-                    <span className="text-sm text-[var(--color-fg)]">{p.name}</span>
+                    <span className="text-sm text-[var(--color-fg)] truncate">{p.name}</span>
                   )}
                 </div>
                 <span className="text-xs text-[var(--color-fg-mid)]">

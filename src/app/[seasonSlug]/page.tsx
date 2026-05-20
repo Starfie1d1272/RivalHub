@@ -257,38 +257,34 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
                 {upcomingMatches.map((match) => (
                   <Link key={match.id} href={`/${seasonSlug}/matches/${match.id}` as never}>
                     <div
-                      className="flex items-center gap-2.5 p-2.5 rounded-sm transition-colors hover:bg-[var(--color-panel-hi)] hover:border-[var(--color-border-hi)]"
+                      className="flex items-center gap-2 p-2.5 rounded-sm transition-colors hover:bg-[var(--color-panel-hi)] hover:border-[var(--color-border-hi)]"
                       style={{
                         background: "var(--color-panel-low)",
                         border: "1px solid var(--color-border)",
                       }}
                     >
-                      <div className="flex items-center gap-8 flex-1 min-w-0">
-                        <div className="min-w-0 flex-1 flex items-center justify-end gap-2">
-                          <span className="text-sm font-semibold text-[var(--color-fg)] truncate">
-                            {match.teamAName ?? "TBD"}
-                          </span>
-                        </div>
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <span className="text-sm font-semibold text-[var(--color-fg)] truncate flex-1 text-right">
+                          {match.teamAName ?? "TBD"}
+                        </span>
                         <span className="font-mono text-xs text-[var(--color-fg-dim)] shrink-0">vs</span>
-                        <div className="min-w-0 flex-1 flex items-center gap-2">
-                          <span className="text-sm font-semibold text-[var(--color-fg)] truncate">
-                            {match.teamBName ?? "TBD"}
-                          </span>
-                        </div>
-                        <div className="shrink-0">
-                          {match.status === "in_progress" ? (
-                            <span className="font-mono text-[11px] text-[var(--color-ok)]">● LIVE</span>
-                          ) : match.scheduledAt ? (
-                            <span className="font-mono text-[11px] text-[var(--color-fg-dim)]">
-                              {formatCSTDateTime(match.scheduledAt)}
-                            </span>
-                          ) : (
-                            <span className="font-mono text-[11px] text-[var(--color-fg-dim)]">待定</span>
-                          )}
-                        </div>
+                        <span className="text-sm font-semibold text-[var(--color-fg)] truncate flex-1">
+                          {match.teamBName ?? "TBD"}
+                        </span>
                       </div>
-                      <div className="mt-1.5 font-mono text-[10px] text-[var(--color-fg-dim)] uppercase tracking-wider">
-                        {match.stage}
+                      <div className="shrink-0 flex flex-col items-end gap-0.5">
+                        <span className="font-mono text-[10px] text-[var(--color-fg-dim)] uppercase tracking-wider">
+                          {match.stage}
+                        </span>
+                        {match.status === "in_progress" ? (
+                          <span className="font-mono text-[10px] text-[var(--color-ok)]">● LIVE</span>
+                        ) : match.scheduledAt ? (
+                          <span className="font-mono text-[10px] text-[var(--color-fg-dim)]">
+                            {formatCSTDateTime(match.scheduledAt)}
+                          </span>
+                        ) : (
+                          <span className="font-mono text-[10px] text-[var(--color-fg-dim)]">待定</span>
+                        )}
                       </div>
                     </div>
                   </Link>
