@@ -127,12 +127,28 @@ async function extract(base64Image: string, mimeType: string): Promise<Scoreboar
     throw new Error(`SiliconFlow API 错误 ${result.status}: ${result.text}`);
   }
 
-  console.error("[OCR] 模型原始返回:", result.content);
+  console.error("[OCR] 模型原始返回:", result.content.slice(0, 2000));
 
-  const parsed = extractJson(result.content);
-  console.error("[OCR] JSON 解析结果:", JSON.stringify(parsed).slice(0, 500));
+  let parsed: unknown;
+  try {
+    parsed = extractJson(result.content);
+    console.error("[OCR] JSON 解析成功，players 数量:", Array.isArray(parsed) ? parsed.length : (parsed as Record<string, unknown>)?.players ? ((parsed as Record<string, unknown>).players as unknown[]).length : "未知");
+  } catch (e) {
+    console.error("[OCR] JSON 解析失败:", e instanceof Error ? e.message : e);
+    console.error("[OCR] 原始内容前 2000 字符:", result.content.slice(0, 2000));
+    throw e;
+  }
 
-  let rawPlayers = extractPlayersArray(parsed);
+  let rawPlayers: unknown[];
+  try {
+    rawPlayers = extractPlayersArray(parsed) as unknown[];
+  } catch (e) {
+    console.error("[OCR] extractPlayersArray 失败:", e instanceof Error ? e.message : e);
+    console.error("[OCR] parsed 结构:", JSON.stringify(parsed).slice(0, 1000));
+    throw e;
+  }
+
+  console.error("[OCR] 提取到", rawPlayers.length, "行原始数据");
 
   if (rawPlayers.length === 0) {
     throw new Error("OCR 结果格式校验失败：players 数组为空");
@@ -146,12 +162,14 @@ async function extract(base64Image: string, mimeType: string): Promise<Scoreboar
   for (const row of rawPlayers) {
     const r = playerRowLenientSchema.safeParse(row);
     if (!r.success) {
-      console.warn(`[OCR] 第 ${idx + 1} 行无有效玩家名称，已丢弃`, r.error.issues);
+      console.warn(`[OCR] 第 ${idx + 1} 行无有效玩家名称，已丢弃`, r.error.issues.slice(0, 3));
     } else {
       validPlayers.push(r.data);
     }
     idx++;
   }
+
+  console.error("[OCR] 验证通过", validPlayers.length, "行，丢弃", rawPlayers.length - validPlayers.length, "行");
 
   if (validPlayers.length === 0) {
     throw new Error("OCR 结果格式校验失败：没有可用的玩家数据行");
