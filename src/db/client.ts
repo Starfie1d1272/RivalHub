@@ -1,4 +1,5 @@
 import { drizzle } from "drizzle-orm/node-postgres";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as schema from "./schema";
 
@@ -47,7 +48,7 @@ export const db = new Proxy({} as DB, {
   },
 });
 
-export type DB = typeof db;
+export type DB = NodePgDatabase<typeof schema>;
 export type TxDb = Parameters<Parameters<DB["transaction"]>[0]>[0];
 
 // Vercel 冷启动 env 延迟保护：连接级错误时重读 DATABASE_URL 并重建 Pool
