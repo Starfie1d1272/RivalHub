@@ -1,6 +1,6 @@
 {
   "name": "rivalhub",
-  "version": "1.20.1",
+  "version": "1.20.2",
   "private": true,
   "license": "AGPL-3.0",
   "scripts": {
@@ -32,6 +32,7 @@
     "@radix-ui/react-tooltip": "^1.2.7",
     "@supabase/supabase-js": "^2.49.4",
     "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0",
     "brackets-manager": "^1.9.1",
     "brackets-memory-db": "^1.0.5",
     "brackets-model": "^1.6.2",

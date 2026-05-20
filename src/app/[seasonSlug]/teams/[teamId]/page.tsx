@@ -292,7 +292,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
               const stats = p.userId ? playerStatsMap.get(p.userId) : undefined;
               return (
                 <div key={p.registrationId} className="py-2.5 px-2 -mx-2 hover:bg-[var(--color-panel-hi)] transition-colors rounded">
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1.5 sm:gap-3">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         {p.registrationId === team.captainRegistrationId && <PosChip pos="C" small />}
@@ -307,7 +307,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
                         )}
                       </div>
                       {stats && (
-                        <div className="flex items-center gap-2 mt-0.5 text-[11px] text-[var(--color-fg-mid)] tabular-nums">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 text-[11px] text-[var(--color-fg-mid)] tabular-nums">
                           <span>{stats.maps}图</span>
                           <span className="text-[var(--color-fg-dim)]">·</span>
                           <span style={stats.avgRating >= 1.2 ? { color: "var(--color-accent)" } : undefined}>
@@ -320,13 +320,11 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
                         </div>
                       )}
                     </div>
-                    <div className="text-right shrink-0">
-                      <span className="text-xs text-[var(--color-fg-mid)]">
+                    <div className="flex items-start gap-2 sm:flex-col sm:items-end sm:shrink-0">
+                      <span className="text-xs text-[var(--color-fg-mid)] whitespace-nowrap shrink-0">
                         {POSITION_LABELS[p.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? p.primaryPosition}
                       </span>
-                      <div className="mt-1 flex justify-end">
-                        <MapPreferenceChips preferences={p.mapPreferences ?? []} compact minLevel="playable" />
-                      </div>
+                      <MapPreferenceChips preferences={p.mapPreferences ?? []} compact minLevel="playable" />
                     </div>
                   </div>
                 </div>
@@ -342,7 +340,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
                   const stats = p.userId ? playerStatsMap.get(p.userId) : undefined;
                   return (
                     <div key={p.registrationId} className="py-2.5 px-2 -mx-2 opacity-70 hover:bg-[var(--color-panel-hi)] transition-colors rounded">
-                      <div className="flex items-start justify-between gap-3">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1.5 sm:gap-3">
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             {p.userId ? (
@@ -354,7 +352,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
                             )}
                           </div>
                           {stats && (
-                            <div className="flex items-center gap-2 mt-0.5 text-[11px] text-[var(--color-fg-mid)] tabular-nums">
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 text-[11px] text-[var(--color-fg-mid)] tabular-nums">
                               <span>{stats.maps}图</span>
                               <span className="text-[var(--color-fg-dim)]">·</span>
                               <span style={stats.avgRating >= 1.2 ? { color: "var(--color-accent)" } : undefined}>
@@ -367,13 +365,11 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
                             </div>
                           )}
                         </div>
-                        <div className="text-right shrink-0">
-                          <span className="text-xs text-[var(--color-fg-mid)]">
+                        <div className="flex items-start gap-2 sm:flex-col sm:items-end sm:shrink-0">
+                          <span className="text-xs text-[var(--color-fg-mid)] whitespace-nowrap shrink-0">
                             {POSITION_LABELS[p.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? p.primaryPosition}
                           </span>
-                          <div className="mt-1 flex justify-end">
-                            <MapPreferenceChips preferences={p.mapPreferences ?? []} compact minLevel="playable" />
-                          </div>
+                          <MapPreferenceChips preferences={p.mapPreferences ?? []} compact minLevel="playable" />
                         </div>
                       </div>
                     </div>
