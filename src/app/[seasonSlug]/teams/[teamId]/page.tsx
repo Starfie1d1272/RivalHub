@@ -136,20 +136,6 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
     getTeamBanStats(teamId, matchIds),
   ]);
 
-  // 六维雷达图数据
-  const starterUserIds = starters.map((s) => s.userId).filter(Boolean) as string[];
-  const hexagonByPlayer = new Map<string, HexagonScores>();
-  if (starterUserIds.length > 0) {
-    const seasonScores = await getSeasonHexagonScores(season.id);
-    for (const uid of starterUserIds) {
-      const s = seasonScores.get(uid);
-      if (s) hexagonByPlayer.set(uid, s);
-    }
-  }
-  const teamScores = hexagonByPlayer.size > 0
-    ? computeTeamDimensions([...hexagonByPlayer.values()])
-    : null;
-
   // 历史对阵（按对手分组）
   interface HeadToHead { opponentId: string; wins: number; losses: number }
   const h2hMap = new Map<string, HeadToHead>();
@@ -215,6 +201,24 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
       });
     }
   }
+
+  // 六维雷达图数据（上场最多的前 5 人）
+  const top5UserIds = [...typedStats]
+    .sort((a, b) => Number(b.maps) - Number(a.maps))
+    .slice(0, 5)
+    .map((r) => r.user_id)
+    .filter(Boolean) as string[];
+  const hexagonByPlayer = new Map<string, HexagonScores>();
+  if (top5UserIds.length > 0) {
+    const seasonScores = await getSeasonHexagonScores(season.id);
+    for (const uid of top5UserIds) {
+      const s = seasonScores.get(uid);
+      if (s) hexagonByPlayer.set(uid, s);
+    }
+  }
+  const teamScores = hexagonByPlayer.size > 0
+    ? computeTeamDimensions([...hexagonByPlayer.values()])
+    : null;
 
   // 队伍均值（K/D 用总杀/总死，避免平均的平均）
   const hasStats = typedStats.length > 0;
@@ -435,7 +439,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
             <PlayerRadarChart
               players={[
                 ...[...hexagonByPlayer.entries()].map(([uid, scores]) => {
-                  const player = starters.find((s) => s.userId === uid);
+                  const player = roster.find((r) => r.userId === uid);
                   return {
                     name: player ? (player.perfectName ?? player.steamName ?? "未知") : uid,
                     scores,
@@ -452,7 +456,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
             />
           </Panel>
           <p className="text-[11px] text-[var(--color-fg-dim)] px-1 leading-relaxed">
-            队伍六维 = 当前阵容选手六维均值，六维评分在本赛事内标准化。
+            队伍六维 = 上场最多的前 5 名队员六维均值，六维评分在本赛事内标准化。
           </p>
         </section>
       )}

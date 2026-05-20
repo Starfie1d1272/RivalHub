@@ -48,7 +48,7 @@ export function MatchCard({
       className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 py-3 border-b border-[var(--color-border)] last:border-b-0 hover:bg-[var(--color-panel-hi)] transition-colors duration-150"
     >
       <div className="flex items-center gap-3 flex-1 min-w-0">
-        <span className="font-semibold truncate min-w-0 flex-1 text-[var(--color-fg)] text-sm sm:text-base">{teamAName}</span>
+        <span className="font-semibold truncate min-w-0 flex-1 text-right text-[var(--color-fg)] text-sm sm:text-base">{teamAName}</span>
         <span className="text-[var(--color-fg-mid)] text-sm shrink-0">
           {status === "finished"
             ? `${scoreA ?? 0} : ${scoreB ?? 0}`
@@ -56,7 +56,7 @@ export function MatchCard({
         </span>
         <span className="font-semibold truncate min-w-0 flex-1 text-[var(--color-fg)] text-sm sm:text-base">{teamBName}</span>
       </div>
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex items-center gap-2 shrink-0 flex-wrap">
         {timeText && (
           <span className="text-xs text-[var(--color-fg-mid)]">{timeText}</span>
         )}
