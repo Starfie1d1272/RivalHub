@@ -44,7 +44,8 @@ let _db = drizzle(pool, { schema });
 // Proxy 确保 Pool 重建后 db 始终指向新 drizzle 实例
 export const db = new Proxy({} as DB, {
   get(_target, prop) {
-    return (_db as Record<string | symbol, unknown>)[prop];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (_db as any)[prop];
   },
 });
 
@@ -61,15 +62,17 @@ function rebuildPool() {
 }
 
 function setupPoolGuard(p: Pool) {
-  p.on("error", (err) => {
+  p.on("error", (err: NodeJS.ErrnoException) => {
     console.error("[db] pool error:", err.message);
     if (err.code === "ECONNREFUSED" || err.code === "ENOTFOUND") {
       rebuildPool();
     }
   });
 
-  const _orig = p.query.bind(p);
-  p.query = async function (...args: Parameters<typeof p.query>) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const _orig = (p as any).query.bind(p);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (p as any).query = async function (...args: any[]) {
     try {
       return await _orig(...args);
     } catch (err: unknown) {
