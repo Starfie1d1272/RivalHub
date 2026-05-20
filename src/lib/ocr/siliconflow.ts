@@ -79,24 +79,36 @@ async function callAPI(params: CallParams) {
     body.response_format = { type: "json_object" };
   }
 
-  const response = await fetch(params.apiUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${params.apiKey}`,
-    },
-    body: JSON.stringify(body),
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 60000);
+
+  let response: Response;
+  try {
+    response = await fetch(params.apiUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${params.apiKey}`,
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+
+  console.error("[OCR] API 响应状态:", response.status);
 
   if (!response.ok) {
     const text = await response.text();
-    const status = response.status;
-    return { ok: false, status, text } as const;
+    console.error("[OCR] API 错误响应:", text.slice(0, 500));
+    return { ok: false, status: response.status, text } as const;
   }
 
   const json = await response.json();
   const content = json?.choices?.[0]?.message?.content;
   if (!content) {
+    console.error("[OCR] API 返回体无 content:", JSON.stringify(json).slice(0, 500));
     throw new Error("SiliconFlow API 返回为空");
   }
   return { ok: true, content } as const;
