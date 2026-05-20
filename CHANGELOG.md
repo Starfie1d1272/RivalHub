@@ -5,6 +5,17 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.20.0] - 2026-05-20
+
+### Added
+- **MKPR /100r 指标**：数据排行榜新增多杀率列与排序 Tab，选手个人页同步改为 per-round 口径，与 FKPR/CPR 保持一致
+- **选秀回顾**：选秀结束后 `/[seasonSlug]/draft` 保留完整选人记录，以只读模式展示队伍阵容与逐回合 pick 历史
+- **用户管理——所有用户 Tab**：管理后台新增普通用户列表，含 4 项统计卡片（总注册/参赛/仅注册/近 30 天）、名字/邮箱搜索、全部/参赛/仅注册筛选；优化管理员列表为表格布局
+
+### Fixed
+- **积分榜平局判定顺序**：调整为 胜场 → 净胜回合差 → H2H → 总胜回合数 → 选秀顺位
+- **队名溢出截断**：赛程卡片（MatchCard）与首页 Next Match 区块队名长时正确显示省略号
+
 ## [1.19.2] - 2026-05-20
 
 ### Fixed
@@ -600,6 +611,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.20.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.19.2...v1.20.0
 [1.19.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.19.1...v1.19.2
 [1.19.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.19.0...v1.19.1
 [1.19.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.18.1...v1.19.0
