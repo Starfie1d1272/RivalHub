@@ -151,3 +151,7 @@ vite.config.ts.timestamp-*
 .codex/
 .claude/*
 !.claude/skills
+
+# Local tool connectors and generated design workspace
+.mcp.json
+.stitch/

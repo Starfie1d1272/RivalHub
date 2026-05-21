@@ -5,6 +5,21 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.21.0] - 2026-05-22
+
+### Added
+- **赛季名录摘要**：队伍页与选手页新增赛事阶段、参赛规模和统计覆盖摘要，帮助快速浏览当前赛季阵容与数据完成度
+
+### Changed
+- **队伍页信息密度**：队伍目录按排位赛积分或正赛种子排序，收紧队伍卡片布局并补充队伍地图、战绩和成员数据
+- **选手页信息密度**：选手卡片改为更紧凑的展示，补齐当前与巅峰段位/RT 信息，并按地图数、赛事 RT 和兜底顺序排序
+- **数据统计桌面布局**：排行榜视图和排序控件改为更紧凑的横向布局，位置筛选改用英文位置标记，桌面端减少横向滚动
+- **赛季导航排序**：队伍与选手入口并列收拢，重排赛季导航顺序以匹配浏览路径
+
+### Fixed
+- **数据统计排序兼容**：历史排行榜排序链接自动归一到当前排序参数，避免旧查询参数落入错误视图
+- **瑞士轮队伍目录排序**：正赛阶段按种子顺序展示队伍，选手筛选摘要按实际队伍范围统计
+
 ## [1.20.5] - 2026-05-21
 
 ### Fixed
@@ -648,6 +663,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.21.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.20.5...v1.21.0
 [1.20.5]: https://github.com/Starfie1d1272/RivalHub/compare/v1.20.4...v1.20.5
 [1.20.4]: https://github.com/Starfie1d1272/RivalHub/compare/v1.20.3...v1.20.4
 [1.20.3]: https://github.com/Starfie1d1272/RivalHub/compare/v1.20.2...v1.20.3

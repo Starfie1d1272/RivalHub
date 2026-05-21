@@ -4,12 +4,13 @@ import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
 import { sql } from "drizzle-orm";
 import { StatsLeaderboard } from "@/components/matches/StatsLeaderboard";
+import { normalizeLeaderboardState } from "@/lib/matches/leaderboard-view";
 import { Marker } from "@/components/rivalhub";
 import type { Metadata } from "next";
 
 interface StatsPageProps {
   params: Promise<{ seasonSlug: string }>;
-  searchParams: Promise<{ sort?: string; position?: string }>;
+  searchParams: Promise<{ sort?: string; position?: string; view?: string }>;
 }
 
 export async function generateMetadata({ params }: StatsPageProps): Promise<Metadata> {
@@ -24,7 +25,8 @@ export async function generateMetadata({ params }: StatsPageProps): Promise<Meta
 
 export default async function StatsPage({ params, searchParams }: StatsPageProps) {
   const { seasonSlug } = await params;
-  const { sort = "rating", position = "" } = await searchParams;
+  const { sort: rawSort, position = "", view: rawView } = await searchParams;
+  const { sort, view } = normalizeLeaderboardState({ sort: rawSort, view: rawView });
 
   const season = await db.query.seasons.findFirst({
     where: eq(seasons.slug, seasonSlug),
@@ -137,6 +139,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
         sort={sort}
         position={position}
         seasonSlug={seasonSlug}
+        view={view}
       />
     </div>
   );

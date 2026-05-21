@@ -1,7 +1,8 @@
 import React from "react";
 import Link from "next/link";
 import { Panel, Btn } from "@/components/rivalhub";
-import { POSITION_LABELS } from "@/lib/validators/registration";
+import type { LeaderboardView } from "@/lib/matches/leaderboard-view";
+import { positionLabel } from "@/lib/validators/registration";
 
 interface LeaderboardRow {
   userId: string | null;
@@ -27,20 +28,13 @@ interface StatsLeaderboardProps {
   sort: string;
   position: string;
   seasonSlug: string;
+  view?: LeaderboardView;
 }
 
-const SORT_OPTIONS = [
-  { key: "rating",  label: "Rating" },
-  { key: "adr",     label: "ADR" },
-  { key: "kd",      label: "K/D" },
-  { key: "kpr",     label: "KPR" },
-  { key: "hs",      label: "HS%" },
-  { key: "we",      label: "WE" },
-  { key: "rws",     label: "RWS" },
-  { key: "fk",      label: "FKPR /100r" },
-  { key: "mk",      label: "MKPR /100r" },
-  { key: "clutch",  label: "CPR /100r" },
-  { key: "maps",    label: "场次" },
+const VIEWS: { key: LeaderboardView; label: string; defaultSort: string }[] = [
+  { key: "core", label: "Core", defaultSort: "rating" },
+  { key: "impact", label: "Impact", defaultSort: "fk" },
+  { key: "advanced", label: "Advanced", defaultSort: "we" },
 ];
 
 const POSITIONS = [
@@ -59,13 +53,17 @@ interface ColDef {
   format: (v: number | null) => string;
 }
 
-const COLS: ColDef[] = [
+const BASE_COLS: ColDef[] = [
   {
     key: "maps",
-    label: "图数",
+    label: "Maps",
     getValue: (r) => r.maps,
     format: (v) => String(v ?? 0),
   },
+];
+
+const CORE_COLS: ColDef[] = [
+  ...BASE_COLS,
   {
     key: "rating",
     label: "Rating",
@@ -96,16 +94,14 @@ const COLS: ColDef[] = [
     getValue: (r) => r.avgHs,
     format: (v) => (v ?? 0).toFixed(1) + "%",
   },
+];
+
+const IMPACT_COLS: ColDef[] = [
+  ...BASE_COLS,
   {
-    key: "we",
-    label: "WE",
-    getValue: (r) => r.avgWe,
-    format: (v) => (v ?? 0).toFixed(1),
-  },
-  {
-    key: "rws",
-    label: "RWS",
-    getValue: (r) => r.avgRws,
+    key: "rating",
+    label: "Rating",
+    getValue: (r) => r.avgRating,
     format: (v) => (v ?? 0).toFixed(2),
   },
   {
@@ -128,7 +124,35 @@ const COLS: ColDef[] = [
   },
 ];
 
-export function StatsLeaderboard({ rows, sort, position, seasonSlug }: StatsLeaderboardProps) {
+const ADVANCED_COLS: ColDef[] = [
+  ...BASE_COLS,
+  {
+    key: "rating",
+    label: "Rating",
+    getValue: (r) => r.avgRating,
+    format: (v) => (v ?? 0).toFixed(2),
+  },
+  {
+    key: "we",
+    label: "WE",
+    getValue: (r) => r.avgWe,
+    format: (v) => (v ?? 0).toFixed(1),
+  },
+  {
+    key: "rws",
+    label: "RWS",
+    getValue: (r) => r.avgRws,
+    format: (v) => (v ?? 0).toFixed(2),
+  },
+];
+
+const VIEW_COLS: Record<LeaderboardView, ColDef[]> = {
+  core: CORE_COLS,
+  impact: IMPACT_COLS,
+  advanced: ADVANCED_COLS,
+};
+
+export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "core" }: StatsLeaderboardProps) {
   if (rows.length === 0) {
     return (
       <Panel pad={32} className="text-center text-[var(--color-fg-mid)]">
@@ -139,45 +163,84 @@ export function StatsLeaderboard({ rows, sort, position, seasonSlug }: StatsLead
 
   const sortColBg = "rgba(255,107,26,0.04)";
   const accentText = "var(--color-accent)";
+  const cols = VIEW_COLS[view];
+  const statsHref = ({
+    nextSort = sort,
+    nextPosition = position,
+    nextView = view,
+  }: {
+    nextSort?: string;
+    nextPosition?: string;
+    nextView?: LeaderboardView;
+  }) => {
+    const params = new URLSearchParams({ sort: nextSort });
+    if (nextPosition) params.set("position", nextPosition);
+    if (nextView !== "core") params.set("view", nextView);
+    return `/${seasonSlug}/stats?${params.toString()}`;
+  };
 
   return (
     <div>
-      {/* 排序 Tab */}
-      <div className="flex gap-1 flex-wrap mb-2">
-        {SORT_OPTIONS.map(({ key, label }) => (
-          <Btn key={key} small ghost={sort !== key} asChild>
-            <a href={`/${seasonSlug}/stats?sort=${key}${position ? `&position=${position}` : ""}`}>
-              {label}
-            </a>
-          </Btn>
-        ))}
+      <div className="flex flex-col gap-3 mb-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="text-[11px] font-semibold uppercase text-[var(--color-fg-dim)] mb-1.5" style={{ fontFamily: "var(--font-mono)" }}>
+            Metric view
+          </p>
+          <div className="flex gap-1 flex-wrap">
+            {VIEWS.map(({ key, label, defaultSort }) => (
+              <Btn key={key} small ghost={view !== key} asChild>
+                <a href={statsHref({ nextSort: defaultSort, nextView: key })}>{label}</a>
+              </Btn>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="text-[11px] font-semibold uppercase text-[var(--color-fg-dim)] mb-1.5" style={{ fontFamily: "var(--font-mono)" }}>
+            Sort
+          </p>
+          <div className="flex gap-1 flex-wrap">
+            {cols.map(({ key, label }) => (
+              <Btn key={key} small ghost={sort !== key} asChild>
+                <a href={statsHref({ nextSort: key })}>{label}</a>
+              </Btn>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* 位置筛选 */}
       <div className="flex gap-1 flex-wrap mb-4">
         {POSITIONS.map(({ key, label }) => (
           <Btn key={key} small ghost={position !== key} asChild>
-            <a href={`/${seasonSlug}/stats?sort=${sort}${key ? `&position=${key}` : ""}`}>
+            <a href={statsHref({ nextPosition: key })}>
               {label}
             </a>
           </Btn>
         ))}
       </div>
 
-      {/* 表格：min-w 确保桌面端不压缩，移动端横向滚动 */}
+      {/* 核心视图压进桌面宽度；窄屏仍可横向滚动。 */}
       <Panel pad={0} className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[900px]">
+          <table className="w-full text-sm min-w-[680px] table-fixed">
+            <colgroup>
+              <col className="w-9" />
+              <col />
+              <col className="w-24" />
+              <col className="w-[18%]" />
+              {cols.map((col) => <col key={col.key} className="w-[8%]" />)}
+            </colgroup>
             <thead>
               <tr className="border-b border-[var(--color-border)] text-[var(--color-fg-mid)] text-xs uppercase tracking-wide">
-                <th className="px-3 py-3 text-left w-8">#</th>
-                <th className="px-3 py-3 text-left">选手</th>
-                <th className="px-3 py-3 text-left">位置</th>
-                <th className="px-3 py-3 text-left">队伍</th>
-                {COLS.map((col) => (
+                <th className="px-2.5 py-3 text-left">#</th>
+                <th className="px-2.5 py-3 text-left">Player</th>
+                <th className="px-2.5 py-3 text-left">Pos</th>
+                <th className="px-2.5 py-3 text-left">Team</th>
+                {cols.map((col) => (
                   <th
                     key={col.key}
-                    className="px-3 py-3 text-center whitespace-nowrap"
+                    className="px-1.5 py-3 text-center whitespace-nowrap"
                     style={sort === col.key ? { background: sortColBg, color: accentText } : undefined}
                   >
                     {col.label}
@@ -188,7 +251,7 @@ export function StatsLeaderboard({ rows, sort, position, seasonSlug }: StatsLead
             <tbody className="divide-y divide-[var(--color-border)]">
               {rows.map((r, i) => (
                 <tr key={r.userId ?? r.perfectName} className="hover:bg-[var(--color-surface-raised)] transition-colors">
-                  <td className="px-3 py-2.5 text-xs">
+                  <td className="px-2.5 py-2.5 text-xs">
                     <span
                       className={i < 3 ? "font-bold" : "text-[var(--color-fg-dim)]"}
                       style={i < 3 ? { color: accentText } : undefined}
@@ -196,7 +259,7 @@ export function StatsLeaderboard({ rows, sort, position, seasonSlug }: StatsLead
                       {i + 1}
                     </span>
                   </td>
-                  <td className="px-3 py-2.5 font-medium text-[var(--color-fg)]">
+                  <td className="px-2.5 py-2.5 font-medium text-[var(--color-fg)] truncate">
                     {r.userId ? (
                       <Link
                         href={`/players/${r.userId}`}
@@ -208,12 +271,10 @@ export function StatsLeaderboard({ rows, sort, position, seasonSlug }: StatsLead
                       r.perfectName
                     )}
                   </td>
-                  <td className="px-3 py-2.5 text-xs text-[var(--color-fg-mid)]">
-                    {r.position
-                      ? (POSITION_LABELS[r.position as keyof typeof POSITION_LABELS]?.cn ?? r.position)
-                      : "—"}
+                  <td className="px-2.5 py-2.5 text-xs text-[var(--color-fg-mid)] whitespace-nowrap">
+                    {r.position ? positionLabel(r.position) : "—"}
                   </td>
-                  <td className="px-3 py-2.5 text-xs text-[var(--color-fg-mid)]">
+                  <td className="px-2.5 py-2.5 text-xs text-[var(--color-fg-mid)] truncate">
                     {r.teamId ? (
                       <Link
                         href={`/${seasonSlug}/teams/${r.teamId}`}
@@ -225,14 +286,14 @@ export function StatsLeaderboard({ rows, sort, position, seasonSlug }: StatsLead
                       r.teamName ?? "—"
                     )}
                   </td>
-                  {COLS.map((col) => {
+                  {cols.map((col) => {
                     const val = col.getValue(r);
                     const isSort = sort === col.key;
                     const isHighRating = col.key === "rating" && (val ?? 0) >= 1.2;
                     return (
                       <td
                         key={col.key}
-                        className={`px-3 py-2.5 text-center tabular-nums ${
+                        className={`px-1.5 py-2.5 text-center tabular-nums whitespace-nowrap ${
                           isSort || isHighRating ? "font-semibold" : "text-[var(--color-fg)]"
                         }`}
                         style={

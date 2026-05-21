@@ -3,13 +3,13 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 vi.mock("@/lib/validators/registration", () => ({
-  POSITION_LABELS: {
-    awper: { cn: "AWPer" },
-    opener: { cn: "Opener" },
-    igl: { cn: "IGL" },
-    closer: { cn: "Closer" },
-    anchor: { cn: "Anchor" },
-  },
+  positionLabel: (position: string) => ({
+    awper: "AWPer",
+    opener: "Opener",
+    igl: "IGL",
+    closer: "Closer",
+    anchor: "Anchor",
+  })[position] ?? position,
 }));
 
 import { StatsLeaderboard } from "@/components/matches/StatsLeaderboard";
