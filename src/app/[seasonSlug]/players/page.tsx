@@ -1,11 +1,13 @@
 import { cache } from "react";
 import { notFound } from "next/navigation";
-import { eq, and, asc, or } from "drizzle-orm";
+import { eq, and, asc, or, sql } from "drizzle-orm";
 import Link from "next/link";
 import { db } from "@/db/client";
 import { seasons, seasonRegistrations, users, teams, teamMembers } from "@/db/schema";
-import { Marker, PosChip, Panel } from "@/components/rivalhub";
-import { POS_ABBR, positionLabel, positionValues } from "@/lib/validators/registration";
+import { Marker, Stat } from "@/components/rivalhub";
+import { PlayerDirectoryRow } from "@/components/players/PlayerDirectoryRow";
+import { sortPlayerDirectory } from "@/lib/players/directory-order";
+import { positionLabel, positionValues } from "@/lib/validators/registration";
 import { getDisplayName } from "@/lib/utils/display-name";
 import type { Metadata } from "next";
 
@@ -55,6 +57,8 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
       primaryPosition: seasonRegistrations.primaryPosition,
       secondaryPosition: seasonRegistrations.secondaryPosition,
       peakRank: seasonRegistrations.peakRank,
+      peakRating: seasonRegistrations.peakRating,
+      currentRank: seasonRegistrations.currentSeasonPeakRank,
       currentRating: seasonRegistrations.currentRating,
       perfectName: users.perfectName,
       steamName: users.steamName,
@@ -78,14 +82,64 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
 
   const teamByRegId = new Map(teamMemberRows.map((r) => [r.registrationId, r.teamName]));
 
+  const playerStatResult = await db.execute(sql`
+    SELECT
+      mps.user_id,
+      count(distinct mps.map_id)::int AS maps,
+      round(avg(mps.rating_pro)::numeric, 2) AS avg_rating,
+      round(avg(mps.adr)::numeric, 1) AS avg_adr,
+      round((sum(mps.kills)::numeric / nullif(sum(mps.deaths), 0)), 2) AS avg_kd
+    FROM match_player_stats mps
+    JOIN matches m ON m.id = mps.match_id
+    WHERE m.season_id = ${season.id}
+      AND mps.verified_by_admin IS NOT NULL
+      AND mps.user_id IS NOT NULL
+    GROUP BY mps.user_id
+  `);
+  const statsByUserId = new Map(
+    playerStatResult.rows.map((row) => [
+      row.user_id as string,
+      {
+        maps: Number(row.maps),
+        avgRating: Number(row.avg_rating),
+        avgAdr: Number(row.avg_adr),
+        avgKd: row.avg_kd == null ? null : Number(row.avg_kd),
+      },
+    ]),
+  );
+
   const positionFilters = [
     { value: "", label: "All" },
     ...positionValues.map((p) => ({ value: p, label: positionLabel(p) })),
   ];
+  const filteredPlayersWithStats = registrations.filter((reg) => statsByUserId.has(reg.userId)).length;
+  const directoryPlayers = sortPlayerDirectory(
+    registrations.map((reg) => ({
+      userId: reg.userId,
+      registrationId: reg.registrationId,
+      displayName: getDisplayName(reg),
+      name: getDisplayName(reg),
+      primaryPosition: reg.primaryPosition,
+      secondaryPosition: reg.secondaryPosition,
+      peakRank: reg.peakRank,
+      peakRating: reg.peakRating,
+      currentRank: reg.currentRank,
+      currentRating: reg.currentRating,
+      teamName: teamByRegId.get(reg.registrationId) ?? null,
+      stats: statsByUserId.get(reg.userId) ?? null,
+    })),
+  );
 
   return (
-    <div className="container mx-auto px-4 py-12 max-w-5xl space-y-8">
+    <div className="container mx-auto px-4 py-12 max-w-6xl space-y-8">
       <Marker sub={`${season.name} · ${registrations.length} 人已通过审核`}>选手名单</Marker>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <Stat label="PLAYERS" value={registrations.length} />
+        <Stat label="WITH TEAM" value={teamByRegId.size} />
+        <Stat label="DATA READY" value={filteredPlayersWithStats} accent />
+        <Stat label="POSITION" value={position ? positionLabel(position) : "ALL"} />
+      </div>
 
       {/* 位置筛选 */}
       <div className="flex gap-2 flex-wrap">
@@ -112,56 +166,13 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
       {registrations.length === 0 ? (
         <div className="text-center py-16 text-[var(--color-fg-mid)]">暂无符合条件的选手</div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {registrations.map((reg) => {
-            const displayName = getDisplayName(reg);
-            const teamName = teamByRegId.get(reg.registrationId);
-            const posLabel = positionLabel(reg.primaryPosition);
-            const secPosLabel = reg.secondaryPosition ? positionLabel(reg.secondaryPosition) : null;
-
-            return (
-              <Link
-                key={reg.registrationId}
-                href={`/players/${reg.userId}` as never}
-                className="block"
-              >
-                <Panel hoverable className="h-full cursor-pointer">
-                  <div className="flex items-start justify-between gap-2 mb-3">
-                    <span className="font-semibold text-[var(--color-fg)] truncate text-base">
-                      {displayName}
-                    </span>
-                    <PosChip pos={POS_ABBR[reg.primaryPosition] ?? reg.primaryPosition.slice(0, 1).toUpperCase()} small />
-                  </div>
-                  <div className="space-y-1 text-sm text-[var(--color-fg-mid)]">
-                    <div className="flex justify-between">
-                      <span>主位置</span>
-                      <span className="text-[var(--color-fg)]">{posLabel}</span>
-                    </div>
-                    {secPosLabel && (
-                      <div className="flex justify-between">
-                        <span>副位置</span>
-                        <span className="text-[var(--color-fg-mid)]">{secPosLabel}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between">
-                      <span>历史最高</span>
-                      <span className="text-[var(--color-fg)]">{reg.peakRank}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>当前 Rating</span>
-                      <span className="text-[var(--color-fg)]">{reg.currentRating}</span>
-                    </div>
-                    {teamName && (
-                      <div className="flex justify-between">
-                        <span>队伍</span>
-                        <span className="text-[var(--color-accent)] font-medium truncate max-w-[120px]">{teamName}</span>
-                      </div>
-                    )}
-                  </div>
-                </Panel>
-              </Link>
-            );
-          })}
+        <div className="space-y-3">
+          {directoryPlayers.map((player) => (
+            <PlayerDirectoryRow
+              key={player.registrationId}
+              player={player}
+            />
+          ))}
         </div>
       )}
     </div>
