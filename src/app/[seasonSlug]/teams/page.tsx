@@ -1,12 +1,12 @@
 import { notFound } from "next/navigation";
 import { eq, asc, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, teams, teamMembers, seasonRegistrations, users, matches } from "@/db/schema";
+import { seasons, teams, teamMembers, seasonRegistrations, users, matches, swissStandings } from "@/db/schema";
 import { Marker, Stat } from "@/components/rivalhub";
 import { TeamCard } from "@/components/teams/TeamCard";
 import { calculateStandings } from "@/lib/standings";
-import { sortTeamDirectory } from "@/lib/teams/directory-order";
-import { CS2_POSITIONS, getFirstStageOfType, normalizeStagePlan } from "@/types/season";
+import { getSwissDirectoryOrder, sortTeamDirectory } from "@/lib/teams/directory-order";
+import { CS2_POSITIONS, getFirstStageOfType, getPreviousStage, normalizeStagePlan } from "@/types/season";
 import { getDisplayName } from "@/lib/utils/display-name";
 import { checkAdminSession } from "@/lib/auth/session";
 import { AdminShortcut } from "@/components/layout/AdminShortcut";
@@ -37,7 +37,7 @@ export default async function TeamsPage({ params }: TeamsPageProps) {
     );
   }
 
-  const [allMembers, seasonMatches, teamStatResult] = await Promise.all([
+  const [allMembers, seasonMatches, seasonSwissStandings, teamStatResult] = await Promise.all([
     db
       .select({
         teamId: teamMembers.teamId,
@@ -57,6 +57,10 @@ export default async function TeamsPage({ params }: TeamsPageProps) {
       .where(inArray(teamMembers.teamId, allTeams.map((t) => t.id))),
     db.query.matches.findMany({
       where: eq(matches.seasonId, season.id),
+    }),
+    db.query.swissStandings.findMany({
+      where: eq(swissStandings.seasonId, season.id),
+      orderBy: [asc(swissStandings.seed)],
     }),
     db.execute(sql`
       SELECT
@@ -129,13 +133,28 @@ export default async function TeamsPage({ params }: TeamsPageProps) {
         finishedQualifierMatches,
       )
     : [];
-  const standingsOrder = standings.map((standing) => standing.teamId);
+  const qualifierSwissStages = stagePlan.filter((stage) => stage.type === "swiss");
+  const activeSwissStage = [...qualifierSwissStages]
+    .reverse()
+    .find((stage) => seasonSwissStandings.some((standing) => standing.stage === stage.key));
+  const activeSwissRows = activeSwissStage
+    ? seasonSwissStandings.filter((standing) => standing.stage === activeSwissStage.key)
+    : [];
+  const standingsOrder = qualifierStage?.type === "swiss"
+    ? getSwissDirectoryOrder(activeSwissRows)
+    : standings.map((standing) => standing.teamId);
   const isPlayoffDirectory = playoffMatches.length > 0;
+  const previousPlayoffStage = playoffStage ? getPreviousStage(stagePlan, playoffStage.key) : null;
+  const playoffSeedOrder = previousPlayoffStage?.type === "swiss"
+    ? seasonSwissStandings
+        .filter((standing) => standing.stage === previousPlayoffStage.key && standing.status === "advanced")
+        .sort((a, b) => a.seed - b.seed)
+        .map((standing) => standing.teamId)
+    : standingsOrder;
   const sortedTeams = sortTeamDirectory(allTeams, {
     mode: isPlayoffDirectory ? "playoff" : "qualifier",
     standingsOrder,
-    // V1 round-robin playoffs are seeded directly from qualifier standings.
-    playoffSeedOrder: isPlayoffDirectory ? standingsOrder : [],
+    playoffSeedOrder: isPlayoffDirectory ? playoffSeedOrder : [],
   });
   const orderLabel = isPlayoffDirectory && standingsOrder.length > 0
     ? "正赛种子顺序"

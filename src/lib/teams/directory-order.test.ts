@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sortTeamDirectory } from "./directory-order";
+import { getSwissDirectoryOrder, sortTeamDirectory } from "./directory-order";
 
 const teams = [
   { id: "team-a", draftOrder: 1 },
@@ -35,5 +35,14 @@ describe("sortTeamDirectory", () => {
     });
 
     expect(sorted.map((team) => team.id)).toEqual(["team-a", "team-b", "team-c"]);
+  });
+
+  it("orders Swiss standings by record, BU score, and original seed", () => {
+    expect(getSwissDirectoryOrder([
+      { teamId: "team-a", seed: 1, wins: 2, losses: 1, buScore: 3, status: "active" },
+      { teamId: "team-b", seed: 2, wins: 3, losses: 0, buScore: 1, status: "advanced" },
+      { teamId: "team-c", seed: 3, wins: 2, losses: 1, buScore: 5, status: "active" },
+      { teamId: "team-d", seed: 4, wins: 0, losses: 3, buScore: -2, status: "eliminated" },
+    ])).toEqual(["team-b", "team-c", "team-a", "team-d"]);
   });
 });

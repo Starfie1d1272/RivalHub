@@ -21,3 +21,10 @@ export function sortPlayerDirectory<T extends DirectoryPlayer>(players: T[]): T[
     return a.name.localeCompare(b.name);
   });
 }
+
+export function countDirectoryPlayersWithTeam(
+  players: { registrationId: string }[],
+  teamByRegId: Map<string, unknown>,
+) {
+  return players.filter((player) => teamByRegId.has(player.registrationId)).length;
+}

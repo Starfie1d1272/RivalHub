@@ -1,6 +1,7 @@
 import React from "react";
 import Link from "next/link";
 import { Panel, Btn } from "@/components/rivalhub";
+import type { LeaderboardView } from "@/lib/matches/leaderboard-view";
 import { positionLabel } from "@/lib/validators/registration";
 
 interface LeaderboardRow {
@@ -29,8 +30,6 @@ interface StatsLeaderboardProps {
   seasonSlug: string;
   view?: LeaderboardView;
 }
-
-export type LeaderboardView = "core" | "impact" | "advanced";
 
 const VIEWS: { key: LeaderboardView; label: string; defaultSort: string }[] = [
   { key: "core", label: "Core", defaultSort: "rating" },

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sortPlayerDirectory } from "./directory-order";
+import { countDirectoryPlayersWithTeam, sortPlayerDirectory } from "./directory-order";
 
 const players = [
   { id: "alpha", name: "Alpha", currentRating: 1.2, stats: { maps: 4, avgRating: 1.1 } },
@@ -27,5 +27,18 @@ describe("sortPlayerDirectory", () => {
     ];
 
     expect(sortPlayerDirectory(tiedPlayers).map((player) => player.id)).toEqual(["alpha", "zulu"]);
+  });
+
+  it("counts team assignments only inside the filtered directory", () => {
+    const teamByRegId = new Map([
+      ["registration-a", "Team A"],
+      ["registration-b", "Team B"],
+      ["registration-outside", "Team C"],
+    ]);
+
+    expect(countDirectoryPlayersWithTeam(
+      [{ registrationId: "registration-a" }, { registrationId: "registration-empty" }],
+      teamByRegId,
+    )).toBe(1);
   });
 });

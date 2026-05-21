@@ -9,6 +9,15 @@ type TeamDirectoryOrderOptions = {
   playoffSeedOrder?: string[];
 };
 
+type SwissDirectoryStanding = {
+  teamId: string;
+  seed: number;
+  wins: number;
+  losses: number;
+  buScore: number;
+  status: string;
+};
+
 function buildOrderMap(ids: string[] | undefined) {
   return new Map((ids ?? []).map((id, index) => [id, index]));
 }
@@ -39,4 +48,15 @@ export function sortTeamDirectory<T extends DirectoryTeam>(
   }
 
   return sortedByOrder(teams, []);
+}
+
+export function getSwissDirectoryOrder(standings: SwissDirectoryStanding[]) {
+  return [...standings]
+    .sort((a, b) => {
+      if (b.wins !== a.wins) return b.wins - a.wins;
+      if (a.losses !== b.losses) return a.losses - b.losses;
+      if (b.buScore !== a.buScore) return b.buScore - a.buScore;
+      return a.seed - b.seed;
+    })
+    .map((standing) => standing.teamId);
 }

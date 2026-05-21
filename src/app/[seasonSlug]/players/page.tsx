@@ -6,7 +6,7 @@ import { db } from "@/db/client";
 import { seasons, seasonRegistrations, users, teams, teamMembers } from "@/db/schema";
 import { Marker, Stat } from "@/components/rivalhub";
 import { PlayerDirectoryRow } from "@/components/players/PlayerDirectoryRow";
-import { sortPlayerDirectory } from "@/lib/players/directory-order";
+import { countDirectoryPlayersWithTeam, sortPlayerDirectory } from "@/lib/players/directory-order";
 import { positionLabel, positionValues } from "@/lib/validators/registration";
 import { getDisplayName } from "@/lib/utils/display-name";
 import type { Metadata } from "next";
@@ -136,7 +136,7 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <Stat label="PLAYERS" value={registrations.length} />
-        <Stat label="WITH TEAM" value={teamByRegId.size} />
+        <Stat label="WITH TEAM" value={countDirectoryPlayersWithTeam(registrations, teamByRegId)} />
         <Stat label="DATA READY" value={filteredPlayersWithStats} accent />
         <Stat label="POSITION" value={position ? positionLabel(position) : "ALL"} />
       </div>
