@@ -1,0 +1,14 @@
+[
+  {
+    "roundNumber": 3,
+    "tick": 19224,
+    "steamId64": "76561198000000001",
+    "teamKey": "teamA",
+    "side": "t",
+    "weapon": "ak47",
+    "position": { "x": -624.7, "y": 104.4, "z": -167.9 },
+    "velocity": { "x": 18.2, "y": -4.1, "z": 0 },
+    "yaw": 182.4,
+    "pitch": -1.2
+  }
+]

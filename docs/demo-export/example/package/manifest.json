@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "rivalhub-demo-export/1",
+  "exporter": {
+    "name": "CS2 Insight Agent",
+    "version": "example"
+  },
+  "parser": {
+    "name": "demoparser2",
+    "version": "example"
+  },
+  "demo": {
+    "hash": "example-demo-sha256",
+    "sourceFileName": "example-demo.dem"
+  },
+  "mapName": "de_mirage",
+  "tickrate": 64,
+  "exportedAt": "2026-05-22T00:00:00Z",
+  "files": {
+    "match": "match.json",
+    "players": "players.json",
+    "rounds": "rounds.json",
+    "playerStats": "player-stats.json",
+    "playerEconomies": "player-economies.json",
+    "kills": "kills.json",
+    "damages": "damages.json",
+    "blinds": "blinds.json",
+    "bombs": "bombs.json",
+    "clutches": "clutches.json",
+    "grenades": "grenades.json",
+    "shots": "shots.json",
+    "positions1s": "positions-1s.json"
+  }
+}

@@ -1,0 +1,38 @@
+[
+  {
+    "roundNumber": 3,
+    "tick": 17664,
+    "steamId64": "76561198000000001",
+    "teamKey": "teamA",
+    "side": "t",
+    "alive": true,
+    "position": { "x": -1028.4, "y": 312.6, "z": -167.9 },
+    "yaw": 174.2,
+    "pitch": -0.8,
+    "health": 100,
+    "armor": 100,
+    "money": 100,
+    "activeWeapon": "ak47",
+    "flashDurationRemaining": 0,
+    "hasBomb": true,
+    "hasDefuseKit": false
+  },
+  {
+    "roundNumber": 3,
+    "tick": 17664,
+    "steamId64": "76561198000000012",
+    "teamKey": "teamB",
+    "side": "ct",
+    "alive": true,
+    "position": { "x": -812.1, "y": 144.7, "z": -167.9 },
+    "yaw": 356.8,
+    "pitch": 1.5,
+    "health": 100,
+    "armor": 100,
+    "money": 200,
+    "activeWeapon": "m4a1_silencer",
+    "flashDurationRemaining": 2.14,
+    "hasBomb": false,
+    "hasDefuseKit": true
+  }
+]

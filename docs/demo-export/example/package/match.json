@@ -1,0 +1,17 @@
+{
+  "mapName": "de_mirage",
+  "tickrate": 64,
+  "durationSeconds": 410,
+  "serverName": "Example CS2 Server",
+  "source": "demo",
+  "teamA": {
+    "teamKey": "teamA",
+    "name": "Example Alpha",
+    "score": 2
+  },
+  "teamB": {
+    "teamKey": "teamB",
+    "name": "Example Bravo",
+    "score": 1
+  }
+}

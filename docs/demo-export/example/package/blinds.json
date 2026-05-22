@@ -1,0 +1,13 @@
+[
+  {
+    "roundNumber": 3,
+    "tick": 17664,
+    "flasherSteamId64": "76561198000000003",
+    "flashedSteamId64": "76561198000000012",
+    "flasherTeamKey": "teamA",
+    "flashedTeamKey": "teamB",
+    "flasherSide": "t",
+    "flashedSide": "ct",
+    "durationSeconds": 2.14
+  }
+]

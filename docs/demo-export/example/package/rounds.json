@@ -1,0 +1,47 @@
+[
+  {
+    "roundNumber": 1,
+    "startTick": 128,
+    "freezeEndTick": 1408,
+    "endTick": 7552,
+    "teamASide": "t",
+    "teamBSide": "ct",
+    "teamAScoreBefore": 0,
+    "teamBScoreBefore": 0,
+    "teamAEconomy": { "startMoney": 4000, "moneySpent": 3800, "equipmentValue": 4400, "type": "pistol" },
+    "teamBEconomy": { "startMoney": 4000, "moneySpent": 3900, "equipmentValue": 4350, "type": "pistol" },
+    "winnerTeamKey": "teamA",
+    "winnerSide": "t",
+    "endReason": "bomb_exploded"
+  },
+  {
+    "roundNumber": 2,
+    "startTick": 7808,
+    "freezeEndTick": 9088,
+    "endTick": 14848,
+    "teamASide": "t",
+    "teamBSide": "ct",
+    "teamAScoreBefore": 1,
+    "teamBScoreBefore": 0,
+    "teamAEconomy": { "startMoney": 15100, "moneySpent": 8200, "equipmentValue": 10800, "type": "force_buy" },
+    "teamBEconomy": { "startMoney": 16200, "moneySpent": 9700, "equipmentValue": 12200, "type": "force_buy" },
+    "winnerTeamKey": "teamB",
+    "winnerSide": "ct",
+    "endReason": "bomb_defused"
+  },
+  {
+    "roundNumber": 3,
+    "startTick": 15104,
+    "freezeEndTick": 16384,
+    "endTick": 22400,
+    "teamASide": "t",
+    "teamBSide": "ct",
+    "teamAScoreBefore": 1,
+    "teamBScoreBefore": 1,
+    "teamAEconomy": { "startMoney": 20200, "moneySpent": 17600, "equipmentValue": 21350, "type": "full_buy" },
+    "teamBEconomy": { "startMoney": 19800, "moneySpent": 16400, "equipmentValue": 20600, "type": "full_buy" },
+    "winnerTeamKey": "teamA",
+    "winnerSide": "t",
+    "endReason": "elimination"
+  }
+]

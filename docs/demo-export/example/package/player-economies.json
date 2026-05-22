@@ -1,0 +1,22 @@
+[
+  {
+    "roundNumber": 3,
+    "steamId64": "76561198000000001",
+    "teamKey": "teamA",
+    "side": "t",
+    "startMoney": 4400,
+    "moneySpent": 4300,
+    "equipmentValue": 5150,
+    "type": "full_buy"
+  },
+  {
+    "roundNumber": 3,
+    "steamId64": "76561198000000012",
+    "teamKey": "teamB",
+    "side": "ct",
+    "startMoney": 3900,
+    "moneySpent": 3700,
+    "equipmentValue": 4800,
+    "type": "full_buy"
+  }
+]

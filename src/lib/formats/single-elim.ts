@@ -128,7 +128,54 @@ export const singleElimExecutor: StageExecutor = {
 
     // 非首阶段：从 qualifiers 构建 seeding → seedPlayoff
     if (!season.bracketData) {
-      throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "请先一键生成赛程");
+      // Fallback: qualifier matches were created manually, so the bracket skeleton
+      // was never persisted. Build the playoff bracket fresh using qualifier order as seeds.
+      if (!qualifiers || qualifiers.length === 0) {
+        throw new AppError(
+          ErrorCode.VALIDATION_FAILED,
+          `${previousStage.name} 没有晋级队伍，无法初始化 ${config.name}`,
+        );
+      }
+      const seededTeams = qualifiers
+        .map((q) => teams.find((t) => t.id === q.teamId))
+        .filter((t): t is NonNullable<typeof t> => !!t)
+        .slice(0, config.teamCount);
+
+      const { data, resolvedMatches } = await generateBracket(seededTeams, {
+        qualifierFormat: null,
+        playoffFormat: "single_elim",
+        playoffName: config.name,
+      });
+
+      const bracketStages = data.stage as BracketStageRef[];
+      const stageId = bracketStages.find((s) => s.name === config.name)?.id ?? null;
+      let matchCount = 0;
+
+      for (const bm of resolvedMatches) {
+        if (stageId !== null && bm.stageId !== stageId) continue;
+        const teamA = seededTeams[bm.teamAParticipantId];
+        const teamB = seededTeams[bm.teamBParticipantId];
+        if (!teamA || !teamB) continue;
+
+        await db.insert(matches).values({
+          seasonId,
+          teamAId: teamA.id,
+          teamBId: teamB.id,
+          stage: config.key,
+          format: config.matchFormat ?? "bo3",
+          status: "scheduled",
+          bracketNodeId: bm.bracketMatchId.toString(),
+          entryRound: mapRoundToEntryRound(bm.roundNumber, bracketSize),
+        });
+        matchCount++;
+      }
+
+      await db
+        .update(seasons)
+        .set({ bracketData: data as Database, updatedAt: new Date() })
+        .where(eq(seasons.id, seasonId));
+
+      return { matchCount };
     }
 
     if (!qualifiers || qualifiers.length === 0) {
