@@ -59,10 +59,6 @@ export const doubleElimExecutor: StageExecutor = {
       return { matchCount };
     }
 
-    if (!season.bracketData) {
-      throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "请先一键生成赛程");
-    }
-
     const finishedMatches = await db.query.matches.findMany({
       where: and(
         eq(matches.seasonId, seasonId),
@@ -71,6 +67,50 @@ export const doubleElimExecutor: StageExecutor = {
       ),
     });
     const standings = calculateStandings(teams, finishedMatches);
+
+    if (!season.bracketData) {
+      // Fallback: qualifier matches were created manually, so the bracket skeleton
+      // was never persisted. Build the playoff bracket fresh using standings as seeds.
+      const seededTeams = standings
+        .slice(0, config.teamCount)
+        .map((s) => teams.find((t) => t.id === s.teamId))
+        .filter((t): t is NonNullable<typeof t> => !!t);
+
+      const { data, resolvedMatches } = await generateBracket(seededTeams, {
+        qualifierFormat: null,
+        playoffFormat,
+        playoffName: config.name,
+      });
+      const bracketStages = data.stage as BracketStageRef[];
+      const stageId = bracketStages.find((stage) => stage.name === config.name)?.id ?? null;
+      let matchCount = 0;
+
+      for (const bm of resolvedMatches) {
+        if (stageId !== null && bm.stageId !== stageId) continue;
+        const teamA = seededTeams[bm.teamAParticipantId];
+        const teamB = seededTeams[bm.teamBParticipantId];
+        if (!teamA || !teamB) continue;
+
+        await db.insert(matches).values({
+          seasonId,
+          teamAId: teamA.id,
+          teamBId: teamB.id,
+          stage: config.key,
+          format: "bo3",
+          status: "scheduled",
+          bracketNodeId: bm.bracketMatchId.toString(),
+        });
+        matchCount++;
+      }
+
+      await db
+        .update(seasons)
+        .set({ bracketData: data as Database, updatedAt: new Date() })
+        .where(eq(seasons.id, seasonId));
+
+      return { matchCount };
+    }
+
     const seededNames = standings.slice(0, config.teamCount).map((standing) => standing.teamName);
     const { updatedData, resolvedMatches } = await seedPlayoff(
       seededNames,

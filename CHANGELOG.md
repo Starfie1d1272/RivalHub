@@ -5,6 +5,11 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.21.1] - 2026-05-22
+
+### Fixed
+- **正赛生成兼容手动创建的排位赛**：当排位赛通过手动创建赛程录入时，`season.bracketData` 不会预生成；现在 `double_elim` / `single_elim` 在 `bracketData` 缺失时会用积分榜或 qualifier 顺序现场构建 playoff bracket，不再报“请先一键生成赛程”
+
 ## [1.21.0] - 2026-05-22
 
 ### Added
