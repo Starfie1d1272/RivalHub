@@ -13,6 +13,7 @@
 | 改权限 / 登录 | [`auth-and-permissions.md`](./auth-and-permissions.md) |
 | 改报名 | [`registration-flow.md`](./registration-flow.md) |
 | 改选秀 | [`draft-flow.md`](./draft-flow.md) |
+| 对齐 demo 数据导出 | [`demo-export/handoff.md`](./demo-export/handoff.md) |
 | 改多赛季能力 | [`season-abstraction.md`](./season-abstraction.md) |
 | 改部署 / Cron | [`deployment.md`](./deployment.md) |
 | 改测试策略 | [`testing.md`](./testing.md) |

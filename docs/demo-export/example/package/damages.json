@@ -1,0 +1,38 @@
+[
+  {
+    "roundNumber": 1,
+    "tick": 4016,
+    "attackerSteamId64": "76561198000000001",
+    "victimSteamId64": "76561198000000012",
+    "attackerTeamKey": "teamA",
+    "victimTeamKey": "teamB",
+    "attackerSide": "t",
+    "victimSide": "ct",
+    "weapon": "ak47",
+    "hitgroup": "head",
+    "healthDamage": 100,
+    "armorDamage": 27,
+    "victimHealthBefore": 100,
+    "victimHealthAfter": 0,
+    "victimArmorBefore": 100,
+    "victimArmorAfter": 73
+  },
+  {
+    "roundNumber": 3,
+    "tick": 18048,
+    "attackerSteamId64": "76561198000000003",
+    "victimSteamId64": "76561198000000013",
+    "attackerTeamKey": "teamA",
+    "victimTeamKey": "teamB",
+    "attackerSide": "t",
+    "victimSide": "ct",
+    "weapon": "hegrenade",
+    "hitgroup": "generic",
+    "healthDamage": 18,
+    "armorDamage": 0,
+    "victimHealthBefore": 100,
+    "victimHealthAfter": 82,
+    "victimArmorBefore": 100,
+    "victimArmorAfter": 100
+  }
+]

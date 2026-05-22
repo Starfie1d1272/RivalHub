@@ -1,0 +1,24 @@
+[
+  {
+    "roundNumber": 3,
+    "throwTick": 17472,
+    "effectTick": 17664,
+    "grenade": "flashbang",
+    "throwerSteamId64": "76561198000000003",
+    "throwerTeamKey": "teamA",
+    "throwerSide": "t",
+    "throwPosition": { "x": -1514.2, "y": 286.1, "z": -167.9 },
+    "effectPosition": { "x": -812.6, "y": 118.5, "z": 44.2 }
+  },
+  {
+    "roundNumber": 3,
+    "throwTick": 17856,
+    "effectTick": 18048,
+    "grenade": "hegrenade",
+    "throwerSteamId64": "76561198000000003",
+    "throwerTeamKey": "teamA",
+    "throwerSide": "t",
+    "throwPosition": { "x": -1492.8, "y": 301.4, "z": -167.9 },
+    "effectPosition": { "x": -630.3, "y": -24.8, "z": -167.9 }
+  }
+]

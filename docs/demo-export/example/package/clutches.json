@@ -1,0 +1,13 @@
+[
+  {
+    "roundNumber": 3,
+    "tick": 18816,
+    "clutcherSteamId64": "76561198000000001",
+    "clutcherTeamKey": "teamA",
+    "clutcherSide": "t",
+    "opponentCount": 2,
+    "won": true,
+    "survived": true,
+    "killCount": 2
+  }
+]

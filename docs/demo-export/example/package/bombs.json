@@ -1,0 +1,44 @@
+[
+  {
+    "roundNumber": 1,
+    "tick": 6208,
+    "type": "plant",
+    "site": "a",
+    "actorSteamId64": "76561198000000001",
+    "actorTeamKey": "teamA",
+    "actorSide": "t",
+    "position": { "x": -1160.5, "y": -856.2, "z": -167.9 }
+  },
+  {
+    "roundNumber": 1,
+    "tick": 7552,
+    "type": "explode",
+    "site": "a",
+    "actorSteamId64": "76561198000000001",
+    "actorTeamKey": "teamA",
+    "actorSide": "t",
+    "position": { "x": -1160.5, "y": -856.2, "z": -167.9 }
+  },
+  {
+    "roundNumber": 2,
+    "tick": 12992,
+    "type": "plant",
+    "site": "b",
+    "actorSteamId64": "76561198000000001",
+    "actorTeamKey": "teamA",
+    "actorSide": "t",
+    "position": { "x": -1968.4, "y": 546.2, "z": -167.9 }
+  },
+  {
+    "roundNumber": 2,
+    "tick": 14848,
+    "type": "defuse",
+    "site": "b",
+    "actorSteamId64": "76561198000000012",
+    "actorTeamKey": "teamB",
+    "actorSide": "ct",
+    "position": { "x": -1968.4, "y": 546.2, "z": -167.9 },
+    "ctAliveCount": 2,
+    "tAliveCount": 0
+  }
+]
