@@ -36,8 +36,9 @@ const bracketData: BracketData = {
       round_id: 3,
       number: 1,
       status: 2,
-      opponent1: { id: 0, score: null },
-      opponent2: { id: 1, score: null },
+      child_count: 0,
+      opponent1: { id: 0 },
+      opponent2: { id: 1 },
     },
   ],
   participant: [
@@ -45,6 +46,8 @@ const bracketData: BracketData = {
     { id: 1, name: "Team 2" },
   ],
   match_game: [],
+  group: [{ id: 0, stage_id: 1, number: 1 }],
+  round: [{ id: 3, stage_id: 1, group_id: 0, number: 1 }],
 };
 
 describe("BracketView", () => {

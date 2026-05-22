@@ -5,6 +5,18 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.22.0] - 2026-05-23
+
+### Added
+- **Bracket 空槽位显示**：`BracketView` 在 brackets-viewer 渲染后注入对阵来源标签——UB R2+ 显示「队伍A vs 队伍B 胜者」，LB 各轮显示「胜者/败者」，未确定则显示 TBD；同时把对阵卡片加宽到 280px、原生 hint 翻译为中文
+- **正赛推荐解说时段**：协商面板在正赛阶段新增软提示，列出 14:00–17:00 / 19:00–22:00 两个推荐时段；队长提议落在区间外时即时给出「可正常进行但不保证解说」的警告
+- **阶段感知的协商缓冲**：`getTimeBufferHoursForStage` 让排位赛沿用 24h 缓冲，正赛改为 0（与最晚完成时间一致），`proposeMatchTime` / `respondToTimeProposal` / `autoAwardMatchTime` 均按阶段读取
+
+### Fixed
+- **Bracket 右侧 "null"**：`serializeBracket` 之前把 `undefined` 比分写成 `null`，brackets-viewer 用 `void 0 === e.score` 判空导致渲染成字符串 "null"；改为透传 `undefined`
+- **Bracket 比赛无法点击 / hover 异常**：`BracketMatch` 缺少 `child_count` 字段导致 brackets-viewer 把每场比赛误识别为 match-game，DOM 挂的是 `data-match-game-id` 而非 `data-match-id`，跳转 map 和 hover 样式全部失效；补齐字段后点击跳转、hover 橙色都恢复
+- **默认 tab 留在排位赛**：进入正赛阶段（排位赛全部完赛或正赛已有比赛）后公开赛程页面默认切换到正赛 tab，不需要手动再点一次
+
 ## [1.21.1] - 2026-05-22
 
 ### Fixed
