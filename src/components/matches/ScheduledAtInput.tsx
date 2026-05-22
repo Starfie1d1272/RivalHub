@@ -123,7 +123,7 @@ export function ScheduledAtInput({
           </Button>
         )}
         <span className="text-xs text-[var(--color-fg-dim)]">
-          队长需在此时间前 24 小时完成协商
+          队长协商截止：排位赛 = 此时间前 24 小时；正赛 = 即此时间
         </span>
       </div>
     </div>

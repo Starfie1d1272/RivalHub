@@ -24,6 +24,7 @@ import { MatchHeadToHead } from "@/components/matches/MatchHeadToHead";
 import { MatchSummaryStats } from "@/components/matches/MatchSummaryStats";
 import { getMatchMvpResults, ensureMvpWinner } from "@/actions/player-stats";
 import { getTimeProposals } from "@/actions/matches/scheduling";
+import { getTimeBufferHoursForStage } from "@/lib/matches/time-rules";
 import { getMatchRoster } from "@/actions/matches/roster";
 import { getSeasonHexagonScores } from "@/actions/hexagon";
 import { computeTeamDimensions } from "@/lib/utils/hexagon";
@@ -553,6 +554,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
               currentCompletionDeadline={match.completionDeadline}
               initialProposals={timeProposals}
               hasSubmittedRoster={captainRoster?.status === "submitted"}
+              bufferHours={getTimeBufferHoursForStage(season.stagePlan, match.stage)}
             />
           </Panel>
           <Panel pad={16}>

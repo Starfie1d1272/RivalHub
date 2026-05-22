@@ -22,7 +22,9 @@ export type BracketStageRef = { id: number; name: string };
 /** brackets-manager participant 的轻量引用 */
 export type BracketParticipantRef = { id: number; name: string };
 /** brackets-manager round 的轻量引用 */
-export type BracketRoundRef = { id: number; stage_id: number; number: number };
+export type BracketRoundRef = { id: number; stage_id: number; group_id: number; number: number };
+/** brackets-manager group 的轻量引用（number: 1=winner_bracket, 2=loser_bracket, 3=grand_final） */
+export type BracketGroupRef = { id: number; stage_id: number; number: number };
 
 export interface BracketStage {
   id: number;
@@ -40,8 +42,11 @@ export interface BracketMatch {
   round_id: number;
   number: number;
   status: number;
-  opponent1: { id: number | null; score: number | null; result?: "win" | "loss" } | null;
-  opponent2: { id: number | null; score: number | null; result?: "win" | "loss" } | null;
+  // brackets-viewer 用 `"child_count" in t` 区分 match 与 match-game。
+  // 不传这个字段会被当成 match-game，导致元素挂的是 data-match-game-id 而非 data-match-id。
+  child_count: number;
+  opponent1: { id: number | null; score?: number; result?: "win" | "loss" } | null;
+  opponent2: { id: number | null; score?: number; result?: "win" | "loss" } | null;
 }
 
 export interface BracketMatchGame {
@@ -50,8 +55,8 @@ export interface BracketMatchGame {
   stage_id?: number;
   number?: number;
   status?: number;
-  opponent1?: { id: number | null; score: number | null; result?: "win" | "loss" } | null;
-  opponent2?: { id: number | null; score: number | null; result?: "win" | "loss" } | null;
+  opponent1?: { id: number | null; score?: number; result?: "win" | "loss" } | null;
+  opponent2?: { id: number | null; score?: number; result?: "win" | "loss" } | null;
 }
 
 export interface BracketData {
@@ -59,6 +64,8 @@ export interface BracketData {
   match: BracketMatch[];
   match_game: BracketMatchGame[];
   participant: { id: number; name: string }[];
+  group: BracketGroupRef[];
+  round: BracketRoundRef[];
 }
 
 // 封装的"已确定双方"比赛信息，供调用者批量创建 DB match 记录
@@ -182,7 +189,7 @@ export function serializeBracket(
   teams: Team[]
 ): BracketData {
   if (!data) {
-    return { stage: [], match: [], match_game: [], participant: [] };
+    return { stage: [], match: [], match_game: [], participant: [], group: [], round: [] };
   }
 
   // participant 表只有 name；id 顺序对应 teams 按 draft_order 排列
@@ -217,6 +224,7 @@ export function serializeBracket(
       round_id: number;
       number: number;
       status: number;
+      child_count?: number;
       opponent1: { id: number | null; score: number | null; result?: string } | null;
       opponent2: { id: number | null; score: number | null; result?: string } | null;
     }>
@@ -227,20 +235,36 @@ export function serializeBracket(
     round_id: m.round_id,
     number: m.number,
     status: m.status,
+    child_count: m.child_count ?? 0,
     opponent1: m.opponent1
       ? {
           id: m.opponent1.id,
-          score: m.opponent1.score ?? null,
+          // 注意：brackets-viewer 用 `void 0 === e.score` 判断空分数，
+          // 必须传 undefined（JSON 序列化后字段缺失）而非 null，否则会渲染成字符串 "null"。
+          score: m.opponent1.score ?? undefined,
           result: m.opponent1.result as "win" | "loss" | undefined,
         }
       : null,
     opponent2: m.opponent2
       ? {
           id: m.opponent2.id,
-          score: m.opponent2.score ?? null,
+          score: m.opponent2.score ?? undefined,
           result: m.opponent2.result as "win" | "loss" | undefined,
         }
       : null,
+  }));
+
+  const group: BracketGroupRef[] = (data.group as BracketGroupRef[]).map((g) => ({
+    id: g.id,
+    stage_id: g.stage_id,
+    number: g.number,
+  }));
+
+  const round: BracketRoundRef[] = (data.round as BracketRoundRef[]).map((r) => ({
+    id: r.id,
+    stage_id: r.stage_id,
+    group_id: r.group_id,
+    number: r.number,
   }));
 
   return {
@@ -248,6 +272,8 @@ export function serializeBracket(
     match,
     match_game: (data.match_game as unknown as BracketMatchGame[] | undefined) ?? [],
     participant,
+    group,
+    round,
   };
 }
 

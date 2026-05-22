@@ -395,7 +395,7 @@ export async function updateMatchScheduledAt(
 
 /**
  * 设置或清除比赛的最晚完成时间。
- * 队长时间协商的确认截止时间 = completionDeadline - 24h。
+ * 队长时间协商的确认截止时间 = completionDeadline - 缓冲（排位赛 24h，正赛 0h）。
  */
 export async function updateMatchCompletionDeadline(
   matchId: string,

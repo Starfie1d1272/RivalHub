@@ -128,6 +128,8 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
       const parentId = game.parent_id;
       return typeof parentId === "number" && playoffBracketMatchIds.has(parentId);
     }),
+    group: fullBracketData.group.filter((g) => playoffBracketStageIds.has(g.stage_id)),
+    round: fullBracketData.round.filter((r) => playoffBracketStageIds.has(r.stage_id)),
   };
 
   // bracketNodeId（字符串）→ matchId（UUID），用于 BracketView 点击跳转
@@ -162,7 +164,16 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
       )}
 
       <Panel pad={24}>
-      <Tabs defaultValue={hasQualifier ? qualifierKey : playoffKey} className="w-full">
+      <Tabs
+        defaultValue={
+          hasPlayoff && (allQualifierFinished || playoffMatchesAll.length > 0)
+            ? playoffKey
+            : hasQualifier
+              ? qualifierKey
+              : playoffKey
+        }
+        className="w-full"
+      >
         <TabsList className="mb-6 bg-[var(--color-panel)] border border-[var(--color-border)] p-1">
           {qualifierStage && <TabsTrigger value={qualifierKey} className="data-[state=active]:bg-[var(--color-accent)] data-[state=active]:text-[var(--color-accent-fg)]">{qualifierStage.name}</TabsTrigger>}
           {playoffStage && <TabsTrigger value={playoffKey} className="data-[state=active]:bg-[var(--color-accent)] data-[state=active]:text-[var(--color-accent-fg)]">{playoffStage.name}</TabsTrigger>}

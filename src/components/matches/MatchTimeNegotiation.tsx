@@ -13,6 +13,20 @@ type Proposal = typeof matchTimeProposals.$inferSelect;
 
 const PROPOSAL_AUTO_ACCEPT_HOURS = 24;
 
+/** 推荐有解说覆盖的时间段（按 Asia/Shanghai 当地时间）。 */
+const CASTER_SLOTS: readonly { start: number; end: number }[] = [
+  { start: 14, end: 17 }, // 14:00 – 17:00
+  { start: 19, end: 22 }, // 19:00 – 22:00
+];
+
+/** 判断给定时间（北京时间起点）是否落在推荐解说时段内。 */
+function isWithinCasterSlot(date: Date | null): boolean {
+  if (!date || Number.isNaN(date.getTime())) return false;
+  // 用东八区小时数判断；Date 内部是 UTC，加偏移得到 CST 小时。
+  const cstHour = (date.getUTCHours() + 8) % 24;
+  return CASTER_SLOTS.some((slot) => cstHour >= slot.start && cstHour < slot.end);
+}
+
 interface MatchTimeNegotiationProps {
   matchId: string;
   isCaptainA: boolean;
@@ -23,6 +37,8 @@ interface MatchTimeNegotiationProps {
   currentCompletionDeadline: Date | null;
   initialProposals: Proposal[];
   hasSubmittedRoster: boolean;
+  /** 协商缓冲小时数，排位赛默认 24，正赛 0。决定 confirmationCutoff = completionDeadline - bufferHours。 */
+  bufferHours?: number;
 }
 
 export function MatchTimeNegotiation({
@@ -35,7 +51,10 @@ export function MatchTimeNegotiation({
   currentCompletionDeadline,
   initialProposals,
   hasSubmittedRoster = false,
+  bufferHours = 24,
 }: MatchTimeNegotiationProps) {
+  // 0 缓冲（=与最晚完成时间一致）目前仅正赛使用，沿用作为是否显示解说时段提示的判据。
+  const isPlayoff = bufferHours === 0;
   const [isPending, startTransition] = useTransition();
   const [proposedTime, setProposedTime] = useState("");
   const [rejectReasons, setRejectReasons] = useState<Record<string, string>>({});
@@ -47,7 +66,7 @@ export function MatchTimeNegotiation({
     ? new Date(currentCompletionDeadline)
     : null;
   const confirmationCutoff = completionDeadline
-    ? new Date(completionDeadline.getTime() - 24 * 60 * 60 * 1000)
+    ? new Date(completionDeadline.getTime() - bufferHours * 60 * 60 * 1000)
     : null;
   const isNegotiationClosed =
     confirmationCutoff !== null && Date.now() >= confirmationCutoff.getTime();
@@ -219,6 +238,13 @@ export function MatchTimeNegotiation({
               提议
             </Button>
           </div>
+          {isPlayoff &&
+            proposedTime &&
+            !isWithinCasterSlot(parseCSTInput(proposedTime)) && (
+              <p className="text-xs text-[var(--color-warn,#f59e0b)]">
+                所选时间在推荐解说时段外，比赛可正常进行，但不保证有官方解说。
+              </p>
+            )}
         </div>
       )}
 
@@ -228,11 +254,19 @@ export function MatchTimeNegotiation({
           最晚完成时间：{completionDeadline ? formatCST(completionDeadline) : "管理员暂未设置"}
         </div>
         <div>
-          协商截止时间：{confirmationCutoff ? formatCST(confirmationCutoff) : "设置最晚完成时间后自动生成"}
+          协商截止时间：
+          {confirmationCutoff
+            ? `${formatCST(confirmationCutoff)}${bufferHours > 0 ? `（最晚完成时间前 ${bufferHours} 小时）` : "（与最晚完成时间一致）"}`
+            : "设置最晚完成时间后自动生成"}
         </div>
         <div>
           单条提议超时：对方 24 小时未回应将自动采纳
         </div>
+        {isPlayoff && (
+          <div className="mt-1 text-[var(--color-fg)]">
+            推荐解说时段：每天 14:00–17:00 / 19:00–22:00（有官方解说覆盖）；可在此之外协商时间，但不保证解说。
+          </div>
+        )}
         {isNegotiationClosed && (
           <div className="mt-1 text-[var(--color-danger)]">
             队长时间协商已截止，请联系管理员指定比赛时间。

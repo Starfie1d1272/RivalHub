@@ -13,6 +13,7 @@ import {
   assertBeforeTimeConfirmationCutoff,
   assertProposedTimeFitsDeadline,
   getTimeConfirmationCutoff,
+  getTimeBufferHoursForStage,
 } from "@/lib/matches/time-rules";
 import { getTeamIdForCaptain } from "./_shared";
 
@@ -40,7 +41,9 @@ export async function proposeMatchTime(
     if (match.status !== "scheduled") {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "只能在 scheduled 状态下提议时间");
     }
-    assertBeforeTimeConfirmationCutoff(match.completionDeadline);
+    const season = await getSeasonOrThrow(match.seasonId);
+    const bufferHours = getTimeBufferHoursForStage(season.stagePlan, match.stage);
+    assertBeforeTimeConfirmationCutoff(match.completionDeadline, bufferHours);
     assertProposedTimeFitsDeadline(proposedTime, match.completionDeadline);
 
     if (!(await getTeamIdForCaptain(session.userId, match))) {
@@ -65,7 +68,6 @@ export async function proposeMatchTime(
       meta: { proposalId: proposal.id, proposedTime: proposedTime.toISOString() },
     });
 
-    const season = await getSeasonOrThrow(match.seasonId);
     revalidateMatchPaths(season.slug, matchId);
 
     return ok({ proposalId: proposal.id });
@@ -98,7 +100,9 @@ export async function respondToTimeProposal(
     }
 
     const match = await getMatchOrThrow(proposal.matchId);
-    assertBeforeTimeConfirmationCutoff(match.completionDeadline);
+    const season = await getSeasonOrThrow(match.seasonId);
+    const bufferHours = getTimeBufferHoursForStage(season.stagePlan, match.stage);
+    assertBeforeTimeConfirmationCutoff(match.completionDeadline, bufferHours);
     if (action === "accept") {
       assertProposedTimeFitsDeadline(proposal.proposedTime, match.completionDeadline);
     }
@@ -155,7 +159,6 @@ export async function respondToTimeProposal(
       meta: { matchId: match.id, action, rejectReason: rejectReason ?? null },
     });
 
-    const season = await getSeasonOrThrow(match.seasonId);
     revalidateMatchPaths(season.slug, proposal.matchId);
 
     return ok(undefined);
@@ -405,7 +408,11 @@ async function autoAwardMatchTime(
       return { awarded: false };
     }
 
-    const cutoff = getTimeConfirmationCutoff(match.completionDeadline);
+    const season = await tx.query.seasons.findFirst({
+      where: eq(seasons.id, match.seasonId),
+    });
+    const bufferHours = getTimeBufferHoursForStage(season?.stagePlan, match.stage);
+    const cutoff = getTimeConfirmationCutoff(match.completionDeadline, bufferHours);
     if (!cutoff || now.getTime() < cutoff.getTime()) {
       return { awarded: false };
     }
@@ -420,10 +427,6 @@ async function autoAwardMatchTime(
     if (!proposal) {
       return { awarded: false };
     }
-
-    const season = await tx.query.seasons.findFirst({
-      where: eq(seasons.id, match.seasonId),
-    });
     if (!season) {
       return { awarded: false };
     }
