@@ -34,8 +34,8 @@ describe("assertMatchTransition", () => {
     expect(() => assertMatchTransition("cancelled", "finished")).toThrow(AppError);
   });
 
-  it("rejects scheduled → finished (no playing)", () => {
-    expect(() => assertMatchTransition("scheduled", "finished")).toThrow(AppError);
+  it("allows scheduled → finished (forfeit)", () => {
+    expect(() => assertMatchTransition("scheduled", "finished")).not.toThrow();
   });
 });
 
