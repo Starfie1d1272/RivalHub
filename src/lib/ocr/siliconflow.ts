@@ -80,7 +80,7 @@ async function callAPI(params: CallParams) {
   }
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 60000);
+  const timer = setTimeout(() => controller.abort(), 180000);
 
   let response: Response;
   try {
