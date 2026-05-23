@@ -5,6 +5,11 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.22.1] - 2026-05-23
+
+### Fixed
+- **OCR 未匹配用户阻止保存**：`StatsOCRPanel` 新增 `unmatchedCount` 计算，未匹配行的「匹配用户」下拉框高亮红色边框，有未匹配行时禁用保存按钮并显示提示，防止错误数据写入数据库
+
 ## [1.22.0] - 2026-05-23
 
 ### Added
