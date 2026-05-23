@@ -222,7 +222,7 @@ export function MatchMvpVote({
               </div>
 
               <div className="grid grid-cols-4 gap-1 text-center text-[11px] mb-2">
-                <StatCell label="HS%" value={c.hsPercent} fmt={(v) => `${v}%`} />
+                <StatCell label="HS%" value={c.hsPercent} fmt={(v) => `${v.toFixed(0)}%`} />
                 <StatCell label="FK" value={c.firstKills} />
                 <StatCell label="MK" value={c.multiKills} />
                 <StatCell label="残局" value={c.clutches} />
@@ -265,7 +265,7 @@ const STAT_COLS = [
   { key: "kills" as const,     label: "K",    fmt: undefined as ((v: number) => string) | undefined },
   { key: "deaths" as const,    label: "D",    fmt: undefined },
   { key: "assists" as const,   label: "A",    fmt: undefined },
-  { key: "hsPercent" as const, label: "HS%",  fmt: (v: number) => `${v}%` },
+  { key: "hsPercent" as const, label: "HS%",  fmt: (v: number) => `${v.toFixed(0)}%` },
   { key: "firstKills" as const,label: "FK",   fmt: undefined },
   { key: "multiKills" as const,label: "MK",   fmt: undefined },
   { key: "clutches" as const,  label: "残局", fmt: undefined },

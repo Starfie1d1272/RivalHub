@@ -404,7 +404,8 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                   整场汇总
                 </TabsTrigger>
               )}
-              {maps.map((map) => (
+              {/* 已结束比赛仅显示已录入比分的图；进行中/未开始显示所有地图 */}
+              {(isFinished ? maps.filter((m) => m.scoreA !== null && m.scoreB !== null) : maps).map((map) => (
                 <TabsTrigger key={map.id} value={map.id} className="text-xs">
                   {mapLabel(map.mapName)}
                   {map.pickedByTeamId && (
@@ -437,7 +438,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
             )}
 
             {/* 单图 Tab */}
-            {maps.map((map) => (
+            {(isFinished ? maps.filter((m) => m.scoreA !== null && m.scoreB !== null) : maps).map((map) => (
               <TabsContent key={map.id} value={map.id}>
                 <Panel pad={16} className="space-y-3">
                   <div className="flex items-center justify-between gap-4">

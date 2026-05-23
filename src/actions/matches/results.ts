@@ -779,37 +779,79 @@ export async function correctMapScore(
  * 扫描当前 bracket_data，将已确定对阵但 DB 中缺失的比赛补全。
  * 用于修复历史 bug 导致的漏创建情况，正常流程不需要调用。
  */
-export async function syncBracketMatches(seasonId: string): Promise<ActionResult<{ created: number }>> {
+export async function syncBracketMatches(seasonId: string): Promise<ActionResult<{ created: number; fixed: number }>> {
   try {
     await requireSeasonAdmin(seasonId);
     const season = await getSeasonOrThrow(seasonId);
-    if (!season.bracketData) return ok({ created: 0 });
+    if (!season.bracketData) return ok({ created: 0, fixed: 0 });
 
-    const allResolved = collectResolvedMatches(season.bracketData as Database);
+    const bracketData = season.bracketData as Database;
+    const allResolved = collectResolvedMatches(bracketData);
+    const stagePlan = normalizeStagePlan(season.stagePlan);
+    const dbStages = bracketData.stage as BracketStageRef[];
 
-    // 读取已有的 bracket match 记录（按 bracketNodeId）
+    // 建立 participant id → team 的正确映射（名称查找）
+    const seasonTeams = await db.query.teams.findMany({ where: eq(teams.seasonId, seasonId) });
+    const teamByName = new Map(seasonTeams.map((t) => [t.name, t]));
+    const participants = bracketData.participant as { id: number; name: string }[];
+    const participantNameById = new Map(participants.map((p) => [p.id, p.name]));
+
+    // bracket stage id → 赛季 stage key 映射
+    const stageIdToKey = new Map<number, string>();
+    for (const s of dbStages) {
+      const sk = stagePlan.find((p) => p.name === s.name)?.key;
+      if (sk) stageIdToKey.set(s.id, sk);
+    }
+
+    // 读取现有 bracket match 记录，按 (bracketNodeId, stage) 索引
+    // 不同 stage（qualifier vs playoff）可能共享同一 bracketNodeId
     const existingBracketMatches = await db.query.matches.findMany({
       where: eq(matches.seasonId, seasonId),
-      columns: { bracketNodeId: true },
+      columns: { id: true, bracketNodeId: true, stage: true, teamAId: true, teamBId: true },
     });
-    const existingNodeIds = new Set(
-      existingBracketMatches.map((m) => m.bracketNodeId).filter(Boolean)
-    );
+    const existingByKey = new Map<string, typeof existingBracketMatches[number]>();
+    for (const m of existingBracketMatches) {
+      if (m.bracketNodeId && m.stage) {
+        existingByKey.set(`${m.bracketNodeId}:${m.stage}`, m);
+      }
+    }
 
-    const missing = allResolved.filter((m) => !existingNodeIds.has(m.bracketMatchId.toString()));
-    if (missing.length === 0) return ok({ created: 0 });
-
-    const stagePlan = normalizeStagePlan(season.stagePlan);
+    let created = 0;
+    let fixed = 0;
 
     await db.transaction(async (tx) => {
-      await insertResolvedBracketMatches(
-        tx, seasonId, "playoff",
-        season.bracketData as Database, missing,
-        stagePlan,
-      );
+      for (const bm of allResolved) {
+        const nameA = participantNameById.get(bm.teamAParticipantId);
+        const nameB = participantNameById.get(bm.teamBParticipantId);
+        const teamA = nameA ? teamByName.get(nameA) : undefined;
+        const teamB = nameB ? teamByName.get(nameB) : undefined;
+        if (!teamA || !teamB) continue;
+
+        const nodeIdStr = bm.bracketMatchId.toString();
+        const stage = stageIdToKey.get(bm.stageId) ?? "playoff";
+        const existing = existingByKey.get(`${nodeIdStr}:${stage}`);
+
+        if (!existing) {
+          await tx.insert(matches).values({
+            seasonId,
+            teamAId: teamA.id,
+            teamBId: teamB.id,
+            stage,
+            format: resolveMatchFormat(stagePlan, stage, bm.roundNumber),
+            status: "scheduled",
+            bracketNodeId: nodeIdStr,
+          });
+          created++;
+        } else if (existing.teamAId !== teamA.id || existing.teamBId !== teamB.id) {
+          await tx.update(matches)
+            .set({ teamAId: teamA.id, teamBId: teamB.id, updatedAt: new Date() })
+            .where(eq(matches.id, existing.id));
+          fixed++;
+        }
+      }
     });
 
-    return ok({ created: missing.length });
+    return ok({ created, fixed });
   } catch (e) {
     return actionError("syncBracketMatches", e);
   }
