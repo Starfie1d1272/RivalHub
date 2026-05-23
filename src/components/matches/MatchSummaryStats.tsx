@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cn } from "@/lib/utils/cn";
 import { Panel } from "@/components/rivalhub";
 
 export interface SummaryPlayer {
@@ -28,37 +29,17 @@ interface MatchSummaryStatsProps {
   seasonSlug: string;
 }
 
-const COL_HEADER_STYLE: React.CSSProperties = {
-  color: "var(--color-fg-dim)",
-  fontSize: 11,
-  fontWeight: 700,
-  letterSpacing: "0.05em",
-  textTransform: "uppercase" as const,
-  textAlign: "right" as const,
-  padding: "4px 8px",
-  whiteSpace: "nowrap",
-};
-
-const CELL_STYLE: React.CSSProperties = {
-  color: "var(--color-fg)",
-  fontSize: 13,
-  textAlign: "right" as const,
-  padding: "6px 8px",
-  fontFamily: "var(--font-mono)",
-  whiteSpace: "nowrap",
-};
-
-function fmt1(v: number | null): string {
-  return v != null ? v.toFixed(1) : "—";
-}
-
-function fmt2(v: number | null): string {
-  return v != null ? v.toFixed(2) : "—";
-}
-
-function fmtPct(v: number | null): string {
-  return v != null ? `${v.toFixed(0)}%` : "—";
-}
+const COLS = [
+  { key: "mapsPlayed", label: "图数" },
+  { key: "ratingPro", label: "Rating", fmt: (v: number | null) => v != null ? v.toFixed(2) : "—" },
+  { key: "adr", label: "ADR", fmt: (v: number | null) => v != null ? v.toFixed(1) : "—" },
+  { key: "kills", label: "K" },
+  { key: "deaths", label: "D" },
+  { key: "assists", label: "A" },
+  { key: "hsPercent", label: "HS%", fmt: (v: number | null) => v != null ? `${v.toFixed(0)}%` : "—" },
+  { key: "firstKills", label: "FK" },
+  { key: "clutches", label: "残局" },
+] as const;
 
 interface PlayerRowProps {
   player: SummaryPlayer;
@@ -69,91 +50,87 @@ function PlayerRow({ player, seasonSlug }: PlayerRowProps) {
   const ratingHigh = player.ratingPro != null && player.ratingPro >= 1.2;
 
   return (
-    <tr className="border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-panel-hi)] transition-colors">
-      {/* 选手名 */}
-      <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>
+    <tr className="border-b border-[var(--color-border)] last:border-0">
+      <td className="py-1.5 pl-3 pr-1 whitespace-nowrap">
         {player.userId ? (
           <Link
             href={`/players/${player.userId}`}
-            className="text-sm font-medium hover:underline"
-            style={{ color: "var(--color-fg)" }}
+            className="text-sm font-medium hover:text-[var(--color-accent)] transition-colors"
           >
             {player.perfectName}
           </Link>
         ) : (
-          <span className="text-sm" style={{ color: "var(--color-fg)" }}>
-            {player.perfectName}
-          </span>
+          <span className="text-sm text-[var(--color-fg)]">{player.perfectName}</span>
         )}
       </td>
-
-      {/* 图数 */}
-      <td style={CELL_STYLE}>{player.mapsPlayed}</td>
-
-      {/* Rating */}
-      <td
-        style={{
-          ...CELL_STYLE,
-          color: ratingHigh ? "var(--color-accent)" : "var(--color-fg)",
-          fontWeight: ratingHigh ? 700 : 400,
-        }}
-      >
-        {fmt2(player.ratingPro)}
-      </td>
-
-      {/* ADR */}
-      <td style={CELL_STYLE}>{fmt1(player.adr)}</td>
-
-      {/* K */}
-      <td style={CELL_STYLE}>{player.kills}</td>
-
-      {/* D */}
-      <td style={{ ...CELL_STYLE, color: "var(--color-fg-mid)" }}>{player.deaths}</td>
-
-      {/* A */}
-      <td style={CELL_STYLE}>{player.assists}</td>
-
-      {/* HS% */}
-      <td style={CELL_STYLE}>{fmtPct(player.hsPercent)}</td>
-
-      {/* FK */}
-      <td style={CELL_STYLE}>{player.firstKills}</td>
-
-      {/* 残局 */}
-      <td style={CELL_STYLE}>{player.clutches}</td>
+      {COLS.map((col) => {
+        const raw = player[col.key as keyof SummaryPlayer] as number | null;
+        const val = "fmt" in col && col.fmt ? col.fmt(raw) : (raw ?? "—");
+        return (
+          <td
+            key={col.key}
+            className={cn(
+              "tabular-nums text-right px-1.5 py-1.5 text-xs whitespace-nowrap",
+              col.key === "deaths" && "text-[var(--color-fg-mid)]",
+            )}
+          >
+            <span
+              className={cn(
+                col.key === "ratingPro" && ratingHigh && "font-bold text-[var(--color-accent)]",
+              )}
+            >
+              {String(val)}
+            </span>
+          </td>
+        );
+      })}
     </tr>
   );
 }
 
-interface TeamSectionProps {
+interface TeamBlockProps {
   teamName: string;
-  teamColor: string;
+  borderColor: string;
+  bgColor: string;
   players: SummaryPlayer[];
   seasonSlug: string;
 }
 
-function TeamSection({ teamName, teamColor, players, seasonSlug }: TeamSectionProps) {
+function TeamBlock({ teamName, borderColor, bgColor, players, seasonSlug }: TeamBlockProps) {
+  if (players.length === 0) return null;
   return (
-    <>
-      <tr>
-        <td
-          colSpan={10}
-          style={{
-            padding: "10px 8px 4px",
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            color: teamColor,
-          }}
-        >
-          {teamName}
-        </td>
-      </tr>
-      {players.map((p) => (
-        <PlayerRow key={p.userId ?? p.perfectName} player={p} seasonSlug={seasonSlug} />
-      ))}
-    </>
+    <div className="rounded-md overflow-hidden" style={{ backgroundColor: bgColor }}>
+      <div
+        className="px-3 py-2 text-[11px] font-bold tracking-widest uppercase"
+        style={{ borderLeft: `3px solid ${borderColor}` }}
+      >
+        {teamName}
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full" style={{ minWidth: 560 }}>
+          <thead>
+            <tr className="border-b border-[var(--color-border)]">
+              <th className="text-left text-[10px] text-[var(--color-fg-dim)] font-medium py-1 pl-3 pr-1 whitespace-nowrap">
+                选手
+              </th>
+              {COLS.map((col) => (
+                <th
+                  key={col.key}
+                  className="text-right text-[10px] text-[var(--color-fg-dim)] font-medium px-1.5 py-1 whitespace-nowrap"
+                >
+                  {col.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {players.map((p) => (
+              <PlayerRow key={p.userId ?? p.perfectName} player={p} seasonSlug={seasonSlug} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
@@ -169,43 +146,21 @@ export function MatchSummaryStats({
   const teamBPlayers = players.filter((p) => p.teamId === teamBId);
 
   return (
-    <Panel pad={0}>
-      <div className="overflow-x-auto">
-        <table className="w-full" style={{ minWidth: 600 }}>
-          <thead>
-            <tr className="border-b border-[var(--color-border)]">
-              <th style={{ ...COL_HEADER_STYLE, textAlign: "left" }}>选手</th>
-              <th style={COL_HEADER_STYLE}>图数</th>
-              <th style={COL_HEADER_STYLE}>Rating</th>
-              <th style={COL_HEADER_STYLE}>ADR</th>
-              <th style={COL_HEADER_STYLE}>K</th>
-              <th style={COL_HEADER_STYLE}>D</th>
-              <th style={COL_HEADER_STYLE}>A</th>
-              <th style={COL_HEADER_STYLE}>HS%</th>
-              <th style={COL_HEADER_STYLE}>FK</th>
-              <th style={COL_HEADER_STYLE}>残局</th>
-            </tr>
-          </thead>
-          <tbody>
-            {teamAPlayers.length > 0 && (
-              <TeamSection
-                teamName={teamAName}
-                teamColor="var(--color-accent)"
-                players={teamAPlayers}
-                seasonSlug={seasonSlug}
-              />
-            )}
-            {teamBPlayers.length > 0 && (
-              <TeamSection
-                teamName={teamBName}
-                teamColor="var(--color-accent-b)"
-                players={teamBPlayers}
-                seasonSlug={seasonSlug}
-              />
-            )}
-          </tbody>
-        </table>
-      </div>
+    <Panel pad={12} className="space-y-4">
+      <TeamBlock
+        teamName={teamAName}
+        borderColor="var(--color-accent)"
+        bgColor="rgba(77,212,122,0.04)"
+        players={teamAPlayers}
+        seasonSlug={seasonSlug}
+      />
+      <TeamBlock
+        teamName={teamBName}
+        borderColor="var(--color-accent-b)"
+        bgColor="rgba(66,170,255,0.04)"
+        players={teamBPlayers}
+        seasonSlug={seasonSlug}
+      />
     </Panel>
   );
 }
