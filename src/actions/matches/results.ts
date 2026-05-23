@@ -7,7 +7,7 @@ import { ok } from "@/types/action";
 import type { ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { requireSeasonAdmin, auditActorId } from "@/lib/auth/session";
-import { advanceMatch as bracketAdvance, type BracketStageRef, type ResolvedBracketMatch } from "@/lib/bracket";
+import { advanceMatch as bracketAdvance, collectResolvedMatches, type BracketStageRef, type ResolvedBracketMatch } from "@/lib/bracket";
 import type { Database } from "brackets-manager";
 import {
   type MatchStatus,
@@ -39,12 +39,16 @@ async function insertResolvedBracketMatches(
 ) {
   const seasonTeams = await tx.query.teams.findMany({
     where: eq(teams.seasonId, seasonId),
-    orderBy: [asc(teams.draftOrder)],
   });
+  const participants = updatedData.participant as { id: number; name: string }[];
+  const participantNameById = new Map(participants.map((p) => [p.id, p.name]));
+  const teamByName = new Map(seasonTeams.map((t) => [t.name, t]));
   const dbStages = updatedData.stage as BracketStageRef[];
   for (const bm of resolvedMatches) {
-    const teamA = seasonTeams[bm.teamAParticipantId];
-    const teamB = seasonTeams[bm.teamBParticipantId];
+    const nameA = participantNameById.get(bm.teamAParticipantId);
+    const nameB = participantNameById.get(bm.teamBParticipantId);
+    const teamA = nameA ? teamByName.get(nameA) : undefined;
+    const teamB = nameB ? teamByName.get(nameB) : undefined;
     if (!teamA || !teamB) continue;
     const bmStageName = dbStages.find((s) => s.id === bm.stageId)?.name;
     const stage = stagePlan.find((s) => s.name === bmStageName)?.key ?? defaultStage;
@@ -766,6 +770,48 @@ export async function correctMapScore(
     return ok(undefined);
   } catch (e) {
     return actionError("correctMapScore", e);
+  }
+}
+
+// ── 修复缺失的 bracket 比赛 ───────────────────────────────────────────────────
+
+/**
+ * 扫描当前 bracket_data，将已确定对阵但 DB 中缺失的比赛补全。
+ * 用于修复历史 bug 导致的漏创建情况，正常流程不需要调用。
+ */
+export async function syncBracketMatches(seasonId: string): Promise<ActionResult<{ created: number }>> {
+  try {
+    await requireSeasonAdmin(seasonId);
+    const season = await getSeasonOrThrow(seasonId);
+    if (!season.bracketData) return ok({ created: 0 });
+
+    const allResolved = collectResolvedMatches(season.bracketData as Database);
+
+    // 读取已有的 bracket match 记录（按 bracketNodeId）
+    const existingBracketMatches = await db.query.matches.findMany({
+      where: eq(matches.seasonId, seasonId),
+      columns: { bracketNodeId: true },
+    });
+    const existingNodeIds = new Set(
+      existingBracketMatches.map((m) => m.bracketNodeId).filter(Boolean)
+    );
+
+    const missing = allResolved.filter((m) => !existingNodeIds.has(m.bracketMatchId.toString()));
+    if (missing.length === 0) return ok({ created: 0 });
+
+    const stagePlan = normalizeStagePlan(season.stagePlan);
+
+    await db.transaction(async (tx) => {
+      await insertResolvedBracketMatches(
+        tx, seasonId, "playoff",
+        season.bracketData as Database, missing,
+        stagePlan,
+      );
+    });
+
+    return ok({ created: missing.length });
+  } catch (e) {
+    return actionError("syncBracketMatches", e);
   }
 }
 

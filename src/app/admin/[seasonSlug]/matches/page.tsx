@@ -13,6 +13,7 @@ import { StandingsTable } from "@/components/matches/StandingsTable";
 import { AdminMatchRow } from "@/components/matches/AdminMatchRow";
 import type { TeamMemberData, RosterData } from "@/components/matches/AdminMatchRow";
 import { BatchDeadlineCard } from "@/components/matches/BatchDeadlineCard";
+import { SyncBracketButton } from "@/components/matches/SyncBracketButton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Panel } from "@/components/rivalhub";
 import { getFirstStageOfType, normalizeRegistrationConfig, normalizeStagePlan } from "@/types/season";
@@ -369,6 +370,11 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
           stageName={playoffStage.name}
           standings={standings}
         />
+      )}
+
+      {/* 修复 Bracket 缺失比赛（bracket 已初始化时显示） */}
+      {hasPlayoff && (
+        <SyncBracketButton seasonId={season.id} />
       )}
 
       {/* 批量设置截止时间 */}
