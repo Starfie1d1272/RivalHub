@@ -151,14 +151,22 @@ cancelled
 | 当前状态 | 可迁移至 | 触发方 | 备注 |
 |---|---|---|---|
 | `scheduled` | `in_progress` | admin | 比赛开始 |
-| `scheduled` | `cancelled` | admin | 双方队伍弃权或赛程调整 |
-| `in_progress` | `finished` | admin | 录入比分（`recordMatchResult` 接受 scheduled 或 in_progress） |
+| `scheduled` | `cancelled` | admin | 赛程调整 |
+| `scheduled` | `finished` | admin | 弃赛判负（`forfeitMatch`，跳过 BP 要求） |
+| `in_progress` | `finished` | admin | 录入比分（`recordMatchResult` / `recordMapResult`） |
+| `in_progress` | `finished` | admin | 弃赛判负（`forfeitMatch`，跳过 BP 要求） |
 | `in_progress` | `cancelled` | admin | 特殊情况 |
 
 ### 禁止迁移
 
 - `finished` → 任何状态（比赛结果不可撤销，需 admin 特权操作并写 audit_log）
 - `cancelled` → `in_progress`（取消后不可恢复，需重新创建比赛）
+
+### 弃赛（isForfeit）
+
+`matches.is_forfeit = true` 表示该场比赛为弃赛判负，status 仍为 `finished`。
+比分按格式写入标准弃赛分（BO1: 13:0，BO3: 2:0，BO5: 3:0），bracket 正常推进。
+`MatchStatusBadge` 在 `isForfeit=true` 时显示"弃赛"而非"已结束"。
 
 ### 比分录入规则
 

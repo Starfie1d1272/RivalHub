@@ -51,8 +51,10 @@ function mapPendingMaps(records: { mapOrder: number; mapName: string; scoreA: nu
     }));
 }
 
-function mapFinishedMaps(records: { id: string; mapName: string }[]) {
-  return records.map((r) => ({ id: r.id, mapName: r.mapName }));
+function mapFinishedMaps(records: { id: string; mapName: string; scoreA: number | null; scoreB: number | null }[]) {
+  return records
+    .filter((r) => r.scoreA !== null && r.scoreB !== null)
+    .map((r) => ({ id: r.id, mapName: r.mapName, scoreA: r.scoreA as number, scoreB: r.scoreB as number }));
 }
 
 function sortMatches<T extends { status: string; scheduledAt: Date | null; completedAt: Date | null }>(list: T[]): T[] {

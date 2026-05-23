@@ -9,10 +9,17 @@ const STATUS_STYLES: Record<MatchStatus, string> = {
   cancelled:   "border-[rgba(255,84,112,0.3)] text-[var(--color-danger)] bg-[rgba(255,84,112,0.08)]",
 };
 
-export function MatchStatusBadge({ status }: { status: MatchStatus }) {
+export function MatchStatusBadge({
+  status,
+  isForfeit = false,
+}: {
+  status: MatchStatus;
+  isForfeit?: boolean;
+}) {
+  const label = isForfeit && status === "finished" ? "弃赛" : MATCH_STATUS_LABELS[status];
   return (
     <Badge variant="outline" className={STATUS_STYLES[status]}>
-      {MATCH_STATUS_LABELS[status]}
+      {label}
     </Badge>
   );
 }

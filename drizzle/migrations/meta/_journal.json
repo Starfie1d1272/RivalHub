@@ -134,6 +134,13 @@
       "when": 1715100000000,
       "tag": "0018_mvp_winner",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1748044800000,
+      "tag": "0019_is_forfeit",
+      "breakpoints": true
     }
   ]
 }

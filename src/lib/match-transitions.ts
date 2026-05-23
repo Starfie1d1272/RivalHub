@@ -6,6 +6,7 @@ export type MatchStatus = "scheduled" | "in_progress" | "finished" | "cancelled"
 export const MATCH_TRANSITIONS: Partial<Record<`${MatchStatus}→${MatchStatus}`, true>> = {
   "scheduled→in_progress": true,
   "scheduled→cancelled": true,
+  "scheduled→finished": true,
   "in_progress→finished": true,
   "in_progress→cancelled": true,
 };

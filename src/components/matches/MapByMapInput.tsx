@@ -89,7 +89,9 @@ export function MapByMapInput({
     const pickedByTeamId = nextPending
       ? nextPending.pickedByTeamId
       : (manualPickedBy === "decider" ? null : manualPickedBy);
-    const side = teamAStartSide === "none" ? null : teamAStartSide as "t" | "ct";
+    // BP 已记录选边时直接沿用，否则读取表单选择
+    const side = nextPending?.teamAStartSide
+      ?? (teamAStartSide === "none" ? null : teamAStartSide as "t" | "ct");
 
     startTransition(async () => {
       const result = await recordMapResult(matchId, nextMapOrder, resolvedMapName, a, b, pickedByTeamId, side);
@@ -182,26 +184,37 @@ export function MapByMapInput({
               </>
             )}
 
-            <div className="space-y-1">
-              <Label className="text-xs text-[var(--color-fg-mid)]">{teamAName} 起始边</Label>
-              <Select value={teamAStartSide} onValueChange={setTeamAStartSide}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="t" className="text-xs">{SIDE_LABELS.t}</SelectItem>
-                  <SelectItem value="ct" className="text-xs">{SIDE_LABELS.ct}</SelectItem>
-                  <SelectItem value="none" className="text-xs">不填</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {/* 仅在 BP 未记录选边时（决胜图或无 BP）才显示选边下拉 */}
+            {!nextPending?.teamAStartSide && (
+              <div className="space-y-1">
+                <Label className="text-xs text-[var(--color-fg-mid)]">
+                  {teamAName} 起始边
+                </Label>
+                <Select value={teamAStartSide} onValueChange={setTeamAStartSide}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="t" className="text-xs">{SIDE_LABELS.t}</SelectItem>
+                    <SelectItem value="ct" className="text-xs">{SIDE_LABELS.ct}</SelectItem>
+                    <SelectItem value="none" className="text-xs">不填</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div className="space-y-1 col-span-2 sm:col-span-1">
               <Label className="text-xs text-[var(--color-fg-mid)]">回合数</Label>
-              <div className="flex items-center gap-1">
-                <Input type="number" min="0" value={scoreA} onChange={(e) => setScoreA(e.target.value)}
-                  className="w-14 text-center h-8 text-xs" placeholder="0" />
-                <span className="text-[var(--color-fg-mid)] text-xs">:</span>
-                <Input type="number" min="0" value={scoreB} onChange={(e) => setScoreB(e.target.value)}
-                  className="w-14 text-center h-8 text-xs" placeholder="0" />
+              <div className="flex items-end gap-1">
+                <div className="space-y-1">
+                  <span className="text-[10px] text-[var(--color-fg-dim)]">{teamAName}</span>
+                  <Input type="number" min="0" value={scoreA} onChange={(e) => setScoreA(e.target.value)}
+                    className="w-14 text-center h-8 text-xs" placeholder="0" />
+                </div>
+                <span className="text-[var(--color-fg-mid)] text-xs pb-1.5">:</span>
+                <div className="space-y-1">
+                  <span className="text-[10px] text-[var(--color-fg-dim)]">{teamBName}</span>
+                  <Input type="number" min="0" value={scoreB} onChange={(e) => setScoreB(e.target.value)}
+                    className="w-14 text-center h-8 text-xs" placeholder="0" />
+                </div>
               </div>
             </div>
           </div>

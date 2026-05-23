@@ -9,6 +9,8 @@ import { ScheduledAtInput } from "@/components/matches/ScheduledAtInput";
 import { VetoInputDialog } from "@/components/matches/VetoInputDialog";
 import { AdminRosterDialog } from "@/components/matches/AdminRosterDialog";
 import { StatsOCRPanel } from "@/components/matches/StatsOCRPanel";
+import { ForfeitButton } from "@/components/matches/ForfeitButton";
+import { MapScoreCorrectInput } from "@/components/matches/MapScoreCorrectInput";
 import { DeleteMatchButton } from "@/components/matches/DeleteMatchButton";
 import { CompletedAtInput } from "@/components/matches/CompletedAtInput";
 import { toCSTDateTimeInput } from "@/lib/utils/date";
@@ -34,6 +36,7 @@ interface AdminMatchRowProps {
     id: string;
     status: "scheduled" | "in_progress" | "finished" | "cancelled";
     format: "bo1" | "bo3" | "bo5";
+    isForfeit: boolean;
     scoreA: number | null;
     scoreB: number | null;
     scheduledAt: Date | null;
@@ -66,7 +69,7 @@ interface AdminMatchRowProps {
     pickedByTeamId: string | null;
     teamAStartSide: "t" | "ct" | null;
   }[];
-  finishedMaps: { id: string; mapName: string }[];
+  finishedMaps: { id: string; mapName: string; scoreA: number; scoreB: number }[];
 }
 
 export function AdminMatchRow({
@@ -107,6 +110,7 @@ export function AdminMatchRow({
           <StatusPill status={MATCH_FORMAT_LABELS[match.format]} />
           <MatchStatusBadge
             status={match.status}
+            isForfeit={match.isForfeit}
           />
         </div>
       </div>
@@ -150,7 +154,7 @@ export function AdminMatchRow({
                   currentScheduledAt={match.scheduledAt}
                   currentCompletionDeadline={match.completionDeadline}
                 />
-                {isPlayoff && match.status === "in_progress" ? (
+                {(match.format === "bo3" || match.format === "bo5") && match.status === "in_progress" ? (
                   <MapByMapInput
                     matchId={match.id}
                     format={match.format}
@@ -171,6 +175,13 @@ export function AdminMatchRow({
                     format={match.format}
                   />
                 )}
+                <ForfeitButton
+                  matchId={match.id}
+                  teamAId={match.teamAId}
+                  teamBId={match.teamBId}
+                  teamAName={teamAName}
+                  teamBName={teamBName}
+                />
               </>
             )}
             {match.status === "finished" && (
@@ -187,15 +198,32 @@ export function AdminMatchRow({
                     matchStatus="finished"
                   />
                 </div>
-                <ScoreInput
-                  matchId={match.id}
-                  teamAName={teamAName}
-                  teamBName={teamBName}
-                  currentStatus="finished"
-                  format={match.format}
-                  currentScoreA={match.scoreA}
-                  currentScoreB={match.scoreB}
-                />
+                {finishedMaps.length > 0 ? (
+                  <div className="space-y-1">
+                    <p className="text-xs text-[var(--color-fg-mid)]">逐图比分（修改后大比分自动更新）</p>
+                    {finishedMaps.map((map) => (
+                      <MapScoreCorrectInput
+                        key={map.id}
+                        mapId={map.id}
+                        mapName={map.mapName}
+                        scoreA={map.scoreA}
+                        scoreB={map.scoreB}
+                        teamAName={teamAName}
+                        teamBName={teamBName}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <ScoreInput
+                    matchId={match.id}
+                    teamAName={teamAName}
+                    teamBName={teamBName}
+                    currentStatus="finished"
+                    format={match.format}
+                    currentScoreA={match.scoreA}
+                    currentScoreB={match.scoreB}
+                  />
+                )}
                 <CompletedAtInput
                   matchId={match.id}
                   initialValue={toCSTDateTimeInput(match.completedAt)}
