@@ -787,6 +787,8 @@ export async function syncBracketMatches(seasonId: string): Promise<ActionResult
 
     const bracketData = season.bracketData as Database;
     const allResolved = collectResolvedMatches(bracketData);
+    const stagePlan = normalizeStagePlan(season.stagePlan);
+    const dbStages = bracketData.stage as BracketStageRef[];
 
     // 建立 participant id → team 的正确映射（名称查找）
     const seasonTeams = await db.query.teams.findMany({ where: eq(teams.seasonId, seasonId) });
@@ -794,19 +796,26 @@ export async function syncBracketMatches(seasonId: string): Promise<ActionResult
     const participants = bracketData.participant as { id: number; name: string }[];
     const participantNameById = new Map(participants.map((p) => [p.id, p.name]));
 
-    // 读取现有 bracket match 记录（含 id, bracketNodeId, teamAId, teamBId）
+    // bracket stage id → 赛季 stage key 映射
+    const stageIdToKey = new Map<number, string>();
+    for (const s of dbStages) {
+      const sk = stagePlan.find((p) => p.name === s.name)?.key;
+      if (sk) stageIdToKey.set(s.id, sk);
+    }
+
+    // 读取现有 bracket match 记录，按 (bracketNodeId, stage) 索引
+    // 不同 stage（qualifier vs playoff）可能共享同一 bracketNodeId
     const existingBracketMatches = await db.query.matches.findMany({
       where: eq(matches.seasonId, seasonId),
-      columns: { id: true, bracketNodeId: true, teamAId: true, teamBId: true },
+      columns: { id: true, bracketNodeId: true, stage: true, teamAId: true, teamBId: true },
     });
-    const existingByNodeId = new Map(
-      existingBracketMatches
-        .filter((m) => m.bracketNodeId !== null)
-        .map((m) => [m.bracketNodeId!, m]),
-    );
+    const existingByKey = new Map<string, typeof existingBracketMatches[number]>();
+    for (const m of existingBracketMatches) {
+      if (m.bracketNodeId && m.stage) {
+        existingByKey.set(`${m.bracketNodeId}:${m.stage}`, m);
+      }
+    }
 
-    const stagePlan = normalizeStagePlan(season.stagePlan);
-    const dbStages = bracketData.stage as BracketStageRef[];
     let created = 0;
     let fixed = 0;
 
@@ -819,12 +828,10 @@ export async function syncBracketMatches(seasonId: string): Promise<ActionResult
         if (!teamA || !teamB) continue;
 
         const nodeIdStr = bm.bracketMatchId.toString();
-        const existing = existingByNodeId.get(nodeIdStr);
+        const stage = stageIdToKey.get(bm.stageId) ?? "playoff";
+        const existing = existingByKey.get(`${nodeIdStr}:${stage}`);
 
         if (!existing) {
-          // 缺失：补充创建
-          const bmStageName = dbStages.find((s) => s.id === bm.stageId)?.name;
-          const stage = stagePlan.find((s) => s.name === bmStageName)?.key ?? "playoff";
           await tx.insert(matches).values({
             seasonId,
             teamAId: teamA.id,
@@ -836,7 +843,6 @@ export async function syncBracketMatches(seasonId: string): Promise<ActionResult
           });
           created++;
         } else if (existing.teamAId !== teamA.id || existing.teamBId !== teamB.id) {
-          // 存在但队伍映射错误：修正
           await tx.update(matches)
             .set({ teamAId: teamA.id, teamBId: teamB.id, updatedAt: new Date() })
             .where(eq(matches.id, existing.id));
