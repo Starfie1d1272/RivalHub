@@ -79,11 +79,19 @@ function setupPoolGuard(p: Pool) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const _orig = (p as any).query.bind(p);
+  // 将原始 query 挂到 pool 上，rebuildPool 后 retry 可通过 pool.__orig 拿到新 Pool 的原始 query
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (p as any).__orig = _orig;
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (p as any).query = async function (...args: any[]) {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        return await _orig(...args);
+        // attempt 0：用当前 pool 的原始 query
+        // attempt 1（rebuild 后）：pool 已指向新 Pool，用新 Pool 的原始 query
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const queryFn = attempt === 0 ? _orig : ((pool as any).__orig ?? _orig);
+        return await queryFn(...args);
       } catch (err: unknown) {
         const e = err as NodeJS.ErrnoException;
         if (
@@ -91,7 +99,7 @@ function setupPoolGuard(p: Pool) {
           (e.code === "ECONNREFUSED" || e.code === "ENOTFOUND" || e.message?.includes("Connection terminated"))
         ) {
           await rebuildPool();
-          continue; // 重试查询
+          continue;
         }
         throw err;
       }
