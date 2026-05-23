@@ -211,6 +211,11 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
     return count;
   }, [drafts]);
 
+  const unmatchedCount = useMemo(
+    () => drafts.filter((row) => row.userId === null).length,
+    [drafts],
+  );
+
   async function handleClear() {
     setSaving(true);
     const result = await deletePlayerStatsByMap(mapId);
@@ -352,7 +357,10 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
                             value={row.userId ?? "__none__"}
                             onValueChange={(v) => handleUserChange(idx, v)}
                           >
-                            <SelectTrigger className="h-7 text-xs">
+                            <SelectTrigger className={cn(
+                              "h-7 text-xs",
+                              row.userId === null && "border-[var(--color-danger)] text-[var(--color-danger)]",
+                            )}>
                               <SelectValue placeholder="未匹配" />
                             </SelectTrigger>
                             <SelectContent>
@@ -405,10 +413,15 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
                 <Button
                   size="sm"
                   onClick={handleSave}
-                  disabled={saving || errorCount > 0}
+                  disabled={saving || errorCount > 0 || unmatchedCount > 0}
                 >
                   {saving ? "保存中…" : "确认保存"}
                 </Button>
+                {unmatchedCount > 0 && (
+                  <p className="text-xs text-[var(--color-danger)]">
+                    ⚠ {unmatchedCount} 行未匹配用户，请在下拉框中选择对应选手后再保存
+                  </p>
+                )}
                 {errorCount > 0 && (
                   <p className="text-xs text-[var(--color-danger)]">
                     ⚠ {errorCount} 处数据超出合法范围，请修正后再保存

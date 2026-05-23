@@ -5,6 +5,11 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.22.1] - 2026-05-23
+
+### Fixed
+- **OCR 未匹配用户阻止保存**：`StatsOCRPanel` 新增 `unmatchedCount` 计算，未匹配行的「匹配用户」下拉框高亮红色边框，有未匹配行时禁用保存按钮并显示提示，防止错误数据写入数据库
+
 ## [1.22.0] - 2026-05-23
 
 ### Added
@@ -680,6 +685,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.22.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.22.0...v1.22.1
+[1.22.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.21.1...v1.22.0
+[1.21.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.21.0...v1.21.1
 [1.21.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.20.5...v1.21.0
 [1.20.5]: https://github.com/Starfie1d1272/RivalHub/compare/v1.20.4...v1.20.5
 [1.20.4]: https://github.com/Starfie1d1272/RivalHub/compare/v1.20.3...v1.20.4
