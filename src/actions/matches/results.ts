@@ -693,3 +693,159 @@ export async function updateMatchCompletedAt(
     return actionError("updateMatchCompletedAt", e);
   }
 }
+
+// ── 修正单图比分 ──────────────────────────────────────────────────────────────
+
+/**
+ * 修正已完成比赛中某张地图的比分，并自动重算系列赛大比分。
+ * 不重新判定胜负，不影响 bracket 晋级结果。
+ */
+export async function correctMapScore(
+  mapId: string,
+  scoreA: number,
+  scoreB: number,
+): Promise<ActionResult<void>> {
+  try {
+    if (isNaN(scoreA) || isNaN(scoreB) || scoreA < 0 || scoreB < 0) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "请输入有效的非负整数");
+    }
+    if (scoreA === scoreB) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "单图不能平局");
+    }
+
+    const mapRecord = await db.query.matchMaps.findFirst({
+      where: eq(matchMaps.id, mapId),
+    });
+    if (!mapRecord) throw new AppError(ErrorCode.NOT_FOUND, "地图记录不存在");
+    if (mapRecord.scoreA === null) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "该图尚未录入比分，无法修正");
+    }
+
+    const match = await getMatchOrThrow(mapRecord.matchId);
+    const session = await requireSeasonAdmin(match.seasonId);
+
+    if (match.status !== "finished") {
+      throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "只有已结束的比赛才能修正比分");
+    }
+
+    const season = await getSeasonOrThrow(match.seasonId);
+
+    await db.transaction(async (tx) => {
+      await tx.update(matchMaps)
+        .set({ scoreA, scoreB })
+        .where(eq(matchMaps.id, mapId));
+
+      // 事务内重新读取所有图（含刚更新的），重算系列赛比分
+      const allMaps = await tx.query.matchMaps.findMany({
+        where: eq(matchMaps.matchId, mapRecord.matchId),
+      });
+      let seriesA = 0;
+      let seriesB = 0;
+      for (const m of allMaps) {
+        if (m.scoreA !== null && m.scoreB !== null) {
+          if (m.scoreA > m.scoreB) seriesA++;
+          else if (m.scoreB > m.scoreA) seriesB++;
+        }
+      }
+
+      await tx.update(matches)
+        .set({ scoreA: seriesA, scoreB: seriesB, updatedAt: new Date() })
+        .where(eq(matches.id, mapRecord.matchId));
+
+      await tx.insert(auditLogs).values({
+        seasonId: match.seasonId,
+        action: "match.correct_map_score",
+        actorId: auditActorId(session),
+        targetId: mapRecord.matchId,
+        targetType: "match",
+        meta: { mapId, mapName: mapRecord.mapName, prevScoreA: mapRecord.scoreA, prevScoreB: mapRecord.scoreB, scoreA, scoreB, seriesA, seriesB },
+      });
+    });
+
+    revalidateMatchPaths(season.slug, mapRecord.matchId);
+    return ok(undefined);
+  } catch (e) {
+    return actionError("correctMapScore", e);
+  }
+}
+
+// ── 弃赛判负 ─────────────────────────────────────────────────────────────────
+
+const FORFEIT_WINNER_SCORE: Record<"bo1" | "bo3" | "bo5", number> = {
+  bo1: 13,
+  bo3: 2,
+  bo5: 3,
+};
+
+/**
+ * 记录弃赛结果：跳过 BP 要求，按格式写入标准弃赛比分并推进 bracket。
+ * 可在 scheduled 或 in_progress 状态调用。
+ */
+export async function forfeitMatch(
+  matchId: string,
+  loserTeamId: string
+): Promise<ActionResult<void>> {
+  try {
+    const match = await getMatchOrThrow(matchId);
+    const session = await requireSeasonAdmin(match.seasonId);
+
+    assertMatchTransition(match.status, "finished");
+
+    if (loserTeamId !== match.teamAId && loserTeamId !== match.teamBId) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "弃赛队伍不属于本场比赛");
+    }
+
+    const winnerScore = FORFEIT_WINNER_SCORE[match.format];
+    const isLoserA = loserTeamId === match.teamAId;
+    const scoreA = isLoserA ? 0 : winnerScore;
+    const scoreB = isLoserA ? winnerScore : 0;
+
+    const season = await getSeasonOrThrow(match.seasonId);
+
+    await db.transaction(async (tx) => {
+      await tx
+        .update(matches)
+        .set({
+          scoreA,
+          scoreB,
+          status: "finished",
+          isForfeit: true,
+          completedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(matches.id, matchId));
+
+      if (season.bracketData && match.bracketNodeId) {
+        const { updatedData, newResolvedMatches } = await bracketAdvance(
+          match.bracketNodeId,
+          scoreA,
+          scoreB,
+          season.bracketData as Database
+        );
+        await tx
+          .update(seasons)
+          .set({ bracketData: updatedData as Database, updatedAt: new Date() })
+          .where(eq(seasons.id, match.seasonId));
+        await insertResolvedBracketMatches(
+          tx, match.seasonId, match.stage,
+          updatedData as Database, newResolvedMatches,
+          normalizeStagePlan(season.stagePlan),
+        );
+      }
+
+      await tx.insert(auditLogs).values({
+        seasonId: match.seasonId,
+        action: "match.forfeit",
+        actorId: auditActorId(session),
+        targetId: matchId,
+        targetType: "match",
+        meta: { loserTeamId, scoreA, scoreB, format: match.format },
+      });
+    });
+
+    revalidateMatchPaths(season.slug, matchId);
+    return ok(undefined);
+  } catch (e) {
+    return actionError("forfeitMatch", e);
+  }
+}

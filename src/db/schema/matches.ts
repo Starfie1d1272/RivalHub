@@ -1,4 +1,4 @@
-import { pgTable, uuid, integer, text, timestamp, pgEnum, check } from "drizzle-orm/pg-core";
+import { pgTable, uuid, integer, text, timestamp, pgEnum, check, boolean } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { seasons } from "./seasons";
 import { teams } from "./teams";
@@ -32,6 +32,7 @@ export const matches = pgTable("matches", {
   scoreB: integer("score_b"),
 
   status: matchStatusEnum("status").notNull().default("scheduled"),
+  isForfeit: boolean("is_forfeit").notNull().default(false),
   bracketNodeId: text("bracket_node_id"),  // brackets-manager 节点引用
 
   scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
