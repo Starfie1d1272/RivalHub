@@ -5,6 +5,12 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.23.1] - 2026-05-24
+
+### Fixed
+- **Bracket 晋级比赛漏创建**：`insertResolvedBracketMatches` 之前用 bracket participant ID 作为 draft_order 数组下标查队伍，两者顺序不一致导致映射错误、晋级比赛被静默跳过；改为通过 participant name → team name 查找，同时新增 `syncBracketMatches` action 及后台「修复 Bracket 缺失比赛」按钮供一次性补全历史遗漏
+- **OCR 超时**：`siliconflow.ts` 请求超时从 60s 延长至 180s，修复 Qwen3-VL-8B-Instruct 在高负载时处理大截图超时报错
+
 ## [1.23.0] - 2026-05-23
 
 ### Added

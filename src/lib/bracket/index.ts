@@ -310,7 +310,7 @@ export async function seedPlayoff(
 /**
  * 从 Database JSON 中筛选出双方参与者均已确定的比赛（非 TBD/BYE）。
  */
-function collectResolvedMatches(data: Database): ResolvedBracketMatch[] {
+export function collectResolvedMatches(data: Database): ResolvedBracketMatch[] {
   const roundMap = new Map<number, { stageId: number; number: number }>();
   for (const r of data.round as BracketRoundRef[]) {
     roundMap.set(r.id, { stageId: r.stage_id, number: r.number });
