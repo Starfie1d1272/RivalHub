@@ -6,13 +6,13 @@ import { Btn } from "@/components/rivalhub";
 
 export function SyncBracketButton({ seasonId }: { seasonId: string }) {
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
-  const [created, setCreated] = useState(0);
+  const [result, setResult] = useState({ created: 0, fixed: 0 });
 
   async function handleSync() {
     setStatus("loading");
-    const result = await syncBracketMatches(seasonId);
-    if (result.success) {
-      setCreated(result.data.created);
+    const res = await syncBracketMatches(seasonId);
+    if (res.success) {
+      setResult(res.data);
       setStatus("done");
     } else {
       setStatus("error");
@@ -22,11 +22,13 @@ export function SyncBracketButton({ seasonId }: { seasonId: string }) {
   return (
     <div className="flex items-center gap-3">
       <Btn ghost onClick={handleSync} disabled={status === "loading"}>
-        {status === "loading" ? "修复中…" : "修复 Bracket 缺失比赛"}
+        {status === "loading" ? "修复中…" : "修复 Bracket 比赛"}
       </Btn>
       {status === "done" && (
         <span className="text-xs text-[var(--color-fg-mid)]">
-          {created > 0 ? `已创建 ${created} 场` : "无缺失比赛"}
+          {result.created === 0 && result.fixed === 0
+            ? "无问题"
+            : `创建 ${result.created} 场，修正 ${result.fixed} 场`}
         </span>
       )}
       {status === "error" && (
