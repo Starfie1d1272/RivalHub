@@ -5,6 +5,17 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.23.2] - 2026-05-24
+
+### Fixed
+- **DB Pool 重建后重试仍打到 localhost**：`rebuildPool` 后 retry 仍调用旧 Pool 的原始 query，导致冷启动后 DATABASE_URL 为空时第二次查询也 ECONNREFUSED；改为在各 Pool 对象上保存 `__orig` 引用，重试时读取当前 Pool 的最新原始 query
+- **syncBracketMatches 漏检**：qualifier round-robin 与 playoff double_elim 的 bracket match ID 可能重叠（均从 0 开始），仅按 `bracketNodeId` 查找会将 qualifier 比赛误认为 playoff 比赛已存在；改为按 `(bracketNodeId, stage)` 复合键匹配，确保不同 stage 的比赛独立跟踪
+- **公开页 2:0 后仍显示图三 tab**：已结束比赛仍渲染所有 map（含 BP 占位行），改为 finished 时只渲染已录入比分的图
+- **MVP 投票爆头率小数溢出**：BO3 取多图均值时 HS% 未做舍入，出现 33.33333333333% 等长小数；fmt 函数加 `toFixed(0)`
+
+### Changed
+- **整场汇总 UI 重构**：两队分卡布局（独立背景卡片 + 左侧色条区分），Tailwind class 替换 inline style，列定义统一为 COLS 数组
+
 ## [1.23.1] - 2026-05-24
 
 ### Fixed
