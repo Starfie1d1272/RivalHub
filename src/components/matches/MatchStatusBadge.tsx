@@ -12,11 +12,14 @@ const STATUS_STYLES: Record<MatchStatus, string> = {
 export function MatchStatusBadge({
   status,
   isForfeit = false,
+  scheduledAt,
 }: {
   status: MatchStatus;
   isForfeit?: boolean;
+  scheduledAt?: Date | string | null;
 }) {
-  const label = isForfeit && status === "finished" ? "弃赛" : MATCH_STATUS_LABELS[status];
+  let label = isForfeit && status === "finished" ? "弃赛" : MATCH_STATUS_LABELS[status];
+  if (status === "scheduled") label = scheduledAt ? "待进行" : "待排期";
   return (
     <Badge variant="outline" className={STATUS_STYLES[status]}>
       {label}

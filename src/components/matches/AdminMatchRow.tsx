@@ -111,6 +111,7 @@ export function AdminMatchRow({
           <MatchStatusBadge
             status={match.status}
             isForfeit={match.isForfeit}
+            scheduledAt={match.scheduledAt}
           />
         </div>
       </div>
