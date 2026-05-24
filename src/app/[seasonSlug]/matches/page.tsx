@@ -142,6 +142,13 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
   const hasQualifier = !!qualifierStage;
   const hasPlayoff = !!playoffStage;
 
+  // 默认显示 stagePlan 中最靠后且已有比赛记录的阶段，支持任意数量阶段
+  const stagesWithMatches = new Set(allMatches.map((m) => m.stage));
+  const defaultStageKey =
+    [...stagePlan].reverse().find((s) => stagesWithMatches.has(s.key))?.key ??
+    stagePlan[0]?.key ??
+    qualifierKey;
+
   if (allMatches.length === 0 && allTeams.length === 0) {
     return (
       <div className="container mx-auto px-4 py-16 text-center text-[var(--color-fg-mid)]">
@@ -165,13 +172,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
 
       <Panel pad={24}>
       <Tabs
-        defaultValue={
-          hasPlayoff && (allQualifierFinished || playoffMatchesAll.length > 0)
-            ? playoffKey
-            : hasQualifier
-              ? qualifierKey
-              : playoffKey
-        }
+        defaultValue={defaultStageKey}
         className="w-full"
       >
         <TabsList className="mb-6 bg-[var(--color-panel)] border border-[var(--color-border)] p-1">

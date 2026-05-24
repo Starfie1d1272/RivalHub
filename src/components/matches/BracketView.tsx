@@ -77,12 +77,24 @@ function computeSlotLabel(
 
   const winnerLabel = (m: BracketMatch | undefined): string => {
     if (!m) return "TBD";
+    if (m.opponent1?.result === "win" && m.opponent1.id != null) {
+      return participantById.get(m.opponent1.id) ?? "TBD";
+    }
+    if (m.opponent2?.result === "win" && m.opponent2.id != null) {
+      return participantById.get(m.opponent2.id) ?? "TBD";
+    }
     const [a, b] = teamsOf(m);
     return a && b ? `${a} vs ${b} 胜者` : "TBD";
   };
 
   const loserLabel = (m: BracketMatch | undefined): string => {
     if (!m) return "TBD";
+    if (m.opponent1?.result === "loss" && m.opponent1.id != null) {
+      return participantById.get(m.opponent1.id) ?? "TBD";
+    }
+    if (m.opponent2?.result === "loss" && m.opponent2.id != null) {
+      return participantById.get(m.opponent2.id) ?? "TBD";
+    }
     const [a, b] = teamsOf(m);
     return a && b ? `${a} vs ${b} 败者` : "TBD";
   };
@@ -116,17 +128,18 @@ function computeSlotLabel(
     // r >= 2: 偶数轮 minor / 奇数轮 major
     const isMinor = roundNum % 2 === 0;
     if (isMinor) {
-      // op1: 上一 LB 轮胜者（反向配对）
-      // op2: 本 minor 对应的 UB 轮败者，UB 轮号 = roundNum/2 + 1
+      // brackets-manager 实际路由：op1 = UB 降组者（反向配对），op2 = LB 晋级者（顺序配对）
       const prevLb = matchesInRound(group.id, roundNum - 1);
       const ubRoundIdx = roundNum / 2 + 1;
       const ubRound = matchesInRound(ubGroupId, ubRoundIdx);
       if (slotIdx === 0) {
-        const source = prevLb[prevLb.length - matchNum];
-        return winnerLabel(source);
+        // op1: 本 minor 对应的 UB 轮败者，反向配对，UB 轮号 = roundNum/2 + 1
+        const source = ubRound[ubRound.length - matchNum];
+        return loserLabel(source);
       }
-      const source = ubRound[matchNum - 1];
-      return loserLabel(source);
+      // op2: 上一 LB 轮胜者，顺序配对
+      const source = prevLb[matchNum - 1];
+      return winnerLabel(source);
     }
 
     // major: 两侧均来自上一 LB 轮的胜者，顺序配对

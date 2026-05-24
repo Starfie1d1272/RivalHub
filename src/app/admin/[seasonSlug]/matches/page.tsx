@@ -190,6 +190,13 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
   const hasQualifier = !!qualifierStage;
   const hasPlayoff = !!playoffStage;
 
+  // 默认显示 stagePlan 中最靠后且已有比赛记录的阶段，支持任意数量阶段
+  const stagesWithMatches = new Set(allMatches.map((m) => m.stage));
+  const defaultStageKey =
+    [...stagePlan].reverse().find((s) => stagesWithMatches.has(s.key))?.key ??
+    stagePlan[0]?.key ??
+    qualifierKey;
+
   const batchDeadlineGroups: { label: string; stage: string; round?: number | null; entryRound?: string | null; matchCount: number }[] = [];
   if (matchCount > 0) {
     const activeMatches = allMatches.filter(
@@ -384,7 +391,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
 
       {/* Tab 面板 */}
       {matchCount > 0 && (
-        <Tabs defaultValue={filterStage && filterStage !== "all" ? filterStage : (hasQualifier ? qualifierKey : playoffKey)}>
+        <Tabs defaultValue={filterStage && filterStage !== "all" ? filterStage : defaultStageKey}>
           <TabsList>
             {qualifierStage && <TabsTrigger value={qualifierKey}>{qualifierStage.name}</TabsTrigger>}
             {playoffStage && <TabsTrigger value={playoffKey}>{playoffStage.name}</TabsTrigger>}
