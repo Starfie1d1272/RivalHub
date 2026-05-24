@@ -4,7 +4,7 @@
 
 RivalHub 是开源电竞赛事管理平台，通过 capability 驱动的多赛事模型支持各类赛制（选秀联赛、公开赛、杯赛等）的全流程运营：报名 → 审核 → 队长投票 → 蛇形选秀 → 队伍展示 → 赛程 + Bracket 视图 → 部署。
 
-当前阶段：**v1.20.3，站点部署在 `match.starfie1d.top`。比赛模块已深度补齐（BO1/BP/Roster/OCR/Tab/删除）。UI Optimization v2 已上线（动态 Hero / PhaseStep / 双栏赛季页 / design token 体系）。v2 赛制引擎（StageExecutor + 5 个 executor + entrySeeds 种子轮空 + finalFormat 决赛 BO5）代码已就绪，待 2026 NJU Major 赛季开始时启用。**
+当前阶段：**v1.23.7，站点部署在 `match.starfie1d.top`。比赛模块已深度补齐（BO1/BP/Roster/OCR/Tab/删除）。UI Optimization v2 已上线（动态 Hero / PhaseStep / 双栏赛季页 / design token 体系）。v2 赛制引擎（StageExecutor + 5 个 executor + entrySeeds 种子轮空 + finalFormat 决赛 BO5）代码已就绪，待 2026 NJU Major 赛季开始时启用。**
 
 ## 版本路线图
 
@@ -230,7 +230,7 @@ src/
 │   ├── validators/   # Zod schema（registration / vote / match）
 │   └── utils/        # date（UTC/CST）+ season（capability 工具）+ password（scrypt）+ cn
 ├── components/
-│   ├── layout/       # Header / Footer / AdminShortcut / HeaderClient / SeasonNav / Breadcrumb / OnlineCounter
+│   ├── layout/       # Header / Footer / AdminShortcut / HeaderClient / SeasonNav / Breadcrumb / OnlineCounter / SeasonNav.test
 │   ├── ui/           # shadcn 组件（按需 add，已覆盖 button/input/badge/card/skeleton/select/dialog/tabs/table/textarea）
 │   ├── rivalhub/     # Tactical Grid 组件（16 个：Panel/Btn/Field/Marker/Stat/
 │   │                 #   StatusBanner/InlineConfirm/EmptyState/ErrorState/Skeleton/
@@ -250,15 +250,15 @@ src/
 │   ├── draft/        # 选秀组件（7 个：CaptainDraftPanel / DraftAdminPanel / DraftCountdown /
 │   │                 #   DraftLiveRoom / PlayerInfoPopover / PlayerPool / TeamDraftGrid）
 │   ├── captains/     # 队长投票组件（2 个：CaptainConfirmPanel / CaptainVotingPanel）
-│   ├── teams/        # 队伍组件（5 个：TeamCard / TeamGrid / TeamLogoUpload / TeamNameForm / TeamRosterCard）
-│   └── matches/      # 赛程组件（36 个：MatchCard / MatchTeamFilter / CreateMatchForm /
+│   ├── teams/        # 队伍组件（6 个：TeamCard / TeamGrid / TeamLogoUpload / TeamNameForm / TeamRosterCard / TeamCard.test）
+│   └── matches/      # 赛程组件（40 个：MatchCard / MatchTeamFilter / CreateMatchForm / ForfeitButton /
 │                     #   AdminMatchFilter / AdminMatchRow / AdminRosterDialog / BatchDeadlineCard / BracketView /
 │                     #   CompletedAtInput / DeleteMatchButton / GeneratePlayoffCard / GenerateScheduleCard /
-│                     #   MapByMapInput / MapPoolRadarChart / MatchHeadToHead / MatchHeroHeader / MatchLineupsH2H /
+│                     #   MapByMapInput / MapPoolRadarChart / MapScoreCorrectInput / MatchHeadToHead / MatchHeroHeader / MatchLineupsH2H /
 │                     #   MatchMvpVote / MatchRosterForm / MatchRosterView / MatchStatusBadge /
 │                     #   MatchSummaryStats / MatchTabsSection / MatchTimeNegotiation /
 │                     #   PlayerRadarChart / PlayerStatsTable / ScheduledAtInput / ScoreInput /
-│                     #   StandingsTable / StatsLeaderboard / StatsOCRPanel / SwissBracket /
+│                     #   StandingsTable / StatsLeaderboard / StatsLeaderboard.test / StatsOCRPanel / SwissBracket / SyncBracketButton /
 │                     #   TeamStatsCompare / TimeProposalHistory / VetoInputDialog / VetoView）
 └── types/            # 共享 TypeScript 类型
 ```
