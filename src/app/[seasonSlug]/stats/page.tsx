@@ -76,7 +76,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
   const { rows } = await db.execute(sql`
     SELECT
       mps.user_id,
-      mps.perfect_name,
+      COALESCE(u.perfect_name, mps.perfect_name) AS perfect_name,
       sr.primary_position,
       t.name  AS team_name,
       t.id    AS team_id,
@@ -96,6 +96,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     FROM match_player_stats mps
     JOIN matches m ON m.id = mps.match_id
     JOIN match_maps mm ON mm.id = mps.map_id
+    LEFT JOIN users u ON u.id = mps.user_id
     LEFT JOIN season_registrations sr
       ON sr.user_id = mps.user_id AND sr.season_id = m.season_id
     LEFT JOIN team_members tm ON tm.registration_id = sr.id
@@ -103,7 +104,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     WHERE m.season_id = ${season.id}
       AND mps.verified_by_admin IS NOT NULL
       ${positionFilter}
-    GROUP BY mps.user_id, mps.perfect_name, sr.primary_position, t.name, t.id
+    GROUP BY mps.user_id, COALESCE(u.perfect_name, mps.perfect_name), sr.primary_position, t.name, t.id
     HAVING count(*) >= 3
     ORDER BY ${sortColumn} DESC
     LIMIT 100

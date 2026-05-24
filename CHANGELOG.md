@@ -5,6 +5,13 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.23.6] - 2026-05-25
+
+### Fixed
+- **数据统计页昵称碎片化导致排行榜数据丢失**：`match_player_stats.perfect_name` 因 OCR 识别错误/玩家改名存在多种变体，原 `GROUP BY user_id, perfect_name` 将同一玩家的不同名称拆成多行，各变体不足 3 图时被 `HAVING count(*) >= 3` 静默丢弃；改为 `LEFT JOIN users` 取当前昵称，`GROUP BY user_id, COALESCE(u.perfect_name, mps.perfect_name)` 彻底根治
+- **个人页"出场"统计失真**：原逻辑统计队伍所有已结束比赛（团队维度），未上场队员也被计入；改为以 `match_player_stats` 中该玩家的 distinct matchId 为准，准确反映个人有数据的出场数
+- **比赛结算后留下未打地图的 DB 占位行**：BO3/BO5 提前结束或弃赛时，未打的图（`score_a IS NULL`）残留在 `match_maps` 表中；在 `recordMapResult` 的 `seriesFinished` 分支和 `forfeitMatch` 事务内新增清理逻辑，删除所有未录入比分的图记录
+
 ## [1.23.5] - 2026-05-25
 
 ### Fixed
