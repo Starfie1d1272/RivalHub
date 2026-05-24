@@ -12,7 +12,7 @@ import { POSITION_LABELS } from "@/lib/validators/registration";
 import { CS2_POSITIONS, normalizeRegistrationConfig } from "@/types/season";
 import { getUserSession, checkAdminSession } from "@/lib/auth/session";
 import { getDisplayName } from "@/lib/utils/display-name";
-import { getTeamMapWinStats, getTeamBanStats } from "@/lib/teams/data";
+import { getTeamMapWinStats, getTeamBanStats, getTeamPickStats } from "@/lib/teams/data";
 import { mapLabel } from "@/lib/maps";
 import { getSeasonHexagonScores } from "@/actions/hexagon";
 import { computeTeamDimensions } from "@/lib/utils/hexagon";
@@ -131,9 +131,10 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
 
   // 地图表现统计
   const matchIds = teamMatches.map((m) => m.id);
-  const [mapStats, { banCount, bpMatchCount }] = await Promise.all([
+  const [mapStats, { banCount, bpMatchCount: banBpCount }, { pickCount, bpMatchCount: pickBpCount }] = await Promise.all([
     getTeamMapWinStats(teamId, teamMatches),
     getTeamBanStats(teamId, matchIds),
+    getTeamPickStats(teamId, matchIds),
   ]);
 
   // 历史对阵（按对手分组）
@@ -385,17 +386,19 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
       <section>
         <Panel pad={0} className="overflow-hidden" label="地图表现">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[340px]">
+            <table className="w-full text-sm min-w-[440px]">
               <thead>
                 <tr className="border-b border-[var(--color-border)] text-[var(--color-fg-mid)] text-xs uppercase tracking-wide">
                   <th className="px-5 py-3 text-left font-medium">地图</th>
                   <th className="px-5 py-3 text-center font-medium">胜率</th>
+                  <th className="px-5 py-3 text-center font-medium">pick 率</th>
                   <th className="px-5 py-3 text-center font-medium">ban 率</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--color-border)]">
                 {seasonMapPool.map((mapName) => {
                   const stat = mapStats.get(mapName);
+                  const picks = pickCount.get(mapName) ?? 0;
                   const bans = banCount.get(mapName) ?? 0;
                   return (
                     <tr key={mapName}>
@@ -412,10 +415,18 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
                         })() : <span className="text-[var(--color-fg-dim)]">—</span>}
                       </td>
                       <td className="px-5 py-3 text-center">
-                        {bpMatchCount > 0 ? (
+                        {pickBpCount > 0 ? (
                           <>
-                            <div className="font-semibold text-[var(--color-fg)]">{pct(bans, bpMatchCount).text}</div>
-                            <div className="text-xs text-[var(--color-fg-mid)]">{bpMatchCount} 对局</div>
+                            <div className="font-semibold text-[var(--color-fg)]">{pct(picks, pickBpCount).text}</div>
+                            <div className="text-xs text-[var(--color-fg-mid)]">{pickBpCount} 对局</div>
+                          </>
+                        ) : <span className="text-[var(--color-fg-dim)]">—</span>}
+                      </td>
+                      <td className="px-5 py-3 text-center">
+                        {banBpCount > 0 ? (
+                          <>
+                            <div className="font-semibold text-[var(--color-fg)]">{pct(bans, banBpCount).text}</div>
+                            <div className="text-xs text-[var(--color-fg-mid)]">{banBpCount} 对局</div>
                           </>
                         ) : <span className="text-[var(--color-fg-dim)]">—</span>}
                       </td>

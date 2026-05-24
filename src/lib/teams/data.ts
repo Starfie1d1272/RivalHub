@@ -84,7 +84,12 @@ async function getTeamVetoActionStats(
     db
       .selectDistinct({ matchId: matchVetoSteps.matchId })
       .from(matchVetoSteps)
-      .where(inArray(matchVetoSteps.matchId, matchIds)),
+      .where(
+        and(
+          inArray(matchVetoSteps.matchId, matchIds),
+          eq(matchVetoSteps.actionType, actionType),
+        ),
+      ),
     db
       .select({ mapName: matchVetoSteps.mapName })
       .from(matchVetoSteps)
