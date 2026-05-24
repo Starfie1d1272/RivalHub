@@ -37,6 +37,7 @@ npm version major    # 1.4.0 → 2.0.0
 ```
 
 **CHANGELOG 必须在 `npm version` 之前更新并提交**，否则 release workflow checkout tag commit 时找不到对应版本的条目，导致 GitHub Release body 为空。
+**同时必须在 CHANGELOG 末尾补上新版本的 compare 链接**，格式 `[v1.X.Y]: https://github.com/.../compare/v1.X.(Y-1)...v1.X.Y`，紧跟上一版 compare 链接之后。
 
 **push 时必须带 tag**：`npm version` 只创建本地 tag，普通 `git push` 不会推送。GitHub Release workflow（`.github/workflows/release.yml`）由 `v*` tag 触发，tag 不到远程就不会发布。
 
