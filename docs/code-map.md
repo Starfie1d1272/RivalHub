@@ -30,6 +30,40 @@
 | 权限 / 会话 | `src/actions/auth.ts`、`src/actions/account.ts`、`src/middleware.ts` | `src/lib/auth/session.ts`、`src/lib/auth/supabase.ts` |
 | Cron | `src/app/api/cron/` | `src/actions/draft/picks.ts`、`src/actions/transitions.ts`、`src/actions/matches/scheduling.ts` |
 
+## 组件目录
+
+```
+src/components/
+├── layout/       # Header / Footer / AdminShortcut / HeaderClient / SeasonNav / Breadcrumb / OnlineCounter / SeasonNav.test
+├── ui/           # shadcn 组件（按需 add，已覆盖 button/input/badge/card/skeleton/select/dialog/tabs/table/textarea）
+├── rivalhub/     # Tactical Grid 组件（16 个：Panel/Btn/Field/Marker/Stat/
+│                 #   StatusBanner/InlineConfirm/EmptyState/ErrorState/Skeleton/
+│                 #   TeamBadge/PosChip/StatusPill/ScrollHint/PhaseStep/MapPreferenceChips）
+├── auth/         # 登录/邀请（5 个：LoginForm / ClaimInviteForm / TurnstileWidget / ForgotPasswordForm / ResetPasswordForm）
+├── settings/     # 用户设置（ProfileForm / ChangePasswordForm）
+├── home/         # 首页（4 个：HomeHero / HomeNavigation / HomeSeasonPanel / SeasonCardGrid）
+├── register/     # 报名（9 个：RegistrationForm / RegistrationSuccess / RegistrationSectionTitle /
+│                 #   MapPreferenceSection / ScreenshotLinksSection / AntiCheatPledgeSection /
+│                 #   RegistrationSubmitBar / RegistrationExperienceSection / RegistrationOtherSection）
+├── admin/        # 后台（15 个：AdminLoginForm / AdminRegisterForm / AdminSidebar / AdminUserList /
+│                 #   AuditLogTable / ChangePasswordForm / DraftRegistrationTable / InviteManager /
+│                 #   RegistrationReviewList / SeasonForm / SeasonSubNav / StagePlanEditor /
+│                 #   TeamConfigForm / ThemeColorPicker / UserSearchBar）
+├── draft/        # 选秀（7 个：CaptainDraftPanel / DraftAdminPanel / DraftCountdown /
+│                 #   DraftLiveRoom / PlayerInfoPopover / PlayerPool / TeamDraftGrid）
+├── captains/     # 投票（2 个：CaptainConfirmPanel / CaptainVotingPanel）
+├── teams/        # 队伍（6 个：TeamCard / TeamGrid / TeamLogoUpload / TeamNameForm / TeamRosterCard / TeamCard.test）
+└── matches/      # 赛程（40 个：MatchCard / MatchTeamFilter / CreateMatchForm / ForfeitButton /
+                  #   AdminMatchFilter / AdminMatchRow / AdminRosterDialog / BatchDeadlineCard / BracketView /
+                  #   CompletedAtInput / DeleteMatchButton / GeneratePlayoffCard / GenerateScheduleCard /
+                  #   MapByMapInput / MapPoolRadarChart / MapScoreCorrectInput / MatchHeadToHead / MatchHeroHeader /
+                  #   MatchLineupsH2H / MatchMvpVote / MatchRosterForm / MatchRosterView / MatchStatusBadge /
+                  #   MatchSummaryStats / MatchTabsSection / MatchTimeNegotiation / PlayerRadarChart /
+                  #   PlayerStatsTable / ScheduledAtInput / ScoreInput / StandingsTable / StatsLeaderboard /
+                  #   StatsLeaderboard.test / StatsOCRPanel / SwissBracket / SyncBracketButton /
+                  #   TeamStatsCompare / TimeProposalHistory / VetoInputDialog / VetoView）
+```
+
 ## 拆分原则
 
 - 页面文件保留路由参数、数据加载、权限派生和 JSX；统计计算、聚合、可复用查询放到 `src/lib/<domain>/`。
