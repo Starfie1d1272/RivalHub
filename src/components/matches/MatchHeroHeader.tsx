@@ -25,6 +25,7 @@ interface MatchHeroMatch {
   scheduledAt: Date | null;
   completedAt: Date | null;
   bracketNodeId: string | null;
+  isForfeit: boolean;
 }
 
 interface MatchHeroHeaderProps {
@@ -148,7 +149,7 @@ export function MatchHeroHeader({
           <div className="mt-2 flex items-center justify-center gap-2 flex-wrap">
             <PosChip pos={MATCH_STAGE_LABELS[match.stage] ?? match.stage} />
             <PosChip pos={MATCH_FORMAT_LABELS[match.format] ?? match.format} />
-            <MatchStatusBadge status={match.status as "scheduled" | "in_progress" | "finished" | "cancelled"} />
+            <MatchStatusBadge status={match.status as "scheduled" | "in_progress" | "finished" | "cancelled"} isForfeit={match.isForfeit} scheduledAt={match.scheduledAt} />
           </div>
         </div>
 

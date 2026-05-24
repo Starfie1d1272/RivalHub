@@ -5,6 +5,16 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.23.5] - 2026-05-25
+
+### Fixed
+- **弃赛状态公开页面不显示**：`MatchCard`、`MatchTabsSection`、队伍页 `MatchCard` 均未传递 `isForfeit`，导致公开赛程列表和队伍历史战绩的状态 badge 始终显示"已结束"而非"弃赛"；补全传递链路
+- **弃赛详情页状态 badge 不显示**：`MatchHeroHeader` 未在 `MatchHeroMatch` 接口声明 `isForfeit`，且未传给 `MatchStatusBadge`；补全后详情页 badge 正确显示"弃赛"
+- **弃赛详情页"比赛结果"文案错误**：无地图记录的已结束比赛显示"BO3 系列赛总分：0 : 2"，弃赛语义不符；`isForfeit` 为 true 时改为显示"本场比赛以弃赛结束，未进行实际对局。"
+
+### Changed
+- **比赛状态标签区分排期状态**：`MatchStatusBadge` 新增 `scheduledAt` prop，`scheduled` 状态下有排期时间显示"待进行"，无排期时间显示"待排期"（原统一显示"待进行"）；后台 `AdminMatchRow` 和详情页 `MatchHeroHeader` 均已传入
+
 ## [1.23.4] - 2026-05-25
 
 ### Fixed
@@ -726,6 +736,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.23.5]: https://github.com/Starfie1d1272/RivalHub/compare/v1.23.4...v1.23.5
+[1.23.4]: https://github.com/Starfie1d1272/RivalHub/compare/v1.23.3...v1.23.4
+[1.23.3]: https://github.com/Starfie1d1272/RivalHub/compare/v1.23.2...v1.23.3
+[1.23.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.23.1...v1.23.2
+[1.23.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.23.0...v1.23.1
+[1.23.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.22.1...v1.23.0
 [1.22.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.22.0...v1.22.1
 [1.22.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.21.1...v1.22.0
 [1.21.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.21.0...v1.21.1

@@ -17,6 +17,7 @@ interface MatchCardProps {
   status: "scheduled" | "in_progress" | "finished" | "cancelled";
   scheduledAt?: Date | string | null;
   completedAt?: Date | string | null;
+  isForfeit?: boolean;
 }
 
 export function MatchCard({
@@ -31,6 +32,7 @@ export function MatchCard({
   status,
   scheduledAt,
   completedAt,
+  isForfeit = false,
 }: MatchCardProps) {
   const finishedTime = completedAt ?? scheduledAt ?? null;
   const timeText =
@@ -66,7 +68,7 @@ export function MatchCard({
         <Badge variant="outline" className="text-xs text-[var(--color-fg-mid)]">
           {MATCH_FORMAT_LABELS[format]}
         </Badge>
-        <MatchStatusBadge status={status} />
+        <MatchStatusBadge status={status} isForfeit={isForfeit} />
       </div>
     </Link>
   );

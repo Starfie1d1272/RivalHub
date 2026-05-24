@@ -12,6 +12,7 @@ interface MatchRow {
   status: string;
   scheduledAt: Date | null;
   completedAt: Date | null;
+  isForfeit: boolean;
 }
 
 interface MatchTabsSectionProps {
@@ -54,6 +55,7 @@ export function MatchTabsSection({
                 format={isMatchFormat(m.format) ? m.format : "bo1"}
                 status={isMatchStatus(m.status) ? m.status : "scheduled"}
                 scheduledAt={m.scheduledAt}
+                isForfeit={m.isForfeit}
               />
             ))}
           </div>
@@ -78,6 +80,7 @@ export function MatchTabsSection({
                 status={isMatchStatus(m.status) ? m.status : "scheduled"}
                 scheduledAt={m.scheduledAt}
                 completedAt={m.completedAt}
+                isForfeit={m.isForfeit}
               />
             ))}
           </div>

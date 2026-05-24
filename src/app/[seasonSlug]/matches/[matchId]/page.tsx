@@ -477,8 +477,9 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
           <h2 className="text-lg font-semibold text-[var(--color-fg)]">比赛结果</h2>
           <Panel pad={16}>
             <p className="text-sm text-[var(--color-fg-mid)]">
-              {MATCH_FORMAT_LABELS[match.format] ?? match.format.toUpperCase()} 系列赛总分：{match.scoreA} :{" "}
-              {match.scoreB}
+              {match.isForfeit
+                ? "本场比赛以弃赛结束，未进行实际对局。"
+                : `${MATCH_FORMAT_LABELS[match.format] ?? match.format.toUpperCase()} 系列赛总分：${match.scoreA} : ${match.scoreB}`}
             </p>
           </Panel>
         </section>

@@ -519,6 +519,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
                   format={m.format as "bo1" | "bo3" | "bo5"}
                   status={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"}
                   scheduledAt={m.scheduledAt}
+                  isForfeit={m.isForfeit}
                 />
               );
             })}
@@ -553,6 +554,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
                     format={m.format as "bo1" | "bo3" | "bo5"}
                     status={m.status as "scheduled" | "in_progress" | "finished" | "cancelled"}
                     scheduledAt={m.scheduledAt}
+                    isForfeit={m.isForfeit}
                   />
                 );
               })}
