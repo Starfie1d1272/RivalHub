@@ -144,15 +144,27 @@ export async function savePlayerStats(
       );
     }
 
+    // 对有 userId 的行，用 users.perfectName 覆盖 OCR 识别昵称，保证数据库一致性
+    const userIds = stats.map((s) => s.userId).filter(Boolean) as string[];
+    const userRows = userIds.length
+      ? await db.select({ id: users.id, perfectName: users.perfectName })
+          .from(users).where(inArray(users.id, userIds))
+      : [];
+    const userPerfectNames = new Map(userRows.map((u) => [u.id, u.perfectName]));
+    const normalizedStats = stats.map((s) => ({
+      ...s,
+      perfectName: (s.userId && userPerfectNames.get(s.userId)) || (s.perfectName as string),
+    }));
+
     await db.transaction(async (tx) => {
       await tx.delete(matchPlayerStats).where(eq(matchPlayerStats.mapId, mapId));
 
-      if (stats.length > 0) {
+      if (normalizedStats.length > 0) {
         await tx.insert(matchPlayerStats).values(
-          stats.map((s) => ({
+          normalizedStats.map((s) => ({
             matchId: map.matchId,
             mapId,
-            perfectName: s.perfectName as string,
+            perfectName: s.perfectName,
             userId: s.userId ?? undefined,
             kills: s.kills ?? undefined,
             deaths: s.deaths ?? undefined,
