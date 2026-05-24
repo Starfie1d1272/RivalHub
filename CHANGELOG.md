@@ -5,6 +5,12 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.23.3] - 2026-05-25
+
+### Fixed
+- **OCR 昵称可手动篡改**：`StatsOCRPanel` 左列「昵称」Input 改为只读展示，管理员无法手动编辑 OCR 识别结果；右列选中用户后，左列自动同步为 `users.perfectName`
+- **OCR 录入昵称与注册昵称不一致**：`savePlayerStats` 保存前对有 `userId` 的行从 `users` 表查真实 `perfectName` 并覆盖，确保 `matchPlayerStats.perfectName` 始终与 `users.perfectName` 一致
+
 ## [1.23.2] - 2026-05-24
 
 ### Fixed

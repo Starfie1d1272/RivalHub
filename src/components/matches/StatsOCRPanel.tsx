@@ -149,17 +149,20 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
     );
   }
 
-  function handleNameChange(idx: number, value: string) {
-    setDrafts((prev) =>
-      prev.map((row, i) => (i === idx ? { ...row, perfectName: value } : row))
-    );
-  }
-
   function handleUserChange(idx: number, userId: string) {
+    const selectedPlayer = userId !== "__none__"
+      ? playerOptions.find((p) => p.userId === userId)
+      : null;
     setDrafts((prev) =>
       prev.map((row, i) =>
-        i === idx ? { ...row, userId: userId === "__none__" ? null : userId } : row
-      )
+        i === idx
+          ? {
+              ...row,
+              userId: userId === "__none__" ? null : userId,
+              ...(selectedPlayer ? { perfectName: selectedPlayer.perfectName } : {}),
+            }
+          : row,
+      ),
     );
   }
 
@@ -346,11 +349,12 @@ export function StatsOCRPanel({ mapId, mapName }: Props) {
                     {drafts.map((row, idx) => (
                       <TableRow key={idx}>
                         <TableCell>
-                          <Input
-                            className="h-7 text-xs"
-                            value={row.perfectName as string}
-                            onChange={(e) => handleNameChange(idx, e.target.value)}
-                          />
+                          <span className={cn(
+                            "block text-xs px-2 py-1 truncate max-w-[9rem]",
+                            !(row.perfectName as string) && "text-[var(--color-fg-dim)] italic",
+                          )}>
+                            {(row.perfectName as string) || "—"}
+                          </span>
                         </TableCell>
                         <TableCell>
                           <Select
