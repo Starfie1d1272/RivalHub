@@ -5,6 +5,15 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.23.7] - 2026-05-25
+
+### Added
+- **队伍页地图表现新增 pick 率列**：在"地图表现"表格中新增 pick 率列，与胜率、ban 率并排展示
+
+### Fixed
+- **pick 率分母被 BO1 比赛稀释**：`getTeamVetoActionStats` 中 `bpMatchCount` 原统计所有有 veto 步骤的比赛（含 BO1），但 BO1 只有 ban/decider 无 pick 步骤，导致 pick 率百分比很低；改为只统计有对应 actionType 步骤的比赛，pick 率分母仅 BO3/BO5
+- **管理后台"参赛过"统计漏掉参赛的管理员**：stats 卡片子查询中 `WHERE u.role = 'user'` 排除了 season_admin/super_admin 角色的玩家，导致 56 人参赛但只显示 49 人"参赛过"；去掉 stats 子查询的 role 过滤
+
 ## [1.23.6] - 2026-05-25
 
 ### Fixed
@@ -743,6 +752,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.23.7]: https://github.com/Starfie1d1272/RivalHub/compare/v1.23.6...v1.23.7
 [1.23.6]: https://github.com/Starfie1d1272/RivalHub/compare/v1.23.5...v1.23.6
 [1.23.5]: https://github.com/Starfie1d1272/RivalHub/compare/v1.23.4...v1.23.5
 [1.23.4]: https://github.com/Starfie1d1272/RivalHub/compare/v1.23.3...v1.23.4

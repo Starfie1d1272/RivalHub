@@ -99,7 +99,6 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
         SELECT u.id, u.created_at, COUNT(DISTINCT sr.season_id) AS season_count
         FROM users u
         LEFT JOIN season_registrations sr ON sr.user_id = u.id
-        WHERE u.role = 'user'
         GROUP BY u.id, u.created_at
       ) sub
     `),
