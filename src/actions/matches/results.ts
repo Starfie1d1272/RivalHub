@@ -1,6 +1,6 @@
 "use server";
 
-import { eq, asc, and, inArray } from "drizzle-orm";
+import { eq, asc, and, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons, matches, matchMaps, matchVetoSteps, matchRosters, matchRosterPlayers, teams, teamMembers, auditLogs } from "@/db/schema";
 import { ok } from "@/types/action";
@@ -310,6 +310,10 @@ export async function recordMapResult(
       }
 
       if (seriesFinished) {
+        await tx.delete(matchMaps).where(
+          and(eq(matchMaps.matchId, matchId), isNull(matchMaps.scoreA))
+        );
+
         await tx.update(matches).set({
           scoreA: mapWinsA,
           scoreB: mapWinsB,
@@ -891,6 +895,10 @@ export async function forfeitMatch(
     const season = await getSeasonOrThrow(match.seasonId);
 
     await db.transaction(async (tx) => {
+      await tx.delete(matchMaps).where(
+        and(eq(matchMaps.matchId, matchId), isNull(matchMaps.scoreA))
+      );
+
       await tx
         .update(matches)
         .set({

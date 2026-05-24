@@ -36,15 +36,7 @@ npm version minor    # 1.3.2 → 1.4.0
 npm version major    # 1.4.0 → 2.0.0
 ```
 
-**CHANGELOG 必须在 `npm version` 之前更新并提交**，否则 release workflow checkout tag commit 时找不到对应版本的条目，导致 GitHub Release body 为空。
-
-**push 时必须带 tag**：`npm version` 只创建本地 tag，普通 `git push` 不会推送。GitHub Release workflow（`.github/workflows/release.yml`）由 `v*` tag 触发，tag 不到远程就不会发布。
-
-```bash
-git push origin dev --follow-tags    # ✅ 推送提交并带上本地 tag
-git push origin v1.6.0               # 或单独推 tag
-```
-
+**发版必须调用 `/release` skill 或严格按 `.claude/skills/release.md` 9 步流程执行**（CHANGELOG → compare 链接 → npm version → tag 对齐 → push → PR）。禁止凭记忆跳步。
 每次 main 合并都需经过 `pnpm type-check` + `pnpm test` + `pnpm build` 全绿。
 
 ---

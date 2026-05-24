@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { eq, or, and, asc, inArray, sql } from "drizzle-orm";
+import { eq, and, asc, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { users, seasonRegistrations, seasons, teams, teamMembers, matches, matchMaps } from "@/db/schema";
 import { resolveAvatarUrl } from "@/lib/steam";
@@ -159,21 +159,30 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
 
   const regIdToTeam = new Map(teamMemberRows.map((r) => [r.registrationId, r]));
 
-  // ── 跨赛季比赛战绩 ────────────────────────────────────────────────────
+  // ── 跨赛季比赛战绩（以个人 OCR 出场记录为准）───────────────────────
   const teamIds = [...new Set(teamMemberRows.map((r) => r.teamId).filter(Boolean))];
-  const allMatches = teamIds.length
+
+  const ocrMatchIdRows = await db
+    .selectDistinct({ matchId: matchPlayerStats.matchId })
+    .from(matchPlayerStats)
+    .where(
+      and(
+        eq(matchPlayerStats.userId, userId),
+        sql`${matchPlayerStats.verifiedByAdmin} IS NOT NULL`,
+      )
+    );
+  const ocrMatchIds = ocrMatchIdRows.map((r) => r.matchId);
+
+  const allMatches = ocrMatchIds.length
     ? await db.query.matches.findMany({
         where: and(
           eq(matches.status, "finished"),
-          or(
-            inArray(matches.teamAId, teamIds),
-            inArray(matches.teamBId, teamIds),
-          )
+          inArray(matches.id, ocrMatchIds),
         ),
       })
     : [];
 
-  // 聚合：总场次/胜负（以队伍为单位，因为 match 记录的是队伍，不是个人）
+  // 聚合：总场次/胜负（基于个人有 OCR 数据的比赛）
   const teamIdSet = new Set(teamIds);
   let totalWins = 0;
   let totalLosses = 0;
