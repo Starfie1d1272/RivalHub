@@ -5,6 +5,13 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.23.4] - 2026-05-25
+
+### Fixed
+- **Bracket LB minor round 标签错误**：`computeSlotLabel` 中 LB minor round 的 op1/op2 来源写反（UB 降组者应为 op1，LB 晋级者应为 op2），且 UB 场次索引顺序也相反；修正槽位分配与反向索引，LB R2/R4 等 minor round 的待定提示现可正确显示
+- **已结束源比赛仍显示「A vs B 胜者」**：`winnerLabel`/`loserLabel` 在源比赛有 result 时直接返回胜者/败者队名，不再展示冗余格式
+- **赛程 Tab 默认不跳到当前赛段**：公开页和后台赛程页改为自动选中 stagePlan 中最靠后且已有比赛记录的阶段，支持任意阶段数，进入正赛后无需手动切换 Tab
+
 ## [1.23.3] - 2026-05-25
 
 ### Fixed
