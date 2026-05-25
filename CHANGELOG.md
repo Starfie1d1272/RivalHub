@@ -5,6 +5,11 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.25.1] - 2026-05-25
+
+### Fixed
+- **公开页面赛程状态显示"待排期"而非"待进行"**：`MatchCard` 漏传 `scheduledAt` prop 给 `MatchStatusBadge`，1.23.5 引入该 prop 时仅传了 `AdminMatchRow` 和 `MatchHeroHeader`，公开赛程页遗漏
+
 ## [1.25.0] - 2026-05-25
 
 ### Added
@@ -781,6 +786,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.25.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.25.0...v1.25.1
+[1.25.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.24.0...v1.25.0
 [1.24.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.23.7...v1.24.0
 [1.23.7]: https://github.com/Starfie1d1272/RivalHub/compare/v1.23.6...v1.23.7
 [1.23.6]: https://github.com/Starfie1d1272/RivalHub/compare/v1.23.5...v1.23.6
