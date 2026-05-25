@@ -1,6 +1,8 @@
 import type { matchPlayerStats } from "@/db/schema/player-stats";
 import type { MapWinStats } from "@/lib/teams/data";
 import { avgNums, sumNums, weightedAvgNums } from "@/lib/utils/stats";
+import { aggregatePlayerRows } from "@/lib/stats/aggregate";
+import type { StatRowInput } from "@/lib/stats/aggregate";
 
 export type MatchPlayerStatsRow = typeof matchPlayerStats.$inferSelect;
 
@@ -26,13 +28,26 @@ export function computeRecord(
   return { wins, losses };
 }
 
-export function computeTeamAvgStats(rows: MatchPlayerStatsRow[]) {
+export function computeTeamAvgStats(rows: MatchPlayerStatsRow[], mapRoundsMap?: Map<string, number>) {
   if (!rows.length) return { avgRating: null, avgAdr: null, avgKd: null };
   const totalKills = sumNums(rows.map((r) => r.kills)) ?? 0;
   const totalDeaths = sumNums(rows.map((r) => r.deaths)) ?? 0;
+
+  // ADR：回合加权（需 mapRoundsMap），无法获取时降级为简单均值
+  let avgAdr: number | null;
+  if (mapRoundsMap) {
+    const totalRounds = rows.reduce((s, r) => s + (mapRoundsMap.get(r.mapId) ?? 0), 0);
+    avgAdr =
+      totalRounds > 0
+        ? rows.reduce((s, r) => s + (r.adr ?? 0) * (mapRoundsMap.get(r.mapId) ?? 0), 0) / totalRounds
+        : null;
+  } else {
+    avgAdr = avgNums(rows.map((r) => r.adr));
+  }
+
   return {
     avgRating: avgNums(rows.map((r) => r.ratingPro)),
-    avgAdr: avgNums(rows.map((r) => r.adr)),
+    avgAdr,
     avgKd: totalDeaths > 0 ? totalKills / totalDeaths : null,
   };
 }
@@ -97,7 +112,7 @@ export function buildLineupsPlayers(
   rows: MatchPlayerStatsRow[],
   starterUserIds: string[],
   userIdToMember: Map<string, TeamMemberSummary>,
-  matchRoundsMap: Map<string, number>,
+  mapRoundsMap: Map<string, number>,
 ) {
   const grouped = new Map<string, MatchPlayerStatsRow[]>();
   for (const r of rows) {
@@ -111,20 +126,49 @@ export function buildLineupsPlayers(
     const member = userIdToMember.get(userId);
     const perfectName =
       playerRows[0]?.perfectName ?? member?.perfectName ?? member?.displayName ?? member?.steamName ?? "未知";
-    const totalKills = sumNums(playerRows.map((r) => r.kills)) ?? 0;
-    const totalDeaths = sumNums(playerRows.map((r) => r.deaths)) ?? 0;
-    const firstKills = sumNums(playerRows.map((r) => r.firstKills)) ?? 0;
-    const totalRounds = sumNums(playerRows.map((r) => matchRoundsMap.get(r.matchId) ?? 0)) ?? 0;
+
+    if (playerRows.length === 0) {
+      return {
+        userId,
+        perfectName,
+        maps: 0,
+        avgRating: 0,
+        avgAdr: 0,
+        kdRatio: null,
+        avgHs: 0,
+        fkpr: 0,
+        avgWe: 0,
+      };
+    }
+
+    const statInputs: StatRowInput[] = playerRows.map((r) => ({
+      userId: r.userId,
+      perfectName: r.perfectName,
+      kills: r.kills,
+      deaths: r.deaths,
+      assists: r.assists,
+      hsPercent: r.hsPercent,
+      firstKills: r.firstKills,
+      multiKills: r.multiKills,
+      clutches: r.clutches,
+      adr: r.adr,
+      rws: r.rws,
+      ratingPro: r.ratingPro,
+      we: r.we,
+      rounds: mapRoundsMap.get(r.mapId) ?? 0,
+    }));
+
+    const agg = aggregatePlayerRows(statInputs);
     return {
       userId,
       perfectName,
-      maps: playerRows.length,
-      avgRating: avgNums(playerRows.map((r) => r.ratingPro)) ?? 0,
-      avgAdr: avgNums(playerRows.map((r) => r.adr)) ?? 0,
-      kdRatio: totalDeaths > 0 ? totalKills / totalDeaths : null,
-      avgHs: avgNums(playerRows.map((r) => r.hsPercent)) ?? 0,
-      fkpr: totalRounds > 0 ? firstKills / totalRounds : 0,
-      avgWe: avgNums(playerRows.map((r) => r.we)) ?? 0,
+      maps: agg.maps,
+      avgRating: agg.ratingPro ?? 0,
+      avgAdr: agg.adr ?? 0,
+      kdRatio: agg.kd,
+      avgHs: agg.hsPercent ?? 0,
+      fkpr: agg.fkpr ?? 0,
+      avgWe: agg.we ?? 0,
     };
   });
 }
@@ -134,6 +178,7 @@ export function aggregateFinishedPlayerStats(
   userIdToTeamId: Map<string, string>,
   teamAId: string,
   teamBId: string,
+  mapRoundsMap?: Map<string, number>,
 ) {
   const groupMap = new Map<string, MatchPlayerStatsRow[]>();
   for (const s of allStats) {
@@ -143,21 +188,40 @@ export function aggregateFinishedPlayerStats(
     groupMap.set(key, list);
   }
 
-  const aggregated = Array.from(groupMap.values()).map((rows) => ({
-    userId: rows[0].userId,
-    perfectName: rows[0].perfectName,
-    kills: sumNums(rows.map((r) => r.kills)),
-    deaths: sumNums(rows.map((r) => r.deaths)),
-    assists: sumNums(rows.map((r) => r.assists)),
-    hsPercent: weightedAvgNums(rows.map((r) => r.hsPercent), rows.map((r) => r.kills)),
-    firstKills: sumNums(rows.map((r) => r.firstKills)),
-    multiKills: sumNums(rows.map((r) => r.multiKills)),
-    clutches: sumNums(rows.map((r) => r.clutches)),
-    adr: avgNums(rows.map((r) => r.adr)),
-    rws: avgNums(rows.map((r) => r.rws)),
-    ratingPro: avgNums(rows.map((r) => r.ratingPro)),
-    we: avgNums(rows.map((r) => r.we)),
-  }));
+  const aggregated = Array.from(groupMap.values()).map((rows) => {
+    const statInputs: StatRowInput[] = rows.map((r) => ({
+      userId: r.userId,
+      perfectName: r.perfectName,
+      kills: r.kills,
+      deaths: r.deaths,
+      assists: r.assists,
+      hsPercent: r.hsPercent,
+      firstKills: r.firstKills,
+      multiKills: r.multiKills,
+      clutches: r.clutches,
+      adr: r.adr,
+      rws: r.rws,
+      ratingPro: r.ratingPro,
+      we: r.we,
+      rounds: mapRoundsMap ? (mapRoundsMap.get(r.mapId) ?? 0) : 0,
+    }));
+    const agg = aggregatePlayerRows(statInputs);
+    return {
+      userId: agg.userId,
+      perfectName: agg.perfectName,
+      kills: agg.kills as number | null,
+      deaths: agg.deaths as number | null,
+      assists: agg.assists as number | null,
+      hsPercent: agg.hsPercent,
+      firstKills: agg.firstKills as number | null,
+      multiKills: agg.multiKills as number | null,
+      clutches: agg.clutches as number | null,
+      adr: agg.adr,
+      rws: agg.rws,
+      ratingPro: agg.ratingPro,
+      we: agg.we,
+    };
+  });
 
   const mvpCandidates = aggregated
     .sort((a, b) => (b.ratingPro ?? 0) - (a.ratingPro ?? 0))

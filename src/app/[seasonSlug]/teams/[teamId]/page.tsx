@@ -155,20 +155,27 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
   const h2hList = [...h2hMap.values()].sort((a, b) => b.wins + b.losses - (a.wins + a.losses));
 
   // 队伍 + 选手统计（每人聚合，用于阵容内联和队伍均值）
+  // ADR 改为回合加权（JOIN match_maps mm2），修复原来 avg(mps.adr) 简单均值失真问题
   const teamStatResult = roster.length
     ? await db.execute(sql`
         SELECT
           mps.user_id,
-          count(*)::int                                                      AS maps,
-          round(avg(mps.rating_pro)::numeric, 2)                            AS avg_rating,
-          round(avg(mps.adr)::numeric, 1)                                   AS avg_adr,
-          round(avg(mps.we)::numeric, 1)                                    AS avg_we,
-          sum(mps.kills)::int                                                AS total_kills,
-          sum(mps.deaths)::int                                               AS total_deaths,
+          count(*)::int                                                                              AS maps,
+          round(avg(mps.rating_pro)::numeric, 2)                                                    AS avg_rating,
+          round(
+            CASE WHEN sum(mm2.score_a + mm2.score_b) > 0
+              THEN sum(mps.adr * (mm2.score_a + mm2.score_b))::numeric / sum(mm2.score_a + mm2.score_b)
+              ELSE NULL END
+          ::numeric, 1)                                                                              AS avg_adr,
+          round(avg(mps.we)::numeric, 1)                                                            AS avg_we,
+          sum(mps.kills)::int                                                                        AS total_kills,
+          sum(mps.deaths)::int                                                                       AS total_deaths,
+          sum(mm2.score_a + mm2.score_b)::int                                                        AS total_rounds,
           CASE WHEN sum(mps.deaths) > 0
             THEN round(sum(mps.kills)::numeric / sum(mps.deaths), 2)
-            ELSE NULL END                                                    AS kd_ratio
+            ELSE NULL END                                                                            AS kd_ratio
         FROM match_player_stats mps
+        JOIN match_maps mm2 ON mm2.id = mps.map_id
         JOIN season_registrations sr ON sr.user_id = mps.user_id AND sr.season_id = ${season.id}
         JOIN team_members tm ON tm.registration_id = sr.id
         WHERE tm.team_id = ${teamId}
@@ -185,6 +192,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
     avg_we: number;
     total_kills: number;
     total_deaths: number;
+    total_rounds: number;
     kd_ratio: number | null;
   }
   const typedStats = (teamStatResult?.rows ?? []) as unknown as TeamStatRow[];
@@ -221,19 +229,20 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
     ? computeTeamDimensions([...hexagonByPlayer.values()])
     : null;
 
-  // 队伍均值（K/D 用总杀/总死，避免平均的平均）
+  // 队伍均值：K/D 用总杀/总死；Rating/ADR/WE 用 total_rounds 加权，避免出场图数不同导致的失真
   const hasStats = typedStats.length > 0;
-  const teamAvgRating = hasStats
-    ? (typedStats.reduce((s, r) => s + Number(r.avg_rating), 0) / typedStats.length).toFixed(2)
+  const totalRoundsSum = typedStats.reduce((s, r) => s + Number(r.total_rounds), 0);
+  const teamAvgRating = hasStats && totalRoundsSum > 0
+    ? (typedStats.reduce((s, r) => s + Number(r.avg_rating) * Number(r.total_rounds), 0) / totalRoundsSum).toFixed(2)
     : null;
-  const teamAvgAdr = hasStats
-    ? (typedStats.reduce((s, r) => s + Number(r.avg_adr), 0) / typedStats.length).toFixed(1)
+  const teamAvgAdr = hasStats && totalRoundsSum > 0
+    ? (typedStats.reduce((s, r) => s + Number(r.avg_adr) * Number(r.total_rounds), 0) / totalRoundsSum).toFixed(1)
     : null;
   const totalK = typedStats.reduce((s, r) => s + Number(r.total_kills), 0);
   const totalD = typedStats.reduce((s, r) => s + Number(r.total_deaths), 0);
   const teamAvgKd = totalD > 0 ? (totalK / totalD).toFixed(2) : null;
-  const teamAvgWe = hasStats
-    ? (typedStats.reduce((s, r) => s + Number(r.avg_we), 0) / typedStats.length).toFixed(1)
+  const teamAvgWe = hasStats && totalRoundsSum > 0
+    ? (typedStats.reduce((s, r) => s + Number(r.avg_we) * Number(r.total_rounds), 0) / totalRoundsSum).toFixed(1)
     : null;
 
   return (

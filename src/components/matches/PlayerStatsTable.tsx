@@ -1,5 +1,6 @@
 import React from "react";
 import Link from "next/link";
+import { cn } from "@/lib/utils/cn";
 import { eq, and, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matchPlayerStats } from "@/db/schema/player-stats";
@@ -103,8 +104,8 @@ function StatTeamBlock({
           className="grid gap-x-2 gap-y-1 text-xs min-w-[320px]"
           style={{ gridTemplateColumns: `1.5fr repeat(${cols.length - 1}, 1fr)` }}
         >
-        {cols.map((c) => (
-          <span key={c} className="text-[var(--color-fg-dim)] text-[10px]">
+        {cols.map((c, i) => (
+          <span key={c} className={cn("text-[var(--color-fg-dim)] text-[10px]", i > 0 && "text-right")}>
             {c}
           </span>
         ))}
@@ -129,20 +130,20 @@ function PlayerStatRow({ stat }: { stat: StatRow }) {
           stat.perfectName
         )}
       </span>
-      <span className="tabular-nums text-[var(--color-fg)]">
+      <span className="tabular-nums text-right text-[var(--color-fg)]">
         {stat.kills ?? "—"}
       </span>
-      <span className="tabular-nums text-[var(--color-fg)]">
+      <span className="tabular-nums text-right text-[var(--color-fg)]">
         {stat.deaths ?? "—"}
       </span>
-      <span className="tabular-nums text-[var(--color-fg)]">
+      <span className="tabular-nums text-right text-[var(--color-fg)]">
         {stat.assists ?? "—"}
       </span>
-      <span className="tabular-nums text-[var(--color-fg-mid)]">
+      <span className="tabular-nums text-right text-[var(--color-fg-mid)]">
         {stat.adr != null ? stat.adr.toFixed(1) : "—"}
       </span>
       <span
-        className="tabular-nums font-semibold"
+        className="tabular-nums text-right font-semibold"
         style={{
           color:
             stat.ratingPro != null && stat.ratingPro >= 1.2
