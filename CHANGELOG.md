@@ -5,6 +5,19 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.24.0] - 2026-05-25
+
+### Added
+- **排行榜按赛季阶段筛选**：数据统计页新增 Stage 筛选 Tab，多阶段赛季可按阶段查看选手数据
+
+### Changed
+- **去除最少 3 图门槛**：排行榜不再过滤低图数选手，全量展示
+- **统一数据计算模块**：新建 `src/lib/stats/` 作为全项目统计聚合入口，替换全项目散落的计算逻辑
+
+### Fixed
+- **ADR 改为回合加权平均**：修复各页面对 ADR 使用简单平均（mean of means）导致的统计偏差
+- **HS% 改为击杀数加权平均**：修复多图统计时 HS% 计算偏差
+
 ## [1.23.7] - 2026-05-25
 
 ### Added
@@ -752,6 +765,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.24.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.23.7...v1.24.0
 [1.23.7]: https://github.com/Starfie1d1272/RivalHub/compare/v1.23.6...v1.23.7
 [1.23.6]: https://github.com/Starfie1d1272/RivalHub/compare/v1.23.5...v1.23.6
 [1.23.5]: https://github.com/Starfie1d1272/RivalHub/compare/v1.23.4...v1.23.5
