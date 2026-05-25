@@ -5,7 +5,7 @@ import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { generateBracket, seedPlayoff, type BracketStageRef, type BracketParticipantRef } from "@/lib/bracket";
 import { getPreviousStage, normalizeStagePlan } from "@/types/season";
 import type { StageExecutor } from "./types";
-import type { Database } from "brackets-manager";
+import type { BracketDatabase as Database } from "@/lib/bracket";
 import type { QualifiedTeam } from "@/types/season";
 import type { Team } from "@/db/schema/teams";
 import { isStageComplete } from "./_shared";

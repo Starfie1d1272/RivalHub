@@ -152,6 +152,12 @@ vite.config.ts.timestamp-*
 .claude/*
 !.claude/skills
 
+# CodeGraph index (auto-generated, machine-specific)
+.codegraph/
+
+# Cursor IDE rules (auto-generated)
+.cursor/
+
 # Local tool connectors and generated design workspace
 .mcp.json
 .stitch/

@@ -3,7 +3,7 @@
 import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { createSeason, deleteSeason, publishSeason, updateSeason, type SeasonFormInput } from "@/actions/seasons";
+import { createSeason, deleteSeason, publishSeason, updateSeason, revertSeasonToDraft, revertSeasonToRegistration, forceFinishSeason, archiveSeason, type SeasonFormInput } from "@/actions/seasons";
 import {
   CS2_POSITIONS,
   PLAYER_TYPE_LABELS,
@@ -239,6 +239,62 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
       if (result.success) {
         toast.success("赛季已删除");
         router.push("/admin");
+        router.refresh();
+      } else {
+        toast.error(result.error.message);
+      }
+    });
+  }
+
+  function handleRevertToDraft() {
+    if (!initial?.id) return;
+    if (!confirm("确认撤回至草稿？这仅在无任何报名记录时允许。")) return;
+    startTransition(async () => {
+      const result = await revertSeasonToDraft(initial.id!);
+      if (result.success) {
+        toast.success("已撤回至草稿");
+        router.refresh();
+      } else {
+        toast.error(result.error.message);
+      }
+    });
+  }
+
+  function handleRevertToRegistration() {
+    if (!initial?.id) return;
+    if (!confirm("确认撤回至报名阶段？所有投票记录将被清空。")) return;
+    startTransition(async () => {
+      const result = await revertSeasonToRegistration(initial.id!);
+      if (result.success) {
+        toast.success("已撤回至报名阶段");
+        router.refresh();
+      } else {
+        toast.error(result.error.message);
+      }
+    });
+  }
+
+  function handleForceFinish() {
+    if (!initial?.id) return;
+    if (!confirm("确认手动结束赛季？此操作用于无法自动结束的极端情况。")) return;
+    startTransition(async () => {
+      const result = await forceFinishSeason(initial.id!);
+      if (result.success) {
+        toast.success("赛季已手动结束");
+        router.refresh();
+      } else {
+        toast.error(result.error.message);
+      }
+    });
+  }
+
+  function handleArchive() {
+    if (!initial?.id) return;
+    if (!confirm("确认归档赛季？归档后赛季将移至历史记录。")) return;
+    startTransition(async () => {
+      const result = await archiveSeason(initial.id!);
+      if (result.success) {
+        toast.success("赛季已归档");
         router.refresh();
       } else {
         toast.error(result.error.message);
@@ -504,7 +560,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
         <SaveBtn />
       </Panel>
 
-      {/* 底部操作区（发布 / 删除） */}
+      {/* 底部操作区（按赛季状态展示不同操作） */}
       {initial?.status === "draft" && (
         <div className="flex items-center justify-between gap-3 pt-2">
           <Button type="button" variant="destructive" disabled={isPending} onClick={handleDelete}>
@@ -512,6 +568,34 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
           </Button>
           <Button type="button" variant="outline" disabled={isPending} onClick={handlePublish}>
             发布赛季
+          </Button>
+        </div>
+      )}
+      {initial?.status === "registration" && (
+        <div className="flex items-center justify-end gap-3 pt-2">
+          <Button type="button" variant="outline" disabled={isPending} onClick={handleRevertToDraft}>
+            撤回至草稿
+          </Button>
+        </div>
+      )}
+      {initial?.status === "voting" && (
+        <div className="flex items-center justify-end gap-3 pt-2">
+          <Button type="button" variant="outline" disabled={isPending} onClick={handleRevertToRegistration}>
+            撤回至报名阶段
+          </Button>
+        </div>
+      )}
+      {initial?.status === "playing" && (
+        <div className="flex items-center justify-end gap-3 pt-2">
+          <Button type="button" variant="outline" disabled={isPending} onClick={handleForceFinish}>
+            手动结束赛季
+          </Button>
+        </div>
+      )}
+      {initial?.status === "finished" && (
+        <div className="flex items-center justify-end gap-3 pt-2">
+          <Button type="button" variant="outline" disabled={isPending} onClick={handleArchive}>
+            归档赛季
           </Button>
         </div>
       )}

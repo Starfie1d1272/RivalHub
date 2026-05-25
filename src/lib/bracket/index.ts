@@ -11,6 +11,7 @@ import { BracketsManager } from "brackets-manager";
 import { InMemoryDatabase } from "brackets-memory-db";
 import { Status } from "brackets-model";
 import type { Database } from "brackets-manager";
+export type { Database as BracketDatabase } from "brackets-manager";
 import type { Match } from "@/types/match";
 import type { Team } from "@/db/schema/teams";
 

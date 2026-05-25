@@ -5,6 +5,22 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.25.0] - 2026-05-25
+
+### Added
+- **赛季自动结束**：所有比赛完成后自动将赛季从 playing 推进到 finished（`maybeFinishSeason`）
+- **赛季状态迁移操作**：赛季设置页新增撤回至草稿、撤回至报名、手动结束赛季、归档赛季四个管理操作
+- **4 个新 Server Action**：`revertSeasonToDraft`、`revertSeasonToRegistration`、`forceFinishSeason`、`archiveSeason`
+
+### Changed
+- **文档全面精简**：error-reference(540→31行)、data-model(443→291)、code-map(74→29)、architecture(163→145)，合并 ui-design + ui-tokens → ui-system.md，归档 launch-readiness
+- **修正文档偏差**：state-machines（DraftState 实现方式、Season 迁移表）、data-integrity（位置满员公式）、auth-and-permissions（UserSession 接口）
+
+### Fixed
+- **online-count API Route 合规**：迁移为 Server Action，删除 `src/app/api/online-count/route.ts`
+- **bracket Database 类型统一**：6 处 `import type { Database } from "brackets-manager"` 改为走 `@/lib/bracket` 适配层
+- **approved→pending 限制**：只允许 registration 阶段操作（此前 voting 阶段也允许，现已有个人信息修改功能不再需要）
+
 ## [1.24.0] - 2026-05-25
 
 ### Added

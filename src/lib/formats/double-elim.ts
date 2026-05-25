@@ -6,7 +6,7 @@ import { generateBracket, seedPlayoff, type BracketStageRef, type BracketPartici
 import { calculateStandings } from "@/lib/standings";
 import { getPreviousStage, normalizeStagePlan } from "@/types/season";
 import type { StageExecutor } from "./types";
-import type { Database } from "brackets-manager";
+import type { BracketDatabase as Database } from "@/lib/bracket";
 import type { QualifiedTeam } from "@/types/season";
 import { isStageComplete } from "./_shared";
 

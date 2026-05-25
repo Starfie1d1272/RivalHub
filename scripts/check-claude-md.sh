@@ -1,6 +1,6 @@
 #!/bin/zsh
 # 校验组件清单是否与实际文件一致
-# 以磁盘文件为真实来源，检查每个 .tsx 组件名是否在 docs/code-map.md 中有记录。
+# 以磁盘文件为真实来源，通过 CodeGraph 对比 docs/code-map.md 中记录的组件名。
 # 组件文件统一使用 PascalCase 命名（如 MatchCard.tsx），与 export 名一致。
 # 新增组件后只需更新 docs/code-map.md，无需维护本脚本。
 # 用法: zsh scripts/check-claude-md.sh
@@ -36,6 +36,9 @@ if [ $errors -eq 0 ]; then
   echo "✅ docs/code-map.md 组件清单与实际文件一致"
   exit 0
 else
+  echo "💡 组件目录树已从 code-map.md 移除。请使用 CodeGraph 查看: codegraph_files src/components/"
+  echo "   如需在 code-map.md 中引用某组件，将其名称加入"业务域入口"表即可。"
+  echo ""
   echo "❌ 发现 $errors 处不一致，请更新 docs/code-map.md"
   exit 1
 fi

@@ -50,25 +50,7 @@ Next.js App Router (Vercel Edge / Node.js)
 4. 写 audit_log（admin 操作）
 5. 返回结构化错误（而非抛出异常给客户端）
 
-| 文件 | 职责 |
-|---|---|
-| `account.ts` | 用户账号（修改密码） |
-| `register.ts` | 提交报名、检查位置满员 |
-| `auth.ts` | 邮箱+密码注册 / 登录、邀请码提权（claimInviteCode）、退出登录 |
-| `admin.ts` | Root 登录、审核报名、邀请码管理（createInviteCode + seasonId）、密码修改、管理员管理、撤销管理员权限 |
-| `teams.ts` | 队伍管理（修改队名、上传队伍图标到 Supabase Storage） |
-| `captains.ts` | 投 / 撤销队长票 |
-| `draft/state.ts` | 选秀状态管理（startDraft / pauseDraft / resumeDraft） |
-| `draft/picks.ts` | 选秀操作（pickPlayer / autoPick / skipDraftTurn / runDraftTimeoutCron） |
-| `draft/queries.ts` | 选秀查询（getDraftState / getDraftPool） |
-| `matches/schedule.ts` | 赛程生成（generateSchedule / initializeStage / generatePlayoff / createMatch） |
-| `matches/results.ts` | 比赛结果（recordMatchResult / recordMapResult / updateMatchStatus / updateMatchScheduledAt） |
-| `seasons.ts` | 赛季 CRUD（createSeason / updateSeason / deleteSeason / publishSeason） |
-| `transitions.ts` | 赛季阶段自动推进（autoAdvanceSeason） |
-| `audit.ts` | 审计日志查询（fetchAuditLogs / getAuditSeasons），含 actor/target 可读名称批量解析 |
-| `player-stats.ts` | OCR 识别记分板截图（extractStatsFromScreenshot）、保存玩家数据（savePlayerStats）、查询地图数据（getPlayerStatsByMap） |
-| `matches/scheduling.ts` | 比赛时间协商（proposeMatchTime / respondToTimeProposal / forceSetMatchTime / autoAwardMatchTime） |
-| `matches/roster.ts` | 比赛阵容提交与解锁（submitMatchRoster / unlockMatchRoster） |
+具体文件清单请使用 CodeGraph（`codegraph_files src/actions/`）导航，避免本文档与代码不一致。
 
 ### DB 层（`src/db/`）
 
@@ -78,18 +60,16 @@ Next.js App Router (Vercel Edge / Node.js)
 
 ### Lib 层（`src/lib/`）
 
+业务规则、查询辅助、赛制执行器、第三方适配层、工具函数。复杂逻辑优先从页面/action 下沉到这里。
+
 - `auth/session.ts` — 双 Cookie iron-session：`rivalhub-session`（所有用户）+ `rivalhub-admin`（root 紧急）；`requireAdmin` / `requireSuperAdmin` / `requireSeasonAdmin` / `requireAuth`
 - `auth/supabase.ts` — Supabase client（Server Action 调用 Auth；浏览器端用于 Realtime）
-- `ocr/scoreboard.ts` — SiliconFlow Qwen-VL 记分板识别（base64 → Zod 校验 → PlayerRowOCR[]），不写库，结果返回给 action 供 admin 确认
-- `realtime/subscribe.ts` — Supabase Realtime 订阅封装
 - `formats/` — StageExecutor 接口 + 赛制执行器（round-robin / double-elim / single-elim / swiss 预留）；注册表 `index.ts` 按 `StageType` 分发
-- `config/` — 共享常量配置（报名默认值 / 上传限制 / 密码约束 / 队伍名长度约束）
-- `validators/` — Zod schema（中文错误消息）：`registration.ts`（含段位门槛跨字段校验）、`match.ts`（createMatch / recordMatchResult）
-- `utils/date.ts` — UTC ↔ Asia/Shanghai
-- `utils/season.ts` — capability 判断（`showDraft` / `showCaptainVoting` / `showQualifier` / `showPlayoffBracket` 等），是路由守卫与 UI 条件渲染的唯一入口
-- `utils/cn.ts` — Tailwind class merge 工具
-- `action-utils.ts` — 共享错误处理（failValidation / actionError / isPgUniqueViolation）+ DB 查询工具（getSeasonOrThrow / getMatchOrThrow / getRegistrationOrThrow）
-- `revalidation.ts` — 集中路径重验证（revalidateSeasonPaths / revalidateMatchPaths）
+- `bracket/` — `brackets-manager` 适配层（见下方 Bracket 适配层说明）
+- `validators/` — Zod schema（中文错误消息）
+- `utils/` — UTC 转换、season capability 判断、Tailwind class merge 等
+
+其他模块请使用 CodeGraph（`codegraph_files src/lib/`）导航。
 
 ## 数据流：报名写入
 
@@ -132,6 +112,8 @@ Next.js App Router (Vercel Edge / Node.js)
 | Supabase Webhook（未来） | API Route |
 | 其他一切 | 禁止新增 API Route |
 
+当前仅 3 个 Cron API Route：`draft-timeout`、`check-registration-deadline`、`match-time-auto-award`。`online-count` 已迁移为 Server Action。
+
 ## Bracket 适配层
 
 所有 `brackets-manager` 调用必须经过 `src/lib/bracket/index.ts`，禁止在业务代码中直接 import 第三方库：
@@ -151,8 +133,8 @@ src/lib/bracket/index.ts
 
 | 表 | 订阅方 | 触发场景 | 是否必须 |
 |---|---|---|---|
-| `draft_state` | 选秀围观页 + 队长面板 | 轮次 / 倒计时推进 | ✅ 必须 |
-| `draft_picks` | 选秀围观页 | 新 pick 动画 | ✅ 必须 |
+| `draft_state` | 选秀围观页 + 队长面板 | 轮次 / 倒计时推进 | 必须 |
+| `draft_picks` | 选秀围观页 | 新 pick 动画 | 必须 |
 | `captain_votes` | 投票页面 | 实时票数（也可轮询替代） | 可选 |
 
 **明确不使用 Realtime 的表**（用 RSC 刷新或轮询）：
