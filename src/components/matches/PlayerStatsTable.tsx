@@ -7,7 +7,6 @@ import { seasonRegistrations } from "@/db/schema/registrations";
 import { MatchSummaryStats, type SummaryPlayer } from "./MatchSummaryStats";
 
 interface PlayerStatsTableProps {
-  matchId: string;
   mapId: string;
   teamAId: string;
   teamBId: string;
@@ -94,7 +93,6 @@ function toSummaryPlayer(s: StatRow, teamId: string): SummaryPlayer {
 }
 
 export async function PlayerStatsTable({
-  matchId: _matchId,
   mapId,
   teamAId,
   teamBId,

@@ -33,7 +33,6 @@ vi.mock("@/db/schema/registrations", () => ({
 import { PlayerStatsTable } from "@/components/matches/PlayerStatsTable";
 
 const baseProps = {
-  matchId: "m1",
   mapId: "mp1",
   teamAId: "ta",
   teamBId: "tb",

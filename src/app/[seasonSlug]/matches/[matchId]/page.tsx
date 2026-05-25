@@ -484,7 +484,6 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                   </div>
                   {isFinished && (
                     <PlayerStatsTable
-                      matchId={match.id}
                       mapId={map.id}
                       teamAId={match.teamAId}
                       teamBId={match.teamBId}

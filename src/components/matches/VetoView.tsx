@@ -48,6 +48,12 @@ export async function VetoView({
     return "";
   }
 
+  function opponentName(teamId: string | null): string {
+    if (teamId === teamAId) return teamBName;
+    if (teamId === teamBId) return teamAName;
+    return "";
+  }
+
   return (
     <section className="space-y-3">
       <h2 className="text-lg font-semibold text-[var(--color-fg)]">BP 流程</h2>
@@ -89,11 +95,27 @@ export async function VetoView({
                   {mapLabel(step.mapName)}
                 </span>
 
-                {step.side && (
-                  <span className="text-xs text-[var(--color-fg-mid)]">
-                    ({SIDE_LABELS[step.side] ?? step.side})
-                  </span>
-                )}
+                {step.side && (() => {
+                  if (step.actionType === "pick" && step.teamId) {
+                    return (
+                      <span className="text-xs text-[var(--color-fg-mid)]">
+                        → {opponentName(step.teamId)}选{SIDE_LABELS[step.side] ?? step.side}先
+                      </span>
+                    );
+                  }
+                  if (step.actionType === "decider" && step.teamId) {
+                    return (
+                      <span className="text-xs text-[var(--color-fg-mid)]">
+                        → {formatTeam(step.teamId)}选{SIDE_LABELS[step.side] ?? step.side}先
+                      </span>
+                    );
+                  }
+                  return (
+                    <span className="text-xs text-[var(--color-fg-mid)]">
+                      ({SIDE_LABELS[step.side] ?? step.side})
+                    </span>
+                  );
+                })()}
               </div>
             );
           })}

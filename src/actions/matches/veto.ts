@@ -52,6 +52,9 @@ export async function saveVetoSteps(
     if (steps.some((s) => s.actionType !== "decider" && !s.teamId)) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "非 decider 步骤必须指定操作队伍");
     }
+    if (steps.some((s) => s.actionType === "decider" && s.side && !s.teamId)) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "decider 指定了选边时必须指定选边队伍");
+    }
     const mapNames = steps.map((s) => s.mapName);
     if (new Set(mapNames).size !== mapNames.length) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "地图不能重复");
@@ -95,7 +98,13 @@ export async function saveVetoSteps(
               mapOrder: i + 1,
               mapName: s.mapName,
               pickedByTeamId: s.actionType === "pick" ? s.teamId : null,
-              teamAStartSide: resolveTeamASide(s.side ?? "", s.teamId, match.teamAId),
+              teamAStartSide: resolveTeamASide(
+                s.side ?? "",
+                s.actionType === "pick"
+                  ? (s.teamId === match.teamAId ? match.teamBId : match.teamAId)
+                  : s.teamId,
+                match.teamAId,
+              ),
             })),
           );
         }
@@ -118,7 +127,13 @@ export async function saveVetoSteps(
               mapOrder: i + 1,
               mapName: s.mapName,
               pickedByTeamId: s.actionType === "pick" ? s.teamId : null,
-              teamAStartSide: resolveTeamASide(s.side ?? "", s.teamId, match.teamAId),
+              teamAStartSide: resolveTeamASide(
+                s.side ?? "",
+                s.actionType === "pick"
+                  ? (s.teamId === match.teamAId ? match.teamBId : match.teamAId)
+                  : s.teamId,
+                match.teamAId,
+              ),
             })),
           );
         }
