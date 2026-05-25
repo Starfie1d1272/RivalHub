@@ -162,11 +162,13 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
     .map((m) => m.userId as string);
 
   // Phase 4: 地图胜/pick/ban 率 + 队伍赛季数据（全部并行）
+  const allSeasonMatchIds = [...new Set([...matchIdsA, ...matchIdsB])];
   const [
     mapWinA, mapWinB,
     pickStatsA, pickStatsB,
     banStatsA, banStatsB,
     teamRawStatsA, teamRawStatsB,
+    seasonMapScoresRaw,
   ] = await Promise.all([
     getTeamMapWinStats(match.teamAId, seasonMatchesA),
     getTeamMapWinStats(match.teamBId, seasonMatchesB),
@@ -192,6 +194,13 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
           ),
         )
       : ([] as MatchPlayerStatsRow[]),
+    // 赛季历史图级回合数（用于 buildLineupsPlayers 的 fkpr / adr 正确计算）
+    allSeasonMatchIds.length > 0
+      ? db
+          .select({ id: matchMaps.id, scoreA: matchMaps.scoreA, scoreB: matchMaps.scoreB })
+          .from(matchMaps)
+          .where(inArray(matchMaps.matchId, allSeasonMatchIds))
+      : Promise.resolve([] as { id: string; scoreA: number | null; scoreB: number | null }[]),
   ]);
 
   // 首发选手赛季数据从 teamRawStats 内存过滤（启动者是队伍成员子集）
@@ -220,13 +229,24 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   const showHexComparison = teamHexA != null && teamHexB != null && !isFinished;
 
   // 首发选手赛季数据（用于 MatchLineupsH2H）
-  const matchRoundsMap = new Map<string, number>();
-  for (const m of [...seasonMatchesA, ...seasonMatchesB]) {
-    matchRoundsMap.set(m.id, (m.scoreA ?? 0) + (m.scoreB ?? 0));
+  // 用图级比分构建 mapRoundsMap（key: mapId），修复原来用系列赛比分当回合数的 bug
+  const seasonMapRoundsMap = new Map<string, number>();
+  for (const m of seasonMapScoresRaw) {
+    if (m.scoreA !== null && m.scoreB !== null) {
+      seasonMapRoundsMap.set(m.id, m.scoreA + m.scoreB);
+    }
   }
 
-  const lineupsPlayersA = buildLineupsPlayers(starterStatsA, starterAUserIds, userIdToMember, matchRoundsMap);
-  const lineupsPlayersB = buildLineupsPlayers(starterStatsB, starterBUserIds, userIdToMember, matchRoundsMap);
+  // 当前比赛图级回合数（用于 aggregateFinishedPlayerStats）
+  const currentMapRoundsMap = new Map<string, number>();
+  for (const m of maps) {
+    if (m.scoreA !== null && m.scoreB !== null) {
+      currentMapRoundsMap.set(m.id, m.scoreA + m.scoreB);
+    }
+  }
+
+  const lineupsPlayersA = buildLineupsPlayers(starterStatsA, starterAUserIds, userIdToMember, seasonMapRoundsMap);
+  const lineupsPlayersB = buildLineupsPlayers(starterStatsB, starterBUserIds, userIdToMember, seasonMapRoundsMap);
   const showLineupsH2H =
     lineupsPlayersA.length > 0 &&
     lineupsPlayersB.length > 0 &&
@@ -316,7 +336,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
       where: eq(matchPlayerStats.matchId, match.id),
     });
 
-    const aggregatedStats = aggregateFinishedPlayerStats(allStats, userIdToTeamId, match.teamAId, match.teamBId);
+    const aggregatedStats = aggregateFinishedPlayerStats(allStats, userIdToTeamId, match.teamAId, match.teamBId, currentMapRoundsMap);
     mvpCandidates = aggregatedStats.mvpCandidates;
     summaryPlayers = aggregatedStats.summaryPlayers;
 

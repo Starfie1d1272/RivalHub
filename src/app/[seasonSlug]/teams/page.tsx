@@ -67,9 +67,14 @@ export default async function TeamsPage({ params }: TeamsPageProps) {
         tm.team_id,
         count(distinct mps.map_id)::int AS maps,
         round(avg(mps.rating_pro)::numeric, 2) AS avg_rating,
-        round(avg(mps.adr)::numeric, 1) AS avg_adr
+        round(
+          CASE WHEN sum(mm2.score_a + mm2.score_b) > 0
+            THEN sum(mps.adr * (mm2.score_a + mm2.score_b))::numeric / sum(mm2.score_a + mm2.score_b)
+            ELSE NULL END
+        ::numeric, 1) AS avg_adr
       FROM match_player_stats mps
       JOIN matches m ON m.id = mps.match_id
+      JOIN match_maps mm2 ON mm2.id = mps.map_id
       JOIN season_registrations sr
         ON sr.user_id = mps.user_id AND sr.season_id = m.season_id
       JOIN team_members tm ON tm.registration_id = sr.id

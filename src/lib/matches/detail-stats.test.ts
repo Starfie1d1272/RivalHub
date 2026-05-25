@@ -111,35 +111,44 @@ describe("match detail stats", () => {
   });
 
   it("builds lineup player summaries from starter stats", () => {
+    // mapId 为 key（修复了旧代码用 matchId 当回合数 key 的 bug）
     const players = buildLineupsPlayers(
       [
-        statRow({ matchId: "match-1", perfectName: "Alpha", userId: "user-1", kills: 20, deaths: 10, firstKills: 2, hsPercent: 50, adr: 90, ratingPro: 1.2, we: 9 }),
-        statRow({ matchId: "match-2", perfectName: "Alpha", userId: "user-1", kills: 10, deaths: 10, firstKills: 1, hsPercent: 30, adr: 70, ratingPro: 1, we: 7 }),
+        statRow({ mapId: "map-1", matchId: "match-1", perfectName: "Alpha", userId: "user-1", kills: 20, deaths: 10, firstKills: 2, hsPercent: 50, adr: 90, ratingPro: 1.2, we: 9 }),
+        statRow({ mapId: "map-2", matchId: "match-2", perfectName: "Alpha", userId: "user-1", kills: 10, deaths: 10, firstKills: 1, hsPercent: 30, adr: 70, ratingPro: 1, we: 7 }),
       ],
       ["user-1"],
       new Map([["user-1", { id: "member-1", teamId: "team-a", steamName: "Steam", displayName: null, perfectName: "Alpha", primaryPosition: "rifler", userId: "user-1" }]]),
       new Map([
-        ["match-1", 24],
-        ["match-2", 30],
+        ["map-1", 24],
+        ["map-2", 30],
       ]),
     );
 
-    expect(players).toEqual([
+    // ADR 回合加权：(90×24 + 70×30) / (24+30) = (2160+2100)/54 = 4260/54 ≈ 78.89
+    // HS% 击杀加权：(50×20 + 30×10) / (20+10) = (1000+300)/30 = 1300/30 ≈ 43.33
+    // fkpr：3 / 54
+    expect(players).toMatchObject([
       {
         userId: "user-1",
         perfectName: "Alpha",
         maps: 2,
         avgRating: 1.1,
-        avgAdr: 80,
         kdRatio: 1.5,
-        avgHs: 40,
         fkpr: 3 / 54,
         avgWe: 8,
       },
     ]);
+    expect(players[0].avgAdr).toBeCloseTo(4260 / 54, 5);
+    expect(players[0].avgHs).toBeCloseTo(1300 / 30, 5);
   });
 
   it("aggregates finished match stats for MVP candidates and BO summaries", () => {
+    // mapRoundsMap: map-1=24 rounds, map-2=30 rounds
+    const mapRoundsMap = new Map([
+      ["map-1", 24],
+      ["map-2", 30],
+    ]);
     const result = aggregateFinishedPlayerStats(
       [
         statRow({ mapId: "map-1", perfectName: "Alpha", userId: "user-1", kills: 20, deaths: 10, assists: 5, hsPercent: 50, firstKills: 2, multiKills: 3, clutches: 1, adr: 90, rws: 12, ratingPro: 1.3, we: 9 }),
@@ -152,6 +161,7 @@ describe("match detail stats", () => {
       ]),
       "team-a",
       "team-b",
+      mapRoundsMap,
     );
 
     expect(result.mvpCandidates.map((p) => p.perfectName)).toEqual(["Alpha", "Bravo"]);
@@ -167,7 +177,7 @@ describe("match detail stats", () => {
         firstKills: 3,
         multiKills: 4,
         clutches: 1,
-        adr: 85,
+        // ADR 回合加权：(90×24 + 80×30)/(24+30) = 4560/54 ≈ 84.44
         rws: 11,
         we: 8,
       },
@@ -178,6 +188,7 @@ describe("match detail stats", () => {
         mapsPlayed: 1,
       },
     ]);
+    expect(result.summaryPlayers[0].adr).toBeCloseTo(4560 / 54, 5);
     expect(result.summaryPlayers[0].ratingPro).toBeCloseTo(1.2);
   });
 });

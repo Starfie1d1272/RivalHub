@@ -6,11 +6,13 @@ import { sql } from "drizzle-orm";
 import { StatsLeaderboard } from "@/components/matches/StatsLeaderboard";
 import { normalizeLeaderboardState } from "@/lib/matches/leaderboard-view";
 import { Marker } from "@/components/rivalhub";
+import { roundWeightedAvg, killWeightedAvg, perRound, roundsExpr } from "@/lib/stats";
+import { normalizeStagePlan } from "@/types/season";
 import type { Metadata } from "next";
 
 interface StatsPageProps {
   params: Promise<{ seasonSlug: string }>;
-  searchParams: Promise<{ sort?: string; position?: string; view?: string }>;
+  searchParams: Promise<{ sort?: string; position?: string; view?: string; stage?: string }>;
 }
 
 export async function generateMetadata({ params }: StatsPageProps): Promise<Metadata> {
@@ -25,7 +27,7 @@ export async function generateMetadata({ params }: StatsPageProps): Promise<Meta
 
 export default async function StatsPage({ params, searchParams }: StatsPageProps) {
   const { seasonSlug } = await params;
-  const { sort: rawSort, position = "", view: rawView } = await searchParams;
+  const { sort: rawSort, position = "", view: rawView, stage = "" } = await searchParams;
   const { sort, view } = normalizeLeaderboardState({ sort: rawSort, view: rawView });
 
   const season = await db.query.seasons.findFirst({
@@ -33,24 +35,18 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
   });
   if (!season) notFound();
 
-  // 每图回合数：优先用 map 级比分（BO3/BO5），BO1 fallback 到 match 级比分
-  const totalRounds = sql`COALESCE(mm.score_a + mm.score_b, m.score_a + m.score_b)`;
-
-  // 回合加权平均（ADR / HS%）：sum(metric × rounds) / sum(rounds)
-  const weightedAvg = (col: string) =>
-    sql`CASE WHEN sum(${totalRounds}) > 0 THEN sum(${sql.raw(col)} * ${totalRounds})::numeric / sum(${totalRounds}) ELSE NULL END`;
-
-  // 每回合率（KPR / FKPR / CPR）：sum(count) / sum(rounds)
-  const perRoundRate = (col: string) =>
-    sql`CASE WHEN sum(${totalRounds}) > 0 THEN sum(${sql.raw(col)})::numeric / sum(${totalRounds}) ELSE NULL END`;
+  const stages = normalizeStagePlan(season.stagePlan).map((s) => ({ key: s.key, name: s.name }));
 
   // 各指标的聚合表达式（sortColumn 和 SELECT 共用）
-  const adrExpr    = weightedAvg("mps.adr");
-  const hsExpr     = weightedAvg("mps.hs_percent");
-  const kprExpr    = perRoundRate("mps.kills");
-  const fkprExpr   = perRoundRate("mps.first_kills");
-  const mkprExpr   = perRoundRate("mps.multi_kills");
-  const cprExpr    = perRoundRate("mps.clutches");
+  // ADR：回合加权（正确方式）；HS%：击杀数加权（正确方式）
+  const adrExpr    = roundWeightedAvg("mps.adr");
+  const hsExpr     = killWeightedAvg("mps.hs_percent");
+  const kprExpr    = perRound("mps.kills");
+  const fkprExpr   = perRound("mps.first_kills");
+  const mkprExpr   = perRound("mps.multi_kills");
+  const cprExpr    = perRound("mps.clutches");
+  // roundsExpr 导出供 HAVING/ORDER 等场景直接使用（此处暂不需要，保留 import 以备扩展）
+  void roundsExpr;
 
   const sortColumn = (() => {
     switch (sort) {
@@ -68,10 +64,8 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     }
   })();
 
-  // 修复：使用原始字符串 sr.primary_position 而非 Drizzle schema 对象（展开后为表名，与别名 sr 冲突）
-  const positionFilter = position
-    ? sql`AND sr.primary_position = ${position}`
-    : sql``;
+  const positionFilter = position ? sql`AND sr.primary_position = ${position}` : sql``;
+  const stageFilter = stage ? sql`AND m.stage = ${stage}` : sql``;
 
   const { rows } = await db.execute(sql`
     SELECT
@@ -104,8 +98,8 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     WHERE m.season_id = ${season.id}
       AND mps.verified_by_admin IS NOT NULL
       ${positionFilter}
+      ${stageFilter}
     GROUP BY mps.user_id, COALESCE(u.perfect_name, mps.perfect_name), sr.primary_position, t.name, t.id
-    HAVING count(*) >= 3
     ORDER BY ${sortColumn} DESC
     LIMIT 100
   `);
@@ -134,13 +128,15 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-5xl space-y-6">
-      <Marker sub={season.name + " · 最少 3 图"}>赛季排行榜</Marker>
+      <Marker sub={season.name}>赛季排行榜</Marker>
       <StatsLeaderboard
         rows={leaderboardRows}
         sort={sort}
         position={position}
         seasonSlug={seasonSlug}
         view={view}
+        stages={stages}
+        currentStage={stage}
       />
     </div>
   );

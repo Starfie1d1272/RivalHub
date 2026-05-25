@@ -87,10 +87,16 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
       mps.user_id,
       count(distinct mps.map_id)::int AS maps,
       round(avg(mps.rating_pro)::numeric, 2) AS avg_rating,
-      round(avg(mps.adr)::numeric, 1) AS avg_adr,
+      -- ADR 回合加权（JOIN match_maps mm2），避免简单均值失真
+      round(
+        CASE WHEN sum(mm2.score_a + mm2.score_b) > 0
+          THEN sum(mps.adr * (mm2.score_a + mm2.score_b))::numeric / sum(mm2.score_a + mm2.score_b)
+          ELSE NULL END
+      ::numeric, 1) AS avg_adr,
       round((sum(mps.kills)::numeric / nullif(sum(mps.deaths), 0)), 2) AS avg_kd
     FROM match_player_stats mps
     JOIN matches m ON m.id = mps.match_id
+    JOIN match_maps mm2 ON mm2.id = mps.map_id
     WHERE m.season_id = ${season.id}
       AND mps.verified_by_admin IS NOT NULL
       AND mps.user_id IS NOT NULL
