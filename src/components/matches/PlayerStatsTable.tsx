@@ -1,37 +1,40 @@
 import React from "react";
-import Link from "next/link";
-import { cn } from "@/lib/utils/cn";
 import { eq, and, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matchPlayerStats } from "@/db/schema/player-stats";
 import { teamMembers } from "@/db/schema/teams";
 import { seasonRegistrations } from "@/db/schema/registrations";
-import { matches } from "@/db/schema/matches";
+import { MatchSummaryStats, type SummaryPlayer } from "./MatchSummaryStats";
 
 interface PlayerStatsTableProps {
   matchId: string;
   mapId: string;
+  teamAId: string;
+  teamBId: string;
+  teamAName: string;
+  teamBName: string;
+  seasonId: string;
+  seasonSlug: string;
 }
 
-async function getStatsGroupedByTeam(mapId: string, matchId: string) {
+async function getStatsGroupedByTeam(
+  mapId: string,
+  teamAId: string,
+  teamBId: string,
+  seasonId: string,
+) {
   const stats = await db.query.matchPlayerStats.findMany({
     where: eq(matchPlayerStats.mapId, mapId),
     orderBy: (t, { desc }) => [desc(t.ratingPro)],
   });
 
-  if (stats.length === 0) return { teamA: [], teamB: [] };
-
-  const matchData = await db.query.matches.findFirst({
-    where: eq(matches.id, matchId),
-    columns: { teamAId: true, teamBId: true, seasonId: true },
-  });
-  if (!matchData) return { teamA: stats.slice(0, 5), teamB: stats.slice(5) };
+  if (stats.length === 0) return { teamA: [] as SummaryPlayer[], teamB: [] as SummaryPlayer[] };
 
   const userIds = stats.map((s) => s.userId).filter(Boolean) as string[];
   const registrations = userIds.length
     ? await db.query.seasonRegistrations.findMany({
         where: (t, { inArray: inArr, and, eq: eqFn }) =>
-          and(inArr(t.userId, userIds), eqFn(t.seasonId, matchData.seasonId)),
+          and(inArr(t.userId, userIds), eqFn(t.seasonId, seasonId)),
         columns: { id: true, userId: true },
       })
     : [];
@@ -41,7 +44,7 @@ async function getStatsGroupedByTeam(mapId: string, matchId: string) {
         where: (t, { inArray: inArr, and, eq: eqFn, or: orFn }) =>
           and(
             inArr(t.registrationId, regIds),
-            orFn(eqFn(t.teamId, matchData.teamAId), eqFn(t.teamId, matchData.teamBId)),
+            orFn(eqFn(t.teamId, teamAId), eqFn(t.teamId, teamBId)),
           ),
         columns: { registrationId: true, teamId: true },
       })
@@ -53,106 +56,68 @@ async function getStatsGroupedByTeam(mapId: string, matchId: string) {
     if (mship) userIdToTeam.set(reg.userId, mship.teamId);
   }
 
-  const teamA = stats.filter((s) => s.userId && userIdToTeam.get(s.userId) === matchData.teamAId);
-  const teamB = stats.filter((s) => s.userId && userIdToTeam.get(s.userId) === matchData.teamBId);
+  const teamARows = stats.filter((s) => s.userId && userIdToTeam.get(s.userId) === teamAId);
+  const teamBRows = stats.filter((s) => s.userId && userIdToTeam.get(s.userId) === teamBId);
   const unmatched = stats.filter((s) => !s.userId || !userIdToTeam.has(s.userId));
   const half = Math.ceil(unmatched.length / 2);
 
   return {
-    teamA: [...teamA, ...unmatched.slice(0, half)],
-    teamB: [...teamB, ...unmatched.slice(half)],
+    teamA: [...teamARows, ...unmatched.slice(0, half)].map((s) =>
+      toSummaryPlayer(s, teamAId),
+    ),
+    teamB: [...teamBRows, ...unmatched.slice(half)].map((s) =>
+      toSummaryPlayer(s, teamBId),
+    ),
   };
 }
 
-type StatRow = Awaited<ReturnType<typeof getStatsGroupedByTeam>>["teamA"][number];
+type StatRow = typeof matchPlayerStats.$inferSelect;
 
-export async function PlayerStatsTable({ matchId, mapId }: PlayerStatsTableProps) {
-  const { teamA, teamB } = await getStatsGroupedByTeam(mapId, matchId);
+function toSummaryPlayer(s: StatRow, teamId: string): SummaryPlayer {
+  return {
+    userId: s.userId,
+    perfectName: s.perfectName,
+    teamId,
+    kills: s.kills ?? 0,
+    deaths: s.deaths ?? 0,
+    assists: s.assists ?? 0,
+    hsPercent: s.hsPercent,
+    firstKills: s.firstKills ?? 0,
+    multiKills: s.multiKills ?? 0,
+    clutches: s.clutches ?? 0,
+    adr: s.adr,
+    rws: s.rws,
+    ratingPro: s.ratingPro,
+    we: s.we,
+    mapsPlayed: 1,
+  };
+}
+
+export async function PlayerStatsTable({
+  matchId: _matchId,
+  mapId,
+  teamAId,
+  teamBId,
+  teamAName,
+  teamBName,
+  seasonId,
+  seasonSlug,
+}: PlayerStatsTableProps) {
+  const { teamA, teamB } = await getStatsGroupedByTeam(mapId, teamAId, teamBId, seasonId);
 
   if (teamA.length === 0 && teamB.length === 0) {
-    return (
-      <p className="text-xs text-[var(--color-fg-dim)] py-2">暂无玩家数据</p>
-    );
+    return <p className="text-xs text-[var(--color-fg-dim)] py-2">暂无玩家数据</p>;
   }
 
-  const cols = ["选手", "K", "D", "A", "ADR", "Rating"];
-
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
-      <StatTeamBlock label="队伍 A" players={teamA} cols={cols} />
-      <StatTeamBlock label="队伍 B" players={teamB} cols={cols} />
-    </div>
-  );
-}
-
-function StatTeamBlock({
-  label,
-  players,
-  cols,
-}: {
-  label: string;
-  players: StatRow[];
-  cols: string[];
-}) {
-  return (
-    <div className="rounded-md bg-[var(--color-panel-hi)] p-3">
-      <p className="text-[11px] text-[var(--color-fg-mid)] mb-2 font-medium">
-        {label}
-      </p>
-      <div className="overflow-x-auto">
-        <div
-          className="grid gap-x-2 gap-y-1 text-xs min-w-[320px]"
-          style={{ gridTemplateColumns: `1.5fr repeat(${cols.length - 1}, 1fr)` }}
-        >
-        {cols.map((c, i) => (
-          <span key={c} className={cn("text-[var(--color-fg-dim)] text-[10px]", i > 0 && "text-right")}>
-            {c}
-          </span>
-        ))}
-        {players.map((p) => (
-          <PlayerStatRow key={p.id} stat={p} />
-        ))}
-      </div>
-      </div>
-    </div>
-  );
-}
-
-function PlayerStatRow({ stat }: { stat: StatRow }) {
-  return (
-    <>
-      <span className="text-[var(--color-fg)] truncate">
-        {stat.userId ? (
-          <Link href={`/players/${stat.userId}`} className="hover:text-[var(--color-accent)] transition-colors">
-            {stat.perfectName}
-          </Link>
-        ) : (
-          stat.perfectName
-        )}
-      </span>
-      <span className="tabular-nums text-right text-[var(--color-fg)]">
-        {stat.kills ?? "—"}
-      </span>
-      <span className="tabular-nums text-right text-[var(--color-fg)]">
-        {stat.deaths ?? "—"}
-      </span>
-      <span className="tabular-nums text-right text-[var(--color-fg)]">
-        {stat.assists ?? "—"}
-      </span>
-      <span className="tabular-nums text-right text-[var(--color-fg-mid)]">
-        {stat.adr != null ? stat.adr.toFixed(1) : "—"}
-      </span>
-      <span
-        className="tabular-nums text-right font-semibold"
-        style={{
-          color:
-            stat.ratingPro != null && stat.ratingPro >= 1.2
-              ? "var(--color-accent)"
-              : "var(--color-fg)",
-        }}
-      >
-        {stat.ratingPro != null ? stat.ratingPro.toFixed(2) : "—"}
-      </span>
-    </>
+    <MatchSummaryStats
+      players={[...teamA, ...teamB]}
+      teamAId={teamAId}
+      teamBId={teamBId}
+      teamAName={teamAName}
+      teamBName={teamBName}
+      seasonSlug={seasonSlug}
+      noPanel
+    />
   );
 }
