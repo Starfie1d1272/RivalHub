@@ -29,6 +29,8 @@ interface StatsLeaderboardProps {
   position: string;
   seasonSlug: string;
   view?: LeaderboardView;
+  stages?: { key: string; name: string }[];
+  currentStage?: string;
 }
 
 const VIEWS: { key: LeaderboardView; label: string; defaultSort: string }[] = [
@@ -152,7 +154,7 @@ const VIEW_COLS: Record<LeaderboardView, ColDef[]> = {
   advanced: ADVANCED_COLS,
 };
 
-export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "core" }: StatsLeaderboardProps) {
+export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "core", stages, currentStage = "" }: StatsLeaderboardProps) {
   if (rows.length === 0) {
     return (
       <Panel pad={32} className="text-center text-[var(--color-fg-mid)]">
@@ -168,14 +170,17 @@ export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "cor
     nextSort = sort,
     nextPosition = position,
     nextView = view,
+    nextStage = currentStage,
   }: {
     nextSort?: string;
     nextPosition?: string;
     nextView?: LeaderboardView;
+    nextStage?: string;
   }) => {
     const params = new URLSearchParams({ sort: nextSort });
     if (nextPosition) params.set("position", nextPosition);
     if (nextView !== "core") params.set("view", nextView);
+    if (nextStage) params.set("stage", nextStage);
     return `/${seasonSlug}/stats?${params.toString()}`;
   };
 
@@ -209,8 +214,28 @@ export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "cor
         </div>
       </div>
 
+      {/* 阶段筛选（多阶段赛季才显示） */}
+      {stages && stages.length > 1 && (
+        <div className="flex gap-1 flex-wrap mb-3">
+          <p className="w-full text-[11px] font-semibold uppercase text-[var(--color-fg-dim)] mb-1.5" style={{ fontFamily: "var(--font-mono)" }}>
+            Stage
+          </p>
+          <Btn small ghost={currentStage !== ""} asChild>
+            <a href={statsHref({ nextStage: "" })}>全部</a>
+          </Btn>
+          {stages.map(({ key, name }) => (
+            <Btn key={key} small ghost={currentStage !== key} asChild>
+              <a href={statsHref({ nextStage: key })}>{name}</a>
+            </Btn>
+          ))}
+        </div>
+      )}
+
       {/* 位置筛选 */}
       <div className="flex gap-1 flex-wrap mb-4">
+        <p className="w-full text-[11px] font-semibold uppercase text-[var(--color-fg-dim)] mb-1.5" style={{ fontFamily: "var(--font-mono)" }}>
+          Position
+        </p>
         {POSITIONS.map(({ key, label }) => (
           <Btn key={key} small ghost={position !== key} asChild>
             <a href={statsHref({ nextPosition: key })}>

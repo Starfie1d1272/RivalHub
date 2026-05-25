@@ -7,11 +7,12 @@ import { StatsLeaderboard } from "@/components/matches/StatsLeaderboard";
 import { normalizeLeaderboardState } from "@/lib/matches/leaderboard-view";
 import { Marker } from "@/components/rivalhub";
 import { roundWeightedAvg, killWeightedAvg, perRound, roundsExpr } from "@/lib/stats";
+import { normalizeStagePlan } from "@/types/season";
 import type { Metadata } from "next";
 
 interface StatsPageProps {
   params: Promise<{ seasonSlug: string }>;
-  searchParams: Promise<{ sort?: string; position?: string; view?: string }>;
+  searchParams: Promise<{ sort?: string; position?: string; view?: string; stage?: string }>;
 }
 
 export async function generateMetadata({ params }: StatsPageProps): Promise<Metadata> {
@@ -26,13 +27,15 @@ export async function generateMetadata({ params }: StatsPageProps): Promise<Meta
 
 export default async function StatsPage({ params, searchParams }: StatsPageProps) {
   const { seasonSlug } = await params;
-  const { sort: rawSort, position = "", view: rawView } = await searchParams;
+  const { sort: rawSort, position = "", view: rawView, stage = "" } = await searchParams;
   const { sort, view } = normalizeLeaderboardState({ sort: rawSort, view: rawView });
 
   const season = await db.query.seasons.findFirst({
     where: eq(seasons.slug, seasonSlug),
   });
   if (!season) notFound();
+
+  const stages = normalizeStagePlan(season.stagePlan).map((s) => ({ key: s.key, name: s.name }));
 
   // 各指标的聚合表达式（sortColumn 和 SELECT 共用）
   // ADR：回合加权（正确方式）；HS%：击杀数加权（正确方式）
@@ -61,10 +64,8 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     }
   })();
 
-  // 修复：使用原始字符串 sr.primary_position 而非 Drizzle schema 对象（展开后为表名，与别名 sr 冲突）
-  const positionFilter = position
-    ? sql`AND sr.primary_position = ${position}`
-    : sql``;
+  const positionFilter = position ? sql`AND sr.primary_position = ${position}` : sql``;
+  const stageFilter = stage ? sql`AND m.stage = ${stage}` : sql``;
 
   const { rows } = await db.execute(sql`
     SELECT
@@ -97,8 +98,8 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     WHERE m.season_id = ${season.id}
       AND mps.verified_by_admin IS NOT NULL
       ${positionFilter}
+      ${stageFilter}
     GROUP BY mps.user_id, COALESCE(u.perfect_name, mps.perfect_name), sr.primary_position, t.name, t.id
-    HAVING count(*) >= 3
     ORDER BY ${sortColumn} DESC
     LIMIT 100
   `);
@@ -127,13 +128,15 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-5xl space-y-6">
-      <Marker sub={season.name + " · 最少 3 图"}>赛季排行榜</Marker>
+      <Marker sub={season.name}>赛季排行榜</Marker>
       <StatsLeaderboard
         rows={leaderboardRows}
         sort={sort}
         position={position}
         seasonSlug={seasonSlug}
         view={view}
+        stages={stages}
+        currentStage={stage}
       />
     </div>
   );
