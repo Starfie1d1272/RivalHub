@@ -5,6 +5,21 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.25.2] - 2026-05-25
+
+### Added
+- **BO1 启用整场汇总**：已结束的 BO1 比赛现在也显示整场汇总 Tab，与其他赛制一致
+
+### Changed
+- **单图数据列扩展为完整 10 列**：PlayerStatsTable 从旧 6 列（选手/K/D/A/ADR/Rating）扩展为完整 10 列（图数/Rating/ADR/K/D/A/HS%/FK/残局），复用 MatchSummaryStats 组件
+
+### Fixed
+- **BP pick 选边改为对手视角**：A pick 图 → B 选边（而非 A 选边），匹配 CS2 标准 BP 流程
+- **BP decider 支持选边方及 side 录入**：图三现在可以指定哪支队选边及选哪边，公开页面正确显示起始边
+- **移除 SideSelect 重复代码**：pick 与 decider 的 side 选择器提取为共用组件
+- **移除 PlayerStatsTable 闲置 matchId 参数**：重构后不再需要内部查询 matches 表
+- **选边 "自动" → "未选择"**：避免误导（不存在自动逻辑）
+
 ## [1.25.1] - 2026-05-25
 
 ### Fixed
@@ -786,6 +801,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.25.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.25.1...v1.25.2
 [1.25.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.25.0...v1.25.1
 [1.25.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.24.0...v1.25.0
 [1.24.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.23.7...v1.24.0
