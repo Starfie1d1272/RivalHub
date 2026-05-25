@@ -68,7 +68,7 @@ export function MatchCard({
         <Badge variant="outline" className="text-xs text-[var(--color-fg-mid)]">
           {MATCH_FORMAT_LABELS[format]}
         </Badge>
-        <MatchStatusBadge status={status} isForfeit={isForfeit} />
+        <MatchStatusBadge status={status} isForfeit={isForfeit} scheduledAt={scheduledAt} />
       </div>
     </Link>
   );
