@@ -8,7 +8,7 @@ import type { ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { requireSeasonAdmin, auditActorId } from "@/lib/auth/session";
 import { advanceMatch as bracketAdvance, collectResolvedMatches, type BracketStageRef, type ResolvedBracketMatch } from "@/lib/bracket";
-import type { Database } from "brackets-manager";
+import type { BracketDatabase as Database } from "@/lib/bracket";
 import {
   type MatchStatus,
   assertMatchTransition,
@@ -16,6 +16,7 @@ import {
 } from "@/lib/match-transitions";
 import { getMaxMaps, getWinThreshold, isMatchStatus } from "@/types/match";
 import { actionError, getSeasonOrThrow, getMatchOrThrow } from "@/lib/action-utils";
+import { maybeFinishSeason } from "@/actions/transitions";
 import { revalidateMatchPaths, revalidateSeasonPaths } from "@/lib/revalidation";
 import { normalizeRegistrationConfig, normalizeStagePlan } from "@/types/season";
 import {
@@ -204,14 +205,16 @@ export async function recordMatchResult(
         );
       }
 
-    await tx.insert(auditLogs).values({
-      seasonId: match.seasonId,
-      action: "match.record_result",
-      actorId: session.email,
-      targetId: matchId,
-      targetType: "match",
-      meta: { scoreA, scoreB },
-    });
+      await maybeFinishSeason(tx, match.seasonId);
+
+      await tx.insert(auditLogs).values({
+        seasonId: match.seasonId,
+        action: "match.record_result",
+        actorId: session.email,
+        targetId: matchId,
+        targetType: "match",
+        meta: { scoreA, scoreB },
+      });
     }); // end db.transaction
 
     revalidateMatchPaths(season.slug, matchId);
@@ -928,6 +931,8 @@ export async function forfeitMatch(
           normalizeStagePlan(season.stagePlan),
         );
       }
+
+      await maybeFinishSeason(tx, match.seasonId);
 
       await tx.insert(auditLogs).values({
         seasonId: match.seasonId,

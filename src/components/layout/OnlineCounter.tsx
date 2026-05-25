@@ -1,20 +1,17 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { touchSession } from "@/actions/online";
+import { touchSession, getOnlineCount } from "@/actions/online";
 
 export function OnlineCounter() {
   const [count, setCount] = useState<number | null>(null);
 
   const fetchCount = useCallback(async () => {
     try {
-      const res = await fetch("/api/online-count", { cache: "no-store" });
-      if (res.ok) {
-        const data = await res.json();
-        setCount(data.count);
-      }
+      const data = await getOnlineCount();
+      setCount(data.count);
     } catch {
-      // API 不可用时静默跳过
+      // 不可用时静默跳过
     }
   }, []);
 

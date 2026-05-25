@@ -1,6 +1,6 @@
 import { pgTable, uuid, text, integer, boolean, timestamp, pgEnum, json } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import type { Database } from "brackets-manager";
+import type { BracketDatabase as Database } from "@/lib/bracket";
 import type { RegistrationConfig, StagePlan, TeamRegistrationConfig } from "@/types/season";
 
 export const seasonStatusEnum = pgEnum("season_status", [

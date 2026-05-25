@@ -24,7 +24,7 @@
 | peak_we / current_we 范围 | — | Zod（0.0–16.0，一位小数，可选）| 同上 |
 | 报名段位门槛 | — | Zod refine（跨字段）+ Server Action | 当前赛季 ≥ A 或历史最高 ≥ A+，两者满足一即可 |
 | 状态合法迁移 | — | Server Action 校验 | 见 `state-machines.md` |
-| 同位置审核通过上限 ≤ MAX_PER_POSITION（默认 15） | — | Server Action（报名提交校验 pending+approved；审核通过时只统计 approved） | 赛季级别，非队级别；队内同位置 ≤ 2 由 draft_picks 章节约束 |
+| 同位置审核通过上限 ≤ MAX_PER_POSITION（默认 15） | — | Server Action（报名提交校验非 rejected 状态（pending + approved + waitlisted）；审核通过时只统计 approved） | 赛季级别，非队级别；队内同位置 ≤ 2 由 draft_picks 章节约束 |
 | **captain_votes** | | | |
 | 不能给同一人投两票 | `UNIQUE(voter_id, candidate_id)` | — | |
 | 不能给自己投票 | — | Server Action | DB CHECK 也可，但应用层够用 |

@@ -1,18 +1,7 @@
 # 代码地图
 
-这份文档用于快速定位“某类修改应该从哪里开始”。它不替代架构文档，只维护当前代码入口。
-
-## 顶层目录
-
-| 目录 | 职责 |
-|---|---|
-| `src/app/` | Next.js App Router 页面、布局和 Cron API Route。页面以 Server Component 为主，负责读数据和组装 UI。 |
-| `src/actions/` | Server Actions。所有业务写入从这里进入，负责输入校验、鉴权、事务调用、审计和 revalidate。 |
-| `src/components/` | UI 组件。业务组件按页面域分组，通用 Tactical Grid 组件在 `components/rivalhub/`。 |
-| `src/lib/` | 业务规则、查询辅助、赛制执行器、第三方适配层、工具函数。复杂逻辑优先从页面/action 下沉到这里。 |
-| `src/db/schema/` | Drizzle 表结构定义。新增表或字段后同步迁移和数据模型文档。 |
-| `src/types/` | 跨层共享类型，尤其是 action 返回、赛季能力、比赛格式和选秀类型。 |
-| `tests/` | 测试工具、集成测试和 E2E。业务规则测试通常靠近 `src/lib/**`。 |
+本文档记录"某类修改应该从哪里开始"的业务域 → 文件入口映射。
+项目结构导航请使用 CodeGraph（`codegraph_files`），本文档不维护目录树。
 
 ## 业务域入口
 
@@ -25,45 +14,11 @@
 | 比赛列表 / 生成 | `src/app/[seasonSlug]/matches/`、`src/app/admin/[seasonSlug]/matches/`、`src/actions/matches/schedule.ts` | `src/lib/formats/`、`src/lib/bracket/` |
 | 比赛详情 | `src/app/[seasonSlug]/matches/[matchId]/page.tsx` | `src/lib/matches/detail-data.ts`、`src/lib/matches/detail-stats.ts` |
 | 比赛结果 / BP / 阵容 | `src/actions/matches/`、`src/components/matches/` | `src/lib/match-transitions.ts`、`src/lib/validators/match.ts` |
-| 玩家数据 / OCR | `src/actions/player-stats.ts`、`src/components/matches/StatsOCRPanel.tsx` | `src/lib/ocr/`、`src/lib/utils/stats.ts`（底层工具函数） |
-| 数据统计排行榜 | `src/app/[seasonSlug]/stats/page.tsx`、`src/components/matches/StatsLeaderboard.tsx` | `src/lib/stats/`（SQL 表达式、聚合计算、格式化的统一模块） |
+| 玩家数据 / OCR | `src/actions/player-stats.ts`、`src/components/matches/StatsOCRPanel.tsx` | `src/lib/ocr/` |
+| 数据统计排行榜 | `src/app/[seasonSlug]/stats/page.tsx`、`src/components/matches/StatsLeaderboard.tsx` | `src/lib/stats/` |
 | 赛季管理 | `src/app/admin/seasons/`、`src/components/admin/SeasonForm.tsx`、`src/actions/seasons.ts` | `src/types/season.ts`、`src/lib/utils/season.ts` |
 | 权限 / 会话 | `src/actions/auth.ts`、`src/actions/account.ts`、`src/middleware.ts` | `src/lib/auth/session.ts`、`src/lib/auth/supabase.ts` |
 | Cron | `src/app/api/cron/` | `src/actions/draft/picks.ts`、`src/actions/transitions.ts`、`src/actions/matches/scheduling.ts` |
-
-## 组件目录
-
-```
-src/components/
-├── layout/       # Header / Footer / AdminShortcut / HeaderClient / SeasonNav / Breadcrumb / OnlineCounter / SeasonNav.test
-├── ui/           # shadcn 组件（按需 add，已覆盖 button/input/badge/card/skeleton/select/dialog/tabs/table/textarea）
-├── rivalhub/     # Tactical Grid 组件（16 个：Panel/Btn/Field/Marker/Stat/
-│                 #   StatusBanner/InlineConfirm/EmptyState/ErrorState/Skeleton/
-│                 #   TeamBadge/PosChip/StatusPill/ScrollHint/PhaseStep/MapPreferenceChips）
-├── auth/         # 登录/邀请（5 个：LoginForm / ClaimInviteForm / TurnstileWidget / ForgotPasswordForm / ResetPasswordForm）
-├── settings/     # 用户设置（ProfileForm / ChangePasswordForm）
-├── home/         # 首页（4 个：HomeHero / HomeNavigation / HomeSeasonPanel / SeasonCardGrid）
-├── register/     # 报名（9 个：RegistrationForm / RegistrationSuccess / RegistrationSectionTitle /
-│                 #   MapPreferenceSection / ScreenshotLinksSection / AntiCheatPledgeSection /
-│                 #   RegistrationSubmitBar / RegistrationExperienceSection / RegistrationOtherSection）
-├── admin/        # 后台（15 个：AdminLoginForm / AdminRegisterForm / AdminSidebar / AdminUserList /
-│                 #   AuditLogTable / ChangePasswordForm / DraftRegistrationTable / InviteManager /
-│                 #   RegistrationReviewList / SeasonForm / SeasonSubNav / StagePlanEditor /
-│                 #   TeamConfigForm / ThemeColorPicker / UserSearchBar）
-├── draft/        # 选秀（7 个：CaptainDraftPanel / DraftAdminPanel / DraftCountdown /
-│                 #   DraftLiveRoom / PlayerInfoPopover / PlayerPool / TeamDraftGrid）
-├── captains/     # 投票（2 个：CaptainConfirmPanel / CaptainVotingPanel）
-├── teams/        # 队伍（6 个：TeamCard / TeamGrid / TeamLogoUpload / TeamNameForm / TeamRosterCard / TeamCard.test）
-└── matches/      # 赛程（40 个：MatchCard / MatchTeamFilter / CreateMatchForm / ForfeitButton /
-                  #   AdminMatchFilter / AdminMatchRow / AdminRosterDialog / BatchDeadlineCard / BracketView /
-                  #   CompletedAtInput / DeleteMatchButton / GeneratePlayoffCard / GenerateScheduleCard /
-                  #   MapByMapInput / MapPoolRadarChart / MapScoreCorrectInput / MatchHeadToHead / MatchHeroHeader /
-                  #   MatchLineupsH2H / MatchMvpVote / MatchRosterForm / MatchRosterView / MatchStatusBadge /
-                  #   MatchSummaryStats / MatchTabsSection / MatchTimeNegotiation / PlayerRadarChart /
-                  #   PlayerStatsTable / ScheduledAtInput / ScoreInput / StandingsTable / StatsLeaderboard /
-                  #   StatsLeaderboard.test / StatsOCRPanel / SwissBracket / SyncBracketButton /
-                  #   TeamStatsCompare / TimeProposalHistory / VetoInputDialog / VetoView）
-```
 
 ## 拆分原则
 

@@ -7,7 +7,7 @@ import { calculateStandings } from "@/lib/standings";
 import { getFirstStageOfType, normalizeStagePlan } from "@/types/season";
 import type { QualifiedTeam } from "@/types/season";
 import type { StageExecutor } from "./types";
-import type { Database } from "brackets-manager";
+import type { BracketDatabase as Database } from "@/lib/bracket";
 import { isStageComplete } from "./_shared";
 
 export const roundRobinExecutor: StageExecutor = {

@@ -168,6 +168,8 @@ interface UserSession {
   email: string;
   role: "user" | "season_admin" | "super_admin";
   adminSeasonIds: string[];  // season_admin 的管辖赛季列表
+  authSource: "user" | "root";      // 鉴权来源：普通用户登录 或 root 紧急登录
+  legacyAdminId?: string;           // root 管理员映射溯源
 }
 ```
 

@@ -30,13 +30,14 @@ archived
 | 当前状态 | 可迁移至 | 触发方 | 备注 |
 |---|---|---|---|
 | `draft` | `registration` | admin | 发布赛季，开放报名 |
-| `registration` | `voting` | admin | 手动关闭报名，进入投票 |
-| `registration` | `draft` | admin | 撤回发布（仅无任何报名时允许） |
+| `registration` | `voting` | system | 自动触发（满员或截止），不再手动 |
+| `registration` | `playing` | system | 当 `hasCaptainVoting=false` 时跳过 voting+drafting，自动触发 |
+| `draft` | `registration` | admin | 撤回至草稿（仅无报名时可用） |
+| `voting` | `registration` | admin | 撤回至报名阶段（清空投票记录） |
 | `voting` | `drafting` | admin | 确认 8 名队长，生成队伍和选秀顺位 |
-| `voting` | `registration` | admin | 撤回进入重新报名（特殊情况，需清空投票） |
 | `drafting` | `playing` | system | 所有 pick 完成时自动触发 |
-| `playing` | `finished` | admin | 赛季结束 |
-| `finished` | `archived` | admin | 历史归档 |
+| `playing` | `finished` | system / admin | 自动（所有比赛结束）+ 手动 fallback |
+| `finished` | `archived` | admin | 管理员手动归档 |
 
 ### 禁止迁移
 
@@ -90,6 +91,12 @@ rejected
 ---
 
 ## 3. DraftState（选秀进行状态）
+
+> 实现注：当前用 draftState 表的 `is_active` + `current_team_id` 字段隐式表达四态，未使用显式 ENUM。语义对齐如下：
+> - not_started = 不存在 draft_state 行
+> - active = isActive=true 且 currentTeamId 有值
+> - paused = isActive=false 且 currentTeamId 有值（pauseDraft 设置）
+> - completed = isActive=false 且 currentTeamId=null（所有 pick 完成时设置）
 
 ### 状态图
 

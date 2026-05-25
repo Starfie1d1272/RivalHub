@@ -15,7 +15,7 @@ import { getFirstStageOfType, normalizeStagePlan } from "@/types/season";
 import { MatchTabsSection } from "@/components/matches/MatchTabsSection";
 import { checkAdminSession } from "@/lib/auth/session";
 import { AdminShortcut } from "@/components/layout/AdminShortcut";
-import type { Database } from "brackets-manager";
+import type { BracketDatabase as Database } from "@/lib/bracket";
 
 export const dynamic = "force-dynamic";
 

@@ -1,10 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq, count } from "drizzle-orm";
+import { eq, count, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
-import { auditLogs, seasonRegistrations, seasons } from "@/db/schema";
+import { auditLogs, captainVotes, seasonRegistrations, seasons, teams } from "@/db/schema";
 import { ok, fail, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { actionError } from "@/lib/action-utils";
@@ -339,5 +339,171 @@ export async function deleteSeason(seasonId: string): Promise<ActionResult<void>
     return ok(undefined);
   } catch (e) {
     return actionError("deleteSeason", e);
+  }
+}
+
+/** 撤回赛季发布：registration → draft（仅当无报名记录时允许） */
+export async function revertSeasonToDraft(seasonId: string): Promise<ActionResult<{ slug: string }>> {
+  try {
+    const admin = await requireSuperAdmin();
+    const season = await db.query.seasons.findFirst({
+      where: eq(seasons.id, seasonId),
+    });
+    if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
+    if (season.status !== "registration") {
+      throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有 registration 状态可撤回至草稿");
+    }
+
+    const [row] = await db
+      .select({ cnt: count() })
+      .from(seasonRegistrations)
+      .where(eq(seasonRegistrations.seasonId, seasonId));
+    const regCount = Number(row?.cnt ?? 0);
+    if (regCount > 0) {
+      throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "已有报名记录，不能撤回至草稿");
+    }
+
+    await db.update(seasons).set({
+      status: "draft",
+      updatedAt: new Date(),
+    }).where(eq(seasons.id, seasonId));
+
+    await db.insert(auditLogs).values({
+      seasonId,
+      action: "season.revert_to_draft",
+      actorId: auditActorId(admin),
+      targetId: seasonId,
+      targetType: "season",
+      meta: { slug: season.slug, from: "registration", to: "draft" },
+    });
+
+    revalidatePath("/admin");
+    revalidatePath(`/admin/${season.slug}/settings`);
+    revalidatePath(`/${season.slug}`);
+    return ok({ slug: season.slug });
+  } catch (e) {
+    return actionError("revertSeasonToDraft", e);
+  }
+}
+
+/** 撤回队长确认：voting → registration（清空投票记录） */
+export async function revertSeasonToRegistration(seasonId: string): Promise<ActionResult<{ slug: string }>> {
+  try {
+    const admin = await requireSuperAdmin();
+    const season = await db.query.seasons.findFirst({
+      where: eq(seasons.id, seasonId),
+    });
+    if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
+    if (season.status !== "voting") {
+      throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有 voting 状态可撤回至报名");
+    }
+
+    const [existingTeamCount] = await db
+      .select({ count: count() })
+      .from(teams)
+      .where(eq(teams.seasonId, seasonId));
+    if (Number(existingTeamCount?.count ?? 0) > 0) {
+      throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "已生成队伍，不能撤回至报名");
+    }
+
+    await db.transaction(async (tx) => {
+      const regIds = tx
+        .select({ id: seasonRegistrations.id })
+        .from(seasonRegistrations)
+        .where(eq(seasonRegistrations.seasonId, seasonId));
+      await tx.delete(captainVotes).where(
+        inArray(captainVotes.voterRegistrationId, regIds),
+      );
+      await tx.update(seasons).set({
+        status: "registration",
+        updatedAt: new Date(),
+      }).where(eq(seasons.id, seasonId));
+
+      await tx.insert(auditLogs).values({
+        seasonId,
+        action: "season.revert_to_registration",
+        actorId: auditActorId(admin),
+        targetId: seasonId,
+        targetType: "season",
+        meta: { slug: season.slug, from: "voting", to: "registration" },
+      });
+    });
+
+    revalidatePath("/admin");
+    revalidatePath(`/admin/${season.slug}/settings`);
+    revalidatePath(`/${season.slug}`);
+    return ok({ slug: season.slug });
+  } catch (e) {
+    return actionError("revertSeasonToRegistration", e);
+  }
+}
+
+/** 手动结束赛季：playing → finished（管理员 fallback） */
+export async function forceFinishSeason(seasonId: string): Promise<ActionResult<{ slug: string }>> {
+  try {
+    const admin = await requireSuperAdmin();
+    const season = await db.query.seasons.findFirst({
+      where: eq(seasons.id, seasonId),
+    });
+    if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
+    if (season.status !== "playing") {
+      throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有 playing 状态可手动结束");
+    }
+
+    await db.update(seasons).set({
+      status: "finished",
+      updatedAt: new Date(),
+    }).where(eq(seasons.id, seasonId));
+
+    await db.insert(auditLogs).values({
+      seasonId,
+      action: "season.force_finish",
+      actorId: auditActorId(admin),
+      targetId: seasonId,
+      targetType: "season",
+      meta: { slug: season.slug, from: "playing", to: "finished" },
+    });
+
+    revalidatePath("/admin");
+    revalidatePath(`/admin/${season.slug}/settings`);
+    revalidatePath(`/${season.slug}`);
+    return ok({ slug: season.slug });
+  } catch (e) {
+    return actionError("forceFinishSeason", e);
+  }
+}
+
+/** 归档赛季：finished → archived */
+export async function archiveSeason(seasonId: string): Promise<ActionResult<{ slug: string }>> {
+  try {
+    const admin = await requireSuperAdmin();
+    const season = await db.query.seasons.findFirst({
+      where: eq(seasons.id, seasonId),
+    });
+    if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
+    if (season.status !== "finished") {
+      throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有 finished 状态可归档");
+    }
+
+    await db.update(seasons).set({
+      status: "archived",
+      updatedAt: new Date(),
+    }).where(eq(seasons.id, seasonId));
+
+    await db.insert(auditLogs).values({
+      seasonId,
+      action: "season.archive",
+      actorId: auditActorId(admin),
+      targetId: seasonId,
+      targetType: "season",
+      meta: { slug: season.slug, from: "finished", to: "archived" },
+    });
+
+    revalidatePath("/admin");
+    revalidatePath(`/admin/${season.slug}/settings`);
+    revalidatePath(`/${season.slug}`);
+    return ok({ slug: season.slug });
+  } catch (e) {
+    return actionError("archiveSeason", e);
   }
 }

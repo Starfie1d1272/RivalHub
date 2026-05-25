@@ -1,9 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq, count, and } from "drizzle-orm";
+import { eq, count, and, not, inArray } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
-import { seasons, seasonRegistrations, auditLogs } from "@/db/schema";
+import { seasons, seasonRegistrations, auditLogs, matches } from "@/db/schema";
 import { normalizeRegistrationConfig } from "@/types/season";
 
 async function getApprovedCountInTx(tx: TxDb, seasonId: string): Promise<number> {
@@ -67,4 +67,48 @@ export async function maybeAdvanceFromRegistration(
 
   revalidatePath(`/${season.slug}`);
   revalidatePath(`/admin/${season.slug}/registrations`);
+}
+
+/**
+ * 如果赛季是 playing 状态且所有比赛都已结束（finished 或 cancelled），
+ * 自动将赛季推进到 finished。
+ * 必须在事务中调用。
+ */
+export async function maybeFinishSeason(
+  tx: TxDb,
+  seasonId: string,
+): Promise<void> {
+  const season = await tx.query.seasons.findFirst({
+    where: eq(seasons.id, seasonId),
+  });
+  if (!season || season.status !== "playing") return;
+
+  // 检查是否所有比赛都已结束（finished 或 cancelled）
+  const [pendingMatch] = await tx
+    .select({ count: count() })
+    .from(matches)
+    .where(
+      and(
+        eq(matches.seasonId, seasonId),
+        not(inArray(matches.status, ["finished", "cancelled"])),
+      ),
+    );
+
+  if (Number(pendingMatch?.count ?? 0) > 0) return;
+
+  await tx
+    .update(seasons)
+    .set({ status: "finished", updatedAt: new Date() })
+    .where(eq(seasons.id, seasonId));
+
+  await tx.insert(auditLogs).values({
+    seasonId,
+    action: "season.auto_finish",
+    actorId: "system",
+    targetId: seasonId,
+    targetType: "season",
+    meta: { from: "playing", to: "finished", reason: "all_matches_completed" },
+  });
+
+  revalidatePath(`/${season.slug}`);
 }
