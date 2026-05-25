@@ -49,6 +49,39 @@ const ACTION_LABELS: Record<VetoActionType, string> = {
   decider: "decider",
 };
 
+function SideSelect({
+  label,
+  side,
+  onSideChange,
+}: {
+  label: string;
+  side: "t" | "ct" | null;
+  onSideChange: (side: "t" | "ct" | null) => void;
+}) {
+  return (
+    <>
+      <span className="text-[11px] text-[var(--color-fg-mid)] shrink-0">{label}</span>
+      <div className="w-20">
+        <Select
+          value={side ?? "_none"}
+          onValueChange={(v) =>
+            onSideChange(v === "_none" ? null : (v as "t" | "ct"))
+          }
+        >
+          <SelectTrigger className="h-8 text-xs">
+            <SelectValue placeholder="边" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="_none">未选择</SelectItem>
+            <SelectItem value="t">{SIDE_LABELS.t}</SelectItem>
+            <SelectItem value="ct">{SIDE_LABELS.ct}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    </>
+  );
+}
+
 // ── BP 模板 ─────────────────────────────────────────────────────────────────
 
 function buildTemplate(
@@ -135,8 +168,9 @@ export function VetoInputDialog({
   function isValid(): boolean {
     // 所有步骤必须填满地图
     if (steps.some((s) => !s.mapName)) return false;
-    // 所有步骤必须有 teamId（decider 可以没有）
+    // 所有步骤必须有 teamId（decider 可以没有，但指定了 side 时必须有）
     if (steps.some((s) => s.actionType !== "decider" && !s.teamId)) return false;
+    if (steps.some((s) => s.actionType === "decider" && s.side && !s.teamId)) return false;
     // 无重复地图
     const maps = steps.map((s) => s.mapName);
     if (new Set(maps).size !== maps.length) return false;
@@ -233,38 +267,32 @@ export function VetoInputDialog({
               </span>
 
               {/* 执行队伍 */}
-              {step.actionType === "decider" && step.teamId === null ? (
-                <span className="text-sm text-[var(--color-fg-mid)] w-16">
-                  刀赛/剩余
-                </span>
-              ) : (
-                <div className="flex gap-1">
-                  <button
-                    type="button"
-                    onClick={() => updateStep(i, { teamId: teamAId })}
-                    className={cn(
-                      "px-2.5 py-1 text-xs rounded border transition-colors",
-                      step.teamId === teamAId
-                        ? "bg-[var(--color-accent)] text-white border-[var(--color-accent)]"
-                        : "border-[var(--color-border)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
-                    )}
-                  >
-                    A
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => updateStep(i, { teamId: teamBId })}
-                    className={cn(
-                      "px-2.5 py-1 text-xs rounded border transition-colors",
-                      step.teamId === teamBId
-                        ? "bg-[var(--color-accent-b)] text-white border-[var(--color-accent-b)]"
-                        : "border-[var(--color-border)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
-                    )}
-                  >
-                    B
-                  </button>
-                </div>
-              )}
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => updateStep(i, { teamId: step.teamId === teamAId ? null : teamAId, side: step.teamId === teamAId ? null : step.side })}
+                  className={cn(
+                    "px-2.5 py-1 text-xs rounded border transition-colors",
+                    step.teamId === teamAId
+                      ? "bg-[var(--color-accent)] text-white border-[var(--color-accent)]"
+                      : "border-[var(--color-border)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
+                  )}
+                >
+                  A
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateStep(i, { teamId: step.teamId === teamBId ? null : teamBId, side: step.teamId === teamBId ? null : step.side })}
+                  className={cn(
+                    "px-2.5 py-1 text-xs rounded border transition-colors",
+                    step.teamId === teamBId
+                      ? "bg-[var(--color-accent-b)] text-white border-[var(--color-accent-b)]"
+                      : "border-[var(--color-border)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
+                  )}
+                >
+                  B
+                </button>
+              </div>
 
               {/* 地图 */}
               <div className="flex-1">
@@ -285,27 +313,20 @@ export function VetoInputDialog({
                 </Select>
               </div>
 
-              {/* 选边（仅 pick / decider 显示）*/}
-              {(step.actionType === "pick" || step.actionType === "decider") && (
-                <div className="w-20">
-                  <Select
-                    value={step.side ?? "_none"}
-                    onValueChange={(v) =>
-                      updateStep(i, {
-                        side: v === "_none" ? null : (v as "t" | "ct"),
-                      })
-                    }
-                  >
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="边" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="_none">自动</SelectItem>
-                      <SelectItem value="t">{SIDE_LABELS.t}</SelectItem>
-                      <SelectItem value="ct">{SIDE_LABELS.ct}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              {/* 选边（pick: 对手选边；decider: 选中队伍选边）*/}
+              {step.actionType === "pick" && step.teamId && (
+                <SideSelect
+                  label={`→ ${teamName(step.teamId === teamAId ? teamBId : teamAId)}选边`}
+                  side={step.side}
+                  onSideChange={(side) => updateStep(i, { side })}
+                />
+              )}
+              {step.actionType === "decider" && step.teamId && (
+                <SideSelect
+                  label="→ 选边"
+                  side={step.side}
+                  onSideChange={(side) => updateStep(i, { side })}
+                />
               )}
             </div>
           ))}

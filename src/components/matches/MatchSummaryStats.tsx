@@ -1,3 +1,4 @@
+import React from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils/cn";
 import { Panel } from "@/components/rivalhub";
@@ -27,6 +28,8 @@ interface MatchSummaryStatsProps {
   teamAName: string;
   teamBName: string;
   seasonSlug: string;
+  /** 不包裹 Panel，供外部已有 Panel 包裹的场景使用（如单图 tab） */
+  noPanel?: boolean;
 }
 
 const COLS = [
@@ -141,12 +144,13 @@ export function MatchSummaryStats({
   teamAName,
   teamBName,
   seasonSlug,
+  noPanel = false,
 }: MatchSummaryStatsProps) {
   const teamAPlayers = players.filter((p) => p.teamId === teamAId);
   const teamBPlayers = players.filter((p) => p.teamId === teamBId);
 
-  return (
-    <Panel pad={12} className="space-y-4">
+  const content = (
+    <>
       <TeamBlock
         teamName={teamAName}
         borderColor="var(--color-accent)"
@@ -161,6 +165,14 @@ export function MatchSummaryStats({
         players={teamBPlayers}
         seasonSlug={seasonSlug}
       />
+    </>
+  );
+
+  if (noPanel) return content;
+
+  return (
+    <Panel pad={12} className="space-y-4">
+      {content}
     </Panel>
   );
 }

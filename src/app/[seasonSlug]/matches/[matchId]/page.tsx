@@ -354,7 +354,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
     }
   }
 
-  const showSummaryTab = isFinished && match.format !== "bo1" && summaryPlayers.length > 0;
+  const showSummaryTab = isFinished && summaryPlayers.length > 0;
   const defaultTab = showSummaryTab ? "summary" : (maps[0]?.id ?? "");
 
   return (
@@ -482,7 +482,17 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                       )}
                     </div>
                   </div>
-                  {isFinished && <PlayerStatsTable matchId={match.id} mapId={map.id} />}
+                  {isFinished && (
+                    <PlayerStatsTable
+                      mapId={map.id}
+                      teamAId={match.teamAId}
+                      teamBId={match.teamBId}
+                      teamAName={teamA?.name ?? "队伍 A"}
+                      teamBName={teamB?.name ?? "队伍 B"}
+                      seasonId={season.id}
+                      seasonSlug={seasonSlug}
+                    />
+                  )}
                   {!isFinished && map.scoreA == null && (
                     <p className="text-xs text-[var(--color-fg-dim)] py-2">比赛未开始</p>
                   )}
@@ -495,13 +505,28 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
       ) : isFinished && match.scoreA != null && match.scoreB != null ? (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold text-[var(--color-fg)]">比赛结果</h2>
-          <Panel pad={16}>
-            <p className="text-sm text-[var(--color-fg-mid)]">
-              {match.isForfeit
-                ? "本场比赛以弃赛结束，未进行实际对局。"
-                : `${MATCH_FORMAT_LABELS[match.format] ?? match.format.toUpperCase()} 系列赛总分：${match.scoreA} : ${match.scoreB}`}
-            </p>
-          </Panel>
+          {match.isForfeit ? (
+            <Panel pad={16}>
+              <p className="text-sm text-[var(--color-fg-mid)]">
+                本场比赛以弃赛结束，未进行实际对局。
+              </p>
+            </Panel>
+          ) : summaryPlayers.length > 0 ? (
+            <MatchSummaryStats
+              players={summaryPlayers}
+              teamAId={match.teamAId}
+              teamBId={match.teamBId}
+              teamAName={teamA?.name ?? "队伍 A"}
+              teamBName={teamB?.name ?? "队伍 B"}
+              seasonSlug={seasonSlug}
+            />
+          ) : (
+            <Panel pad={16}>
+              <p className="text-sm text-[var(--color-fg-mid)]">
+                {MATCH_FORMAT_LABELS[match.format] ?? match.format.toUpperCase()} 系列赛总分：{match.scoreA} : {match.scoreB}
+              </p>
+            </Panel>
+          )}
         </section>
       ) : null}
 
