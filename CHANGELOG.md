@@ -5,6 +5,13 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.25.3] - 2026-05-27
+
+### Fixed
+- **Bracket 比赛自动创建修复**：`advanceMatch` 中 `prevResolved` 快照必须在 `manager.update.match()` 之前完成；`InMemoryDatabase.setData()` 存引用导致更新后 `currentData` 同步变化，diff 永远为空，下一轮比赛从未被自动创建
+- **移除重复的「查看对阵图」导航按钮**：与「返回赛程总览」指向同一页面（`#bracket` 锚点无感知），去掉冗余入口
+- **数据汇总表列统一缩写并重排**：去掉「图数」列，新增 MK（多杀）、WE；列顺序调整为 Rating → K/D/A → ADR → HS% → FK → MK → CL → WE，标签全部改为英文缩写
+
 ## [1.25.2] - 2026-05-25
 
 ### Added
@@ -801,6 +808,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.25.3]: https://github.com/Starfie1d1272/RivalHub/compare/v1.25.2...v1.25.3
 [1.25.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.25.1...v1.25.2
 [1.25.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.25.0...v1.25.1
 [1.25.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.24.0...v1.25.0
