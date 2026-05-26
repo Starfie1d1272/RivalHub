@@ -33,15 +33,16 @@ interface MatchSummaryStatsProps {
 }
 
 const COLS = [
-  { key: "mapsPlayed", label: "图数" },
   { key: "ratingPro", label: "Rating", fmt: (v: number | null) => v != null ? v.toFixed(2) : "—" },
-  { key: "adr", label: "ADR", fmt: (v: number | null) => v != null ? v.toFixed(1) : "—" },
-  { key: "kills", label: "K" },
-  { key: "deaths", label: "D" },
-  { key: "assists", label: "A" },
+  { key: "kills",     label: "K" },
+  { key: "deaths",    label: "D" },
+  { key: "assists",   label: "A" },
+  { key: "adr",       label: "ADR", fmt: (v: number | null) => v != null ? v.toFixed(1) : "—" },
   { key: "hsPercent", label: "HS%", fmt: (v: number | null) => v != null ? `${v.toFixed(0)}%` : "—" },
-  { key: "firstKills", label: "FK" },
-  { key: "clutches", label: "残局" },
+  { key: "firstKills",  label: "FK" },
+  { key: "multiKills",  label: "MK" },
+  { key: "clutches",    label: "CL" },
+  { key: "we",          label: "WE", fmt: (v: number | null) => v != null ? v.toFixed(1) : "—" },
 ] as const;
 
 interface PlayerRowProps {

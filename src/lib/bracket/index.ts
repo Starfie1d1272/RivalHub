@@ -161,6 +161,10 @@ export async function advanceMatch(
 ): Promise<{ updatedData: Database; newResolvedMatches: ResolvedBracketMatch[] }> {
   const { manager, db } = buildManager(currentData);
 
+  // 必须在 manager.update.match() 之前快照，否则 InMemoryDatabase.setData()
+  // 存的是引用，manager 更新内存后 currentData 也会被同步修改，导致 diff 永远为空。
+  const prevResolved = new Set(collectResolvedMatches(currentData).map((m) => m.bracketMatchId));
+
   const matchId = parseInt(bracketNodeId, 10);
   const isWinA = scoreA > scoreB;
 
@@ -173,8 +177,6 @@ export async function advanceMatch(
 
   const updatedData = await manager.export();
 
-  // 找出本次更新后新增的已确定对阵（对比更新前已有的 bracketMatchId 集合）
-  const prevResolved = new Set(collectResolvedMatches(currentData).map((m) => m.bracketMatchId));
   const allResolved = collectResolvedMatches(updatedData);
   const newResolvedMatches = allResolved.filter((m) => !prevResolved.has(m.bracketMatchId));
 

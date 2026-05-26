@@ -52,14 +52,6 @@ export function MatchHeroHeader({
         >
           ← 返回赛程总览
         </Link>
-        {match.stage === "playoff" && match.bracketNodeId && (
-          <Link
-            href={`/${seasonSlug}/matches#bracket`}
-            className="text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] transition-colors"
-          >
-            查看对阵图 →
-          </Link>
-        )}
       </div>
 
       <div
