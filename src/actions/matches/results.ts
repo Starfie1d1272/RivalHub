@@ -2,7 +2,7 @@
 
 import { eq, asc, and, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, matches, matchMaps, matchVetoSteps, matchRosters, matchRosterPlayers, teams, teamMembers, auditLogs } from "@/db/schema";
+import { seasons, matches, matchMaps, matchVetoSteps, matchRosters, matchRosterPlayers, teams, teamMembers, auditLogs, matchTimeProposals } from "@/db/schema";
 import { ok } from "@/types/action";
 import type { ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -379,10 +379,24 @@ export async function updateMatchScheduledAt(
 
     const seasonForSch = await getSeasonOrThrow(match.seasonId);
     await db.transaction(async (tx) => {
+      const now = new Date();
       await tx
         .update(matches)
-        .set({ scheduledAt, updatedAt: new Date() })
+        .set({ scheduledAt, updatedAt: now })
         .where(eq(matches.id, matchId));
+
+      // 比赛时间被管理员直接设定后，同场所有 pending 提议失效，避免幽灵提议卡在 pending。
+      if (scheduledAt) {
+        await tx
+          .update(matchTimeProposals)
+          .set({ status: "expired", updatedAt: now })
+          .where(
+            and(
+              eq(matchTimeProposals.matchId, matchId),
+              eq(matchTimeProposals.status, "pending"),
+            ),
+          );
+      }
 
       await tx.insert(auditLogs).values({
         seasonId: match.seasonId,
