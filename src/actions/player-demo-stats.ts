@@ -26,13 +26,15 @@ export async function getPlayerDemoStats(
     return fail({ code: ErrorCode.SEASON_NOT_FOUND, message: "赛季不存在" });
   }
 
-  // 2. 找该 userId 在当前赛季 map 中参与的所有 demo 行（通过 matches 关联 season）
+  // 2. 找该 userId 在当前赛季 map 中参与的所有 demo 行（通过 matches 关联 season，限 activeStatSource）
   const mapRows = await db
     .select({ mapId: matchMaps.id })
     .from(matchMaps)
     .innerJoin(matches, eq(matchMaps.matchId, matches.id))
     .innerJoin(seasons, eq(matches.seasonId, seasons.id))
-    .where(eq(seasons.slug, seasonSlug));
+    .where(
+      and(eq(seasons.slug, seasonSlug), eq(matchMaps.activeStatSource, "demo_import")),
+    );
   const mapIds = mapRows.map((r) => r.mapId);
   if (mapIds.length === 0) {
     return ok(aggregatePlayerDemoStats([]));
