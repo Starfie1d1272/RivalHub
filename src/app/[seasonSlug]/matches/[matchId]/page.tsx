@@ -29,6 +29,7 @@ import { getDemoDetail } from "@/actions/demo-detail";
 import { DemoPlayerStatsTable } from "@/components/matches/DemoPlayerStatsTable";
 import { DemoHeatmap } from "@/components/matches/DemoHeatmap";
 import { DemoRoundTimeline } from "@/components/matches/DemoRoundTimeline";
+import { DemoKillFeed } from "@/components/matches/DemoKillFeed";
 import { getTimeBufferHoursForStage } from "@/lib/matches/time-rules";
 import { getMatchRoster } from "@/actions/matches/roster";
 import { getSeasonHexagonScores } from "@/actions/hexagon";
@@ -537,6 +538,9 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                           teamBName={teamB?.name ?? "队伍 B"}
                         />
                         <DemoRoundTimeline rounds={d.rounds} />
+                        <Panel label="击杀 Feed">
+                          <DemoKillFeed kills={d.kills} />
+                        </Panel>
                         <DemoHeatmap
                           mapName={map.mapName}
                           points={{
