@@ -53,7 +53,14 @@ export function WeaponLeaderboard({ players, seasonSlug }: WeaponLeaderboardProp
   const [sortBy, setSortBy] = useState<SortKey>("awpKills");
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
-  const sorted = [...players].sort((a, b) => b[sortBy] - a[sortBy]);
+  function getSortValue(p: PlayerWeaponStats): number {
+    if (sortBy === "hsPercent") {
+      const total = p.weapons.reduce((s, w) => s + w.headshots, 0);
+      return p.totalKills > 0 ? total / p.totalKills : 0;
+    }
+    return p[sortBy];
+  }
+  const sorted = [...players].sort((a, b) => getSortValue(b) - getSortValue(a));
 
   const toggleExpand = (idx: number) => {
     setExpanded((prev) => {
@@ -65,7 +72,7 @@ export function WeaponLeaderboard({ players, seasonSlug }: WeaponLeaderboardProp
   };
 
   return (
-    <Panel title="武器 / AWP 击杀榜">
+    <Panel label="武器 / AWP 击杀榜">
       <div className="space-y-3">
         <div className="flex gap-1.5">
           {(["awpKills", "totalKills", "hsPercent"] as const).map((key) => (

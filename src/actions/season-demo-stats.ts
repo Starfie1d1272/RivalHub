@@ -200,7 +200,7 @@ export async function getSeasonWeaponStats(
 }
 
 
-export interface WeaponKillRow {
+export interface WeaponKillStatsRow {
   userId: string | null;
   perfectName: string;
   weapon: string;
@@ -215,7 +215,7 @@ export interface WeaponKillRow {
  * 赛季武器击杀榜：按 userId+weapon 汇总，含HS%/trade%/noScope%/穿墙数
  * 只统计 demo_kills（由 matchMaps.activeStatSource='demo_import' 过滤）
  */
-export async function getWeaponKillStats(seasonId: string): Promise<WeaponKillRow[]> {
+export async function getWeaponKillStats(seasonId: string): Promise<WeaponKillStatsRow[]> {
   const rows = await db.execute(sql`
     SELECT
       dp.user_id,
