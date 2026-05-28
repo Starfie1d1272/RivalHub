@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { proposeMatchTime, respondToTimeProposal, forceSetMatchTime } from "@/actions/matches/scheduling";
 import { Button } from "@/components/ui/button";
@@ -53,6 +54,7 @@ export function MatchTimeNegotiation({
   hasSubmittedRoster = false,
   bufferHours = 24,
 }: MatchTimeNegotiationProps) {
+  const router = useRouter();
   // 0 缓冲（=与最晚完成时间一致）目前仅正赛使用，沿用作为是否显示解说时段提示的判据。
   const isPlayoff = bufferHours === 0;
   const [isPending, startTransition] = useTransition();
@@ -70,6 +72,20 @@ export function MatchTimeNegotiation({
     : null;
   const isNegotiationClosed =
     confirmationCutoff !== null && Date.now() >= confirmationCutoff.getTime();
+
+  // 有 pending 提议时自动轮询，确保自动采纳后页面及时更新
+  useEffect(() => {
+    if (pendingProposals.length === 0) return;
+    const timer = window.setInterval(() => router.refresh(), 30_000);
+    return () => window.clearInterval(timer);
+  }, [pendingProposals.length, router]);
+
+  // 检测被系统自动采纳的提议
+  const autoAcceptedProposal = initialProposals.find((p) => {
+    if (p.status !== "accepted" || !p.responseAt) return false;
+    const elapsed = new Date(p.responseAt).getTime() - new Date(p.createdAt).getTime();
+    return elapsed >= PROPOSAL_AUTO_ACCEPT_HOURS * 60 * 60 * 1000 - 1800_000; // 23.5h+
+  });
 
   const handlePropose = () => {
     if (!proposedTime) return;
@@ -133,6 +149,16 @@ export function MatchTimeNegotiation({
           {currentScheduledAt ? formatCST(currentScheduledAt) : "待协商"}
         </span>
       </div>
+
+      {/* 系统自动采纳提示 */}
+      {autoAcceptedProposal && currentScheduledAt && (
+        <div className="rounded border p-3 text-sm" style={{ borderColor: "rgba(34,197,94,0.35)", background: "rgba(34,197,94,0.06)" }}>
+          <p className="font-medium text-[var(--color-fg)]">比赛时间已自动设定</p>
+          <p className="text-xs text-[var(--color-fg-dim)] mt-0.5">
+            对方 24 小时内未回应，比赛时间已按提议自动采纳为 {formatCST(autoAcceptedProposal.proposedTime)}。
+          </p>
+        </div>
+      )}
 
       {/* 所有待回应的提议 */}
       {pendingProposals.length > 0 && (
