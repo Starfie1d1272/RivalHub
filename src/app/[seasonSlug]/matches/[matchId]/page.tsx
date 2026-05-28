@@ -36,6 +36,7 @@ import { DemoEconomyChart } from "@/components/matches/DemoEconomyChart";
 import { DemoClutchList } from "@/components/matches/DemoClutchList";
 import { PlayerEntryStats } from "@/components/matches/PlayerEntryStats";
 import { PlayerClutchStats } from "@/components/matches/PlayerClutchStats";
+import { PlayerUtilityStats } from "@/components/matches/PlayerUtilityStats";
 import { getTimeBufferHoursForStage } from "@/lib/matches/time-rules";
 import { getMatchRoster } from "@/actions/matches/roster";
 import { getSeasonHexagonScores } from "@/actions/hexagon";
