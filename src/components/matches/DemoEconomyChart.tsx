@@ -75,7 +75,7 @@ export function DemoEconomyChart({
           const x1 =
             i < series.length - 1
               ? xScale(i + 1)
-              : xScale(i) + CHART_W / series.length;
+              : xScale(i) + xScale(1) - xScale(0);
           const w = Math.max(x1 - x0, 2);
           // Team A half (top) and Team B half (bottom)
           return (
