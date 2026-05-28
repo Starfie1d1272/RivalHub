@@ -4,7 +4,7 @@
 
 RivalHub 是开源电竞赛事管理平台，通过 capability 驱动多赛事模型支持选秀联赛、公开赛、杯赛等全流程运营。
 技术栈：Next.js 15 App Router + TypeScript strict + Tailwind CSS v4 + shadcn/ui + Supabase + Drizzle ORM。
-部署：Vercel（`match.starfie1d.top`），当前 v1.26.0。
+部署：Vercel（`match.starfie1d.top`），当前 v1.26.2。
 
 ## 2. 常用命令
 
