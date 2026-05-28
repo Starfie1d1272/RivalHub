@@ -404,11 +404,10 @@ export async function importDemoPackage(
         await tx.insert(matchPlayerStats).values(backfillRows);
       }
 
-      // 15. 设置 activeStatSource（需 Task 8 完成 match_maps 加字段后才生效）
-      // TODO: Task 8 adds activeStatSource column — uncomment after that migration
-      // await tx.update(matchMaps)
-      //   .set({ activeStatSource: "demo_import" })
-      //   .where(eq(matchMaps.id, mapId));
+      // 15. 设置生效来源为 demo_import
+      await tx.update(matchMaps)
+        .set({ activeStatSource: "demo_import" })
+        .where(eq(matchMaps.id, mapId));
 
       // 16. 审计日志
       await tx.insert(auditLogs).values({

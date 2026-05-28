@@ -38,7 +38,7 @@ export const matchPlayerStats = pgTable("match_player_stats", {
   verifiedAt: timestamp("verified_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
-  uniqueMapPlayer: unique().on(t.mapId, t.perfectName),
+  uniqueMapPlayerSource: unique().on(t.mapId, t.perfectName, t.source),
 }));
 
 export type MatchPlayerStat = typeof matchPlayerStats.$inferSelect;
