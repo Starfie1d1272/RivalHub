@@ -22,6 +22,14 @@ export interface PlayerMetrics {
   we: number;        // win equity
   ratingPro: number; // rating pro
   totalRounds: number; // 参与回合总数
+
+  // ── Demo 扩展维度 ──
+  kast: number;             // KAST % (0-100)
+  utilityDamagePr: number;  // utility damage per round
+  firstKillRate: number;    // firstKill / totalRounds
+  clutchWinRate: number;    // clutches won / clutches attempted
+  tradeKillRate: number;    // tradeKill / totalRounds
+  entrySuccessRate: number; // firstKill / (firstKill + firstDeath)
 }
 
 type MetricKey = keyof Omit<PlayerMetrics, "userId" | "totalRounds">;
@@ -43,14 +51,15 @@ export interface HexagonScores {
 }
 
 // ─── 六维权重配置 ─────────────────────────────────────────────────────────────
+// demo 扩展维度权重在对应维度中加入
 
 export const DIMENSION_WEIGHTS = Object.freeze({
   firepower:   Object.freeze({ kpr: 0.40, adr: 0.35, mkpr: 0.15, kd: 0.10 }),
-  opening:     Object.freeze({ fkpr: 0.65, we: 0.25, adr: 0.10 }),
+  opening:     Object.freeze({ fkpr: 0.50, firstKillRate: 0.15, entrySuccessRate: 0.10, we: 0.20, adr: 0.05 }),
   multikill:   Object.freeze({ mkpr: 0.70, kpr: 0.20, adr: 0.10 }),
-  clutch:      Object.freeze({ cpr: 0.70, rws: 0.20, kd: 0.10 }),
-  support:     Object.freeze({ apr: 0.45, kda: 0.25, we: 0.20, rws: 0.10 }),
-  consistency: Object.freeze({ ratingPro: 0.40, dprInverse: 0.35, kd: 0.15, rws: 0.10 }),
+  clutch:      Object.freeze({ cpr: 0.45, clutchWinRate: 0.25, rws: 0.15, kd: 0.15 }),
+  support:     Object.freeze({ apr: 0.30, kda: 0.15, kast: 0.20, utilityDamagePr: 0.10, tradeKillRate: 0.10, we: 0.10, rws: 0.05 }),
+  consistency: Object.freeze({ ratingPro: 0.30, dprInverse: 0.25, kast: 0.15, kd: 0.10, tradeKillRate: 0.10, rws: 0.10 }),
 });
 
 // ─── 内部标准化辅助函数 ───────────────────────────────────────────────────────
@@ -87,6 +96,7 @@ function shrink(score: number, rounds: number, threshold = 60): number {
 const METRIC_KEYS = [
   "kpr", "dpr", "apr", "kd", "kda",
   "fkpr", "mkpr", "cpr", "adr", "rws", "we", "ratingPro",
+  "kast", "utilityDamagePr", "firstKillRate", "clutchWinRate", "tradeKillRate", "entrySuccessRate",
 ] as const satisfies readonly MetricKey[];
 
 type _MetricKeysExhaustive = Exclude<MetricKey, (typeof METRIC_KEYS)[number]> extends never
@@ -144,49 +154,64 @@ export function computeDimensions(
 
   const rounds = player.totalRounds;
 
-  // 加权求和 + 收缩
+  // 加权求和 + 收缩 (权重来自 DIMENSION_WEIGHTS)
+  // 注意：泛型维度权重使用 Record<string, number> 避免 ts 编译时 key 约束
+  const fw = DIMENSION_WEIGHTS.firepower as Record<string, number>;
   const firepower = shrink(
-    DIMENSION_WEIGHTS.firepower.kpr  * z.kpr  +
-    DIMENSION_WEIGHTS.firepower.adr  * z.adr  +
-    DIMENSION_WEIGHTS.firepower.kd   * z.kd   +
-    DIMENSION_WEIGHTS.firepower.mkpr * z.mkpr,
+    fw.kpr  * z.kpr  +
+    fw.adr  * z.adr  +
+    fw.kd   * z.kd   +
+    fw.mkpr * z.mkpr,
     rounds,
   );
 
+  const ow = DIMENSION_WEIGHTS.opening as Record<string, number>;
   const opening = shrink(
-    DIMENSION_WEIGHTS.opening.fkpr * z.fkpr +
-    DIMENSION_WEIGHTS.opening.we   * z.we   +
-    DIMENSION_WEIGHTS.opening.adr  * z.adr,
+    ow.fkpr           * z.fkpr +
+    ow.we             * z.we   +
+    ow.adr            * z.adr  +
+    ow.firstKillRate  * (z.firstKillRate ?? 50) +
+    ow.entrySuccessRate * (z.entrySuccessRate ?? 50),
     rounds,
   );
 
+  const mw = DIMENSION_WEIGHTS.multikill as Record<string, number>;
   const multikill = shrink(
-    DIMENSION_WEIGHTS.multikill.mkpr * z.mkpr +
-    DIMENSION_WEIGHTS.multikill.kpr  * z.kpr  +
-    DIMENSION_WEIGHTS.multikill.adr  * z.adr,
+    mw.mkpr * z.mkpr +
+    mw.kpr  * z.kpr  +
+    mw.adr  * z.adr,
     rounds,
   );
 
+  const cw = DIMENSION_WEIGHTS.clutch as Record<string, number>;
   const clutch = shrink(
-    DIMENSION_WEIGHTS.clutch.cpr * z.cpr +
-    DIMENSION_WEIGHTS.clutch.kd  * z.kd  +
-    DIMENSION_WEIGHTS.clutch.rws * z.rws,
+    cw.cpr          * z.cpr +
+    cw.clutchWinRate * (z.clutchWinRate ?? 50) +
+    cw.kd           * z.kd  +
+    cw.rws          * z.rws,
     rounds,
   );
 
+  const sw = DIMENSION_WEIGHTS.support as Record<string, number>;
   const support = shrink(
-    DIMENSION_WEIGHTS.support.apr * z.apr +
-    DIMENSION_WEIGHTS.support.kda * z.kda +
-    DIMENSION_WEIGHTS.support.we  * z.we  +
-    DIMENSION_WEIGHTS.support.rws * z.rws,
+    sw.apr             * z.apr +
+    sw.kda             * z.kda +
+    sw.we              * z.we  +
+    sw.rws             * z.rws +
+    sw.kast            * (z.kast ?? 50) +
+    sw.utilityDamagePr * (z.utilityDamagePr ?? 50) +
+    sw.tradeKillRate   * (z.tradeKillRate ?? 50),
     rounds,
   );
 
+  const ctw = DIMENSION_WEIGHTS.consistency as Record<string, number>;
   const consistency = shrink(
-    DIMENSION_WEIGHTS.consistency.ratingPro  * z.ratingPro  +
-    DIMENSION_WEIGHTS.consistency.dprInverse * z.dprInverse +
-    DIMENSION_WEIGHTS.consistency.rws        * z.rws        +
-    DIMENSION_WEIGHTS.consistency.kd         * z.kd,
+    ctw.ratingPro     * z.ratingPro  +
+    ctw.dprInverse    * z.dprInverse +
+    ctw.rws           * z.rws        +
+    ctw.kd            * z.kd         +
+    ctw.kast          * (z.kast ?? 50) +
+    ctw.tradeKillRate * (z.tradeKillRate ?? 50),
     rounds,
   );
 

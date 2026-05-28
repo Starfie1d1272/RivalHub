@@ -124,8 +124,23 @@ export interface DemoDetailData {
   bombPoints: DemoPoint[];
   grenadePoints: DemoPoint[];
   kills: KillFeedItem[];
+  /** 原始 demo_kills 行（含 killerPosition/victimPosition），供 PlayerKillHeatmap 使用 */
+  rawKills: RawDemoKillRow[];
   economies: EconomyRow[];
   clutches: ClutchRow[];
+}
+
+/** PlayerKillHeatmap 所需的最小 kill 行类型 */
+export interface RawDemoKillRow {
+  killerSteamId64: string | null;
+  victimSteamId64: string | null;
+  killerPosition: unknown;
+  victimPosition: unknown;
+  roundNumber: number;
+  killerSide: string | null;
+  victimSide: string | null;
+  weapon: string | null;
+  headshot: boolean | null;
 }
 
 // ── 查询 ────────────────────────────────────────────────────────────────
@@ -371,6 +386,17 @@ export async function getDemoDetail(
     bombPoints,
     grenadePoints,
     kills: killItems,
+    rawKills: kills.map((k) => ({
+      killerSteamId64: k.killerSteamId64,
+      victimSteamId64: k.victimSteamId64,
+      killerPosition: k.killerPosition,
+      victimPosition: k.victimPosition,
+      roundNumber: k.roundNumber,
+      killerSide: k.killerSide,
+      victimSide: k.victimSide,
+      weapon: k.weapon,
+      headshot: k.headshot,
+    })) as RawDemoKillRow[],
     economies: economyRows,
     clutches: clutchRows,
   });
