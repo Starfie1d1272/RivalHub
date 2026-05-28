@@ -2,8 +2,8 @@ import { eq, and, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matches } from "@/db/schema/matches";
 import { matchMaps } from "@/db/schema/match-maps";
-import { demoImports, demoPlayerStats, demoPlayers } from "@/db/schema/demo";
 import { ok, type ActionResult } from "@/types/action";
+import { demoImports, demoPlayerStats, demoPlayers, demoKills } from "@/db/schema/demo";
 
 export interface DemoLeaderboardData {
   userId: string | null;
@@ -24,6 +24,22 @@ export interface DemoLeaderboardData {
   clutchWinRateVal: number;
   /** utility/round */
   utilityPerRound: number;
+}
+
+export interface WeaponKillRow {
+  weapon: string;
+  kills: number;
+  headshots: number;
+  hsPercent: number | null;
+}
+
+export interface PlayerWeaponStats {
+  userId: string | null;
+  perfectName: string;
+  steamId64: string | null;
+  totalKills: number;
+  awpKills: number;
+  weapons: WeaponKillRow[];
 }
 
 /**
@@ -69,7 +85,7 @@ export async function getSeasonDemoStats(
     LIMIT 100
   `);
 
-  const data = (rows as any[]).map((r: any) => {
+  const data = (rows as unknown as any[]).map((r: any) => {
     const fk = Number(r.first_kill_count ?? 0);
     const fd = Number(r.first_death_count ?? 0);
     const vs1Count = Number(r.vs1_count ?? 0);
@@ -114,3 +130,71 @@ export async function getSeasonDemoStats(
   return ok(data);
 }
 
+/**
+ * 按武器统计赛季内 demo 击杀数据。
+ * 返回每个玩家每种武器的击杀数/爆头数/爆头率，以及 AWP 专用击杀数。
+ */
+export async function getSeasonWeaponStats(
+  seasonId: string,
+): Promise<ActionResult<PlayerWeaponStats[]>> {
+  const rows = await db.execute(sql`
+    SELECT
+      dps.user_id,
+      COALESCE(dp.name, 'Unknown') AS perfect_name,
+      dp.steam_id64,
+      dk.weapon,
+      count(*)::int AS kills,
+      sum(CASE WHEN dk.headshot THEN 1 ELSE 0 END)::int AS headshots
+    FROM ${demoKills} dk
+    JOIN ${demoImports} di ON di.id = dk.import_batch_id
+    JOIN ${matchMaps} mm ON mm.id = dk.map_id
+    JOIN ${matches} m ON m.id = mm.match_id
+    JOIN ${demoPlayerStats} dps
+      ON dps.import_batch_id = dk.import_batch_id AND dps.steam_id64 = dk.killer_steam_id64
+    LEFT JOIN ${demoPlayers} dp
+      ON dp.steam_id64 = dk.killer_steam_id64 AND dp.import_batch_id = dk.import_batch_id
+    WHERE m.season_id = ${seasonId}
+      AND mm.active_stat_source = 'demo_import'::stat_source
+      AND dk.weapon IS NOT NULL
+    GROUP BY dps.user_id, dp.name, dp.steam_id64, dk.weapon
+    ORDER BY kills DESC
+    LIMIT 500
+  `);
+
+  // 按 userId 分组
+  const playerMap = new Map<string, PlayerWeaponStats>();
+  const rawRows = rows as unknown as any[];
+
+  for (const r of rawRows) {
+    const uid = (r.user_id as string) ?? `steam_${r.steam_id64}`;
+    if (!playerMap.has(uid)) {
+      playerMap.set(uid, {
+        userId: r.user_id as string | null,
+        perfectName: (r.perfect_name as string) ?? "Unknown",
+        steamId64: r.steam_id64 as string | null,
+        totalKills: 0,
+        awpKills: 0,
+        weapons: [],
+      });
+    }
+    const p = playerMap.get(uid)!;
+    const weapon = r.weapon as string;
+    const kills = Number(r.kills ?? 0);
+    const headshots = Number(r.headshots ?? 0);
+    p.totalKills += kills;
+    if (weapon.toLowerCase() === "awp") {
+      p.awpKills += kills;
+    }
+    p.weapons.push({
+      weapon,
+      kills,
+      headshots,
+      hsPercent: kills > 0 ? Math.round((headshots / kills) * 100) : null,
+    });
+  }
+
+  const data = Array.from(playerMap.values())
+    .sort((a, b) => b.awpKills - a.awpKills);
+
+  return ok(data);
+}
