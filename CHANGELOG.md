@@ -8,7 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.26.1] - 2026-05-29
 
 ### Fixed
-- **PG 参数溢出修复**：`demo-import.ts` 批量 insert 改为 `batchInsert()` 分块插入（3000 行/批），防止真实 CS2 demo（18k+ positions 行）触发 PG `max_parameters=65535` 限制
+- **PG 参数溢出修复**：`demo-import.ts` 批量 insert 改为 `batchInsert()` 分块插入，防止真实 CS2 demo（18k+ positions 行）触发 PG `max_parameters=65535` 限制
+- **batchInsert 安全上限修正**：默认 chunk size 从 3000 降为 1000，修复 `demoPlayerStats`（25 列）在 3000 行/批时 75000 params 溢出 PG 限制的缺陷
 - **并发安全修复**：`matchPlayerStats` 回填从 `DELETE+INSERT` 改为 `INSERT ON CONFLICT DO UPDATE`（UPSERT），消除并发导入时的幽灵删除竞争
 - **未使用导入删除**：`match/[matchId]/page.tsx` 移除未使用的 `DemoHeatmap` 导入
 - **CSS 变量补充**：添加缺失的 `--color-bg-subtle` CSS 变量，修复 6+ 个组件的透明背景问题
