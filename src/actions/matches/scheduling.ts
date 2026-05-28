@@ -330,11 +330,12 @@ async function autoAcceptSingleProposal(
 ): Promise<boolean> {
   return db.transaction(async (tx) => {
     const [match] = await tx.select().from(matches).where(eq(matches.id, matchId)).for("update");
-    if (!match || match.status !== "scheduled") {
+    if (!match) {
       return false;
     }
-    // 如果比赛时间已经确定了（被其他提议抢先），跳过
-    if (match.scheduledAt) {
+    // 比赛已经不是 scheduled（in_progress / finished / cancelled），或时间已被抢先确定：
+    // 残留 pending 提议直接过期清理，避免幽灵提议永远卡在 pending。
+    if (match.status !== "scheduled" || match.scheduledAt) {
       await tx
         .update(matchTimeProposals)
         .set({ status: "expired", updatedAt: now })
