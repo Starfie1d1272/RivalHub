@@ -25,6 +25,10 @@ import { MatchHeadToHead } from "@/components/matches/MatchHeadToHead";
 import { MatchSummaryStats } from "@/components/matches/MatchSummaryStats";
 import { getMatchMvpResults, ensureMvpWinner } from "@/actions/player-stats";
 import { getTimeProposals } from "@/actions/matches/scheduling";
+import { getDemoDetail } from "@/actions/demo-detail";
+import { DemoPlayerStatsTable } from "@/components/matches/DemoPlayerStatsTable";
+import { DemoHeatmap } from "@/components/matches/DemoHeatmap";
+import { DemoRoundTimeline } from "@/components/matches/DemoRoundTimeline";
 import { getTimeBufferHoursForStage } from "@/lib/matches/time-rules";
 import { getMatchRoster } from "@/actions/matches/roster";
 import { getSeasonHexagonScores } from "@/actions/hexagon";
@@ -362,6 +366,20 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   const showSummaryTab = isFinished && summaryPlayers.length > 0;
   const defaultTab = showSummaryTab ? "summary" : (maps[0]?.id ?? "");
 
+  // Demo 明细数据（已结束比赛）
+  const finishedMaps = isFinished
+    ? maps.filter((m) => m.scoreA !== null && m.scoreB !== null)
+    : [];
+  const demoDataByMapId = new Map<string, Awaited<ReturnType<typeof getDemoDetail>>>();
+  if (isFinished && finishedMaps.length > 0) {
+    const results = await Promise.all(
+      finishedMaps.map((m) => getDemoDetail(m.id)),
+    );
+    for (let i = 0; i < finishedMaps.length; i++) {
+      demoDataByMapId.set(finishedMaps[i].id, results[i]);
+    }
+  }
+
   return (
     <div className="container mx-auto px-4 py-12 max-w-3xl space-y-8">
       <MatchHeroHeader
@@ -503,6 +521,34 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                   )}
                   {isFinished && isSeasonAdmin && <StatsOCRPanel mapId={map.id} mapName={map.mapName} />}
                   {isFinished && isSeasonAdmin && <DemoImportPanel mapId={map.id} mapName={map.mapName} />}
+                  {/* Demo 明细区块 */}
+                  {isFinished && (() => {
+                    const demoResult = demoDataByMapId.get(map.id);
+                    if (!demoResult?.success || !demoResult.data) return null;
+                    const d = demoResult.data;
+                    return (
+                      <div className="space-y-4 pt-2 border-t border-[var(--color-border)]">
+                        <h3 className="text-sm font-semibold text-[var(--color-fg)]">
+                          Demo 数据
+                        </h3>
+                        <DemoPlayerStatsTable
+                          players={d.playerStats}
+                          teamAName={teamA?.name ?? "队伍 A"}
+                          teamBName={teamB?.name ?? "队伍 B"}
+                        />
+                        <DemoRoundTimeline rounds={d.rounds} />
+                        <DemoHeatmap
+                          mapName={map.mapName}
+                          points={{
+                            kills: d.killPoints,
+                            deaths: d.deathPoints,
+                            bombs: d.bombPoints,
+                            grenades: d.grenadePoints,
+                          }}
+                        />
+                      </div>
+                    );
+                  })()}
                 </Panel>
               </TabsContent>
             ))}
