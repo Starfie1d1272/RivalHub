@@ -46,7 +46,7 @@ export function EconomyConversionPanel({
   );
 
   return (
-    <Panel title={`${teamName} 经济转化率`}>
+    <Panel label={`${teamName} 经济转化率`}>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>

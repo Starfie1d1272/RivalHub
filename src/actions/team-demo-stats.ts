@@ -43,8 +43,17 @@ export async function getTeamStyleProfile(
   const playerStats = await db
     .select({
       firstKillCount: demoPlayerStats.firstKillCount,
-      clutchWinCount: demoPlayerStats.clutchWinCount,
-      clutchPlayedCount: demoPlayerStats.clutchPlayedCount,
+      firstDeathCount: demoPlayerStats.firstDeathCount,
+      vsOneWonCount: demoPlayerStats.vsOneWonCount,
+      vsTwoWonCount: demoPlayerStats.vsTwoWonCount,
+      vsThreeWonCount: demoPlayerStats.vsThreeWonCount,
+      vsFourWonCount: demoPlayerStats.vsFourWonCount,
+      vsFiveWonCount: demoPlayerStats.vsFiveWonCount,
+      vsOneCount: demoPlayerStats.vsOneCount,
+      vsTwoCount: demoPlayerStats.vsTwoCount,
+      vsThreeCount: demoPlayerStats.vsThreeCount,
+      vsFourCount: demoPlayerStats.vsFourCount,
+      vsFiveCount: demoPlayerStats.vsFiveCount,
     })
     .from(demoPlayerStats)
     .innerJoin(demoImports, eq(demoPlayerStats.importBatchId, demoImports.id))
@@ -54,15 +63,22 @@ export async function getTeamStyleProfile(
       and(
         inArray(demoPlayerStats.userId, userIds),
         eq(matches.seasonId, seasonId),
-        eq(demoPlayerStats.activeStatSource, "demo_import"),
+        eq(matchMaps.activeStatSource, "demo_import"),
       ),
     );
 
   const totalFirstKills = playerStats.reduce((s, r) => s + Number(r.firstKillCount ?? 0), 0);
-  const totalClutchWins = playerStats.reduce((s, r) => s + Number(r.clutchWinCount ?? 0), 0);
-  const totalClutchPlayed = playerStats.reduce((s, r) => s + Number(r.clutchPlayedCount ?? 0), 0);
+  const totalFirstDeaths = playerStats.reduce((s, r) => s + Number(r.firstDeathCount ?? 0), 0);
+  const totalClutchWins = playerStats.reduce(
+    (s, r) => s + Number(r.vsOneWonCount ?? 0) + Number(r.vsTwoWonCount ?? 0) + Number(r.vsThreeWonCount ?? 0) + Number(r.vsFourWonCount ?? 0) + Number(r.vsFiveWonCount ?? 0),
+    0,
+  );
+  const totalClutchPlayed = playerStats.reduce(
+    (s, r) => s + Number(r.vsOneCount ?? 0) + Number(r.vsTwoCount ?? 0) + Number(r.vsThreeCount ?? 0) + Number(r.vsFourCount ?? 0) + Number(r.vsFiveCount ?? 0),
+    0,
+  );
 
-  const firstKillRate = totalClutchPlayed > 0 ? totalFirstKills / totalClutchPlayed : null;
+  const firstKillRate = (totalFirstKills + totalFirstDeaths) > 0 ? totalFirstKills / (totalFirstKills + totalFirstDeaths) : null;
   const clutchWinRate = totalClutchPlayed > 0 ? totalClutchWins / totalClutchPlayed : null;
 
   // 3. 查队伍比赛的 rounds 做经济转化率（简要统计）
