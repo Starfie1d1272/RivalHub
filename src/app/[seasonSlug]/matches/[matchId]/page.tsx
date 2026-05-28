@@ -30,6 +30,7 @@ import { DemoPlayerStatsTable } from "@/components/matches/DemoPlayerStatsTable"
 import { DemoHeatmap } from "@/components/matches/DemoHeatmap";
 import { DemoRoundTimeline } from "@/components/matches/DemoRoundTimeline";
 import { DemoKillFeed } from "@/components/matches/DemoKillFeed";
+import { DemoEconomyChart } from "@/components/matches/DemoEconomyChart";
 import { getTimeBufferHoursForStage } from "@/lib/matches/time-rules";
 import { getMatchRoster } from "@/actions/matches/roster";
 import { getSeasonHexagonScores } from "@/actions/hexagon";
@@ -540,6 +541,9 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                         <DemoRoundTimeline rounds={d.rounds} />
                         <Panel label="击杀 Feed">
                           <DemoKillFeed kills={d.kills} />
+                        </Panel>
+                        <Panel label="经济曲线">
+                          <DemoEconomyChart economies={d.economies} />
                         </Panel>
                         <DemoHeatmap
                           mapName={map.mapName}
