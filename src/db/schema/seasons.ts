@@ -1,7 +1,7 @@
 import { pgTable, uuid, text, integer, boolean, timestamp, pgEnum, json } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import type { BracketDatabase as Database } from "@/lib/bracket";
-import type { RegistrationConfig, StagePlan, TeamRegistrationConfig } from "@/types/season";
+import type { RegistrationConfig, StagePlan, TeamRegistrationConfig, StatProfile } from "@/types/season";
 
 export const seasonStatusEnum = pgEnum("season_status", [
   "draft",        // 未发布
@@ -52,6 +52,13 @@ export const seasons = pgTable("seasons", {
   starterCount: integer("starter_count").notNull().default(5),
   // 该赛季可用的位置标识符列表（应用层 Zod 校验报名时引用此列表）
   positions: text("positions").array().notNull().default(sql`ARRAY['igl','awper','opener','closer','anchor']`),
+  // 统计字段与排序/MVP 口径(契约 B);业务逻辑唯一判断依据
+  statProfile: json("stat_profile")
+    .$type<StatProfile>()
+    .notNull()
+    .default(
+      sql`'{"provider":"perfectworld","inputFields":["kills","deaths","assists","hsPercent","firstKills","multiKills","clutches","adr","rws","ratingPro","we"],"rankMetric":"ratingPro"}'::json`,
+    ),
   // ──────────────────────────────────────────────────────────────────────
 
   // brackets-manager 序列化数据（生成赛程后写入，供 advanceMatch 重建状态机）

@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MATCH_FORMAT_LABELS, SIDE_LABELS } from "@/types/match";
 import { PlayerStatsTable } from "@/components/matches/PlayerStatsTable";
 import { StatsOCRPanel } from "@/components/matches/StatsOCRPanel";
+import { DemoImportPanel } from "@/components/admin/DemoImportPanel";
 import { TimeProposalHistory } from "@/components/matches/TimeProposalHistory";
 import { MatchTimeNegotiation } from "@/components/matches/MatchTimeNegotiation";
 import { MatchRosterView } from "@/components/matches/MatchRosterView";
@@ -24,6 +25,17 @@ import { MatchHeadToHead } from "@/components/matches/MatchHeadToHead";
 import { MatchSummaryStats } from "@/components/matches/MatchSummaryStats";
 import { getMatchMvpResults, ensureMvpWinner } from "@/actions/player-stats";
 import { getTimeProposals } from "@/actions/matches/scheduling";
+import { getDemoDetail } from "@/actions/demo-detail";
+import { DemoPlayerStatsTable } from "@/components/matches/DemoPlayerStatsTable";
+import { PlayerKillHeatmap } from "@/components/matches/PlayerKillHeatmap";
+import { PlayerWeaponBreakdown } from "@/components/matches/PlayerWeaponBreakdown";
+import { DemoRoundTimeline } from "@/components/matches/DemoRoundTimeline";
+import { DemoKillFeed } from "@/components/matches/DemoKillFeed";
+import { DemoEconomyChart } from "@/components/matches/DemoEconomyChart";
+import { DemoClutchList } from "@/components/matches/DemoClutchList";
+import { PlayerEntryStats } from "@/components/matches/PlayerEntryStats";
+import { PlayerClutchStats } from "@/components/matches/PlayerClutchStats";
+import { PlayerUtilityStats } from "@/components/matches/PlayerUtilityStats";
 import { getTimeBufferHoursForStage } from "@/lib/matches/time-rules";
 import { getMatchRoster } from "@/actions/matches/roster";
 import { getSeasonHexagonScores } from "@/actions/hexagon";
@@ -43,6 +55,7 @@ import {
   type RosterPlayer,
 } from "@/lib/matches/detail-stats";
 import { getSeasonFinishedMatches } from "@/lib/matches/detail-data";
+import { computeRecommendedMvp } from "@/lib/stats/mvp";
 import { MatchHeroHeader } from "@/components/matches/MatchHeroHeader";
 
 interface MatchDetailPageProps {
@@ -313,6 +326,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   }[] = [];
   let mvpVoteResults: Awaited<ReturnType<typeof getMatchMvpResults>> = [];
   let userVoted: string | null = null;
+  let recommendedMvpName: string | null = null;
   let summaryPlayers: {
     userId: string | null;
     perfectName: string;
@@ -336,9 +350,11 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
       where: eq(matchPlayerStats.matchId, match.id),
     });
 
-    const aggregatedStats = aggregateFinishedPlayerStats(allStats, userIdToTeamId, match.teamAId, match.teamBId, currentMapRoundsMap);
+    const rankMetric = season.statProfile.rankMetric;
+    const aggregatedStats = aggregateFinishedPlayerStats(allStats, userIdToTeamId, match.teamAId, match.teamBId, currentMapRoundsMap, rankMetric);
     mvpCandidates = aggregatedStats.mvpCandidates;
     summaryPlayers = aggregatedStats.summaryPlayers;
+    recommendedMvpName = computeRecommendedMvp(mvpCandidates)?.perfectName ?? null;
 
     mvpVoteResults = await getMatchMvpResults(match.id);
     ensureMvpWinner(match.id);
@@ -356,6 +372,20 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
 
   const showSummaryTab = isFinished && summaryPlayers.length > 0;
   const defaultTab = showSummaryTab ? "summary" : (maps[0]?.id ?? "");
+
+  // Demo 明细数据（已结束比赛）
+  const finishedMaps = isFinished
+    ? maps.filter((m) => m.scoreA !== null && m.scoreB !== null)
+    : [];
+  const demoDataByMapId = new Map<string, Awaited<ReturnType<typeof getDemoDetail>>>();
+  if (isFinished && finishedMaps.length > 0) {
+    const results = await Promise.all(
+      finishedMaps.map((m) => getDemoDetail(m.id)),
+    );
+    for (let i = 0; i < finishedMaps.length; i++) {
+      demoDataByMapId.set(finishedMaps[i].id, results[i]);
+    }
+  }
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-3xl space-y-8">
@@ -497,6 +527,87 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                     <p className="text-xs text-[var(--color-fg-dim)] py-2">比赛未开始</p>
                   )}
                   {isFinished && isSeasonAdmin && <StatsOCRPanel mapId={map.id} mapName={map.mapName} />}
+                  {isFinished && isSeasonAdmin && <DemoImportPanel mapId={map.id} mapName={map.mapName} />}
+                  {/* Demo 明细区块 */}
+                  {isFinished && (() => {
+                    const demoResult = demoDataByMapId.get(map.id);
+                    if (!demoResult?.success || !demoResult.data) {
+                      return (
+                        <div className="pt-2 border-t border-[var(--color-border)]">
+                          <div className="py-4 text-center text-sm text-[var(--color-fg-dim)]">
+                            暂无 Demo 数据
+                            {isSeasonAdmin ? (
+                              <span> — 请在上方导入 Demo</span>
+                            ) : (
+                              <span>（比赛结束后可联系管理员导入）</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+                    const d = demoResult.data;
+                    return (
+                      <div className="space-y-4 pt-2 border-t border-[var(--color-border)]">
+                        <h3 className="text-sm font-semibold text-[var(--color-fg)]">
+                          Demo Data
+                        </h3>
+                        <DemoPlayerStatsTable
+                          players={d.playerStats}
+                          teamAName={teamA?.name ?? "Team A"}
+                          teamBName={teamB?.name ?? "Team B"}
+                          seasonSlug={seasonSlug}
+                          playerNameMap={d.playerNameMap}
+                        />
+                        <DemoRoundTimeline rounds={d.rounds} />
+                        <Panel label="Kill Feed">
+                          <DemoKillFeed kills={d.kills} playerNameMap={d.playerNameMap} />
+                        </Panel>
+                        <Panel label="Economy">
+                          <DemoEconomyChart
+                            economies={d.economies}
+                            teamAName={teamA?.name ?? "Team A"}
+                            teamBName={teamB?.name ?? "Team B"}
+                            roundTypes={d.rounds.map((r) => ({
+                              roundNumber: r.roundNumber,
+                              teamAEconomy: r.teamAEconomy,
+                              teamBEconomy: r.teamBEconomy,
+                            }))}
+                          />
+                        </Panel>
+                        <Panel label="Clutch Replays">
+                          <DemoClutchList clutches={d.clutches} playerNameMap={d.playerNameMap} />
+                        </Panel>
+                        <Panel label="Heatmap">
+                          <PlayerKillHeatmap
+                            mapName={map.mapName}
+                            rawKills={d.rawKills}
+                            playerStats={d.playerStats}
+                            playerNameMap={d.playerNameMap}
+                          />
+                        </Panel>
+                        <PlayerWeaponBreakdown
+                          rawKills={d.rawKills}
+                          playerStats={d.playerStats}
+                          playerNameMap={d.playerNameMap}
+                        />
+                        <PlayerEntryStats
+                          kills={d.kills}
+                          playerStats={d.playerStats}
+                          playerNameMap={d.playerNameMap}
+                        />
+                        <PlayerClutchStats
+                          clutches={d.clutches}
+                          playerStats={d.playerStats}
+                          playerNameMap={d.playerNameMap}
+                        />
+                        <PlayerUtilityStats
+                          kills={d.kills}
+                          playerStats={d.playerStats}
+                          playerNameMap={d.playerNameMap}
+                        />
+                      </div>
+                    );
+                  })()}
                 </Panel>
               </TabsContent>
             ))}
@@ -618,6 +729,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
           candidates={mvpCandidates}
           currentVotes={mvpVoteResults}
           userVotedPlayerName={userVoted}
+          recommendedMvpName={recommendedMvpName}
           completedAt={match.completedAt?.toISOString() ?? null}
         />
       )}

@@ -5,6 +5,70 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.26.0] - 2026-05-29
+
+### Added
+- **集成测试覆盖**：新增 `tests/integration/db/demo-pipeline.test.ts`（12 tests），使用真实 example zip 驱动 parseDemoPackage→schema 验证→toMatchPlayerStat 转换→batchInsert 分片逻辑全管道验证
+
+### Fixed
+- **依赖安全升级**：next@15.5.15→15.5.18（修复 4 个高严重性 CVE，含 Middleware 绕过、DoS、缓存投毒、RSC 破坏）；drizzle-orm@0.43.1→0.45.2（修复 SQL 注入漏洞）
+- **CSS 变量补充**：新增 5 个缺失的 CSS 变量 — `bg-mid`/`bg-secondary`/`border-subtle`/`fg-muted`/`surface-raised`，修复暗色模式下 Demo 模块渲染异常
+- **a11y 键盘可访问性**：`DemoHeatmap` 模式切换按钮组添加 `role=radio`/`aria-checked`/`onKeyDown` 键盘支持
+- **DemoEconomyChart 渲染精度**：最后一个柱状图宽度改用等比例 `xScale` 间隔而非 `CHART_W / series.length`
+- **match 详情页错误边界**：新增 `loading.tsx`（骨架屏）和 `error.tsx`（重试按钮），修复慢网络/后端错误时空白页问题
+- **空 Demo 数据引导**：根据 `isSeasonAdmin` 显示差异提示（管理员→「请在上方导入 Demo」/ 普通用户→「可联系管理员导入」）
+- **契约 E 修复**：player-demo-stats 查询补充 `activeStatSource` 过滤条件
+- **getDemoDetail 错误处理**：改用已注册的错误码 `ErrorCode.INTERNAL_ERROR`，统一错误响应格式
+
+### Security
+- 依赖安全审计：漏洞总数 19→5（高严重性 8→0），5 个中等严重性均为间接依赖 uuid@9.0.1 通过 brackets-manager 引入，等待上游修复
+
+### Added
+- **Demo 导入体系**：完整的 demo 导入、校验、解包、数据回填流程（Zod schema + Server Action + ZIP 解包校验）
+- **Demo 明细数据查询**：14 张明细表 schema 定义 + 查询层，支持导入批次追踪
+- **Demo 数据展示面板**：
+  - `DemoPlayerStatsTable` — 选手 demo 数据汇总表
+  - `DemoRoundTimeline` — 回合时间线展示
+  - `DemoKillFeed` — 击杀 Feed 时间线
+  - `DemoEconomyChart` — 经济曲线（含经济类型背景色块）
+  - `DemoClutchList` — 残局复盘列表
+  - `PlayerKillHeatmap` — 击杀热力图（含地图坐标变换）
+  - `PlayerWeaponBreakdown` — 选手武器偏好与命中率
+  - `PlayerEntryStats` — 首杀倾向分析
+  - `PlayerClutchStats` — 残局能力统计
+  - `PlayerUtilityStats` — 道具效用统计
+  - `EconomyConversionPanel` — 经济转化率
+- **队伍 Demo 分析**：`TeamHalfSideStats`（T/CT 半场胜率）、`TeamStyleProfile`（队伍风格画像）
+- **赛季 Demo Leaderboard**：`WeaponLeaderboard` + `season-demo-stats` 聚合层
+- **MVP 系统**：系统推荐 MVP 纯函数、按赛季 rankMetric 排序、StatProfile 类型体系
+- **OCR 面板**：按赛季 inputFields 动态渲染列
+
+### Fixed
+- **Hive 分支合并修复**：`team-demo-stats` 列名修正（clutchWinCount→vsXxxWonCount）、Panel `title`→`label` 统一、`activeStatSource` 查询路径修复
+- **首次击杀率计算修复**：`firstKillRate` 分母从 `totalClutchPlayed` 改为 `totalFirstKills + totalFirstDeaths`
+- **WeaponKillRow 重复声明合并**：`season-demo-stats.ts` 同名 interface 修复
+- **WeaponLeaderboard**：`hsPercent` 排序改用 `getSortValue` 函数 + `Panel label` 修复
+- **PlayerUtilityStats**：类型修复 + `avgUtilityDamagePerRound` 列名修正
+- **UI 一致性**：所有英文标签统一规范
+- **空数据兜底**：各组件均含 `null`/空数组保护
+- **PG 参数溢出**：批量 insert 改为 `batchInsert()` 分块插入，防止 18k+ rows 触发 PG `max_parameters=65535` 限制
+- **batchInsert 安全上限**：chunk size 从 3000 降为 1000，修复 25 列表 3000 行/批时 75000 params 溢出
+- **并发安全**：`matchPlayerStats` 回填从 `DELETE+INSERT` 改为 `ON CONFLICT DO UPDATE` 消除幽灵删除竞争
+- **契约 E 违反**：`savePlayerStats` delete 改为仅清 `source=manual_ocr`，保护 `demo_import` 来源
+- **空导入 activeStatSource**：仅 `stats.length > 0` 时设置 `activeStatSource=demo_import`
+- **getDemoDetail try/catch**：8 路并行 `Promise.all` 增加错误兜底
+- **season-demo-stats 重复字段**：`DemoLeaderboardData` 去掉 `clutchWinRateVal`/`utilityPerRound` 冗余
+- **season-demo-stats INNER JOIN**：`getSeasonWeaponStats` 改为 `LEFT JOIN` 防止丢击杀
+- **demo 表缺索引**：14 张表新增 `(importBatchId, mapId)` 复合索引
+- **空热力图 UX**：`DemoHeatmap` 无数据时显示占位文本
+- **CSS 变量补充**：添加缺失的 `--color-bg-subtle` CSS 变量
+- **样式主题一致性**：`DemoImportPanel` 按钮样式统一
+- **WeaponLeaderboard**：补回 `"use client"` 声明
+- **未使用导入删除**：移除未使用的 `DemoHeatmap` 导入
+
+### Changed
+- **README 更新**：新增 Demo 模块功能描述与技术栈说明
+
 ## [1.25.6] - 2026-05-29
 
 ### Fixed
@@ -823,6 +887,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.26.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.26.1...v1.26.2
+[1.26.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.26.0...v1.26.1
+[1.26.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.25.6...v1.26.0
 [1.25.6]: https://github.com/Starfie1d1272/RivalHub/compare/v1.25.5...v1.25.6
 [1.25.5]: https://github.com/Starfie1d1272/RivalHub/compare/v1.25.4...v1.25.5
 [1.25.4]: https://github.com/Starfie1d1272/RivalHub/compare/v1.25.3...v1.25.4

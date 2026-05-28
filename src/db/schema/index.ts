@@ -17,3 +17,4 @@ export * from "./match-time-proposals";
 export * from "./match-rosters";
 export * from "./match-veto-steps";
 export * from "./user-sessions";
+export * from "./demo";

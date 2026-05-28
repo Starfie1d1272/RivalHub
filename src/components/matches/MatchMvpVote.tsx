@@ -27,6 +27,8 @@ interface MatchMvpVoteProps {
   candidates: MvpCandidate[];
   currentVotes: { playerUserId: string | null; playerName: string; count: number }[];
   userVotedPlayerName: string | null;
+  /** 系统按 ADR+K/D 综合推荐的 MVP 昵称;null = 无推荐 */
+  recommendedMvpName: string | null;
   completedAt: string | null;
 }
 
@@ -35,6 +37,7 @@ export function MatchMvpVote({
   candidates,
   currentVotes,
   userVotedPlayerName,
+  recommendedMvpName,
   completedAt,
 }: MatchMvpVoteProps) {
   const [optimisticVotes, setOptimisticVotes] = useState(currentVotes);
@@ -198,8 +201,13 @@ export function MatchMvpVote({
               ].join(" ").trim()}
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="font-semibold text-[var(--color-fg)]">
+                <span className="font-semibold text-[var(--color-fg)] flex items-center gap-1.5">
                   {c.perfectName}
+                  {c.perfectName === recommendedMvpName && (
+                    <span className="text-[10px] font-normal px-1.5 py-0.5 rounded-sm bg-[var(--color-accent-soft)] text-[var(--color-accent)]">
+                      系统推荐
+                    </span>
+                  )}
                 </span>
                 <span
                   className="text-lg font-bold tabular-nums"
