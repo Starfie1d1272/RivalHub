@@ -53,7 +53,7 @@ function HighlightCard({
                 #{i + 1}
               </span>
               <Link
-                href={`/${seasonSlug}/players/${p.userId}`}
+                href={`/${seasonSlug}/players/${p.userId}` as any}
                 className="text-sm text-[var(--color-accent)] hover:underline truncate"
               >
                 {p.perfectName}

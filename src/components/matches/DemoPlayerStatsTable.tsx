@@ -25,6 +25,7 @@ const SECTIONS = [
       { key: "deaths", label: "D" },
       { key: "assists", label: "A" },
       { key: "adr", label: "ADR", fmt: (v: number | null) => (v != null ? v.toFixed(1) : "—") },
+      { key: "headshotCount", label: "HS" },
       { key: "kast", label: "KAST", fmt: (v: number | null) => (v != null ? `${(v * 100).toFixed(0)}%` : "—") },
     ],
   },
@@ -136,7 +137,7 @@ function TeamTable({
                 <td className="py-1.5 pl-3 pr-1 whitespace-nowrap">
                   {p.userId ? (
                     <Link
-                      href={`/${seasonSlug}/players/${p.userId}`}
+                      href={`/${seasonSlug}/players/${p.userId}` as any}
                       className="text-xs font-medium hover:text-[var(--color-accent)] transition-colors"
                     >
                       {playerNameMap[p.steamId64] ?? p.steamId64}

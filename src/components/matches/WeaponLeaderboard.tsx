@@ -113,7 +113,7 @@ export function WeaponLeaderboard({ players, seasonSlug }: WeaponLeaderboardProp
                     <td className="px-2.5 py-2.5">
                       {p.userId ? (
                         <Link
-                          href={`/${seasonSlug}/players/${p.userId}`}
+                          href={`/${seasonSlug}/players/${p.userId}` as any}
                           className="text-[var(--color-accent)] hover:underline font-medium"
                         >
                           {p.perfectName}

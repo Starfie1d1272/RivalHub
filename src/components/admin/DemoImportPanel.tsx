@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { InlineConfirm } from "@/components/rivalhub";
 import { toast } from "sonner";
@@ -13,6 +14,7 @@ interface Props {
 
 export function DemoImportPanel({ mapId, mapName }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
   const [importing, setImporting] = useState(false);
   const [showOcrConfirm, setShowOcrConfirm] = useState(false);
   const [pendingZip, setPendingZip] = useState<ArrayBuffer | null>(null);
@@ -56,6 +58,7 @@ export function DemoImportPanel({ mapId, mapName }: Props) {
       }
 
       if (fileRef.current) fileRef.current.value = "";
+      router.refresh();
     } catch {
       toast.error("导入失败，请检查文件格式");
     } finally {

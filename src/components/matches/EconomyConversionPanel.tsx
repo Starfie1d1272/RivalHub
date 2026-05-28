@@ -28,9 +28,9 @@ const ECONOMY_COLORS: Record<string, string> = {
 function WinRateBar({ rate }: { rate: number }) {
   const pct = Math.round(rate * 100);
   return (
-    <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+    <div className="w-full bg-[var(--color-bg-subtle)] rounded-full h-2.5">
       <div
-        className="bg-blue-600 h-2.5 rounded-full transition-all"
+        className="bg-[var(--color-accent)] h-2.5 rounded-full transition-all"
         style={{ width: `${pct}%` }}
       />
     </div>

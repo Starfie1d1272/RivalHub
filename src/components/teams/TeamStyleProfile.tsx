@@ -26,11 +26,11 @@ function StatCard({
   color: string;
 }) {
   return (
-    <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 text-center">
+    <div className="bg-[var(--color-bg-subtle)] rounded-lg p-4 text-center">
       <div className={`text-2xl font-bold ${color}`}>
         {value != null ? `${value}${suffix}` : "—"}
       </div>
-      <div className="text-xs text-gray-500 mt-1">{label}</div>
+      <div className="text-xs text-[var(--color-fg-mid)] mt-1">{label}</div>
     </div>
   );
 }

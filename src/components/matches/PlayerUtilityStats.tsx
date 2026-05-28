@@ -45,7 +45,7 @@ export function PlayerUtilityStats({
           </thead>
           <tbody>
             {stats.map((s) => (
-              <tr key={s.steamId64} className="border-t border-gray-800">
+              <tr key={s.steamId64} className="border-t border-[var(--color-border)]">
                 <td className="py-1 px-2">{playerNameMap[s.steamId64] ?? s.steamId64}</td>
                 <td className="py-1 px-2 text-right">{s.utilityDamage}</td>
                 <td className="py-1 px-2 text-right">{s.avgUtilityDamagePerRound.toFixed(1)}</td>
