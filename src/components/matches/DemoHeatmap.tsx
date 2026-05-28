@@ -68,6 +68,9 @@ export function DemoHeatmap({ mapName, points }: DemoHeatmapProps) {
     }
   }, [cal, mode, points, imgSize]);
 
+  // 当所有模式都无数据时，不渲染热力图——避免显示空雷达图让人困惑
+  const hasAnyData = Object.values(points).some((pts) => pts.length > 0);
+
   useEffect(() => {
     drawHeatmap();
   }, [drawHeatmap]);
@@ -91,6 +94,14 @@ export function DemoHeatmap({ mapName, points }: DemoHeatmapProps) {
     return (
       <div className="flex items-center justify-center h-48 text-sm text-[var(--color-fg-dim)]">
         No calibration data for this map
+      </div>
+    );
+  }
+
+  if (!hasAnyData) {
+    return (
+      <div className="flex items-center justify-center h-32 text-sm text-[var(--color-fg-dim)]">
+        No heatmap data available
       </div>
     );
   }

@@ -1,4 +1,4 @@
-import { pgTable, uuid, integer, real, text, boolean, timestamp, json, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, uuid, integer, real, text, boolean, timestamp, json, pgEnum, index } from "drizzle-orm/pg-core";
 import { matchMaps } from "./match-maps";
 import { users } from "./users";
 
@@ -30,7 +30,9 @@ export const demoPlayers = pgTable("demo_players", {
   name: text("name").notNull(),
   teamKey: text("team_key").notNull(),
   userId: uuid("user_id").references(() => users.id),
-});
+}, (t) => ({
+  playersBatchIdx: index().on(t.importBatchId, t.mapId),
+}));
 
 // rounds.json
 export const demoRounds = pgTable("demo_rounds", {
@@ -50,7 +52,9 @@ export const demoRounds = pgTable("demo_rounds", {
   winnerTeamKey: text("winner_team_key"),
   winnerSide: demoSideEnum("winner_side"),
   endReason: text("end_reason"),
-});
+}, (t) => ({
+  roundsBatchIdx: index().on(t.importBatchId, t.mapId),
+}));
 
 // player-stats.json（40 字段汇总）
 export const demoPlayerStats = pgTable("demo_player_stats", {
@@ -79,7 +83,9 @@ export const demoPlayerStats = pgTable("demo_player_stats", {
   bombPlantedCount: integer("bomb_planted_count"), bombDefusedCount: integer("bomb_defused_count"),
   wallbangKillCount: integer("wallbang_kill_count"), noScopeKillCount: integer("no_scope_kill_count"),
   collateralKillCount: integer("collateral_kill_count"),
-});
+}, (t) => ({
+  playerStatsBatchIdx: index().on(t.importBatchId, t.mapId),
+}));
 
 // player-economies.json
 export const demoPlayerEconomies = pgTable("demo_player_economies", {
@@ -91,7 +97,9 @@ export const demoPlayerEconomies = pgTable("demo_player_economies", {
   teamKey: text("team_key"), side: demoSideEnum("side"),
   startMoney: integer("start_money"), moneySpent: integer("money_spent"),
   equipmentValue: integer("equipment_value"), type: text("type"),
-});
+}, (t) => ({
+  economiesBatchIdx: index().on(t.importBatchId, t.mapId),
+}));
 
 // kills.json
 export const demoKills = pgTable("demo_kills", {
@@ -109,7 +117,9 @@ export const demoKills = pgTable("demo_kills", {
   penetratedObjects: integer("penetrated_objects"),
   killerPosition: json("killer_position").$type<Vec3>(),
   victimPosition: json("victim_position").$type<Vec3>(),
-});
+}, (t) => ({
+  killsBatchIdx: index().on(t.importBatchId, t.mapId),
+}));
 
 // damages.json
 export const demoDamages = pgTable("demo_damages", {
@@ -124,7 +134,9 @@ export const demoDamages = pgTable("demo_damages", {
   healthDamage: integer("health_damage"), armorDamage: integer("armor_damage"),
   victimHealthBefore: integer("victim_health_before"), victimHealthAfter: integer("victim_health_after"),
   victimArmorBefore: integer("victim_armor_before"), victimArmorAfter: integer("victim_armor_after"),
-});
+}, (t) => ({
+  damagesBatchIdx: index().on(t.importBatchId, t.mapId),
+}));
 
 // blinds.json
 export const demoBlinds = pgTable("demo_blinds", {
@@ -136,7 +148,9 @@ export const demoBlinds = pgTable("demo_blinds", {
   flasherTeamKey: text("flasher_team_key"), flashedTeamKey: text("flashed_team_key"),
   flasherSide: demoSideEnum("flasher_side"), flashedSide: demoSideEnum("flashed_side"),
   durationSeconds: real("duration_seconds"),
-});
+}, (t) => ({
+  blindsBatchIdx: index().on(t.importBatchId, t.mapId),
+}));
 
 // bombs.json
 export const demoBombs = pgTable("demo_bombs", {
@@ -147,7 +161,9 @@ export const demoBombs = pgTable("demo_bombs", {
   type: text("type"), site: text("site"),
   actorSteamId64: text("actor_steam_id64"), actorTeamKey: text("actor_team_key"),
   actorSide: demoSideEnum("actor_side"), position: json("position").$type<Vec3>(),
-});
+}, (t) => ({
+  bombsBatchIdx: index().on(t.importBatchId, t.mapId),
+}));
 
 // clutches.json
 export const demoClutches = pgTable("demo_clutches", {
@@ -159,7 +175,9 @@ export const demoClutches = pgTable("demo_clutches", {
   clutcherSide: demoSideEnum("clutcher_side"),
   opponentCount: integer("opponent_count"), won: boolean("won"),
   survived: boolean("survived"), killCount: integer("kill_count"),
-});
+}, (t) => ({
+  clutchesBatchIdx: index().on(t.importBatchId, t.mapId),
+}));
 
 // grenades.json
 export const demoGrenades = pgTable("demo_grenades", {
@@ -172,7 +190,9 @@ export const demoGrenades = pgTable("demo_grenades", {
   throwerTeamKey: text("thrower_team_key"), throwerSide: demoSideEnum("thrower_side"),
   throwPosition: json("throw_position").$type<Vec3>(),
   effectPosition: json("effect_position").$type<Vec3>(),
-});
+}, (t) => ({
+  grenadesBatchIdx: index().on(t.importBatchId, t.mapId),
+}));
 
 // shots.json
 export const demoShots = pgTable("demo_shots", {
@@ -183,7 +203,9 @@ export const demoShots = pgTable("demo_shots", {
   steamId64: text("steam_id64"), teamKey: text("team_key"), side: demoSideEnum("side"),
   weapon: text("weapon"), position: json("position").$type<Vec3>(),
   velocity: json("velocity").$type<Vec3>(), yaw: real("yaw"), pitch: real("pitch"),
-});
+}, (t) => ({
+  shotsBatchIdx: index().on(t.importBatchId, t.mapId),
+}));
 
 // positions-1s.json
 export const demoPositions = pgTable("demo_positions", {
@@ -197,4 +219,6 @@ export const demoPositions = pgTable("demo_positions", {
   health: integer("health"), armor: integer("armor"), money: integer("money"),
   activeWeapon: text("active_weapon"), flashDurationRemaining: real("flash_duration_remaining"),
   hasBomb: boolean("has_bomb"), hasDefuseKit: boolean("has_defuse_kit"),
-});
+}, (t) => ({
+  positionsBatchIdx: index().on(t.importBatchId, t.mapId),
+}));

@@ -158,7 +158,10 @@ export async function savePlayerStats(
     }));
 
     await db.transaction(async (tx) => {
-      await tx.delete(matchPlayerStats).where(eq(matchPlayerStats.mapId, mapId));
+      // 仅清除 OCR 来源行，保护 demo_import 来源不被打扰（契约 E）
+      await tx.delete(matchPlayerStats).where(
+        and(eq(matchPlayerStats.mapId, mapId), eq(matchPlayerStats.source, "manual_ocr"))
+      );
 
       if (normalizedStats.length > 0) {
         await tx.insert(matchPlayerStats).values(
@@ -167,6 +170,7 @@ export async function savePlayerStats(
             mapId,
             perfectName: s.perfectName,
             userId: s.userId ?? undefined,
+            source: "manual_ocr" as const,
             kills: s.kills ?? undefined,
             deaths: s.deaths ?? undefined,
             assists: s.assists ?? undefined,

@@ -18,6 +18,7 @@ RivalHub 是一个面向高校电竞赛事的开源赛事管理平台，用于�
 | 队伍 | 阵容展示、队长标识、队名与队徽管理、队员联系方式可见性 |
 | 比赛 | 赛程、Bracket、BP / 地图结果、阵容提交、比分录入、MVP 投票 |
 | 协商 | 比赛时间提议、接受/拒绝、管理员强制设定、截止自动裁定 |
+| Demo | CS2 demo 解析与可视化：回合时间线、击杀回放、经济曲线、残局统计、热力图、武器偏好与首杀倾向 |
 | 数据 | OCR 录入、选手/队伍统计、排行榜、审计日志 |
 | 运维 | Vercel 部署、Supabase 数据库、GitHub Actions Cron |
 
@@ -27,6 +28,7 @@ RivalHub 是一个面向高校电竞赛事的开源赛事管理平台，用于�
 |---|---|
 | Web | Next.js App Router, React, TypeScript strict |
 | UI | Tailwind CSS, shadcn/ui, 自定义 Tactical Grid 组件 |
+| Demo 解析 | CS2 demo parser (node), canvas 热力图 (Canvas API), SVG 经济曲线 |
 | 数据 | Supabase Postgres, Auth, Realtime, Storage |
 | ORM | Drizzle ORM |
 | 表单 | React Hook Form, Zod |

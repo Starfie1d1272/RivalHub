@@ -415,16 +415,18 @@ export async function importDemoPackage(
           });
         }
       } else {
-        // 无统计数据，清空所有 demo_import 来源行
+        // 无统计数据，清空该图之前可能残留的 demo_import 来源行
         await tx.delete(matchPlayerStats).where(
           and(eq(matchPlayerStats.mapId, mapId), eq(matchPlayerStats.source, "demo_import"))
         );
       }
 
-      // 15. 设置生效来源为 demo_import
-      await tx.update(matchMaps)
-        .set({ activeStatSource: "demo_import" })
-        .where(eq(matchMaps.id, mapId));
+      // 15. 设置生效来源为 demo_import（仅当有 playerStats 数据时）
+      if (stats.length > 0) {
+        await tx.update(matchMaps)
+          .set({ activeStatSource: "demo_import" })
+          .where(eq(matchMaps.id, mapId));
+      }
 
       // 16. 审计日志
       await tx.insert(auditLogs).values({

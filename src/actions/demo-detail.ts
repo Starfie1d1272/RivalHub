@@ -153,251 +153,256 @@ export interface RawDemoKillRow {
 export async function getDemoDetail(
   mapId: string,
 ): Promise<ActionResult<DemoDetailData | null>> {
-  const latestImport = await db.query.demoImports.findFirst({
-    where: eq(demoImports.mapId, mapId),
-    orderBy: [desc(demoImports.importedAt)],
-  });
+  try {
+    const latestImport = await db.query.demoImports.findFirst({
+      where: eq(demoImports.mapId, mapId),
+      orderBy: [desc(demoImports.importedAt)],
+    });
 
-  if (!latestImport) return ok(null);
+    if (!latestImport) return ok(null);
 
-  const batchId = latestImport.id;
+    const batchId = latestImport.id;
 
-  const [players, playerStats, rounds, kills, bombs, grenades, clutches, economies] =
-    await Promise.all([
-      // demoPlayers（用于名字映射）
-      db
-        .select()
-        .from(demoPlayers)
-        .where(
-          and(
-            eq(demoPlayers.importBatchId, batchId),
-            eq(demoPlayers.mapId, mapId),
+    const [players, playerStats, rounds, kills, bombs, grenades, clutches, economies] =
+      await Promise.all([
+        // demoPlayers（用于名字映射）
+        db
+          .select()
+          .from(demoPlayers)
+          .where(
+            and(
+              eq(demoPlayers.importBatchId, batchId),
+              eq(demoPlayers.mapId, mapId),
+            ),
           ),
-        ),
-      // playerStats
-      db
-        .select()
-        .from(demoPlayerStats)
-        .where(
-          and(
-            eq(demoPlayerStats.importBatchId, batchId),
-            eq(demoPlayerStats.mapId, mapId),
+        // playerStats
+        db
+          .select()
+          .from(demoPlayerStats)
+          .where(
+            and(
+              eq(demoPlayerStats.importBatchId, batchId),
+              eq(demoPlayerStats.mapId, mapId),
+            ),
           ),
-        ),
-      // rounds
-      db
-        .select()
-        .from(demoRounds)
-        .where(
-          and(
-            eq(demoRounds.importBatchId, batchId),
-            eq(demoRounds.mapId, mapId),
-          ),
-        )
-        .orderBy(demoRounds.roundNumber),
-      // kills + positions
-      db
-        .select()
-        .from(demoKills)
-        .where(
-          and(
-            eq(demoKills.importBatchId, batchId),
-            eq(demoKills.mapId, mapId),
-          ),
-        )
-        .orderBy(demoKills.roundNumber, demoKills.tick),
-      // bombs
-      db
-        .select()
-        .from(demoBombs)
-        .where(
-          and(
-            eq(demoBombs.importBatchId, batchId),
-            eq(demoBombs.mapId, mapId),
-          ),
-        )
-        .orderBy(demoBombs.roundNumber, demoBombs.tick),
-      // grenades
-      db
-        .select()
-        .from(demoGrenades)
-        .where(
-          and(
-            eq(demoGrenades.importBatchId, batchId),
-            eq(demoGrenades.mapId, mapId),
-          ),
-        )
-        .orderBy(demoGrenades.roundNumber),
-      // clutches
-      db
-        .select()
-        .from(demoClutches)
-        .where(
-          and(
-            eq(demoClutches.importBatchId, batchId),
-            eq(demoClutches.mapId, mapId),
-          ),
-        )
-        .orderBy(demoClutches.roundNumber),
-      // economies
-      db
-        .select()
-        .from(demoPlayerEconomies)
-        .where(
-          and(
-            eq(demoPlayerEconomies.importBatchId, batchId),
-            eq(demoPlayerEconomies.mapId, mapId),
-          ),
-        )
-        .orderBy(demoPlayerEconomies.roundNumber),
-    ]);
+        // rounds
+        db
+          .select()
+          .from(demoRounds)
+          .where(
+            and(
+              eq(demoRounds.importBatchId, batchId),
+              eq(demoRounds.mapId, mapId),
+            ),
+          )
+          .orderBy(demoRounds.roundNumber),
+        // kills + positions
+        db
+          .select()
+          .from(demoKills)
+          .where(
+            and(
+              eq(demoKills.importBatchId, batchId),
+              eq(demoKills.mapId, mapId),
+            ),
+          )
+          .orderBy(demoKills.roundNumber, demoKills.tick),
+        // bombs
+        db
+          .select()
+          .from(demoBombs)
+          .where(
+            and(
+              eq(demoBombs.importBatchId, batchId),
+              eq(demoBombs.mapId, mapId),
+            ),
+          )
+          .orderBy(demoBombs.roundNumber, demoBombs.tick),
+        // grenades
+        db
+          .select()
+          .from(demoGrenades)
+          .where(
+            and(
+              eq(demoGrenades.importBatchId, batchId),
+              eq(demoGrenades.mapId, mapId),
+            ),
+          )
+          .orderBy(demoGrenades.roundNumber),
+        // clutches
+        db
+          .select()
+          .from(demoClutches)
+          .where(
+            and(
+              eq(demoClutches.importBatchId, batchId),
+              eq(demoClutches.mapId, mapId),
+            ),
+          )
+          .orderBy(demoClutches.roundNumber),
+        // economies
+        db
+          .select()
+          .from(demoPlayerEconomies)
+          .where(
+            and(
+              eq(demoPlayerEconomies.importBatchId, batchId),
+              eq(demoPlayerEconomies.mapId, mapId),
+            ),
+          )
+          .orderBy(demoPlayerEconomies.roundNumber),
+      ]);
 
-  // 提取热力图点集
-  const killPoints: DemoPoint[] = kills
-    .filter((k) => k.killerPosition)
-    .map((k) => ({
-      x: (k.killerPosition as { x: number; y: number; z: number }).x,
-      y: (k.killerPosition as { x: number; y: number; z: number }).y,
+    // 提取热力图点集
+    const killPoints: DemoPoint[] = kills
+      .filter((k) => k.killerPosition)
+      .map((k) => ({
+        x: (k.killerPosition as { x: number; y: number; z: number }).x,
+        y: (k.killerPosition as { x: number; y: number; z: number }).y,
+        roundNumber: k.roundNumber,
+        side: k.killerSide,
+      }));
+
+    const deathPoints: DemoPoint[] = kills
+      .filter((k) => k.victimPosition)
+      .map((k) => ({
+        x: (k.victimPosition as { x: number; y: number; z: number }).x,
+        y: (k.victimPosition as { x: number; y: number; z: number }).y,
+        roundNumber: k.roundNumber,
+        side: k.victimSide,
+      }));
+
+    const bombPoints: DemoPoint[] = bombs
+      .filter((b) => b.position)
+      .map((b) => ({
+        x: (b.position as { x: number; y: number; z: number }).x,
+        y: (b.position as { x: number; y: number; z: number }).y,
+        roundNumber: b.roundNumber,
+        side: b.actorSide,
+      }));
+
+    const grenadePoints: DemoPoint[] = grenades
+      .filter((g) => g.effectPosition)
+      .map((g) => ({
+        x: (g.effectPosition as { x: number; y: number; z: number }).x,
+        y: (g.effectPosition as { x: number; y: number; z: number }).y,
+        roundNumber: g.roundNumber,
+        side: g.throwerSide,
+      }));
+
+    // kills 明细（用于 KillFeed）
+    const killItems: KillFeedItem[] = kills.map((k) => ({
       roundNumber: k.roundNumber,
-      side: k.killerSide,
-    }));
-
-  const deathPoints: DemoPoint[] = kills
-    .filter((k) => k.victimPosition)
-    .map((k) => ({
-      x: (k.victimPosition as { x: number; y: number; z: number }).x,
-      y: (k.victimPosition as { x: number; y: number; z: number }).y,
-      roundNumber: k.roundNumber,
-      side: k.victimSide,
-    }));
-
-  const bombPoints: DemoPoint[] = bombs
-    .filter((b) => b.position)
-    .map((b) => ({
-      x: (b.position as { x: number; y: number; z: number }).x,
-      y: (b.position as { x: number; y: number; z: number }).y,
-      roundNumber: b.roundNumber,
-      side: b.actorSide,
-    }));
-
-  const grenadePoints: DemoPoint[] = grenades
-    .filter((g) => g.effectPosition)
-    .map((g) => ({
-      x: (g.effectPosition as { x: number; y: number; z: number }).x,
-      y: (g.effectPosition as { x: number; y: number; z: number }).y,
-      roundNumber: g.roundNumber,
-      side: g.throwerSide,
-    }));
-
-  // kills 明细（用于 KillFeed）
-  const killItems: KillFeedItem[] = kills.map((k) => ({
-    roundNumber: k.roundNumber,
-    tick: k.tick,
-    killerSteamId64: k.killerSteamId64,
-    victimSteamId64: k.victimSteamId64,
-    assisterSteamId64: k.assisterSteamId64,
-    killerTeamKey: k.killerTeamKey,
-    victimTeamKey: k.victimTeamKey,
-    weapon: k.weapon,
-    headshot: k.headshot,
-    flashAssist: k.flashAssist,
-    tradeKill: k.tradeKill,
-    throughSmoke: k.throughSmoke,
-    noScope: k.noScope,
-    penetratedObjects: k.penetratedObjects,
-    killerSide: k.killerSide,
-    victimSide: k.victimSide,
-  }));
-
-  // economies（用于经济曲线）
-  const economyRows: EconomyRow[] = economies.map((e) => ({
-    roundNumber: e.roundNumber,
-    steamId64: e.steamId64,
-    teamKey: e.teamKey,
-    equipmentValue: e.equipmentValue,
-    type: e.type,
-  }));
-
-  // clutches（用于残局复盘）
-  const clutchRows: ClutchRow[] = clutches.map((c) => ({
-    roundNumber: c.roundNumber,
-    clutcherSteamId64: c.clutcherSteamId64,
-    clutcherTeamKey: c.clutcherTeamKey,
-    clutcherSide: c.clutcherSide,
-    opponentCount: c.opponentCount,
-    won: c.won,
-    killCount: c.killCount,
-  }));
-
-  // playerStats 行
-  const statRows: DemoPlayerStatRow[] = playerStats.map((s) => ({
-    steamId64: s.steamId64,
-    userId: s.userId,
-    teamKey: s.teamKey,
-    kills: s.kills,
-    deaths: s.deaths,
-    assists: s.assists,
-    damageHealth: s.damageHealth,
-    damageArmor: s.damageArmor,
-    adr: s.adr,
-    utilityDamage: s.utilityDamage,
-    averageUtilityDamagePerRound: s.averageUtilityDamagePerRound,
-    headshotCount: s.headshotCount,
-    firstKillCount: s.firstKillCount,
-    firstDeathCount: s.firstDeathCount,
-    tradeKillCount: s.tradeKillCount,
-    tradeDeathCount: s.tradeDeathCount,
-    kast: s.kast,
-    oneKillCount: s.oneKillCount,
-    twoKillCount: s.twoKillCount,
-    threeKillCount: s.threeKillCount,
-    fourKillCount: s.fourKillCount,
-    fiveKillCount: s.fiveKillCount,
-    vsOneCount: s.vsOneCount,
-    vsOneWonCount: s.vsOneWonCount,
-    vsTwoCount: s.vsTwoCount,
-    vsTwoWonCount: s.vsTwoWonCount,
-    vsThreeCount: s.vsThreeCount,
-    vsThreeWonCount: s.vsThreeWonCount,
-    vsFourCount: s.vsFourCount,
-    vsFourWonCount: s.vsFourWonCount,
-    vsFiveCount: s.vsFiveCount,
-    vsFiveWonCount: s.vsFiveWonCount,
-    bombPlantedCount: s.bombPlantedCount,
-    bombDefusedCount: s.bombDefusedCount,
-    wallbangKillCount: s.wallbangKillCount,
-    noScopeKillCount: s.noScopeKillCount,
-    collateralKillCount: s.collateralKillCount,
-  }));
-
-  // 名字映射
-  const playerNameMap: Record<string, string> = {};
-  for (const p of players) {
-    playerNameMap[p.steamId64] = p.name;
-  }
-
-  return ok({
-    importBatchId: batchId,
-    playerNameMap,
-    playerStats: statRows,
-    rounds,
-    killPoints,
-    deathPoints,
-    bombPoints,
-    grenadePoints,
-    kills: killItems,
-    rawKills: kills.map((k) => ({
+      tick: k.tick,
       killerSteamId64: k.killerSteamId64,
       victimSteamId64: k.victimSteamId64,
-      killerPosition: k.killerPosition,
-      victimPosition: k.victimPosition,
-      roundNumber: k.roundNumber,
-      killerSide: k.killerSide,
-      victimSide: k.victimSide,
+      assisterSteamId64: k.assisterSteamId64,
+      killerTeamKey: k.killerTeamKey,
+      victimTeamKey: k.victimTeamKey,
       weapon: k.weapon,
       headshot: k.headshot,
-    })) as RawDemoKillRow[],
-    economies: economyRows,
-    clutches: clutchRows,
-  });
+      flashAssist: k.flashAssist,
+      tradeKill: k.tradeKill,
+      throughSmoke: k.throughSmoke,
+      noScope: k.noScope,
+      penetratedObjects: k.penetratedObjects,
+      killerSide: k.killerSide,
+      victimSide: k.victimSide,
+    }));
+
+    // economies（用于经济曲线）
+    const economyRows: EconomyRow[] = economies.map((e) => ({
+      roundNumber: e.roundNumber,
+      steamId64: e.steamId64,
+      teamKey: e.teamKey,
+      equipmentValue: e.equipmentValue,
+      type: e.type,
+    }));
+
+    // clutches（用于残局复盘）
+    const clutchRows: ClutchRow[] = clutches.map((c) => ({
+      roundNumber: c.roundNumber,
+      clutcherSteamId64: c.clutcherSteamId64,
+      clutcherTeamKey: c.clutcherTeamKey,
+      clutcherSide: c.clutcherSide,
+      opponentCount: c.opponentCount,
+      won: c.won,
+      killCount: c.killCount,
+    }));
+
+    // playerStats 行
+    const statRows: DemoPlayerStatRow[] = playerStats.map((s) => ({
+      steamId64: s.steamId64,
+      userId: s.userId,
+      teamKey: s.teamKey,
+      kills: s.kills,
+      deaths: s.deaths,
+      assists: s.assists,
+      damageHealth: s.damageHealth,
+      damageArmor: s.damageArmor,
+      adr: s.adr,
+      utilityDamage: s.utilityDamage,
+      averageUtilityDamagePerRound: s.averageUtilityDamagePerRound,
+      headshotCount: s.headshotCount,
+      firstKillCount: s.firstKillCount,
+      firstDeathCount: s.firstDeathCount,
+      tradeKillCount: s.tradeKillCount,
+      tradeDeathCount: s.tradeDeathCount,
+      kast: s.kast,
+      oneKillCount: s.oneKillCount,
+      twoKillCount: s.twoKillCount,
+      threeKillCount: s.threeKillCount,
+      fourKillCount: s.fourKillCount,
+      fiveKillCount: s.fiveKillCount,
+      vsOneCount: s.vsOneCount,
+      vsOneWonCount: s.vsOneWonCount,
+      vsTwoCount: s.vsTwoCount,
+      vsTwoWonCount: s.vsTwoWonCount,
+      vsThreeCount: s.vsThreeCount,
+      vsThreeWonCount: s.vsThreeWonCount,
+      vsFourCount: s.vsFourCount,
+      vsFourWonCount: s.vsFourWonCount,
+      vsFiveCount: s.vsFiveCount,
+      vsFiveWonCount: s.vsFiveWonCount,
+      bombPlantedCount: s.bombPlantedCount,
+      bombDefusedCount: s.bombDefusedCount,
+      wallbangKillCount: s.wallbangKillCount,
+      noScopeKillCount: s.noScopeKillCount,
+      collateralKillCount: s.collateralKillCount,
+    }));
+
+    // 名字映射
+    const playerNameMap: Record<string, string> = {};
+    for (const p of players) {
+      playerNameMap[p.steamId64] = p.name;
+    }
+
+    return ok({
+      importBatchId: batchId,
+      playerNameMap,
+      playerStats: statRows,
+      rounds,
+      killPoints,
+      deathPoints,
+      bombPoints,
+      grenadePoints,
+      kills: killItems,
+      rawKills: kills.map((k) => ({
+        killerSteamId64: k.killerSteamId64,
+        victimSteamId64: k.victimSteamId64,
+        killerPosition: k.killerPosition,
+        victimPosition: k.victimPosition,
+        roundNumber: k.roundNumber,
+        killerSide: k.killerSide,
+        victimSide: k.victimSide,
+        weapon: k.weapon,
+        headshot: k.headshot,
+      })) as RawDemoKillRow[],
+      economies: economyRows,
+      clutches: clutchRows,
+    });
+  } catch (e) {
+    console.error("[getDemoDetail] DB query failed:", e);
+    return { success: false, error: { code: "DB_ERROR", message: "Demo data query failed" } };
+  }
 }
