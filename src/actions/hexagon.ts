@@ -65,6 +65,12 @@ export async function getSeasonHexagonScores(
     we:          n(r.we),
     ratingPro:   n(r.rating_pro),
     totalRounds: n(r.total_rounds),
+    kast: 0,
+    utilityDamagePr: 0,
+    firstKillRate: 0,
+    clutchWinRate: 0,
+    tradeKillRate: 0,
+    entrySuccessRate: 0,
   }));
 
   const eventStats = computeEventStats(players);
