@@ -5,6 +5,11 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.25.5] - 2026-05-28
+
+### Added
+- **自动采纳提示及页面轮询**：提议被 cron 自动采纳后，页面绿色提示条公开显示「比赛时间已自动设定」，不再只靠手动刷新才能看到状态变化；pending 提议存在时每 30 秒自动轮询
+
 ## [1.25.4] - 2026-05-28
 
 ### Fixed
@@ -813,6 +818,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.25.5]: https://github.com/Starfie1d1272/RivalHub/compare/v1.25.4...v1.25.5
 [1.25.4]: https://github.com/Starfie1d1272/RivalHub/compare/v1.25.3...v1.25.4
 [1.25.3]: https://github.com/Starfie1d1272/RivalHub/compare/v1.25.2...v1.25.3
 [1.25.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.25.1...v1.25.2
