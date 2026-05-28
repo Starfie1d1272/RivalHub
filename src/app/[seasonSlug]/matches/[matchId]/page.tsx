@@ -531,7 +531,20 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                   {/* Demo 明细区块 */}
                   {isFinished && (() => {
                     const demoResult = demoDataByMapId.get(map.id);
-                    if (!demoResult?.success || !demoResult.data) return null;
+                    if (!demoResult?.success || !demoResult.data) {
+                      return (
+                        <div className="pt-2 border-t border-[var(--color-border)]">
+                          <div className="py-4 text-center text-sm text-[var(--color-fg-dim)]">
+                            暂无 Demo 数据
+                            {isSeasonAdmin ? (
+                              <span> — 请在上方导入 Demo</span>
+                            ) : (
+                              <span>（比赛结束后可联系管理员导入）</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
                     const d = demoResult.data;
                     return (
                       <div className="space-y-4 pt-2 border-t border-[var(--color-border)]">
