@@ -6,7 +6,6 @@ interface DemoKillFeedProps {
   kills: KillFeedItem[];
 }
 
-/** 将击杀按 roundNumber 分组 */
 function groupKillsByRound(kills: KillFeedItem[]): Map<number, KillFeedItem[]> {
   const map = new Map<number, KillFeedItem[]>();
   for (const k of kills) {
@@ -65,13 +64,13 @@ function weaponLabel(weapon: string | null): string {
 }
 
 /**
- * 击杀 Feed 时间线。
- * 按回合分组展示，每条杀展示「击杀者 [武器] 死者」+ HS/trade/穿烟 标记。
+ * Kill feed timeline grouped by round.
+ * Shows "killer [weapon] → victim" with HS/Trade/Smoke/NS/FA badges.
  */
 export function DemoKillFeed({ kills }: DemoKillFeedProps) {
   if (kills.length === 0) {
     return (
-      <p className="text-xs text-[var(--color-fg-dim)] py-2">暂无击杀数据</p>
+      <p className="text-xs text-[var(--color-fg-dim)] py-2">No kill data</p>
     );
   }
 
@@ -82,12 +81,12 @@ export function DemoKillFeed({ kills }: DemoKillFeedProps) {
       {Array.from(grouped.entries()).map(([roundNumber, roundKills]) => (
         <div key={roundNumber}>
           <h4 className="text-xs font-semibold text-[var(--color-fg)] mb-1">
-            第 {roundNumber} 回合
+            Round {roundNumber}
           </h4>
           <div className="space-y-0.5">
             {roundKills.map((k, i) => {
-              const killer = k.killerSteamId64 ?? "未知";
-              const victim = k.victimSteamId64 ?? "未知";
+              const killer = k.killerSteamId64 ?? "Unknown";
+              const victim = k.victimSteamId64 ?? "Unknown";
               const weapon = weaponLabel(k.weapon);
 
               return (
@@ -95,21 +94,14 @@ export function DemoKillFeed({ kills }: DemoKillFeedProps) {
                   key={`${k.roundNumber}-${k.tick}-${i}`}
                   className="flex items-center gap-1.5 text-xs text-[var(--color-fg)] py-0.5"
                 >
-                  {/* 击杀者 */}
                   <span className="font-medium truncate max-w-[80px]" title={killer}>
                     {killer}
                   </span>
-
-                  {/* 武器 */}
                   <span className="text-[var(--color-fg-dim)] font-mono">{weapon}</span>
-
-                  {/* 被杀者 */}
                   <span className="text-[var(--color-fg-mid)]">→</span>
                   <span className="truncate max-w-[80px]" title={victim}>
                     {victim}
                   </span>
-
-                  {/* 标记 */}
                   <span className="flex gap-1 ml-1">
                     {k.headshot && (
                       <span className="text-[10px] px-1 rounded bg-amber-900/30 text-amber-400 font-bold">
@@ -123,7 +115,7 @@ export function DemoKillFeed({ kills }: DemoKillFeedProps) {
                     )}
                     {k.throughSmoke && (
                       <span className="text-[10px] px-1 rounded bg-gray-700/50 text-gray-300">
-                        穿烟
+                        Smoke
                       </span>
                     )}
                     {k.noScope && (

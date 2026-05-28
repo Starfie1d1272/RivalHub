@@ -1,17 +1,17 @@
 "use client";
 
 import React, { useRef, useEffect, useState, useCallback } from "react";
+import { cn } from "@/lib/utils/cn";
 import { getCalibration, worldToPixel } from "@/lib/demo/map-calibration";
 import type { DemoPoint } from "@/actions/demo-detail";
 
-/** 热力图显示模式 */
 type HeatmapMode = "kills" | "deaths" | "bombs" | "grenades";
 
 const MODE_CONFIG: Record<HeatmapMode, { label: string; color: string; lightColor: string }> = {
-  kills: { label: "击杀", color: "rgba(255,50,50,0.35)", lightColor: "rgba(255,100,100,0.12)" },
-  deaths: { label: "死亡", color: "rgba(255,180,50,0.30)", lightColor: "rgba(255,200,80,0.10)" },
-  bombs: { label: "炸弹", color: "rgba(50,130,255,0.35)", lightColor: "rgba(80,150,255,0.12)" },
-  grenades: { label: "道具", color: "rgba(180,50,255,0.30)", lightColor: "rgba(200,80,255,0.10)" },
+  kills: { label: "Kills", color: "rgba(255,50,50,0.35)", lightColor: "rgba(255,100,100,0.12)" },
+  deaths: { label: "Deaths", color: "rgba(255,180,50,0.30)", lightColor: "rgba(255,200,80,0.10)" },
+  bombs: { label: "Bombs", color: "rgba(50,130,255,0.35)", lightColor: "rgba(80,150,255,0.12)" },
+  grenades: { label: "Grenades", color: "rgba(180,50,255,0.30)", lightColor: "rgba(200,80,255,0.10)" },
 };
 
 interface DemoHeatmapProps {
@@ -25,9 +25,9 @@ interface DemoHeatmapProps {
 }
 
 /**
- * 静态热力图组件。
- * 在 radar 底图上用 Canvas 绘制半透明径向渐变点。
- * 提供 mode 切换按钮（击杀/死亡/炸弹/道具）。
+ * Static heatmap component.
+ * Renders semi-transparent radial gradient dots on top of a radar base image.
+ * Mode toggle: Kills / Deaths / Bombs / Grenades.
  */
 export function DemoHeatmap({ mapName, points }: DemoHeatmapProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -56,7 +56,6 @@ export function DemoHeatmap({ mapName, points }: DemoHeatmapProps) {
 
     for (const pt of pts) {
       const px = worldToPixel({ x: pt.x, y: pt.y, z: 0 }, cal);
-      // 跳过超出画布的点（留 50px 边缘容差）
       if (px.x < -50 || px.x > w + 50 || px.y < -50 || px.y > h + 50) continue;
 
       const gradient = ctx.createRadialGradient(px.x, px.y, 0, px.x, px.y, 60);
@@ -73,7 +72,6 @@ export function DemoHeatmap({ mapName, points }: DemoHeatmapProps) {
     drawHeatmap();
   }, [drawHeatmap]);
 
-  // 响应式缩放：canvas 撑满容器
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -92,32 +90,31 @@ export function DemoHeatmap({ mapName, points }: DemoHeatmapProps) {
   if (!cal) {
     return (
       <div className="flex items-center justify-center h-48 text-sm text-[var(--color-fg-dim)]">
-        该地图暂无标定
+        No calibration data for this map
       </div>
     );
   }
 
   return (
     <div className="space-y-2">
-      {/* mode 切换按钮 */}
       <div className="flex gap-2 flex-wrap">
         {(Object.keys(MODE_CONFIG) as HeatmapMode[]).map((m) => (
           <button
             key={m}
             type="button"
             onClick={() => setMode(m)}
-            className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+            className={cn(
+              "px-3 py-1 text-xs rounded-full border transition-colors",
               mode === m
                 ? "bg-[var(--color-accent)] text-white border-[var(--color-accent)]"
-                : "bg-transparent text-[var(--color-fg-mid)] border-[var(--color-border)] hover:border-[var(--color-accent)]"
-            }`}
+                : "bg-transparent text-[var(--color-fg-mid)] border-[var(--color-border)] hover:border-[var(--color-accent)]",
+            )}
           >
             {MODE_CONFIG[m].label} ({points[m].length})
           </button>
         ))}
       </div>
 
-      {/* radar 底图 + Canvas */}
       <div ref={containerRef} className="relative w-full max-w-[1024px] aspect-square">
         <img
           src={cal.radar}

@@ -7,23 +7,22 @@ interface DemoClutchListProps {
 }
 
 /**
- * 残局复盘列表。
- * 展示「R{round} 选手名 1vN 胜/负 ·击杀 K」,胜负配色。
+ * Clutch replay list.
+ * Displays "R{round} player 1vN W/L ·K kills" with win/loss coloring.
  */
 export function DemoClutchList({ clutches }: DemoClutchListProps) {
   if (clutches.length === 0) {
-    return <p className="text-xs text-[var(--color-fg-dim)] py-2">暂无残局数据</p>;
+    return <p className="text-xs text-[var(--color-fg-dim)] py-2">No clutch data</p>;
   }
 
-  // 按 roundNumber 排序
   const sorted = [...clutches].sort((a, b) => a.roundNumber - b.roundNumber);
 
   return (
     <div className="space-y-1">
       {sorted.map((c, i) => {
-        const playerName = c.clutcherSteamId64 ?? "未知选手";
+        const playerName = c.clutcherSteamId64 ?? "Unknown";
         const clutchType = c.opponentCount != null ? `1v${c.opponentCount}` : "1v?";
-        const result = c.won ? "胜" : "负";
+        const result = c.won ? "W" : "L";
         const killInfo = c.killCount != null ? ` ·${c.killCount}K` : "";
 
         return (
@@ -37,30 +36,16 @@ export function DemoClutchList({ clutches }: DemoClutchListProps) {
                 : "bg-red-900/10 border-red-700/20",
             )}
           >
-            {/* 回合号 */}
             <span className="font-mono text-[var(--color-fg-dim)] tabular-nums">
               R{c.roundNumber}
             </span>
-
-            {/* 选手名 */}
             <span className="font-medium text-[var(--color-fg)] truncate max-w-[100px]">
               {playerName}
             </span>
-
-            {/* 残局类型 */}
             <span className="font-mono text-[var(--color-fg-mid)]">{clutchType}</span>
-
-            {/* 胜负 */}
-            <span
-              className={cn(
-                "font-bold",
-                c.won ? "text-green-400" : "text-red-400",
-              )}
-            >
+            <span className={cn("font-bold", c.won ? "text-green-400" : "text-red-400")}>
               {result}
             </span>
-
-            {/* 击杀数 */}
             {killInfo && (
               <span className="text-[var(--color-fg-dim)]">{killInfo}</span>
             )}

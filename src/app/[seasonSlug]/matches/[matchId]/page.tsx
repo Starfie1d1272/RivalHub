@@ -532,32 +532,39 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                     return (
                       <div className="space-y-4 pt-2 border-t border-[var(--color-border)]">
                         <h3 className="text-sm font-semibold text-[var(--color-fg)]">
-                          Demo 数据
+                          Demo Data
                         </h3>
                         <DemoPlayerStatsTable
                           players={d.playerStats}
-                          teamAName={teamA?.name ?? "队伍 A"}
-                          teamBName={teamB?.name ?? "队伍 B"}
+                          teamAName={teamA?.name ?? "Team A"}
+                          teamBName={teamB?.name ?? "Team B"}
+                          seasonSlug={seasonSlug}
                         />
                         <DemoRoundTimeline rounds={d.rounds} />
-                        <Panel label="击杀 Feed">
+                        <Panel label="Kill Feed">
                           <DemoKillFeed kills={d.kills} />
                         </Panel>
-                        <Panel label="经济曲线">
-                          <DemoEconomyChart economies={d.economies} />
+                        <Panel label="Economy">
+                          <DemoEconomyChart
+                            economies={d.economies}
+                            teamAName={teamA?.name ?? "Team A"}
+                            teamBName={teamB?.name ?? "Team B"}
+                          />
                         </Panel>
-                        <Panel label="残局复盘">
+                        <Panel label="Clutch Replays">
                           <DemoClutchList clutches={d.clutches} />
                         </Panel>
-                        <DemoHeatmap
-                          mapName={map.mapName}
-                          points={{
-                            kills: d.killPoints,
-                            deaths: d.deathPoints,
-                            bombs: d.bombPoints,
-                            grenades: d.grenadePoints,
-                          }}
-                        />
+                        <Panel label="Heatmap">
+                          <DemoHeatmap
+                            mapName={map.mapName}
+                            points={{
+                              kills: d.killPoints,
+                              deaths: d.deathPoints,
+                              bombs: d.bombPoints,
+                              grenades: d.grenadePoints,
+                            }}
+                          />
+                        </Panel>
                       </div>
                     );
                   })()}
