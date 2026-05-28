@@ -5,6 +5,16 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.26.1] - 2026-05-29
+
+### Fixed
+- **依赖安全升级**：next@15.5.15→15.5.18（修复 4 个高严重性 CVE，含 Middleware 绕过、DoS、缓存投毒、RSC 破坏）；drizzle-orm@0.43.1→0.45.2（修复 SQL 注入漏洞）
+- **契约 E 修复**：player-demo-stats 查询补充 `activeStatSource` 过滤条件
+- **getDemoDetail 错误处理**：改用已注册的错误码 `ErrorCode.INTERNAL_ERROR`，统一错误响应格式
+
+### Security
+- 依赖安全审计：漏洞总数 19→5（高严重性 8→0），5 个中等严重性均为间接依赖 uuid@9.0.1 通过 brackets-manager 引入，等待上游修复
+
 ## [1.26.0] - 2026-05-29
 
 ### Added
@@ -871,6 +881,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.26.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.26.0...v1.26.1
 [1.26.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.25.6...v1.26.0
 [1.25.6]: https://github.com/Starfie1d1272/RivalHub/compare/v1.25.5...v1.25.6
 [1.25.5]: https://github.com/Starfie1d1272/RivalHub/compare/v1.25.4...v1.25.5
