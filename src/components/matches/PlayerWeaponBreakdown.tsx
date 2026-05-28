@@ -44,7 +44,7 @@ export function PlayerWeaponBreakdown({
   }, [rawKills, selectedSteamId]);
 
   return (
-    <Panel label="Weapon Breakdown">
+    <Panel label="武器偏好与命中率">
       <div className="flex items-center gap-2 mb-3">
         <select
           value={selectedSteamId}
