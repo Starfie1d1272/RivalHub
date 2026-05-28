@@ -5,6 +5,37 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.26.0] - 2026-05-29
+
+### Added
+- **Demo 导入体系**：完整的 demo 导入、校验、解包、数据回填流程（Zod schema + Server Action + ZIP 解包校验）
+- **Demo 明细数据查询**：14 张明细表 schema 定义 + 查询层，支持导入批次追踪
+- **Demo 数据展示面板**：
+  - `DemoPlayerStatsTable` — 选手 demo 数据汇总表
+  - `DemoRoundTimeline` — 回合时间线展示
+  - `DemoKillFeed` — 击杀 Feed 时间线
+  - `DemoEconomyChart` — 经济曲线（含经济类型背景色块）
+  - `DemoClutchList` — 残局复盘列表
+  - `PlayerKillHeatmap` — 击杀热力图（含地图坐标变换）
+  - `PlayerWeaponBreakdown` — 选手武器偏好与命中率
+  - `PlayerEntryStats` — 首杀倾向分析
+  - `PlayerClutchStats` — 残局能力统计
+  - `PlayerUtilityStats` — 道具效用统计
+  - `EconomyConversionPanel` — 经济转化率
+- **队伍 Demo 分析**：`TeamHalfSideStats`（T/CT 半场胜率）、`TeamStyleProfile`（队伍风格画像）
+- **赛季 Demo Leaderboard**：`WeaponLeaderboard` + `season-demo-stats` 聚合层
+- **MVP 系统**：系统推荐 MVP 纯函数、按赛季 rankMetric 排序、StatProfile 类型体系
+- **OCR 面板**：按赛季 inputFields 动态渲染列
+
+### Fixed
+- **Hive 分支合并修复**：`team-demo-stats` 列名修正（clutchWinCount→vsXxxWonCount）、Panel `title`→`label` 统一、`activeStatSource` 查询路径修复
+- **首次击杀率计算修复**：`firstKillRate` 分母从 `totalClutchPlayed` 改为 `totalFirstKills + totalFirstDeaths`
+- **WeaponKillRow 重复声明合并**：`season-demo-stats.ts` 同名 interface 修复
+- **WeaponLeaderboard**：`hsPercent` 排序改用 `getSortValue` 函数 + `Panel label` 修复
+- **PlayerUtilityStats**：类型修复 + `avgUtilityDamagePerRound` 列名修正
+- **UI 一致性**：所有英文标签统一规范
+- **空数据兜底**：各组件均含 `null`/空数组保护
+
 ## [1.25.6] - 2026-05-29
 
 ### Fixed
