@@ -28,6 +28,7 @@ import { getTimeProposals } from "@/actions/matches/scheduling";
 import { getDemoDetail } from "@/actions/demo-detail";
 import { DemoPlayerStatsTable } from "@/components/matches/DemoPlayerStatsTable";
 import { DemoHeatmap } from "@/components/matches/DemoHeatmap";
+import { PlayerKillHeatmap } from "@/components/matches/PlayerKillHeatmap";
 import { DemoRoundTimeline } from "@/components/matches/DemoRoundTimeline";
 import { DemoKillFeed } from "@/components/matches/DemoKillFeed";
 import { DemoEconomyChart } from "@/components/matches/DemoEconomyChart";
@@ -561,14 +562,11 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                           <DemoClutchList clutches={d.clutches} playerNameMap={d.playerNameMap} />
                         </Panel>
                         <Panel label="Heatmap">
-                          <DemoHeatmap
+                          <PlayerKillHeatmap
                             mapName={map.mapName}
-                            points={{
-                              kills: d.killPoints,
-                              deaths: d.deathPoints,
-                              bombs: d.bombPoints,
-                              grenades: d.grenadePoints,
-                            }}
+                            rawKills={d.rawKills}
+                            playerStats={d.playerStats}
+                            playerNameMap={d.playerNameMap}
                           />
                         </Panel>
                       </div>
