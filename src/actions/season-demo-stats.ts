@@ -20,10 +20,6 @@ export interface DemoLeaderboardData {
   avgUtilityDamagePerRound: number | null;
   /** FKPR（首杀/总回合） */
   fkpr: number;
-  /** 残局胜率 */
-  clutchWinRateVal: number;
-  /** utility/round */
-  utilityPerRound: number;
 }
 
 export interface WeaponKillRow {
@@ -100,7 +96,7 @@ export async function getSeasonDemoStats(
     const vs5Won = Number(r.vs5_won ?? 0);
     const totalClutchAttempts = vs1Count + vs2Count + vs3Count + vs4Count + vs5Count;
     const totalClutchWon = vs1Won + vs2Won + vs3Won + vs4Won + vs5Won;
-    const totalRounds = Math.max(1, Number(r.maps ?? 1) * 24); // approx rounds per map
+    const totalRounds = Math.max(1, Number(r.maps ?? 1) * 24); // ≈ rounds per map, 加时赛/弃权会有偏差
 
     return {
       userId: r.user_id as string | null,
@@ -120,10 +116,6 @@ export async function getSeasonDemoStats(
         ? Number(r.avg_utility_damage_per_round)
         : null,
       fkpr: fk / totalRounds,
-      clutchWinRateVal: totalClutchAttempts > 0 ? totalClutchWon / totalClutchAttempts : 0,
-      utilityPerRound: r.avg_utility_damage_per_round != null
-        ? Number(r.avg_utility_damage_per_round)
-        : 0,
     };
   });
 
@@ -149,7 +141,7 @@ export async function getSeasonWeaponStats(
     JOIN ${demoImports} di ON di.id = dk.import_batch_id
     JOIN ${matchMaps} mm ON mm.id = dk.map_id
     JOIN ${matches} m ON m.id = mm.match_id
-    JOIN ${demoPlayerStats} dps
+    LEFT JOIN ${demoPlayerStats} dps
       ON dps.import_batch_id = dk.import_batch_id AND dps.steam_id64 = dk.killer_steam_id64
     LEFT JOIN ${demoPlayers} dp
       ON dp.steam_id64 = dk.killer_steam_id64 AND dp.import_batch_id = dk.import_batch_id

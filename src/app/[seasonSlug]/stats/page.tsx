@@ -155,8 +155,8 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
       avgDemoKast: demo.kast ?? undefined,
       avgDemoAdr: demo.adr ?? undefined,
       demoFkpr: demo.fkpr,
-      demoClutchWinRate: demo.clutchWinRateVal,
-      demoUtilityPerRound: demo.utilityPerRound,
+      demoClutchWinRate: demo.clutchWinRate ?? 0,
+      demoUtilityPerRound: demo.avgUtilityDamagePerRound ?? 0,
     };
   });
 
