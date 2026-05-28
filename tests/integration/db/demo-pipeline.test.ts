@@ -114,7 +114,7 @@ describe("demo 数据管道 (集成)", () => {
       const result = toMatchPlayerStat(first, demoName, fakeUserId);
 
       expect(result.source).toBe("demo_import");
-      expect(result.mapId).toBeUndefined(); // 由调用方赋值
+      // mapId 不属于 MatchPlayerStatRow，由 db layer 的调用方赋值
       expect(result.kills).toBe(first.kills);
       expect(result.deaths).toBe(first.deaths);
       expect(result.assists).toBe(first.assists);
