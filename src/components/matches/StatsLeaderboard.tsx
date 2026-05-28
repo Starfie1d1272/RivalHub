@@ -21,6 +21,12 @@ interface LeaderboardRow {
   fkpr: number;
   mkpr: number;
   cpr: number;
+  /** Demo 源扩展字段（存在时显示 demo 视图） */
+  avgDemoKast?: number;
+  avgDemoAdr?: number;
+  demoFkpr?: number;
+  demoClutchWinRate?: number;
+  demoUtilityPerRound?: number;
 }
 
 interface StatsLeaderboardProps {
@@ -31,12 +37,14 @@ interface StatsLeaderboardProps {
   view?: LeaderboardView;
   stages?: { key: string; name: string }[];
   currentStage?: string;
+  hasDemoData?: boolean;
 }
 
-const VIEWS: { key: LeaderboardView; label: string; defaultSort: string }[] = [
+const VIEWS: { key: LeaderboardView | "demo"; label: string; defaultSort: string }[] = [
   { key: "core", label: "Core", defaultSort: "rating" },
   { key: "impact", label: "Impact", defaultSort: "fk" },
   { key: "advanced", label: "Advanced", defaultSort: "we" },
+  { key: "demo", label: "Demo", defaultSort: "avgDemoKast" },
 ];
 
 const POSITIONS = [
@@ -148,13 +156,48 @@ const ADVANCED_COLS: ColDef[] = [
   },
 ];
 
-const VIEW_COLS: Record<LeaderboardView, ColDef[]> = {
+const DEMO_COLS: ColDef[] = [
+  ...BASE_COLS,
+  {
+    key: "avgDemoKast",
+    label: "KAST%",
+    getValue: (r) => r.avgDemoKast ?? null,
+    format: (v) => (v != null ? (v * 100).toFixed(1) + "%" : "—"),
+  },
+  {
+    key: "avgDemoAdr",
+    label: "ADR",
+    getValue: (r) => r.avgDemoAdr ?? null,
+    format: (v) => (v != null ? v.toFixed(1) : "—"),
+  },
+  {
+    key: "demoFkpr",
+    label: "FKPR",
+    getValue: (r) => r.demoFkpr ?? null,
+    format: (v) => (v != null ? v.toFixed(3) : "—"),
+  },
+  {
+    key: "demoClutchWinRate",
+    label: "Clutch%",
+    getValue: (r) => r.demoClutchWinRate ?? null,
+    format: (v) => (v != null ? (v * 100).toFixed(1) + "%" : "—"),
+  },
+  {
+    key: "demoUtilityPerRound",
+    label: "Util/R",
+    getValue: (r) => r.demoUtilityPerRound ?? null,
+    format: (v) => (v != null ? v.toFixed(1) : "—"),
+  },
+];
+
+const VIEW_COLS: Record<string, ColDef[]> = {
   core: CORE_COLS,
   impact: IMPACT_COLS,
   advanced: ADVANCED_COLS,
+  demo: DEMO_COLS,
 };
 
-export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "core", stages, currentStage = "" }: StatsLeaderboardProps) {
+export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "core", stages, currentStage = "", hasDemoData = false }: StatsLeaderboardProps) {
   if (rows.length === 0) {
     return (
       <Panel pad={32} className="text-center text-[var(--color-fg-mid)]">
@@ -165,7 +208,8 @@ export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "cor
 
   const sortColBg = "rgba(255,107,26,0.04)";
   const accentText = "var(--color-accent)";
-  const cols = VIEW_COLS[view];
+  const visibleViews = hasDemoData ? VIEWS : VIEWS.filter((v) => v.key !== "demo");
+  const cols = VIEW_COLS[view] ?? VIEW_COLS.core;
   const statsHref = ({
     nextSort = sort,
     nextPosition = position,
@@ -174,7 +218,7 @@ export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "cor
   }: {
     nextSort?: string;
     nextPosition?: string;
-    nextView?: LeaderboardView;
+    nextView?: string;
     nextStage?: string;
   }) => {
     const params = new URLSearchParams({ sort: nextSort });
@@ -192,7 +236,7 @@ export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "cor
             Metric view
           </p>
           <div className="flex gap-1 flex-wrap">
-            {VIEWS.map(({ key, label, defaultSort }) => (
+            {visibleViews.map(({ key, label, defaultSort }) => (
               <Btn key={key} small ghost={view !== key} asChild>
                 <a href={statsHref({ nextSort: defaultSort, nextView: key })}>{label}</a>
               </Btn>

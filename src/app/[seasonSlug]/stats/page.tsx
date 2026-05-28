@@ -8,6 +8,7 @@ import { normalizeLeaderboardState } from "@/lib/matches/leaderboard-view";
 import { Marker } from "@/components/rivalhub";
 import { roundWeightedAvg, killWeightedAvg, perRound, roundsExpr } from "@/lib/stats";
 import { normalizeStagePlan } from "@/types/season";
+import { getSeasonDemoStats, type DemoLeaderboardData } from "@/actions/season-demo-stats";
 import type { Metadata } from "next";
 
 interface StatsPageProps {
@@ -36,6 +37,11 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
   if (!season) notFound();
 
   const stages = normalizeStagePlan(season.stagePlan).map((s) => ({ key: s.key, name: s.name }));
+
+  // Demo 源进阶榜单数据（异步获取，仅在 view=demo 时使用）
+  const demoResult = await getSeasonDemoStats(season.id);
+  const demoStats = demoResult.success ? demoResult.data : [];
+  const hasDemoData = demoStats.length > 0;
 
   // 各指标的聚合表达式（sortColumn 和 SELECT 共用）
   // ADR：回合加权（正确方式）；HS%：击杀数加权（正确方式）
@@ -126,17 +132,36 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     cpr:        toNum(r.cpr),
   }));
 
+  // 将 Demo 源数据 merge 进 leaderboardRows（按 userId 匹配）
+  const demoMap = new Map<string, DemoLeaderboardData>();
+  for (const d of demoStats) {
+    if (d.userId) demoMap.set(d.userId, d);
+  }
+  const mergedRows = leaderboardRows.map((r) => {
+    const demo = r.userId ? demoMap.get(r.userId) : undefined;
+    if (!demo) return r;
+    return {
+      ...r,
+      avgDemoKast: demo.kast ?? undefined,
+      avgDemoAdr: demo.adr ?? undefined,
+      demoFkpr: demo.fkpr,
+      demoClutchWinRate: demo.clutchWinRateVal,
+      demoUtilityPerRound: demo.utilityPerRound,
+    };
+  });
+
   return (
     <div className="container mx-auto px-4 py-12 max-w-5xl space-y-6">
       <Marker sub={season.name}>赛季排行榜</Marker>
       <StatsLeaderboard
-        rows={leaderboardRows}
+        rows={mergedRows}
         sort={sort}
         position={position}
         seasonSlug={seasonSlug}
         view={view}
         stages={stages}
         currentStage={stage}
+        hasDemoData={hasDemoData}
       />
     </div>
   );
