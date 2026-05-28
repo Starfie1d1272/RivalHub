@@ -29,6 +29,7 @@ import { getDemoDetail } from "@/actions/demo-detail";
 import { DemoPlayerStatsTable } from "@/components/matches/DemoPlayerStatsTable";
 import { DemoHeatmap } from "@/components/matches/DemoHeatmap";
 import { PlayerKillHeatmap } from "@/components/matches/PlayerKillHeatmap";
+import { PlayerWeaponBreakdown } from "@/components/matches/PlayerWeaponBreakdown";
 import { DemoRoundTimeline } from "@/components/matches/DemoRoundTimeline";
 import { DemoKillFeed } from "@/components/matches/DemoKillFeed";
 import { DemoEconomyChart } from "@/components/matches/DemoEconomyChart";
@@ -569,6 +570,11 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                             playerNameMap={d.playerNameMap}
                           />
                         </Panel>
+                        <PlayerWeaponBreakdown
+                          rawKills={d.rawKills}
+                          playerStats={d.playerStats}
+                          playerNameMap={d.playerNameMap}
+                        />
                       </div>
                     );
                   })()}

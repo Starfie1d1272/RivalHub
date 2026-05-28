@@ -139,6 +139,8 @@ export interface RawDemoKillRow {
   roundNumber: number;
   killerSide: string | null;
   victimSide: string | null;
+  weapon: string | null;
+  headshot: boolean | null;
 }
 
 // ── 查询 ────────────────────────────────────────────────────────────────
@@ -392,7 +394,9 @@ export async function getDemoDetail(
       roundNumber: k.roundNumber,
       killerSide: k.killerSide,
       victimSide: k.victimSide,
-    })),
+      weapon: k.weapon,
+      headshot: k.headshot,
+    })) as RawDemoKillRow[],
     economies: economyRows,
     clutches: clutchRows,
   });
