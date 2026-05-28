@@ -31,6 +31,7 @@ import { DemoHeatmap } from "@/components/matches/DemoHeatmap";
 import { DemoRoundTimeline } from "@/components/matches/DemoRoundTimeline";
 import { DemoKillFeed } from "@/components/matches/DemoKillFeed";
 import { DemoEconomyChart } from "@/components/matches/DemoEconomyChart";
+import { DemoClutchList } from "@/components/matches/DemoClutchList";
 import { getTimeBufferHoursForStage } from "@/lib/matches/time-rules";
 import { getMatchRoster } from "@/actions/matches/roster";
 import { getSeasonHexagonScores } from "@/actions/hexagon";
@@ -544,6 +545,9 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                         </Panel>
                         <Panel label="经济曲线">
                           <DemoEconomyChart economies={d.economies} />
+                        </Panel>
+                        <Panel label="残局复盘">
+                          <DemoClutchList clutches={d.clutches} />
                         </Panel>
                         <DemoHeatmap
                           mapName={map.mapName}
