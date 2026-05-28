@@ -12,7 +12,8 @@ import {
   demoClutches,
   demoPlayerEconomies,
 } from "@/db/schema/demo";
-import { ok, type ActionResult } from "@/types/action";
+import { ok, fail, type ActionResult } from "@/types/action";
+import { ErrorCode } from "@/lib/errors";
 
 // ── 类型 ────────────────────────────────────────────────────────────────
 
@@ -403,6 +404,6 @@ export async function getDemoDetail(
     });
   } catch (e) {
     console.error("[getDemoDetail] DB query failed:", e);
-    return { success: false, error: { code: "DB_ERROR", message: "Demo data query failed" } };
+    return fail({ code: ErrorCode.INTERNAL_ERROR, message: "Demo 数据查询失败" });
   }
 }
