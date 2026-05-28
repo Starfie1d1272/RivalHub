@@ -5,25 +5,6 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.26.1] - 2026-05-29
-
-### Fixed
-- **PG 参数溢出修复**：`demo-import.ts` 批量 insert 改为 `batchInsert()` 分块插入，防止真实 CS2 demo（18k+ positions 行）触发 PG `max_parameters=65535` 限制
-- **batchInsert 安全上限修正**：默认 chunk size 从 3000 降为 1000，修复 `demoPlayerStats`（25 列）在 3000 行/批时 75000 params 溢出 PG 限制的缺陷
-- **并发安全修复**：`matchPlayerStats` 回填从 `DELETE+INSERT` 改为 `INSERT ON CONFLICT DO UPDATE`（UPSERT），消除并发导入时的幽灵删除竞争
-- **getDemoDetail try/catch 包裹**：8 路并行 `Promise.all` 查询增加 try/catch，防止单查询失败导致整个 Action 崩溃
-- **契约 E 保护**：`player-stats.ts savePlayerStats` 的 DELETE 改为仅清除 `source=manual_ocr` 来源行，保护 `demo_import` 来源数据
-- **空导入保护**：`demo-import.ts` 仅在 `stats.length > 0` 时设置 `activeStatSource=demo_import`
-- **空热力图 UX 优化**：`DemoHeatmap` 组件在无数据时显示占位文本替代空白画布
-- **8 表复合索引**：`schema/demo.ts` 中 8 张明细表新增 `(import_batch_id, map_id)` 复合索引，优化查询性能
-- **未使用导入删除**：`match/[matchId]/page.tsx` 移除未使用的 `DemoHeatmap` 导入
-- **CSS 变量补充**：添加缺失的 `--color-bg-subtle` CSS 变量，修复 6+ 个组件的透明背景问题
-- **样式主题一致性**：`DemoImportPanel` 按钮样式与系统主题统一
-- **WeaponLeaderboard**：补回 `"use client"` 声明，修复 RSC 编译错误
-
-### Changed
-- **README 更新**：新增 Demo 模块功能描述与技术栈说明
-
 ## [1.26.0] - 2026-05-29
 
 ### Added
@@ -54,6 +35,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **PlayerUtilityStats**：类型修复 + `avgUtilityDamagePerRound` 列名修正
 - **UI 一致性**：所有英文标签统一规范
 - **空数据兜底**：各组件均含 `null`/空数组保护
+- **PG 参数溢出**：批量 insert 改为 `batchInsert()` 分块插入，防止 18k+ rows 触发 PG `max_parameters=65535` 限制
+- **batchInsert 安全上限**：chunk size 从 3000 降为 1000，修复 25 列表 3000 行/批时 75000 params 溢出
+- **并发安全**：`matchPlayerStats` 回填从 `DELETE+INSERT` 改为 `ON CONFLICT DO UPDATE` 消除幽灵删除竞争
+- **契约 E 违反**：`savePlayerStats` delete 改为仅清 `source=manual_ocr`，保护 `demo_import` 来源
+- **空导入 activeStatSource**：仅 `stats.length > 0` 时设置 `activeStatSource=demo_import`
+- **getDemoDetail try/catch**：8 路并行 `Promise.all` 增加错误兜底
+- **season-demo-stats 重复字段**：`DemoLeaderboardData` 去掉 `clutchWinRateVal`/`utilityPerRound` 冗余
+- **season-demo-stats INNER JOIN**：`getSeasonWeaponStats` 改为 `LEFT JOIN` 防止丢击杀
+- **demo 表缺索引**：14 张表新增 `(importBatchId, mapId)` 复合索引
+- **空热力图 UX**：`DemoHeatmap` 无数据时显示占位文本
+- **CSS 变量补充**：添加缺失的 `--color-bg-subtle` CSS 变量
+- **样式主题一致性**：`DemoImportPanel` 按钮样式统一
+- **WeaponLeaderboard**：补回 `"use client"` 声明
+- **未使用导入删除**：移除未使用的 `DemoHeatmap` 导入
+
+### Changed
+- **README 更新**：新增 Demo 模块功能描述与技术栈说明
 
 ## [1.25.6] - 2026-05-29
 
@@ -873,7 +871,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
-[1.26.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.26.0...v1.26.1
 [1.26.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.25.6...v1.26.0
 [1.25.6]: https://github.com/Starfie1d1272/RivalHub/compare/v1.25.5...v1.25.6
 [1.25.5]: https://github.com/Starfie1d1272/RivalHub/compare/v1.25.4...v1.25.5
