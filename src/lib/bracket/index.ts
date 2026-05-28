@@ -76,6 +76,8 @@ export interface ResolvedBracketMatch {
   teamAParticipantId: number;
   teamBParticipantId: number;
   roundNumber: number;
+  /** 所在 bracket 分组：1=winner_bracket, 2=loser_bracket, 3=grand_final。单淘汰/循环恒为 1。 */
+  groupNumber: number;
 }
 
 function buildManager(data: Database): { manager: BracketsManager; db: InMemoryDatabase } {
@@ -314,9 +316,13 @@ export async function seedPlayoff(
  * 从 Database JSON 中筛选出双方参与者均已确定的比赛（非 TBD/BYE）。
  */
 export function collectResolvedMatches(data: Database): ResolvedBracketMatch[] {
-  const roundMap = new Map<number, { stageId: number; number: number }>();
+  const groupNumberById = new Map<number, number>();
+  for (const g of data.group as BracketGroupRef[]) {
+    groupNumberById.set(g.id, g.number);
+  }
+  const roundMap = new Map<number, { stageId: number; number: number; groupId: number }>();
   for (const r of data.round as BracketRoundRef[]) {
-    roundMap.set(r.id, { stageId: r.stage_id, number: r.number });
+    roundMap.set(r.id, { stageId: r.stage_id, number: r.number, groupId: r.group_id });
   }
 
   const resolved: ResolvedBracketMatch[] = [];
@@ -339,6 +345,7 @@ export function collectResolvedMatches(data: Database): ResolvedBracketMatch[] {
         teamAParticipantId: m.opponent1.id,
         teamBParticipantId: m.opponent2.id,
         roundNumber: round?.number ?? 0,
+        groupNumber: round ? (groupNumberById.get(round.groupId) ?? 1) : 1,
       });
     }
   }

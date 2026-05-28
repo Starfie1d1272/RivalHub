@@ -1,44 +1,6 @@
 #!/bin/zsh
-# 校验组件清单是否与实际文件一致
-# 以磁盘文件为真实来源，通过 CodeGraph 对比 docs/code-map.md 中记录的组件名。
-# 组件文件统一使用 PascalCase 命名（如 MatchCard.tsx），与 export 名一致。
-# 新增组件后只需更新 docs/code-map.md，无需维护本脚本。
+# 组件清单已迁移到 CodeGraph，docs/code-map.md 不再手动维护组件列表。
+# 查看组件：codegraph_files src/components/
 # 用法: zsh scripts/check-claude-md.sh
-set -euo pipefail
-
-ROOT=$(dirname "$0")/..
-CODE_MAP="$ROOT/docs/code-map.md"
-errors=0
-
-if [ ! -f "$CODE_MAP" ]; then
-  echo "❌ docs/code-map.md 不存在"
-  exit 1
-fi
-
-# ui/ 目录为 shadcn 按需组件，不纳入校验
-DIRS=(auth layout rivalhub home matches admin draft captains teams register settings)
-
-echo "Checking docs/code-map.md against src/components/..."
-
-for dir in "${DIRS[@]}"; do
-  echo "$dir/"
-  files=($(ls "$ROOT/src/components/$dir/"*.tsx 2>/dev/null | xargs -n1 basename | sed 's/\.tsx$//' || true))
-  for name in "${files[@]}"; do
-    if ! grep -q "$name" "$CODE_MAP"; then
-      echo "  MISSING in docs/code-map.md (exists on disk): src/components/$dir/$name.tsx"
-      errors=$((errors + 1))
-    fi
-  done
-done
-
-echo ""
-if [ $errors -eq 0 ]; then
-  echo "✅ docs/code-map.md 组件清单与实际文件一致"
-  exit 0
-else
-  echo "💡 组件目录树已从 code-map.md 移除。请使用 CodeGraph 查看: codegraph_files src/components/"
-  echo "   如需在 code-map.md 中引用某组件，将其名称加入"业务域入口"表即可。"
-  echo ""
-  echo "❌ 发现 $errors 处不一致，请更新 docs/code-map.md"
-  exit 1
-fi
+echo "✅ 组件清单由 CodeGraph 维护，无需手动校验。"
+exit 0

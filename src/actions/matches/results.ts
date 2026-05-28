@@ -58,7 +58,7 @@ async function insertResolvedBracketMatches(
       teamAId: teamA.id,
       teamBId: teamB.id,
       stage,
-      format: resolveMatchFormat(stagePlan, stage, bm.roundNumber),
+      format: resolveMatchFormat(stagePlan, stage, bm.roundNumber, bm.groupNumber),
       status: "scheduled",
       bracketNodeId: bm.bracketMatchId.toString(),
     });
@@ -858,7 +858,7 @@ export async function syncBracketMatches(seasonId: string): Promise<ActionResult
             teamAId: teamA.id,
             teamBId: teamB.id,
             stage,
-            format: resolveMatchFormat(stagePlan, stage, bm.roundNumber),
+            format: resolveMatchFormat(stagePlan, stage, bm.roundNumber, bm.groupNumber),
             status: "scheduled",
             bracketNodeId: nodeIdStr,
           });

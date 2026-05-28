@@ -62,12 +62,49 @@ describe("resolveMatchFormat", () => {
 
   it("returns stage matchFormat for non-final rounds", () => {
     expect(resolveMatchFormat(basePlan, "qualifier", 1)).toBe("bo1");
-    expect(resolveMatchFormat(basePlan, "playoff", 1)).toBe("bo3");
+    expect(resolveMatchFormat(basePlan, "playoff", 1, 1)).toBe("bo3");
   });
 
-  it("returns finalFormat for the last round", () => {
-    // 8-team bracket = 3 rounds, round 3 should be finalFormat
-    expect(resolveMatchFormat(basePlan, "playoff", 3)).toBe("bo5");
+  describe("double_elim: finalFormat 只作用于总决赛", () => {
+    // 8 队胜者组共 3 轮，胜者组决赛轮号 === log2(8)，但它不是决赛
+    it("胜者组决赛（winner bracket, group 1）不套用 finalFormat", () => {
+      expect(resolveMatchFormat(basePlan, "playoff", 3, 1)).toBe("bo3");
+    });
+
+    it("败者组决赛（loser bracket, group 2）不套用 finalFormat", () => {
+      expect(resolveMatchFormat(basePlan, "playoff", 4, 2)).toBe("bo3");
+    });
+
+    it("总决赛（grand final, group 3）套用 finalFormat", () => {
+      expect(resolveMatchFormat(basePlan, "playoff", 1, 3)).toBe("bo5");
+    });
+
+    it("总决赛 bracket reset（仍在 group 3）套用 finalFormat", () => {
+      expect(resolveMatchFormat(basePlan, "playoff", 2, 3)).toBe("bo5");
+    });
+  });
+
+  describe("single_elim: finalFormat 作用于最后一轮", () => {
+    const singlePlan: StagePlan = [
+      {
+        key: "bracket",
+        name: "淘汰赛",
+        type: "single_elim",
+        teamCount: 8,
+        advanceTiers: [{ placement: "1st", count: 1 }],
+        matchFormat: "bo3",
+        finalFormat: "bo5",
+      },
+    ];
+
+    it("非最后一轮用 matchFormat", () => {
+      expect(resolveMatchFormat(singlePlan, "bracket", 1, 1)).toBe("bo3");
+      expect(resolveMatchFormat(singlePlan, "bracket", 2, 1)).toBe("bo3");
+    });
+
+    it("最后一轮（决赛）用 finalFormat", () => {
+      expect(resolveMatchFormat(singlePlan, "bracket", 3, 1)).toBe("bo5");
+    });
   });
 
   it("defaults to bo3 for unknown stage", () => {
