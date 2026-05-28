@@ -5,7 +5,7 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.26.2] - 2026-05-29
+## [1.26.0] - 2026-05-29
 
 ### Added
 - **集成测试覆盖**：新增 `tests/integration/db/demo-pipeline.test.ts`（12 tests），使用真实 example zip 驱动 parseDemoPackage→schema 验证→toMatchPlayerStat 转换→batchInsert 分片逻辑全管道验证
