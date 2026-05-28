@@ -193,3 +193,27 @@ describe("match detail stats", () => {
     expect(result.summaryPlayers[0].ratingPro).toBeCloseTo(1.2);
   });
 });
+
+describe("aggregateFinishedPlayerStats MVP 候选按 rankMetric", () => {
+  it("传入 rankMetric=adr 时候选按 adr 降序", () => {
+    const result = aggregateFinishedPlayerStats(
+      [
+        statRow({ mapId: "map-1", perfectName: "Alpha", userId: "user-1", adr: 70, ratingPro: 1.5 }),
+        statRow({ mapId: "map-1", perfectName: "Bravo", userId: "user-2", adr: 110, ratingPro: 0.9 }),
+        statRow({ mapId: "map-1", perfectName: "Charlie", userId: "user-3", adr: 90, ratingPro: 1.2 }),
+      ],
+      new Map([
+        ["user-1", "team-a"],
+        ["user-2", "team-b"],
+        ["user-3", "team-a"],
+      ]),
+      "team-a",
+      "team-b",
+      new Map([["map-1", 24]]),
+      "adr",
+    );
+    const adrs = result.mvpCandidates.map((c) => c.adr ?? 0);
+    expect([...adrs]).toEqual([...adrs].sort((a, b) => b - a));
+    expect(result.mvpCandidates[0].perfectName).toBe("Bravo");
+  });
+});
