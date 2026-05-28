@@ -14,7 +14,7 @@
 | 比赛列表 / 生成 | `src/app/[seasonSlug]/matches/`、`src/app/admin/[seasonSlug]/matches/`、`src/actions/matches/schedule.ts` | `src/lib/formats/`、`src/lib/bracket/` |
 | 比赛详情 | `src/app/[seasonSlug]/matches/[matchId]/page.tsx` | `src/lib/matches/detail-data.ts`、`src/lib/matches/detail-stats.ts` |
 | 比赛结果 / BP / 阵容 | `src/actions/matches/`、`src/components/matches/` | `src/lib/match-transitions.ts`、`src/lib/validators/match.ts` |
-| 玩家数据 / OCR | `src/actions/player-stats.ts`、`src/components/matches/StatsOCRPanel.tsx` | `src/lib/ocr/` |
+| 玩家数据 / OCR | `src/actions/player-stats.ts`、`src/components/matches/StatsOCRPanel.tsx` | `src/lib/ocr/`、`src/lib/stats/mvp.ts`、`src/lib/config/stat-profile.ts` |
 | 数据统计排行榜 | `src/app/[seasonSlug]/stats/page.tsx`、`src/components/matches/StatsLeaderboard.tsx` | `src/lib/stats/` |
 | 赛季管理 | `src/app/admin/seasons/`、`src/components/admin/SeasonForm.tsx`、`src/actions/seasons.ts` | `src/types/season.ts`、`src/lib/utils/season.ts` |
 | 权限 / 会话 | `src/actions/auth.ts`、`src/actions/account.ts`、`src/middleware.ts` | `src/lib/auth/session.ts`、`src/lib/auth/supabase.ts` |
