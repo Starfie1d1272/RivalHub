@@ -43,6 +43,7 @@ import {
   type RosterPlayer,
 } from "@/lib/matches/detail-stats";
 import { getSeasonFinishedMatches } from "@/lib/matches/detail-data";
+import { computeRecommendedMvp } from "@/lib/stats/mvp";
 import { MatchHeroHeader } from "@/components/matches/MatchHeroHeader";
 
 interface MatchDetailPageProps {
@@ -313,6 +314,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   }[] = [];
   let mvpVoteResults: Awaited<ReturnType<typeof getMatchMvpResults>> = [];
   let userVoted: string | null = null;
+  let recommendedMvpName: string | null = null;
   let summaryPlayers: {
     userId: string | null;
     perfectName: string;
@@ -336,9 +338,11 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
       where: eq(matchPlayerStats.matchId, match.id),
     });
 
-    const aggregatedStats = aggregateFinishedPlayerStats(allStats, userIdToTeamId, match.teamAId, match.teamBId, currentMapRoundsMap);
+    const rankMetric = season.statProfile.rankMetric;
+    const aggregatedStats = aggregateFinishedPlayerStats(allStats, userIdToTeamId, match.teamAId, match.teamBId, currentMapRoundsMap, rankMetric);
     mvpCandidates = aggregatedStats.mvpCandidates;
     summaryPlayers = aggregatedStats.summaryPlayers;
+    recommendedMvpName = computeRecommendedMvp(mvpCandidates)?.perfectName ?? null;
 
     mvpVoteResults = await getMatchMvpResults(match.id);
     ensureMvpWinner(match.id);
@@ -618,6 +622,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
           candidates={mvpCandidates}
           currentVotes={mvpVoteResults}
           userVotedPlayerName={userVoted}
+          recommendedMvpName={recommendedMvpName}
           completedAt={match.completedAt?.toISOString() ?? null}
         />
       )}

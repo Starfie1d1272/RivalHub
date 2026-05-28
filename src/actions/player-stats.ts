@@ -19,6 +19,7 @@ import type { PlayerRowOCR } from "@/lib/ocr";
 import { requireAdmin, auditActorId, requireAuth } from "@/lib/auth/session";
 import { revalidatePath } from "next/cache";
 import { isStatOutOfRange } from "@/lib/config/stat-ranges";
+import type { StatFieldKey } from "@/types/season";
 
 export type PlayerStatsDraft = PlayerRowOCR & {
   userId: string | null;
@@ -202,10 +203,18 @@ export async function savePlayerStats(
 /**
  * 查询某张地图已保存的玩家数据
  */
-export async function getPlayerStatsByMap(mapId: string) {
-  return db.query.matchPlayerStats.findMany({
+export async function getPlayerStatsByMap(
+  mapId: string,
+  rankMetric: StatFieldKey = "ratingPro",
+) {
+  const rows = await db.query.matchPlayerStats.findMany({
     where: eq(matchPlayerStats.mapId, mapId),
-    orderBy: (t, { desc }) => [desc(t.ratingPro)],
+  });
+  // 应用层按 rankMetric 降序;null 排末尾
+  return rows.sort((a, b) => {
+    const av = a[rankMetric] ?? Number.NEGATIVE_INFINITY;
+    const bv = b[rankMetric] ?? Number.NEGATIVE_INFINITY;
+    return (bv as number) - (av as number);
   });
 }
 

@@ -1,7 +1,9 @@
-import { pgTable, uuid, integer, real, text, timestamp, unique } from "drizzle-orm/pg-core";
+import { pgTable, uuid, integer, real, text, timestamp, unique, pgEnum } from "drizzle-orm/pg-core";
 import { matches } from "./matches";
 import { matchMaps } from "./match-maps";
 import { users } from "./users";
+
+export const statSourceEnum = pgEnum("stat_source", ["manual_ocr", "demo_import"]);
 
 export const matchPlayerStats = pgTable("match_player_stats", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -27,6 +29,9 @@ export const matchPlayerStats = pgTable("match_player_stats", {
   rws: real("rws"),           // 两位小数
   ratingPro: real("rating_pro"), // 两位小数
   we: real("we"),             // 一位小数，0–16
+
+  // 数据来源（契约 A）
+  source: statSourceEnum("source").notNull().default("manual_ocr"),
 
   // 审核信息
   verifiedByAdmin: text("verified_by_admin"),

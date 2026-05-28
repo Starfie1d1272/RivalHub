@@ -141,6 +141,20 @@
       "when": 1748044800000,
       "tag": "0019_is_forfeit",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1748448000000,
+      "tag": "0020_stat_source",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1748448100000,
+      "tag": "0021_season_stat_profile",
+      "breakpoints": true
     }
   ]
 }
