@@ -1,19 +1,21 @@
-export type LeaderboardView = "core" | "impact" | "advanced";
+export type LeaderboardView = "core" | "impact" | "advanced" | "demo";
 
 const VIEW_SORTS = {
   core: ["maps", "rating", "adr", "kd", "kpr", "hs"],
   impact: ["maps", "rating", "fk", "mk", "clutch"],
   advanced: ["maps", "rating", "we", "rws"],
+  demo: ["maps", "avgDemoKast", "avgDemoAdr", "demoFkpr", "demoClutchWinRate", "demoUtilityPerRound"],
 } as const satisfies Record<LeaderboardView, readonly string[]>;
 
 const DEFAULT_SORT: Record<LeaderboardView, string> = {
   core: "rating",
   impact: "fk",
   advanced: "we",
+  demo: "avgDemoKast",
 };
 
 function isLeaderboardView(value: string | undefined): value is LeaderboardView {
-  return value === "core" || value === "impact" || value === "advanced";
+  return value === "core" || value === "impact" || value === "advanced" || value === "demo";
 }
 
 function viewForSort(sort: string | undefined): LeaderboardView | null {
