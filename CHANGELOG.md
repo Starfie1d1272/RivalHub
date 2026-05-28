@@ -5,6 +5,16 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.26.1] - 2026-05-29
+
+### Fixed
+- **PG 参数溢出修复**：`demo-import.ts` 批量 insert 改为 `batchInsert()` 分块插入（3000 行/批），防止真实 CS2 demo（18k+ positions 行）触发 PG `max_parameters=65535` 限制
+- **并发安全修复**：`matchPlayerStats` 回填从 `DELETE+INSERT` 改为 `INSERT ON CONFLICT DO UPDATE`（UPSERT），消除并发导入时的幽灵删除竞争
+- **未使用导入删除**：`match/[matchId]/page.tsx` 移除未使用的 `DemoHeatmap` 导入
+- **CSS 变量补充**：添加缺失的 `--color-bg-subtle` CSS 变量，修复 6+ 个组件的透明背景问题
+- **样式主题一致性**：`DemoImportPanel` 按钮样式与系统主题统一
+- **WeaponLeaderboard**：补回 `"use client"` 声明，修复 RSC 编译错误
+
 ## [1.26.0] - 2026-05-29
 
 ### Added
@@ -854,6 +864,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.26.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.26.0...v1.26.1
 [1.26.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.25.6...v1.26.0
 [1.25.6]: https://github.com/Starfie1d1272/RivalHub/compare/v1.25.5...v1.25.6
 [1.25.5]: https://github.com/Starfie1d1272/RivalHub/compare/v1.25.4...v1.25.5
