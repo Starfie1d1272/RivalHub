@@ -539,10 +539,11 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                           teamAName={teamA?.name ?? "Team A"}
                           teamBName={teamB?.name ?? "Team B"}
                           seasonSlug={seasonSlug}
+                          playerNameMap={d.playerNameMap}
                         />
                         <DemoRoundTimeline rounds={d.rounds} />
                         <Panel label="Kill Feed">
-                          <DemoKillFeed kills={d.kills} />
+                          <DemoKillFeed kills={d.kills} playerNameMap={d.playerNameMap} />
                         </Panel>
                         <Panel label="Economy">
                           <DemoEconomyChart
@@ -552,7 +553,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                           />
                         </Panel>
                         <Panel label="Clutch Replays">
-                          <DemoClutchList clutches={d.clutches} />
+                          <DemoClutchList clutches={d.clutches} playerNameMap={d.playerNameMap} />
                         </Panel>
                         <Panel label="Heatmap">
                           <DemoHeatmap

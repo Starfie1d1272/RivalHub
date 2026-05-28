@@ -8,6 +8,8 @@ interface DemoPlayerStatsTableProps {
   teamAName: string;
   teamBName: string;
   seasonSlug: string;
+  /** steamId64 → 游戏内昵称 */
+  playerNameMap: Record<string, string>;
 }
 
 const TEAM_COLORS = {
@@ -85,11 +87,13 @@ function TeamTable({
   label,
   color,
   seasonSlug,
+  playerNameMap,
 }: {
   players: DemoPlayerStatRow[];
   label: string;
   color: { border: string; bg: string };
   seasonSlug: string;
+  playerNameMap: Record<string, string>;
 }) {
   if (players.length === 0) return null;
   return (
@@ -135,11 +139,11 @@ function TeamTable({
                       href={`/${seasonSlug}/players/${p.userId}`}
                       className="text-xs font-medium hover:text-[var(--color-accent)] transition-colors"
                     >
-                      {p.steamId64}
+                      {playerNameMap[p.steamId64] ?? p.steamId64}
                     </Link>
                   ) : (
                     <span className="text-xs text-[var(--color-fg-dim)]">
-                      {p.steamId64}
+                      {playerNameMap[p.steamId64] ?? p.steamId64}
                     </span>
                   )}
                 </td>
@@ -189,6 +193,7 @@ export function DemoPlayerStatsTable({
   teamAName,
   teamBName,
   seasonSlug,
+  playerNameMap,
 }: DemoPlayerStatsTableProps) {
   const teamA = players.filter((p) => p.teamKey === "teamA");
   const teamB = players.filter((p) => p.teamKey === "teamB");
@@ -201,9 +206,9 @@ export function DemoPlayerStatsTable({
 
   return (
     <div className="flex gap-4">
-      <TeamTable players={teamA} label={teamAName} color={TEAM_COLORS.A} seasonSlug={seasonSlug} />
+      <TeamTable players={teamA} label={teamAName} color={TEAM_COLORS.A} seasonSlug={seasonSlug} playerNameMap={playerNameMap} />
       <div className="w-px bg-[var(--color-border)] self-stretch" />
-      <TeamTable players={teamB} label={teamBName} color={TEAM_COLORS.B} seasonSlug={seasonSlug} />
+      <TeamTable players={teamB} label={teamBName} color={TEAM_COLORS.B} seasonSlug={seasonSlug} playerNameMap={playerNameMap} />
     </div>
   );
 }

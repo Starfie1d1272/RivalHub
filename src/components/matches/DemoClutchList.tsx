@@ -4,13 +4,15 @@ import type { ClutchRow } from "@/actions/demo-detail";
 
 interface DemoClutchListProps {
   clutches: ClutchRow[];
+  /** steamId64 → 游戏内昵称 */
+  playerNameMap: Record<string, string>;
 }
 
 /**
  * Clutch replay list.
  * Displays "R{round} player 1vN W/L ·K kills" with win/loss coloring.
  */
-export function DemoClutchList({ clutches }: DemoClutchListProps) {
+export function DemoClutchList({ clutches, playerNameMap }: DemoClutchListProps) {
   if (clutches.length === 0) {
     return <p className="text-xs text-[var(--color-fg-dim)] py-2">No clutch data</p>;
   }
@@ -20,7 +22,7 @@ export function DemoClutchList({ clutches }: DemoClutchListProps) {
   return (
     <div className="space-y-1">
       {sorted.map((c, i) => {
-        const playerName = c.clutcherSteamId64 ?? "Unknown";
+        const playerName = playerNameMap[c.clutcherSteamId64 ?? ""] ?? c.clutcherSteamId64 ?? "Unknown";
         const clutchType = c.opponentCount != null ? `1v${c.opponentCount}` : "1v?";
         const result = c.won ? "W" : "L";
         const killInfo = c.killCount != null ? ` ·${c.killCount}K` : "";

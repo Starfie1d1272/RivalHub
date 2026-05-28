@@ -4,6 +4,8 @@ import type { KillFeedItem } from "@/actions/demo-detail";
 
 interface DemoKillFeedProps {
   kills: KillFeedItem[];
+  /** steamId64 → 游戏内昵称 */
+  playerNameMap: Record<string, string>;
 }
 
 function groupKillsByRound(kills: KillFeedItem[]): Map<number, KillFeedItem[]> {
@@ -67,7 +69,7 @@ function weaponLabel(weapon: string | null): string {
  * Kill feed timeline grouped by round.
  * Shows "killer [weapon] → victim" with HS/Trade/Smoke/NS/FA badges.
  */
-export function DemoKillFeed({ kills }: DemoKillFeedProps) {
+export function DemoKillFeed({ kills, playerNameMap }: DemoKillFeedProps) {
   if (kills.length === 0) {
     return (
       <p className="text-xs text-[var(--color-fg-dim)] py-2">No kill data</p>
@@ -85,8 +87,8 @@ export function DemoKillFeed({ kills }: DemoKillFeedProps) {
           </h4>
           <div className="space-y-0.5">
             {roundKills.map((k, i) => {
-              const killer = k.killerSteamId64 ?? "Unknown";
-              const victim = k.victimSteamId64 ?? "Unknown";
+              const killer = playerNameMap[k.killerSteamId64 ?? ""] ?? k.killerSteamId64 ?? "Unknown";
+              const victim = playerNameMap[k.victimSteamId64 ?? ""] ?? k.victimSteamId64 ?? "Unknown";
               const weapon = weaponLabel(k.weapon);
 
               return (

@@ -3,6 +3,7 @@ import { db } from "@/db/client";
 import { matchMaps } from "@/db/schema/match-maps";
 import {
   demoImports,
+  demoPlayers,
   demoPlayerStats,
   demoRounds,
   demoKills,
@@ -114,6 +115,8 @@ export interface ClutchRow {
 
 export interface DemoDetailData {
   importBatchId: string;
+  /** steamId64 → 游戏内昵称 */
+  playerNameMap: Record<string, string>;
   playerStats: DemoPlayerStatRow[];
   rounds: DemoRoundRow[];
   killPoints: DemoPoint[];
@@ -144,8 +147,18 @@ export async function getDemoDetail(
 
   const batchId = latestImport.id;
 
-  const [playerStats, rounds, kills, bombs, grenades, clutches, economies] =
+  const [players, playerStats, rounds, kills, bombs, grenades, clutches, economies] =
     await Promise.all([
+      // demoPlayers（用于名字映射）
+      db
+        .select()
+        .from(demoPlayers)
+        .where(
+          and(
+            eq(demoPlayers.importBatchId, batchId),
+            eq(demoPlayers.mapId, mapId),
+          ),
+        ),
       // playerStats
       db
         .select()
@@ -342,8 +355,15 @@ export async function getDemoDetail(
     collateralKillCount: s.collateralKillCount,
   }));
 
+  // 名字映射
+  const playerNameMap: Record<string, string> = {};
+  for (const p of players) {
+    playerNameMap[p.steamId64] = p.name;
+  }
+
   return ok({
     importBatchId: batchId,
+    playerNameMap,
     playerStats: statRows,
     rounds,
     killPoints,
