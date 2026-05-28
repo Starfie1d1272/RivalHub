@@ -1,6 +1,6 @@
 {
   "name": "rivalhub",
-  "version": "1.26.2",
+  "version": "1.26.0",
   "private": true,
   "license": "AGPL-3.0",
   "scripts": {
@@ -54,7 +54,6 @@
   },
   "devDependencies": {
     "@neondatabase/serverless": "^0.10.4",
-    "@next/bundle-analyzer": "^16.2.6",
     "@playwright/test": "^1.52.0",
     "@tailwindcss/postcss": "^4.1.6",
     "@testing-library/jest-dom": "^6.6.3",
