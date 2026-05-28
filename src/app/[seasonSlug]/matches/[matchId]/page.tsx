@@ -34,6 +34,8 @@ import { DemoRoundTimeline } from "@/components/matches/DemoRoundTimeline";
 import { DemoKillFeed } from "@/components/matches/DemoKillFeed";
 import { DemoEconomyChart } from "@/components/matches/DemoEconomyChart";
 import { DemoClutchList } from "@/components/matches/DemoClutchList";
+import { PlayerEntryStats } from "@/components/matches/PlayerEntryStats";
+import { PlayerClutchStats } from "@/components/matches/PlayerClutchStats";
 import { getTimeBufferHoursForStage } from "@/lib/matches/time-rules";
 import { getMatchRoster } from "@/actions/matches/roster";
 import { getSeasonHexagonScores } from "@/actions/hexagon";
@@ -572,6 +574,16 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                         </Panel>
                         <PlayerWeaponBreakdown
                           rawKills={d.rawKills}
+                          playerStats={d.playerStats}
+                          playerNameMap={d.playerNameMap}
+                        />
+                        <PlayerEntryStats
+                          kills={d.kills}
+                          playerStats={d.playerStats}
+                          playerNameMap={d.playerNameMap}
+                        />
+                        <PlayerClutchStats
+                          clutches={d.clutches}
                           playerStats={d.playerStats}
                           playerNameMap={d.playerNameMap}
                         />
