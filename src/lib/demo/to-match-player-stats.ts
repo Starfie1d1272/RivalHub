@@ -1,4 +1,4 @@
-interface DemoStatInput {
+export interface DemoStatInput {
   steamId64: string;
   teamKey: string;
   kills?: number | null;
