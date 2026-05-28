@@ -1,6 +1,6 @@
 {
   "name": "rivalhub",
-  "version": "1.26.0",
+  "version": "1.26.2",
   "private": true,
   "license": "AGPL-3.0",
   "scripts": {
