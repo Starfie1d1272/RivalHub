@@ -5,6 +5,11 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.25.4] - 2026-05-28
+
+### Fixed
+- **幽灵提议修复**：管理员后台直接设置比赛时间时未联动清理同场 pending 提议，导致提议永远显示「即将自动采纳」。`updateMatchScheduledAt` 现在在事务内同步将 pending 提议标为 expired；cron 的 `autoAcceptSingleProposal` 增加兜底逻辑，比赛不再是 scheduled 状态或已有 scheduledAt 时直接清理残留 pending 提议
+
 ## [1.25.3] - 2026-05-27
 
 ### Fixed
@@ -808,6 +813,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.25.4]: https://github.com/Starfie1d1272/RivalHub/compare/v1.25.3...v1.25.4
 [1.25.3]: https://github.com/Starfie1d1272/RivalHub/compare/v1.25.2...v1.25.3
 [1.25.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.25.1...v1.25.2
 [1.25.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.25.0...v1.25.1
