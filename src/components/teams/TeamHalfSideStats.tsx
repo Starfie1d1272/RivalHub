@@ -37,14 +37,14 @@ export function TeamHalfSideStats({
 
   if (entries.length === 0) {
     return (
-      <Panel title={`${teamName} T/CT 半场胜率`}>
+      <Panel label={`${teamName} T/CT 半场胜率`}>
         <p className="text-gray-400 text-sm text-center py-4">暂无数据</p>
       </Panel>
     );
   }
 
   return (
-    <Panel title={`${teamName} T/CT 半场胜率`}>
+    <Panel label={`${teamName} T/CT 半场胜率`}>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {entries.map(([side, s]) => (
           <div

@@ -41,7 +41,7 @@ export function TeamStyleProfile({ profile }: TeamStyleProfileProps) {
     .slice(0, 4);
 
   return (
-    <Panel title={`${profile.teamName} 风格画像`}>
+    <Panel label={`${profile.teamName} 风格画像`}>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <StatCard
           label="首杀率"
