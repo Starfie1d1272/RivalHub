@@ -4,11 +4,12 @@ import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
 import { sql } from "drizzle-orm";
 import { StatsLeaderboard } from "@/components/matches/StatsLeaderboard";
+import { WeaponLeaderboard } from "@/components/matches/WeaponLeaderboard";
 import { normalizeLeaderboardState } from "@/lib/matches/leaderboard-view";
 import { Marker } from "@/components/rivalhub";
 import { roundWeightedAvg, killWeightedAvg, perRound, roundsExpr } from "@/lib/stats";
 import { normalizeStagePlan } from "@/types/season";
-import { getSeasonDemoStats, type DemoLeaderboardData } from "@/actions/season-demo-stats";
+import { getSeasonDemoStats, getSeasonWeaponStats, type DemoLeaderboardData } from "@/actions/season-demo-stats";
 import type { Metadata } from "next";
 
 interface StatsPageProps {
@@ -42,6 +43,10 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
   const demoResult = await getSeasonDemoStats(season.id);
   const demoStats = demoResult.success ? demoResult.data : [];
   const hasDemoData = demoStats.length > 0;
+
+  // 武器/AWP 击杀榜
+  const weaponResult = await getSeasonWeaponStats(season.id);
+  const weaponStats = weaponResult.success ? weaponResult.data : [];
 
   // 各指标的聚合表达式（sortColumn 和 SELECT 共用）
   // ADR：回合加权（正确方式）；HS%：击杀数加权（正确方式）
@@ -163,6 +168,9 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
         currentStage={stage}
         hasDemoData={hasDemoData}
       />
+      {weaponStats.length > 0 && (
+        <WeaponLeaderboard players={weaponStats} seasonSlug={seasonSlug} />
+      )}
     </div>
   );
 }

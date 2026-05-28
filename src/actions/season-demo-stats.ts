@@ -198,3 +198,54 @@ export async function getSeasonWeaponStats(
 
   return ok(data);
 }
+
+
+export interface WeaponKillRow {
+  userId: string | null;
+  perfectName: string;
+  weapon: string;
+  kills: number;
+  headshotPct: number | null;
+  tradeKillPct: number | null;
+  noScopePct: number | null;
+  avgPenetrated: number | null;
+}
+
+/**
+ * 赛季武器击杀榜：按 userId+weapon 汇总，含HS%/trade%/noScope%/穿墙数
+ * 只统计 demo_kills（由 matchMaps.activeStatSource='demo_import' 过滤）
+ */
+export async function getWeaponKillStats(seasonId: string): Promise<WeaponKillRow[]> {
+  const rows = await db.execute(sql`
+    SELECT
+      dp.user_id,
+      dp.name AS perfect_name,
+      dk.weapon,
+      count(*)::int AS kills,
+      round(avg((dk.headshot IS TRUE)::int)::numeric, 3) AS headshot_pct,
+      round(avg((dk.trade_kill IS TRUE)::int)::numeric, 3) AS trade_kill_pct,
+      round(avg((dk.no_scope IS TRUE)::int)::numeric, 3) AS no_scope_pct,
+      round(avg(coalesce(dk.penetrated_objects, 0))::numeric, 2) AS avg_penetrated
+    FROM ${demoKills} dk
+    JOIN ${matchMaps} mm ON mm.id = dk.map_id
+    JOIN ${matches} m ON m.id = mm.match_id
+    LEFT JOIN ${demoPlayers} dp ON dp.steam_id64 = dk.killer_steam_id64 AND dp.import_batch_id = dk.import_batch_id
+    WHERE m.season_id = ${seasonId}
+      AND mm.active_stat_source = 'demo_import'::stat_source
+    GROUP BY dp.user_id, dp.name, dk.weapon
+    HAVING count(*) >= 3
+    ORDER BY kills DESC
+    LIMIT 200
+  `);
+
+  return (rows as unknown as any[]).map((r: any) => ({
+    userId: r.user_id as string | null,
+    perfectName: r.perfect_name as string,
+    weapon: r.weapon as string,
+    kills: Number(r.kills),
+    headshotPct: r.headshot_pct != null ? Number(r.headshot_pct) : null,
+    tradeKillPct: r.trade_kill_pct != null ? Number(r.trade_kill_pct) : null,
+    noScopePct: r.no_scope_pct != null ? Number(r.no_scope_pct) : null,
+    avgPenetrated: r.avg_penetrated != null ? Number(r.avg_penetrated) : null,
+  }));
+}
