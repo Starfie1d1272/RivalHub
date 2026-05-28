@@ -5,11 +5,12 @@ import { seasons } from "@/db/schema";
 import { sql } from "drizzle-orm";
 import { StatsLeaderboard } from "@/components/matches/StatsLeaderboard";
 import { WeaponLeaderboard } from "@/components/matches/WeaponLeaderboard";
+import { HighlightLeaderboard } from "@/components/matches/HighlightLeaderboard";
 import { normalizeLeaderboardState } from "@/lib/matches/leaderboard-view";
 import { Marker } from "@/components/rivalhub";
 import { roundWeightedAvg, killWeightedAvg, perRound, roundsExpr } from "@/lib/stats";
 import { normalizeStagePlan } from "@/types/season";
-import { getSeasonDemoStats, getSeasonWeaponStats, type DemoLeaderboardData } from "@/actions/season-demo-stats";
+import { getSeasonDemoStats, getSeasonWeaponStats, getSeasonHighlightStats, type DemoLeaderboardData } from "@/actions/season-demo-stats";
 import type { Metadata } from "next";
 
 interface StatsPageProps {
@@ -47,6 +48,10 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
   // 武器/AWP 击杀榜
   const weaponResult = await getSeasonWeaponStats(season.id);
   const weaponStats = weaponResult.success ? weaponResult.data : [];
+
+  // 高光榜（collateral/wallbang/noScope）
+  const highlightResult = await getSeasonHighlightStats(season.id);
+  const highlightStats = highlightResult.success ? highlightResult.data : [];
 
   // 各指标的聚合表达式（sortColumn 和 SELECT 共用）
   // ADR：回合加权（正确方式）；HS%：击杀数加权（正确方式）
@@ -170,6 +175,9 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
       />
       {weaponStats.length > 0 && (
         <WeaponLeaderboard players={weaponStats} seasonSlug={seasonSlug} />
+      )}
+      {highlightStats.length > 0 && (
+        <HighlightLeaderboard highlights={highlightStats} seasonSlug={seasonSlug} />
       )}
     </div>
   );

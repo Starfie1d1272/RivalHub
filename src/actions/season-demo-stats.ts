@@ -249,3 +249,59 @@ export async function getWeaponKillStats(seasonId: string): Promise<WeaponKillRo
     avgPenetrated: r.avg_penetrated != null ? Number(r.avg_penetrated) : null,
   }));
 }
+
+/**
+ * 赛季高光榜：汇总每个玩家的 collateral/wallbang/noScope 击杀数
+ * 三个趣味榜单，从 demoPlayerStats 按 season 聚合
+ */
+export interface PlayerHighlightStats {
+  userId: string | null;
+  perfectName: string;
+  steamId64: string | null;
+  maps: number;
+  /** 集火击杀（一枪穿≥2人） */
+  collateralKills: number;
+  /** 穿墙击杀 */
+  wallbangKills: number;
+  /** 盲狙击杀（狙击未开镜） */
+  noScopeKills: number;
+}
+
+export async function getSeasonHighlightStats(
+  seasonId: string,
+): Promise<ActionResult<PlayerHighlightStats[]>> {
+  const rows = await db.execute(sql`
+    SELECT
+      dps.user_id,
+      COALESCE(dp.name, 'Unknown') AS perfect_name,
+      dp.steam_id64,
+      count(*)::int AS maps,
+      COALESCE(sum(dps.collateral_kill_count)::int, 0) AS collateral_kills,
+      COALESCE(sum(dps.wallbang_kill_count)::int, 0) AS wallbang_kills,
+      COALESCE(sum(dps.no_scope_kill_count)::int, 0) AS no_scope_kills
+    FROM ${demoPlayerStats} dps
+    JOIN ${demoImports} di ON di.id = dps.import_batch_id
+    JOIN ${matchMaps} mm ON mm.id = di.map_id
+    JOIN ${matches} m ON m.id = mm.match_id
+    LEFT JOIN ${demoPlayers} dp
+      ON dp.steam_id64 = dps.steam_id64 AND dp.import_batch_id = dps.import_batch_id
+    WHERE m.season_id = ${seasonId}
+      AND mm.active_stat_source = 'demo_import'::stat_source
+    GROUP BY dps.user_id, dp.name, dp.steam_id64
+    HAVING COALESCE(sum(dps.collateral_kill_count), 0) > 0
+        OR COALESCE(sum(dps.wallbang_kill_count), 0) > 0
+        OR COALESCE(sum(dps.no_scope_kill_count), 0) > 0
+    ORDER BY collateral_kills DESC
+    LIMIT 100
+  `);
+
+  return ok((rows as unknown as any[]).map((r: any) => ({
+    userId: r.user_id as string | null,
+    perfectName: (r.perfect_name as string) ?? "Unknown",
+    steamId64: r.steam_id64 as string | null,
+    maps: Number(r.maps ?? 0),
+    collateralKills: Number(r.collateral_kills ?? 0),
+    wallbangKills: Number(r.wallbang_kills ?? 0),
+    noScopeKills: Number(r.no_scope_kills ?? 0),
+  })));
+}
