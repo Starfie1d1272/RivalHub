@@ -108,12 +108,20 @@ export function DemoHeatmap({ mapName, points }: DemoHeatmapProps) {
 
   return (
     <div className="space-y-2">
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex gap-2 flex-wrap" role="radiogroup" aria-label="Heatmap filter mode">
         {(Object.keys(MODE_CONFIG) as HeatmapMode[]).map((m) => (
           <button
             key={m}
             type="button"
+            role="radio"
+            aria-checked={mode === m}
             onClick={() => setMode(m)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setMode(m);
+              }
+            }}
             className={cn(
               "px-3 py-1 text-xs rounded-full border transition-colors",
               mode === m
