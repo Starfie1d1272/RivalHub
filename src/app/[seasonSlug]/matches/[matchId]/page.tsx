@@ -27,7 +27,6 @@ import { getMatchMvpResults, ensureMvpWinner } from "@/actions/player-stats";
 import { getTimeProposals } from "@/actions/matches/scheduling";
 import { getDemoDetail } from "@/actions/demo-detail";
 import { DemoPlayerStatsTable } from "@/components/matches/DemoPlayerStatsTable";
-import { DemoHeatmap } from "@/components/matches/DemoHeatmap";
 import { PlayerKillHeatmap } from "@/components/matches/PlayerKillHeatmap";
 import { PlayerWeaponBreakdown } from "@/components/matches/PlayerWeaponBreakdown";
 import { DemoRoundTimeline } from "@/components/matches/DemoRoundTimeline";

@@ -20,6 +20,7 @@ import { revalidatePath } from "next/cache";
 import { parseDemoPackage } from "@/lib/demo/parse-package";
 import { mapDemoPlayers } from "@/lib/demo/map-players";
 import { toMatchPlayerStat, type DemoStatInput } from "@/lib/demo/to-match-player-stats";
+import { batchInsert } from "@/lib/demo/batch-insert";
 
 type DemoSideVal = "t" | "ct" | "unknown";
 
@@ -96,7 +97,7 @@ export async function importDemoPackage(
 
       // 2. 批量插入 demo_players
       if (mappedPlayers.length > 0) {
-        await tx.insert(demoPlayers).values(
+        await batchInsert(tx, demoPlayers,
           mappedPlayers.map(p => ({
             importBatchId: batchId,
             mapId,
@@ -111,7 +112,7 @@ export async function importDemoPackage(
       // 3. 批量插入 demo_rounds
       const rounds = parsed.files.rounds ?? [];
       if (rounds.length > 0) {
-        await tx.insert(demoRounds).values(
+        await batchInsert(tx, demoRounds,
           rounds.map((r: Record<string, unknown>) => ({
             importBatchId: batchId,
             mapId,
@@ -135,7 +136,7 @@ export async function importDemoPackage(
       // 4. 批量插入 demo_player_stats（携带 userId 映射）
       const stats = parsed.files.playerStats ?? [];
       if (stats.length > 0) {
-        await tx.insert(demoPlayerStatsTable).values(
+        await batchInsert(tx, demoPlayerStatsTable,
           stats.map((s: Record<string, unknown>) => ({
             importBatchId: batchId,
             mapId,
@@ -188,7 +189,7 @@ export async function importDemoPackage(
       // 5. 批量插入 demo_player_economies
       const economies = parsed.files.playerEconomies ?? [];
       if (economies.length > 0) {
-        await tx.insert(demoPlayerEconomies).values(
+        await batchInsert(tx, demoPlayerEconomies,
           economies.map((e: Record<string, unknown>) => ({
             importBatchId: batchId, mapId,
             roundNumber: e.roundNumber as number,
@@ -206,7 +207,7 @@ export async function importDemoPackage(
       // 6. 批量插入 demo_kills
       const kills = parsed.files.kills ?? [];
       if (kills.length > 0) {
-        await tx.insert(demoKills).values(
+        await batchInsert(tx, demoKills,
           kills.map((k: Record<string, unknown>) => ({
             importBatchId: batchId, mapId,
             roundNumber: k.roundNumber as number,
@@ -235,7 +236,7 @@ export async function importDemoPackage(
       // 7. 批量插入 demo_damages
       const damages = parsed.files.damages ?? [];
       if (damages.length > 0) {
-        await tx.insert(demoDamages).values(
+        await batchInsert(tx, demoDamages,
           damages.map((d: Record<string, unknown>) => ({
             importBatchId: batchId, mapId,
             roundNumber: d.roundNumber as number, tick: d.tick as number,
@@ -260,7 +261,7 @@ export async function importDemoPackage(
       // 8. 批量插入 demo_blinds
       const blinds = parsed.files.blinds ?? [];
       if (blinds.length > 0) {
-        await tx.insert(demoBlinds).values(
+        await batchInsert(tx, demoBlinds,
           blinds.map((b: Record<string, unknown>) => ({
             importBatchId: batchId, mapId,
             roundNumber: b.roundNumber as number, tick: b.tick as number,
@@ -278,7 +279,7 @@ export async function importDemoPackage(
       // 9. 批量插入 demo_bombs
       const bombs = parsed.files.bombs ?? [];
       if (bombs.length > 0) {
-        await tx.insert(demoBombs).values(
+        await batchInsert(tx, demoBombs,
           bombs.map((b: Record<string, unknown>) => ({
             importBatchId: batchId, mapId,
             roundNumber: b.roundNumber as number, tick: b.tick as number,
@@ -295,7 +296,7 @@ export async function importDemoPackage(
       // 10. 批量插入 demo_clutches
       const clutches = parsed.files.clutches ?? [];
       if (clutches.length > 0) {
-        await tx.insert(demoClutches).values(
+        await batchInsert(tx, demoClutches,
           clutches.map((c: Record<string, unknown>) => ({
             importBatchId: batchId, mapId,
             roundNumber: c.roundNumber as number,
@@ -314,7 +315,7 @@ export async function importDemoPackage(
       // 11. 批量插入 demo_grenades
       const grenades = parsed.files.grenades ?? [];
       if (grenades.length > 0) {
-        await tx.insert(demoGrenades).values(
+        await batchInsert(tx, demoGrenades,
           grenades.map((g: Record<string, unknown>) => ({
             importBatchId: batchId, mapId,
             roundNumber: g.roundNumber as number,
@@ -333,7 +334,7 @@ export async function importDemoPackage(
       // 12. 批量插入 demo_shots
       const shots = parsed.files.shots ?? [];
       if (shots.length > 0) {
-        await tx.insert(demoShots).values(
+        await batchInsert(tx, demoShots,
           shots.map((s: Record<string, unknown>) => ({
             importBatchId: batchId, mapId,
             roundNumber: s.roundNumber as number, tick: s.tick as number,
@@ -352,7 +353,7 @@ export async function importDemoPackage(
       // 13. 批量插入 demo_positions
       const positions = parsed.files.positions1s ?? [];
       if (positions.length > 0) {
-        await tx.insert(demoPositions).values(
+        await batchInsert(tx, demoPositions,
           positions.map((p: Record<string, unknown>) => ({
             importBatchId: batchId, mapId,
             roundNumber: p.roundNumber as number, tick: p.tick as number,
@@ -374,11 +375,7 @@ export async function importDemoPackage(
         );
       }
 
-      // 14. 删除该 map 旧的 demo 来源 match_player_stats，插回填行
-      await tx.delete(matchPlayerStats).where(
-        and(eq(matchPlayerStats.mapId, mapId), eq(matchPlayerStats.source, "demo_import"))
-      );
-
+      // 14. UPSERT 回填 match_player_stats（并发安全，避免 DELETE+INSERT 幽灵删除）
       if (stats.length > 0) {
         const backfillRows = stats.map((s: Record<string, unknown>) => {
           const steamId = s.steamId64 as string;
@@ -401,7 +398,27 @@ export async function importDemoPackage(
             source: row.source,
           };
         });
-        await tx.insert(matchPlayerStats).values(backfillRows);
+        for (const row of backfillRows) {
+          await tx.insert(matchPlayerStats).values(row).onConflictDoUpdate({
+            target: [matchPlayerStats.mapId, matchPlayerStats.perfectName, matchPlayerStats.source],
+            set: {
+              kills: row.kills,
+              deaths: row.deaths,
+              assists: row.assists,
+              adr: row.adr,
+              hsPercent: row.hsPercent,
+              firstKills: row.firstKills,
+              multiKills: row.multiKills,
+              clutches: row.clutches,
+              userId: row.userId,
+            },
+          });
+        }
+      } else {
+        // 无统计数据，清空所有 demo_import 来源行
+        await tx.delete(matchPlayerStats).where(
+          and(eq(matchPlayerStats.mapId, mapId), eq(matchPlayerStats.source, "demo_import"))
+        );
       }
 
       // 15. 设置生效来源为 demo_import
