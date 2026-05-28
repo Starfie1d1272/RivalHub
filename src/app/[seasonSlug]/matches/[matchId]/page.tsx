@@ -550,6 +550,11 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                             economies={d.economies}
                             teamAName={teamA?.name ?? "Team A"}
                             teamBName={teamB?.name ?? "Team B"}
+                            roundTypes={d.rounds.map((r) => ({
+                              roundNumber: r.roundNumber,
+                              teamAEconomy: r.teamAEconomy,
+                              teamBEconomy: r.teamBEconomy,
+                            }))}
                           />
                         </Panel>
                         <Panel label="Clutch Replays">
