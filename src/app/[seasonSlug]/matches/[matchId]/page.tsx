@@ -588,6 +588,11 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                           playerStats={d.playerStats}
                           playerNameMap={d.playerNameMap}
                         />
+                        <PlayerUtilityStats
+                          kills={d.kills}
+                          playerStats={d.playerStats}
+                          playerNameMap={d.playerNameMap}
+                        />
                       </div>
                     );
                   })()}
