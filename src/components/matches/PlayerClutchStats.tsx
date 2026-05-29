@@ -140,8 +140,8 @@ export function PlayerClutchStats({
                   className={cn(
                     "text-center p-2 rounded",
                     "bg-[var(--color-bg-subtle)]",
-                    data.won > 0 && data.won === data.total && "bg-green-900/30",
-                    data.won === 0 && data.total > 0 && "bg-red-900/30"
+                    data.won > 0 && data.won === data.total && "bg-[var(--color-success)]/20",
+                    data.won === 0 && data.total > 0 && "bg-[var(--color-error)]/20"
                   )}
                 >
                   <div className="text-sm font-semibold">v{opp}</div>
@@ -178,7 +178,7 @@ export function PlayerClutchStats({
                         key={i}
                         className={cn(
                           "border-b border-[var(--color-border-subtle)]",
-                          c.won ? "text-green-400" : "text-red-400"
+                          c.won ? "text-[var(--color-success)]" : "text-[var(--color-error)]"
                         )}
                       >
                         <td className="py-1 px-1">{c.roundNumber}</td>

@@ -178,9 +178,9 @@ export function PlayerEntryStats({
               key={`${ev.round}-${ev.type}-${i}`}
               className={cn(
                 "border-b border-[var(--color-border-subtle)]",
-                ev.type === "firstKill" && "text-green-400",
-                ev.type === "firstDeath" && "text-red-400",
-                ev.type === "tradeKill" && "text-yellow-400"
+                ev.type === "firstKill" && "text-[var(--color-success)]",
+                ev.type === "firstDeath" && "text-[var(--color-error)]",
+                ev.type === "tradeKill" && "text-[var(--color-warn)]"
               )}
             >
               <td className="py-1 px-2">{ev.round}</td>

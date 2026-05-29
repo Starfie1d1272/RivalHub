@@ -1,5 +1,3 @@
-"use client";
-
 import React from "react";
 import { Panel } from "@/components/rivalhub";
 import type { EconomyTypeStats } from "@/lib/demo/economy-conversion";
@@ -18,11 +16,11 @@ const ECONOMY_LABELS: Record<string, string> = {
 };
 
 const ECONOMY_COLORS: Record<string, string> = {
-  full: "text-green-600",
-  semi: "text-yellow-600",
-  eco: "text-red-600",
-  force: "text-orange-600",
-  pistol: "text-blue-600",
+  full: "text-[var(--color-success)]",
+  semi: "text-[var(--color-fg-mid)]",
+  eco: "text-[var(--color-error)]",
+  force: "text-[var(--color-warn)]",
+  pistol: "text-[var(--color-accent)]",
 };
 
 function WinRateBar({ rate }: { rate: number }) {
@@ -45,12 +43,20 @@ export function EconomyConversionPanel({
     ([, a], [, b]) => b.winRate - a.winRate,
   );
 
+  if (entries.length === 0) {
+    return (
+      <Panel label={`${teamName} 经济转化率`}>
+        <p className="text-sm text-[var(--color-fg-muted)] italic py-4 text-center">暂无经济数据</p>
+      </Panel>
+    );
+  }
+
   return (
     <Panel label={`${teamName} 经济转化率`}>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-200 dark:border-gray-700">
+            <tr className="border-b border-[var(--color-border)]">
               <th className="text-left py-2 px-3">经济类型</th>
               <th className="text-right py-2 px-3">回合数</th>
               <th className="text-right py-2 px-3">胜场</th>
@@ -62,10 +68,10 @@ export function EconomyConversionPanel({
             {entries.map(([economy, s]) => (
               <tr
                 key={economy}
-                className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800"
+                className="border-b border-[var(--color-border)] hover:bg-[var(--color-bg-subtle)]"
               >
                 <td className="py-2 px-3 font-medium">
-                  <span className={ECONOMY_COLORS[economy] ?? "text-gray-600"}>
+                  <span className={ECONOMY_COLORS[economy] ?? "text-[var(--color-fg-mid)]"}>
                     {ECONOMY_LABELS[economy] ?? economy}
                   </span>
                 </td>

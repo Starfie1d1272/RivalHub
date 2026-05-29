@@ -230,8 +230,14 @@ export function AdminMatchRow({
                   initialValue={toCSTDateTimeInput(match.completedAt)}
                 />
                 {finishedMaps.map((map) => (
-                  <div key={map.id}>
+                  <div key={map.id} className="space-y-1">
                     <StatsOCRPanel mapId={map.id} mapName={map.mapName} />
+                    <Link
+                      href={`/admin/${seasonSlug}/demos` as any}
+                      className="text-xs text-[var(--color-fg-mid)] hover:text-[var(--color-accent)] transition-colors"
+                    >
+                      导入 Demo →
+                    </Link>
                   </div>
                 ))}
               </>

@@ -199,9 +199,9 @@ export function DemoEconomyChart({
         {/* 经济类型图例 */}
         <g transform={`translate(8, ${H - 14})`}>
           {[
-            { label: "Full", color: "rgba(34,197,94,0.3)" },
-            { label: "Force", color: "rgba(234,179,8,0.3)" },
-            { label: "Eco", color: "rgba(239,68,68,0.3)" },
+            { label: "Full", color: "color-mix(in srgb, var(--color-success) 30%, transparent)" },
+            { label: "Force", color: "color-mix(in srgb, var(--color-warn) 30%, transparent)" },
+            { label: "Eco", color: "color-mix(in srgb, var(--color-error) 30%, transparent)" },
           ].map((item, i) => (
             <g key={item.label} transform={`translate(${i * 60}, 0)`}>
               <rect x={0} y={0} width={8} height={8} rx={1} fill={item.color} />

@@ -21,6 +21,8 @@ import { parseDemoPackage } from "@/lib/demo/parse-package";
 import { mapDemoPlayers } from "@/lib/demo/map-players";
 import { toMatchPlayerStat, type DemoStatInput } from "@/lib/demo/to-match-player-stats";
 import { batchInsert } from "@/lib/demo/batch-insert";
+import { computeHltvRating } from "@/lib/demo/hltv-rating";
+import { seasons } from "@/db/schema/seasons";
 
 type DemoSideVal = "t" | "ct" | "unknown";
 
@@ -227,8 +229,8 @@ export async function importDemoPackage(
             throughSmoke: (k.throughSmoke as boolean | null) ?? undefined,
             noScope: (k.noScope as boolean | null) ?? undefined,
             penetratedObjects: (k.penetratedObjects as number | null) ?? undefined,
-            killerPosition: k.killerPosition ? JSON.parse(JSON.stringify(k.killerPosition)) : null,
-            victimPosition: k.victimPosition ? JSON.parse(JSON.stringify(k.victimPosition)) : null,
+            killerPosition: k.killerPosition as object | null,
+            victimPosition: k.victimPosition as object | null,
           }))
         );
       }
@@ -288,7 +290,7 @@ export async function importDemoPackage(
             actorSteamId64: (b.actorSteamId64 as string | null) ?? null,
             actorTeamKey: (b.actorTeamKey as string | null) ?? null,
             actorSide: (b.actorSide as DemoSideVal | null) ?? null,
-            position: b.position ? JSON.parse(JSON.stringify(b.position)) : null,
+            position: b.position as object | null,
           }))
         );
       }
@@ -325,8 +327,8 @@ export async function importDemoPackage(
             throwerSteamId64: (g.throwerSteamId64 as string | null) ?? null,
             throwerTeamKey: (g.throwerTeamKey as string | null) ?? null,
             throwerSide: (g.throwerSide as DemoSideVal | null) ?? null,
-            throwPosition: g.throwPosition ? JSON.parse(JSON.stringify(g.throwPosition)) : null,
-            effectPosition: g.effectPosition ? JSON.parse(JSON.stringify(g.effectPosition)) : null,
+            throwPosition: g.throwPosition as object | null,
+            effectPosition: g.effectPosition as object | null,
           }))
         );
       }
@@ -342,8 +344,8 @@ export async function importDemoPackage(
             teamKey: (s.teamKey as string | null) ?? null,
             side: (s.side as DemoSideVal | null) ?? null,
             weapon: (s.weapon as string | null) ?? null,
-            position: s.position ? JSON.parse(JSON.stringify(s.position)) : null,
-            velocity: s.velocity ? JSON.parse(JSON.stringify(s.velocity)) : null,
+            position: s.position as object | null,
+            velocity: s.velocity as object | null,
             yaw: (s.yaw as number | null) ?? undefined,
             pitch: (s.pitch as number | null) ?? undefined,
           }))
@@ -361,7 +363,7 @@ export async function importDemoPackage(
             teamKey: (p.teamKey as string | null) ?? null,
             side: (p.side as DemoSideVal | null) ?? null,
             alive: (p.alive as boolean | null) ?? undefined,
-            position: p.position ? JSON.parse(JSON.stringify(p.position)) : null,
+            position: p.position as object | null,
             yaw: (p.yaw as number | null) ?? undefined,
             pitch: (p.pitch as number | null) ?? undefined,
             health: (p.health as number | null) ?? undefined,
@@ -382,6 +384,14 @@ export async function importDemoPackage(
           const name = steamIdToName.get(steamId) ?? steamId;
           const uid = steamIdToUserIdMap.get(steamId) ?? null;
           const row = toMatchPlayerStat(s as DemoStatInput, name, uid);
+          const ratingPro = computeHltvRating({
+            kills: s.kills as number ?? 0,
+            deaths: s.deaths as number ?? 0,
+            assists: s.assists as number ?? 0,
+            kast: s.kast as number ?? 50,
+            adr: s.adr as number ?? 0,
+            totalRounds: rounds.length,
+          });
           return {
             matchId: map.matchId,
             mapId,
@@ -396,6 +406,8 @@ export async function importDemoPackage(
             multiKills: row.multiKills ?? undefined,
             clutches: row.clutches ?? undefined,
             source: row.source,
+            verifiedByAdmin: actor,
+            ratingPro,
           };
         });
         for (const row of backfillRows) {
@@ -411,6 +423,8 @@ export async function importDemoPackage(
               multiKills: row.multiKills,
               clutches: row.clutches,
               userId: row.userId,
+              verifiedByAdmin: row.verifiedByAdmin,
+              ratingPro: row.ratingPro,
             },
           });
         }
@@ -446,7 +460,13 @@ export async function importDemoPackage(
       return { importBatchId: batchId, unmatched };
     });
 
-    revalidatePath(`/admin/matches/${map.matchId}`);
+    const season = await db.query.seasons.findFirst({
+      where: eq(seasons.id, match.seasonId),
+      columns: { slug: true },
+    });
+    const slug = season?.slug ?? "";
+    revalidatePath(`/admin/${slug}/demos`);
+    revalidatePath(`/${slug}/matches/${map.matchId}`);
     return ok(result);
   } catch (e) {
     return actionError("importDemoPackage", e);

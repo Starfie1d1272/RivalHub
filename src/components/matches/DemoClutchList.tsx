@@ -34,8 +34,8 @@ export function DemoClutchList({ clutches, playerNameMap }: DemoClutchListProps)
               "flex items-center gap-2 px-2 py-1.5 rounded text-xs",
               "border border-[var(--color-border)]",
               c.won
-                ? "bg-green-900/10 border-green-700/20"
-                : "bg-red-900/10 border-red-700/20",
+                ? "bg-[var(--color-success)]/10 border-[var(--color-success)]/20"
+                : "bg-[var(--color-error)]/10 border-[var(--color-error)]/20",
             )}
           >
             <span className="font-mono text-[var(--color-fg-dim)] tabular-nums">
@@ -45,7 +45,7 @@ export function DemoClutchList({ clutches, playerNameMap }: DemoClutchListProps)
               {playerName}
             </span>
             <span className="font-mono text-[var(--color-fg-mid)]">{clutchType}</span>
-            <span className={cn("font-bold", c.won ? "text-green-400" : "text-red-400")}>
+            <span className={cn("font-bold", c.won ? "text-[var(--color-success)]" : "text-[var(--color-error)]")}>
               {result}
             </span>
             {killInfo && (

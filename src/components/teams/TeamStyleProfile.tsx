@@ -47,24 +47,24 @@ export function TeamStyleProfile({ profile }: TeamStyleProfileProps) {
           label="首杀率"
           value={profile.firstKillRate != null ? (profile.firstKillRate * 100).toFixed(1) : null}
           suffix="%"
-          color="text-orange-600"
+          color="text-[var(--color-warn)]"
         />
         <StatCard
           label="残局胜率"
           value={profile.clutchWinRate != null ? (profile.clutchWinRate * 100).toFixed(1) : null}
           suffix="%"
-          color="text-purple-600"
+          color="text-[var(--color-fg-mid)]"
         />
         <StatCard
           label="总回合数"
           value={profile.totalRounds}
-          color="text-blue-600"
+          color="text-[var(--color-accent)]"
         />
       </div>
 
       {topEco.length > 0 && (
         <>
-          <h4 className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-3">
+          <h4 className="text-sm font-semibold text-[var(--color-fg-mid)] mb-3">
             经济转化率
           </h4>
           <div className="space-y-2">
@@ -77,9 +77,9 @@ export function TeamStyleProfile({ profile }: TeamStyleProfileProps) {
                   {ECONOMY_LABELS[economy] ?? economy}
                 </span>
                 <div className="flex-1 mx-3">
-                  <div className="w-full bg-gray-200 rounded-full h-2 dark:bg-gray-700">
+                  <div className="w-full bg-[var(--color-bg-subtle)] rounded-full h-2">
                     <div
-                      className="bg-blue-500 h-2 rounded-full"
+                      className="bg-[var(--color-accent)] h-2 rounded-full"
                       style={{ width: `${(s.winRate * 100).toFixed(1)}%` }}
                     />
                   </div>
@@ -87,7 +87,7 @@ export function TeamStyleProfile({ profile }: TeamStyleProfileProps) {
                 <span className="w-16 text-right font-mono text-xs">
                   {(s.winRate * 100).toFixed(1)}%
                 </span>
-                <span className="w-12 text-right text-xs text-gray-400">
+                <span className="w-12 text-right text-xs text-[var(--color-fg-muted)]">
                   {s.played}局
                 </span>
               </div>
