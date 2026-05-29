@@ -1,10 +1,11 @@
 "use server";
 
-import { eq, and, inArray, asc } from "drizzle-orm";
+import { eq, and, inArray, asc, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matchMaps } from "@/db/schema/match-maps";
 import { matches } from "@/db/schema/matches";
 import { teams } from "@/db/schema/teams";
+import { users, seasonRegistrations, teamMembers } from "@/db/schema";
 import { ok, type ActionResult } from "@/types/action";
 import { actionError } from "@/lib/action-utils";
 import { requireAdmin } from "@/lib/auth/session";
@@ -21,6 +22,8 @@ export interface ZipManifestInfo {
   teamBName?: string;
   /** 从文件名提取的比赛日期，如 "2026-05-18" */
   zipDate?: string;
+  /** players.json 中的 steamId64 列表（用于模糊匹配） */
+  steamId64s?: string[];
 }
 
 export interface MatchResult {
@@ -88,10 +91,13 @@ export async function matchZipsToMaps(
 
     interface Candidate {
       mapId: string;
+      matchId: string;
       mapName: string;
       completedAt: Date | null;
       teamAName: string;
       teamBName: string;
+      teamAId: string;
+      teamBId: string;
       label: string;
     }
 
@@ -105,15 +111,18 @@ export async function matchZipsToMaps(
       const label = `${teamAName} vs ${teamBName} · ${mm.mapName} · ${dateStr}`;
       return {
         mapId: mm.id,
+        matchId: mm.matchId,
         mapName: mm.mapName,
         completedAt: mm.completedAt ?? match.completedAt ?? null,
         teamAName,
         teamBName,
+        teamAId: match.teamAId,
+        teamBId: match.teamBId,
         label,
       };
     });
 
-    const results: MatchResult[] = zips.map((zip) => {
+    const results: MatchResult[] = await Promise.all(zips.map(async (zip) => {
       // 先按 mapName 过滤
       const byMap = candidates.filter(
         (c) => c.mapName.toLowerCase() === zip.mapName.toLowerCase(),
@@ -227,12 +236,39 @@ export async function matchZipsToMaps(
         ? dateMatches
         : poolRaw;
 
-      if (pool.length === 1) {
+      // steamId 模糊匹配：通过 ZIP 玩家查询队伍归属，缩小候选范围
+      let playerMatchPool: Candidate[] | null = null;
+      if (pool.length > 1 && zip.steamId64s && zip.steamId64s.length > 0) {
+        try {
+          const teamRows = await db.execute(sql`
+            SELECT DISTINCT tm.team_id
+            FROM ${users} u
+            JOIN ${seasonRegistrations} sr ON sr.user_id = u.id AND sr.season_id = ${seasonId}
+            JOIN ${teamMembers} tm ON tm.registration_id = sr.id
+            WHERE u.steam_id64 = ANY(ARRAY[${sql.join(zip.steamId64s.map((s) => sql`${s}`), sql`, `)}])
+          `);
+          const zipTeamIds = new Set(teamRows.rows.map((r) => (r as Record<string, unknown>).team_id as string));
+          if (zipTeamIds.size > 0) {
+            const filtered = pool.filter((c) =>
+              zipTeamIds.has(c.teamAId) || zipTeamIds.has(c.teamBId),
+            );
+            if (filtered.length > 0 && filtered.length < pool.length) {
+              playerMatchPool = filtered;
+            }
+          }
+        } catch {
+          // steamId 匹配失败时忽略，继续使用原 pool
+        }
+      }
+
+      const finalPool = playerMatchPool ?? pool;
+
+      if (finalPool.length === 1) {
         return {
           fileName: zip.fileName,
-          mapId: pool[0].mapId,
+          mapId: finalPool[0].mapId,
           confidence: "fuzzy" as const,
-          matchLabel: pool[0].label,
+          matchLabel: finalPool[0].label,
           candidates: [],
         };
       }
@@ -242,9 +278,9 @@ export async function matchZipsToMaps(
         mapId: null,
         confidence: "fuzzy" as const,
         matchLabel: "",
-        candidates: pool.map((c) => ({ mapId: c.mapId, label: c.label })),
+        candidates: finalPool.map((c) => ({ mapId: c.mapId, label: c.label })),
       };
-    });
+    }));
 
     return ok(results);
   } catch (e) {
