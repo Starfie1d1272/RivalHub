@@ -5,6 +5,17 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.27.7] - 2026-05-30
+
+### Added
+- **Demo 导入覆盖模式**：管理后台导入面板新增「覆盖导入」复选框，勾选后跳过哈希查重、先删旧记录再导入，方便 exporter 重新导出后重导
+- **经济分类最终版**：`full` 优先级提到首位（`equipment_value >= 4000`）、`eco` 追加 `equipment_value < 2000` 限制避免存活装备误判、`semi` 作为兜底
+
+### Fixed
+- **排行榜选手重复**：所有 GROUP BY 改为 `COALESCE(dps.user_id, dp.name)`，同名不同 steamId 选手绑定后正确合并
+- **武器榜链接 404**：选手链接从 `/${slug}/players/{id}` 修正为 `/players/{id}`
+- **武器别名缺漏**：补充 `m4a1_silencer` → `M4A1` 映射
+
 ## [1.27.6] - 2026-05-30
 
 ### Fixed
@@ -987,6 +998,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.27.7]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.6...v1.27.7
 [1.27.6]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.5...v1.27.6
 [1.27.5]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.4...v1.27.5
 [1.27.4]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.3...v1.27.4
