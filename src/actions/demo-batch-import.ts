@@ -245,7 +245,7 @@ export async function matchZipsToMaps(
             FROM ${users} u
             JOIN ${seasonRegistrations} sr ON sr.user_id = u.id AND sr.season_id = ${seasonId}
             JOIN ${teamMembers} tm ON tm.registration_id = sr.id
-            WHERE u.steam_id64 = ANY(ARRAY[${sql.join(zip.steamId64s.map((s) => sql`${s}`), sql`, `)}])
+            WHERE u.steam64 = ANY(ARRAY[${sql.join(zip.steamId64s.map((s) => sql`${s}`), sql`, `)}])
           `);
           const zipTeamIds = new Set(teamRows.rows.map((r) => (r as Record<string, unknown>).team_id as string));
           if (zipTeamIds.size > 0) {
