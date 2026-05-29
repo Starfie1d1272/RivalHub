@@ -21,7 +21,6 @@ import { parseDemoPackage } from "@/lib/demo/parse-package";
 import { mapDemoPlayers } from "@/lib/demo/map-players";
 import { toMatchPlayerStat, type DemoStatInput } from "@/lib/demo/to-match-player-stats";
 import { batchInsert } from "@/lib/demo/batch-insert";
-import { computeHltvRating } from "@/lib/demo/hltv-rating";
 import { seasons } from "@/db/schema/seasons";
 
 type DemoSideVal = "t" | "ct" | "unknown";
@@ -384,14 +383,6 @@ export async function importDemoPackage(
           const name = steamIdToName.get(steamId) ?? steamId;
           const uid = steamIdToUserIdMap.get(steamId) ?? null;
           const row = toMatchPlayerStat(s as DemoStatInput, name, uid);
-          const ratingPro = computeHltvRating({
-            kills: s.kills as number ?? 0,
-            deaths: s.deaths as number ?? 0,
-            assists: s.assists as number ?? 0,
-            kast: s.kast as number ?? 50,
-            adr: s.adr as number ?? 0,
-            totalRounds: rounds.length,
-          });
           return {
             matchId: map.matchId,
             mapId,
@@ -407,7 +398,6 @@ export async function importDemoPackage(
             clutches: row.clutches ?? undefined,
             source: row.source,
             verifiedByAdmin: actor,
-            ratingPro,
           };
         });
         for (const row of backfillRows) {
@@ -424,7 +414,6 @@ export async function importDemoPackage(
               clutches: row.clutches,
               userId: row.userId,
               verifiedByAdmin: row.verifiedByAdmin,
-              ratingPro: row.ratingPro,
             },
           });
         }

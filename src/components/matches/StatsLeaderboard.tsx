@@ -21,6 +21,8 @@ interface LeaderboardRow {
   fkpr: number;
   mkpr: number;
   cpr: number;
+  /** RR 评分（from player_ratings） */
+  rrScore?: number | null;
   /** Demo 源扩展字段（存在时显示 demo 视图） */
   avgDemoKast?: number;
   avgDemoAdr?: number;
@@ -141,6 +143,12 @@ const ADVANCED_COLS: ColDef[] = [
     label: "Rating",
     getValue: (r) => r.avgRating,
     format: (v) => (v ?? 0).toFixed(2),
+  },
+  {
+    key: "rr",
+    label: "RR",
+    getValue: (r) => r.rrScore ?? null,
+    format: (v) => (v != null ? v.toFixed(2) : "—"),
   },
   {
     key: "we",
