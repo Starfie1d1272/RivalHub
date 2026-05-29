@@ -16,6 +16,7 @@ export function DemoImportPanel({ mapId, mapName }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const [importing, setImporting] = useState(false);
+  const [forceMode, setForceMode] = useState(false);
   const [showOcrConfirm, setShowOcrConfirm] = useState(false);
   const [pendingZip, setPendingZip] = useState<ArrayBuffer | null>(null);
 
@@ -35,6 +36,7 @@ export function DemoImportPanel({ mapId, mapName }: Props) {
       const buf = await file.arrayBuffer();
       const result = await importDemoPackage(mapId, buf, {
         confirmOverwriteOcr: confirmOverwriteOcr || undefined,
+        force: forceMode || undefined,
       });
 
       if (!result.success) {
@@ -87,6 +89,15 @@ export function DemoImportPanel({ mapId, mapName }: Props) {
           accept=".zip"
           className="text-sm"
         />
+        <label className="flex items-center gap-1.5 text-xs text-[var(--color-fg-mid)] cursor-pointer">
+          <input
+            type="checkbox"
+            checked={forceMode}
+            onChange={(e) => setForceMode(e.target.checked)}
+            className="accent-[var(--color-warn)]"
+          />
+          覆盖导入
+        </label>
         <Button
           size="sm"
           onClick={() => handleImport(false)}
