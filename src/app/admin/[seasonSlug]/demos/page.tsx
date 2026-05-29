@@ -7,6 +7,8 @@ import { mapLabel } from "@/lib/maps";
 import { DemoImportPanel } from "@/components/admin/DemoImportPanel";
 import { DemoBatchImportPanel } from "@/components/admin/DemoBatchImportPanel";
 import { RecomputeRatingsButton } from "@/components/admin/RecomputeRatingsButton";
+import { SteamAliasManager } from "@/components/admin/SteamAliasManager";
+import { getUnlinkedDemoPlayers, getSeasonRegisteredUsers } from "@/actions/steam-aliases";
 import { MATCH_FORMAT_LABELS } from "@/types/match";
 import Link from "next/link";
 
@@ -76,6 +78,14 @@ export default async function AdminDemosPage({ params }: PageProps) {
     mapsByMatch.set(map.matchId, arr);
   }
 
+  // 未绑定选手 + 已注册选手列表（并行）
+  const [unlinkedResult, registeredResult] = await Promise.all([
+    getUnlinkedDemoPlayers(season.id),
+    getSeasonRegisteredUsers(season.id),
+  ]);
+  const unlinkedPlayers = unlinkedResult.success ? unlinkedResult.data : [];
+  const registeredUsers = registeredResult.success ? registeredResult.data : [];
+
   // 组装 availableMaps 供批量导入面板使用
   const availableMaps = allMaps.map((mm) => {
     const match = finishedMatches.find((m) => m.id === mm.matchId)!;
@@ -98,6 +108,15 @@ export default async function AdminDemosPage({ params }: PageProps) {
       <p className="text-sm text-[var(--color-fg-dim)]">
         共 {finishedMatches.length} 场已结束比赛
       </p>
+
+      {/* 未绑定选手警告区域 */}
+      {unlinkedPlayers.length > 0 && (
+        <SteamAliasManager
+          seasonId={season.id}
+          unlinkedPlayers={unlinkedPlayers}
+          registeredUsers={registeredUsers}
+        />
+      )}
 
       {/* 批量导入折叠区域 */}
       <details className="rounded-lg border border-[var(--color-border)] overflow-hidden">

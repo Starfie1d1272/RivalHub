@@ -6,6 +6,7 @@ import { matchMaps } from "@/db/schema/match-maps";
 import { matches } from "@/db/schema/matches";
 import { matchPlayerStats } from "@/db/schema/player-stats";
 import { users } from "@/db/schema/users";
+import { userSteamAliases } from "@/db/schema/user-steam-aliases";
 import { auditLogs } from "@/db/schema/audit";
 import {
   demoImports, demoPlayers, demoRounds, demoPlayerStats as demoPlayerStatsTable,
@@ -68,6 +69,16 @@ export async function importDemoPackage(
     const steamIdToUserId = new Map<string, string>();
     for (const u of userRows) {
       if (u.steam64) steamIdToUserId.set(u.steam64, u.id);
+    }
+
+    // 额外查询别名表（多账号支持）
+    const aliasRows = await db
+      .select({ steamId64: userSteamAliases.steamId64, userId: userSteamAliases.userId })
+      .from(userSteamAliases);
+    for (const a of aliasRows) {
+      if (!steamIdToUserId.has(a.steamId64)) {
+        steamIdToUserId.set(a.steamId64, a.userId);
+      }
     }
 
     // 映射 demo players
