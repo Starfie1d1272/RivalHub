@@ -195,6 +195,8 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
       threeKillCount: demo.threeKillCount,
       fourKillCount: demo.fourKillCount,
       fiveKillCount: demo.fiveKillCount,
+      entrySuccessRate: demo.entrySuccessRate ?? undefined,
+      awpKillRate: demo.awpKillRate ?? undefined,
     };
   });
 

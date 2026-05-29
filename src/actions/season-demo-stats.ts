@@ -25,6 +25,8 @@ export interface DemoLeaderboardData {
   threeKillCount: number;
   fourKillCount: number;
   fiveKillCount: number;
+  awpKills: number;
+  awpKillRate: number | null;
 }
 
 export interface WeaponKillRow {
@@ -76,6 +78,8 @@ export async function getSeasonDemoStats(
       sum(dps.three_kill_count)::int AS three_kill_count,
       sum(dps.four_kill_count)::int AS four_kill_count,
       sum(dps.five_kill_count)::int AS five_kill_count,
+      sum(dps.kills)::int AS total_kills,
+      coalesce(sum(awp_data.awp_kills), 0)::int AS awp_kills,
       round(avg(dps.avg_utility_damage_per_round)::numeric, 1) AS avg_utility_damage_per_round,
       sum(rc.round_count)::int AS total_rounds
     FROM ${demoPlayerStats} dps
@@ -89,6 +93,13 @@ export async function getSeasonDemoStats(
     ) rc ON rc.import_batch_id = di.id
     LEFT JOIN ${demoPlayers} dp
       ON dp.steam_id64 = dps.steam_id64 AND dp.import_batch_id = dps.import_batch_id
+    LEFT JOIN (
+      SELECT import_batch_id, killer_steam_id64, count(*)::int AS awp_kills
+      FROM demo_kills
+      WHERE weapon ILIKE 'awp'
+      GROUP BY import_batch_id, killer_steam_id64
+    ) awp_data ON awp_data.import_batch_id = dps.import_batch_id
+             AND awp_data.killer_steam_id64 = dps.steam_id64
     WHERE m.season_id = ${seasonId}
       AND mm.active_stat_source = 'demo_import'::stat_source
     GROUP BY dps.user_id, dp.name, dp.steam_id64
@@ -136,6 +147,10 @@ export async function getSeasonDemoStats(
       threeKillCount: Number(r.three_kill_count ?? 0),
       fourKillCount: Number(r.four_kill_count ?? 0),
       fiveKillCount: Number(r.five_kill_count ?? 0),
+      awpKills: Number(r.awp_kills ?? 0),
+      awpKillRate: Number(r.total_kills ?? 0) > 0
+        ? Math.round((Number(r.awp_kills ?? 0) / Number(r.total_kills)) * 10000) / 10000
+        : null,
     };
   });
 

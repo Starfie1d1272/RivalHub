@@ -34,6 +34,8 @@ interface LeaderboardRow {
   threeKillCount?: number;
   fourKillCount?: number;
   fiveKillCount?: number;
+  entrySuccessRate?: number | null;
+  awpKillRate?: number | null;
 }
 
 interface StatsLeaderboardProps {
@@ -208,6 +210,18 @@ const DEMO_COLS: ColDef[] = [
     label: "3K%",
     getValue: (r) => r.threeKillCount != null && r.maps > 0 ? r.threeKillCount / r.maps : null,
     format: (v) => (v != null ? v.toFixed(2) : "—"),
+  },
+  {
+    key: "entrySuccessRate",
+    label: "Entry%",
+    getValue: (r) => r.entrySuccessRate ?? null,
+    format: (v) => (v != null ? (v * 100).toFixed(1) + "%" : "—"),
+  },
+  {
+    key: "awpKillRate",
+    label: "AWP%",
+    getValue: (r) => r.awpKillRate ?? null,
+    format: (v) => (v != null ? (v * 100).toFixed(1) + "%" : "—"),
   },
 ];
 
