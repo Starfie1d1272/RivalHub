@@ -176,6 +176,13 @@
       "when": 1780003787380,
       "tag": "0024_amazing_jackal",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1780057986648,
+      "tag": "0025_overrated_longshot",
+      "breakpoints": true
     }
   ]
 }

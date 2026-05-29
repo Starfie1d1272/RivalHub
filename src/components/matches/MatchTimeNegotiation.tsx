@@ -155,7 +155,7 @@ export function MatchTimeNegotiation({
         <div className="rounded border p-3 text-sm" style={{ borderColor: "rgba(34,197,94,0.35)", background: "rgba(34,197,94,0.06)" }}>
           <p className="font-medium text-[var(--color-fg)]">比赛时间已自动设定</p>
           <p className="text-xs text-[var(--color-fg-dim)] mt-0.5">
-            对方 24 小时内未回应，比赛时间已按提议自动采纳为 {formatCST(autoAcceptedProposal.proposedTime)}。
+            对方 24 小时内未回应，比赛时间已按提议自动采纳为 {formatCST(new Date(currentScheduledAt))}。
           </p>
         </div>
       )}

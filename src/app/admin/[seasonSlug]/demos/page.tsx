@@ -6,6 +6,7 @@ import { requireSeasonAdmin } from "@/lib/auth/session";
 import { mapLabel } from "@/lib/maps";
 import { DemoImportPanel } from "@/components/admin/DemoImportPanel";
 import { DemoBatchImportPanel } from "@/components/admin/DemoBatchImportPanel";
+import { RecomputeRatingsButton } from "@/components/admin/RecomputeRatingsButton";
 import { MATCH_FORMAT_LABELS } from "@/types/match";
 import Link from "next/link";
 
@@ -107,6 +108,11 @@ export default async function AdminDemosPage({ params }: PageProps) {
           <DemoBatchImportPanel seasonId={season.id} availableMaps={availableMaps} />
         </div>
       </details>
+
+      {/* 评分重算 */}
+      <div className="flex justify-end">
+        <RecomputeRatingsButton seasonId={season.id} />
+      </div>
 
       <div className="space-y-4">
         {finishedMatches.map((m) => {
