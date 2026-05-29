@@ -5,6 +5,15 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.27.6] - 2026-05-30
+
+### Fixed
+- **Stats 页 GROUP BY SQL 错误**：OCR fallback CTE 引用 `ocr.avg_rating_ocr` 未用聚合函数包裹，PostgreSQL 拒绝运行；改用 `min()` 包裹解决
+- **CI 测试失败**：PlayerStatsTable 测试 mock 补全 `statSourceEnum`、`matchMaps` 和 `db.query.matchMaps`
+
+### Added
+- **weapon-names 别名映射测试**：新增 `src/lib/demo/weapon-names.test.ts` 覆盖 13 个映射和 fallthrough 场景
+
 ## [1.27.5] - 2026-05-30
 
 ### Added
@@ -978,6 +987,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.27.6]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.5...v1.27.6
 [1.27.5]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.4...v1.27.5
 [1.27.4]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.3...v1.27.4
 [1.27.3]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.2...v1.27.3

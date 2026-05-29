@@ -107,10 +107,10 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
       t.name  AS team_name,
       t.id    AS team_id,
       count(*)::int                                                          AS maps,
-      COALESCE(round(avg(mps.rating_pro)::numeric, 2), ocr.avg_rating_ocr)  AS avg_rating,
+      COALESCE(round(avg(mps.rating_pro)::numeric, 2), min(ocr.avg_rating_ocr))  AS avg_rating,
       round(${adrExpr}::numeric, 1)                                         AS avg_adr,
-      COALESCE(round(avg(mps.rws)::numeric, 2), ocr.avg_rws_ocr)           AS avg_rws,
-      COALESCE(round(avg(mps.we)::numeric, 1), ocr.avg_we_ocr)             AS avg_we,
+      COALESCE(round(avg(mps.rws)::numeric, 2), min(ocr.avg_rws_ocr))           AS avg_rws,
+      COALESCE(round(avg(mps.we)::numeric, 1), min(ocr.avg_we_ocr))             AS avg_we,
       round(${hsExpr}::numeric, 1)                                          AS avg_hs,
       CASE WHEN sum(mps.deaths) > 0
         THEN round(sum(mps.kills)::numeric / sum(mps.deaths), 2)
