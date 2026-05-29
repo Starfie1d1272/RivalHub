@@ -38,7 +38,8 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
   });
   if (!season) notFound();
 
-  const stages = normalizeStagePlan(season.stagePlan).map((s) => ({ key: s.key, name: s.name }));
+  const stagePlan = normalizeStagePlan(season.stagePlan);
+  const stages = Array.isArray(stagePlan) ? stagePlan.map((s) => ({ key: s.key, name: s.name })) : [];
 
   // Demo 源进阶榜单数据（异步获取，仅在 view=demo 时使用）
   const demoResult = await getSeasonDemoStats(season.id);
@@ -113,6 +114,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     LEFT JOIN teams t ON t.id = tm.team_id
     WHERE m.season_id = ${season.id}
       AND mps.verified_by_admin IS NOT NULL
+      AND mps.source = COALESCE(mm.active_stat_source, 'manual_ocr'::stat_source)
       ${positionFilter}
       ${stageFilter}
     GROUP BY mps.user_id, COALESCE(u.perfect_name, mps.perfect_name), sr.primary_position, t.name, t.id

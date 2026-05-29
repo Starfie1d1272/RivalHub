@@ -32,6 +32,7 @@ function makePlayer(overrides: Partial<PlayerMetrics> = {}): PlayerMetrics {
     clutchWinRate: 0,
     tradeKillRate: 0,
     entrySuccessRate: 0,
+    hasDemoData: false,
     ...overrides,
   };
 }
