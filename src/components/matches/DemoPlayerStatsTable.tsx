@@ -17,29 +17,52 @@ const TEAM_COLORS = {
   B: { border: "var(--color-accent-b)", bg: "color-mix(in srgb, var(--color-accent-b) 4%, transparent)" },
 };
 
-const SECTIONS = [
+type SectionField =
+  | { key: string; label: string; fmt?: (v: number | null, row: DemoPlayerStatRow) => string }
+  | { key: string; label: string; pairKey: string };
+
+interface Section {
+  label: string;
+  fields: SectionField[];
+  hideIfEmpty?: boolean;
+}
+
+const SECTIONS: Section[] = [
   {
     label: "Core",
     fields: [
       { key: "kills", label: "K" },
       { key: "deaths", label: "D" },
       { key: "assists", label: "A" },
-      { key: "adr", label: "ADR", fmt: (v: number | null) => (v != null ? v.toFixed(1) : "—") },
-      { key: "headshotCount", label: "HS" },
-      { key: "kast", label: "KAST", fmt: (v: number | null) => (v != null ? `${(v * 100).toFixed(0)}%` : "—") },
+      { key: "adr", label: "ADR", fmt: (v) => (v != null ? v.toFixed(1) : "—") },
+      {
+        key: "headshotCount",
+        label: "HS%",
+        fmt: (_v, row) => {
+          const r = row as unknown as Record<string, unknown>;
+          const hs = r.headshotCount;
+          const k = r.kills;
+          if (typeof hs === "number" && typeof k === "number" && k > 0)
+            return `${((hs / k) * 100).toFixed(0)}%`;
+          return "—";
+        },
+      },
+      { key: "kast", label: "KAST%", fmt: (v) => (v != null ? `${v.toFixed(1)}%` : "—") },
     ],
   },
   {
     label: "Utility",
+    hideIfEmpty: true,
     fields: [
       { key: "utilityDamage", label: "Util Dmg" },
-      { key: "averageUtilityDamagePerRound", label: "Util/R", fmt: (v: number | null) => (v != null ? v.toFixed(1) : "—") },
+      { key: "averageUtilityDamagePerRound", label: "Util/R", fmt: (v) => (v != null ? v.toFixed(1) : "—") },
       { key: "bombPlantedCount", label: "Plant" },
       { key: "bombDefusedCount", label: "Defuse" },
     ],
   },
   {
     label: "Entry / Trade",
+    hideIfEmpty: true,
     fields: [
       { key: "firstKillCount", label: "FK" },
       { key: "firstDeathCount", label: "FD" },
@@ -69,18 +92,34 @@ const SECTIONS = [
   },
   {
     label: "Highlight Kills",
+    hideIfEmpty: true,
     fields: [
       { key: "wallbangKillCount", label: "Wallbang" },
       { key: "noScopeKillCount", label: "NoScope" },
       { key: "collateralKillCount", label: "Collateral" },
     ],
   },
-] as const;
+];
 
 function getVal(row: DemoPlayerStatRow, key: string): number | null {
   const v = (row as unknown as Record<string, unknown>)[key];
   if (typeof v === "number") return v;
   return null;
+}
+
+/** Check if every field in a section is null/0 for all given players. */
+function isSectionEmpty(section: Section, players: DemoPlayerStatRow[]): boolean {
+  return players.every((p) =>
+    section.fields.every((f) => {
+      const val = getVal(p, f.key);
+      if (val !== null && val !== 0) return false;
+      if ("pairKey" in f) {
+        const pairVal = getVal(p, f.pairKey);
+        if (pairVal !== null && pairVal !== 0) return false;
+      }
+      return true;
+    }),
+  );
 }
 
 function TeamTable({
@@ -97,6 +136,9 @@ function TeamTable({
   playerNameMap: Record<string, string>;
 }) {
   if (players.length === 0) return null;
+  const visibleSections = SECTIONS.filter(
+    (s) => !s.hideIfEmpty || !isSectionEmpty(s, players),
+  );
   return (
     <div className="flex-1 min-w-0 rounded-md overflow-hidden" style={{ backgroundColor: color.bg }}>
       <div
@@ -112,7 +154,7 @@ function TeamTable({
               <th className="text-left text-[10px] text-[var(--color-fg-dim)] font-medium py-1 pl-3 pr-1 whitespace-nowrap">
                 Player
               </th>
-              {SECTIONS.flatMap((s) =>
+              {visibleSections.flatMap((s) =>
                 s.fields.map((f) => (
                   <th
                     key={f.key}
@@ -148,11 +190,11 @@ function TeamTable({
                     </span>
                   )}
                 </td>
-                {SECTIONS.flatMap((s) =>
+                {visibleSections.flatMap((s) =>
                   s.fields.map((f) => {
                     const raw = getVal(p, f.key);
-                    if ("pairKey" in f && f.pairKey) {
-                      const total = getVal(p, f.pairKey as string);
+                    if ("pairKey" in f) {
+                      const total = getVal(p, f.pairKey);
                       const label = total != null && total > 0
                         ? `${raw ?? 0}/${total}`
                         : "—";
@@ -165,7 +207,7 @@ function TeamTable({
                         </td>
                       );
                     }
-                    const val = "fmt" in f && f.fmt ? f.fmt(raw) : raw ?? "—";
+                    const val = f.fmt ? f.fmt(raw, p) : raw ?? "—";
                     return (
                       <td
                         key={f.key}
@@ -206,9 +248,8 @@ export function DemoPlayerStatsTable({
   }
 
   return (
-    <div className="flex gap-4">
+    <div className="flex flex-col gap-4">
       <TeamTable players={teamA} label={teamAName} color={TEAM_COLORS.A} seasonSlug={seasonSlug} playerNameMap={playerNameMap} />
-      <div className="w-px bg-[var(--color-border)] self-stretch" />
       <TeamTable players={teamB} label={teamBName} color={TEAM_COLORS.B} seasonSlug={seasonSlug} playerNameMap={playerNameMap} />
     </div>
   );

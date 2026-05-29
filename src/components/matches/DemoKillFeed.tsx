@@ -79,54 +79,54 @@ export function DemoKillFeed({ kills, playerNameMap }: DemoKillFeedProps) {
   const grouped = groupKillsByRound(kills);
 
   return (
-    <div className="space-y-3">
+    <div className="max-h-80 overflow-y-auto space-y-3 pr-1">
       {Array.from(grouped.entries()).map(([roundNumber, roundKills]) => (
         <div key={roundNumber}>
-          <h4 className="text-xs font-semibold text-[var(--color-fg)] mb-1">
+          <h4 className="text-[10px] font-bold tracking-widest uppercase text-[var(--color-fg-dim)] mb-1.5 sticky top-0 bg-[var(--color-bg)] py-0.5">
             Round {roundNumber}
           </h4>
-          <div className="space-y-0.5">
+          <div className="space-y-1">
             {roundKills.map((k, i) => {
-              const killer = playerNameMap[k.killerSteamId64 ?? ""] ?? k.killerSteamId64 ?? "Unknown";
-              const victim = playerNameMap[k.victimSteamId64 ?? ""] ?? k.victimSteamId64 ?? "Unknown";
+              const killer = playerNameMap[k.killerSteamId64 ?? ""] ?? k.killerSteamId64 ?? "?";
+              const victim = playerNameMap[k.victimSteamId64 ?? ""] ?? k.victimSteamId64 ?? "?";
               const weapon = weaponLabel(k.weapon);
 
               return (
                 <div
                   key={`${k.roundNumber}-${k.tick}-${i}`}
-                  className="flex items-center gap-1.5 text-xs text-[var(--color-fg)] py-0.5"
+                  className="flex items-center gap-2 px-2 py-1 rounded bg-[var(--color-bg-subtle)] border border-[var(--color-border)] text-xs"
                 >
-                  <span className="font-medium truncate max-w-[80px]" title={killer}>
+                  <span className="font-medium text-[var(--color-fg)] min-w-0 truncate flex-1" title={killer}>
                     {killer}
                   </span>
-                  <span className="text-[var(--color-fg-dim)] font-mono">{weapon}</span>
-                  <span className="text-[var(--color-fg-mid)]">→</span>
-                  <span className="truncate max-w-[80px]" title={victim}>
+                  <span className="text-[var(--color-fg-dim)] font-mono text-[10px] shrink-0">{weapon}</span>
+                  <span className="text-[var(--color-fg-dim)] shrink-0">→</span>
+                  <span className="text-[var(--color-fg-mid)] min-w-0 truncate flex-1" title={victim}>
                     {victim}
                   </span>
-                  <span className="flex gap-1 ml-1">
+                  <span className="flex gap-0.5 shrink-0">
                     {k.headshot && (
-                      <span className="text-[10px] px-1 rounded bg-[var(--color-warn)]/20 text-[var(--color-warn)] font-bold">
+                      <span className="text-[9px] px-1 rounded bg-[var(--color-warn)]/20 text-[var(--color-warn)] font-bold">
                         HS
                       </span>
                     )}
                     {k.tradeKill && (
-                      <span className="text-[10px] px-1 rounded bg-[var(--color-accent)]/20 text-[var(--color-accent)]">
-                        Trade
+                      <span className="text-[9px] px-1 rounded bg-[var(--color-accent)]/20 text-[var(--color-accent)]">
+                        TR
                       </span>
                     )}
                     {k.throughSmoke && (
-                      <span className="text-[10px] px-1 rounded bg-[var(--color-bg-subtle)] text-[var(--color-fg-mid)]">
-                        Smoke
+                      <span className="text-[9px] px-1 rounded bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-fg-dim)]">
+                        SMK
                       </span>
                     )}
                     {k.noScope && (
-                      <span className="text-[10px] px-1 rounded bg-[var(--color-fg-mid)]/20 text-[var(--color-fg-mid)]">
+                      <span className="text-[9px] px-1 rounded bg-[var(--color-fg-mid)]/20 text-[var(--color-fg-mid)]">
                         NS
                       </span>
                     )}
                     {k.flashAssist && (
-                      <span className="text-[10px] px-1 rounded bg-[var(--color-success)]/20 text-[var(--color-success)]">
+                      <span className="text-[9px] px-1 rounded bg-[var(--color-success)]/20 text-[var(--color-success)]">
                         FA
                       </span>
                     )}

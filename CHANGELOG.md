@@ -5,7 +5,34 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.27.4] - 2026-05-30
+## [1.27.5] - 2026-05-30
+
+### Added
+- **赛后详情页布局重构**：将 Demo 面板从地图 Tab 内抽取到 MVP 下方独立区域，自带地图切换 Tab，用户无需展开地图即可查看 Demo 数据
+- **多账号 Steam ID 别名绑定系统**：新增 `user_steam_aliases` 表，管理员可在 Demos 页面直接绑定未关联用户的 Steam ID 至注册选手，自动回填历史数据
+- **Demo 排行榜差分指标**：新增 Entry%（首杀胜率）和 AWP%（AWP 击杀占比）列；残局胜率改为 1v1% 更有实际意义
+- **赛季风格分析接入**：比赛详情页新增 TeamHalfSideStats（T/CT 半场胜率）和 TeamStyleProfile（首杀率/残局胜率）面板
+- **Stats 页 OCR fallback**：`ratingPro`/`rws`/`we` 通过 CTE + COALESCE 回退到 OCR 行，Demo 图不影响这些 OCR 专属字段
+- **经济类型回填系统**：通过 `demo_player_economies` 的 `start_money`/`money_spent`/`equipment_value` 自动计算每回合队伍经济类型（eco/semi/force/full）并回填 `demo_rounds`，新导入自动触发
+- **八维图英文标签**：PRISM 轴标签改为 Firepower/Opening/Entry/Trading/Clutch/Sniping/Utility/Survival
+- **武器别名映射**：AK47/M4A4/M4A1/SSG 08/FN57/CZ75/UMP45/野牛/SG553/XM1014 等常用简称
+- **PlayerEntryStats 汇总卡**：选手首杀页顶部新增首杀数/首死数/Entry% 三卡片摘要
+- **PlayerWeaponBreakdown 击杀条**：新增进度条可视化，直观显示武器击杀分布
+
+### Changed
+- **DemoPlayerStatsTable 上下排列**：A/B 队从左右并排改为上下布局，列数不受限
+- **隐藏 Demo 空列**：Utility(Plant/Defuse)、Entry/Trade(Trade K/D)、Highlight(Wallbang 等)全空时自动隐藏
+- **Demo 面板 UI 优化**：Kill Feed 卡片式 + 限高滚动、武器别名、PlayerEntryStats 汇总卡片
+
+### Fixed
+- **PRISM 狙击维度畸变**：无狙击信号选手直接置 0（非百分位排名）；全等值返回 50
+- **Stats 页默认排序**：`ratingPro`(全 null) → `RR`
+- **选手主页 RWS/WE/ratingPro 归零**：OCR 专属查询回填，Demo 图不影响
+- **KAST 数据翻倍(**×100)**：修复聚合层多余的乘法
+- **HS 爆头数→爆头率(%)**：语义更正
+- **选手列表双行**：PlayerStatsTable 补充 `source` 过滤
+- **Kill Feed 布局**：改为卡片+限高滚动
+- **toolkit 图标误用**：移除 🔧 emoji
 
 ### Fixed
 - **批量导入 OCR 确认弹窗阻塞**：每张已有 OCR 数据的图导入前都会返回 OCR 确认提示，批量导入模式下 24 个文件因此静默失败；改为自动传入 `confirmOverwriteOcr: true`，跳过逐条确认弹窗（OCR 数据保留不删除，只是 `active_stat_source` 切到 demo）
@@ -951,6 +978,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.27.5]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.4...v1.27.5
 [1.27.4]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.3...v1.27.4
 [1.27.3]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.2...v1.27.3
 [1.27.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.1...v1.27.2

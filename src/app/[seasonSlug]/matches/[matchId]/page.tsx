@@ -24,13 +24,15 @@ import { MatchSummaryStats } from "@/components/matches/MatchSummaryStats";
 import { getMatchMvpResults, ensureMvpWinner } from "@/actions/player-stats";
 import { getTimeProposals } from "@/actions/matches/scheduling";
 import { getDemoDetail } from "@/actions/demo-detail";
+import { getTeamStyleProfile, getTeamHalfSideStats } from "@/actions/team-demo-stats";
+import { TeamHalfSideStats } from "@/components/teams/TeamHalfSideStats";
+import { TeamStyleProfile } from "@/components/teams/TeamStyleProfile";
 import { DemoPlayerStatsTable } from "@/components/matches/DemoPlayerStatsTable";
 import { PlayerKillHeatmap } from "@/components/matches/PlayerKillHeatmap";
 import { PlayerWeaponBreakdown } from "@/components/matches/PlayerWeaponBreakdown";
 import { DemoRoundTimeline } from "@/components/matches/DemoRoundTimeline";
 import { DemoKillFeed } from "@/components/matches/DemoKillFeed";
 import { DemoEconomyChart } from "@/components/matches/DemoEconomyChart";
-import { DemoClutchList } from "@/components/matches/DemoClutchList";
 import { PlayerEntryStats } from "@/components/matches/PlayerEntryStats";
 import { PlayerClutchStats } from "@/components/matches/PlayerClutchStats";
 import { PlayerUtilityStats } from "@/components/matches/PlayerUtilityStats";
@@ -385,6 +387,21 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
     }
   }
 
+  // 赛季级别风格画像 + T/CT 半场胜率（已结束比赛）
+  const [styleAResult, styleBResult, halfSideAResult, halfSideBResult] = isFinished
+    ? await Promise.all([
+        getTeamStyleProfile(match.teamAId, season.id),
+        getTeamStyleProfile(match.teamBId, season.id),
+        getTeamHalfSideStats(match.teamAId, season.id),
+        getTeamHalfSideStats(match.teamBId, season.id),
+      ])
+    : [null, null, null, null];
+
+  const styleA = styleAResult?.success ? styleAResult.data : null;
+  const styleB = styleBResult?.success ? styleBResult.data : null;
+  const halfSideA = halfSideAResult?.success ? halfSideAResult.data : null;
+  const halfSideB = halfSideBResult?.success ? halfSideBResult.data : null;
+
   return (
     <div className="container mx-auto px-4 py-12 max-w-3xl space-y-8">
       <MatchHeroHeader
@@ -524,86 +541,6 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                   {!isFinished && map.scoreA == null && (
                     <p className="text-xs text-[var(--color-fg-dim)] py-2">比赛未开始</p>
                   )}
-                  {/* Demo 明细区块 */}
-                  {isFinished && (() => {
-                    const demoResult = demoDataByMapId.get(map.id);
-                    if (!demoResult?.success || !demoResult.data) {
-                      return (
-                        <div className="pt-2 border-t border-[var(--color-border)]">
-                          <div className="py-4 text-center text-sm text-[var(--color-fg-dim)]">
-                            暂无 Demo 数据
-                            {isSeasonAdmin ? (
-                              <span> — 请在比赛管理页面导入 Demo</span>
-                            ) : (
-                              <span>（比赛结束后可联系管理员导入）</span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    }
-                    const d = demoResult.data;
-                    return (
-                      <div className="space-y-4 pt-2 border-t border-[var(--color-border)]">
-                        <h3 className="text-sm font-semibold text-[var(--color-fg)]">
-                          Demo Data
-                        </h3>
-                        <DemoPlayerStatsTable
-                          players={d.playerStats}
-                          teamAName={teamA?.name ?? "Team A"}
-                          teamBName={teamB?.name ?? "Team B"}
-                          seasonSlug={seasonSlug}
-                          playerNameMap={d.playerNameMap}
-                        />
-                        <DemoRoundTimeline rounds={d.rounds} />
-                        <Panel label="Kill Feed">
-                          <DemoKillFeed kills={d.kills} playerNameMap={d.playerNameMap} />
-                        </Panel>
-                        <Panel label="Economy">
-                          <DemoEconomyChart
-                            economies={d.economies}
-                            teamAName={teamA?.name ?? "Team A"}
-                            teamBName={teamB?.name ?? "Team B"}
-                            roundTypes={d.rounds.map((r) => ({
-                              roundNumber: r.roundNumber,
-                              teamAEconomy: r.teamAEconomy,
-                              teamBEconomy: r.teamBEconomy,
-                            }))}
-                          />
-                        </Panel>
-                        <Panel label="Clutch Replays">
-                          <DemoClutchList clutches={d.clutches} playerNameMap={d.playerNameMap} />
-                        </Panel>
-                        <Panel label="Heatmap">
-                          <PlayerKillHeatmap
-                            mapName={map.mapName}
-                            rawKills={d.rawKills}
-                            playerStats={d.playerStats}
-                            playerNameMap={d.playerNameMap}
-                          />
-                        </Panel>
-                        <PlayerWeaponBreakdown
-                          rawKills={d.rawKills}
-                          playerStats={d.playerStats}
-                          playerNameMap={d.playerNameMap}
-                        />
-                        <PlayerEntryStats
-                          kills={d.kills}
-                          playerStats={d.playerStats}
-                          playerNameMap={d.playerNameMap}
-                        />
-                        <PlayerClutchStats
-                          clutches={d.clutches}
-                          playerStats={d.playerStats}
-                          playerNameMap={d.playerNameMap}
-                        />
-                        <PlayerUtilityStats
-                          kills={d.kills}
-                          playerStats={d.playerStats}
-                          playerNameMap={d.playerNameMap}
-                        />
-                      </div>
-                    );
-                  })()}
                 </Panel>
               </TabsContent>
             ))}
@@ -718,6 +655,25 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
         </section>
       )}
 
+      {/* 赛季级别 T/CT 半场胜率 + 风格画像（已结束比赛） */}
+      {isFinished && (halfSideA || halfSideB || styleA || styleB) && (
+        <section className="space-y-4">
+          <h2 className="text-lg font-semibold text-[var(--color-fg)]">赛季风格分析</h2>
+          {(halfSideA || halfSideB) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {halfSideA && Object.keys(halfSideA).length > 0 && (
+                <TeamHalfSideStats stats={halfSideA} teamName={teamA?.name ?? "队伍 A"} />
+              )}
+              {halfSideB && Object.keys(halfSideB).length > 0 && (
+                <TeamHalfSideStats stats={halfSideB} teamName={teamB?.name ?? "队伍 B"} />
+              )}
+            </div>
+          )}
+          {styleA && <TeamStyleProfile profile={styleA} />}
+          {styleB && <TeamStyleProfile profile={styleB} />}
+        </section>
+      )}
+
       {/* MVP 投票（2×2） */}
       {isFinished && mvpCandidates.length > 0 && (
         <MatchMvpVote
@@ -728,6 +684,94 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
           recommendedMvpName={recommendedMvpName}
           completedAt={match.completedAt?.toISOString() ?? null}
         />
+      )}
+
+      {/* Demo 数据（MVP 下方） */}
+      {isFinished && finishedMaps.some(m => {
+        const r = demoDataByMapId.get(m.id);
+        return r?.success && r.data;
+      }) && (
+        <section className="space-y-3 pt-6">
+          <h2 className="text-lg font-semibold text-[var(--color-fg)]">Demo 数据</h2>
+          <Tabs defaultValue={finishedMaps.find(m => {
+            const r = demoDataByMapId.get(m.id);
+            return r?.success && r.data;
+          })?.id ?? finishedMaps[0]!.id} className="w-full">
+            <TabsList className="w-full justify-start">
+              {finishedMaps.map(map => {
+                const demoResult = demoDataByMapId.get(map.id);
+                if (!demoResult?.success || !demoResult.data) return null;
+                return (
+                  <TabsTrigger key={map.id} value={map.id}>
+                    {mapLabel(map.mapName)}
+                  </TabsTrigger>
+                );
+              })}
+            </TabsList>
+            {finishedMaps.map(map => {
+              const demoResult = demoDataByMapId.get(map.id);
+              if (!demoResult?.success || !demoResult.data) return null;
+              const d = demoResult.data;
+              return (
+                <TabsContent key={map.id} value={map.id} className="mt-4">
+                  <div className="space-y-4">
+                    <DemoPlayerStatsTable
+                      players={d.playerStats}
+                      teamAName={teamA?.name ?? "Team A"}
+                      teamBName={teamB?.name ?? "Team B"}
+                      seasonSlug={seasonSlug}
+                      playerNameMap={d.playerNameMap}
+                    />
+                    <DemoRoundTimeline rounds={d.rounds} />
+                    <Panel label="Kill Feed">
+                      <DemoKillFeed kills={d.kills} playerNameMap={d.playerNameMap} />
+                    </Panel>
+                    <Panel label="Economy">
+                      <DemoEconomyChart
+                        economies={d.economies}
+                        teamAName={teamA?.name ?? "Team A"}
+                        teamBName={teamB?.name ?? "Team B"}
+                        roundTypes={d.rounds.map((r) => ({
+                          roundNumber: r.roundNumber,
+                          teamAEconomy: r.teamAEconomy,
+                          teamBEconomy: r.teamBEconomy,
+                        }))}
+                      />
+                    </Panel>
+                    <Panel label="Heatmap">
+                      <PlayerKillHeatmap
+                        mapName={map.mapName}
+                        rawKills={d.rawKills}
+                        playerStats={d.playerStats}
+                        playerNameMap={d.playerNameMap}
+                      />
+                    </Panel>
+                    <PlayerWeaponBreakdown
+                      rawKills={d.rawKills}
+                      playerStats={d.playerStats}
+                      playerNameMap={d.playerNameMap}
+                    />
+                    <PlayerEntryStats
+                      kills={d.kills}
+                      playerStats={d.playerStats}
+                      playerNameMap={d.playerNameMap}
+                    />
+                    <PlayerClutchStats
+                      clutches={d.clutches}
+                      playerStats={d.playerStats}
+                      playerNameMap={d.playerNameMap}
+                    />
+                    <PlayerUtilityStats
+                      kills={d.kills}
+                      playerStats={d.playerStats}
+                      playerNameMap={d.playerNameMap}
+                    />
+                  </div>
+                </TabsContent>
+              );
+            })}
+          </Tabs>
+        </section>
       )}
     </div>
   );

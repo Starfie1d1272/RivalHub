@@ -4,6 +4,7 @@ import React, { useState, useMemo } from "react";
 import { Panel } from "@/components/rivalhub";
 import { cn } from "@/lib/utils/cn";
 import { aggregateWeaponStats, type WeaponStat } from "@/lib/demo/weapon-stats";
+import { displayWeaponName } from "@/lib/demo/weapon-names";
 import type { RawDemoKillRow, DemoPlayerStatRow } from "@/actions/demo-detail";
 
 interface PlayerWeaponBreakdownProps {
@@ -86,8 +87,22 @@ export function PlayerWeaponBreakdown({
                   key={stat.weapon}
                   className="border-b border-[var(--color-border)]/50 hover:bg-[var(--color-bg-mid)]/30"
                 >
-                  <td className="py-1 pr-3 font-medium">{stat.weapon}</td>
-                  <td className="text-right py-1 px-2">{stat.kills}</td>
+                  <td className="py-1 pr-3 font-medium">{displayWeaponName(stat.weapon)}</td>
+                  <td className="text-right py-1 px-2">
+                    <div className="flex items-center justify-end gap-2">
+                      <div className="w-24 h-2 rounded-full bg-[var(--color-bg-subtle)] overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{
+                            width: `${Math.min(100, (stat.kills / Math.max(...weaponStats.map(w => w.kills), 1)) * 100)}%`,
+                            background: "var(--color-accent)",
+                            opacity: 0.5,
+                          }}
+                        />
+                      </div>
+                      <span className="text-xs tabular-nums w-6 text-right">{stat.kills}</span>
+                    </div>
+                  </td>
                   <td className="text-right py-1 px-2">{stat.headshots}</td>
                   <td className="text-right py-1 px-2">
                     {(stat.headshotRate * 100).toFixed(0)}%

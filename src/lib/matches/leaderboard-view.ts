@@ -8,9 +8,9 @@ const VIEW_SORTS = {
 } as const satisfies Record<LeaderboardView, readonly string[]>;
 
 const DEFAULT_SORT: Record<LeaderboardView, string> = {
-  core: "rating",
+  core: "rr",
   impact: "fk",
-  advanced: "we",
+  advanced: "rr",
   demo: "avgDemoKast",
 };
 

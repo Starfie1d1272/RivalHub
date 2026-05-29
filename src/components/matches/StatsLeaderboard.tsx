@@ -29,6 +29,13 @@ interface LeaderboardRow {
   demoFkpr?: number;
   demoClutchWinRate?: number;
   demoUtilityPerRound?: number;
+  vsOneWinRate?: number | null;
+  twoKillCount?: number;
+  threeKillCount?: number;
+  fourKillCount?: number;
+  fiveKillCount?: number;
+  entrySuccessRate?: number | null;
+  awpKillRate?: number | null;
 }
 
 interface StatsLeaderboardProps {
@@ -43,9 +50,9 @@ interface StatsLeaderboardProps {
 }
 
 const VIEWS: { key: LeaderboardView | "demo"; label: string; defaultSort: string }[] = [
-  { key: "core", label: "Core", defaultSort: "rating" },
+  { key: "core", label: "Core", defaultSort: "rr" },
   { key: "impact", label: "Impact", defaultSort: "fk" },
-  { key: "advanced", label: "Advanced", defaultSort: "we" },
+  { key: "advanced", label: "Advanced", defaultSort: "rr" },
   { key: "demo", label: "Demo", defaultSort: "avgDemoKast" },
 ];
 
@@ -166,7 +173,7 @@ const DEMO_COLS: ColDef[] = [
     key: "avgDemoKast",
     label: "KAST%",
     getValue: (r) => r.avgDemoKast ?? null,
-    format: (v) => (v != null ? (v * 100).toFixed(1) + "%" : "—"),
+    format: (v) => (v != null ? v.toFixed(1) + "%" : "—"),
   },
   {
     key: "avgDemoAdr",
@@ -182,8 +189,8 @@ const DEMO_COLS: ColDef[] = [
   },
   {
     key: "demoClutchWinRate",
-    label: "Clutch%",
-    getValue: (r) => r.demoClutchWinRate ?? null,
+    label: "1v1%",
+    getValue: (r) => r.vsOneWinRate ?? null,
     format: (v) => (v != null ? (v * 100).toFixed(1) + "%" : "—"),
   },
   {
@@ -191,6 +198,30 @@ const DEMO_COLS: ColDef[] = [
     label: "Util/R",
     getValue: (r) => r.demoUtilityPerRound ?? null,
     format: (v) => (v != null ? v.toFixed(1) : "—"),
+  },
+  {
+    key: "twoKillRate",
+    label: "2K%",
+    getValue: (r) => r.twoKillCount != null && r.maps > 0 ? r.twoKillCount / r.maps : null,
+    format: (v) => (v != null ? v.toFixed(2) : "—"),
+  },
+  {
+    key: "threeKillRate",
+    label: "3K%",
+    getValue: (r) => r.threeKillCount != null && r.maps > 0 ? r.threeKillCount / r.maps : null,
+    format: (v) => (v != null ? v.toFixed(2) : "—"),
+  },
+  {
+    key: "entrySuccessRate",
+    label: "Entry%",
+    getValue: (r) => r.entrySuccessRate ?? null,
+    format: (v) => (v != null ? (v * 100).toFixed(1) + "%" : "—"),
+  },
+  {
+    key: "awpKillRate",
+    label: "AWP%",
+    getValue: (r) => r.awpKillRate ?? null,
+    format: (v) => (v != null ? (v * 100).toFixed(1) + "%" : "—"),
   },
 ];
 
