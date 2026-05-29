@@ -87,11 +87,17 @@ export function computePrism(
 
     for (const axis of PRISM_AXES) {
       const z = fusedZ[axis][i] ?? 0;
+      const invRaw = rawInv[axis][i] ?? 0;
+      const effRaw = rawEff[axis][i] ?? 0;
+      // 无原始信号（如从未用 AWP）→ 该风格维度直接为 0，不参与百分位排名
+      const percentile = (invRaw === 0 && effRaw === 0)
+        ? 0
+        : zToPercentile(z, fusedZ[axis]);
       axisResults[axis] = {
-        involvementRaw: rawInv[axis][i] ?? 0,
-        efficiencyRaw:  rawEff[axis][i] ?? 0,
+        involvementRaw: invRaw,
+        efficiencyRaw:  effRaw,
         z,
-        percentile: zToPercentile(z, fusedZ[axis]),
+        percentile,
       };
     }
 

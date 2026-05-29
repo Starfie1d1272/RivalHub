@@ -144,13 +144,14 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
     })
   );
 
-  // ── OCR 专属指标回填（rws/we 始终从 manual_ocr 行读取，demo 行无此字段）───
+  // ── OCR 专属指标回填（rws/we/ratingPro 始终从 manual_ocr 行读取）────────
   if (playerStats.length > 0) {
     const ocrRows = await db
       .select({
         seasonId: seasons.id,
-        avgRws: sql<number | null>`round(avg(${matchPlayerStats.rws})::numeric, 2)`,
-        avgWe: sql<number | null>`round(avg(${matchPlayerStats.we})::numeric, 1)`,
+        avgRws:    sql<number | null>`round(avg(${matchPlayerStats.rws})::numeric, 2)`,
+        avgWe:     sql<number | null>`round(avg(${matchPlayerStats.we})::numeric, 1)`,
+        avgRating: sql<number | null>`round(avg(${matchPlayerStats.ratingPro})::numeric, 2)`,
       })
       .from(matchPlayerStats)
       .innerJoin(matches, eq(matchPlayerStats.matchId, matches.id))
@@ -168,8 +169,10 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
     for (const ps of playerStats) {
       const ocr = ocrBySeason.get(ps.seasonId);
       if (ocr) {
-        (ps as Record<string, unknown>).avgRws = ocr.avgRws ?? ps.avgRws;
-        (ps as Record<string, unknown>).avgWe = ocr.avgWe ?? ps.avgWe;
+        const p = ps as Record<string, unknown>;
+        p.avgRws    = ocr.avgRws    ?? ps.avgRws;
+        p.avgWe     = ocr.avgWe     ?? ps.avgWe;
+        p.avgRating = ocr.avgRating ?? ps.avgRating;
       }
     }
   }
