@@ -1,8 +1,12 @@
 const WEAPON_LABELS: Record<string, string> = {
   "AK-47": "AK47",
+  "ak47": "AK47",
   "M4A4": "M4A4",
+  "m4a4": "M4A4",
   "M4A1-S": "M4A1",
+  "m4a1_silencer": "M4A1",
   "AWP": "AWP",
+  "awp": "AWP",
   "SSG 08": "SSG 08",
   "Desert Eagle": "Deagle",
   "Glock-18": "Glock",

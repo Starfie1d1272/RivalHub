@@ -14,7 +14,7 @@ type SortKey = "awpKills" | "totalKills" | "hsPercent";
 
 const WEAPON_DISPLAY: Record<string, string> = {
   ak47: "AK-47",    m4a4: "M4A4",       m4a1: "M4A1-S",
-  awp: "AWP",        deserteagle: "Deagle",
+  awp: "AWP",        m4a1_silencer: "M4A1", deserteagle: "Deagle",
   usp: "USP-S",      glock: "Glock-18",
   deagle: "Desert Eagle",
   famas: "FAMAS",    galil: "Galil AR",
@@ -113,7 +113,7 @@ export function WeaponLeaderboard({ players, seasonSlug }: WeaponLeaderboardProp
                     <td className="px-2.5 py-2.5">
                       {p.userId ? (
                         <Link
-                          href={`/${seasonSlug}/players/${p.userId}` as any}
+                          href={`/players/${p.userId}` as any}
                           className="text-[var(--color-accent)] hover:underline font-medium"
                         >
                           {p.perfectName}
