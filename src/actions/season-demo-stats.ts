@@ -67,11 +67,17 @@ export async function getSeasonDemoStats(
       sum(dps.vs_four_won_count)::int AS vs4_won,
       sum(dps.vs_five_count)::int AS vs5_count,
       sum(dps.vs_five_won_count)::int AS vs5_won,
-      round(avg(dps.avg_utility_damage_per_round)::numeric, 1) AS avg_utility_damage_per_round
+      round(avg(dps.avg_utility_damage_per_round)::numeric, 1) AS avg_utility_damage_per_round,
+      sum(rc.round_count)::int AS total_rounds
     FROM ${demoPlayerStats} dps
     JOIN ${demoImports} di ON di.id = dps.import_batch_id
     JOIN ${matchMaps} mm ON mm.id = di.map_id
     JOIN ${matches} m ON m.id = mm.match_id
+    JOIN (
+      SELECT import_batch_id, count(*)::int AS round_count
+      FROM demo_rounds
+      GROUP BY import_batch_id
+    ) rc ON rc.import_batch_id = di.id
     LEFT JOIN ${demoPlayers} dp
       ON dp.steam_id64 = dps.steam_id64 AND dp.import_batch_id = dps.import_batch_id
     WHERE m.season_id = ${seasonId}
@@ -96,7 +102,7 @@ export async function getSeasonDemoStats(
     const vs5Won = Number(r.vs5_won ?? 0);
     const totalClutchAttempts = vs1Count + vs2Count + vs3Count + vs4Count + vs5Count;
     const totalClutchWon = vs1Won + vs2Won + vs3Won + vs4Won + vs5Won;
-    const totalRounds = Math.max(1, Number(r.maps ?? 1) * 24); // ≈ rounds per map, 加时赛/弃权会有偏差
+    const totalRounds = Math.max(1, Number(r.total_rounds ?? 0));
 
     return {
       userId: r.user_id as string | null,
