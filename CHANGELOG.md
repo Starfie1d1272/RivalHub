@@ -5,6 +5,11 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.27.2] - 2026-05-30
+
+### Fixed
+- **Demo 批量导入 steamId 模糊匹配 fallback**：新增 `players.json` 选手 steamId64 → 队伍归属查询，作为日期、队名匹配都失败后的最终收窄手段；只要任一选手匹配候选比赛的某支队伍即保留，大幅减少需手动选择的情况
+
 ## [1.27.1] - 2026-05-30
 
 ### Fixed
@@ -935,6 +940,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.27.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.1...v1.27.2
 [1.27.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.0...v1.27.1
 [1.27.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.26.2...v1.27.0
 [1.26.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.26.1...v1.26.2
