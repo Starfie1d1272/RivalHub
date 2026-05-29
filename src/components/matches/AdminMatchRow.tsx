@@ -9,6 +9,7 @@ import { ScheduledAtInput } from "@/components/matches/ScheduledAtInput";
 import { VetoInputDialog } from "@/components/matches/VetoInputDialog";
 import { AdminRosterDialog } from "@/components/matches/AdminRosterDialog";
 import { StatsOCRPanel } from "@/components/matches/StatsOCRPanel";
+import { DemoImportPanel } from "@/components/admin/DemoImportPanel";
 import { ForfeitButton } from "@/components/matches/ForfeitButton";
 import { MapScoreCorrectInput } from "@/components/matches/MapScoreCorrectInput";
 import { DeleteMatchButton } from "@/components/matches/DeleteMatchButton";
@@ -232,12 +233,7 @@ export function AdminMatchRow({
                 {finishedMaps.map((map) => (
                   <div key={map.id} className="space-y-1">
                     <StatsOCRPanel mapId={map.id} mapName={map.mapName} />
-                    <Link
-                      href={`/admin/${seasonSlug}/demos` as any}
-                      className="text-xs text-[var(--color-fg-mid)] hover:text-[var(--color-accent)] transition-colors"
-                    >
-                      导入 Demo →
-                    </Link>
+                    <DemoImportPanel mapId={map.id} mapName={map.mapName} />
                   </div>
                 ))}
               </>
