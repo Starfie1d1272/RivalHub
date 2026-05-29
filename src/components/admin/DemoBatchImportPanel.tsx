@@ -164,7 +164,7 @@ export function DemoBatchImportPanel({ seasonId, availableMaps }: Props) {
         ),
       );
 
-      const result = await importDemoPackage(row.mapId, row.zipBuffer);
+      const result = await importDemoPackage(row.mapId, row.zipBuffer, { confirmOverwriteOcr: true });
 
       if (!result.success) {
         console.error(`[batch-import] ${row.fileName}:`, result.error.message);
