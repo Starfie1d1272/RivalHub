@@ -5,6 +5,12 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.27.3] - 2026-05-30
+
+### Fixed
+- **Demo 导入 schemaVersion 拒绝**：`manifestSchema` 改为同时接受 `"rivalhub-demo-export/1"` 和 `"cs2-demo-format/1.0"`，修复 43 个 demo ZIP 全部被 Zod 拒绝导致导入失败
+- **steamId 队伍匹配 SQL 列名**：`u.steam_id64` → `u.steam64`，修复 steamId 模糊匹配从未真正生效的问题
+
 ## [1.27.2] - 2026-05-30
 
 ### Fixed
@@ -940,6 +946,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.27.3]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.2...v1.27.3
 [1.27.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.1...v1.27.2
 [1.27.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.0...v1.27.1
 [1.27.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.26.2...v1.27.0
