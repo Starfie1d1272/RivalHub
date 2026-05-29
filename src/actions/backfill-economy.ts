@@ -71,7 +71,7 @@ export async function backfillEconomyTypes(
           WHEN 'force'  THEN 1
           WHEN 'full'   THEN 2
           WHEN 'pistol' THEN 3
-        END DESC
+        END
     ),
     updated_a AS (
       UPDATE demo_rounds dr
