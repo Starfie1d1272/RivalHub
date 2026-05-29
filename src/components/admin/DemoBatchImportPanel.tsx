@@ -58,6 +58,7 @@ export function DemoBatchImportPanel({ seasonId, availableMaps }: Props) {
         let teamAName: string | undefined;
         let teamBName: string | undefined;
         let zipDate: string | undefined;
+        let steamId64s: string[] = [];
 
         try {
           const zip = await JSZip.loadAsync(buf);
@@ -86,11 +87,19 @@ export function DemoBatchImportPanel({ seasonId, availableMaps }: Props) {
           // 从文件名提取比赛日期：rivalhub-{map}-{YYYY-MM-DD}.zip
           const dateMatch = file.name.match(/(\d{4}-\d{2}-\d{2})/);
           if (dateMatch) zipDate = dateMatch[1];
+
+          // 读取玩家信息用于模糊匹配
+          const playersFile = zip.file("players.json");
+          if (playersFile) {
+            const text = await playersFile.async("string");
+            const players = JSON.parse(text) as { steamId64: string }[];
+            steamId64s = players.map((p) => p.steamId64).filter(Boolean);
+          }
         } catch {
           // zip 解析失败，继续（mapName 为空会得到 none 匹配）
         }
 
-        infos.push({ fileName: file.name, mapName, demoHash, teamAName, teamBName, zipDate });
+        infos.push({ fileName: file.name, mapName, demoHash, teamAName, teamBName, zipDate, steamId64s });
       }
 
       const result = await matchZipsToMaps(seasonId, infos);
