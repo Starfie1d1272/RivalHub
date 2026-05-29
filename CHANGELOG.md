@@ -5,6 +5,17 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.27.0] - 2026-05-29
+
+### Added
+- **RR/PRISM 评分系统（框架）**：引入 `rival-rating` 算法引擎，新增 `player_ratings` 表；`recomputeSeasonRatings` Server Action 读取全赛季 demo 数据、计算每名选手的 RR 绝对刻度标量与 PRISM 八维风格百分位，管理员在 Demo 页面一键重算
+- **Demo 批量导入**：管理后台新增"批量导入"折叠区域，支持一次选择多个 zip；客户端自动解析 manifest + match.json 提取地图/队名，服务端按 mapName + 队名模糊匹配到对应 matchMap，匹配结果表格支持手动修正，逐个顺序导入并实时显示进度
+
+### Fixed
+- **Demo 解析 totalRounds 误差**：`playerStatsRowSchema` 补充 `rounds` 字段（exporter v2.1.2+），修复 fallback 用 kills+deaths 估算导致 per-round 指标偏低约 20%
+- **Demo 暖场数据污染**：`parseDemoPackage` 过滤 `roundNumber=0` 的击杀、投掷物等事件，防止暖场数据进入统计
+- **时间协商 Banner 显示错误 + 竞态**：修复"比赛时间已自动设定"提示使用 proposal 记录时间而非 match 实际时间导致的不一致；`autoAcceptExpiredProposals` 改为按 matchId 分组只处理最早提议，消除并行处理同场多条超时提议时的非确定性锁竞争
+
 ## [1.26.2] - 2026-05-29
 
 ### Fixed
@@ -912,6 +923,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.27.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.26.2...v1.27.0
 [1.26.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.26.1...v1.26.2
 [1.26.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.26.0...v1.26.1
 [1.26.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.25.6...v1.26.0
