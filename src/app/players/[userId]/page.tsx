@@ -11,6 +11,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { POSITION_LABELS } from "@/lib/validators/registration";
 import { matchPlayerStats } from "@/db/schema/player-stats";
+import { playerRatings } from "@/db/schema";
 import { wAvg } from "@/lib/utils/stats";
 import { getSeasonHexagonScores } from "@/actions/hexagon";
 import type { HexagonScores } from "@/lib/utils/hexagon";
@@ -140,6 +141,19 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
       if (s) hexagonBySeasonSlug.set(ps.seasonSlug, s);
     })
   );
+
+  // ── RR 评分（from player_ratings，各赛季）────────────────────────────
+  const rrBySeasonId = new Map<string, { rrScore: number | null; mapCount: number }>();
+  if (registrations.length > 0) {
+    const seasonIds = registrations.map(r => r.seasonId);
+    const rrRows = await db
+      .select({ seasonId: playerRatings.seasonId, rrScore: playerRatings.rrScore, mapCount: playerRatings.mapCount })
+      .from(playerRatings)
+      .where(and(eq(playerRatings.userId, userId), inArray(playerRatings.seasonId, seasonIds)));
+    for (const r of rrRows) {
+      rrBySeasonId.set(r.seasonId, { rrScore: r.rrScore ? Number(r.rrScore) : null, mapCount: r.mapCount });
+    }
+  }
 
   // ── 队伍归属（registrationId → team）────────────────────────────────
   const allRegIds = registrations.map((r) => r.id);
@@ -388,12 +402,22 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
                 </span>
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--color-fg-mid)]">
-                <span>
-                  Rating{" "}
-                  <span className="text-[var(--color-accent)] font-semibold">
-                    {ps.avgRating}
+                {ps.avgRating != null && (
+                  <span>
+                    完美 Rating{" "}
+                    <span className="text-[var(--color-accent)] font-semibold">
+                      {ps.avgRating}
+                    </span>
                   </span>
-                </span>
+                )}
+                {(() => {
+                  const rr = rrBySeasonId.get(ps.seasonId);
+                  return rr?.rrScore != null ? (
+                    <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold" style={{ background: "var(--color-accent)", color: "#fff" }}>
+                      RR {rr.rrScore.toFixed(2)}
+                    </span>
+                  ) : null;
+                })()}
                 <span>
                   ADR{" "}
                   <span className="text-[var(--color-fg)]">{ps.avgAdr}</span>
