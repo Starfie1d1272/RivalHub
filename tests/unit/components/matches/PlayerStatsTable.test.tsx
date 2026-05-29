@@ -20,6 +20,7 @@ vi.mock("@/db/schema/player-stats", () => ({
     hsPercent: {}, firstKills: {}, multiKills: {}, clutches: {},
     rws: {}, we: {},
   },
+  statSourceEnum: () => {},
 }));
 
 vi.mock("@/db/schema/teams", () => ({
