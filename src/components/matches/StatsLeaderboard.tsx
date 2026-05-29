@@ -43,9 +43,9 @@ interface StatsLeaderboardProps {
 }
 
 const VIEWS: { key: LeaderboardView | "demo"; label: string; defaultSort: string }[] = [
-  { key: "core", label: "Core", defaultSort: "rating" },
+  { key: "core", label: "Core", defaultSort: "rr" },
   { key: "impact", label: "Impact", defaultSort: "fk" },
-  { key: "advanced", label: "Advanced", defaultSort: "we" },
+  { key: "advanced", label: "Advanced", defaultSort: "rr" },
   { key: "demo", label: "Demo", defaultSort: "avgDemoKast" },
 ];
 

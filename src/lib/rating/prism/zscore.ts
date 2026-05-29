@@ -48,6 +48,11 @@ export function empiricalPercentile(
   if (sortedValues.length === 0) return 50;
   if (sortedValues.length === 1) return 50;
 
+  // 所有值相同时（如全赛季 sniperKillRate = 0），返回中位数而非 100
+  const min = sortedValues[0] ?? 0;
+  const max = sortedValues[sortedValues.length - 1] ?? 0;
+  if (min === max) return 50;
+
   let pos = 0;
   for (let i = 0; i < sortedValues.length; i++) {
     if ((sortedValues[i] ?? 0) <= target) pos = i + 1;

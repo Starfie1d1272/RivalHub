@@ -30,7 +30,6 @@ import { PlayerWeaponBreakdown } from "@/components/matches/PlayerWeaponBreakdow
 import { DemoRoundTimeline } from "@/components/matches/DemoRoundTimeline";
 import { DemoKillFeed } from "@/components/matches/DemoKillFeed";
 import { DemoEconomyChart } from "@/components/matches/DemoEconomyChart";
-import { DemoClutchList } from "@/components/matches/DemoClutchList";
 import { PlayerEntryStats } from "@/components/matches/PlayerEntryStats";
 import { PlayerClutchStats } from "@/components/matches/PlayerClutchStats";
 import { PlayerUtilityStats } from "@/components/matches/PlayerUtilityStats";
@@ -569,9 +568,6 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                               teamBEconomy: r.teamBEconomy,
                             }))}
                           />
-                        </Panel>
-                        <Panel label="Clutch Replays">
-                          <DemoClutchList clutches={d.clutches} playerNameMap={d.playerNameMap} />
                         </Panel>
                         <Panel label="Heatmap">
                           <PlayerKillHeatmap

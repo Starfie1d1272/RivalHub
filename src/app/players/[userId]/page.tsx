@@ -144,6 +144,36 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
     })
   );
 
+  // ── OCR 专属指标回填（rws/we 始终从 manual_ocr 行读取，demo 行无此字段）───
+  if (playerStats.length > 0) {
+    const ocrRows = await db
+      .select({
+        seasonId: seasons.id,
+        avgRws: sql<number | null>`round(avg(${matchPlayerStats.rws})::numeric, 2)`,
+        avgWe: sql<number | null>`round(avg(${matchPlayerStats.we})::numeric, 1)`,
+      })
+      .from(matchPlayerStats)
+      .innerJoin(matches, eq(matchPlayerStats.matchId, matches.id))
+      .innerJoin(seasons, eq(matches.seasonId, seasons.id))
+      .where(
+        and(
+          eq(matchPlayerStats.userId, userId),
+          sql`${matchPlayerStats.verifiedByAdmin} IS NOT NULL`,
+          sql`${matchPlayerStats.source} = 'manual_ocr'::stat_source`,
+        )
+      )
+      .groupBy(seasons.id);
+
+    const ocrBySeason = new Map(ocrRows.map((r) => [r.seasonId, r]));
+    for (const ps of playerStats) {
+      const ocr = ocrBySeason.get(ps.seasonId);
+      if (ocr) {
+        (ps as Record<string, unknown>).avgRws = ocr.avgRws ?? ps.avgRws;
+        (ps as Record<string, unknown>).avgWe = ocr.avgWe ?? ps.avgWe;
+      }
+    }
+  }
+
   // ── RR + PRISM 评分（from player_ratings，各赛季）────────────────────
   const rrBySeasonId = new Map<string, { rrScore: number | null; mapCount: number; prism: PrismScores | null }>();
   if (registrations.length > 0) {
