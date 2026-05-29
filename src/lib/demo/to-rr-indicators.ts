@@ -13,9 +13,9 @@
  *   flashAssistCount → 来自 kills.json flashAssist 字段聚合（当前可选）
  */
 
-import { aggregatePlayerDemoStats } from "./player-demo-stats.js";
-import type { PlayerStatRow, BlindsRow } from "./player-demo-stats.js";
-import type { WeaponStat } from "./weapon-stats.js";
+import { aggregatePlayerDemoStats } from "./player-demo-stats";
+import type { PlayerStatRow, BlindsRow } from "./player-demo-stats";
+import type { WeaponStat } from "./weapon-stats";
 
 // ─── 输出类型（镜像 @rivalhub/rival-rating RRIndicators）────────────────────
 // 与 rival-rating/src/types/indicators.ts 保持结构同步
