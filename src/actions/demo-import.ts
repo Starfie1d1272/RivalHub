@@ -1,6 +1,6 @@
 "use server";
 
-import { eq, and, isNotNull } from "drizzle-orm";
+import { eq, and, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matchMaps } from "@/db/schema/match-maps";
 import { matches } from "@/db/schema/matches";
@@ -30,7 +30,7 @@ type DemoSideVal = "t" | "ct" | "unknown";
 export async function importDemoPackage(
   mapId: string,
   zipBuffer: ArrayBuffer,
-  opts?: { confirmOverwriteOcr?: boolean },
+  opts?: { confirmOverwriteOcr?: boolean; force?: boolean },
 ): Promise<ActionResult<{ importBatchId: string; unmatched: string[] }>> {
   try {
     const session = await requireAdmin();
@@ -48,10 +48,12 @@ export async function importDemoPackage(
     const parsed = await parseDemoPackage(zipBuffer);
     const demoHash = parsed.manifest.demo?.hash ?? "";
 
-    // 查重：同一 mapId + demoHash
-    const existing = await db.query.demoImports.findFirst({
-      where: and(eq(demoImports.mapId, mapId), eq(demoImports.demoHash, demoHash)),
-    });
+    // 查重：同一 mapId + demoHash（force 模式下跳过）
+    const existing = opts?.force
+      ? null
+      : await db.query.demoImports.findFirst({
+          where: and(eq(demoImports.mapId, mapId), eq(demoImports.demoHash, demoHash)),
+        });
     if (existing) return fail({ code: ErrorCode.DUPLICATE_IMPORT, message: "该 Demo 已导入过（相同 hash + 地图）" });
 
     // OCR 冲突检测（契约 E）
@@ -91,6 +93,30 @@ export async function importDemoPackage(
 
     // ── 事务写库 ──
     const result = await db.transaction(async (tx) => {
+      // 0. force 模式：删除该 map 的所有旧导入记录
+      if (opts?.force) {
+        const oldBatchIds = await tx
+          .select({ id: demoImports.id })
+          .from(demoImports)
+          .where(eq(demoImports.mapId, mapId))
+          .then((r) => r.map((b) => b.id));
+        if (oldBatchIds.length > 0) {
+          for (const tbl of [
+            "demo_kills", "demo_damages", "demo_blinds", "demo_bombs",
+            "demo_clutches", "demo_grenades", "demo_shots", "demo_positions",
+            "demo_player_economies", "demo_player_stats", "demo_rounds", "demo_players",
+          ]) {
+            await tx.execute(
+              sql`DELETE FROM ${sql.identifier(tbl)} WHERE import_batch_id = ANY(${oldBatchIds}::uuid[])`
+            );
+          }
+          await tx.delete(demoImports).where(eq(demoImports.mapId, mapId));
+        }
+        await tx.delete(matchPlayerStats).where(
+          and(eq(matchPlayerStats.mapId, mapId), eq(matchPlayerStats.source, "demo_import"))
+        );
+      }
+
       // 1. 插入 demoImports
       const [importRow] = await tx.insert(demoImports).values({
         mapId,

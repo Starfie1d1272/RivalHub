@@ -10,14 +10,13 @@ import { ErrorCode } from "@/lib/errors";
 /**
  * 从 demo_player_economies 计算每回合队伍经济类型并回填 demo_rounds。
  *
- * 分类规则（per-player）：
- *   - eco:     money_spent < 1000（基本没买）
- *   - full:    equipment_value >= 4000（AK+甲+投掷物起步）
- *   - force:   花钱比例 > 75%（买完不留钱）
- *   - semi:    money_spent >= 1000 且花钱比例 <= 75%（留钱）
+ * 分类规则（per-player，优先级从高到低）：
+ *   1. full:  equipment_value >= 4000（AK+甲+投掷物，全装长枪局）
+ *   2. eco:   money_spent < 1000 AND equipment_value < 2000（纯经济局）
+ *   3. force: start_money > 0 AND money_spent / start_money > 0.75（强起）
+ *   4. semi:  其余所有情况（兜底，包括存活装备但没花钱等）
  *
- * 队伍级：多数胜出。平手时按 eco < semi < force < full 优先。
- * 仅更新未设置（IS NULL）的行，或指定 import_batch_ids 时全量重算。
+ * 队伍级：多数胜出。平手时保守优先（eco < semi < force < full）。
  */
 export async function backfillEconomyTypes(
   importBatchIds?: string[],
@@ -43,12 +42,11 @@ export async function backfillEconomyTypes(
         dpe.money_spent,
         dpe.equipment_value,
         CASE
-          WHEN dpe.money_spent < 1000 THEN 'eco'
           WHEN dpe.equipment_value >= 4000 THEN 'full'
+          WHEN dpe.money_spent < 1000 AND dpe.equipment_value < 2000 THEN 'eco'
           WHEN dpe.start_money > 0
             AND (dpe.money_spent::float / dpe.start_money) > 0.75 THEN 'force'
-          WHEN dpe.money_spent >= 1000 THEN 'semi'
-          ELSE 'eco'
+          ELSE 'semi'
         END AS eco_type
       FROM demo_player_economies dpe
       WHERE dpe.start_money > 0
@@ -82,7 +80,7 @@ export async function backfillEconomyTypes(
           WHEN 'semi'  THEN 1
           WHEN 'force' THEN 2
           WHEN 'full'  THEN 3
-        END DESC
+        END
     ),
     updated_a AS (
       UPDATE demo_rounds dr

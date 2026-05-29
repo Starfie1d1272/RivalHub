@@ -57,8 +57,8 @@ export async function getSeasonDemoStats(
   const { rows } = await db.execute(sql`
     SELECT
       dps.user_id,
-      COALESCE(dp.name, 'Unknown') AS perfect_name,
-      dp.steam_id64,
+      min(dp.name) AS perfect_name,
+      min(dp.steam_id64) AS steam_id64,
       count(*)::int AS maps,
       CASE WHEN count(*) > 0 THEN round(avg(dps.kast)::numeric, 4) ELSE NULL END AS kast,
       CASE WHEN count(*) > 0 THEN round(avg(dps.adr)::numeric, 1) ELSE NULL END AS adr,
@@ -102,7 +102,7 @@ export async function getSeasonDemoStats(
              AND awp_data.killer_steam_id64 = dps.steam_id64
     WHERE m.season_id = ${seasonId}
       AND mm.active_stat_source = 'demo_import'::stat_source
-    GROUP BY dps.user_id, dp.name, dp.steam_id64
+    GROUP BY COALESCE(dps.user_id, dp.name)
     ORDER BY kast DESC NULLS LAST
     LIMIT 100
   `);
@@ -167,8 +167,8 @@ export async function getSeasonWeaponStats(
   const { rows } = await db.execute(sql`
     SELECT
       dps.user_id,
-      COALESCE(dp.name, 'Unknown') AS perfect_name,
-      dp.steam_id64,
+      min(dp.name) AS perfect_name,
+      min(dp.steam_id64) AS steam_id64,
       dk.weapon,
       count(*)::int AS kills,
       sum(CASE WHEN dk.headshot THEN 1 ELSE 0 END)::int AS headshots
@@ -183,7 +183,7 @@ export async function getSeasonWeaponStats(
     WHERE m.season_id = ${seasonId}
       AND mm.active_stat_source = 'demo_import'::stat_source
       AND dk.weapon IS NOT NULL
-    GROUP BY dps.user_id, dp.name, dp.steam_id64, dk.weapon
+    GROUP BY COALESCE(dps.user_id, dp.name), dk.weapon
     ORDER BY kills DESC
     LIMIT 500
   `);
@@ -258,7 +258,7 @@ export async function getWeaponKillStats(seasonId: string): Promise<WeaponKillSt
     LEFT JOIN ${demoPlayers} dp ON dp.steam_id64 = dk.killer_steam_id64 AND dp.import_batch_id = dk.import_batch_id
     WHERE m.season_id = ${seasonId}
       AND mm.active_stat_source = 'demo_import'::stat_source
-    GROUP BY dp.user_id, dp.name, dk.weapon
+    GROUP BY COALESCE(dp.user_id, dp.name), dk.weapon
     HAVING count(*) >= 3
     ORDER BY kills DESC
     LIMIT 200
@@ -299,8 +299,8 @@ export async function getSeasonHighlightStats(
   const { rows } = await db.execute(sql`
     SELECT
       dps.user_id,
-      COALESCE(dp.name, 'Unknown') AS perfect_name,
-      dp.steam_id64,
+      min(dp.name) AS perfect_name,
+      min(dp.steam_id64) AS steam_id64,
       count(*)::int AS maps,
       COALESCE(sum(dps.collateral_kill_count)::int, 0) AS collateral_kills,
       COALESCE(sum(dps.wallbang_kill_count)::int, 0) AS wallbang_kills,
@@ -313,7 +313,7 @@ export async function getSeasonHighlightStats(
       ON dp.steam_id64 = dps.steam_id64 AND dp.import_batch_id = dps.import_batch_id
     WHERE m.season_id = ${seasonId}
       AND mm.active_stat_source = 'demo_import'::stat_source
-    GROUP BY dps.user_id, dp.name, dp.steam_id64
+    GROUP BY COALESCE(dps.user_id, dp.name)
     HAVING COALESCE(sum(dps.collateral_kill_count), 0) > 0
         OR COALESCE(sum(dps.wallbang_kill_count), 0) > 0
         OR COALESCE(sum(dps.no_scope_kill_count), 0) > 0
