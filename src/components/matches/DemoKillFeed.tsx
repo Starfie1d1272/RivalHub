@@ -106,27 +106,27 @@ export function DemoKillFeed({ kills, playerNameMap }: DemoKillFeedProps) {
                   </span>
                   <span className="flex gap-1 ml-1">
                     {k.headshot && (
-                      <span className="text-[10px] px-1 rounded bg-amber-900/30 text-amber-400 font-bold">
+                      <span className="text-[10px] px-1 rounded bg-[var(--color-warn)]/20 text-[var(--color-warn)] font-bold">
                         HS
                       </span>
                     )}
                     {k.tradeKill && (
-                      <span className="text-[10px] px-1 rounded bg-blue-900/30 text-blue-400">
+                      <span className="text-[10px] px-1 rounded bg-[var(--color-accent)]/20 text-[var(--color-accent)]">
                         Trade
                       </span>
                     )}
                     {k.throughSmoke && (
-                      <span className="text-[10px] px-1 rounded bg-gray-700/50 text-gray-300">
+                      <span className="text-[10px] px-1 rounded bg-[var(--color-bg-subtle)] text-[var(--color-fg-mid)]">
                         Smoke
                       </span>
                     )}
                     {k.noScope && (
-                      <span className="text-[10px] px-1 rounded bg-purple-900/30 text-purple-400">
+                      <span className="text-[10px] px-1 rounded bg-[var(--color-fg-mid)]/20 text-[var(--color-fg-mid)]">
                         NS
                       </span>
                     )}
                     {k.flashAssist && (
-                      <span className="text-[10px] px-1 rounded bg-green-900/30 text-green-400">
+                      <span className="text-[10px] px-1 rounded bg-[var(--color-success)]/20 text-[var(--color-success)]">
                         FA
                       </span>
                     )}

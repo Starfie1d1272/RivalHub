@@ -13,16 +13,16 @@ const SIDE_LABELS: Record<string, string> = {
 };
 
 const SIDE_COLORS: Record<string, string> = {
-  ct: "text-blue-600",
-  t: "text-orange-600",
+  ct: "text-[var(--color-accent)]",
+  t: "text-[var(--color-warn)]",
 };
 
 function WinRateBar({ rate }: { rate: number }) {
   const pct = Math.round(rate * 100);
   return (
-    <div className="w-full bg-gray-200 rounded-full h-3 dark:bg-gray-700">
+    <div className="w-full bg-[var(--color-bg-subtle)] rounded-full h-3">
       <div
-        className="bg-blue-500 h-3 rounded-full transition-all"
+        className="bg-[var(--color-accent)] h-3 rounded-full transition-all"
         style={{ width: `${pct}%` }}
       />
     </div>
@@ -38,7 +38,7 @@ export function TeamHalfSideStats({
   if (entries.length === 0) {
     return (
       <Panel label={`${teamName} T/CT 半场胜率`}>
-        <p className="text-gray-400 text-sm text-center py-4">暂无数据</p>
+        <p className="text-[var(--color-fg-muted)] text-sm text-center py-4">暂无数据</p>
       </Panel>
     );
   }
@@ -49,10 +49,10 @@ export function TeamHalfSideStats({
         {entries.map(([side, s]) => (
           <div
             key={side}
-            className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4"
+            className="bg-[var(--color-bg-subtle)] rounded-lg p-4"
           >
             <div className="flex items-center justify-between mb-2">
-              <span className={`text-lg font-semibold ${SIDE_COLORS[side] ?? "text-gray-600"}`}>
+              <span className={`text-lg font-semibold ${SIDE_COLORS[side] ?? "text-[var(--color-fg-mid)]"}`}>
                 {SIDE_LABELS[side] ?? side}
               </span>
               <span className="text-xl font-bold font-mono">
@@ -60,7 +60,7 @@ export function TeamHalfSideStats({
               </span>
             </div>
             <WinRateBar rate={s.winRate} />
-            <div className="flex justify-between text-xs text-gray-400 mt-2">
+            <div className="flex justify-between text-xs text-[var(--color-fg-muted)] mt-2">
               <span>{s.won} 胜</span>
               <span>{s.played} 局</span>
             </div>

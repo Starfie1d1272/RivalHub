@@ -48,7 +48,7 @@ function HighlightCard({
             <div className="flex items-center gap-2 min-w-0">
               <span
                 className={`text-xs font-mono w-5 text-right shrink-0
-                  ${i === 0 ? "text-yellow-500" : "text-[var(--color-fg-mid)]"}`}
+                  ${i === 0 ? "text-[var(--color-warn)]" : "text-[var(--color-fg-mid)]"}`}
               >
                 #{i + 1}
               </span>
@@ -76,7 +76,7 @@ export function HighlightLeaderboard({
   return (
     <Panel>
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-bold">🏆 高光击杀榜</h2>
+        <h2 className="text-lg font-bold"><span aria-hidden="true">🏆</span> 高光击杀榜</h2>
         <span className="text-xs text-[var(--color-fg-muted)]">
           基于 {highlights.reduce((s, p) => s + p.maps, 0)} 张 demo 地图
         </span>

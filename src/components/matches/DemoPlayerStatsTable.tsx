@@ -13,8 +13,8 @@ interface DemoPlayerStatsTableProps {
 }
 
 const TEAM_COLORS = {
-  A: { border: "var(--color-accent)", bg: "rgba(255,107,26,0.04)" },
-  B: { border: "var(--color-accent-b)", bg: "rgba(77,212,122,0.04)" },
+  A: { border: "var(--color-accent)", bg: "color-mix(in srgb, var(--color-accent) 4%, transparent)" },
+  B: { border: "var(--color-accent-b)", bg: "color-mix(in srgb, var(--color-accent-b) 4%, transparent)" },
 };
 
 const SECTIONS = [
@@ -131,7 +131,7 @@ function TeamTable({
                 key={p.steamId64}
                 className={cn(
                   "border-b border-[var(--color-border)] last:border-0",
-                  i % 2 === 0 && "bg-black/10",
+                  i % 2 === 0 && "bg-[var(--color-bg-subtle)]",
                 )}
               >
                 <td className="py-1.5 pl-3 pr-1 whitespace-nowrap">

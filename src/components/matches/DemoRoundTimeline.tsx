@@ -44,8 +44,8 @@ export function DemoRoundTimeline({ rounds }: DemoRoundTimelineProps) {
               className={cn(
                 "flex flex-col items-center rounded px-2 py-1.5 min-w-[60px] text-center",
                 "border border-[var(--color-border)]",
-                isTWin && "bg-amber-900/20 border-amber-700/30",
-                isCTWin && "bg-sky-900/20 border-sky-700/30",
+                isTWin && "bg-[var(--color-warn)]/10 border-[var(--color-warn)]/20",
+                isCTWin && "bg-[var(--color-accent)]/10 border-[var(--color-accent)]/20",
                 !isWin && "bg-[var(--color-bg-subtle)]",
               )}
             >
@@ -53,8 +53,8 @@ export function DemoRoundTimeline({ rounds }: DemoRoundTimelineProps) {
                 R{r.roundNumber}
               </span>
               <span className="text-[10px] font-mono mt-0.5">
-                {isTWin && <span className="text-amber-400">T</span>}
-                {isCTWin && <span className="text-sky-400">CT</span>}
+                {isTWin && <span className="text-[var(--color-warn)]">T</span>}
+                {isCTWin && <span className="text-[var(--color-accent)]">CT</span>}
                 {!isWin && <span className="text-[var(--color-fg-dim)]">—</span>}
               </span>
               <span className="text-[9px] text-[var(--color-fg-dim)] mt-0.5 tabular-nums">

@@ -27,7 +27,9 @@ export function PlayerUtilityStats({
   );
 
   if (!stats.length) {
-    return null;
+    return (
+      <div className="text-sm text-[var(--color-fg-muted)] italic py-4 text-center">暂无道具数据</div>
+    );
   }
 
   return (
@@ -35,7 +37,7 @@ export function PlayerUtilityStats({
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-xs text-gray-400 uppercase">
+            <tr className="text-xs text-[var(--color-fg-muted)] uppercase">
               <th className="py-1 px-2 text-left">选手</th>
               <th className="py-1 px-2 text-right">道具伤害</th>
               <th className="py-1 px-2 text-right">场均道具伤</th>
@@ -56,7 +58,7 @@ export function PlayerUtilityStats({
           </tbody>
         </table>
       </div>
-      <div className="mt-1 text-xs text-gray-500">
+      <div className="mt-1 text-xs text-[var(--color-fg-muted)]">
         道具伤害含手雷/燃烧弹/ incendiary 等。闪白助攻指被闪后击杀。
       </div>
     </Panel>
