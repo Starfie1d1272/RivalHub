@@ -12,7 +12,7 @@ import { ErrorCode } from "@/lib/errors";
  *
  * 分类规则（per-player）：
  *   - eco:     money_spent < 1000（基本没买）
- *   - full:    equipment_value >= 4700（步枪+甲+道具）
+ *   - full:    equipment_value >= 4000（AK+甲+投掷物起步）
  *   - force:   花钱比例 > 75%（买完不留钱）
  *   - semi:    money_spent >= 1000 且花钱比例 <= 75%（留钱）
  *
@@ -44,7 +44,7 @@ export async function backfillEconomyTypes(
         dpe.equipment_value,
         CASE
           WHEN dpe.money_spent < 1000 THEN 'eco'
-          WHEN dpe.equipment_value >= 4700 THEN 'full'
+          WHEN dpe.equipment_value >= 4000 THEN 'full'
           WHEN dpe.start_money > 0
             AND (dpe.money_spent::float / dpe.start_money) > 0.75 THEN 'force'
           WHEN dpe.money_spent >= 1000 THEN 'semi'
