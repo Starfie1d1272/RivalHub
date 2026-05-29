@@ -7,6 +7,7 @@ export interface DemoStatInput {
   adr?: number | null;
   headshotCount?: number | null;
   firstKillCount?: number | null;
+  twoKillCount?: number | null;
   threeKillCount?: number | null;
   fourKillCount?: number | null;
   fiveKillCount?: number | null;
@@ -30,7 +31,7 @@ export interface MatchPlayerStatRow {
   multiKills: number | null;
   clutches: number | null;
   source: "demo_import";
-  ratingPro?: undefined;
+  ratingPro?: number | null;
   rws?: undefined;
   we?: undefined;
 }
@@ -45,6 +46,7 @@ export function toMatchPlayerStat(
   const hsPercent = kills > 0 ? Math.round((hs / kills) * 100) : 0;
 
   const multiKills =
+    (stat.twoKillCount ?? 0) +
     (stat.threeKillCount ?? 0) +
     (stat.fourKillCount ?? 0) +
     (stat.fiveKillCount ?? 0);
