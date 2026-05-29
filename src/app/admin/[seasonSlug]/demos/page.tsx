@@ -5,6 +5,8 @@ import { seasons, matches, teams, matchMaps, demoImports } from "@/db/schema";
 import { requireSeasonAdmin } from "@/lib/auth/session";
 import { mapLabel } from "@/lib/maps";
 import { DemoImportPanel } from "@/components/admin/DemoImportPanel";
+import { DemoBatchImportPanel } from "@/components/admin/DemoBatchImportPanel";
+import { RecomputeRatingsButton } from "@/components/admin/RecomputeRatingsButton";
 import { MATCH_FORMAT_LABELS } from "@/types/match";
 import Link from "next/link";
 
@@ -74,6 +76,20 @@ export default async function AdminDemosPage({ params }: PageProps) {
     mapsByMatch.set(map.matchId, arr);
   }
 
+  // 组装 availableMaps 供批量导入面板使用
+  const availableMaps = allMaps.map((mm) => {
+    const match = finishedMatches.find((m) => m.id === mm.matchId)!;
+    const teamAName = teamMap.get(match.teamAId) ?? "队伍 A";
+    const teamBName = teamMap.get(match.teamBId) ?? "队伍 B";
+    const dateStr = mm.completedAt
+      ? mm.completedAt.toISOString().slice(0, 10)
+      : (match.completedAt?.toISOString().slice(0, 10) ?? "未知日期");
+    return {
+      mapId: mm.id,
+      label: `${teamAName} vs ${teamBName} · ${mm.mapName} · ${dateStr}`,
+    };
+  });
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-[var(--color-fg)]">
@@ -82,6 +98,21 @@ export default async function AdminDemosPage({ params }: PageProps) {
       <p className="text-sm text-[var(--color-fg-dim)]">
         共 {finishedMatches.length} 场已结束比赛
       </p>
+
+      {/* 批量导入折叠区域 */}
+      <details className="rounded-lg border border-[var(--color-border)] overflow-hidden">
+        <summary className="cursor-pointer px-4 py-3 bg-[var(--color-surface-raised)] font-medium text-sm select-none hover:bg-[var(--color-surface-hover)] transition-colors">
+          批量导入 Demo
+        </summary>
+        <div className="px-4 py-4">
+          <DemoBatchImportPanel seasonId={season.id} availableMaps={availableMaps} />
+        </div>
+      </details>
+
+      {/* 评分重算 */}
+      <div className="flex justify-end">
+        <RecomputeRatingsButton seasonId={season.id} />
+      </div>
 
       <div className="space-y-4">
         {finishedMatches.map((m) => {

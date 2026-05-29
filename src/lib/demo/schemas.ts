@@ -101,6 +101,8 @@ const playerStatsRowSchema = z.object({
   wallbangKillCount: nullInt,
   noScopeKillCount: nullInt,
   collateralKillCount: nullInt,
+  /** 地图总回合数（exporter v2.1.2+ 新增，旧版为 null） */
+  rounds: nullInt,
 });
 export const playerStatsSchema = z.array(playerStatsRowSchema);
 

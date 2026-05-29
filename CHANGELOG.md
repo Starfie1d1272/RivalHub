@@ -5,6 +5,24 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.27.0] - 2026-05-29
+
+### Added
+- **RR/PRISM 评分系统（框架）**：引入 `rival-rating` 算法引擎，新增 `player_ratings` 表；`recomputeSeasonRatings` Server Action 读取全赛季 demo 数据、计算每名选手的 RR 绝对刻度标量与 PRISM 八维风格百分位，管理员在 Demo 页面一键重算
+- **Demo 批量导入**：管理后台新增"批量导入"折叠区域，支持一次选择多个 zip；客户端自动解析 manifest + match.json 提取地图/队名，服务端按 mapName + 队名模糊匹配到对应 matchMap，匹配结果表格支持手动修正，逐个顺序导入并实时显示进度
+- **全站 RR 门面评分体系**：排行榜 RR 列提升为首位（Core/Impact/Advanced 三视图通用）；选手目录/队伍卡片/队伍详情新增 RR 列；选手主页生涯总计 RR 加权计算；队伍详情综合统计以 RR 替换 WE 作为门面指标
+- **通用 N 轴 RadarChart 组件**：支持任意轴数，现有六维雷达图保持兼容；选手主页按赛季检测 PRISM 数据 → 有则渲染 PRISM 八维（火力/开局/首攻/补枪/残局/狙击/道具/生存），否则回退六维
+
+### Changed
+- **评分标签统一**：全站「完美 Rating」/「完美 RT」/孤立的「Rating」标签统一为 `Rating Pro`；OCR `matchPlayerStats.ratingPro` 均明确标注为第三方数据（非平台自有评分），不再与 RR 混淆
+- **全站数据来源过滤修复**：选手主页生涯查询、选手目录、队伍目录、队伍详情 4 处聚合查询补充 `source = COALESCE(active_stat_source, 'manual_ocr')` 过滤，消除同一地图 OCR/demo 双来源行同时计入导致的均值和地图数翻倍；队伍详情 `count(*)` → `count(distinct map_id)` 修复地图数双算
+- **比赛详情 OCR 汇总表**：表头列「Rating」→「Rating Pro」，与全站标签保持一致
+
+### Fixed
+- **Demo 解析 totalRounds 误差**：`playerStatsRowSchema` 补充 `rounds` 字段（exporter v2.1.2+），修复 fallback 用 kills+deaths 估算导致 per-round 指标偏低约 20%
+- **Demo 暖场数据污染**：`parseDemoPackage` 过滤 `roundNumber=0` 的击杀、投掷物等事件，防止暖场数据进入统计
+- **时间协商 Banner 显示错误 + 竞态**：修复"比赛时间已自动设定"提示使用 proposal 记录时间而非 match 实际时间导致的不一致；`autoAcceptExpiredProposals` 改为按 matchId 分组只处理最早提议，消除并行处理同场多条超时提议时的非确定性锁竞争
+
 ## [1.26.2] - 2026-05-29
 
 ### Fixed
@@ -912,6 +930,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.27.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.26.2...v1.27.0
 [1.26.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.26.1...v1.26.2
 [1.26.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.26.0...v1.26.1
 [1.26.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.25.6...v1.26.0

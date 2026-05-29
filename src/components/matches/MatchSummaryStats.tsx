@@ -33,7 +33,7 @@ interface MatchSummaryStatsProps {
 }
 
 const COLS = [
-  { key: "ratingPro", label: "Rating", fmt: (v: number | null) => v != null ? v.toFixed(2) : "—" },
+  { key: "ratingPro", label: "Rating Pro", fmt: (v: number | null) => v != null ? v.toFixed(2) : "—" },
   { key: "kills",     label: "K" },
   { key: "deaths",    label: "D" },
   { key: "assists",   label: "A" },

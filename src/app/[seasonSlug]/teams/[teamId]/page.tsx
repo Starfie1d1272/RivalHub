@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { eq, or, and, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, teams, teamMembers, seasonRegistrations, users, matches } from "@/db/schema";
+import { seasons, teams, teamMembers, seasonRegistrations, users, matches, playerRatings } from "@/db/schema";
 import { Panel, Stat, Marker, PosChip, Btn } from "@/components/rivalhub";
 import { MatchCard } from "@/components/matches/MatchCard";
 import { MapPreferenceChips } from "@/components/rivalhub/MapPreferenceChips";
@@ -160,7 +160,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
     ? await db.execute(sql`
         SELECT
           mps.user_id,
-          count(*)::int                                                                              AS maps,
+          count(distinct mps.map_id)::int                                                            AS maps,
           round(avg(mps.rating_pro)::numeric, 2)                                                    AS avg_rating,
           round(
             CASE WHEN sum(mm2.score_a + mm2.score_b) > 0
@@ -180,6 +180,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
         JOIN team_members tm ON tm.registration_id = sr.id
         WHERE tm.team_id = ${teamId}
           AND mps.verified_by_admin IS NOT NULL
+          AND mps.source = COALESCE(mm2.active_stat_source, 'manual_ocr'::stat_source)
         GROUP BY mps.user_id
       `)
     : null;
@@ -197,8 +198,20 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
   }
   const typedStats = (teamStatResult?.rows ?? []) as unknown as TeamStatRow[];
 
+  // RR 评分（from player_ratings，本赛季）
+  const teamRrRows = roster.length ? await db
+    .select({ userId: playerRatings.userId, rrScore: playerRatings.rrScore })
+    .from(playerRatings)
+    .where(
+      and(
+        eq(playerRatings.seasonId, season.id),
+        inArray(playerRatings.userId, roster.map((p) => p.userId).filter(Boolean) as string[]),
+      ),
+    ) : [];
+  const rrMap = new Map(teamRrRows.map((r) => [r.userId!, r.rrScore != null ? Number(r.rrScore) : null]));
+
   // 选手数据 map（用于阵容内联显示）
-  interface PlayerStats { maps: number; avgRating: number; avgAdr: number; kdRatio: number | null }
+  interface PlayerStats { maps: number; avgRating: number; avgAdr: number; kdRatio: number | null; rrScore: number | null }
   const playerStatsMap = new Map<string, PlayerStats>();
   for (const r of typedStats) {
     if (r.user_id) {
@@ -207,6 +220,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
         avgRating: Number(r.avg_rating),
         avgAdr: Number(r.avg_adr),
         kdRatio: r.kd_ratio != null ? Number(r.kd_ratio) : null,
+        rrScore: rrMap.get(r.user_id as string) ?? null,
       });
     }
   }
@@ -243,6 +257,10 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
   const teamAvgKd = totalD > 0 ? (totalK / totalD).toFixed(2) : null;
   const teamAvgWe = hasStats && totalRoundsSum > 0
     ? (typedStats.reduce((s, r) => s + Number(r.avg_we) * Number(r.total_rounds), 0) / totalRoundsSum).toFixed(1)
+    : null;
+  const teamRrValues = [...playerStatsMap.values()].map((s) => s.rrScore).filter((v): v is number => v != null);
+  const teamAvgRr = teamRrValues.length > 0
+    ? (teamRrValues.reduce((s, v) => s + v, 0) / teamRrValues.length).toFixed(2)
     : null;
 
   return (
@@ -286,10 +304,10 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
         <Stat label="胜率" value={winRate} />
         {teamAvgRating && (
           <>
-            <Stat label="场均 Rating" value={teamAvgRating} accent />
+            <Stat label="场均 RR" value={teamAvgRr ?? "—"} accent />
+            <Stat label="场均 Rating Pro" value={teamAvgRating} />
             <Stat label="场均 ADR" value={teamAvgAdr ?? "—"} accent />
-            <Stat label="场均 K/D" value={teamAvgKd ?? "—"} accent />
-            <Stat label="场均 WE" value={teamAvgWe ?? "—"} accent />
+            <Stat label="场均 K/D" value={teamAvgKd ?? "—"} />
           </>
         )}
       </div>
@@ -320,8 +338,16 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 text-[11px] text-[var(--color-fg-mid)] tabular-nums">
                           <span>{stats.maps}图</span>
                           <span className="text-[var(--color-fg-dim)]">·</span>
-                          <span style={stats.avgRating >= 1.2 ? { color: "var(--color-accent)" } : undefined}>
-                            {stats.avgRating.toFixed(2)} RT
+                          {stats.rrScore != null && (
+                            <>
+                              <span style={{ color: "var(--color-accent)" }} className="font-semibold">
+                                RR {stats.rrScore.toFixed(2)}
+                              </span>
+                              <span className="text-[var(--color-fg-dim)]">·</span>
+                            </>
+                          )}
+                          <span>
+                            {stats.avgRating.toFixed(2)} Rating Pro
                           </span>
                           <span className="text-[var(--color-fg-dim)]">·</span>
                           <span>{stats.avgAdr.toFixed(1)} ADR</span>

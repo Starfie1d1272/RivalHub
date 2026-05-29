@@ -1,9 +1,9 @@
 export type LeaderboardView = "core" | "impact" | "advanced" | "demo";
 
 const VIEW_SORTS = {
-  core: ["maps", "rating", "adr", "kd", "kpr", "hs"],
-  impact: ["maps", "rating", "fk", "mk", "clutch"],
-  advanced: ["maps", "rating", "we", "rws"],
+  core: ["maps", "rr", "rating", "adr", "kd", "kpr", "hs"],
+  impact: ["maps", "rr", "rating", "fk", "mk", "clutch"],
+  advanced: ["maps", "rr", "rating", "we", "rws"],
   demo: ["maps", "avgDemoKast", "avgDemoAdr", "demoFkpr", "demoClutchWinRate", "demoUtilityPerRound"],
 } as const satisfies Record<LeaderboardView, readonly string[]>;
 

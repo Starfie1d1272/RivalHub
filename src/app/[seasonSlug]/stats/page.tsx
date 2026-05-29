@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons } from "@/db/schema";
+import { seasons, playerRatings } from "@/db/schema";
 import { sql } from "drizzle-orm";
 import { StatsLeaderboard } from "@/components/matches/StatsLeaderboard";
 import { WeaponLeaderboard } from "@/components/matches/WeaponLeaderboard";
@@ -77,6 +77,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
       case "mk":     return mkprExpr;
       case "clutch": return cprExpr;
       case "maps":   return sql`count(*)`;
+      case "rr":     return sql`(SELECT rr_score FROM player_ratings WHERE season_id = ${season.id} AND user_id = mps.user_id LIMIT 1)`;
       default:       return sql`avg(mps.rating_pro)`;
     }
   })();
@@ -144,6 +145,19 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     cpr:        toNum(r.cpr),
   }));
 
+  // 查询 RR 评分（from player_ratings）
+  const userIds = leaderboardRows.map((r) => r.userId).filter((id): id is string => id != null);
+  const rrMap = new Map<string, number | null>();
+  if (userIds.length > 0) {
+    const rrRows = await db
+      .select({ userId: playerRatings.userId, rrScore: playerRatings.rrScore })
+      .from(playerRatings)
+      .where(and(eq(playerRatings.seasonId, season.id), inArray(playerRatings.userId, userIds)));
+    for (const r of rrRows) {
+      if (r.userId) rrMap.set(r.userId, r.rrScore != null ? Number(r.rrScore) : null);
+    }
+  }
+
   // 将 Demo 源数据 merge 进 leaderboardRows（按 userId 匹配）
   const demoMap = new Map<string, DemoLeaderboardData>();
   for (const d of demoStats) {
@@ -151,9 +165,11 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
   }
   const mergedRows = leaderboardRows.map((r) => {
     const demo = r.userId ? demoMap.get(r.userId) : undefined;
-    if (!demo) return r;
+    const rrScore = r.userId != null ? (rrMap.get(r.userId) ?? null) : null;
+    const base = { ...r, rrScore };
+    if (!demo) return base;
     return {
-      ...r,
+      ...base,
       avgDemoKast: demo.kast ?? undefined,
       avgDemoAdr: demo.adr ?? undefined,
       demoFkpr: demo.fkpr,

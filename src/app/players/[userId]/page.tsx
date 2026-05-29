@@ -11,10 +11,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { POSITION_LABELS } from "@/lib/validators/registration";
 import { matchPlayerStats } from "@/db/schema/player-stats";
+import { playerRatings } from "@/db/schema";
 import { wAvg } from "@/lib/utils/stats";
 import { getSeasonHexagonScores } from "@/actions/hexagon";
 import type { HexagonScores } from "@/lib/utils/hexagon";
 import { PlayerRadarChart } from "@/components/matches/PlayerRadarChart";
+import { RadarChart, PRISM_AXES, type PrismScores } from "@/components/matches/RadarChart";
 
 /**
  * 统计玩家 MVP 获胜次数（从 matches.mvp_winner_user_id 直读，已持久化缓存）。
@@ -124,6 +126,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
         and(
           eq(matchPlayerStats.userId, userId),
           sql`${matchPlayerStats.verifiedByAdmin} IS NOT NULL`,
+          sql`${matchPlayerStats.source} = COALESCE(${matchMaps.activeStatSource}, 'manual_ocr'::stat_source)`,
         )
       )
       .groupBy(seasons.id, seasons.name, seasons.slug, seasons.createdAt)
@@ -140,6 +143,44 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
       if (s) hexagonBySeasonSlug.set(ps.seasonSlug, s);
     })
   );
+
+  // ── RR + PRISM 评分（from player_ratings，各赛季）────────────────────
+  const rrBySeasonId = new Map<string, { rrScore: number | null; mapCount: number; prism: PrismScores | null }>();
+  if (registrations.length > 0) {
+    const seasonIds = registrations.map(r => r.seasonId);
+    const rrRows = await db
+      .select({
+        seasonId: playerRatings.seasonId,
+        rrScore: playerRatings.rrScore,
+        mapCount: playerRatings.mapCount,
+        prismFirepower: playerRatings.prismFirepower,
+        prismOpening: playerRatings.prismOpening,
+        prismClutch: playerRatings.prismClutch,
+        prismSniping: playerRatings.prismSniping,
+        prismSurvival: playerRatings.prismSurvival,
+        prismUtility: playerRatings.prismUtility,
+        prismTrading: playerRatings.prismTrading,
+        prismEntry: playerRatings.prismEntry,
+      })
+      .from(playerRatings)
+      .where(and(eq(playerRatings.userId, userId), inArray(playerRatings.seasonId, seasonIds)));
+    for (const r of rrRows) {
+      const hasPrism = r.prismFirepower != null;
+      const prism: PrismScores | null = hasPrism
+        ? {
+            firepower: Number(r.prismFirepower),
+            opening: Number(r.prismOpening),
+            clutch: Number(r.prismClutch),
+            sniping: Number(r.prismSniping),
+            survival: Number(r.prismSurvival),
+            utility: Number(r.prismUtility),
+            trading: Number(r.prismTrading),
+            entry: Number(r.prismEntry),
+          }
+        : null;
+      rrBySeasonId.set(r.seasonId, { rrScore: r.rrScore ? Number(r.rrScore) : null, mapCount: r.mapCount, prism });
+    }
+  }
 
   // ── 队伍归属（registrationId → team）────────────────────────────────
   const allRegIds = registrations.map((r) => r.id);
@@ -212,6 +253,17 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
   const totalClutchesAll = playerStats.reduce((s, x) => s + x.totalClutches, 0);
   const totalRoundsAll = playerStats.reduce((s, x) => s + (x as any).totalRounds, 0);
   const mvpCount = mvpWinCount;
+
+  // 生涯 RR：各赛季 rrScore 按 mapCount 加权
+  let rrSum = 0;
+  let rrMaps = 0;
+  for (const { rrScore, mapCount } of rrBySeasonId.values()) {
+    if (rrScore != null && mapCount > 0) {
+      rrSum += rrScore * mapCount;
+      rrMaps += mapCount;
+    }
+  }
+  const careerRr = rrMaps > 0 ? (rrSum / rrMaps).toFixed(2) : "—";
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-3xl space-y-10">
@@ -340,7 +392,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
             </span>
             <div className="grid grid-cols-4 sm:grid-cols-5 gap-3 text-center mt-3">
               {[
-                { label: "Rating", value: wAvg(playerStats, "avgRating", 2) },
+                { label: "RR", value: careerRr },
                 { label: "ADR", value: wAvg(playerStats, "avgAdr") },
                 { label: "RWS", value: wAvg(playerStats, "avgRws", 2) },
                 {
@@ -388,12 +440,22 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
                 </span>
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--color-fg-mid)]">
-                <span>
-                  Rating{" "}
-                  <span className="text-[var(--color-accent)] font-semibold">
-                    {ps.avgRating}
+                {ps.avgRating != null && (
+                  <span>
+                    Rating Pro{" "}
+                    <span className="text-[var(--color-accent)] font-semibold">
+                      {ps.avgRating}
+                    </span>
                   </span>
-                </span>
+                )}
+                {(() => {
+                  const rr = rrBySeasonId.get(ps.seasonId);
+                  return rr?.rrScore != null ? (
+                    <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold" style={{ background: "var(--color-accent)", color: "#fff" }}>
+                      RR {rr.rrScore.toFixed(2)}
+                    </span>
+                  ) : null;
+                })()}
                 <span>
                   ADR{" "}
                   <span className="text-[var(--color-fg)]">{ps.avgAdr}</span>
@@ -422,27 +484,42 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
             </Panel>
           ))}
 
-          {/* 六维能力图 */}
-          {hexagonBySeasonSlug.size > 0 && (
+          {/* 能力雷达图：有 demo 数据走 PRISM 八维，否则回退六维 */}
+          {(hexagonBySeasonSlug.size > 0 ||
+            [...rrBySeasonId.values()].some((v) => v.prism)) && (
             <div className="space-y-3 mt-4">
-              <SectionHeading>六维能力图</SectionHeading>
+              <SectionHeading>能力雷达图</SectionHeading>
               {[...playerStats].reverse().map((ps) => {
-                const scores = hexagonBySeasonSlug.get(ps.seasonSlug);
-                if (!scores) return null;
+                const prism = rrBySeasonId.get(ps.seasonId)?.prism ?? null;
+                const hex = hexagonBySeasonSlug.get(ps.seasonSlug);
+                if (!prism && !hex) return null;
                 return (
                   <Panel key={ps.seasonSlug} pad={16}>
-                    <div className="text-xs font-semibold text-[var(--color-fg-mid)] mb-3">
-                      {ps.seasonName}
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-xs font-semibold text-[var(--color-fg-mid)]">
+                        {ps.seasonName}
+                      </span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-panel-hi)] text-[var(--color-fg-dim)]">
+                        {prism ? "PRISM 八维" : "六维"}
+                      </span>
                     </div>
-                    <PlayerRadarChart
-                      players={[{ name: getDisplayName(user), scores, color: "var(--color-accent)" }]}
-                      size={280}
-                    />
+                    {prism ? (
+                      <RadarChart
+                        axes={PRISM_AXES}
+                        series={[{ name: getDisplayName(user), scores: prism as unknown as Record<string, number>, color: "var(--color-accent)" }]}
+                        size={280}
+                      />
+                    ) : (
+                      <PlayerRadarChart
+                        players={[{ name: getDisplayName(user), scores: hex!, color: "var(--color-accent)" }]}
+                        size={280}
+                      />
+                    )}
                   </Panel>
                 );
               })}
               <p className="text-[11px] text-[var(--color-fg-dim)] px-1 leading-relaxed">
-                六维评分在本赛事内标准化，适合同一赛事内横向比较，不建议跨赛事直接对比。
+                雷达图在本赛事内标准化（PRISM 为 demo cohort 百分位），适合同一赛事内横向比较，不建议跨赛事直接对比。
               </p>
             </div>
           )}

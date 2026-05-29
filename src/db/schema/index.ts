@@ -18,3 +18,4 @@ export * from "./match-rosters";
 export * from "./match-veto-steps";
 export * from "./user-sessions";
 export * from "./demo";
+export * from "./player-ratings";
