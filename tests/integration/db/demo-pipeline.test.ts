@@ -124,6 +124,7 @@ describe("demo 数据管道 (集成)", () => {
       );
       expect(result.firstKills).toBe(first.firstKillCount);
       expect(result.multiKills).toBe(
+        (first.twoKillCount ?? 0) +
         (first.threeKillCount ?? 0) +
         (first.fourKillCount ?? 0) +
         (first.fiveKillCount ?? 0),

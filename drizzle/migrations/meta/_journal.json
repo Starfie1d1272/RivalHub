@@ -169,6 +169,13 @@
       "when": 1748476900000,
       "tag": "0023_active_stat_source",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1780003787380,
+      "tag": "0024_amazing_jackal",
+      "breakpoints": true
     }
   ]
 }
