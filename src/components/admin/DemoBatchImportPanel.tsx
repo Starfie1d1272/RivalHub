@@ -57,6 +57,7 @@ export function DemoBatchImportPanel({ seasonId, availableMaps }: Props) {
         let demoHash = "";
         let teamAName: string | undefined;
         let teamBName: string | undefined;
+        let zipDate: string | undefined;
 
         try {
           const zip = await JSZip.loadAsync(buf);
@@ -75,14 +76,21 @@ export function DemoBatchImportPanel({ seasonId, availableMaps }: Props) {
           if (matchFile) {
             const text = await matchFile.async("string");
             const matchJson = JSON.parse(text) as Record<string, unknown>;
-            teamAName = matchJson.teamAName as string | undefined;
-            teamBName = matchJson.teamBName as string | undefined;
+            // cs2-demo-format v1.0: teamA.name / teamB.name（都是 "Team A"/"Team B"）
+            const teamA = matchJson.teamA as { name?: string } | undefined;
+            const teamB = matchJson.teamB as { name?: string } | undefined;
+            teamAName = teamA?.name;
+            teamBName = teamB?.name;
           }
+
+          // 从文件名提取比赛日期：rivalhub-{map}-{YYYY-MM-DD}.zip
+          const dateMatch = file.name.match(/(\d{4}-\d{2}-\d{2})/);
+          if (dateMatch) zipDate = dateMatch[1];
         } catch {
           // zip 解析失败，继续（mapName 为空会得到 none 匹配）
         }
 
-        infos.push({ fileName: file.name, mapName, demoHash, teamAName, teamBName });
+        infos.push({ fileName: file.name, mapName, demoHash, teamAName, teamBName, zipDate });
       }
 
       const result = await matchZipsToMaps(seasonId, infos);
