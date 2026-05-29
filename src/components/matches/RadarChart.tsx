@@ -166,14 +166,14 @@ export function RadarChart({ axes, series, size = 300 }: RadarChartProps) {
 
 // ─── PRISM 八维轴配置 ──────────────────────────────────────────────────────────
 export const PRISM_AXES: readonly RadarAxis[] = [
-  { key: "firepower", label: "火力" },
-  { key: "opening",   label: "开局" },
-  { key: "entry",     label: "首攻" },
-  { key: "trading",   label: "补枪" },
-  { key: "clutch",    label: "残局" },
-  { key: "sniping",   label: "狙击" },
-  { key: "utility",   label: "道具" },
-  { key: "survival",  label: "生存" },
+  { key: "firepower", label: "Firepower" },
+  { key: "opening",   label: "Opening" },
+  { key: "entry",     label: "Entry" },
+  { key: "trading",   label: "Trading" },
+  { key: "clutch",    label: "Clutch" },
+  { key: "sniping",   label: "Sniping" },
+  { key: "utility",   label: "Utility" },
+  { key: "survival",  label: "Survival" },
 ] as const;
 
 export interface PrismScores {

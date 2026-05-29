@@ -24,6 +24,7 @@ type SectionField =
 interface Section {
   label: string;
   fields: SectionField[];
+  hideIfEmpty?: boolean;
 }
 
 const SECTIONS: Section[] = [
@@ -51,6 +52,7 @@ const SECTIONS: Section[] = [
   },
   {
     label: "Utility",
+    hideIfEmpty: true,
     fields: [
       { key: "utilityDamage", label: "Util Dmg" },
       { key: "averageUtilityDamagePerRound", label: "Util/R", fmt: (v) => (v != null ? v.toFixed(1) : "—") },
@@ -60,6 +62,7 @@ const SECTIONS: Section[] = [
   },
   {
     label: "Entry / Trade",
+    hideIfEmpty: true,
     fields: [
       { key: "firstKillCount", label: "FK" },
       { key: "firstDeathCount", label: "FD" },
@@ -89,6 +92,7 @@ const SECTIONS: Section[] = [
   },
   {
     label: "Highlight Kills",
+    hideIfEmpty: true,
     fields: [
       { key: "wallbangKillCount", label: "Wallbang" },
       { key: "noScopeKillCount", label: "NoScope" },
@@ -101,6 +105,21 @@ function getVal(row: DemoPlayerStatRow, key: string): number | null {
   const v = (row as unknown as Record<string, unknown>)[key];
   if (typeof v === "number") return v;
   return null;
+}
+
+/** Check if every field in a section is null/0 for all given players. */
+function isSectionEmpty(section: Section, players: DemoPlayerStatRow[]): boolean {
+  return players.every((p) =>
+    section.fields.every((f) => {
+      const val = getVal(p, f.key);
+      if (val !== null && val !== 0) return false;
+      if ("pairKey" in f) {
+        const pairVal = getVal(p, f.pairKey);
+        if (pairVal !== null && pairVal !== 0) return false;
+      }
+      return true;
+    }),
+  );
 }
 
 function TeamTable({
@@ -117,6 +136,9 @@ function TeamTable({
   playerNameMap: Record<string, string>;
 }) {
   if (players.length === 0) return null;
+  const visibleSections = SECTIONS.filter(
+    (s) => !s.hideIfEmpty || !isSectionEmpty(s, players),
+  );
   return (
     <div className="flex-1 min-w-0 rounded-md overflow-hidden" style={{ backgroundColor: color.bg }}>
       <div
@@ -132,7 +154,7 @@ function TeamTable({
               <th className="text-left text-[10px] text-[var(--color-fg-dim)] font-medium py-1 pl-3 pr-1 whitespace-nowrap">
                 Player
               </th>
-              {SECTIONS.flatMap((s) =>
+              {visibleSections.flatMap((s) =>
                 s.fields.map((f) => (
                   <th
                     key={f.key}
@@ -168,7 +190,7 @@ function TeamTable({
                     </span>
                   )}
                 </td>
-                {SECTIONS.flatMap((s) =>
+                {visibleSections.flatMap((s) =>
                   s.fields.map((f) => {
                     const raw = getVal(p, f.key);
                     if ("pairKey" in f) {
@@ -226,9 +248,8 @@ export function DemoPlayerStatsTable({
   }
 
   return (
-    <div className="flex gap-4">
+    <div className="flex flex-col gap-4">
       <TeamTable players={teamA} label={teamAName} color={TEAM_COLORS.A} seasonSlug={seasonSlug} playerNameMap={playerNameMap} />
-      <div className="w-px bg-[var(--color-border)] self-stretch" />
       <TeamTable players={teamB} label={teamBName} color={TEAM_COLORS.B} seasonSlug={seasonSlug} playerNameMap={playerNameMap} />
     </div>
   );

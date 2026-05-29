@@ -155,6 +155,32 @@ export function PlayerEntryStats({
         </select>
       </div>
 
+      {/* 选手维度汇总 */}
+      {selectedSteamId !== "__all__" && (() => {
+        const p = players.find(p => p.steamId64 === selectedSteamId);
+        if (!p) return null;
+        const fk = p.firstKillCount ?? 0;
+        const fd = p.firstDeathCount ?? 0;
+        const total = fk + fd;
+        const entryRate = total > 0 ? ((fk / total) * 100).toFixed(1) : "—";
+        return (
+          <div className="grid grid-cols-3 gap-2 text-center mt-2 mb-3">
+            <div className="bg-[var(--color-bg-subtle)] rounded-lg p-2">
+              <div className="text-lg font-bold text-[var(--color-success)]">{fk}</div>
+              <div className="text-[10px] text-[var(--color-fg-dim)]">首杀</div>
+            </div>
+            <div className="bg-[var(--color-bg-subtle)] rounded-lg p-2">
+              <div className="text-lg font-bold text-[var(--color-error)]">{fd}</div>
+              <div className="text-[10px] text-[var(--color-fg-dim)]">首死</div>
+            </div>
+            <div className="bg-[var(--color-bg-subtle)] rounded-lg p-2">
+              <div className="text-lg font-bold text-[var(--color-accent)]">{entryRate}{entryRate !== "—" ? "%" : ""}</div>
+              <div className="text-[10px] text-[var(--color-fg-dim)]">Entry%</div>
+            </div>
+          </div>
+        );
+      })()}
+
       <table className="w-full text-sm mt-3">
         <thead>
           <tr className="text-xs text-[var(--color-fg-mid)] border-b border-[var(--color-border)]">
