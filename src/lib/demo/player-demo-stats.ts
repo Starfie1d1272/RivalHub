@@ -62,6 +62,7 @@ export interface PlayerStatRow {
   wallbangKillCount: number | null;
   noScopeKillCount: number | null;
   collateralKillCount: number | null;
+  rounds?: number | null;
 }
 
 // ── 输出类型 ────────────────────────────────────────────────────────────
@@ -144,18 +145,13 @@ export function aggregatePlayerDemoStats(
   let vsFourCount = 0; let vsFourWon = 0;
   let vsFiveCount = 0; let vsFiveWon = 0;
 
-  // 选手总地图数（用于加权）
-  let mapCount = 0;
-
   for (const s of stats) {
     const kills = s.kills ?? 0;
     const deaths = s.deaths ?? 0;
     const assists = s.assists ?? 0;
-    mapCount++;
 
-    // 回合数来源：kills + deaths + assists 是最可靠的行级指标，但 demo 回合数从 demoRounds 算
-    // 以 kills + deaths 作为本图回合数近似
-    const mapRounds = kills + deaths + assists;
+    // 优先使用真实回合数，回退到 kills+deaths 近似
+    const mapRounds = s.rounds != null ? s.rounds : Math.max(kills + deaths, 1);
     // 实际回合数优先用 kills+deaths（比总回合更准确反映参与度）
     totalRounds += mapRounds;
 
