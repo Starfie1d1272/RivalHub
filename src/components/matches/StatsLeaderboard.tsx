@@ -74,14 +74,24 @@ const BASE_COLS: ColDef[] = [
   },
 ];
 
+// RR：我们自己的绝对刻度评分（门面）。完美 Rating/WE/RWS 是第三方副指标。
+const RR_COL: ColDef = {
+  key: "rr",
+  label: "RR",
+  getValue: (r) => r.rrScore ?? null,
+  format: (v) => (v != null ? v.toFixed(2) : "—"),
+};
+const PW_RATING_COL: ColDef = {
+  key: "rating",
+  label: "Rating Pro",
+  getValue: (r) => r.avgRating,
+  format: (v) => (v ? v.toFixed(2) : "—"),
+};
+
 const CORE_COLS: ColDef[] = [
   ...BASE_COLS,
-  {
-    key: "rating",
-    label: "Rating",
-    getValue: (r) => r.avgRating,
-    format: (v) => (v ?? 0).toFixed(2),
-  },
+  RR_COL,
+  PW_RATING_COL,
   {
     key: "adr",
     label: "ADR",
@@ -110,12 +120,8 @@ const CORE_COLS: ColDef[] = [
 
 const IMPACT_COLS: ColDef[] = [
   ...BASE_COLS,
-  {
-    key: "rating",
-    label: "Rating",
-    getValue: (r) => r.avgRating,
-    format: (v) => (v ?? 0).toFixed(2),
-  },
+  RR_COL,
+  PW_RATING_COL,
   {
     key: "fk",
     label: "FKPR /100r",
@@ -138,18 +144,8 @@ const IMPACT_COLS: ColDef[] = [
 
 const ADVANCED_COLS: ColDef[] = [
   ...BASE_COLS,
-  {
-    key: "rating",
-    label: "Rating",
-    getValue: (r) => r.avgRating,
-    format: (v) => (v ?? 0).toFixed(2),
-  },
-  {
-    key: "rr",
-    label: "RR",
-    getValue: (r) => r.rrScore ?? null,
-    format: (v) => (v != null ? v.toFixed(2) : "—"),
-  },
+  RR_COL,
+  PW_RATING_COL,
   {
     key: "we",
     label: "WE",
@@ -366,7 +362,7 @@ export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "cor
                   {cols.map((col) => {
                     const val = col.getValue(r);
                     const isSort = sort === col.key;
-                    const isHighRating = col.key === "rating" && (val ?? 0) >= 1.2;
+                    const isHighRating = (col.key === "rating" || col.key === "rr") && (val ?? 0) >= 1.2;
                     return (
                       <td
                         key={col.key}

@@ -23,15 +23,19 @@ describe("PlayerDirectoryRow", () => {
       <PlayerDirectoryRow
         player={{
           ...player,
-          stats: { maps: 8, avgRating: 1.21, avgAdr: 82.4, avgKd: 1.36 },
+          stats: { maps: 8, avgRating: 1.21, avgAdr: 82.4, avgKd: 1.36, avgRr: 1.15 },
         }}
+        showRatingPro
       />,
     );
 
     expect(screen.getByText("Maps")).toBeInTheDocument();
     expect(screen.getByText("Secondary Closer")).toBeInTheDocument();
     expect(screen.getByText("8")).toBeInTheDocument();
+    expect(screen.getByText("Rating Pro")).toBeInTheDocument();
     expect(screen.getByText("1.21")).toBeInTheDocument();
+    expect(screen.getByText("RR")).toBeInTheDocument();
+    expect(screen.getByText("1.15")).toBeInTheDocument();
     expect(screen.getByText("82.4")).toBeInTheDocument();
     expect(screen.getByText("1.36")).toBeInTheDocument();
   });

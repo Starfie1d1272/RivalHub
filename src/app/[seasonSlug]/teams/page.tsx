@@ -24,6 +24,8 @@ export default async function TeamsPage({ params }: TeamsPageProps) {
   ]);
   if (!season) notFound();
 
+  const showRatingPro = season.statProfile.inputFields.includes("ratingPro");
+
   const allTeams = await db.query.teams.findMany({
     where: eq(teams.seasonId, season.id),
     orderBy: [asc(teams.draftOrder)],
@@ -80,6 +82,7 @@ export default async function TeamsPage({ params }: TeamsPageProps) {
       JOIN team_members tm ON tm.registration_id = sr.id
       WHERE m.season_id = ${season.id}
         AND mps.verified_by_admin IS NOT NULL
+        AND mps.source = COALESCE(mm2.active_stat_source, 'manual_ocr'::stat_source)
       GROUP BY tm.team_id
     `),
   ]);
@@ -112,6 +115,22 @@ export default async function TeamsPage({ params }: TeamsPageProps) {
     });
   }
 
+  // 队伍 RR 均值（from player_ratings，按赛季成员聚合）
+  const teamRrResult = await db.execute(sql`
+    SELECT tm.team_id, round(avg(pr.rr_score)::numeric, 2) AS avg_rr
+    FROM player_ratings pr
+    JOIN season_registrations sr ON sr.user_id = pr.user_id AND sr.season_id = pr.season_id
+    JOIN team_members tm ON tm.registration_id = sr.id
+    WHERE pr.season_id = ${season.id} AND pr.rr_score IS NOT NULL
+    GROUP BY tm.team_id
+  `);
+  const teamRrMap = new Map(
+    teamRrResult.rows.map((row) => [
+      row.team_id as string,
+      row.avg_rr == null ? null : Number(row.avg_rr),
+    ]),
+  );
+
   const teamSummaryMap = new Map(
     teamStatResult.rows.map((row) => [
       row.team_id as string,
@@ -119,6 +138,7 @@ export default async function TeamsPage({ params }: TeamsPageProps) {
         maps: Number(row.maps),
         avgRating: Number(row.avg_rating),
         avgAdr: Number(row.avg_adr),
+        avgRr: teamRrMap.get(row.team_id as string) ?? null,
       },
     ]),
   );
@@ -215,6 +235,7 @@ export default async function TeamsPage({ params }: TeamsPageProps) {
               players={members}
               record={teamRecordMap.get(team.id)}
               summary={teamSummaryMap.get(team.id) ?? null}
+              showRatingPro={showRatingPro}
             />
           );
         })}
