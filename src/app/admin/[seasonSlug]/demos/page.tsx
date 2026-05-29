@@ -5,6 +5,7 @@ import { seasons, matches, teams, matchMaps, demoImports } from "@/db/schema";
 import { requireSeasonAdmin } from "@/lib/auth/session";
 import { mapLabel } from "@/lib/maps";
 import { DemoImportPanel } from "@/components/admin/DemoImportPanel";
+import { RecomputeRatingsButton } from "@/components/admin/RecomputeRatingsButton";
 import { MATCH_FORMAT_LABELS } from "@/types/match";
 import Link from "next/link";
 
@@ -82,6 +83,10 @@ export default async function AdminDemosPage({ params }: PageProps) {
       <p className="text-sm text-[var(--color-fg-dim)]">
         共 {finishedMatches.length} 场已结束比赛
       </p>
+
+      <div className="flex justify-end">
+        <RecomputeRatingsButton seasonId={season.id} />
+      </div>
 
       <div className="space-y-4">
         {finishedMatches.map((m) => {

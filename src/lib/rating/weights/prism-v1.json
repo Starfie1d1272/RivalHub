@@ -1,0 +1,112 @@
+{
+  "version": "prism-1.0",
+  "coldStartK": 4,
+  "ecoTilt": 0.0,
+  "colorSource": "rr_percentile",
+
+  "_layout_note": "八角形顺时针顺序见 PRISM_AXIS_ORDER。对立角色放对角：opening↔clutch（早期vs后期），entry↔survival（送死vs保命）。",
+
+  "axes": {
+    "firepower": {
+      "_desc": "纯输出，不看生存。α=0.40 偏水平：高 frag 量 + 高质量多杀才能拿高分。",
+      "alpha": 0.40,
+      "involvement": [
+        { "signal": "kpr",   "weight": 0.5 },
+        { "signal": "adr",   "weight": 0.5 }
+      ],
+      "efficiency": [
+        { "signal": "multiKillRate", "weight": 0.40 },
+        { "signal": "kpr",           "weight": 0.35 },
+        { "signal": "adr",           "weight": 0.25 }
+      ]
+    },
+
+    "opening": {
+      "_desc": "首杀对枪赢下来（成功侧）。α=0.60：参与频率 + 胜率双重体现。",
+      "alpha": 0.60,
+      "involvement": [
+        { "signal": "openingDuelRate",    "weight": 0.5 },
+        { "signal": "firstKillRate",      "weight": 0.5 }
+      ],
+      "efficiency": [
+        { "signal": "openingDuelWinRate", "weight": 1.0 }
+      ]
+    },
+
+    "clutch": {
+      "_desc": "1vX 残局，time-alive 型。α=0.55：出现频率 + 胜率/积分各半。",
+      "alpha": 0.55,
+      "involvement": [
+        { "signal": "clutchFrequency", "weight": 1.0 }
+      ],
+      "efficiency": [
+        { "signal": "clutchWinRate",   "weight": 0.60 },
+        { "signal": "clutchScoreRate", "weight": 0.40 }
+      ]
+    },
+
+    "sniping": {
+      "_desc": "AWP 风格标签。α=0.85 近乎纯风格：拿不拿狙决定轴长，效率微调。",
+      "alpha": 0.85,
+      "involvement": [
+        { "signal": "sniperKillRate",  "weight": 1.0 }
+      ],
+      "efficiency": [
+        { "signal": "awpKillsPerRound","weight": 0.70 },
+        { "signal": "sniperKillRate",  "weight": 0.30 }
+      ]
+    },
+
+    "survival": {
+      "_desc": "活下来/低死亡率。α=0.20 近乎纯水平：强弱直接体现，不掺风格。",
+      "alpha": 0.20,
+      "involvement": [
+        { "signal": "kast",         "weight": 1.0 }
+      ],
+      "efficiency": [
+        { "signal": "survivalRate", "weight": 0.60 },
+        { "signal": "kast",         "weight": 0.40 }
+      ]
+    },
+
+    "utility": {
+      "_desc": "投掷物贡献。α=0.70 偏风格：勤投弹 + 高效致盲/伤害双重体现。",
+      "alpha": 0.70,
+      "involvement": [
+        { "signal": "grenadeCountPerRound",    "weight": 0.40 },
+        { "signal": "utilityDamagePerRound",   "weight": 0.30 },
+        { "signal": "flashAssistPerRound",     "weight": 0.30 }
+      ],
+      "efficiency": [
+        { "signal": "utilityDamagePerRound",   "weight": 0.40 },
+        { "signal": "blindDurationPerRound",   "weight": 0.30 },
+        { "signal": "flashAssistPerRound",     "weight": 0.30 }
+      ]
+    },
+
+    "trading": {
+      "_desc": "补枪、护队友。α=0.60：主动补枪频率 + 自身被补率（team asset）双重体现。",
+      "alpha": 0.60,
+      "involvement": [
+        { "signal": "tradeKillRate",  "weight": 0.70 },
+        { "signal": "tradeDeathRate", "weight": 0.30 }
+      ],
+      "efficiency": [
+        { "signal": "tradeKillRate",  "weight": 0.70 },
+        { "signal": "tradeDeathRate", "weight": 0.30 }
+      ]
+    },
+
+    "entry": {
+      "_desc": "开路尖刀，第一个趟。α=0.70 偏风格：敢不敢首先暴露 + 死了被补不白给。",
+      "alpha": 0.70,
+      "involvement": [
+        { "signal": "firstDeathRate",   "weight": 0.60 },
+        { "signal": "openingDuelRate",  "weight": 0.40 }
+      ],
+      "efficiency": [
+        { "signal": "tradeDeathRate",   "weight": 1.0 }
+      ]
+    }
+  }
+}

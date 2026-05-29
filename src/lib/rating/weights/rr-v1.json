@@ -1,0 +1,40 @@
+{
+  "version": "rr-1.0",
+  "description": "RR Layer 1 基础权重。基于 HLTV 2.0 社区逆向公式（R²≈0.995）。eco 乘子全为 1.0（待 ~50 张图校准后激活）。Layer 2 关闭（待 ~1000 张图）。",
+
+  "base": {
+    "_comment": "公式: kastCoef·KAST + kprCoef·KPR + dprCoef·DPR + impactCoef·Impact + adrCoef·ADR + intercept",
+    "kastCoef": 0.0073,
+    "kprCoef": 0.3591,
+    "dprCoef": -0.5329,
+    "impactKprWeight": 2.13,
+    "impactAprWeight": 0.42,
+    "impactIntercept": -0.41,
+    "impactCoef": 0.2372,
+    "adrCoef": 0.0032,
+    "intercept": 0.1587
+  },
+
+  "ecoMultipliers": {
+    "_comment": "全为 1.0 = 不激活。用几十张自有赛事图回归校准后替换。",
+    "ecoKillMultiplier": 1.0,
+    "forceKillMultiplier": 1.0,
+    "fullBuyKillMultiplier": 1.0,
+    "ecoVsFullBonus": 1.0
+  },
+
+  "layer2": {
+    "roundSwingCoef": 0.0,
+    "note": "Layer 2 disabled — 需要 ~1000 张图训好模型后开启。届时升版本到 rr-2.0。"
+  },
+
+  "clamp": {
+    "min": 0.1,
+    "max": 3.0
+  },
+
+  "anchor": {
+    "mode": "league_mean",
+    "note": "1.00 = 本赛季联赛均值。所有选手 RR 原始分计算完后，整体乘以 (1.0 / mean) 完成锚定。"
+  }
+}
