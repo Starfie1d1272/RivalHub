@@ -10,7 +10,7 @@ const nullSide = side.nullable().optional();
 
 // manifest.json
 export const manifestSchema = z.object({
-  schemaVersion: z.literal("rivalhub-demo-export/1"),
+  schemaVersion: z.union([z.literal("rivalhub-demo-export/1"), z.literal("cs2-demo-format/1.0")]),
   exporter: z.object({ name: z.string(), version: z.string() }).optional(),
   parser: z.object({ name: z.string(), version: z.string() }).optional(),
   demo: z.object({ hash: z.string(), sourceFileName: z.string().optional() }).optional(),
