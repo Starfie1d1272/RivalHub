@@ -16,9 +16,11 @@ export interface ZipManifestInfo {
   mapName: string;
   /** manifest.demo.hash */
   demoHash: string;
-  /** match.json 里的 teamAName / teamBName */
+  /** match.json 里的 teamAName / teamBName（cs2-demo-format v1.0 均为 "Team A"/"Team B"） */
   teamAName?: string;
   teamBName?: string;
+  /** 从文件名提取的比赛日期，如 "2026-05-18" */
+  zipDate?: string;
 }
 
 export interface MatchResult {
@@ -127,9 +129,31 @@ export async function matchZipsToMaps(
         };
       }
 
+      // 日期匹配：文件名提取的比赛日期与 completedAt 比较（cs2-demo-format v1.0 无实义队名）
+      let dateMatches: Candidate[];
+      if (zip.zipDate) {
+        dateMatches = byMap.filter((c) => {
+          if (!c.completedAt) return false;
+          const cd = new Date(c.completedAt).toISOString().slice(0, 10);
+          return cd === zip.zipDate;
+        });
+      } else {
+        dateMatches = [];
+      }
+
+      if (dateMatches.length === 1) {
+        return {
+          fileName: zip.fileName,
+          mapId: dateMatches[0].mapId,
+          confidence: "exact" as const,
+          matchLabel: dateMatches[0].label,
+          candidates: [],
+        };
+      }
+
       // 精确匹配：mapName 一致 + 队名 contains 匹配（不区分大小写）
       const exactMatches =
-        zip.teamAName && zip.teamBName
+        zip.teamAName && zip.teamBName && zip.teamAName !== "Team A" && zip.teamBName !== "Team B"
           ? byMap.filter((c) => {
               const tA = zip.teamAName!.toLowerCase();
               const tB = zip.teamBName!.toLowerCase();
@@ -197,7 +221,11 @@ export async function matchZipsToMaps(
             })
           : byMap;
 
-      const pool = narrowed.length > 0 ? narrowed : byMap;
+      // 队名匹配无帮助时用日期收窄（cs2-demo-format 队名均为 "Team A"/"Team B"）
+      const poolRaw = narrowed.length > 0 ? narrowed : byMap;
+      const pool = (poolRaw.length > 1 && dateMatches.length > 0 && dateMatches.length < poolRaw.length)
+        ? dateMatches
+        : poolRaw;
 
       if (pool.length === 1) {
         return {

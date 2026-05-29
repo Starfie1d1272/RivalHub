@@ -5,6 +5,11 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.27.1] - 2026-05-30
+
+### Fixed
+- **Demo 批量导入队名读取路径**：`match.json` 中 `teamAName`/`teamBName` 为嵌套字段 `teamA.name` / `teamB.name`，修正读取路径；新增文件名日期提取（`rivalhub-{map}-{YYYY-MM-DD}.zip`）与 `completedAt` 日期匹配 fallback，解决所有 demo ZIP 均显示"选择候选"无法自动匹配的问题
+
 ## [1.27.0] - 2026-05-29
 
 ### Added
@@ -930,6 +935,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.27.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.0...v1.27.1
 [1.27.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.26.2...v1.27.0
 [1.26.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.26.1...v1.26.2
 [1.26.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.26.0...v1.26.1
