@@ -33,7 +33,7 @@ export function PlayerUtilityStats({
   }
 
   return (
-    <Panel label="🔧 道具统计">
+    <Panel label="道具统计">
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>

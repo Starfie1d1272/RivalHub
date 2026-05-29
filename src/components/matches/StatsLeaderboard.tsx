@@ -166,7 +166,7 @@ const DEMO_COLS: ColDef[] = [
     key: "avgDemoKast",
     label: "KAST%",
     getValue: (r) => r.avgDemoKast ?? null,
-    format: (v) => (v != null ? (v * 100).toFixed(1) + "%" : "—"),
+    format: (v) => (v != null ? v.toFixed(1) + "%" : "—"),
   },
   {
     key: "avgDemoAdr",

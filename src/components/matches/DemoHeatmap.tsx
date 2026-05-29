@@ -33,9 +33,11 @@ export function DemoHeatmap({ mapName, points }: DemoHeatmapProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<HeatmapMode>("kills");
-  const [imgSize, setImgSize] = useState({ w: 1024, h: 1024 });
 
   const cal = getCalibration(mapName);
+
+  // 始终使用 1024×1024 逻辑尺寸绘制，CSS w-full 负责缩放显示
+  const CANVAS_SIZE = 1024;
 
   const drawHeatmap = useCallback(() => {
     const canvas = canvasRef.current;
@@ -43,11 +45,9 @@ export function DemoHeatmap({ mapName, points }: DemoHeatmapProps) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const { w, h } = imgSize;
-    canvas.width = w;
-    canvas.height = h;
-
-    ctx.clearRect(0, 0, w, h);
+    canvas.width = CANVAS_SIZE;
+    canvas.height = CANVAS_SIZE;
+    ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
 
     if (!cal) return;
 
@@ -56,7 +56,7 @@ export function DemoHeatmap({ mapName, points }: DemoHeatmapProps) {
 
     for (const pt of pts) {
       const px = worldToPixel({ x: pt.x, y: pt.y, z: 0 }, cal);
-      if (px.x < -50 || px.x > w + 50 || px.y < -50 || px.y > h + 50) continue;
+      if (px.x < -80 || px.x > CANVAS_SIZE + 80 || px.y < -80 || px.y > CANVAS_SIZE + 80) continue;
 
       const gradient = ctx.createRadialGradient(px.x, px.y, 0, px.x, px.y, 60);
       gradient.addColorStop(0, config.color);
@@ -66,7 +66,7 @@ export function DemoHeatmap({ mapName, points }: DemoHeatmapProps) {
       ctx.fillStyle = gradient;
       ctx.fillRect(px.x - 60, px.y - 60, 120, 120);
     }
-  }, [cal, mode, points, imgSize]);
+  }, [cal, mode, points]);
 
   // 当所有模式都无数据时，不渲染热力图——避免显示空雷达图让人困惑
   const hasAnyData = Object.values(points).some((pts) => pts.length > 0);
@@ -74,21 +74,6 @@ export function DemoHeatmap({ mapName, points }: DemoHeatmapProps) {
   useEffect(() => {
     drawHeatmap();
   }, [drawHeatmap]);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const rect = entry.contentRect;
-        const size = Math.min(rect.width, 1024);
-        setImgSize({ w: size, h: size });
-      }
-    });
-    observer.observe(container);
-    return () => observer.disconnect();
-  }, []);
 
   if (!cal) {
     return (
@@ -134,7 +119,7 @@ export function DemoHeatmap({ mapName, points }: DemoHeatmapProps) {
         ))}
       </div>
 
-      <div ref={containerRef} className="relative w-full max-w-[1024px] aspect-square">
+      <div ref={containerRef} className="relative w-full max-w-[600px] aspect-square">
         <img
           src={cal.radar}
           alt={`${mapName} radar`}

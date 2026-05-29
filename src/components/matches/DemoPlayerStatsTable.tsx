@@ -17,23 +17,43 @@ const TEAM_COLORS = {
   B: { border: "var(--color-accent-b)", bg: "color-mix(in srgb, var(--color-accent-b) 4%, transparent)" },
 };
 
-const SECTIONS = [
+type SectionField =
+  | { key: string; label: string; fmt?: (v: number | null, row: DemoPlayerStatRow) => string }
+  | { key: string; label: string; pairKey: string };
+
+interface Section {
+  label: string;
+  fields: SectionField[];
+}
+
+const SECTIONS: Section[] = [
   {
     label: "Core",
     fields: [
       { key: "kills", label: "K" },
       { key: "deaths", label: "D" },
       { key: "assists", label: "A" },
-      { key: "adr", label: "ADR", fmt: (v: number | null) => (v != null ? v.toFixed(1) : "—") },
-      { key: "headshotCount", label: "HS" },
-      { key: "kast", label: "KAST", fmt: (v: number | null) => (v != null ? `${(v * 100).toFixed(0)}%` : "—") },
+      { key: "adr", label: "ADR", fmt: (v) => (v != null ? v.toFixed(1) : "—") },
+      {
+        key: "headshotCount",
+        label: "HS%",
+        fmt: (_v, row) => {
+          const r = row as unknown as Record<string, unknown>;
+          const hs = r.headshotCount;
+          const k = r.kills;
+          if (typeof hs === "number" && typeof k === "number" && k > 0)
+            return `${((hs / k) * 100).toFixed(0)}%`;
+          return "—";
+        },
+      },
+      { key: "kast", label: "KAST%", fmt: (v) => (v != null ? `${v.toFixed(1)}%` : "—") },
     ],
   },
   {
     label: "Utility",
     fields: [
       { key: "utilityDamage", label: "Util Dmg" },
-      { key: "averageUtilityDamagePerRound", label: "Util/R", fmt: (v: number | null) => (v != null ? v.toFixed(1) : "—") },
+      { key: "averageUtilityDamagePerRound", label: "Util/R", fmt: (v) => (v != null ? v.toFixed(1) : "—") },
       { key: "bombPlantedCount", label: "Plant" },
       { key: "bombDefusedCount", label: "Defuse" },
     ],
@@ -75,7 +95,7 @@ const SECTIONS = [
       { key: "collateralKillCount", label: "Collateral" },
     ],
   },
-] as const;
+];
 
 function getVal(row: DemoPlayerStatRow, key: string): number | null {
   const v = (row as unknown as Record<string, unknown>)[key];
@@ -151,8 +171,8 @@ function TeamTable({
                 {SECTIONS.flatMap((s) =>
                   s.fields.map((f) => {
                     const raw = getVal(p, f.key);
-                    if ("pairKey" in f && f.pairKey) {
-                      const total = getVal(p, f.pairKey as string);
+                    if ("pairKey" in f) {
+                      const total = getVal(p, f.pairKey);
                       const label = total != null && total > 0
                         ? `${raw ?? 0}/${total}`
                         : "—";
@@ -165,7 +185,7 @@ function TeamTable({
                         </td>
                       );
                     }
-                    const val = "fmt" in f && f.fmt ? f.fmt(raw) : raw ?? "—";
+                    const val = f.fmt ? f.fmt(raw, p) : raw ?? "—";
                     return (
                       <td
                         key={f.key}
