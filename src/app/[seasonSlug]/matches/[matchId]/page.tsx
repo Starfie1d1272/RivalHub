@@ -10,8 +10,6 @@ import { mapLabel } from "@/lib/maps";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MATCH_FORMAT_LABELS, SIDE_LABELS } from "@/types/match";
 import { PlayerStatsTable } from "@/components/matches/PlayerStatsTable";
-import { StatsOCRPanel } from "@/components/matches/StatsOCRPanel";
-import { DemoImportPanel } from "@/components/admin/DemoImportPanel";
 import { TimeProposalHistory } from "@/components/matches/TimeProposalHistory";
 import { MatchTimeNegotiation } from "@/components/matches/MatchTimeNegotiation";
 import { MatchRosterView } from "@/components/matches/MatchRosterView";
@@ -526,8 +524,6 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                   {!isFinished && map.scoreA == null && (
                     <p className="text-xs text-[var(--color-fg-dim)] py-2">比赛未开始</p>
                   )}
-                  {isFinished && isSeasonAdmin && <StatsOCRPanel mapId={map.id} mapName={map.mapName} />}
-                  {isFinished && isSeasonAdmin && <DemoImportPanel mapId={map.id} mapName={map.mapName} />}
                   {/* Demo 明细区块 */}
                   {isFinished && (() => {
                     const demoResult = demoDataByMapId.get(map.id);
@@ -537,7 +533,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                           <div className="py-4 text-center text-sm text-[var(--color-fg-dim)]">
                             暂无 Demo 数据
                             {isSeasonAdmin ? (
-                              <span> — 请在上方导入 Demo</span>
+                              <span> — 请在比赛管理页面导入 Demo</span>
                             ) : (
                               <span>（比赛结束后可联系管理员导入）</span>
                             )}

@@ -1,10 +1,11 @@
 import { notFound } from "next/navigation";
-import { eq, asc, inArray, and, isNotNull } from "drizzle-orm";
+import { eq, asc, inArray, and } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons, matches, teams, matchMaps, demoImports } from "@/db/schema";
 import { requireSeasonAdmin } from "@/lib/auth/session";
 import { mapLabel } from "@/lib/maps";
 import { DemoImportPanel } from "@/components/admin/DemoImportPanel";
+import { MATCH_FORMAT_LABELS } from "@/types/match";
 import Link from "next/link";
 
 interface PageProps {
@@ -53,7 +54,6 @@ export default async function AdminDemosPage({ params }: PageProps) {
   const allMaps = await db.query.matchMaps.findMany({
     where: and(
       inArray(matchMaps.matchId, finishedMatchIds),
-      isNotNull(matchMaps.scoreA),
     ),
     orderBy: [asc(matchMaps.matchId), asc(matchMaps.mapOrder)],
   });
@@ -90,6 +90,7 @@ export default async function AdminDemosPage({ params }: PageProps) {
 
           const teamAName = teamMap.get(m.teamAId) ?? "队伍 A";
           const teamBName = teamMap.get(m.teamBId) ?? "队伍 B";
+          const isBO1 = m.format === "bo1";
 
           return (
             <div
@@ -107,6 +108,9 @@ export default async function AdminDemosPage({ params }: PageProps) {
                   </Link>
                   <span className="text-xs text-[var(--color-fg-mid)] font-mono">
                     {m.scoreA} : {m.scoreB}
+                  </span>
+                  <span className="text-xs text-[var(--color-fg-dim)]">
+                    {MATCH_FORMAT_LABELS[m.format] ?? m.format.toUpperCase()}
                   </span>
                 </div>
                 <Link
@@ -131,7 +135,7 @@ export default async function AdminDemosPage({ params }: PageProps) {
                           {mapLabel(map.mapName)}
                         </span>
                         <span className="font-mono text-sm text-[var(--color-fg)]">
-                          {map.scoreA} : {map.scoreB}
+                          {map.scoreA != null ? `${map.scoreA} : ${map.scoreB}` : "—"}
                         </span>
                         {hasDemo && (
                           <span className="text-[11px] px-1.5 py-0.5 rounded bg-[rgba(77,212,122,0.12)] text-[var(--color-ok)]">

@@ -47,7 +47,7 @@ export interface PlayerWeaponStats {
 export async function getSeasonDemoStats(
   seasonId: string,
 ): Promise<ActionResult<DemoLeaderboardData[]>> {
-  const rows = await db.execute(sql`
+  const { rows } = await db.execute(sql`
     SELECT
       dps.user_id,
       COALESCE(dp.name, 'Unknown') AS perfect_name,
@@ -135,7 +135,7 @@ export async function getSeasonDemoStats(
 export async function getSeasonWeaponStats(
   seasonId: string,
 ): Promise<ActionResult<PlayerWeaponStats[]>> {
-  const rows = await db.execute(sql`
+  const { rows } = await db.execute(sql`
     SELECT
       dps.user_id,
       COALESCE(dp.name, 'Unknown') AS perfect_name,
@@ -161,9 +161,8 @@ export async function getSeasonWeaponStats(
 
   // 按 userId 分组
   const playerMap = new Map<string, PlayerWeaponStats>();
-  const rawRows = rows as unknown as any[];
 
-  for (const r of rawRows) {
+  for (const r of rows as any[]) {
     const uid = (r.user_id as string) ?? `steam_${r.steam_id64}`;
     if (!playerMap.has(uid)) {
       playerMap.set(uid, {
@@ -214,7 +213,7 @@ export interface WeaponKillStatsRow {
  * 只统计 demo_kills（由 matchMaps.activeStatSource='demo_import' 过滤）
  */
 export async function getWeaponKillStats(seasonId: string): Promise<WeaponKillStatsRow[]> {
-  const rows = await db.execute(sql`
+  const { rows } = await db.execute(sql`
     SELECT
       dp.user_id,
       dp.name AS perfect_name,
@@ -268,7 +267,7 @@ export interface PlayerHighlightStats {
 export async function getSeasonHighlightStats(
   seasonId: string,
 ): Promise<ActionResult<PlayerHighlightStats[]>> {
-  const rows = await db.execute(sql`
+  const { rows } = await db.execute(sql`
     SELECT
       dps.user_id,
       COALESCE(dp.name, 'Unknown') AS perfect_name,
