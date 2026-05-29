@@ -58,7 +58,7 @@ export async function getSeasonDemoStats(
     SELECT
       dps.user_id,
       COALESCE(dp.name, 'Unknown') AS perfect_name,
-      dp.steam_id64,
+      min(dp.steam_id64) AS steam_id64,
       count(*)::int AS maps,
       CASE WHEN count(*) > 0 THEN round(avg(dps.kast)::numeric, 4) ELSE NULL END AS kast,
       CASE WHEN count(*) > 0 THEN round(avg(dps.adr)::numeric, 1) ELSE NULL END AS adr,
@@ -102,7 +102,7 @@ export async function getSeasonDemoStats(
              AND awp_data.killer_steam_id64 = dps.steam_id64
     WHERE m.season_id = ${seasonId}
       AND mm.active_stat_source = 'demo_import'::stat_source
-    GROUP BY dps.user_id, dp.name, dp.steam_id64
+    GROUP BY dps.user_id, dp.name
     ORDER BY kast DESC NULLS LAST
     LIMIT 100
   `);
