@@ -7,6 +7,7 @@ import { mapLabel } from "@/lib/maps";
 import { DemoImportPanel } from "@/components/admin/DemoImportPanel";
 import { DemoBatchImportPanel } from "@/components/admin/DemoBatchImportPanel";
 import { RecomputeRatingsButton } from "@/components/admin/RecomputeRatingsButton";
+import { BackfillEconomyButton } from "@/components/admin/BackfillEconomyButton";
 import { SteamAliasManager } from "@/components/admin/SteamAliasManager";
 import { getUnlinkedDemoPlayers, getSeasonRegisteredUsers } from "@/actions/steam-aliases";
 import { MATCH_FORMAT_LABELS } from "@/types/match";
@@ -128,8 +129,9 @@ export default async function AdminDemosPage({ params }: PageProps) {
         </div>
       </details>
 
-      {/* 评分重算 */}
-      <div className="flex justify-end">
+      {/* 评分重算 + 经济回填 */}
+      <div className="flex justify-end gap-2 flex-wrap">
+        <BackfillEconomyButton seasonId={season.id} />
         <RecomputeRatingsButton seasonId={season.id} />
       </div>
 

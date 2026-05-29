@@ -23,6 +23,7 @@ import { mapDemoPlayers } from "@/lib/demo/map-players";
 import { toMatchPlayerStat, type DemoStatInput } from "@/lib/demo/to-match-player-stats";
 import { batchInsert } from "@/lib/demo/batch-insert";
 import { seasons } from "@/db/schema/seasons";
+import { backfillSingleBatch } from "@/actions/backfill-economy";
 
 type DemoSideVal = "t" | "ct" | "unknown";
 
@@ -459,6 +460,9 @@ export async function importDemoPackage(
 
       return { importBatchId: batchId, unmatched };
     });
+
+    // 经济类型回填（不阻塞导入）
+    backfillSingleBatch(result.importBatchId).catch(() => {});
 
     const season = await db.query.seasons.findFirst({
       where: eq(seasons.id, match.seasonId),
