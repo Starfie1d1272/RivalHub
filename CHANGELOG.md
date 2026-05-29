@@ -5,6 +5,11 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.27.4] - 2026-05-30
+
+### Fixed
+- **批量导入 OCR 确认弹窗阻塞**：每张已有 OCR 数据的图导入前都会返回 OCR 确认提示，批量导入模式下 24 个文件因此静默失败；改为自动传入 `confirmOverwriteOcr: true`，跳过逐条确认弹窗（OCR 数据保留不删除，只是 `active_stat_source` 切到 demo）
+
 ## [1.27.3] - 2026-05-30
 
 ### Fixed
@@ -946,6 +951,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.27.4]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.3...v1.27.4
 [1.27.3]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.2...v1.27.3
 [1.27.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.1...v1.27.2
 [1.27.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.0...v1.27.1

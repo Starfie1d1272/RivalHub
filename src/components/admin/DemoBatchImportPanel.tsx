@@ -164,9 +164,10 @@ export function DemoBatchImportPanel({ seasonId, availableMaps }: Props) {
         ),
       );
 
-      const result = await importDemoPackage(row.mapId, row.zipBuffer);
+      const result = await importDemoPackage(row.mapId, row.zipBuffer, { confirmOverwriteOcr: true });
 
       if (!result.success) {
+        console.error(`[batch-import] ${row.fileName}:`, result.error.message);
         setRows((prev) =>
           prev.map((r) =>
             r.fileName === row.fileName
@@ -327,12 +328,16 @@ function ImportStatusBadge({ row }: { row: RowState }) {
   }
   if (row.importStatus === "error") {
     return (
-      <span
-        className="text-[11px] px-1.5 py-0.5 rounded bg-[rgba(255,80,80,0.12)] text-[var(--color-error)]"
-        title={row.errorMessage}
-      >
-        ✗ 失败
-      </span>
+      <div>
+        <span className="text-[11px] px-1.5 py-0.5 rounded bg-[rgba(255,80,80,0.12)] text-[var(--color-error)]">
+          ✗ 失败
+        </span>
+        {row.errorMessage && (
+          <p className="text-[10px] text-[var(--color-error)] mt-0.5 max-w-[200px] truncate" title={row.errorMessage}>
+            {row.errorMessage}
+          </p>
+        )}
+      </div>
     );
   }
   if (row.importStatus === "importing") {
