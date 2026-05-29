@@ -1,6 +1,7 @@
 "use server";
 
 import { eq, and, sql, inArray } from "drizzle-orm";
+import { halfSideWinRate, type HalfSideStats } from "@/lib/demo/halfside-winrate";
 import { db } from "@/db/client";
 import { matches } from "@/db/schema/matches";
 import { matchMaps } from "@/db/schema/match-maps";
@@ -145,6 +146,44 @@ export async function getTeamStyleProfile(
       ecoConversion,
       totalRounds: Object.values(ecoStats).reduce((s, g) => s + g.played, 0),
     });
+  } catch (e) {
+    return fail({ code: ErrorCode.INTERNAL_ERROR, message: String(e) });
+  }
+}
+
+/**
+ * 获取队伍在赛季内所有比赛中的 T/CT 半场胜率
+ */
+export async function getTeamHalfSideStats(
+  teamId: string,
+  seasonId: string,
+): Promise<ActionResult<Record<string, HalfSideStats>>> {
+  try {
+    const { rows } = await db.execute(sql`
+      SELECT
+        CASE
+          WHEN m.team_a_id = ${teamId} THEN dr.team_a_side::text
+          ELSE dr.team_b_side::text
+        END AS side,
+        CASE
+          WHEN m.team_a_id = ${teamId} THEN dr.winner_team_key = 'teamA'
+          ELSE dr.winner_team_key = 'teamB'
+        END AS won
+      FROM demo_rounds dr
+      JOIN demo_imports di ON di.id = dr.import_batch_id
+      JOIN match_maps mm ON mm.id = di.map_id
+      JOIN matches m ON m.id = mm.match_id
+      WHERE m.season_id = ${seasonId}
+        AND mm.active_stat_source = 'demo_import'::stat_source
+        AND (m.team_a_id = ${teamId} OR m.team_b_id = ${teamId})
+    `);
+
+    const entries = (rows as { side: string; won: boolean }[]).map((r) => ({
+      teamSide: r.side,
+      won: Boolean(r.won),
+    }));
+
+    return ok(halfSideWinRate(entries));
   } catch (e) {
     return fail({ code: ErrorCode.INTERNAL_ERROR, message: String(e) });
   }

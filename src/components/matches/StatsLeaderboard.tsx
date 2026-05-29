@@ -29,6 +29,11 @@ interface LeaderboardRow {
   demoFkpr?: number;
   demoClutchWinRate?: number;
   demoUtilityPerRound?: number;
+  vsOneWinRate?: number | null;
+  twoKillCount?: number;
+  threeKillCount?: number;
+  fourKillCount?: number;
+  fiveKillCount?: number;
 }
 
 interface StatsLeaderboardProps {
@@ -182,8 +187,8 @@ const DEMO_COLS: ColDef[] = [
   },
   {
     key: "demoClutchWinRate",
-    label: "Clutch%",
-    getValue: (r) => r.demoClutchWinRate ?? null,
+    label: "1v1%",
+    getValue: (r) => r.vsOneWinRate ?? null,
     format: (v) => (v != null ? (v * 100).toFixed(1) + "%" : "—"),
   },
   {
@@ -191,6 +196,18 @@ const DEMO_COLS: ColDef[] = [
     label: "Util/R",
     getValue: (r) => r.demoUtilityPerRound ?? null,
     format: (v) => (v != null ? v.toFixed(1) : "—"),
+  },
+  {
+    key: "twoKillRate",
+    label: "2K%",
+    getValue: (r) => r.twoKillCount != null && r.maps > 0 ? r.twoKillCount / r.maps : null,
+    format: (v) => (v != null ? v.toFixed(2) : "—"),
+  },
+  {
+    key: "threeKillRate",
+    label: "3K%",
+    getValue: (r) => r.threeKillCount != null && r.maps > 0 ? r.threeKillCount / r.maps : null,
+    format: (v) => (v != null ? v.toFixed(2) : "—"),
   },
 ];
 

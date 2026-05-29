@@ -24,6 +24,9 @@ import { MatchSummaryStats } from "@/components/matches/MatchSummaryStats";
 import { getMatchMvpResults, ensureMvpWinner } from "@/actions/player-stats";
 import { getTimeProposals } from "@/actions/matches/scheduling";
 import { getDemoDetail } from "@/actions/demo-detail";
+import { getTeamStyleProfile, getTeamHalfSideStats } from "@/actions/team-demo-stats";
+import { TeamHalfSideStats } from "@/components/teams/TeamHalfSideStats";
+import { TeamStyleProfile } from "@/components/teams/TeamStyleProfile";
 import { DemoPlayerStatsTable } from "@/components/matches/DemoPlayerStatsTable";
 import { PlayerKillHeatmap } from "@/components/matches/PlayerKillHeatmap";
 import { PlayerWeaponBreakdown } from "@/components/matches/PlayerWeaponBreakdown";
@@ -384,6 +387,21 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
     }
   }
 
+  // 赛季级别风格画像 + T/CT 半场胜率（已结束比赛）
+  const [styleAResult, styleBResult, halfSideAResult, halfSideBResult] = isFinished
+    ? await Promise.all([
+        getTeamStyleProfile(match.teamAId, season.id),
+        getTeamStyleProfile(match.teamBId, season.id),
+        getTeamHalfSideStats(match.teamAId, season.id),
+        getTeamHalfSideStats(match.teamBId, season.id),
+      ])
+    : [null, null, null, null];
+
+  const styleA = styleAResult?.success ? styleAResult.data : null;
+  const styleB = styleBResult?.success ? styleBResult.data : null;
+  const halfSideA = halfSideAResult?.success ? halfSideAResult.data : null;
+  const halfSideB = halfSideBResult?.success ? halfSideBResult.data : null;
+
   return (
     <div className="container mx-auto px-4 py-12 max-w-3xl space-y-8">
       <MatchHeroHeader
@@ -711,6 +729,25 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
             <h3 className="text-sm font-medium mb-2">协商历史</h3>
             <TimeProposalHistory proposals={timeProposals} />
           </Panel>
+        </section>
+      )}
+
+      {/* 赛季级别 T/CT 半场胜率 + 风格画像（已结束比赛） */}
+      {isFinished && (halfSideA || halfSideB || styleA || styleB) && (
+        <section className="space-y-4">
+          <h2 className="text-lg font-semibold text-[var(--color-fg)]">赛季风格分析</h2>
+          {(halfSideA || halfSideB) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {halfSideA && Object.keys(halfSideA).length > 0 && (
+                <TeamHalfSideStats stats={halfSideA} teamName={teamA?.name ?? "队伍 A"} />
+              )}
+              {halfSideB && Object.keys(halfSideB).length > 0 && (
+                <TeamHalfSideStats stats={halfSideB} teamName={teamB?.name ?? "队伍 B"} />
+              )}
+            </div>
+          )}
+          {styleA && <TeamStyleProfile profile={styleA} />}
+          {styleB && <TeamStyleProfile profile={styleB} />}
         </section>
       )}
 

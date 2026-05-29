@@ -17,9 +17,14 @@ export interface DemoLeaderboardData {
   entrySuccessRate: number | null;
   clutchWinRate: number | null;
   clutchAttempts: number;
+  vsOneWinRate: number | null;
   avgUtilityDamagePerRound: number | null;
   /** FKPR（首杀/总回合） */
   fkpr: number;
+  twoKillCount: number;
+  threeKillCount: number;
+  fourKillCount: number;
+  fiveKillCount: number;
 }
 
 export interface WeaponKillRow {
@@ -67,6 +72,10 @@ export async function getSeasonDemoStats(
       sum(dps.vs_four_won_count)::int AS vs4_won,
       sum(dps.vs_five_count)::int AS vs5_count,
       sum(dps.vs_five_won_count)::int AS vs5_won,
+      sum(dps.two_kill_count)::int AS two_kill_count,
+      sum(dps.three_kill_count)::int AS three_kill_count,
+      sum(dps.four_kill_count)::int AS four_kill_count,
+      sum(dps.five_kill_count)::int AS five_kill_count,
       round(avg(dps.avg_utility_damage_per_round)::numeric, 1) AS avg_utility_damage_per_round,
       sum(rc.round_count)::int AS total_rounds
     FROM ${demoPlayerStats} dps
@@ -118,10 +127,15 @@ export async function getSeasonDemoStats(
       clutchWinRate: totalClutchAttempts > 0
         ? Math.round((totalClutchWon / totalClutchAttempts) * 10000) / 10000
         : null,
+      vsOneWinRate: vs1Count > 0 ? Math.round((vs1Won / vs1Count) * 10000) / 10000 : null,
       avgUtilityDamagePerRound: r.avg_utility_damage_per_round != null
         ? Number(r.avg_utility_damage_per_round)
         : null,
       fkpr: fk / totalRounds,
+      twoKillCount: Number(r.two_kill_count ?? 0),
+      threeKillCount: Number(r.three_kill_count ?? 0),
+      fourKillCount: Number(r.four_kill_count ?? 0),
+      fiveKillCount: Number(r.five_kill_count ?? 0),
     };
   });
 

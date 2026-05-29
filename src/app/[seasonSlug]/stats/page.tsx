@@ -86,6 +86,20 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
   const stageFilter = stage ? sql`AND m.stage = ${stage}` : sql``;
 
   const { rows } = await db.execute(sql`
+    WITH ocr_avg AS (
+      SELECT
+        mps2.user_id,
+        m2.season_id,
+        round(avg(mps2.rating_pro)::numeric, 2) AS avg_rating_ocr,
+        round(avg(mps2.rws)::numeric, 2)        AS avg_rws_ocr,
+        round(avg(mps2.we)::numeric, 1)         AS avg_we_ocr
+      FROM match_player_stats mps2
+      JOIN matches m2 ON m2.id = mps2.match_id
+      WHERE mps2.source = 'manual_ocr'
+        AND mps2.verified_by_admin IS NOT NULL
+        AND m2.season_id = ${season.id}
+      GROUP BY mps2.user_id, m2.season_id
+    )
     SELECT
       mps.user_id,
       COALESCE(u.perfect_name, mps.perfect_name) AS perfect_name,
@@ -93,10 +107,10 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
       t.name  AS team_name,
       t.id    AS team_id,
       count(*)::int                                                          AS maps,
-      round(avg(mps.rating_pro)::numeric, 2)                                AS avg_rating,
+      COALESCE(round(avg(mps.rating_pro)::numeric, 2), ocr.avg_rating_ocr)  AS avg_rating,
       round(${adrExpr}::numeric, 1)                                         AS avg_adr,
-      round(avg(mps.rws)::numeric, 2)                                       AS avg_rws,
-      round(avg(mps.we)::numeric, 1)                                        AS avg_we,
+      COALESCE(round(avg(mps.rws)::numeric, 2), ocr.avg_rws_ocr)           AS avg_rws,
+      COALESCE(round(avg(mps.we)::numeric, 1), ocr.avg_we_ocr)             AS avg_we,
       round(${hsExpr}::numeric, 1)                                          AS avg_hs,
       CASE WHEN sum(mps.deaths) > 0
         THEN round(sum(mps.kills)::numeric / sum(mps.deaths), 2)
@@ -113,6 +127,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
       ON sr.user_id = mps.user_id AND sr.season_id = m.season_id
     LEFT JOIN team_members tm ON tm.registration_id = sr.id
     LEFT JOIN teams t ON t.id = tm.team_id
+    LEFT JOIN ocr_avg ocr ON ocr.user_id = mps.user_id
     WHERE m.season_id = ${season.id}
       AND mps.verified_by_admin IS NOT NULL
       AND mps.source = COALESCE(mm.active_stat_source, 'manual_ocr'::stat_source)
@@ -175,6 +190,11 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
       demoFkpr: demo.fkpr,
       demoClutchWinRate: demo.clutchWinRate ?? 0,
       demoUtilityPerRound: demo.avgUtilityDamagePerRound ?? 0,
+      vsOneWinRate: demo.vsOneWinRate,
+      twoKillCount: demo.twoKillCount,
+      threeKillCount: demo.threeKillCount,
+      fourKillCount: demo.fourKillCount,
+      fiveKillCount: demo.fiveKillCount,
     };
   });
 
