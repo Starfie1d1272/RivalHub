@@ -24,13 +24,15 @@ import { actionError } from "@/lib/action-utils";
 import { requireSeasonAdmin, auditActorId } from "@/lib/auth/session";
 import { toRRIndicators } from "@/lib/demo/to-rr-indicators";
 import type { PlayerStatRow, BlindsRow } from "@/lib/demo/player-demo-stats";
-import { computeRR, computeLeagueMean } from "@/lib/rating/rr/compute";
-import { computePrism, rrToPercentile } from "@/lib/rating/prism/compute";
-import type { PrismComputeInput } from "@/lib/rating/prism/compute";
-import type { RRWeights } from "@/lib/rating/types/rr";
-import type { PrismWeights } from "@/lib/rating/types/prism";
-import rrWeightsRaw from "@/lib/rating/weights/rr-v1.json";
-import prismWeightsRaw from "@/lib/rating/weights/prism-v1.json";
+import {
+  computeRR,
+  computeLeagueMean,
+  computePrism,
+  rrToPercentile,
+  rrWeightsV1 as rrWeightsRaw,
+  prismWeightsV1 as prismWeightsRaw,
+} from "@/lib/rating";
+import type { RRWeights, PrismWeights, PrismComputeInput } from "@/lib/rating";
 
 export async function recomputeSeasonRatings(
   seasonId: string,
