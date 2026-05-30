@@ -78,7 +78,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
       case "clutch": return cprExpr;
       case "maps":   return sql`count(*)`;
       case "rr":     return sql`(SELECT rr_score FROM player_ratings WHERE season_id = ${season.id} AND user_id = mps.user_id LIMIT 1)`;
-      default:       return sql`avg(mps.rating_pro)`;
+      default:       return sql`COALESCE(avg(mps.rating_pro), min(ocr.avg_rating_ocr))`;
     }
   })();
 

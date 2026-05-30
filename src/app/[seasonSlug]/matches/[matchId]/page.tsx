@@ -17,7 +17,6 @@ import { MatchRosterForm } from "@/components/matches/MatchRosterForm";
 import { VetoView } from "@/components/matches/VetoView";
 import { MapPoolRadarChart } from "@/components/matches/MapPoolRadarChart";
 import { MatchLineupsH2H } from "@/components/matches/MatchLineupsH2H";
-import { PlayerRadarChart } from "@/components/matches/PlayerRadarChart";
 import { TeamStatsCompare } from "@/components/matches/TeamStatsCompare";
 import { MatchHeadToHead } from "@/components/matches/MatchHeadToHead";
 import { MatchSummaryStats } from "@/components/matches/MatchSummaryStats";
@@ -27,8 +26,8 @@ import { getDemoDetail } from "@/actions/demo-detail";
 import { getTeamStyleProfile, getTeamHalfSideStats } from "@/actions/team-demo-stats";
 import { TeamStyleCompare } from "@/components/matches/TeamStyleCompare";
 import { playerRatings } from "@/db/schema";
-import { RadarChart } from "@/components/matches/RadarChart";
-import { PRISM_AXES, buildPrismScores, averagePrismScores, type PrismScores } from "@/lib/stats/prism";
+import { buildPrismScores, averagePrismScores, type PrismScores } from "@/lib/stats/prism";
+import { MatchRadarSection } from "@/components/matches/MatchRadarSection";
 import { DemoPlayerStatsTable } from "@/components/matches/DemoPlayerStatsTable";
 import { PlayerKillHeatmap } from "@/components/matches/PlayerKillHeatmap";
 import { PlayerWeaponBreakdown } from "@/components/matches/PlayerWeaponBreakdown";
@@ -232,11 +231,11 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   const radarDataA = buildRadarData(mapPool, mapWinA, pickStatsA, banStatsA);
   const radarDataB = buildRadarData(mapPool, mapWinB, pickStatsB, banStatsB);
 
-  // 双方阵容六维雷达图
-  const hexA = starterAUserIds
+  // 双方阵容六维雷达图（用全队成员而非仅首发，确保无 roster 时也能展示）
+  const hexA = teamAUserIds
     .map((uid) => seasonHexagonScores.get(uid))
     .filter((s): s is HexagonScores => s != null);
-  const hexB = starterBUserIds
+  const hexB = teamBUserIds
     .map((uid) => seasonHexagonScores.get(uid))
     .filter((s): s is HexagonScores => s != null);
   const teamHexA = hexA.length > 0 ? computeTeamDimensions(hexA) : null;
@@ -492,57 +491,15 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
             halfSideB={halfSideB}
           />
 
-          {/* 能力雷达：双队同图对比 */}
-          {(teamPrismA || teamPrismB) && (
-            <Panel label="能力雷达 · 八维对比" pad={16}>
-              <RadarChart
-                axes={PRISM_AXES}
-                series={[
-                  teamPrismA && {
-                    name: teamA?.name ?? "队伍 A",
-                    scores: teamPrismA as unknown as Record<string, number>,
-                    color: "var(--color-accent)",
-                    strokeWidth: 2.5,
-                  },
-                  teamPrismB && {
-                    name: teamB?.name ?? "队伍 B",
-                    scores: teamPrismB as unknown as Record<string, number>,
-                    color: "var(--color-accent-b)",
-                    strokeWidth: 2.5,
-                  },
-                ].filter(Boolean) as Array<{ name: string; scores: Record<string, number>; color?: string; strokeWidth?: number }>}
-                size={320}
-              />
-              <p className="text-[11px] text-[var(--color-fg-dim)] mt-3 px-1 leading-relaxed">
-                双方队员八维 PRISM 均值对比（demo cohort 百分位），在本赛事内标准化。
-              </p>
-            </Panel>
-          )}
-          {/* 六维对比（无 prism 时回退） */}
-          {!teamPrismA && !teamPrismB && (teamHexA || teamHexB) && (
-            <Panel label="能力雷达 · 六维对比" pad={16}>
-              <PlayerRadarChart
-                players={[
-                  teamHexA && {
-                    name: teamA?.name ?? "队伍 A",
-                    scores: teamHexA,
-                    color: "var(--color-accent)",
-                    strokeColor: "var(--color-accent)",
-                  },
-                  teamHexB && {
-                    name: teamB?.name ?? "队伍 B",
-                    scores: teamHexB,
-                    color: "var(--color-accent-b)",
-                    strokeColor: "var(--color-accent-b)",
-                  },
-                ].filter(Boolean) as Array<{ name: string; scores: HexagonScores; color?: string; strokeColor?: string }>}
-                size={320}
-              />
-              <p className="text-[11px] text-[var(--color-fg-dim)] mt-3 px-1 leading-relaxed">
-                双方队员六维均值对比，六维评分在本赛事内标准化。
-              </p>
-            </Panel>
-          )}
+          {/* 能力雷达：双队同图对比 · 双 Tab */}
+          <MatchRadarSection
+            teamAName={teamA?.name ?? "队伍 A"}
+            teamBName={teamB?.name ?? "队伍 B"}
+            teamHexA={teamHexA}
+            teamHexB={teamHexB}
+            teamPrismA={teamPrismA}
+            teamPrismB={teamPrismB}
+          />
         </>
       )}
 
