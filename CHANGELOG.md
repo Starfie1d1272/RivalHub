@@ -5,6 +5,13 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.28.1] - 2026-05-30
+
+### Fixed
+- **Stats 页 500 错误**：`getSeasonDemoStats`/`getSeasonWeaponStats`/`getSeasonHighlightStats` SQL GROUP BY `dps.user_id` 不匹配导致 Postgres 报错
+- **赛程详情页 Server Component 渲染错误**：`buildPrismScores` 从 `"use client"` 模块导出被 Server Component 调用，提取到 `lib/stats/prism.ts` 修复
+- **Demo 批量导入**：新增覆盖已有导入选项（`force` 参数），支持重新导入已存在的数据
+
 ## [1.28.0] - 2026-05-30
 
 ### Added
@@ -1026,6 +1033,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.28.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.28.0...v1.28.1
 [1.28.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.8...v1.28.0
 [1.27.8]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.7...v1.27.8
 [1.27.7]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.6...v1.27.7
