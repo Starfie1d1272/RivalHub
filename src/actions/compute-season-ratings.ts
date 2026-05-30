@@ -92,7 +92,7 @@ export async function recomputeSeasonRatings(
         }),
       ]);
 
-    // ── 4. 按 steamId64 分组 ──────────────────────────────────────────────
+    // ── 4. 按 steamId64 做初步分组 ───────────────────────────────────────
     // stats
     const statsBySteam = new Map<string, PlayerStatRow[]>();
     for (const s of allStats) {
@@ -162,7 +162,7 @@ export async function recomputeSeasonRatings(
       ecoBySteam.set(key, agg);
     }
 
-    // mapCount per steam（该选手出现在多少张不同地图中）
+    // mapCount per steam
     const mapCountBySteam = new Map<string, Set<string>>();
     for (const s of allStats) {
       const set = mapCountBySteam.get(s.steamId64) ?? new Set();
@@ -170,26 +170,130 @@ export async function recomputeSeasonRatings(
       mapCountBySteam.set(s.steamId64, set);
     }
 
-    // ── 5. 查 userId 映射（steam64 → userId）─────────────────────────────
-    const steamList = [...statsBySteam.keys()];
-    const userRows = steamList.length > 0
+    // ── 5. 构建 steamId64 → userId 映射 ──────────────────────────────────
+    //   优先从 demo_player_stats.user_id（导入时已解析，含多 steamId64
+    //   指向同一 user 的情况）；再从 users.steam64 补充。
+    const steamId64ToUserId = new Map<string, string | null>();
+    // 来源1: demo_player_stats.user_id（最权威 — 含改名/换号关联）
+    for (const s of allStats) {
+      if (!steamId64ToUserId.has(s.steamId64) && s.userId) {
+        steamId64ToUserId.set(s.steamId64, s.userId);
+      }
+    }
+    // 收集所有出现的 steamId64
+    const allSteamSet = new Set<string>();
+    for (const s of allStats) allSteamSet.add(s.steamId64);
+    for (const b of allBlinds) { if (b.flasherSteamId64) allSteamSet.add(b.flasherSteamId64); }
+    for (const k of allKills) { if (k.killerSteamId64) allSteamSet.add(k.killerSteamId64); }
+    for (const g of allGrenades) { if (g.throwerSteamId64) allSteamSet.add(g.throwerSteamId64); }
+    for (const e of allEconomies) allSteamSet.add(e.steamId64);
+    // 来源2: users 表（补充 demo 数据里没有 userId 的 steam）
+    const userRows = allSteamSet.size > 0
       ? await db.query.users.findMany({
-          where: inArray(users.steam64, steamList),
+          where: inArray(users.steam64, [...allSteamSet]),
           columns: { id: true, steam64: true },
         })
       : [];
-    const userIdBySteam = new Map(
-      userRows.filter((u) => u.steam64).map((u) => [u.steam64!, u.id]),
-    );
+    for (const u of userRows) {
+      if (u.steam64 && !steamId64ToUserId.has(u.steam64)) {
+        steamId64ToUserId.set(u.steam64, u.id);
+      }
+    }
 
-    // ── 6. 计算每人的 RRIndicators 并调用 computeRR ───────────────────────
+    // ── 6. 定义 player key：优先 userId，无 userId 时用 steamId64 ───────
+    const getPlayerKey = (steam: string): string =>
+      steamId64ToUserId.get(steam) ?? steam;
+
+    // steamId64 按 playerKey 归并
+    const steamsByPlayerKey = new Map<string, Set<string>>();
+    for (const steam of allSteamSet) {
+      const pk = getPlayerKey(steam);
+      const set = steamsByPlayerKey.get(pk) ?? new Set();
+      set.add(steam);
+      steamsByPlayerKey.set(pk, set);
+    }
+
+    // 为每个 playerKey 选一个 primary steamId64：
+    //   优先选 users.steam64 里的，否则选数据最多的那个
+    const primarySteam = new Map<string, string>();
+    for (const [pk, steamSet] of steamsByPlayerKey) {
+      const usersSteam = [...steamSet].find((s) =>
+        userRows.some((u) => u.steam64 === s),
+      );
+      if (usersSteam) {
+        primarySteam.set(pk, usersSteam);
+      } else {
+        // 选 stats 行数最多的 steamId64
+        let best = [...steamSet][0];
+        let bestCount = 0;
+        for (const s of steamSet) {
+          const c = statsBySteam.get(s)?.length ?? 0;
+          if (c > bestCount) { best = s; bestCount = c; }
+        }
+        primarySteam.set(pk, best);
+      }
+    }
+
+    // ── 7. 按 playerKey 合并数据 ─────────────────────────────────────────
+    const playerKeys = [...steamsByPlayerKey.keys()];
+
+    const mergeStats = (pk: string): PlayerStatRow[] => {
+      const result: PlayerStatRow[] = [];
+      for (const steam of steamsByPlayerKey.get(pk) ?? []) {
+        result.push(...(statsBySteam.get(steam) ?? []));
+      }
+      return result;
+    };
+    const mergeBlinds = (pk: string): BlindsRow[] => {
+      const result: BlindsRow[] = [];
+      for (const steam of steamsByPlayerKey.get(pk) ?? []) {
+        result.push(...(blindsBySteam.get(steam) ?? []));
+      }
+      return result;
+    };
+    const mergeSum = (pk: string, map: Map<string, number>): number => {
+      let sum = 0;
+      for (const steam of steamsByPlayerKey.get(pk) ?? []) {
+        sum += map.get(steam) ?? 0;
+      }
+      return sum;
+    };
+    const mergeEco = (pk: string): EcoAgg | undefined => {
+      const merged: EcoAgg = {
+        ecoRounds: 0, forceRounds: 0, fullBuyRounds: 0, pistolRounds: 0,
+        equipmentValueSum: 0, equipmentValueCount: 0,
+      };
+      let hasData = false;
+      for (const steam of steamsByPlayerKey.get(pk) ?? []) {
+        const agg = ecoBySteam.get(steam);
+        if (!agg) continue;
+        hasData = true;
+        merged.ecoRounds += agg.ecoRounds;
+        merged.forceRounds += agg.forceRounds;
+        merged.fullBuyRounds += agg.fullBuyRounds;
+        merged.pistolRounds += agg.pistolRounds;
+        merged.equipmentValueSum += agg.equipmentValueSum;
+        merged.equipmentValueCount += agg.equipmentValueCount;
+      }
+      return hasData ? merged : undefined;
+    };
+    const mergeMapCount = (pk: string): Set<string> => {
+      const set = new Set<string>();
+      for (const steam of steamsByPlayerKey.get(pk) ?? []) {
+        for (const mapId of mapCountBySteam.get(steam) ?? []) {
+          set.add(mapId);
+        }
+      }
+      return set;
+    };
+
+    // ── 8. 计算每人的 RRIndicators 并调用 computeRR ───────────────────────
     const rrWeights = rrWeightsRaw as unknown as RRWeights;
     const prismWeights = prismWeightsRaw as unknown as PrismWeights;
 
-    const indicatorsList = steamList.map((steamId64) => {
-      const stats = statsBySteam.get(steamId64) ?? [];
-      const blinds = blindsBySteam.get(steamId64) ?? [];
-      const ecoAgg = ecoBySteam.get(steamId64);
+    const mergedData = playerKeys.map((pk) => {
+      const stats = mergeStats(pk);
+      const ecoAgg = mergeEco(pk);
       const economy = ecoAgg
         ? {
             ecoRounds: ecoAgg.ecoRounds,
@@ -203,46 +307,57 @@ export async function recomputeSeasonRatings(
           }
         : undefined;
 
-      return toRRIndicators({
-        steamId64,
-        stats,
-        blinds,
-        flashAssistCount: flashAssistBySteam.get(steamId64) ?? 0,
-        grenadeCount: grenadeBySteam.get(steamId64) ?? 0,
-        economy,
-      });
+      // userId: 若 pk 本身就是 userId 则直接用，否则查 steam→user 映射
+      const isUserId = [...steamId64ToUserId.values()].some((uid) => uid === pk);
+      const uid = isUserId ? pk : (steamId64ToUserId.get(pk) ?? null);
+
+      return {
+        playerKey: pk,
+        primarySteamId64: primarySteam.get(pk)!,
+        userId: uid,
+        indicators: toRRIndicators({
+          steamId64: primarySteam.get(pk)!,
+          stats,
+          blinds: mergeBlinds(pk),
+          flashAssistCount: mergeSum(pk, flashAssistBySteam),
+          grenadeCount: mergeSum(pk, grenadeBySteam),
+          economy,
+        }),
+        mapCountSet: mergeMapCount(pk),
+      };
     });
 
+    const indicatorsList = mergedData.map((d) => d.indicators);
     const rrResults = indicatorsList.map((ind) => computeRR(ind, rrWeights));
 
-    // ── 7. 锚定到联赛均值 ─────────────────────────────────────────────────
+    // ── 9. 锚定到联赛均值 ─────────────────────────────────────────────────
     const leagueMean = computeLeagueMean(rrResults);
     const anchoredRR = rrResults.map((r) => ({
       ...r,
       rr: leagueMean > 0 ? r.rr / leagueMean : r.rr,
     }));
 
-    // ── 8. 构建 PRISM cohort 并计算 ──────────────────────────────────────
+    // ── 10. 构建 PRISM cohort 并计算 ─────────────────────────────────────
     const allAnchored = anchoredRR.map((r) => r.rr);
     const cohort: PrismComputeInput[] = indicatorsList.map((ind, i) => ({
       indicators: ind,
-      mapCount: mapCountBySteam.get(ind.steamId64)?.size ?? 1,
+      mapCount: mergedData[i]?.mapCountSet.size ?? 1,
       rrPercentile: rrToPercentile(allAnchored, anchoredRR[i]?.rr ?? 1),
     }));
 
     const prismResults = computePrism(cohort, prismWeights);
 
-    // ── 9. Upsert player_ratings ──────────────────────────────────────────
+    // ── 11. Upsert player_ratings ─────────────────────────────────────────
     const now = new Date();
-    const upsertRows = steamList.map((steamId64, i) => {
+    const upsertRows = mergedData.map((d, i) => {
       const rr = anchoredRR[i];
       const prism = prismResults[i];
-      const mc = mapCountBySteam.get(steamId64)?.size ?? 0;
+      const mc = d.mapCountSet.size;
 
       return {
         seasonId,
-        userId: userIdBySteam.get(steamId64) ?? null,
-        steamId64,
+        userId: d.userId,
+        steamId64: d.primarySteamId64,
         rrScore: rr ? String(rr.rr.toFixed(4)) : null,
         rrWeightsVersion: rrWeights.version,
         prismFirepower: prism ? String(prism.axes.firepower.percentile.toFixed(2)) : null,
@@ -284,7 +399,24 @@ export async function recomputeSeasonRatings(
         });
     }
 
-    // ── 10. 写 audit_log ──────────────────────────────────────────────────
+    // ── 清理合并后冗余的 player_ratings 行 ────────────────────────────────
+    // 删除那些 steamId64 属于同 userId 但不再是 primary 的旧行
+    const allPrimarySteams = new Set(mergedData.map((d) => d.primarySteamId64));
+    const staleSteams = [...allSteamSet].filter(
+      (s) => !allPrimarySteams.has(s) && getPlayerKey(s) !== s,
+    );
+    if (staleSteams.length > 0) {
+      await db
+        .delete(playerRatings)
+        .where(
+          and(
+            eq(playerRatings.seasonId, seasonId),
+            inArray(playerRatings.steamId64, staleSteams),
+          ),
+        );
+    }
+
+    // ── 12. 写 audit_log ──────────────────────────────────────────────────
     await db.insert(auditLogs).values({
       seasonId,
       action: "season.recompute_ratings",
@@ -292,13 +424,13 @@ export async function recomputeSeasonRatings(
       targetId: seasonId,
       targetType: "season",
       meta: {
-        playerCount: steamList.length,
+        playerCount: mergedData.length,
         rrWeightsVersion: rrWeights.version,
         prismWeightsVersion: prismWeights.version,
       },
     });
 
-    // ── 11. 重新验证缓存 ──────────────────────────────────────────────────
+    // ── 13. 重新验证缓存 ──────────────────────────────────────────────────
     const season = await db.query.seasons.findFirst({
       where: eq(seasons.id, seasonId),
       columns: { slug: true },
@@ -308,7 +440,7 @@ export async function recomputeSeasonRatings(
       revalidatePath(`/admin/${season.slug}/demos`);
     }
 
-    return ok({ playerCount: steamList.length, weightsVersion: rrWeights.version });
+    return ok({ playerCount: mergedData.length, weightsVersion: rrWeights.version });
   } catch (e) {
     return actionError("recomputeSeasonRatings", e);
   }
