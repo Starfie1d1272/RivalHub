@@ -1,5 +1,11 @@
 "use client";
 
+import { PRISM_AXES, HEX_AXES, buildPrismScores, averagePrismScores, type RadarAxis, type PrismScores } from "@/lib/stats/prism";
+
+// 重新导出以便现有 import 路径继续工作
+export { PRISM_AXES, HEX_AXES, buildPrismScores, averagePrismScores };
+export type { RadarAxis, PrismScores };
+
 /**
  * 通用 N 轴雷达图。
  *
@@ -14,11 +20,6 @@ const DEFAULT_COLORS = [
   "#10b981",
   "#8b5cf6",
 ];
-
-export interface RadarAxis {
-  key: string;
-  label: string;
-}
 
 export interface RadarSeries {
   name: string;
@@ -164,60 +165,3 @@ export function RadarChart({ axes, series, size = 300 }: RadarChartProps) {
   );
 }
 
-// ─── PRISM 八维轴配置 ──────────────────────────────────────────────────────────
-export const PRISM_AXES: readonly RadarAxis[] = [
-  { key: "firepower", label: "Firepower" },
-  { key: "opening",   label: "Opening" },
-  { key: "entry",     label: "Entry" },
-  { key: "trading",   label: "Trading" },
-  { key: "clutch",    label: "Clutch" },
-  { key: "sniping",   label: "Sniping" },
-  { key: "utility",   label: "Utility" },
-  { key: "survival",  label: "Survival" },
-] as const;
-
-// ─── 六维轴配置（与 PlayerRadarChart 口径一致） ────────────────────────────────
-export const HEX_AXES: readonly RadarAxis[] = [
-  { key: "firepower", label: "Firepower" },
-  { key: "opening",   label: "Opening" },
-  { key: "multikill", label: "MultiKill" },
-  { key: "clutch",    label: "Clutch" },
-  { key: "utility",   label: "Utility" },
-  { key: "survival",  label: "Survival" },
-] as const;
-
-export interface PrismScores {
-  firepower: number;
-  opening: number;
-  clutch: number;
-  sniping: number;
-  survival: number;
-  utility: number;
-  trading: number;
-  entry: number;
-}
-
-// ─── 共享工具函数 ──────────────────────────────────────────────────────────
-
-/** 从 player_ratings 查询行构建 PrismScores（raw values → Number） */
-export function buildPrismScores(r: Record<string, unknown>): PrismScores | null {
-  if (r.prismFirepower == null) return null;
-  return {
-    firepower: Number(r.prismFirepower ?? r.firepower),
-    opening:   Number(r.prismOpening   ?? r.opening),
-    clutch:    Number(r.prismClutch    ?? r.clutch),
-    sniping:   Number(r.prismSniping   ?? r.sniping),
-    survival:  Number(r.prismSurvival  ?? r.survival),
-    utility:   Number(r.prismUtility   ?? r.utility),
-    trading:   Number(r.prismTrading   ?? r.trading),
-    entry:     Number(r.prismEntry     ?? r.entry),
-  };
-}
-
-/** 对 PrismScores 列表按轴求均值（返回 null 列表为空时） */
-export function averagePrismScores(prisms: PrismScores[]): PrismScores | null {
-  if (prisms.length === 0) return null;
-  return Object.fromEntries(
-    PRISM_AXES.map((a) => [a.key, prisms.reduce((s, p) => s + (p[a.key as keyof PrismScores] ?? 0), 0) / prisms.length]),
-  ) as unknown as PrismScores;
-}

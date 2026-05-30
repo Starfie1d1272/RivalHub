@@ -56,7 +56,7 @@ export async function getSeasonDemoStats(
 ): Promise<ActionResult<DemoLeaderboardData[]>> {
   const { rows } = await db.execute(sql`
     SELECT
-      dps.user_id,
+      min(dps.user_id) AS user_id,
       min(dp.name) AS perfect_name,
       min(dp.steam_id64) AS steam_id64,
       count(*)::int AS maps,
@@ -166,7 +166,7 @@ export async function getSeasonWeaponStats(
 ): Promise<ActionResult<PlayerWeaponStats[]>> {
   const { rows } = await db.execute(sql`
     SELECT
-      dps.user_id,
+      min(dps.user_id) AS user_id,
       min(dp.name) AS perfect_name,
       dk.weapon,
       count(*)::int AS kills,
@@ -243,7 +243,7 @@ export interface WeaponKillStatsRow {
 export async function getWeaponKillStats(seasonId: string): Promise<WeaponKillStatsRow[]> {
   const { rows } = await db.execute(sql`
     SELECT
-      dp.user_id,
+      min(dp.user_id) AS user_id,
       dp.name AS perfect_name,
       dk.weapon,
       count(*)::int AS kills,
@@ -297,7 +297,7 @@ export async function getSeasonHighlightStats(
 ): Promise<ActionResult<PlayerHighlightStats[]>> {
   const { rows } = await db.execute(sql`
     SELECT
-      dps.user_id,
+      min(dps.user_id) AS user_id,
       min(dp.name) AS perfect_name,
       min(dp.steam_id64) AS steam_id64,
       count(*)::int AS maps,
