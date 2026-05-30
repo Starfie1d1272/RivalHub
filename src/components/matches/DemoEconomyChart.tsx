@@ -2,6 +2,8 @@ import React from "react";
 import {
   buildEconomySeries,
   getEconomyBgColor,
+  getEconomyLabel,
+  ECONOMY_TYPES,
   type EconomyRow,
   type RoundEconomyType,
 } from "@/lib/demo/economy-series";
@@ -67,7 +69,8 @@ export function DemoEconomyChart({
   for (let v = 0; v <= yMax; v += step) yTicks.push(v);
 
   return (
-    <div className="overflow-x-auto">
+    <div className="space-y-3">
+      <div className="overflow-x-auto">
       <svg width={W} height={H} className="text-[var(--color-fg)]">
         {/* 经济类型背景色块 */}
         {series.map((s, i) => {
@@ -169,53 +172,38 @@ export function DemoEconomyChart({
             fill="var(--color-accent-b)"
           />
         ))}
-
-        {/* 图例 */}
-        <g transform={`translate(${W - 120}, 8)`}>
-          <line
-            x1={0}
-            y1={0}
-            x2={16}
-            y2={0}
-            stroke="var(--color-accent)"
-            strokeWidth={2}
-          />
-          <text x={20} y={3} className="text-[10px] fill-[var(--color-fg)]">
-            {teamAName}
-          </text>
-          <line
-            x1={0}
-            y1={14}
-            x2={16}
-            y2={14}
-            stroke="var(--color-accent-b)"
-            strokeWidth={2}
-          />
-          <text x={20} y={17} className="text-[10px] fill-[var(--color-fg)]">
-            {teamBName}
-          </text>
-        </g>
-
-        {/* 经济类型图例 */}
-        <g transform={`translate(8, ${H - 14})`}>
-          {[
-            { label: "Full", color: "color-mix(in srgb, var(--color-success) 30%, transparent)" },
-            { label: "Force", color: "color-mix(in srgb, var(--color-warn) 30%, transparent)" },
-            { label: "Eco", color: "color-mix(in srgb, var(--color-error) 30%, transparent)" },
-          ].map((item, i) => (
-            <g key={item.label} transform={`translate(${i * 60}, 0)`}>
-              <rect x={0} y={0} width={8} height={8} rx={1} fill={item.color} />
-              <text
-                x={11}
-                y={7}
-                className="text-[8px] fill-[var(--color-fg-dim)]"
-              >
-                {item.label}
-              </text>
-            </g>
-          ))}
-        </g>
       </svg>
+      </div>
+
+      {/* HTML 图例 */}
+      <div className="flex flex-col gap-2 text-xs">
+        {/* 折线图例 */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="inline-block w-4 h-0.5 rounded" style={{ background: "var(--color-accent)" }} />
+            <span className="text-[var(--color-fg)]">{teamAName}</span>
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="inline-block w-4 h-0.5 rounded" style={{ background: "var(--color-accent-b)" }} />
+            <span className="text-[var(--color-fg)]">{teamBName}</span>
+          </span>
+          <span className="text-[var(--color-fg-dim)]">折线为每回合装备价值</span>
+        </div>
+
+        {/* 经济类型背景图例 */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="text-[var(--color-fg-dim)]">回合经济（上半区 {teamAName} / 下半区 {teamBName}）：</span>
+          {ECONOMY_TYPES.map((t) => (
+            <span key={t} className="inline-flex items-center gap-1">
+              <span
+                className="inline-block w-3 h-3 rounded-sm border border-[var(--color-border)]"
+                style={{ background: getEconomyBgColor(t) }}
+              />
+              <span className="text-[var(--color-fg-mid)]">{getEconomyLabel(t)}</span>
+            </span>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

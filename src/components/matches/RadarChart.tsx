@@ -176,6 +176,16 @@ export const PRISM_AXES: readonly RadarAxis[] = [
   { key: "survival",  label: "Survival" },
 ] as const;
 
+// ─── 六维轴配置（与 PlayerRadarChart 口径一致） ────────────────────────────────
+export const HEX_AXES: readonly RadarAxis[] = [
+  { key: "firepower", label: "Firepower" },
+  { key: "opening",   label: "Opening" },
+  { key: "multikill", label: "MultiKill" },
+  { key: "clutch",    label: "Clutch" },
+  { key: "utility",   label: "Utility" },
+  { key: "survival",  label: "Survival" },
+] as const;
+
 export interface PrismScores {
   firepower: number;
   opening: number;
@@ -185,4 +195,29 @@ export interface PrismScores {
   utility: number;
   trading: number;
   entry: number;
+}
+
+// ─── 共享工具函数 ──────────────────────────────────────────────────────────
+
+/** 从 player_ratings 查询行构建 PrismScores（raw values → Number） */
+export function buildPrismScores(r: Record<string, unknown>): PrismScores | null {
+  if (r.prismFirepower == null) return null;
+  return {
+    firepower: Number(r.prismFirepower ?? r.firepower),
+    opening:   Number(r.prismOpening   ?? r.opening),
+    clutch:    Number(r.prismClutch    ?? r.clutch),
+    sniping:   Number(r.prismSniping   ?? r.sniping),
+    survival:  Number(r.prismSurvival  ?? r.survival),
+    utility:   Number(r.prismUtility   ?? r.utility),
+    trading:   Number(r.prismTrading   ?? r.trading),
+    entry:     Number(r.prismEntry     ?? r.entry),
+  };
+}
+
+/** 对 PrismScores 列表按轴求均值（返回 null 列表为空时） */
+export function averagePrismScores(prisms: PrismScores[]): PrismScores | null {
+  if (prisms.length === 0) return null;
+  return Object.fromEntries(
+    PRISM_AXES.map((a) => [a.key, prisms.reduce((s, p) => s + (p[a.key as keyof PrismScores] ?? 0), 0) / prisms.length]),
+  ) as unknown as PrismScores;
 }

@@ -1,19 +1,12 @@
 import React from "react";
 import { Panel } from "@/components/rivalhub";
+import { economyLabelCn } from "@/lib/demo/economy-series";
 import type { EconomyTypeStats } from "@/lib/demo/economy-conversion";
 
 interface EconomyConversionPanelProps {
   stats: Record<string, EconomyTypeStats>;
   teamName: string;
 }
-
-const ECONOMY_LABELS: Record<string, string> = {
-  full: "全枪全弹",
-  semi: "半起",
-  eco: "纯ECO",
-  force: "强起",
-  pistol: "手枪局",
-};
 
 const ECONOMY_COLORS: Record<string, string> = {
   full: "text-[var(--color-success)]",
@@ -72,7 +65,7 @@ export function EconomyConversionPanel({
               >
                 <td className="py-2 px-3 font-medium">
                   <span className={ECONOMY_COLORS[economy] ?? "text-[var(--color-fg-mid)]"}>
-                    {ECONOMY_LABELS[economy] ?? economy}
+                    {economyLabelCn(economy)}
                   </span>
                 </td>
                 <td className="py-2 px-3 text-right">{s.played}</td>

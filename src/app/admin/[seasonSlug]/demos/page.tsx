@@ -190,7 +190,7 @@ export default async function AdminDemosPage({ params }: PageProps) {
                           {map.scoreA != null ? `${map.scoreA} : ${map.scoreB}` : "—"}
                         </span>
                         {hasDemo && (
-                          <span className="text-[11px] px-1.5 py-0.5 rounded bg-[rgba(77,212,122,0.12)] text-[var(--color-ok)]">
+                          <span className="text-[11px] px-1.5 py-0.5 rounded bg-[color-mix(in srgb, var(--color-ok) 12%, transparent)] text-[var(--color-ok)]">
                             已导入
                           </span>
                         )}

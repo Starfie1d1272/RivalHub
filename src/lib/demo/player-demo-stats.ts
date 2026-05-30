@@ -110,6 +110,12 @@ export interface PlayerDemoAggregate {
   /** trade kill 率 */
   tradeKillRate: number;
 
+  /** 多杀分布（回合数） */
+  multiKills: { two: number; three: number; four: number; five: number };
+
+  /** 高光击杀计数 */
+  highlights: { wallbang: number; noScope: number; collateral: number };
+
   /** 致盲敌人数 */
   blindsEnemies: number;
   /** 致盲总秒数 */
@@ -137,6 +143,10 @@ export function aggregatePlayerDemoStats(
   let firstDeathCount = 0;
   let tradeKillCount = 0;
   let multiKillCount = 0;
+
+  // 多杀分布 & 高光
+  let twoK = 0; let threeK = 0; let fourK = 0; let fiveK = 0;
+  let wallbang = 0; let noScope = 0; let collateral = 0;
 
   // 残局
   let vsOneCount = 0; let vsOneWon = 0;
@@ -166,6 +176,14 @@ export function aggregatePlayerDemoStats(
     tradeKillCount += (s.tradeKillCount ?? 0);
 
     multiKillCount += (s.twoKillCount ?? 0) + (s.threeKillCount ?? 0) + (s.fourKillCount ?? 0) + (s.fiveKillCount ?? 0);
+
+    twoK += (s.twoKillCount ?? 0);
+    threeK += (s.threeKillCount ?? 0);
+    fourK += (s.fourKillCount ?? 0);
+    fiveK += (s.fiveKillCount ?? 0);
+    wallbang += (s.wallbangKillCount ?? 0);
+    noScope += (s.noScopeKillCount ?? 0);
+    collateral += (s.collateralKillCount ?? 0);
 
     vsOneCount += (s.vsOneCount ?? 0); vsOneWon += (s.vsOneWonCount ?? 0);
     vsTwoCount += (s.vsTwoCount ?? 0); vsTwoWon += (s.vsTwoWonCount ?? 0);
@@ -222,6 +240,8 @@ export function aggregatePlayerDemoStats(
     vsFour: { count: vsFourCount, won: vsFourWon },
     vsFive: { count: vsFiveCount, won: vsFiveWon },
     tradeKillRate,
+    multiKills: { two: twoK, three: threeK, four: fourK, five: fiveK },
+    highlights: { wallbang, noScope, collateral },
     blindsEnemies,
     blindsDuration,
   };

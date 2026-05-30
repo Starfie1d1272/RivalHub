@@ -321,7 +321,7 @@ export function DemoBatchImportPanel({ seasonId, availableMaps }: Props) {
 function ImportStatusBadge({ row }: { row: RowState }) {
   if (row.importStatus === "success") {
     return (
-      <span className="text-[11px] px-1.5 py-0.5 rounded bg-[rgba(77,212,122,0.12)] text-[var(--color-ok)]">
+      <span className="text-[11px] px-1.5 py-0.5 rounded bg-[color-mix(in srgb, var(--color-ok) 12%, transparent)] text-[var(--color-ok)]">
         ✓ 成功
       </span>
     );
@@ -329,7 +329,7 @@ function ImportStatusBadge({ row }: { row: RowState }) {
   if (row.importStatus === "error") {
     return (
       <div>
-        <span className="text-[11px] px-1.5 py-0.5 rounded bg-[rgba(255,80,80,0.12)] text-[var(--color-error)]">
+        <span className="text-[11px] px-1.5 py-0.5 rounded bg-[color-mix(in srgb, var(--color-danger) 12%, transparent)] text-[var(--color-error)]">
           ✗ 失败
         </span>
         {row.errorMessage && (
@@ -342,7 +342,7 @@ function ImportStatusBadge({ row }: { row: RowState }) {
   }
   if (row.importStatus === "importing") {
     return (
-      <span className="text-[11px] px-1.5 py-0.5 rounded bg-[rgba(255,200,0,0.12)] text-[var(--color-warn)]">
+      <span className="text-[11px] px-1.5 py-0.5 rounded bg-[color-mix(in srgb, var(--color-warn) 12%, transparent)] text-[var(--color-warn)]">
         导入中…
       </span>
     );
@@ -350,27 +350,27 @@ function ImportStatusBadge({ row }: { row: RowState }) {
   // pending
   if (row.confidence === "exact") {
     return (
-      <span className="text-[11px] px-1.5 py-0.5 rounded bg-[rgba(77,212,122,0.08)] text-[var(--color-ok)]">
+      <span className="text-[11px] px-1.5 py-0.5 rounded bg-[color-mix(in srgb, var(--color-ok) 8%, transparent)] text-[var(--color-ok)]">
         ✅ 自动匹配
       </span>
     );
   }
   if (row.confidence === "fuzzy" && row.mapId) {
     return (
-      <span className="text-[11px] px-1.5 py-0.5 rounded bg-[rgba(255,200,0,0.12)] text-[var(--color-warn)]">
+      <span className="text-[11px] px-1.5 py-0.5 rounded bg-[color-mix(in srgb, var(--color-warn) 12%, transparent)] text-[var(--color-warn)]">
         ⚠ 模糊匹配
       </span>
     );
   }
   if (row.mapId) {
     return (
-      <span className="text-[11px] px-1.5 py-0.5 rounded bg-[rgba(255,200,0,0.12)] text-[var(--color-warn)]">
+      <span className="text-[11px] px-1.5 py-0.5 rounded bg-[color-mix(in srgb, var(--color-warn) 12%, transparent)] text-[var(--color-warn)]">
         ⚠ 手动
       </span>
     );
   }
   return (
-    <span className="text-[11px] px-1.5 py-0.5 rounded bg-[rgba(255,80,80,0.08)] text-[var(--color-fg-dim)]">
+    <span className="text-[11px] px-1.5 py-0.5 rounded bg-[color-mix(in srgb, var(--color-danger) 8%, transparent)] text-[var(--color-fg-dim)]">
       ❌ 未匹配
     </span>
   );

@@ -168,7 +168,6 @@ export async function getSeasonWeaponStats(
     SELECT
       dps.user_id,
       min(dp.name) AS perfect_name,
-      min(dp.steam_id64) AS steam_id64,
       dk.weapon,
       count(*)::int AS kills,
       sum(CASE WHEN dk.headshot THEN 1 ELSE 0 END)::int AS headshots

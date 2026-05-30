@@ -15,8 +15,13 @@ import { playerRatings } from "@/db/schema";
 import { wAvg } from "@/lib/utils/stats";
 import { getSeasonHexagonScores } from "@/actions/hexagon";
 import type { HexagonScores } from "@/lib/utils/hexagon";
+import { getOcrAveragesBySeason } from "@/lib/stats";
 import { PlayerRadarChart } from "@/components/matches/PlayerRadarChart";
-import { RadarChart, PRISM_AXES, type PrismScores } from "@/components/matches/RadarChart";
+import { RadarChart, PRISM_AXES, buildPrismScores, type PrismScores } from "@/components/matches/RadarChart";
+import { getPlayerDemoStats } from "@/actions/player-demo-stats";
+import { getSeasonWeaponStats, type PlayerWeaponStats } from "@/actions/season-demo-stats";
+import { PlayerDemoCard } from "@/components/players/PlayerDemoCard";
+import type { PlayerDemoAggregate } from "@/lib/demo/player-demo-stats";
 
 /**
  * 统计玩家 MVP 获胜次数（从 matches.mvp_winner_user_id 直读，已持久化缓存）。
@@ -144,28 +149,28 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
     })
   );
 
+  // ── Demo 进阶聚合 + 武器画像：按赛季查询，仅保留有 demo 回合数据的赛季 ──
+  const demoBySeasonSlug = new Map<string, PlayerDemoAggregate>();
+  const weaponBySeasonSlug = new Map<string, PlayerWeaponStats>();
+  await Promise.all(
+    playerStats.map(async (ps) => {
+      const [demoRes, weaponRes] = await Promise.all([
+        getPlayerDemoStats(userId, ps.seasonSlug),
+        getSeasonWeaponStats(ps.seasonId),
+      ]);
+      if (demoRes.success && demoRes.data.totalRounds > 0) {
+        demoBySeasonSlug.set(ps.seasonSlug, demoRes.data);
+      }
+      if (weaponRes.success) {
+        const mine = weaponRes.data.find((w) => w.userId === userId);
+        if (mine && mine.totalKills > 0) weaponBySeasonSlug.set(ps.seasonSlug, mine);
+      }
+    })
+  );
+
   // ── OCR 专属指标回填（rws/we/ratingPro 始终从 manual_ocr 行读取）────────
   if (playerStats.length > 0) {
-    const ocrRows = await db
-      .select({
-        seasonId: seasons.id,
-        avgRws:    sql<number | null>`round(avg(${matchPlayerStats.rws})::numeric, 2)`,
-        avgWe:     sql<number | null>`round(avg(${matchPlayerStats.we})::numeric, 1)`,
-        avgRating: sql<number | null>`round(avg(${matchPlayerStats.ratingPro})::numeric, 2)`,
-      })
-      .from(matchPlayerStats)
-      .innerJoin(matches, eq(matchPlayerStats.matchId, matches.id))
-      .innerJoin(seasons, eq(matches.seasonId, seasons.id))
-      .where(
-        and(
-          eq(matchPlayerStats.userId, userId),
-          sql`${matchPlayerStats.verifiedByAdmin} IS NOT NULL`,
-          sql`${matchPlayerStats.source} = 'manual_ocr'::stat_source`,
-        )
-      )
-      .groupBy(seasons.id);
-
-    const ocrBySeason = new Map(ocrRows.map((r) => [r.seasonId, r]));
+    const ocrBySeason = await getOcrAveragesBySeason(db, userId);
     for (const ps of playerStats) {
       const ocr = ocrBySeason.get(ps.seasonId);
       if (ocr) {
@@ -198,19 +203,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
       .from(playerRatings)
       .where(and(eq(playerRatings.userId, userId), inArray(playerRatings.seasonId, seasonIds)));
     for (const r of rrRows) {
-      const hasPrism = r.prismFirepower != null;
-      const prism: PrismScores | null = hasPrism
-        ? {
-            firepower: Number(r.prismFirepower),
-            opening: Number(r.prismOpening),
-            clutch: Number(r.prismClutch),
-            sniping: Number(r.prismSniping),
-            survival: Number(r.prismSurvival),
-            utility: Number(r.prismUtility),
-            trading: Number(r.prismTrading),
-            entry: Number(r.prismEntry),
-          }
-        : null;
+      const prism = buildPrismScores(r as unknown as Record<string, unknown>);
       rrBySeasonId.set(r.seasonId, { rrScore: r.rrScore ? Number(r.rrScore) : null, mapCount: r.mapCount, prism });
     }
   }
@@ -556,6 +549,30 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
               </p>
             </div>
           )}
+        </section>
+      )}
+
+      {/* Demo 进阶数据（按赛季） */}
+      {demoBySeasonSlug.size > 0 && (
+        <section className="space-y-3">
+          <SectionHeading>Demo 进阶数据</SectionHeading>
+          {[...playerStats]
+            .reverse()
+            .map((ps) => {
+              const demo = demoBySeasonSlug.get(ps.seasonSlug);
+              if (!demo) return null;
+              return (
+                <PlayerDemoCard
+                  key={ps.seasonSlug}
+                  seasonName={ps.seasonName}
+                  data={demo}
+                  weapon={weaponBySeasonSlug.get(ps.seasonSlug)}
+                />
+              );
+            })}
+          <p className="text-[11px] text-[var(--color-fg-dim)] px-1 leading-relaxed">
+            数据来源于本赛季已解析的 demo，仅统计以 demo 为准生效的对局。
+          </p>
         </section>
       )}
 

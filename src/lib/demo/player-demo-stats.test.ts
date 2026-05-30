@@ -102,6 +102,48 @@ describe("aggregatePlayerDemoStats", () => {
     expect(r.vsTwo).toEqual({ count: 1, won: 0 });
   });
 
+  it("多杀分布与高光击杀累加", () => {
+    const stats: PlayerStatRow[] = [
+      {
+        kills: 12, deaths: 5, assists: 2,
+        adr: 90, kast: 75,
+        firstKillCount: 0, firstDeathCount: 0,
+        tradeKillCount: 0, tradeDeathCount: 0,
+        rounds: 20,
+        oneKillCount: 3, twoKillCount: 2, threeKillCount: 1,
+        fourKillCount: 1, fiveKillCount: 0,
+        vsOneCount: 0, vsOneWonCount: 0,
+        vsTwoCount: 0, vsTwoWonCount: 0,
+        vsThreeCount: 0, vsThreeWonCount: 0,
+        vsFourCount: 0, vsFourWonCount: 0,
+        vsFiveCount: 0, vsFiveWonCount: 0,
+        utilityDamage: 0,
+        averageUtilityDamagePerRound: 0,
+        wallbangKillCount: 2, noScopeKillCount: 1, collateralKillCount: 1,
+      },
+      {
+        kills: 6, deaths: 8, assists: 1,
+        adr: 50, kast: 50,
+        firstKillCount: 0, firstDeathCount: 0,
+        tradeKillCount: 0, tradeDeathCount: 0,
+        rounds: 16,
+        oneKillCount: 2, twoKillCount: 1, threeKillCount: 0,
+        fourKillCount: 0, fiveKillCount: 1,
+        vsOneCount: 0, vsOneWonCount: 0,
+        vsTwoCount: 0, vsTwoWonCount: 0,
+        vsThreeCount: 0, vsThreeWonCount: 0,
+        vsFourCount: 0, vsFourWonCount: 0,
+        vsFiveCount: 0, vsFiveWonCount: 0,
+        utilityDamage: 0,
+        averageUtilityDamagePerRound: 0,
+        wallbangKillCount: 1, noScopeKillCount: 0, collateralKillCount: 0,
+      },
+    ];
+    const r = aggregatePlayerDemoStats(stats);
+    expect(r.multiKills).toEqual({ two: 3, three: 1, four: 1, five: 1 });
+    expect(r.highlights).toEqual({ wallbang: 3, noScope: 1, collateral: 1 });
+  });
+
   it("致盲统计", () => {
     const stats: PlayerStatRow[] = [{
       kills: 1, deaths: 0, assists: 0,

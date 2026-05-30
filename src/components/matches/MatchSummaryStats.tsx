@@ -155,14 +155,14 @@ export function MatchSummaryStats({
       <TeamBlock
         teamName={teamAName}
         borderColor="var(--color-accent)"
-        bgColor="rgba(77,212,122,0.04)"
+        bgColor="color-mix(in srgb, var(--color-ok) 4%, transparent)"
         players={teamAPlayers}
         seasonSlug={seasonSlug}
       />
       <TeamBlock
         teamName={teamBName}
         borderColor="var(--color-accent-b)"
-        bgColor="rgba(66,170,255,0.04)"
+        bgColor="color-mix(in srgb, var(--color-accent-b) 4%, transparent)"
         players={teamBPlayers}
         seasonSlug={seasonSlug}
       />

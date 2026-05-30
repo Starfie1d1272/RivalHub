@@ -5,6 +5,29 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.28.0] - 2026-05-30
+
+### Added
+- **比赛页赛前情报**：赛季风格对比 + 双队同图能力雷达（八维 PRISM / 六维回退）
+- **队伍页赛季风格分析**：T/CT 半场胜率 + 风格画像 + 经济转化率
+- **队伍能力图升级**：`TeamRadarPanel` Tab 切换六维 / PRISM 八维
+- **选手页 Demo 进阶卡片**：`PlayerDemoCard`（KAST/ADR/Entry/残局 + 武器 + 多杀 + 高光）
+- **Stats 武器榜重设计**：拆为 AWP 狙击榜 + 武器使用画像
+- **共享工具函数**：`buildPrismScores` / `averagePrismScores`（match/team/player 复用）
+
+### Changed
+- **全量颜色规范化**：硬编码 `rgba()` → `color-mix()`，23 文件
+- **OCR 回退去重**：`ocrFallbackCte` / `getOcrAveragesBySeason` 三页面共用
+- **经济标签统一**：`economyLabelCn` + `ECONOMY_TYPES` 公开导出
+- **武器名去重**：`weaponFullName` 导出，消除 3 处内联映射
+- **经济图例重构**：SVG → HTML（完整 5 种类型 + 半区说明）
+- **Entry 面板重构**：全员排行 + 选手下钻逐回合明细
+- **热力图守卫**：全零坐标时显示空态而非误导红圈
+
+### Fixed
+- **队伍 Rating Pro = 0.0**：demo 源 NULL 时 COALESCE OCR 源回填
+- **赛前首杀/残局为空**：Drizzle enum 类型转换改用 raw SQL
+- **M4A1 武器名**：`m4a1_silencer` 映射修正为 "M4A1-S"
 ## [1.27.8] - 2026-05-30
 
 ### Fixed
@@ -1003,6 +1026,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.28.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.8...v1.28.0
 [1.27.8]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.7...v1.27.8
 [1.27.7]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.6...v1.27.7
 [1.27.6]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.5...v1.27.6

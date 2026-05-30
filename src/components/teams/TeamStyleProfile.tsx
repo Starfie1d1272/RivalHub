@@ -1,18 +1,11 @@
 import React from "react";
 import { Panel } from "@/components/rivalhub";
+import { economyLabelCn } from "@/lib/demo/economy-series";
 import type { TeamStyleProfile as TeamStyleProfileData } from "@/actions/team-demo-stats";
 
 interface TeamStyleProfileProps {
   profile: TeamStyleProfileData;
 }
-
-const ECONOMY_LABELS: Record<string, string> = {
-  full: "全枪全弹",
-  semi: "半起",
-  eco: "纯ECO",
-  force: "强起",
-  pistol: "手枪局",
-};
 
 function StatCard({
   label,
@@ -74,7 +67,7 @@ export function TeamStyleProfile({ profile }: TeamStyleProfileProps) {
                 className="flex items-center justify-between text-sm"
               >
                 <span className="w-16 font-medium">
-                  {ECONOMY_LABELS[economy] ?? economy}
+                  {economyLabelCn(economy)}
                 </span>
                 <div className="flex-1 mx-3">
                   <div className="w-full bg-[var(--color-bg-subtle)] rounded-full h-2">

@@ -16,7 +16,7 @@ export function Panel({ children, className, hi, label, pad = 16, hoverable, tea
   return (
     <Card
       className={cn(
-        hoverable && "transition-all duration-[180ms] ease-out hover:-translate-y-0.5 hover:border-[var(--color-border-hi)] hover:shadow-[0_4px_20px_rgba(255,107,26,0.03)]",
+        hoverable && "transition-all duration-[180ms] ease-out hover:-translate-y-0.5 hover:border-[var(--color-border-hi)] hover:shadow-[0_4px_20px_color-mix(in srgb, var(--color-accent) 3%, transparent)]",
         className
       )}
       style={{

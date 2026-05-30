@@ -1,13 +1,13 @@
 "use server";
 
-import { eq, and, sql, inArray } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { halfSideWinRate, type HalfSideStats } from "@/lib/demo/halfside-winrate";
 import { db } from "@/db/client";
 import { matches } from "@/db/schema/matches";
 import { matchMaps } from "@/db/schema/match-maps";
 import { ok, fail, type ActionResult } from "@/types/action";
 import { ErrorCode } from "@/lib/errors";
-import { demoImports, demoPlayerStats, demoPlayers, demoRounds } from "@/db/schema/demo";
+import { demoRounds } from "@/db/schema/demo";
 import { teamMembers } from "@/db/schema/teams";
 import { seasonRegistrations } from "@/db/schema/registrations";
 
@@ -47,44 +47,29 @@ export async function getTeamStyleProfile(
       });
     }
 
-    // 2. 用这些 userIds 查 demoPlayerStats，获取 firstKill 和 clutch 数据
-    const playerStats = await db
-      .select({
-        firstKillCount: demoPlayerStats.firstKillCount,
-        firstDeathCount: demoPlayerStats.firstDeathCount,
-        vsOneWonCount: demoPlayerStats.vsOneWonCount,
-        vsTwoWonCount: demoPlayerStats.vsTwoWonCount,
-        vsThreeWonCount: demoPlayerStats.vsThreeWonCount,
-        vsFourWonCount: demoPlayerStats.vsFourWonCount,
-        vsFiveWonCount: demoPlayerStats.vsFiveWonCount,
-        vsOneCount: demoPlayerStats.vsOneCount,
-        vsTwoCount: demoPlayerStats.vsTwoCount,
-        vsThreeCount: demoPlayerStats.vsThreeCount,
-        vsFourCount: demoPlayerStats.vsFourCount,
-        vsFiveCount: demoPlayerStats.vsFiveCount,
-      })
-      .from(demoPlayerStats)
-      .innerJoin(demoImports, eq(demoPlayerStats.importBatchId, demoImports.id))
-      .innerJoin(matchMaps, eq(demoImports.mapId, matchMaps.id))
-      .innerJoin(matches, eq(matchMaps.matchId, matches.id))
-      .where(
-        and(
-          inArray(demoPlayerStats.userId, userIds),
-          eq(matches.seasonId, seasonId),
-          eq(matchMaps.activeStatSource, "demo_import"),
-        ),
-      );
+    // 2. 用这些 userIds 查 demoPlayerStats（raw SQL，规避 Drizzle enum 类型转换问题）
+    const { rows: statRows } = await db.execute(sql`
+      SELECT
+        sum(dps.first_kill_count)::int       AS fk,
+        sum(dps.first_death_count)::int      AS fd,
+        sum(dps.vs_one_won_count + dps.vs_two_won_count + dps.vs_three_won_count
+          + dps.vs_four_won_count + dps.vs_five_won_count)::int AS cw,
+        sum(dps.vs_one_count + dps.vs_two_count + dps.vs_three_count
+          + dps.vs_four_count + dps.vs_five_count)::int AS ct
+      FROM demo_player_stats dps
+      JOIN demo_imports di ON di.id = dps.import_batch_id
+      JOIN match_maps mm ON mm.id = di.map_id
+      JOIN matches m ON m.id = mm.match_id
+      WHERE dps.user_id = ANY(${userIds})
+        AND m.season_id = ${seasonId}
+        AND mm.active_stat_source = 'demo_import'
+    `);
 
-    const totalFirstKills = playerStats.reduce((s, r) => s + Number(r.firstKillCount ?? 0), 0);
-    const totalFirstDeaths = playerStats.reduce((s, r) => s + Number(r.firstDeathCount ?? 0), 0);
-    const totalClutchWins = playerStats.reduce(
-      (s, r) => s + Number(r.vsOneWonCount ?? 0) + Number(r.vsTwoWonCount ?? 0) + Number(r.vsThreeWonCount ?? 0) + Number(r.vsFourWonCount ?? 0) + Number(r.vsFiveWonCount ?? 0),
-      0,
-    );
-    const totalClutchPlayed = playerStats.reduce(
-      (s, r) => s + Number(r.vsOneCount ?? 0) + Number(r.vsTwoCount ?? 0) + Number(r.vsThreeCount ?? 0) + Number(r.vsFourCount ?? 0) + Number(r.vsFiveCount ?? 0),
-      0,
-    );
+    const r = statRows[0] as Record<string, number> | undefined;
+    const totalFirstKills = Number(r?.fk ?? 0);
+    const totalFirstDeaths = Number(r?.fd ?? 0);
+    const totalClutchWins = Number(r?.cw ?? 0);
+    const totalClutchPlayed = Number(r?.ct ?? 0);
 
     const firstKillRate = (totalFirstKills + totalFirstDeaths) > 0 ? totalFirstKills / (totalFirstKills + totalFirstDeaths) : null;
     const clutchWinRate = totalClutchPlayed > 0 ? totalClutchWins / totalClutchPlayed : null;

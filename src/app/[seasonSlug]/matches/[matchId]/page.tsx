@@ -25,8 +25,9 @@ import { getMatchMvpResults, ensureMvpWinner } from "@/actions/player-stats";
 import { getTimeProposals } from "@/actions/matches/scheduling";
 import { getDemoDetail } from "@/actions/demo-detail";
 import { getTeamStyleProfile, getTeamHalfSideStats } from "@/actions/team-demo-stats";
-import { TeamHalfSideStats } from "@/components/teams/TeamHalfSideStats";
-import { TeamStyleProfile } from "@/components/teams/TeamStyleProfile";
+import { TeamStyleCompare } from "@/components/matches/TeamStyleCompare";
+import { playerRatings } from "@/db/schema";
+import { RadarChart, PRISM_AXES, buildPrismScores, averagePrismScores, type PrismScores } from "@/components/matches/RadarChart";
 import { DemoPlayerStatsTable } from "@/components/matches/DemoPlayerStatsTable";
 import { PlayerKillHeatmap } from "@/components/matches/PlayerKillHeatmap";
 import { PlayerWeaponBreakdown } from "@/components/matches/PlayerWeaponBreakdown";
@@ -239,7 +240,6 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
     .filter((s): s is HexagonScores => s != null);
   const teamHexA = hexA.length > 0 ? computeTeamDimensions(hexA) : null;
   const teamHexB = hexB.length > 0 ? computeTeamDimensions(hexB) : null;
-  const showHexComparison = teamHexA != null && teamHexB != null && !isFinished;
 
   // 首发选手赛季数据（用于 MatchLineupsH2H）
   // 用图级比分构建 mapRoundsMap（key: mapId），修复原来用系列赛比分当回合数的 bug
@@ -387,20 +387,52 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
     }
   }
 
-  // 赛季级别风格画像 + T/CT 半场胜率（已结束比赛）
-  const [styleAResult, styleBResult, halfSideAResult, halfSideBResult] = isFinished
+  // 赛季风格 + 半场胜率 + PRISM（赛前情报；已结束比赛改在队伍详情页查看）
+  const allTeamUserIds = [...new Set([...teamAUserIds, ...teamBUserIds])];
+  const [styleAResult, styleBResult, halfSideAResult, halfSideBResult, prismRows] = !isFinished
     ? await Promise.all([
         getTeamStyleProfile(match.teamAId, season.id),
         getTeamStyleProfile(match.teamBId, season.id),
         getTeamHalfSideStats(match.teamAId, season.id),
         getTeamHalfSideStats(match.teamBId, season.id),
+        allTeamUserIds.length > 0
+          ? db
+              .select({
+                userId: playerRatings.userId,
+                firepower: playerRatings.prismFirepower,
+                opening: playerRatings.prismOpening,
+                clutch: playerRatings.prismClutch,
+                sniping: playerRatings.prismSniping,
+                survival: playerRatings.prismSurvival,
+                utility: playerRatings.prismUtility,
+                trading: playerRatings.prismTrading,
+                entry: playerRatings.prismEntry,
+              })
+              .from(playerRatings)
+              .where(and(eq(playerRatings.seasonId, season.id), inArray(playerRatings.userId, allTeamUserIds)))
+          : Promise.resolve([]),
       ])
-    : [null, null, null, null];
+    : [null, null, null, null, []];
 
   const styleA = styleAResult?.success ? styleAResult.data : null;
   const styleB = styleBResult?.success ? styleBResult.data : null;
   const halfSideA = halfSideAResult?.success ? halfSideAResult.data : null;
   const halfSideB = halfSideBResult?.success ? halfSideBResult.data : null;
+
+  const prismByUserId = new Map<string, PrismScores>();
+  for (const r of prismRows) {
+    if (r.userId) {
+      const s = buildPrismScores(r as unknown as Record<string, unknown>);
+      if (s) prismByUserId.set(r.userId, s);
+    }
+  }
+
+  const teamPrismA = !isFinished
+    ? averagePrismScores(teamAUserIds.map((uid) => prismByUserId.get(uid)).filter((p): p is PrismScores => p != null))
+    : null;
+  const teamPrismB = !isFinished
+    ? averagePrismScores(teamBUserIds.map((uid) => prismByUserId.get(uid)).filter((p): p is PrismScores => p != null))
+    : null;
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-3xl space-y-8">
@@ -447,6 +479,72 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
         />
       )}
 
+      {/* 赛季风格对比 + 能力雷达（赛前/进行中情报） */}
+      {!isFinished && (
+        <>
+          <TeamStyleCompare
+            teamAName={teamA?.name ?? "队伍 A"}
+            teamBName={teamB?.name ?? "队伍 B"}
+            styleA={styleA}
+            styleB={styleB}
+            halfSideA={halfSideA}
+            halfSideB={halfSideB}
+          />
+
+          {/* 能力雷达：双队同图对比 */}
+          {(teamPrismA || teamPrismB) && (
+            <Panel label="能力雷达 · 八维对比" pad={16}>
+              <RadarChart
+                axes={PRISM_AXES}
+                series={[
+                  teamPrismA && {
+                    name: teamA?.name ?? "队伍 A",
+                    scores: teamPrismA as unknown as Record<string, number>,
+                    color: "var(--color-accent)",
+                    strokeWidth: 2.5,
+                  },
+                  teamPrismB && {
+                    name: teamB?.name ?? "队伍 B",
+                    scores: teamPrismB as unknown as Record<string, number>,
+                    color: "var(--color-accent-b)",
+                    strokeWidth: 2.5,
+                  },
+                ].filter(Boolean) as Array<{ name: string; scores: Record<string, number>; color?: string; strokeWidth?: number }>}
+                size={320}
+              />
+              <p className="text-[11px] text-[var(--color-fg-dim)] mt-3 px-1 leading-relaxed">
+                双方队员八维 PRISM 均值对比（demo cohort 百分位），在本赛事内标准化。
+              </p>
+            </Panel>
+          )}
+          {/* 六维对比（无 prism 时回退） */}
+          {!teamPrismA && !teamPrismB && (teamHexA || teamHexB) && (
+            <Panel label="能力雷达 · 六维对比" pad={16}>
+              <PlayerRadarChart
+                players={[
+                  teamHexA && {
+                    name: teamA?.name ?? "队伍 A",
+                    scores: teamHexA,
+                    color: "var(--color-accent)",
+                    strokeColor: "var(--color-accent)",
+                  },
+                  teamHexB && {
+                    name: teamB?.name ?? "队伍 B",
+                    scores: teamHexB,
+                    color: "var(--color-accent-b)",
+                    strokeColor: "var(--color-accent-b)",
+                  },
+                ].filter(Boolean) as Array<{ name: string; scores: HexagonScores; color?: string; strokeColor?: string }>}
+                size={320}
+              />
+              <p className="text-[11px] text-[var(--color-fg-dim)] mt-3 px-1 leading-relaxed">
+                双方队员六维均值对比，六维评分在本赛事内标准化。
+              </p>
+            </Panel>
+          )}
+        </>
+      )}
+
       {/* BP 流程（进行中 / 已结束时显示） */}
       {match.status !== "scheduled" && (
         <VetoView
@@ -476,7 +574,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                   {map.pickedByTeamId && (
                     <span
                       className="ml-1 text-[10px] font-mono px-1 py-0.5"
-                      style={{ background: "rgba(77,212,122,0.12)", color: "var(--color-ok)" }}
+                      style={{ background: "color-mix(in srgb, var(--color-ok) 12%, transparent)", color: "var(--color-ok)" }}
                     >
                       {map.pickedByTeamId === match.teamAId
                         ? teamA?.name?.slice(0, 3).toUpperCase()
@@ -587,23 +685,6 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
         </section>
       )}
 
-      {showHexComparison && (
-        <section className="space-y-3">
-          <Panel label="六维能力对比" pad={16}>
-            <PlayerRadarChart
-              players={[
-                { name: teamA?.name ?? "队伍 A", scores: teamHexA, color: "var(--color-accent)", strokeColor: "var(--color-accent)" },
-                { name: teamB?.name ?? "队伍 B", scores: teamHexB, color: "var(--color-accent-b)", strokeColor: "var(--color-accent-b)" },
-              ]}
-              size={320}
-            />
-          </Panel>
-          <p className="text-[11px] text-[var(--color-fg-dim)] px-1 leading-relaxed">
-            双方预计出场阵容六维均值对比，六维评分在本赛事内标准化。
-          </p>
-        </section>
-      )}
-
       {/* 赛前名单 */}
       {!isFinished && (
         <section className="space-y-3">
@@ -652,25 +733,6 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
             <h3 className="text-sm font-medium mb-2">协商历史</h3>
             <TimeProposalHistory proposals={timeProposals} />
           </Panel>
-        </section>
-      )}
-
-      {/* 赛季级别 T/CT 半场胜率 + 风格画像（已结束比赛） */}
-      {isFinished && (halfSideA || halfSideB || styleA || styleB) && (
-        <section className="space-y-4">
-          <h2 className="text-lg font-semibold text-[var(--color-fg)]">赛季风格分析</h2>
-          {(halfSideA || halfSideB) && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {halfSideA && Object.keys(halfSideA).length > 0 && (
-                <TeamHalfSideStats stats={halfSideA} teamName={teamA?.name ?? "队伍 A"} />
-              )}
-              {halfSideB && Object.keys(halfSideB).length > 0 && (
-                <TeamHalfSideStats stats={halfSideB} teamName={teamB?.name ?? "队伍 B"} />
-              )}
-            </div>
-          )}
-          {styleA && <TeamStyleProfile profile={styleA} />}
-          {styleB && <TeamStyleProfile profile={styleB} />}
         </section>
       )}
 
