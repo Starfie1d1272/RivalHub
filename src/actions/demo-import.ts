@@ -27,6 +27,22 @@ import { backfillSingleBatch } from "@/actions/backfill-economy";
 
 type DemoSideVal = "t" | "ct" | "unknown";
 
+/** 清洗坐标对象中的 NaN → null，避免 JSON.stringify 产生非法 JSON */
+function sanitizePosition(pos: Record<string, unknown> | null): Record<string, unknown> | null {
+  if (!pos) return null;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(pos)) {
+    if (typeof v === "number" && Number.isNaN(v)) {
+      out[k] = null;
+    } else if (typeof v === "object" && v !== null && !Array.isArray(v)) {
+      out[k] = sanitizePosition(v as Record<string, unknown>);
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
 export async function importDemoPackage(
   mapId: string,
   zipBuffer: ArrayBuffer,
@@ -266,8 +282,8 @@ export async function importDemoPackage(
             throughSmoke: (k.throughSmoke as boolean | null) ?? undefined,
             noScope: (k.noScope as boolean | null) ?? undefined,
             penetratedObjects: (k.penetratedObjects as number | null) ?? undefined,
-            killerPosition: k.killerPosition as object | null,
-            victimPosition: k.victimPosition as object | null,
+            killerPosition: sanitizePosition(k.killerPosition as Record<string, unknown> | null),
+            victimPosition: sanitizePosition(k.victimPosition as Record<string, unknown> | null),
           }))
         );
       }
