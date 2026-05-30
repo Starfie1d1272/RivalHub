@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { parseDemoPackage } from "@/lib/demo/parse-package";
-import { manifestSchema, killsSchema, playerStatsSchema } from "@/lib/demo/schemas";
+import { parseDemoPackage } from "cs2-demo-format/parser";
+import { manifestSchema, killsSchema, playerStatsSchema } from "cs2-demo-format";
 import { toMatchPlayerStat } from "@/lib/demo/to-match-player-stats";
 import { batchInsert } from "@/lib/demo/batch-insert";
 

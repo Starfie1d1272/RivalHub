@@ -5,6 +5,34 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.29.0] - 2026-05-31
+
+### Changed
+- **评分与 demo 解析模块迁移至外部包**：删除本地 `src/lib/rating/{rr,prism,types,weights}` 与 `src/lib/demo/{parse-package,schemas}`，评分实现改从 `@rivalhub/rival-rating` 导入、demo 解析改从 `cs2-demo-format` 导入，核心仓库不再维护这部分实现，权重/解析逻辑更新走对应外部仓库打 tag → `pnpm update` 流程
+- **默认权重 JSON 直引**：`@rivalhub/rival-rating` 增加 `weights/*` 到 exports map，`src/lib/rating/index.ts` 直接 import `rr-v1.json` / `prism-v1.json`，规避上游 ESM `with { type: "json" }` 兼容问题
+
+### Added
+- **校准数据导出脚本**：`scripts/calibration/export-indicators.ts` 读取 demo ZIP 解析并导出 RRIndicators（player-map / player-season / parse-report），供 rival-rating 做数据 QA 与权重校准
+
+### Fixed
+- **排行榜多列排序失效**：Advanced / Demo 视图下多列排序未生效
+- **经济类型 `"full"` 漏计**：`recomputeSeasonRatings` 未将 `"full"` 归入 fullBuyRounds，导致 RR 重算 fullBuy 统计偏低
+
+## [1.28.2] - 2026-05-30
+
+### Added
+- **接入 @rivalhub/rival-rating 外部仓库**：评分计算逻辑（RR 标量 + PRISM 八维画像）独立为 `github:Starfie1d1272/rival-rating`，`src/lib/rating/index.ts` 统一入口，权重更新无需改动 RivalHub 核心代码
+- **MatchRadarSection 双 Tab 组件**：赛前能力雷达支持 PRISM 八维 / 六维 Tab 切换，不再互斥回退
+
+### Fixed
+- **RR 重算数据分裂**：多 steamId64 指向同一 userId 时，`recomputeSeasonRatings` 按 steamId64 分组导致数据被拆成多份各自评分，修复为按 userId 合并所有 steam 数据后统一计算
+- **选手页 500 错误**：`getOcrAveragesBySeason` 查询 `SELECT seasons.id` 但未 JOIN `seasons` 表，Drizzle 报 `seasons is not part of the query`，改为 `matches.seasonId`
+- **赛前能力雷达修复**：六维数据源从 starters 改为全队成员，修复无 roster 时只显示一队；八维/六维条件互斥改为双 Tab
+- **排行榜 Rating Pro 排序乱序**：ORDER BY `avg(rating_pro)` 对 demo 源为 NULL 导致排序失效，改为 `COALESCE(avg(...), min(ocr.avg_rating_ocr))` 与 SELECT 对齐
+- **Demo 导入 NaN 全链路修复**：JSON.parse 前清洗 NaN/Infinity、vec3 Zod schema 允许 null 坐标、DB 兜底
+- **force 导入模式 DELETE ANY(array) 语法错误**：`= ANY(ARRAY[...])` → `sql.join` 避免 Postgres malformed array literal
+- **min(uuid) → min(uuid::text)**：Postgres 不支持 UUID 类型的 min() 聚合
+
 ## [1.28.1] - 2026-05-30
 
 ### Fixed
@@ -1033,6 +1061,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.29.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.28.2...v1.29.0
+[1.28.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.28.1...v1.28.2
 [1.28.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.28.0...v1.28.1
 [1.28.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.8...v1.28.0
 [1.27.8]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.7...v1.27.8

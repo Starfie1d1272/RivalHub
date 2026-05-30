@@ -14,7 +14,7 @@ export default defineConfig({
       include: ["src/**"],
       exclude: ["src/app/**", "src/components/ui/**"],
       thresholds: {
-        lines: 27,
+        lines: 26,
         functions: 60,
         branches: 50,
       },

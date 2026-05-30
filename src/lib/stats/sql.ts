@@ -3,7 +3,7 @@ import type { SQL } from "drizzle-orm";
 import type { StatFilter } from "./types";
 import type { DB } from "@/db/client";
 import { matchPlayerStats } from "@/db/schema/player-stats";
-import { matches, seasons } from "@/db/schema";
+import { matches } from "@/db/schema";
 
 /**
  * 回合数表达式：优先图级比分（BO3/BO5），BO1 fallback 到赛事级比分。
@@ -94,7 +94,7 @@ export async function getOcrAveragesBySeason(
 ): Promise<Map<string, { avgRating: number | null; avgRws: number | null; avgWe: number | null }>> {
   const rows = await db
     .select({
-      seasonId: seasons.id,
+      seasonId: matches.seasonId,
       avgRws:    sql<number | null>`round(avg(${matchPlayerStats.rws})::numeric, 2)`,
       avgWe:     sql<number | null>`round(avg(${matchPlayerStats.we})::numeric, 1)`,
       avgRating: sql<number | null>`round(avg(${matchPlayerStats.ratingPro})::numeric, 2)`,

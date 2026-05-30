@@ -18,7 +18,7 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import { actionError } from "@/lib/action-utils";
 import { requireAdmin, auditActorId } from "@/lib/auth/session";
 import { revalidatePath } from "next/cache";
-import { parseDemoPackage } from "@/lib/demo/parse-package";
+import { parseDemoPackage } from "cs2-demo-format/parser";
 import { mapDemoPlayers } from "@/lib/demo/map-players";
 import { toMatchPlayerStat, type DemoStatInput } from "@/lib/demo/to-match-player-stats";
 import { batchInsert } from "@/lib/demo/batch-insert";
