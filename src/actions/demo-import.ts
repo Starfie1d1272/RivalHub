@@ -107,7 +107,7 @@ export async function importDemoPackage(
             "demo_player_economies", "demo_player_stats", "demo_rounds", "demo_players",
           ]) {
             await tx.execute(
-              sql`DELETE FROM ${sql.identifier(tbl)} WHERE import_batch_id = ANY(${oldBatchIds}::uuid[])`
+              sql`DELETE FROM ${sql.identifier(tbl)} WHERE import_batch_id IN (${sql.join(oldBatchIds, sql`, `)})`
             );
           }
           await tx.delete(demoImports).where(eq(demoImports.mapId, mapId));
