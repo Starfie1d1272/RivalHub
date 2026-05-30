@@ -5,6 +5,11 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.27.8] - 2026-05-30
+
+### Fixed
+- **Stats 页 500 错误**：`demo_player_stats` 查询中 `COALESCE(dps.user_id, dp.name)` 类型不匹配（uuid vs text），4 处 GROUP BY 全部加 `::text` 显式 cast 修复
+
 ## [1.27.7] - 2026-05-30
 
 ### Added
@@ -998,6 +1003,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.27.8]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.7...v1.27.8
 [1.27.7]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.6...v1.27.7
 [1.27.6]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.5...v1.27.6
 [1.27.5]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.4...v1.27.5
