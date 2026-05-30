@@ -5,6 +5,19 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.29.0] - 2026-05-31
+
+### Changed
+- **评分与 demo 解析模块迁移至外部包**：删除本地 `src/lib/rating/{rr,prism,types,weights}` 与 `src/lib/demo/{parse-package,schemas}`，评分实现改从 `@rivalhub/rival-rating` 导入、demo 解析改从 `cs2-demo-format` 导入，核心仓库不再维护这部分实现，权重/解析逻辑更新走对应外部仓库打 tag → `pnpm update` 流程
+- **默认权重 JSON 直引**：`@rivalhub/rival-rating` 增加 `weights/*` 到 exports map，`src/lib/rating/index.ts` 直接 import `rr-v1.json` / `prism-v1.json`，规避上游 ESM `with { type: "json" }` 兼容问题
+
+### Added
+- **校准数据导出脚本**：`scripts/calibration/export-indicators.ts` 读取 demo ZIP 解析并导出 RRIndicators（player-map / player-season / parse-report），供 rival-rating 做数据 QA 与权重校准
+
+### Fixed
+- **排行榜多列排序失效**：Advanced / Demo 视图下多列排序未生效
+- **经济类型 `"full"` 漏计**：`recomputeSeasonRatings` 未将 `"full"` 归入 fullBuyRounds，导致 RR 重算 fullBuy 统计偏低
+
 ## [1.28.2] - 2026-05-30
 
 ### Added
@@ -1048,6 +1061,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.29.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.28.2...v1.29.0
 [1.28.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.28.1...v1.28.2
 [1.28.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.28.0...v1.28.1
 [1.28.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.8...v1.28.0
