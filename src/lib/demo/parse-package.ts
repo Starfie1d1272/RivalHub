@@ -17,13 +17,18 @@ export interface ParsedDemoPackage {
   files: Record<string, any[]>;
 }
 
+/** 清洗 JSON 文本中的 NaN / Infinity → null，这些不是合法 JSON 值 */
+function sanitizeJsonText(text: string): string {
+  return text.replace(/\bNaN\b/g, "null").replace(/\b-?Infinity\b/g, "null");
+}
+
 export async function parseDemoPackage(buffer: Buffer | ArrayBuffer): Promise<ParsedDemoPackage> {
   const zip = await JSZip.loadAsync(buffer);
 
   const manifestFile = zip.file("manifest.json");
   if (!manifestFile) throw new Error("zip 缺少 manifest.json");
 
-  const manifestRaw = JSON.parse(await manifestFile.async("text"));
+  const manifestRaw = JSON.parse(sanitizeJsonText(await manifestFile.async("text")));
   const manifest = manifestSchema.parse(manifestRaw);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -33,7 +38,7 @@ export async function parseDemoPackage(buffer: Buffer | ArrayBuffer): Promise<Pa
     const entry = zip.file(filename);
     if (!entry) throw new Error(`zip 缺少文件: ${filename} (key: ${key})`);
 
-    const raw = JSON.parse(await entry.async("text"));
+    const raw = JSON.parse(sanitizeJsonText(await entry.async("text")));
     const schema = FILE_SCHEMAS[key];
 
     if (!schema) throw new Error(`未知文件 key: ${key}`);
