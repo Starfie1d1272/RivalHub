@@ -1027,6 +1027,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.28.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.8...v1.28.0
 [1.27.8]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.7...v1.27.8
 [1.27.7]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.6...v1.27.7
 [1.27.6]: https://github.com/Starfie1d1272/RivalHub/compare/v1.27.5...v1.27.6
