@@ -71,8 +71,8 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
       case "kd":     return sql`CASE WHEN sum(mps.deaths) > 0 THEN sum(mps.kills)::numeric / sum(mps.deaths) ELSE NULL END`;
       case "kpr":    return kprExpr;
       case "hs":     return hsExpr;
-      case "we":     return sql`avg(mps.we)`;
-      case "rws":    return sql`avg(mps.rws)`;
+      case "we":     return sql`COALESCE(avg(mps.we), min(ocr.avg_we_ocr))`;
+      case "rws":    return sql`COALESCE(avg(mps.rws), min(ocr.avg_rws_ocr))`;
       case "fk":     return fkprExpr;
       case "mk":     return mkprExpr;
       case "clutch": return cprExpr;

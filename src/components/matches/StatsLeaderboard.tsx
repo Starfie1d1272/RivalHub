@@ -233,6 +233,19 @@ export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "cor
   const accentText = "var(--color-accent)";
   const visibleViews = hasDemoData ? VIEWS : VIEWS.filter((v) => v.key !== "demo");
   const cols = VIEW_COLS[view] ?? VIEW_COLS.core;
+
+  // Demo 视图的列数据来自独立查询（getSeasonDemoStats），
+  // 服务端 SQL ORDER BY 管不到这些字段，需要在客户端排序。
+  // Advanced 视图的 we/rws 服务端已处理（OCR fallback），但这里兜底：
+  // 如果 sort key 在 cols 中，用 cols 的 getValue 降序排。
+  const sortCol = cols.find((c) => c.key === sort);
+  const sortedRows = sortCol
+    ? [...rows].sort((a, b) => {
+        const va = sortCol.getValue(a) ?? -Infinity;
+        const vb = sortCol.getValue(b) ?? -Infinity;
+        return vb - va;
+      })
+    : rows;
   const statsHref = ({
     nextSort = sort,
     nextPosition = position,
@@ -341,7 +354,7 @@ export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "cor
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--color-border)]">
-              {rows.map((r, i) => (
+              {sortedRows.map((r, i) => (
                 <tr key={r.userId ?? r.perfectName} className="hover:bg-[var(--color-surface-raised)] transition-colors">
                   <td className="px-2.5 py-2.5 text-xs">
                     <span
