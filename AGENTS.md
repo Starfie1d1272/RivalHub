@@ -110,3 +110,4 @@ src/
 - **pnpm 要求 Node ≥ 22**，CI（GitHub Actions）需版本匹配。
 - **CHANGELOG 必须在 `npm version` 之前更新并提交**，否则 release workflow 找不到对应版本条目。
 - **push 必须带 tag**：`git push origin dev --follow-tags`，否则 GitHub Release 不会触发。
+- **评分权重更新流程**：权重文件在外部仓库 `@rivalhub/rival-rating`（`github:Starfie1d1272/rival-rating`）。修改流程：① rival-rating 仓库改 JSON/逻辑 → ② 打 tag（如 `v0.2.0`）→ ③ RivalHub 侧 `pnpm update @rivalhub/rival-rating` → ④ 提交 lockfile → ⑤ push 触发 Vercel 部署。`pnpm-lock.yaml` 锁定到具体 commit，仅更新 rival-rating 代码不更新 lockfile 不会生效。
