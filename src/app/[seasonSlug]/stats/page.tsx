@@ -178,7 +178,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
   for (const d of demoStats) {
     if (d.userId) demoMap.set(d.userId, d);
   }
-  const mergedRows = leaderboardRows.map((r) => {
+  const allMergedRows = leaderboardRows.map((r) => {
     const demo = r.userId ? demoMap.get(r.userId) : undefined;
     const rrScore = r.userId != null ? (rrMap.get(r.userId) ?? null) : null;
     const base = { ...r, rrScore };
@@ -199,6 +199,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
       awpKillRate: demo.awpKillRate ?? undefined,
     };
   });
+  const mergedRows = allMergedRows.filter((r) => r.userId != null);
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-5xl space-y-6">

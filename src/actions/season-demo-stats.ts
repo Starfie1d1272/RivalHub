@@ -102,7 +102,8 @@ export async function getSeasonDemoStats(
              AND awp_data.killer_steam_id64 = dps.steam_id64
     WHERE m.season_id = ${seasonId}
       AND mm.active_stat_source = 'demo_import'::stat_source
-    GROUP BY COALESCE(dps.user_id::text, dp.name)
+      AND dps.user_id IS NOT NULL
+    GROUP BY dps.user_id
     ORDER BY kast DESC NULLS LAST
     LIMIT 100
   `);
@@ -168,7 +169,6 @@ export async function getSeasonWeaponStats(
     SELECT
       dps.user_id,
       min(dp.name) AS perfect_name,
-      min(dp.steam_id64) AS steam_id64,
       dk.weapon,
       count(*)::int AS kills,
       sum(CASE WHEN dk.headshot THEN 1 ELSE 0 END)::int AS headshots
@@ -183,7 +183,8 @@ export async function getSeasonWeaponStats(
     WHERE m.season_id = ${seasonId}
       AND mm.active_stat_source = 'demo_import'::stat_source
       AND dk.weapon IS NOT NULL
-    GROUP BY COALESCE(dps.user_id::text, dp.name), dk.weapon
+      AND dps.user_id IS NOT NULL
+    GROUP BY dps.user_id, dk.weapon
     ORDER BY kills DESC
     LIMIT 500
   `);
@@ -313,7 +314,8 @@ export async function getSeasonHighlightStats(
       ON dp.steam_id64 = dps.steam_id64 AND dp.import_batch_id = dps.import_batch_id
     WHERE m.season_id = ${seasonId}
       AND mm.active_stat_source = 'demo_import'::stat_source
-    GROUP BY COALESCE(dps.user_id::text, dp.name)
+      AND dps.user_id IS NOT NULL
+    GROUP BY dps.user_id
     HAVING COALESCE(sum(dps.collateral_kill_count), 0) > 0
         OR COALESCE(sum(dps.wallbang_kill_count), 0) > 0
         OR COALESCE(sum(dps.no_scope_kill_count), 0) > 0
