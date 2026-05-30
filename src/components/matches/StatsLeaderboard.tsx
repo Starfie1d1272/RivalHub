@@ -176,18 +176,6 @@ const DEMO_COLS: ColDef[] = [
     format: (v) => (v != null ? v.toFixed(1) + "%" : "—"),
   },
   {
-    key: "avgDemoAdr",
-    label: "ADR",
-    getValue: (r) => r.avgDemoAdr ?? null,
-    format: (v) => (v != null ? v.toFixed(1) : "—"),
-  },
-  {
-    key: "demoFkpr",
-    label: "FKPR",
-    getValue: (r) => r.demoFkpr ?? null,
-    format: (v) => (v != null ? v.toFixed(3) : "—"),
-  },
-  {
     key: "demoClutchWinRate",
     label: "1v1%",
     getValue: (r) => r.vsOneWinRate ?? null,
@@ -327,13 +315,13 @@ export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "cor
       {/* 核心视图压进桌面宽度；窄屏仍可横向滚动。 */}
       <Panel pad={0} className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[680px] table-fixed">
+          <table className={`w-full text-sm table-fixed ${cols.length > 6 ? 'min-w-[820px]' : 'min-w-[680px]'}`}>
             <colgroup>
               <col className="w-9" />
               <col />
               <col className="w-24" />
               <col className="w-[18%]" />
-              {cols.map((col) => <col key={col.key} className="w-[8%]" />)}
+              {cols.map((col) => <col key={col.key} className={cols.length > 6 ? 'w-[7%]' : 'w-[8%]'} />)}
             </colgroup>
             <thead>
               <tr className="border-b border-[var(--color-border)] text-[var(--color-fg-mid)] text-xs uppercase tracking-wide">

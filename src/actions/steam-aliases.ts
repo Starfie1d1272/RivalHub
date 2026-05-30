@@ -87,6 +87,19 @@ export async function bindSteamAlias(
       .set({ userId })
       .where(and(eq(demoPlayerStats.steamId64, steamId64), isNull(demoPlayerStats.userId)));
 
+    // 回填 match_player_stats（通过 map_id + 玩家名精确匹配，避免跨玩家污染）
+    await db.execute(sql`
+      UPDATE match_player_stats mps
+      SET user_id = ${userId}
+      FROM demo_players dp
+      WHERE dp.steam_id64 = ${steamId64}
+        AND dp.user_id = ${userId}
+        AND mps.map_id = dp.map_id
+        AND mps.perfect_name = dp.name
+        AND mps.source = 'demo_import'
+        AND mps.user_id IS NULL
+    `);
+
     return ok({ updatedRows: 1 });
   } catch (e) {
     return fail({ code: ErrorCode.INTERNAL_ERROR, message: String(e) });
