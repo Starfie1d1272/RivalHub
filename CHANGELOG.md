@@ -28,7 +28,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **队伍 Rating Pro = 0.0**：demo 源 NULL 时 COALESCE OCR 源回填
 - **赛前首杀/残局为空**：Drizzle enum 类型转换改用 raw SQL
 - **M4A1 武器名**：`m4a1_silencer` 映射修正为 "M4A1-S"
-
 ## [1.27.8] - 2026-05-30
 
 ### Fixed
