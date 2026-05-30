@@ -8,7 +8,7 @@ import { WeaponLeaderboard } from "@/components/matches/WeaponLeaderboard";
 import { HighlightLeaderboard } from "@/components/matches/HighlightLeaderboard";
 import { normalizeLeaderboardState } from "@/lib/matches/leaderboard-view";
 import { Marker } from "@/components/rivalhub";
-import { roundWeightedAvg, killWeightedAvg, perRound, roundsExpr } from "@/lib/stats";
+import { roundWeightedAvg, killWeightedAvg, perRound, roundsExpr, ocrFallbackCte } from "@/lib/stats";
 import { normalizeStagePlan } from "@/types/season";
 import { getSeasonDemoStats, getSeasonWeaponStats, getSeasonHighlightStats, type DemoLeaderboardData } from "@/actions/season-demo-stats";
 import type { Metadata } from "next";
@@ -86,20 +86,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
   const stageFilter = stage ? sql`AND m.stage = ${stage}` : sql``;
 
   const { rows } = await db.execute(sql`
-    WITH ocr_avg AS (
-      SELECT
-        mps2.user_id,
-        m2.season_id,
-        round(avg(mps2.rating_pro)::numeric, 2) AS avg_rating_ocr,
-        round(avg(mps2.rws)::numeric, 2)        AS avg_rws_ocr,
-        round(avg(mps2.we)::numeric, 1)         AS avg_we_ocr
-      FROM match_player_stats mps2
-      JOIN matches m2 ON m2.id = mps2.match_id
-      WHERE mps2.source = 'manual_ocr'
-        AND mps2.verified_by_admin IS NOT NULL
-        AND m2.season_id = ${season.id}
-      GROUP BY mps2.user_id, m2.season_id
-    )
+    WITH ocr_avg AS (${ocrFallbackCte(sql`${season.id}`)})
     SELECT
       mps.user_id,
       COALESCE(u.perfect_name, mps.perfect_name) AS perfect_name,

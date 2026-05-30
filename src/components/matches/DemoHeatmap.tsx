@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect, useState, useCallback } from "react";
+import React, { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import { cn } from "@/lib/utils/cn";
 import { getCalibration, worldToPixel } from "@/lib/demo/map-calibration";
 import type { DemoPoint } from "@/actions/demo-detail";
@@ -8,11 +8,19 @@ import type { DemoPoint } from "@/actions/demo-detail";
 type HeatmapMode = "kills" | "deaths" | "bombs" | "grenades";
 
 const MODE_CONFIG: Record<HeatmapMode, { label: string; color: string; lightColor: string }> = {
-  kills: { label: "Kills", color: "rgba(255,50,50,0.35)", lightColor: "rgba(255,100,100,0.12)" },
-  deaths: { label: "Deaths", color: "rgba(255,180,50,0.30)", lightColor: "rgba(255,200,80,0.10)" },
-  bombs: { label: "Bombs", color: "rgba(50,130,255,0.35)", lightColor: "rgba(80,150,255,0.12)" },
-  grenades: { label: "Grenades", color: "rgba(180,50,255,0.30)", lightColor: "rgba(200,80,255,0.10)" },
+  kills: { label: "Kills", color: "color-mix(in srgb, var(--color-danger) 35%, transparent)", lightColor: "color-mix(in srgb, var(--color-danger) 12%, transparent)" },
+  deaths: { label: "Deaths", color: "color-mix(in srgb, var(--color-warn) 30%, transparent)", lightColor: "color-mix(in srgb, var(--color-warn) 10%, transparent)" },
+  bombs: { label: "Bombs", color: "color-mix(in srgb, var(--color-accent-b) 35%, transparent)", lightColor: "color-mix(in srgb, var(--color-accent-b) 12%, transparent)" },
+  grenades: { label: "Grenades", color: "color-mix(in srgb, var(--color-accent-b) 30%, transparent)", lightColor: "color-mix(in srgb, var(--color-accent-b) 10%, transparent)" },
 };
+
+/**
+ * 坐标 (0,0) 视为无效——demo 导出端缺失击杀坐标时会把所有点写成世界原点，
+ * 若不过滤会让全部点堆叠成一个红圈，反而误导。
+ */
+function isRealPoint(p: { x: number; y: number }): boolean {
+  return p.x !== 0 || p.y !== 0;
+}
 
 interface DemoHeatmapProps {
   mapName: string;
@@ -52,7 +60,7 @@ export function DemoHeatmap({ mapName, points }: DemoHeatmapProps) {
     if (!cal) return;
 
     const config = MODE_CONFIG[mode];
-    const pts = points[mode];
+    const pts = points[mode].filter(isRealPoint);
 
     for (const pt of pts) {
       const px = worldToPixel({ x: pt.x, y: pt.y, z: 0 }, cal);
@@ -68,8 +76,20 @@ export function DemoHeatmap({ mapName, points }: DemoHeatmapProps) {
     }
   }, [cal, mode, points]);
 
-  // 当所有模式都无数据时，不渲染热力图——避免显示空雷达图让人困惑
-  const hasAnyData = Object.values(points).some((pts) => pts.length > 0);
+  // 各模式的有效点数（过滤掉退化的原点坐标）
+  const realCounts = useMemo(
+    () =>
+      Object.fromEntries(
+        (Object.keys(MODE_CONFIG) as HeatmapMode[]).map((m) => [
+          m,
+          points[m].filter(isRealPoint).length,
+        ]),
+      ) as Record<HeatmapMode, number>,
+    [points],
+  );
+
+  // 当所有模式都无有效坐标时，不渲染热力图——避免把所有原点坐标堆成一个红圈误导
+  const hasAnyData = Object.values(realCounts).some((n) => n > 0);
 
   useEffect(() => {
     drawHeatmap();
@@ -85,8 +105,11 @@ export function DemoHeatmap({ mapName, points }: DemoHeatmapProps) {
 
   if (!hasAnyData) {
     return (
-      <div className="flex items-center justify-center h-32 text-sm text-[var(--color-fg-dim)]">
-        No heatmap data available
+      <div className="flex flex-col items-center justify-center gap-1 h-32 text-sm text-[var(--color-fg-dim)] text-center px-4">
+        <span>暂无位置数据</span>
+        <span className="text-xs text-[var(--color-fg-muted)]">
+          当前 demo 导出未包含击杀坐标
+        </span>
       </div>
     );
   }
@@ -114,7 +137,7 @@ export function DemoHeatmap({ mapName, points }: DemoHeatmapProps) {
                 : "bg-transparent text-[var(--color-fg-mid)] border-[var(--color-border)] hover:border-[var(--color-accent)]",
             )}
           >
-            {MODE_CONFIG[m].label} ({points[m].length})
+            {MODE_CONFIG[m].label} ({realCounts[m]})
           </button>
         ))}
       </div>

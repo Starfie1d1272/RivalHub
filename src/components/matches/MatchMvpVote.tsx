@@ -167,7 +167,7 @@ export function MatchMvpVote({
   // ── 投票中 ──
   function cardStyle(isVoted: boolean, hasVoted: boolean): string {
     const base = "rounded-sm p-4 text-left transition-colors";
-    if (isVoted) return `${base} bg-[rgba(255,107,26,0.12)] ring-1 ring-inset ring-[var(--color-accent)]`;
+    if (isVoted) return `${base} bg-[color-mix(in srgb, var(--color-accent) 12%, transparent)] ring-1 ring-inset ring-[var(--color-accent)]`;
     if (hasVoted) return `${base} bg-[var(--color-panel-hi)] cursor-not-allowed opacity-60`;
     return `${base} bg-[var(--color-panel-hi)] hover:bg-[var(--color-panel)] cursor-pointer`;
   }

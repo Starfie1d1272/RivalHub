@@ -17,7 +17,12 @@ import { mapLabel } from "@/lib/maps";
 import { getSeasonHexagonScores } from "@/actions/hexagon";
 import { computeTeamDimensions } from "@/lib/utils/hexagon";
 import type { HexagonScores } from "@/lib/utils/hexagon";
-import { PlayerRadarChart } from "@/components/matches/PlayerRadarChart";
+import { PRISM_AXES, buildPrismScores, averagePrismScores, type PrismScores } from "@/components/matches/RadarChart";
+import { getTeamStyleProfile, getTeamHalfSideStats } from "@/actions/team-demo-stats";
+import { TeamRadarPanel } from "@/components/teams/TeamRadarPanel";
+import { ocrFallbackCte } from "@/lib/stats/sql";
+import { TeamHalfSideStats } from "@/components/teams/TeamHalfSideStats";
+import { TeamStyleProfile } from "@/components/teams/TeamStyleProfile";
 
 interface TeamDetailPageProps {
   params: Promise<{ seasonSlug: string; teamId: string }>;
@@ -131,11 +136,18 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
 
   // 地图表现统计
   const matchIds = teamMatches.map((m) => m.id);
-  const [mapStats, { banCount, bpMatchCount: banBpCount }, { pickCount, bpMatchCount: pickBpCount }] = await Promise.all([
+  const [mapStats, { banCount, bpMatchCount: banBpCount }, { pickCount, bpMatchCount: pickBpCount }, styleResult, halfSideResult] = await Promise.all([
     getTeamMapWinStats(teamId, teamMatches),
     getTeamBanStats(teamId, matchIds),
     getTeamPickStats(teamId, matchIds),
+    getTeamStyleProfile(teamId, season.id),
+    getTeamHalfSideStats(teamId, season.id),
   ]);
+
+  // 赛季风格分析（demo 来源，可能为空）
+  const styleProfile = styleResult.success ? styleResult.data : null;
+  const halfSide = halfSideResult.success ? halfSideResult.data : null;
+  const hasHalfSide = halfSide != null && Object.keys(halfSide).length > 0;
 
   // 历史对阵（按对手分组）
   interface HeadToHead { opponentId: string; wins: number; losses: number }
@@ -158,16 +170,17 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
   // ADR 改为回合加权（JOIN match_maps mm2），修复原来 avg(mps.adr) 简单均值失真问题
   const teamStatResult = roster.length
     ? await db.execute(sql`
+        WITH ocr_avg AS (${ocrFallbackCte(sql`${season.id}`)})
         SELECT
           mps.user_id,
           count(distinct mps.map_id)::int                                                            AS maps,
-          round(avg(mps.rating_pro)::numeric, 2)                                                    AS avg_rating,
+          COALESCE(round(avg(mps.rating_pro)::numeric, 2), min(ocr.avg_rating_ocr))                  AS avg_rating,
           round(
             CASE WHEN sum(mm2.score_a + mm2.score_b) > 0
               THEN sum(mps.adr * (mm2.score_a + mm2.score_b))::numeric / sum(mm2.score_a + mm2.score_b)
               ELSE NULL END
           ::numeric, 1)                                                                              AS avg_adr,
-          round(avg(mps.we)::numeric, 1)                                                            AS avg_we,
+          COALESCE(round(avg(mps.we)::numeric, 1), min(ocr.avg_we_ocr))                              AS avg_we,
           sum(mps.kills)::int                                                                        AS total_kills,
           sum(mps.deaths)::int                                                                       AS total_deaths,
           sum(mm2.score_a + mm2.score_b)::int                                                        AS total_rounds,
@@ -178,6 +191,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
         JOIN match_maps mm2 ON mm2.id = mps.map_id
         JOIN season_registrations sr ON sr.user_id = mps.user_id AND sr.season_id = ${season.id}
         JOIN team_members tm ON tm.registration_id = sr.id
+        LEFT JOIN ocr_avg ocr ON ocr.user_id = mps.user_id
         WHERE tm.team_id = ${teamId}
           AND mps.verified_by_admin IS NOT NULL
           AND mps.source = COALESCE(mm2.active_stat_source, 'manual_ocr'::stat_source)
@@ -198,9 +212,20 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
   }
   const typedStats = (teamStatResult?.rows ?? []) as unknown as TeamStatRow[];
 
-  // RR 评分（from player_ratings，本赛季）
+  // RR + PRISM 八维评分（from player_ratings，本赛季）
   const teamRrRows = roster.length ? await db
-    .select({ userId: playerRatings.userId, rrScore: playerRatings.rrScore })
+    .select({
+      userId: playerRatings.userId,
+      rrScore: playerRatings.rrScore,
+      prismFirepower: playerRatings.prismFirepower,
+      prismOpening: playerRatings.prismOpening,
+      prismClutch: playerRatings.prismClutch,
+      prismSniping: playerRatings.prismSniping,
+      prismSurvival: playerRatings.prismSurvival,
+      prismUtility: playerRatings.prismUtility,
+      prismTrading: playerRatings.prismTrading,
+      prismEntry: playerRatings.prismEntry,
+    })
     .from(playerRatings)
     .where(
       and(
@@ -209,6 +234,13 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
       ),
     ) : [];
   const rrMap = new Map(teamRrRows.map((r) => [r.userId!, r.rrScore != null ? Number(r.rrScore) : null]));
+  const prismByPlayer = new Map<string, PrismScores>();
+  for (const r of teamRrRows) {
+    if (r.userId) {
+      const s = buildPrismScores(r as unknown as Record<string, unknown>);
+      if (s) prismByPlayer.set(r.userId, s);
+    }
+  }
 
   // 选手数据 map（用于阵容内联显示）
   interface PlayerStats { maps: number; avgRating: number; avgAdr: number; kdRatio: number | null; rrScore: number | null }
@@ -242,6 +274,22 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
   const teamScores = hexagonByPlayer.size > 0
     ? computeTeamDimensions([...hexagonByPlayer.values()])
     : null;
+
+  // 八维 PRISM：上场最多前 5 人中有 prism 数据者求均值（与选手页口径一致）
+  const teamPrism: PrismScores | null = averagePrismScores(
+    top5UserIds.map((uid) => prismByPlayer.get(uid)).filter((p): p is PrismScores => p != null),
+  );
+
+  // 雷达图成员数据
+  const radarMembers = top5UserIds.map((uid) => {
+    const player = roster.find((r) => r.userId === uid);
+    return {
+      userId: uid,
+      name: player ? (player.perfectName ?? player.steamName ?? "未知") : uid,
+      hex: hexagonByPlayer.get(uid) ?? null,
+      prism: prismByPlayer.get(uid) ?? null,
+    };
+  });
 
   // 队伍均值：K/D 用总杀/总死；Rating/ADR/WE 用 total_rounds 加权，避免出场图数不同导致的失真
   const hasStats = typedStats.length > 0;
@@ -475,31 +523,24 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
       </section>
 
       {/* 5. 队伍能力图 */}
-      {teamScores && hexagonByPlayer.size > 0 && (
+      {(teamPrism || (teamScores && hexagonByPlayer.size > 0)) && (
         <section className="space-y-3">
-          <Panel label="队伍能力图" pad={16}>
-            <PlayerRadarChart
-              players={[
-                ...[...hexagonByPlayer.entries()].map(([uid, scores]) => {
-                  const player = roster.find((r) => r.userId === uid);
-                  return {
-                    name: player ? (player.perfectName ?? player.steamName ?? "未知") : uid,
-                    scores,
-                  };
-                }),
-                {
-                  name: "队伍均值",
-                  scores: teamScores,
-                  color: "var(--color-fg)",
-                  strokeWidth: 3,
-                },
-              ]}
-              size={320}
-            />
-          </Panel>
-          <p className="text-[11px] text-[var(--color-fg-dim)] px-1 leading-relaxed">
-            队伍六维 = 上场最多的前 5 名队员六维均值，六维评分在本赛事内标准化。
-          </p>
+          <TeamRadarPanel
+            members={radarMembers}
+            teamScores={teamScores}
+            teamPrism={teamPrism}
+          />
+        </section>
+      )}
+
+      {/* 5.5 赛季风格分析（demo 来源） */}
+      {(hasHalfSide || styleProfile) && (
+        <section className="space-y-4">
+          <h2 className="text-lg font-semibold text-[var(--color-fg)]">赛季风格分析</h2>
+          {hasHalfSide && halfSide && (
+            <TeamHalfSideStats stats={halfSide} teamName={team.name} />
+          )}
+          {styleProfile && <TeamStyleProfile profile={styleProfile} />}
         </section>
       )}
 

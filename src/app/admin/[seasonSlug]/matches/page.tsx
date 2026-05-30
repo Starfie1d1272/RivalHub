@@ -353,7 +353,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
 
       {/* 赛季状态提示 */}
       {season.status !== "playing" && matchCount === 0 && (
-        <Panel pad={16} className="border-[rgba(255,196,77,0.3)] bg-[rgba(255,196,77,0.05)]">
+        <Panel pad={16} className="border-[color-mix(in srgb, var(--color-warn) 30%, transparent)] bg-[color-mix(in srgb, var(--color-warn) 5%, transparent)]">
           <p className="text-sm text-[var(--color-warn)]">
             赛季当前状态为「{season.status}」，需进入 playing 状态后才能生成赛程。
           </p>

@@ -23,12 +23,14 @@ export interface EconomySeriesPoint {
   teamBEconomy: string | null;
 }
 
+export const ECONOMY_TYPES = ["full", "semi", "force", "eco", "pistol"] as const;
+
 const ECONOMY_COLORS: Record<string, string> = {
-  full: "rgba(34,197,94,0.08)",    // green
-  semi: "rgba(234,179,8,0.06)",     // yellow
-  force: "rgba(234,179,8,0.10)",    // yellow darker
-  eco: "rgba(239,68,68,0.08)",      // red
-  pistol: "rgba(99,102,241,0.06)",  // indigo
+  full: "color-mix(in srgb, var(--color-ok) 8%, transparent)",    // green
+  semi: "color-mix(in srgb, var(--color-warn) 6%, transparent)",     // yellow
+  force: "color-mix(in srgb, var(--color-warn) 10%, transparent)",    // yellow darker
+  eco: "color-mix(in srgb, var(--color-danger) 8%, transparent)",      // red
+  pistol: "color-mix(in srgb, var(--color-info) 6%, transparent)",  // indigo
 };
 
 /** Get background color for an economy type string */
@@ -46,6 +48,19 @@ export function getEconomyLabel(type: string | null): string {
     force: "Force Buy",
     eco: "Eco",
     pistol: "Pistol",
+  };
+  return labels[type.toLowerCase()] ?? type;
+}
+
+/** 经济类型中文标签（榜单/画像展示用） */
+export function economyLabelCn(type: string | null): string {
+  if (!type) return "";
+  const labels: Record<string, string> = {
+    full: "全枪全弹",
+    semi: "半起",
+    eco: "纯ECO",
+    force: "强起",
+    pistol: "手枪局",
   };
   return labels[type.toLowerCase()] ?? type;
 }
