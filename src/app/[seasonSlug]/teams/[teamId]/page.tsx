@@ -17,7 +17,7 @@ import { mapLabel } from "@/lib/maps";
 import { getSeasonHexagonScores } from "@/actions/hexagon";
 import { computeTeamDimensions } from "@/lib/utils/hexagon";
 import type { HexagonScores } from "@/lib/utils/hexagon";
-import { PRISM_AXES, buildPrismScores, averagePrismScores, type PrismScores } from "@/components/matches/RadarChart";
+import { PRISM_AXES, buildPrismScores, averagePrismScores, type PrismScores } from "@/lib/stats/prism";
 import { getTeamStyleProfile, getTeamHalfSideStats } from "@/actions/team-demo-stats";
 import { TeamRadarPanel } from "@/components/teams/TeamRadarPanel";
 import { ocrFallbackCte } from "@/lib/stats/sql";
