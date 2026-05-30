@@ -42,8 +42,8 @@ importers:
         specifier: ^1.2.7
         version: 1.2.8(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       '@rivalhub/rival-rating':
-        specifier: link:../rival-rating
-        version: link:../rival-rating
+        specifier: github:Starfie1d1272/rival-rating
+        version: https://codeload.github.com/Starfie1d1272/rival-rating/tar.gz/02d38256bd269aba793fea42b779410dbbdf1ad3
       '@supabase/supabase-js':
         specifier: ^2.49.4
         version: 2.105.3
@@ -1388,6 +1388,10 @@ packages:
 
   '@radix-ui/rect@1.1.1':
     resolution: {integrity: sha512-HPwpGIzkl28mWyZqG52jiqDJ12waP11Pa1lGoiyUkIEuMLBP0oeK/C89esbXrxsky5we7dfd8U58nm0SgAWpVw==}
+
+  '@rivalhub/rival-rating@https://codeload.github.com/Starfie1d1272/rival-rating/tar.gz/02d38256bd269aba793fea42b779410dbbdf1ad3':
+    resolution: {gitHosted: true, integrity: sha512-eRr28O7OycPrGW6OYF5O1EpaCRvtvZBK/pM6qEUKM7u4hIYe+aFH6khGjxoZ8apw/U57ymFSKpfM3c+POoVp2g==, tarball: https://codeload.github.com/Starfie1d1272/rival-rating/tar.gz/02d38256bd269aba793fea42b779410dbbdf1ad3}
+    version: 0.1.0
 
   '@rollup/rollup-android-arm-eabi@4.60.3':
     resolution: {integrity: sha512-x35CNW/ANXG3hE/EZpRU8MXX1JDN86hBb2wMGAtltkz7pc6cxgjpy1OMMfDosOQ+2hWqIkag/fGok1Yady9nGw==}
@@ -3996,6 +4000,8 @@ snapshots:
       '@types/react-dom': 19.2.3(@types/react@19.2.14)
 
   '@radix-ui/rect@1.1.1': {}
+
+  '@rivalhub/rival-rating@https://codeload.github.com/Starfie1d1272/rival-rating/tar.gz/02d38256bd269aba793fea42b779410dbbdf1ad3': {}
 
   '@rollup/rollup-android-arm-eabi@4.60.3':
     optional: true
