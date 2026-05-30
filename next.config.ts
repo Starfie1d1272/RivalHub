@@ -1,7 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@rivalhub/rival-rating"],
   serverExternalPackages: ["pg"],
   typedRoutes: true,
   typescript: { ignoreBuildErrors: true },

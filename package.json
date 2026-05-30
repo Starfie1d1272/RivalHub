@@ -30,7 +30,6 @@
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-toast": "^1.2.14",
     "@radix-ui/react-tooltip": "^1.2.7",
-    "@rivalhub/rival-rating": "github:Starfie1d1272/rival-rating",
     "@supabase/supabase-js": "^2.49.4",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",

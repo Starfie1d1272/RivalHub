@@ -1,46 +1,49 @@
 /**
- * 评分系统统一入口 — 适配 @rivalhub/rival-rating 外部仓库
+ * 评分系统统一入口
  *
- * 权重更新流程：
- *   1. 修改 rival-rating 仓库中的 rr-v1.json / prism-v1.json
- *   2. 升 version 字段（如 rr-1.0 → rr-1.1）
- *   3. RivalHub 侧 `pnpm install` 拿到最新依赖
- *   4. Admin 后台重算评分
+ * 当前使用本地文件。待 @rivalhub/rival-rating 仓库完善后切换：
+ *   1. rival-rating 移除 .js 导入后缀（适配 webpack/Next.js bundler 模式）
+ *   2. 或 rival-rating 提供预编译 dist
+ *   3. 改下方 import 为 from "@rivalhub/rival-rating"
  *
- * 开发模式（link:）下，修改 rival-rating 源文件后直接生效，
- * 无需重新 install（Next.js 自动热编译）。
+ * 权重更新流程：修改 weights/*.json → Admin 后台重算评分
  */
 
 // ── RR 标量 ──────────────────────────────────────────────────────────────
 export {
   computeRR,
   computeLeagueMean,
-} from "@rivalhub/rival-rating";
+} from "./rr/compute";
 
 // ── PRISM 画像 ───────────────────────────────────────────────────────────
 export {
   computePrism,
   rrToPercentile,
+} from "./prism/compute";
+export {
   zScoreAll,
   coldStartShrink,
   zToPercentile,
-} from "@rivalhub/rival-rating";
+} from "./prism/zscore";
 
 // ── 类型 ─────────────────────────────────────────────────────────────────
 export type {
   RRIndicators,
+} from "./types/indicators";
+export type {
   RRWeights,
   RRResult,
+} from "./types/rr";
+export type {
   PrismWeights,
   PrismAxisKey,
   PrismAxisResult,
   PrismResult,
+} from "./types/prism";
+export type {
   PrismComputeInput,
-} from "@rivalhub/rival-rating";
+} from "./prism/compute";
 
 // ── 默认权重 ─────────────────────────────────────────────────────────────
-// 当 rival-rating 仓库完善 export 后改为：
-//   import { rrWeightsV1, prismWeightsV1 } from "@rivalhub/rival-rating";
-// 当前通过文件路径直接引用（两个仓库权重文件完全一致）：
 export { default as rrWeightsV1 } from "./weights/rr-v1.json";
 export { default as prismWeightsV1 } from "./weights/prism-v1.json";
