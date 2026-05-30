@@ -1,6 +1,6 @@
 import { z, type ZodTypeAny } from "zod";
 
-const vec3 = z.object({ x: z.number(), y: z.number(), z: z.number() });
+const vec3 = z.object({ x: z.number().nullable(), y: z.number().nullable(), z: z.number().nullable() });
 const side = z.enum(["t", "ct", "unknown"]);
 const nullInt = z.number().int().nullable().optional();
 const nullReal = z.number().nullable().optional();
