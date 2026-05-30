@@ -16,7 +16,7 @@
 import { aggregatePlayerDemoStats } from "./player-demo-stats";
 import type { PlayerStatRow, BlindsRow } from "./player-demo-stats";
 import type { WeaponStat } from "./weapon-stats";
-import type { RRIndicators } from "@/lib/rating";
+import type { RRIndicators } from "@rivalhub/rival-rating";
 
 // ─── 适配器入参 ───────────────────────────────────────────────────────────────
 

@@ -1,49 +1,29 @@
 /**
  * 评分系统统一入口
  *
- * 当前使用本地文件。待 @rivalhub/rival-rating 仓库完善后切换：
- *   1. rival-rating 移除 .js 导入后缀（适配 webpack/Next.js bundler 模式）
- *   2. 或 rival-rating 提供预编译 dist
- *   3. 改下方 import 为 from "@rivalhub/rival-rating"
- *
- * 权重更新流程：修改 weights/*.json → Admin 后台重算评分
+ * 所有实现从 @rivalhub/rival-rating 包导入。
+ * 权重更新流程：改 rival-rating 仓库 weights JSON → 打 tag → pnpm update → Vercel 部署。
  */
 
-// ── RR 标量 ──────────────────────────────────────────────────────────────
+// ── 默认权重（直接 import JSON，避免上游 ESM `with { type: "json" }` 语法兼容问题）──
+export { default as rrWeightsV1 } from "@rivalhub/rival-rating/weights/rr-v1.json";
+export { default as prismWeightsV1 } from "@rivalhub/rival-rating/weights/prism-v1.json";
+
 export {
+  // ── RR 标量 ────────────────────────────────────────────────────────────
   computeRR,
   computeLeagueMean,
-} from "./rr/compute";
-
-// ── PRISM 画像 ───────────────────────────────────────────────────────────
-export {
+  // ── PRISM 画像 ─────────────────────────────────────────────────────────
   computePrism,
   rrToPercentile,
-} from "./prism/compute";
-export {
   zScoreAll,
   coldStartShrink,
   zToPercentile,
-} from "./prism/zscore";
+} from "@rivalhub/rival-rating";
 
-// ── 类型 ─────────────────────────────────────────────────────────────────
 export type {
   RRIndicators,
-} from "./types/indicators";
-export type {
   RRWeights,
-  RRResult,
-} from "./types/rr";
-export type {
   PrismWeights,
-  PrismAxisKey,
-  PrismAxisResult,
-  PrismResult,
-} from "./types/prism";
-export type {
   PrismComputeInput,
-} from "./prism/compute";
-
-// ── 默认权重 ─────────────────────────────────────────────────────────────
-export { default as rrWeightsV1 } from "./weights/rr-v1.json";
-export { default as prismWeightsV1 } from "./weights/prism-v1.json";
+} from "@rivalhub/rival-rating";

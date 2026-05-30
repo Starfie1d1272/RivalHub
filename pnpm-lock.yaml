@@ -41,6 +41,9 @@ importers:
       '@radix-ui/react-tooltip':
         specifier: ^1.2.7
         version: 1.2.8(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      '@rivalhub/rival-rating':
+        specifier: github:Starfie1d1272/rival-rating#5d1d596
+        version: https://codeload.github.com/Starfie1d1272/rival-rating/tar.gz/5d1d596f15cd68b1239bfaa2950d299c44775da2
       '@supabase/supabase-js':
         specifier: ^2.49.4
         version: 2.105.3
@@ -68,6 +71,9 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      cs2-demo-format:
+        specifier: github:Starfie1d1272/cs2-demo-format#35e32f09db1be360cd9f40570552fdecc7f2a03f
+        version: https://codeload.github.com/Starfie1d1272/cs2-demo-format/tar.gz/35e32f09db1be360cd9f40570552fdecc7f2a03f(zod@3.25.76)
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@neondatabase/serverless@0.10.4)(@types/pg@8.20.0)(pg@8.20.0)
@@ -1386,6 +1392,10 @@ packages:
   '@radix-ui/rect@1.1.1':
     resolution: {integrity: sha512-HPwpGIzkl28mWyZqG52jiqDJ12waP11Pa1lGoiyUkIEuMLBP0oeK/C89esbXrxsky5we7dfd8U58nm0SgAWpVw==}
 
+  '@rivalhub/rival-rating@https://codeload.github.com/Starfie1d1272/rival-rating/tar.gz/5d1d596f15cd68b1239bfaa2950d299c44775da2':
+    resolution: {gitHosted: true, integrity: sha512-TF/izA8ewEwxRMLs1IICTv4OPg7nwi+oHSJSmDXuFp4FB0hvfVYlXWep47nLbmjH67GHrhPYPwL3il+k16QykQ==, tarball: https://codeload.github.com/Starfie1d1272/rival-rating/tar.gz/5d1d596f15cd68b1239bfaa2950d299c44775da2}
+    version: 0.1.0
+
   '@rollup/rollup-android-arm-eabi@4.60.3':
     resolution: {integrity: sha512-x35CNW/ANXG3hE/EZpRU8MXX1JDN86hBb2wMGAtltkz7pc6cxgjpy1OMMfDosOQ+2hWqIkag/fGok1Yady9nGw==}
     cpu: [arm]
@@ -1935,6 +1945,12 @@ packages:
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
     engines: {node: '>= 8'}
+
+  cs2-demo-format@https://codeload.github.com/Starfie1d1272/cs2-demo-format/tar.gz/35e32f09db1be360cd9f40570552fdecc7f2a03f:
+    resolution: {gitHosted: true, integrity: sha512-IDg2ZAA80F/LQwfvPloeFv8EFhNclkGuEprxpnY99OI+M/bQ61yY4ElPg+fmNbA6ofS1YQUcdLDYHp2e2YTg4A==, tarball: https://codeload.github.com/Starfie1d1272/cs2-demo-format/tar.gz/35e32f09db1be360cd9f40570552fdecc7f2a03f}
+    version: 1.3.0
+    peerDependencies:
+      zod: '>=3.0.0'
 
   css.escape@1.5.1:
     resolution: {integrity: sha512-YUifsXXuknHlUsmlgyY0PKzgPOr7/FjCePfHNt0jxm83wHZi44VDMQ7/fGNkjY3/jV1MC+1CmZbaHzugyeRtpg==}
@@ -3994,6 +4010,8 @@ snapshots:
 
   '@radix-ui/rect@1.1.1': {}
 
+  '@rivalhub/rival-rating@https://codeload.github.com/Starfie1d1272/rival-rating/tar.gz/5d1d596f15cd68b1239bfaa2950d299c44775da2': {}
+
   '@rollup/rollup-android-arm-eabi@4.60.3':
     optional: true
 
@@ -4455,6 +4473,11 @@ snapshots:
       path-key: 3.1.1
       shebang-command: 2.0.0
       which: 2.0.2
+
+  cs2-demo-format@https://codeload.github.com/Starfie1d1272/cs2-demo-format/tar.gz/35e32f09db1be360cd9f40570552fdecc7f2a03f(zod@3.25.76):
+    dependencies:
+      jszip: 3.10.1
+      zod: 3.25.76
 
   css.escape@1.5.1: {}
 

@@ -155,7 +155,7 @@ export async function recomputeSeasonRatings(
       const t = (e.type ?? "").toLowerCase();
       if (t === "eco") agg.ecoRounds++;
       else if (t === "force") agg.forceRounds++;
-      else if (t === "full_buy" || t === "fullbuy") agg.fullBuyRounds++;
+      else if (t === "full" || t === "full_buy" || t === "fullbuy") agg.fullBuyRounds++;
       else if (t === "pistol") agg.pistolRounds++;
       if (e.equipmentValue != null) {
         agg.equipmentValueSum += e.equipmentValue;
