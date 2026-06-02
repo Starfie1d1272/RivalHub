@@ -24,9 +24,10 @@
 | 文档 | 读它当你要… |
 |---|---|
 | [`auth-and-permissions.md`](./auth-and-permissions.md) | 改登录、鉴权、权限分级 |
-| [`registration-flow.md`](./registration-flow.md) | 改报名流程（个人/队伍） |
+| [`registration-flow.md`](./registration-flow.md) | 改个人报名流程；队伍报名仍是待实现分支 |
 | [`draft-flow.md`](./draft-flow.md) | 改选秀流程（事务、并发、超时） |
 | [`code-map.md`](./code-map.md) | 快速找到业务域对应的代码入口 |
+| [`external-pilot-readiness.md`](./external-pilot-readiness.md) | 判断外部试点前哪些能力可承诺、哪些必须声明限制 |
 
 ## 运维 & 测试
 
@@ -49,4 +50,5 @@
 - 顶层文档只记录当前有效的架构、流程、约束和运维信息。
 - 临时计划、调研、设计稿放入 `docs/archive/`。
 - 修改状态机、数据库约束、权限或部署流程时，同步更新对应文档。
+- 对外能力描述必须区分已实战验证、已实现待验收、设计/配置基础和新增开发。
 - 两个文档冲突时，以更贴近代码入口的专题文档为准，并顺手修正旧描述。

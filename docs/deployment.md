@@ -2,6 +2,32 @@
 
 生产域名：`https://match.starfie1d.top`。
 
+## 环境分层
+
+| 环境 | 用途 | 数据库 |
+|---|---|---|
+| production | 当前 NJU 赛事和正式站点 | 生产 Supabase 项目 |
+| staging / preview | 外部试点、seed、E2E、demo 导入压测 | 独立 Supabase 项目 |
+| local | 本地开发 | 本地 `.env.local` 指向的开发或 staging 数据库 |
+
+外部试点必须使用独立 staging：独立 Vercel environment / preview deployment + 独立 Supabase 项目。不要在生产数据库上运行 seed、Playwright E2E、demo 批量导入压测或权限越权测试。
+
+staging 与 production 必须分离的变量：
+
+| 变量 | 分离要求 |
+|---|---|
+| `DATABASE_URL` | 指向 staging Supabase Pooler |
+| `NEXT_PUBLIC_SUPABASE_URL` | 指向 staging Supabase 项目 |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 使用 staging anon key |
+| `SUPABASE_SERVICE_ROLE_KEY` | 使用 staging service role key |
+| `ADMIN_SESSION_SECRET` | staging 独立生成 |
+| `CRON_SECRET` | staging 独立生成；不要复用 GitHub Actions production secret |
+| `NEXT_PUBLIC_APP_URL` | 指向 staging 域名 |
+| `SILICONFLOW_API_KEY` | 可复用服务商账号，但建议用独立限额 key |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | 如启用 Turnstile，使用 staging 对应配置 |
+
+---
+
 ## 数据库连接
 
 ### 为什么 Vercel 连不上 Supabase

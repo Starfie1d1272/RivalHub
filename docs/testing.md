@@ -67,6 +67,34 @@ tests/e2e/
     └── home.spec.ts           # 当前已有首页 smoke
 ```
 
+### Staging 验收
+
+外部试点前需要一套独立 staging 数据库和可复现 seed。当前 `pnpm seed` 只创建 Root 管理员，不足以验收外部试点。
+
+建议新增场景 seed：
+
+| 脚本 | 内容 |
+|---|---|
+| `seed:rivals` | 个人报名、审核、队长投票、选秀、排位赛、双败淘汰 |
+| `seed:permissions` | guest、user、season_admin、super_admin、root 权限矩阵 |
+| `seed:major` | 32 队队伍报名、Swiss、单败；当前需等队伍报名和 Major UI 补齐后再做 |
+| `seed:demo` | demo 导入 fixture；当前可用于导入链路验收，完整展示等外部分析仓库接入 |
+| `seed:broadcast` | broadcast fixture；当前需等 broadcast 模块新增后再做 |
+
+外部试点前最小 staging smoke：
+
+1. 登录。
+2. 个人报名。
+3. 管理员审核。
+4. 队长确认。
+5. 选秀 smoke。
+6. 生成赛程。
+7. 比分录入。
+8. demo 管理页可打开。
+9. `season_admin` 不能跨赛季操作管理 action。
+
+这些验收不得指向 production `DATABASE_URL`。
+
 ---
 
 ## Vitest 配置要点
