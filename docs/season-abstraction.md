@@ -6,18 +6,32 @@
 
 ---
 
+## 当前实现边界
+
+Capability 字段和 preset 是配置层基础，不等于生产已验收流程。当前真实跑通的是 NJU 选秀联赛路径：`registrationMode=solo`、队长投票、选秀、排位赛、双败淘汰、基础比分和数据录入。
+
+以下能力仍需谨慎标注：
+
+| 能力 | 当前状态 |
+|---|---|
+| `registrationMode=team` | schema/types/season form 中已有配置基础，但公开报名页和 `submitRegistration` 仍是个人报名流程 |
+| `open-tournament` | preset 存在；队伍自助报名、审核、生成队伍闭环未完成 |
+| `major` | preset 存在；Swiss executor 有基础，但三段 Swiss 到单败的后台运营闭环未完整验收 |
+| broadcast / overlay | 不属于当前 capability preset，需新增模块 |
+
+---
+
 ## Capability 驱动（核心）
 
 多赛事的功能差异不通过 `season.kind` 判断，而是通过 `seasons` 表上的 capability 字段控制：
 
-| 字段 | 类型 | 选秀联赛预设 | 公开赛预设 | 说明 |
+| 字段 | 类型 | 选秀联赛预设 | 公开赛预设 | 当前实现说明 |
 |---|---|---|---|---|
-| `registrationMode` | `solo \| team` | `solo` | `team` | 个人报名 vs 队伍报名 |
+| `registrationMode` | `solo \| team` | `solo` | `team` | `solo` 已跑通；`team` 仍需队伍报名流程实现 |
 | `hasCaptainVoting` | `boolean` | `true` | `false` | 是否有队长投票环节 |
 | `hasDraft` | `boolean` | `true` | `false` | 是否有蛇形选秀 |
-| `stagePlan` | `StagePlan` | `round_robin -> double_elim` | `round_robin -> double_elim` | 多阶段赛制计划，`matches.stage` 存阶段 `key` |
+| `stagePlan` | `StagePlan` | `round_robin -> double_elim` | `round_robin -> double_elim` | 多阶段赛制计划，`matches.stage` 存阶段 `key`；多段 Swiss 仍需 UI 验收 |
 | `registrationConfig` | `RegistrationConfig` | Rivals 默认（含 maxTotal: 56） | Rivals 默认 | 身份类型、段位门槛、位置上限、截图链接数量、总人数上限 |
-
 | `minTeamSize` | `integer` | `7` | `5` | 每队最少人数 |
 | `maxTeamSize` | `integer` | `7` | `9` | 每队最多人数 |
 | `starterCount` | `integer` | `5` | `5` | 首发人数 |
@@ -26,7 +40,7 @@
 
 **为什么使用 stagePlan**：有些赛事可能仅有排位赛、仅有正赛，或有多个 Swiss / Playoff 阶段。用 `stagePlan` 的阶段数组统一描述，业务代码读取稳定的 `stage.key`，展示使用可变的 `stage.name`。
 
-**这意味着**：新增娱乐赛、All-Star 赛、1v1 赛等，只需在数据库里配置一行不同的 capability，不需要修改任何业务代码。
+**这意味着**：已实现的功能分支应优先读 capability。它不意味着任意新赛事只改数据库配置就能投入生产；队伍报名、Major 多段 Swiss、broadcast 等仍需要对应业务流程和验收。
 
 ```typescript
 // ❌ 禁止
@@ -76,13 +90,13 @@ if (season.hasDraft) { showDraftPage() }
 
 ## Capability 决定的功能差异
 
-| 功能点 | capability 判断 | 选秀联赛 | 公开赛 |
-|---|---|---|---|
-| 报名表单类型 | `registrationMode` | `solo`（个人） | `team`（队伍） |
-| 队长投票入口 | `hasCaptainVoting` | `true` | `false` |
-| 蛇形选秀入口 | `hasDraft` | `true` | `false` |
-| 排位赛展示 | `showQualifier(season)` | `round_robin` | `round_robin` |
-| Bracket 视图 | `showPlayoffBracket(season)` | `double_elim` | `double_elim` |
+| 功能点 | capability 判断 | 选秀联赛 | 公开赛 | 当前状态 |
+|---|---|---|---|---|
+| 报名表单类型 | `registrationMode` | `solo`（个人） | `team`（队伍） | `solo` 已实现；`team` 待实现 |
+| 队长投票入口 | `hasCaptainVoting` | `true` | `false` | 已实现 |
+| 蛇形选秀入口 | `hasDraft` | `true` | `false` | 已实现 |
+| 排位赛展示 | `showQualifier(season)` | `round_robin` | `round_robin` | round-robin 已实战；Swiss 需 staging 验收 |
+| Bracket 视图 | `showPlayoffBracket(season)` | `double_elim` | `double_elim` | 双败已实战；单败需 Major 场景验收 |
 
 **代码中 capability 检查的位置**（统一用 `lib/utils/season.ts` 的工具函数）：
 - `[seasonSlug]/draft/page.tsx`：`if (!showDraft(season)) return <ComingSoon />`
@@ -136,8 +150,8 @@ return (
 | 预设名 | 说明 |
 |---|---|
 | `draft-league` | 选秀联赛（个人报名 → 投票 → 选秀 → 循环赛 + 双败） |
-| `open-tournament` | 公开赛（队伍报名 → 循环赛 + 双败） |
-| `major` | Major 公开赛（32 队 3 轮 Swiss + 单败淘汰） |
+| `open-tournament` | 公开赛配置基础（队伍报名闭环未完成） |
+| `major` | Major 配置基础（32 队 3 轮 Swiss + 单败淘汰仍需 staging 验收） |
 
 部署者可以基于预设创建赛季，也可以完全自定义每个 capability 字段。
 

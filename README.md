@@ -1,26 +1,31 @@
 # RivalHub
 
-RivalHub 是一个面向高校电竞赛事的开源赛事管理平台，用于支撑从报名、审核、队长投票、选秀、队伍展示、赛程管理、比分录入到数据统计的完整赛事运营流程。
+RivalHub 是一个面向高校电竞赛事的开源赛事管理平台。当前生产验证重点是 NJU 选秀联赛流程：个人报名、审核、队长投票、选秀、排位赛、双败淘汰赛、基础比分和数据录入。
 
 项目采用 capability 驱动的多赛事模型。赛季能力由配置决定，公开路由以 `seasonSlug` 区分，避免把具体赛事、赛制或阶段硬编码进业务逻辑。
 
 生产站点：[match.starfie1d.top](https://match.starfie1d.top)
 
-## 核心能力
+## 当前能力状态
 
-| 模块 | 能力 |
+不要把 capability 预设或设计文档等同于生产可用能力。外部试点前请先阅读 [docs/external-pilot-readiness.md](./docs/external-pilot-readiness.md)。
+
+| 状态 | 模块 | 能力 |
 |---|---|
-| 赛季 | 多赛季路由、能力开关、阶段状态机、赛季发布与归档 |
-| 报名 | 邮箱账号、表单校验、草稿恢复、位置与人数限制、截图链接 |
-| 审核 | 管理员审核、候补名单、邀请码提权、操作审计 |
-| 队长投票 | 候选人确认、限票规则、票数展示与实时更新 |
-| 选秀 | 蛇形选秀、事务行锁、幂等 pick、超时自动递补 |
-| 队伍 | 阵容展示、队长标识、队名与队徽管理、队员联系方式可见性 |
-| 比赛 | 赛程、Bracket、BP / 地图结果、阵容提交、比分录入、MVP 投票 |
-| 协商 | 比赛时间提议、接受/拒绝、管理员强制设定、截止自动裁定 |
-| Demo | CS2 demo 解析与可视化：回合时间线、击杀回放、经济曲线、残局统计、热力图、武器偏好与首杀倾向 |
-| 数据 | OCR 录入、选手/队伍统计、排行榜、审计日志 |
-| 运维 | Vercel 部署、Supabase 数据库、GitHub Actions Cron |
+| 已实战验证 | 赛季 | 多赛季路由、能力开关、阶段状态机、赛季发布与归档 |
+| 已实战验证 | 个人报名 | 邮箱账号、表单校验、草稿恢复、位置与人数限制、截图链接 |
+| 已实战验证 | 审核 | 管理员审核、候补名单、邀请码提权、操作审计 |
+| 已实战验证 | 队长投票 | 候选人确认、限票规则、票数展示与实时更新 |
+| 已实战验证 | 选秀 | 蛇形选秀、事务行锁、幂等 pick、超时自动递补 |
+| 已实战验证 | 队伍 | 选秀生成队伍后的阵容展示、队长标识、队名与队徽管理 |
+| 已实战验证 | 比赛 | 排位赛、双败淘汰、BP / 地图结果、阵容提交、比分录入、MVP 投票 |
+| 已实战验证 | 协商 | 比赛时间提议、接受/拒绝、管理员强制设定、截止自动裁定 |
+| 已实战验证 | 数据 | OCR 录入、选手/队伍基础统计、排行榜、审计日志 |
+| 已实现待验收 | Demo | demo ZIP 导入、批量匹配、OCR 冲突确认、覆盖导入、Steam alias 绑定、部分详情展示 |
+| 已实现待验收 | 评分 | `@rivalhub/rival-rating` 接入、RR / PRISM 重算入口 |
+| 设计/配置中 | Major / Swiss | Major preset、Swiss executor 和展示基础；完整三段 Swiss 运营闭环仍需 staging 验收和 UI 补强 |
+| 尚未实现 | 队伍报名 | 外部队伍自助报名、审核、生成队伍流程 |
+| 尚未实现 | Broadcast | public broadcast API、OBS / vMix overlay、MVP 转播卡 |
 
 ## 技术栈
 
@@ -28,7 +33,7 @@ RivalHub 是一个面向高校电竞赛事的开源赛事管理平台，用于�
 |---|---|
 | Web | Next.js App Router, React, TypeScript strict |
 | UI | Tailwind CSS, shadcn/ui, 自定义 Tactical Grid 组件 |
-| Demo 解析 | CS2 demo parser (node), canvas 热力图 (Canvas API), SVG 经济曲线 |
+| Demo 解析 | `cs2-demo-format` ZIP 导入；完整分析展示仍在建设 |
 | 数据 | Supabase Postgres, Auth, Realtime, Storage |
 | ORM | Drizzle ORM |
 | 表单 | React Hook Form, Zod |
@@ -87,6 +92,8 @@ password: RivalHub_password
 
 Cron 由 GitHub Actions 调用，端点与频率见 [.github/workflows/cron.yml](./.github/workflows/cron.yml)。部署细节见 [docs/deployment.md](./docs/deployment.md)。
 
+外部试点必须使用独立 staging 环境：独立 Vercel environment / preview deployment + 独立 Supabase 项目。不要把试点 seed、E2E 或 demo 导入压测指向生产数据库。
+
 ## 安全边界
 
 - 业务写操作走 Server Actions；Cron 触发才使用 API Route。
@@ -135,6 +142,7 @@ pnpm build
 | [docs/state-machines.md](./docs/state-machines.md) | 关键业务状态机 |
 | [docs/deployment.md](./docs/deployment.md) | Vercel / Supabase 部署手册 |
 | [docs/testing.md](./docs/testing.md) | 测试策略 |
+| [docs/external-pilot-readiness.md](./docs/external-pilot-readiness.md) | 外部试点前能力边界、staging 和整改清单 |
 | [CHANGELOG.md](./CHANGELOG.md) | 版本发布记录 |
 
 历史设计稿、一次性计划和过程材料已归档到 [docs/archive](./docs/archive)，不作为当前实现的事实来源。
