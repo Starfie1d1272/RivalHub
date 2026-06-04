@@ -183,6 +183,10 @@ export function toRRIndicators(input: ToRRIndicatorsInput): RRIndicators {
     flashAssistPerRound:    safe(flashAssistCount, totalRounds),
     blindDurationTotal:     agg.blindsDuration,
     blindDurationPerRound:  safe(agg.blindsDuration, totalRounds),
+    enemyFlashDurationSeconds: null,
+    enemyFlashDurationPerRound: null,
+    teamFlashDurationSeconds: null,
+    teamFlashDurationPerRound: null,
     grenadeCount,
     grenadeCountPerRound:   safe(grenadeCount, totalRounds),
 
@@ -192,6 +196,9 @@ export function toRRIndicators(input: ToRRIndicatorsInput): RRIndicators {
     pistolRoundCount:   economy?.pistolRounds    ?? 0,
     avgEquipmentValue:  economy?.avgEquipmentValue ?? 0,
 
+    combatDeathCount: null,
+    bombDeathCount: null,
+    wallbangKillCount: null,
     roundSwingTotal:   null,
     roundSwingPerKill: null,
   };
