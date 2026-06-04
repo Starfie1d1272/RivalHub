@@ -2,6 +2,7 @@
 
 import { sql } from "drizzle-orm";
 import { db } from "@/db/client";
+import { ocrFallbackCte } from "@/lib/stats/sql";
 import {
   computeEventStats,
   computeDimensions,
@@ -19,6 +20,7 @@ export async function getSeasonHexagonScores(
 ): Promise<Map<string, HexagonScores>> {
   // 回合数：优先 map 级（BO3/BO5），BO1 fallback 到 match 级
   const { rows } = await db.execute(sql`
+    WITH ocr_avg AS (${ocrFallbackCte(sql`${seasonId}`)})
     SELECT
       mps.user_id,
       sum(mps.kills)::float        / NULLIF(sum(COALESCE(mm.score_a + mm.score_b, m.score_a + m.score_b)), 0)  AS kpr,
@@ -29,15 +31,17 @@ export async function getSeasonHexagonScores(
       sum(mps.clutches)::float     / NULLIF(sum(COALESCE(mm.score_a + mm.score_b, m.score_a + m.score_b)), 0)  AS cpr,
       sum(mps.adr * COALESCE(mm.score_a + mm.score_b, m.score_a + m.score_b))
         / NULLIF(sum(COALESCE(mm.score_a + mm.score_b, m.score_a + m.score_b)), 0)                             AS adr,
-      avg(mps.rws)                                                                                             AS rws,
-      avg(mps.we)                                                                                              AS we,
-      avg(mps.rating_pro)                                                                                      AS rating_pro,
+      -- rws/we/rating_pro 是完美平台(OCR)独有指标，始终对全季 manual_ocr 行聚合，不随 active_stat_source 漂移
+      min(ocr.avg_rws_ocr)                                                                                     AS rws,
+      min(ocr.avg_we_ocr)                                                                                      AS we,
+      min(ocr.avg_rating_ocr)                                                                                  AS rating_pro,
       sum(mps.kills)::float        / NULLIF(sum(mps.deaths), 0)                                               AS kd,
       (sum(mps.kills) + sum(mps.assists))::float / NULLIF(sum(mps.deaths), 0)                                 AS kda,
       sum(COALESCE(mm.score_a + mm.score_b, m.score_a + m.score_b))::int                                      AS total_rounds
     FROM match_player_stats mps
     JOIN matches m  ON m.id  = mps.match_id
     JOIN match_maps mm ON mm.id = mps.map_id
+    LEFT JOIN ocr_avg ocr ON ocr.user_id = mps.user_id
     WHERE m.season_id = ${seasonId}
       AND mps.verified_by_admin IS NOT NULL
       AND mps.source = COALESCE(mm.active_stat_source, 'manual_ocr'::stat_source)

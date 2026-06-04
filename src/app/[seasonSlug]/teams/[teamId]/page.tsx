@@ -174,13 +174,13 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
         SELECT
           mps.user_id,
           count(distinct mps.map_id)::int                                                            AS maps,
-          COALESCE(round(avg(mps.rating_pro)::numeric, 2), min(ocr.avg_rating_ocr))                  AS avg_rating,
+          min(ocr.avg_rating_ocr)                                                                    AS avg_rating,
           round(
             CASE WHEN sum(mm2.score_a + mm2.score_b) > 0
               THEN sum(mps.adr * (mm2.score_a + mm2.score_b))::numeric / sum(mm2.score_a + mm2.score_b)
               ELSE NULL END
           ::numeric, 1)                                                                              AS avg_adr,
-          COALESCE(round(avg(mps.we)::numeric, 1), min(ocr.avg_we_ocr))                              AS avg_we,
+          min(ocr.avg_we_ocr)                                                                        AS avg_we,
           sum(mps.kills)::int                                                                        AS total_kills,
           sum(mps.deaths)::int                                                                       AS total_deaths,
           sum(mm2.score_a + mm2.score_b)::int                                                        AS total_rounds,

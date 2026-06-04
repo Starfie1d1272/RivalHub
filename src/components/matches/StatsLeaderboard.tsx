@@ -345,7 +345,7 @@ export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "cor
                 {cols.map((col) => (
                   <th
                     key={col.key}
-                    className="px-1.5 py-3 text-center whitespace-nowrap"
+                    className="px-1.5 py-3 text-center leading-tight break-words"
                     style={sort === col.key ? { background: sortColBg, color: accentText } : undefined}
                   >
                     {col.label}

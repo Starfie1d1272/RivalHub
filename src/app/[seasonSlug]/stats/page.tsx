@@ -71,14 +71,14 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
       case "kd":     return sql`CASE WHEN sum(mps.deaths) > 0 THEN sum(mps.kills)::numeric / sum(mps.deaths) ELSE NULL END`;
       case "kpr":    return kprExpr;
       case "hs":     return hsExpr;
-      case "we":     return sql`COALESCE(avg(mps.we), min(ocr.avg_we_ocr))`;
-      case "rws":    return sql`COALESCE(avg(mps.rws), min(ocr.avg_rws_ocr))`;
+      case "we":     return sql`min(ocr.avg_we_ocr)`;
+      case "rws":    return sql`min(ocr.avg_rws_ocr)`;
       case "fk":     return fkprExpr;
       case "mk":     return mkprExpr;
       case "clutch": return cprExpr;
       case "maps":   return sql`count(*)`;
       case "rr":     return sql`(SELECT rr_score FROM player_ratings WHERE season_id = ${season.id} AND user_id = mps.user_id LIMIT 1)`;
-      default:       return sql`COALESCE(avg(mps.rating_pro), min(ocr.avg_rating_ocr))`;
+      default:       return sql`min(ocr.avg_rating_ocr)`;
     }
   })();
 
@@ -94,10 +94,10 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
       t.name  AS team_name,
       t.id    AS team_id,
       count(*)::int                                                          AS maps,
-      COALESCE(round(avg(mps.rating_pro)::numeric, 2), min(ocr.avg_rating_ocr))  AS avg_rating,
+      min(ocr.avg_rating_ocr)                                               AS avg_rating,
       round(${adrExpr}::numeric, 1)                                         AS avg_adr,
-      COALESCE(round(avg(mps.rws)::numeric, 2), min(ocr.avg_rws_ocr))           AS avg_rws,
-      COALESCE(round(avg(mps.we)::numeric, 1), min(ocr.avg_we_ocr))             AS avg_we,
+      min(ocr.avg_rws_ocr)                                                  AS avg_rws,
+      min(ocr.avg_we_ocr)                                                   AS avg_we,
       round(${hsExpr}::numeric, 1)                                          AS avg_hs,
       CASE WHEN sum(mps.deaths) > 0
         THEN round(sum(mps.kills)::numeric / sum(mps.deaths), 2)

@@ -27,7 +27,7 @@ interface TeamCardProps {
   };
   summary?: {
     maps: number;
-    avgRating: number;
+    avgRating: number | null;
     avgAdr: number;
     avgRr?: number | null;
   } | null;

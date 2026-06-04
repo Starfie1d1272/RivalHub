@@ -68,7 +68,6 @@ export default async function TeamsPage({ params }: TeamsPageProps) {
       SELECT
         tm.team_id,
         count(distinct mps.map_id)::int AS maps,
-        round(avg(mps.rating_pro)::numeric, 2) AS avg_rating,
         round(
           CASE WHEN sum(mm2.score_a + mm2.score_b) > 0
             THEN sum(mps.adr * (mm2.score_a + mm2.score_b))::numeric / sum(mm2.score_a + mm2.score_b)
@@ -131,12 +130,33 @@ export default async function TeamsPage({ params }: TeamsPageProps) {
     ]),
   );
 
+  // 队伍 Rating Pro 均值：完美平台(OCR)独有指标，始终只对 manual_ocr 行聚合，
+  // 不随 active_stat_source 漂移（否则导了 demo 的图会被排除，只剩最新几场）。
+  const teamRatingResult = await db.execute(sql`
+    SELECT tm.team_id, round(avg(mps.rating_pro)::numeric, 2) AS avg_rating
+    FROM match_player_stats mps
+    JOIN matches m ON m.id = mps.match_id
+    JOIN season_registrations sr
+      ON sr.user_id = mps.user_id AND sr.season_id = m.season_id
+    JOIN team_members tm ON tm.registration_id = sr.id
+    WHERE m.season_id = ${season.id}
+      AND mps.verified_by_admin IS NOT NULL
+      AND mps.source = 'manual_ocr'::stat_source
+    GROUP BY tm.team_id
+  `);
+  const teamRatingMap = new Map(
+    teamRatingResult.rows.map((row) => [
+      row.team_id as string,
+      row.avg_rating == null ? null : Number(row.avg_rating),
+    ]),
+  );
+
   const teamSummaryMap = new Map(
     teamStatResult.rows.map((row) => [
       row.team_id as string,
       {
         maps: Number(row.maps),
-        avgRating: Number(row.avg_rating),
+        avgRating: teamRatingMap.get(row.team_id as string) ?? null,
         avgAdr: Number(row.avg_adr),
         avgRr: teamRrMap.get(row.team_id as string) ?? null,
       },

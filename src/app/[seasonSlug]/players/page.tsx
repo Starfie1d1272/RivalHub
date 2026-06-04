@@ -9,6 +9,7 @@ import { PlayerDirectoryRow } from "@/components/players/PlayerDirectoryRow";
 import { countDirectoryPlayersWithTeam, sortPlayerDirectory } from "@/lib/players/directory-order";
 import { positionLabel, positionValues } from "@/lib/validators/registration";
 import { getDisplayName } from "@/lib/utils/display-name";
+import { ocrFallbackCte } from "@/lib/stats/sql";
 import type { Metadata } from "next";
 
 interface PlayersPageProps {
@@ -85,10 +86,12 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
   const teamByRegId = new Map(teamMemberRows.map((r) => [r.registrationId, r.teamName]));
 
   const playerStatResult = await db.execute(sql`
+    WITH ocr_avg AS (${ocrFallbackCte(sql`${season.id}`)})
     SELECT
       mps.user_id,
       count(distinct mps.map_id)::int AS maps,
-      round(avg(mps.rating_pro)::numeric, 2) AS avg_rating,
+      -- Rating Pro 是完美平台(OCR)独有指标，始终对全季 manual_ocr 行聚合，不随 active_stat_source 漂移
+      min(ocr.avg_rating_ocr) AS avg_rating,
       -- ADR 回合加权（JOIN match_maps mm2），避免简单均值失真
       round(
         CASE WHEN sum(mm2.score_a + mm2.score_b) > 0
@@ -99,6 +102,7 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
     FROM match_player_stats mps
     JOIN matches m ON m.id = mps.match_id
     JOIN match_maps mm2 ON mm2.id = mps.map_id
+    LEFT JOIN ocr_avg ocr ON ocr.user_id = mps.user_id
     WHERE m.season_id = ${season.id}
       AND mps.verified_by_admin IS NOT NULL
       AND mps.user_id IS NOT NULL
