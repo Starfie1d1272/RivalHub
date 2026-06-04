@@ -4,7 +4,7 @@ import React, { useState, useMemo } from "react";
 import { Panel } from "@/components/rivalhub";
 import { cn } from "@/lib/utils/cn";
 import { aggregateWeaponStats, type WeaponStat } from "@/lib/demo/weapon-stats";
-import { displayWeaponName } from "@/lib/demo/weapon-names";
+import { displayWeaponName } from "@cs2dak/core";
 import type { RawDemoKillRow, DemoPlayerStatRow } from "@/actions/demo-detail";
 
 interface PlayerWeaponBreakdownProps {

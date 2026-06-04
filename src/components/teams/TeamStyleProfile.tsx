@@ -1,6 +1,6 @@
 import React from "react";
 import { Panel } from "@/components/rivalhub";
-import { economyLabelCn } from "@/lib/demo/economy-series";
+import { economyLabelCn } from "@cs2dak/core";
 import type { TeamStyleProfile as TeamStyleProfileData } from "@/actions/team-demo-stats";
 
 interface TeamStyleProfileProps {
