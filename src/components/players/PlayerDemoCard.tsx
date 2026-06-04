@@ -1,6 +1,6 @@
 import React from "react";
 import { Panel } from "@/components/rivalhub";
-import { weaponFullName } from "@/lib/demo/weapon-names";
+import { displayWeaponName } from "@cs2dak/core";
 import type { PlayerDemoAggregate } from "@/lib/demo/player-demo-stats";
 import type { PlayerWeaponStats } from "@/actions/season-demo-stats";
 
@@ -132,7 +132,7 @@ export function PlayerDemoCard({ seasonName, data, weapon }: PlayerDemoCardProps
                 key={w.weapon}
                 className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded bg-[var(--color-bg-secondary)]"
               >
-                <span className="font-medium">{weaponFullName(w.weapon)}</span>
+                <span className="font-medium">{displayWeaponName(w.weapon)}</span>
                 <span className="text-[var(--color-fg-mid)]">{w.kills}</span>
                 {w.hsPercent != null && (
                   <span className="text-[var(--color-fg-dim)]">{w.hsPercent}%HS</span>

@@ -1,6 +1,6 @@
 import React from "react";
 import { Panel } from "@/components/rivalhub";
-import { economyLabelCn } from "@/lib/demo/economy-series";
+import { economyLabelCn } from "@cs2dak/core";
 import type { EconomyTypeStats } from "@/lib/demo/economy-conversion";
 
 interface EconomyConversionPanelProps {

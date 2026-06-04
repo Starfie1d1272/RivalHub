@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@cs2dak/core':
+        specifier: ^0.2.1
+        version: 0.2.1
       '@hookform/resolvers':
         specifier: ^5.0.1
         version: 5.2.2(react-hook-form@7.75.0(react@19.2.5))
@@ -42,8 +45,8 @@ importers:
         specifier: ^1.2.7
         version: 1.2.8(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       '@rivalhub/rival-rating':
-        specifier: github:Starfie1d1272/rival-rating#5d1d596
-        version: https://codeload.github.com/Starfie1d1272/rival-rating/tar.gz/5d1d596f15cd68b1239bfaa2950d299c44775da2
+        specifier: ^0.1.0
+        version: 0.1.0
       '@supabase/supabase-js':
         specifier: ^2.49.4
         version: 2.105.3
@@ -224,6 +227,12 @@ packages:
   '@bcoe/v8-coverage@1.0.2':
     resolution: {integrity: sha512-6zABk/ECA/QYSCQ1NGiVwwbQerUCZ+TQbp64Q3AgmfNvurHH0j8TtXa1qbShXA6qqkpAj4V5W8pP6mLe1mcMqA==}
     engines: {node: '>=18'}
+
+  '@cs2dak/contract@0.2.1':
+    resolution: {integrity: sha512-A6B1KGRkicdBK4DaKluglCM6Ttfvpc2LsWPIjU1nIlXeDzoVEumy5i0cBf/1KDzqXZolIqayTY02N+qrhmIbcw==}
+
+  '@cs2dak/core@0.2.1':
+    resolution: {integrity: sha512-z+f4+bM42TF5jmuQn5p8vab3hSZRQOGtOWuVmJLBvGicAG331u55Cv5heEkN93qlU4T321wLWSweLPn6G32L1w==}
 
   '@csstools/color-helpers@5.1.0':
     resolution: {integrity: sha512-S11EXWJyy0Mz5SYvRmY8nJYTFFd1LCNV+7cXyAgQtOOuzb4EsgfqDufL+9esx72/eLhsRdGZwaldu/h+E4t4BA==}
@@ -1392,9 +1401,8 @@ packages:
   '@radix-ui/rect@1.1.1':
     resolution: {integrity: sha512-HPwpGIzkl28mWyZqG52jiqDJ12waP11Pa1lGoiyUkIEuMLBP0oeK/C89esbXrxsky5we7dfd8U58nm0SgAWpVw==}
 
-  '@rivalhub/rival-rating@https://codeload.github.com/Starfie1d1272/rival-rating/tar.gz/5d1d596f15cd68b1239bfaa2950d299c44775da2':
-    resolution: {gitHosted: true, integrity: sha512-TF/izA8ewEwxRMLs1IICTv4OPg7nwi+oHSJSmDXuFp4FB0hvfVYlXWep47nLbmjH67GHrhPYPwL3il+k16QykQ==, tarball: https://codeload.github.com/Starfie1d1272/rival-rating/tar.gz/5d1d596f15cd68b1239bfaa2950d299c44775da2}
-    version: 0.1.0
+  '@rivalhub/rival-rating@0.1.0':
+    resolution: {integrity: sha512-N7JAhJBAee5RHYJp8bDoBhn7PdAaYnAOEvBGk5ojVJO3Xq+6HYEZXOfKgRaBhsIr9BvE2edAMV3nthBENYJg1w==}
 
   '@rollup/rollup-android-arm-eabi@4.60.3':
     resolution: {integrity: sha512-x35CNW/ANXG3hE/EZpRU8MXX1JDN86hBb2wMGAtltkz7pc6cxgjpy1OMMfDosOQ+2hWqIkag/fGok1Yady9nGw==}
@@ -1945,6 +1953,11 @@ packages:
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
     engines: {node: '>= 8'}
+
+  cs2-demo-format@2.2.0:
+    resolution: {integrity: sha512-f2+K4vToxOnB1Y1FsMYIckgVbG8zRTmOGut7FYcL1Xi8zdxjREVvbsJksTa4m+2cK/qpZ+Hhi6x7zDSteAWq5w==}
+    peerDependencies:
+      zod: '>=3.0.0'
 
   cs2-demo-format@https://codeload.github.com/Starfie1d1272/cs2-demo-format/tar.gz/35e32f09db1be360cd9f40570552fdecc7f2a03f:
     resolution: {gitHosted: true, integrity: sha512-IDg2ZAA80F/LQwfvPloeFv8EFhNclkGuEprxpnY99OI+M/bQ61yY4ElPg+fmNbA6ofS1YQUcdLDYHp2e2YTg4A==, tarball: https://codeload.github.com/Starfie1d1272/cs2-demo-format/tar.gz/35e32f09db1be360cd9f40570552fdecc7f2a03f}
@@ -3153,6 +3166,18 @@ snapshots:
 
   '@bcoe/v8-coverage@1.0.2': {}
 
+  '@cs2dak/contract@0.2.1':
+    dependencies:
+      '@rivalhub/rival-rating': 0.1.0
+      cs2-demo-format: 2.2.0(zod@3.25.76)
+      zod: 3.25.76
+
+  '@cs2dak/core@0.2.1':
+    dependencies:
+      '@cs2dak/contract': 0.2.1
+      '@rivalhub/rival-rating': 0.1.0
+      jszip: 3.10.1
+
   '@csstools/color-helpers@5.1.0': {}
 
   '@csstools/css-calc@2.1.4(@csstools/css-parser-algorithms@3.0.5(@csstools/css-tokenizer@3.0.4))(@csstools/css-tokenizer@3.0.4)':
@@ -4010,7 +4035,7 @@ snapshots:
 
   '@radix-ui/rect@1.1.1': {}
 
-  '@rivalhub/rival-rating@https://codeload.github.com/Starfie1d1272/rival-rating/tar.gz/5d1d596f15cd68b1239bfaa2950d299c44775da2': {}
+  '@rivalhub/rival-rating@0.1.0': {}
 
   '@rollup/rollup-android-arm-eabi@4.60.3':
     optional: true
@@ -4473,6 +4498,11 @@ snapshots:
       path-key: 3.1.1
       shebang-command: 2.0.0
       which: 2.0.2
+
+  cs2-demo-format@2.2.0(zod@3.25.76):
+    dependencies:
+      jszip: 3.10.1
+      zod: 3.25.76
 
   cs2-demo-format@https://codeload.github.com/Starfie1d1272/cs2-demo-format/tar.gz/35e32f09db1be360cd9f40570552fdecc7f2a03f(zod@3.25.76):
     dependencies:

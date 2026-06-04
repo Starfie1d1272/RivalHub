@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import { Panel } from "@/components/rivalhub";
-import { weaponFullName } from "@/lib/demo/weapon-names";
+import { displayWeaponName } from "@cs2dak/core";
 import type { PlayerWeaponStats, WeaponKillRow } from "@/actions/season-demo-stats";
 
 interface WeaponLeaderboardProps {
@@ -32,7 +32,7 @@ function PlayerName({
 function WeaponBadge({ weapon, kills, hsPercent }: WeaponKillRow) {
   return (
     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md bg-[var(--color-bg-secondary)] mr-1.5 mb-1.5">
-      <span className="font-medium">{weaponFullName(weapon)}</span>
+      <span className="font-medium">{displayWeaponName(weapon)}</span>
       <span className="text-[var(--color-fg-mid)]">{kills}</span>
       {hsPercent != null && (
         <span className="text-[var(--color-fg-dim)]">{hsPercent}%HS</span>
