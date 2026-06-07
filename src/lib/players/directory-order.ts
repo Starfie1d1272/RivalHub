@@ -3,8 +3,8 @@ interface DirectoryPlayer {
   currentRating: number;
   stats: {
     maps: number;
-    avgRating: number;
-    avgRr?: number | null;
+    rivalhubRR: number | null;
+    hltvRating: number | null;
   } | null;
 }
 
@@ -13,11 +13,10 @@ export function sortPlayerDirectory<T extends DirectoryPlayer>(players: T[]): T[
     const mapsDiff = (b.stats?.maps ?? -1) - (a.stats?.maps ?? -1);
     if (mapsDiff !== 0) return mapsDiff;
 
-    // RR 为门面评分，优先排序；无 RR 时回退完美 Rating
-    const rrDiff = (b.stats?.avgRr ?? -1) - (a.stats?.avgRr ?? -1);
+    const rrDiff = (b.stats?.rivalhubRR ?? -1) - (a.stats?.rivalhubRR ?? -1);
     if (rrDiff !== 0) return rrDiff;
 
-    const seasonRatingDiff = (b.stats?.avgRating ?? -1) - (a.stats?.avgRating ?? -1);
+    const seasonRatingDiff = (b.stats?.hltvRating ?? -1) - (a.stats?.hltvRating ?? -1);
     if (seasonRatingDiff !== 0) return seasonRatingDiff;
 
     const registrationRatingDiff = b.currentRating - a.currentRating;

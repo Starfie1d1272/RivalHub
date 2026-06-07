@@ -89,7 +89,13 @@ Bracket 图（`brackets-viewer` 渲染，注入 season theme_color）与排位�
 
 ## 比赛详情 `/[seasonSlug]/matches/[matchId]`
 
-双方阵容 + 比分 + 地图结果（每图 Team A / Team B 双栏 K/D/A/ADR/Rating）。单场 MVP 投票区。
+赛前保留对阵标题、地图池、历史交锋、BP、名单和时间协商。比赛结束后，每张已导入地图直接展示 DAK `MatchWorkspace`：
+
+- 顶部比赛主线 + KPI，随后是总览、回合、选手、经济工作区。
+- 工作区使用 DAK 自有作用域主题，但页面外壳继续使用 RivalHub 深色背景和布局。
+- 数据库快照不复制高频地图点和 2D 回放帧；这些原始能力保留在不可变 ZIP 中。
+
+统计页使用 DAK `SeasonLeaderboard`；选手与战队详情继续复用 RivalHub `Panel` / `Stat` / token，并由同一份赛季 cohort 派生。
 
 ---
 

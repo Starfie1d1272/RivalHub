@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { countDirectoryPlayersWithTeam, sortPlayerDirectory } from "./directory-order";
 
 const players = [
-  { id: "alpha", name: "Alpha", currentRating: 1.2, stats: { maps: 4, avgRating: 1.1 } },
-  { id: "bravo", name: "Bravo", currentRating: 1.3, stats: { maps: 6, avgRating: 1.02 } },
-  { id: "charlie", name: "Charlie", currentRating: 1.4, stats: { maps: 6, avgRating: 1.28 } },
+  { id: "alpha", name: "Alpha", currentRating: 1.2, stats: { maps: 4, rivalhubRR: 1.1, hltvRating: 1.05 } },
+  { id: "bravo", name: "Bravo", currentRating: 1.3, stats: { maps: 6, rivalhubRR: 1.02, hltvRating: 1.03 } },
+  { id: "charlie", name: "Charlie", currentRating: 1.4, stats: { maps: 6, rivalhubRR: 1.28, hltvRating: 1.15 } },
   { id: "delta", name: "Delta", currentRating: 1.5, stats: null },
   { id: "echo", name: "Echo", currentRating: 1.6, stats: null },
 ];

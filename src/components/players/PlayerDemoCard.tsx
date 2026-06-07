@@ -1,6 +1,6 @@
 import React from "react";
 import { Panel } from "@/components/rivalhub";
-import { displayWeaponName } from "@cs2dak/core";
+import { displayWeaponName } from "@cs2dak/presentation";
 import type { PlayerDemoAggregate } from "@/lib/demo/player-demo-stats";
 import type { PlayerWeaponStats } from "@/actions/season-demo-stats";
 

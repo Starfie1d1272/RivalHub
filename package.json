@@ -19,7 +19,12 @@
     "seed": "NODE_OPTIONS='--dns-result-order=ipv4first' tsx --env-file .env.local scripts/seed.ts"
   },
   "dependencies": {
-    "@cs2dak/core": "^0.2.1",
+    "@cs2dak/cohort": "^1.0.0",
+    "@cs2dak/contract": "^1.0.0",
+    "@cs2dak/core": "^1.0.0",
+    "@cs2dak/maps": "^0.2.1",
+    "@cs2dak/presentation": "^1.0.0",
+    "@cs2dak/react": "^1.0.0",
     "@hookform/resolvers": "^5.0.1",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-dialog": "^1.1.14",
@@ -41,7 +46,7 @@
     "brackets-viewer": "^1.9.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "cs2-demo-format": "github:Starfie1d1272/cs2-demo-format#35e32f09db1be360cd9f40570552fdecc7f2a03f",
+    "cs2-demo-format": "^2.2.0",
     "drizzle-orm": "^0.45.2",
     "iron-session": "^8.0.4",
     "jszip": "^3.10.1",

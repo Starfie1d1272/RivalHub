@@ -16,11 +16,10 @@ export interface PlayerDirectoryData {
   teamName: string | null;
   stats: {
     maps: number;
-    avgRating: number;
-    avgAdr: number;
-    avgKd: number | null;
-    /** RR 评分（门面，from player_ratings）；无数据时 null */
-    avgRr?: number | null;
+    rivalhubRR: number | null;
+    hltvRating: number | null;
+    adr: number | null;
+    kd: number | null;
   } | null;
 }
 
@@ -37,7 +36,7 @@ function DirectoryMetric({ label, value }: { label: string; value: string | numb
   );
 }
 
-export function PlayerDirectoryRow({ player, showRatingPro }: { player: PlayerDirectoryData; showRatingPro?: boolean }) {
+export function PlayerDirectoryRow({ player }: { player: PlayerDirectoryData }) {
   return (
     <Panel hoverable pad={12}>
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1.15fr)_auto] lg:items-center">
@@ -70,12 +69,10 @@ export function PlayerDirectoryRow({ player, showRatingPro }: { player: PlayerDi
         {player.stats ? (
           <div className="flex flex-wrap gap-x-4 gap-y-1.5 border-t border-[var(--color-border)] pt-2 lg:justify-end lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
             <DirectoryMetric label="Maps" value={player.stats.maps} />
-            <DirectoryMetric label="RR" value={player.stats.avgRr != null ? player.stats.avgRr.toFixed(2) : "—"} />
-            {showRatingPro && (
-              <DirectoryMetric label="Rating Pro" value={player.stats.avgRating ? player.stats.avgRating.toFixed(2) : "—"} />
-            )}
-            <DirectoryMetric label="ADR" value={player.stats.avgAdr.toFixed(1)} />
-            <DirectoryMetric label="K/D" value={player.stats.avgKd != null ? player.stats.avgKd.toFixed(2) : "—"} />
+            <DirectoryMetric label="RR" value={player.stats.rivalhubRR != null ? player.stats.rivalhubRR.toFixed(2) : "—"} />
+            <DirectoryMetric label="Rating 2.0" value={player.stats.hltvRating != null ? player.stats.hltvRating.toFixed(2) : "—"} />
+            <DirectoryMetric label="ADR" value={player.stats.adr != null ? player.stats.adr.toFixed(1) : "—"} />
+            <DirectoryMetric label="K/D" value={player.stats.kd != null ? player.stats.kd.toFixed(2) : "—"} />
           </div>
         ) : (
           <div className="border-t border-[var(--color-border)] pt-2 text-xs uppercase text-[var(--color-fg-dim)] lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0 lg:text-right" style={{ fontFamily: "var(--font-mono)" }}>

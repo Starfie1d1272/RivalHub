@@ -12,13 +12,13 @@
 | 选秀 | `src/app/[seasonSlug]/draft/`、`src/components/draft/`、`src/actions/draft/` | `src/lib/draft/rules.ts`、`src/lib/draft/auto-pick.ts`、`src/lib/draft/data.ts` |
 | 队伍 | `src/app/[seasonSlug]/teams/`、`src/components/teams/`、`src/actions/teams.ts` | `src/lib/teams/data.ts` |
 | 比赛列表 / 生成 | `src/app/[seasonSlug]/matches/`、`src/app/admin/[seasonSlug]/matches/`、`src/actions/matches/schedule.ts` | `src/lib/formats/`、`src/lib/bracket/` |
-| 比赛详情 | `src/app/[seasonSlug]/matches/[matchId]/page.tsx` | `src/lib/matches/detail-data.ts`、`src/lib/matches/detail-stats.ts` |
+| 比赛详情 | `src/app/[seasonSlug]/matches/[matchId]/page.tsx` | `src/actions/dak-analysis.ts`、`@cs2dak/react` 的 `MatchWorkspace` |
 | 比赛结果 / BP / 阵容 | `src/actions/matches/`、`src/components/matches/` | `src/lib/match-transitions.ts`、`src/lib/validators/match.ts` |
-| 玩家数据 / OCR | `src/actions/player-stats.ts`、`src/components/matches/StatsOCRPanel.tsx` | `src/lib/ocr/`、`src/lib/stats/mvp.ts`、`src/lib/config/stat-profile.ts` |
-| Demo 导入与解析 | `src/actions/demo-import.ts`、`src/actions/demo-batch-import.ts`、`src/actions/demo-detail.ts`、`src/lib/demo/` | `src/lib/demo/map-calibration.ts`、`src/lib/demo/economy-series.ts`；导入链路可进 staging 验收 |
-| Demo 比赛页展现 | `src/components/matches/DemoPlayerStatsTable.tsx`、`src/components/matches/DemoHeatmap.tsx`、`src/components/matches/DemoRoundTimeline.tsx`、`src/components/matches/DemoKillFeed.tsx`、`src/components/matches/DemoEconomyChart.tsx`、`src/components/matches/DemoClutchList.tsx`、`src/components/matches/PlayerKillHeatmap.tsx`、`src/components/matches/PlayerWeaponBreakdown.tsx`、`src/components/matches/PlayerEntryStats.tsx`、`src/components/matches/PlayerClutchStats.tsx`、`src/components/matches/PlayerUtilityStats.tsx`、`src/components/matches/EconomyConversionPanel.tsx`、`src/components/matches/HighlightLeaderboard.tsx`、`src/components/teams/TeamStyleProfile.tsx`、`src/components/teams/TeamHalfSideStats.tsx` | 当前为建设中能力；完整分析展示待 `cs2-demo-analysis-kit` 接入后再对外承诺 |
-| 数据统计排行榜 | `src/app/[seasonSlug]/stats/page.tsx`、`src/components/matches/StatsLeaderboard.tsx` | `src/lib/stats/`；当前可承诺基础统计 |
-| 评分系统 (RR / PRISM / 六维) | `src/actions/compute-season-ratings.ts`（重算入口）、`src/lib/rating/index.ts`（统一适配层） | 外部仓库 `@rivalhub/rival-rating`（权重 JSON + 计算逻辑），适配器 `src/lib/demo/to-rr-indicators.ts`，六维 `src/lib/utils/hexagon.ts`；完整调权和分析仍在外部仓库推进 |
+| DAK ZIP 导入与版本化分析 | `src/actions/demo-import.ts`、`src/actions/demo-batch-import.ts`、`scripts/rebuild-dak-season.ts` | `src/lib/demo/dak.ts`、`src/db/schema/demo-analysis.ts`；ZIP 是不可变原始事实，分析快照可版本化替换 |
+| DAK 比赛页展现 | `src/app/[seasonSlug]/matches/[matchId]/page.tsx`、`src/actions/dak-analysis.ts` | `@cs2dak/react` 的 `MatchWorkspace`；数据库保存紧凑工作区，回放/高频地图点保留在 ZIP |
+| 数据统计排行榜 | `src/app/[seasonSlug]/stats/page.tsx` | `@cs2dak/react` 的 `SeasonLeaderboard`，数据来自 `season_analysis_runs` |
+| 选手 / 战队分析 | `src/app/players/[userId]/page.tsx`、`src/app/[seasonSlug]/teams/[teamId]/page.tsx` | `@cs2dak/presentation` 的 `buildPlayerSeasonProfile` / `buildTeamCohortSummary` |
+| 评分系统 (RR / PRISM) | `src/actions/compute-season-ratings.ts`（重算入口） | DAK cohort 接线 `@rivalhub/rival-rating`；`player_ratings` 仅保留查询投影，不再是分析真相源 |
 | 赛季管理 | `src/app/admin/seasons/`、`src/components/admin/SeasonForm.tsx`、`src/actions/seasons.ts` | `src/types/season.ts`、`src/lib/utils/season.ts` |
 | 权限 / 会话 | `src/actions/auth.ts`、`src/actions/account.ts`、`src/middleware.ts` | `src/lib/auth/session.ts`、`src/lib/auth/supabase.ts` |
 | Cron | `src/app/api/cron/` | `src/actions/draft/picks.ts`、`src/actions/transitions.ts`、`src/actions/matches/scheduling.ts` |

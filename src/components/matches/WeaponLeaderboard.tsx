@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import { Panel } from "@/components/rivalhub";
-import { displayWeaponName } from "@cs2dak/core";
+import { displayWeaponName } from "@cs2dak/presentation";
 import type { PlayerWeaponStats, WeaponKillRow } from "@/actions/season-demo-stats";
 
 interface WeaponLeaderboardProps {

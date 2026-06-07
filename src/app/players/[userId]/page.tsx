@@ -1,76 +1,40 @@
-import { notFound } from "next/navigation";
-import { eq, and, asc, inArray, sql } from "drizzle-orm";
-import { db } from "@/db/client";
-import { users, seasonRegistrations, seasons, teams, teamMembers, matches, matchMaps } from "@/db/schema";
-import { resolveAvatarUrl } from "@/lib/steam";
-import { PLAYER_INFO_FIELDS } from "@/lib/utils/player-info-fields";
-import { getDisplayName } from "@/lib/utils/display-name";
-import { Panel, Stat, PosChip } from "@/components/rivalhub";
-import { MapPreferenceChips } from "@/components/rivalhub/MapPreferenceChips";
+import { buildPlayerSeasonProfile } from "@cs2dak/presentation";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import Image from "next/image";
 import Link from "next/link";
+import { notFound } from "next/navigation";
+import { getCurrentSeasonAnalysis } from "@/actions/dak-analysis";
+import { MapPreferenceChips } from "@/components/rivalhub/MapPreferenceChips";
+import { Panel, PosChip, Stat } from "@/components/rivalhub";
+import { db } from "@/db/client";
+import { seasonRegistrations, seasons, teamMembers, teams, users } from "@/db/schema";
+import { resolveAvatarUrl } from "@/lib/steam";
+import { getDisplayName } from "@/lib/utils/display-name";
+import { PLAYER_INFO_FIELDS } from "@/lib/utils/player-info-fields";
 import { POSITION_LABELS } from "@/lib/validators/registration";
-import { matchPlayerStats } from "@/db/schema/player-stats";
-import { playerRatings } from "@/db/schema";
-import { wAvg } from "@/lib/utils/stats";
-import { getSeasonHexagonScores } from "@/actions/hexagon";
-import type { HexagonScores } from "@/lib/utils/hexagon";
-import { getOcrAveragesBySeason } from "@/lib/stats";
-import { PlayerRadarChart } from "@/components/matches/PlayerRadarChart";
-import { RadarChart } from "@/components/matches/RadarChart";
-import { PRISM_AXES, buildPrismScores, type PrismScores } from "@/lib/stats/prism";
-import { getPlayerDemoStats } from "@/actions/player-demo-stats";
-import { getSeasonWeaponStats, type PlayerWeaponStats } from "@/actions/season-demo-stats";
-import { PlayerDemoCard } from "@/components/players/PlayerDemoCard";
-import type { PlayerDemoAggregate } from "@/lib/demo/player-demo-stats";
-
-/**
- * 统计玩家 MVP 获胜次数（从 matches.mvp_winner_user_id 直读，已持久化缓存）。
- */
-async function getMvpWinCount(userId: string): Promise<number> {
-  const rows = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(matches)
-    .where(eq(matches.mvpWinnerUserId, userId));
-  return rows[0]?.count ?? 0;
-}
 
 interface PlayerPageProps {
   params: Promise<{ userId: string }>;
 }
 
-function pct(n: number, d: number) {
-  if (d === 0) return "—";
-  return `${Math.round((n / d) * 100)}%`;
-}
-
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--color-fg-mid)", letterSpacing: "var(--tracking-label)", textTransform: "uppercase", marginBottom: 12 }}>
+    <h2 className="text-xs uppercase tracking-wide text-[var(--color-fg-mid)]" style={{ fontFamily: "var(--font-mono)" }}>
       {children}
-    </div>
+    </h2>
   );
 }
 
-function AvatarFallback({ name }: { name: string }) {
-  const initials = name.slice(0, 2).toUpperCase();
-  return (
-    <div className="w-24 h-24 rounded-full bg-[var(--color-panel-hi)] border border-[var(--color-border)] flex items-center justify-center text-2xl font-bold text-[var(--color-fg-mid)]">
-      {initials}
-    </div>
-  );
+function value(metric: number | null | undefined, digits = 2, suffix = "") {
+  return metric == null ? "—" : `${metric.toFixed(digits)}${suffix}`;
 }
 
 export default async function PlayerPage({ params }: PlayerPageProps) {
   const { userId } = await params;
-
-  const user = await db.query.users.findFirst({
-    where: eq(users.id, userId),
-  });
+  const user = await db.query.users.findFirst({ where: eq(users.id, userId) });
   if (!user) notFound();
 
-  // ── 并行：报名记录 / MVP 胜场 / 个人数据 / Steam 头像 ──────────────────
-  const [registrations, mvpWinCount, playerStats, avatarUrl] = await Promise.all([
+  const [registrations, avatarUrl] = await Promise.all([
     db
       .select({
         id: seasonRegistrations.id,
@@ -88,550 +52,150 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
         gameplayStyle: seasonRegistrations.gameplayStyle,
         notes: seasonRegistrations.notes,
         competitionHistory: seasonRegistrations.competitionHistory,
-        status: seasonRegistrations.status,
         seasonName: seasons.name,
         seasonSlug: seasons.slug,
       })
       .from(seasonRegistrations)
       .innerJoin(seasons, eq(seasonRegistrations.seasonId, seasons.id))
-      .where(
-        and(
-          eq(seasonRegistrations.userId, userId),
-          eq(seasonRegistrations.status, "approved"),
-        )
-      )
-      .orderBy(asc(seasons.createdAt)),
-    getMvpWinCount(userId),
-    db
-      .select({
-        seasonId: seasons.id,
-        seasonName: seasons.name,
-        seasonSlug: seasons.slug,
-        seasonCreatedAt: seasons.createdAt,
-        maps: sql<number>`count(distinct ${matchPlayerStats.mapId})::int`,
-        avgKills: sql<number>`round(avg(${matchPlayerStats.kills})::numeric, 1)`,
-        avgDeaths: sql<number>`round(avg(${matchPlayerStats.deaths})::numeric, 1)`,
-        avgAssists: sql<number>`round(avg(${matchPlayerStats.assists})::numeric, 1)`,
-        avgRating: sql<number>`round(avg(${matchPlayerStats.ratingPro})::numeric, 2)`,
-        avgAdr: sql<number>`round(avg(${matchPlayerStats.adr})::numeric, 1)`,
-        avgWe: sql<number>`round(avg(${matchPlayerStats.we})::numeric, 1)`,
-        avgHs: sql<number>`round(avg(${matchPlayerStats.hsPercent})::numeric, 0)`,
-        avgRws: sql<number>`round(avg(${matchPlayerStats.rws})::numeric, 2)`,
-        totalKills: sql<number>`sum(${matchPlayerStats.kills})::int`,
-        totalDeaths: sql<number>`sum(${matchPlayerStats.deaths})::int`,
-        totalFirstKills: sql<number>`sum(${matchPlayerStats.firstKills})::int`,
-        totalMultiKills: sql<number>`sum(${matchPlayerStats.multiKills})::int`,
-        totalClutches: sql<number>`sum(${matchPlayerStats.clutches})::int`,
-        totalRounds: sql<number>`sum(COALESCE(${matchMaps.scoreA} + ${matchMaps.scoreB}, ${matches.scoreA} + ${matches.scoreB}))::int`,
-      })
-      .from(matchPlayerStats)
-      .innerJoin(matches, eq(matchPlayerStats.matchId, matches.id))
-      .innerJoin(matchMaps, eq(matchPlayerStats.mapId, matchMaps.id))
-      .innerJoin(seasons, eq(matches.seasonId, seasons.id))
-      .where(
-        and(
-          eq(matchPlayerStats.userId, userId),
-          sql`${matchPlayerStats.verifiedByAdmin} IS NOT NULL`,
-          sql`${matchPlayerStats.source} = COALESCE(${matchMaps.activeStatSource}, 'manual_ocr'::stat_source)`,
-        )
-      )
-      .groupBy(seasons.id, seasons.name, seasons.slug, seasons.createdAt)
+      .where(and(eq(seasonRegistrations.userId, userId), eq(seasonRegistrations.status, "approved")))
       .orderBy(asc(seasons.createdAt)),
     resolveAvatarUrl({ avatarUrl: user.avatarUrl, steam64: user.steam64 }),
   ]);
 
-  // ── 六维数据：仅对有数据的赛季查询 ──────────────────────────────────
-  const hexagonBySeasonSlug = new Map<string, HexagonScores>();
-  await Promise.all(
-    playerStats.map(async (ps) => {
-      const m = await getSeasonHexagonScores(ps.seasonId);
-      const s = m.get(userId);
-      if (s) hexagonBySeasonSlug.set(ps.seasonSlug, s);
-    })
-  );
-
-  // ── Demo 进阶聚合 + 武器画像：按赛季查询，仅保留有 demo 回合数据的赛季 ──
-  const demoBySeasonSlug = new Map<string, PlayerDemoAggregate>();
-  const weaponBySeasonSlug = new Map<string, PlayerWeaponStats>();
-  await Promise.all(
-    playerStats.map(async (ps) => {
-      const [demoRes, weaponRes] = await Promise.all([
-        getPlayerDemoStats(userId, ps.seasonSlug),
-        getSeasonWeaponStats(ps.seasonId),
-      ]);
-      if (demoRes.success && demoRes.data.totalRounds > 0) {
-        demoBySeasonSlug.set(ps.seasonSlug, demoRes.data);
-      }
-      if (weaponRes.success) {
-        const mine = weaponRes.data.find((w) => w.userId === userId);
-        if (mine && mine.totalKills > 0) weaponBySeasonSlug.set(ps.seasonSlug, mine);
-      }
-    })
-  );
-
-  // ── OCR 专属指标回填（rws/we/ratingPro 始终从 manual_ocr 行读取）────────
-  if (playerStats.length > 0) {
-    const ocrBySeason = await getOcrAveragesBySeason(db, userId);
-    for (const ps of playerStats) {
-      const ocr = ocrBySeason.get(ps.seasonId);
-      if (ocr) {
-        const p = ps as Record<string, unknown>;
-        p.avgRws    = ocr.avgRws    ?? ps.avgRws;
-        p.avgWe     = ocr.avgWe     ?? ps.avgWe;
-        p.avgRating = ocr.avgRating ?? ps.avgRating;
-      }
-    }
-  }
-
-  // ── RR + PRISM 评分（from player_ratings，各赛季）────────────────────
-  const rrBySeasonId = new Map<string, { rrScore: number | null; mapCount: number; prism: PrismScores | null }>();
-  if (registrations.length > 0) {
-    const seasonIds = registrations.map(r => r.seasonId);
-    const rrRows = await db
-      .select({
-        seasonId: playerRatings.seasonId,
-        rrScore: playerRatings.rrScore,
-        mapCount: playerRatings.mapCount,
-        prismFirepower: playerRatings.prismFirepower,
-        prismOpening: playerRatings.prismOpening,
-        prismClutch: playerRatings.prismClutch,
-        prismSniping: playerRatings.prismSniping,
-        prismSurvival: playerRatings.prismSurvival,
-        prismUtility: playerRatings.prismUtility,
-        prismTrading: playerRatings.prismTrading,
-        prismEntry: playerRatings.prismEntry,
-      })
-      .from(playerRatings)
-      .where(and(eq(playerRatings.userId, userId), inArray(playerRatings.seasonId, seasonIds)));
-    for (const r of rrRows) {
-      const prism = buildPrismScores(r as unknown as Record<string, unknown>);
-      rrBySeasonId.set(r.seasonId, { rrScore: r.rrScore ? Number(r.rrScore) : null, mapCount: r.mapCount, prism });
-    }
-  }
-
-  // ── 队伍归属（registrationId → team）────────────────────────────────
-  const allRegIds = registrations.map((r) => r.id);
-  const teamMemberRows = allRegIds.length
+  const teamRows = registrations.length
     ? await db
         .select({
           registrationId: teamMembers.registrationId,
-          teamId: teamMembers.teamId,
+          teamId: teams.id,
           teamName: teams.name,
           seasonSlug: seasons.slug,
         })
         .from(teamMembers)
         .innerJoin(teams, eq(teamMembers.teamId, teams.id))
         .innerJoin(seasons, eq(teams.seasonId, seasons.id))
-        .where(inArray(teamMembers.registrationId, allRegIds))
+        .where(inArray(teamMembers.registrationId, registrations.map((registration) => registration.id)))
     : [];
+  const teamByRegistration = new Map(teamRows.map((row) => [row.registrationId, row]));
 
-  const regIdToTeam = new Map(teamMemberRows.map((r) => [r.registrationId, r]));
+  const profiles = (
+    await Promise.all(registrations.map(async (registration) => {
+      const result = await getCurrentSeasonAnalysis(registration.seasonId);
+      if (!result.success || !result.data) return null;
+      const playerKey = `user:${userId}`;
+      if (!result.data.cohort.players.some((player) => player.playerKey === playerKey)) return null;
+      return {
+        registration,
+        profile: buildPlayerSeasonProfile(result.data.cohort, playerKey),
+      };
+    }))
+  ).filter((entry) => entry !== null);
 
-  // ── 跨赛季比赛战绩（以个人 OCR 出场记录为准）───────────────────────
-  const teamIds = [...new Set(teamMemberRows.map((r) => r.teamId).filter(Boolean))];
-
-  const ocrMatchIdRows = await db
-    .selectDistinct({ matchId: matchPlayerStats.matchId })
-    .from(matchPlayerStats)
-    .where(
-      and(
-        eq(matchPlayerStats.userId, userId),
-        sql`${matchPlayerStats.verifiedByAdmin} IS NOT NULL`,
-      )
-    );
-  const ocrMatchIds = ocrMatchIdRows.map((r) => r.matchId);
-
-  const allMatches = ocrMatchIds.length
-    ? await db.query.matches.findMany({
-        where: and(
-          eq(matches.status, "finished"),
-          inArray(matches.id, ocrMatchIds),
-        ),
-      })
-    : [];
-
-  // 聚合：总场次/胜负（基于个人有 OCR 数据的比赛）
-  const teamIdSet = new Set(teamIds);
-  let totalWins = 0;
-  let totalLosses = 0;
-  let totalNetRounds = 0;
-
-  for (const m of allMatches) {
-    const myTeamId = teamIdSet.has(m.teamAId) ? m.teamAId : m.teamBId;
-    const isA = m.teamAId === myTeamId;
-    const myScore = isA ? (m.scoreA ?? 0) : (m.scoreB ?? 0);
-    const oppScore = isA ? (m.scoreB ?? 0) : (m.scoreA ?? 0);
-    if (myScore > oppScore) totalWins++;
-    else totalLosses++;
-    totalNetRounds += myScore - oppScore;
-  }
-
-  const played = totalWins + totalLosses;
-
-  // 最新报名的主位置
-  const latestReg = registrations[registrations.length - 1];
-
-  // ── 生涯总计预计算 ──────────────────────────────────────────────────
-  const totalMaps = playerStats.reduce((s, x) => s + x.maps, 0);
-  const totalKillsAll = playerStats.reduce((s, x) => s + x.totalKills, 0);
-  const totalDeathsAll = playerStats.reduce((s, x) => s + x.totalDeaths, 0);
-  const totalFirstKillsAll = playerStats.reduce((s, x) => s + x.totalFirstKills, 0);
-  const totalMultiKillsAll = playerStats.reduce((s, x) => s + x.totalMultiKills, 0);
-  const totalClutchesAll = playerStats.reduce((s, x) => s + x.totalClutches, 0);
-  const totalRoundsAll = playerStats.reduce((s, x) => s + (x as any).totalRounds, 0);
-  const mvpCount = mvpWinCount;
-
-  // 生涯 RR：各赛季 rrScore 按 mapCount 加权
-  let rrSum = 0;
-  let rrMaps = 0;
-  for (const { rrScore, mapCount } of rrBySeasonId.values()) {
-    if (rrScore != null && mapCount > 0) {
-      rrSum += rrScore * mapCount;
-      rrMaps += mapCount;
-    }
-  }
-  const careerRr = rrMaps > 0 ? (rrSum / rrMaps).toFixed(2) : "—";
+  const latestRegistration = registrations.at(-1);
+  const latestProfile = profiles.at(-1)?.profile;
+  const displayName = getDisplayName(user);
 
   return (
-    <div className="container mx-auto px-4 py-12 max-w-3xl space-y-10">
-
-      {/* 头像 + 基本信息 */}
+    <div className="container mx-auto max-w-4xl space-y-10 px-4 py-12">
       <div className="flex items-center gap-6">
         {avatarUrl ? (
-          <Image
-            src={avatarUrl}
-            alt={getDisplayName(user)}
-            width={96}
-            height={96}
-            className="rounded-full border border-[var(--color-border)] object-cover"
-          />
+          <Image src={avatarUrl} alt={displayName} width={96} height={96} className="rounded-full border border-[var(--color-border)] object-cover" />
         ) : (
-          <AvatarFallback name={getDisplayName(user)} />
+          <div className="flex h-24 w-24 items-center justify-center rounded-full border border-[var(--color-border)] bg-[var(--color-panel-hi)] text-2xl font-bold text-[var(--color-fg-mid)]">
+            {displayName.slice(0, 2).toUpperCase()}
+          </div>
         )}
-
         <div className="space-y-2">
-          <h1 className="text-3xl font-black text-[var(--color-fg)]">
-            {getDisplayName(user)}
-          </h1>
-          {user.perfectName && (
-            <p className="text-xs" style={{ fontFamily: "var(--font-mono)", color: "var(--color-fg-dim)" }}>
-              完美平台：{user.perfectName}
-            </p>
-          )}
-
+          <h1 className="text-3xl font-black text-[var(--color-fg)]">{displayName}</h1>
           <div className="flex flex-wrap items-center gap-2">
-            {latestReg && (
+            {latestRegistration && (
               <>
-                <PosChip pos={POSITION_LABELS[latestReg.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? latestReg.primaryPosition} />
-                <PosChip pos={POSITION_LABELS[latestReg.secondaryPosition as keyof typeof POSITION_LABELS]?.cn ?? latestReg.secondaryPosition} />
+                <PosChip pos={POSITION_LABELS[latestRegistration.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? latestRegistration.primaryPosition} />
+                {latestRegistration.secondaryPosition && (
+                  <PosChip pos={POSITION_LABELS[latestRegistration.secondaryPosition as keyof typeof POSITION_LABELS]?.cn ?? latestRegistration.secondaryPosition} />
+                )}
               </>
             )}
-            {user.steamProfileUrl && (
-              <a
-                href={user.steamProfileUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-[var(--color-fg-mid)] hover:text-[var(--color-accent)] transition-colors"
-              >
-                Steam ↗
-              </a>
-            )}
+            {user.steamProfileUrl && <a href={user.steamProfileUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-[var(--color-accent)]">Steam ↗</a>}
           </div>
         </div>
       </div>
 
-      {latestReg && (
+      {latestProfile && (
         <section className="space-y-3">
-          <SectionHeading>地图偏好</SectionHeading>
-          <Panel>
-            <MapPreferenceChips preferences={latestReg.mapPreferences ?? []} minLevel="basic" />
-          </Panel>
-        </section>
-      )}
-
-      {/* 选手自述 */}
-      {latestReg &&
-        (latestReg.gameplayStyle?.trim() ||
-          latestReg.notes?.trim() ||
-          latestReg.competitionHistory?.trim()) && (
-          <section className="space-y-3">
-            <SectionHeading>选手自述</SectionHeading>
-            <Panel pad={16}>
-              <div className="space-y-2">
-                {PLAYER_INFO_FIELDS
-                  .map(({ key, label }) => {
-                    const value = latestReg[key as keyof typeof latestReg] as string | null;
-                    return { value: value?.trim(), label };
-                  })
-                  .filter((s) => s.value)
-                  .map(({ value, label }) => (
-                    <div key={label}>
-                      <span
-                        className="text-xs font-semibold"
-                        style={{
-                          fontFamily: "var(--font-mono)",
-                          color: "var(--color-fg-mid)",
-                        }}
-                      >
-                        {label}
-                      </span>
-                      <p className="text-sm text-[var(--color-fg)] mt-0.5">
-                        {value}
-                      </p>
-                    </div>
-                  ))}
-              </div>
-            </Panel>
-          </section>
-        )}
-
-      {/* 职业生涯战绩 */}
-      {played > 0 && (
-        <section className="space-y-3">
-          <SectionHeading>职业生涯战绩</SectionHeading>
-          <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
-            <Stat label="出场" value={played} />
-            <Stat label="胜" value={totalWins} />
-            <Stat label="负" value={totalLosses} />
-            <Stat label="胜率" value={pct(totalWins, played)} />
-            <Stat label="单场MVP" value={mvpCount > 0 ? mvpCount : "—"} />
+          <SectionHeading>DAK 生涯概览</SectionHeading>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+            <Stat label="MAPS" value={latestProfile.mapCount} />
+            <Stat label="RR" value={value(latestProfile.rating.rivalhubRR)} accent />
+            <Stat label="RATING 2.0" value={value(latestProfile.rating.hltvRating)} />
+            <Stat label="ADR" value={value(latestProfile.metrics.adr, 1)} />
+            <Stat label="K/D" value={value(latestProfile.metrics.kd)} />
           </div>
-          {totalNetRounds !== 0 && (
-            <p className="text-xs text-[var(--color-fg-mid)] px-1">
-              净胜回合：
-              <span style={{ color: totalNetRounds > 0 ? "var(--color-ok)" : "var(--color-danger)" }}>
-                {totalNetRounds > 0 ? "+" : ""}{totalNetRounds}
-              </span>
-            </p>
-          )}
         </section>
       )}
 
-      {/* 个人数据 */}
-      {playerStats.length > 0 && (
+      {latestRegistration && (
         <section className="space-y-3">
-            <SectionHeading>个人数据</SectionHeading>
-
-          {/* 生涯总计 */}
-          <Panel label="生涯总计">
-            <span className="text-xs text-[var(--color-fg-mid)]">
-              {totalMaps} 图
-            </span>
-            <div className="grid grid-cols-4 sm:grid-cols-5 gap-3 text-center mt-3">
-              {[
-                { label: "RR", value: careerRr },
-                { label: "ADR", value: wAvg(playerStats, "avgAdr") },
-                { label: "RWS", value: wAvg(playerStats, "avgRws", 2) },
-                {
-                  label: "K/D",
-                  value: totalKillsAll > 0 && totalDeathsAll > 0
-                    ? (totalKillsAll / totalDeathsAll).toFixed(2)
-                    : "—",
-                },
-                { label: "WE", value: wAvg(playerStats, "avgWe") },
-                { label: "KPR", value: totalRoundsAll > 0 ? (totalKillsAll / totalRoundsAll).toFixed(2) : "—" },
-                { label: "FKPR /100r", value: totalRoundsAll > 0 ? (totalFirstKillsAll / totalRoundsAll * 100).toFixed(1) : "—" },
-                { label: "MKPR /100r", value: totalRoundsAll > 0 ? (totalMultiKillsAll / totalRoundsAll * 100).toFixed(1) : "—" },
-                { label: "CPR /100r", value: totalRoundsAll > 0 ? (totalClutchesAll / totalRoundsAll * 100).toFixed(1) : "—" },
-                {
-                  label: "HS%",
-                  value: totalMaps > 0
-                    ? Math.round(playerStats.reduce((s, x) => s + x.avgHs * x.maps, 0) / totalMaps) + "%"
-                    : "—",
-                },
-              ].map(({ label, value }) => (
-                <div key={label}>
-                  <p className="text-lg font-bold text-[var(--color-fg)]">
-                    {value}
-                  </p>
-                  <p className="text-[10px] text-[var(--color-fg-dim)] mt-0.5">
-                    {label}
-                  </p>
+          <SectionHeading>地图偏好与自述</SectionHeading>
+          <Panel>
+            <MapPreferenceChips preferences={latestRegistration.mapPreferences ?? []} minLevel="basic" />
+            <div className="mt-4 space-y-3">
+              {PLAYER_INFO_FIELDS.map(({ key, label }) => ({
+                label,
+                text: String(latestRegistration[key as keyof typeof latestRegistration] ?? "").trim(),
+              })).filter((item) => item.text).map((item) => (
+                <div key={item.label}>
+                  <p className="text-xs font-semibold text-[var(--color-fg-mid)]">{item.label}</p>
+                  <p className="mt-1 text-sm text-[var(--color-fg)]">{item.text}</p>
                 </div>
               ))}
             </div>
           </Panel>
-
-          {/* 按赛季分组 */}
-          {[...playerStats].reverse().map((ps) => (
-            <Panel key={ps.seasonSlug} pad={16}>
-              <div className="flex items-center gap-2 mb-2">
-                <Link
-                  href={`/${ps.seasonSlug}/stats`}
-                  className="text-sm font-semibold text-[var(--color-fg)] hover:text-[var(--color-accent)] transition-colors"
-                >
-                  {ps.seasonName}
-                </Link>
-                <span className="text-[11px] text-[var(--color-fg-dim)]">
-                  {ps.maps} 图 · 场均 {ps.avgKills}-{ps.avgDeaths}-{ps.avgAssists}
-                </span>
-              </div>
-              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--color-fg-mid)]">
-                {ps.avgRating != null && (
-                  <span>
-                    Rating Pro{" "}
-                    <span className="text-[var(--color-accent)] font-semibold">
-                      {ps.avgRating}
-                    </span>
-                  </span>
-                )}
-                {(() => {
-                  const rr = rrBySeasonId.get(ps.seasonId);
-                  return rr?.rrScore != null ? (
-                    <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-semibold" style={{ background: "var(--color-accent)", color: "#fff" }}>
-                      RR {rr.rrScore.toFixed(2)}
-                    </span>
-                  ) : null;
-                })()}
-                <span>
-                  ADR{" "}
-                  <span className="text-[var(--color-fg)]">{ps.avgAdr}</span>
-                </span>
-                <span>
-                  RWS{" "}
-                  <span className="text-[var(--color-fg)]">{ps.avgRws}</span>
-                </span>
-                <span>
-                  K/D{" "}
-                  <span className="text-[var(--color-fg)]">
-                    {ps.avgDeaths > 0
-                      ? (ps.totalKills / ps.totalDeaths).toFixed(2)
-                      : "—"}
-                  </span>
-                </span>
-                <span>
-                  WE{" "}
-                  <span className="text-[var(--color-fg)]">{ps.avgWe}</span>
-                </span>
-                <span>
-                  HS{" "}
-                  <span className="text-[var(--color-fg)]">{ps.avgHs}%</span>
-                </span>
-              </div>
-            </Panel>
-          ))}
-
-          {/* 能力雷达图：有 demo 数据走 PRISM 八维，否则回退六维 */}
-          {(hexagonBySeasonSlug.size > 0 ||
-            [...rrBySeasonId.values()].some((v) => v.prism)) && (
-            <div className="space-y-3 mt-4">
-              <SectionHeading>能力雷达图</SectionHeading>
-              {[...playerStats].reverse().map((ps) => {
-                const prism = rrBySeasonId.get(ps.seasonId)?.prism ?? null;
-                const hex = hexagonBySeasonSlug.get(ps.seasonSlug);
-                if (!prism && !hex) return null;
-                return (
-                  <Panel key={ps.seasonSlug} pad={16}>
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="text-xs font-semibold text-[var(--color-fg-mid)]">
-                        {ps.seasonName}
-                      </span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-panel-hi)] text-[var(--color-fg-dim)]">
-                        {prism ? "PRISM 八维" : "六维"}
-                      </span>
-                    </div>
-                    {prism ? (
-                      <RadarChart
-                        axes={PRISM_AXES}
-                        series={[{ name: getDisplayName(user), scores: prism as unknown as Record<string, number>, color: "var(--color-accent)" }]}
-                        size={280}
-                      />
-                    ) : (
-                      <PlayerRadarChart
-                        players={[{ name: getDisplayName(user), scores: hex!, color: "var(--color-accent)" }]}
-                        size={280}
-                      />
-                    )}
-                  </Panel>
-                );
-              })}
-              <p className="text-[11px] text-[var(--color-fg-dim)] px-1 leading-relaxed">
-                雷达图在本赛事内标准化（PRISM 为 demo cohort 百分位），适合同一赛事内横向比较，不建议跨赛事直接对比。
-              </p>
-            </div>
-          )}
         </section>
       )}
 
-      {/* Demo 进阶数据（按赛季） */}
-      {demoBySeasonSlug.size > 0 && (
+      {profiles.length > 0 && (
         <section className="space-y-3">
-          <SectionHeading>Demo 进阶数据</SectionHeading>
-          {[...playerStats]
-            .reverse()
-            .map((ps) => {
-              const demo = demoBySeasonSlug.get(ps.seasonSlug);
-              if (!demo) return null;
-              return (
-                <PlayerDemoCard
-                  key={ps.seasonSlug}
-                  seasonName={ps.seasonName}
-                  data={demo}
-                  weapon={weaponBySeasonSlug.get(ps.seasonSlug)}
-                />
-              );
-            })}
-          <p className="text-[11px] text-[var(--color-fg-dim)] px-1 leading-relaxed">
-            数据来源于本赛季已解析的 demo，仅统计以 demo 为准生效的对局。
-          </p>
-        </section>
-      )}
-
-      {/* 赛季记录 */}
-      {registrations.length > 0 && (
-        <section className="space-y-3">
-          <SectionHeading>参赛记录</SectionHeading>
-          <div className="space-y-2">
-            {[...registrations].reverse().map((reg) => {
-              const teamInfo = regIdToTeam.get(reg.id);
-              const posLabel = POSITION_LABELS[reg.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? reg.primaryPosition;
-              const peakParts = [`${reg.peakRank} (${reg.peakRankSeason})`, `Rating ${reg.peakRating.toFixed(2)}`];
-              if (reg.peakWe != null) peakParts.push(`WE ${reg.peakWe.toFixed(1)}`);
-              return (
-                <Panel key={reg.id} pad={16}>
-                  <div className="flex items-start justify-between gap-3 flex-wrap">
-                    <div className="min-w-0 space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold text-sm text-[var(--color-fg)]">{reg.seasonName}</span>
-                        {teamInfo && (
-                          <Link
-                            href={`/${teamInfo.seasonSlug}/teams/${teamInfo.teamId}`}
-                            className="text-xs text-[var(--color-fg-mid)] hover:text-[var(--color-accent)] transition-colors"
-                          >
-                            {teamInfo.teamName} ↗
-                          </Link>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <PosChip pos={posLabel} />
-                        <span className="text-xs text-[var(--color-fg-mid)]">
-                          {peakParts.join(" · ")}
-                        </span>
-                      </div>
-                    </div>
-                    {reg.highlightVideoUrl && (
-                      <a
-                        href={reg.highlightVideoUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-[var(--color-accent)] hover:underline shrink-0"
-                      >
-                        🎬 高光视频
-                      </a>
-                    )}
+          <SectionHeading>赛季分析</SectionHeading>
+          {[...profiles].reverse().map(({ registration, profile }) => {
+            const team = teamByRegistration.get(registration.id);
+            return (
+              <Panel key={registration.id} label={registration.seasonName} pad={16}>
+                <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--color-fg-mid)]">
+                  <Link href={`/${registration.seasonSlug}/stats`} className="font-semibold text-[var(--color-accent)]">赛季榜单 ↗</Link>
+                  {team && <Link href={`/${team.seasonSlug}/teams/${team.teamId}`} className="hover:text-[var(--color-accent)]">{team.teamName} ↗</Link>}
+                  <span>{profile.mapCount} maps</span>
+                  <span>Confidence {value(profile.confidence * 100, 0, "%")}</span>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-6">
+                  <Stat label="RR" value={value(profile.rating.rivalhubRR)} accent />
+                  <Stat label="RATING 2.0" value={value(profile.rating.hltvRating)} />
+                  <Stat label="ADR" value={value(profile.metrics.adr, 1)} />
+                  <Stat label="KAST" value={value(profile.metrics.kast, 1, "%")} />
+                  <Stat label="FK/100R" value={value(profile.metrics.firstKillPer100)} />
+                  <Stat label="UTIL/R" value={value(profile.metrics.utilityDamagePerRound)} />
+                </div>
+                {(profile.strengths.length > 0 || profile.weaknesses.length > 0) && (
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <p className="text-sm text-[var(--color-fg)]"><span className="text-[var(--color-ok)]">强项</span> {profile.strengths.join(" · ") || "—"}</p>
+                    <p className="text-sm text-[var(--color-fg)]"><span className="text-[var(--color-danger)]">待提升</span> {profile.weaknesses.join(" · ") || "—"}</p>
                   </div>
-                </Panel>
-              );
-            })}
-          </div>
+                )}
+                {profile.weapons.length > 0 && (
+                  <div className="mt-4 flex flex-wrap gap-2 text-xs text-[var(--color-fg-mid)]">
+                    {profile.weapons.slice(0, 5).map((weapon) => (
+                      <span key={weapon.weapon} className="border border-[var(--color-border)] px-2 py-1">
+                        {weapon.label} · {weapon.kills} K · {weapon.killSharePercent.toFixed(1)}%
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </Panel>
+            );
+          })}
         </section>
       )}
 
-      {registrations.length === 0 && (
-        <Panel pad={32} className="text-center">
-          <p className="text-[var(--color-fg-mid)]">暂无参赛记录</p>
-        </Panel>
-      )}
+      {registrations.length === 0 && <Panel pad={32} className="text-center text-[var(--color-fg-mid)]">暂无参赛记录</Panel>}
     </div>
   );
 }

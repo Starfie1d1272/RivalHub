@@ -183,6 +183,13 @@
       "when": 1780057986648,
       "tag": "0025_overrated_longshot",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1780583300747,
+      "tag": "0026_long_ozymandias",
+      "breakpoints": true
     }
   ]
 }

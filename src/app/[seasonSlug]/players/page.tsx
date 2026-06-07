@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { notFound } from "next/navigation";
-import { eq, and, asc, or, sql } from "drizzle-orm";
+import { eq, and, asc, or } from "drizzle-orm";
 import Link from "next/link";
 import { db } from "@/db/client";
 import { seasons, seasonRegistrations, users, teams, teamMembers } from "@/db/schema";
@@ -9,7 +9,7 @@ import { PlayerDirectoryRow } from "@/components/players/PlayerDirectoryRow";
 import { countDirectoryPlayersWithTeam, sortPlayerDirectory } from "@/lib/players/directory-order";
 import { positionLabel, positionValues } from "@/lib/validators/registration";
 import { getDisplayName } from "@/lib/utils/display-name";
-import { ocrFallbackCte } from "@/lib/stats/sql";
+import { getCurrentSeasonAnalysis } from "@/actions/dak-analysis";
 import type { Metadata } from "next";
 
 interface PlayersPageProps {
@@ -36,8 +36,6 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
 
   const season = await getSeason(seasonSlug);
   if (!season) notFound();
-
-  const showRatingPro = season.statProfile.inputFields.includes("ratingPro");
 
   const whereConditions = position
     ? and(
@@ -85,51 +83,20 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
 
   const teamByRegId = new Map(teamMemberRows.map((r) => [r.registrationId, r.teamName]));
 
-  const playerStatResult = await db.execute(sql`
-    WITH ocr_avg AS (${ocrFallbackCte(sql`${season.id}`)})
-    SELECT
-      mps.user_id,
-      count(distinct mps.map_id)::int AS maps,
-      -- Rating Pro 是完美平台(OCR)独有指标，始终对全季 manual_ocr 行聚合，不随 active_stat_source 漂移
-      min(ocr.avg_rating_ocr) AS avg_rating,
-      -- ADR 回合加权（JOIN match_maps mm2），避免简单均值失真
-      round(
-        CASE WHEN sum(mm2.score_a + mm2.score_b) > 0
-          THEN sum(mps.adr * (mm2.score_a + mm2.score_b))::numeric / sum(mm2.score_a + mm2.score_b)
-          ELSE NULL END
-      ::numeric, 1) AS avg_adr,
-      round((sum(mps.kills)::numeric / nullif(sum(mps.deaths), 0)), 2) AS avg_kd
-    FROM match_player_stats mps
-    JOIN matches m ON m.id = mps.match_id
-    JOIN match_maps mm2 ON mm2.id = mps.map_id
-    LEFT JOIN ocr_avg ocr ON ocr.user_id = mps.user_id
-    WHERE m.season_id = ${season.id}
-      AND mps.verified_by_admin IS NOT NULL
-      AND mps.user_id IS NOT NULL
-      AND mps.source = COALESCE(mm2.active_stat_source, 'manual_ocr'::stat_source)
-    GROUP BY mps.user_id
-  `);
-  // RR 评分（from player_ratings，本赛季）
-  const rrResult = await db.execute(sql`
-    SELECT user_id, rr_score
-    FROM player_ratings
-    WHERE season_id = ${season.id} AND user_id IS NOT NULL AND rr_score IS NOT NULL
-  `);
-  const rrByUserId = new Map(
-    rrResult.rows.map((row) => [row.user_id as string, Number(row.rr_score)]),
-  );
-
+  const analysisResult = await getCurrentSeasonAnalysis(season.id);
   const statsByUserId = new Map(
-    playerStatResult.rows.map((row) => [
-      row.user_id as string,
-      {
-        maps: Number(row.maps),
-        avgRating: Number(row.avg_rating),
-        avgAdr: Number(row.avg_adr),
-        avgKd: row.avg_kd == null ? null : Number(row.avg_kd),
-        avgRr: rrByUserId.get(row.user_id as string) ?? null,
-      },
-    ]),
+    (analysisResult.success && analysisResult.data ? analysisResult.data.leaderboard.rows : [])
+      .filter((row) => row.externalUserId !== null)
+      .map((row) => [
+        row.externalUserId!,
+        {
+          maps: row.mapCount,
+          rivalhubRR: row.metrics.rivalhubRR ?? null,
+          hltvRating: row.metrics.hltvRating ?? null,
+          adr: row.metrics.adr ?? null,
+          kd: row.metrics.kd ?? null,
+        },
+      ]),
   );
 
   const positionFilters = [
@@ -192,11 +159,7 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
       ) : (
         <div className="space-y-3">
           {directoryPlayers.map((player) => (
-            <PlayerDirectoryRow
-              key={player.registrationId}
-              player={player}
-              showRatingPro={showRatingPro}
-            />
+            <PlayerDirectoryRow key={player.registrationId} player={player} />
           ))}
         </div>
       )}

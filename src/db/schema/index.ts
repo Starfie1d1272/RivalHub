@@ -18,5 +18,6 @@ export * from "./match-rosters";
 export * from "./match-veto-steps";
 export * from "./user-sessions";
 export * from "./demo";
+export * from "./demo-analysis";
 export * from "./player-ratings";
 export * from "./user-steam-aliases";

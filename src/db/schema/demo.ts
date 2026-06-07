@@ -1,4 +1,4 @@
-import { pgTable, uuid, integer, real, text, boolean, timestamp, json, pgEnum, index } from "drizzle-orm/pg-core";
+import { pgTable, uuid, integer, real, text, boolean, timestamp, json, jsonb, pgEnum, index } from "drizzle-orm/pg-core";
 import { matchMaps } from "./match-maps";
 import { users } from "./users";
 
@@ -10,6 +10,11 @@ export const demoImports = pgTable("demo_imports", {
   id: uuid("id").primaryKey().defaultRandom(),
   mapId: uuid("map_id").notNull().references(() => matchMaps.id),
   demoHash: text("demo_hash").notNull(),
+  zipObjectPath: text("zip_object_path"),
+  zipByteSize: integer("zip_byte_size"),
+  manifest: jsonb("manifest").$type<Record<string, unknown>>(),
+  supersedesImportId: uuid("supersedes_import_id"),
+  isCurrent: boolean("is_current").notNull().default(true),
   schemaVersion: text("schema_version").notNull(),
   exporterName: text("exporter_name"),
   exporterVersion: text("exporter_version"),
@@ -19,7 +24,10 @@ export const demoImports = pgTable("demo_imports", {
   exportedAt: timestamp("exported_at", { withTimezone: true }),
   importedBy: uuid("imported_by").references(() => users.id),
   importedAt: timestamp("imported_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => ({
+  mapCurrentIdx: index("demo_imports_map_current_idx").on(t.mapId, t.isCurrent),
+  hashIdx: index("demo_imports_hash_idx").on(t.demoHash),
+}));
 
 // players.json
 export const demoPlayers = pgTable("demo_players", {

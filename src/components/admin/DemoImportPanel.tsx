@@ -3,7 +3,6 @@
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { InlineConfirm } from "@/components/rivalhub";
 import { toast } from "sonner";
 import { importDemoPackage } from "@/actions/demo-import";
 
@@ -16,11 +15,8 @@ export function DemoImportPanel({ mapId, mapName }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const [importing, setImporting] = useState(false);
-  const [forceMode, setForceMode] = useState(false);
-  const [showOcrConfirm, setShowOcrConfirm] = useState(false);
-  const [pendingZip, setPendingZip] = useState<ArrayBuffer | null>(null);
 
-  async function handleImport(confirmOverwriteOcr = false) {
+  async function handleImport() {
     const file = fileRef.current?.files?.[0];
     if (!file) {
       toast.error("请先选择 .zip 文件");
@@ -34,17 +30,9 @@ export function DemoImportPanel({ mapId, mapName }: Props) {
     setImporting(true);
     try {
       const buf = await file.arrayBuffer();
-      const result = await importDemoPackage(mapId, buf, {
-        confirmOverwriteOcr: confirmOverwriteOcr || undefined,
-        force: forceMode || undefined,
-      });
+      const result = await importDemoPackage(mapId, buf);
 
       if (!result.success) {
-        if (result.error.code === "OCR_EXISTS_NEEDS_CONFIRM") {
-          setPendingZip(buf);
-          setShowOcrConfirm(true);
-          return;
-        }
         toast.error(result.error.message);
         return;
       }
@@ -68,12 +56,6 @@ export function DemoImportPanel({ mapId, mapName }: Props) {
     }
   }
 
-  async function handleConfirmOcrOverwrite() {
-    setShowOcrConfirm(false);
-    setPendingZip(null);
-    await handleImport(true);
-  }
-
   return (
     <div className="mt-4 space-y-3">
       <div className="flex items-center justify-between gap-2">
@@ -89,35 +71,15 @@ export function DemoImportPanel({ mapId, mapName }: Props) {
           accept=".zip"
           className="text-sm"
         />
-        <label className="flex items-center gap-1.5 text-xs text-[var(--color-fg-mid)] cursor-pointer">
-          <input
-            type="checkbox"
-            checked={forceMode}
-            onChange={(e) => setForceMode(e.target.checked)}
-            className="accent-[var(--color-warn)]"
-          />
-          覆盖导入
-        </label>
         <Button
           size="sm"
-          onClick={() => handleImport(false)}
+          onClick={() => handleImport()}
           disabled={importing}
         >
           {importing ? "导入中…" : "导入 Demo 数据"}
         </Button>
       </div>
 
-      {showOcrConfirm && (
-        <InlineConfirm
-          title="该图已有 OCR 数据"
-          sub="导入 demo 将以 demo 为准（OCR 数据保留但不参与聚合），确认继续？"
-          onConfirm={handleConfirmOcrOverwrite}
-          onCancel={() => {
-            setShowOcrConfirm(false);
-            setPendingZip(null);
-          }}
-        />
-      )}
     </div>
   );
 }

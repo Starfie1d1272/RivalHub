@@ -32,7 +32,6 @@ export function DemoBatchImportPanel({ seasonId, availableMaps }: Props) {
   const [rows, setRows] = useState<RowState[]>([]);
   const [matching, setMatching] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [overwrite, setOverwrite] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 
   async function handleMatch() {
@@ -165,7 +164,7 @@ export function DemoBatchImportPanel({ seasonId, availableMaps }: Props) {
         ),
       );
 
-      const result = await importDemoPackage(row.mapId, row.zipBuffer, { confirmOverwriteOcr: true, force: overwrite });
+      const result = await importDemoPackage(row.mapId, row.zipBuffer);
 
       if (!result.success) {
         console.error(`[batch-import] ${row.fileName}:`, result.error.message);
@@ -298,16 +297,6 @@ export function DemoBatchImportPanel({ seasonId, availableMaps }: Props) {
               ? `导入中… ${progress?.done ?? 0} / ${progress?.total ?? 0}`
               : "全部导入"}
           </Button>
-          <label className="flex items-center gap-1.5 text-xs text-[var(--color-fg-mid)] cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={overwrite}
-              onChange={(e) => setOverwrite(e.target.checked)}
-              disabled={importing}
-              className="size-3.5 accent-[var(--color-accent)]"
-            />
-            覆盖已有导入（删除旧数据重新写入）
-          </label>
           {progress && (
             <div className="flex-1 max-w-xs">
               <div className="h-2 rounded-full bg-[var(--color-border)] overflow-hidden">

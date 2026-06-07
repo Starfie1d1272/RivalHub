@@ -140,7 +140,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
     allMatches.filter((m) => m.stage === playoffKey).filter(statusFilter).filter(teamFilter)
   );
 
-  // 已完成比赛的地图列表（用于 OCR 录入面板）
+  // 已完成比赛的地图列表（用于 DAK ZIP 导入）
   const finishedMatchIds = allMatches
     .filter((m) => m.status === "finished")
     .map((m) => m.id);

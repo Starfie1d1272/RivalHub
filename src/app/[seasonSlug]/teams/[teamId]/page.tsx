@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
-import { eq, or, and, inArray, sql } from "drizzle-orm";
+import { buildTeamCohortSummary } from "@cs2dak/presentation";
+import { eq, or, and, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, teams, teamMembers, seasonRegistrations, users, matches, playerRatings } from "@/db/schema";
+import { seasons, teams, teamMembers, seasonRegistrations, users, matches } from "@/db/schema";
 import { Panel, Stat, Marker, PosChip, Btn } from "@/components/rivalhub";
 import { MatchCard } from "@/components/matches/MatchCard";
 import { MapPreferenceChips } from "@/components/rivalhub/MapPreferenceChips";
@@ -14,15 +15,7 @@ import { getUserSession, checkAdminSession } from "@/lib/auth/session";
 import { getDisplayName } from "@/lib/utils/display-name";
 import { getTeamMapWinStats, getTeamBanStats, getTeamPickStats } from "@/lib/teams/data";
 import { mapLabel } from "@/lib/maps";
-import { getSeasonHexagonScores } from "@/actions/hexagon";
-import { computeTeamDimensions } from "@/lib/utils/hexagon";
-import type { HexagonScores } from "@/lib/utils/hexagon";
-import { PRISM_AXES, buildPrismScores, averagePrismScores, type PrismScores } from "@/lib/stats/prism";
-import { getTeamStyleProfile, getTeamHalfSideStats } from "@/actions/team-demo-stats";
-import { TeamRadarPanel } from "@/components/teams/TeamRadarPanel";
-import { ocrFallbackCte } from "@/lib/stats/sql";
-import { TeamHalfSideStats } from "@/components/teams/TeamHalfSideStats";
-import { TeamStyleProfile } from "@/components/teams/TeamStyleProfile";
+import { getCurrentSeasonAnalysis } from "@/actions/dak-analysis";
 
 interface TeamDetailPageProps {
   params: Promise<{ seasonSlug: string; teamId: string }>;
@@ -136,18 +129,12 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
 
   // 地图表现统计
   const matchIds = teamMatches.map((m) => m.id);
-  const [mapStats, { banCount, bpMatchCount: banBpCount }, { pickCount, bpMatchCount: pickBpCount }, styleResult, halfSideResult] = await Promise.all([
+  const [mapStats, { banCount, bpMatchCount: banBpCount }, { pickCount, bpMatchCount: pickBpCount }, analysisResult] = await Promise.all([
     getTeamMapWinStats(teamId, teamMatches),
     getTeamBanStats(teamId, matchIds),
     getTeamPickStats(teamId, matchIds),
-    getTeamStyleProfile(teamId, season.id),
-    getTeamHalfSideStats(teamId, season.id),
+    getCurrentSeasonAnalysis(season.id),
   ]);
-
-  // 赛季风格分析（demo 来源，可能为空）
-  const styleProfile = styleResult.success ? styleResult.data : null;
-  const halfSide = halfSideResult.success ? halfSideResult.data : null;
-  const hasHalfSide = halfSide != null && Object.keys(halfSide).length > 0;
 
   // 历史对阵（按对手分组）
   interface HeadToHead { opponentId: string; wins: number; losses: number }
@@ -166,150 +153,16 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
   }
   const h2hList = [...h2hMap.values()].sort((a, b) => b.wins + b.losses - (a.wins + a.losses));
 
-  // 队伍 + 选手统计（每人聚合，用于阵容内联和队伍均值）
-  // ADR 改为回合加权（JOIN match_maps mm2），修复原来 avg(mps.adr) 简单均值失真问题
-  const teamStatResult = roster.length
-    ? await db.execute(sql`
-        WITH ocr_avg AS (${ocrFallbackCte(sql`${season.id}`)})
-        SELECT
-          mps.user_id,
-          count(distinct mps.map_id)::int                                                            AS maps,
-          min(ocr.avg_rating_ocr)                                                                    AS avg_rating,
-          round(
-            CASE WHEN sum(mm2.score_a + mm2.score_b) > 0
-              THEN sum(mps.adr * (mm2.score_a + mm2.score_b))::numeric / sum(mm2.score_a + mm2.score_b)
-              ELSE NULL END
-          ::numeric, 1)                                                                              AS avg_adr,
-          min(ocr.avg_we_ocr)                                                                        AS avg_we,
-          sum(mps.kills)::int                                                                        AS total_kills,
-          sum(mps.deaths)::int                                                                       AS total_deaths,
-          sum(mm2.score_a + mm2.score_b)::int                                                        AS total_rounds,
-          CASE WHEN sum(mps.deaths) > 0
-            THEN round(sum(mps.kills)::numeric / sum(mps.deaths), 2)
-            ELSE NULL END                                                                            AS kd_ratio
-        FROM match_player_stats mps
-        JOIN match_maps mm2 ON mm2.id = mps.map_id
-        JOIN season_registrations sr ON sr.user_id = mps.user_id AND sr.season_id = ${season.id}
-        JOIN team_members tm ON tm.registration_id = sr.id
-        LEFT JOIN ocr_avg ocr ON ocr.user_id = mps.user_id
-        WHERE tm.team_id = ${teamId}
-          AND mps.verified_by_admin IS NOT NULL
-          AND mps.source = COALESCE(mm2.active_stat_source, 'manual_ocr'::stat_source)
-        GROUP BY mps.user_id
-      `)
+  const cohort = analysisResult.success ? analysisResult.data?.cohort : null;
+  const playerKeys = roster
+    .map((player) => `user:${player.userId}`)
+    .filter((playerKey) => cohort?.players.some((player) => player.playerKey === playerKey));
+  const teamSummary = cohort && playerKeys.length > 0
+    ? buildTeamCohortSummary(cohort, { teamKey: team.id, name: team.name, playerKeys })
     : null;
-
-  interface TeamStatRow {
-    user_id: string | null;
-    maps: number;
-    avg_rating: number;
-    avg_adr: number;
-    avg_we: number;
-    total_kills: number;
-    total_deaths: number;
-    total_rounds: number;
-    kd_ratio: number | null;
-  }
-  const typedStats = (teamStatResult?.rows ?? []) as unknown as TeamStatRow[];
-
-  // RR + PRISM 八维评分（from player_ratings，本赛季）
-  const teamRrRows = roster.length ? await db
-    .select({
-      userId: playerRatings.userId,
-      rrScore: playerRatings.rrScore,
-      prismFirepower: playerRatings.prismFirepower,
-      prismOpening: playerRatings.prismOpening,
-      prismClutch: playerRatings.prismClutch,
-      prismSniping: playerRatings.prismSniping,
-      prismSurvival: playerRatings.prismSurvival,
-      prismUtility: playerRatings.prismUtility,
-      prismTrading: playerRatings.prismTrading,
-      prismEntry: playerRatings.prismEntry,
-    })
-    .from(playerRatings)
-    .where(
-      and(
-        eq(playerRatings.seasonId, season.id),
-        inArray(playerRatings.userId, roster.map((p) => p.userId).filter(Boolean) as string[]),
-      ),
-    ) : [];
-  const rrMap = new Map(teamRrRows.map((r) => [r.userId!, r.rrScore != null ? Number(r.rrScore) : null]));
-  const prismByPlayer = new Map<string, PrismScores>();
-  for (const r of teamRrRows) {
-    if (r.userId) {
-      const s = buildPrismScores(r as unknown as Record<string, unknown>);
-      if (s) prismByPlayer.set(r.userId, s);
-    }
-  }
-
-  // 选手数据 map（用于阵容内联显示）
-  interface PlayerStats { maps: number; avgRating: number; avgAdr: number; kdRatio: number | null; rrScore: number | null }
-  const playerStatsMap = new Map<string, PlayerStats>();
-  for (const r of typedStats) {
-    if (r.user_id) {
-      playerStatsMap.set(r.user_id as string, {
-        maps: Number(r.maps),
-        avgRating: Number(r.avg_rating),
-        avgAdr: Number(r.avg_adr),
-        kdRatio: r.kd_ratio != null ? Number(r.kd_ratio) : null,
-        rrScore: rrMap.get(r.user_id as string) ?? null,
-      });
-    }
-  }
-
-  // 六维雷达图数据（上场最多的前 5 人）
-  const top5UserIds = [...typedStats]
-    .sort((a, b) => Number(b.maps) - Number(a.maps))
-    .slice(0, 5)
-    .map((r) => r.user_id)
-    .filter(Boolean) as string[];
-  const hexagonByPlayer = new Map<string, HexagonScores>();
-  if (top5UserIds.length > 0) {
-    const seasonScores = await getSeasonHexagonScores(season.id);
-    for (const uid of top5UserIds) {
-      const s = seasonScores.get(uid);
-      if (s) hexagonByPlayer.set(uid, s);
-    }
-  }
-  const teamScores = hexagonByPlayer.size > 0
-    ? computeTeamDimensions([...hexagonByPlayer.values()])
-    : null;
-
-  // 八维 PRISM：上场最多前 5 人中有 prism 数据者求均值（与选手页口径一致）
-  const teamPrism: PrismScores | null = averagePrismScores(
-    top5UserIds.map((uid) => prismByPlayer.get(uid)).filter((p): p is PrismScores => p != null),
+  const playerStatsMap = new Map(
+    teamSummary?.members.map((member) => [member.playerKey.replace(/^user:/, ""), member]) ?? [],
   );
-
-  // 雷达图成员数据
-  const radarMembers = top5UserIds.map((uid) => {
-    const player = roster.find((r) => r.userId === uid);
-    return {
-      userId: uid,
-      name: player ? (player.perfectName ?? player.steamName ?? "未知") : uid,
-      hex: hexagonByPlayer.get(uid) ?? null,
-      prism: prismByPlayer.get(uid) ?? null,
-    };
-  });
-
-  // 队伍均值：K/D 用总杀/总死；Rating/ADR/WE 用 total_rounds 加权，避免出场图数不同导致的失真
-  const hasStats = typedStats.length > 0;
-  const totalRoundsSum = typedStats.reduce((s, r) => s + Number(r.total_rounds), 0);
-  const teamAvgRating = hasStats && totalRoundsSum > 0
-    ? (typedStats.reduce((s, r) => s + Number(r.avg_rating) * Number(r.total_rounds), 0) / totalRoundsSum).toFixed(2)
-    : null;
-  const teamAvgAdr = hasStats && totalRoundsSum > 0
-    ? (typedStats.reduce((s, r) => s + Number(r.avg_adr) * Number(r.total_rounds), 0) / totalRoundsSum).toFixed(1)
-    : null;
-  const totalK = typedStats.reduce((s, r) => s + Number(r.total_kills), 0);
-  const totalD = typedStats.reduce((s, r) => s + Number(r.total_deaths), 0);
-  const teamAvgKd = totalD > 0 ? (totalK / totalD).toFixed(2) : null;
-  const teamAvgWe = hasStats && totalRoundsSum > 0
-    ? (typedStats.reduce((s, r) => s + Number(r.avg_we) * Number(r.total_rounds), 0) / totalRoundsSum).toFixed(1)
-    : null;
-  const teamRrValues = [...playerStatsMap.values()].map((s) => s.rrScore).filter((v): v is number => v != null);
-  const teamAvgRr = teamRrValues.length > 0
-    ? (teamRrValues.reduce((s, v) => s + v, 0) / teamRrValues.length).toFixed(2)
-    : null;
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-4xl space-y-10">
@@ -350,12 +203,12 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
         <Stat label="胜" value={totalWins} />
         <Stat label="负" value={totalLosses} />
         <Stat label="胜率" value={winRate} />
-        {teamAvgRating && (
+        {teamSummary && (
           <>
-            <Stat label="场均 RR" value={teamAvgRr ?? "—"} accent />
-            <Stat label="场均 Rating Pro" value={teamAvgRating} />
-            <Stat label="场均 ADR" value={teamAvgAdr ?? "—"} accent />
-            <Stat label="场均 K/D" value={teamAvgKd ?? "—"} />
+            <Stat label="队伍 RR" value={teamSummary.averages.rivalhubRR.toFixed(2)} accent />
+            <Stat label="Rating 2.0" value={teamSummary.averages.hltvRating.toFixed(2)} />
+            <Stat label="ADR" value={teamSummary.averages.adr.toFixed(1)} accent />
+            <Stat label="KAST" value={`${teamSummary.averages.kast.toFixed(1)}%`} />
           </>
         )}
       </div>
@@ -384,23 +237,23 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
                       </div>
                       {stats && (
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 text-[11px] text-[var(--color-fg-mid)] tabular-nums">
-                          <span>{stats.maps}图</span>
+                          <span>{stats.mapCount}图</span>
                           <span className="text-[var(--color-fg-dim)]">·</span>
-                          {stats.rrScore != null && (
+                          {stats.metrics.rivalhubRR != null && (
                             <>
                               <span style={{ color: "var(--color-accent)" }} className="font-semibold">
-                                RR {stats.rrScore.toFixed(2)}
+                                RR {stats.metrics.rivalhubRR.toFixed(2)}
                               </span>
                               <span className="text-[var(--color-fg-dim)]">·</span>
                             </>
                           )}
                           <span>
-                            {stats.avgRating.toFixed(2)} Rating Pro
+                            {stats.metrics.hltvRating?.toFixed(2) ?? "—"} Rating 2.0
                           </span>
                           <span className="text-[var(--color-fg-dim)]">·</span>
-                          <span>{stats.avgAdr.toFixed(1)} ADR</span>
+                          <span>{stats.metrics.adr?.toFixed(1) ?? "—"} ADR</span>
                           <span className="text-[var(--color-fg-dim)]">·</span>
-                          <span>{stats.kdRatio != null ? stats.kdRatio.toFixed(2) : "—"} K/D</span>
+                          <span>{stats.metrics.kd?.toFixed(2) ?? "—"} K/D</span>
                         </div>
                       )}
                     </div>
@@ -437,15 +290,15 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
                           </div>
                           {stats && (
                             <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 text-[11px] text-[var(--color-fg-mid)] tabular-nums">
-                              <span>{stats.maps}图</span>
+                              <span>{stats.mapCount}图</span>
                               <span className="text-[var(--color-fg-dim)]">·</span>
-                              <span style={stats.avgRating >= 1.2 ? { color: "var(--color-accent)" } : undefined}>
-                                {stats.avgRating.toFixed(2)} RT
+                              <span>
+                                {stats.metrics.rivalhubRR?.toFixed(2) ?? "—"} RR
                               </span>
                               <span className="text-[var(--color-fg-dim)]">·</span>
-                              <span>{stats.avgAdr.toFixed(1)} ADR</span>
+                              <span>{stats.metrics.adr?.toFixed(1) ?? "—"} ADR</span>
                               <span className="text-[var(--color-fg-dim)]">·</span>
-                              <span>{stats.kdRatio != null ? stats.kdRatio.toFixed(2) : "—"} K/D</span>
+                              <span>{stats.metrics.kd?.toFixed(2) ?? "—"} K/D</span>
                             </div>
                           )}
                         </div>
@@ -522,25 +375,27 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
         </Panel>
       </section>
 
-      {/* 5. 队伍能力图 */}
-      {(teamPrism || (teamScores && hexagonByPlayer.size > 0)) && (
-        <section className="space-y-3">
-          <TeamRadarPanel
-            members={radarMembers}
-            teamScores={teamScores}
-            teamPrism={teamPrism}
-          />
-        </section>
-      )}
-
-      {/* 5.5 赛季风格分析（demo 来源） */}
-      {(hasHalfSide || styleProfile) && (
+      {teamSummary && (
         <section className="space-y-4">
-          <h2 className="text-lg font-semibold text-[var(--color-fg)]">赛季风格分析</h2>
-          {hasHalfSide && halfSide && (
-            <TeamHalfSideStats stats={halfSide} teamName={team.name} />
-          )}
-          {styleProfile && <TeamStyleProfile profile={styleProfile} />}
+          <h2 className="text-lg font-semibold text-[var(--color-fg)]">DAK 队伍分析</h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Panel label="关键表现">
+              <div className="grid grid-cols-2 gap-3">
+                <Stat label="OPENING WIN" value={teamSummary.performance.openingDuelWinRate == null ? "—" : `${(teamSummary.performance.openingDuelWinRate * 100).toFixed(1)}%`} />
+                <Stat label="CLUTCH WIN" value={teamSummary.performance.clutchWinRate == null ? "—" : `${(teamSummary.performance.clutchWinRate * 100).toFixed(1)}%`} />
+              </div>
+            </Panel>
+            <Panel label="队内领跑">
+              <div className="space-y-2 text-sm">
+                {teamSummary.leaders.map((leader) => (
+                  <div key={leader.metric} className="flex justify-between gap-3">
+                    <span className="text-[var(--color-fg-mid)]">{leader.label}</span>
+                    <span>{leader.name} · {leader.value.toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+            </Panel>
+          </div>
         </section>
       )}
 

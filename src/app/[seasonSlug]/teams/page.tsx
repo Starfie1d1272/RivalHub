@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
-import { eq, asc, inArray, sql } from "drizzle-orm";
+import { eq, asc, inArray } from "drizzle-orm";
+import { buildTeamCohortSummary } from "@cs2dak/presentation";
 import { db } from "@/db/client";
 import { seasons, teams, teamMembers, seasonRegistrations, users, matches, swissStandings } from "@/db/schema";
 import { Marker, Stat } from "@/components/rivalhub";
@@ -10,6 +11,7 @@ import { CS2_POSITIONS, getFirstStageOfType, getPreviousStage, normalizeStagePla
 import { getDisplayName } from "@/lib/utils/display-name";
 import { checkAdminSession } from "@/lib/auth/session";
 import { AdminShortcut } from "@/components/layout/AdminShortcut";
+import { getCurrentSeasonAnalysis } from "@/actions/dak-analysis";
 
 interface TeamsPageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -24,8 +26,6 @@ export default async function TeamsPage({ params }: TeamsPageProps) {
   ]);
   if (!season) notFound();
 
-  const showRatingPro = season.statProfile.inputFields.includes("ratingPro");
-
   const allTeams = await db.query.teams.findMany({
     where: eq(teams.seasonId, season.id),
     orderBy: [asc(teams.draftOrder)],
@@ -39,7 +39,7 @@ export default async function TeamsPage({ params }: TeamsPageProps) {
     );
   }
 
-  const [allMembers, seasonMatches, seasonSwissStandings, teamStatResult] = await Promise.all([
+  const [allMembers, seasonMatches, seasonSwissStandings, analysisResult] = await Promise.all([
     db
       .select({
         teamId: teamMembers.teamId,
@@ -64,26 +64,7 @@ export default async function TeamsPage({ params }: TeamsPageProps) {
       where: eq(swissStandings.seasonId, season.id),
       orderBy: [asc(swissStandings.seed)],
     }),
-    db.execute(sql`
-      SELECT
-        tm.team_id,
-        count(distinct mps.map_id)::int AS maps,
-        round(
-          CASE WHEN sum(mm2.score_a + mm2.score_b) > 0
-            THEN sum(mps.adr * (mm2.score_a + mm2.score_b))::numeric / sum(mm2.score_a + mm2.score_b)
-            ELSE NULL END
-        ::numeric, 1) AS avg_adr
-      FROM match_player_stats mps
-      JOIN matches m ON m.id = mps.match_id
-      JOIN match_maps mm2 ON mm2.id = mps.map_id
-      JOIN season_registrations sr
-        ON sr.user_id = mps.user_id AND sr.season_id = m.season_id
-      JOIN team_members tm ON tm.registration_id = sr.id
-      WHERE m.season_id = ${season.id}
-        AND mps.verified_by_admin IS NOT NULL
-        AND mps.source = COALESCE(mm2.active_stat_source, 'manual_ocr'::stat_source)
-      GROUP BY tm.team_id
-    `),
+    getCurrentSeasonAnalysis(season.id),
   ]);
 
   const membersByTeam = new Map<string, typeof allMembers>();
@@ -114,53 +95,28 @@ export default async function TeamsPage({ params }: TeamsPageProps) {
     });
   }
 
-  // 队伍 RR 均值（from player_ratings，按赛季成员聚合）
-  const teamRrResult = await db.execute(sql`
-    SELECT tm.team_id, round(avg(pr.rr_score)::numeric, 2) AS avg_rr
-    FROM player_ratings pr
-    JOIN season_registrations sr ON sr.user_id = pr.user_id AND sr.season_id = pr.season_id
-    JOIN team_members tm ON tm.registration_id = sr.id
-    WHERE pr.season_id = ${season.id} AND pr.rr_score IS NOT NULL
-    GROUP BY tm.team_id
-  `);
-  const teamRrMap = new Map(
-    teamRrResult.rows.map((row) => [
-      row.team_id as string,
-      row.avg_rr == null ? null : Number(row.avg_rr),
-    ]),
-  );
-
-  // 队伍 Rating Pro 均值：完美平台(OCR)独有指标，始终只对 manual_ocr 行聚合，
-  // 不随 active_stat_source 漂移（否则导了 demo 的图会被排除，只剩最新几场）。
-  const teamRatingResult = await db.execute(sql`
-    SELECT tm.team_id, round(avg(mps.rating_pro)::numeric, 2) AS avg_rating
-    FROM match_player_stats mps
-    JOIN matches m ON m.id = mps.match_id
-    JOIN season_registrations sr
-      ON sr.user_id = mps.user_id AND sr.season_id = m.season_id
-    JOIN team_members tm ON tm.registration_id = sr.id
-    WHERE m.season_id = ${season.id}
-      AND mps.verified_by_admin IS NOT NULL
-      AND mps.source = 'manual_ocr'::stat_source
-    GROUP BY tm.team_id
-  `);
-  const teamRatingMap = new Map(
-    teamRatingResult.rows.map((row) => [
-      row.team_id as string,
-      row.avg_rating == null ? null : Number(row.avg_rating),
-    ]),
-  );
-
+  const cohort = analysisResult.success ? analysisResult.data?.cohort : null;
+  const cohortPlayerKeys = new Set(cohort?.players.map((player) => player.playerKey) ?? []);
   const teamSummaryMap = new Map(
-    teamStatResult.rows.map((row) => [
-      row.team_id as string,
-      {
-        maps: Number(row.maps),
-        avgRating: teamRatingMap.get(row.team_id as string) ?? null,
-        avgAdr: Number(row.avg_adr),
-        avgRr: teamRrMap.get(row.team_id as string) ?? null,
-      },
-    ]),
+    cohort
+      ? allTeams.flatMap((team) => {
+          const playerKeys = (membersByTeam.get(team.id) ?? [])
+            .map((member) => `user:${member.userId}`)
+            .filter((playerKey) => cohortPlayerKeys.has(playerKey));
+          if (playerKeys.length === 0) return [];
+          const summary = buildTeamCohortSummary(cohort, {
+            teamKey: team.id,
+            name: team.name,
+            playerKeys,
+          });
+          return [[team.id, {
+            maps: Math.max(...summary.members.map((member) => member.mapCount)),
+            rivalhubRR: summary.averages.rivalhubRR,
+            adr: summary.averages.adr,
+            kast: summary.averages.kast,
+          }] as const];
+        })
+      : [],
   );
   const stagePlan = normalizeStagePlan(season.stagePlan);
   const qualifierStage = getFirstStageOfType(stagePlan, ["round_robin", "swiss"]);
@@ -255,7 +211,6 @@ export default async function TeamsPage({ params }: TeamsPageProps) {
               players={members}
               record={teamRecordMap.get(team.id)}
               summary={teamSummaryMap.get(team.id) ?? null}
-              showRatingPro={showRatingPro}
             />
           );
         })}
