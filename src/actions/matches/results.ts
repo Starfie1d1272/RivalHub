@@ -339,6 +339,8 @@ export async function recordMapResult(
             normalizeStagePlan(season.stagePlan),
           );
         }
+
+        await maybeFinishSeason(tx, match.seasonId);
       }
 
       await tx.insert(auditLogs).values({

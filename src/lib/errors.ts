@@ -59,11 +59,6 @@ export const ErrorCode = {
   MATCH_MAP_ORDER_CONFLICT: "MATCH_MAP_ORDER_CONFLICT",// mapOrder 已存在
   MATCH_FORMAT_MISMATCH: "MATCH_FORMAT_MISMATCH",      // BO1 录入 2 张图等
   MATCH_VOTE_TOO_EARLY: "MATCH_VOTE_TOO_EARLY",
-
-  // ── Demo Import ──────────────────────────────────
-  MAP_NOT_FINISHED: "MAP_NOT_FINISHED",
-  DUPLICATE_IMPORT: "DUPLICATE_IMPORT",
-  OCR_EXISTS_NEEDS_CONFIRM: "OCR_EXISTS_NEEDS_CONFIRM",
 } as const;
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
@@ -119,8 +114,4 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   MATCH_MAP_ORDER_CONFLICT: "该图序号已被使用",
   MATCH_FORMAT_MISMATCH: "提交的图数与比赛 BO 格式不一致",
   MATCH_VOTE_TOO_EARLY: "账号注册满 24 小时后可参与投票",
-
-  MAP_NOT_FINISHED: "比赛未结束，无法导入 Demo",
-  DUPLICATE_IMPORT: "该 Demo 已导入过（相同 hash + 地图）",
-  OCR_EXISTS_NEEDS_CONFIRM: "该图已有 OCR 数据，需要二次确认以 Demo 为准覆盖",
 };

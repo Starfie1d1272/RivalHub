@@ -35,8 +35,6 @@ import { cn } from "@/lib/utils/cn";
 interface Props {
   mapId: string;
   mapName: string;
-  /** 该赛季要录入的字段;不传则全展示(向后兼容) */
-  inputFields?: import("@/types/season").StatFieldKey[];
 }
 
 type DraftRow = PlayerStatsDraft;
@@ -57,14 +55,8 @@ const NUM_FIELDS = [
 
 type NumFieldKey = typeof NUM_FIELDS[number]["key"];
 
-export function StatsOCRPanel({ mapId, mapName, inputFields }: Props) {
+export function StatsOCRPanel({ mapId, mapName }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
-  const visibleFields = useMemo(
-    () => (inputFields
-      ? NUM_FIELDS.filter((f) => inputFields.includes(f.key as import("@/types/season").StatFieldKey))
-      : NUM_FIELDS),
-    [inputFields],
-  );
   const [drafts, setDrafts] = useState<DraftRow[]>([]);
   const [playerOptions, setPlayerOptions] = useState<PlayerOption[]>([]);
   const [extracting, setExtracting] = useState(false);
@@ -288,7 +280,7 @@ export function StatsOCRPanel({ mapId, mapName, inputFields }: Props) {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-36">昵称</TableHead>
-                {visibleFields.map((f) => (
+                {NUM_FIELDS.map((f) => (
                   <TableHead key={f.key} className="w-16 text-center">
                     {f.label}
                   </TableHead>
@@ -299,7 +291,7 @@ export function StatsOCRPanel({ mapId, mapName, inputFields }: Props) {
               {drafts.map((row, idx) => (
                 <TableRow key={idx}>
                   <TableCell className="font-medium">{row.perfectName as string}</TableCell>
-                  {visibleFields.map((f) => (
+                  {NUM_FIELDS.map((f) => (
                     <TableCell key={f.key} className="text-center tabular-nums">
                       {(row[f.key] as number | null) ?? "—"}
                     </TableCell>
@@ -345,7 +337,7 @@ export function StatsOCRPanel({ mapId, mapName, inputFields }: Props) {
                     <TableRow>
                       <TableHead className="w-36">昵称</TableHead>
                       <TableHead className="w-40">匹配用户</TableHead>
-                      {visibleFields.map((f) => (
+                      {NUM_FIELDS.map((f) => (
                         <TableHead key={f.key} className="w-16 text-center">
                           {f.label}
                         </TableHead>
@@ -387,7 +379,7 @@ export function StatsOCRPanel({ mapId, mapName, inputFields }: Props) {
                             </SelectContent>
                           </Select>
                         </TableCell>
-                        {visibleFields.map((f) => (
+                        {NUM_FIELDS.map((f) => (
                           <TableCell key={f.key} className="text-center p-1">
                             <Input
                               className={cn(

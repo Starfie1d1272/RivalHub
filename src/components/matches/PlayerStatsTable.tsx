@@ -2,7 +2,6 @@ import React from "react";
 import { eq, and, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matchPlayerStats } from "@/db/schema/player-stats";
-import { matchMaps } from "@/db/schema/match-maps";
 import { teamMembers } from "@/db/schema/teams";
 import { seasonRegistrations } from "@/db/schema/registrations";
 import { MatchSummaryStats, type SummaryPlayer } from "./MatchSummaryStats";
@@ -23,17 +22,8 @@ async function getStatsGroupedByTeam(
   teamBId: string,
   seasonId: string,
 ) {
-  const mapRow = await db.query.matchMaps.findFirst({
-    where: eq(matchMaps.id, mapId),
-    columns: { activeStatSource: true },
-  });
-  const activeSource = mapRow?.activeStatSource ?? "manual_ocr";
-
   const stats = await db.query.matchPlayerStats.findMany({
-    where: and(
-      eq(matchPlayerStats.mapId, mapId),
-      eq(matchPlayerStats.source, activeSource),
-    ),
+    where: eq(matchPlayerStats.mapId, mapId),
     orderBy: (t, { desc }) => [desc(t.ratingPro)],
   });
 

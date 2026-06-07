@@ -5,6 +5,24 @@ All notable changes to RivalHub are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.30.0] - 2026-06-08
+
+> **1.x 收官版本**：移除 Demo 导入相关全部功能，回归无-demo 形态（整体基于 `v1.25.6`）。Demo 体系转入 2.0.0 开发线（`release/2.0.0` 分支）继续。生产数据库中 demo 相关表（`stat_source` / `demo_import_tables` / `active_stat_source`）保留空置、不删除。
+
+### Removed
+- **Demo 导入与解析**：移除 demo 导出包导入、批量 ZIP 导入、demo 明细数据写入与重算
+- **Demo 数据面板高级模块**：击杀热力图、武器使用细分、经济转化图、Entry 逐回合、残局列表、击杀 feed、回合时间线
+- **评分体系 demo 维度**：RR / PRISM 八维能力雷达、队伍风格画像、T-CT 半场胜率、选手 Demo 进阶卡片
+- **外部依赖**：`@cs2dak/core`、`@rivalhub/rival-rating`、`cs2-demo-format`、`jszip`
+
+### Fixed
+- **整场汇总排序**：比赛「整场汇总」选手列表改为按 Rating 降序、空值排末尾（此前靠上游 SQL 顺序兜底，是 v1.25.6 即存在的潜伏 bug）
+- **逐图录入完赛后赛季未自动结束**：`recordMapResult` 在系列赛打完时补调 `maybeFinishSeason`，与 `recordMatchResult` 对齐（修复赛季卡在 `playing` 的根因）
+
+### Changed
+- **发版流程引入 changeset**：版本号与 CHANGELOG 改由 `@changesets/cli` 管理，`release.yml` 兼容 `## [ver]` 与 `## ver` 两种标题。详见 `.claude/skills/release.md`
+- 比赛页保留 `error.tsx` / `loading.tsx` 错误与加载边界（v1.25.6 之后引入的独立健壮性改进）
+
 ## [1.29.0] - 2026-05-31
 
 ### Changed
@@ -1061,6 +1079,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[1.30.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.29.0...v1.30.0
 [1.29.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.28.2...v1.29.0
 [1.28.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.28.1...v1.28.2
 [1.28.1]: https://github.com/Starfie1d1272/RivalHub/compare/v1.28.0...v1.28.1

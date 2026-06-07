@@ -141,48 +141,6 @@
       "when": 1748044800000,
       "tag": "0019_is_forfeit",
       "breakpoints": true
-    },
-    {
-      "idx": 20,
-      "version": "7",
-      "when": 1748448000000,
-      "tag": "0020_stat_source",
-      "breakpoints": true
-    },
-    {
-      "idx": 21,
-      "version": "7",
-      "when": 1748448100000,
-      "tag": "0021_season_stat_profile",
-      "breakpoints": true
-    },
-    {
-      "idx": 22,
-      "version": "7",
-      "when": 1748476800000,
-      "tag": "0022_demo_import_tables",
-      "breakpoints": true
-    },
-    {
-      "idx": 23,
-      "version": "7",
-      "when": 1748476900000,
-      "tag": "0023_active_stat_source",
-      "breakpoints": true
-    },
-    {
-      "idx": 24,
-      "version": "7",
-      "when": 1780003787380,
-      "tag": "0024_amazing_jackal",
-      "breakpoints": true
-    },
-    {
-      "idx": 25,
-      "version": "7",
-      "when": 1780057986648,
-      "tag": "0025_overrated_longshot",
-      "breakpoints": true
     }
   ]
 }

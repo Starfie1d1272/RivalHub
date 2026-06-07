@@ -134,7 +134,7 @@ export function MatchTimeNegotiation({
   return (
     <div className="space-y-4">
       {isCaptain && !hasSubmittedRoster && (
-        <div className="rounded border p-3" style={{ borderColor: "color-mix(in srgb, var(--color-warn) 40%, transparent)", background: "color-mix(in srgb, var(--color-warn) 6%, transparent)" }}>
+        <div className="rounded border p-3" style={{ borderColor: "rgba(255,196,77,0.4)", background: "rgba(255,196,77,0.06)" }}>
           <p className="text-sm text-[var(--color-fg)]">请先提交赛前名单</p>
           <p className="text-xs text-[var(--color-fg-dim)] mt-1">
             在确认比赛时间之前，请先在「提交名单」中选择 5 名首发队员。裁判在正式开赛时会检查队员信息，队员不正确将无法进行比赛。
@@ -152,10 +152,10 @@ export function MatchTimeNegotiation({
 
       {/* 系统自动采纳提示 */}
       {autoAcceptedProposal && currentScheduledAt && (
-        <div className="rounded border p-3 text-sm" style={{ borderColor: "color-mix(in srgb, var(--color-ok) 35%, transparent)", background: "color-mix(in srgb, var(--color-ok) 6%, transparent)" }}>
+        <div className="rounded border p-3 text-sm" style={{ borderColor: "rgba(34,197,94,0.35)", background: "rgba(34,197,94,0.06)" }}>
           <p className="font-medium text-[var(--color-fg)]">比赛时间已自动设定</p>
           <p className="text-xs text-[var(--color-fg-dim)] mt-0.5">
-            对方 24 小时内未回应，比赛时间已按提议自动采纳为 {formatCST(new Date(currentScheduledAt))}。
+            对方 24 小时内未回应，比赛时间已按提议自动采纳为 {formatCST(autoAcceptedProposal.proposedTime)}。
           </p>
         </div>
       )}
@@ -182,7 +182,7 @@ export function MatchTimeNegotiation({
                 className="rounded border p-3"
               style={isMyProposal
                 ? { borderColor: "var(--color-border)", background: "var(--color-panel)" }
-                : { borderColor: "color-mix(in srgb, var(--color-warn) 40%, transparent)", background: "color-mix(in srgb, var(--color-warn) 6%, transparent)" }
+                : { borderColor: "rgba(255,196,77,0.4)", background: "rgba(255,196,77,0.06)" }
               }
               >
                 <div className="flex items-center justify-between gap-2">
@@ -302,7 +302,7 @@ export function MatchTimeNegotiation({
 
       {/* 管理员强制指定 */}
       {isAdmin && (
-        <div className="rounded border p-3" style={{ borderColor: "color-mix(in srgb, var(--color-danger) 35%, transparent)", background: "color-mix(in srgb, var(--color-danger) 6%, transparent)" }}>
+        <div className="rounded border p-3" style={{ borderColor: "rgba(255,84,112,0.35)", background: "rgba(255,84,112,0.06)" }}>
           <p className="text-sm font-medium text-[var(--color-danger)]">
             管理员强制指定
           </p>

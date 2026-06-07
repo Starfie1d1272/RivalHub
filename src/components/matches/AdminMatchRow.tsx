@@ -9,7 +9,6 @@ import { ScheduledAtInput } from "@/components/matches/ScheduledAtInput";
 import { VetoInputDialog } from "@/components/matches/VetoInputDialog";
 import { AdminRosterDialog } from "@/components/matches/AdminRosterDialog";
 import { StatsOCRPanel } from "@/components/matches/StatsOCRPanel";
-import { DemoImportPanel } from "@/components/admin/DemoImportPanel";
 import { ForfeitButton } from "@/components/matches/ForfeitButton";
 import { MapScoreCorrectInput } from "@/components/matches/MapScoreCorrectInput";
 import { DeleteMatchButton } from "@/components/matches/DeleteMatchButton";
@@ -231,9 +230,8 @@ export function AdminMatchRow({
                   initialValue={toCSTDateTimeInput(match.completedAt)}
                 />
                 {finishedMaps.map((map) => (
-                  <div key={map.id} className="space-y-1">
+                  <div key={map.id}>
                     <StatsOCRPanel mapId={map.id} mapName={map.mapName} />
-                    <DemoImportPanel mapId={map.id} mapName={map.mapName} />
                   </div>
                 ))}
               </>

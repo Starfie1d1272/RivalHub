@@ -195,7 +195,7 @@ export function InviteManager({
                   {!inv.isActive && (
                     <Badge
                       variant="outline"
-                      className="text-xs bg-[color-mix(in srgb, var(--color-danger) 8%, transparent)] text-[var(--color-danger)] border-[color-mix(in srgb, var(--color-danger) 30%, transparent)]"
+                      className="text-xs bg-[rgba(255,84,112,0.08)] text-[var(--color-danger)] border-[rgba(255,84,112,0.3)]"
                     >
                       已失效
                     </Badge>

@@ -19,9 +19,10 @@ jobs:
       - name: Extract changelog for this version
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
+          # 兼容两种标题：手写 `## [1.30.0] - date` 与 changeset 生成的 `## 1.30.0`
           awk -v ver="$VERSION" '
-            $0 ~ "^## \\[" ver "\\]" { found=1; next }
-            found && $0 ~ "^## \\[" { exit }
+            $0 ~ "^## \\[?" ver "(\\]| |$)" { found=1; next }
+            found && $0 ~ "^## \\[?[0-9]" { exit }
             found { print }
           ' CHANGELOG.md > /tmp/release-notes.md
 

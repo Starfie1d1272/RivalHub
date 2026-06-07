@@ -1,1 +1,0 @@
-ALTER TABLE "seasons" ADD COLUMN "stat_profile" json DEFAULT '{"provider":"perfectworld","inputFields":["kills","deaths","assists","hsPercent","firstKills","multiKills","clutches","adr","rws","ratingPro","we"],"rankMetric":"ratingPro"}'::json NOT NULL;

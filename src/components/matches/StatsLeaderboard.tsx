@@ -21,21 +21,6 @@ interface LeaderboardRow {
   fkpr: number;
   mkpr: number;
   cpr: number;
-  /** RR 评分（from player_ratings） */
-  rrScore?: number | null;
-  /** Demo 源扩展字段（存在时显示 demo 视图） */
-  avgDemoKast?: number;
-  avgDemoAdr?: number;
-  demoFkpr?: number;
-  demoClutchWinRate?: number;
-  demoUtilityPerRound?: number;
-  vsOneWinRate?: number | null;
-  twoKillCount?: number;
-  threeKillCount?: number;
-  fourKillCount?: number;
-  fiveKillCount?: number;
-  entrySuccessRate?: number | null;
-  awpKillRate?: number | null;
 }
 
 interface StatsLeaderboardProps {
@@ -46,14 +31,12 @@ interface StatsLeaderboardProps {
   view?: LeaderboardView;
   stages?: { key: string; name: string }[];
   currentStage?: string;
-  hasDemoData?: boolean;
 }
 
-const VIEWS: { key: LeaderboardView | "demo"; label: string; defaultSort: string }[] = [
-  { key: "core", label: "Core", defaultSort: "rr" },
+const VIEWS: { key: LeaderboardView; label: string; defaultSort: string }[] = [
+  { key: "core", label: "Core", defaultSort: "rating" },
   { key: "impact", label: "Impact", defaultSort: "fk" },
-  { key: "advanced", label: "Advanced", defaultSort: "rr" },
-  { key: "demo", label: "Demo", defaultSort: "avgDemoKast" },
+  { key: "advanced", label: "Advanced", defaultSort: "we" },
 ];
 
 const POSITIONS = [
@@ -81,24 +64,14 @@ const BASE_COLS: ColDef[] = [
   },
 ];
 
-// RR：我们自己的绝对刻度评分（门面）。完美 Rating/WE/RWS 是第三方副指标。
-const RR_COL: ColDef = {
-  key: "rr",
-  label: "RR",
-  getValue: (r) => r.rrScore ?? null,
-  format: (v) => (v != null ? v.toFixed(2) : "—"),
-};
-const PW_RATING_COL: ColDef = {
-  key: "rating",
-  label: "Rating Pro",
-  getValue: (r) => r.avgRating,
-  format: (v) => (v ? v.toFixed(2) : "—"),
-};
-
 const CORE_COLS: ColDef[] = [
   ...BASE_COLS,
-  RR_COL,
-  PW_RATING_COL,
+  {
+    key: "rating",
+    label: "Rating",
+    getValue: (r) => r.avgRating,
+    format: (v) => (v ?? 0).toFixed(2),
+  },
   {
     key: "adr",
     label: "ADR",
@@ -127,8 +100,12 @@ const CORE_COLS: ColDef[] = [
 
 const IMPACT_COLS: ColDef[] = [
   ...BASE_COLS,
-  RR_COL,
-  PW_RATING_COL,
+  {
+    key: "rating",
+    label: "Rating",
+    getValue: (r) => r.avgRating,
+    format: (v) => (v ?? 0).toFixed(2),
+  },
   {
     key: "fk",
     label: "FKPR /100r",
@@ -151,8 +128,12 @@ const IMPACT_COLS: ColDef[] = [
 
 const ADVANCED_COLS: ColDef[] = [
   ...BASE_COLS,
-  RR_COL,
-  PW_RATING_COL,
+  {
+    key: "rating",
+    label: "Rating",
+    getValue: (r) => r.avgRating,
+    format: (v) => (v ?? 0).toFixed(2),
+  },
   {
     key: "we",
     label: "WE",
@@ -167,60 +148,13 @@ const ADVANCED_COLS: ColDef[] = [
   },
 ];
 
-const DEMO_COLS: ColDef[] = [
-  ...BASE_COLS,
-  {
-    key: "avgDemoKast",
-    label: "KAST%",
-    getValue: (r) => r.avgDemoKast ?? null,
-    format: (v) => (v != null ? v.toFixed(1) + "%" : "—"),
-  },
-  {
-    key: "demoClutchWinRate",
-    label: "1v1%",
-    getValue: (r) => r.vsOneWinRate ?? null,
-    format: (v) => (v != null ? (v * 100).toFixed(1) + "%" : "—"),
-  },
-  {
-    key: "demoUtilityPerRound",
-    label: "Util/R",
-    getValue: (r) => r.demoUtilityPerRound ?? null,
-    format: (v) => (v != null ? v.toFixed(1) : "—"),
-  },
-  {
-    key: "twoKillRate",
-    label: "2K%",
-    getValue: (r) => r.twoKillCount != null && r.maps > 0 ? r.twoKillCount / r.maps : null,
-    format: (v) => (v != null ? v.toFixed(2) : "—"),
-  },
-  {
-    key: "threeKillRate",
-    label: "3K%",
-    getValue: (r) => r.threeKillCount != null && r.maps > 0 ? r.threeKillCount / r.maps : null,
-    format: (v) => (v != null ? v.toFixed(2) : "—"),
-  },
-  {
-    key: "entrySuccessRate",
-    label: "Entry%",
-    getValue: (r) => r.entrySuccessRate ?? null,
-    format: (v) => (v != null ? (v * 100).toFixed(1) + "%" : "—"),
-  },
-  {
-    key: "awpKillRate",
-    label: "AWP%",
-    getValue: (r) => r.awpKillRate ?? null,
-    format: (v) => (v != null ? (v * 100).toFixed(1) + "%" : "—"),
-  },
-];
-
-const VIEW_COLS: Record<string, ColDef[]> = {
+const VIEW_COLS: Record<LeaderboardView, ColDef[]> = {
   core: CORE_COLS,
   impact: IMPACT_COLS,
   advanced: ADVANCED_COLS,
-  demo: DEMO_COLS,
 };
 
-export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "core", stages, currentStage = "", hasDemoData = false }: StatsLeaderboardProps) {
+export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "core", stages, currentStage = "" }: StatsLeaderboardProps) {
   if (rows.length === 0) {
     return (
       <Panel pad={32} className="text-center text-[var(--color-fg-mid)]">
@@ -229,23 +163,9 @@ export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "cor
     );
   }
 
-  const sortColBg = "color-mix(in srgb, var(--color-accent) 4%, transparent)";
+  const sortColBg = "rgba(255,107,26,0.04)";
   const accentText = "var(--color-accent)";
-  const visibleViews = hasDemoData ? VIEWS : VIEWS.filter((v) => v.key !== "demo");
-  const cols = VIEW_COLS[view] ?? VIEW_COLS.core;
-
-  // Demo 视图的列数据来自独立查询（getSeasonDemoStats），
-  // 服务端 SQL ORDER BY 管不到这些字段，需要在客户端排序。
-  // Advanced 视图的 we/rws 服务端已处理（OCR fallback），但这里兜底：
-  // 如果 sort key 在 cols 中，用 cols 的 getValue 降序排。
-  const sortCol = cols.find((c) => c.key === sort);
-  const sortedRows = sortCol
-    ? [...rows].sort((a, b) => {
-        const va = sortCol.getValue(a) ?? -Infinity;
-        const vb = sortCol.getValue(b) ?? -Infinity;
-        return vb - va;
-      })
-    : rows;
+  const cols = VIEW_COLS[view];
   const statsHref = ({
     nextSort = sort,
     nextPosition = position,
@@ -254,7 +174,7 @@ export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "cor
   }: {
     nextSort?: string;
     nextPosition?: string;
-    nextView?: string;
+    nextView?: LeaderboardView;
     nextStage?: string;
   }) => {
     const params = new URLSearchParams({ sort: nextSort });
@@ -272,7 +192,7 @@ export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "cor
             Metric view
           </p>
           <div className="flex gap-1 flex-wrap">
-            {visibleViews.map(({ key, label, defaultSort }) => (
+            {VIEWS.map(({ key, label, defaultSort }) => (
               <Btn key={key} small ghost={view !== key} asChild>
                 <a href={statsHref({ nextSort: defaultSort, nextView: key })}>{label}</a>
               </Btn>
@@ -328,13 +248,13 @@ export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "cor
       {/* 核心视图压进桌面宽度；窄屏仍可横向滚动。 */}
       <Panel pad={0} className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className={`w-full text-sm table-fixed ${cols.length > 6 ? 'min-w-[820px]' : 'min-w-[680px]'}`}>
+          <table className="w-full text-sm min-w-[680px] table-fixed">
             <colgroup>
               <col className="w-9" />
               <col />
               <col className="w-24" />
               <col className="w-[18%]" />
-              {cols.map((col) => <col key={col.key} className={cols.length > 6 ? 'w-[7%]' : 'w-[8%]'} />)}
+              {cols.map((col) => <col key={col.key} className="w-[8%]" />)}
             </colgroup>
             <thead>
               <tr className="border-b border-[var(--color-border)] text-[var(--color-fg-mid)] text-xs uppercase tracking-wide">
@@ -354,7 +274,7 @@ export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "cor
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--color-border)]">
-              {sortedRows.map((r, i) => (
+              {rows.map((r, i) => (
                 <tr key={r.userId ?? r.perfectName} className="hover:bg-[var(--color-surface-raised)] transition-colors">
                   <td className="px-2.5 py-2.5 text-xs">
                     <span
@@ -394,7 +314,7 @@ export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "cor
                   {cols.map((col) => {
                     const val = col.getValue(r);
                     const isSort = sort === col.key;
-                    const isHighRating = (col.key === "rating" || col.key === "rr") && (val ?? 0) >= 1.2;
+                    const isHighRating = col.key === "rating" && (val ?? 0) >= 1.2;
                     return (
                       <td
                         key={col.key}

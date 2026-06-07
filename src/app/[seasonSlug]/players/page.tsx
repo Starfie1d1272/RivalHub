@@ -36,8 +36,6 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
   const season = await getSeason(seasonSlug);
   if (!season) notFound();
 
-  const showRatingPro = season.statProfile.inputFields.includes("ratingPro");
-
   const whereConditions = position
     ? and(
         eq(seasonRegistrations.seasonId, season.id),
@@ -102,19 +100,8 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
     WHERE m.season_id = ${season.id}
       AND mps.verified_by_admin IS NOT NULL
       AND mps.user_id IS NOT NULL
-      AND mps.source = COALESCE(mm2.active_stat_source, 'manual_ocr'::stat_source)
     GROUP BY mps.user_id
   `);
-  // RR 评分（from player_ratings，本赛季）
-  const rrResult = await db.execute(sql`
-    SELECT user_id, rr_score
-    FROM player_ratings
-    WHERE season_id = ${season.id} AND user_id IS NOT NULL AND rr_score IS NOT NULL
-  `);
-  const rrByUserId = new Map(
-    rrResult.rows.map((row) => [row.user_id as string, Number(row.rr_score)]),
-  );
-
   const statsByUserId = new Map(
     playerStatResult.rows.map((row) => [
       row.user_id as string,
@@ -123,7 +110,6 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
         avgRating: Number(row.avg_rating),
         avgAdr: Number(row.avg_adr),
         avgKd: row.avg_kd == null ? null : Number(row.avg_kd),
-        avgRr: rrByUserId.get(row.user_id as string) ?? null,
       },
     ]),
   );
@@ -191,7 +177,6 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
             <PlayerDirectoryRow
               key={player.registrationId}
               player={player}
-              showRatingPro={showRatingPro}
             />
           ))}
         </div>
