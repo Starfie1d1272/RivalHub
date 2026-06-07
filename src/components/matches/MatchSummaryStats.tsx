@@ -45,6 +45,14 @@ const COLS = [
   { key: "we",          label: "WE", fmt: (v: number | null) => v != null ? v.toFixed(1) : "—" },
 ] as const;
 
+/** 按 Rating Pro 降序排序，null 排末尾 */
+function byRatingDesc(a: SummaryPlayer, b: SummaryPlayer): number {
+  if (a.ratingPro == null && b.ratingPro == null) return 0;
+  if (a.ratingPro == null) return 1;
+  if (b.ratingPro == null) return -1;
+  return b.ratingPro - a.ratingPro;
+}
+
 interface PlayerRowProps {
   player: SummaryPlayer;
   seasonSlug: string;
@@ -147,8 +155,8 @@ export function MatchSummaryStats({
   seasonSlug,
   noPanel = false,
 }: MatchSummaryStatsProps) {
-  const teamAPlayers = players.filter((p) => p.teamId === teamAId);
-  const teamBPlayers = players.filter((p) => p.teamId === teamBId);
+  const teamAPlayers = players.filter((p) => p.teamId === teamAId).sort(byRatingDesc);
+  const teamBPlayers = players.filter((p) => p.teamId === teamBId).sort(byRatingDesc);
 
   const content = (
     <>
