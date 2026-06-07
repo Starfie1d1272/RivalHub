@@ -29,10 +29,7 @@ interface TeamCardProps {
     maps: number;
     avgRating: number;
     avgAdr: number;
-    avgRr?: number | null;
   } | null;
-  /** 是否展示 Rating Pro 列（取决于赛季 statProfile 配置） */
-  showRatingPro?: boolean;
 }
 
 function SummaryStat({ label, value }: { label: string; value: string | number }) {
@@ -57,7 +54,6 @@ export function TeamCard({
   players,
   record,
   summary,
-  showRatingPro = false,
 }: TeamCardProps) {
   const starters = players.filter((p) => p.isStarter);
   const subs = players.filter((p) => !p.isStarter);
@@ -106,10 +102,7 @@ export function TeamCard({
 
         <div className="grid grid-cols-3 gap-2">
           <SummaryStat label="Maps" value={summary?.maps ?? "—"} />
-          <SummaryStat label="RR" value={summary?.avgRr != null ? summary.avgRr.toFixed(2) : "—"} />
-          {showRatingPro && (
-            <SummaryStat label="Rating Pro" value={summary?.avgRating ? summary.avgRating.toFixed(2) : "—"} />
-          )}
+          <SummaryStat label="Rating" value={summary ? summary.avgRating.toFixed(2) : "—"} />
           <SummaryStat label="ADR" value={summary ? summary.avgAdr.toFixed(1) : "—"} />
         </div>
 

@@ -7,7 +7,6 @@ vi.mock("@/db/client", () => ({
   db: {
     query: {
       matchPlayerStats: { findMany: mockFindMany },
-      matchMaps: { findFirst: vi.fn().mockResolvedValue(null) },
       seasonRegistrations: { findMany: vi.fn().mockResolvedValue([]) },
       teamMembers: { findMany: vi.fn().mockResolvedValue([]) },
     },
@@ -21,18 +20,10 @@ vi.mock("@/db/schema/player-stats", () => ({
     hsPercent: {}, firstKills: {}, multiKills: {}, clutches: {},
     rws: {}, we: {},
   },
-  statSourceEnum: () => {},
 }));
 
 vi.mock("@/db/schema/teams", () => ({
   teamMembers: { registrationId: {}, teamId: {} },
-}));
-
-vi.mock("@/db/schema/match-maps", () => ({
-  matchMaps: {
-    id: {}, matchId: {}, mapName: {}, mapOrder: {},
-    scoreA: {}, scoreB: {}, activeStatSource: {},
-  },
 }));
 
 vi.mock("@/db/schema/registrations", () => ({

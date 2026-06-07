@@ -34,7 +34,6 @@ describe("TeamCard", () => {
         {...props}
         record={{ played: 4, wins: 3, losses: 1, winRate: "75%" }}
         summary={{ maps: 12, avgRating: 1.14, avgAdr: 78.2 }}
-        showRatingPro
       />,
     );
 

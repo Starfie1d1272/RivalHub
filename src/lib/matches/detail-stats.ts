@@ -3,8 +3,6 @@ import type { MapWinStats } from "@/lib/teams/data";
 import { avgNums, sumNums, weightedAvgNums } from "@/lib/utils/stats";
 import { aggregatePlayerRows } from "@/lib/stats/aggregate";
 import type { StatRowInput } from "@/lib/stats/aggregate";
-import { sortByMetric } from "@/lib/stats/mvp";
-import type { StatFieldKey } from "@/types/season";
 
 export type MatchPlayerStatsRow = typeof matchPlayerStats.$inferSelect;
 
@@ -181,7 +179,6 @@ export function aggregateFinishedPlayerStats(
   teamAId: string,
   teamBId: string,
   mapRoundsMap?: Map<string, number>,
-  rankMetric: StatFieldKey = "ratingPro",
 ) {
   const groupMap = new Map<string, MatchPlayerStatsRow[]>();
   for (const s of allStats) {
@@ -226,7 +223,9 @@ export function aggregateFinishedPlayerStats(
     };
   });
 
-  const mvpCandidates = sortByMetric(aggregated, rankMetric).slice(0, 4);
+  const mvpCandidates = aggregated
+    .sort((a, b) => (b.ratingPro ?? 0) - (a.ratingPro ?? 0))
+    .slice(0, 4);
 
   const summaryPlayers = aggregated
     .map((p) => ({

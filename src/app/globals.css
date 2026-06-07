@@ -21,10 +21,6 @@
 
   /* Surfaces */
   --color-bg: #0a0c10;
-  --color-bg-subtle: #0d1016;
-  --color-bg-mid: #12161e;
-  --color-bg-secondary: #0d1016;
-  --color-surface-raised: rgba(255, 255, 255, 0.03);
   --color-panel: #10131a;
   --color-panel-hi: #161a24;
   --color-panel-low: #0d1016;
@@ -32,13 +28,11 @@
   /* Borders */
   --color-border: #1f2530;
   --color-border-hi: #2c3340;
-  --color-border-subtle: rgba(31, 37, 48, 0.6);
 
   /* Text */
   --color-fg: #e7ecf3;
   --color-fg-mid: #8e96a3;
   --color-fg-dim: #525a6a;
-  --color-fg-muted: #6a7282;
 
   /* Accent (team A) */
   --color-accent: #ff6b1a;

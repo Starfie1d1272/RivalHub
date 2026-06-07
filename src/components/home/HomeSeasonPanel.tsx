@@ -208,8 +208,8 @@ function CandidateRankRow({
       style={{
         gridTemplateColumns: "auto 1fr auto",
         padding: "10px 12px",
-        background: index === 0 ? "color-mix(in srgb, var(--color-accent) 4%, transparent)" : "var(--color-panel-low)",
-        border: `1px solid ${index === 0 ? "color-mix(in srgb, var(--color-accent) 27%, transparent)" : "var(--color-border)"}`,
+        background: index === 0 ? "rgba(255,107,26,0.04)" : "var(--color-panel-low)",
+        border: `1px solid ${index === 0 ? "rgba(255,107,26,0.27)" : "var(--color-border)"}`,
         borderRadius: "var(--radius-sm, 2px)",
       }}
     >

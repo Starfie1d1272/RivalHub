@@ -22,19 +22,9 @@ export interface PlayerMetrics {
   we: number;        // win equity
   ratingPro: number; // rating pro
   totalRounds: number; // 参与回合总数
-
-  // ── Demo 扩展维度 ──
-  kast: number;             // KAST % (0-100)
-  utilityDamagePr: number;  // utility damage per round
-  firstKillRate: number;    // firstKill / totalRounds
-  clutchWinRate: number;    // clutches won / clutches attempted
-  tradeKillRate: number;    // tradeKill / totalRounds
-  entrySuccessRate: number; // firstKill / (firstKill + firstDeath)
-  /** 是否有 demo 来源数据（用于权重重归一化）*/
-  hasDemoData: boolean;
 }
 
-type MetricKey = keyof Omit<PlayerMetrics, "userId" | "totalRounds" | "hasDemoData">;
+type MetricKey = keyof Omit<PlayerMetrics, "userId" | "totalRounds">;
 
 /** 赛事统计量（用于 Z-score） */
 export interface EventStats {
@@ -53,44 +43,15 @@ export interface HexagonScores {
 }
 
 // ─── 六维权重配置 ─────────────────────────────────────────────────────────────
-// demo 扩展维度权重在对应维度中加入
 
 export const DIMENSION_WEIGHTS = Object.freeze({
   firepower:   Object.freeze({ kpr: 0.40, adr: 0.35, mkpr: 0.15, kd: 0.10 }),
-  opening:     Object.freeze({ fkpr: 0.50, firstKillRate: 0.15, entrySuccessRate: 0.10, we: 0.20, adr: 0.05 }),
+  opening:     Object.freeze({ fkpr: 0.65, we: 0.25, adr: 0.10 }),
   multikill:   Object.freeze({ mkpr: 0.70, kpr: 0.20, adr: 0.10 }),
-  clutch:      Object.freeze({ cpr: 0.45, clutchWinRate: 0.25, rws: 0.15, kd: 0.15 }),
-  support:     Object.freeze({ apr: 0.30, kda: 0.15, kast: 0.20, utilityDamagePr: 0.10, tradeKillRate: 0.10, we: 0.10, rws: 0.05 }),
-  consistency: Object.freeze({ ratingPro: 0.30, dprInverse: 0.25, kast: 0.15, kd: 0.10, tradeKillRate: 0.10, rws: 0.10 }),
+  clutch:      Object.freeze({ cpr: 0.70, rws: 0.20, kd: 0.10 }),
+  support:     Object.freeze({ apr: 0.45, kda: 0.25, we: 0.20, rws: 0.10 }),
+  consistency: Object.freeze({ ratingPro: 0.40, dprInverse: 0.35, kd: 0.15, rws: 0.10 }),
 });
-
-// 各维度中属于 demo-only 的子指标（无 demo 数据时需从权重中移除并重归一化）
-const DEMO_ONLY_METRICS_PER_DIM = {
-  firepower:   [] as string[],
-  opening:     ["firstKillRate", "entrySuccessRate"],
-  multikill:   [] as string[],
-  clutch:      ["clutchWinRate"],
-  support:     ["kast", "utilityDamagePr", "tradeKillRate"],
-  consistency: ["kast", "tradeKillRate"],
-} as const satisfies Record<keyof typeof DIMENSION_WEIGHTS, readonly string[]>;
-
-/** 针对某维度按 hasDemoData 计算加权分 */
-function dimScore(
-  weights: Record<string, number>,
-  z: Record<string, number>,
-  demoOnlyKeys: readonly string[],
-  hasDemoData: boolean,
-): number {
-  if (hasDemoData) {
-    return Object.entries(weights).reduce((s, [k, w]) => s + w * (z[k] ?? 50), 0);
-  }
-  // 无 demo 数据：移除 demo-only 子指标，将其权重重归一化到 OCR 子指标
-  const demoSet = new Set(demoOnlyKeys);
-  const ocrEntries = Object.entries(weights).filter(([k]) => !demoSet.has(k));
-  const totalOcrWeight = ocrEntries.reduce((s, [, w]) => s + w, 0);
-  if (totalOcrWeight < 1e-9) return 50;
-  return ocrEntries.reduce((s, [k, w]) => s + (w / totalOcrWeight) * (z[k] ?? 50), 0);
-}
 
 // ─── 内部标准化辅助函数 ───────────────────────────────────────────────────────
 
@@ -126,7 +87,6 @@ function shrink(score: number, rounds: number, threshold = 60): number {
 const METRIC_KEYS = [
   "kpr", "dpr", "apr", "kd", "kda",
   "fkpr", "mkpr", "cpr", "adr", "rws", "we", "ratingPro",
-  "kast", "utilityDamagePr", "firstKillRate", "clutchWinRate", "tradeKillRate", "entrySuccessRate",
 ] as const satisfies readonly MetricKey[];
 
 type _MetricKeysExhaustive = Exclude<MetricKey, (typeof METRIC_KEYS)[number]> extends never
@@ -134,18 +94,12 @@ type _MetricKeysExhaustive = Exclude<MetricKey, (typeof METRIC_KEYS)[number]> ex
   : ["METRIC_KEYS missing keys"];
 const _checkMetricKeys: _MetricKeysExhaustive = true;
 
-const DEMO_ONLY_METRIC_KEYS = new Set<string>([
-  "kast", "utilityDamagePr", "firstKillRate", "clutchWinRate", "tradeKillRate", "entrySuccessRate",
-]);
-
 /**
  * 计算赛事统计量（mean + std），供多次调用复用。
  * std 使用总体标准差 sqrt(E[(x-μ)²])。
- * demo-only 指标只统计有 demo 数据的选手，避免大量 0 拉低均值。
  */
 export function computeEventStats(players: PlayerMetrics[]): EventStats {
   const n = players.length;
-  const demoPlayers = players.filter(p => p.hasDemoData);
 
   const mean = {} as Record<MetricKey, number>;
   const std  = {} as Record<MetricKey, number>;
@@ -156,11 +110,9 @@ export function computeEventStats(players: PlayerMetrics[]): EventStats {
   }
 
   for (const key of METRIC_KEYS) {
-    const pool = DEMO_ONLY_METRIC_KEYS.has(key) ? demoPlayers : players;
-    if (pool.length === 0) { mean[key] = 0; std[key] = 0; continue; }
-    const sum = pool.reduce((s, p) => s + p[key], 0);
-    const avg = sum / pool.length;
-    const variance = pool.reduce((s, p) => s + (p[key] - avg) ** 2, 0) / pool.length;
+    const sum = players.reduce((s, p) => s + p[key], 0);
+    const avg = sum / n;
+    const variance = players.reduce((s, p) => s + (p[key] - avg) ** 2, 0) / n;
     mean[key] = avg;
     std[key]  = Math.sqrt(variance);
   }
@@ -191,30 +143,50 @@ export function computeDimensions(
   z.dprInverse = zScoreInverse(player.dpr, mean.dpr, std.dpr);
 
   const rounds = player.totalRounds;
-  const hasDemoData = player.hasDemoData;
 
+  // 加权求和 + 收缩
   const firepower = shrink(
-    dimScore(DIMENSION_WEIGHTS.firepower as Record<string, number>, z, DEMO_ONLY_METRICS_PER_DIM.firepower, hasDemoData),
+    DIMENSION_WEIGHTS.firepower.kpr  * z.kpr  +
+    DIMENSION_WEIGHTS.firepower.adr  * z.adr  +
+    DIMENSION_WEIGHTS.firepower.kd   * z.kd   +
+    DIMENSION_WEIGHTS.firepower.mkpr * z.mkpr,
     rounds,
   );
+
   const opening = shrink(
-    dimScore(DIMENSION_WEIGHTS.opening as Record<string, number>, z, DEMO_ONLY_METRICS_PER_DIM.opening, hasDemoData),
+    DIMENSION_WEIGHTS.opening.fkpr * z.fkpr +
+    DIMENSION_WEIGHTS.opening.we   * z.we   +
+    DIMENSION_WEIGHTS.opening.adr  * z.adr,
     rounds,
   );
+
   const multikill = shrink(
-    dimScore(DIMENSION_WEIGHTS.multikill as Record<string, number>, z, DEMO_ONLY_METRICS_PER_DIM.multikill, hasDemoData),
+    DIMENSION_WEIGHTS.multikill.mkpr * z.mkpr +
+    DIMENSION_WEIGHTS.multikill.kpr  * z.kpr  +
+    DIMENSION_WEIGHTS.multikill.adr  * z.adr,
     rounds,
   );
+
   const clutch = shrink(
-    dimScore(DIMENSION_WEIGHTS.clutch as Record<string, number>, z, DEMO_ONLY_METRICS_PER_DIM.clutch, hasDemoData),
+    DIMENSION_WEIGHTS.clutch.cpr * z.cpr +
+    DIMENSION_WEIGHTS.clutch.kd  * z.kd  +
+    DIMENSION_WEIGHTS.clutch.rws * z.rws,
     rounds,
   );
+
   const support = shrink(
-    dimScore(DIMENSION_WEIGHTS.support as Record<string, number>, z, DEMO_ONLY_METRICS_PER_DIM.support, hasDemoData),
+    DIMENSION_WEIGHTS.support.apr * z.apr +
+    DIMENSION_WEIGHTS.support.kda * z.kda +
+    DIMENSION_WEIGHTS.support.we  * z.we  +
+    DIMENSION_WEIGHTS.support.rws * z.rws,
     rounds,
   );
+
   const consistency = shrink(
-    dimScore(DIMENSION_WEIGHTS.consistency as Record<string, number>, z, DEMO_ONLY_METRICS_PER_DIM.consistency, hasDemoData),
+    DIMENSION_WEIGHTS.consistency.ratingPro  * z.ratingPro  +
+    DIMENSION_WEIGHTS.consistency.dprInverse * z.dprInverse +
+    DIMENSION_WEIGHTS.consistency.rws        * z.rws        +
+    DIMENSION_WEIGHTS.consistency.kd         * z.kd,
     rounds,
   );
 

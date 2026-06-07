@@ -2,7 +2,6 @@ import { pgTable, uuid, integer, text, timestamp, pgEnum, unique, check } from "
 import { sql } from "drizzle-orm";
 import { matches } from "./matches";
 import { teams } from "./teams";
-import { statSourceEnum } from "./player-stats";
 
 // 起始边：T = 进攻方，CT = 防守方
 export const sideEnum = pgEnum("side", ["t", "ct"]);
@@ -39,10 +38,6 @@ export const matchMaps = pgTable(
     scoreB: integer("score_b"),
 
     completedAt: timestamp("completed_at", { withTimezone: true }),
-
-    /** 该图聚合/展示的生效来源（契约 E）；null = 仅历史 OCR */
-    activeStatSource: statSourceEnum("active_stat_source"),
-
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({

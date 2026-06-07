@@ -11,19 +11,6 @@ export type SeasonStatus =
   | "finished"
   | "archived";
 
-export type StatFieldKey =
-  | "kills" | "deaths" | "assists" | "hsPercent" | "firstKills"
-  | "multiKills" | "clutches" | "adr" | "rws" | "ratingPro" | "we";
-
-export interface StatProfile {
-  /** 仅展示/标记,业务逻辑不得据此分支 */
-  provider: string;
-  /** OCR 面板按此顺序渲染可录入列 */
-  inputFields: StatFieldKey[];
-  /** 排序与 MVP 候选所用指标,必须 ∈ inputFields */
-  rankMetric: StatFieldKey;
-}
-
 export type RegistrationMode = "solo" | "team";
 export type StageType = "round_robin" | "double_elim" | "single_elim" | "swiss" | "gsl_group";
 export type PlayerType = "enrolled" | "graduated" | "external";

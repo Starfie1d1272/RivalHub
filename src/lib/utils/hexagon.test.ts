@@ -26,13 +26,6 @@ function makePlayer(overrides: Partial<PlayerMetrics> = {}): PlayerMetrics {
     we: 0.5,
     ratingPro: 1.0,
     totalRounds: 60,
-    kast: 0,
-    utilityDamagePr: 0,
-    firstKillRate: 0,
-    clutchWinRate: 0,
-    tradeKillRate: 0,
-    entrySuccessRate: 0,
-    hasDemoData: false,
     ...overrides,
   };
 }

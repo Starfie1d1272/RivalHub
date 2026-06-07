@@ -306,23 +306,10 @@ async function autoAcceptExpiredProposals(
       eq(matchTimeProposals.status, "pending"),
       lte(matchTimeProposals.createdAt, expiredBefore),
     ),
-    orderBy: (tps, { asc }) => [asc(tps.createdAt)],
   });
 
-  // 同一场比赛可能有多条 24h+ 的 pending 提议（都等待对方响应）。
-  // 并行处理同场提议会导致 FOR UPDATE 锁竞争——哪条先抢到锁哪条被采纳，
-  // 非确定性地可能选中更晚的提议而非最早的。
-  // 修复：按 matchId 分组，每场只取 createdAt 最早的一条，顺序处理各场比赛。
-  const earliestByMatch = new Map<string, typeof expiredProposals[number]>();
-  for (const p of expiredProposals) {
-    if (!earliestByMatch.has(p.matchId)) {
-      earliestByMatch.set(p.matchId, p); // 已按 asc(createdAt) 排序，第一条即最早
-    }
-  }
-  const toProcess = Array.from(earliestByMatch.values());
-
   const settled = await Promise.allSettled(
-    toProcess.map((p) => autoAcceptSingleProposal(p.id, p.matchId, now)),
+    expiredProposals.map((p) => autoAcceptSingleProposal(p.id, p.matchId, now)),
   );
 
   let awarded = 0;
@@ -333,7 +320,7 @@ async function autoAcceptExpiredProposals(
     if (item.value) { awarded += 1; } else { skipped += 1; }
   }
 
-  return { processed: toProcess.length, awarded, skipped, failed };
+  return { processed: expiredProposals.length, awarded, skipped, failed };
 }
 
 async function autoAcceptSingleProposal(

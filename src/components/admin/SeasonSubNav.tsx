@@ -23,7 +23,6 @@ export function SeasonSubNav({
     ...(hasCaptainVoting ? [{ label: "队长确认", href: `/admin/${seasonSlug}/captains` }] : []),
     ...(hasDraft ? [{ label: "选秀控制", href: `/admin/${seasonSlug}/draft` }] : []),
     ...(hasMatches ? [{ label: "赛程管理", href: `/admin/${seasonSlug}/matches` }] : []),
-    ...(hasMatches ? [{ label: "Demo 导入", href: `/admin/${seasonSlug}/demos` }] : []),
     ...(showSettings ? [{ label: "赛季设置", href: `/admin/${seasonSlug}/settings` }] : []),
   ];
 

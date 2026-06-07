@@ -48,9 +48,9 @@ type FilterStatus = "all" | "pending" | "approved" | "rejected" | "waitlisted";
 // ── 状态徽章 ──────────────────────────────────────────
 
 const STATUS_STYLES: Record<string, string> = {
-  pending:    "bg-[color-mix(in srgb, var(--color-warn) 10%, transparent)] text-[var(--color-warn)] border-[color-mix(in srgb, var(--color-warn) 30%, transparent)]",
-  approved:   "bg-[color-mix(in srgb, var(--color-ok) 10%, transparent)] text-[var(--color-ok)] border-[color-mix(in srgb, var(--color-ok) 30%, transparent)]",
-  rejected:   "bg-[color-mix(in srgb, var(--color-danger) 8%, transparent)] text-[var(--color-danger)] border-[color-mix(in srgb, var(--color-danger) 30%, transparent)]",
+  pending:    "bg-[rgba(255,196,77,0.10)] text-[var(--color-warn)] border-[rgba(255,196,77,0.3)]",
+  approved:   "bg-[rgba(77,212,122,0.10)] text-[var(--color-ok)] border-[rgba(77,212,122,0.3)]",
+  rejected:   "bg-[rgba(255,84,112,0.08)] text-[var(--color-danger)] border-[rgba(255,84,112,0.3)]",
   waitlisted: "bg-[var(--color-info-soft)] text-[var(--color-info)] border-[var(--color-info-edge)]",
 };
 

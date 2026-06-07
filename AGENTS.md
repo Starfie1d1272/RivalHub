@@ -56,7 +56,7 @@ pnpm seed              # 种子数据
 6. **禁止手动改 `package.json` version** — 用 `npm version <patch|minor|major>`。发版走 `.claude/skills/release.md`。
 7. **禁止 Server Action 外写 DB** — 页面只读（RSC fetch），写操作必须是 Server Action。
 8. **shadcn 组件按需 add** — `pnpm dlx shadcn@latest add button`，不手写。
-9. **组件 PascalCase 命名** — 文件名与 export 一致（`ui/` 目录除外）。新增后更新 `docs/code-map.md` 并跑 `zsh scripts/check-claude-md.sh`。
+9. **组件 PascalCase 命名** — 文件名与 export 一致（`ui/` 目录除外）。代码结构查询统一用 CodeGraph（如 `codegraph_files src/components/`），`docs/code-map.md` 仅作业务域入口参考、不再强制同步。
 
 ## 6. 缓存策略
 
@@ -108,6 +108,6 @@ src/
 - **Drizzle `buildRelationalQueryWithoutPK` 陷阱**：关联查询时确保主键在 select 中。
 - **macOS 上 `pnpm db:push` 偶发失败**：检查 Supabase Session Pooler 连接（`aws-1-us-east-1.pooler.supabase.com:5432`）。
 - **pnpm 要求 Node ≥ 22**，CI（GitHub Actions）需版本匹配。
-- **CHANGELOG 必须在 `npm version` 之前更新并提交**，否则 release workflow 找不到对应版本条目。
-- **push 必须带 tag**：`git push origin dev --follow-tags`，否则 GitHub Release 不会触发。
-- **评分权重更新流程**：权重文件在外部仓库 `@rivalhub/rival-rating`（`github:Starfie1d1272/rival-rating`）。修改流程：① rival-rating 仓库改 JSON/逻辑 → ② 打 tag（如 `v0.2.0`）→ ③ RivalHub 侧 `pnpm update @rivalhub/rival-rating` → ④ 提交 lockfile → ⑤ push 触发 Vercel 部署。`pnpm-lock.yaml` 锁定到具体 commit，仅更新 rival-rating 代码不更新 lockfile 不会生效。
+- **版本号与 CHANGELOG 由 changeset 管理**：日常 `pnpm changeset`，发版 `pnpm changeset version`；CHANGELOG 必须在打 tag 之前提交，否则 release workflow 找不到版本条目。详见 `.claude/skills/release.md`。
+- **push 必须带 tag**：`git push origin <分支> --follow-tags`，否则 GitHub Release 不会触发。
+- **Demo 与评分外部包属 2.0.0 线**：v1.30.0 起 1.x 移除 Demo 导入及评分外部包（`@cs2dak/core` / `@rivalhub/rival-rating`），相关开发在 `release/2.0.0` 分支；生产库 demo 相关表保留空置、不删除。

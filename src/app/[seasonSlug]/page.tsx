@@ -323,7 +323,7 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
                 <div
                   className="inline-flex items-center justify-center w-10 h-10 rounded-md mb-1 transition-colors"
                   style={{
-                    backgroundColor: `color-mix(in srgb, var(--color-accent) 10%, transparent)`,
+                    backgroundColor: `rgba(255, 107, 26, 0.1)`,
                     color: "var(--color-accent)",
                   }}
                 >

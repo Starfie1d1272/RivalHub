@@ -33,7 +33,7 @@ interface MatchSummaryStatsProps {
 }
 
 const COLS = [
-  { key: "ratingPro", label: "Rating Pro", fmt: (v: number | null) => v != null ? v.toFixed(2) : "—" },
+  { key: "ratingPro", label: "Rating", fmt: (v: number | null) => v != null ? v.toFixed(2) : "—" },
   { key: "kills",     label: "K" },
   { key: "deaths",    label: "D" },
   { key: "assists",   label: "A" },
@@ -44,6 +44,14 @@ const COLS = [
   { key: "clutches",    label: "CL" },
   { key: "we",          label: "WE", fmt: (v: number | null) => v != null ? v.toFixed(1) : "—" },
 ] as const;
+
+/** 按 Rating Pro 降序排序，null 排末尾 */
+function byRatingDesc(a: SummaryPlayer, b: SummaryPlayer): number {
+  if (a.ratingPro == null && b.ratingPro == null) return 0;
+  if (a.ratingPro == null) return 1;
+  if (b.ratingPro == null) return -1;
+  return b.ratingPro - a.ratingPro;
+}
 
 interface PlayerRowProps {
   player: SummaryPlayer;
@@ -147,22 +155,22 @@ export function MatchSummaryStats({
   seasonSlug,
   noPanel = false,
 }: MatchSummaryStatsProps) {
-  const teamAPlayers = players.filter((p) => p.teamId === teamAId);
-  const teamBPlayers = players.filter((p) => p.teamId === teamBId);
+  const teamAPlayers = players.filter((p) => p.teamId === teamAId).sort(byRatingDesc);
+  const teamBPlayers = players.filter((p) => p.teamId === teamBId).sort(byRatingDesc);
 
   const content = (
     <>
       <TeamBlock
         teamName={teamAName}
         borderColor="var(--color-accent)"
-        bgColor="color-mix(in srgb, var(--color-ok) 4%, transparent)"
+        bgColor="rgba(77,212,122,0.04)"
         players={teamAPlayers}
         seasonSlug={seasonSlug}
       />
       <TeamBlock
         teamName={teamBName}
         borderColor="var(--color-accent-b)"
-        bgColor="color-mix(in srgb, var(--color-accent-b) 4%, transparent)"
+        bgColor="rgba(66,170,255,0.04)"
         players={teamBPlayers}
         seasonSlug={seasonSlug}
       />
