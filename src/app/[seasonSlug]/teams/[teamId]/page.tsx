@@ -180,6 +180,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
         JOIN team_members tm ON tm.registration_id = sr.id
         WHERE tm.team_id = ${teamId}
           AND mps.verified_by_admin IS NOT NULL
+          AND mps.source = 'manual_ocr'
         GROUP BY mps.user_id
       `)
     : null;
