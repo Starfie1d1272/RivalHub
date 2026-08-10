@@ -278,6 +278,19 @@ describe("uploadTeamLogo", () => {
     expect(revalidateSeasonPathsMock).toHaveBeenCalledWith(SEASON_SLUG, ["teams"]);
     expect(revalidatePathMock).toHaveBeenCalledWith(`/${SEASON_SLUG}/teams/${TEAM_ID}`);
   });
+
+  it("season has bracketData → logo upload unaffected", async () => {
+    setupOutsideTxTeam();
+    setupOutsideTxRegistration();
+    setupOutsideTxSeason({ bracketData: { participant: [], stage: [] } });
+    setupSupabaseSuccess();
+
+    const fd = new FormData();
+    fd.append("file", new File(["test"], "test.png", { type: "image/png" }));
+    const result = await uploadTeamLogo(TEAM_ID, fd);
+
+    expect(result.success).toBe(true);
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -366,6 +379,33 @@ describe("updateTeamName", () => {
     const result = await updateTeamName(TEAM_ID, "Same Name");
 
     expect(result.success).toBe(true);
+    expect(txUpdateSetCalls).toEqual([]);
+    expect(txInsertValuesCalls).toEqual([]);
+  });
+
+  it("bracketData null → rename ok", async () => {
+    setupTxTeam({ name: "Old Name" });
+    setupTxRegistration();
+    setupTxSeason({ bracketData: null });
+
+    const result = await updateTeamName(TEAM_ID, "New Name");
+
+    expect(result.success).toBe(true);
+    expect(txUpdateSetCalls).toContainEqual({ name: "New Name" });
+  });
+
+  it("bracketData exists → rename rejected without writes", async () => {
+    setupTxTeam({ name: "Old Name" });
+    setupTxRegistration();
+    setupTxSeason({ bracketData: { participant: [], stage: [] } });
+
+    const result = await updateTeamName(TEAM_ID, "New Name");
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.code).toBe(ErrorCode.VALIDATION_FAILED);
+      expect(result.error.message).toContain("赛程已生成");
+    }
     expect(txUpdateSetCalls).toEqual([]);
     expect(txInsertValuesCalls).toEqual([]);
   });
