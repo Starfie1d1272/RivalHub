@@ -15,24 +15,32 @@ async function main() {
     family: 4,
   } as any);
 
-  // Insert root admin
-  const pwHash = hashPassword("RivalHub_password");
-  const res = await pool.query(
-    `INSERT INTO admin_users (username, password_hash, role)
-     VALUES ($1, $2, 'super_admin')
-     ON CONFLICT (username) DO NOTHING
-     RETURNING id`,
-    ["RivalHub_root", pwHash],
-  );
-  if (res.rows.length > 0) {
-    console.log("Created root admin: RivalHub_root");
-    console.warn(
-      "\n⚠️  根管理员已创建，请立即登录后修改默认密码！\n" +
-      "   用户名: RivalHub_root\n" +
-      "   初始密码: RivalHub_password\n"
+  // Insert root admin（凭据只来自环境变量；production 缺失时 fail closed）
+  const rootUsername = process.env.RIVALHUB_ROOT_USERNAME?.trim();
+  const rootPassword = process.env.RIVALHUB_ROOT_PASSWORD;
+  if (!rootUsername || !rootPassword) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "Production seed requires RIVALHUB_ROOT_USERNAME and RIVALHUB_ROOT_PASSWORD to be set."
+      );
+    }
+    console.log(
+      "Root admin seed skipped: set RIVALHUB_ROOT_USERNAME and RIVALHUB_ROOT_PASSWORD to create one."
     );
   } else {
-    console.log("Root admin already exists");
+    const pwHash = hashPassword(rootPassword);
+    const res = await pool.query(
+      `INSERT INTO admin_users (username, password_hash, role)
+       VALUES ($1, $2, 'super_admin')
+       ON CONFLICT (username) DO NOTHING
+       RETURNING id`,
+      [rootUsername, pwHash],
+    );
+    if (res.rows.length > 0) {
+      console.log(`Created root admin: ${rootUsername}`);
+    } else {
+      console.log("Root admin already exists");
+    }
   }
 
   // Insert seasons

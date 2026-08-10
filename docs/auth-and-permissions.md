@@ -6,7 +6,7 @@
 
 生产环境关闭 Supabase 邮件确认，不依赖 Magic Link。原因是免费版 Supabase 邮件额度较低，不适合作为赛事高峰期登录链路。
 
-Root 紧急账号（`RivalHub_root`）保留原有用户名+密码登录方式，使用独立的 `rivalhub-admin` Cookie，不影响日常管理流程。
+Root 紧急账号通过 `pnpm seed` 显式初始化（环境变量 `RIVALHUB_ROOT_USERNAME` / `RIVALHUB_ROOT_PASSWORD`），保留用户名+密码登录方式，使用独立的 `rivalhub-admin` Cookie，不影响日常管理流程。
 
 ---
 
