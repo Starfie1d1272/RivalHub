@@ -15,19 +15,18 @@ async function main() {
     family: 4,
   } as any);
 
-  // Insert root admin（凭据只来自环境变量；production 缺失时 fail closed）
+  // Insert root admin（凭据只来自环境变量；与 src/db/seed.ts 同一契约）
+  // - 两个变量都存在 → 创建（已存在则跳过）
+  // - 只设置一个 → 配置错误，无论环境一律抛错
+  // - 两个都不存在 → production 抛错（fail closed）；非 production 安全跳过
   const rootUsername = process.env.RIVALHUB_ROOT_USERNAME?.trim();
   const rootPassword = process.env.RIVALHUB_ROOT_PASSWORD;
-  if (!rootUsername || !rootPassword) {
-    if (process.env.NODE_ENV === "production") {
+  if (rootUsername || rootPassword) {
+    if (!rootUsername || !rootPassword) {
       throw new Error(
-        "Production seed requires RIVALHUB_ROOT_USERNAME and RIVALHUB_ROOT_PASSWORD to be set."
+        "RIVALHUB_ROOT_USERNAME and RIVALHUB_ROOT_PASSWORD must both be set (or both omitted)."
       );
     }
-    console.log(
-      "Root admin seed skipped: set RIVALHUB_ROOT_USERNAME and RIVALHUB_ROOT_PASSWORD to create one."
-    );
-  } else {
     const pwHash = hashPassword(rootPassword);
     const res = await pool.query(
       `INSERT INTO admin_users (username, password_hash, role)
@@ -41,6 +40,14 @@ async function main() {
     } else {
       console.log("Root admin already exists");
     }
+  } else if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "Production seed requires RIVALHUB_ROOT_USERNAME and RIVALHUB_ROOT_PASSWORD to be set."
+    );
+  } else {
+    console.log(
+      "Root admin seed skipped: set RIVALHUB_ROOT_USERNAME and RIVALHUB_ROOT_PASSWORD to create one."
+    );
   }
 
   // Insert seasons

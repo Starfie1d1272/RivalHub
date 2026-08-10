@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { ErrorCode } from "@/lib/errors";
 import { mockAdminSession, mockUserSession, findAuditEntry, expectAuditLog, resetAuditTracking } from "tests/helpers";
 
@@ -425,6 +425,10 @@ describe("deactivateAdminUser", () => {
     }));
   });
 
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("不能停用自己（root 账号，legacyAdminId 匹配）", async () => {
     // rootAdminSession.legacyAdminId === "admin-root-1"，尝试停用同一 id
     const result = await deactivateAdminUser("admin-root-1");
@@ -453,6 +457,40 @@ describe("deactivateAdminUser", () => {
       expect(result.error.message).toContain("根管理员");
     }
     expect(updateSetCalls).toHaveLength(0);
+  });
+
+  it("不能停用配置的自定义 Root 账号（RIVALHUB_ROOT_USERNAME）", async () => {
+    vi.stubEnv("RIVALHUB_ROOT_USERNAME", "custom_root");
+    adminUsersFindFirstMock.mockResolvedValue({
+      id: "admin-custom-root",
+      username: "custom_root",
+      isActive: true,
+      role: "super_admin",
+    });
+
+    const result = await deactivateAdminUser("admin-custom-root");
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.code).toBe(ErrorCode.FORBIDDEN);
+      expect(result.error.message).toContain("根管理员");
+    }
+    expect(updateSetCalls).toHaveLength(0);
+  });
+
+  it("配置自定义 Root 时，与配置无关的普通 super_admin 仍可停用", async () => {
+    vi.stubEnv("RIVALHUB_ROOT_USERNAME", "custom_root");
+    adminUsersFindFirstMock.mockResolvedValue({
+      id: "admin-other",
+      username: "other_super_admin",
+      isActive: true,
+      role: "super_admin",
+    });
+
+    const result = await deactivateAdminUser("admin-other");
+
+    expect(result.success).toBe(true);
+    expect(updateSetCalls[0]).toMatchObject({ isActive: false });
   });
 
   it("目标管理员不存在返回 fail（NOT_FOUND）", async () => {
