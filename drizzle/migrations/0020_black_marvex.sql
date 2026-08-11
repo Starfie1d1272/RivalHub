@@ -46,6 +46,23 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'team_members.season_id does not match parent teams.season_id; migration aborted';
   END IF;
+  -- legacy provenance season consistency：canonical backfill 从 registration 提取 userId，
+  -- 不得把跨 season 的历史错误 provenance 静默升级为 canonical truth
+  IF EXISTS (
+    SELECT 1 FROM "teams" t
+    JOIN "season_registrations" sr ON sr."id" = t."captain_registration_id"
+    WHERE sr."season_id" IS DISTINCT FROM t."season_id"
+  ) THEN
+    RAISE EXCEPTION 'teams.captain_registration_id registration season does not match teams.season_id; migration aborted';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM "team_members" tm
+    JOIN "teams" t ON t."id" = tm."team_id"
+    JOIN "season_registrations" sr ON sr."id" = tm."registration_id"
+    WHERE sr."season_id" IS DISTINCT FROM t."season_id"
+  ) THEN
+    RAISE EXCEPTION 'team_members.registration_id registration season does not match parent teams.season_id; migration aborted';
+  END IF;
 END $$;--> statement-breakpoint
 ALTER TABLE "teams" ALTER COLUMN "captain_user_id" SET NOT NULL;--> statement-breakpoint
 ALTER TABLE "team_members" ALTER COLUMN "user_id" SET NOT NULL;--> statement-breakpoint

@@ -43,14 +43,17 @@ describe("0020 canonical team identity migration — fail-closed coverage", () =
     expect(idx).toBeGreaterThan(-1);
   });
 
-  it("fail-closed validation：5 类异常全部 RAISE EXCEPTION", () => {
+  it("fail-closed validation：7 类异常全部 RAISE EXCEPTION", () => {
     const checks = [
       "teams.captain_user_id has NULL rows",
       "team_members.user_id has NULL rows",
       "team_members.season_id has NULL rows",
       "duplicate team_members(season_id, user_id)",
       "team_members.season_id does not match parent teams.season_id",
+      "teams.captain_registration_id registration season does not match teams.season_id",
+      "team_members.registration_id registration season does not match parent teams.season_id",
     ];
+    expect(checks).toHaveLength(7);
     for (const c of checks) {
       expect(sql).toContain(`RAISE EXCEPTION '${c}`);
     }
@@ -76,6 +79,23 @@ describe("0020 canonical team identity migration — fail-closed coverage", () =
     expect(sql).toContain('"team_members_season_id_user_id_unique" UNIQUE("season_id","user_id")');
     expect(sql).toContain('"team_members_team_season_fk"');
     expect(sql).toContain('"teams_id_season_id_unique" UNIQUE("id","season_id")');
+  });
+
+  it("provenance season consistency checks 使用 registration-season 而非猜测修复", () => {
+    // 从 provenance 校验块起点（注释锚点）开始切片，覆盖 JOIN + RAISE 全部语句
+    const block = sql.slice(sql.indexOf("legacy provenance season consistency"));
+    // A. captain provenance：registration season != team season → RAISE
+    expect(block).toContain("JOIN \"season_registrations\" sr ON sr.\"id\" = t.\"captain_registration_id\"");
+    expect(block).toContain("sr.\"season_id\" IS DISTINCT FROM t.\"season_id\"");
+    expect(block).toContain("RAISE EXCEPTION 'teams.captain_registration_id registration season does not match teams.season_id");
+    // B. member provenance：registration season != parent team season → RAISE
+    expect(block).toContain("JOIN \"teams\" t ON t.\"id\" = tm.\"team_id\"");
+    expect(block).toContain("JOIN \"season_registrations\" sr ON sr.\"id\" = tm.\"registration_id\"");
+    expect(block).toContain("sr.\"season_id\" IS DISTINCT FROM t.\"season_id\"");
+    expect(block).toContain("RAISE EXCEPTION 'team_members.registration_id registration season does not match parent teams.season_id");
+    // fail closed：无自动 UPDATE 修复 / 无 DELETE
+    expect(sql).not.toMatch(/UPDATE\s+("teams"|"team_members")\s+SET\s+"season_id"/);
+    expect(sql).not.toMatch(/DELETE FROM/i);
   });
 
   it("provenance 列保持 NOT NULL（Rivals registration provenance 未放宽）", () => {

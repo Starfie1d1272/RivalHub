@@ -48,15 +48,17 @@ vi.mock("@/lib/revalidation", () => ({
 }));
 
 vi.mock("@/db/schema", () => {
-  const mk = (name: string) => ({ __name: name });
+  // 列对象带 name 属性，便于对 where predicate 做 SQL chunk 检查
+  const col = (name: string) => ({ name });
+  const mk = (name: string, cols: Record<string, unknown> = {}) => ({ __name: name, ...cols });
   return {
-    teams: mk("teams"),
-    teamMembers: mk("teamMembers"),
-    seasons: mk("seasons"),
-    seasonRegistrations: mk("seasonRegistrations"),
-    captainVotes: mk("captainVotes"),
-    auditLogs: mk("auditLogs"),
-    users: mk("users"),
+    teams: mk("teams", { id: col("id"), seasonId: col("season_id"), captainUserId: col("captain_user_id") }),
+    teamMembers: mk("teamMembers", { id: col("id"), teamId: col("team_id"), seasonId: col("season_id"), userId: col("user_id") }),
+    seasons: mk("seasons", {}),
+    seasonRegistrations: mk("seasonRegistrations", {}),
+    captainVotes: mk("captainVotes", {}),
+    auditLogs: mk("auditLogs", {}),
+    users: mk("users", {}),
   };
 });
 
@@ -250,24 +252,56 @@ describe("getTeamIdForCaptain() — canonical captain authorization", () => {
     status: "scheduled",
   } as unknown as Parameters<typeof getTeamIdForCaptain>[1];
 
-  function mockTeamRows(rows: { id: string }[]) {
+  let lastWhere: unknown;
+
+  function mockTeamRows(rows: { id: string }[], capture = false) {
     dbSelectMock.mockReturnValue({
       from: vi.fn().mockReturnValue({
-        where: vi.fn().mockResolvedValue(rows),
+        where: vi.fn((cond: unknown) => {
+          if (capture) lastWhere = cond;
+          return Promise.resolve(rows);
+        }),
       }),
     });
   }
 
-  it("captainUserId match → allowed (returns own team id)", async () => {
-    mockTeamRows([{ id: TEAM_A_ID }]);
+  /** 递归检查 drizzle SQL chunk 树中是否包含指定列名 */
+  function sqlContains(chunk: unknown, needle: string): boolean {
+    if (!chunk || typeof chunk !== "object") return false;
+    if (Array.isArray(chunk)) return chunk.some((c) => sqlContains(c, needle));
+    const obj = chunk as { name?: unknown; queryChunks?: unknown };
+    if (typeof obj.name === "string" && obj.name === needle) return true;
+    if (Array.isArray(obj.queryChunks)) return sqlContains(obj.queryChunks, needle);
+    return false;
+  }
+
+  beforeEach(() => {
+    lastWhere = undefined;
+  });
+
+  it("captainUserId match + match participant + same season → allowed", async () => {
+    mockTeamRows([{ id: TEAM_A_ID }], true);
     const teamId = await getTeamIdForCaptain(USER_ID_1, match);
     expect(teamId).toBe(TEAM_A_ID);
+    // query predicate 必须包含 season scope（defense-in-depth）
+    expect(sqlContains(lastWhere, "season_id")).toBe(true);
+    expect(sqlContains(lastWhere, "captain_user_id")).toBe(true);
+    expect(sqlContains(lastWhere, "id")).toBe(true);
   });
 
   it("captain of teamB → returns teamB id", async () => {
-    mockTeamRows([{ id: TEAM_B_ID }]);
+    mockTeamRows([{ id: TEAM_B_ID }], true);
     const teamId = await getTeamIdForCaptain(USER_ID_2, match);
     expect(teamId).toBe(TEAM_B_ID);
+    expect(sqlContains(lastWhere, "season_id")).toBe(true);
+  });
+
+  it("same captainUserId but team season != match season → denied (no matching row)", async () => {
+    // 谓词含 season scope：跨赛季队伍不会命中（mock 返回空行即等价于被谓词排除）
+    mockTeamRows([], true);
+    const teamId = await getTeamIdForCaptain(USER_ID_1, match);
+    expect(teamId).toBeNull();
+    expect(sqlContains(lastWhere, "season_id")).toBe(true);
   });
 
   it("non-captain → denied (null)", async () => {

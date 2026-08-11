@@ -112,6 +112,20 @@ const pgConfig = {
 pnpm db:push    # 将 Drizzle schema 推送到 Supabase 生产数据库
 ```
 
+### Generated/custom migration safety
+
+从 0020 canonical team identity migration 开始：
+
+- `pnpm db:push` **不得**用于应用 0020——它按 TypeScript schema 与远端 DB 直接 diff 同步，不执行 migration SQL 里的 custom backfill / fail-closed RAISE 逻辑；
+- 0020 的 backfill 与 fail-closed checks（7 类校验：NULL / duplicate / season 一致性 / legacy provenance season 一致性）存在于 migration SQL 中，必须通过能够实际执行该 SQL 的 migration workflow 应用；
+- 当前 staging DB isolation 尚未验证；
+- 在独立 staging Supabase 建立之前，**不得应用 0020 到任何 remote DB**；
+- 建立 staging 后必须先检查：1) actual database schema；2) Drizzle migration history table / baseline state；3) 0000–0019 的实际应用状态；
+- 然后再决定一次性的 migration baseline/adoption 方案；
+- 不允许盲目运行 `drizzle-kit migrate` 去假设历史 migration log 已完整。
+
+保留现有 staging data gate（见「环境分层」）。
+
 ### Drizzle 关系查询已知陷阱
 
 `matchRosterPlayers` 是全库唯一没有 `primaryKey()` 的表（用 `unique()` 复合约束）。任何 `db.query.matchRosters.findMany/findFirst({ with: { players: true } })` 都会触发 Drizzle 的 `buildRelationalQueryWithoutPK` 路径。若引用表解析失败会抛 `Cannot read properties of undefined (reading 'referencedTable')`。

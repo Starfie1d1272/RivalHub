@@ -6,6 +6,7 @@ import { getMatchOrThrow } from "@/lib/action-utils";
 /**
  * 获取队长所属的队伍 ID（用于 roster 提交和 scheduling 的队长身份校验）。
  * 链路：userId → teams.captainUserId（canonical identity bridge）。
+ * 必须同时满足：captain identity + match participant + same season（defense-in-depth）。
  */
 export async function getTeamIdForCaptain(
   userId: string,
@@ -17,6 +18,7 @@ export async function getTeamIdForCaptain(
     .where(
       and(
         eq(teams.captainUserId, userId),
+        eq(teams.seasonId, match.seasonId),
         or(eq(teams.id, match.teamAId), eq(teams.id, match.teamBId)),
       ),
     );
