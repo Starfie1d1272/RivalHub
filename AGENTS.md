@@ -66,16 +66,32 @@ pnpm seed              # 种子数据
 
 ## 7. 分支管理
 
-日常 `dev`，`main` 仅 PR 合入（受保护，禁 force push）。
+### Branch workflow
 
-| 场景 | 做法 |
-|---|---|
-| 小修复 / 联调 | 直接 push `dev` |
-| 功能开发 | `dev` → 功能分支 → PR 回 `dev` |
-| 紧急 hotfix | `main` → hotfix 分支 → PR 回 `main` → cherry-pick 到 `dev` |
-| 里程碑 | `dev` → `main` PR（打 tag + 部署） |
+- `main` = production branch（受保护，禁 force push，仅 PR 合入）。
+- `dev` = next-release integration / staging branch。
+- 常规功能开发：`dev` → `feat/*` → PR → `dev`。
+- 下一版本常规修复：`dev` → `fix/*` → PR → `dev`。
+- 生产 hotfix：`main` → `hotfix/*` → PR → `main`；hotfix merge 后必须把 main 的修复同步到 `dev`。
+- 发版：`dev` → PR → `main`（打 tag + 部署）。
+- 不长期维护 `release/2.0.0`。
+- RivalHub 2.0：所有 feature branches 从 `dev` 创建，PR base = `dev`。
+- `archive/*` 为历史只读分支，不参与 active development。
 
 分支命名：`feat/` / `fix/` / `hotfix/` / `docs/` / `refactor/` / `chore/`。
+
+### Staging DB safety gate
+
+`dev` / Preview deployment 并不自动证明数据库已经与 production 隔离。
+在确认 Preview/Staging 使用独立 Supabase 之前，禁止在该环境执行：
+
+- seed
+- db:push / migration rehearsal
+- Playwright E2E
+- 权限写入测试
+- 有写操作的 tournament simulation
+
+（staging-environment gate 单独处理，不涉及 Vercel settings / Supabase / environment secrets 修改。）
 
 ## 8. 目录速查
 
@@ -110,4 +126,4 @@ src/
 - **pnpm 要求 Node ≥ 22**，CI（GitHub Actions）需版本匹配。
 - **版本号与 CHANGELOG 由 changeset 管理**：日常 `pnpm changeset`，发版 `pnpm changeset version`；CHANGELOG 必须在打 tag 之前提交，否则 release workflow 找不到版本条目。详见 `.claude/skills/release.md`。
 - **push 必须带 tag**：`git push origin <分支> --follow-tags`，否则 GitHub Release 不会触发。
-- **Demo 与评分外部包属 2.0.0 线**：v1.30.0 起 1.x 移除 Demo 导入及评分外部包（`@cs2dak/core` / `@rivalhub/rival-rating`），相关开发在 `release/2.0.0` 分支；生产库 demo 相关表保留空置、不删除。
+- **Demo 与评分外部包属 2.0 线**：v1.30.0 起 1.x 移除 Demo 导入及评分外部包（`@cs2dak/core` / `@rivalhub/rival-rating`），旧 Demo/DAK 历史已归档至 `archive/legacy-demo-dak` / `archive/legacy-original-lineage`（含 `archive/worktree-*` tags），不再有长期 `release/2.0.0` 分支；2.0 开发从 `dev` 开分支；生产库 demo 相关表保留空置、不删除。
