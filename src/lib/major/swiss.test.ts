@@ -112,16 +112,10 @@ const ROUND_FORMATS: Record<number, Record<MajorSwissMatchFormat, number>> = {
 interface SimulationResult {
   matches: MajorSwissMatchFact[];
   countsPerRound: { active: number; advanced: number; eliminated: number }[];
-  /**
-   * 5.5 fail-closed：贪心 high-low 遇到无法避免 rematch 的合法状态时，
-   * 规则规定 throw（recovery / manual override 属于其他模块）。
-   * 该 tournament 没有完成，不参与最终状态验证。
-   */
-  declined: boolean;
 }
 
 // 完整 5 轮 tournament simulation，内含每轮 invariant 断言。
-// 5.5 fail-closed（无法生成配对）时返回 declined=true。
+// 不吞掉 generateNextMajorSwissRound 的任何异常（任意 throw → 测试失败）。
 function runTournament(rng: () => number): SimulationResult {
   const entrants = makeEntrants();
   const matches: MajorSwissMatchFact[] = [];
@@ -130,13 +124,7 @@ function runTournament(rng: () => number): SimulationResult {
   for (let round = 1; round <= 5; round += 1) {
     const finalizedRound = (round - 1) as MajorSwissFinalizedRound;
     const projection = projectMajorSwissStage({ entrants, matches, finalizedRound });
-    let pairings: readonly MajorSwissPairing[];
-    try {
-      pairings = generateNextMajorSwissRound({ entrants, matches, finalizedRound });
-    } catch {
-      // 5.5 fail-closed：规则判定该状态无法生成合法 pairing
-      return { matches, countsPerRound, declined: true };
-    }
+    const pairings = generateNextMajorSwissRound({ entrants, matches, finalizedRound });
 
     expect(pairings.length).toBe(ROUND_MATCH_COUNT[round]);
 
@@ -206,7 +194,7 @@ function runTournament(rng: () => number): SimulationResult {
   expect(qualifiers).toHaveLength(8);
   expect(qualifiers.map((q) => q.finalStageSeed)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
 
-  return { matches, countsPerRound, declined: false };
+  return { matches, countsPerRound };
 }
 
 const SIX_IDS = ["a", "b", "c", "d", "e", "f"];
@@ -627,7 +615,9 @@ describe("R2/R3 high-low pairing", () => {
 
   it("avoids rematch: skips the lowest seed already played by the highest", () => {
     // R2 winners [1,2,3,5,9,10,11,12]（4 输给 5）→
-    // 1-1: {4,6,7,8,9,10,11,12}；4 与 12 在 R1 打过（4v12）→ 4 必须配对 11
+    // 1-1: {4,6,7,8,9,10,11,12}；4 与 12 在 R1 打过（4v12）→ rematch 跳过，
+    // 11 是 lowest feasible（选中后剩余 {6,7,8,9,10,12} 可完整配对：6-12, 7-10, 8-9）
+    // → 4 配对 11。
     const r1 = roundOneMatches(HIGH_WINS_R1);
     const r2 = roundTwoMatches(["team-1", "team-2", "team-3", "team-5", "team-9", "team-10", "team-11", "team-12"]);
     const pairings = generateNextMajorSwissRound({ entrants, matches: [...r1, ...r2], finalizedRound: 2 });
@@ -863,30 +853,26 @@ describe("no input mutation", () => {
 
 describe("property-style tournament simulation", () => {
   it("runs 100 deterministic tournaments without invariant failure", () => {
-    let completed = 0;
-    let ruleDeclined = 0;
+    let totalMatches = 0;
     for (let seed = 1; seed <= 100; seed += 1) {
-      if (runTournament(makeRng(seed)).declined) {
-        ruleDeclined += 1;
-      } else {
-        completed += 1;
-      }
+      totalMatches += runTournament(makeRng(seed)).matches.length;
     }
-    // 完成的 tournament 全部通过 invariant 验证（runTournament 内断言）；
-    // 极少状态会被 5.5 fail-closed 判定为无法生成配对（合法 R1/R2 结果中约 0.6%，
-    // 本 PRNG 的 seed 1..100 中仅 seed 28 触发），由专门的 fail-closed 测试覆盖。
-    expect(completed).toBeGreaterThan(0);
+    // 100 / 100 完成（任意 generator throw → 测试失败）；每 tournament 33 matches
+    expect(totalMatches).toBe(3300);
   });
 });
 
-// ── 5.5 fail-closed 显式覆盖 ───────────────────────────
+// ── feasibility-aware R2/R3 pairing ─────────────────────
 
-describe("5.5 fail-closed pairing", () => {
-  it("throws when greedy high-low cannot avoid a rematch", () => {
-    // 合法 R1/R2 结果（枚举反例 r1mask=15 / r2mask=24）：
-    // R3 1-1 group {1,2,3,5,9,10,11,13} 贪心配对 1-11, 2-9, 3-10 后，
-    // team-13 只剩 R1 对手 team-5 → 无法生成合法 pairing（5.5 fail-closed，
-    // recovery / manual override 属于其他模块）。
+describe("feasibility-aware R2/R3 pairing", () => {
+  it("completes the naive-greedy deadlock case (r1mask=15, r2mask=24)", () => {
+    // 原 naive greedy 反例：R3 1-1 group 贪心选择 1-11, 2-9, 3-10 后，
+    // team-13 只剩 R1 对手 team-5 → 人工 deadlock（但该 group 存在完整
+    // zero-rematch matching）。
+    // feasibility-aware high-low 的差异点在 H=3：最低 non-rematch 10 不可行
+    // （选中后剩余 {13,5} 互相是 R1 对手，无法配对）→ 选 5（剩余 {13,10} 可配对）
+    // → 1-11, 2-9, 3-5, 13-10 完整生成。
+    // 该测试用于防止 naive greedy regression。
     const entrants = makeEntrants();
     const r1 = [
       match(1, 1, "team-1", "team-9", "team-1"),
@@ -917,10 +903,137 @@ describe("5.5 fail-closed pairing", () => {
       match(2, i + 1, p.higherSeedTeamId, p.lowerSeedTeamId, r2Winners[i]),
     );
 
-    expect(() =>
-      generateNextMajorSwissRound({ entrants, matches: [...r1, ...r2], finalizedRound: 2 }),
-    ).toThrow();
+    // generate R3 必须成功（不再 fail-closed）
+    const r3 = generateNextMajorSwissRound({ entrants, matches: [...r1, ...r2], finalizedRound: 2 });
+
+    // full 8 R3 matches：2-0 (2) + 1-1 (4) + 0-2 (2)
+    expect(r3).toHaveLength(8);
+    expect(r3.map((p) => [p.higherSeedTeamId, p.lowerSeedTeamId])).toEqual([
+      ["team-4", "team-16"],
+      ["team-14", "team-15"],
+      ["team-1", "team-11"],
+      ["team-2", "team-9"],
+      ["team-3", "team-5"],
+      ["team-13", "team-10"],
+      ["team-6", "team-12"],
+      ["team-7", "team-8"],
+    ]);
+
+    // 1-1 group full 4 matches
+    expect(r3.filter((p) => p.record.wins === 1 && p.record.losses === 1)).toHaveLength(4);
+
+    // exact same record / no cross-record / zero rematch
+    const projection = projectMajorSwissStage({ entrants, matches: [...r1, ...r2], finalizedRound: 2 });
+    const byId = new Map(projection.teams.map((t) => [t.teamId, t]));
+    for (const pairing of r3) {
+      const higher = byId.get(pairing.higherSeedTeamId)!;
+      const lower = byId.get(pairing.lowerSeedTeamId)!;
+      expect(higher.wins).toBe(pairing.record.wins);
+      expect(higher.losses).toBe(pairing.record.losses);
+      expect(lower.wins).toBe(pairing.record.wins);
+      expect(lower.losses).toBe(pairing.record.losses);
+      expect(higher.opponents).not.toContain(pairing.lowerSeedTeamId);
+      expect(lower.opponents).not.toContain(pairing.higherSeedTeamId);
+    }
+
+    // correct BO format：2-0 / 0-2 → bo3，1-1 → bo1
+    expect(r3.slice(0, 2).every((p) => p.format === "bo3")).toBe(true);
+    expect(r3.slice(2, 6).every((p) => p.format === "bo1")).toBe(true);
+    expect(r3.slice(6, 8).every((p) => p.format === "bo3")).toBe(true);
+
+    // deterministic
+    const again = generateNextMajorSwissRound({ entrants, matches: [...r1, ...r2], finalizedRound: 2 });
+    expect(again).toEqual(r3);
   });
+});
+
+// ── exhaustive R1/R2 feasibility regression ─────────────
+
+interface OracleTeam {
+  wins: number;
+  losses: number;
+  opponents: string[];
+}
+
+// 轻量独立 oracle：直接从 match facts 计算 record 与对手，
+// 不依赖被测实现（用于 65536 枚举中的 per-combination 断言）
+function computeOracle(
+  entrants: readonly MajorSwissEntrant[],
+  facts: readonly MajorSwissMatchFact[],
+): Map<string, OracleTeam> {
+  const byId = new Map<string, OracleTeam>();
+  for (const entrant of entrants) {
+    byId.set(entrant.teamId, { wins: 0, losses: 0, opponents: [] });
+  }
+  for (const fact of facts) {
+    const winner = byId.get(fact.winnerId)!;
+    const loserId = fact.winnerId === fact.teamAId ? fact.teamBId : fact.teamAId;
+    const loser = byId.get(loserId)!;
+    winner.wins += 1;
+    loser.losses += 1;
+    winner.opponents.push(loserId);
+    loser.opponents.push(fact.winnerId);
+  }
+  return byId;
+}
+
+describe("exhaustive R1/R2 feasibility", () => {
+  it(
+    "generates a complete zero-rematch R3 for all 65536 legal R1/R2 outcomes",
+    () => {
+      const entrants = makeEntrants();
+      for (let r1mask = 0; r1mask < 256; r1mask += 1) {
+        const r1: MajorSwissMatchFact[] = [];
+        for (let i = 0; i < 8; i += 1) {
+          const high = `team-${i + 1}`;
+          const low = `team-${i + 9}`;
+          const winner = (r1mask & (1 << i)) !== 0 ? high : low;
+          r1.push(match(1, i + 1, high, low, winner));
+        }
+
+        // R2 pairing 必须由 generator 自己生成
+        const r2Pairings = generateNextMajorSwissRound({ entrants, matches: r1, finalizedRound: 1 });
+
+        for (let r2mask = 0; r2mask < 256; r2mask += 1) {
+          const r2 = r2Pairings.map((p, i) =>
+            match(
+              2,
+              i + 1,
+              p.higherSeedTeamId,
+              p.lowerSeedTeamId,
+              (r2mask & (1 << i)) !== 0 ? p.higherSeedTeamId : p.lowerSeedTeamId,
+            ),
+          );
+
+          // 不得因为 naive pairing choice 而失败
+          const r3 = generateNextMajorSwissRound({
+            entrants,
+            matches: [...r1, ...r2],
+            finalizedRound: 2,
+          });
+
+          // 完整 8 matches、无 rematch、同 record、每队恰好一次
+          expect(r3).toHaveLength(8);
+          const oracle = computeOracle(entrants, [...r1, ...r2]);
+          const participants = new Set<string>();
+          for (const pairing of r3) {
+            const higher = oracle.get(pairing.higherSeedTeamId)!;
+            const lower = oracle.get(pairing.lowerSeedTeamId)!;
+            expect(higher.wins).toBe(pairing.record.wins);
+            expect(higher.losses).toBe(pairing.record.losses);
+            expect(lower.wins).toBe(pairing.record.wins);
+            expect(lower.losses).toBe(pairing.record.losses);
+            expect(higher.opponents).not.toContain(pairing.lowerSeedTeamId);
+            expect(lower.opponents).not.toContain(pairing.higherSeedTeamId);
+            participants.add(pairing.higherSeedTeamId);
+            participants.add(pairing.lowerSeedTeamId);
+          }
+          expect(participants.size).toBe(16);
+        }
+      }
+    },
+    120_000,
+  );
 });
 
 // ── 10.15 no teamA/teamB semantics ──────────────────────

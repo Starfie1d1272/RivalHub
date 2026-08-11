@@ -475,6 +475,26 @@ export function getMajorSwissRequiredFormat(record: MajorSwissRecord): MajorSwis
   return record.wins === 2 || record.losses === 2 ? "bo3" : "bo1";
 }
 
+/**
+ * 剩余队伍（按 currentStageSeed ASC）是否存在完整 zero-rematch perfect matching。
+ *
+ * 小规模 deterministic backtracking（group 最大 8 队）：
+ * 每层取 highest seed，从 lowest 向 higher 尝试 non-rematch candidate。
+ * 用于 feasibility-aware high-low：候选对手必须保证剩余队伍仍可完整配对。
+ */
+function hasCompleteNonRematchMatching(teams: readonly MajorSwissTeamState[]): boolean {
+  if (teams.length === 0) return true;
+  if (teams.length % 2 !== 0) return false;
+
+  const higher = teams[0];
+  for (let i = teams.length - 1; i >= 1; i -= 1) {
+    if (teams[i].opponents.includes(higher.teamId)) continue;
+    const rest = teams.filter((_, index) => index !== 0 && index !== i);
+    if (hasCompleteNonRematchMatching(rest)) return true;
+  }
+  return false;
+}
+
 // ── 下一轮配对 ──────────────────────────────────────────
 
 export function generateNextMajorSwissRound(input: {
@@ -548,20 +568,25 @@ export function generateNextMajorSwissRound(input: {
         });
       }
     } else if (nextRound === 2 || nextRound === 3) {
-      // R2/R3：high-low —— highest seed vs lowest available non-rematch
+      // R2/R3：feasibility-aware high-low。
+      // highest 优先 lowest feasible non-rematch opponent：
+      // candidate 必须满足「选中后剩余队伍仍存在完整 zero-rematch matching」，
+      // 否则继续向 higher seed 尝试。整个 group 确实不存在完整 matching 才 fail-closed。
       const available = [...sortedBySeed];
       while (available.length > 0) {
         const higher = available.shift()!;
         let lowerIndex = -1;
         for (let i = available.length - 1; i >= 0; i -= 1) {
-          if (!available[i].opponents.includes(higher.teamId)) {
+          if (available[i].opponents.includes(higher.teamId)) continue;
+          const rest = available.filter((_, index) => index !== i);
+          if (hasCompleteNonRematchMatching(rest)) {
             lowerIndex = i;
             break;
           }
         }
         if (lowerIndex === -1) {
           throw new Error(
-            `cannot pair ${higher.teamId} (${record.wins}-${record.losses}) without a rematch`,
+            `no complete zero-rematch pairing exists for the ${record.wins}-${record.losses} group`,
           );
         }
         const [lower] = available.splice(lowerIndex, 1);
