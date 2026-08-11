@@ -956,16 +956,17 @@ interface OracleTeam {
 }
 
 // 轻量独立 oracle：直接从 match facts 计算 record 与对手，
-// 不依赖被测实现（用于 65536 枚举中的 per-combination 断言）
+// 不依赖被测实现（用于 65536 枚举中的 per-combination 校验）
 function computeOracle(
   entrants: readonly MajorSwissEntrant[],
-  facts: readonly MajorSwissMatchFact[],
+  r1: readonly MajorSwissMatchFact[],
+  r2: readonly MajorSwissMatchFact[],
 ): Map<string, OracleTeam> {
   const byId = new Map<string, OracleTeam>();
   for (const entrant of entrants) {
     byId.set(entrant.teamId, { wins: 0, losses: 0, opponents: [] });
   }
-  for (const fact of facts) {
+  for (const fact of [...r1, ...r2]) {
     const winner = byId.get(fact.winnerId)!;
     const loserId = fact.winnerId === fact.teamAId ? fact.teamBId : fact.teamAId;
     const loser = byId.get(loserId)!;
@@ -982,6 +983,7 @@ describe("exhaustive R1/R2 feasibility", () => {
     "generates a complete zero-rematch R3 for all 65536 legal R1/R2 outcomes",
     () => {
       const entrants = makeEntrants();
+      let checked = 0;
       for (let r1mask = 0; r1mask < 256; r1mask += 1) {
         const r1: MajorSwissMatchFact[] = [];
         for (let i = 0; i < 8; i += 1) {
@@ -1005,32 +1007,57 @@ describe("exhaustive R1/R2 feasibility", () => {
             ),
           );
 
-          // 不得因为 naive pairing choice 而失败
+          // 不得因为 naive pairing choice 而失败（失败时 throw 带定位信息）
           const r3 = generateNextMajorSwissRound({
             entrants,
             matches: [...r1, ...r2],
             finalizedRound: 2,
           });
+          if (r3.length !== 8) {
+            throw new Error(`r1mask=${r1mask} r2mask=${r2mask}: expected 8 R3 matches, got ${r3.length}`);
+          }
 
-          // 完整 8 matches、无 rematch、同 record、每队恰好一次
-          expect(r3).toHaveLength(8);
-          const oracle = computeOracle(entrants, [...r1, ...r2]);
+          // 轻量 invariant accumulator（不在 inner loop 中调用 Vitest expect，
+          // 避免 coverage instrumentation 下的 assertion 开销）
+          const oracle = computeOracle(entrants, r1, r2);
           const participants = new Set<string>();
           for (const pairing of r3) {
             const higher = oracle.get(pairing.higherSeedTeamId)!;
             const lower = oracle.get(pairing.lowerSeedTeamId)!;
-            expect(higher.wins).toBe(pairing.record.wins);
-            expect(higher.losses).toBe(pairing.record.losses);
-            expect(lower.wins).toBe(pairing.record.wins);
-            expect(lower.losses).toBe(pairing.record.losses);
-            expect(higher.opponents).not.toContain(pairing.lowerSeedTeamId);
-            expect(lower.opponents).not.toContain(pairing.higherSeedTeamId);
+            const sameRecord =
+              higher.wins === pairing.record.wins &&
+              higher.losses === pairing.record.losses &&
+              lower.wins === pairing.record.wins &&
+              lower.losses === pairing.record.losses;
+            if (!sameRecord) {
+              throw new Error(
+                `r1mask=${r1mask} r2mask=${r2mask}: cross-record pairing ` +
+                  `${pairing.higherSeedTeamId}-${pairing.lowerSeedTeamId} ` +
+                  `(oracle ${higher.wins}-${higher.losses} vs ${lower.wins}-${lower.losses})`,
+              );
+            }
+            if (
+              higher.opponents.includes(pairing.lowerSeedTeamId) ||
+              lower.opponents.includes(pairing.higherSeedTeamId)
+            ) {
+              throw new Error(
+                `r1mask=${r1mask} r2mask=${r2mask}: rematch pairing ` +
+                  `${pairing.higherSeedTeamId}-${pairing.lowerSeedTeamId}`,
+              );
+            }
             participants.add(pairing.higherSeedTeamId);
             participants.add(pairing.lowerSeedTeamId);
           }
-          expect(participants.size).toBe(16);
+          if (participants.size !== 16) {
+            throw new Error(
+              `r1mask=${r1mask} r2mask=${r2mask}: expected 16 participants, got ${participants.size}`,
+            );
+          }
+          checked += 1;
         }
       }
+      // 65536 / 65536 完整执行
+      expect(checked).toBe(65536);
     },
     120_000,
   );
