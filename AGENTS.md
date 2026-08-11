@@ -16,7 +16,7 @@ pnpm lint              # ESLint
 pnpm test              # Vitest 单元 + 集成测试
 pnpm test:e2e          # Playwright E2E
 pnpm db:generate       # drizzle-kit generate（生成迁移 SQL）
-pnpm db:push           # drizzle-kit push（推送到 Supabase）
+pnpm db:push           # 直接 schema sync；远程使用限制见 docs/deployment.md
 pnpm db:studio         # Drizzle Studio
 pnpm seed              # 种子数据
 ```
@@ -57,6 +57,7 @@ pnpm seed              # 种子数据
 7. **禁止 Server Action 外写 DB** — 页面只读（RSC fetch），写操作必须是 Server Action。
 8. **shadcn 组件按需 add** — `pnpm dlx shadcn@latest add button`，不手写。
 9. **组件 PascalCase 命名** — 文件名与 export 一致（`ui/` 目录除外）。代码结构查询统一用 CodeGraph（如 `codegraph_files src/components/`），`docs/code-map.md` 仅作业务域入口参考、不再强制同步。
+10. **数据库迁移安全** — 包含 custom SQL / data backfill / fail-closed validation 的 migration 禁止用 `db:push` 应用；任何远程 migration 前必须先确认 staging 隔离与 migration baseline。详见 `docs/deployment.md`。
 
 ## 6. 缓存策略
 
@@ -127,17 +128,3 @@ src/
 - **版本号与 CHANGELOG 由 changeset 管理**：日常 `pnpm changeset`，发版 `pnpm changeset version`；CHANGELOG 必须在打 tag 之前提交，否则 release workflow 找不到版本条目。详见 `.claude/skills/release.md`。
 - **push 必须带 tag**：`git push origin <分支> --follow-tags`，否则 GitHub Release 不会触发。
 - **Demo 与评分外部包属 2.0 线**：v1.30.0 起 1.x 移除 Demo 导入及评分外部包（`@cs2dak/core` / `@rivalhub/rival-rating`），旧 Demo/DAK 历史已归档至 `archive/legacy-demo-dak` / `archive/legacy-original-lineage`（含 `archive/worktree-*` tags），不再有长期 `release/2.0.0` 分支；2.0 开发从 `dev` 开分支；生产库 demo 相关表保留空置、不删除。
-
-## 11. Generated/custom migration safety
-
-从 0020 canonical team identity migration 开始：
-
-- `pnpm db:push` **不得**用于应用 0020——它按 TypeScript schema 与远端 DB 直接 diff 同步，不执行 migration SQL 里的 custom backfill / fail-closed RAISE 逻辑；
-- 0020 的 backfill 与 fail-closed checks 存在于 migration SQL 中，必须通过能够实际执行该 SQL 的 migration workflow 应用；
-- 当前 staging DB isolation 尚未验证；
-- 在独立 staging Supabase 建立之前，**不得应用 0020 到任何 remote DB**；
-- 建立 staging 后必须先检查：1) actual database schema；2) Drizzle migration history table / baseline state；3) 0000–0019 的实际应用状态；
-- 然后再决定一次性的 migration baseline/adoption 方案；
-- 不允许盲目运行 `drizzle-kit migrate` 去假设历史 migration log 已完整。
-
-保留现有 staging data gate（第 7 节）。

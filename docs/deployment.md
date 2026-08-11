@@ -106,25 +106,15 @@ const pgConfig = {
 
 ### 数据库迁移
 
-新增表/列后，Schema 定义只在代码中，**生产数据库不会自动同步**：
+Schema 定义只在代码中，远程数据库不会自动同步。**不要默认使用 `db:push` 更新远程数据库**：
 
-```bash
-pnpm db:push    # 将 Drizzle schema 推送到 Supabase 生产数据库
-```
+- `db:push` 按 TypeScript schema 与远端 DB 直接 diff 同步，**不执行** migration SQL 中的 custom SQL / data backfill / fail-closed validation 逻辑，无法替代包含这些内容的 migration；
+- 0020 canonical team identity migration 是当前第一个明确需要实际执行 migration SQL（backfill + fail-closed checks）的例子；
+- 当前 migration baseline / adoption 尚未完成：staging isolation、actual database schema、migration history 状态均未确认；
+- 在 staging 隔离与 migration baseline 确认之前，**禁止任何远程 migration**（包括盲目运行 `drizzle-kit migrate`——不得假设历史 migration log 已完整）；
+- adoption 完成后，将在此文档定义正式 migration workflow。
 
-### Generated/custom migration safety
-
-从 0020 canonical team identity migration 开始：
-
-- `pnpm db:push` **不得**用于应用 0020——它按 TypeScript schema 与远端 DB 直接 diff 同步，不执行 migration SQL 里的 custom backfill / fail-closed RAISE 逻辑；
-- 0020 的 backfill 与 fail-closed checks（7 类校验：NULL / duplicate / season 一致性 / legacy provenance season 一致性）存在于 migration SQL 中，必须通过能够实际执行该 SQL 的 migration workflow 应用；
-- 当前 staging DB isolation 尚未验证；
-- 在独立 staging Supabase 建立之前，**不得应用 0020 到任何 remote DB**；
-- 建立 staging 后必须先检查：1) actual database schema；2) Drizzle migration history table / baseline state；3) 0000–0019 的实际应用状态；
-- 然后再决定一次性的 migration baseline/adoption 方案；
-- 不允许盲目运行 `drizzle-kit migrate` 去假设历史 migration log 已完整。
-
-保留现有 staging data gate（见「环境分层」）。
+（migration 的校验实现以对应 migration SQL 与测试为 source of truth。）
 
 ### Drizzle 关系查询已知陷阱
 
