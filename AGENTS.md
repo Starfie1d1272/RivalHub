@@ -16,7 +16,7 @@ pnpm lint              # ESLint
 pnpm test              # Vitest 单元 + 集成测试
 pnpm test:e2e          # Playwright E2E
 pnpm db:generate       # drizzle-kit generate（生成迁移 SQL）
-pnpm db:push           # drizzle-kit push（推送到 Supabase）
+pnpm db:push           # 直接 schema sync；远程使用限制见 docs/deployment.md
 pnpm db:studio         # Drizzle Studio
 pnpm seed              # 种子数据
 ```
@@ -57,6 +57,7 @@ pnpm seed              # 种子数据
 7. **禁止 Server Action 外写 DB** — 页面只读（RSC fetch），写操作必须是 Server Action。
 8. **shadcn 组件按需 add** — `pnpm dlx shadcn@latest add button`，不手写。
 9. **组件 PascalCase 命名** — 文件名与 export 一致（`ui/` 目录除外）。代码结构查询统一用 CodeGraph（如 `codegraph_files src/components/`），`docs/code-map.md` 仅作业务域入口参考、不再强制同步。
+10. **数据库迁移安全** — 包含 custom SQL / data backfill / fail-closed validation 的 migration 禁止用 `db:push` 应用；任何远程 migration 前必须先确认 staging 隔离与 migration baseline。详见 `docs/deployment.md`。
 
 ## 6. 缓存策略
 

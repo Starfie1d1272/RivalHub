@@ -4,7 +4,7 @@ import type { Route } from "next";
 import type { Metadata } from "next";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasonRegistrations, seasons, teams } from "@/db/schema";
+import { seasons, teams } from "@/db/schema";
 import { CaptainDraftPanel } from "@/components/draft/CaptainDraftPanel";
 import { Panel, Btn } from "@/components/rivalhub";
 import { getUserSession } from "@/lib/auth/session";
@@ -61,15 +61,10 @@ export default async function DraftCaptainPage({ params }: DraftCaptainPageProps
       teamName: teams.name,
     })
     .from(teams)
-    .innerJoin(
-      seasonRegistrations,
-      eq(teams.captainRegistrationId, seasonRegistrations.id),
-    )
     .where(
       and(
         eq(teams.seasonId, season.id),
-        eq(seasonRegistrations.seasonId, season.id),
-        eq(seasonRegistrations.userId, session.userId),
+        eq(teams.captainUserId, session.userId),
       ),
     )
     .limit(1);

@@ -30,30 +30,18 @@ async function getStatsGroupedByTeam(
   if (stats.length === 0) return { teamA: [] as SummaryPlayer[], teamB: [] as SummaryPlayer[] };
 
   const userIds = stats.map((s) => s.userId).filter(Boolean) as string[];
-  const registrations = userIds.length
-    ? await db.query.seasonRegistrations.findMany({
-        where: (t, { inArray: inArr, and, eq: eqFn }) =>
-          and(inArr(t.userId, userIds), eqFn(t.seasonId, seasonId)),
-        columns: { id: true, userId: true },
-      })
-    : [];
-  const regIds = registrations.map((r) => r.id);
-  const memberships = regIds.length
+  const memberships = userIds.length
     ? await db.query.teamMembers.findMany({
         where: (t, { inArray: inArr, and, eq: eqFn, or: orFn }) =>
           and(
-            inArr(t.registrationId, regIds),
+            inArr(t.userId, userIds),
             orFn(eqFn(t.teamId, teamAId), eqFn(t.teamId, teamBId)),
           ),
-        columns: { registrationId: true, teamId: true },
+        columns: { userId: true, teamId: true },
       })
     : [];
 
-  const userIdToTeam = new Map<string, string>();
-  for (const reg of registrations) {
-    const mship = memberships.find((m) => m.registrationId === reg.id);
-    if (mship) userIdToTeam.set(reg.userId, mship.teamId);
-  }
+  const userIdToTeam = new Map(memberships.map((m) => [m.userId, m.teamId]));
 
   const teamARows = stats.filter((s) => s.userId && userIdToTeam.get(s.userId) === teamAId);
   const teamBRows = stats.filter((s) => s.userId && userIdToTeam.get(s.userId) === teamBId);

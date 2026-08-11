@@ -90,8 +90,8 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
           userId: users.id,
         })
         .from(teamMembers)
+        .innerJoin(users, eq(teamMembers.userId, users.id))
         .innerJoin(seasonRegistrations, eq(teamMembers.registrationId, seasonRegistrations.id))
-        .innerJoin(users, eq(seasonRegistrations.userId, users.id))
         .where(inArray(teamMembers.teamId, [match.teamAId, match.teamBId])),
       getSeasonFinishedMatches(season.id, match.teamAId),
       getSeasonFinishedMatches(season.id, match.teamBId),
@@ -263,27 +263,19 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
       userSession.role === "super_admin" ||
       (userSession.role === "season_admin" && userSession.adminSeasonIds.includes(season.id));
 
-    const reg = await db.query.seasonRegistrations.findFirst({
-      where: and(
-        eq(seasonRegistrations.userId, userSession.userId),
-        eq(seasonRegistrations.seasonId, season.id),
-      ),
-    });
-    if (reg) {
-      isCaptainA = teamA?.captainRegistrationId === reg.id;
-      isCaptainB = teamB?.captainRegistrationId === reg.id;
-      if (isCaptainA || isCaptainB) {
-        const captainTeamId = isCaptainA ? match.teamAId : match.teamBId;
-        captainTeamMembers = allTeamMembers
-          .filter((m) => m.teamId === captainTeamId)
-          .map((r) => ({
-            id: r.id,
-            steamName: r.steamName ?? "未知",
-            displayName: r.displayName ?? null,
-            perfectName: r.perfectName ?? null,
-            primaryPosition: r.primaryPosition,
-          }));
-      }
+    isCaptainA = teamA?.captainUserId === userSession.userId;
+    isCaptainB = teamB?.captainUserId === userSession.userId;
+    if (isCaptainA || isCaptainB) {
+      const captainTeamId = isCaptainA ? match.teamAId : match.teamBId;
+      captainTeamMembers = allTeamMembers
+        .filter((m) => m.teamId === captainTeamId)
+        .map((r) => ({
+          id: r.id,
+          steamName: r.steamName ?? "未知",
+          displayName: r.displayName ?? null,
+          perfectName: r.perfectName ?? null,
+          primaryPosition: r.primaryPosition,
+        }));
     }
   }
 

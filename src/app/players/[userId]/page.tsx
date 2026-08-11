@@ -142,23 +142,20 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
     })
   );
 
-  // ── 队伍归属（registrationId → team）────────────────────────────────
-  const allRegIds = registrations.map((r) => r.id);
-  const teamMemberRows = allRegIds.length
-    ? await db
-        .select({
-          registrationId: teamMembers.registrationId,
-          teamId: teamMembers.teamId,
-          teamName: teams.name,
-          seasonSlug: seasons.slug,
-        })
-        .from(teamMembers)
-        .innerJoin(teams, eq(teamMembers.teamId, teams.id))
-        .innerJoin(seasons, eq(teams.seasonId, seasons.id))
-        .where(inArray(teamMembers.registrationId, allRegIds))
-    : [];
+  // ── 队伍归属（canonical userId → team）────────────────────────────────
+  const teamMemberRows = await db
+    .select({
+      seasonId: teams.seasonId,
+      teamId: teamMembers.teamId,
+      teamName: teams.name,
+      seasonSlug: seasons.slug,
+    })
+    .from(teamMembers)
+    .innerJoin(teams, eq(teamMembers.teamId, teams.id))
+    .innerJoin(seasons, eq(teams.seasonId, seasons.id))
+    .where(eq(teamMembers.userId, userId));
 
-  const regIdToTeam = new Map(teamMemberRows.map((r) => [r.registrationId, r]));
+  const teamBySeasonId = new Map(teamMemberRows.map((r) => [r.seasonId, r]));
 
   // ── 跨赛季比赛战绩（以个人 OCR 出场记录为准）───────────────────────
   const teamIds = [...new Set(teamMemberRows.map((r) => r.teamId).filter(Boolean))];
@@ -457,7 +454,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
           <SectionHeading>参赛记录</SectionHeading>
           <div className="space-y-2">
             {[...registrations].reverse().map((reg) => {
-              const teamInfo = regIdToTeam.get(reg.id);
+              const teamInfo = teamBySeasonId.get(reg.seasonId);
               const posLabel = POSITION_LABELS[reg.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? reg.primaryPosition;
               const peakParts = [`${reg.peakRank} (${reg.peakRankSeason})`, `Rating ${reg.peakRating.toFixed(2)}`];
               if (reg.peakWe != null) peakParts.push(`WE ${reg.peakWe.toFixed(1)}`);

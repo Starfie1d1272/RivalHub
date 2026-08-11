@@ -45,15 +45,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
 
   const session = await getUserSession();
   const isAdmin = session ? session.role !== "user" : !!(await checkAdminSession());
-  const currentUserRegistration = session
-    ? await db.query.seasonRegistrations.findFirst({
-        where: and(
-          eq(seasonRegistrations.seasonId, season.id),
-          eq(seasonRegistrations.userId, session.userId),
-        ),
-      })
-    : null;
-  const canEditTeamName = currentUserRegistration?.id === team.captainRegistrationId;
+  const canEditTeamName = session?.userId === team.captainUserId;
 
   // ── 阵容 + 赛果 + 即将进行的比赛（并行） ─────────────────────────────────
   const [roster, teamMatches, upcomingMatches] = await Promise.all([
@@ -70,8 +62,8 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
         userId: users.id,
       })
       .from(teamMembers)
+      .innerJoin(users, eq(teamMembers.userId, users.id))
       .innerJoin(seasonRegistrations, eq(teamMembers.registrationId, seasonRegistrations.id))
-      .innerJoin(users, eq(seasonRegistrations.userId, users.id))
       .where(eq(teamMembers.teamId, teamId)),
     db.query.matches.findMany({
       where: and(
@@ -89,8 +81,8 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
     }),
   ]);
 
-  const isTeamMember = currentUserRegistration
-    ? roster.some((r) => r.registrationId === currentUserRegistration.id)
+  const isTeamMember = session
+    ? roster.some((r) => r.userId === session.userId)
     : false;
 
   const starters = roster
@@ -176,8 +168,8 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
             ELSE NULL END                                                                            AS kd_ratio
         FROM match_player_stats mps
         JOIN match_maps mm2 ON mm2.id = mps.map_id
-        JOIN season_registrations sr ON sr.user_id = mps.user_id AND sr.season_id = ${season.id}
-        JOIN team_members tm ON tm.registration_id = sr.id
+        JOIN team_members tm
+          ON tm.user_id = mps.user_id AND tm.season_id = ${season.id}
         WHERE tm.team_id = ${teamId}
           AND mps.verified_by_admin IS NOT NULL
           AND mps.source = 'manual_ocr'
@@ -306,7 +298,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1.5 sm:gap-3">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        {p.registrationId === team.captainRegistrationId && <PosChip pos="C" small />}
+                        {p.userId === team.captainUserId && <PosChip pos="C" small />}
                         {p.userId ? (
                           <Link href={`/players/${p.userId}`} className="font-medium text-sm sm:text-base text-[var(--color-fg)] truncate hover:text-[var(--color-accent)] transition-colors">
                             {getDisplayName(p)}

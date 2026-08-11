@@ -484,6 +484,8 @@ async function executeDraftPick(
   await tx.insert(teamMembers).values({
     teamId: input.teamId,
     registrationId: input.registrationId,
+    userId: targetRegistration.userId,
+    seasonId: input.seasonId,
     isStarter: isStarterRound(ds.currentRound),
   });
 

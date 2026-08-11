@@ -232,6 +232,7 @@ export async function confirmCaptains(
       const candidates = await tx
         .select({
           registrationId: seasonRegistrations.id,
+          userId: users.id,
           peakRating: seasonRegistrations.peakRating,
           createdAt: seasonRegistrations.createdAt,
           steamName: users.steamName,
@@ -240,7 +241,7 @@ export async function confirmCaptains(
           email: users.email,
         })
         .from(seasonRegistrations)
-        .leftJoin(users, eq(seasonRegistrations.userId, users.id))
+        .innerJoin(users, eq(seasonRegistrations.userId, users.id))
         .where(
           and(
             eq(seasonRegistrations.seasonId, season.id),
@@ -284,6 +285,7 @@ export async function confirmCaptains(
             seasonId: season.id,
             name: `${captainName} 队`,
             captainRegistrationId: captain.registrationId,
+            captainUserId: captain.userId,
             draftOrder: index + 1,
           })
           .returning({ id: teams.id });
@@ -292,6 +294,8 @@ export async function confirmCaptains(
         await tx.insert(teamMembers).values({
           teamId: team.id,
           registrationId: captain.registrationId,
+          userId: captain.userId,
+          seasonId: season.id,
           isStarter: true,
         });
       }

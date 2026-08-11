@@ -93,7 +93,8 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     LEFT JOIN users u ON u.id = mps.user_id
     LEFT JOIN season_registrations sr
       ON sr.user_id = mps.user_id AND sr.season_id = m.season_id
-    LEFT JOIN team_members tm ON tm.registration_id = sr.id
+    LEFT JOIN team_members tm
+      ON tm.user_id = mps.user_id AND tm.season_id = m.season_id
     LEFT JOIN teams t ON t.id = tm.team_id
     WHERE m.season_id = ${season.id}
       AND mps.verified_by_admin IS NOT NULL

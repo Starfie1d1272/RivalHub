@@ -6,11 +6,9 @@ import { mockUserSession, expectAuditLog, resetAuditTracking } from "tests/helpe
 const {
   // outside-tx query mocks (used by uploadTeamLogo)
   teamFindFirstMock,
-  registrationFindFirstMock,
   seasonFindFirstMock,
   // inside-tx mocks (used by both uploadTeamLogo and updateTeamName)
   txTeamFindFirstMock,
-  txRegistrationFindFirstMock,
   txSeasonFindFirstMock,
   txUpdateMock,
   txInsertMock,
@@ -29,10 +27,8 @@ const {
   const txInsertValuesCalls: unknown[] = [];
   return {
     teamFindFirstMock: vi.fn(),
-    registrationFindFirstMock: vi.fn(),
     seasonFindFirstMock: vi.fn(),
     txTeamFindFirstMock: vi.fn(),
-    txRegistrationFindFirstMock: vi.fn(),
     txSeasonFindFirstMock: vi.fn(),
     txUpdateMock: vi.fn(),
     txInsertMock: vi.fn(),
@@ -75,7 +71,6 @@ vi.mock("@/db/client", () => {
   const tx = {
     query: {
       teams: { findFirst: txTeamFindFirstMock },
-      seasonRegistrations: { findFirst: txRegistrationFindFirstMock },
       seasons: { findFirst: txSeasonFindFirstMock },
     },
     update: txUpdateMock,
@@ -86,7 +81,6 @@ vi.mock("@/db/client", () => {
     db: {
       query: {
         teams: { findFirst: teamFindFirstMock },
-        seasonRegistrations: { findFirst: registrationFindFirstMock },
         seasons: { findFirst: seasonFindFirstMock },
       },
       transaction: transactionMock.mockImplementation(
@@ -120,16 +114,8 @@ function setupOutsideTxTeam(overrides?: Record<string, unknown>) {
     seasonId: SEASON_ID,
     name: "Test Team",
     captainRegistrationId: CAPTAIN_REG_ID,
+    captainUserId: USER_ID,
     logoUrl: null,
-    ...overrides,
-  });
-}
-
-function setupOutsideTxRegistration(overrides?: Record<string, unknown>) {
-  registrationFindFirstMock.mockResolvedValue({
-    id: CAPTAIN_REG_ID,
-    userId: USER_ID,
-    seasonId: SEASON_ID,
     ...overrides,
   });
 }
@@ -148,16 +134,8 @@ function setupTxTeam(overrides?: Record<string, unknown>) {
     seasonId: SEASON_ID,
     name: "Test Team",
     captainRegistrationId: CAPTAIN_REG_ID,
+    captainUserId: USER_ID,
     logoUrl: null,
-    ...overrides,
-  });
-}
-
-function setupTxRegistration(overrides?: Record<string, unknown>) {
-  txRegistrationFindFirstMock.mockResolvedValue({
-    id: CAPTAIN_REG_ID,
-    userId: USER_ID,
-    seasonId: SEASON_ID,
     ...overrides,
   });
 }
@@ -239,9 +217,7 @@ describe("uploadTeamLogo", () => {
   });
 
   it("not captain → fail", async () => {
-    setupOutsideTxTeam();
-    registrationFindFirstMock.mockResolvedValue(null); // not registered
-    setupOutsideTxSeason();
+    setupOutsideTxTeam({ captainUserId: "other-user" }); // canonical captain mismatch
 
     const fd = new FormData();
     fd.append("file", new File(["test"], "test.png", { type: "image/png" }));
@@ -255,7 +231,6 @@ describe("uploadTeamLogo", () => {
 
   it("success → ok + audit", async () => {
     setupOutsideTxTeam();
-    setupOutsideTxRegistration();
     setupOutsideTxSeason();
     setupSupabaseSuccess();
 
@@ -281,7 +256,6 @@ describe("uploadTeamLogo", () => {
 
   it("season has bracketData → logo upload unaffected", async () => {
     setupOutsideTxTeam();
-    setupOutsideTxRegistration();
     setupOutsideTxSeason({ bracketData: { participant: [], stage: [] } });
     setupSupabaseSuccess();
 
@@ -334,8 +308,7 @@ describe("updateTeamName", () => {
   });
 
   it("not captain → fail", async () => {
-    setupTxTeam();
-    txRegistrationFindFirstMock.mockResolvedValue({ id: "reg-other" });
+    setupTxTeam({ captainUserId: "other-user" }); // canonical captain mismatch
 
     const result = await updateTeamName(TEAM_ID, "New Name");
 
@@ -349,7 +322,6 @@ describe("updateTeamName", () => {
 
   it("success → ok + audit", async () => {
     setupTxTeam({ name: "Old Name" });
-    setupTxRegistration();
     setupTxSeason();
 
     const result = await updateTeamName(TEAM_ID, "  New Name  ");
@@ -373,7 +345,6 @@ describe("updateTeamName", () => {
 
   it("same name → ok no-op", async () => {
     setupTxTeam({ name: "Same Name" });
-    setupTxRegistration();
     setupTxSeason();
 
     const result = await updateTeamName(TEAM_ID, "Same Name");
@@ -385,7 +356,6 @@ describe("updateTeamName", () => {
 
   it("bracketData null → rename ok", async () => {
     setupTxTeam({ name: "Old Name" });
-    setupTxRegistration();
     setupTxSeason({ bracketData: null });
 
     const result = await updateTeamName(TEAM_ID, "New Name");
@@ -396,7 +366,6 @@ describe("updateTeamName", () => {
 
   it("bracketData exists → rename rejected without writes", async () => {
     setupTxTeam({ name: "Old Name" });
-    setupTxRegistration();
     setupTxSeason({ bracketData: { participant: [], stage: [] } });
 
     const result = await updateTeamName(TEAM_ID, "New Name");
