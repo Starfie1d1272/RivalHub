@@ -4,18 +4,18 @@ import { join } from "path";
 
 const MIGRATIONS_DIR = join(process.cwd(), "drizzle/migrations");
 
-const sql = readFileSync(join(MIGRATIONS_DIR, "0020_black_marvex.sql"), "utf-8");
-const snap0020 = JSON.parse(
-  readFileSync(join(MIGRATIONS_DIR, "meta/0020_snapshot.json"), "utf-8"),
+const sql = readFileSync(join(MIGRATIONS_DIR, "0001_canonical_team_identity.sql"), "utf-8");
+const snap0001 = JSON.parse(
+  readFileSync(join(MIGRATIONS_DIR, "meta/0001_snapshot.json"), "utf-8"),
 ) as { id: string; prevId: string; tables: Record<string, { columns: Record<string, { notNull: boolean }> }> };
-const snap0019 = JSON.parse(
-  readFileSync(join(MIGRATIONS_DIR, "meta/0019_snapshot.json"), "utf-8"),
+const snap0000 = JSON.parse(
+  readFileSync(join(MIGRATIONS_DIR, "meta/0000_snapshot.json"), "utf-8"),
 ) as { id: string };
 const journal = JSON.parse(
   readFileSync(join(MIGRATIONS_DIR, "meta/_journal.json"), "utf-8"),
 ) as { entries: { idx: number; tag: string }[] };
 
-describe("0020 canonical team identity migration — fail-closed coverage", () => {
+describe("0001 canonical team identity migration — fail-closed coverage", () => {
   it("adds canonical columns nullable first（存量行安全）", () => {
     expect(sql).toContain('ADD COLUMN "season_id" uuid;');
     expect(sql).toContain('ADD COLUMN "user_id" uuid;');
@@ -99,16 +99,16 @@ describe("0020 canonical team identity migration — fail-closed coverage", () =
   });
 
   it("provenance 列保持 NOT NULL（Rivals registration provenance 未放宽）", () => {
-    const teamsCols = snap0020.tables["public.teams"].columns;
-    const membersCols = snap0020.tables["public.team_members"].columns;
+    const teamsCols = snap0001.tables["public.teams"].columns;
+    const membersCols = snap0001.tables["public.team_members"].columns;
     expect(teamsCols["captain_registration_id"].notNull).toBe(true);
     expect(teamsCols["draft_order"].notNull).toBe(true);
     expect(membersCols["registration_id"].notNull).toBe(true);
   });
 
-  it("snapshot 链：0020.prevId == 0019.id，journal 最后 idx 20，无 0021", () => {
-    expect(snap0020.prevId).toBe(snap0019.id);
-    expect(journal.entries[journal.entries.length - 1]).toMatchObject({ idx: 20, tag: "0020_black_marvex" });
-    expect(journal.entries.some((e) => e.idx === 21)).toBe(false);
+  it("snapshot 链：0001.prevId == 0000.id，journal 最后 idx 1，无 idx 2", () => {
+    expect(snap0001.prevId).toBe(snap0000.id);
+    expect(journal.entries[journal.entries.length - 1]).toMatchObject({ idx: 1, tag: "0001_canonical_team_identity" });
+    expect(journal.entries.some((e) => e.idx === 2)).toBe(false);
   });
 });
