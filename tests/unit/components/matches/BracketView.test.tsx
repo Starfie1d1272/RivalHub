@@ -1,3 +1,6 @@
+/**
+ * @vitest-environment jsdom
+ */
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import React from "react";
 import { useEffect } from "react";
