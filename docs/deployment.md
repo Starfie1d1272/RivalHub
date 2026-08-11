@@ -109,10 +109,13 @@ const pgConfig = {
 Schema 定义只在代码中，远程数据库不会自动同步。**不要默认使用 `db:push` 更新远程数据库**：
 
 - `db:push` 按 TypeScript schema 与远端 DB 直接 diff 同步，**不执行** migration SQL 中的 custom SQL / data backfill / fail-closed validation 逻辑，无法替代包含这些内容的 migration；
-- 0020 canonical team identity migration 是当前第一个明确需要实际执行 migration SQL（backfill + fail-closed checks）的例子；
-- 当前 migration baseline / adoption 尚未完成：staging isolation、actual database schema、migration history 状态均未确认；
-- 在 staging 隔离与 migration baseline 确认之前，**禁止任何远程 migration**（包括盲目运行 `drizzle-kit migrate`——不得假设历史 migration log 已完整）；
-- adoption 完成后，将在此文档定义正式 migration workflow。
+- pre-2.0 legacy migration chain 已冻结至 `drizzle/legacy-migrations/`（只读历史，禁止修改）；
+- 2.0 active chain 位于 `drizzle/migrations/`，从 fresh baseline 开始：
+  - `0000_v2_baseline` = PR1 之前（pre-PR1）的完整 schema；
+  - `0001_canonical_team_identity` = canonical team identity 数据迁移（backfill + fail-closed validation），是 existing DB 必须实际执行的第一条 2.0 migration；
+- **existing DB 不能执行 baseline DDL**（`0000_v2_baseline` 只用于 empty/fresh 数据库）；
+- existing DB adoption 流程：先确认真实 schema 与 baseline 等价 → 建立 baseline ledger marker → 再由 migrator 执行 `0001+`；
+- staging 隔离与 remote adoption 仍未确认：**禁止任何远程 migration**（包括盲目运行 `drizzle-kit migrate`）；
 
 （migration 的校验实现以对应 migration SQL 与测试为 source of truth。）
 
