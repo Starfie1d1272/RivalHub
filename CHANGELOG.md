@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.30.2] - 2026-08-11
+
+### Fixed
+
+- remove fixed Root seed credentials
+- prevent winner-changing score corrections until safe downstream recovery exists
+- prevent team rename after bracket initialization
+
 All notable changes to RivalHub are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),

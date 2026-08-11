@@ -548,7 +548,8 @@ export async function batchSetCompletionDeadline(input: {
 // ── 修正已完成比赛的比分 ──────────────────────────────────────────────────
 
 /**
- * 修正已完成比赛的比分（仅更新分数，不改变胜负判定和 bracket 晋级结果）。
+ * 修正已完成比赛的比分（只允许不改变胜者的纠错）。
+ * 改变胜者的修正会与已推进的 bracket 结果矛盾，当前版本无法安全重建后续赛程，一律拒绝。
  * BO1 合法胜者回合数：13、16、19、22、…（MR12 公式：13 + 3k，k ≥ 0）。
  */
 export async function correctMatchScore(
@@ -588,6 +589,21 @@ export async function correctMatchScore(
           `${match.format.toUpperCase()} 系列赛比分不合法（胜者须恰好赢 ${maxWins} 图）`
         );
       }
+    }
+
+    // winner guard：拒绝改变胜者的纠错（当前版本无法安全重建 downstream bracket）
+    const prevWinner =
+      match.scoreA !== null && match.scoreB !== null
+        ? match.scoreA > match.scoreB
+          ? match.teamAId
+          : match.teamBId
+        : null;
+    const nextWinner = scoreA > scoreB ? match.teamAId : match.teamBId;
+    if (prevWinner !== null && prevWinner !== nextWinner) {
+      throw new AppError(
+        ErrorCode.VALIDATION_FAILED,
+        "该修正会改变比赛胜者。当前版本无法安全重建后续赛程，请勿直接修改；需通过赛事事故处理流程解决。"
+      );
     }
 
     const session = await requireSeasonAdmin(match.seasonId);
@@ -724,8 +740,9 @@ export async function updateMatchCompletedAt(
 // ── 修正单图比分 ──────────────────────────────────────────────────────────────
 
 /**
- * 修正已完成比赛中某张地图的比分，并自动重算系列赛大比分。
- * 不重新判定胜负，不影响 bracket 晋级结果。
+ * 修正已完成比赛中某张地图的比分，并按正常录分语义重算系列赛大比分。
+ * 与 recordMapResult 共享同一套比分合法性（MR12），且只允许不改变系列赛胜者的修正；
+ * 会改变胜者或无法构成完整系列赛的修正一律拒绝（fail closed），不影响 bracket。
  */
 export async function correctMapScore(
   mapId: string,
@@ -733,12 +750,8 @@ export async function correctMapScore(
   scoreB: number,
 ): Promise<ActionResult<void>> {
   try {
-    if (isNaN(scoreA) || isNaN(scoreB) || scoreA < 0 || scoreB < 0) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, "请输入有效的非负整数");
-    }
-    if (scoreA === scoreB) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, "单图不能平局");
-    }
+    // 与正常录分共享同一套单图比分合法性（MR12：胜者 13 + 3k）
+    validateMapScore(scoreA, scoreB);
 
     const mapRecord = await db.query.matchMaps.findFirst({
       where: eq(matchMaps.id, mapId),
@@ -758,25 +771,47 @@ export async function correctMapScore(
     const season = await getSeasonOrThrow(match.seasonId);
 
     await db.transaction(async (tx) => {
+      // 事务内读取所有图，将目标图替换为 proposed score 后按正常语义重算系列赛
+      const allMaps = await tx.query.matchMaps.findMany({
+        where: eq(matchMaps.matchId, mapRecord.matchId),
+      });
+      const otherMaps = allMaps.filter((m) => m.id !== mapId);
+      const { mapWinsA, mapWinsB, seriesFinished } = computeSeriesScoreAfterMap(
+        match.format,
+        otherMaps,
+        scoreA,
+        scoreB,
+      );
+
+      // 修正后必须仍是合法、确定、已完结的系列赛比分（禁止写成 1:1 之类不完整状态）
+      if (!seriesFinished || mapWinsA === mapWinsB) {
+        throw new AppError(
+          ErrorCode.VALIDATION_FAILED,
+          "修正后系列赛无法构成完整比分，已拒绝修正。",
+        );
+      }
+
+      // winner guard：拒绝改变系列赛胜者的纠错（当前版本无法安全重建 downstream bracket）
+      const existingWinner =
+        match.scoreA !== null && match.scoreB !== null
+          ? match.scoreA > match.scoreB
+            ? match.teamAId
+            : match.teamBId
+          : null;
+      const proposedWinner = mapWinsA > mapWinsB ? match.teamAId : match.teamBId;
+      if (existingWinner !== null && existingWinner !== proposedWinner) {
+        throw new AppError(
+          ErrorCode.VALIDATION_FAILED,
+          "该修正会改变比赛胜者。当前版本无法安全重建后续赛程，请勿直接修改；需通过赛事事故处理流程解决。",
+        );
+      }
+
       await tx.update(matchMaps)
         .set({ scoreA, scoreB })
         .where(eq(matchMaps.id, mapId));
 
-      // 事务内重新读取所有图（含刚更新的），重算系列赛比分
-      const allMaps = await tx.query.matchMaps.findMany({
-        where: eq(matchMaps.matchId, mapRecord.matchId),
-      });
-      let seriesA = 0;
-      let seriesB = 0;
-      for (const m of allMaps) {
-        if (m.scoreA !== null && m.scoreB !== null) {
-          if (m.scoreA > m.scoreB) seriesA++;
-          else if (m.scoreB > m.scoreA) seriesB++;
-        }
-      }
-
       await tx.update(matches)
-        .set({ scoreA: seriesA, scoreB: seriesB, updatedAt: new Date() })
+        .set({ scoreA: mapWinsA, scoreB: mapWinsB, updatedAt: new Date() })
         .where(eq(matches.id, mapRecord.matchId));
 
       await tx.insert(auditLogs).values({
@@ -785,7 +820,7 @@ export async function correctMapScore(
         actorId: auditActorId(session),
         targetId: mapRecord.matchId,
         targetType: "match",
-        meta: { mapId, mapName: mapRecord.mapName, prevScoreA: mapRecord.scoreA, prevScoreB: mapRecord.scoreB, scoreA, scoreB, seriesA, seriesB },
+        meta: { mapId, mapName: mapRecord.mapName, prevScoreA: mapRecord.scoreA, prevScoreB: mapRecord.scoreB, scoreA, scoreB, seriesA: mapWinsA, seriesB: mapWinsB },
       });
     });
 

@@ -125,6 +125,14 @@ export async function updateTeamName(
         throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
       }
 
+      // bracket 已初始化后禁止改名：participant identity 依赖队名，改名会破坏淘汰赛映射
+      if (season.bracketData) {
+        throw new AppError(
+          ErrorCode.VALIDATION_FAILED,
+          "赛程已生成，当前版本无法安全修改队名；修改可能破坏淘汰赛身份映射。"
+        );
+      }
+
       if (team.name !== name) {
         await tx.update(teams).set({ name }).where(eq(teams.id, team.id));
         await tx.insert(auditLogs).values({

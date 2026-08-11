@@ -54,12 +54,15 @@ pnpm dev
 
 本地开发地址：`http://localhost:3000`
 
-`pnpm seed` 会创建初始 Root 管理员。首次部署后请尽快在后台修改默认密码。
+`pnpm seed` 会在本地开发环境创建初始 Root 管理员（幂等）。Root 凭据必须显式初始化，只通过以下环境变量提供：
 
 ```text
-username: RivalHub_root
-password: RivalHub_password
+RIVALHUB_ROOT_USERNAME
+RIVALHUB_ROOT_PASSWORD
 ```
+
+- 生产环境（`NODE_ENV=production`）seed 在任一变量缺失时直接失败（fail closed），不会创建可预测的默认管理员。
+- 任何环境下 seed 日志都不会输出凭据。
 
 ## 环境变量
 
@@ -72,6 +75,8 @@ password: RivalHub_password
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 浏览器端 Supabase anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | 服务端 Supabase service role key |
 | `ADMIN_SESSION_SECRET` | iron-session 加密密钥，至少 32 字符 |
+| `RIVALHUB_ROOT_USERNAME` | Root 管理员用户名（seed 显式初始化，生产必需） |
+| `RIVALHUB_ROOT_PASSWORD` | Root 管理员密码（seed 显式初始化，生产必需） |
 | `NEXT_PUBLIC_APP_URL` | 应用公开 URL |
 | `CRON_SECRET` | Cron API 鉴权密钥 |
 | `STEAM_API_KEY` | 可选，抓取 Steam 头像 |

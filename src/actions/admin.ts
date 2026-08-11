@@ -16,6 +16,7 @@ import {
   getAdminSession,
 } from "@/lib/auth/session";
 import { verifyPassword, hashPassword } from "@/lib/utils/password";
+import { isProtectedRootUsername } from "@/lib/auth/root-protection";
 import { normalizeRegistrationConfig } from "@/types/season";
 import { maybeAdvanceFromRegistration } from "@/actions/transitions";
 import {
@@ -419,7 +420,7 @@ export async function deactivateAdminUser(adminId: string) {
   if (!target) {
     return fail({ code: ErrorCode.NOT_FOUND, message: "管理员不存在" });
   }
-  if (target.username === "RivalHub_root") {
+  if (isProtectedRootUsername(target.username)) {
     return fail({ code: ErrorCode.FORBIDDEN, message: "不能停用根管理员" });
   }
 
