@@ -1,9 +1,9 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db/client";
-import { auditLogs, seasonRegistrations, seasons, teams } from "@/db/schema";
+import { auditLogs, seasons, teams } from "@/db/schema";
 import { actionError, failValidation } from "@/lib/action-utils";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { auditActorId, requireAuth } from "@/lib/auth/session";
@@ -38,22 +38,14 @@ export async function uploadTeamLogo(
   try {
     const session = await requireAuth();
 
-    // 并行读取：team 先取，registration + season 依赖 team.seasonId 再并行
+    // 并行读取：team 先取，season 依赖 team.seasonId
     const team = await db.query.teams.findFirst({ where: eq(teams.id, teamId) });
     if (!team) throw new AppError(ErrorCode.NOT_FOUND, "队伍不存在");
 
-    const [registration, season] = await Promise.all([
-      db.query.seasonRegistrations.findFirst({
-        where: and(
-          eq(seasonRegistrations.seasonId, team.seasonId),
-          eq(seasonRegistrations.userId, session.userId),
-        ),
-      }),
-      db.query.seasons.findFirst({ where: eq(seasons.id, team.seasonId) }),
-    ]);
-    if (!registration || registration.id !== team.captainRegistrationId) {
+    if (team.captainUserId !== session.userId) {
       throw new AppError(ErrorCode.FORBIDDEN, "只有队长可以上传队伍图标");
     }
+    const season = await db.query.seasons.findFirst({ where: eq(seasons.id, team.seasonId) });
     if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
 
     const ext = EXT_MAP[file.type] ?? "jpg";
@@ -108,13 +100,7 @@ export async function updateTeamName(
         throw new AppError(ErrorCode.NOT_FOUND, "队伍不存在");
       }
 
-      const registration = await tx.query.seasonRegistrations.findFirst({
-        where: and(
-          eq(seasonRegistrations.seasonId, team.seasonId),
-          eq(seasonRegistrations.userId, session.userId),
-        ),
-      });
-      if (!registration || registration.id !== team.captainRegistrationId) {
+      if (team.captainUserId !== session.userId) {
         throw new AppError(ErrorCode.FORBIDDEN, "只有队长可以修改队伍名称");
       }
 

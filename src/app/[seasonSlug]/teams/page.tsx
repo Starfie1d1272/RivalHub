@@ -42,7 +42,7 @@ export default async function TeamsPage({ params }: TeamsPageProps) {
       .select({
         teamId: teamMembers.teamId,
         registrationId: teamMembers.registrationId,
-        captainRegId: teams.captainRegistrationId,
+        captainUserId: teams.captainUserId,
         isStarter: teamMembers.isStarter,
         primaryPosition: seasonRegistrations.primaryPosition,
         steamName: users.steamName,
@@ -52,8 +52,8 @@ export default async function TeamsPage({ params }: TeamsPageProps) {
       })
       .from(teamMembers)
       .innerJoin(teams, eq(teamMembers.teamId, teams.id))
+      .innerJoin(users, eq(teamMembers.userId, users.id))
       .innerJoin(seasonRegistrations, eq(teamMembers.registrationId, seasonRegistrations.id))
-      .innerJoin(users, eq(seasonRegistrations.userId, users.id))
       .where(inArray(teamMembers.teamId, allTeams.map((t) => t.id))),
     db.query.matches.findMany({
       where: eq(matches.seasonId, season.id),
@@ -75,9 +75,8 @@ export default async function TeamsPage({ params }: TeamsPageProps) {
       FROM match_player_stats mps
       JOIN matches m ON m.id = mps.match_id
       JOIN match_maps mm2 ON mm2.id = mps.map_id
-      JOIN season_registrations sr
-        ON sr.user_id = mps.user_id AND sr.season_id = m.season_id
-      JOIN team_members tm ON tm.registration_id = sr.id
+      JOIN team_members tm
+        ON tm.user_id = mps.user_id AND tm.season_id = m.season_id
       WHERE m.season_id = ${season.id}
         AND mps.verified_by_admin IS NOT NULL
       GROUP BY tm.team_id
@@ -194,7 +193,7 @@ export default async function TeamsPage({ params }: TeamsPageProps) {
               name: getDisplayName(m),
               primaryPosition: m.primaryPosition,
               isStarter: m.isStarter,
-              isCaptain: m.registrationId === m.captainRegId,
+              isCaptain: m.userId === m.captainUserId,
               userId: m.userId,
             }))
             .sort((a, b) => {

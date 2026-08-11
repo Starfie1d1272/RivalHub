@@ -249,11 +249,11 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
           primaryPosition: seasonRegistrations.primaryPosition,
         })
         .from(teamMembers)
+        .innerJoin(users, eq(teamMembers.userId, users.id))
         .innerJoin(
           seasonRegistrations,
           eq(teamMembers.registrationId, seasonRegistrations.id),
         )
-        .innerJoin(users, eq(seasonRegistrations.userId, users.id))
         .where(inArray(teamMembers.teamId, allTeams.map((t) => t.id))),
       displayedMatchIds.length > 0
         ? (async () => {
