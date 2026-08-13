@@ -135,6 +135,12 @@ export async function submitRegistration(input: RegistrationFormData) {
     if (!season) {
       throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
     }
+    if (season.registrationMode !== "solo") {
+      throw new AppError(
+        ErrorCode.SEASON_CAPABILITY_DISABLED,
+        "队伍报名尚未开放，请联系赛事管理员",
+      );
+    }
     const windowState = getRegistrationWindowState(season);
     if (!windowState.canSubmit) {
       throw new AppError(ErrorCode.REGISTRATION_CLOSED, windowState.message);

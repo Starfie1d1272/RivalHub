@@ -205,6 +205,21 @@ describe("submitRegistration()", () => {
     }
   });
 
+  it("队伍报名未实现时 fail closed，不进入个人报名写链", async () => {
+    seasonFindFirstMock.mockResolvedValue({ ...SEASON, registrationMode: "team" });
+
+    const result = await submitRegistration(VALID_INPUT as never);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.code).toBe(ErrorCode.SEASON_CAPABILITY_DISABLED);
+    }
+    expect(getRegistrationWindowStateMock).not.toHaveBeenCalled();
+    expect(getUserSessionMock).not.toHaveBeenCalled();
+    expect(updateMock).not.toHaveBeenCalled();
+    expect(insertMock).not.toHaveBeenCalled();
+  });
+
   it("报名窗口关闭（canSubmit=false）返回 REGISTRATION_CLOSED", async () => {
     seasonFindFirstMock.mockResolvedValue(SEASON);
     getRegistrationWindowStateMock.mockReturnValue({

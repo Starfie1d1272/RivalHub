@@ -12,6 +12,7 @@ import { positionLabel } from "@/lib/validators/registration";
 import { getRegistrationWindowState, getWindowTone } from "@/lib/registration/window";
 import { formatCST } from "@/lib/utils/date";
 import { getUserSession } from "@/lib/auth/session";
+import { isSoloRegistration } from "@/lib/utils/season";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +57,20 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
           />
         </div>
       </Panel>
+      </div>
+    );
+  }
+
+  if (!isSoloRegistration(season)) {
+    return (
+      <div className="container mx-auto px-4 py-16 max-w-2xl">
+        <Panel pad={40}>
+          <StatusBanner
+            tone="info"
+            title={season.name}
+            sub="队伍报名尚未开放，请联系赛事管理员。"
+          />
+        </Panel>
       </div>
     );
   }
