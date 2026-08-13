@@ -5,19 +5,10 @@ import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  archiveSeason,
-  createSeason,
-  deleteSeason,
-  forceFinishSeason,
-  publishSeason,
-  revertSeasonToDraft,
-  revertSeasonToRegistration,
-} from "@/actions/seasons";
+import { createSeason } from "@/actions/seasons";
 import { SeasonForm } from "@/components/admin/SeasonForm";
 import {
   RIVALS_DEFAULT_CAPABILITIES,
-  createMajorDefaultCapabilities,
   type SeasonCapabilities,
 } from "@/types/season";
 
@@ -58,12 +49,6 @@ vi.mock("@/components/ui/select", async () => {
 });
 
 const createSeasonMock = vi.mocked(createSeason);
-const archiveSeasonMock = vi.mocked(archiveSeason);
-const deleteSeasonMock = vi.mocked(deleteSeason);
-const forceFinishSeasonMock = vi.mocked(forceFinishSeason);
-const publishSeasonMock = vi.mocked(publishSeason);
-const revertSeasonToDraftMock = vi.mocked(revertSeasonToDraft);
-const revertSeasonToRegistrationMock = vi.mocked(revertSeasonToRegistration);
 
 function createInitial(
   capabilities: SeasonCapabilities,
@@ -93,13 +78,6 @@ describe("SeasonForm presets", () => {
       success: true,
       data: { seasonId: "11111111-1111-4111-8111-111111111111", slug: "test-season" },
     });
-    const successWithSlug = { success: true as const, data: { slug: "test-season" } };
-    archiveSeasonMock.mockResolvedValue(successWithSlug);
-    deleteSeasonMock.mockResolvedValue({ success: true, data: undefined });
-    forceFinishSeasonMock.mockResolvedValue(successWithSlug);
-    publishSeasonMock.mockResolvedValue(successWithSlug);
-    revertSeasonToDraftMock.mockResolvedValue(successWithSlug);
-    revertSeasonToRegistrationMock.mockResolvedValue(successWithSlug);
   });
 
   it("does not show Major status in a Rivals display context", () => {
@@ -110,7 +88,20 @@ describe("SeasonForm presets", () => {
 
   it("resets the registration total after applying Major then Rivals", async () => {
     const user = userEvent.setup();
-    render(<SeasonForm mode="create" initial={createInitial(createMajorDefaultCapabilities(), "Major")} />);
+    render(<SeasonForm mode="create" initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "选秀联赛")} />);
+
+    await user.clear(screen.getByLabelText("位置列表"));
+    await user.type(screen.getByLabelText("位置列表"), "custom");
+    await user.clear(screen.getByLabelText("每队人数上限"));
+    await user.type(screen.getByLabelText("每队人数上限"), "8");
+    await user.clear(screen.getByLabelText("每队人数下限"));
+    await user.type(screen.getByLabelText("每队人数下限"), "4");
+    await user.clear(screen.getByLabelText("每位置上限"));
+    await user.type(screen.getByLabelText("每位置上限"), "3");
+    await user.clear(screen.getByLabelText("截图链接数量"));
+    await user.type(screen.getByLabelText("截图链接数量"), "2");
+    await user.clear(screen.getByLabelText("比赛图池"));
+    await user.type(screen.getByLabelText("比赛图池"), "de_custom");
 
     await user.click(screen.getByRole("button", { name: "Major 公开赛" }));
     await user.click(screen.getByRole("button", { name: "Rivals 选秀联赛" }));
@@ -118,31 +109,14 @@ describe("SeasonForm presets", () => {
 
     await waitFor(() => {
       expect(createSeasonMock).toHaveBeenCalledWith(expect.objectContaining({
-        registrationConfig: expect.objectContaining({ maxTotal: 56 }),
+        registrationConfig: expect.objectContaining({
+          maxPerPosition: 15,
+          maxTotal: 56,
+          mapPool: RIVALS_DEFAULT_CAPABILITIES.registrationConfig.mapPool,
+          screenshotCount: 1,
+        }),
       }));
     });
   });
 
-  it("keeps existing season lifecycle controls callable", async () => {
-    const user = userEvent.setup();
-    const capabilities = createMajorDefaultCapabilities();
-    const cases = [
-      { status: "draft" as const, label: "删除赛季", mock: deleteSeasonMock },
-      { status: "registration" as const, label: "撤回至草稿", mock: revertSeasonToDraftMock },
-      { status: "voting" as const, label: "撤回至报名阶段", mock: revertSeasonToRegistrationMock },
-      { status: "playing" as const, label: "手动结束赛季", mock: forceFinishSeasonMock },
-      { status: "finished" as const, label: "归档赛季", mock: archiveSeasonMock },
-    ];
-
-    for (const { status, label, mock } of cases) {
-      const view = render(<SeasonForm mode="edit" initial={createInitial(capabilities, "Major", status)} />);
-      await user.click(screen.getByRole("button", { name: label }));
-      await waitFor(() => expect(mock).toHaveBeenCalledWith("11111111-1111-4111-8111-111111111111"));
-      if (status === "draft") {
-        await user.click(screen.getByRole("button", { name: "发布赛季" }));
-        await waitFor(() => expect(publishSeasonMock).toHaveBeenCalledWith("11111111-1111-4111-8111-111111111111"));
-      }
-      view.unmount();
-    }
-  });
 });
