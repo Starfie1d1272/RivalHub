@@ -134,6 +134,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
       setPeakMin("A+");
       setMaxPerPosition(15);
       setScreenshotCount(1);
+      setMaxTotal(RIVALS_REGISTRATION_CONFIG.maxTotal);
       setMapPoolText(RIVALS_REGISTRATION_CONFIG.mapPool.join(","));
     }
   }
@@ -211,6 +212,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
   }
 
   const standardMajorCheck = checkStandardMajorCapabilities(buildPayload() as SeasonCapabilities);
+  const isMajorDisplayContext = kind === "Major";
   const swissFormats = stagePlan.slice(0, 3).map((stage) => stage.matchFormat?.toUpperCase() ?? "未设置");
   const playoffFormat = stagePlan[3]?.matchFormat?.toUpperCase() ?? "未设置";
   const finalFormat = stagePlan[3]?.finalFormat?.toUpperCase() ?? playoffFormat;
@@ -345,7 +347,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
           </Select>
         </section>
 
-        <section
+        {isMajorDisplayContext && <section
           aria-live="polite"
           className={standardMajorCheck.isStandardMajor
             ? "rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4 text-sm"
@@ -371,7 +373,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
               </ul>
             </>
           )}
-        </section>
+        </section>}
 
         <section className="space-y-4">
           <h2 className="font-semibold">基础信息</h2>

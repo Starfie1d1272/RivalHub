@@ -23,6 +23,9 @@ describe("checkStandardMajorCapabilities()", () => {
     expect(result.isStandardMajor).toBe(true);
     expect(result.failures).toEqual([]);
     expect(result.checks.every((check) => check.passed)).toBe(true);
+    expect(result.checks).toEqual(
+      expect.arrayContaining([expect.objectContaining({ key: "stage1-seeds", passed: true })]),
+    );
   });
 
   it("accepts a deep clone of the standard Major defaults", () => {
@@ -94,6 +97,16 @@ describe("checkStandardMajorCapabilities()", () => {
     capabilities.stagePlan[1].entrySeeds = 7;
 
     expectFailure(capabilities, "entry-cohorts");
+  });
+
+  it("requires Stage 1 to contain exactly the unique 17–32 seed cohort", () => {
+    const wrongCohort = createMajorDefaultCapabilities();
+    wrongCohort.stagePlan[0].seeds = Array.from({ length: 16 }, (_, index) => index + 1);
+    expectFailure(wrongCohort, "stage1-seeds");
+
+    const missingCohort = createMajorDefaultCapabilities();
+    missingCohort.stagePlan[0].seeds = undefined;
+    expectFailure(missingCohort, "stage1-seeds");
   });
 
   it("rejects a changed playoff structure", () => {

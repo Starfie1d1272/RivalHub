@@ -333,6 +333,7 @@ export interface StandardMajorRuleCheck {
     | "stage-count"
     | "stage-order"
     | "entry-cohorts"
+    | "stage1-seeds"
     | "stage1"
     | "stage2"
     | "stage3"
@@ -356,6 +357,12 @@ function advancesEight(stage: StageConfig | undefined): boolean {
 function directEntrantCount(stage: StageConfig | undefined, isFirstStage = false): number | undefined {
   if (!stage) return undefined;
   return stage.entrySeeds ?? (isFirstStage ? stage.teamCount : 0);
+}
+
+function hasStandardStageOneSeeds(seeds: readonly number[] | undefined): boolean {
+  return seeds?.length === 16 &&
+    new Set(seeds).size === 16 &&
+    seeds.every((seed) => seed >= 17 && seed <= 32);
 }
 
 /**
@@ -400,6 +407,11 @@ export function checkStandardMajorCapabilities(
         directEntrantCount(stage3) === 8 &&
         directEntrantCount(playoff) === 0,
       reason: "标准 Major 必须按 16 / 8 / 8 三批队伍进入三个瑞士轮阶段，并由阶段三的 8 支晋级队进入淘汰赛。",
+    },
+    {
+      key: "stage1-seeds",
+      passed: hasStandardStageOneSeeds(stage1?.seeds),
+      reason: "阶段一必须完整且唯一地使用 17–32 号种子。",
     },
     {
       key: "stage1",
