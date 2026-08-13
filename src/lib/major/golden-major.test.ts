@@ -18,7 +18,7 @@ import {
   seedMajorPlayoffEntrants,
   type MajorPlayoffMatchFact,
 } from "./playoff";
-import { buildFinalMajorRanking, type MajorSwissStageFacts } from "./ranking";
+import { buildFinalMajorPlacements, type MajorSwissStageFacts } from "./placement";
 
 interface SimulatedStage extends MajorSwissStageFacts {
   qualifiers: ReturnType<typeof getMajorSwissQualifiers>;
@@ -30,6 +30,7 @@ interface GoldenMajor {
   stage2: SimulatedStage;
   stage3: SimulatedStage;
   playoffMatches: readonly MajorPlayoffMatchFact[];
+  hasThirdPlaceMatch: boolean;
 }
 
 function makeRng(seed: number): () => number {
@@ -74,6 +75,7 @@ function simulateSwissStage(
 
 function createPlayoffMatches(
   stage3: SimulatedStage,
+  hasThirdPlaceMatch: boolean,
 ): readonly MajorPlayoffMatchFact[] {
   const entrants = seedMajorPlayoffEntrants(stage3.qualifiers);
   const quarterfinalPairings = generateMajorPlayoffQuarterfinals(entrants);
@@ -106,21 +108,38 @@ function createPlayoffMatches(
     },
   ];
 
+  const final: MajorPlayoffMatchFact = {
+    matchId: "playoff-final",
+    round: "final",
+    slot: 1,
+    teamAId: semifinals[1].winnerId,
+    teamBId: semifinals[0].winnerId,
+    winnerId: semifinals[0].winnerId,
+  };
+  const thirdPlace: MajorPlayoffMatchFact = {
+    matchId: "playoff-third-place",
+    round: "third_place",
+    slot: 1,
+    teamAId: semifinals[0].winnerId === semifinals[0].teamAId
+      ? semifinals[0].teamBId
+      : semifinals[0].teamAId,
+    teamBId: semifinals[1].winnerId === semifinals[1].teamAId
+      ? semifinals[1].teamBId
+      : semifinals[1].teamAId,
+    winnerId: semifinals[0].winnerId === semifinals[0].teamAId
+      ? semifinals[0].teamBId
+      : semifinals[0].teamAId,
+  };
+
   return [
     ...quarterfinals,
     ...semifinals,
-    {
-      matchId: "playoff-final",
-      round: "final",
-      slot: 1,
-      teamAId: semifinals[1].winnerId,
-      teamBId: semifinals[0].winnerId,
-      winnerId: semifinals[0].winnerId,
-    },
+    ...(hasThirdPlaceMatch ? [thirdPlace] : []),
+    final,
   ];
 }
 
-function createGoldenMajor(): GoldenMajor {
+function createGoldenMajor(hasThirdPlaceMatch = false): GoldenMajor {
   const tournamentTeams: MajorTournamentSeededTeam[] = Array.from(
     { length: 32 },
     (_, index) => ({ teamId: `team-${index + 1}`, tournamentSeed: index + 1 }),
@@ -161,14 +180,47 @@ function createGoldenMajor(): GoldenMajor {
     stage1,
     stage2,
     stage3,
-    playoffMatches: createPlayoffMatches(stage3),
+    playoffMatches: createPlayoffMatches(stage3, hasThirdPlaceMatch),
+    hasThirdPlaceMatch,
   };
 }
 
+function expectPlacementGroups(
+  placements: ReturnType<typeof buildFinalMajorPlacements>,
+  ranges: readonly (readonly [number, number])[],
+): void {
+  expect(placements.map(({ from, to }) => [from, to])).toEqual(ranges);
+  expect(placements.every((group) => group.teamIds.length === group.to - group.from + 1)).toBe(true);
+  expect(new Set(placements.flatMap((group) => group.teamIds)).size).toBe(32);
+  expect(placements.flatMap((group) => group.teamIds)).toHaveLength(32);
+  expect(placements.every((group) => !("rank" in group))).toBe(true);
+}
+
+function expectSwissEliminationGroups(
+  major: GoldenMajor,
+  placements: ReturnType<typeof buildFinalMajorPlacements>,
+  stage: "stage1" | "stage2" | "stage3",
+  ranges: readonly (readonly [number, number])[],
+): void {
+  const projection = projectMajorSwissStage({
+    entrants: major[stage].entrants,
+    matches: major[stage].matches,
+    finalizedRound: 5,
+  });
+  for (const [index, wins] of [2, 1, 0].entries()) {
+    const placement = placements.find(
+      (group) => group.from === ranges[index][0] && group.to === ranges[index][1],
+    )!;
+    expect(new Set(placement.teamIds)).toEqual(new Set(
+      projection.eliminated.filter((team) => team.wins === wins && team.losses === 3).map((team) => team.teamId),
+    ));
+  }
+}
+
 describe("golden 32-team Major domain simulation", () => {
-  it("runs the maximum 106-match path and derives a complete final 1..32 ranking", () => {
+  it("runs the 106-match no-third-place path and derives canonical placement groups", () => {
     const major = createGoldenMajor();
-    const ranking = buildFinalMajorRanking(major);
+    const placements = buildFinalMajorPlacements(major);
 
     expect(major.stage1.matches).toHaveLength(33);
     expect(major.stage2.matches).toHaveLength(33);
@@ -181,27 +233,42 @@ describe("golden 32-team Major domain simulation", () => {
         major.playoffMatches.length,
     ).toBe(106);
 
-    expect(ranking).toHaveLength(32);
-    expect(ranking.map((row) => row.rank)).toEqual(
-      Array.from({ length: 32 }, (_, index) => index + 1),
-    );
-    expect(new Set(ranking.map((row) => row.teamId)).size).toBe(32);
-    expect(new Set(ranking.map((row) => row.tournamentSeed)).size).toBe(32);
+    expectPlacementGroups(placements, [
+      [1, 1], [2, 2], [3, 4], [5, 8], [9, 11], [12, 14], [15, 16],
+      [17, 19], [20, 22], [23, 24], [25, 27], [28, 30], [31, 32],
+    ]);
+    expectSwissEliminationGroups(major, placements, "stage3", [[9, 11], [12, 14], [15, 16]]);
+    expectSwissEliminationGroups(major, placements, "stage2", [[17, 19], [20, 22], [23, 24]]);
+    expectSwissEliminationGroups(major, placements, "stage1", [[25, 27], [28, 30], [31, 32]]);
+    for (const group of placements) {
+      const seeds = group.teamIds.map(
+        (teamId) => major.tournamentTeams.find((team) => team.teamId === teamId)!.tournamentSeed,
+      );
+      expect(seeds).toEqual([...seeds].sort((a, b) => a - b));
+    }
+  });
 
-    expect(ranking.slice(0, 8).every((row) => row.eliminationStage === "playoff")).toBe(true);
-    expect(ranking.slice(8, 16).every((row) => row.eliminationStage === "stage3")).toBe(true);
-    expect(ranking.slice(16, 24).every((row) => row.eliminationStage === "stage2")).toBe(true);
-    expect(ranking.slice(24, 32).every((row) => row.eliminationStage === "stage1")).toBe(true);
-    expect(ranking[0].playoffPlacement).toBe("1st");
-    expect(ranking[1].playoffPlacement).toBe("2nd");
-    expect(ranking.slice(2, 4).map((row) => row.playoffPlacement)).toEqual(["3rd", "3rd"]);
-    expect(ranking.slice(4, 8).every((row) => row.playoffPlacement === "5th")).toBe(true);
+  it("runs the 107-match third-place path and derives separate third and fourth groups", () => {
+    const major = createGoldenMajor(true);
+    const placements = buildFinalMajorPlacements(major);
+
+    expect(major.playoffMatches).toHaveLength(8);
+    expect(
+      major.stage1.matches.length +
+        major.stage2.matches.length +
+        major.stage3.matches.length +
+        major.playoffMatches.length,
+    ).toBe(107);
+    expectPlacementGroups(placements, [
+      [1, 1], [2, 2], [3, 3], [4, 4], [5, 8], [9, 11], [12, 14], [15, 16],
+      [17, 19], [20, 22], [23, 24], [25, 27], [28, 30], [31, 32],
+    ]);
   });
 
   it("is independent from fact and entrant input ordering", () => {
     const major = createGoldenMajor();
-    const baseline = buildFinalMajorRanking(major);
-    const reversed = buildFinalMajorRanking({
+    const baseline = buildFinalMajorPlacements(major);
+    const reversed = buildFinalMajorPlacements({
       tournamentTeams: [...major.tournamentTeams].reverse(),
       stage1: {
         entrants: [...major.stage1.entrants].reverse(),
@@ -216,6 +283,7 @@ describe("golden 32-team Major domain simulation", () => {
         matches: [...major.stage3.matches].reverse(),
       },
       playoffMatches: [...major.playoffMatches].reverse(),
+      hasThirdPlaceMatch: major.hasThirdPlaceMatch,
     });
     expect(reversed).toEqual(baseline);
   });
@@ -223,7 +291,7 @@ describe("golden 32-team Major domain simulation", () => {
   it("fails closed when a completed stage is incomplete", () => {
     const major = createGoldenMajor();
     expect(() =>
-      buildFinalMajorRanking({
+      buildFinalMajorPlacements({
         ...major,
         stage2: { ...major.stage2, matches: major.stage2.matches.slice(0, -1) },
       }),
@@ -242,7 +310,7 @@ describe("golden 32-team Major domain simulation", () => {
     const replace = (teamId: string) => (teamId === advancedId ? eliminatedId : teamId);
 
     expect(() =>
-      buildFinalMajorRanking({
+      buildFinalMajorPlacements({
         ...major,
         stage2: {
           entrants: major.stage2.entrants.map((entrant) => ({

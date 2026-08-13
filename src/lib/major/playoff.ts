@@ -1,6 +1,6 @@
 import type { MajorSwissQualifier } from "./swiss";
 
-export type MajorPlayoffRound = "quarterfinal" | "semifinal" | "final";
+export type MajorPlayoffRound = "quarterfinal" | "semifinal" | "third_place" | "final";
 
 export interface MajorPlayoffEntrant {
   teamId: string;
@@ -33,6 +33,8 @@ export interface MajorPlayoffMatchFact {
 export interface MajorPlayoffProjection {
   championId: string;
   runnerUpId: string;
+  thirdPlaceId: string | null;
+  fourthPlaceId: string | null;
   semifinalLoserIds: readonly string[];
   quarterfinalLoserIds: readonly string[];
 }
@@ -173,6 +175,7 @@ function assertExpectedPair(
 export function projectMajorPlayoff(input: {
   entrants: readonly MajorPlayoffEntrant[];
   matches: readonly MajorPlayoffMatchFact[];
+  hasThirdPlaceMatch: boolean;
 }): MajorPlayoffProjection {
   const entrants = seedMajorPlayoffEntrants(
     input.entrants.map((entrant) => ({
@@ -182,8 +185,11 @@ export function projectMajorPlayoff(input: {
   );
   const entrantIds = new Set(entrants.map((entrant) => entrant.teamId));
 
-  if (input.matches.length !== 7) {
-    throw new Error(`complete playoffs require exactly 7 matches (got ${input.matches.length})`);
+  const expectedMatchCount = input.hasThirdPlaceMatch ? 8 : 7;
+  if (input.matches.length !== expectedMatchCount) {
+    throw new Error(
+      `complete playoffs require exactly ${expectedMatchCount} matches (got ${input.matches.length})`,
+    );
   }
 
   const matchIds = new Set<string>();
@@ -234,10 +240,20 @@ export function projectMajorPlayoff(input: {
   const final = finals.get(1)!;
   assertExpectedPair(final, semifinalOne.winnerId, semifinalTwo.winnerId);
 
+  const semifinalLoserIds = [loserOf(semifinalOne), loserOf(semifinalTwo)];
+  const thirdPlaceMatch = input.hasThirdPlaceMatch
+    ? indexRound(input.matches, "third_place", 1).get(1)!
+    : null;
+  if (thirdPlaceMatch) {
+    assertExpectedPair(thirdPlaceMatch, semifinalLoserIds[0], semifinalLoserIds[1]);
+  }
+
   return {
     championId: final.winnerId,
     runnerUpId: loserOf(final),
-    semifinalLoserIds: [loserOf(semifinalOne), loserOf(semifinalTwo)],
+    thirdPlaceId: thirdPlaceMatch?.winnerId ?? null,
+    fourthPlaceId: thirdPlaceMatch ? loserOf(thirdPlaceMatch) : null,
+    semifinalLoserIds,
     quarterfinalLoserIds: [
       loserOf(quarterfinals.get(1)!),
       loserOf(quarterfinals.get(2)!),

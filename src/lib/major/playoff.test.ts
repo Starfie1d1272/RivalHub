@@ -22,6 +22,15 @@ const COMPLETE_MATCHES: MajorPlayoffMatchFact[] = [
   { matchId: "f-1", round: "final", slot: 1, teamAId: "team-7", teamBId: "team-1", winnerId: "team-1" },
 ];
 
+const THIRD_PLACE_MATCH: MajorPlayoffMatchFact = {
+  matchId: "third-place-1",
+  round: "third_place",
+  slot: 1,
+  teamAId: "team-3",
+  teamBId: "team-5",
+  winnerId: "team-3",
+};
+
 describe("Major playoff seeding", () => {
   it("normalizes shuffled Stage 3 qualifiers to seeds 1..8", () => {
     const seeded = seedMajorPlayoffEntrants(
@@ -56,9 +65,15 @@ describe("Major playoff seeding", () => {
 
 describe("Major playoff projection", () => {
   it("derives champion and elimination tiers from canonical match facts", () => {
-    expect(projectMajorPlayoff({ entrants: ENTRANTS, matches: [...COMPLETE_MATCHES].reverse() })).toEqual({
+    expect(projectMajorPlayoff({
+      entrants: ENTRANTS,
+      matches: [...COMPLETE_MATCHES].reverse(),
+      hasThirdPlaceMatch: false,
+    })).toEqual({
       championId: "team-1",
       runnerUpId: "team-7",
+      thirdPlaceId: null,
+      fourthPlaceId: null,
       semifinalLoserIds: ["team-5", "team-3"],
       quarterfinalLoserIds: ["team-8", "team-4", "team-2", "team-6"],
     });
@@ -70,18 +85,89 @@ describe("Major playoff projection", () => {
       teamAId: match.teamBId,
       teamBId: match.teamAId,
     }));
-    expect(projectMajorPlayoff({ entrants: ENTRANTS, matches: reversed }).championId).toBe("team-1");
+    expect(projectMajorPlayoff({
+      entrants: ENTRANTS,
+      matches: reversed,
+      hasThirdPlaceMatch: false,
+    }).championId).toBe("team-1");
   });
 
   it("rejects incomplete, duplicate-slot, and impossible downstream facts", () => {
-    expect(() => projectMajorPlayoff({ entrants: ENTRANTS, matches: COMPLETE_MATCHES.slice(0, 6) })).toThrow(/exactly 7/);
+    expect(() => projectMajorPlayoff({
+      entrants: ENTRANTS,
+      matches: COMPLETE_MATCHES.slice(0, 6),
+      hasThirdPlaceMatch: false,
+    })).toThrow(/exactly 7/);
 
     const duplicateSlot = COMPLETE_MATCHES.map((match) => ({ ...match }));
     duplicateSlot[1].slot = 1;
-    expect(() => projectMajorPlayoff({ entrants: ENTRANTS, matches: duplicateSlot })).toThrow(/duplicate slot/);
+    expect(() => projectMajorPlayoff({
+      entrants: ENTRANTS,
+      matches: duplicateSlot,
+      hasThirdPlaceMatch: false,
+    })).toThrow(/duplicate slot/);
 
     const impossibleSemifinal = COMPLETE_MATCHES.map((match) => ({ ...match }));
     impossibleSemifinal[4] = { ...impossibleSemifinal[4], teamAId: "team-8" };
-    expect(() => projectMajorPlayoff({ entrants: ENTRANTS, matches: impossibleSemifinal })).toThrow(/invalid participants/);
+    expect(() => projectMajorPlayoff({
+      entrants: ENTRANTS,
+      matches: impossibleSemifinal,
+      hasThirdPlaceMatch: false,
+    })).toThrow(/invalid participants/);
+
+    const duplicateId = COMPLETE_MATCHES.map((match) => ({ ...match }));
+    duplicateId[1].matchId = duplicateId[0].matchId;
+    expect(() => projectMajorPlayoff({
+      entrants: ENTRANTS,
+      matches: duplicateId,
+      hasThirdPlaceMatch: false,
+    })).toThrow(/duplicate playoff matchId/);
+
+    const invalidWinner = COMPLETE_MATCHES.map((match) => ({ ...match }));
+    invalidWinner[0].winnerId = "team-3";
+    expect(() => projectMajorPlayoff({
+      entrants: ENTRANTS,
+      matches: invalidWinner,
+      hasThirdPlaceMatch: false,
+    })).toThrow(/winnerId must be a participant/);
+  });
+
+  it("rejects a third-place match when the format omits it", () => {
+    expect(() => projectMajorPlayoff({
+      entrants: ENTRANTS,
+      matches: [...COMPLETE_MATCHES, THIRD_PLACE_MATCH],
+      hasThirdPlaceMatch: false,
+    })).toThrow(/exactly 7/);
+  });
+
+  it("requires and derives the third-place match when configured", () => {
+    expect(() => projectMajorPlayoff({
+      entrants: ENTRANTS,
+      matches: COMPLETE_MATCHES,
+      hasThirdPlaceMatch: true,
+    })).toThrow(/exactly 8/);
+
+    expect(projectMajorPlayoff({
+      entrants: ENTRANTS,
+      matches: [...COMPLETE_MATCHES, THIRD_PLACE_MATCH],
+      hasThirdPlaceMatch: true,
+    })).toMatchObject({
+      championId: "team-1",
+      runnerUpId: "team-7",
+      thirdPlaceId: "team-3",
+      fourthPlaceId: "team-5",
+    });
+  });
+
+  it("rejects third-place facts that do not use both semifinal losers", () => {
+    expect(() => projectMajorPlayoff({
+      entrants: ENTRANTS,
+      matches: [...COMPLETE_MATCHES, {
+        ...THIRD_PLACE_MATCH,
+        teamAId: "team-8",
+        winnerId: "team-5",
+      }],
+      hasThirdPlaceMatch: true,
+    })).toThrow(/invalid participants/);
   });
 });
