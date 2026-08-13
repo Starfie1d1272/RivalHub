@@ -17,6 +17,16 @@ export type MajorSwissStatus = "active" | "advanced" | "eliminated";
 
 export type MajorSwissMatchFormat = "bo1" | "bo3";
 
+export interface MajorSwissMatchFormatPolicy {
+  /** 普通场次的默认赛制。 */
+  matchFormat: MajorSwissMatchFormat;
+
+  /**
+   * 晋级局 / 淘汰局的覆写；不设置时同样使用 matchFormat。
+   */
+  advancementEliminationFormat?: "bo3";
+}
+
 export interface MajorSwissRecord {
   wins: number;
   losses: number;
@@ -113,6 +123,20 @@ export interface MajorSwissPairing {
   priority?: number;
 }
 
+export type MajorSwissRoundPreview =
+  | {
+      round: MajorSwissRound;
+      pairings: readonly MajorSwissPairing[];
+      requiresOverride: false;
+      warning: null;
+    }
+  | {
+      round: MajorSwissRound;
+      pairings: readonly MajorSwissPairing[];
+      requiresOverride: true;
+      warning: string;
+    };
+
 export interface MajorSwissQualifier {
   teamId: string;
 
@@ -127,6 +151,11 @@ export interface MajorSwissQualifier {
 export const MAJOR_SWISS_TEAM_COUNT = 16;
 export const MAJOR_SWISS_WIN_THRESHOLD = 3;
 export const MAJOR_SWISS_LOSS_THRESHOLD = 3;
+
+export const MAJOR_SWISS_DEFAULT_MATCH_FORMAT_POLICY = {
+  matchFormat: "bo1",
+  advancementEliminationFormat: "bo3",
+} as const satisfies MajorSwissMatchFormatPolicy;
 
 const MAJOR_SWISS_MAX_ROUND = 5;
 const MAJOR_SWISS_ADVANCE_COUNT = MAJOR_SWISS_TEAM_COUNT / 2;
@@ -173,6 +202,11 @@ interface InternalTeamState {
   status: MajorSwissStatus;
 }
 
+interface PairingSelection<T> {
+  pairs: readonly T[];
+  rematchCount: number;
+}
+
 const EXPECTED_MATCH_COUNT: Readonly<Record<MajorSwissRound, number>> = {
   1: 8,
   2: 8,
@@ -193,6 +227,45 @@ const EXPECTED_ACTIVE_DISTRIBUTION: Readonly<
 
 function isMajorSwissRound(round: number): round is MajorSwissRound {
   return round === 1 || round === 2 || round === 3 || round === 4 || round === 5;
+}
+
+function validateFinalizedRound(
+  finalizedRound: number,
+): asserts finalizedRound is MajorSwissFinalizedRound {
+  if (
+    !Number.isInteger(finalizedRound) ||
+    finalizedRound < 0 ||
+    finalizedRound > MAJOR_SWISS_MAX_ROUND
+  ) {
+    throw new Error(
+      `invalid finalizedRound ${String(finalizedRound)}: must be an integer in 0..${MAJOR_SWISS_MAX_ROUND}`,
+    );
+  }
+}
+
+function isMajorSwissMatchFormat(format: unknown): format is MajorSwissMatchFormat {
+  return format === "bo1" || format === "bo3";
+}
+
+function resolveMatchFormatPolicy(
+  policy: MajorSwissMatchFormatPolicy | undefined,
+): MajorSwissMatchFormatPolicy {
+  if (policy === undefined) return MAJOR_SWISS_DEFAULT_MATCH_FORMAT_POLICY;
+  if (policy === null || typeof policy !== "object") {
+    throw new Error("Swiss match format policy must be an object");
+  }
+  if (!isMajorSwissMatchFormat(policy.matchFormat)) {
+    throw new Error(`invalid Swiss matchFormat: ${String(policy.matchFormat)}`);
+  }
+  if (
+    policy.advancementEliminationFormat !== undefined &&
+    policy.advancementEliminationFormat !== "bo3"
+  ) {
+    throw new Error(
+      `invalid Swiss advancementEliminationFormat: ${String(policy.advancementEliminationFormat)}`,
+    );
+  }
+  return policy;
 }
 
 function parseRecordKey(key: string): MajorSwissRecord {
@@ -253,6 +326,12 @@ function validateOfficialMatches(
   entrantTeamIds: ReadonlySet<string>,
   finalizedRound: MajorSwissFinalizedRound,
 ): MajorSwissMatchFact[] {
+  for (const match of matches) {
+    if (!Number.isInteger(match.round) || !isMajorSwissRound(match.round)) {
+      throw new Error(`invalid match round: ${String(match.round)}`);
+    }
+  }
+
   const official = matches.filter((match) => match.round <= finalizedRound);
 
   const seenMatchIds = new Set<string>();
@@ -265,9 +344,6 @@ function validateOfficialMatches(
     }
     seenMatchIds.add(match.matchId);
 
-    if (!isMajorSwissRound(match.round)) {
-      throw new Error(`invalid match round: ${match.round}`);
-    }
     if (!entrantTeamIds.has(match.teamAId) || !entrantTeamIds.has(match.teamBId)) {
       throw new Error(`match ${match.matchId} references a team outside the stage entrants`);
     }
@@ -291,6 +367,7 @@ export function projectMajorSwissStage(input: {
 }): MajorSwissProjection {
   const { entrants, matches, finalizedRound } = input;
 
+  validateFinalizedRound(finalizedRound);
   validateEntrants(entrants);
   const entrantTeamIds = new Set(entrants.map((entrant) => entrant.teamId));
   const official = validateOfficialMatches(matches, entrantTeamIds, finalizedRound);
@@ -427,6 +504,7 @@ export function selectMajorSixTeamPairingPattern(
   priorMatches: readonly Pick<MajorSwissMatchFact, "teamAId" | "teamBId">[],
 ): {
   priority: number;
+  rematchCount: number;
   pairs: readonly {
     higherSeedTeamId: string;
     lowerSeedTeamId: string;
@@ -448,31 +526,54 @@ export function selectMajorSixTeamPairingPattern(
     priorEdges.add(key);
   }
 
+  let selected:
+    | {
+        priority: number;
+        rematchCount: number;
+        pairs: readonly {
+          higherSeedTeamId: string;
+          lowerSeedTeamId: string;
+        }[];
+      }
+    | undefined;
   for (const pattern of MAJOR_SWISS_SIX_TEAM_PRIORITY_PATTERNS) {
     const pairs = pattern.pairs.map(([higherPosition, lowerPosition]) => ({
       higherSeedTeamId: seededTeamIds[higherPosition - 1],
       lowerSeedTeamId: seededTeamIds[lowerPosition - 1],
     }));
-    const hasRematch = pairs.some((pair) => {
+    const rematchCount = pairs.filter((pair) => {
       const key =
         pair.higherSeedTeamId < pair.lowerSeedTeamId
           ? `${pair.higherSeedTeamId}\u0000${pair.lowerSeedTeamId}`
           : `${pair.lowerSeedTeamId}\u0000${pair.higherSeedTeamId}`;
       return priorEdges.has(key);
-    });
-    if (!hasRematch) {
-      return { priority: pattern.priority, pairs };
+    }).length;
+    if (selected === undefined || rematchCount < selected.rematchCount) {
+      selected = { priority: pattern.priority, rematchCount, pairs };
+      if (rematchCount === 0) return selected;
     }
   }
 
-  throw new Error("all 15 six-team priority patterns contain a rematch; no legal pairing exists");
+  return selected!;
 }
 
-export function getMajorSwissRequiredFormat(record: MajorSwissRecord): MajorSwissMatchFormat {
+export function getMajorSwissRequiredFormat(
+  record: MajorSwissRecord,
+  policy?: MajorSwissMatchFormatPolicy,
+): MajorSwissMatchFormat {
+  return getMajorSwissMatchFormat(record, resolveMatchFormatPolicy(policy));
+}
+
+function getMajorSwissMatchFormat(
+  record: MajorSwissRecord,
+  policy: MajorSwissMatchFormatPolicy,
+): MajorSwissMatchFormat {
   if (record.wins >= MAJOR_SWISS_WIN_THRESHOLD || record.losses >= MAJOR_SWISS_LOSS_THRESHOLD) {
     throw new Error(`terminal record ${record.wins}-${record.losses} must not be scheduled`);
   }
-  return record.wins === 2 || record.losses === 2 ? "bo3" : "bo1";
+  return record.wins === 2 || record.losses === 2
+    ? (policy.advancementEliminationFormat ?? policy.matchFormat)
+    : policy.matchFormat;
 }
 
 /**
@@ -482,17 +583,33 @@ export function getMajorSwissRequiredFormat(record: MajorSwissRecord): MajorSwis
  * 每层取 highest seed，从 lowest 向 higher 尝试 non-rematch candidate。
  * 用于 feasibility-aware high-low：候选对手必须保证剩余队伍仍可完整配对。
  */
-function hasCompleteNonRematchMatching(teams: readonly MajorSwissTeamState[]): boolean {
-  if (teams.length === 0) return true;
-  if (teams.length % 2 !== 0) return false;
+function selectHighLowPairing(
+  teams: readonly MajorSwissTeamState[],
+): PairingSelection<readonly [MajorSwissTeamState, MajorSwissTeamState]> {
+  if (teams.length === 0) return { pairs: [], rematchCount: 0 };
+  if (teams.length % 2 !== 0) {
+    throw new Error(`high-low pairing requires an even team count (got ${teams.length})`);
+  }
 
   const higher = teams[0];
+  let selected:
+    | PairingSelection<readonly [MajorSwissTeamState, MajorSwissTeamState]>
+    | undefined;
   for (let i = teams.length - 1; i >= 1; i -= 1) {
-    if (teams[i].opponents.includes(higher.teamId)) continue;
+    const lower = teams[i];
     const rest = teams.filter((_, index) => index !== 0 && index !== i);
-    if (hasCompleteNonRematchMatching(rest)) return true;
+    const remainder = selectHighLowPairing(rest);
+    const rematchCount =
+      remainder.rematchCount + (higher.opponents.includes(lower.teamId) ? 1 : 0);
+    if (selected === undefined || rematchCount < selected.rematchCount) {
+      selected = {
+        pairs: [[higher, lower], ...remainder.pairs],
+        rematchCount,
+      };
+      if (rematchCount === 0) return selected;
+    }
   }
-  return false;
+  return selected!;
 }
 
 // ── 下一轮配对 ──────────────────────────────────────────
