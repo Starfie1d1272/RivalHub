@@ -4,7 +4,7 @@
 
 当前生产验证的是个人报名流程：登录用户在 `/[seasonSlug]/register` 提交个人资料，管理员在 `/admin/[seasonSlug]/registrations` 审核 `season_registrations`。
 
-`registrationMode=team`、队伍自助报名、队员名单提交、队伍报名审核、审核后自动生成 `teams` / `team_members` 仍未形成闭环。外部公开赛或 Major 试点如需队伍制，试点前需要单独实现；在实现前只能由管理员手工建队或使用现有选秀生成队伍流程。
+`registrationMode=team`、队伍自助报名、队员名单提交、队伍报名审核、审核后自动生成 `teams` / `team_members` 仍未形成闭环。为避免把个人报名误写为队伍报名，Team 模式的公开报名页和 `submitRegistration` 当前都会 fail closed；在实现完整闭环前只能由管理员手工建队。
 
 ---
 
@@ -13,6 +13,10 @@
 ```
 用户访问 /[seasonSlug]/register
   ↓
+检查 registrationMode
+  ├── team → 显示“队伍报名尚未开放”，不加载个人报名与 season_registrations 写链
+  └── solo → 继续
+        ↓
 检查赛季状态是否为 registration（Server Component fetch）
   ├── 否（已截止 / 未开放） → 显示"报名未开放"提示
   └── 是 → 检查用户登录状态

@@ -14,9 +14,9 @@ Capability 字段和 preset 是配置层基础，不等于生产已验收流程�
 
 | 能力 | 当前状态 |
 |---|---|
-| `registrationMode=team` | schema/types/season form 中已有配置基础，但公开报名页和 `submitRegistration` 仍是个人报名流程 |
+| `registrationMode=team` | schema/types/season form 中已有配置基础；公开报名页与个人 `submitRegistration` 已 fail closed，队伍报名闭环待实现 |
 | `open-tournament` | preset 存在；队伍自助报名、审核、生成队伍闭环未完成 |
-| `major` | preset 存在；Swiss executor 有基础，但三段 Swiss 到单败的后台运营闭环未完整验收 |
+| `major` | preset 存在；Swiss executor 有基础，但三段 Swiss 到单败的后台运营闭环未完整验收，含 Swiss 的赛季不会自动完赛 |
 | broadcast / overlay | 不属于当前 capability preset，需新增模块 |
 
 ---
