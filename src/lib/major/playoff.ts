@@ -22,7 +22,7 @@ export interface MajorPlayoffMatchFact {
   matchId: string;
   round: MajorPlayoffRound;
 
-  /** Stable position inside the round: QF 1..4, SF 1..2, Final 1. */
+  /** Stable position inside the round: QF 1..4, SF 1..2, third-place/final 1. */
   slot: number;
 
   teamAId: string;
