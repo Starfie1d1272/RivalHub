@@ -17,6 +17,14 @@ export type MajorSwissStatus = "active" | "advanced" | "eliminated";
 
 export type MajorSwissMatchFormat = "bo1" | "bo3";
 
+/**
+ * 瑞士阶段配置的比赛局制。
+ *
+ * BO5 在 StageConfig 层是合法的可选值，但 Major Swiss 不支持它；
+ * generateNextMajorSwissRound 会明确拒绝，绝不降级为 BO3。
+ */
+export type MajorSwissStageMatchFormat = MajorSwissMatchFormat | "bo5";
+
 export interface MajorSwissRecord {
   wins: number;
   losses: number;
@@ -468,11 +476,17 @@ export function selectMajorSixTeamPairingPattern(
   throw new Error("all 15 six-team priority patterns contain a rematch; no legal pairing exists");
 }
 
-export function getMajorSwissRequiredFormat(record: MajorSwissRecord): MajorSwissMatchFormat {
+export function getMajorSwissRequiredFormat(
+  stageMatchFormat: MajorSwissStageMatchFormat,
+  record: MajorSwissRecord,
+): MajorSwissMatchFormat {
+  if (stageMatchFormat !== "bo1" && stageMatchFormat !== "bo3") {
+    throw new Error("Major Swiss stages do not support bo5 matchFormat");
+  }
   if (record.wins >= MAJOR_SWISS_WIN_THRESHOLD || record.losses >= MAJOR_SWISS_LOSS_THRESHOLD) {
     throw new Error(`terminal record ${record.wins}-${record.losses} must not be scheduled`);
   }
-  return record.wins === 2 || record.losses === 2 ? "bo3" : "bo1";
+  return stageMatchFormat === "bo3" || record.wins === 2 || record.losses === 2 ? "bo3" : "bo1";
 }
 
 /**
@@ -501,7 +515,14 @@ export function generateNextMajorSwissRound(input: {
   entrants: readonly MajorSwissEntrant[];
   matches: readonly MajorSwissMatchFact[];
   finalizedRound: MajorSwissFinalizedRound;
+  /** 当前 Swiss 阶段配置的比赛局制；必须由调用方明确提供。 */
+  stageMatchFormat: MajorSwissStageMatchFormat;
 }): readonly MajorSwissPairing[] {
+  const { stageMatchFormat } = input;
+  // 在投影或配对之前 fail-closed，避免 BO5 被隐式降级或忽略。
+  if (stageMatchFormat !== "bo1" && stageMatchFormat !== "bo3") {
+    throw new Error("Major Swiss stages do not support bo5 matchFormat");
+  }
   const projection = projectMajorSwissStage(input);
 
   if (projection.finalizedRound === MAJOR_SWISS_MAX_ROUND) {
@@ -563,7 +584,7 @@ export function generateNextMajorSwissRound(input: {
           lowerSeedTeamId: lower.teamId,
           higherSeed: higher.currentStageSeed,
           lowerSeed: lower.currentStageSeed,
-          format: getMajorSwissRequiredFormat(record),
+          format: getMajorSwissRequiredFormat(stageMatchFormat, record),
           pairingRule: "initial",
         });
       }
@@ -597,7 +618,7 @@ export function generateNextMajorSwissRound(input: {
           lowerSeedTeamId: lower.teamId,
           higherSeed: higher.currentStageSeed,
           lowerSeed: lower.currentStageSeed,
-          format: getMajorSwissRequiredFormat(record),
+          format: getMajorSwissRequiredFormat(stageMatchFormat, record),
           pairingRule: "high-low",
         });
       }
@@ -627,7 +648,7 @@ export function generateNextMajorSwissRound(input: {
           lowerSeedTeamId: pair.lowerSeedTeamId,
           higherSeed: seedOf.get(pair.higherSeedTeamId)!,
           lowerSeed: seedOf.get(pair.lowerSeedTeamId)!,
-          format: getMajorSwissRequiredFormat(record),
+          format: getMajorSwissRequiredFormat(stageMatchFormat, record),
           pairingRule: "six-team-priority",
           priority: selected.priority,
         });

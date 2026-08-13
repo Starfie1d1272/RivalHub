@@ -18,11 +18,13 @@ function expectFailure(
 
 describe("checkStandardMajorCapabilities()", () => {
   it("accepts the current standard Major defaults", () => {
-    const result = checkStandardMajorCapabilities(createMajorDefaultCapabilities());
+    const capabilities = createMajorDefaultCapabilities();
+    const result = checkStandardMajorCapabilities(capabilities);
 
     expect(result.isStandardMajor).toBe(true);
     expect(result.failures).toEqual([]);
     expect(result.checks.every((check) => check.passed)).toBe(true);
+    expect(capabilities.stagePlan[2]?.matchFormat).toBe("bo3");
     expect(result.checks).toEqual(
       expect.arrayContaining([expect.objectContaining({ key: "stage1-seeds", passed: true })]),
     );
@@ -116,12 +118,15 @@ describe("checkStandardMajorCapabilities()", () => {
     expectFailure(capabilities, "playoff");
   });
 
-  it("allows Stage 3 BO3 plus optional playoff variants", () => {
+  it("accepts Stage 3 BO1 or BO3 plus optional playoff variants", () => {
     const capabilities = createMajorDefaultCapabilities();
-    capabilities.stagePlan[2].matchFormat = "bo3";
+    capabilities.stagePlan[2].matchFormat = "bo1";
     capabilities.stagePlan[3].hasThirdPlaceMatch = true;
     capabilities.stagePlan[3].finalFormat = "bo3";
 
+    expect(checkStandardMajorCapabilities(capabilities).isStandardMajor).toBe(true);
+
+    capabilities.stagePlan[2].matchFormat = "bo3";
     expect(checkStandardMajorCapabilities(capabilities).isStandardMajor).toBe(true);
   });
 

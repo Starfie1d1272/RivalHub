@@ -275,7 +275,7 @@ export const MAJOR_STAGE_PLAN: StagePlan = [
     key: "stage3", name: "阶段三", type: "swiss", teamCount: 16,
     entrySeeds: 8,
     advanceTiers: [{ placement: "*", count: 8 }],
-    matchFormat: "bo1",
+    matchFormat: "bo3",
   },
   {
     key: "playoff", name: "淘汰赛", type: "single_elim", teamCount: 8,

@@ -51,7 +51,12 @@ function simulateSwissStage(
 
   for (let round = 1; round <= 5; round += 1) {
     const finalizedRound = (round - 1) as MajorSwissFinalizedRound;
-    const pairings = generateNextMajorSwissRound({ entrants, matches, finalizedRound });
+    const pairings = generateNextMajorSwissRound({
+      entrants,
+      matches,
+      finalizedRound,
+      stageMatchFormat: "bo1",
+    });
     for (let index = 0; index < pairings.length; index += 1) {
       const pairing = pairings[index];
       matches.push({
