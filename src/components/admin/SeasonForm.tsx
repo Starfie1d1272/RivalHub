@@ -9,11 +9,11 @@ import {
   PLAYER_TYPE_LABELS,
   RIVALS_REGISTRATION_CONFIG,
   RIVALS_STAGE_PLAN,
-  MAJOR_STAGE_PLAN,
-  MAJOR_TEAM_CONFIG,
-  DEFAULT_CS2_MAP_POOL,
+  checkStandardMajorCapabilities,
+  createMajorDefaultCapabilities,
   type PlayerType,
   type RegistrationConfig,
+  type SeasonCapabilities,
   type TeamRegistrationConfig,
   type StagePlan,
 } from "@/types/season";
@@ -61,8 +61,10 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  const defaultConfig = initial?.registrationConfig ?? RIVALS_REGISTRATION_CONFIG;
-  const defaultTeamConfig = initial?.teamRegistrationConfig ?? MAJOR_TEAM_CONFIG;
+  const majorDefaults = createMajorDefaultCapabilities();
+
+  const defaultConfig = initial?.registrationConfig ?? majorDefaults.registrationConfig;
+  const defaultTeamConfig = initial?.teamRegistrationConfig ?? majorDefaults.teamRegistrationConfig;
 
   const [name, setName] = useState(initial?.name ?? "");
   const [slug, setSlug] = useState(initial?.slug ?? "");
@@ -74,16 +76,16 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
   const [registrationMode, setRegistrationMode] = useState<"solo" | "team">(
     initial?.registrationMode ?? "team",
   );
-  const [hasCaptainVoting, setHasCaptainVoting] = useState(initial?.hasCaptainVoting ?? true);
-  const [hasDraft, setHasDraft] = useState(initial?.hasDraft ?? true);
-  const [maxTeamSize, setMaxTeamSize] = useState(initial?.maxTeamSize ?? 9);
-  const [minTeamSize, setMinTeamSize] = useState(initial?.minTeamSize ?? 5);
-  const [starterCount, setStarterCount] = useState(initial?.starterCount ?? 5);
+  const [hasCaptainVoting, setHasCaptainVoting] = useState(initial?.hasCaptainVoting ?? majorDefaults.hasCaptainVoting);
+  const [hasDraft, setHasDraft] = useState(initial?.hasDraft ?? majorDefaults.hasDraft);
+  const [maxTeamSize, setMaxTeamSize] = useState(initial?.maxTeamSize ?? majorDefaults.maxTeamSize);
+  const [minTeamSize, setMinTeamSize] = useState(initial?.minTeamSize ?? majorDefaults.minTeamSize);
+  const [starterCount, setStarterCount] = useState(initial?.starterCount ?? majorDefaults.starterCount);
   const [positionsText, setPositionsText] = useState(
-    (initial?.positions ?? CS2_POSITIONS).join(","),
+    (initial?.positions ?? majorDefaults.positions ?? CS2_POSITIONS).join(","),
   );
   const [stagePlan, setStagePlan] = useState<StagePlan>(
-    initial?.stagePlan ?? MAJOR_STAGE_PLAN,
+    initial?.stagePlan ?? majorDefaults.stagePlan,
   );
   const [allowedPlayerTypes, setAllowedPlayerTypes] = useState<PlayerType[]>(
     defaultConfig.allowedPlayerTypes,
@@ -94,7 +96,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
   const [screenshotCount, setScreenshotCount] = useState(defaultConfig.screenshotCount);
   const [maxTotal] = useState(defaultConfig.maxTotal);
   const [mapPoolText, setMapPoolText] = useState(
-    (defaultConfig.mapPool ?? DEFAULT_CS2_MAP_POOL).join(","),
+    defaultConfig.mapPool.join(","),
   );
   const [teamConfig, setTeamConfig] = useState<TeamRegistrationConfig>(defaultTeamConfig);
 
@@ -118,34 +120,41 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
     if (!confirm("应用预设将覆盖当前所有配置，是否继续？")) return;
     if (preset === "major") {
       setKind("Major");
-      handleRegistrationModeChange("team");
-      setMaxTeamSize(9);
-      setMinTeamSize(5);
-      setStarterCount(5);
-      setPositionsText("igl,awper,opener,closer,anchor");
-      setStagePlan(structuredClone(MAJOR_STAGE_PLAN));
-      setAllowedPlayerTypes(["enrolled", "graduated"]);
-      setCurrentMin(NO_RANK);
-      setPeakMin(NO_RANK);
-      setMaxPerPosition(50);
-      setScreenshotCount(1);
-      setMapPoolText([...DEFAULT_CS2_MAP_POOL].join(","));
-      setTeamConfig(MAJOR_TEAM_CONFIG);
+      applyCapabilities(createMajorDefaultCapabilities());
     } else {
       setKind("选秀联赛");
       handleRegistrationModeChange("solo");
       setMaxTeamSize(7);
       setMinTeamSize(7);
       setStarterCount(5);
-      setPositionsText("igl,awper,opener,closer,anchor");
+      setPositionsText(CS2_POSITIONS.join(","));
       setStagePlan(structuredClone(RIVALS_STAGE_PLAN));
       setAllowedPlayerTypes(["enrolled"]);
       setCurrentMin("A");
       setPeakMin("A+");
       setMaxPerPosition(15);
       setScreenshotCount(1);
-      setMapPoolText([...DEFAULT_CS2_MAP_POOL].join(","));
+      setMapPoolText(RIVALS_REGISTRATION_CONFIG.mapPool.join(","));
     }
+  }
+
+  function applyCapabilities(capabilities: ReturnType<typeof createMajorDefaultCapabilities>) {
+    setRegistrationMode(capabilities.registrationMode);
+    setHasCaptainVoting(capabilities.hasCaptainVoting);
+    setHasDraft(capabilities.hasDraft);
+    setMaxTeamSize(capabilities.maxTeamSize);
+    setMinTeamSize(capabilities.minTeamSize);
+    setStarterCount(capabilities.starterCount);
+    setPositionsText(capabilities.positions.join(","));
+    setStagePlan(capabilities.stagePlan);
+    setAllowedPlayerTypes(capabilities.registrationConfig.allowedPlayerTypes);
+    setCurrentMin(capabilities.registrationConfig.rankThreshold.currentMin ?? NO_RANK);
+    setPeakMin(capabilities.registrationConfig.rankThreshold.peakMin ?? NO_RANK);
+    setMaxPerPosition(capabilities.registrationConfig.maxPerPosition);
+    setScreenshotCount(capabilities.registrationConfig.screenshotCount);
+    setMaxTotal(capabilities.registrationConfig.maxTotal);
+    setMapPoolText(capabilities.registrationConfig.mapPool.join(","));
+    setTeamConfig(capabilities.teamRegistrationConfig);
   }
 
   // Auto-set slug from name when slug is empty and in create mode
@@ -200,6 +209,11 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
       teamRegistrationConfig: teamConfig,
     };
   }
+
+  const standardMajorCheck = checkStandardMajorCapabilities(buildPayload() as SeasonCapabilities);
+  const swissFormats = stagePlan.slice(0, 3).map((stage) => stage.matchFormat?.toUpperCase() ?? "未设置");
+  const playoffFormat = stagePlan[3]?.matchFormat?.toUpperCase() ?? "未设置";
+  const finalFormat = stagePlan[3]?.finalFormat?.toUpperCase() ?? playoffFormat;
 
   function handleSubmit() {
     const payload = buildPayload();
@@ -329,6 +343,34 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
               <SelectItem value="__none__">手动配置</SelectItem>
             </SelectContent>
           </Select>
+        </section>
+
+        <section
+          aria-live="polite"
+          className={standardMajorCheck.isStandardMajor
+            ? "rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4 text-sm"
+            : "rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 text-sm"}
+        >
+          {standardMajorCheck.isStandardMajor ? (
+            <>
+              <h2 className="font-semibold">标准 Major 摘要</h2>
+              <p className="mt-1 text-[var(--color-fg-mid)]">
+                32 支队伍；队伍整体报名；每队 {minTeamSize}–{maxTeamSize} 人；三阶段瑞士轮；8 队单败淘汰。
+              </p>
+              <p className="mt-1 text-[var(--color-fg-mid)]">
+                当前局制：瑞士轮 {swissFormats.join(" / ")}；淘汰赛 {playoffFormat}，决赛 {finalFormat}。
+              </p>
+            </>
+          ) : (
+            <>
+              <h2 className="font-semibold">当前配置已偏离标准 Major，将作为自定义赛制运行。</h2>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-[var(--color-fg-mid)]">
+                {standardMajorCheck.failures.slice(0, 4).map((check) => (
+                  <li key={check.key}>{check.reason}</li>
+                ))}
+              </ul>
+            </>
+          )}
         </section>
 
         <section className="space-y-4">
