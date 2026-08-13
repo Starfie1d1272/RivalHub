@@ -16,6 +16,12 @@ import { BatchDeadlineCard } from "@/components/matches/BatchDeadlineCard";
 import { SyncBracketButton } from "@/components/matches/SyncBracketButton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Panel } from "@/components/rivalhub";
+import {
+  buildStageViews,
+  getTeamsReferencedByMatches,
+  hasAdjacentLegacyQualifierPlayoff,
+  resolveDefaultStageKey,
+} from "@/lib/matches/stage-views";
 import { getFirstStageOfType, normalizeRegistrationConfig, normalizeStagePlan } from "@/types/season";
 import Link from "next/link";
 
@@ -127,18 +133,15 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
   const mapPool = normalizeRegistrationConfig(season.registrationConfig).mapPool;
   const qualifierStage = getFirstStageOfType(stagePlan, ["round_robin", "swiss"]);
   const playoffStage = getFirstStageOfType(stagePlan, ["double_elim", "single_elim"]);
-  const qualifierKey = qualifierStage?.key ?? "qualifier";
-  const playoffKey = playoffStage?.key ?? "playoff";
   const statusFilter = (m: { status: string }) =>
     !filterStatus || filterStatus === "all" || m.status === filterStatus;
   const teamFilter = (m: { teamAId: string; teamBId: string }) =>
     !filterTeam || filterTeam === "all" || m.teamAId === filterTeam || m.teamBId === filterTeam;
-  const qualifierMatches = sortMatches(
-    allMatches.filter((m) => m.stage === qualifierKey).filter(statusFilter).filter(teamFilter)
-  );
-  const playoffMatches = sortMatches(
-    allMatches.filter((m) => m.stage === playoffKey).filter(statusFilter).filter(teamFilter)
-  );
+  const { views: allStageViews, unconfiguredMatches } = buildStageViews(stagePlan, allMatches);
+  const stageViews = allStageViews.map((view) => ({
+    ...view,
+    matches: sortMatches(view.matches.filter(statusFilter).filter(teamFilter)),
+  }));
 
   // 已完成比赛的地图列表（用于 OCR 录入面板）
   const finishedMatchIds = allMatches
@@ -159,43 +162,40 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
   }
 
   const matchCount = allMatches.length;
-  const qualifierCount = qualifierMatches.length;
-
-  // 不受界面筛选影响，用于判断正赛是否已生成
-  const allPlayoffCount = allMatches.filter((m) => m.stage === playoffKey).length;
-  // 不受界面筛选影响，用于判断排位赛是否全部结束
-  const allQualifierMatches = allMatches.filter((m) => m.stage === qualifierKey);
-
-  const canGenerate = season.status === "playing" && matchCount === 0 && allTeams.length >= 2;
-
-  // 是否所有排位赛已结束（基于全量数据，不受筛选影响）
-  const allQualifierFinished =
-    allQualifierMatches.length > 0 &&
-    allQualifierMatches.every((m) => m.status === "finished" || m.status === "cancelled");
-
-  // 是否可以生成正赛
+  const hasSwissStage = stagePlan.some((stage) => stage.type === "swiss");
+  const canGenerate =
+    season.status === "playing" && matchCount === 0 && allTeams.length >= 2 && !hasSwissStage;
+  const qualifierView = qualifierStage
+    ? allStageViews.find((view) => view.stage.key === qualifierStage.key)
+    : null;
+  const playoffView = playoffStage
+    ? allStageViews.find((view) => view.stage.key === playoffStage.key)
+    : null;
+  const hasLegacyAdjacentPlayoff = hasAdjacentLegacyQualifierPlayoff(stagePlan);
+  const hasTerminalLegacyQualifierMatches =
+    qualifierView != null &&
+    qualifierView.matches.length > 0 &&
+    qualifierView.matches.every((match) => match.status === "finished" || match.status === "cancelled");
   const canGeneratePlayoff =
     !!qualifierStage &&
     !!playoffStage &&
-    allQualifierFinished &&
-    allPlayoffCount === 0;
+    hasLegacyAdjacentPlayoff &&
+    hasTerminalLegacyQualifierMatches &&
+    playoffView?.matches.length === 0;
 
-  // 积分榜（有排位赛时计算）
-  const finishedQualifierMatches = qualifierMatches.filter((m) => m.status === "finished");
-  const standings =
-    qualifierStage && qualifierCount > 0
-      ? calculateStandings(allTeams, finishedQualifierMatches)
-      : [];
-
-  const hasQualifier = !!qualifierStage;
-  const hasPlayoff = !!playoffStage;
-
-  // 默认显示 stagePlan 中最靠后且已有比赛记录的阶段，支持任意数量阶段
-  const stagesWithMatches = new Set(allMatches.map((m) => m.stage));
-  const defaultStageKey =
-    [...stagePlan].reverse().find((s) => stagesWithMatches.has(s.key))?.key ??
-    stagePlan[0]?.key ??
-    qualifierKey;
+  const standingsByStage = new Map(
+    allStageViews
+      .filter((view) => view.stage.type === "round_robin" && view.matches.length > 0)
+      .map((view) => [
+        view.stage.key,
+        calculateStandings(
+          getTeamsReferencedByMatches(allTeams, view.matches),
+          view.matches.filter((match) => match.status === "finished"),
+        ),
+      ]),
+  );
+  const qualifierStandings = qualifierStage ? standingsByStage.get(qualifierStage.key) ?? [] : [];
+  const defaultStageKey = resolveDefaultStageKey(stagePlan, allMatches, filterStage);
 
   const batchDeadlineGroups: { label: string; stage: string; round?: number | null; entryRound?: string | null; matchCount: number }[] = [];
   if (matchCount > 0) {
@@ -234,9 +234,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
   const teamMembersByTeam = new Map<string, TeamMemberData[]>();
 
   if (matchCount > 0) {
-    const displayedMatchIds = qualifierMatches
-      .map((m) => m.id)
-      .concat(playoffMatches.map((m) => m.id));
+    const displayedMatchIds = stageViews.flatMap((view) => view.matches.map((match) => match.id));
 
     const [members, rosters] = await Promise.all([
       db
@@ -351,6 +349,17 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
         />
       )}
 
+      {unconfiguredMatches.length > 0 && (
+        <Panel pad={16} className="border-[rgba(255,196,77,0.3)] bg-[rgba(255,196,77,0.05)]">
+          <p className="text-sm text-[var(--color-warn)]">
+            检测到 {unconfiguredMatches.length} 场比赛引用了当前 StagePlan 中不存在的阶段，请检查赛制配置。
+          </p>
+          <p className="mt-1 text-xs text-[var(--color-fg-mid)]">
+            涉及阶段：{[...new Set(unconfiguredMatches.map((match) => match.stage))].join("、")}
+          </p>
+        </Panel>
+      )}
+
       {/* 赛季状态提示 */}
       {season.status !== "playing" && matchCount === 0 && (
         <Panel pad={16} className="border-[rgba(255,196,77,0.3)] bg-[rgba(255,196,77,0.05)]">
@@ -369,18 +378,26 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
         />
       )}
 
+      {season.status === "playing" && matchCount === 0 && allTeams.length >= 2 && hasSwissStage && (
+        <Panel pad={16} className="border-[rgba(255,196,77,0.3)] bg-[rgba(255,196,77,0.05)]">
+          <p className="text-sm text-[var(--color-warn)]">
+            该赛制的自动赛程运行尚未启用。
+          </p>
+        </Panel>
+      )}
+
       {/* 生成正赛（排位赛全部结束后） */}
-      {canGeneratePlayoff && standings.length > 0 && playoffStage && (
+      {canGeneratePlayoff && qualifierStandings.length > 0 && playoffStage && (
         <GeneratePlayoffCard
           seasonId={season.id}
           stageKey={playoffStage.key}
           stageName={playoffStage.name}
-          standings={standings}
+          standings={qualifierStandings}
         />
       )}
 
       {/* 修复 Bracket 缺失比赛（bracket 已初始化时显示） */}
-      {hasPlayoff && (
+      {playoffStage && hasLegacyAdjacentPlayoff && (
         <SyncBracketButton seasonId={season.id} />
       )}
 
@@ -390,17 +407,20 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
       )}
 
       {/* Tab 面板 */}
-      {matchCount > 0 && (
-        <Tabs defaultValue={filterStage && filterStage !== "all" ? filterStage : defaultStageKey}>
-          <TabsList>
-            {qualifierStage && <TabsTrigger value={qualifierKey}>{qualifierStage.name}</TabsTrigger>}
-            {playoffStage && <TabsTrigger value={playoffKey}>{playoffStage.name}</TabsTrigger>}
+      {matchCount > 0 && defaultStageKey && (
+        <Tabs defaultValue={defaultStageKey}>
+          <TabsList className="max-w-full justify-start overflow-x-auto">
+            {stageViews.map(({ stage }) => (
+              <TabsTrigger key={stage.key} value={stage.key}>{stage.name}</TabsTrigger>
+            ))}
           </TabsList>
 
-          {/* 排位赛面板 */}
-          {hasQualifier && (
-            <TabsContent value={qualifierKey} className="space-y-6 mt-4">
-              {/* 积分榜 */}
+          {stageViews.map(({ stage, matches: stageMatches }) => {
+            const standings = standingsByStage.get(stage.key) ?? [];
+            const isPlayoff = stage.type === "double_elim" || stage.type === "single_elim";
+
+            return (
+            <TabsContent key={stage.key} value={stage.key} className="space-y-6 mt-4">
               {standings.length > 0 && (
                 <section className="space-y-2">
                   <h2 className="text-base font-semibold text-[var(--color-fg)]">积分榜</h2>
@@ -408,19 +428,24 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                     <StandingsTable
                       standings={standings}
                       seasonSlug={seasonSlug}
-                      isFinal={allQualifierFinished}
+                      isFinal={false}
                     />
                   </Panel>
                 </section>
               )}
 
-              {/* 排位赛列表 */}
               <section className="space-y-3">
                 <h2 className="text-base font-semibold text-[var(--color-fg)]">赛程</h2>
-                <div className="space-y-3">
-                  {qualifierMatches.map((m) => {
-                    const teamAName = teamMap.get(m.teamAId) ?? "未知队伍";
-                    const teamBName = teamMap.get(m.teamBId) ?? "未知队伍";
+                {stageMatches.length === 0 ? (
+                  <Panel pad={32} className="text-center text-[var(--color-fg-mid)]">
+                    暂无比赛记录
+                  </Panel>
+                ) : (
+                  <div className="space-y-3">
+                  {stageMatches.map((m) => {
+                    const unknownTeamName = isPlayoff ? "TBD" : "未知队伍";
+                    const teamAName = teamMap.get(m.teamAId) ?? unknownTeamName;
+                    const teamBName = teamMap.get(m.teamBId) ?? unknownTeamName;
                     return (
                       <AdminMatchRow
                         key={m.id}
@@ -429,6 +454,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                         teamBName={teamBName}
                         seasonSlug={seasonSlug}
                         mapPool={mapPool}
+                        isPlayoff={isPlayoff}
                         teamAMembers={teamMembersByTeam.get(m.teamAId) ?? []}
                         teamBMembers={teamMembersByTeam.get(m.teamBId) ?? []}
                         teamARoster={rosterByMatch.get(m.id)?.get(m.teamAId) ?? null}
@@ -439,47 +465,12 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                       />
                     );
                   })}
-                </div>
+                  </div>
+                )}
               </section>
             </TabsContent>
-          )}
-
-          {/* 正赛面板 */}
-          {hasPlayoff && (
-            <TabsContent value={playoffKey} className="space-y-3 mt-4">
-              <h2 className="text-base font-semibold text-[var(--color-fg)]">赛程</h2>
-              {playoffMatches.length === 0 ? (
-                <Panel pad={32} className="text-center text-[var(--color-fg-mid)]">
-                  {allQualifierFinished ? "点击上方「生成正赛」按钮" : "排位赛全部结束后可生成正赛"}
-                </Panel>
-              ) : (
-                <div className="space-y-3">
-                  {playoffMatches.map((m) => {
-                    const teamAName = teamMap.get(m.teamAId) ?? "TBD";
-                    const teamBName = teamMap.get(m.teamBId) ?? "TBD";
-                    return (
-                      <AdminMatchRow
-                        key={m.id}
-                        match={m}
-                        teamAName={teamAName}
-                        teamBName={teamBName}
-                        seasonSlug={seasonSlug}
-                        mapPool={mapPool}
-                        isPlayoff
-                        teamAMembers={teamMembersByTeam.get(m.teamAId) ?? []}
-                        teamBMembers={teamMembersByTeam.get(m.teamBId) ?? []}
-                        teamARoster={rosterByMatch.get(m.id)?.get(m.teamAId) ?? null}
-                        teamBRoster={rosterByMatch.get(m.id)?.get(m.teamBId) ?? null}
-                        completedMaps={mapCompletedMaps(mapsByMatchId.get(m.id) ?? [])}
-                        pendingMaps={mapPendingMaps(mapsByMatchId.get(m.id) ?? [])}
-                        finishedMaps={mapFinishedMaps(mapsByMatch.get(m.id) ?? [])}
-                      />
-                    );
-                  })}
-                </div>
-              )}
-            </TabsContent>
-          )}
+            );
+          })}
         </Tabs>
       )}
 
