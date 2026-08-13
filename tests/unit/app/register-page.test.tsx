@@ -49,12 +49,12 @@ describe("team registration page", () => {
     vi.stubGlobal("React", React);
   });
 
-  it("renders an unavailable state without loading the solo registration flow", async () => {
+  it("renders an unavailable state before season status or solo registration flow", async () => {
     seasonFindFirstMock.mockResolvedValue({
       id: "season-1",
       slug: "major",
       name: "RivalHub Major",
-      status: "registration",
+      status: "draft",
       registrationMode: "team",
     });
 

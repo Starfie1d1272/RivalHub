@@ -36,6 +36,20 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
   });
   if (!season) notFound();
 
+  if (!isSoloRegistration(season)) {
+    return (
+      <div className="container mx-auto px-4 py-16 max-w-2xl">
+        <Panel pad={40}>
+          <StatusBanner
+            tone="info"
+            title={season.name}
+            sub="队伍报名尚未开放，请联系赛事管理员。"
+          />
+        </Panel>
+      </div>
+    );
+  }
+
   // 报名未开放时显示状态提示
   if (season.status !== "registration") {
     const statusMessages: Record<string, string> = {
@@ -57,20 +71,6 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
           />
         </div>
       </Panel>
-      </div>
-    );
-  }
-
-  if (!isSoloRegistration(season)) {
-    return (
-      <div className="container mx-auto px-4 py-16 max-w-2xl">
-        <Panel pad={40}>
-          <StatusBanner
-            tone="info"
-            title={season.name}
-            sub="队伍报名尚未开放，请联系赛事管理员。"
-          />
-        </Panel>
       </div>
     );
   }
