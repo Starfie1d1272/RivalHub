@@ -13,8 +13,9 @@ import { SwissBracket } from "@/components/matches/SwissBracket";
 import { getSwissViewData } from "@/lib/swiss/data";
 import {
   buildStageViews,
-  filterLegacyBracketByStageName,
+  canUseLegacySwissView,
   getTeamsReferencedByMatches,
+  projectLegacyBracketByStageName,
   resolveDefaultStageKey,
 } from "@/lib/matches/stage-views";
 import { normalizeStagePlan } from "@/types/season";
@@ -139,6 +140,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
               const stageMatches = allStageMatches.filter(matchFilter);
               const { active, done } = splitMatches(stageMatches);
               const swissData = swissDataByStage.get(stage.key);
+              const canShowSwissBracket = canUseLegacySwissView(stage, allStageMatches, swissData);
               const standings = stage.type === "round_robin" && allStageMatches.length > 0
                 ? calculateStandings(
                     getTeamsReferencedByMatches(allTeams, allStageMatches),
@@ -146,8 +148,8 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
                   )
                 : [];
               const isPlayoff = stage.type === "double_elim" || stage.type === "single_elim";
-              const bracketData = isPlayoff
-                ? filterLegacyBracketByStageName(fullBracketData, stage.name)
+              const bracketProjection = isPlayoff
+                ? projectLegacyBracketByStageName(fullBracketData, stage.name)
                 : null;
               const matchNodeMap = new Map<string, string>(
                 allStageMatches
@@ -157,13 +159,25 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
 
               return (
                 <TabsContent key={stage.key} value={stage.key} className="space-y-8">
-                  {swissData ? (
+                  {canShowSwissBracket ? (
                     <section className="space-y-3">
                       <h2 className="text-lg font-semibold text-[var(--color-fg)]">{stage.name}</h2>
                       <SwissBracket data={swissData} seasonSlug={seasonSlug} />
                     </section>
                   ) : (
                     <>
+                      {stage.type === "swiss" && allStageMatches.length > 0 && (
+                        <p className="text-sm text-[var(--color-warn)]">
+                          瑞士轮统计投影暂不可用。
+                        </p>
+                      )}
+
+                      {bracketProjection?.status === "ambiguous" && (
+                        <p className="text-sm text-[var(--color-warn)]">
+                          对阵图映射异常。
+                        </p>
+                      )}
+
                       {standings.length > 0 && (
                         <section className="space-y-3">
                           <div className="flex items-center justify-between">
@@ -177,11 +191,11 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
                         </section>
                       )}
 
-                      {bracketData && bracketData.stage.length > 0 && (
+                      {bracketProjection?.status === "ok" && (
                         <section className="space-y-3">
                           <h2 className="text-lg font-semibold text-[var(--color-fg)]">对阵图</h2>
                           <BracketView
-                            data={bracketData}
+                            data={bracketProjection.data}
                             themeColor={season.themeColor}
                             matchNodeMap={matchNodeMap}
                             seasonSlug={seasonSlug}

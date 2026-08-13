@@ -1,4 +1,5 @@
 import type { BracketData } from "@/lib/bracket";
+import type { SwissViewData } from "@/lib/swiss/data";
 import { getFirstStageOfType, getPreviousStage, type StagePlan } from "@/types/season";
 
 interface StageMatch {
@@ -81,16 +82,49 @@ export function getTeamsReferencedByMatches<T extends { id: string }>(
  * Legacy presentation adapter：现有 brackets-manager 数据只能按 stage.name 筛选。
  * name 不是稳定领域 identity；不得将该行为扩展为新的 bracket/domain contract。
  */
-export function filterLegacyBracketByStageName(data: BracketData, stageName: string): BracketData {
-  const stageIds = new Set(data.stage.filter((stage) => stage.name === stageName).map((stage) => stage.id));
+export type LegacyBracketProjection =
+  | { status: "ok"; data: BracketData }
+  | { status: "missing" }
+  | { status: "ambiguous" };
+
+export function projectLegacyBracketByStageName(
+  data: BracketData,
+  stageName: string,
+): LegacyBracketProjection {
+  const bracketStages = data.stage.filter((stage) => stage.name === stageName);
+  if (bracketStages.length === 0) return { status: "missing" };
+  if (bracketStages.length > 1) return { status: "ambiguous" };
+
+  const stageIds = new Set(bracketStages.map((stage) => stage.id));
   const matchIds = new Set(data.match.filter((match) => stageIds.has(match.stage_id)).map((match) => match.id));
 
   return {
-    ...data,
-    stage: data.stage.filter((stage) => stageIds.has(stage.id)),
-    match: data.match.filter((match) => stageIds.has(match.stage_id)),
-    match_game: data.match_game.filter((game) => matchIds.has(game.parent_id)),
-    group: data.group.filter((group) => stageIds.has(group.stage_id)),
-    round: data.round.filter((round) => stageIds.has(round.stage_id)),
+    status: "ok",
+    data: {
+      ...data,
+      stage: bracketStages,
+      match: data.match.filter((match) => stageIds.has(match.stage_id)),
+      match_game: data.match_game.filter((game) => matchIds.has(game.parent_id)),
+      group: data.group.filter((group) => stageIds.has(group.stage_id)),
+      round: data.round.filter((round) => stageIds.has(round.stage_id)),
+    },
   };
+}
+
+/**
+ * Legacy Swiss projection 仅在 standings 能完整覆盖当前比赛队伍时展示。
+ * 它不是新的 Swiss truth source；不完整时调用方必须退回通用比赛列表。
+ */
+export function canUseLegacySwissView(
+  stage: StagePlan[number],
+  stageMatches: readonly Pick<StageMatch, "teamAId" | "teamBId">[],
+  swissData: SwissViewData | undefined,
+): swissData is SwissViewData {
+  if (stage.type !== "swiss" || stageMatches.length === 0 || !swissData) return false;
+  if (swissData.teamCount !== stage.teamCount || swissData.teams.length !== stage.teamCount) return false;
+
+  const standingTeamIds = new Set(swissData.teams.map((team) => team.teamId));
+  return stageMatches.every(
+    (match) => standingTeamIds.has(match.teamAId) && standingTeamIds.has(match.teamBId),
+  );
 }

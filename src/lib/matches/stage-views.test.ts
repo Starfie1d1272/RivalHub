@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { BracketData } from "@/lib/bracket";
+import type { SwissViewData } from "@/lib/swiss/data";
 import { MAJOR_STAGE_PLAN, RIVALS_STAGE_PLAN } from "@/types/season";
 import {
   buildStageViews,
-  filterLegacyBracketByStageName,
+  canUseLegacySwissView,
   getTeamsReferencedByMatches,
   hasAdjacentLegacyQualifierPlayoff,
+  projectLegacyBracketByStageName,
   resolveDefaultStageKey,
 } from "./stage-views";
 
@@ -93,7 +95,10 @@ describe("stage views", () => {
       ],
     } as BracketData;
 
-    const filtered = filterLegacyBracketByStageName(data, "Playoff B");
+    const projection = projectLegacyBracketByStageName(data, "Playoff B");
+    expect(projection.status).toBe("ok");
+    if (projection.status !== "ok") throw new Error("expected unique legacy bracket stage");
+    const { data: filtered } = projection;
 
     expect(filtered.stage.map(({ id }) => id)).toEqual([2]);
     expect(filtered.match.map(({ id }) => id)).toEqual([12]);
@@ -103,7 +108,7 @@ describe("stage views", () => {
     expect(filtered.participant).toEqual(data.participant);
   });
 
-  it("legacy bracket adapter 按同名 stage 保留所有匹配记录，名称缺失时返回空投影", () => {
+  it("legacy bracket adapter 对同名 stage fail closed，并报告缺失映射", () => {
     const data = {
       stage: [
         { id: 1, name: "同名", type: "single_elimination" },
@@ -112,7 +117,32 @@ describe("stage views", () => {
       match: [], match_game: [], participant: [], group: [], round: [],
     } as BracketData;
 
-    expect(filterLegacyBracketByStageName(data, "同名").stage.map(({ id }) => id)).toEqual([1, 2]);
-    expect(filterLegacyBracketByStageName(data, "不存在").stage).toEqual([]);
+    expect(projectLegacyBracketByStageName(data, "同名")).toEqual({ status: "ambiguous" });
+    expect(projectLegacyBracketByStageName(data, "不存在")).toEqual({ status: "missing" });
+  });
+
+  it("仅在 legacy Swiss standings 完整覆盖当前阶段时显示 SwissBracket", () => {
+    const stage = MAJOR_STAGE_PLAN[0];
+    const stageMatches = Array.from({ length: 8 }, (_, index) =>
+      match("stage1", "scheduled", `team-${index * 2}`, `team-${index * 2 + 1}`),
+    );
+    const swissData = (teamCount: number, teamIds = Array.from({ length: 16 }, (_, index) => `team-${index}`)) => ({
+      stageName: stage.name,
+      teamCount,
+      advanceCount: 0,
+      rounds: [],
+      teams: teamIds.map((teamId, index) => ({
+        teamId, teamName: teamId, seed: index + 1, wins: 0, losses: 0, status: "active", buScore: 0,
+      })),
+    }) as SwissViewData;
+
+    expect(canUseLegacySwissView(stage, stageMatches, swissData(16))).toBe(true);
+    expect(canUseLegacySwissView(stage, stageMatches, swissData(0, []))).toBe(false);
+    expect(canUseLegacySwissView(
+      stage,
+      stageMatches,
+      swissData(16, [...Array.from({ length: 15 }, (_, index) => `team-${index}`), "other-team"]),
+    )).toBe(false);
+    expect(canUseLegacySwissView(stage, stageMatches, swissData(15))).toBe(false);
   });
 });
