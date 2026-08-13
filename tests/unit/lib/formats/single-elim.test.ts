@@ -259,31 +259,9 @@ describe("singleElimExecutor", () => {
 
       // 验证 insert values 被调用时包含 entry_round
       const qfCall = mockInsertValues.mock.calls.find(
-        (call: any[]) => call[0]?.entryRound === "quarterfinal",
+        ([value]) => (value as { entryRound?: string })?.entryRound === "quarterfinal",
       );
       expect(qfCall).toBeTruthy();
-    });
-  });
-
-  // ── isComplete ─────────────────────────────────────────────────────────────
-
-  describe("isComplete()", () => {
-    it("returns false when no matches exist", async () => {
-      // count query returns 0
-      const { db: mockedDb } = await import("@/db/client");
-      vi.mocked(mockedDb.query.matches.findMany).mockResolvedValue([]);
-
-      // Override the select mock for this test
-      const mockSelectCount = vi.fn().mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([{ value: 0 }]),
-        }),
-      });
-      const { db: freshDb } = await import("@/db/client");
-      (freshDb as any).select = mockSelectCount;
-
-      // Since isComplete uses db.select(), we need to mock it
-      // Actually, the current mock doesn't have db.select. Let me restructure.
     });
   });
 

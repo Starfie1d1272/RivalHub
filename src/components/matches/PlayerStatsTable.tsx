@@ -1,9 +1,7 @@
 import React from "react";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matchPlayerStats } from "@/db/schema/player-stats";
-import { teamMembers } from "@/db/schema/teams";
-import { seasonRegistrations } from "@/db/schema/registrations";
 import { MatchSummaryStats, type SummaryPlayer } from "./MatchSummaryStats";
 
 interface PlayerStatsTableProps {
@@ -12,15 +10,12 @@ interface PlayerStatsTableProps {
   teamBId: string;
   teamAName: string;
   teamBName: string;
-  seasonId: string;
-  seasonSlug: string;
 }
 
 async function getStatsGroupedByTeam(
   mapId: string,
   teamAId: string,
   teamBId: string,
-  seasonId: string,
 ) {
   const stats = await db.query.matchPlayerStats.findMany({
     where: eq(matchPlayerStats.mapId, mapId),
@@ -86,10 +81,8 @@ export async function PlayerStatsTable({
   teamBId,
   teamAName,
   teamBName,
-  seasonId,
-  seasonSlug,
 }: PlayerStatsTableProps) {
-  const { teamA, teamB } = await getStatsGroupedByTeam(mapId, teamAId, teamBId, seasonId);
+  const { teamA, teamB } = await getStatsGroupedByTeam(mapId, teamAId, teamBId);
 
   if (teamA.length === 0 && teamB.length === 0) {
     return <p className="text-xs text-[var(--color-fg-dim)] py-2">暂无玩家数据</p>;
@@ -102,7 +95,6 @@ export async function PlayerStatsTable({
       teamBId={teamBId}
       teamAName={teamAName}
       teamBName={teamBName}
-      seasonSlug={seasonSlug}
       noPanel
     />
   );

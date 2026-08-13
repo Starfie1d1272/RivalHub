@@ -2,7 +2,7 @@
 
 import { eq, and, count, asc } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, matches, teams, auditLogs } from "@/db/schema";
+import { matches, teams, auditLogs } from "@/db/schema";
 import { ok, fail } from "@/types/action";
 import type { ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";

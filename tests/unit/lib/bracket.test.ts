@@ -17,7 +17,7 @@ describe("serializeBracket()", () => {
       playoffName: "Playoff",
     });
 
-    const serialized = serializeBracket(data, makeTeams(4));
+    const serialized = serializeBracket(data);
 
     expect(serialized.stage).toHaveLength(1);
     expect(serialized.match.length).toBeGreaterThan(0);

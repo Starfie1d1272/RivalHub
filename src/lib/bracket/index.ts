@@ -12,7 +12,6 @@ import { InMemoryDatabase } from "brackets-memory-db";
 import { Status } from "brackets-model";
 import type { Database } from "brackets-manager";
 export type { Database as BracketDatabase } from "brackets-manager";
-import type { Match } from "@/types/match";
 import type { Team } from "@/db/schema/teams";
 
 type QualifierFormat = "round_robin" | "swiss";
@@ -161,7 +160,7 @@ export async function advanceMatch(
   scoreB: number,
   currentData: Database
 ): Promise<{ updatedData: Database; newResolvedMatches: ResolvedBracketMatch[] }> {
-  const { manager, db } = buildManager(currentData);
+  const { manager } = buildManager(currentData);
 
   // 必须在 manager.update.match() 之前快照，否则 InMemoryDatabase.setData()
   // 存的是引用，manager 更新内存后 currentData 也会被同步修改，导致 diff 永远为空。
@@ -191,7 +190,6 @@ export async function advanceMatch(
  */
 export function serializeBracket(
   data: Database | null,
-  teams: Team[]
 ): BracketData {
   if (!data) {
     return { stage: [], match: [], match_game: [], participant: [], group: [], round: [] };

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
@@ -37,9 +38,11 @@ function AvatarButton({ email, avatarUrl, imgError, onImgError }: {
 
   if (avatarUrl && !imgError) {
     return (
-      <img
+      <Image
         src={avatarUrl}
         alt={email}
+        width={32}
+        height={32}
         className="inline-flex w-8 h-8 rounded-full border border-[var(--color-border)] object-cover"
         referrerPolicy="no-referrer"
         onError={onImgError}
@@ -110,7 +113,7 @@ export function HeaderClient({ seasons, session, avatarUrl, steamName, displayNa
             letterSpacing: "var(--tracking-tight-1)",
           }}
         >
-          <img
+          <Image
             src="/brand/rivalhub/favicon-32-transparent.png"
             alt=""
             width={28}

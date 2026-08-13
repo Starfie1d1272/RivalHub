@@ -35,6 +35,8 @@ jobs:
 
       - run: pnpm type-check
 
+      - run: pnpm lint
+
       # migration integrity gate：纯静态 snapshot 链校验，无需 DATABASE_URL / secrets
       # （本地已验证：移除 .env.local 后 drizzle-kit check 仍正常通过）
       - run: pnpm exec drizzle-kit check

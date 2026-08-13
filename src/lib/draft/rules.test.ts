@@ -6,7 +6,6 @@ import {
   isStarterRound,
   canPickPosition,
   computeTeamPositionCounts,
-  DRAFT_POSITION_LIMIT_PER_TEAM,
 } from "@/lib/draft/rules";
 
 // Helper to construct DraftTeamOrder objects

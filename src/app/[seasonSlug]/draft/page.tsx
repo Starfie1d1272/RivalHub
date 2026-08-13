@@ -68,7 +68,6 @@ export default async function DraftPage({ params }: DraftPageProps) {
         <DraftLiveRoom
           data={data}
           seasonId={season.id}
-          seasonSlug={seasonSlug}
           seasonPositions={season.positions}
           readonly
         />
@@ -105,7 +104,6 @@ export default async function DraftPage({ params }: DraftPageProps) {
         <DraftLiveRoom
           data={data}
           seasonId={season.id}
-          seasonSlug={seasonSlug}
           seasonPositions={season.positions}
           readonly
         />
@@ -200,7 +198,6 @@ export default async function DraftPage({ params }: DraftPageProps) {
         <DraftLiveRoom
           data={data}
           seasonId={season.id}
-          seasonSlug={seasonSlug}
           seasonPositions={season.positions}
         />
     </main>

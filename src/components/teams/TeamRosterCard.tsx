@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { getDisplayName } from "@/lib/utils/display-name";
 
 const POSITION_LABELS: Record<string, { cn: string; en: string }> = {

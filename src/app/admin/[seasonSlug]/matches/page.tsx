@@ -454,7 +454,6 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                         teamBName={teamBName}
                         seasonSlug={seasonSlug}
                         mapPool={mapPool}
-                        isPlayoff={isPlayoff}
                         teamAMembers={teamMembersByTeam.get(m.teamAId) ?? []}
                         teamBMembers={teamMembersByTeam.get(m.teamBId) ?? []}
                         teamARoster={rosterByMatch.get(m.id)?.get(m.teamAId) ?? null}

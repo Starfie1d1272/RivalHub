@@ -3,7 +3,7 @@
 import { and, desc, eq, gte, lt, or, count, like, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { getDisplayName } from "@/lib/utils/display-name";
-import { auditLogs, seasons, users, teams, matches, seasonRegistrations, draftPicks, draftState, adminInvites } from "@/db/schema";
+import { auditLogs, seasons, users, teams, matches, seasonRegistrations, draftPicks, adminInvites } from "@/db/schema";
 import { ok } from "@/types/action";
 import { requireSuperAdmin } from "@/lib/auth/session";
 import { actionError } from "@/lib/action-utils";
@@ -154,8 +154,6 @@ export async function fetchAuditLogs(filters: AuditLogFilters = {}) {
 
     const matchIds = byType.get("match");
     if (matchIds?.length) {
-      const tA = db.$with("ta").as(db.select({ id: teams.id, name: teams.name }).from(teams));
-      const tB = db.$with("tb").as(db.select({ id: teams.id, name: teams.name }).from(teams));
       resolvers.push(
         db.select({ id: matches.id, aName: teams.name, bId: matches.teamBId })
           .from(matches)

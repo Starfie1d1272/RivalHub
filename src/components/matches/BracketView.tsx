@@ -331,7 +331,6 @@ export function BracketView({ data, themeColor, matchNodeMap, seasonSlug }: Brac
 
   return (
     <>
-      <link rel="stylesheet" href="/brackets-viewer.min.css" />
       <Script
         src="/brackets-viewer.min.js"
         strategy="afterInteractive"

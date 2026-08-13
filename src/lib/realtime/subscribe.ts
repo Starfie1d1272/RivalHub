@@ -14,17 +14,21 @@ import type { DraftState, DraftPick } from "@/types/draft";
 
 /** 订阅选秀状态变更（轮次推进、倒计时刷新）*/
 export function subscribeDraftState(
-  _seasonId: string,
-  _onUpdate: (state: DraftState) => void
+  seasonId: string,
+  onUpdate: (state: DraftState) => void
 ): RealtimeChannel {
+  void seasonId;
+  void onUpdate;
   throw new Error("not implemented");
 }
 
 /** 订阅新的 pick 事件（围观页动画）*/
 export function subscribeDraftPicks(
-  _seasonId: string,
-  _onPick: (pick: DraftPick) => void
+  seasonId: string,
+  onPick: (pick: DraftPick) => void
 ): RealtimeChannel {
+  void seasonId;
+  void onPick;
   throw new Error("not implemented");
 }
 
@@ -33,8 +37,10 @@ export function subscribeDraftPicks(
  * 当 voting 阶段访问压力低时，可改为按需轮询替代以节省 Realtime 成本。
  */
 export function subscribeCaptainVotes(
-  _seasonId: string,
-  _onUpdate: (counts: Record<string, number>) => void
+  seasonId: string,
+  onUpdate: (counts: Record<string, number>) => void
 ): RealtimeChannel {
+  void seasonId;
+  void onUpdate;
   throw new Error("not implemented");
 }

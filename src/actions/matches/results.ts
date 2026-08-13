@@ -10,7 +10,6 @@ import { requireSeasonAdmin, auditActorId } from "@/lib/auth/session";
 import { advanceMatch as bracketAdvance, collectResolvedMatches, type BracketStageRef, type ResolvedBracketMatch } from "@/lib/bracket";
 import type { BracketDatabase as Database } from "@/lib/bracket";
 import {
-  type MatchStatus,
   assertMatchTransition,
   resolveMatchFormat,
 } from "@/lib/match-transitions";

@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { playerRowSchema, playerRowLenientSchema, ocrResponseSchema } from "@/lib/ocr/types";
-import type { OCRProvider } from "@/lib/ocr/types";
 
 describe("ocrResponseSchema (宽松)", () => {
   it("接受合法 OCR 结果", () => {

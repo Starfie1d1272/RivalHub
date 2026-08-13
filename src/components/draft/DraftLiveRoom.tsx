@@ -13,7 +13,6 @@ import type { DraftFullData } from "@/lib/draft/data";
 interface DraftLiveRoomProps {
   data: DraftFullData;
   seasonId: string;
-  seasonSlug: string;
   seasonPositions: string[];
   readonly?: boolean;
 }
@@ -26,7 +25,6 @@ interface PickNotification {
 export function DraftLiveRoom({
   data,
   seasonId,
-  seasonSlug: _seasonSlug,
   seasonPositions,
   readonly: isReadonly,
 }: DraftLiveRoomProps) {

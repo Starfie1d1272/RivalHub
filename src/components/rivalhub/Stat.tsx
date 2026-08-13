@@ -1,5 +1,3 @@
-import { cn } from "@/lib/utils/cn";
-
 interface StatProps {
   label: string;
   value: string | number;

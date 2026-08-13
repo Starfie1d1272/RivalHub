@@ -130,7 +130,7 @@ function getLoser(m: { teamAId: string; teamBId: string; scoreA: number | null; 
 // ── executor ─────────────────────────────────────────────────────────────────
 
 export const gslGroupExecutor: StageExecutor = {
-  async initialize(seasonId, config, teams, _qualifiers) {
+  async initialize(seasonId, config, teams) {
     const groupCount = config.groupCount ?? 1;
     const teamsPerGroup = Math.floor(teams.length / groupCount);
 

@@ -88,10 +88,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
         ] as const),
     ),
   );
-  const fullBracketData = serializeBracket(
-    (season.bracketData as Database | null) ?? null,
-    allTeams,
-  );
+  const fullBracketData = serializeBracket((season.bracketData as Database | null) ?? null);
   const defaultStageKey = resolveDefaultStageKey(stagePlan, allMatches);
 
   if (allMatches.length === 0 && allTeams.length === 0) {

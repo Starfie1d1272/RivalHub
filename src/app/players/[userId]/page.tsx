@@ -209,7 +209,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
   const totalFirstKillsAll = playerStats.reduce((s, x) => s + x.totalFirstKills, 0);
   const totalMultiKillsAll = playerStats.reduce((s, x) => s + x.totalMultiKills, 0);
   const totalClutchesAll = playerStats.reduce((s, x) => s + x.totalClutches, 0);
-  const totalRoundsAll = playerStats.reduce((s, x) => s + (x as any).totalRounds, 0);
+  const totalRoundsAll = playerStats.reduce((s, x) => s + x.totalRounds, 0);
   const mvpCount = mvpWinCount;
 
   return (

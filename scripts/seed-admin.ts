@@ -8,12 +8,12 @@ function hashPassword(password: string): string {
 }
 
 async function main() {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const pool = new pg.Pool({
+  const poolConfig: pg.PoolConfig & { family: number } = {
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
     family: 4,
-  } as any);
+  };
+  const pool = new pg.Pool(poolConfig);
 
   // Insert root admin（凭据只来自环境变量；与 src/db/seed.ts 同一契约）
   // - 两个变量都存在 → 创建（已存在则跳过）

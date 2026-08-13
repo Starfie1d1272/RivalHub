@@ -138,7 +138,7 @@ export async function getSwissViewData(
           : "upcoming";
 
     // 按 record 分组
-    const groups = groupMatchesByRecord(roundMatches, standings, r === 1);
+    const groups = groupMatchesByRecord(roundMatches, standings);
     rounds.push({ round: r, status, groups });
   }
 
@@ -154,7 +154,6 @@ export async function getSwissViewData(
 function groupMatchesByRecord(
   matchRows: SwissMatchRow[],
   standings: SwissStanding[],
-  _isFirstRound: boolean,
 ): SwissRecordGroup[] {
   const teamRecord = new Map<string, string>();
   for (const s of standings) {

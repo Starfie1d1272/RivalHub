@@ -5,13 +5,12 @@ import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { generateBracket, type BracketStageRef } from "@/lib/bracket";
 import { calculateStandings } from "@/lib/standings";
 import { getFirstStageOfType, normalizeStagePlan } from "@/types/season";
-import type { QualifiedTeam } from "@/types/season";
 import type { StageExecutor } from "./types";
 import type { BracketDatabase as Database } from "@/lib/bracket";
 import { isStageComplete } from "./_shared";
 
 export const roundRobinExecutor: StageExecutor = {
-  async initialize(seasonId, config, teams, _qualifiers) {
+  async initialize(seasonId, config, teams) {
     const season = await db.query.seasons.findFirst({
       where: eq(seasons.id, seasonId),
     });

@@ -21,7 +21,6 @@ import { normalizeRegistrationConfig } from "@/types/season";
 import { maybeAdvanceFromRegistration } from "@/actions/transitions";
 import {
   type RegistrationStatus,
-  TRANSITION_RULES,
   validateTransition,
 } from "@/lib/registration-transitions";
 

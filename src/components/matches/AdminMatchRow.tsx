@@ -50,7 +50,6 @@ interface AdminMatchRowProps {
   teamBName: string;
   seasonSlug: string;
   mapPool: string[];
-  isPlayoff?: boolean;
   teamAMembers: TeamMemberData[];
   teamBMembers: TeamMemberData[];
   teamARoster: RosterData | null;
@@ -78,7 +77,6 @@ export function AdminMatchRow({
   teamBName,
   seasonSlug,
   mapPool,
-  isPlayoff = false,
   teamAMembers,
   teamBMembers,
   teamARoster,

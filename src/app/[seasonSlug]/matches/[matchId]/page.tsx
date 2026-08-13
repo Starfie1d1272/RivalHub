@@ -444,7 +444,6 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                   teamBId={match.teamBId}
                   teamAName={teamA?.name ?? "队伍 A"}
                   teamBName={teamB?.name ?? "队伍 B"}
-                  seasonSlug={seasonSlug}
                 />
               </TabsContent>
             )}
@@ -481,8 +480,6 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                       teamBId={match.teamBId}
                       teamAName={teamA?.name ?? "队伍 A"}
                       teamBName={teamB?.name ?? "队伍 B"}
-                      seasonId={season.id}
-                      seasonSlug={seasonSlug}
                     />
                   )}
                   {!isFinished && map.scoreA == null && (
@@ -510,7 +507,6 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
               teamBId={match.teamBId}
               teamAName={teamA?.name ?? "队伍 A"}
               teamBName={teamB?.name ?? "队伍 B"}
-              seasonSlug={seasonSlug}
             />
           ) : (
             <Panel pad={16}>
