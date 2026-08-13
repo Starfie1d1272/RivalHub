@@ -316,6 +316,132 @@ export const CAPABILITY_PRESETS = {
 export const RIVALS_DEFAULT_CAPABILITIES = DRAFT_LEAGUE_PRESET;
 export const MAJOR_DEFAULT_CAPABILITIES = CAPABILITY_PRESETS.major;
 
+/**
+ * 返回一份可安全编辑的 Major 能力配置副本。
+ *
+ * 预设常量是标准规则的唯一来源；表单不能直接持有或修改该常量。
+ */
+export function createMajorDefaultCapabilities(): SeasonCapabilities {
+  return structuredClone(MAJOR_DEFAULT_CAPABILITIES) as SeasonCapabilities;
+}
+
+export interface StandardMajorRuleCheck {
+  key:
+    | "registration-mode"
+    | "captain-voting"
+    | "draft"
+    | "stage-count"
+    | "stage-order"
+    | "entry-cohorts"
+    | "stage1-seeds"
+    | "stage1"
+    | "stage2"
+    | "stage3"
+    | "playoff";
+  passed: boolean;
+  reason: string;
+}
+
+export interface StandardMajorCheckResult {
+  isStandardMajor: boolean;
+  checks: StandardMajorRuleCheck[];
+  failures: StandardMajorRuleCheck[];
+}
+
+function advancesEight(stage: StageConfig | undefined): boolean {
+  return stage?.advanceTiers.length === 1 &&
+    stage.advanceTiers[0]?.placement === "*" &&
+    stage.advanceTiers[0]?.count === 8;
+}
+
+function directEntrantCount(stage: StageConfig | undefined, isFirstStage = false): number | undefined {
+  if (!stage) return undefined;
+  return stage.entrySeeds ?? (isFirstStage ? stage.teamCount : 0);
+}
+
+function hasStandardStageOneSeeds(seeds: readonly number[] | undefined): boolean {
+  return seeds?.length === 16 &&
+    new Set(seeds).size === 16 &&
+    seeds.every((seed) => seed >= 17 && seed <= 32);
+}
+
+/**
+ * 纯能力配置检查：判断配置是否仍是 RivalHub 当前定义的标准 Major。
+ * 不读取赛事 kind，kind 仅用于展示。
+ */
+export function checkStandardMajorCapabilities(
+  capabilities: SeasonCapabilities,
+): StandardMajorCheckResult {
+  const [stage1, stage2, stage3, playoff] = capabilities.stagePlan;
+  const checks: StandardMajorRuleCheck[] = [
+    {
+      key: "registration-mode",
+      passed: capabilities.registrationMode === "team",
+      reason: "标准 Major 使用队伍整体报名。",
+    },
+    {
+      key: "captain-voting",
+      passed: capabilities.hasCaptainVoting === false,
+      reason: "标准 Major 不启用队长投票。",
+    },
+    {
+      key: "draft",
+      passed: capabilities.hasDraft === false,
+      reason: "标准 Major 不启用蛇形选秀。",
+    },
+    {
+      key: "stage-count",
+      passed: capabilities.stagePlan.length === 4,
+      reason: "标准 Major 必须包含三个瑞士轮阶段和一个淘汰赛阶段。",
+    },
+    {
+      key: "stage-order",
+      passed: capabilities.stagePlan.map(({ type }) => type).join("|") === "swiss|swiss|swiss|single_elim",
+      reason: "标准 Major 的阶段顺序必须为阶段一、阶段二、阶段三瑞士轮，随后是单败淘汰。",
+    },
+    {
+      key: "entry-cohorts",
+      passed:
+        directEntrantCount(stage1, true) === 16 &&
+        directEntrantCount(stage2) === 8 &&
+        directEntrantCount(stage3) === 8 &&
+        directEntrantCount(playoff) === 0,
+      reason: "标准 Major 必须按 16 / 8 / 8 三批队伍进入三个瑞士轮阶段，并由阶段三的 8 支晋级队进入淘汰赛。",
+    },
+    {
+      key: "stage1-seeds",
+      passed: hasStandardStageOneSeeds(stage1?.seeds),
+      reason: "阶段一必须完整且唯一地使用 17–32 号种子。",
+    },
+    {
+      key: "stage1",
+      passed: stage1?.type === "swiss" && stage1.teamCount === 16 && advancesEight(stage1),
+      reason: "阶段一必须为 16 队瑞士轮，8 队晋级。",
+    },
+    {
+      key: "stage2",
+      passed: stage2?.type === "swiss" && stage2.teamCount === 16 && advancesEight(stage2),
+      reason: "阶段二必须为 16 队瑞士轮，8 队晋级。",
+    },
+    {
+      key: "stage3",
+      passed: stage3?.type === "swiss" && stage3.teamCount === 16 && advancesEight(stage3),
+      reason: "阶段三必须为 16 队瑞士轮，8 队晋级。",
+    },
+    {
+      key: "playoff",
+      passed: playoff?.type === "single_elim" && playoff.teamCount === 8,
+      reason: "淘汰赛必须为 8 队单败淘汰。",
+    },
+  ];
+  const failures = checks.filter((check) => !check.passed);
+  return {
+    isStandardMajor: failures.length === 0,
+    checks,
+    failures,
+  };
+}
+
 // ── 展示标签 ─────────────────────────────────────────────────────────────
 
 export const SEASON_STATUS_LABELS: Record<SeasonStatus, string> = {
