@@ -18,11 +18,13 @@ function expectFailure(
 
 describe("checkStandardMajorCapabilities()", () => {
   it("accepts the current standard Major defaults", () => {
-    const result = checkStandardMajorCapabilities(createMajorDefaultCapabilities());
+    const capabilities = createMajorDefaultCapabilities();
+    const result = checkStandardMajorCapabilities(capabilities);
 
     expect(result.isStandardMajor).toBe(true);
     expect(result.failures).toEqual([]);
     expect(result.checks.every((check) => check.passed)).toBe(true);
+    expect(capabilities.stagePlan[2]?.matchFormat).toBe("bo3");
     expect(result.checks).toEqual(
       expect.arrayContaining([expect.objectContaining({ key: "stage1-seeds", passed: true })]),
     );
@@ -116,13 +118,50 @@ describe("checkStandardMajorCapabilities()", () => {
     expectFailure(capabilities, "playoff");
   });
 
-  it("allows Stage 3 BO3 plus optional playoff variants", () => {
+  it("accepts Stage 3 BO1 or BO3 plus optional playoff variants", () => {
     const capabilities = createMajorDefaultCapabilities();
-    capabilities.stagePlan[2].matchFormat = "bo3";
+    capabilities.stagePlan[2].matchFormat = "bo1";
     capabilities.stagePlan[3].hasThirdPlaceMatch = true;
     capabilities.stagePlan[3].finalFormat = "bo3";
 
     expect(checkStandardMajorCapabilities(capabilities).isStandardMajor).toBe(true);
+
+    capabilities.stagePlan[2].matchFormat = "bo3";
+    expect(checkStandardMajorCapabilities(capabilities).isStandardMajor).toBe(true);
+  });
+
+  it.each([
+    ["bo1", "bo1", "bo1"],
+    ["bo1", "bo1", "bo3"],
+    ["bo1", "bo3", "bo1"],
+    ["bo1", "bo3", "bo3"],
+    ["bo3", "bo1", "bo1"],
+    ["bo3", "bo1", "bo3"],
+    ["bo3", "bo3", "bo1"],
+    ["bo3", "bo3", "bo3"],
+  ] as const)("accepts Swiss formats %s / %s / %s", (stage1Format, stage2Format, stage3Format) => {
+    const capabilities = createMajorDefaultCapabilities();
+    capabilities.stagePlan[0].matchFormat = stage1Format;
+    capabilities.stagePlan[1].matchFormat = stage2Format;
+    capabilities.stagePlan[2].matchFormat = stage3Format;
+
+    expect(checkStandardMajorCapabilities(capabilities).isStandardMajor).toBe(true);
+  });
+
+  it.each([0, 1, 2])("rejects BO5 in Swiss Stage %i", (stageIndex) => {
+    const capabilities = createMajorDefaultCapabilities();
+    capabilities.stagePlan[stageIndex].matchFormat = "bo5";
+
+    const result = checkStandardMajorCapabilities(capabilities);
+    expectFailure(capabilities, "swiss-match-format");
+    expect(result.failures).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: "swiss-match-format",
+          reason: "Major 瑞士阶段仅支持 BO1 或 BO3。",
+        }),
+      ]),
+    );
   });
 
   it("ignores display-only fields outside the capability contract", () => {

@@ -6,6 +6,7 @@ import {
   type MajorSwissEntrant,
   type MajorSwissFinalizedRound,
   type MajorSwissMatchFact,
+  type MajorSwissStageMatchFormat,
   type MajorSwissRound,
 } from "./swiss";
 import {
@@ -45,13 +46,22 @@ function simulateSwissStage(
   label: string,
   entrants: readonly MajorSwissEntrant[],
   seed: number,
+  stageMatchFormat: MajorSwissStageMatchFormat,
 ): SimulatedStage {
   const rng = makeRng(seed);
   const matches: MajorSwissMatchFact[] = [];
 
   for (let round = 1; round <= 5; round += 1) {
     const finalizedRound = (round - 1) as MajorSwissFinalizedRound;
-    const pairings = generateNextMajorSwissRound({ entrants, matches, finalizedRound });
+    const pairings = generateNextMajorSwissRound({
+      entrants,
+      matches,
+      finalizedRound,
+      stageMatchFormat,
+    });
+    if (stageMatchFormat === "bo3") {
+      expect(pairings.every((pairing) => pairing.format === "bo3")).toBe(true);
+    }
     for (let index = 0; index < pairings.length; index += 1) {
       const pairing = pairings[index];
       matches.push({
@@ -149,6 +159,7 @@ function createGoldenMajor(hasThirdPlaceMatch = false): GoldenMajor {
     "stage1",
     seedMajorStageOneEntrants(tournamentTeams.filter((team) => team.tournamentSeed >= 17)),
     7,
+    "bo1",
   );
   const stage2 = simulateSwissStage(
     "stage2",
@@ -162,6 +173,7 @@ function createGoldenMajor(hasThirdPlaceMatch = false): GoldenMajor {
       })),
     }),
     42,
+    "bo1",
   );
   const stage3 = simulateSwissStage(
     "stage3",
@@ -173,6 +185,7 @@ function createGoldenMajor(hasThirdPlaceMatch = false): GoldenMajor {
       })),
     }),
     99,
+    "bo3",
   );
 
   return {
