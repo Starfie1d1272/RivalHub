@@ -332,6 +332,7 @@ export interface StandardMajorRuleCheck {
     | "draft"
     | "stage-count"
     | "stage-order"
+    | "swiss-match-format"
     | "entry-cohorts"
     | "stage1-seeds"
     | "stage1"
@@ -363,6 +364,10 @@ function hasStandardStageOneSeeds(seeds: readonly number[] | undefined): boolean
   return seeds?.length === 16 &&
     new Set(seeds).size === 16 &&
     seeds.every((seed) => seed >= 17 && seed <= 32);
+}
+
+function hasSupportedMajorSwissMatchFormat(stage: StageConfig | undefined): boolean {
+  return stage?.matchFormat === "bo1" || stage?.matchFormat === "bo3";
 }
 
 /**
@@ -398,6 +403,14 @@ export function checkStandardMajorCapabilities(
       key: "stage-order",
       passed: capabilities.stagePlan.map(({ type }) => type).join("|") === "swiss|swiss|swiss|single_elim",
       reason: "标准 Major 的阶段顺序必须为阶段一、阶段二、阶段三瑞士轮，随后是单败淘汰。",
+    },
+    {
+      key: "swiss-match-format",
+      passed:
+        hasSupportedMajorSwissMatchFormat(stage1) &&
+        hasSupportedMajorSwissMatchFormat(stage2) &&
+        hasSupportedMajorSwissMatchFormat(stage3),
+      reason: "Major 瑞士阶段仅支持 BO1 或 BO3。",
     },
     {
       key: "entry-cohorts",
