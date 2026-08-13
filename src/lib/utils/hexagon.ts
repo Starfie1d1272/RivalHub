@@ -93,6 +93,7 @@ type _MetricKeysExhaustive = Exclude<MetricKey, (typeof METRIC_KEYS)[number]> ex
   ? true
   : ["METRIC_KEYS missing keys"];
 const _checkMetricKeys: _MetricKeysExhaustive = true;
+void _checkMetricKeys;
 
 /**
  * 计算赛事统计量（mean + std），供多次调用复用。

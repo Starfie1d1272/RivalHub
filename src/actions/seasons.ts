@@ -11,9 +11,6 @@ import { actionError } from "@/lib/action-utils";
 import { parseCSTInput } from "@/lib/utils/date";
 import { auditActorId, requireSuperAdmin } from "@/lib/auth/session";
 import {
-  RIVALS_REGISTRATION_CONFIG,
-  RIVALS_STAGE_PLAN,
-  MAJOR_TEAM_CONFIG,
   normalizeRegistrationConfig,
   normalizeTeamRegistrationConfig,
   type RegistrationConfig,

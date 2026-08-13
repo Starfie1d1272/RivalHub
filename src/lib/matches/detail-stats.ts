@@ -1,6 +1,6 @@
 import type { matchPlayerStats } from "@/db/schema/player-stats";
 import type { MapWinStats } from "@/lib/teams/data";
-import { avgNums, sumNums, weightedAvgNums } from "@/lib/utils/stats";
+import { avgNums, sumNums } from "@/lib/utils/stats";
 import { aggregatePlayerRows } from "@/lib/stats/aggregate";
 import type { StatRowInput } from "@/lib/stats/aggregate";
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useEffect, useMemo, useTransition } from "react";
 import Link from "next/link";
 import { Panel } from "@/components/rivalhub";
 import { castMatchMvpVote } from "@/actions/player-stats";
@@ -42,9 +42,10 @@ export function MatchMvpVote({
   const [now, setNow] = useState(Date.now());
   const [isPending, startTransition] = useTransition();
 
-  const deadline = completedAt
-    ? new Date(new Date(completedAt).getTime() + MVP_DEADLINE_MS)
-    : null;
+  const deadline = useMemo(
+    () => (completedAt ? new Date(new Date(completedAt).getTime() + MVP_DEADLINE_MS) : null),
+    [completedAt],
+  );
   const votingClosed = deadline ? isDeadlinePassed(deadline) : false;
   const timeLeft = deadline && !votingClosed
     ? Math.max(0, deadline.getTime() - now)

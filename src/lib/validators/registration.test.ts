@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { buildRegistrationSchema } from "@/lib/validators/registration";
-import type { PlayerType } from "@/types/season";
+import type { PlayerType, RegistrationConfig } from "@/types/season";
 
 // CS2 positions for Rivals
 const positions = ["igl", "awper", "opener", "closer", "anchor"];
 
-function buildSchema(overrides?: Record<string, any>) {
+function buildSchema(overrides?: Record<string, unknown>) {
   const config = {
     allowedPlayerTypes: ["enrolled", "graduated"] as PlayerType[],
     rankThreshold: {
@@ -17,10 +17,10 @@ function buildSchema(overrides?: Record<string, any>) {
     maxTotal: 56,
     ...overrides,
   };
-  return buildRegistrationSchema(config, positions);
+  return buildRegistrationSchema(config as Partial<RegistrationConfig>, positions);
 }
 
-function validData(overrides?: Record<string, any>) {
+function validData(overrides?: Record<string, unknown>) {
   return {
     seasonId: "00000000-0000-0000-0000-000000000001",
     email: "test@example.com",

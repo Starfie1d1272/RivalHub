@@ -44,8 +44,6 @@ const baseProps = {
   teamBId: "tb",
   teamAName: "队伍 A",
   teamBName: "队伍 B",
-  seasonId: "s1",
-  seasonSlug: "test",
 };
 
 describe("PlayerStatsTable", () => {

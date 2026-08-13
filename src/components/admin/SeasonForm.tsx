@@ -92,7 +92,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
   const [peakMin, setPeakMin] = useState(defaultConfig.rankThreshold.peakMin ?? NO_RANK);
   const [maxPerPosition, setMaxPerPosition] = useState(defaultConfig.maxPerPosition);
   const [screenshotCount, setScreenshotCount] = useState(defaultConfig.screenshotCount);
-  const [maxTotal, setMaxTotal] = useState(defaultConfig.maxTotal);
+  const [maxTotal] = useState(defaultConfig.maxTotal);
   const [mapPoolText, setMapPoolText] = useState(
     (defaultConfig.mapPool ?? DEFAULT_CS2_MAP_POOL).join(","),
   );

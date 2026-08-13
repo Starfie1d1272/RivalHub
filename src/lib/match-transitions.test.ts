@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { assertMatchTransition, resolveMatchFormat } from "@/lib/match-transitions";
-import { AppError, ErrorCode } from "@/lib/errors";
-import type { StageConfig, StagePlan } from "@/types/season";
+import { AppError } from "@/lib/errors";
+import type { StagePlan } from "@/types/season";
 
 describe("assertMatchTransition", () => {
   it("allows scheduled → in_progress", () => {

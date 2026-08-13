@@ -162,8 +162,9 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, initialActor
   }, [reload]);
 
   useEffect(() => {
+    const actorTimer = actorTimerRef.current;
     return () => {
-      clearTimeout(actorTimerRef.current);
+      clearTimeout(actorTimer);
     };
   }, []);
 

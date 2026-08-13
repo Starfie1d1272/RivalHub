@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ErrorCode } from "@/lib/errors";
-import { mockUserSession, createFakeSeason, createFakeRegistration, findAuditEntry, expectAuditLog, resetAuditTracking } from "tests/helpers";
+import { mockUserSession, createFakeSeason, createFakeRegistration, expectAuditLog, resetAuditTracking } from "tests/helpers";
 
 // ── 合法 UUID 常量 ─────────────────────────────────────────────────────────────
 const SEASON_ID = "11111111-1111-1111-1111-111111111111";

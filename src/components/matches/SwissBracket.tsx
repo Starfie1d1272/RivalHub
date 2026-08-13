@@ -76,7 +76,6 @@ function SwissColumn({
           <SwissMatchupGroup
             key={group.record}
             group={group}
-            round={round}
             seasonSlug={seasonSlug}
           />
         ))}
@@ -92,11 +91,9 @@ function SwissColumn({
 
 function SwissMatchupGroup({
   group,
-  round,
   seasonSlug,
 }: {
   group: SwissRecordGroup;
-  round: SwissRoundColumn;
   seasonSlug: string;
 }) {
   return (
