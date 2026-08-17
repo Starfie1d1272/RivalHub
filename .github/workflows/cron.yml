@@ -5,6 +5,8 @@ on:
     - cron: "*/5 * * * *"  # 每5分钟检查一次（GitHub 对更短间隔会隐性限流）
   workflow_dispatch:
 
+permissions: {}
+
 jobs:
   trigger:
     runs-on: ubuntu-latest
