@@ -11,7 +11,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         # 不指定 ref，默认 checkout 触发此 workflow 的 tag 所在 commit。
         # 前提：CHANGELOG 更新必须在 `npm version` 之前完成，
         # 这样 tag 指向的 commit 就已包含对应版本的 CHANGELOG 条目。
