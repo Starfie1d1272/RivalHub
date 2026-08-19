@@ -68,7 +68,7 @@
     "drizzle-kit": "^0.31.1",
     "jsdom": "^26.1.0",
     "pg": "^8.16.0",
-    "postcss": "^8.5.3",
+    "postcss": "^8.5.23",
     "tailwindcss": "^4.1.6",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3",
