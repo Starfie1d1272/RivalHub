@@ -44,3 +44,7 @@ jobs:
       - run: pnpm test:coverage
 
       - run: pnpm build
+        env:
+          # Explicit non-listening loopback target exercises the existing unavailable-DB fallback
+          # without restoring pg defaults or exposing CI to any remote database.
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:1/postgres?sslmode=disable
