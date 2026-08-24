@@ -41,7 +41,7 @@ tests/unit/
 - Drizzle schema 结构与 DB 一致性
 - Server Action 完整链路（mock Supabase，用真实 SQL in-memory 或 testcontainers）
 
-当前集成测试以 schema 和纯逻辑校验为主，不启动真实 Supabase。完整 Server Action 链路由上线前手动冒烟覆盖。
+默认 Vitest 集成测试仍以 schema 和纯逻辑校验为主。数据库相关变更还必须先运行 `pnpm db:local:reset`：该命令会在完整 Local Supabase 上重放 Drizzle active migrations、建立 fixture，并实测 Auth、Storage 和 Data API 默认拒绝策略。
 
 ```
 tests/integration/
@@ -94,6 +94,13 @@ tests/e2e/
 9. `season_admin` 不能跨赛季操作管理 action。
 
 这些验收不得指向 production `DATABASE_URL`。
+
+`db:local:*` 会在创建 Pool 或执行 CLI 写命令前验证 loopback。以下负向测试应始终失败，且不得发生网络连接：
+
+```bash
+RIVALHUB_LOCAL_DATABASE_URL='postgresql://user:pass@db.example.com:5432/postgres' \
+  pnpm exec drizzle-kit migrate --config=drizzle.local.config.ts
+```
 
 ---
 
