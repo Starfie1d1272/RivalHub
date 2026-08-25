@@ -13,6 +13,8 @@
     "db:generate": "drizzle-kit generate",
     "db:check": "drizzle-kit check",
     "db:push": "tsx scripts/db/block-drizzle-push.ts",
+    "db:staging:migrate": "tsx scripts/db/staging.ts migrate",
+    "db:staging:verify": "tsx scripts/db/staging.ts verify",
     "db:studio": "tsx scripts/db/local.ts studio",
     "db:local:start": "tsx scripts/db/local.ts start",
     "db:local:status": "tsx scripts/db/local.ts status",

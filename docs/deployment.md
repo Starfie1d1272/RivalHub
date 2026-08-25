@@ -28,6 +28,25 @@ pnpm dev:local            # 由 Local Supabase status 注入应用变量
 
 所有命令从 `supabase status --output json` 读取实际端口，并再次验证 DB/API/Studio 都是 `localhost`、`127.0.0.1` 或 `::1`。启动使用只绑定 `127.0.0.1` 的 `rivalhub-local` Docker network。`reset` 显式传 `--local --no-seed`；Supabase migration/seed 被禁用，随后只重放 `drizzle/migrations`，因此不存在第二套业务 migration authority。
 
+## Staging migration（固定 `rivalhub-dev`）
+
+`pnpm db:staging:migrate` 和 `pnpm db:staging:verify` 唯一允许的远程目标是 Supabase `rivalhub-dev`（project ref `cueazphyskstwdhnzsxx`，Tokyo Transaction Pooler）。它们不接受 `DATABASE_URL`，也不读取 `.env.local`；命令只从 `RIVALHUB_STAGING_DB_PASSWORD` 构造固定目标连接串，因此不能切换到生产或其他项目。
+
+```bash
+# 只读验证 staging 的 active migration ledger 和关键 schema
+RIVALHUB_STAGING_PROJECT_CONFIRM=cueazphyskstwdhnzsxx \
+RIVALHUB_STAGING_DB_PASSWORD='<rivalhub-dev database password>' \
+pnpm db:staging:verify
+
+# 写入前必须已有运行中的 Local Supabase；命令依次执行 local migrate → local ledger/schema verify → staging migrate → staging verify
+RIVALHUB_STAGING_PROJECT_CONFIRM=cueazphyskstwdhnzsxx \
+RIVALHUB_STAGING_DB_PASSWORD='<rivalhub-dev database password>' \
+RIVALHUB_ALLOW_REMOTE_DB_WRITE=staging \
+pnpm db:staging:migrate
+```
+
+这两个命令不启动或重置 Local Supabase、不执行 seed，也不会运行 `db:push`。Local 栈不可用、确认值不精确、未给 staging 密码、继承了 `DATABASE_URL`、或缺少写入 opt-in 时，staging migration 会在任何远程操作前失败。
+
 默认本地 Root 凭据为 `local-admin` / `local-admin-password`，仅由本地 wrapper 注入；可用 `RIVALHUB_LOCAL_ROOT_USERNAME` / `RIVALHUB_LOCAL_ROOT_PASSWORD` 覆盖。
 
 直接 `pnpm seed` 不再读取 `.env.local`。远程 seed 必须同时声明：
@@ -143,7 +162,7 @@ Schema 定义只在代码中，远程数据库不会自动同步。`pnpm db:push
   - `0001_canonical_team_identity` = canonical team identity 数据迁移（backfill + fail-closed validation），是 existing DB 必须实际执行的第一条 2.0 migration；
 - **existing DB 不能执行 baseline DDL**（`0000_v2_baseline` 只用于 empty/fresh 数据库）；
 - existing DB adoption 流程：先确认真实 schema 与 baseline 等价 → 建立 baseline ledger marker → 再由 migrator 执行 `0001+`；
-- staging 隔离与 remote adoption 仍未确认：**禁止任何远程 migration**（包括盲目运行 `drizzle-kit migrate`）；
+- staging 仅可通过受保护的 `pnpm db:staging:migrate` 迁移：目标固定为 `rivalhub-dev`，并强制先完成 Local Supabase active-chain 验证；禁止直接运行 `drizzle-kit migrate`、`db:push` 或任意 production migration；
 - RLS、policy、trigger 和显式 Data API grants 如需新增，必须作为 custom SQL 留在同一 Drizzle active migration chain；禁止另建 `supabase/migrations` 业务链；
 
 （migration 的校验实现以对应 migration SQL 与测试为 source of truth。）

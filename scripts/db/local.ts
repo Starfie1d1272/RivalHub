@@ -34,6 +34,9 @@ try {
     case "verify":
       verifyLocalStack();
       break;
+    case "verify-migrations":
+      verifyLocalMigrations();
+      break;
     case "bootstrap":
       startLocalStack();
       migrateLocalDatabase();
@@ -58,7 +61,7 @@ try {
       break;
     default:
       throw new Error(
-        "未知命令。可用命令：start | status | migrate | seed | verify | bootstrap | reset | stop | studio | dev",
+        "未知命令。可用命令：start | status | migrate | seed | verify | verify-migrations | bootstrap | reset | stop | studio | dev",
       );
   }
 } catch (error) {
@@ -109,6 +112,17 @@ function verifyLocalStack(): void {
   const status = readLocalStatus();
   run(tsxBin, ["scripts/db/verify-local.ts"], {
     env: buildLocalAppEnvironment(status, sanitizedEnvironment()),
+  });
+}
+
+function verifyLocalMigrations(): void {
+  const status = readLocalStatus();
+  run(tsxBin, ["scripts/db/verify-migrations.ts"], {
+    env: {
+      ...sanitizedEnvironment(),
+      DATABASE_URL: status.databaseUrl,
+      RIVALHUB_DB_TARGET: "local",
+    },
   });
 }
 
