@@ -12,6 +12,7 @@ const MAJOR_TEAM_COUNT = 32;
 export type MajorPrestartCheckKey =
   | "rules"
   | "teams"
+  | "entrants-locked"
   | "rosters"
   | "duplicate-players"
   | "confirmations"
@@ -55,11 +56,12 @@ export interface MajorPrestartTournamentSeedFact {
 export interface MajorPrestartReadinessInput {
   capabilities: SeasonCapabilities;
   teams: readonly MajorPrestartTeamFact[] | null;
+  entrantsLocked: boolean | null;
   confirmations: readonly MajorPrestartTeamConfirmationFact[] | null;
   qualificationIssues: readonly MajorPrestartIssueFact[] | null;
   administrativeIssues: readonly MajorPrestartIssueFact[] | null;
   tournamentSeeds: readonly MajorPrestartTournamentSeedFact[] | null;
-  reconfirmations: readonly MajorPrestartTeamConfirmationFact[] | null;
+  seedConfirmation: { seedRevision: number; confirmedSeedRevision: number | null } | null;
 }
 
 export interface MajorPrestartReadiness {
@@ -193,6 +195,25 @@ function checkIssues(
   return blockers.length === 0 ? ready(key, label) : blocked(key, label, blockers);
 }
 
+function checkEntrantsLocked(entrantsLocked: boolean | null): MajorPrestartCheck {
+  if (entrantsLocked === null) return unavailable("entrants-locked", "正式参赛队锁定");
+  return entrantsLocked
+    ? ready("entrants-locked", "正式参赛队锁定")
+    : blocked("entrants-locked", "正式参赛队锁定", ["请先锁定正式参赛队和最终赛事名单。"]);
+}
+
+function checkSeedConfirmation(
+  fact: MajorPrestartReadinessInput["seedConfirmation"],
+): MajorPrestartCheck {
+  if (fact === null) return unavailable("reconfirmations", "种子重新确认");
+  if (!Number.isInteger(fact.seedRevision) || fact.seedRevision < 1) {
+    return blocked("reconfirmations", "种子重新确认", ["请先保存完整的赛事种子排序。"]);
+  }
+  return fact.confirmedSeedRevision === fact.seedRevision
+    ? ready("reconfirmations", "种子重新确认")
+    : blocked("reconfirmations", "种子重新确认", ["赛事种子已变化，必须重新确认后才能开赛。"]);
+}
+
 function checkSeeds(
   teams: readonly MajorPrestartTeamFact[] | null,
   facts: readonly MajorPrestartTournamentSeedFact[] | null,
@@ -259,6 +280,7 @@ export function evaluateMajorPrestartReadiness(
         ? ready("teams", "32 支参赛队伍")
         : blocked("teams", "32 支参赛队伍", teamBlockers),
   );
+  checks.push(checkEntrantsLocked(input.entrantsLocked));
   checks.push(checkRosters(input.teams, input.capabilities.minTeamSize));
   checks.push(checkDuplicatePlayers(input.teams));
   checks.push(checkTeamConfirmations("confirmations", "参赛确认", input.confirmations, input.teams));
@@ -266,7 +288,7 @@ export function evaluateMajorPrestartReadiness(
   checks.push(checkIssues("administration", "管理事项", input.administrativeIssues));
   const seedResult = checkSeeds(input.teams, input.tournamentSeeds);
   checks.push(seedResult.check);
-  checks.push(checkTeamConfirmations("reconfirmations", "赛前重新确认", input.reconfirmations, input.teams));
+  checks.push(checkSeedConfirmation(input.seedConfirmation));
 
   const blockersBeforePlan = checks.flatMap((check) => check.blockers);
   let openingPlan: MajorOpeningPlan | null = null;
