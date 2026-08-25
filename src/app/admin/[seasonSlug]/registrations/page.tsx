@@ -1,13 +1,15 @@
 import { notFound } from "next/navigation";
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, seasonRegistrations, users, registrationDrafts } from "@/db/schema";
+import { seasons, seasonRegistrations, users, registrationDrafts, teamApplicationMembers, teamApplications } from "@/db/schema";
 import { Marker } from "@/components/rivalhub";
 import {
   RegistrationReviewList,
   type RegistrationRow,
 } from "@/components/admin/RegistrationReviewList";
 import { DraftRegistrationTable } from "@/components/admin/DraftRegistrationTable";
+import { TeamApplicationReviewList } from "@/components/admin/TeamApplicationReviewList";
+import { isTeamRegistration } from "@/lib/utils/season";
 
 interface PageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -21,6 +23,38 @@ export default async function AdminRegistrationsPage({ params }: PageProps) {
     where: eq(seasons.slug, seasonSlug),
   });
   if (!season) notFound();
+
+  if (isTeamRegistration(season)) {
+    const applications = await db
+      .select({
+        id: teamApplications.id,
+        name: teamApplications.name,
+        status: teamApplications.status,
+        reviewReason: teamApplications.reviewReason,
+        captainEmail: users.email,
+      })
+      .from(teamApplications)
+      .innerJoin(users, eq(teamApplications.captainUserId, users.id))
+      .where(eq(teamApplications.seasonId, season.id))
+      .orderBy(desc(teamApplications.updatedAt));
+    const applicationIds = applications.map((application) => application.id);
+    const members = applicationIds.length === 0
+      ? []
+      : await db
+          .select({ applicationId: teamApplicationMembers.applicationId, email: users.email, status: teamApplicationMembers.status })
+          .from(teamApplicationMembers)
+          .innerJoin(users, eq(teamApplicationMembers.userId, users.id))
+          .where(inArray(teamApplicationMembers.applicationId, applicationIds));
+    return (
+      <div className="container mx-auto max-w-3xl px-4 py-8">
+        <div className="mb-6"><Marker sub={`${applications.length} 支报名队伍 · 赛季状态：${season.status}`}>队伍报名审核 · {season.name}</Marker></div>
+        <TeamApplicationReviewList applications={applications.map((application) => ({
+          ...application,
+          members: members.filter((member) => member.applicationId === application.id).map(({ email, status }) => ({ email, status })),
+        }))} />
+      </div>
+    );
+  }
 
   // 2. 并行查报名记录 + 草稿
   const [rows, drafts] = await Promise.all([

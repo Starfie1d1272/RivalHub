@@ -1,6 +1,6 @@
 type DirectoryTeam = {
   id: string;
-  draftOrder: number;
+  draftOrder: number | null;
 };
 
 type TeamDirectoryOrderOptions = {
@@ -31,7 +31,7 @@ function sortedByOrder<T extends DirectoryTeam>(teams: T[], ids: string[] | unde
     if (aOrder !== undefined && bOrder !== undefined) return aOrder - bOrder;
     if (aOrder !== undefined) return -1;
     if (bOrder !== undefined) return 1;
-    return a.draftOrder - b.draftOrder;
+    return (a.draftOrder ?? Number.MAX_SAFE_INTEGER) - (b.draftOrder ?? Number.MAX_SAFE_INTEGER);
   });
 }
 

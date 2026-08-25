@@ -80,7 +80,7 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
     .innerJoin(teams, eq(teamMembers.teamId, teams.id))
     .where(eq(teams.seasonId, season.id));
 
-  const teamByRegId = new Map(teamMemberRows.map((r) => [r.registrationId, r.teamName]));
+  const teamByRegId = new Map(teamMemberRows.flatMap((row) => row.registrationId ? [[row.registrationId, row.teamName] as const] : []));
 
   const playerStatResult = await db.execute(sql`
     SELECT

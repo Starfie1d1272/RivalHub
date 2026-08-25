@@ -1,6 +1,6 @@
 "use server";
 
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   seasons,
@@ -69,9 +69,9 @@ export async function startDraft(
       }
 
       const seasonTeams = await tx
-        .select({ id: teams.id, draftOrder: teams.draftOrder })
+        .select({ id: teams.id, draftOrder: sql<number>`${teams.draftOrder}`.as("draft_order") })
         .from(teams)
-        .where(eq(teams.seasonId, seasonId))
+        .where(and(eq(teams.seasonId, seasonId), isNotNull(teams.draftOrder)))
         .orderBy(asc(teams.draftOrder));
 
       if (seasonTeams.length === 0) {
