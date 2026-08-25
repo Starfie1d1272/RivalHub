@@ -3,6 +3,7 @@ export * from "./seasons";
 export * from "./registrations";
 export * from "./registration-drafts";
 export * from "./teams";
+export * from "./team-applications";
 export * from "./votes";
 export * from "./draft";
 export * from "./matches";

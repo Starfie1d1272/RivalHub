@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { randomBytes } from "crypto";
 import { eq, and, count, desc, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, seasonRegistrations, auditLogs, adminUsers, adminInvites, users, draftPicks } from "@/db/schema";
+import { seasons, seasonRegistrations, auditLogs, adminUsers, adminInvites, users, draftPicks, teamApplicationMembers, teamApplications, teamMembers, teams } from "@/db/schema";
 import { ok, fail } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { actionError, failValidation } from "@/lib/action-utils";
@@ -23,6 +23,7 @@ import {
   type RegistrationStatus,
   validateTransition,
 } from "@/lib/registration-transitions";
+import { normalizeTeamRegistrationConfig } from "@/types/season";
 
 // ── 共享工具 ────────────────────────────────────────────
 
@@ -258,6 +259,152 @@ export async function reviewRegistration(input: ReviewInput) {
     return ok({ id: registrationId, status: targetStatus });
   } catch (e) {
     return actionError("reviewRegistration", e);
+  }
+}
+
+// ── 队伍报名审核与正式队伍落地 ────────────────────────────
+
+interface TeamApplicationReviewInput {
+  applicationId: string;
+  status: "approved" | "waitlisted" | "rejected";
+  reason?: string;
+}
+
+export async function reviewTeamApplication(input: TeamApplicationReviewInput) {
+  if (!input || !["approved", "waitlisted", "rejected"].includes(input.status)) {
+    return fail({ code: ErrorCode.VALIDATION_FAILED, message: "无效的队伍报名审核状态" });
+  }
+
+  try {
+    const application = await db.query.teamApplications.findFirst({
+      where: eq(teamApplications.id, input.applicationId),
+      columns: { seasonId: true },
+    });
+    if (!application) throw new AppError(ErrorCode.NOT_FOUND, "报名队伍不存在");
+    const admin = await requireSeasonAdmin(application.seasonId);
+
+    const result = await db.transaction(async (tx) => {
+      // Serialize all reviews of this aggregate. The unique application
+      // provenance on teams remains the second, database-enforced idempotency
+      // guard if a retry reaches a new transaction.
+      await tx.execute(sql`SELECT id FROM team_applications WHERE id = ${input.applicationId} FOR UPDATE`);
+      const locked = await tx.query.teamApplications.findFirst({
+        where: eq(teamApplications.id, input.applicationId),
+      });
+      if (!locked) throw new AppError(ErrorCode.NOT_FOUND, "报名队伍不存在");
+      const season = await tx.query.seasons.findFirst({ where: eq(seasons.id, locked.seasonId) });
+      if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
+
+      const existingTeam = await tx.query.teams.findFirst({
+        where: eq(teams.teamApplicationId, locked.id),
+        columns: { id: true },
+      });
+      if (locked.status === "approved") {
+        if (input.status !== "approved") {
+          throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "已通过的报名队伍不能直接变更审核结果。");
+        }
+        if (existingTeam) return { teamId: existingTeam.id, seasonSlug: season.slug, materialized: false };
+      }
+      if (locked.status !== "submitted" && locked.status !== "waitlisted") {
+        throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "只有已提交或候补的报名队伍可以审核。");
+      }
+
+      if (input.status !== "approved") {
+        await tx.update(teamApplications).set({
+          status: input.status,
+          reviewedAt: new Date(),
+          reviewedBy: auditActorId(admin),
+          reviewReason: input.reason?.trim() || null,
+          updatedAt: new Date(),
+        }).where(eq(teamApplications.id, locked.id));
+        await tx.insert(auditLogs).values({
+          seasonId: locked.seasonId,
+          action: `team_application.${input.status}`,
+          actorId: auditActorId(admin),
+          targetId: locked.id,
+          targetType: "team_application",
+          meta: { from: locked.status, to: input.status, reason: input.reason?.trim() || null },
+        });
+        return { teamId: null, seasonSlug: season.slug, materialized: false };
+      }
+
+      const members = await tx
+        .select({ id: teamApplicationMembers.id, userId: teamApplicationMembers.userId, status: teamApplicationMembers.status, studentId: users.studentId })
+        .from(teamApplicationMembers)
+        .innerJoin(users, eq(teamApplicationMembers.userId, users.id))
+        .where(eq(teamApplicationMembers.applicationId, locked.id));
+      const confirmed = members.filter((member) => member.status === "confirmed");
+      const config = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
+      const homeMembers = confirmed.filter((member) => Boolean(member.studentId)).length;
+      const externalMembers = confirmed.length - homeMembers;
+      if (
+        confirmed.length < season.minTeamSize ||
+        confirmed.length > season.maxTeamSize ||
+        !confirmed.some((member) => member.userId === locked.captainUserId) ||
+        (config.requireTeamLogo && !locked.logoUrl) ||
+        (!config.allowExternal && externalMembers > 0) ||
+        homeMembers < config.minHomeMembers ||
+        externalMembers > config.maxExternalMembers
+      ) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "申请的确认名单已不满足当前赛事规则，不能通过审核。");
+      }
+      if (config.requireUniqueTeamName) {
+        const sameName = await tx.query.teams.findFirst({
+          where: and(eq(teams.seasonId, season.id), eq(teams.name, locked.name)),
+          columns: { id: true },
+        });
+        if (sameName) throw new AppError(ErrorCode.REGISTRATION_DUPLICATE, "该队名已被正式队伍使用。");
+      }
+
+      const [team] = await tx.insert(teams).values({
+        seasonId: locked.seasonId,
+        name: locked.name,
+        logoUrl: locked.logoUrl,
+        captainUserId: locked.captainUserId,
+        teamApplicationId: locked.id,
+      }).returning({ id: teams.id });
+      if (!team) throw new AppError(ErrorCode.INTERNAL_ERROR, "正式队伍创建失败");
+      await tx.insert(teamMembers).values(confirmed.map((member) => ({
+        teamId: team.id,
+        seasonId: locked.seasonId,
+        userId: member.userId,
+        teamApplicationMemberId: member.id,
+        isStarter: false,
+      })));
+      await tx.update(teamApplications).set({
+        status: "approved",
+        reviewedAt: new Date(),
+        reviewedBy: auditActorId(admin),
+        reviewReason: input.reason?.trim() || null,
+        updatedAt: new Date(),
+      }).where(eq(teamApplications.id, locked.id));
+      await tx.insert(auditLogs).values([
+        {
+          seasonId: locked.seasonId,
+          action: "team_application.approved",
+          actorId: auditActorId(admin),
+          targetId: locked.id,
+          targetType: "team_application",
+          meta: { from: locked.status, to: "approved", reason: input.reason?.trim() || null },
+        },
+        {
+          seasonId: locked.seasonId,
+          action: "team_application.materialize",
+          actorId: auditActorId(admin),
+          targetId: team.id,
+          targetType: "team",
+          meta: { applicationId: locked.id, memberCount: confirmed.length },
+        },
+      ]);
+      return { teamId: team.id, seasonSlug: season.slug, materialized: true };
+    });
+
+    revalidatePath(`/admin/${result.seasonSlug}/registrations`);
+    revalidatePath(`/${result.seasonSlug}/register`);
+    revalidatePath(`/${result.seasonSlug}/teams`);
+    return ok({ applicationId: input.applicationId, status: input.status, teamId: result.teamId, materialized: result.materialized });
+  } catch (error) {
+    return actionError("reviewTeamApplication", error);
   }
 }
 

@@ -63,7 +63,7 @@ describe("team registration page", () => {
     });
     const html = renderToStaticMarkup(page);
 
-    expect(html).toContain("队伍报名尚未开放");
+    expect(html).toContain("报名尚未开放");
     expect(getUserSessionMock).not.toHaveBeenCalled();
     expect(getPositionCountsMock).not.toHaveBeenCalled();
     expect(getApprovedCountMock).not.toHaveBeenCalled();

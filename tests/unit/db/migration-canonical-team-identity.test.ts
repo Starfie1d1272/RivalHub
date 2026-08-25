@@ -106,9 +106,11 @@ describe("0001 canonical team identity migration — fail-closed coverage", () =
     expect(membersCols["registration_id"].notNull).toBe(true);
   });
 
-  it("snapshot 链：0001.prevId == 0000.id，journal 最后 idx 1，无 idx 2", () => {
+  it("snapshot 链：0001.prevId == 0000.id，且仍保留在 active journal 中", () => {
     expect(snap0001.prevId).toBe(snap0000.id);
-    expect(journal.entries[journal.entries.length - 1]).toMatchObject({ idx: 1, tag: "0001_canonical_team_identity" });
-    expect(journal.entries.some((e) => e.idx === 2)).toBe(false);
+    expect(journal.entries.find((entry) => entry.idx === 1)).toMatchObject({
+      idx: 1,
+      tag: "0001_canonical_team_identity",
+    });
   });
 });

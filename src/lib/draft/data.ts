@@ -1,4 +1,4 @@
-import { eq, and, asc, inArray } from "drizzle-orm";
+import { eq, and, asc, inArray, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   draftState,
@@ -89,11 +89,15 @@ export async function getDraftData(seasonId: string): Promise<DraftFullData> {
   });
 
   // 2. 所有队伍 + 队员
-  const teamRows = await db
+  const draftTeamRows = await db
     .select()
     .from(teams)
-    .where(eq(teams.seasonId, seasonId))
+    .where(and(eq(teams.seasonId, seasonId), isNotNull(teams.draftOrder), isNotNull(teams.captainRegistrationId)))
     .orderBy(asc(teams.draftOrder));
+  const teamRows = draftTeamRows.filter(
+    (team): team is typeof team & { draftOrder: number; captainRegistrationId: string } =>
+      team.draftOrder !== null && team.captainRegistrationId !== null,
+  );
 
   const teamIds = teamRows.map((team) => team.id);
   const allMembers =
@@ -101,7 +105,7 @@ export async function getDraftData(seasonId: string): Promise<DraftFullData> {
       ? await db
           .select({
             teamId: teamMembers.teamId,
-            registrationId: teamMembers.registrationId,
+            registrationId: sql<string>`${teamMembers.registrationId}`.as("registration_id"),
             isStarter: teamMembers.isStarter,
             steamName: users.steamName,
             perfectName: users.perfectName,
