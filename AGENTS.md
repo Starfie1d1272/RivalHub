@@ -16,9 +16,11 @@ pnpm lint              # ESLint
 pnpm test              # Vitest 单元 + 集成测试
 pnpm test:e2e          # Playwright E2E
 pnpm db:generate       # drizzle-kit generate（生成迁移 SQL）
-pnpm db:push           # 直接 schema sync；远程使用限制见 docs/deployment.md
-pnpm db:studio         # Drizzle Studio
-pnpm seed              # 种子数据
+pnpm db:check          # 校验 Drizzle active migration chain
+pnpm db:local:bootstrap # 启动 Local Supabase、迁移、fixtures、验证
+pnpm db:local:reset    # 仅重建 loopback Local Supabase
+pnpm db:studio         # 本地 Supabase Studio URL
+pnpm seed              # 远程 seed；需要显式 target/host/授权，禁止隐式 .env.local
 ```
 
 ## 3. 技术栈
@@ -58,6 +60,7 @@ pnpm seed              # 种子数据
 8. **shadcn 组件按需 add** — `pnpm dlx shadcn@latest add button`，不手写。
 9. **组件 PascalCase 命名** — 文件名与 export 一致（`ui/` 目录除外）。代码结构查询统一用 CodeGraph（如 `codegraph_files src/components/`），`docs/code-map.md` 仅作业务域入口参考、不再强制同步。
 10. **数据库迁移安全** — 包含 custom SQL / data backfill / fail-closed validation 的 migration 禁止用 `db:push` 应用；任何远程 migration 前必须先确认 staging 隔离与 migration baseline。详见 `docs/deployment.md`。
+11. **本地数据库写入只走 `db:local:*`** — 目标从 `supabase status` 获取并验证为 loopback；不得把 `.env.local`、生产 `DATABASE_URL` 或 `--linked` 当本地命令 fallback。
 
 ## 6. 缓存策略
 
