@@ -123,6 +123,8 @@ POST /admin/login (Server Action: adminLogin)
 
 ## Supabase RLS 策略
 
+> 以下是目标权限矩阵，不是当前 active migration 已部署事实。当前 2.0 baseline 尚未版本化 legacy 表的 RLS/policy；Local Supabase 通过 `auto_expose_new_tables = false` 和无 Data API grant 保持默认拒绝。后续新增公开访问必须在同一 Drizzle active migration 中同时定义显式 GRANT 与 RLS policy，并用本地正反例验证。
+
 ### 默认原则：拒绝一切
 
 ```sql

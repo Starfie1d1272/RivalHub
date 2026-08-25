@@ -17,9 +17,9 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const session = await checkAdminSession();
   if (!session) redirect("/admin/login");
   return (
-    <div className="grid min-h-screen" style={{ gridTemplateColumns: "200px 1fr" }}>
+    <div className="grid min-h-screen grid-cols-1 md:grid-cols-[200px_minmax(0,1fr)]">
       <AdminSidebar email={session.email} />
-      <main>{children}</main>
+      <main className="min-w-0">{children}</main>
     </div>
   );
 }

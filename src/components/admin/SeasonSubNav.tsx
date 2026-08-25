@@ -19,6 +19,7 @@ export function SeasonSubNav({
   const pathname = usePathname();
 
   const tabs: { label: string; href: string }[] = [
+    { label: "赛事控制台", href: `/admin/${seasonSlug}` },
     { label: "报名审核", href: `/admin/${seasonSlug}/registrations` },
     ...(hasCaptainVoting ? [{ label: "队长确认", href: `/admin/${seasonSlug}/captains` }] : []),
     ...(hasDraft ? [{ label: "选秀控制", href: `/admin/${seasonSlug}/draft` }] : []),
