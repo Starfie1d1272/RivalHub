@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main, dev, feat/major-2027-integration]
   pull_request:
-    branches: [main, dev]
+    branches: [main, dev, feat/major-2027-integration]
   workflow_dispatch:
 
 jobs:
