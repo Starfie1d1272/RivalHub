@@ -14,6 +14,7 @@ import {
   resolveMajorPrestartIssue,
   saveMajorPrestartRoster,
   saveMajorTournamentSeeds,
+  startMajor,
 } from "@/actions/major-prestart";
 
 describe("Major prestart actions input boundary", () => {
@@ -46,6 +47,9 @@ describe("Major prestart actions input boundary", () => {
       success: false, error: { code: ErrorCode.VALIDATION_FAILED },
     });
     await expect(confirmMajorTournamentSeeds({ seasonId: "bad" })).resolves.toMatchObject({
+      success: false, error: { code: ErrorCode.VALIDATION_FAILED },
+    });
+    await expect(startMajor({ seasonId: "bad" })).resolves.toMatchObject({
       success: false, error: { code: ErrorCode.VALIDATION_FAILED },
     });
   });

@@ -32,6 +32,9 @@ export const majorPrestartStates = pgTable("major_prestart_states", {
   seedRevision: integer("seed_revision").notNull().default(0),
   /** Equal to seedRevision only after an administrator explicitly reconfirms it. */
   confirmedSeedRevision: integer("confirmed_seed_revision"),
+  /** The confirmed 1–32 tournament order becomes immutable when the Major starts. */
+  seedsLockedAt: timestamp("seeds_locked_at", { withTimezone: true }),
+  seedsLockedBy: text("seeds_locked_by"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
