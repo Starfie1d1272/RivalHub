@@ -32,6 +32,7 @@ archived
 | `draft` | `registration` | admin | 发布赛季，开放报名 |
 | `registration` | `voting` | system | 仅 `registrationMode=solo` 自动触发（满员或截止） |
 | `registration` | `playing` | system | 仅 `registrationMode=solo && hasCaptainVoting=false` 时自动触发 |
+| `registration` | `playing` | admin | 仅标准 Major：赛前 readiness 复核通过后，由“正式开始 Major”原子锁定参赛队、名单与种子，并创建 Stage 1 R1 |
 | `draft` | `registration` | admin | 撤回至草稿（仅无报名时可用） |
 | `voting` | `registration` | admin | 撤回至报名阶段（清空投票记录） |
 | `voting` | `drafting` | admin | 确认 8 名队长，生成队伍和选秀顺位 |

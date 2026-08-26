@@ -49,6 +49,7 @@ describe("admin Major prestart console page", () => {
     expect(html).toContain("当前有 0 支队伍，Major 开赛需要恰好 32 支队伍。");
     expect(html).toContain("尚未接入/不可确认");
     expect(html).toContain("正式参赛队 (0/32)");
+    expect(html).toContain("正式开赛确认");
     expect(html).toContain("所有已审核 teams 不会自动成为 Major 参赛队");
     expect(html).toContain("当前不会推导或展示临时对阵");
   });

@@ -1,4 +1,5 @@
 import { spawnSync, type SpawnSyncOptions } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { buildStagingEnvironment } from "./staging-environment";
 
@@ -25,7 +26,7 @@ try {
 }
 
 function migrateStagingDatabase(): void {
-  const stagingEnv = buildStagingEnvironment(process.env, { requiresWriteAuthorization: true });
+  const stagingEnv = buildStagingEnvironment(stagingProcessEnvironment(), { requiresWriteAuthorization: true });
 
   // 不启动、不重置、不 seed Local Supabase；它必须已由操作者启动，并先通过同一 active chain。
   run(tsxBin, ["scripts/db/local.ts", "migrate"]);
@@ -36,8 +37,26 @@ function migrateStagingDatabase(): void {
 }
 
 function verifyStagingDatabase(): void {
-  const stagingEnv = buildStagingEnvironment(process.env, { requiresWriteAuthorization: false });
+  const stagingEnv = buildStagingEnvironment(stagingProcessEnvironment(), { requiresWriteAuthorization: false });
   run(tsxBin, ["scripts/db/verify-migrations.ts"], { env: stagingEnv });
+}
+
+/**
+ * `.env.local` is deliberately ignored by Git. Only its explicitly named
+ * staging password is read here; production URLs and other local app settings
+ * never become migration inputs.
+ */
+function stagingProcessEnvironment(): NodeJS.ProcessEnv {
+  if (process.env.RIVALHUB_STAGING_DB_PASSWORD?.trim()) return process.env;
+  try {
+    const line = readFileSync(resolve(projectRoot, ".env.local"), "utf8")
+      .split(/\r?\n/)
+      .find((value) => value.startsWith("RIVALHUB_STAGING_DB_PASSWORD="));
+    const password = line?.slice("RIVALHUB_STAGING_DB_PASSWORD=".length).trim();
+    return password ? { ...process.env, RIVALHUB_STAGING_DB_PASSWORD: password } : process.env;
+  } catch {
+    return process.env;
+  }
 }
 
 function run(

@@ -7,6 +7,7 @@ import {
   majorPrestartIssues,
   majorPrestartRosterMembers,
   majorPrestartStates,
+  majorStageRuns,
   majorTournamentSeeds,
   seasons,
   teamMembers,
@@ -50,7 +51,7 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
     candidatesByTeam.set(member.teamId, candidates);
   }
 
-  const [state, entrantRows, rosterRows, issueRows, seedRows] = await Promise.all([
+  const [state, entrantRows, rosterRows, issueRows, seedRows, stageRunRows] = await Promise.all([
     db.query.majorPrestartStates.findFirst({ where: eq(majorPrestartStates.seasonId, season.id) }),
     db.select({
       id: majorPrestartEntrants.id,
@@ -72,6 +73,8 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
       .innerJoin(majorPrestartEntrants, eq(majorTournamentSeeds.entrantId, majorPrestartEntrants.id))
       .where(eq(majorTournamentSeeds.seasonId, season.id))
       .orderBy(asc(majorTournamentSeeds.tournamentSeed)),
+    db.select({ id: majorStageRuns.id }).from(majorStageRuns)
+      .where(eq(majorStageRuns.seasonId, season.id)),
   ]);
   const entrantIds = new Set(entrantRows.map((entrant) => entrant.id));
   const rosterByEntrant = new Map<string, Array<{ userId: string; email: string }>>();
@@ -143,5 +146,6 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
         format: pairing.format,
       })) ?? null,
     }}
+    started={stageRunRows.length > 0}
   />;
 }

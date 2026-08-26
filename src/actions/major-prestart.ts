@@ -20,6 +20,8 @@ import { auditActorId, requireSeasonAdmin } from "@/lib/auth/session";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { checkStandardMajorCapabilities, normalizeRegistrationConfig, normalizeStagePlan, normalizeTeamRegistrationConfig } from "@/types/season";
 import { fail, ok, type ActionResult } from "@/types/action";
+import { startMajorInTransaction, type MajorStartResult } from "@/lib/major/start";
+import { revalidateSeasonPaths } from "@/lib/revalidation";
 
 const uuid = z.string().uuid();
 const issueCategory = z.enum(["qualification", "administration"]);
@@ -286,6 +288,7 @@ export async function saveMajorTournamentSeeds(input: { seasonId: string; teamId
     const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
     await db.transaction(async (tx) => {
       const state = await ensureState(tx, season.id);
+      if (state.seedsLockedAt) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "赛事已经正式开赛，不能修改赛事种子。 ");
       if (!state.entrantsLockedAt) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "请先锁定正式参赛队和最终赛事名单。 ");
       const entrants = await tx.select({ id: majorPrestartEntrants.id, teamId: majorPrestartEntrants.teamId }).from(majorPrestartEntrants)
         .where(eq(majorPrestartEntrants.seasonId, season.id));
@@ -319,6 +322,7 @@ export async function confirmMajorTournamentSeeds(input: { seasonId: string }): 
     const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
     await db.transaction(async (tx) => {
       const state = await ensureState(tx, season.id);
+      if (state.seedsLockedAt) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "赛事已经正式开赛，不能重新确认赛事种子。 ");
       if (!state.entrantsLockedAt) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "请先锁定正式参赛队和最终赛事名单。 ");
       if (state.seedRevision < 1) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先保存赛事 1–32 种子排序。 ");
       const countResult = await tx.execute<{ seed_count: string; team_count: string }>(sql`
@@ -339,4 +343,20 @@ export async function confirmMajorTournamentSeeds(input: { seasonId: string }): 
     revalidateMajorPrestart(season.slug);
     return ok(undefined);
   } catch (error) { return actionError("confirmMajorTournamentSeeds", error); }
+}
+
+/** 管理员显式确认后原子启动 Stage 1；重试返回同一已创建运行记录。 */
+export async function startMajor(input: { seasonId: string }): Promise<ActionResult<MajorStartResult>> {
+  const parsed = z.object({ seasonId: uuid }).safeParse(input);
+  if (!parsed.success) return invalid("赛季标识无效。");
+  try {
+    const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
+    const result = await db.transaction((tx) => startMajorInTransaction(tx, {
+      seasonId: season.id,
+      actorId: auditActorId(admin),
+    }));
+    revalidateMajorPrestart(season.slug);
+    revalidateSeasonPaths(season.slug, ["matches", "adminMatches"]);
+    return ok(result);
+  } catch (error) { return actionError("startMajor", error); }
 }
