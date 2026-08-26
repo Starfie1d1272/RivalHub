@@ -22,6 +22,7 @@ import { checkStandardMajorCapabilities, normalizeRegistrationConfig, normalizeS
 import { fail, ok, type ActionResult } from "@/types/action";
 import { startMajorInTransaction, type MajorStartResult } from "@/lib/major/start";
 import { finalizeMajorSwissRoundInTransaction, type MajorSwissRoundFinalizationResult } from "@/lib/major/swiss-runtime";
+import { transitionMajorSwissStageInTransaction, type MajorStageTransitionResult } from "@/lib/major/stage-transition";
 import { revalidateSeasonPaths } from "@/lib/revalidation";
 
 const uuid = z.string().uuid();
@@ -362,14 +363,15 @@ export async function startMajor(input: { seasonId: string }): Promise<ActionRes
   } catch (error) { return actionError("startMajor", error); }
 }
 
-/** 明确确认一轮已完成的 Stage 1 Swiss 比赛，并在同一事务中生成下一轮。 */
-export async function finalizeMajorSwissRound(input: { seasonId: string; expectedRound: 1 | 2 | 3 | 4 | 5 }): Promise<ActionResult<MajorSwissRoundFinalizationResult>> {
-  const parsed = z.object({ seasonId: uuid, expectedRound: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]) }).safeParse(input);
+/** 明确确认指定 StageRun 的一轮 Swiss 比赛，并在同一事务中生成下一轮。 */
+export async function finalizeMajorSwissRound(input: { seasonId: string; stageRunId: string; expectedRound: 1 | 2 | 3 | 4 | 5 }): Promise<ActionResult<MajorSwissRoundFinalizationResult>> {
+  const parsed = z.object({ seasonId: uuid, stageRunId: uuid, expectedRound: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]) }).safeParse(input);
   if (!parsed.success) return invalid("赛季或待确认轮次无效。 ");
   try {
     const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
     const result = await db.transaction((tx) => finalizeMajorSwissRoundInTransaction(tx, {
       seasonId: season.id,
+      stageRunId: parsed.data.stageRunId,
       expectedRound: parsed.data.expectedRound,
       actorId: auditActorId(admin),
     }));
@@ -377,4 +379,20 @@ export async function finalizeMajorSwissRound(input: { seasonId: string; expecte
     revalidateSeasonPaths(season.slug, ["matches", "adminMatches"]);
     return ok(result);
   } catch (error) { return actionError("finalizeMajorSwissRound", error); }
+}
+
+export async function transitionMajorSwissStage(input: { seasonId: string; sourceStageRunId: string }): Promise<ActionResult<MajorStageTransitionResult>> {
+  const parsed = z.object({ seasonId: uuid, sourceStageRunId: uuid }).safeParse(input);
+  if (!parsed.success) return invalid("阶段切换请求无效。 ");
+  try {
+    const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
+    const result = await db.transaction((tx) => transitionMajorSwissStageInTransaction(tx, {
+      seasonId: season.id,
+      sourceStageRunId: parsed.data.sourceStageRunId,
+      actorId: auditActorId(admin),
+    }));
+    revalidateMajorPrestart(season.slug);
+    revalidateSeasonPaths(season.slug, ["matches", "adminMatches"]);
+    return ok(result);
+  } catch (error) { return actionError("transitionMajorSwissStage", error); }
 }

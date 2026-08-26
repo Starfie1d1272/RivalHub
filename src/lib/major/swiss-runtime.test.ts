@@ -16,7 +16,7 @@ describe("finalizeMajorSwissRoundInTransaction", () => {
   it("rejects when the season has no StageRun", async () => {
     const tx = { select: () => lockedSelect([]) } as never;
     await expect(finalizeMajorSwissRoundInTransaction(tx, {
-      seasonId: "season-1", expectedRound: 1, actorId: "admin-1",
+      seasonId: "season-1", stageRunId: "run-1", expectedRound: 1, actorId: "admin-1",
     })).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND });
   });
 
@@ -27,7 +27,7 @@ describe("finalizeMajorSwissRoundInTransaction", () => {
       }]),
     } as never;
     await expect(finalizeMajorSwissRoundInTransaction(tx, {
-      seasonId: "season-1", expectedRound: 1, actorId: "admin-1",
+      seasonId: "season-1", stageRunId: "run-1", expectedRound: 1, actorId: "admin-1",
     })).rejects.toMatchObject({ code: ErrorCode.INTERNAL_ERROR });
   });
 });

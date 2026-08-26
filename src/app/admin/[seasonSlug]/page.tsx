@@ -78,7 +78,7 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
       .innerJoin(majorPrestartEntrants, eq(majorTournamentSeeds.entrantId, majorPrestartEntrants.id))
       .where(eq(majorTournamentSeeds.seasonId, season.id))
       .orderBy(asc(majorTournamentSeeds.tournamentSeed)),
-    db.select({ id: majorStageRuns.id, stageKey: majorStageRuns.stageKey, finalizedRound: majorStageRuns.finalizedRound }).from(majorStageRuns)
+    db.select({ id: majorStageRuns.id, stageKey: majorStageRuns.stageKey, finalizedRound: majorStageRuns.finalizedRound, startedAt: majorStageRuns.startedAt }).from(majorStageRuns)
       .where(eq(majorStageRuns.seasonId, season.id)),
     db.select({ stageRunId: matches.majorStageRunId, round: matches.round, status: matches.status })
       .from(matches)
@@ -118,12 +118,15 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
     tournamentSeeds: seedRows,
     seedConfirmation: state ? { seedRevision: state.seedRevision, confirmedSeedRevision: state.confirmedSeedRevision } : null,
   });
-  const stageOneMatchFormat = normalizeStagePlan(season.stagePlan)[0]?.matchFormat;
+  const stagePlan = normalizeStagePlan(season.stagePlan);
+  const stageOneMatchFormat = stagePlan[0]?.matchFormat;
   let seedPreview: ReturnType<typeof buildMajorOpeningPlan> | null = null;
   if (seedRows.length === 32 && (stageOneMatchFormat === "bo1" || stageOneMatchFormat === "bo3")) {
     try { seedPreview = buildMajorOpeningPlan({ teams: seedRows, stageOneMatchFormat }); } catch { seedPreview = null; }
   }
-  const stageRun = stageRunRows.length === 1 ? stageRunRows[0] : null;
+  const stageRun = [...stagePlan].reverse()
+    .map((stage) => stageRunRows.find((run) => run.stageKey === stage.key))
+    .find((run) => run !== undefined) ?? null;
   let swissRuntime: import("@/components/admin/MajorSwissRuntimeManagement").MajorSwissRuntimeData | null = null;
   if (stageRun && isMajorSwissFinalizedRound(stageRun.finalizedRound)) {
     const finalizedRound = stageRun.finalizedRound;
@@ -131,12 +134,18 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
     const currentMatches = stageMatchRows.filter((match) => match.stageRunId === stageRun.id && match.round === currentRound);
     swissRuntime = {
       seasonId: season.id,
+      stageRunId: stageRun.id,
       stageKey: stageRun.stageKey,
       finalizedRound,
       currentRound,
       currentMatchCount: currentMatches.length,
       completedMatchCount: currentMatches.filter((match) => match.status === "finished").length,
       stageComplete: finalizedRound === 5,
+      nextStageName: finalizedRound === 5
+        ? stagePlan[stagePlan.findIndex((stage) => stage.key === stageRun.stageKey) + 1]?.type === "swiss"
+          ? stagePlan[stagePlan.findIndex((stage) => stage.key === stageRun.stageKey) + 1]?.name ?? null
+          : null
+        : null,
     };
   }
 

@@ -4,6 +4,7 @@ import { Pool, type PoolClient } from "pg";
 import * as schema from "../../src/db/schema";
 import { startMajorInTransaction } from "../../src/lib/major/start";
 import { finalizeMajorSwissRoundInTransaction } from "../../src/lib/major/swiss-runtime";
+import { transitionMajorSwissStageInTransaction } from "../../src/lib/major/stage-transition";
 import { AppError, ErrorCode } from "../../src/lib/errors";
 import { createMajorDefaultCapabilities } from "../../src/types/season";
 
@@ -180,14 +181,14 @@ async function expectSwissRuntimeFailure(work: () => Promise<unknown>): Promise<
   throw new Error("预期 Swiss 运行时拒绝不完整或非法比赛事实，但操作成功。 ");
 }
 
-async function finishSwissRound(pool: Pool, seasonId: string, round: number): Promise<void> {
+async function finishSwissRound(pool: Pool, stageRunId: string, round: number): Promise<void> {
   const client = await pool.connect();
   try {
     const roundMatches = await client.query<{ id: string; format: "bo1" | "bo3" }>(
       `SELECT id, format FROM matches
-       WHERE season_id = $1 AND ownership = 'major_stage' AND round = $2
+       WHERE major_stage_run_id = $1 AND ownership = 'major_stage' AND round = $2
        ORDER BY managed_key`,
-      [seasonId, round],
+      [stageRunId, round],
     );
     if (roundMatches.rows.length === 0) throw new Error(`第 ${round} 轮没有可完成的托管比赛。`);
     for (let index = 0; index < roundMatches.rows.length; index += 1) {
@@ -209,12 +210,18 @@ async function exerciseSwissRuntime(
   database: ReturnType<typeof drizzle<typeof schema>>,
   pool: Pool,
   fixture: MajorFixture,
-): Promise<void> {
+): Promise<string> {
+  const stageRun = await pool.query<{ id: string }>(
+    "SELECT id FROM major_stage_runs WHERE season_id = $1 AND stage_key = 'stage1'",
+    [fixture.seasonId],
+  );
+  const stageRunId = stageRun.rows[0]?.id;
+  if (!stageRunId) throw new Error("Stage 1 StageRun 不存在。 ");
   await expectSwissRuntimeFailure(() => database.transaction((tx) => finalizeMajorSwissRoundInTransaction(tx, {
-    seasonId: fixture.seasonId, expectedRound: 1, actorId: "local-admin",
+    seasonId: fixture.seasonId, stageRunId, expectedRound: 1, actorId: "local-admin",
   })));
 
-  await finishSwissRound(pool, fixture.seasonId, 1);
+  await finishSwissRound(pool, stageRunId, 1);
   const client = await pool.connect();
   let corruptedMatchId: string;
   try {
@@ -229,7 +236,7 @@ async function exerciseSwissRuntime(
     client.release();
   }
   await expectSwissRuntimeFailure(() => database.transaction((tx) => finalizeMajorSwissRoundInTransaction(tx, {
-    seasonId: fixture.seasonId, expectedRound: 1, actorId: "local-admin",
+    seasonId: fixture.seasonId, stageRunId, expectedRound: 1, actorId: "local-admin",
   })));
   const restoreClient = await pool.connect();
   try {
@@ -239,17 +246,17 @@ async function exerciseSwissRuntime(
   }
 
   const concurrent = await Promise.all([
-    database.transaction((tx) => finalizeMajorSwissRoundInTransaction(tx, { seasonId: fixture.seasonId, expectedRound: 1, actorId: "local-admin-a" })),
-    database.transaction((tx) => finalizeMajorSwissRoundInTransaction(tx, { seasonId: fixture.seasonId, expectedRound: 1, actorId: "local-admin-b" })),
+    database.transaction((tx) => finalizeMajorSwissRoundInTransaction(tx, { seasonId: fixture.seasonId, stageRunId, expectedRound: 1, actorId: "local-admin-a" })),
+    database.transaction((tx) => finalizeMajorSwissRoundInTransaction(tx, { seasonId: fixture.seasonId, stageRunId, expectedRound: 1, actorId: "local-admin-b" })),
   ]);
   if (concurrent.filter((result) => !result.alreadyFinalized).length !== 1 || concurrent.some((result) => result.createdNextRound !== 8 && !result.alreadyFinalized)) {
     throw new Error("并发确认没有收敛到一次 R2 托管比赛生成。 ");
   }
 
   for (const round of [2, 3, 4, 5] as const) {
-    await finishSwissRound(pool, fixture.seasonId, round);
+    await finishSwissRound(pool, stageRunId, round);
     const result = await database.transaction((tx) => finalizeMajorSwissRoundInTransaction(tx, {
-      seasonId: fixture.seasonId, expectedRound: round, actorId: "local-admin",
+      seasonId: fixture.seasonId, stageRunId, expectedRound: round, actorId: "local-admin",
     }));
     const expectedNextCount = ({ 2: 8, 3: 6, 4: 3, 5: 0 } as const)[round];
     if (result.createdNextRound !== expectedNextCount || result.stageComplete !== (round === 5)) {
@@ -261,21 +268,39 @@ async function exerciseSwissRuntime(
   try {
     const facts = await verifyClient.query<{ finalized_round: number; total_matches: string; r1: string; r2: string; r3: string; r4: string; r5: string; audits: string }>(`
       SELECT
-        (SELECT finalized_round FROM major_stage_runs WHERE season_id = $1) AS finalized_round,
-        (SELECT count(*) FROM matches WHERE season_id = $1 AND ownership = 'major_stage') AS total_matches,
-        (SELECT count(*) FROM matches WHERE season_id = $1 AND ownership = 'major_stage' AND round = 1) AS r1,
-        (SELECT count(*) FROM matches WHERE season_id = $1 AND ownership = 'major_stage' AND round = 2) AS r2,
-        (SELECT count(*) FROM matches WHERE season_id = $1 AND ownership = 'major_stage' AND round = 3) AS r3,
-        (SELECT count(*) FROM matches WHERE season_id = $1 AND ownership = 'major_stage' AND round = 4) AS r4,
-        (SELECT count(*) FROM matches WHERE season_id = $1 AND ownership = 'major_stage' AND round = 5) AS r5,
-        (SELECT count(*) FROM audit_logs WHERE season_id = $1 AND action = 'major.swiss.finalize_round') AS audits
-    `, [fixture.seasonId]);
+        (SELECT finalized_round FROM major_stage_runs WHERE id = $1) AS finalized_round,
+        (SELECT count(*) FROM matches WHERE major_stage_run_id = $1 AND ownership = 'major_stage') AS total_matches,
+        (SELECT count(*) FROM matches WHERE major_stage_run_id = $1 AND ownership = 'major_stage' AND round = 1) AS r1,
+        (SELECT count(*) FROM matches WHERE major_stage_run_id = $1 AND ownership = 'major_stage' AND round = 2) AS r2,
+        (SELECT count(*) FROM matches WHERE major_stage_run_id = $1 AND ownership = 'major_stage' AND round = 3) AS r3,
+        (SELECT count(*) FROM matches WHERE major_stage_run_id = $1 AND ownership = 'major_stage' AND round = 4) AS r4,
+        (SELECT count(*) FROM matches WHERE major_stage_run_id = $1 AND ownership = 'major_stage' AND round = 5) AS r5,
+        (SELECT count(*) FROM audit_logs WHERE target_id = $1::text AND action = 'major.swiss.finalize_round') AS audits
+    `, [stageRunId]);
     const fact = facts.rows[0];
     if (!fact || fact.finalized_round !== 5 || fact.total_matches !== "33" || fact.r1 !== "8" || fact.r2 !== "8" || fact.r3 !== "8" || fact.r4 !== "6" || fact.r5 !== "3" || fact.audits !== "5") {
       throw new Error("Swiss 本地流程没有形成完整的 1→5 轮 canonical managed match 与确认审计事实。 ");
     }
   } finally {
     verifyClient.release();
+  }
+  return stageRunId;
+}
+
+async function completeSwissStage(
+  database: ReturnType<typeof drizzle<typeof schema>>,
+  pool: Pool,
+  seasonId: string,
+  stageRunId: string,
+): Promise<void> {
+  for (const round of [1, 2, 3, 4, 5] as const) {
+    await finishSwissRound(pool, stageRunId, round);
+    const result = await database.transaction((tx) => finalizeMajorSwissRoundInTransaction(tx, {
+      seasonId, stageRunId, expectedRound: round, actorId: "local-admin",
+    }));
+    if (result.stageRunId !== stageRunId || result.createdNextRound !== ({ 1: 8, 2: 8, 3: 6, 4: 3, 5: 0 } as const)[round]) {
+      throw new Error("后续 Swiss StageRun 没有按其自身身份完整生成托管比赛。 ");
+    }
   }
 }
 
@@ -328,7 +353,39 @@ async function main(): Promise<void> {
       client.release();
     }
 
-    await exerciseSwissRuntime(database, pool, ready);
+    const stage1RunId = await exerciseSwissRuntime(database, pool, ready);
+    const stage2Transitions = await Promise.all([
+      database.transaction((tx) => transitionMajorSwissStageInTransaction(tx, {
+        seasonId: ready.seasonId, sourceStageRunId: stage1RunId, actorId: "local-admin-a",
+      })),
+      database.transaction((tx) => transitionMajorSwissStageInTransaction(tx, {
+        seasonId: ready.seasonId, sourceStageRunId: stage1RunId, actorId: "local-admin-b",
+      })),
+    ]);
+    if (stage2Transitions.filter((result) => result.created).length !== 1 || new Set(stage2Transitions.map((result) => result.stageRunId)).size !== 1 || stage2Transitions.some((result) => result.stageKey !== "stage2" || result.matchCount !== 8)) {
+      throw new Error("并发 Stage 1→Stage 2 切换没有收敛到唯一的 StageRun 和首轮比赛。 ");
+    }
+    const stage2RunId = stage2Transitions[0]!.stageRunId;
+    await completeSwissStage(database, pool, ready.seasonId, stage2RunId);
+    const stage3Transition = await database.transaction((tx) => transitionMajorSwissStageInTransaction(tx, {
+      seasonId: ready.seasonId, sourceStageRunId: stage2RunId, actorId: "local-admin",
+    }));
+    if (!stage3Transition.created || stage3Transition.stageKey !== "stage3" || stage3Transition.matchCount !== 8) {
+      throw new Error("Stage 2→Stage 3 没有创建完整的下一 StageRun。 ");
+    }
+    await completeSwissStage(database, pool, ready.seasonId, stage3Transition.stageRunId);
+    const stageTransitionFacts = await pool.query<{ runs: string; entrants: string; matches: string; complete_runs: string; transitions: string }>(`
+      SELECT
+        (SELECT count(*) FROM major_stage_runs WHERE season_id = $1) AS runs,
+        (SELECT count(*) FROM major_stage_entrants e INNER JOIN major_stage_runs r ON r.id = e.stage_run_id WHERE r.season_id = $1) AS entrants,
+        (SELECT count(*) FROM matches WHERE season_id = $1 AND ownership = 'major_stage') AS matches,
+        (SELECT count(*) FROM major_stage_runs WHERE season_id = $1 AND finalized_round = 5) AS complete_runs,
+        (SELECT count(*) FROM audit_logs WHERE season_id = $1 AND action = 'major.stage.transition') AS transitions
+    `, [ready.seasonId]);
+    const transitionFacts = stageTransitionFacts.rows[0];
+    if (!transitionFacts || transitionFacts.runs !== "3" || transitionFacts.entrants !== "48" || transitionFacts.matches !== "99" || transitionFacts.complete_runs !== "3" || transitionFacts.transitions !== "2") {
+      throw new Error("三阶段连续运行没有形成逐 StageRun 隔离的 canonical entrants、比赛和切换审计事实。 ");
+    }
 
     const rollback = await prepareReadyMajor(pool, "rollback");
     fixtures.push(rollback);
@@ -363,9 +420,9 @@ async function main(): Promise<void> {
       await triggerClient.query("DROP FUNCTION IF EXISTS fail_local_major_start_match()");
       triggerClient.release();
     }
-    console.log("Major local integration passed: start retry, 32-team lock, StageEntrants, managed R1, Swiss R1→R5 runtime, missing/illegal-result rejection, concurrent confirmation, and forced rollback.");
+    console.log("Major local integration passed: start retry, 32-team lock, StageRun-scoped entrants and managed matches, three consecutive Swiss stages, missing/illegal-result rejection, concurrent confirmation and transition, and forced rollback.");
   } finally {
-    await Promise.all(fixtures.map((fixture) => cleanupMajorFixture(pool, fixture)));
+    for (const fixture of fixtures) await cleanupMajorFixture(pool, fixture);
     await pool.end();
   }
 }

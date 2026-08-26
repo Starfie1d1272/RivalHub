@@ -78,11 +78,11 @@ function completedFact(match: typeof matches.$inferSelect): MajorSwissMatchFact 
  */
 export async function finalizeMajorSwissRoundInTransaction(
   tx: TxDb,
-  input: { seasonId: string; expectedRound: MajorSwissRound; actorId: string },
+  input: { seasonId: string; stageRunId: string; expectedRound: MajorSwissRound; actorId: string },
 ): Promise<MajorSwissRoundFinalizationResult> {
   const [stageRun] = await tx.select().from(majorStageRuns)
-    .where(eq(majorStageRuns.seasonId, input.seasonId)).for("update");
-  if (!stageRun) throw new AppError(ErrorCode.NOT_FOUND, "当前赛事尚未创建可运行的 Major Stage。 ");
+    .where(and(eq(majorStageRuns.id, input.stageRunId), eq(majorStageRuns.seasonId, input.seasonId))).for("update");
+  if (!stageRun) throw new AppError(ErrorCode.NOT_FOUND, "指定的 Major StageRun 不属于当前赛事。 ");
 
   const stage = frozenSwissStage(stageRun.ruleSnapshot);
   if (stage.key !== stageRun.stageKey) {
