@@ -1,5 +1,6 @@
 import {
   index,
+  check,
   integer,
   pgEnum,
   pgTable,
@@ -8,6 +9,7 @@ import {
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { seasons } from "./seasons";
 import { teams } from "./teams";
 import { users } from "./users";
@@ -59,6 +61,21 @@ export const majorPrestartRosterMembers = pgTable("major_prestart_roster_members
   entrantIndex: index("major_prestart_roster_members_entrant_idx").on(t.entrantId),
 }));
 
+/** Independent Major 1–32 tournament order. It must never reuse teams.draftOrder. */
+export const majorTournamentSeeds = pgTable("major_tournament_seeds", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  seasonId: uuid("season_id").notNull().references(() => seasons.id),
+  entrantId: uuid("entrant_id").notNull().references(() => majorPrestartEntrants.id),
+  tournamentSeed: integer("tournament_seed").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  uniqueSeasonEntrant: unique("major_tournament_seeds_season_entrant_unique").on(t.seasonId, t.entrantId),
+  uniqueSeasonSeed: unique("major_tournament_seeds_season_seed_unique").on(t.seasonId, t.tournamentSeed),
+  seasonIndex: index("major_tournament_seeds_season_idx").on(t.seasonId),
+  validSeed: check("major_tournament_seeds_seed_range_check", sql`${t.tournamentSeed} BETWEEN 1 AND 32`),
+}));
+
 /** Explicit work items. Empty means none are recorded, never an inferred fact. */
 export const majorPrestartIssues = pgTable("major_prestart_issues", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -76,4 +93,5 @@ export const majorPrestartIssues = pgTable("major_prestart_issues", {
 export type MajorPrestartState = typeof majorPrestartStates.$inferSelect;
 export type MajorPrestartEntrant = typeof majorPrestartEntrants.$inferSelect;
 export type MajorPrestartRosterMember = typeof majorPrestartRosterMembers.$inferSelect;
+export type MajorTournamentSeed = typeof majorTournamentSeeds.$inferSelect;
 export type MajorPrestartIssue = typeof majorPrestartIssues.$inferSelect;

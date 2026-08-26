@@ -7,12 +7,14 @@ import {
   majorPrestartIssues,
   majorPrestartRosterMembers,
   majorPrestartStates,
+  majorTournamentSeeds,
   seasons,
   teamMembers,
   teams,
   users,
 } from "@/db/schema";
 import { evaluateMajorPrestartReadiness } from "@/lib/major/prestart";
+import { buildMajorOpeningPlan } from "@/lib/major/opening";
 import {
   normalizeRegistrationConfig,
   normalizeStagePlan,
@@ -48,7 +50,7 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
     candidatesByTeam.set(member.teamId, candidates);
   }
 
-  const [state, entrantRows, rosterRows, issueRows] = await Promise.all([
+  const [state, entrantRows, rosterRows, issueRows, seedRows] = await Promise.all([
     db.query.majorPrestartStates.findFirst({ where: eq(majorPrestartStates.seasonId, season.id) }),
     db.select({
       id: majorPrestartEntrants.id,
@@ -65,6 +67,11 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
     db.select().from(majorPrestartIssues)
       .where(eq(majorPrestartIssues.seasonId, season.id))
       .orderBy(asc(majorPrestartIssues.createdAt)),
+    db.select({ teamId: majorPrestartEntrants.teamId, tournamentSeed: majorTournamentSeeds.tournamentSeed })
+      .from(majorTournamentSeeds)
+      .innerJoin(majorPrestartEntrants, eq(majorTournamentSeeds.entrantId, majorPrestartEntrants.id))
+      .where(eq(majorTournamentSeeds.seasonId, season.id))
+      .orderBy(asc(majorTournamentSeeds.tournamentSeed)),
   ]);
   const entrantIds = new Set(entrantRows.map((entrant) => entrant.id));
   const rosterByEntrant = new Map<string, Array<{ userId: string; email: string }>>();
@@ -96,9 +103,14 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
     confirmations: entrantRows.map((entrant) => ({ teamId: entrant.teamId, confirmed: Boolean(entrant.rosterConfirmedAt) })),
     qualificationIssues: issueRows.filter((issue) => issue.category === "qualification").map((issue) => ({ label: issue.label, resolved: Boolean(issue.resolvedAt) })),
     administrativeIssues: issueRows.filter((issue) => issue.category === "administration").map((issue) => ({ label: issue.label, resolved: Boolean(issue.resolvedAt) })),
-    tournamentSeeds: null,
-    seedConfirmation: null,
+    tournamentSeeds: seedRows,
+    seedConfirmation: state ? { seedRevision: state.seedRevision, confirmedSeedRevision: state.confirmedSeedRevision } : null,
   });
+  const stageOneMatchFormat = normalizeStagePlan(season.stagePlan)[0]?.matchFormat;
+  let seedPreview: ReturnType<typeof buildMajorOpeningPlan> | null = null;
+  if (seedRows.length === 32 && (stageOneMatchFormat === "bo1" || stageOneMatchFormat === "bo3")) {
+    try { seedPreview = buildMajorOpeningPlan({ teams: seedRows, stageOneMatchFormat }); } catch { seedPreview = null; }
+  }
 
   return <MajorPrestartConsole
     seasonName={season.name}
@@ -117,6 +129,19 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
         candidates: candidatesByTeam.get(entrant.teamId) ?? [],
       })),
       issues: issueRows.map((issue) => ({ id: issue.id, category: issue.category, label: issue.label, resolved: Boolean(issue.resolvedAt) })),
+    }}
+    seedManagement={{
+      seasonId: season.id,
+      entrantsLocked: Boolean(state?.entrantsLockedAt),
+      entrants: entrantRows.map((entrant) => ({ teamId: entrant.teamId, teamName: entrant.teamName })),
+      seeds: seedRows,
+      seedRevision: state?.seedRevision ?? 0,
+      confirmedSeedRevision: state?.confirmedSeedRevision ?? null,
+      firstRound: seedPreview?.firstRound.pairings.map((pairing) => ({
+        higherSeed: pairing.higherSeed.tournamentSeed,
+        lowerSeed: pairing.lowerSeed.tournamentSeed,
+        format: pairing.format,
+      })) ?? null,
     }}
   />;
 }

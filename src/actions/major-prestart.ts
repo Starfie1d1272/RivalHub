@@ -10,6 +10,7 @@ import {
   majorPrestartIssues,
   majorPrestartRosterMembers,
   majorPrestartStates,
+  majorTournamentSeeds,
   seasons,
   teamMembers,
   teams,
@@ -275,4 +276,67 @@ export async function lockMajorPrestartEntrants(input: { seasonId: string }): Pr
     revalidateMajorPrestart(season.slug);
     return ok(undefined);
   } catch (error) { return actionError("lockMajorPrestartEntrants", error); }
+}
+
+export async function saveMajorTournamentSeeds(input: { seasonId: string; teamIds: string[] }): Promise<ActionResult<void>> {
+  const parsed = z.object({ seasonId: uuid, teamIds: z.array(uuid).length(32) }).safeParse(input);
+  if (!parsed.success) return invalid("赛事种子必须提供恰好 32 支队伍。 ");
+  if (new Set(parsed.data.teamIds).size !== 32) return invalid("赛事种子不能包含重复队伍。 ");
+  try {
+    const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
+    await db.transaction(async (tx) => {
+      const state = await ensureState(tx, season.id);
+      if (!state.entrantsLockedAt) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "请先锁定正式参赛队和最终赛事名单。 ");
+      const entrants = await tx.select({ id: majorPrestartEntrants.id, teamId: majorPrestartEntrants.teamId }).from(majorPrestartEntrants)
+        .where(eq(majorPrestartEntrants.seasonId, season.id));
+      const entrantsByTeamId = new Map(entrants.map((entrant) => [entrant.teamId, entrant]));
+      if (entrantsByTeamId.size !== 32 || parsed.data.teamIds.some((teamId) => !entrantsByTeamId.has(teamId))) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事种子必须且只能覆盖已锁定的 32 支正式参赛队。 ");
+      }
+      await tx.delete(majorTournamentSeeds).where(eq(majorTournamentSeeds.seasonId, season.id));
+      await tx.insert(majorTournamentSeeds).values(parsed.data.teamIds.map((teamId, index) => ({
+        seasonId: season.id, entrantId: entrantsByTeamId.get(teamId)!.id, tournamentSeed: index + 1,
+      })));
+      await tx.update(majorPrestartStates).set({
+        seedRevision: state.seedRevision + 1,
+        confirmedSeedRevision: null,
+        updatedAt: new Date(),
+      }).where(eq(majorPrestartStates.id, state.id));
+      await tx.insert(auditLogs).values({
+        seasonId: season.id, action: "major_prestart.save_tournament_seeds", actorId: auditActorId(admin),
+        targetId: state.id, targetType: "major_prestart_state", meta: { seedRevision: state.seedRevision + 1 },
+      });
+    });
+    revalidateMajorPrestart(season.slug);
+    return ok(undefined);
+  } catch (error) { return actionError("saveMajorTournamentSeeds", error); }
+}
+
+export async function confirmMajorTournamentSeeds(input: { seasonId: string }): Promise<ActionResult<void>> {
+  const parsed = z.object({ seasonId: uuid }).safeParse(input);
+  if (!parsed.success) return invalid("赛季标识无效。");
+  try {
+    const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
+    await db.transaction(async (tx) => {
+      const state = await ensureState(tx, season.id);
+      if (!state.entrantsLockedAt) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "请先锁定正式参赛队和最终赛事名单。 ");
+      if (state.seedRevision < 1) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先保存赛事 1–32 种子排序。 ");
+      const countResult = await tx.execute<{ seed_count: string; team_count: string }>(sql`
+        SELECT count(*) AS seed_count, count(DISTINCT entrant_id) AS team_count
+        FROM major_tournament_seeds WHERE season_id = ${season.id}
+      `);
+      const counts = countResult.rows[0];
+      if (Number(counts?.seed_count) !== 32 || Number(counts?.team_count) !== 32) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事种子不完整，不能确认。 ");
+      }
+      await tx.update(majorPrestartStates).set({ confirmedSeedRevision: state.seedRevision, updatedAt: new Date() })
+        .where(eq(majorPrestartStates.id, state.id));
+      await tx.insert(auditLogs).values({
+        seasonId: season.id, action: "major_prestart.confirm_tournament_seeds", actorId: auditActorId(admin),
+        targetId: state.id, targetType: "major_prestart_state", meta: { seedRevision: state.seedRevision },
+      });
+    });
+    revalidateMajorPrestart(season.slug);
+    return ok(undefined);
+  } catch (error) { return actionError("confirmMajorTournamentSeeds", error); }
 }

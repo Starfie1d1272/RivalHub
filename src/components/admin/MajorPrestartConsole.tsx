@@ -1,6 +1,7 @@
 import { Marker, Panel } from "@/components/rivalhub";
 import type { MajorPrestartReadiness } from "@/lib/major/prestart";
 import { MajorPrestartManagement, type MajorPrestartManagementData } from "./MajorPrestartManagement";
+import { MajorTournamentSeedsManagement, type MajorTournamentSeedsManagementData } from "./MajorTournamentSeedsManagement";
 
 const STATE_LABEL = {
   ready: "已就绪",
@@ -18,10 +19,12 @@ export function MajorPrestartConsole({
   seasonName,
   readiness,
   management,
+  seedManagement,
 }: {
   seasonName: string;
   readiness: MajorPrestartReadiness;
   management: MajorPrestartManagementData;
+  seedManagement: MajorTournamentSeedsManagementData;
 }) {
   return (
     <div className="space-y-6">
@@ -60,6 +63,7 @@ export function MajorPrestartConsole({
       </Panel>
 
       <MajorPrestartManagement data={management} />
+      <MajorTournamentSeedsManagement data={seedManagement} />
 
       <Panel label="阶段一首轮预览">
         {readiness.openingPlan ? (
