@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { finalizeMajorSwissRound, transitionMajorSwissStage } from "@/actions/major-prestart";
+import { finalizeMajorSwissRound, startMajorPlayoff, transitionMajorSwissStage } from "@/actions/major-prestart";
 import { Button } from "@/components/ui/button";
 import { Marker, Panel } from "@/components/rivalhub";
 
@@ -17,6 +17,7 @@ export interface MajorSwissRuntimeData {
   completedMatchCount: number;
   stageComplete: boolean;
   nextStageName: string | null;
+  nextStageType: "swiss" | "playoff" | null;
 }
 
 export function MajorSwissRuntimeManagement({ data }: { data: MajorSwissRuntimeData }) {
@@ -64,11 +65,13 @@ export function MajorSwissRuntimeManagement({ data }: { data: MajorSwissRuntimeD
           <span>我确认本 StageRun 的 canonical entrants 与全部已确认比赛事实应成为 {data.nextStageName} 的唯一生成依据。</span>
         </label>
         <Button disabled={!confirmed || isPending} onClick={() => startTransition(async () => {
-          const result = await transitionMajorSwissStage({ seasonId: data.seasonId, sourceStageRunId: data.stageRunId });
+          const result = data.nextStageType === "playoff"
+            ? await startMajorPlayoff({ seasonId: data.seasonId, sourceStageRunId: data.stageRunId })
+            : await transitionMajorSwissStage({ seasonId: data.seasonId, sourceStageRunId: data.stageRunId });
           if (!result.success) { toast.error(result.error.message); return; }
           toast.success(result.data.created
-            ? `已创建 ${result.data.stageKey} StageRun 与 ${result.data.matchCount} 场首轮托管比赛`
-            : `${result.data.stageKey} StageRun 已存在，未重复创建比赛`);
+            ? `已创建 ${data.nextStageName} StageRun 与 ${result.data.matchCount} 场首轮托管比赛`
+            : `${data.nextStageName} StageRun 已存在，未重复创建比赛`);
           setConfirmed(false);
           router.refresh();
         })}>确认切换至 {data.nextStageName}</Button>

@@ -23,6 +23,7 @@ import { fail, ok, type ActionResult } from "@/types/action";
 import { startMajorInTransaction, type MajorStartResult } from "@/lib/major/start";
 import { finalizeMajorSwissRoundInTransaction, type MajorSwissRoundFinalizationResult } from "@/lib/major/swiss-runtime";
 import { transitionMajorSwissStageInTransaction, type MajorStageTransitionResult } from "@/lib/major/stage-transition";
+import { finalizeMajorPlayoffRoundInTransaction, startMajorPlayoffInTransaction, type MajorPlayoffFinalizationResult, type MajorPlayoffStartResult } from "@/lib/major/playoff-runtime";
 import { revalidateSeasonPaths } from "@/lib/revalidation";
 
 const uuid = z.string().uuid();
@@ -395,4 +396,32 @@ export async function transitionMajorSwissStage(input: { seasonId: string; sourc
     revalidateSeasonPaths(season.slug, ["matches", "adminMatches"]);
     return ok(result);
   } catch (error) { return actionError("transitionMajorSwissStage", error); }
+}
+
+export async function startMajorPlayoff(input: { seasonId: string; sourceStageRunId: string }): Promise<ActionResult<MajorPlayoffStartResult>> {
+  const parsed = z.object({ seasonId: uuid, sourceStageRunId: uuid }).safeParse(input);
+  if (!parsed.success) return invalid("淘汰赛启动请求无效。 ");
+  try {
+    const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
+    const result = await db.transaction((tx) => startMajorPlayoffInTransaction(tx, {
+      seasonId: season.id, sourceStageRunId: parsed.data.sourceStageRunId, actorId: auditActorId(admin),
+    }));
+    revalidateMajorPrestart(season.slug);
+    revalidateSeasonPaths(season.slug, ["matches", "adminMatches"]);
+    return ok(result);
+  } catch (error) { return actionError("startMajorPlayoff", error); }
+}
+
+export async function finalizeMajorPlayoffRound(input: { seasonId: string; stageRunId: string; expectedRound: "quarterfinal" | "semifinal" | "final" }): Promise<ActionResult<MajorPlayoffFinalizationResult>> {
+  const parsed = z.object({ seasonId: uuid, stageRunId: uuid, expectedRound: z.enum(["quarterfinal", "semifinal", "final"]) }).safeParse(input);
+  if (!parsed.success) return invalid("淘汰赛确认请求无效。 ");
+  try {
+    const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
+    const result = await db.transaction((tx) => finalizeMajorPlayoffRoundInTransaction(tx, {
+      seasonId: season.id, stageRunId: parsed.data.stageRunId, expectedRound: parsed.data.expectedRound, actorId: auditActorId(admin),
+    }));
+    revalidateMajorPrestart(season.slug);
+    revalidateSeasonPaths(season.slug, ["matches", "adminMatches"]);
+    return ok(result);
+  } catch (error) { return actionError("finalizeMajorPlayoffRound", error); }
 }
