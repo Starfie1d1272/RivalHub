@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { eq, asc } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, matches, teams } from "@/db/schema";
+import { majorFinalResults, seasons, matches, teams } from "@/db/schema";
 import { serializeBracket } from "@/lib/bracket";
 import { calculateStandings } from "@/lib/standings";
 import { Panel, Marker } from "@/components/rivalhub";
@@ -41,7 +41,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
   ]);
   if (!season) notFound();
 
-  const [allTeams, allMatches] = await Promise.all([
+  const [allTeams, allMatches, finalResult] = await Promise.all([
     db.query.teams.findMany({
       where: eq(teams.seasonId, season.id),
       orderBy: [asc(teams.draftOrder)],
@@ -50,6 +50,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
       where: eq(matches.seasonId, season.id),
       orderBy: [asc(matches.createdAt)],
     }),
+    db.query.majorFinalResults.findFirst({ where: eq(majorFinalResults.seasonId, season.id) }),
   ]);
 
   const teamMap = new Map(allTeams.map((team) => [team.id, team.name]));
@@ -115,6 +116,12 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
           <p className="text-sm text-[var(--color-warn)]">
             部分赛程数据与当前阶段配置不一致。
           </p>
+        </Panel>
+      )}
+
+      {finalResult?.status === "pending_confirmation" && (
+        <Panel pad={16} className="border-[rgba(255,196,77,0.3)] bg-[rgba(255,196,77,0.05)]">
+          <p className="text-sm text-[var(--color-warn)]">淘汰赛已结束，冠军和正式名次正在等待赛事方确认；赛事不会静默归档。</p>
         </Panel>
       )}
 

@@ -7,6 +7,7 @@ import {
   majorPrestartIssues,
   majorPrestartRosterMembers,
   majorPrestartStates,
+  majorFinalResults,
   majorStageRuns,
   matches,
   majorTournamentSeeds,
@@ -56,7 +57,7 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
     candidatesByTeam.set(member.teamId, candidates);
   }
 
-  const [state, entrantRows, rosterRows, issueRows, seedRows, stageRunRows, stageMatchRows] = await Promise.all([
+  const [state, entrantRows, rosterRows, issueRows, seedRows, stageRunRows, stageMatchRows, finalResult] = await Promise.all([
     db.query.majorPrestartStates.findFirst({ where: eq(majorPrestartStates.seasonId, season.id) }),
     db.select({
       id: majorPrestartEntrants.id,
@@ -80,10 +81,11 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
       .orderBy(asc(majorTournamentSeeds.tournamentSeed)),
     db.select({ id: majorStageRuns.id, stageKey: majorStageRuns.stageKey, finalizedRound: majorStageRuns.finalizedRound, startedAt: majorStageRuns.startedAt }).from(majorStageRuns)
       .where(eq(majorStageRuns.seasonId, season.id)),
-    db.select({ stageRunId: matches.majorStageRunId, round: matches.round, status: matches.status })
+    db.select({ stageRunId: matches.majorStageRunId, round: matches.round, entryRound: matches.entryRound, status: matches.status })
       .from(matches)
       .innerJoin(majorStageRuns, eq(matches.majorStageRunId, majorStageRuns.id))
       .where(and(eq(majorStageRuns.seasonId, season.id), eq(matches.ownership, "major_stage"))),
+    db.query.majorFinalResults.findFirst({ where: eq(majorFinalResults.seasonId, season.id) }),
   ]);
   const entrantIds = new Set(entrantRows.map((entrant) => entrant.id));
   const rosterByEntrant = new Map<string, Array<{ userId: string; email: string }>>();
@@ -127,8 +129,10 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
   const stageRun = [...stagePlan].reverse()
     .map((stage) => stageRunRows.find((run) => run.stageKey === stage.key))
     .find((run) => run !== undefined) ?? null;
+  const configuredStage = stageRun ? stagePlan.find((stage) => stage.key === stageRun.stageKey) : null;
   let swissRuntime: import("@/components/admin/MajorSwissRuntimeManagement").MajorSwissRuntimeData | null = null;
-  if (stageRun && isMajorSwissFinalizedRound(stageRun.finalizedRound)) {
+  let playoffRuntime: import("@/components/admin/MajorPlayoffRuntimeManagement").MajorPlayoffRuntimeData | null = null;
+  if (stageRun && configuredStage?.type === "swiss" && isMajorSwissFinalizedRound(stageRun.finalizedRound)) {
     const finalizedRound = stageRun.finalizedRound;
     const currentRound = (finalizedRound === 5 ? 5 : finalizedRound + 1) as 1 | 2 | 3 | 4 | 5;
     const currentMatches = stageMatchRows.filter((match) => match.stageRunId === stageRun.id && match.round === currentRound);
@@ -141,11 +145,36 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
       currentMatchCount: currentMatches.length,
       completedMatchCount: currentMatches.filter((match) => match.status === "finished").length,
       stageComplete: finalizedRound === 5,
-      nextStageName: finalizedRound === 5
+      nextStageName: finalizedRound === 5 ? stagePlan[stagePlan.findIndex((stage) => stage.key === stageRun.stageKey) + 1]?.name ?? null : null,
+      nextStageType: finalizedRound === 5
         ? stagePlan[stagePlan.findIndex((stage) => stage.key === stageRun.stageKey) + 1]?.type === "swiss"
-          ? stagePlan[stagePlan.findIndex((stage) => stage.key === stageRun.stageKey) + 1]?.name ?? null
-          : null
+          ? "swiss"
+          : stagePlan[stagePlan.findIndex((stage) => stage.key === stageRun.stageKey) + 1]?.type === "single_elim"
+            ? "playoff"
+            : null
         : null,
+    };
+  }
+  if (stageRun && configuredStage?.type === "single_elim") {
+    const playoffMatches = stageMatchRows.filter((match) => match.stageRunId === stageRun.id);
+    const inRound = (round: "quarterfinal" | "semifinal" | "final") => playoffMatches.filter((match) => match.entryRound === round);
+    const complete = (round: "quarterfinal" | "semifinal" | "final", count: number) => {
+      const rows = inRound(round);
+      return rows.length === count && rows.every((match) => match.status === "finished");
+    };
+    const currentRound = finalResult?.status === "pending_confirmation"
+      ? null
+      : !complete("quarterfinal", 4) ? "quarterfinal"
+        : !complete("semifinal", 2) ? "semifinal"
+          : "final";
+    const currentMatches = currentRound ? inRound(currentRound) : [];
+    playoffRuntime = {
+      seasonId: season.id,
+      stageRunId: stageRun.id,
+      currentRound,
+      currentMatchCount: currentMatches.length,
+      completedMatchCount: currentMatches.filter((match) => match.status === "finished").length,
+      resultPendingConfirmation: finalResult?.status === "pending_confirmation",
     };
   }
 
@@ -182,5 +211,6 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
     }}
     started={stageRunRows.length > 0}
     swissRuntime={swissRuntime}
+    playoffRuntime={playoffRuntime}
   />;
 }

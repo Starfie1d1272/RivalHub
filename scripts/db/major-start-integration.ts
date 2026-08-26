@@ -5,6 +5,7 @@ import * as schema from "../../src/db/schema";
 import { startMajorInTransaction } from "../../src/lib/major/start";
 import { finalizeMajorSwissRoundInTransaction } from "../../src/lib/major/swiss-runtime";
 import { transitionMajorSwissStageInTransaction } from "../../src/lib/major/stage-transition";
+import { finalizeMajorPlayoffRoundInTransaction, startMajorPlayoffInTransaction } from "../../src/lib/major/playoff-runtime";
 import { AppError, ErrorCode } from "../../src/lib/errors";
 import { createMajorDefaultCapabilities } from "../../src/types/season";
 
@@ -127,6 +128,7 @@ async function cleanupMajorFixture(pool: Pool, fixture: MajorFixture): Promise<v
   try {
     await client.query("BEGIN");
     await client.query("DELETE FROM matches WHERE season_id = $1", [fixture.seasonId]);
+    await client.query("DELETE FROM major_final_results WHERE season_id = $1", [fixture.seasonId]);
     await client.query(`DELETE FROM major_stage_entrants e USING major_stage_runs r
       WHERE e.stage_run_id = r.id AND r.season_id = $1`, [fixture.seasonId]);
     await client.query("DELETE FROM major_stage_runs WHERE season_id = $1", [fixture.seasonId]);
@@ -304,6 +306,65 @@ async function completeSwissStage(
   }
 }
 
+async function finishPlayoffRound(pool: Pool, stageRunId: string, round: "quarterfinal" | "semifinal" | "final"): Promise<void> {
+  const client = await pool.connect();
+  try {
+    const result = await client.query<{ id: string; format: "bo3" | "bo5" }>(
+      "SELECT id, format FROM matches WHERE major_stage_run_id = $1 AND entry_round = $2 ORDER BY managed_key",
+      [stageRunId, round],
+    );
+    if (result.rows.length === 0) throw new Error(`${round} 没有可完成的托管淘汰赛比赛。 `);
+    for (const [index, match] of result.rows.entries()) {
+      const winsA = index % 2 === 0;
+      await client.query("UPDATE matches SET score_a = $2, score_b = $3, status = 'finished', completed_at = now(), updated_at = now() WHERE id = $1", [
+        match.id,
+        match.format === "bo5" ? (winsA ? 3 : 2) : (winsA ? 2 : 1),
+        match.format === "bo5" ? (winsA ? 2 : 3) : (winsA ? 1 : 2),
+      ]);
+    }
+  } finally {
+    client.release();
+  }
+}
+
+async function exercisePlayoffRuntime(
+  database: ReturnType<typeof drizzle<typeof schema>>,
+  pool: Pool,
+  seasonId: string,
+  stage3RunId: string,
+): Promise<void> {
+  const starts = await Promise.all([
+    database.transaction((tx) => startMajorPlayoffInTransaction(tx, { seasonId, sourceStageRunId: stage3RunId, actorId: "local-admin-a" })),
+    database.transaction((tx) => startMajorPlayoffInTransaction(tx, { seasonId, sourceStageRunId: stage3RunId, actorId: "local-admin-b" })),
+  ]);
+  if (starts.filter((result) => result.created).length !== 1 || new Set(starts.map((result) => result.stageRunId)).size !== 1 || starts.some((result) => result.matchCount !== 4)) {
+    throw new Error("并发 Stage 3→Playoff 没有收敛到唯一的淘汰赛 StageRun。 ");
+  }
+  const playoffRunId = starts[0]!.stageRunId;
+  for (const round of ["quarterfinal", "semifinal", "final"] as const) {
+    await finishPlayoffRound(pool, playoffRunId, round);
+    const result = await database.transaction((tx) => finalizeMajorPlayoffRoundInTransaction(tx, {
+      seasonId, stageRunId: playoffRunId, expectedRound: round, actorId: "local-admin",
+    }));
+    const expectedNext = ({ quarterfinal: 2, semifinal: 1, final: 0 } as const)[round];
+    if (result.createdNextRound !== expectedNext || result.resultPendingConfirmation !== (round === "final")) {
+      throw new Error(`${round} 没有生成预期的下一轮或待确认赛事结果。 `);
+    }
+  }
+  const facts = await pool.query<{ matches: string; champion: string | null; status: string | null; has_three_four: boolean; groups: string }>(`
+    SELECT
+      (SELECT count(*) FROM matches WHERE major_stage_run_id = $1 AND ownership = 'major_stage') AS matches,
+      (SELECT champion_team_id::text FROM major_final_results WHERE playoff_stage_run_id = $1) AS champion,
+      (SELECT status::text FROM major_final_results WHERE playoff_stage_run_id = $1) AS status,
+      (SELECT EXISTS(SELECT 1 FROM major_final_results, jsonb_to_recordset(placement_groups) AS p("from" integer, "to" integer, "teamIds" jsonb) WHERE playoff_stage_run_id = $1 AND p."from" = 3 AND p."to" = 4)) AS has_three_four,
+      (SELECT jsonb_array_length(placement_groups)::text FROM major_final_results WHERE playoff_stage_run_id = $1) AS groups
+  `, [playoffRunId]);
+  const fact = facts.rows[0];
+  if (!fact || fact.matches !== "7" || !fact.champion || fact.status !== "pending_confirmation" || !fact.has_three_four || fact.groups !== "13") {
+    throw new Error("淘汰赛没有持久化七场比赛、冠军、3–4 名次区间与待确认正式结果。 ");
+  }
+}
+
 async function main(): Promise<void> {
   const pool = new Pool({ connectionString: databaseUrl, ssl: false, max: 4 });
   const database = drizzle(pool, { schema });
@@ -386,6 +447,7 @@ async function main(): Promise<void> {
     if (!transitionFacts || transitionFacts.runs !== "3" || transitionFacts.entrants !== "48" || transitionFacts.matches !== "99" || transitionFacts.complete_runs !== "3" || transitionFacts.transitions !== "2") {
       throw new Error("三阶段连续运行没有形成逐 StageRun 隔离的 canonical entrants、比赛和切换审计事实。 ");
     }
+    await exercisePlayoffRuntime(database, pool, ready.seasonId, stage3Transition.stageRunId);
 
     const rollback = await prepareReadyMajor(pool, "rollback");
     fixtures.push(rollback);
@@ -420,7 +482,7 @@ async function main(): Promise<void> {
       await triggerClient.query("DROP FUNCTION IF EXISTS fail_local_major_start_match()");
       triggerClient.release();
     }
-    console.log("Major local integration passed: start retry, 32-team lock, StageRun-scoped entrants and managed matches, three consecutive Swiss stages, missing/illegal-result rejection, concurrent confirmation and transition, and forced rollback.");
+    console.log("Major local integration passed: start retry, 32-team lock, StageRun-scoped entrants and managed matches, three consecutive Swiss stages, persistent playoff through champion, pending final result, missing/illegal-result rejection, concurrent confirmation and transition, and forced rollback.");
   } finally {
     for (const fixture of fixtures) await cleanupMajorFixture(pool, fixture);
     await pool.end();

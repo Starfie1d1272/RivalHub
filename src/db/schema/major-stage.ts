@@ -1,4 +1,4 @@
-import { check, index, integer, jsonb, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { check, index, integer, jsonb, pgEnum, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { majorPrestartEntrants } from "./major-prestart";
 import { seasons } from "./seasons";
@@ -45,5 +45,26 @@ export const majorStageEntrants = pgTable("major_stage_entrants", {
   runIndex: index("major_stage_entrants_run_idx").on(t.stageRunId),
 }));
 
+export const majorResultStatusEnum = pgEnum("major_result_status", ["pending_confirmation", "confirmed"]);
+
+/** Official output is materialized only after the last managed playoff match. */
+export const majorFinalResults = pgTable("major_final_results", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  seasonId: uuid("season_id").notNull().references(() => seasons.id),
+  playoffStageRunId: uuid("playoff_stage_run_id").notNull().references(() => majorStageRuns.id),
+  championTeamId: uuid("champion_team_id").notNull().references(() => teams.id),
+  placementGroups: jsonb("placement_groups").notNull(),
+  status: majorResultStatusEnum("status").notNull().default("pending_confirmation"),
+  finalizedAt: timestamp("finalized_at", { withTimezone: true }).notNull().defaultNow(),
+  finalizedBy: text("finalized_by").notNull(),
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+  confirmedBy: text("confirmed_by"),
+}, (t) => ({
+  uniqueSeason: unique("major_final_results_season_unique").on(t.seasonId),
+  uniquePlayoffRun: unique("major_final_results_playoff_run_unique").on(t.playoffStageRunId),
+  seasonIndex: index("major_final_results_season_idx").on(t.seasonId),
+}));
+
 export type MajorStageRun = typeof majorStageRuns.$inferSelect;
 export type MajorStageEntrant = typeof majorStageEntrants.$inferSelect;
+export type MajorFinalResult = typeof majorFinalResults.$inferSelect;

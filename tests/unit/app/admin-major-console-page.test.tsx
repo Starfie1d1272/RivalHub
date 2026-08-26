@@ -3,10 +3,11 @@ import * as React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMajorDefaultCapabilities } from "@/types/season";
 
-const { seasonFindFirstMock, teamsFindManyMock, stateFindFirstMock, selectMock } = vi.hoisted(() => ({
+const { seasonFindFirstMock, teamsFindManyMock, stateFindFirstMock, finalResultsFindFirstMock, selectMock } = vi.hoisted(() => ({
   seasonFindFirstMock: vi.fn(),
   teamsFindManyMock: vi.fn(),
   stateFindFirstMock: vi.fn(),
+  finalResultsFindFirstMock: vi.fn(),
   selectMock: vi.fn(),
 }));
 
@@ -16,6 +17,7 @@ vi.mock("@/db/client", () => ({
       seasons: { findFirst: seasonFindFirstMock },
       teams: { findMany: teamsFindManyMock },
       majorPrestartStates: { findFirst: stateFindFirstMock },
+      majorFinalResults: { findFirst: finalResultsFindFirstMock },
     },
     select: selectMock,
   },
@@ -37,6 +39,7 @@ describe("admin Major prestart console page", () => {
     });
     teamsFindManyMock.mockResolvedValue([]);
     stateFindFirstMock.mockResolvedValue(undefined);
+    finalResultsFindFirstMock.mockResolvedValue(undefined);
     selectMock.mockImplementation(() => chain([]));
   });
 
