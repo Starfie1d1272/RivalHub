@@ -148,22 +148,41 @@ export async function startMajorInTransaction(
 
   const now = new Date();
   const openingPlan = buildMajorOpeningPlan({ teams: seeds, stageOneMatchFormat: stage.matchFormat });
+  const entrantByTeamId = new Map(entrantRows.map((entrant) => [entrant.teamId, entrant]));
   const ruleSnapshot = {
     version: 1,
+    stagePlan: capabilities.stagePlan.map((configuredStage) => ({
+      key: configuredStage.key,
+      name: configuredStage.name,
+      type: configuredStage.type,
+      teamCount: configuredStage.teamCount,
+      matchFormat: configuredStage.matchFormat,
+      finalFormat: configuredStage.finalFormat ?? null,
+      advanceTiers: configuredStage.advanceTiers.map((tier) => ({ ...tier })),
+      entrySeeds: configuredStage.entrySeeds ?? null,
+      seeds: configuredStage.seeds ? [...configuredStage.seeds] : null,
+    })),
     stage: {
       key: stage.key,
       name: stage.name,
       type: stage.type,
       teamCount: stage.teamCount,
       matchFormat: stage.matchFormat,
+      finalFormat: stage.finalFormat ?? null,
       advanceTiers: stage.advanceTiers,
       entrySeeds: stage.entrySeeds ?? null,
+      seeds: stage.seeds ? [...stage.seeds] : null,
     },
     rosterRules: {
       minTeamSize: season.minTeamSize,
       maxTeamSize: season.maxTeamSize,
       starterCount: season.starterCount,
     },
+    tournamentEntrants: openingPlan.tournamentTeams.map((team) => {
+      const entrant = entrantByTeamId.get(team.teamId);
+      if (!entrant) throw new AppError(ErrorCode.INTERNAL_ERROR, "赛事种子缺少已锁定的正式参赛队。");
+      return { entrantId: entrant.id, teamId: team.teamId, tournamentSeed: team.tournamentSeed };
+    }),
     tournamentSeeds: openingPlan.tournamentTeams.map((team) => ({ ...team })),
     openingPairings: openingPlan.firstRound.pairings.map((pairing) => ({
       key: `r1-${pairing.higherSeed.stageOneSeed}`,
@@ -182,7 +201,6 @@ export async function startMajorInTransaction(
   }).returning({ id: majorStageRuns.id });
   if (!stageRun) throw new AppError(ErrorCode.INTERNAL_ERROR, "Stage 1 运行记录创建失败。");
 
-  const entrantByTeamId = new Map(entrantRows.map((entrant) => [entrant.teamId, entrant]));
   await tx.insert(majorStageEntrants).values(openingPlan.stage1.entrants.map((team) => {
     const entrant = entrantByTeamId.get(team.teamId);
     if (!entrant) throw new AppError(ErrorCode.INTERNAL_ERROR, "Stage 1 入口缺少已锁定的正式参赛队。");

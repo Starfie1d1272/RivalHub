@@ -39,7 +39,7 @@ export function MajorPrestartConsole({
           赛事控制台 · {seasonName}
         </Marker>
         <p className="text-sm text-[var(--color-fg-mid)]">
-          赛前事实与种子独立管理；只有管理员勾选明确确认后，才会原子启动赛事并创建对阵。
+          赛前事实、StageRun 与托管比赛独立管理；只有管理员勾选明确确认后，才会原子启动或切换阶段。
         </p>
       </div>
 
