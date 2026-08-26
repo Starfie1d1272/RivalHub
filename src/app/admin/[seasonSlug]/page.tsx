@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { MajorPrestartConsole } from "@/components/admin/MajorPrestartConsole";
 import { db } from "@/db/client";
 import {
@@ -8,6 +8,7 @@ import {
   majorPrestartRosterMembers,
   majorPrestartStates,
   majorStageRuns,
+  matches,
   majorTournamentSeeds,
   seasons,
   teamMembers,
@@ -21,6 +22,10 @@ import {
   normalizeStagePlan,
   normalizeTeamRegistrationConfig,
 } from "@/types/season";
+
+function isMajorSwissFinalizedRound(value: number): value is 0 | 1 | 2 | 3 | 4 | 5 {
+  return value === 0 || value === 1 || value === 2 || value === 3 || value === 4 || value === 5;
+}
 
 interface AdminMajorConsolePageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -51,7 +56,7 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
     candidatesByTeam.set(member.teamId, candidates);
   }
 
-  const [state, entrantRows, rosterRows, issueRows, seedRows, stageRunRows] = await Promise.all([
+  const [state, entrantRows, rosterRows, issueRows, seedRows, stageRunRows, stageMatchRows] = await Promise.all([
     db.query.majorPrestartStates.findFirst({ where: eq(majorPrestartStates.seasonId, season.id) }),
     db.select({
       id: majorPrestartEntrants.id,
@@ -73,8 +78,12 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
       .innerJoin(majorPrestartEntrants, eq(majorTournamentSeeds.entrantId, majorPrestartEntrants.id))
       .where(eq(majorTournamentSeeds.seasonId, season.id))
       .orderBy(asc(majorTournamentSeeds.tournamentSeed)),
-    db.select({ id: majorStageRuns.id }).from(majorStageRuns)
+    db.select({ id: majorStageRuns.id, stageKey: majorStageRuns.stageKey, finalizedRound: majorStageRuns.finalizedRound }).from(majorStageRuns)
       .where(eq(majorStageRuns.seasonId, season.id)),
+    db.select({ stageRunId: matches.majorStageRunId, round: matches.round, status: matches.status })
+      .from(matches)
+      .innerJoin(majorStageRuns, eq(matches.majorStageRunId, majorStageRuns.id))
+      .where(and(eq(majorStageRuns.seasonId, season.id), eq(matches.ownership, "major_stage"))),
   ]);
   const entrantIds = new Set(entrantRows.map((entrant) => entrant.id));
   const rosterByEntrant = new Map<string, Array<{ userId: string; email: string }>>();
@@ -114,6 +123,22 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
   if (seedRows.length === 32 && (stageOneMatchFormat === "bo1" || stageOneMatchFormat === "bo3")) {
     try { seedPreview = buildMajorOpeningPlan({ teams: seedRows, stageOneMatchFormat }); } catch { seedPreview = null; }
   }
+  const stageRun = stageRunRows.length === 1 ? stageRunRows[0] : null;
+  let swissRuntime: import("@/components/admin/MajorSwissRuntimeManagement").MajorSwissRuntimeData | null = null;
+  if (stageRun && isMajorSwissFinalizedRound(stageRun.finalizedRound)) {
+    const finalizedRound = stageRun.finalizedRound;
+    const currentRound = (finalizedRound === 5 ? 5 : finalizedRound + 1) as 1 | 2 | 3 | 4 | 5;
+    const currentMatches = stageMatchRows.filter((match) => match.stageRunId === stageRun.id && match.round === currentRound);
+    swissRuntime = {
+      seasonId: season.id,
+      stageKey: stageRun.stageKey,
+      finalizedRound,
+      currentRound,
+      currentMatchCount: currentMatches.length,
+      completedMatchCount: currentMatches.filter((match) => match.status === "finished").length,
+      stageComplete: finalizedRound === 5,
+    };
+  }
 
   return <MajorPrestartConsole
     seasonName={season.name}
@@ -147,5 +172,6 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
       })) ?? null,
     }}
     started={stageRunRows.length > 0}
+    swissRuntime={swissRuntime}
   />;
 }

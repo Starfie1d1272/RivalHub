@@ -1,0 +1,2 @@
+ALTER TABLE "major_stage_runs" ADD COLUMN "finalized_round" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "major_stage_runs" ADD CONSTRAINT "major_stage_runs_finalized_round_range_check" CHECK ("major_stage_runs"."finalized_round" BETWEEN 0 AND 5);

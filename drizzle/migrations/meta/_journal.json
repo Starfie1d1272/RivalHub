@@ -43,6 +43,13 @@
       "when": 1787728670830,
       "tag": "0005_zippy_champions",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787730343261,
+      "tag": "0006_aspiring_zarek",
+      "breakpoints": true
     }
   ]
 }

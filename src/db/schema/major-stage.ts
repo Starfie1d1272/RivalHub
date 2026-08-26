@@ -14,10 +14,17 @@ export const majorStageRuns = pgTable("major_stage_runs", {
   seasonId: uuid("season_id").notNull().references(() => seasons.id),
   stageKey: text("stage_key").notNull(),
   ruleSnapshot: jsonb("rule_snapshot").notNull(),
+  /**
+   * The last Swiss round whose results were explicitly accepted by an
+   * operator. This is deliberately separate from finished matches: results
+   * may be corrected until the operator finalizes the round.
+   */
+  finalizedRound: integer("finalized_round").notNull().default(0),
   startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
   startedBy: text("started_by").notNull(),
 }, (t) => ({
   uniqueSeasonStage: unique("major_stage_runs_season_stage_unique").on(t.seasonId, t.stageKey),
+  validFinalizedRound: check("major_stage_runs_finalized_round_range_check", sql`${t.finalizedRound} BETWEEN 0 AND 5`),
   seasonIndex: index("major_stage_runs_season_idx").on(t.seasonId),
 }));
 
