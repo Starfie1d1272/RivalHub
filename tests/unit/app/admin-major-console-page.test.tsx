@@ -3,9 +3,11 @@ import * as React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMajorDefaultCapabilities } from "@/types/season";
 
-const { seasonFindFirstMock, teamsFindManyMock } = vi.hoisted(() => ({
+const { seasonFindFirstMock, teamsFindManyMock, stateFindFirstMock, selectMock } = vi.hoisted(() => ({
   seasonFindFirstMock: vi.fn(),
   teamsFindManyMock: vi.fn(),
+  stateFindFirstMock: vi.fn(),
+  selectMock: vi.fn(),
 }));
 
 vi.mock("@/db/client", () => ({
@@ -13,8 +15,9 @@ vi.mock("@/db/client", () => ({
     query: {
       seasons: { findFirst: seasonFindFirstMock },
       teams: { findMany: teamsFindManyMock },
+      majorPrestartStates: { findFirst: stateFindFirstMock },
     },
-    select: vi.fn(),
+    select: selectMock,
   },
 }));
 
@@ -33,9 +36,11 @@ describe("admin Major prestart console page", () => {
       ...capabilities,
     });
     teamsFindManyMock.mockResolvedValue([]);
+    stateFindFirstMock.mockResolvedValue(undefined);
+    selectMock.mockImplementation(() => chain([]));
   });
 
-  it("renders the domain result and keeps unconnected facts explicitly unavailable", async () => {
+  it("reads only persisted prestart facts and leaves seeds explicitly unavailable", async () => {
     const page = await AdminMajorConsolePage({ params: Promise.resolve({ seasonSlug: "major-2027" }) });
     const html = renderToStaticMarkup(page);
 
@@ -43,6 +48,19 @@ describe("admin Major prestart console page", () => {
     expect(html).toContain("准备未完成");
     expect(html).toContain("当前有 0 支队伍，Major 开赛需要恰好 32 支队伍。");
     expect(html).toContain("尚未接入/不可确认");
+    expect(html).toContain("正式参赛队 (0/32)");
+    expect(html).toContain("所有已审核 teams 不会自动成为 Major 参赛队");
     expect(html).toContain("当前不会推导或展示临时对阵");
   });
 });
+
+function chain<T>(value: T) {
+  const result = {
+    from: () => result,
+    innerJoin: () => result,
+    where: () => result,
+    orderBy: () => result,
+    then: (resolve: (value: T) => unknown, reject?: (reason: unknown) => unknown) => Promise.resolve(value).then(resolve, reject),
+  };
+  return result;
+}

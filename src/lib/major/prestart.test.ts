@@ -14,11 +14,12 @@ function makeInput(): MajorPrestartReadinessInput {
       teamId,
       playerIds: Array.from({ length: 5 }, (_, playerIndex) => `player-${teamIndex * 5 + playerIndex + 1}`),
     })),
+    entrantsLocked: true,
     confirmations: teamIds.map((teamId) => ({ teamId, confirmed: true })),
     qualificationIssues: [],
     administrativeIssues: [],
     tournamentSeeds: teamIds.map((teamId, index) => ({ teamId, tournamentSeed: index + 1 })),
-    reconfirmations: teamIds.map((teamId) => ({ teamId, confirmed: true })),
+    seedConfirmation: { seedRevision: 1, confirmedSeedRevision: 1 },
   };
 }
 
@@ -44,7 +45,7 @@ describe("evaluateMajorPrestartReadiness", () => {
     input.tournamentSeeds = input.tournamentSeeds!.map((fact, index) => (
       index === 31 ? { ...fact, tournamentSeed: 31 } : fact
     ));
-    input.reconfirmations = input.reconfirmations!.slice(0, 30);
+    input.seedConfirmation = { seedRevision: 2, confirmedSeedRevision: 1 };
 
     expect(() => evaluateMajorPrestartReadiness(input)).not.toThrow();
     const result = evaluateMajorPrestartReadiness(input);
@@ -57,7 +58,7 @@ describe("evaluateMajorPrestartReadiness", () => {
     expect(result.blockers.join("\n")).toContain("资格事项未完成");
     expect(result.blockers.join("\n")).toContain("管理事项未完成");
     expect(result.blockers.join("\n")).toContain("赛事种子 32 尚未分配");
-    expect(result.blockers.join("\n")).toContain("缺少赛前重新确认记录");
+    expect(result.blockers.join("\n")).toContain("赛事种子已变化，必须重新确认");
   });
 
   it("fails closed when schema-less facts are not connected", () => {
@@ -66,14 +67,15 @@ describe("evaluateMajorPrestartReadiness", () => {
     input.qualificationIssues = null;
     input.administrativeIssues = null;
     input.tournamentSeeds = null;
-    input.reconfirmations = null;
+    input.entrantsLocked = null;
+    input.seedConfirmation = null;
 
     const result = evaluateMajorPrestartReadiness(input);
 
     expect(result.canStart).toBe(false);
     expect(result.openingPlan).toBeNull();
     expect(result.checks.filter((check) => check.state === "unavailable").map((check) => check.key)).toEqual([
-      "confirmations", "qualification", "administration", "seeds", "reconfirmations",
+      "entrants-locked", "confirmations", "qualification", "administration", "seeds", "reconfirmations",
     ]);
     expect(result.blockers.every((blocker) => blocker.includes("尚未接入/不可确认") || blocker.includes("开赛计划"))).toBe(true);
   });

@@ -4,6 +4,7 @@ export * from "./registrations";
 export * from "./registration-drafts";
 export * from "./teams";
 export * from "./team-applications";
+export * from "./major-prestart";
 export * from "./votes";
 export * from "./draft";
 export * from "./matches";
