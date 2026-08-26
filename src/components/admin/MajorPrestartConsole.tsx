@@ -3,6 +3,7 @@ import type { MajorPrestartReadiness } from "@/lib/major/prestart";
 import { MajorPrestartManagement, type MajorPrestartManagementData } from "./MajorPrestartManagement";
 import { MajorTournamentSeedsManagement, type MajorTournamentSeedsManagementData } from "./MajorTournamentSeedsManagement";
 import { MajorStartManagement } from "./MajorStartManagement";
+import { MajorSwissRuntimeManagement, type MajorSwissRuntimeData } from "./MajorSwissRuntimeManagement";
 
 const STATE_LABEL = {
   ready: "已就绪",
@@ -22,12 +23,14 @@ export function MajorPrestartConsole({
   management,
   seedManagement,
   started,
+  swissRuntime,
 }: {
   seasonName: string;
   readiness: MajorPrestartReadiness;
   management: MajorPrestartManagementData;
   seedManagement: MajorTournamentSeedsManagementData;
   started: boolean;
+  swissRuntime: MajorSwissRuntimeData | null;
 }) {
   return (
     <div className="space-y-6">
@@ -68,6 +71,7 @@ export function MajorPrestartConsole({
       <MajorPrestartManagement data={management} />
       <MajorTournamentSeedsManagement data={seedManagement} />
       <MajorStartManagement seasonId={management.seasonId} openingPlan={readiness.openingPlan} started={started} />
+      {swissRuntime && <MajorSwissRuntimeManagement data={swissRuntime} />}
 
       <Panel label="阶段一首轮预览">
         {readiness.openingPlan ? (

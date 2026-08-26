@@ -3,6 +3,8 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool, type PoolClient } from "pg";
 import * as schema from "../../src/db/schema";
 import { startMajorInTransaction } from "../../src/lib/major/start";
+import { finalizeMajorSwissRoundInTransaction } from "../../src/lib/major/swiss-runtime";
+import { AppError, ErrorCode } from "../../src/lib/errors";
 import { createMajorDefaultCapabilities } from "../../src/types/season";
 
 const databaseUrl = process.env.RIVALHUB_LOCAL_DATABASE_URL;
@@ -168,6 +170,115 @@ async function cleanupStaleMajorStartFixtures(pool: Pool): Promise<void> {
   }
 }
 
+async function expectSwissRuntimeFailure(work: () => Promise<unknown>): Promise<void> {
+  try {
+    await work();
+  } catch (error) {
+    if (error instanceof AppError && error.code === ErrorCode.VALIDATION_FAILED) return;
+    throw error;
+  }
+  throw new Error("预期 Swiss 运行时拒绝不完整或非法比赛事实，但操作成功。 ");
+}
+
+async function finishSwissRound(pool: Pool, seasonId: string, round: number): Promise<void> {
+  const client = await pool.connect();
+  try {
+    const roundMatches = await client.query<{ id: string; format: "bo1" | "bo3" }>(
+      `SELECT id, format FROM matches
+       WHERE season_id = $1 AND ownership = 'major_stage' AND round = $2
+       ORDER BY managed_key`,
+      [seasonId, round],
+    );
+    if (roundMatches.rows.length === 0) throw new Error(`第 ${round} 轮没有可完成的托管比赛。`);
+    for (let index = 0; index < roundMatches.rows.length; index += 1) {
+      const match = roundMatches.rows[index];
+      const teamAWins = (round + index) % 2 === 0;
+      const scoreA = match.format === "bo1" ? (teamAWins ? 13 : 11) : (teamAWins ? 2 : 1);
+      const scoreB = match.format === "bo1" ? (teamAWins ? 11 : 13) : (teamAWins ? 1 : 2);
+      await client.query(
+        `UPDATE matches SET score_a = $2, score_b = $3, status = 'finished', completed_at = now(), updated_at = now() WHERE id = $1`,
+        [match.id, scoreA, scoreB],
+      );
+    }
+  } finally {
+    client.release();
+  }
+}
+
+async function exerciseSwissRuntime(
+  database: ReturnType<typeof drizzle<typeof schema>>,
+  pool: Pool,
+  fixture: MajorFixture,
+): Promise<void> {
+  await expectSwissRuntimeFailure(() => database.transaction((tx) => finalizeMajorSwissRoundInTransaction(tx, {
+    seasonId: fixture.seasonId, expectedRound: 1, actorId: "local-admin",
+  })));
+
+  await finishSwissRound(pool, fixture.seasonId, 1);
+  const client = await pool.connect();
+  let corruptedMatchId: string;
+  try {
+    const invalid = await client.query<{ id: string }>(
+      `SELECT id FROM matches WHERE season_id = $1 AND ownership = 'major_stage' AND round = 1 ORDER BY managed_key LIMIT 1`,
+      [fixture.seasonId],
+    );
+    corruptedMatchId = invalid.rows[0]?.id ?? "";
+    if (!corruptedMatchId) throw new Error("缺少用于非法比分验证的 R1 比赛。 ");
+    await client.query("UPDATE matches SET score_a = 0, score_b = 0 WHERE id = $1", [corruptedMatchId]);
+  } finally {
+    client.release();
+  }
+  await expectSwissRuntimeFailure(() => database.transaction((tx) => finalizeMajorSwissRoundInTransaction(tx, {
+    seasonId: fixture.seasonId, expectedRound: 1, actorId: "local-admin",
+  })));
+  const restoreClient = await pool.connect();
+  try {
+    await restoreClient.query("UPDATE matches SET score_a = 13, score_b = 11 WHERE id = $1", [corruptedMatchId]);
+  } finally {
+    restoreClient.release();
+  }
+
+  const concurrent = await Promise.all([
+    database.transaction((tx) => finalizeMajorSwissRoundInTransaction(tx, { seasonId: fixture.seasonId, expectedRound: 1, actorId: "local-admin-a" })),
+    database.transaction((tx) => finalizeMajorSwissRoundInTransaction(tx, { seasonId: fixture.seasonId, expectedRound: 1, actorId: "local-admin-b" })),
+  ]);
+  if (concurrent.filter((result) => !result.alreadyFinalized).length !== 1 || concurrent.some((result) => result.createdNextRound !== 8 && !result.alreadyFinalized)) {
+    throw new Error("并发确认没有收敛到一次 R2 托管比赛生成。 ");
+  }
+
+  for (const round of [2, 3, 4, 5] as const) {
+    await finishSwissRound(pool, fixture.seasonId, round);
+    const result = await database.transaction((tx) => finalizeMajorSwissRoundInTransaction(tx, {
+      seasonId: fixture.seasonId, expectedRound: round, actorId: "local-admin",
+    }));
+    const expectedNextCount = ({ 2: 8, 3: 6, 4: 3, 5: 0 } as const)[round];
+    if (result.createdNextRound !== expectedNextCount || result.stageComplete !== (round === 5)) {
+      throw new Error(`第 ${round} 轮确认没有生成预期的下一轮或完成状态。`);
+    }
+  }
+
+  const verifyClient = await pool.connect();
+  try {
+    const facts = await verifyClient.query<{ finalized_round: number; total_matches: string; r1: string; r2: string; r3: string; r4: string; r5: string; audits: string }>(`
+      SELECT
+        (SELECT finalized_round FROM major_stage_runs WHERE season_id = $1) AS finalized_round,
+        (SELECT count(*) FROM matches WHERE season_id = $1 AND ownership = 'major_stage') AS total_matches,
+        (SELECT count(*) FROM matches WHERE season_id = $1 AND ownership = 'major_stage' AND round = 1) AS r1,
+        (SELECT count(*) FROM matches WHERE season_id = $1 AND ownership = 'major_stage' AND round = 2) AS r2,
+        (SELECT count(*) FROM matches WHERE season_id = $1 AND ownership = 'major_stage' AND round = 3) AS r3,
+        (SELECT count(*) FROM matches WHERE season_id = $1 AND ownership = 'major_stage' AND round = 4) AS r4,
+        (SELECT count(*) FROM matches WHERE season_id = $1 AND ownership = 'major_stage' AND round = 5) AS r5,
+        (SELECT count(*) FROM audit_logs WHERE season_id = $1 AND action = 'major.swiss.finalize_round') AS audits
+    `, [fixture.seasonId]);
+    const fact = facts.rows[0];
+    if (!fact || fact.finalized_round !== 5 || fact.total_matches !== "33" || fact.r1 !== "8" || fact.r2 !== "8" || fact.r3 !== "8" || fact.r4 !== "6" || fact.r5 !== "3" || fact.audits !== "5") {
+      throw new Error("Swiss 本地流程没有形成完整的 1→5 轮 canonical managed match 与确认审计事实。 ");
+    }
+  } finally {
+    verifyClient.release();
+  }
+}
+
 async function main(): Promise<void> {
   const pool = new Pool({ connectionString: databaseUrl, ssl: false, max: 4 });
   const database = drizzle(pool, { schema });
@@ -217,6 +328,8 @@ async function main(): Promise<void> {
       client.release();
     }
 
+    await exerciseSwissRuntime(database, pool, ready);
+
     const rollback = await prepareReadyMajor(pool, "rollback");
     fixtures.push(rollback);
     const triggerClient = await pool.connect();
@@ -250,7 +363,7 @@ async function main(): Promise<void> {
       await triggerClient.query("DROP FUNCTION IF EXISTS fail_local_major_start_match()");
       triggerClient.release();
     }
-    console.log("Major start local integration passed: concurrent retry idempotency, 32-team lock, 16 StageEntrants, 8 owned R1 matches, rule snapshot path, and forced rollback.");
+    console.log("Major local integration passed: start retry, 32-team lock, StageEntrants, managed R1, Swiss R1→R5 runtime, missing/illegal-result rejection, concurrent confirmation, and forced rollback.");
   } finally {
     await Promise.all(fixtures.map((fixture) => cleanupMajorFixture(pool, fixture)));
     await pool.end();
