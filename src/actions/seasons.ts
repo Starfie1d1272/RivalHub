@@ -232,7 +232,9 @@ export async function updateSeason(input: SeasonFormInput): Promise<ActionResult
         existing.minTeamSize !== data.minTeamSize ||
         existing.starterCount !== data.starterCount ||
         JSON.stringify(existing.positions) !== JSON.stringify(data.positions) ||
-        JSON.stringify(existing.stagePlan) !== JSON.stringify(data.stagePlan);
+        JSON.stringify(existing.stagePlan) !== JSON.stringify(data.stagePlan) ||
+        JSON.stringify(normalizeAffiliationRules(existing.affiliationRules)) !==
+          JSON.stringify(normalizeAffiliationRules(data.affiliationRules as InstitutionAffiliationRule[] | undefined));
       if (coreChanged) {
         throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有 draft 状态可修改核心赛季配置");
       }

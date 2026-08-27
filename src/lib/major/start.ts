@@ -15,6 +15,7 @@ import {
 import { AppError, ErrorCode } from "@/lib/errors";
 import { buildMajorOpeningPlan } from "@/lib/major/opening";
 import { evaluateMajorPrestartReadiness } from "@/lib/major/prestart";
+import { freezeAffiliationRules } from "@/lib/major/frozen-affiliation-rules";
 import {
   checkStandardMajorCapabilities,
   normalizeRegistrationConfig,
@@ -154,7 +155,9 @@ export async function startMajorInTransaction(
   const openingPlan = buildMajorOpeningPlan({ teams: seeds, stageOneMatchFormat: stage.matchFormat });
   const entrantByTeamId = new Map(entrantRows.map((entrant) => [entrant.teamId, entrant]));
   const ruleSnapshot = {
-    version: 1,
+    // StageRun is the immutable tournament rule owner. Match-roster (G1)
+    // must consume this frozen value rather than seasons.affiliationRules.
+    version: 2,
     stagePlan: capabilities.stagePlan.map((configuredStage) => ({
       key: configuredStage.key,
       name: configuredStage.name,
@@ -182,6 +185,7 @@ export async function startMajorInTransaction(
       maxTeamSize: season.maxTeamSize,
       starterCount: season.starterCount,
     },
+    affiliationRules: freezeAffiliationRules(capabilities.affiliationRules),
     tournamentEntrants: openingPlan.tournamentTeams.map((team) => {
       const entrant = entrantByTeamId.get(team.teamId);
       if (!entrant) throw new AppError(ErrorCode.INTERNAL_ERROR, "赛事种子缺少已锁定的正式参赛队。");

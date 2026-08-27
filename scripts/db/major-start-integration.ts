@@ -61,7 +61,7 @@ async function prepareReadyMajor(pool: Pool, label: string): Promise<MajorFixtur
       ],
     );
     await client.query(
-      `INSERT INTO users (id, email) SELECT value::uuid, 'major-start-' || value || '@local.test'
+      `INSERT INTO users (id, email, email_verified_at) SELECT value::uuid, 'major-start-' || value || '@local.test', now()
        FROM unnest($1::text[]) AS value`,
       [userIds],
     );
@@ -395,7 +395,7 @@ async function main(): Promise<void> {
 
     const client = await pool.connect();
     try {
-      const started = await client.query<{ status: string; runs: string; entrants: string; matches: string; audits: string; seeds_locked: boolean; rule_snapshot: { stage?: { key?: string }; openingPairings?: unknown[] } }>(`
+      const started = await client.query<{ status: string; runs: string; entrants: string; matches: string; audits: string; seeds_locked: boolean; rule_snapshot: { stage?: { key?: string }; openingPairings?: unknown[]; affiliationRules?: Array<{ institutionCode?: string; minRosterMembers?: number; minStartingMembers?: number }> } }>(`
         SELECT
           (SELECT status FROM seasons WHERE id = $1) AS status,
           (SELECT count(*) FROM major_stage_runs WHERE season_id = $1) AS runs,
@@ -406,7 +406,8 @@ async function main(): Promise<void> {
           (SELECT rule_snapshot FROM major_stage_runs WHERE season_id = $1) AS rule_snapshot
       `, [ready.seasonId]);
       const facts = started.rows[0];
-      if (facts?.status !== "playing" || facts.runs !== "1" || facts.entrants !== "16" || facts.matches !== "8" || facts.audits !== "1" || !facts.seeds_locked || facts.rule_snapshot?.stage?.key !== "stage1" || facts.rule_snapshot.openingPairings?.length !== 8) {
+      const frozenNjuRule = facts?.rule_snapshot?.affiliationRules?.find((rule) => rule.institutionCode === "4132010284");
+      if (facts?.status !== "playing" || facts.runs !== "1" || facts.entrants !== "16" || facts.matches !== "8" || facts.audits !== "1" || !facts.seeds_locked || facts.rule_snapshot?.stage?.key !== "stage1" || facts.rule_snapshot?.openingPairings?.length !== 8 || frozenNjuRule?.minRosterMembers !== 3 || frozenNjuRule.minStartingMembers !== 3) {
         throw new Error("正式开赛没有完整固化状态、入口、比赛或审计事实。");
       }
       const firstMatch = await client.query<{ major_stage_run_id: string; team_a_id: string; team_b_id: string; stage: string; format: string }>(

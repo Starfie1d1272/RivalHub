@@ -12,6 +12,9 @@ export async function GET(request: NextRequest) {
   const tokenHash = searchParams.get("token_hash");
   const otpType = searchParams.get("type");
   const flow = callbackFlow(new URL(request.url));
+  if (!flow) {
+    return NextResponse.redirect(new URL("/login", applicationOrigin));
+  }
   const next = safeNextPath(searchParams.get("next")) ?? (flow === "reverify" ? "/settings/education" : "/");
 
   if (!code && !tokenHash) {

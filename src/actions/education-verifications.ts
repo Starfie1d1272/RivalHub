@@ -23,6 +23,13 @@ export async function submitEducationVerification(input: unknown): Promise<Actio
   if (!evidenceUrl) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "仅支持 https://www.chsi.com.cn 或 https://chsi.com.cn 的官方在线验证链接。" });
   try {
     const session = await requireAuth();
+    // This is an ownership fact maintained only after a successful Supabase
+    // confirmation callback. UI visibility is advisory; the sensitive claim
+    // must fail closed at the trusted write boundary.
+    const user = await db.query.users.findFirst({ where: eq(users.id, session.userId) });
+    if (!user?.emailVerifiedAt) {
+      throw new AppError(ErrorCode.FORBIDDEN, "请先验证当前账号邮箱，验证后才能提交教育身份认证。 ");
+    }
     const institution = await db.query.institutions.findFirst({ where: eq(institutions.id, parsed.data.institutionId) });
     if (!institution) throw new AppError(ErrorCode.NOT_FOUND, "所选高校不存在，请刷新后重试。");
     await db.transaction(async (tx) => {

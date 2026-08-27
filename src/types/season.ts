@@ -489,6 +489,22 @@ export function checkStandardMajorCapabilities(
   };
 }
 
+/**
+ * Compatibility detector for rows written before affiliation_rules existed.
+ * It intentionally derives identity from the complete old capability contract,
+ * never from seasons.kind. A matching row is unsafe to guess-backfill: its
+ * rule must be configured explicitly before it can become a standard Major.
+ */
+export function isLegacyStandardMajorWithoutAffiliation(
+  capabilities: SeasonCapabilities,
+): boolean {
+  return normalizeAffiliationRules(capabilities.affiliationRules).length === 0 &&
+    checkStandardMajorCapabilities({
+      ...capabilities,
+      affiliationRules: MAJOR_DEFAULT_CAPABILITIES.affiliationRules,
+    }).isStandardMajor;
+}
+
 // ── 展示标签 ─────────────────────────────────────────────────────────────
 
 export const SEASON_STATUS_LABELS: Record<SeasonStatus, string> = {
