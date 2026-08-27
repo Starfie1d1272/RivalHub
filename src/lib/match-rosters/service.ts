@@ -18,6 +18,7 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import { frozenStageRunAffiliationRules } from "@/lib/major/frozen-affiliation-rules";
 import { assertMatchTransition } from "@/lib/match-transitions";
 import { loadActiveSanctionsInTx } from "@/lib/discipline/service";
+import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 import type { InstitutionAffiliationRule } from "@/types/season";
 import { evaluateStartingLineup, type LineupMemberFact } from "./lineup";
 
@@ -43,6 +44,7 @@ export async function lockMatchInTx(tx: TxDb, matchId: string): Promise<Match> {
     .where(eq(matches.id, matchId))
     .for("update");
   if (!locked) throw new AppError(ErrorCode.NOT_FOUND, "比赛不存在。");
+  await assertSeasonAllowsTournamentMutationInTx(tx, locked.seasonId);
   return locked;
 }
 

@@ -21,6 +21,7 @@ import {
 import { maybeFinishSeason } from "@/actions/transitions";
 import { revalidateMatchPaths, revalidateSeasonPaths } from "@/lib/revalidation";
 import { normalizeRegistrationConfig, normalizeStagePlan } from "@/types/season";
+import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 import {
   computeSeriesScoreAfterMap,
   isValidCS2RoundScore,
@@ -136,6 +137,7 @@ export async function recordMatchResult(
 
     // 事务保护：score 更新 + bracket 推进 + audit 原子化
     await db.transaction(async (tx) => {
+      await assertSeasonAllowsTournamentMutationInTx(tx, match.seasonId);
       await tx
         .update(matches)
         .set({
@@ -238,6 +240,7 @@ export async function recordMapResult(
     let seriesFinished = false;
 
     await db.transaction(async (tx) => {
+      await assertSeasonAllowsTournamentMutationInTx(tx, match.seasonId);
       // 事务内读快照
       const existingMaps = await tx.query.matchMaps.findMany({
         where: eq(matchMaps.matchId, matchId),
@@ -344,6 +347,7 @@ export async function updateMatchScheduledAt(
 
     const seasonForSch = await getSeasonOrThrow(match.seasonId);
     await db.transaction(async (tx) => {
+      await assertSeasonAllowsTournamentMutationInTx(tx, match.seasonId);
       const now = new Date();
       await tx
         .update(matches)
@@ -411,6 +415,7 @@ export async function updateMatchCompletionDeadline(
 
     const season = await getSeasonOrThrow(match.seasonId);
     await db.transaction(async (tx) => {
+      await assertSeasonAllowsTournamentMutationInTx(tx, match.seasonId);
       await tx
         .update(matches)
         .set({ completionDeadline, updatedAt: new Date() })
@@ -479,6 +484,7 @@ export async function batchSetCompletionDeadline(input: {
     const matchIds = targetMatches.map((m) => m.id);
 
     await db.transaction(async (tx) => {
+      await assertSeasonAllowsTournamentMutationInTx(tx, input.seasonId);
       await tx
         .update(matches)
         .set({ completionDeadline: input.completionDeadline, updatedAt: new Date() })
@@ -575,6 +581,7 @@ export async function correctMatchScore(
     const prevScoreB = match.scoreB;
 
     await db.transaction(async (tx) => {
+      await assertSeasonAllowsTournamentMutationInTx(tx, match.seasonId);
       await tx
         .update(matches)
         .set({ scoreA, scoreB, updatedAt: new Date() })
@@ -615,6 +622,7 @@ export async function deleteMatch(matchId: string): Promise<ActionResult<void>> 
     const season = await getSeasonOrThrow(match.seasonId);
 
     await db.transaction(async (tx) => {
+      await assertSeasonAllowsTournamentMutationInTx(tx, match.seasonId);
       // 级联删除相关数据
       await tx.delete(matchVetoSteps).where(eq(matchVetoSteps.matchId, matchId));
       await tx.delete(matchMaps).where(eq(matchMaps.matchId, matchId));
@@ -678,6 +686,7 @@ export async function updateMatchCompletedAt(
     const season = await getSeasonOrThrow(match.seasonId);
 
     await db.transaction(async (tx) => {
+      await assertSeasonAllowsTournamentMutationInTx(tx, match.seasonId);
       await tx
         .update(matches)
         .set({ completedAt, updatedAt: new Date() })
@@ -734,6 +743,7 @@ export async function correctMapScore(
     const season = await getSeasonOrThrow(match.seasonId);
 
     await db.transaction(async (tx) => {
+      await assertSeasonAllowsTournamentMutationInTx(tx, match.seasonId);
       // 事务内读取所有图，将目标图替换为 proposed score 后按正常语义重算系列赛
       const allMaps = await tx.query.matchMaps.findMany({
         where: eq(matchMaps.matchId, mapRecord.matchId),
@@ -841,6 +851,7 @@ export async function syncBracketMatches(seasonId: string): Promise<ActionResult
     let fixed = 0;
 
     await db.transaction(async (tx) => {
+      await assertSeasonAllowsTournamentMutationInTx(tx, seasonId);
       for (const bm of allResolved) {
         const nameA = participantNameById.get(bm.teamAParticipantId);
         const nameB = participantNameById.get(bm.teamBParticipantId);
@@ -912,6 +923,7 @@ export async function forfeitMatch(
     const season = await getSeasonOrThrow(match.seasonId);
 
     await db.transaction(async (tx) => {
+      await assertSeasonAllowsTournamentMutationInTx(tx, match.seasonId);
       await tx.delete(matchMaps).where(
         and(eq(matchMaps.matchId, matchId), isNull(matchMaps.scoreA))
       );

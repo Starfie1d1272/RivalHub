@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { and, asc, eq } from "drizzle-orm";
 import { MajorPrestartConsole } from "@/components/admin/MajorPrestartConsole";
+import { PostEventManagement } from "@/components/admin/PostEventManagement";
 import { db } from "@/db/client";
 import {
   majorPrestartEntrants,
@@ -11,9 +12,11 @@ import {
   majorStageRuns,
   matches,
   majorTournamentSeeds,
+  postEventAdjudications,
   seasons,
   teamMembers,
   teams,
+  tournamentHonors,
   users,
 } from "@/db/schema";
 import { evaluateMajorPrestartReadiness } from "@/lib/major/prestart";
@@ -31,6 +34,16 @@ function isMajorSwissFinalizedRound(value: number): value is 0 | 1 | 2 | 3 | 4 |
 
 interface AdminMajorConsolePageProps {
   params: Promise<{ seasonSlug: string }>;
+}
+
+function placementGroupsForAdmin(value: unknown): Array<{ from: number; to: number; teamIds: string[] }> {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((group) => {
+    if (!group || typeof group !== "object") return [];
+    const candidate = group as { from?: unknown; to?: unknown; teamIds?: unknown };
+    if (!Number.isInteger(candidate.from) || !Number.isInteger(candidate.to) || !Array.isArray(candidate.teamIds) || !candidate.teamIds.every((id) => typeof id === "string")) return [];
+    return [{ from: candidate.from as number, to: candidate.to as number, teamIds: candidate.teamIds as string[] }];
+  });
 }
 
 export default async function AdminMajorConsolePage({ params }: AdminMajorConsolePageProps) {
@@ -58,7 +71,7 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
     candidatesByTeam.set(member.teamId, candidates);
   }
 
-  const [state, entrantRows, rosterRows, issueRows, seedRows, stageRunRows, stageMatchRows, finalResult] = await Promise.all([
+  const [state, entrantRows, rosterRows, issueRows, seedRows, stageRunRows, stageMatchRows, finalResult, honorRows, adjudicationRows] = await Promise.all([
     db.query.majorPrestartStates.findFirst({ where: eq(majorPrestartStates.seasonId, season.id) }),
     db.select({
       id: majorPrestartEntrants.id,
@@ -87,6 +100,10 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
       .innerJoin(majorStageRuns, eq(matches.majorStageRunId, majorStageRuns.id))
       .where(and(eq(majorStageRuns.seasonId, season.id), eq(matches.ownership, "major_stage"))),
     db.query.majorFinalResults.findFirst({ where: eq(majorFinalResults.seasonId, season.id) }),
+    db.select({ id: tournamentHonors.id, honorKey: tournamentHonors.honorKey, type: tournamentHonors.type, label: tournamentHonors.label, state: tournamentHonors.state, teamId: tournamentHonors.teamId, userId: tournamentHonors.userId, placementFrom: tournamentHonors.placementFrom, placementTo: tournamentHonors.placementTo })
+      .from(tournamentHonors).where(eq(tournamentHonors.seasonId, season.id)).orderBy(asc(tournamentHonors.createdAt)),
+    db.select({ id: postEventAdjudications.id, status: postEventAdjudications.status, kind: postEventAdjudications.kind, target: postEventAdjudications.target, impacts: postEventAdjudications.impacts, targetTeamId: postEventAdjudications.targetTeamId, targetUserId: postEventAdjudications.targetUserId, targetMatchId: postEventAdjudications.targetMatchId, reason: postEventAdjudications.reason, explanation: postEventAdjudications.publicExplanation, createdAt: postEventAdjudications.createdAt })
+      .from(postEventAdjudications).where(eq(postEventAdjudications.seasonId, season.id)).orderBy(asc(postEventAdjudications.createdAt)),
   ]);
   const entrantIds = new Set(entrantRows.map((entrant) => entrant.id));
   const rosterByEntrant = new Map<string, Array<{ userId: string; email: string; educationVerificationId: string | null }>>();
@@ -181,7 +198,8 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
     };
   }
 
-  return <MajorPrestartConsole
+  return <div className="space-y-4">
+    <MajorPrestartConsole
     seasonName={season.name}
     readiness={readiness}
     management={{
@@ -215,5 +233,19 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
     started={stageRunRows.length > 0}
     swissRuntime={swissRuntime}
     playoffRuntime={playoffRuntime}
-  />;
+    />
+    <PostEventManagement data={{
+      seasonId: season.id,
+      seasonStatus: season.status,
+      finalResult: finalResult ? {
+        id: finalResult.id,
+        status: finalResult.status,
+        championTeamId: finalResult.championTeamId,
+        placementGroups: placementGroupsForAdmin(finalResult.placementGroups),
+      } : null,
+      teams: seasonTeams,
+      honors: honorRows,
+      adjudications: adjudicationRows.map((row) => ({ ...row, impacts: row.impacts as string[] })),
+    }} />
+  </div>;
 }

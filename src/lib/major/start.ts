@@ -16,6 +16,7 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import { buildMajorOpeningPlan } from "@/lib/major/opening";
 import { evaluateMajorPrestartReadiness } from "@/lib/major/prestart";
 import { freezeAffiliationRules } from "@/lib/major/frozen-affiliation-rules";
+import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 import {
   checkStandardMajorCapabilities,
   normalizeRegistrationConfig,
@@ -57,6 +58,7 @@ export async function startMajorInTransaction(
   tx: TxDb,
   input: { seasonId: string; actorId: string },
 ): Promise<MajorStartResult> {
+  await assertSeasonAllowsTournamentMutationInTx(tx, input.seasonId);
   const [season] = await tx.select().from(seasons)
     .where(eq(seasons.id, input.seasonId)).for("update");
   if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");

@@ -24,6 +24,9 @@ vi.mock("@/db/client", () => ({
 }));
 
 vi.mock("next/navigation", () => ({ notFound: vi.fn() }));
+vi.mock("@/components/admin/PostEventManagement", () => ({
+  PostEventManagement: () => <div data-testid="postevent-management" />,
+}));
 
 import AdminMajorConsolePage from "@/app/admin/[seasonSlug]/page";
 

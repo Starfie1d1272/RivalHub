@@ -3,6 +3,7 @@ import type { TxDb } from "@/db/client";
 import { auditLogs, majorFinalResults, majorStageEntrants, majorStageRuns, matches } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { validateSeriesScore } from "@/lib/matches/result-rules";
+import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 import { buildFinalMajorPlacements } from "@/lib/major/placement";
 import { generateMajorPlayoffQuarterfinals, projectMajorPlayoff, seedMajorPlayoffEntrants, type MajorPlayoffMatchFact, type MajorPlayoffRound } from "@/lib/major/playoff";
 import { getMajorSwissQualifiers, projectMajorSwissStage, type MajorSwissMatchFact } from "@/lib/major/swiss";
@@ -101,6 +102,7 @@ export async function startMajorPlayoffInTransaction(
   tx: TxDb,
   input: { seasonId: string; sourceStageRunId: string; actorId: string },
 ): Promise<MajorPlayoffStartResult> {
+  await assertSeasonAllowsTournamentMutationInTx(tx, input.seasonId);
   const [sourceRun] = await tx.select().from(majorStageRuns)
     .where(and(eq(majorStageRuns.id, input.sourceStageRunId), eq(majorStageRuns.seasonId, input.seasonId))).for("update");
   if (!sourceRun) throw new AppError(ErrorCode.NOT_FOUND, "指定的 Stage 3 StageRun 不属于当前赛事。");
@@ -176,6 +178,7 @@ export async function finalizeMajorPlayoffRoundInTransaction(
   tx: TxDb,
   input: { seasonId: string; stageRunId: string; expectedRound: PlayoffStep; actorId: string },
 ): Promise<MajorPlayoffFinalizationResult> {
+  await assertSeasonAllowsTournamentMutationInTx(tx, input.seasonId);
   const [run] = await tx.select().from(majorStageRuns)
     .where(and(eq(majorStageRuns.id, input.stageRunId), eq(majorStageRuns.seasonId, input.seasonId))).for("update");
   if (!run) throw new AppError(ErrorCode.NOT_FOUND, "指定的淘汰赛 StageRun 不属于当前赛事。");
