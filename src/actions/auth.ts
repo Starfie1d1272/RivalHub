@@ -93,8 +93,18 @@ export async function signUp(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ secret: secretKey, response: turnstileToken }),
       });
-      const verifyData = await verifyResult.json() as { success: boolean };
+      const verifyData = await verifyResult.json() as {
+        success: boolean;
+        "error-codes"?: string[];
+        hostname?: string;
+        action?: string;
+      };
       if (!verifyData.success) {
+        console.error("[turnstile] siteverify failed", {
+          errorCodes: verifyData["error-codes"] ?? [],
+          hostname: verifyData.hostname ?? null,
+          action: verifyData.action ?? null,
+        });
         return fail({ code: ErrorCode.VALIDATION_FAILED, message: "验证码校验失败，请刷新后重试" });
       }
     } catch {
