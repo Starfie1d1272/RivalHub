@@ -423,7 +423,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                   {map.pickedByTeamId && (
                     <span
                       className="ml-1 text-[10px] font-mono px-1 py-0.5"
-                      style={{ background: "rgba(77,212,122,0.12)", color: "var(--color-ok)" }}
+                      style={{ background: "var(--color-ok-soft)", color: "var(--color-ok)" }}
                     >
                       {map.pickedByTeamId === match.teamAId
                         ? teamA?.name?.slice(0, 3).toUpperCase()

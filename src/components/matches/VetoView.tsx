@@ -23,7 +23,7 @@ const ACTION_VERBS: Record<string, string> = {
 const ACTION_COLORS: Record<string, string> = {
   ban: "var(--color-danger)",
   pick: "var(--color-ok)",
-  side_pick: "#a78bfa",
+  side_pick: "var(--color-accent-b)",
   decider: "var(--color-info)",
 };
 

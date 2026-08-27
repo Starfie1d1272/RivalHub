@@ -53,7 +53,7 @@ function EntrantRoster({ entrant, seasonId, locked }: {
     <article className="border border-[var(--color-border)] p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="font-medium text-[var(--color-fg)]">{entrant.teamName}</h3>
-        <span className={`text-xs ${entrant.rosterConfirmedAt ? "text-emerald-700" : "text-amber-800"}`}>
+        <span className={`text-xs ${entrant.rosterConfirmedAt ? "text-[var(--color-ok)]" : "text-[var(--color-warn)]"}`}>
           {entrant.rosterConfirmedAt ? "名单已确认" : "待确认名单"}
         </span>
       </div>

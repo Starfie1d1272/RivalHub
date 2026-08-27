@@ -14,9 +14,9 @@ export function PhaseStep({ label, stepNumber, isDone, isCurrent, isLast }: Phas
       : "var(--color-fg-dim)";
 
   const iconBg = isDone
-    ? "rgba(77,212,122,0.13)"
+    ? "var(--color-ok-soft)"
     : isCurrent
-      ? "rgba(255,107,26,0.09)"
+      ? "var(--color-accent-soft)"
       : "transparent";
 
   return (
@@ -64,7 +64,7 @@ export function PhaseStep({ label, stepNumber, isDone, isCurrent, isLast }: Phas
             height: 2,
             margin: "0 8px",
             marginTop: -18,
-            background: isDone ? "rgba(77,212,122,0.35)" : "var(--color-border)",
+            background: isDone ? "var(--color-ok-edge)" : "var(--color-border)",
             transition: "background 300ms ease",
           }}
         />

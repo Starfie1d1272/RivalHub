@@ -159,7 +159,7 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
               className={[
                 "px-3 py-1.5 rounded text-sm font-medium border transition-colors",
                 isActive
-                  ? "bg-[var(--color-accent)] text-white border-[var(--color-accent)]"
+                  ? "bg-[var(--color-accent)] text-[var(--color-accent-fg)] border-[var(--color-accent)]"
                   : "border-[var(--color-border)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]",
               ].join(" ")}
             >

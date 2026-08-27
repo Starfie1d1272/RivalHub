@@ -44,16 +44,16 @@ export function LoginForm() {
   }, [email, password, mode, turnstileToken]);
 
   if (awaitingEmail) {
-    return <div className="space-y-4"><div className="rounded-lg border border-[var(--color-border)] p-4"><h2 className="font-semibold">验证邮件已发送</h2><p className="mt-2 break-all text-sm text-[var(--color-fg-mid)]">请打开 {awaitingEmail} 中的邮件完成验证。验证前不会登录 RivalHub。</p></div><Btn type="button" full disabled={isPending} onClick={() => startTransition(async () => { const result = await resendSignupConfirmation(awaitingEmail); if (result.success) toast.success("验证邮件已重新发送"); else toast.error(result.error.message); })}>重新发送验证邮件</Btn><button type="button" className="w-full text-sm underline" onClick={() => { setAwaitingEmail(null); setMode("login"); }}>返回登录</button><button type="button" className="w-full text-sm underline" onClick={() => { setAwaitingEmail(null); setMode("register"); setEmail(""); setPassword(""); }}>修改邮箱或重新注册</button></div>;
+    return <div className="space-y-4"><div className="rounded-sm border border-[var(--color-border)] p-4"><h2 className="font-semibold">验证邮件已发送</h2><p className="mt-2 break-all text-sm text-[var(--color-fg-mid)]">请打开 {awaitingEmail} 中的邮件完成验证。验证前不会登录 RivalHub。</p></div><Btn type="button" full disabled={isPending} onClick={() => startTransition(async () => { const result = await resendSignupConfirmation(awaitingEmail); if (result.success) toast.success("验证邮件已重新发送"); else toast.error(result.error.message); })}>重新发送验证邮件</Btn><button type="button" className="w-full text-sm underline" onClick={() => { setAwaitingEmail(null); setMode("login"); }}>返回登录</button><button type="button" className="w-full text-sm underline" onClick={() => { setAwaitingEmail(null); setMode("register"); setEmail(""); setPassword(""); }}>修改邮箱或重新注册</button></div>;
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="flex rounded-lg bg-[var(--color-panel-low)] p-0.5">
+      <div className="flex rounded-sm bg-[var(--color-panel-low)] p-0.5">
         <button
           type="button"
           onClick={() => setMode("login")}
-          className={`flex-1 rounded-md py-1.5 text-sm font-medium transition-colors ${
+          className={`flex-1 rounded-sm py-1.5 text-sm font-medium transition-colors ${
             mode === "login"
               ? "bg-[var(--color-panel)] text-[var(--color-fg)] shadow-sm"
               : "text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
@@ -64,7 +64,7 @@ export function LoginForm() {
         <button
           type="button"
           onClick={() => setMode("register")}
-          className={`flex-1 rounded-md py-1.5 text-sm font-medium transition-colors ${
+          className={`flex-1 rounded-sm py-1.5 text-sm font-medium transition-colors ${
             mode === "register"
               ? "bg-[var(--color-panel)] text-[var(--color-fg)] shadow-sm"
               : "text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"

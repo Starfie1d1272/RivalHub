@@ -86,14 +86,14 @@ export function MatchRosterForm({
   return (
     <div className="space-y-4">
       {isMatchStarted ? (
-        <div className="rounded border p-3" style={{ borderColor: "rgba(255,84,112,0.35)", background: "rgba(255,84,112,0.06)" }}>
+        <div className="rounded border p-3" style={{ borderColor: "var(--color-danger-edge)", background: "var(--color-danger-soft)" }}>
           <p className="text-sm text-[var(--color-fg)]">比赛已开始，名单不可修改</p>
           <p className="text-xs text-[var(--color-fg-dim)] mt-1">
             如需调整请联系管理员
           </p>
         </div>
       ) : isWithin2Hours ? (
-        <div className="rounded border p-3" style={{ borderColor: "rgba(255,196,77,0.4)", background: "rgba(255,196,77,0.06)" }}>
+        <div className="rounded border p-3" style={{ borderColor: "var(--color-warn-edge)", background: "var(--color-warn-soft)" }}>
           <p className="text-sm text-[var(--color-fg)]">距开赛不足 2 小时，名单已锁定</p>
           <p className="text-xs text-[var(--color-fg-dim)] mt-1">
             如需修改请联系管理员解锁

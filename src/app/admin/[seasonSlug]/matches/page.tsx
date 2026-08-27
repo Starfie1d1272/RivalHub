@@ -351,7 +351,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
       )}
 
       {unconfiguredMatches.length > 0 && (
-        <Panel pad={16} className="border-[rgba(255,196,77,0.3)] bg-[rgba(255,196,77,0.05)]">
+        <Panel pad={16} className="border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)]">
           <p className="text-sm text-[var(--color-warn)]">
             检测到 {unconfiguredMatches.length} 场比赛引用了当前 StagePlan 中不存在的阶段，请检查赛制配置。
           </p>
@@ -363,7 +363,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
 
       {/* 赛季状态提示 */}
       {season.status !== "playing" && matchCount === 0 && (
-        <Panel pad={16} className="border-[rgba(255,196,77,0.3)] bg-[rgba(255,196,77,0.05)]">
+        <Panel pad={16} className="border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)]">
           <p className="text-sm text-[var(--color-warn)]">
             赛季当前状态为「{season.status}」，需进入 playing 状态后才能生成赛程。
           </p>
@@ -380,7 +380,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
       )}
 
       {season.status === "playing" && matchCount === 0 && allTeams.length >= 2 && hasSwissStage && (
-        <Panel pad={16} className="border-[rgba(255,196,77,0.3)] bg-[rgba(255,196,77,0.05)]">
+        <Panel pad={16} className="border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)]">
           <p className="text-sm text-[var(--color-warn)]">
             该赛制的自动赛程运行尚未启用。
           </p>

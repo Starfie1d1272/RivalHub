@@ -357,8 +357,8 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
         {isMajorDisplayContext && <section
           aria-live="polite"
           className={standardMajorCheck.isStandardMajor
-            ? "rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4 text-sm"
-            : "rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 text-sm"}
+            ? "rounded-sm border border-[var(--color-ok-edge)] bg-[var(--color-ok-soft)] p-4 text-sm"
+            : "rounded-sm border border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)] p-4 text-sm"}
         >
           {standardMajorCheck.isStandardMajor ? (
             <>

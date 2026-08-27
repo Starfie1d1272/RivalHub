@@ -11,8 +11,8 @@ interface MapPreferenceChipsProps {
 const LEVEL_CLASS: Record<string, string> = {
   none: "border-[var(--color-border)] text-[var(--color-fg-dim)] opacity-55",
   basic: "border-[var(--color-border)] text-[var(--color-fg-mid)]",
-  playable: "border-sky-500/35 bg-sky-500/10 text-sky-200",
-  proficient: "border-[rgba(77,212,122,0.35)] bg-[rgba(77,212,122,0.10)] text-[var(--color-ok)]",
+  playable: "border-[var(--color-info-edge)] bg-[var(--color-info-soft)] text-[var(--color-info)]",
+  proficient: "border-[var(--color-ok-edge)] bg-[var(--color-ok-soft)] text-[var(--color-ok)]",
   strong: "border-[var(--color-accent)] bg-[var(--color-accent)]/15 text-[var(--color-accent)]",
 };
 

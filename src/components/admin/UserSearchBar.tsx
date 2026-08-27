@@ -40,7 +40,7 @@ export function UserSearchBar({ q, filter }: { q: string; filter: string }) {
         defaultValue={q}
         onChange={handleSearch}
         placeholder="搜索名字 / 邮箱…"
-        className="w-full max-w-sm rounded-md border border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-1.5 text-sm text-[var(--color-fg)] placeholder:text-[var(--color-fg-dim)] outline-none focus:border-[var(--color-accent)] transition-colors"
+        className="w-full max-w-sm rounded-sm border border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-1.5 text-sm text-[var(--color-fg)] placeholder:text-[var(--color-fg-dim)] outline-none focus:border-[var(--color-accent)] transition-colors"
       />
       <div className="flex gap-1">
         {FILTERS.map(({ key, label }) => (

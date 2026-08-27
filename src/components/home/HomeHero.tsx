@@ -70,11 +70,11 @@ export function HomeHero({ season, eyebrow }: HomeHeroProps) {
         style={{
           background: `
             radial-gradient(circle at 90% 10%, ${
-              season.status === "registration" ? "rgba(77,212,122,0.09)"
-                : season.status === "voting" ? "rgba(255,196,77,0.09)"
-                : "rgba(255,107,26,0.13)"
+              season.status === "registration" ? "var(--color-ok-soft)"
+                : season.status === "voting" ? "var(--color-warn-soft)"
+                : "var(--color-accent-soft)"
             } 0, transparent 40%),
-            repeating-linear-gradient(0deg, transparent 0 32px, rgba(31,37,48,0.25) 32px 33px)
+            repeating-linear-gradient(0deg, transparent 0 32px, color-mix(in srgb, var(--color-border) 25%, transparent) 32px 33px)
           `,
         }}
       />
