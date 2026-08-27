@@ -18,6 +18,7 @@ import {
 } from "@/db/schema";
 import { actionError } from "@/lib/action-utils";
 import { auditActorId, requireAuth } from "@/lib/auth/session";
+import { assertUsersNotBlockedInTx } from "@/lib/discipline/service";
 import { MIN_TEAM_NAME_LENGTH, MAX_TEAM_NAME_LENGTH } from "@/lib/config/team-config";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { getRegistrationWindowState } from "@/lib/registration/window";
@@ -316,6 +317,13 @@ export async function submitTeamApplication(input: { applicationId: string }): P
     if (affiliationRules.length > 0 && !eligibility.eligible) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, eligibility.blockers.join(" "));
     }
+    // H1: personal registration sanctions block only their subject.
+    await assertUsersNotBlockedInTx(db, {
+      seasonId: application.seasonId,
+      userLabels: new Map(confirmed.map((member) => [member.userId, member.email])),
+      effect: "registration_block",
+      message: "存在处于有效期内的报名禁赛处罚成员",
+    });
     if (config.requireUniqueTeamName) {
       const sameName = await db.query.teams.findFirst({ where: and(eq(teams.seasonId, season.id), eq(teams.name, application.name)) });
       if (sameName) throw new AppError(ErrorCode.REGISTRATION_DUPLICATE, "该队名已被正式队伍使用。");
