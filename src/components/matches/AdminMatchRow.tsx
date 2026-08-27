@@ -26,6 +26,7 @@ export interface TeamMemberData {
 }
 
 export interface RosterData {
+  rosterId: string | null;
   starters: string[];
   substitutes: string[];
   status: string | null;
