@@ -34,7 +34,9 @@ async function expectPgError(client: import("pg").PoolClient, work: () => Promis
 }
 
 async function main(): Promise<void> {
-  const pool = new Pool({ connectionString: databaseUrl, ssl: false, max: 3 });
+  // The baseline assertion connection plus the two racing transactions still
+  // need one independent reader for post-commit facts.
+  const pool = new Pool({ connectionString: databaseUrl, ssl: false, max: 4 });
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
