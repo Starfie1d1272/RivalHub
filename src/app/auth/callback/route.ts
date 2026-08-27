@@ -1,17 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import { eq, sql } from "drizzle-orm";
+import { createClient, type EmailOtpType } from "@supabase/supabase-js";
+import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { users } from "@/db/schema/users";
 import { createUserSession } from "@/lib/auth/session";
 
 export async function GET(request: NextRequest) {
+  const applicationOrigin = process.env.NEXT_PUBLIC_APP_URL ?? request.nextUrl.origin;
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = safeNextPath(searchParams.get("next"));
+  const tokenHash = searchParams.get("token_hash");
+  const otpType = searchParams.get("type");
+  const flow = callbackFlow(new URL(request.url));
+  const next = safeNextPath(searchParams.get("next")) ?? (flow === "reverify" ? "/settings/education" : "/");
 
-  if (!code) {
-    return NextResponse.redirect(new URL("/login", request.url));
+  if (!code && !tokenHash) {
+    return NextResponse.redirect(new URL("/login", applicationOrigin));
+  }
+
+  if (tokenHash && otpType !== "email" && otpType !== "magiclink") {
+    return NextResponse.redirect(new URL("/login", applicationOrigin));
   }
 
   const supabase = createClient(
@@ -19,9 +27,14 @@ export async function GET(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   );
 
-  const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+  const { data, error } = tokenHash
+    ? await supabase.auth.verifyOtp({
+        token_hash: tokenHash,
+        type: otpType as EmailOtpType,
+      })
+    : await supabase.auth.exchangeCodeForSession(code!);
   if (error || !data.user?.email) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    return NextResponse.redirect(new URL("/login", applicationOrigin));
   }
 
   const email = data.user.email;
@@ -36,34 +49,31 @@ export async function GET(request: NextRequest) {
     })
     .returning();
 
-  // 如果系统里还没有 super_admin，第一个登录的用户自动升级
-  let finalRole = user.role;
-  if (user.role === "user") {
-    const [{ count }] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(users)
-      .where(eq(users.role, "super_admin"));
-    if (count === 0) {
-      await db
-        .update(users)
-        .set({ role: "super_admin" })
-        .where(eq(users.id, user.id));
-      finalRole = "super_admin";
-    }
+  if ((flow === "signup" || flow === "reverify") && data.user.email_confirmed_at) {
+    const source = flow === "signup" ? "signup_confirmation" : "existing_account_reverification";
+    await db.update(users).set({ emailVerifiedAt: new Date(), emailVerificationSource: source, updatedAt: new Date() })
+      .where(eq(users.id, user.id));
   }
 
   await createUserSession({
     userId: user.id,
     email: user.email,
-    role: finalRole,
+    role: user.role,
     adminSeasonIds: user.adminSeasonIds,
     authSource: "user",
   });
 
-  return NextResponse.redirect(new URL(next, request.url));
+  return NextResponse.redirect(new URL(next, applicationOrigin));
 }
 
-function safeNextPath(next: string | null): string {
-  if (!next || !next.startsWith("/") || next.startsWith("//")) return "/";
+function callbackFlow(url: URL): "signup" | "reverify" | null {
+  const queryFlow = url.searchParams.get("flow");
+  if (queryFlow === "signup" || queryFlow === "reverify") return queryFlow;
+  const pathFlow = url.pathname.split("/").at(-1);
+  return pathFlow === "signup" || pathFlow === "reverify" ? pathFlow : null;
+}
+
+function safeNextPath(next: string | null): string | null {
+  if (!next || !next.startsWith("/") || next.startsWith("//")) return null;
   return next;
 }

@@ -13,6 +13,7 @@ function makeInput(): MajorPrestartReadinessInput {
     teams: teamIds.map((teamId, teamIndex) => ({
       teamId,
       playerIds: Array.from({ length: 5 }, (_, playerIndex) => `player-${teamIndex * 5 + playerIndex + 1}`),
+      educationVerificationIds: Array.from({ length: 5 }, (_, playerIndex) => `verification-${teamIndex * 5 + playerIndex + 1}`),
     })),
     entrantsLocked: true,
     confirmations: teamIds.map((teamId) => ({ teamId, confirmed: true })),
@@ -78,5 +79,17 @@ describe("evaluateMajorPrestartReadiness", () => {
       "entrants-locked", "confirmations", "qualification", "administration", "seeds", "reconfirmations",
     ]);
     expect(result.blockers.every((blocker) => blocker.includes("尚未接入/不可确认") || blocker.includes("开赛计划"))).toBe(true);
+  });
+
+  it("blocks start when a frozen roster entry lacks its approved verification reference", () => {
+    const input = makeInput();
+    input.teams = input.teams!.map((team, index) => index === 0
+      ? { ...team, educationVerificationIds: [null, ...team.educationVerificationIds.slice(1)] }
+      : team);
+
+    const result = evaluateMajorPrestartReadiness(input);
+
+    expect(result.canStart).toBe(false);
+    expect(result.blockers.join("\n")).toContain("未冻结的教育认证依据");
   });
 });

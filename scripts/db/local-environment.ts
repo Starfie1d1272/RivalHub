@@ -1,6 +1,10 @@
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 const DATABASE_PROTOCOLS = new Set(["postgres:", "postgresql:"]);
 const HTTP_PROTOCOLS = new Set(["http:", "https:"]);
+// Cloudflare's documented always-pass pair. These are used only by the
+// loopback-only Local Supabase/dev command and are never read by deployments.
+const LOCAL_TURNSTILE_SITE_KEY = "1x00000000000000000000AA";
+const LOCAL_TURNSTILE_SECRET_KEY = "1x0000000000000000000000000000000AA";
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
@@ -77,6 +81,8 @@ export function buildLocalAppEnvironment(
     NEXT_PUBLIC_SUPABASE_URL: status.apiUrl,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: status.publishableKey,
     SUPABASE_SERVICE_ROLE_KEY: status.serviceRoleKey,
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: LOCAL_TURNSTILE_SITE_KEY,
+    TURNSTILE_SECRET_KEY: LOCAL_TURNSTILE_SECRET_KEY,
     ADMIN_SESSION_SECRET:
       "rivalhub-local-only-admin-session-secret-never-use-in-production",
     NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3000",

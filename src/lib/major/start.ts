@@ -20,6 +20,7 @@ import {
   normalizeRegistrationConfig,
   normalizeStagePlan,
   normalizeTeamRegistrationConfig,
+  normalizeAffiliationRules,
 } from "@/types/season";
 
 const STAGE_ONE_MANAGED_MATCH_COUNT = 8;
@@ -38,6 +39,7 @@ function capabilitiesFromSeason(season: typeof seasons.$inferSelect) {
     stagePlan: normalizeStagePlan(season.stagePlan),
     registrationConfig: normalizeRegistrationConfig(season.registrationConfig),
     teamRegistrationConfig: normalizeTeamRegistrationConfig(season.teamRegistrationConfig),
+    affiliationRules: normalizeAffiliationRules(season.affiliationRules),
     minTeamSize: season.minTeamSize,
     maxTeamSize: season.maxTeamSize,
     starterCount: season.starterCount,
@@ -99,6 +101,7 @@ export async function startMajorInTransaction(
   const rosterRows = entrantIds.length === 0 ? [] : await tx.select({
     entrantId: majorPrestartRosterMembers.entrantId,
     userId: majorPrestartRosterMembers.userId,
+    educationVerificationId: majorPrestartRosterMembers.educationVerificationId,
   }).from(majorPrestartRosterMembers)
     .where(inArray(majorPrestartRosterMembers.entrantId, entrantIds)).for("update");
   const issueRows = await tx.select({
@@ -113,10 +116,10 @@ export async function startMajorInTransaction(
   }).from(majorTournamentSeeds)
     .where(eq(majorTournamentSeeds.seasonId, season.id)).for("update");
 
-  const rosterByEntrant = new Map<string, string[]>();
+  const rosterByEntrant = new Map<string, Array<{ userId: string; educationVerificationId: string | null }>>();
   for (const roster of rosterRows) {
     const members = rosterByEntrant.get(roster.entrantId) ?? [];
-    members.push(roster.userId);
+    members.push({ userId: roster.userId, educationVerificationId: roster.educationVerificationId });
     rosterByEntrant.set(roster.entrantId, members);
   }
   const teamIdByEntrantId = new Map(entrantRows.map((entrant) => [entrant.id, entrant.teamId]));
@@ -128,7 +131,8 @@ export async function startMajorInTransaction(
     capabilities,
     teams: entrantRows.map((entrant) => ({
       teamId: entrant.teamId,
-      playerIds: rosterByEntrant.get(entrant.id) ?? [],
+      playerIds: (rosterByEntrant.get(entrant.id) ?? []).map((member) => member.userId),
+      educationVerificationIds: (rosterByEntrant.get(entrant.id) ?? []).map((member) => member.educationVerificationId),
     })),
     entrantsLocked: Boolean(state.entrantsLockedAt),
     confirmations: entrantRows.map((entrant) => ({ teamId: entrant.teamId, confirmed: Boolean(entrant.rosterConfirmedAt) })),

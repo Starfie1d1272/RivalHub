@@ -40,6 +40,12 @@ try {
     case "test-major-start":
       testMajorStart();
       break;
+    case "test-team-registration":
+      runLocalIntegration("scripts/db/team-registration-integration.ts");
+      break;
+    case "test-major-prestart":
+      runLocalIntegration("scripts/db/major-prestart-integration.ts");
+      break;
     case "bootstrap":
       startLocalStack();
       migrateLocalDatabase();
@@ -64,7 +70,7 @@ try {
       break;
     default:
       throw new Error(
-        "未知命令。可用命令：start | status | migrate | seed | verify | verify-migrations | test-major-start | bootstrap | reset | stop | studio | dev",
+        "未知命令。可用命令：start | status | migrate | seed | verify | verify-migrations | test-major-start | test-team-registration | test-major-prestart | bootstrap | reset | stop | studio | dev",
       );
   }
 } catch (error) {
@@ -132,6 +138,16 @@ function verifyLocalMigrations(): void {
 function testMajorStart(): void {
   const status = readLocalStatus();
   run(tsxBin, ["scripts/db/major-start-integration.ts"], {
+    env: {
+      ...sanitizedEnvironment(),
+      RIVALHUB_LOCAL_DATABASE_URL: status.databaseUrl,
+    },
+  });
+}
+
+function runLocalIntegration(script: string): void {
+  const status = readLocalStatus();
+  run(tsxBin, [script], {
     env: {
       ...sanitizedEnvironment(),
       RIVALHUB_LOCAL_DATABASE_URL: status.databaseUrl,

@@ -50,19 +50,27 @@ async function prepareReadyMajor(pool: Pool, label: string): Promise<MajorFixtur
     await client.query(
       `INSERT INTO seasons (
         id, slug, name, kind, status, registration_mode, has_captain_voting, has_draft,
-        stage_plan, registration_config, team_registration_config, min_team_size, max_team_size, starter_count, positions
-      ) VALUES ($1, $2, 'Local Major Start', 'Major', 'registration', $3, $4, $5, $6::json, $7::json, $8::json, $9, $10, $11, $12::text[])`,
+        stage_plan, registration_config, team_registration_config, affiliation_rules, min_team_size, max_team_size, starter_count, positions
+      ) VALUES ($1, $2, 'Local Major Start', 'Major', 'registration', $3, $4, $5, $6::json, $7::json, $8::json, $9::json, $10, $11, $12, $13::text[])`,
       [
         seasonId, `local-major-start-${label}-${seasonId}`,
         capabilities.registrationMode, capabilities.hasCaptainVoting, capabilities.hasDraft,
         JSON.stringify(capabilities.stagePlan), JSON.stringify(capabilities.registrationConfig),
-        JSON.stringify(capabilities.teamRegistrationConfig), capabilities.minTeamSize,
-        capabilities.maxTeamSize, capabilities.starterCount, capabilities.positions,
+        JSON.stringify(capabilities.teamRegistrationConfig), JSON.stringify(capabilities.affiliationRules),
+        capabilities.minTeamSize, capabilities.maxTeamSize, capabilities.starterCount, capabilities.positions,
       ],
     );
     await client.query(
       `INSERT INTO users (id, email) SELECT value::uuid, 'major-start-' || value || '@local.test'
        FROM unnest($1::text[]) AS value`,
+      [userIds],
+    );
+    await client.query(
+      `INSERT INTO education_verifications (user_id, institution_id, academic_status, evidence_type, status, reviewed_by, reviewed_at)
+       SELECT u.id, i.id, 'enrolled', 'manual_other', 'approved', 'local-admin', now()
+       FROM users u
+       CROSS JOIN institutions i
+       WHERE u.id = ANY($1::uuid[]) AND i.moe_institution_code = '4132010284'`,
       [userIds],
     );
     for (let index = 0; index < 32; index += 1) {
@@ -104,8 +112,11 @@ async function prepareReadyMajor(pool: Pool, label: string): Promise<MajorFixtur
       const entrantId = entrant.rows[0]?.id;
       if (!entrantId) throw new Error("正式参赛队创建失败。");
       await client.query(
-        `INSERT INTO major_prestart_roster_members (entrant_id, user_id)
-         SELECT $1, user_id FROM team_members WHERE season_id = $2 AND team_id = $3`,
+        `INSERT INTO major_prestart_roster_members (entrant_id, user_id, education_verification_id)
+         SELECT $1, m.user_id, v.id
+         FROM team_members m
+         INNER JOIN education_verifications v ON v.user_id = m.user_id AND v.status = 'approved'
+         WHERE m.season_id = $2 AND m.team_id = $3`,
         [entrantId, seasonId, teamIds[index]],
       );
       await client.query(
@@ -144,6 +155,7 @@ async function cleanupMajorFixture(pool: Pool, fixture: MajorFixture): Promise<v
     await client.query("DELETE FROM team_applications WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM audit_logs WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM seasons WHERE id = $1", [fixture.seasonId]);
+    await client.query("DELETE FROM education_verifications WHERE user_id = ANY($1::uuid[])", [fixture.userIds]);
     await client.query("DELETE FROM users WHERE id = ANY($1::uuid[])", [fixture.userIds]);
     await client.query("COMMIT");
   } catch (error) {

@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
 import { requireSuperAdmin } from "@/lib/auth/session";
-import { normalizeRegistrationConfig, normalizeStagePlan, normalizeTeamRegistrationConfig } from "@/types/season";
+import { normalizeAffiliationRules, normalizeRegistrationConfig, normalizeStagePlan, normalizeTeamRegistrationConfig } from "@/types/season";
 import { SeasonForm } from "@/components/admin/SeasonForm";
 import { toCSTDateTimeInput } from "@/lib/utils/date";
 
@@ -48,6 +48,7 @@ export default async function SeasonSettingsPage({ params }: SeasonSettingsPageP
           stagePlan: normalizeStagePlan(season.stagePlan),
           registrationConfig: normalizeRegistrationConfig(season.registrationConfig),
           teamRegistrationConfig: normalizeTeamRegistrationConfig(season.teamRegistrationConfig),
+          affiliationRules: normalizeAffiliationRules(season.affiliationRules),
         }}
       />
     </div>

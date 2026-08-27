@@ -22,6 +22,7 @@ import {
   normalizeRegistrationConfig,
   normalizeStagePlan,
   normalizeTeamRegistrationConfig,
+  normalizeAffiliationRules,
 } from "@/types/season";
 
 function isMajorSwissFinalizedRound(value: number): value is 0 | 1 | 2 | 3 | 4 | 5 {
@@ -68,7 +69,7 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
       .innerJoin(teams, eq(majorPrestartEntrants.teamId, teams.id))
       .where(eq(majorPrestartEntrants.seasonId, season.id))
       .orderBy(asc(teams.name)),
-    db.select({ entrantId: majorPrestartRosterMembers.entrantId, userId: majorPrestartRosterMembers.userId, email: users.email })
+    db.select({ entrantId: majorPrestartRosterMembers.entrantId, userId: majorPrestartRosterMembers.userId, email: users.email, educationVerificationId: majorPrestartRosterMembers.educationVerificationId })
       .from(majorPrestartRosterMembers)
       .innerJoin(users, eq(majorPrestartRosterMembers.userId, users.id)),
     db.select().from(majorPrestartIssues)
@@ -88,11 +89,11 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
     db.query.majorFinalResults.findFirst({ where: eq(majorFinalResults.seasonId, season.id) }),
   ]);
   const entrantIds = new Set(entrantRows.map((entrant) => entrant.id));
-  const rosterByEntrant = new Map<string, Array<{ userId: string; email: string }>>();
+  const rosterByEntrant = new Map<string, Array<{ userId: string; email: string; educationVerificationId: string | null }>>();
   for (const member of rosterRows) {
     if (!entrantIds.has(member.entrantId)) continue;
     const roster = rosterByEntrant.get(member.entrantId) ?? [];
-    roster.push({ userId: member.userId, email: member.email });
+    roster.push({ userId: member.userId, email: member.email, educationVerificationId: member.educationVerificationId });
     rosterByEntrant.set(member.entrantId, roster);
   }
 
@@ -104,6 +105,7 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
       stagePlan: normalizeStagePlan(season.stagePlan),
       registrationConfig: normalizeRegistrationConfig(season.registrationConfig),
       teamRegistrationConfig: normalizeTeamRegistrationConfig(season.teamRegistrationConfig),
+      affiliationRules: normalizeAffiliationRules(season.affiliationRules),
       minTeamSize: season.minTeamSize,
       maxTeamSize: season.maxTeamSize,
       starterCount: season.starterCount,
@@ -112,6 +114,7 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
     teams: entrantRows.map((entrant) => ({
       teamId: entrant.teamId,
       playerIds: (rosterByEntrant.get(entrant.id) ?? []).map((member) => member.userId),
+      educationVerificationIds: (rosterByEntrant.get(entrant.id) ?? []).map((member) => member.educationVerificationId),
     })),
     entrantsLocked: Boolean(state?.entrantsLockedAt),
     confirmations: entrantRows.map((entrant) => ({ teamId: entrant.teamId, confirmed: Boolean(entrant.rosterConfirmedAt) })),

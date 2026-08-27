@@ -104,6 +104,7 @@ const APPLICATION = {
 
 function setupTransaction() {
   transactionMock.mockImplementation(async (callback: (tx: unknown) => unknown) => callback({
+    query: { teamMembers: { findFirst: teamMemberFindFirstMock }, teamApplicationActiveClaims: { findFirst: vi.fn().mockResolvedValue(null) } },
     insert: txInsertMock,
     update: txUpdateMock,
     delete: txDeleteMock,
@@ -119,6 +120,7 @@ function setupInsert() {
     values: vi.fn((values: unknown) => {
       insertValuesCalls.push(values);
       return {
+        onConflictDoNothing: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([{ applicationId: APPLICATION_ID }]) }),
         returning: vi.fn().mockResolvedValue([{ id: APPLICATION_ID }]),
         then: (resolve: (value: unknown) => unknown) => Promise.resolve(resolve(undefined)),
       };
@@ -137,7 +139,7 @@ function mockActiveApplicationCheck(rows: unknown[] = []) {
 function mockMembers(rows: unknown[]) {
   selectMock.mockReturnValueOnce({
     from: vi.fn().mockReturnValue({
-      innerJoin: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(rows) }),
+      innerJoin: vi.fn().mockReturnValue({ leftJoin: vi.fn().mockReturnValue({ leftJoin: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(rows) }) }) }),
     }),
   });
 }
@@ -232,8 +234,8 @@ describe("team application participant actions", () => {
 
   it("submits only a confirmed roster and keeps it out of formal teams", async () => {
     mockMembers([
-      { id: MEMBER_ID, userId: CAPTAIN_ID, status: "confirmed", studentId: "s-1" },
-      { id: "66666666-6666-6666-6666-666666666666", userId: PLAYER_ID, status: "confirmed", studentId: "s-2" },
+      { id: MEMBER_ID, userId: CAPTAIN_ID, status: "confirmed", email: "captain@rivalhub.test", emailVerifiedAt: new Date(), verificationId: null, verificationStatus: null, verificationAcademicStatus: null, institutionCode: null, institutionName: null },
+      { id: "66666666-6666-6666-6666-666666666666", userId: PLAYER_ID, status: "confirmed", email: "player@rivalhub.test", emailVerifiedAt: new Date(), verificationId: null, verificationStatus: null, verificationAcademicStatus: null, institutionCode: null, institutionName: null },
     ]);
     const result = await submitTeamApplication({ applicationId: APPLICATION_ID });
 

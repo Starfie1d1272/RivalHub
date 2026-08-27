@@ -57,6 +57,7 @@ vi.mock("@/lib/auth/supabase", () => ({
       signUp: signUpMock,
     },
   }),
+  createPublicAuthClient: () => ({ auth: { signUp: signUpMock } }),
 }));
 
 vi.mock("next/cache", () => ({
@@ -219,6 +220,7 @@ describe("loginWithPassword", () => {
 
 describe("signUp", () => {
   beforeEach(() => {
+    process.env.NEXT_PUBLIC_APP_URL = "http://127.0.0.1:3000";
     vi.clearAllMocks();
     normalizeEmailMock.mockImplementation((e: string) => e);
   });
@@ -260,13 +262,12 @@ describe("signUp", () => {
     }
   });
 
-  it("正常注册：insert user + createUserSession + 返回 email", async () => {
+  it("正常注册：insert user、发送确认流程且不创建 session", async () => {
     signUpMock.mockResolvedValue({
       data: { user: { id: "auth-uuid-2" } },
       error: null,
     });
     makeInsertChain([MOCK_USER_ROW]);
-    createUserSessionMock.mockResolvedValue(undefined);
 
     const result = await signUp(VALID_EMAIL, VALID_PASSWORD);
 
@@ -274,13 +275,7 @@ describe("signUp", () => {
     if (result.success) {
       expect(result.data.email).toBe(VALID_EMAIL);
     }
-    expect(createUserSessionMock).toHaveBeenCalledWith({
-      userId: MOCK_USER_ROW.id,
-      email: MOCK_USER_ROW.email,
-      role: MOCK_USER_ROW.role,
-      adminSeasonIds: MOCK_USER_ROW.adminSeasonIds,
-      authSource: "user",
-    });
+    expect(createUserSessionMock).not.toHaveBeenCalled();
   });
 });
 

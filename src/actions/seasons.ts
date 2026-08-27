@@ -13,9 +13,11 @@ import { auditActorId, requireSuperAdmin } from "@/lib/auth/session";
 import {
   normalizeRegistrationConfig,
   normalizeTeamRegistrationConfig,
+  normalizeAffiliationRules,
   type RegistrationConfig,
   type TeamRegistrationConfig,
   type StagePlan,
+  type InstitutionAffiliationRule,
 } from "@/types/season";
 
 const stageConfigSchema = z.object({
@@ -83,6 +85,12 @@ const seasonFormBaseSchema = z.object({
     requireUniqueTeamName: z.boolean(),
     requireTeamLogo: z.boolean(),
   }).optional(),
+  affiliationRules: z.array(z.object({
+    institutionCode: z.string().min(1),
+    eligibleAcademicStatuses: z.array(z.enum(["enrolled", "graduated"])).min(1),
+    minRosterMembers: z.number().int().min(0),
+    minStartingMembers: z.number().int().min(0),
+  })).optional(),
 });
 
 const seasonFormSchema = withSeasonRefinements(seasonFormBaseSchema);
@@ -167,6 +175,7 @@ export async function createSeason(input: SeasonFormInput): Promise<ActionResult
       teamRegistrationConfig: normalizeTeamRegistrationConfig(
         (data.teamRegistrationConfig ?? {}) as TeamRegistrationConfig,
       ),
+      affiliationRules: normalizeAffiliationRules(data.affiliationRules as InstitutionAffiliationRule[] | undefined),
       startAt: toDate(data.startAt),
       registrationDeadline: toDate(data.registrationDeadline),
       endAt: toDate(data.endAt),
@@ -245,6 +254,7 @@ export async function updateSeason(input: SeasonFormInput): Promise<ActionResult
       teamRegistrationConfig: normalizeTeamRegistrationConfig(
         (data.teamRegistrationConfig ?? {}) as TeamRegistrationConfig,
       ),
+      affiliationRules: normalizeAffiliationRules(data.affiliationRules as InstitutionAffiliationRule[] | undefined),
       startAt: toDate(data.startAt),
       registrationDeadline: toDate(data.registrationDeadline),
       endAt: toDate(data.endAt),

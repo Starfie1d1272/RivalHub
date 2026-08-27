@@ -35,6 +35,8 @@ export interface MajorPrestartCheck {
 export interface MajorPrestartTeamFact {
   teamId: string;
   playerIds: readonly string[];
+  /** Immutable approved assertions frozen with this tournament roster. */
+  educationVerificationIds: readonly (string | null)[];
 }
 
 export interface MajorPrestartTeamConfirmationFact {
@@ -119,6 +121,9 @@ function checkRosters(
   const blockers = teams.flatMap((team) => {
     if (team.playerIds.length < minTeamSize) {
       return [`队伍 ${team.teamId || "（未命名）"} 名单不足 ${minTeamSize} 人。`];
+    }
+    if (team.educationVerificationIds.length !== team.playerIds.length || team.educationVerificationIds.some((id) => !id?.trim())) {
+      return [`队伍 ${team.teamId || "（未命名）"} 存在未冻结的教育认证依据。`];
     }
     return [];
   });

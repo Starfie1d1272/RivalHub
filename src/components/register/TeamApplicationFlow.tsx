@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Panel, StatusBanner } from "@/components/rivalhub";
+import Link from "next/link";
 
 type ApplicationStatus = "draft" | "submitted" | "approved" | "waitlisted" | "rejected";
 
@@ -23,7 +24,9 @@ export interface TeamApplicationMemberView {
   userId: string;
   email: string;
   displayName: string | null;
-  studentId: string | null;
+  emailVerified: boolean;
+  educationStatus: "unsubmitted" | "pending" | "approved" | "rejected";
+  institutionName: string | null;
   status: "invited" | "confirmed";
 }
 
@@ -43,6 +46,7 @@ const STATUS_LABEL: Record<ApplicationStatus, string> = {
   waitlisted: "候补名单",
   rejected: "未通过，可修改后重提",
 };
+const EDUCATION_LABEL = { unsubmitted: "教育身份未提交", pending: "教育身份待审核", approved: "教育身份已认证", rejected: "教育身份被驳回" } as const;
 
 interface Props {
   seasonId: string;
@@ -100,6 +104,7 @@ export function TeamApplicationFlow({
   }
 
   if (!isCaptain) {
+    const needsIdentity = !ownMember?.emailVerified || ownMember.educationStatus !== "approved";
     return (
       <Panel pad={24}>
         <StatusBanner
@@ -110,6 +115,7 @@ export function TeamApplicationFlow({
         {ownMember?.status !== "confirmed" && editable && (
           <Button className="mt-4" disabled={isPending} onClick={() => run(() => confirmTeamApplicationMembership({ applicationId: application.id }), "身份已确认并加入报名队伍")}>确认身份并加入</Button>
         )}
+        {needsIdentity && <div className="mt-4 space-y-2"><StatusBanner tone="warn" title="你还不能完成报名资格" sub="请先完成邮箱验证和教育身份认证。" /><Link className="inline-block text-sm underline" href="/settings/education">前往身份认证</Link></div>}
       </Panel>
     );
   }
@@ -133,13 +139,15 @@ export function TeamApplicationFlow({
         <div className="space-y-3">
           {members.map((member) => (
             <div key={member.id} className="flex items-center justify-between gap-3 rounded-md border border-[var(--color-border)] px-3 py-2">
-              <div className="min-w-0"><p className="truncate text-sm font-medium">{member.displayName || member.email}</p><p className="truncate text-xs text-[var(--color-fg-mid)]">{member.email}{member.userId === application.captainUserId ? " · 队长" : ""}</p></div>
+              <div className="min-w-0"><p className="truncate text-sm font-medium">{member.displayName || member.email}</p><p className="truncate text-xs text-[var(--color-fg-mid)]">{member.email}{member.userId === application.captainUserId ? " · 队长" : ""}</p><p className="truncate text-xs text-[var(--color-fg-mid)]">{member.emailVerified ? "邮箱已验证" : "邮箱未验证"} · {member.institutionName ?? "未声明学校"} · {EDUCATION_LABEL[member.educationStatus]}</p></div>
               <div className="flex shrink-0 items-center gap-2"><Badge variant="outline">{member.status === "confirmed" ? "已确认" : "待确认"}</Badge>{editable && member.userId !== application.captainUserId && <Button size="sm" variant="ghost" disabled={isPending} onClick={() => run(() => removeTeamApplicationMember({ applicationId: application.id, memberId: member.id }), "成员已移除")}>移除</Button>}</div>
             </div>
           ))}
         </div>
         {editable && <div className="mt-4 flex gap-2"><Input value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} placeholder="已注册成员的邮箱" type="email" /><Button disabled={isPending || !inviteEmail.trim()} onClick={() => run(async () => { const result = await inviteTeamApplicationMember({ applicationId: application.id, email: inviteEmail }); if (result.success) setInviteEmail(""); return result; }, "邀请已发送，等待成员确认")}>邀请</Button></div>}
       </Panel>
+      {(ownMember && (!ownMember.emailVerified || ownMember.educationStatus !== "approved")) && <StatusBanner tone="warn" title="你还不能完成报名资格" sub="请先完成邮箱验证和教育身份认证。" />}
+      {ownMember && (!ownMember.emailVerified || ownMember.educationStatus !== "approved") && <Link className="inline-block text-sm underline" href="/settings/education">前往身份认证</Link>}
       {editable && <Button className="w-full" disabled={isPending || confirmedCount < minTeamSize || confirmedCount > maxTeamSize} onClick={() => run(() => submitTeamApplication({ applicationId: application.id }), `${seasonName} 报名已提交，等待审核`)}>提交审核</Button>}
     </div>
   );

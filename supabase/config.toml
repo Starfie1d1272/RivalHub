@@ -160,7 +160,10 @@ site_url = "http://127.0.0.1:3000"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["http://127.0.0.1:3000", "http://localhost:3000"]
+additional_redirect_urls = [
+  "http://127.0.0.1:3000/auth/callback/signup",
+  "http://127.0.0.1:3000/auth/callback/reverify",
+]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
@@ -223,7 +226,7 @@ enable_signup = true
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
-enable_confirmations = false
+enable_confirmations = true
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
@@ -247,6 +250,18 @@ otp_expiry = 3600
 # [auth.email.template.invite]
 # subject = "You have been invited"
 # content_path = "./supabase/templates/invite.html"
+
+# The default ConfirmationURL returns tokens in a browser-only URL fragment.
+# RivalHub uses the official server-side token-hash pattern so the callback can
+# record its independent, auditable email-ownership fact before creating its
+# own iron-session.
+[auth.email.template.confirmation]
+subject = "确认你的 RivalHub 邮箱"
+content_path = "./supabase/templates/confirm-signup.html"
+
+[auth.email.template.magic_link]
+subject = "验证你的 RivalHub 当前邮箱"
+content_path = "./supabase/templates/confirm-current-email.html"
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]
