@@ -57,6 +57,8 @@ interface AdminMatchRowProps {
   teamBMembers: TeamMemberData[];
   teamARoster: RosterData | null;
   teamBRoster: RosterData | null;
+  teamAPreflight: { valid: boolean; blockers: string[] } | null;
+  teamBPreflight: { valid: boolean; blockers: string[] } | null;
   completedMaps: {
     mapOrder: number;
     mapName: string;
@@ -84,15 +86,19 @@ export function AdminMatchRow({
   teamBMembers,
   teamARoster,
   teamBRoster,
+  teamAPreflight,
+  teamBPreflight,
   completedMaps,
   pendingMaps,
   finishedMaps,
 }: AdminMatchRowProps) {
-  const startBlockers = [[teamAName, teamARoster], [teamBName, teamBRoster]].flatMap(([name, roster]) => {
+  const startBlockers = [[teamAName, teamARoster, teamAPreflight], [teamBName, teamBRoster, teamBPreflight]].flatMap(([name, roster, preflight]) => {
     const typed = roster as RosterData | null;
     if (!typed) return [`${name} 尚未提交首发`];
     if (typed.starters.length !== 5) return [`${name} 当前不是 5 名首发`];
     if (typed.status !== "confirmed") return [`${name} 首发尚未确认`];
+    const eligibility = preflight as { valid: boolean; blockers: string[] } | null;
+    if (eligibility && !eligibility.valid) return eligibility.blockers.map((blocker) => `${name}：${blocker}`);
     return [];
   });
   return (
@@ -124,7 +130,7 @@ export function AdminMatchRow({
         </div>
       </div>
 
-      {match.status === "scheduled" && <><PreMatchOperatorChecklist teamA={{ name: teamAName, submitted: Boolean(teamARoster), confirmed: teamARoster?.status === "confirmed", starters: teamARoster?.starters.length ?? 0 }} teamB={{ name: teamBName, submitted: Boolean(teamBRoster), confirmed: teamBRoster?.status === "confirmed", starters: teamBRoster?.starters.length ?? 0 }} mapState={match.format === "bo1" ? "not_required" : completedMaps.length + pendingMaps.length > 0 ? "recorded" : "not_recorded"} /><p className="text-xs leading-5 text-[var(--color-fg-mid)]">默认宽限为 15 分钟，不会自动判负。延长宽限或重新排期请使用赛程时间；需要判负时请在下方“裁决与弃赛”记录原因。</p></>}
+      {match.status === "scheduled" && <><PreMatchOperatorChecklist teamA={{ name: teamAName, submitted: Boolean(teamARoster), confirmed: teamARoster?.status === "confirmed", starters: teamARoster?.starters.length ?? 0, preflight: teamAPreflight }} teamB={{ name: teamBName, submitted: Boolean(teamBRoster), confirmed: teamBRoster?.status === "confirmed", starters: teamBRoster?.starters.length ?? 0, preflight: teamBPreflight }} mapState={match.format === "bo1" ? "not_required" : completedMaps.length + pendingMaps.length > 0 ? "recorded" : "not_recorded"} /><p className="text-xs leading-5 text-[var(--color-fg-mid)]">默认宽限为 15 分钟，不会自动判负。延长宽限或重新排期请使用赛程时间；需要判负时请在下方“裁决与弃赛”记录原因。</p></>}
 
       {/* Operations */}
       {match.status !== "cancelled" && (

@@ -192,6 +192,16 @@ export async function assertStartingLineupAllowedInTx(
     substituteIds?: readonly string[];
   },
 ): Promise<{ affiliatedStarterCounts: Map<string, number> }> {
+  const preflight = await getStartingLineupPreflightInTx(tx, args);
+  if (!preflight.valid) throw new AppError(ErrorCode.VALIDATION_FAILED, preflight.blockers.join("；"));
+  return { affiliatedStarterCounts: preflight.affiliatedStarterCounts };
+}
+
+/** Read-only counterpart of the start gate. It deliberately shares every eligibility branch with start. */
+export async function getStartingLineupPreflightInTx(
+  tx: TxDb,
+  args: { match: Match; teamId: string; starterIds: readonly string[]; substituteIds?: readonly string[] },
+): Promise<{ valid: boolean; blockers: string[]; affiliatedStarterCounts: Map<string, number> }> {
   const context = await loadTeamLineupContextInTx(tx, args.match, args.teamId);
   const result = evaluateStartingLineup({
     starterIds: args.starterIds,
@@ -200,9 +210,7 @@ export async function assertStartingLineupAllowedInTx(
     frozenRosterUserIds: context.frozenRosterUserIds ?? undefined,
     affiliationRules: context.rules.length > 0 ? context.rules : undefined,
   });
-  if (!result.valid) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, result.blockers.join("；"));
-  }
+  const blockers = [...result.blockers];
   if (context.competitiveProfile) {
     const starterFacts = args.starterIds.map((id) => context.memberFacts.get(id)).filter((item): item is LineupMemberFact => Boolean(item));
     const userIds = starterFacts.map((item) => item.userId);
@@ -217,15 +225,15 @@ export async function assertStartingLineupAllowedInTx(
         currentSeasonPeak: (() => { const fact = forUser.find((item) => item.kind === "season_peak" && item.platformSeasonKey === context.competitiveProfile!.currentSeasonKey); return fact ? { rank: fact.rank, rating: Number(fact.rating) } : null; })(),
       };
       const required = getPlayerStrengthBreakdown(strength, context.competitiveProfile!);
-      if (!required.available) throw new AppError(ErrorCode.VALIDATION_FAILED, `首发 ${member.userId} 的竞技档案不可确认：${required.blockers.join(" ")}`);
+      if (!required.available) blockers.push(`首发 ${member.userId} 的竞技档案不可确认：${required.blockers.join(" ")}`);
       const verification = member.verification;
       const isHome = Boolean(verification && context.rules.some((rule) => rule.institutionCode === verification.institutionCode && rule.eligibleAcademicStatuses.includes(verification.academicStatus)));
       return { ...strength, isHome };
     });
     const externalRule = evaluateExternalStrengthRule({ players, config: context.competitiveProfile });
-    if (!externalRule.eligible) throw new AppError(ErrorCode.VALIDATION_FAILED, externalRule.blockers.join("；"));
+    blockers.push(...externalRule.blockers);
   }
-  return { affiliatedStarterCounts: result.affiliatedStarterCounts };
+  return { valid: blockers.length === 0, blockers: [...new Set(blockers)], affiliatedStarterCounts: result.affiliatedStarterCounts };
 }
 
 function loadPersistedPlayers(

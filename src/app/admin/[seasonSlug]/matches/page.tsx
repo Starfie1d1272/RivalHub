@@ -24,6 +24,7 @@ import {
 } from "@/lib/matches/stage-views";
 import { getFirstStageOfType, normalizeRegistrationConfig, normalizeStagePlan } from "@/types/season";
 import Link from "next/link";
+import { getStartingLineupPreflightInTx } from "@/lib/match-rosters/service";
 
 export const dynamic = "force-dynamic";
 
@@ -319,6 +320,20 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
     }
   }
 
+  const preflightByMatch = new Map<string, Map<string, { valid: boolean; blockers: string[] }>>();
+  for (const match of allMatches.filter((item) => item.status === "scheduled" && item.ownership === "major_stage")) {
+    const rosters = rosterByMatch.get(match.id);
+    if (!rosters) continue;
+    const result = new Map<string, { valid: boolean; blockers: string[] }>();
+    for (const teamId of [match.teamAId, match.teamBId]) {
+      const roster = rosters.get(teamId);
+      if (!roster) continue;
+      const preflight = await db.transaction((tx) => getStartingLineupPreflightInTx(tx, { match, teamId, starterIds: roster.starters, substituteIds: roster.substitutes }));
+      result.set(teamId, { valid: preflight.valid, blockers: preflight.blockers });
+    }
+    preflightByMatch.set(match.id, result);
+  }
+
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl space-y-6">
       <div className="flex items-center justify-between">
@@ -459,6 +474,8 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                         teamBMembers={teamMembersByTeam.get(m.teamBId) ?? []}
                         teamARoster={rosterByMatch.get(m.id)?.get(m.teamAId) ?? null}
                         teamBRoster={rosterByMatch.get(m.id)?.get(m.teamBId) ?? null}
+                        teamAPreflight={preflightByMatch.get(m.id)?.get(m.teamAId) ?? null}
+                        teamBPreflight={preflightByMatch.get(m.id)?.get(m.teamBId) ?? null}
                         completedMaps={mapCompletedMaps(mapsByMatchId.get(m.id) ?? [])}
                         pendingMaps={mapPendingMaps(mapsByMatchId.get(m.id) ?? [])}
                         finishedMaps={mapFinishedMaps(mapsByMatch.get(m.id) ?? [])}

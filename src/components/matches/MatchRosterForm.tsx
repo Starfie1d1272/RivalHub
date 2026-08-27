@@ -20,20 +20,19 @@ interface MatchRosterFormProps {
   matchId: string;
   teamMembers: TeamMember[];
   hasExistingRoster: boolean;
-  scheduledAt: Date | null;
+  matchStatus: "scheduled" | "in_progress" | "finished" | "cancelled";
+  rosterStatus: string | null;
 }
 
 export function MatchRosterForm({
   matchId,
   teamMembers,
   hasExistingRoster,
-  scheduledAt,
+  matchStatus,
+  rosterStatus,
 }: MatchRosterFormProps) {
-  const hoursUntilMatch = scheduledAt
-    ? Math.floor((scheduledAt.getTime() - Date.now()) / (1000 * 60 * 60))
-    : null;
-  const isWithin2Hours = hoursUntilMatch !== null && hoursUntilMatch < 2;
-  const isMatchStarted = hoursUntilMatch !== null && hoursUntilMatch <= 0;
+  const isMatchStarted = matchStatus !== "scheduled";
+  const rosterLocked = rosterStatus === "confirmed";
   const [isPending, startTransition] = useTransition();
 
   function playerBtnClass(isSelected: boolean, isDisabled = false) {
@@ -92,24 +91,17 @@ export function MatchRosterForm({
             如需调整请联系管理员
           </p>
         </div>
-      ) : isWithin2Hours ? (
+      ) : rosterLocked ? (
         <div className="rounded border p-3" style={{ borderColor: "var(--color-warn-edge)", background: "var(--color-warn-soft)" }}>
-          <p className="text-sm text-[var(--color-fg)]">距开赛不足 2 小时，名单已锁定</p>
+          <p className="text-sm text-[var(--color-fg)]">名单已由管理员确认</p>
           <p className="text-xs text-[var(--color-fg-dim)] mt-1">
-            如需修改请联系管理员解锁
-          </p>
-        </div>
-      ) : hoursUntilMatch !== null ? (
-        <div className="rounded border border-[var(--color-border)] bg-[var(--color-panel)] p-2">
-          <p className="text-xs text-[var(--color-fg-dim)]">
-            距开赛还有 {hoursUntilMatch} 小时。开赛前 2 小时名单将锁定，届时无法修改，请在此之前提交名单。裁判在开赛时会检查队员信息，队员不正确将无法进行比赛。
+            如需修改请联系管理员解锁后重新提交。
           </p>
         </div>
       ) : (
-        <div className="rounded border border-[var(--color-border)] bg-[var(--color-panel)] p-3">
-          <p className="text-sm text-[var(--color-fg-dim)]">比赛时间未确定</p>
-          <p className="text-xs text-[var(--color-fg-dim)] mt-1">
-            请等待管理员设置比赛时间或通过时间协商确认时间后，再提交名单
+        <div className="rounded border border-[var(--color-border)] bg-[var(--color-panel)] p-2">
+          <p className="text-xs text-[var(--color-fg-dim)]">
+            比赛尚未开始。提交后由管理员确认；确认后如需调整，必须由管理员显式解锁。裁判开赛时会再次检查队员资格。
           </p>
         </div>
       )}
@@ -127,8 +119,8 @@ export function MatchRosterForm({
               key={m.id}
               type="button"
               onClick={() => toggleStarter(m.id)}
-              disabled={isWithin2Hours || isMatchStarted}
-              className={playerBtnClass(selectedStarterIds.includes(m.id), isWithin2Hours || isMatchStarted)}
+              disabled={rosterLocked || isMatchStarted}
+              className={playerBtnClass(selectedStarterIds.includes(m.id), rosterLocked || isMatchStarted)}
             >
               <span className="text-sm font-medium">{getDisplayName(m)}</span>
               <PosChip pos={m.primaryPosition} />
@@ -148,10 +140,10 @@ export function MatchRosterForm({
               key={m.id}
               type="button"
               onClick={() => toggleSubstitute(m.id)}
-              disabled={selectedStarterIds.includes(m.id) || isWithin2Hours || isMatchStarted}
+              disabled={selectedStarterIds.includes(m.id) || rosterLocked || isMatchStarted}
               className={playerBtnClass(
                 selectedSubstituteIds.includes(m.id),
-                selectedStarterIds.includes(m.id) || isWithin2Hours || isMatchStarted,
+                selectedStarterIds.includes(m.id) || rosterLocked || isMatchStarted,
               )}
             >
               <span className="text-sm font-medium">{getDisplayName(m)}</span>
@@ -164,7 +156,7 @@ export function MatchRosterForm({
         </p>
       </div>
 
-      {!isWithin2Hours && !isMatchStarted && (
+      {!rosterLocked && !isMatchStarted && (
         <Button
           onClick={handleSubmit}
           disabled={isPending || selectedStarterIds.length !== 5}
@@ -173,9 +165,9 @@ export function MatchRosterForm({
           提交名单
         </Button>
       )}
-      {isWithin2Hours && hasExistingRoster && (
+      {rosterLocked && hasExistingRoster && (
         <p className="text-xs text-[var(--color-fg-dim)]">
-          名单已锁定，距开赛不足 2 小时
+          名单已确认，等待比赛开始
         </p>
       )}
     </div>

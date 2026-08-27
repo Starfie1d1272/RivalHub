@@ -125,7 +125,7 @@ export function PostEventManagement({ data }: { data: PostEventManagementData })
         {data.honors.length === 0 ? <StatusBanner tone="info" title="尚无荣誉事实" sub="确认最终结果后，管理员可明确授予赛事荣誉。" /> : <ul className="space-y-2">{data.honors.map((honor) => <li key={honor.id} className="flex flex-wrap items-center justify-between gap-2 border border-[var(--color-border)] p-3">
           <span>{honor.label} · {honor.state} · {honor.teamId ? teamName.get(honor.teamId) ?? honor.teamId : honor.userId ?? "未授予"}{honor.placementFrom ? ` · ${honor.placementFrom}–${honor.placementTo}` : ""}</span>
           {honor.state === "valid" && <Button variant="destructive" size="sm" disabled={isPending} onClick={() => setConfirming({ kind: "honor", id: honor.id })}>撤销</Button>}
-          {confirming?.kind === "honor" && confirming.id === honor.id && <div className="w-full"><InlineConfirm danger title="撤销此荣誉？" sub="不会自动授予任何其他队伍（包括 Runner-up）。" onCancel={() => setConfirming(null)} onConfirm={() => { setConfirming(null); run(async () => revokeTournamentHonor({ honorId: honor.id, reason: "管理员赛后撤销" })); }} /></div>}
+          {confirming?.kind === "honor" && confirming.id === honor.id && <div className="w-full"><InlineConfirm danger confirmLabel="确认撤销" title="撤销此荣誉？" sub="不会自动授予任何其他队伍（包括 Runner-up）。" onCancel={() => setConfirming(null)} onConfirm={() => { setConfirming(null); run(async () => revokeTournamentHonor({ honorId: honor.id, reason: "管理员赛后撤销" })); }} /></div>}
         </li>)}</ul>}
       </div>
     </Panel>
@@ -147,7 +147,7 @@ export function PostEventManagement({ data }: { data: PostEventManagementData })
         {data.adjudications.length === 0 ? <StatusBanner tone="info" title="尚无赛后裁决" sub="裁决必须明确目标、影响范围与理由，且不会隐式回写历史赛事事实。" /> : <ul className="space-y-2">{data.adjudications.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 border border-[var(--color-border)] p-3">
           <span>{item.kind} · {item.status} · {item.target === "team" ? teamName.get(item.targetTeamId ?? "") ?? item.targetTeamId : item.target} · {item.impacts.join(", ")}<br /><span className="text-[var(--color-fg-mid)]">{item.explanation}</span></span>
           {item.status === "active" && <Button variant="destructive" size="sm" disabled={isPending} onClick={() => setConfirming({ kind: "adjudication", id: item.id })}>撤销</Button>}
-          {confirming?.kind === "adjudication" && confirming.id === item.id && <div className="w-full"><InlineConfirm danger title="撤销此赛后裁决？" sub="只改变裁决自身状态，不会回写历史比赛、名次或荣誉。" onCancel={() => setConfirming(null)} onConfirm={() => { setConfirming(null); run(async () => revokePostEventAdjudication({ adjudicationId: item.id, reason: "管理员赛后撤销" })); }} /></div>}
+          {confirming?.kind === "adjudication" && confirming.id === item.id && <div className="w-full"><InlineConfirm danger confirmLabel="确认撤销" title="撤销此赛后裁决？" sub="只改变裁决自身状态，不会回写历史比赛、名次或荣誉。" onCancel={() => setConfirming(null)} onConfirm={() => { setConfirming(null); run(async () => revokePostEventAdjudication({ adjudicationId: item.id, reason: "管理员赛后撤销" })); }} /></div>}
         </li>)}</ul>}
       </div>
     </Panel>

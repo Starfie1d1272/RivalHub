@@ -567,7 +567,8 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                 matchId={match.id}
                 teamMembers={captainTeamMembers}
                 hasExistingRoster={captainRoster?.status === "submitted"}
-                scheduledAt={match.scheduledAt}
+                matchStatus={match.status}
+                rosterStatus={captainRoster?.status ?? null}
               />
             </Panel>
           )}
