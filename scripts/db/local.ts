@@ -55,6 +55,9 @@ try {
     case "test-discipline":
       runLocalIntegration("scripts/db/discipline-integration.ts");
       break;
+    case "test-postevent":
+      runLocalIntegration("scripts/db/postevent-integration.ts");
+      break;
     case "bootstrap":
       startLocalStack();
       migrateLocalDatabase();
@@ -79,7 +82,7 @@ try {
       break;
     default:
       throw new Error(
-        "未知命令。可用命令：start | status | migrate | seed | verify | verify-migrations | test-major-start | test-team-registration | test-major-prestart | test-major-roster-safety | test-major-result-recovery | bootstrap | reset | stop | studio | dev",
+        "未知命令。可用命令：start | status | migrate | seed | verify | verify-migrations | test-major-start | test-team-registration | test-major-prestart | test-major-roster-safety | test-major-result-recovery | test-discipline | test-postevent | bootstrap | reset | stop | studio | dev",
       );
   }
 } catch (error) {

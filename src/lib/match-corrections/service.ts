@@ -9,6 +9,7 @@ import {
 } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { validateSeriesScore } from "@/lib/matches/result-rules";
+import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 
 /**
  * G2 managed result correction & recovery.
@@ -380,6 +381,10 @@ export async function applyResultCorrectionInTx(
     confirmRecovery?: boolean;
   },
 ): Promise<AppliedResultCorrection> {
+  const [source] = await tx.select({ seasonId: matches.seasonId }).from(matches)
+    .where(eq(matches.id, args.matchId)).for("update");
+  if (!source) throw new AppError(ErrorCode.NOT_FOUND, "比赛不存在。");
+  await assertSeasonAllowsTournamentMutationInTx(tx, source.seasonId);
   const plan = await planResultCorrectionInTx(tx, { matchId: args.matchId, proposal: args.proposal });
 
   if (

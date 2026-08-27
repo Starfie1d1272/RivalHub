@@ -3,6 +3,7 @@ import type { TxDb } from "@/db/client";
 import { auditLogs, majorStageEntrants, majorStageRuns, matches } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { validateSeriesScore } from "@/lib/matches/result-rules";
+import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 import { seedMajorLaterStageEntrants } from "@/lib/major/seeding";
 import {
   generateNextMajorSwissRound,
@@ -114,6 +115,7 @@ export async function transitionMajorSwissStageInTransaction(
   tx: TxDb,
   input: { seasonId: string; sourceStageRunId: string; actorId: string },
 ): Promise<MajorStageTransitionResult> {
+  await assertSeasonAllowsTournamentMutationInTx(tx, input.seasonId);
   const [sourceRun] = await tx.select().from(majorStageRuns)
     .where(and(eq(majorStageRuns.id, input.sourceStageRunId), eq(majorStageRuns.seasonId, input.seasonId))).for("update");
   if (!sourceRun) throw new AppError(ErrorCode.NOT_FOUND, "指定的源 StageRun 不属于当前赛事。");

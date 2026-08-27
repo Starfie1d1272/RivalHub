@@ -60,6 +60,9 @@ function standardMajorOrThrow(season: typeof seasons.$inferSelect): void {
 async function seasonAndAdminOrThrow(seasonId: string) {
   const season = await db.query.seasons.findFirst({ where: eq(seasons.id, seasonId) });
   if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
+  if (season.status === "archived") {
+    throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "赛事已归档，普通 Major 运行态变更被拒绝。");
+  }
   standardMajorOrThrow(season);
   return { season, admin: await requireSeasonAdmin(seasonId) };
 }
