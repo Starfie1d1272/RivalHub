@@ -144,6 +144,15 @@ function mockMembers(rows: unknown[]) {
   });
 }
 
+/** Queued after mockMembers for submit-path tests: no active sanctions. */
+function mockDisciplinaryCases(rows: unknown[] = []) {
+  selectMock.mockReturnValueOnce({
+    from: vi.fn().mockReturnValue({
+      where: vi.fn().mockResolvedValue(rows),
+    }),
+  });
+}
+
 beforeEach(() => {
   vi.resetAllMocks();
   insertValuesCalls.length = 0;
@@ -237,6 +246,7 @@ describe("team application participant actions", () => {
       { id: MEMBER_ID, userId: CAPTAIN_ID, status: "confirmed", email: "captain@rivalhub.test", emailVerifiedAt: new Date(), verificationId: null, verificationStatus: null, verificationAcademicStatus: null, institutionCode: null, institutionName: null },
       { id: "66666666-6666-6666-6666-666666666666", userId: PLAYER_ID, status: "confirmed", email: "player@rivalhub.test", emailVerifiedAt: new Date(), verificationId: null, verificationStatus: null, verificationAcademicStatus: null, institutionCode: null, institutionName: null },
     ]);
+    mockDisciplinaryCases([]);
     const result = await submitTeamApplication({ applicationId: APPLICATION_ID });
 
     expect(result).toEqual({ success: true, data: undefined });

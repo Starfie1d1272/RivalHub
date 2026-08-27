@@ -20,6 +20,8 @@ export interface LineupMemberFact {
   teamMemberId: string;
   userId: string;
   verification: LineupVerificationFact | null;
+  /** Set when an active disciplinary sanction blocks this player's participation. */
+  participationBlocked?: boolean;
 }
 
 export interface StartingLineupInput {
@@ -92,6 +94,12 @@ export function evaluateStartingLineup(input: StartingLineupInput): StartingLine
   const unknownCount = [...starterIds, ...substituteIds].filter((id) => !memberFacts.has(id)).length;
   if (unknownCount > 0) {
     blockers.push(`有 ${unknownCount} 名所选队员不属于本队，不能提交。`);
+  }
+
+  const blockedCount =
+    [...starterIds, ...substituteIds].filter((id) => memberFacts.get(id)?.participationBlocked).length;
+  if (blockedCount > 0) {
+    blockers.push(`有 ${blockedCount} 名队员正在受纪律处罚禁赛期内，不能参加本场比赛。`);
   }
 
   const starterFacts: LineupMemberFact[] = [];

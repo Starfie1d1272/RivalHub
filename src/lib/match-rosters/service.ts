@@ -17,6 +17,7 @@ import {
 import { AppError, ErrorCode } from "@/lib/errors";
 import { frozenStageRunAffiliationRules } from "@/lib/major/frozen-affiliation-rules";
 import { assertMatchTransition } from "@/lib/match-transitions";
+import { loadActiveSanctionsInTx } from "@/lib/discipline/service";
 import type { InstitutionAffiliationRule } from "@/types/season";
 import { evaluateStartingLineup, type LineupMemberFact } from "./lineup";
 
@@ -144,6 +145,13 @@ export async function loadTeamLineupContextInTx(
     .from(teamMembers)
     .where(eq(teamMembers.teamId, teamId));
 
+  // H1: active match-participation sanctions apply to every ownership mode.
+  const participationBans = await loadActiveSanctionsInTx(tx, {
+    seasonId: match.seasonId,
+    effect: "match_participation_block",
+    subjectUserIds: memberRows.map((row) => row.userId),
+  });
+
   const memberFacts = new Map<string, LineupMemberFact>();
   for (const row of memberRows) {
     memberFacts.set(row.id, {
@@ -151,6 +159,7 @@ export async function loadTeamLineupContextInTx(
       userId: row.userId,
       verification:
         (rules.length > 0 ? verificationsByUser?.get(row.userId) : null) ?? null,
+      participationBlocked: participationBans.has(row.userId),
     });
   }
 

@@ -52,6 +52,9 @@ try {
     case "test-major-result-recovery":
       runLocalIntegration("scripts/db/major-result-recovery-integration.ts");
       break;
+    case "test-discipline":
+      runLocalIntegration("scripts/db/discipline-integration.ts");
+      break;
     case "bootstrap":
       startLocalStack();
       migrateLocalDatabase();
