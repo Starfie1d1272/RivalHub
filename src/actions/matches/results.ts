@@ -1,8 +1,8 @@
 "use server";
 
-import { eq, asc, and, inArray, isNull } from "drizzle-orm";
+import { eq, and, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, matches, matchMaps, matchVetoSteps, matchRosters, matchRosterPlayers, teams, teamMembers, auditLogs, matchTimeProposals } from "@/db/schema";
+import { seasons, matches, matchMaps, matchVetoSteps, matchRosters, matchRosterPlayers, teams, auditLogs, matchTimeProposals } from "@/db/schema";
 import { ok } from "@/types/action";
 import type { ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -15,6 +15,9 @@ import {
 } from "@/lib/match-transitions";
 import { getMaxMaps, getWinThreshold, isMatchStatus } from "@/types/match";
 import { actionError, getSeasonOrThrow, getMatchOrThrow } from "@/lib/action-utils";
+import {
+  applyMatchStatusTransitionInTx,
+} from "@/lib/match-rosters/service";
 import { maybeFinishSeason } from "@/actions/transitions";
 import { revalidateMatchPaths, revalidateSeasonPaths } from "@/lib/revalidation";
 import { normalizeRegistrationConfig, normalizeStagePlan } from "@/types/season";
@@ -68,6 +71,9 @@ async function insertResolvedBracketMatches(
 
 /**
  * 将比赛状态推进一步（scheduled→in_progress，scheduled/in_progress→cancelled）。
+ * 开始比赛（in_progress）要求两队均已提交并由管理员确认首发阵容；
+ * 不存在任何隐式补名单路径。核心事务体见
+ * lib/match-rosters/service.ts#applyMatchStatusTransitionInTx。
  */
 export async function updateMatchStatus(
   matchId: string,
@@ -82,55 +88,13 @@ export async function updateMatchStatus(
     assertMatchTransition(match.status, nextStatus);
 
     const seasonForStatus = await getSeasonOrThrow(match.seasonId);
-    await db.transaction(async (tx) => {
-      await tx
-        .update(matches)
-        .set({ status: nextStatus, updatedAt: new Date() })
-        .where(eq(matches.id, matchId));
-
-      // 开赛时自动为两队填充默认名单（若尚未提交）
-      if (nextStatus === "in_progress") {
-        const existingRosters = await tx.query.matchRosters.findMany({
-          where: and(
-            eq(matchRosters.matchId, matchId),
-            inArray(matchRosters.teamId, [match.teamAId, match.teamBId]),
-          ),
-        });
-        const existingTeamIds = new Set(existingRosters.map((r) => r.teamId));
-
-        for (const teamId of [match.teamAId, match.teamBId]) {
-          if (existingTeamIds.has(teamId)) continue;
-          const starterIds = await tx
-            .select({ id: teamMembers.id })
-            .from(teamMembers)
-            .where(eq(teamMembers.teamId, teamId))
-            .orderBy(asc(teamMembers.joinedAt))
-            .limit(5);
-          if (starterIds.length > 0) {
-            const [roster] = await tx
-              .insert(matchRosters)
-              .values({ matchId, teamId, submittedBy: session.userId })
-              .returning({ id: matchRosters.id });
-            await tx.insert(matchRosterPlayers).values(
-              starterIds.map((s) => ({
-                rosterId: roster.id,
-                teamMemberId: s.id,
-                isStarter: true,
-              })),
-            );
-          }
-        }
-      }
-
-      await tx.insert(auditLogs).values({
-        seasonId: match.seasonId,
-        action: "match.status_update",
-        actorId: session.email,
-        targetId: matchId,
-        targetType: "match",
-        meta: { from: match.status, to: nextStatus },
-      });
-    });
+    await db.transaction((tx) =>
+      applyMatchStatusTransitionInTx(tx, {
+        matchId,
+        nextStatus,
+        actorId: auditActorId(session),
+      }),
+    );
 
     revalidateMatchPaths(seasonForStatus.slug, matchId);
 

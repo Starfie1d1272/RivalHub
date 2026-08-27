@@ -8,6 +8,7 @@ import { MapByMapInput } from "@/components/matches/MapByMapInput";
 import { ScheduledAtInput } from "@/components/matches/ScheduledAtInput";
 import { VetoInputDialog } from "@/components/matches/VetoInputDialog";
 import { AdminRosterDialog } from "@/components/matches/AdminRosterDialog";
+import { ResultCorrectionPanel } from "@/components/matches/ResultCorrectionPanel";
 import { StatsOCRPanel } from "@/components/matches/StatsOCRPanel";
 import { ForfeitButton } from "@/components/matches/ForfeitButton";
 import { MapScoreCorrectInput } from "@/components/matches/MapScoreCorrectInput";
@@ -26,6 +27,7 @@ export interface TeamMemberData {
 }
 
 export interface RosterData {
+  rosterId: string | null;
   starters: string[];
   substitutes: string[];
   status: string | null;
@@ -223,6 +225,12 @@ export function AdminMatchRow({
                     currentScoreB={match.scoreB}
                   />
                 )}
+                <ResultCorrectionPanel
+                  matchId={match.id}
+                  teamAName={teamAName}
+                  teamBName={teamBName}
+                  format={match.format}
+                />
                 <CompletedAtInput
                   matchId={match.id}
                   initialValue={toCSTDateTimeInput(match.completedAt)}

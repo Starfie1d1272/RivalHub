@@ -310,6 +310,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
         }
       }
       matchMap.set(roster.teamId, {
+        rosterId: roster.id,
         starters,
         substitutes,
         status: roster.status,

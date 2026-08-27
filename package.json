@@ -32,6 +32,8 @@
     "test:major-prestart:local": "tsx scripts/db/local.ts test-major-prestart",
     "test:major-start:local": "tsx scripts/db/local.ts test-major-start",
     "test:major-swiss:local": "tsx scripts/db/local.ts test-major-start",
+    "test:major-roster-safety:local": "tsx scripts/db/local.ts test-major-roster-safety",
+    "test:major-result-recovery:local": "tsx scripts/db/local.ts test-major-result-recovery",
     "seed": "NODE_OPTIONS='--dns-result-order=ipv4first' tsx --env-file .env.local scripts/seed.ts"
   },
   "dependencies": {

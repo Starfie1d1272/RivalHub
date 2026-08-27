@@ -8,9 +8,14 @@ export const matchRosters = pgTable("match_rosters", {
   id: uuid("id").defaultRandom().primaryKey(),
   matchId: uuid("match_id").notNull().references(() => matches.id),
   teamId: uuid("team_id").notNull().references(() => teams.id),
-  submittedBy: uuid("submitted_by").notNull().references(() => users.id),
+  /** The participant who submitted; null when an admin selected the lineup. */
+  submittedBy: uuid("submitted_by").references(() => users.id),
+  /** participant | admin_select — who authored this explicit lineup. */
+  source: text("source").notNull().default("participant"),
   status: text("status").notNull().default("submitted"),
   lockedAt: timestamp("locked_at", { withTimezone: true }).notNull().defaultNow(),
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+  confirmedBy: text("confirmed_by"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
