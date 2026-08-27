@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Checklist, Panel, StatusBanner } from "@/components/rivalhub";
 import {
   applyMatchResultCorrection,
   planMatchResultCorrection,
@@ -126,7 +128,7 @@ export function ResultCorrectionPanel({
   }
 
   return (
-    <div className="space-y-2 rounded-md border border-[var(--color-border)] p-3">
+    <Panel label="比分更正与恢复" pad={16} className="space-y-3">
       <p className="text-sm font-medium text-[var(--color-fg)]">
         比分更正与恢复 · {teamAName} vs {teamBName}（{format.toUpperCase()}）
       </p>
@@ -158,8 +160,8 @@ export function ResultCorrectionPanel({
                 placeholder="比分"
               />
             </div>
-            <label className="flex items-center gap-1 pb-2 text-xs text-[var(--color-fg-mid)]">
-              <input
+            <label className="flex items-center gap-2 pb-2 text-xs text-[var(--color-fg-mid)]">
+              <Checkbox
                 type="checkbox"
                 checked={isForfeit}
                 onChange={(e) => setIsForfeit(e.target.checked)}
@@ -177,7 +179,7 @@ export function ResultCorrectionPanel({
             当前 {plan.current.isForfeit ? `${plan.current.scoreA}:${plan.current.scoreB}（弃赛）` : `${plan.current.scoreA ?? "-"}:${plan.current.scoreB ?? "-"}`}
             {" → "}
             提议 {plan.proposed.isForfeit ? `${plan.proposed.scoreA}:${plan.proposed.scoreB}（弃赛）` : `${plan.proposed.scoreA}:${plan.proposed.scoreB}`}
-            {plan.winnerChanges && " · ⚠️ 胜者将变更"}
+            {plan.winnerChanges && " · 胜者将变更"}
           </p>
           {plan.impacts.length > 0 && (
             <ul className="list-disc space-y-0.5 pl-4 text-[var(--color-fg-mid)]">
@@ -189,22 +191,10 @@ export function ResultCorrectionPanel({
             </ul>
           )}
           {plan.blockedReasons.length > 0 && (
-            <div className="rounded border border-red-500/40 bg-red-500/10 p-2">
-              <p className="font-medium text-red-500">已拒绝执行（fail closed）：</p>
-              <ul className="list-disc pl-4">
-                {plan.blockedReasons.map((reason) => (
-                  <li key={reason}>{reason}</li>
-                ))}
-              </ul>
-              <p className="mt-1">如确需处理，请通过下方「赛后裁决」流程记录独立事实。</p>
-            </div>
+            <StatusBanner tone="error" title="当前更正不能自动执行" sub={`${plan.blockedReasons.join(" ")} 如确需处理，请通过下方赛后裁决记录独立事实。`} />
           )}
           {plan.requiredRecoveryActions.length > 0 && !plan.blockedReasons.length && (
-            <ul className="list-decimal space-y-0.5 pl-4 text-[var(--color-fg-mid)]">
-              {plan.requiredRecoveryActions.map((action) => (
-                <li key={action}>{action}</li>
-              ))}
-            </ul>
+            <Checklist items={plan.requiredRecoveryActions.map((label) => ({ label, state: "pending" as const }))} />
           )}
           <div className="flex flex-wrap gap-2 pt-1">
             {plan.winnerChanges && plan.blockedReasons.length === 0 && (
@@ -225,9 +215,9 @@ export function ResultCorrectionPanel({
       )}
 
       {/* 赛后裁决入口始终可用：用于 fail-closed 场景的独立事实记录 */}
-      <div className="flex flex-wrap items-center gap-2 border-t border-[var(--color-border)] pt-2">
-        <input
-          className="h-8 flex-1 min-w-48 rounded-md border border-[var(--color-border)] bg-transparent px-2 text-xs"
+      <div className="flex flex-wrap items-center gap-2 border-t border-[var(--color-border)] pt-3">
+        <Input
+          className="h-8 min-w-48 flex-1 text-xs"
           placeholder="赛后裁决说明（用于被拒绝自动重写的场景）"
           value={adjudicationNote}
           onChange={(e) => setAdjudicationNote(e.target.value)}
@@ -236,6 +226,6 @@ export function ResultCorrectionPanel({
           记录裁决
         </Button>
       </div>
-    </div>
+    </Panel>
   );
 }

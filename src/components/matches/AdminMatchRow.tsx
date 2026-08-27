@@ -14,6 +14,7 @@ import { ForfeitButton } from "@/components/matches/ForfeitButton";
 import { MapScoreCorrectInput } from "@/components/matches/MapScoreCorrectInput";
 import { DeleteMatchButton } from "@/components/matches/DeleteMatchButton";
 import { CompletedAtInput } from "@/components/matches/CompletedAtInput";
+import { PreMatchOperatorChecklist } from "@/components/matches/PreMatchOperatorChecklist";
 import { toCSTDateTimeInput } from "@/lib/utils/date";
 import { MATCH_FORMAT_LABELS } from "@/types/match";
 
@@ -87,6 +88,13 @@ export function AdminMatchRow({
   pendingMaps,
   finishedMaps,
 }: AdminMatchRowProps) {
+  const startBlockers = [[teamAName, teamARoster], [teamBName, teamBRoster]].flatMap(([name, roster]) => {
+    const typed = roster as RosterData | null;
+    if (!typed) return [`${name} 尚未提交首发`];
+    if (typed.starters.length !== 5) return [`${name} 当前不是 5 名首发`];
+    if (typed.status !== "confirmed") return [`${name} 首发尚未确认`];
+    return [];
+  });
   return (
     <Panel
       pad={16}
@@ -116,7 +124,7 @@ export function AdminMatchRow({
         </div>
       </div>
 
-      {match.status === "scheduled" && <div className="border border-[var(--color-border)] bg-[var(--color-panel-low)] p-3 text-xs text-[var(--color-fg-mid)]"><p className="font-mono tracking-[0.12em] text-[var(--color-info)]">PRE-MATCH OPERATOR CHECKLIST</p><div className="mt-2 grid gap-1 sm:grid-cols-2"><span>首发 A：{teamARoster?.status === "confirmed" ? "已确认" : "待提交/确认"}</span><span>首发 B：{teamBRoster?.status === "confirmed" ? "已确认" : "待提交/确认"}</span><span>资格、NJU ≥3、外校实力、纪律：开赛 action 将再次 fail-closed 校验</span><span>人工确认：Perfect 房间、服务器、BP、双方 ready</span></div><p className="mt-2">默认宽限 15 分钟不会自动判负；延长、重新排期或弃权均须由管理员明确操作并记录原因。</p></div>}
+      {match.status === "scheduled" && <><PreMatchOperatorChecklist teamA={{ name: teamAName, submitted: Boolean(teamARoster), confirmed: teamARoster?.status === "confirmed", starters: teamARoster?.starters.length ?? 0 }} teamB={{ name: teamBName, submitted: Boolean(teamBRoster), confirmed: teamBRoster?.status === "confirmed", starters: teamBRoster?.starters.length ?? 0 }} mapState={match.format === "bo1" ? "not_required" : completedMaps.length + pendingMaps.length > 0 ? "recorded" : "not_recorded"} /><p className="text-xs leading-5 text-[var(--color-fg-mid)]">默认宽限为 15 分钟，不会自动判负。延长宽限或重新排期请使用赛程时间；需要判负时请在下方“裁决与弃赛”记录原因。</p></>}
 
       {/* Operations */}
       {match.status !== "cancelled" && (
@@ -176,15 +184,16 @@ export function AdminMatchRow({
                     teamBName={teamBName}
                     currentStatus={match.status}
                     format={match.format}
+                    startBlockers={startBlockers}
                   />
                 )}
-                <ForfeitButton
+                <div className="space-y-2 border-t border-[var(--color-border)] pt-3"><p className="font-mono text-[11px] tracking-[0.12em] text-[var(--color-fg-mid)]">裁决与弃赛</p><p className="text-xs leading-5 text-[var(--color-fg-mid)]">延长、重新排期或双方协商可先调整赛程。判负必须明确弃赛方与原因，并由服务端写入正式结果与审计。</p><ForfeitButton
                   matchId={match.id}
                   teamAId={match.teamAId}
                   teamBId={match.teamBId}
                   teamAName={teamAName}
                   teamBName={teamBName}
-                />
+                /></div>
               </>
             )}
             {match.status === "finished" && (

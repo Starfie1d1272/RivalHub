@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { finalizeMajorSwissRound, startMajorPlayoff, transitionMajorSwissStage } from "@/actions/major-prestart";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Marker, Panel } from "@/components/rivalhub";
 
 export interface MajorSwissRuntimeData {
@@ -39,8 +40,8 @@ export function MajorSwissRuntimeManagement({ data }: { data: MajorSwissRuntimeD
       </div>
 
       {!data.stageComplete && <>
-        <label className="flex items-start gap-2 rounded border border-[var(--color-border)] p-3 text-sm text-[var(--color-fg-mid)]">
-          <input type="checkbox" checked={confirmed} disabled={!canFinalize || isPending} onChange={(event) => setConfirmed(event.target.checked)} />
+        <label className="flex items-start gap-2 border border-[var(--color-border)] p-3 text-sm text-[var(--color-fg-mid)]">
+          <Checkbox checked={confirmed} disabled={!canFinalize || isPending} onChange={(event) => setConfirmed(event.target.checked)} />
           <span>我确认第 {data.currentRound} 轮的所有正式比分已核对无误，并接受其成为后续 Swiss 对阵依据。</span>
         </label>
         <Button disabled={!canFinalize || !confirmed || isPending} onClick={() => startTransition(async () => {
@@ -57,14 +58,14 @@ export function MajorSwissRuntimeManagement({ data }: { data: MajorSwissRuntimeD
           setConfirmed(false);
           router.refresh();
         })}>确认本轮并生成下一轮</Button>
-        {!canFinalize && <p className="text-xs text-[var(--color-fg-mid)]">必须先完成并录入本轮全部托管比赛的有效正式比分，才能确认。</p>}
+        {!canFinalize && <p className="text-xs text-[var(--color-warn)]">下一步：先完成并录入本轮全部托管比赛的有效正式比分，才能确认。</p>}
       </>}
 
       {data.stageComplete && data.nextStageName && <>
-        {data.nextStageType === "playoff" && <label className="flex items-start gap-2 rounded border border-[var(--color-border)] p-3 text-sm text-[var(--color-fg-mid)]"><input type="checkbox" checked={hasThirdPlaceMatch} disabled={isPending} onChange={(event) => setHasThirdPlaceMatch(event.target.checked)} /><span>设置季军赛（BO3）。此选择将在 Playoffs 创建时冻结；不设置则两支半决赛失利队并列第 3–4 名。</span></label>}
-        <label className="flex items-start gap-2 rounded border border-[var(--color-border)] p-3 text-sm text-[var(--color-fg-mid)]">
-          <input type="checkbox" checked={confirmed} disabled={isPending} onChange={(event) => setConfirmed(event.target.checked)} />
-          <span>我确认本 StageRun 的 canonical entrants 与全部已确认比赛事实应成为 {data.nextStageName} 的唯一生成依据。</span>
+        {data.nextStageType === "playoff" && <label className="flex items-start gap-2 border border-[var(--color-border)] p-3 text-sm text-[var(--color-fg-mid)]"><Checkbox checked={hasThirdPlaceMatch} disabled={isPending} onChange={(event) => setHasThirdPlaceMatch(event.target.checked)} /><span>设置季军赛（BO3）。此选择将在淘汰赛创建时冻结；不设置则两支半决赛失利队并列第 3–4 名。</span></label>}
+        <label className="flex items-start gap-2 border border-[var(--color-border)] p-3 text-sm text-[var(--color-fg-mid)]">
+          <Checkbox checked={confirmed} disabled={isPending} onChange={(event) => setConfirmed(event.target.checked)} />
+          <span>我确认本阶段的正式参赛队与全部已确认比赛结果应成为 {data.nextStageName} 的唯一生成依据。</span>
         </label>
         <Button disabled={!confirmed || isPending} onClick={() => startTransition(async () => {
           const result = data.nextStageType === "playoff"

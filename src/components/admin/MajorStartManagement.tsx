@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { startMajor } from "@/actions/major-prestart";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Marker, Panel } from "@/components/rivalhub";
 import type { MajorOpeningPlan } from "@/lib/major/opening";
 
@@ -37,15 +38,15 @@ export function MajorStartManagement({
         <section>
           <h3 className="font-medium text-[var(--color-fg)]">将创建的 Stage 1 R1 托管比赛（8 场）</h3>
           <ol className="mt-2 grid gap-2 text-sm md:grid-cols-2">
-            {openingPlan.firstRound.pairings.map((pairing, index) => <li key={`${pairing.higherSeed.teamId}-${pairing.lowerSeed.teamId}`} className="rounded border border-[var(--color-border)] px-3 py-2">
+            {openingPlan.firstRound.pairings.map((pairing, index) => <li key={`${pairing.higherSeed.teamId}-${pairing.lowerSeed.teamId}`} className="border border-[var(--color-border)] px-3 py-2">
               {index + 1}. #{pairing.higherSeed.tournamentSeed} vs #{pairing.lowerSeed.tournamentSeed} · {pairing.format.toUpperCase()}
             </li>)}
           </ol>
         </section>
       </>}
 
-      {!started && <label className="flex items-start gap-2 rounded border border-[var(--color-border)] p-3 text-sm text-[var(--color-fg-mid)]">
-        <input type="checkbox" checked={confirmed} disabled={!canStart || isPending} onChange={(event) => setConfirmed(event.target.checked)} />
+      {!started && <label className="flex items-start gap-2 border border-[var(--color-border)] p-3 text-sm text-[var(--color-fg-mid)]">
+        <Checkbox checked={confirmed} disabled={!canStart || isPending} onChange={(event) => setConfirmed(event.target.checked)} />
         <span>我确认上述 32 队、最终名单、种子和首轮对阵应成为正式赛事事实；开赛后不能在本控制台修改它们。</span>
       </label>}
       {!started && <Button disabled={!canStart || !confirmed || isPending} onClick={() => startTransition(async () => {
@@ -58,5 +59,5 @@ export function MajorStartManagement({
 }
 
 function Cohort({ label, range, count }: { label: string; range: string; count: number }) {
-  return <div className="rounded border border-[var(--color-border)] p-3"><p className="font-medium text-[var(--color-fg)]">{label}</p><p className="mt-1 text-sm text-[var(--color-fg-mid)]">{range} · {count} 支队伍</p></div>;
+  return <div className="border border-[var(--color-border)] p-3"><p className="font-medium text-[var(--color-fg)]">{label}</p><p className="mt-1 text-sm text-[var(--color-fg-mid)]">{range} · {count} 支队伍</p></div>;
 }

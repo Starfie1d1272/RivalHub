@@ -111,6 +111,25 @@ Bracket 图（`brackets-viewer` 渲染，注入 season theme_color）与排位�
 - `/admin/[seasonSlug]/draft`：一键开始/暂停选秀 + 强制跳过当前队 + 实时日志。
 - `/admin/[seasonSlug]/matches`：比赛卡片列表，`in_progress` 状态卡片左侧有 3px `--color-accent` 橙色竖线标识。每张卡片用 `<details>` 折叠操作区（录入比分、Roster、BP 等），默认收起，点击展开。
 
+### Major 2.0 页面规范（实际实现）
+
+Major 2.0 不替换 draft-league 的页面与能力；它在同一设计系统内提供独立的 participant、captain 与 operator 信息层级。所有 Major 页面先显示**当前状态**，再显示**下一步**和可解释 blocker；不把 `StageRun`、rule snapshot 或 canonical 等内部术语作为普通管理员的主文案。
+
+- **Participant settings**：`/settings` 是参赛资料入口，不是链接集合。顶部显示 `READY TO COMPETE` 或缺失项目数；五个入口固定为参赛资料、教育身份、竞技档案、账号与安全、隐私。blocker 行可直达对应设置页。竞技档案将历史、上一赛季、当前赛季分区；已公布的段位只能从赛事段位顺序中选择，Rating 有独立标签。
+- **Captain application**：队伍报名按队伍资料、成员邀请与确认、五名预定主力、报名检查四段呈现。成员行以确认、教育、资料齐全状态和缺失原因组成，不把 email、认证和所有细节挤在单行。报名检查不替代服务器提交复核；外校实力与教育资料在提交时仍使用最新服务端事实。
+- **Invitation**：被邀请选手先看到队伍、邀请状态和自己的缺失项；未 Ready 时“确认加入”保持禁用并提供资料入口。隐私确认保留在真正参加边界。
+- **Registration review**：一支队伍一个结构化审核面板：队伍/Perfect Team ID/队长，资格摘要，五名预定主力及其 strength reference，完整报名名单。最终种子只在专用种子管理中由管理员明确确认和冻结，审核页不得自动写入。
+- **Pre-match operator**：比赛卡片的“赛前操作检查”分为双方正式首发和人工赛务确认。首发提交、恰好五人、确认状态是动态事实；资格复核提示明确说明开始操作会由服务器 fail closed 复核冻结名单、NJU、外校实力、纪律与身份。Perfect 房间、服务器、BP、双方 ready 是本地轻量提醒，不能伪装为 canonical 数据。首发 blocker 必须显示在开始比赛按钮旁；宽限、改期与判负分组为不同操作，15 分钟宽限不自动判负。
+- **Stage and post-event operators**：赛前、种子、Swiss、淘汰赛和赛后页面都用 Panel + StatusBanner/Checklist 表达状态、事实、blocker、下一步。确认框使用 Checkbox + 明确影响说明。撤销荣誉、撤销裁决、归档、比分更正等危险操作必须使用 `InlineConfirm` 或同等明确确认，且永远保留 server action 的审计和 fail-closed 行为。
+
+### Major 响应式与状态要求
+
+- **390px**：表单与审核/赛务面板单列；长 email、Steam64、Perfect ID 使用 `break-all` 或 mono 辅助行；主按钮不依赖同一行空间；状态行不横向溢出。
+- **768px**：资料字段和资料导航可两列；队员、报名审核和赛前检查仍以可读的两栏或分段为优先，不使用密集表格作为唯一入口。
+- **1440px**：管理员审核可并列展示资格摘要与预定主力/种子参考；赛前检查的“正式首发”和“人工赛务”并列，但每一状态仍保留解释文本。
+
+通用状态优先复用 `StatusBanner`、`Checklist`、`EmptyState`、`ErrorState` 与标准 `Button`/`Input`/`Select`/`Textarea`/`Checkbox`。无数据、加载、错误、禁用与危险影响必须被单独表达；禁止 raw form controls、浏览器 `window.confirm`、白色 select 背景、随机 Tailwind 色板或大圆角漂移。
+
 ---
 
 ## 移动端断点策略
