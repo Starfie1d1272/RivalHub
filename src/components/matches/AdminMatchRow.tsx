@@ -116,6 +116,8 @@ export function AdminMatchRow({
         </div>
       </div>
 
+      {match.status === "scheduled" && <div className="border border-[var(--color-border)] bg-[var(--color-panel-low)] p-3 text-xs text-[var(--color-fg-mid)]"><p className="font-mono tracking-[0.12em] text-[var(--color-info)]">PRE-MATCH OPERATOR CHECKLIST</p><div className="mt-2 grid gap-1 sm:grid-cols-2"><span>首发 A：{teamARoster?.status === "confirmed" ? "已确认" : "待提交/确认"}</span><span>首发 B：{teamBRoster?.status === "confirmed" ? "已确认" : "待提交/确认"}</span><span>资格、NJU ≥3、外校实力、纪律：开赛 action 将再次 fail-closed 校验</span><span>人工确认：Perfect 房间、服务器、BP、双方 ready</span></div><p className="mt-2">默认宽限 15 分钟不会自动判负；延长、重新排期或弃权均须由管理员明确操作并记录原因。</p></div>}
+
       {/* Operations */}
       {match.status !== "cancelled" && (
         <details open={match.status === "in_progress" ? true : undefined}>

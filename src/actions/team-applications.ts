@@ -26,6 +26,8 @@ import { normalizeEmail } from "@/lib/utils/email";
 import { isTeamRegistration } from "@/lib/utils/season";
 import { normalizeAffiliationRules, normalizeTeamRegistrationConfig } from "@/types/season";
 import { evaluateRosterEducationEligibility, type EducationEligibilityMember } from "@/lib/education/eligibility";
+import { getParticipantReadiness } from "@/lib/major/participant-readiness";
+import { evaluateExternalStrengthRule } from "@/lib/major/player-strength";
 import { fail, ok, type ActionResult } from "@/types/action";
 
 const teamNameSchema = z.string().trim().min(MIN_TEAM_NAME_LENGTH).max(MAX_TEAM_NAME_LENGTH);
@@ -40,6 +42,8 @@ type EditableApplication = {
   status: string;
   name: string;
   logoUrl: string | null;
+  perfectTeamId: string | null;
+  primaryStarterUserIds: string[];
 };
 
 function invalid(message: string): ActionResult<never> {
@@ -76,9 +80,18 @@ function revalidateApplicationPaths(seasonSlug: string): void {
   revalidatePath(`/admin/${seasonSlug}/registrations`);
 }
 
-export async function createTeamApplication(input: { seasonId: string; name: string }): Promise<ActionResult<{ applicationId: string }>> {
-  const parsed = z.object({ seasonId: z.string().uuid(), name: teamNameSchema }).safeParse(input);
+async function assertParticipantReadyForSeason(userId: string, season: typeof seasons.$inferSelect): Promise<void> {
+  const config = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
+  if (!config.requireCompetitiveProfile) return;
+  if (!config.competitiveProfile) throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事尚未配置竞技档案规则，暂不能确认报名资格。");
+  const readiness = await getParticipantReadiness(userId, config.competitiveProfile);
+  if (!readiness.ready) throw new AppError(ErrorCode.VALIDATION_FAILED, `参赛资料未完善：${readiness.blockers.join(" ")}`);
+}
+
+export async function createTeamApplication(input: { seasonId: string; name: string; privacyAcknowledged?: boolean }): Promise<ActionResult<{ applicationId: string }>> {
+  const parsed = z.object({ seasonId: z.string().uuid(), name: teamNameSchema, privacyAcknowledged: z.literal(true).optional() }).safeParse(input);
   if (!parsed.success) return invalid(`队伍名称需为 ${MIN_TEAM_NAME_LENGTH}-${MAX_TEAM_NAME_LENGTH} 个字符`);
+  if (parsed.data.privacyAcknowledged !== true) return invalid("请先阅读并确认赛事规则与隐私说明。");
 
   try {
     const session = await requireAuth();
@@ -87,6 +100,7 @@ export async function createTeamApplication(input: { seasonId: string; name: str
     if (!isTeamRegistration(season)) throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "当前赛季不使用队伍报名。");
     const window = getRegistrationWindowState(season);
     if (!window.canSubmit) throw new AppError(ErrorCode.REGISTRATION_CLOSED, window.message);
+    await assertParticipantReadyForSeason(session.userId, season);
 
     const application = await db.transaction(async (tx) => {
       const formal = await tx.query.teamMembers.findFirst({ where: and(eq(teamMembers.seasonId, season.id), eq(teamMembers.userId, session.userId)) });
@@ -111,7 +125,7 @@ export async function createTeamApplication(input: { seasonId: string; name: str
         actorId: auditActorId(session),
         targetId: created.id,
         targetType: "team_application",
-        meta: { name: parsed.data.name },
+        meta: { name: parsed.data.name, privacyAcknowledged: true },
       });
       return created;
     });
@@ -122,9 +136,9 @@ export async function createTeamApplication(input: { seasonId: string; name: str
   }
 }
 
-export async function updateTeamApplication(input: { applicationId: string; name: string; logoUrl?: string | null }): Promise<ActionResult<void>> {
-  const parsed = z.object({ applicationId: z.string().uuid(), name: teamNameSchema, logoUrl: z.string().url().nullable().optional() }).safeParse(input);
-  if (!parsed.success) return invalid("请填写有效的队伍名称和图标地址。");
+export async function updateTeamApplication(input: { applicationId: string; name: string; logoUrl?: string | null; perfectTeamId?: string; primaryStarterUserIds?: string[] }): Promise<ActionResult<void>> {
+  const parsed = z.object({ applicationId: z.string().uuid(), name: teamNameSchema, logoUrl: z.string().url().nullable().optional(), perfectTeamId: z.string().trim().max(128).optional(), primaryStarterUserIds: z.array(z.string().uuid()).max(5).optional() }).safeParse(input);
+  if (!parsed.success) return invalid("请填写有效的队伍资料和预定主力名单。");
   try {
     const session = await requireAuth();
     const application = await getCaptainApplicationOrThrow(parsed.data.applicationId, session.userId);
@@ -137,6 +151,8 @@ export async function updateTeamApplication(input: { applicationId: string; name
       await tx.update(teamApplications).set({
         name: parsed.data.name,
         logoUrl: parsed.data.logoUrl ?? application.logoUrl,
+        perfectTeamId: parsed.data.perfectTeamId?.trim() || null,
+        primaryStarterUserIds: parsed.data.primaryStarterUserIds ?? [],
         updatedAt: new Date(),
       }).where(eq(teamApplications.id, application.id));
       await tx.insert(auditLogs).values({
@@ -145,7 +161,7 @@ export async function updateTeamApplication(input: { applicationId: string; name
         actorId: auditActorId(session),
         targetId: application.id,
         targetType: "team_application",
-        meta: { fromName: application.name, toName: parsed.data.name },
+        meta: { fromName: application.name, toName: parsed.data.name, hasPerfectTeamId: Boolean(parsed.data.perfectTeamId?.trim()), primaryStarterCount: parsed.data.primaryStarterUserIds?.length ?? 0 },
       });
     });
     revalidateApplicationPaths(season.slug);
@@ -228,9 +244,10 @@ export async function removeTeamApplicationMember(input: { applicationId: string
   }
 }
 
-export async function confirmTeamApplicationMembership(input: { applicationId: string }): Promise<ActionResult<void>> {
-  const parsed = z.object({ applicationId: applicationIdSchema }).safeParse(input);
+export async function confirmTeamApplicationMembership(input: { applicationId: string; privacyAcknowledged?: boolean }): Promise<ActionResult<void>> {
+  const parsed = z.object({ applicationId: applicationIdSchema, privacyAcknowledged: z.literal(true).optional() }).safeParse(input);
   if (!parsed.success) return invalid("报名队伍标识无效。");
+  if (parsed.data.privacyAcknowledged !== true) return invalid("请先阅读并确认赛事规则与隐私说明。");
   try {
     const session = await requireAuth();
     const member = await db.query.teamApplicationMembers.findFirst({
@@ -243,6 +260,7 @@ export async function confirmTeamApplicationMembership(input: { applicationId: s
     const season = await db.query.seasons.findFirst({ where: eq(seasons.id, application.seasonId) });
     if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
     if (!getRegistrationWindowState(season).canSubmit) throw new AppError(ErrorCode.REGISTRATION_CLOSED, "报名窗口已关闭。");
+    await assertParticipantReadyForSeason(session.userId, season);
     if (member.status !== "confirmed") {
       await db.transaction(async (tx) => {
         const formal = await tx.query.teamMembers.findFirst({ where: and(eq(teamMembers.seasonId, application.seasonId), eq(teamMembers.userId, session.userId)) });
@@ -255,7 +273,7 @@ export async function confirmTeamApplicationMembership(input: { applicationId: s
           actorId: auditActorId(session),
           targetId: application.id,
           targetType: "team_application",
-          meta: { memberId: member.id },
+          meta: { memberId: member.id, privacyAcknowledged: true },
         });
       });
     }
@@ -309,6 +327,13 @@ export async function submitTeamApplication(input: { applicationId: string }): P
     if (!confirmed.some((member) => member.userId === application.captainUserId)) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "队长必须先确认身份后才能提交报名。");
     }
+    if (config.requireCompetitiveProfile) {
+      if (!application.perfectTeamId?.trim()) throw new AppError(ErrorCode.VALIDATION_FAILED, "请填写完美战队 ID。");
+      if (application.primaryStarterUserIds.length !== 5 || new Set(application.primaryStarterUserIds).size !== 5) throw new AppError(ErrorCode.VALIDATION_FAILED, "请指定恰好 5 名预定主力。");
+      const confirmedIds = new Set(confirmed.map((member) => member.userId));
+      if (application.primaryStarterUserIds.some((userId) => !confirmedIds.has(userId))) throw new AppError(ErrorCode.VALIDATION_FAILED, "预定主力必须全部是已确认的正式名单成员。");
+      for (const member of confirmed) await assertParticipantReadyForSeason(member.userId, season);
+    }
     if (config.requireTeamLogo && !application.logoUrl) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "本赛事要求提交队伍图标。");
     }
@@ -316,6 +341,24 @@ export async function submitTeamApplication(input: { applicationId: string }): P
     const eligibility = evaluateRosterEducationEligibility(eligibilityMembers, affiliationRules);
     if (affiliationRules.length > 0 && !eligibility.eligible) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, eligibility.blockers.join(" "));
+    }
+    if (config.requireCompetitiveProfile && config.competitiveProfile) {
+      const readiness = await Promise.all(confirmed.map(async (member) => ({
+        member,
+        readiness: await getParticipantReadiness(member.userId, config.competitiveProfile!),
+      })));
+      const unreadied = readiness.filter((item) => !item.readiness.ready);
+      if (unreadied.length > 0) throw new AppError(ErrorCode.VALIDATION_FAILED, unreadied.flatMap((item) => item.readiness.blockers).join(" "));
+      const byUser = new Map(readiness.map((item) => [item.member.userId, item]));
+      const primary = application.primaryStarterUserIds.map((userId) => byUser.get(userId)).filter((item): item is NonNullable<typeof item> => Boolean(item));
+      const strength = evaluateExternalStrengthRule({
+        config: config.competitiveProfile,
+        players: primary.map(({ member, readiness: memberReadiness }) => ({
+          ...memberReadiness.strength,
+          isHome: Boolean(member.institutionCode && member.verificationAcademicStatus && affiliationRules.some((rule) => rule.institutionCode === member.institutionCode && rule.eligibleAcademicStatuses.includes(member.verificationAcademicStatus!))),
+        })),
+      });
+      if (!strength.eligible) throw new AppError(ErrorCode.VALIDATION_FAILED, strength.blockers.join(" "));
     }
     // H1: personal registration sanctions block only their subject.
     await assertUsersNotBlockedInTx(db, {

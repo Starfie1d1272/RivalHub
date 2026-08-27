@@ -23,6 +23,7 @@ export interface MajorSwissRuntimeData {
 export function MajorSwissRuntimeManagement({ data }: { data: MajorSwissRuntimeData }) {
   const router = useRouter();
   const [confirmed, setConfirmed] = useState(false);
+  const [hasThirdPlaceMatch, setHasThirdPlaceMatch] = useState(false);
   const [isPending, startTransition] = useTransition();
   const canFinalize = !data.stageComplete && data.currentMatchCount > 0 && data.completedMatchCount === data.currentMatchCount;
 
@@ -60,13 +61,14 @@ export function MajorSwissRuntimeManagement({ data }: { data: MajorSwissRuntimeD
       </>}
 
       {data.stageComplete && data.nextStageName && <>
+        {data.nextStageType === "playoff" && <label className="flex items-start gap-2 rounded border border-[var(--color-border)] p-3 text-sm text-[var(--color-fg-mid)]"><input type="checkbox" checked={hasThirdPlaceMatch} disabled={isPending} onChange={(event) => setHasThirdPlaceMatch(event.target.checked)} /><span>设置季军赛（BO3）。此选择将在 Playoffs 创建时冻结；不设置则两支半决赛失利队并列第 3–4 名。</span></label>}
         <label className="flex items-start gap-2 rounded border border-[var(--color-border)] p-3 text-sm text-[var(--color-fg-mid)]">
           <input type="checkbox" checked={confirmed} disabled={isPending} onChange={(event) => setConfirmed(event.target.checked)} />
           <span>我确认本 StageRun 的 canonical entrants 与全部已确认比赛事实应成为 {data.nextStageName} 的唯一生成依据。</span>
         </label>
         <Button disabled={!confirmed || isPending} onClick={() => startTransition(async () => {
           const result = data.nextStageType === "playoff"
-            ? await startMajorPlayoff({ seasonId: data.seasonId, sourceStageRunId: data.stageRunId })
+            ? await startMajorPlayoff({ seasonId: data.seasonId, sourceStageRunId: data.stageRunId, hasThirdPlaceMatch })
             : await transitionMajorSwissStage({ seasonId: data.seasonId, sourceStageRunId: data.stageRunId });
           if (!result.success) { toast.error(result.error.message); return; }
           toast.success(result.data.created

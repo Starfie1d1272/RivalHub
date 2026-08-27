@@ -428,13 +428,13 @@ export async function transitionMajorSwissStage(input: { seasonId: string; sourc
   } catch (error) { return actionError("transitionMajorSwissStage", error); }
 }
 
-export async function startMajorPlayoff(input: { seasonId: string; sourceStageRunId: string }): Promise<ActionResult<MajorPlayoffStartResult>> {
-  const parsed = z.object({ seasonId: uuid, sourceStageRunId: uuid }).safeParse(input);
+export async function startMajorPlayoff(input: { seasonId: string; sourceStageRunId: string; hasThirdPlaceMatch: boolean }): Promise<ActionResult<MajorPlayoffStartResult>> {
+  const parsed = z.object({ seasonId: uuid, sourceStageRunId: uuid, hasThirdPlaceMatch: z.boolean() }).safeParse(input);
   if (!parsed.success) return invalid("淘汰赛启动请求无效。 ");
   try {
     const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
     const result = await db.transaction((tx) => startMajorPlayoffInTransaction(tx, {
-      seasonId: season.id, sourceStageRunId: parsed.data.sourceStageRunId, actorId: auditActorId(admin),
+      seasonId: season.id, sourceStageRunId: parsed.data.sourceStageRunId, actorId: auditActorId(admin), hasThirdPlaceMatch: parsed.data.hasThirdPlaceMatch,
     }));
     revalidateMajorPrestart(season.slug);
     revalidateSeasonPaths(season.slug, ["matches", "adminMatches"]);

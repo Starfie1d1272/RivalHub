@@ -45,6 +45,16 @@ Stat 四格（`<Stat>` 组件，TEAMS / PLAYERS / MATCHES / STAGE，MATCHES 格�
 
 页面结构：Eyebrow + Title + Sub 模式（mono 小标 + 大标题 + 副标题）。位置实时容量 + 进度条，满员位置置灰并显示"已满"。NJUBox 截图链接选填（一个链接内包含近两周 5 场截图）。anti-cheat 勾选框必须确认。提交按钮 loading 时 disabled + spinner。
 
+### Major 2.0 participant / captain flow
+
+Major 的队伍报名页不复用 solo registration 表单：玩家先在 Settings 完成 Participant Profile（展示昵称、Steam64、Perfect ID、QQ）、邮箱验证、教育认证和竞技档案；页面须逐项显示 readiness blockers。队长创建队伍后填写 Perfect Team ID，邀请已注册成员；被邀请者可以先看到邀请，但确认加入前必须 Ready。队长从已确认成员中指定恰好 5 名预定主力，查看教育状态和外校实力检查，再提交审核。
+
+预定主力只服务报名审核和种子参考，不能显示为单场正式首发。每场的 canonical lineup 始终是 `match_rosters`。管理员报名页必须在同一页面展示名单、Perfect Team ID、5 名预定主力、教育/Readiness、纪律、外校规则和 seed reference，避免跨页猜测。
+
+### Major 2.0 referee flow
+
+管理员比赛页的赛前清单必须显示：双方首发提交/确认、名单合法性、NJU ≥3、外校实力限制、纪律、Perfect identity 异常、BP、服务器、完美房间创建和双方 ready。房间状态、服务器选择等只作为轻量操作提醒；真正影响赛事事实的阵容、开赛、弃权、结果、更正和恢复，必须走 server-side action 并写 audit。默认宽限 15 分钟不会触发自动判负。
+
 ---
 
 ## 队长投票页 `/[seasonSlug]/captains`

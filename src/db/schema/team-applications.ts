@@ -1,4 +1,5 @@
 import { index, pgEnum, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { seasons } from "./seasons";
 import { users } from "./users";
 
@@ -24,6 +25,10 @@ export const teamApplications = pgTable("team_applications", {
   seasonId: uuid("season_id").notNull().references(() => seasons.id),
   name: text("name").notNull(),
   logoUrl: text("logo_url"),
+  /** Platform team identity supplied for this application, never inferred from its name. */
+  perfectTeamId: text("perfect_team_id"),
+  /** Exactly five user IDs when a Major application is ready for review. */
+  primaryStarterUserIds: uuid("primary_starter_user_ids").array().notNull().default(sql`'{}'::uuid[]`),
   captainUserId: uuid("captain_user_id").notNull().references(() => users.id),
   status: teamApplicationStatusEnum("status").notNull().default("draft"),
   submittedAt: timestamp("submitted_at", { withTimezone: true }),

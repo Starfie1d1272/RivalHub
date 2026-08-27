@@ -5,7 +5,8 @@ import { db } from "@/db/client";
 import { educationVerifications, institutions, seasons, seasonRegistrations, teamApplicationMembers, teamApplications, users } from "@/db/schema";
 import { getPositionCounts, getApprovedCount } from "@/actions/register";
 import { RegistrationForm } from "@/components/register/RegistrationForm";
-import { normalizeRegistrationConfig } from "@/types/season";
+import { normalizeRegistrationConfig, normalizeTeamRegistrationConfig } from "@/types/season";
+import { getParticipantReadiness } from "@/lib/major/participant-readiness";
 import { REGISTRATION_STATUS_LABELS } from "@/types/registration";
 import { Panel, StatusBanner, PosChip } from "@/components/rivalhub";
 import { positionLabel } from "@/lib/validators/registration";
@@ -89,6 +90,8 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
         id: teamApplications.id,
         name: teamApplications.name,
         logoUrl: teamApplications.logoUrl,
+        perfectTeamId: teamApplications.perfectTeamId,
+        primaryStarterUserIds: teamApplications.primaryStarterUserIds,
         captainUserId: teamApplications.captainUserId,
         status: teamApplications.status,
         reviewReason: teamApplications.reviewReason,
@@ -132,6 +135,10 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
       if (shouldReplace) memberByUser.set(member.userId, member);
     }
     const members = [...memberByUser.values()];
+    const teamConfig = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
+    const readinessByUser = teamConfig.requireCompetitiveProfile && teamConfig.competitiveProfile
+      ? new Map((await Promise.all(members.map(async (member) => [member.userId, await getParticipantReadiness(member.userId, teamConfig.competitiveProfile!)] as const))).map(([userId, readiness]) => [userId, readiness.blockers]))
+      : new Map<string, string[]>();
 
     return (
       <div className="container mx-auto max-w-2xl space-y-6 px-4 py-10">
@@ -151,7 +158,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
           minTeamSize={season.minTeamSize}
           maxTeamSize={season.maxTeamSize}
           application={application}
-          members={members.map((member) => ({ id: member.id, userId: member.userId, email: member.email, displayName: member.displayName, status: member.status, emailVerified: Boolean(member.emailVerified), educationStatus: member.verificationStatus ?? "unsubmitted", institutionName: member.institutionName }))}
+          members={members.map((member) => ({ id: member.id, userId: member.userId, email: member.email, displayName: member.displayName, status: member.status, emailVerified: Boolean(member.emailVerified), educationStatus: member.verificationStatus ?? "unsubmitted", institutionName: member.institutionName, readinessBlockers: readinessByUser.get(member.userId) ?? [] }))}
         />
       </div>
     );

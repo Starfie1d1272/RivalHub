@@ -86,6 +86,17 @@ export interface TeamRegistrationConfig {
   lockAfterRegistration: boolean;
   requireUniqueTeamName: boolean;
   requireTeamLogo: boolean;
+  /** Major-only capability: readiness and strength use this explicitly configured platform context. */
+  requireCompetitiveProfile?: boolean;
+  competitiveProfile?: CompetitiveProfileConfig;
+}
+
+export interface CompetitiveProfileConfig {
+  platform: string;
+  currentSeasonKey: string;
+  previousSeasonKey: string;
+  /** Lowest → highest rank labels. Empty means no evaluator is configured yet. */
+  rankOrder: string[];
 }
 
 /**
@@ -114,6 +125,13 @@ export const MAJOR_TEAM_CONFIG: TeamRegistrationConfig = {
   lockAfterRegistration: true,
   requireUniqueTeamName: true,
   requireTeamLogo: false,
+  requireCompetitiveProfile: true,
+  competitiveProfile: {
+    platform: "perfect_world",
+    currentSeasonKey: "",
+    previousSeasonKey: "",
+    rankOrder: [],
+  },
 };
 
 /**
@@ -307,7 +325,8 @@ export const MAJOR_REGISTRATION_CONFIG: RegistrationConfig = {
   maxPerPosition: 50,
   screenshotCount: 1,
   maxTotal: 256,
-  mapPool: [...DEFAULT_CS2_MAP_POOL],
+  // NJU Major's announced pool is intentionally separate from the live Valve/default pool.
+  mapPool: ["de_ancient", "de_anubis", "de_cache", "de_dust2", "de_inferno", "de_mirage", "de_nuke"],
 };
 
 /** 所有预设的快捷索引 */
@@ -589,6 +608,15 @@ export function normalizeTeamRegistrationConfig(
     lockAfterRegistration: config?.lockAfterRegistration ?? MAJOR_TEAM_CONFIG.lockAfterRegistration,
     requireUniqueTeamName: config?.requireUniqueTeamName ?? MAJOR_TEAM_CONFIG.requireUniqueTeamName,
     requireTeamLogo: config?.requireTeamLogo ?? MAJOR_TEAM_CONFIG.requireTeamLogo,
+    requireCompetitiveProfile: config?.requireCompetitiveProfile ?? false,
+    competitiveProfile: config?.competitiveProfile
+      ? {
+          platform: config.competitiveProfile.platform.trim(),
+          currentSeasonKey: config.competitiveProfile.currentSeasonKey.trim(),
+          previousSeasonKey: config.competitiveProfile.previousSeasonKey.trim(),
+          rankOrder: [...new Set(config.competitiveProfile.rankOrder.map((rank) => rank.trim()).filter(Boolean))],
+        }
+      : MAJOR_TEAM_CONFIG.competitiveProfile,
   };
 }
 

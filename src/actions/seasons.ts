@@ -84,6 +84,13 @@ const seasonFormBaseSchema = z.object({
     lockAfterRegistration: z.boolean(),
     requireUniqueTeamName: z.boolean(),
     requireTeamLogo: z.boolean(),
+    requireCompetitiveProfile: z.boolean().optional(),
+    competitiveProfile: z.object({
+      platform: z.string().min(1).max(64),
+      currentSeasonKey: z.string().max(128),
+      previousSeasonKey: z.string().max(128),
+      rankOrder: z.array(z.string().min(1).max(64)).max(64),
+    }).optional(),
   }).optional(),
   affiliationRules: z.array(z.object({
     institutionCode: z.string().min(1),

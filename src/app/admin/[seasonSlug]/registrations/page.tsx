@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { asc, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, seasonRegistrations, users, registrationDrafts, teamApplicationMembers, teamApplications } from "@/db/schema";
+import { seasons, seasonRegistrations, users, registrationDrafts, teamApplicationMembers, teamApplications, educationVerifications, institutions } from "@/db/schema";
 import { Marker } from "@/components/rivalhub";
 import {
   RegistrationReviewList,
@@ -31,6 +31,8 @@ export default async function AdminRegistrationsPage({ params }: PageProps) {
         name: teamApplications.name,
         status: teamApplications.status,
         reviewReason: teamApplications.reviewReason,
+        perfectTeamId: teamApplications.perfectTeamId,
+        primaryStarterUserIds: teamApplications.primaryStarterUserIds,
         captainEmail: users.email,
       })
       .from(teamApplications)
@@ -41,16 +43,18 @@ export default async function AdminRegistrationsPage({ params }: PageProps) {
     const members = applicationIds.length === 0
       ? []
       : await db
-          .select({ applicationId: teamApplicationMembers.applicationId, email: users.email, status: teamApplicationMembers.status })
+          .select({ applicationId: teamApplicationMembers.applicationId, userId: users.id, email: users.email, displayName: users.displayName, perfectId: users.perfectId, emailVerifiedAt: users.emailVerifiedAt, educationStatus: educationVerifications.status, institutionName: institutions.name, status: teamApplicationMembers.status })
           .from(teamApplicationMembers)
           .innerJoin(users, eq(teamApplicationMembers.userId, users.id))
+          .leftJoin(educationVerifications, eq(educationVerifications.userId, users.id))
+          .leftJoin(institutions, eq(educationVerifications.institutionId, institutions.id))
           .where(inArray(teamApplicationMembers.applicationId, applicationIds));
     return (
       <div className="container mx-auto max-w-3xl px-4 py-8">
         <div className="mb-6"><Marker sub={`${applications.length} 支报名队伍 · 赛季状态：${season.status}`}>队伍报名审核 · {season.name}</Marker></div>
         <TeamApplicationReviewList applications={applications.map((application) => ({
           ...application,
-          members: members.filter((member) => member.applicationId === application.id).map(({ email, status }) => ({ email, status })),
+          members: members.filter((member) => member.applicationId === application.id).map(({ userId, email, displayName, perfectId, emailVerifiedAt, educationStatus, institutionName, status }) => ({ userId, email, displayName, perfectId, emailVerified: Boolean(emailVerifiedAt), educationStatus: educationStatus ?? "unsubmitted", institutionName, status })),
         }))} />
       </div>
     );

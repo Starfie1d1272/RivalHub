@@ -188,6 +188,9 @@ export async function startMajorInTransaction(
       starterCount: season.starterCount,
     },
     affiliationRules: freezeAffiliationRules(capabilities.affiliationRules),
+    competitiveProfile: capabilities.teamRegistrationConfig.requireCompetitiveProfile
+      ? capabilities.teamRegistrationConfig.competitiveProfile ?? null
+      : null,
     tournamentEntrants: openingPlan.tournamentTeams.map((team) => {
       const entrant = entrantByTeamId.get(team.teamId);
       if (!entrant) throw new AppError(ErrorCode.INTERNAL_ERROR, "赛事种子缺少已锁定的正式参赛队。");

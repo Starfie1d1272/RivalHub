@@ -132,9 +132,9 @@ GROUP BY primary_position;
 | 字段 | 说明 | 校验规则 |
 |---|---|---|
 | `email` | 邮箱（与登录邮箱一致，只读） | 有效 email 格式；必须与当前 session 邮箱一致 |
-| `studentId` | 学号 | 非空；毕业生填「毕业年份+学院」 |
 | `qq` | QQ 号 | 5-12 位数字 |
-| `perfectName` | 完美平台昵称（记分板显示名） | 非空 |
+| `perfectName` | 完美平台昵称（记分板显示名） | 可选 |
+| `perfectId` | 完美世界竞技平台 ID | Major 参赛资料必填；不等同于昵称 |
 | `steamName` | Steam 昵称 | 非空 |
 | `steam64` | Steam 64 位 ID | 17 位纯数字 |
 | `steamProfileUrl` | Steam 个人资料链接 | steamcommunity.com 域名 |

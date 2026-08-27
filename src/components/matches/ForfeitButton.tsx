@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { forfeitMatch } from "@/actions/matches";
 
 interface ForfeitButtonProps {
@@ -21,11 +22,12 @@ export function ForfeitButton({
   teamBName,
 }: ForfeitButtonProps) {
   const [expanded, setExpanded] = useState(false);
+  const [reason, setReason] = useState("");
   const [isPending, startTransition] = useTransition();
 
   function handleForfeit(loserTeamId: string) {
     startTransition(async () => {
-      const result = await forfeitMatch(matchId, loserTeamId);
+      const result = await forfeitMatch(matchId, loserTeamId, reason);
       if (result.success) {
         toast.success("弃赛已记录");
         setExpanded(false);
@@ -45,11 +47,12 @@ export function ForfeitButton({
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
-      <span className="text-xs text-[var(--color-fg-mid)]">确认弃赛方：</span>
+      <span className="text-xs text-[var(--color-fg-mid)]">确认弃赛方并记录原因：</span>
+      <Input value={reason} onChange={(event) => setReason(event.target.value)} className="h-8 min-w-48" placeholder="例如：超过宽限仍无法组成合法首发" />
       <Button
         size="sm"
         variant="destructive"
-        disabled={isPending}
+        disabled={isPending || !reason.trim()}
         onClick={() => handleForfeit(teamAId)}
       >
         {teamAName} 弃赛
@@ -57,7 +60,7 @@ export function ForfeitButton({
       <Button
         size="sm"
         variant="destructive"
-        disabled={isPending}
+        disabled={isPending || !reason.trim()}
         onClick={() => handleForfeit(teamBId)}
       >
         {teamBName} 弃赛
