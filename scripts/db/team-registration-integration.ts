@@ -176,12 +176,12 @@ async function exerciseActiveClaimConcurrency(pool: Pool): Promise<void> {
       throw new Error("并发邀请后出现双 active membership。 ");
     }
 
-    // A rejected application releases its claim. On re-submit, its existing
-    // invite uses the confirm path while another captain issues a new invite;
-    // the same database invariant must still permit exactly one claimant.
+    // A rejected application releases its claim but retains its complete
+    // history. It is not made active before its members reclaim their slots.
+    // B now takes the released claim; A's later resubmit/reclaim must fail and
+    // leave the application rejected.
     await pool.query("UPDATE team_applications SET status = 'rejected' WHERE id = $1", [applicationAId]);
     await pool.query("DELETE FROM team_application_active_claims WHERE application_id = $1", [applicationAId]);
-    await pool.query("UPDATE team_applications SET status = 'draft' WHERE id = $1", [applicationAId]);
 
     await b.query("BEGIN");
     const bRetry = await b.query(
@@ -197,26 +197,27 @@ async function exerciseActiveClaimConcurrency(pool: Pool): Promise<void> {
     );
 
     await a.query("BEGIN");
-    const aConfirmPromise = a.query(
+    const aResubmitReclaimPromise = a.query(
       `INSERT INTO team_application_active_claims (season_id, user_id, application_id)
        VALUES ($1, $2, $3) ON CONFLICT DO NOTHING RETURNING application_id`,
       [seasonId, sharedUserId, applicationAId],
     );
     await b.query("SELECT pg_sleep(0.05)");
     await b.query("COMMIT");
-    const aConfirm = await aConfirmPromise;
-    if (aConfirm.rows.length !== 0) throw new Error("rejected→resubmit 与另一邀请竞争时产生第二个 active claim。 ");
+    const aResubmitReclaim = await aResubmitReclaimPromise;
+    if (aResubmitReclaim.rows.length !== 0) throw new Error("rejected→resubmit 与另一邀请竞争时产生第二个 active claim。 ");
     await a.query("ROLLBACK");
 
-    const finalFacts = await pool.query<{ claims: string; active_memberships: string; claim_application: string }>(`
+    const finalFacts = await pool.query<{ claims: string; active_memberships: string; claim_application: string; application_a_status: string }>(`
       SELECT
         (SELECT count(*) FROM team_application_active_claims WHERE season_id = $1 AND user_id = $2) AS claims,
         (SELECT count(*) FROM team_application_members m
           INNER JOIN team_applications a ON a.id = m.application_id
           WHERE m.user_id = $2 AND a.season_id = $1 AND a.status IN ('draft', 'submitted', 'waitlisted')) AS active_memberships,
-        (SELECT application_id::text FROM team_application_active_claims WHERE season_id = $1 AND user_id = $2) AS claim_application
-    `, [seasonId, sharedUserId]);
-    if (finalFacts.rows[0]?.claims !== "1" || finalFacts.rows[0]?.active_memberships !== "1" || finalFacts.rows[0]?.claim_application !== applicationBId) {
+        (SELECT application_id::text FROM team_application_active_claims WHERE season_id = $1 AND user_id = $2) AS claim_application,
+        (SELECT status::text FROM team_applications WHERE id = $3) AS application_a_status
+    `, [seasonId, sharedUserId, applicationAId]);
+    if (finalFacts.rows[0]?.claims !== "1" || finalFacts.rows[0]?.active_memberships !== "1" || finalFacts.rows[0]?.claim_application !== applicationBId || finalFacts.rows[0]?.application_a_status !== "rejected") {
       throw new Error("真实 PostgreSQL 并发路径未收敛到唯一有效报名归属。 ");
     }
   } finally {
