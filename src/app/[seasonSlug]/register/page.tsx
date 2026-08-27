@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, seasonRegistrations, teamApplicationMembers, teamApplications, users } from "@/db/schema";
+import { educationVerifications, institutions, seasons, seasonRegistrations, teamApplicationMembers, teamApplications, users } from "@/db/schema";
 import { getPositionCounts, getApprovedCount } from "@/actions/register";
 import { RegistrationForm } from "@/components/register/RegistrationForm";
 import { normalizeRegistrationConfig } from "@/types/season";
@@ -99,21 +99,39 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
       .orderBy(desc(teamApplications.updatedAt))
       .limit(1);
     const application = applicationRows[0] ?? null;
-    const members = application
+    const memberRows = application
       ? await db
           .select({
             id: teamApplicationMembers.id,
             userId: teamApplicationMembers.userId,
             email: users.email,
             displayName: users.displayName,
-            studentId: users.studentId,
+            emailVerified: users.emailVerifiedAt,
+            verificationStatus: educationVerifications.status,
+            institutionName: institutions.name,
+            verificationSubmittedAt: educationVerifications.submittedAt,
             status: teamApplicationMembers.status,
           })
           .from(teamApplicationMembers)
           .innerJoin(users, eq(teamApplicationMembers.userId, users.id))
+          .leftJoin(educationVerifications, eq(educationVerifications.userId, users.id))
+          .leftJoin(institutions, eq(educationVerifications.institutionId, institutions.id))
           .where(eq(teamApplicationMembers.applicationId, application.id))
           .orderBy(teamApplicationMembers.createdAt)
       : [];
+    // Approved education assertions are historical and a member may have more
+    // than one.  The roster UI still represents one person, never one row per
+    // assertion.
+    const memberByUser = new Map<string, (typeof memberRows)[number]>();
+    for (const member of memberRows) {
+      const current = memberByUser.get(member.userId);
+      const shouldReplace = !current
+        || (member.verificationStatus === "approved" && current.verificationStatus !== "approved")
+        || (member.verificationStatus === current.verificationStatus
+          && (member.verificationSubmittedAt?.getTime() ?? 0) > (current.verificationSubmittedAt?.getTime() ?? 0));
+      if (shouldReplace) memberByUser.set(member.userId, member);
+    }
+    const members = [...memberByUser.values()];
 
     return (
       <div className="container mx-auto max-w-2xl space-y-6 px-4 py-10">
@@ -133,7 +151,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
           minTeamSize={season.minTeamSize}
           maxTeamSize={season.maxTeamSize}
           application={application}
-          members={members}
+          members={members.map((member) => ({ id: member.id, userId: member.userId, email: member.email, displayName: member.displayName, status: member.status, emailVerified: Boolean(member.emailVerified), educationStatus: member.verificationStatus ?? "unsubmitted", institutionName: member.institutionName }))}
         />
       </div>
     );

@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { randomBytes } from "crypto";
 import { eq, and, count, desc, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, seasonRegistrations, auditLogs, adminUsers, adminInvites, users, draftPicks, teamApplicationMembers, teamApplications, teamMembers, teams } from "@/db/schema";
+import { seasons, seasonRegistrations, auditLogs, adminUsers, adminInvites, users, draftPicks, teamApplicationMembers, teamApplications, teamApplicationActiveClaims, teamMembers, teams, educationVerifications, institutions } from "@/db/schema";
 import { ok, fail } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { actionError, failValidation } from "@/lib/action-utils";
@@ -23,7 +23,8 @@ import {
   type RegistrationStatus,
   validateTransition,
 } from "@/lib/registration-transitions";
-import { normalizeTeamRegistrationConfig } from "@/types/season";
+import { normalizeAffiliationRules, normalizeTeamRegistrationConfig } from "@/types/season";
+import { evaluateRosterEducationEligibility, type EducationEligibilityMember } from "@/lib/education/eligibility";
 
 // ── 共享工具 ────────────────────────────────────────────
 
@@ -317,6 +318,7 @@ export async function reviewTeamApplication(input: TeamApplicationReviewInput) {
           reviewReason: input.reason?.trim() || null,
           updatedAt: new Date(),
         }).where(eq(teamApplications.id, locked.id));
+        if (input.status === "rejected") await tx.delete(teamApplicationActiveClaims).where(eq(teamApplicationActiveClaims.applicationId, locked.id));
         await tx.insert(auditLogs).values({
           seasonId: locked.seasonId,
           action: `team_application.${input.status}`,
@@ -329,24 +331,37 @@ export async function reviewTeamApplication(input: TeamApplicationReviewInput) {
       }
 
       const members = await tx
-        .select({ id: teamApplicationMembers.id, userId: teamApplicationMembers.userId, status: teamApplicationMembers.status, studentId: users.studentId })
+        .select({ id: teamApplicationMembers.id, userId: teamApplicationMembers.userId, status: teamApplicationMembers.status, email: users.email, emailVerifiedAt: users.emailVerifiedAt, verificationId: educationVerifications.id, verificationAcademicStatus: educationVerifications.academicStatus, institutionCode: institutions.moeInstitutionCode, institutionName: institutions.name })
         .from(teamApplicationMembers)
         .innerJoin(users, eq(teamApplicationMembers.userId, users.id))
+        .leftJoin(educationVerifications, and(eq(educationVerifications.userId, users.id), eq(educationVerifications.status, "approved")))
+        .leftJoin(institutions, eq(educationVerifications.institutionId, institutions.id))
         .where(eq(teamApplicationMembers.applicationId, locked.id));
-      const confirmed = members.filter((member) => member.status === "confirmed");
       const config = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
-      const homeMembers = confirmed.filter((member) => Boolean(member.studentId)).length;
-      const externalMembers = confirmed.length - homeMembers;
+      const affiliationRules = normalizeAffiliationRules(season.affiliationRules);
+      const confirmedByUser = new Map<string, (typeof members)[number]>();
+      for (const member of members) {
+        if (member.status !== "confirmed") continue;
+        const current = confirmedByUser.get(member.userId);
+        const matchesRule = member.institutionCode && member.verificationAcademicStatus && affiliationRules.some((rule) =>
+          rule.institutionCode === member.institutionCode && rule.eligibleAcademicStatuses.includes(member.verificationAcademicStatus!),
+        );
+        const currentMatchesRule = current?.institutionCode && current.verificationAcademicStatus && affiliationRules.some((rule) =>
+          rule.institutionCode === current.institutionCode && rule.eligibleAcademicStatuses.includes(current.verificationAcademicStatus!),
+        );
+        if (!current || (matchesRule && !currentMatchesRule)) confirmedByUser.set(member.userId, member);
+      }
+      const confirmed = [...confirmedByUser.values()];
+      const education: EducationEligibilityMember[] = confirmed.map((member) => ({ userId: member.userId, email: member.email, emailVerifiedAt: member.emailVerifiedAt, verification: member.verificationId && member.verificationAcademicStatus && member.institutionName ? { id: member.verificationId, status: "approved", academicStatus: member.verificationAcademicStatus, institutionCode: member.institutionCode, institutionName: member.institutionName } : null }));
+      const educationDecision = evaluateRosterEducationEligibility(education, affiliationRules);
       if (
         confirmed.length < season.minTeamSize ||
         confirmed.length > season.maxTeamSize ||
         !confirmed.some((member) => member.userId === locked.captainUserId) ||
         (config.requireTeamLogo && !locked.logoUrl) ||
-        (!config.allowExternal && externalMembers > 0) ||
-        homeMembers < config.minHomeMembers ||
-        externalMembers > config.maxExternalMembers
+        (affiliationRules.length > 0 && !educationDecision.eligible)
       ) {
-        throw new AppError(ErrorCode.VALIDATION_FAILED, "申请的确认名单已不满足当前赛事规则，不能通过审核。");
+        throw new AppError(ErrorCode.VALIDATION_FAILED, educationDecision.blockers[0] ?? "申请的确认名单已不满足当前赛事规则，不能通过审核。");
       }
       if (config.requireUniqueTeamName) {
         const sameName = await tx.query.teams.findFirst({
@@ -378,6 +393,7 @@ export async function reviewTeamApplication(input: TeamApplicationReviewInput) {
         reviewReason: input.reason?.trim() || null,
         updatedAt: new Date(),
       }).where(eq(teamApplications.id, locked.id));
+      await tx.delete(teamApplicationActiveClaims).where(eq(teamApplicationActiveClaims.applicationId, locked.id));
       await tx.insert(auditLogs).values([
         {
           seasonId: locked.seasonId,

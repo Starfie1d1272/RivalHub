@@ -13,9 +13,11 @@ import { auditActorId, requireSuperAdmin } from "@/lib/auth/session";
 import {
   normalizeRegistrationConfig,
   normalizeTeamRegistrationConfig,
+  normalizeAffiliationRules,
   type RegistrationConfig,
   type TeamRegistrationConfig,
   type StagePlan,
+  type InstitutionAffiliationRule,
 } from "@/types/season";
 
 const stageConfigSchema = z.object({
@@ -83,6 +85,12 @@ const seasonFormBaseSchema = z.object({
     requireUniqueTeamName: z.boolean(),
     requireTeamLogo: z.boolean(),
   }).optional(),
+  affiliationRules: z.array(z.object({
+    institutionCode: z.string().min(1),
+    eligibleAcademicStatuses: z.array(z.enum(["enrolled", "graduated"])).min(1),
+    minRosterMembers: z.number().int().min(0),
+    minStartingMembers: z.number().int().min(0),
+  })).optional(),
 });
 
 const seasonFormSchema = withSeasonRefinements(seasonFormBaseSchema);
@@ -167,6 +175,7 @@ export async function createSeason(input: SeasonFormInput): Promise<ActionResult
       teamRegistrationConfig: normalizeTeamRegistrationConfig(
         (data.teamRegistrationConfig ?? {}) as TeamRegistrationConfig,
       ),
+      affiliationRules: normalizeAffiliationRules(data.affiliationRules as InstitutionAffiliationRule[] | undefined),
       startAt: toDate(data.startAt),
       registrationDeadline: toDate(data.registrationDeadline),
       endAt: toDate(data.endAt),
@@ -223,7 +232,9 @@ export async function updateSeason(input: SeasonFormInput): Promise<ActionResult
         existing.minTeamSize !== data.minTeamSize ||
         existing.starterCount !== data.starterCount ||
         JSON.stringify(existing.positions) !== JSON.stringify(data.positions) ||
-        JSON.stringify(existing.stagePlan) !== JSON.stringify(data.stagePlan);
+        JSON.stringify(existing.stagePlan) !== JSON.stringify(data.stagePlan) ||
+        JSON.stringify(normalizeAffiliationRules(existing.affiliationRules)) !==
+          JSON.stringify(normalizeAffiliationRules(data.affiliationRules as InstitutionAffiliationRule[] | undefined));
       if (coreChanged) {
         throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有 draft 状态可修改核心赛季配置");
       }
@@ -245,6 +256,7 @@ export async function updateSeason(input: SeasonFormInput): Promise<ActionResult
       teamRegistrationConfig: normalizeTeamRegistrationConfig(
         (data.teamRegistrationConfig ?? {}) as TeamRegistrationConfig,
       ),
+      affiliationRules: normalizeAffiliationRules(data.affiliationRules as InstitutionAffiliationRule[] | undefined),
       startAt: toDate(data.startAt),
       registrationDeadline: toDate(data.registrationDeadline),
       endAt: toDate(data.endAt),

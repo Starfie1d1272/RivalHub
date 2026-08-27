@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { Pool } from "pg";
 import { assertLocalDatabaseUrl } from "./local-environment";
 import { assertStagingDatabaseUrl } from "./staging-environment";
+import { isLegacyStandardMajorWithoutAffiliation, type SeasonCapabilities } from "../../src/types/season";
 
 interface MigrationJournalEntry {
   tag: string;
@@ -25,6 +26,21 @@ async function main(): Promise<void> {
       seasons_table: string | null;
       teams_table: string | null;
       ledger: Array<{ hash: string; created_at: string }>;
+      seasons: Array<{
+        id: string;
+        slug: string;
+        registration_mode: SeasonCapabilities["registrationMode"];
+        has_captain_voting: boolean;
+        has_draft: boolean;
+        stage_plan: SeasonCapabilities["stagePlan"];
+        registration_config: SeasonCapabilities["registrationConfig"];
+        team_registration_config: SeasonCapabilities["teamRegistrationConfig"];
+        affiliation_rules: SeasonCapabilities["affiliationRules"];
+        min_team_size: number;
+        max_team_size: number;
+        starter_count: number;
+        positions: string[];
+      }>;
     }>(`
       SELECT
         to_regclass('public.seasons')::text AS seasons_table,
@@ -33,7 +49,17 @@ async function main(): Promise<void> {
           (SELECT json_agg(row_to_json(m) ORDER BY m.created_at)
            FROM (SELECT hash, created_at FROM drizzle.__drizzle_migrations) AS m),
           '[]'::json
-        ) AS ledger
+        ) AS ledger,
+        COALESCE(
+          (SELECT json_agg(row_to_json(s))
+           FROM (
+             SELECT id, slug, registration_mode, has_captain_voting, has_draft,
+               stage_plan, registration_config, team_registration_config,
+               affiliation_rules, min_team_size, max_team_size, starter_count, positions
+             FROM public.seasons
+           ) AS s),
+          '[]'::json
+        ) AS seasons
     `);
     const facts = result.rows[0];
     if (!facts?.seasons_table || !facts.teams_table) {
@@ -48,7 +74,26 @@ async function main(): Promise<void> {
       throw new Error("Drizzle migration ledger 与 active migration chain 不完全一致。");
     }
 
-    console.log(`Migration verification passed for ${target}: ${expected.length} active migrations.`);
+    const legacyStandardRows = facts.seasons.filter((season) =>
+      isLegacyStandardMajorWithoutAffiliation({
+        registrationMode: season.registration_mode,
+        hasCaptainVoting: season.has_captain_voting,
+        hasDraft: season.has_draft,
+        stagePlan: season.stage_plan,
+        registrationConfig: season.registration_config,
+        teamRegistrationConfig: season.team_registration_config,
+        affiliationRules: season.affiliation_rules,
+        minTeamSize: season.min_team_size,
+        maxTeamSize: season.max_team_size,
+        starterCount: season.starter_count,
+        positions: season.positions,
+      }),
+    );
+    if (legacyStandardRows.length > 0) {
+      throw new Error(`发现 ${legacyStandardRows.length} 个 pre-0008 标准 Major 能力行缺少 affiliation_rules；拒绝猜测回填：${legacyStandardRows.map((row) => row.slug).join(", ")}`);
+    }
+
+    console.log(`Migration verification passed for ${target}: ${expected.length} active migrations; no legacy standard Major affiliation backfill is required.`);
   } finally {
     await pool.end();
   }

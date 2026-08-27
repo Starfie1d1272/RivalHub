@@ -57,6 +57,7 @@ vi.mock("@/lib/auth/supabase", () => ({
       signUp: signUpMock,
     },
   }),
+  createPublicAuthClient: () => ({ auth: { signUp: signUpMock } }),
 }));
 
 vi.mock("next/cache", () => ({
@@ -219,6 +220,7 @@ describe("loginWithPassword", () => {
 
 describe("signUp", () => {
   beforeEach(() => {
+    process.env.NEXT_PUBLIC_APP_URL = "http://127.0.0.1:3000";
     vi.clearAllMocks();
     normalizeEmailMock.mockImplementation((e: string) => e);
   });
@@ -260,13 +262,98 @@ describe("signUp", () => {
     }
   });
 
-  it("正常注册：insert user + createUserSession + 返回 email", async () => {
+  it("siteverify success=false：用户可见行为不变，仅输出脱敏 server 日志", async () => {
+    const originalSecret = process.env.TURNSTILE_SECRET_KEY;
+    process.env.TURNSTILE_SECRET_KEY = "0xtest-secret-key";
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: () =>
+        Promise.resolve({
+          success: false,
+          "error-codes": ["invalid-input-response"],
+          hostname: "rival-hub-git-feat-major-educati-1f9088-starfie1d1272s-projects.vercel.app",
+          action: null,
+        }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      const token = "turnstile-response-token";
+      const result = await signUp(VALID_EMAIL, VALID_PASSWORD, token);
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.code).toBe(ErrorCode.VALIDATION_FAILED);
+        expect(result.error.message).toBe("验证码校验失败，请刷新后重试");
+      }
+
+      // 行为不变：不触发 Supabase、不落库、不建立 session
+      expect(signUpMock).not.toHaveBeenCalled();
+      expect(dbInsertMock).not.toHaveBeenCalled();
+      expect(createUserSessionMock).not.toHaveBeenCalled();
+
+      // 日志内容：只有诊断字段，无 secret、无 response token、无邮箱
+      expect(errorSpy).toHaveBeenCalledOnce();
+      const [tag, payload] = errorSpy.mock.calls[0];
+      expect(tag).toBe("[turnstile] siteverify failed");
+      expect(payload).toEqual({
+        errorCodes: ["invalid-input-response"],
+        hostname: "rival-hub-git-feat-major-educati-1f9088-starfie1d1272s-projects.vercel.app",
+        action: null,
+      });
+      const serialized = JSON.stringify(errorSpy.mock.calls[0]);
+      expect(serialized).not.toContain("0xtest-secret-key");
+      expect(serialized).not.toContain(token);
+      expect(serialized).not.toContain(VALID_EMAIL);
+
+      // siteverify 请求本身只携带 secret/response，不含其他敏感信息
+      const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(JSON.stringify(init)).not.toContain(VALID_EMAIL);
+    } finally {
+      vi.unstubAllGlobals();
+      errorSpy.mockRestore();
+      if (originalSecret === undefined) {
+        delete process.env.TURNSTILE_SECRET_KEY;
+      } else {
+        process.env.TURNSTILE_SECRET_KEY = originalSecret;
+      }
+    }
+  });
+
+  it("siteverify success=true 时流程不受日志扩展影响，正常进入注册", async () => {
+    const originalSecret = process.env.TURNSTILE_SECRET_KEY;
+    process.env.TURNSTILE_SECRET_KEY = "0xtest-secret-key";
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ json: () => Promise.resolve({ success: true }) }),
+    );
+    signUpMock.mockResolvedValue({ data: { user: { id: "auth-uuid-3" } }, error: null });
+    makeInsertChain([MOCK_USER_ROW]);
+
+    try {
+      const result = await signUp(VALID_EMAIL, VALID_PASSWORD, "valid-token");
+
+      expect(result.success).toBe(true);
+      expect(signUpMock).toHaveBeenCalledOnce();
+      expect(errorSpy).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+      errorSpy.mockRestore();
+      if (originalSecret === undefined) {
+        delete process.env.TURNSTILE_SECRET_KEY;
+      } else {
+        process.env.TURNSTILE_SECRET_KEY = originalSecret;
+      }
+    }
+  });
+
+  it("正常注册：insert user、发送确认流程且不创建 session", async () => {
     signUpMock.mockResolvedValue({
       data: { user: { id: "auth-uuid-2" } },
       error: null,
     });
     makeInsertChain([MOCK_USER_ROW]);
-    createUserSessionMock.mockResolvedValue(undefined);
 
     const result = await signUp(VALID_EMAIL, VALID_PASSWORD);
 
@@ -274,13 +361,7 @@ describe("signUp", () => {
     if (result.success) {
       expect(result.data.email).toBe(VALID_EMAIL);
     }
-    expect(createUserSessionMock).toHaveBeenCalledWith({
-      userId: MOCK_USER_ROW.id,
-      email: MOCK_USER_ROW.email,
-      role: MOCK_USER_ROW.role,
-      adminSeasonIds: MOCK_USER_ROW.adminSeasonIds,
-      authSource: "user",
-    });
+    expect(createUserSessionMock).not.toHaveBeenCalled();
   });
 });
 

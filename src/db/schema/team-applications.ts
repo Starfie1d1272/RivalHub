@@ -50,5 +50,19 @@ export const teamApplicationMembers = pgTable("team_application_members", {
   userStatusIndex: index("team_application_members_user_status_idx").on(t.userId, t.status),
 }));
 
+/**
+ * The transaction-owned claim table provides the cross-application uniqueness
+ * that a partial index cannot express through team_applications.status.
+ */
+export const teamApplicationActiveClaims = pgTable("team_application_active_claims", {
+  seasonId: uuid("season_id").notNull().references(() => seasons.id),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  applicationId: uuid("application_id").notNull().references(() => teamApplications.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  primary: unique("team_application_active_claims_season_user_unique").on(t.seasonId, t.userId),
+  applicationIndex: index("team_application_active_claims_application_idx").on(t.applicationId),
+}));
+
 export type TeamApplication = typeof teamApplications.$inferSelect;
 export type TeamApplicationMember = typeof teamApplicationMembers.$inferSelect;

@@ -14,17 +14,21 @@ import {
   seasons,
   teamMembers,
   teams,
+  users,
+  educationVerifications,
+  institutions,
 } from "@/db/schema";
 import { actionError } from "@/lib/action-utils";
 import { auditActorId, requireSeasonAdmin } from "@/lib/auth/session";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { checkStandardMajorCapabilities, normalizeRegistrationConfig, normalizeStagePlan, normalizeTeamRegistrationConfig } from "@/types/season";
+import { checkStandardMajorCapabilities, normalizeAffiliationRules, normalizeRegistrationConfig, normalizeStagePlan, normalizeTeamRegistrationConfig } from "@/types/season";
 import { fail, ok, type ActionResult } from "@/types/action";
 import { startMajorInTransaction, type MajorStartResult } from "@/lib/major/start";
 import { finalizeMajorSwissRoundInTransaction, type MajorSwissRoundFinalizationResult } from "@/lib/major/swiss-runtime";
 import { transitionMajorSwissStageInTransaction, type MajorStageTransitionResult } from "@/lib/major/stage-transition";
 import { finalizeMajorPlayoffRoundInTransaction, startMajorPlayoffInTransaction, type MajorPlayoffFinalizationResult, type MajorPlayoffStartResult } from "@/lib/major/playoff-runtime";
 import { revalidateSeasonPaths } from "@/lib/revalidation";
+import { evaluateRosterEducationEligibility, type EducationEligibilityMember } from "@/lib/education/eligibility";
 
 const uuid = z.string().uuid();
 const issueCategory = z.enum(["qualification", "administration"]);
@@ -42,6 +46,7 @@ function standardMajorOrThrow(season: typeof seasons.$inferSelect): void {
     stagePlan: normalizeStagePlan(season.stagePlan),
     registrationConfig: normalizeRegistrationConfig(season.registrationConfig),
     teamRegistrationConfig: normalizeTeamRegistrationConfig(season.teamRegistrationConfig),
+    affiliationRules: normalizeAffiliationRules(season.affiliationRules),
     minTeamSize: season.minTeamSize,
     maxTeamSize: season.maxTeamSize,
     starterCount: season.starterCount,
@@ -77,6 +82,25 @@ function revalidateMajorPrestart(seasonSlug: string): void {
   revalidatePath(`/admin/${seasonSlug}`);
 }
 
+async function approvedRosterEducation(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  userIds: readonly string[],
+  affiliationRules: ReturnType<typeof normalizeAffiliationRules>,
+): Promise<Map<string, string>> {
+  const rows = await tx.select({ userId: users.id, email: users.email, emailVerifiedAt: users.emailVerifiedAt, verificationId: educationVerifications.id, academicStatus: educationVerifications.academicStatus, institutionCode: institutions.moeInstitutionCode, institutionName: institutions.name })
+    .from(users).leftJoin(educationVerifications, and(eq(educationVerifications.userId, users.id), eq(educationVerifications.status, "approved"))).leftJoin(institutions, eq(educationVerifications.institutionId, institutions.id)).where(inArray(users.id, [...userIds]));
+  const selected = new Map<string, EducationEligibilityMember>();
+  for (const row of rows) {
+    const candidate: EducationEligibilityMember = { userId: row.userId, email: row.email, emailVerifiedAt: row.emailVerifiedAt, verification: row.verificationId && row.academicStatus && row.institutionName ? { id: row.verificationId, status: "approved", academicStatus: row.academicStatus, institutionCode: row.institutionCode, institutionName: row.institutionName } : null };
+    const prior = selected.get(row.userId);
+    const preferred = candidate.verification && affiliationRules.some((rule) => rule.institutionCode === candidate.verification?.institutionCode && rule.eligibleAcademicStatuses.includes(candidate.verification.academicStatus));
+    if (!prior || (!prior.verification && candidate.verification) || (preferred && prior.verification?.institutionCode !== candidate.verification?.institutionCode)) selected.set(row.userId, candidate);
+  }
+  const decision = evaluateRosterEducationEligibility([...selected.values()], affiliationRules);
+  if (!decision.eligible || decision.selectedVerificationIds.size !== userIds.length) throw new AppError(ErrorCode.VALIDATION_FAILED, decision.blockers.join(" "));
+  return decision.selectedVerificationIds;
+}
+
 export async function addMajorPrestartEntrant(input: { seasonId: string; teamId: string }): Promise<ActionResult<void>> {
   const parsed = z.object({ seasonId: uuid, teamId: uuid }).safeParse(input);
   if (!parsed.success) return invalid("赛季或队伍标识无效。");
@@ -97,10 +121,11 @@ export async function addMajorPrestartEntrant(input: { seasonId: string; teamId:
       if (members.length < season.minTeamSize) {
         throw new AppError(ErrorCode.VALIDATION_FAILED, `正式队伍至少需要 ${season.minTeamSize} 名成员才能进入 Major。`);
       }
+      const verificationIds = await approvedRosterEducation(tx, members.map((member) => member.userId), normalizeAffiliationRules(season.affiliationRules));
       const [entrant] = await tx.insert(majorPrestartEntrants).values({ seasonId: season.id, teamId: team.id })
         .returning({ id: majorPrestartEntrants.id });
       if (!entrant) throw new AppError(ErrorCode.INTERNAL_ERROR, "正式参赛队创建失败。");
-      await tx.insert(majorPrestartRosterMembers).values(members.map((member) => ({ entrantId: entrant.id, userId: member.userId })));
+      await tx.insert(majorPrestartRosterMembers).values(members.map((member) => ({ entrantId: entrant.id, userId: member.userId, educationVerificationId: verificationIds.get(member.userId) })));
       await tx.insert(auditLogs).values({
         seasonId: season.id, action: "major_prestart.add_entrant", actorId: auditActorId(admin),
         targetId: entrant.id, targetType: "major_prestart_entrant", meta: { teamId: team.id, rosterSize: members.length },
@@ -152,8 +177,9 @@ export async function saveMajorPrestartRoster(input: z.infer<typeof rosterInput>
       if (formalMembers.length !== userIds.length) {
         throw new AppError(ErrorCode.VALIDATION_FAILED, "最终名单只能选择该正式队伍当前的成员。 ");
       }
+      const verificationIds = await approvedRosterEducation(tx, userIds, normalizeAffiliationRules(season.affiliationRules));
       await tx.delete(majorPrestartRosterMembers).where(eq(majorPrestartRosterMembers.entrantId, entrant.id));
-      await tx.insert(majorPrestartRosterMembers).values(userIds.map((userId) => ({ entrantId: entrant.id, userId })));
+      await tx.insert(majorPrestartRosterMembers).values(userIds.map((userId) => ({ entrantId: entrant.id, userId, educationVerificationId: verificationIds.get(userId) })));
       await tx.update(majorPrestartEntrants).set({ rosterConfirmedAt: null, rosterConfirmedBy: null, updatedAt: new Date() })
         .where(eq(majorPrestartEntrants.id, entrant.id));
       await tx.insert(auditLogs).values({
@@ -176,11 +202,12 @@ export async function confirmMajorPrestartRoster(input: { seasonId: string; entr
       const [entrant] = await tx.select().from(majorPrestartEntrants)
         .where(and(eq(majorPrestartEntrants.id, parsed.data.entrantId), eq(majorPrestartEntrants.seasonId, season.id)));
       if (!entrant) throw new AppError(ErrorCode.NOT_FOUND, "正式参赛队不存在。");
-      const roster = await tx.select({ userId: majorPrestartRosterMembers.userId }).from(majorPrestartRosterMembers)
+      const roster = await tx.select({ userId: majorPrestartRosterMembers.userId, educationVerificationId: majorPrestartRosterMembers.educationVerificationId }).from(majorPrestartRosterMembers)
         .where(eq(majorPrestartRosterMembers.entrantId, entrant.id));
       if (roster.length < season.minTeamSize || roster.length > season.maxTeamSize) {
         throw new AppError(ErrorCode.VALIDATION_FAILED, "最终名单人数不符合赛事规则，不能确认。");
       }
+      if (roster.some((member) => !member.educationVerificationId)) throw new AppError(ErrorCode.VALIDATION_FAILED, "最终名单缺少已冻结的教育认证依据，不能确认。 ");
       const duplicate = await tx.execute(sql`
         SELECT r.user_id FROM major_prestart_roster_members r
         INNER JOIN major_prestart_entrants e ON e.id = r.entrant_id

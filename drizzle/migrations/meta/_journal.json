@@ -57,6 +57,13 @@
       "when": 1787756949452,
       "tag": "0007_bouncy_agent_zero",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787759760291,
+      "tag": "0008_youthful_phalanx",
+      "breakpoints": true
     }
   ]
 }

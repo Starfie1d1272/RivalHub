@@ -15,11 +15,13 @@ import {
 import { AppError, ErrorCode } from "@/lib/errors";
 import { buildMajorOpeningPlan } from "@/lib/major/opening";
 import { evaluateMajorPrestartReadiness } from "@/lib/major/prestart";
+import { freezeAffiliationRules } from "@/lib/major/frozen-affiliation-rules";
 import {
   checkStandardMajorCapabilities,
   normalizeRegistrationConfig,
   normalizeStagePlan,
   normalizeTeamRegistrationConfig,
+  normalizeAffiliationRules,
 } from "@/types/season";
 
 const STAGE_ONE_MANAGED_MATCH_COUNT = 8;
@@ -38,6 +40,7 @@ function capabilitiesFromSeason(season: typeof seasons.$inferSelect) {
     stagePlan: normalizeStagePlan(season.stagePlan),
     registrationConfig: normalizeRegistrationConfig(season.registrationConfig),
     teamRegistrationConfig: normalizeTeamRegistrationConfig(season.teamRegistrationConfig),
+    affiliationRules: normalizeAffiliationRules(season.affiliationRules),
     minTeamSize: season.minTeamSize,
     maxTeamSize: season.maxTeamSize,
     starterCount: season.starterCount,
@@ -99,6 +102,7 @@ export async function startMajorInTransaction(
   const rosterRows = entrantIds.length === 0 ? [] : await tx.select({
     entrantId: majorPrestartRosterMembers.entrantId,
     userId: majorPrestartRosterMembers.userId,
+    educationVerificationId: majorPrestartRosterMembers.educationVerificationId,
   }).from(majorPrestartRosterMembers)
     .where(inArray(majorPrestartRosterMembers.entrantId, entrantIds)).for("update");
   const issueRows = await tx.select({
@@ -113,10 +117,10 @@ export async function startMajorInTransaction(
   }).from(majorTournamentSeeds)
     .where(eq(majorTournamentSeeds.seasonId, season.id)).for("update");
 
-  const rosterByEntrant = new Map<string, string[]>();
+  const rosterByEntrant = new Map<string, Array<{ userId: string; educationVerificationId: string | null }>>();
   for (const roster of rosterRows) {
     const members = rosterByEntrant.get(roster.entrantId) ?? [];
-    members.push(roster.userId);
+    members.push({ userId: roster.userId, educationVerificationId: roster.educationVerificationId });
     rosterByEntrant.set(roster.entrantId, members);
   }
   const teamIdByEntrantId = new Map(entrantRows.map((entrant) => [entrant.id, entrant.teamId]));
@@ -128,7 +132,8 @@ export async function startMajorInTransaction(
     capabilities,
     teams: entrantRows.map((entrant) => ({
       teamId: entrant.teamId,
-      playerIds: rosterByEntrant.get(entrant.id) ?? [],
+      playerIds: (rosterByEntrant.get(entrant.id) ?? []).map((member) => member.userId),
+      educationVerificationIds: (rosterByEntrant.get(entrant.id) ?? []).map((member) => member.educationVerificationId),
     })),
     entrantsLocked: Boolean(state.entrantsLockedAt),
     confirmations: entrantRows.map((entrant) => ({ teamId: entrant.teamId, confirmed: Boolean(entrant.rosterConfirmedAt) })),
@@ -150,7 +155,9 @@ export async function startMajorInTransaction(
   const openingPlan = buildMajorOpeningPlan({ teams: seeds, stageOneMatchFormat: stage.matchFormat });
   const entrantByTeamId = new Map(entrantRows.map((entrant) => [entrant.teamId, entrant]));
   const ruleSnapshot = {
-    version: 1,
+    // StageRun is the immutable tournament rule owner. Match-roster (G1)
+    // must consume this frozen value rather than seasons.affiliationRules.
+    version: 2,
     stagePlan: capabilities.stagePlan.map((configuredStage) => ({
       key: configuredStage.key,
       name: configuredStage.name,
@@ -178,6 +185,7 @@ export async function startMajorInTransaction(
       maxTeamSize: season.maxTeamSize,
       starterCount: season.starterCount,
     },
+    affiliationRules: freezeAffiliationRules(capabilities.affiliationRules),
     tournamentEntrants: openingPlan.tournamentTeams.map((team) => {
       const entrant = entrantByTeamId.get(team.teamId);
       if (!entrant) throw new AppError(ErrorCode.INTERNAL_ERROR, "赛事种子缺少已锁定的正式参赛队。");

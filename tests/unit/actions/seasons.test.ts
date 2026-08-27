@@ -310,6 +310,20 @@ describe("updateSeason", () => {
     }
   });
 
+  it("非 draft 状态下不能改写高校归属规则", async () => {
+    seasonsFindFirstMock.mockResolvedValue(draftSeason({ status: "registration",
+      affiliationRules: [{ institutionCode: "4132010284", eligibleAcademicStatuses: ["enrolled", "graduated"], minRosterMembers: 3, minStartingMembers: 3 }],
+    }));
+
+    const result = await updateSeason({
+      ...VALID_INPUT,
+      id: SEASON_ID,
+      affiliationRules: [{ institutionCode: "4132010284", eligibleAcademicStatuses: ["enrolled", "graduated"], minRosterMembers: 2, minStartingMembers: 3 }],
+    });
+
+    expect(result).toMatchObject({ success: false, error: { code: ErrorCode.SEASON_INVALID_STATUS } });
+  });
+
   it("非 draft 状态下仅修改名称等非核心字段应成功", async () => {
     seasonsFindFirstMock.mockResolvedValue(nonDraftSeason("registration"));
 

@@ -3,7 +3,7 @@
 import { useState, useTransition, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { Field, Btn } from "@/components/rivalhub";
-import { loginWithPassword, signUp } from "@/actions/auth";
+import { loginWithPassword, resendSignupConfirmation, signUp } from "@/actions/auth";
 import { TurnstileWidget } from "@/components/auth/TurnstileWidget";
 
 type Mode = "login" | "register";
@@ -19,6 +19,7 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
   const [turnstileToken, setTurnstileToken] = useState<string>("");
   const [mode, setMode] = useState<Mode>("login");
+  const [awaitingEmail, setAwaitingEmail] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const redirectRef = useRef(safeRedirect(new URLSearchParams(
     typeof window !== "undefined" ? window.location.search : ""
@@ -31,12 +32,20 @@ export function LoginForm() {
         ? await loginWithPassword(email, password)
         : await signUp(email, password, turnstileToken);
       if (result.success) {
-        window.location.href = redirectRef.current;
+        if (mode === "register") {
+          setAwaitingEmail(email.trim());
+        } else {
+          window.location.href = redirectRef.current;
+        }
       } else {
         toast.error(result.error.message);
       }
     });
   }, [email, password, mode, turnstileToken]);
+
+  if (awaitingEmail) {
+    return <div className="space-y-4"><div className="rounded-lg border border-[var(--color-border)] p-4"><h2 className="font-semibold">验证邮件已发送</h2><p className="mt-2 break-all text-sm text-[var(--color-fg-mid)]">请打开 {awaitingEmail} 中的邮件完成验证。验证前不会登录 RivalHub。</p></div><Btn type="button" full disabled={isPending} onClick={() => startTransition(async () => { const result = await resendSignupConfirmation(awaitingEmail); if (result.success) toast.success("验证邮件已重新发送"); else toast.error(result.error.message); })}>重新发送验证邮件</Btn><button type="button" className="w-full text-sm underline" onClick={() => { setAwaitingEmail(null); setMode("login"); }}>返回登录</button><button type="button" className="w-full text-sm underline" onClick={() => { setAwaitingEmail(null); setMode("register"); setEmail(""); setPassword(""); }}>修改邮箱或重新注册</button></div>;
+  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -98,6 +107,8 @@ export function LoginForm() {
           />
         </div>
       )}
+
+      {mode === "register" && <p className="text-xs text-[var(--color-fg-mid)]">注册后需要验证邮箱才能完成注册和登录。</p>}
 
       <Btn type="submit" full disabled={isPending || (mode === "register" && !turnstileToken)}>
         {isPending ? "处理中…" : mode === "login" ? "登录" : "注册"}

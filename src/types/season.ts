@@ -88,12 +88,25 @@ export interface TeamRegistrationConfig {
   requireTeamLogo: boolean;
 }
 
+/**
+ * Institution-based eligibility is a season capability, not a season.kind
+ * branch. `institutionCode` is the MOE canonical code frozen in the preset.
+ * Starting-member rules are declared here but match-roster enforcement is a
+ * later owner (G1).
+ */
+export interface InstitutionAffiliationRule {
+  institutionCode: string;
+  eligibleAcademicStatuses: readonly ("enrolled" | "graduated")[];
+  minRosterMembers: number;
+  minStartingMembers: number;
+}
+
 export const MAJOR_TEAM_CONFIG: TeamRegistrationConfig = {
-  allowExternal: false,
+  allowExternal: true,
   graduateCountsAsHome: true,
-  minHomeMembers: 5,
+  minHomeMembers: 0,
   minEnrolledMembers: 0,
-  maxExternalMembers: 0,
+  maxExternalMembers: 99,
   requirePositions: false,
   maxPerPositionPerTeam: 2,
   captainCanKick: true,
@@ -123,6 +136,7 @@ export interface SeasonCapabilities {
   /** 报名规则配置 */
   registrationConfig: RegistrationConfig;
   teamRegistrationConfig: TeamRegistrationConfig;
+  affiliationRules: readonly InstitutionAffiliationRule[];
   maxTeamSize: number;
   minTeamSize: number;
   starterCount: number;
@@ -234,6 +248,7 @@ export const DRAFT_LEAGUE_PRESET: SeasonCapabilities = {
     requireUniqueTeamName: false,
     requireTeamLogo: false,
   },
+  affiliationRules: [],
   maxTeamSize: 7,
   minTeamSize: 7,
   starterCount: 5,
@@ -248,6 +263,7 @@ export const OPEN_TOURNAMENT_PRESET: SeasonCapabilities = {
   stagePlan: RIVALS_STAGE_PLAN,
   registrationConfig: RIVALS_REGISTRATION_CONFIG,
   teamRegistrationConfig: MAJOR_TEAM_CONFIG,
+  affiliationRules: [],
   maxTeamSize: 5,
   minTeamSize: 5,
   starterCount: 5,
@@ -305,6 +321,12 @@ export const CAPABILITY_PRESETS = {
     stagePlan: MAJOR_STAGE_PLAN,
     registrationConfig: MAJOR_REGISTRATION_CONFIG,
     teamRegistrationConfig: MAJOR_TEAM_CONFIG,
+    affiliationRules: [{
+      institutionCode: "4132010284",
+      eligibleAcademicStatuses: ["enrolled", "graduated"],
+      minRosterMembers: 3,
+      minStartingMembers: 3,
+    }],
     maxTeamSize: 9,
     minTeamSize: 5,
     starterCount: 5,
@@ -335,6 +357,7 @@ export interface StandardMajorRuleCheck {
     | "swiss-match-format"
     | "entry-cohorts"
     | "stage1-seeds"
+    | "affiliation-rule"
     | "stage1"
     | "stage2"
     | "stage3"
@@ -427,6 +450,17 @@ export function checkStandardMajorCapabilities(
       reason: "阶段一必须完整且唯一地使用 17–32 号种子。",
     },
     {
+      key: "affiliation-rule",
+      passed: capabilities.affiliationRules.some((rule) =>
+        rule.institutionCode === "4132010284" &&
+        rule.eligibleAcademicStatuses.includes("enrolled") &&
+        rule.eligibleAcademicStatuses.includes("graduated") &&
+        rule.minRosterMembers === 3 &&
+        rule.minStartingMembers === 3,
+      ),
+      reason: "标准 Major 必须冻结南京大学在读/毕业成员名单至少 3 人、首发至少 3 人的高校归属规则。",
+    },
+    {
       key: "stage1",
       passed: stage1?.type === "swiss" && stage1.teamCount === 16 && advancesEight(stage1),
       reason: "阶段一必须为 16 队瑞士轮，8 队晋级。",
@@ -453,6 +487,22 @@ export function checkStandardMajorCapabilities(
     checks,
     failures,
   };
+}
+
+/**
+ * Compatibility detector for rows written before affiliation_rules existed.
+ * It intentionally derives identity from the complete old capability contract,
+ * never from seasons.kind. A matching row is unsafe to guess-backfill: its
+ * rule must be configured explicitly before it can become a standard Major.
+ */
+export function isLegacyStandardMajorWithoutAffiliation(
+  capabilities: SeasonCapabilities,
+): boolean {
+  return normalizeAffiliationRules(capabilities.affiliationRules).length === 0 &&
+    checkStandardMajorCapabilities({
+      ...capabilities,
+      affiliationRules: MAJOR_DEFAULT_CAPABILITIES.affiliationRules,
+    }).isStandardMajor;
 }
 
 // ── 展示标签 ─────────────────────────────────────────────────────────────
@@ -540,6 +590,20 @@ export function normalizeTeamRegistrationConfig(
     requireUniqueTeamName: config?.requireUniqueTeamName ?? MAJOR_TEAM_CONFIG.requireUniqueTeamName,
     requireTeamLogo: config?.requireTeamLogo ?? MAJOR_TEAM_CONFIG.requireTeamLogo,
   };
+}
+
+export function normalizeAffiliationRules(
+  rules: readonly InstitutionAffiliationRule[] | null | undefined,
+): InstitutionAffiliationRule[] {
+  if (!rules) return [];
+  return rules
+    .filter((rule) => rule.institutionCode.trim() && Number.isInteger(rule.minRosterMembers) && Number.isInteger(rule.minStartingMembers))
+    .map((rule) => ({
+      institutionCode: rule.institutionCode.trim(),
+      eligibleAcademicStatuses: [...new Set(rule.eligibleAcademicStatuses.filter((status) => status === "enrolled" || status === "graduated"))],
+      minRosterMembers: Math.max(0, rule.minRosterMembers),
+      minStartingMembers: Math.max(0, rule.minStartingMembers),
+    }));
 }
 
 export function normalizeStagePlan(stagePlan: StagePlan | null | undefined): StagePlan {

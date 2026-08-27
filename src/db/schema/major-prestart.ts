@@ -13,6 +13,7 @@ import { sql } from "drizzle-orm";
 import { seasons } from "./seasons";
 import { teams } from "./teams";
 import { users } from "./users";
+import { educationVerifications } from "./education";
 
 export const majorPrestartIssueCategoryEnum = pgEnum("major_prestart_issue_category", [
   "qualification",
@@ -58,6 +59,8 @@ export const majorPrestartRosterMembers = pgTable("major_prestart_roster_members
   id: uuid("id").primaryKey().defaultRandom(),
   entrantId: uuid("entrant_id").notNull().references(() => majorPrestartEntrants.id, { onDelete: "cascade" }),
   userId: uuid("user_id").notNull().references(() => users.id),
+  /** Authoritative approved verification adopted by this tournament roster. */
+  educationVerificationId: uuid("education_verification_id").references(() => educationVerifications.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   uniqueEntrantUser: unique("major_prestart_roster_members_entrant_user_unique").on(t.entrantId, t.userId),
