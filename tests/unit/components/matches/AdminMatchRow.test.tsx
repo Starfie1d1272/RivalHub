@@ -40,8 +40,8 @@ describe("AdminMatchRow start gate presentation", () => {
       teamAPreflight: null,
       teamBPreflight: null,
     })).toEqual([
-      "Alpha 尚未得到服务端预检结果",
-      "Beta 尚未得到服务端预检结果",
+      "Alpha 尚未完成首发资格检查",
+      "Beta 尚未完成首发资格检查",
     ]);
   });
 

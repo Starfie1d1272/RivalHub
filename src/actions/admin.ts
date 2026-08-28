@@ -26,7 +26,7 @@ import {
 import { normalizeAffiliationRules, normalizeTeamRegistrationConfig } from "@/types/season";
 import { getParticipantReadiness } from "@/lib/major/participant-readiness";
 import { evaluateExternalStrengthRule } from "@/lib/major/player-strength";
-import { evaluateRosterEducationEligibility, type EducationEligibilityMember } from "@/lib/education/eligibility";
+import { evaluateRosterEducationEligibility, resolveSeasonEducationVerification, type EducationEligibilityMember, type SeasonEducationVerification } from "@/lib/education/eligibility";
 
 // ── 共享工具 ────────────────────────────────────────────
 
@@ -333,27 +333,25 @@ export async function reviewTeamApplication(input: TeamApplicationReviewInput) {
       }
 
       const members = await tx
-        .select({ id: teamApplicationMembers.id, userId: teamApplicationMembers.userId, status: teamApplicationMembers.status, email: users.email, emailVerifiedAt: users.emailVerifiedAt, verificationId: educationVerifications.id, verificationAcademicStatus: educationVerifications.academicStatus, institutionCode: institutions.moeInstitutionCode, institutionName: institutions.name })
+        .select({ id: teamApplicationMembers.id, userId: teamApplicationMembers.userId, status: teamApplicationMembers.status, email: users.email, emailVerifiedAt: users.emailVerifiedAt, verificationId: educationVerifications.id, verificationStatus: educationVerifications.status, verificationAcademicStatus: educationVerifications.academicStatus, institutionCode: institutions.moeInstitutionCode, institutionName: institutions.name, verificationSubmittedAt: educationVerifications.submittedAt })
         .from(teamApplicationMembers)
         .innerJoin(users, eq(teamApplicationMembers.userId, users.id))
-        .leftJoin(educationVerifications, and(eq(educationVerifications.userId, users.id), eq(educationVerifications.status, "approved")))
+        .leftJoin(educationVerifications, eq(educationVerifications.userId, users.id))
         .leftJoin(institutions, eq(educationVerifications.institutionId, institutions.id))
         .where(eq(teamApplicationMembers.applicationId, locked.id));
       const config = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
       const affiliationRules = normalizeAffiliationRules(season.affiliationRules);
-      const confirmedByUser = new Map<string, (typeof members)[number]>();
+      const confirmedByUser = new Map<string, { member: (typeof members)[number]; history: SeasonEducationVerification[] }>();
       for (const member of members) {
         if (member.status !== "confirmed") continue;
-        const current = confirmedByUser.get(member.userId);
-        const matchesRule = member.institutionCode && member.verificationAcademicStatus && affiliationRules.some((rule) =>
-          rule.institutionCode === member.institutionCode && rule.eligibleAcademicStatuses.includes(member.verificationAcademicStatus!),
-        );
-        const currentMatchesRule = current?.institutionCode && current.verificationAcademicStatus && affiliationRules.some((rule) =>
-          rule.institutionCode === current.institutionCode && rule.eligibleAcademicStatuses.includes(current.verificationAcademicStatus!),
-        );
-        if (!current || (matchesRule && !currentMatchesRule)) confirmedByUser.set(member.userId, member);
+        const current = confirmedByUser.get(member.userId) ?? { member, history: [] };
+        if (member.verificationId && member.verificationStatus && member.verificationAcademicStatus && member.institutionName) current.history.push({ id: member.verificationId, status: member.verificationStatus, academicStatus: member.verificationAcademicStatus, institutionCode: member.institutionCode, institutionName: member.institutionName, submittedAt: member.verificationSubmittedAt });
+        confirmedByUser.set(member.userId, current);
       }
-      const confirmed = [...confirmedByUser.values()];
+      const confirmed = [...confirmedByUser.values()].map(({ member, history }) => {
+        const selected = resolveSeasonEducationVerification(history, affiliationRules).selectedVerification;
+        return { ...member, verificationId: selected?.id ?? null, verificationAcademicStatus: selected?.academicStatus ?? null, institutionCode: selected?.institutionCode ?? null, institutionName: selected?.institutionName ?? null };
+      });
       const education: EducationEligibilityMember[] = confirmed.map((member) => ({ userId: member.userId, email: member.email, emailVerifiedAt: member.emailVerifiedAt, verification: member.verificationId && member.verificationAcademicStatus && member.institutionName ? { id: member.verificationId, status: "approved", academicStatus: member.verificationAcademicStatus, institutionCode: member.institutionCode, institutionName: member.institutionName } : null }));
       const educationDecision = evaluateRosterEducationEligibility(education, affiliationRules);
       if (

@@ -25,10 +25,10 @@ export function MajorStartManagement({
 
   return <Panel label="正式开赛确认">
     <div className="space-y-4">
-      <div><Marker sub={started ? "Stage 1 已创建，重复操作只会返回既有运行记录" : canStart ? "所有赛前检查已通过，等待管理员确认" : "赛前 blocker 未清除，不能开赛"}>
+      <div><Marker sub={started ? "Stage 1 已创建" : canStart ? "所有赛前检查已通过，等待管理员确认" : "仍有赛前事项未完成，不能开赛"}>
         {started ? "Major 已正式开赛" : "启动 Stage 1"}
       </Marker>
-        <p className="mt-1 text-sm text-[var(--color-fg-mid)]">执行时服务器会在同一事务中再次复核 readiness，再锁定正式 32 队、最终名单和 1–32 种子，固化规则快照，并创建 Stage 1 首轮。</p>
+        <p className="mt-1 text-sm text-[var(--color-fg-mid)]">开始后会再次检查并锁定正式 32 队、最终名单和 1–32 种子，然后创建 Stage 1 首轮。开赛后这些内容不能在此处普通修改。</p>
       </div>
 
       {openingPlan && <>
@@ -38,7 +38,7 @@ export function MajorStartManagement({
           <Cohort label="Stage 1 参赛" range="#17–32" count={openingPlan.stage1.entrants.length} />
         </section>
         <section>
-          <h3 className="font-medium text-[var(--color-fg)]">将创建的 Stage 1 R1 托管比赛（8 场）</h3>
+          <h3 className="font-medium text-[var(--color-fg)]">将创建的 Stage 1 首轮比赛（8 场）</h3>
           <ol className="mt-2 grid gap-2 text-sm md:grid-cols-2">
             {openingPlan.firstRound.pairings.map((pairing, index) => <li key={`${pairing.higherSeed.teamId}-${pairing.lowerSeed.teamId}`} className="border border-[var(--color-border)] px-3 py-2">
               {index + 1}. #{pairing.higherSeed.tournamentSeed} vs #{pairing.lowerSeed.tournamentSeed} · {pairing.format.toUpperCase()}
@@ -49,7 +49,7 @@ export function MajorStartManagement({
 
       {!started && <label className="flex items-start gap-2 border border-[var(--color-border)] p-3 text-sm text-[var(--color-fg-mid)]">
         <Checkbox checked={confirmed} disabled={!canStart || isPending} onChange={(event) => setConfirmed(event.target.checked)} />
-        <span>我确认上述 32 队、最终名单、种子和首轮对阵应成为正式赛事事实；开赛后不能在本控制台修改它们。</span>
+        <span>我确认上述 32 队、最终名单、种子和首轮对阵；开赛后不能在本控制台普通修改它们。</span>
       </label>}
       {!started && <Button disabled={!canStart || !confirmed || isPending} onClick={() => startTransition(async () => {
         const result = await startMajor({ seasonId });

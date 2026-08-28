@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildRegistrationSchema } from "@/lib/validators/registration";
 import { REGISTRATION_DEFAULTS } from "@/lib/config/registration-defaults";
+import { PERFECT_WORLD_RANK_ORDER } from "@/lib/config/perfect-world";
 
 const positions = [...REGISTRATION_DEFAULTS.positions.values];
 
@@ -43,6 +44,10 @@ function validInput() {
 
 describe("buildRegistrationSchema", () => {
   const schema = buildRegistrationSchema(null, positions);
+
+  it("uses the shared Perfect World rank order for legacy registration defaults", () => {
+    expect(REGISTRATION_DEFAULTS.ranks.values).toEqual(PERFECT_WORLD_RANK_ORDER);
+  });
 
   it("接受合法报名数据", () => {
     expect(schema.safeParse(validInput()).success).toBe(true);

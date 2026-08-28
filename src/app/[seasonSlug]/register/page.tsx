@@ -6,8 +6,9 @@ import { educationVerifications, institutions, seasons, seasonRegistrations, tea
 import { getPositionCounts, getApprovedCount } from "@/actions/register";
 import { RegistrationForm } from "@/components/register/RegistrationForm";
 import { normalizeAffiliationRules, normalizeRegistrationConfig, normalizeTeamRegistrationConfig } from "@/types/season";
+import { resolveSeasonEducationVerification } from "@/lib/education/eligibility";
 import { getParticipantReadiness } from "@/lib/major/participant-readiness";
-import { evaluateExternalStrengthRule } from "@/lib/major/player-strength";
+import { evaluateExternalStrengthRule, getPlayerStrengthBreakdown } from "@/lib/major/player-strength";
 import { REGISTRATION_STATUS_LABELS } from "@/types/registration";
 import { Panel, StatusBanner, PosChip } from "@/components/rivalhub";
 import { positionLabel } from "@/lib/validators/registration";
@@ -111,6 +112,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
             email: users.email,
             displayName: users.displayName,
             emailVerified: users.emailVerifiedAt,
+            verificationId: educationVerifications.id,
             verificationStatus: educationVerifications.status,
             academicStatus: educationVerifications.academicStatus,
             institutionName: institutions.name,
@@ -125,26 +127,31 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
           .where(eq(teamApplicationMembers.applicationId, application.id))
           .orderBy(teamApplicationMembers.createdAt)
       : [];
-    // Approved education assertions are historical and a member may have more
-    // than one.  The roster UI still represents one person, never one row per
-    // assertion.
-    const memberByUser = new Map<string, (typeof memberRows)[number]>();
+    const affiliationRules = normalizeAffiliationRules(season.affiliationRules);
+    // Education assertions are historical. Resolve them once against this
+    // season's rules so the UI and submit path describe the same affiliation.
+    const memberByUser = new Map<string, { member: (typeof memberRows)[number]; history: Array<{ id: string; status: "pending" | "approved" | "rejected"; academicStatus: "enrolled" | "graduated"; institutionCode: string | null; institutionName: string; submittedAt: Date | null }> }>();
     for (const member of memberRows) {
-      const current = memberByUser.get(member.userId);
-      const shouldReplace = !current
-        || (member.verificationStatus === "approved" && current.verificationStatus !== "approved")
-        || (member.verificationStatus === current.verificationStatus
-          && (member.verificationSubmittedAt?.getTime() ?? 0) > (current.verificationSubmittedAt?.getTime() ?? 0));
-      if (shouldReplace) memberByUser.set(member.userId, member);
+      const existing = memberByUser.get(member.userId) ?? { member, history: [] };
+      if (member.verificationId && member.verificationStatus && member.academicStatus && member.institutionName) existing.history.push({ id: member.verificationId, status: member.verificationStatus, academicStatus: member.academicStatus, institutionCode: member.institutionCode, institutionName: member.institutionName, submittedAt: member.verificationSubmittedAt });
+      memberByUser.set(member.userId, existing);
     }
-    const members = [...memberByUser.values()];
+    const members = [...memberByUser.values()].map(({ member, history }) => {
+      const selected = resolveSeasonEducationVerification(history, affiliationRules).selectedVerification;
+      return { ...member, verificationStatus: selected?.status ?? null, academicStatus: selected?.academicStatus ?? null, institutionName: selected?.institutionName ?? null, institutionCode: selected?.institutionCode ?? null };
+    });
     const teamConfig = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
     const readinessByUser = teamConfig.requireCompetitiveProfile && teamConfig.competitiveProfile
       ? new Map(await Promise.all(members.map(async (member) => [member.userId, await getParticipantReadiness(member.userId, teamConfig.competitiveProfile!)] as const)))
       : new Map<string, Awaited<ReturnType<typeof getParticipantReadiness>>>();
-    const affiliationRules = normalizeAffiliationRules(season.affiliationRules);
     const primary = (application?.primaryStarterUserIds ?? []).map((userId) => members.find((member) => member.userId === userId)).filter((member): member is typeof members[number] => Boolean(member));
-    const externalStrength = teamConfig.competitiveProfile ? evaluateExternalStrengthRule({ config: teamConfig.competitiveProfile, players: primary.map((member) => ({ ...(readinessByUser.get(member.userId)?.strength ?? { userId: member.userId, label: member.displayName ?? member.email, historicalPeak: null, previousSeasonPeak: null, currentSeasonPeak: null }), isHome: Boolean(member.institutionCode && member.academicStatus && affiliationRules.some((rule) => rule.institutionCode === member.institutionCode && rule.eligibleAcademicStatuses.includes(member.academicStatus as "enrolled" | "graduated"))) })) }) : { eligible: true, blockers: [] };
+    const hasStrengthFacts = Boolean(teamConfig.competitiveProfile) && primary.length === 5 && primary.every((member) => getPlayerStrengthBreakdown(readinessByUser.get(member.userId)?.strength ?? { userId: member.userId, label: member.displayName ?? member.email, historicalPeak: null, previousSeasonPeak: null, currentSeasonPeak: null }, teamConfig.competitiveProfile!).available);
+    const externalStrength = !teamConfig.competitiveProfile || primary.length !== 5 || !hasStrengthFacts
+      ? { state: "pending" as const, blockers: [] }
+      : (() => {
+          const result = evaluateExternalStrengthRule({ config: teamConfig.competitiveProfile, players: primary.map((member) => ({ ...(readinessByUser.get(member.userId)?.strength ?? { userId: member.userId, label: member.displayName ?? member.email, historicalPeak: null, previousSeasonPeak: null, currentSeasonPeak: null }), isHome: Boolean(member.institutionCode && member.academicStatus && affiliationRules.some((rule) => rule.institutionCode === member.institutionCode && rule.eligibleAcademicStatuses.includes(member.academicStatus as "enrolled" | "graduated"))) })) });
+          return { state: result.eligible ? "pass" as const : "fail" as const, blockers: result.blockers };
+        })();
     const njuPrimaryCount = primary.filter((member) => member.institutionCode && member.academicStatus && affiliationRules.some((rule) => rule.institutionCode === member.institutionCode && rule.eligibleAcademicStatuses.includes(member.academicStatus as "enrolled" | "graduated"))).length;
 
     return (
@@ -156,7 +163,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
         <StatusBanner
           tone={getWindowTone(registrationWindow.phase, registrationWindow.canSubmit)}
           title={registrationWindow.message}
-          sub="报名申请与正式参赛队伍分离；只有管理员审核通过后才会生成正式队伍。"
+          sub="审核通过后，队伍将进入正式参赛名单。"
         />
         <TeamApplicationFlow
           seasonId={season.id}
@@ -164,8 +171,9 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
           currentUserId={userSession.userId}
           minTeamSize={season.minTeamSize}
           maxTeamSize={season.maxTeamSize}
+          requireTeamLogo={teamConfig.requireTeamLogo}
           application={application}
-          qualification={{ njuPrimaryCount, externalStrengthBlockers: externalStrength.blockers }}
+          qualification={{ njuPrimaryCount, externalStrength }}
           members={members.map((member) => ({ id: member.id, userId: member.userId, email: member.email, displayName: member.displayName, status: member.status, emailVerified: Boolean(member.emailVerified), educationStatus: (member.verificationStatus ?? "unsubmitted") as "unsubmitted" | "pending" | "approved" | "rejected", institutionName: member.institutionName, readinessBlockers: readinessByUser.get(member.userId)?.blockers ?? [] }))}
         />
       </div>

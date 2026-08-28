@@ -61,7 +61,7 @@ export function getAdminMatchStartBlockers({
     if (typed.status !== "confirmed") return [`${name} 首发尚未确认`];
     if (!requiresPreflight) return [];
     const eligibility = preflight as { valid: boolean; blockers: string[] } | null;
-    if (!eligibility) return [`${name} 尚未得到服务端预检结果`];
+    if (!eligibility) return [`${name} 尚未完成首发资格检查`];
     if (!eligibility.valid) return eligibility.blockers.map((blocker) => `${name}：${blocker}`);
     return [];
   });
@@ -228,7 +228,7 @@ export function AdminMatchRow({
                     startBlockers={startBlockers}
                   />
                 )}
-                <div className="space-y-2 border-t border-[var(--color-border)] pt-3"><p className="font-mono text-[11px] tracking-[0.12em] text-[var(--color-fg-mid)]">裁决与弃赛</p><p className="text-xs leading-5 text-[var(--color-fg-mid)]">延长、重新排期或双方协商可先调整赛程。判负必须明确弃赛方与原因，并由服务端写入正式结果与审计。</p><ForfeitButton
+                <div className="space-y-2 border-t border-[var(--color-border)] pt-3"><p className="font-mono text-[11px] tracking-[0.12em] text-[var(--color-fg-mid)]">裁决与弃赛</p><p className="text-xs leading-5 text-[var(--color-fg-mid)]">延长、重新排期或双方协商可先调整赛程。判负必须明确弃赛方与原因，并记录正式结果与审计。</p><ForfeitButton
                   matchId={match.id}
                   teamAId={match.teamAId}
                   teamBId={match.teamBId}

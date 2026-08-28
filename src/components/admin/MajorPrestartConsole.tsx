@@ -37,7 +37,7 @@ export function MajorPrestartConsole({
           赛事控制台 · {seasonName}
         </Marker>
         <p className="text-sm text-[var(--color-fg-mid)]">
-          按赛前检查、正式名单、种子和阶段推进依次完成。每次确认都由服务器重新核验赛事事实。
+          按赛前检查、正式名单、种子和阶段推进依次完成。每次确认都会重新检查当前资料。
         </p>
       </div>
 
@@ -62,7 +62,7 @@ export function MajorPrestartConsole({
           </ol>
         ) : (
           <p className="text-sm text-[var(--color-fg-mid)]">
-            开赛计划会在所有赛前条件通过后由领域结果提供；当前不会推导或展示临时对阵。
+            完成所有赛前条件后，这里会显示首轮对阵。
           </p>
         )}
       </Panel>

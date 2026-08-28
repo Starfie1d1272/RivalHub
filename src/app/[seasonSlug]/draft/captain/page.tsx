@@ -100,7 +100,7 @@ export default async function DraftCaptainPage({ params }: DraftCaptainPageProps
       <div className="mb-8">
         <h1 className="text-3xl font-bold">队长选人 · {season.name}</h1>
         <p className="mt-2 text-sm text-[var(--color-fg-mid)]">
-          当前队长端只在轮到本队时开放选择；重复点击会通过请求 ID 幂等处理。
+          只在轮到本队时开放选择；重复操作不会产生重复选人结果。
         </p>
       </div>
 

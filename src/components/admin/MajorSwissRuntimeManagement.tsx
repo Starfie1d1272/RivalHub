@@ -31,11 +31,11 @@ export function MajorSwissRuntimeManagement({ data }: { data: MajorSwissRuntimeD
   return <Panel label="Swiss 逐轮运行">
     <div className="space-y-4">
       <div>
-        <Marker sub={data.stageComplete ? data.nextStageName ? "本 StageRun 已完成，等待显式切换下一阶段" : "所有 Swiss 阶段已完成" : `当前第 ${data.currentRound} 轮`}>
+        <Marker sub={data.stageComplete ? data.nextStageName ? "本阶段已完成，等待进入下一阶段" : "所有 Swiss 阶段已完成" : `当前第 ${data.currentRound} 轮`}>
           {data.stageComplete ? `${data.stageKey} 已完成` : `第 ${data.currentRound} 轮待办赛确认`}
         </Marker>
         <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
-          已确认至第 {data.finalizedRound} 轮；本轮 {data.completedMatchCount}/{data.currentMatchCount} 场比赛已完成。确认会在服务器复核指定 StageRun 的正式比分与 Swiss 对阵事实后，原子生成下一轮。
+          已确认至第 {data.finalizedRound} 轮；本轮 {data.completedMatchCount}/{data.currentMatchCount} 场比赛已完成。确认后会核对本轮比分与对阵，并创建下一轮。
         </p>
       </div>
 
@@ -58,7 +58,7 @@ export function MajorSwissRuntimeManagement({ data }: { data: MajorSwissRuntimeD
           setConfirmed(false);
           router.refresh();
         })}>确认本轮并生成下一轮</Button>
-        {!canFinalize && <p className="text-xs text-[var(--color-warn)]">下一步：先完成并录入本轮全部托管比赛的有效正式比分，才能确认。</p>}
+        {!canFinalize && <p className="text-xs text-[var(--color-warn)]">下一步：先完成并录入本轮全部比赛的有效比分，才能确认。</p>}
       </>}
 
       {data.stageComplete && data.nextStageName && <>
@@ -73,8 +73,8 @@ export function MajorSwissRuntimeManagement({ data }: { data: MajorSwissRuntimeD
             : await transitionMajorSwissStage({ seasonId: data.seasonId, sourceStageRunId: data.stageRunId });
           if (!result.success) { toast.error(result.error.message); return; }
           toast.success(result.data.created
-            ? `已创建 ${data.nextStageName} StageRun 与 ${result.data.matchCount} 场首轮托管比赛`
-            : `${data.nextStageName} StageRun 已存在，未重复创建比赛`);
+            ? `已创建 ${data.nextStageName} 与 ${result.data.matchCount} 场首轮比赛`
+            : `${data.nextStageName} 已存在，无需重复创建比赛`);
           setConfirmed(false);
           router.refresh();
         })}>确认切换至 {data.nextStageName}</Button>

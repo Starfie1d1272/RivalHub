@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import assert from "node:assert/strict";
 import { Pool, type PoolClient } from "pg";
+import { PERFECT_WORLD_RANK_ORDER } from "../../src/lib/config/perfect-world";
 
 const databaseUrl = process.env.RIVALHUB_LOCAL_DATABASE_URL;
 if (!databaseUrl) throw new Error("RIVALHUB_LOCAL_DATABASE_URL 未设置。");
@@ -62,7 +63,8 @@ async function main(): Promise<void> {
 
     await client.query(
       `INSERT INTO competitive_platform_seasons (platform, season_key, label, rank_order)
-       VALUES ('perfect_world', 'major-current', 'Major Current', '["C","B","A","S","S+"]'::json)`,
+       VALUES ('perfect_world', 'major-current', 'Major Current', $1::json)`,
+      [JSON.stringify(PERFECT_WORLD_RANK_ORDER)],
     );
     await expectPgError(
       client,
@@ -73,16 +75,16 @@ async function main(): Promise<void> {
     );
     await client.query(
       `INSERT INTO competitive_rank_facts (user_id, platform, kind, platform_season_key, rank, rating)
-       VALUES ($1, 'perfect_world', 'historical_peak', NULL, 'A', 1000),
-              ($1, 'perfect_world', 'season_peak', 'major-previous', 'B', 900),
-              ($1, 'perfect_world', 'season_peak', 'major-current', 'S', 1100)`,
-      [ids.first],
+       VALUES ($1, 'perfect_world', 'historical_peak', NULL, $2, 1000),
+              ($1, 'perfect_world', 'season_peak', 'major-previous', $3, 900),
+              ($1, 'perfect_world', 'season_peak', 'major-current', $4, 1100)`,
+      [ids.first, PERFECT_WORLD_RANK_ORDER[7], PERFECT_WORLD_RANK_ORDER[4], PERFECT_WORLD_RANK_ORDER[10]],
     );
     await expectPgError(
       client,
       `INSERT INTO competitive_rank_facts (user_id, platform, kind, platform_season_key, rank, rating)
-       VALUES ($1, 'perfect_world', 'season_peak', 'major-current', 'S+', 1200)`,
-      [ids.first],
+       VALUES ($1, 'perfect_world', 'season_peak', 'major-current', $2, 1200)`,
+      [ids.first, PERFECT_WORLD_RANK_ORDER[11]],
       "23505",
     );
     await client.query(

@@ -23,6 +23,8 @@ const {
   revalidatePathMock,
   getRegistrationWindowStateMock,
   insertValuesCalls,
+  storageUploadMock,
+  storageGetPublicUrlMock,
 } = vi.hoisted(() => {
   const insertValuesCalls: unknown[] = [];
   return {
@@ -41,6 +43,8 @@ const {
     revalidatePathMock: vi.fn(),
     getRegistrationWindowStateMock: vi.fn(),
     insertValuesCalls,
+    storageUploadMock: vi.fn(),
+    storageGetPublicUrlMock: vi.fn(),
   };
 });
 
@@ -54,6 +58,10 @@ vi.mock("@/lib/registration/window", () => ({
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+
+vi.mock("@/lib/auth/supabase", () => ({
+  createServiceClient: () => ({ storage: { from: () => ({ upload: storageUploadMock, getPublicUrl: storageGetPublicUrlMock }) } }),
+}));
 
 vi.mock("@/db/client", () => {
   return {
@@ -78,6 +86,7 @@ import {
   inviteTeamApplicationMember,
   removeTeamApplicationMember,
   submitTeamApplication,
+  uploadTeamApplicationLogo,
   updateTeamApplication,
 } from "@/actions/team-applications";
 
@@ -88,7 +97,7 @@ const SEASON = {
   minTeamSize: 2,
   maxTeamSize: 5,
   registrationMode: "team",
-  teamRegistrationConfig: { allowExternal: true, minHomeMembers: 0, maxExternalMembers: 5 },
+  teamRegistrationConfig: { allowExternal: true, minHomeMembers: 0, maxExternalMembers: 5, requireTeamLogo: false },
   registrationConfig: null,
   capabilities: { teamRegistration: true },
 };
@@ -166,6 +175,8 @@ beforeEach(() => {
   userFindFirstMock.mockResolvedValue({ id: PLAYER_ID, email: "player@rivalhub.test" });
   setupTransaction();
   setupInsert();
+  storageUploadMock.mockResolvedValue({ error: null });
+  storageGetPublicUrlMock.mockReturnValue({ data: { publicUrl: "https://storage.example.test/applications/logo.webp" } });
 });
 
 describe("team application participant actions", () => {
@@ -200,12 +211,34 @@ describe("team application participant actions", () => {
   });
 
   it("edits a draft application and records the previous name", async () => {
-    const result = await updateTeamApplication({ applicationId: APPLICATION_ID, name: "Renamed Team", logoUrl: "https://example.test/logo.png" });
+    const result = await updateTeamApplication({ applicationId: APPLICATION_ID, name: "Renamed Team" });
 
     expect(result).toEqual({ success: true, data: undefined });
     expect(insertValuesCalls).toEqual(expect.arrayContaining([
       expect.objectContaining({ action: "team_application.update", meta: expect.objectContaining({ fromName: "Rival Team", toName: "Renamed Team" }) }),
     ]));
+  });
+
+  it("uploads a captain-owned application logo into the application namespace", async () => {
+    const formData = new FormData();
+    formData.append("file", new File(["logo"], "logo.webp", { type: "image/webp" }));
+
+    const result = await uploadTeamApplicationLogo(APPLICATION_ID, formData);
+
+    expect(result).toEqual({ success: true, data: { logoUrl: "https://storage.example.test/applications/logo.webp" } });
+    expect(storageUploadMock).toHaveBeenCalledWith(expect.stringMatching(new RegExp(`^applications/${APPLICATION_ID}/`)), expect.any(File), expect.objectContaining({ contentType: "image/webp" }));
+    expect(insertValuesCalls).toEqual(expect.arrayContaining([expect.objectContaining({ action: "team_application.upload_logo" })]));
+  });
+
+  it("rejects an application logo after the registration window closes", async () => {
+    getRegistrationWindowStateMock.mockReturnValue({ canSubmit: false, message: "报名已结束" });
+    const formData = new FormData();
+    formData.append("file", new File(["logo"], "logo.png", { type: "image/png" }));
+
+    const result = await uploadTeamApplicationLogo(APPLICATION_ID, formData);
+
+    expect(result).toMatchObject({ success: false, error: { code: ErrorCode.REGISTRATION_CLOSED } });
+    expect(storageUploadMock).not.toHaveBeenCalled();
   });
 
   it("invites a registered player only after active-application and formal-team checks", async () => {

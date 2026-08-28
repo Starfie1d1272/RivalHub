@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { Pool } from "pg";
 import { createMajorDefaultCapabilities } from "../../src/types/season";
+import { createPerfectWorldRankOrder } from "../../src/lib/config/perfect-world";
 import { assertDeclaredDatabaseTarget, assertLocalDatabaseUrl, assertLocalHttpUrl } from "./local-environment";
 
 const FIXTURE_SEASON_ID = deterministicUuid("major-browser-season");
@@ -12,8 +13,9 @@ const PROFILE = {
   platform: "perfect_world",
   currentSeasonKey: "browser-major-current",
   previousSeasonKey: "browser-major-previous",
-  rankOrder: ["C", "B", "A", "S", "SS"],
+  rankOrder: createPerfectWorldRankOrder(),
 };
+const FIXTURE_RANK = PROFILE.rankOrder[10]!;
 const PASSWORD = "Browser-Major-2026!";
 const ACCOUNT_KEYS = ["captain", "player1", "player2", "player3", "player4"] as const;
 const ACCOUNT_EMAILS = ACCOUNT_KEYS.map((key) => `major-browser-${key}@smail.nju.edu.cn`);
@@ -156,9 +158,9 @@ async function insertFixture(client: import("pg").PoolClient, authIds: Map<strin
   const facts = ACCOUNT_KEYS.filter((key) => key !== "player1").flatMap((key) => {
     const userId = ACCOUNT_IDS[ACCOUNT_KEYS.indexOf(key)]!;
     return [
-      [deterministicUuid(`major-browser-fact-${key}-historical`), userId, "historical_peak", null, "S", "2.00"],
-      [deterministicUuid(`major-browser-fact-${key}-previous`), userId, "season_peak", PROFILE.previousSeasonKey, "S", "1.90"],
-      [deterministicUuid(`major-browser-fact-${key}-current`), userId, "season_peak", PROFILE.currentSeasonKey, "S", "1.80"],
+      [deterministicUuid(`major-browser-fact-${key}-historical`), userId, "historical_peak", null, FIXTURE_RANK, "2.00"],
+      [deterministicUuid(`major-browser-fact-${key}-previous`), userId, "season_peak", PROFILE.previousSeasonKey, FIXTURE_RANK, "1.90"],
+      [deterministicUuid(`major-browser-fact-${key}-current`), userId, "season_peak", PROFILE.currentSeasonKey, FIXTURE_RANK, "1.80"],
     ];
   });
   for (const [id, userId, kind, seasonKey, rank, rating] of facts) {

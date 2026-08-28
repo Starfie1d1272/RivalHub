@@ -12,13 +12,8 @@ import { revalidateSeasonPaths } from "@/lib/revalidation";
 import { ok, type ActionResult } from "@/types/action";
 import { MIN_TEAM_NAME_LENGTH, MAX_TEAM_NAME_LENGTH } from "@/lib/config/team-config";
 import { LOGO_MAX_BYTES, LOGO_ALLOWED_TYPES } from "@/lib/config/upload-limits";
+import { TEAM_LOGO_BUCKET, TEAM_LOGO_EXTENSIONS } from "@/lib/config/team-logo";
 
-const LOGO_BUCKET = "team-logos";
-const EXT_MAP: Record<string, string> = {
-  "image/png": "png",
-  "image/webp": "webp",
-  "image/jpeg": "jpg",
-};
 
 export async function uploadTeamLogo(
   teamId: string,
@@ -48,10 +43,10 @@ export async function uploadTeamLogo(
     const season = await db.query.seasons.findFirst({ where: eq(seasons.id, team.seasonId) });
     if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
 
-    const ext = EXT_MAP[file.type] ?? "jpg";
+    const ext = TEAM_LOGO_EXTENSIONS[file.type] ?? "jpg";
     const path = `${teamId}/${Date.now()}.${ext}`;
     const supabase = createServiceClient();
-    const bucket = supabase.storage.from(LOGO_BUCKET);
+    const bucket = supabase.storage.from(TEAM_LOGO_BUCKET);
     const { error: uploadError } = await bucket.upload(path, file, { upsert: true, contentType: file.type });
     if (uploadError) {
       throw new AppError(ErrorCode.INTERNAL_ERROR, "图片上传失败，请重试");
