@@ -4,9 +4,8 @@
 
 ## 实验边界
 
-- frozen child baseline：`d393679ba931ebd048806fef13ec27192d871cf4`
-- 验收代码候选 SHA（证据生成时）：`3e99c92c2884c093a44d8df993cdd023b616194a`
-- 最终 pre-merge SHA：由最终门禁在合并前记录（最终汇报给出；避免在包含本文件的 commit 中制造自引用哈希）
+- 本次 Local release acceptance 的 runtime SHA：`55e91314e4cadbe3a51115d64933cc14f60a5e38`
+- 该 SHA 包含本会话已复现并修复的 privacy 与 Local browser/prestart harness 问题；本文件只记录本次 integration gate，不复用 child PR 的通过结果
 - 数据库：Supabase Local loopback；fresh reset 从 `0000` 到 `0012_dapper_devos` 完整执行，共 13 条 migration
 - staging / production：没有 migration、write 或环境变更
 - 可复现入口：`pnpm test:major-golden:local`
@@ -138,33 +137,44 @@ Golden runner 实际注入：并发 start retry、重复 stage transition、重�
 
 ## Browser / privacy / responsive evidence
 
-- 真实 Chromium 浏览器完成 PLAYER、CAPTAIN、ADMIN/REFEREE 的 Local fixture 流程：资料 readiness、Perfect ID 与 Perfect Name 分离、教育 fast path、竞技档案 Radix Select、隐私确认、邀请、成员确认、5 primary starters、提交审核、admin approve、公开队伍/选手/统计页面
-- 390 / 768 / 1440 px 实测 `documentWidth === bodyWidth`，无水平溢出；长身份字段和 blocker 文本未破坏布局
-- anonymous team detail 不显示 QQ/email；同队授权页面按设计显示必要私有联系方式；公开选手页仅显示 display identity、Perfect/Steam identity、institution/verification state、competitive facts
-- 公开页面修复了 team-registration 成员没有 season registration row 时被 inner join 丢失的问题；stats 页面不再查询不存在的 `match_player_stats.source` 列
-- operator checklist 勾选是本地页面 reminder；refresh 后按设计重置，不能绕过 authoritative preflight，也不会阻止 server-side legitimate start
+- 真实 Chromium 完成 PLAYER、CAPTAIN、ADMIN/REFEREE 的 Local fixture 流程：资料 readiness、Perfect ID/Name、教育、竞技档案、隐私确认、邀请、成员确认、5 primary starters、提交审核、admin approve、公开选手页。
+- 独立的 32 队/160 选手 prestart browser fixture 在 32/32 正式队、1–32 seed 状态下完成 Admin 正式开赛；随后赛程页显示 Stage 1 8 场托管比赛和 authoritative lineup/preflight blockers。Swiss、playoff、correction、discipline、post-event、archive 的状态变迁由同一 SHA 的 Local PostgreSQL/Golden suites 完成，不把后端 fixture 结果冒充为手工 UI 点击。
+- 390 / 768 / 1440 px 实测 `document.documentElement.scrollWidth === clientWidth`，settings、registration、admin registration、prestart、matches 页面无水平溢出；长身份字段、buttons、dialog/select 和 tables 未出现破版。浏览器 console error 为 0。
+- 公开选手页 eval：`containsEmail=false`、`containsQQ=false`、`containsChsi=false`、`containsInternalEvidence=false`；公开身份只使用 display/Perfect/Steam/institution/approved verification/competitive facts。内部教育证据、纪律证据、投诉与 audit/security 细节仍在服务端/管理端边界内。
+- operator checklist 是页面 reminder；refresh 后重置，不能绕过 authoritative preflight，也不会替代 server-side start/lineup gate。
 
 ## Commands / result
 
 ```text
-pnpm db:check                         pass
-pnpm db:local:reset                   pass (13 migrations)
-pnpm db:local:verify                  pass (Auth, Storage, RLS/Data API deny)
-pnpm exec supabase db lint --local    pass
-pnpm test:major-profile:local         pass
-pnpm test:team-registration:local    pass
-pnpm test:major-prestart:local       pass
-pnpm test:major-roster-safety:local  pass
-pnpm test:major-result-recovery:local pass
-pnpm test:discipline:local            pass
-pnpm test:postevent:local              pass (P1–P20)
-pnpm test:major-golden:local          pass
-pnpm test:e2e                          pass (2 tests: Chromium + mobile Chromium)
-pnpm test:coverage                    pass (111 files, 800 tests; funcs 60%, branches 73.61%, lines 42.41%)
-pnpm lint                              pass
-pnpm type-check                        pass
-pnpm build                             pass
-git diff --check                       pass
+pnpm db:local:reset                         pass (fresh loopback; 13 migrations)
+pnpm db:local:verify                        pass (Auth, Storage, RLS/Data API deny)
+pnpm db:check                               pass
+pnpm exec tsx scripts/db/local.ts verify-migrations pass (13 active migrations)
+pnpm exec supabase db lint --local          pass (no schema errors)
+pnpm exec supabase db advisors --local --type security pass (no issues)
+pnpm test                                   pass (112 files, 804 tests)
+pnpm test:coverage                          pass (112 files, 804 tests; lines 42.43%, branches 73.64%, funcs 60.04%)
+pnpm type-check                             pass
+pnpm lint                                   pass
+pnpm build (explicit Local status env)      pass (127.0.0.1, SSL off)
+pnpm test:team-registration:local          pass
+pnpm test:major-profile:local               pass
+pnpm test:major-prestart:local              pass
+pnpm test:major-start:local                 pass
+pnpm test:major-swiss:local                 pass (same current major integration runner)
+pnpm test:major-golden:local                pass (32 teams, 160 players)
+pnpm test:major-roster-safety:local         pass (G1)
+pnpm test:major-result-recovery:local       pass (G2)
+pnpm test:discipline:local                  pass (H1)
+pnpm test:postevent:local                   pass (H2 P1–P20)
+git diff --check                           pass
 ```
 
-最终工作树、feature SHA、GitHub CI/Vercel 和 merge 后 integration SHA 在 PR 合并收尾时补录；本文件不保存任何密码、token 或环境 secret。
+## Security / recovery / scope result
+
+- Local command wrappers scrub remote database/auth variables and require loopback for Local status, migrations, fixture writes and integration suites；`pnpm db:push` remains disabled。所有本次 destructive/reset 操作目标均为 `127.0.0.1:54322`，没有 staging/production write。
+- schema、FK/unique/check/index、RLS deny-by-default、Data API exposure、public serializer 和 public identity fallback 均按最终 SHA 检查；未发现 debug route、test-only production endpoint、fixture auto-start、secret/token、Golden fixture production import 或 DAK 依赖。
+- Golden 与 G1/G2/H1/H2 实际覆盖 duplicate/retry、wrong result、correction、started-downstream block、illegal roster、NJU/external/discipline blockers、forfeit、honor revoke/no auto-promotion、archive mutation block、post-archive adjudication，以及 transaction rollback。
+- 本次验收产生的 fixes：`a4d9e46`（public identity 不再 email fallback）、`9a06b0a`（browser fixture 清理 user sessions）、`55e9131`（prestart browser fixture 明确写入 registration state）。没有新增产品功能、赛事规则或 DAK。
+
+本文件不保存密码、token 或环境 secret；#239 保持 Draft，未 merge、未进入 staging/production migration 或 write 阶段。最终判定由本次 SHA 的 final diff/worktree/PR audit 一并给出。
