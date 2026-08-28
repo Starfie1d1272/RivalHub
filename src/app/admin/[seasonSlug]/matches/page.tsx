@@ -249,7 +249,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
         })
         .from(teamMembers)
         .innerJoin(users, eq(teamMembers.userId, users.id))
-        .innerJoin(
+        .leftJoin(
           seasonRegistrations,
           eq(teamMembers.registrationId, seasonRegistrations.id),
         )
@@ -288,7 +288,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
       steamName: r.steamName ?? "未知",
       displayName: r.displayName ?? null,
       perfectName: r.perfectName ?? null,
-      primaryPosition: r.primaryPosition,
+      primaryPosition: r.primaryPosition ?? "—",
     }));
 
     for (const t of allTeamMembers) {

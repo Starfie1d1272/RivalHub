@@ -124,7 +124,6 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
         and(
           eq(matchPlayerStats.userId, userId),
           sql`${matchPlayerStats.verifiedByAdmin} IS NOT NULL`,
-          sql`"match_player_stats".source = 'manual_ocr'`,
         )
       )
       .groupBy(seasons.id, seasons.name, seasons.slug, seasons.createdAt)
@@ -168,7 +167,6 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
       and(
         eq(matchPlayerStats.userId, userId),
         sql`${matchPlayerStats.verifiedByAdmin} IS NOT NULL`,
-        sql`"match_player_stats".source = 'manual_ocr'`,
       )
     );
   const ocrMatchIds = ocrMatchIdRows.map((r) => r.matchId);
