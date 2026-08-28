@@ -4,8 +4,8 @@
 
 ## 实验边界
 
-- 本次 Local release acceptance 的 runtime SHA：`55e91314e4cadbe3a51115d64933cc14f60a5e38`
-- 该 SHA 包含本会话已复现并修复的 privacy 与 Local browser/prestart harness 问题；本文件只记录本次 integration gate，不复用 child PR 的通过结果
+- 本次 correctness closeout 的 runtime SHA：`173e9e1b6a28de1161b796775f0a0075997d6c48`
+- 该 SHA 包含本次 #239 最终修复：seed safety、semifinal/third-place downstream recovery、Major prestart invariants/openingPlan contract；本文件只记录本次 integration gate，不复用 child PR 的通过结果
 - 数据库：Supabase Local loopback；fresh reset 从 `0000` 到 `0012_dapper_devos` 完整执行，共 13 条 migration
 - staging / production：没有 migration、write 或环境变更
 - 可复现入口：`pnpm test:major-golden:local`
@@ -123,6 +123,13 @@ Golden runner 的 32 队 runtime rehearsal 使用 canonical ready fixture；报�
 - 重复 final confirm、honor grant/revoke、adjudication、archive 均命中幂等事实
 - archive 后普通 match mutation 被拒绝；post-archive adjudication 和 honor revoke 保持允许
 
+## 本次 correctness closeout
+
+- Database seed safety：`pnpm seed` 不再隐式加载 `.env.local`；Local 仍由 `db:local:*` wrapper 注入 loopback 环境，`scripts/seed.ts` 继续要求 `assertDeclaredDatabaseTarget`，并由 package/script contract test 固定该边界。
+- Semifinal / third-place recovery：单淘汰 downstream 依 canonical `managedKey` 槽位关系；semifinal winner correction 同时影响 final 与 third-place，已开始/完成的任一场都 fail closed；quarterfinal correction 只作废真实依赖路径，并由现有 playoff runtime 补建缺失 semifinal。
+- Major prestart / opening plan：`min/max/starter/roster/educationVerificationIds` 全部纳入 readiness invariant；只要标准结构、32 个合法 team identity、完整 1–32 seeds 和 Stage 1 format 可构造，`openingPlan` 即可作为预览返回，而 `canStart` 仍由完整 readiness 授权。Admin 页面消费 `readiness.openingPlan`，不再维护 `seedPreview`。
+- Regression evidence：unit tests 覆盖 seed contract、上述 roster policy 与 preview/start distinction、playoff impact/blocking；Local G2 覆盖 A（SF → final + third rebuild）、B/C（final/third started or finished hard block）、D（QF 仅真实依赖 semifinal）。
+
 ## 故障注入与配套回归
 
 Golden runner 实际注入：并发 start retry、重复 stage transition、重复 result correction、同胜者比分更正、非法/缺失结果拒绝、并发 final confirm、重复 honor/adjudication/archive、archive 后普通 mutation 拒绝、archive 后专用 adjudication 允许、start 事务 trigger failure rollback。
@@ -130,7 +137,7 @@ Golden runner 实际注入：并发 start retry、重复 stage transition、重�
 相邻故障由独立 Local suites 实际覆盖：
 
 - G1：无 roster、非法 5 人、非 frozen 成员、NJU starters 不足、external strength、discipline、重复 submit/confirm/start、并发 start、identity/education blocker
-- G2：错误比分、forfeit canonical shape、无 downstream correction、已开始 downstream hard block、合法 invalidation/rebuild、重复 correction
+- G2：错误比分、forfeit canonical shape、无 downstream correction、semifinal 对 final/third-place 的 recovery、final/third-place started/finished hard block、quarterfinal 真实依赖路径、合法 invalidation/rebuild、重复 correction
 - H1：personal sanction、capability scope、revoked/expired、teammate unaffected、registration 与 lineup/start 双边 enforcement
 - H2：pending → confirmed、champion revoke/vacant、no auto-promotion、manual honor grant/revoke、private evidence、archive/idempotency/post-archive guards
 - registration/prestart：邀请未 ready、readiness blocker、补齐后可确认、5 primary starters、2/3 NJU boundary、approved education revision 不改写 frozen snapshot、active-claim race
@@ -152,17 +159,16 @@ pnpm db:check                               pass
 pnpm exec tsx scripts/db/local.ts verify-migrations pass (13 active migrations)
 pnpm exec supabase db lint --local          pass (no schema errors)
 pnpm exec supabase db advisors --local --type security pass (no issues)
-pnpm test                                   pass (112 files, 804 tests)
-pnpm test:coverage                          pass (112 files, 804 tests; lines 42.43%, branches 73.64%, funcs 60.04%)
+pnpm test                                   pass x2 (114 files, 817 tests per run)
 pnpm type-check                             pass
 pnpm lint                                   pass
-pnpm build (explicit Local status env)      pass (127.0.0.1, SSL off)
+pnpm build                                  pass (compiled and generated all static pages; no write)
 pnpm test:team-registration:local          pass
 pnpm test:major-profile:local               pass
 pnpm test:major-prestart:local              pass
 pnpm test:major-start:local                 pass
 pnpm test:major-swiss:local                 pass (same current major integration runner)
-pnpm test:major-golden:local                pass (32 teams, 160 players)
+pnpm test:major-golden:local                pass on `173e9e1` (32 teams, 160 players)
 pnpm test:major-roster-safety:local         pass (G1)
 pnpm test:major-result-recovery:local       pass (G2)
 pnpm test:discipline:local                  pass (H1)
@@ -175,6 +181,6 @@ git diff --check                           pass
 - Local command wrappers scrub remote database/auth variables and require loopback for Local status, migrations, fixture writes and integration suites；`pnpm db:push` remains disabled。所有本次 destructive/reset 操作目标均为 `127.0.0.1:54322`，没有 staging/production write。
 - schema、FK/unique/check/index、RLS deny-by-default、Data API exposure、public serializer 和 public identity fallback 均按最终 SHA 检查；未发现 debug route、test-only production endpoint、fixture auto-start、secret/token、Golden fixture production import 或 DAK 依赖。
 - Golden 与 G1/G2/H1/H2 实际覆盖 duplicate/retry、wrong result、correction、started-downstream block、illegal roster、NJU/external/discipline blockers、forfeit、honor revoke/no auto-promotion、archive mutation block、post-archive adjudication，以及 transaction rollback。
-- 本次验收产生的 fixes：`a4d9e46`（public identity 不再 email fallback）、`9a06b0a`（browser fixture 清理 user sessions）、`55e9131`（prestart browser fixture 明确写入 registration state）。没有新增产品功能、赛事规则或 DAK。
+- 本次 correctness closeout fixes：`173e9e1`（seed safety；semifinal/third-place 与 quarterfinal downstream recovery；Major prestart invariants 与 openingPlan preview/authorization contract）。没有新增产品功能、赛事规则或 DAK。
 
-本文件不保存密码、token 或环境 secret；#239 保持 Draft，未 merge、未进入 staging/production migration 或 write 阶段。最终判定由本次 SHA 的 final diff/worktree/PR audit 一并给出。
+本文件不保存密码、token 或环境 secret；截至本次代码验收 #239 尚未 merge，未进入 staging/production migration 或 write 阶段。最终判定由本次 SHA 的 final diff/worktree/PR audit 一并给出。
