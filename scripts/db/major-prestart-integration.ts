@@ -41,9 +41,9 @@ async function main(): Promise<void> {
     await client.query("BEGIN");
     await client.query(
       `INSERT INTO seasons (
-        id, slug, name, kind, registration_mode, has_captain_voting, has_draft,
+        id, slug, name, kind, status, registration_mode, has_captain_voting, has_draft,
         stage_plan, registration_config, team_registration_config, affiliation_rules, min_team_size, max_team_size, starter_count, positions
-      ) VALUES ($1, $2, 'Local Major Prestart', 'Major', $3, $4, $5, $6::json, $7::json, $8::json, $9::json, $10, $11, $12, $13::text[])`,
+      ) VALUES ($1, $2, 'Local Major Prestart', 'Major', 'registration', $3, $4, $5, $6::json, $7::json, $8::json, $9::json, $10, $11, $12, $13::text[])`,
       [
         seasonId,
         keepBrowserFixture ? browserSlug : `local-major-prestart-${seasonId}`,
