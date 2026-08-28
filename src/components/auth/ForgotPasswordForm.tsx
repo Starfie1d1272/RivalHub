@@ -29,6 +29,9 @@ export function ForgotPasswordForm() {
         <p className="text-xs text-[var(--color-fg-mid)]">
           请查看邮箱 {email}，点击邮件中的链接设置新密码。链接 1 小时内有效。
         </p>
+        <p className="mt-2 text-xs text-[var(--color-fg-mid)]">
+          如果几分钟内没有收到，请检查垃圾邮件或稍后重新请求。
+        </p>
       </div>
     );
   }

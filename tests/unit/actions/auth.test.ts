@@ -9,6 +9,7 @@ const {
   destroyUserSessionMock,
   destroyAdminSessionMock,
   signInWithPasswordMock,
+  resetPasswordForEmailMock,
   signUpMock,
   revalidatePathMock,
   normalizeEmailMock,
@@ -31,6 +32,7 @@ const {
     destroyUserSessionMock: vi.fn(),
     destroyAdminSessionMock: vi.fn(),
     signInWithPasswordMock: vi.fn(),
+    resetPasswordForEmailMock: vi.fn(),
     signUpMock: vi.fn(),
     revalidatePathMock: vi.fn(),
     normalizeEmailMock: vi.fn((email: string) => email),
@@ -56,6 +58,7 @@ vi.mock("@/lib/auth/supabase", () => ({
   createServiceClient: () => ({
     auth: {
       signInWithPassword: signInWithPasswordMock,
+      resetPasswordForEmail: resetPasswordForEmailMock,
       signUp: signUpMock,
     },
   }),
@@ -94,7 +97,7 @@ vi.mock("@/db/client", () => {
   };
 });
 
-import { loginWithPassword, signUp, logoutUser, claimInviteCode } from "@/actions/auth";
+import { loginWithPassword, signUp, sendPasswordResetEmail, logoutUser, claimInviteCode } from "@/actions/auth";
 import { MIN_PASSWORD_LENGTH } from "@/lib/config/auth-config";
 
 // ── helpers ───────────────────────────────────────────────────────────────
@@ -407,6 +410,42 @@ describe("signUp", () => {
       expect(result.data.email).toBe(VALID_EMAIL);
     }
     expect(createUserSessionMock).not.toHaveBeenCalled();
+  });
+});
+
+// ── sendPasswordResetEmail ───────────────────────────────────────────────
+
+describe("sendPasswordResetEmail", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.NEXT_PUBLIC_APP_URL = "https://match.starfie1d.top/";
+    normalizeEmailMock.mockImplementation((e: string) => e.trim().toLowerCase());
+  });
+
+  it("成功请求使用规范化的 reset redirect URL", async () => {
+    resetPasswordForEmailMock.mockResolvedValue({ error: null });
+
+    const result = await sendPasswordResetEmail(" TEST@EXAMPLE.COM ");
+
+    expect(result.success).toBe(true);
+    expect(resetPasswordForEmailMock).toHaveBeenCalledWith("test@example.com", {
+      redirectTo: "https://match.starfie1d.top/reset-password",
+    });
+  });
+
+  it("发信服务失败时返回统一错误而不暴露邮箱是否存在", async () => {
+    resetPasswordForEmailMock.mockResolvedValue({
+      error: { message: "Email address not authorized", status: 400 },
+    });
+
+    const result = await sendPasswordResetEmail("test@example.com");
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.code).toBe(ErrorCode.INTERNAL_ERROR);
+      expect(result.error.message).toBe("重置邮件暂时无法发送，请稍后重试。");
+      expect(result.error.message).not.toContain("authorized");
+    }
   });
 });
 

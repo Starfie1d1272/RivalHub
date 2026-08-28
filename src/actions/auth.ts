@@ -221,14 +221,15 @@ export async function sendPasswordResetEmail(email: string): Promise<ActionResul
   try {
     const supabase = createServiceClient();
     const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
-      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/reset-password`,
+      redirectTo: new URL("/reset-password", process.env.NEXT_PUBLIC_APP_URL).toString(),
     });
 
     if (error) {
-      // 不暴露邮箱是否存在（防枚举），统一返回成功提示
+      // 不暴露邮箱是否存在（防枚举），但不能把真实的发信/配置失败伪装成成功。
       if (process.env.NODE_ENV === "development") {
         console.warn("[sendPasswordResetEmail]", error.message);
       }
+      return fail({ code: ErrorCode.INTERNAL_ERROR, message: "重置邮件暂时无法发送，请稍后重试。" });
     }
     return ok(undefined);
   } catch (e) {
