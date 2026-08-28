@@ -126,6 +126,7 @@ async function removeFixtureDatabaseRows(client: import("pg").PoolClient): Promi
   await client.query("DELETE FROM audit_logs WHERE season_id = $1", [FIXTURE_SEASON_ID]);
   await client.query("DELETE FROM competitive_rank_facts WHERE user_id = ANY($1::uuid[])", [ACCOUNT_IDS]);
   await client.query("DELETE FROM education_verifications WHERE user_id = ANY($1::uuid[])", [ACCOUNT_IDS]);
+  await client.query("DELETE FROM user_sessions WHERE user_id = ANY($1::uuid[])", [ACCOUNT_IDS]);
   await client.query("DELETE FROM users WHERE id = ANY($1::uuid[])", [ACCOUNT_IDS]);
   await client.query("DELETE FROM competitive_platform_seasons WHERE platform = $1 AND season_key = ANY($2::text[])", [PROFILE.platform, [PROFILE.currentSeasonKey, PROFILE.previousSeasonKey]]);
   await client.query("DELETE FROM seasons WHERE id = $1", [FIXTURE_SEASON_ID]);
