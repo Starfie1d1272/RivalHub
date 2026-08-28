@@ -5,6 +5,7 @@ import { useEffect, useRef, useCallback } from "react";
 interface TurnstileWidgetProps {
   onVerify: (token: string) => void;
   onError?: () => void;
+  resetSignal?: number;
 }
 
 declare global {
@@ -15,6 +16,7 @@ declare global {
         appearance?: "always" | "execute" | "interaction-only";
         callback: (token: string) => void;
         "error-callback"?: () => void;
+        "expired-callback"?: () => void;
       }) => string;
       reset: (id?: string) => void;
     };
@@ -24,7 +26,7 @@ declare global {
 
 const TURNSTILE_SCRIPT_SRC = "https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onLoadTurnstile";
 
-export function TurnstileWidget({ onVerify, onError }: TurnstileWidgetProps) {
+export function TurnstileWidget({ onVerify, onError, resetSignal = 0 }: TurnstileWidgetProps) {
   const ref = useRef<HTMLDivElement>(null);
   const widgetId = useRef<string>("");
   const onVerifyRef = useRef(onVerify);
@@ -45,7 +47,14 @@ export function TurnstileWidget({ onVerify, onError }: TurnstileWidgetProps) {
       appearance: "interaction-only",
       callback: (token: string) => onVerifyRef.current(token),
       "error-callback": () => onErrorRef.current?.(),
+      "expired-callback": () => onVerifyRef.current(""),
     });
+  }, []);
+
+  const resetWidget = useCallback(() => {
+    if (widgetId.current && window.turnstile) {
+      window.turnstile.reset(widgetId.current);
+    }
   }, []);
 
   useEffect(() => {
@@ -73,6 +82,10 @@ export function TurnstileWidget({ onVerify, onError }: TurnstileWidgetProps) {
       window.onLoadTurnstile = originalOnLoad;
     };
   }, [renderWidget]);
+
+  useEffect(() => {
+    if (resetSignal > 0) resetWidget();
+  }, [resetSignal, resetWidget]);
 
   return <div ref={ref} />;
 }

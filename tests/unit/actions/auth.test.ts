@@ -145,7 +145,7 @@ function makeTxInsertChain() {
 }
 
 const SHORT_PASSWORD = "x".repeat(MIN_PASSWORD_LENGTH - 1);
-const VALID_PASSWORD = "x".repeat(MIN_PASSWORD_LENGTH);
+const VALID_PASSWORD = "Aa1!xx";
 const VALID_EMAIL = "test@example.com";
 
 const MOCK_USER_ROW = {
@@ -251,7 +251,7 @@ describe("signUp", () => {
   });
 
   it("空邮箱返回 VALIDATION_FAILED", async () => {
-    const result = await signUp("", VALID_PASSWORD);
+    const result = await signUp("", VALID_PASSWORD, VALID_PASSWORD);
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error.code).toBe(ErrorCode.VALIDATION_FAILED);
@@ -259,7 +259,7 @@ describe("signUp", () => {
   });
 
   it("不含 @ 的邮箱返回 VALIDATION_FAILED", async () => {
-    const result = await signUp("notanemail", VALID_PASSWORD);
+    const result = await signUp("notanemail", VALID_PASSWORD, VALID_PASSWORD);
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error.code).toBe(ErrorCode.VALIDATION_FAILED);
@@ -267,11 +267,31 @@ describe("signUp", () => {
   });
 
   it(`密码长度不足 ${MIN_PASSWORD_LENGTH} 位返回 VALIDATION_FAILED`, async () => {
-    const result = await signUp(VALID_EMAIL, SHORT_PASSWORD);
+    const result = await signUp(VALID_EMAIL, SHORT_PASSWORD, SHORT_PASSWORD);
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error.code).toBe(ErrorCode.VALIDATION_FAILED);
     }
+  });
+
+  it("不满足 Supabase 强密码策略时在验证码前返回明确错误", async () => {
+    const result = await signUp(VALID_EMAIL, "abcdef", "abcdef", "unused-token");
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.message).toContain("大写字母、小写字母、数字和特殊字符");
+    }
+    expect(signUpMock).not.toHaveBeenCalled();
+  });
+
+  it("确认密码不一致时在验证码前返回错误", async () => {
+    const result = await signUp(VALID_EMAIL, VALID_PASSWORD, "Aa1!xy", "unused-token");
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.message).toBe("两次输入的密码不一致");
+    }
+    expect(signUpMock).not.toHaveBeenCalled();
   });
 
   it("Supabase signUp 失败返回 VALIDATION_FAILED（防枚举，不透传原因）", async () => {
@@ -280,7 +300,7 @@ describe("signUp", () => {
       error: { message: "already registered" },
     });
 
-    const result = await signUp(VALID_EMAIL, VALID_PASSWORD);
+    const result = await signUp(VALID_EMAIL, VALID_PASSWORD, VALID_PASSWORD);
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error.code).toBe(ErrorCode.VALIDATION_FAILED);
@@ -304,7 +324,7 @@ describe("signUp", () => {
 
     try {
       const token = "turnstile-response-token";
-      const result = await signUp(VALID_EMAIL, VALID_PASSWORD, token);
+      const result = await signUp(VALID_EMAIL, VALID_PASSWORD, VALID_PASSWORD, token);
 
       expect(result.success).toBe(false);
       if (!result.success) {
@@ -357,7 +377,7 @@ describe("signUp", () => {
     makeInsertChain([MOCK_USER_ROW]);
 
     try {
-      const result = await signUp(VALID_EMAIL, VALID_PASSWORD, "valid-token");
+      const result = await signUp(VALID_EMAIL, VALID_PASSWORD, VALID_PASSWORD, "valid-token");
 
       expect(result.success).toBe(true);
       expect(signUpMock).toHaveBeenCalledOnce();
@@ -380,7 +400,7 @@ describe("signUp", () => {
     });
     makeInsertChain([MOCK_USER_ROW]);
 
-    const result = await signUp(VALID_EMAIL, VALID_PASSWORD);
+    const result = await signUp(VALID_EMAIL, VALID_PASSWORD, VALID_PASSWORD);
 
     expect(result.success).toBe(true);
     if (result.success) {

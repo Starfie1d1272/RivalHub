@@ -22,6 +22,14 @@ describe("identity flow UI", () => {
     expect(screen.getByText(/注册后需要验证邮箱/)).toBeInTheDocument();
   });
 
+  it("shows the production password policy and confirmation field during signup", () => {
+    render(<LoginForm />);
+    fireEvent.click(screen.getByRole("button", { name: "注册" }));
+
+    expect(screen.getByLabelText("确认密码")).toBeInTheDocument();
+    expect(screen.getByText(/至少 6 位，并包含大写字母、小写字母、数字和特殊字符/)).toBeInTheDocument();
+  });
+
   it("shows current email and education verification states without evidence URLs", () => {
     render(<EducationVerificationPanel email="player@example.test" emailVerified={false} hasInstitutionalFastPath={false} verifications={[{ id: "1", institution: "南京大学", code: "4132010284", academicStatus: "enrolled", evidenceType: "chsi_enrollment_report", status: "rejected", reviewNote: "学校不一致", submittedAt: new Date().toISOString() }]} />);
     expect(screen.getByText("邮箱尚未验证")).toBeInTheDocument();
