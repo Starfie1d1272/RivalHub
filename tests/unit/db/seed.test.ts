@@ -22,6 +22,7 @@ import { seed } from "@/db/seed";
 function clearRootEnv() {
   delete process.env.RIVALHUB_ROOT_USERNAME;
   delete process.env.RIVALHUB_ROOT_PASSWORD;
+  delete process.env.RIVALHUB_OWNER_EMAIL;
 }
 
 function setupInsertChain(returningResult: unknown[] = [{ id: "root-1" }]) {
@@ -47,14 +48,14 @@ describe("seed root admin (RIVALHUB_ROOT_*)", () => {
     vi.restoreAllMocks();
   });
 
-  it("production + both env missing → reject, no insert", async () => {
+  it("production + both legacy Root env missing → skip, no insert", async () => {
     vi.stubEnv("NODE_ENV", "production");
     setupInsertChain();
+    const logSpy = captureLogs();
 
-    await expect(seed()).rejects.toThrow(
-      /RIVALHUB_ROOT_USERNAME and RIVALHUB_ROOT_PASSWORD/,
-    );
+    await expect(seed()).resolves.toBeUndefined();
     expect(dbInsertMock).not.toHaveBeenCalled();
+    expect(logSpy.mock.calls.map((c) => c.join(" ")).join("\n")).toContain("RIVALHUB_OWNER_EMAIL");
   });
 
   it("production + one env missing → reject, no insert", async () => {
@@ -86,9 +87,8 @@ describe("seed root admin (RIVALHUB_ROOT_*)", () => {
     expect(dbInsertMock).not.toHaveBeenCalled();
 
     const logs = logSpy.mock.calls.map((c) => c.join(" ")).join("\n");
-    expect(logs).toContain("Root admin seed skipped:");
-    expect(logs).toContain("RIVALHUB_ROOT_USERNAME");
-    expect(logs).toContain("RIVALHUB_ROOT_PASSWORD");
+    expect(logs).toContain("Legacy Root seed skipped:");
+    expect(logs).toContain("RIVALHUB_OWNER_EMAIL");
   });
 
   it("development + one env set → reject as config error", async () => {

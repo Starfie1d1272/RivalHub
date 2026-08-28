@@ -20,6 +20,7 @@ const {
   txInsertMock,
   updateSetCalls,
   insertValuesCalls,
+  bootstrapConfiguredOwnerInTxMock,
 } = vi.hoisted(() => {
   const updateSetCalls: unknown[] = [];
   const insertValuesCalls: unknown[] = [];
@@ -40,6 +41,7 @@ const {
     txInsertMock: vi.fn(),
     updateSetCalls,
     insertValuesCalls,
+    bootstrapConfiguredOwnerInTxMock: vi.fn(),
   };
 });
 
@@ -66,6 +68,10 @@ vi.mock("next/cache", () => ({
 
 vi.mock("@/lib/utils/email", () => ({
   normalizeEmail: normalizeEmailMock,
+}));
+
+vi.mock("@/lib/auth/owner-bootstrap", () => ({
+  bootstrapConfiguredOwnerInTx: bootstrapConfiguredOwnerInTxMock,
 }));
 
 vi.mock("@/db/client", () => {
@@ -95,13 +101,16 @@ import { MIN_PASSWORD_LENGTH } from "@/lib/config/auth-config";
 
 /** 构造 db.insert(...).values(...).onConflictDoUpdate(...).returning() 链 */
 function makeInsertChain(returnValue: unknown[]) {
-  return dbInsertMock.mockReturnValue({
+  const chain = {
     values: vi.fn().mockReturnValue({
       onConflictDoUpdate: vi.fn().mockReturnValue({
         returning: vi.fn().mockResolvedValue(returnValue),
       }),
     }),
-  });
+  };
+  dbInsertMock.mockReturnValue(chain);
+  txInsertMock.mockReturnValue(chain);
+  return dbInsertMock;
 }
 
 /** 构造 tx.update(...).set(...).where(...) 链，记录 set 参数 */
@@ -153,6 +162,8 @@ describe("loginWithPassword", () => {
     vi.clearAllMocks();
     resetAuditTracking(updateSetCalls, insertValuesCalls);
     normalizeEmailMock.mockImplementation((e: string) => e);
+    bootstrapConfiguredOwnerInTxMock.mockImplementation((_: unknown, user: unknown) => user);
+    delete process.env.RIVALHUB_OWNER_EMAIL;
   });
 
   it("空邮箱返回 VALIDATION_FAILED", async () => {
@@ -213,6 +224,20 @@ describe("loginWithPassword", () => {
       adminSeasonIds: MOCK_USER_ROW.adminSeasonIds,
       authSource: "user",
     });
+  });
+
+  it("在登录事务中把已认证用户交给 owner bootstrap", async () => {
+    process.env.RIVALHUB_OWNER_EMAIL = VALID_EMAIL;
+    signInWithPasswordMock.mockResolvedValue({
+      data: { user: { id: "auth-uuid-owner" } },
+      error: null,
+    });
+    makeInsertChain([MOCK_USER_ROW]);
+
+    const result = await loginWithPassword(VALID_EMAIL, VALID_PASSWORD);
+
+    expect(result.success).toBe(true);
+    expect(bootstrapConfiguredOwnerInTxMock).toHaveBeenCalledWith(expect.anything(), MOCK_USER_ROW);
   });
 });
 

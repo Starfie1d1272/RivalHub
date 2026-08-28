@@ -6,7 +6,9 @@
 
 生产环境关闭 Supabase 邮件确认，不依赖 Magic Link。原因是免费版 Supabase 邮件额度较低，不适合作为赛事高峰期登录链路。
 
-Root 紧急账号通过 `pnpm seed` 显式初始化（环境变量 `RIVALHUB_ROOT_USERNAME` / `RIVALHUB_ROOT_PASSWORD`），保留用户名+密码登录方式，使用独立的 `rivalhub-admin` Cookie，不影响日常管理流程。
+标准首个 owner bootstrap 使用 `RIVALHUB_OWNER_EMAIL`：用户仍通过 `/login` 的 Supabase email+password 注册/登录；只有当 `public.users` 中不存在任何 `super_admin`，且规范化邮箱匹配该配置时，系统才在事务和锁保护下把该用户升级为 `super_admin`。已有任意 `super_admin` 后该路径永久失效，不使用用户数量或“第一个用户”推导权限。
+
+Root 紧急账号仍可通过 `pnpm seed` 显式初始化（环境变量 `RIVALHUB_ROOT_USERNAME` / `RIVALHUB_ROOT_PASSWORD`），但仅作为 legacy / emergency 兼容路径，使用独立的 `rivalhub-admin` Cookie，不是标准 bootstrap。
 
 ---
 
@@ -20,6 +22,7 @@ Root 紧急账号通过 `pnpm seed` 显式初始化（环境变量 `RIVALHUB_ROO
   → signUp / loginWithPassword Server Action
     → supabase.auth.signUp 或 signInWithPassword
     → db.users upsert / insert
+    → login 或确认 callback 若匹配 `RIVALHUB_OWNER_EMAIL` 且尚无 `super_admin`：事务锁保护下完成一次性 bootstrap
     → createUserSession({ userId, email, role, adminSeasonIds })
     → 写入 rivalhub-session Cookie（iron-session 加密，30 天）
     → redirect(next ?? "/")
@@ -212,7 +215,7 @@ interface AdminSessionData {
 
 ## 安全注意事项
 
-1. `ADMIN_SESSION_SECRET` 必须 ≥ 32 字符，由 `pnpm seed` 自动生成，生产环境在 Vercel 配置，不提交 git。
+1. `ADMIN_SESSION_SECRET` 必须 ≥ 32 字符，由部署运维独立生成并在 Vercel 配置；`pnpm seed` 不会生成或管理它，不提交 git。
 2. `SUPABASE_SERVICE_ROLE_KEY` 仅在 Server Action / API Route 使用，**禁止**暴露给客户端。
 3. Cron route 通过 `Authorization: Bearer $CRON_SECRET` 验证，防止未授权触发。
 4. v1 报名截图使用 NJUBox 分享链接，不走 Supabase Storage；若后续恢复私有 bucket，必须通过 Service Role 生成短期签名 URL。
