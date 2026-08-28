@@ -5,6 +5,7 @@
     "rivalhub": "1.30.2"
   },
   "changesets": [
+    "bright-captains-login",
     "calm-pandas-develop",
     "fail-closed-team-registration",
     "major-rivals-rise",

@@ -5,17 +5,22 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Field, Btn } from "@/components/rivalhub";
 import { createBrowserClient } from "@/lib/auth/supabase";
-import { MIN_PASSWORD_LENGTH } from "@/lib/config/auth-config";
+import { isPasswordPolicySatisfied, MIN_PASSWORD_LENGTH, PASSWORD_POLICY_MESSAGE } from "@/lib/config/auth-config";
 
 export function ResetPasswordForm() {
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (password.length < MIN_PASSWORD_LENGTH) {
-      toast.error(`密码至少 ${MIN_PASSWORD_LENGTH} 位`);
+    if (!isPasswordPolicySatisfied(password)) {
+      toast.error(PASSWORD_POLICY_MESSAGE);
+      return;
+    }
+    if (password !== confirmPassword) {
+      toast.error("两次输入的密码不一致");
       return;
     }
     startTransition(async () => {
@@ -32,7 +37,9 @@ export function ResetPasswordForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <Field id="password" label="新密码" type="password" placeholder={`至少 ${MIN_PASSWORD_LENGTH} 位`} value={password} onChange={setPassword} required minLength={MIN_PASSWORD_LENGTH} />
+      <Field id="password" label="新密码" type="password" placeholder={`至少 ${MIN_PASSWORD_LENGTH} 位，含大小写/数字/特殊字符`} value={password} onChange={setPassword} required minLength={MIN_PASSWORD_LENGTH} autoComplete="new-password" />
+      <Field id="confirm-password" label="确认新密码" type="password" placeholder="再次输入密码" value={confirmPassword} onChange={setConfirmPassword} required minLength={MIN_PASSWORD_LENGTH} autoComplete="new-password" />
+      <p className="text-xs text-[var(--color-fg-mid)]">{PASSWORD_POLICY_MESSAGE}。</p>
       <Btn type="submit" full disabled={isPending}>{isPending ? "设置中…" : "设置新密码"}</Btn>
     </form>
   );

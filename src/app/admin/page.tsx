@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { inArray } from "drizzle-orm";
+import { redirect } from "next/navigation";
 import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
 import { checkAdminSession } from "@/lib/auth/session";
 import { Panel, Btn, StatusPill, Marker } from "@/components/rivalhub";
 
 export default async function AdminDashboardPage() {
-  const admin = (await checkAdminSession())!;
+  const admin = await checkAdminSession();
+  if (!admin) redirect("/admin/login");
 
   const allSeasons =
     admin.role === "super_admin"
