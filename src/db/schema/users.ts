@@ -33,7 +33,7 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   perfectIdNormalizedUnique: uniqueIndex("users_perfect_id_normalized_unique")
-    .on(sql`lower(${t.perfectId})`),
+    .on(sql`lower(btrim(${t.perfectId}))`),
 }));
 
 export type User = typeof users.$inferSelect;

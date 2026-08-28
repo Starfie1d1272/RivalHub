@@ -408,8 +408,14 @@ function hasStandardStageOneSeeds(seeds: readonly number[] | undefined): boolean
     seeds.every((seed) => seed >= 17 && seed <= 32);
 }
 
-function hasSupportedMajorSwissMatchFormat(stage: StageConfig | undefined): boolean {
-  return stage?.matchFormat === "bo1" || stage?.matchFormat === "bo3";
+function hasFrozenMajorSwissMatchFormats(
+  stage1: StageConfig | undefined,
+  stage2: StageConfig | undefined,
+  stage3: StageConfig | undefined,
+): boolean {
+  return stage1?.matchFormat === "bo1" &&
+    stage2?.matchFormat === "bo1" &&
+    stage3?.matchFormat === "bo3";
 }
 
 /**
@@ -448,11 +454,8 @@ export function checkStandardMajorCapabilities(
     },
     {
       key: "swiss-match-format",
-      passed:
-        hasSupportedMajorSwissMatchFormat(stage1) &&
-        hasSupportedMajorSwissMatchFormat(stage2) &&
-        hasSupportedMajorSwissMatchFormat(stage3),
-      reason: "Major 瑞士阶段仅支持 BO1 或 BO3。",
+      passed: hasFrozenMajorSwissMatchFormats(stage1, stage2, stage3),
+      reason: "NJU Major 阶段一、阶段二的普通比赛为 BO1，决定晋级或淘汰的比赛由 Swiss 引擎升级为 BO3；阶段三全部为 BO3。",
     },
     {
       key: "entry-cohorts",
@@ -496,8 +499,8 @@ export function checkStandardMajorCapabilities(
     },
     {
       key: "playoff",
-      passed: playoff?.type === "single_elim" && playoff.teamCount === 8,
-      reason: "淘汰赛必须为 8 队单败淘汰。",
+      passed: playoff?.type === "single_elim" && playoff.teamCount === 8 && playoff.matchFormat === "bo3" && playoff.finalFormat === "bo5",
+      reason: "淘汰赛必须为 8 队单败淘汰，四分之一决赛和半决赛 BO3、决赛 BO5。",
     },
   ];
   const failures = checks.filter((check) => !check.passed);

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_CS2_MAP_POOL,
+  MAJOR_REGISTRATION_CONFIG,
   RIVALS_DEFAULT_CAPABILITIES,
   checkStandardMajorCapabilities,
   createMajorDefaultCapabilities,
@@ -28,6 +30,14 @@ describe("checkStandardMajorCapabilities()", () => {
     expect(result.checks).toEqual(
       expect.arrayContaining([expect.objectContaining({ key: "stage1-seeds", passed: true })]),
     );
+    expect(capabilities.stagePlan.map((stage) => stage.matchFormat)).toEqual(["bo1", "bo1", "bo3", "bo3"]);
+    expect(capabilities.stagePlan[3]?.finalFormat).toBe("bo5");
+    expect(MAJOR_REGISTRATION_CONFIG.mapPool).toEqual([
+      "de_ancient", "de_anubis", "de_cache", "de_dust2", "de_inferno", "de_mirage", "de_nuke",
+    ]);
+    expect(RIVALS_DEFAULT_CAPABILITIES.registrationConfig.mapPool).toEqual([...DEFAULT_CS2_MAP_POOL]);
+    expect(MAJOR_REGISTRATION_CONFIG.mapPool).not.toContain("de_overpass");
+    expect(RIVALS_DEFAULT_CAPABILITIES.registrationConfig.mapPool).toContain("de_overpass");
   });
 
   it("accepts a deep clone of the standard Major defaults", () => {
@@ -118,34 +128,26 @@ describe("checkStandardMajorCapabilities()", () => {
     expectFailure(capabilities, "playoff");
   });
 
-  it("accepts Stage 3 BO1 or BO3 plus optional playoff variants", () => {
+  it("rejects stage-format changes that would violate the frozen NJU Major policy", () => {
     const capabilities = createMajorDefaultCapabilities();
     capabilities.stagePlan[2].matchFormat = "bo1";
-    capabilities.stagePlan[3].hasThirdPlaceMatch = true;
-    capabilities.stagePlan[3].finalFormat = "bo3";
+    expectFailure(capabilities, "swiss-match-format");
 
-    expect(checkStandardMajorCapabilities(capabilities).isStandardMajor).toBe(true);
+    const stage1Bo3 = createMajorDefaultCapabilities();
+    stage1Bo3.stagePlan[0].matchFormat = "bo3";
+    expectFailure(stage1Bo3, "swiss-match-format");
 
-    capabilities.stagePlan[2].matchFormat = "bo3";
-    expect(checkStandardMajorCapabilities(capabilities).isStandardMajor).toBe(true);
-  });
+    const stage2Bo3 = createMajorDefaultCapabilities();
+    stage2Bo3.stagePlan[1].matchFormat = "bo3";
+    expectFailure(stage2Bo3, "swiss-match-format");
 
-  it.each([
-    ["bo1", "bo1", "bo1"],
-    ["bo1", "bo1", "bo3"],
-    ["bo1", "bo3", "bo1"],
-    ["bo1", "bo3", "bo3"],
-    ["bo3", "bo1", "bo1"],
-    ["bo3", "bo1", "bo3"],
-    ["bo3", "bo3", "bo1"],
-    ["bo3", "bo3", "bo3"],
-  ] as const)("accepts Swiss formats %s / %s / %s", (stage1Format, stage2Format, stage3Format) => {
-    const capabilities = createMajorDefaultCapabilities();
-    capabilities.stagePlan[0].matchFormat = stage1Format;
-    capabilities.stagePlan[1].matchFormat = stage2Format;
-    capabilities.stagePlan[2].matchFormat = stage3Format;
+    const playoffBo1 = createMajorDefaultCapabilities();
+    playoffBo1.stagePlan[3].matchFormat = "bo1";
+    expectFailure(playoffBo1, "playoff");
 
-    expect(checkStandardMajorCapabilities(capabilities).isStandardMajor).toBe(true);
+    const finalBo3 = createMajorDefaultCapabilities();
+    finalBo3.stagePlan[3].finalFormat = "bo3";
+    expectFailure(finalBo3, "playoff");
   });
 
   it.each([0, 1, 2])("rejects BO5 in Swiss Stage %i", (stageIndex) => {
@@ -158,7 +160,7 @@ describe("checkStandardMajorCapabilities()", () => {
       expect.arrayContaining([
         expect.objectContaining({
           key: "swiss-match-format",
-          reason: "Major 瑞士阶段仅支持 BO1 或 BO3。",
+          reason: "NJU Major 阶段一、阶段二的普通比赛为 BO1，决定晋级或淘汰的比赛由 Swiss 引擎升级为 BO3；阶段三全部为 BO3。",
         }),
       ]),
     );

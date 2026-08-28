@@ -31,4 +31,7 @@ ALTER TABLE "competitive_rank_facts" ADD CONSTRAINT "competitive_rank_facts_user
 CREATE UNIQUE INDEX "competitive_platform_seasons_platform_key_unique" ON "competitive_platform_seasons" USING btree ("platform","season_key");--> statement-breakpoint
 CREATE UNIQUE INDEX "competitive_rank_facts_identity_unique" ON "competitive_rank_facts" USING btree ("user_id","platform","kind",coalesce("platform_season_key", ''));--> statement-breakpoint
 CREATE INDEX "competitive_rank_facts_user_platform_idx" ON "competitive_rank_facts" USING btree ("user_id","platform");--> statement-breakpoint
-CREATE UNIQUE INDEX "users_perfect_id_normalized_unique" ON "users" USING btree (lower("perfect_id"));
+CREATE UNIQUE INDEX "users_perfect_id_normalized_unique" ON "users" USING btree (lower(btrim("perfect_id")));--> statement-breakpoint
+ALTER TABLE "competitive_platform_seasons" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "competitive_rank_facts" ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON competitive_platform_seasons, competitive_rank_facts FROM anon, authenticated;

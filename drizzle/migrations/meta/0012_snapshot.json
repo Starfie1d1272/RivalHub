@@ -1427,7 +1427,7 @@
           "name": "users_perfect_id_normalized_unique",
           "columns": [
             {
-              "expression": "lower(\"perfect_id\")",
+              "expression": "lower(btrim(\"perfect_id\"))",
               "asc": true,
               "isExpression": true,
               "nulls": "last"

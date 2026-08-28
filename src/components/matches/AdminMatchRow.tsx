@@ -1,4 +1,5 @@
 import Link from "next/link";
+import React from "react";
 import { cn } from "@/lib/utils/cn";
 import { Separator } from "@/components/ui/separator";
 import { Panel, StatusPill } from "@/components/rivalhub";
@@ -34,6 +35,38 @@ export interface RosterData {
   status: string | null;
 }
 
+interface StartBlockerInput {
+  requiresPreflight: boolean;
+  teamAName: string;
+  teamBName: string;
+  teamARoster: RosterData | null;
+  teamBRoster: RosterData | null;
+  teamAPreflight: { valid: boolean; blockers: string[] } | null;
+  teamBPreflight: { valid: boolean; blockers: string[] } | null;
+}
+
+export function getAdminMatchStartBlockers({
+  requiresPreflight,
+  teamAName,
+  teamBName,
+  teamARoster,
+  teamBRoster,
+  teamAPreflight,
+  teamBPreflight,
+}: StartBlockerInput): string[] {
+  return [[teamAName, teamARoster, teamAPreflight], [teamBName, teamBRoster, teamBPreflight]].flatMap(([name, roster, preflight]) => {
+    const typed = roster as RosterData | null;
+    if (!typed) return [`${name} 尚未提交首发`];
+    if (typed.starters.length !== 5) return [`${name} 当前不是 5 名首发`];
+    if (typed.status !== "confirmed") return [`${name} 首发尚未确认`];
+    if (!requiresPreflight) return [];
+    const eligibility = preflight as { valid: boolean; blockers: string[] } | null;
+    if (!eligibility) return [`${name} 尚未得到服务端预检结果`];
+    if (!eligibility.valid) return eligibility.blockers.map((blocker) => `${name}：${blocker}`);
+    return [];
+  });
+}
+
 interface AdminMatchRowProps {
   match: {
     id: string;
@@ -46,6 +79,7 @@ interface AdminMatchRowProps {
     completionDeadline: Date | null;
     teamAId: string;
     teamBId: string;
+    ownership: string;
     bracketNodeId: string | null;
     completedAt: Date | null;
   };
@@ -92,14 +126,15 @@ export function AdminMatchRow({
   pendingMaps,
   finishedMaps,
 }: AdminMatchRowProps) {
-  const startBlockers = [[teamAName, teamARoster, teamAPreflight], [teamBName, teamBRoster, teamBPreflight]].flatMap(([name, roster, preflight]) => {
-    const typed = roster as RosterData | null;
-    if (!typed) return [`${name} 尚未提交首发`];
-    if (typed.starters.length !== 5) return [`${name} 当前不是 5 名首发`];
-    if (typed.status !== "confirmed") return [`${name} 首发尚未确认`];
-    const eligibility = preflight as { valid: boolean; blockers: string[] } | null;
-    if (eligibility && !eligibility.valid) return eligibility.blockers.map((blocker) => `${name}：${blocker}`);
-    return [];
+  const requiresPreflight = match.ownership === "major_stage";
+  const startBlockers = getAdminMatchStartBlockers({
+    requiresPreflight,
+    teamAName,
+    teamBName,
+    teamARoster,
+    teamBRoster,
+    teamAPreflight,
+    teamBPreflight,
   });
   return (
     <Panel
@@ -130,7 +165,7 @@ export function AdminMatchRow({
         </div>
       </div>
 
-      {match.status === "scheduled" && <><PreMatchOperatorChecklist teamA={{ name: teamAName, submitted: Boolean(teamARoster), confirmed: teamARoster?.status === "confirmed", starters: teamARoster?.starters.length ?? 0, preflight: teamAPreflight }} teamB={{ name: teamBName, submitted: Boolean(teamBRoster), confirmed: teamBRoster?.status === "confirmed", starters: teamBRoster?.starters.length ?? 0, preflight: teamBPreflight }} mapState={match.format === "bo1" ? "not_required" : completedMaps.length + pendingMaps.length > 0 ? "recorded" : "not_recorded"} /><p className="text-xs leading-5 text-[var(--color-fg-mid)]">默认宽限为 15 分钟，不会自动判负。延长宽限或重新排期请使用赛程时间；需要判负时请在下方“裁决与弃赛”记录原因。</p></>}
+      {match.status === "scheduled" && <><PreMatchOperatorChecklist requiresPreflight={requiresPreflight} teamA={{ name: teamAName, submitted: Boolean(teamARoster), confirmed: teamARoster?.status === "confirmed", starters: teamARoster?.starters.length ?? 0, preflight: teamAPreflight }} teamB={{ name: teamBName, submitted: Boolean(teamBRoster), confirmed: teamBRoster?.status === "confirmed", starters: teamBRoster?.starters.length ?? 0, preflight: teamBPreflight }} mapState={match.format === "bo1" ? "not_required" : completedMaps.length + pendingMaps.length > 0 ? "recorded" : "not_recorded"} /><p className="text-xs leading-5 text-[var(--color-fg-mid)]">默认宽限为 15 分钟，不会自动判负。延长宽限或重新排期请使用赛程时间；需要判负时请在下方“裁决与弃赛”记录原因。</p></>}
 
       {/* Operations */}
       {match.status !== "cancelled" && (

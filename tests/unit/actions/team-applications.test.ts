@@ -169,9 +169,19 @@ beforeEach(() => {
 });
 
 describe("team application participant actions", () => {
+  it("rejects team creation without the rules and privacy acknowledgement", async () => {
+    const result = await createTeamApplication({ seasonId: SEASON_ID, name: "Rival Team" });
+
+    expect(result).toEqual({
+      success: false,
+      error: { code: ErrorCode.VALIDATION_FAILED, message: "请先阅读并确认赛事规则与隐私说明。" },
+    });
+    expect(requireAuthMock).not.toHaveBeenCalled();
+  });
+
   it("creates a draft application with the captain already confirmed", async () => {
     mockActiveApplicationCheck();
-    const result = await createTeamApplication({ seasonId: SEASON_ID, name: "Rival Team" });
+    const result = await createTeamApplication({ seasonId: SEASON_ID, name: "Rival Team", privacyAcknowledged: true });
 
     expect(result).toEqual({ success: true, data: { applicationId: APPLICATION_ID } });
     expect(insertValuesCalls).toEqual(expect.arrayContaining([
@@ -194,7 +204,7 @@ describe("team application participant actions", () => {
 
     expect(result).toEqual({ success: true, data: undefined });
     expect(insertValuesCalls).toEqual(expect.arrayContaining([
-      expect.objectContaining({ action: "team_application.update", meta: { fromName: "Rival Team", toName: "Renamed Team" } }),
+      expect.objectContaining({ action: "team_application.update", meta: expect.objectContaining({ fromName: "Rival Team", toName: "Renamed Team" }) }),
     ]));
   });
 
@@ -232,13 +242,23 @@ describe("team application participant actions", () => {
   it("confirms an invite as the invited player and persists a confirmation audit", async () => {
     requireAuthMock.mockResolvedValue({ userId: PLAYER_ID, email: "player@rivalhub.test" });
     memberFindFirstMock.mockResolvedValue({ id: MEMBER_ID, applicationId: APPLICATION_ID, userId: PLAYER_ID, status: "invited" });
-    const result = await confirmTeamApplicationMembership({ applicationId: APPLICATION_ID });
+    const result = await confirmTeamApplicationMembership({ applicationId: APPLICATION_ID, privacyAcknowledged: true });
 
     expect(result).toEqual({ success: true, data: undefined });
     expect(txUpdateMock).toHaveBeenCalled();
     expect(insertValuesCalls).toEqual(expect.arrayContaining([
-      expect.objectContaining({ action: "team_application.confirm_member", meta: { memberId: MEMBER_ID } }),
+      expect.objectContaining({ action: "team_application.confirm_member", meta: expect.objectContaining({ memberId: MEMBER_ID, privacyAcknowledged: true }) }),
     ]));
+  });
+
+  it("rejects invite confirmation without the rules and privacy acknowledgement", async () => {
+    const result = await confirmTeamApplicationMembership({ applicationId: APPLICATION_ID });
+
+    expect(result).toEqual({
+      success: false,
+      error: { code: ErrorCode.VALIDATION_FAILED, message: "请先阅读并确认赛事规则与隐私说明。" },
+    });
+    expect(requireAuthMock).not.toHaveBeenCalled();
   });
 
   it("submits only a confirmed roster and keeps it out of formal teams", async () => {

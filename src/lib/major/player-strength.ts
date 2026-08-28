@@ -60,7 +60,11 @@ export function comparePlayerStrength(left: PlayerStrengthInput, right: PlayerSt
   const rightBreakdown = getPlayerStrengthBreakdown(right, config);
   if (!leftBreakdown.available || !rightBreakdown.available) return { order: 0, reason: "至少一名选手的规则要求竞技资料不可确认，不能自动比较。", left: leftBreakdown, right: rightBreakdown };
   const comparisons: Array<[number, string]> = [
-    [leftBreakdown.weightedRank! - rightBreakdown.weightedRank!, "综合段位参考值（历史 50%、上赛季 20%、当前赛季 30%）"],
+    [
+      (leftBreakdown.historicalValue! * 5 + leftBreakdown.previousValue! * 2 + leftBreakdown.currentValue! * 3) -
+        (rightBreakdown.historicalValue! * 5 + rightBreakdown.previousValue! * 2 + rightBreakdown.currentValue! * 3),
+      "综合段位参考值（历史 50%、上赛季 20%、当前赛季 30%）",
+    ],
     [leftBreakdown.historicalValue! - rightBreakdown.historicalValue!, "历史最高段位"],
     [leftBreakdown.currentValue! - rightBreakdown.currentValue!, "当前赛季最高段位"],
     [leftBreakdown.previousValue! - rightBreakdown.previousValue!, "上赛季最高段位"],

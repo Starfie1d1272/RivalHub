@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import React, { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { submitMatchRoster } from "@/actions/matches/roster";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,8 @@ interface MatchRosterFormProps {
   hasExistingRoster: boolean;
   matchStatus: "scheduled" | "in_progress" | "finished" | "cancelled";
   rosterStatus: string | null;
+  initialStarterIds?: string[];
+  initialSubstituteIds?: string[];
 }
 
 export function MatchRosterForm({
@@ -30,6 +32,8 @@ export function MatchRosterForm({
   hasExistingRoster,
   matchStatus,
   rosterStatus,
+  initialStarterIds = [],
+  initialSubstituteIds = [],
 }: MatchRosterFormProps) {
   const isMatchStarted = matchStatus !== "scheduled";
   const rosterLocked = rosterStatus === "confirmed";
@@ -42,8 +46,8 @@ export function MatchRosterForm({
       ? `${base} border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-fg)]`
       : `${base} border-[var(--color-border)] text-[var(--color-fg)] hover:border-[var(--color-accent)]/50`;
   }
-  const [selectedStarterIds, setSelectedStarterIds] = useState<string[]>([]);
-  const [selectedSubstituteIds, setSelectedSubstituteIds] = useState<string[]>([]);
+  const [selectedStarterIds, setSelectedStarterIds] = useState<string[]>(initialStarterIds);
+  const [selectedSubstituteIds, setSelectedSubstituteIds] = useState<string[]>(initialSubstituteIds);
 
   const toggleStarter = (id: string) => {
     setSelectedStarterIds((prev) =>
