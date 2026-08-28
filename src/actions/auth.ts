@@ -11,6 +11,7 @@ import type { ActionResult } from "@/types/action";
 import { actionError } from "@/lib/action-utils";
 import { MIN_PASSWORD_LENGTH } from "@/lib/config/auth-config";
 import { normalizeEmail } from "@/lib/utils/email";
+import { bootstrapConfiguredOwnerInTx } from "@/lib/auth/owner-bootstrap";
 import {
   requireAuth,
   createUserSession,
@@ -38,21 +39,25 @@ export async function loginWithPassword(
       return fail({ code: ErrorCode.UNAUTHORIZED, message: "邮箱或密码错误" });
     }
 
-    // 同步 public.users（密码登录不走 callback，这里兜底 upsert）
-    const [userRow] = await db
-      .insert(users)
-      .values({
-        email: normalizedEmail,
-        authId: data.user.id,
-        role: "user",
-        adminSeasonIds: [],
-        updatedAt: new Date(),
-      })
-      .onConflictDoUpdate({
-        target: users.email,
-        set: { authId: data.user.id, updatedAt: new Date() },
-      })
-      .returning();
+    const userRow = await db.transaction(async (tx) => {
+      // 同步 public.users（密码登录不走 callback，这里兜底 upsert）
+      const [upsertedUser] = await tx
+        .insert(users)
+        .values({
+          email: normalizedEmail,
+          authId: data.user.id,
+          role: "user",
+          adminSeasonIds: [],
+          updatedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: users.email,
+          set: { authId: data.user.id, updatedAt: new Date() },
+        })
+        .returning();
+      if (!upsertedUser) throw new Error("登录后无法同步用户账号");
+      return bootstrapConfiguredOwnerInTx(tx, upsertedUser);
+    });
 
     await createUserSession({
       userId: userRow.id,

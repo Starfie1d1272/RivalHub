@@ -26,10 +26,10 @@ describe("0012 competitive profile migration", () => {
     ) as { entries: Array<{ idx: number; tag: string }> };
 
     expect(journal.entries.at(-1)).toEqual({
-      idx: 13,
+      idx: 14,
       version: "7",
-      when: 1787903327955,
-      tag: "0013_cooing_thor_girl",
+      when: 1787914095195,
+      tag: "0014_revoke_public_data_api_grants",
       breakpoints: true,
     });
   });

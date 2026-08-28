@@ -4,6 +4,8 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { users } from "@/db/schema/users";
 import { createUserSession } from "@/lib/auth/session";
+import { normalizeEmail } from "@/lib/utils/email";
+import { bootstrapConfiguredOwnerInTx } from "@/lib/auth/owner-bootstrap";
 
 export async function GET(request: NextRequest) {
   const applicationOrigin = process.env.NEXT_PUBLIC_APP_URL ?? request.nextUrl.origin;
@@ -40,23 +42,29 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", applicationOrigin));
   }
 
-  const email = data.user.email;
-  const authId = data.user.id;
+  const authUser = data.user;
+  const email = normalizeEmail(authUser.email!);
+  const authId = authUser.id;
 
-  const [user] = await db
-    .insert(users)
-    .values({ email, authId })
-    .onConflictDoUpdate({
-      target: users.email,
-      set: { authId, updatedAt: new Date() },
-    })
-    .returning();
+  const user = await db.transaction(async (tx) => {
+    const [upsertedUser] = await tx
+      .insert(users)
+      .values({ email, authId })
+      .onConflictDoUpdate({
+        target: users.email,
+        set: { authId, updatedAt: new Date() },
+      })
+      .returning();
+    if (!upsertedUser) throw new Error("Auth callback 无法同步用户账号");
 
-  if ((flow === "signup" || flow === "reverify") && data.user.email_confirmed_at) {
-    const source = flow === "signup" ? "signup_confirmation" : "existing_account_reverification";
-    await db.update(users).set({ emailVerifiedAt: new Date(), emailVerificationSource: source, updatedAt: new Date() })
-      .where(eq(users.id, user.id));
-  }
+    if ((flow === "signup" || flow === "reverify") && authUser.email_confirmed_at) {
+      const source = flow === "signup" ? "signup_confirmation" : "existing_account_reverification";
+      await tx.update(users).set({ emailVerifiedAt: new Date(), emailVerificationSource: source, updatedAt: new Date() })
+        .where(eq(users.id, upsertedUser.id));
+    }
+
+    return bootstrapConfiguredOwnerInTx(tx, upsertedUser);
+  });
 
   await createUserSession({
     userId: user.id,

@@ -7,6 +7,7 @@ const {
   createUserSessionMock,
   dbInsertMock,
   dbUpdateMock,
+  dbTransactionMock,
   insertValuesMock,
   updateSetMock,
 } = vi.hoisted(() => ({
@@ -15,6 +16,7 @@ const {
   createUserSessionMock: vi.fn(),
   dbInsertMock: vi.fn(),
   dbUpdateMock: vi.fn(),
+  dbTransactionMock: vi.fn(),
   insertValuesMock: vi.fn(),
   updateSetMock: vi.fn(),
 }));
@@ -26,7 +28,7 @@ vi.mock("@supabase/supabase-js", () => ({
 vi.mock("@/lib/auth/session", () => ({ createUserSession: createUserSessionMock }));
 
 vi.mock("@/db/client", () => ({
-  db: { insert: dbInsertMock, update: dbUpdateMock },
+  db: { transaction: dbTransactionMock },
 }));
 
 import { GET } from "@/app/auth/callback/route";
@@ -47,6 +49,9 @@ function configureDb(): void {
   dbUpdateMock.mockReturnValue({
     set: updateSetMock.mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }),
   });
+  dbTransactionMock.mockImplementation((callback: (tx: unknown) => unknown) =>
+    callback({ insert: dbInsertMock, update: dbUpdateMock }),
+  );
 }
 
 describe("email confirmation callback", () => {
@@ -55,6 +60,7 @@ describe("email confirmation callback", () => {
     process.env.NEXT_PUBLIC_APP_URL = "http://127.0.0.1:3000";
     process.env.NEXT_PUBLIC_SUPABASE_URL = "http://127.0.0.1:54321";
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "local-anon";
+    delete process.env.RIVALHUB_OWNER_EMAIL;
     configureDb();
   });
 

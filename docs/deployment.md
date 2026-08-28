@@ -67,7 +67,8 @@ staging 与 production 必须分离的变量：
 | `NEXT_PUBLIC_SUPABASE_URL` | 指向 staging Supabase 项目 |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 使用 staging anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | 使用 staging service role key |
-| `ADMIN_SESSION_SECRET` | staging 独立生成 |
+| `ADMIN_SESSION_SECRET` | staging 独立生成；不由 `pnpm seed` 生成 |
+| `RIVALHUB_OWNER_EMAIL` | staging/fresh deployment 的指定首个 owner 邮箱；通过 `/login` 注册并登录后一次性 bootstrap |
 | `CRON_SECRET` | staging 独立生成；不要复用 GitHub Actions production secret |
 | `NEXT_PUBLIC_APP_URL` | 指向 staging 域名 |
 | `SILICONFLOW_API_KEY` | 可复用服务商账号，但建议用独立限额 key |
@@ -136,7 +137,9 @@ const pgConfig = {
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://<project_ref>.supabase.co` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon API key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service_role key（仅服务端） |
-| `ADMIN_SESSION_SECRET` | iron-session 加密密钥 |
+| `ADMIN_SESSION_SECRET` | iron-session 加密密钥；由部署运维独立生成 |
+| `RIVALHUB_OWNER_EMAIL` | 标准首个 owner bootstrap 邮箱；已有 `super_admin` 后永久失效 |
+| `RIVALHUB_ROOT_USERNAME` / `RIVALHUB_ROOT_PASSWORD` | legacy emergency Root seed；仅在显式兼容操作时使用 |
 | `ADMIN_INVITE_CODE` | 管理员邀请码 |
 | `CRON_SECRET` | Cron endpoint 鉴权密钥 |
 | `NEXT_PUBLIC_APP_URL` | 应用生产 URL（`https://match.starfie1d.top`） |

@@ -62,14 +62,19 @@ Local Supabase → Drizzle active migrations → development fixtures → Auth/S
 
 本地 Root 登录默认为 `local-admin` / `local-admin-password`，只会注入 loopback Local Supabase 进程。可通过 `RIVALHUB_LOCAL_ROOT_USERNAME` / `RIVALHUB_LOCAL_ROOT_PASSWORD` 覆盖；不要把这组本地凭据用于任何远程环境。
 
-远程环境如确需执行 `pnpm seed`，必须显式提供 `DATABASE_URL`、目标类型、精确 host 确认和匹配的写入授权；脚本不会读取 `.env.local`。Root 凭据只通过以下环境变量提供：
+标准 production bootstrap 不需要先创建独立 Root：在 `RIVALHUB_OWNER_EMAIL` 配置指定 owner email，用户通过正常 `/login` 注册并登录；当数据库尚无任何 `public.users.role='super_admin'` 时，该匹配账号会在事务和锁保护下升级为 `super_admin`。一旦已有任意 `super_admin`，bootstrap 永久失效，不会把任意首个注册者提权。
+
+远程环境如确需执行 `pnpm seed`，仍必须显式提供 `DATABASE_URL`、目标类型、精确 host 确认和匹配的写入授权；脚本不会读取 `.env.local`。`RIVALHUB_ROOT_USERNAME` / `RIVALHUB_ROOT_PASSWORD` 仅保留为 legacy emergency Root 兼容路径：
 
 ```text
+RIVALHUB_OWNER_EMAIL=<指定 owner 邮箱>
+
+# 仅 emergency/legacy seed 使用，必须同时提供
 RIVALHUB_ROOT_USERNAME
 RIVALHUB_ROOT_PASSWORD
 ```
 
-- 生产环境（`NODE_ENV=production`）seed 在任一变量缺失时直接失败（fail closed），不会创建可预测的默认管理员。
+- `pnpm seed` 不再要求 Root 凭据；只有显式同时提供 `RIVALHUB_ROOT_USERNAME` 与 `RIVALHUB_ROOT_PASSWORD` 时才创建 legacy Root。
 - 任何环境下 seed 日志都不会输出凭据。
 - 本地开发不要直接运行 `pnpm seed`，统一使用 `pnpm db:local:seed`。
 
@@ -84,8 +89,9 @@ RIVALHUB_ROOT_PASSWORD
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 浏览器端 Supabase anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | 服务端 Supabase service role key |
 | `ADMIN_SESSION_SECRET` | iron-session 加密密钥，至少 32 字符 |
-| `RIVALHUB_ROOT_USERNAME` | Root 管理员用户名（seed 显式初始化，生产必需） |
-| `RIVALHUB_ROOT_PASSWORD` | Root 管理员密码（seed 显式初始化，生产必需） |
+| `RIVALHUB_OWNER_EMAIL` | 标准首个 owner bootstrap 邮箱；匹配账号登录后一次性升级为 `super_admin` |
+| `RIVALHUB_ROOT_USERNAME` | legacy emergency Root 用户名（可选，仅显式 seed） |
+| `RIVALHUB_ROOT_PASSWORD` | legacy emergency Root 密码（可选，仅显式 seed） |
 | `NEXT_PUBLIC_APP_URL` | 应用公开 URL |
 | `CRON_SECRET` | Cron API 鉴权密钥 |
 | `STEAM_API_KEY` | 可选，抓取 Steam 头像 |
@@ -100,9 +106,10 @@ RIVALHUB_ROOT_PASSWORD
 1. 在 Supabase 创建项目并应用 Drizzle schema / migration。
 2. 在 Vercel 配置 `.env.example` 中列出的环境变量。
 3. 生产 `DATABASE_URL` 使用 Supabase Dashboard 提供的 Session Pooler 连接串。
-4. 运行 `pnpm seed` 或等价脚本创建 Root 管理员。
-5. 在 GitHub Actions Secrets 配置 `CRON_SECRET`。
-6. 合并到 `main` 后由 Vercel 部署生产站点。
+4. 配置 `RIVALHUB_OWNER_EMAIL`，让 owner 通过 `/login` 正常注册并登录完成首个 `super_admin` bootstrap。
+5. 如需应急兼容路径，才同时配置 `RIVALHUB_ROOT_USERNAME` / `RIVALHUB_ROOT_PASSWORD` 并显式运行 `pnpm seed`。
+6. 在 GitHub Actions Secrets 配置 `CRON_SECRET`。
+7. 合并到 `main` 后由 Vercel 部署生产站点。
 
 Cron 由 GitHub Actions 调用，端点与频率见 [.github/workflows/cron.yml](./.github/workflows/cron.yml)。部署细节见 [docs/deployment.md](./docs/deployment.md)。
 

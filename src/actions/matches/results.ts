@@ -89,13 +89,17 @@ export async function updateMatchStatus(
     assertMatchTransition(match.status, nextStatus);
 
     const seasonForStatus = await getSeasonOrThrow(match.seasonId);
-    await db.transaction((tx) =>
-      applyMatchStatusTransitionInTx(tx, {
+    await db.transaction(async (tx) => {
+      await applyMatchStatusTransitionInTx(tx, {
         matchId,
         nextStatus,
         actorId: auditActorId(session),
-      }),
-    );
+      });
+
+      if (nextStatus === "cancelled") {
+        await maybeFinishSeason(tx, match.seasonId);
+      }
+    });
 
     revalidateMatchPaths(seasonForStatus.slug, matchId);
 
