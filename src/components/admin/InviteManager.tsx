@@ -101,7 +101,7 @@ export function InviteManager({
             <Label htmlFor="inv-role">角色</Label>
             <select
               id="inv-role"
-              className="h-9 rounded-md border border-[var(--color-border)] bg-transparent px-3 text-sm"
+              className="h-9 rounded-sm border border-[var(--color-border)] bg-transparent px-3 text-sm"
               value={role}
               onChange={(e) =>
                 setRole(e.target.value as "admin" | "super_admin")
@@ -116,7 +116,7 @@ export function InviteManager({
               <Label htmlFor="inv-season">赛季范围</Label>
               <select
                 id="inv-season"
-                className="h-9 rounded-md border border-[var(--color-border)] bg-transparent px-3 text-sm w-full"
+                className="h-9 rounded-sm border border-[var(--color-border)] bg-transparent px-3 text-sm w-full"
                 value={seasonId}
                 onChange={(e) => setSeasonId(e.target.value)}
               >
@@ -195,7 +195,7 @@ export function InviteManager({
                   {!inv.isActive && (
                     <Badge
                       variant="outline"
-                      className="text-xs bg-[rgba(255,84,112,0.08)] text-[var(--color-danger)] border-[rgba(255,84,112,0.3)]"
+                      className="text-xs bg-[var(--color-danger-soft)] text-[var(--color-danger)] border-[var(--color-danger-edge)]"
                     >
                       已失效
                     </Badge>

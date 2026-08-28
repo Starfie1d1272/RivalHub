@@ -18,14 +18,14 @@ interface Props {
 
 const ACTION_CATEGORIES: Record<string, { label: string; color: string }> = {
   admin: { label: "管理", color: "var(--color-accent)" },
-  registration: { label: "报名", color: "#22c55e" },
-  captain: { label: "投票", color: "#a855f7" },
-  captains: { label: "投票", color: "#a855f7" },
-  draft: { label: "选秀", color: "#f97316" },
-  match: { label: "赛程", color: "#3b82f6" },
-  season: { label: "赛季", color: "#eab308" },
-  team: { label: "队伍", color: "#06b6d4" },
-  user: { label: "用户", color: "#ec4899" },
+  registration: { label: "报名", color: "var(--color-ok)" },
+  captain: { label: "投票", color: "var(--color-info)" },
+  captains: { label: "投票", color: "var(--color-info)" },
+  draft: { label: "选秀", color: "var(--color-accent)" },
+  match: { label: "赛程", color: "var(--color-accent-b)" },
+  season: { label: "赛季", color: "var(--color-warn)" },
+  team: { label: "队伍", color: "var(--color-info)" },
+  user: { label: "用户", color: "var(--color-fg-mid)" },
 };
 
 function getCategory(action: string) {
@@ -174,7 +174,7 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, initialActor
     <div className="space-y-4">
       {/* filters */}
       <div
-        className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4 rounded-md"
+        className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4 rounded-sm"
         style={{ background: "var(--color-panel)", border: "1px solid var(--color-border)" }}
       >
         <div>
@@ -295,7 +295,7 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, initialActor
 
       {/* table */}
       <div
-        className="rounded-md overflow-hidden"
+        className="rounded-sm overflow-hidden"
         style={{ border: "1px solid var(--color-border)" }}
       >
         <table className="w-full text-xs" style={{ fontFamily: "var(--font-mono)" }}>
@@ -331,7 +331,7 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, initialActor
                   <td className="px-3 py-2">
                     <span
                       className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium mr-1.5"
-                      style={{ background: cat.color, color: "#000", opacity: 0.9 }}
+                      style={{ background: cat.color, color: "var(--color-bg)", opacity: 0.9 }}
                     >
                       {cat.label}
                     </span>

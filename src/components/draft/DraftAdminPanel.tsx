@@ -110,7 +110,7 @@ export function DraftAdminPanel({
               disabled={isPending}
               style={{
                 backgroundColor: "var(--color-accent)",
-                color: "#fff",
+                color: "var(--color-accent-fg)",
               }}
             >
               <Play size={16} className="mr-1.5" />
@@ -133,7 +133,7 @@ export function DraftAdminPanel({
               disabled={isPending}
               style={{
                 backgroundColor: "var(--color-accent)",
-                color: "#fff",
+                color: "var(--color-accent-fg)",
               }}
             >
               <RotateCcw size={16} className="mr-1.5" />

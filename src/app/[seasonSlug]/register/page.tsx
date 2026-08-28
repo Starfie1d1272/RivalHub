@@ -5,7 +5,9 @@ import { db } from "@/db/client";
 import { educationVerifications, institutions, seasons, seasonRegistrations, teamApplicationMembers, teamApplications, users } from "@/db/schema";
 import { getPositionCounts, getApprovedCount } from "@/actions/register";
 import { RegistrationForm } from "@/components/register/RegistrationForm";
-import { normalizeRegistrationConfig } from "@/types/season";
+import { normalizeAffiliationRules, normalizeRegistrationConfig, normalizeTeamRegistrationConfig } from "@/types/season";
+import { getParticipantReadiness } from "@/lib/major/participant-readiness";
+import { evaluateExternalStrengthRule } from "@/lib/major/player-strength";
 import { REGISTRATION_STATUS_LABELS } from "@/types/registration";
 import { Panel, StatusBanner, PosChip } from "@/components/rivalhub";
 import { positionLabel } from "@/lib/validators/registration";
@@ -89,6 +91,8 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
         id: teamApplications.id,
         name: teamApplications.name,
         logoUrl: teamApplications.logoUrl,
+        perfectTeamId: teamApplications.perfectTeamId,
+        primaryStarterUserIds: teamApplications.primaryStarterUserIds,
         captainUserId: teamApplications.captainUserId,
         status: teamApplications.status,
         reviewReason: teamApplications.reviewReason,
@@ -108,7 +112,9 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
             displayName: users.displayName,
             emailVerified: users.emailVerifiedAt,
             verificationStatus: educationVerifications.status,
+            academicStatus: educationVerifications.academicStatus,
             institutionName: institutions.name,
+            institutionCode: institutions.moeInstitutionCode,
             verificationSubmittedAt: educationVerifications.submittedAt,
             status: teamApplicationMembers.status,
           })
@@ -132,6 +138,14 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
       if (shouldReplace) memberByUser.set(member.userId, member);
     }
     const members = [...memberByUser.values()];
+    const teamConfig = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
+    const readinessByUser = teamConfig.requireCompetitiveProfile && teamConfig.competitiveProfile
+      ? new Map(await Promise.all(members.map(async (member) => [member.userId, await getParticipantReadiness(member.userId, teamConfig.competitiveProfile!)] as const)))
+      : new Map<string, Awaited<ReturnType<typeof getParticipantReadiness>>>();
+    const affiliationRules = normalizeAffiliationRules(season.affiliationRules);
+    const primary = (application?.primaryStarterUserIds ?? []).map((userId) => members.find((member) => member.userId === userId)).filter((member): member is typeof members[number] => Boolean(member));
+    const externalStrength = teamConfig.competitiveProfile ? evaluateExternalStrengthRule({ config: teamConfig.competitiveProfile, players: primary.map((member) => ({ ...(readinessByUser.get(member.userId)?.strength ?? { userId: member.userId, label: member.displayName ?? member.email, historicalPeak: null, previousSeasonPeak: null, currentSeasonPeak: null }), isHome: Boolean(member.institutionCode && member.academicStatus && affiliationRules.some((rule) => rule.institutionCode === member.institutionCode && rule.eligibleAcademicStatuses.includes(member.academicStatus as "enrolled" | "graduated"))) })) }) : { eligible: true, blockers: [] };
+    const njuPrimaryCount = primary.filter((member) => member.institutionCode && member.academicStatus && affiliationRules.some((rule) => rule.institutionCode === member.institutionCode && rule.eligibleAcademicStatuses.includes(member.academicStatus as "enrolled" | "graduated"))).length;
 
     return (
       <div className="container mx-auto max-w-2xl space-y-6 px-4 py-10">
@@ -151,7 +165,8 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
           minTeamSize={season.minTeamSize}
           maxTeamSize={season.maxTeamSize}
           application={application}
-          members={members.map((member) => ({ id: member.id, userId: member.userId, email: member.email, displayName: member.displayName, status: member.status, emailVerified: Boolean(member.emailVerified), educationStatus: member.verificationStatus ?? "unsubmitted", institutionName: member.institutionName }))}
+          qualification={{ njuPrimaryCount, externalStrengthBlockers: externalStrength.blockers }}
+          members={members.map((member) => ({ id: member.id, userId: member.userId, email: member.email, displayName: member.displayName, status: member.status, emailVerified: Boolean(member.emailVerified), educationStatus: (member.verificationStatus ?? "unsubmitted") as "unsubmitted" | "pending" | "approved" | "rejected", institutionName: member.institutionName, readinessBlockers: readinessByUser.get(member.userId)?.blockers ?? [] }))}
         />
       </div>
     );

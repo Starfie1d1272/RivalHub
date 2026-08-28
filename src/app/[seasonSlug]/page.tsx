@@ -321,9 +321,9 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
             <Panel hoverable>
               <div className="flex flex-col gap-2">
                 <div
-                  className="inline-flex items-center justify-center w-10 h-10 rounded-md mb-1 transition-colors"
+                  className="inline-flex items-center justify-center w-10 h-10 rounded-sm mb-1 transition-colors"
                   style={{
-                    backgroundColor: `rgba(255, 107, 26, 0.1)`,
+                    backgroundColor: "var(--color-accent-soft)",
                     color: "var(--color-accent)",
                   }}
                 >

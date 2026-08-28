@@ -13,6 +13,8 @@ import {
 } from "@/actions/major-prestart";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Marker, Panel } from "@/components/rivalhub";
 import type { ActionResult } from "@/types/action";
 
@@ -48,17 +50,17 @@ function EntrantRoster({ entrant, seasonId, locked }: {
     : [...current, userId]);
 
   return (
-    <article className="rounded-md border border-[var(--color-border)] p-3">
+    <article className="border border-[var(--color-border)] p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="font-medium text-[var(--color-fg)]">{entrant.teamName}</h3>
-        <span className={`text-xs ${entrant.rosterConfirmedAt ? "text-emerald-700" : "text-amber-800"}`}>
+        <span className={`text-xs ${entrant.rosterConfirmedAt ? "text-[var(--color-ok)]" : "text-[var(--color-warn)]"}`}>
           {entrant.rosterConfirmedAt ? "名单已确认" : "待确认名单"}
         </span>
       </div>
       <fieldset className="mt-2 grid gap-1 text-sm text-[var(--color-fg-mid)]" disabled={locked || isPending}>
         <legend className="sr-only">{entrant.teamName} 最终赛事名单</legend>
         {entrant.candidates.map((candidate) => <label key={candidate.userId} className="flex items-center gap-2">
-          <input type="checkbox" checked={selected.includes(candidate.userId)} onChange={() => toggle(candidate.userId)} />
+          <Checkbox checked={selected.includes(candidate.userId)} onChange={() => toggle(candidate.userId)} />
           {candidate.email}
         </label>)}
       </fieldset>
@@ -95,10 +97,7 @@ export function MajorPrestartManagement({ data }: { data: MajorPrestartManagemen
 
     <Panel label={`正式参赛队 (${data.entrants.length}/32)`}>
       {!locked && <div className="mb-4 flex flex-wrap gap-2">
-        <select value={teamId} onChange={(event) => setTeamId(event.target.value)} className="min-w-48 rounded border border-[var(--color-border)] bg-white px-3 py-2 text-sm">
-          <option value="">选择已审核正式队伍</option>
-          {data.availableTeams.map((team) => <option key={team.id} value={team.id}>{team.name}（{team.members.length} 人）</option>)}
-        </select>
+        <Select value={teamId} onValueChange={setTeamId}><SelectTrigger className="min-w-48"><SelectValue placeholder="选择已审核正式队伍" /></SelectTrigger><SelectContent>{data.availableTeams.map((team) => <SelectItem key={team.id} value={team.id}>{team.name}（{team.members.length} 人）</SelectItem>)}</SelectContent></Select>
         <Button disabled={isPending || !teamId} onClick={() => startTransition(() => void showResult(
           () => addMajorPrestartEntrant({ seasonId: data.seasonId, teamId }), "已加入正式参赛队集合",
         ))}>加入正式参赛队</Button>
@@ -117,11 +116,11 @@ export function MajorPrestartManagement({ data }: { data: MajorPrestartManagemen
         if (result.success) setIssueLabel("");
         return result;
       }, "赛前事项已记录")); }}>
-        <select value={issueCategory} onChange={(event) => setIssueCategory(event.target.value as typeof issueCategory)} className="rounded border border-[var(--color-border)] bg-white px-3 py-2 text-sm"><option value="qualification">资格事项</option><option value="administration">管理事项</option></select>
+        <Select value={issueCategory} onValueChange={(value) => setIssueCategory(value as typeof issueCategory)}><SelectTrigger className="w-32"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="qualification">资格事项</SelectItem><SelectItem value="administration">管理事项</SelectItem></SelectContent></Select>
         <Input value={issueLabel} onChange={(event) => setIssueLabel(event.target.value)} placeholder="例如：资格材料复核" className="max-w-sm" />
         <Button type="submit" disabled={isPending || !issueLabel.trim()}>添加事项</Button>
       </form>}
-      {data.issues.length === 0 ? <p className="text-sm text-[var(--color-fg-mid)]">尚未记录待处理事项。</p> : <ul className="space-y-2 text-sm">{data.issues.map((issue) => <li key={issue.id} className="flex flex-wrap items-center justify-between gap-2 rounded border border-[var(--color-border)] px-3 py-2"><span>{issue.category === "qualification" ? "资格" : "管理"} · {issue.label} · <span className={issue.resolved ? "text-emerald-700" : "text-amber-800"}>{issue.resolved ? "已处理" : "未处理"}</span></span>{!locked && !issue.resolved && <Button size="sm" variant="outline" disabled={isPending} onClick={() => startTransition(() => void showResult(() => resolveMajorPrestartIssue({ seasonId: data.seasonId, issueId: issue.id }), "事项已标记为已处理"))}>标记已处理</Button>}</li>)}</ul>}
+      {data.issues.length === 0 ? <p className="text-sm text-[var(--color-fg-mid)]">尚未记录待处理事项。</p> : <ul className="space-y-2 text-sm">{data.issues.map((issue) => <li key={issue.id} className="flex flex-wrap items-center justify-between gap-2 border border-[var(--color-border)] px-3 py-2"><span>{issue.category === "qualification" ? "资格" : "管理"} · {issue.label} · <span className={issue.resolved ? "text-[var(--color-ok)]" : "text-[var(--color-warn)]"}>{issue.resolved ? "已处理" : "未处理"}</span></span>{!locked && !issue.resolved && <Button size="sm" variant="outline" disabled={isPending} onClick={() => startTransition(() => void showResult(() => resolveMajorPrestartIssue({ seasonId: data.seasonId, issueId: issue.id }), "事项已标记为已处理"))}>标记已处理</Button>}</li>)}</ul>}
     </Panel>
   </div>;
 }

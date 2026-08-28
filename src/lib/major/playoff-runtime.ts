@@ -11,7 +11,7 @@ import { getMajorSwissQualifiers, projectMajorSwissStage, type MajorSwissMatchFa
 type FrozenStage = { key: string; name: string; type: string; teamCount: number; matchFormat: string; finalFormat: string | null };
 type FrozenTournamentEntrant = { entrantId: string; teamId: string; tournamentSeed: number };
 type FrozenSnapshot = { stagePlan: FrozenStage[]; stage: FrozenStage; tournamentEntrants: FrozenTournamentEntrant[]; hasThirdPlaceMatch?: boolean };
-type PlayoffStep = "quarterfinal" | "semifinal" | "final";
+type PlayoffStep = "quarterfinal" | "semifinal" | "third_place" | "final";
 
 export interface MajorPlayoffStartResult {
   sourceStageRunId: string;
@@ -100,7 +100,7 @@ function validateStageThree(snapshotValue: FrozenSnapshot, stageRun: typeof majo
 /** Creates only the QF facts; later rounds are created after their upstream result is finalized. */
 export async function startMajorPlayoffInTransaction(
   tx: TxDb,
-  input: { seasonId: string; sourceStageRunId: string; actorId: string },
+  input: { seasonId: string; sourceStageRunId: string; actorId: string; hasThirdPlaceMatch?: boolean },
 ): Promise<MajorPlayoffStartResult> {
   await assertSeasonAllowsTournamentMutationInTx(tx, input.seasonId);
   const [sourceRun] = await tx.select().from(majorStageRuns)
@@ -127,7 +127,7 @@ export async function startMajorPlayoffInTransaction(
   const frozenEntrantByTeam = new Map(sourceSnapshot.tournamentEntrants.map((entrant) => [entrant.teamId, entrant]));
   const [playoffRun] = await tx.insert(majorStageRuns).values({
     seasonId: input.seasonId, stageKey: playoffStage.key, startedBy: input.actorId,
-    ruleSnapshot: { ...sourceSnapshot, stage: playoffStage, hasThirdPlaceMatch: false },
+    ruleSnapshot: { ...sourceSnapshot, stage: playoffStage, hasThirdPlaceMatch: input.hasThirdPlaceMatch === true },
   }).returning({ id: majorStageRuns.id });
   if (!playoffRun) throw new AppError(ErrorCode.INTERNAL_ERROR, "淘汰赛 StageRun 创建失败。");
   await tx.insert(majorStageEntrants).values(playoffEntrants.map((entrant) => {
@@ -142,7 +142,7 @@ export async function startMajorPlayoffInTransaction(
     ownership: "major_stage" as const, majorStageRunId: playoffRun.id, managedKey: `qf-${pairing.slot}`,
   }))).returning({ id: matches.id });
   if (created.length !== 4) throw new AppError(ErrorCode.INTERNAL_ERROR, "淘汰赛八强赛创建数量异常。");
-  await tx.insert(auditLogs).values({ seasonId: input.seasonId, action: "major.playoff.start", actorId: input.actorId, targetId: playoffRun.id, targetType: "major_stage_run", meta: { sourceStageRunId: sourceRun.id, stageKey: playoffStage.key, entrants: 8, managedMatches: 4, hasThirdPlaceMatch: false } });
+  await tx.insert(auditLogs).values({ seasonId: input.seasonId, action: "major.playoff.start", actorId: input.actorId, targetId: playoffRun.id, targetType: "major_stage_run", meta: { sourceStageRunId: sourceRun.id, stageKey: playoffStage.key, entrants: 8, managedMatches: 4, hasThirdPlaceMatch: input.hasThirdPlaceMatch === true } });
   return { sourceStageRunId: sourceRun.id, stageRunId: playoffRun.id, created: true, matchCount: created.length };
 }
 
@@ -183,8 +183,8 @@ export async function finalizeMajorPlayoffRoundInTransaction(
     .where(and(eq(majorStageRuns.id, input.stageRunId), eq(majorStageRuns.seasonId, input.seasonId))).for("update");
   if (!run) throw new AppError(ErrorCode.NOT_FOUND, "指定的淘汰赛 StageRun 不属于当前赛事。");
   const frozen = snapshot(run.ruleSnapshot);
-  if (frozen.stage.key !== run.stageKey || frozen.stage.type !== "single_elim" || frozen.stage.teamCount !== 8 || frozen.stage.matchFormat !== "bo3" || frozen.stage.finalFormat !== "bo5" || frozen.hasThirdPlaceMatch !== false) {
-    throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "当前 StageRun 不是可运行的无季军赛 Major 淘汰赛。 ");
+  if (frozen.stage.key !== run.stageKey || frozen.stage.type !== "single_elim" || frozen.stage.teamCount !== 8 || frozen.stage.matchFormat !== "bo3" || frozen.stage.finalFormat !== "bo5" || typeof frozen.hasThirdPlaceMatch !== "boolean") {
+    throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "当前 StageRun 不是可运行的 Major 淘汰赛。 ");
   }
   const entrants = await tx.select().from(majorStageEntrants).where(eq(majorStageEntrants.stageRunId, run.id)).for("update");
   const managed = await tx.select().from(matches).where(and(eq(matches.majorStageRunId, run.id), eq(matches.ownership, "major_stage"))).for("update");
@@ -220,23 +220,27 @@ export async function finalizeMajorPlayoffRoundInTransaction(
     const existingFinal = managed.filter((match) => match.entryRound === "final");
     if (existingFinal.length > 0) return { stageRunId: run.id, finalizedRound: "semifinal", createdNextRound: 0, resultPendingConfirmation: false, alreadyFinalized: true };
     const sfFacts = semifinals.map(playoffFact);
-    const [created] = await tx.insert(matches).values({ seasonId: input.seasonId, teamAId: sfFacts[0]!.winnerId, teamBId: sfFacts[1]!.winnerId, stage: run.stageKey, entryRound: "final", format: "bo5", status: "scheduled", ownership: "major_stage", majorStageRunId: run.id, managedKey: "final-1" }).returning({ id: matches.id });
-    if (!created) throw new AppError(ErrorCode.INTERNAL_ERROR, "总决赛创建失败。 ");
-    await tx.insert(auditLogs).values({ seasonId: input.seasonId, action: "major.playoff.finalize_round", actorId: input.actorId, targetId: run.id, targetType: "major_stage_run", meta: { finalizedRound: "semifinal", createdNextRound: 1 } });
-    return { stageRunId: run.id, finalizedRound: "semifinal", createdNextRound: 1, resultPendingConfirmation: false, alreadyFinalized: false };
+    const created = await tx.insert(matches).values([
+      { seasonId: input.seasonId, teamAId: sfFacts[0]!.winnerId, teamBId: sfFacts[1]!.winnerId, stage: run.stageKey, entryRound: "final", format: "bo5", status: "scheduled", ownership: "major_stage", majorStageRunId: run.id, managedKey: "final-1" },
+      ...(frozen.hasThirdPlaceMatch ? [{ seasonId: input.seasonId, teamAId: sfFacts[0]!.winnerId === semifinals[0]!.teamAId ? semifinals[0]!.teamBId : semifinals[0]!.teamAId, teamBId: sfFacts[1]!.winnerId === semifinals[1]!.teamAId ? semifinals[1]!.teamBId : semifinals[1]!.teamAId, stage: run.stageKey, entryRound: "third_place" as const, format: "bo3" as const, status: "scheduled" as const, ownership: "major_stage" as const, majorStageRunId: run.id, managedKey: "third-1" }] : []),
+    ]).returning({ id: matches.id });
+    if (created.length !== (frozen.hasThirdPlaceMatch ? 2 : 1)) throw new AppError(ErrorCode.INTERNAL_ERROR, "淘汰赛后续比赛创建失败。 ");
+    await tx.insert(auditLogs).values({ seasonId: input.seasonId, action: "major.playoff.finalize_round", actorId: input.actorId, targetId: run.id, targetType: "major_stage_run", meta: { finalizedRound: "semifinal", createdNextRound: created.length, hasThirdPlaceMatch: frozen.hasThirdPlaceMatch } });
+    return { stageRunId: run.id, finalizedRound: "semifinal", createdNextRound: created.length, resultPendingConfirmation: false, alreadyFinalized: false };
   }
   const existingResult = await tx.select().from(majorFinalResults).where(eq(majorFinalResults.playoffStageRunId, run.id)).for("update");
   if (existingResult[0]) return { stageRunId: run.id, finalizedRound: "final", createdNextRound: 0, resultPendingConfirmation: true, alreadyFinalized: true };
   const final = expectedMatches(managed, "final", 1)[0]!;
-  const playoffFacts = [...qfs, ...semifinals, final].map(playoffFact);
-  const playoff = projectMajorPlayoff({ entrants: seeded, matches: playoffFacts, hasThirdPlaceMatch: false });
+  const thirdPlace = frozen.hasThirdPlaceMatch ? expectedMatches(managed, "third_place", 1)[0]! : null;
+  const playoffFacts = [...qfs, ...semifinals, final, ...(thirdPlace ? [thirdPlace] : [])].map(playoffFact);
+  const playoff = projectMajorPlayoff({ entrants: seeded, matches: playoffFacts, hasThirdPlaceMatch: frozen.hasThirdPlaceMatch });
   const swiss = await completeSwissFactsForFinalPlacement(tx, input.seasonId, frozen);
-  const placements = buildFinalMajorPlacements({ tournamentTeams: frozen.tournamentEntrants.map(({ teamId, tournamentSeed }) => ({ teamId, tournamentSeed })), ...swiss, playoffMatches: playoffFacts, hasThirdPlaceMatch: false });
+  const placements = buildFinalMajorPlacements({ tournamentTeams: frozen.tournamentEntrants.map(({ teamId, tournamentSeed }) => ({ teamId, tournamentSeed })), ...swiss, playoffMatches: playoffFacts, hasThirdPlaceMatch: frozen.hasThirdPlaceMatch });
   const [result] = await tx.insert(majorFinalResults).values({ seasonId: input.seasonId, playoffStageRunId: run.id, championTeamId: playoff.championId, placementGroups: placements, status: "pending_confirmation", finalizedBy: input.actorId }).returning({ id: majorFinalResults.id });
   if (!result) throw new AppError(ErrorCode.INTERNAL_ERROR, "正式最终名次创建失败。 ");
   await tx.insert(auditLogs).values([
     { seasonId: input.seasonId, action: "major.playoff.finalize_round", actorId: input.actorId, targetId: run.id, targetType: "major_stage_run", meta: { finalizedRound: "final", createdNextRound: 0 } },
-    { seasonId: input.seasonId, action: "major.result.pending_confirmation", actorId: input.actorId, targetId: result.id, targetType: "major_final_result", meta: { playoffStageRunId: run.id, championTeamId: playoff.championId, placementGroupCount: placements.length, hasThirdPlaceMatch: false } },
+    { seasonId: input.seasonId, action: "major.result.pending_confirmation", actorId: input.actorId, targetId: result.id, targetType: "major_final_result", meta: { playoffStageRunId: run.id, championTeamId: playoff.championId, placementGroupCount: placements.length, hasThirdPlaceMatch: frozen.hasThirdPlaceMatch } },
   ]);
   return { stageRunId: run.id, finalizedRound: "final", createdNextRound: 0, resultPendingConfirmation: true, alreadyFinalized: false };
 }

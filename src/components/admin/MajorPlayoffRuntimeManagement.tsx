@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { finalizeMajorPlayoffRound } from "@/actions/major-prestart";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Marker, Panel } from "@/components/rivalhub";
 
 export interface MajorPlayoffRuntimeData {
@@ -33,8 +34,8 @@ export function MajorPlayoffRuntimeManagement({ data }: { data: MajorPlayoffRunt
         <p className="text-sm text-[var(--color-fg-mid)]">最后一场比赛已形成冠军和正式名次分组；赛事保持待确认，不会静默归档或伪造季军唯一排名。</p>
       ) : data.currentRound && <>
         <p className="text-sm text-[var(--color-fg-mid)]">本轮 {data.completedMatchCount}/{data.currentMatchCount} 场托管比赛已完成。确认会绑定此 StageRun 复核所有比分与上游胜者，再生成下一轮或进入待确认赛事结果。</p>
-        <label className="flex items-start gap-2 rounded border border-[var(--color-border)] p-3 text-sm text-[var(--color-fg-mid)]">
-          <input type="checkbox" checked={confirmed} disabled={!canFinalize || isPending} onChange={(event) => setConfirmed(event.target.checked)} />
+        <label className="flex items-start gap-2 border border-[var(--color-border)] p-3 text-sm text-[var(--color-fg-mid)]">
+          <Checkbox checked={confirmed} disabled={!canFinalize || isPending} onChange={(event) => setConfirmed(event.target.checked)} />
           <span>我确认本轮所有正式比分已核对无误，并接受其成为后续淘汰赛与正式结果的依据。</span>
         </label>
         <Button disabled={!canFinalize || !confirmed || isPending} onClick={() => startTransition(async () => {

@@ -1,4 +1,4 @@
-import { Marker, Panel } from "@/components/rivalhub";
+import { Checklist, Marker, Panel } from "@/components/rivalhub";
 import type { MajorPrestartReadiness } from "@/lib/major/prestart";
 import { MajorPrestartManagement, type MajorPrestartManagementData } from "./MajorPrestartManagement";
 import { MajorTournamentSeedsManagement, type MajorTournamentSeedsManagementData } from "./MajorTournamentSeedsManagement";
@@ -12,11 +12,6 @@ const STATE_LABEL = {
   unavailable: "尚未接入/不可确认",
 } as const;
 
-const STATE_CLASS = {
-  ready: "text-emerald-700 border-emerald-300 bg-emerald-50",
-  blocked: "text-amber-800 border-amber-300 bg-amber-50",
-  unavailable: "text-slate-700 border-slate-300 bg-slate-50",
-} as const;
 
 export function MajorPrestartConsole({
   seasonName,
@@ -42,33 +37,12 @@ export function MajorPrestartConsole({
           赛事控制台 · {seasonName}
         </Marker>
         <p className="text-sm text-[var(--color-fg-mid)]">
-          赛前事实、StageRun 与托管比赛独立管理；只有管理员勾选明确确认后，才会原子启动或切换阶段。
+          按赛前检查、正式名单、种子和阶段推进依次完成。每次确认都由服务器重新核验赛事事实。
         </p>
       </div>
 
       <Panel label="赛前检查">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          {readiness.checks.map((check) => (
-            <section
-              key={check.key}
-              className="rounded-md border border-[var(--color-border)] p-3"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 className="font-medium text-[var(--color-fg)]">{check.label}</h2>
-                <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${STATE_CLASS[check.state]}`}>
-                  {STATE_LABEL[check.state]}
-                </span>
-              </div>
-              {check.blockers.length > 0 ? (
-                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-[var(--color-fg-mid)]">
-                  {check.blockers.map((blocker) => <li key={blocker}>{blocker}</li>)}
-                </ul>
-              ) : (
-                <p className="mt-2 text-sm text-[var(--color-fg-mid)]">已满足该项开赛条件。</p>
-              )}
-            </section>
-          ))}
-        </div>
+        <Checklist items={readiness.checks.map((check) => ({ label: check.label, state: check.state === "ready" ? "complete" as const : check.state === "blocked" ? "blocked" as const : "pending" as const, detail: check.blockers.length ? check.blockers.join(" ") : STATE_LABEL[check.state] }))} />
       </Panel>
 
       <MajorPrestartManagement data={management} />
@@ -81,7 +55,7 @@ export function MajorPrestartConsole({
         {readiness.openingPlan ? (
           <ol className="grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
             {readiness.openingPlan.firstRound.pairings.map((pairing) => (
-              <li key={`${pairing.higherSeed.teamId}-${pairing.lowerSeed.teamId}`} className="rounded border border-[var(--color-border)] px-3 py-2">
+              <li key={`${pairing.higherSeed.teamId}-${pairing.lowerSeed.teamId}`} className="border border-[var(--color-border)] px-3 py-2">
                 #{pairing.higherSeed.tournamentSeed} vs #{pairing.lowerSeed.tournamentSeed} · {pairing.format.toUpperCase()}
               </li>
             ))}

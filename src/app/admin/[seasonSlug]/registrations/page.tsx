@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { asc, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, seasonRegistrations, users, registrationDrafts, teamApplicationMembers, teamApplications } from "@/db/schema";
+import { seasons, seasonRegistrations, users, registrationDrafts, teamApplicationMembers, teamApplications, educationVerifications, institutions } from "@/db/schema";
 import { Marker } from "@/components/rivalhub";
 import {
   RegistrationReviewList,
@@ -10,6 +10,11 @@ import {
 import { DraftRegistrationTable } from "@/components/admin/DraftRegistrationTable";
 import { TeamApplicationReviewList } from "@/components/admin/TeamApplicationReviewList";
 import { isTeamRegistration } from "@/lib/utils/season";
+import { getParticipantReadiness } from "@/lib/major/participant-readiness";
+import { evaluateExternalStrengthRule, getPlayerStrengthBreakdown } from "@/lib/major/player-strength";
+import { evaluateRosterEducationEligibility } from "@/lib/education/eligibility";
+import { loadActiveSanctionsInTx } from "@/lib/discipline/service";
+import { normalizeAffiliationRules, normalizeTeamRegistrationConfig } from "@/types/season";
 
 interface PageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -31,6 +36,8 @@ export default async function AdminRegistrationsPage({ params }: PageProps) {
         name: teamApplications.name,
         status: teamApplications.status,
         reviewReason: teamApplications.reviewReason,
+        perfectTeamId: teamApplications.perfectTeamId,
+        primaryStarterUserIds: teamApplications.primaryStarterUserIds,
         captainEmail: users.email,
       })
       .from(teamApplications)
@@ -38,20 +45,46 @@ export default async function AdminRegistrationsPage({ params }: PageProps) {
       .where(eq(teamApplications.seasonId, season.id))
       .orderBy(desc(teamApplications.updatedAt));
     const applicationIds = applications.map((application) => application.id);
+    const teamConfig = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
+    const affiliationRules = normalizeAffiliationRules(season.affiliationRules);
     const members = applicationIds.length === 0
       ? []
       : await db
-          .select({ applicationId: teamApplicationMembers.applicationId, email: users.email, status: teamApplicationMembers.status })
+          .select({ applicationId: teamApplicationMembers.applicationId, userId: users.id, email: users.email, displayName: users.displayName, perfectId: users.perfectId, emailVerifiedAt: users.emailVerifiedAt, educationVerificationId: educationVerifications.id, educationStatus: educationVerifications.status, academicStatus: educationVerifications.academicStatus, institutionName: institutions.name, institutionCode: institutions.moeInstitutionCode, status: teamApplicationMembers.status })
           .from(teamApplicationMembers)
           .innerJoin(users, eq(teamApplicationMembers.userId, users.id))
+          .leftJoin(educationVerifications, eq(educationVerifications.userId, users.id))
+          .leftJoin(institutions, eq(educationVerifications.institutionId, institutions.id))
           .where(inArray(teamApplicationMembers.applicationId, applicationIds));
+    const allMemberIds = [...new Set(members.map((member) => member.userId))];
+    const readinessByUser = new Map<string, Awaited<ReturnType<typeof getParticipantReadiness>>>();
+    if (teamConfig.requireCompetitiveProfile && teamConfig.competitiveProfile) {
+      const rows = await Promise.all(allMemberIds.map(async (userId) => [userId, await getParticipantReadiness(userId, teamConfig.competitiveProfile!)] as const));
+      rows.forEach(([userId, readiness]) => readinessByUser.set(userId, readiness));
+    }
+    const sanctionsByUser = await loadActiveSanctionsInTx(db, { seasonId: season.id, subjectUserIds: allMemberIds, effect: "registration_block" });
+    const reviewRows = applications.map((application) => {
+      const appMembers = members.filter((member) => member.applicationId === application.id);
+      const confirmed = appMembers.filter((member) => member.status === "confirmed");
+      const education = evaluateRosterEducationEligibility(confirmed.map((member) => ({ userId: member.userId, email: member.email, emailVerifiedAt: member.emailVerifiedAt, verification: member.educationVerificationId && member.educationStatus && member.academicStatus && member.institutionName ? { id: member.educationVerificationId, status: member.educationStatus, academicStatus: member.academicStatus, institutionCode: member.institutionCode, institutionName: member.institutionName } : null })), affiliationRules);
+      const primary = application.primaryStarterUserIds.map((userId) => appMembers.find((member) => member.userId === userId)).filter((member): member is typeof appMembers[number] => Boolean(member));
+      const external = teamConfig.competitiveProfile ? evaluateExternalStrengthRule({ config: teamConfig.competitiveProfile, players: primary.map((member) => {
+        const readiness = readinessByUser.get(member.userId);
+        const isNju = Boolean(member.institutionCode && member.academicStatus && affiliationRules.some((rule) => rule.institutionCode === member.institutionCode && rule.eligibleAcademicStatuses.includes(member.academicStatus as "enrolled" | "graduated")));
+        return { ...(readiness?.strength ?? { userId: member.userId, label: member.displayName ?? member.email, historicalPeak: null, previousSeasonPeak: null, currentSeasonPeak: null }), isHome: isNju };
+      }) }) : { eligible: true, blockers: [] };
+      const readinessBlocked = confirmed.filter((member) => !readinessByUser.get(member.userId)?.ready);
+      const disciplineBlocked = confirmed.filter((member) => (sanctionsByUser.get(member.userId)?.length ?? 0) > 0);
+      return { ...application, members: appMembers.map((member) => {
+        const readiness = readinessByUser.get(member.userId); const strength = readiness && teamConfig.competitiveProfile ? getPlayerStrengthBreakdown(readiness.strength, teamConfig.competitiveProfile) : null;
+        const isNju = Boolean(member.institutionCode && member.academicStatus && affiliationRules.some((rule) => rule.institutionCode === member.institutionCode && rule.eligibleAcademicStatuses.includes(member.academicStatus as "enrolled" | "graduated")));
+        return { userId: member.userId, email: member.email, displayName: member.displayName, perfectId: member.perfectId, emailVerified: Boolean(member.emailVerifiedAt), educationStatus: (member.educationStatus ?? "unsubmitted") as "unsubmitted" | "pending" | "approved" | "rejected", institutionName: member.institutionName, institutionCode: member.institutionCode, status: member.status, readinessBlockers: readiness?.blockers ?? (teamConfig.requireCompetitiveProfile ? ["竞技档案配置不可用。"] : []), disciplineBlocked: (sanctionsByUser.get(member.userId)?.length ?? 0) > 0, strength: strength ? { summary: strength.available ? `综合段位参考值 ${strength.weightedRank?.toFixed(2) ?? "—"}；历史 / 上赛季 / 当前：${strength.historicalValue} / ${strength.previousValue} / ${strength.currentValue}` : "资料不可比较", blockers: strength.blockers } : null, isNju };
+      }), qualification: { readiness: { state: readinessBlocked.length === 0 ? "complete" as const : "blocked" as const, detail: readinessBlocked.length === 0 ? "已确认成员的参赛资料齐全" : `${readinessBlocked.length} 名已确认成员仍有参赛资料 blocker` }, education: { state: education.eligible ? "complete" as const : "blocked" as const, detail: education.eligible ? `教育认证与南京大学成员要求已满足` : education.blockers.join(" ") }, externalStrength: { state: external.eligible ? "complete" as const : "blocked" as const, detail: external.eligible ? "预定主力外校成员实力限制通过" : external.blockers.join(" ") }, discipline: { state: disciplineBlocked.length === 0 ? "complete" as const : "blocked" as const, detail: disciplineBlocked.length === 0 ? "已确认成员无有效报名禁赛处罚" : `${disciplineBlocked.length} 名已确认成员存在有效报名禁赛处罚` } } };
+    });
     return (
       <div className="container mx-auto max-w-3xl px-4 py-8">
         <div className="mb-6"><Marker sub={`${applications.length} 支报名队伍 · 赛季状态：${season.status}`}>队伍报名审核 · {season.name}</Marker></div>
-        <TeamApplicationReviewList applications={applications.map((application) => ({
-          ...application,
-          members: members.filter((member) => member.applicationId === application.id).map(({ email, status }) => ({ email, status })),
-        }))} />
+        <TeamApplicationReviewList applications={reviewRows} />
       </div>
     );
   }

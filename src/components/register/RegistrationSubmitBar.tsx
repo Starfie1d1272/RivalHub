@@ -41,7 +41,7 @@ export function RegistrationSubmitBar({
         type="submit"
         disabled={!canSubmit || isSubmitting}
         className="h-11 text-base font-semibold"
-        style={{ backgroundColor: canSubmit ? "var(--color-accent)" : "var(--color-panel-hi)", color: "#fff" }}
+        style={{ backgroundColor: canSubmit ? "var(--color-accent)" : "var(--color-panel-hi)", color: canSubmit ? "var(--color-accent-fg)" : "var(--color-fg)" }}
       >
         {isSubmitting ? (
           <>

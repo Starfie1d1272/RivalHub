@@ -1,7 +1,8 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import {
   auditLogs,
+  competitiveRankFacts,
   educationVerifications,
   institutions,
   majorPrestartEntrants,
@@ -16,10 +17,11 @@ import {
 } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { frozenStageRunAffiliationRules } from "@/lib/major/frozen-affiliation-rules";
+import { evaluateExternalStrengthRule, getPlayerStrengthBreakdown, type PlayerStrengthInput } from "@/lib/major/player-strength";
 import { assertMatchTransition } from "@/lib/match-transitions";
 import { loadActiveSanctionsInTx } from "@/lib/discipline/service";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
-import type { InstitutionAffiliationRule } from "@/types/season";
+import type { CompetitiveProfileConfig, InstitutionAffiliationRule } from "@/types/season";
 import { evaluateStartingLineup, type LineupMemberFact } from "./lineup";
 
 /**
@@ -34,6 +36,17 @@ export interface TeamLineupContext {
   rules: readonly InstitutionAffiliationRule[];
   frozenRosterUserIds: ReadonlySet<string> | null;
   memberFacts: Map<string, LineupMemberFact>;
+  competitiveProfile: CompetitiveProfileConfig | null;
+}
+
+function frozenCompetitiveProfile(ruleSnapshot: unknown): CompetitiveProfileConfig | null {
+  if (!ruleSnapshot || typeof ruleSnapshot !== "object") throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 缺少冻结规则。");
+  const candidate = (ruleSnapshot as { competitiveProfile?: unknown }).competitiveProfile;
+  if (candidate === null) return null;
+  if (!candidate || typeof candidate !== "object") throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 缺少冻结的竞技档案规则。");
+  const profile = candidate as Partial<CompetitiveProfileConfig>;
+  if (typeof profile.platform !== "string" || typeof profile.currentSeasonKey !== "string" || typeof profile.previousSeasonKey !== "string" || !Array.isArray(profile.rankOrder)) throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结的竞技档案规则不可用。");
+  return { platform: profile.platform, currentSeasonKey: profile.currentSeasonKey, previousSeasonKey: profile.previousSeasonKey, rankOrder: profile.rankOrder.filter((rank): rank is string => typeof rank === "string") };
 }
 
 /** Row-lock the match so status transitions and roster mutations serialize. */
@@ -123,6 +136,7 @@ export async function loadTeamLineupContextInTx(
   let rules: readonly InstitutionAffiliationRule[] = [];
   let frozenRosterUserIds: ReadonlySet<string> | null = null;
   let verificationsByUser: Map<string, LineupMemberFact["verification"]> | null = null;
+  let competitiveProfile: CompetitiveProfileConfig | null = null;
 
   if (match.ownership === "major_stage") {
     if (!match.majorStageRunId) {
@@ -137,6 +151,7 @@ export async function loadTeamLineupContextInTx(
     }
     // Frozen at StageRun creation; never read from mutable season configuration.
     rules = frozenStageRunAffiliationRules(stageRun.ruleSnapshot);
+    competitiveProfile = frozenCompetitiveProfile(stageRun.ruleSnapshot);
     const frozen = await loadFrozenRosterUserIdsInTx(tx, match.seasonId, teamId);
     frozenRosterUserIds = frozen.ids;
     verificationsByUser = frozen.verificationsByUser;
@@ -165,7 +180,7 @@ export async function loadTeamLineupContextInTx(
     });
   }
 
-  return { rules, frozenRosterUserIds, memberFacts };
+  return { rules, frozenRosterUserIds, memberFacts, competitiveProfile };
 }
 
 export async function assertStartingLineupAllowedInTx(
@@ -177,6 +192,16 @@ export async function assertStartingLineupAllowedInTx(
     substituteIds?: readonly string[];
   },
 ): Promise<{ affiliatedStarterCounts: Map<string, number> }> {
+  const preflight = await getStartingLineupPreflightInTx(tx, args);
+  if (!preflight.valid) throw new AppError(ErrorCode.VALIDATION_FAILED, preflight.blockers.join("；"));
+  return { affiliatedStarterCounts: preflight.affiliatedStarterCounts };
+}
+
+/** Read-only counterpart of the start gate. It deliberately shares every eligibility branch with start. */
+export async function getStartingLineupPreflightInTx(
+  tx: TxDb,
+  args: { match: Match; teamId: string; starterIds: readonly string[]; substituteIds?: readonly string[] },
+): Promise<{ valid: boolean; blockers: string[]; affiliatedStarterCounts: Map<string, number> }> {
   const context = await loadTeamLineupContextInTx(tx, args.match, args.teamId);
   const result = evaluateStartingLineup({
     starterIds: args.starterIds,
@@ -185,10 +210,30 @@ export async function assertStartingLineupAllowedInTx(
     frozenRosterUserIds: context.frozenRosterUserIds ?? undefined,
     affiliationRules: context.rules.length > 0 ? context.rules : undefined,
   });
-  if (!result.valid) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, result.blockers.join("；"));
+  const blockers = [...result.blockers];
+  if (context.competitiveProfile) {
+    const starterFacts = args.starterIds.map((id) => context.memberFacts.get(id)).filter((item): item is LineupMemberFact => Boolean(item));
+    const userIds = starterFacts.map((item) => item.userId);
+    const facts = userIds.length === 0 ? [] : await tx.select().from(competitiveRankFacts).where(and(eq(competitiveRankFacts.platform, context.competitiveProfile.platform), inArray(competitiveRankFacts.userId, userIds)));
+    const players = starterFacts.map((member) => {
+      const forUser = facts.filter((fact) => fact.userId === member.userId);
+      const strength: PlayerStrengthInput = {
+        userId: member.userId,
+        label: member.userId,
+        historicalPeak: (() => { const fact = forUser.find((item) => item.kind === "historical_peak" && item.platformSeasonKey === null); return fact ? { rank: fact.rank, rating: Number(fact.rating) } : null; })(),
+        previousSeasonPeak: (() => { const fact = forUser.find((item) => item.kind === "season_peak" && item.platformSeasonKey === context.competitiveProfile!.previousSeasonKey); return fact ? { rank: fact.rank, rating: Number(fact.rating) } : null; })(),
+        currentSeasonPeak: (() => { const fact = forUser.find((item) => item.kind === "season_peak" && item.platformSeasonKey === context.competitiveProfile!.currentSeasonKey); return fact ? { rank: fact.rank, rating: Number(fact.rating) } : null; })(),
+      };
+      const required = getPlayerStrengthBreakdown(strength, context.competitiveProfile!);
+      if (!required.available) blockers.push(`首发 ${member.userId} 的竞技档案不可确认：${required.blockers.join(" ")}`);
+      const verification = member.verification;
+      const isHome = Boolean(verification && context.rules.some((rule) => rule.institutionCode === verification.institutionCode && rule.eligibleAcademicStatuses.includes(verification.academicStatus)));
+      return { ...strength, isHome };
+    });
+    const externalRule = evaluateExternalStrengthRule({ players, config: context.competitiveProfile });
+    blockers.push(...externalRule.blockers);
   }
-  return { affiliatedStarterCounts: result.affiliatedStarterCounts };
+  return { valid: blockers.length === 0, blockers: [...new Set(blockers)], affiliatedStarterCounts: result.affiliatedStarterCounts };
 }
 
 function loadPersistedPlayers(

@@ -112,7 +112,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
       )}
 
       {unconfiguredMatches.length > 0 && (
-        <Panel pad={16} className="border-[rgba(255,196,77,0.3)] bg-[rgba(255,196,77,0.05)]">
+        <Panel pad={16} className="border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)]">
           <p className="text-sm text-[var(--color-warn)]">
             部分赛程数据与当前阶段配置不一致。
           </p>
@@ -120,7 +120,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
       )}
 
       {finalResult?.status === "pending_confirmation" && (
-        <Panel pad={16} className="border-[rgba(255,196,77,0.3)] bg-[rgba(255,196,77,0.05)]">
+        <Panel pad={16} className="border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)]">
           <p className="text-sm text-[var(--color-warn)]">淘汰赛已结束，冠军和正式名次正在等待赛事方确认；赛事不会静默归档。</p>
         </Panel>
       )}

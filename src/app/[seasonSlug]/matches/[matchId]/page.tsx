@@ -73,7 +73,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   const isFinished = match.status === "finished";
 
   // Phase 3: 所有独立查询并行
-  const [timeProposals, rosterA, rosterB, userSession, allTeamMembers, seasonMatchesA, seasonMatchesB, seasonHexagonScores] =
+  const [timeProposals, rosterA, rosterB, userSession, allTeamMemberRows, seasonMatchesA, seasonMatchesB, seasonHexagonScores] =
     await Promise.all([
       getTimeProposals(match.id),
       getMatchRoster(match.id, match.teamAId),
@@ -91,12 +91,17 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
         })
         .from(teamMembers)
         .innerJoin(users, eq(teamMembers.userId, users.id))
-        .innerJoin(seasonRegistrations, eq(teamMembers.registrationId, seasonRegistrations.id))
+        .leftJoin(seasonRegistrations, eq(teamMembers.registrationId, seasonRegistrations.id))
         .where(inArray(teamMembers.teamId, [match.teamAId, match.teamBId])),
       getSeasonFinishedMatches(season.id, match.teamAId),
       getSeasonFinishedMatches(season.id, match.teamBId),
       getSeasonHexagonScores(season.id),
     ]);
+
+  const allTeamMembers = allTeamMemberRows.map((row) => ({
+    ...row,
+    primaryPosition: row.primaryPosition ?? "—",
+  }));
 
   // 从赛季对局列表计算战绩、H2H
   const recordA = computeRecord(match.teamAId, seasonMatchesA);
@@ -274,7 +279,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
           steamName: r.steamName ?? "未知",
           displayName: r.displayName ?? null,
           perfectName: r.perfectName ?? null,
-          primaryPosition: r.primaryPosition,
+          primaryPosition: r.primaryPosition ?? "—",
         }));
     }
   }
@@ -423,7 +428,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                   {map.pickedByTeamId && (
                     <span
                       className="ml-1 text-[10px] font-mono px-1 py-0.5"
-                      style={{ background: "rgba(77,212,122,0.12)", color: "var(--color-ok)" }}
+                      style={{ background: "var(--color-ok-soft)", color: "var(--color-ok)" }}
                     >
                       {map.pickedByTeamId === match.teamAId
                         ? teamA?.name?.slice(0, 3).toUpperCase()
@@ -566,8 +571,11 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
               <MatchRosterForm
                 matchId={match.id}
                 teamMembers={captainTeamMembers}
-                hasExistingRoster={captainRoster?.status === "submitted"}
-                scheduledAt={match.scheduledAt}
+                hasExistingRoster={Boolean(captainRoster)}
+                matchStatus={match.status}
+                rosterStatus={captainRoster?.status ?? null}
+                initialStarterIds={captainRoster?.players.filter((player) => player.isStarter).map((player) => player.teamMemberId) ?? []}
+                initialSubstituteIds={captainRoster?.players.filter((player) => !player.isStarter).map((player) => player.teamMemberId) ?? []}
               />
             </Panel>
           )}

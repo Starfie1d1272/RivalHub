@@ -53,7 +53,7 @@ export default async function TeamsPage({ params }: TeamsPageProps) {
       .from(teamMembers)
       .innerJoin(teams, eq(teamMembers.teamId, teams.id))
       .innerJoin(users, eq(teamMembers.userId, users.id))
-      .innerJoin(seasonRegistrations, eq(teamMembers.registrationId, seasonRegistrations.id))
+      .leftJoin(seasonRegistrations, eq(teamMembers.registrationId, seasonRegistrations.id))
       .where(inArray(teamMembers.teamId, allTeams.map((t) => t.id))),
     db.query.matches.findMany({
       where: eq(matches.seasonId, season.id),
@@ -83,8 +83,12 @@ export default async function TeamsPage({ params }: TeamsPageProps) {
     `),
   ]);
 
-  const membersByTeam = new Map<string, typeof allMembers>();
-  for (const m of allMembers) {
+  const membersWithFallbackPosition = allMembers.map((member) => ({
+    ...member,
+    primaryPosition: member.primaryPosition ?? "—",
+  }));
+  const membersByTeam = new Map<string, typeof membersWithFallbackPosition>();
+  for (const m of membersWithFallbackPosition) {
     if (!membersByTeam.has(m.teamId)) membersByTeam.set(m.teamId, []);
     membersByTeam.get(m.teamId)!.push(m);
   }

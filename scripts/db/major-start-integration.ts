@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool, type PoolClient } from "pg";
 import * as schema from "../../src/db/schema";
@@ -6,8 +6,33 @@ import { startMajorInTransaction } from "../../src/lib/major/start";
 import { finalizeMajorSwissRoundInTransaction } from "../../src/lib/major/swiss-runtime";
 import { transitionMajorSwissStageInTransaction } from "../../src/lib/major/stage-transition";
 import { finalizeMajorPlayoffRoundInTransaction, startMajorPlayoffInTransaction } from "../../src/lib/major/playoff-runtime";
+import { projectMajorSwissStage, type MajorSwissMatchFact } from "../../src/lib/major/swiss";
 import { AppError, ErrorCode } from "../../src/lib/errors";
-import { createMajorDefaultCapabilities } from "../../src/types/season";
+import { createMajorDefaultCapabilities, type CompetitiveProfileConfig } from "../../src/types/season";
+import {
+  applyResultCorrectionInTx,
+  planResultCorrectionInTx,
+} from "../../src/lib/match-corrections/service";
+import {
+  archiveTournamentInTx,
+  confirmMajorFinalResultInTx,
+  createPostEventAdjudicationInTx,
+  grantTournamentHonorInTx,
+  revokeTournamentHonorInTx,
+} from "../../src/lib/postevent/service";
+import { lockMatchInTx } from "../../src/lib/match-rosters/service";
+
+const GOLDEN_PROFILE: CompetitiveProfileConfig = {
+  platform: "perfect_world",
+  currentSeasonKey: "golden-major-2026-current",
+  previousSeasonKey: "golden-major-2026-previous",
+  rankOrder: ["C", "B", "A", "S", "SS"],
+};
+
+function deterministicUuid(scope: string): string {
+  const hex = createHash("sha256").update(`rivalhub-golden-major:${scope}`).digest("hex").slice(0, 32);
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-${(parseInt(hex.slice(16, 18), 16) & 0x3f | 0x80).toString(16).padStart(2, "0")}${hex.slice(18, 20)}-${hex.slice(20)}`;
+}
 
 const databaseUrl = process.env.RIVALHUB_LOCAL_DATABASE_URL;
 if (!databaseUrl) throw new Error("RIVALHUB_LOCAL_DATABASE_URL 未设置。");
@@ -36,24 +61,72 @@ interface MajorFixture {
   userIds: string[];
 }
 
+interface GoldenSwissEvidenceRow {
+  currentSeed: number;
+  initialStageSeed: number;
+  tournamentSeed: number;
+  team: string;
+  record: string;
+  difficultyScore: number;
+  status: string;
+}
+
+interface GoldenPlayoffEvidenceRow {
+  round: string;
+  format: string;
+  teamA: string;
+  teamB: string;
+  score: string;
+  status: string;
+}
+
+interface GoldenFinalEvidence {
+  status: string;
+  seasonStatus: string;
+  champion: string;
+  placementGroups: Array<{ from: number; to: number; teams: string[] }>;
+  thirdPlace: string;
+  honors: string;
+  postArchiveAdjudication: string;
+}
+
 async function prepareReadyMajor(pool: Pool, label: string): Promise<MajorFixture> {
   const client = await pool.connect();
-  const seasonId = randomUUID();
-  const teamIds = Array.from({ length: 32 }, () => randomUUID());
-  const applicationIds = Array.from({ length: 32 }, () => randomUUID());
-  const userIds = Array.from({ length: 160 }, () => randomUUID());
-  const memberIds = Array.from({ length: 160 }, () => randomUUID());
+  const seasonId = deterministicUuid(`${label}/season`);
+  const teamIds = Array.from({ length: 32 }, (_, index) => deterministicUuid(`${label}/team/${index + 1}`));
+  const applicationIds = Array.from({ length: 32 }, (_, index) => deterministicUuid(`${label}/application/${index + 1}`));
+  const userIds = Array.from({ length: 160 }, (_, index) => deterministicUuid(`${label}/user/${index + 1}`));
+  const memberIds = Array.from({ length: 160 }, (_, index) => deterministicUuid(`${label}/member/${index + 1}`));
   const capabilities = createMajorDefaultCapabilities();
+  capabilities.teamRegistrationConfig.competitiveProfile = GOLDEN_PROFILE;
+  const njuInstitution = await client.query<{ id: string }>(
+    "SELECT id FROM institutions WHERE moe_institution_code = '4132010284'",
+  );
+  const externalInstitution = await client.query<{ id: string }>(
+    "SELECT id FROM institutions WHERE moe_institution_code = '4111010003'",
+  );
+  const njuInstitutionId = njuInstitution.rows[0]?.id;
+  const externalInstitutionId = externalInstitution.rows[0]?.id;
+  if (!njuInstitutionId || !externalInstitutionId) throw new Error("Golden fixture 缺少学校目录基线。 ");
 
   try {
     await client.query("BEGIN");
+    await client.query(
+      `INSERT INTO competitive_platform_seasons (id, platform, season_key, label, rank_order)
+       VALUES ($1, $2, $3, 'Golden current', $4::json), ($5, $2, $6, 'Golden previous', $4::json)
+       ON CONFLICT (platform, season_key) DO UPDATE SET label = EXCLUDED.label, rank_order = EXCLUDED.rank_order, active = true, updated_at = now()`,
+      [
+        deterministicUuid("catalog/current"), GOLDEN_PROFILE.platform, GOLDEN_PROFILE.currentSeasonKey,
+        JSON.stringify(GOLDEN_PROFILE.rankOrder), deterministicUuid("catalog/previous"), GOLDEN_PROFILE.previousSeasonKey,
+      ],
+    );
     await client.query(
       `INSERT INTO seasons (
         id, slug, name, kind, status, registration_mode, has_captain_voting, has_draft,
         stage_plan, registration_config, team_registration_config, affiliation_rules, min_team_size, max_team_size, starter_count, positions
       ) VALUES ($1, $2, 'Local Major Start', 'Major', 'registration', $3, $4, $5, $6::json, $7::json, $8::json, $9::json, $10, $11, $12, $13::text[])`,
       [
-        seasonId, `local-major-start-${label}-${seasonId}`,
+        seasonId, `local-golden-major-2026-08-${label}`,
         capabilities.registrationMode, capabilities.hasCaptainVoting, capabilities.hasDraft,
         JSON.stringify(capabilities.stagePlan), JSON.stringify(capabilities.registrationConfig),
         JSON.stringify(capabilities.teamRegistrationConfig), JSON.stringify(capabilities.affiliationRules),
@@ -61,28 +134,55 @@ async function prepareReadyMajor(pool: Pool, label: string): Promise<MajorFixtur
       ],
     );
     await client.query(
-      `INSERT INTO users (id, email, email_verified_at) SELECT value::uuid, 'major-start-' || value || '@local.test', now()
-       FROM unnest($1::text[]) AS value`,
-      [userIds],
+      `INSERT INTO users (id, email, email_verified_at, display_name, steam_name, perfect_name, perfect_id, steam64, steam_profile_url, qq, student_id)
+       SELECT value::uuid,
+              'golden-major-' || $2 || '-' || ordinal || '@local.test',
+              now(),
+              'Golden ' || $2 || ' Player ' || ordinal,
+              'Golden ' || $2 || ' Steam ' || ordinal,
+              'Golden ' || $2 || ' Perfect Name ' || ordinal,
+              'golden-perfect-' || $2 || '-' || ordinal,
+              lpad((76561198000000000 + ordinal)::text, 17, '0'),
+              'https://steamcommunity.com/profiles/' || lpad((76561198000000000 + ordinal)::text, 17, '0'),
+              (10000000 + ordinal)::text,
+              'legacy-student-' || ordinal
+       FROM unnest($1::text[]) WITH ORDINALITY AS input(value, ordinal)`,
+      [userIds, label],
     );
+    const educationRows = userIds.map((userId, index) => ({
+      id: deterministicUuid(`${label}/education/${index + 1}`),
+      userId,
+      institutionId: index % 5 < 3 ? njuInstitutionId : externalInstitutionId,
+      academicStatus: index % 7 === 0 ? "graduated" : "enrolled",
+    }));
     await client.query(
-      `INSERT INTO education_verifications (user_id, institution_id, academic_status, evidence_type, status, reviewed_by, reviewed_at)
-       SELECT u.id, i.id, 'enrolled', 'manual_other', 'approved', 'local-admin', now()
-       FROM users u
-       CROSS JOIN institutions i
-       WHERE u.id = ANY($1::uuid[]) AND i.moe_institution_code = '4132010284'`,
-      [userIds],
+      `INSERT INTO education_verifications (id, user_id, institution_id, academic_status, evidence_type, status, reviewed_by, reviewed_at)
+       VALUES ${educationRows.map((_, index) => `($${index * 4 + 1}, $${index * 4 + 2}, $${index * 4 + 3}, $${index * 4 + 4}, 'manual_other', 'approved', 'local-admin', now())`).join(", ")}`,
+      educationRows.flatMap((row) => [row.id, row.userId, row.institutionId, row.academicStatus]),
+    );
+    const rankRows = userIds.flatMap((userId, index) => {
+      const rank = index % 5 < 3 ? "S" : "A";
+      return [
+        { id: deterministicUuid(`${label}/rank/${index + 1}/historical`), kind: "historical_peak", seasonKey: null, rank, rating: index % 5 < 3 ? "1800.00" : "1500.00" },
+        { id: deterministicUuid(`${label}/rank/${index + 1}/previous`), kind: "season_peak", seasonKey: GOLDEN_PROFILE.previousSeasonKey, rank, rating: index % 5 < 3 ? "1750.00" : "1450.00" },
+        { id: deterministicUuid(`${label}/rank/${index + 1}/current`), kind: "season_peak", seasonKey: GOLDEN_PROFILE.currentSeasonKey, rank, rating: index % 5 < 3 ? "1700.00" : "1400.00" },
+      ].map((fact) => ({ ...fact, userId }));
+    });
+    await client.query(
+      `INSERT INTO competitive_rank_facts (id, user_id, platform, kind, platform_season_key, rank, rating)
+       VALUES ${rankRows.map((_, index) => `($${index * 7 + 1}, $${index * 7 + 2}, $${index * 7 + 3}, $${index * 7 + 4}, $${index * 7 + 5}, $${index * 7 + 6}, $${index * 7 + 7})`).join(", ")}`,
+      rankRows.flatMap((row) => [row.id, row.userId, GOLDEN_PROFILE.platform, row.kind, row.seasonKey, row.rank, row.rating]),
     );
     for (let index = 0; index < 32; index += 1) {
       await client.query(
-        `INSERT INTO team_applications (id, season_id, name, captain_user_id, status)
-         VALUES ($1, $2, $3, $4, 'approved')`,
-        [applicationIds[index], seasonId, `Team ${index + 1}`, userIds[index * 5]],
+        `INSERT INTO team_applications (id, season_id, name, perfect_team_id, primary_starter_user_ids, captain_user_id, status)
+         VALUES ($1, $2, $3, $4, $5::uuid[], $6, 'approved')`,
+        [applicationIds[index], seasonId, `Golden Team ${index + 1}`, `golden-team-${index + 1}`, userIds.slice(index * 5, index * 5 + 5), userIds[index * 5]],
       );
       await client.query(
         `INSERT INTO teams (id, season_id, name, captain_user_id, team_application_id)
          VALUES ($1, $2, $3, $4, $5)`,
-        [teamIds[index], seasonId, `Team ${index + 1}`, userIds[index * 5], applicationIds[index]],
+        [teamIds[index], seasonId, `Golden Team ${index + 1}`, userIds[index * 5], applicationIds[index]],
       );
       for (let offset = 0; offset < 5; offset += 1) {
         const userId = userIds[index * 5 + offset];
@@ -105,9 +205,9 @@ async function prepareReadyMajor(pool: Pool, label: string): Promise<MajorFixtur
     );
     for (let index = 0; index < 32; index += 1) {
       const entrant = await client.query<{ id: string }>(
-        `INSERT INTO major_prestart_entrants (season_id, team_id, roster_confirmed_at, roster_confirmed_by)
-         VALUES ($1, $2, now(), 'local-admin') RETURNING id`,
-        [seasonId, teamIds[index]],
+        `INSERT INTO major_prestart_entrants (id, season_id, team_id, roster_confirmed_at, roster_confirmed_by)
+         VALUES ($1, $2, $3, now(), 'local-admin') RETURNING id`,
+        [deterministicUuid(`${label}/entrant/${index + 1}`), seasonId, teamIds[index]],
       );
       const entrantId = entrant.rows[0]?.id;
       if (!entrantId) throw new Error("正式参赛队创建失败。");
@@ -120,8 +220,8 @@ async function prepareReadyMajor(pool: Pool, label: string): Promise<MajorFixtur
         [entrantId, seasonId, teamIds[index]],
       );
       await client.query(
-        `INSERT INTO major_tournament_seeds (season_id, entrant_id, tournament_seed) VALUES ($1, $2, $3)`,
-        [seasonId, entrantId, index + 1],
+        `INSERT INTO major_tournament_seeds (id, season_id, entrant_id, tournament_seed) VALUES ($1, $2, $3, $4)`,
+        [deterministicUuid(`${label}/seed/${index + 1}`), seasonId, entrantId, index + 1],
       );
     }
     await client.query("COMMIT");
@@ -139,6 +239,8 @@ async function cleanupMajorFixture(pool: Pool, fixture: MajorFixture): Promise<v
   try {
     await client.query("BEGIN");
     await client.query("DELETE FROM matches WHERE season_id = $1", [fixture.seasonId]);
+    await client.query("DELETE FROM tournament_honors WHERE season_id = $1", [fixture.seasonId]);
+    await client.query("DELETE FROM post_event_adjudications WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM major_final_results WHERE season_id = $1", [fixture.seasonId]);
     await client.query(`DELETE FROM major_stage_entrants e USING major_stage_runs r
       WHERE e.stage_run_id = r.id AND r.season_id = $1`, [fixture.seasonId]);
@@ -156,7 +258,12 @@ async function cleanupMajorFixture(pool: Pool, fixture: MajorFixture): Promise<v
     await client.query("DELETE FROM audit_logs WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM seasons WHERE id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM education_verifications WHERE user_id = ANY($1::uuid[])", [fixture.userIds]);
+    await client.query("DELETE FROM competitive_rank_facts WHERE user_id = ANY($1::uuid[])", [fixture.userIds]);
     await client.query("DELETE FROM users WHERE id = ANY($1::uuid[])", [fixture.userIds]);
+    await client.query(
+      "DELETE FROM competitive_platform_seasons WHERE platform = $1 AND season_key = ANY($2::text[])",
+      [GOLDEN_PROFILE.platform, [GOLDEN_PROFILE.currentSeasonKey, GOLDEN_PROFILE.previousSeasonKey]],
+    );
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK");
@@ -174,7 +281,7 @@ async function cleanupStaleMajorStartFixtures(pool: Pool): Promise<void> {
       SELECT s.id AS season_id, COALESCE(array_agg(DISTINCT tm.user_id) FILTER (WHERE tm.user_id IS NOT NULL), '{}') AS user_ids
       FROM seasons s
       LEFT JOIN team_members tm ON tm.season_id = s.id
-      WHERE s.slug LIKE 'local-major-start-%'
+      WHERE s.slug LIKE 'local-major-start-%' OR s.slug LIKE 'local-golden-major-2026-08-%'
       GROUP BY s.id
     `);
     for (const fixture of fixtures.rows) {
@@ -220,6 +327,130 @@ async function finishSwissRound(pool: Pool, stageRunId: string, round: number): 
   }
 }
 
+async function readSwissEvidence(pool: Pool, stageRunId: string): Promise<GoldenSwissEvidenceRow[]> {
+  const entrants = await pool.query<{ team_id: string; team_name: string; stage_seed: number; tournament_seed: number }>(`
+    SELECT e.team_id, t.name AS team_name, e.stage_seed, e.tournament_seed
+    FROM major_stage_entrants e
+    INNER JOIN teams t ON t.id = e.team_id
+    WHERE e.stage_run_id = $1
+    ORDER BY e.stage_seed
+  `, [stageRunId]);
+  const matches = await pool.query<{
+    id: string;
+    round: number | null;
+    team_a_id: string;
+    team_b_id: string;
+    score_a: number | null;
+    score_b: number | null;
+    status: string;
+    completed_at: Date | null;
+  }>(`
+    SELECT id, round, team_a_id, team_b_id, score_a, score_b, status, completed_at
+    FROM matches
+    WHERE major_stage_run_id = $1 AND ownership = 'major_stage'
+    ORDER BY round, managed_key
+  `, [stageRunId]);
+  if (entrants.rows.length !== 16) throw new Error("Golden evidence 缺少 16 队 StageRun entrant 表。 ");
+  const facts: MajorSwissMatchFact[] = matches.rows.map((match) => {
+    if (match.round === null || match.round < 1 || match.round > 5 || match.status !== "finished" || match.completed_at === null || match.score_a === null || match.score_b === null || match.score_a === match.score_b) {
+      throw new Error("Golden evidence 发现未完成或无胜者的 Swiss 比赛。 ");
+    }
+    return {
+      matchId: match.id,
+      round: match.round as 1 | 2 | 3 | 4 | 5,
+      teamAId: match.team_a_id,
+      teamBId: match.team_b_id,
+      winnerId: match.score_a > match.score_b ? match.team_a_id : match.team_b_id,
+    };
+  });
+  const projection = projectMajorSwissStage({
+    entrants: entrants.rows.map((entrant) => ({ teamId: entrant.team_id, initialStageSeed: entrant.stage_seed })),
+    matches: facts,
+    finalizedRound: 5,
+  });
+  const metadata = new Map(entrants.rows.map((entrant) => [entrant.team_id, entrant]));
+  return projection.teams.map((team) => {
+    const entrant = metadata.get(team.teamId);
+    if (!entrant) throw new Error("Golden evidence 的 Swiss 投影引用了未知队伍。 ");
+    return {
+      currentSeed: team.currentStageSeed,
+      initialStageSeed: team.initialStageSeed,
+      tournamentSeed: entrant.tournament_seed,
+      team: entrant.team_name,
+      record: `${team.wins}-${team.losses}`,
+      difficultyScore: team.difficultyScore,
+      status: team.status,
+    };
+  });
+}
+
+async function readPlayoffEvidence(pool: Pool, stageRunId: string): Promise<GoldenPlayoffEvidenceRow[]> {
+  const result = await pool.query<{
+    entry_round: string | null;
+    format: string;
+    team_a: string;
+    team_b: string;
+    score_a: number | null;
+    score_b: number | null;
+    status: string;
+  }>(`
+    SELECT m.entry_round, m.format, ta.name AS team_a, tb.name AS team_b, m.score_a, m.score_b, m.status
+    FROM matches m
+    INNER JOIN teams ta ON ta.id = m.team_a_id
+    INNER JOIN teams tb ON tb.id = m.team_b_id
+    WHERE m.major_stage_run_id = $1 AND m.ownership = 'major_stage'
+    ORDER BY CASE m.entry_round WHEN 'quarterfinal' THEN 1 WHEN 'semifinal' THEN 2 WHEN 'third_place' THEN 3 WHEN 'final' THEN 4 ELSE 5 END, m.managed_key
+  `, [stageRunId]);
+  return result.rows.map((match) => ({
+    round: match.entry_round ?? "unknown",
+    format: match.format,
+    teamA: match.team_a,
+    teamB: match.team_b,
+    score: match.score_a === null || match.score_b === null ? "—" : `${match.score_a}:${match.score_b}`,
+    status: match.status,
+  }));
+}
+
+async function readFinalEvidence(pool: Pool, seasonId: string, playoffRunId: string): Promise<GoldenFinalEvidence> {
+  const result = await pool.query<{
+    status: string;
+    champion: string;
+    season_status: string;
+    placement_groups: unknown;
+  }>(`
+    SELECT r.status, champion.name AS champion, s.status AS season_status, r.placement_groups
+    FROM major_final_results r
+    INNER JOIN teams champion ON champion.id = r.champion_team_id
+    INNER JOIN seasons s ON s.id = r.season_id
+    WHERE r.season_id = $1 AND r.playoff_stage_run_id = $2
+  `, [seasonId, playoffRunId]);
+  const row = result.rows[0];
+  if (!row || !Array.isArray(row.placement_groups)) throw new Error("Golden evidence 缺少正式名次结果。 ");
+  const teamRows = await pool.query<{ id: string; name: string }>("SELECT id, name FROM teams WHERE season_id = $1", [seasonId]);
+  const teamNames = new Map(teamRows.rows.map((team) => [team.id, team.name]));
+  const placementGroups = row.placement_groups.map((group) => {
+    if (typeof group !== "object" || group === null) {
+      throw new Error("Golden evidence 的 placement group 结构无效。 ");
+    }
+    const candidate = group as { from?: unknown; to?: unknown; teamIds?: unknown };
+    if (!Array.isArray(candidate.teamIds)) throw new Error("Golden evidence 的 placement group 结构无效。 ");
+    const from = Number(candidate.from);
+    const to = Number(candidate.to);
+    const teams = candidate.teamIds.map((teamId: unknown) => teamNames.get(String(teamId)) ?? `unknown:${String(teamId)}`);
+    return { from, to, teams };
+  });
+  const third = placementGroups.find((group) => group.from === 3 && group.to === 3)?.teams.join(", ") ?? "—";
+  return {
+    status: row.status,
+    seasonStatus: row.season_status,
+    champion: row.champion,
+    placementGroups,
+    thirdPlace: third,
+    honors: "champion revoked; runner_up valid; no auto-promotion",
+    postArchiveAdjudication: "allowed",
+  };
+}
+
 async function exerciseSwissRuntime(
   database: ReturnType<typeof drizzle<typeof schema>>,
   pool: Pool,
@@ -257,6 +488,26 @@ async function exerciseSwissRuntime(
     await restoreClient.query("UPDATE matches SET score_a = 13, score_b = 11 WHERE id = $1", [corruptedMatchId]);
   } finally {
     restoreClient.release();
+  }
+  const correctionPlan = await database.transaction((tx) => planResultCorrectionInTx(tx, {
+    matchId: corruptedMatchId,
+    proposal: { scoreA: 16, scoreB: 13 },
+  }));
+  if (correctionPlan.winnerChanges || correctionPlan.blockedReasons.length > 0) {
+    throw new Error("Golden rehearsal 的同胜者结果更正不应被错误阻断。 ");
+  }
+  const appliedCorrection = await database.transaction((tx) => applyResultCorrectionInTx(tx, {
+    matchId: corruptedMatchId,
+    proposal: { scoreA: 16, scoreB: 13 },
+    actorId: "local-admin",
+  }));
+  const repeatedCorrection = await database.transaction((tx) => applyResultCorrectionInTx(tx, {
+    matchId: corruptedMatchId,
+    proposal: { scoreA: 16, scoreB: 13 },
+    actorId: "local-admin-retry",
+  }));
+  if (appliedCorrection.alreadyApplied || repeatedCorrection.alreadyApplied !== true) {
+    throw new Error("Golden rehearsal 的结果更正重试没有保持幂等。 ");
   }
 
   const concurrent = await Promise.all([
@@ -318,7 +569,7 @@ async function completeSwissStage(
   }
 }
 
-async function finishPlayoffRound(pool: Pool, stageRunId: string, round: "quarterfinal" | "semifinal" | "final"): Promise<void> {
+async function finishPlayoffRound(pool: Pool, stageRunId: string, round: "quarterfinal" | "semifinal" | "third_place" | "final"): Promise<void> {
   const client = await pool.connect();
   try {
     const result = await client.query<{ id: string; format: "bo3" | "bo5" }>(
@@ -346,8 +597,8 @@ async function exercisePlayoffRuntime(
   stage3RunId: string,
 ): Promise<void> {
   const starts = await Promise.all([
-    database.transaction((tx) => startMajorPlayoffInTransaction(tx, { seasonId, sourceStageRunId: stage3RunId, actorId: "local-admin-a" })),
-    database.transaction((tx) => startMajorPlayoffInTransaction(tx, { seasonId, sourceStageRunId: stage3RunId, actorId: "local-admin-b" })),
+    database.transaction((tx) => startMajorPlayoffInTransaction(tx, { seasonId, sourceStageRunId: stage3RunId, actorId: "local-admin-a", hasThirdPlaceMatch: true })),
+    database.transaction((tx) => startMajorPlayoffInTransaction(tx, { seasonId, sourceStageRunId: stage3RunId, actorId: "local-admin-b", hasThirdPlaceMatch: true })),
   ]);
   if (starts.filter((result) => result.created).length !== 1 || new Set(starts.map((result) => result.stageRunId)).size !== 1 || starts.some((result) => result.matchCount !== 4)) {
     throw new Error("并发 Stage 3→Playoff 没有收敛到唯一的淘汰赛 StageRun。 ");
@@ -355,26 +606,133 @@ async function exercisePlayoffRuntime(
   const playoffRunId = starts[0]!.stageRunId;
   for (const round of ["quarterfinal", "semifinal", "final"] as const) {
     await finishPlayoffRound(pool, playoffRunId, round);
+    if (round === "final") {
+      await finishPlayoffRound(pool, playoffRunId, "third_place");
+    }
     const result = await database.transaction((tx) => finalizeMajorPlayoffRoundInTransaction(tx, {
       seasonId, stageRunId: playoffRunId, expectedRound: round, actorId: "local-admin",
     }));
-    const expectedNext = ({ quarterfinal: 2, semifinal: 1, final: 0 } as const)[round];
+    const expectedNext = ({ quarterfinal: 2, semifinal: 2, final: 0 } as const)[round];
     if (result.createdNextRound !== expectedNext || result.resultPendingConfirmation !== (round === "final")) {
       throw new Error(`${round} 没有生成预期的下一轮或待确认赛事结果。 `);
     }
   }
   const facts = await pool.query<{ matches: string; champion: string | null; status: string | null; has_three_four: boolean; groups: string }>(`
-    SELECT
-      (SELECT count(*) FROM matches WHERE major_stage_run_id = $1 AND ownership = 'major_stage') AS matches,
+      SELECT
+        (SELECT count(*) FROM matches WHERE major_stage_run_id = $1 AND ownership = 'major_stage') AS matches,
       (SELECT champion_team_id::text FROM major_final_results WHERE playoff_stage_run_id = $1) AS champion,
       (SELECT status::text FROM major_final_results WHERE playoff_stage_run_id = $1) AS status,
-      (SELECT EXISTS(SELECT 1 FROM major_final_results, jsonb_to_recordset(placement_groups) AS p("from" integer, "to" integer, "teamIds" jsonb) WHERE playoff_stage_run_id = $1 AND p."from" = 3 AND p."to" = 4)) AS has_three_four,
+      (SELECT EXISTS(SELECT 1 FROM major_final_results, jsonb_to_recordset(placement_groups) AS p("from" integer, "to" integer, "teamIds" jsonb) WHERE playoff_stage_run_id = $1 AND p."from" = 3 AND p."to" = 3)
+        AND EXISTS(SELECT 1 FROM major_final_results, jsonb_to_recordset(placement_groups) AS p("from" integer, "to" integer, "teamIds" jsonb) WHERE playoff_stage_run_id = $1 AND p."from" = 4 AND p."to" = 4)) AS has_three_four,
       (SELECT jsonb_array_length(placement_groups)::text FROM major_final_results WHERE playoff_stage_run_id = $1) AS groups
   `, [playoffRunId]);
   const fact = facts.rows[0];
-  if (!fact || fact.matches !== "7" || !fact.champion || fact.status !== "pending_confirmation" || !fact.has_three_four || fact.groups !== "13") {
-    throw new Error("淘汰赛没有持久化七场比赛、冠军、3–4 名次区间与待确认正式结果。 ");
+  if (!fact || fact.matches !== "8" || !fact.champion || fact.status !== "pending_confirmation" || !fact.has_three_four || fact.groups !== "14") {
+    throw new Error("淘汰赛没有持久化八场比赛、冠军、3–4 名次区间与待确认正式结果。 ");
   }
+  await exerciseFinalLifecycle(database, pool, seasonId, playoffRunId);
+  const stageRuns = await pool.query<{ id: string; stage_key: string }>(
+    "SELECT id, stage_key FROM major_stage_runs WHERE season_id = $1 AND stage_key IN ('stage1', 'stage2', 'stage3') ORDER BY stage_key",
+    [seasonId],
+  );
+  const swissStages: Record<string, GoldenSwissEvidenceRow[]> = {};
+  for (const stageRun of stageRuns.rows) swissStages[stageRun.stage_key] = await readSwissEvidence(pool, stageRun.id);
+  const finalEvidence = await readFinalEvidence(pool, seasonId, playoffRunId);
+  console.log(JSON.stringify({
+    season: "local-golden-major-2026-08-retry",
+    teams: 32,
+    players: 160,
+    swissStages,
+    playoff: await readPlayoffEvidence(pool, playoffRunId),
+    final: finalEvidence,
+  }, null, 2));
+}
+
+async function exerciseFinalLifecycle(
+  database: ReturnType<typeof drizzle<typeof schema>>,
+  pool: Pool,
+  seasonId: string,
+  playoffRunId: string,
+): Promise<void> {
+  const firstConfirmation = await database.transaction((tx) => confirmMajorFinalResultInTx(tx, { seasonId, actorId: "local-admin" }));
+  const repeatedConfirmation = await database.transaction((tx) => confirmMajorFinalResultInTx(tx, { seasonId, actorId: "local-admin-retry" }));
+  if (firstConfirmation.alreadyConfirmed || !repeatedConfirmation.alreadyConfirmed || firstConfirmation.resultId !== repeatedConfirmation.resultId) {
+    throw new Error("Golden rehearsal 的最终结果确认重试没有收敛。 ");
+  }
+
+  const result = await pool.query<{ champion: string; placement_groups: Array<{ from: number; to: number; teamIds: string[] }> }>(
+    "SELECT champion_team_id::text AS champion, placement_groups FROM major_final_results WHERE season_id = $1 AND playoff_stage_run_id = $2",
+    [seasonId, playoffRunId],
+  );
+  const finalResult = result.rows[0];
+  const runnerUp = finalResult?.placement_groups.find((group) => group.from === 2 && group.to === 2)?.teamIds[0];
+  if (!finalResult?.champion || !runnerUp) throw new Error("Golden rehearsal 缺少冠军或亚军正式名次。 ");
+
+  const championHonor = await database.transaction((tx) => grantTournamentHonorInTx(tx, {
+    seasonId, clientRequestId: deterministicUuid("honor/champion"), type: "champion", label: "Golden Champion",
+    basis: "final_result", teamId: finalResult.champion, actorId: "local-admin",
+  }));
+  const repeatedHonor = await database.transaction((tx) => grantTournamentHonorInTx(tx, {
+    seasonId, clientRequestId: deterministicUuid("honor/champion"), type: "champion", label: "Golden Champion",
+    basis: "final_result", teamId: finalResult.champion, actorId: "local-admin-retry",
+  }));
+  const runnerUpHonor = await database.transaction((tx) => grantTournamentHonorInTx(tx, {
+    seasonId, clientRequestId: deterministicUuid("honor/runner-up"), type: "runner_up", label: "Golden Runner-up",
+    basis: "final_result", teamId: runnerUp, actorId: "local-admin",
+  }));
+  if (!championHonor.created || repeatedHonor.created || repeatedHonor.honorId !== championHonor.honorId || !runnerUpHonor.created) {
+    throw new Error("Golden rehearsal 的荣誉授予重试或亚军荣誉事实异常。 ");
+  }
+  await database.transaction((tx) => revokeTournamentHonorInTx(tx, { honorId: championHonor.honorId, actorId: "local-admin", reason: "Golden explicit revoke" }));
+  const repeatedRevoke = await database.transaction((tx) => revokeTournamentHonorInTx(tx, { honorId: championHonor.honorId, actorId: "local-admin-retry", reason: "Golden explicit revoke" }));
+  if (!repeatedRevoke.alreadyRevoked) throw new Error("Golden rehearsal 的荣誉撤销重试没有幂等。 ");
+
+  const adjudication = await database.transaction((tx) => createPostEventAdjudicationInTx(tx, {
+    seasonId, clientRequestId: deterministicUuid("adjudication/placement"), kind: "placement_statement", target: "season",
+    impacts: ["official_placements"], reason: "Golden explicit placement audit", publicExplanation: "Golden placement statement",
+    internalEvidence: "local-only golden evidence", actorId: "local-admin",
+  }));
+  const repeatedAdjudication = await database.transaction((tx) => createPostEventAdjudicationInTx(tx, {
+    seasonId, clientRequestId: deterministicUuid("adjudication/placement"), kind: "placement_statement", target: "season",
+    impacts: ["official_placements"], reason: "Golden explicit placement audit", publicExplanation: "Golden placement statement",
+    internalEvidence: "local-only golden evidence", actorId: "local-admin-retry",
+  }));
+  if (!adjudication.created || repeatedAdjudication.created || repeatedAdjudication.adjudicationId !== adjudication.adjudicationId) {
+    throw new Error("Golden rehearsal 的赛后裁决重试没有幂等。 ");
+  }
+
+  const firstArchive = await database.transaction((tx) => archiveTournamentInTx(tx, { seasonId, actorId: "local-admin" }));
+  const repeatedArchive = await database.transaction((tx) => archiveTournamentInTx(tx, { seasonId, actorId: "local-admin-retry" }));
+  if (firstArchive.alreadyArchived || !repeatedArchive.alreadyArchived) throw new Error("Golden rehearsal 的归档重试没有幂等。 ");
+
+  const finalMatch = await pool.query<{ id: string }>("SELECT id FROM matches WHERE major_stage_run_id = $1 AND entry_round = 'final'", [playoffRunId]);
+  const finalMatchId = finalMatch.rows[0]?.id;
+  if (!finalMatchId) throw new Error("Golden rehearsal 缺少决赛比赛事实。 ");
+  try {
+    await database.transaction((tx) => lockMatchInTx(tx, finalMatchId));
+    throw new Error("归档后普通赛事变更错误地被允许。 ");
+  } catch (error) {
+    if (error instanceof Error && error.message === "归档后普通赛事变更错误地被允许。 ") throw error;
+    if (!(error instanceof AppError) || error.code !== ErrorCode.VALIDATION_FAILED) throw error;
+  }
+  const postArchiveAdjudication = await database.transaction((tx) => createPostEventAdjudicationInTx(tx, {
+    seasonId, clientRequestId: deterministicUuid("adjudication/post-archive"), kind: "result_statement", target: "season",
+    impacts: ["final_result"], reason: "Golden post-archive verification", publicExplanation: "Golden post-archive statement", actorId: "local-admin",
+  }));
+  if (!postArchiveAdjudication.created) throw new Error("归档后专用裁决没有允许写入。 ");
+
+  const finalState = await pool.query<{ status: string; champion_state: string; runner_up_state: string; valid_champion: string }>(`
+    SELECT
+      (SELECT status FROM seasons WHERE id = $1) AS status,
+      (SELECT state FROM tournament_honors WHERE id = $2) AS champion_state,
+      (SELECT state FROM tournament_honors WHERE id = $3) AS runner_up_state,
+      (SELECT count(*)::text FROM tournament_honors WHERE season_id = $1 AND honor_key = 'champion' AND state = 'valid') AS valid_champion
+  `, [seasonId, championHonor.honorId, runnerUpHonor.honorId]);
+  const state = finalState.rows[0];
+  if (!state || state.status !== "archived" || state.champion_state !== "revoked" || state.runner_up_state !== "valid" || state.valid_champion !== "0") {
+    throw new Error("Golden rehearsal 的最终结果、荣誉与归档状态不一致。 ");
+  }
+  console.log("Golden Major full rehearsal passed: deterministic 32 teams, 160 profiled players, Stage 1–3 R1–R5, enabled BO3 third-place, BO5 final, confirmed result, explicit honors/adjudication, idempotent retries, archive guard, and post-archive adjudication.");
 }
 
 async function main(): Promise<void> {

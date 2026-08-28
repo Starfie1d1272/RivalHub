@@ -1,3 +1,5 @@
+import React from "react";
+
 type Tone = "info" | "success" | "warn" | "error" | "live";
 
 const TONE_CONFIG: Record<Tone, { color: string; glyph: string }> = {

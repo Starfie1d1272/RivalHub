@@ -12,6 +12,11 @@ import {
 async function main(): Promise<void> {
   assertDeclaredDatabaseTarget(process.env);
 
+  const privateDataApiTables = [
+    "competitive_platform_seasons",
+    "competitive_rank_facts",
+  ] as const;
+
   const databaseUrl = assertLocalDatabaseUrl(process.env.DATABASE_URL);
   const apiUrl = assertLocalHttpUrl(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -60,6 +65,32 @@ async function main(): Promise<void> {
       throw new Error("本地 Major fixture 缺失或不唯一。");
     }
 
+    const rlsFacts = await pool.query<{
+      table_name: string;
+      rls_enabled: boolean;
+      anon_select: boolean;
+      authenticated_select: boolean;
+    }>(
+      `
+      SELECT
+        c.relname AS table_name,
+        c.relrowsecurity AS rls_enabled,
+        has_table_privilege('anon', format('public.%I', c.relname), 'SELECT') AS anon_select,
+        has_table_privilege('authenticated', format('public.%I', c.relname), 'SELECT') AS authenticated_select
+      FROM pg_class c
+      INNER JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relkind = 'r' AND c.relname = ANY($1::text[])
+      `,
+      [privateDataApiTables],
+    );
+    const rlsByTable = new Map(rlsFacts.rows.map((row) => [row.table_name, row]));
+    for (const tableName of privateDataApiTables) {
+      const row = rlsByTable.get(tableName);
+      if (!row || !row.rls_enabled || row.anon_select || row.authenticated_select) {
+        throw new Error(`${tableName} 未满足 Local Data API deny-by-default / RLS 约束。`);
+      }
+    }
+
     const client = createClient(apiUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
@@ -102,6 +133,19 @@ async function main(): Promise<void> {
       throw new Error(
         `public.seasons 的匿名 Data API 结果不是明确拒绝（HTTP ${anonRead.status}）。`,
       );
+    }
+    for (const tableName of privateDataApiTables) {
+      const response = await fetch(`${apiUrl}/rest/v1/${tableName}?select=id&limit=1`, {
+        headers: {
+          apikey: publishableKey,
+          Authorization: `Bearer ${publishableKey}`,
+        },
+      });
+      if (response.status !== 401 && response.status !== 403) {
+        throw new Error(
+          `${tableName} 的匿名 Data API 结果不是明确拒绝（HTTP ${response.status}）。`,
+        );
+      }
     }
 
     console.log(

@@ -24,6 +24,8 @@ import {
   validateTransition,
 } from "@/lib/registration-transitions";
 import { normalizeAffiliationRules, normalizeTeamRegistrationConfig } from "@/types/season";
+import { getParticipantReadiness } from "@/lib/major/participant-readiness";
+import { evaluateExternalStrengthRule } from "@/lib/major/player-strength";
 import { evaluateRosterEducationEligibility, type EducationEligibilityMember } from "@/lib/education/eligibility";
 
 // ── 共享工具 ────────────────────────────────────────────
@@ -362,6 +364,22 @@ export async function reviewTeamApplication(input: TeamApplicationReviewInput) {
         (affiliationRules.length > 0 && !educationDecision.eligible)
       ) {
         throw new AppError(ErrorCode.VALIDATION_FAILED, educationDecision.blockers[0] ?? "申请的确认名单已不满足当前赛事规则，不能通过审核。");
+      }
+      if (config.requireCompetitiveProfile) {
+        if (!config.competitiveProfile) throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事尚未配置竞技档案规则，不能通过报名审核。");
+        if (!locked.perfectTeamId?.trim()) throw new AppError(ErrorCode.VALIDATION_FAILED, "申请缺少完美战队 ID，不能通过报名审核。");
+        if (locked.primaryStarterUserIds.length !== 5 || new Set(locked.primaryStarterUserIds).size !== 5) throw new AppError(ErrorCode.VALIDATION_FAILED, "申请未指定恰好 5 名预定主力，不能通过报名审核。");
+        const confirmedIds = new Set(confirmed.map((member) => member.userId));
+        if (locked.primaryStarterUserIds.some((userId) => !confirmedIds.has(userId))) throw new AppError(ErrorCode.VALIDATION_FAILED, "预定主力不属于当前已确认名单，不能通过报名审核。");
+        const readiness = await Promise.all(confirmed.map(async (member) => ({ member, readiness: await getParticipantReadiness(member.userId, config.competitiveProfile!) })));
+        const unreadied = readiness.filter((item) => !item.readiness.ready);
+        if (unreadied.length > 0) throw new AppError(ErrorCode.VALIDATION_FAILED, `成员资料未完善：${unreadied.flatMap((item) => item.readiness.blockers).join(" ")}`);
+        const primary = locked.primaryStarterUserIds.map((userId) => readiness.find((item) => item.member.userId === userId)).filter((item): item is NonNullable<typeof item> => Boolean(item));
+        const strength = evaluateExternalStrengthRule({
+          config: config.competitiveProfile,
+          players: primary.map(({ member, readiness: memberReadiness }) => ({ ...memberReadiness.strength, isHome: Boolean(member.institutionCode && member.verificationAcademicStatus && affiliationRules.some((rule) => rule.institutionCode === member.institutionCode && rule.eligibleAcademicStatuses.includes(member.verificationAcademicStatus!))) })),
+        });
+        if (!strength.eligible) throw new AppError(ErrorCode.VALIDATION_FAILED, strength.blockers.join(" "));
       }
       if (config.requireUniqueTeamName) {
         const sameName = await tx.query.teams.findFirst({

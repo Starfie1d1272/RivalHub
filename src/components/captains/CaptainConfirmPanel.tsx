@@ -154,7 +154,7 @@ export function CaptainConfirmPanel({
                 即将确认前 <strong>{CAPTAIN_TEAM_COUNT}</strong> 名队长并生成队伍，
                 赛季将从 <strong>voting</strong> 推进到 <strong>drafting</strong>。
               </p>
-              <div className="rounded-md border p-3 text-sm" style={{ borderColor: "rgba(255,196,77,0.4)", background: "rgba(255,196,77,0.08)" }}>
+              <div className="rounded-sm border p-3 text-sm" style={{ borderColor: "var(--color-warn-edge)", background: "var(--color-warn-soft)" }}>
                 <p className="font-medium text-[var(--color-warn)]">
                   此操作不可撤销
                 </p>
@@ -192,4 +192,3 @@ export function CaptainConfirmPanel({
     </div>
   );
 }
-

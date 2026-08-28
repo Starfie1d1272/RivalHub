@@ -47,6 +47,12 @@ function assertCondition(condition: boolean, message: string): void {
 
 const NJU_CODE = "4132010284";
 const OTHER_CODE = "4111010001";
+const COMPETITIVE_PROFILE = {
+  platform: "perfect_world",
+  currentSeasonKey: "major-current",
+  previousSeasonKey: "major-previous",
+  rankOrder: ["C", "B", "A", "S", "S+"],
+} as const;
 
 interface DisciplineFixture {
   seasonId: string;
@@ -63,6 +69,7 @@ async function prepareFixture(pool: Pool, label: string): Promise<DisciplineFixt
   const client = await pool.connect();
   const seasonId = randomUUID();
   const capabilities = createMajorDefaultCapabilities();
+  capabilities.teamRegistrationConfig.competitiveProfile = { ...COMPETITIVE_PROFILE, rankOrder: [...COMPETITIVE_PROFILE.rankOrder] };
   try {
     await client.query("BEGIN");
     await client.query(
@@ -107,6 +114,14 @@ async function prepareFixture(pool: Pool, label: string): Promise<DisciplineFixt
         await client.query(`INSERT INTO users (id, email, email_verified_at) VALUES ($1, $2, now())`, [
           userIds[i], `${side}-${i}-${userIds[i]}@local.test`,
         ]);
+        await client.query(
+          `INSERT INTO competitive_rank_facts (user_id, platform, kind, platform_season_key, rank, rating)
+           VALUES
+             ($1, $2, 'historical_peak', NULL, 'A', 1000),
+             ($1, $2, 'season_peak', $3, 'A', 1000),
+             ($1, $2, 'season_peak', $4, 'A', 1000)`,
+          [userIds[i], COMPETITIVE_PROFILE.platform, COMPETITIVE_PROFILE.previousSeasonKey, COMPETITIVE_PROFILE.currentSeasonKey],
+        );
         await client.query(
           `INSERT INTO education_verifications (user_id, institution_id, academic_status, evidence_type, status, reviewed_by, reviewed_at)
            SELECT $1, i.id, $2, 'manual_other', 'approved', 'local-admin', now()
@@ -154,6 +169,7 @@ async function prepareFixture(pool: Pool, label: string): Promise<DisciplineFixt
       affiliationRules: [
         { institutionCode: NJU_CODE, eligibleAcademicStatuses: ["enrolled", "graduated"], minRosterMembers: 3, minStartingMembers: 3 },
       ],
+      competitiveProfile: { ...COMPETITIVE_PROFILE, rankOrder: [...COMPETITIVE_PROFILE.rankOrder] },
       stagePlan: [{ key: "stage1" }, { key: "playoff" }],
       tournamentEntrants: [],
       tournamentSeeds: [],

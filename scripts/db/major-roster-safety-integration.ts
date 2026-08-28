@@ -139,6 +139,12 @@ interface RosterSafetyFixture {
 
 const NJU_CODE = "4132010284";
 const OTHER_CODE = "4111010001";
+const COMPETITIVE_PROFILE = {
+  platform: "perfect_world",
+  currentSeasonKey: "major-current",
+  previousSeasonKey: "major-previous",
+  rankOrder: ["C", "B", "A", "S", "S+"],
+} as const;
 
 /** A-team user layout: 0,1,2 NJU enrolled; 3,4 other-graduated; 5 other-enrolled; 6 NJU but excluded from frozen roster. */
 function teamUserLayout(offset: number): { userIdIndex: number; institutionCode: string | null; academicStatus: "enrolled" | "graduated"; frozen: boolean }[] {
@@ -158,6 +164,7 @@ async function prepareFixture(pool: Pool, label: string): Promise<RosterSafetyFi
   const client = await pool.connect();
   const seasonId = randomUUID();
   const capabilities = createMajorDefaultCapabilities();
+  capabilities.teamRegistrationConfig.competitiveProfile = { ...COMPETITIVE_PROFILE, rankOrder: [...COMPETITIVE_PROFILE.rankOrder] };
   try {
     await client.query("BEGIN");
 
@@ -189,6 +196,14 @@ async function prepareFixture(pool: Pool, label: string): Promise<RosterSafetyFi
       await client.query(
         `INSERT INTO users (id, email, email_verified_at) VALUES ($1, $2, now())`,
         [userIds[i], `g1-${i}-${seasonId}@local.test`],
+      );
+      await client.query(
+        `INSERT INTO competitive_rank_facts (user_id, platform, kind, platform_season_key, rank, rating)
+         VALUES
+           ($1, $2, 'historical_peak', NULL, 'A', 1000),
+           ($1, $2, 'season_peak', $3, 'A', 1000),
+           ($1, $2, 'season_peak', $4, 'A', 1000)`,
+        [userIds[i], COMPETITIVE_PROFILE.platform, COMPETITIVE_PROFILE.previousSeasonKey, COMPETITIVE_PROFILE.currentSeasonKey],
       );
     }
 
@@ -287,6 +302,7 @@ async function prepareFixture(pool: Pool, label: string): Promise<RosterSafetyFi
           minStartingMembers: 3,
         },
       ],
+      competitiveProfile: { ...COMPETITIVE_PROFILE, rankOrder: [...COMPETITIVE_PROFILE.rankOrder] },
       tournamentEntrants: [],
       tournamentSeeds: [],
     };

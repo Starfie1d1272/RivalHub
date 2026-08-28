@@ -1,4 +1,5 @@
 import Link from "next/link";
+import React from "react";
 import { cn } from "@/lib/utils/cn";
 import { Separator } from "@/components/ui/separator";
 import { Panel, StatusPill } from "@/components/rivalhub";
@@ -14,6 +15,7 @@ import { ForfeitButton } from "@/components/matches/ForfeitButton";
 import { MapScoreCorrectInput } from "@/components/matches/MapScoreCorrectInput";
 import { DeleteMatchButton } from "@/components/matches/DeleteMatchButton";
 import { CompletedAtInput } from "@/components/matches/CompletedAtInput";
+import { PreMatchOperatorChecklist } from "@/components/matches/PreMatchOperatorChecklist";
 import { toCSTDateTimeInput } from "@/lib/utils/date";
 import { MATCH_FORMAT_LABELS } from "@/types/match";
 
@@ -33,6 +35,38 @@ export interface RosterData {
   status: string | null;
 }
 
+interface StartBlockerInput {
+  requiresPreflight: boolean;
+  teamAName: string;
+  teamBName: string;
+  teamARoster: RosterData | null;
+  teamBRoster: RosterData | null;
+  teamAPreflight: { valid: boolean; blockers: string[] } | null;
+  teamBPreflight: { valid: boolean; blockers: string[] } | null;
+}
+
+export function getAdminMatchStartBlockers({
+  requiresPreflight,
+  teamAName,
+  teamBName,
+  teamARoster,
+  teamBRoster,
+  teamAPreflight,
+  teamBPreflight,
+}: StartBlockerInput): string[] {
+  return [[teamAName, teamARoster, teamAPreflight], [teamBName, teamBRoster, teamBPreflight]].flatMap(([name, roster, preflight]) => {
+    const typed = roster as RosterData | null;
+    if (!typed) return [`${name} 尚未提交首发`];
+    if (typed.starters.length !== 5) return [`${name} 当前不是 5 名首发`];
+    if (typed.status !== "confirmed") return [`${name} 首发尚未确认`];
+    if (!requiresPreflight) return [];
+    const eligibility = preflight as { valid: boolean; blockers: string[] } | null;
+    if (!eligibility) return [`${name} 尚未得到服务端预检结果`];
+    if (!eligibility.valid) return eligibility.blockers.map((blocker) => `${name}：${blocker}`);
+    return [];
+  });
+}
+
 interface AdminMatchRowProps {
   match: {
     id: string;
@@ -45,6 +79,7 @@ interface AdminMatchRowProps {
     completionDeadline: Date | null;
     teamAId: string;
     teamBId: string;
+    ownership: string;
     bracketNodeId: string | null;
     completedAt: Date | null;
   };
@@ -56,6 +91,8 @@ interface AdminMatchRowProps {
   teamBMembers: TeamMemberData[];
   teamARoster: RosterData | null;
   teamBRoster: RosterData | null;
+  teamAPreflight: { valid: boolean; blockers: string[] } | null;
+  teamBPreflight: { valid: boolean; blockers: string[] } | null;
   completedMaps: {
     mapOrder: number;
     mapName: string;
@@ -83,10 +120,22 @@ export function AdminMatchRow({
   teamBMembers,
   teamARoster,
   teamBRoster,
+  teamAPreflight,
+  teamBPreflight,
   completedMaps,
   pendingMaps,
   finishedMaps,
 }: AdminMatchRowProps) {
+  const requiresPreflight = match.ownership === "major_stage";
+  const startBlockers = getAdminMatchStartBlockers({
+    requiresPreflight,
+    teamAName,
+    teamBName,
+    teamARoster,
+    teamBRoster,
+    teamAPreflight,
+    teamBPreflight,
+  });
   return (
     <Panel
       pad={16}
@@ -115,6 +164,8 @@ export function AdminMatchRow({
           />
         </div>
       </div>
+
+      {match.status === "scheduled" && <><PreMatchOperatorChecklist requiresPreflight={requiresPreflight} teamA={{ name: teamAName, submitted: Boolean(teamARoster), confirmed: teamARoster?.status === "confirmed", starters: teamARoster?.starters.length ?? 0, preflight: teamAPreflight }} teamB={{ name: teamBName, submitted: Boolean(teamBRoster), confirmed: teamBRoster?.status === "confirmed", starters: teamBRoster?.starters.length ?? 0, preflight: teamBPreflight }} mapState={match.format === "bo1" ? "not_required" : completedMaps.length + pendingMaps.length > 0 ? "recorded" : "not_recorded"} /><p className="text-xs leading-5 text-[var(--color-fg-mid)]">默认宽限为 15 分钟，不会自动判负。延长宽限或重新排期请使用赛程时间；需要判负时请在下方“裁决与弃赛”记录原因。</p></>}
 
       {/* Operations */}
       {match.status !== "cancelled" && (
@@ -174,15 +225,16 @@ export function AdminMatchRow({
                     teamBName={teamBName}
                     currentStatus={match.status}
                     format={match.format}
+                    startBlockers={startBlockers}
                   />
                 )}
-                <ForfeitButton
+                <div className="space-y-2 border-t border-[var(--color-border)] pt-3"><p className="font-mono text-[11px] tracking-[0.12em] text-[var(--color-fg-mid)]">裁决与弃赛</p><p className="text-xs leading-5 text-[var(--color-fg-mid)]">延长、重新排期或双方协商可先调整赛程。判负必须明确弃赛方与原因，并由服务端写入正式结果与审计。</p><ForfeitButton
                   matchId={match.id}
                   teamAId={match.teamAId}
                   teamBId={match.teamBId}
                   teamAName={teamAName}
                   teamBName={teamBName}
-                />
+                /></div>
               </>
             )}
             {match.status === "finished" && (

@@ -95,7 +95,7 @@ export function HeaderClient({ seasons, session, avatarUrl, steamName, displayNa
       className="sticky top-0 z-50 border-b backdrop-blur"
       style={{
         padding: "12px 28px",
-        background: "#0d1016e6",
+        background: "color-mix(in srgb, var(--color-panel-low) 90%, transparent)",
         borderColor: "var(--color-border)",
         display: "grid",
         gridTemplateColumns: "auto 1fr auto",
@@ -197,7 +197,7 @@ export function HeaderClient({ seasons, session, avatarUrl, steamName, displayNa
                     <Link href={"/settings" as never} className="cursor-pointer flex items-center gap-1.5">
                       个人信息
                       {!displayName && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-orange-500 flex-shrink-0" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] flex-shrink-0" />
                       )}
                     </Link>
                   </DropdownMenuItem>
@@ -298,7 +298,7 @@ export function HeaderClient({ seasons, session, avatarUrl, steamName, displayNa
                 >
                   个人信息
                   {!displayName && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500 flex-shrink-0" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] flex-shrink-0" />
                   )}
                 </Link>
                 <Link

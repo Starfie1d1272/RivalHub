@@ -7,7 +7,7 @@ import { users, auditLogs } from "@/db/schema";
 import { createServiceClient } from "@/lib/auth/supabase";
 import { requireAuth } from "@/lib/auth/session";
 import { ok, fail, type ActionResult } from "@/types/action";
-import { failValidation, actionError } from "@/lib/action-utils";
+import { failValidation, actionError, isPgUniqueViolation } from "@/lib/action-utils";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { MIN_PASSWORD_LENGTH } from "@/lib/config/auth-config";
 
@@ -84,10 +84,10 @@ export interface ProfileInput {
   displayName: string;
   steamName: string;
   perfectName: string;
+  perfectId: string;
   steam64: string;
   steamProfileUrl: string;
   qq: string;
-  studentId: string;
 }
 
 /** 更新个人信息（跨赛季字段） */
@@ -104,6 +104,9 @@ export async function updateProfile(
   const perfectName = input.perfectName.trim();
   if (perfectName && perfectName.length > 40) return failValidation("完美平台昵称最多 40 个字符");
 
+  const perfectId = input.perfectId.trim();
+  if (perfectId.length > 128) return failValidation("完美平台 ID 最多 128 个字符");
+
   const steam64 = input.steam64.trim();
   if (steam64 && !/^\d{17}$/.test(steam64)) return failValidation("Steam64 ID 格式不正确（应为 17 位数字）");
 
@@ -115,8 +118,6 @@ export async function updateProfile(
   const qq = input.qq.trim();
   if (qq && !/^\d{5,12}$/.test(qq)) return failValidation("QQ 号格式不正确");
 
-  const studentId = input.studentId.trim();
-
   try {
     const session = await requireAuth();
 
@@ -126,10 +127,10 @@ export async function updateProfile(
         displayName,
         steamName: steamName || null,
         perfectName: perfectName || null,
+        perfectId: perfectId || null,
         steam64: steam64 || null,
         steamProfileUrl: steamProfileUrl || null,
         qq: qq || null,
-        studentId: studentId || null,
         updatedAt: new Date(),
       })
       .where(eq(users.id, session.userId));
@@ -137,6 +138,9 @@ export async function updateProfile(
     revalidatePath("/settings");
     return ok(undefined);
   } catch (e) {
+    if (isPgUniqueViolation(e) && typeof e === "object" && e !== null && "constraint" in e && (e as { constraint?: string }).constraint === "users_perfect_id_normalized_unique") {
+      return failValidation("该完美平台 ID 已被其他账号绑定。");
+    }
     return actionError("updateProfile", e);
   }
 }

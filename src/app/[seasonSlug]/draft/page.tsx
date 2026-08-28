@@ -84,7 +84,7 @@ export default async function DraftPage({ params }: DraftPageProps) {
           选秀预览 · {season.name}
         </Marker>
 
-        <div className="mb-6 rounded-lg border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/5 px-4 py-3">
+        <div className="mb-6 rounded-sm border border-[var(--color-accent-edge)] bg-[var(--color-accent-soft)] px-4 py-3">
           <p className="text-sm text-[var(--color-fg-mid)]">
             等待管理员启动选秀，页面会自动刷新。
           </p>
@@ -95,7 +95,7 @@ export default async function DraftPage({ params }: DraftPageProps) {
         <div className="mb-4">
           <a
             href={`/${seasonSlug}/draft/captain`}
-            className="inline-flex items-center gap-2 rounded-md border border-[var(--color-accent)] bg-[var(--color-accent)]/10 px-4 py-2 text-sm font-medium text-[var(--color-accent)] hover:bg-[var(--color-accent)]/20 transition-colors"
+            className="inline-flex items-center gap-2 rounded-sm border border-[var(--color-accent)] bg-[var(--color-accent-soft)] px-4 py-2 text-sm font-medium text-[var(--color-accent)] hover:bg-[var(--color-panel-hi)] transition-colors"
           >
             进入队长选人面板 →
           </a>
@@ -126,7 +126,7 @@ export default async function DraftPage({ params }: DraftPageProps) {
         <div>
           <a
             href={`/${seasonSlug}/draft/captain`}
-            className="inline-flex items-center gap-2 rounded-md border border-[var(--color-accent)] bg-[var(--color-accent)]/10 px-4 py-2 text-sm font-medium text-[var(--color-accent)] hover:bg-[var(--color-accent)]/20 transition-colors"
+            className="inline-flex items-center gap-2 rounded-sm border border-[var(--color-accent)] bg-[var(--color-accent-soft)] px-4 py-2 text-sm font-medium text-[var(--color-accent)] hover:bg-[var(--color-panel-hi)] transition-colors"
           >
             进入队长选人面板 →
           </a>

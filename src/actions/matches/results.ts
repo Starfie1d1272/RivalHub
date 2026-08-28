@@ -903,11 +903,14 @@ const FORFEIT_WINNER_SCORE: Record<"bo1" | "bo3" | "bo5", number> = {
  */
 export async function forfeitMatch(
   matchId: string,
-  loserTeamId: string
+  loserTeamId: string,
+  reason: string,
 ): Promise<ActionResult<void>> {
   try {
     const match = await getMatchOrThrow(matchId);
     const session = await requireSeasonAdmin(match.seasonId);
+    const normalizedReason = reason.trim();
+    if (!normalizedReason) throw new AppError(ErrorCode.VALIDATION_FAILED, "请记录弃赛/判负原因。");
 
     assertMatchTransition(match.status, "finished");
 
@@ -966,7 +969,7 @@ export async function forfeitMatch(
         actorId: auditActorId(session),
         targetId: matchId,
         targetType: "match",
-        meta: { loserTeamId, scoreA, scoreB, format: match.format },
+        meta: { loserTeamId, scoreA, scoreB, format: match.format, reason: normalizedReason },
       });
     });
 

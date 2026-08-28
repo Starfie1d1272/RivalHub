@@ -103,7 +103,7 @@ export function MapPoolRadarChart({
                   : "var(--color-panel-hi)",
               color:
                 metric === m.key
-                  ? "#fff"
+                  ? "var(--color-fg)"
                   : "var(--color-fg-mid)",
               border: "1px solid var(--color-border)",
             }}
