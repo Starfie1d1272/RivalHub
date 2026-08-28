@@ -1,4 +1,5 @@
 import { AdminLoginForm } from "@/components/admin/AdminLoginForm";
+import Link from "next/link";
 
 export default function AdminLoginPage() {
   return (
@@ -9,11 +10,11 @@ export default function AdminLoginPage() {
             管理员登录
           </h1>
           <p className="text-sm text-[var(--color-fg-mid)]">
-            首次使用请先运行{" "}
-            <code className="text-xs bg-[var(--color-panel)] px-1 rounded">
-              pnpm seed
-            </code>{" "}
-            创建根管理员
+            标准首个 owner 请通过{" "}
+            <Link href="/login" className="underline hover:text-[var(--color-accent)]">
+              /login
+            </Link>{" "}
+            注册并登录；本页仅保留 legacy Root 兼容/应急入口。
           </p>
         </div>
         <AdminLoginForm />
