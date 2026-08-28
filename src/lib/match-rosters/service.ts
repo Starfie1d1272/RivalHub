@@ -206,6 +206,7 @@ export async function getStartingLineupPreflightInTx(
   const result = evaluateStartingLineup({
     starterIds: args.starterIds,
     substituteIds: args.substituteIds,
+    allowSubstitutes: args.match.ownership !== "major_stage",
     memberFacts: context.memberFacts,
     frozenRosterUserIds: context.frozenRosterUserIds ?? undefined,
     affiliationRules: context.rules.length > 0 ? context.rules : undefined,

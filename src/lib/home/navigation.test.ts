@@ -29,7 +29,7 @@ describe("home navigation helpers", () => {
     ]);
   });
 
-  it("omits capability-gated entries when the season does not support them", () => {
+  it("keeps team registration discoverable when the season does not support draft-era capabilities", () => {
     const entries = buildHomeNavEntries({
       slug: "open-cup",
       registrationMode: "team",
@@ -38,6 +38,7 @@ describe("home navigation helpers", () => {
     });
 
     expect(entries.map((entry) => entry.key)).toEqual([
+      "register",
       "teams",
       "matches",
       "stats",

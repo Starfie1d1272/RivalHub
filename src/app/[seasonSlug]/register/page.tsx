@@ -94,6 +94,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
         logoUrl: teamApplications.logoUrl,
         perfectTeamId: teamApplications.perfectTeamId,
         primaryStarterUserIds: teamApplications.primaryStarterUserIds,
+        joinToken: teamApplications.joinToken,
         captainUserId: teamApplications.captainUserId,
         status: teamApplications.status,
         reviewReason: teamApplications.reviewReason,

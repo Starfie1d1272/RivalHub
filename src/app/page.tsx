@@ -14,6 +14,7 @@ import { HomeNavigation } from "@/components/home/HomeNavigation";
 import { HomeSeasonPanel } from "@/components/home/HomeSeasonPanel";
 import { SeasonCardGrid } from "@/components/home/SeasonCardGrid";
 import { Panel, EmptyState } from "@/components/rivalhub";
+import { getParticipantSummary } from "@/lib/participants/summary";
 
 export default async function HomePage() {
   const activeSeasons = await db
@@ -54,15 +55,13 @@ export default async function HomePage() {
   // 并行查询：基础统计 + 按状态的动态数据
   const [
     [featuredTeamCount],
-    [featuredPlayerCount],
+    participantSummary,
     registrationCounts,
     topVoteCandidates,
     liveAndUpcomingMatches,
   ] = await Promise.all([
     db.select({ value: count() }).from(teams).where(eq(teams.seasonId, featured.id)),
-    db.select({ value: count() }).from(seasonRegistrations).where(
-      and(eq(seasonRegistrations.seasonId, featured.id), eq(seasonRegistrations.status, "approved"))
-    ),
+    getParticipantSummary(featured),
     // 仅 registration 状态时查询
     featured.status === "registration"
       ? db
@@ -178,7 +177,7 @@ export default async function HomePage() {
           topCandidatesWithNames={topCandidatesWithNames}
           liveAndUpcomingMatches={liveAndUpcomingMatches}
           teamCount={featuredTeamCount?.value ?? 0}
-          playerCount={featuredPlayerCount?.value ?? 0}
+          playerCount={participantSummary.count}
         />
       </div>
 

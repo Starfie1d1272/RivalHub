@@ -178,7 +178,7 @@ export function AdminMatchRow({
             {match.status !== "finished" && (
               <>
                 <div className="flex flex-wrap items-center gap-2">
-                  <AdminRosterDialog
+      <AdminRosterDialog
                     matchId={match.id}
                     teamAName={teamAName}
                     teamBName={teamBName}
@@ -187,7 +187,8 @@ export function AdminMatchRow({
                     teamAMembers={teamAMembers}
                     teamBMembers={teamBMembers}
                     teamARoster={teamARoster}
-                    teamBRoster={teamBRoster}
+        teamBRoster={teamBRoster}
+        allowSubstitutes={match.ownership !== "major_stage"}
                   />
                   {(match.status === "scheduled" || match.status === "in_progress") && (
                     <VetoInputDialog

@@ -3,9 +3,9 @@
 import { and, desc, eq, gte, lt, or, count, like, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { getDisplayName } from "@/lib/utils/display-name";
-import { auditLogs, seasons, users, teams, matches, seasonRegistrations, draftPicks, adminInvites } from "@/db/schema";
+import { auditLogs, seasons, users, teams, matches, seasonRegistrations, draftPicks, adminInvites, teamApplications } from "@/db/schema";
 import { ok } from "@/types/action";
-import { requireSuperAdmin } from "@/lib/auth/session";
+import { requireSeasonAdmin, requireSuperAdmin } from "@/lib/auth/session";
 import { actionError } from "@/lib/action-utils";
 
 function escapeLike(s: string) {
@@ -36,11 +36,14 @@ export interface AuditLogFilters {
   actorId?: string;
   dateFrom?: string;
   dateTo?: string;
+  /** Server-enforced scope used by the season-admin log page. */
+  seasonScopeId?: string;
 }
 
 export async function fetchAuditLogs(filters: AuditLogFilters = {}) {
   try {
-    await requireSuperAdmin();
+    if (filters.seasonScopeId) await requireSeasonAdmin(filters.seasonScopeId);
+    else await requireSuperAdmin();
 
     const {
       page,
@@ -50,12 +53,14 @@ export async function fetchAuditLogs(filters: AuditLogFilters = {}) {
       actorId,
       dateFrom,
       dateTo,
+      seasonScopeId,
     } = filters;
 
     const safePage = positiveInt(page, 1);
     const safePageSize = positiveInt(pageSize, 50, 100);
     const conditions = [];
-    if (seasonId) conditions.push(eq(auditLogs.seasonId, seasonId));
+    if (seasonScopeId) conditions.push(eq(auditLogs.seasonId, seasonScopeId));
+    else if (seasonId) conditions.push(eq(auditLogs.seasonId, seasonId));
     if (action) conditions.push(like(auditLogs.action, `%${escapeLike(action)}%`));
     if (actorId) conditions.push(like(auditLogs.actorId, `%${escapeLike(actorId)}%`));
     if (dateFrom) conditions.push(gte(auditLogs.createdAt, parseCSTDateStart(dateFrom)));
@@ -139,6 +144,14 @@ export async function fetchAuditLogs(filters: AuditLogFilters = {}) {
       resolvers.push(
         db.select({ id: teams.id, name: teams.name }).from(teams).where(inArray(teams.id, teamIds))
           .then((rows) => { for (const t of rows) targetNameMap[t.id] = t.name; }),
+      );
+    }
+
+    const applicationIds = byType.get("team_application");
+    if (applicationIds?.length) {
+      resolvers.push(
+        db.select({ id: teamApplications.id, name: teamApplications.name }).from(teamApplications).where(inArray(teamApplications.id, applicationIds))
+          .then((rows) => { for (const row of rows) targetNameMap[row.id] = row.name; }),
       );
     }
 

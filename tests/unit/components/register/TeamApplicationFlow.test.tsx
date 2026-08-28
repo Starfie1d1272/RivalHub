@@ -5,7 +5,7 @@ import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { submitTeamApplication } from "@/actions/team-applications";
+import { createTeamApplicationJoinLink, submitTeamApplication } from "@/actions/team-applications";
 import { TeamApplicationFlow } from "@/components/register/TeamApplicationFlow";
 
 vi.mock("sonner", () => ({
@@ -15,6 +15,7 @@ vi.mock("sonner", () => ({
 vi.mock("@/actions/team-applications", () => ({
   confirmTeamApplicationMembership: vi.fn(),
   createTeamApplication: vi.fn(),
+  createTeamApplicationJoinLink: vi.fn(),
   inviteTeamApplicationMember: vi.fn(),
   removeTeamApplicationMember: vi.fn(),
   submitTeamApplication: vi.fn(),
@@ -30,6 +31,7 @@ vi.mock("@/components/teams/TeamLogoUpload", () => ({
 }));
 
 const submitTeamApplicationMock = vi.mocked(submitTeamApplication);
+const createTeamApplicationJoinLinkMock = vi.mocked(createTeamApplicationJoinLink);
 
 const members = Array.from({ length: 5 }, (_, index) => ({
   id: `member-${index + 1}`,
@@ -123,5 +125,15 @@ describe("TeamApplicationFlow logo readiness", () => {
 
     expect(screen.queryByText("队标未上传")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "提交审核" })).not.toBeDisabled();
+  });
+
+  it("generates and copies a revocable join link instead of claiming an email was sent", async () => {
+    const user = userEvent.setup();
+    createTeamApplicationJoinLinkMock.mockResolvedValue({ success: true, data: { token: "share-token" } });
+    render(<TeamApplicationFlow {...baseProps} />);
+
+    await user.click(screen.getByRole("button", { name: "生成并复制邀请链接" }));
+
+    await waitFor(() => expect(createTeamApplicationJoinLinkMock).toHaveBeenCalledWith({ applicationId: "app-1", regenerate: false }));
   });
 });

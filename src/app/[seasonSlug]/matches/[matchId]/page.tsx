@@ -576,6 +576,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                 rosterStatus={captainRoster?.status ?? null}
                 initialStarterIds={captainRoster?.players.filter((player) => player.isStarter).map((player) => player.teamMemberId) ?? []}
                 initialSubstituteIds={captainRoster?.players.filter((player) => !player.isStarter).map((player) => player.teamMemberId) ?? []}
+                allowSubstitutes={match.ownership !== "major_stage"}
               />
             </Panel>
           )}

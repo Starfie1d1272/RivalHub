@@ -1,6 +1,6 @@
 import React from "react";
 import Link from "next/link";
-import type { SeasonStatus } from "@/types/season";
+import type { RegistrationMode, SeasonStatus } from "@/types/season";
 import { SEASON_STATUS_LABELS } from "@/types/season";
 import { Btn, MiniStat, Panel, StatusPill } from "@/components/rivalhub";
 
@@ -8,6 +8,7 @@ interface HomePanelSeason {
   name: string;
   slug: string;
   status: SeasonStatus;
+  registrationMode: RegistrationMode;
   kind: string;
   positions: string[];
 }
@@ -76,7 +77,7 @@ export function HomeSeasonPanel({
           </div>
           <Btn full asChild>
             <Link href={`/${season.slug}/register`} className="w-full">
-              立即报名 →
+            {season.registrationMode === "team" ? "组队报名 / 创建或加入队伍 →" : "立即报名 →"}
             </Link>
           </Btn>
         </div>

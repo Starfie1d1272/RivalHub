@@ -51,7 +51,7 @@ export const seasons = pgTable("seasons", {
   // 每支队伍最少人数
   minTeamSize: integer("min_team_size").notNull().default(5),
   // 每支队伍最多人数
-  maxTeamSize: integer("max_team_size").notNull().default(7),
+  maxTeamSize: integer("max_team_size").notNull().default(9),
   // 首发人数
   starterCount: integer("starter_count").notNull().default(5),
   // 该赛季可用的位置标识符列表（应用层 Zod 校验报名时引用此列表）

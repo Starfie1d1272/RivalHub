@@ -230,7 +230,7 @@ export function HeaderClient({ seasons, session, avatarUrl, steamName, displayNa
                   letterSpacing: "var(--tracking-label)",
                 }}
               >
-                LOGIN
+                登录
               </Link>
             )}
           </div>

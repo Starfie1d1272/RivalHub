@@ -14,6 +14,8 @@ interface Props {
   seasons: { id: string; name: string }[];
   initialActorNameMap: Record<string, string>;
   initialTargetNameMap: Record<string, string>;
+  routeBase?: string;
+  seasonScopeId?: string;
 }
 
 const ACTION_CATEGORIES: Record<string, { label: string; color: string }> = {
@@ -72,13 +74,30 @@ const ACTION_LABELS: Record<string, string> = {
   "season.auto_advance": "自动推进阶段",
   "team.rename": "队伍改名",
   "team.upload_logo": "上传队标",
+  "team_application.create": "创建报名队伍",
+  "team_application.update": "更新报名队伍",
+  "team_application.create_join_link": "生成邀请链接",
+  "team_application.regenerate_join_link": "重新生成邀请链接",
+  "team_application.claim_join_link": "通过邀请链接加入",
+  "team_application.confirm_member": "确认报名成员",
+  "team_application.submit": "提交队伍报名",
+  "team_application.rejected": "退回修改",
+  "team_application.waitlisted": "列入候补",
+  "team_application.approved": "通过队伍报名",
+  "team_application.materialize": "生成正式队伍",
+  "match.roster.admin_select": "管理员选择首发",
+  "match.roster.confirm": "确认首发",
+  "major.start": "启动 Major",
+  "major.swiss.finalize_round": "确认 Major 瑞士轮",
+  "major.stage.transition": "推进 Major 阶段",
+  "postevent.adjudication.create": "创建赛后裁定",
   "user.change_password": "修改密码",
   "user.claim_invite": "使用邀请码",
 };
 
 const PAGE_SIZE = 50;
 
-export function AuditLogTable({ initialLogs, initialTotal, seasons, initialActorNameMap, initialTargetNameMap }: Props) {
+export function AuditLogTable({ initialLogs, initialTotal, seasons, initialActorNameMap, initialTargetNameMap, routeBase = "/admin/logs", seasonScopeId }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
@@ -115,9 +134,9 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, initialActor
         }
       }
       if (!updates.page) params.set("page", "1");
-      router.push(`/admin/logs?${params.toString()}`);
+      router.push(`${routeBase}?${params.toString()}` as never);
     },
-    [router, searchParams],
+    [routeBase, router, searchParams],
   );
 
   const debouncedUpdateParam = useCallback(
@@ -140,6 +159,7 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, initialActor
     if (currentSeason) filters.seasonId = currentSeason;
     if (currentDateFrom) filters.dateFrom = currentDateFrom;
     if (currentDateTo) filters.dateTo = currentDateTo;
+    if (seasonScopeId) filters.seasonScopeId = seasonScopeId;
 
     startTransition(async () => {
       const result = await fetchAuditLogs(filters);
@@ -150,7 +170,7 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, initialActor
         if (result.data.targetNameMap) setTargetNameMap(result.data.targetNameMap);
       }
     });
-  }, [currentPage, currentAction, currentActor, currentSeason, currentDateFrom, currentDateTo]);
+  }, [currentPage, currentAction, currentActor, currentSeason, currentDateFrom, currentDateTo, seasonScopeId]);
 
   const isInitialMount = useRef(true);
   useEffect(() => {

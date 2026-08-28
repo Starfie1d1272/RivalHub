@@ -1,4 +1,4 @@
-import { pgTable, uuid, integer, text, timestamp, pgEnum, check, boolean, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, uuid, integer, text, timestamp, pgEnum, check, boolean, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { majorStageRuns } from "./major-stage";
 import { seasons } from "./seasons";
@@ -61,6 +61,9 @@ export const matches = pgTable("matches", {
   uniqueManagedMajorMatch: uniqueIndex("matches_major_stage_run_managed_key_unique")
     .on(t.majorStageRunId, t.managedKey)
     .where(sql`${t.ownership} = 'major_stage'`),
+  seasonStatusScheduleIndex: index("matches_season_status_scheduled_at_idx").on(t.seasonId, t.status, t.scheduledAt),
+  teamAIndex: index("matches_team_a_id_idx").on(t.teamAId),
+  teamBIndex: index("matches_team_b_id_idx").on(t.teamBId),
 }));
 
 export type Match = typeof matches.$inferSelect;

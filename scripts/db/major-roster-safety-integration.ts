@@ -414,11 +414,9 @@ async function main(): Promise<void> {
 
     const lineupA = {
       starters: [memberA["0"], memberA["1"], memberA["2"], memberA["3"], memberA["4"]],
-      substitutes: [memberA["5"]],
     };
     const lineupB = {
       starters: [memberB["0"], memberB["1"], memberB["2"], memberB["3"], memberB["4"]],
-      substitutes: [memberB["5"]],
     };
     /** Exactly two NJU starters (positions 3–5 are non-NJU roster members). */
     const twoNjuStartersA = [memberA["0"], memberA["1"], memberA["3"], memberA["4"], memberA["5"]];
@@ -453,6 +451,14 @@ async function main(): Promise<void> {
         }),
         ErrorCode.VALIDATION_FAILED,
         "S2 4 人首发",
+      );
+      await expectAppError(
+        () => submitLineupProductionLogic(database, {
+          matchId: mgMatch, teamId: teamAId, source: "participant", submittedBy: null,
+          starterIds: lineupA.starters, substituteIds: [memberA["5"]!],
+        }),
+        ErrorCode.VALIDATION_FAILED,
+        "S2 Major 不接受替补名单",
       );
       await expectAppError(
         () => submitLineupProductionLogic(database, {
@@ -507,13 +513,13 @@ async function main(): Promise<void> {
     const adminSelectARoster = (
       await submitLineupProductionLogic(database, {
         matchId: mgMatch, teamId: teamAId, source: "admin_select", submittedBy: null,
-        starterIds: lineupA.starters, substituteIds: lineupA.substitutes,
+        starterIds: lineupA.starters, substituteIds: [],
       })
     ).rosterId;
     const adminSelectBRoster = (
       await submitLineupProductionLogic(database, {
         matchId: mgMatch, teamId: teamBId, source: "admin_select", submittedBy: null,
-        starterIds: lineupB.starters, substituteIds: lineupB.substitutes,
+        starterIds: lineupB.starters, substituteIds: [],
       })
     ).rosterId;
     await expectAppError(
@@ -548,10 +554,10 @@ async function main(): Promise<void> {
       }
     }
 
-    // Restore the legal lineups after the overwrite probe, then confirm both sides.
+    // Restore the legal five-starter lineup after the overwrite probe, then confirm both sides.
     await submitLineupProductionLogic(database, {
       matchId: mgMatch, teamId: teamAId, source: "participant", submittedBy: null,
-      starterIds: lineupA.starters, substituteIds: lineupA.substitutes,
+      starterIds: lineupA.starters, substituteIds: [],
     });
 
     // S10 显式确认 → pass；重复确认幂等且不新增审计。
@@ -600,7 +606,7 @@ async function main(): Promise<void> {
       await expectAppError(
         () => submitLineupProductionLogic(database, {
           matchId: mgMatch, teamId: teamAId, source: "participant", submittedBy: null,
-          starterIds: lineupA.starters, substituteIds: lineupA.substitutes,
+          starterIds: lineupA.starters, substituteIds: [],
         }),
         ErrorCode.MATCH_INVALID_TRANSITION,
         "S11 开赛后禁止再改阵容",
@@ -639,13 +645,13 @@ async function main(): Promise<void> {
       const mcRosterA = (
         await submitLineupProductionLogic(database, {
           matchId: mcMatch, teamId: teamAId, source: "participant", submittedBy: null,
-          starterIds: lineupA.starters, substituteIds: lineupA.substitutes,
+          starterIds: lineupA.starters, substituteIds: [],
         })
       ).rosterId;
       const mcRosterB = (
         await submitLineupProductionLogic(database, {
           matchId: mcMatch, teamId: teamBId, source: "participant", submittedBy: null,
-          starterIds: lineupB.starters, substituteIds: lineupB.substitutes,
+          starterIds: lineupB.starters, substituteIds: [],
         })
       ).rosterId;
       await database.transaction((tx) =>

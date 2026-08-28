@@ -1,6 +1,7 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, count, eq, sql } from "drizzle-orm";
+import { randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db/client";
@@ -45,6 +46,7 @@ type EditableApplication = {
   status: string;
   name: string;
   logoUrl: string | null;
+  joinToken: string | null;
   perfectTeamId: string | null;
   primaryStarterUserIds: string[];
 };
@@ -81,6 +83,10 @@ async function claimActiveMembership(tx: Parameters<Parameters<typeof db.transac
 function revalidateApplicationPaths(seasonSlug: string): void {
   revalidatePath(`/${seasonSlug}/register`);
   revalidatePath(`/admin/${seasonSlug}/registrations`);
+}
+
+function createJoinToken(): string {
+  return randomBytes(32).toString("base64url");
 }
 
 async function assertParticipantReadyForSeason(userId: string, season: typeof seasons.$inferSelect): Promise<void> {
@@ -257,6 +263,76 @@ export async function inviteTeamApplicationMember(input: { applicationId: string
   } catch (error) {
     return actionError("inviteTeamApplicationMember", error);
   }
+}
+
+/** Creates or revokes an opaque, captain-shareable application link. */
+export async function createTeamApplicationJoinLink(input: { applicationId: string; regenerate?: boolean }): Promise<ActionResult<{ token: string }>> {
+  const parsed = z.object({ applicationId: applicationIdSchema, regenerate: z.boolean().optional() }).safeParse(input);
+  if (!parsed.success) return invalid("报名队伍标识无效。");
+  try {
+    const session = await requireAuth();
+    const application = await getCaptainApplicationOrThrow(parsed.data.applicationId, session.userId);
+    await assertEditableApplication(application);
+    const season = await db.query.seasons.findFirst({ where: eq(seasons.id, application.seasonId) });
+    if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
+    if (!getRegistrationWindowState(season).canSubmit) throw new AppError(ErrorCode.REGISTRATION_CLOSED, "报名窗口已关闭。");
+    const token = !parsed.data.regenerate && application.joinToken ? application.joinToken : createJoinToken();
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT id FROM team_applications WHERE id = ${application.id} FOR UPDATE`);
+      await tx.update(teamApplications).set({ joinToken: token, updatedAt: new Date() }).where(eq(teamApplications.id, application.id));
+      await tx.insert(auditLogs).values({
+        seasonId: application.seasonId,
+        action: parsed.data.regenerate ? "team_application.regenerate_join_link" : "team_application.create_join_link",
+        actorId: auditActorId(session),
+        targetId: application.id,
+        targetType: "team_application",
+        meta: { regenerated: Boolean(parsed.data.regenerate) },
+      });
+    });
+    revalidateApplicationPaths(season.slug);
+    return ok({ token });
+  } catch (error) { return actionError("createTeamApplicationJoinLink", error); }
+}
+
+/** Claims a captain-shared link into the existing mutable application flow. */
+export async function claimTeamApplicationJoinLink(token: string): Promise<ActionResult<{ seasonSlug: string; applicationId: string; alreadyMember: boolean }>> {
+  if (!/^[A-Za-z0-9_-]{32,}$/.test(token)) return invalid("邀请链接无效或已失效。");
+  try {
+    const session = await requireAuth();
+    const result = await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT id FROM team_applications WHERE join_token = ${token} FOR UPDATE`);
+      const application = await tx.query.teamApplications.findFirst({ where: eq(teamApplications.joinToken, token) });
+      if (!application) throw new AppError(ErrorCode.NOT_FOUND, "邀请链接无效或已失效。");
+      if (!editableStatuses.includes(application.status as (typeof editableStatuses)[number])) {
+        throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "该报名队伍已提交审核，当前不再接受新的邀请加入。");
+      }
+      const season = await tx.query.seasons.findFirst({ where: eq(seasons.id, application.seasonId) });
+      if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
+      const window = getRegistrationWindowState(season);
+      if (!window.canSubmit) throw new AppError(ErrorCode.REGISTRATION_CLOSED, window.message);
+      const existingMember = await tx.query.teamApplicationMembers.findFirst({
+        where: and(eq(teamApplicationMembers.applicationId, application.id), eq(teamApplicationMembers.userId, session.userId)),
+      });
+      if (existingMember) return { seasonSlug: season.slug, applicationId: application.id, alreadyMember: true };
+      const formal = await tx.query.teamMembers.findFirst({ where: and(eq(teamMembers.seasonId, season.id), eq(teamMembers.userId, session.userId)) });
+      if (formal) throw new AppError(ErrorCode.REGISTRATION_DUPLICATE, "你已经是本赛季正式队伍成员。");
+      const [{ value: memberCount }] = await tx.select({ value: count() }).from(teamApplicationMembers).where(eq(teamApplicationMembers.applicationId, application.id));
+      if (Number(memberCount) >= season.maxTeamSize) throw new AppError(ErrorCode.VALIDATION_FAILED, `该报名队伍人数已达上限 ${season.maxTeamSize} 人。`);
+      await claimActiveMembership(tx, season.id, session.userId, application.id);
+      await tx.insert(teamApplicationMembers).values({ applicationId: application.id, userId: session.userId, invitedByUserId: application.captainUserId, status: "invited" });
+      await tx.insert(auditLogs).values({
+        seasonId: season.id,
+        action: "team_application.claim_join_link",
+        actorId: auditActorId(session),
+        targetId: application.id,
+        targetType: "team_application",
+        meta: { memberUserId: session.userId },
+      });
+      return { seasonSlug: season.slug, applicationId: application.id, alreadyMember: false };
+    });
+    revalidateApplicationPaths(result.seasonSlug);
+    return ok(result);
+  } catch (error) { return actionError("claimTeamApplicationJoinLink", error); }
 }
 
 export async function removeTeamApplicationMember(input: { applicationId: string; memberId: string }): Promise<ActionResult<void>> {

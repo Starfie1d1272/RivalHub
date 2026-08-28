@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { and, asc, eq } from "drizzle-orm";
 import { MajorPrestartConsole } from "@/components/admin/MajorPrestartConsole";
+import { AdminExceptionSummary } from "@/components/admin/AdminExceptionSummary";
 import { PostEventManagement } from "@/components/admin/PostEventManagement";
 import { db } from "@/db/client";
 import {
@@ -10,11 +11,13 @@ import {
   majorPrestartStates,
   majorFinalResults,
   majorStageRuns,
+  matchRosters,
   matches,
   majorTournamentSeeds,
   postEventAdjudications,
   seasons,
   teamMembers,
+  teamApplications,
   teams,
   tournamentHonors,
   users,
@@ -70,7 +73,7 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
     candidatesByTeam.set(member.teamId, candidates);
   }
 
-  const [state, entrantRows, rosterRows, issueRows, seedRows, stageRunRows, stageMatchRows, finalResult, honorRows, adjudicationRows] = await Promise.all([
+  const [state, entrantRows, rosterRows, issueRows, seedRows, stageRunRows, stageMatchRows, finalResult, honorRows, adjudicationRows, pendingApplications, rosterStatusRows] = await Promise.all([
     db.query.majorPrestartStates.findFirst({ where: eq(majorPrestartStates.seasonId, season.id) }),
     db.select({
       id: majorPrestartEntrants.id,
@@ -94,7 +97,7 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
       .orderBy(asc(majorTournamentSeeds.tournamentSeed)),
     db.select({ id: majorStageRuns.id, stageKey: majorStageRuns.stageKey, finalizedRound: majorStageRuns.finalizedRound, startedAt: majorStageRuns.startedAt }).from(majorStageRuns)
       .where(eq(majorStageRuns.seasonId, season.id)),
-    db.select({ stageRunId: matches.majorStageRunId, round: matches.round, entryRound: matches.entryRound, status: matches.status })
+    db.select({ id: matches.id, stageRunId: matches.majorStageRunId, round: matches.round, entryRound: matches.entryRound, status: matches.status, scheduledAt: matches.scheduledAt })
       .from(matches)
       .innerJoin(majorStageRuns, eq(matches.majorStageRunId, majorStageRuns.id))
       .where(and(eq(majorStageRuns.seasonId, season.id), eq(matches.ownership, "major_stage"))),
@@ -103,6 +106,12 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
       .from(tournamentHonors).where(eq(tournamentHonors.seasonId, season.id)).orderBy(asc(tournamentHonors.createdAt)),
     db.select({ id: postEventAdjudications.id, status: postEventAdjudications.status, kind: postEventAdjudications.kind, target: postEventAdjudications.target, impacts: postEventAdjudications.impacts, targetTeamId: postEventAdjudications.targetTeamId, targetUserId: postEventAdjudications.targetUserId, targetMatchId: postEventAdjudications.targetMatchId, reason: postEventAdjudications.reason, explanation: postEventAdjudications.publicExplanation, createdAt: postEventAdjudications.createdAt })
       .from(postEventAdjudications).where(eq(postEventAdjudications.seasonId, season.id)).orderBy(asc(postEventAdjudications.createdAt)),
+    db.select({ id: teamApplications.id }).from(teamApplications)
+      .where(and(eq(teamApplications.seasonId, season.id), eq(teamApplications.status, "submitted"))),
+    db.select({ matchId: matchRosters.matchId, status: matchRosters.status })
+      .from(matchRosters)
+      .innerJoin(matches, eq(matchRosters.matchId, matches.id))
+      .where(and(eq(matches.seasonId, season.id), eq(matches.ownership, "major_stage"))),
   ]);
   const entrantIds = new Set(entrantRows.map((entrant) => entrant.id));
   const rosterByEntrant = new Map<string, Array<{ userId: string; email: string; educationVerificationId: string | null }>>();
@@ -140,6 +149,22 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
     seedConfirmation: state ? { seedRevision: state.seedRevision, confirmedSeedRevision: state.confirmedSeedRevision } : null,
   });
   const stagePlan = normalizeStagePlan(season.stagePlan);
+  const confirmedLineupsByMatch = new Map<string, number>();
+  for (const roster of rosterStatusRows) {
+    if (roster.status === "confirmed") {
+      confirmedLineupsByMatch.set(roster.matchId, (confirmedLineupsByMatch.get(roster.matchId) ?? 0) + 1);
+    }
+  }
+  const summary = {
+    pendingApplications: pendingApplications.length,
+    unresolvedPrestartIssues: issueRows.filter((issue) => !issue.resolvedAt).length,
+    unconfirmedEntrants: entrantRows.filter((entrant) => !entrant.rosterConfirmedAt).length,
+    scheduledMatchesWithoutConfirmedLineups: stageMatchRows.filter((match) =>
+      match.status === "scheduled" && match.scheduledAt !== null && (confirmedLineupsByMatch.get(match.id) ?? 0) < 2,
+    ).length,
+    finalResultPendingConfirmation: finalResult?.status === "pending_confirmation",
+    activeAdjudications: adjudicationRows.filter((row) => row.status === "active").length,
+  };
   const stageRun = [...stagePlan].reverse()
     .map((stage) => stageRunRows.find((run) => run.stageKey === stage.key))
     .find((run) => run !== undefined) ?? null;
@@ -193,6 +218,7 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
   }
 
   return <div className="space-y-4">
+    <AdminExceptionSummary seasonSlug={seasonSlug} data={summary} />
     <MajorPrestartConsole
     seasonName={season.name}
     readiness={readiness}

@@ -20,16 +20,16 @@ describe("0012 competitive profile migration", () => {
     );
   });
 
-  it("keeps the active journal's final entry at 0012", () => {
+  it("keeps the active journal's final entry at the current closeout migration", () => {
     const journal = JSON.parse(
       readFileSync(join(process.cwd(), "drizzle/migrations/meta/_journal.json"), "utf8"),
     ) as { entries: Array<{ idx: number; tag: string }> };
 
     expect(journal.entries.at(-1)).toEqual({
-      idx: 12,
+      idx: 13,
       version: "7",
-      when: 1787854784019,
-      tag: "0012_dapper_devos",
+      when: 1787903327955,
+      tag: "0013_cooing_thor_girl",
       breakpoints: true,
     });
   });

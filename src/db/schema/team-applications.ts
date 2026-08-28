@@ -1,4 +1,4 @@
-import { index, pgEnum, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { index, pgEnum, pgTable, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { seasons } from "./seasons";
 import { users } from "./users";
@@ -30,6 +30,8 @@ export const teamApplications = pgTable("team_applications", {
   /** Exactly five user IDs when a Major application is ready for review. */
   primaryStarterUserIds: uuid("primary_starter_user_ids").array().notNull().default(sql`'{}'::uuid[]`),
   captainUserId: uuid("captain_user_id").notNull().references(() => users.id),
+  /** Opaque, revocable captain-share link. It never itself confirms membership. */
+  joinToken: text("join_token"),
   status: teamApplicationStatusEnum("status").notNull().default("draft"),
   submittedAt: timestamp("submitted_at", { withTimezone: true }),
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
@@ -39,6 +41,7 @@ export const teamApplications = pgTable("team_applications", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   seasonStatusIndex: index("team_applications_season_status_idx").on(t.seasonId, t.status),
+  joinTokenUnique: uniqueIndex("team_applications_join_token_unique").on(t.joinToken),
 }));
 
 export const teamApplicationMembers = pgTable("team_application_members", {

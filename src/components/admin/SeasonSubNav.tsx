@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ScrollHint } from "@/components/rivalhub";
 
 export function SeasonSubNav({
   seasonSlug,
@@ -21,6 +22,7 @@ export function SeasonSubNav({
   const tabs: { label: string; href: string }[] = [
     { label: "赛事控制台", href: `/admin/${seasonSlug}` },
     { label: "报名审核", href: `/admin/${seasonSlug}/registrations` },
+    { label: "赛事日志", href: `/admin/${seasonSlug}/logs` },
     ...(hasCaptainVoting ? [{ label: "队长确认", href: `/admin/${seasonSlug}/captains` }] : []),
     ...(hasDraft ? [{ label: "选秀控制", href: `/admin/${seasonSlug}/draft` }] : []),
     ...(hasMatches ? [{ label: "赛程管理", href: `/admin/${seasonSlug}/matches` }] : []),
@@ -28,8 +30,8 @@ export function SeasonSubNav({
   ];
 
   return (
-    <nav
-      className="flex gap-0 mb-6"
+    <ScrollHint><nav
+      className="mb-6 flex gap-0 overflow-x-auto"
       style={{ borderBottom: "2px solid var(--color-border)" }}
     >
       {tabs.map((tab) => {
@@ -52,6 +54,6 @@ export function SeasonSubNav({
           </Link>
         );
       })}
-    </nav>
+    </nav></ScrollHint>
   );
 }

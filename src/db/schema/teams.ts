@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, boolean, timestamp, unique, foreignKey } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, integer, boolean, timestamp, unique, foreignKey, index } from "drizzle-orm/pg-core";
 import { seasons } from "./seasons";
 import { users } from "./users";
 import { seasonRegistrations } from "./registrations";
@@ -43,6 +43,7 @@ export const teamMembers = pgTable("team_members", {
   uniqueRegistration: unique().on(t.registrationId),
   // 同 season 同 user 只能属于一个正式队伍
   uniqueSeasonUser: unique().on(t.seasonId, t.userId),
+  teamIndex: index("team_members_team_id_idx").on(t.teamId),
   // DB 层保证 teamMember.seasonId == parent team.seasonId
   teamSeasonFk: foreignKey({
     columns: [t.teamId, t.seasonId],

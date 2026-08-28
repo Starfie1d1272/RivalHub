@@ -7,7 +7,6 @@ import type { InstitutionAffiliationRule } from "@/types/season";
  */
 
 export const STARTER_COUNT = 5;
-export const MAX_SUBSTITUTES = 2;
 
 export interface LineupVerificationFact {
   institutionCode: string | null;
@@ -27,6 +26,8 @@ export interface LineupMemberFact {
 export interface StartingLineupInput {
   starterIds: readonly string[];
   substituteIds?: readonly string[];
+  /** Legacy formats may retain stored substitutes; Major lineups are five starters only. */
+  allowSubstitutes?: boolean;
   /** Facts for every team member selectable on this canonical team. */
   memberFacts: ReadonlyMap<string, LineupMemberFact>;
   /**
@@ -70,15 +71,17 @@ function isEligibleForRule(
  * confirm flow and the start gate must run it against freshly loaded facts.
  */
 export function evaluateStartingLineup(input: StartingLineupInput): StartingLineupResult {
-  const { starterIds, substituteIds = [], memberFacts } = input;
+  const { starterIds, substituteIds = [], memberFacts, allowSubstitutes = true } = input;
   const blockers: string[] = [];
   const affiliatedStarterCounts = new Map<string, number>();
 
   if (starterIds.length !== STARTER_COUNT) {
     blockers.push(`必须选择 ${STARTER_COUNT} 名首发，当前选择了 ${starterIds.length} 名。`);
   }
-  if (substituteIds.length > MAX_SUBSTITUTES) {
-    blockers.push(`替补不能超过 ${MAX_SUBSTITUTES} 人，当前选择了 ${substituteIds.length} 名。`);
+  if (!allowSubstitutes && substituteIds.length > 0) {
+    blockers.push("本赛事每队本场只能提交恰好 5 名首发，不设置替补名单。");
+  } else if (allowSubstitutes && substituteIds.length > 2) {
+    blockers.push(`历史赛制替补不能超过 2 人，当前选择了 ${substituteIds.length} 名。`);
   }
 
   const seen = new Set<string>();

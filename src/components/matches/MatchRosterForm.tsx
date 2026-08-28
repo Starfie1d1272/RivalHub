@@ -24,6 +24,7 @@ interface MatchRosterFormProps {
   rosterStatus: string | null;
   initialStarterIds?: string[];
   initialSubstituteIds?: string[];
+  allowSubstitutes?: boolean;
 }
 
 export function MatchRosterForm({
@@ -34,6 +35,7 @@ export function MatchRosterForm({
   rosterStatus,
   initialStarterIds = [],
   initialSubstituteIds = [],
+  allowSubstitutes = true,
 }: MatchRosterFormProps) {
   const isMatchStarted = matchStatus !== "scheduled";
   const rosterLocked = rosterStatus === "confirmed";
@@ -77,7 +79,7 @@ export function MatchRosterForm({
       return;
     }
     startTransition(async () => {
-      const result = await submitMatchRoster(matchId, { starterIds: selectedStarterIds, substituteIds: selectedSubstituteIds });
+      const result = await submitMatchRoster(matchId, { starterIds: selectedStarterIds, substituteIds: allowSubstitutes ? selectedSubstituteIds : [] });
       if (result.success) {
         toast.success("名单提交成功");
       } else {
@@ -115,7 +117,7 @@ export function MatchRosterForm({
         {hasExistingRoster && <span className="text-xs text-[var(--color-fg-dim)]">已提交</span>}
       </div>
 
-      <div className="space-y-2">
+      {allowSubstitutes && <div className="space-y-2">
         <p className="text-sm font-medium text-[var(--color-fg)]">首发</p>
         <div className="flex flex-wrap gap-2">
           {teamMembers.map((m) => (
@@ -134,7 +136,7 @@ export function MatchRosterForm({
         <p className="text-sm text-[var(--color-fg-dim)]">
           已选 {selectedStarterIds.length}/5 名首发
         </p>
-      </div>
+      </div>}
 
       <div className="space-y-2">
         <p className="text-sm font-medium text-[var(--color-fg)]">替补</p>

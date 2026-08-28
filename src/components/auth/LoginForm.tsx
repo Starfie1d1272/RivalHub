@@ -14,11 +14,11 @@ function safeRedirect(raw: string | null): string {
   return raw.startsWith("/") && !raw.startsWith("//") ? raw : "/";
 }
 
-export function LoginForm() {
+export function LoginForm({ initialMode = "login" }: { initialMode?: Mode }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [turnstileToken, setTurnstileToken] = useState<string>("");
-  const [mode, setMode] = useState<Mode>("login");
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [awaitingEmail, setAwaitingEmail] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const redirectRef = useRef(safeRedirect(new URLSearchParams(
@@ -30,7 +30,7 @@ export function LoginForm() {
     startTransition(async () => {
       const result = mode === "login"
         ? await loginWithPassword(email, password)
-        : await signUp(email, password, turnstileToken);
+        : await signUp(email, password, turnstileToken, redirectRef.current);
       if (result.success) {
         if (mode === "register") {
           setAwaitingEmail(email.trim());
@@ -44,7 +44,7 @@ export function LoginForm() {
   }, [email, password, mode, turnstileToken]);
 
   if (awaitingEmail) {
-    return <div className="space-y-4"><div className="rounded-sm border border-[var(--color-border)] p-4"><h2 className="font-semibold">验证邮件已发送</h2><p className="mt-2 break-all text-sm text-[var(--color-fg-mid)]">请打开 {awaitingEmail} 中的邮件完成验证。验证前不会登录 RivalHub。</p></div><Btn type="button" full disabled={isPending} onClick={() => startTransition(async () => { const result = await resendSignupConfirmation(awaitingEmail); if (result.success) toast.success("验证邮件已重新发送"); else toast.error(result.error.message); })}>重新发送验证邮件</Btn><button type="button" className="w-full text-sm underline" onClick={() => { setAwaitingEmail(null); setMode("login"); }}>返回登录</button><button type="button" className="w-full text-sm underline" onClick={() => { setAwaitingEmail(null); setMode("register"); setEmail(""); setPassword(""); }}>修改邮箱或重新注册</button></div>;
+    return <div className="space-y-4"><div className="rounded-sm border border-[var(--color-border)] p-4"><h2 className="font-semibold">验证邮件已发送</h2><p className="mt-2 break-all text-sm text-[var(--color-fg-mid)]">请打开 {awaitingEmail} 中的邮件完成验证。验证前不会登录 RivalHub。</p></div><Btn type="button" full disabled={isPending} onClick={() => startTransition(async () => { const result = await resendSignupConfirmation(awaitingEmail, redirectRef.current); if (result.success) toast.success("验证邮件已重新发送"); else toast.error(result.error.message); })}>重新发送验证邮件</Btn><button type="button" className="w-full text-sm underline" onClick={() => { setAwaitingEmail(null); setMode("login"); }}>返回登录</button><button type="button" className="w-full text-sm underline" onClick={() => { setAwaitingEmail(null); setMode("register"); setEmail(""); setPassword(""); }}>修改邮箱或重新注册</button></div>;
   }
 
   return (

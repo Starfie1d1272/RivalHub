@@ -39,6 +39,7 @@ interface AdminRosterDialogProps {
   teamBMembers: TeamMember[];
   teamARoster: RosterData | null;
   teamBRoster: RosterData | null;
+  allowSubstitutes?: boolean;
 }
 
 interface RosterTeamSectionProps {
@@ -47,6 +48,7 @@ interface RosterTeamSectionProps {
   matchId: string;
   members: TeamMember[];
   existingRoster: RosterData | null;
+  allowSubstitutes: boolean;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -63,6 +65,7 @@ function RosterTeamSection({
   matchId,
   members,
   existingRoster,
+  allowSubstitutes = true,
 }: RosterTeamSectionProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -76,7 +79,7 @@ function RosterTeamSection({
   });
 
   const starterIds = selectedIds.slice(0, 5);
-  const substituteIds = selectedIds.slice(5, 7);
+  const substituteIds = allowSubstitutes ? selectedIds.slice(5, 7) : [];
 
   const memberMap = new Map(members.map((m) => [m.id, m]));
 
@@ -85,7 +88,7 @@ function RosterTeamSection({
       if (prev.includes(id)) {
         return prev.filter((x) => x !== id);
       }
-      if (prev.length >= 7) return prev;
+      if (prev.length >= (allowSubstitutes ? 7 : 5)) return prev;
       return [...prev, id];
     });
   }
@@ -122,7 +125,7 @@ function RosterTeamSection({
       const result = await adminSelectMatchRoster(
         matchId,
         teamId,
-        { starterIds: pendingLineup.starterIds, substituteIds: pendingLineup.substituteIds },
+        { starterIds: pendingLineup.starterIds, substituteIds: allowSubstitutes ? pendingLineup.substituteIds : [] },
       );
       setPendingLineup(null);
       if (result.success) {
@@ -153,7 +156,7 @@ function RosterTeamSection({
         <div className="flex items-center gap-2">
           <p className="text-xs text-[var(--color-fg-mid)] flex-1">
             当前名单：{existingRoster.starters.length} 首发
-            {existingRoster.substitutes.length > 0
+            {allowSubstitutes && existingRoster.substitutes.length > 0
               ? ` + ${existingRoster.substitutes.length} 替补`
               : ""}
             {existingRoster.status && ` · ${STATUS_LABELS[existingRoster.status] ?? existingRoster.status}`}
@@ -204,7 +207,7 @@ function RosterTeamSection({
               const label =
                 isSelected && selectedIndex < 5
                   ? `首发 ${selectedIndex + 1}`
-                  : isSelected
+                  : isSelected && allowSubstitutes
                     ? "替补"
                     : null;
               return (
@@ -214,11 +217,11 @@ function RosterTeamSection({
                     isSelected
                       ? "bg-[var(--color-accent)]/10"
                       : "hover:bg-[var(--color-panel-low)]"
-                  } ${!isSelected && selectedIds.length >= 7 ? "opacity-40 cursor-not-allowed" : ""}`}
+                  } ${!isSelected && selectedIds.length >= (allowSubstitutes ? 7 : 5) ? "opacity-40 cursor-not-allowed" : ""}`}
                 >
                   <Checkbox
                     checked={isSelected}
-                    disabled={!isSelected && selectedIds.length >= 7}
+                    disabled={!isSelected && selectedIds.length >= (allowSubstitutes ? 7 : 5)}
                     onChange={() => toggleMember(m.id)}
                   />
                   <span className="text-sm flex-1 truncate">
@@ -288,8 +291,7 @@ function RosterTeamSection({
 
           {/* Selected count */}
           <p className="text-xs text-[var(--color-fg-mid)]">
-            已选 {selectedIds.length}/7（首发 {starterIds.length}/5，替补{" "}
-            {substituteIds.length}/2）
+            已选 {selectedIds.length}/{allowSubstitutes ? 7 : 5}（首发 {starterIds.length}/5{allowSubstitutes ? `，替补 ${substituteIds.length}/2` : ""}）
           </p>
 
           <Button
@@ -317,6 +319,7 @@ export function AdminRosterDialog({
   teamBMembers,
   teamARoster,
   teamBRoster,
+  allowSubstitutes = true,
 }: AdminRosterDialogProps) {
   const [open, setOpen] = useState(false);
 
@@ -342,6 +345,7 @@ export function AdminRosterDialog({
             matchId={matchId}
             members={teamAMembers}
             existingRoster={teamARoster}
+            allowSubstitutes={allowSubstitutes}
           />
           <Separator />
           <RosterTeamSection
@@ -350,6 +354,7 @@ export function AdminRosterDialog({
             matchId={matchId}
             members={teamBMembers}
             existingRoster={teamBRoster}
+            allowSubstitutes={allowSubstitutes}
           />
         </div>
       </DialogContent>

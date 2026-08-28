@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, timestamp, index } from "drizzle-orm/pg-core";
 import { matches } from "./matches";
 import { users } from "./users";
 
@@ -13,7 +13,7 @@ export const matchTimeProposals = pgTable("match_time_proposals", {
   rejectReason: text("reject_reason"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => ({ matchIndex: index("match_time_proposals_match_id_idx").on(t.matchId) }));
 
 export type MatchTimeProposal = typeof matchTimeProposals.$inferSelect;
 export type NewMatchTimeProposal = typeof matchTimeProposals.$inferInsert;

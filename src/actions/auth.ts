@@ -72,6 +72,7 @@ export async function signUp(
   email: string,
   password: string,
   turnstileToken?: string,
+  next?: string,
 ): Promise<ActionResult<{ email: string }>> {
   if (!email || !email.includes("@")) {
     return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请输入有效的邮箱地址" });
@@ -117,7 +118,7 @@ export async function signUp(
     const { data, error } = await supabase.auth.signUp({
       email: normalizedEmail,
       password,
-      options: { emailRedirectTo: callbackUrl("signup") },
+      options: { emailRedirectTo: callbackUrl("signup", next) },
     });
 
     if (error) {
@@ -157,13 +158,13 @@ export async function signUp(
 }
 
 /** Safe ambiguous resend endpoint for the signup waiting state. */
-export async function resendSignupConfirmation(email: string): Promise<ActionResult<void>> {
+export async function resendSignupConfirmation(email: string, next?: string): Promise<ActionResult<void>> {
   if (!email || !email.includes("@")) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请输入有效的邮箱地址" });
   try {
     const { error } = await createPublicAuthClient().auth.resend({
       type: "signup",
       email: normalizeEmail(email),
-      options: { emailRedirectTo: callbackUrl("signup") },
+      options: { emailRedirectTo: callbackUrl("signup", next) },
     });
     if (error && process.env.NODE_ENV === "development") console.warn("[resendSignupConfirmation]", error.message);
     return ok(undefined);
@@ -186,10 +187,17 @@ export async function resendCurrentEmailVerification(): Promise<ActionResult<voi
   } catch (e) { return actionError("resendCurrentEmailVerification", e); }
 }
 
-function callbackUrl(flow: "signup" | "reverify"): string {
+function callbackUrl(flow: "signup" | "reverify", next?: string): string {
   const origin = process.env.NEXT_PUBLIC_APP_URL;
   if (!origin) throw new Error("NEXT_PUBLIC_APP_URL 未配置");
-  return new URL(`/auth/callback/${flow}`, origin).toString();
+  const url = new URL(`/auth/callback/${flow}`, origin);
+  const safeNext = safeNextPath(next);
+  if (safeNext) url.searchParams.set("next", safeNext);
+  return url.toString();
+}
+
+function safeNextPath(next: string | undefined): string | null {
+  return next && next.startsWith("/") && !next.startsWith("//") ? next : null;
 }
 
 export async function sendPasswordResetEmail(email: string): Promise<ActionResult<undefined>> {

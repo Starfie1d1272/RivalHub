@@ -54,9 +54,9 @@ export function HomeHero({ season, eyebrow }: HomeHeroProps) {
           <Btn primary asChild>
             <Link href={`/${season.slug}`}>进入赛季 →</Link>
           </Btn>
-          {season.registrationMode === "solo" && (
+          {season.status === "registration" && (
             <Btn asChild>
-              <Link href={`/${season.slug}/register`}>报名参赛</Link>
+              <Link href={`/${season.slug}/register`}>{season.registrationMode === "team" ? "组队报名 / 创建或加入队伍" : "报名参赛"}</Link>
             </Btn>
           )}
           <Btn ghost asChild>

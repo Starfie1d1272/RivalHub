@@ -277,6 +277,9 @@ export async function reviewTeamApplication(input: TeamApplicationReviewInput) {
   if (!input || !["approved", "waitlisted", "rejected"].includes(input.status)) {
     return fail({ code: ErrorCode.VALIDATION_FAILED, message: "无效的队伍报名审核状态" });
   }
+  if (input.status === "rejected" && !input.reason?.trim()) {
+    return fail({ code: ErrorCode.VALIDATION_FAILED, message: "退回修改时必须填写原因。" });
+  }
 
   try {
     const application = await db.query.teamApplications.findFirst({
