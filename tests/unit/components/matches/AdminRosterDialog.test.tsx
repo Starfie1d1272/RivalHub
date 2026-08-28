@@ -80,6 +80,7 @@ describe("AdminRosterDialog — explicit two-step lineup selection", () => {
     );
 
     await openDialog(user);
+    expect(screen.getByText("为双方选择并确认本场 5 名首发选手。")).toBeInTheDocument();
     await pickFiveStarters(user, "a");
 
     await user.click(screen.getAllByRole("button", { name: /核对并保存 Alpha 名单/ })[0]!);

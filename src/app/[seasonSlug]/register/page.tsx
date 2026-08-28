@@ -171,6 +171,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
           currentUserId={userSession.userId}
           minTeamSize={season.minTeamSize}
           maxTeamSize={season.maxTeamSize}
+          requireTeamLogo={teamConfig.requireTeamLogo}
           application={application}
           qualification={{ njuPrimaryCount, externalStrength }}
           members={members.map((member) => ({ id: member.id, userId: member.userId, email: member.email, displayName: member.displayName, status: member.status, emailVerified: Boolean(member.emailVerified), educationStatus: (member.verificationStatus ?? "unsubmitted") as "unsubmitted" | "pending" | "approved" | "rejected", institutionName: member.institutionName, readinessBlockers: readinessByUser.get(member.userId)?.blockers ?? [] }))}

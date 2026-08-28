@@ -611,7 +611,7 @@ export function normalizeTeamRegistrationConfig(
     captainCanTransfer: config?.captainCanTransfer ?? MAJOR_TEAM_CONFIG.captainCanTransfer,
     lockAfterRegistration: config?.lockAfterRegistration ?? MAJOR_TEAM_CONFIG.lockAfterRegistration,
     requireUniqueTeamName: config?.requireUniqueTeamName ?? MAJOR_TEAM_CONFIG.requireUniqueTeamName,
-    requireTeamLogo: config?.requireTeamLogo ?? MAJOR_TEAM_CONFIG.requireTeamLogo,
+    requireTeamLogo: config?.requireTeamLogo ?? false,
     requireCompetitiveProfile: config?.requireCompetitiveProfile ?? false,
     competitiveProfile: config?.competitiveProfile
       ? {

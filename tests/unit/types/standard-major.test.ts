@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_CS2_MAP_POOL,
   MAJOR_REGISTRATION_CONFIG,
+  OPEN_TOURNAMENT_PRESET,
   RIVALS_DEFAULT_CAPABILITIES,
   checkStandardMajorCapabilities,
   createMajorDefaultCapabilities,
+  normalizeTeamRegistrationConfig,
 } from "@/types/season";
 import { PERFECT_WORLD_RANK_ORDER } from "@/lib/config/perfect-world";
 
@@ -199,5 +201,20 @@ describe("createMajorDefaultCapabilities()", () => {
 
     expect(second.registrationConfig.maxTotal).toBe(256);
     expect(second.stagePlan[0].teamCount).toBe(16);
+  });
+});
+
+describe("normalizeTeamRegistrationConfig()", () => {
+  it("keeps a legacy partial config logo-optional", () => {
+    expect(normalizeTeamRegistrationConfig({ allowExternal: true }).requireTeamLogo).toBe(false);
+  });
+
+  it("preserves explicit logo requirements", () => {
+    expect(normalizeTeamRegistrationConfig({ requireTeamLogo: true }).requireTeamLogo).toBe(true);
+    expect(normalizeTeamRegistrationConfig({ requireTeamLogo: false }).requireTeamLogo).toBe(false);
+  });
+
+  it("keeps the open tournament preset logo-optional", () => {
+    expect(OPEN_TOURNAMENT_PRESET.teamRegistrationConfig.requireTeamLogo).toBe(false);
   });
 });

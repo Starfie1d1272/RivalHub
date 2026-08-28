@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import React, { useRef, useState, useTransition } from "react";
 import Image from "next/image";
 import { toast } from "sonner";
 import { Spinner } from "@/components/rivalhub";
@@ -15,6 +15,7 @@ interface TeamLogoUploadProps {
   teamName: string;
   /** 仅队长可编辑 */
   canEdit: boolean;
+  onUploaded?: (logoUrl: string) => void;
 }
 
 export function TeamLogoUpload({
@@ -23,6 +24,7 @@ export function TeamLogoUpload({
   currentLogoUrl,
   teamName,
   canEdit,
+  onUploaded,
 }: TeamLogoUploadProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(currentLogoUrl);
   const [isPending, startTransition] = useTransition();
@@ -61,6 +63,7 @@ export function TeamLogoUpload({
       if (result.success) {
         lastConfirmedUrlRef.current = result.data.logoUrl;
         setPreviewUrl(result.data.logoUrl);
+        onUploaded?.(result.data.logoUrl);
         toast.success("队伍图标已更新");
       } else {
         setPreviewUrl(lastConfirmedUrlRef.current);

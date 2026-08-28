@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -331,6 +332,7 @@ export function AdminRosterDialog({
           <DialogTitle>
             名单管理 · {teamAName} vs {teamBName}
           </DialogTitle>
+          <DialogDescription>为双方选择并确认本场 5 名首发选手。</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
