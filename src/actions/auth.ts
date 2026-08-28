@@ -9,7 +9,7 @@ import { ok, fail } from "@/types/action";
 import { ErrorCode } from "@/lib/errors";
 import type { ActionResult } from "@/types/action";
 import { actionError } from "@/lib/action-utils";
-import { MIN_PASSWORD_LENGTH } from "@/lib/config/auth-config";
+import { MIN_PASSWORD_LENGTH, isPasswordPolicySatisfied, PASSWORD_POLICY_MESSAGE } from "@/lib/config/auth-config";
 import { normalizeEmail } from "@/lib/utils/email";
 import { bootstrapConfiguredOwnerInTx } from "@/lib/auth/owner-bootstrap";
 import {
@@ -76,6 +76,7 @@ export async function loginWithPassword(
 export async function signUp(
   email: string,
   password: string,
+  confirmPassword: string,
   turnstileToken?: string,
   next?: string,
 ): Promise<ActionResult<{ email: string }>> {
@@ -84,6 +85,12 @@ export async function signUp(
   }
   if (!password || password.length < MIN_PASSWORD_LENGTH) {
     return fail({ code: ErrorCode.VALIDATION_FAILED, message: `密码至少 ${MIN_PASSWORD_LENGTH} 位` });
+  }
+  if (!isPasswordPolicySatisfied(password)) {
+    return fail({ code: ErrorCode.VALIDATION_FAILED, message: PASSWORD_POLICY_MESSAGE });
+  }
+  if (password !== confirmPassword) {
+    return fail({ code: ErrorCode.VALIDATION_FAILED, message: "两次输入的密码不一致" });
   }
   const normalizedEmail = normalizeEmail(email);
 
@@ -214,14 +221,15 @@ export async function sendPasswordResetEmail(email: string): Promise<ActionResul
   try {
     const supabase = createServiceClient();
     const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
-      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/reset-password`,
+      redirectTo: new URL("/reset-password", process.env.NEXT_PUBLIC_APP_URL).toString(),
     });
 
     if (error) {
-      // 不暴露邮箱是否存在（防枚举），统一返回成功提示
+      // 不暴露邮箱是否存在（防枚举），但不能把真实的发信/配置失败伪装成成功。
       if (process.env.NODE_ENV === "development") {
         console.warn("[sendPasswordResetEmail]", error.message);
       }
+      return fail({ code: ErrorCode.INTERNAL_ERROR, message: "重置邮件暂时无法发送，请稍后重试。" });
     }
     return ok(undefined);
   } catch (e) {
