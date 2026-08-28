@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.0-rc.1
+
+### Patch Changes
+
+- 明确 legacy Root 管理员登录入口与标准 owner email bootstrap 的边界。
+
 ## 2.0.0-rc.0
 
 ### Major Changes
