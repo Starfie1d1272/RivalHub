@@ -1,0 +1,8 @@
+# GitHub Actions supply-chain hygiene: keep third-party action SHA pins current.
+# Dependabot updates the 40-char SHA refs; keep the version comment in sync.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
