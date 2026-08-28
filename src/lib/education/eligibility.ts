@@ -11,7 +11,44 @@ export type EducationEligibilityMember = {
     academicStatus: "enrolled" | "graduated";
     status: "pending" | "approved" | "rejected";
   } | null;
+  verificationHistory?: readonly SeasonEducationVerification[];
 };
+
+export type SeasonEducationVerification = NonNullable<EducationEligibilityMember["verification"]> & {
+  submittedAt?: Date | null;
+};
+
+export interface SeasonAffiliationResolution {
+  selectedVerification: SeasonEducationVerification | null;
+  matchedRule: InstitutionAffiliationRule | null;
+  eligibilityState: "missing" | "pending" | "rejected" | "approved" | "unmatched";
+}
+
+/**
+ * Pick the education assertion that applies to this season. A matching
+ * approved assertion always wins over a newer unrelated assertion; otherwise
+ * the newest approved assertion remains the participant's active record.
+ */
+export function resolveSeasonEducationVerification(
+  history: readonly SeasonEducationVerification[],
+  rules: readonly InstitutionAffiliationRule[],
+): SeasonAffiliationResolution {
+  const newestFirst = [...history].sort((left, right) =>
+    (right.submittedAt?.getTime() ?? 0) - (left.submittedAt?.getTime() ?? 0),
+  );
+  const approved = newestFirst.filter((item) => item.status === "approved");
+  const matching = approved.find((item) => rules.some((rule) =>
+    rule.institutionCode === item.institutionCode && rule.eligibleAcademicStatuses.includes(item.academicStatus),
+  ));
+  const selectedVerification = matching ?? approved[0] ?? newestFirst[0] ?? null;
+  const matchedRule = selectedVerification
+    ? rules.find((rule) => rule.institutionCode === selectedVerification.institutionCode && rule.eligibleAcademicStatuses.includes(selectedVerification.academicStatus)) ?? null
+    : null;
+  if (!selectedVerification) return { selectedVerification, matchedRule, eligibilityState: "missing" };
+  if (selectedVerification.status === "pending") return { selectedVerification, matchedRule, eligibilityState: "pending" };
+  if (selectedVerification.status === "rejected") return { selectedVerification, matchedRule, eligibilityState: "rejected" };
+  return { selectedVerification, matchedRule, eligibilityState: rules.length === 0 || matchedRule ? "approved" : "unmatched" };
+}
 
 export interface EducationEligibilityResult {
   eligible: boolean;
@@ -37,23 +74,25 @@ export function evaluateRosterEducationEligibility(
       blockers.push(`${member.email} 的邮箱尚未验证，请先验证当前账号邮箱。`);
       continue;
     }
-    if (!member.verification) {
+    const resolution = resolveSeasonEducationVerification(member.verificationHistory ?? (member.verification ? [member.verification] : []), rules);
+    const verification = resolution.selectedVerification;
+    if (!verification) {
       blockers.push(`${member.email} 尚未完成教育身份认证。`);
       continue;
     }
-    if (member.verification.status === "pending") {
+    if (verification.status === "pending") {
       blockers.push(`${member.email} 的教育身份认证仍在审核中。`);
       continue;
     }
-    if (member.verification.status === "rejected") {
+    if (verification.status === "rejected") {
       blockers.push(`${member.email} 的教育身份认证已被驳回，请重新提交。`);
       continue;
     }
-    selectedVerificationIds.set(member.userId, member.verification.id);
-    if (member.verification.institutionCode) {
+    selectedVerificationIds.set(member.userId, verification.id);
+    if (verification.institutionCode) {
       affiliationCounts.set(
-        member.verification.institutionCode,
-        (affiliationCounts.get(member.verification.institutionCode) ?? 0) + 1,
+        verification.institutionCode,
+        (affiliationCounts.get(verification.institutionCode) ?? 0) + 1,
       );
     }
   }
@@ -61,9 +100,7 @@ export function evaluateRosterEducationEligibility(
   for (const rule of rules) {
     const count = members.filter((member) =>
       member.emailVerifiedAt !== null &&
-      member.verification?.status === "approved" &&
-      member.verification.institutionCode === rule.institutionCode &&
-      rule.eligibleAcademicStatuses.includes(member.verification.academicStatus),
+      resolveSeasonEducationVerification(member.verificationHistory ?? (member.verification ? [member.verification] : []), rules).matchedRule === rule,
     ).length;
     affiliationCounts.set(rule.institutionCode, count);
     if (count < rule.minRosterMembers) {

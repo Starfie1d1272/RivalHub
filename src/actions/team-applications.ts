@@ -25,9 +25,12 @@ import { getRegistrationWindowState } from "@/lib/registration/window";
 import { normalizeEmail } from "@/lib/utils/email";
 import { isTeamRegistration } from "@/lib/utils/season";
 import { normalizeAffiliationRules, normalizeTeamRegistrationConfig } from "@/types/season";
-import { evaluateRosterEducationEligibility, type EducationEligibilityMember } from "@/lib/education/eligibility";
+import { evaluateRosterEducationEligibility, resolveSeasonEducationVerification, type EducationEligibilityMember, type SeasonEducationVerification } from "@/lib/education/eligibility";
 import { getParticipantReadiness } from "@/lib/major/participant-readiness";
 import { evaluateExternalStrengthRule } from "@/lib/major/player-strength";
+import { createServiceClient } from "@/lib/auth/supabase";
+import { LOGO_ALLOWED_TYPES, LOGO_MAX_BYTES } from "@/lib/config/upload-limits";
+import { TEAM_LOGO_BUCKET, TEAM_LOGO_EXTENSIONS } from "@/lib/config/team-logo";
 import { fail, ok, type ActionResult } from "@/types/action";
 
 const teamNameSchema = z.string().trim().min(MIN_TEAM_NAME_LENGTH).max(MAX_TEAM_NAME_LENGTH);
@@ -136,8 +139,8 @@ export async function createTeamApplication(input: { seasonId: string; name: str
   }
 }
 
-export async function updateTeamApplication(input: { applicationId: string; name: string; logoUrl?: string | null; perfectTeamId?: string; primaryStarterUserIds?: string[] }): Promise<ActionResult<void>> {
-  const parsed = z.object({ applicationId: z.string().uuid(), name: teamNameSchema, logoUrl: z.string().url().nullable().optional(), perfectTeamId: z.string().trim().max(128).optional(), primaryStarterUserIds: z.array(z.string().uuid()).max(5).optional() }).safeParse(input);
+export async function updateTeamApplication(input: { applicationId: string; name: string; perfectTeamId?: string; primaryStarterUserIds?: string[] }): Promise<ActionResult<void>> {
+  const parsed = z.object({ applicationId: z.string().uuid(), name: teamNameSchema, perfectTeamId: z.string().trim().max(128).optional(), primaryStarterUserIds: z.array(z.string().uuid()).max(5).optional() }).safeParse(input);
   if (!parsed.success) return invalid("请填写有效的队伍资料和预定主力名单。");
   try {
     const session = await requireAuth();
@@ -150,7 +153,6 @@ export async function updateTeamApplication(input: { applicationId: string; name
     await db.transaction(async (tx) => {
       await tx.update(teamApplications).set({
         name: parsed.data.name,
-        logoUrl: parsed.data.logoUrl ?? application.logoUrl,
         perfectTeamId: parsed.data.perfectTeamId?.trim() || null,
         primaryStarterUserIds: parsed.data.primaryStarterUserIds ?? [],
         updatedAt: new Date(),
@@ -168,6 +170,50 @@ export async function updateTeamApplication(input: { applicationId: string; name
     return ok(undefined);
   } catch (error) {
     return actionError("updateTeamApplication", error);
+  }
+}
+
+export async function uploadTeamApplicationLogo(
+  applicationId: string,
+  formData: FormData,
+): Promise<ActionResult<{ logoUrl: string }>> {
+  const file = formData.get("file");
+  if (!(file instanceof File)) return invalid("未提供文件");
+  if (!(LOGO_ALLOWED_TYPES as readonly string[]).includes(file.type)) return invalid("请上传 JPG、PNG 或 WebP 格式的图片");
+  if (file.size > LOGO_MAX_BYTES) return invalid("文件大小不能超过 1 MB");
+
+  try {
+    const session = await requireAuth();
+    const application = await getCaptainApplicationOrThrow(applicationId, session.userId);
+    await assertEditableApplication(application);
+    const season = await db.query.seasons.findFirst({ where: eq(seasons.id, application.seasonId) });
+    if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
+    const window = getRegistrationWindowState(season);
+    if (!window.canSubmit) throw new AppError(ErrorCode.REGISTRATION_CLOSED, window.message);
+
+    const extension = TEAM_LOGO_EXTENSIONS[file.type] ?? "jpg";
+    const path = `applications/${application.id}/${Date.now()}.${extension}`;
+    const bucket = createServiceClient().storage.from(TEAM_LOGO_BUCKET);
+    const { error: uploadError } = await bucket.upload(path, file, { upsert: true, contentType: file.type });
+    if (uploadError) throw new AppError(ErrorCode.INTERNAL_ERROR, "图片上传失败，请重试");
+    const { data } = bucket.getPublicUrl(path);
+    const logoUrl = data.publicUrl;
+
+    await db.transaction(async (tx) => {
+      await tx.update(teamApplications).set({ logoUrl, updatedAt: new Date() }).where(eq(teamApplications.id, application.id));
+      await tx.insert(auditLogs).values({
+        seasonId: application.seasonId,
+        action: "team_application.upload_logo",
+        actorId: auditActorId(session),
+        targetId: application.id,
+        targetType: "team_application",
+        meta: { logoUrl },
+      });
+    });
+    revalidateApplicationPaths(season.slug);
+    return ok({ logoUrl });
+  } catch (error) {
+    return actionError("uploadTeamApplicationLogo", error);
   }
 }
 
@@ -297,30 +343,24 @@ export async function submitTeamApplication(input: { applicationId: string }): P
     if (!window.canSubmit) throw new AppError(ErrorCode.REGISTRATION_CLOSED, window.message);
     const config = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
     const members = await db
-      .select({ id: teamApplicationMembers.id, userId: teamApplicationMembers.userId, status: teamApplicationMembers.status, email: users.email, emailVerifiedAt: users.emailVerifiedAt, verificationId: educationVerifications.id, verificationStatus: educationVerifications.status, verificationAcademicStatus: educationVerifications.academicStatus, institutionCode: institutions.moeInstitutionCode, institutionName: institutions.name })
+      .select({ id: teamApplicationMembers.id, userId: teamApplicationMembers.userId, status: teamApplicationMembers.status, email: users.email, emailVerifiedAt: users.emailVerifiedAt, verificationId: educationVerifications.id, verificationStatus: educationVerifications.status, verificationAcademicStatus: educationVerifications.academicStatus, institutionCode: institutions.moeInstitutionCode, institutionName: institutions.name, verificationSubmittedAt: educationVerifications.submittedAt })
       .from(teamApplicationMembers)
       .innerJoin(users, eq(teamApplicationMembers.userId, users.id))
-      .leftJoin(educationVerifications, and(eq(educationVerifications.userId, users.id), eq(educationVerifications.status, "approved")))
+      .leftJoin(educationVerifications, eq(educationVerifications.userId, users.id))
       .leftJoin(institutions, eq(educationVerifications.institutionId, institutions.id))
       .where(eq(teamApplicationMembers.applicationId, application.id));
     const affiliationRules = normalizeAffiliationRules(season.affiliationRules);
-    // A member can hold more than one approved historical assertion.  Pick a
-    // single assertion per person, preferring one that satisfies this season's
-    // affiliation rule; joins must never turn that history into duplicate
-    // roster seats.
-    const confirmedByUser = new Map<string, (typeof members)[number]>();
+    const confirmedByUser = new Map<string, { member: (typeof members)[number]; history: SeasonEducationVerification[] }>();
     for (const member of members) {
       if (member.status !== "confirmed") continue;
-      const current = confirmedByUser.get(member.userId);
-      const matchesRule = member.institutionCode && member.verificationAcademicStatus && affiliationRules.some((rule) =>
-        rule.institutionCode === member.institutionCode && rule.eligibleAcademicStatuses.includes(member.verificationAcademicStatus!),
-      );
-      const currentMatchesRule = current?.institutionCode && current.verificationAcademicStatus && affiliationRules.some((rule) =>
-        rule.institutionCode === current.institutionCode && rule.eligibleAcademicStatuses.includes(current.verificationAcademicStatus!),
-      );
-      if (!current || (matchesRule && !currentMatchesRule)) confirmedByUser.set(member.userId, member);
+      const current = confirmedByUser.get(member.userId) ?? { member, history: [] };
+      if (member.verificationId && member.verificationStatus && member.verificationAcademicStatus && member.institutionName) current.history.push({ id: member.verificationId, status: member.verificationStatus, academicStatus: member.verificationAcademicStatus, institutionCode: member.institutionCode, institutionName: member.institutionName, submittedAt: member.verificationSubmittedAt });
+      confirmedByUser.set(member.userId, current);
     }
-    const confirmed = [...confirmedByUser.values()];
+    const confirmed = [...confirmedByUser.values()].map(({ member, history }) => {
+      const selected = resolveSeasonEducationVerification(history, affiliationRules).selectedVerification;
+      return { ...member, verificationId: selected?.id ?? null, verificationStatus: selected?.status ?? null, verificationAcademicStatus: selected?.academicStatus ?? null, institutionCode: selected?.institutionCode ?? null, institutionName: selected?.institutionName ?? null };
+    });
     if (confirmed.length < season.minTeamSize || confirmed.length > season.maxTeamSize) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, `确认名单必须为 ${season.minTeamSize}-${season.maxTeamSize} 人。`);
     }

@@ -1,4 +1,5 @@
 // 共享赛季类型——与 Drizzle schema 对齐
+import { createPerfectWorldRankOrder } from "@/lib/config/perfect-world";
 
 export type SeasonKind = string;
 
@@ -124,13 +125,13 @@ export const MAJOR_TEAM_CONFIG: TeamRegistrationConfig = {
   captainCanTransfer: true,
   lockAfterRegistration: true,
   requireUniqueTeamName: true,
-  requireTeamLogo: false,
+  requireTeamLogo: true,
   requireCompetitiveProfile: true,
   competitiveProfile: {
     platform: "perfect_world",
     currentSeasonKey: "",
     previousSeasonKey: "",
-    rankOrder: [],
+    rankOrder: createPerfectWorldRankOrder(),
   },
 };
 
@@ -280,7 +281,7 @@ export const OPEN_TOURNAMENT_PRESET: SeasonCapabilities = {
   hasDraft: false,
   stagePlan: RIVALS_STAGE_PLAN,
   registrationConfig: RIVALS_REGISTRATION_CONFIG,
-  teamRegistrationConfig: MAJOR_TEAM_CONFIG,
+  teamRegistrationConfig: { ...MAJOR_TEAM_CONFIG, requireTeamLogo: false },
   affiliationRules: [],
   maxTeamSize: 5,
   minTeamSize: 5,

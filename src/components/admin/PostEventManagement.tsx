@@ -39,6 +39,10 @@ function safeManualKey(value: string): string {
   return key || "manual-award";
 }
 
+const HONOR_STATE_LABELS: Record<string, string> = { valid: "有效", revoked: "已撤销", vacant: "空缺", not_awarded: "未授予" };
+const ADJUDICATION_STATUS_LABELS: Record<string, string> = { active: "生效中", revoked: "已撤销" };
+const ADJUDICATION_KIND_LABELS: Record<string, string> = { team_sanction: "队伍裁决", player_sanction: "选手裁决", result_correction: "结果处理" };
+
 export function PostEventManagement({ data }: { data: PostEventManagementData }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -75,7 +79,7 @@ export function PostEventManagement({ data }: { data: PostEventManagementData })
       basis: "final_result",
       teamId,
     });
-    if (result.success) toast.success(`${label}已作为独立荣誉事实授予。`);
+    if (result.success) toast.success(`已授予${label}奖项。`);
     return result;
   });
 
@@ -83,11 +87,11 @@ export function PostEventManagement({ data }: { data: PostEventManagementData })
     <Panel label="最终结果 · 确认" >
       {!data.finalResult ? <p className="text-sm text-[var(--color-fg-mid)]">尚未形成正式最终结果；无法确认、授予基于结果的荣誉或归档。</p> : <div className="space-y-3 text-sm">
         <p>当前状态：<strong>{data.finalResult.status === "confirmed" ? "已确认" : "待确认"}</strong>。冠军：{teamName.get(data.finalResult.championTeamId) ?? data.finalResult.championTeamId}。</p>
-        <p className="text-[var(--color-fg-mid)]">名次来源为已持久化的官方 placement groups；确认不会重新计算比赛，也不会修改名次。</p>
+        <p className="text-[var(--color-fg-mid)]">最终名次已根据赛事结果生成；确认不会重新计算比赛或修改名次。</p>
         {data.finalResult.status === "pending_confirmation" && <>
           <label className="flex items-start gap-2 border border-[var(--color-border)] p-3">
             <Checkbox checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} disabled={isPending} />
-            <span>我已核对最终 standings 与 placement groups，并确认将其作为官方赛事结果。</span>
+            <span>我已核对最终名次，并确认将其作为赛事结果。</span>
           </label>
           <Button disabled={!confirmed || isPending} onClick={() => run(async () => {
             const result = await confirmMajorFinalResult({ seasonId: data.seasonId });
@@ -100,7 +104,7 @@ export function PostEventManagement({ data }: { data: PostEventManagementData })
 
     <Panel label="赛事荣誉" >
       <div className="space-y-3 text-sm">
-        <p className="text-[var(--color-fg-mid)]">荣誉独立于比赛与名次。撤销冠军不会自动将 Runner-up 提升为 Champion；任何替补授予都必须由管理员另行明确创建。</p>
+        <p className="text-[var(--color-fg-mid)]">奖项与比赛和最终名次分别管理。撤销冠军不会自动递补亚军；如需授予其他队伍，由管理员另行确认。</p>
         {data.finalResult?.status === "confirmed" && <div className="flex flex-wrap gap-2">
           <Button variant="outline" disabled={isPending} onClick={() => grantResultHonor("champion", data.finalResult!.championTeamId, "Champion")}>授予 Champion</Button>
           {runnerUpId && <Button variant="outline" disabled={isPending} onClick={() => grantResultHonor("runner_up", runnerUpId, "Runner-up")}>授予 Runner-up</Button>}
@@ -122,8 +126,8 @@ export function PostEventManagement({ data }: { data: PostEventManagementData })
             return result;
           })}>授予手动奖项</Button>
         </div>
-        {data.honors.length === 0 ? <StatusBanner tone="info" title="尚无荣誉事实" sub="确认最终结果后，管理员可明确授予赛事荣誉。" /> : <ul className="space-y-2">{data.honors.map((honor) => <li key={honor.id} className="flex flex-wrap items-center justify-between gap-2 border border-[var(--color-border)] p-3">
-          <span>{honor.label} · {honor.state} · {honor.teamId ? teamName.get(honor.teamId) ?? honor.teamId : honor.userId ?? "未授予"}{honor.placementFrom ? ` · ${honor.placementFrom}–${honor.placementTo}` : ""}</span>
+        {data.honors.length === 0 ? <StatusBanner tone="info" title="尚无奖项" sub="确认赛事结果后，管理员可授予赛事奖项。" /> : <ul className="space-y-2">{data.honors.map((honor) => <li key={honor.id} className="flex flex-wrap items-center justify-between gap-2 border border-[var(--color-border)] p-3">
+          <span>{honor.label} · {HONOR_STATE_LABELS[honor.state] ?? "状态待确认"} · {honor.teamId ? teamName.get(honor.teamId) ?? "队伍待确认" : honor.userId ?? "未授予"}{honor.placementFrom ? ` · ${honor.placementFrom}–${honor.placementTo}` : ""}</span>
           {honor.state === "valid" && <Button variant="destructive" size="sm" disabled={isPending} onClick={() => setConfirming({ kind: "honor", id: honor.id })}>撤销</Button>}
           {confirming?.kind === "honor" && confirming.id === honor.id && <div className="w-full"><InlineConfirm danger confirmLabel="确认撤销" title="撤销此荣誉？" sub="不会自动授予任何其他队伍（包括 Runner-up）。" onCancel={() => setConfirming(null)} onConfirm={() => { setConfirming(null); run(async () => revokeTournamentHonor({ honorId: honor.id, reason: "管理员赛后撤销" })); }} /></div>}
         </li>)}</ul>}
@@ -132,20 +136,20 @@ export function PostEventManagement({ data }: { data: PostEventManagementData })
 
     <Panel label="赛后裁决" >
       <div className="space-y-3 text-sm">
-        <p className="text-[var(--color-fg-mid)]">裁决只记录明确的对象和影响范围；不会隐式修改 historical matches、官方名次或荣誉。</p>
+        <p className="text-[var(--color-fg-mid)]">裁决会明确记录对象和影响范围；不会自动修改历史比赛、最终名次或奖项。</p>
         <div className="grid gap-3 border border-[var(--color-border)] p-3">
           <Select value={adjudicationTeamId} onValueChange={setAdjudicationTeamId}><SelectTrigger><SelectValue placeholder="选择被裁决队伍" /></SelectTrigger><SelectContent>{data.teams.map((team) => <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>)}</SelectContent></Select>
           <Input placeholder="裁决依据" value={reason} onChange={(event) => setReason(event.target.value)} />
           <Input placeholder="公开说明" value={explanation} onChange={(event) => setExplanation(event.target.value)} />
-          <Textarea placeholder="内部证据（仅管理端，绝不经公开 serializer）" value={internalEvidence} onChange={(event) => setInternalEvidence(event.target.value)} />
+          <Textarea placeholder="内部说明（仅管理员可见）" value={internalEvidence} onChange={(event) => setInternalEvidence(event.target.value)} />
           <Button disabled={!adjudicationTeamId || !reason.trim() || !explanation.trim() || isPending} onClick={() => run(async () => {
             const result = await createPostEventAdjudication({ seasonId: data.seasonId, clientRequestId: requestId(), kind: "team_sanction", target: "team", targetTeamId: adjudicationTeamId, impacts: ["none"], reason: reason.trim(), publicExplanation: explanation.trim(), internalEvidence: internalEvidence.trim() || null });
             if (result.success) { toast.success("赛后裁决已创建；未修改任何比赛、名次或荣誉。"); setReason(""); setExplanation(""); setInternalEvidence(""); }
             return result;
           })}>创建队伍裁决</Button>
         </div>
-        {data.adjudications.length === 0 ? <StatusBanner tone="info" title="尚无赛后裁决" sub="裁决必须明确目标、影响范围与理由，且不会隐式回写历史赛事事实。" /> : <ul className="space-y-2">{data.adjudications.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 border border-[var(--color-border)] p-3">
-          <span>{item.kind} · {item.status} · {item.target === "team" ? teamName.get(item.targetTeamId ?? "") ?? item.targetTeamId : item.target} · {item.impacts.join(", ")}<br /><span className="text-[var(--color-fg-mid)]">{item.explanation}</span></span>
+        {data.adjudications.length === 0 ? <StatusBanner tone="info" title="尚无赛后裁决" sub="裁决需明确目标、影响范围与理由，不会自动改写历史比赛。" /> : <ul className="space-y-2">{data.adjudications.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 border border-[var(--color-border)] p-3">
+          <span>{ADJUDICATION_KIND_LABELS[item.kind] ?? "赛后裁决"} · {ADJUDICATION_STATUS_LABELS[item.status] ?? "状态待确认"} · {item.target === "team" ? teamName.get(item.targetTeamId ?? "") ?? "队伍待确认" : "相关对象"}<br /><span className="text-[var(--color-fg-mid)]">{item.explanation}</span></span>
           {item.status === "active" && <Button variant="destructive" size="sm" disabled={isPending} onClick={() => setConfirming({ kind: "adjudication", id: item.id })}>撤销</Button>}
           {confirming?.kind === "adjudication" && confirming.id === item.id && <div className="w-full"><InlineConfirm danger confirmLabel="确认撤销" title="撤销此赛后裁决？" sub="只改变裁决自身状态，不会回写历史比赛、名次或荣誉。" onCancel={() => setConfirming(null)} onConfirm={() => { setConfirming(null); run(async () => revokePostEventAdjudication({ adjudicationId: item.id, reason: "管理员赛后撤销" })); }} /></div>}
         </li>)}</ul>}
@@ -154,9 +158,9 @@ export function PostEventManagement({ data }: { data: PostEventManagementData })
 
     <Panel label="赛事归档" >
       <div className="space-y-3 text-sm">
-        <p>当前 archive 状态：<strong>{data.seasonStatus === "archived" ? "已归档" : "未归档"}</strong>。</p>
+        <p>当前状态：<strong>{data.seasonStatus === "archived" ? "已归档" : "未归档"}</strong>。</p>
         {data.seasonStatus !== "archived" && <>
-          <p className="text-[var(--color-fg-mid)]">归档后普通赛事运行态变更（名单、开赛/比分、阶段推进、种子与赛事编辑）会在服务端 fail closed。赛后裁决与荣誉撤销仍通过专用 action 允许。</p>
+          <p className="text-[var(--color-fg-mid)]">归档后将限制名单、开赛、比分、阶段推进、种子与赛事编辑；赛后裁决和撤销奖项仍可由管理员处理。</p>
           <label className="flex items-start gap-2 border border-[var(--color-border)] p-3"><Checkbox checked={archiveConfirmed} onChange={(event) => setArchiveConfirmed(event.target.checked)} disabled={isPending} /><span>我确认将赛事进入只读运行态。</span></label>
           <Button variant="destructive" disabled={!archiveConfirmed || isPending} onClick={() => run(async () => {
             const result = await archiveMajorTournament({ seasonId: data.seasonId });

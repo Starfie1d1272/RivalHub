@@ -13,6 +13,7 @@
  * 只允许 loopback Local Supabase。
  */
 import { randomUUID } from "node:crypto";
+import { createPerfectWorldRankOrder } from "../../src/lib/config/perfect-world";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool, type PoolClient } from "pg";
 import * as schema from "../../src/db/schema";
@@ -51,7 +52,7 @@ const COMPETITIVE_PROFILE = {
   platform: "perfect_world",
   currentSeasonKey: "major-current",
   previousSeasonKey: "major-previous",
-  rankOrder: ["C", "B", "A", "S", "S+"],
+  rankOrder: createPerfectWorldRankOrder(),
 } as const;
 
 interface DisciplineFixture {

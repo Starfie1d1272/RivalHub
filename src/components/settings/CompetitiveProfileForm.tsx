@@ -52,7 +52,7 @@ export function CompetitiveProfileForm({ config, initial }: { config: Competitiv
       {field("历史最高", historical, setHistorical, "不限定平台赛季，填写个人历史最高纪录")}
       {field("上赛季最高", previous, setPrevious, `平台赛季 ${config.previousSeasonKey}`)}
       {field("当前赛季最高", current, setCurrent, `平台赛季 ${config.currentSeasonKey}`)}
-      {saved && <StatusBanner tone="success" title="竞技档案已保存" sub="提交报名或赛务审核时仍会以服务器中的最新资料复核。" />}
+      {saved && <StatusBanner tone="success" title="竞技档案已保存" sub="报名和赛务审核会使用你最新保存的资料。" />}
       <div className="flex flex-wrap items-center gap-3">
         <Button disabled={pending} onClick={() => startTransition(async () => {
           const result = await saveCompetitiveProfile({ platform: config.platform, currentSeasonKey: config.currentSeasonKey, previousSeasonKey: config.previousSeasonKey, historicalPeak: historical, previousSeasonPeak: previous, currentSeasonPeak: current });

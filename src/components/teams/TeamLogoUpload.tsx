@@ -5,10 +5,12 @@ import Image from "next/image";
 import { toast } from "sonner";
 import { Spinner } from "@/components/rivalhub";
 import { uploadTeamLogo } from "@/actions/teams";
+import { uploadTeamApplicationLogo } from "@/actions/team-applications";
 import { LOGO_MAX_BYTES, LOGO_ALLOWED_TYPES } from "@/lib/config/upload-limits";
 
 interface TeamLogoUploadProps {
-  teamId: string;
+  teamId?: string;
+  applicationId?: string;
   currentLogoUrl: string | null;
   teamName: string;
   /** 仅队长可编辑 */
@@ -17,6 +19,7 @@ interface TeamLogoUploadProps {
 
 export function TeamLogoUpload({
   teamId,
+  applicationId,
   currentLogoUrl,
   teamName,
   canEdit,
@@ -49,7 +52,11 @@ export function TeamLogoUpload({
     formData.append("file", file);
 
     startTransition(async () => {
-      const result = await uploadTeamLogo(teamId, formData);
+      const result = applicationId
+        ? await uploadTeamApplicationLogo(applicationId, formData)
+        : teamId
+          ? await uploadTeamLogo(teamId, formData)
+          : { success: false as const, error: { message: "缺少队伍标识" } };
       URL.revokeObjectURL(objectUrl);
       if (result.success) {
         lastConfirmedUrlRef.current = result.data.logoUrl;
@@ -69,7 +76,7 @@ export function TeamLogoUpload({
       {/* 头像主体：80×80 圆形 */}
       <div
         className={[
-          "relative w-20 h-20 rounded-lg overflow-hidden",
+          "relative h-20 w-20 overflow-hidden",
           "border-2 border-[var(--color-border)] bg-[var(--color-bg-subtle)]",
           "flex items-center justify-center select-none",
           canEdit ? "cursor-pointer group" : "",
@@ -92,15 +99,15 @@ export function TeamLogoUpload({
 
         {/* 上传中蒙层 */}
         {isPending && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-lg">
+          <div className="absolute inset-0 flex items-center justify-center bg-[color-mix(in_srgb,var(--color-bg)_78%,transparent)]">
             <Spinner />
           </div>
         )}
 
         {/* 悬停蒙层（仅 canEdit） */}
         {canEdit && !isPending && (
-          <div className="absolute inset-0 hidden group-hover:flex items-center justify-center bg-black/50 rounded-lg">
-            <span className="text-[10px] font-medium text-white leading-tight text-center px-1">
+          <div className="absolute inset-0 hidden items-center justify-center bg-[color-mix(in_srgb,var(--color-panel)_74%,transparent)] group-hover:flex">
+            <span className="px-1 text-center text-[10px] font-medium leading-tight text-[var(--color-fg)]">
               更换<br />图标
             </span>
           </div>

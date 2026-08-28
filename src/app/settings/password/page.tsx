@@ -8,11 +8,9 @@ export default async function ChangePasswordPage() {
   if (!session) redirect("/login");
 
   return (
-    <div className="container mx-auto px-4 py-12 max-w-md">
-      <div className="space-y-6">
-        <Marker>修改密码</Marker>
-        <ChangePasswordForm />
-      </div>
+    <div className="max-w-md space-y-6">
+      <Marker>修改密码</Marker>
+      <ChangePasswordForm />
     </div>
   );
 }

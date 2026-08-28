@@ -18,6 +18,7 @@
  * 只允许 loopback Local Supabase。
  */
 import { randomUUID } from "node:crypto";
+import { createPerfectWorldRankOrder } from "../../src/lib/config/perfect-world";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool, type PoolClient } from "pg";
 import * as schema from "../../src/db/schema";
@@ -143,7 +144,7 @@ const COMPETITIVE_PROFILE = {
   platform: "perfect_world",
   currentSeasonKey: "major-current",
   previousSeasonKey: "major-previous",
-  rankOrder: ["C", "B", "A", "S", "S+"],
+  rankOrder: createPerfectWorldRankOrder(),
 } as const;
 
 /** A-team user layout: 0,1,2 NJU enrolled; 3,4 other-graduated; 5 other-enrolled; 6 NJU but excluded from frozen roster. */

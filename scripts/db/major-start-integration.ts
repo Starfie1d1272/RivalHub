@@ -9,6 +9,7 @@ import { finalizeMajorPlayoffRoundInTransaction, startMajorPlayoffInTransaction 
 import { projectMajorSwissStage, type MajorSwissMatchFact } from "../../src/lib/major/swiss";
 import { AppError, ErrorCode } from "../../src/lib/errors";
 import { createMajorDefaultCapabilities, type CompetitiveProfileConfig } from "../../src/types/season";
+import { createPerfectWorldRankOrder } from "../../src/lib/config/perfect-world";
 import {
   applyResultCorrectionInTx,
   planResultCorrectionInTx,
@@ -26,7 +27,7 @@ const GOLDEN_PROFILE: CompetitiveProfileConfig = {
   platform: "perfect_world",
   currentSeasonKey: "golden-major-2026-current",
   previousSeasonKey: "golden-major-2026-previous",
-  rankOrder: ["C", "B", "A", "S", "SS"],
+  rankOrder: createPerfectWorldRankOrder(),
 };
 
 function deterministicUuid(scope: string): string {
@@ -161,7 +162,7 @@ async function prepareReadyMajor(pool: Pool, label: string): Promise<MajorFixtur
       educationRows.flatMap((row) => [row.id, row.userId, row.institutionId, row.academicStatus]),
     );
     const rankRows = userIds.flatMap((userId, index) => {
-      const rank = index % 5 < 3 ? "S" : "A";
+      const rank = index % 5 < 3 ? GOLDEN_PROFILE.rankOrder[10]! : GOLDEN_PROFILE.rankOrder[7]!;
       return [
         { id: deterministicUuid(`${label}/rank/${index + 1}/historical`), kind: "historical_peak", seasonKey: null, rank, rating: index % 5 < 3 ? "1800.00" : "1500.00" },
         { id: deterministicUuid(`${label}/rank/${index + 1}/previous`), kind: "season_peak", seasonKey: GOLDEN_PROFILE.previousSeasonKey, rank, rating: index % 5 < 3 ? "1750.00" : "1450.00" },

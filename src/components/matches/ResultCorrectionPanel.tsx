@@ -95,7 +95,7 @@ export function ResultCorrectionPanel({
       if (result.success) {
         toast.success(
           result.data.alreadyApplied
-            ? "该结果已是目标状态（幂等，无变更）"
+            ? "当前结果已是目标状态，无需重复修改。"
             : result.data.winnerChanged
               ? `更正已应用；作废 ${result.data.invalidatedCount} 场未开始下游比赛，请按提示重新确认轮次`
               : "比分已更正",
@@ -185,13 +185,13 @@ export function ResultCorrectionPanel({
             <ul className="list-disc space-y-0.5 pl-4 text-[var(--color-fg-mid)]">
               {plan.impacts.map((impact) => (
                 <li key={`${impact.kind}-${impact.matchId ?? impact.managedKey ?? impact.description}`}>
-                  [{impact.kind}] {impact.status} — {impact.description}
+                  {impact.description}
                 </li>
               ))}
             </ul>
           )}
           {plan.blockedReasons.length > 0 && (
-            <StatusBanner tone="error" title="当前更正不能自动执行" sub={`${plan.blockedReasons.join(" ")} 如确需处理，请通过下方赛后裁决记录独立事实。`} />
+            <StatusBanner tone="error" title="当前更正不能自动执行" sub={`${plan.blockedReasons.join(" ")} 如确需处理，请在下方记录赛后裁决。`} />
           )}
           {plan.requiredRecoveryActions.length > 0 && !plan.blockedReasons.length && (
             <Checklist items={plan.requiredRecoveryActions.map((label) => ({ label, state: "pending" as const }))} />
@@ -214,11 +214,10 @@ export function ResultCorrectionPanel({
         </div>
       )}
 
-      {/* 赛后裁决入口始终可用：用于 fail-closed 场景的独立事实记录 */}
       <div className="flex flex-wrap items-center gap-2 border-t border-[var(--color-border)] pt-3">
         <Input
           className="h-8 min-w-48 flex-1 text-xs"
-          placeholder="赛后裁决说明（用于被拒绝自动重写的场景）"
+          placeholder="赛后裁决说明（用于需要人工处理的情况）"
           value={adjudicationNote}
           onChange={(e) => setAdjudicationNote(e.target.value)}
         />

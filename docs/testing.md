@@ -69,6 +69,12 @@ tests/e2e/
 
 ### Staging 验收
 
+### Major 本地验收入口
+
+`pnpm test:major-lifecycle:local` 是 Major 生命周期综合验证入口。`test:major-golden:local`、`test:major-start:local` 和 `test:major-swiss:local` 为兼容别名，都会运行同一套综合 runner，并不是三个独立测试套件。
+
+执行迁移账本校验请使用 `pnpm db:local:verify-migrations`；无需记忆底层 `tsx` 脚本路径。
+
 外部试点前需要一套独立 staging 数据库和可复现 seed。当前 `pnpm seed` 只创建 Root 管理员，不足以验收外部试点。
 
 建议新增场景 seed：

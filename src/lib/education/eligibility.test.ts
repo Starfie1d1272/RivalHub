@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { evaluateRosterEducationEligibility } from "./eligibility";
+import { evaluateRosterEducationEligibility, resolveSeasonEducationVerification } from "./eligibility";
 import { emailDomain, normalizeChsiEvidenceUrl } from "./validation";
 
 const njuRule = [{ institutionCode: "4132010284", eligibleAcademicStatuses: ["enrolled", "graduated"] as const, minRosterMembers: 3, minStartingMembers: 3 }];
@@ -17,6 +17,25 @@ describe("education eligibility", () => {
     const result = evaluateRosterEducationEligibility([member("a"), member("b"), member("c")], njuRule);
     expect(result.eligible).toBe(true);
     expect(result.selectedVerificationIds.size).toBe(3);
+  });
+
+  it("selects the older approved assertion when it is the one matching this season", () => {
+    const result = resolveSeasonEducationVerification([
+      { id: "newer-other", institutionCode: "999", institutionName: "外校", academicStatus: "enrolled", status: "approved", submittedAt: new Date("2026-08-02") },
+      { id: "older-nju", institutionCode: "4132010284", institutionName: "南京大学", academicStatus: "enrolled", status: "approved", submittedAt: new Date("2026-08-01") },
+    ], njuRule);
+    expect(result.selectedVerification?.id).toBe("older-nju");
+    expect(result.matchedRule?.institutionCode).toBe("4132010284");
+    expect(result.eligibilityState).toBe("approved");
+  });
+
+  it("uses the newest approved assertion when none matches the season rule", () => {
+    const result = resolveSeasonEducationVerification([
+      { id: "older", institutionCode: "998", institutionName: "外校甲", academicStatus: "enrolled", status: "approved", submittedAt: new Date("2026-08-01") },
+      { id: "newer", institutionCode: "999", institutionName: "外校乙", academicStatus: "graduated", status: "approved", submittedAt: new Date("2026-08-02") },
+    ], njuRule);
+    expect(result.selectedVerification?.id).toBe("newer");
+    expect(result.eligibilityState).toBe("unmatched");
   });
 
   it("uses exact official CHSI URL and exact email domain parsing", () => {

@@ -110,7 +110,7 @@ export function MajorPrestartManagement({ data }: { data: MajorPrestartManagemen
       </div>}
     </Panel>
 
-    <Panel label="资格 blocker 与管理事项">
+    <Panel label="资格与管理事项">
       {!locked && <form className="mb-4 flex flex-wrap gap-2" onSubmit={(event) => { event.preventDefault(); startTransition(() => void showResult(async () => {
         const result = await addMajorPrestartIssue({ seasonId: data.seasonId, category: issueCategory, label: issueLabel });
         if (result.success) setIssueLabel("");

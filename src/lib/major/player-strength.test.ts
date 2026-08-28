@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CompetitiveProfileConfig } from "@/types/season";
+import { createPerfectWorldRankOrder } from "@/lib/config/perfect-world";
 import {
   comparePlayerStrength,
   evaluateExternalStrengthRule,
@@ -11,7 +12,7 @@ const CONFIG: CompetitiveProfileConfig = {
   platform: "perfect_world",
   currentSeasonKey: "2026-current",
   previousSeasonKey: "2025-previous",
-  rankOrder: ["C", "B", "A", "S", "S+"],
+  rankOrder: createPerfectWorldRankOrder(),
 };
 
 function player(
@@ -34,22 +35,22 @@ describe("Major player strength comparator", () => {
   it.each([
     {
       name: "综合值不同",
-      left: player("left", "S", "A", "A"),
+      left: player("left", "青铜S", "A", "A"),
       right: player("right", "A", "A", "A"),
       order: 1,
       reason: "综合段位参考值",
     },
     {
       name: "综合值相同后比较历史最高",
-      left: player("left", "S", "B", "B"),
+      left: player("left", "青铜S", "B", "B"),
       right: player("right", "A", "A", "A"),
       order: 1,
       reason: "历史最高段位",
     },
     {
       name: "综合值和历史相同后比较当前赛季",
-      left: player("left", "A", "C", "S+"),
-      right: player("right", "A", "S", "A"),
+      left: player("left", "A", "C", "青铜S"),
+      right: player("right", "A", "青铜S", "B"),
       order: 1,
       reason: "当前赛季最高段位",
     },
@@ -80,7 +81,7 @@ describe("Major player strength comparator", () => {
     const missing = player("missing", "A", "A", "A");
     missing.currentSeasonPeak = null;
     expect(getPlayerStrengthBreakdown(missing, CONFIG).available).toBe(false);
-    expect(comparePlayerStrength(missing, player("other", "S+", "S+", "S+"), CONFIG).order).toBe(0);
+    expect(comparePlayerStrength(missing, player("other", "魔王S", "魔王S", "魔王S"), CONFIG).order).toBe(0);
 
     expect(getPlayerStrengthBreakdown(player("unknown", "X", "A", "A"), CONFIG).blockers).toContain(
       "申报段位不在本赛事公布的段位映射中。",
@@ -94,16 +95,16 @@ describe("Major player strength comparator", () => {
   });
 
   it("uses the configured season rank order without converting an unspecified platform", () => {
-    const high = getPlayerStrengthBreakdown(player("high", "S+", "S+", "S+"), CONFIG);
+    const high = getPlayerStrengthBreakdown(player("high", "魔王S", "魔王S", "魔王S"), CONFIG);
     const low = getPlayerStrengthBreakdown(player("low", "C", "C", "C"), CONFIG);
-    expect(high.weightedRank).toBe(5);
-    expect(low.weightedRank).toBe(1);
+    expect(high.weightedRank).toBe(14);
+    expect(low.weightedRank).toBe(2);
     expect(getPlayerStrengthBreakdown(player("fivee", "5E", "5E", "5E"), CONFIG).available).toBe(false);
   });
 });
 
 describe("Major external-member strength rule", () => {
-  const home = player("nju-strongest", "S", "A", "A");
+  const home = player("nju-strongest", "青铜S", "A", "A");
   const weakerHome = player("nju-weaker", "A", "A", "A");
 
   it("allows an all-NJU lineup", () => {
@@ -113,7 +114,7 @@ describe("Major external-member strength rule", () => {
   it.each([
     { label: "external-equal", fact: player("external-equal", "A", "A", "A"), eligible: true },
     { label: "external-weaker", fact: player("external-weaker", "A", "B", "A"), eligible: true },
-    { label: "external-stronger", fact: player("external-stronger", "S+", "S+", "S+"), eligible: false },
+    { label: "external-stronger", fact: player("external-stronger", "魔王S", "魔王S", "魔王S"), eligible: false },
   ])("handles $label against the strongest NJU reference", ({ fact, eligible, label }) => {
     const result = evaluateExternalStrengthRule({
       config: CONFIG,
@@ -136,7 +137,7 @@ describe("Major external-member strength rule", () => {
       players: [
         { ...home, isHome: true },
         { ...player("external-ok", "A", "A", "A"), isHome: false },
-        { ...player("external-bad", "S+", "S+", "S+"), isHome: false },
+        { ...player("external-bad", "魔王S", "魔王S", "魔王S"), isHome: false },
       ],
     });
     expect(result.eligible).toBe(false);
