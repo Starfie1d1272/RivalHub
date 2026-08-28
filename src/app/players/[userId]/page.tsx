@@ -3,7 +3,7 @@ import { eq, and, asc, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { users, seasonRegistrations, seasons, teams, teamMembers, matches, matchMaps, competitiveRankFacts } from "@/db/schema";
 import { resolveAvatarUrl } from "@/lib/steam";
-import { PLAYER_INFO_FIELDS } from "@/lib/utils/player-info-fields";
+import { PUBLIC_PLAYER_INFO_FIELDS } from "@/lib/utils/player-info-fields";
 import { getPublicDisplayName } from "@/lib/utils/display-name";
 import { Panel, Stat, PosChip } from "@/components/rivalhub";
 import { MapPreferenceChips } from "@/components/rivalhub/MapPreferenceChips";
@@ -78,7 +78,6 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
         mapPreferences: seasonRegistrations.mapPreferences,
         highlightVideoUrl: seasonRegistrations.highlightVideoUrl,
         gameplayStyle: seasonRegistrations.gameplayStyle,
-        notes: seasonRegistrations.notes,
         competitionHistory: seasonRegistrations.competitionHistory,
         status: seasonRegistrations.status,
         seasonName: seasons.name,
@@ -273,13 +272,12 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
       {/* 选手自述 */}
       {latestReg &&
         (latestReg.gameplayStyle?.trim() ||
-          latestReg.notes?.trim() ||
           latestReg.competitionHistory?.trim()) && (
           <section className="space-y-3">
             <SectionHeading>选手自述</SectionHeading>
             <Panel pad={16}>
               <div className="space-y-2">
-                {PLAYER_INFO_FIELDS
+                {PUBLIC_PLAYER_INFO_FIELDS
                   .map(({ key, label }) => {
                     const value = latestReg[key as keyof typeof latestReg] as string | null;
                     return { value: value?.trim(), label };

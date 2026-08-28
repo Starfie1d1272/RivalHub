@@ -4,7 +4,7 @@ import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
 import { CaptainConfirmPanel } from "@/components/captains/CaptainConfirmPanel";
 import { Panel, Marker } from "@/components/rivalhub";
-import { getCaptainVotingData, getSeasonTeamCount } from "@/lib/captains/data";
+import { getPublicCaptainVotingData, getSeasonTeamCount } from "@/lib/captains/data";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +33,7 @@ export default async function AdminCaptainsPage({ params }: AdminCaptainsPagePro
   }
 
   const [data, teamCount] = await Promise.all([
-    getCaptainVotingData(season.id),
+    getPublicCaptainVotingData(season.id),
     getSeasonTeamCount(season.id),
   ]);
 

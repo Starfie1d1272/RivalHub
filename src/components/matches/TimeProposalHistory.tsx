@@ -1,10 +1,8 @@
-import type { matchTimeProposals } from "@/db/schema/match-time-proposals";
 import { formatCST } from "@/lib/utils/date";
-
-type Proposal = typeof matchTimeProposals.$inferSelect;
+import type { PublicMatchTimeProposal } from "@/lib/matches/time-proposals";
 
 interface TimeProposalHistoryProps {
-  proposals: Proposal[];
+  proposals: PublicMatchTimeProposal[];
 }
 
 const STATUS_LABELS: Record<string, string> = {

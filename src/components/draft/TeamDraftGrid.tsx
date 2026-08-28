@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { getDisplayName } from "@/lib/utils/display-name";
+import { getPublicDisplayName } from "@/lib/utils/display-name";
 import { positionLabel } from "@/lib/validators/registration";
 import type { DraftTeamSlot } from "@/lib/draft/data";
 
@@ -83,20 +83,20 @@ export function TeamDraftGrid({
                   <div className="flex items-center justify-between py-1">
                     <span className="text-xs text-[var(--color-fg-mid)]">
                       <span className="text-[var(--color-fg-dim)]">队长 </span>
-                      {getDisplayName(team.captain)}
+                      {getPublicDisplayName(team.captain)}
                     </span>
                     <span className="font-mono text-[10px] text-[var(--color-fg-dim)] uppercase">
                       {positionLabel(team.captain.primaryPosition)}
                     </span>
                   </div>
                   {/* 已选队员 */}
-                  {team.members.map((m) => (
+                  {team.members.map((m, index) => (
                     <div
-                      key={m.registrationId}
+                      key={`${team.teamId}-${m.pickNumber || index}`}
                       className="flex items-center justify-between py-1"
                     >
                       <span className="text-xs text-[var(--color-fg)]">
-                        {getDisplayName(m)}
+                        {getPublicDisplayName(m)}
                         {m.autoPicked && (
                           <span className="text-[var(--color-warn)] ml-0.5">⚡</span>
                         )}
@@ -162,7 +162,7 @@ export function TeamDraftGrid({
               <div className="text-xs mb-1">
                 <span className="text-[var(--color-fg-dim)]">队长 </span>
                 <span className="text-[var(--color-fg)] font-medium">
-                  {getDisplayName(team.captain)}
+                  {getPublicDisplayName(team.captain)}
                 </span>
                 <span className="text-[var(--color-fg-dim)] ml-1">
                   {positionLabel(team.captain.primaryPosition)}
@@ -170,12 +170,12 @@ export function TeamDraftGrid({
               </div>
 
               {/* 已选队员 */}
-              {team.members.map((m) => (
-                <div key={m.registrationId} className="text-xs mb-0.5">
+              {team.members.map((m, index) => (
+                <div key={`${team.teamId}-${m.pickNumber || index}`} className="text-xs mb-0.5">
                   <span className="text-[var(--color-fg-mid)]">
                     R{m.pickRound}P{m.pickNumber}{" "}
                   </span>
-                  <span className="text-[var(--color-fg)]">{getDisplayName(m)}</span>
+                  <span className="text-[var(--color-fg)]">{getPublicDisplayName(m)}</span>
                   <span className="text-[var(--color-fg-dim)] ml-1">
                     {positionLabel(m.primaryPosition)}
                   </span>

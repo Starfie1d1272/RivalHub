@@ -13,7 +13,7 @@ import {
 } from "@/db/schema";
 import { ok, fail, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
-import { getDisplayName } from "@/lib/utils/display-name";
+import { getPublicDisplayName } from "@/lib/utils/display-name";
 import { auditActorId, requireAuth, requireSeasonAdmin } from "@/lib/auth/session";
 import {
   castVoteSchema,
@@ -238,7 +238,6 @@ export async function confirmCaptains(
           steamName: users.steamName,
           displayName: users.displayName,
           perfectName: users.perfectName,
-          email: users.email,
         })
         .from(seasonRegistrations)
         .innerJoin(users, eq(seasonRegistrations.userId, users.id))
@@ -278,7 +277,7 @@ export async function confirmCaptains(
 
       const createdTeamIds: string[] = [];
       for (const [index, captain] of seeds.entries()) {
-        const captainName = getDisplayName(captain);
+        const captainName = getPublicDisplayName(captain);
         const [team] = await tx
           .insert(teams)
           .values({
@@ -340,4 +339,3 @@ async function revalidateCaptainPaths(registrationId: string) {
   if (!season) return;
   revalidateSeasonPaths(season.slug, ["captains", "adminCaptains"]);
 }
-

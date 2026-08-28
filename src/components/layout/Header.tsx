@@ -7,7 +7,9 @@ import { eq } from "drizzle-orm";
 
 export async function Header() {
   const [allSeasons, session] = await Promise.all([
-    db.select().from(seasons),
+    db
+      .select({ slug: seasons.slug, name: seasons.name, status: seasons.status })
+      .from(seasons),
     getUserSession(),
   ]);
 
@@ -39,7 +41,7 @@ export async function Header() {
   return (
     <HeaderClient
       seasons={publicSeasons}
-      session={session}
+      session={session ? { userId: session.userId, role: session.role } : null}
       avatarUrl={avatarUrl}
       steamName={currentUser?.steamName ?? null}
       displayName={currentUser?.displayName ?? null}

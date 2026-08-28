@@ -1,9 +1,16 @@
 import Link from "next/link";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { Panel } from "@/components/rivalhub";
+import { getUserSession } from "@/lib/auth/session";
+import { safeLocalRedirect } from "@/lib/auth/redirect";
+import { redirect } from "next/navigation";
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ mode?: string }> }) {
-  const { mode } = await searchParams;
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ mode?: string; next?: string | string[] }> }) {
+  const params = await searchParams;
+  const next = Array.isArray(params.next) ? params.next[0] : params.next;
+  const session = await getUserSession();
+  if (session) redirect(safeLocalRedirect(next, "/settings") as never);
+
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
       <Panel className="w-full max-w-sm">
@@ -25,7 +32,10 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             使用邮箱和密码登录
           </p>
         </div>
-        <LoginForm initialMode={mode === "register" ? "register" : "login"} />
+        <LoginForm
+          initialMode={params.mode === "register" ? "register" : "login"}
+          redirectTo={safeLocalRedirect(next)}
+        />
         <p className="text-center mt-3">
           <Link href="/forgot-password" className="text-xs text-[var(--color-fg-mid)] hover:text-[var(--color-accent)] transition-colors">
             忘记密码？

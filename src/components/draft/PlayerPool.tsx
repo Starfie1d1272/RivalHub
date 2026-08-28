@@ -3,18 +3,17 @@
 import React from "react";
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import type { DraftPlayerRow } from "@/lib/draft/data";
+import type { PublicDraftPlayer } from "@/lib/draft/data";
 import { positionLabel } from "@/lib/validators/registration";
 import { MapPreferenceChips } from "@/components/rivalhub/MapPreferenceChips";
 import { PosChip } from "@/components/rivalhub/PosChip";
-import { PlayerInfoPopover } from "./PlayerInfoPopover";
-import { getDisplayName } from "@/lib/utils/display-name";
+import { getPublicDisplayName } from "@/lib/utils/display-name";
 import { sortByRank } from "@/lib/utils/rank";
 
 const FILTER_ALL = "all";
 
 interface PlayerPoolProps {
-  players: DraftPlayerRow[];
+  players: PublicDraftPlayer[];
   seasonPositions: string[];
 }
 
@@ -22,7 +21,7 @@ export function PlayerPool({ players, seasonPositions }: PlayerPoolProps) {
   const [filter, setFilter] = useState<string>(FILTER_ALL);
 
   const grouped = useMemo(() => {
-    const map = new Map<string, DraftPlayerRow[]>();
+    const map = new Map<string, PublicDraftPlayer[]>();
     for (const p of players) {
       const list = map.get(p.primaryPosition) ?? [];
       list.push(p);
@@ -93,10 +92,10 @@ export function PlayerPool({ players, seasonPositions }: PlayerPoolProps) {
       {/* Unified sorted list */}
       <div className="space-y-1 max-h-96 overflow-y-auto">
         {sortedPlayers.map((p) => {
-          const displayedName = getDisplayName(p);
+          const displayedName = getPublicDisplayName(p);
           return (
             <div
-              key={p.registrationId}
+              key={p.userId}
               className="rounded-md border border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-2"
             >
               {/* Desktop: single row */}
@@ -131,11 +130,6 @@ export function PlayerPool({ players, seasonPositions }: PlayerPoolProps) {
                 <div className="min-w-0 flex-1">
                   <MapPreferenceChips preferences={p.mapPreferences} compact minLevel="playable" />
                 </div>
-                <PlayerInfoPopover
-                  gameplayStyle={p.gameplayStyle}
-                  notes={p.notes}
-                  competitionHistory={p.competitionHistory}
-                />
               </div>
 
               {/* Mobile: two rows */}
@@ -173,11 +167,6 @@ export function PlayerPool({ players, seasonPositions }: PlayerPoolProps) {
                   <div className="min-w-0">
                     <MapPreferenceChips preferences={p.mapPreferences} compact minLevel="playable" />
                   </div>
-                  <PlayerInfoPopover
-                    gameplayStyle={p.gameplayStyle}
-                    notes={p.notes}
-                    competitionHistory={p.competitionHistory}
-                  />
                 </div>
               </div>
             </div>

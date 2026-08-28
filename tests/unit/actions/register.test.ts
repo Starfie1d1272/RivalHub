@@ -12,6 +12,7 @@ const {
   seasonFindFirstMock,
   userFindFirstMock,
   registrationFindFirstMock,
+  registrationDraftFindFirstMock,
   selectMock,
   updateMock,
   insertMock,
@@ -28,6 +29,7 @@ const {
     seasonFindFirstMock: vi.fn(),
     userFindFirstMock: vi.fn(),
     registrationFindFirstMock: vi.fn(),
+    registrationDraftFindFirstMock: vi.fn(),
     selectMock: vi.fn(),
     updateMock: vi.fn(),
     insertMock: vi.fn(),
@@ -48,6 +50,7 @@ vi.mock("@/db/client", () => ({
       seasons: { findFirst: seasonFindFirstMock },
       users: { findFirst: userFindFirstMock },
       seasonRegistrations: { findFirst: registrationFindFirstMock },
+      registrationDrafts: { findFirst: registrationDraftFindFirstMock },
     },
     select: selectMock,
     update: updateMock,
@@ -89,7 +92,7 @@ vi.mock("next/cache", () => ({
 }));
 
 // ── import after mocks ─────────────────────────────────────────────────────────
-import { submitRegistration, saveRegistrationDraft } from "@/actions/register";
+import { loadRegistrationDraft, submitRegistration, saveRegistrationDraft } from "@/actions/register";
 
 // ── 公共测试数据 ──────────────────────────────────────────────────────────────
 const SEASON = createFakeSeason({
@@ -388,6 +391,21 @@ describe("saveRegistrationDraft()", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetAuditTracking(insertValuesCalls);
+    getUserSessionMock.mockResolvedValue(SESSION);
+  });
+
+  it("未登录时拒绝保存报名草稿", async () => {
+    getUserSessionMock.mockResolvedValue(null);
+
+    const result = await saveRegistrationDraft({
+      seasonId: SEASON_ID,
+      email: "player@example.com",
+      payload: {},
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.code).toBe(ErrorCode.UNAUTHORIZED);
+    expect(seasonFindFirstMock).not.toHaveBeenCalled();
   });
 
   it("schema 校验失败（邮箱无效）返回 VALIDATION_FAILED + fieldErrors", async () => {
@@ -470,5 +488,32 @@ describe("saveRegistrationDraft()", () => {
       expect(result.data.email).toBe("player@example.com");
     }
     expect(revalidatePathMock).toHaveBeenCalledWith(`/${SEASON.slug}/register`);
+  });
+});
+
+describe("loadRegistrationDraft()", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getUserSessionMock.mockResolvedValue(SESSION);
+  });
+
+  it("未登录时拒绝读取报名草稿", async () => {
+    getUserSessionMock.mockResolvedValue(null);
+
+    const result = await loadRegistrationDraft(SEASON_ID, "player@example.com");
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.code).toBe(ErrorCode.UNAUTHORIZED);
+    expect(seasonFindFirstMock).not.toHaveBeenCalled();
+    expect(registrationDraftFindFirstMock).not.toHaveBeenCalled();
+  });
+
+  it("只允许读取当前登录账号的报名草稿", async () => {
+    const result = await loadRegistrationDraft(SEASON_ID, "other@example.com");
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.code).toBe(ErrorCode.FORBIDDEN);
+    expect(seasonFindFirstMock).not.toHaveBeenCalled();
+    expect(registrationDraftFindFirstMock).not.toHaveBeenCalled();
   });
 });

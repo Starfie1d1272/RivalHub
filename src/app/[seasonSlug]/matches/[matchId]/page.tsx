@@ -23,7 +23,7 @@ import { TeamStatsCompare } from "@/components/matches/TeamStatsCompare";
 import { MatchHeadToHead } from "@/components/matches/MatchHeadToHead";
 import { MatchSummaryStats } from "@/components/matches/MatchSummaryStats";
 import { getMatchMvpResults, ensureMvpWinner } from "@/actions/player-stats";
-import { getTimeProposals } from "@/actions/matches/scheduling";
+import { getMatchTimeProposalViews } from "@/lib/matches/time-proposals";
 import { getTimeBufferHoursForStage } from "@/lib/matches/time-rules";
 import { getMatchRoster } from "@/actions/matches/roster";
 import { getSeasonHexagonScores } from "@/actions/hexagon";
@@ -73,9 +73,8 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   const isFinished = match.status === "finished";
 
   // Phase 3: 所有独立查询并行
-  const [timeProposals, rosterA, rosterB, userSession, allTeamMemberRows, seasonMatchesA, seasonMatchesB, seasonHexagonScores] =
+  const [rosterA, rosterB, userSession, allTeamMemberRows, seasonMatchesA, seasonMatchesB, seasonHexagonScores] =
     await Promise.all([
-      getTimeProposals(match.id),
       getMatchRoster(match.id, match.teamAId),
       getMatchRoster(match.id, match.teamBId),
       getUserSession(),
@@ -97,6 +96,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
       getSeasonFinishedMatches(season.id, match.teamBId),
       getSeasonHexagonScores(season.id),
     ]);
+  const timeProposals = await getMatchTimeProposalViews(match.id, userSession?.userId);
 
   const allTeamMembers = allTeamMemberRows.map((row) => ({
     ...row,
@@ -593,7 +593,6 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
               isCaptainA={isCaptainA}
               isCaptainB={isCaptainB}
               isAdmin={isSeasonAdmin}
-              currentUserId={userSession?.userId}
               currentScheduledAt={match.scheduledAt}
               currentCompletionDeadline={match.completionDeadline}
               initialProposals={timeProposals}
