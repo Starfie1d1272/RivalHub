@@ -6,6 +6,8 @@ RivalHub 是一个面向高校电竞赛事的开源赛事管理平台。当前�
 
 生产站点：[match.starfie1d.top](https://match.starfie1d.top)
 
+当前 RC 发布线：`v2.0.0-rc.0`；RC 不标记为 latest stable。
+
 ## 当前能力状态
 
 不要把 capability 预设或设计文档等同于生产可用能力。外部试点前请先阅读 [docs/external-pilot-readiness.md](./docs/external-pilot-readiness.md)。

@@ -1,0 +1,12 @@
+{
+  "mode": "pre",
+  "tag": "rc",
+  "initialVersions": {
+    "rivalhub": "1.30.2"
+  },
+  "changesets": [
+    "calm-pandas-develop",
+    "fail-closed-team-registration",
+    "major-rivals-rise"
+  ]
+}
