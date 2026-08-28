@@ -52,20 +52,58 @@ describe("classifyDownstreamManagedMatches", () => {
     expect(impacts[0]!.description).toContain("禁止自动改写");
   });
 
-  it("playoff: orders by elimination step and ignores the bronze match", () => {
-    const qf: DownstreamCandidate = { id: "qf1", managedKey: "qf-1", entryRound: "quarterfinal", round: null, status: "scheduled" };
-    const sf: DownstreamCandidate = { id: "sf1", managedKey: "sf-1", entryRound: "semifinal", round: null, status: "scheduled" };
-    const finalRow: DownstreamCandidate = { id: "f1", managedKey: "f-1", entryRound: "final", round: null, status: "scheduled" };
-    const third: DownstreamCandidate = { id: "t1", managedKey: "t-1", entryRound: "third_place", round: null, status: "scheduled" };
+  it("playoff: follows only the bracket path from a quarterfinal source", () => {
+    const qf1: DownstreamCandidate = { id: "qf1", managedKey: "qf-1", entryRound: "quarterfinal", round: null, status: "scheduled" };
+    const qf2: DownstreamCandidate = { id: "qf2", managedKey: "qf-2", entryRound: "quarterfinal", round: null, status: "scheduled" };
+    const qf3: DownstreamCandidate = { id: "qf3", managedKey: "qf-3", entryRound: "quarterfinal", round: null, status: "scheduled" };
+    const qf4: DownstreamCandidate = { id: "qf4", managedKey: "qf-4", entryRound: "quarterfinal", round: null, status: "scheduled" };
+    const sf1: DownstreamCandidate = { id: "sf1", managedKey: "sf-1", entryRound: "semifinal", round: null, status: "scheduled" };
+    const sf2: DownstreamCandidate = { id: "sf2", managedKey: "sf-2", entryRound: "semifinal", round: null, status: "scheduled" };
+    const finalRow: DownstreamCandidate = { id: "f1", managedKey: "final-1", entryRound: "final", round: null, status: "scheduled" };
+    const third: DownstreamCandidate = { id: "t1", managedKey: "third-1", entryRound: "third_place", round: null, status: "scheduled" };
+    const candidates = [qf1, qf2, qf3, qf4, sf1, sf2, finalRow, third];
 
-    const fromQf = classifyDownstreamManagedMatches([qf, sf, finalRow, third], { id: "source", round: null, entryRound: "quarterfinal" }, "single_elim");
-    expect(fromQf.map((impact) => impact.matchId).sort()).toEqual(["f1", "sf1"]);
+    const fromQf = classifyDownstreamManagedMatches(candidates, { id: "qf1", managedKey: "qf-1", round: null, entryRound: "quarterfinal" }, "single_elim");
+    expect(fromQf.map((impact) => impact.matchId).sort()).toEqual(["f1", "sf1", "t1"]);
+    expect(fromQf.every((impact) => impact.invalidatable)).toBe(true);
 
-    const fromSf = classifyDownstreamManagedMatches([sf, finalRow], { id: "sf1-source", round: null, entryRound: "semifinal" }, "single_elim");
-    expect(fromSf.map((impact) => impact.matchId)).toEqual(["f1"]);
-
-    const upstreamOnly = classifyDownstreamManagedMatches([qf], { id: "final-source", round: null, entryRound: "final" }, "single_elim");
+    const upstreamOnly = classifyDownstreamManagedMatches([qf1], { id: "final-source", managedKey: "final-1", round: null, entryRound: "final" }, "single_elim");
     expect(upstreamOnly).toEqual([]);
+  });
+
+  it("playoff: semifinal winner changes impact both final and third place", () => {
+    const sf1: DownstreamCandidate = { id: "sf1", managedKey: "sf-1", entryRound: "semifinal", round: null, status: "scheduled" };
+    const sf2: DownstreamCandidate = { id: "sf2", managedKey: "sf-2", entryRound: "semifinal", round: null, status: "scheduled" };
+    const finalRow: DownstreamCandidate = { id: "f1", managedKey: "final-1", entryRound: "final", round: null, status: "scheduled" };
+    const third: DownstreamCandidate = { id: "t1", managedKey: "third-1", entryRound: "third_place", round: null, status: "scheduled" };
+
+    const impacts = classifyDownstreamManagedMatches(
+      [sf1, sf2, finalRow, third],
+      { id: "sf1", managedKey: "sf-1", round: null, entryRound: "semifinal" },
+      "single_elim",
+    );
+    expect(impacts.map((impact) => impact.matchId).sort()).toEqual(["f1", "t1"]);
+    expect(impacts.every((impact) => impact.invalidatable)).toBe(true);
+  });
+
+  it.each([
+    ["final", "in_progress"],
+    ["third_place", "finished"],
+  ] as const)("playoff: a %s that already has status %s hard-blocks automatic recovery", (entryRound, status) => {
+    const candidate: DownstreamCandidate = {
+      id: entryRound,
+      managedKey: entryRound === "final" ? "final-1" : "third-1",
+      entryRound,
+      round: null,
+      status,
+    };
+    const [impact] = classifyDownstreamManagedMatches(
+      [candidate],
+      { id: "sf1", managedKey: "sf-1", round: null, entryRound: "semifinal" },
+      "single_elim",
+    );
+    expect(impact?.invalidatable).toBe(false);
+    expect(impact?.description).toContain("禁止自动改写");
   });
 
   it("never returns the corrected match itself as downstream", () => {

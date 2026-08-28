@@ -20,7 +20,6 @@ import {
   users,
 } from "@/db/schema";
 import { evaluateMajorPrestartReadiness } from "@/lib/major/prestart";
-import { buildMajorOpeningPlan } from "@/lib/major/opening";
 import {
   normalizeRegistrationConfig,
   normalizeStagePlan,
@@ -141,11 +140,6 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
     seedConfirmation: state ? { seedRevision: state.seedRevision, confirmedSeedRevision: state.confirmedSeedRevision } : null,
   });
   const stagePlan = normalizeStagePlan(season.stagePlan);
-  const stageOneMatchFormat = stagePlan[0]?.matchFormat;
-  let seedPreview: ReturnType<typeof buildMajorOpeningPlan> | null = null;
-  if (seedRows.length === 32 && (stageOneMatchFormat === "bo1" || stageOneMatchFormat === "bo3")) {
-    try { seedPreview = buildMajorOpeningPlan({ teams: seedRows, stageOneMatchFormat }); } catch { seedPreview = null; }
-  }
   const stageRun = [...stagePlan].reverse()
     .map((stage) => stageRunRows.find((run) => run.stageKey === stage.key))
     .find((run) => run !== undefined) ?? null;
@@ -224,7 +218,7 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
       seeds: seedRows,
       seedRevision: state?.seedRevision ?? 0,
       confirmedSeedRevision: state?.confirmedSeedRevision ?? null,
-      firstRound: seedPreview?.firstRound.pairings.map((pairing) => ({
+      firstRound: readiness.openingPlan?.firstRound.pairings.map((pairing) => ({
         higherSeed: pairing.higherSeed.tournamentSeed,
         lowerSeed: pairing.lowerSeed.tournamentSeed,
         format: pairing.format,

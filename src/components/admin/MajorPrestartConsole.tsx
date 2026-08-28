@@ -47,7 +47,7 @@ export function MajorPrestartConsole({
 
       <MajorPrestartManagement data={management} />
       <MajorTournamentSeedsManagement data={seedManagement} />
-      <MajorStartManagement seasonId={management.seasonId} openingPlan={readiness.openingPlan} started={started} />
+      <MajorStartManagement seasonId={management.seasonId} openingPlan={readiness.openingPlan} canStart={readiness.canStart} started={started} />
       {swissRuntime && <MajorSwissRuntimeManagement data={swissRuntime} />}
       {playoffRuntime && <MajorPlayoffRuntimeManagement data={playoffRuntime} />}
 

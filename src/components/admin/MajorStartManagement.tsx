@@ -11,15 +11,17 @@ import type { MajorOpeningPlan } from "@/lib/major/opening";
 export function MajorStartManagement({
   seasonId,
   openingPlan,
+  canStart: readinessCanStart,
   started,
 }: {
   seasonId: string;
   openingPlan: MajorOpeningPlan | null;
+  canStart: boolean;
   started: boolean;
 }) {
   const [confirmed, setConfirmed] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const canStart = Boolean(openingPlan) && !started;
+  const canStart = readinessCanStart && !started;
 
   return <Panel label="正式开赛确认">
     <div className="space-y-4">

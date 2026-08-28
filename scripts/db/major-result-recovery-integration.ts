@@ -2,6 +2,9 @@
  * PR G2 — 比分更正与恢复真实 PostgreSQL 集成测试。
  *
  * 覆盖场景：
+ *  A. semifinal winner correction invalidates/rebuilds final + third-place
+ *  B/C. started or finished final/third-place blocks automatic recovery
+ *  D. quarterfinal correction invalidates only its actual semifinal path
  *  B. 下游生成前的胜者更正（无需作废任何比赛，修正后 finalize 可重建）
  *  A. 同胜者比分笔误最小更正（含弃赛形态）
  *  C. 下游已生成但未开始：plan 展示影响 → 显式确认恢复 → 作废未开始下游
@@ -23,6 +26,7 @@ import {
   applyResultCorrectionInTx,
   planResultCorrectionInTx,
 } from "../../src/lib/match-corrections/service";
+import { finalizeMajorPlayoffRoundInTransaction } from "../../src/lib/major/playoff-runtime";
 import { finalizeMajorSwissRoundInTransaction } from "../../src/lib/major/swiss-runtime";
 import { generateNextMajorSwissRound } from "../../src/lib/major/swiss";
 import { AppError, ErrorCode } from "../../src/lib/errors";
@@ -66,6 +70,15 @@ async function expectAppError(
 interface RecoveryFixture {
   seasonId: string;
   stageKeysWithRuns: { stageKey: string; runId: string }[];
+}
+
+interface PlayoffRecoveryFixture extends RecoveryFixture {
+  playoffRunId: string;
+  teamIds: string[];
+  quarterfinalMatchIds: string[];
+  semifinalMatchIds: string[];
+  finalMatchId: string;
+  thirdPlaceMatchId: string;
 }
 
 const STAGE_PLAN_KEYS = ["stage1", "stage2", "stage3", "playoff"];
@@ -187,6 +200,120 @@ async function prepareFixture(
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function preparePlayoffFixture(pool: Pool, label: string): Promise<PlayoffRecoveryFixture> {
+  const fixture = await prepareFixture(pool, `playoff-${label}`, ["playoff"]);
+  const playoffRun = fixture.stageKeysWithRuns.find((run) => run.stageKey === "playoff");
+  if (!playoffRun) throw new Error("playoff recovery fixture 缺少淘汰赛 StageRun。 ");
+
+  const capabilities = createMajorDefaultCapabilities();
+  const frozenStages = capabilities.stagePlan.map((stage) => ({
+    key: stage.key,
+    name: stage.name,
+    type: stage.type,
+    teamCount: stage.teamCount,
+    matchFormat: stage.matchFormat,
+    finalFormat: stage.finalFormat ?? null,
+  }));
+  const playoffStage = frozenStages.find((stage) => stage.key === "playoff");
+  if (!playoffStage) throw new Error("playoff recovery fixture 缺少冻结淘汰赛规则。 ");
+
+  const client = await pool.connect();
+  try {
+    const entrants = await client.query<{ entrant_id: string; team_id: string }>(
+      `SELECT id AS entrant_id, team_id FROM major_prestart_entrants
+       WHERE season_id = $1 ORDER BY id LIMIT 8`,
+      [fixture.seasonId],
+    );
+    if (entrants.rows.length !== 8) throw new Error("playoff recovery fixture 必须有 8 支淘汰赛队伍。 ");
+    const teamIds = entrants.rows.map((row) => row.team_id);
+    const tournamentEntrants = Array.from({ length: 32 }, (_, index) => ({
+      entrantId: randomUUID(),
+      teamId: randomUUID(),
+      tournamentSeed: index + 1,
+    }));
+    await client.query(
+      `UPDATE major_stage_runs SET rule_snapshot = $2::jsonb WHERE id = $1`,
+      [playoffRun.runId, JSON.stringify({
+        stagePlan: frozenStages,
+        stage: playoffStage,
+        tournamentEntrants,
+        hasThirdPlaceMatch: true,
+      })],
+    );
+    for (let index = 0; index < teamIds.length; index += 1) {
+      await client.query(
+        `INSERT INTO major_stage_entrants (stage_run_id, entrant_id, team_id, tournament_seed, stage_seed)
+         VALUES ($1, $2, $3, $4, $4)`,
+        [playoffRun.runId, entrants.rows[index]!.entrant_id, teamIds[index], index + 1],
+      );
+    }
+
+    const qfPairs = [
+      [teamIds[0]!, teamIds[7]!],
+      [teamIds[3]!, teamIds[4]!],
+      [teamIds[1]!, teamIds[6]!],
+      [teamIds[2]!, teamIds[5]!],
+    ];
+    const quarterfinalMatchIds: string[] = [];
+    for (const [index, pair] of qfPairs.entries()) {
+      const result = await client.query<{ id: string }>(
+        `INSERT INTO matches (
+           season_id, team_a_id, team_b_id, stage, entry_round, format, status,
+           score_a, score_b, completed_at, ownership, major_stage_run_id, managed_key
+         ) VALUES ($1, $2, $3, 'playoff', 'quarterfinal', 'bo3', 'finished', 2, 1, now(), 'major_stage', $4, $5)
+         RETURNING id`,
+        [fixture.seasonId, pair[0], pair[1], playoffRun.runId, `qf-${index + 1}`],
+      );
+      quarterfinalMatchIds.push(result.rows[0]!.id);
+    }
+
+    const semifinalPairs = [
+      [teamIds[0]!, teamIds[3]!],
+      [teamIds[1]!, teamIds[2]!],
+    ];
+    const semifinalMatchIds: string[] = [];
+    for (const [index, pair] of semifinalPairs.entries()) {
+      const result = await client.query<{ id: string }>(
+        `INSERT INTO matches (
+           season_id, team_a_id, team_b_id, stage, entry_round, format, status,
+           score_a, score_b, completed_at, ownership, major_stage_run_id, managed_key
+         ) VALUES ($1, $2, $3, 'playoff', 'semifinal', 'bo3', 'finished', 2, 1, now(), 'major_stage', $4, $5)
+         RETURNING id`,
+        [fixture.seasonId, pair[0], pair[1], playoffRun.runId, `sf-${index + 1}`],
+      );
+      semifinalMatchIds.push(result.rows[0]!.id);
+    }
+
+    const final = await client.query<{ id: string }>(
+      `INSERT INTO matches (
+         season_id, team_a_id, team_b_id, stage, entry_round, format, status,
+         ownership, major_stage_run_id, managed_key
+       ) VALUES ($1, $2, $3, 'playoff', 'final', 'bo5', 'scheduled', 'major_stage', $4, 'final-1')
+       RETURNING id`,
+      [fixture.seasonId, teamIds[0], teamIds[1], playoffRun.runId],
+    );
+    const third = await client.query<{ id: string }>(
+      `INSERT INTO matches (
+         season_id, team_a_id, team_b_id, stage, entry_round, format, status,
+         ownership, major_stage_run_id, managed_key
+       ) VALUES ($1, $2, $3, 'playoff', 'third_place', 'bo3', 'scheduled', 'major_stage', $4, 'third-1')
+       RETURNING id`,
+      [fixture.seasonId, teamIds[3], teamIds[2], playoffRun.runId],
+    );
+    return {
+      ...fixture,
+      playoffRunId: playoffRun.runId,
+      teamIds,
+      quarterfinalMatchIds,
+      semifinalMatchIds,
+      finalMatchId: final.rows[0]!.id,
+      thirdPlaceMatchId: third.rows[0]!.id,
+    };
   } finally {
     client.release();
   }
@@ -337,6 +464,171 @@ async function main(): Promise<void> {
   const fixtures: RecoveryFixture[] = [];
 
   try {
+    // ── A：半决赛胜者更正必须同时恢复决赛和季军赛 ────────────────────────
+    {
+      const fixture = await preparePlayoffFixture(pool, "semifinal-rebuild");
+      fixtures.push(fixture);
+      const semifinalId = fixture.semifinalMatchIds[0]!;
+
+      const plan = await database.transaction((tx) => planResultCorrectionInTx(tx, {
+        matchId: semifinalId,
+        proposal: { scoreA: 1, scoreB: 2 },
+      }));
+      assertCondition(plan.winnerChanges, "A 计划必须识别半决赛胜者变更");
+      assertCondition(plan.impacts.filter((impact) => impact.kind === "downstream_match").length === 2, "A 影响清单必须包含决赛和季军赛");
+      assertCondition(plan.impacts.every((impact) => impact.status === "scheduled"), "A 下游比赛必须仍未开始");
+
+      const applied = await database.transaction((tx) => applyResultCorrectionInTx(tx, {
+        matchId: semifinalId,
+        proposal: { scoreA: 1, scoreB: 2 },
+        actorId: ACTOR,
+        confirmRecovery: true,
+      }));
+      assertCondition(applied.invalidatedDownstreamMatches.length === 2, "A 必须同时作废决赛和季军赛");
+      assertCondition(applied.winnerChanged, "A 必须落库胜者变更");
+
+      const rebuilt = await database.transaction((tx) => finalizeMajorPlayoffRoundInTransaction(tx, {
+        seasonId: fixture.seasonId,
+        stageRunId: fixture.playoffRunId,
+        expectedRound: "semifinal",
+        actorId: ACTOR,
+      }));
+      assertCondition(rebuilt.createdNextRound === 2 && !rebuilt.alreadyFinalized, "A 现有 playoff runtime 必须重建两场后续比赛");
+
+      const rebuiltRows = await pool.query<{ entry_round: string; team_a_id: string; team_b_id: string }>(
+        `SELECT entry_round, team_a_id, team_b_id FROM matches
+         WHERE major_stage_run_id = $1 AND entry_round IN ('final', 'third_place')
+         ORDER BY entry_round`,
+        [fixture.playoffRunId],
+      );
+      const byRound = new Map(rebuiltRows.rows.map((row) => [row.entry_round, row]));
+      const finalRow = byRound.get("final");
+      const thirdRow = byRound.get("third_place");
+      assertCondition(Boolean(finalRow && thirdRow), "A 重建后必须保留决赛与季军赛");
+      assertCondition(
+        finalRow!.team_a_id === fixture.teamIds[3] && finalRow!.team_b_id === fixture.teamIds[1],
+        "A 决赛必须使用更正后的半决赛胜者",
+      );
+      assertCondition(
+        thirdRow!.team_a_id === fixture.teamIds[0] && thirdRow!.team_b_id === fixture.teamIds[2],
+        "A 季军赛必须使用更正后的半决赛负者",
+      );
+    }
+
+    // ── B / C：决赛或季军赛已开始/完成时禁止自动恢复 ────────────────────
+    {
+      const fixture = await preparePlayoffFixture(pool, "started-downstream");
+      fixtures.push(fixture);
+      const semifinalId = fixture.semifinalMatchIds[0]!;
+      const client = await pool.connect();
+      try {
+        await client.query(
+          `UPDATE matches SET status = 'in_progress', updated_at = now() WHERE id = $1`,
+          [fixture.finalMatchId],
+        );
+      } finally {
+        client.release();
+      }
+      await expectAppError(
+        () => database.transaction((tx) => applyResultCorrectionInTx(tx, {
+          matchId: semifinalId,
+          proposal: { scoreA: 1, scoreB: 2 },
+          actorId: ACTOR,
+          confirmRecovery: true,
+        })),
+        ErrorCode.VALIDATION_FAILED,
+        "已经开始或完成",
+        "B 决赛已开始时必须硬阻断",
+      );
+
+      const resetClient = await pool.connect();
+      try {
+        await resetClient.query(
+          `UPDATE matches SET status = 'scheduled', updated_at = now() WHERE id = $1`,
+          [fixture.finalMatchId],
+        );
+        await resetClient.query(
+          `UPDATE matches SET status = 'finished', score_a = 2, score_b = 1, completed_at = now(), updated_at = now() WHERE id = $1`,
+          [fixture.thirdPlaceMatchId],
+        );
+      } finally {
+        resetClient.release();
+      }
+      await expectAppError(
+        () => database.transaction((tx) => applyResultCorrectionInTx(tx, {
+          matchId: semifinalId,
+          proposal: { scoreA: 1, scoreB: 2 },
+          actorId: ACTOR,
+          confirmRecovery: true,
+        })),
+        ErrorCode.VALIDATION_FAILED,
+        "已经开始或完成",
+        "C 季军赛已完成时必须硬阻断",
+      );
+    }
+
+    // ── D：四分之一决赛只影响其所在半区，不作废另一场半决赛 ────────────
+    {
+      const fixture = await preparePlayoffFixture(pool, "quarterfinal-dependency");
+      fixtures.push(fixture);
+      const client = await pool.connect();
+      try {
+        await client.query(
+          `DELETE FROM matches WHERE id IN ($1, $2)`,
+          [fixture.finalMatchId, fixture.thirdPlaceMatchId],
+        );
+        await client.query(
+          `UPDATE matches SET status = 'scheduled', score_a = NULL, score_b = NULL, completed_at = NULL, updated_at = now()
+           WHERE id = $1`,
+          [fixture.semifinalMatchIds[0]],
+        );
+        await client.query(
+          `UPDATE matches SET status = 'scheduled', score_a = NULL, score_b = NULL, completed_at = NULL, updated_at = now()
+           WHERE id = $1`,
+          [fixture.semifinalMatchIds[1]],
+        );
+      } finally {
+        client.release();
+      }
+
+      const qfId = fixture.quarterfinalMatchIds[0]!;
+      const plan = await database.transaction((tx) => planResultCorrectionInTx(tx, {
+        matchId: qfId,
+        proposal: { scoreA: 1, scoreB: 2 },
+      }));
+      const downstream = plan.impacts.filter((impact) => impact.kind === "downstream_match");
+      assertCondition(downstream.length === 1, "D 影响清单只能包含受影响的一场半决赛");
+      assertCondition(downstream[0]!.managedKey === "sf-1", "D 影响清单必须指向 qf-1 所属的 sf-1");
+
+      const applied = await database.transaction((tx) => applyResultCorrectionInTx(tx, {
+        matchId: qfId,
+        proposal: { scoreA: 1, scoreB: 2 },
+        actorId: ACTOR,
+        confirmRecovery: true,
+      }));
+      assertCondition(applied.invalidatedDownstreamMatches.length === 1, "D 只能作废受影响的半决赛");
+
+      const rebuilt = await database.transaction((tx) => finalizeMajorPlayoffRoundInTransaction(tx, {
+        seasonId: fixture.seasonId,
+        stageRunId: fixture.playoffRunId,
+        expectedRound: "quarterfinal",
+        actorId: ACTOR,
+      }));
+      assertCondition(rebuilt.createdNextRound === 1, "D 只应补建缺失的半决赛");
+      const remaining = await pool.query<{ id: string; managed_key: string; team_a_id: string; team_b_id: string }>(
+        `SELECT id, managed_key, team_a_id, team_b_id FROM matches
+         WHERE major_stage_run_id = $1 AND entry_round = 'semifinal' ORDER BY managed_key`,
+        [fixture.playoffRunId],
+      );
+      assertCondition(remaining.rows.length === 2, "D 重建后必须有两场半决赛");
+      assertCondition(remaining.rows.some((row) => row.id === fixture.semifinalMatchIds[1]), "D 无关的 sf-2 必须保留");
+      const rebuiltSf1 = remaining.rows.find((row) => row.managed_key === "sf-1");
+      assertCondition(
+        rebuiltSf1?.team_a_id === fixture.teamIds[7] && rebuiltSf1.team_b_id === fixture.teamIds[3],
+        "D sf-1 必须使用更正后的四分之一决赛胜者",
+      );
+    }
+
     // ── B：下游尚未生成的胜者更正 ──────────────────────────────────────
     {
       const fixture = await prepareFixture(pool, "before-downstream");

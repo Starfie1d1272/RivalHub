@@ -63,8 +63,6 @@ interface FrozenRunFacts {
   finalizedRoundValue: number;
 }
 
-const PLAYOFF_STEPS = ["quarterfinal", "semifinal", "final"] as const;
-
 /** Minimal shape the downstream classifier needs from a managed match row. */
 export interface DownstreamCandidateRow {
   id: string;
@@ -84,43 +82,104 @@ export interface DownstreamImpactItem {
 
 /**
  * Pure classifier for within-run downstream facts. Swiss pairings ripple
- * through whole standings buckets, so EVERY later-round managed match counts —
- * not only those whose participants happen to change.
+ * through whole standings buckets, so EVERY later-round managed match counts.
+ * Single-elimination recovery follows the existing managed bracket slots so an
+ * unrelated semifinal is not invalidated by a quarterfinal correction.
  */
 export function classifyDownstreamManagedMatches(
   candidates: readonly DownstreamCandidateRow[],
-  sourceMatch: { id: string; round: number | null; entryRound: string | null },
+  sourceMatch: { id: string; managedKey?: string | null; round: number | null; entryRound: string | null },
   stageType: "swiss" | "single_elim",
 ): DownstreamImpactItem[] {
   const isSwiss = stageType === "swiss";
-  const myStepIndex =
-    !isSwiss && sourceMatch.entryRound
-      ? PLAYOFF_STEPS.indexOf(sourceMatch.entryRound as (typeof PLAYOFF_STEPS)[number])
-      : -1;
 
   const impacts: DownstreamImpactItem[] = [];
   for (const candidate of candidates) {
     if (candidate.id === sourceMatch.id) continue;
-    const isDownstream = isSwiss
-      ? candidate.round !== null && sourceMatch.round !== null && candidate.round > sourceMatch.round
-      : candidate.entryRound !== null &&
-        candidate.entryRound !== "third_place" &&
-        myStepIndex >= 0 &&
-        PLAYOFF_STEPS.indexOf(candidate.entryRound as (typeof PLAYOFF_STEPS)[number]) > myStepIndex;
+
+    let isDownstream = false;
+    let dependencyKnown = true;
+    if (isSwiss) {
+      isDownstream = candidate.round !== null && sourceMatch.round !== null && candidate.round > sourceMatch.round;
+    } else {
+      const sourceKey = parsePlayoffManagedKey(sourceMatch.managedKey, sourceMatch.entryRound);
+      const candidateKey = parsePlayoffManagedKey(candidate.managedKey, candidate.entryRound);
+      const sourceStep = playoffStepRank(sourceMatch.entryRound);
+      const candidateStep = playoffStepRank(candidate.entryRound);
+
+      if (sourceKey && candidateKey) {
+        isDownstream = playoffDescendants(sourceKey).has(candidateKey);
+      } else if (sourceStep !== null && candidateStep !== null && candidateStep > sourceStep) {
+        // A later playoff fact exists but its stable managed slot is malformed.
+        // Do not guess its bracket side; keep recovery fail-closed instead.
+        isDownstream = true;
+        dependencyKnown = false;
+      }
+    }
     if (!isDownstream) continue;
 
-    const invalidatable = candidate.status === "scheduled";
+    const invalidatable = dependencyKnown && candidate.status === "scheduled";
     impacts.push({
       matchId: candidate.id,
       managedKey: candidate.managedKey,
       status: candidate.status,
       invalidatable,
-      description: invalidatable
+      description: !dependencyKnown
+        ? `${candidate.managedKey ?? candidate.id} 的淘汰赛依赖无法由稳定托管槽位确认，拒绝自动改写。`
+        : invalidatable
         ? `${candidate.managedKey ?? candidate.id} 需要在胜者变更后作废并重建（对阵可能随积分重排）。`
         : `${candidate.managedKey ?? candidate.id} 已经开始或完成（${candidate.status}），禁止自动改写。`,
     });
   }
   return impacts;
+}
+
+type PlayoffManagedKey = "qf-1" | "qf-2" | "qf-3" | "qf-4" | "sf-1" | "sf-2" | "third-1" | "final-1";
+
+function parsePlayoffManagedKey(value: string | null | undefined, entryRound: string | null): PlayoffManagedKey | null {
+  if (!value || !entryRound) return null;
+  const match = /^(qf|sf|third|final)-([1-4])$/.exec(value);
+  if (!match) return null;
+  const prefix = match[1];
+  const slot = Number(match[2]);
+  const expectedPrefix = entryRound === "quarterfinal"
+    ? "qf"
+    : entryRound === "semifinal"
+      ? "sf"
+      : entryRound === "third_place"
+        ? "third"
+        : entryRound === "final"
+          ? "final"
+          : null;
+  if (prefix !== expectedPrefix) return null;
+  if ((prefix === "qf" && slot > 4) || (prefix === "sf" && slot > 2) || (prefix === "third" && slot !== 1) || (prefix === "final" && slot !== 1)) {
+    return null;
+  }
+  return value as PlayoffManagedKey;
+}
+
+function playoffStepRank(entryRound: string | null): 0 | 1 | 2 | null {
+  if (entryRound === "quarterfinal") return 0;
+  if (entryRound === "semifinal") return 1;
+  if (entryRound === "third_place" || entryRound === "final") return 2;
+  return null;
+}
+
+function playoffDescendants(source: PlayoffManagedKey): ReadonlySet<PlayoffManagedKey> {
+  switch (source) {
+    case "qf-1":
+    case "qf-2":
+      return new Set(["sf-1", "final-1", "third-1"]);
+    case "qf-3":
+    case "qf-4":
+      return new Set(["sf-2", "final-1", "third-1"]);
+    case "sf-1":
+    case "sf-2":
+      return new Set(["final-1", "third-1"]);
+    case "third-1":
+    case "final-1":
+      return new Set();
+  }
 }
 
 /**
@@ -307,7 +366,7 @@ export async function planResultCorrectionInTx(
       round: row.round,
       status: row.status,
     })),
-    { id: match.id, round: match.round, entryRound: match.entryRound },
+    { id: match.id, managedKey: match.managedKey, round: match.round, entryRound: match.entryRound },
     frozen.stageType,
   );
   let startedDownstream = 0;

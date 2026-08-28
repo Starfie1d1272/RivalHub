@@ -92,4 +92,57 @@ describe("evaluateMajorPrestartReadiness", () => {
     expect(result.canStart).toBe(false);
     expect(result.blockers.join("\n")).toContain("未冻结的教育认证依据");
   });
+
+  it("blocks start when verification references do not match roster length", () => {
+    const input = makeInput();
+    input.teams = input.teams!.map((team, index) => index === 0
+      ? { ...team, educationVerificationIds: team.educationVerificationIds.slice(1) }
+      : team);
+
+    const result = evaluateMajorPrestartReadiness(input);
+
+    expect(result.canStart).toBe(false);
+    expect(result.blockers.join("\n")).toContain("未冻结的教育认证依据");
+  });
+
+  it.each([
+    ["minimum team size", (input: MajorPrestartReadinessInput) => { input.capabilities.minTeamSize = 0; }, "最小名单人数"],
+    ["maximum team size below minimum", (input: MajorPrestartReadinessInput) => { input.capabilities.maxTeamSize = 4; }, "最大名单人数"],
+    ["zero starters", (input: MajorPrestartReadinessInput) => { input.capabilities.starterCount = 0; }, "首发人数"],
+    ["starters above maximum roster", (input: MajorPrestartReadinessInput) => { input.capabilities.starterCount = 10; }, "首发人数"],
+    ["roster above maximum", (input: MajorPrestartReadinessInput) => {
+      input.teams = input.teams!.map((team, index) => index === 0
+        ? { ...team, playerIds: [...team.playerIds, "player-extra", "player-extra-2", "player-extra-3", "player-extra-4", "player-extra-5"], educationVerificationIds: [...team.educationVerificationIds, "verification-extra", "verification-extra-2", "verification-extra-3", "verification-extra-4", "verification-extra-5"] }
+        : team);
+    }, "名单超过上限"],
+    ["roster cannot form starters", (input: MajorPrestartReadinessInput) => {
+      input.capabilities.starterCount = 6;
+    }, "无法组成 6 名首发"],
+  ] as const)("blocks invalid roster policy: %s", (_name, mutate, expected) => {
+    const input = makeInput();
+    mutate(input);
+
+    const result = evaluateMajorPrestartReadiness(input);
+
+    expect(result.canStart).toBe(false);
+    expect(result.checks.find((check) => check.key === "rosters")?.state).toBe("blocked");
+    expect(result.blockers.join("\n")).toContain(expected);
+  });
+
+  it("constructs a preview from valid team identities and seeds before start authorization is ready", () => {
+    const input = makeInput();
+    input.teams = input.teams!.map((team) => ({ ...team, playerIds: [], educationVerificationIds: [] }));
+    input.entrantsLocked = false;
+    input.confirmations = input.confirmations!.map((fact) => ({ ...fact, confirmed: false }));
+    input.qualificationIssues = [{ label: "资格材料复核", resolved: false }];
+    input.administrativeIssues = [{ label: "裁判排班", resolved: false }];
+    input.seedConfirmation = null;
+
+    const result = evaluateMajorPrestartReadiness(input);
+
+    expect(result.canStart).toBe(false);
+    expect(result.openingPlan).not.toBeNull();
+    expect(result.openingPlan?.firstRound.pairings).toHaveLength(8);
+    expect(result.checks.find((check) => check.key === "opening-plan")).toMatchObject({ state: "ready", blockers: [] });
+  });
 });

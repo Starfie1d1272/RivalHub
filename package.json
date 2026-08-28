@@ -40,7 +40,7 @@
     "test:major-result-recovery:local": "tsx scripts/db/local.ts test-major-result-recovery",
     "test:discipline:local": "tsx scripts/db/local.ts test-discipline",
     "test:postevent:local": "tsx scripts/db/local.ts test-postevent",
-    "seed": "NODE_OPTIONS='--dns-result-order=ipv4first' tsx --env-file .env.local scripts/seed.ts"
+    "seed": "NODE_OPTIONS='--dns-result-order=ipv4first' tsx scripts/seed.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",

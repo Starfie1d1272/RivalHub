@@ -71,7 +71,7 @@ export interface MajorPrestartReadiness {
   canStart: boolean;
   checks: readonly MajorPrestartCheck[];
   blockers: readonly string[];
-  /** 仅当所有开赛前条件满足时构造；否则为 null。 */
+  /** 只要标准结构、32 队身份、1–32 种子和首轮格式可用就构造；它是赛前预览，不授予开赛权限。 */
   openingPlan: MajorOpeningPlan | null;
 }
 
@@ -114,19 +114,45 @@ function invalidTeamIds(teams: readonly MajorPrestartTeamFact[]): string[] {
 
 function checkRosters(
   teams: readonly MajorPrestartTeamFact[] | null,
-  minTeamSize: number,
+  policy: Pick<SeasonCapabilities, "minTeamSize" | "maxTeamSize" | "starterCount">,
 ): MajorPrestartCheck {
-  if (teams === null) return unavailable("rosters", "队伍名单");
+  const policyBlockers: string[] = [];
+  if (!Number.isInteger(policy.minTeamSize) || policy.minTeamSize < 1) {
+    policyBlockers.push("最小名单人数必须是正整数。");
+  }
+  if (!Number.isInteger(policy.maxTeamSize) || policy.maxTeamSize < policy.minTeamSize) {
+    policyBlockers.push("最大名单人数必须是整数且不少于最小名单人数。");
+  }
+  if (!Number.isInteger(policy.starterCount) || policy.starterCount < 1) {
+    policyBlockers.push("首发人数必须是正整数。");
+  } else if (policy.starterCount > policy.maxTeamSize) {
+    policyBlockers.push("首发人数不能超过最大名单人数。");
+  }
+
+  if (teams === null) {
+    return policyBlockers.length === 0
+      ? unavailable("rosters", "队伍名单")
+      : blocked("rosters", "队伍名单", policyBlockers);
+  }
 
   const blockers = teams.flatMap((team) => {
-    if (team.playerIds.length < minTeamSize) {
-      return [`队伍 ${team.teamId || "（未命名）"} 名单不足 ${minTeamSize} 人。`];
+    const teamBlockers: string[] = [];
+    const teamLabel = team.teamId || "（未命名）";
+    if (team.playerIds.length < policy.minTeamSize) {
+      teamBlockers.push(`队伍 ${teamLabel} 名单不足 ${policy.minTeamSize} 人。`);
+    }
+    if (Number.isInteger(policy.maxTeamSize) && team.playerIds.length > policy.maxTeamSize) {
+      teamBlockers.push(`队伍 ${teamLabel} 名单超过上限 ${policy.maxTeamSize} 人。`);
+    }
+    if (Number.isInteger(policy.starterCount) && policy.starterCount > 0 && team.playerIds.length < policy.starterCount) {
+      teamBlockers.push(`队伍 ${teamLabel} 无法组成 ${policy.starterCount} 名首发。`);
     }
     if (team.educationVerificationIds.length !== team.playerIds.length || team.educationVerificationIds.some((id) => !id?.trim())) {
-      return [`队伍 ${team.teamId || "（未命名）"} 存在未冻结的教育认证依据。`];
+      teamBlockers.push(`队伍 ${teamLabel} 存在未冻结的教育认证依据。`);
     }
-    return [];
+    return teamBlockers;
   });
+  blockers.unshift(...policyBlockers);
   return blockers.length === 0
     ? ready("rosters", "队伍名单")
     : blocked("rosters", "队伍名单", blockers);
@@ -286,7 +312,7 @@ export function evaluateMajorPrestartReadiness(
         : blocked("teams", "32 支参赛队伍", teamBlockers),
   );
   checks.push(checkEntrantsLocked(input.entrantsLocked));
-  checks.push(checkRosters(input.teams, input.capabilities.minTeamSize));
+  checks.push(checkRosters(input.teams, input.capabilities));
   checks.push(checkDuplicatePlayers(input.teams));
   checks.push(checkTeamConfirmations("confirmations", "参赛确认", input.confirmations, input.teams));
   checks.push(checkIssues("qualification", "资格事项", input.qualificationIssues));
@@ -295,22 +321,23 @@ export function evaluateMajorPrestartReadiness(
   checks.push(seedResult.check);
   checks.push(checkSeedConfirmation(input.seedConfirmation));
 
-  const blockersBeforePlan = checks.flatMap((check) => check.blockers);
   let openingPlan: MajorOpeningPlan | null = null;
-  if (blockersBeforePlan.length > 0 || seedResult.seeds === null) {
-    checks.push(blocked("opening-plan", "开赛计划", ["开赛计划依赖所有赛前检查通过。"]));
+  const stageOneMatchFormat = input.capabilities.stagePlan[0]?.matchFormat;
+  if (
+    !rules.isStandardMajor ||
+    teamBlockers === null ||
+    teamBlockers.length > 0 ||
+    seedResult.seeds === null ||
+    (stageOneMatchFormat !== "bo1" && stageOneMatchFormat !== "bo3")
+  ) {
+    checks.push(blocked("opening-plan", "开赛计划", ["开赛计划不可用：标准 Major 结构、32 队身份、完整 1–32 种子和阶段一赛制必须先可用于构造预览。"]));
   } else {
     try {
-      const stageOneMatchFormat = input.capabilities.stagePlan[0]?.matchFormat;
-      if (stageOneMatchFormat !== "bo1" && stageOneMatchFormat !== "bo3") {
-        checks.push(blocked("opening-plan", "开赛计划", ["阶段一比赛赛制必须是 BO1 或 BO3。"]));
-      } else {
-        openingPlan = buildMajorOpeningPlan({
-          teams: seedResult.seeds,
-          stageOneMatchFormat,
-        });
-        checks.push(ready("opening-plan", "开赛计划"));
-      }
+      openingPlan = buildMajorOpeningPlan({
+        teams: seedResult.seeds,
+        stageOneMatchFormat,
+      });
+      checks.push(ready("opening-plan", "开赛计划"));
     } catch {
       checks.push(blocked("opening-plan", "开赛计划", ["开赛计划无法构造，请核对赛事种子和阶段规则。"]));
     }
