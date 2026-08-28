@@ -1,9 +1,7 @@
 import React from "react";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matchPlayerStats } from "@/db/schema/player-stats";
-import { teamMembers } from "@/db/schema/teams";
-import { seasonRegistrations } from "@/db/schema/registrations";
 import { MatchSummaryStats, type SummaryPlayer } from "./MatchSummaryStats";
 
 interface PlayerStatsTableProps {
@@ -12,15 +10,12 @@ interface PlayerStatsTableProps {
   teamBId: string;
   teamAName: string;
   teamBName: string;
-  seasonId: string;
-  seasonSlug: string;
 }
 
 async function getStatsGroupedByTeam(
   mapId: string,
   teamAId: string,
   teamBId: string,
-  seasonId: string,
 ) {
   const stats = await db.query.matchPlayerStats.findMany({
     where: eq(matchPlayerStats.mapId, mapId),
@@ -30,30 +25,18 @@ async function getStatsGroupedByTeam(
   if (stats.length === 0) return { teamA: [] as SummaryPlayer[], teamB: [] as SummaryPlayer[] };
 
   const userIds = stats.map((s) => s.userId).filter(Boolean) as string[];
-  const registrations = userIds.length
-    ? await db.query.seasonRegistrations.findMany({
-        where: (t, { inArray: inArr, and, eq: eqFn }) =>
-          and(inArr(t.userId, userIds), eqFn(t.seasonId, seasonId)),
-        columns: { id: true, userId: true },
-      })
-    : [];
-  const regIds = registrations.map((r) => r.id);
-  const memberships = regIds.length
+  const memberships = userIds.length
     ? await db.query.teamMembers.findMany({
         where: (t, { inArray: inArr, and, eq: eqFn, or: orFn }) =>
           and(
-            inArr(t.registrationId, regIds),
+            inArr(t.userId, userIds),
             orFn(eqFn(t.teamId, teamAId), eqFn(t.teamId, teamBId)),
           ),
-        columns: { registrationId: true, teamId: true },
+        columns: { userId: true, teamId: true },
       })
     : [];
 
-  const userIdToTeam = new Map<string, string>();
-  for (const reg of registrations) {
-    const mship = memberships.find((m) => m.registrationId === reg.id);
-    if (mship) userIdToTeam.set(reg.userId, mship.teamId);
-  }
+  const userIdToTeam = new Map(memberships.map((m) => [m.userId, m.teamId]));
 
   const teamARows = stats.filter((s) => s.userId && userIdToTeam.get(s.userId) === teamAId);
   const teamBRows = stats.filter((s) => s.userId && userIdToTeam.get(s.userId) === teamBId);
@@ -98,10 +81,8 @@ export async function PlayerStatsTable({
   teamBId,
   teamAName,
   teamBName,
-  seasonId,
-  seasonSlug,
 }: PlayerStatsTableProps) {
-  const { teamA, teamB } = await getStatsGroupedByTeam(mapId, teamAId, teamBId, seasonId);
+  const { teamA, teamB } = await getStatsGroupedByTeam(mapId, teamAId, teamBId);
 
   if (teamA.length === 0 && teamB.length === 0) {
     return <p className="text-xs text-[var(--color-fg-dim)] py-2">暂无玩家数据</p>;
@@ -114,7 +95,6 @@ export async function PlayerStatsTable({
       teamBId={teamBId}
       teamAName={teamAName}
       teamBName={teamBName}
-      seasonSlug={seasonSlug}
       noPanel
     />
   );

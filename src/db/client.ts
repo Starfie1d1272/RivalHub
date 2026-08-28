@@ -4,18 +4,9 @@ import { Pool } from "pg";
 import * as schema from "./schema";
 
 function createPool(): Pool {
-  const connectionString = process.env.DATABASE_URL;
-
-  if (!connectionString) {
-    console.error("[db] DATABASE_URL 为空，pg 将回退到 localhost:5432");
-  } else {
-    try {
-      const url = new URL(connectionString);
-      console.log("[db] 连接目标:", url.hostname, "SSL:", shouldUseSsl(connectionString) ? "on" : "off");
-    } catch {
-      console.error("[db] DATABASE_URL 格式异常，pg 可能解析失败:", String(connectionString).slice(0, 80));
-    }
-  }
+  const connectionString = requireDatabaseUrl();
+  const url = new URL(connectionString);
+  console.log("[db] 连接目标:", url.hostname, "SSL:", shouldUseSsl(connectionString) ? "on" : "off");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pgConfig: any = {
@@ -38,14 +29,14 @@ function createPool(): Pool {
   return pool;
 }
 
-let pool = createPool();
-let _db = drizzle(pool, { schema });
+let pool: Pool | null = null;
+let _db: DB | null = null;
 
 // Proxy 确保 Pool 重建后 db 始终指向新 drizzle 实例
 export const db = new Proxy({} as DB, {
   get(_target, prop) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (_db as any)[prop];
+    return (getDatabase() as any)[prop];
   },
 });
 
@@ -59,7 +50,7 @@ async function rebuildPool(): Promise<void> {
   // 合并并发重建请求
   if (rebuilding) return rebuilding;
   rebuilding = (async () => {
-    await pool.end().catch(() => {});
+    await pool?.end().catch(() => {});
     pool = createPool();
     _db = drizzle(pool, { schema });
     setupPoolGuard(pool);
@@ -107,7 +98,29 @@ function setupPoolGuard(p: Pool) {
   };
 }
 
-setupPoolGuard(pool);
+function getDatabase(): DB {
+  if (_db) return _db;
+  pool = createPool();
+  _db = drizzle(pool, { schema });
+  setupPoolGuard(pool);
+  return _db;
+}
+
+function requireDatabaseUrl(): string {
+  const value = process.env.DATABASE_URL?.trim();
+  if (!value) {
+    throw new Error("[db] DATABASE_URL 未设置；拒绝使用 pg 默认连接参数。");
+  }
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "postgres:" && url.protocol !== "postgresql:") {
+      throw new Error("unsupported protocol");
+    }
+  } catch {
+    throw new Error("[db] DATABASE_URL 格式无效。");
+  }
+  return value;
+}
 
 function shouldUseSsl(databaseUrl?: string): boolean {
   if (!databaseUrl) return false;

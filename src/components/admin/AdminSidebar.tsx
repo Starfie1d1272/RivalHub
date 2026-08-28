@@ -9,6 +9,7 @@ import { logoutUser } from "@/actions/auth";
 const NAV_ITEMS = [
   { href: "/admin", label: "赛季管理" },
   { href: "/admin/users", label: "用户管理" },
+  { href: "/admin/education-verifications", label: "教育认证审核" },
   { href: "/admin/invites", label: "邀请码" },
   { href: "/admin/logs", label: "操作日志" },
   { href: "/admin/settings", label: "系统设置" },
@@ -29,16 +30,14 @@ export function AdminSidebar({ email }: { email: string }) {
 
   return (
     <div
-      className="flex flex-col h-full"
+      className="flex items-center border-b border-[var(--color-border)] md:h-full md:flex-col md:items-stretch md:border-b-0 md:border-r"
       style={{
         background: "var(--color-panel-low)",
-        borderRight: "1px solid var(--color-border)",
-        padding: "20px 0",
       }}
     >
       {/* header */}
       <div
-        className="px-5 pb-4 font-bold uppercase"
+        className="shrink-0 px-4 py-3 font-bold uppercase md:px-5 md:pb-4 md:pt-5"
         style={{
           fontFamily: "var(--font-mono)",
           fontSize: 10,
@@ -50,7 +49,7 @@ export function AdminSidebar({ email }: { email: string }) {
       </div>
 
       {/* nav */}
-      <nav className="flex-1">
+      <nav className="flex min-w-0 flex-1 overflow-x-auto md:block">
         {NAV_ITEMS.map((item) => {
           const active = item.href === "/admin"
             ? pathname === "/admin"
@@ -59,9 +58,8 @@ export function AdminSidebar({ email }: { email: string }) {
             <Link
               key={item.href}
               href={item.href}
-              className="block"
+              className="inline-flex shrink-0 items-center px-3 py-3 md:block md:px-5 md:py-2.5"
               style={{
-                padding: "10px 20px",
                 background: active ? "var(--color-panel)" : "transparent",
                 borderLeft: `2px solid ${active ? "var(--color-accent)" : "transparent"}`,
                 color: active ? "var(--color-fg)" : "var(--color-fg-mid)",
@@ -78,11 +76,11 @@ export function AdminSidebar({ email }: { email: string }) {
 
       {/* footer */}
       <div
-        className="px-5 pt-4 mt-auto"
+        className="ml-auto shrink-0 px-4 md:mt-auto md:px-5 md:pt-4"
         style={{ borderTop: "1px solid var(--color-border)" }}
       >
         <div
-          className="truncate mb-2"
+          className="mb-2 hidden truncate md:block"
           style={{
             fontFamily: "var(--font-mono)",
             fontSize: 10,

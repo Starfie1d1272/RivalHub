@@ -4,7 +4,6 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { changePassword } from "@/actions/admin";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -81,7 +80,7 @@ export function ChangePasswordForm() {
       </div>
 
       {error && (
-        <div className="rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div className="rounded-sm bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error}
         </div>
       )}

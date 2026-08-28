@@ -1,6 +1,6 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { ErrorCode } from "@/lib/errors";
-import { mockAdminSession, mockUserSession, findAuditEntry, expectAuditLog, resetAuditTracking } from "tests/helpers";
+import { mockUserSession, findAuditEntry, expectAuditLog, resetAuditTracking } from "tests/helpers";
 
 // ── hoisted mock 工厂 ───────────────────────────────────────────────────────
 
@@ -10,7 +10,6 @@ const {
   adminUsersFindFirstMock,
   dbInsertMock,
   dbUpdateMock,
-  dbInsertReturningMock,
   insertValuesCalls,
   updateSetCalls,
   revalidatePathMock,
@@ -22,7 +21,6 @@ const {
 
   // returning() 链：用于 adminInvites insert
   const returningMock = vi.fn().mockResolvedValue([{ id: "invite-1" }]);
-  const dbInsertReturningMock = returningMock;
 
   const dbInsertMock = vi.fn().mockImplementation(() => ({
     values: vi.fn((vals) => {
@@ -47,7 +45,6 @@ const {
     adminUsersFindFirstMock: vi.fn(),
     dbInsertMock,
     dbUpdateMock,
-    dbInsertReturningMock,
     insertValuesCalls,
     updateSetCalls,
     revalidatePathMock: vi.fn(),

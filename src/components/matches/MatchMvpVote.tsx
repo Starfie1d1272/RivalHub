@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useEffect, useMemo, useTransition } from "react";
 import Link from "next/link";
 import { Panel } from "@/components/rivalhub";
 import { castMatchMvpVote } from "@/actions/player-stats";
@@ -42,9 +42,10 @@ export function MatchMvpVote({
   const [now, setNow] = useState(Date.now());
   const [isPending, startTransition] = useTransition();
 
-  const deadline = completedAt
-    ? new Date(new Date(completedAt).getTime() + MVP_DEADLINE_MS)
-    : null;
+  const deadline = useMemo(
+    () => (completedAt ? new Date(new Date(completedAt).getTime() + MVP_DEADLINE_MS) : null),
+    [completedAt],
+  );
   const votingClosed = deadline ? isDeadlinePassed(deadline) : false;
   const timeLeft = deadline && !votingClosed
     ? Math.max(0, deadline.getTime() - now)
@@ -164,7 +165,7 @@ export function MatchMvpVote({
   // ── 投票中 ──
   function cardStyle(isVoted: boolean, hasVoted: boolean): string {
     const base = "rounded-sm p-4 text-left transition-colors";
-    if (isVoted) return `${base} bg-[rgba(255,107,26,0.12)] ring-1 ring-inset ring-[var(--color-accent)]`;
+    if (isVoted) return `${base} bg-[var(--color-accent-soft)] ring-1 ring-inset ring-[var(--color-accent)]`;
     if (hasVoted) return `${base} bg-[var(--color-panel-hi)] cursor-not-allowed opacity-60`;
     return `${base} bg-[var(--color-panel-hi)] hover:bg-[var(--color-panel)] cursor-pointer`;
   }

@@ -3,7 +3,7 @@
 import { useState, useTransition, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { Field, Btn } from "@/components/rivalhub";
-import { loginWithPassword, signUp } from "@/actions/auth";
+import { loginWithPassword, resendSignupConfirmation, signUp } from "@/actions/auth";
 import { TurnstileWidget } from "@/components/auth/TurnstileWidget";
 
 type Mode = "login" | "register";
@@ -14,11 +14,12 @@ function safeRedirect(raw: string | null): string {
   return raw.startsWith("/") && !raw.startsWith("//") ? raw : "/";
 }
 
-export function LoginForm() {
+export function LoginForm({ initialMode = "login" }: { initialMode?: Mode }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [turnstileToken, setTurnstileToken] = useState<string>("");
-  const [mode, setMode] = useState<Mode>("login");
+  const [mode, setMode] = useState<Mode>(initialMode);
+  const [awaitingEmail, setAwaitingEmail] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const redirectRef = useRef(safeRedirect(new URLSearchParams(
     typeof window !== "undefined" ? window.location.search : ""
@@ -29,22 +30,30 @@ export function LoginForm() {
     startTransition(async () => {
       const result = mode === "login"
         ? await loginWithPassword(email, password)
-        : await signUp(email, password, turnstileToken);
+        : await signUp(email, password, turnstileToken, redirectRef.current);
       if (result.success) {
-        window.location.href = redirectRef.current;
+        if (mode === "register") {
+          setAwaitingEmail(email.trim());
+        } else {
+          window.location.href = redirectRef.current;
+        }
       } else {
         toast.error(result.error.message);
       }
     });
   }, [email, password, mode, turnstileToken]);
 
+  if (awaitingEmail) {
+    return <div className="space-y-4"><div className="rounded-sm border border-[var(--color-border)] p-4"><h2 className="font-semibold">验证邮件已发送</h2><p className="mt-2 break-all text-sm text-[var(--color-fg-mid)]">请打开 {awaitingEmail} 中的邮件完成验证。验证前不会登录 RivalHub。</p></div><Btn type="button" full disabled={isPending} onClick={() => startTransition(async () => { const result = await resendSignupConfirmation(awaitingEmail, redirectRef.current); if (result.success) toast.success("验证邮件已重新发送"); else toast.error(result.error.message); })}>重新发送验证邮件</Btn><button type="button" className="w-full text-sm underline" onClick={() => { setAwaitingEmail(null); setMode("login"); }}>返回登录</button><button type="button" className="w-full text-sm underline" onClick={() => { setAwaitingEmail(null); setMode("register"); setEmail(""); setPassword(""); }}>修改邮箱或重新注册</button></div>;
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="flex rounded-lg bg-[var(--color-panel-low)] p-0.5">
+      <div className="flex rounded-sm bg-[var(--color-panel-low)] p-0.5">
         <button
           type="button"
           onClick={() => setMode("login")}
-          className={`flex-1 rounded-md py-1.5 text-sm font-medium transition-colors ${
+          className={`flex-1 rounded-sm py-1.5 text-sm font-medium transition-colors ${
             mode === "login"
               ? "bg-[var(--color-panel)] text-[var(--color-fg)] shadow-sm"
               : "text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
@@ -55,7 +64,7 @@ export function LoginForm() {
         <button
           type="button"
           onClick={() => setMode("register")}
-          className={`flex-1 rounded-md py-1.5 text-sm font-medium transition-colors ${
+          className={`flex-1 rounded-sm py-1.5 text-sm font-medium transition-colors ${
             mode === "register"
               ? "bg-[var(--color-panel)] text-[var(--color-fg)] shadow-sm"
               : "text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
@@ -98,6 +107,8 @@ export function LoginForm() {
           />
         </div>
       )}
+
+      {mode === "register" && <p className="text-xs text-[var(--color-fg-mid)]">注册后需要验证邮箱才能完成注册和登录。</p>}
 
       <Btn type="submit" full disabled={isPending || (mode === "register" && !turnstileToken)}>
         {isPending ? "处理中…" : mode === "login" ? "登录" : "注册"}

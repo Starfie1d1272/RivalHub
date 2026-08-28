@@ -41,7 +41,7 @@ tests/unit/
 - Drizzle schema 结构与 DB 一致性
 - Server Action 完整链路（mock Supabase，用真实 SQL in-memory 或 testcontainers）
 
-当前集成测试以 schema 和纯逻辑校验为主，不启动真实 Supabase。完整 Server Action 链路由上线前手动冒烟覆盖。
+默认 Vitest 集成测试仍以 schema 和纯逻辑校验为主。数据库相关变更还必须先运行 `pnpm db:local:reset`：该命令会在完整 Local Supabase 上重放 Drizzle active migrations、建立 fixture，并实测 Auth、Storage 和 Data API 默认拒绝策略。
 
 ```
 tests/integration/
@@ -69,6 +69,12 @@ tests/e2e/
 
 ### Staging 验收
 
+### Major 本地验收入口
+
+`pnpm test:major-lifecycle:local` 是 Major 生命周期综合验证入口。`test:major-golden:local`、`test:major-start:local` 和 `test:major-swiss:local` 为兼容别名，都会运行同一套综合 runner，并不是三个独立测试套件。
+
+执行迁移账本校验请使用 `pnpm db:local:verify-migrations`；无需记忆底层 `tsx` 脚本路径。
+
 外部试点前需要一套独立 staging 数据库和可复现 seed。当前 `pnpm seed` 只创建 Root 管理员，不足以验收外部试点。
 
 建议新增场景 seed：
@@ -94,6 +100,13 @@ tests/e2e/
 9. `season_admin` 不能跨赛季操作管理 action。
 
 这些验收不得指向 production `DATABASE_URL`。
+
+`db:local:*` 会在创建 Pool 或执行 CLI 写命令前验证 loopback。以下负向测试应始终失败，且不得发生网络连接：
+
+```bash
+RIVALHUB_LOCAL_DATABASE_URL='postgresql://user:pass@db.example.com:5432/postgres' \
+  pnpm exec drizzle-kit migrate --config=drizzle.local.config.ts
+```
 
 ---
 

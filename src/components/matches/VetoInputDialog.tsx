@@ -10,7 +10,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -274,7 +273,7 @@ export function VetoInputDialog({
                   className={cn(
                     "px-2.5 py-1 text-xs rounded border transition-colors",
                     step.teamId === teamAId
-                      ? "bg-[var(--color-accent)] text-white border-[var(--color-accent)]"
+                      ? "bg-[var(--color-accent)] text-[var(--color-accent-fg)] border-[var(--color-accent)]"
                       : "border-[var(--color-border)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
                   )}
                 >
@@ -286,7 +285,7 @@ export function VetoInputDialog({
                   className={cn(
                     "px-2.5 py-1 text-xs rounded border transition-colors",
                     step.teamId === teamBId
-                      ? "bg-[var(--color-accent-b)] text-white border-[var(--color-accent-b)]"
+                      ? "bg-[var(--color-accent-b)] text-[var(--color-accent-b-fg)] border-[var(--color-accent-b)]"
                       : "border-[var(--color-border)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
                   )}
                 >

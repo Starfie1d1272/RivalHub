@@ -7,9 +7,8 @@ import { Marker } from "@/components/rivalhub";
 import { InviteManager } from "@/components/admin/InviteManager";
 
 export default async function AdminInvitesPage() {
-  let admin;
   try {
-    admin = await requireSuperAdmin();
+    await requireSuperAdmin();
   } catch {
     redirect("/admin/login");
   }

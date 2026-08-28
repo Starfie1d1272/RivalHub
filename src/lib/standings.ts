@@ -16,7 +16,7 @@ import type { Match } from "@/db/schema/matches";
 export interface TeamStanding {
   teamId: string;
   teamName: string;
-  draftOrder: number;
+  draftOrder: number | null;
   /** 胜场 */
   wins: number;
   /** 负场 */
@@ -86,7 +86,7 @@ export function calculateStandings(
     if (b.totalRoundsWon !== a.totalRoundsWon) return b.totalRoundsWon - a.totalRoundsWon;
 
     // 最终 fallback：draftOrder（选秀顺位）
-    return a.draftOrder - b.draftOrder;
+    return (a.draftOrder ?? Number.MAX_SAFE_INTEGER) - (b.draftOrder ?? Number.MAX_SAFE_INTEGER);
   });
 
   standings.forEach((s, i) => { s.seed = i + 1; });

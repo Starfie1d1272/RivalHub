@@ -4,7 +4,7 @@ import { eq, count, or, and, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { UserPlus, Vote, Users, Swords, Shuffle, BarChart3, UserRoundSearch } from "lucide-react";
 import { db } from "@/db/client";
-import { seasons, matches, teams, seasonRegistrations } from "@/db/schema";
+import { seasons, matches, teams } from "@/db/schema";
 import { formatCSTDateTime } from "@/lib/utils/date";
 import { normalizeStagePlan } from "@/types/season";
 import type { SeasonStatus } from "@/types/season";
@@ -14,6 +14,7 @@ import { checkAdminSession } from "@/lib/auth/session";
 import { AdminShortcut } from "@/components/layout/AdminShortcut";
 import { StandingsTable } from "@/components/matches/StandingsTable";
 import { getStandings } from "@/lib/data/standings";
+import { getParticipantSummary } from "@/lib/participants/summary";
 
 const STATUS_IDX: Record<SeasonStatus, number> = {
   draft: 0, registration: 1, voting: 2, drafting: 3,
@@ -69,12 +70,10 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
         .limit(4)
     : null;
 
-  const [[teamCountRow], [approvedCountRow], [matchCountRow], upcomingMatches, standings] =
+  const [[teamCountRow], participantSummary, [matchCountRow], upcomingMatches, standings] =
     await Promise.all([
       db.select({ value: count() }).from(teams).where(eq(teams.seasonId, season.id)),
-      db.select({ value: count() }).from(seasonRegistrations).where(
-        and(eq(seasonRegistrations.seasonId, season.id), eq(seasonRegistrations.status, "approved"))
-      ),
+      getParticipantSummary(season),
       db.select({
         total: count(),
         finished: sql<number>`count(*) filter (where ${matches.status} = 'finished')`,
@@ -321,9 +320,9 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
             <Panel hoverable>
               <div className="flex flex-col gap-2">
                 <div
-                  className="inline-flex items-center justify-center w-10 h-10 rounded-md mb-1 transition-colors"
+                  className="inline-flex items-center justify-center w-10 h-10 rounded-sm mb-1 transition-colors"
                   style={{
-                    backgroundColor: `rgba(255, 107, 26, 0.1)`,
+                    backgroundColor: "var(--color-accent-soft)",
                     color: "var(--color-accent)",
                   }}
                 >
@@ -340,7 +339,7 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
       {/* Stat 四格 */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Stat label="TEAMS" value={teamCountRow?.value ?? 0} />
-        <Stat label="PLAYERS" value={approvedCountRow?.value ?? 0} />
+        <Stat label="PLAYERS" value={participantSummary.count} />
         <Stat
           label="MATCHES"
           value={(matchCountRow?.total ?? 0) > 0

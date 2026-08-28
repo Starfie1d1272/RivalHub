@@ -1,5 +1,3 @@
-import { cn } from "@/lib/utils/cn";
-
 interface StatProps {
   label: string;
   value: string | number;
@@ -10,7 +8,7 @@ interface StatProps {
 export function Stat({ label, value, sub, accent }: StatProps) {
   return (
     <div
-      className="p-3 border rounded-md min-w-0"
+      className="p-3 border rounded-sm min-w-0"
       style={{
         background: "var(--color-panel-low)",
         borderColor: "var(--color-border)",

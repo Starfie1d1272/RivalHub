@@ -41,10 +41,10 @@ export function buildHomeNavEntries(season: HomeNavSeason): HomeNavEntry[] {
     {
       key: "register",
       href: `/${season.slug}/register`,
-      label: "报名参赛",
+      label: season.registrationMode === "team" ? "组队报名" : "报名参赛",
       mono: "REGISTER",
-      meta: "个人报名",
-      show: season.registrationMode === "solo",
+      meta: season.registrationMode === "team" ? "创建或加入队伍" : "个人报名",
+      show: true,
     },
     {
       key: "captains",
@@ -97,9 +97,9 @@ export function buildHomeNavEntries(season: HomeNavSeason): HomeNavEntry[] {
     {
       key: "login",
       href: "/login",
-      label: "登录后台",
+      label: "登录 / 我的 RivalHub",
       mono: "LOGIN",
-      meta: "管理员 · 队长",
+      meta: "参赛者入口",
       show: true,
     },
   ].filter((entry) => entry.show);

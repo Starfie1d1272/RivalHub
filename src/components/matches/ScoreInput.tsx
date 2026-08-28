@@ -16,6 +16,7 @@ interface ScoreInputProps {
   format: "bo1" | "bo3" | "bo5";
   currentScoreA?: number | null;
   currentScoreB?: number | null;
+  startBlockers?: string[];
 }
 
 const MAX_WINS: Record<string, number | null> = { bo1: null, bo3: 2, bo5: 3 };
@@ -35,7 +36,7 @@ function validateSeriesScore(format: string, a: number, b: number): string | nul
   return null;
 }
 
-export function ScoreInput({ matchId, teamAName, teamBName, currentStatus, format, currentScoreA, currentScoreB }: ScoreInputProps) {
+export function ScoreInput({ matchId, teamAName, teamBName, currentStatus, format, currentScoreA, currentScoreB, startBlockers = [] }: ScoreInputProps) {
   const [scoreA, setScoreA] = useState("");
   const [scoreB, setScoreB] = useState("");
   const [showStartConfirm, setShowStartConfirm] = useState(false);
@@ -194,7 +195,7 @@ export function ScoreInput({ matchId, teamAName, teamBName, currentStatus, forma
             />
           ) : (
             <div className="flex gap-2">
-              <Button size="sm" onClick={() => setShowStartConfirm(true)} disabled={isPending}>
+              <Button size="sm" onClick={() => setShowStartConfirm(true)} disabled={isPending || startBlockers.length > 0}>
                 开始比赛
               </Button>
               <Button size="sm" variant="outline" onClick={handleCancel} disabled={isPending}>
@@ -202,6 +203,7 @@ export function ScoreInput({ matchId, teamAName, teamBName, currentStatus, forma
               </Button>
             </div>
           )}
+          {startBlockers.length > 0 && <p className="text-xs leading-5 text-[var(--color-warn)]">无法开始：{startBlockers.join("；")}</p>}
         </div>
       )}
 

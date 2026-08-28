@@ -1,4 +1,5 @@
 // 共享赛季类型——与 Drizzle schema 对齐
+import { createPerfectWorldRankOrder } from "@/lib/config/perfect-world";
 
 export type SeasonKind = string;
 
@@ -86,21 +87,52 @@ export interface TeamRegistrationConfig {
   lockAfterRegistration: boolean;
   requireUniqueTeamName: boolean;
   requireTeamLogo: boolean;
+  /** Major-only capability: readiness and strength use this explicitly configured platform context. */
+  requireCompetitiveProfile?: boolean;
+  competitiveProfile?: CompetitiveProfileConfig;
+}
+
+export interface CompetitiveProfileConfig {
+  platform: string;
+  currentSeasonKey: string;
+  previousSeasonKey: string;
+  /** Lowest → highest rank labels. Empty means no evaluator is configured yet. */
+  rankOrder: string[];
+}
+
+/**
+ * Institution-based eligibility is a season capability, not a season.kind
+ * branch. `institutionCode` is the MOE canonical code frozen in the preset.
+ * Starting-member rules are declared here but match-roster enforcement is a
+ * later owner (G1).
+ */
+export interface InstitutionAffiliationRule {
+  institutionCode: string;
+  eligibleAcademicStatuses: readonly ("enrolled" | "graduated")[];
+  minRosterMembers: number;
+  minStartingMembers: number;
 }
 
 export const MAJOR_TEAM_CONFIG: TeamRegistrationConfig = {
-  allowExternal: false,
+  allowExternal: true,
   graduateCountsAsHome: true,
-  minHomeMembers: 5,
+  minHomeMembers: 0,
   minEnrolledMembers: 0,
-  maxExternalMembers: 0,
+  maxExternalMembers: 99,
   requirePositions: false,
   maxPerPositionPerTeam: 2,
   captainCanKick: true,
   captainCanTransfer: true,
   lockAfterRegistration: true,
   requireUniqueTeamName: true,
-  requireTeamLogo: false,
+  requireTeamLogo: true,
+  requireCompetitiveProfile: true,
+  competitiveProfile: {
+    platform: "perfect_world",
+    currentSeasonKey: "",
+    previousSeasonKey: "",
+    rankOrder: createPerfectWorldRankOrder(),
+  },
 };
 
 /**
@@ -123,6 +155,7 @@ export interface SeasonCapabilities {
   /** 报名规则配置 */
   registrationConfig: RegistrationConfig;
   teamRegistrationConfig: TeamRegistrationConfig;
+  affiliationRules: readonly InstitutionAffiliationRule[];
   maxTeamSize: number;
   minTeamSize: number;
   starterCount: number;
@@ -234,6 +267,7 @@ export const DRAFT_LEAGUE_PRESET: SeasonCapabilities = {
     requireUniqueTeamName: false,
     requireTeamLogo: false,
   },
+  affiliationRules: [],
   maxTeamSize: 7,
   minTeamSize: 7,
   starterCount: 5,
@@ -247,7 +281,8 @@ export const OPEN_TOURNAMENT_PRESET: SeasonCapabilities = {
   hasDraft: false,
   stagePlan: RIVALS_STAGE_PLAN,
   registrationConfig: RIVALS_REGISTRATION_CONFIG,
-  teamRegistrationConfig: MAJOR_TEAM_CONFIG,
+  teamRegistrationConfig: { ...MAJOR_TEAM_CONFIG, requireTeamLogo: false },
+  affiliationRules: [],
   maxTeamSize: 5,
   minTeamSize: 5,
   starterCount: 5,
@@ -275,7 +310,7 @@ export const MAJOR_STAGE_PLAN: StagePlan = [
     key: "stage3", name: "阶段三", type: "swiss", teamCount: 16,
     entrySeeds: 8,
     advanceTiers: [{ placement: "*", count: 8 }],
-    matchFormat: "bo1",
+    matchFormat: "bo3",
   },
   {
     key: "playoff", name: "淘汰赛", type: "single_elim", teamCount: 8,
@@ -291,7 +326,8 @@ export const MAJOR_REGISTRATION_CONFIG: RegistrationConfig = {
   maxPerPosition: 50,
   screenshotCount: 1,
   maxTotal: 256,
-  mapPool: [...DEFAULT_CS2_MAP_POOL],
+  // NJU Major's announced pool is intentionally separate from the live Valve/default pool.
+  mapPool: ["de_ancient", "de_anubis", "de_cache", "de_dust2", "de_inferno", "de_mirage", "de_nuke"],
 };
 
 /** 所有预设的快捷索引 */
@@ -305,6 +341,12 @@ export const CAPABILITY_PRESETS = {
     stagePlan: MAJOR_STAGE_PLAN,
     registrationConfig: MAJOR_REGISTRATION_CONFIG,
     teamRegistrationConfig: MAJOR_TEAM_CONFIG,
+    affiliationRules: [{
+      institutionCode: "4132010284",
+      eligibleAcademicStatuses: ["enrolled", "graduated"],
+      minRosterMembers: 3,
+      minStartingMembers: 3,
+    }],
     maxTeamSize: 9,
     minTeamSize: 5,
     starterCount: 5,
@@ -315,6 +357,176 @@ export const CAPABILITY_PRESETS = {
 // 向后兼容别名
 export const RIVALS_DEFAULT_CAPABILITIES = DRAFT_LEAGUE_PRESET;
 export const MAJOR_DEFAULT_CAPABILITIES = CAPABILITY_PRESETS.major;
+
+/**
+ * 返回一份可安全编辑的 Major 能力配置副本。
+ *
+ * 预设常量是标准规则的唯一来源；表单不能直接持有或修改该常量。
+ */
+export function createMajorDefaultCapabilities(): SeasonCapabilities {
+  return structuredClone(MAJOR_DEFAULT_CAPABILITIES) as SeasonCapabilities;
+}
+
+export interface StandardMajorRuleCheck {
+  key:
+    | "registration-mode"
+    | "captain-voting"
+    | "draft"
+    | "stage-count"
+    | "stage-order"
+    | "swiss-match-format"
+    | "entry-cohorts"
+    | "stage1-seeds"
+    | "affiliation-rule"
+    | "stage1"
+    | "stage2"
+    | "stage3"
+    | "playoff";
+  passed: boolean;
+  reason: string;
+}
+
+export interface StandardMajorCheckResult {
+  isStandardMajor: boolean;
+  checks: StandardMajorRuleCheck[];
+  failures: StandardMajorRuleCheck[];
+}
+
+function advancesEight(stage: StageConfig | undefined): boolean {
+  return stage?.advanceTiers.length === 1 &&
+    stage.advanceTiers[0]?.placement === "*" &&
+    stage.advanceTiers[0]?.count === 8;
+}
+
+function directEntrantCount(stage: StageConfig | undefined, isFirstStage = false): number | undefined {
+  if (!stage) return undefined;
+  return stage.entrySeeds ?? (isFirstStage ? stage.teamCount : 0);
+}
+
+function hasStandardStageOneSeeds(seeds: readonly number[] | undefined): boolean {
+  return seeds?.length === 16 &&
+    new Set(seeds).size === 16 &&
+    seeds.every((seed) => seed >= 17 && seed <= 32);
+}
+
+function hasFrozenMajorSwissMatchFormats(
+  stage1: StageConfig | undefined,
+  stage2: StageConfig | undefined,
+  stage3: StageConfig | undefined,
+): boolean {
+  return stage1?.matchFormat === "bo1" &&
+    stage2?.matchFormat === "bo1" &&
+    stage3?.matchFormat === "bo3";
+}
+
+/**
+ * 纯能力配置检查：判断配置是否仍是 RivalHub 当前定义的标准 Major。
+ * 不读取赛事 kind，kind 仅用于展示。
+ */
+export function checkStandardMajorCapabilities(
+  capabilities: SeasonCapabilities,
+): StandardMajorCheckResult {
+  const [stage1, stage2, stage3, playoff] = capabilities.stagePlan;
+  const checks: StandardMajorRuleCheck[] = [
+    {
+      key: "registration-mode",
+      passed: capabilities.registrationMode === "team",
+      reason: "标准 Major 使用队伍整体报名。",
+    },
+    {
+      key: "captain-voting",
+      passed: capabilities.hasCaptainVoting === false,
+      reason: "标准 Major 不启用队长投票。",
+    },
+    {
+      key: "draft",
+      passed: capabilities.hasDraft === false,
+      reason: "标准 Major 不启用蛇形选秀。",
+    },
+    {
+      key: "stage-count",
+      passed: capabilities.stagePlan.length === 4,
+      reason: "标准 Major 必须包含三个瑞士轮阶段和一个淘汰赛阶段。",
+    },
+    {
+      key: "stage-order",
+      passed: capabilities.stagePlan.map(({ type }) => type).join("|") === "swiss|swiss|swiss|single_elim",
+      reason: "标准 Major 的阶段顺序必须为阶段一、阶段二、阶段三瑞士轮，随后是单败淘汰。",
+    },
+    {
+      key: "swiss-match-format",
+      passed: hasFrozenMajorSwissMatchFormats(stage1, stage2, stage3),
+      reason: "NJU Major 阶段一、阶段二的普通比赛为 BO1，决定晋级或淘汰的比赛由 Swiss 引擎升级为 BO3；阶段三全部为 BO3。",
+    },
+    {
+      key: "entry-cohorts",
+      passed:
+        directEntrantCount(stage1, true) === 16 &&
+        directEntrantCount(stage2) === 8 &&
+        directEntrantCount(stage3) === 8 &&
+        directEntrantCount(playoff) === 0,
+      reason: "标准 Major 必须按 16 / 8 / 8 三批队伍进入三个瑞士轮阶段，并由阶段三的 8 支晋级队进入淘汰赛。",
+    },
+    {
+      key: "stage1-seeds",
+      passed: hasStandardStageOneSeeds(stage1?.seeds),
+      reason: "阶段一必须完整且唯一地使用 17–32 号种子。",
+    },
+    {
+      key: "affiliation-rule",
+      passed: capabilities.affiliationRules.some((rule) =>
+        rule.institutionCode === "4132010284" &&
+        rule.eligibleAcademicStatuses.includes("enrolled") &&
+        rule.eligibleAcademicStatuses.includes("graduated") &&
+        rule.minRosterMembers === 3 &&
+        rule.minStartingMembers === 3,
+      ),
+      reason: "标准 Major 必须冻结南京大学在读/毕业成员名单至少 3 人、首发至少 3 人的高校归属规则。",
+    },
+    {
+      key: "stage1",
+      passed: stage1?.type === "swiss" && stage1.teamCount === 16 && advancesEight(stage1),
+      reason: "阶段一必须为 16 队瑞士轮，8 队晋级。",
+    },
+    {
+      key: "stage2",
+      passed: stage2?.type === "swiss" && stage2.teamCount === 16 && advancesEight(stage2),
+      reason: "阶段二必须为 16 队瑞士轮，8 队晋级。",
+    },
+    {
+      key: "stage3",
+      passed: stage3?.type === "swiss" && stage3.teamCount === 16 && advancesEight(stage3),
+      reason: "阶段三必须为 16 队瑞士轮，8 队晋级。",
+    },
+    {
+      key: "playoff",
+      passed: playoff?.type === "single_elim" && playoff.teamCount === 8 && playoff.matchFormat === "bo3" && playoff.finalFormat === "bo5",
+      reason: "淘汰赛必须为 8 队单败淘汰，四分之一决赛和半决赛 BO3、决赛 BO5。",
+    },
+  ];
+  const failures = checks.filter((check) => !check.passed);
+  return {
+    isStandardMajor: failures.length === 0,
+    checks,
+    failures,
+  };
+}
+
+/**
+ * Compatibility detector for rows written before affiliation_rules existed.
+ * It intentionally derives identity from the complete old capability contract,
+ * never from seasons.kind. A matching row is unsafe to guess-backfill: its
+ * rule must be configured explicitly before it can become a standard Major.
+ */
+export function isLegacyStandardMajorWithoutAffiliation(
+  capabilities: SeasonCapabilities,
+): boolean {
+  return normalizeAffiliationRules(capabilities.affiliationRules).length === 0 &&
+    checkStandardMajorCapabilities({
+      ...capabilities,
+      affiliationRules: MAJOR_DEFAULT_CAPABILITIES.affiliationRules,
+    }).isStandardMajor;
+}
 
 // ── 展示标签 ─────────────────────────────────────────────────────────────
 
@@ -399,8 +611,31 @@ export function normalizeTeamRegistrationConfig(
     captainCanTransfer: config?.captainCanTransfer ?? MAJOR_TEAM_CONFIG.captainCanTransfer,
     lockAfterRegistration: config?.lockAfterRegistration ?? MAJOR_TEAM_CONFIG.lockAfterRegistration,
     requireUniqueTeamName: config?.requireUniqueTeamName ?? MAJOR_TEAM_CONFIG.requireUniqueTeamName,
-    requireTeamLogo: config?.requireTeamLogo ?? MAJOR_TEAM_CONFIG.requireTeamLogo,
+    requireTeamLogo: config?.requireTeamLogo ?? false,
+    requireCompetitiveProfile: config?.requireCompetitiveProfile ?? false,
+    competitiveProfile: config?.competitiveProfile
+      ? {
+          platform: config.competitiveProfile.platform.trim(),
+          currentSeasonKey: config.competitiveProfile.currentSeasonKey.trim(),
+          previousSeasonKey: config.competitiveProfile.previousSeasonKey.trim(),
+          rankOrder: [...new Set(config.competitiveProfile.rankOrder.map((rank) => rank.trim()).filter(Boolean))],
+        }
+      : MAJOR_TEAM_CONFIG.competitiveProfile,
   };
+}
+
+export function normalizeAffiliationRules(
+  rules: readonly InstitutionAffiliationRule[] | null | undefined,
+): InstitutionAffiliationRule[] {
+  if (!rules) return [];
+  return rules
+    .filter((rule) => rule.institutionCode.trim() && Number.isInteger(rule.minRosterMembers) && Number.isInteger(rule.minStartingMembers))
+    .map((rule) => ({
+      institutionCode: rule.institutionCode.trim(),
+      eligibleAcademicStatuses: [...new Set(rule.eligibleAcademicStatuses.filter((status) => status === "enrolled" || status === "graduated"))],
+      minRosterMembers: Math.max(0, rule.minRosterMembers),
+      minStartingMembers: Math.max(0, rule.minStartingMembers),
+    }));
 }
 
 export function normalizeStagePlan(stagePlan: StagePlan | null | undefined): StagePlan {

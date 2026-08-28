@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { eq, sql, type SQL } from "drizzle-orm";
-import { createServiceClient } from "@/lib/auth/supabase";
+import { createPublicAuthClient, createServiceClient } from "@/lib/auth/supabase";
 import { db } from "@/db/client";
 import { users, adminInvites, auditLogs } from "@/db/schema";
 import { ok, fail } from "@/types/action";
@@ -11,6 +11,7 @@ import type { ActionResult } from "@/types/action";
 import { actionError } from "@/lib/action-utils";
 import { MIN_PASSWORD_LENGTH } from "@/lib/config/auth-config";
 import { normalizeEmail } from "@/lib/utils/email";
+import { bootstrapConfiguredOwnerInTx } from "@/lib/auth/owner-bootstrap";
 import {
   requireAuth,
   createUserSession,
@@ -38,21 +39,25 @@ export async function loginWithPassword(
       return fail({ code: ErrorCode.UNAUTHORIZED, message: "邮箱或密码错误" });
     }
 
-    // 同步 public.users（密码登录不走 callback，这里兜底 upsert）
-    const [userRow] = await db
-      .insert(users)
-      .values({
-        email: normalizedEmail,
-        authId: data.user.id,
-        role: "user",
-        adminSeasonIds: [],
-        updatedAt: new Date(),
-      })
-      .onConflictDoUpdate({
-        target: users.email,
-        set: { authId: data.user.id, updatedAt: new Date() },
-      })
-      .returning();
+    const userRow = await db.transaction(async (tx) => {
+      // 同步 public.users（密码登录不走 callback，这里兜底 upsert）
+      const [upsertedUser] = await tx
+        .insert(users)
+        .values({
+          email: normalizedEmail,
+          authId: data.user.id,
+          role: "user",
+          adminSeasonIds: [],
+          updatedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: users.email,
+          set: { authId: data.user.id, updatedAt: new Date() },
+        })
+        .returning();
+      if (!upsertedUser) throw new Error("登录后无法同步用户账号");
+      return bootstrapConfiguredOwnerInTx(tx, upsertedUser);
+    });
 
     await createUserSession({
       userId: userRow.id,
@@ -72,6 +77,7 @@ export async function signUp(
   email: string,
   password: string,
   turnstileToken?: string,
+  next?: string,
 ): Promise<ActionResult<{ email: string }>> {
   if (!email || !email.includes("@")) {
     return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请输入有效的邮箱地址" });
@@ -93,8 +99,18 @@ export async function signUp(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ secret: secretKey, response: turnstileToken }),
       });
-      const verifyData = await verifyResult.json() as { success: boolean };
+      const verifyData = await verifyResult.json() as {
+        success: boolean;
+        "error-codes"?: string[];
+        hostname?: string;
+        action?: string;
+      };
       if (!verifyData.success) {
+        console.error("[turnstile] siteverify failed", {
+          errorCodes: verifyData["error-codes"] ?? [],
+          hostname: verifyData.hostname ?? null,
+          action: verifyData.action ?? null,
+        });
         return fail({ code: ErrorCode.VALIDATION_FAILED, message: "验证码校验失败，请刷新后重试" });
       }
     } catch {
@@ -103,8 +119,12 @@ export async function signUp(
   }
 
   try {
-    const supabase = createServiceClient();
-    const { data, error } = await supabase.auth.signUp({ email: normalizedEmail, password });
+    const supabase = createPublicAuthClient();
+    const { data, error } = await supabase.auth.signUp({
+      email: normalizedEmail,
+      password,
+      options: { emailRedirectTo: callbackUrl("signup", next) },
+    });
 
     if (error) {
       // 不暴露邮箱是否已注册（防枚举），统一返回模糊提示。
@@ -119,7 +139,7 @@ export async function signUp(
     // 事务保护：auth.users 行已创建，若 public.users 插入失败则回滚会话。
     // 极端情况下（DB 断开）auth.users 会遗留孤立行，下次登录时 loginWithPassword
     // 的 upsert 兜底修复，属于可接受的低概率不一致。
-    const [userRow] = await db
+    await db
       .insert(users)
       .values({
         email: normalizedEmail,
@@ -134,18 +154,55 @@ export async function signUp(
       })
       .returning();
 
-    await createUserSession({
-      userId: userRow.id,
-      email: userRow.email,
-      role: userRow.role,
-      adminSeasonIds: userRow.adminSeasonIds,
-      authSource: "user",
-    });
-
+    // Never establish an iron-session here: Auth confirmation is the only
+    // path that can create a session for a newly registered account.
     return ok({ email: normalizedEmail });
   } catch (e) {
     return actionError("signUp", e);
   }
+}
+
+/** Safe ambiguous resend endpoint for the signup waiting state. */
+export async function resendSignupConfirmation(email: string, next?: string): Promise<ActionResult<void>> {
+  if (!email || !email.includes("@")) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请输入有效的邮箱地址" });
+  try {
+    const { error } = await createPublicAuthClient().auth.resend({
+      type: "signup",
+      email: normalizeEmail(email),
+      options: { emailRedirectTo: callbackUrl("signup", next) },
+    });
+    if (error && process.env.NODE_ENV === "development") console.warn("[resendSignupConfirmation]", error.message);
+    return ok(undefined);
+  } catch (e) { return actionError("resendSignupConfirmation", e); }
+}
+
+/** Existing accounts prove control of their already-bound email without account creation. */
+export async function resendCurrentEmailVerification(): Promise<ActionResult<void>> {
+  try {
+    const session = await requireAuth();
+    const user = await db.query.users.findFirst({ where: eq(users.id, session.userId) });
+    if (!user) return fail({ code: ErrorCode.UNAUTHORIZED, message: "账号不存在，请重新登录。" });
+    if (user.emailVerifiedAt) return ok(undefined);
+    const { error } = await createServiceClient().auth.signInWithOtp({
+      email: user.email,
+      options: { shouldCreateUser: false, emailRedirectTo: callbackUrl("reverify") },
+    });
+    if (error) return fail({ code: ErrorCode.INTERNAL_ERROR, message: "验证邮件暂时无法发送，请稍后重试。" });
+    return ok(undefined);
+  } catch (e) { return actionError("resendCurrentEmailVerification", e); }
+}
+
+function callbackUrl(flow: "signup" | "reverify", next?: string): string {
+  const origin = process.env.NEXT_PUBLIC_APP_URL;
+  if (!origin) throw new Error("NEXT_PUBLIC_APP_URL 未配置");
+  const url = new URL(`/auth/callback/${flow}`, origin);
+  const safeNext = safeNextPath(next);
+  if (safeNext) url.searchParams.set("next", safeNext);
+  return url.toString();
+}
+
+function safeNextPath(next: string | undefined): string | null {
+  return next && next.startsWith("/") && !next.startsWith("//") ? next : null;
 }
 
 export async function sendPasswordResetEmail(email: string): Promise<ActionResult<undefined>> {

@@ -57,7 +57,7 @@ export function MapPreferenceSection({
                     onClick={() => onSetMapLevel(map, level)}
                     className={`min-h-9 rounded border px-1 text-xs font-medium transition-colors ${
                       currentLevel === level
-                        ? "border-[var(--color-accent)] bg-[var(--color-accent)] text-white"
+                        ? "border-[var(--color-accent)] bg-[var(--color-accent)] text-[var(--color-accent-fg)]"
                         : "border-[var(--color-border)] bg-[var(--color-panel-hi)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
                     }`}
                   >

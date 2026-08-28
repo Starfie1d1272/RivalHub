@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ne, asc } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { users, seasons } from "@/db/schema";
+import { users } from "@/db/schema";
 import { requireSuperAdmin } from "@/lib/auth/session";
 import { Marker, Panel, Btn } from "@/components/rivalhub";
 import { AdminUserList } from "@/components/admin/AdminUserList";

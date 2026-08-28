@@ -4,7 +4,7 @@ import type { Route } from "next";
 import type { Metadata } from "next";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasonRegistrations, seasons, teams } from "@/db/schema";
+import { seasons, teams } from "@/db/schema";
 import { CaptainDraftPanel } from "@/components/draft/CaptainDraftPanel";
 import { Panel, Btn } from "@/components/rivalhub";
 import { getUserSession } from "@/lib/auth/session";
@@ -61,15 +61,10 @@ export default async function DraftCaptainPage({ params }: DraftCaptainPageProps
       teamName: teams.name,
     })
     .from(teams)
-    .innerJoin(
-      seasonRegistrations,
-      eq(teams.captainRegistrationId, seasonRegistrations.id),
-    )
     .where(
       and(
         eq(teams.seasonId, season.id),
-        eq(seasonRegistrations.seasonId, season.id),
-        eq(seasonRegistrations.userId, session.userId),
+        eq(teams.captainUserId, session.userId),
       ),
     )
     .limit(1);
@@ -105,7 +100,7 @@ export default async function DraftCaptainPage({ params }: DraftCaptainPageProps
       <div className="mb-8">
         <h1 className="text-3xl font-bold">队长选人 · {season.name}</h1>
         <p className="mt-2 text-sm text-[var(--color-fg-mid)]">
-          当前队长端只在轮到本队时开放选择；重复点击会通过请求 ID 幂等处理。
+          只在轮到本队时开放选择；重复操作不会产生重复选人结果。
         </p>
       </div>
 

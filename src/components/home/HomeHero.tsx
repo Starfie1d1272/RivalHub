@@ -54,9 +54,9 @@ export function HomeHero({ season, eyebrow }: HomeHeroProps) {
           <Btn primary asChild>
             <Link href={`/${season.slug}`}>进入赛季 →</Link>
           </Btn>
-          {season.registrationMode === "solo" && (
+          {season.status === "registration" && (
             <Btn asChild>
-              <Link href={`/${season.slug}/register`}>报名参赛</Link>
+              <Link href={`/${season.slug}/register`}>{season.registrationMode === "team" ? "组队报名 / 创建或加入队伍" : "报名参赛"}</Link>
             </Btn>
           )}
           <Btn ghost asChild>
@@ -70,11 +70,11 @@ export function HomeHero({ season, eyebrow }: HomeHeroProps) {
         style={{
           background: `
             radial-gradient(circle at 90% 10%, ${
-              season.status === "registration" ? "rgba(77,212,122,0.09)"
-                : season.status === "voting" ? "rgba(255,196,77,0.09)"
-                : "rgba(255,107,26,0.13)"
+              season.status === "registration" ? "var(--color-ok-soft)"
+                : season.status === "voting" ? "var(--color-warn-soft)"
+                : "var(--color-accent-soft)"
             } 0, transparent 40%),
-            repeating-linear-gradient(0deg, transparent 0 32px, rgba(31,37,48,0.25) 32px 33px)
+            repeating-linear-gradient(0deg, transparent 0 32px, color-mix(in srgb, var(--color-border) 25%, transparent) 32px 33px)
           `,
         }}
       />

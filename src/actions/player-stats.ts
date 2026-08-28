@@ -1,6 +1,6 @@
 "use server";
 
-import { eq, and, desc, sql, inArray } from "drizzle-orm";
+import { eq, desc, sql, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matchMaps } from "@/db/schema/match-maps";
 import { matches } from "@/db/schema/matches";
@@ -8,7 +8,6 @@ import { matchPlayerStats } from "@/db/schema/player-stats";
 import { matchMvpVotes } from "@/db/schema/mvp-votes";
 import { auditLogs } from "@/db/schema/audit";
 import { users } from "@/db/schema/users";
-import { seasonRegistrations } from "@/db/schema/registrations";
 import { teamMembers } from "@/db/schema/teams";
 import { ok, fail, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
@@ -56,21 +55,20 @@ export async function extractStatsFromScreenshot(
 
     // 仅查询本场比赛两队队员（用于昵称匹配 + 下拉选择）
     const teamMemberRows = await db
-      .select({ registrationId: teamMembers.registrationId })
+      .select({ userId: teamMembers.userId })
       .from(teamMembers)
       .where(inArray(teamMembers.teamId, [match.teamAId, match.teamBId]));
 
-    const teamRegistrationIds = teamMemberRows.map((r) => r.registrationId);
+    const teamUserIds = teamMemberRows.map((r) => r.userId);
 
-    const seasonPlayers = teamRegistrationIds.length
+    const seasonPlayers = teamUserIds.length
       ? await db
           .select({
             userId: users.id,
             perfectName: users.perfectName,
           })
           .from(users)
-          .innerJoin(seasonRegistrations, eq(seasonRegistrations.userId, users.id))
-          .where(inArray(seasonRegistrations.id, teamRegistrationIds))
+          .where(inArray(users.id, teamUserIds))
       : [];
 
     const nameToUserId = new Map<string, string>();
@@ -221,18 +219,17 @@ export async function getMatchPlayerOptions(mapId: string): Promise<PlayerOption
     if (!match) return [];
 
     const teamMemberRows = await db
-      .select({ registrationId: teamMembers.registrationId })
+      .select({ userId: teamMembers.userId })
       .from(teamMembers)
       .where(inArray(teamMembers.teamId, [match.teamAId, match.teamBId]));
 
-    const teamRegistrationIds = teamMemberRows.map((r) => r.registrationId);
-    if (!teamRegistrationIds.length) return [];
+    const teamUserIds = teamMemberRows.map((r) => r.userId);
+    if (!teamUserIds.length) return [];
 
     const seasonPlayers = await db
       .select({ userId: users.id, perfectName: users.perfectName })
       .from(users)
-      .innerJoin(seasonRegistrations, eq(seasonRegistrations.userId, users.id))
-      .where(inArray(seasonRegistrations.id, teamRegistrationIds));
+      .where(inArray(users.id, teamUserIds));
 
     return seasonPlayers.map((p) => ({
       userId: p.userId,

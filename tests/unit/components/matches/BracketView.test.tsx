@@ -1,3 +1,6 @@
+/**
+ * @vitest-environment jsdom
+ */
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import React from "react";
 import { useEffect } from "react";
@@ -18,11 +21,11 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("next/script", () => ({
-  default: ({ onReady, src }: { onReady?: () => void; src: string }) => {
+  default: function ScriptMock({ onReady }: { onReady?: () => void; src: string }) {
     useEffect(() => {
       onReady?.();
     }, [onReady]);
-    return <script src={src} />;
+    return null;
   },
 }));
 

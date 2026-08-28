@@ -279,7 +279,7 @@ export function BracketView({ data, themeColor, matchNodeMap, seasonSlug }: Brac
         if (matchNodeMap && seasonSlug) {
           const accentColor = getComputedStyle(containerRef.current)
             .getPropertyValue("--color-accent")
-            .trim() || "#ff6a00";
+            .trim() || "var(--color-accent)";
 
           containerRef.current.querySelectorAll<HTMLElement>("[data-match-id]").forEach((el) => {
             const bracketId = el.getAttribute("data-match-id");
@@ -331,7 +331,6 @@ export function BracketView({ data, themeColor, matchNodeMap, seasonSlug }: Brac
 
   return (
     <>
-      <link rel="stylesheet" href="/brackets-viewer.min.css" />
       <Script
         src="/brackets-viewer.min.js"
         strategy="afterInteractive"

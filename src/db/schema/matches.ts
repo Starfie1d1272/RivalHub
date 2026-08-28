@@ -1,5 +1,6 @@
-import { pgTable, uuid, integer, text, timestamp, pgEnum, check, boolean } from "drizzle-orm/pg-core";
+import { pgTable, uuid, integer, text, timestamp, pgEnum, check, boolean, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+import { majorStageRuns } from "./major-stage";
 import { seasons } from "./seasons";
 import { teams } from "./teams";
 
@@ -12,6 +13,7 @@ export const matchStatusEnum = pgEnum("match_status", [
 
 // 比赛格式：BO1 / BO3 / BO5（决定 BP 流程与图数）
 export const matchFormatEnum = pgEnum("match_format", ["bo1", "bo3", "bo5"]);
+export const matchOwnershipEnum = pgEnum("match_ownership", ["manual", "major_stage"]);
 
 export const matches = pgTable("matches", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -34,6 +36,10 @@ export const matches = pgTable("matches", {
   status: matchStatusEnum("status").notNull().default("scheduled"),
   isForfeit: boolean("is_forfeit").notNull().default(false),
   bracketNodeId: text("bracket_node_id"),  // brackets-manager 节点引用
+  /** Manual matches never carry a run/key; generated Major matches always do. */
+  ownership: matchOwnershipEnum("ownership").notNull().default("manual"),
+  majorStageRunId: uuid("major_stage_run_id").references(() => majorStageRuns.id),
+  managedKey: text("managed_key"),
 
   scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
   completionDeadline: timestamp("completion_deadline", { withTimezone: true }),
@@ -47,6 +53,17 @@ export const matches = pgTable("matches", {
   // 系列赛比分非负
   scoreANonNegative: check("matches_score_a_nonneg", sql`${t.scoreA} IS NULL OR ${t.scoreA} >= 0`),
   scoreBNonNegative: check("matches_score_b_nonneg", sql`${t.scoreB} IS NULL OR ${t.scoreB} >= 0`),
+  managedMajorMatchShape: check(
+    "matches_managed_major_match_shape",
+    sql`(${t.ownership} = 'manual' AND ${t.majorStageRunId} IS NULL AND ${t.managedKey} IS NULL)
+      OR (${t.ownership} = 'major_stage' AND ${t.majorStageRunId} IS NOT NULL AND ${t.managedKey} IS NOT NULL)`,
+  ),
+  uniqueManagedMajorMatch: uniqueIndex("matches_major_stage_run_managed_key_unique")
+    .on(t.majorStageRunId, t.managedKey)
+    .where(sql`${t.ownership} = 'major_stage'`),
+  seasonStatusScheduleIndex: index("matches_season_status_scheduled_at_idx").on(t.seasonId, t.status, t.scheduledAt),
+  teamAIndex: index("matches_team_a_id_idx").on(t.teamAId),
+  teamBIndex: index("matches_team_b_id_idx").on(t.teamBId),
 }));
 
 export type Match = typeof matches.$inferSelect;

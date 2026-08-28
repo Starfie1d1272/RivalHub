@@ -13,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         # 不指定 ref，默认 checkout 触发此 workflow 的 tag 所在 commit。
-        # 前提：CHANGELOG 更新必须在 `npm version` 之前完成，
+        # 前提：CHANGELOG 更新必须在 `changeset version` 之前完成，
         # 这样 tag 指向的 commit 就已包含对应版本的 CHANGELOG 条目。
 
       - name: Extract changelog for this version
@@ -30,11 +30,21 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [[ "$VERSION" == *-* ]]; then
+            RELEASE_FLAGS=(--prerelease --latest=false)
+          else
+            RELEASE_FLAGS=(--prerelease=false --latest)
+          fi
+
           if gh release view "$GITHUB_REF_NAME" &>/dev/null; then
             echo "Release $GITHUB_REF_NAME already exists, updating notes..."
-            gh release edit "$GITHUB_REF_NAME" --notes-file /tmp/release-notes.md
+            gh release edit "$GITHUB_REF_NAME" \
+              --notes-file /tmp/release-notes.md \
+              "${RELEASE_FLAGS[@]}"
           else
             gh release create "$GITHUB_REF_NAME" \
               --title "$GITHUB_REF_NAME" \
-              --notes-file /tmp/release-notes.md
+              --notes-file /tmp/release-notes.md \
+              "${RELEASE_FLAGS[@]}"
           fi

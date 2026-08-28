@@ -163,7 +163,7 @@ export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "cor
     );
   }
 
-  const sortColBg = "rgba(255,107,26,0.04)";
+  const sortColBg = "color-mix(in srgb, var(--color-accent) 4%, transparent)";
   const accentText = "var(--color-accent)";
   const cols = VIEW_COLS[view];
   const statsHref = ({

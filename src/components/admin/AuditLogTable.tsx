@@ -14,18 +14,20 @@ interface Props {
   seasons: { id: string; name: string }[];
   initialActorNameMap: Record<string, string>;
   initialTargetNameMap: Record<string, string>;
+  routeBase?: string;
+  seasonScopeId?: string;
 }
 
 const ACTION_CATEGORIES: Record<string, { label: string; color: string }> = {
   admin: { label: "管理", color: "var(--color-accent)" },
-  registration: { label: "报名", color: "#22c55e" },
-  captain: { label: "投票", color: "#a855f7" },
-  captains: { label: "投票", color: "#a855f7" },
-  draft: { label: "选秀", color: "#f97316" },
-  match: { label: "赛程", color: "#3b82f6" },
-  season: { label: "赛季", color: "#eab308" },
-  team: { label: "队伍", color: "#06b6d4" },
-  user: { label: "用户", color: "#ec4899" },
+  registration: { label: "报名", color: "var(--color-ok)" },
+  captain: { label: "投票", color: "var(--color-info)" },
+  captains: { label: "投票", color: "var(--color-info)" },
+  draft: { label: "选秀", color: "var(--color-accent)" },
+  match: { label: "赛程", color: "var(--color-accent-b)" },
+  season: { label: "赛季", color: "var(--color-warn)" },
+  team: { label: "队伍", color: "var(--color-info)" },
+  user: { label: "用户", color: "var(--color-fg-mid)" },
 };
 
 function getCategory(action: string) {
@@ -72,13 +74,30 @@ const ACTION_LABELS: Record<string, string> = {
   "season.auto_advance": "自动推进阶段",
   "team.rename": "队伍改名",
   "team.upload_logo": "上传队标",
+  "team_application.create": "创建报名队伍",
+  "team_application.update": "更新报名队伍",
+  "team_application.create_join_link": "生成邀请链接",
+  "team_application.regenerate_join_link": "重新生成邀请链接",
+  "team_application.claim_join_link": "通过邀请链接加入",
+  "team_application.confirm_member": "确认报名成员",
+  "team_application.submit": "提交队伍报名",
+  "team_application.rejected": "退回修改",
+  "team_application.waitlisted": "列入候补",
+  "team_application.approved": "通过队伍报名",
+  "team_application.materialize": "生成正式队伍",
+  "match.roster.admin_select": "管理员选择首发",
+  "match.roster.confirm": "确认首发",
+  "major.start": "启动 Major",
+  "major.swiss.finalize_round": "确认 Major 瑞士轮",
+  "major.stage.transition": "推进 Major 阶段",
+  "postevent.adjudication.create": "创建赛后裁定",
   "user.change_password": "修改密码",
   "user.claim_invite": "使用邀请码",
 };
 
 const PAGE_SIZE = 50;
 
-export function AuditLogTable({ initialLogs, initialTotal, seasons, initialActorNameMap, initialTargetNameMap }: Props) {
+export function AuditLogTable({ initialLogs, initialTotal, seasons, initialActorNameMap, initialTargetNameMap, routeBase = "/admin/logs", seasonScopeId }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
@@ -115,9 +134,9 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, initialActor
         }
       }
       if (!updates.page) params.set("page", "1");
-      router.push(`/admin/logs?${params.toString()}`);
+      router.push(`${routeBase}?${params.toString()}` as never);
     },
-    [router, searchParams],
+    [routeBase, router, searchParams],
   );
 
   const debouncedUpdateParam = useCallback(
@@ -140,6 +159,7 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, initialActor
     if (currentSeason) filters.seasonId = currentSeason;
     if (currentDateFrom) filters.dateFrom = currentDateFrom;
     if (currentDateTo) filters.dateTo = currentDateTo;
+    if (seasonScopeId) filters.seasonScopeId = seasonScopeId;
 
     startTransition(async () => {
       const result = await fetchAuditLogs(filters);
@@ -150,7 +170,7 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, initialActor
         if (result.data.targetNameMap) setTargetNameMap(result.data.targetNameMap);
       }
     });
-  }, [currentPage, currentAction, currentActor, currentSeason, currentDateFrom, currentDateTo]);
+  }, [currentPage, currentAction, currentActor, currentSeason, currentDateFrom, currentDateTo, seasonScopeId]);
 
   const isInitialMount = useRef(true);
   useEffect(() => {
@@ -162,8 +182,9 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, initialActor
   }, [reload]);
 
   useEffect(() => {
+    const actorTimer = actorTimerRef.current;
     return () => {
-      clearTimeout(actorTimerRef.current);
+      clearTimeout(actorTimer);
     };
   }, []);
 
@@ -173,7 +194,7 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, initialActor
     <div className="space-y-4">
       {/* filters */}
       <div
-        className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4 rounded-md"
+        className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4 rounded-sm"
         style={{ background: "var(--color-panel)", border: "1px solid var(--color-border)" }}
       >
         <div>
@@ -294,7 +315,7 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, initialActor
 
       {/* table */}
       <div
-        className="rounded-md overflow-hidden"
+        className="rounded-sm overflow-hidden"
         style={{ border: "1px solid var(--color-border)" }}
       >
         <table className="w-full text-xs" style={{ fontFamily: "var(--font-mono)" }}>
@@ -330,7 +351,7 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, initialActor
                   <td className="px-3 py-2">
                     <span
                       className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium mr-1.5"
-                      style={{ background: cat.color, color: "#000", opacity: 0.9 }}
+                      style={{ background: cat.color, color: "var(--color-bg)", opacity: 0.9 }}
                     >
                       {cat.label}
                     </span>

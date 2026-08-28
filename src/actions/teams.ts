@@ -1,9 +1,9 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db/client";
-import { auditLogs, seasonRegistrations, seasons, teams } from "@/db/schema";
+import { auditLogs, seasons, teams } from "@/db/schema";
 import { actionError, failValidation } from "@/lib/action-utils";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { auditActorId, requireAuth } from "@/lib/auth/session";
@@ -12,13 +12,8 @@ import { revalidateSeasonPaths } from "@/lib/revalidation";
 import { ok, type ActionResult } from "@/types/action";
 import { MIN_TEAM_NAME_LENGTH, MAX_TEAM_NAME_LENGTH } from "@/lib/config/team-config";
 import { LOGO_MAX_BYTES, LOGO_ALLOWED_TYPES } from "@/lib/config/upload-limits";
+import { TEAM_LOGO_BUCKET, TEAM_LOGO_EXTENSIONS } from "@/lib/config/team-logo";
 
-const LOGO_BUCKET = "team-logos";
-const EXT_MAP: Record<string, string> = {
-  "image/png": "png",
-  "image/webp": "webp",
-  "image/jpeg": "jpg",
-};
 
 export async function uploadTeamLogo(
   teamId: string,
@@ -38,28 +33,20 @@ export async function uploadTeamLogo(
   try {
     const session = await requireAuth();
 
-    // 并行读取：team 先取，registration + season 依赖 team.seasonId 再并行
+    // 并行读取：team 先取，season 依赖 team.seasonId
     const team = await db.query.teams.findFirst({ where: eq(teams.id, teamId) });
     if (!team) throw new AppError(ErrorCode.NOT_FOUND, "队伍不存在");
 
-    const [registration, season] = await Promise.all([
-      db.query.seasonRegistrations.findFirst({
-        where: and(
-          eq(seasonRegistrations.seasonId, team.seasonId),
-          eq(seasonRegistrations.userId, session.userId),
-        ),
-      }),
-      db.query.seasons.findFirst({ where: eq(seasons.id, team.seasonId) }),
-    ]);
-    if (!registration || registration.id !== team.captainRegistrationId) {
+    if (team.captainUserId !== session.userId) {
       throw new AppError(ErrorCode.FORBIDDEN, "只有队长可以上传队伍图标");
     }
+    const season = await db.query.seasons.findFirst({ where: eq(seasons.id, team.seasonId) });
     if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
 
-    const ext = EXT_MAP[file.type] ?? "jpg";
+    const ext = TEAM_LOGO_EXTENSIONS[file.type] ?? "jpg";
     const path = `${teamId}/${Date.now()}.${ext}`;
     const supabase = createServiceClient();
-    const bucket = supabase.storage.from(LOGO_BUCKET);
+    const bucket = supabase.storage.from(TEAM_LOGO_BUCKET);
     const { error: uploadError } = await bucket.upload(path, file, { upsert: true, contentType: file.type });
     if (uploadError) {
       throw new AppError(ErrorCode.INTERNAL_ERROR, "图片上传失败，请重试");
@@ -108,13 +95,7 @@ export async function updateTeamName(
         throw new AppError(ErrorCode.NOT_FOUND, "队伍不存在");
       }
 
-      const registration = await tx.query.seasonRegistrations.findFirst({
-        where: and(
-          eq(seasonRegistrations.seasonId, team.seasonId),
-          eq(seasonRegistrations.userId, session.userId),
-        ),
-      });
-      if (!registration || registration.id !== team.captainRegistrationId) {
+      if (team.captainUserId !== session.userId) {
         throw new AppError(ErrorCode.FORBIDDEN, "只有队长可以修改队伍名称");
       }
 

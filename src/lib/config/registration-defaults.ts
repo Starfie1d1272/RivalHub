@@ -10,6 +10,12 @@
  * - 每位置 15 人上限（8 队 × 7 人 = 56，5 位置各约 11，预留 buffer）
  */
 
+import { PERFECT_WORLD_RANK_ORDER } from "@/lib/config/perfect-world";
+
+const PERFECT_WORLD_RANK_LABELS = Object.fromEntries(
+  PERFECT_WORLD_RANK_ORDER.map((rank) => [rank, rank]),
+) as Record<(typeof PERFECT_WORLD_RANK_ORDER)[number], string>;
+
 export const REGISTRATION_DEFAULTS = {
   positions: {
     values: [
@@ -29,38 +35,8 @@ export const REGISTRATION_DEFAULTS = {
   },
 
   ranks: {
-    values: [
-      "D",
-      "C",
-      "C+",
-      "C++",
-      "B",
-      "B+",
-      "B++",
-      "A",
-      "A+",
-      "A++",
-      "青铜S",
-      "黄金S",
-      "钻石S",
-      "魔王S",
-    ] as const,
-    labels: {
-      D: "D",
-      C: "C",
-      "C+": "C+",
-      "C++": "C++",
-      B: "B",
-      "B+": "B+",
-      "B++": "B++",
-      A: "A",
-      "A+": "A+",
-      "A++": "A++",
-      "青铜S": "青铜S",
-      "黄金S": "黄金S",
-      "钻石S": "钻石S",
-      "魔王S": "魔王S",
-    } as const,
+    values: PERFECT_WORLD_RANK_ORDER,
+    labels: PERFECT_WORLD_RANK_LABELS,
   },
 
 } as const;

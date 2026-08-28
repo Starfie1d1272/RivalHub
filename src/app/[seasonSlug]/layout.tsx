@@ -1,14 +1,15 @@
 import { cache } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { eq, and, count } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, seasonRegistrations } from "@/db/schema";
+import { seasons } from "@/db/schema";
 import { Breadcrumb } from "@/components/layout/Breadcrumb";
 import { SeasonNav } from "@/components/layout/SeasonNav";
 import { hexToRgbString } from "@/lib/utils/color";
 import { normalizeStagePlan } from "@/types/season";
 import { showStats } from "@/lib/utils/season";
+import { getParticipantSummary } from "@/lib/participants/summary";
 
 const getSeason = cache(async (slug: string) => {
   return db.query.seasons.findFirst({ where: eq(seasons.slug, slug) });
@@ -34,16 +35,7 @@ export default async function SeasonLayout({ children, params }: SeasonLayoutPro
 
   if (!season) notFound();
 
-  const [approvedResult] = await db
-    .select({ cnt: count() })
-    .from(seasonRegistrations)
-    .where(
-      and(
-        eq(seasonRegistrations.seasonId, season.id),
-        eq(seasonRegistrations.status, "approved"),
-      ),
-    );
-  const hasPlayers = Number(approvedResult?.cnt ?? 0) > 0;
+  const { hasPlayers } = await getParticipantSummary(season);
 
   const themeColor = season.themeColor ?? "#f97316";
 

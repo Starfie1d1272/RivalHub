@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { eq, count, and, not, inArray } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import { seasons, seasonRegistrations, auditLogs, matches } from "@/db/schema";
-import { normalizeRegistrationConfig } from "@/types/season";
+import { normalizeRegistrationConfig, normalizeStagePlan } from "@/types/season";
 
 async function getApprovedCountInTx(tx: TxDb, seasonId: string): Promise<number> {
   const [row] = await tx
@@ -30,7 +30,11 @@ export async function maybeAdvanceFromRegistration(
   const season = await tx.query.seasons.findFirst({
     where: eq(seasons.id, seasonId),
   });
-  if (!season || season.status !== "registration") return;
+  if (
+    !season ||
+    season.status !== "registration" ||
+    season.registrationMode !== "solo"
+  ) return;
 
   const registrationConfig = normalizeRegistrationConfig(season.registrationConfig);
   const approvedCount = await getApprovedCountInTx(tx, seasonId);
@@ -81,7 +85,11 @@ export async function maybeFinishSeason(
   const season = await tx.query.seasons.findFirst({
     where: eq(seasons.id, seasonId),
   });
-  if (!season || season.status !== "playing") return;
+  if (
+    !season ||
+    season.status !== "playing" ||
+    normalizeStagePlan(season.stagePlan).some((stage) => stage.type === "swiss")
+  ) return;
 
   // 检查是否所有比赛都已结束（finished 或 cancelled）
   const [pendingMatch] = await tx

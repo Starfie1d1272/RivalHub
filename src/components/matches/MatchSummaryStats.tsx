@@ -27,7 +27,6 @@ interface MatchSummaryStatsProps {
   teamBId: string;
   teamAName: string;
   teamBName: string;
-  seasonSlug: string;
   /** 不包裹 Panel，供外部已有 Panel 包裹的场景使用（如单图 tab） */
   noPanel?: boolean;
 }
@@ -55,10 +54,9 @@ function byRatingDesc(a: SummaryPlayer, b: SummaryPlayer): number {
 
 interface PlayerRowProps {
   player: SummaryPlayer;
-  seasonSlug: string;
 }
 
-function PlayerRow({ player, seasonSlug }: PlayerRowProps) {
+function PlayerRow({ player }: PlayerRowProps) {
   const ratingHigh = player.ratingPro != null && player.ratingPro >= 1.2;
 
   return (
@@ -105,13 +103,12 @@ interface TeamBlockProps {
   borderColor: string;
   bgColor: string;
   players: SummaryPlayer[];
-  seasonSlug: string;
 }
 
-function TeamBlock({ teamName, borderColor, bgColor, players, seasonSlug }: TeamBlockProps) {
+function TeamBlock({ teamName, borderColor, bgColor, players }: TeamBlockProps) {
   if (players.length === 0) return null;
   return (
-    <div className="rounded-md overflow-hidden" style={{ backgroundColor: bgColor }}>
+    <div className="rounded-sm overflow-hidden" style={{ backgroundColor: bgColor }}>
       <div
         className="px-3 py-2 text-[11px] font-bold tracking-widest uppercase"
         style={{ borderLeft: `3px solid ${borderColor}` }}
@@ -137,7 +134,7 @@ function TeamBlock({ teamName, borderColor, bgColor, players, seasonSlug }: Team
           </thead>
           <tbody>
             {players.map((p) => (
-              <PlayerRow key={p.userId ?? p.perfectName} player={p} seasonSlug={seasonSlug} />
+              <PlayerRow key={p.userId ?? p.perfectName} player={p} />
             ))}
           </tbody>
         </table>
@@ -152,29 +149,26 @@ export function MatchSummaryStats({
   teamBId,
   teamAName,
   teamBName,
-  seasonSlug,
   noPanel = false,
 }: MatchSummaryStatsProps) {
   const teamAPlayers = players.filter((p) => p.teamId === teamAId).sort(byRatingDesc);
   const teamBPlayers = players.filter((p) => p.teamId === teamBId).sort(byRatingDesc);
 
   const content = (
-    <>
+    <React.Fragment>
       <TeamBlock
         teamName={teamAName}
         borderColor="var(--color-accent)"
-        bgColor="rgba(77,212,122,0.04)"
+        bgColor="color-mix(in srgb, var(--color-accent) 4%, transparent)"
         players={teamAPlayers}
-        seasonSlug={seasonSlug}
       />
       <TeamBlock
         teamName={teamBName}
         borderColor="var(--color-accent-b)"
-        bgColor="rgba(66,170,255,0.04)"
+        bgColor="color-mix(in srgb, var(--color-accent-b) 4%, transparent)"
         players={teamBPlayers}
-        seasonSlug={seasonSlug}
       />
-    </>
+    </React.Fragment>
   );
 
   if (noPanel) return content;

@@ -91,8 +91,8 @@ describe("updateTeamName", () => {
       seasonId: "season-1",
       name: "Old Name",
       captainRegistrationId: "reg-1",
+      captainUserId: "user-1",
     });
-    registrationFindFirstMock.mockResolvedValue({ id: "reg-1" });
     seasonFindFirstMock.mockResolvedValue({ slug: "spring" });
 
     const result = await updateTeamName("team-1", "  New Name  ");
@@ -119,8 +119,8 @@ describe("updateTeamName", () => {
       seasonId: "season-1",
       name: "Old Name",
       captainRegistrationId: "reg-1",
+      captainUserId: "other-user",
     });
-    registrationFindFirstMock.mockResolvedValue({ id: "reg-other" });
 
     const result = await updateTeamName("team-1", "New Name");
 

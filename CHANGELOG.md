@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.0.0-rc.0
+
+### Major Changes
+
+- RivalHub 2.0 RC：引入 capability 驱动的 Major 赛事运营闭环，并收拢正式 production cutover 所需的 Auth、报名、赛程与数据完整性能力。
+
+### Patch Changes
+
+- dabc985: 新增 fail-closed 的 Local Supabase 开发入口，隔离旧远程数据库配置并验证 Drizzle migration、Auth、Storage 与 Data API 默认拒绝策略。
+- ed1f9cb: Team 报名与含 Swiss 赛季在完整运营闭环落地前保持 fail closed，避免误用个人报名和自动状态迁移。
+
 ## [1.30.2] - 2026-08-11
 
 ### Fixed

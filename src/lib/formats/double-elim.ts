@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matches, seasons } from "@/db/schema";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
@@ -11,7 +11,7 @@ import type { QualifiedTeam } from "@/types/season";
 import { isStageComplete } from "./_shared";
 
 export const doubleElimExecutor: StageExecutor = {
-  async initialize(seasonId, config, teams, _qualifiers) {
+  async initialize(seasonId, config, teams) {
     const season = await db.query.seasons.findFirst({
       where: eq(seasons.id, seasonId),
     });

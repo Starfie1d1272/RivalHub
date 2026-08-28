@@ -24,7 +24,6 @@ import { compactUndefined } from "@/lib/utils/object";
 import { defaultMapPreferences, normalizeMapPreferences } from "@/lib/maps";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,

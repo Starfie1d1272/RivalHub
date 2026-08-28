@@ -10,10 +10,10 @@ interface ProfileFormProps {
     displayName: string | null;
     steamName: string | null;
     perfectName: string | null;
+    perfectId: string | null;
     steam64: string | null;
     steamProfileUrl: string | null;
     qq: string | null;
-    studentId: string | null;
   };
 }
 
@@ -22,10 +22,10 @@ export function ProfileForm({ current }: ProfileFormProps) {
     displayName: current.displayName ?? "",
     steamName: current.steamName ?? "",
     perfectName: current.perfectName ?? "",
+    perfectId: current.perfectId ?? "",
     steam64: current.steam64 ?? "",
     steamProfileUrl: current.steamProfileUrl ?? "",
     qq: current.qq ?? "",
-    studentId: current.studentId ?? "",
   });
   const [isPending, startTransition] = useTransition();
 
@@ -68,6 +68,15 @@ export function ProfileForm({ current }: ProfileFormProps) {
         maxLength={40}
       />
       <Field
+        id="perfect-id"
+        label="完美世界竞技平台 ID"
+        type="text"
+        placeholder="用于赛事身份核对，不等同于昵称"
+        value={form.perfectId}
+        onChange={set("perfectId")}
+        maxLength={128}
+      />
+      <Field
         id="steam-name"
         label="Steam 昵称"
         type="text"
@@ -101,14 +110,6 @@ export function ProfileForm({ current }: ProfileFormProps) {
         value={form.qq}
         onChange={set("qq")}
         maxLength={12}
-      />
-      <Field
-        id="student-id"
-        label="学号"
-        type="text"
-        placeholder="毕业生填 毕业年份+学院"
-        value={form.studentId}
-        onChange={set("studentId")}
       />
       <Btn type="submit" full disabled={isPending}>
         {isPending ? "保存中…" : "保存信息"}

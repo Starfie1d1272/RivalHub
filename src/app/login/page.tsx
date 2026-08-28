@@ -2,7 +2,8 @@ import Link from "next/link";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { Panel } from "@/components/rivalhub";
 
-export default function LoginPage() {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ mode?: string }> }) {
+  const { mode } = await searchParams;
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
       <Panel className="w-full max-w-sm">
@@ -15,7 +16,7 @@ export default function LoginPage() {
               color: "var(--color-fg)",
             }}
           >
-            选手登录
+            登录 / 我的 RivalHub
           </h1>
           <p
             className="text-sm"
@@ -24,7 +25,7 @@ export default function LoginPage() {
             使用邮箱和密码登录
           </p>
         </div>
-        <LoginForm />
+        <LoginForm initialMode={mode === "register" ? "register" : "login"} />
         <p className="text-center mt-3">
           <Link href="/forgot-password" className="text-xs text-[var(--color-fg-mid)] hover:text-[var(--color-accent)] transition-colors">
             忘记密码？

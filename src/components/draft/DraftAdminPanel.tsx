@@ -110,7 +110,7 @@ export function DraftAdminPanel({
               disabled={isPending}
               style={{
                 backgroundColor: "var(--color-accent)",
-                color: "#fff",
+                color: "var(--color-accent-fg)",
               }}
             >
               <Play size={16} className="mr-1.5" />
@@ -133,7 +133,7 @@ export function DraftAdminPanel({
               disabled={isPending}
               style={{
                 backgroundColor: "var(--color-accent)",
-                color: "#fff",
+                color: "var(--color-accent-fg)",
               }}
             >
               <RotateCcw size={16} className="mr-1.5" />
@@ -142,7 +142,7 @@ export function DraftAdminPanel({
           )}
           {!isDrafting && (
             <p className="text-sm text-[var(--color-fg-dim)]">
-              赛季状态需为 "drafting" 才能操作选秀。请先在队长确认页面确认队长生成队伍。
+              赛季状态需为 &quot;drafting&quot; 才能操作选秀。请先在队长确认页面确认队长生成队伍。
             </p>
           )}
           {isDrafting && teamCount === 0 && (

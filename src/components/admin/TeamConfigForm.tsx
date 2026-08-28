@@ -14,6 +14,10 @@ export function TeamConfigForm({ value, maxTeamSize = 9, onChange }: TeamConfigF
   function set<K extends keyof TeamRegistrationConfig>(key: K, val: TeamRegistrationConfig[K]) {
     onChange({ ...value, [key]: val });
   }
+  const competitive = value.competitiveProfile ?? { platform: "perfect_world", currentSeasonKey: "", previousSeasonKey: "", rankOrder: [] };
+  function setCompetitive(key: keyof typeof competitive, next: string | string[]) {
+    onChange({ ...value, competitiveProfile: { ...competitive, [key]: next } });
+  }
 
   return (
     <div className="space-y-6">
@@ -61,6 +65,18 @@ export function TeamConfigForm({ value, maxTeamSize = 9, onChange }: TeamConfigF
               onChange={(e) => set("maxExternalMembers", Number(e.target.value))}
             />
           </div>
+        </div>
+      </div>
+
+      <div>
+        <h3 className="text-sm font-medium mb-3">Major 竞技档案规则</h3>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={value.requireCompetitiveProfile ?? false} onChange={(event) => set("requireCompetitiveProfile", event.target.checked)} />报名与首发必须完成竞技档案</label>
+        <p className="mt-1 text-xs text-[var(--color-fg-dim)]">平台赛季键和段位顺序会保存到赛事配置；开赛后将按确认时的规则执行。</p>
+        <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div><Label>平台标识</Label><Input value={competitive.platform} onChange={(event) => setCompetitive("platform", event.target.value)} placeholder="perfect_world" /></div>
+          <div><Label>当前赛季标识</Label><Input value={competitive.currentSeasonKey} onChange={(event) => setCompetitive("currentSeasonKey", event.target.value)} placeholder="由赛委会公布" /></div>
+          <div><Label>上一赛季标识</Label><Input value={competitive.previousSeasonKey} onChange={(event) => setCompetitive("previousSeasonKey", event.target.value)} placeholder="由赛委会公布" /></div>
+          <div><Label>段位顺序（低→高，逗号分隔）</Label><Input value={competitive.rankOrder.join(",")} onChange={(event) => setCompetitive("rankOrder", event.target.value.split(",").map((item) => item.trim()).filter(Boolean))} placeholder="使用完美平台默认顺序" /></div>
         </div>
       </div>
 

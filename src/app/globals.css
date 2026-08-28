@@ -1,3 +1,4 @@
+@import url("/brackets-viewer.min.css");
 @import "tailwindcss";
 
 @theme {
@@ -48,8 +49,14 @@
 
   /* Status */
   --color-ok: #4dd47a;
+  --color-ok-soft: rgba(77, 212, 122, 0.10);
+  --color-ok-edge: rgba(77, 212, 122, 0.35);
   --color-warn: #ffc44d;
+  --color-warn-soft: rgba(255, 196, 77, 0.08);
+  --color-warn-edge: rgba(255, 196, 77, 0.40);
   --color-danger: #ff5470;
+  --color-danger-soft: rgba(255, 84, 112, 0.08);
+  --color-danger-edge: rgba(255, 84, 112, 0.35);
 
   /* Info */
   --color-info: #4a9eff;

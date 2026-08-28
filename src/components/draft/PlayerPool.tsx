@@ -65,7 +65,7 @@ export function PlayerPool({ players, seasonPositions }: PlayerPoolProps) {
           onClick={() => setFilter(FILTER_ALL)}
           className={`text-xs px-2 py-1 rounded transition-colors ${
             filter === FILTER_ALL
-              ? "bg-[var(--color-accent)] text-white"
+              ? "bg-[var(--color-accent)] text-[var(--color-accent-fg)]"
               : "bg-[var(--color-panel-hi)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
           }`}
         >
@@ -80,7 +80,7 @@ export function PlayerPool({ players, seasonPositions }: PlayerPoolProps) {
               disabled={count === 0}
               className={`text-xs px-2 py-1 rounded transition-colors ${
                 pos === filter
-                  ? "bg-[var(--color-accent)] text-white"
+                  ? "bg-[var(--color-accent)] text-[var(--color-accent-fg)]"
                   : "bg-[var(--color-panel-hi)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] disabled:opacity-30"
               }`}
             >

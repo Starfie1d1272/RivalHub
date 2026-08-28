@@ -8,7 +8,7 @@ description: RivalHub 标准版本发布流程 — changeset 管理版本号与 
 执行标准版本发布流程。遇到错误立即停止并说明原因。
 
 > RivalHub 自 v1.30.0 起用 [changesets](https://github.com/changesets/changesets) 管理版本号与 CHANGELOG。
-> 项目是 private 单包，**不发布到 npm**；版本 tag 仍用 `vX.Y.Z` 手动打，由 `.github/workflows/release.yml` 监听 `v*` 触发 GitHub Release。
+> 项目是 private 单包，**不发布到 npm**；版本 tag 手动使用 `vX.Y.Z` 或 `vX.Y.Z-rc.N`，由 `.github/workflows/release.yml` 监听 `v*` 触发 GitHub Release。含 `-` 的 RC tag 会标记为 GitHub Pre-release。
 
 ---
 
@@ -38,10 +38,24 @@ node -p "require('./package.json').version"   # 当前版本
 ### Step 1: 消费 changeset → bump + CHANGELOG
 
 ```bash
-pnpm changeset version
+pnpm exec changeset version
 ```
 
 自动：bump `package.json` version、删除已消费的 `.changeset/*.md`、在 `CHANGELOG.md` 写入新版本条目。
+
+2.0 RC 首次发布时先进入 prerelease mode：
+
+```bash
+pnpm exec changeset pre enter rc
+pnpm exec changeset version
+```
+
+后续 RC 只重复 `pnpm exec changeset version`。验收完成后退出 RC 并生成稳定版：
+
+```bash
+pnpm exec changeset pre exit
+pnpm exec changeset version
+```
 
 记录新版本：
 

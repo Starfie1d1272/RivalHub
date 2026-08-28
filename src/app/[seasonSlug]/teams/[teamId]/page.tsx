@@ -11,7 +11,7 @@ import Link from "next/link";
 import { POSITION_LABELS } from "@/lib/validators/registration";
 import { CS2_POSITIONS, normalizeRegistrationConfig } from "@/types/season";
 import { getUserSession, checkAdminSession } from "@/lib/auth/session";
-import { getDisplayName } from "@/lib/utils/display-name";
+import { getDisplayName, getPublicDisplayName } from "@/lib/utils/display-name";
 import { getTeamMapWinStats, getTeamBanStats, getTeamPickStats } from "@/lib/teams/data";
 import { mapLabel } from "@/lib/maps";
 import { getSeasonHexagonScores } from "@/actions/hexagon";
@@ -45,15 +45,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
 
   const session = await getUserSession();
   const isAdmin = session ? session.role !== "user" : !!(await checkAdminSession());
-  const currentUserRegistration = session
-    ? await db.query.seasonRegistrations.findFirst({
-        where: and(
-          eq(seasonRegistrations.seasonId, season.id),
-          eq(seasonRegistrations.userId, session.userId),
-        ),
-      })
-    : null;
-  const canEditTeamName = currentUserRegistration?.id === team.captainRegistrationId;
+  const canEditTeamName = session?.userId === team.captainUserId;
 
   // ── 阵容 + 赛果 + 即将进行的比赛（并行） ─────────────────────────────────
   const [roster, teamMatches, upcomingMatches] = await Promise.all([
@@ -70,8 +62,8 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
         userId: users.id,
       })
       .from(teamMembers)
-      .innerJoin(seasonRegistrations, eq(teamMembers.registrationId, seasonRegistrations.id))
-      .innerJoin(users, eq(seasonRegistrations.userId, users.id))
+      .innerJoin(users, eq(teamMembers.userId, users.id))
+      .leftJoin(seasonRegistrations, eq(teamMembers.registrationId, seasonRegistrations.id))
       .where(eq(teamMembers.teamId, teamId)),
     db.query.matches.findMany({
       where: and(
@@ -89,8 +81,8 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
     }),
   ]);
 
-  const isTeamMember = currentUserRegistration
-    ? roster.some((r) => r.registrationId === currentUserRegistration.id)
+  const isTeamMember = session
+    ? roster.some((r) => r.userId === session.userId)
     : false;
 
   const starters = roster
@@ -176,11 +168,10 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
             ELSE NULL END                                                                            AS kd_ratio
         FROM match_player_stats mps
         JOIN match_maps mm2 ON mm2.id = mps.map_id
-        JOIN season_registrations sr ON sr.user_id = mps.user_id AND sr.season_id = ${season.id}
-        JOIN team_members tm ON tm.registration_id = sr.id
+        JOIN team_members tm
+          ON tm.user_id = mps.user_id AND tm.season_id = ${season.id}
         WHERE tm.team_id = ${teamId}
           AND mps.verified_by_admin IS NOT NULL
-          AND mps.source = 'manual_ocr'
         GROUP BY mps.user_id
       `)
     : null;
@@ -302,18 +293,18 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
             {starters.map((p) => {
               const stats = p.userId ? playerStatsMap.get(p.userId) : undefined;
               return (
-                <div key={p.registrationId} className="py-2.5 px-2 -mx-2 hover:bg-[var(--color-panel-hi)] transition-colors rounded">
+                <div key={p.userId} className="py-2.5 px-2 -mx-2 hover:bg-[var(--color-panel-hi)] transition-colors rounded">
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1.5 sm:gap-3">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        {p.registrationId === team.captainRegistrationId && <PosChip pos="C" small />}
+                        {p.userId === team.captainUserId && <PosChip pos="C" small />}
                         {p.userId ? (
                           <Link href={`/players/${p.userId}`} className="font-medium text-sm sm:text-base text-[var(--color-fg)] truncate hover:text-[var(--color-accent)] transition-colors">
-                            {getDisplayName(p)}
+                            {getPublicDisplayName(p)}
                           </Link>
                         ) : (
                           <span className="font-medium text-sm sm:text-base text-[var(--color-fg)] truncate">
-                            {getDisplayName(p)}
+                            {getPublicDisplayName(p)}
                           </span>
                         )}
                       </div>
@@ -350,16 +341,16 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
                 {subs.map((p) => {
                   const stats = p.userId ? playerStatsMap.get(p.userId) : undefined;
                   return (
-                    <div key={p.registrationId} className="py-2.5 px-2 -mx-2 opacity-70 hover:bg-[var(--color-panel-hi)] transition-colors rounded">
+                    <div key={p.userId} className="py-2.5 px-2 -mx-2 opacity-70 hover:bg-[var(--color-panel-hi)] transition-colors rounded">
                       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1.5 sm:gap-3">
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             {p.userId ? (
                               <Link href={`/players/${p.userId}`} className="text-sm text-[var(--color-fg)] truncate hover:text-[var(--color-accent)] transition-colors">
-                                {getDisplayName(p)}
+                                {getPublicDisplayName(p)}
                               </Link>
                             ) : (
-                              <span className="text-sm text-[var(--color-fg)] truncate">{getDisplayName(p)}</span>
+                              <span className="text-sm text-[var(--color-fg)] truncate">{getPublicDisplayName(p)}</span>
                             )}
                           </div>
                           {stats && (
@@ -590,7 +581,7 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
             <p className="text-xs text-[var(--color-fg-mid)] mb-4">仅同队成员可见</p>
             <div className="space-y-3">
               {roster.map((p) => (
-                <div key={p.registrationId} className="flex items-center justify-between gap-2">
+                <div key={p.userId} className="flex items-center justify-between gap-2">
                   {p.userId ? (
                     <Link href={`/players/${p.userId}`} className="text-sm font-medium text-[var(--color-fg)] hover:text-[var(--color-accent)] transition-colors">
                       {getDisplayName(p)}

@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import type { Match } from "@/db/schema/matches";
+import type { Team } from "@/db/schema/teams";
 import { calculateStandings } from "@/lib/standings";
 
 // Helper to construct a minimal Team-like object
@@ -10,7 +12,7 @@ function t(id: string, name: string, draftOrder: number) {
     seasonId: "s1",
     captainRegistrationId: "cr1",
     createdAt: new Date(),
-  } as any;
+  } as Team;
 }
 
 // Helper to construct a minimal finished Match-like object
@@ -38,7 +40,7 @@ function m(
     completedAt: new Date(),
     createdAt: new Date(),
     updatedAt: new Date(),
-  } as any;
+  } as Match;
 }
 
 describe("calculateStandings", () => {
@@ -57,7 +59,7 @@ describe("calculateStandings", () => {
     const teams = [t("t1", "A", 1), t("t2", "B", 2)];
     const matches = [m("m1", "t1", "t2", 13, 8)];
     const result = calculateStandings(teams, matches);
-    const a = result.find((r: any) => r.teamName === "A")!;
+    const a = result.find((r) => r.teamName === "A")!;
     expect(a.netRounds).toBe(5);
     expect(a.totalRoundsWon).toBe(13);
   });
@@ -77,7 +79,7 @@ describe("calculateStandings", () => {
 
   it("falls back to draftOrder when all else is equal", () => {
     const teams = [t("t1", "A", 3), t("t2", "B", 1)];
-    const matches: any[] = [];
+    const matches: Match[] = [];
     const result = calculateStandings(teams, matches);
     expect(result[0].draftOrder).toBe(1);
     expect(result[1].draftOrder).toBe(3);

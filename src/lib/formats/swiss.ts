@@ -4,7 +4,6 @@ import { matches, seasons, swissStandings } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { normalizeStagePlan } from "@/types/season";
 import type { StageExecutor } from "./types";
-import type { StageConfig, QualifiedTeam } from "@/types/season";
 
 // ── 常量 ───────────────────────────────────────────────
 
@@ -32,7 +31,7 @@ interface MatchPair {
 // ── Executor ───────────────────────────────────────────
 
 export const swissExecutor: StageExecutor = {
-  async initialize(seasonId, config, teams, _qualifiers) {
+  async initialize(seasonId, config, teams) {
     if (!config.seeds || config.seeds.length !== teams.length) {
       throw new AppError(
         ErrorCode.VALIDATION_FAILED,

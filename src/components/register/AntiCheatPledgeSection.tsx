@@ -15,7 +15,7 @@ export function AntiCheatPledgeSection({
   return (
     <section
       className="rounded-lg border p-4"
-      style={{ borderColor: "rgba(255,196,77,0.4)", background: "rgba(255,196,77,0.05)" }}
+      style={{ borderColor: "var(--color-warn-edge)", background: "var(--color-warn-soft)" }}
     >
       <div className="flex items-start gap-3">
         <input

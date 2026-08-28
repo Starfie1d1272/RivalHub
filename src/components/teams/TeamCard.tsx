@@ -16,7 +16,7 @@ interface TeamCardProps {
   teamId: string;
   teamName: string;
   seasonSlug: string;
-  draftOrder: number;
+  draftOrder: number | null;
   logoUrl?: string | null;
   players: PlayerPreview[];
   record?: {
@@ -73,7 +73,7 @@ export function TeamCard({
               )}
             </div>
             <div className="min-w-0">
-              <span className="text-xs text-[var(--color-fg-mid)]">Draft #{draftOrder}</span>
+              <span className="text-xs text-[var(--color-fg-mid)]">{draftOrder === null ? "Team registration" : `Draft #${draftOrder}`}</span>
               <h3 className="font-bold text-lg text-[var(--color-fg)] leading-tight break-words group-hover:text-[var(--color-accent)] transition-colors">
                 {teamName}
               </h3>

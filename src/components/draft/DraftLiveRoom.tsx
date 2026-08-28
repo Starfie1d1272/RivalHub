@@ -13,7 +13,6 @@ import type { DraftFullData } from "@/lib/draft/data";
 interface DraftLiveRoomProps {
   data: DraftFullData;
   seasonId: string;
-  seasonSlug: string;
   seasonPositions: string[];
   readonly?: boolean;
 }
@@ -26,7 +25,6 @@ interface PickNotification {
 export function DraftLiveRoom({
   data,
   seasonId,
-  seasonSlug: _seasonSlug,
   seasonPositions,
   readonly: isReadonly,
 }: DraftLiveRoomProps) {
@@ -147,7 +145,7 @@ export function DraftLiveRoom({
       {/* Pick notification banner —— 仅直播模式 */}
       {!isReadonly && notification && (
         <div
-          className="fixed top-0 left-0 right-0 z-50 flex items-center justify-center px-4 py-3 text-sm font-medium text-white transition-opacity duration-300"
+          className="fixed top-0 left-0 right-0 z-50 flex items-center justify-center px-4 py-3 text-sm font-medium text-[var(--color-accent-fg)] transition-opacity duration-300"
           style={{
             background: "var(--color-accent)",
             opacity: notificationVisible ? 1 : 0,
@@ -226,7 +224,7 @@ export function DraftLiveRoom({
                 key={tid}
                 className={`px-1.5 py-0.5 rounded tabular ${
                   isNow
-                    ? "bg-[var(--color-accent)] text-white font-medium"
+                    ? "bg-[var(--color-accent)] text-[var(--color-accent-fg)] font-medium"
                     : "text-[var(--color-fg-mid)]"
                 }`}
               >

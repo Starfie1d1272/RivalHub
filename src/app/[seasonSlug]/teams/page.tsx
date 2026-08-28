@@ -7,7 +7,7 @@ import { TeamCard } from "@/components/teams/TeamCard";
 import { calculateStandings } from "@/lib/standings";
 import { getSwissDirectoryOrder, sortTeamDirectory } from "@/lib/teams/directory-order";
 import { CS2_POSITIONS, getFirstStageOfType, getPreviousStage, normalizeStagePlan } from "@/types/season";
-import { getDisplayName } from "@/lib/utils/display-name";
+import { getPublicDisplayName } from "@/lib/utils/display-name";
 import { checkAdminSession } from "@/lib/auth/session";
 import { AdminShortcut } from "@/components/layout/AdminShortcut";
 
@@ -42,18 +42,17 @@ export default async function TeamsPage({ params }: TeamsPageProps) {
       .select({
         teamId: teamMembers.teamId,
         registrationId: teamMembers.registrationId,
-        captainRegId: teams.captainRegistrationId,
+        captainUserId: teams.captainUserId,
         isStarter: teamMembers.isStarter,
         primaryPosition: seasonRegistrations.primaryPosition,
         steamName: users.steamName,
         perfectName: users.perfectName,
-        email: users.email,
         userId: users.id,
       })
       .from(teamMembers)
       .innerJoin(teams, eq(teamMembers.teamId, teams.id))
-      .innerJoin(seasonRegistrations, eq(teamMembers.registrationId, seasonRegistrations.id))
-      .innerJoin(users, eq(seasonRegistrations.userId, users.id))
+      .innerJoin(users, eq(teamMembers.userId, users.id))
+      .leftJoin(seasonRegistrations, eq(teamMembers.registrationId, seasonRegistrations.id))
       .where(inArray(teamMembers.teamId, allTeams.map((t) => t.id))),
     db.query.matches.findMany({
       where: eq(matches.seasonId, season.id),
@@ -75,17 +74,20 @@ export default async function TeamsPage({ params }: TeamsPageProps) {
       FROM match_player_stats mps
       JOIN matches m ON m.id = mps.match_id
       JOIN match_maps mm2 ON mm2.id = mps.map_id
-      JOIN season_registrations sr
-        ON sr.user_id = mps.user_id AND sr.season_id = m.season_id
-      JOIN team_members tm ON tm.registration_id = sr.id
+      JOIN team_members tm
+        ON tm.user_id = mps.user_id AND tm.season_id = m.season_id
       WHERE m.season_id = ${season.id}
         AND mps.verified_by_admin IS NOT NULL
       GROUP BY tm.team_id
     `),
   ]);
 
-  const membersByTeam = new Map<string, typeof allMembers>();
-  for (const m of allMembers) {
+  const membersWithFallbackPosition = allMembers.map((member) => ({
+    ...member,
+    primaryPosition: member.primaryPosition ?? "—",
+  }));
+  const membersByTeam = new Map<string, typeof membersWithFallbackPosition>();
+  for (const m of membersWithFallbackPosition) {
     if (!membersByTeam.has(m.teamId)) membersByTeam.set(m.teamId, []);
     membersByTeam.get(m.teamId)!.push(m);
   }
@@ -191,10 +193,10 @@ export default async function TeamsPage({ params }: TeamsPageProps) {
         {sortedTeams.map((team) => {
           const members = (membersByTeam.get(team.id) ?? [])
             .map((m) => ({
-              name: getDisplayName(m),
+              name: getPublicDisplayName(m),
               primaryPosition: m.primaryPosition,
               isStarter: m.isStarter,
-              isCaptain: m.registrationId === m.captainRegId,
+              isCaptain: m.userId === m.captainUserId,
               userId: m.userId,
             }))
             .sort((a, b) => {

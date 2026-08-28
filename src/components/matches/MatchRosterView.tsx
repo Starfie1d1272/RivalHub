@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getDisplayName } from "@/lib/utils/display-name";
+import { getPublicDisplayName } from "@/lib/utils/display-name";
 
 interface RosterPlayer {
   steamName: string;
@@ -39,10 +39,10 @@ function RosterColumn({ teamName, roster }: { teamName: string; roster: RosterPl
             >
               {p.userId ? (
                 <Link href={`/players/${p.userId}`} className="hover:text-[var(--color-accent)] transition-colors">
-                  {getDisplayName(p)}
+                  {getPublicDisplayName(p)}
                 </Link>
               ) : (
-                <span>{getDisplayName(p)}</span>
+                <span>{getPublicDisplayName(p)}</span>
               )}
               <span
                 className="text-xs"
@@ -62,10 +62,10 @@ function RosterColumn({ teamName, roster }: { teamName: string; roster: RosterPl
                   {i > 0 && "、"}
                   {p.userId ? (
                     <Link href={`/players/${p.userId}`} className="hover:text-[var(--color-accent)] transition-colors">
-                      {getDisplayName(p)}
+                      {getPublicDisplayName(p)}
                     </Link>
                   ) : (
-                    <>{getDisplayName(p)}</>
+                    <>{getPublicDisplayName(p)}</>
                   )}
                 </span>
               ))}
