@@ -11,7 +11,7 @@ import Link from "next/link";
 import { POSITION_LABELS } from "@/lib/validators/registration";
 import { CS2_POSITIONS, normalizeRegistrationConfig } from "@/types/season";
 import { getUserSession, checkAdminSession } from "@/lib/auth/session";
-import { getDisplayName } from "@/lib/utils/display-name";
+import { getDisplayName, getPublicDisplayName } from "@/lib/utils/display-name";
 import { getTeamMapWinStats, getTeamBanStats, getTeamPickStats } from "@/lib/teams/data";
 import { mapLabel } from "@/lib/maps";
 import { getSeasonHexagonScores } from "@/actions/hexagon";
@@ -300,11 +300,11 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
                         {p.userId === team.captainUserId && <PosChip pos="C" small />}
                         {p.userId ? (
                           <Link href={`/players/${p.userId}`} className="font-medium text-sm sm:text-base text-[var(--color-fg)] truncate hover:text-[var(--color-accent)] transition-colors">
-                            {getDisplayName(p)}
+                            {getPublicDisplayName(p)}
                           </Link>
                         ) : (
                           <span className="font-medium text-sm sm:text-base text-[var(--color-fg)] truncate">
-                            {getDisplayName(p)}
+                            {getPublicDisplayName(p)}
                           </span>
                         )}
                       </div>
@@ -347,10 +347,10 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
                           <div className="flex items-center gap-2">
                             {p.userId ? (
                               <Link href={`/players/${p.userId}`} className="text-sm text-[var(--color-fg)] truncate hover:text-[var(--color-accent)] transition-colors">
-                                {getDisplayName(p)}
+                                {getPublicDisplayName(p)}
                               </Link>
                             ) : (
-                              <span className="text-sm text-[var(--color-fg)] truncate">{getDisplayName(p)}</span>
+                              <span className="text-sm text-[var(--color-fg)] truncate">{getPublicDisplayName(p)}</span>
                             )}
                           </div>
                           {stats && (

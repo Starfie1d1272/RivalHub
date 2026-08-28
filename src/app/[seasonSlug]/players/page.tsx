@@ -8,7 +8,7 @@ import { Marker, Stat } from "@/components/rivalhub";
 import { PlayerDirectoryRow } from "@/components/players/PlayerDirectoryRow";
 import { countDirectoryPlayersWithTeam, sortPlayerDirectory } from "@/lib/players/directory-order";
 import { positionLabel, positionValues } from "@/lib/validators/registration";
-import { getDisplayName } from "@/lib/utils/display-name";
+import { getPublicDisplayName } from "@/lib/utils/display-name";
 import type { Metadata } from "next";
 
 interface PlayersPageProps {
@@ -62,7 +62,6 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
       currentRating: seasonRegistrations.currentRating,
       perfectName: users.perfectName,
       steamName: users.steamName,
-      email: users.email,
     })
     .from(seasonRegistrations)
     .innerJoin(users, eq(seasonRegistrations.userId, users.id))
@@ -123,8 +122,8 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
     registrations.map((reg) => ({
       userId: reg.userId,
       registrationId: reg.registrationId,
-      displayName: getDisplayName(reg),
-      name: getDisplayName(reg),
+      displayName: getPublicDisplayName(reg),
+      name: getPublicDisplayName(reg),
       primaryPosition: reg.primaryPosition,
       secondaryPosition: reg.secondaryPosition,
       peakRank: reg.peakRank,

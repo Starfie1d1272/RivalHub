@@ -7,7 +7,7 @@ import { TeamCard } from "@/components/teams/TeamCard";
 import { calculateStandings } from "@/lib/standings";
 import { getSwissDirectoryOrder, sortTeamDirectory } from "@/lib/teams/directory-order";
 import { CS2_POSITIONS, getFirstStageOfType, getPreviousStage, normalizeStagePlan } from "@/types/season";
-import { getDisplayName } from "@/lib/utils/display-name";
+import { getPublicDisplayName } from "@/lib/utils/display-name";
 import { checkAdminSession } from "@/lib/auth/session";
 import { AdminShortcut } from "@/components/layout/AdminShortcut";
 
@@ -47,7 +47,6 @@ export default async function TeamsPage({ params }: TeamsPageProps) {
         primaryPosition: seasonRegistrations.primaryPosition,
         steamName: users.steamName,
         perfectName: users.perfectName,
-        email: users.email,
         userId: users.id,
       })
       .from(teamMembers)
@@ -194,7 +193,7 @@ export default async function TeamsPage({ params }: TeamsPageProps) {
         {sortedTeams.map((team) => {
           const members = (membersByTeam.get(team.id) ?? [])
             .map((m) => ({
-              name: getDisplayName(m),
+              name: getPublicDisplayName(m),
               primaryPosition: m.primaryPosition,
               isStarter: m.isStarter,
               isCaptain: m.userId === m.captainUserId,
