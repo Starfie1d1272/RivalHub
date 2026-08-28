@@ -108,7 +108,7 @@ interface TeamBlockProps {
 function TeamBlock({ teamName, borderColor, bgColor, players }: TeamBlockProps) {
   if (players.length === 0) return null;
   return (
-    <div className="rounded-md overflow-hidden" style={{ backgroundColor: bgColor }}>
+    <div className="rounded-sm overflow-hidden" style={{ backgroundColor: bgColor }}>
       <div
         className="px-3 py-2 text-[11px] font-bold tracking-widest uppercase"
         style={{ borderLeft: `3px solid ${borderColor}` }}
@@ -159,13 +159,13 @@ export function MatchSummaryStats({
       <TeamBlock
         teamName={teamAName}
         borderColor="var(--color-accent)"
-        bgColor="rgba(77,212,122,0.04)"
+        bgColor="color-mix(in srgb, var(--color-accent) 4%, transparent)"
         players={teamAPlayers}
       />
       <TeamBlock
         teamName={teamBName}
         borderColor="var(--color-accent-b)"
-        bgColor="rgba(66,170,255,0.04)"
+        bgColor="color-mix(in srgb, var(--color-accent-b) 4%, transparent)"
         players={teamBPlayers}
       />
     </React.Fragment>

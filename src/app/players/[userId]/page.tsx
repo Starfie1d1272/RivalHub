@@ -1,10 +1,10 @@
 import { notFound } from "next/navigation";
 import { eq, and, asc, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { users, seasonRegistrations, seasons, teams, teamMembers, matches, matchMaps } from "@/db/schema";
+import { users, seasonRegistrations, seasons, teams, teamMembers, matches, matchMaps, competitiveRankFacts } from "@/db/schema";
 import { resolveAvatarUrl } from "@/lib/steam";
 import { PLAYER_INFO_FIELDS } from "@/lib/utils/player-info-fields";
-import { getDisplayName } from "@/lib/utils/display-name";
+import { getPublicDisplayName } from "@/lib/utils/display-name";
 import { Panel, Stat, PosChip } from "@/components/rivalhub";
 import { MapPreferenceChips } from "@/components/rivalhub/MapPreferenceChips";
 import Image from "next/image";
@@ -124,7 +124,6 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
         and(
           eq(matchPlayerStats.userId, userId),
           sql`${matchPlayerStats.verifiedByAdmin} IS NOT NULL`,
-          sql`"match_player_stats".source = 'manual_ocr'`,
         )
       )
       .groupBy(seasons.id, seasons.name, seasons.slug, seasons.createdAt)
@@ -156,6 +155,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
     .where(eq(teamMembers.userId, userId));
 
   const teamBySeasonId = new Map(teamMemberRows.map((r) => [r.seasonId, r]));
+  const competitiveFacts = await db.select().from(competitiveRankFacts).where(eq(competitiveRankFacts.userId, userId));
 
   // ── 跨赛季比赛战绩（以个人 OCR 出场记录为准）───────────────────────
   const teamIds = [...new Set(teamMemberRows.map((r) => r.teamId).filter(Boolean))];
@@ -167,7 +167,6 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
       and(
         eq(matchPlayerStats.userId, userId),
         sql`${matchPlayerStats.verifiedByAdmin} IS NOT NULL`,
-        sql`"match_player_stats".source = 'manual_ocr'`,
       )
     );
   const ocrMatchIds = ocrMatchIdRows.map((r) => r.matchId);
@@ -220,18 +219,18 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
         {avatarUrl ? (
           <Image
             src={avatarUrl}
-            alt={getDisplayName(user)}
+            alt={getPublicDisplayName(user)}
             width={96}
             height={96}
             className="rounded-full border border-[var(--color-border)] object-cover"
           />
         ) : (
-          <AvatarFallback name={getDisplayName(user)} />
+          <AvatarFallback name={getPublicDisplayName(user)} />
         )}
 
         <div className="space-y-2">
           <h1 className="text-3xl font-black text-[var(--color-fg)]">
-            {getDisplayName(user)}
+            {getPublicDisplayName(user)}
           </h1>
           {user.perfectName && (
             <p className="text-xs" style={{ fontFamily: "var(--font-mono)", color: "var(--color-fg-dim)" }}>
@@ -259,6 +258,8 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
           </div>
         </div>
       </div>
+
+      {competitiveFacts.length > 0 && <section className="space-y-3"><SectionHeading>公开竞技档案</SectionHeading><Panel pad={16}><div className="space-y-2 text-sm">{competitiveFacts.map((fact) => <p key={fact.id}><span className="text-[var(--color-fg-mid)]">{fact.kind === "historical_peak" ? "历史最高" : `赛季 ${fact.platformSeasonKey ?? "—"} 最高`}</span> · {fact.rank} · Rating {String(fact.rating)}</p>)}</div></Panel></section>}
 
       {latestReg && (
         <section className="space-y-3">
@@ -434,7 +435,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
                       {ps.seasonName}
                     </div>
                     <PlayerRadarChart
-                      players={[{ name: getDisplayName(user), scores, color: "var(--color-accent)" }]}
+                      players={[{ name: getPublicDisplayName(user), scores, color: "var(--color-accent)" }]}
                       size={280}
                     />
                   </Panel>

@@ -102,9 +102,9 @@ function SwissMatchupGroup({
       <div
         className={`text-xs font-medium mb-1.5 px-1.5 py-0.5 rounded text-center ${
           isEliminatedRecord(group.record)
-            ? "bg-[rgba(255,84,112,0.08)] text-[var(--color-danger)]"
+            ? "bg-[var(--color-danger-soft)] text-[var(--color-danger)]"
             : isAdvancedRecord(group.record)
-              ? "bg-[rgba(77,212,122,0.10)] text-[var(--color-ok)]"
+              ? "bg-[var(--color-ok-soft)] text-[var(--color-ok)]"
               : "bg-[var(--color-panel-hi)] text-[var(--color-fg-mid)]"
         }`}
       >
@@ -228,7 +228,7 @@ function AdvancementColumn({
       {/* 晋级 */}
       {advanced.length > 0 && (
         <div>
-          <div className="text-xs font-medium mb-1.5 px-1.5 py-0.5 rounded text-center bg-[rgba(77,212,122,0.10)] text-[var(--color-ok)]">
+          <div className="text-xs font-medium mb-1.5 px-1.5 py-0.5 rounded text-center bg-[var(--color-ok-soft)] text-[var(--color-ok)]">
             晋级 ({advanced.length}/{advanceCount})
           </div>
           <div className="space-y-1">
@@ -252,7 +252,7 @@ function AdvancementColumn({
       {/* 淘汰 */}
       {eliminated.length > 0 && (
         <div>
-          <div className="text-xs font-medium mb-1.5 px-1.5 py-0.5 rounded text-center bg-[rgba(255,84,112,0.08)] text-[var(--color-danger)]">
+          <div className="text-xs font-medium mb-1.5 px-1.5 py-0.5 rounded text-center bg-[var(--color-danger-soft)] text-[var(--color-danger)]">
             淘汰 ({eliminated.length})
           </div>
           <div className="space-y-1">

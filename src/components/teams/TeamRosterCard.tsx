@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { getDisplayName } from "@/lib/utils/display-name";
+import { getPublicDisplayName } from "@/lib/utils/display-name";
 
 const POSITION_LABELS: Record<string, { cn: string; en: string }> = {
   igl:    { cn: "指挥",        en: "IGL" },
@@ -100,7 +100,7 @@ function MemberRow({ member }: { member: RosterMember }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="font-medium text-[var(--color-fg)] truncate">
-            {getDisplayName(member)}
+            {getPublicDisplayName(member)}
           </span>
           {member.isCaptain && (
             <Badge className="text-xs bg-[var(--color-accent)]/10 text-[var(--color-accent)] border-[var(--color-accent)]/20 shrink-0">

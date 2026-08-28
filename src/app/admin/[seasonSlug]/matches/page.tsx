@@ -24,6 +24,7 @@ import {
 } from "@/lib/matches/stage-views";
 import { getFirstStageOfType, normalizeRegistrationConfig, normalizeStagePlan } from "@/types/season";
 import Link from "next/link";
+import { getStartingLineupPreflightInTx } from "@/lib/match-rosters/service";
 
 export const dynamic = "force-dynamic";
 
@@ -248,7 +249,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
         })
         .from(teamMembers)
         .innerJoin(users, eq(teamMembers.userId, users.id))
-        .innerJoin(
+        .leftJoin(
           seasonRegistrations,
           eq(teamMembers.registrationId, seasonRegistrations.id),
         )
@@ -287,7 +288,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
       steamName: r.steamName ?? "未知",
       displayName: r.displayName ?? null,
       perfectName: r.perfectName ?? null,
-      primaryPosition: r.primaryPosition,
+      primaryPosition: r.primaryPosition ?? "—",
     }));
 
     for (const t of allTeamMembers) {
@@ -310,12 +311,27 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
         }
       }
       matchMap.set(roster.teamId, {
+        rosterId: roster.id,
         starters,
         substitutes,
         status: roster.status,
       });
       rosterByMatch.set(roster.matchId, matchMap);
     }
+  }
+
+  const preflightByMatch = new Map<string, Map<string, { valid: boolean; blockers: string[] }>>();
+  for (const match of allMatches.filter((item) => item.status === "scheduled" && item.ownership === "major_stage")) {
+    const rosters = rosterByMatch.get(match.id);
+    if (!rosters) continue;
+    const result = new Map<string, { valid: boolean; blockers: string[] }>();
+    for (const teamId of [match.teamAId, match.teamBId]) {
+      const roster = rosters.get(teamId);
+      if (!roster) continue;
+      const preflight = await db.transaction((tx) => getStartingLineupPreflightInTx(tx, { match, teamId, starterIds: roster.starters, substituteIds: roster.substitutes }));
+      result.set(teamId, { valid: preflight.valid, blockers: preflight.blockers });
+    }
+    preflightByMatch.set(match.id, result);
   }
 
   return (
@@ -350,7 +366,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
       )}
 
       {unconfiguredMatches.length > 0 && (
-        <Panel pad={16} className="border-[rgba(255,196,77,0.3)] bg-[rgba(255,196,77,0.05)]">
+        <Panel pad={16} className="border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)]">
           <p className="text-sm text-[var(--color-warn)]">
             检测到 {unconfiguredMatches.length} 场比赛引用了当前 StagePlan 中不存在的阶段，请检查赛制配置。
           </p>
@@ -362,7 +378,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
 
       {/* 赛季状态提示 */}
       {season.status !== "playing" && matchCount === 0 && (
-        <Panel pad={16} className="border-[rgba(255,196,77,0.3)] bg-[rgba(255,196,77,0.05)]">
+        <Panel pad={16} className="border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)]">
           <p className="text-sm text-[var(--color-warn)]">
             赛季当前状态为「{season.status}」，需进入 playing 状态后才能生成赛程。
           </p>
@@ -379,7 +395,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
       )}
 
       {season.status === "playing" && matchCount === 0 && allTeams.length >= 2 && hasSwissStage && (
-        <Panel pad={16} className="border-[rgba(255,196,77,0.3)] bg-[rgba(255,196,77,0.05)]">
+        <Panel pad={16} className="border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)]">
           <p className="text-sm text-[var(--color-warn)]">
             该赛制的自动赛程运行尚未启用。
           </p>
@@ -458,6 +474,8 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                         teamBMembers={teamMembersByTeam.get(m.teamBId) ?? []}
                         teamARoster={rosterByMatch.get(m.id)?.get(m.teamAId) ?? null}
                         teamBRoster={rosterByMatch.get(m.id)?.get(m.teamBId) ?? null}
+                        teamAPreflight={preflightByMatch.get(m.id)?.get(m.teamAId) ?? null}
+                        teamBPreflight={preflightByMatch.get(m.id)?.get(m.teamBId) ?? null}
                         completedMaps={mapCompletedMaps(mapsByMatchId.get(m.id) ?? [])}
                         pendingMaps={mapPendingMaps(mapsByMatchId.get(m.id) ?? [])}
                         finishedMaps={mapFinishedMaps(mapsByMatch.get(m.id) ?? [])}

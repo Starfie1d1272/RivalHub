@@ -4,6 +4,7 @@ interface InlineConfirmProps {
   title: string;
   sub?: string;
   danger?: boolean;
+  confirmLabel?: string;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -12,6 +13,7 @@ export function InlineConfirm({
   title,
   sub,
   danger,
+  confirmLabel,
   onConfirm,
   onCancel,
 }: InlineConfirmProps) {
@@ -55,7 +57,7 @@ export function InlineConfirm({
           取消
         </Btn>
         <Btn small danger={danger} primary={!danger} onClick={onConfirm}>
-          {danger ? "确认删除" : "确认"}
+          {confirmLabel ?? (danger ? "确认" : "确认")}
         </Btn>
       </div>
     </div>

@@ -8,6 +8,7 @@ const matchMapsFindFirstMock = vi.hoisted(() => vi.fn());
 const txMatchMapsFindManyMock = vi.hoisted(() => vi.fn());
 const txUpdateMock = vi.hoisted(() => vi.fn());
 const txInsertMock = vi.hoisted(() => vi.fn());
+const txSelectMock = vi.hoisted(() => vi.fn());
 const transactionMock = vi.hoisted(() => vi.fn());
 const requireSeasonAdminMock = vi.hoisted(() => vi.fn());
 const auditActorIdMock = vi.hoisted(() => vi.fn());
@@ -24,6 +25,7 @@ vi.mock("@/db/client", () => {
     },
     update: txUpdateMock,
     insert: txInsertMock,
+    select: txSelectMock,
   };
   return {
     db: {
@@ -89,6 +91,14 @@ function setupAdminSession() {
 }
 
 function setupTxWriteMocks() {
+  txSelectMock.mockImplementation(() => {
+    const result = {
+      from: () => result,
+      where: () => result,
+      for: () => Promise.resolve([{ status: "playing" }]),
+    };
+    return result;
+  });
   txUpdateMock.mockImplementation((table: unknown) => ({
     set: vi.fn((values: unknown) => {
       if (table === matchMaps) matchMapsUpdateSetCalls.push(values);

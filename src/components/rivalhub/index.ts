@@ -13,3 +13,4 @@ export { PosChip } from "./PosChip";
 export { StatusPill } from "./StatusPill";
 export { ScrollHint } from "./ScrollHint";
 export { PhaseStep } from "./PhaseStep";
+export { Checklist, type ChecklistItem, type ChecklistState } from "./Checklist";

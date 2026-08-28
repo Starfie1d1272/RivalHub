@@ -1,8 +1,8 @@
 "use server";
 
-import { eq, asc, and, inArray, isNull } from "drizzle-orm";
+import { eq, and, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, matches, matchMaps, matchVetoSteps, matchRosters, matchRosterPlayers, teams, teamMembers, auditLogs, matchTimeProposals } from "@/db/schema";
+import { seasons, matches, matchMaps, matchVetoSteps, matchRosters, matchRosterPlayers, teams, auditLogs, matchTimeProposals } from "@/db/schema";
 import { ok } from "@/types/action";
 import type { ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -15,9 +15,13 @@ import {
 } from "@/lib/match-transitions";
 import { getMaxMaps, getWinThreshold, isMatchStatus } from "@/types/match";
 import { actionError, getSeasonOrThrow, getMatchOrThrow } from "@/lib/action-utils";
+import {
+  applyMatchStatusTransitionInTx,
+} from "@/lib/match-rosters/service";
 import { maybeFinishSeason } from "@/actions/transitions";
 import { revalidateMatchPaths, revalidateSeasonPaths } from "@/lib/revalidation";
 import { normalizeRegistrationConfig, normalizeStagePlan } from "@/types/season";
+import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 import {
   computeSeriesScoreAfterMap,
   isValidCS2RoundScore,
@@ -68,6 +72,9 @@ async function insertResolvedBracketMatches(
 
 /**
  * 将比赛状态推进一步（scheduled→in_progress，scheduled/in_progress→cancelled）。
+ * 开始比赛（in_progress）要求两队均已提交并由管理员确认首发阵容；
+ * 不存在任何隐式补名单路径。核心事务体见
+ * lib/match-rosters/service.ts#applyMatchStatusTransitionInTx。
  */
 export async function updateMatchStatus(
   matchId: string,
@@ -82,55 +89,13 @@ export async function updateMatchStatus(
     assertMatchTransition(match.status, nextStatus);
 
     const seasonForStatus = await getSeasonOrThrow(match.seasonId);
-    await db.transaction(async (tx) => {
-      await tx
-        .update(matches)
-        .set({ status: nextStatus, updatedAt: new Date() })
-        .where(eq(matches.id, matchId));
-
-      // 开赛时自动为两队填充默认名单（若尚未提交）
-      if (nextStatus === "in_progress") {
-        const existingRosters = await tx.query.matchRosters.findMany({
-          where: and(
-            eq(matchRosters.matchId, matchId),
-            inArray(matchRosters.teamId, [match.teamAId, match.teamBId]),
-          ),
-        });
-        const existingTeamIds = new Set(existingRosters.map((r) => r.teamId));
-
-        for (const teamId of [match.teamAId, match.teamBId]) {
-          if (existingTeamIds.has(teamId)) continue;
-          const starterIds = await tx
-            .select({ id: teamMembers.id })
-            .from(teamMembers)
-            .where(eq(teamMembers.teamId, teamId))
-            .orderBy(asc(teamMembers.joinedAt))
-            .limit(5);
-          if (starterIds.length > 0) {
-            const [roster] = await tx
-              .insert(matchRosters)
-              .values({ matchId, teamId, submittedBy: session.userId })
-              .returning({ id: matchRosters.id });
-            await tx.insert(matchRosterPlayers).values(
-              starterIds.map((s) => ({
-                rosterId: roster.id,
-                teamMemberId: s.id,
-                isStarter: true,
-              })),
-            );
-          }
-        }
-      }
-
-      await tx.insert(auditLogs).values({
-        seasonId: match.seasonId,
-        action: "match.status_update",
-        actorId: session.email,
-        targetId: matchId,
-        targetType: "match",
-        meta: { from: match.status, to: nextStatus },
-      });
-    });
+    await db.transaction((tx) =>
+      applyMatchStatusTransitionInTx(tx, {
+        matchId,
+        nextStatus,
+        actorId: auditActorId(session),
+      }),
+    );
 
     revalidateMatchPaths(seasonForStatus.slug, matchId);
 
@@ -172,6 +137,7 @@ export async function recordMatchResult(
 
     // 事务保护：score 更新 + bracket 推进 + audit 原子化
     await db.transaction(async (tx) => {
+      await assertSeasonAllowsTournamentMutationInTx(tx, match.seasonId);
       await tx
         .update(matches)
         .set({
@@ -274,6 +240,7 @@ export async function recordMapResult(
     let seriesFinished = false;
 
     await db.transaction(async (tx) => {
+      await assertSeasonAllowsTournamentMutationInTx(tx, match.seasonId);
       // 事务内读快照
       const existingMaps = await tx.query.matchMaps.findMany({
         where: eq(matchMaps.matchId, matchId),
@@ -380,6 +347,7 @@ export async function updateMatchScheduledAt(
 
     const seasonForSch = await getSeasonOrThrow(match.seasonId);
     await db.transaction(async (tx) => {
+      await assertSeasonAllowsTournamentMutationInTx(tx, match.seasonId);
       const now = new Date();
       await tx
         .update(matches)
@@ -447,6 +415,7 @@ export async function updateMatchCompletionDeadline(
 
     const season = await getSeasonOrThrow(match.seasonId);
     await db.transaction(async (tx) => {
+      await assertSeasonAllowsTournamentMutationInTx(tx, match.seasonId);
       await tx
         .update(matches)
         .set({ completionDeadline, updatedAt: new Date() })
@@ -515,6 +484,7 @@ export async function batchSetCompletionDeadline(input: {
     const matchIds = targetMatches.map((m) => m.id);
 
     await db.transaction(async (tx) => {
+      await assertSeasonAllowsTournamentMutationInTx(tx, input.seasonId);
       await tx
         .update(matches)
         .set({ completionDeadline: input.completionDeadline, updatedAt: new Date() })
@@ -611,6 +581,7 @@ export async function correctMatchScore(
     const prevScoreB = match.scoreB;
 
     await db.transaction(async (tx) => {
+      await assertSeasonAllowsTournamentMutationInTx(tx, match.seasonId);
       await tx
         .update(matches)
         .set({ scoreA, scoreB, updatedAt: new Date() })
@@ -651,6 +622,7 @@ export async function deleteMatch(matchId: string): Promise<ActionResult<void>> 
     const season = await getSeasonOrThrow(match.seasonId);
 
     await db.transaction(async (tx) => {
+      await assertSeasonAllowsTournamentMutationInTx(tx, match.seasonId);
       // 级联删除相关数据
       await tx.delete(matchVetoSteps).where(eq(matchVetoSteps.matchId, matchId));
       await tx.delete(matchMaps).where(eq(matchMaps.matchId, matchId));
@@ -714,6 +686,7 @@ export async function updateMatchCompletedAt(
     const season = await getSeasonOrThrow(match.seasonId);
 
     await db.transaction(async (tx) => {
+      await assertSeasonAllowsTournamentMutationInTx(tx, match.seasonId);
       await tx
         .update(matches)
         .set({ completedAt, updatedAt: new Date() })
@@ -770,6 +743,7 @@ export async function correctMapScore(
     const season = await getSeasonOrThrow(match.seasonId);
 
     await db.transaction(async (tx) => {
+      await assertSeasonAllowsTournamentMutationInTx(tx, match.seasonId);
       // 事务内读取所有图，将目标图替换为 proposed score 后按正常语义重算系列赛
       const allMaps = await tx.query.matchMaps.findMany({
         where: eq(matchMaps.matchId, mapRecord.matchId),
@@ -877,6 +851,7 @@ export async function syncBracketMatches(seasonId: string): Promise<ActionResult
     let fixed = 0;
 
     await db.transaction(async (tx) => {
+      await assertSeasonAllowsTournamentMutationInTx(tx, seasonId);
       for (const bm of allResolved) {
         const nameA = participantNameById.get(bm.teamAParticipantId);
         const nameB = participantNameById.get(bm.teamBParticipantId);
@@ -928,11 +903,14 @@ const FORFEIT_WINNER_SCORE: Record<"bo1" | "bo3" | "bo5", number> = {
  */
 export async function forfeitMatch(
   matchId: string,
-  loserTeamId: string
+  loserTeamId: string,
+  reason: string,
 ): Promise<ActionResult<void>> {
   try {
     const match = await getMatchOrThrow(matchId);
     const session = await requireSeasonAdmin(match.seasonId);
+    const normalizedReason = reason.trim();
+    if (!normalizedReason) throw new AppError(ErrorCode.VALIDATION_FAILED, "请记录弃赛/判负原因。");
 
     assertMatchTransition(match.status, "finished");
 
@@ -948,6 +926,7 @@ export async function forfeitMatch(
     const season = await getSeasonOrThrow(match.seasonId);
 
     await db.transaction(async (tx) => {
+      await assertSeasonAllowsTournamentMutationInTx(tx, match.seasonId);
       await tx.delete(matchMaps).where(
         and(eq(matchMaps.matchId, matchId), isNull(matchMaps.scoreA))
       );
@@ -990,7 +969,7 @@ export async function forfeitMatch(
         actorId: auditActorId(session),
         targetId: matchId,
         targetType: "match",
-        meta: { loserTeamId, scoreA, scoreB, format: match.format },
+        meta: { loserTeamId, scoreA, scoreB, format: match.format, reason: normalizedReason },
       });
     });
 

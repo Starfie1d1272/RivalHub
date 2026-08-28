@@ -8,9 +8,56 @@
 |---|---|---|
 | production | 当前 NJU 赛事和正式站点 | 生产 Supabase 项目 |
 | staging / preview | 外部试点、seed、E2E、demo 导入压测 | 独立 Supabase 项目 |
-| local | 本地开发 | 本地 `.env.local` 指向的开发或 staging 数据库 |
+| local | 本地开发 | loopback Local Supabase，由 `db:local:*` 动态注入 |
 
 外部试点必须使用独立 staging：独立 Vercel environment / preview deployment + 独立 Supabase 项目。不要在生产数据库上运行 seed、Playwright E2E、demo 批量导入压测或权限越权测试。
+
+## 本地 2.0 数据库
+
+本地开发不读取 `.env.local` 的 `DATABASE_URL`，也不允许 staging/production URL 作为 fallback。使用项目固定的 Supabase CLI：
+
+```bash
+pnpm db:local:start       # 完整 Local Supabase：Postgres/Auth/Storage/Data API
+pnpm db:local:migrate     # 仅向已验证 loopback DB 应用 Drizzle active migrations
+pnpm db:local:seed        # Root + Local Major fixture
+pnpm db:local:verify      # migration ledger + Auth + Storage + Data API deny-by-default
+pnpm db:local:bootstrap   # start → migrate → seed → verify
+pnpm db:local:reset       # --local reset → migrate → seed → verify
+pnpm dev:local            # 由 Local Supabase status 注入应用变量
+```
+
+所有命令从 `supabase status --output json` 读取实际端口，并再次验证 DB/API/Studio 都是 `localhost`、`127.0.0.1` 或 `::1`。启动使用只绑定 `127.0.0.1` 的 `rivalhub-local` Docker network。`reset` 显式传 `--local --no-seed`；Supabase migration/seed 被禁用，随后只重放 `drizzle/migrations`，因此不存在第二套业务 migration authority。
+
+## Staging migration（固定 `rivalhub-dev`）
+
+`pnpm db:staging:migrate` 和 `pnpm db:staging:verify` 唯一允许的远程目标是 Supabase `rivalhub-dev`（project ref `cueazphyskstwdhnzsxx`，Tokyo Transaction Pooler）。它们不接受 `DATABASE_URL`，也不读取 `.env.local`；命令只从 `RIVALHUB_STAGING_DB_PASSWORD` 构造固定目标连接串，因此不能切换到生产或其他项目。
+
+```bash
+# 只读验证 staging 的 active migration ledger 和关键 schema
+RIVALHUB_STAGING_PROJECT_CONFIRM=cueazphyskstwdhnzsxx \
+RIVALHUB_STAGING_DB_PASSWORD='<rivalhub-dev database password>' \
+pnpm db:staging:verify
+
+# 写入前必须已有运行中的 Local Supabase；命令依次执行 local migrate → local ledger/schema verify → staging migrate → staging verify
+RIVALHUB_STAGING_PROJECT_CONFIRM=cueazphyskstwdhnzsxx \
+RIVALHUB_STAGING_DB_PASSWORD='<rivalhub-dev database password>' \
+RIVALHUB_ALLOW_REMOTE_DB_WRITE=staging \
+pnpm db:staging:migrate
+```
+
+这两个命令不启动或重置 Local Supabase、不执行 seed，也不会运行 `db:push`。Local 栈不可用、确认值不精确、未给 staging 密码、继承了 `DATABASE_URL`、或缺少写入 opt-in 时，staging migration 会在任何远程操作前失败。
+
+默认本地 Root 凭据为 `local-admin` / `local-admin-password`，仅由本地 wrapper 注入；可用 `RIVALHUB_LOCAL_ROOT_USERNAME` / `RIVALHUB_LOCAL_ROOT_PASSWORD` 覆盖。
+
+直接 `pnpm seed` 不再读取 `.env.local`。远程 seed 必须同时声明：
+
+```text
+RIVALHUB_DB_TARGET=staging|production
+RIVALHUB_DB_HOST_CONFIRM=<DATABASE_URL 中精确 host:port>
+RIVALHUB_ALLOW_REMOTE_DB_WRITE=<与 target 相同>
+```
+
+这些变量只是防误操作确认，不替代 staging 隔离与 migration baseline gate。
 
 staging 与 production 必须分离的变量：
 
@@ -106,7 +153,7 @@ const pgConfig = {
 
 ### 数据库迁移
 
-Schema 定义只在代码中，远程数据库不会自动同步。**不要默认使用 `db:push` 更新远程数据库**：
+Schema 定义只在代码中，远程数据库不会自动同步。`pnpm db:push` 已 fail closed 禁用：
 
 - `db:push` 按 TypeScript schema 与远端 DB 直接 diff 同步，**不执行** migration SQL 中的 custom SQL / data backfill / fail-closed validation 逻辑，无法替代包含这些内容的 migration；
 - pre-2.0 legacy migration chain 已冻结至 `drizzle/legacy-migrations/`（只读历史，禁止修改）；
@@ -115,7 +162,8 @@ Schema 定义只在代码中，远程数据库不会自动同步。**不要默�
   - `0001_canonical_team_identity` = canonical team identity 数据迁移（backfill + fail-closed validation），是 existing DB 必须实际执行的第一条 2.0 migration；
 - **existing DB 不能执行 baseline DDL**（`0000_v2_baseline` 只用于 empty/fresh 数据库）；
 - existing DB adoption 流程：先确认真实 schema 与 baseline 等价 → 建立 baseline ledger marker → 再由 migrator 执行 `0001+`；
-- staging 隔离与 remote adoption 仍未确认：**禁止任何远程 migration**（包括盲目运行 `drizzle-kit migrate`）；
+- staging 仅可通过受保护的 `pnpm db:staging:migrate` 迁移：目标固定为 `rivalhub-dev`，并强制先完成 Local Supabase active-chain 验证；禁止直接运行 `drizzle-kit migrate`、`db:push` 或任意 production migration；
+- RLS、policy、trigger 和显式 Data API grants 如需新增，必须作为 custom SQL 留在同一 Drizzle active migration chain；禁止另建 `supabase/migrations` 业务链；
 
 （migration 的校验实现以对应 migration SQL 与测试为 source of truth。）
 

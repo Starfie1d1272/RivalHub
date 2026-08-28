@@ -46,15 +46,23 @@ RivalHub 是一个面向高校电竞赛事的开源赛事管理平台。当前�
 
 ```bash
 pnpm install
-cp .env.example .env.local
-pnpm db:push
-pnpm seed
-pnpm dev
+pnpm db:local:bootstrap
+pnpm dev:local
 ```
 
 本地开发地址：`http://localhost:3000`
 
-`pnpm seed` 会在本地开发环境创建初始 Root 管理员（幂等）。Root 凭据必须显式初始化，只通过以下环境变量提供：
+本地开发使用仓库固定版本的 Supabase CLI 和独立 Docker 网络，运行完整的 PostgreSQL、Auth、Storage 与 Data API；不会读取 `.env.local` 中的远程 `DATABASE_URL`。首次启动需要 Docker-compatible runtime，并建议至少分配 8 GiB 内存。
+
+`db:local:bootstrap` 会按以下顺序执行：
+
+```text
+Local Supabase → Drizzle active migrations → development fixtures → Auth/Storage/Data API verification
+```
+
+本地 Root 登录默认为 `local-admin` / `local-admin-password`，只会注入 loopback Local Supabase 进程。可通过 `RIVALHUB_LOCAL_ROOT_USERNAME` / `RIVALHUB_LOCAL_ROOT_PASSWORD` 覆盖；不要把这组本地凭据用于任何远程环境。
+
+远程环境如确需执行 `pnpm seed`，必须显式提供 `DATABASE_URL`、目标类型、精确 host 确认和匹配的写入授权；脚本不会读取 `.env.local`。Root 凭据只通过以下环境变量提供：
 
 ```text
 RIVALHUB_ROOT_USERNAME
@@ -63,6 +71,7 @@ RIVALHUB_ROOT_PASSWORD
 
 - 生产环境（`NODE_ENV=production`）seed 在任一变量缺失时直接失败（fail closed），不会创建可预测的默认管理员。
 - 任何环境下 seed 日志都不会输出凭据。
+- 本地开发不要直接运行 `pnpm seed`，统一使用 `pnpm db:local:seed`。
 
 ## 环境变量
 
@@ -113,14 +122,18 @@ Cron 由 GitHub Actions 调用，端点与频率见 [.github/workflows/cron.yml]
 
 ```bash
 pnpm dev          # 本地开发
+pnpm dev:local    # 使用 Local Supabase 启动应用
 pnpm build        # 生产构建
 pnpm type-check   # Next route typegen + TypeScript
 pnpm test         # Vitest
 pnpm test:e2e     # Playwright
 pnpm db:generate  # 生成 Drizzle migration
-pnpm db:push      # 推送 schema 到数据库
-pnpm seed         # 创建 Root 管理员
+pnpm db:check     # 校验 Drizzle active migration chain
+pnpm db:local:reset   # 仅重建 loopback Local Supabase，并重放 migration/fixtures/验证
+pnpm db:local:verify  # 实测 migration、Auth、Storage 与 Data API 默认拒绝
 ```
+
+`pnpm db:push` 已 fail closed 禁用，因为它不会执行 active migration 中的 custom SQL、backfill 和 validation。远程迁移前必须先通过 staging 隔离与 baseline gate，详见部署文档。
 
 发布前至少运行：
 

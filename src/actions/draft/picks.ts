@@ -1,6 +1,6 @@
 "use server";
 
-import { and, asc, count, eq, lt } from "drizzle-orm";
+import { and, asc, count, eq, isNotNull, lt, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   seasons,
@@ -167,9 +167,9 @@ export async function skipDraftTurn(
       }
 
       const seasonTeams = await tx
-        .select({ id: teams.id, draftOrder: teams.draftOrder })
+        .select({ id: teams.id, draftOrder: sql<number>`${teams.draftOrder}`.as("draft_order") })
         .from(teams)
-        .where(eq(teams.seasonId, parsed.data.seasonId))
+        .where(and(eq(teams.seasonId, parsed.data.seasonId), isNotNull(teams.draftOrder)))
         .orderBy(asc(teams.draftOrder));
 
       const skippedTeamId = ds.currentTeamId;
@@ -399,10 +399,14 @@ async function executeDraftPick(
   if (!team) {
     throw new AppError(ErrorCode.NOT_FOUND, "队伍不存在");
   }
+  const captainRegistrationId = team.captainRegistrationId;
+  if (!captainRegistrationId) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "队伍报名队伍不能进入选秀流程");
+  }
 
   const captainRegistration = await tx.query.seasonRegistrations.findFirst({
     where: and(
-      eq(seasonRegistrations.id, team.captainRegistrationId),
+      eq(seasonRegistrations.id, captainRegistrationId),
       eq(seasonRegistrations.seasonId, input.seasonId),
     ),
   });
@@ -412,7 +416,7 @@ async function executeDraftPick(
   ) {
     throw new AppError(ErrorCode.FORBIDDEN, "只有当前轮次队长可以选择选手");
   }
-  if (input.registrationId === team.captainRegistrationId) {
+  if (input.registrationId === captainRegistrationId) {
     throw new AppError(ErrorCode.PLAYER_ALREADY_PICKED, "队长已在该队伍中");
   }
 
@@ -505,9 +509,9 @@ async function executeDraftPick(
   });
 
   const seasonTeams = await tx
-    .select({ id: teams.id, draftOrder: teams.draftOrder })
+    .select({ id: teams.id, draftOrder: sql<number>`${teams.draftOrder}`.as("draft_order") })
     .from(teams)
-    .where(eq(teams.seasonId, input.seasonId))
+    .where(and(eq(teams.seasonId, input.seasonId), isNotNull(teams.draftOrder)))
     .orderBy(asc(teams.draftOrder));
   const next = getNextTeamId(seasonTeams, input.teamId, ds.currentRound);
 

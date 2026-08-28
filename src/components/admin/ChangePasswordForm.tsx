@@ -80,7 +80,7 @@ export function ChangePasswordForm() {
       </div>
 
       {error && (
-        <div className="rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div className="rounded-sm bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error}
         </div>
       )}

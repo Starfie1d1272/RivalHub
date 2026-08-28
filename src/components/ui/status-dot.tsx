@@ -2,9 +2,9 @@ import { SEASON_STATUS_TONE } from "@/types/season";
 import type { SeasonStatus } from "@/types/season";
 
 const TONE_COLOR = {
-  live: "bg-emerald-400",
-  soon: "bg-amber-400",
-  done: "bg-zinc-500",
+  live: "bg-[var(--color-ok)]",
+  soon: "bg-[var(--color-warn)]",
+  done: "bg-[var(--color-fg-dim)]",
 } as const;
 
 export function StatusDot({ status }: { status: SeasonStatus }) {

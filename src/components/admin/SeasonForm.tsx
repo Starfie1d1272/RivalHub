@@ -14,6 +14,7 @@ import {
   type PlayerType,
   type RegistrationConfig,
   type SeasonCapabilities,
+  type InstitutionAffiliationRule,
   type TeamRegistrationConfig,
   type StagePlan,
 } from "@/types/season";
@@ -99,6 +100,9 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
     defaultConfig.mapPool.join(","),
   );
   const [teamConfig, setTeamConfig] = useState<TeamRegistrationConfig>(defaultTeamConfig);
+  const [affiliationRules, setAffiliationRules] = useState<InstitutionAffiliationRule[]>(
+    initial?.affiliationRules ?? majorDefaults.affiliationRules,
+  );
 
   const coreLocked = mode === "edit" && initial?.status !== "draft";
   const title = mode === "create" ? "新建赛季" : "赛季设置";
@@ -136,6 +140,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
       setScreenshotCount(1);
       setMaxTotal(RIVALS_REGISTRATION_CONFIG.maxTotal);
       setMapPoolText(RIVALS_REGISTRATION_CONFIG.mapPool.join(","));
+      setAffiliationRules([]);
     }
   }
 
@@ -156,6 +161,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
     setMaxTotal(capabilities.registrationConfig.maxTotal);
     setMapPoolText(capabilities.registrationConfig.mapPool.join(","));
     setTeamConfig(capabilities.teamRegistrationConfig);
+    setAffiliationRules([...capabilities.affiliationRules]);
   }
 
   // Auto-set slug from name when slug is empty and in create mode
@@ -208,6 +214,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
       stagePlan,
       registrationConfig,
       teamRegistrationConfig: teamConfig,
+      affiliationRules,
     };
   }
 
@@ -350,8 +357,8 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
         {isMajorDisplayContext && <section
           aria-live="polite"
           className={standardMajorCheck.isStandardMajor
-            ? "rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4 text-sm"
-            : "rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 text-sm"}
+            ? "rounded-sm border border-[var(--color-ok-edge)] bg-[var(--color-ok-soft)] p-4 text-sm"
+            : "rounded-sm border border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)] p-4 text-sm"}
         >
           {standardMajorCheck.isStandardMajor ? (
             <>

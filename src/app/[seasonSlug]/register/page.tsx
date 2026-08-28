@@ -1,11 +1,13 @@
 import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, seasonRegistrations, users } from "@/db/schema";
+import { educationVerifications, institutions, seasons, seasonRegistrations, teamApplicationMembers, teamApplications, users } from "@/db/schema";
 import { getPositionCounts, getApprovedCount } from "@/actions/register";
 import { RegistrationForm } from "@/components/register/RegistrationForm";
-import { normalizeRegistrationConfig } from "@/types/season";
+import { normalizeAffiliationRules, normalizeRegistrationConfig, normalizeTeamRegistrationConfig } from "@/types/season";
+import { getParticipantReadiness } from "@/lib/major/participant-readiness";
+import { evaluateExternalStrengthRule } from "@/lib/major/player-strength";
 import { REGISTRATION_STATUS_LABELS } from "@/types/registration";
 import { Panel, StatusBanner, PosChip } from "@/components/rivalhub";
 import { positionLabel } from "@/lib/validators/registration";
@@ -13,6 +15,8 @@ import { getRegistrationWindowState, getWindowTone } from "@/lib/registration/wi
 import { formatCST } from "@/lib/utils/date";
 import { getUserSession } from "@/lib/auth/session";
 import { isSoloRegistration } from "@/lib/utils/season";
+import { isTeamRegistration } from "@/lib/utils/season";
+import { TeamApplicationFlow } from "@/components/register/TeamApplicationFlow";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +40,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
   });
   if (!season) notFound();
 
-  if (!isSoloRegistration(season)) {
+  if (!isSoloRegistration(season) && !isTeamRegistration(season)) {
     return (
       <div className="container mx-auto px-4 py-16 max-w-2xl">
         <Panel pad={40}>
@@ -79,6 +83,93 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
   const userSession = await getUserSession();
   if (!userSession) {
     redirect(`/login?next=/${seasonSlug}/register`);
+  }
+
+  if (isTeamRegistration(season)) {
+    const applicationRows = await db
+      .select({
+        id: teamApplications.id,
+        name: teamApplications.name,
+        logoUrl: teamApplications.logoUrl,
+        perfectTeamId: teamApplications.perfectTeamId,
+        primaryStarterUserIds: teamApplications.primaryStarterUserIds,
+        captainUserId: teamApplications.captainUserId,
+        status: teamApplications.status,
+        reviewReason: teamApplications.reviewReason,
+      })
+      .from(teamApplications)
+      .innerJoin(teamApplicationMembers, eq(teamApplicationMembers.applicationId, teamApplications.id))
+      .where(and(eq(teamApplications.seasonId, season.id), eq(teamApplicationMembers.userId, userSession.userId)))
+      .orderBy(desc(teamApplications.updatedAt))
+      .limit(1);
+    const application = applicationRows[0] ?? null;
+    const memberRows = application
+      ? await db
+          .select({
+            id: teamApplicationMembers.id,
+            userId: teamApplicationMembers.userId,
+            email: users.email,
+            displayName: users.displayName,
+            emailVerified: users.emailVerifiedAt,
+            verificationStatus: educationVerifications.status,
+            academicStatus: educationVerifications.academicStatus,
+            institutionName: institutions.name,
+            institutionCode: institutions.moeInstitutionCode,
+            verificationSubmittedAt: educationVerifications.submittedAt,
+            status: teamApplicationMembers.status,
+          })
+          .from(teamApplicationMembers)
+          .innerJoin(users, eq(teamApplicationMembers.userId, users.id))
+          .leftJoin(educationVerifications, eq(educationVerifications.userId, users.id))
+          .leftJoin(institutions, eq(educationVerifications.institutionId, institutions.id))
+          .where(eq(teamApplicationMembers.applicationId, application.id))
+          .orderBy(teamApplicationMembers.createdAt)
+      : [];
+    // Approved education assertions are historical and a member may have more
+    // than one.  The roster UI still represents one person, never one row per
+    // assertion.
+    const memberByUser = new Map<string, (typeof memberRows)[number]>();
+    for (const member of memberRows) {
+      const current = memberByUser.get(member.userId);
+      const shouldReplace = !current
+        || (member.verificationStatus === "approved" && current.verificationStatus !== "approved")
+        || (member.verificationStatus === current.verificationStatus
+          && (member.verificationSubmittedAt?.getTime() ?? 0) > (current.verificationSubmittedAt?.getTime() ?? 0));
+      if (shouldReplace) memberByUser.set(member.userId, member);
+    }
+    const members = [...memberByUser.values()];
+    const teamConfig = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
+    const readinessByUser = teamConfig.requireCompetitiveProfile && teamConfig.competitiveProfile
+      ? new Map(await Promise.all(members.map(async (member) => [member.userId, await getParticipantReadiness(member.userId, teamConfig.competitiveProfile!)] as const)))
+      : new Map<string, Awaited<ReturnType<typeof getParticipantReadiness>>>();
+    const affiliationRules = normalizeAffiliationRules(season.affiliationRules);
+    const primary = (application?.primaryStarterUserIds ?? []).map((userId) => members.find((member) => member.userId === userId)).filter((member): member is typeof members[number] => Boolean(member));
+    const externalStrength = teamConfig.competitiveProfile ? evaluateExternalStrengthRule({ config: teamConfig.competitiveProfile, players: primary.map((member) => ({ ...(readinessByUser.get(member.userId)?.strength ?? { userId: member.userId, label: member.displayName ?? member.email, historicalPeak: null, previousSeasonPeak: null, currentSeasonPeak: null }), isHome: Boolean(member.institutionCode && member.academicStatus && affiliationRules.some((rule) => rule.institutionCode === member.institutionCode && rule.eligibleAcademicStatuses.includes(member.academicStatus as "enrolled" | "graduated"))) })) }) : { eligible: true, blockers: [] };
+    const njuPrimaryCount = primary.filter((member) => member.institutionCode && member.academicStatus && affiliationRules.some((rule) => rule.institutionCode === member.institutionCode && rule.eligibleAcademicStatuses.includes(member.academicStatus as "enrolled" | "graduated"))).length;
+
+    return (
+      <div className="container mx-auto max-w-2xl space-y-6 px-4 py-10">
+        <div>
+          <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--color-accent)]">{season.name} · TEAM REGISTER</p>
+          <h1 className="text-3xl font-semibold tracking-tight text-[var(--color-fg)]">队伍报名</h1>
+        </div>
+        <StatusBanner
+          tone={getWindowTone(registrationWindow.phase, registrationWindow.canSubmit)}
+          title={registrationWindow.message}
+          sub="报名申请与正式参赛队伍分离；只有管理员审核通过后才会生成正式队伍。"
+        />
+        <TeamApplicationFlow
+          seasonId={season.id}
+          seasonName={season.name}
+          currentUserId={userSession.userId}
+          minTeamSize={season.minTeamSize}
+          maxTeamSize={season.maxTeamSize}
+          application={application}
+          qualification={{ njuPrimaryCount, externalStrengthBlockers: externalStrength.blockers }}
+          members={members.map((member) => ({ id: member.id, userId: member.userId, email: member.email, displayName: member.displayName, status: member.status, emailVerified: Boolean(member.emailVerified), educationStatus: (member.verificationStatus ?? "unsubmitted") as "unsubmitted" | "pending" | "approved" | "rejected", institutionName: member.institutionName, readinessBlockers: readinessByUser.get(member.userId)?.blockers ?? [] }))}
+        />
+      </div>
+    );
   }
 
   const [positionCounts, approvedCount, currentRegistration, currentUser] = await Promise.all([
