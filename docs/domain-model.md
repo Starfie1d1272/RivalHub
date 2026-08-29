@@ -14,11 +14,11 @@
 
 ## 3. Competitive profile
 
-`competitive_platform_seasons` 管理竞技平台赛季目录及其时间顺序和当前赛季；`competitive_rank_facts` 存储用户对当前、历史平台赛季或跨赛季 peak 的可审查竞技事实。它们是独立于某届 RivalHub 赛事的长期资料。
+`competitive_platform_seasons` 管理竞技平台赛季目录及其时间顺序和当前赛季；platform + seasonKey 是目录项的不可变身份。`competitive_rank_facts` 存储用户对任意已编目平台赛季或跨赛季 peak 的可审查竞技事实。它们是独立于某届 RivalHub 赛事的长期资料。发布 requireCompetitiveProfile 的赛事时，目录的 current、previous 与 rank order 被冻结进该赛事的 `teamRegistrationConfig`，之后的目录变化不回写已发布赛事。
 
 ## 4. Seasons
 
-`seasons` 是赛事容器，包含状态、时间、人数、positions 与 capability configuration。Rivals、Major 与自定义赛事由 canonical template factory 建立初始定义；`kind` 只用于展示。报名方式、选秀、阶段和资格规则由 capability fields 及关联配置决定。StagePlan 是可变的赛季定义，启动后不能代替冻结的 StageRun 事实。
+`seasons` 是赛事容器，包含状态、时间、人数、positions 与 capability configuration。Rivals、Major 与自定义赛事由 canonical template factory 建立初始定义；`competitionTemplate` 是持久化的模板身份 owner，编辑时服务端以其为准，draft 内置赛事每次保存都重新 canonicalize 固定语义；`kind` 只用于展示。报名方式、选秀、阶段和资格规则由 capability fields 及关联配置决定。StagePlan 是可变的赛季定义，启动后不能代替冻结的 StageRun 事实。
 
 ## 5. Rivals registrations
 
@@ -89,7 +89,10 @@
 | email 与 Auth identity 的唯一性 | DB unique constraints + Auth 同步 |
 | 一用户同赛事仅有一个 active team application claim | `team_application_active_claims` unique constraint + transaction |
 | application 的可编辑性与状态迁移 | team-application domain action / state rules |
-| affiliation 与竞技资格 | qualification evaluator，读取已验证的长期事实 |
+| affiliation 与竞技资格 | `src/lib/qualification/` 单一 owner：batch fact loaders + pure evaluators |
+| 内置赛事模板身份与固定语义 | `seasons.competitionTemplate` + canonical template factory（draft 保存时重新 canonicalize） |
+| 发布时的竞技上下文冻结 | `publishSeason` 事务：catalog current/previous/rank order → season frozen competitiveProfile |
+| 队长交接的并发安全 | application/team 行锁 + season 行锁 + 目标成员 `FOR UPDATE`，全部判断基于锁定行 |
 | Major prestart readiness | prestart domain service 与明确 blocker |
 | StageRun 规则与参赛成员冻结 | rule snapshot + managed runtime |
 | 一场 Major 比赛恰好 5 名首发 | match-roster service 与 lineup evaluator |

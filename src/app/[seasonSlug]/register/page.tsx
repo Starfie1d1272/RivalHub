@@ -7,7 +7,7 @@ import { getPositionCounts, getApprovedCount } from "@/actions/register";
 import { RegistrationForm } from "@/components/register/RegistrationForm";
 import { normalizeAffiliationRules, normalizeRegistrationConfig, normalizeTeamRegistrationConfig } from "@/types/season";
 import { resolveSeasonEducationVerification } from "@/lib/education/eligibility";
-import { getParticipantReadiness, resolveCompetitiveContext } from "@/lib/major/participant-readiness";
+import { getParticipantReadinessBatch, resolveCompetitiveContext, type ParticipantReadiness } from "@/lib/qualification/service";
 import { evaluateExternalStrengthRule, getPlayerStrengthBreakdown } from "@/lib/major/player-strength";
 import { REGISTRATION_STATUS_LABELS } from "@/types/registration";
 import { Panel, StatusBanner, PosChip } from "@/components/rivalhub";
@@ -144,8 +144,8 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
     const teamConfig = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
     const competitiveProfile = teamConfig.competitiveProfile ? await resolveCompetitiveContext(teamConfig.competitiveProfile) : null;
     const readinessByUser = teamConfig.requireCompetitiveProfile && competitiveProfile
-      ? new Map(await Promise.all(members.map(async (member) => [member.userId, await getParticipantReadiness(member.userId, competitiveProfile)] as const)))
-      : new Map<string, Awaited<ReturnType<typeof getParticipantReadiness>>>();
+      ? await getParticipantReadinessBatch(members.map((member) => member.userId), competitiveProfile)
+      : new Map<string, ParticipantReadiness>();
     const primary = (application?.primaryStarterUserIds ?? []).map((userId) => members.find((member) => member.userId === userId)).filter((member): member is typeof members[number] => Boolean(member));
     const hasStrengthFacts = Boolean(competitiveProfile) && primary.length === 5 && primary.every((member) => getPlayerStrengthBreakdown(readinessByUser.get(member.userId)?.strength ?? { userId: member.userId, label: member.displayName ?? member.email, historicalPeak: null, previousSeasonPeak: null, currentSeasonPeak: null }, competitiveProfile!).available);
     const externalStrength = !competitiveProfile || primary.length !== 5 || !hasStrengthFacts

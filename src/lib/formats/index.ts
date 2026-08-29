@@ -18,3 +18,8 @@ export function getExecutor(type: StageType): StageExecutor {
   }
   return executor;
 }
+
+/** Whether an active executor exists for this stage type. Custom tournaments may only use supported stages. */
+export function isStageExecutorSupported(type: StageType): boolean {
+  return Boolean(EXECUTORS[type]);
+}

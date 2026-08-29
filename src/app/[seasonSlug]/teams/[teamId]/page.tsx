@@ -18,6 +18,7 @@ import { getSeasonHexagonScores } from "@/actions/hexagon";
 import { computeTeamDimensions } from "@/lib/utils/hexagon";
 import type { HexagonScores } from "@/lib/utils/hexagon";
 import { PlayerRadarChart } from "@/components/matches/PlayerRadarChart";
+import { TeamCaptainTransfer } from "@/components/teams/TeamCaptainTransfer";
 
 interface TeamDetailPageProps {
   params: Promise<{ seasonSlug: string; teamId: string }>;
@@ -44,8 +45,19 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
   if (!team) notFound();
 
   const session = await getUserSession();
-  const isAdmin = session ? session.role !== "user" : !!(await checkAdminSession());
-  const canEditTeamName = session?.userId === team.captainUserId;
+  const isCurrentCaptain = session?.userId === team.captainUserId;
+  // Admin override is scoped to this season: super_admin, an authorized
+  // season_admin of THIS season, or an emergency Root session. The transfer
+  // action re-checks the same boundary server-side.
+  const isSeasonScopedAdmin = !!session && (
+    session.role === "super_admin" ||
+    session.authSource === "root" ||
+    (session.role === "season_admin" && session.adminSeasonIds.includes(season.id))
+  );
+  const emergencyRoot = !session ? !!(await checkAdminSession()) : false;
+  const isAdmin = isSeasonScopedAdmin || emergencyRoot;
+  const canEditTeamName = isCurrentCaptain;
+  const canTransferCaptain = isCurrentCaptain || isAdmin;
 
   // ── 阵容 + 赛果 + 即将进行的比赛（并行） ─────────────────────────────────
   const [roster, teamMatches, upcomingMatches] = await Promise.all([
@@ -266,6 +278,13 @@ export default async function TeamDetailPage({ params }: TeamDetailPageProps) {
             <div className="max-w-md pt-3">
               <TeamNameForm teamId={team.id} initialName={team.name} />
             </div>
+          )}
+          {canTransferCaptain && (
+            <TeamCaptainTransfer
+              teamId={team.id}
+              captainUserId={team.captainUserId}
+              members={roster.map((member) => ({ userId: member.userId, label: getDisplayName(member) }))}
+            />
           )}
         </div>
       </div>

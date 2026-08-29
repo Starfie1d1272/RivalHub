@@ -1,7 +1,7 @@
 "use client";
 
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { TeamRegistrationConfig } from "@/types/season";
 
 interface TeamConfigFormProps {
@@ -10,114 +10,25 @@ interface TeamConfigFormProps {
   onChange: (value: TeamRegistrationConfig) => void;
 }
 
-export function TeamConfigForm({ value, maxTeamSize = 9, onChange }: TeamConfigFormProps) {
+/**
+ * Product-facing surface of the team registration configuration. It only
+ * exposes settings with a live runtime consumer owned by this season:
+ * roster/identity rules live in the season's affiliationRules, positions in
+ * season.positions, member removal in the application state machine, and the
+ * competitive profile context is resolved from the global platform catalog at
+ * publish time.
+ */
+export function TeamConfigForm({ value, onChange }: TeamConfigFormProps) {
   function set<K extends keyof TeamRegistrationConfig>(key: K, val: TeamRegistrationConfig[K]) {
     onChange({ ...value, [key]: val });
   }
-  const competitive = value.competitiveProfile ?? { platform: "perfect_world", currentSeasonKey: "", previousSeasonKey: "", rankOrder: [] };
-  function setCompetitive(key: keyof typeof competitive, next: string | string[]) {
-    onChange({ ...value, competitiveProfile: { ...competitive, [key]: next } });
-  }
+  const platform = value.competitiveProfile?.platform ?? "perfect_world";
 
   return (
     <div className="space-y-6">
-      {/* 身份/学校约束 */}
-      <div>
-        <h3 className="text-sm font-medium mb-3">身份 / 学校约束</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={value.allowExternal}
-              onChange={(e) => set("allowExternal", e.target.checked)}
-            />
-            允许外校选手
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={value.graduateCountsAsHome}
-              onChange={(e) => set("graduateCountsAsHome", e.target.checked)}
-            />
-            毕业生算本校
-          </label>
-          <div>
-            <Label>最少本校人数</Label>
-            <Input
-              type="number" min={0} max={maxTeamSize}
-              value={value.minHomeMembers}
-              onChange={(e) => set("minHomeMembers", Number(e.target.value))}
-            />
-          </div>
-          <div>
-            <Label>最少在校生人数</Label>
-            <Input
-              type="number" min={0}
-              value={value.minEnrolledMembers}
-              onChange={(e) => set("minEnrolledMembers", Number(e.target.value))}
-            />
-          </div>
-          <div>
-            <Label>最多外校人数</Label>
-            <Input
-              type="number" min={0}
-              value={value.maxExternalMembers}
-              onChange={(e) => set("maxExternalMembers", Number(e.target.value))}
-            />
-          </div>
-        </div>
-      </div>
-
-      <div>
-        <h3 className="text-sm font-medium mb-3">Major 竞技档案规则</h3>
-        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={value.requireCompetitiveProfile ?? false} onChange={(event) => set("requireCompetitiveProfile", event.target.checked)} />报名与首发必须完成竞技档案</label>
-        <p className="mt-1 text-xs text-[var(--color-fg-dim)]">平台赛季键和段位顺序会保存到赛事配置；开赛后将按确认时的规则执行。</p>
-        <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div><Label>平台标识</Label><Input value={competitive.platform} onChange={(event) => setCompetitive("platform", event.target.value)} placeholder="perfect_world" /></div>
-          <div><Label>当前赛季标识</Label><Input value={competitive.currentSeasonKey} onChange={(event) => setCompetitive("currentSeasonKey", event.target.value)} placeholder="由赛委会公布" /></div>
-          <div><Label>上一赛季标识</Label><Input value={competitive.previousSeasonKey} onChange={(event) => setCompetitive("previousSeasonKey", event.target.value)} placeholder="由赛委会公布" /></div>
-          <div><Label>段位顺序（低→高，逗号分隔）</Label><Input value={competitive.rankOrder.join(",")} onChange={(event) => setCompetitive("rankOrder", event.target.value.split(",").map((item) => item.trim()).filter(Boolean))} placeholder="使用完美平台默认顺序" /></div>
-        </div>
-      </div>
-
-      {/* 位置分配 */}
-      <div>
-        <h3 className="text-sm font-medium mb-3">位置分配</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={value.requirePositions}
-              onChange={(e) => set("requirePositions", e.target.checked)}
-            />
-            强制分配位置
-          </label>
-          <div>
-            <Label>同队每位置上限</Label>
-            <Input
-              type="number" min={1} max={5}
-              value={value.maxPerPositionPerTeam}
-              onChange={(e) => set("maxPerPositionPerTeam", Number(e.target.value))}
-            />
-          </div>
-        </div>
-        <p className="text-xs text-[var(--color-fg-dim)] mt-1">
-          不强制分配位置时，未分配位置的队员不参与排行榜和最佳五人组评选
-        </p>
-      </div>
-
-      {/* 队伍管理 */}
       <div>
         <h3 className="text-sm font-medium mb-3">队伍管理</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={value.captainCanKick}
-              onChange={(e) => set("captainCanKick", e.target.checked)}
-            />
-            队长可移除队员
-          </label>
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
@@ -125,14 +36,6 @@ export function TeamConfigForm({ value, maxTeamSize = 9, onChange }: TeamConfigF
               onChange={(e) => set("captainCanTransfer", e.target.checked)}
             />
             队长可转让
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={value.lockAfterRegistration}
-              onChange={(e) => set("lockAfterRegistration", e.target.checked)}
-            />
-            报名截止后锁定队伍
           </label>
           <label className="flex items-center gap-2 text-sm">
             <input
@@ -151,6 +54,25 @@ export function TeamConfigForm({ value, maxTeamSize = 9, onChange }: TeamConfigF
             强制上传队伍Logo
           </label>
         </div>
+      </div>
+
+      <div>
+        <h3 className="text-sm font-medium mb-3">Major 竞技档案规则</h3>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={value.requireCompetitiveProfile ?? false} onChange={(event) => set("requireCompetitiveProfile", event.target.checked)} />报名与首发必须完成竞技档案</label>
+        <p className="mt-1 text-xs text-[var(--color-fg-dim)]">发布时将从平台赛季目录冻结当前与上一赛季及段位顺序；之后的目录变更不影响已发布赛事。</p>
+        {value.requireCompetitiveProfile && (
+          <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <Label>竞技平台</Label>
+              <Select value={platform} onValueChange={(next) => onChange({ ...value, competitiveProfile: { platform: next, currentSeasonKey: "", previousSeasonKey: "", rankOrder: [] } })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="perfect_world">完美世界竞技平台</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

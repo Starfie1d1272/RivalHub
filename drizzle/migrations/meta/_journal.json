@@ -113,6 +113,13 @@
       "when": 1787977001304,
       "tag": "0015_superb_grim_reaper",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1787979570861,
+      "tag": "0016_productive_white_tiger",
+      "breakpoints": true
     }
   ]
 }

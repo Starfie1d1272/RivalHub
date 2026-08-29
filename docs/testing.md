@@ -38,13 +38,14 @@ pnpm test:major-roster-safety:local
 pnpm test:major-result-recovery:local
 pnpm test:discipline:local
 pnpm test:postevent:local
+pnpm test:season-governance:local
 ```
 
 这些命令经 `scripts/db/local.ts` 运行，目标为 Local Supabase。`test:major-golden:local`、`test:major-start:local` 与 `test:major-swiss:local` 是 `test:major-lifecycle:local` 的 aliases。
 
 ## Coverage intent
 
-单元测试覆盖 capability、状态和 action input boundary；本地集成测试覆盖 Major team registration、长期 participant profile、browser fixture、prestart、StageRun lifecycle、roster safety、result recovery、discipline 与 post-event。历史 Golden Major rehearsal 保存在 [`archive/rehearsals/`](./archive/rehearsals/)，不是当前策略的替代品。
+单元测试覆盖 capability、状态和 action input boundary，包括 persisted template identity、custom definition validator（executor registry 与 groupCount 晋级计算）、qualification batch/single parity 与竞技上下文冻结/解冻；本地集成测试覆盖 Major team registration、长期 participant profile、browser fixture、prestart、StageRun lifecycle、roster safety、result recovery、discipline、post-event，以及 season governance（空赛季删除/撤回 guard、竞技冻结生命周期、队长交接并发语义）。历史 Golden Major rehearsal 保存在 [`archive/rehearsals/`](./archive/rehearsals/)，不是当前策略的替代品。
 
 ## Test layers
 
@@ -78,7 +79,7 @@ production smoke / real-world operation
 
 完整 destructive lifecycle 只在独立 staging DB 执行，结束后 reset staging DB。production 仅进行真实赛事所需 smoke，不承担模拟清理工作。
 
-本轮额外覆盖 canonical Rivals/Major template 与 custom definition fail-closed boundary；队长交接、平台赛季目录与测试赛季清理仍需纳入独立 Local lifecycle acceptance。
+本轮覆盖 canonical Rivals/Major template、custom definition fail-closed publish gate、平台赛季目录身份与冻结引用、qualification 单一 owner、empty-draft 删除/撤回 guard 与队长交接事务语义；完整 32 队 staging lifecycle acceptance 仍按上线门槛单独执行。
 
 ## Change-level validation
 

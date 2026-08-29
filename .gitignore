@@ -161,3 +161,4 @@ vite.config.ts.timestamp-*
 # Local tool connectors and generated design workspace
 .mcp.json
 .stitch/
+.agent-tmp/

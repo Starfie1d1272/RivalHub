@@ -10,7 +10,7 @@ import {
 import { DraftRegistrationTable } from "@/components/admin/DraftRegistrationTable";
 import { TeamApplicationReviewList } from "@/components/admin/TeamApplicationReviewList";
 import { isTeamRegistration } from "@/lib/utils/season";
-import { getParticipantReadiness, resolveCompetitiveContext } from "@/lib/major/participant-readiness";
+import { getParticipantReadinessBatch, resolveCompetitiveContext, type ParticipantReadiness } from "@/lib/qualification/service";
 import { evaluateExternalStrengthRule, getPlayerStrengthBreakdown } from "@/lib/major/player-strength";
 import { evaluateRosterEducationEligibility, resolveSeasonEducationVerification, type SeasonEducationVerification } from "@/lib/education/eligibility";
 import { loadActiveSanctionsInTx } from "@/lib/discipline/service";
@@ -46,8 +46,7 @@ export default async function AdminRegistrationsPage({ params }: PageProps) {
       .orderBy(desc(teamApplications.updatedAt));
     const applicationIds = applications.map((application) => application.id);
     const teamConfig = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
-    const affiliationRules = normalizeAffiliationRules(season.affiliationRules);
-    const rawMembers = applicationIds.length === 0
+    const affiliationRules = normalizeAffiliationRules(season.affiliationRules);    const rawMembers = applicationIds.length === 0
       ? []
       : await db
           .select({ applicationId: teamApplicationMembers.applicationId, userId: users.id, email: users.email, displayName: users.displayName, perfectId: users.perfectId, emailVerifiedAt: users.emailVerifiedAt, educationVerificationId: educationVerifications.id, educationStatus: educationVerifications.status, academicStatus: educationVerifications.academicStatus, institutionName: institutions.name, institutionCode: institutions.moeInstitutionCode, educationSubmittedAt: educationVerifications.submittedAt, status: teamApplicationMembers.status })
@@ -68,12 +67,10 @@ export default async function AdminRegistrationsPage({ params }: PageProps) {
       return { ...member, educationVerificationId: selected?.id ?? null, educationStatus: selected?.status ?? null, academicStatus: selected?.academicStatus ?? null, institutionName: selected?.institutionName ?? null, institutionCode: selected?.institutionCode ?? null };
     });
     const allMemberIds = [...new Set(members.map((member) => member.userId))];
-    const readinessByUser = new Map<string, Awaited<ReturnType<typeof getParticipantReadiness>>>();
     const competitiveProfile = teamConfig.competitiveProfile ? await resolveCompetitiveContext(teamConfig.competitiveProfile) : null;
-    if (teamConfig.requireCompetitiveProfile && competitiveProfile) {
-      const rows = await Promise.all(allMemberIds.map(async (userId) => [userId, await getParticipantReadiness(userId, competitiveProfile)] as const));
-      rows.forEach(([userId, readiness]) => readinessByUser.set(userId, readiness));
-    }
+    const readinessByUser = teamConfig.requireCompetitiveProfile && competitiveProfile
+      ? await getParticipantReadinessBatch(allMemberIds, competitiveProfile)
+      : new Map<string, ParticipantReadiness>();
     const sanctionsByUser = await loadActiveSanctionsInTx(db, { seasonId: season.id, subjectUserIds: allMemberIds, effect: "registration_block" });
     const reviewRows = applications.map((application) => {
       const appMembers = members.filter((member) => member.applicationId === application.id);

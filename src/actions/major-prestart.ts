@@ -14,9 +14,6 @@ import {
   seasons,
   teamMembers,
   teams,
-  users,
-  educationVerifications,
-  institutions,
 } from "@/db/schema";
 import { actionError } from "@/lib/action-utils";
 import { auditActorId, requireSeasonAdmin } from "@/lib/auth/session";
@@ -28,7 +25,8 @@ import { finalizeMajorSwissRoundInTransaction, type MajorSwissRoundFinalizationR
 import { transitionMajorSwissStageInTransaction, type MajorStageTransitionResult } from "@/lib/major/stage-transition";
 import { finalizeMajorPlayoffRoundInTransaction, startMajorPlayoffInTransaction, type MajorPlayoffFinalizationResult, type MajorPlayoffStartResult } from "@/lib/major/playoff-runtime";
 import { revalidateSeasonPaths } from "@/lib/revalidation";
-import { evaluateRosterEducationEligibility, resolveSeasonEducationVerification, type EducationEligibilityMember, type SeasonEducationVerification } from "@/lib/education/eligibility";
+import { evaluateRosterEducationEligibility, resolveSeasonEducationVerification } from "@/lib/education/eligibility";
+import { loadEducationMembershipFacts } from "@/lib/qualification/service";
 
 const uuid = z.string().uuid();
 const issueCategory = z.enum(["qualification", "administration"]);
@@ -90,15 +88,14 @@ async function approvedRosterEducation(
   userIds: readonly string[],
   affiliationRules: ReturnType<typeof normalizeAffiliationRules>,
 ): Promise<Map<string, string>> {
-  const rows = await tx.select({ userId: users.id, email: users.email, emailVerifiedAt: users.emailVerifiedAt, verificationId: educationVerifications.id, verificationStatus: educationVerifications.status, academicStatus: educationVerifications.academicStatus, institutionCode: institutions.moeInstitutionCode, institutionName: institutions.name, verificationSubmittedAt: educationVerifications.submittedAt })
-    .from(users).leftJoin(educationVerifications, eq(educationVerifications.userId, users.id)).leftJoin(institutions, eq(educationVerifications.institutionId, institutions.id)).where(inArray(users.id, [...userIds]));
-  const selected = new Map<string, { member: Omit<EducationEligibilityMember, "verification">; history: SeasonEducationVerification[] }>();
-  for (const row of rows) {
-    const current = selected.get(row.userId) ?? { member: { userId: row.userId, email: row.email, emailVerifiedAt: row.emailVerifiedAt }, history: [] };
-    if (row.verificationId && row.verificationStatus && row.academicStatus && row.institutionName) current.history.push({ id: row.verificationId, status: row.verificationStatus, academicStatus: row.academicStatus, institutionCode: row.institutionCode, institutionName: row.institutionName, submittedAt: row.verificationSubmittedAt });
-    selected.set(row.userId, current);
-  }
-  const resolved = [...selected.values()].map(({ member, history }) => ({ ...member, verificationHistory: history, verification: resolveSeasonEducationVerification(history, affiliationRules).selectedVerification }));
+  const facts = await loadEducationMembershipFacts(tx, userIds);
+  const resolved = [...facts.entries()].map(([userId, { email, emailVerifiedAt, history }]) => ({
+    userId,
+    email,
+    emailVerifiedAt,
+    verificationHistory: history,
+    verification: resolveSeasonEducationVerification(history, affiliationRules).selectedVerification,
+  }));
   const decision = evaluateRosterEducationEligibility(resolved, affiliationRules);
   if (!decision.eligible || decision.selectedVerificationIds.size !== userIds.length) throw new AppError(ErrorCode.VALIDATION_FAILED, decision.blockers.join(" "));
   return decision.selectedVerificationIds;

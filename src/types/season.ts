@@ -185,6 +185,7 @@ export interface Season extends SeasonCapabilities {
   name: string;
   /** 仅用于展示与历史记录，业务逻辑勿用 */
   kind: SeasonKind;
+  competitionTemplate: "rivals" | "major" | "custom";
   status: SeasonStatus;
   themeColor: string | null;
   /** 报名提交开放时间；赛季发布后页面可见，但 now < startAt 时只能保存草稿。 */

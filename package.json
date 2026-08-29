@@ -42,6 +42,7 @@
     "test:major-result-recovery:local": "tsx scripts/db/local.ts test-major-result-recovery",
     "test:discipline:local": "tsx scripts/db/local.ts test-discipline",
     "test:postevent:local": "tsx scripts/db/local.ts test-postevent",
+    "test:season-governance:local": "tsx scripts/db/local.ts test-season-governance",
     "seed": "NODE_OPTIONS='--dns-result-order=ipv4first' tsx scripts/seed.ts"
   },
   "dependencies": {

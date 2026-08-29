@@ -146,9 +146,19 @@ function mockActiveApplicationCheck(rows: unknown[] = []) {
 }
 
 function mockMembers(rows: unknown[]) {
+  // submit 依次调用：报名成员名单（无 join）→ 共享教育事实 loader（users + 两次 leftJoin）
   selectMock.mockReturnValueOnce({
     from: vi.fn().mockReturnValue({
-      innerJoin: vi.fn().mockReturnValue({ leftJoin: vi.fn().mockReturnValue({ leftJoin: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(rows) }) }) }),
+      where: vi.fn().mockResolvedValue(rows),
+    }),
+  });
+  selectMock.mockReturnValueOnce({
+    from: vi.fn().mockReturnValue({
+      leftJoin: vi.fn().mockReturnValue({
+        leftJoin: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue(rows),
+        }),
+      }),
     }),
   });
 }

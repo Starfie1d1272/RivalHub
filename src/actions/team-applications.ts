@@ -14,21 +14,24 @@ import {
   teamMembers,
   teams,
   users,
-  educationVerifications,
-  institutions,
 } from "@/db/schema";
 import { actionError } from "@/lib/action-utils";
 import { auditActorId, requireAuth, requireSeasonAdmin } from "@/lib/auth/session";
 import { assertUsersNotBlockedInTx } from "@/lib/discipline/service";
 import { MIN_TEAM_NAME_LENGTH, MAX_TEAM_NAME_LENGTH } from "@/lib/config/team-config";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { getRegistrationWindowState } from "@/lib/registration/window";
 import { normalizeEmail } from "@/lib/utils/email";
 import { isTeamRegistration } from "@/lib/utils/season";
 import { normalizeAffiliationRules, normalizeTeamRegistrationConfig } from "@/types/season";
-import { evaluateRosterEducationEligibility, resolveSeasonEducationVerification, type EducationEligibilityMember, type SeasonEducationVerification } from "@/lib/education/eligibility";
-import { getParticipantReadiness, resolveCompetitiveContext } from "@/lib/major/participant-readiness";
-import { evaluateExternalStrengthRule } from "@/lib/major/player-strength";
+import { getRegistrationWindowState } from "@/lib/registration/window";
+import {
+  evaluateRosterQualification,
+  getParticipantReadiness,
+  isHomeAffiliatedMember,
+  loadEducationMembershipFacts,
+  resolveCompetitiveContext,
+  resolveSeasonEducationVerification,
+} from "@/lib/qualification/service";
 import { createServiceClient } from "@/lib/auth/supabase";
 import { LOGO_ALLOWED_TYPES, LOGO_MAX_BYTES } from "@/lib/config/upload-limits";
 import { TEAM_LOGO_BUCKET, TEAM_LOGO_EXTENSIONS } from "@/lib/config/team-logo";
@@ -373,26 +376,33 @@ export async function transferTeamApplicationCaptain(input: { applicationId: str
   if (!parsed.success) return invalid("队长交接信息无效。");
   try {
     const session = await requireAuth();
-    const application = await db.query.teamApplications.findFirst({ where: eq(teamApplications.id, parsed.data.applicationId) });
-    if (!application) throw new AppError(ErrorCode.NOT_FOUND, "报名队伍不存在。");
-    let emergencyOverride = false;
-    if (application.captainUserId !== session.userId) {
-      await requireSeasonAdmin(application.seasonId);
-      emergencyOverride = true;
-    }
-    if (!emergencyOverride && !editableStatuses.includes(application.status as (typeof editableStatuses)[number])) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, "报名已锁定，只有管理员可以执行队长交接。");
-    }
-    const season = await db.query.seasons.findFirst({ where: eq(seasons.id, application.seasonId), columns: { slug: true } });
-    if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在。");
-    await db.transaction(async (tx) => {
-      await tx.execute(sql`SELECT id FROM team_applications WHERE id = ${application.id} FOR UPDATE`);
-      const member = await tx.query.teamApplicationMembers.findFirst({ where: and(eq(teamApplicationMembers.applicationId, application.id), eq(teamApplicationMembers.userId, parsed.data.toUserId), eq(teamApplicationMembers.status, "confirmed")) });
+    const result = await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT id FROM team_applications WHERE id = ${parsed.data.applicationId} FOR UPDATE`);
+      const application = await tx.query.teamApplications.findFirst({ where: eq(teamApplications.id, parsed.data.applicationId) });
+      if (!application) throw new AppError(ErrorCode.NOT_FOUND, "报名队伍不存在。");
+      let emergencyOverride = false;
+      if (application.captainUserId !== session.userId) { await requireSeasonAdmin(application.seasonId); emergencyOverride = true; }
+      await tx.execute(sql`SELECT id FROM seasons WHERE id = ${application.seasonId} FOR UPDATE`);
+      const season = await tx.query.seasons.findFirst({ where: eq(seasons.id, application.seasonId) });
+      if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在。");
+      const teamConfig = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
+      if (!emergencyOverride) {
+        if (!teamConfig.captainCanTransfer) throw new AppError(ErrorCode.FORBIDDEN, "当前赛事不允许队长交接。");
+        if (!editableStatuses.includes(application.status as (typeof editableStatuses)[number])) throw new AppError(ErrorCode.VALIDATION_FAILED, "报名已锁定，只有管理员可以执行队长交接。");
+        const window = getRegistrationWindowState(season);
+        if (!window.canSubmit) throw new AppError(ErrorCode.REGISTRATION_CLOSED, window.message);
+      }
+      const member = await tx.query.teamApplicationMembers.findFirst({
+        where: and(eq(teamApplicationMembers.applicationId, application.id), eq(teamApplicationMembers.userId, parsed.data.toUserId)),
+      });
       if (!member) throw new AppError(ErrorCode.VALIDATION_FAILED, "新队长必须是当前已确认的报名成员。");
+      await tx.execute(sql`SELECT id FROM team_application_members WHERE id = ${member.id} FOR UPDATE`);
+      if (member.status !== "confirmed") throw new AppError(ErrorCode.VALIDATION_FAILED, "新队长必须是当前已确认的报名成员。");
       await tx.update(teamApplications).set({ captainUserId: parsed.data.toUserId, updatedAt: new Date() }).where(eq(teamApplications.id, application.id));
       await tx.insert(auditLogs).values({ seasonId: application.seasonId, action: "team_application.transfer_captain", actorId: auditActorId(session), targetId: application.id, targetType: "team_application", meta: { fromUserId: application.captainUserId, toUserId: parsed.data.toUserId, emergencyOverride } });
+      return { slug: season.slug };
     });
-    revalidateApplicationPaths(season.slug);
+    revalidateApplicationPaths(result.slug);
     return ok(undefined);
   } catch (error) { return actionError("transferTeamApplicationCaptain", error); }
 }
@@ -449,24 +459,26 @@ export async function submitTeamApplication(input: { applicationId: string }): P
     const window = getRegistrationWindowState(season);
     if (!window.canSubmit) throw new AppError(ErrorCode.REGISTRATION_CLOSED, window.message);
     const config = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
-    const members = await db
-      .select({ id: teamApplicationMembers.id, userId: teamApplicationMembers.userId, status: teamApplicationMembers.status, email: users.email, emailVerifiedAt: users.emailVerifiedAt, verificationId: educationVerifications.id, verificationStatus: educationVerifications.status, verificationAcademicStatus: educationVerifications.academicStatus, institutionCode: institutions.moeInstitutionCode, institutionName: institutions.name, verificationSubmittedAt: educationVerifications.submittedAt })
+    const memberRows = await db
+      .select({ id: teamApplicationMembers.id, userId: teamApplicationMembers.userId, status: teamApplicationMembers.status })
       .from(teamApplicationMembers)
-      .innerJoin(users, eq(teamApplicationMembers.userId, users.id))
-      .leftJoin(educationVerifications, eq(educationVerifications.userId, users.id))
-      .leftJoin(institutions, eq(educationVerifications.institutionId, institutions.id))
       .where(eq(teamApplicationMembers.applicationId, application.id));
     const affiliationRules = normalizeAffiliationRules(season.affiliationRules);
-    const confirmedByUser = new Map<string, { member: (typeof members)[number]; history: SeasonEducationVerification[] }>();
-    for (const member of members) {
-      if (member.status !== "confirmed") continue;
-      const current = confirmedByUser.get(member.userId) ?? { member, history: [] };
-      if (member.verificationId && member.verificationStatus && member.verificationAcademicStatus && member.institutionName) current.history.push({ id: member.verificationId, status: member.verificationStatus, academicStatus: member.verificationAcademicStatus, institutionCode: member.institutionCode, institutionName: member.institutionName, submittedAt: member.verificationSubmittedAt });
-      confirmedByUser.set(member.userId, current);
-    }
-    const confirmed = [...confirmedByUser.values()].map(({ member, history }) => {
+    const confirmedUserIds = [...new Set(memberRows.filter((member) => member.status === "confirmed").map((member) => member.userId))];
+    const educationFacts = await loadEducationMembershipFacts(db, confirmedUserIds);
+    const confirmed = confirmedUserIds.map((userId) => {
+      const facts = educationFacts.get(userId);
+      const history = facts?.history ?? [];
       const selected = resolveSeasonEducationVerification(history, affiliationRules).selectedVerification;
-      return { ...member, verificationId: selected?.id ?? null, verificationStatus: selected?.status ?? null, verificationAcademicStatus: selected?.academicStatus ?? null, institutionCode: selected?.institutionCode ?? null, institutionName: selected?.institutionName ?? null };
+      return {
+        userId,
+        email: facts?.email ?? "",
+        emailVerifiedAt: facts?.emailVerifiedAt ?? null,
+        educationHistory: history,
+        institutionCode: selected?.institutionCode ?? null,
+        academicStatus: selected?.academicStatus ?? null,
+        isHome: isHomeAffiliatedMember({ institutionCode: selected?.institutionCode ?? null, academicStatus: selected?.academicStatus ?? null }, affiliationRules),
+      };
     });
     if (confirmed.length < season.minTeamSize || confirmed.length > season.maxTeamSize) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, `确认名单必须为 ${season.minTeamSize}-${season.maxTeamSize} 人。`);
@@ -479,35 +491,20 @@ export async function submitTeamApplication(input: { applicationId: string }): P
       if (application.primaryStarterUserIds.length !== 5 || new Set(application.primaryStarterUserIds).size !== 5) throw new AppError(ErrorCode.VALIDATION_FAILED, "请指定恰好 5 名预定主力。");
       const confirmedIds = new Set(confirmed.map((member) => member.userId));
       if (application.primaryStarterUserIds.some((userId) => !confirmedIds.has(userId))) throw new AppError(ErrorCode.VALIDATION_FAILED, "预定主力必须全部是已确认的正式名单成员。");
-      for (const member of confirmed) await assertParticipantReadyForSeason(member.userId, season);
     }
     if (config.requireTeamLogo && !application.logoUrl) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "本赛事要求提交队伍图标。");
     }
-    const eligibilityMembers: EducationEligibilityMember[] = confirmed.map((member) => ({ userId: member.userId, email: member.email, emailVerifiedAt: member.emailVerifiedAt, verification: member.verificationId && member.verificationStatus && member.verificationAcademicStatus && member.institutionName ? { id: member.verificationId, status: member.verificationStatus, academicStatus: member.verificationAcademicStatus, institutionCode: member.institutionCode, institutionName: member.institutionName } : null }));
-    const eligibility = evaluateRosterEducationEligibility(eligibilityMembers, affiliationRules);
-    if (affiliationRules.length > 0 && !eligibility.eligible) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, eligibility.blockers.join(" "));
-    }
     const competitiveProfile = config.competitiveProfile ? await resolveCompetitiveContext(config.competitiveProfile) : null;
     if (config.requireCompetitiveProfile && !competitiveProfile) throw new AppError(ErrorCode.VALIDATION_FAILED, "竞技平台赛季目录尚未完成当前与上一赛季配置。");
-    if (config.requireCompetitiveProfile && competitiveProfile) {
-      const readiness = await Promise.all(confirmed.map(async (member) => ({
-        member,
-        readiness: await getParticipantReadiness(member.userId, competitiveProfile),
-      })));
-      const unreadied = readiness.filter((item) => !item.readiness.ready);
-      if (unreadied.length > 0) throw new AppError(ErrorCode.VALIDATION_FAILED, unreadied.flatMap((item) => item.readiness.blockers).join(" "));
-      const byUser = new Map(readiness.map((item) => [item.member.userId, item]));
-      const primary = application.primaryStarterUserIds.map((userId) => byUser.get(userId)).filter((item): item is NonNullable<typeof item> => Boolean(item));
-      const strength = evaluateExternalStrengthRule({
-        config: competitiveProfile,
-        players: primary.map(({ member, readiness: memberReadiness }) => ({
-          ...memberReadiness.strength,
-          isHome: Boolean(member.institutionCode && member.verificationAcademicStatus && affiliationRules.some((rule) => rule.institutionCode === member.institutionCode && rule.eligibleAcademicStatuses.includes(member.verificationAcademicStatus!))),
-        })),
-      });
-      if (!strength.eligible) throw new AppError(ErrorCode.VALIDATION_FAILED, strength.blockers.join(" "));
+    const qualification = await evaluateRosterQualification({
+      members: confirmed,
+      affiliationRules,
+      competitiveProfile: config.requireCompetitiveProfile ? competitiveProfile : null,
+      primaryStarterUserIds: config.requireCompetitiveProfile ? application.primaryStarterUserIds : undefined,
+    });
+    if (!qualification.eligible) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, qualification.blockers.join(" "));
     }
     // H1: personal registration sanctions block only their subject.
     await assertUsersNotBlockedInTx(db, {

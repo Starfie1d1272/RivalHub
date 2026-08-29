@@ -61,7 +61,9 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  const initialTemplate = initial ? inferCompetitionTemplate(initial as SeasonCapabilities) : "major";
+  // Edit mode owns the persisted competitionTemplate identity; inference is
+  // only a fallback for payloads that predate the persisted column.
+  const initialTemplate = initial?.template ?? (initial ? inferCompetitionTemplate(initial as SeasonCapabilities) : "major");
   const defaultTemplate = createCompetitionTemplate(initialTemplate);
 
   const defaultConfig = initial?.registrationConfig ?? defaultTemplate.registrationConfig;

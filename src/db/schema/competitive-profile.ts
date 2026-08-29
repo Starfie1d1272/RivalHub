@@ -1,4 +1,4 @@
-import { boolean, index, integer, json, numeric, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, index, integer, json, numeric, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { users } from "./users";
 
@@ -29,6 +29,8 @@ export const competitivePlatformSeasons = pgTable("competitive_platform_seasons"
     .on(t.platform)
     .where(sql`${t.isCurrent}`),
   platformChronologyIndex: index("competitive_platform_seasons_platform_order_idx").on(t.platform, t.sortOrder),
+  platformSortOrderUnique: uniqueIndex("competitive_platform_seasons_platform_sort_order_unique").on(t.platform, t.sortOrder),
+  currentMustBeActive: check("competitive_platform_seasons_current_must_be_active", sql`NOT ${t.isCurrent} OR ${t.active}`),
 }));
 
 /** A self-declared, reviewable rank fact. It is not a mutable users-column snapshot. */

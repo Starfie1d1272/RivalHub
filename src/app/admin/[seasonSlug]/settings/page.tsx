@@ -33,6 +33,7 @@ export default async function SeasonSettingsPage({ params }: SeasonSettingsPageP
           name: season.name,
           slug: season.slug,
           kind: season.kind,
+          template: season.competitionTemplate,
           status: season.status,
           themeColor: season.themeColor,
           startAt: toCSTDateTimeInput(season.startAt),

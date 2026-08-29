@@ -151,8 +151,8 @@ async function insertFixture(client: import("pg").PoolClient, authIds: Map<strin
     );
   }
   await client.query(
-    `INSERT INTO competitive_platform_seasons (id, platform, season_key, label, rank_order)
-     VALUES ($1, $2, $3, 'Browser 当前赛季', $4::json), ($5, $2, $6, 'Browser 上一赛季', $4::json)`,
+    `INSERT INTO competitive_platform_seasons (id, platform, season_key, label, rank_order, sort_order, is_current)
+     VALUES ($1, $2, $3, 'Browser 当前赛季', $4::json, 1, true), ($5, $2, $6, 'Browser 上一赛季', $4::json, 0, false)`,
     [deterministicUuid("major-browser-platform-current"), PROFILE.platform, PROFILE.currentSeasonKey, JSON.stringify(PROFILE.rankOrder), deterministicUuid("major-browser-platform-previous"), PROFILE.previousSeasonKey],
   );
   const facts = ACCOUNT_KEYS.filter((key) => key !== "player1").flatMap((key) => {
