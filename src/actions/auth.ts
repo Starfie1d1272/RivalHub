@@ -258,9 +258,11 @@ export async function claimInviteCode(code: string): Promise<ActionResult<{ role
 
   try {
     const result = await db.transaction(async (tx) => {
-      const invite = await tx.query.adminInvites.findFirst({
-        where: eq(adminInvites.code, code.trim()),
-      });
+      const [invite] = await tx
+        .select()
+        .from(adminInvites)
+        .where(eq(adminInvites.code, code.trim()))
+        .for("update");
 
       if (!invite) {
         return fail({ code: ErrorCode.UNAUTHORIZED, message: "邀请码无效" });

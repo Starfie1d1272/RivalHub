@@ -10,6 +10,38 @@ import { getMatchOrThrow, getSeasonOrThrow, actionError } from "@/lib/action-uti
 import { revalidateMatchPaths } from "@/lib/revalidation";
 import { normalizeRegistrationConfig } from "@/types/season";
 import type { VetoActionType } from "@/types/match";
+import { lockMatchInTx } from "@/lib/match-rosters/service";
+
+function assertVetoSequence(
+  format: "bo1" | "bo3" | "bo5",
+  steps: readonly VetoStepInput[],
+  teamAId: string,
+  teamBId: string,
+): void {
+  const expected: Record<typeof format, readonly VetoActionType[]> = {
+    bo1: ["ban", "ban", "ban", "ban", "ban", "ban", "decider"],
+    bo3: ["ban", "ban", "pick", "pick", "ban", "ban", "decider"],
+    bo5: ["ban", "ban", "pick", "pick", "pick", "pick", "decider"],
+  };
+  if (steps.length !== expected[format].length || steps.some((step, index) => step.actionType !== expected[format][index])) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, `${format.toUpperCase()} BP 步骤顺序不合法`);
+  }
+  if (steps.some((step) => step.teamId !== null && step.teamId !== teamAId && step.teamId !== teamBId)) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "BP 操作队伍必须是本场任一参赛队");
+  }
+  if (format === "bo1") {
+    const expectedTeams = [teamAId, teamAId, teamBId, teamBId, teamBId, teamAId, teamBId];
+    if (steps.some((step, index) => step.teamId !== expectedTeams[index])) throw new AppError(ErrorCode.VALIDATION_FAILED, "BO1 BP 操作顺序不合法");
+  }
+  if (format === "bo3") {
+    const expectedTeams = [teamAId, teamBId, teamAId, teamBId, teamBId, teamAId, null];
+    if (steps.some((step, index) => step.teamId !== expectedTeams[index])) throw new AppError(ErrorCode.VALIDATION_FAILED, "BO3 BP 操作顺序不合法");
+  }
+  if (format === "bo5") {
+    const expectedTeams = [teamAId, teamAId, teamBId, teamAId, teamBId, teamAId, null];
+    if (steps.some((step, index) => step.teamId !== expectedTeams[index])) throw new AppError(ErrorCode.VALIDATION_FAILED, "BO5 BP 操作顺序不合法");
+  }
+}
 
 function resolveTeamASide(selectedSide: string, selectingTeamId: string | null, teamAId: string): "t" | "ct" | null {
   if (!selectedSide || !selectingTeamId) return null;
@@ -70,6 +102,12 @@ export async function saveVetoSteps(
     );
 
     await db.transaction(async (tx) => {
+      const locked = await lockMatchInTx(tx, matchId);
+      const allowedLockedStatuses = ["scheduled", "in_progress", "finished"] as const;
+      if (!(allowedLockedStatuses as readonly string[]).includes(locked.status)) {
+        throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "当前比赛状态不允许录入 BP");
+      }
+      assertVetoSequence(locked.format, steps, locked.teamAId, locked.teamBId);
       // 清除旧 BP 记录（支持重复录入）
       await tx.delete(matchVetoSteps).where(eq(matchVetoSteps.matchId, matchId));
 
@@ -87,7 +125,7 @@ export async function saveVetoSteps(
 
       // 比赛已结束时：仅在无 match_maps 记录时重建（供赛后 OCR 使用），
       // 有记录（含已录入比分的行）时跳过，保护历史数据。
-      if (match.status === "finished") {
+      if (locked.status === "finished") {
         const existingMaps = await tx.query.matchMaps.findMany({
           where: eq(matchMaps.matchId, matchId),
         });
@@ -101,9 +139,9 @@ export async function saveVetoSteps(
               teamAStartSide: resolveTeamASide(
                 s.side ?? "",
                 s.actionType === "pick"
-                  ? (s.teamId === match.teamAId ? match.teamBId : match.teamAId)
+                  ? (s.teamId === locked.teamAId ? locked.teamBId : locked.teamAId)
                   : s.teamId,
-                match.teamAId,
+                locked.teamAId,
               ),
             })),
           );
@@ -130,9 +168,9 @@ export async function saveVetoSteps(
               teamAStartSide: resolveTeamASide(
                 s.side ?? "",
                 s.actionType === "pick"
-                  ? (s.teamId === match.teamAId ? match.teamBId : match.teamAId)
+                  ? (s.teamId === locked.teamAId ? locked.teamBId : locked.teamAId)
                   : s.teamId,
-                match.teamAId,
+                locked.teamAId,
               ),
             })),
           );
@@ -140,12 +178,12 @@ export async function saveVetoSteps(
       }
 
       await tx.insert(auditLogs).values({
-        seasonId: match.seasonId,
+        seasonId: locked.seasonId,
         action: "match.save_veto",
         actorId: auditActorId(session),
         targetId: matchId,
         targetType: "match",
-        meta: { format: match.format, stepCount: steps.length, postMatch: match.status === "finished" },
+        meta: { format: locked.format, stepCount: steps.length, postMatch: locked.status === "finished" },
       });
     });
 

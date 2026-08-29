@@ -43,9 +43,10 @@ export async function castVote(
   try {
     const session = await requireAuth();
     const voteId = await db.transaction(async (tx) => {
-      const voter = await tx.query.seasonRegistrations.findFirst({
-        where: eq(seasonRegistrations.id, parsed.data.voterRegistrationId),
-      });
+      // Serialize count + insert per voter; without this row lock, two tabs
+      // can both observe two votes and exceed the three-vote cap.
+      const [voter] = await tx.select().from(seasonRegistrations)
+        .where(eq(seasonRegistrations.id, parsed.data.voterRegistrationId)).for("update");
       const candidate = await tx.query.seasonRegistrations.findFirst({
         where: eq(seasonRegistrations.id, parsed.data.candidateRegistrationId),
       });

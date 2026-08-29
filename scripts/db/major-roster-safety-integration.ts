@@ -290,9 +290,15 @@ async function prepareFixture(pool: Pool, label: string): Promise<RosterSafetyFi
       }
     }
 
-    // Frozen StageRun carrying the affiliation rules accepted at launch.
+    const frozenCompetitiveFacts = allLayouts.flatMap((layout, index) =>
+      layout.frozen
+        ? [{ userId: userIds[index]!, historicalPeak: { rank: "A", rating: 1000 }, previousSeasonPeak: { rank: "A", rating: 1000 }, currentSeasonPeak: { rank: "A", rating: 1000 } }]
+        : [],
+    );
+    // Frozen StageRun carrying the affiliation rules and competitive facts
+    // accepted at launch.
     const ruleSnapshot = {
-      version: 2,
+      version: 3,
       stage: { key: "stage1", type: "swiss", teamCount: 16, matchFormat: "bo1" },
       rosterRules: { minTeamSize: capabilities.minTeamSize, maxTeamSize: capabilities.maxTeamSize, starterCount: capabilities.starterCount },
       affiliationRules: [
@@ -304,6 +310,7 @@ async function prepareFixture(pool: Pool, label: string): Promise<RosterSafetyFi
         },
       ],
       competitiveProfile: { ...COMPETITIVE_PROFILE, rankOrder: [...COMPETITIVE_PROFILE.rankOrder] },
+      frozenCompetitiveFacts,
       tournamentEntrants: [],
       tournamentSeeds: [],
     };
@@ -613,7 +620,8 @@ async function main(): Promise<void> {
       );
     }
 
-    // S12 mutable season 规则被清空后，frozen StageRun 规则仍然生效。
+    // S12 mutable season 规则被清空、live competitive profile 被篡改后，
+    // frozen StageRun 规则与竞技事实仍然生效。
     {
       const mbMatch = await createManagedMatch(pool, fixture, "r1-mb");
       const client = await pool.connect();
@@ -621,6 +629,12 @@ async function main(): Promise<void> {
         // Simulate a legitimate operator mutating the mutable season config.
         await client.query(
           `UPDATE seasons SET affiliation_rules = '[]'::json WHERE id = $1`,
+          [seasonId],
+        );
+        await client.query(
+          `UPDATE competitive_rank_facts SET rank = 'live-mutated' WHERE user_id IN (
+            SELECT user_id FROM team_members WHERE season_id = $1
+          )`,
           [seasonId],
         );
         // A lineup that only satisfies the mutated season row must still be
@@ -634,6 +648,12 @@ async function main(): Promise<void> {
           "S12 mutable 规则清空后冻结规则应继续生效",
         );
         assertCondition(failure.message.includes("南京大学"), "S12 必须按冻结快照给出 NJU shortfall 文案");
+
+        const frozenFactsMatch = await createManagedMatch(pool, fixture, "r1-frozen-facts");
+        await submitLineupProductionLogic(database, {
+          matchId: frozenFactsMatch, teamId: teamAId, source: "participant", submittedBy: null,
+          starterIds: lineupA.starters, substituteIds: [],
+        });
       } finally {
         client.release();
       }

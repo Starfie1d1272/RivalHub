@@ -13,7 +13,7 @@ RivalHub 以最高已完成的验证层级描述能力证据：
 | Rivals · Spring | 生产实战验证 | 2026 NJU Rivals 完成个人报名、审核、队长投票、选秀、循环赛、双败淘汰、比赛管理、时间协商、BP/赛果、MVP、OCR 统计与赛季结束 |
 | Major · Autumn | 自动化生命周期验证 | unit/integration、Local Supabase 和 browser fixture 覆盖队伍报名、资格、prestart、三段 Swiss、Playoffs、roster、recovery、discipline 与 post-event |
 
-**Major 正式上线门槛：**在独立 staging DB 完成一次完整运营生命周期并完成清理验证。
+**2.0 RC 正式验证策略：**自动化与 Local Supabase 集成验证完成后，进行 RC production smoke；随后以真实报名逐步验证运营流程。完整 32 队 staging lifecycle 仍可作为专项演练，但不再是稳定 RC 的强制 gate。
 
 ## Repository checks
 
@@ -56,14 +56,14 @@ Local Supabase integration
         ↓
 Playwright browser E2E
         ↓
-staging full-lifecycle acceptance
+RC production smoke
         ↓
-production smoke / real-world operation
+real registrations progressive validation
 ```
 
-每一层回答不同问题：Vitest 验证 pure rules 与 action boundary；Local Supabase 验证真实 Postgres/Auth/Storage 合作；Playwright 验证浏览器任务；staging 验证独立环境中的完整运营；production 只承载真实赛事所需 smoke 与实战事实。
+每一层回答不同问题：Vitest 验证 pure rules 与 action boundary；Local Supabase 验证真实 Postgres/Auth/Storage 合作；Playwright 验证浏览器任务；RC production 只承载最小 smoke，后续真实报名以渐进方式验证运营事实。完整 staging lifecycle 可补充验证，但不替代这些分层证据。
 
-## 2.0 staging lifecycle gate
+## 完整 staging lifecycle（专项演练，非稳定 RC 强制 gate）
 
 正式上线前，在独立 staging DB 完成一次完整 lifecycle：
 
@@ -77,7 +77,7 @@ production smoke / real-world operation
 → post-event → archive
 ```
 
-完整 destructive lifecycle 只在独立 staging DB 执行，结束后 reset staging DB。production 仅进行真实赛事所需 smoke，不承担模拟清理工作。
+完整 destructive lifecycle 只在独立 staging DB 执行，结束后 reset staging DB。它用于专项运营演练；2.0 RC 的稳定 gate 是 automated/local integration → RC production smoke → real registrations progressive validation。production 仅进行真实赛事所需 smoke，不承担模拟清理工作。
 
 本轮覆盖 canonical Rivals/Major template、custom definition fail-closed publish gate、平台赛季目录身份与冻结引用、qualification 单一 owner、empty-draft 删除/撤回 guard 与队长交接事务语义；完整 32 队 staging lifecycle acceptance 仍按上线门槛单独执行。
 

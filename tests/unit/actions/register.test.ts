@@ -23,6 +23,7 @@ const {
   buildRegistrationSchemaMock,
   getSteamAvatarMock,
   revalidatePathMock,
+  assertUsersNotBlockedInTxMock,
 } = vi.hoisted(() => {
   const insertValuesCalls: unknown[] = [];
   return {
@@ -40,6 +41,7 @@ const {
     buildRegistrationSchemaMock: vi.fn(),
     getSteamAvatarMock: vi.fn(),
     revalidatePathMock: vi.fn(),
+    assertUsersNotBlockedInTxMock: vi.fn(),
   };
 });
 
@@ -85,6 +87,10 @@ vi.mock("@/lib/utils/object", () => ({
 
 vi.mock("@/lib/steam", () => ({
   getSteamAvatar: getSteamAvatarMock,
+}));
+
+vi.mock("@/lib/discipline/service", () => ({
+  assertUsersNotBlockedInTx: assertUsersNotBlockedInTxMock,
 }));
 
 vi.mock("next/cache", () => ({
@@ -185,6 +191,7 @@ describe("submitRegistration()", () => {
     vi.clearAllMocks();
     resetAuditTracking(insertValuesCalls);
     getSteamAvatarMock.mockResolvedValue(null);
+    assertUsersNotBlockedInTxMock.mockResolvedValue(undefined);
   });
 
   it("seedSchema 校验失败（缺少 seasonId）返回 fieldErrors", async () => {

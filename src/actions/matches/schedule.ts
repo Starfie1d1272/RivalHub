@@ -1,8 +1,8 @@
 "use server";
 
-import { eq, and, count, asc } from "drizzle-orm";
+import { eq, and, count, asc, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matches, teams, auditLogs } from "@/db/schema";
+import { matches, teams, auditLogs, seasons } from "@/db/schema";
 import { ok, fail } from "@/types/action";
 import type { ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -27,60 +27,27 @@ export async function generateSchedule(
 ): Promise<ActionResult<{ matchCount: number }>> {
   try {
     const session = await requireSeasonAdmin(seasonId);
-    const season = await getSeasonOrThrow(seasonId);
-
-    if (season.status !== "playing") {
-      throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有在赛季进行中才能生成赛程");
-    }
-
-    const [{ value: existingCount }] = await db
-      .select({ value: count() })
-      .from(matches)
-      .where(eq(matches.seasonId, seasonId));
-
-    if (existingCount > 0) {
-      throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "赛程已生成，不可重复生成");
-    }
-
-    // 按 draft_order ASC 取队伍（决定 participantId 顺序）
-    const seasonTeams = await db.query.teams.findMany({
-      where: eq(teams.seasonId, seasonId),
-      orderBy: [asc(teams.draftOrder)],
+    const outcome = await db.transaction(async (tx) => {
+      // Executors still own their writes; this transaction-level advisory lock
+      // serializes all generic schedule requests without coupling them to a
+      // second adapter or allowing two callers to pass the empty-match check.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`schedule:${seasonId}`}))`);
+      const [season] = await tx.select().from(seasons).where(eq(seasons.id, seasonId));
+      if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
+      if (season.status !== "playing") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有在赛季进行中才能生成赛程");
+      const [{ value: existingCount }] = await tx.select({ value: count() }).from(matches).where(eq(matches.seasonId, seasonId));
+      if (existingCount > 0) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "赛程已生成，不可重复生成");
+      const seasonTeams = await tx.query.teams.findMany({ where: eq(teams.seasonId, seasonId), orderBy: [asc(teams.draftOrder)] });
+      if (seasonTeams.length < 2) throw new AppError(ErrorCode.VALIDATION_FAILED, "队伍数量不足，无法生成赛程");
+      const firstStage = getFirstStage(normalizeStagePlan(season.stagePlan));
+      if (!firstStage) throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "该赛季没有可生成的赛程阶段");
+      const stageTeams = firstStage.seeds?.length ? seasonTeams.filter((_, i) => firstStage.seeds!.includes(i + 1)) : seasonTeams.slice(0, firstStage.teamCount);
+      const { matchCount } = await getExecutor(firstStage.type).initialize(seasonId, firstStage, stageTeams);
+      await tx.insert(auditLogs).values({ seasonId, action: "match.generate_schedule", actorId: session.email, targetId: seasonId, targetType: "season", meta: { matchCount, stageKey: firstStage.key } });
+      return { matchCount, slug: season.slug };
     });
-
-    if (seasonTeams.length < 2) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, "队伍数量不足，无法生成赛程");
-    }
-
-    const stagePlan = normalizeStagePlan(season.stagePlan);
-    const firstStage = getFirstStage(stagePlan);
-    if (!firstStage) {
-      throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "该赛季没有可生成的赛程阶段");
-    }
-    // 首阶段参赛队伍：有 seeds 时按 seed 筛选，否则取 top teamCount（draft_order 即种子序）
-    const stageTeams = firstStage.seeds && firstStage.seeds.length > 0
-      ? seasonTeams.filter((_, i) => firstStage.seeds!.includes(i + 1))
-      : seasonTeams.slice(0, firstStage.teamCount);
-
-    const { matchCount } = await getExecutor(firstStage.type).initialize(
-      seasonId,
-      firstStage,
-      stageTeams,
-    );
-
-    // Audit
-    await db.insert(auditLogs).values({
-      seasonId,
-      action: "match.generate_schedule",
-      actorId: session.email,
-      targetId: seasonId,
-      targetType: "season",
-      meta: { matchCount, stageKey: firstStage.key },
-    });
-
-    revalidateSeasonPaths(season.slug, ["matches", "adminMatches"]);
-
-    return ok({ matchCount });
+    revalidateSeasonPaths(outcome.slug, ["matches", "adminMatches"]);
+    return ok({ matchCount: outcome.matchCount });
   } catch (e) {
     return actionError("generateSchedule", e);
   }
