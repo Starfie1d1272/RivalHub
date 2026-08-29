@@ -15,6 +15,7 @@ import { getRegistrationWindowState } from "@/lib/registration/window";
 import { normalizeEmail } from "@/lib/utils/email";
 import { compactUndefined } from "@/lib/utils/object";
 import { getSteamAvatar } from "@/lib/steam";
+import { assertUsersNotBlockedInTx } from "@/lib/discipline/service";
 
 const draftSchema = z.object({
   seasonId: z.string().uuid("赛季 ID 格式不正确"),
@@ -219,6 +220,12 @@ export async function submitRegistration(input: RegistrationFormData) {
         message: "账号数据异常，请重新登录后再报名",
       });
     }
+    await assertUsersNotBlockedInTx(db, {
+      seasonId: season.id,
+      userLabels: new Map([[user.id, user.email]]),
+      effect: "registration_block",
+      message: "当前账号处于报名禁赛期",
+    });
 
     const existing = await db.query.seasonRegistrations.findFirst({
       where: and(

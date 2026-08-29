@@ -24,7 +24,11 @@ export function validateCompetitionDefinition(capabilities: Pick<SeasonCapabilit
     if (stage.teamCount < 2) issues.push({ path: "stagePlan", message: `${stage.name || "比赛阶段"} 至少需要两支队伍。` });
     if (!stage.matchFormat) issues.push({ path: "stagePlan", message: `${stage.name || "比赛阶段"} 需要设置比赛赛制。` });
     if (stage.advanceTiers.some((tier) => tier.count > stage.teamCount)) issues.push({ path: "stagePlan", message: `${stage.name || "比赛阶段"} 的晋级人数不能超过参赛队伍数。` });
-    if (stage.type === "round_robin" && (!stage.groupCount || stage.teamCount % stage.groupCount !== 0)) issues.push({ path: "stagePlan", message: `${stage.name || "循环赛阶段"} 的队伍数必须能被分组数整除。` });
+    if (stage.type === "round_robin") {
+      if (stage.groupCount !== undefined && stage.groupCount !== 1) issues.push({ path: "stagePlan", message: `${stage.name || "循环赛阶段"} 当前只支持单组运行。` });
+      if (stage.matchFormat !== "bo1") issues.push({ path: "stagePlan", message: `${stage.name || "循环赛阶段"} 当前只支持 BO1。` });
+    }
+    if (stage.type === "double_elim" && stage.matchFormat !== "bo3") issues.push({ path: "stagePlan", message: `${stage.name || "双败淘汰阶段"} 当前只支持 BO3 主赛；总决赛可单独覆写。` });
     if ((stage.type === "single_elim" || stage.type === "double_elim") && (stage.teamCount & (stage.teamCount - 1)) !== 0) issues.push({ path: "stagePlan", message: `${stage.name || "淘汰赛阶段"} 的队伍数必须是 2 的幂。` });
   }
   for (let index = 1; index < stagePlan.length; index++) {

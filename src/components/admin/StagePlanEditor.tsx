@@ -112,7 +112,14 @@ export function StagePlanEditor({ value, onChange }: StagePlanEditorProps) {
               <Label>赛制类型</Label>
               <Select
                 value={stage.type}
-                onValueChange={(v) => onChange(updateStage(value, index, { type: v as StageType }))}
+                onValueChange={(v) => {
+                  const type = v as StageType;
+                  onChange(updateStage(value, index, {
+                    type,
+                    groupCount: type === "round_robin" ? 1 : undefined,
+                    matchFormat: type === "round_robin" ? "bo1" : type === "double_elim" ? "bo3" : stage.matchFormat,
+                  }));
+                }}
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -141,7 +148,7 @@ export function StagePlanEditor({ value, onChange }: StagePlanEditorProps) {
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {MATCH_FORMATS.map((f) => (
+                  {(stage.type === "round_robin" ? ["bo1"] : stage.type === "double_elim" ? ["bo3"] : MATCH_FORMATS).map((f) => (
                     <SelectItem key={f} value={f}>{f.toUpperCase()}</SelectItem>
                   ))}
                 </SelectContent>
@@ -183,13 +190,8 @@ export function StagePlanEditor({ value, onChange }: StagePlanEditorProps) {
           {/* Dynamic fields by type */}
           {stage.type === "round_robin" && (
             <div>
-              <Label>分组数</Label>
-              <Input
-                type="number" min={1} max={16}
-                className="w-24"
-                value={stage.groupCount ?? 1}
-                onChange={(e) => onChange(updateStage(value, index, { groupCount: Number(e.target.value) }))}
-              />
+              <Label>分组</Label>
+              <p className="text-sm text-[var(--color-fg-mid)]">当前执行器只支持单组循环赛（BO1）。</p>
             </div>
           )}
 

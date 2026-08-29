@@ -1,6 +1,9 @@
 import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
+import { db } from "@/db/client";
+import { users } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 // ─── Root 管理员 Session（保留，仅用于紧急登录）───────────────────────────
 
@@ -145,8 +148,9 @@ export async function requireAuth(): Promise<UserSession> {
 /** 任意管理员（season_admin / super_admin / root）。否则抛 UNAUTHORIZED */
 export async function requireAdmin(): Promise<UserSession> {
   const userSession = await getUserSession();
-  if (userSession && userSession.role !== "user") {
-    return userSession;
+  if (userSession) {
+    const current = await loadCurrentPrivileges(userSession);
+    if (current.role !== "user") return current;
   }
 
   // fallback：root 紧急登录
@@ -166,8 +170,9 @@ export async function requireAdmin(): Promise<UserSession> {
 /** super_admin 或 root。否则抛 UNAUTHORIZED */
 export async function requireSuperAdmin(): Promise<UserSession> {
   const userSession = await getUserSession();
-  if (userSession && userSession.role === "super_admin") {
-    return userSession;
+  if (userSession) {
+    const current = await loadCurrentPrivileges(userSession);
+    if (current.role === "super_admin") return current;
   }
 
   const adminSession = await getAdminSession();
@@ -187,12 +192,13 @@ export async function requireSuperAdmin(): Promise<UserSession> {
 export async function requireSeasonAdmin(seasonId: string): Promise<UserSession> {
   const userSession = await getUserSession();
   if (userSession) {
-    if (userSession.role === "super_admin") return userSession;
+    const current = await loadCurrentPrivileges(userSession);
+    if (current.role === "super_admin") return current;
     if (
-      userSession.role === "season_admin" &&
-      userSession.adminSeasonIds.includes(seasonId)
+      current.role === "season_admin" &&
+      current.adminSeasonIds.includes(seasonId)
     ) {
-      return userSession;
+      return current;
     }
   }
 
@@ -207,6 +213,26 @@ export async function requireSeasonAdmin(seasonId: string): Promise<UserSession>
   }
 
   throw new AppError(ErrorCode.UNAUTHORIZED, ERROR_MESSAGES.UNAUTHORIZED);
+}
+
+/**
+ * A 30-day user session identifies the caller, but never authorizes a
+ * privileged operation by itself. Role and season scope are read from the
+ * current users row so revocation takes effect on the next request.
+ */
+async function loadCurrentPrivileges(session: UserSession): Promise<UserSession> {
+  const current = await db.query.users.findFirst({
+    where: eq(users.id, session.userId),
+    columns: { role: true, adminSeasonIds: true },
+  });
+  if (!current) {
+    throw new AppError(ErrorCode.UNAUTHORIZED, ERROR_MESSAGES.UNAUTHORIZED);
+  }
+  return {
+    ...session,
+    role: current.role,
+    adminSeasonIds: current.adminSeasonIds ?? [],
+  };
 }
 
 export interface ActorIdentity {

@@ -37,13 +37,12 @@ describe("custom competition definition validation", () => {
     expect(issues.some((issue) => issue.message.includes("自定义赛事当前支持循环赛、单败淘汰和双败淘汰"))).toBe(true);
   });
 
-  it("computes grouped round-robin qualification as tier.count × groupCount", () => {
-    // 4 groups × 4 teams; top 2 of each group advance → 8 into elimination.
+  it("refuses grouped round-robin because the executor only runs one group", () => {
     const issues = validateCompetitionDefinition(capabilities([
       { ...baseStage, teamCount: 16, groupCount: 4, advanceTiers: [{ placement: "*", count: 2 }] },
       { ...baseStage, key: "elim", name: "淘汰赛", type: "single_elim", teamCount: 8, advanceTiers: [{ placement: "1st", count: 1 }], matchFormat: "bo3" },
     ]));
-    expect(issues).toEqual([]);
+    expect(issues.some((issue) => issue.message.includes("只支持单组"))).toBe(true);
   });
 
   it("multiplies only by the explicit groupCount (undefined counts as a single group)", () => {
@@ -69,11 +68,20 @@ describe("custom competition definition validation", () => {
     expect(issues.some((issue) => issue.message.includes("2 的幂"))).toBe(true);
   });
 
-  it("accepts a fully valid grouped round-robin into elimination definition", () => {
+  it("accepts a single-group BO1 round-robin into elimination definition", () => {
     const issues = validateCompetitionDefinition(capabilities([
-      { ...baseStage, teamCount: 8, groupCount: 2, advanceTiers: [{ placement: "*", count: 2 }] },
+      { ...baseStage, teamCount: 8, groupCount: 1, advanceTiers: [{ placement: "*", count: 4 }] },
       { ...baseStage, key: "elim", name: "淘汰赛", type: "double_elim", teamCount: 4, advanceTiers: [{ placement: "1st", count: 1 }], matchFormat: "bo3", finalFormat: "bo5" },
     ]));
     expect(issues).toEqual([]);
+  });
+
+  it("refuses unsupported round-robin and double-elim primary formats", () => {
+    const issues = validateCompetitionDefinition(capabilities([
+      { ...baseStage, matchFormat: "bo3" },
+      { ...baseStage, key: "elim", name: "淘汰赛", type: "double_elim", teamCount: 4, advanceTiers: [{ placement: "1st", count: 1 }], matchFormat: "bo1" },
+    ]));
+    expect(issues.map((issue) => issue.message).join(" ")).toContain("BO1");
+    expect(issues.map((issue) => issue.message).join(" ")).toContain("BO3");
   });
 });

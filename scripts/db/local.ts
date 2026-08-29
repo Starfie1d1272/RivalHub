@@ -64,6 +64,9 @@ try {
     case "test-major-result-recovery":
       runLocalIntegration("scripts/db/major-result-recovery-integration.ts");
       break;
+    case "test-invite-concurrency":
+      runLocalIntegration("scripts/db/invite-concurrency-integration.ts");
+      break;
     case "test-discipline":
       runLocalIntegration("scripts/db/discipline-integration.ts");
       break;
@@ -97,7 +100,7 @@ try {
       break;
     default:
       throw new Error(
-        "未知命令。可用命令：start | status | migrate | seed | verify | verify-migrations | test-major-start | test-major-golden | test-major-browser | cleanup-major-browser | test-team-registration | test-major-profile | test-major-prestart | test-major-roster-safety | test-major-result-recovery | test-discipline | test-postevent | test-season-governance | bootstrap | reset | stop | studio | dev",
+        "未知命令。可用命令：start | status | migrate | seed | verify | verify-migrations | test-major-start | test-major-golden | test-major-browser | cleanup-major-browser | test-team-registration | test-major-profile | test-major-prestart | test-major-roster-safety | test-major-result-recovery | test-invite-concurrency | test-discipline | test-postevent | test-season-governance | bootstrap | reset | stop | studio | dev",
       );
   }
 } catch (error) {

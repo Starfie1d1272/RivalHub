@@ -17,6 +17,7 @@ import { getMaxMaps, getWinThreshold, isMatchStatus } from "@/types/match";
 import { actionError, getSeasonOrThrow, getMatchOrThrow } from "@/lib/action-utils";
 import {
   applyMatchStatusTransitionInTx,
+  lockMatchInTx,
 } from "@/lib/match-rosters/service";
 import { maybeFinishSeason } from "@/actions/transitions";
 import { revalidateMatchPaths, revalidateSeasonPaths } from "@/lib/revalidation";
@@ -129,19 +130,18 @@ export async function recordMatchResult(
     }
     assertMatchTransition(match.status, "finished");
 
-    const hasVeto = await db.query.matchVetoSteps.findFirst({
-      where: eq(matchVetoSteps.matchId, matchId),
-      columns: { id: true },
-    });
-    if (!hasVeto) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, "请先录入 BP 再录入比分");
-    }
-
     const season = await getSeasonOrThrow(match.seasonId);
 
     // 事务保护：score 更新 + bracket 推进 + audit 原子化
     await db.transaction(async (tx) => {
-      await assertSeasonAllowsTournamentMutationInTx(tx, match.seasonId);
+      const locked = await lockMatchInTx(tx, matchId);
+      if (!isMatchStatus(locked.status)) throw new AppError(ErrorCode.INTERNAL_ERROR, `无效的比赛状态: ${locked.status}`);
+      assertMatchTransition(locked.status, "finished");
+      validateSeriesScore(locked.format, scoreA, scoreB);
+      const hasVeto = await tx.query.matchVetoSteps.findFirst({ where: eq(matchVetoSteps.matchId, matchId), columns: { id: true } });
+      if (!hasVeto) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先录入 BP 再录入比分");
+      const [lockedSeason] = await tx.select().from(seasons).where(eq(seasons.id, locked.seasonId)).for("update");
+      if (!lockedSeason) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
       await tx
         .update(matches)
         .set({
@@ -154,12 +154,12 @@ export async function recordMatchResult(
         .where(eq(matches.id, matchId));
 
       // 推进 bracket（若 bracket 已初始化）
-      if (season.bracketData && match.bracketNodeId) {
+      if (lockedSeason.bracketData && locked.bracketNodeId) {
         const { updatedData, newResolvedMatches } = await bracketAdvance(
-          match.bracketNodeId,
+          locked.bracketNodeId,
           scoreA,
           scoreB,
-          season.bracketData as Database
+          lockedSeason.bracketData as Database
         );
 
         await tx
@@ -170,14 +170,14 @@ export async function recordMatchResult(
         await insertResolvedBracketMatches(
           tx, match.seasonId, match.stage,
           updatedData as Database, newResolvedMatches,
-          normalizeStagePlan(season.stagePlan),
+          normalizeStagePlan(lockedSeason.stagePlan),
         );
       }
 
       await maybeFinishSeason(tx, match.seasonId);
 
       await tx.insert(auditLogs).values({
-        seasonId: match.seasonId,
+        seasonId: locked.seasonId,
         action: "match.record_result",
         actorId: session.email,
         targetId: matchId,
@@ -220,14 +220,6 @@ export async function recordMapResult(
       throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛状态不允许录入地图结果");
     }
 
-    const hasVeto = await db.query.matchVetoSteps.findFirst({
-      where: eq(matchVetoSteps.matchId, matchId),
-      columns: { id: true },
-    });
-    if (!hasVeto) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, "请先录入 BP 再录入地图结果");
-    }
-
     const season = await getSeasonOrThrow(match.seasonId);
     const mapPool = normalizeRegistrationConfig(season.registrationConfig).mapPool;
     if (!mapPool.includes(mapName)) {
@@ -244,7 +236,16 @@ export async function recordMapResult(
     let seriesFinished = false;
 
     await db.transaction(async (tx) => {
-      await assertSeasonAllowsTournamentMutationInTx(tx, match.seasonId);
+      const locked = await lockMatchInTx(tx, matchId);
+      if (locked.status !== "in_progress") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛状态不允许录入地图结果");
+      const hasVeto = await tx.query.matchVetoSteps.findFirst({ where: eq(matchVetoSteps.matchId, matchId), columns: { id: true } });
+      if (!hasVeto) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先录入 BP 再录入地图结果");
+      const [lockedSeason] = await tx.select().from(seasons).where(eq(seasons.id, locked.seasonId)).for("update");
+      if (!lockedSeason) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
+      const lockedPool = normalizeRegistrationConfig(lockedSeason.registrationConfig).mapPool;
+      if (!lockedPool.includes(mapName)) throw new AppError(ErrorCode.MATCH_MAP_INVALID, "地图不在当前赛季图池中");
+      const lockedMaxMaps = getMaxMaps(locked.format);
+      if (mapOrder < 1 || mapOrder > lockedMaxMaps) throw new AppError(ErrorCode.VALIDATION_FAILED, `${locked.format.toUpperCase()} 图序号须在 1-${lockedMaxMaps} 之间`);
       // 事务内读快照
       const existingMaps = await tx.query.matchMaps.findMany({
         where: eq(matchMaps.matchId, matchId),
@@ -254,7 +255,7 @@ export async function recordMapResult(
         throw new AppError(ErrorCode.VALIDATION_FAILED, `地图 ${mapName} 已录入比分`);
       }
 
-      const seriesScore = computeSeriesScoreAfterMap(match.format, existingMaps, scoreA, scoreB);
+      const seriesScore = computeSeriesScoreAfterMap(locked.format, existingMaps, scoreA, scoreB);
       const { mapWinsA, mapWinsB } = seriesScore;
       seriesFinished = seriesScore.seriesFinished;
 
@@ -295,18 +296,18 @@ export async function recordMapResult(
           updatedAt: new Date(),
         }).where(eq(matches.id, matchId));
 
-        if (season.bracketData && match.bracketNodeId) {
+        if (lockedSeason.bracketData && locked.bracketNodeId) {
           const { updatedData, newResolvedMatches } = await bracketAdvance(
-            match.bracketNodeId,
+            locked.bracketNodeId,
             mapWinsA,
             mapWinsB,
-            season.bracketData as Database
+            lockedSeason.bracketData as Database
           );
           await tx.update(seasons).set({ bracketData: updatedData as Database, updatedAt: new Date() }).where(eq(seasons.id, match.seasonId));
           await insertResolvedBracketMatches(
             tx, match.seasonId, match.stage,
             updatedData as Database, newResolvedMatches,
-            normalizeStagePlan(season.stagePlan),
+            normalizeStagePlan(lockedSeason.stagePlan),
           );
         }
 
@@ -314,7 +315,7 @@ export async function recordMapResult(
       }
 
       await tx.insert(auditLogs).values({
-        seasonId: match.seasonId,
+        seasonId: locked.seasonId,
         action: "match.record_map_result",
         actorId: session.email,
         targetId: matchId,

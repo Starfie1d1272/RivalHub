@@ -101,7 +101,7 @@ function buildTemplate(
         { actionType: "decider", mapName: "", teamId: teamBId, side: null },
       ];
     case "bo3":
-      // A ban, B ban, A pick, B pick, B ban, A ban → decider (leftover)
+      // A ban, B ban, A pick, B pick, B ban, A ban → decider (B picks side)
       return [
         { actionType: "ban", mapName: "", teamId: teamAId, side: null },
         { actionType: "ban", mapName: "", teamId: teamBId, side: null },
@@ -109,18 +109,18 @@ function buildTemplate(
         { actionType: "pick", mapName: "", teamId: teamBId, side: null },
         { actionType: "ban", mapName: "", teamId: teamBId, side: null },
         { actionType: "ban", mapName: "", teamId: teamAId, side: null },
-        { actionType: "decider", mapName: "", teamId: null, side: null },
+        { actionType: "decider", mapName: "", teamId: teamBId, side: null },
       ];
     case "bo5":
-      // A ban×2 → B pick, A pick, B pick, A pick → decider (knife round)
+      // A ban, B ban → A/B/A/B pick → decider (B picks side)
       return [
+        { actionType: "ban", mapName: "", teamId: teamBId, side: null },
         { actionType: "ban", mapName: "", teamId: teamAId, side: null },
-        { actionType: "ban", mapName: "", teamId: teamAId, side: null },
-        { actionType: "pick", mapName: "", teamId: teamBId, side: null },
         { actionType: "pick", mapName: "", teamId: teamAId, side: null },
         { actionType: "pick", mapName: "", teamId: teamBId, side: null },
         { actionType: "pick", mapName: "", teamId: teamAId, side: null },
-        { actionType: "decider", mapName: "", teamId: null, side: null },
+        { actionType: "pick", mapName: "", teamId: teamBId, side: null },
+        { actionType: "decider", mapName: "", teamId: teamBId, side: null },
       ];
   }
 }

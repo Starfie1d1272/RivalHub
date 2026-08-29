@@ -258,12 +258,22 @@ export async function claimInviteCode(code: string): Promise<ActionResult<{ role
 
   try {
     const result = await db.transaction(async (tx) => {
-      const invite = await tx.query.adminInvites.findFirst({
-        where: eq(adminInvites.code, code.trim()),
-      });
+      const [invite] = await tx
+        .select()
+        .from(adminInvites)
+        .where(eq(adminInvites.code, code.trim()))
+        .for("update");
+      const [currentUser] = await tx
+        .select()
+        .from(users)
+        .where(eq(users.id, session.userId))
+        .for("update");
 
       if (!invite) {
         return fail({ code: ErrorCode.UNAUTHORIZED, message: "邀请码无效" });
+      }
+      if (!currentUser) {
+        return fail({ code: ErrorCode.UNAUTHORIZED, message: "账号不存在，请重新登录后重试" });
       }
       if (!invite.isActive) {
         return fail({ code: ErrorCode.UNAUTHORIZED, message: "邀请码已失效" });
@@ -280,7 +290,7 @@ export async function claimInviteCode(code: string): Promise<ActionResult<{ role
 
       const targetRole = invite.role === "super_admin" ? "super_admin" : "season_admin";
       // 已有 super_admin 的用户不会被降级
-      const newRole = session.role === "super_admin" ? "super_admin" : targetRole;
+      const newRole = currentUser.role === "super_admin" ? "super_admin" : targetRole;
       const updateSet: {
         role: "user" | "season_admin" | "super_admin";
         updatedAt: Date;
