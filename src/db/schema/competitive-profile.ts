@@ -1,4 +1,4 @@
-import { boolean, index, json, numeric, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, index, integer, json, numeric, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { users } from "./users";
 
@@ -17,10 +17,20 @@ export const competitivePlatformSeasons = pgTable("competitive_platform_seasons"
   /** Lowest → highest canonical rank codes for this platform season. */
   rankOrder: json("rank_order").$type<string[]>().notNull().default(sql`'[]'::json`),
   active: boolean("active").notNull().default(true),
+  /** Explicit chronology is global platform metadata, never a tournament setting. */
+  sortOrder: integer("sort_order").notNull().default(0),
+  /** One current season per platform; inactive catalog entries cannot be current. */
+  isCurrent: boolean("is_current").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   platformSeasonUnique: uniqueIndex("competitive_platform_seasons_platform_key_unique").on(t.platform, t.seasonKey),
+  platformCurrentUnique: uniqueIndex("competitive_platform_seasons_one_current_per_platform")
+    .on(t.platform)
+    .where(sql`${t.isCurrent}`),
+  platformChronologyIndex: index("competitive_platform_seasons_platform_order_idx").on(t.platform, t.sortOrder),
+  platformSortOrderUnique: uniqueIndex("competitive_platform_seasons_platform_sort_order_unique").on(t.platform, t.sortOrder),
+  currentMustBeActive: check("competitive_platform_seasons_current_must_be_active", sql`NOT ${t.isCurrent} OR ${t.active}`),
 }));
 
 /** A self-declared, reviewable rank fact. It is not a mutable users-column snapshot. */

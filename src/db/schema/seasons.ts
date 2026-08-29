@@ -15,6 +15,7 @@ export const seasonStatusEnum = pgEnum("season_status", [
 
 // 报名模式：solo = 个人报名，team = 队伍整体报名
 export const registrationModeEnum = pgEnum("registration_mode", ["solo", "team"]);
+export const competitionTemplateEnum = pgEnum("competition_template", ["rivals", "major", "custom"]);
 
 export const seasons = pgTable("seasons", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -22,6 +23,8 @@ export const seasons = pgTable("seasons", {
   name: text("name").notNull(),
   // 自由文本标记，仅用于展示/筛选，业务逻辑不得读取此字段做功能分支
   kind: text("kind").notNull(),
+  // 创建时选择的产品模板。它是模板所有权，而不是 capability branching 的替代品。
+  competitionTemplate: competitionTemplateEnum("competition_template").notNull().default("custom"),
   status: seasonStatusEnum("status").notNull().default("draft"),
   themeColor: text("theme_color"),
 

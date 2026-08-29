@@ -10,7 +10,6 @@ const items = [
   { href: "/settings/education", label: "教育身份", description: "高校邮箱、学信网材料与审核记录" },
   { href: "/settings/competitive", label: "竞技档案", description: "历史、上一赛季与当前赛季最高段位" },
   { href: "/settings/password", label: "账号与安全", description: "密码与登录安全" },
-  { href: "/settings/privacy", label: "隐私", description: "公开资料与仅供审核使用的资料范围" },
 ] as const;
 
 export function SettingsNav() {

@@ -16,7 +16,7 @@
 
 ## 4. Competitive profile
 
-数据 owner 是 `competitive_platform_seasons` 与 `competitive_rank_facts`。当前 `/settings/competitive` 的平台、当前赛季和上赛季上下文仍从已配置的赛事 `competitiveProfile` 取得；全局 catalog 接入是已接受的收敛工作。赛事 qualification evaluator 读取所需平台上下文和用户事实，并保留必要的 event-time snapshot。
+数据 owner 是 `competitive_platform_seasons` 与 `competitive_rank_facts`。`/settings/competitive` 直接读取全局目录，不依赖已发布 RivalHub 赛事；当前赛季、上一赛季置顶，其他仍启用的已编目赛季也可维护，未来赛季可以留空，历史赛季资料可补录。赛事 qualification evaluator 只检查该赛事冻结上下文要求的 exact season keys，因此目录推进不会让冻结了旧赛季的赛事资格失效。
 
 ## 5. Rivals solo registration
 
@@ -32,7 +32,7 @@ Rivals 用户在报名窗口填写个人报名并可保存草稿。提交由 Ser
 
 ## 8. Major team application
 
-队长创建申请、填写赛事相关信息、邀请成员并维护可编辑申请。一个用户在同届赛事只能保有符合 active-claim 约束的参与关系。提交前由服务端汇集身份、教育、竞技和队伍事实执行资格判断。
+队长创建申请、填写赛事相关信息、邀请成员并维护可编辑申请。队长可把职责转给当前已确认成员，原队长保持普通成员身份；锁定后由适用管理员执行紧急交接。交接在事务内锁定 application 行、season 行与目标成员行，全部权限与状态判断基于锁定行，并发交接只有一个能成功。一个用户在同届赛事只能保有符合 active-claim 约束的参与关系。提交前由服务端 qualification owner（batch facts + pure evaluators）汇集身份、教育、竞技和队伍事实执行资格判断。
 
 ## 9. Member invite / confirmation
 
@@ -82,6 +82,13 @@ Major:  draft → registration → playing → finished → archived
 ```
 
 Rivals 的 voting/drafting 由 capability 启用；Major start 在 readiness、entrants、final rosters 和 seeds 确认后创建 Stage 1。`archived` 是历史赛季终态，任何例外操作必须走明确的赛后 owner。
+
+补充生命周期边界：
+
+- 发布（draft → registration）在事务内冻结 requireCompetitiveProfile 赛事的竞技上下文（catalog current/previous/rank order）。
+- 撤回（registration → draft）与删除共用“无报名/队伍/赛程事实”guard；通过后撤回会解除 built-in 赛事的竞技冻结，下一次发布重新解析目录。
+- 删除（draft → deleted）清理未使用的管理员邀请与 `adminSeasonIds` 引用；`audit_logs.season_id` 为 SET NULL，并写入全局 `season.deleted` 审计。
+- 已发布赛季的编辑只接受名称、主题、时间等元数据；核心配置与冻结上下文不可被客户端输入或模板 factory 改写。
 
 ### Team application
 

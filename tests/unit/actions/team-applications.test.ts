@@ -20,6 +20,7 @@ const {
   txDeleteMock,
   transactionMock,
   requireAuthMock,
+  requireActorMock,
   revalidatePathMock,
   getRegistrationWindowStateMock,
   insertValuesCalls,
@@ -40,6 +41,7 @@ const {
     txDeleteMock: vi.fn(),
     transactionMock: vi.fn(),
     requireAuthMock: vi.fn(),
+    requireActorMock: vi.fn(),
     revalidatePathMock: vi.fn(),
     getRegistrationWindowStateMock: vi.fn(),
     insertValuesCalls,
@@ -50,6 +52,7 @@ const {
 
 vi.mock("@/lib/auth/session", () => ({
   requireAuth: requireAuthMock,
+  requireActorWithRootFallback: requireActorMock,
   auditActorId: vi.fn((session: { userId: string }) => session.userId),
 }));
 
@@ -113,7 +116,13 @@ const APPLICATION = {
 
 function setupTransaction() {
   transactionMock.mockImplementation(async (callback: (tx: unknown) => unknown) => callback({
-    query: { teamMembers: { findFirst: teamMemberFindFirstMock }, teamApplicationActiveClaims: { findFirst: vi.fn().mockResolvedValue(null) } },
+    execute: vi.fn().mockResolvedValue(undefined),
+    query: {
+      teamApplications: { findFirst: applicationFindFirstMock },
+      teamApplicationMembers: { findFirst: memberFindFirstMock },
+      teamMembers: { findFirst: teamMemberFindFirstMock },
+      teamApplicationActiveClaims: { findFirst: vi.fn().mockResolvedValue(null) },
+    },
     insert: txInsertMock,
     update: txUpdateMock,
     delete: txDeleteMock,
@@ -146,9 +155,19 @@ function mockActiveApplicationCheck(rows: unknown[] = []) {
 }
 
 function mockMembers(rows: unknown[]) {
+  // submit 依次调用：报名成员名单（无 join）→ 共享教育事实 loader（users + 两次 leftJoin）
   selectMock.mockReturnValueOnce({
     from: vi.fn().mockReturnValue({
-      innerJoin: vi.fn().mockReturnValue({ leftJoin: vi.fn().mockReturnValue({ leftJoin: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(rows) }) }) }),
+      where: vi.fn().mockResolvedValue(rows),
+    }),
+  });
+  selectMock.mockReturnValueOnce({
+    from: vi.fn().mockReturnValue({
+      leftJoin: vi.fn().mockReturnValue({
+        leftJoin: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue(rows),
+        }),
+      }),
     }),
   });
 }
@@ -166,6 +185,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   insertValuesCalls.length = 0;
   requireAuthMock.mockResolvedValue({ userId: CAPTAIN_ID, email: "captain@rivalhub.test" });
+  requireActorMock.mockResolvedValue({ userId: CAPTAIN_ID, actorId: CAPTAIN_ID, isRootAdmin: false });
   getRegistrationWindowStateMock.mockReturnValue({ canSubmit: true, message: "报名开放中" });
   seasonFindFirstMock.mockResolvedValue(SEASON);
   applicationFindFirstMock.mockResolvedValue(APPLICATION);
