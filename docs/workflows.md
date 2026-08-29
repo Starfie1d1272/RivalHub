@@ -86,10 +86,12 @@ Rivals 的 voting/drafting 由 capability 启用；Major start 在 readiness、e
 ### Team application
 
 ```text
-draft / rejected → submitted → approved | waitlisted | rejected
+draft / rejected → submitted
+submitted → approved | waitlisted | rejected
+waitlisted → approved | rejected
 ```
 
-成员状态独立为 `invited → confirmed`。只有 draft/rejected application 可由队长编辑；submitted application 的审核与正式队伍物化由服务端控制。
+成员状态独立为 `invited → confirmed`。只有 draft/rejected application 可由队长编辑；submitted/waitlisted application 的审核与正式队伍物化由服务端控制。`approved` 已物化为正式队伍，不通过普通 review workflow 回退。
 
 ### Match
 

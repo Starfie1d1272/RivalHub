@@ -33,7 +33,7 @@ Fresh deployment 的标准 bootstrap 是 `RIVALHUB_OWNER_EMAIL`：当该配置�
 
 | 能力 | user | season_admin | super_admin | emergency Root |
 |---|---:|---:|---:|---:|
-| 普通账户、报名与队伍参与操作 | ✓ | ✓ | ✓ | ✓ |
+| 普通账户、报名与队伍参与操作 | ✓ | ✓ | ✓ | — |
 | 管理已授权赛季的报名、选秀、比赛、Major runtime、纪律与赛后 | — | ✓ | ✓ | ✓ |
 | 创建或配置赛季、管理全局用户/机构与邀请码 | — | — | ✓ | ✓ |
 | 全局 audit 查询 | — | — | ✓ | ✓ |

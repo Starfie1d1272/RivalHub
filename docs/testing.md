@@ -12,7 +12,8 @@ RivalHub 以最高已完成的验证层级描述能力证据：
 |---|---|---|
 | Rivals · Spring | 生产实战验证 | 2026 NJU Rivals 完成个人报名、审核、队长投票、选秀、循环赛、双败淘汰、比赛管理、时间协商、BP/赛果、MVP、OCR 统计与赛季结束 |
 | Major · Autumn | 自动化生命周期验证 | unit/integration、Local Supabase 和 browser fixture 覆盖队伍报名、资格、prestart、三段 Swiss、Playoffs、roster、recovery、discipline 与 post-event |
-| Major 正式上线 | staging 全流程验收 | 在独立 staging DB 运行并清理完整运营链路 |
+
+**Major 正式上线门槛：**在独立 staging DB 完成一次完整运营生命周期并完成清理验证。
 
 ## Repository checks
 
