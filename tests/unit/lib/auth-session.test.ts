@@ -1,13 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ErrorCode } from "@/lib/errors";
 
-const { cookiesMock, getIronSessionMock } = vi.hoisted(() => ({
+const { cookiesMock, getIronSessionMock, userFindFirstMock } = vi.hoisted(() => ({
   cookiesMock: vi.fn(),
   getIronSessionMock: vi.fn(),
+  userFindFirstMock: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({ cookies: cookiesMock }));
 vi.mock("iron-session", () => ({ getIronSession: getIronSessionMock }));
+vi.mock("@/db/client", () => ({
+  db: { query: { users: { findFirst: userFindFirstMock } } },
+}));
 
 import {
   auditActorId,
@@ -40,6 +44,7 @@ describe("auth session guards", () => {
     process.env.ADMIN_SESSION_SECRET = "local-test-session-secret-that-is-long-enough";
     vi.clearAllMocks();
     cookiesMock.mockResolvedValue({});
+    userFindFirstMock.mockResolvedValue({ role: "user", adminSeasonIds: [] });
   });
 
   it("reads valid user data, rejects partial data, and persists a user session", async () => {
@@ -79,6 +84,7 @@ describe("auth session guards", () => {
   it("allows regular admin, falls back to root, and fails closed otherwise", async () => {
     const seasonAdmin = { ...user, role: "season_admin" as const, adminSeasonIds: ["season-1"] };
     getIronSessionMock.mockResolvedValueOnce(session(seasonAdmin));
+    userFindFirstMock.mockResolvedValueOnce({ role: "season_admin", adminSeasonIds: ["season-1"] });
     await expect(requireAdmin()).resolves.toEqual(seasonAdmin);
 
     getIronSessionMock
@@ -92,15 +98,26 @@ describe("auth session guards", () => {
 
   it("enforces super-admin and season scopes without elevating ordinary users", async () => {
     getIronSessionMock.mockResolvedValueOnce(session({ ...user, role: "super_admin" }));
+    userFindFirstMock.mockResolvedValueOnce({ role: "super_admin", adminSeasonIds: [] });
     await expect(requireSuperAdmin()).resolves.toMatchObject({ role: "super_admin" });
 
     getIronSessionMock.mockResolvedValueOnce(session(user)).mockResolvedValueOnce(session());
     await expect(requireSuperAdmin()).rejects.toMatchObject({ code: ErrorCode.UNAUTHORIZED });
 
     getIronSessionMock.mockResolvedValueOnce(session({ ...user, role: "season_admin", adminSeasonIds: ["season-1"] }));
+    userFindFirstMock.mockResolvedValueOnce({ role: "season_admin", adminSeasonIds: ["season-1"] });
     await expect(requireSeasonAdmin("season-1")).resolves.toMatchObject({ role: "season_admin" });
 
     getIronSessionMock.mockResolvedValueOnce(session({ ...user, role: "season_admin", adminSeasonIds: ["other-season"] })).mockResolvedValueOnce(session());
+    userFindFirstMock.mockResolvedValueOnce({ role: "season_admin", adminSeasonIds: ["other-season"] });
+    await expect(requireSeasonAdmin("season-1")).rejects.toMatchObject({ code: ErrorCode.UNAUTHORIZED });
+  });
+
+  it("revokes privileged access immediately even when the old session is still valid", async () => {
+    const staleSeasonAdmin = { ...user, role: "season_admin" as const, adminSeasonIds: ["season-1"] };
+    getIronSessionMock.mockResolvedValueOnce(session(staleSeasonAdmin)).mockResolvedValueOnce(session());
+    userFindFirstMock.mockResolvedValueOnce({ role: "user", adminSeasonIds: [] });
+
     await expect(requireSeasonAdmin("season-1")).rejects.toMatchObject({ code: ErrorCode.UNAUTHORIZED });
   });
 

@@ -4,7 +4,7 @@ import { seasons } from "./seasons";
 // All admin actions are logged here — no exceptions
 export const auditLogs = pgTable("audit_logs", {
   id: uuid("id").primaryKey().defaultRandom(),
-  seasonId: uuid("season_id").references(() => seasons.id), // null for global actions
+  seasonId: uuid("season_id").references(() => seasons.id, { onDelete: "set null" }), // null for global actions
   action: text("action").notNull(),           // e.g. "registration.approve"
   actorId: text("actor_id"),                  // admin identifier
   targetId: text("target_id"),                // affected entity id

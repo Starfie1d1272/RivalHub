@@ -15,6 +15,9 @@ const {
   dbUpdateMock,
   dbDeleteMock,
   dbSelectMock,
+  dbExecuteMock,
+  dbTransactionMock,
+  adminInvitesFindFirstMock,
   insertValuesCalls,
   updateSetCalls,
   revalidatePathMock,
@@ -52,10 +55,13 @@ const {
   return {
     requireSuperAdminMock: vi.fn(),
     seasonsFindFirstMock: vi.fn(),
+    adminInvitesFindFirstMock: vi.fn().mockResolvedValue(undefined),
     dbInsertMock,
     dbUpdateMock,
     dbDeleteMock,
     dbSelectMock,
+    dbExecuteMock: vi.fn().mockResolvedValue(undefined),
+    dbTransactionMock: vi.fn(),
     insertValuesCalls,
     updateSetCalls,
     revalidatePathMock: vi.fn(),
@@ -98,8 +104,26 @@ vi.mock("@/db/client", () => ({
     update: dbUpdateMock,
     delete: dbDeleteMock,
     select: dbSelectMock,
+    execute: dbExecuteMock,
+    transaction: dbTransactionMock,
   },
 }));
+
+// 事务 mock：tx 复用同一批 insert/update/delete/select/execute mock，
+// 使审计日志断言与事务内行为保持一致。
+dbTransactionMock.mockImplementation(async (work: (tx: unknown) => unknown) =>
+  work({
+    execute: dbExecuteMock,
+    query: {
+      seasons: { findFirst: seasonsFindFirstMock },
+      adminInvites: { findFirst: adminInvitesFindFirstMock },
+    },
+    insert: dbInsertMock,
+    update: dbUpdateMock,
+    delete: dbDeleteMock,
+    select: dbSelectMock,
+  }),
+);
 
 // ── 导入被测函数（必须在 vi.mock 之后）────────────────────────────────────
 

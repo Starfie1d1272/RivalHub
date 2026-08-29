@@ -12,10 +12,10 @@ import { positionLabel } from "@/lib/validators/registration";
 import { MapPreferenceChips } from "@/components/rivalhub/MapPreferenceChips";
 import { PosChip } from "@/components/rivalhub/PosChip";
 import { PlayerInfoPopover } from "./PlayerInfoPopover";
-import { getDisplayName } from "@/lib/utils/display-name";
+import { getPublicDisplayName } from "@/lib/utils/display-name";
 import { sortByRank } from "@/lib/utils/rank";
 import { selectAutoPickCandidate } from "@/lib/draft/auto-pick";
-import type { DraftPlayerRow } from "@/lib/draft/data";
+import type { CaptainDraftPlayer } from "@/lib/draft/data";
 
 const FILTER_ALL = "all";
 
@@ -29,7 +29,7 @@ interface CaptainDraftPanelProps {
   isDraftActive: boolean;
   isCurrentCaptainTurn: boolean;
   positionCounts: Record<string, number>;
-  players: DraftPlayerRow[];
+  players: CaptainDraftPlayer[];
   seasonPositions: string[];
   /** Already picked members for roster summary */
   rosterMembers: { steamName: string; perfectName: string | null; displayName: string | null; primaryPosition: string }[];
@@ -61,7 +61,7 @@ export function CaptainDraftPanel({
   const [rosterOpen, setRosterOpen] = useState(false);
 
   const grouped = useMemo(() => {
-    const map = new Map<string, DraftPlayerRow[]>();
+    const map = new Map<string, CaptainDraftPlayer[]>();
     for (const player of players) {
       const list = map.get(player.primaryPosition) ?? [];
       list.push(player);
@@ -86,7 +86,7 @@ export function CaptainDraftPanel({
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       filtered = filtered.filter((player) => {
-        const name = getDisplayName(player).toLowerCase();
+        const name = getPublicDisplayName(player).toLowerCase();
         return name.includes(q);
       });
     }
@@ -103,7 +103,7 @@ export function CaptainDraftPanel({
 
   const canSubmit = isDraftActive && isCurrentCaptainTurn && pendingRegistrationId === null;
 
-  async function handlePick(player: DraftPlayerRow) {
+  async function handlePick(player: CaptainDraftPlayer) {
     if (!canSubmit || !canPickPosition(positionCounts[player.primaryPosition] ?? 0)) return;
 
     setPendingRegistrationId(player.registrationId);
@@ -126,7 +126,7 @@ export function CaptainDraftPanel({
       type: "success",
       text: result.data.completed
         ? "选秀已完成"
-        : `${getDisplayName(player)} 已加入队伍`,
+        : `${getPublicDisplayName(player)} 已加入队伍`,
     });
     router.refresh();
   }
@@ -209,7 +209,7 @@ export function CaptainDraftPanel({
                 {rosterMembers.map((member, i) => (
                   <div key={i} className="flex items-center gap-2 text-xs text-[var(--color-fg)]">
                     <PosChip pos={positionLabel(member.primaryPosition)} small />
-                    <span>{getDisplayName(member)}</span>
+                    <span>{getPublicDisplayName(member)}</span>
                   </div>
                 ))}
               </div>
@@ -225,7 +225,7 @@ export function CaptainDraftPanel({
             <div className="flex items-center gap-2">
               <Zap className="size-3.5 shrink-0" aria-hidden="true" style={{ color: "var(--color-warn)" }} />
               <span>
-                超时自动选人：<strong>{getDisplayName(autoPickCandidate)}</strong>（{positionLabel(autoPickCandidate.primaryPosition)}，{autoPickCandidate.peakRank}）
+                超时自动选人：<strong>{getPublicDisplayName(autoPickCandidate)}</strong>（{positionLabel(autoPickCandidate.primaryPosition)}，{autoPickCandidate.peakRank}）
               </span>
             </div>
             <p className="mt-1.5 pl-5.5 text-[10px] leading-relaxed" style={{ color: "color-mix(in srgb, var(--color-warn) 70%, var(--color-fg-mid))" }}>
@@ -285,7 +285,7 @@ export function CaptainDraftPanel({
               const positionOpen = canPickPosition(positionCount);
               const isPending = pendingRegistrationId === player.registrationId;
               const disabled = !canSubmit || !positionOpen || isPending;
-              const displayedName = getDisplayName(player);
+              const displayedName = getPublicDisplayName(player);
 
               return (
                 <div

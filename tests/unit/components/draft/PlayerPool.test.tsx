@@ -13,11 +13,9 @@ describe("PlayerPool", () => {
         seasonPositions={["igl"]}
         players={[
           {
-            registrationId: "reg-1",
             userId: "user-1",
             displayName: null,
             perfectName: null,
-            email: "neo@example.com",
             steamName: "Neo",
             primaryPosition: "igl",
             secondaryPosition: "anchor",
@@ -26,10 +24,6 @@ describe("PlayerPool", () => {
             currentRank: "A+",
             currentRating: 2.05,
             mapPreferences: [],
-            gameplayStyle: null,
-            notes: null,
-            competitionHistory: null,
-            createdAt: new Date("2025-01-01T00:00:00Z"),
           },
         ]}
       />,

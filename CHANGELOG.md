@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.0.0-rc.4
+
+### Patch Changes
+
+- b2b7ae4: Converge 2.0 competition templates, participant qualification context, and administrator lifecycle workflows.
+
+## 2.0.0-rc.3
+
+### Patch Changes
+
+- 收敛公开队长、选秀与比赛协商 DTO，修复登录态导航、登录回跳安全、历史赛季入口与隐私链接。
+
 ## 2.0.0-rc.2
 
 ### Patch Changes

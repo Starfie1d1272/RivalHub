@@ -1,6 +1,6 @@
 {
   "name": "rivalhub",
-  "version": "2.0.0-rc.2",
+  "version": "2.0.0-rc.4",
   "private": true,
   "license": "AGPL-3.0",
   "scripts": {
@@ -40,8 +40,10 @@
     "test:major-swiss:local": "pnpm run test:major-lifecycle:local",
     "test:major-roster-safety:local": "tsx scripts/db/local.ts test-major-roster-safety",
     "test:major-result-recovery:local": "tsx scripts/db/local.ts test-major-result-recovery",
+    "test:invite-concurrency:local": "tsx scripts/db/local.ts test-invite-concurrency",
     "test:discipline:local": "tsx scripts/db/local.ts test-discipline",
     "test:postevent:local": "tsx scripts/db/local.ts test-postevent",
+    "test:season-governance:local": "tsx scripts/db/local.ts test-season-governance",
     "seed": "NODE_OPTIONS='--dns-result-order=ipv4first' tsx scripts/seed.ts"
   },
   "dependencies": {

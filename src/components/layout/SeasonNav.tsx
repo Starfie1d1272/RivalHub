@@ -4,10 +4,12 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils/cn";
+import type { SeasonStatus } from "@/types/season";
 import { ScrollHint } from "@/components/rivalhub";
 
 interface SeasonNavProps {
   slug: string;
+  status: SeasonStatus;
   hasCaptainVoting: boolean;
   hasDraft: boolean;
   hasMatches: boolean;
@@ -22,6 +24,7 @@ interface NavItem {
 
 export function SeasonNav({
   slug,
+  status,
   hasCaptainVoting,
   hasDraft,
   hasMatches,
@@ -29,12 +32,13 @@ export function SeasonNav({
   hasPlayers,
 }: SeasonNavProps) {
   const pathname = usePathname();
+  const isHistorical = status === "finished" || status === "archived";
 
   const items: NavItem[] = [
     { label: "首页", href: `/${slug}` },
-    { label: "报名", href: `/${slug}/register` },
-    ...(hasCaptainVoting ? [{ label: "队长投票", href: `/${slug}/captains` }] : []),
-    ...(hasDraft ? [{ label: "选秀", href: `/${slug}/draft` }] : []),
+    ...(!isHistorical ? [{ label: "报名", href: `/${slug}/register` }] : []),
+    ...(hasCaptainVoting ? [{ label: isHistorical ? "队长投票结果" : "队长投票", href: `/${slug}/captains` }] : []),
+    ...(hasDraft ? [{ label: isHistorical ? "选秀回顾" : "选秀", href: `/${slug}/draft` }] : []),
     { label: "队伍", href: `/${slug}/teams` },
     ...(hasPlayers ? [{ label: "选手", href: `/${slug}/players` }] : []),
     ...(hasMatches ? [{ label: "赛程", href: `/${slug}/matches` }] : []),

@@ -1,135 +1,75 @@
 ---
 name: release
-description: RivalHub 标准版本发布流程 — changeset 管理版本号与 CHANGELOG、tag 对齐、推送
+description: RivalHub 标准版本发布流程：Changesets、main history、tag 与 GitHub Release 对齐
 ---
 
-# RivalHub Release（changeset 流程）
+# RivalHub Release
 
-执行标准版本发布流程。遇到错误立即停止并说明原因。
+Changesets 管理版本号与 `CHANGELOG.md`。RivalHub 是 private 单包，不发布到 npm；`v*` tag 触发 `.github/workflows/release.yml` 创建 GitHub Release。RC 使用 prerelease tag，且不标记为 latest。
 
-> RivalHub 自 v1.30.0 起用 [changesets](https://github.com/changesets/changesets) 管理版本号与 CHANGELOG。
-> 项目是 private 单包，**不发布到 npm**；版本 tag 手动使用 `vX.Y.Z` 或 `vX.Y.Z-rc.N`，由 `.github/workflows/release.yml` 监听 `v*` 触发 GitHub Release。含 `-` 的 RC tag 会标记为 GitHub Pre-release。
+遇到错误立即停止并保留已观察到的状态。公开 tag 的异常必须人工确认处理方案，不能把 force-retag 当作常规修复。
 
----
+## 1. Prepare the release commit
 
-## 日常开发：记录变更（不是发版）
-
-每完成一个改动就运行，**随代码一起提交** `.changeset/*.md`：
+确认待消费的 changeset，并选择与发布类型相符的版本步骤：
 
 ```bash
-pnpm changeset          # 选 patch/minor/major + 写描述
+ls .changeset/*.md | grep -v README
 ```
 
-版本号规范见 CLAUDE.md / AGENTS.md。**禁止手动改 `package.json` 的 version**——由 `changeset version` 统一 bump。
+| 发布类型 | 命令 |
+|---|---|
+| 普通 stable patch/minor/major | `pnpm exec changeset version` |
+| 首次进入 RC | `pnpm exec changeset pre enter rc`，然后 `pnpm exec changeset version` |
+| 后续 RC | `pnpm exec changeset version` |
+| RC → stable | `pnpm exec changeset pre exit`，然后 `pnpm exec changeset version` |
 
----
-
-## 发版流程
-
-### Step 0: 确认有待发布的 changeset
-
-```bash
-ls .changeset/*.md | grep -v README   # 应有至少一个未消费的 changeset
-node -p "require('./package.json').version"   # 当前版本
-```
-
-若没有 changeset 但确需发版（如纯文档/紧急），先补 `pnpm changeset`。
-
-### Step 1: 消费 changeset → bump + CHANGELOG
-
-```bash
-pnpm exec changeset version
-```
-
-自动：bump `package.json` version、删除已消费的 `.changeset/*.md`、在 `CHANGELOG.md` 写入新版本条目。
-
-2.0 RC 首次发布时先进入 prerelease mode：
-
-```bash
-pnpm exec changeset pre enter rc
-pnpm exec changeset version
-```
-
-后续 RC 只重复 `pnpm exec changeset version`。验收完成后退出 RC 并生成稳定版：
-
-```bash
-pnpm exec changeset pre exit
-pnpm exec changeset version
-```
-
-记录新版本：
+完成后记录版本：
 
 ```bash
 NEW_VER=$(node -p "require('./package.json').version")
-PREV_VER=$(git describe --tags --abbrev=0 | sed 's/^v//')
 ```
 
-### Step 2: Review CHANGELOG + 比较链接
-
-- 人工检查 `CHANGELOG.md` 新条目，按需润色为中文、补充上下文。
-- 底部维护比较链接（若缺）：
-
-```
-[NEW_VER]: https://github.com/Starfie1d1272/RivalHub/compare/v{PREV_VER}...v{NEW_VER}
-```
-
-> **特殊大版本**（如重大重构/移除大功能）可绕过 changeset 自动文案，**手写** `## [NEW_VER] - DATE` 条目（Added/Changed/Removed/Fixed 分类，中文精细描述）。`release.yml` 的 awk 已兼容 `## [ver]` 与 `## ver` 两种标题。
-
-### Step 3: 同步项目文档
-
-```bash
-sed -i '' "s/v${PREV_VER}/v${NEW_VER}/g" CLAUDE.md AGENTS.md README.md 2>/dev/null
-grep -n "v${NEW_VER}" AGENTS.md README.md
-```
-
-### Step 4: 提交（必须在打 tag 之前）
+检查 `CHANGELOG.md` 的新条目、比较链接和完整 diff，然后提交语义完整的 release commit：
 
 ```bash
 git add -A
 git commit -m "release: v${NEW_VER}"
 ```
 
-**CHANGELOG 必须在 tag 之前提交**，否则 release workflow checkout tag 时条目为空。
+不要手改 `package.json` version。纯文档变更没有发布需求时不创建无意义 changeset。
 
-### Step 5: 打 tag（手动 v 前缀）
+## 2. Merge through the release path
 
-```bash
-git tag "v${NEW_VER}" HEAD
-```
-
-> changeset 配置 `privatePackages.tag=false`，**不由 changeset 打 tag**，统一手动打 `vX.Y.Z` 以匹配 `release.yml` 的 `v*` 触发器。
-
-### Step 6: 推送（必须带 tag）
+将 release commit 通过受保护的 release path 合入 `main`，再获取远端状态。tag 指向实际部署的 `main` source commit：
 
 ```bash
-git push origin <当前分支> --follow-tags
+git fetch origin main --tags
+git merge-base --is-ancestor <release-commit-sha> origin/main
+RELEASE_SHA=$(git rev-parse origin/main)
+git show "${RELEASE_SHA}:package.json" | node -e 'let s=""; process.stdin.on("data", c => s += c).on("end", () => console.log(JSON.parse(s).version))'
+git show "${RELEASE_SHA}:CHANGELOG.md" | sed -n '1,80p'
 ```
 
-**禁止**普通 `git push`（tag 不推则 GitHub Release 不触发）。
+确认 `RELEASE_SHA` 包含 release commit、`package.json` 为 `${NEW_VER}`、`CHANGELOG.md` 含对应条目且 required CI 已通过，才可继续。
 
-### Step 7: 验证
+## 3. Create and publish the tag
+
+在已验证的 main release source commit 上创建并推送 tag：
+
+```bash
+git tag "v${NEW_VER}" "${RELEASE_SHA}"
+git push origin "v${NEW_VER}"
+```
+
+然后检查 release workflow 与 GitHub Release：
 
 ```bash
 gh run list --workflow=release.yml --limit=3
 ```
 
-Release 链接：`https://github.com/Starfie1d1272/RivalHub/releases/tag/v${NEW_VER}`
+RC 应显示为 prerelease 且不是 latest；stable release 使用正常 release 状态。
 
-### Step 8: PR 合入 main（若在功能/发布分支）
+## Published-tag incident
 
-```bash
-gh pr create --title "v${NEW_VER}: <简述>" --body "<changeset/CHANGELOG 摘要 + Test plan>"
-```
-
----
-
-## 错误速查
-
-| 症状 | 原因 | 修复 |
-|---|---|---|
-| Release body 为空 | CHANGELOG 在 tag 之后才提交 | `gh release edit vX.Y.Z --notes-file /tmp/notes.md` |
-| Release 未触发 | tag 没推到远程 | `git push origin vX.Y.Z` |
-| tag 打在错误 commit | tag 后有追加提交 | `git tag -f vX.Y.Z HEAD && git push origin vX.Y.Z --force` |
-| `changeset version` 没改版本 | 没有未消费的 changeset | 先 `pnpm changeset` 写一个 |
-| CHANGELOG 顶部混入 `# rivalhub` 标题 | changeset 首次写入 | 手工删除多余标题，保留 `# Changelog` |
-| compare 链接 404 | 旧 tag 不存在 | 确认 `PREV_VER` tag 已推送 |
+如果已经公开的 tag 指向错误 commit、缺少 changelog 或 workflow 失败，停止后人工确认处理方案。记录实际 tag、target commit、release 状态与需要的协调，不默认改写 published history。

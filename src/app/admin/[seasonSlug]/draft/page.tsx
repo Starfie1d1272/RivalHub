@@ -5,7 +5,7 @@ import { db } from "@/db/client";
 import { seasons, teams } from "@/db/schema";
 import { Marker } from "@/components/rivalhub";
 import { DraftAdminPanel } from "@/components/draft/DraftAdminPanel";
-import { getDraftData } from "@/lib/draft/data";
+import { getDraftAdminData } from "@/lib/draft/data";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +31,7 @@ export default async function AdminDraftPage({ params }: AdminDraftPageProps) {
     .where(eq(teams.seasonId, season.id));
   const teamCount = Number(teamCountRow?.count ?? 0);
 
-  const data = season.hasDraft ? await getDraftData(season.id) : null;
+  const data = season.hasDraft ? await getDraftAdminData(season.id) : null;
 
   return (
     <main className="container mx-auto max-w-6xl px-4 py-8">

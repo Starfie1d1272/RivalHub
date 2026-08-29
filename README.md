@@ -1,48 +1,29 @@
 # RivalHub
 
-RivalHub 是一个面向高校电竞赛事的开源赛事管理平台。当前生产验证重点是 NJU 选秀联赛流程：个人报名、审核、队长投票、选秀、排位赛、双败淘汰赛、基础比分和数据录入。
+RivalHub 是面向高校电竞赛事的开源赛事管理平台，并为其他赛事形态保留可扩展的架构边界。
 
-项目采用 capability 驱动的多赛事模型。赛季能力由配置决定，公开路由以 `seasonSlug` 区分，避免把具体赛事、赛制或阶段硬编码进业务逻辑。
+当前内置两套平行赛事体系：
 
-生产站点：[match.starfie1d.top](https://match.starfie1d.top)
+- **Rivals · Spring**：个人报名、队长投票、蛇形选秀、循环赛与双败淘汰。
+- **Major · Autumn**：队伍报名、资格核验、赛前冻结、三段 Swiss 与淘汰赛。
 
-当前 RC 发布线：`v2.0.0-rc.0`；RC 不标记为 latest stable。
+生产站点：[match.starfie1d.top](https://match.starfie1d.top)。版本与发布状态以 [GitHub Releases](https://github.com/Starfie1d1272/RivalHub/releases) 为准。
 
-## 当前能力状态
+## 当前能力
 
-不要把 capability 预设或设计文档等同于生产可用能力。外部试点前请先阅读 [docs/external-pilot-readiness.md](./docs/external-pilot-readiness.md)。
-
-| 状态 | 模块 | 能力 |
+| 体系 | 当前验证层级 | 已验证范围 |
 |---|---|---|
-| 已实战验证 | 赛季 | 多赛季路由、能力开关、阶段状态机、赛季发布与归档 |
-| 已实战验证 | 个人报名 | 邮箱账号、表单校验、草稿恢复、位置与人数限制、截图链接 |
-| 已实战验证 | 审核 | 管理员审核、候补名单、邀请码提权、操作审计 |
-| 已实战验证 | 队长投票 | 候选人确认、限票规则、票数展示与实时更新 |
-| 已实战验证 | 选秀 | 蛇形选秀、事务行锁、幂等 pick、超时自动递补 |
-| 已实战验证 | 队伍 | 选秀生成队伍后的阵容展示、队长标识、队名与队徽管理 |
-| 已实战验证 | 比赛 | 排位赛、双败淘汰、BP / 地图结果、阵容提交、比分录入、MVP 投票 |
-| 已实战验证 | 协商 | 比赛时间提议、接受/拒绝、管理员强制设定、截止自动裁定 |
-| 已实战验证 | 数据 | OCR 录入、选手/队伍基础统计、排行榜、审计日志 |
-| 已实现待验收 | Demo | demo ZIP 导入、批量匹配、OCR 冲突确认、覆盖导入、Steam alias 绑定、部分详情展示 |
-| 已实现待验收 | 评分 | `@rivalhub/rival-rating` 接入、RR / PRISM 重算入口 |
-| 设计/配置中 | Major / Swiss | Major preset、Swiss executor 和展示基础；完整三段 Swiss 运营闭环仍需 staging 验收和 UI 补强 |
-| 尚未实现 | 队伍报名 | 外部队伍自助报名、审核、生成队伍流程 |
-| 尚未实现 | Broadcast | public broadcast API、OBS / vMix overlay、MVP 转播卡 |
+| Rivals · Spring | 已实战验证 | 2026 NJU Rivals 已完成个人报名、审核、队长投票、蛇形选秀、循环赛、双败淘汰、比赛管理、时间协商、BP/赛果、MVP、OCR 统计与赛季结束 |
+| Major · Autumn | 已实现并完成自动化生命周期验证 | 队伍报名、资格、赛前冻结、三阶段 Swiss、Playoffs、阵容、恢复、纪律与赛后 |
+| 通用赛事框架 | 扩展框架已建立 | `StagePlan`、`StageExecutor` 等通用接口；更多赛事形态按实际需求逐步接入 |
+
+验证证据按实现、自动化验证、完整环境演练与生产实战验证递进。测试策略和环境边界见 [docs/testing.md](./docs/testing.md)。
+
+Major 正式上线前需在独立 staging DB 完成一次完整运营生命周期并完成清理验证。
 
 ## 技术栈
 
-| 层 | 选型 |
-|---|---|
-| Web | Next.js App Router, React, TypeScript strict |
-| UI | Tailwind CSS, shadcn/ui, 自定义 Tactical Grid 组件 |
-| Demo 解析 | `cs2-demo-format` ZIP 导入；完整分析展示仍在建设 |
-| 数据 | Supabase Postgres, Auth, Realtime, Storage |
-| ORM | Drizzle ORM |
-| 表单 | React Hook Form, Zod |
-| 鉴权 | Supabase email/password + iron-session |
-| Bracket | `brackets-manager` / `brackets-viewer`，经 `src/lib/bracket` 适配 |
-| 测试 | Vitest, React Testing Library, Playwright |
-| 部署 | Vercel |
+Next.js App Router、TypeScript strict、Tailwind CSS、shadcn/ui、Drizzle ORM、Supabase Postgres/Auth/Storage/Realtime、iron-session、Vitest、Playwright 与 Vercel。架构与边界见 [docs/architecture.md](./docs/architecture.md)。
 
 ## 快速开始
 
@@ -52,133 +33,42 @@ pnpm db:local:bootstrap
 pnpm dev:local
 ```
 
-本地开发地址：`http://localhost:3000`
-
-本地开发使用仓库固定版本的 Supabase CLI 和独立 Docker 网络，运行完整的 PostgreSQL、Auth、Storage 与 Data API；不会读取 `.env.local` 中的远程 `DATABASE_URL`。首次启动需要 Docker-compatible runtime，并建议至少分配 8 GiB 内存。
-
-`db:local:bootstrap` 会按以下顺序执行：
-
-```text
-Local Supabase → Drizzle active migrations → development fixtures → Auth/Storage/Data API verification
-```
-
-本地 Root 登录默认为 `local-admin` / `local-admin-password`，只会注入 loopback Local Supabase 进程。可通过 `RIVALHUB_LOCAL_ROOT_USERNAME` / `RIVALHUB_LOCAL_ROOT_PASSWORD` 覆盖；不要把这组本地凭据用于任何远程环境。
-
-标准 production bootstrap 不需要先创建独立 Root：在 `RIVALHUB_OWNER_EMAIL` 配置指定 owner email，用户通过正常 `/login` 注册并登录；当数据库尚无任何 `public.users.role='super_admin'` 时，该匹配账号会在事务和锁保护下升级为 `super_admin`。一旦已有任意 `super_admin`，bootstrap 永久失效，不会把任意首个注册者提权。
-
-远程环境如确需执行 `pnpm seed`，仍必须显式提供 `DATABASE_URL`、目标类型、精确 host 确认和匹配的写入授权；脚本不会读取 `.env.local`。`RIVALHUB_ROOT_USERNAME` / `RIVALHUB_ROOT_PASSWORD` 仅保留为 legacy emergency Root 兼容路径：
-
-```text
-RIVALHUB_OWNER_EMAIL=<指定 owner 邮箱>
-
-# 仅 emergency/legacy seed 使用，必须同时提供
-RIVALHUB_ROOT_USERNAME
-RIVALHUB_ROOT_PASSWORD
-```
-
-- `pnpm seed` 不再要求 Root 凭据；只有显式同时提供 `RIVALHUB_ROOT_USERNAME` 与 `RIVALHUB_ROOT_PASSWORD` 时才创建 legacy Root。
-- 任何环境下 seed 日志都不会输出凭据。
-- 本地开发不要直接运行 `pnpm seed`，统一使用 `pnpm db:local:seed`。
-
-## 环境变量
-
-完整模板见 [.env.example](./.env.example)。
-
-| 变量 | 用途 |
-|---|---|
-| `DATABASE_URL` | Supabase Postgres 连接串；生产建议使用 Session Pooler |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase 项目 URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 浏览器端 Supabase anon key |
-| `SUPABASE_SERVICE_ROLE_KEY` | 服务端 Supabase service role key |
-| `ADMIN_SESSION_SECRET` | iron-session 加密密钥，至少 32 字符 |
-| `RIVALHUB_OWNER_EMAIL` | 标准首个 owner bootstrap 邮箱；匹配账号登录后一次性升级为 `super_admin` |
-| `RIVALHUB_ROOT_USERNAME` | legacy emergency Root 用户名（可选，仅显式 seed） |
-| `RIVALHUB_ROOT_PASSWORD` | legacy emergency Root 密码（可选，仅显式 seed） |
-| `NEXT_PUBLIC_APP_URL` | 应用公开 URL |
-| `CRON_SECRET` | Cron API 鉴权密钥 |
-| `STEAM_API_KEY` | 可选，抓取 Steam 头像 |
-| `SILICONFLOW_API_KEY` | 可选，玩家数据 OCR |
-
-不要把 `SUPABASE_SERVICE_ROLE_KEY` 暴露到任何 `NEXT_PUBLIC_` 变量中。
-
-## 部署
-
-生产部署目标是 Vercel + Supabase：
-
-1. 在 Supabase 创建项目并应用 Drizzle schema / migration。
-2. 在 Vercel 配置 `.env.example` 中列出的环境变量。
-3. 生产 `DATABASE_URL` 使用 Supabase Dashboard 提供的 Session Pooler 连接串。
-4. 配置 `RIVALHUB_OWNER_EMAIL`，让 owner 通过 `/login` 正常注册并登录完成首个 `super_admin` bootstrap。
-5. 如需应急兼容路径，才同时配置 `RIVALHUB_ROOT_USERNAME` / `RIVALHUB_ROOT_PASSWORD` 并显式运行 `pnpm seed`。
-6. 在 GitHub Actions Secrets 配置 `CRON_SECRET`。
-7. 合并到 `main` 后由 Vercel 部署生产站点。
-
-Cron 由 GitHub Actions 调用，端点与频率见 [.github/workflows/cron.yml](./.github/workflows/cron.yml)。部署细节见 [docs/deployment.md](./docs/deployment.md)。
-
-外部试点必须使用独立 staging 环境：独立 Vercel environment / preview deployment + 独立 Supabase 项目。不要把试点 seed、E2E 或 demo 导入压测指向生产数据库。
-
-## 安全边界
-
-- 业务写操作走 Server Actions；Cron 触发才使用 API Route。
-- 浏览器只订阅必要的 Supabase Realtime 表。
-- 管理操作必须写入审计日志。
-- 生产环境启用 RLS；除公开实时表外，不给浏览器直接访问业务表的 policy。
-- 第三方服务密钥只放服务端环境变量。
-
-更多权限与 RLS 细节见 [docs/auth-and-permissions.md](./docs/auth-and-permissions.md)。
+Local Supabase 由仓库 wrapper 启动并注入 loopback 连接；不会把 `.env.local` 的远程数据库作为 fallback。完整的环境与迁移边界见 [docs/deployment.md](./docs/deployment.md)。
 
 ## 常用命令
 
 ```bash
-pnpm dev          # 本地开发
-pnpm dev:local    # 使用 Local Supabase 启动应用
-pnpm build        # 生产构建
-pnpm type-check   # Next route typegen + TypeScript
-pnpm test         # Vitest
-pnpm test:e2e     # Playwright
-pnpm db:generate  # 生成 Drizzle migration
-pnpm db:check     # 校验 Drizzle active migration chain
-pnpm db:local:reset   # 仅重建 loopback Local Supabase，并重放 migration/fixtures/验证
-pnpm db:local:verify  # 实测 migration、Auth、Storage 与 Data API 默认拒绝
-```
-
-`pnpm db:push` 已 fail closed 禁用，因为它不会执行 active migration 中的 custom SQL、backfill 和 validation。远程迁移前必须先通过 staging 隔离与 baseline gate，详见部署文档。
-
-发布前至少运行：
-
-```bash
+pnpm dev
+pnpm dev:local
 pnpm type-check
+pnpm lint
 pnpm test
+pnpm test:e2e
 pnpm build
+pnpm db:check
+pnpm db:local:bootstrap
+pnpm db:local:reset
 ```
+
+`pnpm db:push` 被显式阻止。活动 Drizzle migration chain 是唯一迁移 authority；远程操作前须通过 [部署安全门](./docs/deployment.md)。
 
 ## 文档
 
-| 文档 | 内容 |
+| 文档 | 说明 |
 |---|---|
-| [AGENTS.md](./AGENTS.md) | 项目工程手册与 AI 协作约束 |
-| [docs/README.md](./docs/README.md) | 文档入口与维护规则 |
-| [docs/code-map.md](./docs/code-map.md) | 代码结构地图与修改入口 |
-| [docs/architecture.md](./docs/architecture.md) | 架构与模块边界 |
-| [docs/data-model.md](./docs/data-model.md) | 数据模型与约束 |
-| [docs/data-integrity.md](./docs/data-integrity.md) | 数据一致性与 Storage 策略 |
-| [docs/auth-and-permissions.md](./docs/auth-and-permissions.md) | 鉴权、权限与 RLS 策略 |
-| [docs/season-abstraction.md](./docs/season-abstraction.md) | capability 驱动的多赛事设计 |
-| [docs/registration-flow.md](./docs/registration-flow.md) | 报名流程 |
-| [docs/draft-flow.md](./docs/draft-flow.md) | 选秀事务与并发安全 |
-| [docs/state-machines.md](./docs/state-machines.md) | 关键业务状态机 |
-| [docs/deployment.md](./docs/deployment.md) | Vercel / Supabase 部署手册 |
-| [docs/testing.md](./docs/testing.md) | 测试策略 |
-| [docs/external-pilot-readiness.md](./docs/external-pilot-readiness.md) | 外部试点前能力边界、staging 和整改清单 |
-| [CHANGELOG.md](./CHANGELOG.md) | 版本发布记录 |
+| [AGENTS.md](./AGENTS.md) | 持久工程约束 |
+| [docs/README.md](./docs/README.md) | 文档 authority 与入口 |
+| [docs/architecture.md](./docs/architecture.md) | 技术架构、内置赛事与代码域映射 |
+| [docs/domain-model.md](./docs/domain-model.md) | 领域模型、冻结事实与数据边界 |
+| [docs/workflows.md](./docs/workflows.md) | 用户与运营生命周期 |
+| [docs/auth-and-permissions.md](./docs/auth-and-permissions.md) | Auth、权限与 Data API 安全基线 |
+| [docs/deployment.md](./docs/deployment.md) | Local、staging、production 运行与迁移 |
+| [docs/testing.md](./docs/testing.md) | 自动化测试与 staging lifecycle gate |
+| [docs/ui-system.md](./docs/ui-system.md) | UI 系统与产品语言 |
+| [docs/rules/nju-major.md](./docs/rules/nju-major.md) | NJU Major 赛事政策 |
 
-历史设计稿、一次性计划和过程材料已归档到 [docs/archive](./docs/archive)，不作为当前实现的事实来源。
+历史过程材料与历史验收记录在 [docs/archive/](./docs/archive/)，不描述当前实现。
 
 ## License
 
 [GNU AGPLv3](./LICENSE)
-
-RivalHub is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as published
-by the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.

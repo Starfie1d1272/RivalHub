@@ -11,6 +11,7 @@ import type { ActionResult } from "@/types/action";
 import { actionError } from "@/lib/action-utils";
 import { MIN_PASSWORD_LENGTH, isPasswordPolicySatisfied, PASSWORD_POLICY_MESSAGE } from "@/lib/config/auth-config";
 import { normalizeEmail } from "@/lib/utils/email";
+import { safeLocalRedirect } from "@/lib/auth/redirect";
 import { bootstrapConfiguredOwnerInTx } from "@/lib/auth/owner-bootstrap";
 import {
   requireAuth,
@@ -209,7 +210,8 @@ function callbackUrl(flow: "signup" | "reverify", next?: string): string {
 }
 
 function safeNextPath(next: string | undefined): string | null {
-  return next && next.startsWith("/") && !next.startsWith("//") ? next : null;
+  const safeNext = safeLocalRedirect(next, "");
+  return safeNext || null;
 }
 
 export async function sendPasswordResetEmail(email: string): Promise<ActionResult<undefined>> {
@@ -256,12 +258,22 @@ export async function claimInviteCode(code: string): Promise<ActionResult<{ role
 
   try {
     const result = await db.transaction(async (tx) => {
-      const invite = await tx.query.adminInvites.findFirst({
-        where: eq(adminInvites.code, code.trim()),
-      });
+      const [invite] = await tx
+        .select()
+        .from(adminInvites)
+        .where(eq(adminInvites.code, code.trim()))
+        .for("update");
+      const [currentUser] = await tx
+        .select()
+        .from(users)
+        .where(eq(users.id, session.userId))
+        .for("update");
 
       if (!invite) {
         return fail({ code: ErrorCode.UNAUTHORIZED, message: "邀请码无效" });
+      }
+      if (!currentUser) {
+        return fail({ code: ErrorCode.UNAUTHORIZED, message: "账号不存在，请重新登录后重试" });
       }
       if (!invite.isActive) {
         return fail({ code: ErrorCode.UNAUTHORIZED, message: "邀请码已失效" });
@@ -278,7 +290,7 @@ export async function claimInviteCode(code: string): Promise<ActionResult<{ role
 
       const targetRole = invite.role === "super_admin" ? "super_admin" : "season_admin";
       // 已有 super_admin 的用户不会被降级
-      const newRole = session.role === "super_admin" ? "super_admin" : targetRole;
+      const newRole = currentUser.role === "super_admin" ? "super_admin" : targetRole;
       const updateSet: {
         role: "user" | "season_admin" | "super_admin";
         updatedAt: Date;

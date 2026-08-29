@@ -6,6 +6,7 @@ import { users } from "@/db/schema/users";
 import { createUserSession } from "@/lib/auth/session";
 import { normalizeEmail } from "@/lib/utils/email";
 import { bootstrapConfiguredOwnerInTx } from "@/lib/auth/owner-bootstrap";
+import { safeLocalRedirect } from "@/lib/auth/redirect";
 
 export async function GET(request: NextRequest) {
   const applicationOrigin = process.env.NEXT_PUBLIC_APP_URL ?? request.nextUrl.origin;
@@ -17,7 +18,10 @@ export async function GET(request: NextRequest) {
   if (!flow) {
     return NextResponse.redirect(new URL("/login", applicationOrigin));
   }
-  const next = safeNextPath(searchParams.get("next")) ?? (flow === "reverify" ? "/settings/education" : "/");
+  const next = safeLocalRedirect(
+    searchParams.get("next"),
+    flow === "reverify" ? "/settings/education" : "/",
+  );
 
   if (!code && !tokenHash) {
     return NextResponse.redirect(new URL("/login", applicationOrigin));
@@ -82,9 +86,4 @@ function callbackFlow(url: URL): "signup" | "reverify" | null {
   if (queryFlow === "signup" || queryFlow === "reverify") return queryFlow;
   const pathFlow = url.pathname.split("/").at(-1);
   return pathFlow === "signup" || pathFlow === "reverify" ? pathFlow : null;
-}
-
-function safeNextPath(next: string | null): string | null {
-  if (!next || !next.startsWith("/") || next.startsWith("//")) return null;
-  return next;
 }

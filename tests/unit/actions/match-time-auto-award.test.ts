@@ -80,6 +80,7 @@ vi.mock("drizzle-orm", () => ({
   isNotNull: vi.fn((column: unknown) => ({ op: "isNotNull", column })),
   isNull: vi.fn((column: unknown) => ({ op: "isNull", column })),
   lte: vi.fn((left: unknown, right: unknown) => ({ op: "lte", left, right })),
+  sql: vi.fn((strings: TemplateStringsArray) => strings.join("")),
 }));
 
 vi.mock("@/lib/revalidation", () => ({

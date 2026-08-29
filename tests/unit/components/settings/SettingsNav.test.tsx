@@ -13,6 +13,6 @@ describe("SettingsNav", () => {
     expect(screen.getByRole("link", { name: /教育身份/ })).toHaveAttribute("href", "/settings/education");
     expect(screen.getByRole("link", { name: /竞技档案/ })).toHaveClass("text-[var(--color-accent)]");
     expect(screen.getByRole("link", { name: /账号与安全/ })).toHaveAttribute("href", "/settings/password");
-    expect(screen.getByRole("link", { name: /隐私/ })).toHaveAttribute("href", "/settings/privacy");
+    expect(screen.queryByRole("link", { name: /隐私/ })).not.toBeInTheDocument();
   });
 });

@@ -1,10 +1,14 @@
 import { notFound } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasonRegistrations, seasons } from "@/db/schema";
+import { captainVotes, seasonRegistrations, seasons } from "@/db/schema";
 import { CaptainVotingPanel } from "@/components/captains/CaptainVotingPanel";
 import { Panel } from "@/components/rivalhub";
-import { getCaptainVotingData } from "@/lib/captains/data";
+import {
+  getPublicCaptainVotingData,
+  type CaptainVoteRecord,
+  type PublicCaptainVoter,
+} from "@/lib/captains/data";
 import { getUserSession } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
@@ -34,12 +38,12 @@ export default async function CaptainsPage({ params }: CaptainsPageProps) {
   }
 
   const [data, session] = await Promise.all([
-    getCaptainVotingData(season.id),
+    getPublicCaptainVotingData(season.id),
     getUserSession(),
   ]);
 
-  let currentVoter = data.voters.find(() => false) ?? null; // typed as CaptainVoterOption | null
-  let currentVotes = data.votes.filter(() => false);
+  let currentVoter: PublicCaptainVoter | null = null;
+  let currentVotes: CaptainVoteRecord[] = [];
 
   if (session) {
     const reg = await db.query.seasonRegistrations.findFirst({
@@ -52,7 +56,13 @@ export default async function CaptainsPage({ params }: CaptainsPageProps) {
     });
     if (reg) {
       currentVoter = data.voters.find((v) => v.id === reg.id) ?? null;
-      currentVotes = data.votes.filter((v) => v.voterRegistrationId === reg.id);
+      currentVotes = await db
+        .select({
+          voterRegistrationId: captainVotes.voterRegistrationId,
+          candidateRegistrationId: captainVotes.candidateRegistrationId,
+        })
+        .from(captainVotes)
+        .where(eq(captainVotes.voterRegistrationId, reg.id));
     }
   }
 

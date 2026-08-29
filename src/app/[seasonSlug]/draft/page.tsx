@@ -5,7 +5,7 @@ import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
 import { DraftLiveRoom } from "@/components/draft/DraftLiveRoom";
 import { Panel, Marker } from "@/components/rivalhub";
-import { getDraftData } from "@/lib/draft/data";
+import { getPublicDraftData } from "@/lib/draft/data";
 import { SEASON_STATUS_LABELS } from "@/types/season";
 import { checkAdminSession } from "@/lib/auth/session";
 import { AdminShortcut } from "@/components/layout/AdminShortcut";
@@ -44,7 +44,10 @@ export default async function DraftPage({ params }: DraftPageProps) {
 
   if (season.status !== "drafting") {
     const stageLabel = SEASON_STATUS_LABELS[season.status] ?? season.status;
-    const draftFinished = season.status === "playing" || season.status === "finished";
+    const draftFinished =
+      season.status === "playing" ||
+      season.status === "finished" ||
+      season.status === "archived";
 
     if (!draftFinished) {
       return (
@@ -59,7 +62,7 @@ export default async function DraftPage({ params }: DraftPageProps) {
       );
     }
 
-    const data = await getDraftData(season.id);
+    const data = await getPublicDraftData(season.id);
     return (
       <main className="container mx-auto max-w-7xl px-4 py-10 space-y-8">
         <Marker sub="选秀已结束，以下为完整选人记录。">
@@ -75,7 +78,7 @@ export default async function DraftPage({ params }: DraftPageProps) {
     );
   }
 
-  const data = await getDraftData(season.id);
+  const data = await getPublicDraftData(season.id);
 
   if (!data.state) {
     return (

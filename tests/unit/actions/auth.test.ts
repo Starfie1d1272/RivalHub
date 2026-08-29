@@ -16,7 +16,7 @@ const {
   // db mocks
   dbInsertMock,
   dbTransactionMock,
-  inviteFindFirstMock,
+  txSelectMock,
   txUpdateMock,
   txInsertMock,
   updateSetCalls,
@@ -38,7 +38,7 @@ const {
     normalizeEmailMock: vi.fn((email: string) => email),
     dbInsertMock: vi.fn(),
     dbTransactionMock: vi.fn(),
-    inviteFindFirstMock: vi.fn(),
+    txSelectMock: vi.fn(),
     txUpdateMock: vi.fn(),
     txInsertMock: vi.fn(),
     updateSetCalls,
@@ -81,8 +81,9 @@ vi.mock("@/db/client", () => {
   // tx 对象复用，每次 transaction 调用都会执行回调并传入 tx
   const tx = {
     query: {
-      adminInvites: { findFirst: inviteFindFirstMock },
+      adminInvites: { findFirst: vi.fn() },
     },
+    select: txSelectMock,
     update: txUpdateMock,
     insert: txInsertMock,
   };
@@ -496,12 +497,24 @@ describe("claimInviteCode", () => {
     // 默认让 transaction 正常执行回调
     dbTransactionMock.mockImplementation((callback: (tx: unknown) => unknown) =>
       callback({
-        query: { adminInvites: { findFirst: inviteFindFirstMock } },
+        query: { adminInvites: { findFirst: vi.fn() }, },
+        select: txSelectMock,
         update: txUpdateMock,
         insert: txInsertMock,
       })
     );
   });
+
+  function mockLockedInvite(invite: unknown, currentUser: unknown = { role: "user" }) {
+    const locked = (row: unknown) => ({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          for: vi.fn().mockResolvedValue(row ? [row] : []),
+        }),
+      }),
+    });
+    txSelectMock.mockReturnValueOnce(locked(invite)).mockReturnValueOnce(locked(currentUser));
+  }
 
   it("空邀请码返回 VALIDATION_FAILED", async () => {
     const result = await claimInviteCode("   ");
@@ -512,7 +525,7 @@ describe("claimInviteCode", () => {
   });
 
   it("邀请码不存在返回 UNAUTHORIZED", async () => {
-    inviteFindFirstMock.mockResolvedValue(null);
+    mockLockedInvite(null);
 
     const result = await claimInviteCode("NONEXISTENT");
     expect(result.success).toBe(false);
@@ -522,7 +535,7 @@ describe("claimInviteCode", () => {
   });
 
   it("isActive=false 的邀请码返回 UNAUTHORIZED（已失效）", async () => {
-    inviteFindFirstMock.mockResolvedValue({ ...VALID_INVITE, isActive: false });
+    mockLockedInvite({ ...VALID_INVITE, isActive: false });
 
     const result = await claimInviteCode("VALID123");
     expect(result.success).toBe(false);
@@ -533,7 +546,7 @@ describe("claimInviteCode", () => {
   });
 
   it("usedCount >= maxUses 返回 UNAUTHORIZED（已用完）", async () => {
-    inviteFindFirstMock.mockResolvedValue({
+    mockLockedInvite({
       ...VALID_INVITE,
       usedCount: 5,
       maxUses: 5,
@@ -548,7 +561,7 @@ describe("claimInviteCode", () => {
   });
 
   it("正常使用邀请码：更新 role + 更新 invite usedCount + 写 audit_log", async () => {
-    inviteFindFirstMock.mockResolvedValue(VALID_INVITE);
+    mockLockedInvite(VALID_INVITE);
     makeTxUpdateChain();
     makeTxInsertChain();
 
@@ -574,5 +587,17 @@ describe("claimInviteCode", () => {
 
     // 校验 createUserSession 以新 role 被调用
     expect(createUserSessionMock).toHaveBeenCalled();
+  });
+
+  it("stale super_admin session cannot retain super-admin after DB revocation", async () => {
+    requireAuthMock.mockResolvedValue({ ...MOCK_SESSION, role: "super_admin" });
+    mockLockedInvite(VALID_INVITE, { role: "user" });
+    makeTxUpdateChain();
+    makeTxInsertChain();
+
+    const result = await claimInviteCode("VALID123");
+
+    expect(result).toMatchObject({ success: true, data: { role: "season_admin" } });
+    expect(updateSetCalls[0]).toMatchObject({ role: "season_admin" });
   });
 });

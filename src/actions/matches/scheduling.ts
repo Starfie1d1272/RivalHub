@@ -1,13 +1,14 @@
 "use server";
 
-import { eq, and, isNotNull, isNull, lte } from "drizzle-orm";
+import { eq, and, or, isNotNull, isNull, lte } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matchTimeProposals, matches, auditLogs, seasons } from "@/db/schema";
+import { matchTimeProposals, matches, auditLogs, seasons, teams } from "@/db/schema";
 import { ok, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { requireAuth, requireSeasonAdmin } from "@/lib/auth/session";
 import { getMatchOrThrow, getSeasonOrThrow, actionError } from "@/lib/action-utils";
 import { revalidateMatchPaths } from "@/lib/revalidation";
+import { getPublicMatchTimeProposals } from "@/lib/matches/time-proposals";
 import {
   TIME_CONFIRMATION_BUFFER_HOURS,
   assertBeforeTimeConfirmationCutoff,
@@ -16,6 +17,7 @@ import {
   getTimeBufferHoursForStage,
 } from "@/lib/matches/time-rules";
 import { getTeamIdForCaptain } from "./_shared";
+import { lockMatchInTx } from "@/lib/match-rosters/service";
 
 const PROPOSAL_AUTO_ACCEPT_HOURS = 24;
 
@@ -88,33 +90,24 @@ export async function respondToTimeProposal(
 ): Promise<ActionResult<void>> {
   try {
     const session = await requireAuth();
-
-    const proposal = await db.query.matchTimeProposals.findFirst({
-      where: eq(matchTimeProposals.id, proposalId),
-    });
-    if (!proposal) {
-      throw new AppError(ErrorCode.NOT_FOUND, "提议不存在");
-    }
-    if (proposal.status !== "pending") {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, "提议已失效");
-    }
-
-    const match = await getMatchOrThrow(proposal.matchId);
-    const season = await getSeasonOrThrow(match.seasonId);
-    const bufferHours = getTimeBufferHoursForStage(season.stagePlan, match.stage);
-    assertBeforeTimeConfirmationCutoff(match.completionDeadline, bufferHours);
-    if (action === "accept") {
-      assertProposedTimeFitsDeadline(proposal.proposedTime, match.completionDeadline);
-    }
-
-    if (proposal.proposedBy === session.userId) {
-      throw new AppError(ErrorCode.FORBIDDEN, "不能回应自己的提议");
-    }
-    if (!(await getTeamIdForCaptain(session.userId, match))) {
-      throw new AppError(ErrorCode.FORBIDDEN, "只有对方队长可以回应");
-    }
-
-    await db.transaction(async (tx) => {
+    const outcome = await db.transaction(async (tx) => {
+      const [proposal] = await tx.select().from(matchTimeProposals)
+        .where(eq(matchTimeProposals.id, proposalId)).for("update");
+      if (!proposal) throw new AppError(ErrorCode.NOT_FOUND, "提议不存在");
+      if (proposal.status !== "pending") throw new AppError(ErrorCode.VALIDATION_FAILED, "提议已失效");
+      const match = await lockMatchInTx(tx, proposal.matchId);
+      const [season] = await tx.select().from(seasons).where(eq(seasons.id, match.seasonId));
+      if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
+      const bufferHours = getTimeBufferHoursForStage(season.stagePlan, match.stage);
+      assertBeforeTimeConfirmationCutoff(match.completionDeadline, bufferHours);
+      if (action === "accept") assertProposedTimeFitsDeadline(proposal.proposedTime, match.completionDeadline);
+      if (proposal.proposedBy === session.userId) throw new AppError(ErrorCode.FORBIDDEN, "不能回应自己的提议");
+      const [captain] = await tx.select({ id: teams.id }).from(teams).where(and(
+        eq(teams.captainUserId, session.userId),
+        eq(teams.seasonId, match.seasonId),
+        or(eq(teams.id, match.teamAId), eq(teams.id, match.teamBId)),
+      ));
+      if (!captain) throw new AppError(ErrorCode.FORBIDDEN, "只有对方队长可以回应");
       const updates: Record<string, unknown> = {
         status: action === "accept" ? "accepted" : "rejected",
         responseAt: new Date(),
@@ -148,18 +141,19 @@ export async function respondToTimeProposal(
             ),
           );
       }
+      return { seasonSlug: season.slug, matchId: match.id, seasonId: match.seasonId };
     });
 
     await db.insert(auditLogs).values({
-      seasonId: match.seasonId,
+      seasonId: outcome.seasonId,
       action: "match.respond_time_proposal",
       actorId: session.userId,
       targetId: proposalId,
       targetType: "match_time_proposal",
-      meta: { matchId: match.id, action, rejectReason: rejectReason ?? null },
+      meta: { matchId: outcome.matchId, action, rejectReason: rejectReason ?? null },
     });
 
-    revalidateMatchPaths(season.slug, proposal.matchId);
+    revalidateMatchPaths(outcome.seasonSlug, outcome.matchId);
 
     return ok(undefined);
   } catch (e) {
@@ -288,10 +282,7 @@ export async function runMatchTimeAutoAwardCron(
  * 查询某场比赛的所有时间提议（按创建时间倒序）。
  */
 export async function getTimeProposals(matchId: string) {
-  return db.query.matchTimeProposals.findMany({
-    where: eq(matchTimeProposals.matchId, matchId),
-    orderBy: (tps, { desc }) => [desc(tps.createdAt)],
-  });
+  return getPublicMatchTimeProposals(matchId);
 }
 
 async function autoAcceptExpiredProposals(

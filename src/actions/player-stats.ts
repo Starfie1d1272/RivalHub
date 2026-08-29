@@ -1,11 +1,12 @@
 "use server";
 
-import { eq, desc, sql, inArray } from "drizzle-orm";
+import { and, eq, desc, sql, inArray, isNotNull } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matchMaps } from "@/db/schema/match-maps";
 import { matches } from "@/db/schema/matches";
 import { matchPlayerStats } from "@/db/schema/player-stats";
 import { matchMvpVotes } from "@/db/schema/mvp-votes";
+import { matchRosters, matchRosterPlayers } from "@/db/schema/match-rosters";
 import { auditLogs } from "@/db/schema/audit";
 import { users } from "@/db/schema/users";
 import { teamMembers } from "@/db/schema/teams";
@@ -15,7 +16,7 @@ import { actionError } from "@/lib/action-utils";
 import { MVP_DEADLINE_MS } from "@/lib/utils/date";
 import { extractScoreboardFromBase64 } from "@/lib/ocr";
 import type { PlayerRowOCR } from "@/lib/ocr";
-import { requireAdmin, auditActorId, requireAuth } from "@/lib/auth/session";
+import { requireSeasonAdmin, auditActorId, requireAuth } from "@/lib/auth/session";
 import { revalidatePath } from "next/cache";
 import { isStatOutOfRange } from "@/lib/config/stat-ranges";
 
@@ -41,8 +42,6 @@ export async function extractStatsFromScreenshot(
 ) {
   const { mapId, base64Image, mimeType } = input;
   try {
-    await requireAdmin();
-
     const map = await db.query.matchMaps.findFirst({
       where: eq(matchMaps.id, mapId),
     });
@@ -52,6 +51,7 @@ export async function extractStatsFromScreenshot(
       where: eq(matches.id, map.matchId),
     });
     if (!match) throw new AppError(ErrorCode.NOT_FOUND, "比赛记录不存在");
+    await requireSeasonAdmin(match.seasonId);
 
     // 仅查询本场比赛两队队员（用于昵称匹配 + 下拉选择）
     const teamMemberRows = await db
@@ -113,9 +113,6 @@ export async function savePlayerStats(
 ) {
   const stats = input.rows;
   try {
-    const session = await requireAdmin();
-    const actor = auditActorId(session);
-
     const map = await db.query.matchMaps.findFirst({
       where: eq(matchMaps.id, mapId),
     });
@@ -125,6 +122,8 @@ export async function savePlayerStats(
       where: eq(matches.id, map.matchId),
     });
     if (!match) throw new AppError(ErrorCode.NOT_FOUND, "比赛记录不存在");
+    const session = await requireSeasonAdmin(match.seasonId);
+    const actor = auditActorId(session);
 
     const violations: string[] = [];
     for (const s of stats) {
@@ -212,11 +211,11 @@ export async function getPlayerStatsByMap(mapId: string) {
  */
 export async function getMatchPlayerOptions(mapId: string): Promise<PlayerOption[]> {
   try {
-    await requireAdmin();
     const map = await db.query.matchMaps.findFirst({ where: eq(matchMaps.id, mapId) });
     if (!map) return [];
     const match = await db.query.matches.findFirst({ where: eq(matches.id, map.matchId) });
     if (!match) return [];
+    await requireSeasonAdmin(match.seasonId);
 
     const teamMemberRows = await db
       .select({ userId: teamMembers.userId })
@@ -242,8 +241,7 @@ export async function getMatchPlayerOptions(mapId: string): Promise<PlayerOption
 
 export async function castMatchMvpVote(
   matchId: string,
-  playerUserId: string | null,
-  playerName: string,
+  playerUserId: string,
 ) {
   try {
     const session = await requireAuth();
@@ -285,10 +283,40 @@ export async function castMatchMvpVote(
       }
     }
 
+    const confirmedCandidates = await db
+      .select({ userId: users.id, playerName: users.perfectName })
+      .from(matchRosters)
+      .innerJoin(matchRosterPlayers, eq(matchRosterPlayers.rosterId, matchRosters.id))
+      .innerJoin(teamMembers, eq(teamMembers.id, matchRosterPlayers.teamMemberId))
+      .innerJoin(users, eq(users.id, teamMembers.userId))
+      .where(and(
+        eq(matchRosters.matchId, matchId),
+        eq(matchRosters.status, "confirmed"),
+        eq(matchRosterPlayers.isStarter, true),
+      ));
+    // Confirmed match roster is the sole normal-path candidate owner. Older
+    // Rivals records predate it, so only then derive compatible candidates
+    // from verified match stats.
+    const candidates = confirmedCandidates.length > 0
+      ? confirmedCandidates
+      : await db
+          .select({ userId: users.id, playerName: users.perfectName })
+          .from(matchPlayerStats)
+          .innerJoin(users, eq(users.id, matchPlayerStats.userId))
+          .where(and(
+            eq(matchPlayerStats.matchId, matchId),
+            isNotNull(matchPlayerStats.userId),
+            isNotNull(matchPlayerStats.verifiedAt),
+          ));
+    const selected = candidates.find((candidate) => candidate.userId === playerUserId);
+    if (!selected) {
+      return fail({ code: ErrorCode.VALIDATION_FAILED, message: "该选手不在本场可投票名单中" });
+    }
+
     await db.insert(matchMvpVotes).values({
       matchId,
-      playerUserId: playerUserId ?? undefined,
-      playerName,
+      playerUserId: selected.userId,
+      playerName: selected.playerName ?? "未填写昵称",
       voterUserId: session.userId,
     });
 
@@ -336,11 +364,11 @@ export async function ensureMvpWinner(matchId: string): Promise<string | null> {
  */
 export async function deletePlayerStatsByMap(mapId: string): Promise<ActionResult<void>> {
   try {
-    const session = await requireAdmin();
     const map = await db.query.matchMaps.findFirst({ where: eq(matchMaps.id, mapId) });
     if (!map) throw new AppError(ErrorCode.NOT_FOUND, "地图记录不存在");
     const match = await db.query.matches.findFirst({ where: eq(matches.id, map.matchId) });
     if (!match) throw new AppError(ErrorCode.NOT_FOUND, "比赛记录不存在");
+    const session = await requireSeasonAdmin(match.seasonId);
 
     await db.transaction(async (tx) => {
       await tx.delete(matchPlayerStats).where(eq(matchPlayerStats.mapId, mapId));

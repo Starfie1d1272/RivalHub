@@ -63,9 +63,9 @@ export function MatchMvpVote({
   }, [deadline, votingClosed]);
 
   async function handleVote(playerUserId: string | null, playerName: string) {
-    if (votedName || votingClosed) return;
+    if (!playerUserId || votedName || votingClosed) return;
     startTransition(async () => {
-      const result = await castMatchMvpVote(matchId, playerUserId, playerName);
+      const result = await castMatchMvpVote(matchId, playerUserId);
       if (result.success) {
         setVotedName(playerName);
         setOptimisticVotes((prev) =>
@@ -191,7 +191,7 @@ export function MatchMvpVote({
           return (
             <button
               key={c.perfectName}
-              disabled={!!votedName || isPending}
+              disabled={!c.userId || !!votedName || isPending}
               onClick={() => handleVote(c.userId, c.perfectName)}
               className={[
                 cardStyle(isVoted, !!votedName),

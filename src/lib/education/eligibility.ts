@@ -4,7 +4,8 @@ export type EducationEligibilityMember = {
   userId: string;
   emailVerifiedAt: Date | null;
   email: string;
-  verification: {
+  /** Optional: callers may pass only `verificationHistory` when they already loaded assertions. */
+  verification?: {
     id: string;
     institutionCode: string | null;
     institutionName: string;

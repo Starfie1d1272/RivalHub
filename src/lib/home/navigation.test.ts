@@ -12,7 +12,8 @@ describe("home navigation helpers", () => {
       registrationMode: "solo",
       hasCaptainVoting: true,
       hasDraft: true,
-    });
+      status: "registration",
+    }, { isAuthenticated: false });
     const tiers = selectHomeNavTiers(entries, "registration");
 
     expect(tiers.tier1Entry?.key).toBe("register");
@@ -35,7 +36,8 @@ describe("home navigation helpers", () => {
       registrationMode: "team",
       hasCaptainVoting: false,
       hasDraft: false,
-    });
+      status: "registration",
+    }, { isAuthenticated: false });
 
     expect(entries.map((entry) => entry.key)).toEqual([
       "register",
@@ -57,5 +59,41 @@ describe("home navigation helpers", () => {
       text: "[ RIVALHUB / NJU RIVALS 2026 ]",
       color: "var(--color-accent)",
     });
+  });
+
+  it("uses an explicit auth state for the account entry", () => {
+    const season = {
+      slug: "nju-rivals-2026",
+      registrationMode: "solo" as const,
+      hasCaptainVoting: true,
+      hasDraft: true,
+      status: "registration" as const,
+    };
+
+    expect(buildHomeNavEntries(season, { isAuthenticated: false }).find((entry) => entry.key === "login")).toMatchObject({
+      href: "/login",
+      label: "登录 / 注册",
+    });
+    expect(buildHomeNavEntries(season, { isAuthenticated: true }).find((entry) => entry.key === "login")).toMatchObject({
+      href: "/settings",
+      label: "个人中心",
+    });
+  });
+
+  it("turns off proactive registration and labels finished entries as history", () => {
+    const entries = buildHomeNavEntries({
+      slug: "finished-season",
+      registrationMode: "solo",
+      hasCaptainVoting: true,
+      hasDraft: true,
+      status: "finished",
+    }, { isAuthenticated: false });
+
+    expect(entries.some((entry) => entry.key === "register")).toBe(false);
+    expect(entries.find((entry) => entry.key === "captains")).toMatchObject({ label: "队长投票结果" });
+    expect(entries.find((entry) => entry.key === "draft")).toMatchObject({ label: "选秀回顾" });
+    expect(entries.map((entry) => entry.key)).toContain("teams");
+    expect(entries.map((entry) => entry.key)).toContain("matches");
+    expect(entries.map((entry) => entry.key)).toContain("stats");
   });
 });

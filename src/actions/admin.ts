@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { randomBytes } from "crypto";
 import { eq, and, count, desc, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, seasonRegistrations, auditLogs, adminUsers, adminInvites, users, draftPicks, teamApplicationMembers, teamApplications, teamApplicationActiveClaims, teamMembers, teams, educationVerifications, institutions } from "@/db/schema";
+import { seasons, seasonRegistrations, auditLogs, adminUsers, adminInvites, users, draftPicks, teamApplicationMembers, teamApplications, teamApplicationActiveClaims, teamMembers, teams } from "@/db/schema";
 import { ok, fail } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { actionError, failValidation } from "@/lib/action-utils";
@@ -24,9 +24,16 @@ import {
   validateTransition,
 } from "@/lib/registration-transitions";
 import { normalizeAffiliationRules, normalizeTeamRegistrationConfig } from "@/types/season";
-import { getParticipantReadiness } from "@/lib/major/participant-readiness";
-import { evaluateExternalStrengthRule } from "@/lib/major/player-strength";
-import { evaluateRosterEducationEligibility, resolveSeasonEducationVerification, type EducationEligibilityMember, type SeasonEducationVerification } from "@/lib/education/eligibility";
+import {
+  evaluateRosterEducationEligibility,
+} from "@/lib/education/eligibility";
+import {
+  evaluateRosterQualification,
+  isHomeAffiliatedMember,
+  loadEducationMembershipFacts,
+  resolveCompetitiveContext,
+  resolveSeasonEducationVerification,
+} from "@/lib/qualification/service";
 
 // ── 共享工具 ────────────────────────────────────────────
 
@@ -72,80 +79,6 @@ export async function adminLogin(username: string, password: string) {
 }
 
 // ── 管理员注册（需有效邀请码） ──────────────────────────
-
-export async function registerAdmin(
-  username: string,
-  password: string,
-  inviteCode: string,
-) {
-  if (!username || username.length < 3) {
-    return fail({ code: ErrorCode.VALIDATION_FAILED, message: "用户名至少 3 个字符" });
-  }
-  if (!password || password.length < 8) {
-    return fail({ code: ErrorCode.VALIDATION_FAILED, message: "密码至少 8 个字符" });
-  }
-
-  const existing = await db.query.adminUsers.findFirst({
-    where: eq(adminUsers.username, username),
-  });
-  if (existing) {
-    return fail({ code: ErrorCode.VALIDATION_FAILED, message: "用户名已被使用" });
-  }
-
-  // 事务内检查 + 更新邀请码，防止并发超限
-  const result = await db.transaction(async (tx) => {
-    const invite = await tx.query.adminInvites.findFirst({
-      where: eq(adminInvites.code, inviteCode),
-    });
-    if (!invite) {
-      return fail({ code: ErrorCode.UNAUTHORIZED, message: "邀请码无效" });
-    }
-    if (!invite.isActive) {
-      return fail({ code: ErrorCode.UNAUTHORIZED, message: "邀请码已失效" });
-    }
-    if (invite.usedCount >= invite.maxUses) {
-      return fail({ code: ErrorCode.UNAUTHORIZED, message: "邀请码已用完" });
-    }
-    if (invite.expiresAt && new Date(invite.expiresAt) < new Date()) {
-      return fail({ code: ErrorCode.UNAUTHORIZED, message: "邀请码已过期" });
-    }
-
-    const [newAdmin] = await tx
-      .insert(adminUsers)
-      .values({
-        username,
-        passwordHash: hashPassword(password),
-        role: invite.role,
-      })
-      .returning();
-
-    await tx
-      .update(adminInvites)
-      .set({
-        usedCount: invite.usedCount + 1,
-        isActive: invite.usedCount + 1 >= invite.maxUses ? false : invite.isActive,
-        usedByUsernames: sql`array_append(${adminInvites.usedByUsernames}, ${username})`,
-      })
-      .where(eq(adminInvites.id, invite.id));
-
-    await tx.insert(auditLogs).values({
-      seasonId: null,
-      action: "admin.register",
-      actorId: username,
-      targetId: newAdmin.id,
-      targetType: "admin_user",
-      meta: { role: invite.role, inviteId: invite.id },
-    });
-
-    return ok(newAdmin);
-  });
-
-  if (!result.success) return result;
-
-  const newAdmin = result.data;
-  await createAdminSession(newAdmin);
-  redirect("/admin");
-}
 
 // ── 审核报名 ────────────────────────────────────────────
 
@@ -335,52 +268,56 @@ export async function reviewTeamApplication(input: TeamApplicationReviewInput) {
         return { teamId: null, seasonSlug: season.slug, materialized: false };
       }
 
-      const members = await tx
-        .select({ id: teamApplicationMembers.id, userId: teamApplicationMembers.userId, status: teamApplicationMembers.status, email: users.email, emailVerifiedAt: users.emailVerifiedAt, verificationId: educationVerifications.id, verificationStatus: educationVerifications.status, verificationAcademicStatus: educationVerifications.academicStatus, institutionCode: institutions.moeInstitutionCode, institutionName: institutions.name, verificationSubmittedAt: educationVerifications.submittedAt })
+      const memberRows = await tx
+        .select({ id: teamApplicationMembers.id, userId: teamApplicationMembers.userId, status: teamApplicationMembers.status })
         .from(teamApplicationMembers)
-        .innerJoin(users, eq(teamApplicationMembers.userId, users.id))
-        .leftJoin(educationVerifications, eq(educationVerifications.userId, users.id))
-        .leftJoin(institutions, eq(educationVerifications.institutionId, institutions.id))
         .where(eq(teamApplicationMembers.applicationId, locked.id));
       const config = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
       const affiliationRules = normalizeAffiliationRules(season.affiliationRules);
-      const confirmedByUser = new Map<string, { member: (typeof members)[number]; history: SeasonEducationVerification[] }>();
-      for (const member of members) {
-        if (member.status !== "confirmed") continue;
-        const current = confirmedByUser.get(member.userId) ?? { member, history: [] };
-        if (member.verificationId && member.verificationStatus && member.verificationAcademicStatus && member.institutionName) current.history.push({ id: member.verificationId, status: member.verificationStatus, academicStatus: member.verificationAcademicStatus, institutionCode: member.institutionCode, institutionName: member.institutionName, submittedAt: member.verificationSubmittedAt });
-        confirmedByUser.set(member.userId, current);
-      }
-      const confirmed = [...confirmedByUser.values()].map(({ member, history }) => {
+      const confirmedUserIds = [...new Set(memberRows.filter((member) => member.status === "confirmed").map((member) => member.userId))];
+      const educationFacts = await loadEducationMembershipFacts(tx, confirmedUserIds);
+      const confirmed = confirmedUserIds.map((userId) => {
+        const memberRow = memberRows.find((member) => member.userId === userId && member.status === "confirmed")!;
+        const facts = educationFacts.get(userId);
+        const history = facts?.history ?? [];
         const selected = resolveSeasonEducationVerification(history, affiliationRules).selectedVerification;
-        return { ...member, verificationId: selected?.id ?? null, verificationAcademicStatus: selected?.academicStatus ?? null, institutionCode: selected?.institutionCode ?? null, institutionName: selected?.institutionName ?? null };
+        return {
+          id: memberRow.id,
+          userId,
+          email: facts?.email ?? "",
+          emailVerifiedAt: facts?.emailVerifiedAt ?? null,
+          educationHistory: history,
+          isHome: isHomeAffiliatedMember({ institutionCode: selected?.institutionCode ?? null, academicStatus: selected?.academicStatus ?? null }, affiliationRules),
+        };
       });
-      const education: EducationEligibilityMember[] = confirmed.map((member) => ({ userId: member.userId, email: member.email, emailVerifiedAt: member.emailVerifiedAt, verification: member.verificationId && member.verificationAcademicStatus && member.institutionName ? { id: member.verificationId, status: "approved", academicStatus: member.verificationAcademicStatus, institutionCode: member.institutionCode, institutionName: member.institutionName } : null }));
-      const educationDecision = evaluateRosterEducationEligibility(education, affiliationRules);
-      if (
-        confirmed.length < season.minTeamSize ||
-        confirmed.length > season.maxTeamSize ||
-        !confirmed.some((member) => member.userId === locked.captainUserId) ||
-        (config.requireTeamLogo && !locked.logoUrl) ||
-        (affiliationRules.length > 0 && !educationDecision.eligible)
-      ) {
-        throw new AppError(ErrorCode.VALIDATION_FAILED, educationDecision.blockers[0] ?? "申请的确认名单已不满足当前赛事规则，不能通过审核。");
+      const hasConfirmedCaptain = confirmed.some((member) => member.userId === locked.captainUserId);
+      const rosterSizeOk = confirmed.length >= season.minTeamSize && confirmed.length <= season.maxTeamSize;
+      if (!rosterSizeOk || !hasConfirmedCaptain || (config.requireTeamLogo && !locked.logoUrl)) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "申请的确认名单已不满足当前赛事规则，不能通过审核。");
       }
       if (config.requireCompetitiveProfile) {
         if (!config.competitiveProfile) throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事尚未配置竞技档案规则，不能通过报名审核。");
+        const competitiveProfile = await resolveCompetitiveContext(config.competitiveProfile);
+        if (!competitiveProfile) throw new AppError(ErrorCode.VALIDATION_FAILED, "竞技平台赛季目录尚未完成当前与上一赛季配置。");
         if (!locked.perfectTeamId?.trim()) throw new AppError(ErrorCode.VALIDATION_FAILED, "申请缺少完美战队 ID，不能通过报名审核。");
         if (locked.primaryStarterUserIds.length !== 5 || new Set(locked.primaryStarterUserIds).size !== 5) throw new AppError(ErrorCode.VALIDATION_FAILED, "申请未指定恰好 5 名预定主力，不能通过报名审核。");
         const confirmedIds = new Set(confirmed.map((member) => member.userId));
         if (locked.primaryStarterUserIds.some((userId) => !confirmedIds.has(userId))) throw new AppError(ErrorCode.VALIDATION_FAILED, "预定主力不属于当前已确认名单，不能通过报名审核。");
-        const readiness = await Promise.all(confirmed.map(async (member) => ({ member, readiness: await getParticipantReadiness(member.userId, config.competitiveProfile!) })));
-        const unreadied = readiness.filter((item) => !item.readiness.ready);
-        if (unreadied.length > 0) throw new AppError(ErrorCode.VALIDATION_FAILED, `成员资料未完善：${unreadied.flatMap((item) => item.readiness.blockers).join(" ")}`);
-        const primary = locked.primaryStarterUserIds.map((userId) => readiness.find((item) => item.member.userId === userId)).filter((item): item is NonNullable<typeof item> => Boolean(item));
-        const strength = evaluateExternalStrengthRule({
-          config: config.competitiveProfile,
-          players: primary.map(({ member, readiness: memberReadiness }) => ({ ...memberReadiness.strength, isHome: Boolean(member.institutionCode && member.verificationAcademicStatus && affiliationRules.some((rule) => rule.institutionCode === member.institutionCode && rule.eligibleAcademicStatuses.includes(member.verificationAcademicStatus!))) })),
+        const qualification = await evaluateRosterQualification({
+          members: confirmed,
+          affiliationRules,
+          competitiveProfile,
+          primaryStarterUserIds: locked.primaryStarterUserIds,
         });
-        if (!strength.eligible) throw new AppError(ErrorCode.VALIDATION_FAILED, strength.blockers.join(" "));
+        if (!qualification.eligible) {
+          throw new AppError(ErrorCode.VALIDATION_FAILED, qualification.blockers.join(" "));
+        }
+      } else if (affiliationRules.length > 0) {
+        const decision = evaluateRosterEducationEligibility(
+          confirmed.map((member) => ({ userId: member.userId, email: member.email, emailVerifiedAt: member.emailVerifiedAt, verificationHistory: member.educationHistory })),
+          affiliationRules,
+        );
+        if (!decision.eligible) throw new AppError(ErrorCode.VALIDATION_FAILED, decision.blockers[0] ?? "申请的确认名单已不满足当前赛事规则，不能通过审核。");
       }
       if (config.requireUniqueTeamName) {
         const sameName = await tx.query.teams.findFirst({

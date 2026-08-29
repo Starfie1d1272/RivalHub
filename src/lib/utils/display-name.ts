@@ -1,5 +1,5 @@
 /**
- * 统一派生用户展示名称：displayName > perfectName > steamName > email 前缀
+ * 公开展示名称：displayName > perfectName > steamName > fallback
  */
 export function getPublicDisplayName(user: {
   displayName?: string | null;

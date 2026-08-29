@@ -127,19 +127,25 @@ const CAST_INPUT = {
   candidateRegistrationId: CANDIDATE_REG_ID,
 };
 
-// ── 工具：mock tx.query.seasonRegistrations.findFirst 连续两次（voter/candidate）
+// ── 工具：voter 必须经 FOR UPDATE 读取，candidate 保持普通读取 ───────────────
 function mockTxVoterCandidate(
   voter: typeof VOTER_REG | null,
   candidate: typeof CANDIDATE_REG | null,
 ) {
-  txRegFindFirstMock
-    .mockResolvedValueOnce(voter)
-    .mockResolvedValueOnce(candidate);
+  txSelectMock.mockReset();
+  txSelectMock.mockReturnValueOnce({
+    from: vi.fn().mockReturnValue({
+      where: vi.fn().mockReturnValue({
+        for: vi.fn().mockResolvedValue(voter ? [voter] : []),
+      }),
+    }),
+  });
+  txRegFindFirstMock.mockResolvedValueOnce(candidate);
 }
 
 // ── 工具：mock tx.select count ───────────────────────────────────────────────
 function mockTxSelectCount(n: number) {
-  txSelectMock.mockReturnValue({
+  txSelectMock.mockReturnValueOnce({
     from: vi.fn().mockReturnValue({
       where: vi.fn().mockResolvedValue([{ count: n }]),
     }),
@@ -175,6 +181,12 @@ function mockRevalidatePaths() {
 describe("castVote()", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    txRegFindFirstMock.mockReset();
+    txSeasonFindFirstMock.mockReset();
+    txCaptainVoteFindFirstMock.mockReset();
+    txSelectMock.mockReset();
+    txInsertMock.mockReset();
+    txDeleteMock.mockReset();
     resetAuditTracking(insertValuesCalls);
     requireAuthMock.mockResolvedValue(SESSION);
     validateCaptainVoteMock.mockReturnValue(null); // 默认：无错误
@@ -249,6 +261,12 @@ describe("retractVote()", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    txRegFindFirstMock.mockReset();
+    txSeasonFindFirstMock.mockReset();
+    txCaptainVoteFindFirstMock.mockReset();
+    txSelectMock.mockReset();
+    txInsertMock.mockReset();
+    txDeleteMock.mockReset();
     resetAuditTracking(insertValuesCalls);
     requireAuthMock.mockResolvedValue(SESSION);
   });

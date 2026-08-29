@@ -8,9 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatCST, parseCSTInput, toCSTDateTimeInput } from "@/lib/utils/date";
-import type { matchTimeProposals } from "@/db/schema/match-time-proposals";
-
-type Proposal = typeof matchTimeProposals.$inferSelect;
+import type { MatchTimeProposalView } from "@/lib/matches/time-proposals";
 
 const PROPOSAL_AUTO_ACCEPT_HOURS = 24;
 
@@ -33,10 +31,9 @@ interface MatchTimeNegotiationProps {
   isCaptainA: boolean;
   isCaptainB: boolean;
   isAdmin: boolean;
-  currentUserId?: string;
   currentScheduledAt: Date | null;
   currentCompletionDeadline: Date | null;
-  initialProposals: Proposal[];
+  initialProposals: MatchTimeProposalView[];
   hasSubmittedRoster: boolean;
   /** 协商缓冲小时数，排位赛默认 24，正赛 0。决定 confirmationCutoff = completionDeadline - bufferHours。 */
   bufferHours?: number;
@@ -47,7 +44,6 @@ export function MatchTimeNegotiation({
   isCaptainA,
   isCaptainB,
   isAdmin,
-  currentUserId,
   currentScheduledAt,
   currentCompletionDeadline,
   initialProposals,
@@ -167,7 +163,7 @@ export function MatchTimeNegotiation({
             待处理提议（{pendingProposals.length}）
           </p>
           {pendingProposals.map((proposal) => {
-            const isMyProposal = currentUserId === proposal.proposedBy;
+            const isMyProposal = proposal.isMine;
             const autoAcceptAt = new Date(
               new Date(proposal.createdAt).getTime() + PROPOSAL_AUTO_ACCEPT_HOURS * 60 * 60 * 1000,
             );

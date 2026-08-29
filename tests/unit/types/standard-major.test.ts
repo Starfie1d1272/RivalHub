@@ -8,7 +8,6 @@ import {
   createMajorDefaultCapabilities,
   normalizeTeamRegistrationConfig,
 } from "@/types/season";
-import { PERFECT_WORLD_RANK_ORDER } from "@/lib/config/perfect-world";
 
 function expectFailure(
   capabilities: ReturnType<typeof createMajorDefaultCapabilities>,
@@ -58,6 +57,17 @@ describe("checkStandardMajorCapabilities()", () => {
     expectFailure(capabilities, "registration-mode");
   });
 
+  it("rejects a Major whose team size or starter count deviates from the fixed 5–9/5 rule", () => {
+    expectFailure(
+      { ...createMajorDefaultCapabilities(), starterCount: 6 },
+      "team-size",
+    );
+    expectFailure(
+      { ...createMajorDefaultCapabilities(), minTeamSize: 6, maxTeamSize: 10 },
+      "team-size",
+    );
+  });
+
   it("rejects captain voting or snake draft", () => {
     const votingEnabled = createMajorDefaultCapabilities();
     votingEnabled.hasCaptainVoting = true;
@@ -68,11 +78,14 @@ describe("checkStandardMajorCapabilities()", () => {
     expectFailure(draftEnabled, "draft");
   });
 
-  it("allows event-specific team roster limits", () => {
-    const capabilities = createMajorDefaultCapabilities();
-    capabilities.maxTeamSize = 8;
+  it("rejects event-specific team roster limits: 5–9/5 is part of the standard identity", () => {
+    const maxTeamSizeChanged = createMajorDefaultCapabilities();
+    maxTeamSizeChanged.maxTeamSize = 8;
+    expectFailure(maxTeamSizeChanged, "team-size");
 
-    expect(checkStandardMajorCapabilities(capabilities).isStandardMajor).toBe(true);
+    const minTeamSizeChanged = createMajorDefaultCapabilities();
+    minTeamSizeChanged.minTeamSize = 4;
+    expectFailure(minTeamSizeChanged, "team-size");
   });
 
   it("allows event-specific registration limits and map pools", () => {
@@ -188,7 +201,8 @@ describe("createMajorDefaultCapabilities()", () => {
     expect(rivals.registrationConfig.maxTotal).toBe(56);
     expect(major.registrationConfig.maxTotal).toBe(256);
     expect(major.teamRegistrationConfig.requireTeamLogo).toBe(true);
-    expect(major.teamRegistrationConfig.competitiveProfile?.rankOrder).toEqual(PERFECT_WORLD_RANK_ORDER);
+    expect(major.teamRegistrationConfig.competitiveProfile?.platform).toBe("perfect_world");
+    expect(major.teamRegistrationConfig.competitiveProfile?.rankOrder).toEqual([]);
     expect(major).not.toBe(rivals);
     expect(checkStandardMajorCapabilities(major).isStandardMajor).toBe(true);
   });

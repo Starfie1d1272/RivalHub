@@ -11,6 +11,7 @@ import {
   majorTournamentSeeds,
   matches,
   seasons,
+  competitiveRankFacts,
 } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { buildMajorOpeningPlan } from "@/lib/major/opening";
@@ -156,10 +157,36 @@ export async function startMajorInTransaction(
   const now = new Date();
   const openingPlan = buildMajorOpeningPlan({ teams: seeds, stageOneMatchFormat: stage.matchFormat });
   const entrantByTeamId = new Map(entrantRows.map((entrant) => [entrant.teamId, entrant]));
+  const competitiveProfile = capabilities.teamRegistrationConfig.requireCompetitiveProfile
+    ? capabilities.teamRegistrationConfig.competitiveProfile ?? null
+    : null;
+  const frozenParticipantIds = [...new Set(rosterRows.map((row) => row.userId))];
+  const competitiveRows = competitiveProfile && frozenParticipantIds.length > 0
+    ? await tx.select().from(competitiveRankFacts).where(and(
+        eq(competitiveRankFacts.platform, competitiveProfile.platform),
+        inArray(competitiveRankFacts.userId, frozenParticipantIds),
+      ))
+    : [];
+  const frozenCompetitiveFacts = frozenParticipantIds.map((userId) => {
+    const facts = competitiveRows.filter((fact) => fact.userId === userId);
+    const serialize = (fact: typeof competitiveRows[number] | undefined) => fact
+      ? { rank: fact.rank, rating: Number(fact.rating) }
+      : null;
+    return {
+      userId,
+      historicalPeak: serialize(facts.find((fact) => fact.kind === "historical_peak" && fact.platformSeasonKey === null)),
+      previousSeasonPeak: competitiveProfile
+        ? serialize(facts.find((fact) => fact.kind === "season_peak" && fact.platformSeasonKey === competitiveProfile.previousSeasonKey))
+        : null,
+      currentSeasonPeak: competitiveProfile
+        ? serialize(facts.find((fact) => fact.kind === "season_peak" && fact.platformSeasonKey === competitiveProfile.currentSeasonKey))
+        : null,
+    };
+  });
   const ruleSnapshot = {
     // StageRun is the immutable tournament rule owner. Match-roster (G1)
     // must consume this frozen value rather than seasons.affiliationRules.
-    version: 2,
+    version: 3,
     stagePlan: capabilities.stagePlan.map((configuredStage) => ({
       key: configuredStage.key,
       name: configuredStage.name,
@@ -188,9 +215,10 @@ export async function startMajorInTransaction(
       starterCount: season.starterCount,
     },
     affiliationRules: freezeAffiliationRules(capabilities.affiliationRules),
-    competitiveProfile: capabilities.teamRegistrationConfig.requireCompetitiveProfile
-      ? capabilities.teamRegistrationConfig.competitiveProfile ?? null
-      : null,
+    competitiveProfile,
+    // Immutable participant-level historical / previous / current values.
+    // Match lineup validation must never consult mutable rank facts again.
+    frozenCompetitiveFacts,
     tournamentEntrants: openingPlan.tournamentTeams.map((team) => {
       const entrant = entrantByTeamId.get(team.teamId);
       if (!entrant) throw new AppError(ErrorCode.INTERNAL_ERROR, "赛事种子缺少已锁定的正式参赛队。");

@@ -64,11 +64,17 @@ try {
     case "test-major-result-recovery":
       runLocalIntegration("scripts/db/major-result-recovery-integration.ts");
       break;
+    case "test-invite-concurrency":
+      runLocalIntegration("scripts/db/invite-concurrency-integration.ts");
+      break;
     case "test-discipline":
       runLocalIntegration("scripts/db/discipline-integration.ts");
       break;
     case "test-postevent":
       runLocalIntegration("scripts/db/postevent-integration.ts");
+      break;
+    case "test-season-governance":
+      runLocalIntegration("scripts/db/season-governance-integration.ts");
       break;
     case "bootstrap":
       startLocalStack();
@@ -94,7 +100,7 @@ try {
       break;
     default:
       throw new Error(
-        "未知命令。可用命令：start | status | migrate | seed | verify | verify-migrations | test-major-start | test-major-golden | test-major-browser | cleanup-major-browser | test-team-registration | test-major-profile | test-major-prestart | test-major-roster-safety | test-major-result-recovery | test-discipline | test-postevent | bootstrap | reset | stop | studio | dev",
+        "未知命令。可用命令：start | status | migrate | seed | verify | verify-migrations | test-major-start | test-major-golden | test-major-browser | cleanup-major-browser | test-team-registration | test-major-profile | test-major-prestart | test-major-roster-safety | test-major-result-recovery | test-invite-concurrency | test-discipline | test-postevent | test-season-governance | bootstrap | reset | stop | studio | dev",
       );
   }
 } catch (error) {
@@ -182,6 +188,7 @@ function runLocalIntegration(script: string): void {
     env: {
       ...sanitizedEnvironment(),
       RIVALHUB_LOCAL_DATABASE_URL: status.databaseUrl,
+      DATABASE_URL: status.databaseUrl,
     },
   });
 }

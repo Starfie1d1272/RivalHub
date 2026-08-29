@@ -40,6 +40,7 @@ vi.mock("next/cache", () => ({
 
 vi.mock("@/db/client", () => {
   const tx = {
+    execute: vi.fn().mockResolvedValue(undefined),
     query: {
       teams: { findFirst: teamFindFirstMock },
       seasonRegistrations: { findFirst: registrationFindFirstMock },

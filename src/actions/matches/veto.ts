@@ -10,6 +10,8 @@ import { getMatchOrThrow, getSeasonOrThrow, actionError } from "@/lib/action-uti
 import { revalidateMatchPaths } from "@/lib/revalidation";
 import { normalizeRegistrationConfig } from "@/types/season";
 import type { VetoActionType } from "@/types/match";
+import { lockMatchInTx } from "@/lib/match-rosters/service";
+import { assertVetoSequence } from "@/lib/matches/veto-sequence";
 
 function resolveTeamASide(selectedSide: string, selectingTeamId: string | null, teamAId: string): "t" | "ct" | null {
   if (!selectedSide || !selectingTeamId) return null;
@@ -70,6 +72,12 @@ export async function saveVetoSteps(
     );
 
     await db.transaction(async (tx) => {
+      const locked = await lockMatchInTx(tx, matchId);
+      const allowedLockedStatuses = ["scheduled", "in_progress", "finished"] as const;
+      if (!(allowedLockedStatuses as readonly string[]).includes(locked.status)) {
+        throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "当前比赛状态不允许录入 BP");
+      }
+      assertVetoSequence(locked.format, steps, locked.teamAId, locked.teamBId);
       // 清除旧 BP 记录（支持重复录入）
       await tx.delete(matchVetoSteps).where(eq(matchVetoSteps.matchId, matchId));
 
@@ -87,7 +95,7 @@ export async function saveVetoSteps(
 
       // 比赛已结束时：仅在无 match_maps 记录时重建（供赛后 OCR 使用），
       // 有记录（含已录入比分的行）时跳过，保护历史数据。
-      if (match.status === "finished") {
+      if (locked.status === "finished") {
         const existingMaps = await tx.query.matchMaps.findMany({
           where: eq(matchMaps.matchId, matchId),
         });
@@ -101,9 +109,9 @@ export async function saveVetoSteps(
               teamAStartSide: resolveTeamASide(
                 s.side ?? "",
                 s.actionType === "pick"
-                  ? (s.teamId === match.teamAId ? match.teamBId : match.teamAId)
+                  ? (s.teamId === locked.teamAId ? locked.teamBId : locked.teamAId)
                   : s.teamId,
-                match.teamAId,
+                locked.teamAId,
               ),
             })),
           );
@@ -130,9 +138,9 @@ export async function saveVetoSteps(
               teamAStartSide: resolveTeamASide(
                 s.side ?? "",
                 s.actionType === "pick"
-                  ? (s.teamId === match.teamAId ? match.teamBId : match.teamAId)
+                  ? (s.teamId === locked.teamAId ? locked.teamBId : locked.teamAId)
                   : s.teamId,
-                match.teamAId,
+                locked.teamAId,
               ),
             })),
           );
@@ -140,12 +148,12 @@ export async function saveVetoSteps(
       }
 
       await tx.insert(auditLogs).values({
-        seasonId: match.seasonId,
+        seasonId: locked.seasonId,
         action: "match.save_veto",
         actorId: auditActorId(session),
         targetId: matchId,
         targetType: "match",
-        meta: { format: match.format, stepCount: steps.length, postMatch: match.status === "finished" },
+        meta: { format: locked.format, stepCount: steps.length, postMatch: locked.status === "finished" },
       });
     });
 
