@@ -28,9 +28,13 @@
 
 `team_applications` 表示 Major 报名阶段的队伍申请；`team_application_members` 记录邀请、确认和申请期成员关系；`team_application_active_claims` 防止同一用户在同一赛季出现冲突的 active claim。审核通过后申请物化为正式 `teams` 与 `team_members`，并保留 provenance。
 
+这是 RC4 的 season-bound 实现，不是未来长期 Team 的最终模型。2.x 已接受以 CompetitionEntry 表达长期 Team 与某届赛事的参与关系，但现有 application 如何迁移、兼容或退役仍需单独设计。
+
 ## 7. Teams
 
-`teams` 是比赛运行时的正式队伍，包含 `captainUserId` 与来源；`team_members` 是正式的赛季队伍成员。Rivals 通过个人报名/选秀产生来源，Major 通过 approved application 产生来源。普通 `teams`、`match_rosters` 和 `draftOrder` 不能替代 Major entrants、最终名单或赛事种子。
+`teams` 是 RC4 比赛运行时的 season-bound 正式队伍，包含 `captainUserId` 与来源；`team_members` 是正式的赛季队伍成员。Rivals 通过个人报名/选秀产生来源，Major 通过 approved application 产生来源。普通 `teams`、`match_rosters` 和 `draftOrder` 不能替代 Major entrants、最终名单或赛事种子。
+
+2.x 的目标模型把 Team 提升为独立于赛事的长期一级实体，并以带时间历史的 TeamMembership 表达成员加入、离队与队长交接。Team 不属于 Season；CompetitionEntry 保存某届赛事的 roster、队长、资格、审核、种子、快照和最终成绩。长期 Team 后续变更不得改写冻结的赛事 roster。Rivals 选秀队可以是 `teamId = null` 的赛事临时参赛者，不为历史 Rivals 队伍补造长期 Team。这里只记录领域边界，不提前确定迁移和最终 schema；完整决策见 [`decisions/2.x-product-domains.md`](./decisions/2.x-product-domains.md)。
 
 ## 8. Captain voting / draft
 
@@ -59,6 +63,8 @@
 ## 14. Post-event
 
 `post_event_adjudications` 保存赛后裁决，`tournament_honors` 保存冠军、亚军、名次或手动奖项及其有效/撤销/空缺状态。冠军被撤销不会自动把亚军提升为冠军；每项历史事实需要独立裁决。
+
+`tournament_honors` 继续是最终官方荣誉事实。未来奖项定义、候选或资格、申请或提名、材料、审核与补充、最终授予和领取确认属于独立产品流程；其模板、自动资格、申领范围、材料要求和状态仍待产品决策，不能从当前 honor 表反推答案。
 
 ## 15. Audit
 

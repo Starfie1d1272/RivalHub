@@ -1,6 +1,6 @@
 # RivalHub 工作流
 
-本文件描述当前 RC3 的生命周期与 owner boundary。政策规则由 [`rules/`](./rules/) 定义；精确 action 输入和错误码以 code 为准。
+本文件描述当前 RC4 的生命周期与 owner boundary。政策规则由 [`rules/`](./rules/) 定义；精确 action 输入和错误码以 code 为准。
 
 ## 1. Account / Auth
 
@@ -8,7 +8,7 @@
 
 ## 2. Long-lived participant profile
 
-`users` 承载 display/profile、QQ、Steam 与 Perfect World identity 等跨赛事 participant profile。现有 Rivals 个人报名仍保留部分历史报名字段和赛事快照；长期资料与报名信息的进一步收敛见 [`decisions/2.0-convergence.md`](./decisions/2.0-convergence.md)。
+`users` 承载 display/profile、QQ、Steam 与 Perfect World identity 等跨赛事 participant profile。现有 Rivals 个人报名仍保留部分历史报名字段和赛事快照；2.x 的“我的”聚合与长期 Team/赛事参与边界见 [`decisions/2.x-product-domains.md`](./decisions/2.x-product-domains.md)。
 
 ## 3. Education verification
 
