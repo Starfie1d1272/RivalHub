@@ -65,7 +65,7 @@ real registrations progressive validation
 
 ## 完整 staging lifecycle（专项演练，非稳定 RC 强制 gate）
 
-正式上线前，在独立 staging DB 完成一次完整 lifecycle：
+如需进行完整 staging lifecycle，可在独立 staging DB 按以下流程专项演练：
 
 ```text
 管理员创建 Major → 发布 → 用户注册 → 邮箱确认 → participant profile
