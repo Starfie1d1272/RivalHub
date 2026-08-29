@@ -1,18 +1,22 @@
-import { and, eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db/client";
-import { competitiveRankFacts } from "@/db/schema";
+import { competitivePlatformSeasons, competitiveRankFacts } from "@/db/schema";
 import { CompetitiveProfileForm } from "@/components/settings/CompetitiveProfileForm";
 import { getUserSession } from "@/lib/auth/session";
-import { normalizeTeamRegistrationConfig } from "@/types/season";
 
 export default async function CompetitiveProfileSettingsPage() {
   const session = await getUserSession();
   if (!session) redirect("/login?next=/settings/competitive");
-  const seasonRows = await db.query.seasons.findMany({ orderBy: (table, { desc }) => [desc(table.updatedAt)] });
-  const config = seasonRows.map((season) => normalizeTeamRegistrationConfig(season.teamRegistrationConfig)).find((item) => item.requireCompetitiveProfile)?.competitiveProfile ?? null;
-  const facts = config ? await db.select().from(competitiveRankFacts).where(and(eq(competitiveRankFacts.userId, session.userId), eq(competitiveRankFacts.platform, config.platform))) : [];
-  const fact = (kind: "historical_peak" | "season_peak", seasonKey: string | null) => facts.find((item) => item.kind === kind && item.platformSeasonKey === seasonKey);
-  const toInput = (item: typeof facts[number] | undefined) => item ? { rank: item.rank, rating: String(item.rating) } : { rank: "", rating: "" };
-  return <div className="space-y-5"><div><p className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-accent)]">PARTICIPANT PROFILE</p><h1 className="mt-1 text-3xl font-semibold">竞技档案</h1></div><CompetitiveProfileForm config={config} initial={{ historical: toInput(fact("historical_peak", null)), previous: toInput(config ? fact("season_peak", config.previousSeasonKey) : undefined), current: toInput(config ? fact("season_peak", config.currentSeasonKey) : undefined) }} /></div>;
+  const [catalog, facts] = await Promise.all([
+    db.select().from(competitivePlatformSeasons).orderBy(asc(competitivePlatformSeasons.platform), asc(competitivePlatformSeasons.sortOrder)),
+    db.select().from(competitiveRankFacts).where(eq(competitiveRankFacts.userId, session.userId)),
+  ]);
+  const contexts = [...new Set(catalog.map((item) => item.platform))].flatMap((platform) => {
+    const entries = catalog.filter((item) => item.platform === platform && item.active);
+    const current = entries.find((item) => item.isCurrent);
+    const previous = current ? [...entries].filter((item) => item.sortOrder < current.sortOrder).at(-1) : null;
+    return current && previous ? [{ platform, currentSeasonKey: current.seasonKey, currentLabel: current.label, previousSeasonKey: previous.seasonKey, previousLabel: previous.label, rankOrder: current.rankOrder }] : [];
+  });
+  return <div className="space-y-5"><div><p className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-accent)]">PARTICIPANT PROFILE</p><h1 className="mt-1 text-3xl font-semibold">竞技档案</h1></div><CompetitiveProfileForm contexts={contexts} facts={facts.map((item) => ({ platform: item.platform, kind: item.kind, platformSeasonKey: item.platformSeasonKey, rank: item.rank, rating: String(item.rating) }))} /></div>;
 }

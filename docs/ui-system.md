@@ -6,6 +6,8 @@
 
 CS2 canonical position names 保持英文：`igl`、`awper`、`opener`、`closer`、`anchor`。它们是数据值与产品标签的统一专有名词；说明文字可补充语境。
 
+赛事创建先选择 Rivals、Major 或自定义赛事。标准赛事界面只展示业务规则与必要设置；自定义赛事使用结构化阶段、位置与图池编辑器。公开 `/privacy` 是隐私说明入口，设置导航只保留可操作的资料页面。
+
 ## Token ownership
 
 视觉 token 的 source of truth 是 `src/app/globals.css` 的 `@theme` 与 `:root`。组件使用既有 token，不为单页创建平行色板。

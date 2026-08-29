@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { eq, count, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
-import { auditLogs, captainVotes, seasonRegistrations, seasons, teams } from "@/db/schema";
+import { auditLogs, captainVotes, matches, seasonRegistrations, seasons, teamApplications, teams } from "@/db/schema";
 import { ok, fail, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { actionError } from "@/lib/action-utils";
@@ -19,6 +19,8 @@ import {
   type StagePlan,
   type InstitutionAffiliationRule,
 } from "@/types/season";
+import { createCompetitionTemplate, type CompetitionTemplate } from "@/lib/competition/templates";
+import { validateCompetitionDefinition } from "@/lib/competition/definition";
 
 const stageConfigSchema = z.object({
   key: z.string().min(1).regex(/^[a-z0-9][a-z0-9-]*$/),
@@ -57,6 +59,7 @@ const seasonFormBaseSchema = z.object({
   name: z.string().min(1, "请填写赛季名称"),
   slug: z.string().min(1, "请填写 slug").regex(/^[a-z0-9][a-z0-9-]*$/, "slug 只能使用小写字母、数字和连字符"),
   kind: z.string().min(1, "请填写赛事类型"),
+  template: z.enum(["rivals", "major", "custom"]).optional(),
   status: z.enum(["draft", "registration", "voting", "drafting", "playing", "finished", "archived"]).optional(),
   themeColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, "主题色需为 #RRGGBB 格式").nullable(),
   startAt: z.string().nullable(),
@@ -149,6 +152,43 @@ function assertUniqueStageKeys(stagePlan: StagePlan): void {
   }
 }
 
+function resolveCompetitionDefinition(data: z.infer<typeof seasonFormSchema>): Omit<typeof data, "template"> {
+  const { template, ...input } = data;
+  if (!template) return input;
+  if (template === "custom") {
+    const issues = validateCompetitionDefinition({
+      stagePlan: input.stagePlan as StagePlan,
+      positions: input.positions,
+      registrationConfig: input.registrationConfig as RegistrationConfig,
+      minTeamSize: input.minTeamSize,
+      maxTeamSize: input.maxTeamSize,
+      starterCount: input.starterCount,
+    });
+    if (issues.length > 0) throw new AppError(ErrorCode.VALIDATION_FAILED, issues[0]!.message);
+    return input;
+  }
+
+  const builtIn = createCompetitionTemplate(template as CompetitionTemplate);
+  return {
+    ...input,
+    kind: template === "major" ? "Major" : "Rivals",
+    registrationMode: builtIn.registrationMode,
+    hasCaptainVoting: builtIn.hasCaptainVoting,
+    hasDraft: builtIn.hasDraft,
+    stagePlan: builtIn.stagePlan,
+    teamRegistrationConfig: builtIn.teamRegistrationConfig,
+    affiliationRules: builtIn.affiliationRules,
+    minTeamSize: input.minTeamSize,
+    maxTeamSize: input.maxTeamSize,
+    starterCount: input.starterCount,
+    positions: input.positions,
+    registrationConfig: {
+      ...builtIn.registrationConfig,
+      mapPool: input.registrationConfig.mapPool,
+    },
+  };
+}
+
 export async function createSeason(input: SeasonFormInput): Promise<ActionResult<{ seasonId: string; slug: string }>> {
   try {
     const admin = await requireSuperAdmin();
@@ -161,7 +201,7 @@ export async function createSeason(input: SeasonFormInput): Promise<ActionResult
       });
     }
 
-    const data = parsed.data;
+    const data = resolveCompetitionDefinition(parsed.data);
     assertUniqueStageKeys(data.stagePlan as StagePlan);
 
     const [season] = await db.insert(seasons).values({
@@ -219,7 +259,7 @@ export async function updateSeason(input: SeasonFormInput): Promise<ActionResult
       });
     }
 
-    const data = parsed.data;
+    const data = resolveCompetitionDefinition(parsed.data);
     assertUniqueStageKeys(data.stagePlan as StagePlan);
 
     const existing = await db.query.seasons.findFirst({
@@ -333,12 +373,14 @@ export async function deleteSeason(seasonId: string): Promise<ActionResult<void>
       throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有 draft 状态可删除");
     }
 
-    const [{ value: registrationCount }] = await db
-      .select({ value: count() })
-      .from(seasonRegistrations)
-      .where(eq(seasonRegistrations.seasonId, seasonId));
-    if (registrationCount > 0) {
-      throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "已有报名记录，不能删除赛季");
+    const [registrations, applications, formalTeams, scheduledMatches] = await Promise.all([
+      db.select({ value: count() }).from(seasonRegistrations).where(eq(seasonRegistrations.seasonId, seasonId)),
+      db.select({ value: count() }).from(teamApplications).where(eq(teamApplications.seasonId, seasonId)),
+      db.select({ value: count() }).from(teams).where(eq(teams.seasonId, seasonId)),
+      db.select({ value: count() }).from(matches).where(eq(matches.seasonId, seasonId)),
+    ]);
+    if ([registrations, applications, formalTeams, scheduledMatches].some(([row]) => Number(row?.value ?? 0) > 0)) {
+      throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "此测试赛季已经产生报名、队伍或赛程事实，不能删除。请在独立测试数据库重置后重新开始。");
     }
 
     await db.insert(auditLogs).values({

@@ -20,7 +20,7 @@ import {
   type StageType,
 } from "@/types/season";
 
-const STAGE_TYPES: StageType[] = ["round_robin", "single_elim", "double_elim", "swiss", "gsl_group"];
+const STAGE_TYPES: StageType[] = ["round_robin", "single_elim", "double_elim"];
 const MATCH_FORMATS = ["bo1", "bo3", "bo5"] as const;
 
 interface StagePlanEditorProps {
@@ -45,7 +45,7 @@ function emptyStage(): StageConfig {
   return {
     key: "",
     name: "",
-    type: "swiss",
+    type: "round_robin",
     teamCount: 16,
     advanceTiers: [{ placement: "*", count: 8 }],
     matchFormat: "bo1",
@@ -183,7 +183,7 @@ export function StagePlanEditor({ value, onChange }: StagePlanEditorProps) {
           </div>
 
           {/* Dynamic fields by type */}
-          {(stage.type === "swiss" || stage.type === "round_robin" || stage.type === "gsl_group") && (
+          {stage.type === "round_robin" && (
             <div>
               <Label>分组数</Label>
               <Input

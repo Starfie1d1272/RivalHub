@@ -10,7 +10,7 @@ import {
 import { DraftRegistrationTable } from "@/components/admin/DraftRegistrationTable";
 import { TeamApplicationReviewList } from "@/components/admin/TeamApplicationReviewList";
 import { isTeamRegistration } from "@/lib/utils/season";
-import { getParticipantReadiness } from "@/lib/major/participant-readiness";
+import { getParticipantReadiness, resolveCompetitiveContext } from "@/lib/major/participant-readiness";
 import { evaluateExternalStrengthRule, getPlayerStrengthBreakdown } from "@/lib/major/player-strength";
 import { evaluateRosterEducationEligibility, resolveSeasonEducationVerification, type SeasonEducationVerification } from "@/lib/education/eligibility";
 import { loadActiveSanctionsInTx } from "@/lib/discipline/service";
@@ -69,8 +69,9 @@ export default async function AdminRegistrationsPage({ params }: PageProps) {
     });
     const allMemberIds = [...new Set(members.map((member) => member.userId))];
     const readinessByUser = new Map<string, Awaited<ReturnType<typeof getParticipantReadiness>>>();
-    if (teamConfig.requireCompetitiveProfile && teamConfig.competitiveProfile) {
-      const rows = await Promise.all(allMemberIds.map(async (userId) => [userId, await getParticipantReadiness(userId, teamConfig.competitiveProfile!)] as const));
+    const competitiveProfile = teamConfig.competitiveProfile ? await resolveCompetitiveContext(teamConfig.competitiveProfile) : null;
+    if (teamConfig.requireCompetitiveProfile && competitiveProfile) {
+      const rows = await Promise.all(allMemberIds.map(async (userId) => [userId, await getParticipantReadiness(userId, competitiveProfile)] as const));
       rows.forEach(([userId, readiness]) => readinessByUser.set(userId, readiness));
     }
     const sanctionsByUser = await loadActiveSanctionsInTx(db, { seasonId: season.id, subjectUserIds: allMemberIds, effect: "registration_block" });
@@ -79,12 +80,12 @@ export default async function AdminRegistrationsPage({ params }: PageProps) {
       const confirmed = appMembers.filter((member) => member.status === "confirmed");
       const education = evaluateRosterEducationEligibility(confirmed.map((member) => ({ userId: member.userId, email: member.email, emailVerifiedAt: member.emailVerifiedAt, verification: member.educationVerificationId && member.educationStatus && member.academicStatus && member.institutionName ? { id: member.educationVerificationId, status: member.educationStatus, academicStatus: member.academicStatus, institutionCode: member.institutionCode, institutionName: member.institutionName } : null })), affiliationRules);
       const primary = application.primaryStarterUserIds.map((userId) => appMembers.find((member) => member.userId === userId)).filter((member): member is typeof appMembers[number] => Boolean(member));
-      const hasStrengthFacts = Boolean(teamConfig.competitiveProfile) && primary.length === 5 && primary.every((member) => {
+      const hasStrengthFacts = Boolean(competitiveProfile) && primary.length === 5 && primary.every((member) => {
         const readiness = readinessByUser.get(member.userId);
-        return readiness ? getPlayerStrengthBreakdown(readiness.strength, teamConfig.competitiveProfile!).available : false;
+        return readiness ? getPlayerStrengthBreakdown(readiness.strength, competitiveProfile!).available : false;
       });
-      const external = !teamConfig.competitiveProfile || primary.length !== 5 || !hasStrengthFacts ? { state: "pending" as const, eligible: false, blockers: [] } : (() => {
-        const verdict = evaluateExternalStrengthRule({ config: teamConfig.competitiveProfile!, players: primary.map((member) => {
+      const external = !competitiveProfile || primary.length !== 5 || !hasStrengthFacts ? { state: "pending" as const, eligible: false, blockers: [] } : (() => {
+        const verdict = evaluateExternalStrengthRule({ config: competitiveProfile, players: primary.map((member) => {
         const readiness = readinessByUser.get(member.userId);
         const isNju = Boolean(member.institutionCode && member.academicStatus && affiliationRules.some((rule) => rule.institutionCode === member.institutionCode && rule.eligibleAcademicStatuses.includes(member.academicStatus as "enrolled" | "graduated")));
         return { ...(readiness?.strength ?? { userId: member.userId, label: member.displayName ?? member.email, historicalPeak: null, previousSeasonPeak: null, currentSeasonPeak: null }), isHome: isNju };
@@ -94,9 +95,9 @@ export default async function AdminRegistrationsPage({ params }: PageProps) {
       const readinessBlocked = confirmed.filter((member) => !readinessByUser.get(member.userId)?.ready);
       const disciplineBlocked = confirmed.filter((member) => (sanctionsByUser.get(member.userId)?.length ?? 0) > 0);
       return { ...application, members: appMembers.map((member) => {
-        const readiness = readinessByUser.get(member.userId); const strength = readiness && teamConfig.competitiveProfile ? getPlayerStrengthBreakdown(readiness.strength, teamConfig.competitiveProfile) : null;
+        const readiness = readinessByUser.get(member.userId); const strength = readiness && competitiveProfile ? getPlayerStrengthBreakdown(readiness.strength, competitiveProfile) : null;
         const isNju = Boolean(member.institutionCode && member.academicStatus && affiliationRules.some((rule) => rule.institutionCode === member.institutionCode && rule.eligibleAcademicStatuses.includes(member.academicStatus as "enrolled" | "graduated")));
-        return { userId: member.userId, email: member.email, displayName: member.displayName, perfectId: member.perfectId, emailVerified: Boolean(member.emailVerifiedAt), educationStatus: (member.educationStatus ?? "unsubmitted") as "unsubmitted" | "pending" | "approved" | "rejected", institutionName: member.institutionName, institutionCode: member.institutionCode, status: member.status, readinessBlockers: readiness?.blockers ?? (teamConfig.requireCompetitiveProfile ? ["竞技档案配置不可用。"] : []), disciplineBlocked: (sanctionsByUser.get(member.userId)?.length ?? 0) > 0, strength: strength ? { summary: strength.available ? `综合段位参考值 ${strength.weightedRank?.toFixed(2) ?? "—"}；历史 / 上赛季 / 当前：${strength.historicalValue} / ${strength.previousValue} / ${strength.currentValue}` : "资料不可比较", blockers: strength.blockers } : null, isNju };
+        return { userId: member.userId, email: member.email, displayName: member.displayName, perfectId: member.perfectId, emailVerified: Boolean(member.emailVerifiedAt), educationStatus: (member.educationStatus ?? "unsubmitted") as "unsubmitted" | "pending" | "approved" | "rejected", institutionName: member.institutionName, institutionCode: member.institutionCode, status: member.status, readinessBlockers: readiness?.blockers ?? (teamConfig.requireCompetitiveProfile ? ["竞技平台赛季目录不可用。"] : []), disciplineBlocked: (sanctionsByUser.get(member.userId)?.length ?? 0) > 0, strength: strength ? { summary: strength.available ? `综合段位参考值 ${strength.weightedRank?.toFixed(2) ?? "—"}；历史 / 上赛季 / 当前：${strength.historicalValue} / ${strength.previousValue} / ${strength.currentValue}` : "资料不可比较", blockers: strength.blockers } : null, isNju };
       }), qualification: { readiness: { state: readinessBlocked.length === 0 ? "complete" as const : "blocked" as const, detail: readinessBlocked.length === 0 ? "已确认成员的参赛资料齐全" : `${readinessBlocked.length} 名已确认成员仍有参赛资料需要完善` }, education: { state: education.eligible ? "complete" as const : "blocked" as const, detail: education.eligible ? `教育认证与南京大学成员要求已满足` : education.blockers.join(" ") }, externalStrength: { state: external.state, detail: external.state === "pending" ? "选定 5 名预定主力后检查成员资格。" : external.eligible ? "预定主力外校成员实力限制通过" : external.blockers.join(" ") }, discipline: { state: disciplineBlocked.length === 0 ? "complete" as const : "blocked" as const, detail: disciplineBlocked.length === 0 ? "已确认成员无有效报名禁赛处罚" : `${disciplineBlocked.length} 名已确认成员存在有效报名禁赛处罚` } } };
     });
     return (

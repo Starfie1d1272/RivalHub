@@ -24,7 +24,7 @@ import {
   validateTransition,
 } from "@/lib/registration-transitions";
 import { normalizeAffiliationRules, normalizeTeamRegistrationConfig } from "@/types/season";
-import { getParticipantReadiness } from "@/lib/major/participant-readiness";
+import { getParticipantReadiness, resolveCompetitiveContext } from "@/lib/major/participant-readiness";
 import { evaluateExternalStrengthRule } from "@/lib/major/player-strength";
 import { evaluateRosterEducationEligibility, resolveSeasonEducationVerification, type EducationEligibilityMember, type SeasonEducationVerification } from "@/lib/education/eligibility";
 
@@ -72,80 +72,6 @@ export async function adminLogin(username: string, password: string) {
 }
 
 // ── 管理员注册（需有效邀请码） ──────────────────────────
-
-export async function registerAdmin(
-  username: string,
-  password: string,
-  inviteCode: string,
-) {
-  if (!username || username.length < 3) {
-    return fail({ code: ErrorCode.VALIDATION_FAILED, message: "用户名至少 3 个字符" });
-  }
-  if (!password || password.length < 8) {
-    return fail({ code: ErrorCode.VALIDATION_FAILED, message: "密码至少 8 个字符" });
-  }
-
-  const existing = await db.query.adminUsers.findFirst({
-    where: eq(adminUsers.username, username),
-  });
-  if (existing) {
-    return fail({ code: ErrorCode.VALIDATION_FAILED, message: "用户名已被使用" });
-  }
-
-  // 事务内检查 + 更新邀请码，防止并发超限
-  const result = await db.transaction(async (tx) => {
-    const invite = await tx.query.adminInvites.findFirst({
-      where: eq(adminInvites.code, inviteCode),
-    });
-    if (!invite) {
-      return fail({ code: ErrorCode.UNAUTHORIZED, message: "邀请码无效" });
-    }
-    if (!invite.isActive) {
-      return fail({ code: ErrorCode.UNAUTHORIZED, message: "邀请码已失效" });
-    }
-    if (invite.usedCount >= invite.maxUses) {
-      return fail({ code: ErrorCode.UNAUTHORIZED, message: "邀请码已用完" });
-    }
-    if (invite.expiresAt && new Date(invite.expiresAt) < new Date()) {
-      return fail({ code: ErrorCode.UNAUTHORIZED, message: "邀请码已过期" });
-    }
-
-    const [newAdmin] = await tx
-      .insert(adminUsers)
-      .values({
-        username,
-        passwordHash: hashPassword(password),
-        role: invite.role,
-      })
-      .returning();
-
-    await tx
-      .update(adminInvites)
-      .set({
-        usedCount: invite.usedCount + 1,
-        isActive: invite.usedCount + 1 >= invite.maxUses ? false : invite.isActive,
-        usedByUsernames: sql`array_append(${adminInvites.usedByUsernames}, ${username})`,
-      })
-      .where(eq(adminInvites.id, invite.id));
-
-    await tx.insert(auditLogs).values({
-      seasonId: null,
-      action: "admin.register",
-      actorId: username,
-      targetId: newAdmin.id,
-      targetType: "admin_user",
-      meta: { role: invite.role, inviteId: invite.id },
-    });
-
-    return ok(newAdmin);
-  });
-
-  if (!result.success) return result;
-
-  const newAdmin = result.data;
-  await createAdminSession(newAdmin);
-  redirect("/admin");
-}
 
 // ── 审核报名 ────────────────────────────────────────────
 
@@ -368,16 +294,18 @@ export async function reviewTeamApplication(input: TeamApplicationReviewInput) {
       }
       if (config.requireCompetitiveProfile) {
         if (!config.competitiveProfile) throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事尚未配置竞技档案规则，不能通过报名审核。");
+        const competitiveProfile = await resolveCompetitiveContext(config.competitiveProfile);
+        if (!competitiveProfile) throw new AppError(ErrorCode.VALIDATION_FAILED, "竞技平台赛季目录尚未完成当前与上一赛季配置。");
         if (!locked.perfectTeamId?.trim()) throw new AppError(ErrorCode.VALIDATION_FAILED, "申请缺少完美战队 ID，不能通过报名审核。");
         if (locked.primaryStarterUserIds.length !== 5 || new Set(locked.primaryStarterUserIds).size !== 5) throw new AppError(ErrorCode.VALIDATION_FAILED, "申请未指定恰好 5 名预定主力，不能通过报名审核。");
         const confirmedIds = new Set(confirmed.map((member) => member.userId));
         if (locked.primaryStarterUserIds.some((userId) => !confirmedIds.has(userId))) throw new AppError(ErrorCode.VALIDATION_FAILED, "预定主力不属于当前已确认名单，不能通过报名审核。");
-        const readiness = await Promise.all(confirmed.map(async (member) => ({ member, readiness: await getParticipantReadiness(member.userId, config.competitiveProfile!) })));
+        const readiness = await Promise.all(confirmed.map(async (member) => ({ member, readiness: await getParticipantReadiness(member.userId, competitiveProfile) })));
         const unreadied = readiness.filter((item) => !item.readiness.ready);
         if (unreadied.length > 0) throw new AppError(ErrorCode.VALIDATION_FAILED, `成员资料未完善：${unreadied.flatMap((item) => item.readiness.blockers).join(" ")}`);
         const primary = locked.primaryStarterUserIds.map((userId) => readiness.find((item) => item.member.userId === userId)).filter((item): item is NonNullable<typeof item> => Boolean(item));
         const strength = evaluateExternalStrengthRule({
-          config: config.competitiveProfile,
+          config: competitiveProfile,
           players: primary.map(({ member, readiness: memberReadiness }) => ({ ...memberReadiness.strength, isHome: Boolean(member.institutionCode && member.verificationAcademicStatus && affiliationRules.some((rule) => rule.institutionCode === member.institutionCode && rule.eligibleAcademicStatuses.includes(member.verificationAcademicStatus!))) })),
         });
         if (!strength.eligible) throw new AppError(ErrorCode.VALIDATION_FAILED, strength.blockers.join(" "));

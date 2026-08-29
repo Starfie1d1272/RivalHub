@@ -1,5 +1,4 @@
 // 共享赛季类型——与 Drizzle schema 对齐
-import { createPerfectWorldRankOrder } from "@/lib/config/perfect-world";
 
 export type SeasonKind = string;
 
@@ -131,8 +130,25 @@ export const MAJOR_TEAM_CONFIG: TeamRegistrationConfig = {
     platform: "perfect_world",
     currentSeasonKey: "",
     previousSeasonKey: "",
-    rankOrder: createPerfectWorldRankOrder(),
+    rankOrder: [],
   },
+};
+
+/** Compatibility fallback for historical rows that predate team registration configuration. */
+export const DEFAULT_TEAM_REGISTRATION_CONFIG: TeamRegistrationConfig = {
+  allowExternal: true,
+  graduateCountsAsHome: false,
+  minHomeMembers: 0,
+  minEnrolledMembers: 0,
+  maxExternalMembers: 0,
+  requirePositions: false,
+  maxPerPositionPerTeam: 0,
+  captainCanKick: true,
+  captainCanTransfer: true,
+  lockAfterRegistration: false,
+  requireUniqueTeamName: true,
+  requireTeamLogo: false,
+  requireCompetitiveProfile: false,
 };
 
 /**
@@ -600,17 +616,17 @@ export function normalizeTeamRegistrationConfig(
   config: PartialTeamConfig | null | undefined,
 ): TeamRegistrationConfig {
   return {
-    allowExternal: config?.allowExternal ?? MAJOR_TEAM_CONFIG.allowExternal,
-    graduateCountsAsHome: config?.graduateCountsAsHome ?? MAJOR_TEAM_CONFIG.graduateCountsAsHome,
-    minHomeMembers: config?.minHomeMembers ?? MAJOR_TEAM_CONFIG.minHomeMembers,
-    minEnrolledMembers: config?.minEnrolledMembers ?? MAJOR_TEAM_CONFIG.minEnrolledMembers,
-    maxExternalMembers: config?.maxExternalMembers ?? MAJOR_TEAM_CONFIG.maxExternalMembers,
-    requirePositions: config?.requirePositions ?? MAJOR_TEAM_CONFIG.requirePositions,
-    maxPerPositionPerTeam: config?.maxPerPositionPerTeam ?? MAJOR_TEAM_CONFIG.maxPerPositionPerTeam,
-    captainCanKick: config?.captainCanKick ?? MAJOR_TEAM_CONFIG.captainCanKick,
-    captainCanTransfer: config?.captainCanTransfer ?? MAJOR_TEAM_CONFIG.captainCanTransfer,
-    lockAfterRegistration: config?.lockAfterRegistration ?? MAJOR_TEAM_CONFIG.lockAfterRegistration,
-    requireUniqueTeamName: config?.requireUniqueTeamName ?? MAJOR_TEAM_CONFIG.requireUniqueTeamName,
+    allowExternal: config?.allowExternal ?? DEFAULT_TEAM_REGISTRATION_CONFIG.allowExternal,
+    graduateCountsAsHome: config?.graduateCountsAsHome ?? DEFAULT_TEAM_REGISTRATION_CONFIG.graduateCountsAsHome,
+    minHomeMembers: config?.minHomeMembers ?? DEFAULT_TEAM_REGISTRATION_CONFIG.minHomeMembers,
+    minEnrolledMembers: config?.minEnrolledMembers ?? DEFAULT_TEAM_REGISTRATION_CONFIG.minEnrolledMembers,
+    maxExternalMembers: config?.maxExternalMembers ?? DEFAULT_TEAM_REGISTRATION_CONFIG.maxExternalMembers,
+    requirePositions: config?.requirePositions ?? DEFAULT_TEAM_REGISTRATION_CONFIG.requirePositions,
+    maxPerPositionPerTeam: config?.maxPerPositionPerTeam ?? DEFAULT_TEAM_REGISTRATION_CONFIG.maxPerPositionPerTeam,
+    captainCanKick: config?.captainCanKick ?? DEFAULT_TEAM_REGISTRATION_CONFIG.captainCanKick,
+    captainCanTransfer: config?.captainCanTransfer ?? DEFAULT_TEAM_REGISTRATION_CONFIG.captainCanTransfer,
+    lockAfterRegistration: config?.lockAfterRegistration ?? DEFAULT_TEAM_REGISTRATION_CONFIG.lockAfterRegistration,
+    requireUniqueTeamName: config?.requireUniqueTeamName ?? DEFAULT_TEAM_REGISTRATION_CONFIG.requireUniqueTeamName,
     requireTeamLogo: config?.requireTeamLogo ?? false,
     requireCompetitiveProfile: config?.requireCompetitiveProfile ?? false,
     competitiveProfile: config?.competitiveProfile
@@ -620,7 +636,7 @@ export function normalizeTeamRegistrationConfig(
           previousSeasonKey: config.competitiveProfile.previousSeasonKey.trim(),
           rankOrder: [...new Set(config.competitiveProfile.rankOrder.map((rank) => rank.trim()).filter(Boolean))],
         }
-      : MAJOR_TEAM_CONFIG.competitiveProfile,
+      : undefined,
   };
 }
 

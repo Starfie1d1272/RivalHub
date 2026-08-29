@@ -8,7 +8,6 @@ import {
   createMajorDefaultCapabilities,
   normalizeTeamRegistrationConfig,
 } from "@/types/season";
-import { PERFECT_WORLD_RANK_ORDER } from "@/lib/config/perfect-world";
 
 function expectFailure(
   capabilities: ReturnType<typeof createMajorDefaultCapabilities>,
@@ -188,7 +187,8 @@ describe("createMajorDefaultCapabilities()", () => {
     expect(rivals.registrationConfig.maxTotal).toBe(56);
     expect(major.registrationConfig.maxTotal).toBe(256);
     expect(major.teamRegistrationConfig.requireTeamLogo).toBe(true);
-    expect(major.teamRegistrationConfig.competitiveProfile?.rankOrder).toEqual(PERFECT_WORLD_RANK_ORDER);
+    expect(major.teamRegistrationConfig.competitiveProfile?.platform).toBe("perfect_world");
+    expect(major.teamRegistrationConfig.competitiveProfile?.rankOrder).toEqual([]);
     expect(major).not.toBe(rivals);
     expect(checkStandardMajorCapabilities(major).isStandardMajor).toBe(true);
   });

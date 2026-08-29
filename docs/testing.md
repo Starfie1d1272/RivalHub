@@ -78,7 +78,7 @@ production smoke / real-world operation
 
 完整 destructive lifecycle 只在独立 staging DB 执行，结束后 reset staging DB。production 仅进行真实赛事所需 smoke，不承担模拟清理工作。
 
-Captain transfer 是 accepted convergence work。当前代码尚未形成完整可验收链路前，不应把它标记为测试已通过的 gate。
+本轮额外覆盖 canonical Rivals/Major template 与 custom definition fail-closed boundary；队长交接、平台赛季目录与测试赛季清理仍需纳入独立 Local lifecycle acceptance。
 
 ## Change-level validation
 

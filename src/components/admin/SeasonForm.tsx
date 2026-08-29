@@ -5,12 +5,8 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { createSeason, deleteSeason, publishSeason, updateSeason, revertSeasonToDraft, revertSeasonToRegistration, forceFinishSeason, archiveSeason, type SeasonFormInput } from "@/actions/seasons";
 import {
-  CS2_POSITIONS,
   PLAYER_TYPE_LABELS,
-  RIVALS_REGISTRATION_CONFIG,
-  RIVALS_STAGE_PLAN,
   checkStandardMajorCapabilities,
-  createMajorDefaultCapabilities,
   type PlayerType,
   type RegistrationConfig,
   type SeasonCapabilities,
@@ -18,6 +14,7 @@ import {
   type TeamRegistrationConfig,
   type StagePlan,
 } from "@/types/season";
+import { createCompetitionTemplate, inferCompetitionTemplate, type CompetitionTemplate } from "@/lib/competition/templates";
 import { rankValues, RANK_LABELS } from "@/lib/validators/registration";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -34,6 +31,8 @@ import {
 import { StagePlanEditor } from "@/components/admin/StagePlanEditor";
 import { TeamConfigForm } from "@/components/admin/TeamConfigForm";
 import { ThemeColorPicker } from "@/components/admin/ThemeColorPicker";
+import { PositionEditor } from "@/components/admin/PositionEditor";
+import { MapPoolEditor } from "@/components/admin/MapPoolEditor";
 
 const PLAYER_TYPES: PlayerType[] = ["enrolled", "graduated", "external"];
 const NO_RANK = "__none__";
@@ -62,31 +61,31 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  const majorDefaults = createMajorDefaultCapabilities();
+  const initialTemplate = initial ? inferCompetitionTemplate(initial as SeasonCapabilities) : "major";
+  const defaultTemplate = createCompetitionTemplate(initialTemplate);
 
-  const defaultConfig = initial?.registrationConfig ?? majorDefaults.registrationConfig;
-  const defaultTeamConfig = initial?.teamRegistrationConfig ?? majorDefaults.teamRegistrationConfig;
+  const defaultConfig = initial?.registrationConfig ?? defaultTemplate.registrationConfig;
+  const defaultTeamConfig = initial?.teamRegistrationConfig ?? defaultTemplate.teamRegistrationConfig;
 
   const [name, setName] = useState(initial?.name ?? "");
   const [slug, setSlug] = useState(initial?.slug ?? "");
+  const [template, setTemplate] = useState<CompetitionTemplate>(initialTemplate);
   const [kind, setKind] = useState(initial?.kind ?? "Major");
   const [themeColor, setThemeColor] = useState(initial?.themeColor ?? "#f97316");
   const [startAt, setStartAt] = useState(initial?.startAt ?? "");
   const [registrationDeadline, setRegistrationDeadline] = useState(initial?.registrationDeadline ?? "");
   const [endAt, setEndAt] = useState(initial?.endAt ?? "");
   const [registrationMode, setRegistrationMode] = useState<"solo" | "team">(
-    initial?.registrationMode ?? "team",
+    initial?.registrationMode ?? defaultTemplate.registrationMode,
   );
-  const [hasCaptainVoting, setHasCaptainVoting] = useState(initial?.hasCaptainVoting ?? majorDefaults.hasCaptainVoting);
-  const [hasDraft, setHasDraft] = useState(initial?.hasDraft ?? majorDefaults.hasDraft);
-  const [maxTeamSize, setMaxTeamSize] = useState(initial?.maxTeamSize ?? majorDefaults.maxTeamSize);
-  const [minTeamSize, setMinTeamSize] = useState(initial?.minTeamSize ?? majorDefaults.minTeamSize);
-  const [starterCount, setStarterCount] = useState(initial?.starterCount ?? majorDefaults.starterCount);
-  const [positionsText, setPositionsText] = useState(
-    (initial?.positions ?? majorDefaults.positions ?? CS2_POSITIONS).join(","),
-  );
+  const [hasCaptainVoting, setHasCaptainVoting] = useState(initial?.hasCaptainVoting ?? defaultTemplate.hasCaptainVoting);
+  const [hasDraft, setHasDraft] = useState(initial?.hasDraft ?? defaultTemplate.hasDraft);
+  const [maxTeamSize, setMaxTeamSize] = useState(initial?.maxTeamSize ?? defaultTemplate.maxTeamSize);
+  const [minTeamSize, setMinTeamSize] = useState(initial?.minTeamSize ?? defaultTemplate.minTeamSize);
+  const [starterCount, setStarterCount] = useState(initial?.starterCount ?? defaultTemplate.starterCount);
+  const [positions, setPositions] = useState(initial?.positions ?? defaultTemplate.positions);
   const [stagePlan, setStagePlan] = useState<StagePlan>(
-    initial?.stagePlan ?? majorDefaults.stagePlan,
+    initial?.stagePlan ?? defaultTemplate.stagePlan,
   );
   const [allowedPlayerTypes, setAllowedPlayerTypes] = useState<PlayerType[]>(
     defaultConfig.allowedPlayerTypes,
@@ -96,12 +95,10 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
   const [maxPerPosition, setMaxPerPosition] = useState(defaultConfig.maxPerPosition);
   const [screenshotCount, setScreenshotCount] = useState(defaultConfig.screenshotCount);
   const [maxTotal, setMaxTotal] = useState(defaultConfig.maxTotal);
-  const [mapPoolText, setMapPoolText] = useState(
-    defaultConfig.mapPool.join(","),
-  );
+  const [mapPool, setMapPool] = useState(defaultConfig.mapPool);
   const [teamConfig, setTeamConfig] = useState<TeamRegistrationConfig>(defaultTeamConfig);
   const [affiliationRules, setAffiliationRules] = useState<InstitutionAffiliationRule[]>(
-    initial?.affiliationRules ?? majorDefaults.affiliationRules,
+    initial?.affiliationRules ?? defaultTemplate.affiliationRules,
   );
 
   const coreLocked = mode === "edit" && initial?.status !== "draft";
@@ -120,38 +117,22 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
     });
   }
 
-  function applyPreset(preset: "major" | "rivals") {
-    if (!confirm("应用预设将覆盖当前所有配置，是否继续？")) return;
-    if (preset === "major") {
-      setKind("Major");
-      applyCapabilities(createMajorDefaultCapabilities());
-    } else {
-      setKind("选秀联赛");
-      handleRegistrationModeChange("solo");
-      setMaxTeamSize(7);
-      setMinTeamSize(7);
-      setStarterCount(5);
-      setPositionsText(CS2_POSITIONS.join(","));
-      setStagePlan(structuredClone(RIVALS_STAGE_PLAN));
-      setAllowedPlayerTypes(["enrolled"]);
-      setCurrentMin("A");
-      setPeakMin("A+");
-      setMaxPerPosition(15);
-      setScreenshotCount(1);
-      setMaxTotal(RIVALS_REGISTRATION_CONFIG.maxTotal);
-      setMapPoolText(RIVALS_REGISTRATION_CONFIG.mapPool.join(","));
-      setAffiliationRules([]);
-    }
+  function applyTemplate(nextTemplate: CompetitionTemplate) {
+    if (mode === "edit" && !confirm("切换赛事体系会覆盖当前赛制配置，是否继续？")) return;
+    const next = createCompetitionTemplate(nextTemplate);
+    setTemplate(nextTemplate);
+    setKind(nextTemplate === "major" ? "Major" : nextTemplate === "rivals" ? "Rivals" : "自定义赛事");
+    applyCapabilities(next);
   }
 
-  function applyCapabilities(capabilities: ReturnType<typeof createMajorDefaultCapabilities>) {
+  function applyCapabilities(capabilities: SeasonCapabilities) {
     setRegistrationMode(capabilities.registrationMode);
     setHasCaptainVoting(capabilities.hasCaptainVoting);
     setHasDraft(capabilities.hasDraft);
     setMaxTeamSize(capabilities.maxTeamSize);
     setMinTeamSize(capabilities.minTeamSize);
     setStarterCount(capabilities.starterCount);
-    setPositionsText(capabilities.positions.join(","));
+    setPositions([...capabilities.positions]);
     setStagePlan(capabilities.stagePlan);
     setAllowedPlayerTypes(capabilities.registrationConfig.allowedPlayerTypes);
     setCurrentMin(capabilities.registrationConfig.rankThreshold.currentMin ?? NO_RANK);
@@ -159,7 +140,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
     setMaxPerPosition(capabilities.registrationConfig.maxPerPosition);
     setScreenshotCount(capabilities.registrationConfig.screenshotCount);
     setMaxTotal(capabilities.registrationConfig.maxTotal);
-    setMapPoolText(capabilities.registrationConfig.mapPool.join(","));
+    setMapPool([...capabilities.registrationConfig.mapPool]);
     setTeamConfig(capabilities.teamRegistrationConfig);
     setAffiliationRules([...capabilities.affiliationRules]);
   }
@@ -192,7 +173,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
       maxPerPosition,
       screenshotCount,
       maxTotal,
-      mapPool: mapPoolText.split(",").map((item: string) => item.trim()).filter(Boolean),
+      mapPool,
     };
 
     return {
@@ -200,6 +181,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
       name,
       slug: slug || slugFromName(name),
       kind,
+      template,
       themeColor: emptyToNull(themeColor),
       startAt: emptyToNull(startAt),
       registrationDeadline: emptyToNull(registrationDeadline),
@@ -210,19 +192,16 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
       minTeamSize,
       maxTeamSize,
       starterCount,
-      positions: positionsText.split(",").map((item: string) => item.trim()).filter(Boolean),
+      positions,
       stagePlan,
-      registrationConfig,
+      registrationConfig: { ...registrationConfig, mapPool },
       teamRegistrationConfig: teamConfig,
       affiliationRules,
     };
   }
 
   const standardMajorCheck = checkStandardMajorCapabilities(buildPayload() as SeasonCapabilities);
-  const isMajorDisplayContext = kind === "Major";
-  const swissFormats = stagePlan.slice(0, 3).map((stage) => stage.matchFormat?.toUpperCase() ?? "未设置");
-  const playoffFormat = stagePlan[3]?.matchFormat?.toUpperCase() ?? "未设置";
-  const finalFormat = stagePlan[3]?.finalFormat?.toUpperCase() ?? playoffFormat;
+  const isMajorDisplayContext = template === "major";
 
   function handleSubmit() {
     const payload = buildPayload();
@@ -343,13 +322,13 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
         </div>
 
         <section className="space-y-2">
-          <Label>快速预设</Label>
-          <Select onValueChange={(v) => v !== "__none__" && applyPreset(v as "major" | "rivals")}>
-            <SelectTrigger className="w-56"><SelectValue placeholder="选择预设..." /></SelectTrigger>
+          <Label>赛事体系</Label>
+          <Select value={template} onValueChange={(v) => applyTemplate(v as CompetitionTemplate)}>
+            <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="major">Major 公开赛</SelectItem>
-              <SelectItem value="rivals">Rivals 选秀联赛</SelectItem>
-              <SelectItem value="__none__">手动配置</SelectItem>
+              <SelectItem value="rivals">Rivals</SelectItem>
+              <SelectItem value="major">Major</SelectItem>
+              <SelectItem value="custom">自定义赛事</SelectItem>
             </SelectContent>
           </Select>
         </section>
@@ -367,12 +346,12 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
                 32 支队伍；队伍整体报名；每队 {minTeamSize}–{maxTeamSize} 人；三阶段瑞士轮；8 队单败淘汰。
               </p>
               <p className="mt-1 text-[var(--color-fg-mid)]">
-                当前局制：瑞士轮 {swissFormats.join(" / ")}；淘汰赛 {playoffFormat}，决赛 {finalFormat}。
+                阶段一、二：普通比赛 BO1，晋级/淘汰局 BO3；阶段三：全部 BO3；淘汰赛：四分之一决赛、半决赛 BO3，决赛 BO5。
               </p>
             </>
           ) : (
             <>
-              <h2 className="font-semibold">当前配置已偏离标准 Major，将作为自定义赛制运行。</h2>
+              <h2 className="font-semibold">Major 标准规则尚未完整应用。</h2>
               <ul className="mt-2 list-disc space-y-1 pl-5 text-[var(--color-fg-mid)]">
                 {standardMajorCheck.failures.slice(0, 4).map((check) => (
                   <li key={check.key}>{check.reason}</li>
@@ -391,7 +370,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
               <Input id="season-slug" value={slug} onChange={(e) => setSlug(e.target.value)} />
               <p className="text-xs text-[var(--color-fg-dim)] mt-1">URL 路径标识，输入名称后自动生成，可手动修改</p>
             </div>
-            <div><Label htmlFor="season-kind">类型</Label><Input id="season-kind" value={kind} onChange={(e) => setKind(e.target.value)} /></div>
+            <div><Label>赛事体系</Label><Input value={template === "major" ? "Major" : template === "rivals" ? "Rivals" : "自定义赛事"} disabled /></div>
             <div><Label>主题色</Label><ThemeColorPicker value={themeColor} onChange={setThemeColor} /></div>
             <div>
               <Label htmlFor="start-at">报名开始时间</Label>
@@ -406,7 +385,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
         </section>
 
         <section className="space-y-4">
-          <h2 className="font-semibold">Capability</h2>
+          <h2 className="font-semibold">参赛与队伍设置</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label>报名模式</Label>
@@ -418,7 +397,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
                 </SelectContent>
               </Select>
             </div>
-            <div><Label htmlFor="positions">位置列表</Label><Input id="positions" value={positionsText} onChange={(e) => setPositionsText(e.target.value)} /></div>
+            <PositionEditor value={positions} onChange={setPositions} />
             <div><Label htmlFor="max-team-size">每队人数上限</Label><Input id="max-team-size" type="number" min={1} value={maxTeamSize} onChange={(e) => setMaxTeamSize(Number(e.target.value))} /></div>
             <div><Label htmlFor="min-team-size">每队人数下限</Label><Input id="min-team-size" type="number" min={1} value={minTeamSize} onChange={(e) => setMinTeamSize(Number(e.target.value))} /></div>
             <div><Label htmlFor="starter-count">首发人数</Label><Input id="starter-count" type="number" min={1} value={starterCount} onChange={(e) => setStarterCount(Number(e.target.value))} /></div>
@@ -447,22 +426,24 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
               <div><Label>历史段位门槛</Label><Select value={peakMin} onValueChange={setPeakMin}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value={NO_RANK}>无门槛</SelectItem>{rankValues.map((rank) => (<SelectItem key={rank} value={rank}>{RANK_LABELS[rank]}</SelectItem>))}</SelectContent></Select></div>
               <div><Label htmlFor="max-position">每位置上限</Label><Input id="max-position" type="number" min={1} max={50} value={maxPerPosition} onChange={(e) => setMaxPerPosition(Number(e.target.value))} /></div>
               <div><Label htmlFor="screenshot-count">截图链接数量</Label><Input id="screenshot-count" type="number" min={1} max={5} value={screenshotCount} onChange={(e) => setScreenshotCount(Number(e.target.value))} /></div>
-              <div className="sm:col-span-2"><Label htmlFor="map-pool">比赛图池</Label><Input id="map-pool" value={mapPoolText} onChange={(e) => setMapPoolText(e.target.value)} placeholder="de_mirage,de_inferno,de_nuke..." /></div>
+              <div className="sm:col-span-2"><MapPoolEditor value={mapPool} onChange={setMapPool} /></div>
             </div>
           </section>
         )}
 
-        {registrationMode === "team" && (
+        {registrationMode === "team" && template === "custom" && (
           <section className="space-y-4">
             <h2 className="font-semibold">队伍报名配置</h2>
             <TeamConfigForm value={teamConfig} maxTeamSize={maxTeamSize} onChange={setTeamConfig} />
           </section>
         )}
 
-        <section className="space-y-4">
+        {registrationMode === "team" && <section className="space-y-4"><h2 className="font-semibold">比赛图池</h2><MapPoolEditor value={mapPool} onChange={setMapPool} /></section>}
+
+        {template === "custom" && <section className="space-y-4">
           <h2 className="font-semibold">赛制配置</h2>
           <StagePlanEditor value={stagePlan} onChange={setStagePlan} />
-        </section>
+        </section>}
 
         <div className="flex justify-end">
           <Button type="button" disabled={isPending} onClick={handleSubmit}>
@@ -492,10 +473,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
             <Input id="season-slug" value={slug} disabled onChange={(e) => setSlug(e.target.value)} />
             <p className="text-xs text-[var(--color-fg-dim)] mt-1">编辑时不可修改 slug</p>
           </div>
-          <div>
-            <Label htmlFor="season-kind">类型</Label>
-            <Input id="season-kind" value={kind} onChange={(e) => setKind(e.target.value)} />
-          </div>
+          <div><Label>赛事体系</Label><Input value={template === "major" ? "Major" : template === "rivals" ? "Rivals" : "自定义赛事"} disabled /></div>
           <div>
             <Label>主题色</Label>
             <ThemeColorPicker value={themeColor} onChange={setThemeColor} />
@@ -525,8 +503,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
         <SaveBtn />
       </Panel>
 
-      {/* Panel 3: 能力开关 */}
-      <Panel label="能力配置" pad={20}>
+      <Panel label="参赛与队伍设置" pad={20}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label>报名模式</Label>
@@ -538,10 +515,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
               </SelectContent>
             </Select>
           </div>
-          <div>
-            <Label htmlFor="positions">位置列表</Label>
-            <Input id="positions" value={positionsText} disabled={coreLocked} onChange={(e) => setPositionsText(e.target.value)} />
-          </div>
+          <PositionEditor value={positions} disabled={coreLocked} onChange={setPositions} />
           <div><Label htmlFor="max-team-size">每队人数上限</Label><Input id="max-team-size" type="number" min={1} value={maxTeamSize} disabled={coreLocked} onChange={(e) => setMaxTeamSize(Number(e.target.value))} /></div>
           <div><Label htmlFor="min-team-size">每队人数下限</Label><Input id="min-team-size" type="number" min={1} value={minTeamSize} disabled={coreLocked} onChange={(e) => setMinTeamSize(Number(e.target.value))} /></div>
           <div><Label htmlFor="starter-count">首发人数</Label><Input id="starter-count" type="number" min={1} value={starterCount} disabled={coreLocked} onChange={(e) => setStarterCount(Number(e.target.value))} /></div>
@@ -589,27 +563,24 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
             </div>
             <div><Label htmlFor="max-position">每位置上限</Label><Input id="max-position" type="number" min={1} max={50} value={maxPerPosition} onChange={(e) => setMaxPerPosition(Number(e.target.value))} /></div>
             <div><Label htmlFor="screenshot-count">截图链接数量</Label><Input id="screenshot-count" type="number" min={1} max={5} value={screenshotCount} onChange={(e) => setScreenshotCount(Number(e.target.value))} /></div>
-            <div className="sm:col-span-2">
-              <Label htmlFor="map-pool">比赛图池</Label>
-              <Input id="map-pool" value={mapPoolText} onChange={(e) => setMapPoolText(e.target.value)} placeholder="de_mirage,de_inferno,de_nuke..." />
-              <p className="text-xs text-[var(--color-fg-dim)] mt-1">逗号分隔，报名地图熟练度和比赛录入会使用同一组地图。</p>
-            </div>
+            <div className="sm:col-span-2"><MapPoolEditor value={mapPool} disabled={coreLocked} onChange={setMapPool} /></div>
           </div>
           <SaveBtn />
         </Panel>
       )}
-      {registrationMode === "team" && (
+      {registrationMode === "team" && template === "custom" && (
         <Panel label="队伍报名配置" pad={20}>
           <TeamConfigForm value={teamConfig} maxTeamSize={maxTeamSize} onChange={setTeamConfig} />
           <SaveBtn />
         </Panel>
       )}
 
-      {/* Panel 5: 赛程阶段 */}
-      <Panel label="赛程阶段" pad={20}>
+      {registrationMode === "team" && <Panel label="比赛图池" pad={20}><MapPoolEditor value={mapPool} disabled={coreLocked} onChange={setMapPool} /><SaveBtn /></Panel>}
+
+      {template === "custom" && <Panel label="赛程阶段" pad={20}>
         <StagePlanEditor value={stagePlan} onChange={setStagePlan} />
         <SaveBtn />
-      </Panel>
+      </Panel>}
 
       {/* 底部操作区（按赛季状态展示不同操作） */}
       {initial?.status === "draft" && (

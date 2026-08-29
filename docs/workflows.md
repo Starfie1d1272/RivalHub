@@ -16,7 +16,7 @@
 
 ## 4. Competitive profile
 
-数据 owner 是 `competitive_platform_seasons` 与 `competitive_rank_facts`。当前 `/settings/competitive` 的平台、当前赛季和上赛季上下文仍从已配置的赛事 `competitiveProfile` 取得；全局 catalog 接入是已接受的收敛工作。赛事 qualification evaluator 读取所需平台上下文和用户事实，并保留必要的 event-time snapshot。
+数据 owner 是 `competitive_platform_seasons` 与 `competitive_rank_facts`。`/settings/competitive` 直接读取全局目录的当前和上一赛季，不依赖已发布 RivalHub 赛事；赛事 qualification evaluator 读取同一目录和用户事实，并保留必要的 event-time snapshot。
 
 ## 5. Rivals solo registration
 
@@ -32,7 +32,7 @@ Rivals 用户在报名窗口填写个人报名并可保存草稿。提交由 Ser
 
 ## 8. Major team application
 
-队长创建申请、填写赛事相关信息、邀请成员并维护可编辑申请。一个用户在同届赛事只能保有符合 active-claim 约束的参与关系。提交前由服务端汇集身份、教育、竞技和队伍事实执行资格判断。
+队长创建申请、填写赛事相关信息、邀请成员并维护可编辑申请。队长可把职责转给当前已确认成员，原队长保持普通成员身份；锁定后由适用管理员执行紧急交接。一个用户在同届赛事只能保有符合 active-claim 约束的参与关系。提交前由服务端汇集身份、教育、竞技和队伍事实执行资格判断。
 
 ## 9. Member invite / confirmation
 

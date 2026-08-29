@@ -18,7 +18,7 @@ import {
   institutions,
 } from "@/db/schema";
 import { actionError } from "@/lib/action-utils";
-import { auditActorId, requireAuth } from "@/lib/auth/session";
+import { auditActorId, requireAuth, requireSeasonAdmin } from "@/lib/auth/session";
 import { assertUsersNotBlockedInTx } from "@/lib/discipline/service";
 import { MIN_TEAM_NAME_LENGTH, MAX_TEAM_NAME_LENGTH } from "@/lib/config/team-config";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -27,7 +27,7 @@ import { normalizeEmail } from "@/lib/utils/email";
 import { isTeamRegistration } from "@/lib/utils/season";
 import { normalizeAffiliationRules, normalizeTeamRegistrationConfig } from "@/types/season";
 import { evaluateRosterEducationEligibility, resolveSeasonEducationVerification, type EducationEligibilityMember, type SeasonEducationVerification } from "@/lib/education/eligibility";
-import { getParticipantReadiness } from "@/lib/major/participant-readiness";
+import { getParticipantReadiness, resolveCompetitiveContext } from "@/lib/major/participant-readiness";
 import { evaluateExternalStrengthRule } from "@/lib/major/player-strength";
 import { createServiceClient } from "@/lib/auth/supabase";
 import { LOGO_ALLOWED_TYPES, LOGO_MAX_BYTES } from "@/lib/config/upload-limits";
@@ -93,7 +93,9 @@ async function assertParticipantReadyForSeason(userId: string, season: typeof se
   const config = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
   if (!config.requireCompetitiveProfile) return;
   if (!config.competitiveProfile) throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事尚未配置竞技档案规则，暂不能确认报名资格。");
-  const readiness = await getParticipantReadiness(userId, config.competitiveProfile);
+  const profile = await resolveCompetitiveContext(config.competitiveProfile);
+  if (!profile) throw new AppError(ErrorCode.VALIDATION_FAILED, "竞技平台赛季目录尚未完成当前与上一赛季配置。");
+  const readiness = await getParticipantReadiness(userId, profile);
   if (!readiness.ready) throw new AppError(ErrorCode.VALIDATION_FAILED, `参赛资料未完善：${readiness.blockers.join(" ")}`);
 }
 
@@ -366,6 +368,35 @@ export async function removeTeamApplicationMember(input: { applicationId: string
   }
 }
 
+export async function transferTeamApplicationCaptain(input: { applicationId: string; toUserId: string }): Promise<ActionResult<void>> {
+  const parsed = z.object({ applicationId: applicationIdSchema, toUserId: z.string().uuid() }).safeParse(input);
+  if (!parsed.success) return invalid("队长交接信息无效。");
+  try {
+    const session = await requireAuth();
+    const application = await db.query.teamApplications.findFirst({ where: eq(teamApplications.id, parsed.data.applicationId) });
+    if (!application) throw new AppError(ErrorCode.NOT_FOUND, "报名队伍不存在。");
+    let emergencyOverride = false;
+    if (application.captainUserId !== session.userId) {
+      await requireSeasonAdmin(application.seasonId);
+      emergencyOverride = true;
+    }
+    if (!emergencyOverride && !editableStatuses.includes(application.status as (typeof editableStatuses)[number])) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "报名已锁定，只有管理员可以执行队长交接。");
+    }
+    const season = await db.query.seasons.findFirst({ where: eq(seasons.id, application.seasonId), columns: { slug: true } });
+    if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在。");
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT id FROM team_applications WHERE id = ${application.id} FOR UPDATE`);
+      const member = await tx.query.teamApplicationMembers.findFirst({ where: and(eq(teamApplicationMembers.applicationId, application.id), eq(teamApplicationMembers.userId, parsed.data.toUserId), eq(teamApplicationMembers.status, "confirmed")) });
+      if (!member) throw new AppError(ErrorCode.VALIDATION_FAILED, "新队长必须是当前已确认的报名成员。");
+      await tx.update(teamApplications).set({ captainUserId: parsed.data.toUserId, updatedAt: new Date() }).where(eq(teamApplications.id, application.id));
+      await tx.insert(auditLogs).values({ seasonId: application.seasonId, action: "team_application.transfer_captain", actorId: auditActorId(session), targetId: application.id, targetType: "team_application", meta: { fromUserId: application.captainUserId, toUserId: parsed.data.toUserId, emergencyOverride } });
+    });
+    revalidateApplicationPaths(season.slug);
+    return ok(undefined);
+  } catch (error) { return actionError("transferTeamApplicationCaptain", error); }
+}
+
 export async function confirmTeamApplicationMembership(input: { applicationId: string; privacyAcknowledged?: boolean }): Promise<ActionResult<void>> {
   const parsed = z.object({ applicationId: applicationIdSchema, privacyAcknowledged: z.literal(true).optional() }).safeParse(input);
   if (!parsed.success) return invalid("报名队伍标识无效。");
@@ -458,17 +489,19 @@ export async function submitTeamApplication(input: { applicationId: string }): P
     if (affiliationRules.length > 0 && !eligibility.eligible) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, eligibility.blockers.join(" "));
     }
-    if (config.requireCompetitiveProfile && config.competitiveProfile) {
+    const competitiveProfile = config.competitiveProfile ? await resolveCompetitiveContext(config.competitiveProfile) : null;
+    if (config.requireCompetitiveProfile && !competitiveProfile) throw new AppError(ErrorCode.VALIDATION_FAILED, "竞技平台赛季目录尚未完成当前与上一赛季配置。");
+    if (config.requireCompetitiveProfile && competitiveProfile) {
       const readiness = await Promise.all(confirmed.map(async (member) => ({
         member,
-        readiness: await getParticipantReadiness(member.userId, config.competitiveProfile!),
+        readiness: await getParticipantReadiness(member.userId, competitiveProfile),
       })));
       const unreadied = readiness.filter((item) => !item.readiness.ready);
       if (unreadied.length > 0) throw new AppError(ErrorCode.VALIDATION_FAILED, unreadied.flatMap((item) => item.readiness.blockers).join(" "));
       const byUser = new Map(readiness.map((item) => [item.member.userId, item]));
       const primary = application.primaryStarterUserIds.map((userId) => byUser.get(userId)).filter((item): item is NonNullable<typeof item> => Boolean(item));
       const strength = evaluateExternalStrengthRule({
-        config: config.competitiveProfile,
+        config: competitiveProfile,
         players: primary.map(({ member, readiness: memberReadiness }) => ({
           ...memberReadiness.strength,
           isHome: Boolean(member.institutionCode && member.verificationAcademicStatus && affiliationRules.some((rule) => rule.institutionCode === member.institutionCode && rule.eligibleAcademicStatuses.includes(member.verificationAcademicStatus!))),

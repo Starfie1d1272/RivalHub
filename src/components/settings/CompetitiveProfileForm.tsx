@@ -8,19 +8,35 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Panel, StatusBanner } from "@/components/rivalhub";
-import type { CompetitiveProfileConfig } from "@/types/season";
 
 type Fact = { rank: string; rating: string };
 
-export function CompetitiveProfileForm({ config, initial }: { config: CompetitiveProfileConfig | null; initial: { historical: Fact; previous: Fact; current: Fact } }) {
+export type CompetitiveProfileContext = { platform: string; currentSeasonKey: string; currentLabel: string; previousSeasonKey: string; previousLabel: string; rankOrder: string[] };
+export type CompetitiveProfileFact = { platform: string; kind: "historical_peak" | "season_peak"; platformSeasonKey: string | null; rank: string; rating: string };
+
+export function CompetitiveProfileForm({ contexts, facts }: { contexts: CompetitiveProfileContext[]; facts: CompetitiveProfileFact[] }) {
   const [pending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
-  const [historical, setHistorical] = useState(initial.historical);
-  const [previous, setPrevious] = useState(initial.previous);
-  const [current, setCurrent] = useState(initial.current);
+  const [platform, setPlatform] = useState(contexts[0]?.platform ?? "");
+  const config = contexts.find((item) => item.platform === platform) ?? null;
+  const findFact = (kind: CompetitiveProfileFact["kind"], seasonKey: string | null): Fact => {
+    const fact = facts.find((item) => item.platform === platform && item.kind === kind && item.platformSeasonKey === seasonKey);
+    return fact ? { rank: fact.rank, rating: fact.rating } : { rank: "", rating: "" };
+  };
+  const [historical, setHistorical] = useState<Fact>(() => findFact("historical_peak", null));
+  const [previous, setPrevious] = useState<Fact>(() => config ? findFact("season_peak", config.previousSeasonKey) : { rank: "", rating: "" });
+  const [current, setCurrent] = useState<Fact>(() => config ? findFact("season_peak", config.currentSeasonKey) : { rank: "", rating: "" });
 
-  if (!config || !config.currentSeasonKey || !config.previousSeasonKey || config.rankOrder.length === 0) {
-    return <StatusBanner tone="warn" title="竞技档案配置尚未公布" sub="赛委会尚未公布当前/上赛季或段位映射；此时不能提交会被赛事用于实力比较的资料。" />;
+  function choosePlatform(nextPlatform: string) {
+    const next = contexts.find((item) => item.platform === nextPlatform);
+    setPlatform(nextPlatform); setSaved(false);
+    setHistorical((facts.find((item) => item.platform === nextPlatform && item.kind === "historical_peak" && item.platformSeasonKey === null) ?? { rank: "", rating: "" }));
+    setPrevious(next ? (facts.find((item) => item.platform === nextPlatform && item.kind === "season_peak" && item.platformSeasonKey === next.previousSeasonKey) ?? { rank: "", rating: "" }) : { rank: "", rating: "" });
+    setCurrent(next ? (facts.find((item) => item.platform === nextPlatform && item.kind === "season_peak" && item.platformSeasonKey === next.currentSeasonKey) ?? { rank: "", rating: "" }) : { rank: "", rating: "" });
+  }
+
+  if (!config || config.rankOrder.length === 0) {
+    return <StatusBanner tone="warn" title="竞技平台赛季尚未完善" sub="管理员需要在平台赛季目录中标记当前赛季并维护上一赛季后，才可提交用于资格审核的竞技资料。" />;
   }
 
   const field = (title: string, fact: Fact, setFact: (fact: Fact) => void, hint: string) => (
@@ -47,11 +63,12 @@ export function CompetitiveProfileForm({ config, initial }: { config: Competitiv
 
   return <Panel label="竞技档案" pad={20}>
     <div className="space-y-5">
-      <StatusBanner tone="info" title={`${config.platform} · 赛季资料`} sub={`当前赛季：${config.currentSeasonKey}；上一赛季：${config.previousSeasonKey}。请如实自行申报。`} />
+      {contexts.length > 1 && <div className="space-y-1.5"><Label>竞技平台</Label><Select value={platform} onValueChange={choosePlatform}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{contexts.map((item) => <SelectItem key={item.platform} value={item.platform}>{item.platform}</SelectItem>)}</SelectContent></Select></div>}
+      <StatusBanner tone="info" title={`${config.platform} · 赛季资料`} sub={`当前赛季：${config.currentLabel}；上一赛季：${config.previousLabel}。请如实自行申报。`} />
       <p className="text-sm leading-6 text-[var(--color-fg-mid)]">系统依照赛事已公布的段位顺序比较资料；Rating 仅在规则指定的同分比较中使用。未公布的跨平台换算不会由此页面推断。</p>
       {field("历史最高", historical, setHistorical, "不限定平台赛季，填写个人历史最高纪录")}
-      {field("上赛季最高", previous, setPrevious, `平台赛季 ${config.previousSeasonKey}`)}
-      {field("当前赛季最高", current, setCurrent, `平台赛季 ${config.currentSeasonKey}`)}
+      {field("上赛季最高", previous, setPrevious, `平台赛季 ${config.previousLabel}`)}
+      {field("当前赛季最高", current, setCurrent, `平台赛季 ${config.currentLabel}`)}
       {saved && <StatusBanner tone="success" title="竞技档案已保存" sub="报名和赛务审核会使用你最新保存的资料。" />}
       <div className="flex flex-wrap items-center gap-3">
         <Button disabled={pending} onClick={() => startTransition(async () => {

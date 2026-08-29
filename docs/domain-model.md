@@ -14,11 +14,11 @@
 
 ## 3. Competitive profile
 
-`competitive_platform_seasons` 管理竞技平台赛季目录；`competitive_rank_facts` 存储用户对当前、历史平台赛季或跨赛季 peak 的可审查竞技事实。它们是独立于某届 RivalHub 赛事的长期资料。
+`competitive_platform_seasons` 管理竞技平台赛季目录及其时间顺序和当前赛季；`competitive_rank_facts` 存储用户对当前、历史平台赛季或跨赛季 peak 的可审查竞技事实。它们是独立于某届 RivalHub 赛事的长期资料。
 
 ## 4. Seasons
 
-`seasons` 是赛事容器，包含状态、时间、人数、positions 与 capability configuration。`kind` 只用于展示；报名方式、选秀、阶段和资格规则由 capability fields 及关联配置决定。StagePlan 是可变的赛季定义，启动后不能代替冻结的 StageRun 事实。
+`seasons` 是赛事容器，包含状态、时间、人数、positions 与 capability configuration。Rivals、Major 与自定义赛事由 canonical template factory 建立初始定义；`kind` 只用于展示。报名方式、选秀、阶段和资格规则由 capability fields 及关联配置决定。StagePlan 是可变的赛季定义，启动后不能代替冻结的 StageRun 事实。
 
 ## 5. Rivals registrations
 

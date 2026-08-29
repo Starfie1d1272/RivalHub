@@ -90,8 +90,6 @@ describe("SeasonForm presets", () => {
     const user = userEvent.setup();
     render(<SeasonForm mode="create" initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "选秀联赛")} />);
 
-    await user.clear(screen.getByLabelText("位置列表"));
-    await user.type(screen.getByLabelText("位置列表"), "custom");
     await user.clear(screen.getByLabelText("每队人数上限"));
     await user.type(screen.getByLabelText("每队人数上限"), "8");
     await user.clear(screen.getByLabelText("每队人数下限"));
@@ -100,11 +98,8 @@ describe("SeasonForm presets", () => {
     await user.type(screen.getByLabelText("每位置上限"), "3");
     await user.clear(screen.getByLabelText("截图链接数量"));
     await user.type(screen.getByLabelText("截图链接数量"), "2");
-    await user.clear(screen.getByLabelText("比赛图池"));
-    await user.type(screen.getByLabelText("比赛图池"), "de_custom");
-
-    await user.click(screen.getByRole("button", { name: "Major 公开赛" }));
-    await user.click(screen.getByRole("button", { name: "Rivals 选秀联赛" }));
+    await user.click(screen.getByRole("button", { name: "Major" }));
+    await user.click(screen.getByRole("button", { name: "Rivals" }));
     await user.click(screen.getByRole("button", { name: "创建赛季" }));
 
     await waitFor(() => {

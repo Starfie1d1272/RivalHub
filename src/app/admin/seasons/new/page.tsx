@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { requireSuperAdmin } from "@/lib/auth/session";
-import { createMajorDefaultCapabilities } from "@/types/season";
+import { createCompetitionTemplate } from "@/lib/competition/templates";
 import { SeasonForm } from "@/components/admin/SeasonForm";
 
 export default async function NewSeasonPage() {
@@ -10,7 +10,7 @@ export default async function NewSeasonPage() {
     redirect("/admin/login");
   }
 
-  const major = createMajorDefaultCapabilities();
+  const major = createCompetitionTemplate("major");
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-3xl">
@@ -20,6 +20,7 @@ export default async function NewSeasonPage() {
           name: "",
           slug: "",
           kind: "Major",
+          template: "major",
           status: "draft",
           themeColor: "#f97316",
           startAt: null,
