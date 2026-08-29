@@ -15,6 +15,19 @@ Browser
 
 页面负责路由、读取和呈现；复杂事务、资格判断、赛制和恢复逻辑位于 `src/actions/` 与 `src/lib/`。业务写入不得由页面、客户端组件或普通 API Route 旁路完成。所有管理操作写入 `audit_logs`。
 
+Server Action 拥有鉴权、输入验证和 transaction boundary；可以跨 action 复用的 qualification、roster、赛制、恢复或序列化逻辑下沉至 `src/lib/<domain>/`。页面与 action 不重复实现同一领域规则。
+
+## Public data boundary
+
+```text
+database internal object
+  → server-only query / domain model
+  → explicit public projection or DTO
+  → public RSC payload / Client Component props
+```
+
+服务端查询可读取 email、QQ、教育材料等私密字段以完成权限和业务判断。匿名或公开响应只传递明确的 public projection，不能把 internal query object 原样序列化到 RSC payload 或 Client Component props。email、QQ、`studentId`、`authId`、`adminSeasonIds`、审核材料和内部备注默认不是公开字段；public serializer 的回归测试保护这一边界。
+
 ## Built-in competition systems
 
 Rivals 与 Major 是当前两个平行的内置赛事体系。

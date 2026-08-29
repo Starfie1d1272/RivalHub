@@ -81,3 +81,20 @@
 | current education verification | historical eligibility reference |
 
 清理重复时必须先确认没有破坏这些边界。
+
+## Key invariants and ownership
+
+| 不变量 | 主要 owner |
+|---|---|
+| email 与 Auth identity 的唯一性 | DB unique constraints + Auth 同步 |
+| 一用户同赛事仅有一个 active team application claim | `team_application_active_claims` unique constraint + transaction |
+| application 的可编辑性与状态迁移 | team-application domain action / state rules |
+| affiliation 与竞技资格 | qualification evaluator，读取已验证的长期事实 |
+| Major prestart readiness | prestart domain service 与明确 blocker |
+| StageRun 规则与参赛成员冻结 | rule snapshot + managed runtime |
+| 一场 Major 比赛恰好 5 名首发 | match-roster service 与 lineup evaluator |
+| 管理 mutation 的审计 | Server Action transaction + `audit_logs` |
+| team logo 类型与大小 | server upload validation + Storage bucket |
+| public Data API 默认拒绝 | active migration 的 grants / RLS |
+
+DB constraint、transaction、domain evaluator 与 frozen snapshot 各自覆盖不同的风险。不能以任一层替代另一层，也不应把需要业务语义的约束伪装为单纯字段检查。

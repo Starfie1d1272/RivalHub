@@ -32,6 +32,8 @@ pnpm db:studio
 7. 任何 `brackets-manager` 调用必须经过 `@/lib/bracket` 适配层。
 8. Server Action 返回 `ActionResult<T>`，以 `ok()` / `fail()` 表达预期错误；错误码以 `src/lib/errors.ts` 为准。
 9. 时间存 UTC，展示层转换为 Asia/Shanghai。
+10. Server-side query 可以读取业务所需私密字段；公开 RSC payload 与 Client Component props 必须经过明确 public DTO/read model，不能直接序列化内部查询对象。
+11. Server Action 负责鉴权、validation 与 transaction boundary；可复用复杂 domain logic 下沉至 `src/lib/<domain>/`，避免 action/page 重复实现。
 
 ## Database and security
 

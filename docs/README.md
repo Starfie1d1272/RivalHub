@@ -29,6 +29,6 @@
 ## Decisions and history
 
 - [`decisions/2.0-convergence.md`](./decisions/2.0-convergence.md) 记录 2.0 正式上线前已经接受、仍待代码收敛的决策。
-- [`archive/`](./archive/) 保存历史 process artifacts、兼容记录、readiness snapshot、rehearsal 与集成交接材料。
+- [`archive/README.md`](./archive/README.md) 是历史 process artifacts、兼容记录、readiness snapshot、rehearsal 与集成交接材料的分类入口。
 
 精确代码定位使用 repository search、IDE 或 GitHub search；本文档不维护逐文件百科。

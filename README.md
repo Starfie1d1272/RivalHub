@@ -4,21 +4,20 @@ RivalHub 是面向高校电竞赛事的开源赛事管理平台，并为其他�
 
 当前内置两套平行赛事体系：
 
-- **Rivals · Spring**：个人报名、队长投票、蛇形选秀与联赛赛程。
+- **Rivals · Spring**：个人报名、队长投票、蛇形选秀、循环赛与双败淘汰。
 - **Major · Autumn**：队伍报名、资格核验、赛前冻结、三段 Swiss 与淘汰赛。
 
 生产站点：[match.starfie1d.top](https://match.starfie1d.top)。版本与发布状态以 [GitHub Releases](https://github.com/Starfie1d1272/RivalHub/releases) 为准。
 
 ## 当前能力
 
-| 状态 | 领域 | 能力 |
+| 体系 | 当前验证层级 | 已验证范围 |
 |---|---|---|
-| 已实现并自动化验证 | Rivals | 个人报名、审核、队长投票、蛇形选秀、队伍、赛程、比赛结果与审计 |
-| 已实现并自动化验证 | Major | 队伍申请、成员确认、资格资料、赛前 entrants / roster / seed 冻结、三段 Swiss、淘汰赛、阵容、赛果恢复、纪律与赛后归档 |
-| 已实现，待最终 staging 验收 | 2.0 生命周期 | 邮箱确认起点下的完整 Major 运营链路与独立 staging destructive rehearsal |
-| 延后/非 2.0 blocker | 赛事扩展 | 自定义赛事创建体验、更多通用赛制的产品化支持、转播与外部集成 |
+| Rivals · Spring | 已实战验证 | 2026 NJU Rivals 已完成个人报名、审核、队长投票、蛇形选秀、循环赛、双败淘汰、比赛管理、时间协商、BP/赛果、MVP、OCR 统计与赛季结束 |
+| Major · Autumn | 已实现并完成自动化生命周期验证 | 队伍报名、资格、赛前冻结、三阶段 Swiss、Playoffs、阵容、恢复、纪律与赛后；正式上线前完成独立 staging 全流程验收 |
+| 通用赛事框架 | 扩展框架已建立 | `StagePlan`、`StageExecutor` 等通用接口；更多赛事形态按实际需求逐步接入 |
 
-“已实现并自动化验证”表示仓库中有相应代码和测试；它不替代真实赛事运营验收。
+验证证据按实现、自动化验证、完整环境演练与生产实战验证递进。测试策略和环境边界见 [docs/testing.md](./docs/testing.md)。
 
 ## 技术栈
 

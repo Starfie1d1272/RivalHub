@@ -11,23 +11,23 @@ Changesets 管理版本号与 `CHANGELOG.md`。RivalHub 是 private 单包，不
 
 ## 1. Prepare the release commit
 
-确认待消费的 changeset，然后生成版本与 CHANGELOG：
+确认待消费的 changeset，并选择与发布类型相符的版本步骤：
 
 ```bash
 ls .changeset/*.md | grep -v README
-pnpm exec changeset version
-NEW_VER=$(node -p "require('./package.json').version")
 ```
 
-首次 RC 先进入 prerelease mode；稳定发布前退出：
+| 发布类型 | 命令 |
+|---|---|
+| 普通 stable patch/minor/major | `pnpm exec changeset version` |
+| 首次进入 RC | `pnpm exec changeset pre enter rc`，然后 `pnpm exec changeset version` |
+| 后续 RC | `pnpm exec changeset version` |
+| RC → stable | `pnpm exec changeset pre exit`，然后 `pnpm exec changeset version` |
+
+完成后记录版本：
 
 ```bash
-pnpm exec changeset pre enter rc
-pnpm exec changeset version
-
-# stable release only
-pnpm exec changeset pre exit
-pnpm exec changeset version
+NEW_VER=$(node -p "require('./package.json').version")
 ```
 
 检查 `CHANGELOG.md` 的新条目、比较链接和完整 diff，然后提交语义完整的 release commit：
@@ -41,21 +41,24 @@ git commit -m "release: v${NEW_VER}"
 
 ## 2. Merge through the release path
 
-将 release commit 通过受保护的 release path 合入 `main`，再获取远端状态：
+将 release commit 通过受保护的 release path 合入 `main`，再获取远端状态。tag 指向实际部署的 `main` source commit：
 
 ```bash
 git fetch origin main --tags
 git merge-base --is-ancestor <release-commit-sha> origin/main
+RELEASE_SHA=$(git rev-parse origin/main)
+git show "${RELEASE_SHA}:package.json" | node -e 'let s=""; process.stdin.on("data", c => s += c).on("end", () => console.log(JSON.parse(s).version))'
+git show "${RELEASE_SHA}:CHANGELOG.md" | sed -n '1,80p'
 ```
 
-只有该命令成功，或目标就是预期的 `origin/main` release commit，才可继续创建 tag。不要让 tag 指向尚未进入 main history 的 feature 或 release branch。
+确认 `RELEASE_SHA` 包含 release commit、`package.json` 为 `${NEW_VER}`、`CHANGELOG.md` 含对应条目且 required CI 已通过，才可继续。
 
 ## 3. Create and publish the tag
 
-在已验证的 main release commit 上创建并推送 tag：
+在已验证的 main release source commit 上创建并推送 tag：
 
 ```bash
-git tag "v${NEW_VER}" <release-commit-sha>
+git tag "v${NEW_VER}" "${RELEASE_SHA}"
 git push origin "v${NEW_VER}"
 ```
 

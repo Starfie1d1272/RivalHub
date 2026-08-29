@@ -1,5 +1,19 @@
 # 测试与上线验收
 
+## Verification evidence model
+
+RivalHub 以最高已完成的验证层级描述能力证据：
+
+```text
+实现 → 自动化验证 → 完整环境演练 → 生产实战验证
+```
+
+| 体系 | 当前最高证据 | 范围 |
+|---|---|---|
+| Rivals · Spring | 生产实战验证 | 2026 NJU Rivals 完成个人报名、审核、队长投票、选秀、循环赛、双败淘汰、比赛管理、时间协商、BP/赛果、MVP、OCR 统计与赛季结束 |
+| Major · Autumn | 自动化生命周期验证 | unit/integration、Local Supabase 和 browser fixture 覆盖队伍报名、资格、prestart、三段 Swiss、Playoffs、roster、recovery、discipline 与 post-event |
+| Major 正式上线 | staging 全流程验收 | 在独立 staging DB 运行并清理完整运营链路 |
+
 ## Repository checks
 
 | 命令 | 用途 |
@@ -30,6 +44,22 @@ pnpm test:postevent:local
 ## Coverage intent
 
 单元测试覆盖 capability、状态和 action input boundary；本地集成测试覆盖 Major team registration、长期 participant profile、browser fixture、prestart、StageRun lifecycle、roster safety、result recovery、discipline 与 post-event。历史 Golden Major rehearsal 保存在 [`archive/rehearsals/`](./archive/rehearsals/)，不是当前策略的替代品。
+
+## Test layers
+
+```text
+Vitest unit/integration
+        ↓
+Local Supabase integration
+        ↓
+Playwright browser E2E
+        ↓
+staging full-lifecycle acceptance
+        ↓
+production smoke / real-world operation
+```
+
+每一层回答不同问题：Vitest 验证 pure rules 与 action boundary；Local Supabase 验证真实 Postgres/Auth/Storage 合作；Playwright 验证浏览器任务；staging 验证独立环境中的完整运营；production 只承载真实赛事所需 smoke 与实战事实。
 
 ## 2.0 staging lifecycle gate
 

@@ -8,7 +8,7 @@
 
 ## 2. Long-lived participant profile
 
-用户维护 display/profile、QQ、Steam 与 Perfect World identity。这些是跨赛事事实，不随一次报名重建。
+`users` 承载 display/profile、QQ、Steam 与 Perfect World identity 等跨赛事 participant profile。现有 Rivals 个人报名仍保留部分历史报名字段和赛事快照；长期资料与报名信息的进一步收敛见 [`decisions/2.0-convergence.md`](./decisions/2.0-convergence.md)。
 
 ## 3. Education verification
 
@@ -16,7 +16,7 @@
 
 ## 4. Competitive profile
 
-用户维护平台赛季与历史 peak 的竞技事实。赛事的 qualification evaluator 读取所需平台上下文和用户事实，并保留必要的 event-time snapshot。
+数据 owner 是 `competitive_platform_seasons` 与 `competitive_rank_facts`。当前 `/settings/competitive` 的平台、当前赛季和上赛季上下文仍从已配置的赛事 `competitiveProfile` 取得；全局 catalog 接入是已接受的收敛工作。赛事 qualification evaluator 读取所需平台上下文和用户事实，并保留必要的 event-time snapshot。
 
 ## 5. Rivals solo registration
 
@@ -40,7 +40,7 @@ Rivals 用户在报名窗口填写个人报名并可保存草稿。提交由 Ser
 
 ## 10. Team review / materialization
 
-管理员可 review、return、要求修正、resubmit 或 approve。approved application 原子物化为正式 `teams` / `team_members`，并保留 application provenance；这一步不等同于进入 Major tournament。
+管理员对 submitted application 审核为 approved、waitlisted 或 rejected。draft/rejected application 可由队长编辑并再次提交。approved application 原子物化为正式 `teams` / `team_members`，并保留 application provenance；这一步不等同于进入 Major tournament。
 
 ## 11. Major prestart
 
@@ -69,3 +69,50 @@ Major 的 Swiss 阶段由 managed StageRun 运行。每次 pairing、回合结�
 ## 17. Post-event / archive
 
 Major 最终结果先处于 `pending_confirmation`，确认后生成可引用的 final result、placement 与 honor。赛后 adjudication 与 archive 遵守各自的状态和权限边界；归档后通常比赛变更受限，专门的赛后工作流仍保留明确入口。
+
+## Compact state contracts
+
+状态枚举和 action guard 是精确 authority；下表保留跨模块修改时必须理解的稳定生命周期。
+
+### Season
+
+```text
+Rivals: draft → registration → voting → drafting → playing → finished → archived
+Major:  draft → registration → playing → finished → archived
+```
+
+Rivals 的 voting/drafting 由 capability 启用；Major start 在 readiness、entrants、final rosters 和 seeds 确认后创建 Stage 1。`archived` 是历史赛季终态，任何例外操作必须走明确的赛后 owner。
+
+### Team application
+
+```text
+draft / rejected → submitted → approved | waitlisted | rejected
+```
+
+成员状态独立为 `invited → confirmed`。只有 draft/rejected application 可由队长编辑；submitted application 的审核与正式队伍物化由服务端控制。
+
+### Match
+
+```text
+scheduled → in_progress → finished
+scheduled / in_progress → cancelled
+```
+
+forfeit 是 `finished` 的结果形态，不是额外比赛状态。结果更正、Major recovery 与赛后裁决使用各自受控 workflow，不能直接把已完成比赛改回进行中。
+
+### Major StageRun and final result
+
+`major_stage_runs` 不使用单独 status enum：创建 StageRun 即冻结规则与 entrant membership，`finalizedRound` 记录已被运营者接受的 Swiss 回合。来源阶段完整结算后才可创建下一阶段 StageRun。`major_final_results` 采用 `pending_confirmation → confirmed`；确认后的 placement、honor 与 archive 仍由明确的赛后流程拥有。
+
+## Rivals draft transaction invariants
+
+一个 pick 在同一 transaction 内完成：
+
+1. 对 `draft_state` 执行 `SELECT … FOR UPDATE`；
+2. 在当前轮次、队长和 deadline 校验之前查询 `clientRequestId`；同一请求的重试返回原 pick，跨 season/team/player 复用同一 id 则拒绝；
+3. 校验 draft active、当前队伍、deadline、队长、目标报名状态、未被选择和位置上限；
+4. 写入 `draft_picks`、`team_members` 与 audit log；
+5. 推进 `draft_state`，最后一 pick 将赛季推进为 `playing`；
+6. commit 后 revalidate；Realtime client 只消费已提交的 `draft_state` 与 `draft_picks` 更新。
+
+幂等检查必须早于 turn/state 校验：第一次请求成功推进轮次后，安全重试仍需得到同一成功结果。

@@ -2,33 +2,79 @@
 
 ## 产品语言
 
-面向参赛者和管理员的功能文案使用自然中文，先表达业务目的、状态与下一步。工程术语可以留在代码和工程文档中，但不要直接把 `Capability`、`Experimental`、`Advanced`、`StageRun`、`canonical`、`rule snapshot` 或 `executor` 当作产品功能标签。
+参赛者与管理员界面使用自然中文，优先表达当前目标、状态、blocker 和下一步。工程术语保留在代码与技术文档中；产品入口按赛事、报名、赛程、名单、资格和赛务等业务语义命名。
 
-CS2 canonical position names 保持英文：`igl`、`awper`、`opener`、`closer`、`anchor`。它们是数据值与产品标签的统一专有名词；解释文案可以补充语境，不建立自创中文映射。
+CS2 canonical position names 保持英文：`igl`、`awper`、`opener`、`closer`、`anchor`。它们是数据值与产品标签的统一专有名词；说明文字可补充语境。
 
-## Tokens and typography
+## Token ownership
 
-使用项目已有 Tailwind CSS v4 tokens 与 shadcn/ui primitives。颜色承载语义而非唯一信息：成功、警告、错误、信息与中性状态要有明确层级；字体、字号和字重应区分页面标题、区块标题、正文、辅助信息与数据值。
+视觉 token 的 source of truth 是 `src/app/globals.css` 的 `@theme` 与 `:root`。组件使用既有 token，不为单页创建平行色板。
 
-## Spacing and hierarchy
+| Token family | 用途 |
+|---|---|
+| `--color-bg` / `--color-panel*` | 页面与 Panel 层级 |
+| `--color-border*` | 静态与交互边框 |
+| `--color-fg*` | 正文、辅助信息、禁用信息 |
+| `--color-accent*` / `--color-accent-b*` | 主操作与对阵实体 |
+| `--color-ok*` / `--color-warn*` / `--color-danger*` / `--color-info*` | 语义状态 |
+| `--font-sans` / `--font-display` / `--font-mono` | 正文、标题、标签/标识 |
+| `--radius*` | 紧凑一致的控件与卡片圆角 |
 
-- 用一致的 spacing scale 组织页面、卡片、表单组与行动区。
-- 一个视图优先呈现当前目标、关键状态、blocker 和下一步，再呈现辅助历史。
-- 管理视图把高风险/不可逆操作与普通编辑分组，并在执行前说明影响。
-- 表格优先可扫描：稳定列序、明确空态、可读日期与移动端替代布局。
+颜色表达语义时必须同时提供文字、图标或结构性反馈；accent 不替代 success、warning 或 danger。字体、字号和字重至少区分页面标题、区块标题、正文、辅助信息与数据值。
+
+## Information hierarchy and layout
+
+- 页面先呈现当前任务与最关键事实，再呈现历史和辅助操作。
+- 管理视图把可编辑内容、资格/blocker、确认动作和危险操作分组。
+- `Panel` 承载同一业务区块；`StatusBanner` 用于状态解释；`Checklist` 用于多项 readiness；`StatusPill` 用于紧凑状态；`EmptyState`、`ErrorState` 和 `Skeleton` 表达专门状态。
+- 表格保持稳定列序、可扫描日期/状态和明确空态；窄屏提供卡片、摘要或可滚动替代布局。
+
+## Loading, empty and error states
+
+每个数据区显式处理三态：
+
+| 状态 | 要求 |
+|---|---|
+| Loading | 使用与最终内容尺寸接近的 `Skeleton`，不制造跳动布局 |
+| Empty | 说明当前没有什么、为何为空，以及可执行时的下一步 CTA |
+| Error | 保留页面上下文，显示可理解错误与重试/下一步；Toast 不替代页面内错误状态 |
+
+资格、名单、预启动和赛前检查的不可用状态必须显示具体 blocker 与其 owner 的下一步，不能以空数组、默认值或伪造比分掩盖事实。
 
 ## Forms and feedback
 
-- 在字段附近提供可操作的验证反馈；服务端错误不得被客户端提示掩盖。
-- 提交过程显示 pending、成功和失败状态，避免重复提交。
-- 不完整数据应显示不可用/待补齐与具体 CTA，不能以空数组或伪造 `0:0` 掩盖事实。
-- 对资格、名单和开赛 readiness，展示具体 blocker 与其 owner 的下一步。
+- 使用既有 shadcn/ui control 与 label；字段级校验贴近字段，服务端错误必须保留给用户。
+- 提交过程显示 pending、成功和失败，避免重复 mutation。
+- 表单按任务分组；长期 profile、赛事报名与单场 roster 不混成同一编辑面。
+- 文件上传在客户端提示格式/大小，在服务端再次校验；敏感材料只展示任务所需的最小信息。
+- 对成员确认、资格、种子、首发和开赛，UI 展示最新服务端判断，不以本地乐观状态替代最终结论。
 
-## Responsive and accessibility
+## Data and privacy presentation
 
-- 关键任务在窄屏可完成；宽表格提供可滚动或摘要布局。
-- 保持可见焦点、键盘可达、正确 label、语义化 heading 与足够对比度。
-- 图标按钮提供文字或 aria label；颜色状态附带文本/图形提示。
-- Dialog、Toast 和动态更新需要可理解的焦点与读屏行为。
+公开页面只使用 public DTO/read model。email、QQ、`studentId`、`authId`、管理员范围、教育证据、内部备注和审核材料默认不显示。长 email、Steam64、Perfect ID 等标识在窄屏使用 `break-all`、截断加复制操作或独立 mono 行，避免横向溢出。
 
-组件文件与页面快照会随产品演进；本文件维护系统性原则，而不是逐页面按钮清单。
+比赛阵容、报名预定主力、正式 team membership 与 StageRun entrant 是不同层次的事实；界面必须使用对应业务名称，不把一种状态显示成另一种。
+
+## Dangerous actions
+
+比分更正、纪律处理、裁决/荣誉撤销、归档、名单确认和开赛等高影响操作使用 `InlineConfirm` 或等效的明确确认：说明影响、指出不可逆或后续边界，并保留服务器端授权、审计和 fail-closed validation。浏览器原生确认框不能替代该任务语义。
+
+## Responsive behavior
+
+| 断点 | 优先级 |
+|---|---|
+| 320–390px | 单列任务流；操作按钮不依赖同一行空间；状态与长标识不溢出 |
+| 640px (`sm`) | 表单与信息卡开始使用紧凑双列 |
+| 768px (`md`) | 表格可切换为卡片/分段；资料和导航可双列 |
+| 1024px+ | 管理审核可并列展示资格摘要与名单；保持文本解释而非只靠密集表格 |
+
+关键用户任务必须在窄屏完成，不能把桌面表格作为唯一入口。
+
+## Accessibility
+
+- 所有操作可键盘到达并具有可见焦点；图标按钮提供可见文本或 aria label。
+- heading 层级、label、状态文本和对比度必须可被辅助技术理解。
+- Dialog、Toast 和动态更新保留合理焦点管理与读屏提示。
+- 颜色、形状与文本共同表达比赛、资格和错误状态。
+
+本文件维护跨页面的 UI contract。组件实现和页面组合可演进，但新增模式应先复用现有 token 与 shared component 语义。
