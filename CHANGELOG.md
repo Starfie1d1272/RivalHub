@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.0-rc.4
+
+### Patch Changes
+
+- b2b7ae4: Converge 2.0 competition templates, participant qualification context, and administrator lifecycle workflows.
+
 ## 2.0.0-rc.3
 
 ### Patch Changes
