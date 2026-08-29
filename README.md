@@ -19,7 +19,7 @@ RivalHub 是面向高校电竞赛事的开源赛事管理平台，并为其他�
 
 验证证据按实现、自动化验证、完整环境演练与生产实战验证递进。测试策略和环境边界见 [docs/testing.md](./docs/testing.md)。
 
-Major 正式上线前需在独立 staging DB 完成一次完整运营生命周期并完成清理验证。
+当前发布基线为 v2.0.0-rc.4。后续 2.x 的方向、优先级与依赖见 [docs/roadmap.md](./docs/roadmap.md)；完整 staging lifecycle 保留为专项演练，不是稳定 RC 的强制 gate。
 
 ## 技术栈
 
@@ -58,12 +58,13 @@ pnpm db:local:reset
 |---|---|
 | [AGENTS.md](./AGENTS.md) | 持久工程约束 |
 | [docs/README.md](./docs/README.md) | 文档 authority 与入口 |
+| [docs/roadmap.md](./docs/roadmap.md) | 2.x 方向、顺序与依赖 |
 | [docs/architecture.md](./docs/architecture.md) | 技术架构、内置赛事与代码域映射 |
 | [docs/domain-model.md](./docs/domain-model.md) | 领域模型、冻结事实与数据边界 |
 | [docs/workflows.md](./docs/workflows.md) | 用户与运营生命周期 |
 | [docs/auth-and-permissions.md](./docs/auth-and-permissions.md) | Auth、权限与 Data API 安全基线 |
 | [docs/deployment.md](./docs/deployment.md) | Local、staging、production 运行与迁移 |
-| [docs/testing.md](./docs/testing.md) | 自动化测试与 staging lifecycle gate |
+| [docs/testing.md](./docs/testing.md) | 自动化测试、环境分层与 production canary |
 | [docs/ui-system.md](./docs/ui-system.md) | UI 系统与产品语言 |
 | [docs/rules/nju-major.md](./docs/rules/nju-major.md) | NJU Major 赛事政策 |
 

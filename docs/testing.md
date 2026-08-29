@@ -13,7 +13,9 @@ RivalHub 以最高已完成的验证层级描述能力证据：
 | Rivals · Spring | 生产实战验证 | 2026 NJU Rivals 完成个人报名、审核、队长投票、选秀、循环赛、双败淘汰、比赛管理、时间协商、BP/赛果、MVP、OCR 统计与赛季结束 |
 | Major · Autumn | 自动化生命周期验证 | unit/integration、Local Supabase 和 browser fixture 覆盖队伍报名、资格、prestart、三段 Swiss、Playoffs、roster、recovery、discipline 与 post-event |
 
-**2.0 RC 正式验证策略：**自动化与 Local Supabase 集成验证完成后，进行 RC production smoke；随后以真实报名逐步验证运营流程。完整 32 队 staging lifecycle 仍可作为专项演练，但不再是稳定 RC 的强制 gate。
+**RC4 之后的验证策略：**v2.0.0-rc.4 已完成 production 恢复、17/17 migration 与 production smoke。后续变更仍按自动化、Local Supabase、适用的 browser/staging gate 和真实运营证据逐层验证；完整 32 队 staging lifecycle 可作为专项演练，但不是稳定 RC 的强制 gate。
+
+真实注册确认邮件与密码重置邮件的投递是 production canary 和持续运营观察项。记录送达、延迟、退信及供应商异常，在真实流量中持续核对；它们不回溯为 RC4 release blocker，也不以 API 成功响应替代真实收件证据。
 
 ## Repository checks
 

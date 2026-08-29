@@ -11,3 +11,5 @@
 | [`integrations/`](./integrations/) | 已退出当前 runtime 的交接材料与示例 |
 
 其他既有目录保留相应历史交付物。引用归档材料时应标明其日期和适用上下文。
+
+已实施的 2.0 上线前模型收敛记录见 [`process-history/2.0-convergence.md`](./process-history/2.0-convergence.md)。
