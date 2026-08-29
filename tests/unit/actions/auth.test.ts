@@ -505,14 +505,15 @@ describe("claimInviteCode", () => {
     );
   });
 
-  function mockLockedInvite(invite: unknown) {
-    txSelectMock.mockReturnValue({
+  function mockLockedInvite(invite: unknown, currentUser: unknown = { role: "user" }) {
+    const locked = (row: unknown) => ({
       from: vi.fn().mockReturnValue({
         where: vi.fn().mockReturnValue({
-          for: vi.fn().mockResolvedValue(invite ? [invite] : []),
+          for: vi.fn().mockResolvedValue(row ? [row] : []),
         }),
       }),
     });
+    txSelectMock.mockReturnValueOnce(locked(invite)).mockReturnValueOnce(locked(currentUser));
   }
 
   it("空邀请码返回 VALIDATION_FAILED", async () => {
@@ -586,5 +587,17 @@ describe("claimInviteCode", () => {
 
     // 校验 createUserSession 以新 role 被调用
     expect(createUserSessionMock).toHaveBeenCalled();
+  });
+
+  it("stale super_admin session cannot retain super-admin after DB revocation", async () => {
+    requireAuthMock.mockResolvedValue({ ...MOCK_SESSION, role: "super_admin" });
+    mockLockedInvite(VALID_INVITE, { role: "user" });
+    makeTxUpdateChain();
+    makeTxInsertChain();
+
+    const result = await claimInviteCode("VALID123");
+
+    expect(result).toMatchObject({ success: true, data: { role: "season_admin" } });
+    expect(updateSetCalls[0]).toMatchObject({ role: "season_admin" });
   });
 });

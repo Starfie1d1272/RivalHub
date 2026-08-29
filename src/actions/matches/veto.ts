@@ -11,37 +11,7 @@ import { revalidateMatchPaths } from "@/lib/revalidation";
 import { normalizeRegistrationConfig } from "@/types/season";
 import type { VetoActionType } from "@/types/match";
 import { lockMatchInTx } from "@/lib/match-rosters/service";
-
-function assertVetoSequence(
-  format: "bo1" | "bo3" | "bo5",
-  steps: readonly VetoStepInput[],
-  teamAId: string,
-  teamBId: string,
-): void {
-  const expected: Record<typeof format, readonly VetoActionType[]> = {
-    bo1: ["ban", "ban", "ban", "ban", "ban", "ban", "decider"],
-    bo3: ["ban", "ban", "pick", "pick", "ban", "ban", "decider"],
-    bo5: ["ban", "ban", "pick", "pick", "pick", "pick", "decider"],
-  };
-  if (steps.length !== expected[format].length || steps.some((step, index) => step.actionType !== expected[format][index])) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, `${format.toUpperCase()} BP 步骤顺序不合法`);
-  }
-  if (steps.some((step) => step.teamId !== null && step.teamId !== teamAId && step.teamId !== teamBId)) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "BP 操作队伍必须是本场任一参赛队");
-  }
-  if (format === "bo1") {
-    const expectedTeams = [teamAId, teamAId, teamBId, teamBId, teamBId, teamAId, teamBId];
-    if (steps.some((step, index) => step.teamId !== expectedTeams[index])) throw new AppError(ErrorCode.VALIDATION_FAILED, "BO1 BP 操作顺序不合法");
-  }
-  if (format === "bo3") {
-    const expectedTeams = [teamAId, teamBId, teamAId, teamBId, teamBId, teamAId, null];
-    if (steps.some((step, index) => step.teamId !== expectedTeams[index])) throw new AppError(ErrorCode.VALIDATION_FAILED, "BO3 BP 操作顺序不合法");
-  }
-  if (format === "bo5") {
-    const expectedTeams = [teamAId, teamAId, teamBId, teamAId, teamBId, teamAId, null];
-    if (steps.some((step, index) => step.teamId !== expectedTeams[index])) throw new AppError(ErrorCode.VALIDATION_FAILED, "BO5 BP 操作顺序不合法");
-  }
-}
+import { assertVetoSequence } from "@/lib/matches/veto-sequence";
 
 function resolveTeamASide(selectedSide: string, selectingTeamId: string | null, teamAId: string): "t" | "ct" | null {
   if (!selectedSide || !selectingTeamId) return null;

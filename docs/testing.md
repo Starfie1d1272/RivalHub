@@ -79,7 +79,7 @@ real registrations progressive validation
 
 完整 destructive lifecycle 只在独立 staging DB 执行，结束后 reset staging DB。它用于专项运营演练；2.0 RC 的稳定 gate 是 automated/local integration → RC production smoke → real registrations progressive validation。production 仅进行真实赛事所需 smoke，不承担模拟清理工作。
 
-本轮覆盖 canonical Rivals/Major template、custom definition fail-closed publish gate、平台赛季目录身份与冻结引用、qualification 单一 owner、empty-draft 删除/撤回 guard 与队长交接事务语义；完整 32 队 staging lifecycle acceptance 仍按上线门槛单独执行。
+本轮覆盖 canonical Rivals/Major template、custom definition fail-closed publish gate、平台赛季目录身份与冻结引用、qualification 单一 owner、empty-draft 删除/撤回 guard 与队长交接事务语义；完整 staging lifecycle 仅作为专项演练，不构成 RC 上线门槛。
 
 ## Change-level validation
 
