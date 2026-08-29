@@ -2,22 +2,21 @@ import { and, asc, count, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { captainVotes, seasonRegistrations, users, teams } from "@/db/schema";
 import { compareCaptainSeedCandidates, selectCaptainSeeds } from "@/lib/captains/rules";
-import { getDisplayName } from "@/lib/utils/display-name";
+import { getPublicDisplayName } from "@/lib/utils/display-name";
 
-export interface CaptainVoterOption {
+/** Fields allowed to cross the public captains page boundary. */
+export interface PublicCaptainVoter {
   id: string;
   displayName: string;
-  email: string;
   primaryPosition: string;
   peakRank: string;
   peakRating: number;
 }
 
-export interface CaptainCandidateRow extends CaptainVoterOption {
-  registrationId: string;
+/** Fields allowed to cross the public captains page boundary. */
+export interface PublicCaptainCandidate extends PublicCaptainVoter {
   voteCount: number;
   currentRating: number;
-  createdAt: string;
 }
 
 export interface CaptainVoteRecord {
@@ -25,13 +24,50 @@ export interface CaptainVoteRecord {
   candidateRegistrationId: string;
 }
 
-export interface CaptainVotingData {
-  voters: CaptainVoterOption[];
-  candidates: CaptainCandidateRow[];
-  votes: CaptainVoteRecord[];
+export interface PublicCaptainVotingData {
+  voters: PublicCaptainVoter[];
+  candidates: PublicCaptainCandidate[];
 }
 
-export async function getCaptainVotingData(seasonId: string): Promise<CaptainVotingData> {
+interface CaptainCandidateRankingRow extends PublicCaptainCandidate {
+  registrationId: string;
+  createdAt: Date;
+  willingToBeCaptain: boolean;
+}
+
+interface CaptainCandidateSource {
+  id: string;
+  displayName: string | null;
+  perfectName: string | null;
+  steamName: string | null;
+  primaryPosition: string;
+  peakRank: string;
+  peakRating: number;
+  currentRating: number;
+  voteCount: number;
+}
+
+/**
+ * Explicitly serialize the public candidate contract. Keeping this separate
+ * from the query row prevents an added private column from leaking into RSC.
+ */
+export function serializePublicCaptainCandidate(
+  row: CaptainCandidateSource,
+): PublicCaptainCandidate {
+  return {
+    id: row.id,
+    displayName: getPublicDisplayName(row),
+    primaryPosition: row.primaryPosition,
+    peakRank: row.peakRank,
+    peakRating: row.peakRating,
+    currentRating: row.currentRating,
+    voteCount: row.voteCount,
+  };
+}
+
+export async function getPublicCaptainVotingData(
+  seasonId: string,
+): Promise<PublicCaptainVotingData> {
   const registrations = await db
     .select({
       id: seasonRegistrations.id,
@@ -41,7 +77,6 @@ export async function getCaptainVotingData(seasonId: string): Promise<CaptainVot
       currentRating: seasonRegistrations.currentRating,
       willingToBeCaptain: seasonRegistrations.willingToBeCaptain,
       createdAt: seasonRegistrations.createdAt,
-      email: users.email,
       steamName: users.steamName,
       displayName: users.displayName,
       perfectName: users.perfectName,
@@ -62,7 +97,6 @@ export async function getCaptainVotingData(seasonId: string): Promise<CaptainVot
       ? []
       : await db
           .select({
-            voterRegistrationId: captainVotes.voterRegistrationId,
             candidateRegistrationId: captainVotes.candidateRegistrationId,
           })
           .from(captainVotes)
@@ -76,32 +110,35 @@ export async function getCaptainVotingData(seasonId: string): Promise<CaptainVot
     );
   }
 
-  const voters: CaptainVoterOption[] = registrations.map((r) => ({
+  const voters: PublicCaptainVoter[] = registrations.map((r) => ({
     id: r.id,
-    displayName: getDisplayName({ displayName: r.displayName, perfectName: r.perfectName, steamName: r.steamName, email: r.email }),
-    email: r.email ?? "",
+    displayName: getPublicDisplayName(r),
     primaryPosition: r.primaryPosition,
     peakRank: r.peakRank,
     peakRating: r.peakRating,
   }));
 
-  const candidateRows: CaptainCandidateRow[] = registrations
+  const candidateRows: CaptainCandidateRankingRow[] = registrations
     .filter((r) => r.willingToBeCaptain)
     .map((r) => ({
-      id: r.id,
+      ...serializePublicCaptainCandidate({
+        id: r.id,
+        displayName: r.displayName,
+        perfectName: r.perfectName,
+        steamName: r.steamName,
+        primaryPosition: r.primaryPosition,
+        peakRank: r.peakRank,
+        peakRating: r.peakRating,
+        currentRating: r.currentRating,
+        voteCount: voteCounts.get(r.id) ?? 0,
+      }),
       registrationId: r.id,
-      displayName: getDisplayName({ displayName: r.displayName, perfectName: r.perfectName, steamName: r.steamName, email: r.email }),
-      email: r.email ?? "",
-      primaryPosition: r.primaryPosition,
-      peakRank: r.peakRank,
-      peakRating: r.peakRating,
-      currentRating: r.currentRating,
-      createdAt: r.createdAt.toISOString(),
-      voteCount: voteCounts.get(r.id) ?? 0,
+      createdAt: r.createdAt,
+      willingToBeCaptain: r.willingToBeCaptain,
     }));
 
   const seedRows = selectCaptainSeeds(candidateRows);
-  const sortedCandidates = seedRows.concat(
+  const sortedRankingRows = seedRows.concat(
     candidateRows
       .filter((candidate) => !seedRows.some((seed) => seed.registrationId === candidate.registrationId))
       .sort(compareCaptainSeedCandidates),
@@ -109,8 +146,15 @@ export async function getCaptainVotingData(seasonId: string): Promise<CaptainVot
 
   return {
     voters,
-    candidates: sortedCandidates,
-    votes: voteRows,
+    candidates: sortedRankingRows.map((candidate) => ({
+      id: candidate.id,
+      displayName: candidate.displayName,
+      primaryPosition: candidate.primaryPosition,
+      peakRank: candidate.peakRank,
+      peakRating: candidate.peakRating,
+      currentRating: candidate.currentRating,
+      voteCount: candidate.voteCount,
+    })),
   };
 }
 

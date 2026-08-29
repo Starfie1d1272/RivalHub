@@ -12,16 +12,16 @@ import { createBrowserClient } from "@/lib/auth/supabase";
 import { MAX_CAPTAIN_VOTES } from "@/lib/captains/rules";
 import { positionLabel } from "@/lib/validators/registration";
 import type {
-  CaptainCandidateRow,
+  PublicCaptainCandidate,
   CaptainVoteRecord,
-  CaptainVoterOption,
+  PublicCaptainVoter,
 } from "@/lib/captains/data";
 
 interface CaptainVotingPanelProps {
   seasonName: string;
   seasonStatus: string;
-  currentVoter: CaptainVoterOption | null;
-  candidates: CaptainCandidateRow[];
+  currentVoter: PublicCaptainVoter | null;
+  candidates: PublicCaptainCandidate[];
   votes: CaptainVoteRecord[];
 }
 
@@ -358,4 +358,3 @@ export function CaptainVotingPanel({
     </>
   );
 }
-

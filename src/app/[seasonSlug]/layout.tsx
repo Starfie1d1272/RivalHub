@@ -57,6 +57,7 @@ export default async function SeasonLayout({ children, params }: SeasonLayoutPro
       </div>
       <SeasonNav
         slug={season.slug}
+        status={season.status}
         hasCaptainVoting={season.hasCaptainVoting}
         hasDraft={season.hasDraft}
         hasMatches={normalizeStagePlan(season.stagePlan).length > 0}

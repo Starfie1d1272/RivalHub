@@ -16,31 +16,41 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { Season } from "@/db/schema/seasons";
-import type { UserSession } from "@/lib/auth/session";
+import type { SeasonStatus } from "@/types/season";
 import { OnlineCounter } from "./OnlineCounter";
 
+export interface HeaderSeason {
+  slug: string;
+  name: string;
+  status: SeasonStatus;
+}
+
+export interface HeaderSession {
+  userId: string;
+  role: "user" | "season_admin" | "super_admin";
+}
+
 interface HeaderClientProps {
-  seasons: Season[];
-  session: UserSession | null;
+  seasons: HeaderSeason[];
+  session: HeaderSession | null;
   avatarUrl?: string | null;
   steamName?: string | null;
   displayName?: string | null;
 }
 
-function AvatarButton({ email, avatarUrl, imgError, onImgError }: {
-  email: string;
+function AvatarButton({ label, avatarUrl, imgError, onImgError }: {
+  label: string;
   avatarUrl?: string | null;
   imgError: boolean;
   onImgError: () => void;
 }) {
-  const initial = email.charAt(0).toUpperCase();
+  const initial = label.charAt(0).toUpperCase();
 
   if (avatarUrl && !imgError) {
     return (
       <Image
         src={avatarUrl}
-        alt={email}
+        alt={label}
         width={32}
         height={32}
         className="inline-flex w-8 h-8 rounded-full border border-[var(--color-border)] object-cover"
@@ -89,6 +99,7 @@ export function HeaderClient({ seasons, session, avatarUrl, steamName, displayNa
 
   const isAdmin = session && session.role !== "user";
   const isSuperAdmin = session?.role === "super_admin";
+  const userLabel = displayName ?? steamName ?? "RivalHub";
 
   return (
     <header
@@ -177,7 +188,7 @@ export function HeaderClient({ seasons, session, avatarUrl, steamName, displayNa
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button className="focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] rounded-full">
-                    <AvatarButton email={displayName ?? steamName ?? session.email} avatarUrl={avatarUrl} imgError={imgError} onImgError={() => setImgError(true)} />
+                    <AvatarButton label={userLabel} avatarUrl={avatarUrl} imgError={imgError} onImgError={() => setImgError(true)} />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-44 bg-[var(--color-panel)] border-[var(--color-border)]">
@@ -272,8 +283,8 @@ export function HeaderClient({ seasons, session, avatarUrl, steamName, displayNa
             {session ? (
               <>
                 <div className="flex items-center gap-2 px-3 py-1.5">
-                  <AvatarButton email={displayName ?? steamName ?? session.email} avatarUrl={avatarUrl} imgError={imgError} onImgError={() => setImgError(true)} />
-                  <span className="text-sm text-[var(--color-fg-dim)] truncate">{displayName ?? steamName ?? session.email}</span>
+                  <AvatarButton label={userLabel} avatarUrl={avatarUrl} imgError={imgError} onImgError={() => setImgError(true)} />
+                  <span className="text-sm text-[var(--color-fg-dim)] truncate">{userLabel}</span>
                 </div>
                 {isAdmin && (
                   <Link

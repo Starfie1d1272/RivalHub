@@ -18,13 +18,13 @@ import {
 } from "@/components/ui/dialog";
 import { CAPTAIN_TEAM_COUNT } from "@/lib/captains/rules";
 import { positionLabel } from "@/lib/validators/registration";
-import type { CaptainCandidateRow } from "@/lib/captains/data";
+import type { PublicCaptainCandidate } from "@/lib/captains/data";
 
 interface CaptainConfirmPanelProps {
   seasonId: string;
   seasonStatus: string;
   teamCount: number;
-  candidates: CaptainCandidateRow[];
+  candidates: PublicCaptainCandidate[];
 }
 
 export function CaptainConfirmPanel({

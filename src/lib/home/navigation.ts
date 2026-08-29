@@ -5,6 +5,11 @@ export interface HomeNavSeason {
   registrationMode: RegistrationMode;
   hasCaptainVoting: boolean;
   hasDraft: boolean;
+  status: SeasonStatus;
+}
+
+export interface HomeNavAuthState {
+  isAuthenticated: boolean;
 }
 
 export interface HomeNavEntry {
@@ -36,30 +41,34 @@ export function buildHomeEyebrow(status: SeasonStatus, slug: string): HomeEyebro
   };
 }
 
-export function buildHomeNavEntries(season: HomeNavSeason): HomeNavEntry[] {
-  return [
+export function buildHomeNavEntries(
+  season: HomeNavSeason,
+  auth: HomeNavAuthState,
+): HomeNavEntry[] {
+  const isHistorical = season.status === "finished" || season.status === "archived";
+  const entries: (HomeNavEntry & { show: boolean })[] = [
     {
       key: "register",
       href: `/${season.slug}/register`,
       label: season.registrationMode === "team" ? "组队报名" : "报名参赛",
       mono: "REGISTER",
       meta: season.registrationMode === "team" ? "创建或加入队伍" : "个人报名",
-      show: true,
+      show: !isHistorical,
     },
     {
       key: "captains",
       href: `/${season.slug}/captains`,
-      label: "队长投票",
+      label: isHistorical ? "队长投票结果" : "队长投票",
       mono: "CAPTAINS",
-      meta: "实时票数",
+      meta: isHistorical ? "最终结果" : "实时票数",
       show: season.hasCaptainVoting,
     },
     {
       key: "draft",
       href: `/${season.slug}/draft`,
-      label: "选秀直播间",
+      label: isHistorical ? "选秀回顾" : "选秀直播间",
       mono: "DRAFT ROOM",
-      meta: "● LIVE",
+      meta: isHistorical ? "完整选人记录" : "● LIVE",
       show: season.hasDraft,
     },
     {
@@ -96,13 +105,20 @@ export function buildHomeNavEntries(season: HomeNavSeason): HomeNavEntry[] {
     },
     {
       key: "login",
-      href: "/login",
-      label: "登录 / 我的 RivalHub",
-      mono: "LOGIN",
-      meta: "参赛者入口",
+      href: auth.isAuthenticated ? "/settings" : "/login",
+      label: auth.isAuthenticated ? "个人中心" : "登录 / 注册",
+      mono: auth.isAuthenticated ? "ACCOUNT" : "LOGIN",
+      meta: auth.isAuthenticated ? "账号设置" : "参赛者入口",
       show: true,
     },
-  ].filter((entry) => entry.show);
+  ];
+  return entries.filter((entry) => entry.show).map((entry) => ({
+    key: entry.key,
+    href: entry.href,
+    label: entry.label,
+    mono: entry.mono,
+    meta: entry.meta,
+  }));
 }
 
 export function selectHomeNavTiers(entries: HomeNavEntry[], status: SeasonStatus) {

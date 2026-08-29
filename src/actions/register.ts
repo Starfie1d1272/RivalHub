@@ -35,6 +35,22 @@ export async function saveRegistrationDraft(input: unknown) {
   }
 
   try {
+    const session = await getUserSession();
+    if (!session) {
+      return fail({
+        code: ErrorCode.UNAUTHORIZED,
+        message: "请先登录或注册账号后再保存报名草稿",
+      });
+    }
+
+    const email = normalizeEmail(parsed.data.email);
+    if (email !== normalizeEmail(session.email)) {
+      return fail({
+        code: ErrorCode.FORBIDDEN,
+        message: "只能保存当前登录账号的报名草稿",
+      });
+    }
+
     const season = await db.query.seasons.findFirst({
       where: eq(seasons.id, parsed.data.seasonId),
     });
@@ -47,7 +63,6 @@ export async function saveRegistrationDraft(input: unknown) {
       throw new AppError(ErrorCode.REGISTRATION_CLOSED, windowState.message);
     }
 
-    const email = normalizeEmail(parsed.data.email);
     const payload = {
       ...(compactUndefined(parsed.data.payload) as Record<string, unknown>),
       seasonId: parsed.data.seasonId,
@@ -83,6 +98,22 @@ export async function loadRegistrationDraft(seasonId: string, email: string) {
   }
 
   try {
+    const session = await getUserSession();
+    if (!session) {
+      return fail({
+        code: ErrorCode.UNAUTHORIZED,
+        message: "请先登录或注册账号后再加载报名草稿",
+      });
+    }
+
+    const normalizedEmail = normalizeEmail(parsed.data.email);
+    if (normalizedEmail !== normalizeEmail(session.email)) {
+      return fail({
+        code: ErrorCode.FORBIDDEN,
+        message: "只能加载当前登录账号的报名草稿",
+      });
+    }
+
     const season = await db.query.seasons.findFirst({
       where: eq(seasons.id, parsed.data.seasonId),
     });
@@ -98,7 +129,7 @@ export async function loadRegistrationDraft(seasonId: string, email: string) {
     const draft = await db.query.registrationDrafts.findFirst({
       where: and(
         eq(registrationDrafts.seasonId, parsed.data.seasonId),
-        eq(registrationDrafts.email, normalizeEmail(parsed.data.email)),
+        eq(registrationDrafts.email, normalizedEmail),
       ),
     });
 

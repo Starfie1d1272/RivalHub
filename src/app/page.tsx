@@ -15,18 +15,22 @@ import { HomeSeasonPanel } from "@/components/home/HomeSeasonPanel";
 import { SeasonCardGrid } from "@/components/home/SeasonCardGrid";
 import { Panel, EmptyState } from "@/components/rivalhub";
 import { getParticipantSummary } from "@/lib/participants/summary";
+import { getUserSession } from "@/lib/auth/session";
 
 export default async function HomePage() {
-  const activeSeasons = await db
-    .select()
-    .from(seasons)
-    .where(
-      and(
-        not(eq(seasons.status, "archived")),
-        not(eq(seasons.status, "draft"))
+  const [activeSeasons, session] = await Promise.all([
+    db
+      .select()
+      .from(seasons)
+      .where(
+        and(
+          not(eq(seasons.status, "archived")),
+          not(eq(seasons.status, "draft"))
+        )
       )
-    )
-    .orderBy(seasons.createdAt);
+      .orderBy(seasons.createdAt),
+    getUserSession(),
+  ]);
 
   const featured = activeSeasons[0];
   const others = activeSeasons.slice(1);
@@ -161,7 +165,7 @@ export default async function HomePage() {
 
   const eyebrow = buildHomeEyebrow(featured.status, featured.slug);
   const { tier1Entry, tier2Entries, tier3Entries } = selectHomeNavTiers(
-    buildHomeNavEntries(featured),
+    buildHomeNavEntries(featured, { isAuthenticated: Boolean(session) }),
     featured.status
   );
 

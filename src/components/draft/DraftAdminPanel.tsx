@@ -8,14 +8,14 @@ import { startDraft, pauseDraft, resumeDraft } from "@/actions/draft";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DRAFT_TOTAL_ROUNDS } from "@/types/draft";
-import type { DraftFullData } from "@/lib/draft/data";
+import type { DraftAdminData } from "@/lib/draft/data";
 
 interface DraftAdminPanelProps {
   seasonId: string;
   seasonName: string;
   seasonStatus: string;
   teamCount: number;
-  data: DraftFullData | null;
+  data: DraftAdminData | null;
 }
 
 export function DraftAdminPanel({
@@ -182,7 +182,7 @@ export function DraftAdminPanel({
             <div>
               <span className="text-[var(--color-fg-dim)]">剩余可选：</span>
               <span className="text-[var(--color-fg)] tabular ml-1">
-                {data.remainingPlayers.length} 人
+                {data.remainingPlayerCount} 人
               </span>
             </div>
           </div>

@@ -150,13 +150,14 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
   let currentPhaseIdx = phases.findIndex((p) => !p.done);
   if (currentPhaseIdx === -1) currentPhaseIdx = phases.length - 1;
 
+  const isHistorical = season.status === "finished" || season.status === "archived";
   const quickLinks = [
     {
       href: `/${seasonSlug}/register`,
       label: "立即报名",
       description: "提交报名信息",
       icon: UserPlus,
-      show: true,
+      show: !isHistorical,
     },
     {
       href: `/${seasonSlug}/players`,
@@ -167,15 +168,15 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
     },
     {
       href: `/${seasonSlug}/captains`,
-      label: "队长投票",
-      description: "为心仪队长投票",
+      label: isHistorical ? "队长投票结果" : "队长投票",
+      description: isHistorical ? "查看最终投票结果" : "为心仪队长投票",
       icon: Vote,
       show: season.hasCaptainVoting,
     },
     {
       href: `/${seasonSlug}/draft`,
-      label: "选秀直播间",
-      description: "实时观看选秀进度",
+      label: isHistorical ? "选秀回顾" : "选秀直播间",
+      description: isHistorical ? "查看完整选人记录" : "实时观看选秀进度",
       icon: Shuffle,
       show: season.hasDraft,
     },

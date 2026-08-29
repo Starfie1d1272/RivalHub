@@ -28,7 +28,9 @@ export function Footer() {
         <Link href="/rules" className="hover:text-[var(--color-fg)] transition-colors">
           RULES
         </Link>
-        <span>PRIVACY</span>
+        <Link href="/privacy" className="hover:text-[var(--color-fg)] transition-colors">
+          PRIVACY
+        </Link>
         <span style={{ color: "var(--color-accent)" }}>{pkg.version}</span>
       </div>
     </footer>

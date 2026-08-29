@@ -8,7 +8,7 @@ import { seasons, teams } from "@/db/schema";
 import { CaptainDraftPanel } from "@/components/draft/CaptainDraftPanel";
 import { Panel, Btn } from "@/components/rivalhub";
 import { getUserSession } from "@/lib/auth/session";
-import { getDraftData, type DraftTeamSlot } from "@/lib/draft/data";
+import { getCaptainDraftData, type DraftTeamSlot } from "@/lib/draft/data";
 
 export const dynamic = "force-dynamic";
 
@@ -80,7 +80,7 @@ export default async function DraftCaptainPage({ params }: DraftCaptainPageProps
     );
   }
 
-  const data = await getDraftData(season.id);
+  const data = await getCaptainDraftData(season.id);
   if (!data.state) {
     return (
       <UnavailablePanel

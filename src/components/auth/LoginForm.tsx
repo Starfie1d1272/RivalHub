@@ -6,16 +6,11 @@ import { Field, Btn } from "@/components/rivalhub";
 import { loginWithPassword, resendSignupConfirmation, signUp } from "@/actions/auth";
 import { TurnstileWidget } from "@/components/auth/TurnstileWidget";
 import { isPasswordPolicySatisfied, MIN_PASSWORD_LENGTH, PASSWORD_POLICY_MESSAGE } from "@/lib/config/auth-config";
+import { safeLocalRedirect } from "@/lib/auth/redirect";
 
 type Mode = "login" | "register";
 
-/** 校验重定向目标：只允许本站相对路径，防 open redirect */
-function safeRedirect(raw: string | null): string {
-  if (!raw) return "/";
-  return raw.startsWith("/") && !raw.startsWith("//") ? raw : "/";
-}
-
-export function LoginForm({ initialMode = "login" }: { initialMode?: Mode }) {
+export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initialMode?: Mode; redirectTo?: string }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -24,9 +19,7 @@ export function LoginForm({ initialMode = "login" }: { initialMode?: Mode }) {
   const [mode, setMode] = useState<Mode>(initialMode);
   const [awaitingEmail, setAwaitingEmail] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const redirectRef = useRef(safeRedirect(new URLSearchParams(
-    typeof window !== "undefined" ? window.location.search : ""
-  ).get("next")));
+  const redirectRef = useRef(safeLocalRedirect(redirectTo));
 
   const switchMode = (nextMode: Mode) => {
     setMode(nextMode);

@@ -11,6 +11,7 @@ import type { ActionResult } from "@/types/action";
 import { actionError } from "@/lib/action-utils";
 import { MIN_PASSWORD_LENGTH, isPasswordPolicySatisfied, PASSWORD_POLICY_MESSAGE } from "@/lib/config/auth-config";
 import { normalizeEmail } from "@/lib/utils/email";
+import { safeLocalRedirect } from "@/lib/auth/redirect";
 import { bootstrapConfiguredOwnerInTx } from "@/lib/auth/owner-bootstrap";
 import {
   requireAuth,
@@ -209,7 +210,8 @@ function callbackUrl(flow: "signup" | "reverify", next?: string): string {
 }
 
 function safeNextPath(next: string | undefined): string | null {
-  return next && next.startsWith("/") && !next.startsWith("//") ? next : null;
+  const safeNext = safeLocalRedirect(next, "");
+  return safeNext || null;
 }
 
 export async function sendPasswordResetEmail(email: string): Promise<ActionResult<undefined>> {
