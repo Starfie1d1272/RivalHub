@@ -1,222 +1,54 @@
-# 鉴权与权限
+# 鉴权、权限与 Data API
 
-## 统一鉴权架构（auth-v2）
+## Normal account path
 
-所有用户（普通选手、赛季管理员、超级管理员）统一通过 **Supabase email+password** 登录，登录成功后建立 `rivalhub-session` iron-session Cookie，`users.role` 字段控制权限分级。
+RivalHub 的正常账户路径是 Supabase Auth email/password + `public.users.role` + `rivalhub-session`。角色为 `user`、`season_admin` 与 `super_admin`。
 
-生产环境关闭 Supabase 邮件确认，不依赖 Magic Link。原因是免费版 Supabase 邮件额度较低，不适合作为赛事高峰期登录链路。
-
-标准首个 owner bootstrap 使用 `RIVALHUB_OWNER_EMAIL`：用户仍通过 `/login` 的 Supabase email+password 注册/登录；只有当 `public.users` 中不存在任何 `super_admin`，且规范化邮箱匹配该配置时，系统才在事务和锁保护下把该用户升级为 `super_admin`。已有任意 `super_admin` 后该路径永久失效，不使用用户数量或“第一个用户”推导权限。
-
-Root 紧急账号仍可通过 `pnpm seed` 显式初始化（环境变量 `RIVALHUB_ROOT_USERNAME` / `RIVALHUB_ROOT_PASSWORD`），但仅作为 legacy / emergency 兼容路径，使用独立的 `rivalhub-admin` Cookie，不是标准 bootstrap。
-
----
-
-## 登录流程
-
-### 普通用户 / 管理员（邮箱+密码）
-
-```
-用户访问 /login
-  → 选择注册或登录
-  → signUp / loginWithPassword Server Action
-    → supabase.auth.signUp 或 signInWithPassword
-    → db.users upsert / insert
-    → login 或确认 callback 若匹配 `RIVALHUB_OWNER_EMAIL` 且尚无 `super_admin`：事务锁保护下完成一次性 bootstrap
-    → createUserSession({ userId, email, role, adminSeasonIds })
-    → 写入 rivalhub-session Cookie（iron-session 加密，30 天）
-    → redirect(next ?? "/")
+```text
+signup → confirmation email → auth callback → application session
+login  → password authentication → application session
+forgot password → recovery email → /reset-password
 ```
 
-`/auth/callback` 保留为 Supabase Auth 兼容入口，但生产登录流程不依赖邮件确认或 Magic Link。
+注册不会立即创建应用 session；auth callback 在确认邮箱后同步 `users.emailVerifiedAt` 并建立 session。系统不是 Magic Link login 产品。登录路径会同步应用账号，并在必要时检查 owner bootstrap。
 
-### Root 紧急登录（用户名+密码）
+## Owner bootstrap and emergency Root
 
-```
-POST /admin/login (Server Action: adminLogin)
-  → 查询 admin_users 表按 username
-  → scrypt 验证 password vs password_hash
-  → 写入 rivalhub-admin Cookie（iron-session，8 小时）
-  → redirect("/admin")
-```
+Fresh deployment 的标准 bootstrap 是 `RIVALHUB_OWNER_EMAIL`：当该配置邮箱完成正常注册/登录，且 `public.users` 尚不存在任一 `super_admin` 时，事务与锁保护下将其升级为 `super_admin`。一旦已有 super_admin，此路径永久失效。
 
----
+`admin_users` + `rivalhub-admin` 仍提供 legacy emergency Root compatibility path。它不承担正常 owner bootstrap，也不应用于常规管理员创建。常规权限授予经 `admin_invites` 和既有 Supabase 用户完成。
 
-## 管理员提权（邀请码）
+## Authorization
 
-```
-管理员创建邀请码 → /admin/invites
-  → createInviteCode({ role, seasonId?, maxUses, expiresInHours })
-    → role = "admin"（→ season_admin）或 "super_admin"
-    → seasonId 仅在创建 season_admin 邀请时填写（绑定赛季）
-
-用户获得邀请码 → /invite?code=xxx
-  → 未登录：redirect /login?next=/invite?code=xxx
-  → 已登录：展示邀请确认表单
-    → claimInviteCode(code)
-      → 校验邀请码（isActive / usedCount / expiresAt）
-      → users.role 更新：role="admin" → "season_admin"，role="super_admin" → "super_admin"
-      → 若 seasonId 存在：users.adminSeasonIds 追加该赛季 UUID
-      → 刷新 rivalhub-session Cookie（同步新权限）
-      → redirect("/admin")
-```
-
----
-
-## 角色定义
-
-### 用户角色（`users.role`）
-
-| 角色 | 值 | 说明 |
+| 层级 | Server-side guard | 范围 |
 |---|---|---|
-| `user` | 默认 | 普通选手，可登录、查看报名状态、投票 |
-| `season_admin` | 提权后 | 赛季管理员，可管理 `adminSeasonIds` 中指定赛季 |
-| `super_admin` | 提权后 | 超级管理员，可管理所有赛季 + 创建 super_admin 邀请码 |
+| 已登录用户 | `requireAuth()` | 自己的账户和允许的参与者操作 |
+| 赛季管理员 | `requireSeasonAdmin(seasonId)` | 被授权赛季 |
+| 管理员 | `requireAdmin()` | 管理操作 |
+| 超级管理员 | `requireSuperAdmin()` | 全局管理与高权限操作 |
 
-### 系统角色（兼容旧体系）
+客户端隐藏按钮不构成权限校验。所有业务 mutation 在 Server Action 内执行授权、输入校验、业务校验及适用的审计写入。
 
-| 角色 | 标识方式 | 说明 |
-|---|---|---|
-| `guest` | 未登录 | 访问公开页面 |
-| `root` | `rivalhub-admin` Cookie | 紧急登录账号，等价于 super_admin 权限 |
+## Sessions
 
-### 前端展示角色（无持久化，由查询推导）
+`rivalhub-session` 是正常用户/管理员会话，受 `ADMIN_SESSION_SECRET` 保护。`rivalhub-admin` 是 Root emergency session；两者分离以保留兼容边界。会话中的角色必须来自已建立的服务端事实，不能由客户端提交值推断。
 
-| 角色 | 推导来源 | 说明 |
-|---|---|---|
-| `registered` | `season_registrations` 存在记录 | 已提交本届报名 |
-| `approved` | `registrations.status = "approved"` | 审核通过的选手 |
-| `captain` | `teams.captain_registration_id` 指向自己 | 当前赛季的队长 |
+## Data API / RLS baseline
 
----
+当前安全基线是：业务数据库仅由 server-side application code 访问；`anon` 与 `authenticated` 对 public business tables 无业务 grants；Data API 默认拒绝。active migrations 已撤销 public business-table grants，Local Supabase 同时配置 `auto_expose_new_tables = false`。
 
-## 能力 × 角色矩阵
+这不是一份未来 direct-client 产品的 RLS policy matrix。若某一变更新增 direct Supabase client、公开数据面或 Realtime table，它必须在同一变更中明确提供：
 
-| 能力 | guest | user | season_admin | super_admin/root |
-|---|---|---|---|---|
-| 查看赛季 hero / 规则书 | ✅ | ✅ | ✅ | ✅ |
-| 查看队伍列表 / 详情 | ✅ | ✅ | ✅ | ✅ |
-| 查看赛程 / Bracket / 比赛详情 | ✅ | ✅ | ✅ | ✅ |
-| 查看自己的报名状态 | ❌ | ✅ | ✅ | ✅ |
-| 提交报名 | ✅ | ✅（未报名） | ✅ | ✅ |
-| 投队长票 | ❌ | ✅（审核通过且 voting 阶段） | ✅ | ✅ |
-| 撤票 | ❌ | ✅（审核通过且 voting 阶段） | ✅ | ✅ |
-| 围观选秀 | ✅ | ✅ | ✅ | ✅ |
-| 操作选秀 pick | ❌ | ❌ | ❌ | ✅（代选/调试） |
-| 审核报名 | ❌ | ❌ | ✅（管辖赛季） | ✅ |
-| 确认队长名单 | ❌ | ❌ | ✅（管辖赛季） | ✅ |
-| 录入比分 | ❌ | ❌ | ✅（管辖赛季） | ✅ |
-| 创建邀请码 | ❌ | ❌ | ✅（仅 admin 级） | ✅（含 super_admin 级） |
-| 停用 / 启用管理员账户 | ❌ | ❌ | ❌ | ✅ |
-| 查看 audit log | ❌ | ❌ | ✅（管辖赛季） | ✅ |
+1. 最小化的 `GRANT`；
+2. 匹配的 RLS policy；
+3. 正向与拒绝路径测试；
+4. 对应文档更新。
 
-### 校验位置
+现有 Realtime 仅允许 `draft_state`、`draft_picks` 与 `captain_votes`。
 
-| 能力类型 | 校验位置 |
-|---|---|
-| 公开能力 | 无 |
-| 任意已登录用户 | Server Action 内 `await requireAuth()` |
-| season_admin / super_admin | Server Action 内 `await requireAdmin()` |
-| 仅 super_admin | Server Action 内 `await requireSuperAdmin()` |
-| 特定赛季 admin | Server Action 内 `await requireSeasonAdmin(seasonId)` |
+## Secrets and recovery
 
-**禁止仅在客户端隐藏按钮就视为已校验**。
-
----
-
-## Supabase RLS 策略
-
-> 以下是目标权限矩阵，不是当前 active migration 已部署事实。当前 2.0 baseline 尚未版本化 legacy 表的 RLS/policy；Local Supabase 通过 `auto_expose_new_tables = false` 和无 Data API grant 保持默认拒绝。后续新增公开访问必须在同一 Drizzle active migration 中同时定义显式 GRANT 与 RLS policy，并用本地正反例验证。
-
-### 默认原则：拒绝一切
-
-```sql
-ALTER TABLE <table> ENABLE ROW LEVEL SECURITY;
--- 不添加 PERMISSIVE policy = 所有操作均被拒绝
-```
-
-### 表级读写权限矩阵
-
-| 表 | 匿名读 | 登录用户读 | 登录用户写 | Service Role |
-|---|---|---|---|---|
-| `seasons` | ✅ 公开 | ✅ | ❌ | ✅ |
-| `users` | ❌ | 仅自己 | 仅自己 | ✅ |
-| `season_registrations` | ❌ | 仅自己 | 仅自己（INSERT） | ✅ |
-| `captain_votes` | ❌ | 仅自己 | 仅自己（INSERT/DELETE） | ✅ |
-| `teams` | ✅ | ✅ | ❌ | ✅ |
-| `team_members` | ✅ | ✅ | ❌ | ✅ |
-| `draft_state` | ✅ | ✅ | ❌ | ✅ |
-| `draft_picks` | ✅ | ✅ | ❌ | ✅ |
-| `matches` | ✅ | ✅ | ❌ | ✅ |
-| `audit_logs` | ❌ | ❌ | ❌ | ✅ |
-
-> **重要**：Server Actions 通过 `DATABASE_URL`（Postgres 直连）以 Service Role 权限执行，绕过 RLS。RLS 仅限制 Supabase JS Client 的直接查询（如 Realtime 订阅）。
-
-### Realtime 订阅 RLS
-
-```sql
-CREATE POLICY "draft_state_public_read" ON draft_state FOR SELECT USING (true);
-CREATE POLICY "draft_picks_public_read" ON draft_picks FOR SELECT USING (true);
-CREATE POLICY "captain_votes_public_read" ON captain_votes FOR SELECT USING (true);
-```
-
----
-
-## Session 管理
-
-### `rivalhub-session`（所有已登录用户）
-
-```typescript
-// src/lib/auth/session.ts
-interface UserSession {
-  userId: string;        // users.id
-  email: string;
-  role: "user" | "season_admin" | "super_admin";
-  adminSeasonIds: string[];  // season_admin 的管辖赛季列表
-  authSource: "user" | "root";      // 鉴权来源：普通用户登录 或 root 紧急登录
-  legacyAdminId?: string;           // root 管理员映射溯源
-}
-```
-
-| 配置项 | 值 |
-|---|---|
-| Cookie 名 | `rivalhub-session` |
-| 加密 Secret | `ADMIN_SESSION_SECRET`（≥ 32 字符） |
-| 有效期 | 30 天 |
-
-工具函数：
-- `getUserSession()` → `UserSession | null`
-- `createUserSession(user)` → 写 Cookie
-- `destroyUserSession()` → 清除 Cookie
-- `requireAuth()` → `UserSession`（未登录抛 UNAUTHORIZED）
-- `requireAdmin()` → `UserSession`（role ≠ user 或 root，否则抛 UNAUTHORIZED）
-- `requireSuperAdmin()` → `UserSession`（role = super_admin 或 root）
-- `requireSeasonAdmin(seasonId)` → `UserSession`（super_admin 或持有该赛季权限的 season_admin）
-
-### `rivalhub-admin`（仅 Root 紧急登录）
-
-```typescript
-interface AdminSessionData {
-  isAdmin: boolean;
-  adminId?: string;       // admin_users.id
-  adminUsername?: string;
-  adminRole?: "super_admin" | "admin";
-}
-```
-
-| 配置项 | 值 |
-|---|---|
-| Cookie 名 | `rivalhub-admin` |
-| 有效期 | 8 小时 |
-
-> `requireAdmin()` 优先检查 `rivalhub-session`，若无再 fallback `rivalhub-admin`（root）。两者共用 `ADMIN_SESSION_SECRET`。
-
----
-
-## 安全注意事项
-
-1. `ADMIN_SESSION_SECRET` 必须 ≥ 32 字符，由部署运维独立生成并在 Vercel 配置；`pnpm seed` 不会生成或管理它，不提交 git。
-2. `SUPABASE_SERVICE_ROLE_KEY` 仅在 Server Action / API Route 使用，**禁止**暴露给客户端。
-3. Cron route 通过 `Authorization: Bearer $CRON_SECRET` 验证，防止未授权触发。
-4. v1 报名截图使用 NJUBox 分享链接，不走 Supabase Storage；若后续恢复私有 bucket，必须通过 Service Role 生成短期签名 URL。
-5. 生产环境关闭邮件确认，避免 Supabase 免费邮件额度限制影响登录。
+- `SUPABASE_SERVICE_ROLE_KEY` 仅在服务端使用，绝不放入 `NEXT_PUBLIC_*`。
+- `CRON_SECRET` 用于 Cron bearer authentication。
+- Turnstile site key 可以公开，`TURNSTILE_SECRET_KEY` 只能在服务端。
+- 忘记密码邮件的跳转目标为 `/reset-password`；重置请求对外不泄露账户枚举信息。

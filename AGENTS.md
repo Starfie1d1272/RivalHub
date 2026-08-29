@@ -1,133 +1,64 @@
-# RivalHub · Claude Code 工程手册
+# RivalHub 工程约束
 
-## 1. 项目概述
+## 项目与命令
 
-RivalHub 是开源电竞赛事管理平台，通过 capability 驱动多赛事模型支持选秀联赛、公开赛、杯赛等全流程运营。
-技术栈：Next.js 15 App Router + TypeScript strict + Tailwind CSS v4 + shadcn/ui + Supabase + Drizzle ORM。
-部署：Vercel（`match.starfie1d.top`），当前 v1.30.1。
-
-## 2. 常用命令
+RivalHub 是高校电竞赛事管理平台；当前内置 Rivals 与 Major 两套平行体系。技术栈为 Next.js App Router、TypeScript strict、Tailwind/shadcn、Supabase、Drizzle、Vitest 与 Playwright。
 
 ```bash
-pnpm dev               # 启动开发服务器
-pnpm build             # 生产构建
-pnpm tsc --noEmit      # 类型检查
-pnpm lint              # ESLint
-pnpm test              # Vitest 单元 + 集成测试
-pnpm test:e2e          # Playwright E2E
-pnpm db:generate       # drizzle-kit generate（生成迁移 SQL）
-pnpm db:check          # 校验 Drizzle active migration chain
-pnpm db:local:bootstrap # 启动 Local Supabase、迁移、fixtures、验证
-pnpm db:local:reset    # 仅重建 loopback Local Supabase
-pnpm db:studio         # 本地 Supabase Studio URL
-pnpm seed              # 远程 seed；需要显式 target/host/授权，禁止隐式 .env.local
+pnpm dev
+pnpm dev:local
+pnpm type-check
+pnpm lint
+pnpm test
+pnpm test:e2e
+pnpm build
+pnpm db:generate
+pnpm db:check
+pnpm db:local:bootstrap
+pnpm db:local:reset
+pnpm db:studio
 ```
 
-## 3. 技术栈
+完整测试入口见 `docs/testing.md`，运行/迁移边界见 `docs/deployment.md`。
 
-| 层 | 选型 |
-|---|---|
-| 框架 | Next.js 15 App Router + TypeScript strict |
-| 样式 | Tailwind CSS v4 + shadcn/ui |
-| 数据库 | Supabase Postgres + Auth + Realtime + Storage |
-| ORM | Drizzle ORM |
-| 表单 | React Hook Form + Zod |
-| 鉴权 | Supabase Auth + iron-session（双 Cookie：`rivalhub-session` + `rivalhub-admin`） |
-| 定时任务 | GitHub Actions 每 5 分钟调 `/api/cron/*` |
-| Bracket | `brackets-manager` 经 `lib/bracket/` 适配层 |
-| 测试 | Vitest + React Testing Library + Playwright |
-| 部署 | Vercel |
+## Architecture invariants
 
-## 4. 架构原则
+1. 业务写入只通过 Server Actions；Cron 才使用 API Route。
+2. 赛事业务按 capability 字段分支，禁止以 `season.kind` 作为功能判断。
+3. 管理操作必须写入 `audit_logs`。
+4. Server Components 为默认；Client Components 只用于表单、局部交互、倒计时或批准的 Realtime。
+5. Realtime 仅限 `draft_state`、`draft_picks`、`captain_votes`；数据库事务 commit 后才可广播。
+6. 选秀必须在事务中使用锁和 `client_request_id` 幂等保护。
+7. 任何 `brackets-manager` 调用必须经过 `@/lib/bracket` 适配层。
+8. Server Action 返回 `ActionResult<T>`，以 `ok()` / `fail()` 表达预期错误；错误码以 `src/lib/errors.ts` 为准。
+9. 时间存 UTC，展示层转换为 Asia/Shanghai。
 
-1. **业务逻辑全部走 Server Actions**，仅 Cron 触发用 API Route。
-2. **多赛事抽象用 capability 字段**，禁止 `season.kind` 做功能分支。所有赛事相关表含 `season_id`，路由前缀 `/[seasonSlug]/...`。
-3. **不做物化计数**：聚合靠 `COUNT GROUP BY`，Server Component 渲染，提交时服务端二次校验。
-4. **Server Components 为主**，仅 Realtime / 表单 / 倒计时局部标注 `"use client"`。
-5. **选秀并发安全**：Postgres 事务 + `SELECT ... FOR UPDATE` + `client_request_id` 幂等。详见 `docs/draft-flow.md`。
-6. **所有管理操作写 audit_logs**。
-7. **时间统一存 UTC**，展示层转 Asia/Shanghai。
+## Database and security
 
-## 5. 硬性禁令
+- active Drizzle migrations 是唯一 migration authority；禁止用 `db:push` 应用 active chain。
+- Local 数据库写入只走 `db:local:*`，并验证 loopback target；不从 `.env.local` 回退到远程连接。
+- staging/preview 必须先确认独立 Supabase project，才能进行 seed、migration rehearsal、写入型 E2E 或赛事模拟。
+- production、staging、local 的数据库和密钥必须隔离。远程操作使用显式 target、host confirmation 与授权变量。
+- Server-only database 是业务读写 owner；Data API 默认拒绝。新增 direct Supabase client 或 Realtime table 时，同一变更必须包含 explicit GRANT、RLS policy 与正反例测试。
+- `SUPABASE_SERVICE_ROLE_KEY`、session secret、Cron secret 及其他私密变量不得进入客户端、日志或 Git。
 
-1. **禁止 `season.kind` 做功能分支** — 读 capability 字段（`hasDraft` 等），`season.kind` 仅展示用。
-2. **禁止事务内广播 Realtime** — commit 成功后再 `supabase.channel(...).send(...)`。
-3. **禁止直接 import brackets-manager** — 必须经 `@/lib/bracket` 适配层。
-4. **Realtime 仅限三张表** — `draft_state`、`draft_picks`、`captain_votes`。禁止 `channel("*")`。
-5. **Server Action 必须返回 `ActionResult<T>`** — `ok()` / `fail()`，禁止抛异常或返回原始值。错误码在 `src/lib/errors.ts`。
-6. **禁止手动改 `package.json` version** — 用 `npm version <patch|minor|major>`。发版走 `.claude/skills/release.md`。
-7. **禁止 Server Action 外写 DB** — 页面只读（RSC fetch），写操作必须是 Server Action。
-8. **shadcn 组件按需 add** — `pnpm dlx shadcn@latest add button`，不手写。
-9. **组件 PascalCase 命名** — 文件名与 export 一致（`ui/` 目录除外）。代码结构查询统一用 CodeGraph（如 `codegraph_files src/components/`），`docs/code-map.md` 仅作业务域入口参考、不再强制同步。
-10. **数据库迁移安全** — 包含 custom SQL / data backfill / fail-closed validation 的 migration 禁止用 `db:push` 应用；任何远程 migration 前必须先确认 staging 隔离与 migration baseline。详见 `docs/deployment.md`。
-11. **本地数据库写入只走 `db:local:*`** — 目标从 `supabase status` 获取并验证为 loopback；不得把 `.env.local`、生产 `DATABASE_URL` 或 `--linked` 当本地命令 fallback。
+## Auth and permissions
 
-## 6. 缓存策略
+- 正常账号和管理员使用 Supabase Auth、`public.users.role` 与 `rivalhub-session`。
+- `admin_users` / `rivalhub-admin` 仅是 emergency compatibility path。
+- Fresh deployment 通过配置的 `RIVALHUB_OWNER_EMAIL` 在尚不存在 `super_admin` 时一次性 bootstrap；不得把“第一个注册用户”当作 owner。
 
-- `force-dynamic` 仅选秀和后台路由，其余 RSC 默认缓存。
-- 写操作后 `revalidatePath(具体路径)`，不调 `revalidatePath("/")`。
-- 不引入 Redis。
+## Branches and releases
 
-## 7. 分支管理
+- `main` 是 production branch，`dev` 是下一版本 integration/staging branch；二者均不 force push，只通过 PR 合入。
+- 常规工作从 `dev` 建 `feat/*`、`fix/*`、`docs/*` 等分支，PR base 为 `dev`；production hotfix 从 `main` 开始并回同步到 `dev`。
+- 版本、CHANGELOG 与 release path 由 Changesets 和 `.claude/skills/release.md` 共同定义。禁止手改 `package.json` version，且仅在 release commit 已进入 `main` 后创建 release tag。
 
-### Branch workflow
+## Documentation authority
 
-- `main` = production branch（受保护，禁 force push，仅 PR 合入）。
-- `dev` = next-release integration / staging branch。
-- 常规功能开发：`dev` → `feat/*` → PR → `dev`。
-- 下一版本常规修复：`dev` → `fix/*` → PR → `dev`。
-- 生产 hotfix：`main` → `hotfix/*` → PR → `main`；hotfix merge 后必须把 main 的修复同步到 `dev`。
-- 发版：`dev` → PR → `main`（打 tag + 部署）。
-- 不长期维护 `release/2.0.0`。
-- RivalHub 2.0：所有 feature branches 从 `dev` 创建，PR base = `dev`。
-- `archive/*` 为历史只读分支，不参与 active development。
+- 赛事政策：`docs/rules/**`。
+- 当前实现：code、schema、active migrations、tests 与 active technical docs。
+- 已接受未实现设计：`docs/decisions/**`。
+- 历史过程与历史验收：`docs/archive/**`。
 
-分支命名：`feat/` / `fix/` / `hotfix/` / `docs/` / `refactor/` / `chore/`。
-
-### Staging DB safety gate
-
-`dev` / Preview deployment 并不自动证明数据库已经与 production 隔离。
-在确认 Preview/Staging 使用独立 Supabase 之前，禁止在该环境执行：
-
-- seed
-- db:push / migration rehearsal
-- Playwright E2E
-- 权限写入测试
-- 有写操作的 tournament simulation
-
-（staging-environment gate 单独处理，不涉及 Vercel settings / Supabase / environment secrets 修改。）
-
-## 8. 目录速查
-
-```
-src/
-├── app/              # App Router（[seasonSlug] 多赛季路由）
-├── actions/          # Server Actions（所有业务逻辑入口）
-├── db/schema/        # Drizzle 表定义
-├── lib/              # auth / bracket / formats / validators / utils
-├── components/       # ui(shadcn) / rivalhub / 各业务模块
-└── types/            # 共享类型
-```
-
-完整目录树和组件清单见 `docs/code-map.md`。
-
-## 9. 关键文档
-
-| 文档 | 内容 |
-|---|---|
-| `docs/state-machines.md` | 实体状态机，修改状态前必读 |
-| `docs/draft-flow.md` | 选秀事务边界与并发安全 |
-| `docs/data-integrity.md` | DB 约束、Storage、soft delete |
-| `docs/architecture.md` | 整体架构与模块边界 |
-| `docs/code-map.md` | 完整代码地图与修改入口 |
-| `docs/README.md` | 文档索引入口 |
-
-## 10. 踩坑记录
-
-- **生产调试看 Vercel dashboard**，不在终端。用 Supabase `get_logs` MCP 或 Vercel dashboard。
-- **Drizzle `buildRelationalQueryWithoutPK` 陷阱**：关联查询时确保主键在 select 中。
-- **macOS 上 `pnpm db:push` 偶发失败**：检查 Supabase Session Pooler 连接（`aws-1-us-east-1.pooler.supabase.com:5432`）。
-- **pnpm 要求 Node ≥ 22**，CI（GitHub Actions）需版本匹配。
-- **版本号与 CHANGELOG 由 changeset 管理**：日常 `pnpm changeset`，发版 `pnpm changeset version`；CHANGELOG 必须在打 tag 之前提交，否则 release workflow 找不到版本条目。详见 `.claude/skills/release.md`。
-- **push 必须带 tag**：`git push origin <分支> --follow-tags`，否则 GitHub Release 不会触发。
-- **Demo 与评分外部包属 2.0 线**：v1.30.0 起 1.x 移除 Demo 导入及评分外部包（`@cs2dak/core` / `@rivalhub/rival-rating`），旧 Demo/DAK 历史已归档至 `archive/legacy-demo-dak` / `archive/legacy-original-lineage`（含 `archive/worktree-*` tags），不再有长期 `release/2.0.0` 分支；2.0 开发从 `dev` 开分支；生产库 demo 相关表保留空置、不删除。
+详细入口见 `docs/README.md`。`CLAUDE.md` 只引用本文件，避免平行工程手册。

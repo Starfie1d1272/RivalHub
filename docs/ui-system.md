@@ -1,264 +1,34 @@
-# UI 设计系统
+# RivalHub UI 系统
 
-> 所有页面基于深色主题，完整 token 定义和组件视觉规范统一维护于此文档。
+## 产品语言
 
----
+面向参赛者和管理员的功能文案使用自然中文，先表达业务目的、状态与下一步。工程术语可以留在代码和工程文档中，但不要直接把 `Capability`、`Experimental`、`Advanced`、`StageRun`、`canonical`、`rule snapshot` 或 `executor` 当作产品功能标签。
 
-## 通用三态规范
+CS2 canonical position names 保持英文：`igl`、`awper`、`opener`、`closer`、`anchor`。它们是数据值与产品标签的统一专有名词；解释文案可以补充语境，不建立自创中文映射。
 
-每个数据展示区域必须处理以下三态：
+## Tokens and typography
 
-| 状态 | 展示方式 |
-|---|---|
-| Loading | Skeleton 占位（灰色方块，高度与实际内容一致） |
-| Empty | 居中图标 + 一行说明文字 + 可选的行动按钮 |
-| Error | 红色 Toast 提示 + 页面内 Error UI（不替换整页） |
+使用项目已有 Tailwind CSS v4 tokens 与 shadcn/ui primitives。颜色承载语义而非唯一信息：成功、警告、错误、信息与中性状态要有明确层级；字体、字号和字重应区分页面标题、区块标题、正文、辅助信息与数据值。
 
----
+## Spacing and hierarchy
 
-## 首页 `/`
+- 用一致的 spacing scale 组织页面、卡片、表单组与行动区。
+- 一个视图优先呈现当前目标、关键状态、blocker 和下一步，再呈现辅助历史。
+- 管理视图把高风险/不可逆操作与普通编辑分组，并在执行前说明影响。
+- 表格优先可扫描：稳定列序、明确空态、可读日期与移动端替代布局。
 
-**Hero 区（三态动态）**：根据活跃赛季状态切换底色渐变（registration → 绿色 `rgba(77,212,122,0.09)`；voting → 黄色 `rgba(255,196,77,0.09)`；playing → 橙色 `rgba(255,107,26,0.13)`）+ 网格背景纹理。Eyebrow mono 小标 + Display 大标题 + 副标题 + 操作按钮组 + MiniStat 三格（TEAMS / PLAYERS / STAGE）。无活跃赛季时显示静态纯暗色 Hero。
+## Forms and feedback
 
-**赛季导航（三层）**：
-- Tier 1（主入口）：1 张全宽 accent 边框卡片，当前最重要的行动（报名/投票/查看赛程），hover 时 `--color-accent-edge` 描边加亮。
-- Tier 2：`grid-cols-4` 网格，队伍/数据/排行等次级入口，hover 时 border 变亮。
-- Tier 3：ghost 小按钮行，规则书/个人主页等辅助入口。
+- 在字段附近提供可操作的验证反馈；服务端错误不得被客户端提示掩盖。
+- 提交过程显示 pending、成功和失败状态，避免重复提交。
+- 不完整数据应显示不可用/待补齐与具体 CTA，不能以空数组或伪造 `0:0` 掩盖事实。
+- 对资格、名单和开赛 readiness，展示具体 blocker 与其 owner 的下一步。
 
-其他赛季 `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3` 归档卡片；无活跃赛季时 Tier1/2/3 均隐藏，仅显示 `EmptyState`。
+## Responsive and accessibility
 
----
+- 关键任务在窄屏可完成；宽表格提供可滚动或摘要布局。
+- 保持可见焦点、键盘可达、正确 label、语义化 heading 与足够对比度。
+- 图标按钮提供文字或 aria label；颜色状态附带文本/图形提示。
+- Dialog、Toast 和动态更新需要可理解的焦点与读屏行为。
 
-## 赛季首页 `/[seasonSlug]`
-
-SeasonNav（ScrollHint 横滚渐变遮罩）→ 标题区（StatusPill + 赛季大标题）→ Phase Tracker → 内容双栏 → Stat 四格。
-
-**Phase Tracker**：capability 驱动，步骤横向排列，步骤之间用 2px 细线（`--color-border`，已完成段变绿色 `rgba(77,212,122,0.35)`）连接。每步含 24×24 方形图标（`--radius-sm`）+ mono 小标签，居中对齐于连接线。当前阶段 `--color-accent` 橙色 + 淡底色；已完成 `--color-ok` 绿色 + ✓；待完成 `--color-fg-dim` 灰色。使用 `<PhaseStep>` 组件，`ScrollHint` 横滚包裹。
-
-**内容区双栏**（`status === "playing"` 时）：左侧 NEXT MATCHES（最近 4 场 scheduled/in_progress，`formatCSTShortDate` 日期，LIVE 绿色 mono 标注）+ 右侧 STANDINGS 积分榜（胜场/平局/负场/积分列，当前用户所在队高亮）；`playing` 以外状态只展示 Quick Links（1/2/4 列响应）。
-
-Stat 四格（`<Stat>` 组件，TEAMS / PLAYERS / MATCHES / STAGE，MATCHES 格式 `finished/total`，无比赛显示 `—`）。
-
----
-
-## 报名页 `/[seasonSlug]/register`
-
-页面结构：Eyebrow + Title + Sub 模式（mono 小标 + 大标题 + 副标题）。位置实时容量 + 进度条，满员位置置灰并显示"已满"。NJUBox 截图链接选填（一个链接内包含近两周 5 场截图）。anti-cheat 勾选框必须确认。提交按钮 loading 时 disabled + spinner。
-
-### Major 2.0 participant / captain flow
-
-Major 的队伍报名页不复用 solo registration 表单：玩家先在 Settings 完成 Participant Profile（展示昵称、Steam64、Perfect ID、QQ）、邮箱验证、教育认证和竞技档案；页面须逐项显示 readiness blockers。队长创建队伍后填写 Perfect Team ID，邀请已注册成员；被邀请者可以先看到邀请，但确认加入前必须 Ready。队长从已确认成员中指定恰好 5 名预定主力，查看教育状态和外校实力检查，再提交审核。
-
-预定主力只服务报名审核和种子参考，不能显示为单场正式首发。每场的 canonical lineup 始终是 `match_rosters`。管理员报名页必须在同一页面展示名单、Perfect Team ID、5 名预定主力、教育/Readiness、纪律、外校规则和 seed reference，避免跨页猜测。
-
-### Major 2.0 referee flow
-
-管理员比赛页的赛前清单必须显示：双方首发提交/确认、名单合法性、NJU ≥3、外校实力限制、纪律、Perfect identity 异常、BP、服务器、完美房间创建和双方 ready。房间状态、服务器选择等只作为轻量操作提醒；真正影响赛事事实的阵容、开赛、弃权、结果、更正和恢复，必须走 server-side action 并写 audit。默认宽限 15 分钟不会触发自动判负。
-
----
-
-## 队长投票页 `/[seasonSlug]/captains`
-
-页面标题统一为 Eyebrow + 大标题 + 副标题三层结构。
-
-**桌面端（≥ md）**：表格布局，排行榜含姓名、实时票数进度条、投票/撤回操作列。
-
-**移动端（< md）**：`CaptainVotingPanel` 自动切换为候选人卡片列表，每卡片含票数进度条 + 投票按钮。通过 `useMediaQuery("(max-width: 767px)")` 切换渲染模式。票数 Supabase Realtime 实时更新。
-
----
-
-## 选秀直播间 `/[seasonSlug]/draft`
-
-**桌面端（≥ md）**：`TeamDraftGrid` 8 格横向网格，`md:border-r` 分隔线，当前选秀队卡片高亮（theme_color 边框），倒计时 < 30s 变红。
-
-**移动端（< md）**：手风琴列表，当前选秀队自动展开，其余可点击展开/折叠（`expandedId` state）。
-
-下方剩余选手池按位置分组展示。
-
----
-
-## 队长面板 `/[seasonSlug]/draft/captain`（仅队长可见）
-
-回合标注 + 倒计时 + 队伍已选阵容 + 位置缺口提示。可筛选位置的选手列表，非当前轮次"选择"按钮 disabled。选择后立即 optimistic update，等待服务端确认。
-
----
-
-## 队伍列表 `/[seasonSlug]/teams` 与详情
-
-**列表**：8 队卡片网格 `grid-cols-2 lg:grid-cols-4`（移动端 2×4），每卡片含队名 + 队长名 + 7 人头像列表，点击跳转详情。
-
-**详情**：首发阵容 + 替补分区，队长 badge 标识；战绩/数据 grid 响应式折行，阵容行 truncate 防溢出。地图胜率颜色编码：≥ 60% 用 `--color-ok` 绿色，≤ 40% 用 `--color-danger` 红色，中间段用默认前景色。地图胜率面板（`StandingsTable`）同时展示 BAN 率。
-
----
-
-## 赛程页 `/[seasonSlug]/matches`
-
-Bracket 图（`brackets-viewer` 渲染，注入 season theme_color）与排位赛列表联动；Bracket 节点点击跳转详情，详情页"查看对阵图"回链。
-
----
-
-## 比赛详情 `/[seasonSlug]/matches/[matchId]`
-
-双方阵容 + 比分 + 地图结果（每图 Team A / Team B 双栏 K/D/A/ADR/Rating）。单场 MVP 投票区。
-
----
-
-## 管理后台
-
-- `/admin/login`：标准居中登录卡片，invite code + password 两个输入框。
-- `/admin/[seasonSlug]/registrations`：表格布局，列：邮箱 / 主选 / 段位 / 截图 / 状态 / 操作（通过/拒绝/等待）。
-- `/admin/[seasonSlug]/captains`：左侧投票排行 + 右侧确认按钮组（选择前 8 名 + 手动排序 draft_order）。
-- `/admin/[seasonSlug]/draft`：一键开始/暂停选秀 + 强制跳过当前队 + 实时日志。
-- `/admin/[seasonSlug]/matches`：比赛卡片列表，`in_progress` 状态卡片左侧有 3px `--color-accent` 橙色竖线标识。每张卡片用 `<details>` 折叠操作区（录入比分、Roster、BP 等），默认收起，点击展开。
-
-### Major 2.0 页面规范（实际实现）
-
-Major 2.0 不替换 draft-league 的页面与能力；它在同一设计系统内提供独立的 participant、captain 与 operator 信息层级。所有 Major 页面先显示**当前状态**，再显示**下一步**和可解释 blocker；不把 `StageRun`、rule snapshot 或 canonical 等内部术语作为普通管理员的主文案。
-
-- **Participant settings**：`/settings` 是参赛资料入口，不是链接集合。顶部显示 `READY TO COMPETE` 或缺失项目数；五个入口固定为参赛资料、教育身份、竞技档案、账号与安全、隐私。blocker 行可直达对应设置页。竞技档案将历史、上一赛季、当前赛季分区；已公布的段位只能从赛事段位顺序中选择，Rating 有独立标签。
-- **Captain application**：队伍报名按队伍资料、成员邀请与确认、五名预定主力、报名检查四段呈现。成员行以确认、教育、资料齐全状态和缺失原因组成，不把 email、认证和所有细节挤在单行。报名检查不替代服务器提交复核；外校实力与教育资料在提交时仍使用最新服务端事实。
-- **Invitation**：被邀请选手先看到队伍、邀请状态和自己的缺失项；未 Ready 时“确认加入”保持禁用并提供资料入口。隐私确认保留在真正参加边界。
-- **Registration review**：一支队伍一个结构化审核面板：队伍/Perfect Team ID/队长，资格摘要，五名预定主力及其 strength reference，完整报名名单。最终种子只在专用种子管理中由管理员明确确认和冻结，审核页不得自动写入。
-- **Pre-match operator**：比赛卡片的“赛前操作检查”分为双方正式首发和人工赛务确认。首发提交、恰好五人、确认状态是动态事实；资格复核提示明确说明开始操作会由服务器 fail closed 复核冻结名单、NJU、外校实力、纪律与身份。Perfect 房间、服务器、BP、双方 ready 是本地轻量提醒，不能伪装为 canonical 数据。首发 blocker 必须显示在开始比赛按钮旁；宽限、改期与判负分组为不同操作，15 分钟宽限不自动判负。
-- **Stage and post-event operators**：赛前、种子、Swiss、淘汰赛和赛后页面都用 Panel + StatusBanner/Checklist 表达状态、事实、blocker、下一步。确认框使用 Checkbox + 明确影响说明。撤销荣誉、撤销裁决、归档、比分更正等危险操作必须使用 `InlineConfirm` 或同等明确确认，且永远保留 server action 的审计和 fail-closed 行为。
-
-### Major 响应式与状态要求
-
-- **390px**：表单与审核/赛务面板单列；长 email、Steam64、Perfect ID 使用 `break-all` 或 mono 辅助行；主按钮不依赖同一行空间；状态行不横向溢出。
-- **768px**：资料字段和资料导航可两列；队员、报名审核和赛前检查仍以可读的两栏或分段为优先，不使用密集表格作为唯一入口。
-- **1440px**：管理员审核可并列展示资格摘要与预定主力/种子参考；赛前检查的“正式首发”和“人工赛务”并列，但每一状态仍保留解释文本。
-
-通用状态优先复用 `StatusBanner`、`Checklist`、`EmptyState`、`ErrorState` 与标准 `Button`/`Input`/`Select`/`Textarea`/`Checkbox`。无数据、加载、错误、禁用与危险影响必须被单独表达；禁止 raw form controls、浏览器 `window.confirm`、白色 select 背景、随机 Tailwind 色板或大圆角漂移。
-
----
-
-## 移动端断点策略
-
-- `sm`（640px）：导航折叠为 hamburger
-- `md`（768px）：报名表单单列 → 双列；队长投票表格 → 卡片列表；选秀网格 → 手风琴
-- `lg`（1024px）：选秀直播间 4 列队伍网格；首页 Hero 两栏布局
-- 全站最小宽度：320px
-
----
-
-## 设计 Tokens
-
-> 所有 token 在 `src/app/globals.css` 的 `@theme` 块中定义，Tailwind v4 自动将 `--color-*` 映射为 class（如 `text-[var(--color-accent)]`）。
-
----
-
-### 色板
-
-#### 背景（三层）
-
-| Token | 值 | 用途 |
-|---|---|---|
-| `--color-bg` | `#0a0c10` | 页面底色（body 背景） |
-| `--color-panel` | `#10131a` | 卡片、Panel 默认背景 |
-| `--color-panel-hi` | `#161a24` | 高亮 Panel（hover、当前步骤） |
-| `--color-panel-low` | `#0d1016` | 沉降背景（表头等） |
-
-#### 边框（两层）
-
-| Token | 值 | 用途 |
-|---|---|---|
-| `--color-border` | `#1f2530` | 默认边框 |
-| `--color-border-hi` | `#2c3340` | hover 高亮边框 |
-
-#### 文字（三层）
-
-| Token | 值 | 用途 |
-|---|---|---|
-| `--color-fg` | `#e7ecf3` | 正文、标题 |
-| `--color-fg-mid` | `#8e96a3` | 辅助说明、元信息 |
-| `--color-fg-dim` | `#525a6a` | 占位符、禁用态、标签 |
-
-#### 强调色（Accent A / 团队 A）
-
-| Token | 值 | 用途 |
-|---|---|---|
-| `--color-accent` | `#ff6b1a` | 主 CTA、当前状态、高亮、团队 A primary |
-| `--color-accent-soft` | `rgba(255,107,26,0.12)` | 浅底色背景 |
-| `--color-accent-edge` | `rgba(255,107,26,0.34)` | 边框高亮 |
-| `--color-accent-fg` | `#0a0c10` | accent 背景上的文字色 |
-
-#### 强调色（Accent B / 团队 B）
-
-| Token | 值 | 用途 |
-|---|---|---|
-| `--color-accent-b` | `#3aa1ff` | 团队 B primary、对比实体 |
-| `--color-accent-b-soft` | `rgba(58,161,255,0.12)` | 浅底色背景 |
-| `--color-accent-b-edge` | `rgba(58,161,255,0.34)` | 边框高亮 |
-| `--color-accent-b-fg` | `#0a0c10` | accent-b 背景上的文字色 |
-
-#### 语义色
-
-| Token | 值 | 用途 |
-|---|---|---|
-| `--color-ok` | `#4dd47a` | 成功、完成、胜利 |
-| `--color-warn` | `#ffc44d` | 警告、进行中、待定 |
-| `--color-danger` | `#ff5470` | 错误、禁止、失败 |
-| `--color-info` | `#4a9eff` | 信息型辅助标注（地图标签、决胜图、系统操作） |
-| `--color-info-soft` | `rgba(74,158,255,0.12)` | info 浅底色 |
-| `--color-info-edge` | `rgba(74,158,255,0.34)` | info 边框 |
-
-> `--color-info` 不替换 accent/ok/warn/danger 的语义，仅用于非 CTA 的辅助标注。
-
----
-
-### 字体
-
-#### 字体族
-
-| 字体 | CSS 变量 | 用途 |
-|---|---|---|
-| Geist | `var(--font-geist)` | 英文、数字（主字体） |
-| Noto Sans SC | `var(--font-noto-sans-sc)` | 中文 |
-| JetBrains Mono | `"JetBrains Mono"` | 标签、eyebrow、monospace 数值 |
-
-`--font-sans: var(--font-geist), var(--font-noto-sans-sc), system-ui, sans-serif;`
-
-#### 字间距
-
-| Token | 值 | 用途 |
-|---|---|---|
-| `--tracking-tight-2` | `-0.02em` | 大标题 |
-| `--tracking-tight-1` | `-0.01em` | 中标题 |
-| `--tracking-label` | `0.12em` | mono 标签、表头 |
-| `--tracking-ticker` | `0.08em` | 状态 ticker |
-| `--tracking-eyebrow` | `0.18em` | eyebrow 标签 |
-
----
-
-### 圆角
-
-| Token | 值 | 用途 |
-|---|---|---|
-| `--radius` | `3px` | 全局标准圆角（卡片、输入框） |
-| `--radius-sm` | `0px` | 无圆角（标签 pill） |
-| `--radius-md` | `2px` | 小元素 |
-| `--radius-lg` | `3px` | 卡片、Panel |
-
----
-
-### 网格背景
-
-页面底层有 32×32px 格线纹理：
-
-```css
-background-image: linear-gradient(rgba(31,37,48,0.4) 1px, transparent 1px),
-                  linear-gradient(90deg, rgba(31,37,48,0.4) 1px, transparent 1px);
-background-size: 32px 32px;
-```
-
----
-
-### Avoid 列表
-
-以下风格**禁止**使用：
-- 霓虹发光效果（`text-shadow: 0 0 10px ...`）
-- 渐变 Logo / 渐变标题文字（`bg-gradient-to-r` on text）
-- 表情符号（emoji）出现在 UI 组件中
-- 白色背景页面（全站深色基底）
-- 圆角 > 3px（除特殊情况外，勿用 `rounded-md` 以上）
-- 高饱和度色块大面积背景
+组件文件与页面快照会随产品演进；本文件维护系统性原则，而不是逐页面按钮清单。

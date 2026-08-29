@@ -1,145 +1,71 @@
-# 整体架构
+# RivalHub 技术架构
 
-## 模块依赖图
+## System shape
 
-```
+RivalHub 使用 Next.js App Router。页面以 Server Components 为主；受控写入通过 Server Actions；Cron 使用 API Route；Drizzle 访问 Postgres；Supabase 提供 Auth、Storage 与受限 Realtime；iron-session 承载应用会话。
+
+```text
 Browser
-  ↕ HTTP (RSC / Server Action / API Route)
-Next.js App Router (Vercel Edge / Node.js)
-  ├── Server Components (数据读取)
-  │     └── src/db/client (Drizzle → Supabase Postgres)
-  ├── Server Actions (数据写入)
-  │     ├── src/db/client
-  │     └── src/lib/auth/session (iron-session)
-  ├── API Route (Cron only)
-  │     ├── /api/cron/draft-timeout
-  │     ├── /api/cron/check-registration-deadline
-  │     └── /api/cron/match-time-auto-award
-  └── Client Components ("use client")
-        └── Supabase Realtime (ws)
-              └── Supabase Postgres (LISTEN/NOTIFY)
+  └─ Next.js App Router
+       ├─ Server Components ── Drizzle ── Postgres
+       ├─ Server Actions ──── Drizzle / Supabase Auth / Storage
+       ├─ Cron API Routes ── CRON_SECRET
+       └─ Client islands ─── Supabase Realtime (approved tables only)
 ```
 
-## 层次说明
+页面负责路由、读取和呈现；复杂事务、资格判断、赛制和恢复逻辑位于 `src/actions/` 与 `src/lib/`。业务写入不得由页面、客户端组件或普通 API Route 旁路完成。所有管理操作写入 `audit_logs`。
 
-### App Router 页面层（`src/app/`）
+## Built-in competition systems
 
-- **Server Components（默认）**：直接 `await db.query(...)` 读取数据，无需 `useEffect`。
-- **Client Components**：仅用于：
-  - Supabase Realtime 订阅（选秀、投票实时更新）
-  - React Hook Form 表单
-  - 倒计时组件
-  - Toast / Dialog 等需要客户端状态的 UI
+Rivals 与 Major 是当前两个平行的内置赛事体系。
 
-路由前缀：
-- `/[seasonSlug]/...` — 公开赛季页面（无需登录）
-- `/login` — 邮箱+密码登录 / 注册页（生产关闭邮件确认，不依赖 Magic Link）
-- `/settings/password` — 用户修改密码（需登录）
-- `/invite` — 邀请码提权页（需已登录，URL 接收 `?code=xxx`）
-- `/auth/callback` — Supabase Auth 回调兼容入口（生产主链路不依赖）
-- `/admin/[seasonSlug]/...` — 管理员后台（`rivalhub-session` 或 `rivalhub-admin` 保护）
-- `/admin/login` — Root 紧急登录（用户名+密码）
-- `/api/cron/...` — Cron endpoint（当前由 GitHub Actions 触发，CRON_SECRET 验证）
+| 体系 | 参与方式 | 运行时 |
+|---|---|---|
+| Rivals · Spring | 个人报名 → 审核 → 队长投票 → 蛇形选秀 | 循环赛与双败淘汰赛，选秀状态由事务与幂等请求保护 |
+| Major · Autumn | 队伍报名 → 成员确认 → 审核/物化 → 赛前冻结 | Major-owned 三段 Swiss、淘汰赛、赛果恢复、纪律与赛后处理 |
 
-### Server Actions 层（`src/actions/`）
+Major 的正式运行时由 `src/lib/major/` 与 `major_*` persistence owners 管理。其 canonical 参赛事实是 `major_stage_entrants` 与已完成比赛；`swiss_standings` 或 UI projection 不是最终真相。启动、回合结算、恢复与幂等边界都显式绑定 `stageRunId`。
 
-**所有业务写逻辑的唯一入口**。每个 action 必须：
-1. 校验输入（Zod）
-2. 检查权限（admin action 调用 `requireAdmin()`）
-3. 执行数据库事务
-4. 写 audit_log（admin 操作）
-5. 返回结构化错误（而非抛出异常给客户端）
+## Competition extension contract
 
-具体文件清单请使用 CodeGraph（`codegraph_files src/actions/`）导航，避免本文档与代码不一致。
+赛季使用 capability-driven 设计。`seasons.kind` 是展示/历史标签，业务功能必须从 `registrationMode`、`hasCaptainVoting`、`hasDraft`、`stagePlan`、报名配置、队伍配置和 affiliation rules 推导。
 
-### DB 层（`src/db/`）
+`src/types/season.ts` 定义通用 extension contract：
 
-- `schema/` — Drizzle 表定义，18 张表（含 `admin_users` + `admin_invites` + `match_player_stats` + `registration_drafts`），严格 `season_id` 外键
-- `client.ts` — Drizzle + pg Pool 单例（IPv4），通过 `DATABASE_URL` 连接 Supabase
-- `seed.ts` — 种子数据（示例赛季 + 根管理员 RivalHub_root）
+- `StageConfig` / `StagePlan`：阶段声明。
+- `StageExecutor`：`initialize`、`getQualifiers`、`isComplete` 与可选 `advanceRound`。
+- `src/lib/formats/` executor registry：将通用阶段类型路由至执行器。
 
-### Lib 层（`src/lib/`）
+这是继续支持未来赛事形态的接口，不表示每一种 `StageType` 都已作为当前产品能力完整运营。当前 Major Swiss 由 Major managed runtime ownership；当前内置赛事的产品承诺以本文件的两个体系和测试覆盖为准。
 
-业务规则、查询辅助、赛制执行器、第三方适配层、工具函数。复杂逻辑优先从页面/action 下沉到这里。
+## Match lifecycle and recovery
 
-- `auth/session.ts` — 双 Cookie iron-session：`rivalhub-session`（所有用户）+ `rivalhub-admin`（root 紧急）；`requireAdmin` / `requireSuperAdmin` / `requireSeasonAdmin` / `requireAuth`
-- `auth/supabase.ts` — Supabase client（Server Action 调用 Auth；浏览器端用于 Realtime）
-- `formats/` — StageExecutor 接口 + 赛制执行器（round-robin / double-elim / single-elim / swiss 预留）；注册表 `index.ts` 按 `StageType` 分发
-- `bracket/` — `brackets-manager` 适配层（见下方 Bracket 适配层说明）
-- `validators/` — Zod schema（中文错误消息）
-- `utils/` — UTC 转换、season capability 判断、Tailwind class merge 等
+比赛、地图、BP、阵容、时间协商和结果由各自 schema/action owner 维护。Major match 带有 managed ownership 与 `stageRunId` 归属，结果结算推进同一 StageRun 的完整事实。更正必须遵守已冻结的规则和后续阶段边界；当恢复会改变后续配对时，使用 Major recovery 逻辑而不是直接改 projection。
 
-其他模块请使用 CodeGraph（`codegraph_files src/lib/`）导航。
+纪律与赛后领域保持独立：sanction、adjudication、placement 与 honor 不相互暗示结果。无季军赛时保留 3–4 placement group；最终结果先进入 `pending_confirmation`，确认后才形成可归档的历史事实。
 
-## 数据流：报名写入
+## Security and operational boundaries
 
-```
-用户填写表单（含 NJUBox 截图分享链接）
-  → React Hook Form 校验（客户端 Zod）
-  → submitRegistration Server Action
-    → Zod 服务端二次校验
-    → Upsert users（按 email）
-    → 检查重复报名（UNIQUE user+season）
-    → 检查位置满员（COUNT GROUP BY）
-    → DB: INSERT season_registrations
-  → 页面展示"报名成功"；选手通过 /login 使用邮箱+密码登录
-```
+- Supabase Auth 管理邮箱账号；应用会话与角色由 `public.users` + `rivalhub-session` 管理。
+- `admin_users` + `rivalhub-admin` 是 legacy emergency compatibility path。
+- Data API 对业务表默认拒绝；Server-only DB 是业务读写 owner。新增 direct Supabase client 或 Realtime table 时，同一变更必须包含 explicit grant、RLS policy 与正反例测试。
+- Realtime 仅服务于 `draft_state`、`draft_picks` 和 `captain_votes`，且在数据库事务 commit 后发送。
+- active Drizzle migrations 是唯一 migration authority；`pnpm db:push` 被阻止。
+- Local、staging、production 是独立边界，详细执行方式见 [`deployment.md`](./deployment.md)。
 
-## 数据流：选秀 pick（并发安全）
+## Stable code-area map
 
-```
-队长点击"选择"按钮
-  → pickPlayer(teamId, registrationId, clientRequestId)
-    → Zod 校验
-    → requireAdmin() / 验证 teamId 属于当前队长
-    → BEGIN TRANSACTION
-      → SELECT draftState WHERE seasonId FOR UPDATE  ← 行锁
-      → 验证当前轮次是该队
-      → 检查 clientRequestId 幂等（查 draft_picks）
-      → 检查同位置 ≤ 2 人约束
-      → INSERT draft_picks
-      → UPDATE draftState (nextTeam / nextRound)
-    → COMMIT
-  → Supabase Realtime 广播 → 所有订阅客户端更新
-```
-
-## Server Action vs API Route 边界
-
-| 操作 | 入口 |
+| 领域 | Canonical code area |
 |---|---|
-| 所有业务写操作 | Server Action |
-| Cron 触发（HTTP GET 无 body） | API Route |
-| Supabase Webhook（未来） | API Route |
-| 其他一切 | 禁止新增 API Route |
+| Auth / session / owner bootstrap | `src/lib/auth/`, `src/actions/auth.ts`, `src/app/auth/` |
+| Season capabilities / templates | `src/types/season.ts`, `src/actions/seasons.ts`, `src/db/schema/seasons.ts` |
+| Identity / education / competitive profile | `src/actions/account.ts`, `src/actions/education-verifications.ts`, `src/actions/competitive-profile.ts`, matching schema files |
+| Rivals registration / voting / draft | `src/actions/register.ts`, `src/actions/captains.ts`, `src/actions/draft/`, `src/lib/draft/` |
+| Team applications | `src/actions/team-applications.ts`, `src/lib/major/participant-readiness.ts`, `src/db/schema/team-applications.ts` |
+| Major prestart and runtime | `src/actions/major-prestart.ts`, `src/lib/major/`, `src/db/schema/major-prestart.ts`, `src/db/schema/major-stage.ts` |
+| Matches / rosters / results | `src/actions/matches/`, `src/lib/matches/`, `src/db/schema/matches.ts`, `src/db/schema/match-rosters.ts` |
+| Discipline / post-event | `src/actions/discipline.ts`, `src/actions/postevent.ts`, `src/lib/discipline/`, matching schema files |
+| Schema / active migrations | `src/db/schema/`, `drizzle/migrations/` |
+| CI / Cron | `.github/workflows/`, `src/app/api/cron/` |
 
-当前仅 3 个 Cron API Route：`draft-timeout`、`check-registration-deadline`、`match-time-auto-award`。`online-count` 已迁移为 Server Action。
-
-## Bracket 适配层
-
-所有 `brackets-manager` 调用必须经过 `src/lib/bracket/index.ts`，禁止在业务代码中直接 import 第三方库：
-
-```
-src/lib/bracket/index.ts
-  ├── generateBracket()   → brackets-manager create
-  ├── advanceMatch()      → brackets-manager update.match
-  └── serializeBracket()  → brackets-viewer 数据格式
-```
-
-原因：`brackets-manager` 维护活跃度有限，换库时只需修改适配层，不影响业务代码。
-
-## Realtime 订阅范围
-
-**Realtime 是高成本能力，不是默认能力。** 订阅范围严格限定如下：
-
-| 表 | 订阅方 | 触发场景 | 是否必须 |
-|---|---|---|---|
-| `draft_state` | 选秀围观页 + 队长面板 | 轮次 / 倒计时推进 | 必须 |
-| `draft_picks` | 选秀围观页 | 新 pick 动画 | 必须 |
-| `captain_votes` | 投票页面 | 实时票数（也可轮询替代） | 可选 |
-
-**明确不使用 Realtime 的表**（用 RSC 刷新或轮询）：
-`season_registrations`、`teams`、`team_members`、`matches`、`users`、`audit_logs`
-
-**位置满员检测**：不使用 Realtime 订阅 `season_registrations`，改用提交报名时的服务端 COUNT 校验 + 页面加载时静态展示（位置满员时刷新后即显示，不需要推送）。
-
-**禁止** `supabase.channel("*")` 或订阅上述列表以外的表。
+用 repository search 或 IDE 定位具体文件；本映射只维护稳定的 domain boundary。
