@@ -133,10 +133,10 @@ export function assertUniqueStageKeys(stagePlan: StagePlan): void {
 /**
  * Built-in draft seasons re-canonicalize their fixed semantics from the
  * template factory on every save, so tampered stage plans / capability inputs
- * can never redefine a draft Major or Rivals. Administrators overlay only the
- * editable surface (team size, positions, map pool and general metadata).
- * Custom drafts keep their own input — the persisted template identity is not
- * re-inferred from shape.
+ * can never redefine a draft Major or Rivals — including the fixed team
+ * roster (Major 5–9/5, Rivals 7/7/5). Administrators overlay only positions,
+ * map pool and general metadata. Custom drafts keep their own input — the
+ * persisted template identity is not re-inferred from shape.
  */
 export function resolveCompetitionDefinition(data: z.infer<typeof seasonFormSchema>, applyTemplate: boolean): Omit<typeof data, "template"> {
   const { template, ...input } = data;
@@ -151,9 +151,9 @@ export function resolveCompetitionDefinition(data: z.infer<typeof seasonFormSche
     stagePlan: builtIn.stagePlan,
     teamRegistrationConfig: builtIn.teamRegistrationConfig,
     affiliationRules: builtIn.affiliationRules,
-    minTeamSize: input.minTeamSize,
-    maxTeamSize: input.maxTeamSize,
-    starterCount: input.starterCount,
+    minTeamSize: builtIn.minTeamSize,
+    maxTeamSize: builtIn.maxTeamSize,
+    starterCount: builtIn.starterCount,
     positions: input.positions,
     registrationConfig: {
       ...builtIn.registrationConfig,

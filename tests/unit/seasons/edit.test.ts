@@ -75,6 +75,35 @@ describe("planSeasonUpdate template identity", () => {
     expect(set.hasDraft).toBe(false);
   });
 
+  it("a draft Major save canonicalizes tampered team size back to the fixed 5/9/5", () => {
+    const parsed = parseInput({ minTeamSize: 6, maxTeamSize: 10, starterCount: 6 });
+    const { set } = planSeasonUpdate(seasonRow(), parsed);
+    expect(set.minTeamSize).toBe(5);
+    expect(set.maxTeamSize).toBe(9);
+    expect(set.starterCount).toBe(5);
+  });
+
+  it("a draft Rivals save canonicalizes tampered team size back to the fixed 7/7/5", () => {
+    const row = seasonRow({ competitionTemplate: "rivals", status: "draft" });
+    const parsed = seasonFormSchema.parse({
+      ...input({
+        template: "rivals",
+        kind: "Rivals",
+        registrationMode: "solo",
+        hasCaptainVoting: true,
+        hasDraft: true,
+        minTeamSize: 5,
+        maxTeamSize: 9,
+        starterCount: 6,
+        stagePlan: RIVALS_TEMPLATE.stagePlan,
+      }),
+    });
+    const { set } = planSeasonUpdate(row, parsed);
+    expect(set.minTeamSize).toBe(7);
+    expect(set.maxTeamSize).toBe(7);
+    expect(set.starterCount).toBe(5);
+  });
+
   it("a draft custom season shaped exactly like Rivals stays custom with its own input", () => {
     const row = seasonRow({ competitionTemplate: "custom", status: "draft" });
     const parsed = seasonFormSchema.parse({

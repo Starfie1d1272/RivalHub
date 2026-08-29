@@ -105,14 +105,15 @@ describe("resolveCompetitionDefinition (draft canonicalization)", () => {
     expect(data.kind).toBe("Major");
   });
 
-  it("a draft Rivals save keeps canonical fixed rules while overlaying team size, positions and map pool", () => {
+  it("a draft Rivals save keeps canonical fixed rules (7/7/5) while overlaying positions and map pool", () => {
     const rivals = createRivalsTemplate();
     const input = formInput({
       template: "rivals",
       registrationMode: "team",
       hasDraft: false,
-      minTeamSize: 6,
-      maxTeamSize: 8,
+      minTeamSize: 5,
+      maxTeamSize: 9,
+      starterCount: 6,
       positions: ["igl", "awper", "opener", "closer", "anchor", "sub"],
       registrationConfig: { ...formInput().registrationConfig, mapPool: ["de_mirage", "de_inferno", "de_nuke", "de_ancient"] },
     });
@@ -120,8 +121,9 @@ describe("resolveCompetitionDefinition (draft canonicalization)", () => {
     expect(data.registrationMode).toBe("solo");
     expect(data.hasDraft).toBe(true);
     expect(data.stagePlan).toEqual(rivals.stagePlan);
-    expect(data.minTeamSize).toBe(6);
-    expect(data.maxTeamSize).toBe(8);
+    expect(data.minTeamSize).toBe(7);
+    expect(data.maxTeamSize).toBe(7);
+    expect(data.starterCount).toBe(5);
     expect(data.positions).toHaveLength(6);
     expect(data.registrationConfig.mapPool).toEqual(["de_mirage", "de_inferno", "de_nuke", "de_ancient"]);
   });
