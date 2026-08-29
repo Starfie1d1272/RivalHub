@@ -209,6 +209,42 @@ export async function requireSeasonAdmin(seasonId: string): Promise<UserSession>
   throw new AppError(ErrorCode.UNAUTHORIZED, ERROR_MESSAGES.UNAUTHORIZED);
 }
 
+export interface ActorIdentity {
+  /** Participant user id; for a Root session this is the emergency admin id. */
+  userId: string;
+  /** Audit attribution: participant id or `root:<id>`. */
+  actorId: string;
+  /** True only for emergency Root sessions (`rivalhub-admin`); such actors can never be a team captain and always act via admin override. */
+  isRootAdmin: boolean;
+}
+
+/**
+ * Resolves a participant session or an emergency Root session as a mutation
+ * actor. `requireAuth` only accepts `rivalhub-session`, so Root must go
+ * through this resolver when an action allows admin override (e.g. captain
+ * transfer); Root never compares as a captain and always lands in the
+ * requireSeasonAdmin override path.
+ */
+export async function requireActorWithRootFallback(): Promise<ActorIdentity> {
+  const userSession = await getUserSession();
+  if (userSession) {
+    return { userId: userSession.userId, actorId: auditActorId(userSession), isRootAdmin: userSession.authSource === "root" };
+  }
+
+  const adminSession = await getAdminSession();
+  if (
+    adminSession.isAdmin &&
+    adminSession.adminId &&
+    adminSession.adminUsername &&
+    adminSession.adminRole === "super_admin"
+  ) {
+    const mapped = rootToUserSession(adminSession as AuthenticatedAdmin);
+    return { userId: mapped.userId, actorId: auditActorId(mapped), isRootAdmin: true };
+  }
+
+  throw new AppError(ErrorCode.UNAUTHORIZED, ERROR_MESSAGES.UNAUTHORIZED);
+}
+
 /** Server Component 用：检查是否有管理员权限，无则返回 null（调用方自行 redirect）*/
 export async function checkAdminSession(): Promise<UserSession | null> {
   try {

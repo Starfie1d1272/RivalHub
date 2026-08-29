@@ -1,12 +1,12 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db/client";
 import { auditLogs, seasons, teams } from "@/db/schema";
 import { actionError, failValidation } from "@/lib/action-utils";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { auditActorId, requireAuth, requireSeasonAdmin } from "@/lib/auth/session";
+import { auditActorId, requireActorWithRootFallback, requireAuth, requireSeasonAdmin } from "@/lib/auth/session";
 import { createServiceClient } from "@/lib/auth/supabase";
 import { revalidateSeasonPaths } from "@/lib/revalidation";
 import { transferFormalTeamCaptainInTransaction } from "@/lib/teams/captain-transfer";
@@ -57,9 +57,17 @@ export async function uploadTeamLogo(
     const logoUrl = urlData.publicUrl;
 
     await db.transaction(async (tx) => {
+      // Storage upload may complete before this gate; the DB write itself must
+      // only ever come from the locked current captain.
+      await tx.execute(sql`SELECT id FROM teams WHERE id = ${teamId} FOR UPDATE`);
+      const locked = await tx.query.teams.findFirst({ where: eq(teams.id, teamId) });
+      if (!locked) throw new AppError(ErrorCode.NOT_FOUND, "队伍不存在");
+      if (locked.captainUserId !== session.userId) {
+        throw new AppError(ErrorCode.FORBIDDEN, "只有队长可以上传队伍图标");
+      }
       await tx.update(teams).set({ logoUrl }).where(eq(teams.id, teamId));
       await tx.insert(auditLogs).values({
-        seasonId: team.seasonId,
+        seasonId: locked.seasonId,
         action: "team.upload_logo",
         actorId: auditActorId(session),
         targetId: teamId,
@@ -89,6 +97,8 @@ export async function updateTeamName(
   try {
     const session = await requireAuth();
     const result = await db.transaction(async (tx) => {
+      // Captain is mutable: decide authority against the locked row.
+      await tx.execute(sql`SELECT id FROM teams WHERE id = ${teamId} FOR UPDATE`);
       const team = await tx.query.teams.findFirst({
         where: eq(teams.id, teamId),
       });
@@ -142,11 +152,13 @@ export async function updateTeamName(
 export async function transferTeamCaptain(input: { teamId: string; toUserId: string }): Promise<ActionResult<void>> {
   if (!input || !/^[0-9a-f-]{36}$/i.test(input.teamId) || !/^[0-9a-f-]{36}$/i.test(input.toUserId)) return failValidation("队长交接信息无效。");
   try {
-    const session = await requireAuth();
+    // Root emergency sessions cannot pass requireAuth; resolve the actor with
+    // the admin-session fallback so Root lands in the override path.
+    const actor = await requireActorWithRootFallback();
     const result = await db.transaction((tx) => transferFormalTeamCaptainInTransaction(tx, {
       teamId: input.teamId,
       toUserId: input.toUserId,
-      actorUserId: auditActorId(session),
+      actorUserId: actor.actorId,
       assertSeasonAdmin: (seasonId) => requireSeasonAdmin(seasonId).then(() => undefined),
     }));
     revalidateSeasonPaths(result.seasonSlug, ["teams", "draft", "draftCaptain"]);

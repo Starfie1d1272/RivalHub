@@ -104,6 +104,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
   );
 
   const coreLocked = mode === "edit" && initial?.status !== "draft";
+  const isBuiltIn = template !== "custom";
   const title = mode === "create" ? "新建赛季" : "赛季设置";
 
   const fieldHelp = coreLocked
@@ -391,7 +392,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label>报名模式</Label>
-              <Select value={registrationMode} onValueChange={(v) => handleRegistrationModeChange(v as "solo" | "team")}>
+              <Select value={registrationMode} disabled={isBuiltIn} onValueChange={(v) => handleRegistrationModeChange(v as "solo" | "team")}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="solo">个人报名</SelectItem>
@@ -400,19 +401,29 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
               </Select>
             </div>
             <PositionEditor value={positions} onChange={setPositions} />
-            <div><Label htmlFor="max-team-size">每队人数上限</Label><Input id="max-team-size" type="number" min={1} value={maxTeamSize} onChange={(e) => setMaxTeamSize(Number(e.target.value))} /></div>
-            <div><Label htmlFor="min-team-size">每队人数下限</Label><Input id="min-team-size" type="number" min={1} value={minTeamSize} onChange={(e) => setMinTeamSize(Number(e.target.value))} /></div>
-            <div><Label htmlFor="starter-count">首发人数</Label><Input id="starter-count" type="number" min={1} value={starterCount} onChange={(e) => setStarterCount(Number(e.target.value))} /></div>
+            <div><Label htmlFor="max-team-size">每队人数上限</Label><Input id="max-team-size" type="number" min={1} value={maxTeamSize} disabled={isBuiltIn} onChange={(e) => setMaxTeamSize(Number(e.target.value))} /></div>
+            <div><Label htmlFor="min-team-size">每队人数下限</Label><Input id="min-team-size" type="number" min={1} value={minTeamSize} disabled={isBuiltIn} onChange={(e) => setMinTeamSize(Number(e.target.value))} /></div>
+            <div><Label htmlFor="starter-count">首发人数</Label><Input id="starter-count" type="number" min={1} value={starterCount} disabled={isBuiltIn} onChange={(e) => setStarterCount(Number(e.target.value))} /></div>
           </div>
+          {isBuiltIn && registrationMode === "team" && (
+            <p className="text-xs text-[var(--color-fg-dim)]">内置赛事体系的报名模式、队伍规模与首发人数由标准规则固定。</p>
+          )}
           {registrationMode === "solo" && (
             <div className="flex flex-wrap gap-4 text-sm">
-              <label className="flex items-center gap-2"><input type="checkbox" checked={hasCaptainVoting} onChange={(e) => setHasCaptainVoting(e.target.checked)} />队长投票</label>
-              <label className="flex items-center gap-2"><input type="checkbox" checked={hasDraft} onChange={(e) => setHasDraft(e.target.checked)} />蛇形选秀</label>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={hasCaptainVoting} disabled={isBuiltIn} onChange={(e) => setHasCaptainVoting(e.target.checked)} />队长投票</label>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={hasDraft} disabled={isBuiltIn} onChange={(e) => setHasDraft(e.target.checked)} />蛇形选秀</label>
             </div>
           )}
         </section>
 
-        {registrationMode === "solo" && (
+        {registrationMode === "solo" && isBuiltIn && (
+          <section className="space-y-4">
+            <h2 className="font-semibold">比赛图池</h2>
+            <MapPoolEditor value={mapPool} onChange={setMapPool} />
+          </section>
+        )}
+
+        {registrationMode === "solo" && !isBuiltIn && (
           <section className="space-y-4">
             <h2 className="font-semibold">报名配置</h2>
             <div className="flex flex-wrap gap-4 text-sm">
@@ -509,7 +520,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label>报名模式</Label>
-            <Select value={registrationMode} disabled={coreLocked} onValueChange={(v) => handleRegistrationModeChange(v as "solo" | "team")}>
+            <Select value={registrationMode} disabled={coreLocked || isBuiltIn} onValueChange={(v) => handleRegistrationModeChange(v as "solo" | "team")}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="solo">个人报名</SelectItem>
@@ -518,21 +529,30 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
             </Select>
           </div>
           <PositionEditor value={positions} disabled={coreLocked} onChange={setPositions} />
-          <div><Label htmlFor="max-team-size">每队人数上限</Label><Input id="max-team-size" type="number" min={1} value={maxTeamSize} disabled={coreLocked} onChange={(e) => setMaxTeamSize(Number(e.target.value))} /></div>
-          <div><Label htmlFor="min-team-size">每队人数下限</Label><Input id="min-team-size" type="number" min={1} value={minTeamSize} disabled={coreLocked} onChange={(e) => setMinTeamSize(Number(e.target.value))} /></div>
-          <div><Label htmlFor="starter-count">首发人数</Label><Input id="starter-count" type="number" min={1} value={starterCount} disabled={coreLocked} onChange={(e) => setStarterCount(Number(e.target.value))} /></div>
+          <div><Label htmlFor="max-team-size">每队人数上限</Label><Input id="max-team-size" type="number" min={1} value={maxTeamSize} disabled={coreLocked || isBuiltIn} onChange={(e) => setMaxTeamSize(Number(e.target.value))} /></div>
+          <div><Label htmlFor="min-team-size">每队人数下限</Label><Input id="min-team-size" type="number" min={1} value={minTeamSize} disabled={coreLocked || isBuiltIn} onChange={(e) => setMinTeamSize(Number(e.target.value))} /></div>
+          <div><Label htmlFor="starter-count">首发人数</Label><Input id="starter-count" type="number" min={1} value={starterCount} disabled={coreLocked || isBuiltIn} onChange={(e) => setStarterCount(Number(e.target.value))} /></div>
         </div>
+        {isBuiltIn && registrationMode === "team" && (
+          <p className="text-xs text-[var(--color-fg-dim)] mt-4">内置赛事体系的报名模式、队伍规模与首发人数由标准规则固定。</p>
+        )}
         {registrationMode === "solo" && (
           <div className="flex flex-wrap gap-4 text-sm mt-4">
-            <label className="flex items-center gap-2"><input type="checkbox" checked={hasCaptainVoting} disabled={coreLocked} onChange={(e) => setHasCaptainVoting(e.target.checked)} />队长投票</label>
-            <label className="flex items-center gap-2"><input type="checkbox" checked={hasDraft} disabled={coreLocked} onChange={(e) => setHasDraft(e.target.checked)} />蛇形选秀</label>
+            <label className="flex items-center gap-2"><input type="checkbox" checked={hasCaptainVoting} disabled={coreLocked || isBuiltIn} onChange={(e) => setHasCaptainVoting(e.target.checked)} />队长投票</label>
+            <label className="flex items-center gap-2"><input type="checkbox" checked={hasDraft} disabled={coreLocked || isBuiltIn} onChange={(e) => setHasDraft(e.target.checked)} />蛇形选秀</label>
           </div>
         )}
         <SaveBtn />
       </Panel>
 
-      {/* Panel 4: 报名规则 (solo) / 队伍报名配置 (team) */}
-      {registrationMode === "solo" && (
+      {/* Panel 4: 比赛图池 (built-in solo) / 报名规则 (custom solo) / 队伍报名配置 (custom team) */}
+      {registrationMode === "solo" && isBuiltIn && (
+        <Panel label="比赛图池" pad={20}>
+          <MapPoolEditor value={mapPool} disabled={coreLocked} onChange={setMapPool} />
+          <SaveBtn />
+        </Panel>
+      )}
+      {registrationMode === "solo" && !isBuiltIn && (
         <Panel label="报名规则" pad={20}>
           <div className="flex flex-wrap gap-4 text-sm mb-4">
             {PLAYER_TYPES.map((type) => (

@@ -69,6 +69,7 @@ vi.mock("next/cache", () => ({
 
 vi.mock("@/db/client", () => {
   const tx = {
+    execute: vi.fn().mockResolvedValue(undefined),
     query: {
       teams: { findFirst: txTeamFindFirstMock },
       seasons: { findFirst: txSeasonFindFirstMock },
@@ -232,6 +233,7 @@ describe("uploadTeamLogo", () => {
   it("success → ok + audit", async () => {
     setupOutsideTxTeam();
     setupOutsideTxSeason();
+    setupTxTeam();
     setupSupabaseSuccess();
 
     const fd = new FormData();
@@ -257,6 +259,7 @@ describe("uploadTeamLogo", () => {
   it("season has bracketData → logo upload unaffected", async () => {
     setupOutsideTxTeam();
     setupOutsideTxSeason({ bracketData: { participant: [], stage: [] } });
+    setupTxTeam();
     setupSupabaseSuccess();
 
     const fd = new FormData();

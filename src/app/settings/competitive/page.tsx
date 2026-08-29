@@ -13,7 +13,10 @@ export default async function CompetitiveProfileSettingsPage() {
     db.select().from(competitiveRankFacts).where(eq(competitiveRankFacts.userId, session.userId)),
   ]);
   const contexts: CompetitiveSeasonContext[] = [...new Set(catalog.map((item) => item.platform))].flatMap((platform) => {
-    const entries = catalog.filter((item) => item.platform === platform && item.active);
+    // `active` only gates new publish contexts; a participant's long-term
+    // profile may maintain any catalogued season, including inactive ones a
+    // published event froze into its qualification context.
+    const entries = catalog.filter((item) => item.platform === platform);
     const current = entries.find((item) => item.isCurrent);
     if (!current) return [];
     const previous = [...entries].filter((item) => item.sortOrder < current.sortOrder).sort((a, b) => b.sortOrder - a.sortOrder)[0] ?? null;

@@ -27,7 +27,7 @@ export function TeamCaptainTransfer({ teamId, captainUserId, members }: TeamCapt
             variant="outline"
             disabled={isPending}
             onClick={() => {
-              if (!confirm(`确认将队长移交给 ${member.label}？移交后你将失去队长管理权限。`)) return;
+              if (!confirm(`确认将队长移交给 ${member.label}？原队长将保留普通队员身份，新队长将获得队伍管理权限。`)) return;
               startTransition(async () => {
                 const result = await transferTeamCaptain({ teamId, toUserId: member.userId });
                 if (result.success) toast.success(`已将队长交接给 ${member.label}`);

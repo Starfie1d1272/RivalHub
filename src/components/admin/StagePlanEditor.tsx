@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/select";
 import {
   STAGE_TYPE_LABELS,
-  MAJOR_STAGE_PLAN,
   RIVALS_STAGE_PLAN,
   type StageConfig,
   type StagePlan,
@@ -67,14 +66,13 @@ export function StagePlanEditor({ value, onChange }: StagePlanEditorProps) {
     onChange(value.filter((_, i) => i !== index));
   }
 
-  function applyPreset(preset: "major" | "rivals" | "clear") {
+  function applyPreset(preset: "rivals" | "clear") {
     if (preset === "clear") {
       onChange([]);
       return;
     }
     if (!confirm("当前赛制配置将被覆盖，是否继续？")) return;
-    const plan = preset === "major" ? MAJOR_STAGE_PLAN : RIVALS_STAGE_PLAN;
-    onChange(structuredClone(plan));
+    onChange(structuredClone(RIVALS_STAGE_PLAN));
   }
 
   return (
@@ -230,10 +228,9 @@ export function StagePlanEditor({ value, onChange }: StagePlanEditorProps) {
         <Button type="button" variant="outline" size="sm" onClick={addStage}>
           添加阶段
         </Button>
-        <Select onValueChange={(v) => v !== "__none__" && applyPreset(v as "major" | "rivals" | "clear")}>
+        <Select onValueChange={(v) => v !== "__none__" && applyPreset(v as "rivals" | "clear")}>
           <SelectTrigger className="w-44"><SelectValue placeholder="预设赛制..." /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="major">Major 32队</SelectItem>
             <SelectItem value="rivals">Rivals 8队</SelectItem>
             <SelectItem value="clear">空赛制</SelectItem>
             <SelectItem value="__none__">自定义</SelectItem>

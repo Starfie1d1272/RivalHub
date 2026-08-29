@@ -389,6 +389,7 @@ export interface StandardMajorRuleCheck {
     | "registration-mode"
     | "captain-voting"
     | "draft"
+    | "team-size"
     | "stage-count"
     | "stage-order"
     | "swiss-match-format"
@@ -459,6 +460,11 @@ export function checkStandardMajorCapabilities(
       key: "draft",
       passed: capabilities.hasDraft === false,
       reason: "标准 Major 不启用蛇形选秀。",
+    },
+    {
+      key: "team-size",
+      passed: capabilities.minTeamSize === 5 && capabilities.maxTeamSize === 9 && capabilities.starterCount === 5,
+      reason: "标准 Major 固定正式名单 5–9 人、每队出场 5 人；报名提交与最终名单都按此执行。",
     },
     {
       key: "stage-count",

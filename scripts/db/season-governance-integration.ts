@@ -55,10 +55,90 @@ async function main(): Promise<void> {
     await exerciseCompetitiveFreezeLifecycle(pool);
     await exerciseEmptySeasonGuards(pool);
     await exerciseCaptainTransfer(pool);
-    console.log("Season Governance local integration passed: competitive freeze lifecycle, empty-season guards, and captain transfer concurrency semantics.");
+    await exerciseQualificationPlatformIsolation(pool);
+    console.log("Season Governance local integration passed: competitive freeze lifecycle, empty-season guards, captain transfer concurrency semantics, and qualification platform isolation.");
   } finally {
     await pool.end();
   }
+}
+
+
+// ── Qualification platform isolation ────────────────────────────────────────
+
+async function seedFullyReadyUser(pool: Pool, id: string, seq: number): Promise<void> {
+  const email = `gov-qual-${id}@local.test`;
+  await pool.query("DELETE FROM education_verifications WHERE user_id IN (SELECT id FROM users WHERE email = $1)", [email]);
+  await pool.query("DELETE FROM competitive_rank_facts WHERE user_id IN (SELECT id FROM users WHERE email = $1)", [email]);
+  await pool.query("DELETE FROM users WHERE email = $1", [email]);
+  await pool.query(
+    `INSERT INTO users (id, email, display_name, steam64, perfect_id, perfect_name, qq, email_verified_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, now())`,
+    [id, email, "Governance 选手", `76561198${id.replaceAll("-", "").slice(0, 12)}`, `gq-${id}`, `Perfect 选手 ${seq}`, `99000${seq}`],
+  );
+  await pool.query(
+    `INSERT INTO education_verifications (user_id, institution_id, academic_status, evidence_type, status)
+     SELECT $1, i.id, 'enrolled', 'chsi_enrollment_report', 'approved'
+     FROM institutions i WHERE i.moe_institution_code = '4132010284'`,
+    [id],
+  );
+}
+
+async function exerciseQualificationPlatformIsolation(pool: Pool): Promise<void> {
+  const { getParticipantReadinessBatch } = await import("../../src/lib/qualification/service");
+  const platform = `govqual-${randomUUID()}`;
+  const otherPlatform = `govother-${randomUUID()}`;
+  const rankOrder = ["D", "C", "B", "A", "S"];
+
+  // Only a foreign-platform user: if the loader ever leaks facts across
+  // platforms, this participant would incorrectly pass qualification.
+  const foreignOnlyUser = randomUUID();
+  const homeUser = randomUUID();
+  await seedFullyReadyUser(pool, foreignOnlyUser, 1);
+  await seedFullyReadyUser(pool, homeUser, 2);
+
+  await pool.query(
+    `INSERT INTO competitive_platform_seasons (id, platform, season_key, label, rank_order, active, sort_order, is_current)
+     VALUES ($1, $2, 'S20', 'S20', $4::json, true, 0, false),
+            ($3, $2, 'S21', 'S21', $4::json, true, 1, true)`,
+    [randomUUID(), platform, randomUUID(), JSON.stringify(rankOrder)],
+  );
+
+  const foreignFact = (userId: string, kind: "historical_peak" | "season_peak", seasonKey: string | null, rank: string, rating: string) =>
+    pool.query(
+      `INSERT INTO competitive_rank_facts (user_id, platform, kind, platform_season_key, rank, rating)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [userId, otherPlatform, kind, seasonKey, rank, rating],
+    );
+
+  // Same season keys and rank labels as the Perfect World-style context, but
+  // recorded under the foreign platform only.
+  await foreignFact(foreignOnlyUser, "historical_peak", null, "S", "2.60");
+  await foreignFact(foreignOnlyUser, "season_peak", "S20", "A", "2.10");
+  await foreignFact(foreignOnlyUser, "season_peak", "S21", "S", "2.55");
+  await pool.query(
+    `INSERT INTO competitive_rank_facts (user_id, platform, kind, platform_season_key, rank, rating)
+     VALUES ($1, $2, 'historical_peak', NULL, 'S', '2.60'), ($1, $2, 'season_peak', 'S20', 'A', '2.10'), ($1, $2, 'season_peak', 'S21', 'S', '2.55')`,
+    [homeUser, platform],
+  );
+
+  const readiness = await getParticipantReadinessBatch([foreignOnlyUser, homeUser], {
+    platform,
+    currentSeasonKey: "S21",
+    previousSeasonKey: "S20",
+    rankOrder,
+  });
+
+  const foreign = readiness.get(foreignOnlyUser)!;
+  check(foreign.ready === false, `外部平台资料不得满足 ${platform} 资格；实际 ready=${foreign.ready}`);
+  check(foreign.blockers.some((blocker) => blocker.includes("缺少历史最高段位及 Rating")),
+    `外部平台资料缺失时应报缺少历史最高；实际 blockers: ${foreign.blockers.join(" ")}`);
+  const home = readiness.get(homeUser)!;
+  check(home.ready === true, `本平台资料齐全的用户应 ready；实际 blockers: ${home.blockers.join(" ")}`);
+
+  await pool.query("DELETE FROM competitive_rank_facts WHERE user_id = ANY($1::uuid[])", [[foreignOnlyUser, homeUser]]);
+  await pool.query("DELETE FROM education_verifications WHERE user_id = ANY($1::uuid[])", [[foreignOnlyUser, homeUser]]);
+  await pool.query("DELETE FROM users WHERE id = ANY($1::uuid[])", [[foreignOnlyUser, homeUser]]);
+  await pool.query("DELETE FROM competitive_platform_seasons WHERE platform = ANY($1::text[])", [[platform, otherPlatform]]);
 }
 
 // ── Competitive freeze lifecycle ────────────────────────────────────────────

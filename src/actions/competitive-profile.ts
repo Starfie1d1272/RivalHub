@@ -36,7 +36,10 @@ export async function saveCompetitiveProfile(input: unknown): Promise<ActionResu
       throw new AppError(ErrorCode.VALIDATION_FAILED, "平台赛季资料不能重复同一赛季。");
     }
     await db.transaction(async (tx) => {
-      const catalog = await tx.select().from(competitivePlatformSeasons).where(and(eq(competitivePlatformSeasons.platform, platform), eq(competitivePlatformSeasons.active, true)));
+      // `active` only gates new publish contexts; long-term facts may reference
+      // any catalogued season, including inactive historical seasons a
+      // published event froze into its qualification context.
+      const catalog = await tx.select().from(competitivePlatformSeasons).where(eq(competitivePlatformSeasons.platform, platform));
       for (const peak of seasonPeaks) {
         const entry = catalog.find((item) => item.seasonKey === peak.seasonKey);
         if (!entry) throw new AppError(ErrorCode.VALIDATION_FAILED, `平台赛季 ${peak.seasonKey} 不在目录中，不能保存。`);

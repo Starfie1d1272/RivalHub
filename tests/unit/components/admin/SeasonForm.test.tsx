@@ -86,18 +86,12 @@ describe("SeasonForm presets", () => {
     expect(screen.queryByText(/标准 Major 摘要|当前配置已偏离标准 Major/)).not.toBeInTheDocument();
   });
 
-  it("resets the registration total after applying Major then Rivals", async () => {
+  it("resets the registration total after applying Major then Rivals; built-in team size controls are fixed", async () => {
     const user = userEvent.setup();
     render(<SeasonForm mode="create" initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "选秀联赛")} />);
 
-    await user.clear(screen.getByLabelText("每队人数上限"));
-    await user.type(screen.getByLabelText("每队人数上限"), "8");
-    await user.clear(screen.getByLabelText("每队人数下限"));
-    await user.type(screen.getByLabelText("每队人数下限"), "4");
-    await user.clear(screen.getByLabelText("每位置上限"));
-    await user.type(screen.getByLabelText("每位置上限"), "3");
-    await user.clear(screen.getByLabelText("截图链接数量"));
-    await user.type(screen.getByLabelText("截图链接数量"), "2");
+    // Built-in templates fix team size on the server, so the inputs are disabled.
+    expect(screen.getByLabelText("每队人数上限")).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "Major" }));
     await user.click(screen.getByRole("button", { name: "Rivals" }));
     await user.click(screen.getByRole("button", { name: "创建赛季" }));

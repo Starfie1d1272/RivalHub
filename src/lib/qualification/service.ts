@@ -58,18 +58,22 @@ export async function resolveCompetitiveContext(config: CompetitiveProfileConfig
 /** Batched loader for every live fact a qualification decision may need. */
 export async function loadParticipantQualificationFacts(
   userIds: readonly string[],
-  executor: DatabaseExecutor = db,
+  options: { platform?: string; executor?: DatabaseExecutor } = {},
 ): Promise<Map<string, ParticipantQualificationFacts>> {
+  const executor = options.executor ?? db;
   const facts = new Map<string, ParticipantQualificationFacts>();
   if (userIds.length === 0) return facts;
   const ids = [...new Set(userIds)];
+  const rankFactsFilter = options.platform
+    ? and(inArray(competitiveRankFacts.userId, ids), eq(competitiveRankFacts.platform, options.platform))
+    : inArray(competitiveRankFacts.userId, ids);
   const [userRows, verificationRows, rankRows] = await Promise.all([
     executor.select({ id: users.id, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName, email: users.email, emailVerifiedAt: users.emailVerifiedAt, steam64: users.steam64, perfectId: users.perfectId, qq: users.qq })
       .from(users).where(inArray(users.id, ids)),
     executor.select({ userId: educationVerifications.userId, id: educationVerifications.id, status: educationVerifications.status, academicStatus: educationVerifications.academicStatus, institutionCode: institutions.moeInstitutionCode, institutionName: institutions.name, submittedAt: educationVerifications.submittedAt })
       .from(educationVerifications).innerJoin(institutions, eq(educationVerifications.institutionId, institutions.id))
       .where(inArray(educationVerifications.userId, ids)),
-    executor.select().from(competitiveRankFacts).where(inArray(competitiveRankFacts.userId, ids)),
+    executor.select().from(competitiveRankFacts).where(rankFactsFilter),
   ]);
 
   const approvedEducation = new Set(
@@ -144,7 +148,9 @@ export async function getParticipantReadinessBatch(
   config: CompetitiveProfileConfig,
 ): Promise<Map<string, ParticipantReadiness>> {
   const context = await resolveCompetitiveContext(config);
-  const facts = await loadParticipantQualificationFacts(userIds);
+  // Rank facts are platform-scoped: a participant's facts on another platform
+  // must never satisfy this event's frozen context.
+  const facts = await loadParticipantQualificationFacts(userIds, { platform: context?.platform ?? config.platform });
   const result = new Map<string, ParticipantReadiness>();
   for (const userId of [...new Set(userIds)]) {
     const fact = facts.get(userId);
