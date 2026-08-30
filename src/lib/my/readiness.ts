@@ -149,6 +149,22 @@ function entryState(source: MyCompetitionSource, userId: string): MyReadinessIte
     : presentCompetitionEntryParticipation(source.participantStatus, source.registrationStatus);
   if (!representative) {
     const awaitingConfirmation = source.participantStatus === "invited";
+    if (source.participantStatus === "confirmed") {
+      const registration = presentCompetitionEntryRegistration(source.registrationStatus);
+      const owner = source.registrationStatus === "changes_requested"
+        ? "赛事负责人和赛事管理员"
+        : source.registrationStatus === "withdrawn"
+          ? "赛事负责人"
+          : "赛事管理员";
+      return item(
+        `entry-${source.id}`,
+        "当前报名状态",
+        registration.state,
+        `${presentation.label} · ${registration.label}，${registration.detail}`,
+        owner,
+        { href, label: "查看本届报名" },
+      );
+    }
     return item(
       `entry-${source.id}`,
       "当前报名状态",

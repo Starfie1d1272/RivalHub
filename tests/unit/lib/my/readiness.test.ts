@@ -121,6 +121,27 @@ describe("我的 readiness read model", () => {
     expect(result.competitions[0]?.entry.detail).toContain("需要重新确认");
   });
 
+  it.each([
+    ["approved", "ready"],
+    ["submitted", "waiting"],
+    ["waitlisted", "waiting"],
+    ["changes_requested", "blocked"],
+    ["rejected", "blocked"],
+    ["withdrawn", "blocked"],
+    ["draft", "incomplete"],
+  ] as const)("combines a confirmed member with Entry %s instead of reporting the Entry ready", (registrationStatus, state) => {
+    const result = model({
+      competitions: [competition({
+        representativeUserId: "another-user",
+        registrationStatus,
+        participantStatus: "confirmed",
+      })],
+    });
+
+    expect(result.competitions[0]?.entry.state).toBe(state);
+    expect(result.competitions[0]?.entry.detail).toContain("已确认参赛");
+  });
+
   it("only selects required platforms and platforms with user facts for readiness cards", () => {
     const catalog = [
       { key: "perfect", displayName: "Perfect", ratingLabel: "Rating", ranks: [], seasons: [] },
