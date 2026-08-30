@@ -48,7 +48,17 @@ const {
 
   const dbSelectMock = vi.fn().mockImplementation(() => ({
     from: vi.fn(() => ({
-      where: vi.fn().mockResolvedValue([{ value: 0 }]),
+      where: vi.fn(() => {
+        // 计数查询直接 await；updateSeason 的行锁链路会继续调用 .for("update")，
+        // 此时返回 seasonsFindFirstMock 配置的赛季行。
+        const rows = Promise.resolve([{ value: 0 }]);
+        return Object.assign(rows, {
+          for: vi.fn(async () => {
+            const season = await seasonsFindFirstMock();
+            return season ? [season] : [];
+          }),
+        });
+      }),
     })),
   }));
 
