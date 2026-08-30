@@ -10,6 +10,9 @@ import {
 import { DraftRegistrationTable } from "@/components/admin/DraftRegistrationTable";
 import { CompetitionEntryReviewList } from "@/components/admin/CompetitionEntryReviewList";
 import { isTeamRegistration } from "@/lib/utils/season";
+import { getDisplayName } from "@/lib/utils/display-name";
+import { evaluateRosterQualification, getParticipantReadinessBatch, isHomeAffiliatedMember, loadEducationMembershipFacts, resolveCompetitiveContext, resolveSeasonEducationVerification } from "@/lib/qualification/service";
+import { normalizeAffiliationRules, normalizeTeamRegistrationConfig } from "@/types/season";
 
 interface PageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -34,7 +37,7 @@ export default async function AdminRegistrationsPage({ params }: PageProps) {
         reviewReason: competitionEntries.reviewReason,
         perfectTeamId: competitionEntries.perfectTeamId,
         currentRosterRevision: competitionEntries.currentRosterRevision,
-        representativeEmail: users.email,
+        representative: { displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName, email: users.email },
       })
       .from(competitionEntries)
       .innerJoin(users, eq(competitionEntries.representativeUserId, users.id))
@@ -44,18 +47,56 @@ export default async function AdminRegistrationsPage({ params }: PageProps) {
     const rosterRows = entryIds.length === 0
       ? []
       : await db
-          .select({ entryId: competitionEntryRosterRevisions.entryId, revision: competitionEntryRosterRevisions.revision, participantId: competitionEntryParticipants.id, userId: users.id, email: users.email, displayName: users.displayName, perfectId: users.perfectId, status: competitionEntryParticipants.status, primary: competitionEntryRosterMembers.isPrimaryStarter })
+          .select({ entryId: competitionEntryRosterRevisions.entryId, revision: competitionEntryRosterRevisions.revision, participantId: competitionEntryParticipants.id, userId: users.id, email: users.email, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName, perfectId: users.perfectId, status: competitionEntryParticipants.status, primary: competitionEntryRosterMembers.isPrimaryStarter })
           .from(competitionEntryRosterRevisions)
           .innerJoin(competitionEntryRosterMembers, eq(competitionEntryRosterMembers.revisionId, competitionEntryRosterRevisions.id))
           .innerJoin(competitionEntryParticipants, eq(competitionEntryParticipants.id, competitionEntryRosterMembers.participantId))
           .innerJoin(users, eq(users.id, competitionEntryRosterMembers.userId))
           .where(inArray(competitionEntryRosterRevisions.entryId, entryIds));
-    const reviewRows = entries.map((entry) => ({
+    const teamConfig = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
+    const readinessByUser = teamConfig.requireCompetitiveProfile && teamConfig.competitiveProfile
+      ? await getParticipantReadinessBatch(rosterRows.map((member) => member.userId), teamConfig.competitiveProfile)
+      : new Map();
+    const educationFacts = await loadEducationMembershipFacts(db, rosterRows.map((member) => member.userId));
+    const affiliationRules = normalizeAffiliationRules(season.affiliationRules);
+    const competitiveContext = teamConfig.requireCompetitiveProfile && teamConfig.competitiveProfile
+      ? await resolveCompetitiveContext(teamConfig.competitiveProfile)
+      : undefined;
+    const reviewRows = await Promise.all(entries.map(async (entry) => {
+      const members = rosterRows
+        .filter((member) => member.entryId === entry.id && member.revision === entry.currentRosterRevision)
+        .map((member) => ({
+          ...member,
+          label: getDisplayName(member),
+          readiness: readinessByUser.get(member.userId),
+        }));
+      const qualification = competitiveContext === null
+        ? { blockers: ["赛事冻结的竞技平台目录不可确认。"] }
+        : await evaluateRosterQualification({
+            members: members.map((member) => {
+              const fact = educationFacts.get(member.userId);
+              const education = resolveSeasonEducationVerification(fact?.history ?? [], affiliationRules).selectedVerification;
+              return {
+                userId: member.userId,
+                email: fact?.email ?? member.email,
+                emailVerifiedAt: fact?.emailVerifiedAt ?? null,
+                educationHistory: fact?.history ?? [],
+                isHome: isHomeAffiliatedMember(education ?? { institutionCode: null, academicStatus: null }, affiliationRules),
+              };
+            }),
+            affiliationRules,
+            competitiveProfile: competitiveContext,
+            primaryStarterUserIds: members.filter((member) => member.primary).map((member) => member.userId),
+          });
+      return {
       ...entry,
-      members: rosterRows.filter((member) => member.entryId === entry.id && member.revision === entry.currentRosterRevision),
+      representativeName: getDisplayName(entry.representative),
+      members,
       minRoster: season.minTeamSize,
       maxRoster: season.maxTeamSize,
       starterCount: season.starterCount,
+      qualificationBlockers: qualification.blockers,
+      };
     }));
     return (
       <div className="container mx-auto max-w-3xl px-4 py-8">

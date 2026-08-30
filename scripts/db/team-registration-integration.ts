@@ -1,5 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { Pool, type PoolClient } from "pg";
+import { drizzle } from "drizzle-orm/node-postgres";
+import * as schema from "../../src/db/schema";
+import { BUILT_IN_COMPETITIVE_PLATFORMS } from "../../src/lib/competitive/builtins";
+import { computeParticipantReadiness, loadParticipantQualificationFacts } from "../../src/lib/qualification/service";
 
 const databaseUrl = process.env.RIVALHUB_LOCAL_DATABASE_URL;
 if (!databaseUrl) throw new Error("RIVALHUB_LOCAL_DATABASE_URL 未设置。");
@@ -69,8 +73,44 @@ async function main(): Promise<void> {
     await client.query("RESET ROLE");
     await client.query("ROLLBACK");
     await exerciseConcurrencyAndInvariants(pool);
-    console.log("CompetitionEntry local integration passed: commitment race, active Team and captain projection invariants, frozen roster immutability, cross-Entry rejection, Entry shape constraint, and Data API denial.");
+    await exerciseReinviteRemediationAndPrestart(pool);
+    await exerciseQualificationWithRealCatalog(pool);
+    console.log("CompetitionEntry local integration passed: commitment race, withdrawn re-invite, deadline remediation state, approved-only prestart source, active Team and captain projection invariants, frozen roster immutability, cross-Entry rejection, Entry shape constraint, Data API denial, and real 2026 competitive catalog readiness.");
   } finally { client.release(); await pool.end(); }
+}
+
+async function exerciseReinviteRemediationAndPrestart(pool: Pool): Promise<void> {
+  const ids = { season: randomUUID(), captain: randomUUID(), member: randomUUID(), entry: randomUUID(), participant: randomUUID(), revision: randomUUID() };
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("INSERT INTO users (id, email) VALUES ($1, $2), ($3, $4)", [ids.captain, `remediation-captain-${ids.captain}@local.test`, ids.member, `remediation-member-${ids.member}@local.test`]);
+    await client.query("INSERT INTO seasons (id, slug, name, kind, status, registration_mode, has_captain_voting, has_draft, min_team_size, max_team_size, registration_deadline) VALUES ($1, $2, 'Local Remediation', 'Major', 'registration', 'team', false, false, 1, 5, now() - interval '1 minute')", [ids.season, `local-remediation-${ids.season}`]);
+    await client.query("INSERT INTO competition_entries (id, competition_id, source, name, representative_user_id, registration_status, current_roster_revision) VALUES ($1, $2, 'event_native', 'Remediation Entry', $3, 'changes_requested', 2)", [ids.entry, ids.season, ids.captain]);
+    await client.query("INSERT INTO competition_entry_participants (id, entry_id, user_id, status, withdrawn_at, invited_by_user_id) VALUES ($1, $2, $3, 'withdrawn', now(), $4)", [ids.participant, ids.entry, ids.member, ids.captain]);
+    await expectsPgError(client, () => client.query("INSERT INTO competition_entry_participants (entry_id, user_id, status, invited_by_user_id) VALUES ($1, $2, 'invited', $3)", [ids.entry, ids.member, ids.captain]), "23505");
+    // The action reuses this row (rather than inserting another commitment), then the participant must consent again.
+    await client.query("UPDATE competition_entry_participants SET status = 'invited', confirmed_at = NULL, withdrawn_at = NULL, updated_at = now() WHERE id = $1", [ids.participant]);
+    const reinvited = await client.query<{ status: string; commitments: string }>("SELECT status::text, (SELECT count(*)::text FROM competition_entry_participants WHERE entry_id = $1 AND user_id = $2) AS commitments FROM competition_entry_participants WHERE id = $3", [ids.entry, ids.member, ids.participant]);
+    if (reinvited.rows[0]?.status !== "invited" || reinvited.rows[0]?.commitments !== "1") throw new Error("withdrawn 成员重新邀请没有复用唯一 participant commitment。");
+    await client.query("INSERT INTO competition_entry_active_claims (competition_id, user_id, entry_id, participant_id) VALUES ($1, $2, $3, $4)", [ids.season, ids.member, ids.entry, ids.participant]);
+    await client.query("UPDATE competition_entry_participants SET status = 'confirmed', confirmed_at = now() WHERE id = $1", [ids.participant]);
+    await client.query("INSERT INTO competition_entry_roster_revisions (id, entry_id, revision, status, created_by) VALUES ($1, $2, 2, 'draft', 'local-test')", [ids.revision, ids.entry]);
+    await client.query("INSERT INTO competition_entry_roster_members (revision_id, participant_id, user_id, is_primary_starter) VALUES ($1, $2, $3, true)", [ids.revision, ids.participant, ids.member]);
+    // A past deadline is deliberately represented with changes_requested + draft revision: the server-action policy test gates this remediation exception.
+    await client.query("UPDATE competition_entry_roster_revisions SET status = 'submitted', submitted_at = now() WHERE id = $1", [ids.revision]);
+    await client.query("UPDATE competition_entries SET registration_status = 'submitted' WHERE id = $1", [ids.entry]);
+    await client.query("UPDATE competition_entry_roster_revisions SET status = 'approved', approved_at = now() WHERE id = $1", [ids.revision]);
+    await client.query("UPDATE competition_entries SET registration_status = 'approved', approved_roster_revision = 2 WHERE id = $1", [ids.entry]);
+    const prestartEligible = await client.query<{ count: string }>(`SELECT count(*)::text FROM competition_entries entry JOIN competition_entry_roster_revisions revision ON revision.entry_id = entry.id AND revision.revision = entry.approved_roster_revision WHERE entry.competition_id = $1 AND entry.registration_status = 'approved' AND revision.status = 'approved'`, [ids.season]);
+    if (prestartEligible.rows[0]?.count !== "1") throw new Error("prestart 只能消费 approved Entry 的 approved roster revision。");
+    await client.query("ROLLBACK");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 async function exerciseConcurrencyAndInvariants(pool: Pool): Promise<void> {
@@ -96,11 +136,11 @@ async function exerciseConcurrencyAndInvariants(pool: Pool): Promise<void> {
       await second.query("BEGIN");
       await first.query("INSERT INTO competition_entry_active_claims (competition_id,user_id,entry_id,participant_id) VALUES ($1,$2,$3,$4)", [ids.season, ids.shared, ids.entryA, ids.participantA]);
       await first.query("UPDATE competition_entry_participants SET status = 'confirmed', confirmed_at = now() WHERE id = $1", [ids.participantA]);
-      const competingClaim = second.query("INSERT INTO competition_entry_active_claims (competition_id,user_id,entry_id,participant_id) VALUES ($1,$2,$3,$4)", [ids.season, ids.shared, ids.entryB, ids.participantB]);
-      await first.query("COMMIT");
-      await competingClaim.then(() => { throw new Error("同一用户同时确认两个 Entry 不应成功。"); }, (error: { code?: string }) => {
+      const competingClaim = second.query("INSERT INTO competition_entry_active_claims (competition_id,user_id,entry_id,participant_id) VALUES ($1,$2,$3,$4)", [ids.season, ids.shared, ids.entryB, ids.participantB]).then(() => { throw new Error("同一用户同时确认两个 Entry 不应成功。"); }, (error: { code?: string }) => {
         if (error.code !== "23505") throw error;
       });
+      await first.query("COMMIT");
+      await competingClaim;
       await second.query("ROLLBACK");
     } finally { first.release(); second.release(); }
     const claims = await setup.query<{ count: string }>("SELECT count(*) FROM competition_entry_active_claims WHERE competition_id = $1 AND user_id = $2", [ids.season, ids.shared]);
@@ -112,11 +152,11 @@ async function exerciseConcurrencyAndInvariants(pool: Pool): Promise<void> {
       await membershipA.query("BEGIN");
       await membershipB.query("BEGIN");
       await membershipA.query("INSERT INTO team_memberships (team_id,user_id,status,role,invited_by_user_id) VALUES ($1,$2,'active','member',$3)", [ids.teamA, ids.shared, ids.captainA]);
-      const competingMembership = membershipB.query("INSERT INTO team_memberships (team_id,user_id,status,role,invited_by_user_id) VALUES ($1,$2,'active','member',$3)", [ids.teamB, ids.shared, ids.captainB]);
-      await membershipA.query("COMMIT");
-      await competingMembership.then(() => { throw new Error("同一用户同时接受两个长期队伍邀请不应成功。"); }, (error: { code?: string }) => {
+      const competingMembership = membershipB.query("INSERT INTO team_memberships (team_id,user_id,status,role,invited_by_user_id) VALUES ($1,$2,'active','member',$3)", [ids.teamB, ids.shared, ids.captainB]).then(() => { throw new Error("同一用户同时接受两个长期队伍邀请不应成功。"); }, (error: { code?: string }) => {
         if (error.code !== "23505") throw error;
       });
+      await membershipA.query("COMMIT");
+      await competingMembership;
       await membershipB.query("ROLLBACK");
     } finally { membershipA.release(); membershipB.release(); }
 
@@ -150,6 +190,113 @@ async function exerciseConcurrencyAndInvariants(pool: Pool): Promise<void> {
     } finally {
       setup.release();
     }
+  }
+}
+
+/**
+ * Combined acceptance against the real 0020 built-in catalog (no mock
+ * S23/S24): a non-star A++ member, an S-tier member with exact stars and a
+ * legacy S member whose stars stayed NULL must all reach competitive
+ * readiness, while an off-ladder rank fails the published mapping. The
+ * canonical qualification evaluator owns every stars decision — the
+ * CompetitionEntry UI only consumes readiness props.
+ */
+async function exerciseQualificationWithRealCatalog(pool: Pool): Promise<void> {
+  const perfect = BUILT_IN_COMPETITIVE_PLATFORMS.perfect_world;
+  const config = {
+    platform: perfect.key,
+    currentSeasonKey: "2026s2",
+    previousSeasonKey: "2026s1",
+    rankOrder: perfect.ranks.map((rank) => rank.rankKey),
+  };
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    // The built-in catalog comes from migration 0020 itself; the fixture must
+    // consume it, never re-seed or alias it.
+    const seasons = await client.query<{ season_key: string; is_current: boolean }>(
+      "SELECT season_key, is_current FROM competitive_platform_seasons WHERE platform = 'perfect_world' ORDER BY sort_order",
+    );
+    if (JSON.stringify(seasons.rows) !== JSON.stringify([{ season_key: "2026s1", is_current: false }, { season_key: "2026s2", is_current: true }])) {
+      throw new Error(`0020 内置 Perfect 赛季目录不符：${JSON.stringify(seasons.rows)}`);
+    }
+    const demonKing = await client.query<{ star_min: number | null; star_max: number | null }>(
+      "SELECT star_min, star_max FROM competitive_platform_ranks WHERE platform_key = 'perfect_world' AND rank_key = '魔王S'",
+    );
+    if (demonKing.rows[0]?.star_min !== 50 || demonKing.rows[0]?.star_max !== null) {
+      throw new Error(`0020 魔王S 星数区间不符：${JSON.stringify(demonKing.rows[0])}`);
+    }
+
+    const users = { normal: randomUUID(), star: randomUUID(), legacy: randomUUID(), offLadder: randomUUID() };
+    const values: Array<[string, string, string, string, number | null]> = [];
+    for (const [key, rank] of [["normal", "A++"], ["star", "魔王S"], ["legacy", "黄金S"], ["offLadder", "Grandmaster"]] as const) {
+      // Only the star member carries the post-#293 exact-stars fact shape; the
+      // legacy member is the pre-stars shape (S rank, stars NULL).
+      values.push([users[key], `${key}-${users[key]}@local.test`, rank, rank, key === "star" ? 50 : null]);
+    }
+    for (const [id, email] of values) {
+      await client.query(
+        `INSERT INTO users (id, email, display_name, steam64, perfect_id, qq, email_verified_at)
+         VALUES ($1, $2, '选手', '76561198000000001', $3, '100000001', now())`,
+        [id, email, `pw-${id}`],
+      );
+    }
+    for (const [id, , historical, current, stars] of values) {
+      await client.query(
+        `INSERT INTO competitive_rank_facts (user_id, platform, kind, platform_season_key, rank, rating, stars)
+         VALUES ($1, 'perfect_world', 'historical_peak', NULL, $2, 1500, $4),
+                ($1, 'perfect_world', 'season_peak', '2026s1', $2, 1400, $4),
+                ($1, 'perfect_world', 'season_peak', '2026s2', $3, 1600, $4)`,
+        [id, historical, current, stars],
+      );
+    }
+    // The legacy member is the pre-stars fact shape: rank on the ladder, stars NULL.
+    const legacyStars = await client.query<{ stars: number | null }>(
+      "SELECT stars FROM competitive_rank_facts WHERE user_id = $1 AND rank = '黄金S' LIMIT 1",
+      [users.legacy],
+    );
+    if (legacyStars.rows[0]?.stars !== null) throw new Error("legacy fixture 必须保持 stars NULL。");
+    const starStars = await client.query<{ stars: number | null }>(
+      "SELECT stars FROM competitive_rank_facts WHERE user_id = $1 AND rank = '魔王S' LIMIT 1",
+      [users.star],
+    );
+    if (starStars.rows[0]?.stars !== 50) throw new Error("S 段 fixture 必须带精确星数。");
+
+    // A published Major freezes exactly this context at publish time.
+    const seasonId = randomUUID();
+    await client.query(
+      `INSERT INTO seasons (id, slug, name, kind, status, registration_mode, min_team_size, max_team_size, team_registration_config)
+       VALUES ($1, $2, 'Local 2026 Catalog Major', 'Major', 'registration', 'team', 1, 5, $3::json)`,
+      [seasonId, `local-2026-catalog-${seasonId}`, JSON.stringify({ requireCompetitiveProfile: true, competitiveProfile: config })],
+    );
+    const frozen = await client.query<{ config: { competitiveProfile: typeof config } }>(
+      "SELECT team_registration_config AS config FROM seasons WHERE id = $1",
+      [seasonId],
+    );
+    if (JSON.stringify(frozen.rows[0]?.config.competitiveProfile) !== JSON.stringify(config)) {
+      throw new Error("真实 2026 catalog 的冻结 competitiveProfile 必须原样保留。");
+    }
+
+    const executor = drizzle(client, { schema });
+    const factRows = await loadParticipantQualificationFacts(Object.values(users), { executor });
+    for (const [key, userId] of Object.entries(users)) {
+      const readiness = computeParticipantReadiness(factRows.get(userId)!, config);
+      if (key === "offLadder") {
+        if (readiness.strength && readiness.blockers.every((blocker) => !blocker.includes("申报段位不在本赛事公布的段位映射中"))) {
+          throw new Error("不在公布段位映射中的 rank 必须被 canonical evaluator 拒绝。");
+        }
+        continue;
+      }
+      if (readiness.blockers.some((blocker) => /段位|赛季/.test(blocker))) {
+        throw new Error(`${key} 成员不应出现竞技 blocker：${JSON.stringify(readiness.blockers)}`);
+      }
+      if (!readiness.strength || readiness.strength.historicalPeak === null) {
+        throw new Error(`${key} 成员的 strength 输入缺失 historicalPeak。`);
+      }
+    }
+    await client.query("ROLLBACK");
+  } finally {
+    client.release();
   }
 }
 
