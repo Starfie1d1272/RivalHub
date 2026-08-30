@@ -8,9 +8,9 @@ function entry(overrides?: Partial<CompetitivePlatformCatalogEntry>): Competitiv
     displayName: "完美世界竞技平台",
     ratingLabel: "Rating Pro",
     ranks: [
-      { id: "r1", rankKey: "bronze", label: "Bronze", sortOrder: 0 },
-      { id: "r2", rankKey: "silver", label: "Silver", sortOrder: 1 },
-      { id: "r3", rankKey: "gold", label: "Gold", sortOrder: 2 },
+      { id: "r1", rankKey: "bronze", label: "Bronze", sortOrder: 0, starMin: null, starMax: null },
+      { id: "r2", rankKey: "silver", label: "Silver", sortOrder: 1, starMin: null, starMax: null },
+      { id: "r3", rankKey: "gold", label: "Gold", sortOrder: 2, starMin: null, starMax: null },
     ],
     seasons: [
       { id: "s1", seasonKey: "s22", label: "S22", sortOrder: 2, active: false, isCurrent: false },
@@ -106,7 +106,7 @@ describe("competitive catalog mutation and snapshot helpers", () => {
   it("groups DB catalog rows by their platform owner", async () => {
     const rows = [
       [{ key: "fivee", displayName: "5E", ratingLabel: "Rating+" }],
-      [{ id: "r", platformKey: "fivee", rankKey: "C+", label: "C+", sortOrder: 0 }],
+      [{ id: "r", platformKey: "fivee", rankKey: "C+", label: "C+", sortOrder: 0, starMin: null, starMax: null }],
       [{ id: "s", platform: "fivee", seasonKey: "s6", label: "S6", sortOrder: 6, active: true, isCurrent: true }],
     ];
     let call = 0;
@@ -115,7 +115,7 @@ describe("competitive catalog mutation and snapshot helpers", () => {
     };
     await expect(loadCompetitivePlatformCatalog(executor as never)).resolves.toEqual([{
       key: "fivee", displayName: "5E", ratingLabel: "Rating+",
-      ranks: [{ id: "r", rankKey: "C+", label: "C+", sortOrder: 0 }],
+      ranks: [{ id: "r", rankKey: "C+", label: "C+", sortOrder: 0, starMin: null, starMax: null }],
       seasons: [{ id: "s", seasonKey: "s6", label: "S6", sortOrder: 6, active: true, isCurrent: true }],
     }]);
   });
@@ -136,7 +136,7 @@ describe("competitive catalog mutation and snapshot helpers", () => {
         { id: "s6", seasonKey: "s6", label: "S6", sortOrder: 6, active: true, isCurrent: true },
         { id: "s5", seasonKey: "s5", label: "S5", sortOrder: 5, active: true, isCurrent: false },
       ],
-      [{ id: "r", rankKey: "C+", label: "C+", sortOrder: 0 }],
+      [{ id: "r", rankKey: "C+", label: "C+", sortOrder: 0, starMin: null, starMax: null }],
     ];
     let call = 0;
     const executor = {

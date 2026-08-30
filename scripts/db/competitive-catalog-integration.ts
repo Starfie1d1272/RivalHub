@@ -40,6 +40,35 @@ async function main(): Promise<void> {
       /已被竞技资料或已发布赛事冻结的段位顺序引用/,
     );
     await assert.doesNotReject(() => assertPlatformRanksMutable(executor, platform, ["unreferenced"]));
+
+    // Star metadata shape is enforced by the database: no starMax without a
+    // starMin, no descending range, no negative fact stars.
+    const savepoint = `catalog_stars_${randomUUID().replaceAll("-", "")}`;
+    const expectCheckViolation = async (query: string, values: unknown[]) => {
+      await client.query(`SAVEPOINT ${savepoint}`);
+      try {
+        await client.query(query, values);
+      } catch (error) {
+        await client.query(`ROLLBACK TO SAVEPOINT ${savepoint}`);
+        assert.equal((error as { code?: string }).code, "23514");
+        return;
+      }
+      await client.query(`ROLLBACK TO SAVEPOINT ${savepoint}`);
+      assert.fail(`预期 CHECK 约束拒绝，但操作成功：${query}`);
+    };
+    await expectCheckViolation(
+      "INSERT INTO competitive_platform_ranks (platform_key, rank_key, label, sort_order, star_min, star_max) VALUES ($1, 'bad-shape', 'bad-shape', 99, NULL, 5)",
+      [platform],
+    );
+    await expectCheckViolation(
+      "INSERT INTO competitive_platform_ranks (platform_key, rank_key, label, sort_order, star_min, star_max) VALUES ($1, 'bad-order', 'bad-order', 99, 24, 10)",
+      [platform],
+    );
+    await expectCheckViolation(
+      "INSERT INTO competitive_rank_facts (user_id, platform, kind, rank, rating, stars) VALUES ($1, $2, 'historical_peak', 'C+', 1234, -1)",
+      [userId, platform],
+    );
+
     await client.query("ROLLBACK");
     console.log("Competitive catalog Local PostgreSQL integration passed: JSON frozen-rank guard and fact references execute against real PostgreSQL.");
   } catch (error) {
