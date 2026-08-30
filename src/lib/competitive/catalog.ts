@@ -29,6 +29,10 @@ export interface CatalogRank {
   label: string;
   /** Lowest → highest position on the ladder. */
   sortOrder: number;
+  /** Inclusive lower bound for stars; null/null means this rank has no stars. */
+  starMin: number | null;
+  /** Inclusive upper bound; null with starMin means open-ended. */
+  starMax: number | null;
 }
 
 export interface CompetitivePlatformCatalogEntry {
@@ -54,7 +58,7 @@ export async function loadCompetitivePlatformCatalog(
     ratingLabel: platform.ratingLabel,
     ranks: ranks
       .filter((rank) => rank.platformKey === platform.key)
-      .map((rank) => ({ id: rank.id, rankKey: rank.rankKey, label: rank.label, sortOrder: rank.sortOrder })),
+      .map((rank) => ({ id: rank.id, rankKey: rank.rankKey, label: rank.label, sortOrder: rank.sortOrder, starMin: rank.starMin, starMax: rank.starMax })),
     seasons: seasons
       .filter((season) => season.platform === platform.key)
       .map((season) => ({ id: season.id, seasonKey: season.seasonKey, label: season.label, sortOrder: season.sortOrder, active: season.active, isCurrent: season.isCurrent })),
@@ -142,7 +146,7 @@ export async function resolveLiveCompetitiveContext(
     executor.select().from(competitivePlatformRanks).where(eq(competitivePlatformRanks.platformKey, platform)).orderBy(asc(competitivePlatformRanks.sortOrder)),
   ]);
   const resolved = resolvePlatformCatalog({
-    ranks: ranks.map((rank) => ({ id: rank.id, rankKey: rank.rankKey, label: rank.label, sortOrder: rank.sortOrder })),
+    ranks: ranks.map((rank) => ({ id: rank.id, rankKey: rank.rankKey, label: rank.label, sortOrder: rank.sortOrder, starMin: rank.starMin, starMax: rank.starMax })),
     seasons: seasons.map((season) => ({ id: season.id, seasonKey: season.seasonKey, label: season.label, sortOrder: season.sortOrder, active: season.active, isCurrent: season.isCurrent })),
   });
   return resolved ? { platform, ...resolved } : null;

@@ -18,7 +18,7 @@ export default async function CompetitiveProfileSettingsPage() {
   const contexts: CompetitiveSeasonContext[] = catalog.map((platform) => {
     const { current, previous } = resolveCatalogSeasonRoles(platform);
     const ladder = [...platform.ranks].sort((a, b) => a.sortOrder - b.sortOrder)
-      .map((rank) => ({ rankKey: rank.rankKey, label: rank.label }));
+      .map((rank) => ({ rankKey: rank.rankKey, label: rank.label, starMin: rank.starMin, starMax: rank.starMax }));
     return {
       platform: platform.key,
       platformDisplayName: platform.displayName,
@@ -32,7 +32,7 @@ export default async function CompetitiveProfileSettingsPage() {
           isCurrent: season.id === current?.id,
           isPrevious: previous ? season.id === previous.id : false,
         })),
-      facts: facts.filter((item) => item.platform === platform.key).map((item) => ({ kind: item.kind, platformSeasonKey: item.platformSeasonKey, rank: item.rank, rating: String(item.rating) })),
+      facts: facts.filter((item) => item.platform === platform.key).map((item) => ({ kind: item.kind, platformSeasonKey: item.platformSeasonKey, rank: item.rank, rating: String(item.rating), stars: item.stars })),
     };
   });
   return <div className="space-y-5"><div><p className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-accent)]">PARTICIPANT PROFILE</p><h1 className="mt-1 text-3xl font-semibold">竞技档案</h1></div><CompetitiveRolesForm initialRoles={roles.map((role) => role.role)} initialPrimaryRole={roles.find((role) => role.isPrimary)?.role ?? null} /><CompetitiveProfileForm contexts={contexts} /></div>;

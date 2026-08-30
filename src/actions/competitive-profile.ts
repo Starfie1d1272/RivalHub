@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db/client";
@@ -10,8 +10,9 @@ import { auditActorId, requireAuth } from "@/lib/auth/session";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { fail, ok, type ActionResult } from "@/types/action";
 
-const factSchema = z.object({ rank: z.string().trim().min(1).max(64), rating: z.coerce.number().finite().min(0).max(999999) });
-const seasonPeakSchema = z.object({ seasonKey: z.string().trim().min(1).max(128), rank: z.string().trim().min(1).max(64), rating: z.coerce.number().finite().min(0).max(999999) });
+const starsSchema = z.number().int().nonnegative().nullable().optional().default(null);
+const factSchema = z.object({ rank: z.string().trim().min(1).max(64), rating: z.coerce.number().finite().min(0).max(999999), stars: starsSchema });
+const seasonPeakSchema = z.object({ seasonKey: z.string().trim().min(1).max(128), rank: z.string().trim().min(1).max(64), rating: z.coerce.number().finite().min(0).max(999999), stars: starsSchema });
 const schema = z.object({
   platform: z.string().trim().min(1).max(64),
   historicalPeak: factSchema,
@@ -72,23 +73,45 @@ export async function saveCompetitiveProfile(input: unknown): Promise<ActionResu
         tx.select().from(competitivePlatformRanks).where(eq(competitivePlatformRanks.platformKey, platform)),
         tx.select().from(competitivePlatformSeasons).where(eq(competitivePlatformSeasons.platform, platform)),
       ]);
-      const ladderKeys = new Set(ladder.map((rank) => rank.rankKey));
+      const ladderByKey = new Map(ladder.map((rank) => [rank.rankKey, rank]));
       const seasonKeys = new Set(seasons.map((season) => season.seasonKey));
+      const existingFacts = await tx.select().from(competitiveRankFacts).where(and(eq(competitiveRankFacts.userId, session.userId), eq(competitiveRankFacts.platform, platform)));
+      const existingByKey = new Map(existingFacts.map((fact) => [fact.kind === "historical_peak" ? "historical_peak" : `season_peak:${fact.platformSeasonKey}`, fact]));
+      const validateFact = (key: string, fact: { rank: string; rating: number; stars: number | null }) => {
+        const rank = ladderByKey.get(fact.rank);
+        if (!rank) throw new AppError(ErrorCode.VALIDATION_FAILED, `段位不在平台段位表中，不能保存：${fact.rank}`);
+        if (rank.starMin === null) {
+          if (fact.stars !== null) throw new AppError(ErrorCode.VALIDATION_FAILED, `${rank.label} 不使用星数，不能填写星数。`);
+          return;
+        }
+        if (fact.stars !== null) {
+          if (fact.stars < rank.starMin || (rank.starMax !== null && fact.stars > rank.starMax)) {
+            const range = rank.starMax === null ? `${rank.starMin}+` : `${rank.starMin}–${rank.starMax}`;
+            throw new AppError(ErrorCode.VALIDATION_FAILED, `${rank.label} 的星数必须在 ${range} 范围内。`);
+          }
+          return;
+        }
+        // Legacy facts predate exact stars. An untouched fact whose stored stars
+        // are still null passes through unchanged instead of being blocked or
+        // silently filled with a guessed value; any real edit must supply stars.
+        const existing = existingByKey.get(key);
+        const untouchedLegacy = existing !== undefined && existing.stars === null && existing.rank === fact.rank && Number(existing.rating) === fact.rating;
+        if (!untouchedLegacy) throw new AppError(ErrorCode.VALIDATION_FAILED, `${rank.label} 需要填写准确星数。`);
+      };
       for (const peak of seasonPeaks) {
         if (!seasonKeys.has(peak.seasonKey)) throw new AppError(ErrorCode.VALIDATION_FAILED, `平台赛季 ${peak.seasonKey} 不在目录中，不能保存。`);
-        if (!ladderKeys.has(peak.rank)) throw new AppError(ErrorCode.VALIDATION_FAILED, `段位不在平台段位表中，不能保存：${peak.rank}`);
+        validateFact(`season_peak:${peak.seasonKey}`, peak);
       }
-      if (!ladderKeys.has(historicalPeak.rank)) throw new AppError(ErrorCode.VALIDATION_FAILED, `历史最高段位不在平台段位表中，不能保存：${historicalPeak.rank}`);
+      validateFact("historical_peak", historicalPeak);
       const facts = [
-        { kind: "historical_peak" as const, platformSeasonKey: null as string | null, value: historicalPeak },
-        ...seasonPeaks.map((peak) => ({ kind: "season_peak" as const, platformSeasonKey: peak.seasonKey, value: { rank: peak.rank, rating: peak.rating } })),
+        { key: "historical_peak", kind: "historical_peak" as const, platformSeasonKey: null as string | null, value: historicalPeak },
+        ...seasonPeaks.map((peak) => ({ key: `season_peak:${peak.seasonKey}`, kind: "season_peak" as const, platformSeasonKey: peak.seasonKey, value: { rank: peak.rank, rating: peak.rating, stars: peak.stars } })),
       ];
       for (const fact of facts) {
-        const identity = fact.platformSeasonKey === null ? isNull(competitiveRankFacts.platformSeasonKey) : eq(competitiveRankFacts.platformSeasonKey, fact.platformSeasonKey);
-        const existing = await tx.query.competitiveRankFacts.findFirst({ where: and(eq(competitiveRankFacts.userId, session.userId), eq(competitiveRankFacts.platform, platform), eq(competitiveRankFacts.kind, fact.kind), identity) });
-        const values = { rank: fact.value.rank, rating: String(fact.value.rating), updatedAt: new Date() };
+        const existing = existingByKey.get(fact.key);
+        const values = { rank: fact.value.rank, rating: String(fact.value.rating), stars: fact.value.stars, updatedAt: new Date() };
         if (existing) await tx.update(competitiveRankFacts).set(values).where(eq(competitiveRankFacts.id, existing.id));
-        else await tx.insert(competitiveRankFacts).values({ userId: session.userId, platform, kind: fact.kind, platformSeasonKey: fact.platformSeasonKey, rank: fact.value.rank, rating: String(fact.value.rating) });
+        else await tx.insert(competitiveRankFacts).values({ userId: session.userId, platform, kind: fact.kind, platformSeasonKey: fact.platformSeasonKey, rank: fact.value.rank, rating: String(fact.value.rating), stars: fact.value.stars });
       }
       await tx.insert(auditLogs).values({ action: "competitive_profile.self_declare", actorId: auditActorId(session), targetId: session.userId, targetType: "user", meta: { platform, seasonKeys: seasonPeaks.map((peak) => peak.seasonKey) } });
     });

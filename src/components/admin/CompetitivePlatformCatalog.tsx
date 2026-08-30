@@ -4,7 +4,6 @@ import React, { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  createCompetitivePlatform,
   createCompetitivePlatformRank,
   createCompetitivePlatformSeason,
   deleteCompetitivePlatformRank,
@@ -53,7 +52,6 @@ function SeasonStatusChips({ season, platform }: { season: Platform["seasons"][n
 
 export function CompetitivePlatformCatalog({ platforms }: { platforms: Platform[] }) {
   const { pending, run } = useCatalogActions();
-  const [newPlatform, setNewPlatform] = useState({ key: "", displayName: "", ratingLabel: "Rating" });
   const [newSeason, setNewSeason] = useState<{ platform: string; seasonKey: string; label: string } | null>(null);
   const [seasonLabelDraft, setSeasonLabelDraft] = useState<{ id: string; label: string } | null>(null);
   const [newRank, setNewRank] = useState<{ platform: string; label: string; rankKey: string } | null>(null);
@@ -62,9 +60,7 @@ export function CompetitivePlatformCatalog({ platforms }: { platforms: Platform[
 
   return (
     <div className="space-y-5">
-      {platforms.length === 0 && (
-        <StatusBanner tone="warn" title="尚未建立竞技平台" sub="先创建第一个平台，再维护它的赛季目录与平台段位表。" />
-      )}
+      {platforms.length === 0 && <StatusBanner tone="warn" title="内置竞技平台目录未就绪" sub="2.0 内置 Perfect World 与 5E；若目录没有出现，请检查 active migration，而不是在后台临时创建新平台。" />}
 
       {platforms.map((platform) => {
         const ranks = [...platform.ranks].sort((a, b) => a.sortOrder - b.sortOrder);
@@ -168,16 +164,6 @@ export function CompetitivePlatformCatalog({ platforms }: { platforms: Platform[
           </Panel>
         );
       })}
-
-      {/* New platform */}
-      <Panel label="新增竞技平台" pad={20}>
-        <div className="grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto]">
-          <div className="space-y-1.5"><Label>平台标识（创建后不可修改）</Label><Input value={newPlatform.key} onChange={(event) => setNewPlatform({ ...newPlatform, key: event.target.value })} placeholder="例如 perfect_world" className="font-mono" /></div>
-          <div className="space-y-1.5"><Label>显示名称</Label><Input value={newPlatform.displayName} onChange={(event) => setNewPlatform({ ...newPlatform, displayName: event.target.value })} placeholder="例如 完美世界竞技平台" /></div>
-          <div className="space-y-1.5"><Label>canonical Rating</Label><Input value={newPlatform.ratingLabel} onChange={(event) => setNewPlatform({ ...newPlatform, ratingLabel: event.target.value })} placeholder="例如 Rating+ / HLTV Rating 3.0" /></div>
-          <div className="flex items-end"><Button type="button" disabled={pending || !newPlatform.key.trim() || !newPlatform.displayName.trim() || !newPlatform.ratingLabel.trim()} onClick={() => run(() => createCompetitivePlatform(newPlatform), "竞技平台已创建")}>创建平台</Button></div>
-        </div>
-      </Panel>
 
       <Dialog open={Boolean(confirmAction)} onOpenChange={(open) => { if (!open) setConfirmAction(null); }}>
         {confirmAction && <DialogContent className="max-w-md">
