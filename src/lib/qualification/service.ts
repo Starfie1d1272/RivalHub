@@ -227,19 +227,33 @@ export interface RosterQualificationResult {
   readinessByUser: Map<string, ParticipantReadiness>;
 }
 
+function memberIsHomeFromFacts(
+  fact: ParticipantQualificationFacts,
+  affiliationRules: readonly InstitutionAffiliationRule[],
+): boolean {
+  const selected = resolveSeasonEducationVerification(fact.educationHistory, affiliationRules).selectedVerification;
+  return isHomeAffiliatedMember(
+    { institutionCode: selected?.institutionCode ?? null, academicStatus: selected?.academicStatus ?? null },
+    affiliationRules,
+  );
+}
+
 /**
- * Full roster qualification decision: roster education eligibility (pure) plus
- * batched live readiness and the external-strength rule when the event freezes
- * a competitive profile context.
+ * Pure roster qualification decision over facts the caller already loaded.
+ * Freeze-time callers (Major start) must pass the same facts map they
+ * serialize into the frozen snapshot, so validation and freezing can never
+ * observe two different database reads.
  */
-export async function evaluateRosterQualification(input: {
+export async function evaluateRosterQualificationFromFacts(input: {
   members: readonly RosterQualificationMember[];
+  /** Preloaded live facts keyed by userId; a missing member fails closed. */
+  facts: ReadonlyMap<string, ParticipantQualificationFacts>;
   affiliationRules: readonly InstitutionAffiliationRule[];
   /** Frozen event context; omit when the event does not require a competitive profile. */
   competitiveProfile?: CompetitiveProfileConfig | null;
   primaryStarterUserIds?: readonly string[];
 }): Promise<RosterQualificationResult> {
-  const { members, affiliationRules, competitiveProfile, primaryStarterUserIds } = input;
+  const { members, facts, affiliationRules, competitiveProfile, primaryStarterUserIds } = input;
   const blockers: string[] = [];
   const education = evaluateRosterEducationEligibility(
     members.map((member) => ({
@@ -252,19 +266,25 @@ export async function evaluateRosterQualification(input: {
   );
   if (affiliationRules.length > 0) blockers.push(...education.blockers);
 
-  let readinessByUser = new Map<string, ParticipantReadiness>();
+  const readinessByUser = new Map<string, ParticipantReadiness>();
   if (competitiveProfile) {
-    readinessByUser = await getParticipantReadinessBatch(members.map((member) => member.userId), competitiveProfile);
+    const context = await resolveCompetitiveContext(competitiveProfile);
     for (const member of members) {
-      const readiness = readinessByUser.get(member.userId);
-      if (!readiness?.ready) blockers.push(...(readiness?.blockers ?? ["选手资料不可确认。"]));
+      const fact = facts.get(member.userId);
+      const readiness = fact
+        ? computeParticipantReadiness({ ...fact, userId: member.userId }, context)
+        : { ready: false, blockers: ["选手账号不存在。"], strength: { userId: member.userId, label: "选手", historicalPeak: null, previousSeasonPeak: null, currentSeasonPeak: null }, educationApproved: false };
+      readinessByUser.set(member.userId, readiness);
+      if (!readiness.ready) blockers.push(...readiness.blockers);
     }
     if (primaryStarterUserIds) {
       const primary = primaryStarterUserIds
         .map((userId) => {
           const member = members.find((item) => item.userId === userId);
           const readiness = readinessByUser.get(userId);
-          return member && readiness ? { ...readiness.strength, isHome: member.isHome ?? false } : null;
+          if (!member || !readiness) return null;
+          const isHome = member.isHome ?? (facts.get(userId) ? memberIsHomeFromFacts(facts.get(userId)!, affiliationRules) : false);
+          return { ...readiness.strength, isHome };
         })
         .filter((item): item is PlayerStrengthInput & { isHome: boolean } => item !== null);
       const strength = evaluateExternalStrengthRule({ config: competitiveProfile, players: primary });
@@ -273,6 +293,27 @@ export async function evaluateRosterQualification(input: {
   }
 
   return { eligible: blockers.length === 0, blockers, education, readinessByUser };
+}
+
+/**
+ * Full roster qualification decision: roster education eligibility (pure) plus
+ * batched live readiness and the external-strength rule when the event freezes
+ * a competitive profile context.
+ */
+export async function evaluateRosterQualification(input: {
+  members: readonly RosterQualificationMember[];
+  affiliationRules: readonly InstitutionAffiliationRule[];
+  /** Frozen event context; omit when the event does not require a competitive profile. */
+  competitiveProfile?: CompetitiveProfileConfig | null;
+  primaryStarterUserIds?: readonly string[];
+}): Promise<RosterQualificationResult> {
+  const { members, competitiveProfile } = input;
+  const facts = competitiveProfile
+    ? await loadParticipantQualificationFacts(members.map((member) => member.userId), {
+        platform: (await resolveCompetitiveContext(competitiveProfile))?.platform ?? competitiveProfile.platform,
+      })
+    : new Map<string, ParticipantQualificationFacts>();
+  return evaluateRosterQualificationFromFacts({ ...input, facts });
 }
 
 /** Home-member test shared by application submit and admin review flows. */
