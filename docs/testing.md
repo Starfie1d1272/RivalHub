@@ -29,6 +29,8 @@ RivalHub 以最高已完成的验证层级描述能力证据：
 | `pnpm build` | production build |
 | `pnpm build:local` | 注入 loopback Local Supabase 环境的 production build |
 
+`pnpm test:e2e` 会通过 `pnpm dev:local` 启动应用；运行前先启动并初始化 Local Supabase（例如 `pnpm db:local:bootstrap`），避免浏览器套件在缺少 Local 数据库连接时失败。
+
 Local Supabase 集成入口：
 
 ```bash

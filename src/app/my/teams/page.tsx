@@ -15,7 +15,7 @@ export default async function MyTeamsPage() {
   const session = await getUserSession();
   if (!session) redirect("/login?next=/my/teams");
   const periods = await db.select({ membership: teamMemberships, team: teams }).from(teamMemberships).innerJoin(teams, eq(teams.id, teamMemberships.teamId)).where(eq(teamMemberships.userId, session.userId)).orderBy(desc(teamMemberships.startedAt));
-  const current = periods.find((row) => row.membership.endedAt === null && row.team.status === "active") ?? null;
+  const current = periods.find((row) => row.membership.endedAt === null && row.membership.status === "active" && row.team.status === "active") ?? null;
   const [members, incoming, outgoing] = await Promise.all([
     current ? db.select({ id: teamMemberships.id, userId: teamMemberships.userId, name: publicName, status: teamMemberships.status, role: teamMemberships.role }).from(teamMemberships).innerJoin(users, eq(users.id, teamMemberships.userId)).where(and(eq(teamMemberships.teamId, current.team.id), isNull(teamMemberships.endedAt))) : Promise.resolve([]),
     db.select({ id: teamInvitations.id, teamId: teams.id, teamName: teams.name, expiresAt: teamInvitations.expiresAt }).from(teamInvitations).innerJoin(teams, eq(teams.id, teamInvitations.teamId)).where(and(eq(teamInvitations.kind, "direct"), eq(teamInvitations.invitedUserId, session.userId), eq(teamInvitations.status, "pending"), gt(teamInvitations.expiresAt, new Date()))),

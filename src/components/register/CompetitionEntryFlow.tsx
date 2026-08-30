@@ -19,29 +19,19 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  presentCompetitionEntryParticipation,
+  presentCompetitionEntryRegistration,
+  type CompetitionEntryParticipantStatus,
+  type CompetitionEntryRegistrationStatus,
+} from "@/lib/competition-entries/presentation";
 
-type Status = "draft" | "submitted" | "changes_requested" | "waitlisted" | "approved" | "rejected" | "withdrawn";
 type Role = "igl" | "awper" | "entry" | "closer" | "anchor" | "support" | "lurker";
 type Readiness = { ready: boolean; blockers: string[]; educationApproved: boolean };
 type Candidate = { membershipId: string; userId: string; label: string; status: "active" | "benched"; roles: Role[]; primaryRole: Role | null; readiness?: Readiness };
-type RosterMember = Candidate & { participantId: string; confirmation: "invited" | "confirmed" | "declined" | "withdrawn"; primary: boolean };
+type RosterMember = Candidate & { participantId: string; confirmation: CompetitionEntryParticipantStatus; primary: boolean };
 
-const STATUS: Record<Status, string> = {
-  draft: "草稿",
-  submitted: "已提交",
-  changes_requested: "需补正",
-  waitlisted: "候补",
-  approved: "已批准",
-  rejected: "已拒绝",
-  withdrawn: "已撤回",
-};
 const ROLE: Record<Role, string> = { igl: "IGL", awper: "AWPer", entry: "Entry", closer: "Closer", anchor: "Anchor", support: "Support", lurker: "Lurker" };
-const PARTICIPANT_STATUS: Record<RosterMember["confirmation"], string> = {
-  invited: "被邀请待确认",
-  confirmed: "已确认",
-  declined: "已拒绝",
-  withdrawn: "已退出",
-};
 
 interface Props {
   competitionId: string;
@@ -55,7 +45,7 @@ interface Props {
   entry: null | {
     id: string;
     name: string;
-    status: Status;
+    status: CompetitionEntryRegistrationStatus;
     representativeUserId: string;
     perfectTeamId: string | null;
     reviewReason: string | null;
@@ -114,11 +104,11 @@ export function CompetitionEntryFlow(props: Props) {
   const toggleStarter = (userId: string) => setStarters((current) => current.includes(userId) ? current.filter((id) => id !== userId) : current.length < props.starterCount ? [...current, userId] : current);
 
   return <div className="space-y-5">
-    <StatusBanner tone={entry.status === "approved" ? "success" : entry.status === "changes_requested" ? "warn" : "info"} title={`${entry.name} · ${STATUS[entry.status]}`} sub={entry.reviewReason ?? "本届名单以提交后的内容为准；日后的队伍调整不会改变已报名赛事。"} />
-    {!representative && <Panel label="我的参赛确认" pad={24}><p className="mb-3 text-sm text-[var(--color-fg-mid)]">加入队伍不等于参加本届赛事。请在这里明确确认是否参赛。</p>{own ? <><p className="mb-3 text-sm font-medium">当前状态：{own.confirmation === "invited" && entry.status === "changes_requested" ? "需要重新确认" : PARTICIPANT_STATUS[own.confirmation]}</p>{own.confirmation === "invited" && <div className="flex gap-2"><Button disabled={pending} onClick={() => run(() => confirmCompetitionEntryParticipation({ entryId: entry.id }), "已确认参加本届赛事")}>确认参赛</Button><Button variant="outline" disabled={pending} onClick={() => run(() => declineCompetitionEntryParticipation({ entryId: entry.id }), "已拒绝本届赛事邀请")}>拒绝邀请</Button></div>}{own.confirmation === "confirmed" && entry.status !== "approved" && <Button variant="outline" disabled={pending} onClick={() => run(() => withdrawCompetitionEntryParticipation({ entryId: entry.id }), "已退出本届赛事")}>退出本届赛事</Button>}{(own.confirmation === "declined" || own.confirmation === "withdrawn") && <p className="text-sm text-[var(--color-fg-mid)]">如需参赛，请由赛事负责人将你重新加入本届名单。</p>}</> : <p className="text-sm text-[var(--color-fg-mid)]">你不在当前报名名单中。</p>}</Panel>}
+    <StatusBanner tone={entry.status === "approved" ? "success" : entry.status === "changes_requested" ? "warn" : "info"} title={`${entry.name} · ${presentCompetitionEntryRegistration(entry.status).label}`} sub={entry.reviewReason ?? "本届名单以提交后的内容为准；日后的队伍调整不会改变已报名赛事。"} />
+    {!representative && <Panel label="我的参赛确认" pad={24}><p className="mb-3 text-sm text-[var(--color-fg-mid)]">加入队伍不等于参加本届赛事。请在这里明确确认是否参赛。</p>{own ? <><p className="mb-3 text-sm font-medium">当前状态：{presentCompetitionEntryParticipation(own.confirmation, entry.status).label}</p>{own.confirmation === "invited" && <div className="flex gap-2"><Button disabled={pending} onClick={() => run(() => confirmCompetitionEntryParticipation({ entryId: entry.id }), "已确认参加本届赛事")}>确认参赛</Button><Button variant="outline" disabled={pending} onClick={() => run(() => declineCompetitionEntryParticipation({ entryId: entry.id }), "已拒绝本届赛事邀请")}>拒绝邀请</Button></div>}{own.confirmation === "confirmed" && entry.status !== "approved" && <Button variant="outline" disabled={pending} onClick={() => run(() => withdrawCompetitionEntryParticipation({ entryId: entry.id }), "已退出本届赛事")}>退出本届赛事</Button>}{(own.confirmation === "declined" || own.confirmation === "withdrawn") && <p className="text-sm text-[var(--color-fg-mid)]">如需参赛，请由赛事负责人将你重新加入本届名单。</p>}</> : <p className="text-sm text-[var(--color-fg-mid)]">你不在当前报名名单中。</p>}</Panel>}
     {representative && <>
       <Panel label="1 · 本届名单" pad={24}><p className="mb-4 text-sm text-[var(--color-fg-mid)]">候选人来自当前队伍。名单保存后不会因队伍日后调整而自动变化。</p><div className="space-y-2">{[...candidates.values()].map((member) => <div key={member.userId} className="flex flex-wrap items-center justify-between gap-3 border border-[var(--color-border)] p-3"><div><p className="text-sm font-medium">{member.label}</p><p className="mt-1 text-xs text-[var(--color-fg-mid)]">{member.status === "active" ? "当前成员" : "替补成员"} · {member.roles.length ? member.roles.map((role) => ROLE[role]).join(" / ") : "未填写常用位置"}</p></div><div className="flex gap-4 text-xs"><label className="flex items-center gap-2"><Checkbox disabled={!editable || pending} checked={selected.includes(member.userId)} onChange={() => toggleSelected(member.userId)} />本届名单</label><label className="flex items-center gap-2"><Checkbox disabled={!editable || pending || !selected.includes(member.userId)} checked={starters.includes(member.userId)} onChange={() => toggleStarter(member.userId)} />预定主力</label></div></div>)}</div><div className="mt-4 space-y-2"><label htmlFor="perfect-team-id" className="text-sm font-medium">赛事专属队伍 ID</label><Input id="perfect-team-id" disabled={!editable} value={perfectTeamId} onChange={(event) => setPerfectTeamId(event.target.value)} /></div>{editable && <Button className="mt-4" variant="outline" disabled={pending} onClick={() => run(() => saveCompetitionEntryRoster({ entryId: entry.id, userIds: selected, primaryStarterUserIds: starters, perfectTeamId }), "本届名单已保存")}>保存本届名单</Button>}</Panel>
-      <Panel label="2 · 成员确认" pad={24}><div className="space-y-2">{entry.roster.map((member) => <div key={member.participantId} className="flex items-center justify-between gap-3 border border-[var(--color-border)] px-3 py-2 text-sm"><span>{member.label}{member.primary ? " · 预定主力" : ""}</span><span className={member.confirmation === "confirmed" ? "text-[var(--color-ok)]" : "text-[var(--color-warn)]"}>{member.confirmation === "invited" && entry.status === "changes_requested" ? "需要重新确认" : PARTICIPANT_STATUS[member.confirmation]}</span></div>)}</div>{own?.confirmation === "invited" && <Button className="mt-4" disabled={pending} onClick={() => run(() => confirmCompetitionEntryParticipation({ entryId: entry.id }), "你已确认本届参赛")}>确认我本人参赛</Button>}</Panel>
+      <Panel label="2 · 成员确认" pad={24}><div className="space-y-2">{entry.roster.map((member) => <div key={member.participantId} className="flex items-center justify-between gap-3 border border-[var(--color-border)] px-3 py-2 text-sm"><span>{member.label}{member.primary ? " · 预定主力" : ""}</span><span className={member.confirmation === "confirmed" ? "text-[var(--color-ok)]" : "text-[var(--color-warn)]"}>{presentCompetitionEntryParticipation(member.confirmation, entry.status).label}</span></div>)}</div>{own?.confirmation === "invited" && <Button className="mt-4" disabled={pending} onClick={() => run(() => confirmCompetitionEntryParticipation({ entryId: entry.id }), "你已确认本届参赛")}>确认我本人参赛</Button>}</Panel>
       <Panel label="3 · 报名检查" pad={0}><Checklist items={blockers} />{editable && <div className="flex flex-wrap gap-2 border-t border-[var(--color-border)] p-4"><Button disabled={pending || !ready} onClick={() => run(() => submitCompetitionEntry({ entryId: entry.id }), `${props.competitionName} 报名已提交审核`)}>{ready ? "提交报名" : "完成提示后提交"}</Button><Button variant="outline" disabled={pending} onClick={() => run(() => withdrawCompetitionEntry({ entryId: entry.id }), "报名已撤回")}>撤回报名</Button></div>}{entry.status === "approved" && <div className="border-t border-[var(--color-border)] p-4"><Button variant="outline" disabled={pending} onClick={() => run(() => requestCompetitionEntryRosterChange({ entryId: entry.id }), "可以编辑新的名单")}>申请修改名单</Button></div>}</Panel>
       {entry.roster.some((member) => member.confirmation === "confirmed" && member.userId !== entry.representativeUserId) && <Panel label="赛事负责人" pad={24}><p className="mb-3 text-sm text-[var(--color-fg-mid)]">赛事负责人负责本届报名和赛务沟通。更换队长不会自动更改这里的人选。</p><div className="flex flex-wrap gap-2">{entry.roster.filter((member) => member.confirmation === "confirmed" && member.userId !== entry.representativeUserId).map((member) => <Button key={member.userId} size="sm" variant="outline" disabled={pending} onClick={() => run(() => transferCompetitionEntryRepresentative({ entryId: entry.id, toUserId: member.userId }), `赛事负责人已交接给 ${member.label}`)}>交接给 {member.label}</Button>)}</div></Panel>}
     </>}

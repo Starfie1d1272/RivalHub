@@ -3,6 +3,7 @@ import { db } from "@/db/client";
 import {
   competitionEntries,
   competitionEntryParticipants,
+  competitiveRankFacts,
   disciplinaryCases,
   seasons,
   teamMemberships,
@@ -15,6 +16,12 @@ import {
   type CompetitivePlatformCatalogEntry,
 } from "@/lib/competitive/catalog";
 import { serializeSanctionPublic, type SanctionEffect } from "@/lib/discipline/service";
+import {
+  presentCompetitionEntryParticipation,
+  presentCompetitionEntryRegistration,
+  type CompetitionEntryParticipantStatus,
+  type CompetitionEntryRegistrationStatus,
+} from "@/lib/competition-entries/presentation";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import {
   computeParticipantReadiness,
@@ -47,8 +54,8 @@ export interface MyCompetitionSource {
   seasonId: string;
   seasonName: string;
   seasonSlug: string;
-  registrationStatus: string;
-  participantStatus: string | null;
+  registrationStatus: CompetitionEntryRegistrationStatus;
+  participantStatus: CompetitionEntryParticipantStatus | null;
   representativeUserId: string;
   teamRegistrationConfig: Parameters<typeof normalizeTeamRegistrationConfig>[0];
 }
@@ -58,7 +65,7 @@ export interface MySanctionSource {
   seasonId: string;
   seasonName: string;
   seasonSlug: string;
-  effects: string[];
+  effects: SanctionEffect[];
   explanation: string | null;
   effectiveFrom: Date;
   effectiveUntil: Date | null;
@@ -136,23 +143,36 @@ function teamState(currentTeam: { id: string; name: string; role: string } | nul
 
 function entryState(source: MyCompetitionSource, userId: string): MyReadinessItem {
   const href = `/${source.seasonSlug}/register`;
-  if (source.representativeUserId !== userId) {
-    if (source.participantStatus === "confirmed") {
-      return item(`entry-${source.id}`, "当前报名状态", "ready", "你已确认参加本届赛事；最终报名状态由赛事负责人和审核决定。", "赛事负责人", { href, label: "查看本届报名" });
-    }
-    if (source.participantStatus === "invited") {
-      return item(`entry-${source.id}`, "当前报名状态", "waiting", "你已被邀请但尚未确认参加本届赛事。", "我", { href, label: "确认是否参赛" });
-    }
-    return item(`entry-${source.id}`, "当前报名状态", "blocked", "你当前未确认参加本届赛事。", "赛事负责人", { href, label: "查看本届报名" });
+  const representative = source.representativeUserId === userId;
+  const presentation = representative
+    ? presentCompetitionEntryRegistration(source.registrationStatus)
+    : presentCompetitionEntryParticipation(source.participantStatus, source.registrationStatus);
+  if (!representative) {
+    const awaitingConfirmation = source.participantStatus === "invited";
+    return item(
+      `entry-${source.id}`,
+      "当前报名状态",
+      presentation.state,
+      `${presentation.label}：${presentation.detail}`,
+      awaitingConfirmation ? "我" : "赛事负责人",
+      { href, label: awaitingConfirmation ? "确认是否参赛" : "查看本届报名" },
+    );
   }
-
-  const status = source.registrationStatus;
-  if (status === "approved") return item(`entry-${source.id}`, "当前报名状态", "ready", "报名已获批准。赛事 roster 与单场出场仍是独立事实。", "赛事管理员", { href, label: "查看报名" });
-  if (status === "changes_requested") return item(`entry-${source.id}`, "当前报名状态", "blocked", "审核要求补正报名材料或名单。", "我与赛事管理员", { href, label: "处理补正" });
-  if (status === "submitted" || status === "waitlisted") return item(`entry-${source.id}`, "当前报名状态", "waiting", status === "waitlisted" ? "报名当前处于候补状态。" : "报名已提交，正在等待审核。", "赛事管理员", { href, label: "查看报名" });
-  if (status === "rejected") return item(`entry-${source.id}`, "当前报名状态", "blocked", "报名未通过；请查看审核说明。", "赛事管理员", { href, label: "查看审核说明" });
-  if (status === "withdrawn") return item(`entry-${source.id}`, "当前报名状态", "blocked", "本届报名已撤回。", "我或赛事负责人", { href, label: "查看报名" });
-  return item(`entry-${source.id}`, "当前报名状态", "incomplete", "报名仍在草稿阶段，尚未提交审核。", "我", { href, label: "继续报名" });
+  const cta = source.registrationStatus === "changes_requested"
+    ? { href, label: "处理补正" }
+    : source.registrationStatus === "draft"
+      ? { href, label: "继续报名" }
+      : source.registrationStatus === "rejected"
+        ? { href, label: "查看审核说明" }
+        : { href, label: "查看报名" };
+  const owner = source.registrationStatus === "draft"
+    ? "我"
+    : source.registrationStatus === "changes_requested"
+      ? "我与赛事管理员"
+      : source.registrationStatus === "withdrawn"
+        ? "我或赛事负责人"
+        : "赛事管理员";
+  return item(`entry-${source.id}`, "当前报名状态", presentation.state, `${presentation.label}：${presentation.detail}`, owner, cta);
 }
 
 function qualificationState(
@@ -215,14 +235,28 @@ export function buildMyReadinessModel(input: {
   };
 }
 
+export function selectMyCompetitiveProfilePlatformKeys(
+  catalog: readonly CompetitivePlatformCatalogEntry[],
+  requiredPlatforms: ReadonlySet<string>,
+  platformsWithFacts: ReadonlySet<string>,
+): string[] {
+  const selected = new Set([...requiredPlatforms, ...platformsWithFacts]);
+  const catalogKeys = catalog.map((platform) => platform.key);
+  return [
+    ...catalogKeys.filter((key) => selected.has(key)),
+    ...[...selected].filter((key) => !catalogKeys.includes(key)).sort(),
+  ];
+}
+
 export async function loadMyReadiness(userId: string): Promise<MyReadinessModel> {
-  const [baseFacts, catalog, currentTeamRows, competitionRows, sanctionRows] = await Promise.all([
+  const [baseFacts, catalog, currentTeamRows, competitionRows, sanctionRows, platformFactRows] = await Promise.all([
     loadParticipantQualificationFacts([userId]),
     loadCompetitivePlatformCatalog(db),
     db.select({ id: teams.id, name: teams.name, role: teamMemberships.role })
       .from(teamMemberships)
       .innerJoin(teams, eq(teams.id, teamMemberships.teamId))
-      .where(and(eq(teamMemberships.userId, userId), isNull(teamMemberships.endedAt), eq(teams.status, "active"))),
+      .where(and(eq(teamMemberships.userId, userId), eq(teamMemberships.status, "active"), isNull(teamMemberships.endedAt), eq(teams.status, "active")))
+      .limit(1),
     db.select({
       id: competitionEntries.id,
       name: competitionEntries.name,
@@ -243,25 +277,35 @@ export async function loadMyReadiness(userId: string): Promise<MyReadinessModel>
       .from(disciplinaryCases)
       .innerJoin(seasons, eq(seasons.id, disciplinaryCases.seasonId))
       .where(and(eq(disciplinaryCases.subjectUserId, userId), eq(disciplinaryCases.status, "active"))),
+    db.selectDistinct({ platform: competitiveRankFacts.platform })
+      .from(competitiveRankFacts)
+      .where(eq(competitiveRankFacts.userId, userId)),
   ]);
 
   const baseFact = baseFacts.get(userId) ?? null;
-  const configuredPlatforms = new Map<string, CompetitivePlatformCatalogEntry>();
-  for (const platform of catalog) configuredPlatforms.set(platform.key, platform);
   const requiredPlatforms = new Set<string>();
   for (const row of competitionRows) {
-    const profile = normalizeTeamRegistrationConfig(row.teamRegistrationConfig).competitiveProfile;
-    if (profile) requiredPlatforms.add(profile.platform);
+    const config = normalizeTeamRegistrationConfig(row.teamRegistrationConfig);
+    if (config.requireCompetitiveProfile && config.competitiveProfile) requiredPlatforms.add(config.competitiveProfile.platform);
   }
-  for (const platform of catalog) if (resolvePlatformCatalog(platform)) requiredPlatforms.add(platform.key);
+  const platformKeys = selectMyCompetitiveProfilePlatformKeys(
+    catalog,
+    requiredPlatforms,
+    new Set(platformFactRows.map((row) => row.platform)),
+  );
+  const catalogByKey = new Map(catalog.map((platform) => [platform.key, platform]));
 
   const factsByPlatform = new Map<string, ParticipantQualificationFacts | null>();
-  await Promise.all([...requiredPlatforms].map(async (platform) => {
+  await Promise.all(platformKeys.map(async (platform) => {
     const facts = await loadParticipantQualificationFacts([userId], { platform });
     factsByPlatform.set(platform, facts.get(userId) ?? null);
   }));
 
-  const competitiveProfiles: MyCompetitiveProfileSource[] = catalog.map((platform) => {
+  const competitiveProfiles: MyCompetitiveProfileSource[] = platformKeys.map((key) => {
+    const platform = catalogByKey.get(key);
+    if (!platform) {
+      return { key, displayName: key, state: "unknown", blockers: ["该平台的竞技目录不可确认。"] };
+    }
     const context = resolvePlatformCatalog(platform);
     if (!context) {
       return { key: platform.key, displayName: platform.displayName, state: "unknown", blockers: ["平台目录缺少当前赛季、上一赛季或段位表，竞技档案不可确认。"] };

@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/db/client", () => ({ db: {} }));
 
-import { buildMyReadinessModel, type MyCompetitionSource, type MySanctionSource } from "@/lib/my/readiness";
+import { buildMyReadinessModel, selectMyCompetitiveProfilePlatformKeys, type MyCompetitionSource, type MySanctionSource } from "@/lib/my/readiness";
+import type { SanctionEffect } from "@/lib/discipline/service";
 import type { ParticipantQualificationFacts } from "@/lib/qualification/service";
 import { MAJOR_TEAM_CONFIG } from "@/types/season";
 
@@ -43,7 +44,7 @@ function competition(overrides: Partial<MyCompetitionSource> = {}): MyCompetitio
   };
 }
 
-function sanction(effects: string[]): MySanctionSource {
+function sanction(effects: SanctionEffect[]): MySanctionSource {
   return {
     id: `case-${effects[0]}`,
     seasonId: "season-1",
@@ -105,6 +106,29 @@ describe("我的 readiness read model", () => {
   ] as const)("maps CompetitionEntry %s to an explicit user-visible state", (registrationStatus, state) => {
     const result = model({ competitions: [competition({ registrationStatus })] });
     expect(result.competitions[0]?.entry.state).toBe(state);
+  });
+
+  it("keeps changes_requested invited members on the shared reconfirmation presentation", () => {
+    const result = model({
+      competitions: [competition({
+        representativeUserId: "another-user",
+        registrationStatus: "changes_requested",
+        participantStatus: "invited",
+      })],
+    });
+
+    expect(result.competitions[0]?.entry).toMatchObject({ state: "waiting", owner: "我" });
+    expect(result.competitions[0]?.entry.detail).toContain("需要重新确认");
+  });
+
+  it("only selects required platforms and platforms with user facts for readiness cards", () => {
+    const catalog = [
+      { key: "perfect", displayName: "Perfect", ratingLabel: "Rating", ranks: [], seasons: [] },
+      { key: "5e", displayName: "5E", ratingLabel: "Rating", ranks: [], seasons: [] },
+    ];
+
+    expect(selectMyCompetitiveProfilePlatformKeys(catalog, new Set(["perfect"]), new Set())).toEqual(["perfect"]);
+    expect(selectMyCompetitiveProfilePlatformKeys(catalog, new Set(["perfect"]), new Set(["5e"]))).toEqual(["perfect", "5e"]);
   });
 
   it("surfaces every active sanction effect with the affected competition", () => {

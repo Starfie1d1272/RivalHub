@@ -75,7 +75,7 @@ export function serializeSanctionPublic(
   seasonId: string;
   subjectUserId: string;
   status: ResolvedSanctionStatus;
-  effects: string[];
+  effects: SanctionEffect[];
   explanation: string | null;
   effectiveFrom: Date;
   effectiveUntil: Date | null;
@@ -86,7 +86,7 @@ export function serializeSanctionPublic(
     seasonId: row.seasonId,
     subjectUserId: row.subjectUserId,
     status: resolveSanctionStatus(row, now),
-    effects: [...((row.effects ?? []) as string[])],
+    effects: [...((row.effects ?? []) as SanctionEffect[])],
     explanation: row.publicExplanation,
     effectiveFrom: row.effectiveFrom,
     effectiveUntil: row.effectiveUntil,

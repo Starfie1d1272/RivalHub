@@ -96,6 +96,7 @@
 | 人类可读用户身份（内部） | `src/lib/identity/display-name.ts` → `getDisplayName()` |
 | 竞技平台目录 / current / previous chronology | `src/lib/competitive/catalog.ts` |
 | 资格与 readiness | `src/lib/qualification/` |
+| CompetitionEntry 面向参赛者的状态文案 | `src/lib/competition-entries/presentation.ts` |
 | Dialog / modal primitive | `src/components/ui/dialog.tsx` |
 | bracket adapter | `src/lib/bracket/` |
 | Major Swiss | `src/lib/major/swiss.ts` |
