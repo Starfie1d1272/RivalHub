@@ -62,9 +62,20 @@ async function main(): Promise<void> {
     assert.deepEqual(identity.rows[0], { perfect_name: "Legacy Nick", perfect_id: null });
 
     await client.query(
-      `INSERT INTO competitive_platform_seasons (platform, season_key, label, rank_order)
-       VALUES ('perfect_world', 'major-current', 'Major Current', $1::json)`,
-      [JSON.stringify(PERFECT_WORLD_RANK_ORDER)],
+      `INSERT INTO competitive_platforms (key, display_name, rating_label) VALUES ('perfect_world', '完美世界竞技平台', 'Rating Pro')
+       ON CONFLICT (key) DO NOTHING`,
+    );
+    await client.query(
+      `INSERT INTO competitive_platform_ranks (platform_key, rank_key, label, sort_order)
+       SELECT 'perfect_world', value, value, ordinality - 1
+       FROM unnest($1::text[]) WITH ORDINALITY AS t(value, ordinality)
+       ON CONFLICT (platform_key, rank_key) DO NOTHING`,
+      [PERFECT_WORLD_RANK_ORDER],
+    );
+    await client.query(
+      `INSERT INTO competitive_platform_seasons (platform, season_key, label, sort_order)
+       VALUES ('perfect_world', 'major-previous', 'Major Previous', 0), ('perfect_world', 'major-current', 'Major Current', 1)
+       ON CONFLICT (platform, season_key) DO NOTHING`,
     );
     await expectPgError(
       client,
@@ -105,10 +116,10 @@ async function main(): Promise<void> {
               has_table_privilege('authenticated', 'public.' || c.relname, 'SELECT') AS authenticated_select
        FROM pg_class c
        JOIN pg_namespace n ON n.oid = c.relnamespace
-       WHERE n.nspname = 'public' AND c.relname IN ('competitive_platform_seasons', 'competitive_rank_facts')
+       WHERE n.nspname = 'public' AND c.relname IN ('competitive_platforms', 'competitive_platform_ranks', 'competitive_platform_seasons', 'competitive_rank_facts')
        ORDER BY c.relname`,
     );
-    assert.equal(protectedTables.rows.length, 2);
+    assert.equal(protectedTables.rows.length, 4);
     for (const table of protectedTables.rows) {
       assert.equal(table.relrowsecurity, true);
       assert.equal(table.anon_select, false);

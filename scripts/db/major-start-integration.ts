@@ -22,6 +22,7 @@ import {
   revokeTournamentHonorInTx,
 } from "../../src/lib/postevent/service";
 import { lockMatchInTx } from "../../src/lib/match-rosters/service";
+import { seedCompetitivePlatformCatalog } from "./competitive-catalog-fixtures";
 
 const GOLDEN_PROFILE: CompetitiveProfileConfig = {
   platform: "perfect_world",
@@ -112,15 +113,10 @@ async function prepareReadyMajor(pool: Pool, label: string): Promise<MajorFixtur
 
   try {
     await client.query("BEGIN");
-    await client.query(
-      `INSERT INTO competitive_platform_seasons (id, platform, season_key, label, rank_order, sort_order, is_current)
-       VALUES ($1, $2, $3, 'Golden current', $4::json, 1, true), ($5, $2, $6, 'Golden previous', $4::json, 0, false)
-       ON CONFLICT (platform, season_key) DO UPDATE SET label = EXCLUDED.label, rank_order = EXCLUDED.rank_order, sort_order = EXCLUDED.sort_order, is_current = EXCLUDED.is_current, active = true, updated_at = now()`,
-      [
-        deterministicUuid("catalog/current"), GOLDEN_PROFILE.platform, GOLDEN_PROFILE.currentSeasonKey,
-        JSON.stringify(GOLDEN_PROFILE.rankOrder), deterministicUuid("catalog/previous"), GOLDEN_PROFILE.previousSeasonKey,
-      ],
-    );
+    await seedCompetitivePlatformCatalog(client, GOLDEN_PROFILE.platform, [
+      { seasonKey: GOLDEN_PROFILE.previousSeasonKey, label: "Golden previous", sortOrder: 0, isCurrent: false },
+      { seasonKey: GOLDEN_PROFILE.currentSeasonKey, label: "Golden current", sortOrder: 1, isCurrent: true },
+    ], GOLDEN_PROFILE.rankOrder);
     await client.query(
       `INSERT INTO seasons (
         id, slug, name, kind, status, registration_mode, has_captain_voting, has_draft,

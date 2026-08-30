@@ -1,5 +1,7 @@
 import { Btn } from "./Btn";
 
+import React from "react";
+
 interface InlineConfirmProps {
   title: string;
   sub?: string;

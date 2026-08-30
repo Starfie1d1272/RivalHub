@@ -1,11 +1,12 @@
-import { asc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { getUserSession } from "@/lib/auth/session";
 import { db } from "@/db/client";
-import { competitivePlatformSeasons, users } from "@/db/schema";
+import { users } from "@/db/schema";
 import { Checklist, Marker, Panel, StatusBanner } from "@/components/rivalhub";
 import { ProfileForm } from "@/components/settings/ProfileForm";
 import { getParticipantReadiness } from "@/lib/major/participant-readiness";
+import { loadCompetitivePlatformCatalog, resolvePlatformCatalog, toCompetitiveProfileConfig } from "@/lib/competitive/catalog";
 
 export default async function SettingsPage() {
   const session = await getUserSession();
@@ -13,11 +14,14 @@ export default async function SettingsPage() {
 
   const [user, catalog] = await Promise.all([
     db.query.users.findFirst({ where: eq(users.id, session.userId), columns: { displayName: true, steamName: true, perfectName: true, perfectId: true, steam64: true, steamProfileUrl: true, qq: true } }),
-    db.select().from(competitivePlatformSeasons).orderBy(asc(competitivePlatformSeasons.platform), asc(competitivePlatformSeasons.sortOrder)),
+    loadCompetitivePlatformCatalog(db),
   ]);
-  const current = catalog.find((item) => item.active && item.isCurrent);
-  const previous = current ? catalog.filter((item) => item.platform === current.platform && item.active && item.sortOrder < current.sortOrder).at(-1) : null;
-  const readiness = current && previous ? await getParticipantReadiness(session.userId, { platform: current.platform, currentSeasonKey: current.seasonKey, previousSeasonKey: previous.seasonKey, rankOrder: current.rankOrder }) : null;
+  const resolved = catalog
+    .map((platform) => ({ platform, context: resolvePlatformCatalog(platform) }))
+    .find((item) => item.context !== null);
+  const readiness = resolved?.context
+    ? await getParticipantReadiness(session.userId, toCompetitiveProfileConfig({ platform: resolved.platform.key, ...resolved.context }))
+    : null;
   const readyItems = readiness?.blockers.map((blocker) => ({
     label: blocker,
     state: "blocked" as const,

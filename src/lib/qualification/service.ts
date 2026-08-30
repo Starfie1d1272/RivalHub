@@ -1,6 +1,6 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { competitivePlatformSeasons, competitiveRankFacts, educationVerifications, institutions, users } from "@/db/schema";
+import { competitiveRankFacts, educationVerifications, institutions, users } from "@/db/schema";
 import { getPlayerStrengthBreakdown, evaluateExternalStrengthRule, type PlayerStrengthInput } from "@/lib/major/player-strength";
 import {
   evaluateRosterEducationEligibility,
@@ -45,14 +45,13 @@ export interface ParticipantReadiness {
   educationApproved: boolean;
 }
 
+/**
+ * Event qualification only accepts the publish-time frozen context. A missing
+ * or partial legacy snapshot is deliberately not repaired from today's live
+ * catalog: that would rewrite historical event semantics.
+ */
 export async function resolveCompetitiveContext(config: CompetitiveProfileConfig): Promise<CompetitiveProfileConfig | null> {
-  if (config.currentSeasonKey && config.previousSeasonKey && config.rankOrder.length > 0) return config;
-  const catalog = await db.select().from(competitivePlatformSeasons).where(and(eq(competitivePlatformSeasons.platform, config.platform), eq(competitivePlatformSeasons.active, true)));
-  const current = catalog.find((item) => item.isCurrent);
-  const previous = current ? catalog.filter((item) => item.sortOrder < current.sortOrder).sort((a, b) => b.sortOrder - a.sortOrder)[0] : null;
-  return current && previous && current.rankOrder.length > 0
-    ? { platform: config.platform, currentSeasonKey: current.seasonKey, previousSeasonKey: previous.seasonKey, rankOrder: current.rankOrder }
-    : null;
+  return config.currentSeasonKey && config.previousSeasonKey && config.rankOrder.length > 0 ? config : null;
 }
 
 /** Batched loader for every live fact a qualification decision may need. */

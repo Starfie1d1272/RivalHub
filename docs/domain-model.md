@@ -14,7 +14,9 @@
 
 ## 3. Competitive profile
 
-`competitive_platform_seasons` 管理竞技平台赛季目录及其时间顺序和当前赛季；platform + seasonKey 是目录项的不可变身份。`competitive_rank_facts` 存储用户对任意已编目平台赛季或跨赛季 peak 的可审查竞技事实。它们是独立于某届 RivalHub 赛事的长期资料。发布 requireCompetitiveProfile 的赛事时，目录的 current、previous 与 rank order 被冻结进该赛事的 `teamRegistrationConfig`，之后的目录变化不回写已发布赛事。
+`competitive_platforms` 是竞技平台的长期一级实体：平台持有稳定技术 key（创建后 immutable）、可修改的显示名称与 canonical performance Rating label（如完美世界的 Rating Pro、5E 的 Rating+；不是 Valve Premier CS Rating 这类 matchmaking / ladder score）。平台段位表 `competitive_platform_ranks` 由平台统一拥有：`rankKey` 是稳定身份、`label` 是可改的展示名，`sortOrder` 表达由低到高。平台赛季 `competitive_platform_seasons` 只表达时间目录（platform + seasonKey 不可变身份、显示名、时间顺序、active 与唯一 current），不再拥有段位顺序。previous 赛季由时间顺序推导，没有第二个 mutable 标记。
+
+`competitive_rank_facts` 存储用户对任意已编目平台赛季或跨赛季 peak 的可审查竞技事实；`rank` 保存平台段位表的稳定 rankKey，不因管理员重命名 label 而失效；`rating` 保存该平台唯一 canonical performance Rating，不是 matchmaking score。发布 requireCompetitiveProfile 的赛事时，平台目录的 current、previous 与当时生效的平台段位表（rankKey 序列）被冻结进该赛事的 `teamRegistrationConfig`，之后的目录变化不回写已发布赛事。删除或重排已被长期事实或冻结赛事上下文引用的段位会 fail closed；真实的平台段位体系调整应建立版本化 ladder，而不是覆盖历史语义。
 
 ## 4. Seasons
 
@@ -86,6 +88,20 @@
 
 ## Key invariants and ownership
 
+### Canonical Owner Map
+
+| 事实或能力 | Canonical owner |
+|---|---|
+| 人类可读用户身份（公开） | `src/lib/identity/display-name.ts` → `getPublicDisplayName()` |
+| 人类可读用户身份（内部） | `src/lib/identity/display-name.ts` → `getDisplayName()` |
+| 竞技平台目录 / current / previous chronology | `src/lib/competitive/catalog.ts` |
+| 资格与 readiness | `src/lib/qualification/` |
+| Dialog / modal primitive | `src/components/ui/dialog.tsx` |
+| bracket adapter | `src/lib/bracket/` |
+| Major Swiss | `src/lib/major/swiss.ts` |
+| 比赛 roster | `src/lib/match-rosters/` |
+| migration scratch replay 基础设施 | `scripts/db/migration-replay.ts` |
+
 | 不变量 | 主要 owner |
 |---|---|
 | email 与 Auth identity 的唯一性 | DB unique constraints + Auth 同步 |
@@ -93,7 +109,7 @@
 | Entry 报名 revision 的可编辑性与状态迁移 | competition-entry domain action / state rules |
 | affiliation 与竞技资格 | `src/lib/qualification/` 单一 owner：batch fact loaders + pure evaluators |
 | 内置赛事模板身份与固定语义 | `seasons.competitionTemplate` + canonical template factory（draft 保存时重新 canonicalize） |
-| 发布时的竞技上下文冻结 | `publishSeason` 事务：catalog current/previous/rank order → season frozen competitiveProfile |
+| 发布时的竞技上下文冻结 | `publishSeason` 事务：platform catalog current/previous/ladder → season frozen competitiveProfile（单一 owner：`src/lib/competitive/catalog.ts`） |
 | 队长交接的并发安全 | application/team 行锁 + season 行锁 + 目标成员 `FOR UPDATE`，全部判断基于锁定行 |
 | Major prestart readiness | prestart domain service 与明确 blocker |
 | StageRun 规则与参赛成员冻结 | rule snapshot + managed runtime |

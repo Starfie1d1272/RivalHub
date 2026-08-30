@@ -11,11 +11,12 @@ const NAV_ITEMS = [
   { href: "/admin/users", label: "用户管理" },
   { href: "/admin/education-verifications", label: "教育认证审核" },
   { href: "/admin/invites", label: "邀请码" },
+  { href: "/admin/competitive-seasons", label: "竞技平台", superAdminOnly: true },
   { href: "/admin/logs", label: "操作日志" },
   { href: "/admin/settings", label: "系统设置" },
 ] as const;
 
-export function AdminSidebar({ email }: { email: string }) {
+export function AdminSidebar({ email, role }: { email: string; role: "season_admin" | "super_admin" }) {
   const pathname = usePathname();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -50,7 +51,7 @@ export function AdminSidebar({ email }: { email: string }) {
 
       {/* nav */}
       <nav className="flex min-w-0 flex-1 overflow-x-auto md:block">
-        {NAV_ITEMS.map((item) => {
+        {NAV_ITEMS.filter((item) => !("superAdminOnly" in item && item.superAdminOnly) || role === "super_admin").map((item) => {
           const active = item.href === "/admin"
             ? pathname === "/admin"
             : pathname.startsWith(item.href);

@@ -6,6 +6,7 @@ import { Pool } from "pg";
 import { createMajorDefaultCapabilities } from "../../src/types/season";
 import { createPerfectWorldRankOrder } from "../../src/lib/config/perfect-world";
 import { assertDeclaredDatabaseTarget, assertLocalDatabaseUrl, assertLocalHttpUrl } from "./local-environment";
+import { seedCompetitivePlatformCatalog } from "./competitive-catalog-fixtures";
 
 const FIXTURE_SEASON_ID = deterministicUuid("major-browser-season");
 const FIXTURE_SLUG = "local-major-browser-2026-08";
@@ -150,11 +151,10 @@ async function insertFixture(client: import("pg").PoolClient, authIds: Map<strin
       [ACCOUNT_IDS[index], authIds.get(email), email, ready ? `Browser ${key}` : null, ready ? `Browser Steam ${key}` : null, ready ? `Browser Perfect ${key}` : null, ready ? `browser-major-${key}` : null, ready ? `7656119800000000${String(index + 1).padStart(2, "0")}` : null, ready ? `https://steamcommunity.com/id/browser-${key}` : null, ready ? `500000000${String(index + 1).padStart(2, "02")}` : null],
     );
   }
-  await client.query(
-    `INSERT INTO competitive_platform_seasons (id, platform, season_key, label, rank_order, sort_order, is_current)
-     VALUES ($1, $2, $3, 'Browser 当前赛季', $4::json, 1, true), ($5, $2, $6, 'Browser 上一赛季', $4::json, 0, false)`,
-    [deterministicUuid("major-browser-platform-current"), PROFILE.platform, PROFILE.currentSeasonKey, JSON.stringify(PROFILE.rankOrder), deterministicUuid("major-browser-platform-previous"), PROFILE.previousSeasonKey],
-  );
+  await seedCompetitivePlatformCatalog(client, PROFILE.platform, [
+    { seasonKey: PROFILE.previousSeasonKey, label: "Browser 上一赛季", sortOrder: 0, isCurrent: false },
+    { seasonKey: PROFILE.currentSeasonKey, label: "Browser 当前赛季", sortOrder: 1, isCurrent: true },
+  ], PROFILE.rankOrder);
   const facts = ACCOUNT_KEYS.filter((key) => key !== "player1").flatMap((key) => {
     const userId = ACCOUNT_IDS[ACCOUNT_KEYS.indexOf(key)]!;
     return [

@@ -1,7 +1,8 @@
-import { and, count, eq } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 import type { db as dbClient } from "@/db/client";
-import { competitionEntries, competitivePlatformSeasons, matches, seasonRegistrations, seasons } from "@/db/schema";
+import { competitionEntries, matches, seasonRegistrations, seasons } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
+import { resolveLiveCompetitiveContext } from "@/lib/competitive/catalog";
 import { createCompetitionTemplate } from "@/lib/competition/templates";
 import { normalizeTeamRegistrationConfig, type TeamRegistrationConfig } from "@/types/season";
 
@@ -54,10 +55,11 @@ export function unfreezeBuiltInCompetitiveContext(season: {
 
 /**
  * Publish-time competitive context freeze. When the season requires a
- * competitive profile but its draft configuration carries no explicit
- * context, the platform catalog's current season, the season before it and
- * the current rank order are frozen into teamRegistrationConfig. Once
- * published, later catalog changes never alter a season's frozen context.
+ * competitive profile, the platform catalog's current season, the active
+ * season before it and the platform-owned rank ladder are frozen into
+ * teamRegistrationConfig. Once published, later catalog changes never alter a
+ * season's frozen context. A missing current/previous season or an empty
+ * ladder fails closed — there is no fallback rank order.
  */
 export async function freezeCompetitiveContext(
   tx: Transaction,
@@ -65,26 +67,18 @@ export async function freezeCompetitiveContext(
 ): Promise<TeamRegistrationConfig> {
   const config = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
   if (!config.requireCompetitiveProfile) return config;
-  const requested = config.competitiveProfile;
-  if (requested?.currentSeasonKey && requested.previousSeasonKey && requested.rankOrder.length > 0) return config;
-  const platform = requested?.platform ?? "perfect_world";
-  const catalog = await tx.select().from(competitivePlatformSeasons)
-    .where(and(eq(competitivePlatformSeasons.platform, platform), eq(competitivePlatformSeasons.active, true)));
-  const current = catalog.filter((entry) => entry.isCurrent);
-  if (current.length !== 1 || current[0]!.rankOrder.length === 0) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "请先在竞技平台赛季目录中设置唯一的当前赛季及段位顺序。");
+  const platform = config.competitiveProfile?.platform ?? "perfect_world";
+  const context = await resolveLiveCompetitiveContext(tx, platform);
+  if (!context) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, `请先在竞技平台目录中为 ${platform} 配置唯一的当前赛季、启用的上一赛季和平台段位表。`);
   }
-  const previous = catalog
-    .filter((entry) => entry.sortOrder < current[0]!.sortOrder)
-    .sort((a, b) => b.sortOrder - a.sortOrder)[0];
-  if (!previous) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先在竞技平台赛季目录中录入并启用上一赛季。");
   return {
     ...config,
     competitiveProfile: {
       platform,
-      currentSeasonKey: current[0]!.seasonKey,
-      previousSeasonKey: previous.seasonKey,
-      rankOrder: current[0]!.rankOrder,
+      currentSeasonKey: context.currentSeasonKey,
+      previousSeasonKey: context.previousSeasonKey,
+      rankOrder: context.rankOrder,
     },
   };
 }
