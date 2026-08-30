@@ -17,6 +17,10 @@ describe("built-in competitive platform definitions", () => {
     expect(isBuiltInCompetitivePlatformKey("perfect_world")).toBe(true);
     expect(isBuiltInCompetitivePlatformKey("fivee")).toBe(true);
     expect(isBuiltInCompetitivePlatformKey("faceit")).toBe(false);
+    // `in` would walk the prototype chain; the guard must not.
+    expect(isBuiltInCompetitivePlatformKey("toString")).toBe(false);
+    expect(isBuiltInCompetitivePlatformKey("constructor")).toBe(false);
+    expect(isBuiltInCompetitivePlatformKey("__proto__")).toBe(false);
   });
 
   it("pins Perfect World on Rating Pro with the shared ladder and S-tier star ranges", () => {

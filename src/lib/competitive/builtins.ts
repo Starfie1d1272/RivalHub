@@ -76,7 +76,9 @@ export type BuiltInCompetitivePlatformKey = keyof typeof BUILT_IN_COMPETITIVE_PL
 export const BUILT_IN_COMPETITIVE_PLATFORM_KEYS = Object.keys(BUILT_IN_COMPETITIVE_PLATFORMS) as BuiltInCompetitivePlatformKey[];
 
 export function isBuiltInCompetitivePlatformKey(value: string): value is BuiltInCompetitivePlatformKey {
-  return value in BUILT_IN_COMPETITIVE_PLATFORMS;
+  // hasOwnProperty instead of `in`: the `in` operator walks the prototype
+  // chain, so "toString" / "constructor" / "__proto__" would pass.
+  return Object.prototype.hasOwnProperty.call(BUILT_IN_COMPETITIVE_PLATFORMS, value);
 }
 
 export function builtInCompetitivePlatform(key: BuiltInCompetitivePlatformKey): BuiltInPlatformDefinition {
