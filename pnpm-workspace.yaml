@@ -22,3 +22,34 @@ overrides:
   # single-elim / double-elim / round-robin 全量格式测试验证。
   # 退出条件：brackets-manager 发布依赖 uuid >= 11 的版本后，移除本 override。
   'uuid@9.0.1': 11.1.1
+  # GHSA-fx2h-pf6j-xcff / GHSA-v6wh-96g9-6wx3: vitest 3.2.7 依赖树中 vite 实例
+  # 停留在 7.3.2（patched floor >= 7.3.5）。vitest 声明范围 ^5.0.0 || ^6.0.0 ||
+  # ^7.0.0-0 已允许 7.3.6，仅因 lockfile 停留未重解析；对该精确实例收敛到
+  # 7.3.6（其 esbuild 范围 ^0.27.0 || ^0.28.0 同时解决 GHSA-g7r4-m6w7-qqqr）。
+  # 退出条件：vitest 升级后 lockfile 自然解析 >= 7.3.5 时移除。
+  'vite@7.3.2': 7.3.6
+  # GHSA-52cp-r559-cp3m / GHSA-5p4m-2wfm-xmqj / GHSA-h67p-54hq-rp68:
+  # @changesets/cli 依赖树中 js-yaml 3.14.2（read-yaml-file ^3.13.1）与
+  # 4.2.0（@changesets/parse ^4.1.0）停留旧版，声明范围均允许 patched floor
+  # （3.15.x / >= 4.3.1），仅因 lockfile 停留未重解析；对精确实例分别收敛。
+  # 退出条件：@changesets/cli 升级重解析后移除。
+  'js-yaml@3.14.2': 3.15.2
+  'js-yaml@4.2.0': 4.3.1
+  # GHSA-3jxr-9vmj-r5cp / GHSA-mh99-v99m-4gvg / GHSA-rgw5-rvv9-x895 /
+  # GHSA-jxxr-4gwj-5jf2: minimatch 9/10 依赖树中 brace-expansion 实例
+  # （2.1.0 / 5.0.5）停留旧版，minimatch 声明范围允许 2.1.4 / 5.0.9，
+  # 仅因 lockfile 停留未重解析；对精确实例分别收敛。
+  # 退出条件：minimatch / @vitest/coverage-v8 / eslint-config-next 升级
+  # 重解析后移除。
+  'brace-expansion@2.1.0': 2.1.4
+  'brace-expansion@5.0.5': 5.0.9
+  # GHSA-67mh-4wv8-2f99 / GHSA-g7r4-m6w7-qqqr: drizzle-kit 0.31.10（当前 latest）
+  # 内部经 @esbuild-kit/core-utils pin esbuild ~0.18.20、经 tsx@4.21.0 pin
+  # esbuild ~0.27，声明范围均无法到达 patched floor（>= 0.24.3 / >= 0.28.1）。
+  # 对两个精确实例收敛到 0.28.2：esbuild transform/加载 API 兼容，已通过
+  # db:check、db:generate（无 schema 变更）、db:local:verify-migrations 与
+  # Local integration smoke 验证。advisory 攻击面（dev server 未授权访问）
+  # 仅在 esbuild serve 场景可达，drizzle-kit 不使用该场景。
+  # 退出条件：drizzle-kit 发布移除 @esbuild-kit / 升级内部 tsx 的版本后移除。
+  'esbuild@0.18.20': 0.28.2
+  'esbuild@0.27.7': 0.28.2
