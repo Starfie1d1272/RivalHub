@@ -18,3 +18,10 @@ overrides:
   # 仅因 lockfile 停留未重解析；对该精确实例收敛到 0.35.4（已验证 build/原生二进制安装）。
   # 退出条件：lockfile 因 next 或其他 owner 升级自然解析到 >= 0.35.0 后移除。
   'sharp@0.34.5': 0.35.4
+  # GHSA-w5hq-g745-h8pq: brackets-manager@1.9.1 -> uuid@9.0.1（< 11.1.1 patched floor）。
+  # path: .>brackets-manager>uuid；brackets-manager 最新 1.11.0 仍声明 uuid ^9.0.0，
+  # 上游生态尚未迁移，无法通过升级 owner 自然解决。uuid 11.1.1 保留 CJS 出口
+  # （dist/cjs），brackets-manager 的 require('uuid') 与 v4 API 兼容，经 bracket /
+  # single-elim / double-elim / round-robin 全量格式测试验证。
+  # 退出条件：brackets-manager 发布依赖 uuid >= 11 的版本后，移除本 override。
+  'uuid@9.0.1': 11.1.1
