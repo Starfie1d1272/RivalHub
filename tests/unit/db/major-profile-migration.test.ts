@@ -29,9 +29,9 @@ describe("0012 competitive profile migration", () => {
     // be part of it and the journal must remain contiguous.
     expect(journal.entries.map(({ tag }) => tag)).toContain("0012_dapper_devos");
     expect(journal.entries.at(-1)).toMatchObject({
-      idx: 17,
+      idx: 18,
       version: "7",
-      tag: "0017_broad_doctor_octopus",
+      tag: "0018_competitive_platform_catalog",
       breakpoints: true,
     });
   });

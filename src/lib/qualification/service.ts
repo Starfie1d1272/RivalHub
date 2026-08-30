@@ -1,6 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { competitivePlatformSeasons, competitiveRankFacts, educationVerifications, institutions, users } from "@/db/schema";
+import { competitiveRankFacts, educationVerifications, institutions, users } from "@/db/schema";
+import { resolveLiveCompetitiveContext, toCompetitiveProfileConfig } from "@/lib/competitive/catalog";
 import { getPlayerStrengthBreakdown, evaluateExternalStrengthRule, type PlayerStrengthInput } from "@/lib/major/player-strength";
 import {
   evaluateRosterEducationEligibility,
@@ -45,14 +46,16 @@ export interface ParticipantReadiness {
   educationApproved: boolean;
 }
 
+/**
+ * Event qualification context resolution. A fully frozen event context is used
+ * as-is; an incomplete context (legacy row) is resolved live from the
+ * platform catalog. No hardcoded rank fallback exists — an incomplete
+ * catalog yields null and callers fail closed.
+ */
 export async function resolveCompetitiveContext(config: CompetitiveProfileConfig): Promise<CompetitiveProfileConfig | null> {
   if (config.currentSeasonKey && config.previousSeasonKey && config.rankOrder.length > 0) return config;
-  const catalog = await db.select().from(competitivePlatformSeasons).where(and(eq(competitivePlatformSeasons.platform, config.platform), eq(competitivePlatformSeasons.active, true)));
-  const current = catalog.find((item) => item.isCurrent);
-  const previous = current ? catalog.filter((item) => item.sortOrder < current.sortOrder).sort((a, b) => b.sortOrder - a.sortOrder)[0] : null;
-  return current && previous && current.rankOrder.length > 0
-    ? { platform: config.platform, currentSeasonKey: current.seasonKey, previousSeasonKey: previous.seasonKey, rankOrder: current.rankOrder }
-    : null;
+  const context = await resolveLiveCompetitiveContext(db, config.platform);
+  return context ? toCompetitiveProfileConfig(context) : null;
 }
 
 /** Batched loader for every live fact a qualification decision may need. */

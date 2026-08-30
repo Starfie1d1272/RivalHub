@@ -127,6 +127,13 @@
       "when": 1788046410677,
       "tag": "0017_broad_doctor_octopus",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1788074961497,
+      "tag": "0018_competitive_platform_catalog",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,243 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import {
+  createCompetitivePlatform,
+  createCompetitivePlatformRank,
+  createCompetitivePlatformSeason,
+  deleteCompetitivePlatformRank,
+  deleteCompetitivePlatformSeason,
+  moveCompetitivePlatformRank,
+  moveCompetitivePlatformSeason,
+  setCurrentCompetitivePlatformSeason,
+  setCompetitivePlatformSeasonActive,
+  updateCompetitivePlatform,
+  updateCompetitivePlatformRankLabel,
+  updateCompetitivePlatformSeason,
+} from "@/actions/competitive-platform";
+import type { CompetitivePlatformCatalogEntry } from "@/lib/competitive/catalog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { InlineConfirm, Panel, StatusBanner } from "@/components/rivalhub";
+
+type Platform = CompetitivePlatformCatalogEntry;
+
+type Run = (work: () => Promise<{ success: boolean; error?: { message: string } }>, okMessage: string) => void;
+
+function useCatalogActions() {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const run: Run = (work, okMessage) => startTransition(async () => {
+    const result = await work();
+    if (result.success) { toast.success(okMessage); router.refresh(); }
+    else toast.error(result.error?.message ?? "操作失败，请稍后重试。");
+  });
+  return { pending, run };
+}
+
+function SeasonStatusChips({ season, platform }: { season: Platform["seasons"][number]; platform: Platform }) {
+  const previous = (() => {
+    const current = platform.seasons.find((item) => item.isCurrent && item.active);
+    if (!current) return undefined;
+    return [...platform.seasons].filter((item) => item.active && item.sortOrder < current.sortOrder).sort((a, b) => b.sortOrder - a.sortOrder)[0];
+  })();
+  return (
+    <span className="flex flex-wrap gap-1.5 text-[11px]">
+      {season.isCurrent && <span className="rounded-sm px-1.5 py-0.5 font-semibold" style={{ background: "color-mix(in srgb, var(--color-accent) 14%, transparent)", color: "var(--color-accent)" }}>当前赛季</span>}
+      {previous?.id === season.id && !season.isCurrent && <span className="rounded-sm px-1.5 py-0.5 font-medium" style={{ background: "var(--color-panel)", color: "var(--color-fg-mid)" }}>上一赛季</span>}
+      {!season.isCurrent && previous?.id !== season.id && <span className="rounded-sm px-1.5 py-0.5 font-medium" style={{ background: "var(--color-panel)", color: "var(--color-fg-mid)" }}>历史赛季</span>}
+      <span className="rounded-sm px-1.5 py-0.5" style={{ background: "var(--color-panel)", color: season.active ? "var(--color-fg-mid)" : "var(--color-danger)" }}>{season.active ? "启用" : "停用"}</span>
+    </span>
+  );
+}
+
+export function CompetitivePlatformCatalog({ platforms }: { platforms: Platform[] }) {
+  const { pending, run } = useCatalogActions();
+  const [newPlatform, setNewPlatform] = useState({ key: "", displayName: "" });
+  const [newSeason, setNewSeason] = useState<{ platform: string; seasonKey: string; label: string } | null>(null);
+  const [seasonLabelDraft, setSeasonLabelDraft] = useState<{ id: string; label: string } | null>(null);
+  const [newRank, setNewRank] = useState<{ platform: string; label: string; rankKey: string } | null>(null);
+  const [rankLabelDraft, setRankLabelDraft] = useState<{ id: string; label: string } | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ kind: "set-current" | "delete-season" | "delete-rank"; id: string; title: string; sub?: string } | null>(null);
+
+  return (
+    <div className="space-y-5">
+      {platforms.length === 0 && (
+        <StatusBanner tone="warn" title="尚未建立竞技平台" sub="先创建第一个平台，再维护它的赛季目录与平台段位表。" />
+      )}
+
+      {platforms.map((platform) => {
+        const ranks = [...platform.ranks].sort((a, b) => a.sortOrder - b.sortOrder);
+        const seasons = [...platform.seasons].sort((a, b) => b.sortOrder - a.sortOrder);
+        return (
+          <Panel key={platform.key} label={platform.displayName} pad={0}>
+            <div className="space-y-5 p-5">
+              {/* Platform identity */}
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <PlatformIdentityRow key_={platform.key} displayName={platform.displayName} pending={pending} onSave={(displayName) => run(() => updateCompetitivePlatform({ key: platform.key, displayName }), "平台显示名称已更新")} />
+              </div>
+
+              {/* Seasons */}
+              <section className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold">赛季</h3>
+                  <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => setNewSeason({ platform: platform.key, seasonKey: "", label: "" })}>+ 新增赛季</Button>
+                </div>
+                {newSeason?.platform === platform.key && (
+                  <div className="grid gap-3 rounded-sm border border-[var(--color-border)] p-4 sm:grid-cols-[1fr_1fr_auto]">
+                    <div className="space-y-1.5"><Label>赛季标识（创建后不可修改）</Label><Input value={newSeason.seasonKey} onChange={(event) => setNewSeason({ ...newSeason, seasonKey: event.target.value })} placeholder="例如 S24" className="font-mono" /></div>
+                    <div className="space-y-1.5"><Label>显示名称</Label><Input value={newSeason.label} onChange={(event) => setNewSeason({ ...newSeason, label: event.target.value })} placeholder="例如 2026 秋季赛" /></div>
+                    <div className="flex items-end gap-2">
+                      <Button type="button" size="sm" disabled={pending || !newSeason.seasonKey.trim() || !newSeason.label.trim()} onClick={() => run(() => createCompetitivePlatformSeason({ platform: newSeason.platform, seasonKey: newSeason.seasonKey, label: newSeason.label }), "赛季已新增")}>创建</Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={() => setNewSeason(null)}>取消</Button>
+                    </div>
+                  </div>
+                )}
+                {seasons.length === 0 && <p className="text-sm text-[var(--color-fg-mid)]">该平台还没有赛季目录。新增当前赛季与上一赛季后，参赛者才能维护竞技档案、赛事才能冻结资格上下文。</p>}
+                <div className="divide-y divide-[var(--color-border)] rounded-sm border border-[var(--color-border)]">
+                  {seasons.map((season, index) => (
+                    <div key={season.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                      <div className="min-w-0 space-y-1">
+                        {seasonLabelDraft?.id === season.id ? (
+                          <div className="flex items-center gap-2">
+                            <Input value={seasonLabelDraft.label} onChange={(event) => setSeasonLabelDraft({ ...seasonLabelDraft, label: event.target.value })} className="max-w-56" />
+                            <Button type="button" size="sm" disabled={pending || !seasonLabelDraft.label.trim()} onClick={() => run(() => updateCompetitivePlatformSeason(seasonLabelDraft), "赛季显示名称已更新")}>保存</Button>
+                            <Button type="button" size="sm" variant="ghost" onClick={() => setSeasonLabelDraft(null)}>取消</Button>
+                          </div>
+                        ) : (
+                          <p className="font-medium">{season.label} <span className="ml-1 font-mono text-xs text-[var(--color-fg-dim)]">{season.seasonKey}</span></p>
+                        )}
+                        <SeasonStatusChips season={season} platform={platform} />
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5 text-sm">
+                        <Button type="button" size="sm" variant="ghost" disabled={pending || index === seasons.length - 1} onClick={() => run(() => moveCompetitivePlatformSeason({ id: season.id, direction: "up" }), "时间顺序已更新")} title="时间顺序前移（更早）">↑</Button>
+                        <Button type="button" size="sm" variant="ghost" disabled={pending || index === 0} onClick={() => run(() => moveCompetitivePlatformSeason({ id: season.id, direction: "down" }), "时间顺序已更新")} title="时间顺序后移（更晚）">↓</Button>
+                        <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => setSeasonLabelDraft({ id: season.id, label: season.label })}>编辑</Button>
+                        <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => run(() => setCompetitivePlatformSeasonActive({ id: season.id, active: !season.active }), season.active ? "赛季已停用" : "赛季已启用")}>{season.active ? "停用" : "启用"}</Button>
+                        {!season.isCurrent && <Button type="button" size="sm" variant="outline" disabled={pending || !season.active} onClick={() => setConfirmAction({ kind: "set-current", id: season.id, title: `设为当前赛季`, sub: `当前赛季将从 ${seasons.find((item) => item.isCurrent)?.label ?? "（无）"} 切换为 ${season.label}；原当前赛季将成为历史/上一赛季。` })}>设为当前赛季</Button>}
+                        <Button type="button" size="sm" variant="ghost" className="text-[var(--color-danger)]" disabled={pending} onClick={() => setConfirmAction({ kind: "delete-season", id: season.id, title: `删除赛季 ${season.label}？`, sub: "只有未被竞技资料和已发布赛事引用的赛季可以删除。" })}>删除</Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              {/* Rank ladder */}
+              <section className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold">段位顺序 · 由低到高</h3>
+                  <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => setNewRank({ platform: platform.key, label: "", rankKey: "" })}>+ 添加段位</Button>
+                </div>
+                {newRank?.platform === platform.key && (
+                  <div className="grid gap-3 rounded-sm border border-[var(--color-border)] p-4 sm:grid-cols-[1fr_1fr_auto]">
+                    <div className="space-y-1.5"><Label>显示名称</Label><Input value={newRank.label} onChange={(event) => setNewRank({ ...newRank, label: event.target.value, rankKey: newRank.rankKey })} placeholder="例如 S+" /></div>
+                    <div className="space-y-1.5"><Label>技术标识（可选，创建后不可修改）</Label><Input value={newRank.rankKey} onChange={(event) => setNewRank({ ...newRank, rankKey: event.target.value })} placeholder="留空则按显示名称自动生成" className="font-mono" /></div>
+                    <div className="flex items-end gap-2">
+                      <Button type="button" size="sm" disabled={pending || !newRank.label.trim()} onClick={() => run(() => createCompetitivePlatformRank({ platform: newRank.platform, label: newRank.label, rankKey: newRank.rankKey.trim() || undefined }), "段位已添加")}>创建</Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={() => setNewRank(null)}>取消</Button>
+                    </div>
+                  </div>
+                )}
+                {ranks.length === 0 && <p className="text-sm text-[var(--color-fg-mid)]">该平台还没有段位表。段位表属于平台本身，所有赛季共用；参赛者与赛事资格都会使用这里的顺序。</p>}
+                <div className="divide-y divide-[var(--color-border)] rounded-sm border border-[var(--color-border)]">
+                  {ranks.map((rank, index) => (
+                    <div key={rank.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span className="font-mono text-xs text-[var(--color-fg-dim)]">{index + 1}</span>
+                        {rankLabelDraft?.id === rank.id ? (
+                          <div className="flex items-center gap-2">
+                            <Input value={rankLabelDraft.label} onChange={(event) => setRankLabelDraft({ ...rankLabelDraft, label: event.target.value })} className="max-w-40" />
+                            <Button type="button" size="sm" disabled={pending || !rankLabelDraft.label.trim()} onClick={() => run(() => updateCompetitivePlatformRankLabel(rankLabelDraft), "段位显示名称已更新")}>保存</Button>
+                            <Button type="button" size="sm" variant="ghost" onClick={() => setRankLabelDraft(null)}>取消</Button>
+                          </div>
+                        ) : (
+                          <p className="font-medium">{rank.label} <span className="ml-1 font-mono text-xs text-[var(--color-fg-dim)]">{rank.rankKey}</span></p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 text-sm">
+                        <Button type="button" size="sm" variant="ghost" disabled={pending || index === 0} onClick={() => run(() => moveCompetitivePlatformRank({ id: rank.id, direction: "up" }), "段位顺序已更新")} title="上移（更高段位方向）">↑</Button>
+                        <Button type="button" size="sm" variant="ghost" disabled={pending || index === ranks.length - 1} onClick={() => run(() => moveCompetitivePlatformRank({ id: rank.id, direction: "down" }), "段位顺序已更新")} title="下移（更低段位方向）">↓</Button>
+                        <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => setRankLabelDraft({ id: rank.id, label: rank.label })}>重命名</Button>
+                        <Button type="button" size="sm" variant="ghost" className="text-[var(--color-danger)]" disabled={pending} onClick={() => setConfirmAction({ kind: "delete-rank", id: rank.id, title: `删除段位 ${rank.label}？`, sub: "已被竞技资料或已发布赛事引用的段位无法删除。" })}>删除</Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            </div>
+          </Panel>
+        );
+      })}
+
+      {/* New platform */}
+      <Panel label="新增竞技平台" pad={20}>
+        <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+          <div className="space-y-1.5"><Label>平台标识（创建后不可修改）</Label><Input value={newPlatform.key} onChange={(event) => setNewPlatform({ ...newPlatform, key: event.target.value })} placeholder="例如 perfect_world" className="font-mono" /></div>
+          <div className="space-y-1.5"><Label>显示名称</Label><Input value={newPlatform.displayName} onChange={(event) => setNewPlatform({ ...newPlatform, displayName: event.target.value })} placeholder="例如 完美世界竞技平台" /></div>
+          <div className="flex items-end"><Button type="button" disabled={pending || !newPlatform.key.trim() || !newPlatform.displayName.trim()} onClick={() => run(() => createCompetitivePlatform(newPlatform), "竞技平台已创建")}>创建平台</Button></div>
+        </div>
+      </Panel>
+
+      {confirmAction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setConfirmAction(null)}>
+          <div className="w-full max-w-md" onClick={(event) => event.stopPropagation()}>
+            <Panel label={confirmAction.kind === "set-current" ? "切换当前赛季" : "确认删除"} pad={20}>
+              {confirmAction.kind === "set-current" ? (
+                <InlineConfirm
+                  title={confirmAction.title}
+                  sub={confirmAction.sub}
+                  confirmLabel="确认切换"
+                  onConfirm={() => { const action = confirmAction; setConfirmAction(null); run(() => setCurrentCompetitivePlatformSeason({ id: action.id }), "当前赛季已切换"); }}
+                  onCancel={() => setConfirmAction(null)}
+                />
+              ) : (
+                <InlineConfirm
+                  danger
+                  title={confirmAction.title}
+                  sub={confirmAction.sub}
+                  confirmLabel="确认删除"
+                  onConfirm={() => {
+                    const action = confirmAction;
+                    setConfirmAction(null);
+                    run(
+                      () => action.kind === "delete-season" ? deleteCompetitivePlatformSeason({ id: action.id }) : deleteCompetitivePlatformRank({ id: action.id }),
+                      action.kind === "delete-season" ? "赛季已删除" : "段位已删除",
+                    );
+                  }}
+                  onCancel={() => setConfirmAction(null)}
+                />
+              )}
+            </Panel>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PlatformIdentityRow({ key_, displayName, pending, onSave }: { key_: string; displayName: string; pending: boolean; onSave: (displayName: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(displayName);
+  if (!editing) {
+    return (
+      <div className="space-y-1">
+        <p className="text-lg font-semibold">{displayName}</p>
+        <p className="font-mono text-xs text-[var(--color-fg-dim)]">{key_}</p>
+        <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => { setDraft(displayName); setEditing(true); }}>修改显示名称</Button>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <Input value={draft} onChange={(event) => setDraft(event.target.value)} className="max-w-64" />
+        <Button type="button" size="sm" disabled={pending || !draft.trim()} onClick={() => { onSave(draft); setEditing(false); }}>保存</Button>
+        <Button type="button" size="sm" variant="ghost" onClick={() => setEditing(false)}>取消</Button>
+      </div>
+      <p className="font-mono text-xs text-[var(--color-fg-dim)]">{key_} · 平台标识创建后不可修改</p>
+    </div>
+  );
+}

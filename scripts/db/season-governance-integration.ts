@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { eq } from "drizzle-orm";
+import { deleteCompetitivePlatformCatalog, seedCompetitivePlatformCatalog } from "./competitive-catalog-fixtures";
 
 type Globals = {
   schema: typeof import("../../src/db/schema");
@@ -92,12 +93,10 @@ async function exerciseQualificationPlatformIsolation(pool: Pool): Promise<void>
   await seedFullyReadyUser(pool, foreignOnlyUser, 1);
   await seedFullyReadyUser(pool, homeUser, 2);
 
-  await pool.query(
-    `INSERT INTO competitive_platform_seasons (id, platform, season_key, label, rank_order, active, sort_order, is_current)
-     VALUES ($1, $2, 'S20', 'S20', $4::json, true, 0, false),
-            ($3, $2, 'S21', 'S21', $4::json, true, 1, true)`,
-    [randomUUID(), platform, randomUUID(), JSON.stringify(rankOrder)],
-  );
+  await seedCompetitivePlatformCatalog(pool, platform, [
+    { seasonKey: "S20", label: "S20", sortOrder: 0, isCurrent: false },
+    { seasonKey: "S21", label: "S21", sortOrder: 1, isCurrent: true },
+  ], rankOrder);
 
   const foreignFact = (userId: string, kind: "historical_peak" | "season_peak", seasonKey: string | null, rank: string, rating: string) =>
     pool.query(
@@ -134,23 +133,23 @@ async function exerciseQualificationPlatformIsolation(pool: Pool): Promise<void>
   await pool.query("DELETE FROM competitive_rank_facts WHERE user_id = ANY($1::uuid[])", [[foreignOnlyUser, homeUser]]);
   await pool.query("DELETE FROM education_verifications WHERE user_id = ANY($1::uuid[])", [[foreignOnlyUser, homeUser]]);
   await pool.query("DELETE FROM users WHERE id = ANY($1::uuid[])", [[foreignOnlyUser, homeUser]]);
-  await pool.query("DELETE FROM competitive_platform_seasons WHERE platform = ANY($1::text[])", [[platform, otherPlatform]]);
+  await deleteCompetitivePlatformCatalog(pool, platform);
+  // otherPlatform only ever carried rank facts (no catalog rows).
 }
 
 // ── Competitive freeze lifecycle ────────────────────────────────────────────
 
-async function seedCatalog(pool: Pool, platform: string): Promise<{ s20: string; s21: string; s22: string }> {
-  const s20 = randomUUID();
-  const s21 = randomUUID();
-  const s22 = randomUUID();
-  await pool.query(
-    `INSERT INTO competitive_platform_seasons (id, platform, season_key, label, rank_order, active, sort_order, is_current)
-     VALUES ($1, $2, 'S20', 'S20 赛季', $5::json, true, 0, false),
-            ($3, $2, 'S21', 'S21 赛季', $5::json, true, 1, true),
-            ($4, $2, 'S22', 'S22 赛季', $5::json, false, 2, false)`,
-    [s20, platform, s21, s22, JSON.stringify(RANK_ORDER)],
+async function seedCatalog(pool: Pool, platform: string): Promise<{ s21: string; s22: string }> {
+  await seedCompetitivePlatformCatalog(pool, platform, [
+    { seasonKey: "S20", label: "S20 赛季", sortOrder: 0, isCurrent: false },
+    { seasonKey: "S21", label: "S21 赛季", sortOrder: 1, isCurrent: true },
+    { seasonKey: "S22", label: "S22 赛季", sortOrder: 2, isCurrent: false, active: false },
+  ], RANK_ORDER);
+  const catalog = await pool.query<{ id: string; season_key: string; is_current: boolean }>(
+    "SELECT id, season_key, is_current FROM competitive_platform_seasons WHERE platform = $1", [platform],
   );
-  return { s20, s21, s22 };
+  const byKey = new Map(catalog.rows.map((row) => [row.season_key, row.id]));
+  return { s21: byKey.get("S21")!, s22: byKey.get("S22")! };
 }
 
 async function createMajorDraft(pool: Pool, slug: string, platform: string): Promise<string> {
@@ -206,7 +205,7 @@ async function exerciseCompetitiveFreezeLifecycle(pool: Pool): Promise<void> {
 
   await pool.query("DELETE FROM seasons WHERE id = $1", [seasonId]);
   await pool.query("DELETE FROM seasons WHERE id = $1", [secondDraft]);
-  await pool.query("DELETE FROM competitive_platform_seasons WHERE platform = $1", [platform]);
+  await deleteCompetitivePlatformCatalog(pool, platform);
 }
 
 // ── Empty-season delete/revert guards ───────────────────────────────────────
