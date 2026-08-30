@@ -75,8 +75,8 @@ describe("home navigation helpers", () => {
       label: "登录 / 注册",
     });
     expect(buildHomeNavEntries(season, { isAuthenticated: true }).find((entry) => entry.key === "login")).toMatchObject({
-      href: "/settings",
-      label: "个人中心",
+      href: "/my",
+      label: "我的",
     });
   });
 

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "NODE_OPTIONS='--dns-result-order=ipv4first' next dev",
     "dev:local": "tsx scripts/db/local.ts dev",
+    "build:local": "tsx scripts/db/local.ts build",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
@@ -43,6 +44,7 @@
     "test:major-result-recovery:local": "tsx scripts/db/local.ts test-major-result-recovery",
     "test:invite-concurrency:local": "tsx scripts/db/local.ts test-invite-concurrency",
     "test:discipline:local": "tsx scripts/db/local.ts test-discipline",
+    "test:my-readiness:local": "tsx scripts/db/local.ts test-my-readiness",
     "test:postevent:local": "tsx scripts/db/local.ts test-postevent",
     "test:season-governance:local": "tsx scripts/db/local.ts test-season-governance",
     "seed": "NODE_OPTIONS='--dns-result-order=ipv4first' tsx scripts/seed.ts"

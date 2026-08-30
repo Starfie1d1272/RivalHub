@@ -79,6 +79,9 @@ try {
     case "test-discipline":
       runLocalIntegration("scripts/db/discipline-integration.ts");
       break;
+    case "test-my-readiness":
+      runLocalIntegration("scripts/db/my-readiness-integration.ts");
+      break;
     case "test-postevent":
       runLocalIntegration("scripts/db/postevent-integration.ts");
       break;
@@ -107,9 +110,12 @@ try {
     case "dev":
       runLocalApp();
       break;
+    case "build":
+      runLocalBuild();
+      break;
     default:
       throw new Error(
-        "未知命令。可用命令：start | status | migrate | seed | verify | verify-migrations | test-major-start | test-major-golden | test-major-browser | cleanup-major-browser | test-team-registration | test-competition-entry-migration | test-competitive-catalog-migration | test-competitive-catalog | test-major-profile | test-major-prestart | test-major-roster-safety | test-major-result-recovery | test-invite-concurrency | test-discipline | test-postevent | test-season-governance | bootstrap | reset | stop | studio | dev",
+        "未知命令。可用命令：start | status | migrate | seed | verify | verify-migrations | test-major-start | test-major-golden | test-major-browser | cleanup-major-browser | test-team-registration | test-competition-entry-migration | test-competitive-catalog-migration | test-competitive-catalog | test-major-profile | test-major-prestart | test-major-roster-safety | test-major-result-recovery | test-invite-concurrency | test-discipline | test-my-readiness | test-postevent | test-season-governance | bootstrap | reset | stop | studio | dev | build",
       );
   }
 } catch (error) {
@@ -229,6 +235,17 @@ function runLocalApp(): void {
     .filter(Boolean)
     .join(" ");
   run(nextBin, ["dev"], { env });
+}
+
+function runLocalBuild(): void {
+  const status = readLocalStatus();
+  const local = buildLocalAppEnvironment(status, sanitizedEnvironment());
+  const env: NodeJS.ProcessEnv = {
+    ...local,
+    NODE_ENV: "production",
+    NODE_OPTIONS: [local.NODE_OPTIONS, "--dns-result-order=ipv4first"].filter(Boolean).join(" "),
+  };
+  run(nextBin, ["build"], { env });
 }
 
 function readLocalStatus(): LocalSupabaseStatus {

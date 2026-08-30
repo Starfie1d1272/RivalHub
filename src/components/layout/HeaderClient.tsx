@@ -193,10 +193,7 @@ export function HeaderClient({ seasons, session, avatarUrl, steamName, displayNa
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuItem asChild>
-                    <Link href="/my/teams" className="cursor-pointer">我的队伍</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/my/competitions" className="cursor-pointer">我的赛事</Link>
+                    <Link href="/my" className="cursor-pointer">我的</Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link href={`/players/${session.userId}`} className="cursor-pointer">
@@ -288,18 +285,11 @@ export function HeaderClient({ seasons, session, avatarUrl, steamName, displayNa
                   </Link>
                 )}
                 <Link
-                  href="/my/teams"
+                  href="/my"
                   onClick={() => setMobileOpen(false)}
                   className="px-3 py-2 rounded-md text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] hover:bg-[var(--color-panel-hi)]"
                 >
-                  我的队伍
-                </Link>
-                <Link
-                  href="/my/competitions"
-                  onClick={() => setMobileOpen(false)}
-                  className="px-3 py-2 rounded-md text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] hover:bg-[var(--color-panel-hi)]"
-                >
-                  我的赛事
+                  我的
                 </Link>
                 <Link
                   href={`/players/${session.userId}`}

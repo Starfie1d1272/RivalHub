@@ -96,6 +96,7 @@
 | 人类可读用户身份（内部） | `src/lib/identity/display-name.ts` → `getDisplayName()` |
 | 竞技平台目录 / current / previous chronology | `src/lib/competitive/catalog.ts` |
 | 资格与 readiness | `src/lib/qualification/` |
+| CompetitionEntry 面向参赛者的状态文案 | `src/lib/competition-entries/presentation.ts` |
 | Dialog / modal primitive | `src/components/ui/dialog.tsx` |
 | bracket adapter | `src/lib/bracket/` |
 | Major Swiss | `src/lib/major/swiss.ts` |
@@ -108,6 +109,7 @@
 | 一用户同赛事仅有一个 active Entry commitment claim | `competition_entry_active_claims` unique constraint + transaction |
 | Entry 报名 revision 的可编辑性与状态迁移 | competition-entry domain action / state rules |
 | affiliation 与竞技资格 | `src/lib/qualification/` 单一 owner：batch fact loaders + pure evaluators |
+| “我的”长期资料与赛事任务聚合 | `src/lib/my/readiness.ts` 只编排 Team、CompetitionEntry、qualification、discipline 与 catalog read model，不重算 eligibility 规则 |
 | 内置赛事模板身份与固定语义 | `seasons.competitionTemplate` + canonical template factory（draft 保存时重新 canonicalize） |
 | 发布时的竞技上下文冻结 | `publishSeason` 事务：platform catalog current/previous/ladder → season frozen competitiveProfile（单一 owner：`src/lib/competitive/catalog.ts`） |
 | 队长交接的并发安全 | application/team 行锁 + season 行锁 + 目标成员 `FOR UPDATE`，全部判断基于锁定行 |

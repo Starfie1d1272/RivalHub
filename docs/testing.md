@@ -27,6 +27,9 @@ RivalHub 以最高已完成的验证层级描述能力证据：
 | `pnpm test:e2e` | Playwright browser suite |
 | `pnpm db:check` | Drizzle active migration chain |
 | `pnpm build` | production build |
+| `pnpm build:local` | 注入 loopback Local Supabase 环境的 production build |
+
+`pnpm test:e2e` 会通过 `pnpm dev:local` 启动应用；运行前先启动并初始化 Local Supabase（例如 `pnpm db:local:bootstrap`），避免浏览器套件在缺少 Local 数据库连接时失败。
 
 Local Supabase 集成入口：
 
@@ -41,6 +44,7 @@ pnpm test:major-prestart:local
 pnpm test:major-roster-safety:local
 pnpm test:major-result-recovery:local
 pnpm test:discipline:local
+pnpm test:my-readiness:local
 pnpm test:postevent:local
 pnpm test:season-governance:local
 ```
@@ -49,7 +53,7 @@ pnpm test:season-governance:local
 
 ## Coverage intent
 
-单元测试覆盖 capability、状态和 action input boundary，包括 persisted template identity、custom definition validator（executor registry 与 groupCount 晋级计算）、qualification batch/single parity 与竞技上下文冻结/解冻；本地集成测试覆盖 Major Entry registration（含跨 Entry aggregate invariant）、0017 migration replay、长期 participant profile、browser fixture、prestart、StageRun lifecycle、roster safety、result recovery、discipline、post-event，以及 season governance（空赛季删除/撤回 guard、竞技冻结生命周期、队长交接并发语义）。所有入口都运行在 CompetitionEntry/event-roster schema 上。历史 Golden Major rehearsal 保存在 [`archive/rehearsals/`](./archive/rehearsals/)，不是当前策略的替代品。
+单元测试覆盖 capability、状态和 action input boundary，包括 persisted template identity、custom definition validator（executor registry 与 groupCount 晋级计算）、qualification batch/single parity 与竞技上下文冻结/解冻；本地集成测试覆盖 Major Entry registration（含跨 Entry aggregate invariant）、0017 migration replay、长期 participant profile、browser fixture、prestart、StageRun lifecycle、roster safety、result recovery、discipline、post-event、“我的”资料/Team/CompetitionEntry/qualification/sanction 组合 read model，以及 season governance（空赛季删除/撤回 guard、竞技冻结生命周期、队长交接并发语义）。所有入口都运行在 CompetitionEntry/event-roster schema 上。历史 Golden Major rehearsal 保存在 [`archive/rehearsals/`](./archive/rehearsals/)，不是当前策略的替代品。
 
 ## Test layers
 
