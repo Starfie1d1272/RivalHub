@@ -1,6 +1,6 @@
 import { pgTable, uuid, integer, text, timestamp, unique } from "drizzle-orm/pg-core";
 import { matches } from "./matches";
-import { teams } from "./teams";
+import { competitionEntries } from "./competition-entries";
 import { sideEnum } from "./match-maps";
 
 /**
@@ -20,7 +20,7 @@ export const matchVetoSteps = pgTable(
     stepOrder: integer("step_order").notNull(),
     actionType: text("action_type").notNull(),
     mapName: text("map_name").notNull(),
-    teamId: uuid("team_id").references(() => teams.id),
+    entryId: uuid("entry_id").references(() => competitionEntries.id),
     side: sideEnum("side"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },

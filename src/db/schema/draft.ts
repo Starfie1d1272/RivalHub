@@ -1,6 +1,6 @@
 import { pgTable, uuid, integer, boolean, timestamp, text, unique } from "drizzle-orm/pg-core";
 import { seasons } from "./seasons";
-import { teams } from "./teams";
+import { competitionEntries } from "./competition-entries";
 import { seasonRegistrations } from "./registrations";
 
 // Singleton row per season — tracks live draft state
@@ -8,7 +8,7 @@ export const draftState = pgTable("draft_state", {
   id: uuid("id").primaryKey().defaultRandom(),
   seasonId: uuid("season_id").notNull().unique().references(() => seasons.id),
   currentRound: integer("current_round").notNull().default(1),
-  currentTeamId: uuid("current_team_id").references(() => teams.id),
+  currentEntryId: uuid("current_entry_id").references(() => competitionEntries.id),
   roundDeadline: timestamp("round_deadline", { withTimezone: true }),
   isActive: boolean("is_active").notNull().default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -18,7 +18,7 @@ export const draftState = pgTable("draft_state", {
 export const draftPicks = pgTable("draft_picks", {
   id: uuid("id").primaryKey().defaultRandom(),
   seasonId: uuid("season_id").notNull().references(() => seasons.id),
-  teamId: uuid("team_id").notNull().references(() => teams.id),
+  entryId: uuid("entry_id").notNull().references(() => competitionEntries.id),
   registrationId: uuid("registration_id").notNull().references(() => seasonRegistrations.id),
   round: integer("round").notNull(),
   pickNumber: integer("pick_number").notNull(),

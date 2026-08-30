@@ -12,7 +12,7 @@ import { InMemoryDatabase } from "brackets-memory-db";
 import { Status } from "brackets-model";
 import type { Database } from "brackets-manager";
 export type { Database as BracketDatabase } from "brackets-manager";
-import type { Team } from "@/db/schema/teams";
+import type { CompetitionEntry } from "@/db/schema/competition-entries";
 
 type QualifierFormat = "round_robin" | "swiss";
 type PlayoffFormat = "double_elim" | "single_elim";
@@ -94,7 +94,7 @@ function buildManager(data: Database): { manager: BracketsManager; db: InMemoryD
  * teams 必须按 draft_order ASC 排列（draft_order=1 → participantId=0）。
  */
 export async function generateBracket(
-  teams: Team[],
+  teams: CompetitionEntry[],
   config: {
     qualifierFormat: QualifierFormat | null;
     playoffFormat: PlayoffFormat | null;

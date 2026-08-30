@@ -11,12 +11,10 @@ vi.mock("react", async (importOriginal) => {
   return { ...actual, useTransition: () => [false, (work: () => void) => void work()] };
 });
 
-const { uploadTeamApplicationLogoMock, uploadTeamLogoMock } = vi.hoisted(() => ({
-  uploadTeamApplicationLogoMock: vi.fn(),
+const { uploadTeamLogoMock } = vi.hoisted(() => ({
   uploadTeamLogoMock: vi.fn(),
 }));
 
-vi.mock("@/actions/team-applications", () => ({ uploadTeamApplicationLogo: uploadTeamApplicationLogoMock }));
 vi.mock("@/actions/teams", () => ({ uploadTeamLogo: uploadTeamLogoMock }));
 vi.mock("next/image", () => ({
   default: () => null,
@@ -28,9 +26,9 @@ describe("TeamLogoUpload", () => {
     vi.clearAllMocks();
     Object.defineProperty(URL, "createObjectURL", { configurable: true, value: vi.fn(() => "blob:logo") });
     Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: vi.fn() });
-    uploadTeamApplicationLogoMock.mockResolvedValue({
+    uploadTeamLogoMock.mockResolvedValue({
       success: true,
-      data: { logoUrl: "https://storage.test/applications/app-1/logo.png" },
+      data: { logoUrl: "https://storage.test/teams/team-1/logo.png" },
     });
   });
 
@@ -38,7 +36,7 @@ describe("TeamLogoUpload", () => {
     const onUploaded = vi.fn();
     render(
       <TeamLogoUpload
-        applicationId="app-1"
+        teamId="team-1"
         currentLogoUrl={null}
         teamName="Rival Team"
         canEdit
@@ -51,15 +49,15 @@ describe("TeamLogoUpload", () => {
     fireEvent.change(input!, { target: { files: [new File(["png"], "logo.png", { type: "image/png" })] } });
 
     await waitFor(() => {
-      expect(uploadTeamApplicationLogoMock).toHaveBeenCalledWith("app-1", expect.any(FormData));
-      expect(onUploaded).toHaveBeenCalledWith("https://storage.test/applications/app-1/logo.png");
+      expect(uploadTeamLogoMock).toHaveBeenCalledWith("team-1", expect.any(FormData));
+      expect(onUploaded).toHaveBeenCalledWith("https://storage.test/teams/team-1/logo.png");
     });
   });
 
   it("opens the file picker from the editable logo control", () => {
     render(
       <TeamLogoUpload
-        applicationId="app-1"
+        teamId="team-1"
         currentLogoUrl={null}
         teamName="Rival Team"
         canEdit

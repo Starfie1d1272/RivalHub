@@ -1,14 +1,22 @@
 import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import { db } from "@/db/client";
-import { educationVerifications, institutions, seasons, seasonRegistrations, teamApplicationMembers, teamApplications, users } from "@/db/schema";
+import {
+  competitionEntries,
+  competitionEntryParticipants,
+  competitionEntryRosterMembers,
+  competitionEntryRosterRevisions,
+  seasons,
+  seasonRegistrations,
+  teamMemberships,
+  teams,
+  userCompetitiveRoles,
+  users,
+} from "@/db/schema";
 import { getPositionCounts, getApprovedCount } from "@/actions/register";
 import { RegistrationForm } from "@/components/register/RegistrationForm";
-import { normalizeAffiliationRules, normalizeRegistrationConfig, normalizeTeamRegistrationConfig } from "@/types/season";
-import { resolveSeasonEducationVerification } from "@/lib/education/eligibility";
-import { getParticipantReadinessBatch, resolveCompetitiveContext, type ParticipantReadiness } from "@/lib/qualification/service";
-import { evaluateExternalStrengthRule, getPlayerStrengthBreakdown } from "@/lib/major/player-strength";
+import { normalizeRegistrationConfig } from "@/types/season";
 import { REGISTRATION_STATUS_LABELS } from "@/types/registration";
 import { Panel, StatusBanner, PosChip } from "@/components/rivalhub";
 import { positionLabel } from "@/lib/validators/registration";
@@ -17,7 +25,7 @@ import { formatCST } from "@/lib/utils/date";
 import { getUserSession } from "@/lib/auth/session";
 import { isSoloRegistration } from "@/lib/utils/season";
 import { isTeamRegistration } from "@/lib/utils/season";
-import { TeamApplicationFlow } from "@/components/register/TeamApplicationFlow";
+import { CompetitionEntryFlow } from "@/components/register/CompetitionEntryFlow";
 
 export const dynamic = "force-dynamic";
 
@@ -87,74 +95,65 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
   }
 
   if (isTeamRegistration(season)) {
-    const applicationRows = await db
-      .select({
-        id: teamApplications.id,
-        name: teamApplications.name,
-        logoUrl: teamApplications.logoUrl,
-        perfectTeamId: teamApplications.perfectTeamId,
-        primaryStarterUserIds: teamApplications.primaryStarterUserIds,
-        joinToken: teamApplications.joinToken,
-        captainUserId: teamApplications.captainUserId,
-        status: teamApplications.status,
-        reviewReason: teamApplications.reviewReason,
-      })
-      .from(teamApplications)
-      .innerJoin(teamApplicationMembers, eq(teamApplicationMembers.applicationId, teamApplications.id))
-      .where(and(eq(teamApplications.seasonId, season.id), eq(teamApplicationMembers.userId, userSession.userId)))
-      .orderBy(desc(teamApplications.updatedAt))
-      .limit(1);
-    const application = applicationRows[0] ?? null;
-    const memberRows = application
-      ? await db
-          .select({
-            id: teamApplicationMembers.id,
-            userId: teamApplicationMembers.userId,
-            email: users.email,
-            displayName: users.displayName,
-            emailVerified: users.emailVerifiedAt,
-            verificationId: educationVerifications.id,
-            verificationStatus: educationVerifications.status,
-            academicStatus: educationVerifications.academicStatus,
-            institutionName: institutions.name,
-            institutionCode: institutions.moeInstitutionCode,
-            verificationSubmittedAt: educationVerifications.submittedAt,
-            status: teamApplicationMembers.status,
-          })
-          .from(teamApplicationMembers)
-          .innerJoin(users, eq(teamApplicationMembers.userId, users.id))
-          .leftJoin(educationVerifications, eq(educationVerifications.userId, users.id))
-          .leftJoin(institutions, eq(educationVerifications.institutionId, institutions.id))
-          .where(eq(teamApplicationMembers.applicationId, application.id))
-          .orderBy(teamApplicationMembers.createdAt)
-      : [];
-    const affiliationRules = normalizeAffiliationRules(season.affiliationRules);
-    // Education assertions are historical. Resolve them once against this
-    // season's rules so the UI and submit path describe the same affiliation.
-    const memberByUser = new Map<string, { member: (typeof memberRows)[number]; history: Array<{ id: string; status: "pending" | "approved" | "rejected"; academicStatus: "enrolled" | "graduated"; institutionCode: string | null; institutionName: string; submittedAt: Date | null }> }>();
-    for (const member of memberRows) {
-      const existing = memberByUser.get(member.userId) ?? { member, history: [] };
-      if (member.verificationId && member.verificationStatus && member.academicStatus && member.institutionName) existing.history.push({ id: member.verificationId, status: member.verificationStatus, academicStatus: member.academicStatus, institutionCode: member.institutionCode, institutionName: member.institutionName, submittedAt: member.verificationSubmittedAt });
-      memberByUser.set(member.userId, existing);
+    const [captainedTeams, entryRows] = await Promise.all([
+      db.select({ id: teams.id, name: teams.name }).from(teams)
+        .where(and(eq(teams.status, "active"), eq(teams.captainUserId, userSession.userId)))
+        .orderBy(teams.name),
+      db.select({ entry: competitionEntries })
+        .from(competitionEntries)
+        .leftJoin(competitionEntryParticipants, eq(competitionEntryParticipants.entryId, competitionEntries.id))
+        .where(and(
+          eq(competitionEntries.competitionId, season.id),
+          or(eq(competitionEntries.representativeUserId, userSession.userId), eq(competitionEntryParticipants.userId, userSession.userId)),
+        ))
+        .orderBy(desc(competitionEntries.updatedAt))
+        .limit(1),
+    ]);
+    const entry = entryRows[0]?.entry ?? null;
+    let entryView: Parameters<typeof CompetitionEntryFlow>[0]["entry"] = null;
+    if (entry) {
+      const [revision] = await db.select({ id: competitionEntryRosterRevisions.id })
+        .from(competitionEntryRosterRevisions)
+        .where(and(eq(competitionEntryRosterRevisions.entryId, entry.id), eq(competitionEntryRosterRevisions.revision, entry.currentRosterRevision)))
+        .limit(1);
+      const candidateRows = entry.teamId
+        ? await db.select({ membershipId: teamMemberships.id, userId: teamMemberships.userId, status: teamMemberships.status, email: users.email, displayName: users.displayName })
+            .from(teamMemberships).innerJoin(users, eq(users.id, teamMemberships.userId))
+            .where(and(eq(teamMemberships.teamId, entry.teamId), isNull(teamMemberships.endedAt), inArray(teamMemberships.status, ["active", "benched"])))
+        : [];
+      const rosterRows = revision
+        ? await db.select({ participantId: competitionEntryParticipants.id, userId: competitionEntryRosterMembers.userId, confirmation: competitionEntryParticipants.status, primary: competitionEntryRosterMembers.isPrimaryStarter, membershipId: competitionEntryRosterMembers.teamMembershipId, email: users.email, displayName: users.displayName, membershipStatus: teamMemberships.status })
+            .from(competitionEntryRosterMembers)
+            .innerJoin(competitionEntryParticipants, eq(competitionEntryParticipants.id, competitionEntryRosterMembers.participantId))
+            .innerJoin(users, eq(users.id, competitionEntryRosterMembers.userId))
+            .leftJoin(teamMemberships, eq(teamMemberships.id, competitionEntryRosterMembers.teamMembershipId))
+            .where(eq(competitionEntryRosterMembers.revisionId, revision.id))
+        : [];
+      const userIds = [...new Set([...candidateRows.map((row) => row.userId), ...rosterRows.map((row) => row.userId)])];
+      const roleRows = userIds.length ? await db.select({ userId: userCompetitiveRoles.userId, role: userCompetitiveRoles.role }).from(userCompetitiveRoles).where(inArray(userCompetitiveRoles.userId, userIds)) : [];
+      const rolesByUser = new Map<string, Array<(typeof roleRows)[number]["role"]>>();
+      for (const role of roleRows) rolesByUser.set(role.userId, [...(rolesByUser.get(role.userId) ?? []), role.role]);
+      const candidates = candidateRows.map((row) => ({ membershipId: row.membershipId, userId: row.userId, label: row.displayName ?? row.email, status: row.status as "active" | "benched", roles: rolesByUser.get(row.userId) ?? [] }));
+      entryView = {
+        id: entry.id,
+        name: entry.name,
+        status: entry.registrationStatus,
+        representativeUserId: entry.representativeUserId,
+        perfectTeamId: entry.perfectTeamId,
+        reviewReason: entry.reviewReason,
+        candidates,
+        roster: rosterRows.map((row) => ({
+          participantId: row.participantId,
+          membershipId: row.membershipId ?? `historical:${row.participantId}`,
+          userId: row.userId,
+          label: row.displayName ?? row.email,
+          status: row.membershipStatus === "benched" ? "benched" as const : "active" as const,
+          roles: rolesByUser.get(row.userId) ?? [],
+          confirmation: row.confirmation,
+          primary: row.primary,
+        })),
+      };
     }
-    const members = [...memberByUser.values()].map(({ member, history }) => {
-      const selected = resolveSeasonEducationVerification(history, affiliationRules).selectedVerification;
-      return { ...member, verificationStatus: selected?.status ?? null, academicStatus: selected?.academicStatus ?? null, institutionName: selected?.institutionName ?? null, institutionCode: selected?.institutionCode ?? null };
-    });
-    const teamConfig = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
-    const competitiveProfile = teamConfig.competitiveProfile ? await resolveCompetitiveContext(teamConfig.competitiveProfile) : null;
-    const readinessByUser = teamConfig.requireCompetitiveProfile && competitiveProfile
-      ? await getParticipantReadinessBatch(members.map((member) => member.userId), competitiveProfile)
-      : new Map<string, ParticipantReadiness>();
-    const primary = (application?.primaryStarterUserIds ?? []).map((userId) => members.find((member) => member.userId === userId)).filter((member): member is typeof members[number] => Boolean(member));
-    const hasStrengthFacts = Boolean(competitiveProfile) && primary.length === 5 && primary.every((member) => getPlayerStrengthBreakdown(readinessByUser.get(member.userId)?.strength ?? { userId: member.userId, label: member.displayName ?? member.email, historicalPeak: null, previousSeasonPeak: null, currentSeasonPeak: null }, competitiveProfile!).available);
-    const externalStrength = !competitiveProfile || primary.length !== 5 || !hasStrengthFacts
-      ? { state: "pending" as const, blockers: [] }
-      : (() => {
-          const result = evaluateExternalStrengthRule({ config: competitiveProfile, players: primary.map((member) => ({ ...(readinessByUser.get(member.userId)?.strength ?? { userId: member.userId, label: member.displayName ?? member.email, historicalPeak: null, previousSeasonPeak: null, currentSeasonPeak: null }), isHome: Boolean(member.institutionCode && member.academicStatus && affiliationRules.some((rule) => rule.institutionCode === member.institutionCode && rule.eligibleAcademicStatuses.includes(member.academicStatus as "enrolled" | "graduated"))) })) });
-          return { state: result.eligible ? "pass" as const : "fail" as const, blockers: result.blockers };
-        })();
-    const njuPrimaryCount = primary.filter((member) => member.institutionCode && member.academicStatus && affiliationRules.some((rule) => rule.institutionCode === member.institutionCode && rule.eligibleAcademicStatuses.includes(member.academicStatus as "enrolled" | "graduated"))).length;
 
     return (
       <div className="container mx-auto max-w-2xl space-y-6 px-4 py-10">
@@ -165,18 +164,18 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
         <StatusBanner
           tone={getWindowTone(registrationWindow.phase, registrationWindow.canSubmit)}
           title={registrationWindow.message}
-          sub="审核通过后，队伍将进入正式参赛名单。"
+          sub="审核通过后冻结报名 revision；赛前还会生成独立 frozen event roster。"
         />
-        <TeamApplicationFlow
-          seasonId={season.id}
-          seasonName={season.name}
+        <CompetitionEntryFlow
+          competitionId={season.id}
+          competitionName={season.name}
           currentUserId={userSession.userId}
-          minTeamSize={season.minTeamSize}
-          maxTeamSize={season.maxTeamSize}
-          requireTeamLogo={teamConfig.requireTeamLogo}
-          application={application}
-          qualification={{ njuPrimaryCount, externalStrength }}
-          members={members.map((member) => ({ id: member.id, userId: member.userId, email: member.email, displayName: member.displayName, status: member.status, emailVerified: Boolean(member.emailVerified), educationStatus: (member.verificationStatus ?? "unsubmitted") as "unsubmitted" | "pending" | "approved" | "rejected", institutionName: member.institutionName, readinessBlockers: readinessByUser.get(member.userId)?.blockers ?? [] }))}
+          minRoster={season.minTeamSize}
+          maxRoster={season.maxTeamSize}
+      starterCount={season.starterCount}
+      requiresPerfectTeamId={season.teamRegistrationConfig?.requireCompetitiveProfile ?? false}
+          captainedTeams={captainedTeams}
+          entry={entryView}
         />
       </div>
     );

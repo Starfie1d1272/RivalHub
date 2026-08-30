@@ -2,7 +2,7 @@
 
 import { eq, and, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, matches, matchMaps, matchVetoSteps, matchRosters, matchRosterPlayers, teams, auditLogs, matchTimeProposals } from "@/db/schema";
+import { seasons, matches, matchMaps, matchVetoSteps, matchRosters, matchRosterPlayers, competitionEntries, auditLogs, matchTimeProposals } from "@/db/schema";
 import { ok } from "@/types/action";
 import type { ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -42,8 +42,8 @@ async function insertResolvedBracketMatches(
   resolvedMatches: ResolvedBracketMatch[],
   stagePlan: ReturnType<typeof normalizeStagePlan>,
 ) {
-  const seasonTeams = await tx.query.teams.findMany({
-    where: eq(teams.seasonId, seasonId),
+  const seasonTeams = await tx.query.competitionEntries.findMany({
+    where: eq(competitionEntries.competitionId, seasonId),
   });
   const participants = updatedData.participant as { id: number; name: string }[];
   const participantNameById = new Map(participants.map((p) => [p.id, p.name]));
@@ -59,8 +59,8 @@ async function insertResolvedBracketMatches(
     const stage = stagePlan.find((s) => s.name === bmStageName)?.key ?? defaultStage;
     await tx.insert(matches).values({
       seasonId,
-      teamAId: teamA.id,
-      teamBId: teamB.id,
+      entryAId: teamA.id,
+      entryBId: teamB.id,
       stage,
       format: resolveMatchFormat(stagePlan, stage, bm.roundNumber, bm.groupNumber),
       status: "scheduled",
@@ -207,7 +207,7 @@ export async function recordMapResult(
   mapName: string,
   scoreA: number,
   scoreB: number,
-  pickedByTeamId: string | null,
+  pickedByEntryId: string | null,
   teamAStartSide: "t" | "ct" | null
 ): Promise<ActionResult<{ seriesFinished: boolean }>> {
   try {
@@ -260,12 +260,12 @@ export async function recordMapResult(
       seriesFinished = seriesScore.seriesFinished;
 
       if (existingRow) {
-        // BP 预占行：填入比分（pickedByTeamId / teamAStartSide 保留 BP 记录，除非调用方覆盖）
+        // BP 预占行：填入比分（pickedByEntryId / teamAStartSide 保留 BP 记录，除非调用方覆盖）
         await tx.update(matchMaps)
           .set({
             scoreA,
             scoreB,
-            pickedByTeamId: pickedByTeamId ?? existingRow.pickedByTeamId,
+            pickedByEntryId: pickedByEntryId ?? existingRow.pickedByEntryId,
             teamAStartSide: teamAStartSide ?? existingRow.teamAStartSide,
             completedAt: new Date(),
           })
@@ -275,7 +275,7 @@ export async function recordMapResult(
           matchId,
           mapOrder,
           mapName,
-          pickedByTeamId,
+          pickedByEntryId,
           teamAStartSide,
           scoreA,
           scoreB,
@@ -569,10 +569,10 @@ export async function correctMatchScore(
     const prevWinner =
       match.scoreA !== null && match.scoreB !== null
         ? match.scoreA > match.scoreB
-          ? match.teamAId
-          : match.teamBId
+          ? match.entryAId
+          : match.entryBId
         : null;
-    const nextWinner = scoreA > scoreB ? match.teamAId : match.teamBId;
+    const nextWinner = scoreA > scoreB ? match.entryAId : match.entryBId;
     if (prevWinner !== null && prevWinner !== nextWinner) {
       throw new AppError(
         ErrorCode.VALIDATION_FAILED,
@@ -656,7 +656,7 @@ export async function deleteMatch(matchId: string): Promise<ActionResult<void>> 
         actorId: auditActorId(session),
         targetId: matchId,
         targetType: "match",
-        meta: { stage: match.stage, format: match.format, teamAId: match.teamAId, teamBId: match.teamBId },
+        meta: { stage: match.stage, format: match.format, entryAId: match.entryAId, entryBId: match.entryBId },
       });
     });
 
@@ -773,10 +773,10 @@ export async function correctMapScore(
       const existingWinner =
         match.scoreA !== null && match.scoreB !== null
           ? match.scoreA > match.scoreB
-            ? match.teamAId
-            : match.teamBId
+            ? match.entryAId
+            : match.entryBId
           : null;
-      const proposedWinner = mapWinsA > mapWinsB ? match.teamAId : match.teamBId;
+      const proposedWinner = mapWinsA > mapWinsB ? match.entryAId : match.entryBId;
       if (existingWinner !== null && existingWinner !== proposedWinner) {
         throw new AppError(
           ErrorCode.VALIDATION_FAILED,
@@ -827,7 +827,7 @@ export async function syncBracketMatches(seasonId: string): Promise<ActionResult
     const dbStages = bracketData.stage as BracketStageRef[];
 
     // 建立 participant id → team 的正确映射（名称查找）
-    const seasonTeams = await db.query.teams.findMany({ where: eq(teams.seasonId, seasonId) });
+    const seasonTeams = await db.query.competitionEntries.findMany({ where: eq(competitionEntries.competitionId, seasonId) });
     const teamByName = new Map(seasonTeams.map((t) => [t.name, t]));
     const participants = bracketData.participant as { id: number; name: string }[];
     const participantNameById = new Map(participants.map((p) => [p.id, p.name]));
@@ -843,7 +843,7 @@ export async function syncBracketMatches(seasonId: string): Promise<ActionResult
     // 不同 stage（qualifier vs playoff）可能共享同一 bracketNodeId
     const existingBracketMatches = await db.query.matches.findMany({
       where: eq(matches.seasonId, seasonId),
-      columns: { id: true, bracketNodeId: true, stage: true, teamAId: true, teamBId: true },
+      columns: { id: true, bracketNodeId: true, stage: true, entryAId: true, entryBId: true },
     });
     const existingByKey = new Map<string, typeof existingBracketMatches[number]>();
     for (const m of existingBracketMatches) {
@@ -871,17 +871,17 @@ export async function syncBracketMatches(seasonId: string): Promise<ActionResult
         if (!existing) {
           await tx.insert(matches).values({
             seasonId,
-            teamAId: teamA.id,
-            teamBId: teamB.id,
+            entryAId: teamA.id,
+            entryBId: teamB.id,
             stage,
             format: resolveMatchFormat(stagePlan, stage, bm.roundNumber, bm.groupNumber),
             status: "scheduled",
             bracketNodeId: nodeIdStr,
           });
           created++;
-        } else if (existing.teamAId !== teamA.id || existing.teamBId !== teamB.id) {
+        } else if (existing.entryAId !== teamA.id || existing.entryBId !== teamB.id) {
           await tx.update(matches)
-            .set({ teamAId: teamA.id, teamBId: teamB.id, updatedAt: new Date() })
+            .set({ entryAId: teamA.id, entryBId: teamB.id, updatedAt: new Date() })
             .where(eq(matches.id, existing.id));
           fixed++;
         }
@@ -919,12 +919,12 @@ export async function forfeitMatch(
 
     assertMatchTransition(match.status, "finished");
 
-    if (loserTeamId !== match.teamAId && loserTeamId !== match.teamBId) {
+    if (loserTeamId !== match.entryAId && loserTeamId !== match.entryBId) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "弃赛队伍不属于本场比赛");
     }
 
     const winnerScore = FORFEIT_WINNER_SCORE[match.format];
-    const isLoserA = loserTeamId === match.teamAId;
+    const isLoserA = loserTeamId === match.entryAId;
     const scoreA = isLoserA ? 0 : winnerScore;
     const scoreB = isLoserA ? winnerScore : 0;
 

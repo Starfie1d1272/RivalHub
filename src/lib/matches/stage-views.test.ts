@@ -11,11 +11,11 @@ import {
   resolveDefaultStageKey,
 } from "./stage-views";
 
-const match = (stage: string, status = "scheduled", teamAId = `${stage}-a`, teamBId = `${stage}-b`) => ({
+const match = (stage: string, status = "scheduled", entryAId = `${stage}-a`, entryBId = `${stage}-b`) => ({
   stage,
   status,
-  teamAId,
-  teamBId,
+  entryAId,
+  entryBId,
 });
 
 describe("stage views", () => {
@@ -131,8 +131,8 @@ describe("stage views", () => {
       teamCount,
       advanceCount: 0,
       rounds: [],
-      teams: teamIds.map((teamId, index) => ({
-        teamId, teamName: teamId, seed: index + 1, wins: 0, losses: 0, status: "active", buScore: 0,
+      competitionEntries: teamIds.map((entryId, index) => ({
+        entryId, teamName: entryId, seed: index + 1, wins: 0, losses: 0, status: "active", buScore: 0,
       })),
     }) as SwissViewData;
 

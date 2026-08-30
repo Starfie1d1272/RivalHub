@@ -1,6 +1,6 @@
 import { pgTable, uuid, integer, text, unique } from "drizzle-orm/pg-core";
 import { seasons } from "./seasons";
-import { teams } from "./teams";
+import { competitionEntries } from "./competition-entries";
 
 /**
  * 瑞士轮实时计分表
@@ -14,9 +14,9 @@ export const swissStandings = pgTable(
       .notNull()
       .references(() => seasons.id),
     stage: text("stage").notNull(),
-    teamId: uuid("team_id")
+    entryId: uuid("entry_id")
       .notNull()
-      .references(() => teams.id),
+      .references(() => competitionEntries.id),
     seed: integer("seed").notNull(),
     wins: integer("wins").notNull().default(0),
     losses: integer("losses").notNull().default(0),
@@ -24,7 +24,7 @@ export const swissStandings = pgTable(
     status: text("status").notNull().default("active"),
   },
   (t) => ({
-    uniqueStanding: unique().on(t.seasonId, t.stage, t.teamId),
+    uniqueStanding: unique().on(t.seasonId, t.stage, t.entryId),
   }),
 );
 

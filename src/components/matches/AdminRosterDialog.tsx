@@ -33,8 +33,8 @@ interface AdminRosterDialogProps {
   matchId: string;
   teamAName: string;
   teamBName: string;
-  teamAId: string;
-  teamBId: string;
+  entryAId: string;
+  entryBId: string;
   teamAMembers: TeamMember[];
   teamBMembers: TeamMember[];
   teamARoster: RosterData | null;
@@ -313,8 +313,8 @@ export function AdminRosterDialog({
   matchId,
   teamAName,
   teamBName,
-  teamAId,
-  teamBId,
+  entryAId,
+  entryBId,
   teamAMembers,
   teamBMembers,
   teamARoster,
@@ -341,7 +341,7 @@ export function AdminRosterDialog({
         <div className="space-y-6">
           <RosterTeamSection
             teamName={teamAName}
-            teamId={teamAId}
+            teamId={entryAId}
             matchId={matchId}
             members={teamAMembers}
             existingRoster={teamARoster}
@@ -350,7 +350,7 @@ export function AdminRosterDialog({
           <Separator />
           <RosterTeamSection
             teamName={teamBName}
-            teamId={teamBId}
+            teamId={entryBId}
             matchId={matchId}
             members={teamBMembers}
             existingRoster={teamBRoster}

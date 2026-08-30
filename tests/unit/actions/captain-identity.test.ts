@@ -16,7 +16,7 @@ const {
   txInsertMock,
   txUpdateMock,
   revalidateSeasonPathsMock,
-  // 外部 db.select（getTeamIdForCaptain）
+  // 外部 db.select（getEntryIdForRepresentative）
   dbSelectMock,
   // 捕获 insert values
   insertValuesCalls,
@@ -50,8 +50,12 @@ vi.mock("@/db/schema", () => {
   const col = (name: string) => ({ name });
   const mk = (name: string, cols: Record<string, unknown> = {}) => ({ __name: name, ...cols });
   return {
-    teams: mk("teams", { id: col("id"), seasonId: col("season_id"), captainUserId: col("captain_user_id") }),
-    teamMembers: mk("teamMembers", { id: col("id"), teamId: col("team_id"), seasonId: col("season_id"), userId: col("user_id") }),
+    competitionEntries: mk("competitionEntries", { id: col("id"), competitionId: col("competition_id"), representativeUserId: col("representative_user_id") }),
+    competitionEntryParticipants: mk("competitionEntryParticipants", { id: col("id") }),
+    competitionEntryRosterRevisions: mk("competitionEntryRosterRevisions", { id: col("id") }),
+    competitionEntryRosterMembers: mk("competitionEntryRosterMembers", { id: col("id") }),
+    eventRosters: mk("eventRosters", { id: col("id") }),
+    eventRosterMembers: mk("eventRosterMembers", { id: col("id") }),
     seasons: mk("seasons", {}),
     seasonRegistrations: mk("seasonRegistrations", {}),
     captainVotes: mk("captainVotes", {}),
@@ -88,7 +92,7 @@ const TX = {
 
 // ── import after mocks ─────────────────────────────────────────────────────────
 import { confirmCaptains } from "@/actions/captains";
-import { getTeamIdForCaptain } from "@/actions/matches/_shared";
+import { getEntryIdForRepresentative } from "@/actions/matches/_shared";
 
 // ── 公共测试数据 ──────────────────────────────────────────────────────────────
 const SEASON = {
@@ -121,7 +125,7 @@ function setupTxSelect() {
   txSelectMock.mockImplementation(() => ({
     from: vi.fn((table: { __name?: string }) => {
       const name = table.__name ?? "?";
-      if (name === "teams") {
+      if (name === "competitionEntries") {
         // existingTeamCount
         return { where: vi.fn().mockResolvedValue([{ count: 0 }]) };
       }
@@ -143,15 +147,23 @@ function setupTxSelect() {
 }
 
 function setupTxInsert() {
-  let teamSeq = 0;
+  let entrySeq = 0;
   txInsertMock.mockImplementation((table: { __name?: string }) => {
     const name = table.__name ?? "?";
-    if (name === "teams") {
+    if (name === "competitionEntries") {
       return {
         values: vi.fn((values: unknown) => {
           insertValuesCalls.push({ table: name, values });
-          teamSeq += 1;
-          return { returning: vi.fn().mockResolvedValue([{ id: teamSeq === 1 ? TEAM_A_ID : TEAM_B_ID }]) };
+          entrySeq += 1;
+          return { returning: vi.fn().mockResolvedValue([{ id: entrySeq === 1 ? TEAM_A_ID : TEAM_B_ID }]) };
+        }),
+      };
+    }
+    if (["competitionEntryParticipants", "competitionEntryRosterRevisions", "eventRosters"].includes(name)) {
+      return {
+        values: vi.fn((values: unknown) => {
+          insertValuesCalls.push({ table: name, values });
+          return { returning: vi.fn().mockResolvedValue([{ id: `${name}-${insertValuesCalls.length}` }]) };
         }),
       };
     }
@@ -176,7 +188,7 @@ beforeEach(() => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-describe("confirmCaptains() — Rivals team creation dual-write", () => {
+describe("confirmCaptains() — Rivals event-native Entry formation", () => {
   beforeEach(() => {
     requireSeasonAdminMock.mockResolvedValue({ email: "admin@test.com" });
     txSeasonFindFirstMock.mockResolvedValue(SEASON);
@@ -185,70 +197,59 @@ describe("confirmCaptains() — Rivals team creation dual-write", () => {
     setupTxUpdate();
   });
 
-  it("writes captainRegistrationId AND captainUserId on team insert", async () => {
+  it("writes source registration provenance and representative on Entry", async () => {
     const result = await confirmCaptains({ seasonId: SEASON_ID });
 
     expect(result.success).toBe(true);
     if (!result.success) return;
 
-    const teamInserts = insertValuesCalls.filter((c) => c.table === "teams");
-    expect(teamInserts).toHaveLength(8);
-    for (const t of teamInserts) {
+    const entryInserts = insertValuesCalls.filter((c) => c.table === "competitionEntries");
+    expect(entryInserts).toHaveLength(8);
+    for (const t of entryInserts) {
       const values = t.values as Record<string, unknown>;
-      expect(values.captainRegistrationId).toBeTypeOf("string");
-      expect(values.captainUserId).toBeTypeOf("string");
+      expect(values.sourceRegistrationId).toBeTypeOf("string");
+      expect(values.representativeUserId).toBeTypeOf("string");
+      expect(values.source).toBe("event_native");
     }
-    // captainRegistrationId 与 captainUserId 必须来自同一条 registration
     const byReg = new Map(CANDIDATES.map((c) => [c.registrationId, c.userId]));
-    for (const t of teamInserts) {
+    for (const t of entryInserts) {
       const values = t.values as Record<string, string>;
-      expect(byReg.get(values.captainRegistrationId)).toBe(values.captainUserId);
+      expect(byReg.get(values.sourceRegistrationId)).toBe(values.representativeUserId);
     }
   });
 
-  it("writes registrationId + userId + seasonId on captain teamMember insert", async () => {
+  it("keeps participant commitment separate from event roster membership", async () => {
     const result = await confirmCaptains({ seasonId: SEASON_ID });
 
     expect(result.success).toBe(true);
     if (!result.success) return;
 
-    const memberInserts = insertValuesCalls.filter((c) => c.table === "teamMembers");
-    expect(memberInserts).toHaveLength(8);
-    for (const m of memberInserts) {
-      const values = m.values as Record<string, string>;
-      expect(values.registrationId).toBeTypeOf("string");
-      expect(values.userId).toBeTypeOf("string");
-      expect(values.seasonId).toBe(SEASON_ID);
-    }
-    // userId 必须等于 registration 的 userId（canonical identity）
-    const byReg = new Map(CANDIDATES.map((c) => [c.registrationId, c.userId]));
-    for (const m of memberInserts) {
-      const values = m.values as Record<string, string>;
-      expect(byReg.get(values.registrationId)).toBe(values.userId);
-    }
+    expect(insertValuesCalls.filter((c) => c.table === "competitionEntryParticipants")).toHaveLength(8);
+    expect(insertValuesCalls.filter((c) => c.table === "competitionEntryRosterMembers")).toHaveLength(8);
+    expect(insertValuesCalls.filter((c) => c.table === "eventRosterMembers")).toHaveLength(8);
   });
 
-  it("keeps draftOrder provenance (1-based) on team insert", async () => {
+  it("keeps event formation order provenance (1-based)", async () => {
     const result = await confirmCaptains({ seasonId: SEASON_ID });
 
     expect(result.success).toBe(true);
     if (!result.success) return;
 
-    const teamInserts = insertValuesCalls.filter((c) => c.table === "teams");
-    const orders = teamInserts.map((t) => (t.values as Record<string, number>).draftOrder).sort();
+    const entryInserts = insertValuesCalls.filter((c) => c.table === "competitionEntries");
+    const orders = entryInserts.map((t) => (t.values as Record<string, number>).formationOrder).sort();
     expect(orders).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
   });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-describe("getTeamIdForCaptain() — canonical captain authorization", () => {
+describe("getEntryIdForRepresentative() — canonical entrant authorization", () => {
   const match = {
     id: "m1",
     seasonId: SEASON_ID,
-    teamAId: TEAM_A_ID,
-    teamBId: TEAM_B_ID,
+    entryAId: TEAM_A_ID,
+    entryBId: TEAM_B_ID,
     status: "scheduled",
-  } as unknown as Parameters<typeof getTeamIdForCaptain>[1];
+  } as unknown as Parameters<typeof getEntryIdForRepresentative>[1];
 
   let lastWhere: unknown;
 
@@ -277,34 +278,34 @@ describe("getTeamIdForCaptain() — canonical captain authorization", () => {
     lastWhere = undefined;
   });
 
-  it("captainUserId match + match participant + same season → allowed", async () => {
+  it("representative match + match participant + same competition → allowed", async () => {
     mockTeamRows([{ id: TEAM_A_ID }], true);
-    const teamId = await getTeamIdForCaptain(USER_ID_1, match);
+    const teamId = await getEntryIdForRepresentative(USER_ID_1, match);
     expect(teamId).toBe(TEAM_A_ID);
     // query predicate 必须包含 season scope（defense-in-depth）
-    expect(sqlContains(lastWhere, "season_id")).toBe(true);
-    expect(sqlContains(lastWhere, "captain_user_id")).toBe(true);
+    expect(sqlContains(lastWhere, "competition_id")).toBe(true);
+    expect(sqlContains(lastWhere, "representative_user_id")).toBe(true);
     expect(sqlContains(lastWhere, "id")).toBe(true);
   });
 
   it("captain of teamB → returns teamB id", async () => {
     mockTeamRows([{ id: TEAM_B_ID }], true);
-    const teamId = await getTeamIdForCaptain(USER_ID_2, match);
+    const teamId = await getEntryIdForRepresentative(USER_ID_2, match);
     expect(teamId).toBe(TEAM_B_ID);
-    expect(sqlContains(lastWhere, "season_id")).toBe(true);
+    expect(sqlContains(lastWhere, "competition_id")).toBe(true);
   });
 
   it("same captainUserId but team season != match season → denied (no matching row)", async () => {
     // 谓词含 season scope：跨赛季队伍不会命中（mock 返回空行即等价于被谓词排除）
     mockTeamRows([], true);
-    const teamId = await getTeamIdForCaptain(USER_ID_1, match);
+    const teamId = await getEntryIdForRepresentative(USER_ID_1, match);
     expect(teamId).toBeNull();
-    expect(sqlContains(lastWhere, "season_id")).toBe(true);
+    expect(sqlContains(lastWhere, "competition_id")).toBe(true);
   });
 
   it("non-captain → denied (null)", async () => {
     mockTeamRows([]);
-    const teamId = await getTeamIdForCaptain("99999999-9999-9999-9999-999999999999", match);
+    const teamId = await getEntryIdForRepresentative("99999999-9999-9999-9999-999999999999", match);
     expect(teamId).toBeNull();
   });
 });

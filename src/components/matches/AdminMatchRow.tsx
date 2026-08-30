@@ -21,7 +21,7 @@ import { MATCH_FORMAT_LABELS } from "@/types/match";
 
 export interface TeamMemberData {
   id: string;
-  teamId: string;
+  entryId: string;
   steamName: string;
   displayName: string | null;
   perfectName: string | null;
@@ -77,8 +77,8 @@ interface AdminMatchRowProps {
     scoreB: number | null;
     scheduledAt: Date | null;
     completionDeadline: Date | null;
-    teamAId: string;
-    teamBId: string;
+    entryAId: string;
+    entryBId: string;
     ownership: string;
     bracketNodeId: string | null;
     completedAt: Date | null;
@@ -98,13 +98,13 @@ interface AdminMatchRowProps {
     mapName: string;
     scoreA: number;
     scoreB: number;
-    pickedByTeamId: string | null;
+    pickedByEntryId: string | null;
     teamAStartSide: "t" | "ct" | null;
   }[];
   pendingMaps: {
     mapOrder: number;
     mapName: string;
-    pickedByTeamId: string | null;
+    pickedByEntryId: string | null;
     teamAStartSide: "t" | "ct" | null;
   }[];
   finishedMaps: { id: string; mapName: string; scoreA: number; scoreB: number }[];
@@ -182,8 +182,8 @@ export function AdminMatchRow({
                     matchId={match.id}
                     teamAName={teamAName}
                     teamBName={teamBName}
-                    teamAId={match.teamAId}
-                    teamBId={match.teamBId}
+                    entryAId={match.entryAId}
+                    entryBId={match.entryBId}
                     teamAMembers={teamAMembers}
                     teamBMembers={teamBMembers}
                     teamARoster={teamARoster}
@@ -196,8 +196,8 @@ export function AdminMatchRow({
                       format={match.format}
                       teamAName={teamAName}
                       teamBName={teamBName}
-                      teamAId={match.teamAId}
-                      teamBId={match.teamBId}
+                      entryAId={match.entryAId}
+                      entryBId={match.entryBId}
                       mapPool={mapPool}
                     />
                   )}
@@ -213,8 +213,8 @@ export function AdminMatchRow({
                     format={match.format}
                     teamAName={teamAName}
                     teamBName={teamBName}
-                    teamAId={match.teamAId}
-                    teamBId={match.teamBId}
+                    entryAId={match.entryAId}
+                    entryBId={match.entryBId}
                     completedMaps={completedMaps}
                     pendingMaps={pendingMaps}
                     mapPool={mapPool}
@@ -231,8 +231,8 @@ export function AdminMatchRow({
                 )}
                 <div className="space-y-2 border-t border-[var(--color-border)] pt-3"><p className="font-mono text-[11px] tracking-[0.12em] text-[var(--color-fg-mid)]">裁决与弃赛</p><p className="text-xs leading-5 text-[var(--color-fg-mid)]">延长、重新排期或双方协商可先调整赛程。判负必须明确弃赛方与原因，并记录正式结果与审计。</p><ForfeitButton
                   matchId={match.id}
-                  teamAId={match.teamAId}
-                  teamBId={match.teamBId}
+                  entryAId={match.entryAId}
+                  entryBId={match.entryBId}
                   teamAName={teamAName}
                   teamBName={teamBName}
                 /></div>
@@ -246,8 +246,8 @@ export function AdminMatchRow({
                     format={match.format}
                     teamAName={teamAName}
                     teamBName={teamBName}
-                    teamAId={match.teamAId}
-                    teamBId={match.teamBId}
+                    entryAId={match.entryAId}
+                    entryBId={match.entryBId}
                     mapPool={mapPool}
                     matchStatus="finished"
                   />

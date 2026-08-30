@@ -2,7 +2,7 @@
 
 import { eq, and, or, isNotNull, isNull, lte } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matchTimeProposals, matches, auditLogs, seasons, teams } from "@/db/schema";
+import { matchTimeProposals, matches, auditLogs, seasons, competitionEntries } from "@/db/schema";
 import { ok, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { requireAuth, requireSeasonAdmin } from "@/lib/auth/session";
@@ -16,7 +16,7 @@ import {
   getTimeConfirmationCutoff,
   getTimeBufferHoursForStage,
 } from "@/lib/matches/time-rules";
-import { getTeamIdForCaptain } from "./_shared";
+import { getEntryIdForRepresentative } from "./_shared";
 import { lockMatchInTx } from "@/lib/match-rosters/service";
 
 const PROPOSAL_AUTO_ACCEPT_HOURS = 24;
@@ -48,7 +48,7 @@ export async function proposeMatchTime(
     assertBeforeTimeConfirmationCutoff(match.completionDeadline, bufferHours);
     assertProposedTimeFitsDeadline(proposedTime, match.completionDeadline);
 
-    if (!(await getTeamIdForCaptain(session.userId, match))) {
+    if (!(await getEntryIdForRepresentative(session.userId, match))) {
       throw new AppError(ErrorCode.FORBIDDEN, "只有队长可以提议时间");
     }
 
@@ -102,10 +102,10 @@ export async function respondToTimeProposal(
       assertBeforeTimeConfirmationCutoff(match.completionDeadline, bufferHours);
       if (action === "accept") assertProposedTimeFitsDeadline(proposal.proposedTime, match.completionDeadline);
       if (proposal.proposedBy === session.userId) throw new AppError(ErrorCode.FORBIDDEN, "不能回应自己的提议");
-      const [captain] = await tx.select({ id: teams.id }).from(teams).where(and(
-        eq(teams.captainUserId, session.userId),
-        eq(teams.seasonId, match.seasonId),
-        or(eq(teams.id, match.teamAId), eq(teams.id, match.teamBId)),
+      const [captain] = await tx.select({ id: competitionEntries.id }).from(competitionEntries).where(and(
+        eq(competitionEntries.representativeUserId, session.userId),
+        eq(competitionEntries.competitionId, match.seasonId),
+        or(eq(competitionEntries.id, match.entryAId), eq(competitionEntries.id, match.entryBId)),
       ));
       if (!captain) throw new AppError(ErrorCode.FORBIDDEN, "只有对方队长可以回应");
       const updates: Record<string, unknown> = {

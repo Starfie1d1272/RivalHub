@@ -4,7 +4,7 @@ import type { Route } from "next";
 import type { Metadata } from "next";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, teams } from "@/db/schema";
+import { competitionEntries, seasons } from "@/db/schema";
 import { CaptainDraftPanel } from "@/components/draft/CaptainDraftPanel";
 import { Panel, Btn } from "@/components/rivalhub";
 import { getUserSession } from "@/lib/auth/session";
@@ -57,14 +57,14 @@ export default async function DraftCaptainPage({ params }: DraftCaptainPageProps
 
   const [captainTeam] = await db
     .select({
-      teamId: teams.id,
-      teamName: teams.name,
+      entryId: competitionEntries.id,
+      teamName: competitionEntries.name,
     })
-    .from(teams)
+    .from(competitionEntries)
     .where(
       and(
-        eq(teams.seasonId, season.id),
-        eq(teams.captainUserId, session.userId),
+        eq(competitionEntries.competitionId, season.id),
+        eq(competitionEntries.representativeUserId, session.userId),
       ),
     )
     .limit(1);
@@ -91,8 +91,8 @@ export default async function DraftCaptainPage({ params }: DraftCaptainPageProps
   }
 
   const currentTeamName =
-    data.teams.find((team) => team.teamId === data.state?.currentTeamId)?.teamName ?? null;
-  const captainTeamSlot = data.teams.find((team) => team.teamId === captainTeam.teamId);
+    data.teams.find((team) => team.entryId === data.state?.currentEntryId)?.teamName ?? null;
+  const captainTeamSlot = data.teams.find((team) => team.entryId === captainTeam.entryId);
   const positionCounts = computePositionCounts(captainTeamSlot);
 
   return (
@@ -106,14 +106,14 @@ export default async function DraftCaptainPage({ params }: DraftCaptainPageProps
 
       <CaptainDraftPanel
         seasonId={season.id}
-        teamId={captainTeam.teamId}
+        entryId={captainTeam.entryId}
         teamName={captainTeam.teamName}
         currentTeamName={currentTeamName}
         currentRound={data.state.currentRound}
         roundDeadline={data.state.roundDeadline}
         isDraftActive={data.state.isActive}
         isCurrentCaptainTurn={
-          data.state.isActive && data.state.currentTeamId === captainTeam.teamId
+          data.state.isActive && data.state.currentEntryId === captainTeam.entryId
         }
         positionCounts={positionCounts}
         players={data.remainingPlayers}

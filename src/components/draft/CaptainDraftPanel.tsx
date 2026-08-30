@@ -21,7 +21,7 @@ const FILTER_ALL = "all";
 
 interface CaptainDraftPanelProps {
   seasonId: string;
-  teamId: string;
+  entryId: string;
   teamName: string;
   currentTeamName: string | null;
   currentRound: number | null;
@@ -39,7 +39,7 @@ interface CaptainDraftPanelProps {
 
 export function CaptainDraftPanel({
   seasonId,
-  teamId,
+  entryId,
   teamName,
   currentTeamName,
   currentRound,
@@ -111,7 +111,7 @@ export function CaptainDraftPanel({
 
     const result = await pickPlayer({
       seasonId,
-      teamId,
+      entryId,
       registrationId: player.registrationId,
       clientRequestId: crypto.randomUUID(),
     });

@@ -14,7 +14,7 @@ import {
 import { majorFinalResults } from "./major-stage";
 import { matches } from "./matches";
 import { seasons } from "./seasons";
-import { teams } from "./teams";
+import { competitionEntries } from "./competition-entries";
 import { users } from "./users";
 
 export const adjudicationStatusEnum = pgEnum("adjudication_status", ["active", "revoked"]);
@@ -24,7 +24,7 @@ export const adjudicationKindEnum = pgEnum("adjudication_kind", [
   "placement_statement",
   "honor_directive",
 ]);
-export const adjudicationTargetEnum = pgEnum("adjudication_target", ["season", "team", "user", "match"]);
+export const adjudicationTargetEnum = pgEnum("adjudication_target", ["season", "entry", "user", "match"]);
 export const adjudicationImpactEnum = pgEnum("adjudication_impact", [
   "canonical_matches",
   "final_result",
@@ -47,7 +47,7 @@ export const postEventAdjudications = pgTable("post_event_adjudications", {
   kind: adjudicationKindEnum("kind").notNull(),
   target: adjudicationTargetEnum("target").notNull(),
   impacts: jsonb("impacts").$type<AdjudicationImpact[]>().notNull().default(sql`'[]'::jsonb`),
-  targetTeamId: uuid("target_team_id").references(() => teams.id),
+  targetEntryId: uuid("target_entry_id").references(() => competitionEntries.id),
   targetUserId: uuid("target_user_id").references(() => users.id),
   targetMatchId: uuid("target_match_id").references(() => matches.id),
   reason: text("reason").notNull(),
@@ -63,10 +63,10 @@ export const postEventAdjudications = pgTable("post_event_adjudications", {
   seasonIndex: index("post_event_adjudications_season_idx").on(t.seasonId),
   targetCheck: check(
     "post_event_adjudications_target_check",
-    sql`(${t.target} = 'season' AND ${t.targetTeamId} IS NULL AND ${t.targetUserId} IS NULL AND ${t.targetMatchId} IS NULL)
-      OR (${t.target} = 'team' AND ${t.targetTeamId} IS NOT NULL AND ${t.targetUserId} IS NULL AND ${t.targetMatchId} IS NULL)
-      OR (${t.target} = 'user' AND ${t.targetTeamId} IS NULL AND ${t.targetUserId} IS NOT NULL AND ${t.targetMatchId} IS NULL)
-      OR (${t.target} = 'match' AND ${t.targetTeamId} IS NULL AND ${t.targetUserId} IS NULL AND ${t.targetMatchId} IS NOT NULL)`,
+    sql`(${t.target} = 'season' AND ${t.targetEntryId} IS NULL AND ${t.targetUserId} IS NULL AND ${t.targetMatchId} IS NULL)
+      OR (${t.target} = 'entry' AND ${t.targetEntryId} IS NOT NULL AND ${t.targetUserId} IS NULL AND ${t.targetMatchId} IS NULL)
+      OR (${t.target} = 'user' AND ${t.targetEntryId} IS NULL AND ${t.targetUserId} IS NOT NULL AND ${t.targetMatchId} IS NULL)
+      OR (${t.target} = 'match' AND ${t.targetEntryId} IS NULL AND ${t.targetUserId} IS NULL AND ${t.targetMatchId} IS NOT NULL)`,
   ),
   revocationCheck: check(
     "post_event_adjudications_revocation_check",
@@ -99,7 +99,7 @@ export const tournamentHonors = pgTable("tournament_honors", {
   basis: honorBasisEnum("basis").notNull(),
   placementFrom: integer("placement_from"),
   placementTo: integer("placement_to"),
-  teamId: uuid("team_id").references(() => teams.id),
+  entryId: uuid("entry_id").references(() => competitionEntries.id),
   userId: uuid("user_id").references(() => users.id),
   sourceFinalResultId: uuid("source_final_result_id").references(() => majorFinalResults.id),
   adjudicationId: uuid("adjudication_id").references(() => postEventAdjudications.id),
@@ -117,8 +117,8 @@ export const tournamentHonors = pgTable("tournament_honors", {
     .where(sql`${t.state} = 'valid'`),
   recipientCheck: check(
     "tournament_honors_recipient_check",
-    sql`(${t.state} IN ('valid', 'revoked') AND ((${t.teamId} IS NOT NULL)::int + (${t.userId} IS NOT NULL)::int) = 1)
-      OR (${t.state} IN ('vacant', 'not_awarded') AND ${t.teamId} IS NULL AND ${t.userId} IS NULL)`,
+    sql`(${t.state} IN ('valid', 'revoked') AND ((${t.entryId} IS NOT NULL)::int + (${t.userId} IS NOT NULL)::int) = 1)
+      OR (${t.state} IN ('vacant', 'not_awarded') AND ${t.entryId} IS NULL AND ${t.userId} IS NULL)`,
   ),
   placementCheck: check(
     "tournament_honors_placement_check",

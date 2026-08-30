@@ -34,7 +34,7 @@ export function SwissBracket({ data, seasonSlug }: SwissBracketProps) {
         {/* 晋级/淘汰汇总列 */}
         {data.rounds.length > 0 && (
           <AdvancementColumn
-            teams={data.teams}
+            teams={data.competitionEntries}
             advanceCount={data.advanceCount}
           />
         )}
@@ -234,7 +234,7 @@ function AdvancementColumn({
           <div className="space-y-1">
             {advanced.map((t) => (
               <div
-                key={t.teamId}
+                key={t.entryId}
                 className="flex items-center justify-between text-xs px-2 py-1 rounded bg-[var(--color-panel)] border border-[var(--color-border)]"
               >
                 <span className="text-[var(--color-fg)] truncate">
@@ -258,7 +258,7 @@ function AdvancementColumn({
           <div className="space-y-1">
             {eliminated.map((t) => (
               <div
-                key={t.teamId}
+                key={t.entryId}
                 className="flex items-center justify-between text-xs px-2 py-1 rounded bg-[var(--color-panel)] border border-[var(--color-border)] opacity-60"
               >
                 <span className="text-[var(--color-fg-dim)] truncate">

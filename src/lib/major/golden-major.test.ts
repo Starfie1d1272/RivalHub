@@ -67,8 +67,8 @@ function simulateSwissStage(
       matches.push({
         matchId: `${label}-r${round}-m${index + 1}`,
         round: round as MajorSwissRound,
-        teamAId: pairing.higherSeedTeamId,
-        teamBId: pairing.lowerSeedTeamId,
+        entryAId: pairing.higherSeedTeamId,
+        entryBId: pairing.lowerSeedTeamId,
         winnerId:
           rng() < 0.5 ? pairing.higherSeedTeamId : pairing.lowerSeedTeamId,
       });
@@ -93,8 +93,8 @@ function createPlayoffMatches(
     matchId: `playoff-qf-${pairing.slot}`,
     round: "quarterfinal",
     slot: pairing.slot,
-    teamAId: pairing.lowerSeedTeamId,
-    teamBId: pairing.higherSeedTeamId,
+    entryAId: pairing.lowerSeedTeamId,
+    entryBId: pairing.higherSeedTeamId,
     // Alternate upsets so the fixture exercises seed and Team A/B independence.
     winnerId: pairing.slot % 2 === 0 ? pairing.lowerSeedTeamId : pairing.higherSeedTeamId,
   }));
@@ -104,16 +104,16 @@ function createPlayoffMatches(
       matchId: "playoff-sf-1",
       round: "semifinal",
       slot: 1,
-      teamAId: quarterfinals[0].winnerId,
-      teamBId: quarterfinals[1].winnerId,
+      entryAId: quarterfinals[0].winnerId,
+      entryBId: quarterfinals[1].winnerId,
       winnerId: quarterfinals[1].winnerId,
     },
     {
       matchId: "playoff-sf-2",
       round: "semifinal",
       slot: 2,
-      teamAId: quarterfinals[3].winnerId,
-      teamBId: quarterfinals[2].winnerId,
+      entryAId: quarterfinals[3].winnerId,
+      entryBId: quarterfinals[2].winnerId,
       winnerId: quarterfinals[2].winnerId,
     },
   ];
@@ -122,23 +122,23 @@ function createPlayoffMatches(
     matchId: "playoff-final",
     round: "final",
     slot: 1,
-    teamAId: semifinals[1].winnerId,
-    teamBId: semifinals[0].winnerId,
+    entryAId: semifinals[1].winnerId,
+    entryBId: semifinals[0].winnerId,
     winnerId: semifinals[0].winnerId,
   };
   const thirdPlace: MajorPlayoffMatchFact = {
     matchId: "playoff-third-place",
     round: "third_place",
     slot: 1,
-    teamAId: semifinals[0].winnerId === semifinals[0].teamAId
-      ? semifinals[0].teamBId
-      : semifinals[0].teamAId,
-    teamBId: semifinals[1].winnerId === semifinals[1].teamAId
-      ? semifinals[1].teamBId
-      : semifinals[1].teamAId,
-    winnerId: semifinals[0].winnerId === semifinals[0].teamAId
-      ? semifinals[0].teamBId
-      : semifinals[0].teamAId,
+    entryAId: semifinals[0].winnerId === semifinals[0].entryAId
+      ? semifinals[0].entryBId
+      : semifinals[0].entryAId,
+    entryBId: semifinals[1].winnerId === semifinals[1].entryAId
+      ? semifinals[1].entryBId
+      : semifinals[1].entryAId,
+    winnerId: semifinals[0].winnerId === semifinals[0].entryAId
+      ? semifinals[0].entryBId
+      : semifinals[0].entryAId,
   };
 
   return [
@@ -203,9 +203,9 @@ function expectPlacementGroups(
   ranges: readonly (readonly [number, number])[],
 ): void {
   expect(placements.map(({ from, to }) => [from, to])).toEqual(ranges);
-  expect(placements.every((group) => group.teamIds.length === group.to - group.from + 1)).toBe(true);
-  expect(new Set(placements.flatMap((group) => group.teamIds)).size).toBe(32);
-  expect(placements.flatMap((group) => group.teamIds)).toHaveLength(32);
+  expect(placements.every((group) => group.entryIds.length === group.to - group.from + 1)).toBe(true);
+  expect(new Set(placements.flatMap((group) => group.entryIds)).size).toBe(32);
+  expect(placements.flatMap((group) => group.entryIds)).toHaveLength(32);
   expect(placements.every((group) => !("rank" in group))).toBe(true);
 }
 
@@ -224,7 +224,7 @@ function expectSwissEliminationGroups(
     const placement = placements.find(
       (group) => group.from === ranges[index][0] && group.to === ranges[index][1],
     )!;
-    expect(new Set(placement.teamIds)).toEqual(new Set(
+    expect(new Set(placement.entryIds)).toEqual(new Set(
       projection.eliminated.filter((team) => team.wins === wins && team.losses === 3).map((team) => team.teamId),
     ));
   }
@@ -254,7 +254,7 @@ describe("golden 32-team Major domain simulation", () => {
     expectSwissEliminationGroups(major, placements, "stage2", [[17, 19], [20, 22], [23, 24]]);
     expectSwissEliminationGroups(major, placements, "stage1", [[25, 27], [28, 30], [31, 32]]);
     for (const group of placements) {
-      const seeds = group.teamIds.map(
+      const seeds = group.entryIds.map(
         (teamId) => major.tournamentTeams.find((team) => team.teamId === teamId)!.tournamentSeed,
       );
       expect(seeds).toEqual([...seeds].sort((a, b) => a - b));
@@ -332,8 +332,8 @@ describe("golden 32-team Major domain simulation", () => {
           })),
           matches: major.stage2.matches.map((match) => ({
             ...match,
-            teamAId: replace(match.teamAId),
-            teamBId: replace(match.teamBId),
+            entryAId: replace(match.entryAId),
+            entryBId: replace(match.entryBId),
             winnerId: replace(match.winnerId),
           })),
         },

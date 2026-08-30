@@ -16,14 +16,14 @@ type Verification = NonNullable<LineupMemberFact["verification"]>;
 type VerificationOverride = Partial<Verification>;
 
 interface FixtureMember {
-  teamMemberId: string;
+  eventRosterMemberId: string;
   userId: string;
   verification: Verification | null;
 }
 
 interface World {
   memberFacts: Map<string, LineupMemberFact>;
-  /** Select teamMemberIds by index in ascending order given. */
+  /** Select eventRosterMemberIds by index in ascending order given. */
   ids: (...indices: number[]) => string[];
   allIds: () => string[];
   rosterUserIds: (...indices: number[]) => Set<string>;
@@ -35,7 +35,7 @@ function makeMember(
   overrides?: VerificationOverride,
 ): FixtureMember {
   return {
-    teamMemberId: `member-${index}`,
+    eventRosterMemberId: `member-${index}`,
     userId: `user-${index}`,
     verification: institutionCode
       ? {
@@ -65,7 +65,7 @@ function otherInstitution(index: number): FixtureMember {
 
 function buildWorld(members: readonly FixtureMember[]): World {
   const memberFacts = new Map<string, LineupMemberFact>();
-  for (const m of members) memberFacts.set(m.teamMemberId, m);
+  for (const m of members) memberFacts.set(m.eventRosterMemberId, m);
   return {
     memberFacts,
     ids: (...indices: number[]) =>

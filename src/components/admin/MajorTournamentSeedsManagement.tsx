@@ -40,7 +40,7 @@ export function MajorTournamentSeedsManagement({ data }: { data: MajorTournament
         <div><Marker sub={confirmed ? "当前排序已确认" : data.seedRevision > 0 ? "排序已变更，需要重新确认" : "尚未保存排序"}>{confirmed ? "种子已确认" : "种子待确认"}</Marker>
           <p className="mt-1 text-sm text-[var(--color-fg-mid)]">赛事种子独立于选秀排序。保存新的排序后，需要重新确认。</p></div>
         <div className="flex gap-2"><Button variant="outline" disabled={isPending || order.length !== 32} onClick={() => startTransition(async () => {
-          const result = await saveMajorTournamentSeeds({ seasonId: data.seasonId, teamIds: order });
+          const result = await saveMajorTournamentSeeds({ seasonId: data.seasonId, entryIds: order });
           if (!result.success) toast.error(result.error.message); else toast.success("1–32 种子已保存，需重新确认");
         })}>保存排序</Button><Button disabled={isPending || confirmed || data.seedRevision < 1} onClick={() => startTransition(async () => {
           const result = await confirmMajorTournamentSeeds({ seasonId: data.seasonId });

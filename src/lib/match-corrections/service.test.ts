@@ -13,7 +13,7 @@ const TEAM_A = "11111111-1111-1111-1111-111111111111";
 const TEAM_B = "22222222-2222-2222-2222-222222222222";
 
 function baseMatch() {
-  return { teamAId: TEAM_A, teamBId: TEAM_B, format: "bo1" as const, isForfeit: false };
+  return { entryAId: TEAM_A, entryBId: TEAM_B, format: "bo1" as const, isForfeit: false };
 }
 
 describe("classifyDownstreamManagedMatches", () => {
@@ -186,13 +186,13 @@ describe("validateResultCorrectionProposal", () => {
 
 describe("resolveWinnerTeamId", () => {
   it("returns null while scores are missing or tied", () => {
-    expect(resolveWinnerTeamId({ teamAId: TEAM_A, teamBId: TEAM_B, scoreA: null, scoreB: null })).toBeNull();
-    expect(resolveWinnerTeamId({ teamAId: TEAM_A, teamBId: TEAM_B, scoreA: 2, scoreB: 2 })).toBeNull();
+    expect(resolveWinnerTeamId({ entryAId: TEAM_A, entryBId: TEAM_B, scoreA: null, scoreB: null })).toBeNull();
+    expect(resolveWinnerTeamId({ entryAId: TEAM_A, entryBId: TEAM_B, scoreA: 2, scoreB: 2 })).toBeNull();
   });
 
   it("picks the higher-score side", () => {
-    expect(resolveWinnerTeamId({ teamAId: TEAM_A, teamBId: TEAM_B, scoreA: 2, scoreB: 1 })).toBe(TEAM_A);
-    expect(resolveWinnerTeamId({ teamAId: TEAM_A, teamBId: TEAM_B, scoreA: 0, scoreB: 3 })).toBe(TEAM_B);
+    expect(resolveWinnerTeamId({ entryAId: TEAM_A, entryBId: TEAM_B, scoreA: 2, scoreB: 1 })).toBe(TEAM_A);
+    expect(resolveWinnerTeamId({ entryAId: TEAM_A, entryBId: TEAM_B, scoreA: 0, scoreB: 3 })).toBe(TEAM_B);
   });
 });
 

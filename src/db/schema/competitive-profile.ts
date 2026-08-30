@@ -1,9 +1,10 @@
-import { boolean, check, index, integer, json, numeric, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, index, integer, json, numeric, pgEnum, pgTable, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { users } from "./users";
 
 export const competitiveFactKindEnum = pgEnum("competitive_fact_kind", ["historical_peak", "season_peak"]);
 export const competitiveFactProvenanceEnum = pgEnum("competitive_fact_provenance", ["self_declared"]);
+export const cs2RoleEnum = pgEnum("cs2_role", ["igl", "awper", "entry", "closer", "anchor", "support", "lurker"]);
 
 /**
  * Operator-owned platform season catalogue.  Keys intentionally are not tied
@@ -52,5 +53,22 @@ export const competitiveRankFacts = pgTable("competitive_rank_facts", {
   userPlatformIndex: index("competitive_rank_facts_user_platform_idx").on(t.userId, t.platform),
 }));
 
+/** Long-lived self-declared preferences. They are hints, never eligibility gates. */
+export const userCompetitiveRoles = pgTable("user_competitive_roles", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  role: cs2RoleEnum("role").notNull(),
+  isPrimary: boolean("is_primary").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  userRoleUnique: unique("user_competitive_roles_user_role_unique").on(t.userId, t.role),
+  onePrimaryRolePerUser: uniqueIndex("user_competitive_roles_one_primary_per_user")
+    .on(t.userId)
+    .where(sql`${t.isPrimary}`),
+  userIndex: index("user_competitive_roles_user_idx").on(t.userId),
+}));
+
 export type CompetitivePlatformSeason = typeof competitivePlatformSeasons.$inferSelect;
 export type CompetitiveRankFact = typeof competitiveRankFacts.$inferSelect;
+export type UserCompetitiveRole = typeof userCompetitiveRoles.$inferSelect;

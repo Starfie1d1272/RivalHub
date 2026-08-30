@@ -13,7 +13,9 @@ describe("DB schema (stub)", () => {
     expect(schema.seasons).toBeDefined();
     expect(schema.seasonRegistrations).toBeDefined();
     expect(schema.teams).toBeDefined();
-    expect(schema.teamMembers).toBeDefined();
+    expect(schema.teamMemberships).toBeDefined();
+    expect(schema.competitionEntries).toBeDefined();
+    expect(schema.eventRosterMembers).toBeDefined();
     expect(schema.captainVotes).toBeDefined();
     expect(schema.draftState).toBeDefined();
     expect(schema.draftPicks).toBeDefined();

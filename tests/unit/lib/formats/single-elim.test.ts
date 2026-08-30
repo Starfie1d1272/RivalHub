@@ -38,7 +38,7 @@ vi.mock("@/db/client", () => ({
     query: {
       seasons: { findFirst: mockFindFirst },
       matches: { findMany: mockMatchFindMany },
-      teams: { findMany: vi.fn().mockResolvedValue([]) },
+      competitionEntries: { findMany: vi.fn().mockResolvedValue([]) },
     },
   },
 }));
@@ -54,25 +54,25 @@ vi.mock("@/db/schema", () => ({
     updatedAt: {},
     stagePlan: {},
   },
-  teams: {
+  competitionEntries: {
     id: {},
     name: {},
-    seasonId: {},
+    competitionId: {},
   },
 }));
 
 import { singleElimExecutor } from "@/lib/formats/single-elim";
 import { AppError } from "@/lib/errors";
-import type { Team } from "@/db/schema/teams";
+import type { CompetitionEntry } from "@/db/schema/competition-entries";
 import type { QualifiedTeam } from "@/types/season";
 
-function makeTeams(n: number): Team[] {
+function makeTeams(n: number): CompetitionEntry[] {
   return Array.from({ length: n }, (_, i) => ({
     id: `team-${i}`,
     name: `战队 ${i + 1}`,
-    seasonId: "season-1",
-    draftOrder: i + 1,
-  } as Team));
+    competitionId: "season-1",
+    formationOrder: i + 1,
+  } as unknown as CompetitionEntry));
 }
 
 function makeQualifiers(): QualifiedTeam[] {
@@ -269,17 +269,17 @@ describe("singleElimExecutor", () => {
 
   describe("getQualifiers()", () => {
     const finishedMatch = (
-      teamAId: string,
-      teamBId: string,
+      entryAId: string,
+      entryBId: string,
       scoreA: number,
       scoreB: number,
       entryRound: string | null = null,
     ) => ({
-      id: `m-${teamAId}-${teamBId}`,
+      id: `m-${entryAId}-${entryBId}`,
       seasonId: "season-1",
       stage: "playoff",
-      teamAId,
-      teamBId,
+      entryAId,
+      entryBId,
       scoreA,
       scoreB,
       status: "finished" as const,

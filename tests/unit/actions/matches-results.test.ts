@@ -67,8 +67,8 @@ function setupMatch(overrides?: Record<string, unknown>) {
   matchesFindFirstMock.mockResolvedValue({
     id: "match-1",
     seasonId: "season-1",
-    teamAId: "team-a",
-    teamBId: "team-b",
+    entryAId: "team-a",
+    entryBId: "team-b",
     stage: "playoff",
     round: 1,
     format: "bo3",
@@ -120,7 +120,7 @@ function setupMapRecord(overrides?: Record<string, unknown>) {
     matchId: "match-1",
     mapOrder: 1,
     mapName: "de_inferno",
-    pickedByTeamId: null,
+    pickedByEntryId: null,
     teamAStartSide: "t",
     scoreA: 13,
     scoreB: 8,
@@ -134,7 +134,7 @@ function setupTxMaps(maps: { id: string; scoreA: number; scoreB: number }[]) {
     maps.map((m) => ({
       matchId: "match-1",
       mapName: `map-${m.id}`,
-      pickedByTeamId: null,
+      pickedByEntryId: null,
       teamAStartSide: "t",
       completedAt: new Date(),
       ...m,

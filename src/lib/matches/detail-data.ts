@@ -7,7 +7,7 @@ export function getSeasonFinishedMatches(seasonId: string, teamId: string) {
     where: and(
       eq(matches.seasonId, seasonId),
       eq(matches.status, "finished"),
-      or(eq(matches.teamAId, teamId), eq(matches.teamBId, teamId)),
+      or(eq(matches.entryAId, teamId), eq(matches.entryBId, teamId)),
     ),
   });
 }

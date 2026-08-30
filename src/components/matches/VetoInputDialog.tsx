@@ -28,8 +28,8 @@ interface Props {
   format: "bo1" | "bo3" | "bo5";
   teamAName: string;
   teamBName: string;
-  teamAId: string;
-  teamBId: string;
+  entryAId: string;
+  entryBId: string;
   mapPool: string[];
   matchStatus?: string;
 }
@@ -37,7 +37,7 @@ interface Props {
 interface StepEdit {
   actionType: VetoActionType;
   mapName: string;
-  teamId: string | null;
+  entryId: string | null;
   side: "t" | "ct" | null;
 }
 
@@ -85,42 +85,42 @@ function SideSelect({
 
 function buildTemplate(
   format: "bo1" | "bo3" | "bo5",
-  teamAId: string,
-  teamBId: string,
+  entryAId: string,
+  entryBId: string,
 ): StepEdit[] {
   switch (format) {
     case "bo1":
       // A ban×2, B ban×3, A ban×1 → decider (B picks side)
       return [
-        { actionType: "ban", mapName: "", teamId: teamAId, side: null },
-        { actionType: "ban", mapName: "", teamId: teamAId, side: null },
-        { actionType: "ban", mapName: "", teamId: teamBId, side: null },
-        { actionType: "ban", mapName: "", teamId: teamBId, side: null },
-        { actionType: "ban", mapName: "", teamId: teamBId, side: null },
-        { actionType: "ban", mapName: "", teamId: teamAId, side: null },
-        { actionType: "decider", mapName: "", teamId: teamBId, side: null },
+        { actionType: "ban", mapName: "", entryId: entryAId, side: null },
+        { actionType: "ban", mapName: "", entryId: entryAId, side: null },
+        { actionType: "ban", mapName: "", entryId: entryBId, side: null },
+        { actionType: "ban", mapName: "", entryId: entryBId, side: null },
+        { actionType: "ban", mapName: "", entryId: entryBId, side: null },
+        { actionType: "ban", mapName: "", entryId: entryAId, side: null },
+        { actionType: "decider", mapName: "", entryId: entryBId, side: null },
       ];
     case "bo3":
       // A ban, B ban, A pick, B pick, B ban, A ban → decider (B picks side)
       return [
-        { actionType: "ban", mapName: "", teamId: teamAId, side: null },
-        { actionType: "ban", mapName: "", teamId: teamBId, side: null },
-        { actionType: "pick", mapName: "", teamId: teamAId, side: null },
-        { actionType: "pick", mapName: "", teamId: teamBId, side: null },
-        { actionType: "ban", mapName: "", teamId: teamBId, side: null },
-        { actionType: "ban", mapName: "", teamId: teamAId, side: null },
-        { actionType: "decider", mapName: "", teamId: teamBId, side: null },
+        { actionType: "ban", mapName: "", entryId: entryAId, side: null },
+        { actionType: "ban", mapName: "", entryId: entryBId, side: null },
+        { actionType: "pick", mapName: "", entryId: entryAId, side: null },
+        { actionType: "pick", mapName: "", entryId: entryBId, side: null },
+        { actionType: "ban", mapName: "", entryId: entryBId, side: null },
+        { actionType: "ban", mapName: "", entryId: entryAId, side: null },
+        { actionType: "decider", mapName: "", entryId: entryBId, side: null },
       ];
     case "bo5":
       // A ban, B ban → A/B/A/B pick → decider (B picks side)
       return [
-        { actionType: "ban", mapName: "", teamId: teamBId, side: null },
-        { actionType: "ban", mapName: "", teamId: teamAId, side: null },
-        { actionType: "pick", mapName: "", teamId: teamAId, side: null },
-        { actionType: "pick", mapName: "", teamId: teamBId, side: null },
-        { actionType: "pick", mapName: "", teamId: teamAId, side: null },
-        { actionType: "pick", mapName: "", teamId: teamBId, side: null },
-        { actionType: "decider", mapName: "", teamId: teamBId, side: null },
+        { actionType: "ban", mapName: "", entryId: entryBId, side: null },
+        { actionType: "ban", mapName: "", entryId: entryAId, side: null },
+        { actionType: "pick", mapName: "", entryId: entryAId, side: null },
+        { actionType: "pick", mapName: "", entryId: entryBId, side: null },
+        { actionType: "pick", mapName: "", entryId: entryAId, side: null },
+        { actionType: "pick", mapName: "", entryId: entryBId, side: null },
+        { actionType: "decider", mapName: "", entryId: entryBId, side: null },
       ];
   }
 }
@@ -130,21 +130,21 @@ export function VetoInputDialog({
   format,
   teamAName,
   teamBName,
-  teamAId,
-  teamBId,
+  entryAId,
+  entryBId,
   mapPool,
   matchStatus,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [steps, setSteps] = useState<StepEdit[]>(() =>
-    buildTemplate(format, teamAId, teamBId),
+    buildTemplate(format, entryAId, entryBId),
   );
   const [loading, setLoading] = useState(false);
   const [isPending, startTransition] = useTransition();
 
-  function teamName(teamId: string | null) {
-    if (teamId === teamAId) return teamAName;
-    if (teamId === teamBId) return teamBName;
+  function teamName(entryId: string | null) {
+    if (entryId === entryAId) return teamAName;
+    if (entryId === entryBId) return teamBName;
     return "—";
   }
 
@@ -168,8 +168,8 @@ export function VetoInputDialog({
     // 所有步骤必须填满地图
     if (steps.some((s) => !s.mapName)) return false;
     // 所有步骤必须有 teamId（decider 可以没有，但指定了 side 时必须有）
-    if (steps.some((s) => s.actionType !== "decider" && !s.teamId)) return false;
-    if (steps.some((s) => s.actionType === "decider" && s.side && !s.teamId)) return false;
+    if (steps.some((s) => s.actionType !== "decider" && !s.entryId)) return false;
+    if (steps.some((s) => s.actionType === "decider" && s.side && !s.entryId)) return false;
     // 无重复地图
     const maps = steps.map((s) => s.mapName);
     if (new Set(maps).size !== maps.length) return false;
@@ -185,7 +185,7 @@ export function VetoInputDialog({
       const inputs: VetoStepInput[] = steps.map((s) => ({
         actionType: s.actionType,
         mapName: s.mapName,
-        teamId: s.teamId,
+        entryId: s.entryId,
         side: s.side,
       }));
       const result = await saveVetoSteps(matchId, { steps: inputs });
@@ -209,15 +209,15 @@ export function VetoInputDialog({
             existing.map((s) => ({
               actionType: s.actionType as VetoActionType,
               mapName: s.mapName,
-              teamId: s.teamId,
+              entryId: s.entryId,
               side: s.side as "t" | "ct" | null,
             })),
           );
         } else {
-          setSteps(buildTemplate(format, teamAId, teamBId));
+          setSteps(buildTemplate(format, entryAId, entryBId));
         }
       } catch {
-        setSteps(buildTemplate(format, teamAId, teamBId));
+        setSteps(buildTemplate(format, entryAId, entryBId));
       } finally {
         setLoading(false);
       }
@@ -269,10 +269,10 @@ export function VetoInputDialog({
               <div className="flex gap-1">
                 <button
                   type="button"
-                  onClick={() => updateStep(i, { teamId: step.teamId === teamAId ? null : teamAId, side: step.teamId === teamAId ? null : step.side })}
+                  onClick={() => updateStep(i, { entryId: step.entryId === entryAId ? null : entryAId, side: step.entryId === entryAId ? null : step.side })}
                   className={cn(
                     "px-2.5 py-1 text-xs rounded border transition-colors",
-                    step.teamId === teamAId
+                    step.entryId === entryAId
                       ? "bg-[var(--color-accent)] text-[var(--color-accent-fg)] border-[var(--color-accent)]"
                       : "border-[var(--color-border)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
                   )}
@@ -281,10 +281,10 @@ export function VetoInputDialog({
                 </button>
                 <button
                   type="button"
-                  onClick={() => updateStep(i, { teamId: step.teamId === teamBId ? null : teamBId, side: step.teamId === teamBId ? null : step.side })}
+                  onClick={() => updateStep(i, { entryId: step.entryId === entryBId ? null : entryBId, side: step.entryId === entryBId ? null : step.side })}
                   className={cn(
                     "px-2.5 py-1 text-xs rounded border transition-colors",
-                    step.teamId === teamBId
+                    step.entryId === entryBId
                       ? "bg-[var(--color-accent-b)] text-[var(--color-accent-b-fg)] border-[var(--color-accent-b)]"
                       : "border-[var(--color-border)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
                   )}
@@ -313,14 +313,14 @@ export function VetoInputDialog({
               </div>
 
               {/* 选边（pick: 对手选边；decider: 选中队伍选边）*/}
-              {step.actionType === "pick" && step.teamId && (
+              {step.actionType === "pick" && step.entryId && (
                 <SideSelect
-                  label={`→ ${teamName(step.teamId === teamAId ? teamBId : teamAId)}选边`}
+                  label={`→ ${teamName(step.entryId === entryAId ? entryBId : entryAId)}选边`}
                   side={step.side}
                   onSideChange={(side) => updateStep(i, { side })}
                 />
               )}
-              {step.actionType === "decider" && step.teamId && (
+              {step.actionType === "decider" && step.entryId && (
                 <SideSelect
                   label="→ 选边"
                   side={step.side}
@@ -335,7 +335,7 @@ export function VetoInputDialog({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setSteps(buildTemplate(format, teamAId, teamBId))}
+            onClick={() => setSteps(buildTemplate(format, entryAId, entryBId))}
             disabled={isPending}
           >
             重置模板

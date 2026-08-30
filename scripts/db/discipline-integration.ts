@@ -449,10 +449,10 @@ async function main(): Promise<void> {
       const baselineOk = await database.transaction(async (tx) => {
         const locked = await lockMatchInTx(tx, matchId);
         await assertStartingLineupAllowedInTx(tx, {
-          match: locked, teamId: teamAId, ...legalLineupA,
+          match: locked, entryId: teamAId, ...legalLineupA,
         });
         await assertStartingLineupAllowedInTx(tx, {
-          match: locked, teamId: teamBId, ...legalLineupB,
+          match: locked, entryId: teamBId, ...legalLineupB,
         });
         return true;
       });
@@ -472,7 +472,7 @@ async function main(): Promise<void> {
       const rejected = await database.transaction(async (tx) => {
         const locked = await lockMatchInTx(tx, matchId);
         try {
-          await assertStartingLineupAllowedInTx(tx, { match: locked, teamId: teamAId, ...legalLineupA });
+          await assertStartingLineupAllowedInTx(tx, { match: locked, entryId: teamAId, ...legalLineupA });
           return null;
         } catch (error) {
           return error instanceof AppError ? error.message : null;
@@ -483,7 +483,7 @@ async function main(): Promise<void> {
       // 另一队不受牵连。
       await database.transaction(async (tx) => {
         const locked = await lockMatchInTx(tx, matchId);
-        await assertStartingLineupAllowedInTx(tx, { match: locked, teamId: teamBId, ...legalLineupB });
+        await assertStartingLineupAllowedInTx(tx, { match: locked, entryId: teamBId, ...legalLineupB });
       });
 
       // 撤销后同阵容恢复可用。
@@ -491,7 +491,7 @@ async function main(): Promise<void> {
         revokeSanctionInTx(tx, { caseId: participationCaseId, actorId: ACTOR, reason: "和解撤销" }));
       await database.transaction(async (tx) => {
         const locked = await lockMatchInTx(tx, matchId);
-        await assertStartingLineupAllowedInTx(tx, { match: locked, teamId: teamAId, ...legalLineupA });
+        await assertStartingLineupAllowedInTx(tx, { match: locked, entryId: teamAId, ...legalLineupA });
       });
 
       const client = await pool.connect();

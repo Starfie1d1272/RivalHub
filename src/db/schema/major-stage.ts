@@ -2,7 +2,7 @@ import { check, index, integer, jsonb, pgEnum, pgTable, text, timestamp, unique,
 import { sql } from "drizzle-orm";
 import { majorPrestartEntrants } from "./major-prestart";
 import { seasons } from "./seasons";
-import { teams } from "./teams";
+import { competitionEntries } from "./competition-entries";
 
 /**
  * A materialized Major stage. It owns generated matches and keeps the rules
@@ -33,13 +33,13 @@ export const majorStageEntrants = pgTable("major_stage_entrants", {
   id: uuid("id").primaryKey().defaultRandom(),
   stageRunId: uuid("stage_run_id").notNull().references(() => majorStageRuns.id, { onDelete: "cascade" }),
   entrantId: uuid("entrant_id").notNull().references(() => majorPrestartEntrants.id),
-  teamId: uuid("team_id").notNull().references(() => teams.id),
+  competitionEntryId: uuid("competition_entry_id").notNull().references(() => competitionEntries.id),
   tournamentSeed: integer("tournament_seed").notNull(),
   stageSeed: integer("stage_seed").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   uniqueRunEntrant: unique("major_stage_entrants_run_entrant_unique").on(t.stageRunId, t.entrantId),
-  uniqueRunTeam: unique("major_stage_entrants_run_team_unique").on(t.stageRunId, t.teamId),
+  uniqueRunEntry: unique("major_stage_entrants_run_entry_unique").on(t.stageRunId, t.competitionEntryId),
   uniqueRunSeed: unique("major_stage_entrants_run_seed_unique").on(t.stageRunId, t.stageSeed),
   validStageSeed: check("major_stage_entrants_stage_seed_range_check", sql`${t.stageSeed} BETWEEN 1 AND 16`),
   runIndex: index("major_stage_entrants_run_idx").on(t.stageRunId),
@@ -52,7 +52,7 @@ export const majorFinalResults = pgTable("major_final_results", {
   id: uuid("id").primaryKey().defaultRandom(),
   seasonId: uuid("season_id").notNull().references(() => seasons.id),
   playoffStageRunId: uuid("playoff_stage_run_id").notNull().references(() => majorStageRuns.id),
-  championTeamId: uuid("champion_team_id").notNull().references(() => teams.id),
+  championEntryId: uuid("champion_entry_id").notNull().references(() => competitionEntries.id),
   placementGroups: jsonb("placement_groups").notNull(),
   status: majorResultStatusEnum("status").notNull().default("pending_confirmation"),
   finalizedAt: timestamp("finalized_at", { withTimezone: true }).notNull().defaultNow(),

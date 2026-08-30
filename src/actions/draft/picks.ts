@@ -4,10 +4,14 @@ import { and, asc, count, eq, isNotNull, lt, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   seasons,
-  teams,
+  competitionEntries,
+  competitionEntryParticipants,
+  competitionEntryRosterMembers,
+  competitionEntryRosterRevisions,
+  eventRosterMembers,
+  eventRosters,
   draftState,
   draftPicks,
-  teamMembers,
   seasonRegistrations,
   auditLogs,
 } from "@/db/schema";
@@ -25,7 +29,7 @@ import {
   type SkipDraftTurnInput,
 } from "@/lib/validators/draft";
 import { DRAFT_ROUND_TIMEOUT_SECONDS, DRAFT_TOTAL_ROUNDS } from "@/types/draft";
-import { canPickPosition, getNextTeamId, isStarterRound } from "@/lib/draft/rules";
+import { canPickPosition, getNextEntryId, isStarterRound } from "@/lib/draft/rules";
 import {
   createAutoPickRequestId,
   selectAutoPickCandidate,
@@ -36,7 +40,7 @@ type DraftTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 interface DraftPickCoreInput {
   seasonId: string;
-  teamId: string;
+  entryId: string;
   registrationId: string;
   clientRequestId: string;
   autoPicked: boolean;
@@ -79,14 +83,14 @@ export async function pickPlayer(
     return failValidation("选择选手参数无效");
   }
 
-  const { seasonId, teamId, registrationId, clientRequestId } = parsed.data;
+  const { seasonId, entryId, registrationId, clientRequestId } = parsed.data;
 
   try {
     const user = await requireAuth();
     const result = await db.transaction(async (tx) => {
       return executeDraftPick(tx, {
         seasonId,
-        teamId,
+        entryId,
         registrationId,
         clientRequestId,
         autoPicked: false,
@@ -162,19 +166,19 @@ export async function skipDraftTurn(
         .where(eq(draftState.seasonId, parsed.data.seasonId))
         .for("update");
 
-      if (!ds?.isActive || !ds.currentTeamId) {
+      if (!ds?.isActive || !ds.currentEntryId) {
         throw new AppError(ErrorCode.DRAFT_NOT_ACTIVE, ERROR_MESSAGES.DRAFT_NOT_ACTIVE);
       }
 
       const seasonTeams = await tx
-        .select({ id: teams.id, draftOrder: sql<number>`${teams.draftOrder}`.as("draft_order") })
-        .from(teams)
-        .where(and(eq(teams.seasonId, parsed.data.seasonId), isNotNull(teams.draftOrder)))
-        .orderBy(asc(teams.draftOrder));
+        .select({ id: competitionEntries.id, draftOrder: sql<number>`${competitionEntries.formationOrder}`.as("draft_order") })
+        .from(competitionEntries)
+        .where(and(eq(competitionEntries.competitionId, parsed.data.seasonId), isNotNull(competitionEntries.formationOrder)))
+        .orderBy(asc(competitionEntries.formationOrder));
 
-      const skippedTeamId = ds.currentTeamId;
+      const skippedEntryId = ds.currentEntryId;
       const skippedRound = ds.currentRound;
-      const next = getNextTeamId(seasonTeams, ds.currentTeamId, ds.currentRound);
+      const next = getNextEntryId(seasonTeams, ds.currentEntryId, ds.currentRound);
       const now = new Date();
 
       if (!next) {
@@ -182,7 +186,7 @@ export async function skipDraftTurn(
           .update(draftState)
           .set({
             currentRound: DRAFT_TOTAL_ROUNDS + 1,
-            currentTeamId: null,
+            currentEntryId: null,
             roundDeadline: null,
             isActive: false,
             updatedAt: now,
@@ -199,7 +203,7 @@ export async function skipDraftTurn(
           actorId: auditActorId(admin),
           targetId: ds.id,
           targetType: "draft_state",
-          meta: { skippedTeamId, round: skippedRound, draftCompleted: true, actorEmail: admin.email },
+          meta: { skippedEntryId, round: skippedRound, draftCompleted: true, actorEmail: admin.email },
         });
 
         return { slug: season.slug, completed: true };
@@ -210,7 +214,7 @@ export async function skipDraftTurn(
         .update(draftState)
         .set({
           currentRound: next.nextRound,
-          currentTeamId: next.teamId,
+          currentEntryId: next.entryId,
           roundDeadline: deadline,
           isActive: true,
           updatedAt: now,
@@ -224,9 +228,9 @@ export async function skipDraftTurn(
         targetId: ds.id,
         targetType: "draft_state",
         meta: {
-          skippedTeamId,
+          skippedEntryId,
           round: skippedRound,
-          nextTeamId: next.teamId,
+          nextEntryId: next.entryId,
           nextRound: next.nextRound,
           actorEmail: admin.email,
         },
@@ -289,14 +293,14 @@ async function runAutoPickForSeason(
       .where(eq(draftState.seasonId, seasonId))
       .for("update");
 
-    if (!ds?.isActive || !ds.currentTeamId) {
+    if (!ds?.isActive || !ds.currentEntryId) {
       return { picked: false, seasonId, slug: season.slug, reason: "draft_not_active" };
     }
     if (!ds.roundDeadline || ds.roundDeadline.getTime() > now.getTime()) {
       return { picked: false, seasonId, slug: season.slug, reason: "not_timed_out" };
     }
 
-    const positionCounts = await getTeamPositionCounts(tx, ds.currentTeamId);
+    const positionCounts = await getTeamPositionCounts(tx, ds.currentEntryId);
     const candidates = await getAutoPickCandidates(tx, seasonId);
     const selected = selectAutoPickCandidate(candidates, positionCounts);
     if (!selected) {
@@ -305,11 +309,11 @@ async function runAutoPickForSeason(
 
     const pick = await executeDraftPick(tx, {
       seasonId,
-      teamId: ds.currentTeamId,
+      entryId: ds.currentEntryId,
       registrationId: selected.registrationId,
       clientRequestId: createAutoPickRequestId({
         seasonId,
-        teamId: ds.currentTeamId,
+        entryId: ds.currentEntryId,
         round: ds.currentRound,
         deadline: ds.roundDeadline,
       }),
@@ -369,7 +373,7 @@ async function executeDraftPick(
   if (existingByRequestId) {
     if (
       existingByRequestId.seasonId !== input.seasonId ||
-      existingByRequestId.teamId !== input.teamId ||
+      existingByRequestId.entryId !== input.entryId ||
       existingByRequestId.registrationId !== input.registrationId
     ) {
       throw new AppError(
@@ -381,25 +385,25 @@ async function executeDraftPick(
       pickId: existingByRequestId.id,
       slug: season.slug,
       idempotent: true,
-      completed: !ds.isActive && !ds.currentTeamId,
+      completed: !ds.isActive && !ds.currentEntryId,
     };
   }
 
   if (!ds.isActive) {
     throw new AppError(ErrorCode.DRAFT_NOT_ACTIVE, ERROR_MESSAGES.DRAFT_NOT_ACTIVE);
   }
-  if (ds.currentTeamId !== input.teamId) {
+  if (ds.currentEntryId !== input.entryId) {
     throw new AppError(ErrorCode.DRAFT_NOT_YOUR_TURN, ERROR_MESSAGES.DRAFT_NOT_YOUR_TURN);
   }
   assertDeadline(ds.roundDeadline, input.deadlinePolicy, now);
 
-  const team = await tx.query.teams.findFirst({
-    where: and(eq(teams.id, input.teamId), eq(teams.seasonId, input.seasonId)),
+  const entry = await tx.query.competitionEntries.findFirst({
+    where: and(eq(competitionEntries.id, input.entryId), eq(competitionEntries.competitionId, input.seasonId)),
   });
-  if (!team) {
-    throw new AppError(ErrorCode.NOT_FOUND, "队伍不存在");
+  if (!entry) {
+    throw new AppError(ErrorCode.NOT_FOUND, "参赛者不存在");
   }
-  const captainRegistrationId = team.captainRegistrationId;
+  const captainRegistrationId = entry.sourceRegistrationId;
   if (!captainRegistrationId) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "队伍报名队伍不能进入选秀流程");
   }
@@ -448,14 +452,15 @@ async function executeDraftPick(
 
   const [positionCount] = await tx
     .select({ count: count() })
-    .from(teamMembers)
-    .innerJoin(
-      seasonRegistrations,
-      eq(teamMembers.registrationId, seasonRegistrations.id),
-    )
+    .from(eventRosterMembers)
+    .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
+    .innerJoin(seasonRegistrations, and(
+      eq(eventRosterMembers.userId, seasonRegistrations.userId),
+      eq(seasonRegistrations.seasonId, input.seasonId),
+    ))
     .where(
       and(
-        eq(teamMembers.teamId, input.teamId),
+        eq(eventRosters.entryId, input.entryId),
         eq(seasonRegistrations.primaryPosition, targetRegistration.primaryPosition),
       ),
     );
@@ -476,7 +481,7 @@ async function executeDraftPick(
     .insert(draftPicks)
     .values({
       seasonId: input.seasonId,
-      teamId: input.teamId,
+      entryId: input.entryId,
       registrationId: input.registrationId,
       round: ds.currentRound,
       pickNumber,
@@ -485,12 +490,29 @@ async function executeDraftPick(
     })
     .returning({ id: draftPicks.id });
 
-  await tx.insert(teamMembers).values({
-    teamId: input.teamId,
-    registrationId: input.registrationId,
+  const [participant] = await tx.insert(competitionEntryParticipants).values({
+    entryId: input.entryId,
     userId: targetRegistration.userId,
-    seasonId: input.seasonId,
-    isStarter: isStarterRound(ds.currentRound),
+    status: "confirmed",
+    confirmedAt: now,
+    invitedByUserId: entry.representativeUserId,
+  }).returning({ id: competitionEntryParticipants.id });
+  const [roster] = await tx.select({ id: eventRosters.id }).from(eventRosters)
+    .where(eq(eventRosters.entryId, input.entryId)).for("update");
+  const [revision] = await tx.select({ id: competitionEntryRosterRevisions.id }).from(competitionEntryRosterRevisions)
+    .where(and(eq(competitionEntryRosterRevisions.entryId, input.entryId), eq(competitionEntryRosterRevisions.revision, 1))).for("update");
+  if (!roster || !revision) throw new AppError(ErrorCode.INTERNAL_ERROR, "选秀参赛者缺少 roster owner。");
+  await tx.insert(competitionEntryRosterMembers).values({
+    revisionId: revision.id,
+    participantId: participant.id,
+    userId: targetRegistration.userId,
+    isPrimaryStarter: isStarterRound(ds.currentRound),
+  });
+  await tx.insert(eventRosterMembers).values({
+    eventRosterId: roster.id,
+    participantId: participant.id,
+    userId: targetRegistration.userId,
+    isPrimaryStarter: isStarterRound(ds.currentRound),
   });
 
   await tx.insert(auditLogs).values({
@@ -500,7 +522,7 @@ async function executeDraftPick(
     targetId: pick.id,
     targetType: "draft_pick",
     meta: {
-      teamId: input.teamId,
+      entryId: input.entryId,
       registrationId: input.registrationId,
       round: ds.currentRound,
       pickNumber,
@@ -509,18 +531,18 @@ async function executeDraftPick(
   });
 
   const seasonTeams = await tx
-    .select({ id: teams.id, draftOrder: sql<number>`${teams.draftOrder}`.as("draft_order") })
-    .from(teams)
-    .where(and(eq(teams.seasonId, input.seasonId), isNotNull(teams.draftOrder)))
-    .orderBy(asc(teams.draftOrder));
-  const next = getNextTeamId(seasonTeams, input.teamId, ds.currentRound);
+    .select({ id: competitionEntries.id, draftOrder: sql<number>`${competitionEntries.formationOrder}`.as("draft_order") })
+    .from(competitionEntries)
+    .where(and(eq(competitionEntries.competitionId, input.seasonId), isNotNull(competitionEntries.formationOrder)))
+    .orderBy(asc(competitionEntries.formationOrder));
+  const next = getNextEntryId(seasonTeams, input.entryId, ds.currentRound);
 
   if (!next) {
     await tx
       .update(draftState)
       .set({
         currentRound: DRAFT_TOTAL_ROUNDS + 1,
-        currentTeamId: null,
+        currentEntryId: null,
         roundDeadline: null,
         isActive: false,
         updatedAt: now,
@@ -530,6 +552,12 @@ async function executeDraftPick(
       .update(seasons)
       .set({ status: "playing", updatedAt: now })
       .where(eq(seasons.id, input.seasonId));
+    await tx.update(eventRosters).set({ status: "frozen", frozenAt: now, frozenBy: input.captainUserId ?? "system:draft", updatedAt: now })
+      .where(sql`${eventRosters.entryId} IN (SELECT ${competitionEntries.id} FROM ${competitionEntries} WHERE ${competitionEntries.competitionId} = ${input.seasonId})`);
+    await tx.update(competitionEntryRosterRevisions).set({ status: "approved", submittedAt: now, approvedAt: now })
+      .where(sql`${competitionEntryRosterRevisions.entryId} IN (SELECT ${competitionEntries.id} FROM ${competitionEntries} WHERE ${competitionEntries.competitionId} = ${input.seasonId}) AND ${competitionEntryRosterRevisions.revision} = 1`);
+    await tx.update(competitionEntries).set({ approvedRosterRevision: 1, updatedAt: now })
+      .where(eq(competitionEntries.competitionId, input.seasonId));
 
     return { pickId: pick.id, slug: season.slug, idempotent: false, completed: true };
   }
@@ -539,7 +567,7 @@ async function executeDraftPick(
     .update(draftState)
     .set({
       currentRound: next.nextRound,
-      currentTeamId: next.teamId,
+      currentEntryId: next.entryId,
       roundDeadline: deadline,
       isActive: true,
       updatedAt: now,
@@ -567,19 +595,20 @@ function assertDeadline(
 
 async function getTeamPositionCounts(
   tx: DraftTransaction,
-  teamId: string,
+  entryId: string,
 ): Promise<Record<string, number>> {
   const rows = await tx
     .select({
       primaryPosition: seasonRegistrations.primaryPosition,
       count: count(),
     })
-    .from(teamMembers)
-    .innerJoin(
-      seasonRegistrations,
-      eq(teamMembers.registrationId, seasonRegistrations.id),
-    )
-    .where(eq(teamMembers.teamId, teamId))
+    .from(eventRosterMembers)
+    .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
+    .innerJoin(seasonRegistrations, and(
+      eq(eventRosterMembers.userId, seasonRegistrations.userId),
+      eq(seasonRegistrations.seasonId, sql`(SELECT competition_id FROM competition_entries WHERE id = ${entryId})`),
+    ))
+    .where(eq(eventRosters.entryId, entryId))
     .groupBy(seasonRegistrations.primaryPosition);
 
   const counts: Record<string, number> = {};
@@ -594,9 +623,9 @@ async function getAutoPickCandidates(
   seasonId: string,
 ): Promise<AutoPickCandidate[]> {
   const captainRows = await tx
-    .select({ registrationId: teams.captainRegistrationId })
-    .from(teams)
-    .where(eq(teams.seasonId, seasonId));
+    .select({ registrationId: competitionEntries.sourceRegistrationId })
+    .from(competitionEntries)
+    .where(eq(competitionEntries.competitionId, seasonId));
   const pickRows = await tx
     .select({ registrationId: draftPicks.registrationId })
     .from(draftPicks)

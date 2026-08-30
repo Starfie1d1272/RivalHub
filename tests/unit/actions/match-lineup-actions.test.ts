@@ -72,9 +72,9 @@ vi.mock("@/lib/revalidation", () => ({
 }));
 
 vi.mock("@/actions/matches/_shared", () => ({
-  // The acting user captains team A of the stubbed match.
-  getTeamIdForCaptain: vi.fn(async (_userId: string, match: { teamAId: string; teamBId: string }) =>
-    match.teamAId,
+  // The acting user represents entry A of the stubbed match.
+  getEntryIdForRepresentative: vi.fn(async (_userId: string, match: { entryAId: string; entryBId: string }) =>
+    match.entryAId,
   ),
 }));
 
@@ -100,8 +100,8 @@ const SCHEDULED_MATCH = {
   id: "match-1",
   seasonId: "season-1",
   status: "scheduled" as const,
-  teamAId: "team-a",
-  teamBId: "team-b",
+  entryAId: "team-a",
+  entryBId: "team-b",
 };
 
 function fullLockedMatch() {
@@ -109,8 +109,8 @@ function fullLockedMatch() {
     id: "match-1",
     seasonId: "season-1",
     status: "scheduled" as const,
-    teamAId: "team-a",
-    teamBId: "team-b",
+    entryAId: "team-a",
+    entryBId: "team-b",
   };
 }
 
@@ -139,7 +139,7 @@ describe("match lineup actions", () => {
     stubs.persistMatchRosterInTx.mockResolvedValue({
       rosterId: "roster-1",
       matchId: "match-1",
-      teamId: "team-a",
+      entryId: "team-a",
       starterIds: ["m1"],
       substituteIds: [],
     });
@@ -148,7 +148,7 @@ describe("match lineup actions", () => {
 
     expect(result.success).toBe(true);
     const [, payload] = stubs.persistMatchRosterInTx.mock.calls[0]!;
-    expect(payload).toMatchObject({ source: "participant", submittedBy: "user-1", teamId: "team-a" });
+    expect(payload).toMatchObject({ source: "participant", submittedBy: "user-1", entryId: "team-a" });
   });
 
   it("maps eligibility failures to failure results without throwing", async () => {
@@ -177,7 +177,7 @@ describe("match lineup actions", () => {
     stubs.persistMatchRosterInTx.mockImplementation(async (_tx, args) => ({
       rosterId: "roster-2",
       matchId: args.match.id,
-      teamId: args.teamId,
+      entryId: args.entryId,
       starterIds: [...args.starterIds],
       substituteIds: [],
     }));
@@ -188,7 +188,7 @@ describe("match lineup actions", () => {
     const [, payload] = stubs.persistMatchRosterInTx.mock.calls[0]!;
     expect(payload.source).toBe("admin_select");
     expect(payload.submittedBy).toBeNull();
-    expect(payload.teamId).toBe("team-b");
+    expect(payload.entryId).toBe("team-b");
   });
 
   it("propagates idempotent confirm outcomes untouched", async () => {

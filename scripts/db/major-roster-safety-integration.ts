@@ -75,7 +75,7 @@ async function submitLineupProductionLogic(
   database: Database,
   args: {
     matchId: string;
-    teamId: string;
+    entryId: string;
     starterIds: string[];
     substituteIds?: string[];
     source: "participant" | "admin_select";
@@ -89,13 +89,13 @@ async function submitLineupProductionLogic(
     }
     await assertStartingLineupAllowedInTx(tx, {
       match: locked,
-      teamId: args.teamId,
+      entryId: args.entryId,
       starterIds: args.starterIds,
       substituteIds: args.substituteIds,
     });
     const summary = await persistMatchRosterInTx(tx, {
       match: locked,
-      teamId: args.teamId,
+      entryId: args.entryId,
       submittedBy: args.submittedBy,
       source: args.source,
       starterIds: args.starterIds,
@@ -109,7 +109,7 @@ async function submitLineupProductionLogic(
       targetType: "match_roster",
       meta: {
         matchId: args.matchId,
-        teamId: args.teamId,
+        entryId: args.entryId,
         source: args.source,
         starterIds: args.starterIds,
         substituteIds: args.substituteIds ?? [],
@@ -453,7 +453,7 @@ async function main(): Promise<void> {
     {
       await expectAppError(
         () => submitLineupProductionLogic(database, {
-          matchId: mgMatch, teamId: teamAId, source: "participant", submittedBy: null,
+          matchId: mgMatch, entryId: teamAId, source: "participant", submittedBy: null,
           starterIds: lineupA.starters.slice(0, 4), substituteIds: [],
         }),
         ErrorCode.VALIDATION_FAILED,
@@ -461,7 +461,7 @@ async function main(): Promise<void> {
       );
       await expectAppError(
         () => submitLineupProductionLogic(database, {
-          matchId: mgMatch, teamId: teamAId, source: "participant", submittedBy: null,
+          matchId: mgMatch, entryId: teamAId, source: "participant", submittedBy: null,
           starterIds: lineupA.starters, substituteIds: [memberA["5"]!],
         }),
         ErrorCode.VALIDATION_FAILED,
@@ -469,7 +469,7 @@ async function main(): Promise<void> {
       );
       await expectAppError(
         () => submitLineupProductionLogic(database, {
-          matchId: mgMatch, teamId: teamAId, source: "participant", submittedBy: null,
+          matchId: mgMatch, entryId: teamAId, source: "participant", submittedBy: null,
           starterIds: [...lineupA.starters, memberA["out"]!], substituteIds: [],
         }),
         ErrorCode.VALIDATION_FAILED,
@@ -477,7 +477,7 @@ async function main(): Promise<void> {
       );
       await expectAppError(
         () => submitLineupProductionLogic(database, {
-          matchId: mgMatch, teamId: teamAId, source: "participant", submittedBy: null,
+          matchId: mgMatch, entryId: teamAId, source: "participant", submittedBy: null,
           starterIds: [lineupA.starters[0]!, lineupA.starters[1]!, lineupA.starters[2]!, lineupA.starters[3]!, randomUUID()],
           substituteIds: [],
         }),
@@ -488,7 +488,7 @@ async function main(): Promise<void> {
       const outsiderLineup = [...twoNjuStartersA.slice(2), memberA["out"]!, memberA["0"]!, memberA["1"]!];
       const outsiderFailure = await expectAppError(
         () => submitLineupProductionLogic(database, {
-          matchId: mgMatch, teamId: teamAId, source: "participant", submittedBy: null,
+          matchId: mgMatch, entryId: teamAId, source: "participant", submittedBy: null,
           starterIds: outsiderLineup, substituteIds: [],
         }),
         ErrorCode.VALIDATION_FAILED,
@@ -497,7 +497,7 @@ async function main(): Promise<void> {
       assertCondition(outsiderFailure.message.includes("冻结名单"), "S5 需要明确指出冻结名单 blocker");
       const duplicateFailure = await expectAppError(
         () => submitLineupProductionLogic(database, {
-          matchId: mgMatch, teamId: teamAId, source: "participant", submittedBy: null,
+          matchId: mgMatch, entryId: teamAId, source: "participant", submittedBy: null,
           starterIds: [memberA["0"]!, memberA["0"]!, memberA["1"]!, memberA["2"]!, memberA["3"]!],
           substituteIds: [],
         }),
@@ -507,7 +507,7 @@ async function main(): Promise<void> {
       assertCondition(duplicateFailure.message.includes("重复选择"), "S6 需要明确指出重复 blocker");
       const njuShortfall = await expectAppError(
         () => submitLineupProductionLogic(database, {
-          matchId: mgMatch, teamId: teamAId, source: "participant", submittedBy: null,
+          matchId: mgMatch, entryId: teamAId, source: "participant", submittedBy: null,
           starterIds: twoNjuStartersA, substituteIds: [],
         }),
         ErrorCode.VALIDATION_FAILED,
@@ -519,13 +519,13 @@ async function main(): Promise<void> {
     // S8 admin 选择默认首发但未确认 → start 必须拒绝。
     const adminSelectARoster = (
       await submitLineupProductionLogic(database, {
-        matchId: mgMatch, teamId: teamAId, source: "admin_select", submittedBy: null,
+        matchId: mgMatch, entryId: teamAId, source: "admin_select", submittedBy: null,
         starterIds: lineupA.starters, substituteIds: [],
       })
     ).rosterId;
     const adminSelectBRoster = (
       await submitLineupProductionLogic(database, {
-        matchId: mgMatch, teamId: teamBId, source: "admin_select", submittedBy: null,
+        matchId: mgMatch, entryId: teamBId, source: "admin_select", submittedBy: null,
         starterIds: lineupB.starters, substituteIds: [],
       })
     ).rosterId;
@@ -540,7 +540,7 @@ async function main(): Promise<void> {
     // S9 repeated submit 是幂等覆写（同一 roster 行、无重复行）。
     {
       const resubmitted = await submitLineupProductionLogic(database, {
-        matchId: mgMatch, teamId: teamAId, source: "participant", submittedBy: null,
+        matchId: mgMatch, entryId: teamAId, source: "participant", submittedBy: null,
         starterIds: lineupA.starters, substituteIds: [],
       });
       assertCondition(resubmitted.rosterId === adminSelectARoster, "S9 重复提交必须复用同一 roster 行");
@@ -563,7 +563,7 @@ async function main(): Promise<void> {
 
     // Restore the legal five-starter lineup after the overwrite probe, then confirm both sides.
     await submitLineupProductionLogic(database, {
-      matchId: mgMatch, teamId: teamAId, source: "participant", submittedBy: null,
+      matchId: mgMatch, entryId: teamAId, source: "participant", submittedBy: null,
       starterIds: lineupA.starters, substituteIds: [],
     });
 
@@ -612,7 +612,7 @@ async function main(): Promise<void> {
       // 开赛后所有阵容修改路径必须关闭。
       await expectAppError(
         () => submitLineupProductionLogic(database, {
-          matchId: mgMatch, teamId: teamAId, source: "participant", submittedBy: null,
+          matchId: mgMatch, entryId: teamAId, source: "participant", submittedBy: null,
           starterIds: lineupA.starters, substituteIds: [],
         }),
         ErrorCode.MATCH_INVALID_TRANSITION,
@@ -641,7 +641,7 @@ async function main(): Promise<void> {
         // rejected against the frozen StageRun snapshot.
         const failure = await expectAppError(
           () => submitLineupProductionLogic(database, {
-            matchId: mbMatch, teamId: teamAId, source: "participant", submittedBy: null,
+            matchId: mbMatch, entryId: teamAId, source: "participant", submittedBy: null,
             starterIds: twoNjuStartersA, substituteIds: [],
           }),
           ErrorCode.VALIDATION_FAILED,
@@ -651,7 +651,7 @@ async function main(): Promise<void> {
 
         const frozenFactsMatch = await createManagedMatch(pool, fixture, "r1-frozen-facts");
         await submitLineupProductionLogic(database, {
-          matchId: frozenFactsMatch, teamId: teamAId, source: "participant", submittedBy: null,
+          matchId: frozenFactsMatch, entryId: teamAId, source: "participant", submittedBy: null,
           starterIds: lineupA.starters, substituteIds: [],
         });
       } finally {
@@ -664,13 +664,13 @@ async function main(): Promise<void> {
       const mcMatch = await createManagedMatch(pool, fixture, "r1-mc");
       const mcRosterA = (
         await submitLineupProductionLogic(database, {
-          matchId: mcMatch, teamId: teamAId, source: "participant", submittedBy: null,
+          matchId: mcMatch, entryId: teamAId, source: "participant", submittedBy: null,
           starterIds: lineupA.starters, substituteIds: [],
         })
       ).rosterId;
       const mcRosterB = (
         await submitLineupProductionLogic(database, {
-          matchId: mcMatch, teamId: teamBId, source: "participant", submittedBy: null,
+          matchId: mcMatch, entryId: teamBId, source: "participant", submittedBy: null,
           starterIds: lineupB.starters, substituteIds: [],
         })
       ).rosterId;

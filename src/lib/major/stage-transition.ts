@@ -25,7 +25,7 @@ type FrozenStage = {
 };
 type FrozenSwissStage = FrozenStage & { type: "swiss"; teamCount: 16; matchFormat: "bo1" | "bo3" };
 
-type FrozenTournamentEntrant = { entrantId: string; teamId: string; tournamentSeed: number };
+type FrozenTournamentEntrant = { entrantId: string; competitionEntryId: string; tournamentSeed: number };
 type FrozenSnapshot = {
   version: number;
   stagePlan: FrozenStage[];
@@ -69,13 +69,13 @@ function frozenSnapshot(value: unknown): FrozenSnapshot {
   const teamIds = new Set<string>();
   const tournamentSeeds = new Set<number>();
   for (const entrant of snapshot.tournamentEntrants) {
-    if (!entrant || typeof entrant.entrantId !== "string" || typeof entrant.teamId !== "string" ||
+    if (!entrant || typeof entrant.entrantId !== "string" || typeof entrant.competitionEntryId !== "string" ||
       !Number.isInteger(entrant.tournamentSeed) || entrant.tournamentSeed < 1 || entrant.tournamentSeed > 32 ||
-      entrantIds.has(entrant.entrantId) || teamIds.has(entrant.teamId) || tournamentSeeds.has(entrant.tournamentSeed)) {
+      entrantIds.has(entrant.entrantId) || teamIds.has(entrant.competitionEntryId) || tournamentSeeds.has(entrant.tournamentSeed)) {
       throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结的 32 队入口不可用。");
     }
     entrantIds.add(entrant.entrantId);
-    teamIds.add(entrant.teamId);
+    teamIds.add(entrant.competitionEntryId);
     tournamentSeeds.add(entrant.tournamentSeed);
   }
   if (entrantIds.size !== 32) throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结的入口数量不是 32 队。");
@@ -93,9 +93,9 @@ function completedFact(match: typeof matches.$inferSelect): MajorSwissMatchFact 
   return {
     matchId: match.id,
     round: match.round as 1 | 2 | 3 | 4 | 5,
-    teamAId: match.teamAId,
-    teamBId: match.teamBId,
-    winnerId: match.scoreA > match.scoreB ? match.teamAId : match.teamBId,
+    entryAId: match.entryAId,
+    entryBId: match.entryBId,
+    winnerId: match.scoreA > match.scoreB ? match.entryAId : match.entryBId,
   };
 }
 
@@ -147,13 +147,13 @@ export async function transitionMajorSwissStageInTransaction(
 
   const sourceEntrants = await tx.select({
     entrantId: majorStageEntrants.entrantId,
-    teamId: majorStageEntrants.teamId,
+    competitionEntryId: majorStageEntrants.competitionEntryId,
     stageSeed: majorStageEntrants.stageSeed,
   }).from(majorStageEntrants).where(eq(majorStageEntrants.stageRunId, sourceRun.id)).for("update");
   const sourceMatches = await tx.select().from(matches)
     .where(and(eq(matches.majorStageRunId, sourceRun.id), eq(matches.ownership, "major_stage"))).for("update");
   const projection = projectMajorSwissStage({
-    entrants: sourceEntrants.map((entrant) => ({ teamId: entrant.teamId, initialStageSeed: entrant.stageSeed })),
+    entrants: sourceEntrants.map((entrant) => ({ teamId: entrant.competitionEntryId, initialStageSeed: entrant.stageSeed })),
     matches: sourceMatches.map(completedFact),
     finalizedRound: 5,
   });
@@ -167,12 +167,12 @@ export async function transitionMajorSwissStageInTransaction(
   const [fromSeed, toSeed] = directSeedRange(sourceSnapshot.stagePlan, sourceIndex + 1, directCount);
   const directEntrants = sourceSnapshot.tournamentEntrants
     .filter((entrant) => entrant.tournamentSeed >= fromSeed && entrant.tournamentSeed <= toSeed)
-    .map((entrant) => ({ teamId: entrant.teamId, tournamentSeed: entrant.tournamentSeed }));
+    .map((entrant) => ({ teamId: entrant.competitionEntryId, tournamentSeed: entrant.tournamentSeed }));
   const seededEntrants = seedMajorLaterStageEntrants({
     directEntrants,
     advancingEntrants: qualifiers.map((qualifier) => ({ teamId: qualifier.teamId, previousStageFinalSeed: qualifier.finalStageSeed })),
   });
-  const entrantByTeamId = new Map(sourceSnapshot.tournamentEntrants.map((entrant) => [entrant.teamId, entrant]));
+  const entrantByTeamId = new Map(sourceSnapshot.tournamentEntrants.map((entrant) => [entrant.competitionEntryId, entrant]));
   const firstRound = generateNextMajorSwissRound({ entrants: seededEntrants, matches: [], finalizedRound: 0, stageMatchFormat: nextSwissStage.matchFormat });
   const now = new Date();
   const [stageRun] = await tx.insert(majorStageRuns).values({
@@ -185,8 +185,8 @@ export async function transitionMajorSwissStageInTransaction(
       stage: nextSwissStage,
       openingPairings: firstRound.map((pairing, index) => ({
         key: `r1-${index + 1}`,
-        teamAId: pairing.higherSeedTeamId,
-        teamBId: pairing.lowerSeedTeamId,
+        entryAId: pairing.higherSeedTeamId,
+        entryBId: pairing.lowerSeedTeamId,
         format: pairing.format,
         pairingRule: pairing.pairingRule,
       })),
@@ -199,15 +199,15 @@ export async function transitionMajorSwissStageInTransaction(
     return {
       stageRunId: stageRun.id,
       entrantId: frozenEntrant.entrantId,
-      teamId: entrant.teamId,
+      competitionEntryId: entrant.teamId,
       tournamentSeed: frozenEntrant.tournamentSeed,
       stageSeed: entrant.initialStageSeed,
     };
   }));
   const createdMatches = await tx.insert(matches).values(firstRound.map((pairing, index) => ({
     seasonId: input.seasonId,
-    teamAId: pairing.higherSeedTeamId,
-    teamBId: pairing.lowerSeedTeamId,
+    entryAId: pairing.higherSeedTeamId,
+    entryBId: pairing.lowerSeedTeamId,
     stage: nextSwissStage.key,
     round: 1,
     format: pairing.format,

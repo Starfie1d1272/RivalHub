@@ -9,8 +9,8 @@ interface Props {
   matchId: string;
   teamAName: string;
   teamBName: string;
-  teamAId: string;
-  teamBId: string;
+  entryAId: string;
+  entryBId: string;
 }
 
 const ACTION_VERBS: Record<string, string> = {
@@ -31,8 +31,8 @@ export async function VetoView({
   matchId,
   teamAName,
   teamBName,
-  teamAId,
-  teamBId,
+  entryAId,
+  entryBId,
 }: Props) {
   const steps = await db
     .select()
@@ -42,15 +42,15 @@ export async function VetoView({
 
   if (steps.length === 0) return null;
 
-  function formatTeam(teamId: string | null): string {
-    if (teamId === teamAId) return teamAName;
-    if (teamId === teamBId) return teamBName;
+  function formatTeam(entryId: string | null): string {
+    if (entryId === entryAId) return teamAName;
+    if (entryId === entryBId) return teamBName;
     return "";
   }
 
-  function opponentName(teamId: string | null): string {
-    if (teamId === teamAId) return teamBName;
-    if (teamId === teamBId) return teamAName;
+  function opponentName(entryId: string | null): string {
+    if (entryId === entryAId) return teamBName;
+    if (entryId === entryBId) return teamAName;
     return "";
   }
 
@@ -62,7 +62,7 @@ export async function VetoView({
           {steps.map((step) => {
             const verb = ACTION_VERBS[step.actionType] ?? step.actionType;
             const color = ACTION_COLORS[step.actionType] ?? "var(--color-fg-mid)";
-            const team = formatTeam(step.teamId);
+            const team = formatTeam(step.entryId);
 
             return (
               <div
@@ -96,17 +96,17 @@ export async function VetoView({
                 </span>
 
                 {step.side && (() => {
-                  if (step.actionType === "pick" && step.teamId) {
+                  if (step.actionType === "pick" && step.entryId) {
                     return (
                       <span className="text-xs text-[var(--color-fg-mid)]">
-                        → {opponentName(step.teamId)}选{SIDE_LABELS[step.side] ?? step.side}先
+                        → {opponentName(step.entryId)}选{SIDE_LABELS[step.side] ?? step.side}先
                       </span>
                     );
                   }
-                  if (step.actionType === "decider" && step.teamId) {
+                  if (step.actionType === "decider" && step.entryId) {
                     return (
                       <span className="text-xs text-[var(--color-fg-mid)]">
-                        → {formatTeam(step.teamId)}选{SIDE_LABELS[step.side] ?? step.side}先
+                        → {formatTeam(step.entryId)}选{SIDE_LABELS[step.side] ?? step.side}先
                       </span>
                     );
                   }

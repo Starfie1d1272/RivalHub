@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { eq, and, asc, or, sql } from "drizzle-orm";
 import Link from "next/link";
 import { db } from "@/db/client";
-import { seasons, seasonRegistrations, users, teams, teamMembers } from "@/db/schema";
+import { competitionEntries, eventRosterMembers, eventRosters, seasons, seasonRegistrations, users } from "@/db/schema";
 import { Marker, Stat } from "@/components/rivalhub";
 import { PlayerDirectoryRow } from "@/components/players/PlayerDirectoryRow";
 import { countDirectoryPlayersWithTeam, sortPlayerDirectory } from "@/lib/players/directory-order";
@@ -71,13 +71,15 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
   // 查询已有队伍的成员（用于显示队伍归属）
   const teamMemberRows = await db
     .select({
-      registrationId: teamMembers.registrationId,
-      teamId: teamMembers.teamId,
-      teamName: teams.name,
+      registrationId: seasonRegistrations.id,
+      teamId: competitionEntries.id,
+      teamName: competitionEntries.name,
     })
-    .from(teamMembers)
-    .innerJoin(teams, eq(teamMembers.teamId, teams.id))
-    .where(eq(teams.seasonId, season.id));
+    .from(eventRosterMembers)
+    .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
+    .innerJoin(competitionEntries, eq(eventRosters.entryId, competitionEntries.id))
+    .leftJoin(seasonRegistrations, and(eq(seasonRegistrations.userId, eventRosterMembers.userId), eq(seasonRegistrations.seasonId, season.id)))
+    .where(eq(competitionEntries.competitionId, season.id));
 
   const teamByRegId = new Map(teamMemberRows.flatMap((row) => row.registrationId ? [[row.registrationId, row.teamName] as const] : []));
 

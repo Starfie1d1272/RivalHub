@@ -7,7 +7,7 @@ import { getPreviousStage, normalizeStagePlan } from "@/types/season";
 import type { StageExecutor } from "./types";
 import type { BracketDatabase as Database } from "@/lib/bracket";
 import type { QualifiedTeam } from "@/types/season";
-import type { Team } from "@/db/schema/teams";
+import type { CompetitionEntry } from "@/db/schema/competition-entries";
 import { isStageComplete } from "./_shared";
 
 // ── entry_round 映射 ──────────────────────────────────────────────────────────
@@ -37,7 +37,7 @@ function mapRoundToEntryRound(roundNumber: number, bracketSize: number): string 
  */
 function buildSeedingFromQualifiers(
   qualifiers: QualifiedTeam[],
-  teams: Team[],
+  teams: CompetitionEntry[],
 ): string[] {
   const teamMap = new Map(teams.map((t) => [t.id, t]));
 
@@ -107,8 +107,8 @@ export const singleElimExecutor: StageExecutor = {
 
         await db.insert(matches).values({
           seasonId,
-          teamAId: teamA.id,
-          teamBId: teamB.id,
+          entryAId: teamA.id,
+          entryBId: teamB.id,
           stage: config.key,
           format: config.matchFormat ?? "bo3",
           status: "scheduled",
@@ -159,8 +159,8 @@ export const singleElimExecutor: StageExecutor = {
 
         await db.insert(matches).values({
           seasonId,
-          teamAId: teamA.id,
-          teamBId: teamB.id,
+          entryAId: teamA.id,
+          entryBId: teamB.id,
           stage: config.key,
           format: config.matchFormat ?? "bo3",
           status: "scheduled",
@@ -210,8 +210,8 @@ export const singleElimExecutor: StageExecutor = {
 
       await db.insert(matches).values({
         seasonId,
-        teamAId: teamA.id,
-        teamBId: teamB.id,
+        entryAId: teamA.id,
+        entryBId: teamB.id,
         stage: config.key,
         format: config.matchFormat ?? "bo3",
         status: "scheduled",
@@ -251,8 +251,8 @@ export const singleElimExecutor: StageExecutor = {
     if (finalMatch.scoreA === null || finalMatch.scoreB === null) return [];
     if (finalMatch.scoreA === finalMatch.scoreB) return [];
 
-    const winnerId = finalMatch.scoreA > finalMatch.scoreB ? finalMatch.teamAId : finalMatch.teamBId;
-    const loserId = finalMatch.scoreA > finalMatch.scoreB ? finalMatch.teamBId : finalMatch.teamAId;
+    const winnerId = finalMatch.scoreA > finalMatch.scoreB ? finalMatch.entryAId : finalMatch.entryBId;
+    const loserId = finalMatch.scoreA > finalMatch.scoreB ? finalMatch.entryBId : finalMatch.entryAId;
 
     const result: QualifiedTeam[] = [{ teamId: winnerId, placement: "1st" }];
 

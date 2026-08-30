@@ -158,14 +158,14 @@ async function main(): Promise<void> {
     // 3–6: explicit Champion + Runner-up honors; revoke does not promote anyone.
     const championRequestId = randomUUID();
     const championHonor = await database.transaction((tx) => grantTournamentHonorInTx(tx, {
-      seasonId: f.seasonId, clientRequestId: championRequestId, type: "champion", label: "Champion", basis: "final_result", teamId: f.championId, actorId: ACTOR,
+      seasonId: f.seasonId, clientRequestId: championRequestId, type: "champion", label: "Champion", basis: "final_result", entryId: f.championId, actorId: ACTOR,
     }));
     const repeatedChampionHonor = await database.transaction((tx) => grantTournamentHonorInTx(tx, {
-      seasonId: f.seasonId, clientRequestId: championRequestId, type: "champion", label: "Champion", basis: "final_result", teamId: f.championId, actorId: ACTOR,
+      seasonId: f.seasonId, clientRequestId: championRequestId, type: "champion", label: "Champion", basis: "final_result", entryId: f.championId, actorId: ACTOR,
     }));
     assertCondition(!repeatedChampionHonor.created && repeatedChampionHonor.honorId === championHonor.honorId, "P3 荣誉授予重试必须命中相同的结构性幂等事实。");
     const runnerUpHonor = await database.transaction((tx) => grantTournamentHonorInTx(tx, {
-      seasonId: f.seasonId, clientRequestId: randomUUID(), type: "runner_up", label: "Runner-up", basis: "final_result", teamId: f.runnerUpId, actorId: ACTOR,
+      seasonId: f.seasonId, clientRequestId: randomUUID(), type: "runner_up", label: "Runner-up", basis: "final_result", entryId: f.runnerUpId, actorId: ACTOR,
     }));
     const revokeChampion = await database.transaction((tx) => revokeTournamentHonorInTx(tx, { honorId: championHonor.honorId, actorId: ACTOR, reason: "explicit revocation" }));
     assertCondition(!revokeChampion.alreadyRevoked, "P4 首次冠军撤销必须生效。");
@@ -182,7 +182,7 @@ async function main(): Promise<void> {
 
     // 7–9: manual award lifecycle also never creates a replacement.
     const manualHonor = await database.transaction((tx) => grantTournamentHonorInTx(tx, {
-      seasonId: f.seasonId, clientRequestId: randomUUID(), type: "manual_award", label: "Fair Play", honorKey: "fair-play", basis: "manual", teamId: f.thirdId, actorId: ACTOR,
+      seasonId: f.seasonId, clientRequestId: randomUUID(), type: "manual_award", label: "Fair Play", honorKey: "fair-play", basis: "manual", entryId: f.thirdId, actorId: ACTOR,
     }));
     await database.transaction((tx) => revokeTournamentHonorInTx(tx, { honorId: manualHonor.honorId, actorId: ACTOR, reason: "manual withdrawal" }));
     const manualState = await pool.query(`SELECT state::text FROM tournament_honors WHERE id = $1`, [manualHonor.honorId]);
@@ -206,11 +206,11 @@ async function main(): Promise<void> {
     );
     assertCondition(beforeFacts.rows[0]?.honors === afterPersonalSanction.rows[0]?.honors, "P11 个人 H1 sanction 不得改写 honors。");
     const ruling = await database.transaction((tx) => createPostEventAdjudicationInTx(tx, {
-      seasonId: f.seasonId, clientRequestId: randomUUID(), kind: "team_sanction", target: "team", targetTeamId: f.thirdId,
+      seasonId: f.seasonId, clientRequestId: randomUUID(), kind: "team_sanction", target: "entry", targetEntryId: f.thirdId,
       impacts: ["honors"], reason: "team ruling", publicExplanation: "public team ruling", internalEvidence: "private ruling proof", actorId: ACTOR,
     }));
     const rulingHonor = await database.transaction((tx) => grantTournamentHonorInTx(tx, {
-      seasonId: f.seasonId, clientRequestId: randomUUID(), type: "manual_award", label: "Explicit ruling award", honorKey: "ruling-award", basis: "adjudication", teamId: f.thirdId, adjudicationId: ruling.adjudicationId, actorId: ACTOR,
+      seasonId: f.seasonId, clientRequestId: randomUUID(), type: "manual_award", label: "Explicit ruling award", honorKey: "ruling-award", basis: "adjudication", entryId: f.thirdId, adjudicationId: ruling.adjudicationId, actorId: ACTOR,
     }));
     const afterFacts = await pool.query<{ placements: string; score_a: number; score_b: number }>(
       `SELECT (SELECT placement_groups::text FROM major_final_results WHERE id = $1) AS placements,

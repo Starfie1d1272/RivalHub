@@ -14,7 +14,7 @@ export const resumeDraftSchema = z.object({
 
 export const pickPlayerSchema = z.object({
   seasonId: z.string().uuid("赛季 ID 格式不正确"),
-  teamId: z.string().uuid("队伍 ID 格式不正确"),
+  entryId: z.string().uuid("队伍 ID 格式不正确"),
   registrationId: z.string().uuid("报名 ID 格式不正确"),
   clientRequestId: z.string().uuid("请求 ID 格式不正确"),
 });

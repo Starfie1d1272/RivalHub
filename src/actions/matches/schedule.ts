@@ -2,7 +2,7 @@
 
 import { eq, and, count, asc, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matches, teams, auditLogs, seasons } from "@/db/schema";
+import { matches, competitionEntries, auditLogs, seasons } from "@/db/schema";
 import { ok, fail } from "@/types/action";
 import type { ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -37,7 +37,7 @@ export async function generateSchedule(
       if (season.status !== "playing") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有在赛季进行中才能生成赛程");
       const [{ value: existingCount }] = await tx.select({ value: count() }).from(matches).where(eq(matches.seasonId, seasonId));
       if (existingCount > 0) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "赛程已生成，不可重复生成");
-      const seasonTeams = await tx.query.teams.findMany({ where: eq(teams.seasonId, seasonId), orderBy: [asc(teams.draftOrder)] });
+      const seasonTeams = await tx.query.competitionEntries.findMany({ where: eq(competitionEntries.competitionId, seasonId), orderBy: [asc(competitionEntries.formationOrder)] });
       if (seasonTeams.length < 2) throw new AppError(ErrorCode.VALIDATION_FAILED, "队伍数量不足，无法生成赛程");
       const firstStage = getFirstStage(normalizeStagePlan(season.stagePlan));
       if (!firstStage) throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "该赛季没有可生成的赛程阶段");
@@ -60,15 +60,15 @@ export async function generateSchedule(
  */
 export async function createMatch(
   seasonId: string,
-  teamAId: string,
-  teamBId: string,
+  entryAId: string,
+  entryBId: string,
   stage: string,
   format: "bo1" | "bo3" | "bo5"
 ): Promise<ActionResult<{ matchId: string }>> {
   try {
     const session = await requireSeasonAdmin(seasonId);
 
-    if (teamAId === teamBId) {
+    if (entryAId === entryBId) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "双方队伍不能相同");
     }
     const season = await getSeasonOrThrow(seasonId);
@@ -81,20 +81,20 @@ export async function createMatch(
     }
 
     // 校验两支队伍属于本赛季
-    const teamRows = await db.query.teams.findMany({
+    const teamRows = await db.query.competitionEntries.findMany({
       where: and(
-        eq(teams.seasonId, seasonId),
+        eq(competitionEntries.competitionId, seasonId),
       ),
     });
     const teamIds = new Set(teamRows.map((t) => t.id));
-    if (!teamIds.has(teamAId) || !teamIds.has(teamBId)) {
+    if (!teamIds.has(entryAId) || !teamIds.has(entryBId)) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "队伍不属于该赛季");
     }
 
     const [newMatch] = await db.transaction(async (tx) => {
       const [row] = await tx
         .insert(matches)
-        .values({ seasonId, teamAId, teamBId, stage, format, status: "scheduled" })
+        .values({ seasonId, entryAId, entryBId, stage, format, status: "scheduled" })
         .returning({ id: matches.id });
 
       await tx.insert(auditLogs).values({
@@ -103,7 +103,7 @@ export async function createMatch(
         actorId: session.email,
         targetId: row.id,
         targetType: "match",
-        meta: { teamAId, teamBId, stage, format },
+        meta: { entryAId, entryBId, stage, format },
       });
 
       return [row];
@@ -157,9 +157,9 @@ export async function initializeStage(
       throw new AppError(ErrorCode.SEASON_INVALID_STATUS, `${stage.name} 已生成，不可重复生成`);
     }
 
-    const seasonTeams = await db.query.teams.findMany({
-      where: eq(teams.seasonId, seasonId),
-      orderBy: [asc(teams.draftOrder)],
+    const seasonTeams = await db.query.competitionEntries.findMany({
+      where: eq(competitionEntries.competitionId, seasonId),
+      orderBy: [asc(competitionEntries.formationOrder)],
     });
 
     const qualifiers = await getExecutor(previousStage.type).getQualifiers(seasonId, previousStage);

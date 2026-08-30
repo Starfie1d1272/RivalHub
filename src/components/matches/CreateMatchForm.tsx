@@ -40,18 +40,18 @@ interface CreateMatchFormProps {
 
 export function CreateMatchForm({ seasonId, teams, stages }: CreateMatchFormProps) {
   const [open, setOpen] = useState(false);
-  const [teamAId, setTeamAId] = useState("");
-  const [teamBId, setTeamBId] = useState("");
+  const [entryAId, setTeamAId] = useState("");
+  const [entryBId, setTeamBId] = useState("");
   const [stage, setStage] = useState(stages[0]?.key ?? "");
   const [format, setFormat] = useState<"bo1" | "bo3" | "bo5">("bo1");
   const [isPending, startTransition] = useTransition();
 
-  const canSubmit = teamAId && teamBId && teamAId !== teamBId && stage && format;
+  const canSubmit = entryAId && entryBId && entryAId !== entryBId && stage && format;
 
   function handleSubmit() {
     if (!canSubmit) return;
     startTransition(async () => {
-      const result = await createMatch(seasonId, teamAId, teamBId, stage, format);
+      const result = await createMatch(seasonId, entryAId, entryBId, stage, format);
       if (result.success) {
         toast.success("比赛创建成功");
         setOpen(false);
@@ -80,7 +80,7 @@ export function CreateMatchForm({ seasonId, teams, stages }: CreateMatchFormProp
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-[var(--color-fg-mid)]">队伍 A</label>
-            <Select value={teamAId} onValueChange={setTeamAId}>
+            <Select value={entryAId} onValueChange={setTeamAId}>
               <SelectTrigger>
                 <SelectValue placeholder="选择队伍" />
               </SelectTrigger>
@@ -94,12 +94,12 @@ export function CreateMatchForm({ seasonId, teams, stages }: CreateMatchFormProp
 
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-[var(--color-fg-mid)]">队伍 B</label>
-            <Select value={teamBId} onValueChange={setTeamBId}>
+            <Select value={entryBId} onValueChange={setTeamBId}>
               <SelectTrigger>
                 <SelectValue placeholder="选择队伍" />
               </SelectTrigger>
               <SelectContent>
-                {teams.filter((t) => t.id !== teamAId).map((t) => (
+                {teams.filter((t) => t.id !== entryAId).map((t) => (
                   <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                 ))}
               </SelectContent>
@@ -134,7 +134,7 @@ export function CreateMatchForm({ seasonId, teams, stages }: CreateMatchFormProp
             </Select>
           </div>
 
-          {teamAId && teamBId && teamAId === teamBId && (
+          {entryAId && entryBId && entryAId === entryBId && (
             <p className="text-xs text-[var(--color-danger)]">双方队伍不能相同</p>
           )}
         </div>

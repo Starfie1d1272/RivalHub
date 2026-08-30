@@ -1,6 +1,6 @@
 import { and, asc, count, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { captainVotes, seasonRegistrations, users, teams } from "@/db/schema";
+import { captainVotes, seasonRegistrations, users, competitionEntries } from "@/db/schema";
 import { compareCaptainSeedCandidates, selectCaptainSeeds } from "@/lib/captains/rules";
 import { getPublicDisplayName } from "@/lib/utils/display-name";
 
@@ -159,6 +159,6 @@ export async function getPublicCaptainVotingData(
 }
 
 export async function getSeasonTeamCount(seasonId: string): Promise<number> {
-  const [row] = await db.select({ count: count() }).from(teams).where(eq(teams.seasonId, seasonId));
+  const [row] = await db.select({ count: count() }).from(competitionEntries).where(eq(competitionEntries.competitionId, seasonId));
   return Number(row?.count ?? 0);
 }

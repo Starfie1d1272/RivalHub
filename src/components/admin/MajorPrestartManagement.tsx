@@ -99,7 +99,7 @@ export function MajorPrestartManagement({ data }: { data: MajorPrestartManagemen
       {!locked && <div className="mb-4 flex flex-wrap gap-2">
         <Select value={teamId} onValueChange={setTeamId}><SelectTrigger className="min-w-48"><SelectValue placeholder="选择已审核正式队伍" /></SelectTrigger><SelectContent>{data.availableTeams.map((team) => <SelectItem key={team.id} value={team.id}>{team.name}（{team.members.length} 人）</SelectItem>)}</SelectContent></Select>
         <Button disabled={isPending || !teamId} onClick={() => startTransition(() => void showResult(
-          () => addMajorPrestartEntrant({ seasonId: data.seasonId, teamId }), "已加入正式参赛队集合",
+          () => addMajorPrestartEntrant({ seasonId: data.seasonId, competitionEntryId: teamId }), "已加入正式参赛队集合",
         ))}>加入正式参赛队</Button>
       </div>}
       {data.entrants.length === 0 ? <p className="text-sm text-[var(--color-fg-mid)]">尚未选择正式参赛队。所有已审核 teams 不会自动成为 Major 参赛队。</p> : <div className="grid gap-3 md:grid-cols-2">

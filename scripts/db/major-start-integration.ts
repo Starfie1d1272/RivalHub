@@ -359,8 +359,8 @@ async function readSwissEvidence(pool: Pool, stageRunId: string): Promise<Golden
     return {
       matchId: match.id,
       round: match.round as 1 | 2 | 3 | 4 | 5,
-      teamAId: match.team_a_id,
-      teamBId: match.team_b_id,
+      entryAId: match.team_a_id,
+      entryBId: match.team_b_id,
       winnerId: match.score_a > match.score_b ? match.team_a_id : match.team_b_id,
     };
   });
@@ -671,15 +671,15 @@ async function exerciseFinalLifecycle(
 
   const championHonor = await database.transaction((tx) => grantTournamentHonorInTx(tx, {
     seasonId, clientRequestId: deterministicUuid("honor/champion"), type: "champion", label: "Golden Champion",
-    basis: "final_result", teamId: finalResult.champion, actorId: "local-admin",
+    basis: "final_result", entryId: finalResult.champion, actorId: "local-admin",
   }));
   const repeatedHonor = await database.transaction((tx) => grantTournamentHonorInTx(tx, {
     seasonId, clientRequestId: deterministicUuid("honor/champion"), type: "champion", label: "Golden Champion",
-    basis: "final_result", teamId: finalResult.champion, actorId: "local-admin-retry",
+    basis: "final_result", entryId: finalResult.champion, actorId: "local-admin-retry",
   }));
   const runnerUpHonor = await database.transaction((tx) => grantTournamentHonorInTx(tx, {
     seasonId, clientRequestId: deterministicUuid("honor/runner-up"), type: "runner_up", label: "Golden Runner-up",
-    basis: "final_result", teamId: runnerUp, actorId: "local-admin",
+    basis: "final_result", entryId: runnerUp, actorId: "local-admin",
   }));
   if (!championHonor.created || repeatedHonor.created || repeatedHonor.honorId !== championHonor.honorId || !runnerUpHonor.created) {
     throw new Error("Golden rehearsal 的荣誉授予重试或亚军荣誉事实异常。 ");

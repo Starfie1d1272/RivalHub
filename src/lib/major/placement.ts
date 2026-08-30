@@ -21,7 +21,7 @@ export interface MajorSwissStageFacts {
 export interface MajorFinalPlacementGroup {
   from: number;
   to: number;
-  teamIds: readonly string[];
+  entryIds: readonly string[];
 }
 
 interface StageProjections {
@@ -131,10 +131,10 @@ function validateProgression(
 
 function deterministicPresentationOrder(
   teamsById: ReadonlyMap<string, MajorTournamentSeededTeam>,
-): (teamAId: string, teamBId: string) => number {
-  return (teamAId, teamBId) =>
-    teamsById.get(teamAId)!.tournamentSeed - teamsById.get(teamBId)!.tournamentSeed ||
-    (teamAId < teamBId ? -1 : teamAId > teamBId ? 1 : 0);
+): (entryAId: string, entryBId: string) => number {
+  return (entryAId, entryBId) =>
+    teamsById.get(entryAId)!.tournamentSeed - teamsById.get(entryBId)!.tournamentSeed ||
+    (entryAId < entryBId ? -1 : entryAId > entryBId ? 1 : 0);
 }
 
 function eliminatedWithRecord(
@@ -143,49 +143,49 @@ function eliminatedWithRecord(
   expectedCount: number,
   label: string,
 ): readonly string[] {
-  const teamIds = projection.eliminated
+  const entryIds = projection.eliminated
     .filter((team) => team.wins === wins && team.losses === 3)
     .map((team) => team.teamId);
-  if (teamIds.length !== expectedCount) {
+  if (entryIds.length !== expectedCount) {
     throw new Error(`${label} must contain exactly ${expectedCount} eliminated ${wins}-3 teams`);
   }
-  return teamIds;
+  return entryIds;
 }
 
 function buildSwissPlacementGroups(
   projection: MajorSwissProjection,
   ranges: readonly [number, number][],
   label: string,
-  sortTeamIds: (teamAId: string, teamBId: string) => number,
+  sortTeamIds: (entryAId: string, entryBId: string) => number,
 ): readonly MajorFinalPlacementGroup[] {
   const records: readonly (0 | 1 | 2)[] = [2, 1, 0];
   const expectedCounts = [3, 3, 2] as const;
   return records.map((wins, index) => ({
     from: ranges[index][0],
     to: ranges[index][1],
-    teamIds: [...eliminatedWithRecord(projection, wins, expectedCounts[index], label)].sort(sortTeamIds),
+    entryIds: [...eliminatedWithRecord(projection, wins, expectedCounts[index], label)].sort(sortTeamIds),
   }));
 }
 
 function assertPlacementGroups(groups: readonly MajorFinalPlacementGroup[]): void {
   let expectedFrom = 1;
-  const teamIds = new Set<string>();
+  const entryIds = new Set<string>();
   for (const group of groups) {
     if (!Number.isInteger(group.from) || !Number.isInteger(group.to) || group.from !== expectedFrom) {
       throw new Error("final placement groups must have contiguous ranges without gaps or overlap");
     }
-    if (group.to < group.from || group.teamIds.length !== group.to - group.from + 1) {
+    if (group.to < group.from || group.entryIds.length !== group.to - group.from + 1) {
       throw new Error(`placement group ${group.from}-${group.to} has an invalid team count`);
     }
-    for (const teamId of group.teamIds) {
-      if (teamIds.has(teamId)) {
+    for (const teamId of group.entryIds) {
+      if (entryIds.has(teamId)) {
         throw new Error(`final placements contain duplicate teamId: ${teamId}`);
       }
-      teamIds.add(teamId);
+      entryIds.add(teamId);
     }
     expectedFrom = group.to + 1;
   }
-  if (expectedFrom !== 33 || teamIds.size !== 32) {
+  if (expectedFrom !== 33 || entryIds.size !== 32) {
     throw new Error("final placements must contain each of the 32 tournament teams exactly once");
   }
 }
@@ -217,18 +217,18 @@ export function buildFinalMajorPlacements(input: {
   }
   const playoffGroups: readonly MajorFinalPlacementGroup[] = input.hasThirdPlaceMatch
     ? [
-        { from: 1, to: 1, teamIds: [playoff.championId] },
-        { from: 2, to: 2, teamIds: [playoff.runnerUpId] },
-        { from: 3, to: 3, teamIds: [playoff.thirdPlaceId!] },
-        { from: 4, to: 4, teamIds: [playoff.fourthPlaceId!] },
-        { from: 5, to: 8, teamIds: [...playoff.quarterfinalLoserIds].sort(sortTeamIds) },
+        { from: 1, to: 1, entryIds: [playoff.championId] },
+        { from: 2, to: 2, entryIds: [playoff.runnerUpId] },
+        { from: 3, to: 3, entryIds: [playoff.thirdPlaceId!] },
+        { from: 4, to: 4, entryIds: [playoff.fourthPlaceId!] },
+        { from: 5, to: 8, entryIds: [...playoff.quarterfinalLoserIds].sort(sortTeamIds) },
       ]
     : [
-        { from: 1, to: 1, teamIds: [playoff.championId] },
-        { from: 2, to: 2, teamIds: [playoff.runnerUpId] },
+        { from: 1, to: 1, entryIds: [playoff.championId] },
+        { from: 2, to: 2, entryIds: [playoff.runnerUpId] },
         // Order within a placement group is deterministic presentation only, not relative placement.
-        { from: 3, to: 4, teamIds: [...playoff.semifinalLoserIds].sort(sortTeamIds) },
-        { from: 5, to: 8, teamIds: [...playoff.quarterfinalLoserIds].sort(sortTeamIds) },
+        { from: 3, to: 4, entryIds: [...playoff.semifinalLoserIds].sort(sortTeamIds) },
+        { from: 5, to: 8, entryIds: [...playoff.quarterfinalLoserIds].sort(sortTeamIds) },
       ];
 
   const groups = [

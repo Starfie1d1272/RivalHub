@@ -72,8 +72,8 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
       mps.user_id,
       COALESCE(u.perfect_name, mps.perfect_name) AS perfect_name,
       sr.primary_position,
-      t.name  AS team_name,
-      t.id    AS team_id,
+      entrant.name  AS team_name,
+      entrant.id    AS team_id,
       count(*)::int                                                          AS maps,
       round(avg(mps.rating_pro)::numeric, 2)                                AS avg_rating,
       round(${adrExpr}::numeric, 1)                                         AS avg_adr,
@@ -93,14 +93,21 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
     LEFT JOIN users u ON u.id = mps.user_id
     LEFT JOIN season_registrations sr
       ON sr.user_id = mps.user_id AND sr.season_id = m.season_id
-    LEFT JOIN team_members tm
-      ON tm.user_id = mps.user_id AND tm.season_id = m.season_id
-    LEFT JOIN teams t ON t.id = tm.team_id
+    LEFT JOIN LATERAL (
+      SELECT ce.id, ce.name
+      FROM event_roster_members erm
+      INNER JOIN event_rosters er ON er.id = erm.event_roster_id
+      INNER JOIN competition_entries ce ON ce.id = er.entry_id
+      WHERE erm.user_id = mps.user_id
+        AND ce.competition_id = m.season_id
+        AND ce.id IN (m.entry_a_id, m.entry_b_id)
+      LIMIT 1
+    ) entrant ON true
     WHERE m.season_id = ${season.id}
       AND mps.verified_by_admin IS NOT NULL
       ${positionFilter}
       ${stageFilter}
-    GROUP BY mps.user_id, COALESCE(u.perfect_name, mps.perfect_name), sr.primary_position, t.name, t.id
+    GROUP BY mps.user_id, COALESCE(u.perfect_name, mps.perfect_name), sr.primary_position, entrant.name, entrant.id
     ORDER BY ${sortColumn} DESC
     LIMIT 100
   `);
