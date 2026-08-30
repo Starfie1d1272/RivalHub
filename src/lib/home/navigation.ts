@@ -105,10 +105,10 @@ export function buildHomeNavEntries(
     },
     {
       key: "login",
-      href: auth.isAuthenticated ? "/settings" : "/login",
-      label: auth.isAuthenticated ? "个人中心" : "登录 / 注册",
-      mono: auth.isAuthenticated ? "ACCOUNT" : "LOGIN",
-      meta: auth.isAuthenticated ? "账号设置" : "参赛者入口",
+      href: auth.isAuthenticated ? "/my" : "/login",
+      label: auth.isAuthenticated ? "我的" : "登录 / 注册",
+      mono: auth.isAuthenticated ? "MY RIVALHUB" : "LOGIN",
+      meta: auth.isAuthenticated ? "资料与赛事" : "参赛者入口",
       show: true,
     },
   ];

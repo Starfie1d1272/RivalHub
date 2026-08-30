@@ -45,6 +45,33 @@ export interface ParticipantReadiness {
   educationApproved: boolean;
 }
 
+/** Canonical long-term identity requirements shared by settings and read models. */
+export function getParticipantIdentityBlockers(fact: ParticipantQualificationFacts): string[] {
+  const blockers: string[] = [];
+  if (!fact.displayName?.trim()) blockers.push("请填写展示昵称。");
+  if (!fact.steam64?.trim()) blockers.push("请填写 Steam64 ID。");
+  if (!fact.perfectId?.trim()) blockers.push("请填写完美世界竞技平台 ID。");
+  if (!fact.qq?.trim()) blockers.push("请填写 QQ 号。");
+  if (!fact.emailVerifiedAt) blockers.push("请先验证邮箱。");
+  return blockers;
+}
+
+/** Canonical competitive-profile completeness for one frozen or catalog context. */
+export function getCompetitiveProfileBlockers(
+  fact: ParticipantQualificationFacts,
+  context: CompetitiveProfileConfig | null,
+): string[] {
+  if (!context) return ["竞技平台赛季目录尚未完成当前与上一赛季配置。"];
+  const strength: PlayerStrengthInput = {
+    userId: fact.userId ?? "",
+    label: fact.displayName ?? fact.perfectName ?? fact.email ?? "未知选手",
+    historicalPeak: fact.historicalPeak,
+    previousSeasonPeak: fact.seasonPeaks?.get(context.previousSeasonKey) ?? null,
+    currentSeasonPeak: fact.seasonPeaks?.get(context.currentSeasonKey) ?? null,
+  };
+  return getPlayerStrengthBreakdown(strength, context).blockers;
+}
+
 /**
  * Event qualification only accepts the publish-time frozen context. A missing
  * or partial legacy snapshot is deliberately not repaired from today's live
@@ -126,18 +153,13 @@ export function computeParticipantReadiness(
     previousSeasonPeak: fact.seasonPeaks?.get(context?.previousSeasonKey ?? "") ?? null,
     currentSeasonPeak: fact.seasonPeaks?.get(context?.currentSeasonKey ?? "") ?? null,
   };
-  const blockers: string[] = [];
-  if (!context) {
-    blockers.push("竞技平台赛季目录尚未完成当前与上一赛季配置。");
-  } else {
-    if (!fact.displayName?.trim()) blockers.push("请填写展示昵称。");
-    if (!fact.steam64?.trim()) blockers.push("请填写 Steam64 ID。");
-    if (!fact.perfectId?.trim()) blockers.push("请填写完美世界竞技平台 ID。");
-    if (!fact.qq?.trim()) blockers.push("请填写 QQ 号。");
-    if (!fact.emailVerifiedAt) blockers.push("请先验证邮箱。");
-    if (!fact.approvedEducation) blockers.push("请完成并通过高校身份认证。");
-    blockers.push(...getPlayerStrengthBreakdown(strength, context).blockers);
-  }
+  const blockers = context
+    ? [
+      ...getParticipantIdentityBlockers(fact),
+      ...(fact.approvedEducation ? [] : ["请完成并通过高校身份认证。"]),
+      ...getCompetitiveProfileBlockers(fact, context),
+    ]
+    : getCompetitiveProfileBlockers(fact, null);
   return { ready: blockers.length === 0, blockers: [...new Set(blockers)], strength, educationApproved: fact.approvedEducation };
 }
 
