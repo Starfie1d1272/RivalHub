@@ -2,4 +2,4 @@
 "rivalhub": patch
 ---
 
-明确 legacy Root 管理员登录入口与标准 owner email bootstrap 的边界。
+管理员登录页面明确初始管理员账号（通过预配置的 owner 邮箱引导创建）与历史遗留 Root 管理员入口的区别，避免混淆两种管理员身份来源。

@@ -2,4 +2,4 @@
 "rivalhub": patch
 ---
 
-新增 fail-closed 的 Local Supabase 开发入口，隔离旧远程数据库配置并验证 Drizzle migration、Auth、Storage 与 Data API 默认拒绝策略。
+本地开发环境改进：新增独立的本地 Supabase 工作流，数据库写入仅允许访问本机回环地址，并默认拒绝未经授权的数据访问，避免开发操作误连远程或生产数据库。
