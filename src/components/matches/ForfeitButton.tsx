@@ -8,16 +8,16 @@ import { forfeitMatch } from "@/actions/matches";
 
 interface ForfeitButtonProps {
   matchId: string;
-  teamAId: string;
-  teamBId: string;
+  entryAId: string;
+  entryBId: string;
   teamAName: string;
   teamBName: string;
 }
 
 export function ForfeitButton({
   matchId,
-  teamAId,
-  teamBId,
+  entryAId,
+  entryBId,
   teamAName,
   teamBName,
 }: ForfeitButtonProps) {
@@ -53,7 +53,7 @@ export function ForfeitButton({
         size="sm"
         variant="destructive"
         disabled={isPending || !reason.trim()}
-        onClick={() => handleForfeit(teamAId)}
+        onClick={() => handleForfeit(entryAId)}
       >
         {teamAName} 弃赛
       </Button>
@@ -61,7 +61,7 @@ export function ForfeitButton({
         size="sm"
         variant="destructive"
         disabled={isPending || !reason.trim()}
-        onClick={() => handleForfeit(teamBId)}
+        onClick={() => handleForfeit(entryBId)}
       >
         {teamBName} 弃赛
       </Button>

@@ -12,8 +12,8 @@ describe("createMatchSchema", () => {
   it("接受合法输入", () => {
     const r = createMatchSchema.safeParse({
       seasonId: UUID_A,
-      teamAId: UUID_A,
-      teamBId: UUID_B,
+      entryAId: UUID_A,
+      entryBId: UUID_B,
       stage: "qualifier",
     });
     expect(r.success).toBe(true);
@@ -23,8 +23,8 @@ describe("createMatchSchema", () => {
   it("默认 format 为 bo1", () => {
     const r = createMatchSchema.safeParse({
       seasonId: UUID_A,
-      teamAId: UUID_A,
-      teamBId: UUID_B,
+      entryAId: UUID_A,
+      entryBId: UUID_B,
       stage: "playoff",
     });
     expect(r.success).toBe(true);
@@ -33,8 +33,8 @@ describe("createMatchSchema", () => {
   it("拒绝非法 stage", () => {
     const r = createMatchSchema.safeParse({
       seasonId: UUID_A,
-      teamAId: UUID_A,
-      teamBId: UUID_B,
+      entryAId: UUID_A,
+      entryBId: UUID_B,
       stage: "invalid",
     });
     expect(r.success).toBe(false);
@@ -43,8 +43,8 @@ describe("createMatchSchema", () => {
   it("拒绝非法 format", () => {
     const r = createMatchSchema.safeParse({
       seasonId: UUID_A,
-      teamAId: UUID_A,
-      teamBId: UUID_B,
+      entryAId: UUID_A,
+      entryBId: UUID_B,
       stage: "qualifier",
       format: "bo7",
     });
@@ -54,8 +54,8 @@ describe("createMatchSchema", () => {
   it("接受合法 scheduledAt", () => {
     const r = createMatchSchema.safeParse({
       seasonId: UUID_A,
-      teamAId: UUID_A,
-      teamBId: UUID_B,
+      entryAId: UUID_A,
+      entryBId: UUID_B,
       stage: "qualifier",
       scheduledAt: "2026-06-01T14:00:00.000Z",
     });
@@ -65,8 +65,8 @@ describe("createMatchSchema", () => {
   it("拒绝非法 UUID", () => {
     const r = createMatchSchema.safeParse({
       seasonId: "not-uuid",
-      teamAId: UUID_A,
-      teamBId: UUID_B,
+      entryAId: UUID_A,
+      entryBId: UUID_B,
       stage: "qualifier",
     });
     expect(r.success).toBe(false);
@@ -101,7 +101,7 @@ describe("recordMatchResultSchema", () => {
         {
           mapOrder: 1,
           mapName: "Mirage",
-          pickedByTeamId: UUID_A,
+          pickedByEntryId: UUID_A,
           teamAStartSide: "t",
           scoreA: 1,
           scoreB: 0,
@@ -109,7 +109,7 @@ describe("recordMatchResultSchema", () => {
         {
           mapOrder: 2,
           mapName: "Inferno",
-          pickedByTeamId: UUID_B,
+          pickedByEntryId: UUID_B,
           teamAStartSide: "ct",
           scoreA: 0,
           scoreB: 1,
@@ -117,7 +117,7 @@ describe("recordMatchResultSchema", () => {
         {
           mapOrder: 3,
           mapName: "Nuke",
-          pickedByTeamId: null,
+          pickedByEntryId: null,
           teamAStartSide: null,
           scoreA: 1,
           scoreB: 0,

@@ -20,7 +20,7 @@ vi.mock("@/db/client", () => ({
 }));
 
 vi.mock("@/db/schema", () => ({
-  matches: { id: {}, seasonId: {}, stage: {}, status: {}, teamAId: {}, teamBId: {}, scoreA: {}, scoreB: {}, createdAt: {}, entryRound: {} },
+  matches: { id: {}, seasonId: {}, stage: {}, status: {}, entryAId: {}, entryBId: {}, scoreA: {}, scoreB: {}, createdAt: {}, entryRound: {} },
   seasons: { id: {}, bracketData: {}, stagePlan: {} },
 }));
 
@@ -38,8 +38,8 @@ function finishedMatch(overrides: Record<string, unknown> = {}) {
   return {
     id: "m-final",
     seasonId: "season-1",
-    teamAId: "t1",
-    teamBId: "t2",
+    entryAId: "t1",
+    entryBId: "t2",
     status: "finished" as const,
     scoreA: 2,
     scoreB: 0,
@@ -83,7 +83,7 @@ describe("doubleElimExecutor", () => {
   describe("getQualifiers()", () => {
     it("决赛完成后返回冠军和亚军", async () => {
       mockMatchFindMany.mockResolvedValue([
-        finishedMatch({ id: "m-final", scoreA: 2, scoreB: 1, teamAId: "t1", teamBId: "t2", createdAt: new Date("2026-06-02") }),
+        finishedMatch({ id: "m-final", scoreA: 2, scoreB: 1, entryAId: "t1", entryBId: "t2", createdAt: new Date("2026-06-02") }),
         finishedMatch({ id: "m-wb-final", scoreA: 2, scoreB: 0, createdAt: new Date("2026-06-01") }),
       ]);
       const result = await doubleElimExecutor.getQualifiers("season-1", {

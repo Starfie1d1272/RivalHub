@@ -75,10 +75,10 @@ async function prepareFixture(pool: Pool): Promise<Fixture> {
       [seasonId, `local-postevent-${seasonId}`],
     );
     await client.query(`INSERT INTO users (id, email, email_verified_at) VALUES ($1, $2, now())`, [userId, `h2-${userId}@local.test`]);
-    for (const [id, name] of [[championId, "Champion Team"], [runnerUpId, "Runner-up Team"], [thirdId, "Third Team"]] as const) {
-      const applicationId = randomUUID();
-      await client.query(`INSERT INTO team_applications (id, season_id, name, captain_user_id, status) VALUES ($1, $2, $3, $4, 'approved')`, [applicationId, seasonId, name, userId]);
-      await client.query(`INSERT INTO teams (id, season_id, name, captain_user_id, team_application_id) VALUES ($1, $2, $3, $4, $5)`, [id, seasonId, name, userId, applicationId]);
+    // Champion / runner-up / third identities are CompetitionEntries; the single
+    // fixture user acts as their representative since no lineup flow runs here.
+    for (const [id, name] of [[championId, "Champion Entry"], [runnerUpId, "Runner-up Entry"], [thirdId, "Third Entry"]] as const) {
+      await client.query(`INSERT INTO competition_entries (id, competition_id, source, name, representative_user_id, registration_status) VALUES ($1, $2, 'event_native', $3, $4, 'approved')`, [id, seasonId, name, userId]);
     }
     await client.query(
       `INSERT INTO major_stage_runs (id, season_id, stage_key, rule_snapshot, started_by)
@@ -86,17 +86,17 @@ async function prepareFixture(pool: Pool): Promise<Fixture> {
       [runId, seasonId, ACTOR],
     );
     await client.query(
-      `INSERT INTO matches (id, season_id, team_a_id, team_b_id, stage, entry_round, format, status, score_a, score_b, completed_at, ownership, major_stage_run_id, managed_key)
+      `INSERT INTO matches (id, season_id, entry_a_id, entry_b_id, stage, entry_round, format, status, score_a, score_b, completed_at, ownership, major_stage_run_id, managed_key)
        VALUES ($1, $2, $3, $4, 'playoff', 'final', 'bo5', 'finished', 3, 1, now(), 'major_stage', $5, 'final-1')`,
       [matchId, seasonId, championId, runnerUpId, runId],
     );
     await client.query(
-      `INSERT INTO major_final_results (id, season_id, playoff_stage_run_id, champion_team_id, placement_groups, status, finalized_by)
+      `INSERT INTO major_final_results (id, season_id, playoff_stage_run_id, champion_entry_id, placement_groups, status, finalized_by)
        VALUES ($1, $2, $3, $4, $5::jsonb, 'pending_confirmation', $6)`,
       [resultId, seasonId, runId, championId, JSON.stringify([
-        { from: 1, to: 1, teamIds: [championId] },
-        { from: 2, to: 2, teamIds: [runnerUpId] },
-        { from: 3, to: 4, teamIds: [thirdId] },
+        { from: 1, to: 1, entryIds: [championId] },
+        { from: 2, to: 2, entryIds: [runnerUpId] },
+        { from: 3, to: 4, entryIds: [thirdId] },
       ]), ACTOR],
     );
     await client.query("COMMIT");
@@ -120,8 +120,7 @@ async function cleanup(pool: Pool, fixture: Fixture): Promise<void> {
     await client.query("DELETE FROM major_final_results WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM matches WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM major_stage_runs WHERE season_id = $1", [fixture.seasonId]);
-    await client.query("DELETE FROM teams WHERE season_id = $1", [fixture.seasonId]);
-    await client.query("DELETE FROM team_applications WHERE season_id = $1", [fixture.seasonId]);
+    await client.query("DELETE FROM competition_entries WHERE competition_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM users WHERE id = $1", [fixture.userId]);
     await client.query("DELETE FROM seasons WHERE id = $1", [fixture.seasonId]);
     await client.query("COMMIT");
@@ -158,14 +157,14 @@ async function main(): Promise<void> {
     // 3–6: explicit Champion + Runner-up honors; revoke does not promote anyone.
     const championRequestId = randomUUID();
     const championHonor = await database.transaction((tx) => grantTournamentHonorInTx(tx, {
-      seasonId: f.seasonId, clientRequestId: championRequestId, type: "champion", label: "Champion", basis: "final_result", teamId: f.championId, actorId: ACTOR,
+      seasonId: f.seasonId, clientRequestId: championRequestId, type: "champion", label: "Champion", basis: "final_result", entryId: f.championId, actorId: ACTOR,
     }));
     const repeatedChampionHonor = await database.transaction((tx) => grantTournamentHonorInTx(tx, {
-      seasonId: f.seasonId, clientRequestId: championRequestId, type: "champion", label: "Champion", basis: "final_result", teamId: f.championId, actorId: ACTOR,
+      seasonId: f.seasonId, clientRequestId: championRequestId, type: "champion", label: "Champion", basis: "final_result", entryId: f.championId, actorId: ACTOR,
     }));
     assertCondition(!repeatedChampionHonor.created && repeatedChampionHonor.honorId === championHonor.honorId, "P3 荣誉授予重试必须命中相同的结构性幂等事实。");
     const runnerUpHonor = await database.transaction((tx) => grantTournamentHonorInTx(tx, {
-      seasonId: f.seasonId, clientRequestId: randomUUID(), type: "runner_up", label: "Runner-up", basis: "final_result", teamId: f.runnerUpId, actorId: ACTOR,
+      seasonId: f.seasonId, clientRequestId: randomUUID(), type: "runner_up", label: "Runner-up", basis: "final_result", entryId: f.runnerUpId, actorId: ACTOR,
     }));
     const revokeChampion = await database.transaction((tx) => revokeTournamentHonorInTx(tx, { honorId: championHonor.honorId, actorId: ACTOR, reason: "explicit revocation" }));
     assertCondition(!revokeChampion.alreadyRevoked, "P4 首次冠军撤销必须生效。");
@@ -182,7 +181,7 @@ async function main(): Promise<void> {
 
     // 7–9: manual award lifecycle also never creates a replacement.
     const manualHonor = await database.transaction((tx) => grantTournamentHonorInTx(tx, {
-      seasonId: f.seasonId, clientRequestId: randomUUID(), type: "manual_award", label: "Fair Play", honorKey: "fair-play", basis: "manual", teamId: f.thirdId, actorId: ACTOR,
+      seasonId: f.seasonId, clientRequestId: randomUUID(), type: "manual_award", label: "Fair Play", honorKey: "fair-play", basis: "manual", entryId: f.thirdId, actorId: ACTOR,
     }));
     await database.transaction((tx) => revokeTournamentHonorInTx(tx, { honorId: manualHonor.honorId, actorId: ACTOR, reason: "manual withdrawal" }));
     const manualState = await pool.query(`SELECT state::text FROM tournament_honors WHERE id = $1`, [manualHonor.honorId]);
@@ -206,11 +205,11 @@ async function main(): Promise<void> {
     );
     assertCondition(beforeFacts.rows[0]?.honors === afterPersonalSanction.rows[0]?.honors, "P11 个人 H1 sanction 不得改写 honors。");
     const ruling = await database.transaction((tx) => createPostEventAdjudicationInTx(tx, {
-      seasonId: f.seasonId, clientRequestId: randomUUID(), kind: "team_sanction", target: "team", targetTeamId: f.thirdId,
+      seasonId: f.seasonId, clientRequestId: randomUUID(), kind: "team_sanction", target: "entry", targetEntryId: f.thirdId,
       impacts: ["honors"], reason: "team ruling", publicExplanation: "public team ruling", internalEvidence: "private ruling proof", actorId: ACTOR,
     }));
     const rulingHonor = await database.transaction((tx) => grantTournamentHonorInTx(tx, {
-      seasonId: f.seasonId, clientRequestId: randomUUID(), type: "manual_award", label: "Explicit ruling award", honorKey: "ruling-award", basis: "adjudication", teamId: f.thirdId, adjudicationId: ruling.adjudicationId, actorId: ACTOR,
+      seasonId: f.seasonId, clientRequestId: randomUUID(), type: "manual_award", label: "Explicit ruling award", honorKey: "ruling-award", basis: "adjudication", entryId: f.thirdId, adjudicationId: ruling.adjudicationId, actorId: ACTOR,
     }));
     const afterFacts = await pool.query<{ placements: string; score_a: number; score_b: number }>(
       `SELECT (SELECT placement_groups::text FROM major_final_results WHERE id = $1) AS placements,

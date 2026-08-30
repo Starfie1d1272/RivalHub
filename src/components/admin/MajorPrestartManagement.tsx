@@ -7,6 +7,7 @@ import {
   addMajorPrestartIssue,
   confirmMajorPrestartRoster,
   lockMajorPrestartEntrants,
+  reopenMajorPrestartRoster,
   removeMajorPrestartEntrant,
   resolveMajorPrestartIssue,
   saveMajorPrestartRoster,
@@ -27,6 +28,7 @@ export interface MajorPrestartManagementData {
     teamId: string;
     teamName: string;
     rosterConfirmedAt: Date | null;
+    rosterStatus: "preparing" | "confirmed" | "frozen";
     roster: Array<{ userId: string; email: string }>;
     candidates: Array<{ userId: string; email: string }>;
   }>;
@@ -53,8 +55,8 @@ function EntrantRoster({ entrant, seasonId, locked }: {
     <article className="border border-[var(--color-border)] p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="font-medium text-[var(--color-fg)]">{entrant.teamName}</h3>
-        <span className={`text-xs ${entrant.rosterConfirmedAt ? "text-[var(--color-ok)]" : "text-[var(--color-warn)]"}`}>
-          {entrant.rosterConfirmedAt ? "名单已确认" : "待确认名单"}
+        <span className={`text-xs ${entrant.rosterStatus === "frozen" || entrant.rosterStatus === "confirmed" ? "text-[var(--color-ok)]" : "text-[var(--color-warn)]"}`}>
+          {entrant.rosterStatus === "frozen" ? "名单已锁定" : entrant.rosterStatus === "confirmed" ? "名单已确认" : "待确认名单"}
         </span>
       </div>
       <fieldset className="mt-2 grid gap-1 text-sm text-[var(--color-fg-mid)]" disabled={locked || isPending}>
@@ -65,12 +67,15 @@ function EntrantRoster({ entrant, seasonId, locked }: {
         </label>)}
       </fieldset>
       {!locked && <div className="mt-3 flex flex-wrap gap-2">
+        {entrant.rosterStatus === "confirmed" ? <Button size="sm" variant="outline" disabled={isPending} onClick={() => startTransition(() => void showResult(
+          () => reopenMajorPrestartRoster({ seasonId, entrantId: entrant.id }), "名单已重新开放，可继续调整",
+        ))}>重新开放名单</Button> : <>
         <Button size="sm" variant="outline" disabled={isPending} onClick={() => startTransition(() => void showResult(
           () => saveMajorPrestartRoster({ seasonId, entrantId: entrant.id, userIds: selected }), "最终名单已保存，需重新确认",
         ))}>保存最终名单</Button>
         <Button size="sm" disabled={isPending} onClick={() => startTransition(() => void showResult(
           () => confirmMajorPrestartRoster({ seasonId, entrantId: entrant.id }), "最终名单已确认",
-        ))}>确认名单</Button>
+        ))}>确认名单</Button></>}
       </div>}
     </article>
   );
@@ -99,7 +104,7 @@ export function MajorPrestartManagement({ data }: { data: MajorPrestartManagemen
       {!locked && <div className="mb-4 flex flex-wrap gap-2">
         <Select value={teamId} onValueChange={setTeamId}><SelectTrigger className="min-w-48"><SelectValue placeholder="选择已审核正式队伍" /></SelectTrigger><SelectContent>{data.availableTeams.map((team) => <SelectItem key={team.id} value={team.id}>{team.name}（{team.members.length} 人）</SelectItem>)}</SelectContent></Select>
         <Button disabled={isPending || !teamId} onClick={() => startTransition(() => void showResult(
-          () => addMajorPrestartEntrant({ seasonId: data.seasonId, teamId }), "已加入正式参赛队集合",
+          () => addMajorPrestartEntrant({ seasonId: data.seasonId, competitionEntryId: teamId }), "已加入正式参赛队集合",
         ))}>加入正式参赛队</Button>
       </div>}
       {data.entrants.length === 0 ? <p className="text-sm text-[var(--color-fg-mid)]">尚未选择正式参赛队。所有已审核 teams 不会自动成为 Major 参赛队。</p> : <div className="grid gap-3 md:grid-cols-2">

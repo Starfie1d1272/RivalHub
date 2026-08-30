@@ -1,6 +1,6 @@
 import { and, count, eq } from "drizzle-orm";
 import type { db as dbClient } from "@/db/client";
-import { competitivePlatformSeasons, matches, seasonRegistrations, seasons, teamApplications, teams } from "@/db/schema";
+import { competitionEntries, competitivePlatformSeasons, matches, seasonRegistrations, seasons } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { createCompetitionTemplate } from "@/lib/competition/templates";
 import { normalizeTeamRegistrationConfig, type TeamRegistrationConfig } from "@/types/season";
@@ -19,13 +19,12 @@ export async function assertSeasonHasNoHistoricalFacts(
   seasonId: string,
   message: string = SEASON_HAS_FACTS_DELETE_MESSAGE,
 ): Promise<void> {
-  const [registrations, applications, formalTeams, scheduledMatches] = await Promise.all([
+  const [registrations, entries, scheduledMatches] = await Promise.all([
     tx.select({ value: count() }).from(seasonRegistrations).where(eq(seasonRegistrations.seasonId, seasonId)),
-    tx.select({ value: count() }).from(teamApplications).where(eq(teamApplications.seasonId, seasonId)),
-    tx.select({ value: count() }).from(teams).where(eq(teams.seasonId, seasonId)),
+    tx.select({ value: count() }).from(competitionEntries).where(eq(competitionEntries.competitionId, seasonId)),
     tx.select({ value: count() }).from(matches).where(eq(matches.seasonId, seasonId)),
   ]);
-  if ([registrations, applications, formalTeams, scheduledMatches].some(([row]) => Number(row?.value ?? 0) > 0)) {
+  if ([registrations, entries, scheduledMatches].some(([row]) => Number(row?.value ?? 0) > 0)) {
     throw new AppError(ErrorCode.SEASON_INVALID_STATUS, message);
   }
 }

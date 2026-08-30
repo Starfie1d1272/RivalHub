@@ -2,9 +2,10 @@ import { and, count, eq, inArray } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import {
   auditLogs,
+  eventRosterMembers,
+  eventRosters,
   majorPrestartEntrants,
   majorPrestartIssues,
-  majorPrestartRosterMembers,
   majorPrestartStates,
   majorStageEntrants,
   majorStageRuns,
@@ -97,17 +98,19 @@ export async function startMajorInTransaction(
 
   const entrantRows = await tx.select({
     id: majorPrestartEntrants.id,
-    teamId: majorPrestartEntrants.teamId,
+    competitionEntryId: majorPrestartEntrants.competitionEntryId,
+    eventRosterId: majorPrestartEntrants.eventRosterId,
     rosterConfirmedAt: majorPrestartEntrants.rosterConfirmedAt,
   }).from(majorPrestartEntrants)
     .where(eq(majorPrestartEntrants.seasonId, season.id)).for("update");
-  const entrantIds = entrantRows.map((entrant) => entrant.id);
-  const rosterRows = entrantIds.length === 0 ? [] : await tx.select({
-    entrantId: majorPrestartRosterMembers.entrantId,
-    userId: majorPrestartRosterMembers.userId,
-    educationVerificationId: majorPrestartRosterMembers.educationVerificationId,
-  }).from(majorPrestartRosterMembers)
-    .where(inArray(majorPrestartRosterMembers.entrantId, entrantIds)).for("update");
+  const eventRosterIds = entrantRows.flatMap((entrant) => entrant.eventRosterId ? [entrant.eventRosterId] : []);
+  const rosterRows = eventRosterIds.length === 0 ? [] : await tx.select({
+    eventRosterId: eventRosterMembers.eventRosterId,
+    userId: eventRosterMembers.userId,
+    educationVerificationId: eventRosterMembers.educationVerificationId,
+  }).from(eventRosterMembers)
+    .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
+    .where(and(inArray(eventRosterMembers.eventRosterId, eventRosterIds), eq(eventRosters.status, "frozen"))).for("update");
   const issueRows = await tx.select({
     category: majorPrestartIssues.category,
     label: majorPrestartIssues.label,
@@ -120,26 +123,29 @@ export async function startMajorInTransaction(
   }).from(majorTournamentSeeds)
     .where(eq(majorTournamentSeeds.seasonId, season.id)).for("update");
 
-  const rosterByEntrant = new Map<string, Array<{ userId: string; educationVerificationId: string | null }>>();
+  const rosterByEventRoster = new Map<string, Array<{ userId: string; educationVerificationId: string | null }>>();
   for (const roster of rosterRows) {
-    const members = rosterByEntrant.get(roster.entrantId) ?? [];
+    const members = rosterByEventRoster.get(roster.eventRosterId) ?? [];
     members.push({ userId: roster.userId, educationVerificationId: roster.educationVerificationId });
-    rosterByEntrant.set(roster.entrantId, members);
+    rosterByEventRoster.set(roster.eventRosterId, members);
   }
-  const teamIdByEntrantId = new Map(entrantRows.map((entrant) => [entrant.id, entrant.teamId]));
+  const entryIdByEntrantId = new Map(entrantRows.map((entrant) => [entrant.id, entrant.competitionEntryId]));
   const seeds = seedRows.flatMap((seed) => {
-    const teamId = teamIdByEntrantId.get(seed.entrantId);
-    return teamId ? [{ teamId, tournamentSeed: seed.tournamentSeed }] : [];
+    const entryId = entryIdByEntrantId.get(seed.entrantId);
+    return entryId ? [{ teamId: entryId, tournamentSeed: seed.tournamentSeed }] : [];
   });
   const readiness = evaluateMajorPrestartReadiness({
     capabilities,
-    teams: entrantRows.map((entrant) => ({
-      teamId: entrant.teamId,
-      playerIds: (rosterByEntrant.get(entrant.id) ?? []).map((member) => member.userId),
-      educationVerificationIds: (rosterByEntrant.get(entrant.id) ?? []).map((member) => member.educationVerificationId),
-    })),
+    teams: entrantRows.map((entrant) => {
+      const roster = entrant.eventRosterId ? rosterByEventRoster.get(entrant.eventRosterId) ?? [] : [];
+      return {
+        teamId: entrant.competitionEntryId,
+        playerIds: roster.map((member) => member.userId),
+        educationVerificationIds: roster.map((member) => member.educationVerificationId),
+      };
+    }),
     entrantsLocked: Boolean(state.entrantsLockedAt),
-    confirmations: entrantRows.map((entrant) => ({ teamId: entrant.teamId, confirmed: Boolean(entrant.rosterConfirmedAt) })),
+    confirmations: entrantRows.map((entrant) => ({ teamId: entrant.competitionEntryId, confirmed: Boolean(entrant.rosterConfirmedAt) })),
     qualificationIssues: issueRows.filter((issue) => issue.category === "qualification")
       .map((issue) => ({ label: issue.label, resolved: Boolean(issue.resolvedAt) })),
     administrativeIssues: issueRows.filter((issue) => issue.category === "administration")
@@ -156,7 +162,7 @@ export async function startMajorInTransaction(
 
   const now = new Date();
   const openingPlan = buildMajorOpeningPlan({ teams: seeds, stageOneMatchFormat: stage.matchFormat });
-  const entrantByTeamId = new Map(entrantRows.map((entrant) => [entrant.teamId, entrant]));
+  const entrantByEntryId = new Map(entrantRows.map((entrant) => [entrant.competitionEntryId, entrant]));
   const competitiveProfile = capabilities.teamRegistrationConfig.requireCompetitiveProfile
     ? capabilities.teamRegistrationConfig.competitiveProfile ?? null
     : null;
@@ -220,15 +226,15 @@ export async function startMajorInTransaction(
     // Match lineup validation must never consult mutable rank facts again.
     frozenCompetitiveFacts,
     tournamentEntrants: openingPlan.tournamentTeams.map((team) => {
-      const entrant = entrantByTeamId.get(team.teamId);
+      const entrant = entrantByEntryId.get(team.teamId);
       if (!entrant) throw new AppError(ErrorCode.INTERNAL_ERROR, "赛事种子缺少已锁定的正式参赛队。");
-      return { entrantId: entrant.id, teamId: team.teamId, tournamentSeed: team.tournamentSeed };
+      return { entrantId: entrant.id, competitionEntryId: team.teamId, eventRosterId: entrant.eventRosterId, tournamentSeed: team.tournamentSeed };
     }),
     tournamentSeeds: openingPlan.tournamentTeams.map((team) => ({ ...team })),
     openingPairings: openingPlan.firstRound.pairings.map((pairing) => ({
       key: `r1-${pairing.higherSeed.stageOneSeed}`,
-      teamAId: pairing.higherSeed.teamId,
-      teamBId: pairing.lowerSeed.teamId,
+      entryAId: pairing.higherSeed.teamId,
+      entryBId: pairing.lowerSeed.teamId,
       format: pairing.format,
       pairingRule: pairing.pairingRule,
     })),
@@ -243,20 +249,20 @@ export async function startMajorInTransaction(
   if (!stageRun) throw new AppError(ErrorCode.INTERNAL_ERROR, "Stage 1 运行记录创建失败。");
 
   await tx.insert(majorStageEntrants).values(openingPlan.stage1.entrants.map((team) => {
-    const entrant = entrantByTeamId.get(team.teamId);
+    const entrant = entrantByEntryId.get(team.teamId);
     if (!entrant) throw new AppError(ErrorCode.INTERNAL_ERROR, "Stage 1 入口缺少已锁定的正式参赛队。");
     return {
       stageRunId: stageRun.id,
       entrantId: entrant.id,
-      teamId: team.teamId,
+      competitionEntryId: team.teamId,
       tournamentSeed: team.tournamentSeed,
       stageSeed: team.initialStageSeed,
     };
   }));
   const createdMatches = await tx.insert(matches).values(openingPlan.firstRound.pairings.map((pairing, index) => ({
     seasonId: season.id,
-    teamAId: pairing.higherSeed.teamId,
-    teamBId: pairing.lowerSeed.teamId,
+    entryAId: pairing.higherSeed.teamId,
+    entryBId: pairing.lowerSeed.teamId,
     stage: stage.key,
     round: 1,
     format: pairing.format,

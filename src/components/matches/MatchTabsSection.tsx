@@ -4,8 +4,8 @@ import { isMatchFormat, isMatchStatus } from "@/types/match";
 
 interface MatchRow {
   id: string;
-  teamAId: string;
-  teamBId: string;
+  entryAId: string;
+  entryBId: string;
   scoreA: number | null;
   scoreB: number | null;
   format: string;
@@ -47,8 +47,8 @@ export function MatchTabsSection({
                 key={m.id}
                 matchId={m.id}
                 seasonSlug={seasonSlug}
-                teamAName={teamMap.get(m.teamAId) ?? unknownTeamName}
-                teamBName={teamMap.get(m.teamBId) ?? unknownTeamName}
+                teamAName={teamMap.get(m.entryAId) ?? unknownTeamName}
+                teamBName={teamMap.get(m.entryBId) ?? unknownTeamName}
                 scoreA={m.scoreA}
                 scoreB={m.scoreB}
                 stage={stage}
@@ -71,8 +71,8 @@ export function MatchTabsSection({
                 key={m.id}
                 matchId={m.id}
                 seasonSlug={seasonSlug}
-                teamAName={teamMap.get(m.teamAId) ?? unknownTeamName}
-                teamBName={teamMap.get(m.teamBId) ?? unknownTeamName}
+                teamAName={teamMap.get(m.entryAId) ?? unknownTeamName}
+                teamBName={teamMap.get(m.entryBId) ?? unknownTeamName}
                 scoreA={m.scoreA}
                 scoreB={m.scoreB}
                 stage={stage}

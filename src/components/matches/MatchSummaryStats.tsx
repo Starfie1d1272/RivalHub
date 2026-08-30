@@ -23,8 +23,8 @@ export interface SummaryPlayer {
 
 interface MatchSummaryStatsProps {
   players: SummaryPlayer[];
-  teamAId: string;
-  teamBId: string;
+  entryAId: string;
+  entryBId: string;
   teamAName: string;
   teamBName: string;
   /** 不包裹 Panel，供外部已有 Panel 包裹的场景使用（如单图 tab） */
@@ -145,14 +145,14 @@ function TeamBlock({ teamName, borderColor, bgColor, players }: TeamBlockProps) 
 
 export function MatchSummaryStats({
   players,
-  teamAId,
-  teamBId,
+  entryAId,
+  entryBId,
   teamAName,
   teamBName,
   noPanel = false,
 }: MatchSummaryStatsProps) {
-  const teamAPlayers = players.filter((p) => p.teamId === teamAId).sort(byRatingDesc);
-  const teamBPlayers = players.filter((p) => p.teamId === teamBId).sort(byRatingDesc);
+  const teamAPlayers = players.filter((p) => p.teamId === entryAId).sort(byRatingDesc);
+  const teamBPlayers = players.filter((p) => p.teamId === entryBId).sort(byRatingDesc);
 
   const content = (
     <React.Fragment>

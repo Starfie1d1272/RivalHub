@@ -10,6 +10,8 @@ const {
   // inside-tx mocks (used by both uploadTeamLogo and updateTeamName)
   txTeamFindFirstMock,
   txSeasonFindFirstMock,
+  txSelectMock,
+  lockedTeam,
   txUpdateMock,
   txInsertMock,
   transactionMock,
@@ -25,11 +27,14 @@ const {
 } = vi.hoisted(() => {
   const txUpdateSetCalls: unknown[] = [];
   const txInsertValuesCalls: unknown[] = [];
+  const lockedTeam: { value: Record<string, unknown> | null } = { value: null };
   return {
     teamFindFirstMock: vi.fn(),
     seasonFindFirstMock: vi.fn(),
     txTeamFindFirstMock: vi.fn(),
     txSeasonFindFirstMock: vi.fn(),
+    txSelectMock: vi.fn(),
+    lockedTeam,
     txUpdateMock: vi.fn(),
     txInsertMock: vi.fn(),
     transactionMock: vi.fn(),
@@ -70,6 +75,7 @@ vi.mock("next/cache", () => ({
 vi.mock("@/db/client", () => {
   const tx = {
     execute: vi.fn().mockResolvedValue(undefined),
+    select: txSelectMock,
     query: {
       teams: { findFirst: txTeamFindFirstMock },
       seasons: { findFirst: txSeasonFindFirstMock },
@@ -96,10 +102,9 @@ import { uploadTeamLogo, updateTeamName } from "@/actions/teams";
 import { requireAuth } from "@/lib/auth/session";
 
 // ── constants ──────────────────────────────────────────────────────────────────
-const TEAM_ID = "team-1";
-const SEASON_ID = "season-1";
+const TEAM_ID = "11111111-1111-4111-8111-111111111111";
+const SEASON_ID = "22222222-2222-4222-8222-222222222222";
 const SEASON_SLUG = "spring-2026";
-const CAPTAIN_REG_ID = "reg-captain";
 const USER_ID = "user-1";
 
 // ── shared setup helpers ───────────────────────────────────────────────────────
@@ -112,10 +117,12 @@ function setupAuth() {
 function setupOutsideTxTeam(overrides?: Record<string, unknown>) {
   teamFindFirstMock.mockResolvedValue({
     id: TEAM_ID,
-    seasonId: SEASON_ID,
     name: "Test Team",
-    captainRegistrationId: CAPTAIN_REG_ID,
     captainUserId: USER_ID,
+    status: "active",
+    slug: "test-team",
+    recruiting: false,
+    description: null,
     logoUrl: null,
     ...overrides,
   });
@@ -130,15 +137,19 @@ function setupOutsideTxSeason(overrides?: Record<string, unknown>) {
 }
 
 function setupTxTeam(overrides?: Record<string, unknown>) {
-  txTeamFindFirstMock.mockResolvedValue({
+  lockedTeam.value = {
     id: TEAM_ID,
-    seasonId: SEASON_ID,
     name: "Test Team",
-    captainRegistrationId: CAPTAIN_REG_ID,
     captainUserId: USER_ID,
+    status: "active",
+    slug: "test-team",
+    recruiting: false,
+    description: null,
     logoUrl: null,
     ...overrides,
-  });
+  };
+  teamFindFirstMock.mockResolvedValue(lockedTeam.value);
+  txTeamFindFirstMock.mockResolvedValue(lockedTeam.value);
 }
 
 function setupTxSeason(overrides?: Record<string, unknown>) {
@@ -159,9 +170,14 @@ function setupTxWriteMocks() {
   txInsertMock.mockImplementation(() => ({
     values: vi.fn((values: unknown) => {
       txInsertValuesCalls.push(values);
-      return Promise.resolve();
+      return { onConflictDoNothing: vi.fn().mockResolvedValue(undefined) };
     }),
   }));
+  txSelectMock.mockReturnValue({
+    from: vi.fn(() => ({
+      where: vi.fn(() => ({ for: vi.fn(async () => lockedTeam.value ? [lockedTeam.value] : []) })),
+    })),
+  });
 }
 
 function setupSupabaseSuccess() {
@@ -245,15 +261,14 @@ describe("uploadTeamLogo", () => {
       expect(result.data.logoUrl).toBe("https://example.com/logo.png");
     }
 
-    expectAuditLog(txInsertValuesCalls, "team.upload_logo", {
+    expectAuditLog(txInsertValuesCalls, "team.logo.update", {
       actorId: USER_ID,
       targetId: TEAM_ID,
       targetType: "team",
-      seasonId: SEASON_ID,
+      seasonId: null,
     });
 
-    expect(revalidateSeasonPathsMock).toHaveBeenCalledWith(SEASON_SLUG, ["teams"]);
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/${SEASON_SLUG}/teams/${TEAM_ID}`);
+    expect(revalidatePathMock).toHaveBeenCalledWith("/teams");
   });
 
   it("season has bracketData → logo upload unaffected", async () => {
@@ -299,7 +314,7 @@ describe("updateTeamName", () => {
   });
 
   it("team not found → fail", async () => {
-    txTeamFindFirstMock.mockResolvedValue(null);
+    teamFindFirstMock.mockResolvedValue(null);
 
     const result = await updateTeamName(TEAM_ID, "Valid Name");
 
@@ -330,20 +345,15 @@ describe("updateTeamName", () => {
     const result = await updateTeamName(TEAM_ID, "  New Name  ");
 
     expect(result.success).toBe(true);
-    expect(txUpdateSetCalls).toContainEqual({ name: "New Name" });
-    expectAuditLog(txInsertValuesCalls, "team.rename", {
+    expect(txUpdateSetCalls).toContainEqual(expect.objectContaining({ name: "New Name" }));
+    expectAuditLog(txInsertValuesCalls, "team.update_profile", {
       actorId: USER_ID,
       targetId: TEAM_ID,
       targetType: "team",
-      seasonId: SEASON_ID,
+      seasonId: null,
     });
 
-    expect(revalidateSeasonPathsMock).toHaveBeenCalledWith(SEASON_SLUG, [
-      "teams",
-      "draft",
-      "draftCaptain",
-    ]);
-    expect(revalidatePathMock).toHaveBeenCalledWith(`/${SEASON_SLUG}/teams/${TEAM_ID}`);
+    expect(revalidatePathMock).toHaveBeenCalledWith("/teams");
   });
 
   it("same name → ok no-op", async () => {
@@ -353,8 +363,7 @@ describe("updateTeamName", () => {
     const result = await updateTeamName(TEAM_ID, "Same Name");
 
     expect(result.success).toBe(true);
-    expect(txUpdateSetCalls).toEqual([]);
-    expect(txInsertValuesCalls).toEqual([]);
+    expect(txUpdateSetCalls).toContainEqual(expect.objectContaining({ name: "Same Name" }));
   });
 
   it("bracketData null → rename ok", async () => {
@@ -364,21 +373,19 @@ describe("updateTeamName", () => {
     const result = await updateTeamName(TEAM_ID, "New Name");
 
     expect(result.success).toBe(true);
-    expect(txUpdateSetCalls).toContainEqual({ name: "New Name" });
+    expect(txUpdateSetCalls).toContainEqual(expect.objectContaining({ name: "New Name" }));
   });
 
-  it("bracketData exists → rename rejected without writes", async () => {
+  it("比赛已开始后仍可更新长期队伍资料", async () => {
     setupTxTeam({ name: "Old Name" });
     setupTxSeason({ bracketData: { participant: [], stage: [] } });
 
     const result = await updateTeamName(TEAM_ID, "New Name");
 
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.code).toBe(ErrorCode.VALIDATION_FAILED);
-      expect(result.error.message).toContain("赛程已生成");
-    }
-    expect(txUpdateSetCalls).toEqual([]);
-    expect(txInsertValuesCalls).toEqual([]);
+    expect(result.success).toBe(true);
+    expect(txUpdateSetCalls).toContainEqual(expect.objectContaining({ name: "New Name" }));
+    expect(txInsertValuesCalls).toEqual(expect.arrayContaining([
+      expect.objectContaining({ action: "team.update_profile" }),
+    ]));
   });
 });

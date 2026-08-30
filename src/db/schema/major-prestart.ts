@@ -11,9 +11,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { seasons } from "./seasons";
-import { teams } from "./teams";
-import { users } from "./users";
-import { educationVerifications } from "./education";
+import { competitionEntries, eventRosters } from "./competition-entries";
 
 export const majorPrestartIssueCategoryEnum = pgEnum("major_prestart_issue_category", [
   "qualification",
@@ -44,27 +42,16 @@ export const majorPrestartStates = pgTable("major_prestart_states", {
 export const majorPrestartEntrants = pgTable("major_prestart_entrants", {
   id: uuid("id").primaryKey().defaultRandom(),
   seasonId: uuid("season_id").notNull().references(() => seasons.id),
-  teamId: uuid("team_id").notNull().references(() => teams.id),
+  competitionEntryId: uuid("competition_entry_id").notNull().references(() => competitionEntries.id),
+  eventRosterId: uuid("event_roster_id").references(() => eventRosters.id),
   rosterConfirmedAt: timestamp("roster_confirmed_at", { withTimezone: true }),
   rosterConfirmedBy: text("roster_confirmed_by"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
-  uniqueSeasonTeam: unique("major_prestart_entrants_season_team_unique").on(t.seasonId, t.teamId),
+  uniqueSeasonEntry: unique("major_prestart_entrants_season_entry_unique").on(t.seasonId, t.competitionEntryId),
+  eventRosterUnique: unique("major_prestart_entrants_event_roster_unique").on(t.eventRosterId),
   seasonIndex: index("major_prestart_entrants_season_idx").on(t.seasonId),
-}));
-
-/** Immutable-after-lock tournament roster snapshot, distinct from match_rosters. */
-export const majorPrestartRosterMembers = pgTable("major_prestart_roster_members", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  entrantId: uuid("entrant_id").notNull().references(() => majorPrestartEntrants.id, { onDelete: "cascade" }),
-  userId: uuid("user_id").notNull().references(() => users.id),
-  /** Authoritative approved verification adopted by this tournament roster. */
-  educationVerificationId: uuid("education_verification_id").references(() => educationVerifications.id),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => ({
-  uniqueEntrantUser: unique("major_prestart_roster_members_entrant_user_unique").on(t.entrantId, t.userId),
-  entrantIndex: index("major_prestart_roster_members_entrant_idx").on(t.entrantId),
 }));
 
 /** Independent Major 1–32 tournament order. It must never reuse teams.draftOrder. */
@@ -98,6 +85,5 @@ export const majorPrestartIssues = pgTable("major_prestart_issues", {
 
 export type MajorPrestartState = typeof majorPrestartStates.$inferSelect;
 export type MajorPrestartEntrant = typeof majorPrestartEntrants.$inferSelect;
-export type MajorPrestartRosterMember = typeof majorPrestartRosterMembers.$inferSelect;
 export type MajorTournamentSeed = typeof majorTournamentSeeds.$inferSelect;
 export type MajorPrestartIssue = typeof majorPrestartIssues.$inferSelect;

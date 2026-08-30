@@ -4,7 +4,7 @@ import { eq, count, or, and, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { UserPlus, Vote, Users, Swords, Shuffle, BarChart3, UserRoundSearch } from "lucide-react";
 import { db } from "@/db/client";
-import { seasons, matches, teams } from "@/db/schema";
+import { seasons, matches, competitionEntries } from "@/db/schema";
 import { formatCSTDateTime } from "@/lib/utils/date";
 import { normalizeStagePlan } from "@/types/season";
 import type { SeasonStatus } from "@/types/season";
@@ -44,8 +44,8 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
   const initializedStages = new Set(matchStageRows.map((r) => r.stage));
 
   // ── 统计数据 + 即将到来的比赛 ────────────────────────────────────────
-  const teamA = alias(teams, "team_a");
-  const teamB = alias(teams, "team_b");
+  const teamA = alias(competitionEntries, "team_a");
+  const teamB = alias(competitionEntries, "team_b");
 
   const upcomingMatchesQuery = season.status === "playing"
     ? db
@@ -58,8 +58,8 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
           teamBName: teamB.name,
         })
         .from(matches)
-        .leftJoin(teamA, eq(matches.teamAId, teamA.id))
-        .leftJoin(teamB, eq(matches.teamBId, teamB.id))
+        .leftJoin(teamA, eq(matches.entryAId, teamA.id))
+        .leftJoin(teamB, eq(matches.entryBId, teamB.id))
         .where(
           and(
             eq(matches.seasonId, season.id),
@@ -72,7 +72,7 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
 
   const [[teamCountRow], participantSummary, [matchCountRow], upcomingMatches, standings] =
     await Promise.all([
-      db.select({ value: count() }).from(teams).where(eq(teams.seasonId, season.id)),
+      db.select({ value: count() }).from(competitionEntries).where(eq(competitionEntries.competitionId, season.id)),
       getParticipantSummary(season),
       db.select({
         total: count(),
@@ -181,7 +181,7 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
       show: season.hasDraft,
     },
     {
-      href: `/${seasonSlug}/teams`,
+      href: `/${seasonSlug}/competitionEntries`,
       label: "队伍阵容",
       description: "查看各队选手分布",
       icon: Users,

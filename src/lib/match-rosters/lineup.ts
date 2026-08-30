@@ -3,7 +3,7 @@ import type { InstitutionAffiliationRule } from "@/types/season";
 /**
  * G1 contract for match starting lineups. A lineup may only ever come from an
  * explicit submit/confirm flow; nothing in this module infers starters from
- * team_members ordering or any other implicit fallback.
+ * mutable membership ordering or any other implicit fallback.
  */
 
 export const STARTER_COUNT = 5;
@@ -16,7 +16,7 @@ export interface LineupVerificationFact {
 
 /** The membership facts that must be resolved before a lineup can be judged. */
 export interface LineupMemberFact {
-  teamMemberId: string;
+  eventRosterMemberId: string;
   userId: string;
   verification: LineupVerificationFact | null;
   /** Set when an active disciplinary sanction blocks this player's participation. */

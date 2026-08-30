@@ -44,9 +44,9 @@ describe("match detail stats", () => {
   it("computes team record from finished scores", () => {
     expect(
       computeRecord("team-a", [
-        { teamAId: "team-a", teamBId: "team-b", scoreA: 13, scoreB: 8 },
-        { teamAId: "team-c", teamBId: "team-a", scoreA: 13, scoreB: 11 },
-        { teamAId: "team-a", teamBId: "team-d", scoreA: null, scoreB: null },
+        { entryAId: "team-a", entryBId: "team-b", scoreA: 13, scoreB: 8 },
+        { entryAId: "team-c", entryBId: "team-a", scoreA: 13, scoreB: 11 },
+        { entryAId: "team-a", entryBId: "team-d", scoreA: null, scoreB: null },
       ]),
     ).toEqual({ wins: 1, losses: 1 });
   });
@@ -75,7 +75,7 @@ describe("match detail stats", () => {
   it("builds roster players from submitted roster member ids", () => {
     expect(
       buildRoster(
-        { players: [{ teamMemberId: "member-1", isStarter: true }] },
+        { players: [{ eventRosterMemberId: "member-1", isStarter: true }] },
         [
           {
             id: "member-1",

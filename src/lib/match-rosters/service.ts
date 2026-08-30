@@ -2,16 +2,15 @@ import { and, eq } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import {
   auditLogs,
+  competitionEntries,
   educationVerifications,
+  eventRosterMembers,
+  eventRosters,
   institutions,
-  majorPrestartEntrants,
-  majorPrestartRosterMembers,
   majorStageRuns,
   matchRosterPlayers,
   matchRosters,
   matches,
-  teamMembers,
-  teams,
   type Match,
 } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -95,36 +94,36 @@ function assertScheduledOrThrow(match: Pick<Match, "status">): void {
 async function loadFrozenRosterUserIdsInTx(
   tx: TxDb,
   seasonId: string,
-  teamId: string,
+  entryId: string,
 ): Promise<{ ids: ReadonlySet<string>; verificationsByUser: Map<string, LineupMemberFact["verification"]> }> {
-  const [entrant] = await tx
-    .select({ id: majorPrestartEntrants.id })
-    .from(majorPrestartEntrants)
-    .where(
-      and(eq(majorPrestartEntrants.seasonId, seasonId), eq(majorPrestartEntrants.teamId, teamId)),
-    );
-  if (!entrant) {
+  const [roster] = await tx
+    .select({ id: eventRosters.id, status: eventRosters.status })
+    .from(eventRosters)
+    .innerJoin(competitionEntries, eq(competitionEntries.id, eventRosters.entryId))
+    .where(and(eq(competitionEntries.competitionId, seasonId), eq(eventRosters.entryId, entryId)));
+  if (!roster || roster.status !== "frozen") {
     throw new AppError(
       ErrorCode.INTERNAL_ERROR,
-      "参赛队缺少官方 entrant 记录，无法校验本届冻结名单。",
+      "CompetitionEntry 缺少 frozen event roster，无法校验本场名单。",
     );
   }
 
   const rows = await tx
     .select({
-      userId: majorPrestartRosterMembers.userId,
+      id: eventRosterMembers.id,
+      userId: eventRosterMembers.userId,
       status: educationVerifications.status,
       institutionCode: institutions.moeInstitutionCode,
       academicStatus: educationVerifications.academicStatus,
     })
-    .from(majorPrestartRosterMembers)
+    .from(eventRosterMembers)
     // The authoritative verification adopted by the frozen tournament roster.
     .innerJoin(
       educationVerifications,
-      eq(educationVerifications.id, majorPrestartRosterMembers.educationVerificationId),
+      eq(educationVerifications.id, eventRosterMembers.educationVerificationId),
     )
     .innerJoin(institutions, eq(institutions.id, educationVerifications.institutionId))
-    .where(eq(majorPrestartRosterMembers.entrantId, entrant.id));
+    .where(eq(eventRosterMembers.eventRosterId, roster.id));
 
   const ids = new Set<string>();
   const verificationsByUser = new Map<string, LineupMemberFact["verification"]>();
@@ -144,13 +143,13 @@ async function loadFrozenRosterUserIdsInTx(
 export async function loadTeamLineupContextInTx(
   tx: TxDb,
   match: Match,
-  teamId: string,
+  entryId: string,
 ): Promise<TeamLineupContext> {
-  const canonicalTeam = await tx
-    .select({ id: teams.id })
-    .from(teams)
-    .where(and(eq(teams.seasonId, match.seasonId), eq(teams.id, teamId)));
-  if (canonicalTeam.length === 0) {
+  const canonicalEntry = await tx
+    .select({ id: competitionEntries.id })
+    .from(competitionEntries)
+    .where(and(eq(competitionEntries.competitionId, match.seasonId), eq(competitionEntries.id, entryId)));
+  if (canonicalEntry.length === 0 || (match.entryAId !== entryId && match.entryBId !== entryId)) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "参赛队伍不属于本场比赛的赛季。");
   }
 
@@ -175,15 +174,16 @@ export async function loadTeamLineupContextInTx(
     rules = frozenStageRunAffiliationRules(stageRun.ruleSnapshot);
     competitiveProfile = frozenCompetitiveProfile(stageRun.ruleSnapshot);
     frozenCompetitiveFactsByUser = competitiveProfile ? frozenCompetitiveFacts(stageRun.ruleSnapshot) : null;
-    const frozen = await loadFrozenRosterUserIdsInTx(tx, match.seasonId, teamId);
+    const frozen = await loadFrozenRosterUserIdsInTx(tx, match.seasonId, entryId);
     frozenRosterUserIds = frozen.ids;
     verificationsByUser = frozen.verificationsByUser;
   }
 
   const memberRows = await tx
-    .select({ id: teamMembers.id, userId: teamMembers.userId })
-    .from(teamMembers)
-    .where(eq(teamMembers.teamId, teamId));
+    .select({ id: eventRosterMembers.id, userId: eventRosterMembers.userId })
+    .from(eventRosterMembers)
+    .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
+    .where(and(eq(eventRosters.entryId, entryId), eq(eventRosters.status, "frozen")));
 
   // H1: active match-participation sanctions apply to every ownership mode.
   const participationBans = await loadActiveSanctionsInTx(tx, {
@@ -195,7 +195,7 @@ export async function loadTeamLineupContextInTx(
   const memberFacts = new Map<string, LineupMemberFact>();
   for (const row of memberRows) {
     memberFacts.set(row.id, {
-      teamMemberId: row.id,
+      eventRosterMemberId: row.id,
       userId: row.userId,
       verification:
         (rules.length > 0 ? verificationsByUser?.get(row.userId) : null) ?? null,
@@ -210,7 +210,7 @@ export async function assertStartingLineupAllowedInTx(
   tx: TxDb,
   args: {
     match: Match;
-    teamId: string;
+    entryId: string;
     starterIds: readonly string[];
     substituteIds?: readonly string[];
   },
@@ -223,9 +223,9 @@ export async function assertStartingLineupAllowedInTx(
 /** Read-only counterpart of the start gate. It deliberately shares every eligibility branch with start. */
 export async function getStartingLineupPreflightInTx(
   tx: TxDb,
-  args: { match: Match; teamId: string; starterIds: readonly string[]; substituteIds?: readonly string[] },
+  args: { match: Match; entryId: string; starterIds: readonly string[]; substituteIds?: readonly string[] },
 ): Promise<{ valid: boolean; blockers: string[]; affiliatedStarterCounts: Map<string, number> }> {
-  const context = await loadTeamLineupContextInTx(tx, args.match, args.teamId);
+  const context = await loadTeamLineupContextInTx(tx, args.match, args.entryId);
   const result = evaluateStartingLineup({
     starterIds: args.starterIds,
     substituteIds: args.substituteIds,
@@ -256,18 +256,18 @@ export async function getStartingLineupPreflightInTx(
 }
 
 function loadPersistedPlayers(
-  players: readonly { teamMemberId: string; isStarter: boolean }[],
+  players: readonly { eventRosterMemberId: string; isStarter: boolean }[],
 ): { starterIds: string[]; substituteIds: string[] } {
   return {
-    starterIds: players.filter((row) => row.isStarter).map((row) => row.teamMemberId),
-    substituteIds: players.filter((row) => !row.isStarter).map((row) => row.teamMemberId),
+    starterIds: players.filter((row) => row.isStarter).map((row) => row.eventRosterMemberId),
+    substituteIds: players.filter((row) => !row.isStarter).map((row) => row.eventRosterMemberId),
   };
 }
 
 export interface PersistedRosterSummary {
   rosterId: string;
   matchId: string;
-  teamId: string;
+  entryId: string;
   starterIds: string[];
   substituteIds: string[];
 }
@@ -280,7 +280,7 @@ export async function persistMatchRosterInTx(
   tx: TxDb,
   args: {
     match: Match;
-    teamId: string;
+    entryId: string;
     submittedBy: string | null;
     source: "participant" | "admin_select";
     starterIds: readonly string[];
@@ -292,7 +292,7 @@ export async function persistMatchRosterInTx(
   const [existing] = await tx
     .select({ id: matchRosters.id })
     .from(matchRosters)
-    .where(and(eq(matchRosters.matchId, args.match.id), eq(matchRosters.teamId, args.teamId)));
+    .where(and(eq(matchRosters.matchId, args.match.id), eq(matchRosters.entryId, args.entryId)));
 
   let rosterId: string;
   if (existing) {
@@ -313,7 +313,7 @@ export async function persistMatchRosterInTx(
       .insert(matchRosters)
       .values({
         matchId: args.match.id,
-        teamId: args.teamId,
+        entryId: args.entryId,
         submittedBy: args.submittedBy,
         source: args.source,
         status: "submitted",
@@ -325,14 +325,14 @@ export async function persistMatchRosterInTx(
   }
 
   await tx.insert(matchRosterPlayers).values([
-    ...args.starterIds.map((id) => ({ rosterId, teamMemberId: id, isStarter: true })),
-    ...substituteIds.map((id) => ({ rosterId, teamMemberId: id, isStarter: false })),
+    ...args.starterIds.map((id) => ({ rosterId, eventRosterMemberId: id, isStarter: true })),
+    ...substituteIds.map((id) => ({ rosterId, eventRosterMemberId: id, isStarter: false })),
   ]);
 
   return {
     rosterId,
     matchId: args.match.id,
-    teamId: args.teamId,
+    entryId: args.entryId,
     starterIds: [...args.starterIds],
     substituteIds: [...substituteIds],
   };
@@ -341,7 +341,7 @@ export async function persistMatchRosterInTx(
 export interface ConfirmRosterOutcome {
   rosterId: string;
   matchId: string;
-  teamId: string;
+  entryId: string;
   starterIds: string[];
   alreadyConfirmed: boolean;
 }
@@ -361,7 +361,7 @@ export async function confirmMatchRosterInTx(
   assertScheduledOrThrow(match);
 
   const players = await tx
-    .select({ teamMemberId: matchRosterPlayers.teamMemberId, isStarter: matchRosterPlayers.isStarter })
+    .select({ eventRosterMemberId: matchRosterPlayers.eventRosterMemberId, isStarter: matchRosterPlayers.isStarter })
     .from(matchRosterPlayers)
     .where(eq(matchRosterPlayers.rosterId, roster.id));
   if (players.length === 0) {
@@ -371,13 +371,13 @@ export async function confirmMatchRosterInTx(
 
   if (roster.status === "confirmed") {
     // Idempotent re-confirm: state unchanged, no duplicate audit event.
-    return { rosterId: roster.id, matchId: match.id, teamId: roster.teamId, starterIds, alreadyConfirmed: true };
+    return { rosterId: roster.id, matchId: match.id, entryId: roster.entryId, starterIds, alreadyConfirmed: true };
   }
 
   // Re-validate against fresh facts; confirmation is an eligibility decision.
   await assertStartingLineupAllowedInTx(tx, {
     match,
-    teamId: roster.teamId,
+    entryId: roster.entryId,
     starterIds,
     substituteIds,
   });
@@ -394,10 +394,10 @@ export async function confirmMatchRosterInTx(
     actorId: args.actorId,
     targetId: roster.id,
     targetType: "match_roster",
-    meta: { matchId: match.id, teamId: roster.teamId, starterIds, substituteIds },
+    meta: { matchId: match.id, entryId: roster.entryId, starterIds, substituteIds },
   });
 
-  return { rosterId: roster.id, matchId: match.id, teamId: roster.teamId, starterIds, alreadyConfirmed: false };
+  return { rosterId: roster.id, matchId: match.id, entryId: roster.entryId, starterIds, alreadyConfirmed: false };
 }
 
 export interface StartLineupSummary extends PersistedRosterSummary {
@@ -444,7 +444,7 @@ export async function applyMatchStatusTransitionInTx(
       ...(lineups
         ? {
             lineups: lineups.map((summary) => ({
-              teamId: summary.teamId,
+              entryId: summary.entryId,
               rosterId: summary.rosterId,
               starterIds: summary.starterIds,
               substituteIds: summary.substituteIds,
@@ -460,7 +460,7 @@ export async function applyMatchStatusTransitionInTx(
 /**
  * Start gate: both canonical teams must hold an already-confirmed lineup that
  * still validates against freshly loaded facts. There is no fallback path here
- * by design — nothing infers starters from team_members ordering.
+ * by design — nothing infers starters from membership ordering.
  */
 export async function assertConfirmedLineupsForStartInTx(
   tx: TxDb,
@@ -470,11 +470,11 @@ export async function assertConfirmedLineupsForStartInTx(
     .select()
     .from(matchRosters)
     .where(eq(matchRosters.matchId, match.id));
-  const rosterByTeam = new Map(rosters.map((row) => [row.teamId, row]));
+  const rosterByEntry = new Map(rosters.map((row) => [row.entryId, row]));
 
   const summaries: StartLineupSummary[] = [];
-  for (const teamId of [match.teamAId, match.teamBId]) {
-    const roster = rosterByTeam.get(teamId);
+  for (const entryId of [match.entryAId, match.entryBId]) {
+    const roster = rosterByEntry.get(entryId);
     if (!roster) {
       throw new AppError(
         ErrorCode.VALIDATION_FAILED,
@@ -489,13 +489,13 @@ export async function assertConfirmedLineupsForStartInTx(
     }
 
     const players = await tx
-      .select({ teamMemberId: matchRosterPlayers.teamMemberId, isStarter: matchRosterPlayers.isStarter })
+      .select({ eventRosterMemberId: matchRosterPlayers.eventRosterMemberId, isStarter: matchRosterPlayers.isStarter })
       .from(matchRosterPlayers)
       .where(eq(matchRosterPlayers.rosterId, roster.id));
     const { starterIds, substituteIds } = loadPersistedPlayers(players);
 
-    await assertStartingLineupAllowedInTx(tx, { match, teamId, starterIds, substituteIds });
-    summaries.push({ rosterId: roster.id, matchId: match.id, teamId, starterIds, substituteIds, status: "confirmed" });
+    await assertStartingLineupAllowedInTx(tx, { match, entryId, starterIds, substituteIds });
+    summaries.push({ rosterId: roster.id, matchId: match.id, entryId, starterIds, substituteIds, status: "confirmed" });
   }
   return summaries;
 }

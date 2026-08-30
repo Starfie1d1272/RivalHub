@@ -223,9 +223,9 @@ export function loadFrozenRunFacts(
   };
 }
 
-export function resolveWinnerTeamId(match: Pick<Match, "teamAId" | "teamBId" | "scoreA" | "scoreB">): string | null {
+export function resolveWinnerTeamId(match: Pick<Match, "entryAId" | "entryBId" | "scoreA" | "scoreB">): string | null {
   if (match.scoreA === null || match.scoreB === null || match.scoreA === match.scoreB) return null;
-  return match.scoreA > match.scoreB ? match.teamAId : match.teamBId;
+  return match.scoreA > match.scoreB ? match.entryAId : match.entryBId;
 }
 
 const FORFEIT_WINNER_SCORE: Record<"bo1" | "bo3" | "bo5", number> = {
@@ -239,7 +239,7 @@ const FORFEIT_WINNER_SCORE: Record<"bo1" | "bo3" | "bo5", number> = {
  * forfeit result in the canonical forfeit shape (loser keeps 0).
  */
 export function validateResultCorrectionProposal(
-  match: Pick<Match, "format" | "isForfeit"> & { teamAId: string; teamBId: string },
+  match: Pick<Match, "format" | "isForfeit"> & { entryAId: string; entryBId: string },
   proposal: ResultCorrectionProposal,
 ): { winnerTeamId: string; isForfeit: boolean } {
   const { scoreA, scoreB } = proposal;
@@ -269,7 +269,7 @@ export function validateResultCorrectionProposal(
         : new AppError(ErrorCode.MATCH_INVALID_SCORE, "提议比分不合法。");
     }
   }
-  return { winnerTeamId: scoreA > scoreB ? match.teamAId : match.teamBId, isForfeit };
+  return { winnerTeamId: scoreA > scoreB ? match.entryAId : match.entryBId, isForfeit };
 }
 
 /**

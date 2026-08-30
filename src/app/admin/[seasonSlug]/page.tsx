@@ -7,7 +7,11 @@ import { db } from "@/db/client";
 import {
   majorPrestartEntrants,
   majorPrestartIssues,
-  majorPrestartRosterMembers,
+  competitionEntries,
+  competitionEntryRosterMembers,
+  competitionEntryRosterRevisions,
+  eventRosterMembers,
+  eventRosters,
   majorPrestartStates,
   majorFinalResults,
   majorStageRuns,
@@ -16,9 +20,6 @@ import {
   majorTournamentSeeds,
   postEventAdjudications,
   seasons,
-  teamMembers,
-  teamApplications,
-  teams,
   tournamentHonors,
   users,
 } from "@/db/schema";
@@ -38,13 +39,13 @@ interface AdminMajorConsolePageProps {
   params: Promise<{ seasonSlug: string }>;
 }
 
-function placementGroupsForAdmin(value: unknown): Array<{ from: number; to: number; teamIds: string[] }> {
+function placementGroupsForAdmin(value: unknown): Array<{ from: number; to: number; entryIds: string[] }> {
   if (!Array.isArray(value)) return [];
   return value.flatMap((group) => {
     if (!group || typeof group !== "object") return [];
-    const candidate = group as { from?: unknown; to?: unknown; teamIds?: unknown };
-    if (!Number.isInteger(candidate.from) || !Number.isInteger(candidate.to) || !Array.isArray(candidate.teamIds) || !candidate.teamIds.every((id) => typeof id === "string")) return [];
-    return [{ from: candidate.from as number, to: candidate.to as number, teamIds: candidate.teamIds as string[] }];
+    const candidate = group as { from?: unknown; to?: unknown; entryIds?: unknown };
+    if (!Number.isInteger(candidate.from) || !Number.isInteger(candidate.to) || !Array.isArray(candidate.entryIds) || !candidate.entryIds.every((id) => typeof id === "string")) return [];
+    return [{ from: candidate.from as number, to: candidate.to as number, entryIds: candidate.entryIds as string[] }];
   });
 }
 
@@ -55,17 +56,17 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
   });
   if (!season) notFound();
 
-  const seasonTeams = await db.query.teams.findMany({
-    where: eq(teams.seasonId, season.id),
-    orderBy: [asc(teams.createdAt)],
+  const seasonTeams = await db.query.competitionEntries.findMany({
+    where: eq(competitionEntries.competitionId, season.id),
+    orderBy: [asc(competitionEntries.createdAt)],
     columns: { id: true, name: true },
   });
   const teamIds = seasonTeams.map((team) => team.id);
   const formalMembers = teamIds.length === 0 ? [] : await db
-    .select({ teamId: teamMembers.teamId, userId: teamMembers.userId, email: users.email })
-    .from(teamMembers)
-    .innerJoin(users, eq(teamMembers.userId, users.id))
-    .where(eq(teamMembers.seasonId, season.id));
+    .select({ teamId: competitionEntryRosterRevisions.entryId, userId: competitionEntryRosterMembers.userId, email: users.email })
+    .from(competitionEntryRosterMembers)
+    .innerJoin(competitionEntryRosterRevisions, eq(competitionEntryRosterMembers.revisionId, competitionEntryRosterRevisions.id))
+    .innerJoin(users, eq(competitionEntryRosterMembers.userId, users.id));
   const candidatesByTeam = new Map<string, Array<{ userId: string; email: string }>>();
   for (const member of formalMembers) {
     const candidates = candidatesByTeam.get(member.teamId) ?? [];
@@ -77,20 +78,25 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
     db.query.majorPrestartStates.findFirst({ where: eq(majorPrestartStates.seasonId, season.id) }),
     db.select({
       id: majorPrestartEntrants.id,
-      teamId: majorPrestartEntrants.teamId,
-      teamName: teams.name,
+      teamId: majorPrestartEntrants.competitionEntryId,
+      eventRosterId: majorPrestartEntrants.eventRosterId,
+      teamName: competitionEntries.name,
       rosterConfirmedAt: majorPrestartEntrants.rosterConfirmedAt,
+      rosterStatus: eventRosters.status,
     }).from(majorPrestartEntrants)
-      .innerJoin(teams, eq(majorPrestartEntrants.teamId, teams.id))
+      .innerJoin(competitionEntries, eq(majorPrestartEntrants.competitionEntryId, competitionEntries.id))
+      .innerJoin(eventRosters, eq(majorPrestartEntrants.eventRosterId, eventRosters.id))
       .where(eq(majorPrestartEntrants.seasonId, season.id))
-      .orderBy(asc(teams.name)),
-    db.select({ entrantId: majorPrestartRosterMembers.entrantId, userId: majorPrestartRosterMembers.userId, email: users.email, educationVerificationId: majorPrestartRosterMembers.educationVerificationId })
-      .from(majorPrestartRosterMembers)
-      .innerJoin(users, eq(majorPrestartRosterMembers.userId, users.id)),
+      .orderBy(asc(competitionEntries.name)),
+    db.select({ entrantId: majorPrestartEntrants.id, userId: eventRosterMembers.userId, email: users.email, educationVerificationId: eventRosterMembers.educationVerificationId })
+      .from(eventRosterMembers)
+      .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
+      .innerJoin(majorPrestartEntrants, eq(majorPrestartEntrants.eventRosterId, eventRosters.id))
+      .innerJoin(users, eq(eventRosterMembers.userId, users.id)),
     db.select().from(majorPrestartIssues)
       .where(eq(majorPrestartIssues.seasonId, season.id))
       .orderBy(asc(majorPrestartIssues.createdAt)),
-    db.select({ teamId: majorPrestartEntrants.teamId, tournamentSeed: majorTournamentSeeds.tournamentSeed })
+    db.select({ teamId: majorPrestartEntrants.competitionEntryId, tournamentSeed: majorTournamentSeeds.tournamentSeed })
       .from(majorTournamentSeeds)
       .innerJoin(majorPrestartEntrants, eq(majorTournamentSeeds.entrantId, majorPrestartEntrants.id))
       .where(eq(majorTournamentSeeds.seasonId, season.id))
@@ -102,12 +108,12 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
       .innerJoin(majorStageRuns, eq(matches.majorStageRunId, majorStageRuns.id))
       .where(and(eq(majorStageRuns.seasonId, season.id), eq(matches.ownership, "major_stage"))),
     db.query.majorFinalResults.findFirst({ where: eq(majorFinalResults.seasonId, season.id) }),
-    db.select({ id: tournamentHonors.id, honorKey: tournamentHonors.honorKey, type: tournamentHonors.type, label: tournamentHonors.label, state: tournamentHonors.state, teamId: tournamentHonors.teamId, userId: tournamentHonors.userId, placementFrom: tournamentHonors.placementFrom, placementTo: tournamentHonors.placementTo })
+    db.select({ id: tournamentHonors.id, honorKey: tournamentHonors.honorKey, type: tournamentHonors.type, label: tournamentHonors.label, state: tournamentHonors.state, entryId: tournamentHonors.entryId, userId: tournamentHonors.userId, placementFrom: tournamentHonors.placementFrom, placementTo: tournamentHonors.placementTo })
       .from(tournamentHonors).where(eq(tournamentHonors.seasonId, season.id)).orderBy(asc(tournamentHonors.createdAt)),
-    db.select({ id: postEventAdjudications.id, status: postEventAdjudications.status, kind: postEventAdjudications.kind, target: postEventAdjudications.target, impacts: postEventAdjudications.impacts, targetTeamId: postEventAdjudications.targetTeamId, targetUserId: postEventAdjudications.targetUserId, targetMatchId: postEventAdjudications.targetMatchId, reason: postEventAdjudications.reason, explanation: postEventAdjudications.publicExplanation, createdAt: postEventAdjudications.createdAt })
+    db.select({ id: postEventAdjudications.id, status: postEventAdjudications.status, kind: postEventAdjudications.kind, target: postEventAdjudications.target, impacts: postEventAdjudications.impacts, targetEntryId: postEventAdjudications.targetEntryId, targetUserId: postEventAdjudications.targetUserId, targetMatchId: postEventAdjudications.targetMatchId, reason: postEventAdjudications.reason, explanation: postEventAdjudications.publicExplanation, createdAt: postEventAdjudications.createdAt })
       .from(postEventAdjudications).where(eq(postEventAdjudications.seasonId, season.id)).orderBy(asc(postEventAdjudications.createdAt)),
-    db.select({ id: teamApplications.id }).from(teamApplications)
-      .where(and(eq(teamApplications.seasonId, season.id), eq(teamApplications.status, "submitted"))),
+    db.select({ id: competitionEntries.id }).from(competitionEntries)
+      .where(and(eq(competitionEntries.competitionId, season.id), eq(competitionEntries.registrationStatus, "submitted"))),
     db.select({ matchId: matchRosters.matchId, status: matchRosters.status })
       .from(matchRosters)
       .innerJoin(matches, eq(matchRosters.matchId, matches.id))
@@ -260,7 +266,7 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
       finalResult: finalResult ? {
         id: finalResult.id,
         status: finalResult.status,
-        championTeamId: finalResult.championTeamId,
+        championEntryId: finalResult.championEntryId,
         placementGroups: placementGroupsForAdmin(finalResult.placementGroups),
       } : null,
       teams: seasonTeams,

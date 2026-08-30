@@ -2,7 +2,7 @@ import { pgTable, uuid, integer, text, timestamp, pgEnum, check, boolean, unique
 import { sql } from "drizzle-orm";
 import { majorStageRuns } from "./major-stage";
 import { seasons } from "./seasons";
-import { teams } from "./teams";
+import { competitionEntries } from "./competition-entries";
 
 export const matchStatusEnum = pgEnum("match_status", [
   "scheduled",
@@ -18,8 +18,8 @@ export const matchOwnershipEnum = pgEnum("match_ownership", ["manual", "major_st
 export const matches = pgTable("matches", {
   id: uuid("id").primaryKey().defaultRandom(),
   seasonId: uuid("season_id").notNull().references(() => seasons.id),
-  teamAId: uuid("team_a_id").notNull().references(() => teams.id),
-  teamBId: uuid("team_b_id").notNull().references(() => teams.id),
+  entryAId: uuid("entry_a_id").notNull().references(() => competitionEntries.id),
+  entryBId: uuid("entry_b_id").notNull().references(() => competitionEntries.id),
 
   // ── 比赛元数据 ────────────────────────────────────────────────────────
   stage: text("stage").notNull(),                                        // StageConfig.key
@@ -49,7 +49,7 @@ export const matches = pgTable("matches", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   // 双方不能是同一支队
-  teamsAreDifferent: check("matches_teams_different", sql`${t.teamAId} != ${t.teamBId}`),
+  entriesAreDifferent: check("matches_entries_different", sql`${t.entryAId} != ${t.entryBId}`),
   // 系列赛比分非负
   scoreANonNegative: check("matches_score_a_nonneg", sql`${t.scoreA} IS NULL OR ${t.scoreA} >= 0`),
   scoreBNonNegative: check("matches_score_b_nonneg", sql`${t.scoreB} IS NULL OR ${t.scoreB} >= 0`),
@@ -62,8 +62,8 @@ export const matches = pgTable("matches", {
     .on(t.majorStageRunId, t.managedKey)
     .where(sql`${t.ownership} = 'major_stage'`),
   seasonStatusScheduleIndex: index("matches_season_status_scheduled_at_idx").on(t.seasonId, t.status, t.scheduledAt),
-  teamAIndex: index("matches_team_a_id_idx").on(t.teamAId),
-  teamBIndex: index("matches_team_b_id_idx").on(t.teamBId),
+  entryAIndex: index("matches_entry_a_id_idx").on(t.entryAId),
+  entryBIndex: index("matches_entry_b_id_idx").on(t.entryBId),
 }));
 
 export type Match = typeof matches.$inferSelect;

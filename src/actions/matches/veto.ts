@@ -13,16 +13,16 @@ import type { VetoActionType } from "@/types/match";
 import { lockMatchInTx } from "@/lib/match-rosters/service";
 import { assertVetoSequence } from "@/lib/matches/veto-sequence";
 
-function resolveTeamASide(selectedSide: string, selectingTeamId: string | null, teamAId: string): "t" | "ct" | null {
-  if (!selectedSide || !selectingTeamId) return null;
-  if (selectingTeamId === teamAId) return selectedSide as "t" | "ct";
+function resolveEntryASide(selectedSide: string, selectingEntryId: string | null, entryAId: string): "t" | "ct" | null {
+  if (!selectedSide || !selectingEntryId) return null;
+  if (selectingEntryId === entryAId) return selectedSide as "t" | "ct";
   return selectedSide === "t" ? "ct" : "t";
 }
 
 export interface VetoStepInput {
   actionType: VetoActionType;
   mapName: string;
-  teamId: string | null;
+  entryId: string | null;
   side?: "t" | "ct" | null;
 }
 
@@ -51,10 +51,10 @@ export async function saveVetoSteps(
     if (steps.some((s) => !s.mapName.trim())) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "所有步骤必须指定地图");
     }
-    if (steps.some((s) => s.actionType !== "decider" && !s.teamId)) {
+    if (steps.some((s) => s.actionType !== "decider" && !s.entryId)) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "非 decider 步骤必须指定操作队伍");
     }
-    if (steps.some((s) => s.actionType === "decider" && s.side && !s.teamId)) {
+    if (steps.some((s) => s.actionType === "decider" && s.side && !s.entryId)) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "decider 指定了选边时必须指定选边队伍");
     }
     const mapNames = steps.map((s) => s.mapName);
@@ -77,7 +77,7 @@ export async function saveVetoSteps(
       if (!(allowedLockedStatuses as readonly string[]).includes(locked.status)) {
         throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "当前比赛状态不允许录入 BP");
       }
-      assertVetoSequence(locked.format, steps, locked.teamAId, locked.teamBId);
+      assertVetoSequence(locked.format, steps, locked.entryAId, locked.entryBId);
       // 清除旧 BP 记录（支持重复录入）
       await tx.delete(matchVetoSteps).where(eq(matchVetoSteps.matchId, matchId));
 
@@ -88,7 +88,7 @@ export async function saveVetoSteps(
           stepOrder: i + 1,
           actionType: s.actionType,
           mapName: s.mapName,
-          teamId: s.teamId,
+          entryId: s.entryId,
           side: s.side ?? null,
         })),
       );
@@ -105,13 +105,13 @@ export async function saveVetoSteps(
               matchId,
               mapOrder: i + 1,
               mapName: s.mapName,
-              pickedByTeamId: s.actionType === "pick" ? s.teamId : null,
-              teamAStartSide: resolveTeamASide(
+              pickedByEntryId: s.actionType === "pick" ? s.entryId : null,
+              teamAStartSide: resolveEntryASide(
                 s.side ?? "",
                 s.actionType === "pick"
-                  ? (s.teamId === locked.teamAId ? locked.teamBId : locked.teamAId)
-                  : s.teamId,
-                locked.teamAId,
+                  ? (s.entryId === locked.entryAId ? locked.entryBId : locked.entryAId)
+                  : s.entryId,
+                locked.entryAId,
               ),
             })),
           );
@@ -134,13 +134,13 @@ export async function saveVetoSteps(
               matchId,
               mapOrder: i + 1,
               mapName: s.mapName,
-              pickedByTeamId: s.actionType === "pick" ? s.teamId : null,
-              teamAStartSide: resolveTeamASide(
+              pickedByEntryId: s.actionType === "pick" ? s.entryId : null,
+              teamAStartSide: resolveEntryASide(
                 s.side ?? "",
                 s.actionType === "pick"
-                  ? (s.teamId === locked.teamAId ? locked.teamBId : locked.teamAId)
-                  : s.teamId,
-                locked.teamAId,
+                  ? (s.entryId === locked.entryAId ? locked.entryBId : locked.entryAId)
+                  : s.entryId,
+                locked.entryAId,
               ),
             })),
           );

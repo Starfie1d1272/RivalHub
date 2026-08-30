@@ -25,13 +25,13 @@ describe("0012 competitive profile migration", () => {
       readFileSync(join(process.cwd(), "drizzle/migrations/meta/_journal.json"), "utf8"),
     ) as { entries: Array<{ idx: number; tag: string }> };
 
-    // The active chain ends at the 2.0 convergence migration; the 0012 entry
-    // this file targets must still be part of it.
+    // The active chain can grow; the 0012 entry this file targets must still
+    // be part of it and the journal must remain contiguous.
     expect(journal.entries.map(({ tag }) => tag)).toContain("0012_dapper_devos");
     expect(journal.entries.at(-1)).toMatchObject({
-      idx: 16,
+      idx: 17,
       version: "7",
-      tag: "0016_productive_white_tiger",
+      tag: "0017_broad_doctor_octopus",
       breakpoints: true,
     });
   });

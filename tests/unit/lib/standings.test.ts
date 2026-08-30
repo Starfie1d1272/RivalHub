@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { calculateStandings } from "@/lib/standings";
-import type { Team } from "@/db/schema/teams";
+import type { CompetitionEntry } from "@/db/schema/competition-entries";
 import type { Match } from "@/db/schema/matches";
 
-function makeTeam(id: string, name: string, draftOrder: number): Team {
-  return { id, name, seasonId: "s1", draftOrder } as Team;
+function makeTeam(id: string, name: string, draftOrder: number): CompetitionEntry {
+  return { id, name, competitionId: "s1", formationOrder: draftOrder } as unknown as CompetitionEntry;
 }
 
 function fm(overrides: Record<string, unknown> = {}): Match {
@@ -14,8 +14,8 @@ function fm(overrides: Record<string, unknown> = {}): Match {
     seasonId: "s1",
     stage: "qualifier",
     status: "finished",
-    teamAId: "t1",
-    teamBId: "t2",
+    entryAId: "t1",
+    entryBId: "t2",
     scoreA: 13,
     scoreB: 8,
     format: "bo1",
@@ -44,7 +44,7 @@ describe("calculateStandings", () => {
 
   it("单场胜负正确统计 wins/losses/netRounds/totalRoundsWon", () => {
     const finishedMatches = [
-      fm({ teamAId: "t1", teamBId: "t2", scoreA: 13, scoreB: 8 }),
+      fm({ entryAId: "t1", entryBId: "t2", scoreA: 13, scoreB: 8 }),
     ];
     const teams = [makeTeam("t1", "A队", 1), makeTeam("t2", "B队", 2)];
     const standings = calculateStandings(teams, finishedMatches);
@@ -64,9 +64,9 @@ describe("calculateStandings", () => {
   it("胜场优先于净胜回合排序", () => {
     // t1 2-0, t2 1-1, t3 0-2
     const finishedMatches = [
-      fm({ teamAId: "t1", teamBId: "t2", scoreA: 13, scoreB: 11 }),
-      fm({ teamAId: "t1", teamBId: "t3", scoreA: 13, scoreB: 11 }),
-      fm({ teamAId: "t2", teamBId: "t3", scoreA: 16, scoreB: 1 }),
+      fm({ entryAId: "t1", entryBId: "t2", scoreA: 13, scoreB: 11 }),
+      fm({ entryAId: "t1", entryBId: "t3", scoreA: 13, scoreB: 11 }),
+      fm({ entryAId: "t2", entryBId: "t3", scoreA: 16, scoreB: 1 }),
     ];
     const teams = [
       makeTeam("t1", "A队", 1),
@@ -83,8 +83,8 @@ describe("calculateStandings", () => {
   it("同胜场同净胜时按总胜回合排序", () => {
     // 两队都只打了一场，都是 1-0 +5 净胜，但 t1 16 回合胜 > t3 13 回合胜
     const finishedMatches = [
-      fm({ teamAId: "t1", teamBId: "t2", scoreA: 16, scoreB: 3 }),
-      fm({ teamAId: "t3", teamBId: "t4", scoreA: 13, scoreB: 8 }),
+      fm({ entryAId: "t1", entryBId: "t2", scoreA: 16, scoreB: 3 }),
+      fm({ entryAId: "t3", entryBId: "t4", scoreA: 13, scoreB: 8 }),
     ];
     const teams = [
       makeTeam("t1", "A队", 1),
@@ -103,9 +103,9 @@ describe("calculateStandings", () => {
   it("相互战绩打破平局", () => {
     // t1 和 t2 都是 1-1，但 t1 赢了 t2
     const finishedMatches = [
-      fm({ teamAId: "t1", teamBId: "t2", scoreA: 13, scoreB: 11 }), // t1 wins h2h
-      fm({ teamAId: "t1", teamBId: "t3", scoreA: 8, scoreB: 13 }),  // t1 loses
-      fm({ teamAId: "t2", teamBId: "t3", scoreA: 13, scoreB: 8 }),  // t2 wins
+      fm({ entryAId: "t1", entryBId: "t2", scoreA: 13, scoreB: 11 }), // t1 wins h2h
+      fm({ entryAId: "t1", entryBId: "t3", scoreA: 8, scoreB: 13 }),  // t1 loses
+      fm({ entryAId: "t2", entryBId: "t3", scoreA: 13, scoreB: 8 }),  // t2 wins
     ];
     const teams = [
       makeTeam("t1", "A队", 1),

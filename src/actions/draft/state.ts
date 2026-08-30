@@ -4,7 +4,7 @@ import { and, asc, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   seasons,
-  teams,
+  competitionEntries,
   draftState,
   auditLogs,
 } from "@/db/schema";
@@ -69,10 +69,10 @@ export async function startDraft(
       }
 
       const seasonTeams = await tx
-        .select({ id: teams.id, draftOrder: sql<number>`${teams.draftOrder}`.as("draft_order") })
-        .from(teams)
-        .where(and(eq(teams.seasonId, seasonId), isNotNull(teams.draftOrder)))
-        .orderBy(asc(teams.draftOrder));
+        .select({ id: competitionEntries.id, draftOrder: sql<number>`${competitionEntries.formationOrder}`.as("draft_order") })
+        .from(competitionEntries)
+        .where(and(eq(competitionEntries.competitionId, seasonId), isNotNull(competitionEntries.formationOrder)))
+        .orderBy(asc(competitionEntries.formationOrder));
 
       if (seasonTeams.length === 0) {
         throw new AppError(
@@ -94,7 +94,7 @@ export async function startDraft(
       }
 
       const order = getSnakeOrder(seasonTeams, 1);
-      const firstTeamId = order[0].id;
+      const firstEntryId = order[0].id;
       const deadline = new Date(Date.now() + DRAFT_ROUND_TIMEOUT_SECONDS * 1000);
 
       const [draft] = await tx
@@ -102,7 +102,7 @@ export async function startDraft(
         .values({
           seasonId,
           currentRound: 1,
-          currentTeamId: firstTeamId,
+          currentEntryId: firstEntryId,
           roundDeadline: deadline,
           isActive: true,
         })
@@ -114,7 +114,7 @@ export async function startDraft(
         actorId: auditActorId(admin),
         targetId: seasonId,
         targetType: "season",
-        meta: { firstTeamId, roundDeadline: deadline.toISOString(), actorEmail: admin.email },
+        meta: { firstEntryId, roundDeadline: deadline.toISOString(), actorEmail: admin.email },
       });
 
       return { draftStateId: draft.id, slug: season.slug };
@@ -199,7 +199,7 @@ export async function resumeDraft(
       if (ds.isActive) {
         throw new AppError(ErrorCode.DRAFT_NOT_ACTIVE, "选秀已在进行中");
       }
-      if (!ds.currentTeamId) {
+      if (!ds.currentEntryId) {
         throw new AppError(ErrorCode.DRAFT_NOT_ACTIVE, "选秀状态异常");
       }
 

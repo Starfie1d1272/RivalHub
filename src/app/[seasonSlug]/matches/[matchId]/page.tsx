@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { eq, and, inArray, isNotNull } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, matches, teams, matchMaps, users, seasonRegistrations, teamMembers } from "@/db/schema";
+import { seasons, matches, competitionEntries, eventRosters, eventRosterMembers, matchMaps, users, seasonRegistrations } from "@/db/schema";
 import { matchPlayerStats } from "@/db/schema/player-stats";
 import { matchMvpVotes } from "@/db/schema/mvp-votes";
 import { MatchMvpVote } from "@/components/matches/MatchMvpVote";
@@ -62,8 +62,8 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   const mapPool = normalizeRegistrationConfig(season.registrationConfig).mapPool;
 
   const [teamA, teamB, maps] = await Promise.all([
-    db.query.teams.findFirst({ where: eq(teams.id, match.teamAId) }),
-    db.query.teams.findFirst({ where: eq(teams.id, match.teamBId) }),
+    db.query.competitionEntries.findFirst({ where: eq(competitionEntries.id, match.entryAId) }),
+    db.query.competitionEntries.findFirst({ where: eq(competitionEntries.id, match.entryBId) }),
     db.query.matchMaps.findMany({
       where: eq(matchMaps.matchId, matchId),
       orderBy: (t, { asc }) => [asc(t.mapOrder)],
@@ -75,25 +75,32 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   // Phase 3: 所有独立查询并行
   const [rosterA, rosterB, userSession, allTeamMemberRows, seasonMatchesA, seasonMatchesB, seasonHexagonScores] =
     await Promise.all([
-      getMatchRoster(match.id, match.teamAId),
-      getMatchRoster(match.id, match.teamBId),
+      getMatchRoster(match.id, match.entryAId),
+      getMatchRoster(match.id, match.entryBId),
       getUserSession(),
       db
         .select({
-          id: teamMembers.id,
-          teamId: teamMembers.teamId,
+          id: eventRosterMembers.id,
+          teamId: eventRosters.entryId,
           steamName: users.steamName,
           displayName: users.displayName,
           perfectName: users.perfectName,
           primaryPosition: seasonRegistrations.primaryPosition,
           userId: users.id,
         })
-        .from(teamMembers)
-        .innerJoin(users, eq(teamMembers.userId, users.id))
-        .leftJoin(seasonRegistrations, eq(teamMembers.registrationId, seasonRegistrations.id))
-        .where(inArray(teamMembers.teamId, [match.teamAId, match.teamBId])),
-      getSeasonFinishedMatches(season.id, match.teamAId),
-      getSeasonFinishedMatches(season.id, match.teamBId),
+        .from(eventRosterMembers)
+        .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
+        .innerJoin(users, eq(eventRosterMembers.userId, users.id))
+        .leftJoin(
+          seasonRegistrations,
+          and(
+            eq(seasonRegistrations.userId, eventRosterMembers.userId),
+            eq(seasonRegistrations.seasonId, season.id),
+          ),
+        )
+        .where(inArray(eventRosters.entryId, [match.entryAId, match.entryBId])),
+      getSeasonFinishedMatches(season.id, match.entryAId),
+      getSeasonFinishedMatches(season.id, match.entryBId),
       getSeasonHexagonScores(season.id),
     ]);
   const timeProposals = await getMatchTimeProposalViews(match.id, userSession?.userId);
@@ -104,15 +111,15 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   }));
 
   // 从赛季对局列表计算战绩、H2H
-  const recordA = computeRecord(match.teamAId, seasonMatchesA);
-  const recordB = computeRecord(match.teamBId, seasonMatchesB);
+  const recordA = computeRecord(match.entryAId, seasonMatchesA);
+  const recordB = computeRecord(match.entryBId, seasonMatchesB);
 
   const matchIdsA = seasonMatchesA.map((m) => m.id);
   const matchIdsB = seasonMatchesB.map((m) => m.id);
 
   // H2H：teamA 的赛季对局中与 teamB 的交手记录
   const h2hRaw = seasonMatchesA
-    .filter((m) => m.teamAId === match.teamBId || m.teamBId === match.teamBId)
+    .filter((m) => m.entryAId === match.entryBId || m.entryBId === match.entryBId)
     .sort((a, b) => {
       const ta = (a.completedAt ?? a.scheduledAt)?.getTime() ?? 0;
       const tb = (b.completedAt ?? b.scheduledAt)?.getTime() ?? 0;
@@ -120,7 +127,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
     });
 
   const h2hMatches = h2hRaw.slice(0, 10).map((m) => {
-    const aIsTeamA = m.teamAId === match.teamAId;
+    const aIsTeamA = m.entryAId === match.entryAId;
     const scoreA = aIsTeamA ? (m.scoreA ?? 0) : (m.scoreB ?? 0);
     const scoreB = aIsTeamA ? (m.scoreB ?? 0) : (m.scoreA ?? 0);
     return {
@@ -140,10 +147,10 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
 
   // 建立 userId 集合
   const teamAUserIds = allTeamMembers
-    .filter((m) => m.teamId === match.teamAId && m.userId)
+    .filter((m) => m.teamId === match.entryAId && m.userId)
     .map((m) => m.userId as string);
   const teamBUserIds = allTeamMembers
-    .filter((m) => m.teamId === match.teamBId && m.userId)
+    .filter((m) => m.teamId === match.entryBId && m.userId)
     .map((m) => m.userId as string);
   const userIdToTeamId = new Map<string, string>(
     allTeamMembers.filter((m) => m.userId).map((m) => [m.userId as string, m.teamId]),
@@ -154,16 +161,16 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
 
   // 首发阵容 userId（来自已提交名单）
   const starterAMemberIds = new Set(
-    rosterA ? rosterA.players.filter((p) => p.isStarter).map((p) => p.teamMemberId) : [],
+    rosterA ? rosterA.players.filter((p) => p.isStarter).map((p) => p.eventRosterMemberId) : [],
   );
   const starterBMemberIds = new Set(
-    rosterB ? rosterB.players.filter((p) => p.isStarter).map((p) => p.teamMemberId) : [],
+    rosterB ? rosterB.players.filter((p) => p.isStarter).map((p) => p.eventRosterMemberId) : [],
   );
   const starterAUserIds = allTeamMembers
-    .filter((m) => m.teamId === match.teamAId && starterAMemberIds.has(m.id) && m.userId)
+    .filter((m) => m.teamId === match.entryAId && starterAMemberIds.has(m.id) && m.userId)
     .map((m) => m.userId as string);
   const starterBUserIds = allTeamMembers
-    .filter((m) => m.teamId === match.teamBId && starterBMemberIds.has(m.id) && m.userId)
+    .filter((m) => m.teamId === match.entryBId && starterBMemberIds.has(m.id) && m.userId)
     .map((m) => m.userId as string);
 
   // Phase 4: 地图胜/pick/ban 率 + 队伍赛季数据（全部并行）
@@ -175,12 +182,12 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
     teamRawStatsA, teamRawStatsB,
     seasonMapScoresRaw,
   ] = await Promise.all([
-    getTeamMapWinStats(match.teamAId, seasonMatchesA),
-    getTeamMapWinStats(match.teamBId, seasonMatchesB),
-    getTeamPickStats(match.teamAId, matchIdsA),
-    getTeamPickStats(match.teamBId, matchIdsB),
-    getTeamBanStats(match.teamAId, matchIdsA),
-    getTeamBanStats(match.teamBId, matchIdsB),
+    getTeamMapWinStats(match.entryAId, seasonMatchesA),
+    getTeamMapWinStats(match.entryBId, seasonMatchesB),
+    getTeamPickStats(match.entryAId, matchIdsA),
+    getTeamPickStats(match.entryBId, matchIdsB),
+    getTeamBanStats(match.entryAId, matchIdsA),
+    getTeamBanStats(match.entryBId, matchIdsB),
     teamAUserIds.length > 0 && matchIdsA.length > 0
       ? db.select().from(matchPlayerStats).where(
           and(
@@ -268,10 +275,10 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
       userSession.role === "super_admin" ||
       (userSession.role === "season_admin" && userSession.adminSeasonIds.includes(season.id));
 
-    isCaptainA = teamA?.captainUserId === userSession.userId;
-    isCaptainB = teamB?.captainUserId === userSession.userId;
+    isCaptainA = teamA?.representativeUserId === userSession.userId;
+    isCaptainB = teamB?.representativeUserId === userSession.userId;
     if (isCaptainA || isCaptainB) {
-      const captainTeamId = isCaptainA ? match.teamAId : match.teamBId;
+      const captainTeamId = isCaptainA ? match.entryAId : match.entryBId;
       captainTeamMembers = allTeamMembers
         .filter((m) => m.teamId === captainTeamId)
         .map((r) => ({
@@ -286,10 +293,10 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
 
   const captainRoster = isCaptainA ? rosterA : isCaptainB ? rosterB : null;
   const teamARoster: RosterPlayer[] | null = rosterA
-    ? buildRoster(rosterA, allTeamMembers, match.teamAId)
+    ? buildRoster(rosterA, allTeamMembers, match.entryAId)
     : null;
   const teamBRoster: RosterPlayer[] | null = rosterB
-    ? buildRoster(rosterB, allTeamMembers, match.teamBId)
+    ? buildRoster(rosterB, allTeamMembers, match.entryBId)
     : null;
 
   // MVP 投票 + 整场汇总数据（已结束比赛）
@@ -333,7 +340,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
       where: eq(matchPlayerStats.matchId, match.id),
     });
 
-    const aggregatedStats = aggregateFinishedPlayerStats(allStats, userIdToTeamId, match.teamAId, match.teamBId, currentMapRoundsMap);
+    const aggregatedStats = aggregateFinishedPlayerStats(allStats, userIdToTeamId, match.entryAId, match.entryBId, currentMapRoundsMap);
     mvpCandidates = aggregatedStats.mvpCandidates;
     summaryPlayers = aggregatedStats.summaryPlayers;
 
@@ -405,8 +412,8 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
           matchId={match.id}
           teamAName={teamA?.name ?? "队伍 A"}
           teamBName={teamB?.name ?? "队伍 B"}
-          teamAId={match.teamAId}
-          teamBId={match.teamBId}
+          entryAId={match.entryAId}
+          entryBId={match.entryBId}
         />
       )}
 
@@ -425,12 +432,12 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
               {(isFinished ? maps.filter((m) => m.scoreA !== null && m.scoreB !== null) : maps).map((map) => (
                 <TabsTrigger key={map.id} value={map.id} className="text-xs">
                   {mapLabel(map.mapName)}
-                  {map.pickedByTeamId && (
+                  {map.pickedByEntryId && (
                     <span
                       className="ml-1 text-[10px] font-mono px-1 py-0.5"
                       style={{ background: "var(--color-ok-soft)", color: "var(--color-ok)" }}
                     >
-                      {map.pickedByTeamId === match.teamAId
+                      {map.pickedByEntryId === match.entryAId
                         ? teamA?.name?.slice(0, 3).toUpperCase()
                         : teamB?.name?.slice(0, 3).toUpperCase()}{" "}
                       PICK
@@ -445,8 +452,8 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
               <TabsContent value="summary">
                 <MatchSummaryStats
                   players={summaryPlayers}
-                  teamAId={match.teamAId}
-                  teamBId={match.teamBId}
+                  entryAId={match.entryAId}
+                  entryBId={match.entryBId}
                   teamAName={teamA?.name ?? "队伍 A"}
                   teamBName={teamB?.name ?? "队伍 B"}
                 />
@@ -461,9 +468,9 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                     <div className="flex items-center gap-3">
                       <span className="text-xs text-[var(--color-fg-mid)] w-5">#{map.mapOrder}</span>
                       <span className="font-medium text-[var(--color-fg)]">{mapLabel(map.mapName)}</span>
-                      {map.pickedByTeamId === match.teamAId && <PosChip pos={`${teamA?.name} Pick`} />}
-                      {map.pickedByTeamId === match.teamBId && <PosChip pos={`${teamB?.name} Pick`} />}
-                      {map.pickedByTeamId === null && <PosChip pos="决胜图" />}
+                      {map.pickedByEntryId === match.entryAId && <PosChip pos={`${teamA?.name} Pick`} />}
+                      {map.pickedByEntryId === match.entryBId && <PosChip pos={`${teamB?.name} Pick`} />}
+                      {map.pickedByEntryId === null && <PosChip pos="决胜图" />}
                     </div>
                     <div className="flex items-center gap-3 text-sm">
                       {map.teamAStartSide && (
@@ -481,8 +488,8 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                   {isFinished && (
                     <PlayerStatsTable
                       mapId={map.id}
-                      teamAId={match.teamAId}
-                      teamBId={match.teamBId}
+                      entryAId={match.entryAId}
+                      entryBId={match.entryBId}
                       teamAName={teamA?.name ?? "队伍 A"}
                       teamBName={teamB?.name ?? "队伍 B"}
                     />
@@ -508,8 +515,8 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
           ) : summaryPlayers.length > 0 ? (
             <MatchSummaryStats
               players={summaryPlayers}
-              teamAId={match.teamAId}
-              teamBId={match.teamBId}
+              entryAId={match.entryAId}
+              entryBId={match.entryBId}
               teamAName={teamA?.name ?? "队伍 A"}
               teamBName={teamB?.name ?? "队伍 B"}
             />
@@ -574,8 +581,8 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
                 hasExistingRoster={Boolean(captainRoster)}
                 matchStatus={match.status}
                 rosterStatus={captainRoster?.status ?? null}
-                initialStarterIds={captainRoster?.players.filter((player) => player.isStarter).map((player) => player.teamMemberId) ?? []}
-                initialSubstituteIds={captainRoster?.players.filter((player) => !player.isStarter).map((player) => player.teamMemberId) ?? []}
+                initialStarterIds={captainRoster?.players.filter((player) => player.isStarter).map((player) => player.eventRosterMemberId) ?? []}
+                initialSubstituteIds={captainRoster?.players.filter((player) => !player.isStarter).map((player) => player.eventRosterMemberId) ?? []}
                 allowSubstitutes={match.ownership !== "major_stage"}
               />
             </Panel>

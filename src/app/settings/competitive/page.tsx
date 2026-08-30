@@ -1,16 +1,18 @@
 import { asc, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db/client";
-import { competitivePlatformSeasons, competitiveRankFacts } from "@/db/schema";
+import { competitivePlatformSeasons, competitiveRankFacts, userCompetitiveRoles } from "@/db/schema";
 import { CompetitiveProfileForm, type CompetitiveSeasonContext } from "@/components/settings/CompetitiveProfileForm";
+import { CompetitiveRolesForm } from "@/components/settings/CompetitiveRolesForm";
 import { getUserSession } from "@/lib/auth/session";
 
 export default async function CompetitiveProfileSettingsPage() {
   const session = await getUserSession();
   if (!session) redirect("/login?next=/settings/competitive");
-  const [catalog, facts] = await Promise.all([
+  const [catalog, facts, roles] = await Promise.all([
     db.select().from(competitivePlatformSeasons).orderBy(asc(competitivePlatformSeasons.platform), asc(competitivePlatformSeasons.sortOrder)),
     db.select().from(competitiveRankFacts).where(eq(competitiveRankFacts.userId, session.userId)),
+    db.select().from(userCompetitiveRoles).where(eq(userCompetitiveRoles.userId, session.userId)),
   ]);
   const contexts: CompetitiveSeasonContext[] = [...new Set(catalog.map((item) => item.platform))].flatMap((platform) => {
     // `active` only gates new publish contexts; a participant's long-term
@@ -32,5 +34,5 @@ export default async function CompetitiveProfileSettingsPage() {
       .sort((a, b) => Number(b.isCurrent) - Number(a.isCurrent) || Number(b.isPrevious) - Number(a.isPrevious));
     return [{ platform, seasons, facts: facts.filter((item) => item.platform === platform).map((item) => ({ kind: item.kind, platformSeasonKey: item.platformSeasonKey, rank: item.rank, rating: String(item.rating) })) }];
   });
-  return <div className="space-y-5"><div><p className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-accent)]">PARTICIPANT PROFILE</p><h1 className="mt-1 text-3xl font-semibold">竞技档案</h1></div><CompetitiveProfileForm contexts={contexts} /></div>;
+  return <div className="space-y-5"><div><p className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-accent)]">PARTICIPANT PROFILE</p><h1 className="mt-1 text-3xl font-semibold">竞技档案</h1></div><CompetitiveRolesForm initialRoles={roles.map((role) => role.role)} initialPrimaryRole={roles.find((role) => role.isPrimary)?.role ?? null} /><CompetitiveProfileForm contexts={contexts} /></div>;
 }

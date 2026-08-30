@@ -1,6 +1,6 @@
 import { and, eq, not, count, or, desc, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, teams, seasonRegistrations, users } from "@/db/schema";
+import { seasons, competitionEntries, seasonRegistrations, users } from "@/db/schema";
 import { captainVotes } from "@/db/schema/votes";
 import { matches } from "@/db/schema/matches";
 import { normalizeRegistrationConfig } from "@/types/season";
@@ -64,7 +64,7 @@ export default async function HomePage() {
     topVoteCandidates,
     liveAndUpcomingMatches,
   ] = await Promise.all([
-    db.select({ value: count() }).from(teams).where(eq(teams.seasonId, featured.id)),
+    db.select({ value: count() }).from(competitionEntries).where(eq(competitionEntries.competitionId, featured.id)),
     getParticipantSummary(featured),
     // 仅 registration 状态时查询
     featured.status === "registration"

@@ -11,7 +11,7 @@ RivalHub 以最高已完成的验证层级描述能力证据：
 | 体系 | 当前最高证据 | 范围 |
 |---|---|---|
 | Rivals · Spring | 生产实战验证 | 2026 NJU Rivals 完成个人报名、审核、队长投票、选秀、循环赛、双败淘汰、比赛管理、时间协商、BP/赛果、MVP、OCR 统计与赛季结束 |
-| Major · Autumn | 自动化生命周期验证 | unit/integration、Local Supabase 和 browser fixture 覆盖队伍报名、资格、prestart、三段 Swiss、Playoffs、roster、recovery、discipline 与 post-event |
+| Major · Autumn | 自动化生命周期验证 | unit/integration、Local Supabase 和 browser fixture 覆盖 Entry 报名、资格、prestart、三段 Swiss、Playoffs、roster、recovery、discipline 与 post-event |
 
 **RC4 之后的验证策略：**v2.0.0-rc.4 已完成 production 恢复、17/17 migration 与 production smoke。后续变更仍按自动化、Local Supabase、适用的 browser/staging gate 和真实运营证据逐层验证；完整 32 队 staging lifecycle 可作为专项演练，但不是稳定 RC 的强制 gate。
 
@@ -32,6 +32,8 @@ Local Supabase 集成入口：
 
 ```bash
 pnpm test:team-registration:local
+pnpm test:competition-entry-migration:local
+pnpm test:invite-concurrency:local
 pnpm test:major-profile:local
 pnpm test:major-browser:local
 pnpm test:major-lifecycle:local
@@ -47,7 +49,7 @@ pnpm test:season-governance:local
 
 ## Coverage intent
 
-单元测试覆盖 capability、状态和 action input boundary，包括 persisted template identity、custom definition validator（executor registry 与 groupCount 晋级计算）、qualification batch/single parity 与竞技上下文冻结/解冻；本地集成测试覆盖 Major team registration、长期 participant profile、browser fixture、prestart、StageRun lifecycle、roster safety、result recovery、discipline、post-event，以及 season governance（空赛季删除/撤回 guard、竞技冻结生命周期、队长交接并发语义）。历史 Golden Major rehearsal 保存在 [`archive/rehearsals/`](./archive/rehearsals/)，不是当前策略的替代品。
+单元测试覆盖 capability、状态和 action input boundary，包括 persisted template identity、custom definition validator（executor registry 与 groupCount 晋级计算）、qualification batch/single parity 与竞技上下文冻结/解冻；本地集成测试覆盖 Major Entry registration（含跨 Entry aggregate invariant）、0017 migration replay、长期 participant profile、browser fixture、prestart、StageRun lifecycle、roster safety、result recovery、discipline、post-event，以及 season governance（空赛季删除/撤回 guard、竞技冻结生命周期、队长交接并发语义）。所有入口都运行在 CompetitionEntry/event-roster schema 上。历史 Golden Major rehearsal 保存在 [`archive/rehearsals/`](./archive/rehearsals/)，不是当前策略的替代品。
 
 ## Test layers
 
@@ -71,9 +73,10 @@ real registrations progressive validation
 
 ```text
 管理员创建 Major → 发布 → 用户注册 → 邮箱确认 → participant profile
-→ education verification → competitive profile → team application → logo
-→ member invite / confirmation → designated starters → submit → review
-→ return → edit → resubmit → approve → materialized team → prestart
+→ education verification → competitive profile → 长期 Team → 创建
+CompetitionEntry → roster revision → member invite / confirmation
+→ designated starters → submit → review
+→ return → edit → resubmit → approve → prestart
 → entrants → final rosters → seeds → lock/start → Stage 1 → Stage 2
 → Stage 3 → Playoffs → champion → result correction → discipline
 → post-event → archive

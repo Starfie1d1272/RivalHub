@@ -41,8 +41,8 @@ export const doubleElimExecutor: StageExecutor = {
 
         await db.insert(matches).values({
           seasonId,
-          teamAId: teamA.id,
-          teamBId: teamB.id,
+          entryAId: teamA.id,
+          entryBId: teamB.id,
           stage: config.key,
           format: "bo3",
           status: "scheduled",
@@ -93,8 +93,8 @@ export const doubleElimExecutor: StageExecutor = {
 
         await db.insert(matches).values({
           seasonId,
-          teamAId: teamA.id,
-          teamBId: teamB.id,
+          entryAId: teamA.id,
+          entryBId: teamB.id,
           stage: config.key,
           format: "bo3",
           status: "scheduled",
@@ -140,8 +140,8 @@ export const doubleElimExecutor: StageExecutor = {
 
       await db.insert(matches).values({
         seasonId,
-        teamAId: teamA.id,
-        teamBId: teamB.id,
+        entryAId: teamA.id,
+        entryBId: teamB.id,
         stage: config.key,
         format: "bo3",
         status: "scheduled",
@@ -175,8 +175,8 @@ export const doubleElimExecutor: StageExecutor = {
     if (finalMatch.scoreA === null || finalMatch.scoreB === null) return [];
     if (finalMatch.scoreA === finalMatch.scoreB) return [];
 
-    const winnerId = finalMatch.scoreA > finalMatch.scoreB ? finalMatch.teamAId : finalMatch.teamBId;
-    const loserId = finalMatch.scoreA > finalMatch.scoreB ? finalMatch.teamBId : finalMatch.teamAId;
+    const winnerId = finalMatch.scoreA > finalMatch.scoreB ? finalMatch.entryAId : finalMatch.entryBId;
+    const loserId = finalMatch.scoreA > finalMatch.scoreB ? finalMatch.entryBId : finalMatch.entryAId;
 
     const result: QualifiedTeam[] = [{ teamId: winnerId, placement: "1st" }];
 

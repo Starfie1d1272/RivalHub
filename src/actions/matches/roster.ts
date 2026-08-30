@@ -21,7 +21,7 @@ import {
   persistMatchRosterInTx,
 } from "@/lib/match-rosters/service";
 import { validateRosterSelection } from "@/lib/matches/roster-rules";
-import { getTeamIdForCaptain } from "./_shared";
+import { getEntryIdForRepresentative } from "./_shared";
 
 function assertLineupShape(match: Match, starterIds: string[], substituteIds: string[]): void {
   // Cheap structural check for early UX feedback; eligibility is judged again
@@ -53,8 +53,8 @@ export async function submitMatchRoster(
       throw new AppError(ErrorCode.VALIDATION_FAILED, "比赛当前状态不允许提交名单");
     }
 
-    const teamId = await getTeamIdForCaptain(session.userId, match);
-    if (!teamId) {
+    const entryId = await getEntryIdForRepresentative(session.userId, match);
+    if (!entryId) {
       throw new AppError(ErrorCode.FORBIDDEN, "只有队长可以提交名单");
     }
 
@@ -68,13 +68,13 @@ export async function submitMatchRoster(
       }
       await assertStartingLineupAllowedInTx(tx, {
         match: locked,
-        teamId,
+        entryId,
         starterIds,
         substituteIds,
       });
       const summary = await persistMatchRosterInTx(tx, {
         match: locked,
-        teamId,
+        entryId,
         submittedBy: session.userId,
         source: "participant",
         starterIds,
@@ -87,7 +87,7 @@ export async function submitMatchRoster(
         actorId,
         targetId: summary.rosterId,
         targetType: "match_roster",
-        meta: { matchId, teamId, source: "participant", starterIds, substituteIds },
+        meta: { matchId, entryId, source: "participant", starterIds, substituteIds },
       });
 
       return summary.rosterId;
@@ -107,7 +107,7 @@ export async function submitMatchRoster(
  */
 export async function adminSelectMatchRoster(
   matchId: string,
-  teamId: string,
+  entryId: string,
   input: { starterIds: string[]; substituteIds?: string[]; note?: string },
 ): Promise<ActionResult<{ rosterId: string }>> {
   const { starterIds, substituteIds = [], note } = input;
@@ -126,18 +126,18 @@ export async function adminSelectMatchRoster(
       if (locked.status !== "scheduled") {
         throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛已开始或取消，不能再调整阵容");
       }
-      if (teamId !== locked.teamAId && teamId !== locked.teamBId) {
+      if (entryId !== locked.entryAId && entryId !== locked.entryBId) {
         throw new AppError(ErrorCode.VALIDATION_FAILED, "所选队伍不属于本场比赛");
       }
       await assertStartingLineupAllowedInTx(tx, {
         match: locked,
-        teamId,
+        entryId,
         starterIds,
         substituteIds,
       });
       const summary = await persistMatchRosterInTx(tx, {
         match: locked,
-        teamId,
+        entryId,
         submittedBy: null,
         source: "admin_select",
         starterIds,
@@ -152,7 +152,7 @@ export async function adminSelectMatchRoster(
         targetType: "match_roster",
         meta: {
           matchId,
-          teamId,
+          entryId,
           source: "admin_select",
           starterIds,
           substituteIds,
@@ -177,7 +177,7 @@ export async function adminSelectMatchRoster(
  */
 export async function confirmMatchRoster(
   rosterId: string
-): Promise<ActionResult<{ alreadyConfirmed: boolean; matchId: string; teamId: string }>> {
+): Promise<ActionResult<{ alreadyConfirmed: boolean; matchId: string; entryId: string }>> {
   try {
     const [existing] = await db
       .select({ matchId: matchRosters.matchId })
@@ -200,7 +200,7 @@ export async function confirmMatchRoster(
     return ok({
       alreadyConfirmed: outcome.alreadyConfirmed,
       matchId: outcome.matchId,
-      teamId: outcome.teamId,
+      entryId: outcome.entryId,
     });
   } catch (e) {
     return actionError("confirmMatchRoster", e);
@@ -241,7 +241,7 @@ export async function unlockMatchRoster(
         actorId,
         targetId: rosterId,
         targetType: "match_roster",
-        meta: { matchId: roster.matchId, teamId: roster.teamId },
+        meta: { matchId: roster.matchId, entryId: roster.entryId },
       });
     });
 
@@ -256,11 +256,11 @@ export async function unlockMatchRoster(
 /**
  * 查询某场比赛的名单（含首发/替补队员）。
  */
-export async function getMatchRoster(matchId: string, teamId: string) {
+export async function getMatchRoster(matchId: string, entryId: string) {
   const roster = await db.query.matchRosters.findFirst({
     where: and(
       eq(matchRosters.matchId, matchId),
-      eq(matchRosters.teamId, teamId),
+      eq(matchRosters.entryId, entryId),
     ),
   });
   if (!roster) return null;

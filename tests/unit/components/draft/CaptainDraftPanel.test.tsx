@@ -22,7 +22,7 @@ const pickPlayerMock = vi.mocked(pickPlayer);
 
 const baseProps = {
   seasonId: "11111111-1111-4111-8111-111111111111",
-  teamId: "22222222-2222-4222-8222-222222222222",
+  entryId: "22222222-2222-4222-8222-222222222222",
   teamName: "Alpha 队",
   currentTeamName: "Alpha 队",
   currentRound: 2,
@@ -81,7 +81,7 @@ describe("CaptainDraftPanel", () => {
 
     expect(pickPlayerMock).toHaveBeenCalledWith({
       seasonId: baseProps.seasonId,
-      teamId: baseProps.teamId,
+      entryId: baseProps.entryId,
       registrationId: baseProps.players[0].registrationId,
       clientRequestId: "44444444-4444-4444-8444-444444444444",
     });

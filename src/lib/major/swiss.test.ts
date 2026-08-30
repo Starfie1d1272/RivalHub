@@ -29,15 +29,15 @@ function makeEntrants(): MajorSwissEntrant[] {
 function match(
   round: number,
   index: number,
-  teamAId: string,
-  teamBId: string,
+  entryAId: string,
+  entryBId: string,
   winnerId: string,
 ): MajorSwissMatchFact {
   return {
     matchId: `r${round}-m${index}`,
     round: round as MajorSwissRound,
-    teamAId,
-    teamBId,
+    entryAId,
+    entryBId,
     winnerId,
   };
 }
@@ -170,8 +170,8 @@ function runTournament(
       matches.push({
         matchId: `r${round}-m${i + 1}`,
         round: round as MajorSwissRound,
-        teamAId: pairing.higherSeedTeamId,
-        teamBId: pairing.lowerSeedTeamId,
+        entryAId: pairing.higherSeedTeamId,
+        entryBId: pairing.lowerSeedTeamId,
         winnerId: rng() < 0.5 ? pairing.higherSeedTeamId : pairing.lowerSeedTeamId,
       });
     }
@@ -703,7 +703,7 @@ describe("six-team priority patterns", () => {
 
   it("skips blocked priorities and picks the first legal pattern", () => {
     // block priority 1 独有边 2v5（b-e）；priority 2 = 1v6, 2v4, 3v5 不含它
-    const prior = [{ teamAId: "b", teamBId: "e" }];
+    const prior = [{ entryAId: "b", entryBId: "e" }];
     const result = selectMajorSixTeamPairingPattern(SIX_IDS, prior);
     expect(result.priority).toBe(2);
     expect(result.pairs).toEqual([
@@ -714,10 +714,10 @@ describe("six-team priority patterns", () => {
   });
 
   it("throws when all 15 patterns contain a rematch", () => {
-    const allEdges: { teamAId: string; teamBId: string }[] = [];
+    const allEdges: { entryAId: string; entryBId: string }[] = [];
     for (let i = 1; i <= 5; i += 1) {
       for (let j = i + 1; j <= 6; j += 1) {
-        allEdges.push({ teamAId: SIX_IDS[i - 1], teamBId: SIX_IDS[j - 1] });
+        allEdges.push({ entryAId: SIX_IDS[i - 1], entryBId: SIX_IDS[j - 1] });
       }
     }
     expect(() => selectMajorSixTeamPairingPattern(SIX_IDS, allEdges)).toThrow();
@@ -757,7 +757,7 @@ describe("six-team priority patterns", () => {
 
         const priorMatches = [...blockedKeys].map((key) => {
           const [i, j] = key.split("-").map(Number);
-          return { teamAId: SIX_IDS[i - 1], teamBId: SIX_IDS[j - 1] };
+          return { entryAId: SIX_IDS[i - 1], entryBId: SIX_IDS[j - 1] };
         });
         const result = selectMajorSixTeamPairingPattern(SIX_IDS, priorMatches);
         expect(result.priority).toBe(target);
@@ -937,7 +937,7 @@ describe("no input mutation", () => {
     getMajorSwissRequiredFormat("bo1", { wins: 1, losses: 0 });
     selectMajorSixTeamPairingPattern(
       SIX_IDS,
-      matches.map((m) => ({ teamAId: m.teamAId, teamBId: m.teamBId })),
+      matches.map((m) => ({ entryAId: m.entryAId, entryBId: m.entryBId })),
     );
     getMajorSwissQualifiers(finalProjection);
 
@@ -1065,7 +1065,7 @@ function computeOracle(
   }
   for (const fact of [...r1, ...r2]) {
     const winner = byId.get(fact.winnerId)!;
-    const loserId = fact.winnerId === fact.teamAId ? fact.teamBId : fact.teamAId;
+    const loserId = fact.winnerId === fact.entryAId ? fact.entryBId : fact.entryAId;
     const loser = byId.get(loserId)!;
     winner.wins += 1;
     loser.losses += 1;
@@ -1165,8 +1165,8 @@ describe("exhaustive R1/R2 feasibility", () => {
 
 describe("pairing field semantics", () => {
   it("pairings expose higher/lower seed ids, never teamA/teamB", () => {
-    // 编译期：MajorSwissPairing 不得存在 teamAId / teamBId 语义字段
-    const typeGuard: MajorSwissPairing extends { teamAId: string } ? never : true = true;
+    // 编译期：MajorSwissPairing 不得存在 entryAId / entryBId 语义字段
+    const typeGuard: MajorSwissPairing extends { entryAId: string } ? never : true = true;
     expect(typeGuard).toBe(true);
 
     const pairings = generateNextMajorSwissRound({
@@ -1176,8 +1176,8 @@ describe("pairing field semantics", () => {
       stageMatchFormat: "bo1",
     });
     for (const pairing of pairings) {
-      expect(pairing).not.toHaveProperty("teamAId");
-      expect(pairing).not.toHaveProperty("teamBId");
+      expect(pairing).not.toHaveProperty("entryAId");
+      expect(pairing).not.toHaveProperty("entryBId");
       expect(pairing.higherSeedTeamId).toBeDefined();
       expect(pairing.lowerSeedTeamId).toBeDefined();
     }

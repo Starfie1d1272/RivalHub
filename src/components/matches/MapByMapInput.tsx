@@ -16,14 +16,14 @@ interface CompletedMap {
   mapName: string;
   scoreA: number;
   scoreB: number;
-  pickedByTeamId: string | null;
+  pickedByEntryId: string | null;
   teamAStartSide: "t" | "ct" | null;
 }
 
 interface PendingMap {
   mapOrder: number;
   mapName: string;
-  pickedByTeamId: string | null;
+  pickedByEntryId: string | null;
   teamAStartSide: "t" | "ct" | null;
 }
 
@@ -32,15 +32,15 @@ interface MapByMapInputProps {
   format: "bo1" | "bo3" | "bo5";
   teamAName: string;
   teamBName: string;
-  teamAId: string;
-  teamBId: string;
+  entryAId: string;
+  entryBId: string;
   completedMaps: CompletedMap[];
   pendingMaps?: PendingMap[];
   mapPool: string[];
 }
 
 export function MapByMapInput({
-  matchId, format, teamAName, teamBName, teamAId, teamBId,
+  matchId, format, teamAName, teamBName, entryAId, entryBId,
   completedMaps, pendingMaps = [], mapPool,
 }: MapByMapInputProps) {
   const maxWins = getWinThreshold(format);
@@ -71,8 +71,8 @@ export function MapByMapInput({
   const [isPending, startTransition] = useTransition();
 
   function resolvePickedByName(teamId: string | null) {
-    if (teamId === teamAId) return teamAName;
-    if (teamId === teamBId) return teamBName;
+    if (teamId === entryAId) return teamAName;
+    if (teamId === entryBId) return teamBName;
     return "决胜图";
   }
 
@@ -86,15 +86,15 @@ export function MapByMapInput({
     const resolvedMapName = nextPending?.mapName ?? manualMapName;
     if (!resolvedMapName) { toast.error("请选择地图"); return; }
 
-    const pickedByTeamId = nextPending
-      ? nextPending.pickedByTeamId
+    const pickedByEntryId = nextPending
+      ? nextPending.pickedByEntryId
       : (manualPickedBy === "decider" ? null : manualPickedBy);
     // BP 已记录选边时直接沿用，否则读取表单选择
     const side = nextPending?.teamAStartSide
       ?? (teamAStartSide === "none" ? null : teamAStartSide as "t" | "ct");
 
     startTransition(async () => {
-      const result = await recordMapResult(matchId, nextMapOrder, resolvedMapName, a, b, pickedByTeamId, side);
+      const result = await recordMapResult(matchId, nextMapOrder, resolvedMapName, a, b, pickedByEntryId, side);
       if (result.success) {
         toast.success(result.data.seriesFinished ? "系列赛结束，大比分已自动更新" : `第 ${nextMapOrder} 图已录入`);
         setManualMapName("");
@@ -124,7 +124,7 @@ export function MapByMapInput({
               <span className="w-4">#{m.mapOrder}</span>
               <span className="font-medium text-[var(--color-fg)]">{mapLabel(m.mapName)}</span>
               <Badge variant="outline" className="text-xs">
-                {resolvePickedByName(m.pickedByTeamId)} {m.pickedByTeamId ? "pick" : ""}
+                {resolvePickedByName(m.pickedByEntryId)} {m.pickedByEntryId ? "pick" : ""}
               </Badge>
               {m.teamAStartSide && <span>{teamAName} {SIDE_LABELS[m.teamAStartSide]}先</span>}
               <Badge variant="outline" className="text-xs font-mono">{m.scoreA} : {m.scoreB}</Badge>
@@ -142,7 +142,7 @@ export function MapByMapInput({
               <span className="text-xs text-[var(--color-fg-mid)]">第 {nextPending.mapOrder} 图</span>
               <span className="text-xs font-medium text-[var(--color-fg)]">{mapLabel(nextPending.mapName)}</span>
               <Badge variant="outline" className="text-xs">
-                {resolvePickedByName(nextPending.pickedByTeamId)} {nextPending.pickedByTeamId ? "pick" : ""}
+                {resolvePickedByName(nextPending.pickedByEntryId)} {nextPending.pickedByEntryId ? "pick" : ""}
               </Badge>
               {nextPending.teamAStartSide && (
                 <span className="text-xs text-[var(--color-fg-mid)]">
@@ -175,8 +175,8 @@ export function MapByMapInput({
                   <Select value={manualPickedBy} onValueChange={setManualPickedBy}>
                     <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={teamAId} className="text-xs">{teamAName}</SelectItem>
-                      <SelectItem value={teamBId} className="text-xs">{teamBName}</SelectItem>
+                      <SelectItem value={entryAId} className="text-xs">{teamAName}</SelectItem>
+                      <SelectItem value={entryBId} className="text-xs">{teamBName}</SelectItem>
                       <SelectItem value="decider" className="text-xs">决胜图</SelectItem>
                     </SelectContent>
                   </Select>

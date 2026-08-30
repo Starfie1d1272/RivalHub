@@ -22,55 +22,51 @@
 
 ## 5. Rivals registrations
 
-`season_registrations` 是 Rivals 的本届个人报名，包含位置、报名期竞技快照、地图偏好和审核状态。`registration_drafts` 服务于可恢复的表单编辑。它们不是 Major team application 的替代物。
+`season_registrations` 是 Rivals 的本届个人报名，包含位置、报名期竞技快照、地图偏好和审核状态。`registration_drafts` 服务于可恢复的表单编辑。它们不是 Major Entry 报名的替代物。
 
-## 6. Team applications
+## 6. Long-lived Teams and CompetitionEntry
 
-`team_applications` 表示 Major 报名阶段的队伍申请；`team_application_members` 记录邀请、确认和申请期成员关系；`team_application_active_claims` 防止同一用户在同一赛季出现冲突的 active claim。审核通过后申请物化为正式 `teams` 与 `team_members`，并保留 provenance。
+`teams` 是独立于赛事的长期队伍；`team_memberships`、队长任期、名称历史和邀请表达其成员与治理事实。Team 不属于 Season。
 
-这是 RC4 的 season-bound 实现，不是未来长期 Team 的最终模型。2.x 已接受以 CompetitionEntry 表达长期 Team 与某届赛事的参与关系，但现有 application 如何迁移、兼容或退役仍需单独设计。
+`competition_entries` 是从报名草稿到赛事历史的唯一参赛身份。Major 通常由长期 Team 创建 Entry；Rivals 选秀队为 `teamId = null` 的赛事队伍。`competition_entry_participants` 表示本届参赛确认，报名名单 revision 表示审核材料，`event_rosters`/成员表示赛前确认名单，`match_rosters`/成员表示单场出场阵容。三层人员事实不得互相替代。
 
-## 7. Teams
+旧 `team_applications`、season-bound `teams` 和 `team_members` 已由 active schema 退役；迁移 provenance 仅支持历史追溯，不参与运行时授权或比赛 identity。
 
-`teams` 是 RC4 比赛运行时的 season-bound 正式队伍，包含 `captainUserId` 与来源；`team_members` 是正式的赛季队伍成员。Rivals 通过个人报名/选秀产生来源，Major 通过 approved application 产生来源。普通 `teams`、`match_rosters` 和 `draftOrder` 不能替代 Major entrants、最终名单或赛事种子。
-
-2.x 的目标模型把 Team 提升为独立于赛事的长期一级实体，并以带时间历史的 TeamMembership 表达成员加入、离队与队长交接。Team 不属于 Season；CompetitionEntry 保存某届赛事的 roster、队长、资格、审核、种子、快照和最终成绩。长期 Team 后续变更不得改写冻结的赛事 roster。Rivals 选秀队可以是 `teamId = null` 的赛事临时参赛者，不为历史 Rivals 队伍补造长期 Team。这里只记录领域边界，不提前确定迁移和最终 schema；完整决策见 [`decisions/2.x-product-domains.md`](./decisions/2.x-product-domains.md)。
-
-## 8. Captain voting / draft
+## 7. Captain voting / draft
 
 `captain_votes` 是 Rivals 投票记录。`draft_state` 维护单届实时选秀状态，`draft_picks` 用 `clientRequestId` 支持幂等。选秀与队员写入在同一事务内完成，事务完成后才可发送 Realtime。
 
-## 9. Matches
+## 8. Matches
 
 `matches` 表示赛程和比赛状态，并区分 `manual` 与 `major_stage` ownership。`match_maps`、`match_veto_steps`、`match_time_proposals`、`match_mvp_votes` 与 `match_player_stats` 记录比赛细节。结果更正必须保留 audit 与适用的运行时边界。
 
-## 10. Match rosters
+## 9. Match rosters
 
-`match_rosters` 与 `match_roster_players` 是具体比赛的提交/确认阵容；它们把某一场比赛的可操作名单与 live team membership 分开。Major match roster 校验基于对应的冻结阶段事实。
+`match_rosters` 与 `match_roster_players` 是具体比赛的提交/确认阵容；它们把某一场比赛的可操作名单与冻结赛事名单分开。Major match roster 校验基于对应的冻结阶段事实。
 
-## 11. Major prestart
+## 10. Major prestart
 
-`major_prestart_states`、`major_prestart_entrants`、`major_prestart_roster_members`、`major_tournament_seeds` 与 `major_prestart_issues` 管理开赛前的 readiness、参赛队、最终名单、种子和 blocker。只有完成相应确认的预启动事实才能被 Major start 消费。
+`major_prestart_states`、`major_prestart_entrants`、`event_rosters`/成员、`major_tournament_seeds` 与 `major_prestart_issues` 管理开赛前的 readiness、参赛队、最终名单、种子和 blocker。只有完成相应确认的预启动事实才能被 Major start 消费。
 
-## 12. Major stage runtime
+## 11. Major stage runtime
 
 `major_stage_runs` 冻结阶段规则与运行时 identity；`major_stage_entrants` 是阶段参与者的 canonical truth；`major_final_results` 记录待确认/已确认的最终结果。冻结 affiliation / rule snapshot 支持恢复、审计和历史复现，不应被当作可去重的重复数据。
 
-## 13. Discipline
+## 12. Discipline
 
 `disciplinary_cases` 与 idempotency records 管理 sanction 的状态、范围与效果。纪律事实不自动重写 placement、honor 或比赛结果；关联影响通过明确的 adjudication 工作流处理。
 
-## 14. Post-event
+## 13. Post-event
 
 `post_event_adjudications` 保存赛后裁决，`tournament_honors` 保存冠军、亚军、名次或手动奖项及其有效/撤销/空缺状态。冠军被撤销不会自动把亚军提升为冠军；每项历史事实需要独立裁决。
 
 `tournament_honors` 继续是最终官方荣誉事实。未来奖项定义、候选或资格、申请或提名、材料、审核与补充、最终授予和领取确认属于独立产品流程；其模板、自动资格、申领范围、材料要求和状态仍待产品决策，不能从当前 honor 表反推答案。
 
-## 15. Audit
+## 14. Audit
 
 `audit_logs` 是管理操作的持久审计轨迹。它与业务事实互补，不代替可查询的领域状态。管理员写操作必须同时考虑结果与审计记录。
 
-## 16. Operational/support data
+## 15. Operational/support data
 
 `user_sessions` 仅用于在线状态心跳，不是鉴权来源。Storage、Auth 与 Data API 的安全边界见 [`auth-and-permissions.md`](./auth-and-permissions.md)。
 
@@ -93,8 +89,8 @@
 | 不变量 | 主要 owner |
 |---|---|
 | email 与 Auth identity 的唯一性 | DB unique constraints + Auth 同步 |
-| 一用户同赛事仅有一个 active team application claim | `team_application_active_claims` unique constraint + transaction |
-| application 的可编辑性与状态迁移 | team-application domain action / state rules |
+| 一用户同赛事仅有一个 active Entry commitment claim | `competition_entry_active_claims` unique constraint + transaction |
+| Entry 报名 revision 的可编辑性与状态迁移 | competition-entry domain action / state rules |
 | affiliation 与竞技资格 | `src/lib/qualification/` 单一 owner：batch fact loaders + pure evaluators |
 | 内置赛事模板身份与固定语义 | `seasons.competitionTemplate` + canonical template factory（draft 保存时重新 canonicalize） |
 | 发布时的竞技上下文冻结 | `publishSeason` 事务：catalog current/previous/rank order → season frozen competitiveProfile |

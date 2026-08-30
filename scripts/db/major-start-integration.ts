@@ -94,10 +94,10 @@ interface GoldenFinalEvidence {
 async function prepareReadyMajor(pool: Pool, label: string): Promise<MajorFixture> {
   const client = await pool.connect();
   const seasonId = deterministicUuid(`${label}/season`);
-  const teamIds = Array.from({ length: 32 }, (_, index) => deterministicUuid(`${label}/team/${index + 1}`));
-  const applicationIds = Array.from({ length: 32 }, (_, index) => deterministicUuid(`${label}/application/${index + 1}`));
+  const entryIds = Array.from({ length: 32 }, (_, index) => deterministicUuid(`${label}/entry/${index + 1}`));
+  const eventRosterIds = Array.from({ length: 32 }, (_, index) => deterministicUuid(`${label}/event-roster/${index + 1}`));
+  const revisionIds = Array.from({ length: 32 }, (_, index) => deterministicUuid(`${label}/revision/${index + 1}`));
   const userIds = Array.from({ length: 160 }, (_, index) => deterministicUuid(`${label}/user/${index + 1}`));
-  const memberIds = Array.from({ length: 160 }, (_, index) => deterministicUuid(`${label}/member/${index + 1}`));
   const capabilities = createMajorDefaultCapabilities();
   capabilities.teamRegistrationConfig.competitiveProfile = GOLDEN_PROFILE;
   const njuInstitution = await client.query<{ id: string }>(
@@ -175,29 +175,47 @@ async function prepareReadyMajor(pool: Pool, label: string): Promise<MajorFixtur
       rankRows.flatMap((row) => [row.id, row.userId, GOLDEN_PROFILE.platform, row.kind, row.seasonKey, row.rank, row.rating]),
     );
     for (let index = 0; index < 32; index += 1) {
+      const entryId = entryIds[index]!;
+      const memberUsers = userIds.slice(index * 5, index * 5 + 5);
       await client.query(
-        `INSERT INTO team_applications (id, season_id, name, perfect_team_id, primary_starter_user_ids, captain_user_id, status)
-         VALUES ($1, $2, $3, $4, $5::uuid[], $6, 'approved')`,
-        [applicationIds[index], seasonId, `Golden Team ${index + 1}`, `golden-team-${index + 1}`, userIds.slice(index * 5, index * 5 + 5), userIds[index * 5]],
-      );
-      await client.query(
-        `INSERT INTO teams (id, season_id, name, captain_user_id, team_application_id)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [teamIds[index], seasonId, `Golden Team ${index + 1}`, userIds[index * 5], applicationIds[index]],
+        `INSERT INTO competition_entries (id, competition_id, source, name, representative_user_id, registration_status, approved_roster_revision, perfect_team_id)
+         VALUES ($1, $2, 'event_native', $3, $4, 'approved', 1, $5)`,
+        [entryId, seasonId, `Golden Team ${index + 1}`, memberUsers[0], `golden-team-${index + 1}`],
       );
       for (let offset = 0; offset < 5; offset += 1) {
-        const userId = userIds[index * 5 + offset];
         await client.query(
-          `INSERT INTO team_application_members (id, application_id, user_id, invited_by_user_id, status, confirmed_at)
-           VALUES ($1, $2, $3, $4, 'confirmed', now())`,
-          [memberIds[index * 5 + offset], applicationIds[index], userId, userIds[index * 5]],
-        );
-        await client.query(
-          `INSERT INTO team_members (team_id, season_id, user_id, team_application_member_id)
-           VALUES ($1, $2, $3, $4)`,
-          [teamIds[index], seasonId, userId, memberIds[index * 5 + offset]],
+          `INSERT INTO competition_entry_participants (id, entry_id, user_id, status, confirmed_at, invited_by_user_id)
+           VALUES ($1, $2, $3, 'confirmed', now(), $4)`,
+          [deterministicUuid(`${label}/participant/${index * 5 + offset + 1}`), entryId, memberUsers[offset], memberUsers[0]],
         );
       }
+      await client.query(
+        `INSERT INTO competition_entry_roster_revisions (id, entry_id, revision, status, created_by, approved_at)
+         VALUES ($1, $2, 1, 'approved', 'local-admin', now())`,
+        [revisionIds[index], entryId],
+      );
+      for (let offset = 0; offset < 5; offset += 1) {
+        await client.query(
+          `INSERT INTO competition_entry_roster_members (revision_id, participant_id, user_id, is_primary_starter)
+           VALUES ($1, $2, $3, $4)`,
+          [revisionIds[index], deterministicUuid(`${label}/participant/${index * 5 + offset + 1}`), memberUsers[offset], offset === 0],
+        );
+      }
+      await client.query(
+        `INSERT INTO event_rosters (id, entry_id, source_roster_revision_id, status)
+         VALUES ($1, $2, $3, 'preparing')`,
+        [eventRosterIds[index], entryId, revisionIds[index]],
+      );
+      for (let offset = 0; offset < 5; offset += 1) {
+        const verificationId = deterministicUuid(`${label}/education/${index * 5 + offset + 1}`);
+        await client.query(
+          `INSERT INTO event_roster_members (id, event_roster_id, participant_id, user_id, education_verification_id)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [deterministicUuid(`${label}/event-roster-member/${index * 5 + offset + 1}`), eventRosterIds[index], deterministicUuid(`${label}/participant/${index * 5 + offset + 1}`), memberUsers[offset], verificationId],
+        );
+      }
+      await client.query(`UPDATE event_rosters SET status = 'confirmed' WHERE id = $1`, [eventRosterIds[index]]);
+      await client.query(`UPDATE event_rosters SET status = 'frozen', frozen_at = now(), frozen_by = 'local-admin' WHERE id = $1`, [eventRosterIds[index]]);
     }
     await client.query(
       `INSERT INTO major_prestart_states (season_id, entrants_locked_at, entrants_locked_by, seed_revision, confirmed_seed_revision)
@@ -206,20 +224,12 @@ async function prepareReadyMajor(pool: Pool, label: string): Promise<MajorFixtur
     );
     for (let index = 0; index < 32; index += 1) {
       const entrant = await client.query<{ id: string }>(
-        `INSERT INTO major_prestart_entrants (id, season_id, team_id, roster_confirmed_at, roster_confirmed_by)
-         VALUES ($1, $2, $3, now(), 'local-admin') RETURNING id`,
-        [deterministicUuid(`${label}/entrant/${index + 1}`), seasonId, teamIds[index]],
+        `INSERT INTO major_prestart_entrants (id, season_id, competition_entry_id, event_roster_id, roster_confirmed_at, roster_confirmed_by)
+         VALUES ($1, $2, $3, $4, now(), 'local-admin') RETURNING id`,
+        [deterministicUuid(`${label}/entrant/${index + 1}`), seasonId, entryIds[index], eventRosterIds[index]],
       );
       const entrantId = entrant.rows[0]?.id;
       if (!entrantId) throw new Error("正式参赛队创建失败。");
-      await client.query(
-        `INSERT INTO major_prestart_roster_members (entrant_id, user_id, education_verification_id)
-         SELECT $1, m.user_id, v.id
-         FROM team_members m
-         INNER JOIN education_verifications v ON v.user_id = m.user_id AND v.status = 'approved'
-         WHERE m.season_id = $2 AND m.team_id = $3`,
-        [entrantId, seasonId, teamIds[index]],
-      );
       await client.query(
         `INSERT INTO major_tournament_seeds (id, season_id, entrant_id, tournament_seed) VALUES ($1, $2, $3, $4)`,
         [deterministicUuid(`${label}/seed/${index + 1}`), seasonId, entrantId, index + 1],
@@ -247,15 +257,32 @@ async function cleanupMajorFixture(pool: Pool, fixture: MajorFixture): Promise<v
       WHERE e.stage_run_id = r.id AND r.season_id = $1`, [fixture.seasonId]);
     await client.query("DELETE FROM major_stage_runs WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM major_tournament_seeds WHERE season_id = $1", [fixture.seasonId]);
-    await client.query(`DELETE FROM major_prestart_roster_members r USING major_prestart_entrants e
-      WHERE r.entrant_id = e.id AND e.season_id = $1`, [fixture.seasonId]);
     await client.query("DELETE FROM major_prestart_entrants WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM major_prestart_states WHERE season_id = $1", [fixture.seasonId]);
-    await client.query("DELETE FROM team_members WHERE season_id = $1", [fixture.seasonId]);
-    await client.query(`DELETE FROM team_application_members m USING team_applications a
-      WHERE m.application_id = a.id AND a.season_id = $1`, [fixture.seasonId]);
-    await client.query("DELETE FROM teams WHERE season_id = $1", [fixture.seasonId]);
-    await client.query("DELETE FROM team_applications WHERE season_id = $1", [fixture.seasonId]);
+    // Frozen-roster immutability is intentional in normal operation; the local
+    // test teardown bypasses row triggers to delete its own fixture rows only.
+    await client.query("SET LOCAL session_replication_role = replica");
+    await client.query(`DELETE FROM event_roster_members WHERE event_roster_id IN (
+      SELECT id FROM event_rosters WHERE entry_id IN (
+        SELECT id FROM competition_entries WHERE competition_id = $1
+      )
+    )`, [fixture.seasonId]);
+    await client.query("SET LOCAL session_replication_role = DEFAULT");
+    await client.query(`DELETE FROM event_rosters WHERE entry_id IN (
+      SELECT id FROM competition_entries WHERE competition_id = $1
+    )`, [fixture.seasonId]);
+    await client.query(`DELETE FROM competition_entry_roster_members WHERE revision_id IN (
+      SELECT id FROM competition_entry_roster_revisions WHERE entry_id IN (
+        SELECT id FROM competition_entries WHERE competition_id = $1
+      )
+    )`, [fixture.seasonId]);
+    await client.query(`DELETE FROM competition_entry_roster_revisions WHERE entry_id IN (
+      SELECT id FROM competition_entries WHERE competition_id = $1
+    )`, [fixture.seasonId]);
+    await client.query(`DELETE FROM competition_entry_participants WHERE entry_id IN (
+      SELECT id FROM competition_entries WHERE competition_id = $1
+    )`, [fixture.seasonId]);
+    await client.query("DELETE FROM competition_entries WHERE competition_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM audit_logs WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM seasons WHERE id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM education_verifications WHERE user_id = ANY($1::uuid[])", [fixture.userIds]);
@@ -279,9 +306,10 @@ async function cleanupStaleMajorStartFixtures(pool: Pool): Promise<void> {
   const client = await pool.connect();
   try {
     const fixtures = await client.query<{ season_id: string; user_ids: string[] }>(`
-      SELECT s.id AS season_id, COALESCE(array_agg(DISTINCT tm.user_id) FILTER (WHERE tm.user_id IS NOT NULL), '{}') AS user_ids
+      SELECT s.id AS season_id, COALESCE(array_agg(DISTINCT p.user_id) FILTER (WHERE p.user_id IS NOT NULL), '{}') AS user_ids
       FROM seasons s
-      LEFT JOIN team_members tm ON tm.season_id = s.id
+      LEFT JOIN competition_entries e ON e.competition_id = s.id
+      LEFT JOIN competition_entry_participants p ON p.entry_id = e.id
       WHERE s.slug LIKE 'local-major-start-%' OR s.slug LIKE 'local-golden-major-2026-08-%'
       GROUP BY s.id
     `);
@@ -329,29 +357,29 @@ async function finishSwissRound(pool: Pool, stageRunId: string, round: number): 
 }
 
 async function readSwissEvidence(pool: Pool, stageRunId: string): Promise<GoldenSwissEvidenceRow[]> {
-  const entrants = await pool.query<{ team_id: string; team_name: string; stage_seed: number; tournament_seed: number }>(`
-    SELECT e.team_id, t.name AS team_name, e.stage_seed, e.tournament_seed
+  const entrants = await pool.query<{ competition_entry_id: string; entry_name: string; stage_seed: number; tournament_seed: number }>(`
+    SELECT e.competition_entry_id, en.name AS entry_name, e.stage_seed, e.tournament_seed
     FROM major_stage_entrants e
-    INNER JOIN teams t ON t.id = e.team_id
+    INNER JOIN competition_entries en ON en.id = e.competition_entry_id
     WHERE e.stage_run_id = $1
     ORDER BY e.stage_seed
   `, [stageRunId]);
   const matches = await pool.query<{
     id: string;
     round: number | null;
-    team_a_id: string;
-    team_b_id: string;
+    entry_a_id: string;
+    entry_b_id: string;
     score_a: number | null;
     score_b: number | null;
     status: string;
     completed_at: Date | null;
   }>(`
-    SELECT id, round, team_a_id, team_b_id, score_a, score_b, status, completed_at
+    SELECT id, round, entry_a_id, entry_b_id, score_a, score_b, status, completed_at
     FROM matches
     WHERE major_stage_run_id = $1 AND ownership = 'major_stage'
     ORDER BY round, managed_key
   `, [stageRunId]);
-  if (entrants.rows.length !== 16) throw new Error("Golden evidence 缺少 16 队 StageRun entrant 表。 ");
+  if (entrants.rows.length !== 16) throw new Error("Golden evidence 缺少 16 个 StageRun entrant 表项。 ");
   const facts: MajorSwissMatchFact[] = matches.rows.map((match) => {
     if (match.round === null || match.round < 1 || match.round > 5 || match.status !== "finished" || match.completed_at === null || match.score_a === null || match.score_b === null || match.score_a === match.score_b) {
       throw new Error("Golden evidence 发现未完成或无胜者的 Swiss 比赛。 ");
@@ -359,25 +387,25 @@ async function readSwissEvidence(pool: Pool, stageRunId: string): Promise<Golden
     return {
       matchId: match.id,
       round: match.round as 1 | 2 | 3 | 4 | 5,
-      teamAId: match.team_a_id,
-      teamBId: match.team_b_id,
-      winnerId: match.score_a > match.score_b ? match.team_a_id : match.team_b_id,
+      entryAId: match.entry_a_id,
+      entryBId: match.entry_b_id,
+      winnerId: match.score_a > match.score_b ? match.entry_a_id : match.entry_b_id,
     };
   });
   const projection = projectMajorSwissStage({
-    entrants: entrants.rows.map((entrant) => ({ teamId: entrant.team_id, initialStageSeed: entrant.stage_seed })),
+    entrants: entrants.rows.map((entrant) => ({ teamId: entrant.competition_entry_id, initialStageSeed: entrant.stage_seed })),
     matches: facts,
     finalizedRound: 5,
   });
-  const metadata = new Map(entrants.rows.map((entrant) => [entrant.team_id, entrant]));
+  const metadata = new Map(entrants.rows.map((entrant) => [entrant.competition_entry_id, entrant]));
   return projection.teams.map((team) => {
     const entrant = metadata.get(team.teamId);
-    if (!entrant) throw new Error("Golden evidence 的 Swiss 投影引用了未知队伍。 ");
+    if (!entrant) throw new Error("Golden evidence 的 Swiss 投影引用了未知 Entry。 ");
     return {
       currentSeed: team.currentStageSeed,
       initialStageSeed: team.initialStageSeed,
       tournamentSeed: entrant.tournament_seed,
-      team: entrant.team_name,
+      team: entrant.entry_name,
       record: `${team.wins}-${team.losses}`,
       difficultyScore: team.difficultyScore,
       status: team.status,
@@ -397,8 +425,8 @@ async function readPlayoffEvidence(pool: Pool, stageRunId: string): Promise<Gold
   }>(`
     SELECT m.entry_round, m.format, ta.name AS team_a, tb.name AS team_b, m.score_a, m.score_b, m.status
     FROM matches m
-    INNER JOIN teams ta ON ta.id = m.team_a_id
-    INNER JOIN teams tb ON tb.id = m.team_b_id
+    INNER JOIN competition_entries ta ON ta.id = m.entry_a_id
+    INNER JOIN competition_entries tb ON tb.id = m.entry_b_id
     WHERE m.major_stage_run_id = $1 AND m.ownership = 'major_stage'
     ORDER BY CASE m.entry_round WHEN 'quarterfinal' THEN 1 WHEN 'semifinal' THEN 2 WHEN 'third_place' THEN 3 WHEN 'final' THEN 4 ELSE 5 END, m.managed_key
   `, [stageRunId]);
@@ -421,23 +449,23 @@ async function readFinalEvidence(pool: Pool, seasonId: string, playoffRunId: str
   }>(`
     SELECT r.status, champion.name AS champion, s.status AS season_status, r.placement_groups
     FROM major_final_results r
-    INNER JOIN teams champion ON champion.id = r.champion_team_id
+    INNER JOIN competition_entries champion ON champion.id = r.champion_entry_id
     INNER JOIN seasons s ON s.id = r.season_id
     WHERE r.season_id = $1 AND r.playoff_stage_run_id = $2
   `, [seasonId, playoffRunId]);
   const row = result.rows[0];
   if (!row || !Array.isArray(row.placement_groups)) throw new Error("Golden evidence 缺少正式名次结果。 ");
-  const teamRows = await pool.query<{ id: string; name: string }>("SELECT id, name FROM teams WHERE season_id = $1", [seasonId]);
-  const teamNames = new Map(teamRows.rows.map((team) => [team.id, team.name]));
+  const entryRows = await pool.query<{ id: string; name: string }>("SELECT id, name FROM competition_entries WHERE competition_id = $1", [seasonId]);
+  const entryNames = new Map(entryRows.rows.map((entry) => [entry.id, entry.name]));
   const placementGroups = row.placement_groups.map((group) => {
     if (typeof group !== "object" || group === null) {
       throw new Error("Golden evidence 的 placement group 结构无效。 ");
     }
-    const candidate = group as { from?: unknown; to?: unknown; teamIds?: unknown };
-    if (!Array.isArray(candidate.teamIds)) throw new Error("Golden evidence 的 placement group 结构无效。 ");
+    const candidate = group as { from?: unknown; to?: unknown; entryIds?: unknown };
+    if (!Array.isArray(candidate.entryIds)) throw new Error("Golden evidence 的 placement group 结构无效。 ");
     const from = Number(candidate.from);
     const to = Number(candidate.to);
-    const teams = candidate.teamIds.map((teamId: unknown) => teamNames.get(String(teamId)) ?? `unknown:${String(teamId)}`);
+    const teams = candidate.entryIds.map((entryId: unknown) => entryNames.get(String(entryId)) ?? `unknown:${String(entryId)}`);
     return { from, to, teams };
   });
   const third = placementGroups.find((group) => group.from === 3 && group.to === 3)?.teams.join(", ") ?? "—";
@@ -621,10 +649,10 @@ async function exercisePlayoffRuntime(
   const facts = await pool.query<{ matches: string; champion: string | null; status: string | null; has_three_four: boolean; groups: string }>(`
       SELECT
         (SELECT count(*) FROM matches WHERE major_stage_run_id = $1 AND ownership = 'major_stage') AS matches,
-      (SELECT champion_team_id::text FROM major_final_results WHERE playoff_stage_run_id = $1) AS champion,
+      (SELECT champion_entry_id::text FROM major_final_results WHERE playoff_stage_run_id = $1) AS champion,
       (SELECT status::text FROM major_final_results WHERE playoff_stage_run_id = $1) AS status,
-      (SELECT EXISTS(SELECT 1 FROM major_final_results, jsonb_to_recordset(placement_groups) AS p("from" integer, "to" integer, "teamIds" jsonb) WHERE playoff_stage_run_id = $1 AND p."from" = 3 AND p."to" = 3)
-        AND EXISTS(SELECT 1 FROM major_final_results, jsonb_to_recordset(placement_groups) AS p("from" integer, "to" integer, "teamIds" jsonb) WHERE playoff_stage_run_id = $1 AND p."from" = 4 AND p."to" = 4)) AS has_three_four,
+      (SELECT EXISTS(SELECT 1 FROM major_final_results, jsonb_to_recordset(placement_groups) AS p("from" integer, "to" integer, "entryIds" jsonb) WHERE playoff_stage_run_id = $1 AND p."from" = 3 AND p."to" = 3)
+        AND EXISTS(SELECT 1 FROM major_final_results, jsonb_to_recordset(placement_groups) AS p("from" integer, "to" integer, "entryIds" jsonb) WHERE playoff_stage_run_id = $1 AND p."from" = 4 AND p."to" = 4)) AS has_three_four,
       (SELECT jsonb_array_length(placement_groups)::text FROM major_final_results WHERE playoff_stage_run_id = $1) AS groups
   `, [playoffRunId]);
   const fact = facts.rows[0];
@@ -661,25 +689,25 @@ async function exerciseFinalLifecycle(
     throw new Error("Golden rehearsal 的最终结果确认重试没有收敛。 ");
   }
 
-  const result = await pool.query<{ champion: string; placement_groups: Array<{ from: number; to: number; teamIds: string[] }> }>(
-    "SELECT champion_team_id::text AS champion, placement_groups FROM major_final_results WHERE season_id = $1 AND playoff_stage_run_id = $2",
+  const result = await pool.query<{ champion: string; placement_groups: Array<{ from: number; to: number; entryIds: string[] }> }>(
+    "SELECT champion_entry_id::text AS champion, placement_groups FROM major_final_results WHERE season_id = $1 AND playoff_stage_run_id = $2",
     [seasonId, playoffRunId],
   );
   const finalResult = result.rows[0];
-  const runnerUp = finalResult?.placement_groups.find((group) => group.from === 2 && group.to === 2)?.teamIds[0];
+  const runnerUp = finalResult?.placement_groups.find((group) => group.from === 2 && group.to === 2)?.entryIds[0];
   if (!finalResult?.champion || !runnerUp) throw new Error("Golden rehearsal 缺少冠军或亚军正式名次。 ");
 
   const championHonor = await database.transaction((tx) => grantTournamentHonorInTx(tx, {
     seasonId, clientRequestId: deterministicUuid("honor/champion"), type: "champion", label: "Golden Champion",
-    basis: "final_result", teamId: finalResult.champion, actorId: "local-admin",
+    basis: "final_result", entryId: finalResult.champion, actorId: "local-admin",
   }));
   const repeatedHonor = await database.transaction((tx) => grantTournamentHonorInTx(tx, {
     seasonId, clientRequestId: deterministicUuid("honor/champion"), type: "champion", label: "Golden Champion",
-    basis: "final_result", teamId: finalResult.champion, actorId: "local-admin-retry",
+    basis: "final_result", entryId: finalResult.champion, actorId: "local-admin-retry",
   }));
   const runnerUpHonor = await database.transaction((tx) => grantTournamentHonorInTx(tx, {
     seasonId, clientRequestId: deterministicUuid("honor/runner-up"), type: "runner_up", label: "Golden Runner-up",
-    basis: "final_result", teamId: runnerUp, actorId: "local-admin",
+    basis: "final_result", entryId: runnerUp, actorId: "local-admin",
   }));
   if (!championHonor.created || repeatedHonor.created || repeatedHonor.honorId !== championHonor.honorId || !runnerUpHonor.created) {
     throw new Error("Golden rehearsal 的荣誉授予重试或亚军荣誉事实异常。 ");
@@ -769,17 +797,17 @@ async function main(): Promise<void> {
       if (facts?.status !== "playing" || facts.runs !== "1" || facts.entrants !== "16" || facts.matches !== "8" || facts.audits !== "1" || !facts.seeds_locked || facts.rule_snapshot?.stage?.key !== "stage1" || facts.rule_snapshot?.openingPairings?.length !== 8 || frozenNjuRule?.minRosterMembers !== 3 || frozenNjuRule.minStartingMembers !== 3) {
         throw new Error("正式开赛没有完整固化状态、入口、比赛或审计事实。");
       }
-      const firstMatch = await client.query<{ major_stage_run_id: string; team_a_id: string; team_b_id: string; stage: string; format: string }>(
-        "SELECT major_stage_run_id, team_a_id, team_b_id, stage, format FROM matches WHERE season_id = $1 AND ownership = 'major_stage' ORDER BY managed_key LIMIT 1",
+      const firstMatch = await client.query<{ major_stage_run_id: string; entry_a_id: string; entry_b_id: string; stage: string; format: string }>(
+        "SELECT major_stage_run_id, entry_a_id, entry_b_id, stage, format FROM matches WHERE season_id = $1 AND ownership = 'major_stage' ORDER BY managed_key LIMIT 1",
         [ready.seasonId],
       );
       const match = firstMatch.rows[0];
       if (!match) throw new Error("未找到已生成的 managed match。");
       await client.query("BEGIN");
       await expectPgError(client, () => client.query(
-        `INSERT INTO matches (season_id, team_a_id, team_b_id, stage, round, format, ownership, major_stage_run_id, managed_key)
+        `INSERT INTO matches (season_id, entry_a_id, entry_b_id, stage, round, format, ownership, major_stage_run_id, managed_key)
          VALUES ($1, $2, $3, $4, 1, $5, 'major_stage', $6, 'r1-1')`,
-        [ready.seasonId, match.team_a_id, match.team_b_id, match.stage, match.format, match.major_stage_run_id],
+        [ready.seasonId, match.entry_a_id, match.entry_b_id, match.stage, match.format, match.major_stage_run_id],
       ), "23505");
       await client.query("ROLLBACK");
     } finally {

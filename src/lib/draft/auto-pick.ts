@@ -51,14 +51,14 @@ export function selectAutoPickCandidate(
 
 export function createAutoPickRequestId({
   seasonId,
-  teamId,
+  entryId,
   round,
   deadline,
 }: {
   seasonId: string;
-  teamId: string;
+  entryId: string;
   round: number;
   deadline: Date | null;
 }): string {
-  return `auto:${seasonId}:${teamId}:${round}:${deadline?.getTime() ?? "no-deadline"}`;
+  return `auto:${seasonId}:${entryId}:${round}:${deadline?.getTime() ?? "no-deadline"}`;
 }

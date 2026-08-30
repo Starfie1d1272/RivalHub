@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { eq, asc } from "drizzle-orm";
 import { db } from "@/db/client";
-import { majorFinalResults, seasons, matches, teams } from "@/db/schema";
+import { majorFinalResults, seasons, matches, competitionEntries } from "@/db/schema";
 import { serializeBracket } from "@/lib/bracket";
 import { calculateStandings } from "@/lib/standings";
 import { Panel, Marker } from "@/components/rivalhub";
@@ -42,9 +42,9 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
   if (!season) notFound();
 
   const [allTeams, allMatches, finalResult] = await Promise.all([
-    db.query.teams.findMany({
-      where: eq(teams.seasonId, season.id),
-      orderBy: [asc(teams.draftOrder)],
+    db.query.competitionEntries.findMany({
+      where: eq(competitionEntries.competitionId, season.id),
+      orderBy: [asc(competitionEntries.formationOrder)],
     }),
     db.query.matches.findMany({
       where: eq(matches.seasonId, season.id),
@@ -56,8 +56,8 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
   const teamMap = new Map(allTeams.map((team) => [team.id, team.name]));
   const stagePlan = normalizeStagePlan(season.stagePlan);
   const { views: stageViews, unconfiguredMatches } = buildStageViews(stagePlan, allMatches);
-  const matchFilter = (match: { teamAId: string; teamBId: string }) =>
-    !filterTeamId || match.teamAId === filterTeamId || match.teamBId === filterTeamId;
+  const matchFilter = (match: { entryAId: string; entryBId: string }) =>
+    !filterTeamId || match.entryAId === filterTeamId || match.entryBId === filterTeamId;
 
   const sortActiveMatches = (stageMatches: typeof allMatches) =>
     [...stageMatches].sort((a, b) => {

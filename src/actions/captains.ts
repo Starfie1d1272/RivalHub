@@ -5,10 +5,14 @@ import { db } from "@/db/client";
 import {
   auditLogs,
   captainVotes,
+  competitionEntries,
+  competitionEntryParticipants,
+  competitionEntryRosterMembers,
+  competitionEntryRosterRevisions,
+  eventRosterMembers,
+  eventRosters,
   seasonRegistrations,
   seasons,
-  teamMembers,
-  teams,
   users,
 } from "@/db/schema";
 import { ok, fail, type ActionResult } from "@/types/action";
@@ -180,7 +184,7 @@ export async function retractVote(
 
 export async function confirmCaptains(
   input: ConfirmCaptainsInput,
-): Promise<ActionResult<{ teamIds: string[] }>> {
+): Promise<ActionResult<{ entryIds: string[] }>> {
   const parsed = confirmCaptainsSchema.safeParse(input);
   if (!parsed.success) {
     return failValidation("确认队长参数无效");
@@ -205,12 +209,12 @@ export async function confirmCaptains(
         throw new AppError(ErrorCode.SEASON_INVALID_STATUS, ERROR_MESSAGES.SEASON_INVALID_STATUS);
       }
 
-      const [existingTeamCount] = await tx
+      const [existingEntryCount] = await tx
         .select({ count: count() })
-        .from(teams)
-        .where(eq(teams.seasonId, season.id));
-      if (Number(existingTeamCount?.count ?? 0) > 0) {
-        throw new AppError(ErrorCode.VALIDATION_FAILED, "该赛季已生成队伍");
+        .from(competitionEntries)
+        .where(eq(competitionEntries.competitionId, season.id));
+      if (Number(existingEntryCount?.count ?? 0) > 0) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "该赛事已生成参赛者");
       }
 
       // 防止投票尚未开始或参与不足就确认队长
@@ -276,27 +280,52 @@ export async function confirmCaptains(
         })),
       );
 
-      const createdTeamIds: string[] = [];
+      const createdEntryIds: string[] = [];
       for (const [index, captain] of seeds.entries()) {
         const captainName = getPublicDisplayName(captain);
-        const [team] = await tx
-          .insert(teams)
+        const [entry] = await tx
+          .insert(competitionEntries)
           .values({
-            seasonId: season.id,
+            competitionId: season.id,
+            source: "event_native",
             name: `${captainName} 队`,
-            captainRegistrationId: captain.registrationId,
-            captainUserId: captain.userId,
-            draftOrder: index + 1,
+            representativeUserId: captain.userId,
+            sourceRegistrationId: captain.registrationId,
+            formationOrder: index + 1,
+            registrationStatus: "approved",
           })
-          .returning({ id: teams.id });
-        createdTeamIds.push(team.id);
+          .returning({ id: competitionEntries.id });
+        createdEntryIds.push(entry.id);
 
-        await tx.insert(teamMembers).values({
-          teamId: team.id,
-          registrationId: captain.registrationId,
+        const [participant] = await tx.insert(competitionEntryParticipants).values({
+          entryId: entry.id,
           userId: captain.userId,
-          seasonId: season.id,
-          isStarter: true,
+          status: "confirmed",
+          confirmedAt: new Date(),
+          invitedByUserId: captain.userId,
+        }).returning({ id: competitionEntryParticipants.id });
+        const [revision] = await tx.insert(competitionEntryRosterRevisions).values({
+          entryId: entry.id,
+          revision: 1,
+          status: "draft",
+          createdBy: auditActorId(admin),
+        }).returning({ id: competitionEntryRosterRevisions.id });
+        await tx.insert(competitionEntryRosterMembers).values({
+          revisionId: revision.id,
+          participantId: participant.id,
+          userId: captain.userId,
+          isPrimaryStarter: true,
+        });
+        const [eventRoster] = await tx.insert(eventRosters).values({
+          entryId: entry.id,
+          status: "preparing",
+          policySnapshot: { source: "rivals_draft", competitionId: season.id },
+        }).returning({ id: eventRosters.id });
+        await tx.insert(eventRosterMembers).values({
+          eventRosterId: eventRoster.id,
+          participantId: participant.id,
+          userId: captain.userId,
+          isPrimaryStarter: true,
         });
       }
 
@@ -313,15 +342,15 @@ export async function confirmCaptains(
         targetType: "season",
         meta: {
           captainRegistrationIds: seeds.map((seed) => seed.registrationId),
-          teamIds: createdTeamIds,
+          entryIds: createdEntryIds,
         },
       });
 
-      return { seasonSlug: season.slug, teamIds: createdTeamIds };
+      return { seasonSlug: season.slug, entryIds: createdEntryIds };
     });
 
     revalidateSeasonPaths(result.seasonSlug, ["captains", "teams", "draft", "adminCaptains", "adminDraft"]);
-    return ok({ teamIds: result.teamIds });
+    return ok({ entryIds: result.entryIds });
   } catch (e) {
     return actionError("confirmCaptains", e);
   }

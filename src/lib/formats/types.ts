@@ -1,11 +1,11 @@
-import type { Team } from "@/db/schema/teams";
+import type { CompetitionEntry } from "@/db/schema/competition-entries";
 import type { StageConfig, QualifiedTeam } from "@/types/season";
 
 export interface StageExecutor {
   initialize(
     seasonId: string,
     config: StageConfig,
-    teams: Team[],
+    teams: CompetitionEntry[],
     qualifiers?: QualifiedTeam[],
   ): Promise<{ matchCount: number }>;
   getQualifiers(seasonId: string, config: StageConfig): Promise<QualifiedTeam[]>;

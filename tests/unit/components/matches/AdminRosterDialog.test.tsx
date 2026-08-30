@@ -70,8 +70,8 @@ describe("AdminRosterDialog — explicit two-step lineup selection", () => {
         matchId="match-1"
         teamAName="Alpha"
         teamBName="Beta"
-        teamAId="team-a"
-        teamBId="team-b"
+        entryAId="team-a"
+        entryBId="team-b"
         teamAMembers={MEMBERS_A}
         teamBMembers={MEMBERS_B}
         teamARoster={null}
@@ -104,7 +104,7 @@ describe("AdminRosterDialog — explicit two-step lineup selection", () => {
   it("offers confirmation for saved-but-unconfirmed rosters and stays silent once confirmed", async () => {
     const user = userEvent.setup();
     mockedConfirm.mockResolvedValue(
-      ok({ alreadyConfirmed: false, matchId: "match-1", teamId: "team-a" }),
+      ok({ alreadyConfirmed: false, matchId: "match-1", entryId: "team-a" }),
     );
     const pending: RosterData = {
       rosterId: "roster-a",
@@ -117,8 +117,8 @@ describe("AdminRosterDialog — explicit two-step lineup selection", () => {
         matchId="match-1"
         teamAName="Alpha"
         teamBName="Beta"
-        teamAId="team-a"
-        teamBId="team-b"
+        entryAId="team-a"
+        entryBId="team-b"
         teamAMembers={MEMBERS_A}
         teamBMembers={MEMBERS_B}
         teamARoster={pending}
@@ -146,8 +146,8 @@ describe("AdminRosterDialog — explicit two-step lineup selection", () => {
         matchId="match-1"
         teamAName="Alpha"
         teamBName="Beta"
-        teamAId="team-a"
-        teamBId="team-b"
+        entryAId="team-a"
+        entryBId="team-b"
         teamAMembers={MEMBERS_A}
         teamBMembers={MEMBERS_B}
         teamARoster={null}
@@ -169,8 +169,8 @@ describe("AdminRosterDialog — explicit two-step lineup selection", () => {
         matchId="match-1"
         teamAName="Alpha"
         teamBName="Beta"
-        teamAId="team-a"
-        teamBId="team-b"
+        entryAId="team-a"
+        entryBId="team-b"
         teamAMembers={MEMBERS_A}
         teamBMembers={MEMBERS_B}
         teamARoster={null}

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { and, eq, count, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
-import { adminInvites, auditLogs, captainVotes, seasonRegistrations, seasons, teams, users } from "@/db/schema";
+import { adminInvites, auditLogs, captainVotes, seasonRegistrations, seasons, competitionEntries, users } from "@/db/schema";
 import { ok, fail, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { actionError } from "@/lib/action-utils";
@@ -249,8 +249,8 @@ export async function revertSeasonToRegistration(seasonId: string): Promise<Acti
 
     const [existingTeamCount] = await db
       .select({ count: count() })
-      .from(teams)
-      .where(eq(teams.seasonId, seasonId));
+      .from(competitionEntries)
+      .where(eq(competitionEntries.competitionId, seasonId));
     if (Number(existingTeamCount?.count ?? 0) > 0) {
       throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "已生成队伍，不能撤回至报名");
     }

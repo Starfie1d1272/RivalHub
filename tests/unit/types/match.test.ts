@@ -6,8 +6,8 @@ function makeMatch(overrides: Partial<Match> = {}): Match {
   return {
     id: "m1",
     seasonId: "s1",
-    teamAId: "ta",
-    teamBId: "tb",
+    entryAId: "ta",
+    entryBId: "tb",
     stage: "qualifier",
     round: null,
     format: "bo3",

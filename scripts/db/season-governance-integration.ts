@@ -5,7 +5,6 @@ import { eq } from "drizzle-orm";
 
 type Globals = {
   schema: typeof import("../../src/db/schema");
-  transferFormalTeamCaptainInTransaction: typeof import("../../src/lib/teams/captain-transfer")["transferFormalTeamCaptainInTransaction"];
   assertSeasonHasNoHistoricalFacts: typeof import("../../src/lib/seasons/lifecycle")["assertSeasonHasNoHistoricalFacts"];
   freezeCompetitiveContext: typeof import("../../src/lib/seasons/lifecycle")["freezeCompetitiveContext"];
   MAJOR_CONFIG: typeof import("../../src/types/season")["MAJOR_TEAM_CONFIG"];
@@ -42,11 +41,9 @@ async function main(): Promise<void> {
   }
   process.env.DATABASE_URL = process.env.DATABASE_URL ?? databaseUrl;
   const schemaModule = await import("../../src/db/schema");
-  const { transferFormalTeamCaptainInTransaction } = await import("../../src/lib/teams/captain-transfer");
   const { assertSeasonHasNoHistoricalFacts, freezeCompetitiveContext } = await import("../../src/lib/seasons/lifecycle");
   const typeSeasons = await import("../../src/types/season");
   globals.schema = schemaModule;
-  globals.transferFormalTeamCaptainInTransaction = transferFormalTeamCaptainInTransaction;
   globals.assertSeasonHasNoHistoricalFacts = assertSeasonHasNoHistoricalFacts;
   globals.freezeCompetitiveContext = freezeCompetitiveContext;
   globals.MAJOR_CONFIG = typeSeasons.MAJOR_TEAM_CONFIG;
@@ -54,9 +51,8 @@ async function main(): Promise<void> {
   try {
     await exerciseCompetitiveFreezeLifecycle(pool);
     await exerciseEmptySeasonGuards(pool);
-    await exerciseCaptainTransfer(pool);
     await exerciseQualificationPlatformIsolation(pool);
-    console.log("Season Governance local integration passed: competitive freeze lifecycle, empty-season guards, captain transfer concurrency semantics, and qualification platform isolation.");
+    console.log("Season Governance local integration passed: competitive freeze lifecycle, empty-season guards, and qualification platform isolation.");
   } finally {
     await pool.end();
   }
@@ -258,166 +254,21 @@ async function exerciseEmptySeasonGuards(pool: Pool): Promise<void> {
   await pool.query("DELETE FROM season_registrations WHERE season_id = $1", [emptySeason]);
   await pool.query("DELETE FROM users WHERE id = $1", [userId]);
 
-  // A team application blocks too.
+  // A CompetitionEntry blocks too.
   const captain = randomUUID();
   await seedUser(pool, captain);
   await pool.query(
-    `INSERT INTO team_applications (id, season_id, name, captain_user_id, status)
-     VALUES ($1, $2, 'Guarded Application', $3, 'draft')`,
+    `INSERT INTO competition_entries (id, competition_id, source, name, representative_user_id, registration_status)
+     VALUES ($1, $2, 'event_native', 'Guarded Entry', $3, 'draft')`,
     [randomUUID(), emptySeason, captain],
   );
   await db.transaction(async (tx) => {
     await expectFailure(() => globals.assertSeasonHasNoHistoricalFacts(tx, emptySeason), "不能删除");
   });
-  await pool.query("DELETE FROM team_applications WHERE season_id = $1", [emptySeason]);
+  await pool.query("DELETE FROM competition_entries WHERE competition_id = $1", [emptySeason]);
   await pool.query("DELETE FROM users WHERE id = $1", [captain]);
 
   await pool.query("DELETE FROM seasons WHERE id = $1", [emptySeason]);
-}
-
-// ── Formal team captain transfer ────────────────────────────────────────────
-
-function unauthorized(): Promise<never> {
-  return Promise.reject(new Error("UNAUTHORIZED: 非当前赛季管理员"));
-}
-
-async function exerciseCaptainTransfer(pool: Pool): Promise<void> {
-  const db = drizzle(pool, { schema: globals.schema });
-  const seasonId = randomUUID();
-  await pool.query(
-    `INSERT INTO seasons (id, slug, name, kind, status, registration_mode, has_captain_voting, has_draft,
-       registration_deadline, team_registration_config)
-     VALUES ($1, $2, 'Governance Transfer', '自定义赛事', 'registration', 'team', false, false,
-       now() + interval '7 days', $3::json)`,
-    [seasonId, `gov-transfer-${randomUUID()}`, JSON.stringify(globals.MAJOR_CONFIG)],
-  );
-
-  const captainA = randomUUID();
-  const memberB = randomUUID();
-  const memberC = randomUUID();
-  for (const user of [captainA, memberB, memberC]) await seedUser(pool, user);
-
-  const teamId = randomUUID();
-  // Formal teams require a provenance source; seed a minimal approved application.
-  const applicationId = randomUUID();
-  await pool.query(
-    `INSERT INTO team_applications (id, season_id, name, captain_user_id, status)
-     VALUES ($1, $2, 'Transfer Team', $3, 'approved')`,
-    [applicationId, seasonId, captainA],
-  );
-  await pool.query(
-    `INSERT INTO teams (id, season_id, name, captain_user_id, team_application_id, draft_order) VALUES ($1, $2, 'Transfer Team', $3, $4, 1)`,
-    [teamId, seasonId, captainA, applicationId],
-  );
-  const applicationMemberIds = new Map<string, string>();
-  for (const user of [captainA, memberB, memberC]) {
-    const applicationMemberId = randomUUID();
-    applicationMemberIds.set(user, applicationMemberId);
-    await pool.query(
-      `INSERT INTO team_application_members (id, application_id, user_id, invited_by_user_id, status, confirmed_at)
-       VALUES ($1, $2, $3, $4, 'confirmed', now())`,
-      [applicationMemberId, applicationId, user, captainA],
-    );
-    await pool.query(
-      "INSERT INTO team_members (id, team_id, season_id, user_id, team_application_member_id, is_starter) VALUES ($1, $2, $3, $4, $5, false)",
-      [randomUUID(), teamId, seasonId, user, applicationMemberId],
-    );
-  }
-
-  const transfer = (actorId: string, toUserId: string, admin: (seasonId: string) => Promise<void> = unauthorized) =>
-    db.transaction(async (tx) => globals.transferFormalTeamCaptainInTransaction(tx, {
-      teamId,
-      toUserId,
-      actorUserId: actorId,
-      assertSeasonAdmin: (targetSeasonId) => admin(targetSeasonId),
-    }));
-
-  // 1. Captain transfer to a confirmed roster member succeeds.
-  await transfer(captainA, memberB);
-  let row = await pool.query<{ captain_user_id: string }>("SELECT captain_user_id FROM teams WHERE id = $1", [teamId]);
-  check(row.rows[0]?.captain_user_id === memberB, "A → B 交接后队长应为 B");
-  const audit = await pool.query<{ count: string }>(
-    "SELECT count(*) FROM audit_logs WHERE action = 'team.transfer_captain' AND target_id = $1", [teamId]);
-  check(Number(audit.rows[0]?.count) === 1, "交接应写入一条审计日志");
-
-  // 2. The former captain loses transfer authority.
-  await expectFailure(() => transfer(captainA, memberC), "UNAUTHORIZED");
-
-  // 3. Transfer to a non-member is refused and leaves state untouched.
-  const outsider = randomUUID();
-  await seedUser(pool, outsider);
-  await expectFailure(() => transfer(memberB, outsider), "新队长必须是当前正式队伍成员");
-  row = await pool.query<{ captain_user_id: string }>("SELECT captain_user_id FROM teams WHERE id = $1", [teamId]);
-  check(row.rows[0]?.captain_user_id === memberB, "失败的交接不改变队长");
-
-  // 4. Admin override may transfer for the current captain.
-  await transfer(captainA, memberC, () => Promise.resolve());
-  row = await pool.query<{ captain_user_id: string }>("SELECT captain_user_id FROM teams WHERE id = $1", [teamId]);
-  check(row.rows[0]?.captain_user_id === memberC, "管理员覆盖交接后队长应为 C");
-  // restore B as captain for the concurrency test
-  await transfer(memberC, memberB, () => Promise.resolve());
-
-  // 5. Two concurrent transfers A→B / A→C race on the locked current captain;
-  //    exactly one succeeds per the serialized captain state.
-  await pool.query("UPDATE teams SET captain_user_id = $2 WHERE id = $1", [teamId, captainA]);
-  const results = await Promise.allSettled([
-    transfer(captainA, memberB),
-    transfer(captainA, memberC),
-  ]);
-  const succeeded = results.filter((result) => result.status === "fulfilled");
-  const failed = results.filter((result) => result.status === "rejected");
-  check(succeeded.length === 1 && failed.length === 1, "并发交接只能有一个成功");
-  row = await pool.query<{ captain_user_id: string }>("SELECT captain_user_id FROM teams WHERE id = $1", [teamId]);
-  const finalCaptain = row.rows[0]?.captain_user_id;
-  check(finalCaptain === memberB || finalCaptain === memberC, "并发交接后队长必须是 B 或 C");
-  check(finalCaptain === (succeeded[0] as PromiseFulfilledResult<{ toUserId: string }>).value.toUserId,
-    "成功的事务与最终队长一致");
-
-  // 6. Roster lock (confirmed Major entrant) closes the transfer window for a
-  //    normal captain; admin override remains available.
-  await pool.query("UPDATE teams SET captain_user_id = $2 WHERE id = $1", [teamId, memberB]);
-  await pool.query(
-    "INSERT INTO major_prestart_entrants (id, season_id, team_id, roster_confirmed_at) VALUES ($1, $2, $3, now())",
-    [randomUUID(), seasonId, teamId],
-  );
-  await expectFailure(() => transfer(memberB, memberC), "正式名单已锁定");
-  await transfer(captainA, memberC, () => Promise.resolve());
-  row = await pool.query<{ captain_user_id: string }>("SELECT captain_user_id FROM teams WHERE id = $1", [teamId]);
-  check(row.rows[0]?.captain_user_id === memberC, "名单锁定后管理员仍可覆盖交接");
-
-  // 7. Member removal vs transfer: a removal that commits first makes the
-  //    racing transfer fail closed; the captain never ends up outside the roster.
-  await pool.query("DELETE FROM major_prestart_entrants WHERE season_id = $1", [seasonId]);
-  await pool.query("UPDATE teams SET captain_user_id = $2 WHERE id = $1", [teamId, memberB]);
-  const remover = await pool.connect();
-  try {
-    await remover.query("BEGIN");
-    await remover.query("DELETE FROM team_members WHERE team_id = $1 AND user_id = $2", [teamId, memberC]);
-    const pending = transfer(memberB, memberC).then(
-      () => { throw new Error("并发移除后交接不应成功"); },
-      (error: Error) => error,
-    );
-    await remover.query("COMMIT");
-    const error = await pending;
-    check(error.message.includes("新队长必须是当前正式队伍成员"), `并发移除应使交接失败，实际：${error.message}`);
-  } finally {
-    remover.release();
-  }
-  row = await pool.query<{ captain_user_id: string }>("SELECT captain_user_id FROM teams WHERE id = $1", [teamId]);
-  check(row.rows[0]?.captain_user_id === memberB, "并发移除场景不改变队长");
-  const captainStillOnRoster = await pool.query<{ count: string }>(
-    "SELECT count(*) FROM team_members WHERE team_id = $1 AND user_id = $2", [teamId, memberB]);
-  check(Number(captainStillOnRoster.rows[0]?.count) === 1, "队长仍属于队伍名单");
-
-  await pool.query("DELETE FROM major_prestart_entrants WHERE season_id = $1", [seasonId]);
-  await pool.query("DELETE FROM team_members WHERE season_id = $1", [seasonId]);
-  await pool.query("DELETE FROM teams WHERE season_id = $1", [seasonId]);
-  await pool.query("DELETE FROM team_applications WHERE season_id = $1", [seasonId]);
-  await pool.query("DELETE FROM audit_logs WHERE target_id = $1", [teamId]);
-  await pool.query("DELETE FROM seasons WHERE id = $1", [seasonId]);
-  for (const user of [captainA, memberB, memberC, outsider]) {
-    await pool.query("DELETE FROM users WHERE id = $1", [user]);
-  }
 }
 
 main().catch((error) => {

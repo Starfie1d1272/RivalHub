@@ -5,7 +5,7 @@ Phase 6 队长投票 UI 组件。
 | 组件 | 说明 |
 |---|---|
 | `CaptainVotingPanel` | 公共投票与结果页：候选人排序、投票 / 撤票、Realtime 订阅 `captain_votes`，并用 10 秒轮询兜底刷新 |
-| `CaptainConfirmPanel` | 管理员确认前 8 名面板：生成 `teams`、写入队长 `team_members`、推进赛季到 `drafting` |
+| `CaptainConfirmPanel` | 管理员确认前 8 名面板：生成本届参赛记录与赛事名单、推进赛季到 `drafting` |
 
 ## 当前约束
 
