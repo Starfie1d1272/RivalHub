@@ -883,6 +883,14 @@ BEGIN
       SELECT 1 FROM matches match
       WHERE match.id = NEW.match_id AND NEW.entry_id IN (match.entry_a_id, match.entry_b_id)
     ) INTO valid;
+  ELSIF TG_TABLE_NAME = 'match_roster_players' THEN
+    SELECT EXISTS (
+      SELECT 1 FROM match_rosters match_roster
+      JOIN event_roster_members member ON member.id = NEW.event_roster_member_id
+      JOIN event_rosters event_roster ON event_roster.id = member.event_roster_id
+      WHERE match_roster.id = NEW.roster_id
+        AND match_roster.entry_id = event_roster.entry_id
+    ) INTO valid;
   END IF;
   IF NOT COALESCE(valid, false) THEN
     RAISE EXCEPTION 'CompetitionEntry cross-aggregate invariant violated for %', TG_TABLE_NAME USING ERRCODE = '23514';
@@ -920,6 +928,8 @@ END $$;--> statement-breakpoint
 CREATE TRIGGER "event_rosters_frozen_not_thawed" BEFORE UPDATE OF "status" ON "event_rosters"
 FOR EACH ROW EXECUTE FUNCTION "public"."rivalhub_assert_event_roster_not_thawed"();--> statement-breakpoint
 CREATE TRIGGER "match_rosters_entry_integrity" BEFORE INSERT OR UPDATE ON "match_rosters"
+FOR EACH ROW EXECUTE FUNCTION "public"."rivalhub_assert_competition_entry_aggregate"();--> statement-breakpoint
+CREATE TRIGGER "match_roster_players_entry_integrity" BEFORE INSERT OR UPDATE ON "match_roster_players"
 FOR EACH ROW EXECUTE FUNCTION "public"."rivalhub_assert_competition_entry_aggregate"();--> statement-breakpoint
 REVOKE ALL ON FUNCTION "public"."rivalhub_assert_competition_entry_aggregate"() FROM PUBLIC, anon, authenticated;--> statement-breakpoint
 REVOKE ALL ON FUNCTION "public"."rivalhub_assert_event_roster_mutable"() FROM PUBLIC, anon, authenticated;--> statement-breakpoint

@@ -74,7 +74,7 @@ async function main(): Promise<void> {
 }
 
 async function exerciseConcurrencyAndInvariants(pool: Pool): Promise<void> {
-  const ids = { season: randomUUID(), shared: randomUUID(), captainA: randomUUID(), captainB: randomUUID(), teamA: randomUUID(), teamB: randomUUID(), entryA: randomUUID(), entryB: randomUUID(), participantA: randomUUID(), participantB: randomUUID(), revisionA: randomUUID(), rosterA: randomUUID() };
+  const ids = { season: randomUUID(), shared: randomUUID(), captainA: randomUUID(), captainB: randomUUID(), teamA: randomUUID(), teamB: randomUUID(), entryA: randomUUID(), entryB: randomUUID(), participantA: randomUUID(), participantB: randomUUID(), revisionA: randomUUID(), revisionB: randomUUID(), rosterA: randomUUID(), rosterB: randomUUID(), eventMemberA: randomUUID(), eventMemberB: randomUUID(), match: randomUUID(), matchRoster: randomUUID() };
   const setup = await pool.connect();
   try {
     await setup.query("BEGIN");
@@ -84,7 +84,9 @@ async function exerciseConcurrencyAndInvariants(pool: Pool): Promise<void> {
     await setup.query("INSERT INTO competition_entries (id,competition_id,source,name,representative_user_id,registration_status) VALUES ($1,$2,'event_native','Entry A',$3,'draft'),($4,$2,'event_native','Entry B',$5,'draft')", [ids.entryA, ids.season, ids.captainA, ids.entryB, ids.captainB]);
     await setup.query("INSERT INTO competition_entry_participants (id,entry_id,user_id,status,invited_by_user_id) VALUES ($1,$2,$3,'invited',$4),($5,$6,$3,'invited',$7)", [ids.participantA, ids.entryA, ids.shared, ids.captainA, ids.participantB, ids.entryB, ids.captainB]);
     await setup.query("INSERT INTO competition_entry_roster_revisions (id,entry_id,revision,status,created_by) VALUES ($1,$2,1,'draft','local-test')", [ids.revisionA, ids.entryA]);
+    await setup.query("INSERT INTO competition_entry_roster_revisions (id,entry_id,revision,status,created_by) VALUES ($1,$2,1,'draft','local-test')", [ids.revisionB, ids.entryB]);
     await setup.query("INSERT INTO event_rosters (id,entry_id,source_roster_revision_id,status) VALUES ($1,$2,$3,'preparing')", [ids.rosterA, ids.entryA, ids.revisionA]);
+    await setup.query("INSERT INTO event_rosters (id,entry_id,source_roster_revision_id,status) VALUES ($1,$2,$3,'preparing')", [ids.rosterB, ids.entryB, ids.revisionB]);
     await setup.query("COMMIT");
 
     const first = await pool.connect();
@@ -120,7 +122,12 @@ async function exerciseConcurrencyAndInvariants(pool: Pool): Promise<void> {
 
     await setup.query("BEGIN");
     await expectsPgError(setup, () => setup.query("INSERT INTO competition_entry_roster_members (revision_id,participant_id,user_id) VALUES ($1,$2,$3)", [ids.revisionA, ids.participantB, ids.shared]), "23514");
-    await setup.query("INSERT INTO event_roster_members (event_roster_id,participant_id,user_id) VALUES ($1,$2,$3)", [ids.rosterA, ids.participantA, ids.shared]);
+    await setup.query("INSERT INTO event_roster_members (id,event_roster_id,participant_id,user_id) VALUES ($1,$2,$3,$4)", [ids.eventMemberA, ids.rosterA, ids.participantA, ids.shared]);
+    await setup.query("INSERT INTO event_roster_members (id,event_roster_id,participant_id,user_id) VALUES ($1,$2,$3,$4)", [ids.eventMemberB, ids.rosterB, ids.participantB, ids.shared]);
+    await setup.query("INSERT INTO matches (id,season_id,entry_a_id,entry_b_id,stage) VALUES ($1,$2,$3,$4,'fixture')", [ids.match, ids.season, ids.entryA, ids.entryB]);
+    await setup.query("INSERT INTO match_rosters (id,match_id,entry_id,status) VALUES ($1,$2,$3,'submitted')", [ids.matchRoster, ids.match, ids.entryA]);
+    await expectsPgError(setup, () => setup.query("INSERT INTO match_roster_players (roster_id,event_roster_member_id) VALUES ($1,$2)", [ids.matchRoster, ids.eventMemberB]), "23514");
+    await setup.query("INSERT INTO match_roster_players (roster_id,event_roster_member_id) VALUES ($1,$2)", [ids.matchRoster, ids.eventMemberA]);
     await setup.query("UPDATE event_rosters SET status = 'confirmed' WHERE id = $1", [ids.rosterA]);
     await setup.query("UPDATE event_rosters SET status = 'preparing' WHERE id = $1", [ids.rosterA]);
     await setup.query("UPDATE event_rosters SET status = 'confirmed' WHERE id = $1", [ids.rosterA]);
@@ -129,17 +136,20 @@ async function exerciseConcurrencyAndInvariants(pool: Pool): Promise<void> {
     await expectsPgError(setup, () => setup.query("UPDATE event_rosters SET status = 'preparing' WHERE id = $1", [ids.rosterA]), "23514");
     await setup.query("ROLLBACK");
   } finally {
-    await setup.query("DELETE FROM competition_entry_active_claims WHERE competition_id = $1", [ids.season]);
-    await setup.query("DELETE FROM event_roster_members WHERE event_roster_id = $1", [ids.rosterA]);
-    await setup.query("DELETE FROM event_rosters WHERE id = $1", [ids.rosterA]);
-    await setup.query("DELETE FROM competition_entry_roster_revisions WHERE id = $1", [ids.revisionA]);
-    await setup.query("DELETE FROM competition_entry_participants WHERE entry_id IN ($1,$2)", [ids.entryA, ids.entryB]);
-    await setup.query("DELETE FROM competition_entries WHERE id IN ($1,$2)", [ids.entryA, ids.entryB]);
-    await setup.query("DELETE FROM team_memberships WHERE team_id IN ($1,$2)", [ids.teamA, ids.teamB]);
-    await setup.query("DELETE FROM teams WHERE id IN ($1,$2)", [ids.teamA, ids.teamB]);
-    await setup.query("DELETE FROM seasons WHERE id = $1", [ids.season]);
-    await setup.query("DELETE FROM users WHERE id IN ($1,$2,$3)", [ids.shared, ids.captainA, ids.captainB]);
-    setup.release();
+    try {
+      await setup.query("DELETE FROM competition_entry_active_claims WHERE competition_id = $1", [ids.season]);
+      await setup.query("DELETE FROM event_roster_members WHERE event_roster_id IN ($1,$2)", [ids.rosterA, ids.rosterB]);
+      await setup.query("DELETE FROM event_rosters WHERE id IN ($1,$2)", [ids.rosterA, ids.rosterB]);
+      await setup.query("DELETE FROM competition_entry_roster_revisions WHERE id IN ($1,$2)", [ids.revisionA, ids.revisionB]);
+      await setup.query("DELETE FROM competition_entry_participants WHERE entry_id IN ($1,$2)", [ids.entryA, ids.entryB]);
+      await setup.query("DELETE FROM competition_entries WHERE id IN ($1,$2)", [ids.entryA, ids.entryB]);
+      await setup.query("DELETE FROM team_memberships WHERE team_id IN ($1,$2)", [ids.teamA, ids.teamB]);
+      await setup.query("DELETE FROM teams WHERE id IN ($1,$2)", [ids.teamA, ids.teamB]);
+      await setup.query("DELETE FROM seasons WHERE id = $1", [ids.season]);
+      await setup.query("DELETE FROM users WHERE id IN ($1,$2,$3)", [ids.shared, ids.captainA, ids.captainB]);
+    } finally {
+      setup.release();
+    }
   }
 }
 
