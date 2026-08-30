@@ -25,6 +25,7 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import { TEAM_LOGO_BUCKET, TEAM_LOGO_EXTENSIONS } from "@/lib/config/team-logo";
 import { LOGO_ALLOWED_TYPES, LOGO_MAX_BYTES } from "@/lib/config/upload-limits";
 import { normalizeEmail } from "@/lib/utils/email";
+import { expirePendingInvitationsInTx } from "@/lib/teams/invitations";
 import { fail, ok, type ActionResult } from "@/types/action";
 
 const uuid = z.string().uuid();
@@ -125,13 +126,6 @@ export async function updateTeamProfile(input: { teamId: string; name: string; d
   } catch (error) { return actionError("updateTeamProfile", error); }
 }
 
-export async function updateTeamName(teamId: string, name: string): Promise<ActionResult<void>> {
-  const team = await db.query.teams.findFirst({ where: eq(teams.id, teamId) });
-  if (!team) return fail({ code: ErrorCode.NOT_FOUND, message: "队伍不存在。" });
-  const result = await updateTeamProfile({ teamId, name, description: team.description ?? undefined, recruiting: team.recruiting });
-  return result.success ? ok(undefined) : result;
-}
-
 export async function uploadTeamLogo(teamId: string, formData: FormData): Promise<ActionResult<{ logoUrl: string }>> {
   const file = formData.get("file");
   if (!(file instanceof File)) return failValidation("未提供文件");
@@ -176,8 +170,11 @@ export async function inviteTeamMember(input: { teamId: string; email: string })
       await assertInviteRate(tx, team.id);
       const current = await tx.query.teamMemberships.findFirst({ where: and(eq(teamMemberships.teamId, team.id), eq(teamMemberships.userId, user.id), isNull(teamMemberships.endedAt)) });
       if (current) throw new AppError(ErrorCode.REGISTRATION_DUPLICATE, "该用户当前已属于这支队伍。");
+      // 先把已过期的 pending direct 邀请收敛为 expired，再创建新邀请，
+      // 否则不再展示的过期邀请会永久占用 pending 身份并阻断重新邀请。
+      const expiredCount = await expirePendingInvitationsInTx(tx, { teamId: team.id, invitedUserId: user.id });
       await tx.insert(teamInvitations).values({ teamId: team.id, kind: "direct", invitedUserId: user.id, invitedByUserId: session.userId, expiresAt: new Date(Date.now() + INVITE_TTL_MS) });
-      await auditTeam(tx, "team.invite", auditActorId(session), team.id, { invitedUserId: user.id, kind: "direct" });
+      await auditTeam(tx, "team.invite", auditActorId(session), team.id, { invitedUserId: user.id, kind: "direct", expiredSuperseded: expiredCount });
     });
     revalidateTeam();
     return ok(undefined);
@@ -216,6 +213,8 @@ export async function acceptTeamInvitation(input: { invitationId?: string; token
         : await tx.select().from(teamInvitations).where(eq(teamInvitations.tokenHash, tokenHash(parsed.data.token!))).for("update");
       if (!invitation || invitation.status !== "pending") throw new AppError(ErrorCode.NOT_FOUND, "邀请不存在或已失效。");
       if (invitation.expiresAt <= new Date()) {
+        // 过期是系统时间事实：先把状态收敛为 expired（不伪造 response），再拒绝接受。
+        await expirePendingInvitationsInTx(tx, { invitationId: invitation.id });
         throw new AppError(ErrorCode.VALIDATION_FAILED, "邀请已过期。");
       }
       if (invitation.kind === "direct" && invitation.invitedUserId !== session.userId) throw new AppError(ErrorCode.FORBIDDEN, "该邀请不属于你。");
