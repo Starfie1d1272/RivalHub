@@ -6,3 +6,15 @@ overrides:
   # GHSA-23hp-3jrh-7fpw: vercel -> @vercel/fun 精确 pin tar@7.5.7（< 7.5.19 patched floor），
   # 上游 1.3.1 仍未修复，这里只对该 pin 实例收敛到已修复版本。
   'tar@7.5.7': 7.5.22
+  # GHSA-6g55-p6wh-862q / GHSA-r28c-9q8g-f849 / GHSA-qx2v-qp2m-jg93 / GHSA-fxqj-rqcc-2cmp:
+  # next 15.5.24 精确 pin postcss@8.4.31（< 8.5.23 patched floor，覆盖全部 4 条 advisory），
+  # path: .>next>postcss（含经由该实例的 nanoid GHSA-28wg-ghj8-5hjv / GHSA-2v37-7h3g-55p8）。
+  # 8.4.31 -> 8.5.23 为同 major 兼容升级；pnpm v11 对已存在 lockfile resolution 不做范围内重解析，
+  # 故对该精确 pin 实例使用 override。
+  # 退出条件：升级 Next（16.x 起 pin postcss 8.5.23+）后此 selector 不再命中，应移除。
+  'postcss@8.4.31': 8.5.23
+  # GHSA-f88m-g3jw-g9cj: next optionalDependencies 的 sharp 实例停留在 0.34.5
+  # （< 0.35.0 patched floor）。next 15.5.24 声明范围 ^0.34.3 || ^0.35.3 已允许 0.35.x，
+  # 仅因 lockfile 停留未重解析；对该精确实例收敛到 0.35.4（已验证 build/原生二进制安装）。
+  # 退出条件：lockfile 因 next 或其他 owner 升级自然解析到 >= 0.35.0 后移除。
+  'sharp@0.34.5': 0.35.4

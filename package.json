@@ -100,7 +100,7 @@
     "eslint-config-next": "15.5.15",
     "jsdom": "^26.1.0",
     "pg": "^8.16.0",
-    "postcss": "^8.5.23",
+    "postcss": "^8.5.26",
     "supabase": "2.115.0",
     "tailwindcss": "^4.1.6",
     "tsx": "^4.19.4",
