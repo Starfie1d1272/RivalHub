@@ -58,8 +58,8 @@ const COMPETITIVE_PROFILE = {
 interface DisciplineFixture {
   seasonId: string;
   runId: string;
-  teamAId: string;
-  teamBId: string;
+  entryAId: string;
+  entryBId: string;
   memberAIds: string[];
   memberBIds: string[];
   emailsA: string[];
@@ -95,22 +95,32 @@ async function prepareFixture(pool: Pool, label: string): Promise<DisciplineFixt
       ],
     );
 
-    const layouts = [0, 1].map((side) =>
-      [0, 1, 2].map(() => NJU_CODE).concat([OTHER_CODE, OTHER_CODE]).map((code, index) => ({
-        side,
-        index,
-        code,
-        academicStatus: code === OTHER_CODE && index === 3 ? ("graduated" as const) : ("enrolled" as const),
-      })),
-    );
+    const layouts: Array<Array<{ side: number; index: number; code: string; academicStatus: "enrolled" | "graduated"; userId: string }>> = [];
+    for (const side of [0, 1]) {
+      const userIds = Array.from({ length: 5 }, () => randomUUID());
+      layouts.push(
+        [0, 1, 2].map(() => NJU_CODE).concat([OTHER_CODE, OTHER_CODE]).map((code, index) => ({
+          side,
+          index,
+          code,
+          academicStatus: code === OTHER_CODE && index === 3 ? ("graduated" as const) : ("enrolled" as const),
+          userId: userIds[index]!,
+        })),
+      );
+    }
     const emailByKey = new Map<string, string>();
     const memberIdByKey = new Map<string, string>();
 
+    const entryIds: string[] = [];
+    const eventRosterIds: string[] = [];
     for (const side of [0, 1]) {
-      const applicationId = randomUUID();
-      const teamId = randomUUID();
+      const entryId = randomUUID();
+      const eventRosterId = randomUUID();
+      const revisionId = randomUUID();
+      entryIds.push(entryId);
+      eventRosterIds.push(eventRosterId);
       const layoutRows = layouts[side]!;
-      const userIds = layoutRows.map(() => randomUUID());
+      const userIds = layoutRows.map((layout) => layout.userId);
       for (let i = 0; i < layoutRows.length; i += 1) {
         await client.query(`INSERT INTO users (id, email, email_verified_at) VALUES ($1, $2, now())`, [
           userIds[i], `${side}-${i}-${userIds[i]}@local.test`,
@@ -131,31 +141,57 @@ async function prepareFixture(pool: Pool, label: string): Promise<DisciplineFixt
         );
       }
       await client.query(
-        `INSERT INTO team_applications (id, season_id, name, captain_user_id, status)
-         VALUES ($1, $2, $3, $4, 'approved')`,
-        [applicationId, seasonId, side === 0 ? "Team Alpha" : "Team Beta", userIds[0]],
+        `INSERT INTO competition_entries (id, competition_id, source, name, representative_user_id, registration_status, approved_roster_revision)
+         VALUES ($1, $2, 'event_native', $3, $4, 'approved', 1)`,
+        [entryId, seasonId, side === 0 ? "Entry Alpha" : "Entry Beta", userIds[0]],
       );
-      await client.query(
-        `INSERT INTO teams (id, season_id, name, captain_user_id, team_application_id)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [teamId, seasonId, side === 0 ? "Team Alpha" : "Team Beta", userIds[0], applicationId],
-      );
+      const participantIds: string[] = [];
       for (let i = 0; i < layoutRows.length; i += 1) {
         const userId = userIds[i]!;
-        const appMemberId = randomUUID();
+        const participantId = randomUUID();
         emailByKey.set(`${side}-${i}`, `${side}-${i}-${userId}@local.test`);
-        memberIdByKey.set(`${side}-${i}`, appMemberId);
+        participantIds.push(participantId);
         await client.query(
-          `INSERT INTO team_application_members (id, application_id, user_id, invited_by_user_id, status, confirmed_at)
-           VALUES ($1, $2, $3, $4, 'confirmed', now())`,
-          [appMemberId, applicationId, userId, userIds[0]],
-        );
-        await client.query(
-          `INSERT INTO team_members (team_id, season_id, user_id, team_application_member_id)
-           VALUES ($1, $2, $3, $4)`,
-          [teamId, seasonId, userId, appMemberId],
+          `INSERT INTO competition_entry_participants (id, entry_id, user_id, status, confirmed_at, invited_by_user_id)
+           VALUES ($1, $2, $3, 'confirmed', now(), $4)`,
+          [participantId, entryId, userId, userIds[0]],
         );
       }
+      await client.query(
+        `INSERT INTO competition_entry_roster_revisions (id, entry_id, revision, status, created_by, approved_at)
+         VALUES ($1, $2, 1, 'approved', 'local-admin', now())`,
+        [revisionId, entryId],
+      );
+      for (let i = 0; i < layoutRows.length; i += 1) {
+        memberIdByKey.set(`${side}-${i}`, randomUUID());
+        await client.query(
+          `INSERT INTO competition_entry_roster_members (id, revision_id, participant_id, user_id, is_primary_starter)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [memberIdByKey.get(`${side}-${i}`), revisionId, participantIds[i], userIds[i], i === 0],
+        );
+      }
+      // Frozen event roster membership decides who can be fielded; the education
+      // verification adopted by each member is eligibility provenance.
+      await client.query(
+        `INSERT INTO event_rosters (id, entry_id, source_roster_revision_id, status)
+         VALUES ($1, $2, $3, 'preparing')`,
+        [eventRosterId, entryId, revisionId],
+      );
+      for (let i = 0; i < layoutRows.length; i += 1) {
+        const verification = await client.query<{ id: string }>(
+          `SELECT v.id FROM education_verifications v
+           INNER JOIN institutions i ON i.id = v.institution_id
+           WHERE v.user_id = $1 AND i.moe_institution_code = $2`,
+          [userIds[i]!, layoutRows[i]!.code],
+        );
+        await client.query(
+          `INSERT INTO event_roster_members (event_roster_id, participant_id, user_id, education_verification_id)
+           VALUES ($1, $2, $3, $4)`,
+          [eventRosterId, participantIds[i]!, userIds[i]!, verification.rows[0]!.id],
+        );
+      }
+      await client.query(`UPDATE event_rosters SET status = 'confirmed' WHERE id = $1`, [eventRosterId]);
+      await client.query(`UPDATE event_rosters SET status = 'frozen', frozen_at = now(), frozen_by = 'local-admin' WHERE id = $1`, [eventRosterId]);
     }
 
     await client.query(
@@ -163,7 +199,16 @@ async function prepareFixture(pool: Pool, label: string): Promise<DisciplineFixt
        VALUES ($1, now(), 'local-admin', 1, 1)`,
       [seasonId],
     );
-    // Minimal stage run with the frozen affiliation ruleset.
+    // Minimal stage run with the frozen affiliation ruleset and per-player
+    // frozen competitive facts (consumed by the match-lineup gate).
+    const frozenCompetitiveFacts = [0, 1].flatMap((side) =>
+      layouts[side]!.map((layout) => ({
+        userId: layout.userId,
+        historicalPeak: { rank: "A", rating: 1000 },
+        previousSeasonPeak: { rank: "A", rating: 1000 },
+        currentSeasonPeak: { rank: "A", rating: 1000 },
+      })),
+    );
     const ruleSnapshot = {
       version: 2,
       stage: { key: "stage1", type: "swiss", teamCount: 16, matchFormat: "bo1" },
@@ -171,6 +216,7 @@ async function prepareFixture(pool: Pool, label: string): Promise<DisciplineFixt
         { institutionCode: NJU_CODE, eligibleAcademicStatuses: ["enrolled", "graduated"], minRosterMembers: 3, minStartingMembers: 3 },
       ],
       competitiveProfile: { ...COMPETITIVE_PROFILE, rankOrder: [...COMPETITIVE_PROFILE.rankOrder] },
+      frozenCompetitiveFacts,
       stagePlan: [{ key: "stage1" }, { key: "playoff" }],
       tournamentEntrants: [],
       tournamentSeeds: [],
@@ -184,41 +230,21 @@ async function prepareFixture(pool: Pool, label: string): Promise<DisciplineFixt
     // Entrants are optional in this suite: the roster gate exercises frozen
     // membership only when an entrant exists, so create them for realism.
     for (const side of [0, 1]) {
-      const teamRow = await client.query<{ id: string }>(
-        `SELECT id FROM teams WHERE season_id = $1 AND name = $2`,
-        [seasonId, side === 0 ? "Team Alpha" : "Team Beta"],
+      await client.query(
+        `INSERT INTO major_prestart_entrants (season_id, competition_entry_id, event_roster_id, roster_confirmed_at, roster_confirmed_by)
+         VALUES ($1, $2, $3, now(), 'local-admin')`,
+        [seasonId, entryIds[side], eventRosterIds[side]],
       );
-      const teamId = teamRow.rows[0]!.id;
-      const entrant = await client.query<{ id: string }>(
-        `INSERT INTO major_prestart_entrants (season_id, team_id, roster_confirmed_at, roster_confirmed_by)
-         VALUES ($1, $2, now(), 'local-admin') RETURNING id`,
-        [seasonId, teamId],
-      );
-      const layoutRows = layouts[side]!;
-      for (let i = 0; i < layoutRows.length; i += 1) {
-        const userRow = await client.query<{ id: string }>(
-          `SELECT id FROM users WHERE email = $1`, [emailByKey.get(`${side}-${i}`)!]);
-        const verification = await client.query<{ id: string }>(
-          `SELECT v.id FROM education_verifications v
-           INNER JOIN institutions i ON i.id = v.institution_id
-           WHERE v.user_id = $1 AND i.moe_institution_code = $2`,
-          [userRow.rows[0]!.id, layoutRows[i]!.code],
-        );
-        await client.query(
-          `INSERT INTO major_prestart_roster_members (entrant_id, user_id, education_verification_id)
-           VALUES ($1, $2, $3)`,
-          [entrant.rows[0]!.id, userRow.rows[0]!.id, verification.rows[0]!.id],
-        );
-      }
     }
 
     await client.query("COMMIT");
 
     const memberIdsFor = async (side: number): Promise<string[]> => {
       const rows = await client.query<{ id: string }>(
-        `SELECT m.id FROM team_members m JOIN teams t ON t.id = m.team_id
-         WHERE m.season_id = $1 AND t.name = $2 ORDER BY m.user_id`,
-        [seasonId, side === 0 ? "Team Alpha" : "Team Beta"],
+        `SELECT m.id FROM event_roster_members m
+         WHERE m.event_roster_id = $1
+         ORDER BY m.user_id`,
+        [eventRosterIds[side]],
       );
       return rows.rows.map((row) => row.id);
     };
@@ -227,8 +253,8 @@ async function prepareFixture(pool: Pool, label: string): Promise<DisciplineFixt
     return {
       seasonId,
       runId: runResult.rows[0]!.id,
-      teamAId: (await pool.query(`SELECT id FROM teams WHERE season_id = $1 AND name = 'Team Alpha'`, [seasonId])).rows[0]!.id,
-      teamBId: (await pool.query(`SELECT id FROM teams WHERE season_id = $1 AND name = 'Team Beta'`, [seasonId])).rows[0]!.id,
+      entryAId: entryIds[0]!,
+      entryBId: entryIds[1]!,
       memberAIds: await memberIdsFor(0),
       memberBIds: await memberIdsFor(1),
       emailsA,
@@ -245,10 +271,12 @@ async function snapshotTeamFacts(client: PoolClient, fixture: DisciplineFixture)
   return client.query(
     `SELECT
        (SELECT COUNT(*) FROM major_prestart_entrants e WHERE e.season_id = $1) AS entrants,
-       (SELECT COUNT(*) FROM team_members WHERE season_id = $1 AND team_id = $2) AS members_a,
-       (SELECT captain_user_id FROM teams WHERE id = $2) AS team_a_captain,
-       (SELECT captain_user_id FROM teams WHERE id = $3) AS team_b_captain`,
-    [fixture.seasonId, fixture.teamAId, fixture.teamBId],
+       (SELECT COUNT(*) FROM event_roster_members WHERE event_roster_id IN (
+         SELECT event_roster_id FROM major_prestart_entrants WHERE season_id = $1 AND competition_entry_id = $2
+       )) AS members_a,
+       (SELECT representative_user_id FROM competition_entries WHERE id = $2) AS entry_a_representative,
+       (SELECT representative_user_id FROM competition_entries WHERE id = $3) AS entry_b_representative`,
+    [fixture.seasonId, fixture.entryAId, fixture.entryBId],
   );
 }
 
@@ -271,15 +299,32 @@ async function cleanup(pool: Pool, fixtures: DisciplineFixture[]): Promise<void>
         WHERE i.case_id = d.id AND d.season_id = $1`, [fixture.seasonId]);
       await client.query("DELETE FROM disciplinary_cases WHERE season_id = $1", [fixture.seasonId]);
       await client.query("DELETE FROM major_stage_runs WHERE season_id = $1", [fixture.seasonId]);
-      await client.query(`DELETE FROM major_prestart_roster_members r USING major_prestart_entrants e
-        WHERE r.entrant_id = e.id AND e.season_id = $1`, [fixture.seasonId]);
       await client.query("DELETE FROM major_prestart_entrants WHERE season_id = $1", [fixture.seasonId]);
       await client.query("DELETE FROM major_prestart_states WHERE season_id = $1", [fixture.seasonId]);
-      await client.query("DELETE FROM team_members WHERE season_id = $1", [fixture.seasonId]);
-      await client.query(`DELETE FROM team_application_members m USING team_applications a
-        WHERE m.application_id = a.id AND a.season_id = $1`, [fixture.seasonId]);
-      await client.query("DELETE FROM teams WHERE season_id = $1", [fixture.seasonId]);
-      await client.query("DELETE FROM team_applications WHERE season_id = $1", [fixture.seasonId]);
+      // Frozen-roster immutability is intentional in normal operation; the local
+      // test teardown bypasses row triggers to delete its own fixture rows only.
+      await client.query("SET LOCAL session_replication_role = replica");
+      await client.query(`DELETE FROM event_roster_members WHERE event_roster_id IN (
+        SELECT id FROM event_rosters WHERE entry_id IN (
+          SELECT id FROM competition_entries WHERE competition_id = $1
+        )
+      )`, [fixture.seasonId]);
+      await client.query("SET LOCAL session_replication_role = DEFAULT");
+      await client.query(`DELETE FROM event_rosters WHERE entry_id IN (
+        SELECT id FROM competition_entries WHERE competition_id = $1
+      )`, [fixture.seasonId]);
+      await client.query(`DELETE FROM competition_entry_roster_members WHERE revision_id IN (
+        SELECT id FROM competition_entry_roster_revisions WHERE entry_id IN (
+          SELECT id FROM competition_entries WHERE competition_id = $1
+        )
+      )`, [fixture.seasonId]);
+      await client.query(`DELETE FROM competition_entry_roster_revisions WHERE entry_id IN (
+        SELECT id FROM competition_entries WHERE competition_id = $1
+      )`, [fixture.seasonId]);
+      await client.query(`DELETE FROM competition_entry_participants WHERE entry_id IN (
+        SELECT id FROM competition_entries WHERE competition_id = $1
+      )`, [fixture.seasonId]);
+      await client.query("DELETE FROM competition_entries WHERE competition_id = $1", [fixture.seasonId]);
       await client.query(`DELETE FROM education_verifications WHERE user_id IN (
         SELECT id FROM users WHERE email LIKE '%@local.test' AND email LIKE $1)`, [`%${fixture.seasonId}%`]);
       await client.query(`DELETE FROM users WHERE email LIKE $1`, [`%${fixture.seasonId}%`]);
@@ -302,15 +347,15 @@ async function main(): Promise<void> {
   try {
     const fixture = await prepareFixture(pool, "h1");
     fixtures.push(fixture);
-    const { seasonId, runId, teamAId, teamBId, memberAIds, memberBIds, emailsA } = fixture;
+    const { seasonId, runId, entryAId, entryBId, memberAIds, memberBIds, emailsA } = fixture;
 
     const matchInsert = await pool.query<{ id: string }>(
       `INSERT INTO matches (
-         season_id, team_a_id, team_b_id, stage, round, format, status,
+         season_id, entry_a_id, entry_b_id, stage, round, format, status,
          ownership, major_stage_run_id, managed_key
        ) VALUES ($1, $2, $3, 'stage1', 1, 'bo1', 'scheduled', 'major_stage', $4, 'r1-1')
        RETURNING id`,
-      [seasonId, teamAId, teamBId, runId],
+      [seasonId, entryAId, entryBId, runId],
     );
     const matchId = matchInsert.rows[0]!.id;
 
@@ -449,10 +494,10 @@ async function main(): Promise<void> {
       const baselineOk = await database.transaction(async (tx) => {
         const locked = await lockMatchInTx(tx, matchId);
         await assertStartingLineupAllowedInTx(tx, {
-          match: locked, entryId: teamAId, ...legalLineupA,
+          match: locked, entryId: entryAId, ...legalLineupA,
         });
         await assertStartingLineupAllowedInTx(tx, {
-          match: locked, entryId: teamBId, ...legalLineupB,
+          match: locked, entryId: entryBId, ...legalLineupB,
         });
         return true;
       });
@@ -472,7 +517,7 @@ async function main(): Promise<void> {
       const rejected = await database.transaction(async (tx) => {
         const locked = await lockMatchInTx(tx, matchId);
         try {
-          await assertStartingLineupAllowedInTx(tx, { match: locked, entryId: teamAId, ...legalLineupA });
+          await assertStartingLineupAllowedInTx(tx, { match: locked, entryId: entryAId, ...legalLineupA });
           return null;
         } catch (error) {
           return error instanceof AppError ? error.message : null;
@@ -483,7 +528,7 @@ async function main(): Promise<void> {
       // 另一队不受牵连。
       await database.transaction(async (tx) => {
         const locked = await lockMatchInTx(tx, matchId);
-        await assertStartingLineupAllowedInTx(tx, { match: locked, entryId: teamBId, ...legalLineupB });
+        await assertStartingLineupAllowedInTx(tx, { match: locked, entryId: entryBId, ...legalLineupB });
       });
 
       // 撤销后同阵容恢复可用。
@@ -491,7 +536,7 @@ async function main(): Promise<void> {
         revokeSanctionInTx(tx, { caseId: participationCaseId, actorId: ACTOR, reason: "和解撤销" }));
       await database.transaction(async (tx) => {
         const locked = await lockMatchInTx(tx, matchId);
-        await assertStartingLineupAllowedInTx(tx, { match: locked, entryId: teamAId, ...legalLineupA });
+        await assertStartingLineupAllowedInTx(tx, { match: locked, entryId: entryAId, ...legalLineupA });
       });
 
       const client = await pool.connect();
@@ -508,10 +553,10 @@ async function main(): Promise<void> {
       try {
         const afterSnapshot = await snapshotTeamFacts(client, fixture);
         assertCondition(afterSnapshot.rows[0]!.entrants === beforeSnapshot.rows[0]!.entrants, "S6 entrants 数量不变");
-        assertCondition(afterSnapshot.rows[0]!.members_a === beforeSnapshot.rows[0]!.members_a, "S6 队伍成员数量不变");
-        assertCondition(afterSnapshot.rows[0]!.team_a_captain === beforeSnapshot.rows[0]!.team_a_captain &&
-          afterSnapshot.rows[0]!.team_b_captain === beforeSnapshot.rows[0]!.team_b_captain,
-          "S6 队长归属不得被处罚流程改动");
+        assertCondition(afterSnapshot.rows[0]!.members_a === beforeSnapshot.rows[0]!.members_a, "S6 冻结名单成员数量不变");
+        assertCondition(afterSnapshot.rows[0]!.entry_a_representative === beforeSnapshot.rows[0]!.entry_a_representative &&
+          afterSnapshot.rows[0]!.entry_b_representative === beforeSnapshot.rows[0]!.entry_b_representative,
+          "S6 Entry 代表归属不得被处罚流程改动");
       } finally {
         client.release();
       }

@@ -24,23 +24,23 @@ Rivals 用户在报名窗口填写个人报名并可保存草稿。提交由 Ser
 
 ## 6. Captain voting
 
-已审核用户在投票阶段为候选队长投票或撤票。投票资格、上限和状态由服务端校验；管理员确认队长后创建 Rivals 的初始队伍与选秀顺位。
+已审核用户在投票阶段为候选队长投票或撤票。投票资格、上限和状态由服务端校验；管理员确认队长后创建 Rivals 的 CompetitionEntry（`teamId = null`）与选秀顺位。
 
 ## 7. Rivals draft
 
-队长/管理员操作选秀时，系统以行锁锁定 `draft_state`，先判定 `clientRequestId` 幂等，再验证轮次、身份、位置与可选性，在同一事务写 pick、成员和下一轮状态。commit 后才更新 Realtime。
+队长/管理员操作选秀时，系统以行锁锁定 `draft_state`，先判定 `clientRequestId` 幂等，再验证轮次、身份、位置与可选性，在同一事务写 pick、Entry participant / roster member / event roster member 与下一轮状态。commit 后才更新 Realtime。
 
-## 8. Major team application
+## 8. Major entry registration
 
-队长创建申请、填写赛事相关信息、邀请成员并维护可编辑申请。队长可把职责转给当前已确认成员，原队长保持普通成员身份；锁定后由适用管理员执行紧急交接。交接在事务内锁定 application 行、season 行与目标成员行，全部权限与状态判断基于锁定行，并发交接只有一个能成功。一个用户在同届赛事只能保有符合 active-claim 约束的参与关系。提交前由服务端 qualification owner（batch facts + pure evaluators）汇集身份、教育、竞技和队伍事实执行资格判断。
+长期 Team 的队长为赛事创建 CompetitionEntry（`createCompetitionEntry`），维护可编辑的报名名单 revision（`saveCompetitionEntryRoster`）并可把代表职责转给当前已确认成员（`transferCompetitionEntryRepresentative`）。一个用户在同届赛事只能保有一个符合 `competition_entry_active_claims` 约束的 active commitment。提交前由服务端 qualification owner（batch facts + pure evaluators）汇集身份、教育、竞技和 Entry 事实执行资格判断。长期 Team 本身的成员邀请、队长交接与解散独立于赛事进行。
 
-## 9. Member invite / confirmation
+## 9. Participant confirmation
 
-受邀用户通过 application workflow 确认成员身份。未确认成员不能被当作已完成的申请成员；成员变更会重新影响申请 readiness。
+受邀成员以 Entry participant 身份确认或拒绝参赛（`confirmCompetitionEntryParticipation` / `declineCompetitionEntryParticipation`）。未确认成员不能被当作已完成的参赛成员；成员变更会重新影响 Entry readiness。
 
-## 10. Team review / materialization
+## 10. Entry review
 
-管理员对 submitted application 审核为 approved、waitlisted 或 rejected。draft/rejected application 可由队长编辑并再次提交。approved application 原子物化为正式 `teams` / `team_members`，并保留 application provenance；这一步不等同于进入 Major tournament。
+管理员对 submitted entry 审核为 approved、waitlisted、rejected 或 changes_requested（`reviewCompetitionEntry`）。changes_requested/rejected entry 可由队长编辑并再次提交。approved entry 收敛到 approved roster revision；这一步不等同于进入 Major tournament（见 prestart）。
 
 ## 11. Major prestart
 
@@ -52,7 +52,7 @@ Major 的 Swiss 阶段由 managed StageRun 运行。每次 pairing、回合结�
 
 ## 13. Match roster
 
-正式队伍为具体比赛提交或由管理员选定阵容。Major roster 检查阶段冻结的 affiliation 和参赛事实；缺少或不符合要求的阵容不能被伪造为可用。
+Entry 为具体比赛提交或由管理员选定阵容；阵容成员必须是该 Entry frozen event roster 的成员。Major roster 检查阶段冻结的 affiliation 和参赛事实；缺少或不符合要求的阵容不能被伪造为可用，数据库 invariant 拒绝引用其他 Entry 名单成员的 lineup。
 
 ## 14. Match execution / result
 
@@ -120,7 +120,7 @@ forfeit 是 `finished` 的结果形态，不是额外比赛状态。结果更正
 1. 对 `draft_state` 执行 `SELECT … FOR UPDATE`；
 2. 在当前轮次、队长和 deadline 校验之前查询 `clientRequestId`；同一请求的重试返回原 pick，跨 season/team/player 复用同一 id 则拒绝；
 3. 校验 draft active、当前队伍、deadline、队长、目标报名状态、未被选择和位置上限；
-4. 写入 `draft_picks`、`team_members` 与 audit log；
+4. 写入 `draft_picks`、Entry participant / roster member / event roster member 事实与 audit log；
 5. 推进 `draft_state`，最后一 pick 将赛季推进为 `playing`；
 6. commit 后 revalidate；Realtime client 只消费已提交的 `draft_state` 与 `draft_picks` 更新。
 

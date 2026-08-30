@@ -224,6 +224,7 @@ async function prepareFixture(pool: Pool, label: string): Promise<RosterSafetyFi
     const eventRosterIds = [randomUUID(), randomUUID()];
     /** event_roster_member id lookup by logical slot (a0..a5 + aOut / b0..b5 + bOut). */
     const rosterMemberIds: string[][] = [[], []];
+    const revisionMemberIdsBySide: string[][] = [[], []];
 
     for (const side of [0, 1] as const) {
       const layouts = teamUserLayout(side === 0 ? 0 : 100);
@@ -252,7 +253,10 @@ async function prepareFixture(pool: Pool, label: string): Promise<RosterSafetyFi
          VALUES ($1, $2, 1, 'approved', 'local-test', now())`,
         [revisionId, entryId],
       );
+      const revisionMemberIds: string[] = [];
       for (let offset = 0; offset < layouts.length; offset += 1) {
+        const revisionMemberId = randomUUID();
+        revisionMemberIds.push(revisionMemberId);
         await client.query(
           `INSERT INTO competition_entry_roster_members (revision_id, participant_id, user_id, is_primary_starter)
            VALUES ($1, $2, $3, $4)`,
@@ -264,25 +268,27 @@ async function prepareFixture(pool: Pool, label: string): Promise<RosterSafetyFi
          VALUES ($1, $2, $3, 'preparing')`,
         [eventRosterIds[side], entryId, revisionId],
       );
+      // Frozen event roster membership is defined by event_roster_members itself;
+      // only the frozen layout slots (0–5) are on the tournament roster. Slot 6
+      // remains a canonical participant + approved revision member with NO
+      // event_roster_member row, i.e. not fieldable.
       for (let offset = 0; offset < layouts.length; offset += 1) {
+        if (!layouts[offset].frozen) continue;
         const memberId = randomUUID();
         rosterMemberIds[side].push(memberId);
-        // Slot 6 stays a canonical roster member without adopting an education
-        // verification, i.e. outside the frozen tournament roster.
-        const verificationId = layouts[offset].frozen
-          ? (await client.query<{ id: string }>(
-              `SELECT v.id FROM education_verifications v
-               INNER JOIN institutions i ON i.id = v.institution_id
-               WHERE v.user_id = $1 AND i.moe_institution_code = $2`,
-              [sideUsers[offset], layouts[offset].institutionCode],
-            )).rows[0]!.id
-          : null;
+        const verificationId = (await client.query<{ id: string }>(
+          `SELECT v.id FROM education_verifications v
+           INNER JOIN institutions i ON i.id = v.institution_id
+           WHERE v.user_id = $1 AND i.moe_institution_code = $2`,
+          [sideUsers[offset], layouts[offset].institutionCode],
+        )).rows[0]!.id;
         await client.query(
           `INSERT INTO event_roster_members (id, event_roster_id, participant_id, user_id, education_verification_id)
            VALUES ($1, $2, $3, $4, $5)`,
           [memberId, eventRosterIds[side], participantIds[offset], sideUsers[offset], verificationId],
         );
       }
+      revisionMemberIdsBySide.push(revisionMemberIds);
       await client.query(`UPDATE event_rosters SET status = 'confirmed' WHERE id = $1`, [eventRosterIds[side]]);
       await client.query(`UPDATE event_rosters SET status = 'frozen', frozen_at = now(), frozen_by = 'local-admin' WHERE id = $1`, [eventRosterIds[side]]);
     }
@@ -336,9 +342,12 @@ async function prepareFixture(pool: Pool, label: string): Promise<RosterSafetyFi
 
     const buildMemberMap = (side: 0 | 1): Record<string, string> => {
       const map: Record<string, string> = {};
-      for (let logical = 0; logical <= 6; logical += 1) {
-        map[logical === 6 ? "out" : String(logical)] = rosterMemberIds[side][logical]!;
+      for (let logical = 0; logical <= 5; logical += 1) {
+        map[String(logical)] = rosterMemberIds[side][logical]!;
       }
+      // The canonical-but-unfielded member has no event_roster_member row; its
+      // approved roster-revision member id is not a valid lineup identifier.
+      map["out"] = revisionMemberIdsBySide[side][6]!;
       return map;
     };
 
@@ -500,9 +509,10 @@ async function main(): Promise<void> {
           substituteIds: [],
         }),
         ErrorCode.VALIDATION_FAILED,
-        "S4 非 team_members 选手",
+        "S4 非本场 Entry 冻结名单成员的选手",
       );
-      // Canonical team member present but absent from the frozen tournament roster.
+      // Canonical roster member (participant + approved revision member) without
+      // an event_roster_member row is not a valid lineup identifier.
       const outsiderLineup = [...twoNjuStartersA.slice(2), memberA["out"]!, memberA["0"]!, memberA["1"]!];
       const outsiderFailure = await expectAppError(
         () => submitLineupProductionLogic(database, {
@@ -512,7 +522,7 @@ async function main(): Promise<void> {
         ErrorCode.VALIDATION_FAILED,
         "S5 冻结名单外选手",
       );
-      assertCondition(outsiderFailure.message.includes("冻结名单"), "S5 需要明确指出冻结名单 blocker");
+      assertCondition(outsiderFailure.message.includes("不属于本队"), "S5 需要明确指出非本场名单 blocker");
       const duplicateFailure = await expectAppError(
         () => submitLineupProductionLogic(database, {
           matchId: mgMatch, entryId: entryAId, source: "participant", submittedBy: null,

@@ -22,7 +22,7 @@
 
 ## 5. Rivals registrations
 
-`season_registrations` 是 Rivals 的本届个人报名，包含位置、报名期竞技快照、地图偏好和审核状态。`registration_drafts` 服务于可恢复的表单编辑。它们不是 Major team application 的替代物。
+`season_registrations` 是 Rivals 的本届个人报名，包含位置、报名期竞技快照、地图偏好和审核状态。`registration_drafts` 服务于可恢复的表单编辑。它们不是 Major Entry 报名的替代物。
 
 ## 6. Long-lived Teams and CompetitionEntry
 
@@ -89,8 +89,8 @@
 | 不变量 | 主要 owner |
 |---|---|
 | email 与 Auth identity 的唯一性 | DB unique constraints + Auth 同步 |
-| 一用户同赛事仅有一个 active team application claim | `team_application_active_claims` unique constraint + transaction |
-| application 的可编辑性与状态迁移 | team-application domain action / state rules |
+| 一用户同赛事仅有一个 active Entry commitment claim | `competition_entry_active_claims` unique constraint + transaction |
+| Entry 报名 revision 的可编辑性与状态迁移 | competition-entry domain action / state rules |
 | affiliation 与竞技资格 | `src/lib/qualification/` 单一 owner：batch fact loaders + pure evaluators |
 | 内置赛事模板身份与固定语义 | `seasons.competitionTemplate` + canonical template factory（draft 保存时重新 canonicalize） |
 | 发布时的竞技上下文冻结 | `publishSeason` 事务：catalog current/previous/rank order → season frozen competitiveProfile |
