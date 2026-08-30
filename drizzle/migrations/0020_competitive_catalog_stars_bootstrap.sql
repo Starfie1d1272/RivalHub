@@ -13,6 +13,11 @@ DO $$
 DECLARE
   expected_sort_order integer;
 BEGIN
+  -- 2.0 ships exactly two built-in identities; an unknown third platform must
+  -- be reconciled explicitly. The migration neither deletes nor guesses.
+  IF EXISTS (SELECT 1 FROM "competitive_platforms" WHERE "key" NOT IN ('perfect_world', 'fivee')) THEN
+    RAISE EXCEPTION '发现未知竞技平台 identity；2.0 只支持已确认内置平台（perfect_world / fivee），迁移不删除也不猜测，请先明确 reconcile 后再重放迁移。';
+  END IF;
   IF EXISTS (SELECT 1 FROM "competitive_platforms" WHERE "key" = 'perfect_world' AND "rating_label" <> 'Rating Pro') THEN
     RAISE EXCEPTION 'perfect_world 的 canonical Rating 与 Rating Pro 冲突；请先明确 reconcile 后再重放迁移。';
   END IF;

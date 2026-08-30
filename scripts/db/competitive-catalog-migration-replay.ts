@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { Client } from "pg";
 import { migrationFiles, replayMigration, withScratchDatabase } from "./migration-replay";
+import { BUILT_IN_COMPETITIVE_PLATFORMS } from "../../src/lib/competitive/builtins";
 
 /**
  * Local replay for the 0018 competitive platform catalog migration and the
@@ -206,34 +207,23 @@ async function main(): Promise<void> {
 
 // ── 0020 built-in catalog + stars bootstrap ─────────────────────────────────
 
-const PERFECT_LADDER: Array<{ rank_key: string; sort_order: number; star_min: number | null; star_max: number | null }> = [
-  { rank_key: "D", sort_order: 0, star_min: null, star_max: null },
-  { rank_key: "C", sort_order: 1, star_min: null, star_max: null },
-  { rank_key: "C+", sort_order: 2, star_min: null, star_max: null },
-  { rank_key: "C++", sort_order: 3, star_min: null, star_max: null },
-  { rank_key: "B", sort_order: 4, star_min: null, star_max: null },
-  { rank_key: "B+", sort_order: 5, star_min: null, star_max: null },
-  { rank_key: "B++", sort_order: 6, star_min: null, star_max: null },
-  { rank_key: "A", sort_order: 7, star_min: null, star_max: null },
-  { rank_key: "A+", sort_order: 8, star_min: null, star_max: null },
-  { rank_key: "A++", sort_order: 9, star_min: null, star_max: null },
-  { rank_key: "青铜S", sort_order: 10, star_min: 0, star_max: 9 },
-  { rank_key: "黄金S", sort_order: 11, star_min: 10, star_max: 24 },
-  { rank_key: "钻石S", sort_order: 12, star_min: 25, star_max: 49 },
-  { rank_key: "魔王S", sort_order: 13, star_min: 50, star_max: null },
-];
-const FIVEE_LADDER: Array<{ rank_key: string; sort_order: number; star_min: number | null; star_max: number | null }> = [
-  ...PERFECT_LADDER.filter((rank) => rank.sort_order <= 9),
-  { rank_key: "S", sort_order: 10, star_min: 0, star_max: 19 },
-  { rank_key: "SS", sort_order: 11, star_min: 20, star_max: 39 },
-  { rank_key: "SSS", sort_order: 12, star_min: 40, star_max: null },
-];
+// Expected rows are derived from the code-owned product definition so a SQL
+// drift in 0020 makes this replay fail instead of both copies silently
+// agreeing on the same mistake.
+type ExpectedRankRow = { rank_key: string; label: string; sort_order: number; star_min: number | null; star_max: number | null };
 
-async function assertLadder(client: Client, platformKey: string, expected: Array<{ rank_key: string; sort_order: number; star_min: number | null; star_max: number | null }>): Promise<void> {
-  const ladder = await client.query<{ rank_key: string; sort_order: number; star_min: number | null; star_max: number | null }>(
-    "SELECT rank_key, sort_order, star_min, star_max FROM competitive_platform_ranks WHERE platform_key = $1 ORDER BY sort_order",
+function expectedRankRows(platformKey: "perfect_world" | "fivee"): ExpectedRankRow[] {
+  return BUILT_IN_COMPETITIVE_PLATFORMS[platformKey].ranks.map((rank) => ({
+    rank_key: rank.rankKey, label: rank.label, sort_order: rank.sortOrder, star_min: rank.starMin, star_max: rank.starMax,
+  }));
+}
+
+async function assertLadder(client: Client, platformKey: "perfect_world" | "fivee"): Promise<void> {
+  const ladder = await client.query<ExpectedRankRow>(
+    "SELECT rank_key, label, sort_order, star_min, star_max FROM competitive_platform_ranks WHERE platform_key = $1 ORDER BY sort_order",
     [platformKey],
   );
+  const expected = expectedRankRows(platformKey);
   if (JSON.stringify(ladder.rows) !== JSON.stringify(expected)) {
     throw new Error(`${platformKey} ladder 与 2.0 产品定义不一致：${JSON.stringify(ladder.rows)}`);
   }
@@ -244,16 +234,18 @@ async function assert0020TerminalState(client: Client, opts: { userId: string; s
     "SELECT key, display_name, rating_label FROM competitive_platforms ORDER BY key",
   );
   const byKey = new Map(platforms.rows.map((row) => [row.key, row]));
-  if (byKey.get("perfect_world")?.display_name !== "完美世界竞技平台" || byKey.get("perfect_world")?.rating_label !== "Rating Pro") {
-    throw new Error("perfect_world 应为「完美世界竞技平台 / Rating Pro」。");
+  for (const definition of Object.values(BUILT_IN_COMPETITIVE_PLATFORMS)) {
+    const row = byKey.get(definition.key);
+    if (row?.display_name !== definition.displayName || row?.rating_label !== definition.ratingLabel) {
+      throw new Error(`${definition.key} 应为「${definition.displayName} / ${definition.ratingLabel}」；实际：${JSON.stringify(row)}`);
+    }
   }
-  if (byKey.get("fivee")?.display_name !== "5E" || byKey.get("fivee")?.rating_label !== "Rating+") {
-    throw new Error("fivee 应为「5E / Rating+」。");
+  if (platforms.rows.length !== Object.keys(BUILT_IN_COMPETITIVE_PLATFORMS).length) {
+    throw new Error(`0020 只应出现内置平台；实际：${platforms.rows.map((row) => row.key).join(",")}`);
   }
-  if (platforms.rows.length !== 2) throw new Error(`0020 只应出现两个内置平台；实际：${platforms.rows.map((row) => row.key).join(",")}`);
 
-  await assertLadder(client, "perfect_world", PERFECT_LADDER);
-  await assertLadder(client, "fivee", FIVEE_LADDER);
+  await assertLadder(client, "perfect_world");
+  await assertLadder(client, "fivee");
 
   const seasons = await client.query<{ platform: string; season_key: string; label: string; active: boolean; is_current: boolean; sort_order: number }>(
     "SELECT platform, season_key, label, active, is_current, sort_order FROM competitive_platform_seasons ORDER BY platform, sort_order",
@@ -321,11 +313,21 @@ async function replay0020StarsBootstrap(): Promise<void> {
 
     // Fail-closed scenarios: each conflict is seeded on the 0019 state, must
     // abort 0020 before any mutation, and is cleaned up before the next case.
+    const perfect = BUILT_IN_COMPETITIVE_PLATFORMS.perfect_world;
+    const fivee = BUILT_IN_COMPETITIVE_PLATFORMS.fivee;
     const conflicts: Array<{ label: string; seed: string[]; cleanup: string[]; keyword: string }> = [
+      {
+        label: "存在未知第三平台 faceit",
+        seed: [
+          "INSERT INTO competitive_platforms (key, display_name, rating_label) VALUES ('faceit', 'FACEIT', 'Elo')",
+        ],
+        cleanup: ["DELETE FROM competitive_platforms WHERE key = 'faceit'"],
+        keyword: "未知竞技平台",
+      },
       {
         label: "perfect_world 已存在 S24 赛季",
         seed: [
-          "INSERT INTO competitive_platforms (key, display_name, rating_label) VALUES ('perfect_world', '完美世界竞技平台', 'Rating Pro')",
+          `INSERT INTO competitive_platforms (key, display_name, rating_label) VALUES ('perfect_world', '${perfect.displayName}', '${perfect.ratingLabel}')`,
           "INSERT INTO competitive_platform_seasons (platform, season_key, label, active, sort_order, is_current) VALUES ('perfect_world', 'S24', 'S24', true, 0, true)",
         ],
         cleanup: [
@@ -337,7 +339,7 @@ async function replay0020StarsBootstrap(): Promise<void> {
       {
         label: "fivee 已存在赛季目录",
         seed: [
-          "INSERT INTO competitive_platforms (key, display_name, rating_label) VALUES ('fivee', '5E', 'Rating+')",
+          `INSERT INTO competitive_platforms (key, display_name, rating_label) VALUES ('fivee', '${fivee.displayName}', '${fivee.ratingLabel}')`,
           "INSERT INTO competitive_platform_seasons (platform, season_key, label, active, sort_order, is_current) VALUES ('fivee', '2026s9', '2026S9', true, 0, true)",
         ],
         cleanup: [
@@ -349,7 +351,7 @@ async function replay0020StarsBootstrap(): Promise<void> {
       {
         label: "perfect_world 存在非 2.0 ladder 的 rankKey",
         seed: [
-          "INSERT INTO competitive_platforms (key, display_name, rating_label) VALUES ('perfect_world', '完美世界竞技平台', 'Rating Pro')",
+          `INSERT INTO competitive_platforms (key, display_name, rating_label) VALUES ('perfect_world', '${perfect.displayName}', '${perfect.ratingLabel}')`,
           "INSERT INTO competitive_platform_ranks (platform_key, rank_key, label, sort_order) VALUES ('perfect_world', 'Legend', 'Legend', 0)",
         ],
         cleanup: [
@@ -361,7 +363,7 @@ async function replay0020StarsBootstrap(): Promise<void> {
       {
         label: "已有 rankKey 的 sortOrder 与产品 ladder 冲突",
         seed: [
-          "INSERT INTO competitive_platforms (key, display_name, rating_label) VALUES ('perfect_world', '完美世界竞技平台', 'Rating Pro')",
+          `INSERT INTO competitive_platforms (key, display_name, rating_label) VALUES ('perfect_world', '${perfect.displayName}', '${perfect.ratingLabel}')`,
           "INSERT INTO competitive_platform_ranks (platform_key, rank_key, label, sort_order) VALUES ('perfect_world', 'C', 'C', 0), ('perfect_world', 'D', 'D', 1)",
         ],
         cleanup: [
@@ -408,7 +410,7 @@ async function replay0020StarsBootstrap(): Promise<void> {
         platform: "perfect_world",
         currentSeasonKey: "2026s2",
         previousSeasonKey: "2026s1",
-        rankOrder: PERFECT_LADDER.map((rank) => rank.rank_key),
+        rankOrder: BUILT_IN_COMPETITIVE_PLATFORMS.perfect_world.ranks.map((rank) => rank.rankKey),
       },
     };
     await client.query(
@@ -418,7 +420,7 @@ async function replay0020StarsBootstrap(): Promise<void> {
 
     await replayMigration(client, terminal);
     await assert0020TerminalState(client, { userId, seasonId, frozenConfig });
-    console.log("0020 stars bootstrap replay passed: built-in Perfect/5E catalogs with exact star ranges and 2026 seasons, five fail-closed conflict scenarios, legacy facts and frozen events untouched, DB CHECK enforcement verified.");
+    console.log("0020 stars bootstrap replay passed: built-in Perfect/5E catalogs derived from the canonical definition with exact star ranges and 2026 seasons, six fail-closed conflict scenarios (including unknown third platform), legacy facts and frozen events untouched, DB CHECK enforcement verified.");
   });
 }
 

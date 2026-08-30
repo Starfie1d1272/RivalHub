@@ -179,12 +179,14 @@ describe("platform identity actions", () => {
     expect(errMessage(result)).toContain("仅维护 Perfect World 与 5E");
   });
 
-  it("updates only the display name; the key stays immutable", async () => {
-    queryFindFirst.competitivePlatforms.mockResolvedValue({ key: "perfect_world", displayName: "旧名称" });
-    const result = await updateCompetitivePlatform({ key: "perfect_world", displayName: "新名称", ratingLabel: "Rating Pro" });
+  it("updates the display name but can never mutate the product-defined canonical Rating", async () => {
+    queryFindFirst.competitivePlatforms.mockResolvedValue({ key: "fivee", displayName: "5E", ratingLabel: "Rating+" });
+    const result = await updateCompetitivePlatform({ key: "fivee", displayName: "5E 对战平台", ratingLabel: "Elo" });
     expect(result.success).toBe(true);
-    expect(updateSetCalls).toEqual([expect.objectContaining({ displayName: "新名称" })]);
-    expect(JSON.stringify(updateSetCalls)).not.toContain("key");
+    expect(updateSetCalls).toEqual([expect.objectContaining({ displayName: "5E 对战平台" })]);
+    expect(JSON.stringify(updateSetCalls)).not.toContain("ratingLabel");
+    expect(JSON.stringify(updateSetCalls)).not.toContain("Elo");
+    expect(findAuditEntry(insertValuesCalls, "competitive_platform.update")).toMatchObject({ targetId: "fivee" });
   });
 });
 

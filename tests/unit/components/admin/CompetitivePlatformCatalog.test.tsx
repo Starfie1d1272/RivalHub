@@ -29,7 +29,7 @@ describe("CompetitivePlatformCatalog", () => {
       ],
     }]} />);
 
-    expect(screen.getByText("canonical performance Rating：Rating Pro")).toBeInTheDocument();
+    expect(screen.getByText(/canonical performance Rating：Rating Pro/)).toBeInTheDocument();
     expect(screen.getByText("当前赛季")).toBeInTheDocument();
     expect(screen.getByText("上一赛季")).toBeInTheDocument();
     expect(screen.getByText("段位顺序 · 由低到高")).toBeInTheDocument();
@@ -38,6 +38,7 @@ describe("CompetitivePlatformCatalog", () => {
     await user.click(screen.getByRole("button", { name: "设为当前赛季" }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByText("切换当前赛季")).toBeInTheDocument();
+    expect(screen.getByText(/canonical performance Rating：Rating Pro（由产品定义，不可在后台修改）/)).toBeInTheDocument();
   });
 
   it("routes built-in catalog mutations through the shared actions without exposing platform creation", async () => {
@@ -52,11 +53,15 @@ describe("CompetitivePlatformCatalog", () => {
     };
     render(<CompetitivePlatformCatalog platforms={[platform]} />);
     expect(screen.queryByRole("button", { name: "创建平台" })).not.toBeInTheDocument();
+    // The canonical Rating is product-defined and display-only.
+    expect(screen.getByText(/canonical performance Rating：Rating\+/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("canonical Rating 名称")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "修改平台信息" }));
-    await user.clear(screen.getByLabelText("canonical Rating 名称"));
-    await user.type(screen.getByLabelText("canonical Rating 名称"), "Elo");
+    expect(screen.queryByLabelText("canonical Rating 名称")).not.toBeInTheDocument();
+    await user.clear(screen.getByLabelText("平台显示名称"));
+    await user.type(screen.getByLabelText("平台显示名称"), "5E 对战平台");
     await user.click(screen.getByRole("button", { name: "保存" }));
-    expect(updateCompetitivePlatform).toHaveBeenCalledWith({ key: "fivee", displayName: "5E", ratingLabel: "Elo" });
+    expect(updateCompetitivePlatform).toHaveBeenCalledWith({ key: "fivee", displayName: "5E 对战平台" });
 
     await user.click(screen.getByRole("button", { name: "+ 添加段位" }));
     await user.type(screen.getByPlaceholderText("例如 S+"), "B+");

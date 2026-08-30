@@ -23,7 +23,6 @@ import { isBuiltInCompetitivePlatformKey } from "@/lib/competitive/builtins";
 const seasonKeySchema = z.string().trim().min(1).max(128);
 const rankKeySchema = z.string().trim().min(1).max(64);
 const labelSchema = z.string().trim().min(1).max(128);
-const ratingLabelSchema = z.string().trim().min(1).max(64);
 
 function revalidateCatalog(): void {
   revalidatePath("/admin/competitive-seasons");
@@ -31,18 +30,24 @@ function revalidateCatalog(): void {
   revalidatePath("/settings/competitive");
 }
 
+/**
+ * Built-in platform identity: only the display name is operator-editable.
+ * The canonical performance Rating is product-defined (Rating Pro / Rating+)
+ * and written exclusively by migrations — accepting an operator value here
+ * would silently reinterpret stored rating facts.
+ */
 export async function updateCompetitivePlatform(input: unknown): Promise<ActionResult<void>> {
-  const parsed = z.object({ key: z.string().trim().min(1).max(64), displayName: labelSchema, ratingLabel: ratingLabelSchema }).safeParse(input);
-  if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请填写平台显示名称和 canonical Rating 名称。" });
+  const parsed = z.object({ key: z.string().trim().min(1).max(64), displayName: labelSchema }).safeParse(input);
+  if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请填写平台显示名称。" });
   try {
     const session = await requireSuperAdmin();
-    const { key, displayName, ratingLabel } = parsed.data;
+    const { key, displayName } = parsed.data;
     if (!isBuiltInCompetitivePlatformKey(key)) throw new AppError(ErrorCode.VALIDATION_FAILED, "2.0 仅维护 Perfect World 与 5E 内置竞技平台。新增平台需要明确的产品与迁移变更。");
     await db.transaction(async (tx) => {
       const existing = await tx.query.competitivePlatforms.findFirst({ where: eq(competitivePlatforms.key, key) });
       if (!existing) throw new AppError(ErrorCode.NOT_FOUND, "竞技平台不存在。");
-      await tx.update(competitivePlatforms).set({ displayName, ratingLabel, updatedAt: new Date() }).where(eq(competitivePlatforms.key, key));
-      await tx.insert(auditLogs).values({ action: "competitive_platform.update", actorId: auditActorId(session), targetId: key, targetType: "competitive_platform", meta: { key, displayName, ratingLabel } });
+      await tx.update(competitivePlatforms).set({ displayName, updatedAt: new Date() }).where(eq(competitivePlatforms.key, key));
+      await tx.insert(auditLogs).values({ action: "competitive_platform.update", actorId: auditActorId(session), targetId: key, targetType: "competitive_platform", meta: { key, displayName } });
     });
     revalidateCatalog();
     return ok(undefined);

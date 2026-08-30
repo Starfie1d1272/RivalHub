@@ -70,7 +70,7 @@ export function CompetitivePlatformCatalog({ platforms }: { platforms: Platform[
             <div className="space-y-5 p-5">
               {/* Platform identity */}
               <div className="flex flex-wrap items-end justify-between gap-3">
-                <PlatformIdentityRow key_={platform.key} displayName={platform.displayName} ratingLabel={platform.ratingLabel} pending={pending} onSave={(displayName, ratingLabel) => run(() => updateCompetitivePlatform({ key: platform.key, displayName, ratingLabel }), "平台目录已更新")} />
+                <PlatformIdentityRow key_={platform.key} displayName={platform.displayName} ratingLabel={platform.ratingLabel} pending={pending} onSave={(displayName) => run(() => updateCompetitivePlatform({ key: platform.key, displayName }), "平台目录已更新")} />
               </div>
 
               {/* Seasons */}
@@ -199,17 +199,20 @@ export function CompetitivePlatformCatalog({ platforms }: { platforms: Platform[
   );
 }
 
-function PlatformIdentityRow({ key_, displayName, ratingLabel, pending, onSave }: { key_: string; displayName: string; ratingLabel: string; pending: boolean; onSave: (displayName: string, ratingLabel: string) => void }) {
+/**
+ * Platform identity: the canonical performance Rating is product-defined and
+ * therefore display-only; operators may only rename the display name.
+ */
+function PlatformIdentityRow({ key_, displayName, ratingLabel, pending, onSave }: { key_: string; displayName: string; ratingLabel: string; pending: boolean; onSave: (displayName: string) => void }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(displayName);
-  const [ratingDraft, setRatingDraft] = useState(ratingLabel);
   if (!editing) {
     return (
       <div className="space-y-1">
         <p className="text-lg font-semibold">{displayName}</p>
         <p className="font-mono text-xs text-[var(--color-fg-dim)]">{key_}</p>
-        <p className="text-sm text-[var(--color-fg-mid)]">canonical performance Rating：{ratingLabel}</p>
-        <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => { setDraft(displayName); setRatingDraft(ratingLabel); setEditing(true); }}>修改平台信息</Button>
+        <p className="text-sm text-[var(--color-fg-mid)]">canonical performance Rating：{ratingLabel}（由产品定义，不可在后台修改）</p>
+        <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => { setDraft(displayName); setEditing(true); }}>修改平台信息</Button>
       </div>
     );
   }
@@ -217,11 +220,10 @@ function PlatformIdentityRow({ key_, displayName, ratingLabel, pending, onSave }
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
         <Input value={draft} onChange={(event) => setDraft(event.target.value)} className="max-w-64" aria-label="平台显示名称" />
-        <Input value={ratingDraft} onChange={(event) => setRatingDraft(event.target.value)} className="max-w-64" aria-label="canonical Rating 名称" />
-        <Button type="button" size="sm" disabled={pending || !draft.trim() || !ratingDraft.trim()} onClick={() => { onSave(draft, ratingDraft); setEditing(false); }}>保存</Button>
+        <Button type="button" size="sm" disabled={pending || !draft.trim()} onClick={() => { onSave(draft); setEditing(false); }}>保存</Button>
         <Button type="button" size="sm" variant="ghost" onClick={() => setEditing(false)}>取消</Button>
       </div>
-      <p className="font-mono text-xs text-[var(--color-fg-dim)]">{key_} · 平台标识创建后不可修改</p>
+      <p className="font-mono text-xs text-[var(--color-fg-dim)]">{key_} · 平台标识与 canonical Rating 由产品定义，不可修改</p>
     </div>
   );
 }
