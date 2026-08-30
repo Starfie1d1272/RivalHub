@@ -10,6 +10,7 @@ import { auditActorId, requireSuperAdmin } from "@/lib/auth/session";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { fail, ok, type ActionResult } from "@/types/action";
 import { assertPlatformRanksMutable, temporarySortOrders } from "@/lib/competitive/catalog";
+import { isBuiltInCompetitivePlatformKey } from "@/lib/competitive/builtins";
 
 /**
  * Operator mutations for the competitive platform catalog. Every action is
@@ -19,11 +20,9 @@ import { assertPlatformRanksMutable, temporarySortOrders } from "@/lib/competiti
  * long-term facts (deleting or reordering referenced ranks) fail closed.
  */
 
-const platformKeySchema = z.string().trim().min(1).max(64).regex(/^[a-z0-9][a-z0-9_-]*$/, "平台标识只能包含小写字母、数字、连字符和下划线。");
 const seasonKeySchema = z.string().trim().min(1).max(128);
 const rankKeySchema = z.string().trim().min(1).max(64);
 const labelSchema = z.string().trim().min(1).max(128);
-const ratingLabelSchema = z.string().trim().min(1).max(64);
 
 function revalidateCatalog(): void {
   revalidatePath("/admin/competitive-seasons");
@@ -31,36 +30,24 @@ function revalidateCatalog(): void {
   revalidatePath("/settings/competitive");
 }
 
-// ── Platform identity ───────────────────────────────────────────────────────
-
-export async function createCompetitivePlatform(input: unknown): Promise<ActionResult<{ key: string }>> {
-  const parsed = z.object({ key: platformKeySchema, displayName: labelSchema, ratingLabel: ratingLabelSchema }).safeParse(input);
-  if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请填写平台标识、显示名称和 canonical Rating 名称。" });
-  try {
-    const session = await requireSuperAdmin();
-    const { key, displayName, ratingLabel } = parsed.data;
-    await db.transaction(async (tx) => {
-      const existing = await tx.query.competitivePlatforms.findFirst({ where: eq(competitivePlatforms.key, key) });
-      if (existing) throw new AppError(ErrorCode.VALIDATION_FAILED, `平台标识 ${key} 已存在；平台标识创建后不可修改。`);
-      await tx.insert(competitivePlatforms).values({ key, displayName, ratingLabel });
-      await tx.insert(auditLogs).values({ action: "competitive_platform.create", actorId: auditActorId(session), targetId: key, targetType: "competitive_platform", meta: { key, ratingLabel } });
-    });
-    revalidateCatalog();
-    return ok({ key });
-  } catch (error) { return actionError("createCompetitivePlatform", error); }
-}
-
+/**
+ * Built-in platform identity: only the display name is operator-editable.
+ * The canonical performance Rating is product-defined (Rating Pro / Rating+)
+ * and written exclusively by migrations — accepting an operator value here
+ * would silently reinterpret stored rating facts.
+ */
 export async function updateCompetitivePlatform(input: unknown): Promise<ActionResult<void>> {
-  const parsed = z.object({ key: z.string().trim().min(1).max(64), displayName: labelSchema, ratingLabel: ratingLabelSchema }).safeParse(input);
-  if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请填写平台显示名称和 canonical Rating 名称。" });
+  const parsed = z.object({ key: z.string().trim().min(1).max(64), displayName: labelSchema }).safeParse(input);
+  if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请填写平台显示名称。" });
   try {
     const session = await requireSuperAdmin();
-    const { key, displayName, ratingLabel } = parsed.data;
+    const { key, displayName } = parsed.data;
+    if (!isBuiltInCompetitivePlatformKey(key)) throw new AppError(ErrorCode.VALIDATION_FAILED, "2.0 仅维护 Perfect World 与 5E 内置竞技平台。新增平台需要明确的产品与迁移变更。");
     await db.transaction(async (tx) => {
       const existing = await tx.query.competitivePlatforms.findFirst({ where: eq(competitivePlatforms.key, key) });
       if (!existing) throw new AppError(ErrorCode.NOT_FOUND, "竞技平台不存在。");
-      await tx.update(competitivePlatforms).set({ displayName, ratingLabel, updatedAt: new Date() }).where(eq(competitivePlatforms.key, key));
-      await tx.insert(auditLogs).values({ action: "competitive_platform.update", actorId: auditActorId(session), targetId: key, targetType: "competitive_platform", meta: { key, displayName, ratingLabel } });
+      await tx.update(competitivePlatforms).set({ displayName, updatedAt: new Date() }).where(eq(competitivePlatforms.key, key));
+      await tx.insert(auditLogs).values({ action: "competitive_platform.update", actorId: auditActorId(session), targetId: key, targetType: "competitive_platform", meta: { key, displayName } });
     });
     revalidateCatalog();
     return ok(undefined);
@@ -75,6 +62,7 @@ export async function createCompetitivePlatformSeason(input: unknown): Promise<A
   try {
     const session = await requireSuperAdmin();
     const { platform, seasonKey, label } = parsed.data;
+    if (!isBuiltInCompetitivePlatformKey(platform)) throw new AppError(ErrorCode.VALIDATION_FAILED, "2.0 仅维护 Perfect World 与 5E 内置竞技平台。新增平台需要明确的产品与迁移变更。");
     const result = await db.transaction(async (tx) => {
       const platformRow = await tx.query.competitivePlatforms.findFirst({ where: eq(competitivePlatforms.key, platform) });
       if (!platformRow) throw new AppError(ErrorCode.NOT_FOUND, "竞技平台不存在，请先创建平台。");
@@ -219,6 +207,7 @@ export async function createCompetitivePlatformRank(input: unknown): Promise<Act
   try {
     const session = await requireSuperAdmin();
     const { platform, rankKey, label } = parsed.data;
+    if (!isBuiltInCompetitivePlatformKey(platform)) throw new AppError(ErrorCode.VALIDATION_FAILED, "2.0 仅维护 Perfect World 与 5E 内置竞技平台。新增平台需要明确的产品与迁移变更。");
     const result = await db.transaction(async (tx) => {
       const platformRow = await tx.query.competitivePlatforms.findFirst({ where: eq(competitivePlatforms.key, platform) });
       if (!platformRow) throw new AppError(ErrorCode.NOT_FOUND, "竞技平台不存在，请先创建平台。");

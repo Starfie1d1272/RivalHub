@@ -141,6 +141,13 @@
       "when": 1788085220743,
       "tag": "0019_competitive-platform-rating-semantics",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1788089172919,
+      "tag": "0020_competitive_catalog_stars_bootstrap",
+      "breakpoints": true
     }
   ]
 }

@@ -117,7 +117,6 @@ vi.mock("@/db/client", () => ({
 }));
 
 import {
-  createCompetitivePlatform,
   createCompetitivePlatformRank,
   createCompetitivePlatformSeason,
   deleteCompetitivePlatformRank,
@@ -163,7 +162,7 @@ beforeEach(() => {
 describe("catalog action permissions", () => {
   it("rejects non-super-admin operators before touching the database", async () => {
     requireSuperAdminMock.mockRejectedValue(new Error("权限不足"));
-    const result = await createCompetitivePlatform({ key: "new_platform", displayName: "新平台", ratingLabel: "Rating" });
+    const result = await updateCompetitivePlatform({ key: "perfect_world", displayName: "新名称", ratingLabel: "Rating Pro" });
     expect(result.success).toBe(false);
     expect(dbTransactionMock).not.toHaveBeenCalled();
     expect(insertValuesCalls).toHaveLength(0);
@@ -173,34 +172,21 @@ describe("catalog action permissions", () => {
 // ── Platform identity ───────────────────────────────────────────────────────
 
 describe("platform identity actions", () => {
-  it("creates a platform with an immutable key and writes an audit log", async () => {
-    queryFindFirst.competitivePlatforms.mockResolvedValue(undefined);
-    const result = await createCompetitivePlatform({ key: "new_platform", displayName: "新平台", ratingLabel: "Rating" });
-    expect(result.success).toBe(true);
-    const values = insertValuesCalls[0] as { key: string; displayName: string };
-    expect(values).toMatchObject({ key: "new_platform", displayName: "新平台" });
-    expect(findAuditEntry(insertValuesCalls, "competitive_platform.create")).toMatchObject({ targetId: "new_platform" });
-  });
-
-  it("rejects duplicate platform keys", async () => {
-    queryFindFirst.competitivePlatforms.mockResolvedValue({ key: "perfect_world", displayName: "完美世界竞技平台" });
-    const result = await createCompetitivePlatform({ key: "perfect_world", displayName: "重复平台", ratingLabel: "Rating" });
-    expect(result.success).toBe(false);
-    expect(errCode(result)).toBe(ErrorCode.VALIDATION_FAILED);
-  });
-
-  it("rejects platform keys with characters outside the allowed alphabet", async () => {
-    const result = await createCompetitivePlatform({ key: "Bad Key!", displayName: "平台", ratingLabel: "Rating" });
+  it("rejects arbitrary platform identities; 2.0 only maintains built-ins", async () => {
+    const result = await updateCompetitivePlatform({ key: "faceit", displayName: "FACEIT", ratingLabel: "Elo" });
     expect(result.success).toBe(false);
     expect(dbTransactionMock).not.toHaveBeenCalled();
+    expect(errMessage(result)).toContain("仅维护 Perfect World 与 5E");
   });
 
-  it("updates only the display name; the key stays immutable", async () => {
-    queryFindFirst.competitivePlatforms.mockResolvedValue({ key: "perfect_world", displayName: "旧名称" });
-    const result = await updateCompetitivePlatform({ key: "perfect_world", displayName: "新名称", ratingLabel: "Rating Pro" });
+  it("updates the display name but can never mutate the product-defined canonical Rating", async () => {
+    queryFindFirst.competitivePlatforms.mockResolvedValue({ key: "fivee", displayName: "5E", ratingLabel: "Rating+" });
+    const result = await updateCompetitivePlatform({ key: "fivee", displayName: "5E 对战平台", ratingLabel: "Elo" });
     expect(result.success).toBe(true);
-    expect(updateSetCalls).toEqual([expect.objectContaining({ displayName: "新名称" })]);
-    expect(JSON.stringify(updateSetCalls)).not.toContain("key");
+    expect(updateSetCalls).toEqual([expect.objectContaining({ displayName: "5E 对战平台" })]);
+    expect(JSON.stringify(updateSetCalls)).not.toContain("ratingLabel");
+    expect(JSON.stringify(updateSetCalls)).not.toContain("Elo");
+    expect(findAuditEntry(insertValuesCalls, "competitive_platform.update")).toMatchObject({ targetId: "fivee" });
   });
 });
 
@@ -221,7 +207,7 @@ describe("season catalog actions", () => {
     queryFindFirst.competitivePlatforms.mockResolvedValue(undefined);
     const result = await createCompetitivePlatformSeason({ platform: "ghost", seasonKey: "S1", label: "S1" });
     expect(result.success).toBe(false);
-    expect(errCode(result)).toBe(ErrorCode.NOT_FOUND);
+    expect(errCode(result)).toBe(ErrorCode.VALIDATION_FAILED);
   });
 
   it("renames the season label without touching seasonKey identity", async () => {
@@ -387,7 +373,7 @@ describe("saveCompetitiveProfile platform-ladder validation", () => {
     });
   });
 
-  function queueLadder({ platform = true, ladder = ["bronze", "silver", "gold"], seasons = ["s20", "s21"] } = {}) {
+  function queueLadder({ platform = true, ladder = ["bronze", "silver", "gold"] as Array<string | { rankKey: string; starMin: number | null; starMax: number | null }>, seasons = ["s20", "s21"], existingFacts = [] as Array<{ id: string; kind: string; platformSeasonKey: string | null; rank: string; rating: string; stars: number | null }> } = {}) {
     dbSelectMock.mockImplementationOnce(() => {
       const builder: Record<string, unknown> = {};
       builder.from = vi.fn(() => builder);
@@ -395,8 +381,12 @@ describe("saveCompetitiveProfile platform-ladder validation", () => {
       builder.limit = vi.fn(() => Promise.resolve(platform ? [{ key: "perfect_world" }] : []));
       return builder;
     });
-    selectResults.push(ladder.map((rankKey, index) => ({ platformKey: "perfect_world", rankKey, label: rankKey.toUpperCase(), sortOrder: index })));
+    selectResults.push(ladder.map((item, index) => {
+      const rank = typeof item === "string" ? { rankKey: item, starMin: null, starMax: null } : item;
+      return { platformKey: "perfect_world", rankKey: rank.rankKey, label: rank.rankKey.toUpperCase(), sortOrder: index, starMin: rank.starMin, starMax: rank.starMax };
+    }));
     selectResults.push(seasons.map((seasonKey) => ({ platform: "perfect_world", seasonKey, label: seasonKey.toUpperCase() })));
+    selectResults.push(existingFacts);
     queryFindFirst.competitiveRankFacts.mockResolvedValue(undefined);
   }
 
@@ -444,5 +434,92 @@ describe("saveCompetitiveProfile platform-ladder validation", () => {
     });
     expect(result.success).toBe(false);
     expect(errMessage(result)).toContain("竞技平台不存在");
+  });
+
+  it("requires integral non-negative stars before any database work", async () => {
+    const fractional = await saveCompetitiveProfile({
+      platform: "perfect_world", historicalPeak: { rank: "gold", rating: 2100, stars: 10.5 }, seasonPeaks: [],
+    });
+    const negative = await saveCompetitiveProfile({
+      platform: "perfect_world", historicalPeak: { rank: "gold", rating: 2100, stars: -1 }, seasonPeaks: [],
+    });
+    expect(fractional.success).toBe(false);
+    expect(negative.success).toBe(false);
+    expect(dbTransactionMock).not.toHaveBeenCalled();
+  });
+
+  it("passes an untouched legacy null-stars fact through without fabricating stars", async () => {
+    queueLadder({
+      ladder: [{ rankKey: "黄金S", starMin: 10, starMax: 24 }],
+      existingFacts: [{ id: "fact-1", kind: "historical_peak", platformSeasonKey: null, rank: "黄金S", rating: "2100.00", stars: null }],
+    });
+    const result = await saveCompetitiveProfile({
+      platform: "perfect_world", historicalPeak: { rank: "黄金S", rating: 2100, stars: null }, seasonPeaks: [],
+    });
+    expect(result.success).toBe(true);
+    expect(updateSetCalls).toEqual([expect.objectContaining({ rank: "黄金S", rating: "2100", stars: null })]);
+    expect(insertValuesCalls.filter((entry) => (entry as { action?: string }).action)).toEqual([
+      expect.objectContaining({ action: "competitive_profile.self_declare" }),
+    ]);
+  });
+
+  it("rejects a real edit of a legacy fact and a fresh star fact until stars are supplied", async () => {
+    queueLadder({
+      ladder: [{ rankKey: "黄金S", starMin: 10, starMax: 24 }],
+      existingFacts: [{ id: "fact-1", kind: "historical_peak", platformSeasonKey: null, rank: "黄金S", rating: "2100.00", stars: null }],
+    });
+    const edited = await saveCompetitiveProfile({
+      platform: "perfect_world", historicalPeak: { rank: "黄金S", rating: 2200, stars: null }, seasonPeaks: [],
+    });
+    expect(edited.success).toBe(false);
+    expect(errMessage(edited)).toContain("需要填写准确星数");
+
+    queueLadder({ ladder: [{ rankKey: "黄金S", starMin: 10, starMax: 24 }] });
+    const fresh = await saveCompetitiveProfile({
+      platform: "perfect_world", historicalPeak: { rank: "黄金S", rating: 2100, stars: null }, seasonPeaks: [],
+    });
+    expect(fresh.success).toBe(false);
+    expect(errMessage(fresh)).toContain("需要填写准确星数");
+  });
+
+  it("rejects stars on a non-star rank and requires them on star ranks", async () => {
+    queueLadder();
+    const nonStar = await saveCompetitiveProfile({
+      platform: "perfect_world", historicalPeak: { rank: "gold", rating: 2100, stars: 1 }, seasonPeaks: [],
+    });
+    expect(nonStar.success).toBe(false);
+    expect(errMessage(nonStar)).toContain("不使用星数");
+
+    queueLadder({ ladder: [{ rankKey: "黄金S", starMin: 10, starMax: 24 }] });
+    const missing = await saveCompetitiveProfile({
+      platform: "perfect_world", historicalPeak: { rank: "黄金S", rating: 2100, stars: null }, seasonPeaks: [],
+    });
+    expect(missing.success).toBe(false);
+    expect(errMessage(missing)).toContain("需要填写准确星数");
+  });
+
+  it("accepts exact Perfect and 5E-style finite/open star boundaries without changing rating payload", async () => {
+    const ranks = [
+      { rankKey: "青铜S", starMin: 0, starMax: 9 },
+      { rankKey: "黄金S", starMin: 10, starMax: 24 },
+      { rankKey: "钻石S", starMin: 25, starMax: 49 },
+      { rankKey: "魔王S", starMin: 50, starMax: null },
+      { rankKey: "S", starMin: 0, starMax: 19 },
+      { rankKey: "SS", starMin: 20, starMax: 39 },
+      { rankKey: "SSS", starMin: 40, starMax: null },
+    ];
+    queueLadder({ ladder: ranks });
+    const perfect = await saveCompetitiveProfile({
+      platform: "perfect_world", historicalPeak: { rank: "黄金S", rating: 2100, stars: 24 }, seasonPeaks: [{ seasonKey: "s21", rank: "魔王S", rating: 2200, stars: 50 }],
+    });
+    expect(perfect.success).toBe(true);
+    expect(insertValuesCalls.some((entry) => (entry as { stars?: number }).stars === 24)).toBe(true);
+
+    queueLadder({ ladder: ranks });
+    const invalid = await saveCompetitiveProfile({
+      platform: "perfect_world", historicalPeak: { rank: "SS", rating: 2100, stars: 40 }, seasonPeaks: [],
+    });
+    expect(invalid.success).toBe(false);
+    expect(errMessage(invalid)).toContain("20–39");
   });
 });

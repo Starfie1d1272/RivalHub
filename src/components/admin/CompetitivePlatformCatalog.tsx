@@ -4,7 +4,6 @@ import React, { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  createCompetitivePlatform,
   createCompetitivePlatformRank,
   createCompetitivePlatformSeason,
   deleteCompetitivePlatformRank,
@@ -53,7 +52,6 @@ function SeasonStatusChips({ season, platform }: { season: Platform["seasons"][n
 
 export function CompetitivePlatformCatalog({ platforms }: { platforms: Platform[] }) {
   const { pending, run } = useCatalogActions();
-  const [newPlatform, setNewPlatform] = useState({ key: "", displayName: "", ratingLabel: "Rating" });
   const [newSeason, setNewSeason] = useState<{ platform: string; seasonKey: string; label: string } | null>(null);
   const [seasonLabelDraft, setSeasonLabelDraft] = useState<{ id: string; label: string } | null>(null);
   const [newRank, setNewRank] = useState<{ platform: string; label: string; rankKey: string } | null>(null);
@@ -62,9 +60,7 @@ export function CompetitivePlatformCatalog({ platforms }: { platforms: Platform[
 
   return (
     <div className="space-y-5">
-      {platforms.length === 0 && (
-        <StatusBanner tone="warn" title="尚未建立竞技平台" sub="先创建第一个平台，再维护它的赛季目录与平台段位表。" />
-      )}
+      {platforms.length === 0 && <StatusBanner tone="warn" title="内置竞技平台目录未就绪" sub="2.0 内置 Perfect World 与 5E；若目录没有出现，请检查 active migration，而不是在后台临时创建新平台。" />}
 
       {platforms.map((platform) => {
         const ranks = [...platform.ranks].sort((a, b) => a.sortOrder - b.sortOrder);
@@ -74,7 +70,7 @@ export function CompetitivePlatformCatalog({ platforms }: { platforms: Platform[
             <div className="space-y-5 p-5">
               {/* Platform identity */}
               <div className="flex flex-wrap items-end justify-between gap-3">
-                <PlatformIdentityRow key_={platform.key} displayName={platform.displayName} ratingLabel={platform.ratingLabel} pending={pending} onSave={(displayName, ratingLabel) => run(() => updateCompetitivePlatform({ key: platform.key, displayName, ratingLabel }), "平台目录已更新")} />
+                <PlatformIdentityRow key_={platform.key} displayName={platform.displayName} ratingLabel={platform.ratingLabel} pending={pending} onSave={(displayName) => run(() => updateCompetitivePlatform({ key: platform.key, displayName }), "平台目录已更新")} />
               </div>
 
               {/* Seasons */}
@@ -169,16 +165,6 @@ export function CompetitivePlatformCatalog({ platforms }: { platforms: Platform[
         );
       })}
 
-      {/* New platform */}
-      <Panel label="新增竞技平台" pad={20}>
-        <div className="grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto]">
-          <div className="space-y-1.5"><Label>平台标识（创建后不可修改）</Label><Input value={newPlatform.key} onChange={(event) => setNewPlatform({ ...newPlatform, key: event.target.value })} placeholder="例如 perfect_world" className="font-mono" /></div>
-          <div className="space-y-1.5"><Label>显示名称</Label><Input value={newPlatform.displayName} onChange={(event) => setNewPlatform({ ...newPlatform, displayName: event.target.value })} placeholder="例如 完美世界竞技平台" /></div>
-          <div className="space-y-1.5"><Label>canonical Rating</Label><Input value={newPlatform.ratingLabel} onChange={(event) => setNewPlatform({ ...newPlatform, ratingLabel: event.target.value })} placeholder="例如 Rating+ / HLTV Rating 3.0" /></div>
-          <div className="flex items-end"><Button type="button" disabled={pending || !newPlatform.key.trim() || !newPlatform.displayName.trim() || !newPlatform.ratingLabel.trim()} onClick={() => run(() => createCompetitivePlatform(newPlatform), "竞技平台已创建")}>创建平台</Button></div>
-        </div>
-      </Panel>
-
       <Dialog open={Boolean(confirmAction)} onOpenChange={(open) => { if (!open) setConfirmAction(null); }}>
         {confirmAction && <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>{confirmAction.kind === "set-current" ? "切换当前赛季" : "确认删除"}</DialogTitle><DialogDescription className="sr-only">请确认这项竞技平台目录操作。</DialogDescription></DialogHeader>
@@ -213,17 +199,20 @@ export function CompetitivePlatformCatalog({ platforms }: { platforms: Platform[
   );
 }
 
-function PlatformIdentityRow({ key_, displayName, ratingLabel, pending, onSave }: { key_: string; displayName: string; ratingLabel: string; pending: boolean; onSave: (displayName: string, ratingLabel: string) => void }) {
+/**
+ * Platform identity: the canonical performance Rating is product-defined and
+ * therefore display-only; operators may only rename the display name.
+ */
+function PlatformIdentityRow({ key_, displayName, ratingLabel, pending, onSave }: { key_: string; displayName: string; ratingLabel: string; pending: boolean; onSave: (displayName: string) => void }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(displayName);
-  const [ratingDraft, setRatingDraft] = useState(ratingLabel);
   if (!editing) {
     return (
       <div className="space-y-1">
         <p className="text-lg font-semibold">{displayName}</p>
         <p className="font-mono text-xs text-[var(--color-fg-dim)]">{key_}</p>
-        <p className="text-sm text-[var(--color-fg-mid)]">canonical performance Rating：{ratingLabel}</p>
-        <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => { setDraft(displayName); setRatingDraft(ratingLabel); setEditing(true); }}>修改平台信息</Button>
+        <p className="text-sm text-[var(--color-fg-mid)]">canonical performance Rating：{ratingLabel}（由产品定义，不可在后台修改）</p>
+        <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => { setDraft(displayName); setEditing(true); }}>修改平台信息</Button>
       </div>
     );
   }
@@ -231,11 +220,10 @@ function PlatformIdentityRow({ key_, displayName, ratingLabel, pending, onSave }
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
         <Input value={draft} onChange={(event) => setDraft(event.target.value)} className="max-w-64" aria-label="平台显示名称" />
-        <Input value={ratingDraft} onChange={(event) => setRatingDraft(event.target.value)} className="max-w-64" aria-label="canonical Rating 名称" />
-        <Button type="button" size="sm" disabled={pending || !draft.trim() || !ratingDraft.trim()} onClick={() => { onSave(draft, ratingDraft); setEditing(false); }}>保存</Button>
+        <Button type="button" size="sm" disabled={pending || !draft.trim()} onClick={() => { onSave(draft); setEditing(false); }}>保存</Button>
         <Button type="button" size="sm" variant="ghost" onClick={() => setEditing(false)}>取消</Button>
       </div>
-      <p className="font-mono text-xs text-[var(--color-fg-dim)]">{key_} · 平台标识创建后不可修改</p>
+      <p className="font-mono text-xs text-[var(--color-fg-dim)]">{key_} · 平台标识与 canonical Rating 由产品定义，不可修改</p>
     </div>
   );
 }

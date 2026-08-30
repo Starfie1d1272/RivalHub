@@ -110,6 +110,26 @@ async function main(): Promise<void> {
     );
     assert.equal(factCount.rows[0]?.count, "3");
 
+    // Exact stars are an independent fact column: legacy facts above stay NULL,
+    // new star facts must be non-negative integers at the database level.
+    const legacyStars = await client.query<{ stars: number | null }>(
+      `SELECT stars FROM competitive_rank_facts WHERE user_id = $1`,
+      [ids.first],
+    );
+    assert.ok(legacyStars.rows.every((row) => row.stars === null));
+    await client.query(
+      `INSERT INTO competitive_rank_facts (user_id, platform, kind, platform_season_key, rank, rating, stars)
+       VALUES ($1, 'perfect_world', 'season_peak', 'major-previous', '青铜S', 800, 7)`,
+      [ids.second],
+    );
+    await expectPgError(
+      client,
+      `INSERT INTO competitive_rank_facts (user_id, platform, kind, platform_season_key, rank, rating, stars)
+       VALUES ($1, 'perfect_world', 'historical_peak', NULL, '黄金S', 900, -3)`,
+      [ids.second],
+      "23514",
+    );
+
     const protectedTables = await client.query<{ relrowsecurity: boolean; anon_select: boolean; authenticated_select: boolean }>(
       `SELECT c.relrowsecurity,
               has_table_privilege('anon', 'public.' || c.relname, 'SELECT') AS anon_select,

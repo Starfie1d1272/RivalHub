@@ -30,12 +30,20 @@ export const competitivePlatformRanks = pgTable("competitive_platform_ranks", {
   rankKey: text("rank_key").notNull(),
   label: text("label").notNull(),
   sortOrder: integer("sort_order").notNull(),
+  /** Inclusive lower bound for star-based ranks; null/null means no stars. */
+  starMin: integer("star_min"),
+  /** Inclusive upper bound; null with starMin means no upper bound. */
+  starMax: integer("star_max"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   platformRankKeyUnique: uniqueIndex("competitive_platform_ranks_platform_rank_key_unique").on(t.platformKey, t.rankKey),
   platformSortOrderUnique: uniqueIndex("competitive_platform_ranks_platform_sort_order_unique").on(t.platformKey, t.sortOrder),
   platformLadderIndex: index("competitive_platform_ranks_platform_order_idx").on(t.platformKey, t.sortOrder),
+  starRangeShape: check("competitive_platform_ranks_star_range_shape", sql`(${t.starMin} IS NULL AND ${t.starMax} IS NULL) OR ${t.starMin} IS NOT NULL`),
+  starMinNonNegative: check("competitive_platform_ranks_star_min_non_negative", sql`${t.starMin} IS NULL OR ${t.starMin} >= 0`),
+  starMaxNonNegative: check("competitive_platform_ranks_star_max_non_negative", sql`${t.starMax} IS NULL OR ${t.starMax} >= 0`),
+  starRangeOrdered: check("competitive_platform_ranks_star_range_ordered", sql`${t.starMax} IS NULL OR ${t.starMax} >= ${t.starMin}`),
 }));
 
 /**
@@ -75,6 +83,8 @@ export const competitiveRankFacts = pgTable("competitive_rank_facts", {
   rank: text("rank").notNull(),
   /** The platform's canonical performance Rating; never a matchmaking score (e.g. Valve CS Rating). */
   rating: numeric("rating", { precision: 8, scale: 2 }).notNull(),
+  /** Exact self-declared in-rank progress. Legacy facts intentionally remain null. */
+  stars: integer("stars"),
   provenance: competitiveFactProvenanceEnum("provenance").notNull().default("self_declared"),
   declaredAt: timestamp("declared_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -82,6 +92,7 @@ export const competitiveRankFacts = pgTable("competitive_rank_facts", {
   factIdentityUnique: uniqueIndex("competitive_rank_facts_identity_unique")
     .on(t.userId, t.platform, t.kind, sql`coalesce(${t.platformSeasonKey}, '')`),
   userPlatformIndex: index("competitive_rank_facts_user_platform_idx").on(t.userId, t.platform),
+  starsNonNegative: check("competitive_rank_facts_stars_non_negative", sql`${t.stars} IS NULL OR ${t.stars} >= 0`),
 }));
 
 /** Long-lived self-declared preferences. They are hints, never eligibility gates. */
