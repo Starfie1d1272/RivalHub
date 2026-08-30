@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ScrollHint } from "@/components/rivalhub";
@@ -22,6 +23,7 @@ export function SeasonSubNav({
   const tabs: { label: string; href: string }[] = [
     { label: "赛事控制台", href: `/admin/${seasonSlug}` },
     { label: "报名审核", href: `/admin/${seasonSlug}/registrations` },
+    { label: "纪律处罚", href: `/admin/${seasonSlug}/discipline` },
     { label: "赛事日志", href: `/admin/${seasonSlug}/logs` },
     ...(hasCaptainVoting ? [{ label: "队长确认", href: `/admin/${seasonSlug}/captains` }] : []),
     ...(hasDraft ? [{ label: "选秀控制", href: `/admin/${seasonSlug}/draft` }] : []),
