@@ -41,12 +41,11 @@ export default async function AdminDashboardPage() {
         <div className="space-y-3">
           {allSeasons.map((s) => {
             const active = isActive(s);
-            const hasMatches = (s.stagePlan as unknown[]).length > 0;
             return (
               <Panel key={s.id} pad={16}>
                 <div className="flex items-center justify-between gap-4 flex-wrap">
                   <Link
-                    href={`/admin/${s.slug}/matches`}
+                    href={`/admin/${s.slug}`}
                     className="min-w-0 flex-1 hover:text-[var(--color-fg)] transition-colors"
                   >
                     <div>
@@ -60,7 +59,11 @@ export default async function AdminDashboardPage() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <StatusPill status={s.status} />
 
-                    {active ? (
+                    <Btn small primary asChild>
+                      <Link href={`/admin/${s.slug}`}>赛事控制台</Link>
+                    </Btn>
+
+                    {active && (
                       <>
                         <Btn small asChild>
                           <Link href={`/admin/${s.slug}/matches`}>比赛管理</Link>
@@ -78,25 +81,13 @@ export default async function AdminDashboardPage() {
                             <Link href={`/admin/${s.slug}/captains`}>队长投票</Link>
                           </Btn>
                         )}
-                        {admin.role === "super_admin" && (
-                          <Btn small ghost asChild>
-                            <Link href={`/admin/${s.slug}/settings`}>设置</Link>
-                          </Btn>
-                        )}
                       </>
-                    ) : (
-                      <>
-                        {hasMatches && (
-                          <Btn small asChild>
-                            <Link href={`/admin/${s.slug}/matches`}>查看赛季</Link>
-                          </Btn>
-                        )}
-                        {admin.role === "super_admin" && (
-                          <Btn small ghost asChild>
-                            <Link href={`/admin/${s.slug}/settings`}>设置</Link>
-                          </Btn>
-                        )}
-                      </>
+                    )}
+
+                    {admin.role === "super_admin" && (
+                      <Btn small ghost asChild>
+                        <Link href={`/admin/${s.slug}/settings`}>设置</Link>
+                      </Btn>
                     )}
                   </div>
                 </div>
