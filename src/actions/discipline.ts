@@ -1,10 +1,11 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq, ilike, or } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   disciplinaryCases,
   seasons,
+  users,
   type DisciplinaryCase,
 } from "@/db/schema";
 import { z } from "zod";
@@ -71,12 +72,12 @@ export async function issueSanction(input: unknown): Promise<ActionResult<{ case
  * 撤销处罚。重复撤销为幂等成功且不产生重复审计。
  */
 export async function revokeSanction(
-  input: { caseId: string; reason?: string },
+  input: { caseId: string; reason: string },
 ): Promise<ActionResult<{ alreadyRevoked: boolean; caseId: string }>> {
   const parsed = z
-    .object({ caseId: z.string().uuid(), reason: z.string().trim().max(1000).optional() })
+    .object({ caseId: z.string().uuid(), reason: z.string().trim().min(1).max(1000) })
     .safeParse(input);
-  if (!parsed.success) return actionError("revokeSanction", new AppError(ErrorCode.VALIDATION_FAILED, "撤销参数不合法。"));
+  if (!parsed.success) return actionError("revokeSanction", new AppError(ErrorCode.VALIDATION_FAILED, "撤销参数不合法：必须填写撤销原因。"));
   try {
     const existing = await loadCase(parsed.data.caseId);
     const admin = await requireSeasonAdmin(existing.seasonId);
@@ -84,7 +85,7 @@ export async function revokeSanction(
       revokeSanctionInTx(tx, {
         caseId: existing.id,
         actorId: auditActorId(admin),
-        reason: parsed.data.reason ?? "",
+        reason: parsed.data.reason,
       }),
     );
     return ok(result);
@@ -107,6 +108,48 @@ export async function expireSanction(
     return ok(result);
   } catch (e) {
     return actionError("expireSanction", e);
+  }
+}
+
+/** 按 displayName / steamName / email 模糊搜索普通 RivalHub 用户，供处罚 subject 按需选择。 */
+export async function searchSanctionSubjects(
+  input: unknown,
+): Promise<ActionResult<Array<{ id: string; label: string; detail: string | null }>>> {
+  const parsed = z
+    .object({ seasonId: z.string().uuid(), query: z.string().trim().min(2).max(64) })
+    .safeParse(input);
+  if (!parsed.success) {
+    return actionError("searchSanctionSubjects", new AppError(ErrorCode.VALIDATION_FAILED, "搜索词不合法：至少 2 个字符。"));
+  }
+  try {
+    await requireSeasonAdmin(parsed.data.seasonId);
+    const pattern = `%${parsed.data.query.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+    const rows = await db
+      .select({
+        id: users.id,
+        displayName: users.displayName,
+        steamName: users.steamName,
+        email: users.email,
+      })
+      .from(users)
+      .where(
+        or(
+          ilike(users.displayName, pattern),
+          ilike(users.steamName, pattern),
+          ilike(users.email, pattern),
+        ),
+      )
+      .orderBy(asc(users.email))
+      .limit(10);
+    return ok(
+      rows.map((row) => ({
+        id: row.id,
+        label: row.displayName ?? row.steamName ?? row.email,
+        detail: row.email,
+      })),
+    );
+  } catch (e) {
+    return actionError("searchSanctionSubjects", e);
   }
 }
 
