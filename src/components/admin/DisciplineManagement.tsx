@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { expireSanction, issueSanction, revokeSanction } from "@/actions/discipline";
+import { expireSanction, issueSanction, revokeSanction, searchSanctionSubjects } from "@/actions/discipline";
 import type { ResolvedSanctionStatus, SanctionEffect } from "@/lib/discipline/service";
 import { SANCTION_EFFECTS } from "@/lib/discipline/service";
 import { formatCST, parseCSTInput } from "@/lib/utils/date";
@@ -12,6 +12,7 @@ import { Btn, EmptyState, Panel } from "@/components/rivalhub";
 /**
  * 管理员专用 discipline 面板。`internalEvidence` 仅出现在本组件的
  * props（由 admin page 构造）中，任何公开 surface 都不得复用该类型。
+ * Subject 不做批量下发，一律按需搜索。
  */
 export type DisciplineSanctionRow = {
   id: string;
@@ -34,6 +35,9 @@ export type DisciplineSubjectOption = {
   label: string;
   detail: string | null;
 };
+
+const MIN_QUERY_LENGTH = 2;
+const SEARCH_DEBOUNCE_MS = 300;
 
 const EFFECT_LABELS: Record<SanctionEffect, string> = {
   registration_block: "报名拦截",
@@ -68,18 +72,18 @@ function describeWindow(row: DisciplineSanctionRow): string {
 export function DisciplineManagement({
   seasonId,
   sanctions,
-  subjects,
 }: {
   seasonId: string;
   sanctions: DisciplineSanctionRow[];
-  subjects: DisciplineSubjectOption[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [subjectQuery, setSubjectQuery] = useState("");
-  const [subjectUserId, setSubjectUserId] = useState("");
+  const [subjectResults, setSubjectResults] = useState<DisciplineSubjectOption[]>([]);
+  const [subjectSearchError, setSubjectSearchError] = useState<string | null>(null);
+  const [selectedSubject, setSelectedSubject] = useState<DisciplineSubjectOption | null>(null);
   const [effects, setEffects] = useState<SanctionEffect[]>([]);
   const [internalEvidence, setInternalEvidence] = useState("");
   const [publicExplanation, setPublicExplanation] = useState("");
@@ -90,13 +94,40 @@ export function DisciplineManagement({
   const [revokeReason, setRevokeReason] = useState("");
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
 
-  const filteredSubjects = useMemo(() => {
-    const q = subjectQuery.trim().toLowerCase();
-    if (!q) return subjects;
-    return subjects.filter(
-      (s) => s.label.toLowerCase().includes(q) || (s.detail ?? "").toLowerCase().includes(q),
-    );
-  }, [subjectQuery, subjects]);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    const query = subjectQuery.trim();
+    if (query.length < MIN_QUERY_LENGTH) {
+      setSubjectResults([]);
+      setSubjectSearchError(null);
+      return;
+    }
+    debounceRef.current = setTimeout(() => {
+      startTransition(async () => {
+        const result = await searchSanctionSubjects({ seasonId, query });
+        if (result.success) {
+          setSubjectResults(result.data);
+          setSubjectSearchError(null);
+        } else {
+          setSubjectResults([]);
+          setSubjectSearchError(result.error.message);
+        }
+      });
+    }, SEARCH_DEBOUNCE_MS);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [seasonId, subjectQuery]);
+
+  const subjectOptions = useMemo(() => {
+    const options = [...subjectResults];
+    if (selectedSubject && !options.some((o) => o.id === selectedSubject.id)) {
+      options.unshift(selectedSubject);
+    }
+    return options;
+  }, [subjectResults, selectedSubject]);
 
   const visibleSanctions = useMemo(
     () =>
@@ -118,8 +149,8 @@ export function DisciplineManagement({
 
   function handleIssue() {
     setIssueError(null);
-    if (!subjectUserId) {
-      setIssueError("请先选择被处罚用户。");
+    if (!selectedSubject) {
+      setIssueError("请先搜索并选择被处罚用户。");
       return;
     }
     if (effects.length === 0) {
@@ -130,7 +161,7 @@ export function DisciplineManagement({
     startTransition(async () => {
       const result = await issueSanction({
         seasonId,
-        subjectUserId,
+        subjectUserId: selectedSubject.id,
         effects,
         internalEvidence: internalEvidence.trim() || null,
         publicExplanation: publicExplanation.trim() || null,
@@ -138,8 +169,9 @@ export function DisciplineManagement({
       });
       if (result.success) {
         toast.success("处罚已签发。");
-        setSubjectUserId("");
+        setSelectedSubject(null);
         setSubjectQuery("");
+        setSubjectResults([]);
         setEffects([]);
         setInternalEvidence("");
         setPublicExplanation("");
@@ -154,8 +186,12 @@ export function DisciplineManagement({
 
   function handleRevoke(caseId: string) {
     setRowErrors((prev) => ({ ...prev, [caseId]: "" }));
+    if (!revokeReason.trim()) {
+      setRowErrors((prev) => ({ ...prev, [caseId]: "必须填写撤销原因。" }));
+      return;
+    }
     startTransition(async () => {
-      const result = await revokeSanction({ caseId, reason: revokeReason.trim() || undefined });
+      const result = await revokeSanction({ caseId, reason: revokeReason.trim() });
       if (result.success) {
         toast.success(result.data.alreadyRevoked ? "该处罚已被撤销过。" : "处罚已撤销。");
         setRevokeTarget(null);
@@ -189,31 +225,37 @@ export function DisciplineManagement({
         <Panel pad={20} className="space-y-4">
           <div className="space-y-2">
             <label className="block text-sm text-[var(--color-fg-mid)]" htmlFor="discipline-subject-search">
-              搜索被处罚用户（姓名 / 邮箱）
+              搜索被处罚用户（姓名 / Steam 昵称 / 邮箱，至少 2 个字符）
             </label>
             <input
               id="discipline-subject-search"
               type="search"
               value={subjectQuery}
               onChange={(e) => setSubjectQuery(e.target.value)}
-              placeholder="输入关键字过滤…"
+              placeholder="输入关键字按需搜索…"
               className="w-full max-w-sm rounded-sm border border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-1.5 text-sm text-[var(--color-fg)] placeholder:text-[var(--color-fg-dim)] outline-none focus:border-[var(--color-accent)] transition-colors"
             />
+            {subjectSearchError && (
+              <p role="alert" className="text-sm text-[var(--color-danger)]">{subjectSearchError}</p>
+            )}
             <select
               aria-label="选择被处罚用户"
-              value={subjectUserId}
-              onChange={(e) => setSubjectUserId(e.target.value)}
+              value={selectedSubject?.id ?? ""}
+              onChange={(e) => {
+                const picked = subjectOptions.find((o) => o.id === e.target.value) ?? null;
+                setSelectedSubject(picked);
+              }}
               className="w-full max-w-sm rounded-sm border border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-1.5 text-sm text-[var(--color-fg)] outline-none focus:border-[var(--color-accent)] transition-colors"
             >
               <option value="">— 选择用户 —</option>
-              {filteredSubjects.map((s) => (
+              {subjectOptions.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.label}
                   {s.detail ? `（${s.detail}）` : ""}
                 </option>
               ))}
             </select>
-            {subjectQuery && filteredSubjects.length === 0 && (
+            {subjectQuery.trim().length >= MIN_QUERY_LENGTH && subjectResults.length === 0 && !subjectSearchError && (
               <p className="text-xs text-[var(--color-fg-mid)]">没有匹配的用户。</p>
             )}
           </div>
@@ -354,7 +396,7 @@ export function DisciplineManagement({
                 {revokeTarget === row.id && (
                   <div className="space-y-2 rounded-sm border border-[var(--color-border)] p-3">
                     <label className="block text-sm text-[var(--color-fg-mid)]" htmlFor={`revoke-reason-${row.id}`}>
-                      撤销原因
+                      撤销原因（必填）
                     </label>
                     <textarea
                       id={`revoke-reason-${row.id}`}
@@ -365,7 +407,11 @@ export function DisciplineManagement({
                       className="w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-1.5 text-sm text-[var(--color-fg)] outline-none focus:border-[var(--color-accent)] transition-colors"
                     />
                     <div className="flex gap-2">
-                      <Btn small onClick={() => handleRevoke(row.id)} disabled={pending}>
+                      <Btn
+                        small
+                        onClick={() => handleRevoke(row.id)}
+                        disabled={pending || !revokeReason.trim()}
+                      >
                         确认撤销
                       </Btn>
                       <Btn small ghost onClick={() => { setRevokeTarget(null); setRevokeReason(""); }}>

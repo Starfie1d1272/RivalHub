@@ -1,10 +1,11 @@
 import { notFound, redirect } from "next/navigation";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasonRegistrations, seasons, users } from "@/db/schema";
+import { seasons, users } from "@/db/schema";
 import { requireSeasonAdmin } from "@/lib/auth/session";
 import { getSeasonSanctions } from "@/actions/discipline";
-import { DisciplineManagement, type DisciplineSanctionRow, type DisciplineSubjectOption } from "@/components/admin/DisciplineManagement";
+import { DisciplineManagement, type DisciplineSanctionRow } from "@/components/admin/DisciplineManagement";
+import { ErrorState } from "@/components/rivalhub";
 
 export const dynamic = "force-dynamic";
 
@@ -32,22 +33,28 @@ export default async function AdminDisciplinePage({
   }
 
   const result = await getSeasonSanctions(season.id);
-  const rows = result.success ? result.data : [];
+  if (!result.success) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold text-[var(--color-fg)]">纪律处罚管理 · {season.name}</h1>
+        <ErrorState
+          code={result.error.code}
+          title="无法加载纪律处罚记录"
+          sub={result.error.message}
+        />
+      </div>
+    );
+  }
+  const rows = result.data;
 
   const subjectIds = [...new Set(rows.map((row) => row.subjectUserId))];
-  const [sanctionedUsers, registeredUsers] = await Promise.all([
+  const sanctionedUsers =
     subjectIds.length > 0
-      ? db
+      ? await db
           .select({ id: users.id, displayName: users.displayName, steamName: users.steamName, email: users.email })
           .from(users)
           .where(inArray(users.id, subjectIds))
-      : Promise.resolve([]),
-    db
-      .select({ id: users.id, displayName: users.displayName, steamName: users.steamName, email: users.email })
-      .from(seasonRegistrations)
-      .innerJoin(users, eq(seasonRegistrations.userId, users.id))
-      .where(eq(seasonRegistrations.seasonId, season.id)),
-  ]);
+      : [];
 
   const labelFor = (u: { displayName: string | null; steamName: string | null; email: string }) =>
     u.displayName ?? u.steamName ?? u.email;
@@ -71,16 +78,6 @@ export default async function AdminDisciplinePage({
     };
   });
 
-  const subjectById = new Map<string, DisciplineSubjectOption>();
-  for (const u of registeredUsers) {
-    subjectById.set(u.id, { id: u.id, label: labelFor(u), detail: u.email });
-  }
-  for (const u of sanctionedUsers) {
-    if (!subjectById.has(u.id)) {
-      subjectById.set(u.id, { id: u.id, label: labelFor(u), detail: u.email });
-    }
-  }
-
   return (
     <div className="space-y-6">
       <div>
@@ -89,11 +86,7 @@ export default async function AdminDisciplinePage({
           个人处罚只对被处罚用户本人、在指定生效窗口内拦截对应能力，不连带队伍或历史事实。
         </p>
       </div>
-      <DisciplineManagement
-        seasonId={season.id}
-        sanctions={sanctions}
-        subjects={[...subjectById.values()]}
-      />
+      <DisciplineManagement seasonId={season.id} sanctions={sanctions} />
     </div>
   );
 }
