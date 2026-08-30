@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { resolvePlatformCatalog, type CompetitivePlatformCatalogEntry } from "@/lib/competitive/catalog";
+import { resolveCatalogSeasonRoles, resolvePlatformCatalog, type CompetitivePlatformCatalogEntry } from "@/lib/competitive/catalog";
 
 function entry(overrides?: Partial<CompetitivePlatformCatalogEntry>): CompetitivePlatformCatalogEntry {
   return {
     key: "perfect_world",
     displayName: "完美世界竞技平台",
+    ratingLabel: "Rating Pro",
     ranks: [
       { id: "r1", rankKey: "bronze", label: "Bronze", sortOrder: 0 },
       { id: "r2", rankKey: "silver", label: "Silver", sortOrder: 1 },
@@ -65,5 +66,16 @@ describe("resolvePlatformCatalog", () => {
       { id: "s2", seasonKey: "s20", label: "S20", sortOrder: 0, active: true, isCurrent: false },
     ];
     expect(resolvePlatformCatalog(e)).toBeNull();
+  });
+
+  it("uses the same active-only previous season for every caller", () => {
+    const e = entry();
+    e.seasons = [
+      { id: "s3", seasonKey: "s24", label: "S24", sortOrder: 3, active: true, isCurrent: true },
+      { id: "s2", seasonKey: "s23", label: "S23", sortOrder: 2, active: false, isCurrent: false },
+      { id: "s1", seasonKey: "s22", label: "S22", sortOrder: 1, active: true, isCurrent: false },
+    ];
+    expect(resolveCatalogSeasonRoles(e).previous?.seasonKey).toBe("s22");
+    expect(resolvePlatformCatalog(e)?.previousSeasonKey).toBe("s22");
   });
 });

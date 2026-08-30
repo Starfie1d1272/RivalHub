@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
 import { Client } from "pg";
+import { migrationFiles, replayMigration, withScratchDatabase } from "./migration-replay";
 
 /**
  * Local replay for the 0018 competitive platform catalog migration. A scratch
@@ -16,30 +15,9 @@ import { Client } from "pg";
  *   are preserved byte-for-byte.
  */
 
-const databaseUrl = process.env.RIVALHUB_LOCAL_DATABASE_URL;
-if (!databaseUrl) throw new Error("RIVALHUB_LOCAL_DATABASE_URL 未设置。");
-const local = new URL(databaseUrl);
-if (!["localhost", "127.0.0.1", "::1", "[::1]"].includes(local.hostname)) {
-  throw new Error("迁移回放只允许 Local Supabase loopback 数据库。");
-}
-
-const databaseName = `rivalhub_0018_${randomUUID().replaceAll("-", "")}`;
-const maintenance = new URL(databaseUrl);
-maintenance.pathname = "/postgres";
-
-async function runMigration(client: Client, name: string): Promise<void> {
-  const source = readFileSync(join(process.cwd(), "drizzle/migrations", name), "utf8");
-  await client.query("BEGIN");
-  try {
-    await client.query(source);
-    await client.query("COMMIT");
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw new Error(`${name} 回放失败：${error instanceof Error ? error.message : String(error)}`);
-  }
-}
-
 async function runMigrationExpectingFailure(client: Client, name: string, keyword: string): Promise<string> {
+  const { readFileSync } = await import("node:fs");
+  const { join } = await import("node:path");
   const source = readFileSync(join(process.cwd(), "drizzle/migrations", name), "utf8");
   await client.query("BEGIN");
   try {
@@ -152,21 +130,12 @@ async function assertTerminalState(client: Client, opts: { userId: string; seaso
 }
 
 async function main(): Promise<void> {
-  const admin = new Client({ connectionString: maintenance.toString(), ssl: false });
-  await admin.connect();
-  try {
-    await admin.query(`CREATE DATABASE "${databaseName}"`);
-    const target = new URL(databaseUrl!);
-    target.pathname = `/${databaseName}`;
-    const client = new Client({ connectionString: target.toString(), ssl: false });
-    await client.connect();
-    try {
-      const migrations = readdirSync(join(process.cwd(), "drizzle/migrations"))
+  await withScratchDatabase("rivalhub_0018", async (client) => {
+      const migrations = migrationFiles((name) => /^00(?:0[0-9]|1[0-9])_.*\.sql$/.test(name))
         .filter((name) => /^00(?:0[0-9]|1[0-8])_.*\.sql$/.test(name))
-        .sort();
       const terminal = migrations.find((name) => name.startsWith("0018_"));
       if (!terminal) throw new Error("找不到 0018 竞技平台目录迁移。");
-      for (const migration of migrations.filter((name) => !name.startsWith("0018_"))) await runMigration(client, migration);
+      for (const migration of migrations.filter((name) => !name.startsWith("0018_"))) await replayMigration(client, migration);
 
       // 1) Conflicting rank orders on one platform must fail closed.
       await insertLegacyCatalogFixture(client, {
@@ -202,16 +171,10 @@ async function main(): Promise<void> {
         seasons: [{ seasonKey: "legacy-current", rankOrder: LEGACY_RANK_ORDER }],
       });
       const preserved = await insertLegacyFactAndFrozenEventFixture(client, "perfect_world");
-      await runMigration(client, terminal);
+      await replayMigration(client, terminal);
       await assertTerminalState(client, preserved);
       console.log("Competitive catalog migration replay passed: conflict fail-closed, ladder promotion, empty ladder preserved, facts and frozen event contexts untouched.");
-    } finally {
-      await client.end();
-    }
-  } finally {
-    await admin.query(`DROP DATABASE IF EXISTS "${databaseName}"`);
-    await admin.end();
-  }
+  });
 }
 
 void main().catch((error) => { console.error(error); process.exit(1); });

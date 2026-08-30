@@ -58,6 +58,9 @@ try {
     case "test-competitive-catalog-migration":
       runLocalIntegration("scripts/db/competitive-catalog-migration-replay.ts");
       break;
+    case "test-competitive-catalog":
+      runLocalIntegration("scripts/db/competitive-catalog-integration.ts");
+      break;
     case "test-major-profile":
       runLocalIntegration("scripts/db/major-profile-integration.ts");
       break;
@@ -106,7 +109,7 @@ try {
       break;
     default:
       throw new Error(
-        "未知命令。可用命令：start | status | migrate | seed | verify | verify-migrations | test-major-start | test-major-golden | test-major-browser | cleanup-major-browser | test-team-registration | test-competition-entry-migration | test-competitive-catalog-migration | test-major-profile | test-major-prestart | test-major-roster-safety | test-major-result-recovery | test-invite-concurrency | test-discipline | test-postevent | test-season-governance | bootstrap | reset | stop | studio | dev",
+        "未知命令。可用命令：start | status | migrate | seed | verify | verify-migrations | test-major-start | test-major-golden | test-major-browser | cleanup-major-browser | test-team-registration | test-competition-entry-migration | test-competitive-catalog-migration | test-competitive-catalog | test-major-profile | test-major-prestart | test-major-roster-safety | test-major-result-recovery | test-invite-concurrency | test-discipline | test-postevent | test-season-governance | bootstrap | reset | stop | studio | dev",
       );
   }
 } catch (error) {

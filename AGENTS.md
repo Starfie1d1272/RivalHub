@@ -34,6 +34,7 @@ pnpm db:studio
 9. 时间存 UTC，展示层转换为 Asia/Shanghai。
 10. Server-side query 可以读取业务所需私密字段；公开 RSC payload 与 Client Component props 必须经过明确 public DTO/read model，不能直接序列化内部查询对象。
 11. Server Action 负责鉴权、validation 与 transaction boundary；可复用复杂 domain logic 下沉至 `src/lib/<domain>/`，避免 action/page 重复实现。
+12. 新增 formatter、fallback、derived state、modal、database test harness 或 domain helper 前，先搜索已有 canonical owner；禁止在 page/action/component 内建立第二套相同业务规则。
 
 ## Database and security
 

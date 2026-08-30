@@ -1,30 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
 import { Client } from "pg";
-
-const databaseUrl = process.env.RIVALHUB_LOCAL_DATABASE_URL;
-if (!databaseUrl) throw new Error("RIVALHUB_LOCAL_DATABASE_URL 未设置。");
-const local = new URL(databaseUrl);
-if (!["localhost", "127.0.0.1", "::1", "[::1]"].includes(local.hostname)) {
-  throw new Error("迁移回放只允许 Local Supabase loopback 数据库。");
-}
-
-const databaseName = `rivalhub_0017_${randomUUID().replaceAll("-", "")}`;
-const maintenance = new URL(databaseUrl);
-maintenance.pathname = "/postgres";
-
-async function runMigration(client: Client, name: string): Promise<void> {
-  const source = readFileSync(join(process.cwd(), "drizzle/migrations", name), "utf8");
-  await client.query("BEGIN");
-  try {
-    await client.query(source);
-    await client.query("COMMIT");
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw new Error(`${name} 回放失败：${error instanceof Error ? error.message : String(error)}`);
-  }
-}
+import { migrationFiles, replayMigration, withScratchDatabase } from "./migration-replay";
 
 async function insertRivalsFixture(client: Client): Promise<{ seasonId: string; teamIds: string[] }> {
   const seasonId = randomUUID();
@@ -147,31 +123,17 @@ async function assertReplay(client: Client, rivals: { seasonId: string; teamIds:
 }
 
 async function main(): Promise<void> {
-  const admin = new Client({ connectionString: maintenance.toString(), ssl: false });
-  await admin.connect();
-  try {
-    await admin.query(`CREATE DATABASE "${databaseName}"`);
-    const target = new URL(databaseUrl!);
-    target.pathname = `/${databaseName}`;
-    const client = new Client({ connectionString: target.toString(), ssl: false });
-    await client.connect();
-    try {
-      const migrations = readdirSync(join(process.cwd(), "drizzle/migrations")).filter((name) => /^00(?:0[0-9]|1[0-7])_.*\.sql$/.test(name)).sort();
-      for (const migration of migrations.filter((name) => !name.startsWith("0017_"))) await runMigration(client, migration);
+  await withScratchDatabase("rivalhub_0017", async (client) => {
+      const migrations = migrationFiles((name) => /^00(?:0[0-9]|1[0-7])_.*\.sql$/.test(name));
+      for (const migration of migrations.filter((name) => !name.startsWith("0017_"))) await replayMigration(client, migration);
       const rivals = await insertRivalsFixture(client);
       await insertMajorReconciliationFixture(client);
       const terminalMigration = migrations.find((name) => name.startsWith("0017_"));
       if (!terminalMigration) throw new Error("找不到 0017 CompetitionEntry 迁移。");
-      await runMigration(client, terminalMigration);
+      await replayMigration(client, terminalMigration);
       await assertReplay(client, rivals);
       console.log("CompetitionEntry migration replay passed: Rivals 8/56/42 preserved; historical rejected, confirmed current commitment, invitation-only claim, and application/runtime identity reconciliation verified.");
-    } finally {
-      await client.end();
-    }
-  } finally {
-    await admin.query(`DROP DATABASE IF EXISTS "${databaseName}"`);
-    await admin.end();
-  }
+  });
 }
 
 void main().catch((error) => { console.error(error); process.exit(1); });

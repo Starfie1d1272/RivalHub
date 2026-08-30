@@ -81,14 +81,14 @@ describe("SeasonForm presets", () => {
   });
 
   it("does not show Major status in a Rivals display context", () => {
-    render(<SeasonForm mode="create" initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "选秀联赛")} />);
+    render(<SeasonForm mode="create" competitivePlatforms={[{ key: "perfect_world", displayName: "完美世界竞技平台" }]} initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "选秀联赛")} />);
 
     expect(screen.queryByText(/标准 Major 摘要|当前配置已偏离标准 Major/)).not.toBeInTheDocument();
   });
 
   it("resets the registration total after applying Major then Rivals; built-in team size controls are fixed", async () => {
     const user = userEvent.setup();
-    render(<SeasonForm mode="create" initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "选秀联赛")} />);
+    render(<SeasonForm mode="create" competitivePlatforms={[{ key: "perfect_world", displayName: "完美世界竞技平台" }]} initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "选秀联赛")} />);
 
     // Built-in templates fix team size on the server, so the inputs are disabled.
     expect(screen.getByLabelText("每队人数上限")).toBeDisabled();

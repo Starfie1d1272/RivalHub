@@ -62,7 +62,7 @@ async function main(): Promise<void> {
     assert.deepEqual(identity.rows[0], { perfect_name: "Legacy Nick", perfect_id: null });
 
     await client.query(
-      `INSERT INTO competitive_platforms (key, display_name) VALUES ('perfect_world', '完美世界竞技平台')
+      `INSERT INTO competitive_platforms (key, display_name, rating_label) VALUES ('perfect_world', '完美世界竞技平台', 'Rating Pro')
        ON CONFLICT (key) DO NOTHING`,
     );
     await client.query(

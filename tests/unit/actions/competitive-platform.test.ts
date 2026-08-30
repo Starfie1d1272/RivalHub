@@ -130,6 +130,7 @@ import {
   updateCompetitivePlatformRankLabel,
   updateCompetitivePlatformSeason,
 } from "@/actions/competitive-platform";
+import { temporarySortOrders } from "@/lib/competitive/catalog";
 import { saveCompetitiveProfile } from "@/actions/competitive-profile";
 
 const SEASON_ID = "00000000-0000-0000-0000-0000000000a1";
@@ -162,7 +163,7 @@ beforeEach(() => {
 describe("catalog action permissions", () => {
   it("rejects non-super-admin operators before touching the database", async () => {
     requireSuperAdminMock.mockRejectedValue(new Error("权限不足"));
-    const result = await createCompetitivePlatform({ key: "new_platform", displayName: "新平台" });
+    const result = await createCompetitivePlatform({ key: "new_platform", displayName: "新平台", ratingLabel: "Rating" });
     expect(result.success).toBe(false);
     expect(dbTransactionMock).not.toHaveBeenCalled();
     expect(insertValuesCalls).toHaveLength(0);
@@ -174,7 +175,7 @@ describe("catalog action permissions", () => {
 describe("platform identity actions", () => {
   it("creates a platform with an immutable key and writes an audit log", async () => {
     queryFindFirst.competitivePlatforms.mockResolvedValue(undefined);
-    const result = await createCompetitivePlatform({ key: "new_platform", displayName: "新平台" });
+    const result = await createCompetitivePlatform({ key: "new_platform", displayName: "新平台", ratingLabel: "Rating" });
     expect(result.success).toBe(true);
     const values = insertValuesCalls[0] as { key: string; displayName: string };
     expect(values).toMatchObject({ key: "new_platform", displayName: "新平台" });
@@ -183,20 +184,20 @@ describe("platform identity actions", () => {
 
   it("rejects duplicate platform keys", async () => {
     queryFindFirst.competitivePlatforms.mockResolvedValue({ key: "perfect_world", displayName: "完美世界竞技平台" });
-    const result = await createCompetitivePlatform({ key: "perfect_world", displayName: "重复平台" });
+    const result = await createCompetitivePlatform({ key: "perfect_world", displayName: "重复平台", ratingLabel: "Rating" });
     expect(result.success).toBe(false);
     expect(errCode(result)).toBe(ErrorCode.VALIDATION_FAILED);
   });
 
   it("rejects platform keys with characters outside the allowed alphabet", async () => {
-    const result = await createCompetitivePlatform({ key: "Bad Key!", displayName: "平台" });
+    const result = await createCompetitivePlatform({ key: "Bad Key!", displayName: "平台", ratingLabel: "Rating" });
     expect(result.success).toBe(false);
     expect(dbTransactionMock).not.toHaveBeenCalled();
   });
 
   it("updates only the display name; the key stays immutable", async () => {
     queryFindFirst.competitivePlatforms.mockResolvedValue({ key: "perfect_world", displayName: "旧名称" });
-    const result = await updateCompetitivePlatform({ key: "perfect_world", displayName: "新名称" });
+    const result = await updateCompetitivePlatform({ key: "perfect_world", displayName: "新名称", ratingLabel: "Rating Pro" });
     expect(result.success).toBe(true);
     expect(updateSetCalls).toEqual([expect.objectContaining({ displayName: "新名称" })]);
     expect(JSON.stringify(updateSetCalls)).not.toContain("key");
@@ -261,10 +262,13 @@ describe("season catalog actions", () => {
 
   it("reorders chronology through a two-phase swap that cannot hit the unique index", async () => {
     queryFindFirst.competitivePlatformSeasons.mockResolvedValue({ id: SEASON_ID, platform: "perfect_world", seasonKey: "S24", label: "S24", sortOrder: 2, isCurrent: false, active: true });
-    selectResults.push([{ id: UUID_B, platform: "perfect_world", seasonKey: "S23", sortOrder: 1, isCurrent: false, active: true }]);
+    selectResults.push(
+      [{ id: UUID_B, platform: "perfect_world", seasonKey: "S23", sortOrder: 1, isCurrent: false, active: true }],
+      [{ sortOrder: -2 }, { sortOrder: -1 }, { sortOrder: 1 }, { sortOrder: 2 }],
+    );
     const result = await moveCompetitivePlatformSeason({ id: SEASON_ID, direction: "up" });
     expect(result.success).toBe(true);
-    expect(updateSetCalls.map((call) => (call as { sortOrder?: number }).sortOrder)).toEqual([-1, -2, 1, 2]);
+    expect(updateSetCalls.map((call) => (call as { sortOrder?: number }).sortOrder)).toEqual([-4, -3, 1, 2]);
   });
 
   it("blocks deleting the current season", async () => {
@@ -301,13 +305,16 @@ describe("season catalog actions", () => {
 // ── Rank ladder ─────────────────────────────────────────────────────────────
 
 describe("rank ladder actions", () => {
-  it("creates a rank with a derived stable key and appends it to the top of the ladder", async () => {
+  it("requires an explicit stable key and preserves real rank identities", async () => {
     queryFindFirst.competitivePlatforms.mockResolvedValue({ key: "perfect_world", displayName: "完美世界竞技平台" });
     queryFindFirst.competitivePlatformRanks.mockResolvedValue(undefined);
     selectResults.push([{ maxOrder: 3 }]);
-    const result = await createCompetitivePlatformRank({ platform: "perfect_world", label: "S+" });
+    const result = await createCompetitivePlatformRank({ platform: "perfect_world", label: "S+", rankKey: "S+" });
     expect(result.success).toBe(true);
-    expect(insertValuesCalls[0]).toMatchObject({ platformKey: "perfect_world", rankKey: "s", label: "S+", sortOrder: 4 });
+    expect(insertValuesCalls[0]).toMatchObject({ platformKey: "perfect_world", rankKey: "S+", label: "S+", sortOrder: 4 });
+    selectResults.push([{ maxOrder: 4 }]);
+    expect((await createCompetitivePlatformRank({ platform: "perfect_world", label: "青铜S", rankKey: "青铜S" })).success).toBe(true);
+    expect((await createCompetitivePlatformRank({ platform: "perfect_world", label: "C++" })).success).toBe(false);
   });
 
   it("renames the label; rankKey identity is immutable", async () => {
@@ -324,16 +331,20 @@ describe("rank ladder actions", () => {
     executeResults.push([{ rank: "s_plus" }]);
     const result = await moveCompetitivePlatformRank({ id: RANK_ID, direction: "up" });
     expect(result.success).toBe(false);
-    expect(errMessage(result)).toContain("版本化 ladder");
+    expect(errMessage(result)).toContain("不能修改");
   });
 
   it("reorders unreferenced ranks with the two-phase unique-safe swap", async () => {
     queryFindFirst.competitivePlatformRanks.mockResolvedValue({ id: RANK_ID, platformKey: "perfect_world", rankKey: "s_plus", label: "S+", sortOrder: 4 });
-    selectResults.push([{ id: UUID_A, platformKey: "perfect_world", rankKey: "s", label: "S", sortOrder: 3 }]);
+    selectResults.push(
+      [{ id: UUID_A, platformKey: "perfect_world", rankKey: "s", label: "S", sortOrder: 3 }],
+      [],
+      [{ sortOrder: -2 }, { sortOrder: -1 }, { sortOrder: 3 }, { sortOrder: 4 }],
+    );
     executeResults.push([]);
     const result = await moveCompetitivePlatformRank({ id: RANK_ID, direction: "up" });
     expect(result.success).toBe(true);
-    expect(updateSetCalls.map((call) => (call as { sortOrder?: number }).sortOrder)).toEqual([-1, -2, 3, 4]);
+    expect(updateSetCalls.map((call) => (call as { sortOrder?: number }).sortOrder)).toEqual([-4, -3, 3, 4]);
   });
 
   it("fails closed when deleting a rank referenced by facts or a frozen rank order", async () => {
@@ -341,7 +352,7 @@ describe("rank ladder actions", () => {
     executeResults.push([{ rank: "s" }, { rank: "s_plus" }]);
     const result = await deleteCompetitivePlatformRank({ id: RANK_ID });
     expect(result.success).toBe(false);
-    expect(errMessage(result)).toContain("不能删除");
+    expect(errMessage(result)).toContain("不能修改");
   });
 
   it("deletes an unreferenced rank", async () => {
@@ -350,6 +361,12 @@ describe("rank ladder actions", () => {
     const result = await deleteCompetitivePlatformRank({ id: RANK_ID });
     expect(result.success).toBe(true);
     expect(findAuditEntry(insertValuesCalls, "competitive_platform_rank.delete")).toMatchObject({ meta: { rankKey: "temp" } });
+  });
+});
+
+describe("catalog ordering helper", () => {
+  it("always reserves unused temporary positions below a four-item chronology", () => {
+    expect(temporarySortOrders([-2, -1, 0, 1])).toEqual([-4, -3]);
   });
 });
 

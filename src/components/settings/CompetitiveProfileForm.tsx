@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import React, { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { saveCompetitiveProfile } from "@/actions/competitive-profile";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,8 @@ type Fact = { rank: string; rating: string };
 export type CompetitiveSeasonContext = {
   platform: string;
   platformDisplayName: string;
+  /** Platform-defined canonical performance Rating, such as Rating Pro / Rating+. */
+  ratingLabel: string;
   /** Platform-owned rank ladder, lowest → highest. Ranks store stable keys; the UI shows labels. */
   ladder: Array<{ rankKey: string; label: string }>;
   /** Catalogued seasons, latest first. */
@@ -31,15 +33,20 @@ export type CompetitiveSeasonContext = {
 export function CompetitiveProfileForm({ contexts }: { contexts: CompetitiveSeasonContext[] }) {
   const [pending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
-  const [platform, setPlatform] = useState(contexts[0]?.platform ?? "");
+  const isComplete = (item: CompetitiveSeasonContext | undefined) => Boolean(
+    item && item.ladder.length > 0 && item.seasons.some((season) => season.isCurrent) && item.seasons.some((season) => season.isPrevious),
+  );
+  const initialContext = contexts.find(isComplete) ?? contexts[0];
+  const firstUsablePlatform = initialContext?.platform ?? "";
+  const [platform, setPlatform] = useState(firstUsablePlatform);
   const context = contexts.find((item) => item.platform === platform) ?? null;
   const [historical, setHistorical] = useState<Fact>(() => {
-    const fact = contexts[0]?.facts.find((item) => item.kind === "historical_peak" && item.platformSeasonKey === null);
+    const fact = initialContext?.facts.find((item) => item.kind === "historical_peak" && item.platformSeasonKey === null);
     return fact ? { rank: fact.rank, rating: fact.rating } : { rank: "", rating: "" };
   });
   const [seasonFacts, setSeasonFacts] = useState<Record<string, Fact>>(() => {
     const initial: Record<string, Fact> = {};
-    for (const fact of contexts[0]?.facts ?? []) {
+    for (const fact of initialContext?.facts ?? []) {
       if (fact.kind === "season_peak" && fact.platformSeasonKey) initial[fact.platformSeasonKey] = { rank: fact.rank, rating: fact.rating };
     }
     return initial;
@@ -65,8 +72,10 @@ export function CompetitiveProfileForm({ contexts }: { contexts: CompetitiveSeas
     setSeasonFacts(nextFacts);
   }
 
+  const platformSelect = contexts.length > 1 && <div className="space-y-1.5"><Label>竞技平台</Label><Select value={platform} onValueChange={choosePlatform}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{contexts.map((item) => <SelectItem key={item.platform} value={item.platform}>{item.platformDisplayName}</SelectItem>)}</SelectContent></Select></div>;
+
   if (catalogIncomplete) {
-    return <StatusBanner tone="warn" title="竞技平台目录尚未完善" sub="管理员需要在竞技平台目录中配置当前赛季、上一赛季和平台段位表后，才可提交用于资格审核的竞技资料。" />;
+    return <Panel label="竞技档案" pad={20}><div className="space-y-5">{platformSelect}<StatusBanner tone="warn" title="当前竞技平台目录尚未完善" sub="管理员需要配置当前赛季、上一赛季和平台段位表后，才可提交该平台用于资格审核的竞技资料；你仍可切换到其他已完善的平台。" /></div></Panel>;
   }
 
   const context_ = context!;
@@ -83,8 +92,8 @@ export function CompetitiveProfileForm({ contexts }: { contexts: CompetitiveSeas
     .map((season) => ({ season, fact: seasonFacts[season.seasonKey] ?? { rank: "", rating: "" } }))
     .filter(({ fact }) => fact.rank.trim() !== "" || fact.rating.trim() !== "");
 
-  const field = (title: string, fact: Fact, setFact: (fact: Fact) => void, hint: string) => (
-    <section className="space-y-3 border-l-2 border-[var(--color-border-hi)] pl-4">
+  const field = (title: string, fact: Fact, setFact: (fact: Fact) => void, hint: string, key?: string) => (
+    <section key={key} className="space-y-3 border-l-2 border-[var(--color-border-hi)] pl-4">
       <div>
         <h3 className="text-sm font-semibold text-[var(--color-fg)]">{title}</h3>
         <p className="mt-1 font-mono text-[11px] text-[var(--color-fg-mid)]">{hint}</p>
@@ -98,8 +107,8 @@ export function CompetitiveProfileForm({ contexts }: { contexts: CompetitiveSeas
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label>对应 Rating</Label>
-          <Input value={fact.rating} onChange={(event) => { setSaved(false); setFact({ ...fact, rating: event.target.value }); }} inputMode="decimal" placeholder="可填写对应 Rating" />
+          <Label>对应 {context?.ratingLabel ?? "Rating"}</Label>
+          <Input value={fact.rating} onChange={(event) => { setSaved(false); setFact({ ...fact, rating: event.target.value }); }} inputMode="decimal" placeholder={`可填写对应 ${context?.ratingLabel ?? "Rating"}`} />
         </div>
       </div>
     </section>
@@ -107,15 +116,16 @@ export function CompetitiveProfileForm({ contexts }: { contexts: CompetitiveSeas
 
   return <Panel label="竞技档案" pad={20}>
     <div className="space-y-5">
-      {contexts.length > 1 && <div className="space-y-1.5"><Label>竞技平台</Label><Select value={platform} onValueChange={choosePlatform}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{contexts.map((item) => <SelectItem key={item.platform} value={item.platform}>{item.platformDisplayName}</SelectItem>)}</SelectContent></Select></div>}
+      {platformSelect}
       <StatusBanner tone="info" title={`${context_.platformDisplayName} · 赛季资料`} sub={currentSeason ? `当前赛季：${currentSeason.label}。历史赛季也可以补充维护，供冻结了该赛季的赛事使用。` : "请如实自行申报。"} />
-      <p className="text-sm leading-6 text-[var(--color-fg-mid)]">系统依照平台段位表（由低到高）比较资料；Rating 仅在规则指定的同分比较中使用。未公布的跨平台换算不会由此页面推断。</p>
+      <p className="text-sm leading-6 text-[var(--color-fg-mid)]">系统依照平台段位表（由低到高）比较资料；{context_.ratingLabel} 是该平台 canonical performance Rating，仅在规则指定的同分比较中使用，不是 matchmaking / ladder score。未公布的跨平台换算不会由此页面推断。</p>
       {field("历史最高", historical, setHistorical, "不限定平台赛季，填写个人历史最高纪录")}
       {seasonFields.map((season) => field(
         `${season.isCurrent ? "当前赛季" : season.isPrevious ? "上一赛季" : "历史赛季"} · ${season.label}`,
         seasonFacts[season.seasonKey] ?? { rank: "", rating: "" },
         (fact) => { setSaved(false); setSeasonFacts((current) => ({ ...current, [season.seasonKey]: fact })); },
         `平台赛季 ${season.label}（可留空）`,
+        season.seasonKey,
       ))}
       {saved && <StatusBanner tone="success" title="竞技档案已保存" sub="报名和赛务审核会使用你最新保存的资料。" />}
       <div className="flex flex-wrap items-center gap-3">

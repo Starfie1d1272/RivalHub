@@ -16,6 +16,7 @@ import {
   getParticipantReadinessBatch,
   isHomeAffiliatedMember,
   loadParticipantQualificationFacts,
+  resolveCompetitiveContext,
   type ParticipantQualificationFacts,
 } from "@/lib/qualification/service";
 import type { CompetitiveProfileConfig } from "@/types/season";
@@ -93,6 +94,13 @@ describe("qualification facts loader", () => {
   it("returns an empty map without issuing queries for an empty roster", async () => {
     const facts = await loadParticipantQualificationFacts([]);
     expect(facts.size).toBe(0);
+    expect(selectMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("frozen competitive context", () => {
+  it("fails closed for a partial published snapshot without querying the live catalog", async () => {
+    await expect(resolveCompetitiveContext({ ...CONTEXT, currentSeasonKey: "", rankOrder: [] })).resolves.toBeNull();
     expect(selectMock).not.toHaveBeenCalled();
   });
 });

@@ -7,6 +7,7 @@ import type { TeamRegistrationConfig } from "@/types/season";
 interface TeamConfigFormProps {
   value: TeamRegistrationConfig;
   maxTeamSize?: number;
+  competitivePlatforms: Array<{ key: string; displayName: string }>;
   onChange: (value: TeamRegistrationConfig) => void;
 }
 
@@ -18,11 +19,11 @@ interface TeamConfigFormProps {
  * competitive profile context is resolved from the global platform catalog at
  * publish time.
  */
-export function TeamConfigForm({ value, onChange }: TeamConfigFormProps) {
+export function TeamConfigForm({ value, competitivePlatforms, onChange }: TeamConfigFormProps) {
   function set<K extends keyof TeamRegistrationConfig>(key: K, val: TeamRegistrationConfig[K]) {
     onChange({ ...value, [key]: val });
   }
-  const platform = value.competitiveProfile?.platform ?? "perfect_world";
+  const platform = value.competitiveProfile?.platform ?? competitivePlatforms[0]?.key ?? "";
 
   return (
     <div className="space-y-6">
@@ -67,9 +68,10 @@ export function TeamConfigForm({ value, onChange }: TeamConfigFormProps) {
               <Select value={platform} onValueChange={(next) => onChange({ ...value, competitiveProfile: { platform: next, currentSeasonKey: "", previousSeasonKey: "", rankOrder: [] } })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="perfect_world">完美世界竞技平台</SelectItem>
+                  {competitivePlatforms.map((item) => <SelectItem key={item.key} value={item.key}>{item.displayName}</SelectItem>)}
                 </SelectContent>
               </Select>
+              {competitivePlatforms.length === 0 && <p className="mt-1 text-xs text-[var(--color-danger)]">尚未建立竞技平台目录；赛事发布会 fail closed。</p>}
             </div>
           </div>
         )}

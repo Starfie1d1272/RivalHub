@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import React, { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -17,8 +17,9 @@ import {
   updateCompetitivePlatformRankLabel,
   updateCompetitivePlatformSeason,
 } from "@/actions/competitive-platform";
-import type { CompetitivePlatformCatalogEntry } from "@/lib/competitive/catalog";
+import { resolveCatalogSeasonRoles, type CompetitivePlatformCatalogEntry } from "@/lib/competitive/catalog";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { InlineConfirm, Panel, StatusBanner } from "@/components/rivalhub";
@@ -39,16 +40,12 @@ function useCatalogActions() {
 }
 
 function SeasonStatusChips({ season, platform }: { season: Platform["seasons"][number]; platform: Platform }) {
-  const previous = (() => {
-    const current = platform.seasons.find((item) => item.isCurrent && item.active);
-    if (!current) return undefined;
-    return [...platform.seasons].filter((item) => item.active && item.sortOrder < current.sortOrder).sort((a, b) => b.sortOrder - a.sortOrder)[0];
-  })();
+  const { current, previous } = resolveCatalogSeasonRoles(platform);
   return (
     <span className="flex flex-wrap gap-1.5 text-[11px]">
-      {season.isCurrent && <span className="rounded-sm px-1.5 py-0.5 font-semibold" style={{ background: "color-mix(in srgb, var(--color-accent) 14%, transparent)", color: "var(--color-accent)" }}>当前赛季</span>}
-      {previous?.id === season.id && !season.isCurrent && <span className="rounded-sm px-1.5 py-0.5 font-medium" style={{ background: "var(--color-panel)", color: "var(--color-fg-mid)" }}>上一赛季</span>}
-      {!season.isCurrent && previous?.id !== season.id && <span className="rounded-sm px-1.5 py-0.5 font-medium" style={{ background: "var(--color-panel)", color: "var(--color-fg-mid)" }}>历史赛季</span>}
+      {current?.id === season.id && <span className="rounded-sm px-1.5 py-0.5 font-semibold" style={{ background: "color-mix(in srgb, var(--color-accent) 14%, transparent)", color: "var(--color-accent)" }}>当前赛季</span>}
+      {previous?.id === season.id && <span className="rounded-sm px-1.5 py-0.5 font-medium" style={{ background: "var(--color-panel)", color: "var(--color-fg-mid)" }}>上一赛季</span>}
+      {current?.id !== season.id && previous?.id !== season.id && <span className="rounded-sm px-1.5 py-0.5 font-medium" style={{ background: "var(--color-panel)", color: "var(--color-fg-mid)" }}>历史赛季</span>}
       <span className="rounded-sm px-1.5 py-0.5" style={{ background: "var(--color-panel)", color: season.active ? "var(--color-fg-mid)" : "var(--color-danger)" }}>{season.active ? "启用" : "停用"}</span>
     </span>
   );
@@ -56,7 +53,7 @@ function SeasonStatusChips({ season, platform }: { season: Platform["seasons"][n
 
 export function CompetitivePlatformCatalog({ platforms }: { platforms: Platform[] }) {
   const { pending, run } = useCatalogActions();
-  const [newPlatform, setNewPlatform] = useState({ key: "", displayName: "" });
+  const [newPlatform, setNewPlatform] = useState({ key: "", displayName: "", ratingLabel: "Rating" });
   const [newSeason, setNewSeason] = useState<{ platform: string; seasonKey: string; label: string } | null>(null);
   const [seasonLabelDraft, setSeasonLabelDraft] = useState<{ id: string; label: string } | null>(null);
   const [newRank, setNewRank] = useState<{ platform: string; label: string; rankKey: string } | null>(null);
@@ -77,7 +74,7 @@ export function CompetitivePlatformCatalog({ platforms }: { platforms: Platform[
             <div className="space-y-5 p-5">
               {/* Platform identity */}
               <div className="flex flex-wrap items-end justify-between gap-3">
-                <PlatformIdentityRow key_={platform.key} displayName={platform.displayName} pending={pending} onSave={(displayName) => run(() => updateCompetitivePlatform({ key: platform.key, displayName }), "平台显示名称已更新")} />
+                <PlatformIdentityRow key_={platform.key} displayName={platform.displayName} ratingLabel={platform.ratingLabel} pending={pending} onSave={(displayName, ratingLabel) => run(() => updateCompetitivePlatform({ key: platform.key, displayName, ratingLabel }), "平台目录已更新")} />
               </div>
 
               {/* Seasons */}
@@ -134,9 +131,9 @@ export function CompetitivePlatformCatalog({ platforms }: { platforms: Platform[
                 {newRank?.platform === platform.key && (
                   <div className="grid gap-3 rounded-sm border border-[var(--color-border)] p-4 sm:grid-cols-[1fr_1fr_auto]">
                     <div className="space-y-1.5"><Label>显示名称</Label><Input value={newRank.label} onChange={(event) => setNewRank({ ...newRank, label: event.target.value, rankKey: newRank.rankKey })} placeholder="例如 S+" /></div>
-                    <div className="space-y-1.5"><Label>技术标识（可选，创建后不可修改）</Label><Input value={newRank.rankKey} onChange={(event) => setNewRank({ ...newRank, rankKey: event.target.value })} placeholder="留空则按显示名称自动生成" className="font-mono" /></div>
+                    <div className="space-y-1.5"><Label>稳定段位标识（创建后不可修改）</Label><Input value={newRank.rankKey} onChange={(event) => setNewRank({ ...newRank, rankKey: event.target.value })} placeholder="例如 c_plus、C+ 或 青铜S" className="font-mono" /></div>
                     <div className="flex items-end gap-2">
-                      <Button type="button" size="sm" disabled={pending || !newRank.label.trim()} onClick={() => run(() => createCompetitivePlatformRank({ platform: newRank.platform, label: newRank.label, rankKey: newRank.rankKey.trim() || undefined }), "段位已添加")}>创建</Button>
+                      <Button type="button" size="sm" disabled={pending || !newRank.label.trim() || !newRank.rankKey.trim()} onClick={() => run(() => createCompetitivePlatformRank({ platform: newRank.platform, label: newRank.label, rankKey: newRank.rankKey.trim() }), "段位已添加")}>创建</Button>
                       <Button type="button" size="sm" variant="ghost" onClick={() => setNewRank(null)}>取消</Button>
                     </div>
                   </div>
@@ -158,8 +155,8 @@ export function CompetitivePlatformCatalog({ platforms }: { platforms: Platform[
                         )}
                       </div>
                       <div className="flex items-center gap-1.5 text-sm">
-                        <Button type="button" size="sm" variant="ghost" disabled={pending || index === 0} onClick={() => run(() => moveCompetitivePlatformRank({ id: rank.id, direction: "up" }), "段位顺序已更新")} title="上移（更高段位方向）">↑</Button>
-                        <Button type="button" size="sm" variant="ghost" disabled={pending || index === ranks.length - 1} onClick={() => run(() => moveCompetitivePlatformRank({ id: rank.id, direction: "down" }), "段位顺序已更新")} title="下移（更低段位方向）">↓</Button>
+                        <Button type="button" size="sm" variant="ghost" disabled={pending || index === 0} onClick={() => run(() => moveCompetitivePlatformRank({ id: rank.id, direction: "up" }), "段位顺序已更新")} title="上移（更低段位方向）">↑</Button>
+                        <Button type="button" size="sm" variant="ghost" disabled={pending || index === ranks.length - 1} onClick={() => run(() => moveCompetitivePlatformRank({ id: rank.id, direction: "down" }), "段位顺序已更新")} title="下移（更高段位方向）">↓</Button>
                         <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => setRankLabelDraft({ id: rank.id, label: rank.label })}>重命名</Button>
                         <Button type="button" size="sm" variant="ghost" className="text-[var(--color-danger)]" disabled={pending} onClick={() => setConfirmAction({ kind: "delete-rank", id: rank.id, title: `删除段位 ${rank.label}？`, sub: "已被竞技资料或已发布赛事引用的段位无法删除。" })}>删除</Button>
                       </div>
@@ -174,17 +171,17 @@ export function CompetitivePlatformCatalog({ platforms }: { platforms: Platform[
 
       {/* New platform */}
       <Panel label="新增竞技平台" pad={20}>
-        <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+        <div className="grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto]">
           <div className="space-y-1.5"><Label>平台标识（创建后不可修改）</Label><Input value={newPlatform.key} onChange={(event) => setNewPlatform({ ...newPlatform, key: event.target.value })} placeholder="例如 perfect_world" className="font-mono" /></div>
           <div className="space-y-1.5"><Label>显示名称</Label><Input value={newPlatform.displayName} onChange={(event) => setNewPlatform({ ...newPlatform, displayName: event.target.value })} placeholder="例如 完美世界竞技平台" /></div>
-          <div className="flex items-end"><Button type="button" disabled={pending || !newPlatform.key.trim() || !newPlatform.displayName.trim()} onClick={() => run(() => createCompetitivePlatform(newPlatform), "竞技平台已创建")}>创建平台</Button></div>
+          <div className="space-y-1.5"><Label>canonical Rating</Label><Input value={newPlatform.ratingLabel} onChange={(event) => setNewPlatform({ ...newPlatform, ratingLabel: event.target.value })} placeholder="例如 Rating+ / HLTV Rating 3.0" /></div>
+          <div className="flex items-end"><Button type="button" disabled={pending || !newPlatform.key.trim() || !newPlatform.displayName.trim() || !newPlatform.ratingLabel.trim()} onClick={() => run(() => createCompetitivePlatform(newPlatform), "竞技平台已创建")}>创建平台</Button></div>
         </div>
       </Panel>
 
-      {confirmAction && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setConfirmAction(null)}>
-          <div className="w-full max-w-md" onClick={(event) => event.stopPropagation()}>
-            <Panel label={confirmAction.kind === "set-current" ? "切换当前赛季" : "确认删除"} pad={20}>
+      <Dialog open={Boolean(confirmAction)} onOpenChange={(open) => { if (!open) setConfirmAction(null); }}>
+        {confirmAction && <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>{confirmAction.kind === "set-current" ? "切换当前赛季" : "确认删除"}</DialogTitle><DialogDescription className="sr-only">请确认这项竞技平台目录操作。</DialogDescription></DialogHeader>
               {confirmAction.kind === "set-current" ? (
                 <InlineConfirm
                   title={confirmAction.title}
@@ -210,31 +207,32 @@ export function CompetitivePlatformCatalog({ platforms }: { platforms: Platform[
                   onCancel={() => setConfirmAction(null)}
                 />
               )}
-            </Panel>
-          </div>
-        </div>
-      )}
+        </DialogContent>}
+      </Dialog>
     </div>
   );
 }
 
-function PlatformIdentityRow({ key_, displayName, pending, onSave }: { key_: string; displayName: string; pending: boolean; onSave: (displayName: string) => void }) {
+function PlatformIdentityRow({ key_, displayName, ratingLabel, pending, onSave }: { key_: string; displayName: string; ratingLabel: string; pending: boolean; onSave: (displayName: string, ratingLabel: string) => void }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(displayName);
+  const [ratingDraft, setRatingDraft] = useState(ratingLabel);
   if (!editing) {
     return (
       <div className="space-y-1">
         <p className="text-lg font-semibold">{displayName}</p>
         <p className="font-mono text-xs text-[var(--color-fg-dim)]">{key_}</p>
-        <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => { setDraft(displayName); setEditing(true); }}>修改显示名称</Button>
+        <p className="text-sm text-[var(--color-fg-mid)]">canonical performance Rating：{ratingLabel}</p>
+        <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => { setDraft(displayName); setRatingDraft(ratingLabel); setEditing(true); }}>修改平台信息</Button>
       </div>
     );
   }
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
-        <Input value={draft} onChange={(event) => setDraft(event.target.value)} className="max-w-64" />
-        <Button type="button" size="sm" disabled={pending || !draft.trim()} onClick={() => { onSave(draft); setEditing(false); }}>保存</Button>
+        <Input value={draft} onChange={(event) => setDraft(event.target.value)} className="max-w-64" aria-label="平台显示名称" />
+        <Input value={ratingDraft} onChange={(event) => setRatingDraft(event.target.value)} className="max-w-64" aria-label="canonical Rating 名称" />
+        <Button type="button" size="sm" disabled={pending || !draft.trim() || !ratingDraft.trim()} onClick={() => { onSave(draft, ratingDraft); setEditing(false); }}>保存</Button>
         <Button type="button" size="sm" variant="ghost" onClick={() => setEditing(false)}>取消</Button>
       </div>
       <p className="font-mono text-xs text-[var(--color-fg-dim)]">{key_} · 平台标识创建后不可修改</p>

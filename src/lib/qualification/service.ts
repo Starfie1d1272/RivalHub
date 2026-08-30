@@ -1,7 +1,6 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { competitiveRankFacts, educationVerifications, institutions, users } from "@/db/schema";
-import { resolveLiveCompetitiveContext, toCompetitiveProfileConfig } from "@/lib/competitive/catalog";
 import { getPlayerStrengthBreakdown, evaluateExternalStrengthRule, type PlayerStrengthInput } from "@/lib/major/player-strength";
 import {
   evaluateRosterEducationEligibility,
@@ -47,15 +46,12 @@ export interface ParticipantReadiness {
 }
 
 /**
- * Event qualification context resolution. A fully frozen event context is used
- * as-is; an incomplete context (legacy row) is resolved live from the
- * platform catalog. No hardcoded rank fallback exists — an incomplete
- * catalog yields null and callers fail closed.
+ * Event qualification only accepts the publish-time frozen context. A missing
+ * or partial legacy snapshot is deliberately not repaired from today's live
+ * catalog: that would rewrite historical event semantics.
  */
 export async function resolveCompetitiveContext(config: CompetitiveProfileConfig): Promise<CompetitiveProfileConfig | null> {
-  if (config.currentSeasonKey && config.previousSeasonKey && config.rankOrder.length > 0) return config;
-  const context = await resolveLiveCompetitiveContext(db, config.platform);
-  return context ? toCompetitiveProfileConfig(context) : null;
+  return config.currentSeasonKey && config.previousSeasonKey && config.rankOrder.length > 0 ? config : null;
 }
 
 /** Batched loader for every live fact a qualification decision may need. */

@@ -51,9 +51,9 @@ describe("0018 competitive platform catalog migration", () => {
       readFileSync(join(process.cwd(), "drizzle/migrations/meta/_journal.json"), "utf8"),
     ) as { entries: Array<{ idx: number; tag: string }> };
     expect(journal.entries.at(-1)).toMatchObject({
-      idx: 18,
+      idx: 19,
       version: "7",
-      tag: "0018_competitive_platform_catalog",
+      tag: "0019_competitive-platform-rating-semantics",
       breakpoints: true,
     });
   });

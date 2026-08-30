@@ -5,7 +5,7 @@ import { competitiveRankFacts, userCompetitiveRoles } from "@/db/schema";
 import { CompetitiveProfileForm, type CompetitiveSeasonContext } from "@/components/settings/CompetitiveProfileForm";
 import { CompetitiveRolesForm } from "@/components/settings/CompetitiveRolesForm";
 import { getUserSession } from "@/lib/auth/session";
-import { loadCompetitivePlatformCatalog } from "@/lib/competitive/catalog";
+import { loadCompetitivePlatformCatalog, resolveCatalogSeasonRoles } from "@/lib/competitive/catalog";
 
 export default async function CompetitiveProfileSettingsPage() {
   const session = await getUserSession();
@@ -16,18 +16,13 @@ export default async function CompetitiveProfileSettingsPage() {
     db.select().from(userCompetitiveRoles).where(eq(userCompetitiveRoles.userId, session.userId)),
   ]);
   const contexts: CompetitiveSeasonContext[] = catalog.map((platform) => {
-    const current = platform.seasons.find((season) => season.isCurrent);
-    // `active` only gates new publish contexts; a participant's long-term
-    // profile may maintain any catalogued season, including inactive ones a
-    // published event froze into its qualification context.
-    const previous = current
-      ? [...platform.seasons].filter((season) => season.sortOrder < current.sortOrder).sort((a, b) => b.sortOrder - a.sortOrder)[0]
-      : undefined;
+    const { current, previous } = resolveCatalogSeasonRoles(platform);
     const ladder = [...platform.ranks].sort((a, b) => a.sortOrder - b.sortOrder)
       .map((rank) => ({ rankKey: rank.rankKey, label: rank.label }));
     return {
       platform: platform.key,
       platformDisplayName: platform.displayName,
+      ratingLabel: platform.ratingLabel,
       ladder,
       seasons: [...platform.seasons]
         .sort((a, b) => b.sortOrder - a.sortOrder)

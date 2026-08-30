@@ -1,6 +1,6 @@
 "use server";
 
-import { and, asc, eq, gt, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db/client";
@@ -9,6 +9,7 @@ import { actionError } from "@/lib/action-utils";
 import { auditActorId, requireSuperAdmin } from "@/lib/auth/session";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { fail, ok, type ActionResult } from "@/types/action";
+import { assertPlatformRanksMutable, temporarySortOrders } from "@/lib/competitive/catalog";
 
 /**
  * Operator mutations for the competitive platform catalog. Every action is
@@ -22,20 +23,7 @@ const platformKeySchema = z.string().trim().min(1).max(64).regex(/^[a-z0-9][a-z0
 const seasonKeySchema = z.string().trim().min(1).max(128);
 const rankKeySchema = z.string().trim().min(1).max(64);
 const labelSchema = z.string().trim().min(1).max(128);
-
-/** Stable rank keys referenced by long-term facts or frozen event contexts. */
-async function loadReferencedRankKeys(
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
-  platform: string,
-): Promise<Set<string>> {
-  const facts = await tx.select({ rank: competitiveRankFacts.rank }).from(competitiveRankFacts).where(eq(competitiveRankFacts.platform, platform));
-  const frozen = await tx.execute<{ rank: string }>(sql`
-    SELECT DISTINCT jsonb_array_elements_text(team_registration_config->'competitiveProfile'->'rankOrder') AS rank
-    FROM seasons
-    WHERE team_registration_config->'competitiveProfile'->>'platform' = ${platform}
-  `);
-  return new Set([...facts.map((row) => row.rank), ...frozen.rows.map((row) => row.rank)]);
-}
+const ratingLabelSchema = z.string().trim().min(1).max(64);
 
 function revalidateCatalog(): void {
   revalidatePath("/admin/competitive-seasons");
@@ -46,16 +34,16 @@ function revalidateCatalog(): void {
 // ── Platform identity ───────────────────────────────────────────────────────
 
 export async function createCompetitivePlatform(input: unknown): Promise<ActionResult<{ key: string }>> {
-  const parsed = z.object({ key: platformKeySchema, displayName: labelSchema }).safeParse(input);
-  if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请填写平台标识（小写字母/数字/连字符/下划线）和显示名称。" });
+  const parsed = z.object({ key: platformKeySchema, displayName: labelSchema, ratingLabel: ratingLabelSchema }).safeParse(input);
+  if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请填写平台标识、显示名称和 canonical Rating 名称。" });
   try {
     const session = await requireSuperAdmin();
-    const { key, displayName } = parsed.data;
+    const { key, displayName, ratingLabel } = parsed.data;
     await db.transaction(async (tx) => {
       const existing = await tx.query.competitivePlatforms.findFirst({ where: eq(competitivePlatforms.key, key) });
       if (existing) throw new AppError(ErrorCode.VALIDATION_FAILED, `平台标识 ${key} 已存在；平台标识创建后不可修改。`);
-      await tx.insert(competitivePlatforms).values({ key, displayName });
-      await tx.insert(auditLogs).values({ action: "competitive_platform.create", actorId: auditActorId(session), targetId: key, targetType: "competitive_platform", meta: { key } });
+      await tx.insert(competitivePlatforms).values({ key, displayName, ratingLabel });
+      await tx.insert(auditLogs).values({ action: "competitive_platform.create", actorId: auditActorId(session), targetId: key, targetType: "competitive_platform", meta: { key, ratingLabel } });
     });
     revalidateCatalog();
     return ok({ key });
@@ -63,16 +51,16 @@ export async function createCompetitivePlatform(input: unknown): Promise<ActionR
 }
 
 export async function updateCompetitivePlatform(input: unknown): Promise<ActionResult<void>> {
-  const parsed = z.object({ key: z.string().trim().min(1).max(64), displayName: labelSchema }).safeParse(input);
-  if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请填写平台显示名称。" });
+  const parsed = z.object({ key: z.string().trim().min(1).max(64), displayName: labelSchema, ratingLabel: ratingLabelSchema }).safeParse(input);
+  if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请填写平台显示名称和 canonical Rating 名称。" });
   try {
     const session = await requireSuperAdmin();
-    const { key, displayName } = parsed.data;
+    const { key, displayName, ratingLabel } = parsed.data;
     await db.transaction(async (tx) => {
       const existing = await tx.query.competitivePlatforms.findFirst({ where: eq(competitivePlatforms.key, key) });
       if (!existing) throw new AppError(ErrorCode.NOT_FOUND, "竞技平台不存在。");
-      await tx.update(competitivePlatforms).set({ displayName, updatedAt: new Date() }).where(eq(competitivePlatforms.key, key));
-      await tx.insert(auditLogs).values({ action: "competitive_platform.update", actorId: auditActorId(session), targetId: key, targetType: "competitive_platform", meta: { key, displayName } });
+      await tx.update(competitivePlatforms).set({ displayName, ratingLabel, updatedAt: new Date() }).where(eq(competitivePlatforms.key, key));
+      await tx.insert(auditLogs).values({ action: "competitive_platform.update", actorId: auditActorId(session), targetId: key, targetType: "competitive_platform", meta: { key, displayName, ratingLabel } });
     });
     revalidateCatalog();
     return ok(undefined);
@@ -178,10 +166,12 @@ export async function moveCompetitivePlatformSeason(input: unknown): Promise<Act
       const neighborWhere = direction === "up"
         ? and(eq(competitivePlatformSeasons.platform, row.platform), lt(competitivePlatformSeasons.sortOrder, row.sortOrder))
         : and(eq(competitivePlatformSeasons.platform, row.platform), gt(competitivePlatformSeasons.sortOrder, row.sortOrder));
-      const [neighbor] = await tx.select().from(competitivePlatformSeasons).where(neighborWhere).orderBy(direction === "up" ? asc(competitivePlatformSeasons.sortOrder) : sql`${competitivePlatformSeasons.sortOrder} desc`).limit(1);
+      const [neighbor] = await tx.select().from(competitivePlatformSeasons).where(neighborWhere).orderBy(direction === "up" ? desc(competitivePlatformSeasons.sortOrder) : asc(competitivePlatformSeasons.sortOrder)).limit(1);
       if (!neighbor) return;
-      await tx.update(competitivePlatformSeasons).set({ sortOrder: -1 }).where(eq(competitivePlatformSeasons.id, row.id));
-      await tx.update(competitivePlatformSeasons).set({ sortOrder: -2 }).where(eq(competitivePlatformSeasons.id, neighbor.id));
+      const orders = await tx.select({ sortOrder: competitivePlatformSeasons.sortOrder }).from(competitivePlatformSeasons).where(eq(competitivePlatformSeasons.platform, row.platform));
+      const [rowTemporary, neighborTemporary] = temporarySortOrders(orders.map((item) => item.sortOrder));
+      await tx.update(competitivePlatformSeasons).set({ sortOrder: rowTemporary }).where(eq(competitivePlatformSeasons.id, row.id));
+      await tx.update(competitivePlatformSeasons).set({ sortOrder: neighborTemporary }).where(eq(competitivePlatformSeasons.id, neighbor.id));
       await tx.update(competitivePlatformSeasons).set({ sortOrder: neighbor.sortOrder, updatedAt: new Date() }).where(eq(competitivePlatformSeasons.id, row.id));
       await tx.update(competitivePlatformSeasons).set({ sortOrder: row.sortOrder, updatedAt: new Date() }).where(eq(competitivePlatformSeasons.id, neighbor.id));
       await tx.insert(auditLogs).values({ action: "competitive_platform_season.move", actorId: auditActorId(session), targetId: id, targetType: "competitive_platform_season", meta: { platform: row.platform, seasonKey: row.seasonKey, direction } });
@@ -224,15 +214,15 @@ export async function deleteCompetitivePlatformSeason(input: unknown): Promise<A
 // ── Rank ladder ─────────────────────────────────────────────────────────────
 
 export async function createCompetitivePlatformRank(input: unknown): Promise<ActionResult<{ id: string }>> {
-  const parsed = z.object({ platform: z.string().trim().min(1).max(64), rankKey: rankKeySchema.optional(), label: labelSchema }).safeParse(input);
-  if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请填写段位显示名称。" });
+  const parsed = z.object({ platform: z.string().trim().min(1).max(64), rankKey: rankKeySchema, label: labelSchema }).safeParse(input);
+  if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请填写段位显示名称和稳定段位标识。" });
   try {
     const session = await requireSuperAdmin();
     const { platform, rankKey, label } = parsed.data;
     const result = await db.transaction(async (tx) => {
       const platformRow = await tx.query.competitivePlatforms.findFirst({ where: eq(competitivePlatforms.key, platform) });
       if (!platformRow) throw new AppError(ErrorCode.NOT_FOUND, "竞技平台不存在，请先创建平台。");
-      const key = (rankKey ?? label).trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || `rank_${Date.now()}`;
+      const key = rankKey;
       const duplicate = await tx.query.competitivePlatformRanks.findFirst({ where: and(eq(competitivePlatformRanks.platformKey, platform), eq(competitivePlatformRanks.rankKey, key)) });
       if (duplicate) throw new AppError(ErrorCode.VALIDATION_FAILED, `该平台已存在段位标识 ${key}；段位标识创建后不可修改。`);
       const [{ maxOrder }] = await tx.select({ maxOrder: sql<number>`coalesce(max(${competitivePlatformRanks.sortOrder}), -1)` }).from(competitivePlatformRanks).where(eq(competitivePlatformRanks.platformKey, platform));
@@ -277,19 +267,16 @@ export async function moveCompetitivePlatformRank(input: unknown): Promise<Actio
       const neighborWhere = direction === "up"
         ? and(eq(competitivePlatformRanks.platformKey, row.platformKey), lt(competitivePlatformRanks.sortOrder, row.sortOrder))
         : and(eq(competitivePlatformRanks.platformKey, row.platformKey), gt(competitivePlatformRanks.sortOrder, row.sortOrder));
-      const [neighbor] = await tx.select().from(competitivePlatformRanks).where(neighborWhere).orderBy(direction === "up" ? asc(competitivePlatformRanks.sortOrder) : sql`${competitivePlatformRanks.sortOrder} desc`).limit(1);
+      const [neighbor] = await tx.select().from(competitivePlatformRanks).where(neighborWhere).orderBy(direction === "up" ? desc(competitivePlatformRanks.sortOrder) : asc(competitivePlatformRanks.sortOrder)).limit(1);
       if (!neighbor) return;
       // Long-term facts interpret ladder positions; swapping the order of a
       // referenced rank would silently rewrite their semantics. Without
       // ladder versioning this must fail closed.
-      const referenced = await loadReferencedRankKeys(tx, row.platformKey);
-      for (const key of [row.rankKey, neighbor.rankKey]) {
-        if (referenced.has(key)) {
-          throw new AppError(ErrorCode.VALIDATION_FAILED, `已存在竞技事实引用当前段位体系（${row.rankKey} / ${neighbor.rankKey}）；如平台发生真实段位体系调整，应建立版本化 ladder，而不是覆盖历史语义。`);
-        }
-      }
-      await tx.update(competitivePlatformRanks).set({ sortOrder: -1 }).where(eq(competitivePlatformRanks.id, row.id));
-      await tx.update(competitivePlatformRanks).set({ sortOrder: -2 }).where(eq(competitivePlatformRanks.id, neighbor.id));
+      await assertPlatformRanksMutable(tx, row.platformKey, [row.rankKey, neighbor.rankKey]);
+      const orders = await tx.select({ sortOrder: competitivePlatformRanks.sortOrder }).from(competitivePlatformRanks).where(eq(competitivePlatformRanks.platformKey, row.platformKey));
+      const [rowTemporary, neighborTemporary] = temporarySortOrders(orders.map((item) => item.sortOrder));
+      await tx.update(competitivePlatformRanks).set({ sortOrder: rowTemporary }).where(eq(competitivePlatformRanks.id, row.id));
+      await tx.update(competitivePlatformRanks).set({ sortOrder: neighborTemporary }).where(eq(competitivePlatformRanks.id, neighbor.id));
       await tx.update(competitivePlatformRanks).set({ sortOrder: neighbor.sortOrder, updatedAt: new Date() }).where(eq(competitivePlatformRanks.id, row.id));
       await tx.update(competitivePlatformRanks).set({ sortOrder: row.sortOrder, updatedAt: new Date() }).where(eq(competitivePlatformRanks.id, neighbor.id));
       await tx.insert(auditLogs).values({ action: "competitive_platform_rank.move", actorId: auditActorId(session), targetId: id, targetType: "competitive_platform_rank", meta: { platform: row.platformKey, rankKey: row.rankKey, direction } });
@@ -308,10 +295,7 @@ export async function deleteCompetitivePlatformRank(input: unknown): Promise<Act
     await db.transaction(async (tx) => {
       const row = await tx.query.competitivePlatformRanks.findFirst({ where: eq(competitivePlatformRanks.id, id) });
       if (!row) throw new AppError(ErrorCode.NOT_FOUND, "段位不存在。");
-      const referenced = await loadReferencedRankKeys(tx, row.platformKey);
-      if (referenced.has(row.rankKey)) {
-        throw new AppError(ErrorCode.VALIDATION_FAILED, `段位 ${row.rankKey} 已被竞技资料或已发布赛事冻结的段位顺序引用，不能删除。`);
-      }
+      await assertPlatformRanksMutable(tx, row.platformKey, [row.rankKey]);
       await tx.delete(competitivePlatformRanks).where(eq(competitivePlatformRanks.id, id));
       await tx.insert(auditLogs).values({ action: "competitive_platform_rank.delete", actorId: auditActorId(session), targetId: id, targetType: "competitive_platform_rank", meta: { platform: row.platformKey, rankKey: row.rankKey } });
     });

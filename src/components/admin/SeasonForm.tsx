@@ -40,6 +40,7 @@ const NO_RANK = "__none__";
 interface SeasonFormProps {
   mode: "create" | "edit";
   initial?: SeasonFormInput;
+  competitivePlatforms: Array<{ key: string; displayName: string }>;
 }
 
 function emptyToNull(value: string): string | null {
@@ -57,7 +58,7 @@ function slugFromName(name: string): string {
     .slice(0, 60);
 }
 
-export function SeasonForm({ mode, initial }: SeasonFormProps) {
+export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -447,7 +448,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
         {registrationMode === "team" && template === "custom" && (
           <section className="space-y-4">
             <h2 className="font-semibold">队伍报名配置</h2>
-            <TeamConfigForm value={teamConfig} maxTeamSize={maxTeamSize} onChange={setTeamConfig} />
+            <TeamConfigForm value={teamConfig} maxTeamSize={maxTeamSize} competitivePlatforms={competitivePlatforms} onChange={setTeamConfig} />
           </section>
         )}
 
@@ -592,7 +593,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
       )}
       {registrationMode === "team" && template === "custom" && (
         <Panel label="队伍报名配置" pad={20}>
-          <TeamConfigForm value={teamConfig} maxTeamSize={maxTeamSize} onChange={setTeamConfig} />
+          <TeamConfigForm value={teamConfig} maxTeamSize={maxTeamSize} competitivePlatforms={competitivePlatforms} onChange={setTeamConfig} />
           <SaveBtn />
         </Panel>
       )}
