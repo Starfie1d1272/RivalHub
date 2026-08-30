@@ -22,42 +22,47 @@ Issue 标题保留 `[2.x]` 作为版本线标识。优先级发生变化时只�
 
 ## Current execution
 
-当前执行焦点：
+当前唯一主线执行焦点：
 
-1. [#269 长期 Team 与赛事参赛模型](https://github.com/Starfie1d1272/RivalHub/issues/269) —— Draft PR #275 已落地 Team / TeamMembership / CompetitionEntry 终态，当前以 review、migration 与历史验收收口；
-2. [#276 竞技平台目录后台](https://github.com/Starfie1d1272/RivalHub/issues/276) —— 把平台级 rank ladder 与赛季时间目录做成可运营后台，解除长期竞技档案和 qualification 的配置阻塞。
+1. [#276 竞技平台目录后台](https://github.com/Starfie1d1272/RivalHub/issues/276) —— 把 Platform 级 rank ladder 与 Season 时间目录拆成可运营的长期后台配置，并保持赛事 publish-time snapshot 与历史竞技事实不被后续目录修改重写。
 
-这两个 Issue 使用 `next` label。
+当前仅 #276 使用 `next` label。
+
+## Recently completed
+
+以下主题已经在 `dev` 完成并关闭，不再属于 active backlog：
+
+- [#269 长期 Team 与赛事参赛模型](https://github.com/Starfie1d1272/RivalHub/issues/269)：PR #275 完成长周期 Team / CompetitionEntry 终态、0017 migration、Major/Rivals 历史兼容与赛事 roster 分层；遗漏 Changeset 已由 #287 补齐。
+- [#278 补齐已实现赛务能力的后台运营入口](https://github.com/Starfie1d1272/RivalHub/issues/278)：#280 接入赛事总控制台，#286 完成纪律处罚管理页，#288 将纪律处罚接入赛事级子导航。
+- [#277 设置页桌面端导航移至左侧](https://github.com/Starfie1d1272/RivalHub/issues/277)：#279 已完成桌面左侧导航并保留移动端原有行为。
 
 ## P1 — Major 开放前主线
 
-除当前 execution 外，P1 还包括：
+当前剩余 P1：
 
-- [#278 补齐已实现赛务能力的后台运营入口](https://github.com/Starfie1d1272/RivalHub/issues/278)：纪律处罚管理面 + Major 赛事总控制台入口；
+- [#276 竞技平台目录后台](https://github.com/Starfie1d1272/RivalHub/issues/276)：当前 `next`；
 - [#266 奖项定义、申领、审核与展示](https://github.com/Starfie1d1272/RivalHub/issues/266)：在正式报名开放前确定是否需要提前收集奖项字段/材料；
 - [#270 “我的”资料、队伍与赛事准备度](https://github.com/Starfie1d1272/RivalHub/issues/270)：收敛 profile readiness、Team/CompetitionEntry、qualification 与本人可见 eligibility；
-- [#267 2026 NJU Major 正式报名体验](https://github.com/Starfie1d1272/RivalHub/issues/267)：基于 #275 终态完成 captain/member/admin 的真实开放前 acceptance。
+- [#267 2026 NJU Major 正式报名体验](https://github.com/Starfie1d1272/RivalHub/issues/267)：完成 captain/member/admin 的真实开放前 acceptance。
 
-建议顺序不是简单按 Issue 编号，而是按依赖推进：
+建议依赖顺序：
 
 ```text
-#269 / PR #275
+#276 competitive catalog
       │
-      ├─→ #276 competitive catalog
-      ├─→ #278 operator wiring
       ├─→ #270 我的 / eligibility
       └─→ #267 Major registration acceptance
 
 #266 award decision ───────────────→ #267 final registration fields
 ```
 
-#266 可以与 UI / wiring 工作并行，但必须在 #267 正式开放前给出字段结论。
+#266 可以与 #276 并行做产品/领域决策，但必须在 #267 正式开放前给出“需要哪些报名字段 / 无需提前收集”的明确结论。
 
 ## P2 — 数据闭环与长期历史
 
 - [#268 RivalHub ↔ DAK 数据闭环](https://github.com/Starfie1d1272/RivalHub/issues/268)：建立版本化 artifact、身份匹配、差异核对和 provenance；
 - [#265 赛事历史与统一赛后面板](https://github.com/Starfie1d1272/RivalHub/issues/265)：统一赛事历史、Team/Player 长期页面、official facts、裁决与 honor，并接入允许公开的教育/纪律身份事实；
-- [#271 依赖安全定向升级 backlog](https://github.com/Starfie1d1272/RivalHub/issues/271)：独立 maintenance lane；不与业务主线混为一个线性队列，但按其内部风险顺序持续清理。
+- [#271 依赖安全定向升级 backlog](https://github.com/Starfie1d1272/RivalHub/issues/271)：独立 maintenance lane；Critical 已通过定向 Vitest / tar 修复清理，但 runtime High/Medium 与其余 development advisories 仍需按依赖路径持续收敛。
 
 统一赛后分析区域依赖 #268；纯 official history 可以在 artifact contract 完整落地前并行推进。
 
@@ -65,10 +70,9 @@ Issue 标题保留 `[2.x]` 作为版本线标识。优先级发生变化时只�
 
 - [#273 Major 赛事模拟器与 Pick'Em 竞猜](https://github.com/Starfie1d1272/RivalHub/issues/273)；
 - [#274 Major Prediction Points](https://github.com/Starfie1d1272/RivalHub/issues/274)；
-- [#277 设置页桌面端导航移至左侧](https://github.com/Starfie1d1272/RivalHub/issues/277)；
 - [#153 Rating 趋势与长期个人成就](https://github.com/Starfie1d1272/RivalHub/issues/153)。
 
-P3 不代表“必须等所有 P2 完成后才能写代码”。例如 #277 是独立小修，可以在相邻 UI PR 中顺手完成；priority 表示主线重要性，而不是严格串行依赖。
+P3 不代表“必须等所有 P2 完成后才能写代码”；priority 表示主线重要性，而不是严格串行依赖。
 
 ## Domain boundaries
 
