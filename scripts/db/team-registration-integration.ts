@@ -69,8 +69,43 @@ async function main(): Promise<void> {
     await client.query("RESET ROLE");
     await client.query("ROLLBACK");
     await exerciseConcurrencyAndInvariants(pool);
-    console.log("CompetitionEntry local integration passed: commitment race, active Team and captain projection invariants, frozen roster immutability, cross-Entry rejection, Entry shape constraint, and Data API denial.");
+    await exerciseReinviteRemediationAndPrestart(pool);
+    console.log("CompetitionEntry local integration passed: commitment race, withdrawn re-invite, deadline remediation state, approved-only prestart source, active Team and captain projection invariants, frozen roster immutability, cross-Entry rejection, Entry shape constraint, and Data API denial.");
   } finally { client.release(); await pool.end(); }
+}
+
+async function exerciseReinviteRemediationAndPrestart(pool: Pool): Promise<void> {
+  const ids = { season: randomUUID(), captain: randomUUID(), member: randomUUID(), entry: randomUUID(), participant: randomUUID(), revision: randomUUID() };
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("INSERT INTO users (id, email) VALUES ($1, $2), ($3, $4)", [ids.captain, `remediation-captain-${ids.captain}@local.test`, ids.member, `remediation-member-${ids.member}@local.test`]);
+    await client.query("INSERT INTO seasons (id, slug, name, kind, status, registration_mode, has_captain_voting, has_draft, min_team_size, max_team_size, registration_deadline) VALUES ($1, $2, 'Local Remediation', 'Major', 'registration', 'team', false, false, 1, 5, now() - interval '1 minute')", [ids.season, `local-remediation-${ids.season}`]);
+    await client.query("INSERT INTO competition_entries (id, competition_id, source, name, representative_user_id, registration_status, current_roster_revision) VALUES ($1, $2, 'event_native', 'Remediation Entry', $3, 'changes_requested', 2)", [ids.entry, ids.season, ids.captain]);
+    await client.query("INSERT INTO competition_entry_participants (id, entry_id, user_id, status, withdrawn_at, invited_by_user_id) VALUES ($1, $2, $3, 'withdrawn', now(), $4)", [ids.participant, ids.entry, ids.member, ids.captain]);
+    await expectsPgError(client, () => client.query("INSERT INTO competition_entry_participants (entry_id, user_id, status, invited_by_user_id) VALUES ($1, $2, 'invited', $3)", [ids.entry, ids.member, ids.captain]), "23505");
+    // The action reuses this row (rather than inserting another commitment), then the participant must consent again.
+    await client.query("UPDATE competition_entry_participants SET status = 'invited', confirmed_at = NULL, withdrawn_at = NULL, updated_at = now() WHERE id = $1", [ids.participant]);
+    const reinvited = await client.query<{ status: string; commitments: string }>("SELECT status::text, (SELECT count(*)::text FROM competition_entry_participants WHERE entry_id = $1 AND user_id = $2) AS commitments FROM competition_entry_participants WHERE id = $3", [ids.entry, ids.member, ids.participant]);
+    if (reinvited.rows[0]?.status !== "invited" || reinvited.rows[0]?.commitments !== "1") throw new Error("withdrawn 成员重新邀请没有复用唯一 participant commitment。");
+    await client.query("INSERT INTO competition_entry_active_claims (competition_id, user_id, entry_id, participant_id) VALUES ($1, $2, $3, $4)", [ids.season, ids.member, ids.entry, ids.participant]);
+    await client.query("UPDATE competition_entry_participants SET status = 'confirmed', confirmed_at = now() WHERE id = $1", [ids.participant]);
+    await client.query("INSERT INTO competition_entry_roster_revisions (id, entry_id, revision, status, created_by) VALUES ($1, $2, 2, 'draft', 'local-test')", [ids.revision, ids.entry]);
+    await client.query("INSERT INTO competition_entry_roster_members (revision_id, participant_id, user_id, is_primary_starter) VALUES ($1, $2, $3, true)", [ids.revision, ids.participant, ids.member]);
+    // A past deadline is deliberately represented with changes_requested + draft revision: the server-action policy test gates this remediation exception.
+    await client.query("UPDATE competition_entry_roster_revisions SET status = 'submitted', submitted_at = now() WHERE id = $1", [ids.revision]);
+    await client.query("UPDATE competition_entries SET registration_status = 'submitted' WHERE id = $1", [ids.entry]);
+    await client.query("UPDATE competition_entry_roster_revisions SET status = 'approved', approved_at = now() WHERE id = $1", [ids.revision]);
+    await client.query("UPDATE competition_entries SET registration_status = 'approved', approved_roster_revision = 2 WHERE id = $1", [ids.entry]);
+    const prestartEligible = await client.query<{ count: string }>(`SELECT count(*)::text FROM competition_entries entry JOIN competition_entry_roster_revisions revision ON revision.entry_id = entry.id AND revision.revision = entry.approved_roster_revision WHERE entry.competition_id = $1 AND entry.registration_status = 'approved' AND revision.status = 'approved'`, [ids.season]);
+    if (prestartEligible.rows[0]?.count !== "1") throw new Error("prestart 只能消费 approved Entry 的 approved roster revision。");
+    await client.query("ROLLBACK");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 async function exerciseConcurrencyAndInvariants(pool: Pool): Promise<void> {
@@ -96,11 +131,11 @@ async function exerciseConcurrencyAndInvariants(pool: Pool): Promise<void> {
       await second.query("BEGIN");
       await first.query("INSERT INTO competition_entry_active_claims (competition_id,user_id,entry_id,participant_id) VALUES ($1,$2,$3,$4)", [ids.season, ids.shared, ids.entryA, ids.participantA]);
       await first.query("UPDATE competition_entry_participants SET status = 'confirmed', confirmed_at = now() WHERE id = $1", [ids.participantA]);
-      const competingClaim = second.query("INSERT INTO competition_entry_active_claims (competition_id,user_id,entry_id,participant_id) VALUES ($1,$2,$3,$4)", [ids.season, ids.shared, ids.entryB, ids.participantB]);
-      await first.query("COMMIT");
-      await competingClaim.then(() => { throw new Error("同一用户同时确认两个 Entry 不应成功。"); }, (error: { code?: string }) => {
+      const competingClaim = second.query("INSERT INTO competition_entry_active_claims (competition_id,user_id,entry_id,participant_id) VALUES ($1,$2,$3,$4)", [ids.season, ids.shared, ids.entryB, ids.participantB]).then(() => { throw new Error("同一用户同时确认两个 Entry 不应成功。"); }, (error: { code?: string }) => {
         if (error.code !== "23505") throw error;
       });
+      await first.query("COMMIT");
+      await competingClaim;
       await second.query("ROLLBACK");
     } finally { first.release(); second.release(); }
     const claims = await setup.query<{ count: string }>("SELECT count(*) FROM competition_entry_active_claims WHERE competition_id = $1 AND user_id = $2", [ids.season, ids.shared]);
@@ -112,11 +147,11 @@ async function exerciseConcurrencyAndInvariants(pool: Pool): Promise<void> {
       await membershipA.query("BEGIN");
       await membershipB.query("BEGIN");
       await membershipA.query("INSERT INTO team_memberships (team_id,user_id,status,role,invited_by_user_id) VALUES ($1,$2,'active','member',$3)", [ids.teamA, ids.shared, ids.captainA]);
-      const competingMembership = membershipB.query("INSERT INTO team_memberships (team_id,user_id,status,role,invited_by_user_id) VALUES ($1,$2,'active','member',$3)", [ids.teamB, ids.shared, ids.captainB]);
-      await membershipA.query("COMMIT");
-      await competingMembership.then(() => { throw new Error("同一用户同时接受两个长期队伍邀请不应成功。"); }, (error: { code?: string }) => {
+      const competingMembership = membershipB.query("INSERT INTO team_memberships (team_id,user_id,status,role,invited_by_user_id) VALUES ($1,$2,'active','member',$3)", [ids.teamB, ids.shared, ids.captainB]).then(() => { throw new Error("同一用户同时接受两个长期队伍邀请不应成功。"); }, (error: { code?: string }) => {
         if (error.code !== "23505") throw error;
       });
+      await membershipA.query("COMMIT");
+      await competingMembership;
       await membershipB.query("ROLLBACK");
     } finally { membershipA.release(); membershipB.release(); }
 

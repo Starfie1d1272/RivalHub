@@ -26,6 +26,9 @@ import { getUserSession } from "@/lib/auth/session";
 import { isSoloRegistration } from "@/lib/utils/season";
 import { isTeamRegistration } from "@/lib/utils/season";
 import { CompetitionEntryFlow } from "@/components/register/CompetitionEntryFlow";
+import { getPublicDisplayName } from "@/lib/utils/display-name";
+import { getParticipantReadinessBatch } from "@/lib/qualification/service";
+import { normalizeTeamRegistrationConfig } from "@/types/season";
 
 export const dynamic = "force-dynamic";
 
@@ -117,12 +120,12 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
         .where(and(eq(competitionEntryRosterRevisions.entryId, entry.id), eq(competitionEntryRosterRevisions.revision, entry.currentRosterRevision)))
         .limit(1);
       const candidateRows = entry.teamId
-        ? await db.select({ membershipId: teamMemberships.id, userId: teamMemberships.userId, status: teamMemberships.status, email: users.email, displayName: users.displayName })
+        ? await db.select({ membershipId: teamMemberships.id, userId: teamMemberships.userId, status: teamMemberships.status, email: users.email, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName })
             .from(teamMemberships).innerJoin(users, eq(users.id, teamMemberships.userId))
             .where(and(eq(teamMemberships.teamId, entry.teamId), isNull(teamMemberships.endedAt), inArray(teamMemberships.status, ["active", "benched"])))
         : [];
       const rosterRows = revision
-        ? await db.select({ participantId: competitionEntryParticipants.id, userId: competitionEntryRosterMembers.userId, confirmation: competitionEntryParticipants.status, primary: competitionEntryRosterMembers.isPrimaryStarter, membershipId: competitionEntryRosterMembers.teamMembershipId, email: users.email, displayName: users.displayName, membershipStatus: teamMemberships.status })
+        ? await db.select({ participantId: competitionEntryParticipants.id, userId: competitionEntryRosterMembers.userId, confirmation: competitionEntryParticipants.status, primary: competitionEntryRosterMembers.isPrimaryStarter, membershipId: competitionEntryRosterMembers.teamMembershipId, email: users.email, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName, membershipStatus: teamMemberships.status })
             .from(competitionEntryRosterMembers)
             .innerJoin(competitionEntryParticipants, eq(competitionEntryParticipants.id, competitionEntryRosterMembers.participantId))
             .innerJoin(users, eq(users.id, competitionEntryRosterMembers.userId))
@@ -130,6 +133,10 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
             .where(eq(competitionEntryRosterMembers.revisionId, revision.id))
         : [];
       const userIds = [...new Set([...candidateRows.map((row) => row.userId), ...rosterRows.map((row) => row.userId)])];
+      const teamConfig = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
+      const readinessByUser = teamConfig.requireCompetitiveProfile && teamConfig.competitiveProfile
+        ? await getParticipantReadinessBatch(userIds, teamConfig.competitiveProfile)
+        : new Map();
       const roleRows = userIds.length ? await db.select({ userId: userCompetitiveRoles.userId, role: userCompetitiveRoles.role, isPrimary: userCompetitiveRoles.isPrimary }).from(userCompetitiveRoles).where(inArray(userCompetitiveRoles.userId, userIds)) : [];
       const rolesByUser = new Map<string, Array<(typeof roleRows)[number]["role"]>>();
       const primaryRoleByUser = new Map<string, (typeof roleRows)[number]["role"]>();
@@ -137,7 +144,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
         rolesByUser.set(role.userId, [...(rolesByUser.get(role.userId) ?? []), role.role]);
         if (role.isPrimary) primaryRoleByUser.set(role.userId, role.role);
       }
-      const candidates = candidateRows.map((row) => ({ membershipId: row.membershipId, userId: row.userId, label: row.displayName ?? row.email, status: row.status as "active" | "benched", roles: rolesByUser.get(row.userId) ?? [], primaryRole: primaryRoleByUser.get(row.userId) ?? null }));
+      const candidates = candidateRows.map((row) => ({ membershipId: row.membershipId, userId: row.userId, label: getPublicDisplayName(row), status: row.status as "active" | "benched", roles: rolesByUser.get(row.userId) ?? [], primaryRole: primaryRoleByUser.get(row.userId) ?? null, readiness: readinessByUser.get(row.userId) }));
       entryView = {
         id: entry.id,
         name: entry.name,
@@ -150,12 +157,13 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
           participantId: row.participantId,
           membershipId: row.membershipId ?? `historical:${row.participantId}`,
           userId: row.userId,
-          label: row.displayName ?? row.email,
+          label: getPublicDisplayName(row),
           status: row.membershipStatus === "benched" ? "benched" as const : "active" as const,
           roles: rolesByUser.get(row.userId) ?? [],
           primaryRole: primaryRoleByUser.get(row.userId) ?? null,
           confirmation: row.confirmation,
           primary: row.primary,
+          readiness: readinessByUser.get(row.userId),
         })),
       };
     }
