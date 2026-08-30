@@ -9,7 +9,7 @@ CREATE TYPE "public"."competition_entry_registration_status" AS ENUM('draft', 's
 CREATE TYPE "public"."competition_entry_roster_revision_status" AS ENUM('draft', 'submitted', 'approved', 'superseded');--> statement-breakpoint
 CREATE TYPE "public"."competition_entry_source" AS ENUM('linked_team', 'event_native');--> statement-breakpoint
 CREATE TYPE "public"."competition_entry_submission_decision" AS ENUM('submitted', 'changes_requested', 'waitlisted', 'approved', 'rejected', 'withdrawn');--> statement-breakpoint
-CREATE TYPE "public"."event_roster_status" AS ENUM('preparing', 'frozen');--> statement-breakpoint
+CREATE TYPE "public"."event_roster_status" AS ENUM('preparing', 'confirmed', 'frozen');--> statement-breakpoint
 CREATE TYPE "public"."cs2_role" AS ENUM('igl', 'awper', 'entry', 'closer', 'anchor', 'support', 'lurker');--> statement-breakpoint
 CREATE TYPE "public"."team_invitation_kind" AS ENUM('direct', 'share_link');--> statement-breakpoint
 CREATE TYPE "public"."team_invitation_status" AS ENUM('pending', 'accepted', 'declined', 'revoked', 'expired');--> statement-breakpoint
@@ -165,7 +165,7 @@ CREATE TABLE "event_rosters" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "event_rosters_entry_unique" UNIQUE("entry_id"),
-	CONSTRAINT "event_rosters_freeze_shape_check" CHECK (("event_rosters"."status" = 'preparing' AND "event_rosters"."frozen_at" IS NULL) OR ("event_rosters"."status" = 'frozen' AND "event_rosters"."frozen_at" IS NOT NULL))
+	CONSTRAINT "event_rosters_freeze_shape_check" CHECK (("event_rosters"."status" IN ('preparing', 'confirmed') AND "event_rosters"."frozen_at" IS NULL) OR ("event_rosters"."status" = 'frozen' AND "event_rosters"."frozen_at" IS NOT NULL))
 );
 --> statement-breakpoint
 CREATE TABLE "user_competitive_roles" (
@@ -315,6 +315,9 @@ SELECT legacy.id, legacy.team_application_id
 FROM "_legacy_season_teams" legacy
 WHERE legacy.team_application_id IS NOT NULL;--> statement-breakpoint
 
+-- Only applications that are still actionable at cutover receive a new
+-- long-lived Team. Historical application facts remain event-native Entries;
+-- an old seasonal application is not evidence of cross-event continuity.
 CREATE TEMP TABLE "_application_team_map" (
   "application_id" uuid PRIMARY KEY,
   "long_team_id" uuid NOT NULL UNIQUE
@@ -322,30 +325,54 @@ CREATE TEMP TABLE "_application_team_map" (
 INSERT INTO "_application_team_map" ("application_id", "long_team_id")
 SELECT app.id, COALESCE(legacy.id, gen_random_uuid())
 FROM "team_applications" app
-LEFT JOIN "_legacy_season_teams" legacy ON legacy.team_application_id = app.id;--> statement-breakpoint
+JOIN "seasons" season ON season.id = app.season_id
+JOIN "_legacy_season_teams" legacy ON legacy.team_application_id = app.id
+WHERE season.status IN ('registration', 'voting', 'drafting')
+  AND app.status::text = 'approved';--> statement-breakpoint
 
--- A migration cannot invent a winner when legacy applications would violate
--- the new global one-active-Team rule. Stop for operator reconciliation.
+-- A confirmed application member is historical evidence, not automatically a
+-- current long-lived Team member. For current candidates, an existing legacy
+-- active claim only resolves a conflict; it never creates a claim for invited
+-- participants and it is never copied by itself.
+CREATE TEMP TABLE "_current_commitment_map" (
+  "user_id" uuid PRIMARY KEY,
+  "application_id" uuid NOT NULL
+) ON COMMIT DROP;--> statement-breakpoint
 DO $$
 BEGIN
   IF EXISTS (
     SELECT member.user_id
     FROM "team_application_members" member
+    JOIN "_application_team_map" current_app ON current_app.application_id = member.application_id
+    LEFT JOIN "team_application_active_claims" claim
+      ON claim.user_id = member.user_id AND claim.application_id = member.application_id
     WHERE member.status = 'confirmed'
     GROUP BY member.user_id
     HAVING count(DISTINCT member.application_id) > 1
+       AND count(DISTINCT claim.application_id) <> 1
   ) THEN
-    RAISE EXCEPTION 'long-lived Team migration blocked: a user is confirmed in multiple legacy applications';
+    RAISE EXCEPTION 'CompetitionEntry migration requires operator reconciliation: a user has multiple current confirmed applications without one unambiguous confirmed legacy claim';
   END IF;
   IF EXISTS (
     SELECT app.captain_user_id
     FROM "team_applications" app
+    JOIN "_application_team_map" current_app ON current_app.application_id = app.id
     GROUP BY app.captain_user_id
     HAVING count(*) > 1
   ) THEN
-    RAISE EXCEPTION 'long-lived Team migration blocked: a user captains multiple legacy applications';
+    RAISE EXCEPTION 'CompetitionEntry migration requires operator reconciliation: a user is captain of multiple current applications';
   END IF;
 END $$;--> statement-breakpoint
+INSERT INTO "_current_commitment_map" ("user_id", "application_id")
+SELECT member.user_id,
+  CASE WHEN count(*) = 1 THEN (array_agg(member.application_id))[1]
+       ELSE (array_agg(member.application_id) FILTER (WHERE claim.application_id = member.application_id))[1] END
+FROM "team_application_members" member
+JOIN "_application_team_map" current_app ON current_app.application_id = member.application_id
+LEFT JOIN "team_application_active_claims" claim
+  ON claim.user_id = member.user_id AND claim.application_id = member.application_id
+WHERE member.status = 'confirmed'
+GROUP BY member.user_id;--> statement-breakpoint
 
 INSERT INTO "teams" (
   "id", "slug", "name", "logo_url", "creator_user_id", "captain_user_id", "created_at", "updated_at"
@@ -364,18 +391,19 @@ INSERT INTO "competition_entries" (
   "reviewed_at", "review_reason", "legacy_source_type", "legacy_source_id",
   "created_at", "updated_at"
 )
-SELECT app.id, app.season_id, 'linked_team', map.long_team_id, app.name, app.logo_url,
+SELECT app.id, app.season_id,
+  CASE WHEN map.application_id IS NULL THEN 'event_native'::competition_entry_source ELSE 'linked_team'::competition_entry_source END,
+  map.long_team_id, app.name, app.logo_url,
   app.captain_user_id,
-  CASE app.status::text
-    WHEN 'rejected' THEN 'changes_requested'::competition_entry_registration_status
-    ELSE app.status::text::competition_entry_registration_status
-  END,
+  CASE WHEN map.application_id IS NOT NULL AND app.status::text = 'rejected'
+    THEN 'changes_requested'::competition_entry_registration_status
+    ELSE app.status::text::competition_entry_registration_status END,
   app.perfect_team_id, 1,
   CASE WHEN app.status::text = 'approved' THEN 1 ELSE NULL END,
   app.submitted_at, app.reviewed_at, app.review_reason,
   'team_application', app.id, app.created_at, app.updated_at
 FROM "team_applications" app
-JOIN "_application_team_map" map ON map.application_id = app.id;--> statement-breakpoint
+LEFT JOIN "_application_team_map" map ON map.application_id = app.id;--> statement-breakpoint
 
 INSERT INTO "competition_entries" (
   "id", "competition_id", "source", "team_id", "source_registration_id",
@@ -461,10 +489,12 @@ SELECT entry.id, entry.representative_user_id, entry.created_at, 'migration:0017
 FROM "competition_entries" entry;--> statement-breakpoint
 
 INSERT INTO "competition_entry_active_claims" ("competition_id", "user_id", "entry_id", "participant_id", "created_at")
-SELECT claim.season_id, claim.user_id, claim.application_id, participant.id, claim.created_at
-FROM "team_application_active_claims" claim
+SELECT entry.competition_id, current.user_id, current.application_id, participant.id, participant.confirmed_at
+FROM "_current_commitment_map" current
+JOIN "competition_entries" entry ON entry.id = current.application_id
 JOIN "competition_entry_participants" participant
-  ON participant.entry_id = claim.application_id AND participant.user_id = claim.user_id;--> statement-breakpoint
+  ON participant.entry_id = current.application_id AND participant.user_id = current.user_id
+WHERE participant.status = 'confirmed';--> statement-breakpoint
 
 CREATE TEMP TABLE "_revision_map" (
   "entry_id" uuid PRIMARY KEY,
@@ -758,6 +788,7 @@ CREATE UNIQUE INDEX "team_captain_tenures_one_current_per_team" ON "team_captain
 CREATE INDEX "team_invitations_team_status_idx" ON "team_invitations" USING btree ("team_id","status");--> statement-breakpoint
 CREATE INDEX "team_invitations_user_status_idx" ON "team_invitations" USING btree ("invited_user_id","status");--> statement-breakpoint
 CREATE UNIQUE INDEX "team_invitations_token_hash_unique" ON "team_invitations" USING btree ("token_hash");--> statement-breakpoint
+CREATE UNIQUE INDEX "team_invitations_one_pending_direct_per_user" ON "team_invitations" USING btree ("team_id","invited_user_id") WHERE "team_invitations"."kind" = 'direct' AND "team_invitations"."status" = 'pending';--> statement-breakpoint
 CREATE INDEX "team_memberships_team_idx" ON "team_memberships" USING btree ("team_id");--> statement-breakpoint
 CREATE INDEX "team_memberships_user_idx" ON "team_memberships" USING btree ("user_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "team_memberships_one_current_period" ON "team_memberships" USING btree ("team_id","user_id") WHERE "team_memberships"."ended_at" IS NULL;--> statement-breakpoint
@@ -813,6 +844,86 @@ ALTER TABLE "post_event_adjudications" ADD CONSTRAINT "post_event_adjudications_
       OR ("post_event_adjudications"."target" = 'match' AND "post_event_adjudications"."target_entry_id" IS NULL AND "post_event_adjudications"."target_user_id" IS NULL AND "post_event_adjudications"."target_match_id" IS NOT NULL));--> statement-breakpoint
 ALTER TABLE "tournament_honors" ADD CONSTRAINT "tournament_honors_recipient_check" CHECK (("tournament_honors"."state" IN ('valid', 'revoked') AND (("tournament_honors"."entry_id" IS NOT NULL)::int + ("tournament_honors"."user_id" IS NOT NULL)::int) = 1)
       OR ("tournament_honors"."state" IN ('vacant', 'not_awarded') AND "tournament_honors"."entry_id" IS NULL AND "tournament_honors"."user_id" IS NULL));--> statement-breakpoint
+
+-- Foreign keys alone cannot prove that two references belong to the same
+-- Entry aggregate. Keep these checks inside PostgreSQL so direct SQL cannot
+-- manufacture a cross-Entry roster, claim, roster source, or match side.
+CREATE FUNCTION "public"."rivalhub_assert_competition_entry_aggregate"() RETURNS trigger
+LANGUAGE plpgsql AS $$
+DECLARE valid boolean;
+BEGIN
+  IF TG_TABLE_NAME = 'competition_entry_roster_members' THEN
+    SELECT EXISTS (
+      SELECT 1 FROM competition_entry_roster_revisions revision
+      JOIN competition_entry_participants participant ON participant.id = NEW.participant_id
+      WHERE revision.id = NEW.revision_id AND revision.entry_id = participant.entry_id
+        AND participant.user_id = NEW.user_id
+    ) INTO valid;
+  ELSIF TG_TABLE_NAME = 'competition_entry_active_claims' THEN
+    SELECT EXISTS (
+      SELECT 1 FROM competition_entries entry
+      JOIN competition_entry_participants participant ON participant.id = NEW.participant_id
+      WHERE entry.id = NEW.entry_id AND entry.competition_id = NEW.competition_id
+        AND participant.entry_id = NEW.entry_id AND participant.user_id = NEW.user_id
+    ) INTO valid;
+  ELSIF TG_TABLE_NAME = 'event_rosters' THEN
+    SELECT NEW.source_roster_revision_id IS NULL OR EXISTS (
+      SELECT 1 FROM competition_entry_roster_revisions revision
+      WHERE revision.id = NEW.source_roster_revision_id AND revision.entry_id = NEW.entry_id
+    ) INTO valid;
+  ELSIF TG_TABLE_NAME = 'event_roster_members' THEN
+    SELECT NEW.participant_id IS NULL OR EXISTS (
+      SELECT 1 FROM event_rosters roster
+      JOIN competition_entry_participants participant ON participant.id = NEW.participant_id
+      WHERE roster.id = NEW.event_roster_id AND roster.entry_id = participant.entry_id
+        AND participant.user_id = NEW.user_id
+    ) INTO valid;
+  ELSIF TG_TABLE_NAME = 'match_rosters' THEN
+    SELECT EXISTS (
+      SELECT 1 FROM matches match
+      WHERE match.id = NEW.match_id AND NEW.entry_id IN (match.entry_a_id, match.entry_b_id)
+    ) INTO valid;
+  END IF;
+  IF NOT COALESCE(valid, false) THEN
+    RAISE EXCEPTION 'CompetitionEntry cross-aggregate invariant violated for %', TG_TABLE_NAME USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
+END $$;--> statement-breakpoint
+CREATE TRIGGER "competition_entry_roster_members_entry_integrity" BEFORE INSERT OR UPDATE ON "competition_entry_roster_members"
+FOR EACH ROW EXECUTE FUNCTION "public"."rivalhub_assert_competition_entry_aggregate"();--> statement-breakpoint
+CREATE TRIGGER "competition_entry_active_claims_entry_integrity" BEFORE INSERT OR UPDATE ON "competition_entry_active_claims"
+FOR EACH ROW EXECUTE FUNCTION "public"."rivalhub_assert_competition_entry_aggregate"();--> statement-breakpoint
+CREATE TRIGGER "event_rosters_entry_integrity" BEFORE INSERT OR UPDATE ON "event_rosters"
+FOR EACH ROW EXECUTE FUNCTION "public"."rivalhub_assert_competition_entry_aggregate"();--> statement-breakpoint
+CREATE TRIGGER "event_roster_members_entry_integrity" BEFORE INSERT OR UPDATE ON "event_roster_members"
+FOR EACH ROW EXECUTE FUNCTION "public"."rivalhub_assert_competition_entry_aggregate"();--> statement-breakpoint
+CREATE FUNCTION "public"."rivalhub_assert_event_roster_mutable"() RETURNS trigger
+LANGUAGE plpgsql AS $$
+DECLARE roster_id uuid;
+BEGIN
+  roster_id := COALESCE(NEW.event_roster_id, OLD.event_roster_id);
+  IF EXISTS (SELECT 1 FROM event_rosters WHERE id = roster_id AND status = 'frozen') THEN
+    RAISE EXCEPTION 'frozen event roster members are immutable' USING ERRCODE = '23514';
+  END IF;
+  RETURN COALESCE(NEW, OLD);
+END $$;--> statement-breakpoint
+CREATE TRIGGER "event_roster_members_frozen_immutable" BEFORE INSERT OR UPDATE OR DELETE ON "event_roster_members"
+FOR EACH ROW EXECUTE FUNCTION "public"."rivalhub_assert_event_roster_mutable"();--> statement-breakpoint
+CREATE FUNCTION "public"."rivalhub_assert_event_roster_not_thawed"() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF OLD.status = 'frozen' AND NEW.status <> 'frozen' THEN
+    RAISE EXCEPTION 'frozen event roster cannot be reopened' USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
+END $$;--> statement-breakpoint
+CREATE TRIGGER "event_rosters_frozen_not_thawed" BEFORE UPDATE OF "status" ON "event_rosters"
+FOR EACH ROW EXECUTE FUNCTION "public"."rivalhub_assert_event_roster_not_thawed"();--> statement-breakpoint
+CREATE TRIGGER "match_rosters_entry_integrity" BEFORE INSERT OR UPDATE ON "match_rosters"
+FOR EACH ROW EXECUTE FUNCTION "public"."rivalhub_assert_competition_entry_aggregate"();--> statement-breakpoint
+REVOKE ALL ON FUNCTION "public"."rivalhub_assert_competition_entry_aggregate"() FROM PUBLIC, anon, authenticated;--> statement-breakpoint
+REVOKE ALL ON FUNCTION "public"."rivalhub_assert_event_roster_mutable"() FROM PUBLIC, anon, authenticated;--> statement-breakpoint
+REVOKE ALL ON FUNCTION "public"."rivalhub_assert_event_roster_not_thawed"() FROM PUBLIC, anon, authenticated;--> statement-breakpoint
 ALTER TABLE "_legacy_season_team_members" DISABLE ROW LEVEL SECURITY;--> statement-breakpoint
 ALTER TABLE "team_application_active_claims" DISABLE ROW LEVEL SECURITY;--> statement-breakpoint
 ALTER TABLE "team_application_members" DISABLE ROW LEVEL SECURITY;--> statement-breakpoint

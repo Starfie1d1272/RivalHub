@@ -130,10 +130,14 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
             .where(eq(competitionEntryRosterMembers.revisionId, revision.id))
         : [];
       const userIds = [...new Set([...candidateRows.map((row) => row.userId), ...rosterRows.map((row) => row.userId)])];
-      const roleRows = userIds.length ? await db.select({ userId: userCompetitiveRoles.userId, role: userCompetitiveRoles.role }).from(userCompetitiveRoles).where(inArray(userCompetitiveRoles.userId, userIds)) : [];
+      const roleRows = userIds.length ? await db.select({ userId: userCompetitiveRoles.userId, role: userCompetitiveRoles.role, isPrimary: userCompetitiveRoles.isPrimary }).from(userCompetitiveRoles).where(inArray(userCompetitiveRoles.userId, userIds)) : [];
       const rolesByUser = new Map<string, Array<(typeof roleRows)[number]["role"]>>();
-      for (const role of roleRows) rolesByUser.set(role.userId, [...(rolesByUser.get(role.userId) ?? []), role.role]);
-      const candidates = candidateRows.map((row) => ({ membershipId: row.membershipId, userId: row.userId, label: row.displayName ?? row.email, status: row.status as "active" | "benched", roles: rolesByUser.get(row.userId) ?? [] }));
+      const primaryRoleByUser = new Map<string, (typeof roleRows)[number]["role"]>();
+      for (const role of roleRows) {
+        rolesByUser.set(role.userId, [...(rolesByUser.get(role.userId) ?? []), role.role]);
+        if (role.isPrimary) primaryRoleByUser.set(role.userId, role.role);
+      }
+      const candidates = candidateRows.map((row) => ({ membershipId: row.membershipId, userId: row.userId, label: row.displayName ?? row.email, status: row.status as "active" | "benched", roles: rolesByUser.get(row.userId) ?? [], primaryRole: primaryRoleByUser.get(row.userId) ?? null }));
       entryView = {
         id: entry.id,
         name: entry.name,
@@ -149,6 +153,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
           label: row.displayName ?? row.email,
           status: row.membershipStatus === "benched" ? "benched" as const : "active" as const,
           roles: rolesByUser.get(row.userId) ?? [],
+          primaryRole: primaryRoleByUser.get(row.userId) ?? null,
           confirmation: row.confirmation,
           primary: row.primary,
         })),

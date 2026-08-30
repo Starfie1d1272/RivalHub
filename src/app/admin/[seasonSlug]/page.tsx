@@ -82,8 +82,10 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
       eventRosterId: majorPrestartEntrants.eventRosterId,
       teamName: competitionEntries.name,
       rosterConfirmedAt: majorPrestartEntrants.rosterConfirmedAt,
+      rosterStatus: eventRosters.status,
     }).from(majorPrestartEntrants)
       .innerJoin(competitionEntries, eq(majorPrestartEntrants.competitionEntryId, competitionEntries.id))
+      .innerJoin(eventRosters, eq(majorPrestartEntrants.eventRosterId, eventRosters.id))
       .where(eq(majorPrestartEntrants.seasonId, season.id))
       .orderBy(asc(competitionEntries.name)),
     db.select({ entrantId: majorPrestartEntrants.id, userId: eventRosterMembers.userId, email: users.email, educationVerificationId: eventRosterMembers.educationVerificationId })

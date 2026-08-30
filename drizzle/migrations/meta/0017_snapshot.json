@@ -1638,7 +1638,7 @@
       "checkConstraints": {
         "event_rosters_freeze_shape_check": {
           "name": "event_rosters_freeze_shape_check",
-          "value": "(\"event_rosters\".\"status\" = 'preparing' AND \"event_rosters\".\"frozen_at\" IS NULL) OR (\"event_rosters\".\"status\" = 'frozen' AND \"event_rosters\".\"frozen_at\" IS NOT NULL)"
+          "value": "(\"event_rosters\".\"status\" IN ('preparing', 'confirmed') AND \"event_rosters\".\"frozen_at\" IS NULL) OR (\"event_rosters\".\"status\" = 'frozen' AND \"event_rosters\".\"frozen_at\" IS NOT NULL)"
         }
       },
       "isRLSEnabled": false
@@ -3728,6 +3728,28 @@
             }
           ],
           "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "team_invitations_one_pending_direct_per_user": {
+          "name": "team_invitations_one_pending_direct_per_user",
+          "columns": [
+            {
+              "expression": "team_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "invited_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"team_invitations\".\"kind\" = 'direct' AND \"team_invitations\".\"status\" = 'pending'",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -7131,6 +7153,7 @@
       "schema": "public",
       "values": [
         "preparing",
+        "confirmed",
         "frozen"
       ]
     },

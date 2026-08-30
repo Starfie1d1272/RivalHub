@@ -32,7 +32,7 @@ export const competitionEntryRosterRevisionStatusEnum = pgEnum("competition_entr
 export const competitionEntrySubmissionDecisionEnum = pgEnum("competition_entry_submission_decision", [
   "submitted", "changes_requested", "waitlisted", "approved", "rejected", "withdrawn",
 ]);
-export const eventRosterStatusEnum = pgEnum("event_roster_status", ["preparing", "frozen"]);
+export const eventRosterStatusEnum = pgEnum("event_roster_status", ["preparing", "confirmed", "frozen"]);
 
 /** The canonical identity of one entrant from registration draft through history. */
 export const competitionEntries = pgTable("competition_entries", {
@@ -202,7 +202,7 @@ export const eventRosters = pgTable("event_rosters", {
   oneRosterPerEntry: unique("event_rosters_entry_unique").on(t.entryId),
   freezeShape: check(
     "event_rosters_freeze_shape_check",
-    sql`(${t.status} = 'preparing' AND ${t.frozenAt} IS NULL) OR (${t.status} = 'frozen' AND ${t.frozenAt} IS NOT NULL)`,
+    sql`(${t.status} IN ('preparing', 'confirmed') AND ${t.frozenAt} IS NULL) OR (${t.status} = 'frozen' AND ${t.frozenAt} IS NOT NULL)`,
   ),
 }));
 

@@ -216,7 +216,6 @@ export async function acceptTeamInvitation(input: { invitationId?: string; token
         : await tx.select().from(teamInvitations).where(eq(teamInvitations.tokenHash, tokenHash(parsed.data.token!))).for("update");
       if (!invitation || invitation.status !== "pending") throw new AppError(ErrorCode.NOT_FOUND, "邀请不存在或已失效。");
       if (invitation.expiresAt <= new Date()) {
-        await tx.update(teamInvitations).set({ status: "expired", respondedAt: new Date(), updatedAt: new Date() }).where(eq(teamInvitations.id, invitation.id));
         throw new AppError(ErrorCode.VALIDATION_FAILED, "邀请已过期。");
       }
       if (invitation.kind === "direct" && invitation.invitedUserId !== session.userId) throw new AppError(ErrorCode.FORBIDDEN, "该邀请不属于你。");

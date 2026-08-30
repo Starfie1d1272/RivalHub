@@ -22,7 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 type Status = "draft" | "submitted" | "changes_requested" | "waitlisted" | "approved" | "rejected" | "withdrawn";
 type Role = "igl" | "awper" | "entry" | "closer" | "anchor" | "support" | "lurker";
-type Candidate = { membershipId: string; userId: string; label: string; status: "active" | "benched"; roles: Role[] };
+type Candidate = { membershipId: string; userId: string; label: string; status: "active" | "benched"; roles: Role[]; primaryRole: Role | null };
 type RosterMember = Candidate & { participantId: string; confirmation: "invited" | "confirmed" | "declined" | "withdrawn"; primary: boolean };
 
 const STATUS: Record<Status, string> = {
@@ -82,7 +82,7 @@ export function CompetitionEntryFlow(props: Props) {
   const candidates = new Map(entry.candidates.map((candidate) => [candidate.userId, candidate]));
   for (const member of entry.roster) if (!candidates.has(member.userId)) candidates.set(member.userId, member);
   const primaryMembers = starters.map((id) => candidates.get(id)).filter((item): item is Candidate => Boolean(item));
-  const roleSet = new Set(primaryMembers.flatMap((member) => member.roles));
+  const roleSet = new Set(primaryMembers.flatMap((member) => member.primaryRole ? [member.primaryRole] : []));
   const roleHint = ["igl", "awper", "entry", "closer", "anchor"].filter((role) => !roleSet.has(role as Role)).map((role) => ROLE[role as Role]);
   const confirmed = entry.roster.filter((member) => member.confirmation === "confirmed").length;
   const blockers = [

@@ -134,6 +134,9 @@ export const teamInvitations = pgTable("team_invitations", {
   teamStatusIndex: index("team_invitations_team_status_idx").on(t.teamId, t.status),
   userStatusIndex: index("team_invitations_user_status_idx").on(t.invitedUserId, t.status),
   tokenHashUnique: uniqueIndex("team_invitations_token_hash_unique").on(t.tokenHash),
+  onePendingDirectInvite: uniqueIndex("team_invitations_one_pending_direct_per_user")
+    .on(t.teamId, t.invitedUserId)
+    .where(sql`${t.kind} = 'direct' AND ${t.status} = 'pending'`),
   invitationShape: check(
     "team_invitations_kind_shape_check",
     sql`(${t.kind} = 'direct' AND ${t.invitedUserId} IS NOT NULL AND ${t.tokenHash} IS NULL) OR (${t.kind} = 'share_link' AND ${t.invitedUserId} IS NULL AND ${t.tokenHash} IS NOT NULL)`,
