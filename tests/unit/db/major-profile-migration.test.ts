@@ -20,20 +20,19 @@ describe("0012 competitive profile migration", () => {
     );
   });
 
-  it("keeps the active journal aligned with the competitive catalog migration", () => {
+  it("keeps the active journal contiguous without pinning an unrelated tail migration", () => {
     const journal = JSON.parse(
       readFileSync(join(process.cwd(), "drizzle/migrations/meta/_journal.json"), "utf8"),
-    ) as { entries: Array<{ idx: number; tag: string }> };
+    ) as { entries: Array<{ idx: number; version: string; tag: string; breakpoints: boolean }> };
 
-    // The active chain ends at the 2.0 convergence migration; the 0012 entry
-    // this file targets must still be part of it.
+    // This regression owns 0012. Later domain migrations may legitimately grow
+    // the active chain, so assert presence + structural contiguity instead of
+    // coupling this old test to whichever migration happens to be newest.
     expect(journal.entries.map(({ tag }) => tag)).toContain("0012_dapper_devos");
-    expect(journal.entries.at(-1)).toMatchObject({
-      idx: 16,
-      version: "7",
-      tag: "0016_productive_white_tiger",
-      breakpoints: true,
-    });
+    expect(journal.entries.map(({ idx }) => idx)).toEqual(
+      Array.from({ length: journal.entries.length }, (_, index) => index),
+    );
+    expect(journal.entries.every((entry) => entry.version === "7" && entry.breakpoints)).toBe(true);
   });
 
   it("keeps the generated snapshot aligned with normalized Perfect ID uniqueness", () => {

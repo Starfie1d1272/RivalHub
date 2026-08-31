@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { createSeason, deleteSeason, publishSeason, updateSeason, revertSeasonToDraft, revertSeasonToRegistration, forceFinishSeason, archiveSeason, type SeasonFormInput } from "@/actions/seasons";
 import {
   PLAYER_TYPE_LABELS,
-  checkStandardMajorCapabilities,
   type PlayerType,
   type RegistrationConfig,
   type SeasonCapabilities,
@@ -14,11 +13,13 @@ import {
   type TeamRegistrationConfig,
   type StagePlan,
 } from "@/types/season";
-import { createCompetitionTemplate, inferCompetitionTemplate, type CompetitionTemplate } from "@/lib/competition/templates";
+import { checkStandardMajorCapabilities } from "@/lib/competition/definition";
+import { createCompetitionTemplate, type CompetitionTemplate } from "@/lib/competition/templates";
 import { rankValues, RANK_LABELS } from "@/lib/validators/registration";
 import { Button } from "@/components/ui/button";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Card } from "@/components/ui/card";
-import { Panel } from "@/components/rivalhub";
+import { InlineConfirm, Panel } from "@/components/rivalhub";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -40,6 +41,7 @@ const NO_RANK = "__none__";
 interface SeasonFormProps {
   mode: "create" | "edit";
   initial?: SeasonFormInput;
+  competitivePlatforms: Array<{ key: string; displayName: string }>;
 }
 
 function emptyToNull(value: string): string | null {
@@ -57,13 +59,13 @@ function slugFromName(name: string): string {
     .slice(0, 60);
 }
 
-export function SeasonForm({ mode, initial }: SeasonFormProps) {
+export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  // Edit mode owns the persisted competitionTemplate identity; inference is
-  // only a fallback for payloads that predate the persisted column.
-  const initialTemplate = initial?.template ?? (initial ? inferCompetitionTemplate(initial as SeasonCapabilities) : "major");
+  // The persisted competitionTemplate is the sole identity owner. Missing
+  // identity is treated as custom instead of inferred from capability shape.
+  const initialTemplate = initial?.template ?? "custom";
   const defaultTemplate = createCompetitionTemplate(initialTemplate);
 
   const defaultConfig = initial?.registrationConfig ?? defaultTemplate.registrationConfig;
@@ -73,7 +75,9 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
   const [slug, setSlug] = useState(initial?.slug ?? "");
   const [template, setTemplate] = useState<CompetitionTemplate>(initialTemplate);
   const [kind, setKind] = useState(initial?.kind ?? "Major");
-  const [themeColor, setThemeColor] = useState(initial?.themeColor ?? "#f97316");
+  const [themeColor, setThemeColor] = useState(initial?.themeColor ?? "");
+  const [pendingTemplate, setPendingTemplate] = useState<CompetitionTemplate | null>(null);
+  const [dangerAction, setDangerAction] = useState<"delete" | "revert-draft" | "revert-registration" | "finish" | "archive" | null>(null);
   const [startAt, setStartAt] = useState(initial?.startAt ?? "");
   const [registrationDeadline, setRegistrationDeadline] = useState(initial?.registrationDeadline ?? "");
   const [endAt, setEndAt] = useState(initial?.endAt ?? "");
@@ -121,11 +125,15 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
   }
 
   function applyTemplate(nextTemplate: CompetitionTemplate) {
-    if (mode === "edit" && !confirm("切换赛事体系会覆盖当前赛制配置，是否继续？")) return;
     const next = createCompetitionTemplate(nextTemplate);
     setTemplate(nextTemplate);
     setKind(nextTemplate === "major" ? "Major" : nextTemplate === "rivals" ? "Rivals" : "自定义赛事");
     applyCapabilities(next);
+  }
+
+  function requestTemplate(nextTemplate: CompetitionTemplate) {
+    if (mode === "edit" && nextTemplate !== template) setPendingTemplate(nextTemplate);
+    else applyTemplate(nextTemplate);
   }
 
   function applyCapabilities(capabilities: SeasonCapabilities) {
@@ -238,7 +246,6 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
 
   function handleDelete() {
     if (!initial?.id) return;
-    if (!confirm("确认删除这个 draft 赛季？")) return;
     startTransition(async () => {
       const result = await deleteSeason(initial.id!);
       if (result.success) {
@@ -253,7 +260,6 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
 
   function handleRevertToDraft() {
     if (!initial?.id) return;
-    if (!confirm("确认撤回至草稿？这仅在无任何报名记录时允许。")) return;
     startTransition(async () => {
       const result = await revertSeasonToDraft(initial.id!);
       if (result.success) {
@@ -267,7 +273,6 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
 
   function handleRevertToRegistration() {
     if (!initial?.id) return;
-    if (!confirm("确认撤回至报名阶段？所有投票记录将被清空。")) return;
     startTransition(async () => {
       const result = await revertSeasonToRegistration(initial.id!);
       if (result.success) {
@@ -281,7 +286,6 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
 
   function handleForceFinish() {
     if (!initial?.id) return;
-    if (!confirm("确认手动结束赛季？此操作用于无法自动结束的极端情况。")) return;
     startTransition(async () => {
       const result = await forceFinishSeason(initial.id!);
       if (result.success) {
@@ -295,7 +299,6 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
 
   function handleArchive() {
     if (!initial?.id) return;
-    if (!confirm("确认归档赛季？归档后赛季将移至历史记录。")) return;
     startTransition(async () => {
       const result = await archiveSeason(initial.id!);
       if (result.success) {
@@ -326,7 +329,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
 
         <section className="space-y-2">
           <Label>赛事体系</Label>
-          <Select value={template} onValueChange={(v) => applyTemplate(v as CompetitionTemplate)}>
+          <Select value={template} onValueChange={(v) => requestTemplate(v as CompetitionTemplate)}>
             <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="rivals">Rivals</SelectItem>
@@ -334,6 +337,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
               <SelectItem value="custom">自定义赛事</SelectItem>
             </SelectContent>
           </Select>
+          {pendingTemplate && <InlineConfirm title="切换赛事体系会覆盖当前赛制配置" sub="请确认后应用新的内置模板。" onCancel={() => setPendingTemplate(null)} onConfirm={() => { applyTemplate(pendingTemplate); setPendingTemplate(null); }} />}
         </section>
 
         {isMajorDisplayContext && <section
@@ -447,7 +451,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
         {registrationMode === "team" && template === "custom" && (
           <section className="space-y-4">
             <h2 className="font-semibold">队伍报名配置</h2>
-            <TeamConfigForm value={teamConfig} maxTeamSize={maxTeamSize} onChange={setTeamConfig} />
+            <TeamConfigForm value={teamConfig} maxTeamSize={maxTeamSize} competitivePlatforms={competitivePlatforms} onChange={setTeamConfig} />
           </section>
         )}
 
@@ -592,7 +596,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
       )}
       {registrationMode === "team" && template === "custom" && (
         <Panel label="队伍报名配置" pad={20}>
-          <TeamConfigForm value={teamConfig} maxTeamSize={maxTeamSize} onChange={setTeamConfig} />
+          <TeamConfigForm value={teamConfig} maxTeamSize={maxTeamSize} competitivePlatforms={competitivePlatforms} onChange={setTeamConfig} />
           <SaveBtn />
         </Panel>
       )}
@@ -607,7 +611,7 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
       {/* 底部操作区（按赛季状态展示不同操作） */}
       {initial?.status === "draft" && (
         <div className="flex items-center justify-between gap-3 pt-2">
-          <Button type="button" variant="destructive" disabled={isPending} onClick={handleDelete}>
+          <Button type="button" variant="destructive" disabled={isPending} onClick={() => setDangerAction("delete")}>
             删除赛季
           </Button>
           <Button type="button" variant="outline" disabled={isPending} onClick={handlePublish}>
@@ -617,32 +621,46 @@ export function SeasonForm({ mode, initial }: SeasonFormProps) {
       )}
       {initial?.status === "registration" && (
         <div className="flex items-center justify-end gap-3 pt-2">
-          <Button type="button" variant="outline" disabled={isPending} onClick={handleRevertToDraft}>
+          <Button type="button" variant="outline" disabled={isPending} onClick={() => setDangerAction("revert-draft")}>
             撤回至草稿
           </Button>
         </div>
       )}
       {initial?.status === "voting" && (
         <div className="flex items-center justify-end gap-3 pt-2">
-          <Button type="button" variant="outline" disabled={isPending} onClick={handleRevertToRegistration}>
+          <Button type="button" variant="outline" disabled={isPending} onClick={() => setDangerAction("revert-registration")}>
             撤回至报名阶段
           </Button>
         </div>
       )}
       {initial?.status === "playing" && (
         <div className="flex items-center justify-end gap-3 pt-2">
-          <Button type="button" variant="outline" disabled={isPending} onClick={handleForceFinish}>
+          <Button type="button" variant="outline" disabled={isPending} onClick={() => setDangerAction("finish")}>
             手动结束赛季
           </Button>
         </div>
       )}
       {initial?.status === "finished" && (
         <div className="flex items-center justify-end gap-3 pt-2">
-          <Button type="button" variant="outline" disabled={isPending} onClick={handleArchive}>
+          <Button type="button" variant="outline" disabled={isPending} onClick={() => setDangerAction("archive")}>
             归档赛季
           </Button>
         </div>
       )}
+      <SeasonDangerConfirmation action={dangerAction} onOpenChange={(open) => { if (!open) setDangerAction(null); }} onConfirm={() => { const action = dangerAction; setDangerAction(null); if (action === "delete") handleDelete(); if (action === "revert-draft") handleRevertToDraft(); if (action === "revert-registration") handleRevertToRegistration(); if (action === "finish") handleForceFinish(); if (action === "archive") handleArchive(); }} />
     </div>
   );
+}
+
+const DANGER_CONFIRMATION = {
+  delete: { title: "确认删除这个草稿赛季？", description: "删除后该草稿赛季及其配置不能恢复。", action: "删除赛季" },
+  "revert-draft": { title: "确认撤回至草稿？", description: "此操作仅在无任何报名记录时允许。", action: "撤回至草稿" },
+  "revert-registration": { title: "确认撤回至报名阶段？", description: "所有投票记录将被清空。", action: "撤回至报名阶段" },
+  finish: { title: "确认手动结束赛季？", description: "此操作只用于无法自动结束的极端情况。", action: "手动结束" },
+  archive: { title: "确认归档赛季？", description: "归档后赛季将移至历史记录。", action: "归档赛季" },
+} as const;
+
+function SeasonDangerConfirmation({ action, onOpenChange, onConfirm }: { action: keyof typeof DANGER_CONFIRMATION | null; onOpenChange: (open: boolean) => void; onConfirm: () => void }) {
+  const content = action ? DANGER_CONFIRMATION[action] : null;
+  return <AlertDialog open={Boolean(content)} onOpenChange={onOpenChange}>{content && <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{content.title}</AlertDialogTitle><AlertDialogDescription>{content.description}</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={onConfirm}>{content.action}</AlertDialogAction></AlertDialogFooter></AlertDialogContent>}</AlertDialog>;
 }

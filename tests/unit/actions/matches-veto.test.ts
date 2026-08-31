@@ -5,7 +5,7 @@ const TEAM_A = "team-a";
 const TEAM_B = "team-b";
 
 function steps(types: VetoSequenceStep["actionType"][], teams: Array<string | null>): VetoSequenceStep[] {
-  return types.map((actionType, index) => ({ actionType, teamId: teams[index]!, mapName: `map-${index + 1}`, side: index === types.length - 1 ? "ct" : null }));
+  return types.map((actionType, index) => ({ actionType, entryId: teams[index]!, mapName: `map-${index + 1}`, side: index === types.length - 1 ? "ct" : null }));
 }
 
 describe("assertVetoSequence", () => {

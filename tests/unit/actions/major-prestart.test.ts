@@ -19,7 +19,7 @@ import {
 
 describe("Major prestart actions input boundary", () => {
   it("fails closed before any database access for malformed entrant and roster input", async () => {
-    await expect(addMajorPrestartEntrant({ seasonId: "bad", teamId: "bad" })).resolves.toMatchObject({
+    await expect(addMajorPrestartEntrant({ seasonId: "bad", competitionEntryId: "bad" })).resolves.toMatchObject({
       success: false, error: { code: ErrorCode.VALIDATION_FAILED },
     });
     await expect(removeMajorPrestartEntrant({ seasonId: "bad", entrantId: "bad" })).resolves.toMatchObject({
@@ -43,7 +43,7 @@ describe("Major prestart actions input boundary", () => {
     await expect(lockMajorPrestartEntrants({ seasonId: "bad" })).resolves.toMatchObject({
       success: false, error: { code: ErrorCode.VALIDATION_FAILED },
     });
-    await expect(saveMajorTournamentSeeds({ seasonId: "bad", teamIds: [] })).resolves.toMatchObject({
+    await expect(saveMajorTournamentSeeds({ seasonId: "bad", entryIds: [] })).resolves.toMatchObject({
       success: false, error: { code: ErrorCode.VALIDATION_FAILED },
     });
     await expect(confirmMajorTournamentSeeds({ seasonId: "bad" })).resolves.toMatchObject({

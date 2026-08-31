@@ -1,10 +1,10 @@
 import { eq, and, asc } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matches, swissStandings, teams } from "@/db/schema";
+import { matches, swissStandings, competitionEntries } from "@/db/schema";
 import type { SwissStanding, SwissStatus } from "@/db/schema/swiss-standings";
 
 export interface SwissTeamSlot {
-  teamId: string;
+  entryId: string;
   teamName: string;
   seed: number;
   wins: number;
@@ -15,8 +15,8 @@ export interface SwissTeamSlot {
 
 export interface SwissMatchRow {
   matchId: string;
-  teamAId: string;
-  teamBId: string;
+  entryAId: string;
+  entryBId: string;
   teamAName: string;
   teamBName: string;
   scoreA: number | null;
@@ -42,7 +42,7 @@ export interface SwissViewData {
   teamCount: number;
   advanceCount: number;
   rounds: SwissRoundColumn[];
-  teams: SwissTeamSlot[];
+  competitionEntries: SwissTeamSlot[];
 }
 
 export async function getSwissViewData(
@@ -67,8 +67,8 @@ export async function getSwissViewData(
         ),
         orderBy: [asc(matches.round), asc(matches.createdAt)],
       }),
-      tx.query.teams.findMany({
-        where: eq(teams.seasonId, seasonId),
+      tx.query.competitionEntries.findMany({
+        where: eq(competitionEntries.competitionId, seasonId),
       }),
     ]);
   });
@@ -76,8 +76,8 @@ export async function getSwissViewData(
 
   // 4. 构建团队列表
   const teamSlots: SwissTeamSlot[] = standings.map((s) => ({
-    teamId: s.teamId,
-    teamName: teamNameMap.get(s.teamId) ?? "未知队伍",
+    entryId: s.entryId,
+    teamName: teamNameMap.get(s.entryId) ?? "未知队伍",
     seed: s.seed,
     wins: s.wins,
     losses: s.losses,
@@ -110,10 +110,10 @@ export async function getSwissViewData(
     const list = matchesByRound.get(r) ?? [];
     list.push({
       matchId: m.id,
-      teamAId: m.teamAId,
-      teamBId: m.teamBId,
-      teamAName: teamNameMap.get(m.teamAId) ?? "TBD",
-      teamBName: teamNameMap.get(m.teamBId) ?? "TBD",
+      entryAId: m.entryAId,
+      entryBId: m.entryBId,
+      teamAName: teamNameMap.get(m.entryAId) ?? "TBD",
+      teamBName: teamNameMap.get(m.entryBId) ?? "TBD",
       scoreA: m.scoreA,
       scoreB: m.scoreB,
       status: m.status,
@@ -147,7 +147,7 @@ export async function getSwissViewData(
     teamCount: standings.length,
     advanceCount,
     rounds,
-    teams: teamSlots,
+    competitionEntries: teamSlots,
   };
 }
 
@@ -157,15 +157,15 @@ function groupMatchesByRecord(
 ): SwissRecordGroup[] {
   const teamRecord = new Map<string, string>();
   for (const s of standings) {
-    teamRecord.set(s.teamId, `${s.wins}:${s.losses}`);
+    teamRecord.set(s.entryId, `${s.wins}:${s.losses}`);
   }
 
   // 按 record 分组
   const groupMap = new Map<string, SwissMatchRow[]>();
   for (const m of matchRows) {
     // 用 teamA 的 record 作为组标识
-    const recordA = teamRecord.get(m.teamAId) ?? "0:0";
-    const recordB = teamRecord.get(m.teamBId) ?? "0:0";
+    const recordA = teamRecord.get(m.entryAId) ?? "0:0";
+    const recordB = teamRecord.get(m.entryBId) ?? "0:0";
     // 组的 key 用两个队伍共同的 record（同一组配对）
     const key = recordA === recordB ? recordA : `${recordA} | ${recordB}`;
     const list = groupMap.get(key) ?? [];

@@ -1,582 +1,223 @@
-import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
-import { ErrorCode } from "@/lib/errors";
-import { mockUserSession, findAuditEntry, expectAuditLog, resetAuditTracking } from "tests/helpers";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// ── hoisted mock 工厂 ───────────────────────────────────────────────────────
+import { ErrorCode } from "@/lib/errors";
+import { expectAuditLog, mockUserSession } from "tests/helpers";
 
 const {
   requireSuperAdminMock,
   seasonsFindFirstMock,
-  adminUsersFindFirstMock,
   dbInsertMock,
   dbUpdateMock,
+  dbTransactionMock,
+  txSelectMock,
+  txDeleteMock,
+  txUpdateMock,
+  txInsertMock,
   insertValuesCalls,
   updateSetCalls,
   revalidatePathMock,
-  verifyPasswordMock,
-  hashPasswordMock,
-} = vi.hoisted(() => {
-  const insertValuesCalls: unknown[] = [];
-  const updateSetCalls: unknown[] = [];
-
-  // returning() 链：用于 adminInvites insert
-  const returningMock = vi.fn().mockResolvedValue([{ id: "invite-1" }]);
-
-  const dbInsertMock = vi.fn().mockImplementation(() => ({
-    values: vi.fn((vals) => {
-      insertValuesCalls.push(vals);
-      return {
-        returning: returningMock,
-        then: (resolve: (v: unknown) => unknown) => Promise.resolve(resolve(undefined)),
-      };
-    }),
-  }));
-
-  const dbUpdateMock = vi.fn().mockImplementation(() => ({
-    set: vi.fn((vals) => {
-      updateSetCalls.push(vals);
-      return { where: vi.fn().mockResolvedValue(undefined) };
-    }),
-  }));
-
-  return {
-    requireSuperAdminMock: vi.fn(),
-    seasonsFindFirstMock: vi.fn(),
-    adminUsersFindFirstMock: vi.fn(),
-    dbInsertMock,
-    dbUpdateMock,
-    insertValuesCalls,
-    updateSetCalls,
-    revalidatePathMock: vi.fn(),
-    verifyPasswordMock: vi.fn(),
-    hashPasswordMock: vi.fn().mockReturnValue("hashed:password"),
-  };
-});
-
-// ── vi.mock ─────────────────────────────────────────────────────────────────
+} = vi.hoisted(() => ({
+  requireSuperAdminMock: vi.fn(),
+  seasonsFindFirstMock: vi.fn(),
+  dbInsertMock: vi.fn(),
+  dbUpdateMock: vi.fn(),
+  dbTransactionMock: vi.fn(),
+  txSelectMock: vi.fn(),
+  txDeleteMock: vi.fn(),
+  txUpdateMock: vi.fn(),
+  txInsertMock: vi.fn(),
+  insertValuesCalls: [] as unknown[],
+  updateSetCalls: [] as unknown[],
+  revalidatePathMock: vi.fn(),
+}));
 
 vi.mock("@/lib/auth/session", () => ({
   requireSuperAdmin: requireSuperAdminMock,
-  auditActorId: vi.fn((session: { authSource: string; userId: string; legacyAdminId?: string }) => {
-    if (session.authSource === "root") {
-      return `root:${session.legacyAdminId ?? session.userId}`;
-    }
-    return session.userId;
-  }),
-  // 其他导出供导入不报错
-  requireAuth: vi.fn(),
-  requireAdmin: vi.fn(),
   requireSeasonAdmin: vi.fn(),
-  getAdminSession: vi.fn(),
-  getUserSession: vi.fn(),
+  auditActorId: (session: { userId: string }) => session.userId,
 }));
 
-vi.mock("next/cache", () => ({
-  revalidatePath: revalidatePathMock,
-}));
-
-vi.mock("next/navigation", () => ({
-  redirect: vi.fn(),
-}));
-
-vi.mock("@/lib/utils/password", () => ({
-  verifyPassword: verifyPasswordMock,
-  hashPassword: hashPasswordMock,
-}));
-
-vi.mock("@/actions/transitions", () => ({
-  maybeAdvanceFromRegistration: vi.fn().mockResolvedValue(undefined),
-}));
-
+vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("@/actions/transitions", () => ({ maybeAdvanceFromRegistration: vi.fn() }));
 vi.mock("@/db/client", () => ({
   db: {
-    query: {
-      seasons: { findFirst: seasonsFindFirstMock },
-      adminUsers: { findFirst: adminUsersFindFirstMock },
-      adminInvites: { findFirst: vi.fn() },
-      seasonRegistrations: { findFirst: vi.fn() },
-    },
+    query: { seasons: { findFirst: seasonsFindFirstMock } },
     insert: dbInsertMock,
     update: dbUpdateMock,
-    transaction: vi.fn(),
+    transaction: dbTransactionMock,
   },
 }));
-
-// ── 导入被测函数（必须在 vi.mock 之后）────────────────────────────────────
 
 import {
   createInviteCode,
   deactivateInviteCode,
-  changePassword,
-  deactivateAdminUser,
-  reactivateAdminUser,
+  revokeUserAdminRole,
 } from "@/actions/admin";
 
-// ── 共用 mock session ────────────────────────────────────────────────────────
-
-const superAdminSession = mockUserSession({
+const superAdmin = mockUserSession({
   userId: "user-super-1",
   email: "super@rival.gg",
-  role: "super_admin",
 });
 
-const rootAdminSession = mockUserSession({
-  userId: "admin-root-1",
-  email: "RivalHub_root",
-  role: "super_admin",
-  authSource: "root",
-  legacyAdminId: "admin-root-1",
-});
+function configureInsert() {
+  const insert = () => ({
+    values: vi.fn((values: unknown) => {
+      insertValuesCalls.push(values);
+      return { returning: vi.fn().mockResolvedValue([{ id: "invite-1" }]) };
+    }),
+  });
+  dbInsertMock.mockImplementation(insert);
+  txInsertMock.mockImplementation(insert);
+}
 
-// ── createInviteCode ─────────────────────────────────────────────────────────
+function configureTransaction(target: unknown, grants: unknown[]) {
+  const targetChain = {
+    from: vi.fn().mockReturnValue({
+      where: vi.fn().mockReturnValue({
+        for: vi.fn().mockResolvedValue(target ? [target] : []),
+      }),
+    }),
+  };
+  const grantsChain = {
+    from: vi.fn().mockReturnValue({
+      where: vi.fn().mockResolvedValue(grants),
+    }),
+  };
+  txSelectMock.mockReturnValueOnce(targetChain).mockReturnValueOnce(grantsChain);
+  txDeleteMock.mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) });
+  txUpdateMock.mockImplementation(() => ({
+    set: vi.fn((values: unknown) => {
+      updateSetCalls.push(values);
+      return { where: vi.fn().mockResolvedValue(undefined) };
+    }),
+  }));
+  txInsertMock.mockReturnValue({ values: vi.fn((values: unknown) => {
+    insertValuesCalls.push(values);
+    return Promise.resolve();
+  }) });
+  dbTransactionMock.mockImplementation((callback: (tx: unknown) => unknown) =>
+    callback({
+      select: txSelectMock,
+      delete: txDeleteMock,
+      update: txUpdateMock,
+      insert: txInsertMock,
+    }),
+  );
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  insertValuesCalls.length = 0;
+  updateSetCalls.length = 0;
+  requireSuperAdminMock.mockResolvedValue(superAdmin);
+  configureInsert();
+  dbTransactionMock.mockImplementation((callback: (tx: unknown) => unknown) =>
+    callback({
+      select: txSelectMock,
+      delete: txDeleteMock,
+      update: txUpdateMock,
+      insert: txInsertMock,
+    }),
+  );
+});
 
 describe("createInviteCode", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    resetAuditTracking(insertValuesCalls, updateSetCalls);
-
-    requireSuperAdminMock.mockResolvedValue(superAdminSession);
-
-    // insert().values() 链：第一次调用返回 invite id（用于 adminInvites），后续调用（auditLogs）返回 undefined
-    let insertCallCount = 0;
-    dbInsertMock.mockImplementation(() => ({
-      values: vi.fn((vals) => {
-        insertValuesCalls.push(vals);
-        insertCallCount++;
-        return {
-          returning: vi.fn().mockResolvedValue([{ id: "invite-1" }]),
-          then: (resolve: (v: unknown) => unknown) => Promise.resolve(resolve(undefined)),
-        };
-      }),
-    }));
-    void insertCallCount; // suppress unused warning
-  });
-
-  it("super_admin 正常创建邀请码（不指定赛季，role=super_admin）", async () => {
+  it("创建 global super_admin invite 并记录 actor", async () => {
     const result = await createInviteCode({ role: "super_admin", maxUses: 2 });
 
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.role).toBe("super_admin");
-      expect(result.data.maxUses).toBe(2);
-      expect(typeof result.data.code).toBe("string");
-      expect(result.data.code).toHaveLength(16); // randomBytes(8).toString("hex")
-      expect(result.data.seasonId).toBeNull();
-    }
-
-    // audit_log 被写入
-    expectAuditLog(insertValuesCalls, "admin.create_invite", { actorId: "user-super-1" });
-
-    expect(revalidatePathMock).toHaveBeenCalledWith("/admin/invites");
+    expect(result).toMatchObject({
+      success: true,
+      data: { role: "super_admin", seasonId: null, maxUses: 2 },
+    });
+    expectAuditLog(insertValuesCalls, "admin.create_invite", { actorId: superAdmin.userId });
   });
 
-  it("role=admin + 有效 seasonId 正常创建", async () => {
+  it("创建 scoped season_admin invite", async () => {
     seasonsFindFirstMock.mockResolvedValue({ id: "season-1" });
 
-    const result = await createInviteCode({
-      role: "admin",
-      seasonId: "season-1",
-      maxUses: 1,
+    const result = await createInviteCode({ role: "season_admin", seasonId: "season-1" });
+
+    expect(result).toMatchObject({
+      success: true,
+      data: { role: "season_admin", seasonId: "season-1" },
     });
-
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.seasonId).toBe("season-1");
-      expect(result.data.role).toBe("admin");
-    }
-
-    expectAuditLog(insertValuesCalls, "admin.create_invite");
   });
 
-  it("role=admin 缺少 seasonId 应返回 fail（VALIDATION_FAILED）", async () => {
-    const result = await createInviteCode({ role: "admin" });
+  const invalidInviteInputs: Array<[Parameters<typeof createInviteCode>[0], string]> = [
+    [{ role: "season_admin" }, "请选择赛季范围"],
+    [{ role: "super_admin", seasonId: "season-1" }, "不能绑定赛季范围"],
+    [{ role: "super_admin", maxUses: 0 }, "使用次数必须是正整数"],
+    [{ role: "super_admin", expiresInHours: 0 }, "有效期必须是正数"],
+  ];
 
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.code).toBe(ErrorCode.VALIDATION_FAILED);
-    }
-    // 不应写 audit_log
-    const entry = findAuditEntry(insertValuesCalls, "admin.create_invite");
-    expect(entry).toBeUndefined();
+  it.each(invalidInviteInputs)("拒绝不满足 DB scope/使用约束的输入 %#", async (input, message) => {
+    const result = await createInviteCode(input);
+
+    expect(result).toMatchObject({ success: false, error: { code: ErrorCode.VALIDATION_FAILED } });
+    if (!result.success) expect(result.error.message).toContain(message);
+    expect(dbInsertMock).not.toHaveBeenCalled();
   });
 
-  it("role=admin + seasonId 不存在应返回 fail（SEASON_NOT_FOUND）", async () => {
+  it("拒绝不存在的赛季", async () => {
     seasonsFindFirstMock.mockResolvedValue(undefined);
 
-    const result = await createInviteCode({ role: "admin", seasonId: "nonexistent" });
+    const result = await createInviteCode({ role: "season_admin", seasonId: "missing" });
 
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.code).toBe(ErrorCode.SEASON_NOT_FOUND);
-    }
-  });
-
-  it("设置 expiresInHours 时 expiresAt 应非 null", async () => {
-    seasonsFindFirstMock.mockResolvedValue({ id: "season-1" });
-
-    const before = Date.now();
-    const result = await createInviteCode({
-      role: "admin",
-      seasonId: "season-1",
-      expiresInHours: 24,
-    });
-    const after = Date.now();
-
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.expiresAt).not.toBeNull();
-      const expMs = new Date(result.data.expiresAt!).getTime();
-      expect(expMs).toBeGreaterThanOrEqual(before + 24 * 3600_000 - 100);
-      expect(expMs).toBeLessThanOrEqual(after + 24 * 3600_000 + 100);
-    }
+    expect(result).toMatchObject({ success: false, error: { code: ErrorCode.SEASON_NOT_FOUND } });
   });
 });
-
-// ── deactivateInviteCode ─────────────────────────────────────────────────────
 
 describe("deactivateInviteCode", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    resetAuditTracking(insertValuesCalls, updateSetCalls);
-
-    requireSuperAdminMock.mockResolvedValue(superAdminSession);
-
-    dbUpdateMock.mockImplementation(() => ({
-      set: vi.fn((vals) => {
-        updateSetCalls.push(vals);
+  it("停用 invite 并写入 user actor 的 audit", async () => {
+    txSelectMock.mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          for: vi.fn().mockResolvedValue([{ id: "invite-1", seasonId: "season-1" }]),
+        }),
+      }),
+    });
+    txUpdateMock.mockReturnValue({
+      set: vi.fn((values: unknown) => {
+        updateSetCalls.push(values);
         return { where: vi.fn().mockResolvedValue(undefined) };
       }),
-    }));
+    });
 
-    dbInsertMock.mockImplementation(() => ({
-      values: vi.fn((vals) => {
-        insertValuesCalls.push(vals);
-        return Promise.resolve();
-      }),
-    }));
-  });
+    const result = await deactivateInviteCode("invite-1");
 
-  it("正常停用邀请码并写入 audit_log", async () => {
-    const result = await deactivateInviteCode("invite-abc");
-
-    expect(result.success).toBe(true);
-
-    // update 设置 isActive: false
+    expect(result).toMatchObject({ success: true });
     expect(updateSetCalls).toContainEqual({ isActive: false });
-
-    // audit_log 正确写入
     expectAuditLog(insertValuesCalls, "admin.deactivate_invite", {
-      targetId: "invite-abc",
-      targetType: "admin_invite",
-      actorId: "user-super-1",
-    });
-
-    expect(revalidatePathMock).toHaveBeenCalledWith("/admin/invites");
-  });
-
-  it("root 账号停用邀请码时 actorId 格式为 root:xxx", async () => {
-    requireSuperAdminMock.mockResolvedValue(rootAdminSession);
-
-    const result = await deactivateInviteCode("invite-xyz");
-
-    expect(result.success).toBe(true);
-    expectAuditLog(insertValuesCalls, "admin.deactivate_invite", { actorId: "root:admin-root-1" });
-  });
-});
-
-// ── changePassword ───────────────────────────────────────────────────────────
-
-describe("changePassword", () => {
-  const rootSession = {
-    ...rootAdminSession,
-    legacyAdminId: "admin-root-1",
-  };
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    resetAuditTracking(insertValuesCalls, updateSetCalls);
-
-    requireSuperAdminMock.mockResolvedValue(rootSession);
-
-    adminUsersFindFirstMock.mockResolvedValue({
-      id: "admin-root-1",
-      username: "RivalHub_root",
-      passwordHash: "salt:hash",
-      isActive: true,
-      role: "super_admin",
-    });
-
-    verifyPasswordMock.mockReturnValue(true);
-
-    dbUpdateMock.mockImplementation(() => ({
-      set: vi.fn((vals) => {
-        updateSetCalls.push(vals);
-        return { where: vi.fn().mockResolvedValue(undefined) };
-      }),
-    }));
-
-    dbInsertMock.mockImplementation(() => ({
-      values: vi.fn((vals) => {
-        insertValuesCalls.push(vals);
-        return Promise.resolve();
-      }),
-    }));
-  });
-
-  it("新密码太短（< 8 字符）返回 fail（VALIDATION_FAILED）", async () => {
-    const result = await changePassword("current123", "short");
-
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.code).toBe(ErrorCode.VALIDATION_FAILED);
-      expect(result.error.message).toContain("8");
-    }
-    expect(updateSetCalls).toHaveLength(0);
-  });
-
-  it("非 root authSource 返回 fail（FORBIDDEN）", async () => {
-    requireSuperAdminMock.mockResolvedValue({
-      ...superAdminSession,
-      authSource: "user",
-      legacyAdminId: undefined,
-    });
-
-    const result = await changePassword("current123", "newpassword123");
-
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.code).toBe(ErrorCode.FORBIDDEN);
-    }
-  });
-
-  it("当前密码错误返回 fail（VALIDATION_FAILED）", async () => {
-    verifyPasswordMock.mockReturnValue(false);
-
-    const result = await changePassword("wrongpass", "newpassword123");
-
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.code).toBe(ErrorCode.VALIDATION_FAILED);
-      expect(result.error.message).toContain("当前密码错误");
-    }
-    expect(updateSetCalls).toHaveLength(0);
-  });
-
-  it("管理员账户不存在返回 fail（NOT_FOUND）", async () => {
-    adminUsersFindFirstMock.mockResolvedValue(undefined);
-
-    const result = await changePassword("current123", "newpassword123");
-
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.code).toBe(ErrorCode.NOT_FOUND);
-    }
-  });
-
-  it("正常修改密码：update + audit_log 均被调用", async () => {
-    const result = await changePassword("correctpass", "newpassword123");
-
-    expect(result.success).toBe(true);
-
-    // update 包含 passwordHash
-    expect(updateSetCalls[0]).toMatchObject({
-      passwordHash: "hashed:password",
-    });
-
-    // audit_log 正确写入
-    expectAuditLog(insertValuesCalls, "admin.change_password", {
-      targetId: "admin-root-1",
-      targetType: "admin_user",
+      actorId: superAdmin.userId,
+      targetId: "invite-1",
     });
   });
 });
 
-// ── deactivateAdminUser ──────────────────────────────────────────────────────
+describe("revokeUserAdminRole", () => {
+  it("锁定目标、删除 grants、降为 user 并保留撤销范围 audit", async () => {
+    configureTransaction({ id: "user-2", role: "user" }, [{ seasonId: "season-1" }]);
 
-describe("deactivateAdminUser", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    resetAuditTracking(insertValuesCalls, updateSetCalls);
+    const result = await revokeUserAdminRole("user-2");
 
-    requireSuperAdminMock.mockResolvedValue(rootAdminSession);
-
-    adminUsersFindFirstMock.mockResolvedValue({
-      id: "admin-other",
-      username: "other_admin",
-      isActive: true,
-      role: "admin",
+    expect(result).toMatchObject({ success: true });
+    expect(txDeleteMock).toHaveBeenCalledOnce();
+    expect(updateSetCalls).toContainEqual({ role: "user", updatedAt: expect.any(Date) });
+    expectAuditLog(insertValuesCalls, "admin.revoke_role", {
+      actorId: superAdmin.userId,
+      targetId: "user-2",
     });
-
-    dbUpdateMock.mockImplementation(() => ({
-      set: vi.fn((vals) => {
-        updateSetCalls.push(vals);
-        return { where: vi.fn().mockResolvedValue(undefined) };
-      }),
-    }));
-
-    dbInsertMock.mockImplementation(() => ({
-      values: vi.fn((vals) => {
-        insertValuesCalls.push(vals);
-        return Promise.resolve();
-      }),
-    }));
-  });
-
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
-
-  it("不能停用自己（root 账号，legacyAdminId 匹配）", async () => {
-    // rootAdminSession.legacyAdminId === "admin-root-1"，尝试停用同一 id
-    const result = await deactivateAdminUser("admin-root-1");
-
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.code).toBe(ErrorCode.VALIDATION_FAILED);
-      expect(result.error.message).toContain("不能停用自己");
-    }
-    expect(updateSetCalls).toHaveLength(0);
-  });
-
-  it("不能停用 RivalHub_root 账号", async () => {
-    adminUsersFindFirstMock.mockResolvedValue({
-      id: "admin-other",
-      username: "RivalHub_root",
-      isActive: true,
-      role: "super_admin",
-    });
-
-    const result = await deactivateAdminUser("admin-other");
-
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.code).toBe(ErrorCode.FORBIDDEN);
-      expect(result.error.message).toContain("根管理员");
-    }
-    expect(updateSetCalls).toHaveLength(0);
-  });
-
-  it("不能停用配置的自定义 Root 账号（RIVALHUB_ROOT_USERNAME）", async () => {
-    vi.stubEnv("RIVALHUB_ROOT_USERNAME", "custom_root");
-    adminUsersFindFirstMock.mockResolvedValue({
-      id: "admin-custom-root",
-      username: "custom_root",
-      isActive: true,
-      role: "super_admin",
-    });
-
-    const result = await deactivateAdminUser("admin-custom-root");
-
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.code).toBe(ErrorCode.FORBIDDEN);
-      expect(result.error.message).toContain("根管理员");
-    }
-    expect(updateSetCalls).toHaveLength(0);
-  });
-
-  it("配置自定义 Root 时，与配置无关的普通 super_admin 仍可停用", async () => {
-    vi.stubEnv("RIVALHUB_ROOT_USERNAME", "custom_root");
-    adminUsersFindFirstMock.mockResolvedValue({
-      id: "admin-other",
-      username: "other_super_admin",
-      isActive: true,
-      role: "super_admin",
-    });
-
-    const result = await deactivateAdminUser("admin-other");
-
-    expect(result.success).toBe(true);
-    expect(updateSetCalls[0]).toMatchObject({ isActive: false });
-  });
-
-  it("目标管理员不存在返回 fail（NOT_FOUND）", async () => {
-    adminUsersFindFirstMock.mockResolvedValue(undefined);
-
-    const result = await deactivateAdminUser("nonexistent-id");
-
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.code).toBe(ErrorCode.NOT_FOUND);
-    }
-    expect(updateSetCalls).toHaveLength(0);
-  });
-
-  it("正常停用：update isActive=false + audit_log 写入", async () => {
-    const result = await deactivateAdminUser("admin-other");
-
-    expect(result.success).toBe(true);
-
-    expect(updateSetCalls[0]).toMatchObject({ isActive: false });
-
-    expectAuditLog(insertValuesCalls, "admin.deactivate_user", {
-      targetId: "admin-other",
-      targetType: "admin_user",
-    });
-    const auditEntry = findAuditEntry(insertValuesCalls, "admin.deactivate_user");
-    expect((auditEntry as { meta: { targetUsername: string } }).meta.targetUsername).toBe(
-      "other_admin",
+    const audit = insertValuesCalls.find(
+      (value): value is { action: string; meta: { seasonIds: string[] } } =>
+        typeof value === "object" && value !== null && (value as { action?: string }).action === "admin.revoke_role",
     );
-
-    expect(revalidatePathMock).toHaveBeenCalledWith("/admin/users");
+    expect(audit?.meta.seasonIds).toEqual(["season-1"]);
   });
 
-  it("普通 super_admin（非 root）停用他人时正常通过", async () => {
-    requireSuperAdminMock.mockResolvedValue(superAdminSession);
+  it("不能撤销自己的权限", async () => {
+    const result = await revokeUserAdminRole(superAdmin.userId);
 
-    const result = await deactivateAdminUser("admin-other");
-
-    expect(result.success).toBe(true);
-  });
-});
-
-// ── reactivateAdminUser ──────────────────────────────────────────────────────
-
-describe("reactivateAdminUser", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    resetAuditTracking(insertValuesCalls, updateSetCalls);
-
-    requireSuperAdminMock.mockResolvedValue(superAdminSession);
-
-    dbUpdateMock.mockImplementation(() => ({
-      set: vi.fn((vals) => {
-        updateSetCalls.push(vals);
-        return { where: vi.fn().mockResolvedValue(undefined) };
-      }),
-    }));
-
-    dbInsertMock.mockImplementation(() => ({
-      values: vi.fn((vals) => {
-        insertValuesCalls.push(vals);
-        return Promise.resolve();
-      }),
-    }));
-  });
-
-  it("正常启用管理员：update isActive=true + audit_log 写入", async () => {
-    const result = await reactivateAdminUser("admin-other");
-
-    expect(result.success).toBe(true);
-
-    expect(updateSetCalls[0]).toMatchObject({ isActive: true });
-
-    expectAuditLog(insertValuesCalls, "admin.reactivate_user", {
-      targetId: "admin-other",
-      targetType: "admin_user",
-      actorId: "user-super-1",
-    });
-
-    expect(revalidatePathMock).toHaveBeenCalledWith("/admin/users");
-  });
-
-  it("root 账号启用时 actorId 格式为 root:xxx", async () => {
-    requireSuperAdminMock.mockResolvedValue(rootAdminSession);
-
-    const result = await reactivateAdminUser("admin-other");
-
-    expect(result.success).toBe(true);
-
-    expectAuditLog(insertValuesCalls, "admin.reactivate_user", { actorId: "root:admin-root-1" });
+    expect(result).toMatchObject({ success: false, error: { code: ErrorCode.VALIDATION_FAILED } });
+    expect(dbTransactionMock).not.toHaveBeenCalled();
   });
 });

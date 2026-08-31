@@ -13,21 +13,21 @@ const ENTRANTS: MajorPlayoffEntrant[] = Array.from({ length: 8 }, (_, index) => 
 }));
 
 const COMPLETE_MATCHES: MajorPlayoffMatchFact[] = [
-  { matchId: "qf-1", round: "quarterfinal", slot: 1, teamAId: "team-1", teamBId: "team-8", winnerId: "team-1" },
-  { matchId: "qf-2", round: "quarterfinal", slot: 2, teamAId: "team-5", teamBId: "team-4", winnerId: "team-5" },
-  { matchId: "qf-3", round: "quarterfinal", slot: 3, teamAId: "team-2", teamBId: "team-7", winnerId: "team-7" },
-  { matchId: "qf-4", round: "quarterfinal", slot: 4, teamAId: "team-6", teamBId: "team-3", winnerId: "team-3" },
-  { matchId: "sf-1", round: "semifinal", slot: 1, teamAId: "team-5", teamBId: "team-1", winnerId: "team-1" },
-  { matchId: "sf-2", round: "semifinal", slot: 2, teamAId: "team-3", teamBId: "team-7", winnerId: "team-7" },
-  { matchId: "f-1", round: "final", slot: 1, teamAId: "team-7", teamBId: "team-1", winnerId: "team-1" },
+  { matchId: "qf-1", round: "quarterfinal", slot: 1, entryAId: "team-1", entryBId: "team-8", winnerId: "team-1" },
+  { matchId: "qf-2", round: "quarterfinal", slot: 2, entryAId: "team-5", entryBId: "team-4", winnerId: "team-5" },
+  { matchId: "qf-3", round: "quarterfinal", slot: 3, entryAId: "team-2", entryBId: "team-7", winnerId: "team-7" },
+  { matchId: "qf-4", round: "quarterfinal", slot: 4, entryAId: "team-6", entryBId: "team-3", winnerId: "team-3" },
+  { matchId: "sf-1", round: "semifinal", slot: 1, entryAId: "team-5", entryBId: "team-1", winnerId: "team-1" },
+  { matchId: "sf-2", round: "semifinal", slot: 2, entryAId: "team-3", entryBId: "team-7", winnerId: "team-7" },
+  { matchId: "f-1", round: "final", slot: 1, entryAId: "team-7", entryBId: "team-1", winnerId: "team-1" },
 ];
 
 const THIRD_PLACE_MATCH: MajorPlayoffMatchFact = {
   matchId: "third-place-1",
   round: "third_place",
   slot: 1,
-  teamAId: "team-3",
-  teamBId: "team-5",
+  entryAId: "team-3",
+  entryBId: "team-5",
   winnerId: "team-3",
 };
 
@@ -82,8 +82,8 @@ describe("Major playoff projection", () => {
   it("accepts Team A/B orientation independently from bracket seed", () => {
     const reversed = COMPLETE_MATCHES.map((match) => ({
       ...match,
-      teamAId: match.teamBId,
-      teamBId: match.teamAId,
+      entryAId: match.entryBId,
+      entryBId: match.entryAId,
     }));
     expect(projectMajorPlayoff({
       entrants: ENTRANTS,
@@ -108,7 +108,7 @@ describe("Major playoff projection", () => {
     })).toThrow(/duplicate slot/);
 
     const impossibleSemifinal = COMPLETE_MATCHES.map((match) => ({ ...match }));
-    impossibleSemifinal[4] = { ...impossibleSemifinal[4], teamAId: "team-8" };
+    impossibleSemifinal[4] = { ...impossibleSemifinal[4], entryAId: "team-8" };
     expect(() => projectMajorPlayoff({
       entrants: ENTRANTS,
       matches: impossibleSemifinal,
@@ -164,7 +164,7 @@ describe("Major playoff projection", () => {
       entrants: ENTRANTS,
       matches: [...COMPLETE_MATCHES, {
         ...THIRD_PLACE_MATCH,
-        teamAId: "team-8",
+        entryAId: "team-8",
         winnerId: "team-5",
       }],
       hasThirdPlaceMatch: true,

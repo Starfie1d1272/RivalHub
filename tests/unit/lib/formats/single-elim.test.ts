@@ -1,13 +1,17 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 // ── mock bracket adapter ─────────────────────────────────────────────────────
-const { mockGenerateBracket, mockSeedPlayoff } = vi.hoisted(() => ({
+const { mockGenerateBracket, mockLoadBracketState, mockSaveBracketState, mockSeedPlayoff } = vi.hoisted(() => ({
   mockGenerateBracket: vi.fn(),
+  mockLoadBracketState: vi.fn(),
+  mockSaveBracketState: vi.fn(),
   mockSeedPlayoff: vi.fn(),
 }));
 
 vi.mock("@/lib/bracket", () => ({
   generateBracket: mockGenerateBracket,
+  loadBracketState: mockLoadBracketState,
+  saveBracketState: mockSaveBracketState,
   seedPlayoff: mockSeedPlayoff,
 }));
 
@@ -38,7 +42,7 @@ vi.mock("@/db/client", () => ({
     query: {
       seasons: { findFirst: mockFindFirst },
       matches: { findMany: mockMatchFindMany },
-      teams: { findMany: vi.fn().mockResolvedValue([]) },
+      competitionEntries: { findMany: vi.fn().mockResolvedValue([]) },
     },
   },
 }));
@@ -50,29 +54,27 @@ vi.mock("@/db/schema", () => ({
   },
   seasons: {
     id: {},
-    bracketData: {},
-    updatedAt: {},
     stagePlan: {},
   },
-  teams: {
+  competitionEntries: {
     id: {},
     name: {},
-    seasonId: {},
+    competitionId: {},
   },
 }));
 
 import { singleElimExecutor } from "@/lib/formats/single-elim";
 import { AppError } from "@/lib/errors";
-import type { Team } from "@/db/schema/teams";
+import type { CompetitionEntry } from "@/db/schema/competition-entries";
 import type { QualifiedTeam } from "@/types/season";
 
-function makeTeams(n: number): Team[] {
+function makeTeams(n: number): CompetitionEntry[] {
   return Array.from({ length: n }, (_, i) => ({
     id: `team-${i}`,
     name: `战队 ${i + 1}`,
-    seasonId: "season-1",
-    draftOrder: i + 1,
-  } as Team));
+    competitionId: "season-1",
+    formationOrder: i + 1,
+  } as unknown as CompetitionEntry));
 }
 
 function makeQualifiers(): QualifiedTeam[] {
@@ -96,6 +98,14 @@ const mockConfig = {
   ],
 };
 
+const mockBracketState = {
+  stage: [{ id: 2, name: "淘汰赛", type: "single_elimination" }],
+  match: [],
+  match_game: [],
+  participant: [],
+  round: [],
+};
+
 const mockSeason = {
   id: "season-1",
   slug: "test",
@@ -104,13 +114,6 @@ const mockSeason = {
     { key: "qualifier", name: "排位赛", type: "round_robin" as const, teamCount: 8, advanceTiers: [{ placement: "*" as const, count: 8 }] },
     { key: "playoff", name: "淘汰赛", type: "single_elim" as const, teamCount: 8, advanceTiers: [{ placement: "1st", count: 1 }] },
   ],
-  bracketData: {
-    stage: [{ id: 2, name: "淘汰赛", type: "single_elimination" }],
-    match: [],
-    match_game: [],
-    participant: [],
-    round: [],
-  },
 };
 
 beforeEach(() => {
@@ -119,6 +122,8 @@ beforeEach(() => {
   mockUpdate.mockReturnValue({
     set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }),
   });
+  mockLoadBracketState.mockResolvedValue(mockBracketState);
+  mockSaveBracketState.mockResolvedValue(undefined);
 });
 
 describe("singleElimExecutor", () => {
@@ -161,9 +166,9 @@ describe("singleElimExecutor", () => {
         expect.any(Array),
         expect.objectContaining({ playoffFormat: "single_elim" }),
       );
-      // 4 QF matches inserted + 1 season update = 5 write calls
-      // insert called 4 times for matches
+      // 4 QF matches inserted; bracket state is persisted through the adapter.
       expect(result.matchCount).toBe(4);
+      expect(mockSaveBracketState).toHaveBeenCalledWith(expect.anything(), "season-1", expect.anything());
     });
 
     it("throws when no qualifiers provided for non-first stage", async () => {
@@ -269,17 +274,17 @@ describe("singleElimExecutor", () => {
 
   describe("getQualifiers()", () => {
     const finishedMatch = (
-      teamAId: string,
-      teamBId: string,
+      entryAId: string,
+      entryBId: string,
       scoreA: number,
       scoreB: number,
       entryRound: string | null = null,
     ) => ({
-      id: `m-${teamAId}-${teamBId}`,
+      id: `m-${entryAId}-${entryBId}`,
       seasonId: "season-1",
       stage: "playoff",
-      teamAId,
-      teamBId,
+      entryAId,
+      entryBId,
       scoreA,
       scoreB,
       status: "finished" as const,

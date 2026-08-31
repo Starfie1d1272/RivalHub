@@ -1,16 +1,15 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matches, seasons, teams } from "@/db/schema";
+import { matches, seasons, competitionEntries } from "@/db/schema";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
-import { generateBracket, type BracketStageRef } from "@/lib/bracket";
+import { generateBracket, saveBracketState, type BracketStageRef } from "@/lib/bracket";
 import { calculateStandings } from "@/lib/standings";
 import { getFirstStageOfType, normalizeStagePlan } from "@/types/season";
 import type { StageExecutor } from "./types";
-import type { BracketDatabase as Database } from "@/lib/bracket";
 import { isStageComplete } from "./_shared";
 
 export const roundRobinExecutor: StageExecutor = {
-  async initialize(seasonId, config, teams) {
+  async initialize(seasonId, config, competitionEntries) {
     const season = await db.query.seasons.findFirst({
       where: eq(seasons.id, seasonId),
     });
@@ -22,7 +21,7 @@ export const roundRobinExecutor: StageExecutor = {
       normalizeStagePlan(season.stagePlan),
       ["double_elim", "single_elim"],
     );
-    const { data, resolvedMatches } = await generateBracket(teams, {
+    const { data, resolvedMatches } = await generateBracket(competitionEntries, {
       qualifierFormat: "round_robin",
       playoffFormat: playoffStage
         ? (playoffStage.type === "double_elim" ? "double_elim" : "single_elim")
@@ -37,14 +36,14 @@ export const roundRobinExecutor: StageExecutor = {
 
     for (const bm of resolvedMatches) {
       if (stageId !== null && bm.stageId !== stageId) continue;
-      const teamA = teams[bm.teamAParticipantId];
-      const teamB = teams[bm.teamBParticipantId];
+      const teamA = competitionEntries[bm.teamAParticipantId];
+      const teamB = competitionEntries[bm.teamBParticipantId];
       if (!teamA || !teamB) continue;
 
       await db.insert(matches).values({
         seasonId,
-        teamAId: teamA.id,
-        teamBId: teamB.id,
+        entryAId: teamA.id,
+        entryBId: teamB.id,
         stage: config.key,
         format: "bo1",
         status: "scheduled",
@@ -53,10 +52,7 @@ export const roundRobinExecutor: StageExecutor = {
       matchCount++;
     }
 
-    await db
-      .update(seasons)
-      .set({ bracketData: data as Database, updatedAt: new Date() })
-      .where(eq(seasons.id, seasonId));
+    await saveBracketState(db, seasonId, data);
 
     return { matchCount };
   },
@@ -66,8 +62,8 @@ export const roundRobinExecutor: StageExecutor = {
   },
 
   async getQualifiers(seasonId, config) {
-    const seasonTeams = await db.query.teams.findMany({
-      where: eq(teams.seasonId, seasonId),
+    const seasonTeams = await db.query.competitionEntries.findMany({
+      where: eq(competitionEntries.competitionId, seasonId),
     });
     const finishedMatches = await db.query.matches.findMany({
       where: and(

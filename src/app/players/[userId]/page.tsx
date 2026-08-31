@@ -1,10 +1,10 @@
 import { notFound } from "next/navigation";
 import { eq, and, asc, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { users, seasonRegistrations, seasons, teams, teamMembers, matches, matchMaps, competitiveRankFacts } from "@/db/schema";
+import { competitionEntries, eventRosterMembers, eventRosters, users, seasonRegistrations, seasons, matches, matchMaps, competitiveRankFacts } from "@/db/schema";
 import { resolveAvatarUrl } from "@/lib/steam";
 import { PUBLIC_PLAYER_INFO_FIELDS } from "@/lib/utils/player-info-fields";
-import { getPublicDisplayName } from "@/lib/utils/display-name";
+import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { Panel, Stat, PosChip } from "@/components/rivalhub";
 import { MapPreferenceChips } from "@/components/rivalhub/MapPreferenceChips";
 import Image from "next/image";
@@ -143,15 +143,16 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
   // ── 队伍归属（canonical userId → team）────────────────────────────────
   const teamMemberRows = await db
     .select({
-      seasonId: teams.seasonId,
-      teamId: teamMembers.teamId,
-      teamName: teams.name,
+      seasonId: competitionEntries.competitionId,
+      teamId: competitionEntries.id,
+      teamName: competitionEntries.name,
       seasonSlug: seasons.slug,
     })
-    .from(teamMembers)
-    .innerJoin(teams, eq(teamMembers.teamId, teams.id))
-    .innerJoin(seasons, eq(teams.seasonId, seasons.id))
-    .where(eq(teamMembers.userId, userId));
+    .from(eventRosterMembers)
+    .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
+    .innerJoin(competitionEntries, eq(eventRosters.entryId, competitionEntries.id))
+    .innerJoin(seasons, eq(competitionEntries.competitionId, seasons.id))
+    .where(eq(eventRosterMembers.userId, userId));
 
   const teamBySeasonId = new Map(teamMemberRows.map((r) => [r.seasonId, r]));
   const competitiveFacts = await db.select().from(competitiveRankFacts).where(eq(competitiveRankFacts.userId, userId));
@@ -186,8 +187,8 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
   let totalNetRounds = 0;
 
   for (const m of allMatches) {
-    const myTeamId = teamIdSet.has(m.teamAId) ? m.teamAId : m.teamBId;
-    const isA = m.teamAId === myTeamId;
+    const myTeamId = teamIdSet.has(m.entryAId) ? m.entryAId : m.entryBId;
+    const isA = m.entryAId === myTeamId;
     const myScore = isA ? (m.scoreA ?? 0) : (m.scoreB ?? 0);
     const oppScore = isA ? (m.scoreB ?? 0) : (m.scoreA ?? 0);
     if (myScore > oppScore) totalWins++;

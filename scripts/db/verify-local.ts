@@ -13,9 +13,19 @@ async function main(): Promise<void> {
   assertDeclaredDatabaseTarget(process.env);
 
   const privateDataApiTables = [
+    "competitive_platforms",
+    "competitive_platform_ranks",
     "competitive_platform_seasons",
     "competitive_rank_facts",
   ] as const;
+  // Probe columns must exist on every table; competitive_platforms keys on
+  // `key` instead of a uuid `id`.
+  const privateDataApiProbeColumns: Record<(typeof privateDataApiTables)[number], string> = {
+    competitive_platforms: "key",
+    competitive_platform_ranks: "id",
+    competitive_platform_seasons: "id",
+    competitive_rank_facts: "id",
+  };
 
   const databaseUrl = assertLocalDatabaseUrl(process.env.DATABASE_URL);
   const apiUrl = assertLocalHttpUrl(
@@ -135,7 +145,7 @@ async function main(): Promise<void> {
       );
     }
     for (const tableName of privateDataApiTables) {
-      const response = await fetch(`${apiUrl}/rest/v1/${tableName}?select=id&limit=1`, {
+      const response = await fetch(`${apiUrl}/rest/v1/${tableName}?select=${privateDataApiProbeColumns[tableName]}&limit=1`, {
         headers: {
           apikey: publishableKey,
           Authorization: `Bearer ${publishableKey}`,

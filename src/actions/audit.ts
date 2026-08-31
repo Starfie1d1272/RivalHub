@@ -2,8 +2,8 @@
 
 import { and, desc, eq, gte, lt, or, count, like, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { getDisplayName } from "@/lib/utils/display-name";
-import { auditLogs, seasons, users, teams, matches, seasonRegistrations, draftPicks, adminInvites, teamApplications } from "@/db/schema";
+import { getDisplayName } from "@/lib/identity/display-name";
+import { auditLogs, competitionEntries, seasons, users, teams, matches, seasonRegistrations, draftPicks, adminInvites } from "@/db/schema";
 import { ok } from "@/types/action";
 import { requireSeasonAdmin, requireSuperAdmin } from "@/lib/auth/session";
 import { actionError } from "@/lib/action-utils";
@@ -122,7 +122,7 @@ export async function fetchAuditLogs(filters: AuditLogFilters = {}) {
 
     const resolvers: Promise<void>[] = [];
 
-    const userTypeIds = [...new Set([...(byType.get("user") ?? []), ...(byType.get("admin_user") ?? [])])];
+    const userTypeIds = [...new Set(byType.get("user") ?? [])];
     if (userTypeIds.length) {
       resolvers.push(
         db.select({ id: users.id, email: users.email, steamName: users.steamName, displayName: users.displayName, perfectName: users.perfectName })
@@ -147,10 +147,10 @@ export async function fetchAuditLogs(filters: AuditLogFilters = {}) {
       );
     }
 
-    const applicationIds = byType.get("team_application");
-    if (applicationIds?.length) {
+    const entryIds = [...new Set([...(byType.get("competition_entry") ?? []), ...(byType.get("team_application") ?? [])])];
+    if (entryIds.length) {
       resolvers.push(
-        db.select({ id: teamApplications.id, name: teamApplications.name }).from(teamApplications).where(inArray(teamApplications.id, applicationIds))
+        db.select({ id: competitionEntries.id, name: competitionEntries.name }).from(competitionEntries).where(inArray(competitionEntries.id, entryIds))
           .then((rows) => { for (const row of rows) targetNameMap[row.id] = row.name; }),
       );
     }
@@ -168,15 +168,15 @@ export async function fetchAuditLogs(filters: AuditLogFilters = {}) {
     const matchIds = byType.get("match");
     if (matchIds?.length) {
       resolvers.push(
-        db.select({ id: matches.id, aName: teams.name, bId: matches.teamBId })
+        db.select({ id: matches.id, aName: competitionEntries.name, bId: matches.entryBId })
           .from(matches)
-          .innerJoin(teams, eq(matches.teamAId, teams.id))
+          .innerJoin(competitionEntries, eq(matches.entryAId, competitionEntries.id))
           .where(inArray(matches.id, matchIds))
           .then(async (rows) => {
             const bIds = [...new Set(rows.map((r) => r.bId))];
             const bMap: Record<string, string> = {};
             if (bIds.length) {
-              const bRows = await db.select({ id: teams.id, name: teams.name }).from(teams).where(inArray(teams.id, bIds));
+              const bRows = await db.select({ id: competitionEntries.id, name: competitionEntries.name }).from(competitionEntries).where(inArray(competitionEntries.id, bIds));
               for (const b of bRows) bMap[b.id] = b.name;
             }
             for (const r of rows) targetNameMap[r.id] = `${r.aName} vs ${bMap[r.bId] ?? "?"}`;
@@ -195,22 +195,22 @@ export async function fetchAuditLogs(filters: AuditLogFilters = {}) {
     const pickIds = byType.get("draft_pick");
     if (pickIds?.length) {
       resolvers.push(
-        db.select({ id: draftPicks.id, regId: draftPicks.registrationId, teamId: draftPicks.teamId, round: draftPicks.round })
+        db.select({ id: draftPicks.id, regId: draftPicks.registrationId, entryId: draftPicks.entryId, round: draftPicks.round })
           .from(draftPicks).where(inArray(draftPicks.id, pickIds))
           .then(async (rows) => {
             const rIds = [...new Set(rows.map((r) => r.regId))];
-            const tIds = [...new Set(rows.map((r) => r.teamId))];
+            const tIds = [...new Set(rows.map((r) => r.entryId))];
             const [regRows, teamRows] = await Promise.all([
               rIds.length ? db.select({ id: seasonRegistrations.id, email: users.email, steamName: users.steamName, displayName: users.displayName, perfectName: users.perfectName })
                 .from(seasonRegistrations).innerJoin(users, eq(seasonRegistrations.userId, users.id))
                 .where(inArray(seasonRegistrations.id, rIds)) : [],
-              tIds.length ? db.select({ id: teams.id, name: teams.name }).from(teams).where(inArray(teams.id, tIds)) : [],
+              tIds.length ? db.select({ id: competitionEntries.id, name: competitionEntries.name }).from(competitionEntries).where(inArray(competitionEntries.id, tIds)) : [],
             ]);
             const regMap: Record<string, string> = {};
             for (const r of regRows) regMap[r.id] = getDisplayName(r);
             const tMap: Record<string, string> = {};
             for (const t of teamRows) tMap[t.id] = t.name;
-            for (const p of rows) targetNameMap[p.id] = `${regMap[p.regId] ?? "?"} → ${tMap[p.teamId] ?? "?"}`;
+            for (const p of rows) targetNameMap[p.id] = `${regMap[p.regId] ?? "?"} → ${tMap[p.entryId] ?? "?"}`;
           }),
       );
     }

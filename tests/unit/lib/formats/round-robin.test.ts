@@ -1,9 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 // ── mock db ───────────────────────────────────────────────────────────────────
-const { mockMatchFindMany, mockTeamsFindMany, mockSelectWhere } = vi.hoisted(() => ({
+const { mockMatchFindMany, mockEntriesFindMany, mockSelectWhere } = vi.hoisted(() => ({
   mockMatchFindMany: vi.fn(),
-  mockTeamsFindMany: vi.fn(),
+  mockEntriesFindMany: vi.fn(),
   mockSelectWhere: vi.fn(),
 }));
 
@@ -16,14 +16,14 @@ vi.mock("@/db/client", () => ({
     }),
     query: {
       matches: { findMany: mockMatchFindMany },
-      teams: { findMany: mockTeamsFindMany },
+      competitionEntries: { findMany: mockEntriesFindMany },
     },
   },
 }));
 
 vi.mock("@/db/schema", () => ({
-  matches: { id: {}, seasonId: {}, stage: {}, status: {}, teamAId: {}, teamBId: {}, scoreA: {}, scoreB: {} },
-  teams: { id: {}, name: {}, seasonId: {}, draftOrder: {} },
+  matches: { id: {}, seasonId: {}, stage: {}, status: {}, entryAId: {}, entryBId: {}, scoreA: {}, scoreB: {} },
+  competitionEntries: { id: {}, name: {}, competitionId: {}, draftOrder: {} },
 }));
 
 vi.mock("drizzle-orm", () => ({
@@ -80,16 +80,16 @@ describe("roundRobinExecutor", () => {
   describe("getQualifiers()", () => {
     it("返回按排名排序的前 N 支队", async () => {
       // t1 2-0, t2 1-1, t3 0-2
-      mockTeamsFindMany.mockResolvedValue([
-        { id: "t1", name: "A队", seasonId: "season-1", draftOrder: 1 },
-        { id: "t2", name: "B队", seasonId: "season-1", draftOrder: 2 },
-        { id: "t3", name: "C队", seasonId: "season-1", draftOrder: 3 },
+      mockEntriesFindMany.mockResolvedValue([
+        { id: "t1", name: "A队", competitionId: "season-1", draftOrder: 1 },
+        { id: "t2", name: "B队", competitionId: "season-1", draftOrder: 2 },
+        { id: "t3", name: "C队", competitionId: "season-1", draftOrder: 3 },
       ]);
 
       mockMatchFindMany.mockResolvedValue([
-        { id: "m1", seasonId: "season-1", teamAId: "t1", teamBId: "t2", status: "finished", scoreA: 13, scoreB: 8, stage: "round-robin" },
-        { id: "m2", seasonId: "season-1", teamAId: "t1", teamBId: "t3", status: "finished", scoreA: 13, scoreB: 5, stage: "round-robin" },
-        { id: "m3", seasonId: "season-1", teamAId: "t2", teamBId: "t3", status: "finished", scoreA: 13, scoreB: 6, stage: "round-robin" },
+        { id: "m1", seasonId: "season-1", entryAId: "t1", entryBId: "t2", status: "finished", scoreA: 13, scoreB: 8, stage: "round-robin" },
+        { id: "m2", seasonId: "season-1", entryAId: "t1", entryBId: "t3", status: "finished", scoreA: 13, scoreB: 5, stage: "round-robin" },
+        { id: "m3", seasonId: "season-1", entryAId: "t2", entryBId: "t3", status: "finished", scoreA: 13, scoreB: 6, stage: "round-robin" },
       ]);
 
       const result = await roundRobinExecutor.getQualifiers("season-1", {
@@ -102,7 +102,7 @@ describe("roundRobinExecutor", () => {
     });
 
     it("无 advanceTiers 时返回空数组", async () => {
-      mockTeamsFindMany.mockResolvedValue([]);
+      mockEntriesFindMany.mockResolvedValue([]);
       const result = await roundRobinExecutor.getQualifiers("season-1", {
         ...mockConfig,
         advanceTiers: [],

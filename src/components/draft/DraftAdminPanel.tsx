@@ -169,7 +169,7 @@ export function DraftAdminPanel({
             <div>
               <span className="text-[var(--color-fg-dim)]">当前队伍：</span>
               <span className="text-[var(--color-fg)] ml-1">
-                {data.teams.find((t) => t.teamId === state.currentTeamId)?.teamName ??
+                {data.teams.find((t) => t.entryId === state.currentEntryId)?.teamName ??
                   "无"}
               </span>
             </div>

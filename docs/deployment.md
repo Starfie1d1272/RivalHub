@@ -20,9 +20,11 @@ pnpm db:local:verify
 pnpm db:local:bootstrap
 pnpm db:local:reset
 pnpm dev:local
+pnpm build:local
+pnpm verify:local
 ```
 
-wrapper 从 `supabase status --output json` 获取连接，并验证 DB/API/Studio 都指向 loopback。它不会读取 `.env.local` 的远程 `DATABASE_URL`，也不接受远程 URL fallback。`reset` 仅重建 Local Supabase，再重放 active Drizzle migrations、fixtures 与验证；不存在第二套业务 migration authority。
+wrapper 从 `supabase status --output json` 获取连接，并验证 DB/API/Studio 都指向 loopback。它不会读取 `.env.local` 的远程 `DATABASE_URL`，也不接受远程 URL fallback。`reset` 仅重建 Local Supabase，再重放 active Drizzle migrations、fixtures 与验证；不存在第二套业务 migration authority。`verify:local` 会确保 Local ready，重放 bootstrap/verify、运行不依赖数据库的 `verify`，随后运行 real-PG integration 与 browser E2E，并清理专用 fixture。
 
 ## Active migrations
 
@@ -78,7 +80,7 @@ staging 与 production 分别配置：
 - `NEXT_PUBLIC_APP_URL`
 - Turnstile 与第三方服务 key
 
-生产启用 Supabase Confirm email。owner 经注册、邮箱确认和登录触发一次性 bootstrap；Root credentials 只用于明确启用的 emergency compatibility path。
+生产启用 Supabase Confirm email。owner 经注册、邮箱确认和登录触发一次性 bootstrap；管理员统一使用 Supabase Auth 与数据库中的当前授权事实。
 
 ## Cron
 

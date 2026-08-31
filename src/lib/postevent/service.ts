@@ -6,13 +6,14 @@ import {
   matches,
   postEventAdjudications,
   seasons,
-  teams,
+  competitionEntries,
   tournamentHonors,
   type AdjudicationImpact,
   type PostEventAdjudication,
   type TournamentHonor,
 } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
+import { parseMajorFinalPlacementGroups } from "@/lib/major/placement";
 
 export const ADJUDICATION_IMPACTS = [
   "canonical_matches",
@@ -22,12 +23,11 @@ export const ADJUDICATION_IMPACTS = [
   "none",
 ] as const satisfies readonly AdjudicationImpact[];
 
-type AdjudicationTarget = "season" | "team" | "user" | "match";
+type AdjudicationTarget = "season" | "entry" | "user" | "match";
 type AdjudicationKind = "team_sanction" | "result_statement" | "placement_statement" | "honor_directive";
 type HonorType = "champion" | "runner_up" | "placement" | "manual_award";
 type HonorBasis = "final_result" | "manual" | "adjudication";
-
-type PlacementGroup = { from: number; to: number; teamIds: string[] };
+type PlacementGroup = { from: number; to: number; entryIds: string[] };
 
 function validateImpacts(impacts: readonly AdjudicationImpact[]): AdjudicationImpact[] {
   const distinct = [...new Set(impacts)];
@@ -40,17 +40,12 @@ function validateImpacts(impacts: readonly AdjudicationImpact[]): AdjudicationIm
   return distinct;
 }
 
-function parsePlacementGroups(value: unknown): PlacementGroup[] {
-  if (!Array.isArray(value)) throw new AppError(ErrorCode.INTERNAL_ERROR, "官方名次分组格式损坏。");
-  const groups = value.map((group): PlacementGroup => {
-    if (!group || typeof group !== "object") throw new AppError(ErrorCode.INTERNAL_ERROR, "官方名次分组格式损坏。");
-    const candidate = group as Partial<PlacementGroup>;
-    if (!Number.isInteger(candidate.from) || !Number.isInteger(candidate.to) || !Array.isArray(candidate.teamIds) || !candidate.teamIds.every((id) => typeof id === "string")) {
-      throw new AppError(ErrorCode.INTERNAL_ERROR, "官方名次分组格式损坏。");
-    }
-    return { from: candidate.from!, to: candidate.to!, teamIds: candidate.teamIds! };
-  });
-  return groups;
+function parsePlacementGroups(value: unknown, championEntryId: string): PlacementGroup[] {
+  try {
+    return parseMajorFinalPlacementGroups(value, championEntryId).map((group) => ({ ...group, entryIds: [...group.entryIds] }));
+  } catch {
+    throw new AppError(ErrorCode.INTERNAL_ERROR, "官方名次分组格式损坏。");
+  }
 }
 
 async function lockFinalResultInTx(tx: TxDb, seasonId: string) {
@@ -60,9 +55,9 @@ async function lockFinalResultInTx(tx: TxDb, seasonId: string) {
   return result;
 }
 
-async function assertTeamBelongsToSeasonInTx(tx: TxDb, seasonId: string, teamId: string): Promise<void> {
-  const [team] = await tx.select({ id: teams.id }).from(teams)
-    .where(and(eq(teams.id, teamId), eq(teams.seasonId, seasonId)));
+async function assertEntryBelongsToSeasonInTx(tx: TxDb, seasonId: string, entryId: string): Promise<void> {
+  const [team] = await tx.select({ id: competitionEntries.id }).from(competitionEntries)
+    .where(and(eq(competitionEntries.id, entryId), eq(competitionEntries.competitionId, seasonId)));
   if (!team) throw new AppError(ErrorCode.VALIDATION_FAILED, "目标队伍不属于当前赛事。");
 }
 
@@ -89,7 +84,7 @@ export async function confirmMajorFinalResultInTx(
     actorId: args.actorId,
     targetId: result.id,
     targetType: "major_final_result",
-    meta: { championTeamId: result.championTeamId, placementGroupCount: parsePlacementGroups(result.placementGroups).length },
+    meta: { championEntryId: result.championEntryId, placementGroupCount: parsePlacementGroups(result.placementGroups, result.championEntryId).length },
   });
   return { resultId: result.id, alreadyConfirmed: false };
 }
@@ -101,7 +96,7 @@ export async function createPostEventAdjudicationInTx(
     clientRequestId: string;
     kind: AdjudicationKind;
     target: AdjudicationTarget;
-    targetTeamId?: string | null;
+    targetEntryId?: string | null;
     targetUserId?: string | null;
     targetMatchId?: string | null;
     impacts: readonly AdjudicationImpact[];
@@ -120,18 +115,18 @@ export async function createPostEventAdjudicationInTx(
 
   const impacts = validateImpacts(args.impacts);
   const targetIds = {
-    team: args.targetTeamId ?? null,
+    entry: args.targetEntryId ?? null,
     user: args.targetUserId ?? null,
     match: args.targetMatchId ?? null,
   };
-  if ((args.target === "team" && !targetIds.team) || (args.target === "user" && !targetIds.user) || (args.target === "match" && !targetIds.match)) {
+  if ((args.target === "entry" && !targetIds.entry) || (args.target === "user" && !targetIds.user) || (args.target === "match" && !targetIds.match)) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "裁决目标与目标事实不一致。");
   }
-  if ((args.target === "season" && (targetIds.team || targetIds.user || targetIds.match)) ||
-      (args.target !== "team" && targetIds.team) || (args.target !== "user" && targetIds.user) || (args.target !== "match" && targetIds.match)) {
+  if ((args.target === "season" && (targetIds.entry || targetIds.user || targetIds.match)) ||
+      (args.target !== "entry" && targetIds.entry) || (args.target !== "user" && targetIds.user) || (args.target !== "match" && targetIds.match)) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "裁决目标必须唯一且明确。");
   }
-  if (targetIds.team) await assertTeamBelongsToSeasonInTx(tx, args.seasonId, targetIds.team);
+  if (targetIds.entry) await assertEntryBelongsToSeasonInTx(tx, args.seasonId, targetIds.entry);
   if (targetIds.match) await assertMatchBelongsToSeasonInTx(tx, args.seasonId, targetIds.match);
 
   const [created] = await tx.insert(postEventAdjudications).values({
@@ -140,7 +135,7 @@ export async function createPostEventAdjudicationInTx(
     kind: args.kind,
     target: args.target,
     impacts,
-    targetTeamId: targetIds.team,
+    targetEntryId: targetIds.entry,
     targetUserId: targetIds.user,
     targetMatchId: targetIds.match,
     reason: args.reason,
@@ -160,7 +155,7 @@ export async function createPostEventAdjudicationInTx(
     actorId: args.actorId,
     targetId: created.id,
     targetType: "post_event_adjudication",
-    meta: { kind: args.kind, target: args.target, targetTeamId: targetIds.team, targetUserId: targetIds.user, targetMatchId: targetIds.match, impacts },
+    meta: { kind: args.kind, target: args.target, targetEntryId: targetIds.entry, targetUserId: targetIds.user, targetMatchId: targetIds.match, impacts },
   });
   return { adjudicationId: created.id, created: true };
 }
@@ -190,29 +185,29 @@ export async function revokePostEventAdjudicationInTx(
   return { adjudicationId: adjudication.id, alreadyRevoked: false };
 }
 
-function slotForHonor(args: { type: HonorType; placementFrom?: number; placementTo?: number; teamId?: string | null; honorKey?: string }): string {
+function slotForHonor(args: { type: HonorType; placementFrom?: number; placementTo?: number; entryId?: string | null; honorKey?: string }): string {
   if (args.type === "champion" || args.type === "runner_up") return args.type;
-  if (args.type === "placement") return `placement:${args.placementFrom}-${args.placementTo}:${args.teamId ?? "unassigned"}`;
+  if (args.type === "placement") return `placement:${args.placementFrom}-${args.placementTo}:${args.entryId ?? "unassigned"}`;
   if (!args.honorKey?.trim()) throw new AppError(ErrorCode.VALIDATION_FAILED, "手动奖项必须提供稳定的奖项键。");
   return `manual:${args.honorKey.trim()}`;
 }
 
 function assertFinalResultRecipient(
-  result: { championTeamId: string; placementGroups: unknown },
-  args: { type: HonorType; teamId?: string | null; placementFrom?: number; placementTo?: number },
+  result: { championEntryId: string; placementGroups: unknown },
+  args: { type: HonorType; entryId?: string | null; placementFrom?: number; placementTo?: number },
 ): void {
-  if (!args.teamId) throw new AppError(ErrorCode.VALIDATION_FAILED, "基于正式结果的荣誉必须授予队伍。");
-  if (args.type === "champion" && args.teamId !== result.championTeamId) {
+  if (!args.entryId) throw new AppError(ErrorCode.VALIDATION_FAILED, "基于正式结果的荣誉必须授予队伍。");
+  if (args.type === "champion" && args.entryId !== result.championEntryId) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "冠军荣誉只能授予官方结果中的冠军队伍。");
   }
-  const groups = parsePlacementGroups(result.placementGroups);
+  const groups = parsePlacementGroups(result.placementGroups, result.championEntryId);
   if (args.type === "runner_up") {
     const runnerUp = groups.find((group) => group.from === 2 && group.to === 2);
-    if (!runnerUp?.teamIds.includes(args.teamId)) throw new AppError(ErrorCode.VALIDATION_FAILED, "亚军荣誉只能授予官方结果中的亚军队伍。");
+    if (!runnerUp?.entryIds.includes(args.entryId)) throw new AppError(ErrorCode.VALIDATION_FAILED, "亚军荣誉只能授予官方结果中的亚军队伍。");
   }
   if (args.type === "placement") {
     const group = groups.find((candidate) => candidate.from === args.placementFrom && candidate.to === args.placementTo);
-    if (!group?.teamIds.includes(args.teamId)) throw new AppError(ErrorCode.VALIDATION_FAILED, "名次荣誉必须与官方名次分组完全一致。");
+    if (!group?.entryIds.includes(args.entryId)) throw new AppError(ErrorCode.VALIDATION_FAILED, "名次荣誉必须与官方名次分组完全一致。");
   }
 }
 
@@ -224,7 +219,7 @@ export async function grantTournamentHonorInTx(
     type: HonorType;
     label: string;
     basis: HonorBasis;
-    teamId?: string | null;
+    entryId?: string | null;
     userId?: string | null;
     placementFrom?: number;
     placementTo?: number;
@@ -239,7 +234,7 @@ export async function grantTournamentHonorInTx(
     if (existing.seasonId !== args.seasonId) throw new AppError(ErrorCode.VALIDATION_FAILED, "幂等请求键已属于另一项荣誉。");
     return { honorId: existing.id, created: false };
   }
-  if ((args.teamId ? 1 : 0) + (args.userId ? 1 : 0) !== 1) {
+  if ((args.entryId ? 1 : 0) + (args.userId ? 1 : 0) !== 1) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "荣誉必须明确授予一支队伍或一名选手。");
   }
   if (args.type === "placement" && (!Number.isInteger(args.placementFrom) || !Number.isInteger(args.placementTo) || args.placementFrom! < 1 || args.placementTo! < args.placementFrom!)) {
@@ -254,7 +249,7 @@ export async function grantTournamentHonorInTx(
   if (args.type !== "manual_award" && args.basis === "manual") {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "冠军、亚军和名次荣誉必须以官方最终结果或明确赛后裁决为依据。");
   }
-  if (args.teamId) await assertTeamBelongsToSeasonInTx(tx, args.seasonId, args.teamId);
+  if (args.entryId) await assertEntryBelongsToSeasonInTx(tx, args.seasonId, args.entryId);
 
   const honorKey = slotForHonor(args);
   const [alreadyValid] = await tx.select({ id: tournamentHonors.id }).from(tournamentHonors)
@@ -288,7 +283,7 @@ export async function grantTournamentHonorInTx(
     basis: args.basis,
     placementFrom: args.type === "placement" ? args.placementFrom! : null,
     placementTo: args.type === "placement" ? args.placementTo! : null,
-    teamId: args.teamId ?? null,
+    entryId: args.entryId ?? null,
     userId: args.userId ?? null,
     sourceFinalResultId,
     adjudicationId: args.adjudicationId ?? null,
@@ -306,7 +301,7 @@ export async function grantTournamentHonorInTx(
     actorId: args.actorId,
     targetId: created.id,
     targetType: "tournament_honor",
-    meta: { honorKey, type: args.type, basis: args.basis, teamId: args.teamId ?? null, userId: args.userId ?? null, placementFrom: args.placementFrom ?? null, placementTo: args.placementTo ?? null, adjudicationId: args.adjudicationId ?? null },
+    meta: { honorKey, type: args.type, basis: args.basis, entryId: args.entryId ?? null, userId: args.userId ?? null, placementFrom: args.placementFrom ?? null, placementTo: args.placementTo ?? null, adjudicationId: args.adjudicationId ?? null },
   });
   return { honorId: created.id, created: true };
 }
@@ -368,7 +363,7 @@ export function serializePostEventAdjudicationPublic(row: PostEventAdjudication)
     kind: row.kind,
     target: row.target,
     impacts: [...(row.impacts as AdjudicationImpact[])],
-    targetTeamId: row.targetTeamId,
+    targetEntryId: row.targetEntryId,
     targetUserId: row.targetUserId,
     targetMatchId: row.targetMatchId,
     reason: row.reason,
@@ -389,7 +384,7 @@ export function serializeTournamentHonorPublic(row: TournamentHonor) {
     basis: row.basis,
     placementFrom: row.placementFrom,
     placementTo: row.placementTo,
-    teamId: row.teamId,
+    entryId: row.entryId,
     userId: row.userId,
     awardedAt: row.awardedAt,
     revokedAt: row.revokedAt,

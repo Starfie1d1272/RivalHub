@@ -21,6 +21,13 @@ const eslintConfig = [
       "next-env.d.ts",
     ],
   },
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-globals": ["error", { name: "confirm", message: "Use InlineConfirm or AlertDialog instead." }],
+      "no-restricted-properties": ["error", { object: "window", property: "confirm", message: "Use InlineConfirm or AlertDialog instead." }],
+    },
+  },
 ];
 
 export default eslintConfig;

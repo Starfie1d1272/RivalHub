@@ -8,7 +8,7 @@ import { Menu, X } from "lucide-react";
 import { toast } from "sonner";
 import { APP_BRAND } from "@/lib/branding";
 import { cn } from "@/lib/utils/cn";
-import { SEASON_STATUS_LABELS } from "@/types/season";
+import { presentSeasonStatus } from "@/lib/seasons/presentation";
 import { logoutUser } from "@/actions/auth";
 import {
   DropdownMenu,
@@ -27,7 +27,8 @@ export interface HeaderSeason {
 
 export interface HeaderSession {
   userId: string;
-  role: "user" | "season_admin" | "super_admin";
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
 }
 
 interface HeaderClientProps {
@@ -80,12 +81,17 @@ export function HeaderClient({ seasons, session, avatarUrl, steamName, displayNa
     setMobileOpen(false);
   }, [pathname]);
 
-  const navLinks = seasons.map((s) => ({
+  const seasonLinks = seasons.map((s) => ({
     href: `/${s.slug}`,
     label: s.name,
-    badge: SEASON_STATUS_LABELS[s.status] ?? s.status,
+    badge: presentSeasonStatus(s.status).label,
     active: pathname.startsWith(`/${s.slug}`),
   }));
+  const navLinks = [
+    { href: "/seasons", label: "赛事", badge: null, active: pathname === "/seasons" },
+    { href: "/teams", label: "队伍", badge: null, active: pathname.startsWith("/teams") },
+    ...seasonLinks,
+  ];
 
   async function handleLogout() {
     const result = await logoutUser();
@@ -97,8 +103,8 @@ export function HeaderClient({ seasons, session, avatarUrl, steamName, displayNa
     }
   }
 
-  const isAdmin = session && session.role !== "user";
-  const isSuperAdmin = session?.role === "super_admin";
+  const isAdmin = session?.isAdmin;
+  const isSuperAdmin = session?.isSuperAdmin;
   const userLabel = displayName ?? steamName ?? "RivalHub";
 
   return (
@@ -150,7 +156,7 @@ export function HeaderClient({ seasons, session, avatarUrl, steamName, displayNa
               style={{ fontFamily: "var(--font-sans)" }}
             >
               {link.label}
-              <span
+              {link.badge && <span
                 className="text-xs px-1.5 py-0.5 rounded-sm"
                 style={{
                   background: "var(--color-panel-low)",
@@ -158,21 +164,9 @@ export function HeaderClient({ seasons, session, avatarUrl, steamName, displayNa
                 }}
               >
                 {link.badge}
-              </span>
+              </span>}
             </Link>
           ))}
-          <Link
-            href="/seasons"
-            className={cn(
-              "px-3 py-1.5 text-xs rounded-sm transition-colors border border-transparent",
-              pathname === "/seasons"
-                ? "bg-[var(--color-panel)] border-b border-[var(--color-accent)] text-[var(--color-fg)] font-semibold"
-                : "text-[var(--color-fg-mid)] border-b border-transparent hover:text-[var(--color-fg)] font-medium"
-            )}
-            style={{ fontFamily: "var(--font-sans)" }}
-          >
-            历史赛季
-          </Link>
         </nav>
 
         {/* 右侧：在线人数 + 用户区域 + mobile hamburger */}
@@ -199,6 +193,9 @@ export function HeaderClient({ seasons, session, avatarUrl, steamName, displayNa
                       </Link>
                     </DropdownMenuItem>
                   )}
+                  <DropdownMenuItem asChild>
+                    <Link href="/my" className="cursor-pointer">我的</Link>
+                  </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link href={`/players/${session.userId}`} className="cursor-pointer">
                       我的主页
@@ -270,13 +267,6 @@ export function HeaderClient({ seasons, session, avatarUrl, steamName, displayNa
               <span className="text-xs text-[var(--color-fg-dim)]">{link.badge}</span>
             </Link>
           ))}
-          <Link
-            href="/seasons"
-            onClick={() => setMobileOpen(false)}
-            className="px-3 py-2 rounded-md text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] hover:bg-[var(--color-panel-hi)]"
-          >
-            历史赛季
-          </Link>
 
           {/* 移动端用户区域 */}
           <div className="mt-2 pt-2 border-t border-[var(--color-border)] flex flex-col gap-1">
@@ -295,6 +285,13 @@ export function HeaderClient({ seasons, session, avatarUrl, steamName, displayNa
                     管理后台
                   </Link>
                 )}
+                <Link
+                  href="/my"
+                  onClick={() => setMobileOpen(false)}
+                  className="px-3 py-2 rounded-md text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] hover:bg-[var(--color-panel-hi)]"
+                >
+                  我的
+                </Link>
                 <Link
                   href={`/players/${session.userId}`}
                   onClick={() => setMobileOpen(false)}

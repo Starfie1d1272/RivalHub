@@ -2,12 +2,11 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matches, seasons } from "@/db/schema";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
-import { generateBracket, seedPlayoff, type BracketStageRef, type BracketParticipantRef } from "@/lib/bracket";
+import { generateBracket, loadBracketState, saveBracketState, seedPlayoff, type BracketStageRef, type BracketParticipantRef } from "@/lib/bracket";
 import { getPreviousStage, normalizeStagePlan } from "@/types/season";
 import type { StageExecutor } from "./types";
-import type { BracketDatabase as Database } from "@/lib/bracket";
 import type { QualifiedTeam } from "@/types/season";
-import type { Team } from "@/db/schema/teams";
+import type { CompetitionEntry } from "@/db/schema/competition-entries";
 import { isStageComplete } from "./_shared";
 
 // ── entry_round 映射 ──────────────────────────────────────────────────────────
@@ -37,7 +36,7 @@ function mapRoundToEntryRound(roundNumber: number, bracketSize: number): string 
  */
 function buildSeedingFromQualifiers(
   qualifiers: QualifiedTeam[],
-  teams: Team[],
+  teams: CompetitionEntry[],
 ): string[] {
   const teamMap = new Map(teams.map((t) => [t.id, t]));
 
@@ -82,6 +81,7 @@ export const singleElimExecutor: StageExecutor = {
     }
 
     const stagePlan = normalizeStagePlan(season.stagePlan);
+    const bracketState = await loadBracketState(db, seasonId);
     const previousStage = getPreviousStage(stagePlan, config.key);
 
     // 计算 bracket 总轮数 → 用于 entry_round 映射
@@ -107,8 +107,8 @@ export const singleElimExecutor: StageExecutor = {
 
         await db.insert(matches).values({
           seasonId,
-          teamAId: teamA.id,
-          teamBId: teamB.id,
+          entryAId: teamA.id,
+          entryBId: teamB.id,
           stage: config.key,
           format: config.matchFormat ?? "bo3",
           status: "scheduled",
@@ -118,16 +118,13 @@ export const singleElimExecutor: StageExecutor = {
         matchCount++;
       }
 
-      await db
-        .update(seasons)
-        .set({ bracketData: data as Database, updatedAt: new Date() })
-        .where(eq(seasons.id, seasonId));
+      await saveBracketState(db, seasonId, data);
 
       return { matchCount };
     }
 
     // 非首阶段：从 qualifiers 构建 seeding → seedPlayoff
-    if (!season.bracketData) {
+    if (!bracketState) {
       // Fallback: qualifier matches were created manually, so the bracket skeleton
       // was never persisted. Build the playoff bracket fresh using qualifier order as seeds.
       if (!qualifiers || qualifiers.length === 0) {
@@ -159,8 +156,8 @@ export const singleElimExecutor: StageExecutor = {
 
         await db.insert(matches).values({
           seasonId,
-          teamAId: teamA.id,
-          teamBId: teamB.id,
+          entryAId: teamA.id,
+          entryBId: teamB.id,
           stage: config.key,
           format: config.matchFormat ?? "bo3",
           status: "scheduled",
@@ -170,10 +167,7 @@ export const singleElimExecutor: StageExecutor = {
         matchCount++;
       }
 
-      await db
-        .update(seasons)
-        .set({ bracketData: data as Database, updatedAt: new Date() })
-        .where(eq(seasons.id, seasonId));
+      await saveBracketState(db, seasonId, data);
 
       return { matchCount };
     }
@@ -189,7 +183,7 @@ export const singleElimExecutor: StageExecutor = {
 
     const { updatedData, resolvedMatches } = await seedPlayoff(
       seeding,
-      season.bracketData as Database,
+      bracketState,
       config.name,
     );
 
@@ -210,8 +204,8 @@ export const singleElimExecutor: StageExecutor = {
 
       await db.insert(matches).values({
         seasonId,
-        teamAId: teamA.id,
-        teamBId: teamB.id,
+        entryAId: teamA.id,
+        entryBId: teamB.id,
         stage: config.key,
         format: config.matchFormat ?? "bo3",
         status: "scheduled",
@@ -221,10 +215,7 @@ export const singleElimExecutor: StageExecutor = {
       matchCount++;
     }
 
-    await db
-      .update(seasons)
-      .set({ bracketData: updatedData as Database, updatedAt: new Date() })
-      .where(eq(seasons.id, seasonId));
+    await saveBracketState(db, seasonId, updatedData);
 
     return { matchCount };
   },
@@ -251,8 +242,8 @@ export const singleElimExecutor: StageExecutor = {
     if (finalMatch.scoreA === null || finalMatch.scoreB === null) return [];
     if (finalMatch.scoreA === finalMatch.scoreB) return [];
 
-    const winnerId = finalMatch.scoreA > finalMatch.scoreB ? finalMatch.teamAId : finalMatch.teamBId;
-    const loserId = finalMatch.scoreA > finalMatch.scoreB ? finalMatch.teamBId : finalMatch.teamAId;
+    const winnerId = finalMatch.scoreA > finalMatch.scoreB ? finalMatch.entryAId : finalMatch.entryBId;
+    const loserId = finalMatch.scoreA > finalMatch.scoreB ? finalMatch.entryBId : finalMatch.entryAId;
 
     const result: QualifiedTeam[] = [{ teamId: winnerId, placement: "1st" }];
 

@@ -14,12 +14,12 @@ export function teamBadgeData(name: string, idx: number): { tag: string; color: 
 
 export function computeRecord(
   teamId: string,
-  matchList: { teamAId: string; teamBId: string; scoreA: number | null; scoreB: number | null }[],
+  matchList: { entryAId: string; entryBId: string; scoreA: number | null; scoreB: number | null }[],
 ): { wins: number; losses: number } {
   let wins = 0;
   let losses = 0;
   for (const m of matchList) {
-    const isA = m.teamAId === teamId;
+    const isA = m.entryAId === teamId;
     const myScore = isA ? (m.scoreA ?? 0) : (m.scoreB ?? 0);
     const oppScore = isA ? (m.scoreB ?? 0) : (m.scoreA ?? 0);
     if (myScore > oppScore) wins++;
@@ -90,12 +90,12 @@ export interface RosterPlayer {
 }
 
 export function buildRoster(
-  roster: { players: { teamMemberId: string; isStarter: boolean }[] },
+  roster: { players: { eventRosterMemberId: string; isStarter: boolean }[] },
   members: TeamMemberSummary[],
   teamId: string,
 ): RosterPlayer[] {
-  const playerMap = new Map(roster.players.map((p) => [p.teamMemberId, p.isStarter]));
-  const playerIds = new Set(roster.players.map((p) => p.teamMemberId));
+  const playerMap = new Map(roster.players.map((p) => [p.eventRosterMemberId, p.isStarter]));
+  const playerIds = new Set(roster.players.map((p) => p.eventRosterMemberId));
   return members
     .filter((m) => m.teamId === teamId && playerIds.has(m.id))
     .map((m) => ({
@@ -176,8 +176,8 @@ export function buildLineupsPlayers(
 export function aggregateFinishedPlayerStats(
   allStats: MatchPlayerStatsRow[],
   userIdToTeamId: Map<string, string>,
-  teamAId: string,
-  teamBId: string,
+  entryAId: string,
+  entryBId: string,
   mapRoundsMap?: Map<string, number>,
 ) {
   const groupMap = new Map<string, MatchPlayerStatsRow[]>();
@@ -239,7 +239,7 @@ export function aggregateFinishedPlayerStats(
       multiKills: p.multiKills ?? 0,
       clutches: p.clutches ?? 0,
     }))
-    .filter((p) => p.teamId === teamAId || p.teamId === teamBId);
+    .filter((p) => p.teamId === entryAId || p.teamId === entryBId);
 
   return { mvpCandidates, summaryPlayers };
 }

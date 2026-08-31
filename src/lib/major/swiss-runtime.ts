@@ -1,9 +1,11 @@
 import { and, eq } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
-import { auditLogs, majorStageEntrants, majorStageRuns, matches } from "@/db/schema";
+import { auditLogs, majorStageRuns, matches } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { validateSeriesScore } from "@/lib/matches/result-rules";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
+import { parseMajorRunSnapshot } from "@/lib/major/run-snapshot";
+import { loadMajorStageEntrantsInTx } from "@/lib/major/run-entrants";
 import {
   generateNextMajorSwissRound,
   projectMajorSwissStage,
@@ -27,15 +29,8 @@ interface FrozenSwissStage {
   matchFormat: "bo1" | "bo3";
 }
 
-function frozenSwissStage(snapshot: unknown): FrozenSwissStage {
-  if (typeof snapshot !== "object" || snapshot === null || !("stage" in snapshot)) {
-    throw new AppError(ErrorCode.INTERNAL_ERROR, "Stage 运行缺少可验证的规则快照。");
-  }
-  const stage = (snapshot as { stage?: unknown }).stage;
-  if (typeof stage !== "object" || stage === null) {
-    throw new AppError(ErrorCode.INTERNAL_ERROR, "Stage 运行缺少可验证的阶段规则。");
-  }
-  const value = stage as Partial<FrozenSwissStage>;
+function frozenSwissStage(snapshot: unknown, stageKey: string): FrozenSwissStage {
+  const value = parseMajorRunSnapshot(snapshot, stageKey).stage as Partial<FrozenSwissStage>;
   if (typeof value.key !== "string" || value.type !== "swiss" || value.teamCount !== 16 || (value.matchFormat !== "bo1" && value.matchFormat !== "bo3")) {
     throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "当前 Stage 不是可运行的 16 队 Major Swiss 阶段。");
   }
@@ -47,8 +42,8 @@ function asFinalizedRound(value: number): MajorSwissFinalizedRound {
   throw new AppError(ErrorCode.INTERNAL_ERROR, "Stage 运行的已确认轮次无效。");
 }
 
-function pairKey(teamAId: string, teamBId: string): string {
-  return teamAId < teamBId ? `${teamAId}\u0000${teamBId}` : `${teamBId}\u0000${teamAId}`;
+function pairKey(entryAId: string, entryBId: string): string {
+  return entryAId < entryBId ? `${entryAId}\u0000${entryBId}` : `${entryBId}\u0000${entryAId}`;
 }
 
 function completedFact(match: typeof matches.$inferSelect): MajorSwissMatchFact {
@@ -66,9 +61,9 @@ function completedFact(match: typeof matches.$inferSelect): MajorSwissMatchFact 
   return {
     matchId: match.id,
     round: match.round as MajorSwissRound,
-    teamAId: match.teamAId,
-    teamBId: match.teamBId,
-    winnerId: match.scoreA > match.scoreB ? match.teamAId : match.teamBId,
+    entryAId: match.entryAId,
+    entryBId: match.entryBId,
+    winnerId: match.scoreA > match.scoreB ? match.entryAId : match.entryBId,
   };
 }
 
@@ -86,7 +81,7 @@ export async function finalizeMajorSwissRoundInTransaction(
     .where(and(eq(majorStageRuns.id, input.stageRunId), eq(majorStageRuns.seasonId, input.seasonId))).for("update");
   if (!stageRun) throw new AppError(ErrorCode.NOT_FOUND, "指定的 Major StageRun 不属于当前赛事。 ");
 
-  const stage = frozenSwissStage(stageRun.ruleSnapshot);
+  const stage = frozenSwissStage(stageRun.ruleSnapshot, stageRun.stageKey);
   if (stage.key !== stageRun.stageKey) {
     throw new AppError(ErrorCode.INTERNAL_ERROR, "Stage 运行规则快照与记录不一致。 ");
   }
@@ -104,8 +99,8 @@ export async function finalizeMajorSwissRoundInTransaction(
     throw new AppError(ErrorCode.SEASON_INVALID_STATUS, `当前应确认第 ${finalizedRound + 1} 轮，不能跳过轮次。`);
   }
 
-  const entrants = await tx.select({ teamId: majorStageEntrants.teamId, initialStageSeed: majorStageEntrants.stageSeed })
-    .from(majorStageEntrants).where(eq(majorStageEntrants.stageRunId, stageRun.id)).for("update");
+  const entrants = (await loadMajorStageEntrantsInTx(tx, stageRun.id))
+    .map((entrant) => ({ teamId: entrant.competitionEntryId, initialStageSeed: entrant.stageSeed }));
   const managedMatches = await tx.select().from(matches)
     .where(and(eq(matches.majorStageRunId, stageRun.id), eq(matches.ownership, "major_stage"))).for("update");
 
@@ -131,7 +126,7 @@ export async function finalizeMajorSwissRoundInTransaction(
     { format: pairing.format, managedKey: `r${input.expectedRound}-${index + 1}` },
   ]));
   for (const match of currentMatches) {
-    const expected = expectedByKey.get(pairKey(match.teamAId, match.teamBId));
+    const expected = expectedByKey.get(pairKey(match.entryAId, match.entryBId));
     if (!expected || match.format !== expected.format || match.managedKey !== expected.managedKey) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, `第 ${input.expectedRound} 轮存在不符合当前 Swiss 规则的托管比赛。`);
     }
@@ -162,8 +157,8 @@ export async function finalizeMajorSwissRoundInTransaction(
     }
     const created = await tx.insert(matches).values(nextPairings.map((pairing, index) => ({
       seasonId: input.seasonId,
-      teamAId: pairing.higherSeedTeamId,
-      teamBId: pairing.lowerSeedTeamId,
+      entryAId: pairing.higherSeedTeamId,
+      entryBId: pairing.lowerSeedTeamId,
       stage: stage.key,
       round: nextRound,
       format: pairing.format,

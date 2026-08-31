@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DRAFT_TOTAL_ROUNDS } from "@/types/draft";
 import { createBrowserClient } from "@/lib/auth/supabase";
-import { getPublicDisplayName } from "@/lib/utils/display-name";
+import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { DraftCountdown } from "./DraftCountdown";
 import { TeamDraftGrid } from "./TeamDraftGrid";
 import { PlayerPool } from "./PlayerPool";
@@ -52,7 +52,7 @@ export function DraftLiveRoom({
   const showPickNotification = useCallback(
     (payload: { steamName?: string; displayName?: string | null; perfectName?: string | null; team_id?: string }) => {
       const teamName =
-        teams.find((t) => t.teamId === payload.team_id)?.teamName ?? "未知队伍";
+        teams.find((t) => t.entryId === payload.team_id)?.teamName ?? "未知队伍";
       const playerName = getPublicDisplayName(payload);
 
       setNotification({ teamName, playerName });
@@ -129,7 +129,7 @@ export function DraftLiveRoom({
           steamName: latestPick.steamName,
           displayName: latestPick.displayName,
           perfectName: latestPick.perfectName,
-          team_id: latestPick.teamId,
+          team_id: latestPick.entryId,
         });
       }
     }
@@ -137,8 +137,8 @@ export function DraftLiveRoom({
   }, [completedPicks, showPickNotification]);
 
   // 确定当前选秀队
-  const pickingTeamId = isLive ? state?.currentTeamId ?? null : null;
-  const pickingTeam = teams.find((t) => t.teamId === pickingTeamId);
+  const pickingEntryId = isLive ? state?.currentEntryId ?? null : null;
+  const pickingTeam = teams.find((t) => t.entryId === pickingEntryId);
 
   return (
     <div className="space-y-6">
@@ -206,7 +206,7 @@ export function DraftLiveRoom({
         </h2>
         <TeamDraftGrid
           teams={teams}
-          currentTeamId={pickingTeamId}
+          currentEntryId={pickingEntryId}
           totalRounds={DRAFT_TOTAL_ROUNDS}
           currentRound={state?.currentRound ?? 1}
         />
@@ -217,8 +217,8 @@ export function DraftLiveRoom({
         <div className="flex items-center gap-1.5 text-xs text-[var(--color-fg-dim)] overflow-x-auto">
           <span>蛇形顺序：</span>
           {snakeOrder.map((tid) => {
-            const t = teams.find((tt) => tt.teamId === tid);
-            const isNow = tid === pickingTeamId;
+            const t = teams.find((tt) => tt.entryId === tid);
+            const isNow = tid === pickingEntryId;
             return (
               <span
                 key={tid}
@@ -243,7 +243,7 @@ export function DraftLiveRoom({
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-1 text-xs">
             {completedPicks.map((pick) => {
-              const team = teams.find((t) => t.teamId === pick.teamId);
+              const team = teams.find((t) => t.entryId === pick.entryId);
               return (
                 <div
                   key={pick.pickNumber}

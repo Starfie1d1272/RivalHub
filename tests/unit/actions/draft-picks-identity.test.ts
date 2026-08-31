@@ -16,7 +16,7 @@ const {
   requireAuthMock,
   txSeasonFindFirstMock,
   txDraftPickFindFirstMock,
-  txTeamFindFirstMock,
+  txEntryFindFirstMock,
   txRegFindFirstMock,
   txSelectMock,
   txInsertMock,
@@ -29,7 +29,7 @@ const {
     requireAuthMock: vi.fn(),
     txSeasonFindFirstMock: vi.fn(),
     txDraftPickFindFirstMock: vi.fn(),
-    txTeamFindFirstMock: vi.fn(),
+    txEntryFindFirstMock: vi.fn(),
     txRegFindFirstMock: vi.fn(),
     txSelectMock: vi.fn(),
     txInsertMock: vi.fn(),
@@ -53,8 +53,12 @@ vi.mock("@/lib/revalidation", () => ({
 vi.mock("@/db/schema", () => {
   const mk = (name: string) => ({ __name: name });
   return {
-    teams: mk("teams"),
-    teamMembers: mk("teamMembers"),
+    competitionEntries: mk("competitionEntries"),
+    competitionEntryParticipants: mk("competitionEntryParticipants"),
+    competitionEntryRosterRevisions: mk("competitionEntryRosterRevisions"),
+    competitionEntryRosterMembers: mk("competitionEntryRosterMembers"),
+    eventRosters: mk("eventRosters"),
+    eventRosterMembers: mk("eventRosterMembers"),
     seasons: mk("seasons"),
     seasonRegistrations: mk("seasonRegistrations"),
     draftState: mk("draftState"),
@@ -74,7 +78,7 @@ const TX = {
   query: {
     seasons: { findFirst: txSeasonFindFirstMock },
     draftPicks: { findFirst: txDraftPickFindFirstMock },
-    teams: { findFirst: txTeamFindFirstMock },
+    competitionEntries: { findFirst: txEntryFindFirstMock },
     seasonRegistrations: { findFirst: txRegFindFirstMock },
   },
   select: txSelectMock,
@@ -91,7 +95,6 @@ const SEASON = {
   slug: "spring-2026",
   status: "drafting",
   hasDraft: true,
-  bracketData: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 };
@@ -99,7 +102,7 @@ const SEASON = {
 const DS = {
   id: "ds1",
   seasonId: SEASON_ID,
-  currentTeamId: TEAM_ID,
+  currentEntryId: TEAM_ID,
   currentRound: 1,
   roundDeadline: new Date(Date.now() + 60_000),
   isActive: true,
@@ -110,9 +113,9 @@ const TEAM = {
   id: TEAM_ID,
   seasonId: SEASON_ID,
   name: "A 队",
-  captainRegistrationId: CAPTAIN_REG_ID,
-  captainUserId: CAPTAIN_USER_ID,
-  draftOrder: 2,
+  sourceRegistrationId: CAPTAIN_REG_ID,
+  representativeUserId: CAPTAIN_USER_ID,
+  formationOrder: 2,
   logoUrl: null,
   createdAt: new Date(),
 };
@@ -145,18 +148,22 @@ function setupTxSelect() {
       if (name === "draftState") {
         return { where: vi.fn().mockReturnValue({ for: vi.fn().mockResolvedValue([DS]) }) };
       }
-      if (name === "teamMembers") {
+      if (name === "eventRosterMembers") {
         // 位置统计：无同位置冲突
-        return { innerJoin: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) }) };
+        const joined = { innerJoin: vi.fn(), where: vi.fn().mockResolvedValue([]) };
+        joined.innerJoin.mockReturnValue(joined);
+        return joined;
       }
       if (name === "draftPicks") {
         // pickNumber 计数
         return { where: vi.fn().mockResolvedValue([{ count: 0 }]) };
       }
-      if (name === "teams") {
+      if (name === "competitionEntries") {
         // 选秀顺序（getNextTeamId）
         return { where: vi.fn().mockReturnValue({ orderBy: vi.fn().mockResolvedValue(SEASON_TEAMS) }) };
       }
+      if (name === "eventRosters") return { where: vi.fn().mockReturnValue({ for: vi.fn().mockResolvedValue([{ id: "roster-1" }]) }) };
+      if (name === "competitionEntryRosterRevisions") return { where: vi.fn().mockReturnValue({ for: vi.fn().mockResolvedValue([{ id: "revision-1" }]) }) };
       return { where: vi.fn().mockResolvedValue([]) };
     }),
   }));
@@ -170,6 +177,14 @@ function setupTxInsert() {
         values: vi.fn((values: unknown) => {
           insertValuesCalls.push({ table: name, values });
           return { returning: vi.fn().mockResolvedValue([{ id: PICK_ID }]) };
+        }),
+      };
+    }
+    if (name === "competitionEntryParticipants") {
+      return {
+        values: vi.fn((values: unknown) => {
+          insertValuesCalls.push({ table: name, values });
+          return { returning: vi.fn().mockResolvedValue([{ id: "participant-1" }]) };
         }),
       };
     }
@@ -194,7 +209,7 @@ beforeEach(() => {
   requireAuthMock.mockResolvedValue({ userId: CAPTAIN_USER_ID, email: "captain@test.com" });
   txSeasonFindFirstMock.mockResolvedValue(SEASON);
   txDraftPickFindFirstMock.mockResolvedValue(null);
-  txTeamFindFirstMock.mockResolvedValue(TEAM);
+  txEntryFindFirstMock.mockResolvedValue(TEAM);
   txRegFindFirstMock.mockResolvedValueOnce(CAPTAIN_REG).mockResolvedValueOnce(TARGET_REG);
   setupTxSelect();
   setupTxInsert();
@@ -202,29 +217,28 @@ beforeEach(() => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-describe("pickPlayer() — Rivals draft pick dual-write", () => {
-  it("teamMember insert writes registrationId + userId + seasonId", async () => {
+describe("pickPlayer() — Rivals draft pick", () => {
+  it("adds the selected player to the entry commitment and frozen roster", async () => {
     const result = await pickPlayer({
       seasonId: SEASON_ID,
-      teamId: TEAM_ID,
+      entryId: TEAM_ID,
       registrationId: TARGET_REG_ID,
       clientRequestId: CLIENT_REQUEST_ID,
     });
 
     expect(result.success).toBe(true);
 
-    const memberInserts = insertValuesCalls.filter((c) => c.table === "teamMembers");
+    const memberInserts = insertValuesCalls.filter((c) => c.table === "eventRosterMembers");
     expect(memberInserts).toHaveLength(1);
     const values = memberInserts[0].values as Record<string, string>;
-    expect(values.registrationId).toBe(TARGET_REG_ID);
     expect(values.userId).toBe(TARGET_USER_ID);
-    expect(values.seasonId).toBe(SEASON_ID);
+    expect(values.eventRosterId).toBe("roster-1");
   });
 
   it("draft regression: draftPick insert keeps registrationId provenance", async () => {
     const result = await pickPlayer({
       seasonId: SEASON_ID,
-      teamId: TEAM_ID,
+      entryId: TEAM_ID,
       registrationId: TARGET_REG_ID,
       clientRequestId: CLIENT_REQUEST_ID,
     });
@@ -236,6 +250,6 @@ describe("pickPlayer() — Rivals draft pick dual-write", () => {
     const values = pickInserts[0].values as Record<string, string>;
     expect(values.registrationId).toBe(TARGET_REG_ID);
     expect(values.seasonId).toBe(SEASON_ID);
-    expect(values.teamId).toBe(TEAM_ID);
+    expect(values.entryId).toBe(TEAM_ID);
   });
 });

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
-import { eq, asc, inArray } from "drizzle-orm";
+import { and, eq, asc, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, matches, teams, matchMaps, teamMembers, matchRosters, matchRosterPlayers } from "@/db/schema";
+import { seasons, matches, competitionEntries, eventRosters, eventRosterMembers, matchMaps, matchRosters, matchRosterPlayers } from "@/db/schema";
 import { users, seasonRegistrations } from "@/db/schema";
 import { requireSeasonAdmin } from "@/lib/auth/session";
 import { calculateStandings } from "@/lib/standings";
@@ -26,8 +26,6 @@ import { getFirstStageOfType, normalizeRegistrationConfig, normalizeStagePlan } 
 import Link from "next/link";
 import { getStartingLineupPreflightInTx } from "@/lib/match-rosters/service";
 
-export const dynamic = "force-dynamic";
-
 const STATUS_SORT_ORDER: Record<string, number> = {
   in_progress: 0,
   scheduled: 1,
@@ -35,7 +33,7 @@ const STATUS_SORT_ORDER: Record<string, number> = {
   cancelled: 3,
 };
 
-function mapCompletedMaps(records: { mapOrder: number; mapName: string; scoreA: number | null; scoreB: number | null; pickedByTeamId: string | null; teamAStartSide: string | null }[]) {
+function mapCompletedMaps(records: { mapOrder: number; mapName: string; scoreA: number | null; scoreB: number | null; pickedByEntryId: string | null; teamAStartSide: string | null }[]) {
   return records
     .filter((r) => r.scoreA !== null)
     .map((r) => ({
@@ -43,18 +41,18 @@ function mapCompletedMaps(records: { mapOrder: number; mapName: string; scoreA: 
       mapName: r.mapName,
       scoreA: r.scoreA as number,
       scoreB: r.scoreB as number,
-      pickedByTeamId: r.pickedByTeamId,
+      pickedByEntryId: r.pickedByEntryId,
       teamAStartSide: r.teamAStartSide as "t" | "ct" | null,
     }));
 }
 
-function mapPendingMaps(records: { mapOrder: number; mapName: string; scoreA: number | null; pickedByTeamId: string | null; teamAStartSide: string | null }[]) {
+function mapPendingMaps(records: { mapOrder: number; mapName: string; scoreA: number | null; pickedByEntryId: string | null; teamAStartSide: string | null }[]) {
   return records
     .filter((r) => r.scoreA === null)
     .map((r) => ({
       mapOrder: r.mapOrder,
       mapName: r.mapName,
-      pickedByTeamId: r.pickedByTeamId,
+      pickedByEntryId: r.pickedByEntryId,
       teamAStartSide: r.teamAStartSide as "t" | "ct" | null,
     }));
 }
@@ -102,9 +100,9 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
   await requireSeasonAdmin(season.id);
 
   const [allTeams, allMatches] = await Promise.all([
-    db.query.teams.findMany({
-      where: eq(teams.seasonId, season.id),
-      orderBy: [asc(teams.draftOrder)],
+    db.query.competitionEntries.findMany({
+      where: eq(competitionEntries.competitionId, season.id),
+      orderBy: [asc(competitionEntries.formationOrder)],
     }),
     db.query.matches.findMany({
       where: eq(matches.seasonId, season.id),
@@ -136,8 +134,8 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
   const playoffStage = getFirstStageOfType(stagePlan, ["double_elim", "single_elim"]);
   const statusFilter = (m: { status: string }) =>
     !filterStatus || filterStatus === "all" || m.status === filterStatus;
-  const teamFilter = (m: { teamAId: string; teamBId: string }) =>
-    !filterTeam || filterTeam === "all" || m.teamAId === filterTeam || m.teamBId === filterTeam;
+  const teamFilter = (m: { entryAId: string; entryBId: string }) =>
+    !filterTeam || filterTeam === "all" || m.entryAId === filterTeam || m.entryBId === filterTeam;
   const { views: allStageViews, unconfiguredMatches } = buildStageViews(stagePlan, allMatches);
   const stageViews = allStageViews.map((view) => ({
     ...view,
@@ -240,20 +238,24 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
     const [members, rosters] = await Promise.all([
       db
         .select({
-          id: teamMembers.id,
-          teamId: teamMembers.teamId,
+          id: eventRosterMembers.id,
+          entryId: eventRosters.entryId,
           steamName: users.steamName,
           displayName: users.displayName,
           perfectName: users.perfectName,
           primaryPosition: seasonRegistrations.primaryPosition,
         })
-        .from(teamMembers)
-        .innerJoin(users, eq(teamMembers.userId, users.id))
+        .from(eventRosterMembers)
+        .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
+        .innerJoin(users, eq(eventRosterMembers.userId, users.id))
         .leftJoin(
           seasonRegistrations,
-          eq(teamMembers.registrationId, seasonRegistrations.id),
+          and(
+            eq(seasonRegistrations.userId, eventRosterMembers.userId),
+            eq(seasonRegistrations.seasonId, season.id),
+          ),
         )
-        .where(inArray(teamMembers.teamId, allTeams.map((t) => t.id))),
+        .where(inArray(eventRosters.entryId, allTeams.map((t) => t.id))),
       displayedMatchIds.length > 0
         ? (async () => {
             const rosters = await db
@@ -284,7 +286,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
 
     allTeamMembers = members.map((r) => ({
       id: r.id,
-      teamId: r.teamId,
+      entryId: r.entryId,
       steamName: r.steamName ?? "未知",
       displayName: r.displayName ?? null,
       perfectName: r.perfectName ?? null,
@@ -292,9 +294,9 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
     }));
 
     for (const t of allTeamMembers) {
-      const arr = teamMembersByTeam.get(t.teamId) ?? [];
+      const arr = teamMembersByTeam.get(t.entryId) ?? [];
       arr.push(t);
-      teamMembersByTeam.set(t.teamId, arr);
+      teamMembersByTeam.set(t.entryId, arr);
     }
 
     for (const roster of rosters) {
@@ -305,12 +307,12 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
       const substitutes: string[] = [];
       for (const p of roster.players) {
         if (p.isStarter) {
-          starters.push(p.teamMemberId);
+          starters.push(p.eventRosterMemberId);
         } else {
-          substitutes.push(p.teamMemberId);
+          substitutes.push(p.eventRosterMemberId);
         }
       }
-      matchMap.set(roster.teamId, {
+      matchMap.set(roster.entryId, {
         rosterId: roster.id,
         starters,
         substitutes,
@@ -325,10 +327,10 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
     const rosters = rosterByMatch.get(match.id);
     if (!rosters) continue;
     const result = new Map<string, { valid: boolean; blockers: string[] }>();
-    for (const teamId of [match.teamAId, match.teamBId]) {
+    for (const teamId of [match.entryAId, match.entryBId]) {
       const roster = rosters.get(teamId);
       if (!roster) continue;
-      const preflight = await db.transaction((tx) => getStartingLineupPreflightInTx(tx, { match, teamId, starterIds: roster.starters, substituteIds: roster.substitutes }));
+      const preflight = await db.transaction((tx) => getStartingLineupPreflightInTx(tx, { match, entryId: teamId, starterIds: roster.starters, substituteIds: roster.substitutes }));
       result.set(teamId, { valid: preflight.valid, blockers: preflight.blockers });
     }
     preflightByMatch.set(match.id, result);
@@ -460,8 +462,8 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                   <div className="space-y-3">
                   {stageMatches.map((m) => {
                     const unknownTeamName = isPlayoff ? "TBD" : "未知队伍";
-                    const teamAName = teamMap.get(m.teamAId) ?? unknownTeamName;
-                    const teamBName = teamMap.get(m.teamBId) ?? unknownTeamName;
+                    const teamAName = teamMap.get(m.entryAId) ?? unknownTeamName;
+                    const teamBName = teamMap.get(m.entryBId) ?? unknownTeamName;
                     return (
                       <AdminMatchRow
                         key={m.id}
@@ -470,12 +472,12 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                         teamBName={teamBName}
                         seasonSlug={seasonSlug}
                         mapPool={mapPool}
-                        teamAMembers={teamMembersByTeam.get(m.teamAId) ?? []}
-                        teamBMembers={teamMembersByTeam.get(m.teamBId) ?? []}
-                        teamARoster={rosterByMatch.get(m.id)?.get(m.teamAId) ?? null}
-                        teamBRoster={rosterByMatch.get(m.id)?.get(m.teamBId) ?? null}
-                        teamAPreflight={preflightByMatch.get(m.id)?.get(m.teamAId) ?? null}
-                        teamBPreflight={preflightByMatch.get(m.id)?.get(m.teamBId) ?? null}
+                        teamAMembers={teamMembersByTeam.get(m.entryAId) ?? []}
+                        teamBMembers={teamMembersByTeam.get(m.entryBId) ?? []}
+                        teamARoster={rosterByMatch.get(m.id)?.get(m.entryAId) ?? null}
+                        teamBRoster={rosterByMatch.get(m.id)?.get(m.entryBId) ?? null}
+                        teamAPreflight={preflightByMatch.get(m.id)?.get(m.entryAId) ?? null}
+                        teamBPreflight={preflightByMatch.get(m.id)?.get(m.entryBId) ?? null}
                         completedMaps={mapCompletedMaps(mapsByMatchId.get(m.id) ?? [])}
                         pendingMaps={mapPendingMaps(mapsByMatchId.get(m.id) ?? [])}
                         finishedMaps={mapFinishedMaps(mapsByMatch.get(m.id) ?? [])}

@@ -1,7 +1,8 @@
 import React from "react";
 import Link from "next/link";
 import type { HomeNavEntry } from "@/lib/home/navigation";
-import { Btn, Marker, Panel } from "@/components/rivalhub";
+import { Marker, Panel } from "@/components/rivalhub";
+import { Button } from "@/components/ui/button";
 
 interface HomeNavigationProps {
   tier1Entry: HomeNavEntry | null;
@@ -98,9 +99,9 @@ export function HomeNavigation({
       {tier3Entries.length > 0 && (
         <div className="flex gap-2 flex-wrap">
           {tier3Entries.map((tile) => (
-            <Btn key={tile.href} ghost asChild>
+            <Button key={tile.href} variant="ghost" asChild>
               <Link href={tile.href as never}>{tile.label}</Link>
-            </Btn>
+            </Button>
           ))}
         </div>
       )}

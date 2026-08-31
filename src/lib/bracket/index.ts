@@ -1,7 +1,8 @@
 // Bracket 适配层——所有 brackets-manager 调用必须经过此模块
 // 禁止在业务代码中直接 import brackets-manager
 //
-// 持久化策略：bracket 完整状态（Database JSON）存储在 seasons.bracket_data
+// 持久化策略：bracket 完整状态（Database JSON）存储在
+// competition_bracket_states.data；业务读写统一经过本适配层。
 // 每次 advanceMatch 调用时：读取 → 重建内存 manager → 更新 → 序列化写回
 //
 // 参与者 ID 映射：seeding 按 draft_order ASC 排列
@@ -10,9 +11,12 @@
 import { BracketsManager } from "brackets-manager";
 import { InMemoryDatabase } from "brackets-memory-db";
 import { Status } from "brackets-model";
+import { eq } from "drizzle-orm";
+import type { DB, TxDb } from "@/db/client";
+import { competitionBracketStates } from "@/db/schema/competition-bracket-states";
 import type { Database } from "brackets-manager";
 export type { Database as BracketDatabase } from "brackets-manager";
-import type { Team } from "@/db/schema/teams";
+import type { CompetitionEntry } from "@/db/schema/competition-entries";
 
 type QualifierFormat = "round_robin" | "swiss";
 type PlayoffFormat = "double_elim" | "single_elim";
@@ -79,6 +83,35 @@ export interface ResolvedBracketMatch {
   groupNumber: number;
 }
 
+type BracketStateDatabase = DB | TxDb;
+
+/** Load the one bracket state owned by a competition. */
+export async function loadBracketState(
+  database: BracketStateDatabase,
+  competitionId: string,
+): Promise<Database | null> {
+  const row = await database.query.competitionBracketStates.findFirst({
+    where: eq(competitionBracketStates.competitionId, competitionId),
+  });
+  return row?.data ?? null;
+}
+
+/** Persist the bracket state without exposing the storage table to callers. */
+export async function saveBracketState(
+  database: BracketStateDatabase,
+  competitionId: string,
+  data: Database,
+): Promise<void> {
+  const updatedAt = new Date();
+  await database
+    .insert(competitionBracketStates)
+    .values({ competitionId, data, updatedAt })
+    .onConflictDoUpdate({
+      target: competitionBracketStates.competitionId,
+      set: { data, updatedAt },
+    });
+}
+
 function buildManager(data: Database): { manager: BracketsManager; db: InMemoryDatabase } {
   const db = new InMemoryDatabase();
   db.setData(data);
@@ -89,12 +122,12 @@ function buildManager(data: Database): { manager: BracketsManager; db: InMemoryD
 /**
  * 根据队伍列表与赛季 capability 初始化赛季 bracket。
  * 返回序列化后的 Database JSON 以及所有已确定对阵的 bracket match。
- * 调用方负责：将 data 写入 seasons.bracket_data，对每个 resolved match 创建 DB 记录。
+ * 调用方负责：将 data 写入 competition_bracket_states，对每个 resolved match 创建 DB 记录。
  *
  * teams 必须按 draft_order ASC 排列（draft_order=1 → participantId=0）。
  */
 export async function generateBracket(
-  teams: Team[],
+  teams: CompetitionEntry[],
   config: {
     qualifierFormat: QualifierFormat | null;
     playoffFormat: PlayoffFormat | null;
@@ -152,7 +185,7 @@ export async function generateBracket(
  * @param bracketNodeId  matches.bracket_node_id（brackets-manager match ID 字符串）
  * @param scoreA         TeamA 系列赛胜图数
  * @param scoreB         TeamB 系列赛胜图数
- * @param currentData    当前 seasons.bracket_data
+ * @param currentData    当前 competition_bracket_states.data
  */
 export async function advanceMatch(
   bracketNodeId: string,
@@ -185,7 +218,7 @@ export async function advanceMatch(
 }
 
 /**
- * 从 seasons.bracket_data 序列化为 brackets-viewer 可消费的格式。
+ * 从 competition_bracket_states.data 序列化为 brackets-viewer 可消费的格式。
  * 若 bracket 尚未生成（data 为 null），返回空结构。
  */
 export function serializeBracket(
@@ -285,7 +318,7 @@ export function serializeBracket(
  * 在所有排位赛结束后、管理员点击「生成正赛」时调用。
  *
  * @param seededTeamNames  按种子排序的队伍名称数组（seed 1 在 index 0）
- * @param currentData      当前 seasons.bracket_data
+ * @param currentData      当前 competition_bracket_states.data
  */
 export async function seedPlayoff(
   seededTeamNames: string[],

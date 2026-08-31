@@ -1,20 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { getPublicDisplayName } from "@/lib/utils/display-name";
+import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { positionLabel } from "@/lib/validators/registration";
 import type { DraftTeamSlot } from "@/lib/draft/data";
 
 interface TeamDraftGridProps {
   teams: DraftTeamSlot[];
-  currentTeamId: string | null;
+  currentEntryId: string | null;
   totalRounds: number;
   currentRound: number;
 }
 
 export function TeamDraftGrid({
   teams,
-  currentTeamId,
+  currentEntryId,
   totalRounds,
   currentRound,
 }: TeamDraftGridProps) {
@@ -36,13 +36,13 @@ export function TeamDraftGrid({
       {/* 移动端：手风琴列表 */}
       <div className="md:hidden space-y-2">
         {sorted.map((team) => {
-          const isCurrent = team.teamId === currentTeamId;
-          const isExpanded = isCurrent || expandedId === team.teamId;
+          const isCurrent = team.entryId === currentEntryId;
+          const isExpanded = isCurrent || expandedId === team.entryId;
           const emptySlots = Math.max(0, totalRounds - team.members.length);
 
           return (
             <div
-              key={team.teamId}
+              key={team.entryId}
               className={`border rounded-sm transition-colors ${
                 isCurrent
                   ? "border-[var(--color-accent)] bg-[var(--color-accent)]/5"
@@ -54,7 +54,7 @@ export function TeamDraftGrid({
                 className="w-full flex items-center justify-between px-3 py-2 text-left"
                 onClick={() =>
                   !isCurrent &&
-                  setExpandedId(isExpanded ? null : team.teamId)
+                  setExpandedId(isExpanded ? null : team.entryId)
                 }
               >
                 <div className="flex items-center gap-2 min-w-0">
@@ -92,7 +92,7 @@ export function TeamDraftGrid({
                   {/* 已选队员 */}
                   {team.members.map((m, index) => (
                     <div
-                      key={`${team.teamId}-${m.pickNumber || index}`}
+                      key={`${team.entryId}-${m.pickNumber || index}`}
                       className="flex items-center justify-between py-1"
                     >
                       <span className="text-xs text-[var(--color-fg)]">
@@ -134,14 +134,14 @@ export function TeamDraftGrid({
       {/* 桌面端：原有 Grid */}
       <div className="hidden md:grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {sorted.map((team) => {
-          const isCurrent = team.teamId === currentTeamId;
+          const isCurrent = team.entryId === currentEntryId;
           const maxSlots = totalRounds; // 6 picks per team
           const filledSlots = team.members.length;
           const emptySlots = Math.max(0, maxSlots - filledSlots);
 
           return (
             <div
-              key={team.teamId}
+              key={team.entryId}
               className={`rounded-lg border p-3 sm:p-4 transition-colors ${
                 isCurrent
                   ? "border-[var(--color-accent)] bg-[var(--color-accent)]/5"
@@ -171,7 +171,7 @@ export function TeamDraftGrid({
 
               {/* 已选队员 */}
               {team.members.map((m, index) => (
-                <div key={`${team.teamId}-${m.pickNumber || index}`} className="text-xs mb-0.5">
+                <div key={`${team.entryId}-${m.pickNumber || index}`} className="text-xs mb-0.5">
                   <span className="text-[var(--color-fg-mid)]">
                     R{m.pickRound}P{m.pickNumber}{" "}
                   </span>

@@ -11,9 +11,11 @@ RivalHub 以最高已完成的验证层级描述能力证据：
 | 体系 | 当前最高证据 | 范围 |
 |---|---|---|
 | Rivals · Spring | 生产实战验证 | 2026 NJU Rivals 完成个人报名、审核、队长投票、选秀、循环赛、双败淘汰、比赛管理、时间协商、BP/赛果、MVP、OCR 统计与赛季结束 |
-| Major · Autumn | 自动化生命周期验证 | unit/integration、Local Supabase 和 browser fixture 覆盖队伍报名、资格、prestart、三段 Swiss、Playoffs、roster、recovery、discipline 与 post-event |
+| Major · Autumn | 自动化生命周期验证 | unit/integration、Local Supabase 和 browser fixture 覆盖 Entry 报名、资格、prestart、三段 Swiss、Playoffs、roster、recovery、discipline 与 post-event |
 
-**2.0 RC 正式验证策略：**自动化与 Local Supabase 集成验证完成后，进行 RC production smoke；随后以真实报名逐步验证运营流程。完整 32 队 staging lifecycle 仍可作为专项演练，但不再是稳定 RC 的强制 gate。
+**2.0.0 之后的验证策略：**v2.0.0 已完成 production 恢复、17/17 migration 与 production smoke。后续变更仍按自动化、Local Supabase、适用的 browser/staging gate 和真实运营证据逐层验证；完整 32 队 staging lifecycle 可作为专项演练，但不是稳定版的强制 gate。
+
+真实注册确认邮件与密码重置邮件的投递是 production canary 和持续运营观察项。记录送达、延迟、退信及供应商异常，在真实流量中持续核对；它们不回溯为 2.0.0 release blocker，也不以 API 成功响应替代真实收件证据。
 
 ## Repository checks
 
@@ -21,38 +23,43 @@ RivalHub 以最高已完成的验证层级描述能力证据：
 |---|---|
 | `pnpm type-check` | Next route typegen + TypeScript |
 | `pnpm lint` | ESLint |
-| `pnpm test` | Vitest unit / integration suite |
-| `pnpm test:e2e` | Playwright browser suite |
+| `pnpm test` | Vitest unit suite 与不依赖数据库的组件/领域测试 |
+| `pnpm test:coverage` | V8 覆盖率诊断报告，不作为百分比 gate |
+| `pnpm test:integration` | 通过 Local runner 串行运行真实 PostgreSQL / migration replay suite |
+| `pnpm test:e2e` | 准备并清理 Local browser fixture 后运行 Playwright |
+| `pnpm check` | type-check + lint + db:check + test |
+| `pnpm verify` | check + production build；build 不需要数据库或 fake DB URL |
+| `pnpm verify:local` | 确保 Local ready，bootstrap/verify、verify、real-PG integration 与 browser E2E |
 | `pnpm db:check` | Drizzle active migration chain |
 | `pnpm build` | production build |
+| `pnpm build:local` | 注入 loopback Local Supabase 环境的 production build |
 
-Local Supabase 集成入口：
+`pnpm test:integration` 与 `pnpm test:e2e` 都拒绝缺少或非 loopback 的 Local 数据库目标。前者运行 `tests/integration/db/**/*.test.ts`，后者通过 `pnpm dev:local` 启动应用，并在测试前后自动创建、清理 browser fixture；运行前先执行 `pnpm db:local:bootstrap`。
+
+Local PostgreSQL / migration evidence：
+
+多个 worktree 共享同一个 Local Supabase project/端口时，scripts/db/local.ts 会对 bootstrap、migration、seed、verify、real-PG integration、browser E2E、reset 和 verify:local 持有跨 worktree 的 OS 临时目录锁；占用者结束后才继续，异常退出留下的锁会按 PID 存活状态回收。普通 type-check、unit test 与 build 不经过该锁。`auth-permissions.test.ts` 回放 active migration 的旧权限数据并检查成功 backfill 与 fail-closed；`invite-concurrency.test.ts` 直接调用生产 `claimAdminInviteInTx`，用真实 PostgreSQL 事务证明 invite 锁、claim ledger、maxUses、grant 与 audit 的并发收敛。
 
 ```bash
-pnpm test:team-registration:local
-pnpm test:major-profile:local
-pnpm test:major-browser:local
-pnpm test:major-lifecycle:local
-pnpm test:major-prestart:local
-pnpm test:major-roster-safety:local
-pnpm test:major-result-recovery:local
-pnpm test:discipline:local
-pnpm test:postevent:local
-pnpm test:season-governance:local
+pnpm test:integration
+pnpm test:integration -- tests/integration/db/major-start.test.ts
+pnpm test:integration -- tests/integration/db/migrations/competitive-catalog.test.ts
+pnpm test:e2e
+pnpm verify:local
 ```
 
-这些命令经 `scripts/db/local.ts` 运行，目标为 Local Supabase。`test:major-golden:local`、`test:major-start:local` 与 `test:major-swiss:local` 是 `test:major-lifecycle:local` 的 aliases。
+所有 real-PG 套件通过 `scripts/db/local.ts` 注入同一个 loopback Local Supabase 目标，并由 `vitest.integration.config.ts` 关闭文件并发、保持 fixture 顺序独立。migration replay 使用独立 scratch database；不使用 testcontainers，也不以 mock 代替事务、约束或并发证据。需要缩小调试范围时直接使用 Vitest 文件或 `-t` pattern filter。
 
-## Coverage intent
+## Verification contracts
 
-单元测试覆盖 capability、状态和 action input boundary，包括 persisted template identity、custom definition validator（executor registry 与 groupCount 晋级计算）、qualification batch/single parity 与竞技上下文冻结/解冻；本地集成测试覆盖 Major team registration、长期 participant profile、browser fixture、prestart、StageRun lifecycle、roster safety、result recovery、discipline、post-event，以及 season governance（空赛季删除/撤回 guard、竞技冻结生命周期、队长交接并发语义）。历史 Golden Major rehearsal 保存在 [`archive/rehearsals/`](./archive/rehearsals/)，不是当前策略的替代品。
+单元测试覆盖 capability、状态和 action input boundary，包括 persisted template identity、custom definition validator（executor registry 与 groupCount 晋级计算）、qualification batch/single parity 与竞技上下文冻结/解冻；本地集成测试覆盖 Major Entry registration（含跨 Entry aggregate invariant）、0017 migration replay、长期 participant profile、browser fixture、prestart（含 prestart↔CompetitionEntry coherence guard）、StageRun lifecycle（含开赛前名单一致性 fail-closed 与开赛时按冻结规则重验竞技资料）、roster safety、result recovery、discipline、post-event、“我的”资料/Team/CompetitionEntry/qualification/sanction 组合 read model、Team 邀请过期生命周期，以及 season governance（空赛季删除/撤回 guard、竞技冻结生命周期、队长交接并发语义、行锁终态转换与原子审计）。所有入口都运行在 CompetitionEntry/event-roster schema 上。历史 Golden Major rehearsal 保存在 [`archive/rehearsals/`](./archive/rehearsals/)，不是当前策略的替代品。
 
 ## Test layers
 
 ```text
-Vitest unit/integration
+Vitest unit
         ↓
-Local Supabase integration
+Vitest real-PG / migration replay
         ↓
 Playwright browser E2E
         ↓
@@ -69,9 +76,10 @@ real registrations progressive validation
 
 ```text
 管理员创建 Major → 发布 → 用户注册 → 邮箱确认 → participant profile
-→ education verification → competitive profile → team application → logo
-→ member invite / confirmation → designated starters → submit → review
-→ return → edit → resubmit → approve → materialized team → prestart
+→ education verification → competitive profile → 长期 Team → 创建
+CompetitionEntry → roster revision → member invite / confirmation
+→ designated starters → submit → review
+→ return → edit → resubmit → approve → prestart
 → entrants → final rosters → seeds → lock/start → Stage 1 → Stage 2
 → Stage 3 → Playoffs → champion → result correction → discipline
 → post-event → archive

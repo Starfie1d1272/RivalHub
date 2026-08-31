@@ -50,7 +50,7 @@ export function CaptainConfirmPanel({
         toast.error(result.error.message);
         return;
       }
-      toast.success(`已生成 ${result.data.teamIds.length} 支队伍`);
+      toast.success(`已生成 ${result.data.entryIds.length} 支队伍`);
       router.refresh();
     });
   }

@@ -34,6 +34,7 @@ pnpm db:studio
 9. 时间存 UTC，展示层转换为 Asia/Shanghai。
 10. Server-side query 可以读取业务所需私密字段；公开 RSC payload 与 Client Component props 必须经过明确 public DTO/read model，不能直接序列化内部查询对象。
 11. Server Action 负责鉴权、validation 与 transaction boundary；可复用复杂 domain logic 下沉至 `src/lib/<domain>/`，避免 action/page 重复实现。
+12. 新增 formatter、fallback、derived state、modal、database test harness 或 domain helper 前，先搜索已有 canonical owner；禁止在 page/action/component 内建立第二套相同业务规则。
 
 ## Database and security
 
@@ -54,6 +55,11 @@ pnpm db:studio
 
 - `main` 是 production branch，`dev` 是下一版本 integration/staging branch；二者均不 force push，只通过 PR 合入。
 - 常规工作从 `dev` 建 `feat/*`、`fix/*`、`docs/*` 等分支，PR base 为 `dev`；production hotfix 从 `main` 开始并回同步到 `dev`。
+- 面向协作者的 Issue / PR 标题与正文、Changeset 摘要和 release note **默认使用中文**；真实代码名、字段名、协议名、库名和其他必要技术术语可保留英文。
+- 会进入版本发布、影响用户/管理员体验或 production runtime/data contract 的 `feat` / `fix` / `refactor` / migration / runtime security 变更，必须在**同一个 feature PR** 中提交对应 `.changeset/*.md`；不要把 changeset 留到发版时补写。
+- 纯文档、纯测试、CI/开发工具，以及仅 development dependency 且不改变 shipped runtime / 用户行为的变更，可以不写 changeset；PR 中应明确写出“无需 changeset”及原因。
+- Changeset 摘要是面向 release/CHANGELOG 的用户可读说明，默认用中文描述可观察影响，不把内部实现细节或 commit message 原样当作 release note。
+- feature PR 合入 `dev` 时关联 Issue 使用 `Refs #N`；不要依赖 `Closes #N` 在非默认分支自动关 Issue。Issue 在对应变更进入 `main` / release convergence 后统一关闭。
 - 版本、CHANGELOG 与 release path 由 Changesets 和 `.claude/skills/release.md` 共同定义。禁止手改 `package.json` version，且仅在 release commit 已进入 `main` 后创建 release tag。
 
 ## Documentation authority

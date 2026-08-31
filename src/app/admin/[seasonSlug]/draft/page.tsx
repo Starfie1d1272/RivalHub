@@ -2,12 +2,10 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { eq, count } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, teams } from "@/db/schema";
+import { seasons, competitionEntries } from "@/db/schema";
 import { Marker } from "@/components/rivalhub";
 import { DraftAdminPanel } from "@/components/draft/DraftAdminPanel";
 import { getDraftAdminData } from "@/lib/draft/data";
-
-export const dynamic = "force-dynamic";
 
 interface AdminDraftPageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -27,8 +25,8 @@ export default async function AdminDraftPage({ params }: AdminDraftPageProps) {
 
   const [teamCountRow] = await db
     .select({ count: count() })
-    .from(teams)
-    .where(eq(teams.seasonId, season.id));
+    .from(competitionEntries)
+    .where(eq(competitionEntries.competitionId, season.id));
   const teamCount = Number(teamCountRow?.count ?? 0);
 
   const data = season.hasDraft ? await getDraftAdminData(season.id) : null;

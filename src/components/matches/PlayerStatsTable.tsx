@@ -1,21 +1,22 @@
 import React from "react";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matchPlayerStats } from "@/db/schema/player-stats";
+import { eventRosterMembers, eventRosters } from "@/db/schema";
 import { MatchSummaryStats, type SummaryPlayer } from "./MatchSummaryStats";
 
 interface PlayerStatsTableProps {
   mapId: string;
-  teamAId: string;
-  teamBId: string;
+  entryAId: string;
+  entryBId: string;
   teamAName: string;
   teamBName: string;
 }
 
 async function getStatsGroupedByTeam(
   mapId: string,
-  teamAId: string,
-  teamBId: string,
+  entryAId: string,
+  entryBId: string,
 ) {
   const stats = await db.query.matchPlayerStats.findMany({
     where: eq(matchPlayerStats.mapId, mapId),
@@ -26,29 +27,29 @@ async function getStatsGroupedByTeam(
 
   const userIds = stats.map((s) => s.userId).filter(Boolean) as string[];
   const memberships = userIds.length
-    ? await db.query.teamMembers.findMany({
-        where: (t, { inArray: inArr, and, eq: eqFn, or: orFn }) =>
-          and(
-            inArr(t.userId, userIds),
-            orFn(eqFn(t.teamId, teamAId), eqFn(t.teamId, teamBId)),
-          ),
-        columns: { userId: true, teamId: true },
-      })
+    ? await db
+        .select({ userId: eventRosterMembers.userId, entryId: eventRosters.entryId })
+        .from(eventRosterMembers)
+        .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
+        .where(and(
+          inArray(eventRosterMembers.userId, userIds),
+          inArray(eventRosters.entryId, [entryAId, entryBId]),
+        ))
     : [];
 
-  const userIdToTeam = new Map(memberships.map((m) => [m.userId, m.teamId]));
+  const userIdToTeam = new Map(memberships.map((m) => [m.userId, m.entryId]));
 
-  const teamARows = stats.filter((s) => s.userId && userIdToTeam.get(s.userId) === teamAId);
-  const teamBRows = stats.filter((s) => s.userId && userIdToTeam.get(s.userId) === teamBId);
+  const teamARows = stats.filter((s) => s.userId && userIdToTeam.get(s.userId) === entryAId);
+  const teamBRows = stats.filter((s) => s.userId && userIdToTeam.get(s.userId) === entryBId);
   const unmatched = stats.filter((s) => !s.userId || !userIdToTeam.has(s.userId));
   const half = Math.ceil(unmatched.length / 2);
 
   return {
     teamA: [...teamARows, ...unmatched.slice(0, half)].map((s) =>
-      toSummaryPlayer(s, teamAId),
+      toSummaryPlayer(s, entryAId),
     ),
     teamB: [...teamBRows, ...unmatched.slice(half)].map((s) =>
-      toSummaryPlayer(s, teamBId),
+      toSummaryPlayer(s, entryBId),
     ),
   };
 }
@@ -77,12 +78,12 @@ function toSummaryPlayer(s: StatRow, teamId: string): SummaryPlayer {
 
 export async function PlayerStatsTable({
   mapId,
-  teamAId,
-  teamBId,
+  entryAId,
+  entryBId,
   teamAName,
   teamBName,
 }: PlayerStatsTableProps) {
-  const { teamA, teamB } = await getStatsGroupedByTeam(mapId, teamAId, teamBId);
+  const { teamA, teamB } = await getStatsGroupedByTeam(mapId, entryAId, entryBId);
 
   if (teamA.length === 0 && teamB.length === 0) {
     return <p className="text-xs text-[var(--color-fg-dim)] py-2">暂无玩家数据</p>;
@@ -91,8 +92,8 @@ export async function PlayerStatsTable({
   return (
     <MatchSummaryStats
       players={[...teamA, ...teamB]}
-      teamAId={teamAId}
-      teamBId={teamBId}
+      entryAId={entryAId}
+      entryBId={entryBId}
       teamAName={teamAName}
       teamBName={teamBName}
       noPanel

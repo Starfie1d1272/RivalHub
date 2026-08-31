@@ -5,8 +5,8 @@ import { getFirstStageOfType, getPreviousStage, type StagePlan } from "@/types/s
 interface StageMatch {
   stage: string;
   status: string;
-  teamAId: string;
-  teamBId: string;
+  entryAId: string;
+  entryBId: string;
 }
 
 export interface StageViewsResult<T extends StageMatch> {
@@ -72,9 +72,9 @@ export function hasAdjacentLegacyQualifierPlayoff(stagePlan: StagePlan): boolean
  */
 export function getTeamsReferencedByMatches<T extends { id: string }>(
   teams: readonly T[],
-  stageMatches: readonly Pick<StageMatch, "teamAId" | "teamBId">[],
+  stageMatches: readonly Pick<StageMatch, "entryAId" | "entryBId">[],
 ): T[] {
-  const teamIds = new Set(stageMatches.flatMap((match) => [match.teamAId, match.teamBId]));
+  const teamIds = new Set(stageMatches.flatMap((match) => [match.entryAId, match.entryBId]));
   return teams.filter((team) => teamIds.has(team.id));
 }
 
@@ -117,14 +117,14 @@ export function projectLegacyBracketByStageName(
  */
 export function canUseLegacySwissView(
   stage: StagePlan[number],
-  stageMatches: readonly Pick<StageMatch, "teamAId" | "teamBId">[],
+  stageMatches: readonly Pick<StageMatch, "entryAId" | "entryBId">[],
   swissData: SwissViewData | undefined,
 ): swissData is SwissViewData {
   if (stage.type !== "swiss" || stageMatches.length === 0 || !swissData) return false;
-  if (swissData.teamCount !== stage.teamCount || swissData.teams.length !== stage.teamCount) return false;
+  if (swissData.teamCount !== stage.teamCount || swissData.competitionEntries.length !== stage.teamCount) return false;
 
-  const standingTeamIds = new Set(swissData.teams.map((team) => team.teamId));
+  const standingTeamIds = new Set(swissData.competitionEntries.map((entry) => entry.entryId));
   return stageMatches.every(
-    (match) => standingTeamIds.has(match.teamAId) && standingTeamIds.has(match.teamBId),
+    (match) => standingTeamIds.has(match.entryAId) && standingTeamIds.has(match.entryBId),
   );
 }

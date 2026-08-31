@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   getSnakeOrder,
-  getNextTeamId,
+  getNextEntryId,
   isDraftComplete,
   computeTeamPositionCounts,
   canPickPosition,
@@ -53,37 +53,37 @@ describe("getSnakeOrder", () => {
   });
 });
 
-describe("getNextTeamId", () => {
+describe("getNextEntryId", () => {
   it("advances to next team in same round (reverse, round 1)", () => {
-    const next = getNextTeamId(ALL_TEAMS, "t5", 1);
-    expect(next).toEqual({ teamId: "t4", nextRound: 1 });
+    const next = getNextEntryId(ALL_TEAMS, "t5", 1);
+    expect(next).toEqual({ entryId: "t4", nextRound: 1 });
   });
 
   it("advances to next team in same round (forward, round 2)", () => {
-    const next = getNextTeamId(ALL_TEAMS, "t3", 2);
-    expect(next).toEqual({ teamId: "t4", nextRound: 2 });
+    const next = getNextEntryId(ALL_TEAMS, "t3", 2);
+    expect(next).toEqual({ entryId: "t4", nextRound: 2 });
   });
 
   it("wraps to next round when last team in reverse round", () => {
     // Round 1 is odd (reverse), last to pick is t1
-    const next = getNextTeamId(ALL_TEAMS, "t1", 1);
-    expect(next).toEqual({ teamId: "t1", nextRound: 2 });
+    const next = getNextEntryId(ALL_TEAMS, "t1", 1);
+    expect(next).toEqual({ entryId: "t1", nextRound: 2 });
   });
 
   it("wraps to next round when last team in forward round", () => {
     // Round 2 is even (forward), last to pick is t8
-    const next = getNextTeamId(ALL_TEAMS, "t8", 2);
-    expect(next).toEqual({ teamId: "t8", nextRound: 3 });
+    const next = getNextEntryId(ALL_TEAMS, "t8", 2);
+    expect(next).toEqual({ entryId: "t8", nextRound: 3 });
   });
 
   it("returns null when draft is complete (round 6, last team)", () => {
     // Round 6 is even (forward), last to pick is t8
-    const next = getNextTeamId(ALL_TEAMS, "t8", 6);
+    const next = getNextEntryId(ALL_TEAMS, "t8", 6);
     expect(next).toBeNull();
   });
 
   it("returns null for unknown team", () => {
-    const next = getNextTeamId(ALL_TEAMS, "unknown", 1);
+    const next = getNextEntryId(ALL_TEAMS, "unknown", 1);
     expect(next).toBeNull();
   });
 });
@@ -105,10 +105,10 @@ describe("isDraftComplete", () => {
 describe("computeTeamPositionCounts", () => {
   it("counts positions per team", () => {
     const members = [
-      { teamId: "a", primaryPosition: "igl" },
-      { teamId: "a", primaryPosition: "igl" },
-      { teamId: "a", primaryPosition: "awper" },
-      { teamId: "b", primaryPosition: "igl" },
+      { entryId: "a", primaryPosition: "igl" },
+      { entryId: "a", primaryPosition: "igl" },
+      { entryId: "a", primaryPosition: "awper" },
+      { entryId: "b", primaryPosition: "igl" },
     ];
     const result = computeTeamPositionCounts(members);
 

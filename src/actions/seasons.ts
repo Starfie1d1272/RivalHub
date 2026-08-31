@@ -1,10 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, count, inArray, sql } from "drizzle-orm";
+import { eq, count, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
-import { adminInvites, auditLogs, captainVotes, seasonRegistrations, seasons, teams, users } from "@/db/schema";
+import { adminInviteClaims, adminInvites, auditLogs, captainVotes, seasonRegistrations, seasons, competitionEntries } from "@/db/schema";
 import { ok, fail, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { actionError } from "@/lib/action-utils";
@@ -12,7 +12,7 @@ import { parseCSTInput } from "@/lib/utils/date";
 import { auditActorId, requireSuperAdmin } from "@/lib/auth/session";
 import { normalizeRegistrationConfig, type StagePlan } from "@/types/season";
 import { validateCompetitionDefinition } from "@/lib/competition/definition";
-import { assertSeasonHasNoHistoricalFacts, freezeCompetitiveContext, unfreezeBuiltInCompetitiveContext } from "@/lib/seasons/lifecycle";
+import { assertSeasonHasNoHistoricalFacts, freezeCompetitiveContext, transitionSeasonStatusInTx, unfreezeBuiltInCompetitiveContext } from "@/lib/seasons/lifecycle";
 import { seasonFormSchema, seasonUpdateFormSchema, planSeasonCreate, planSeasonUpdate, type SeasonFormInput } from "@/lib/seasons/edit";
 
 export type { SeasonFormInput };
@@ -63,18 +63,21 @@ export async function createSeason(input: SeasonFormInput): Promise<ActionResult
     }
 
     const plan = planSeasonCreate(parsed.data);
-    const [season] = await db.insert(seasons).values({
-      ...plan.set,
-      ...toDbDates(parsed.data),
-    }).returning({ id: seasons.id, slug: seasons.slug });
-
-    await db.insert(auditLogs).values({
-      seasonId: season.id,
-      action: "season.create",
-      actorId: auditActorId(admin),
-      targetId: season.id,
-      targetType: "season",
-      meta: { slug: season.slug },
+    const season = await db.transaction(async (tx) => {
+      const [created] = await tx.insert(seasons).values({
+        ...plan.set,
+        ...toDbDates(parsed.data),
+      }).returning({ id: seasons.id, slug: seasons.slug });
+      if (!created) throw new AppError(ErrorCode.INTERNAL_ERROR, "赛季创建失败。");
+      await tx.insert(auditLogs).values({
+        seasonId: created.id,
+        action: "season.create",
+        actorId: auditActorId(admin),
+        targetId: created.id,
+        targetType: "season",
+        meta: { slug: created.slug },
+      });
+      return created;
     });
 
     revalidatePath("/admin");
@@ -96,32 +99,31 @@ export async function updateSeason(input: SeasonFormInput): Promise<ActionResult
       });
     }
 
-    const existing = await db.query.seasons.findFirst({
-      where: eq(seasons.id, parsed.data.id),
-    });
-    if (!existing) throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
-    if (existing.slug !== parsed.data.slug) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, "编辑赛季时不能修改 slug");
-    }
-    const { template, set } = planSeasonUpdate(existing, parsed.data);
-
-    await db.update(seasons).set({
-      ...set,
-      ...toDbDates(parsed.data),
-    }).where(eq(seasons.id, existing.id));
-
-    await db.insert(auditLogs).values({
-      seasonId: existing.id,
-      action: "season.update",
-      actorId: auditActorId(admin),
-      targetId: existing.id,
-      targetType: "season",
-      meta: { slug: existing.slug, template, metadataOnly: !("stagePlan" in set) },
+    const updated = await db.transaction(async (tx) => {
+      const [existing] = await tx.select().from(seasons).where(eq(seasons.id, parsed.data.id)).for("update");
+      if (!existing) throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
+      if (existing.slug !== parsed.data.slug) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "编辑赛季时不能修改 slug");
+      }
+      const { template, set } = planSeasonUpdate(existing, parsed.data);
+      await tx.update(seasons).set({
+        ...set,
+        ...toDbDates(parsed.data),
+      }).where(eq(seasons.id, existing.id));
+      await tx.insert(auditLogs).values({
+        seasonId: existing.id,
+        action: "season.update",
+        actorId: auditActorId(admin),
+        targetId: existing.id,
+        targetType: "season",
+        meta: { slug: existing.slug, template, metadataOnly: !("stagePlan" in set) },
+      });
+      return existing;
     });
 
     revalidatePath("/admin");
-    revalidatePath(`/admin/${existing.slug}/settings`);
-    return ok({ slug: existing.slug });
+    revalidatePath(`/admin/${updated.slug}/settings`);
+    return ok({ slug: updated.slug });
   } catch (e) {
     return actionError("updateSeason", e);
   }
@@ -167,14 +169,14 @@ export async function deleteSeason(seasonId: string): Promise<ActionResult<void>
       if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
       if (season.status !== "draft") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有 draft 状态可删除");
       await assertSeasonHasNoHistoricalFacts(tx, seasonId);
-      const usedInvite = await tx.query.adminInvites.findFirst({
-        where: and(eq(adminInvites.seasonId, seasonId), sql`${adminInvites.usedCount} > 0`),
-        columns: { id: true },
-      });
+      const [usedInvite] = await tx
+        .select({ id: adminInvites.id })
+        .from(adminInvites)
+        .innerJoin(adminInviteClaims, eq(adminInviteClaims.inviteId, adminInvites.id))
+        .where(eq(adminInvites.seasonId, seasonId))
+        .limit(1);
       if (usedInvite) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "该赛季已有管理员授权记录，不能删除。");
       await tx.delete(adminInvites).where(eq(adminInvites.seasonId, seasonId));
-      await tx.update(users).set({ adminSeasonIds: sql`array_remove(${users.adminSeasonIds}, ${seasonId}::uuid)`, updatedAt: new Date() })
-        .where(sql`${seasonId}::uuid = ANY(${users.adminSeasonIds})`);
       await tx.delete(seasons).where(eq(seasons.id, seasonId));
       await tx.insert(auditLogs).values({
         seasonId: null,
@@ -239,23 +241,19 @@ export async function revertSeasonToDraft(seasonId: string): Promise<ActionResul
 export async function revertSeasonToRegistration(seasonId: string): Promise<ActionResult<{ slug: string }>> {
   try {
     const admin = await requireSuperAdmin();
-    const season = await db.query.seasons.findFirst({
-      where: eq(seasons.id, seasonId),
-    });
-    if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
-    if (season.status !== "voting") {
-      throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有 voting 状态可撤回至报名");
-    }
-
-    const [existingTeamCount] = await db
-      .select({ count: count() })
-      .from(teams)
-      .where(eq(teams.seasonId, seasonId));
-    if (Number(existingTeamCount?.count ?? 0) > 0) {
-      throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "已生成队伍，不能撤回至报名");
-    }
-
-    await db.transaction(async (tx) => {
+    const season = await db.transaction(async (tx) => {
+      const [locked] = await tx.select().from(seasons).where(eq(seasons.id, seasonId)).for("update");
+      if (!locked) throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
+      if (locked.status !== "voting") {
+        throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有 voting 状态可撤回至报名");
+      }
+      const [existingTeamCount] = await tx
+        .select({ count: count() })
+        .from(competitionEntries)
+        .where(eq(competitionEntries.competitionId, seasonId));
+      if (Number(existingTeamCount?.count ?? 0) > 0) {
+        throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "已生成队伍，不能撤回至报名");
+      }
       const regIds = tx
         .select({ id: seasonRegistrations.id })
         .from(seasonRegistrations)
@@ -274,8 +272,9 @@ export async function revertSeasonToRegistration(seasonId: string): Promise<Acti
         actorId: auditActorId(admin),
         targetId: seasonId,
         targetType: "season",
-        meta: { slug: season.slug, from: "voting", to: "registration" },
+        meta: { slug: locked.slug, from: "voting", to: "registration" },
       });
+      return locked;
     });
 
     revalidatePath("/admin");
@@ -291,27 +290,14 @@ export async function revertSeasonToRegistration(seasonId: string): Promise<Acti
 export async function forceFinishSeason(seasonId: string): Promise<ActionResult<{ slug: string }>> {
   try {
     const admin = await requireSuperAdmin();
-    const season = await db.query.seasons.findFirst({
-      where: eq(seasons.id, seasonId),
-    });
-    if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
-    if (season.status !== "playing") {
-      throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有 playing 状态可手动结束");
-    }
-
-    await db.update(seasons).set({
-      status: "finished",
-      updatedAt: new Date(),
-    }).where(eq(seasons.id, seasonId));
-
-    await db.insert(auditLogs).values({
+    const season = await db.transaction((tx) => transitionSeasonStatusInTx(tx, {
       seasonId,
+      from: "playing",
+      to: "finished",
       action: "season.force_finish",
       actorId: auditActorId(admin),
-      targetId: seasonId,
-      targetType: "season",
-      meta: { slug: season.slug, from: "playing", to: "finished" },
-    });
+      failureMessage: "只有 playing 状态可手动结束",
+    }));
 
     revalidatePath("/admin");
     revalidatePath(`/admin/${season.slug}/settings`);
@@ -326,27 +312,14 @@ export async function forceFinishSeason(seasonId: string): Promise<ActionResult<
 export async function archiveSeason(seasonId: string): Promise<ActionResult<{ slug: string }>> {
   try {
     const admin = await requireSuperAdmin();
-    const season = await db.query.seasons.findFirst({
-      where: eq(seasons.id, seasonId),
-    });
-    if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
-    if (season.status !== "finished") {
-      throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有 finished 状态可归档");
-    }
-
-    await db.update(seasons).set({
-      status: "archived",
-      updatedAt: new Date(),
-    }).where(eq(seasons.id, seasonId));
-
-    await db.insert(auditLogs).values({
+    const season = await db.transaction((tx) => transitionSeasonStatusInTx(tx, {
       seasonId,
+      from: "finished",
+      to: "archived",
       action: "season.archive",
       actorId: auditActorId(admin),
-      targetId: seasonId,
-      targetType: "season",
-      meta: { slug: season.slug, from: "finished", to: "archived" },
-    });
+      failureMessage: "只有 finished 状态可归档",
+    }));
 
     revalidatePath("/admin");
     revalidatePath(`/admin/${season.slug}/settings`);

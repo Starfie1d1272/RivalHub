@@ -1,10 +1,11 @@
-import { and, asc, count, eq, inArray, isNotNull, notInArray, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNotNull, notInArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   draftState,
   draftPicks,
-  teams,
-  teamMembers,
+  competitionEntries,
+  eventRosterMembers,
+  eventRosters,
   seasonRegistrations,
   users,
 } from "@/db/schema";
@@ -15,7 +16,7 @@ import { getSnakeOrder } from "./rules";
 // ── 公开 DTO ─────────────────────────────────────────────
 
 export interface DraftTeamSlot {
-  teamId: string;
+  entryId: string;
   teamName: string;
   draftOrder: number;
   captain: {
@@ -65,13 +66,13 @@ export interface CaptainDraftPlayer extends PublicDraftPlayer {
 
 export interface DraftLiveState {
   currentRound: number;
-  currentTeamId: string | null;
+  currentEntryId: string | null;
   roundDeadline: string | null;
   isActive: boolean;
 }
 
 export interface DraftCompletedPick {
-  teamId: string;
+  entryId: string;
   steamName: string;
   displayName: string | null;
   perfectName: string | null;
@@ -185,49 +186,50 @@ async function loadDraftBase(seasonId: string): Promise<DraftBaseData> {
 
   const draftTeamRows = await db
     .select({
-      id: teams.id,
-      name: teams.name,
-      draftOrder: teams.draftOrder,
-      captainRegistrationId: teams.captainRegistrationId,
+      id: competitionEntries.id,
+      name: competitionEntries.name,
+      draftOrder: competitionEntries.formationOrder,
+      captainRegistrationId: competitionEntries.sourceRegistrationId,
     })
-    .from(teams)
+    .from(competitionEntries)
     .where(
       and(
-        eq(teams.seasonId, seasonId),
-        isNotNull(teams.draftOrder),
-        isNotNull(teams.captainRegistrationId),
+        eq(competitionEntries.competitionId, seasonId),
+        isNotNull(competitionEntries.formationOrder),
+        isNotNull(competitionEntries.sourceRegistrationId),
       ),
     )
-    .orderBy(asc(teams.draftOrder));
+    .orderBy(asc(competitionEntries.formationOrder));
   const teamRows = draftTeamRows.filter(
     (team): team is typeof team & { draftOrder: number; captainRegistrationId: string } =>
       team.draftOrder !== null && team.captainRegistrationId !== null,
   );
 
-  const teamIds = teamRows.map((team) => team.id);
+  const entryIds = teamRows.map((team) => team.id);
   const allMembers =
-    teamIds.length > 0
+    entryIds.length > 0
       ? await db
           .select({
-            teamId: teamMembers.teamId,
-            registrationId: sql<string>`${teamMembers.registrationId}`.as("registration_id"),
+            entryId: eventRosters.entryId,
+            registrationId: seasonRegistrations.id,
             steamName: users.steamName,
             perfectName: users.perfectName,
             displayName: users.displayName,
             primaryPosition: seasonRegistrations.primaryPosition,
           })
-          .from(teamMembers)
-          .innerJoin(
-            seasonRegistrations,
-            eq(teamMembers.registrationId, seasonRegistrations.id),
-          )
+          .from(eventRosterMembers)
+          .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
+          .innerJoin(seasonRegistrations, and(
+            eq(eventRosterMembers.userId, seasonRegistrations.userId),
+            eq(seasonRegistrations.seasonId, seasonId),
+          ))
           .leftJoin(users, eq(seasonRegistrations.userId, users.id))
-          .where(inArray(teamMembers.teamId, teamIds))
+          .where(inArray(eventRosters.entryId, entryIds))
       : [];
 
   const pickRows = await db
     .select({
-      teamId: draftPicks.teamId,
+      entryId: draftPicks.entryId,
       registrationId: draftPicks.registrationId,
       round: draftPicks.round,
       pickNumber: draftPicks.pickNumber,
@@ -253,9 +255,9 @@ async function loadDraftBase(seasonId: string): Promise<DraftBaseData> {
 
   const membersByTeam = new Map<string, typeof allMembers>();
   for (const member of allMembers) {
-    const list = membersByTeam.get(member.teamId) ?? [];
+    const list = membersByTeam.get(member.entryId) ?? [];
     list.push(member);
-    membersByTeam.set(member.teamId, list);
+    membersByTeam.set(member.entryId, list);
   }
 
   const picksByRegistrationId = new Map<string, (typeof pickRows)[number]>();
@@ -285,7 +287,7 @@ async function loadDraftBase(seasonId: string): Promise<DraftBaseData> {
       .sort((a, b) => a.pickNumber - b.pickNumber);
 
     return {
-      teamId: team.id,
+      entryId: team.id,
       teamName: team.name,
       draftOrder: team.draftOrder,
       captain: {
@@ -309,7 +311,7 @@ async function loadDraftBase(seasonId: string): Promise<DraftBaseData> {
     state: state
       ? {
           currentRound: state.currentRound,
-          currentTeamId: state.currentTeamId,
+          currentEntryId: state.currentEntryId,
           roundDeadline: state.roundDeadline?.toISOString() ?? null,
           isActive: state.isActive,
         }
@@ -317,7 +319,7 @@ async function loadDraftBase(seasonId: string): Promise<DraftBaseData> {
     teams: draftTeams,
     snakeOrder,
     completedPicks: pickRows.map((pick) => ({
-      teamId: pick.teamId,
+      entryId: pick.entryId,
       steamName: pick.steamName ?? "未知选手",
       displayName: pick.displayName ?? null,
       perfectName: pick.perfectName ?? null,

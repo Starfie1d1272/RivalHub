@@ -3,7 +3,8 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { changeUserPassword } from "@/actions/account";
-import { Field, Btn } from "@/components/rivalhub";
+import { Field } from "@/components/rivalhub";
+import { Button } from "@/components/ui/button";
 import { MIN_PASSWORD_LENGTH } from "@/lib/config/auth-config";
 
 export function ChangePasswordForm() {
@@ -64,9 +65,9 @@ export function ChangePasswordForm() {
         required
         minLength={MIN_PASSWORD_LENGTH}
       />
-      <Btn type="submit" full disabled={isPending}>
+      <Button type="submit" variant="outline" className="w-full" disabled={isPending}>
         {isPending ? "更新中…" : "更新密码"}
-      </Btn>
+      </Button>
     </form>
   );
 }

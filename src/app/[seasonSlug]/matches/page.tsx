@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import { eq, asc } from "drizzle-orm";
 import { db } from "@/db/client";
-import { majorFinalResults, seasons, matches, teams } from "@/db/schema";
-import { serializeBracket } from "@/lib/bracket";
+import { majorFinalResults, seasons, matches, competitionEntries } from "@/db/schema";
+import { loadBracketState, serializeBracket } from "@/lib/bracket";
 import { calculateStandings } from "@/lib/standings";
 import { Panel, Marker } from "@/components/rivalhub";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -22,9 +22,6 @@ import { normalizeStagePlan } from "@/types/season";
 import { MatchTabsSection } from "@/components/matches/MatchTabsSection";
 import { checkAdminSession } from "@/lib/auth/session";
 import { AdminShortcut } from "@/components/layout/AdminShortcut";
-import type { BracketDatabase as Database } from "@/lib/bracket";
-
-export const dynamic = "force-dynamic";
 
 interface MatchesPageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -41,23 +38,24 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
   ]);
   if (!season) notFound();
 
-  const [allTeams, allMatches, finalResult] = await Promise.all([
-    db.query.teams.findMany({
-      where: eq(teams.seasonId, season.id),
-      orderBy: [asc(teams.draftOrder)],
+  const [allTeams, allMatches, finalResult, bracketState] = await Promise.all([
+    db.query.competitionEntries.findMany({
+      where: eq(competitionEntries.competitionId, season.id),
+      orderBy: [asc(competitionEntries.formationOrder)],
     }),
     db.query.matches.findMany({
       where: eq(matches.seasonId, season.id),
       orderBy: [asc(matches.createdAt)],
     }),
     db.query.majorFinalResults.findFirst({ where: eq(majorFinalResults.seasonId, season.id) }),
+    loadBracketState(db, season.id),
   ]);
 
   const teamMap = new Map(allTeams.map((team) => [team.id, team.name]));
   const stagePlan = normalizeStagePlan(season.stagePlan);
   const { views: stageViews, unconfiguredMatches } = buildStageViews(stagePlan, allMatches);
-  const matchFilter = (match: { teamAId: string; teamBId: string }) =>
-    !filterTeamId || match.teamAId === filterTeamId || match.teamBId === filterTeamId;
+  const matchFilter = (match: { entryAId: string; entryBId: string }) =>
+    !filterTeamId || match.entryAId === filterTeamId || match.entryBId === filterTeamId;
 
   const sortActiveMatches = (stageMatches: typeof allMatches) =>
     [...stageMatches].sort((a, b) => {
@@ -89,7 +87,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
         ] as const),
     ),
   );
-  const fullBracketData = serializeBracket((season.bracketData as Database | null) ?? null);
+  const fullBracketData = serializeBracket(bracketState);
   const defaultStageKey = resolveDefaultStageKey(stagePlan, allMatches);
 
   if (allMatches.length === 0 && allTeams.length === 0) {

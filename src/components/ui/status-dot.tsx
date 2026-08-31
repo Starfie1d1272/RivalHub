@@ -1,17 +1,20 @@
-import { SEASON_STATUS_TONE } from "@/types/season";
+import { presentSeasonStatus } from "@/lib/seasons/presentation";
 import type { SeasonStatus } from "@/types/season";
 
 const TONE_COLOR = {
-  live: "bg-[var(--color-ok)]",
-  soon: "bg-[var(--color-warn)]",
-  done: "bg-[var(--color-fg-dim)]",
+  neutral: "bg-[var(--color-fg-dim)]",
+  info: "bg-[var(--color-info)]",
+  success: "bg-[var(--color-ok)]",
+  warn: "bg-[var(--color-warn)]",
+  danger: "bg-[var(--color-danger)]",
+  accent: "bg-[var(--color-accent)]",
 } as const;
 
 export function StatusDot({ status }: { status: SeasonStatus }) {
-  const tone = SEASON_STATUS_TONE[status];
+  const tone = presentSeasonStatus(status).tone;
   return (
     <span className="relative flex h-2 w-2">
-      {tone === "live" && (
+      {(tone === "info" || tone === "success" || tone === "danger" || tone === "accent") && (
         <span
           className={`absolute inline-flex h-full w-full animate-ping rounded-full ${TONE_COLOR[tone]} opacity-60`}
         />

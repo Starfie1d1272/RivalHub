@@ -12,7 +12,7 @@ import { positionLabel } from "@/lib/validators/registration";
 import { MapPreferenceChips } from "@/components/rivalhub/MapPreferenceChips";
 import { PosChip } from "@/components/rivalhub/PosChip";
 import { PlayerInfoPopover } from "./PlayerInfoPopover";
-import { getPublicDisplayName } from "@/lib/utils/display-name";
+import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { sortByRank } from "@/lib/utils/rank";
 import { selectAutoPickCandidate } from "@/lib/draft/auto-pick";
 import type { CaptainDraftPlayer } from "@/lib/draft/data";
@@ -21,7 +21,7 @@ const FILTER_ALL = "all";
 
 interface CaptainDraftPanelProps {
   seasonId: string;
-  teamId: string;
+  entryId: string;
   teamName: string;
   currentTeamName: string | null;
   currentRound: number | null;
@@ -39,7 +39,7 @@ interface CaptainDraftPanelProps {
 
 export function CaptainDraftPanel({
   seasonId,
-  teamId,
+  entryId,
   teamName,
   currentTeamName,
   currentRound,
@@ -111,7 +111,7 @@ export function CaptainDraftPanel({
 
     const result = await pickPlayer({
       seasonId,
-      teamId,
+      entryId,
       registrationId: player.registrationId,
       clientRequestId: crypto.randomUUID(),
     });

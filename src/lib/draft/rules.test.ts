@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   getSnakeOrder,
-  getNextTeamId,
+  getNextEntryId,
   isDraftComplete,
   isStarterRound,
   canPickPosition,
@@ -47,31 +47,31 @@ describe("getSnakeOrder", () => {
   });
 });
 
-describe("getNextTeamId", () => {
+describe("getNextEntryId", () => {
   it("advances to next team within same round", () => {
-    const result = getNextTeamId(teams, "t8", 1);
-    expect(result).toEqual({ teamId: "t7", nextRound: 1 });
+    const result = getNextEntryId(teams, "t8", 1);
+    expect(result).toEqual({ entryId: "t7", nextRound: 1 });
   });
 
   it("at end of reverse round, flips to next round with forward order", () => {
-    const result = getNextTeamId(teams, "t1", 1);
-    expect(result).toEqual({ teamId: "t1", nextRound: 2 });
+    const result = getNextEntryId(teams, "t1", 1);
+    expect(result).toEqual({ entryId: "t1", nextRound: 2 });
   });
 
   it("at end of forward round, flips to reverse next round", () => {
     // Round 2 is forward, last to pick is t8
-    const result = getNextTeamId(teams, "t8", 2);
-    expect(result).toEqual({ teamId: "t8", nextRound: 3 });
+    const result = getNextEntryId(teams, "t8", 2);
+    expect(result).toEqual({ entryId: "t8", nextRound: 3 });
   });
 
   it("returns null when draft is complete (end of round 6)", () => {
     // Round 6 is even (forward), last to pick is t8
-    const result = getNextTeamId(teams, "t8", 6);
+    const result = getNextEntryId(teams, "t8", 6);
     expect(result).toBeNull();
   });
 
   it("returns null for unknown team", () => {
-    const result = getNextTeamId(teams, "unknown", 1);
+    const result = getNextEntryId(teams, "unknown", 1);
     expect(result).toBeNull();
   });
 });
@@ -123,10 +123,10 @@ describe("canPickPosition", () => {
 describe("computeTeamPositionCounts", () => {
   it("counts positions per team", () => {
     const members = [
-      { teamId: "t1", primaryPosition: "igl" },
-      { teamId: "t1", primaryPosition: "awper" },
-      { teamId: "t1", primaryPosition: "igl" },
-      { teamId: "t2", primaryPosition: "igl" },
+      { entryId: "t1", primaryPosition: "igl" },
+      { entryId: "t1", primaryPosition: "awper" },
+      { entryId: "t1", primaryPosition: "igl" },
+      { entryId: "t2", primaryPosition: "igl" },
     ];
     const result = computeTeamPositionCounts(members);
     expect(result.get("t1")?.get("igl")).toBe(2);

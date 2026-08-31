@@ -5,6 +5,8 @@ import {
 } from "@/lib/match-rosters/lineup";
 import type { InstitutionAffiliationRule } from "@/types/season";
 
+const DEFAULT_POLICY = { starterCount: 5, maxSubstitutes: 2 } as const;
+
 const NJU_RULE: InstitutionAffiliationRule = {
   institutionCode: "4132010284",
   eligibleAcademicStatuses: ["enrolled", "graduated"],
@@ -16,14 +18,14 @@ type Verification = NonNullable<LineupMemberFact["verification"]>;
 type VerificationOverride = Partial<Verification>;
 
 interface FixtureMember {
-  teamMemberId: string;
+  eventRosterMemberId: string;
   userId: string;
   verification: Verification | null;
 }
 
 interface World {
   memberFacts: Map<string, LineupMemberFact>;
-  /** Select teamMemberIds by index in ascending order given. */
+  /** Select eventRosterMemberIds by index in ascending order given. */
   ids: (...indices: number[]) => string[];
   allIds: () => string[];
   rosterUserIds: (...indices: number[]) => Set<string>;
@@ -35,7 +37,7 @@ function makeMember(
   overrides?: VerificationOverride,
 ): FixtureMember {
   return {
-    teamMemberId: `member-${index}`,
+    eventRosterMemberId: `member-${index}`,
     userId: `user-${index}`,
     verification: institutionCode
       ? {
@@ -65,7 +67,7 @@ function otherInstitution(index: number): FixtureMember {
 
 function buildWorld(members: readonly FixtureMember[]): World {
   const memberFacts = new Map<string, LineupMemberFact>();
-  for (const m of members) memberFacts.set(m.teamMemberId, m);
+  for (const m of members) memberFacts.set(m.eventRosterMemberId, m);
   return {
     memberFacts,
     ids: (...indices: number[]) =>
@@ -80,7 +82,7 @@ describe("evaluateStartingLineup — structural rules", () => {
   it("fails when fewer than 5 starters", () => {
     const world = buildWorld([plain(1), plain(2), plain(3), plain(4)]);
     const result = evaluateStartingLineup({
-      starterIds: world.ids(1, 2, 3, 4),
+      starterIds: world.ids(1, 2, 3, 4), policy: DEFAULT_POLICY,
       memberFacts: world.memberFacts,
     });
     expect(result.valid).toBe(false);
@@ -90,7 +92,7 @@ describe("evaluateStartingLineup — structural rules", () => {
   it("fails with 6 starters", () => {
     const world = buildWorld(Array.from({ length: 6 }, (_, i) => plain(i + 1)));
     const result = evaluateStartingLineup({
-      starterIds: world.allIds(),
+      starterIds: world.allIds(), policy: DEFAULT_POLICY,
       memberFacts: world.memberFacts,
     });
     expect(result.valid).toBe(false);
@@ -100,7 +102,7 @@ describe("evaluateStartingLineup — structural rules", () => {
   it("fails with more than 2 substitutes", () => {
     const world = buildWorld(Array.from({ length: 9 }, (_, i) => plain(i + 1)));
     const result = evaluateStartingLineup({
-      starterIds: world.ids(1, 2, 3, 4, 5),
+      starterIds: world.ids(1, 2, 3, 4, 5), policy: DEFAULT_POLICY,
       substituteIds: world.ids(6, 7, 8),
       memberFacts: world.memberFacts,
     });
@@ -112,7 +114,7 @@ describe("evaluateStartingLineup — structural rules", () => {
     const world = buildWorld([plain(1), plain(2), plain(3), plain(4), plain(5)]);
     const dupId = world.ids(1)[0]!;
     const result = evaluateStartingLineup({
-      starterIds: [dupId, ...world.ids(2, 3, 4, 5)],
+      starterIds: [dupId, ...world.ids(2, 3, 4, 5)], policy: DEFAULT_POLICY,
       substituteIds: [dupId],
       memberFacts: world.memberFacts,
     });
@@ -123,7 +125,7 @@ describe("evaluateStartingLineup — structural rules", () => {
   it("fails when a selected player is not a member of the team", () => {
     const world = buildWorld([plain(1), plain(2), plain(3), plain(4), plain(5)]);
     const result = evaluateStartingLineup({
-      starterIds: [...world.ids(1, 2, 3, 4), "member-alien"],
+      starterIds: [...world.ids(1, 2, 3, 4), "member-alien"], policy: DEFAULT_POLICY,
       memberFacts: world.memberFacts,
     });
     expect(result.valid).toBe(false);
@@ -141,7 +143,7 @@ describe("evaluateStartingLineup — Major frozen roster & affiliation rules", (
       nju(1), nju(2), nju(3), otherInstitution(4), otherInstitution(5),
     ]);
     const result = evaluateStartingLineup({
-      starterIds: world.ids(1, 2, 3, 4, 5),
+      starterIds: world.ids(1, 2, 3, 4, 5), policy: DEFAULT_POLICY,
       memberFacts: world.memberFacts,
       frozenRosterUserIds: world.rosterUserIds(1, 2, 3, 4),
       affiliationRules: rules,
@@ -153,7 +155,7 @@ describe("evaluateStartingLineup — Major frozen roster & affiliation rules", (
   it("rejects an outside substitute too", () => {
     const world = buildWorld([nju(1), nju(2), nju(3), otherInstitution(4), otherInstitution(5), nju(9)]);
     const result = evaluateStartingLineup({
-      starterIds: world.ids(1, 2, 3, 4, 5),
+      starterIds: world.ids(1, 2, 3, 4, 5), policy: DEFAULT_POLICY,
       substituteIds: ["member-9"],
       memberFacts: world.memberFacts,
       frozenRosterUserIds: world.rosterUserIds(1, 2, 3, 4, 5),
@@ -168,7 +170,7 @@ describe("evaluateStartingLineup — Major frozen roster & affiliation rules", (
       nju(1), nju(2), otherInstitution(3), otherInstitution(4), otherInstitution(5),
     ]);
     const result = evaluateStartingLineup({
-      starterIds: world.allIds(),
+      starterIds: world.allIds(), policy: DEFAULT_POLICY,
       memberFacts: world.memberFacts,
       frozenRosterUserIds: world.rosterUserIds(1, 2, 3, 4, 5),
       affiliationRules: rules,
@@ -187,7 +189,7 @@ describe("evaluateStartingLineup — Major frozen roster & affiliation rules", (
       nju(1), nju(2), nju(3), otherInstitution(4), otherInstitution(5),
     ]);
     const result = evaluateStartingLineup({
-      starterIds: world.allIds(),
+      starterIds: world.allIds(), policy: DEFAULT_POLICY,
       memberFacts: world.memberFacts,
       frozenRosterUserIds: world.rosterUserIds(1, 2, 3, 4, 5),
       affiliationRules: rules,
@@ -205,7 +207,7 @@ describe("evaluateStartingLineup — Major frozen roster & affiliation rules", (
       nju(5, { status: "pending" }),
     ]);
     const result = evaluateStartingLineup({
-      starterIds: world.allIds(),
+      starterIds: world.allIds(), policy: DEFAULT_POLICY,
       memberFacts: world.memberFacts,
       frozenRosterUserIds: world.rosterUserIds(1, 2, 3, 4, 5),
       affiliationRules: rules,
@@ -231,7 +233,7 @@ describe("evaluateStartingLineup — Major frozen roster & affiliation rules", (
     ]);
     const graduatedRule: InstitutionAffiliationRule = { ...NJU_RULE, minStartingMembers: 2 };
     const result = evaluateStartingLineup({
-      starterIds: world.allIds(),
+      starterIds: world.allIds(), policy: DEFAULT_POLICY,
       memberFacts: world.memberFacts,
       frozenRosterUserIds: world.rosterUserIds(1, 2, 3, 4, 5),
       affiliationRules: [graduatedRule],
@@ -246,7 +248,7 @@ describe("evaluateStartingLineup — Major frozen roster & affiliation rules", (
       nju(1), nju(2), otherInstitution(3), otherInstitution(4), otherInstitution(5), nju(6),
     ]);
     const result = evaluateStartingLineup({
-      starterIds: world.ids(1, 2, 3, 4, 5),
+      starterIds: world.ids(1, 2, 3, 4, 5), policy: DEFAULT_POLICY,
       substituteIds: world.ids(6),
       memberFacts: world.memberFacts,
       frozenRosterUserIds: world.rosterUserIds(1, 2, 3, 4, 5, 6),
@@ -262,7 +264,7 @@ describe("evaluateStartingLineup — non-Major matches", () => {
     const world = buildWorld([plain(1), plain(2), plain(3), plain(4), plain(5), plain(6)]);
     const all = world.allIds();
     const result = evaluateStartingLineup({
-      starterIds: all.slice(0, 5),
+      starterIds: all.slice(0, 5), policy: DEFAULT_POLICY,
       substituteIds: all.slice(5, 6),
       memberFacts: world.memberFacts,
     });

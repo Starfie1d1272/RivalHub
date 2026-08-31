@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useRef } from "react";
-import { Btn } from "@/components/rivalhub";
+import { Button } from "@/components/ui/button";
 
 const FILTERS = [
   { key: "all",          label: "全部" },
@@ -44,9 +44,9 @@ export function UserSearchBar({ q, filter }: { q: string; filter: string }) {
       />
       <div className="flex gap-1">
         {FILTERS.map(({ key, label }) => (
-          <Btn key={key} small ghost={filter !== key} onClick={() => push({ filter: key })}>
+          <Button key={key} type="button" size="sm" variant={filter !== key ? "ghost" : "outline"} onClick={() => push({ filter: key })}>
             {label}
-          </Btn>
+          </Button>
         ))}
       </div>
     </div>

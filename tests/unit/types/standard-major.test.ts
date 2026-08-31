@@ -4,12 +4,12 @@ import {
   MAJOR_REGISTRATION_CONFIG,
   OPEN_TOURNAMENT_PRESET,
   RIVALS_DEFAULT_CAPABILITIES,
-  checkStandardMajorCapabilities,
   createMajorDefaultCapabilities,
   normalizeTeamRegistrationConfig,
 } from "@/types/season";
+import { checkStandardMajorCapabilities } from "@/lib/competition/definition";
 
-function expectFailure(
+function expectStandardMajorFailure(
   capabilities: ReturnType<typeof createMajorDefaultCapabilities>,
   key: string,
 ) {
@@ -18,6 +18,7 @@ function expectFailure(
   expect(result.failures).toEqual(
     expect.arrayContaining([expect.objectContaining({ key, passed: false })]),
   );
+  return result;
 }
 
 describe("checkStandardMajorCapabilities()", () => {
@@ -54,38 +55,39 @@ describe("checkStandardMajorCapabilities()", () => {
     const capabilities = createMajorDefaultCapabilities();
     capabilities.registrationMode = "solo";
 
-    expectFailure(capabilities, "registration-mode");
+    expectStandardMajorFailure(capabilities, "registration-mode");
   });
 
   it("rejects a Major whose team size or starter count deviates from the fixed 5–9/5 rule", () => {
-    expectFailure(
-      { ...createMajorDefaultCapabilities(), starterCount: 6 },
-      "team-size",
-    );
-    expectFailure(
-      { ...createMajorDefaultCapabilities(), minTeamSize: 6, maxTeamSize: 10 },
-      "team-size",
-    );
+    expectStandardMajorFailure({
+      ...createMajorDefaultCapabilities(),
+      starterCount: 6,
+    }, "team-size");
+    expectStandardMajorFailure({
+      ...createMajorDefaultCapabilities(),
+      minTeamSize: 6,
+      maxTeamSize: 10,
+    }, "team-size");
   });
 
   it("rejects captain voting or snake draft", () => {
     const votingEnabled = createMajorDefaultCapabilities();
     votingEnabled.hasCaptainVoting = true;
-    expectFailure(votingEnabled, "captain-voting");
+    expectStandardMajorFailure(votingEnabled, "captain-voting");
 
     const draftEnabled = createMajorDefaultCapabilities();
     draftEnabled.hasDraft = true;
-    expectFailure(draftEnabled, "draft");
+    expectStandardMajorFailure(draftEnabled, "draft");
   });
 
   it("rejects event-specific team roster limits: 5–9/5 is part of the standard identity", () => {
     const maxTeamSizeChanged = createMajorDefaultCapabilities();
     maxTeamSizeChanged.maxTeamSize = 8;
-    expectFailure(maxTeamSizeChanged, "team-size");
+    expectStandardMajorFailure(maxTeamSizeChanged, "team-size");
 
     const minTeamSizeChanged = createMajorDefaultCapabilities();
     minTeamSizeChanged.minTeamSize = 4;
-    expectFailure(minTeamSizeChanged, "team-size");
+    expectStandardMajorFailure(minTeamSizeChanged, "team-size");
   });
 
   it("allows event-specific registration limits and map pools", () => {
@@ -103,75 +105,74 @@ describe("checkStandardMajorCapabilities()", () => {
       capabilities.stagePlan[0],
     ];
 
-    expectFailure(capabilities, "entry-cohorts");
+    expectStandardMajorFailure(capabilities, "entry-cohorts");
   });
 
   it("rejects a changed stage team count", () => {
     const capabilities = createMajorDefaultCapabilities();
     capabilities.stagePlan[1].teamCount = 24;
 
-    expectFailure(capabilities, "stage2");
+    expectStandardMajorFailure(capabilities, "stage2");
   });
 
   it("rejects a changed Swiss advancement relationship", () => {
     const capabilities = createMajorDefaultCapabilities();
     capabilities.stagePlan[2].advanceTiers = [{ placement: "*", count: 6 }];
 
-    expectFailure(capabilities, "stage3");
+    expectStandardMajorFailure(capabilities, "stage3");
   });
 
   it("rejects a changed 16 / 8 / 8 entry cohort", () => {
     const capabilities = createMajorDefaultCapabilities();
     capabilities.stagePlan[1].entrySeeds = 7;
 
-    expectFailure(capabilities, "entry-cohorts");
+    expectStandardMajorFailure(capabilities, "entry-cohorts");
   });
 
   it("requires Stage 1 to contain exactly the unique 17–32 seed cohort", () => {
     const wrongCohort = createMajorDefaultCapabilities();
     wrongCohort.stagePlan[0].seeds = Array.from({ length: 16 }, (_, index) => index + 1);
-    expectFailure(wrongCohort, "stage1-seeds");
+    expectStandardMajorFailure(wrongCohort, "stage1-seeds");
 
     const missingCohort = createMajorDefaultCapabilities();
     missingCohort.stagePlan[0].seeds = undefined;
-    expectFailure(missingCohort, "stage1-seeds");
+    expectStandardMajorFailure(missingCohort, "stage1-seeds");
   });
 
   it("rejects a changed playoff structure", () => {
     const capabilities = createMajorDefaultCapabilities();
     capabilities.stagePlan[3].teamCount = 4;
 
-    expectFailure(capabilities, "playoff");
+    expectStandardMajorFailure(capabilities, "playoff");
   });
 
   it("rejects stage-format changes that would violate the frozen NJU Major policy", () => {
     const capabilities = createMajorDefaultCapabilities();
     capabilities.stagePlan[2].matchFormat = "bo1";
-    expectFailure(capabilities, "swiss-match-format");
+    expectStandardMajorFailure(capabilities, "swiss-match-format");
 
     const stage1Bo3 = createMajorDefaultCapabilities();
     stage1Bo3.stagePlan[0].matchFormat = "bo3";
-    expectFailure(stage1Bo3, "swiss-match-format");
+    expectStandardMajorFailure(stage1Bo3, "swiss-match-format");
 
     const stage2Bo3 = createMajorDefaultCapabilities();
     stage2Bo3.stagePlan[1].matchFormat = "bo3";
-    expectFailure(stage2Bo3, "swiss-match-format");
+    expectStandardMajorFailure(stage2Bo3, "swiss-match-format");
 
     const playoffBo1 = createMajorDefaultCapabilities();
     playoffBo1.stagePlan[3].matchFormat = "bo1";
-    expectFailure(playoffBo1, "playoff");
+    expectStandardMajorFailure(playoffBo1, "playoff");
 
     const finalBo3 = createMajorDefaultCapabilities();
     finalBo3.stagePlan[3].finalFormat = "bo3";
-    expectFailure(finalBo3, "playoff");
+    expectStandardMajorFailure(finalBo3, "playoff");
   });
 
   it.each([0, 1, 2])("rejects BO5 in Swiss Stage %i", (stageIndex) => {
     const capabilities = createMajorDefaultCapabilities();
     capabilities.stagePlan[stageIndex].matchFormat = "bo5";
 
-    const result = checkStandardMajorCapabilities(capabilities);
-    expectFailure(capabilities, "swiss-match-format");
+    const result = expectStandardMajorFailure(capabilities, "swiss-match-format");
     expect(result.failures).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

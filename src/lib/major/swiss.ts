@@ -48,11 +48,11 @@ export interface MajorSwissMatchFact {
 
   round: MajorSwissRound;
 
-  teamAId: string;
-  teamBId: string;
+  entryAId: string;
+  entryBId: string;
 
   /**
-   * 必须等于 teamAId 或 teamBId。
+   * 必须等于 entryAId 或 entryBId。
    *
    * 该类型只表示：
    * 已完成且存在明确胜者的 canonical match result。
@@ -276,13 +276,13 @@ function validateOfficialMatches(
     if (!isMajorSwissRound(match.round)) {
       throw new Error(`invalid match round: ${match.round}`);
     }
-    if (!entrantTeamIds.has(match.teamAId) || !entrantTeamIds.has(match.teamBId)) {
+    if (!entrantTeamIds.has(match.entryAId) || !entrantTeamIds.has(match.entryBId)) {
       throw new Error(`match ${match.matchId} references a team outside the stage entrants`);
     }
-    if (match.teamAId === match.teamBId) {
+    if (match.entryAId === match.entryBId) {
       throw new Error(`match ${match.matchId} pairs a team with itself`);
     }
-    if (match.winnerId !== match.teamAId && match.winnerId !== match.teamBId) {
+    if (match.winnerId !== match.entryAId && match.winnerId !== match.entryBId) {
       throw new Error(`match ${match.matchId} winnerId must be one of the participants`);
     }
   }
@@ -341,19 +341,19 @@ export function projectMajorSwissStage(input: {
     // 参与者验证：active、每队恰好一次、same W-L record
     const participants = new Set<string>();
     for (const match of roundMatches) {
-      const teamA = states.get(match.teamAId)!;
-      const teamB = states.get(match.teamBId)!;
+      const teamA = states.get(match.entryAId)!;
+      const teamB = states.get(match.entryBId)!;
       if (teamA.status !== "active" || teamB.status !== "active") {
         throw new Error(`round ${round} match ${match.matchId} includes a non-active team`);
       }
-      if (participants.has(match.teamAId) || participants.has(match.teamBId)) {
+      if (participants.has(match.entryAId) || participants.has(match.entryBId)) {
         throw new Error(`round ${round} includes a team more than once`);
       }
-      participants.add(match.teamAId);
-      participants.add(match.teamBId);
+      participants.add(match.entryAId);
+      participants.add(match.entryBId);
 
-      const recordA = recordBeforeRound.get(match.teamAId)!;
-      const recordB = recordBeforeRound.get(match.teamBId)!;
+      const recordA = recordBeforeRound.get(match.entryAId)!;
+      const recordB = recordBeforeRound.get(match.entryBId)!;
       if (recordA.wins !== recordB.wins || recordA.losses !== recordB.losses) {
         throw new Error(
           `round ${round} match ${match.matchId} is cross-record ` +
@@ -376,7 +376,7 @@ export function projectMajorSwissStage(input: {
     // 应用结果
     for (const match of roundMatches) {
       const winner = states.get(match.winnerId)!;
-      const loserId = match.winnerId === match.teamAId ? match.teamBId : match.teamAId;
+      const loserId = match.winnerId === match.entryAId ? match.entryBId : match.entryAId;
       const loser = states.get(loserId)!;
       winner.wins += 1;
       loser.losses += 1;
@@ -432,7 +432,7 @@ export function projectMajorSwissStage(input: {
 
 export function selectMajorSixTeamPairingPattern(
   seededTeamIds: readonly string[],
-  priorMatches: readonly Pick<MajorSwissMatchFact, "teamAId" | "teamBId">[],
+  priorMatches: readonly Pick<MajorSwissMatchFact, "entryAId" | "entryBId">[],
 ): {
   priority: number;
   pairs: readonly {
@@ -450,9 +450,9 @@ export function selectMajorSixTeamPairingPattern(
   const priorEdges = new Set<string>();
   for (const match of priorMatches) {
     const key =
-      match.teamAId < match.teamBId
-        ? `${match.teamAId}\u0000${match.teamBId}`
-        : `${match.teamBId}\u0000${match.teamAId}`;
+      match.entryAId < match.entryBId
+        ? `${match.entryAId}\u0000${match.entryBId}`
+        : `${match.entryBId}\u0000${match.entryAId}`;
     priorEdges.add(key);
   }
 
@@ -627,11 +627,11 @@ export function generateNextMajorSwissRound(input: {
       if (sortedBySeed.length !== 6) {
         throw new Error(`round ${nextRound} requires exactly 6 teams per record group`);
       }
-      const priorMatches: { teamAId: string; teamBId: string }[] = [];
+      const priorMatches: { entryAId: string; entryBId: string }[] = [];
       for (const team of projection.teams) {
         for (const opponentId of team.opponents) {
           if (team.teamId < opponentId) {
-            priorMatches.push({ teamAId: team.teamId, teamBId: opponentId });
+            priorMatches.push({ entryAId: team.teamId, entryBId: opponentId });
           }
         }
       }

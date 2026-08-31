@@ -6,6 +6,7 @@ import { requireSuperAdmin } from "@/lib/auth/session";
 import { normalizeAffiliationRules, normalizeRegistrationConfig, normalizeStagePlan, normalizeTeamRegistrationConfig } from "@/types/season";
 import { SeasonForm } from "@/components/admin/SeasonForm";
 import { toCSTDateTimeInput } from "@/lib/utils/date";
+import { loadCompetitivePlatformCatalog } from "@/lib/competitive/catalog";
 
 interface SeasonSettingsPageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -15,19 +16,20 @@ export default async function SeasonSettingsPage({ params }: SeasonSettingsPageP
   try {
     await requireSuperAdmin();
   } catch {
-    redirect("/admin/login");
+    redirect("/login");
   }
 
   const { seasonSlug } = await params;
-  const season = await db.query.seasons.findFirst({
+  const [season, catalog] = await Promise.all([db.query.seasons.findFirst({
     where: eq(seasons.slug, seasonSlug),
-  });
+  }), loadCompetitivePlatformCatalog(db)]);
   if (!season) notFound();
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-3xl">
       <SeasonForm
         mode="edit"
+        competitivePlatforms={catalog.map((platform) => ({ key: platform.key, displayName: platform.displayName }))}
         initial={{
           id: season.id,
           name: season.name,

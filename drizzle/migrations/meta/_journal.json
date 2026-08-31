@@ -120,6 +120,62 @@
       "when": 1787979570861,
       "tag": "0016_productive_white_tiger",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1788046410677,
+      "tag": "0017_broad_doctor_octopus",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1788074961497,
+      "tag": "0018_competitive_platform_catalog",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1788085220743,
+      "tag": "0019_competitive-platform-rating-semantics",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1788089172919,
+      "tag": "0020_competitive_catalog_stars_bootstrap",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1788163521131,
+      "tag": "0021_team_entry_current_owners",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1788174471006,
+      "tag": "0022_competition_bracket_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1788176143972,
+      "tag": "0023_auth_permissions",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1788177556147,
+      "tag": "0024_major_runtime_convergence",
+      "breakpoints": true
     }
   ]
 }

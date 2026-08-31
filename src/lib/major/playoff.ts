@@ -25,8 +25,8 @@ export interface MajorPlayoffMatchFact {
   /** Stable position inside the round: QF 1..4, SF 1..2, third-place/final 1. */
   slot: number;
 
-  teamAId: string;
-  teamBId: string;
+  entryAId: string;
+  entryBId: string;
   winnerId: string;
 }
 
@@ -54,14 +54,14 @@ function assertNonEmptyId(value: string, label: string): void {
   }
 }
 
-function pairKey(teamAId: string, teamBId: string): string {
-  return teamAId < teamBId
-    ? `${teamAId}\u0000${teamBId}`
-    : `${teamBId}\u0000${teamAId}`;
+function pairKey(entryAId: string, entryBId: string): string {
+  return entryAId < entryBId
+    ? `${entryAId}\u0000${entryBId}`
+    : `${entryBId}\u0000${entryAId}`;
 }
 
 function loserOf(match: MajorPlayoffMatchFact): string {
-  return match.winnerId === match.teamAId ? match.teamBId : match.teamAId;
+  return match.winnerId === match.entryAId ? match.entryBId : match.entryAId;
 }
 
 export function seedMajorPlayoffEntrants(
@@ -163,7 +163,7 @@ function assertExpectedPair(
   expectedTeamBId: string,
 ): void {
   if (
-    pairKey(match.teamAId, match.teamBId) !== pairKey(expectedTeamAId, expectedTeamBId)
+    pairKey(match.entryAId, match.entryBId) !== pairKey(expectedTeamAId, expectedTeamBId)
   ) {
     throw new Error(
       `${match.round} slot ${match.slot} has invalid participants: ` +
@@ -200,13 +200,13 @@ export function projectMajorPlayoff(input: {
     }
     matchIds.add(match.matchId);
 
-    if (!entrantIds.has(match.teamAId) || !entrantIds.has(match.teamBId)) {
+    if (!entrantIds.has(match.entryAId) || !entrantIds.has(match.entryBId)) {
       throw new Error(`playoff match ${match.matchId} references a non-entrant team`);
     }
-    if (match.teamAId === match.teamBId) {
+    if (match.entryAId === match.entryBId) {
       throw new Error(`playoff match ${match.matchId} pairs a team with itself`);
     }
-    if (match.winnerId !== match.teamAId && match.winnerId !== match.teamBId) {
+    if (match.winnerId !== match.entryAId && match.winnerId !== match.entryBId) {
       throw new Error(`playoff match ${match.matchId} winnerId must be a participant`);
     }
   }

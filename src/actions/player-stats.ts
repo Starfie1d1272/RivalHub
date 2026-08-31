@@ -9,7 +9,7 @@ import { matchMvpVotes } from "@/db/schema/mvp-votes";
 import { matchRosters, matchRosterPlayers } from "@/db/schema/match-rosters";
 import { auditLogs } from "@/db/schema/audit";
 import { users } from "@/db/schema/users";
-import { teamMembers } from "@/db/schema/teams";
+import { eventRosterMembers, eventRosters } from "@/db/schema/competition-entries";
 import { ok, fail, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { actionError } from "@/lib/action-utils";
@@ -55,9 +55,10 @@ export async function extractStatsFromScreenshot(
 
     // 仅查询本场比赛两队队员（用于昵称匹配 + 下拉选择）
     const teamMemberRows = await db
-      .select({ userId: teamMembers.userId })
-      .from(teamMembers)
-      .where(inArray(teamMembers.teamId, [match.teamAId, match.teamBId]));
+      .select({ userId: eventRosterMembers.userId })
+      .from(eventRosterMembers)
+      .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
+      .where(inArray(eventRosters.entryId, [match.entryAId, match.entryBId]));
 
     const teamUserIds = teamMemberRows.map((r) => r.userId);
 
@@ -218,9 +219,10 @@ export async function getMatchPlayerOptions(mapId: string): Promise<PlayerOption
     await requireSeasonAdmin(match.seasonId);
 
     const teamMemberRows = await db
-      .select({ userId: teamMembers.userId })
-      .from(teamMembers)
-      .where(inArray(teamMembers.teamId, [match.teamAId, match.teamBId]));
+      .select({ userId: eventRosterMembers.userId })
+      .from(eventRosterMembers)
+      .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
+      .where(inArray(eventRosters.entryId, [match.entryAId, match.entryBId]));
 
     const teamUserIds = teamMemberRows.map((r) => r.userId);
     if (!teamUserIds.length) return [];
@@ -287,8 +289,8 @@ export async function castMatchMvpVote(
       .select({ userId: users.id, playerName: users.perfectName })
       .from(matchRosters)
       .innerJoin(matchRosterPlayers, eq(matchRosterPlayers.rosterId, matchRosters.id))
-      .innerJoin(teamMembers, eq(teamMembers.id, matchRosterPlayers.teamMemberId))
-      .innerJoin(users, eq(users.id, teamMembers.userId))
+      .innerJoin(eventRosterMembers, eq(eventRosterMembers.id, matchRosterPlayers.eventRosterMemberId))
+      .innerJoin(users, eq(users.id, eventRosterMembers.userId))
       .where(and(
         eq(matchRosters.matchId, matchId),
         eq(matchRosters.status, "confirmed"),

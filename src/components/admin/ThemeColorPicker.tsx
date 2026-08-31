@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 const PRESET_COLORS = [
-  "#f97316", "#3b82f6", "#22c55e", "#8b5cf6", "#ef4444", "#14b8a6",
+  "#ff6b1a", "#3b82f6", "#22c55e", "#8b5cf6", "#ef4444", "#14b8a6",
 ];
 
 interface ThemeColorPickerProps {
@@ -37,7 +37,7 @@ export function ThemeColorPicker({ value, onChange }: ThemeColorPickerProps) {
           id="theme-color"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="#f97316"
+          placeholder="留空则使用全局主题色"
         />
       </div>
     </div>

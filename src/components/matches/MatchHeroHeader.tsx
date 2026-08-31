@@ -15,8 +15,8 @@ interface MatchHeroTeam {
 
 interface MatchHeroMatch {
   id: string;
-  teamAId: string;
-  teamBId: string;
+  entryAId: string;
+  entryBId: string;
   stage: string;
   format: keyof typeof MATCH_FORMAT_LABELS;
   status: "scheduled" | "in_progress" | "finished" | "cancelled" | string;
@@ -68,7 +68,7 @@ export function MatchHeroHeader({
         <div className="flex items-center gap-4 justify-end">
           <div className="text-right min-w-0">
             <Link
-              href={`/${seasonSlug}/teams/${match.teamAId}`}
+              href={`/${seasonSlug}/teams/${match.entryAId}`}
               className="font-bold text-lg sm:text-[28px] hover:text-[var(--color-accent)] transition-colors"
               style={{
                 fontFamily: "var(--font-display)",
@@ -163,7 +163,7 @@ export function MatchHeroHeader({
           )}
           <div className="min-w-0">
             <Link
-              href={`/${seasonSlug}/teams/${match.teamBId}`}
+              href={`/${seasonSlug}/teams/${match.entryBId}`}
               className="font-bold text-lg sm:text-[28px] hover:text-[var(--color-accent)] transition-colors"
               style={{
                 fontFamily: "var(--font-display)",

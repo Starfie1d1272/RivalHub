@@ -1,278 +1,142 @@
 import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
-import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
-import { db } from "@/db/client";
-import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
-// ─── Root 管理员 Session（保留，仅用于紧急登录）───────────────────────────
-
-export interface AdminSessionData {
-  isAdmin: boolean;
-  adminId?: string;
-  adminUsername?: string;
-  adminRole?: "super_admin" | "admin";
-}
-
-export interface AuthenticatedAdmin extends AdminSessionData {
-  isAdmin: true;
-  adminId: string;
-  adminUsername: string;
-  adminRole: "super_admin" | "admin";
-}
-
-function adminSessionOptions() {
-  const secret = process.env.ADMIN_SESSION_SECRET;
-  if (!secret || secret.length < 32) {
-    throw new Error("ADMIN_SESSION_SECRET must be at least 32 characters");
-  }
-  return {
-    password: secret,
-    cookieName: "rivalhub-admin",
-    cookieOptions: {
-      secure: process.env.NODE_ENV === "production",
-      httpOnly: true,
-      sameSite: "lax" as const,
-      maxAge: 60 * 60 * 8,
-    },
-  };
-}
-
-export async function getAdminSession() {
-  return getIronSession<AdminSessionData>(await cookies(), adminSessionOptions());
-}
-
-// ─── 统一用户 Session（所有登录用户）────────────────────────────────────────
+import { db } from "@/db/client";
+import { seasonAdminGrants, users } from "@/db/schema";
+import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 
 export interface UserSession {
   userId: string;
   email: string;
-  role: "user" | "season_admin" | "super_admin";
-  adminSeasonIds: string[];
-  authSource: "user" | "root";
-  legacyAdminId?: string;
 }
 
+/** DB-derived authorization facts. These fields are never persisted in the session cookie. */
+export interface CurrentUserAuthorization extends UserSession {
+  role: "user" | "super_admin";
+  seasonIds: string[];
+}
+
+type SessionPayload = Partial<UserSession> & Record<string, unknown>;
+
 function userSessionOptions() {
-  const secret = process.env.ADMIN_SESSION_SECRET;
-  if (!secret || secret.length < 32) {
+  const password = process.env.ADMIN_SESSION_SECRET;
+  if (!password || password.length < 32) {
     throw new Error("ADMIN_SESSION_SECRET must be at least 32 characters");
   }
+
   return {
-    password: secret,
+    password,
     cookieName: "rivalhub-session",
     cookieOptions: {
       secure: process.env.NODE_ENV === "production",
       httpOnly: true,
       sameSite: "lax" as const,
-      maxAge: 60 * 60 * 24 * 30, // 30 天
+      maxAge: 60 * 60 * 24 * 30,
     },
   };
 }
 
 export async function getUserSession(): Promise<UserSession | null> {
-  const session = await getIronSession<Partial<UserSession>>(
-    await cookies(),
-    userSessionOptions(),
-  );
-  if (!session.userId || !session.email || !session.role) return null;
+  const session = await getIronSession<SessionPayload>(await cookies(), userSessionOptions());
+  if (!session.userId || !session.email) return null;
+
   return {
     userId: session.userId,
     email: session.email,
-    role: session.role,
-    adminSeasonIds: session.adminSeasonIds ?? [],
-    authSource: session.authSource ?? "user",
-    legacyAdminId: session.legacyAdminId,
   };
 }
 
 export async function createUserSession(user: UserSession): Promise<void> {
-  const session = await getIronSession<Partial<UserSession>>(
-    await cookies(),
-    userSessionOptions(),
-  );
+  const session = await getIronSession<SessionPayload>(await cookies(), userSessionOptions());
+
+  // Clear any pre-existing payload so an old cookie cannot retain authorization data.
+  // Keep iron-session's methods; every other enumerable key is session payload.
+  const sessionMethods = new Set(["save", "destroy", "update"]);
+  for (const key of Object.keys(session)) {
+    if (!sessionMethods.has(key)) delete session[key];
+  }
   session.userId = user.userId;
   session.email = user.email;
-  session.role = user.role;
-  session.adminSeasonIds = user.adminSeasonIds;
-  session.authSource = user.authSource;
-  session.legacyAdminId = user.legacyAdminId;
   await session.save();
 }
 
 export async function destroyUserSession(): Promise<void> {
-  const session = await getIronSession<Partial<UserSession>>(
-    await cookies(),
-    userSessionOptions(),
-  );
+  const session = await getIronSession<SessionPayload>(await cookies(), userSessionOptions());
   session.destroy();
-}
-
-export async function destroyAdminSession(): Promise<void> {
-  const session = await getAdminSession();
-  session.destroy();
-}
-
-// ─── 权限保护工具函数────────────────────────────────────────────────────────
-
-/**
- * 将 root 管理员 session 映射为 UserSession 形态，统一下游调用者的字段访问
- */
-function rootToUserSession(admin: AuthenticatedAdmin): UserSession {
-  return {
-    userId: admin.adminId,
-    email: admin.adminUsername,
-    role: admin.adminRole === "super_admin" ? "super_admin" : "season_admin",
-    adminSeasonIds: [],
-    authSource: "root",
-    legacyAdminId: admin.adminId,
-  };
 }
 
 export function auditActorId(session: UserSession): string {
-  if (session.authSource === "root") {
-    return `root:${session.legacyAdminId ?? session.userId}`;
-  }
   return session.userId;
 }
 
-/** 任意已登录用户（含选手）。未登录则抛 UNAUTHORIZED */
 export async function requireAuth(): Promise<UserSession> {
   const session = await getUserSession();
   if (!session) {
-    throw new AppError(ErrorCode.UNAUTHORIZED, ERROR_MESSAGES.UNAUTHORIZED);
+    throw new AppError(ErrorCode.UNAUTHORIZED, ERROR_MESSAGES[ErrorCode.UNAUTHORIZED]);
   }
   return session;
 }
 
-/** 任意管理员（season_admin / super_admin / root）。否则抛 UNAUTHORIZED */
-export async function requireAdmin(): Promise<UserSession> {
-  const userSession = await getUserSession();
-  if (userSession) {
-    const current = await loadCurrentPrivileges(userSession);
-    if (current.role !== "user") return current;
+export async function requireAdmin(): Promise<CurrentUserAuthorization> {
+  const authorization = await requireCurrentAuthorization();
+  if (authorization.role === "super_admin" || authorization.seasonIds.length > 0) {
+    return authorization;
   }
-
-  // fallback：root 紧急登录
-  const adminSession = await getAdminSession();
-  if (
-    adminSession.isAdmin &&
-    adminSession.adminId &&
-    adminSession.adminUsername &&
-    adminSession.adminRole === "super_admin"
-  ) {
-    return rootToUserSession(adminSession as AuthenticatedAdmin);
-  }
-
-  throw new AppError(ErrorCode.UNAUTHORIZED, ERROR_MESSAGES.UNAUTHORIZED);
+  throw new AppError(ErrorCode.UNAUTHORIZED, ERROR_MESSAGES[ErrorCode.UNAUTHORIZED]);
 }
 
-/** super_admin 或 root。否则抛 UNAUTHORIZED */
-export async function requireSuperAdmin(): Promise<UserSession> {
-  const userSession = await getUserSession();
-  if (userSession) {
-    const current = await loadCurrentPrivileges(userSession);
-    if (current.role === "super_admin") return current;
-  }
-
-  const adminSession = await getAdminSession();
-  if (
-    adminSession.isAdmin &&
-    adminSession.adminId &&
-    adminSession.adminUsername &&
-    adminSession.adminRole === "super_admin"
-  ) {
-    return rootToUserSession(adminSession as AuthenticatedAdmin);
-  }
-
-  throw new AppError(ErrorCode.UNAUTHORIZED, ERROR_MESSAGES.UNAUTHORIZED);
+export async function requireSuperAdmin(): Promise<CurrentUserAuthorization> {
+  const authorization = await requireCurrentAuthorization();
+  if (authorization.role === "super_admin") return authorization;
+  throw new AppError(ErrorCode.UNAUTHORIZED, ERROR_MESSAGES[ErrorCode.UNAUTHORIZED]);
 }
 
-/** super_admin、持有该赛季权限的 season_admin 或 root。否则抛 UNAUTHORIZED */
-export async function requireSeasonAdmin(seasonId: string): Promise<UserSession> {
-  const userSession = await getUserSession();
-  if (userSession) {
-    const current = await loadCurrentPrivileges(userSession);
-    if (current.role === "super_admin") return current;
-    if (
-      current.role === "season_admin" &&
-      current.adminSeasonIds.includes(seasonId)
-    ) {
-      return current;
-    }
+export async function requireSeasonAdmin(seasonId: string): Promise<CurrentUserAuthorization> {
+  const authorization = await requireCurrentAuthorization();
+  if (authorization.role === "super_admin" || authorization.seasonIds.includes(seasonId)) {
+    return authorization;
   }
-
-  const adminSession = await getAdminSession();
-  if (
-    adminSession.isAdmin &&
-    adminSession.adminId &&
-    adminSession.adminUsername &&
-    adminSession.adminRole === "super_admin"
-  ) {
-    return rootToUserSession(adminSession as AuthenticatedAdmin);
-  }
-
-  throw new AppError(ErrorCode.UNAUTHORIZED, ERROR_MESSAGES.UNAUTHORIZED);
+  throw new AppError(ErrorCode.UNAUTHORIZED, ERROR_MESSAGES[ErrorCode.UNAUTHORIZED]);
 }
 
-/**
- * A 30-day user session identifies the caller, but never authorizes a
- * privileged operation by itself. Role and season scope are read from the
- * current users row so revocation takes effect on the next request.
- */
-async function loadCurrentPrivileges(session: UserSession): Promise<UserSession> {
-  const current = await db.query.users.findFirst({
-    where: eq(users.id, session.userId),
-    columns: { role: true, adminSeasonIds: true },
-  });
-  if (!current) {
-    throw new AppError(ErrorCode.UNAUTHORIZED, ERROR_MESSAGES.UNAUTHORIZED);
+export async function getCurrentUserAuthorization(): Promise<CurrentUserAuthorization | null> {
+  const session = await getUserSession();
+  if (!session) return null;
+  return loadCurrentAuthorization(session);
+}
+
+async function requireCurrentAuthorization(): Promise<CurrentUserAuthorization> {
+  const session = await requireAuth();
+  return loadCurrentAuthorization(session);
+}
+
+async function loadCurrentAuthorization(session: UserSession): Promise<CurrentUserAuthorization> {
+  const [userRows, grantRows] = await Promise.all([
+    db
+      .select({ role: users.role })
+      .from(users)
+      .where(eq(users.id, session.userId))
+      .limit(1),
+    db
+      .select({ seasonId: seasonAdminGrants.seasonId })
+      .from(seasonAdminGrants)
+      .where(eq(seasonAdminGrants.userId, session.userId)),
+  ]);
+
+  const user = userRows[0];
+  if (!user) {
+    throw new AppError(ErrorCode.UNAUTHORIZED, ERROR_MESSAGES[ErrorCode.UNAUTHORIZED]);
   }
+
   return {
     ...session,
-    role: current.role,
-    adminSeasonIds: current.adminSeasonIds ?? [],
+    role: user.role,
+    seasonIds: grantRows.map((grant) => grant.seasonId),
   };
 }
 
-export interface ActorIdentity {
-  /** Participant user id; for a Root session this is the emergency admin id. */
-  userId: string;
-  /** Audit attribution: participant id or `root:<id>`. */
-  actorId: string;
-  /** True only for emergency Root sessions (`rivalhub-admin`); such actors can never be a team captain and always act via admin override. */
-  isRootAdmin: boolean;
-}
-
-/**
- * Resolves a participant session or an emergency Root session as a mutation
- * actor. `requireAuth` only accepts `rivalhub-session`, so Root must go
- * through this resolver when an action allows admin override (e.g. captain
- * transfer); Root never compares as a captain and always lands in the
- * requireSeasonAdmin override path.
- */
-export async function requireActorWithRootFallback(): Promise<ActorIdentity> {
-  const userSession = await getUserSession();
-  if (userSession) {
-    return { userId: userSession.userId, actorId: auditActorId(userSession), isRootAdmin: userSession.authSource === "root" };
-  }
-
-  const adminSession = await getAdminSession();
-  if (
-    adminSession.isAdmin &&
-    adminSession.adminId &&
-    adminSession.adminUsername &&
-    adminSession.adminRole === "super_admin"
-  ) {
-    const mapped = rootToUserSession(adminSession as AuthenticatedAdmin);
-    return { userId: mapped.userId, actorId: auditActorId(mapped), isRootAdmin: true };
-  }
-
-  throw new AppError(ErrorCode.UNAUTHORIZED, ERROR_MESSAGES.UNAUTHORIZED);
-}
-
-/** Server Component 用：检查是否有管理员权限，无则返回 null（调用方自行 redirect）*/
-export async function checkAdminSession(): Promise<UserSession | null> {
+export async function checkAdminSession(): Promise<CurrentUserAuthorization | null> {
   try {
     return await requireAdmin();
   } catch {

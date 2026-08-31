@@ -6,11 +6,17 @@ import { Pool } from "pg";
 import { createMajorDefaultCapabilities } from "../../src/types/season";
 import { createPerfectWorldRankOrder } from "../../src/lib/config/perfect-world";
 import { assertDeclaredDatabaseTarget, assertLocalDatabaseUrl, assertLocalHttpUrl } from "./local-environment";
+import {
+  deleteCompetitivePlatformCatalog,
+  seedCompetitivePlatformCatalog,
+} from "../../tests/integration/db/harness/competitive-catalog-fixtures";
 
 const FIXTURE_SEASON_ID = deterministicUuid("major-browser-season");
 const FIXTURE_SLUG = "local-major-browser-2026-08";
+// 专属 fixture 平台 key：不与 seed 内置 perfect_world 目录争夺 per-platform
+// unique current 赛季，保证 bootstrap/reset 后 fixture 仍可重建。
 const PROFILE = {
-  platform: "perfect_world",
+  platform: "browser-perfect-world",
   currentSeasonKey: "browser-major-current",
   previousSeasonKey: "browser-major-previous",
   rankOrder: createPerfectWorldRankOrder(),
@@ -106,6 +112,9 @@ async function findAuthUsers(auth: SupabaseClient): Promise<Array<{ id: string; 
 }
 
 async function removeFixtureDatabaseRows(client: import("pg").PoolClient): Promise<void> {
+  // Local fixture cleanup is the one operational path allowed to remove
+  // append-only provenance rows. Production writes never use this setting.
+  await client.query("SET LOCAL session_replication_role = replica");
   await client.query("DELETE FROM match_roster_players WHERE roster_id IN (SELECT id FROM match_rosters WHERE match_id IN (SELECT id FROM matches WHERE season_id = $1))", [FIXTURE_SEASON_ID]);
   await client.query("DELETE FROM match_rosters WHERE match_id IN (SELECT id FROM matches WHERE season_id = $1)", [FIXTURE_SEASON_ID]);
   await client.query("DELETE FROM matches WHERE season_id = $1", [FIXTURE_SEASON_ID]);
@@ -115,22 +124,31 @@ async function removeFixtureDatabaseRows(client: import("pg").PoolClient): Promi
   await client.query("DELETE FROM major_stage_entrants WHERE stage_run_id IN (SELECT id FROM major_stage_runs WHERE season_id = $1)", [FIXTURE_SEASON_ID]);
   await client.query("DELETE FROM major_stage_runs WHERE season_id = $1", [FIXTURE_SEASON_ID]);
   await client.query("DELETE FROM major_tournament_seeds WHERE season_id = $1", [FIXTURE_SEASON_ID]);
-  await client.query("DELETE FROM major_prestart_roster_members WHERE entrant_id IN (SELECT id FROM major_prestart_entrants WHERE season_id = $1)", [FIXTURE_SEASON_ID]);
-  await client.query("DELETE FROM major_prestart_entrants WHERE season_id = $1", [FIXTURE_SEASON_ID]);
+  await client.query("DELETE FROM competition_entry_active_claims WHERE competition_id = $1", [FIXTURE_SEASON_ID]);
+  await client.query("DELETE FROM competition_entry_submissions WHERE entry_id IN (SELECT id FROM competition_entries WHERE competition_id = $1)", [FIXTURE_SEASON_ID]);
+  await client.query("DELETE FROM competition_entry_roster_members WHERE revision_id IN (SELECT id FROM competition_entry_roster_revisions WHERE entry_id IN (SELECT id FROM competition_entries WHERE competition_id = $1))", [FIXTURE_SEASON_ID]);
+  await client.query("DELETE FROM competition_entry_roster_revisions WHERE entry_id IN (SELECT id FROM competition_entries WHERE competition_id = $1)", [FIXTURE_SEASON_ID]);
+  await client.query("DELETE FROM event_roster_members WHERE event_roster_id IN (SELECT id FROM event_rosters WHERE entry_id IN (SELECT id FROM competition_entries WHERE competition_id = $1))", [FIXTURE_SEASON_ID]);
+  await client.query("DELETE FROM event_rosters WHERE entry_id IN (SELECT id FROM competition_entries WHERE competition_id = $1)", [FIXTURE_SEASON_ID]);
+  await client.query("DELETE FROM competition_entry_participants WHERE entry_id IN (SELECT id FROM competition_entries WHERE competition_id = $1)", [FIXTURE_SEASON_ID]);
+  await client.query("DELETE FROM competition_entry_representative_changes WHERE entry_id IN (SELECT id FROM competition_entries WHERE competition_id = $1)", [FIXTURE_SEASON_ID]);
+  await client.query("DELETE FROM competition_entry_legacy_identities WHERE entry_id IN (SELECT id FROM competition_entries WHERE competition_id = $1)", [FIXTURE_SEASON_ID]);
+  await client.query("DELETE FROM competition_entries WHERE competition_id = $1", [FIXTURE_SEASON_ID]);
   await client.query("DELETE FROM major_prestart_issues WHERE season_id = $1", [FIXTURE_SEASON_ID]);
   await client.query("DELETE FROM major_prestart_states WHERE season_id = $1", [FIXTURE_SEASON_ID]);
-  await client.query("DELETE FROM team_members WHERE season_id = $1", [FIXTURE_SEASON_ID]);
-  await client.query("DELETE FROM teams WHERE season_id = $1", [FIXTURE_SEASON_ID]);
-  await client.query("DELETE FROM team_application_active_claims WHERE season_id = $1", [FIXTURE_SEASON_ID]);
-  await client.query("DELETE FROM team_application_members WHERE application_id IN (SELECT id FROM team_applications WHERE season_id = $1)", [FIXTURE_SEASON_ID]);
-  await client.query("DELETE FROM team_applications WHERE season_id = $1", [FIXTURE_SEASON_ID]);
   await client.query("DELETE FROM season_registrations WHERE season_id = $1", [FIXTURE_SEASON_ID]);
   await client.query("DELETE FROM audit_logs WHERE season_id = $1", [FIXTURE_SEASON_ID]);
   await client.query("DELETE FROM competitive_rank_facts WHERE user_id = ANY($1::uuid[])", [ACCOUNT_IDS]);
   await client.query("DELETE FROM education_verifications WHERE user_id = ANY($1::uuid[])", [ACCOUNT_IDS]);
   await client.query("DELETE FROM user_sessions WHERE user_id = ANY($1::uuid[])", [ACCOUNT_IDS]);
+  await client.query("DELETE FROM team_invitations WHERE team_id IN (SELECT id FROM teams WHERE creator_user_id = ANY($1::uuid[]) OR captain_user_id = ANY($1::uuid[]))", [ACCOUNT_IDS]);
+  await client.query("DELETE FROM team_memberships WHERE team_id IN (SELECT id FROM teams WHERE creator_user_id = ANY($1::uuid[]) OR captain_user_id = ANY($1::uuid[]))", [ACCOUNT_IDS]);
+  await client.query("DELETE FROM team_captain_changes WHERE team_id IN (SELECT id FROM teams WHERE creator_user_id = ANY($1::uuid[]) OR captain_user_id = ANY($1::uuid[]))", [ACCOUNT_IDS]);
+  await client.query("DELETE FROM team_name_changes WHERE team_id IN (SELECT id FROM teams WHERE creator_user_id = ANY($1::uuid[]) OR captain_user_id = ANY($1::uuid[]))", [ACCOUNT_IDS]);
+  await client.query("DELETE FROM team_slug_aliases WHERE team_id IN (SELECT id FROM teams WHERE creator_user_id = ANY($1::uuid[]) OR captain_user_id = ANY($1::uuid[]))", [ACCOUNT_IDS]);
+  await client.query("DELETE FROM teams WHERE creator_user_id = ANY($1::uuid[]) OR captain_user_id = ANY($1::uuid[])", [ACCOUNT_IDS]);
   await client.query("DELETE FROM users WHERE id = ANY($1::uuid[])", [ACCOUNT_IDS]);
-  await client.query("DELETE FROM competitive_platform_seasons WHERE platform = $1 AND season_key = ANY($2::text[])", [PROFILE.platform, [PROFILE.currentSeasonKey, PROFILE.previousSeasonKey]]);
+  await deleteCompetitivePlatformCatalog(client, PROFILE.platform);
   await client.query("DELETE FROM seasons WHERE id = $1", [FIXTURE_SEASON_ID]);
 }
 
@@ -150,11 +168,10 @@ async function insertFixture(client: import("pg").PoolClient, authIds: Map<strin
       [ACCOUNT_IDS[index], authIds.get(email), email, ready ? `Browser ${key}` : null, ready ? `Browser Steam ${key}` : null, ready ? `Browser Perfect ${key}` : null, ready ? `browser-major-${key}` : null, ready ? `7656119800000000${String(index + 1).padStart(2, "0")}` : null, ready ? `https://steamcommunity.com/id/browser-${key}` : null, ready ? `500000000${String(index + 1).padStart(2, "02")}` : null],
     );
   }
-  await client.query(
-    `INSERT INTO competitive_platform_seasons (id, platform, season_key, label, rank_order, sort_order, is_current)
-     VALUES ($1, $2, $3, 'Browser 当前赛季', $4::json, 1, true), ($5, $2, $6, 'Browser 上一赛季', $4::json, 0, false)`,
-    [deterministicUuid("major-browser-platform-current"), PROFILE.platform, PROFILE.currentSeasonKey, JSON.stringify(PROFILE.rankOrder), deterministicUuid("major-browser-platform-previous"), PROFILE.previousSeasonKey],
-  );
+  await seedCompetitivePlatformCatalog(client, PROFILE.platform, [
+    { seasonKey: PROFILE.previousSeasonKey, label: "Browser 上一赛季", sortOrder: 0, isCurrent: false },
+    { seasonKey: PROFILE.currentSeasonKey, label: "Browser 当前赛季", sortOrder: 1, isCurrent: true },
+  ], PROFILE.rankOrder);
   const facts = ACCOUNT_KEYS.filter((key) => key !== "player1").flatMap((key) => {
     const userId = ACCOUNT_IDS[ACCOUNT_KEYS.indexOf(key)]!;
     return [

@@ -162,3 +162,7 @@ vite.config.ts.timestamp-*
 .mcp.json
 .stitch/
 .agent-tmp/
+
+# Playwright 本地产物
+playwright-report/
+test-results/

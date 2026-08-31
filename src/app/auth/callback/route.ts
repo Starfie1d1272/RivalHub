@@ -73,9 +73,6 @@ export async function GET(request: NextRequest) {
   await createUserSession({
     userId: user.id,
     email: user.email,
-    role: user.role,
-    adminSeasonIds: user.adminSeasonIds,
-    authSource: "user",
   });
 
   return NextResponse.redirect(new URL(next, applicationOrigin));

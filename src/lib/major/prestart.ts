@@ -1,7 +1,6 @@
-import {
-  checkStandardMajorCapabilities,
-  type SeasonCapabilities,
-} from "@/types/season";
+import { checkStandardMajorCapabilities } from "@/lib/competition/definition";
+import type { CompetitionTemplate } from "@/lib/competition/templates";
+import type { SeasonCapabilities } from "@/types/season";
 import {
   buildMajorOpeningPlan,
   type MajorOpeningPlan,
@@ -56,6 +55,7 @@ export interface MajorPrestartTournamentSeedFact {
 }
 
 export interface MajorPrestartReadinessInput {
+  competitionTemplate: CompetitionTemplate;
   capabilities: SeasonCapabilities;
   teams: readonly MajorPrestartTeamFact[] | null;
   entrantsLocked: boolean | null;
@@ -63,7 +63,7 @@ export interface MajorPrestartReadinessInput {
   qualificationIssues: readonly MajorPrestartIssueFact[] | null;
   administrativeIssues: readonly MajorPrestartIssueFact[] | null;
   tournamentSeeds: readonly MajorPrestartTournamentSeedFact[] | null;
-  seedConfirmation: { seedRevision: number; confirmedSeedRevision: number | null } | null;
+  seedConfirmation: { confirmed: boolean } | null;
 }
 
 export interface MajorPrestartReadiness {
@@ -237,10 +237,7 @@ function checkSeedConfirmation(
   fact: MajorPrestartReadinessInput["seedConfirmation"],
 ): MajorPrestartCheck {
   if (fact === null) return unavailable("reconfirmations", "种子重新确认");
-  if (!Number.isInteger(fact.seedRevision) || fact.seedRevision < 1) {
-    return blocked("reconfirmations", "种子重新确认", ["请先保存完整的赛事种子排序。"]);
-  }
-  return fact.confirmedSeedRevision === fact.seedRevision
+  return fact.confirmed
     ? ready("reconfirmations", "种子重新确认")
     : blocked("reconfirmations", "种子重新确认", ["赛事种子已变化，必须重新确认后才能开赛。"]);
 }
@@ -289,11 +286,16 @@ function checkSeeds(
 export function evaluateMajorPrestartReadiness(
   input: MajorPrestartReadinessInput,
 ): MajorPrestartReadiness {
-  const rules = checkStandardMajorCapabilities(input.capabilities);
+  const rules = input.competitionTemplate === "major"
+    ? checkStandardMajorCapabilities(input.capabilities)
+    : null;
+  const ruleBlockers = rules
+    ? rules.failures.map((failure) => failure.reason)
+    : ["当前赛事模板不是 major，不能进入 Major runtime。"];
   const checks: MajorPrestartCheck[] = [
-    rules.isStandardMajor
+    rules?.isStandardMajor === true
       ? ready("rules", "标准 Major 规则")
-      : blocked("rules", "标准 Major 规则", rules.failures.map((failure) => failure.reason)),
+      : blocked("rules", "标准 Major 规则", ruleBlockers),
   ];
 
   const teamBlockers = input.teams === null
@@ -324,7 +326,7 @@ export function evaluateMajorPrestartReadiness(
   let openingPlan: MajorOpeningPlan | null = null;
   const stageOneMatchFormat = input.capabilities.stagePlan[0]?.matchFormat;
   if (
-    !rules.isStandardMajor ||
+    rules?.isStandardMajor !== true ||
     teamBlockers === null ||
     teamBlockers.length > 0 ||
     seedResult.seeds === null ||

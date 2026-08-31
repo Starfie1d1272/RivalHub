@@ -2,12 +2,12 @@
 
 import { eq, and, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, matches, matchMaps, matchVetoSteps, matchRosters, matchRosterPlayers, teams, auditLogs, matchTimeProposals } from "@/db/schema";
+import { seasons, matches, matchMaps, matchVetoSteps, matchRosters, matchRosterPlayers, competitionEntries, auditLogs, matchTimeProposals } from "@/db/schema";
 import { ok } from "@/types/action";
 import type { ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { requireSeasonAdmin, auditActorId } from "@/lib/auth/session";
-import { advanceMatch as bracketAdvance, collectResolvedMatches, type BracketStageRef, type ResolvedBracketMatch } from "@/lib/bracket";
+import { advanceMatch as bracketAdvance, collectResolvedMatches, loadBracketState, saveBracketState, type BracketStageRef, type ResolvedBracketMatch } from "@/lib/bracket";
 import type { BracketDatabase as Database } from "@/lib/bracket";
 import {
   assertMatchTransition,
@@ -42,8 +42,8 @@ async function insertResolvedBracketMatches(
   resolvedMatches: ResolvedBracketMatch[],
   stagePlan: ReturnType<typeof normalizeStagePlan>,
 ) {
-  const seasonTeams = await tx.query.teams.findMany({
-    where: eq(teams.seasonId, seasonId),
+  const seasonTeams = await tx.query.competitionEntries.findMany({
+    where: eq(competitionEntries.competitionId, seasonId),
   });
   const participants = updatedData.participant as { id: number; name: string }[];
   const participantNameById = new Map(participants.map((p) => [p.id, p.name]));
@@ -59,8 +59,8 @@ async function insertResolvedBracketMatches(
     const stage = stagePlan.find((s) => s.name === bmStageName)?.key ?? defaultStage;
     await tx.insert(matches).values({
       seasonId,
-      teamAId: teamA.id,
-      teamBId: teamB.id,
+      entryAId: teamA.id,
+      entryBId: teamB.id,
       stage,
       format: resolveMatchFormat(stagePlan, stage, bm.roundNumber, bm.groupNumber),
       status: "scheduled",
@@ -142,6 +142,7 @@ export async function recordMatchResult(
       if (!hasVeto) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先录入 BP 再录入比分");
       const [lockedSeason] = await tx.select().from(seasons).where(eq(seasons.id, locked.seasonId)).for("update");
       if (!lockedSeason) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
+      const bracketState = await loadBracketState(tx, locked.seasonId);
       await tx
         .update(matches)
         .set({
@@ -154,18 +155,15 @@ export async function recordMatchResult(
         .where(eq(matches.id, matchId));
 
       // 推进 bracket（若 bracket 已初始化）
-      if (lockedSeason.bracketData && locked.bracketNodeId) {
+      if (bracketState && locked.bracketNodeId) {
         const { updatedData, newResolvedMatches } = await bracketAdvance(
           locked.bracketNodeId,
           scoreA,
           scoreB,
-          lockedSeason.bracketData as Database
+          bracketState,
         );
 
-        await tx
-          .update(seasons)
-          .set({ bracketData: updatedData as Database, updatedAt: new Date() })
-          .where(eq(seasons.id, match.seasonId));
+        await saveBracketState(tx, match.seasonId, updatedData);
 
         await insertResolvedBracketMatches(
           tx, match.seasonId, match.stage,
@@ -207,7 +205,7 @@ export async function recordMapResult(
   mapName: string,
   scoreA: number,
   scoreB: number,
-  pickedByTeamId: string | null,
+  pickedByEntryId: string | null,
   teamAStartSide: "t" | "ct" | null
 ): Promise<ActionResult<{ seriesFinished: boolean }>> {
   try {
@@ -242,6 +240,7 @@ export async function recordMapResult(
       if (!hasVeto) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先录入 BP 再录入地图结果");
       const [lockedSeason] = await tx.select().from(seasons).where(eq(seasons.id, locked.seasonId)).for("update");
       if (!lockedSeason) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
+      const bracketState = await loadBracketState(tx, locked.seasonId);
       const lockedPool = normalizeRegistrationConfig(lockedSeason.registrationConfig).mapPool;
       if (!lockedPool.includes(mapName)) throw new AppError(ErrorCode.MATCH_MAP_INVALID, "地图不在当前赛季图池中");
       const lockedMaxMaps = getMaxMaps(locked.format);
@@ -260,12 +259,12 @@ export async function recordMapResult(
       seriesFinished = seriesScore.seriesFinished;
 
       if (existingRow) {
-        // BP 预占行：填入比分（pickedByTeamId / teamAStartSide 保留 BP 记录，除非调用方覆盖）
+        // BP 预占行：填入比分（pickedByEntryId / teamAStartSide 保留 BP 记录，除非调用方覆盖）
         await tx.update(matchMaps)
           .set({
             scoreA,
             scoreB,
-            pickedByTeamId: pickedByTeamId ?? existingRow.pickedByTeamId,
+            pickedByEntryId: pickedByEntryId ?? existingRow.pickedByEntryId,
             teamAStartSide: teamAStartSide ?? existingRow.teamAStartSide,
             completedAt: new Date(),
           })
@@ -275,7 +274,7 @@ export async function recordMapResult(
           matchId,
           mapOrder,
           mapName,
-          pickedByTeamId,
+          pickedByEntryId,
           teamAStartSide,
           scoreA,
           scoreB,
@@ -296,14 +295,14 @@ export async function recordMapResult(
           updatedAt: new Date(),
         }).where(eq(matches.id, matchId));
 
-        if (lockedSeason.bracketData && locked.bracketNodeId) {
+        if (bracketState && locked.bracketNodeId) {
           const { updatedData, newResolvedMatches } = await bracketAdvance(
             locked.bracketNodeId,
             mapWinsA,
             mapWinsB,
-            lockedSeason.bracketData as Database
+            bracketState,
           );
-          await tx.update(seasons).set({ bracketData: updatedData as Database, updatedAt: new Date() }).where(eq(seasons.id, match.seasonId));
+          await saveBracketState(tx, match.seasonId, updatedData);
           await insertResolvedBracketMatches(
             tx, match.seasonId, match.stage,
             updatedData as Database, newResolvedMatches,
@@ -569,10 +568,10 @@ export async function correctMatchScore(
     const prevWinner =
       match.scoreA !== null && match.scoreB !== null
         ? match.scoreA > match.scoreB
-          ? match.teamAId
-          : match.teamBId
+          ? match.entryAId
+          : match.entryBId
         : null;
-    const nextWinner = scoreA > scoreB ? match.teamAId : match.teamBId;
+    const nextWinner = scoreA > scoreB ? match.entryAId : match.entryBId;
     if (prevWinner !== null && prevWinner !== nextWinner) {
       throw new AppError(
         ErrorCode.VALIDATION_FAILED,
@@ -656,7 +655,7 @@ export async function deleteMatch(matchId: string): Promise<ActionResult<void>> 
         actorId: auditActorId(session),
         targetId: matchId,
         targetType: "match",
-        meta: { stage: match.stage, format: match.format, teamAId: match.teamAId, teamBId: match.teamBId },
+        meta: { stage: match.stage, format: match.format, entryAId: match.entryAId, entryBId: match.entryBId },
       });
     });
 
@@ -773,10 +772,10 @@ export async function correctMapScore(
       const existingWinner =
         match.scoreA !== null && match.scoreB !== null
           ? match.scoreA > match.scoreB
-            ? match.teamAId
-            : match.teamBId
+            ? match.entryAId
+            : match.entryBId
           : null;
-      const proposedWinner = mapWinsA > mapWinsB ? match.teamAId : match.teamBId;
+      const proposedWinner = mapWinsA > mapWinsB ? match.entryAId : match.entryBId;
       if (existingWinner !== null && existingWinner !== proposedWinner) {
         throw new AppError(
           ErrorCode.VALIDATION_FAILED,
@@ -812,24 +811,24 @@ export async function correctMapScore(
 // ── 修复缺失的 bracket 比赛 ───────────────────────────────────────────────────
 
 /**
- * 扫描当前 bracket_data，将已确定对阵但 DB 中缺失的比赛补全。
+ * 扫描当前 bracket state，将已确定对阵但 DB 中缺失的比赛补全。
  * 用于修复历史 bug 导致的漏创建情况，正常流程不需要调用。
  */
 export async function syncBracketMatches(seasonId: string): Promise<ActionResult<{ created: number; fixed: number }>> {
   try {
     await requireSeasonAdmin(seasonId);
     const season = await getSeasonOrThrow(seasonId);
-    if (!season.bracketData) return ok({ created: 0, fixed: 0 });
+    const bracketState = await loadBracketState(db, seasonId);
+    if (!bracketState) return ok({ created: 0, fixed: 0 });
 
-    const bracketData = season.bracketData as Database;
-    const allResolved = collectResolvedMatches(bracketData);
+    const allResolved = collectResolvedMatches(bracketState);
     const stagePlan = normalizeStagePlan(season.stagePlan);
-    const dbStages = bracketData.stage as BracketStageRef[];
+    const dbStages = bracketState.stage as BracketStageRef[];
 
     // 建立 participant id → team 的正确映射（名称查找）
-    const seasonTeams = await db.query.teams.findMany({ where: eq(teams.seasonId, seasonId) });
+    const seasonTeams = await db.query.competitionEntries.findMany({ where: eq(competitionEntries.competitionId, seasonId) });
     const teamByName = new Map(seasonTeams.map((t) => [t.name, t]));
-    const participants = bracketData.participant as { id: number; name: string }[];
+    const participants = bracketState.participant as { id: number; name: string }[];
     const participantNameById = new Map(participants.map((p) => [p.id, p.name]));
 
     // bracket stage id → 赛季 stage key 映射
@@ -843,7 +842,7 @@ export async function syncBracketMatches(seasonId: string): Promise<ActionResult
     // 不同 stage（qualifier vs playoff）可能共享同一 bracketNodeId
     const existingBracketMatches = await db.query.matches.findMany({
       where: eq(matches.seasonId, seasonId),
-      columns: { id: true, bracketNodeId: true, stage: true, teamAId: true, teamBId: true },
+      columns: { id: true, bracketNodeId: true, stage: true, entryAId: true, entryBId: true },
     });
     const existingByKey = new Map<string, typeof existingBracketMatches[number]>();
     for (const m of existingBracketMatches) {
@@ -871,17 +870,17 @@ export async function syncBracketMatches(seasonId: string): Promise<ActionResult
         if (!existing) {
           await tx.insert(matches).values({
             seasonId,
-            teamAId: teamA.id,
-            teamBId: teamB.id,
+            entryAId: teamA.id,
+            entryBId: teamB.id,
             stage,
             format: resolveMatchFormat(stagePlan, stage, bm.roundNumber, bm.groupNumber),
             status: "scheduled",
             bracketNodeId: nodeIdStr,
           });
           created++;
-        } else if (existing.teamAId !== teamA.id || existing.teamBId !== teamB.id) {
+        } else if (existing.entryAId !== teamA.id || existing.entryBId !== teamB.id) {
           await tx.update(matches)
-            .set({ teamAId: teamA.id, teamBId: teamB.id, updatedAt: new Date() })
+            .set({ entryAId: teamA.id, entryBId: teamB.id, updatedAt: new Date() })
             .where(eq(matches.id, existing.id));
           fixed++;
         }
@@ -919,12 +918,12 @@ export async function forfeitMatch(
 
     assertMatchTransition(match.status, "finished");
 
-    if (loserTeamId !== match.teamAId && loserTeamId !== match.teamBId) {
+    if (loserTeamId !== match.entryAId && loserTeamId !== match.entryBId) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "弃赛队伍不属于本场比赛");
     }
 
     const winnerScore = FORFEIT_WINNER_SCORE[match.format];
-    const isLoserA = loserTeamId === match.teamAId;
+    const isLoserA = loserTeamId === match.entryAId;
     const scoreA = isLoserA ? 0 : winnerScore;
     const scoreB = isLoserA ? winnerScore : 0;
 
@@ -948,17 +947,15 @@ export async function forfeitMatch(
         })
         .where(eq(matches.id, matchId));
 
-      if (season.bracketData && match.bracketNodeId) {
+      const bracketState = await loadBracketState(tx, match.seasonId);
+      if (bracketState && match.bracketNodeId) {
         const { updatedData, newResolvedMatches } = await bracketAdvance(
           match.bracketNodeId,
           scoreA,
           scoreB,
-          season.bracketData as Database
+          bracketState,
         );
-        await tx
-          .update(seasons)
-          .set({ bracketData: updatedData as Database, updatedAt: new Date() })
-          .where(eq(seasons.id, match.seasonId));
+        await saveBracketState(tx, match.seasonId, updatedData);
         await insertResolvedBracketMatches(
           tx, match.seasonId, match.stage,
           updatedData as Database, newResolvedMatches,

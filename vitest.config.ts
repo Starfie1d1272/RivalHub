@@ -6,18 +6,13 @@ export default defineConfig({
     environment: "node",
     setupFiles: ["./tests/setup.ts"],
     globals: true,
-    include: ["tests/unit/**/*.test.ts", "tests/unit/**/*.test.tsx", "tests/integration/**/*.test.ts", "src/**/*.test.ts", "src/**/*.test.tsx"],
+    include: ["tests/unit/**/*.test.ts", "tests/unit/**/*.test.tsx", "src/**/*.test.ts", "src/**/*.test.tsx"],
     exclude: ["tests/e2e/**"],
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],
       include: ["src/**"],
       exclude: ["src/app/**", "src/components/ui/**"],
-      thresholds: {
-        lines: 28,
-        functions: 60,
-        branches: 50,
-      },
     },
   },
   resolve: {

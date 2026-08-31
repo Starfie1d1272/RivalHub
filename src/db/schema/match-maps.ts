@@ -1,7 +1,7 @@
 import { pgTable, uuid, integer, text, timestamp, pgEnum, unique, check } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { matches } from "./matches";
-import { teams } from "./teams";
+import { competitionEntries } from "./competition-entries";
 
 // 起始边：T = 进攻方，CT = 防守方
 export const sideEnum = pgEnum("side", ["t", "ct"]);
@@ -9,9 +9,9 @@ export const sideEnum = pgEnum("side", ["t", "ct"]);
 /**
  * 单图比赛记录
  *
- * BO1：1 行（mapOrder = 1，pickedByTeamId = null）
- * BO3：最多 3 行（mapOrder = 1..3，决胜图的 pickedByTeamId = null）
- * BO5：最多 5 行（mapOrder = 1..5，决胜图的 pickedByTeamId = null）
+ * BO1：1 行（mapOrder = 1，pickedByEntryId = null）
+ * BO3：最多 3 行（mapOrder = 1..3，决胜图的 pickedByEntryId = null）
+ * BO5：最多 5 行（mapOrder = 1..5，决胜图的 pickedByEntryId = null）
  *
  * v1 由 admin 手动录入；BP 全自动状态机为后续阶段。
  */
@@ -28,7 +28,7 @@ export const matchMaps = pgTable(
     mapName: text("map_name").notNull(),
 
     /** 该图被哪支队 pick（决胜图为 null）*/
-    pickedByTeamId: uuid("picked_by_team_id").references(() => teams.id),
+    pickedByEntryId: uuid("picked_by_entry_id").references(() => competitionEntries.id),
 
     /** Team A 上半场起始边（决胜图由刀赛决定，结果填入此字段）*/
     teamAStartSide: sideEnum("team_a_start_side"),

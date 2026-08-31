@@ -1,6 +1,6 @@
 # RivalHub 工作流
 
-本文件描述当前 RC3 的生命周期与 owner boundary。政策规则由 [`rules/`](./rules/) 定义；精确 action 输入和错误码以 code 为准。
+本文件描述当前 2.0 实现的生命周期与 owner boundary。政策规则由 [`rules/`](./rules/) 定义；精确 action 输入和错误码以 code 为准。
 
 ## 1. Account / Auth
 
@@ -8,7 +8,7 @@
 
 ## 2. Long-lived participant profile
 
-`users` 承载 display/profile、QQ、Steam 与 Perfect World identity 等跨赛事 participant profile。现有 Rivals 个人报名仍保留部分历史报名字段和赛事快照；长期资料与报名信息的进一步收敛见 [`decisions/2.0-convergence.md`](./decisions/2.0-convergence.md)。
+`users` 承载 display/profile、QQ、Steam 与 Perfect World identity 等跨赛事 participant profile。现有 Rivals 个人报名仍保留部分历史报名字段和赛事快照；2.x 的“我的”聚合与长期 Team/赛事参与边界见 [`decisions/2.x-product-domains.md`](./decisions/2.x-product-domains.md)。
 
 ## 3. Education verification
 
@@ -16,7 +16,7 @@
 
 ## 4. Competitive profile
 
-数据 owner 是 `competitive_platform_seasons` 与 `competitive_rank_facts`。`/settings/competitive` 直接读取全局目录，不依赖已发布 RivalHub 赛事；当前赛季、上一赛季置顶，其他仍启用的已编目赛季也可维护，未来赛季可以留空，历史赛季资料可补录。赛事 qualification evaluator 只检查该赛事冻结上下文要求的 exact season keys，因此目录推进不会让冻结了旧赛季的赛事资格失效。
+数据 owner 是 `competitive_platforms`、`competitive_platform_ranks`、`competitive_platform_seasons` 与 `competitive_rank_facts`：平台拥有 rank ladder，平台赛季只表达时间目录，竞技事实引用其中的稳定身份。`/settings/competitive` 直接读取全局目录，不依赖已发布 RivalHub 赛事；当前赛季、上一赛季置顶，其他仍启用的已编目赛季也可维护，未来赛季可以留空，历史赛季资料可补录。赛事 qualification evaluator 只检查该赛事冻结上下文要求的 exact season keys，因此目录推进不会让冻结了旧赛季的赛事资格失效。
 
 ## 5. Rivals solo registration
 
@@ -24,23 +24,23 @@ Rivals 用户在报名窗口填写个人报名并可保存草稿。提交由 Ser
 
 ## 6. Captain voting
 
-已审核用户在投票阶段为候选队长投票或撤票。投票资格、上限和状态由服务端校验；管理员确认队长后创建 Rivals 的初始队伍与选秀顺位。
+已审核用户在投票阶段为候选队长投票或撤票。投票资格、上限和状态由服务端校验；管理员确认队长后创建 Rivals 的 CompetitionEntry（`teamId = null`）与选秀顺位。
 
 ## 7. Rivals draft
 
-队长/管理员操作选秀时，系统以行锁锁定 `draft_state`，先判定 `clientRequestId` 幂等，再验证轮次、身份、位置与可选性，在同一事务写 pick、成员和下一轮状态。commit 后才更新 Realtime。
+队长/管理员操作选秀时，系统以行锁锁定 `draft_state`，先判定 `clientRequestId` 幂等，再验证轮次、身份、位置与可选性，在同一事务写 pick、Entry participant / roster member / event roster member 与下一轮状态。commit 后才更新 Realtime。
 
-## 8. Major team application
+## 8. Major entry registration
 
-队长创建申请、填写赛事相关信息、邀请成员并维护可编辑申请。队长可把职责转给当前已确认成员，原队长保持普通成员身份；锁定后由适用管理员执行紧急交接。交接在事务内锁定 application 行、season 行与目标成员行，全部权限与状态判断基于锁定行，并发交接只有一个能成功。一个用户在同届赛事只能保有符合 active-claim 约束的参与关系。提交前由服务端 qualification owner（batch facts + pure evaluators）汇集身份、教育、竞技和队伍事实执行资格判断。
+长期 Team 的队长为赛事创建 CompetitionEntry（`createCompetitionEntry`），维护可编辑的报名名单 revision（`saveCompetitionEntryRoster`）并可把代表职责转给当前已确认成员（`transferCompetitionEntryRepresentative`）。一个用户在同届赛事只能保有一个符合 `competition_entry_active_claims` 约束的 active commitment。提交前由服务端 qualification owner（batch facts + pure evaluators）汇集身份、教育、竞技和 Entry 事实执行资格判断。长期 Team 本身的成员邀请、队长交接与解散独立于赛事进行。
 
-## 9. Member invite / confirmation
+## 9. Participant confirmation
 
-受邀用户通过 application workflow 确认成员身份。未确认成员不能被当作已完成的申请成员；成员变更会重新影响申请 readiness。
+受邀成员以 Entry participant 身份确认或拒绝参赛（`confirmCompetitionEntryParticipation` / `declineCompetitionEntryParticipation`）。未确认成员不能被当作已完成的参赛成员；成员变更会重新影响 Entry readiness。
 
-## 10. Team review / materialization
+## 10. Entry review
 
-管理员对 submitted application 审核为 approved、waitlisted 或 rejected。draft/rejected application 可由队长编辑并再次提交。approved application 原子物化为正式 `teams` / `team_members`，并保留 application provenance；这一步不等同于进入 Major tournament。
+管理员对 submitted entry 审核为 approved、waitlisted、rejected 或 changes_requested（`reviewCompetitionEntry`）。changes_requested/rejected entry 可由队长编辑并再次提交。approved entry 收敛到 approved roster revision；这一步不等同于进入 Major tournament（见 prestart）。
 
 ## 11. Major prestart
 
@@ -52,7 +52,7 @@ Major 的 Swiss 阶段由 managed StageRun 运行。每次 pairing、回合结�
 
 ## 13. Match roster
 
-正式队伍为具体比赛提交或由管理员选定阵容。Major roster 检查阶段冻结的 affiliation 和参赛事实；缺少或不符合要求的阵容不能被伪造为可用。
+Entry 为具体比赛提交或由管理员选定阵容；阵容成员必须是该 Entry frozen event roster 的成员。Major roster 检查阶段冻结的 affiliation 和参赛事实；缺少或不符合要求的阵容不能被伪造为可用，数据库 invariant 拒绝引用其他 Entry 名单成员的 lineup。
 
 ## 14. Match execution / result
 
@@ -87,18 +87,8 @@ Rivals 的 voting/drafting 由 capability 启用；Major start 在 readiness、e
 
 - 发布（draft → registration）在事务内冻结 requireCompetitiveProfile 赛事的竞技上下文（catalog current/previous/rank order）。
 - 撤回（registration → draft）与删除共用“无报名/队伍/赛程事实”guard；通过后撤回会解除 built-in 赛事的竞技冻结，下一次发布重新解析目录。
-- 删除（draft → deleted）清理未使用的管理员邀请与 `adminSeasonIds` 引用；`audit_logs.season_id` 为 SET NULL，并写入全局 `season.deleted` 审计。
+- 删除（draft → deleted）拒绝已有 invite claim 的赛季；未领取的邀请码与其 claim ledger 随赛季删除，`season_admin_grants` 通过 season FK cascade 清理，`audit_logs.season_id` 为 SET NULL，并写入全局 `season.deleted` 审计。
 - 已发布赛季的编辑只接受名称、主题、时间等元数据；核心配置与冻结上下文不可被客户端输入或模板 factory 改写。
-
-### Team application
-
-```text
-draft / rejected → submitted
-submitted → approved | waitlisted | rejected
-waitlisted → approved | rejected
-```
-
-成员状态独立为 `invited → confirmed`。只有 draft/rejected application 可由队长编辑；submitted/waitlisted application 的审核与正式队伍物化由服务端控制。`approved` 已物化为正式队伍，不通过普通 review workflow 回退。
 
 ### Match
 
@@ -120,7 +110,7 @@ forfeit 是 `finished` 的结果形态，不是额外比赛状态。结果更正
 1. 对 `draft_state` 执行 `SELECT … FOR UPDATE`；
 2. 在当前轮次、队长和 deadline 校验之前查询 `clientRequestId`；同一请求的重试返回原 pick，跨 season/team/player 复用同一 id 则拒绝；
 3. 校验 draft active、当前队伍、deadline、队长、目标报名状态、未被选择和位置上限；
-4. 写入 `draft_picks`、`team_members` 与 audit log；
+4. 写入 `draft_picks`、Entry participant / roster member / event roster member 事实与 audit log；
 5. 推进 `draft_state`，最后一 pick 将赛季推进为 `playing`；
 6. commit 后 revalidate；Realtime client 只消费已提交的 `draft_state` 与 `draft_picks` 更新。
 

@@ -4,8 +4,8 @@ import { and, inArray, eq } from "drizzle-orm";
 
 interface MatchRef {
   id: string;
-  teamAId: string;
-  teamBId: string;
+  entryAId: string;
+  entryBId: string;
   format: string;
   scoreA: number | null;
   scoreB: number | null;
@@ -18,7 +18,7 @@ export interface MapWinStats {
 
 /** 每图胜率，兼容 BO1（via decider veto step）和 BO3/BO5（via matchMaps） */
 export async function getTeamMapWinStats(
-  teamId: string,
+  entryId: string,
   teamMatches: MatchRef[],
 ): Promise<Map<string, MapWinStats>> {
   if (!teamMatches.length) return new Map();
@@ -35,7 +35,7 @@ export async function getTeamMapWinStats(
       if (mp.scoreA === null || mp.scoreB === null) continue;
       const match = matchRef.get(mp.matchId);
       if (!match) continue;
-      const isA = match.teamAId === teamId;
+      const isA = match.entryAId === entryId;
       const myScore = isA ? mp.scoreA : mp.scoreB;
       const oppScore = isA ? mp.scoreB : mp.scoreA;
       const prev = mapStats.get(mp.mapName) ?? { wins: 0, played: 0 };
@@ -59,7 +59,7 @@ export async function getTeamMapWinStats(
     for (const d of deciders) {
       const match = matchRef.get(d.matchId);
       if (!match) continue;
-      const isA = match.teamAId === teamId;
+      const isA = match.entryAId === entryId;
       const myScore = isA ? (match.scoreA ?? 0) : (match.scoreB ?? 0);
       const oppScore = isA ? (match.scoreB ?? 0) : (match.scoreA ?? 0);
       const prev = mapStats.get(d.mapName) ?? { wins: 0, played: 0 };
@@ -74,7 +74,7 @@ export async function getTeamMapWinStats(
 }
 
 async function getTeamVetoActionStats(
-  teamId: string,
+  entryId: string,
   matchIds: string[],
   actionType: "ban" | "pick",
 ): Promise<{ count: Map<string, number>; bpMatchCount: number }> {
@@ -97,7 +97,7 @@ async function getTeamVetoActionStats(
         and(
           inArray(matchVetoSteps.matchId, matchIds),
           eq(matchVetoSteps.actionType, actionType),
-          eq(matchVetoSteps.teamId, teamId),
+          eq(matchVetoSteps.entryId, entryId),
         ),
       ),
   ]);
@@ -112,18 +112,18 @@ async function getTeamVetoActionStats(
 
 /** Ban 统计：返回每图 ban 次数 + 参与 BP 的对局总数（ban 率分母） */
 export async function getTeamBanStats(
-  teamId: string,
+  entryId: string,
   matchIds: string[],
 ): Promise<{ banCount: Map<string, number>; bpMatchCount: number }> {
-  const { count, bpMatchCount } = await getTeamVetoActionStats(teamId, matchIds, "ban");
+  const { count, bpMatchCount } = await getTeamVetoActionStats(entryId, matchIds, "ban");
   return { banCount: count, bpMatchCount };
 }
 
 /** Pick 统计：返回每图 pick 次数 + 参与 BP 的对局总数（pick 率分母） */
 export async function getTeamPickStats(
-  teamId: string,
+  entryId: string,
   matchIds: string[],
 ): Promise<{ pickCount: Map<string, number>; bpMatchCount: number }> {
-  const { count, bpMatchCount } = await getTeamVetoActionStats(teamId, matchIds, "pick");
+  const { count, bpMatchCount } = await getTeamVetoActionStats(entryId, matchIds, "pick");
   return { pickCount: count, bpMatchCount };
 }

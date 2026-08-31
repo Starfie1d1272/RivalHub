@@ -5,12 +5,10 @@ import Image from "next/image";
 import { toast } from "sonner";
 import { Spinner } from "@/components/rivalhub";
 import { uploadTeamLogo } from "@/actions/teams";
-import { uploadTeamApplicationLogo } from "@/actions/team-applications";
 import { LOGO_MAX_BYTES, LOGO_ALLOWED_TYPES } from "@/lib/config/upload-limits";
 
 interface TeamLogoUploadProps {
   teamId?: string;
-  applicationId?: string;
   currentLogoUrl: string | null;
   teamName: string;
   /** 仅队长可编辑 */
@@ -20,7 +18,6 @@ interface TeamLogoUploadProps {
 
 export function TeamLogoUpload({
   teamId,
-  applicationId,
   currentLogoUrl,
   teamName,
   canEdit,
@@ -54,11 +51,9 @@ export function TeamLogoUpload({
     formData.append("file", file);
 
     startTransition(async () => {
-      const result = applicationId
-        ? await uploadTeamApplicationLogo(applicationId, formData)
-        : teamId
-          ? await uploadTeamLogo(teamId, formData)
-          : { success: false as const, error: { message: "缺少队伍标识" } };
+      const result = teamId
+        ? await uploadTeamLogo(teamId, formData)
+        : { success: false as const, error: { message: "缺少队伍标识" } };
       URL.revokeObjectURL(objectUrl);
       if (result.success) {
         lastConfirmedUrlRef.current = result.data.logoUrl;

@@ -1,227 +1,29 @@
+import { asc, eq, inArray } from "drizzle-orm";
 import { notFound } from "next/navigation";
-import { eq, asc, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, teams, teamMembers, seasonRegistrations, users, matches, swissStandings } from "@/db/schema";
+import { competitionEntries, eventRosterMembers, eventRosters, matches, seasonRegistrations, seasons, users } from "@/db/schema";
+import { AdminShortcut } from "@/components/layout/AdminShortcut";
 import { Marker, Stat } from "@/components/rivalhub";
 import { TeamCard } from "@/components/teams/TeamCard";
-import { calculateStandings } from "@/lib/standings";
-import { getSwissDirectoryOrder, sortTeamDirectory } from "@/lib/teams/directory-order";
-import { CS2_POSITIONS, getFirstStageOfType, getPreviousStage, normalizeStagePlan } from "@/types/season";
-import { getPublicDisplayName } from "@/lib/utils/display-name";
 import { checkAdminSession } from "@/lib/auth/session";
-import { AdminShortcut } from "@/components/layout/AdminShortcut";
+import { getPublicDisplayName } from "@/lib/identity/display-name";
 
-interface TeamsPageProps {
-  params: Promise<{ seasonSlug: string }>;
-}
-
-export default async function TeamsPage({ params }: TeamsPageProps) {
+export default async function CompetitionEntriesPage({ params }: { params: Promise<{ seasonSlug: string }> }) {
   const { seasonSlug } = await params;
-
-  const [season, adminSession] = await Promise.all([
-    db.query.seasons.findFirst({ where: eq(seasons.slug, seasonSlug) }),
-    checkAdminSession(),
-  ]);
+  const [season, admin] = await Promise.all([db.query.seasons.findFirst({ where: eq(seasons.slug, seasonSlug) }), checkAdminSession()]);
   if (!season) notFound();
-
-  const allTeams = await db.query.teams.findMany({
-    where: eq(teams.seasonId, season.id),
-    orderBy: [asc(teams.draftOrder)],
-  });
-
-  if (allTeams.length === 0) {
-    return (
-      <div className="container mx-auto px-4 py-16 text-center text-[var(--color-fg-mid)]">
-        队伍尚未生成，敬请期待
-      </div>
-    );
-  }
-
-  const [allMembers, seasonMatches, seasonSwissStandings, teamStatResult] = await Promise.all([
-    db
-      .select({
-        teamId: teamMembers.teamId,
-        registrationId: teamMembers.registrationId,
-        captainUserId: teams.captainUserId,
-        isStarter: teamMembers.isStarter,
-        primaryPosition: seasonRegistrations.primaryPosition,
-        steamName: users.steamName,
-        perfectName: users.perfectName,
-        userId: users.id,
-      })
-      .from(teamMembers)
-      .innerJoin(teams, eq(teamMembers.teamId, teams.id))
-      .innerJoin(users, eq(teamMembers.userId, users.id))
-      .leftJoin(seasonRegistrations, eq(teamMembers.registrationId, seasonRegistrations.id))
-      .where(inArray(teamMembers.teamId, allTeams.map((t) => t.id))),
-    db.query.matches.findMany({
-      where: eq(matches.seasonId, season.id),
-    }),
-    db.query.swissStandings.findMany({
-      where: eq(swissStandings.seasonId, season.id),
-      orderBy: [asc(swissStandings.seed)],
-    }),
-    db.execute(sql`
-      SELECT
-        tm.team_id,
-        count(distinct mps.map_id)::int AS maps,
-        round(avg(mps.rating_pro)::numeric, 2) AS avg_rating,
-        round(
-          CASE WHEN sum(mm2.score_a + mm2.score_b) > 0
-            THEN sum(mps.adr * (mm2.score_a + mm2.score_b))::numeric / sum(mm2.score_a + mm2.score_b)
-            ELSE NULL END
-        ::numeric, 1) AS avg_adr
-      FROM match_player_stats mps
-      JOIN matches m ON m.id = mps.match_id
-      JOIN match_maps mm2 ON mm2.id = mps.map_id
-      JOIN team_members tm
-        ON tm.user_id = mps.user_id AND tm.season_id = m.season_id
-      WHERE m.season_id = ${season.id}
-        AND mps.verified_by_admin IS NOT NULL
-      GROUP BY tm.team_id
-    `),
-  ]);
-
-  const membersWithFallbackPosition = allMembers.map((member) => ({
-    ...member,
-    primaryPosition: member.primaryPosition ?? "—",
-  }));
-  const membersByTeam = new Map<string, typeof membersWithFallbackPosition>();
-  for (const m of membersWithFallbackPosition) {
-    if (!membersByTeam.has(m.teamId)) membersByTeam.set(m.teamId, []);
-    membersByTeam.get(m.teamId)!.push(m);
-  }
-
-  const teamRecordMap = new Map<string, { played: number; wins: number; losses: number; winRate: string }>();
-  for (const team of allTeams) {
-    let wins = 0;
-    let losses = 0;
-    for (const match of seasonMatches) {
-      if (match.status !== "finished") continue;
-      if (match.teamAId !== team.id && match.teamBId !== team.id) continue;
-      const isTeamA = match.teamAId === team.id;
-      const ownScore = isTeamA ? (match.scoreA ?? 0) : (match.scoreB ?? 0);
-      const opponentScore = isTeamA ? (match.scoreB ?? 0) : (match.scoreA ?? 0);
-      if (ownScore > opponentScore) wins++;
-      else losses++;
-    }
-    const played = wins + losses;
-    teamRecordMap.set(team.id, {
-      played,
-      wins,
-      losses,
-      winRate: played > 0 ? `${Math.round((wins / played) * 100)}%` : "—",
-    });
-  }
-
-  const teamSummaryMap = new Map(
-    teamStatResult.rows.map((row) => [
-      row.team_id as string,
-      {
-        maps: Number(row.maps),
-        avgRating: Number(row.avg_rating),
-        avgAdr: Number(row.avg_adr),
-      },
-    ]),
-  );
-  const stagePlan = normalizeStagePlan(season.stagePlan);
-  const qualifierStage = getFirstStageOfType(stagePlan, ["round_robin", "swiss"]);
-  const playoffStage = getFirstStageOfType(stagePlan, ["double_elim", "single_elim"]);
-  const qualifierMatches = qualifierStage
-    ? seasonMatches.filter((match) => match.stage === qualifierStage.key)
-    : [];
-  const playoffMatches = playoffStage
-    ? seasonMatches.filter((match) => match.stage === playoffStage.key)
-    : [];
-  const finishedQualifierMatches = qualifierMatches.filter((match) => match.status === "finished");
-  const standings = qualifierStage?.type === "round_robin" && finishedQualifierMatches.length > 0
-    ? calculateStandings(
-        allTeams,
-        finishedQualifierMatches,
-      )
-    : [];
-  const qualifierSwissStages = stagePlan.filter((stage) => stage.type === "swiss");
-  const activeSwissStage = [...qualifierSwissStages]
-    .reverse()
-    .find((stage) => seasonSwissStandings.some((standing) => standing.stage === stage.key));
-  const activeSwissRows = activeSwissStage
-    ? seasonSwissStandings.filter((standing) => standing.stage === activeSwissStage.key)
-    : [];
-  const standingsOrder = qualifierStage?.type === "swiss"
-    ? getSwissDirectoryOrder(activeSwissRows)
-    : standings.map((standing) => standing.teamId);
-  const isPlayoffDirectory = playoffMatches.length > 0;
-  const previousPlayoffStage = playoffStage ? getPreviousStage(stagePlan, playoffStage.key) : null;
-  const playoffSeedOrder = previousPlayoffStage?.type === "swiss"
-    ? seasonSwissStandings
-        .filter((standing) => standing.stage === previousPlayoffStage.key && standing.status === "advanced")
-        .sort((a, b) => a.seed - b.seed)
-        .map((standing) => standing.teamId)
-    : standingsOrder;
-  const sortedTeams = sortTeamDirectory(allTeams, {
-    mode: isPlayoffDirectory ? "playoff" : "qualifier",
-    standingsOrder,
-    playoffSeedOrder: isPlayoffDirectory ? playoffSeedOrder : [],
-  });
-  const orderLabel = isPlayoffDirectory && standingsOrder.length > 0
-    ? "正赛种子顺序"
-    : standingsOrder.length > 0
-      ? "排位赛积分顺序"
-      : "选秀顺位";
-
-  return (
-    <div className="container mx-auto px-4 py-12 max-w-6xl space-y-8">
-      <div className="flex items-center justify-between">
-        <Marker sub={season.name}>参赛队伍</Marker>
-        {adminSession && (
-          <AdminShortcut href={`/admin/${seasonSlug}/settings`} label="赛季管理" />
-        )}
-      </div>
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <Stat label="TEAMS" value={allTeams.length} />
-        <Stat label="PLAYERS" value={allMembers.length} />
-        <Stat label="MATCHES" value={`${seasonMatches.filter((match) => match.status === "finished").length}/${seasonMatches.length}`} />
-        <Stat label="DATA READY" value={`${teamSummaryMap.size}/${allTeams.length}`} accent />
-      </div>
-
-      <div className="space-y-3">
-        <p className="text-xs uppercase text-[var(--color-fg-dim)]" style={{ fontFamily: "var(--font-mono)" }}>
-          Directory order · {orderLabel}
-        </p>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {sortedTeams.map((team) => {
-          const members = (membersByTeam.get(team.id) ?? [])
-            .map((m) => ({
-              name: getPublicDisplayName(m),
-              primaryPosition: m.primaryPosition,
-              isStarter: m.isStarter,
-              isCaptain: m.userId === m.captainUserId,
-              userId: m.userId,
-            }))
-            .sort((a, b) => {
-              if (a.isStarter !== b.isStarter) return a.isStarter ? -1 : 1;
-              const ai = CS2_POSITIONS.indexOf(a.primaryPosition as never);
-              const bi = CS2_POSITIONS.indexOf(b.primaryPosition as never);
-              return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
-            });
-
-          return (
-            <TeamCard
-              key={team.id}
-              teamId={team.id}
-              teamName={team.name}
-              seasonSlug={seasonSlug}
-              draftOrder={team.draftOrder}
-              logoUrl={team.logoUrl}
-              players={members}
-              record={teamRecordMap.get(team.id)}
-              summary={teamSummaryMap.get(team.id) ?? null}
-            />
-          );
-        })}
-        </div>
-      </div>
-    </div>
-  );
+  const entries = await db.query.competitionEntries.findMany({ where: eq(competitionEntries.competitionId, season.id), orderBy: [asc(competitionEntries.formationOrder), asc(competitionEntries.createdAt)] });
+  if (entries.length === 0) return <div className="container mx-auto px-4 py-16 text-center text-[var(--color-fg-mid)]">赛事队伍尚未形成</div>;
+  const members = await db.select({ entryId: eventRosters.entryId, userId: users.id, steamName: users.steamName, perfectName: users.perfectName, displayName: users.displayName, primaryPosition: seasonRegistrations.primaryPosition, isStarter: eventRosterMembers.isPrimaryStarter })
+    .from(eventRosterMembers).innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId)).innerJoin(users, eq(users.id, eventRosterMembers.userId)).leftJoin(seasonRegistrations, eq(seasonRegistrations.userId, users.id)).where(inArray(eventRosters.entryId, entries.map((entry) => entry.id)));
+  const seasonMatches = await db.query.matches.findMany({ where: eq(matches.seasonId, season.id) });
+  const membersByEntry = new Map<string, typeof members>();
+  for (const member of members) membersByEntry.set(member.entryId, [...(membersByEntry.get(member.entryId) ?? []), member]);
+  const record = (entryId: string) => { let wins = 0; let losses = 0; for (const match of seasonMatches) { if (match.status !== "finished" || (match.entryAId !== entryId && match.entryBId !== entryId)) continue; const own = match.entryAId === entryId ? match.scoreA : match.scoreB; const other = match.entryAId === entryId ? match.scoreB : match.scoreA; if ((own ?? 0) > (other ?? 0)) wins += 1; else losses += 1; } const played = wins + losses; return { played, wins, losses, winRate: played ? `${Math.round(wins / played * 100)}%` : "—" }; };
+  return <div className="container mx-auto max-w-6xl space-y-8 px-4 py-12">
+    <div className="flex items-center justify-between"><Marker sub={season.name}>CompetitionEntries</Marker>{admin && <AdminShortcut href={`/admin/${seasonSlug}/settings`} label="赛事管理" />}</div>
+    <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4"><Stat label="ENTRIES" value={entries.length} /><Stat label="FROZEN PLAYERS" value={members.length} /><Stat label="MATCHES" value={`${seasonMatches.filter((match) => match.status === "finished").length}/${seasonMatches.length}`} /><Stat label="IDENTITY" value="ENTRY" accent /></div>
+    <p className="text-xs text-[var(--color-fg-dim)]">这里展示本届赛事队伍；长期队伍资料与历史请到队伍页面查看。</p>
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">{entries.map((entry) => <TeamCard key={entry.id} teamId={entry.id} teamName={entry.name} seasonSlug={seasonSlug} draftOrder={entry.formationOrder} logoUrl={entry.logoUrl} players={(membersByEntry.get(entry.id) ?? []).map((member) => ({ name: getPublicDisplayName(member), primaryPosition: member.primaryPosition ?? "—", isStarter: member.isStarter, isCaptain: member.userId === entry.representativeUserId, userId: member.userId }))} record={record(entry.id)} summary={null} />)}</div>
+  </div>;
 }

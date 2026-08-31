@@ -1,33 +1,32 @@
 import { describe, it, expect } from "vitest";
 import type { Match } from "@/db/schema/matches";
-import type { Team } from "@/db/schema/teams";
+import type { CompetitionEntry } from "@/db/schema/competition-entries";
 import { calculateStandings } from "@/lib/standings";
 
-// Helper to construct a minimal Team-like object
+// Helper to construct a minimal CompetitionEntry-like object
 function t(id: string, name: string, draftOrder: number) {
   return {
     id,
     name,
-    draftOrder,
-    seasonId: "s1",
-    captainRegistrationId: "cr1",
+    formationOrder: draftOrder,
+    competitionId: "s1",
     createdAt: new Date(),
-  } as Team;
+  } as CompetitionEntry;
 }
 
 // Helper to construct a minimal finished Match-like object
 function m(
   id: string,
-  teamAId: string,
-  teamBId: string,
+  entryAId: string,
+  entryBId: string,
   scoreA: number,
   scoreB: number,
 ) {
   return {
     id,
     seasonId: "s1",
-    teamAId,
-    teamBId,
+    entryAId,
+    entryBId,
     stage: "qualifier",
     format: "bo1",
     status: "finished",

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getPublicDisplayName } from "@/lib/utils/display-name";
+import { getPublicDisplayName } from "@/lib/identity/display-name";
 
 interface RosterPlayer {
   steamName: string;
