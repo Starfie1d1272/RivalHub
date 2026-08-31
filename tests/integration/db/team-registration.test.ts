@@ -300,7 +300,7 @@ async function exerciseQualificationWithRealCatalog(pool: Pool): Promise<void> {
     }
     for (const [id, email] of values) {
       await client.query(
-        `INSERT INTO users (id, email, display_name, steam64, perfect_id, qq, email_verified_at)
+        `INSERT INTO users (id, email, display_name, steam64, perfect_name, qq, email_verified_at)
          VALUES ($1, $2, '选手', '76561198000000001', $3, '100000001', now())`,
         [id, email, `pw-${id}`],
       );

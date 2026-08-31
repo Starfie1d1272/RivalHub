@@ -9,6 +9,7 @@ import { actionError } from "@/lib/action-utils";
 import { auditActorId, requireAuth } from "@/lib/auth/session";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { fail, ok, type ActionResult } from "@/types/action";
+import { CS2_POSITION_VALUES } from "@/lib/config/cs2-positions";
 
 const starsSchema = z.number().int().nonnegative().nullable().optional().default(null);
 const factSchema = z.object({ rank: z.string().trim().min(1).max(64), rating: z.coerce.number().finite().min(0).max(999999), stars: starsSchema });
@@ -19,7 +20,7 @@ const schema = z.object({
   /** One entry per catalogued platform season the participant wants to maintain. */
   seasonPeaks: z.array(seasonPeakSchema).max(64),
 });
-const roleSchema = z.enum(["igl", "awper", "entry", "closer", "anchor", "support", "lurker"]);
+const roleSchema = z.enum(CS2_POSITION_VALUES);
 
 export async function saveCompetitiveRoles(input: unknown): Promise<ActionResult<void>> {
   const parsed = z.object({ roles: z.array(roleSchema).min(1).max(3), primaryRole: roleSchema }).safeParse(input);

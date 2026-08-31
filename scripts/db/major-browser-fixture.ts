@@ -163,9 +163,9 @@ async function insertFixture(client: import("pg").PoolClient, authIds: Map<strin
     const ready = key !== "player1";
     const email = ACCOUNT_EMAILS[index]!;
     await client.query(
-      `INSERT INTO users (id, auth_id, email, email_verified_at, display_name, steam_name, perfect_name, perfect_id, steam64, steam_profile_url, qq)
-       VALUES ($1, $2, $3, now(), $4, $5, $6, $7, $8, $9, $10)`,
-      [ACCOUNT_IDS[index], authIds.get(email), email, ready ? `Browser ${key}` : null, ready ? `Browser Steam ${key}` : null, ready ? `Browser Perfect ${key}` : null, ready ? `browser-major-${key}` : null, ready ? `7656119800000000${String(index + 1).padStart(2, "0")}` : null, ready ? `https://steamcommunity.com/id/browser-${key}` : null, ready ? `500000000${String(index + 1).padStart(2, "02")}` : null],
+      `INSERT INTO users (id, auth_id, email, email_verified_at, display_name, steam_name, perfect_name, steam64, steam_profile_url, qq)
+       VALUES ($1, $2, $3, now(), $4, $5, $6, $7, $8, $9)`,
+      [ACCOUNT_IDS[index], authIds.get(email), email, ready ? `Browser ${key}` : null, ready ? `Browser Steam ${key}` : null, ready ? `Browser Perfect ${key}` : null, ready ? `7656119800000000${String(index + 1).padStart(2, "0")}` : null, ready ? `https://steamcommunity.com/id/browser-${key}` : null, ready ? `500000000${String(index + 1).padStart(2, "02")}` : null],
     );
   }
   await seedCompetitivePlatformCatalog(client, PROFILE.platform, [

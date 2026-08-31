@@ -29,7 +29,6 @@ export interface ParticipantQualificationFacts {
   email: string | null;
   emailVerifiedAt: Date | null;
   steam64: string | null;
-  perfectId: string | null;
   qq: string | null;
   approvedEducation: boolean;
   educationHistory: SeasonEducationVerification[];
@@ -50,7 +49,7 @@ export function getParticipantIdentityBlockers(fact: ParticipantQualificationFac
   const blockers: string[] = [];
   if (!fact.displayName?.trim()) blockers.push("请填写展示昵称。");
   if (!fact.steam64?.trim()) blockers.push("请填写 Steam64 ID。");
-  if (!fact.perfectId?.trim()) blockers.push("请填写完美世界竞技平台 ID。");
+  if (!fact.perfectName?.trim()) blockers.push("请填写完美平台昵称。");
   if (!fact.qq?.trim()) blockers.push("请填写 QQ 号。");
   if (!fact.emailVerifiedAt) blockers.push("请先验证邮箱。");
   return blockers;
@@ -104,7 +103,7 @@ export async function loadParticipantQualificationFacts(
     ? and(inArray(competitiveRankFacts.userId, ids), eq(competitiveRankFacts.platform, options.platform))
     : inArray(competitiveRankFacts.userId, ids);
   const [userRows, verificationRows, rankRows] = await Promise.all([
-    executor.select({ id: users.id, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName, email: users.email, emailVerifiedAt: users.emailVerifiedAt, steam64: users.steam64, perfectId: users.perfectId, qq: users.qq })
+    executor.select({ id: users.id, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName, email: users.email, emailVerifiedAt: users.emailVerifiedAt, steam64: users.steam64, qq: users.qq })
       .from(users).where(inArray(users.id, ids)),
     executor.select({ userId: educationVerifications.userId, id: educationVerifications.id, status: educationVerifications.status, academicStatus: educationVerifications.academicStatus, institutionCode: institutions.moeInstitutionCode, institutionName: institutions.name, submittedAt: educationVerifications.submittedAt })
       .from(educationVerifications).innerJoin(institutions, eq(educationVerifications.institutionId, institutions.id))
@@ -140,7 +139,6 @@ export async function loadParticipantQualificationFacts(
       email: user.email,
       emailVerifiedAt: user.emailVerifiedAt,
       steam64: user.steam64,
-      perfectId: user.perfectId,
       qq: user.qq,
       approvedEducation: approvedEducation.has(user.id),
       educationHistory: historyByUser.get(user.id) ?? [],

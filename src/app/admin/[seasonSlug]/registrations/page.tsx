@@ -47,7 +47,7 @@ export default async function AdminRegistrationsPage({ params }: PageProps) {
     const rosterRows = entryIds.length === 0
       ? []
       : await db
-          .select({ entryId: competitionEntryRosterRevisions.entryId, revisionId: competitionEntryRosterRevisions.id, revision: competitionEntryRosterRevisions.revisionNumber, participantId: competitionEntryParticipants.id, userId: users.id, email: users.email, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName, perfectId: users.perfectId, status: competitionEntryParticipants.status, primary: competitionEntryRosterMembers.isPrimaryStarter })
+          .select({ entryId: competitionEntryRosterRevisions.entryId, revisionId: competitionEntryRosterRevisions.id, revision: competitionEntryRosterRevisions.revisionNumber, participantId: competitionEntryParticipants.id, userId: users.id, email: users.email, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName, status: competitionEntryParticipants.status, primary: competitionEntryRosterMembers.isPrimaryStarter })
           .from(competitionEntryRosterRevisions)
           .innerJoin(competitionEntryRosterMembers, eq(competitionEntryRosterMembers.revisionId, competitionEntryRosterRevisions.id))
           .innerJoin(competitionEntryParticipants, eq(competitionEntryParticipants.id, competitionEntryRosterMembers.participantId))
