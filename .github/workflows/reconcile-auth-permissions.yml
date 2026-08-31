@@ -15,23 +15,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
-      - name: Capture actual merge conflicts
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git fetch origin dev
-          set +e
-          git merge --no-commit --no-ff origin/dev
-          status=$?
-          set -e
-          if [ "$status" -eq 0 ]; then
-            printf 'NO_CONFLICTS\n' > reconcile-auth-conflicts.txt
-          else
-            git diff --name-only --diff-filter=U | sort > reconcile-auth-conflicts.txt
-          fi
-          git merge --abort || true
-          git add reconcile-auth-conflicts.txt
-          git commit -m 'chore(auth): capture reconciliation conflicts'
-          git push origin HEAD:refactor/v2-auth-permissions
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86
+        with:
+          version: 10.34.5
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Reconcile latest dev and regenerate auth migration
+        run: bash scripts/reconcile-auth-permissions.sh
