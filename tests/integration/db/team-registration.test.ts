@@ -219,7 +219,7 @@ async function exerciseConcurrencyAndInvariants(pool: Pool): Promise<void> {
     await setup.query("INSERT INTO event_roster_members (id,event_roster_id,participant_id,user_id) VALUES ($1,$2,$3,$4)", [ids.eventMemberA, ids.rosterA, ids.participantA, ids.shared]);
     await setup.query("INSERT INTO event_roster_members (id,event_roster_id,participant_id,user_id) VALUES ($1,$2,$3,$4)", [ids.eventMemberB, ids.rosterB, ids.participantB, ids.shared]);
     await setup.query("INSERT INTO matches (id,season_id,entry_a_id,entry_b_id,stage) VALUES ($1,$2,$3,$4,'fixture')", [ids.match, ids.season, ids.entryA, ids.entryB]);
-    await setup.query("INSERT INTO match_rosters (id,match_id,entry_id,status) VALUES ($1,$2,$3,'submitted')", [ids.matchRoster, ids.match, ids.entryA]);
+    await setup.query("INSERT INTO match_rosters (id,match_id,entry_id,source,status) VALUES ($1,$2,$3,'admin_select','submitted')", [ids.matchRoster, ids.match, ids.entryA]);
     const crossEntryMatchPlayer = await capturePostgresError(setup, () => setup.query("INSERT INTO match_roster_players (roster_id,event_roster_member_id) VALUES ($1,$2)", [ids.matchRoster, ids.eventMemberB]));
     expect(crossEntryMatchPlayer).toMatchObject({ code: "23514" });
     await setup.query("INSERT INTO match_roster_players (roster_id,event_roster_member_id) VALUES ($1,$2)", [ids.matchRoster, ids.eventMemberA]);

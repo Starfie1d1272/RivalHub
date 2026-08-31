@@ -157,7 +157,6 @@ describe("validateResultCorrectionProposal", () => {
 
   it("enforces exact series thresholds for non-forfeit corrections", () => {
     const bo3 = { ...baseMatch(), format: "bo3" as const };
-    // Winner must have exactly maxWins; 3:0 is legal for bo3, 2:1 legal, 13:x not.
     expect(validateResultCorrectionProposal(bo3, { scoreA: 2, scoreB: 0 }).winnerTeamId).toBe(TEAM_A);
     expect(() => validateResultCorrectionProposal(bo3, { scoreA: 5, scoreB: 3 })).toThrow(AppError);
   });
@@ -197,16 +196,30 @@ describe("resolveWinnerTeamId", () => {
 });
 
 describe("loadFrozenRunFacts", () => {
+  const stagePlan = [
+    { key: "stage1", name: "Stage 1", type: "swiss", teamCount: 16, matchFormat: "bo1", finalFormat: null, advanceTiers: [] },
+    { key: "stage2", name: "Stage 2", type: "swiss", teamCount: 16, matchFormat: "bo1", finalFormat: null, advanceTiers: [] },
+    { key: "playoff", name: "Playoff", type: "single_elim", teamCount: 8, matchFormat: "bo3", finalFormat: "bo5", advanceTiers: [] },
+  ];
+
+  function snapshot() {
+    return {
+      version: 4,
+      stagePlan,
+      rosterRules: { minTeamSize: 5, maxTeamSize: 9, starterCount: 5 },
+      affiliationRules: [],
+      competitiveProfile: null,
+      frozenCompetitiveFacts: [],
+      runOptions: {},
+    };
+  }
+
   function stageRunOf(ruleSnapshot: unknown): Pick<MajorStageRun, "stageKey" | "ruleSnapshot" | "finalizedRound"> {
     return { stageKey: "stage1", ruleSnapshot: ruleSnapshot as never, finalizedRound: 3 };
   }
 
   it("extracts the frozen stage type and ordered stage plan keys", () => {
-    const facts = loadFrozenRunFacts(stageRunOf({
-      version: 2,
-      stage: { key: "stage1", type: "swiss", teamCount: 16, matchFormat: "bo1" },
-      stagePlan: [{ key: "stage1" }, { key: "stage2" }, { key: "playoff" }],
-    }));
+    const facts = loadFrozenRunFacts(stageRunOf(snapshot()));
     expect(facts.stageType).toBe("swiss");
     expect(facts.stagePlanKeys).toEqual(["stage1", "stage2", "playoff"]);
     expect(facts.finalizedRoundValue).toBe(3);
@@ -216,21 +229,18 @@ describe("loadFrozenRunFacts", () => {
     const facts = loadFrozenRunFacts({
       stageKey: "playoff",
       finalizedRound: 0,
-      ruleSnapshot: {
-        stage: { key: "playoff", type: "single_elim", teamCount: 8 },
-        stagePlan: [{ key: "stage1" }, { key: "playoff" }],
-      },
-    } as never);
+      ruleSnapshot: snapshot() as never,
+    });
     expect(facts.stageType).toBe("single_elim");
   });
 
   it("throws on missing/mismatched/unknown snapshot shapes", () => {
     expect(() => loadFrozenRunFacts(stageRunOf(null))).toThrow(AppError);
-    expect(() =>
-      loadFrozenRunFacts(stageRunOf({ stage: { key: "other", type: "swiss" }, stagePlan: [] })),
-    ).toThrow(AppError);
-    expect(() =>
-      loadFrozenRunFacts(stageRunOf({ stage: { key: "stage1", type: "round_robin" }, stagePlan: [] })),
-    ).toThrow(AppError);
+    expect(() => loadFrozenRunFacts({
+      stageKey: "missing",
+      finalizedRound: 0,
+      ruleSnapshot: snapshot() as never,
+    })).toThrow(AppError);
+    expect(() => loadFrozenRunFacts(stageRunOf({ ...snapshot(), version: 99 }))).toThrow(AppError);
   });
 });

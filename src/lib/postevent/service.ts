@@ -13,6 +13,7 @@ import {
   type TournamentHonor,
 } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
+import { parseMajorFinalPlacementGroups } from "@/lib/major/placement";
 
 export const ADJUDICATION_IMPACTS = [
   "canonical_matches",
@@ -26,7 +27,6 @@ type AdjudicationTarget = "season" | "entry" | "user" | "match";
 type AdjudicationKind = "team_sanction" | "result_statement" | "placement_statement" | "honor_directive";
 type HonorType = "champion" | "runner_up" | "placement" | "manual_award";
 type HonorBasis = "final_result" | "manual" | "adjudication";
-
 type PlacementGroup = { from: number; to: number; entryIds: string[] };
 
 function validateImpacts(impacts: readonly AdjudicationImpact[]): AdjudicationImpact[] {
@@ -40,17 +40,12 @@ function validateImpacts(impacts: readonly AdjudicationImpact[]): AdjudicationIm
   return distinct;
 }
 
-function parsePlacementGroups(value: unknown): PlacementGroup[] {
-  if (!Array.isArray(value)) throw new AppError(ErrorCode.INTERNAL_ERROR, "官方名次分组格式损坏。");
-  const groups = value.map((group): PlacementGroup => {
-    if (!group || typeof group !== "object") throw new AppError(ErrorCode.INTERNAL_ERROR, "官方名次分组格式损坏。");
-    const candidate = group as Partial<PlacementGroup>;
-    if (!Number.isInteger(candidate.from) || !Number.isInteger(candidate.to) || !Array.isArray(candidate.entryIds) || !candidate.entryIds.every((id) => typeof id === "string")) {
-      throw new AppError(ErrorCode.INTERNAL_ERROR, "官方名次分组格式损坏。");
-    }
-    return { from: candidate.from!, to: candidate.to!, entryIds: candidate.entryIds! };
-  });
-  return groups;
+function parsePlacementGroups(value: unknown, championEntryId: string): PlacementGroup[] {
+  try {
+    return parseMajorFinalPlacementGroups(value, championEntryId).map((group) => ({ ...group, entryIds: [...group.entryIds] }));
+  } catch {
+    throw new AppError(ErrorCode.INTERNAL_ERROR, "官方名次分组格式损坏。");
+  }
 }
 
 async function lockFinalResultInTx(tx: TxDb, seasonId: string) {
@@ -89,7 +84,7 @@ export async function confirmMajorFinalResultInTx(
     actorId: args.actorId,
     targetId: result.id,
     targetType: "major_final_result",
-    meta: { championEntryId: result.championEntryId, placementGroupCount: parsePlacementGroups(result.placementGroups).length },
+    meta: { championEntryId: result.championEntryId, placementGroupCount: parsePlacementGroups(result.placementGroups, result.championEntryId).length },
   });
   return { resultId: result.id, alreadyConfirmed: false };
 }
@@ -205,7 +200,7 @@ function assertFinalResultRecipient(
   if (args.type === "champion" && args.entryId !== result.championEntryId) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "冠军荣誉只能授予官方结果中的冠军队伍。");
   }
-  const groups = parsePlacementGroups(result.placementGroups);
+  const groups = parsePlacementGroups(result.placementGroups, result.championEntryId);
   if (args.type === "runner_up") {
     const runnerUp = groups.find((group) => group.from === 2 && group.to === 2);
     if (!runnerUp?.entryIds.includes(args.entryId)) throw new AppError(ErrorCode.VALIDATION_FAILED, "亚军荣誉只能授予官方结果中的亚军队伍。");

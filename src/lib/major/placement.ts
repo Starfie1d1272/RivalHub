@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { MajorTournamentSeededTeam } from "./seeding";
 import {
   getMajorSwissQualifiers,
@@ -22,6 +23,40 @@ export interface MajorFinalPlacementGroup {
   from: number;
   to: number;
   entryIds: readonly string[];
+}
+
+const finalPlacementGroupSchema = z.object({
+  from: z.number().int().positive(),
+  to: z.number().int().positive(),
+  entryIds: z.array(z.string().uuid()).min(1),
+});
+
+/** The only parser for persisted official Major placement groups and champion pointer. */
+export function parseMajorFinalPlacementGroups(
+  value: unknown,
+  championEntryId: string,
+): MajorFinalPlacementGroup[] {
+  const parsed = z.array(finalPlacementGroupSchema).safeParse(value);
+  if (!parsed.success) throw new Error("official Major placement groups have an invalid shape");
+  let expectedFrom = 1;
+  const entryIds = new Set<string>();
+  for (const group of parsed.data) {
+    if (group.from !== expectedFrom || group.to < group.from || group.entryIds.length !== group.to - group.from + 1) {
+      throw new Error("official Major placement groups are not contiguous");
+    }
+    for (const entryId of group.entryIds) {
+      if (entryIds.has(entryId)) throw new Error("official Major placement groups contain duplicate entries");
+      entryIds.add(entryId);
+    }
+    expectedFrom = group.to + 1;
+  }
+  if (expectedFrom !== 33 || entryIds.size !== 32) {
+    throw new Error("official Major placement groups must cover 32 entries exactly once");
+  }
+  if (parsed.data[0]?.entryIds[0] !== championEntryId) {
+    throw new Error("official Major champion must equal first placement entry");
+  }
+  return parsed.data;
 }
 
 interface StageProjections {

@@ -21,7 +21,7 @@ function makeInput(): MajorPrestartReadinessInput {
     qualificationIssues: [],
     administrativeIssues: [],
     tournamentSeeds: teamIds.map((teamId, index) => ({ teamId, tournamentSeed: index + 1 })),
-    seedConfirmation: { seedRevision: 1, confirmedSeedRevision: 1 },
+    seedConfirmation: { confirmed: true },
   };
 }
 
@@ -61,7 +61,7 @@ describe("evaluateMajorPrestartReadiness", () => {
     input.tournamentSeeds = input.tournamentSeeds!.map((fact, index) => (
       index === 31 ? { ...fact, tournamentSeed: 31 } : fact
     ));
-    input.seedConfirmation = { seedRevision: 2, confirmedSeedRevision: 1 };
+    input.seedConfirmation = { confirmed: false };
 
     expect(() => evaluateMajorPrestartReadiness(input)).not.toThrow();
     const result = evaluateMajorPrestartReadiness(input);

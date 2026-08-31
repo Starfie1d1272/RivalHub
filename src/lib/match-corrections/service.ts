@@ -8,6 +8,7 @@ import {
   type Match,
 } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
+import { parseMajorRunSnapshot } from "@/lib/major/run-snapshot";
 import { validateSeriesScore } from "@/lib/matches/result-rules";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 
@@ -197,21 +198,15 @@ export function deriveSwissFinalizedRollback(
 export function loadFrozenRunFacts(
   stageRun: Pick<typeof majorStageRuns.$inferSelect, "stageKey" | "ruleSnapshot" | "finalizedRound">,
 ): FrozenRunFacts {
-  const snapshot = stageRun.ruleSnapshot as Record<string, unknown> | null;
-  const stage =
-    snapshot && typeof snapshot === "object"
-      ? (snapshot.stage as { key?: unknown; type?: unknown } | undefined)
-      : undefined;
+  const snapshot = parseMajorRunSnapshot(stageRun.ruleSnapshot, stageRun.stageKey);
+  const stage = snapshot.stage;
   if (
-    !snapshot ||
-    typeof snapshot !== "object" ||
-    typeof stage?.key !== "string" ||
     stage.key !== stageRun.stageKey ||
     (stage.type !== "swiss" && stage.type !== "single_elim")
   ) {
     throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 规则快照缺失或不可识别。");
   }
-  const rawPlan = Array.isArray(snapshot.stagePlan) ? snapshot.stagePlan : [];
+  const rawPlan = snapshot.stagePlan;
   const stagePlanKeys = rawPlan
     .map((entry) => (entry && typeof entry === "object" ? (entry as { key?: unknown }).key : undefined))
     .filter((key): key is string => typeof key === "string");

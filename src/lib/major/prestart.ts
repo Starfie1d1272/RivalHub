@@ -63,7 +63,7 @@ export interface MajorPrestartReadinessInput {
   qualificationIssues: readonly MajorPrestartIssueFact[] | null;
   administrativeIssues: readonly MajorPrestartIssueFact[] | null;
   tournamentSeeds: readonly MajorPrestartTournamentSeedFact[] | null;
-  seedConfirmation: { seedRevision: number; confirmedSeedRevision: number | null } | null;
+  seedConfirmation: { confirmed: boolean } | null;
 }
 
 export interface MajorPrestartReadiness {
@@ -237,10 +237,7 @@ function checkSeedConfirmation(
   fact: MajorPrestartReadinessInput["seedConfirmation"],
 ): MajorPrestartCheck {
   if (fact === null) return unavailable("reconfirmations", "种子重新确认");
-  if (!Number.isInteger(fact.seedRevision) || fact.seedRevision < 1) {
-    return blocked("reconfirmations", "种子重新确认", ["请先保存完整的赛事种子排序。"]);
-  }
-  return fact.confirmedSeedRevision === fact.seedRevision
+  return fact.confirmed
     ? ready("reconfirmations", "种子重新确认")
     : blocked("reconfirmations", "种子重新确认", ["赛事种子已变化，必须重新确认后才能开赛。"]);
 }

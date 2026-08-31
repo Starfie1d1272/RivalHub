@@ -6,7 +6,6 @@ import {
   competitionEntryRosterMembers,
   competitionEntryRosterRevisions,
   eventRosters,
-  majorPrestartEntrants,
   seasons,
 } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -46,8 +45,6 @@ export async function requestCompetitionEntryRosterChangeInTx(
   if (prestartRoster) {
     // 重新进入补正后，未冻结的赛前名单回到待同步/待确认状态，旧审批事实不再继续向上传递。
     await tx.update(eventRosters).set({ status: "preparing", confirmedAt: null, confirmedBy: null, frozenAt: null, frozenBy: null, updatedAt: new Date() }).where(eq(eventRosters.id, prestartRoster.id));
-    await tx.update(majorPrestartEntrants).set({ rosterConfirmedAt: null, rosterConfirmedBy: null, updatedAt: new Date() })
-      .where(eq(majorPrestartEntrants.eventRosterId, prestartRoster.id));
     prestartInvalidated = true;
   }
   if (!getRegistrationWindowState(season).canSubmit) throw new AppError(ErrorCode.REGISTRATION_CLOSED, "报名窗口已关闭；请联系赛事管理员发起名单变更。");

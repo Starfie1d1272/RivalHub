@@ -56,6 +56,12 @@ async function prepareFixture(pool: Pool): Promise<Fixture> {
   const championId = randomUUID();
   const runnerUpId = randomUUID();
   const thirdId = randomUUID();
+  const placementEntryIds = [
+    championId,
+    runnerUpId,
+    thirdId,
+    ...Array.from({ length: 29 }, () => randomUUID()),
+  ];
   const userId = randomUUID();
   const resultId = randomUUID();
   const matchId = randomUUID();
@@ -70,7 +76,8 @@ async function prepareFixture(pool: Pool): Promise<Fixture> {
     await client.query(`INSERT INTO users (id, email, email_verified_at) VALUES ($1, $2, now())`, [userId, `h2-${userId}@local.test`]);
     // Champion / runner-up / third identities are CompetitionEntries; the single
     // fixture user acts as their representative since no lineup flow runs here.
-    for (const [id, name] of [[championId, "Champion Entry"], [runnerUpId, "Runner-up Entry"], [thirdId, "Third Entry"]] as const) {
+    for (const [index, id] of placementEntryIds.entries()) {
+      const name = index === 0 ? "Champion Entry" : index === 1 ? "Runner-up Entry" : index === 2 ? "Third Entry" : `Placement Entry ${index + 1}`;
       const revisionId = randomUUID();
       await client.query(`INSERT INTO competition_entries (id, competition_id, source, name, representative_user_id, current_roster_revision_id, approved_roster_revision_id, registration_status) VALUES ($1, $2, 'event_native', $3, $4, $5, $5, 'approved')`, [id, seasonId, name, userId, revisionId]);
       await client.query("INSERT INTO competition_entry_representative_changes (entry_id, from_user_id, to_user_id, changed_by_actor_id) VALUES ($1, NULL, $2, 'local-admin')", [id, userId]);
@@ -90,9 +97,10 @@ async function prepareFixture(pool: Pool): Promise<Fixture> {
       `INSERT INTO major_final_results (id, season_id, playoff_stage_run_id, champion_entry_id, placement_groups, status, finalized_by)
        VALUES ($1, $2, $3, $4, $5::jsonb, 'pending_confirmation', $6)`,
       [resultId, seasonId, runId, championId, JSON.stringify([
-        { from: 1, to: 1, entryIds: [championId] },
-        { from: 2, to: 2, entryIds: [runnerUpId] },
-        { from: 3, to: 4, entryIds: [thirdId] },
+        { from: 1, to: 1, entryIds: [placementEntryIds[0]!] },
+        { from: 2, to: 2, entryIds: [placementEntryIds[1]!] },
+        { from: 3, to: 4, entryIds: placementEntryIds.slice(2, 4) },
+        { from: 5, to: 32, entryIds: placementEntryIds.slice(4) },
       ]), ACTOR],
     );
     await client.query("COMMIT");

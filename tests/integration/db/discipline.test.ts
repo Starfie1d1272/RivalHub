@@ -192,8 +192,8 @@ async function prepareFixture(pool: Pool, label: string): Promise<DisciplineFixt
     }
 
     await client.query(
-      `INSERT INTO major_prestart_states (season_id, entrants_locked_at, entrants_locked_by, seed_revision, confirmed_seed_revision)
-       VALUES ($1, now(), 'local-admin', 1, 1)`,
+      `INSERT INTO major_prestart_states (season_id, entrants_locked_at, entrants_locked_by, seeds_confirmed_at, seeds_confirmed_by)
+       VALUES ($1, now(), 'local-admin', now(), 'local-admin')`,
       [seasonId],
     );
     // Minimal stage run with the frozen affiliation ruleset and per-player
@@ -207,16 +207,29 @@ async function prepareFixture(pool: Pool, label: string): Promise<DisciplineFixt
       })),
     );
     const ruleSnapshot = {
-      version: 2,
-      stage: { key: "stage1", type: "swiss", teamCount: 16, matchFormat: "bo1" },
+      version: 4,
+      stagePlan: capabilities.stagePlan.map((stage) => ({
+        key: stage.key,
+        name: stage.name,
+        type: stage.type,
+        teamCount: stage.teamCount,
+        matchFormat: stage.matchFormat!,
+        finalFormat: stage.finalFormat ?? null,
+        advanceTiers: stage.advanceTiers,
+        entrySeeds: stage.entrySeeds ?? null,
+        seeds: stage.seeds ?? null,
+      })),
+      rosterRules: {
+        minTeamSize: capabilities.minTeamSize,
+        maxTeamSize: capabilities.maxTeamSize,
+        starterCount: capabilities.starterCount,
+      },
       affiliationRules: [
         { institutionCode: NJU_CODE, eligibleAcademicStatuses: ["enrolled", "graduated"], minRosterMembers: 3, minStartingMembers: 3 },
       ],
       competitiveProfile: { ...COMPETITIVE_PROFILE, rankOrder: [...COMPETITIVE_PROFILE.rankOrder] },
       frozenCompetitiveFacts,
-      stagePlan: [{ key: "stage1" }, { key: "playoff" }],
-      tournamentEntrants: [],
-      tournamentSeeds: [],
+      runOptions: {},
     };
     const runResult = await client.query<{ id: string }>(
       `INSERT INTO major_stage_runs (season_id, stage_key, rule_snapshot, started_by)
@@ -228,9 +241,9 @@ async function prepareFixture(pool: Pool, label: string): Promise<DisciplineFixt
     // membership only when an entrant exists, so create them for realism.
     for (const side of [0, 1]) {
       await client.query(
-        `INSERT INTO major_prestart_entrants (season_id, competition_entry_id, event_roster_id, roster_confirmed_at, roster_confirmed_by)
-         VALUES ($1, $2, $3, now(), 'local-admin')`,
-        [seasonId, entryIds[side], eventRosterIds[side]],
+        `INSERT INTO major_tournament_entrants (season_id, competition_entry_id)
+         VALUES ($1, $2)`,
+        [seasonId, entryIds[side]],
       );
     }
 
@@ -267,9 +280,9 @@ async function prepareFixture(pool: Pool, label: string): Promise<DisciplineFixt
 async function snapshotTeamFacts(client: PoolClient, fixture: DisciplineFixture) {
   return client.query(
     `SELECT
-       (SELECT COUNT(*) FROM major_prestart_entrants e WHERE e.season_id = $1) AS entrants,
+       (SELECT COUNT(*) FROM major_tournament_entrants e WHERE e.season_id = $1) AS entrants,
        (SELECT COUNT(*) FROM event_roster_members WHERE event_roster_id IN (
-         SELECT event_roster_id FROM major_prestart_entrants WHERE season_id = $1 AND competition_entry_id = $2
+         SELECT id FROM event_rosters WHERE entry_id IN (SELECT competition_entry_id FROM major_tournament_entrants WHERE season_id = $1 AND competition_entry_id = $2)
        )) AS members_a,
        (SELECT representative_user_id FROM competition_entries WHERE id = $2) AS entry_a_representative,
        (SELECT representative_user_id FROM competition_entries WHERE id = $3) AS entry_b_representative`,
@@ -296,7 +309,7 @@ async function cleanup(pool: Pool, fixtures: DisciplineFixture[]): Promise<void>
         WHERE i.case_id = d.id AND d.season_id = $1`, [fixture.seasonId]);
       await client.query("DELETE FROM disciplinary_cases WHERE season_id = $1", [fixture.seasonId]);
       await client.query("DELETE FROM major_stage_runs WHERE season_id = $1", [fixture.seasonId]);
-      await client.query("DELETE FROM major_prestart_entrants WHERE season_id = $1", [fixture.seasonId]);
+      await client.query("DELETE FROM major_tournament_entrants WHERE season_id = $1", [fixture.seasonId]);
       await client.query("DELETE FROM major_prestart_states WHERE season_id = $1", [fixture.seasonId]);
       // Frozen-roster immutability and append-only provenance are intentional in
       // normal operation; local teardown bypasses row triggers for its own rows.

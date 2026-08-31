@@ -6,7 +6,7 @@ import {
   competitionEntryRosterMembers,
   eventRosterMembers,
   eventRosters,
-  majorPrestartEntrants,
+  majorTournamentEntrants,
   seasons,
 } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -70,24 +70,22 @@ export async function saveMajorPrestartRosterInTx(
   assertMajorPrestartEntrantsMutable(state);
 
   const [entrantRef] = await tx.select({
-    id: majorPrestartEntrants.id,
-    seasonId: majorPrestartEntrants.seasonId,
-    competitionEntryId: majorPrestartEntrants.competitionEntryId,
-    eventRosterId: majorPrestartEntrants.eventRosterId,
-  }).from(majorPrestartEntrants)
-    .where(and(eq(majorPrestartEntrants.id, input.entrantId), eq(majorPrestartEntrants.seasonId, season.id)));
+    id: majorTournamentEntrants.id,
+    seasonId: majorTournamentEntrants.seasonId,
+    competitionEntryId: majorTournamentEntrants.competitionEntryId,
+  }).from(majorTournamentEntrants)
+    .where(and(eq(majorTournamentEntrants.id, input.entrantId), eq(majorTournamentEntrants.seasonId, season.id)));
   if (!entrantRef) throw new AppError(ErrorCode.NOT_FOUND, "正式参赛队不存在。");
-  if (!entrantRef.eventRosterId) throw new AppError(ErrorCode.INTERNAL_ERROR, "正式参赛队缺少 event roster owner。");
 
   const coherent = await assertSinglePrestartEntryCoherenceInTx(
     tx,
     season.id,
-    { competitionEntryId: entrantRef.competitionEntryId, eventRosterId: entrantRef.eventRosterId },
+    { competitionEntryId: entrantRef.competitionEntryId },
     { requireEventRosterSync: false },
   );
-  const [entrant] = await tx.select().from(majorPrestartEntrants)
-    .where(and(eq(majorPrestartEntrants.id, entrantRef.id), eq(majorPrestartEntrants.seasonId, season.id))).for("update");
-  if (!entrant || entrant.seasonId !== entrantRef.seasonId || entrant.competitionEntryId !== entrantRef.competitionEntryId || entrant.eventRosterId !== entrantRef.eventRosterId) {
+  const [entrant] = await tx.select().from(majorTournamentEntrants)
+    .where(and(eq(majorTournamentEntrants.id, entrantRef.id), eq(majorTournamentEntrants.seasonId, season.id))).for("update");
+  if (!entrant || entrant.seasonId !== entrantRef.seasonId || entrant.competitionEntryId !== entrantRef.competitionEntryId) {
     throw new AppError(ErrorCode.INTERNAL_ERROR, "赛前参赛队引用在名单同步期间发生变化，拒绝继续保存。");
   }
 
@@ -115,9 +113,9 @@ export async function saveMajorPrestartRosterInTx(
   }
   const verificationIds = await loadApprovedRosterEducation(tx, input.userIds, normalizeAffiliationRules(season.affiliationRules));
 
-  await tx.delete(eventRosterMembers).where(eq(eventRosterMembers.eventRosterId, entrant.eventRosterId));
+  await tx.delete(eventRosterMembers).where(eq(eventRosterMembers.eventRosterId, eventRoster.id));
   await tx.insert(eventRosterMembers).values(formalMembers.map((member) => ({
-    eventRosterId: entrant.eventRosterId!,
+    eventRosterId: eventRoster.id,
     userId: member.userId,
     participantId: member.participantId,
     isPrimaryStarter: member.primary,
@@ -131,16 +129,10 @@ export async function saveMajorPrestartRosterInTx(
     frozenAt: null,
     frozenBy: null,
     updatedAt: new Date(),
-  }).where(eq(eventRosters.id, entrant.eventRosterId));
-  await tx.update(majorPrestartEntrants).set({
-    rosterConfirmedAt: null,
-    rosterConfirmedBy: null,
-    updatedAt: new Date(),
-  }).where(eq(majorPrestartEntrants.id, entrant.id));
+  }).where(eq(eventRosters.id, eventRoster.id));
 
   await assertSinglePrestartEntryCoherenceInTx(tx, season.id, {
     competitionEntryId: entrant.competitionEntryId,
-    eventRosterId: entrant.eventRosterId,
   });
   await tx.insert(auditLogs).values({
     seasonId: season.id,
