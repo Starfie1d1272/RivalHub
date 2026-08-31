@@ -22,11 +22,11 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-      - name: Reconcile latest dev and regenerate auth migration
+      - name: Capture interactive Drizzle prompt
         shell: bash
         run: |
           set +e
-          bash -x scripts/reconcile-auth-permissions.sh > /tmp/reconcile-auth.log 2>&1
+          timeout 20s script -q -e -c "bash -x scripts/reconcile-auth-permissions.sh" /dev/null > /tmp/reconcile-auth.log 2>&1
           status=$?
           set -e
           if [ "$status" -eq 0 ]; then
@@ -38,6 +38,6 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add reconcile-auth-diagnostic.txt
-          git commit -m 'chore(auth): capture reconciliation failure point'
+          git commit -m 'chore(auth): capture drizzle interactive prompt'
           git push origin HEAD:refactor/v2-auth-permissions
           exit 1
