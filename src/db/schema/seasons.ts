@@ -1,6 +1,5 @@
 import { pgTable, uuid, text, integer, boolean, timestamp, pgEnum, json } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import type { BracketDatabase as Database } from "@/lib/bracket";
 import type { InstitutionAffiliationRule, RegistrationConfig, StagePlan, TeamRegistrationConfig } from "@/types/season";
 
 export const seasonStatusEnum = pgEnum("season_status", [
@@ -60,9 +59,6 @@ export const seasons = pgTable("seasons", {
   // 该赛季可用的位置标识符列表（应用层 Zod 校验报名时引用此列表）
   positions: text("positions").array().notNull().default(sql`ARRAY['igl','awper','opener','closer','anchor']`),
   // ──────────────────────────────────────────────────────────────────────
-
-  // brackets-manager 序列化数据（生成赛程后写入，供 advanceMatch 重建状态机）
-  bracketData: json("bracket_data").$type<Database>(),
 
   startAt: timestamp("start_at", { withTimezone: true }),
   registrationDeadline: timestamp("registration_deadline", { withTimezone: true }),

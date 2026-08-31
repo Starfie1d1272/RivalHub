@@ -9,6 +9,7 @@ const teamIds = Array.from({ length: 32 }, (_, index) => `team-${index + 1}`);
 
 function makeInput(): MajorPrestartReadinessInput {
   return {
+    competitionTemplate: "major",
     capabilities: createMajorDefaultCapabilities(),
     teams: teamIds.map((teamId, teamIndex) => ({
       teamId,
@@ -32,6 +33,20 @@ describe("evaluateMajorPrestartReadiness", () => {
     expect(result.blockers).toEqual([]);
     expect(result.openingPlan?.firstRound.pairings).toHaveLength(8);
     expect(result.checks.every((check) => check.state === "ready")).toBe(true);
+  });
+
+  it("blocks a Major-shaped custom template before managed runtime checks", () => {
+    const input = makeInput();
+    input.competitionTemplate = "custom";
+
+    const result = evaluateMajorPrestartReadiness(input);
+
+    expect(result.canStart).toBe(false);
+    expect(result.openingPlan).toBeNull();
+    expect(result.checks.find((check) => check.key === "rules")).toMatchObject({
+      state: "blocked",
+      blockers: ["当前赛事模板不是 major，不能进入 Major runtime。"],
+    });
   });
 
   it("returns Chinese blockers instead of throwing for ordinary incomplete conditions", () => {

@@ -95,7 +95,6 @@ const SEASON = {
   slug: "spring-2026",
   status: "drafting",
   hasDraft: true,
-  bracketData: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 };

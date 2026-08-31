@@ -2,11 +2,10 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matches, seasons } from "@/db/schema";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
-import { generateBracket, seedPlayoff, type BracketStageRef, type BracketParticipantRef } from "@/lib/bracket";
+import { generateBracket, loadBracketState, saveBracketState, seedPlayoff, type BracketStageRef, type BracketParticipantRef } from "@/lib/bracket";
 import { calculateStandings } from "@/lib/standings";
 import { getPreviousStage, normalizeStagePlan } from "@/types/season";
 import type { StageExecutor } from "./types";
-import type { BracketDatabase as Database } from "@/lib/bracket";
 import type { QualifiedTeam } from "@/types/season";
 import { isStageComplete } from "./_shared";
 
@@ -20,6 +19,7 @@ export const doubleElimExecutor: StageExecutor = {
     }
 
     const stagePlan = normalizeStagePlan(season.stagePlan);
+    const bracketState = await loadBracketState(db, seasonId);
     const previousStage = getPreviousStage(stagePlan, config.key);
     const playoffFormat = config.type === "double_elim" ? "double_elim" : "single_elim";
 
@@ -51,10 +51,7 @@ export const doubleElimExecutor: StageExecutor = {
         matchCount++;
       }
 
-      await db
-        .update(seasons)
-        .set({ bracketData: data as Database, updatedAt: new Date() })
-        .where(eq(seasons.id, seasonId));
+      await saveBracketState(db, seasonId, data);
 
       return { matchCount };
     }
@@ -68,7 +65,7 @@ export const doubleElimExecutor: StageExecutor = {
     });
     const standings = calculateStandings(teams, finishedMatches);
 
-    if (!season.bracketData) {
+    if (!bracketState) {
       // Fallback: qualifier matches were created manually, so the bracket skeleton
       // was never persisted. Build the playoff bracket fresh using standings as seeds.
       const seededTeams = standings
@@ -103,10 +100,7 @@ export const doubleElimExecutor: StageExecutor = {
         matchCount++;
       }
 
-      await db
-        .update(seasons)
-        .set({ bracketData: data as Database, updatedAt: new Date() })
-        .where(eq(seasons.id, seasonId));
+      await saveBracketState(db, seasonId, data);
 
       return { matchCount };
     }
@@ -114,14 +108,11 @@ export const doubleElimExecutor: StageExecutor = {
     const seededNames = standings.slice(0, config.teamCount).map((standing) => standing.teamName);
     const { updatedData, resolvedMatches } = await seedPlayoff(
       seededNames,
-      season.bracketData as Database,
+      bracketState,
       config.name,
     );
 
-    await db
-      .update(seasons)
-      .set({ bracketData: updatedData as Database, updatedAt: new Date() })
-      .where(eq(seasons.id, seasonId));
+    await saveBracketState(db, seasonId, updatedData);
 
     const nameToTeam = new Map(teams.map((team) => [team.name, team]));
     const participants = updatedData.participant as BracketParticipantRef[];

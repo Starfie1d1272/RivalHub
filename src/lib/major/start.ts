@@ -20,6 +20,7 @@ import { assertPrestartEntryCoherenceInTx } from "@/lib/major/prestart-entry";
 import { ensureMajorPrestartStateInTx } from "@/lib/major/prestart-state";
 import { freezeAffiliationRules } from "@/lib/major/frozen-affiliation-rules";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
+import { checkStandardMajorCapabilities } from "@/lib/competition/definition";
 import {
   evaluateRosterQualificationFromFacts,
   loadParticipantQualificationFacts,
@@ -27,7 +28,6 @@ import {
   type ParticipantQualificationFacts,
 } from "@/lib/qualification/service";
 import {
-  checkStandardMajorCapabilities,
   normalizeRegistrationConfig,
   normalizeStagePlan,
   normalizeTeamRegistrationConfig,
@@ -71,6 +71,9 @@ export async function startMajorInTransaction(
   const [season] = await tx.select().from(seasons)
     .where(eq(seasons.id, input.seasonId)).for("update");
   if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
+  if (season.competitionTemplate !== "major") {
+    throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "当前赛事不是 Major 赛事模板，不能正式开赛。");
+  }
 
   const capabilities = capabilitiesFromSeason(season);
   const standardMajor = checkStandardMajorCapabilities(capabilities);
@@ -169,6 +172,7 @@ export async function startMajorInTransaction(
     return entryId ? [{ teamId: entryId, tournamentSeed: seed.tournamentSeed }] : [];
   });
   const readiness = evaluateMajorPrestartReadiness({
+    competitionTemplate: season.competitionTemplate,
     capabilities,
     teams: entrantRows.map((entrant) => {
       const roster = entrant.eventRosterId ? rosterByEventRoster.get(entrant.eventRosterId) ?? [] : [];

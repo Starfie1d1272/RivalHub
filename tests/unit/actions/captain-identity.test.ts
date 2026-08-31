@@ -101,7 +101,6 @@ const SEASON = {
   status: "voting",
   hasCaptainVoting: true,
   hasDraft: true,
-  bracketData: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 };

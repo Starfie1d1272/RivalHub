@@ -129,6 +129,7 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
   }
 
   const readiness = evaluateMajorPrestartReadiness({
+    competitionTemplate: season.competitionTemplate,
     capabilities: {
       registrationMode: season.registrationMode,
       hasCaptainVoting: season.hasCaptainVoting,
