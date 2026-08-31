@@ -478,7 +478,7 @@ async function main(): Promise<void> {
           );
           await client.query("SET CONSTRAINTS ALL IMMEDIATE");
         });
-        expect(rejected).toMatchObject({ code: "P0001" });
+        expect(rejected).toMatchObject({ code: "23514" });
       } finally {
         await client.query("ROLLBACK");
         client.release();

@@ -207,16 +207,29 @@ async function prepareFixture(pool: Pool, label: string): Promise<DisciplineFixt
       })),
     );
     const ruleSnapshot = {
-      version: 2,
-      stage: { key: "stage1", type: "swiss", teamCount: 16, matchFormat: "bo1" },
+      version: 4,
+      stagePlan: capabilities.stagePlan.map((stage) => ({
+        key: stage.key,
+        name: stage.name,
+        type: stage.type,
+        teamCount: stage.teamCount,
+        matchFormat: stage.matchFormat!,
+        finalFormat: stage.finalFormat ?? null,
+        advanceTiers: stage.advanceTiers,
+        entrySeeds: stage.entrySeeds ?? null,
+        seeds: stage.seeds ?? null,
+      })),
+      rosterRules: {
+        minTeamSize: capabilities.minTeamSize,
+        maxTeamSize: capabilities.maxTeamSize,
+        starterCount: capabilities.starterCount,
+      },
       affiliationRules: [
         { institutionCode: NJU_CODE, eligibleAcademicStatuses: ["enrolled", "graduated"], minRosterMembers: 3, minStartingMembers: 3 },
       ],
       competitiveProfile: { ...COMPETITIVE_PROFILE, rankOrder: [...COMPETITIVE_PROFILE.rankOrder] },
       frozenCompetitiveFacts,
-      stagePlan: [{ key: "stage1" }, { key: "playoff" }],
-      tournamentEntrants: [],
-      tournamentSeeds: [],
+      runOptions: {},
     };
     const runResult = await client.query<{ id: string }>(
       `INSERT INTO major_stage_runs (season_id, stage_key, rule_snapshot, started_by)
