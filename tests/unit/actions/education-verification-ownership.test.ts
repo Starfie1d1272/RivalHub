@@ -40,8 +40,7 @@ describe("submitEducationVerification email ownership boundary", () => {
     const result = await submitEducationVerification({
       institutionId: "00000000-0000-0000-0000-000000000002",
       academicStatus: "enrolled",
-      evidenceType: "chsi_enrollment_report",
-      evidenceUrl: "https://www.chsi.com.cn/xlcx/bgys.jsp",
+      evidenceCode: "ABCD1234EFGH5678",
     });
 
     expect(result).toMatchObject({ success: false, error: { code: ErrorCode.FORBIDDEN } });

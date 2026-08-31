@@ -6,7 +6,7 @@ import { db } from "@/db/client";
 import { auditLogs, educationVerifications, institutionEmailDomains, institutions, users } from "@/db/schema";
 import { actionError } from "@/lib/action-utils";
 import { auditActorId, requireAuth, requireSuperAdmin } from "@/lib/auth/session";
-import { emailDomain, educationSubmissionSchema, normalizeChsiEvidenceUrl } from "@/lib/education/validation";
+import { emailDomain, educationSubmissionSchema, normalizeChsiEvidenceCode } from "@/lib/education/validation";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { fail, ok, type ActionResult } from "@/types/action";
 import { z } from "zod";
@@ -18,9 +18,9 @@ function refresh(): void {
 
 export async function submitEducationVerification(input: unknown): Promise<ActionResult<void>> {
   const parsed = educationSubmissionSchema.safeParse(input);
-  if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请完整填写学校、身份和有效的学信网在线验证链接。" });
-  const evidenceUrl = normalizeChsiEvidenceUrl(parsed.data.evidenceUrl);
-  if (!evidenceUrl) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "仅支持 https://www.chsi.com.cn 或 https://chsi.com.cn 的官方在线验证链接。" });
+  if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请完整填写学校、身份和有效的学信网在线验证码。" });
+  const evidenceCode = normalizeChsiEvidenceCode(parsed.data.evidenceCode);
+  if (!evidenceCode) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请输入报告中的在线验证码（通常为 16 位）。" });
   try {
     const session = await requireAuth();
     // This is an ownership fact maintained only after a successful Supabase
@@ -37,12 +37,12 @@ export async function submitEducationVerification(input: unknown): Promise<Actio
         userId: session.userId,
         institutionId: institution.id,
         academicStatus: parsed.data.academicStatus,
-        evidenceType: parsed.data.evidenceType,
-        evidenceUrl,
+        evidenceType: parsed.data.academicStatus === "enrolled" ? "chsi_enrollment_report" : "chsi_education_report",
+        evidenceCode,
       }).returning({ id: educationVerifications.id });
       await tx.insert(auditLogs).values({
         action: "education_verification.submit", actorId: auditActorId(session), targetId: verification?.id,
-        targetType: "education_verification", meta: { institutionId: institution.id, evidenceType: parsed.data.evidenceType },
+        targetType: "education_verification", meta: { institutionId: institution.id, evidenceType: parsed.data.academicStatus === "enrolled" ? "chsi_enrollment_report" : "chsi_education_report" },
       });
     });
     refresh();

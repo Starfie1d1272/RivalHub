@@ -37,11 +37,13 @@ describe("identity flow UI", () => {
     expect(screen.queryByText(/chsi\.com\.cn/)).not.toBeInTheDocument();
   });
 
-  it("renders the admin review queue with protected new-tab evidence link", () => {
-    render(<EducationVerificationReviewQueue rows={[{ id: "11111111-1111-4111-8111-111111111111", email: "player@example.test", displayName: null, institution: "南京大学", code: "4132010284", academicStatus: "graduated", evidenceType: "chsi_education_report", evidenceUrl: "https://www.chsi.com.cn/verify", status: "pending", submittedAt: new Date().toISOString(), reviewNote: null }]} />);
-    const link = screen.getByRole("link", { name: /在学信网中打开/ });
+  it("renders the admin review queue with a protected CHSI verification path", () => {
+    render(<EducationVerificationReviewQueue rows={[{ id: "11111111-1111-4111-8111-111111111111", email: "player@example.test", displayName: null, institution: "南京大学", code: "4132010284", academicStatus: "graduated", evidenceType: "chsi_education_report", evidenceCode: "ABCD1234EFGH5678", status: "pending", submittedAt: new Date().toISOString(), reviewNote: null }]} />);
+    const link = screen.getByRole("link", { name: /在学信网核验/ });
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    expect(screen.getByText("ABCD1234EFGH5678")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "复制验证码" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "通过" })).toBeInTheDocument();
   });
 });
