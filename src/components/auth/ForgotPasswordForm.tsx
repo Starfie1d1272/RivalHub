@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Field, Btn } from "@/components/rivalhub";
+import { Field } from "@/components/rivalhub";
+import { Button } from "@/components/ui/button";
 import { sendPasswordResetEmail } from "@/actions/auth";
 
 export function ForgotPasswordForm() {
@@ -39,7 +40,7 @@ export function ForgotPasswordForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <Field id="email" label="邮箱地址" type="email" placeholder="you@example.com" value={email} onChange={setEmail} required autoFocus />
-      <Btn type="submit" full disabled={isPending}>{isPending ? "发送中…" : "发送重置链接"}</Btn>
+      <Button type="submit" className="w-full" disabled={isPending}>{isPending ? "发送中…" : "发送重置链接"}</Button>
     </form>
   );
 }

@@ -6,7 +6,7 @@ import { submitMatchRoster } from "@/actions/matches/roster";
 import { Button } from "@/components/ui/button";
 import { PosChip } from "@/components/rivalhub";
 
-import { getDisplayName } from "@/lib/utils/display-name";
+import { getDisplayName } from "@/lib/identity/display-name";
 
 interface TeamMember {
   id: string;

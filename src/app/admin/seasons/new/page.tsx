@@ -26,7 +26,7 @@ export default async function NewSeasonPage() {
           kind: "Major",
           template: "major",
           status: "draft",
-          themeColor: "#f97316",
+          themeColor: null,
           startAt: null,
           registrationDeadline: null,
           endAt: null,

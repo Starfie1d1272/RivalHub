@@ -37,15 +37,13 @@ export default async function SeasonLayout({ children, params }: SeasonLayoutPro
 
   const { hasPlayers } = await getParticipantSummary(season);
 
-  const themeColor = season.themeColor ?? "#f97316";
-
   return (
     <div
       data-season={seasonSlug}
-      style={{
-        "--color-accent": themeColor,
-        "--color-accent-rgb": hexToRgbString(themeColor),
-      } as React.CSSProperties}
+      style={season.themeColor ? {
+        "--color-accent": season.themeColor,
+        "--color-accent-rgb": hexToRgbString(season.themeColor),
+      } as React.CSSProperties : undefined}
     >
       <div className="container mx-auto px-4 pt-6">
         <Breadcrumb

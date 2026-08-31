@@ -3,7 +3,7 @@ import React from "react";
 type Tone = "info" | "success" | "warn" | "error" | "live";
 
 const TONE_CONFIG: Record<Tone, { color: string; glyph: string }> = {
-  info:    { color: "var(--color-accent)", glyph: "●" },
+  info:    { color: "var(--color-info)", glyph: "●" },
   success: { color: "var(--color-ok)", glyph: "✓" },
   warn:    { color: "var(--color-warn)", glyph: "▲" },
   error:   { color: "var(--color-danger)", glyph: "✕" },
@@ -78,7 +78,9 @@ export function StatusBanner({
       {action && <div>{action}</div>}
       {onDismiss && (
         <button
+          type="button"
           onClick={onDismiss}
+          aria-label="关闭"
           className="px-1"
           style={{
             background: "transparent",

@@ -1,4 +1,4 @@
-import { Btn } from "./Btn";
+import { Button } from "@/components/ui/button";
 
 import React from "react";
 
@@ -55,12 +55,12 @@ export function InlineConfirm({
         )}
       </div>
       <div className="flex gap-1.5">
-        <Btn ghost small onClick={onCancel}>
+        <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
           取消
-        </Btn>
-        <Btn small danger={danger} primary={!danger} onClick={onConfirm}>
+        </Button>
+        <Button type="button" size="sm" variant={danger ? "destructive" : "default"} onClick={onConfirm}>
           {confirmLabel ?? (danger ? "确认" : "确认")}
-        </Btn>
+        </Button>
       </div>
     </div>
   );

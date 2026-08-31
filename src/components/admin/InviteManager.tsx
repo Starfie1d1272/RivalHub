@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { formatCSTShortDate } from "@/lib/utils/date";
 
 interface InviteRow {
   id: string;
@@ -184,7 +185,7 @@ export function InviteManager({
                   </span>
                   {inv.expiresAt && (
                     <span>
-                      过期：{new Date(inv.expiresAt).toLocaleDateString("zh-CN")}
+                      过期：{formatCSTShortDate(inv.expiresAt)}
                     </span>
                   )}
                   {!inv.isActive && (

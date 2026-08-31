@@ -6,7 +6,8 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { competitionEntries, seasons } from "@/db/schema";
 import { CaptainDraftPanel } from "@/components/draft/CaptainDraftPanel";
-import { Panel, Btn } from "@/components/rivalhub";
+import { Panel } from "@/components/rivalhub";
+import { Button } from "@/components/ui/button";
 import { getUserSession } from "@/lib/auth/session";
 import { getCaptainDraftData, type DraftTeamSlot } from "@/lib/draft/data";
 
@@ -140,9 +141,9 @@ function UnavailablePanel({
         <h1 className="text-2xl font-bold">{title}</h1>
         <p className="mt-2 text-sm text-[var(--color-fg-mid)]">{message}</p>
         {href && action && (
-          <Btn ghost asChild className="mt-4">
+          <Button variant="ghost" asChild className="mt-4">
             <Link href={href}>{action}</Link>
-          </Btn>
+          </Button>
         )}
       </Panel>
     </main>

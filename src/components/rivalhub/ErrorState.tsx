@@ -1,4 +1,4 @@
-import { Btn } from "./Btn";
+import { Button } from "@/components/ui/button";
 
 interface ErrorStateProps {
   code?: string;
@@ -54,9 +54,9 @@ export function ErrorState({
       )}
       {onRetry && (
         <div className="mt-4.5 flex justify-center gap-2">
-          <Btn primary onClick={onRetry}>
+          <Button type="button" onClick={onRetry}>
             ↻ 重试
-          </Btn>
+          </Button>
         </div>
       )}
     </div>

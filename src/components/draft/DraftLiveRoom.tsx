@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DRAFT_TOTAL_ROUNDS } from "@/types/draft";
 import { createBrowserClient } from "@/lib/auth/supabase";
-import { getPublicDisplayName } from "@/lib/utils/display-name";
+import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { DraftCountdown } from "./DraftCountdown";
 import { TeamDraftGrid } from "./TeamDraftGrid";
 import { PlayerPool } from "./PlayerPool";

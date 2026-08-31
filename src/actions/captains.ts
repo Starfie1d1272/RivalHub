@@ -19,7 +19,7 @@ import {
 } from "@/db/schema";
 import { ok, fail, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
-import { getPublicDisplayName } from "@/lib/utils/display-name";
+import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { auditActorId, requireAuth, requireSeasonAdmin } from "@/lib/auth/session";
 import {
   castVoteSchema,

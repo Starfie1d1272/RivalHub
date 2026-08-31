@@ -4,7 +4,7 @@ import { db } from "@/db/client";
 import { competitionEntries, eventRosterMembers, eventRosters, users, seasonRegistrations, seasons, matches, matchMaps, competitiveRankFacts } from "@/db/schema";
 import { resolveAvatarUrl } from "@/lib/steam";
 import { PUBLIC_PLAYER_INFO_FIELDS } from "@/lib/utils/player-info-fields";
-import { getPublicDisplayName } from "@/lib/utils/display-name";
+import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { Panel, Stat, PosChip } from "@/components/rivalhub";
 import { MapPreferenceChips } from "@/components/rivalhub/MapPreferenceChips";
 import Image from "next/image";

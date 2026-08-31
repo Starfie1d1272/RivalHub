@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,7 @@ import {
   type StagePlan,
   type StageType,
 } from "@/types/season";
+import { InlineConfirm } from "@/components/rivalhub";
 
 const STAGE_TYPES: StageType[] = ["round_robin", "single_elim", "double_elim"];
 const MATCH_FORMATS = ["bo1", "bo3", "bo5"] as const;
@@ -58,6 +60,7 @@ function updateStage(stages: StagePlan, index: number, patch: Partial<StageConfi
 }
 
 export function StagePlanEditor({ value, onChange }: StagePlanEditorProps) {
+  const [pendingPreset, setPendingPreset] = useState<"rivals" | "clear" | null>(null);
   function addStage() {
     onChange([...value, emptyStage()]);
   }
@@ -67,12 +70,7 @@ export function StagePlanEditor({ value, onChange }: StagePlanEditorProps) {
   }
 
   function applyPreset(preset: "rivals" | "clear") {
-    if (preset === "clear") {
-      onChange([]);
-      return;
-    }
-    if (!confirm("当前赛制配置将被覆盖，是否继续？")) return;
-    onChange(structuredClone(RIVALS_STAGE_PLAN));
+    setPendingPreset(preset);
   }
 
   return (
@@ -244,6 +242,7 @@ export function StagePlanEditor({ value, onChange }: StagePlanEditorProps) {
           </Button>
         )}
       </div>
+      {pendingPreset && <InlineConfirm danger={pendingPreset === "clear"} title={pendingPreset === "clear" ? "确认清空所有赛程阶段？" : "确认覆盖当前赛制配置？"} sub={pendingPreset === "clear" ? "此操作会移除当前所有阶段。" : "将应用 Rivals 8 队预设。"} confirmLabel={pendingPreset === "clear" ? "清空" : "应用预设"} onCancel={() => setPendingPreset(null)} onConfirm={() => { onChange(pendingPreset === "clear" ? [] : structuredClone(RIVALS_STAGE_PLAN)); setPendingPreset(null); }} />}
     </div>
   );
 }

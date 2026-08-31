@@ -7,7 +7,8 @@ import { expireSanction, issueSanction, revokeSanction, searchSanctionSubjects }
 import type { ResolvedSanctionStatus, SanctionEffect } from "@/lib/discipline/service";
 import { SANCTION_EFFECTS } from "@/lib/discipline/service";
 import { formatCST, parseCSTInput } from "@/lib/utils/date";
-import { Btn, EmptyState, Panel } from "@/components/rivalhub";
+import { EmptyState, Panel } from "@/components/rivalhub";
+import { Button } from "@/components/ui/button";
 
 /**
  * 管理员专用 discipline 面板。`internalEvidence` 仅出现在本组件的
@@ -321,7 +322,7 @@ export function DisciplineManagement({
             <p role="alert" className="text-sm text-[var(--color-danger)]">{issueError}</p>
           )}
 
-          <Btn onClick={handleIssue} disabled={pending}>签发处罚</Btn>
+          <Button type="button" variant="outline" onClick={handleIssue} disabled={pending}>签发处罚</Button>
         </Panel>
       </section>
 
@@ -329,14 +330,15 @@ export function DisciplineManagement({
         <h2 className="text-base font-semibold text-[var(--color-fg)]">处罚记录</h2>
         <div className="flex gap-1">
           {FILTERS.map((key) => (
-            <Btn
+            <Button
               key={key}
-              small
-              ghost={statusFilter !== key}
+              type="button"
+              size="sm"
+              variant={statusFilter !== key ? "ghost" : "outline"}
               onClick={() => setStatusFilter(key)}
             >
               {FILTER_LABELS[key]}
-            </Btn>
+            </Button>
           ))}
         </div>
 
@@ -383,14 +385,14 @@ export function DisciplineManagement({
                 )}
                 <div className="flex flex-wrap items-center gap-2">
                   {row.resolvedStatus !== "revoked" && (
-                    <Btn small danger onClick={() => { setRevokeTarget(revokeTarget === row.id ? null : row.id); setRevokeReason(""); }}>
+                    <Button type="button" size="sm" variant="destructive" onClick={() => { setRevokeTarget(revokeTarget === row.id ? null : row.id); setRevokeReason(""); }}>
                       撤销
-                    </Btn>
+                    </Button>
                   )}
                   {row.storedStatus === "active" && row.resolvedStatus === "expired" && (
-                    <Btn small onClick={() => handleExpire(row.id)} disabled={pending}>
+                    <Button type="button" size="sm" variant="outline" onClick={() => handleExpire(row.id)} disabled={pending}>
                       标记过期
-                    </Btn>
+                    </Button>
                   )}
                 </div>
                 {revokeTarget === row.id && (
@@ -407,16 +409,18 @@ export function DisciplineManagement({
                       className="w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-1.5 text-sm text-[var(--color-fg)] outline-none focus:border-[var(--color-accent)] transition-colors"
                     />
                     <div className="flex gap-2">
-                      <Btn
-                        small
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
                         onClick={() => handleRevoke(row.id)}
                         disabled={pending || !revokeReason.trim()}
                       >
                         确认撤销
-                      </Btn>
-                      <Btn small ghost onClick={() => { setRevokeTarget(null); setRevokeReason(""); }}>
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={() => { setRevokeTarget(null); setRevokeReason(""); }}>
                         取消
-                      </Btn>
+                      </Button>
                     </div>
                   </div>
                 )}

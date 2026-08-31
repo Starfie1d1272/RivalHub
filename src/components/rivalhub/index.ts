@@ -1,5 +1,4 @@
 export { Panel } from "./Panel";
-export { Btn } from "./Btn";
 export { Stat, MiniStat } from "./Stat";
 export { Marker } from "./Marker";
 export { Field } from "./Field";

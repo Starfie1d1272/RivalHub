@@ -1,8 +1,10 @@
 import React from "react";
 import Link from "next/link";
 import type { RegistrationMode, SeasonStatus } from "@/types/season";
-import { SEASON_STATUS_LABELS } from "@/types/season";
-import { Btn, MiniStat, Panel, StatusPill } from "@/components/rivalhub";
+import { formatCSTDateTime } from "@/lib/utils/date";
+import { presentSeasonStatus } from "@/lib/seasons/presentation";
+import { MiniStat, Panel, StatusPill } from "@/components/rivalhub";
+import { Button } from "@/components/ui/button";
 
 interface HomePanelSeason {
   name: string;
@@ -75,11 +77,11 @@ export function HomeSeasonPanel({
               );
             })}
           </div>
-          <Btn full asChild>
+          <Button className="w-full" asChild>
             <Link href={`/${season.slug}/register`} className="w-full">
             {season.registrationMode === "team" ? "组队报名 / 创建或加入队伍 →" : "立即报名 →"}
             </Link>
-          </Btn>
+          </Button>
         </div>
       </Panel>
     );
@@ -103,11 +105,11 @@ export function HomeSeasonPanel({
             </div>
           )}
         </div>
-        <Btn full asChild style={{ marginTop: 14 }}>
+        <Button className="mt-3.5 w-full" asChild>
           <Link href={`/${season.slug}/captains`} className="w-full">
             查看全部候选人 →
           </Link>
-        </Btn>
+        </Button>
       </Panel>
     );
   }
@@ -129,11 +131,11 @@ export function HomeSeasonPanel({
             )}
           </div>
           <PanelStats teamCount={teamCount} playerCount={playerCount} status={season.status} />
-          <Btn full asChild>
+          <Button className="w-full" asChild>
             <Link href={`/${season.slug}/matches`} className="w-full">
               查看赛程 →
             </Link>
-          </Btn>
+          </Button>
         </div>
       </Panel>
     );
@@ -144,7 +146,7 @@ export function HomeSeasonPanel({
       <div className="grid gap-3.5">
         <SeasonPanelTitle season={season} />
         <div className="flex items-center gap-2">
-          <StatusPill status={season.status} />
+          <StatusPill {...presentSeasonStatus(season.status)} />
           <span
             style={{
               fontFamily: "var(--font-mono)",
@@ -158,11 +160,11 @@ export function HomeSeasonPanel({
         <div className="py-3 border-y border-[var(--color-border)]">
           <PanelStats teamCount={teamCount} playerCount={playerCount} status={season.status} />
         </div>
-        <Btn full asChild>
+        <Button className="w-full" asChild>
           <Link href={`/${season.slug}`} className="w-full">
             进入赛季 →
           </Link>
-        </Btn>
+        </Button>
       </div>
     </Panel>
   );
@@ -180,7 +182,7 @@ function SeasonPanelTitle({ season }: { season: HomePanelSeason }) {
           letterSpacing: "var(--tracking-label)",
         }}
       >
-        {SEASON_STATUS_LABELS[season.status]}
+        {presentSeasonStatus(season.status).label}
       </div>
       <div
         className="mt-1 font-semibold"
@@ -281,13 +283,7 @@ function MatchTickerRow({ match }: { match: HomeMatchSummary }) {
       >
         {match.format.toUpperCase()}
         {match.scheduledAt
-          ? ` · ${new Date(match.scheduledAt).toLocaleString("zh-CN", {
-              timeZone: "Asia/Shanghai",
-              month: "numeric",
-              day: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}`
+          ? ` · ${formatCSTDateTime(match.scheduledAt)}`
           : ""}
       </span>
     </div>

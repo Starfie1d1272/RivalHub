@@ -10,7 +10,7 @@ import {
 import { DraftRegistrationTable } from "@/components/admin/DraftRegistrationTable";
 import { CompetitionEntryReviewList } from "@/components/admin/CompetitionEntryReviewList";
 import { isTeamRegistration } from "@/lib/utils/season";
-import { getDisplayName } from "@/lib/utils/display-name";
+import { getDisplayName } from "@/lib/identity/display-name";
 import { evaluateRosterQualification, getParticipantReadinessBatch, isHomeAffiliatedMember, loadEducationMembershipFacts, resolveCompetitiveContext, resolveSeasonEducationVerification } from "@/lib/qualification/service";
 import { normalizeAffiliationRules, normalizeTeamRegistrationConfig } from "@/types/season";
 

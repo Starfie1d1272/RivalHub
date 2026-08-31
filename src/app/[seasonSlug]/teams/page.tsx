@@ -6,7 +6,7 @@ import { AdminShortcut } from "@/components/layout/AdminShortcut";
 import { Marker, Stat } from "@/components/rivalhub";
 import { TeamCard } from "@/components/teams/TeamCard";
 import { checkAdminSession } from "@/lib/auth/session";
-import { getPublicDisplayName } from "@/lib/utils/display-name";
+import { getPublicDisplayName } from "@/lib/identity/display-name";
 
 export default async function CompetitionEntriesPage({ params }: { params: Promise<{ seasonSlug: string }> }) {
   const { seasonSlug } = await params;

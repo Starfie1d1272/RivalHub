@@ -26,7 +26,7 @@ import { getUserSession } from "@/lib/auth/session";
 import { isSoloRegistration } from "@/lib/utils/season";
 import { isTeamRegistration } from "@/lib/utils/season";
 import { CompetitionEntryFlow } from "@/components/register/CompetitionEntryFlow";
-import { getPublicDisplayName } from "@/lib/utils/display-name";
+import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { getParticipantReadinessBatch } from "@/lib/qualification/service";
 import { normalizeTeamRegistrationConfig } from "@/types/season";
 

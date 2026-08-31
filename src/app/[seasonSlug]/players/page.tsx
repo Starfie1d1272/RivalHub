@@ -8,7 +8,7 @@ import { Marker, Stat } from "@/components/rivalhub";
 import { PlayerDirectoryRow } from "@/components/players/PlayerDirectoryRow";
 import { countDirectoryPlayersWithTeam, sortPlayerDirectory } from "@/lib/players/directory-order";
 import { positionLabel, positionValues } from "@/lib/validators/registration";
-import { getPublicDisplayName } from "@/lib/utils/display-name";
+import { getPublicDisplayName } from "@/lib/identity/display-name";
 import type { Metadata } from "next";
 
 interface PlayersPageProps {

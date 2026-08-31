@@ -1,27 +1,21 @@
-import type { SeasonStatus } from "@/types/season";
+import type { SemanticTone } from "@/lib/presentation";
 
-const STATUS_CONFIG: Record<SeasonStatus | string, { color: string; label: string }> = {
-  draft:        { color: "var(--color-fg-dim)", label: "DRAFT" },
-  archived:     { color: "var(--color-fg-dim)", label: "ARCHIVED" },
-  live:         { color: "var(--color-danger)", label: "● LIVE" },
-  finished:     { color: "var(--color-fg-dim)", label: "FT" },
-  scheduled:    { color: "var(--color-fg-mid)", label: "UPCOMING" },
-  open:         { color: "var(--color-ok)", label: "● OPEN" },
-  registration: { color: "var(--color-ok)", label: "● OPEN" },
-  voting:       { color: "var(--color-warn)", label: "● VOTING" },
-  drafting:     { color: "var(--color-accent)", label: "● DRAFTING" },
-  playing:      { color: "var(--color-ok)", label: "● PLAYING" },
+const TONE_COLOR: Record<SemanticTone, string> = {
+  neutral: "var(--color-fg-mid)",
+  info: "var(--color-info)",
+  success: "var(--color-ok)",
+  warn: "var(--color-warn)",
+  danger: "var(--color-danger)",
+  accent: "var(--color-accent)",
 };
 
 interface StatusPillProps {
-  status: SeasonStatus | string;
+  label: string;
+  tone: SemanticTone;
 }
 
-export function StatusPill({ status }: StatusPillProps) {
-  const cfg = STATUS_CONFIG[status] ?? {
-    color: "var(--color-fg-mid)",
-    label: status,
-  };
+export function StatusPill({ label, tone }: StatusPillProps) {
+  const color = TONE_COLOR[tone];
   return (
     <span
       className="inline-flex items-center gap-1.5 px-2 py-0.5 font-bold rounded-sm border"
@@ -29,12 +23,12 @@ export function StatusPill({ status }: StatusPillProps) {
         fontFamily: "var(--font-mono)",
         fontSize: 10,
         letterSpacing: "var(--tracking-label)",
-        color: cfg.color,
-        borderColor: `color-mix(in srgb, ${cfg.color} 33%, transparent)`,
-        background: `color-mix(in srgb, ${cfg.color} 7%, transparent)`,
+        color,
+        borderColor: `color-mix(in srgb, ${color} 33%, transparent)`,
+        background: `color-mix(in srgb, ${color} 7%, transparent)`,
       }}
     >
-      {cfg.label}
+      {label}
     </span>
   );
 }

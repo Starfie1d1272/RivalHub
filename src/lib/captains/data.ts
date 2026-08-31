@@ -2,7 +2,7 @@ import { and, asc, count, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { captainVotes, seasonRegistrations, users, competitionEntries } from "@/db/schema";
 import { compareCaptainSeedCandidates, selectCaptainSeeds } from "@/lib/captains/rules";
-import { getPublicDisplayName } from "@/lib/utils/display-name";
+import { getPublicDisplayName } from "@/lib/identity/display-name";
 
 /** Fields allowed to cross the public captains page boundary. */
 export interface PublicCaptainVoter {
