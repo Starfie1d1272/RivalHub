@@ -114,20 +114,3 @@ BEGIN
   RETURN NEW;
 END $$;--> statement-breakpoint
 CREATE CONSTRAINT TRIGGER "major_final_results_placement_integrity" AFTER INSERT OR UPDATE OF "placement_groups", "champion_entry_id", "season_id" ON "major_final_results" DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION "public"."validate_major_final_result"();--> statement-breakpoint
-CREATE OR REPLACE FUNCTION "public"."validate_match_roster_scope"() RETURNS trigger LANGUAGE plpgsql AS $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM matches WHERE id = NEW.match_id AND (entry_a_id = NEW.entry_id OR entry_b_id = NEW.entry_id)) THEN RAISE EXCEPTION 'match roster entry must be a match competitor'; END IF;
-  RETURN NEW;
-END $$;--> statement-breakpoint
-CREATE CONSTRAINT TRIGGER "match_rosters_competitor_scope" AFTER INSERT OR UPDATE OF "match_id", "entry_id" ON "match_rosters" DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION "public"."validate_match_roster_scope"();--> statement-breakpoint
-CREATE OR REPLACE FUNCTION "public"."validate_match_roster_player_scope"() RETURNS trigger LANGUAGE plpgsql AS $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM match_rosters roster
-    JOIN event_roster_members member ON member.id = NEW.event_roster_member_id
-    JOIN event_rosters event_roster ON event_roster.id = member.event_roster_id
-    WHERE roster.id = NEW.roster_id AND event_roster.entry_id = roster.entry_id
-  ) THEN RAISE EXCEPTION 'match roster player must belong to roster entry'; END IF;
-  RETURN NEW;
-END $$;--> statement-breakpoint
-CREATE CONSTRAINT TRIGGER "match_roster_players_entry_scope" AFTER INSERT OR UPDATE OF "roster_id", "event_roster_member_id" ON "match_roster_players" DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION "public"."validate_match_roster_player_scope"();
