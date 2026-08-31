@@ -11,8 +11,7 @@ export interface MajorTournamentSeedsManagementData {
   entrantsLocked: boolean;
   entrants: Array<{ teamId: string; teamName: string }>;
   seeds: Array<{ teamId: string; tournamentSeed: number }>;
-  seedRevision: number;
-  confirmedSeedRevision: number | null;
+  seedsConfirmed: boolean;
   firstRound: Array<{ higherSeed: number; lowerSeed: number; format: "bo1" | "bo3" }> | null;
 }
 
@@ -25,7 +24,7 @@ export function MajorTournamentSeedsManagement({ data }: { data: MajorTournament
   const [order, setOrder] = useState(() => initialOrderKey ? initialOrderKey.split(",") : []);
   useEffect(() => setOrder(initialOrderKey ? initialOrderKey.split(",") : []), [initialOrderKey]);
   const teamById = new Map(data.entrants.map((entrant) => [entrant.teamId, entrant]));
-  const confirmed = data.seedRevision > 0 && data.seedRevision === data.confirmedSeedRevision;
+  const confirmed = data.seedsConfirmed;
   const move = (index: number, offset: -1 | 1) => setOrder((current) => {
     const next = index + offset;
     if (next < 0 || next >= current.length) return current;
@@ -37,12 +36,12 @@ export function MajorTournamentSeedsManagement({ data }: { data: MajorTournament
   return <Panel label="赛事 1–32 种子">
     {!data.entrantsLocked ? <p className="text-sm text-[var(--color-fg-mid)]">请先锁定正式参赛队和最终赛事名单，种子才能保存。</p> : <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div><Marker sub={confirmed ? "当前排序已确认" : data.seedRevision > 0 ? "排序已变更，需要重新确认" : "尚未保存排序"}>{confirmed ? "种子已确认" : "种子待确认"}</Marker>
+        <div><Marker sub={confirmed ? "当前排序已确认" : data.seeds.length > 0 ? "排序已变更，需要重新确认" : "尚未保存排序"}>{confirmed ? "种子已确认" : "种子待确认"}</Marker>
           <p className="mt-1 text-sm text-[var(--color-fg-mid)]">赛事种子独立于选秀排序。保存新的排序后，需要重新确认。</p></div>
         <div className="flex gap-2"><Button variant="outline" disabled={isPending || order.length !== 32} onClick={() => startTransition(async () => {
           const result = await saveMajorTournamentSeeds({ seasonId: data.seasonId, entryIds: order });
           if (!result.success) toast.error(result.error.message); else toast.success("1–32 种子已保存，需重新确认");
-        })}>保存排序</Button><Button disabled={isPending || confirmed || data.seedRevision < 1} onClick={() => startTransition(async () => {
+        })}>保存排序</Button><Button disabled={isPending || confirmed || data.seeds.length !== 32} onClick={() => startTransition(async () => {
           const result = await confirmMajorTournamentSeeds({ seasonId: data.seasonId });
           if (!result.success) toast.error(result.error.message); else toast.success("赛事种子已确认");
         })}>确认种子</Button></div>

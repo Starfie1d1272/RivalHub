@@ -20,10 +20,11 @@
 import { randomUUID } from "node:crypto";
 import { createPerfectWorldRankOrder } from "../../../src/lib/config/perfect-world";
 import { drizzle } from "drizzle-orm/node-postgres";
+import { eq } from "drizzle-orm";
 import { Pool, type PoolClient } from "pg";
 import { describe, expect, it } from "vitest";
 import * as schema from "../../../src/db/schema";
-import { auditLogs } from "../../../src/db/schema";
+import { auditLogs, competitionEntries } from "../../../src/db/schema";
 import {
   applyMatchStatusTransitionInTx,
   assertStartingLineupAllowedInTx,
@@ -34,7 +35,7 @@ import {
 } from "../../../src/lib/match-rosters/service";
 import { AppError, ErrorCode } from "../../../src/lib/errors";
 import { createMajorDefaultCapabilities } from "../../../src/types/season";
-import { localDatabaseUrl } from "./harness/database";
+import { capturePostgresError, localDatabaseUrl } from "./harness/database";
 
 const databaseUrl = localDatabaseUrl();
 
@@ -86,10 +87,13 @@ async function submitLineupProductionLogic(
       starterIds: args.starterIds,
       substituteIds: args.substituteIds,
     });
+    const submittedBy = args.source === "participant" && args.submittedBy === null
+      ? (await tx.select({ userId: competitionEntries.representativeUserId }).from(competitionEntries).where(eq(competitionEntries.id, args.entryId)))[0]?.userId ?? null
+      : args.submittedBy;
     const summary = await persistMatchRosterInTx(tx, {
       match: locked,
       entryId: args.entryId,
-      submittedBy: args.submittedBy,
+      submittedBy,
       source: args.source,
       starterIds: args.starterIds,
       substituteIds: args.substituteIds,
@@ -291,16 +295,16 @@ async function prepareFixture(pool: Pool, label: string): Promise<RosterSafetyFi
     }
 
     await client.query(
-      `INSERT INTO major_prestart_states (season_id, entrants_locked_at, entrants_locked_by, seed_revision, confirmed_seed_revision)
-       VALUES ($1, now(), 'local-admin', 1, 1)`,
+      `INSERT INTO major_prestart_states (season_id, entrants_locked_at, entrants_locked_by, seeds_confirmed_at, seeds_confirmed_by)
+       VALUES ($1, now(), 'local-admin', now(), 'local-admin')`,
       [seasonId],
     );
 
     for (const side of [0, 1] as const) {
       await client.query(
-        `INSERT INTO major_prestart_entrants (season_id, competition_entry_id, event_roster_id, roster_confirmed_at, roster_confirmed_by)
-         VALUES ($1, $2, $3, now(), 'local-admin')`,
-        [seasonId, entryIds[side], eventRosterIds[side]],
+        `INSERT INTO major_tournament_entrants (season_id, competition_entry_id)
+         VALUES ($1, $2)`,
+        [seasonId, entryIds[side]],
       );
     }
 
@@ -392,9 +396,9 @@ async function cleanupFixture(pool: Pool, fixture: RosterSafetyFixture): Promise
     // normal operation; local teardown bypasses row triggers for its own rows.
     await client.query("SET LOCAL session_replication_role = replica");
     await client.query(`DELETE FROM event_roster_members WHERE event_roster_id IN (
-      SELECT event_roster_id FROM major_prestart_entrants WHERE season_id = $1
+      SELECT id FROM event_rosters WHERE entry_id IN (SELECT competition_entry_id FROM major_tournament_entrants WHERE season_id = $1)
     )`, [fixture.seasonId]);
-    await client.query("DELETE FROM major_prestart_entrants WHERE season_id = $1", [fixture.seasonId]);
+    await client.query("DELETE FROM major_tournament_entrants WHERE season_id = $1", [fixture.seasonId]);
     await client.query(`DELETE FROM event_rosters WHERE entry_id IN (
       SELECT id FROM competition_entries WHERE competition_id = $1
     )`, [fixture.seasonId]);
@@ -453,6 +457,33 @@ async function main(): Promise<void> {
     };
     /** Exactly two NJU starters (positions 3–5 are non-NJU roster members). */
     const twoNjuStartersA = [memberA["0"], memberA["1"], memberA["3"], memberA["4"], memberA["5"]];
+
+    // Direct SQL cannot attach a player from the opposing EventRoster even if
+    // it bypasses every Server Action. The constraint trigger is deferred so
+    // exercise it explicitly at the transaction boundary.
+    {
+      const triggerMatch = await createManagedMatch(pool, fixture, "r1-trigger-scope");
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const rejected = await capturePostgresError(client, async () => {
+          const roster = await client.query<{ id: string }>(
+            `INSERT INTO match_rosters (match_id, entry_id, source, status)
+             VALUES ($1, $2, 'admin_select', 'submitted') RETURNING id`,
+            [triggerMatch, entryAId],
+          );
+          await client.query(
+            "INSERT INTO match_roster_players (roster_id, event_roster_member_id, is_starter) VALUES ($1, $2, true)",
+            [roster.rows[0]!.id, memberB["0"]],
+          );
+          await client.query("SET CONSTRAINTS ALL IMMEDIATE");
+        });
+        expect(rejected).toMatchObject({ code: "P0001" });
+      } finally {
+        await client.query("ROLLBACK");
+        client.release();
+      }
+    }
 
     // ── MG：主场景比赛 ────────────────────────────────────────────────
     const mgMatch = await createManagedMatch(pool, fixture, "r1-mg");

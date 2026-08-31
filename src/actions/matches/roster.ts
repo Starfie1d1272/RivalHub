@@ -20,14 +20,7 @@ import {
   lockMatchInTx,
   persistMatchRosterInTx,
 } from "@/lib/match-rosters/service";
-import { validateRosterSelection } from "@/lib/matches/roster-rules";
 import { getEntryIdForRepresentative } from "./_shared";
-
-function assertLineupShape(match: Match, starterIds: string[], substituteIds: string[]): void {
-  // Cheap structural check for early UX feedback; eligibility is judged again
-  // against DB facts inside the transaction.
-  validateRosterSelection(starterIds, substituteIds, match.ownership !== "major_stage");
-}
 
 async function revalidateAfterRosterChange(match: Pick<Match, "seasonId" | "id">): Promise<void> {
   const season = await db.query.seasons.findFirst({
@@ -37,7 +30,7 @@ async function revalidateAfterRosterChange(match: Pick<Match, "seasonId" | "id">
 }
 
 /**
- * 队长提交本场首发阵容；Major 仅记录恰好 5 名首发。
+ * 队长提交本场首发阵容；具体人数由事务内的 canonical policy 判定。
  * 仅允许比赛尚未开始（scheduled）时提交；名单通过管理员确认后才能用于开赛。
  */
 export async function submitMatchRoster(
@@ -57,8 +50,6 @@ export async function submitMatchRoster(
     if (!entryId) {
       throw new AppError(ErrorCode.FORBIDDEN, "只有队长可以提交名单");
     }
-
-    assertLineupShape(match, starterIds, substituteIds);
 
     const actorId = auditActorId(session);
     const rosterId = await db.transaction(async (tx) => {
@@ -117,8 +108,6 @@ export async function adminSelectMatchRoster(
     if (match.status !== "scheduled") {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "比赛当前状态不允许选择名单");
     }
-
-    assertLineupShape(match, starterIds, substituteIds);
 
     const actorId = auditActorId(admin);
     const rosterId = await db.transaction(async (tx) => {
@@ -232,7 +221,7 @@ export async function unlockMatchRoster(
       }
       await tx
         .update(matchRosters)
-        .set({ status: "unlocked", confirmedAt: null, confirmedBy: null, updatedAt: new Date() })
+        .set({ status: "submitted", confirmedAt: null, confirmedBy: null, updatedAt: new Date() })
         .where(eq(matchRosters.id, rosterId));
 
       await tx.insert(auditLogs).values({

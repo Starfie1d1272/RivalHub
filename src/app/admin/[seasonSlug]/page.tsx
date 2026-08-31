@@ -5,7 +5,7 @@ import { AdminExceptionSummary } from "@/components/admin/AdminExceptionSummary"
 import { PostEventManagement } from "@/components/admin/PostEventManagement";
 import { db } from "@/db/client";
 import {
-  majorPrestartEntrants,
+  majorTournamentEntrants,
   majorPrestartIssues,
   competitionEntries,
   competitionEntryRosterMembers,
@@ -77,30 +77,28 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
   const [state, entrantRows, rosterRows, issueRows, seedRows, stageRunRows, stageMatchRows, finalResult, honorRows, adjudicationRows, pendingApplications, rosterStatusRows] = await Promise.all([
     db.query.majorPrestartStates.findFirst({ where: eq(majorPrestartStates.seasonId, season.id) }),
     db.select({
-      id: majorPrestartEntrants.id,
-      teamId: majorPrestartEntrants.competitionEntryId,
-      eventRosterId: majorPrestartEntrants.eventRosterId,
+      id: majorTournamentEntrants.id,
+      teamId: majorTournamentEntrants.competitionEntryId,
       teamName: competitionEntries.name,
-      rosterConfirmedAt: majorPrestartEntrants.rosterConfirmedAt,
       rosterStatus: eventRosters.status,
-    }).from(majorPrestartEntrants)
-      .innerJoin(competitionEntries, eq(majorPrestartEntrants.competitionEntryId, competitionEntries.id))
-      .innerJoin(eventRosters, eq(majorPrestartEntrants.eventRosterId, eventRosters.id))
-      .where(eq(majorPrestartEntrants.seasonId, season.id))
+    }).from(majorTournamentEntrants)
+      .innerJoin(competitionEntries, eq(majorTournamentEntrants.competitionEntryId, competitionEntries.id))
+      .innerJoin(eventRosters, eq(majorTournamentEntrants.competitionEntryId, eventRosters.entryId))
+      .where(eq(majorTournamentEntrants.seasonId, season.id))
       .orderBy(asc(competitionEntries.name)),
-    db.select({ entrantId: majorPrestartEntrants.id, userId: eventRosterMembers.userId, email: users.email, educationVerificationId: eventRosterMembers.educationVerificationId })
+    db.select({ entrantId: majorTournamentEntrants.id, userId: eventRosterMembers.userId, email: users.email, educationVerificationId: eventRosterMembers.educationVerificationId })
       .from(eventRosterMembers)
       .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
-      .innerJoin(majorPrestartEntrants, eq(majorPrestartEntrants.eventRosterId, eventRosters.id))
+      .innerJoin(majorTournamentEntrants, eq(majorTournamentEntrants.competitionEntryId, eventRosters.entryId))
       .innerJoin(users, eq(eventRosterMembers.userId, users.id)),
     db.select().from(majorPrestartIssues)
       .where(eq(majorPrestartIssues.seasonId, season.id))
       .orderBy(asc(majorPrestartIssues.createdAt)),
-    db.select({ teamId: majorPrestartEntrants.competitionEntryId, tournamentSeed: majorTournamentSeeds.tournamentSeed })
+    db.select({ teamId: majorTournamentEntrants.competitionEntryId, tournamentSeed: majorTournamentSeeds.seed })
       .from(majorTournamentSeeds)
-      .innerJoin(majorPrestartEntrants, eq(majorTournamentSeeds.entrantId, majorPrestartEntrants.id))
+      .innerJoin(majorTournamentEntrants, eq(majorTournamentSeeds.tournamentEntrantId, majorTournamentEntrants.id))
       .where(eq(majorTournamentSeeds.seasonId, season.id))
-      .orderBy(asc(majorTournamentSeeds.tournamentSeed)),
+      .orderBy(asc(majorTournamentSeeds.seed)),
     db.select({ id: majorStageRuns.id, stageKey: majorStageRuns.stageKey, finalizedRound: majorStageRuns.finalizedRound, startedAt: majorStageRuns.startedAt }).from(majorStageRuns)
       .where(eq(majorStageRuns.seasonId, season.id)),
     db.select({ id: matches.id, stageRunId: matches.majorStageRunId, round: matches.round, entryRound: matches.entryRound, status: matches.status, scheduledAt: matches.scheduledAt })
@@ -149,11 +147,11 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
       educationVerificationIds: (rosterByEntrant.get(entrant.id) ?? []).map((member) => member.educationVerificationId),
     })),
     entrantsLocked: Boolean(state?.entrantsLockedAt),
-    confirmations: entrantRows.map((entrant) => ({ teamId: entrant.teamId, confirmed: Boolean(entrant.rosterConfirmedAt) })),
+    confirmations: entrantRows.map((entrant) => ({ teamId: entrant.teamId, confirmed: entrant.rosterStatus === "frozen" })),
     qualificationIssues: issueRows.filter((issue) => issue.category === "qualification").map((issue) => ({ label: issue.label, resolved: Boolean(issue.resolvedAt) })),
     administrativeIssues: issueRows.filter((issue) => issue.category === "administration").map((issue) => ({ label: issue.label, resolved: Boolean(issue.resolvedAt) })),
     tournamentSeeds: seedRows,
-    seedConfirmation: state ? { seedRevision: state.seedRevision, confirmedSeedRevision: state.confirmedSeedRevision } : null,
+    seedConfirmation: state ? { confirmed: state.seedsConfirmedAt !== null && state.seedsConfirmedBy !== null } : null,
   });
   const stagePlan = normalizeStagePlan(season.stagePlan);
   const confirmedLineupsByMatch = new Map<string, number>();
@@ -165,7 +163,7 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
   const summary = {
     pendingApplications: pendingApplications.length,
     unresolvedPrestartIssues: issueRows.filter((issue) => !issue.resolvedAt).length,
-    unconfirmedEntrants: entrantRows.filter((entrant) => !entrant.rosterConfirmedAt).length,
+    unconfirmedEntrants: entrantRows.filter((entrant) => entrant.rosterStatus !== "frozen").length,
     scheduledMatchesWithoutConfirmedLineups: stageMatchRows.filter((match) =>
       match.status === "scheduled" && match.scheduledAt !== null && (confirmedLineupsByMatch.get(match.id) ?? 0) < 2,
     ).length,
@@ -249,8 +247,7 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
       entrantsLocked: Boolean(state?.entrantsLockedAt),
       entrants: entrantRows.map((entrant) => ({ teamId: entrant.teamId, teamName: entrant.teamName })),
       seeds: seedRows,
-      seedRevision: state?.seedRevision ?? 0,
-      confirmedSeedRevision: state?.confirmedSeedRevision ?? null,
+      seedsConfirmed: state?.seedsConfirmedAt !== null && state?.seedsConfirmedBy !== null,
       firstRound: readiness.openingPlan?.firstRound.pairings.map((pairing) => ({
         higherSeed: pairing.higherSeed.tournamentSeed,
         lowerSeed: pairing.lowerSeed.tournamentSeed,

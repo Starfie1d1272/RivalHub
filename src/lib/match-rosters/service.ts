@@ -11,16 +11,19 @@ import {
   matchRosterPlayers,
   matchRosters,
   matches,
+  seasons,
   type Match,
 } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { frozenStageRunAffiliationRules } from "@/lib/major/frozen-affiliation-rules";
+import { parseMajorRunSnapshot } from "@/lib/major/run-snapshot";
 import { evaluateExternalStrengthRule, getPlayerStrengthBreakdown, type PlayerStrengthInput } from "@/lib/major/player-strength";
 import { assertMatchTransition } from "@/lib/match-transitions";
 import { loadActiveSanctionsInTx } from "@/lib/discipline/service";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 import type { CompetitiveProfileConfig, InstitutionAffiliationRule } from "@/types/season";
 import { evaluateStartingLineup, type LineupMemberFact } from "./lineup";
+import { resolveMatchLineupPolicy, type MatchLineupPolicy } from "./policy";
 
 /**
  * G1 transactional services behind every explicit lineup action:
@@ -36,6 +39,7 @@ export interface TeamLineupContext {
   memberFacts: Map<string, LineupMemberFact>;
   competitiveProfile: CompetitiveProfileConfig | null;
   frozenCompetitiveFacts: Map<string, PlayerStrengthInput> | null;
+  policy: MatchLineupPolicy;
 }
 
 function frozenCompetitiveProfile(ruleSnapshot: unknown): CompetitiveProfileConfig | null {
@@ -158,18 +162,37 @@ export async function loadTeamLineupContextInTx(
   let verificationsByUser: Map<string, LineupMemberFact["verification"]> | null = null;
   let competitiveProfile: CompetitiveProfileConfig | null = null;
   let frozenCompetitiveFactsByUser: Map<string, PlayerStrengthInput> | null = null;
+  const [season] = await tx
+    .select({ starterCount: seasons.starterCount })
+    .from(seasons)
+    .where(eq(seasons.id, match.seasonId));
+  if (!season) throw new AppError(ErrorCode.INTERNAL_ERROR, "比赛所属赛季不存在。");
+  let policy: MatchLineupPolicy;
+  if (match.ownership !== "major_stage") {
+    policy = resolveMatchLineupPolicy({ ownership: match.ownership, seasonStarterCount: season.starterCount });
+  } else {
+    // Assigned below after the canonical StageRun snapshot has been loaded.
+    policy = { starterCount: 0, maxSubstitutes: 0 };
+  }
 
   if (match.ownership === "major_stage") {
     if (!match.majorStageRunId) {
       throw new AppError(ErrorCode.INTERNAL_ERROR, "托管比赛缺少对应的 StageRun。");
     }
     const [stageRun] = await tx
-      .select({ ruleSnapshot: majorStageRuns.ruleSnapshot })
+      .select({ ruleSnapshot: majorStageRuns.ruleSnapshot, stageKey: majorStageRuns.stageKey })
       .from(majorStageRuns)
       .where(eq(majorStageRuns.id, match.majorStageRunId));
     if (!stageRun) {
       throw new AppError(ErrorCode.INTERNAL_ERROR, "托管比赛缺少对应的 StageRun。");
     }
+    // Parse once before every frozen consumer; never use mutable season rules.
+    parseMajorRunSnapshot(stageRun.ruleSnapshot, stageRun.stageKey);
+    policy = resolveMatchLineupPolicy({
+      ownership: match.ownership,
+      seasonStarterCount: season.starterCount,
+      majorStageRun: stageRun,
+    });
     // Frozen at StageRun creation; never read from mutable season configuration.
     rules = frozenStageRunAffiliationRules(stageRun.ruleSnapshot);
     competitiveProfile = frozenCompetitiveProfile(stageRun.ruleSnapshot);
@@ -203,7 +226,7 @@ export async function loadTeamLineupContextInTx(
     });
   }
 
-  return { rules, frozenRosterUserIds, memberFacts, competitiveProfile, frozenCompetitiveFacts: frozenCompetitiveFactsByUser };
+  return { rules, frozenRosterUserIds, memberFacts, competitiveProfile, frozenCompetitiveFacts: frozenCompetitiveFactsByUser, policy };
 }
 
 export async function assertStartingLineupAllowedInTx(
@@ -229,7 +252,7 @@ export async function getStartingLineupPreflightInTx(
   const result = evaluateStartingLineup({
     starterIds: args.starterIds,
     substituteIds: args.substituteIds,
-    allowSubstitutes: args.match.ownership !== "major_stage",
+    policy: context.policy,
     memberFacts: context.memberFacts,
     frozenRosterUserIds: context.frozenRosterUserIds ?? undefined,
     affiliationRules: context.rules.length > 0 ? context.rules : undefined,
@@ -304,6 +327,8 @@ export async function persistMatchRosterInTx(
         submittedBy: args.submittedBy,
         source: args.source,
         lockedAt: now,
+        confirmedAt: null,
+        confirmedBy: null,
         updatedAt: now,
       })
       .where(eq(matchRosters.id, existing.id));

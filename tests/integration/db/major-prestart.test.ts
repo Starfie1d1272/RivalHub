@@ -29,25 +29,22 @@ async function main(): Promise<void> {
       await client.query("INSERT INTO competition_entry_roster_members (revision_id,participant_id,user_id,is_primary_starter) VALUES ($1,$2,$3,true)", [revisionId, participantId, userId]);
       await client.query("INSERT INTO event_rosters (id,entry_id,source_roster_revision_id,status) VALUES ($1,$2,$3,'preparing')", [eventRosterId, entryId, revisionId]);
       await client.query("INSERT INTO event_roster_members (event_roster_id,participant_id,user_id,is_primary_starter) VALUES ($1,$2,$3,true)", [eventRosterId, participantId, userId]);
-      await client.query("INSERT INTO major_prestart_entrants (id,season_id,competition_entry_id,event_roster_id) VALUES ($1,$2,$3,$4)", [entrantId, seasonId, entryId, eventRosterId]);
+      await client.query("INSERT INTO major_tournament_entrants (id,season_id,competition_entry_id) VALUES ($1,$2,$3)", [entrantId, seasonId, entryId]);
     }
     const first = entrantIds[0]!;
-    const firstRoster = await client.query<{ event_roster_id: string }>("SELECT event_roster_id FROM major_prestart_entrants WHERE id = $1", [first]);
+    const firstRoster = await client.query<{ event_roster_id: string }>("SELECT id AS event_roster_id FROM event_rosters WHERE entry_id = (SELECT competition_entry_id FROM major_tournament_entrants WHERE id = $1)", [first]);
     const rosterId = firstRoster.rows[0]!.event_roster_id;
     await client.query("UPDATE event_rosters SET status = 'confirmed', confirmed_at = now(), confirmed_by = 'local-test' WHERE id = $1", [rosterId]);
-    await client.query("UPDATE major_prestart_entrants SET roster_confirmed_at = now(), roster_confirmed_by = 'local-test' WHERE id = $1", [first]);
     await client.query("UPDATE event_rosters SET status = 'preparing', confirmed_at = NULL, confirmed_by = NULL, frozen_at = NULL, frozen_by = NULL WHERE id = $1", [rosterId]);
-    await client.query("UPDATE major_prestart_entrants SET roster_confirmed_at = NULL, roster_confirmed_by = NULL WHERE id = $1", [first]);
     await client.query("UPDATE event_roster_members SET is_primary_starter = false WHERE event_roster_id = $1", [rosterId]);
-    await client.query("UPDATE event_rosters SET status = 'confirmed', confirmed_at = now(), confirmed_by = 'local-test' WHERE id IN (SELECT event_roster_id FROM major_prestart_entrants WHERE season_id = $1)", [seasonId]);
-    await client.query("UPDATE major_prestart_entrants SET roster_confirmed_at = now(), roster_confirmed_by = 'local-test' WHERE season_id = $1", [seasonId]);
-    await client.query("UPDATE event_rosters SET status = 'frozen', confirmed_at = now(), confirmed_by = 'local-test', frozen_at = now(), frozen_by = 'local-test' WHERE id IN (SELECT event_roster_id FROM major_prestart_entrants WHERE season_id = $1)", [seasonId]);
+    await client.query("UPDATE event_rosters SET status = 'confirmed', confirmed_at = now(), confirmed_by = 'local-test' WHERE entry_id IN (SELECT competition_entry_id FROM major_tournament_entrants WHERE season_id = $1)", [seasonId]);
+    await client.query("UPDATE event_rosters SET status = 'frozen', confirmed_at = now(), confirmed_by = 'local-test', frozen_at = now(), frozen_by = 'local-test' WHERE entry_id IN (SELECT competition_entry_id FROM major_tournament_entrants WHERE season_id = $1)", [seasonId]);
     await client.query("UPDATE major_prestart_states SET entrants_locked_at = now(), entrants_locked_by = 'local-test' WHERE season_id = $1", [seasonId]);
     const frozenMemberMutation = await capturePostgresError(client, () => client.query("UPDATE event_roster_members SET is_primary_starter = true WHERE event_roster_id = $1", [rosterId]));
     expect(frozenMemberMutation).toMatchObject({ code: "23514" });
     const frozenRosterMutation = await capturePostgresError(client, () => client.query("UPDATE event_rosters SET status = 'preparing' WHERE id = $1", [rosterId]));
     expect(frozenRosterMutation).toMatchObject({ code: "23514" });
-    const frozen = await client.query<{ rosters: string; locked: boolean }>("SELECT (SELECT count(*)::text FROM event_rosters WHERE id IN (SELECT event_roster_id FROM major_prestart_entrants WHERE season_id = $1) AND status = 'frozen') AS rosters, (SELECT entrants_locked_at IS NOT NULL FROM major_prestart_states WHERE season_id = $1) AS locked", [seasonId]);
+    const frozen = await client.query<{ rosters: string; locked: boolean }>("SELECT (SELECT count(*)::text FROM event_rosters WHERE entry_id IN (SELECT competition_entry_id FROM major_tournament_entrants WHERE season_id = $1) AND status = 'frozen') AS rosters, (SELECT entrants_locked_at IS NOT NULL FROM major_prestart_states WHERE season_id = $1) AS locked", [seasonId]);
     if (frozen.rows[0]?.rosters !== "32" || !frozen.rows[0]?.locked) throw new Error("Major 全局锁定没有冻结全部 32 支赛事名单。");
     await client.query("ROLLBACK");
     await exerciseEntryCoherenceGuard();
@@ -117,8 +114,8 @@ async function exerciseEntryCoherenceGuard(): Promise<void> {
 
   try {
     const refs = [
-      { competitionEntryId: ids.entryA, eventRosterId: ids.rosterA },
-      { competitionEntryId: ids.entryB, eventRosterId: ids.rosterB },
+      { competitionEntryId: ids.entryA },
+      { competitionEntryId: ids.entryB },
     ];
 
     // 一致状态通过，并返回正确的绑定事实。

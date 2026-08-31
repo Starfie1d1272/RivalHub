@@ -23,7 +23,6 @@ import { AppError, ErrorCode } from "@/lib/errors";
 
 export interface PrestartCoherenceEntrantRef {
   competitionEntryId: string;
-  eventRosterId: string | null;
 }
 
 export interface PrestartEntryCoherence {
@@ -48,8 +47,8 @@ function invariant(message: string): AppError {
 
 /**
  * Validate, inside the caller's transaction, that every prestart entrant still
- * refers to its competition Entry's currently approved roster revision and a
- * synced event roster. Entries are locked `FOR UPDATE` so a concurrent roster
+ * refers to its competition Entry's currently approved roster revision and the
+ * Entry-owned event roster. Entries are locked `FOR UPDATE` so a concurrent roster
  * change cannot slip in between this check and the caller's freeze.
  *
  * `requireEventRosterSync: false` is reserved for the explicit re-sync action
@@ -93,15 +92,12 @@ export async function assertPrestartEntryCoherenceInTx(
     .where(inArray(competitionEntryRosterRevisions.entryId, entryIds));
   const revisionById = new Map(revisionRows.map((revision) => [revision.id, revision]));
 
-  const rosterIds = [...new Set(entrants
-    .flatMap((entrant) => (entrant.eventRosterId ? [entrant.eventRosterId] : [])))].sort();
-  const rosterRows = rosterIds.length === 0
-    ? []
-    : await tx.select().from(eventRosters).where(inArray(eventRosters.id, rosterIds)).orderBy(asc(eventRosters.id)).for("update");
-  const rosterById = new Map(rosterRows.map((roster) => [roster.id, roster]));
+  const rosterRows = await tx.select().from(eventRosters)
+    .where(inArray(eventRosters.entryId, entryIds)).orderBy(asc(eventRosters.entryId)).for("update");
+  const rosterByEntryId = new Map(rosterRows.map((roster) => [roster.entryId, roster]));
 
   const coherent: PrestartEntryCoherence[] = [];
-  for (const { entrant, entry } of results) {
+  for (const { entry } of results) {
     const approvedRevision = revisionById.get(entry.approvedRosterRevisionId!);
     if (!approvedRevision || approvedRevision.entryId !== entry.id || approvedRevision.id !== entry.approvedRosterRevisionId) {
       throw invariant(`参赛条目 ${entry.name} 的 approved roster revision 指向不存在的报名名单版本。`);
@@ -109,15 +105,9 @@ export async function assertPrestartEntryCoherenceInTx(
     if (approvedRevision.status !== "approved") {
       throw invariant(`参赛条目 ${entry.name} 的已批准报名名单版本状态不再是 approved。`);
     }
-    if (!entrant.eventRosterId) {
-      throw invariant(`参赛条目 ${entry.name} 的正式参赛队缺少 event roster。`);
-    }
-    const eventRoster = rosterById.get(entrant.eventRosterId);
+    const eventRoster = rosterByEntryId.get(entry.id);
     if (!eventRoster) {
       throw invariant(`参赛条目 ${entry.name} 的赛事名单不存在。`);
-    }
-    if (eventRoster.entryId !== entry.id) {
-      throw invariant(`参赛条目 ${entry.name} 的赛事名单绑定不一致。`);
     }
     if (options.requireEventRosterSync !== false && eventRoster.sourceRosterRevisionId !== approvedRevision.id) {
       throw new AppError(

@@ -27,7 +27,6 @@ export interface MajorPrestartManagementData {
     id: string;
     teamId: string;
     teamName: string;
-    rosterConfirmedAt: Date | null;
     rosterStatus: "preparing" | "confirmed" | "frozen";
     roster: Array<{ userId: string; email: string }>;
     candidates: Array<{ userId: string; email: string }>;

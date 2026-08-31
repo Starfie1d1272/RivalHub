@@ -32,7 +32,7 @@ import { finalizeMajorSwissRoundInTransaction } from "../../../src/lib/major/swi
 import { generateNextMajorSwissRound } from "../../../src/lib/major/swiss";
 import { AppError, ErrorCode } from "../../../src/lib/errors";
 import { createMajorDefaultCapabilities } from "../../../src/types/season";
-import { localDatabaseUrl } from "./harness/database";
+import { capturePostgresError, localDatabaseUrl } from "./harness/database";
 
 const databaseUrl = localDatabaseUrl();
 
@@ -74,8 +74,6 @@ interface PlayoffRecoveryFixture extends RecoveryFixture {
   thirdPlaceMatchId: string;
 }
 
-const STAGE_PLAN_KEYS = ["stage1", "stage2", "stage3", "playoff"];
-
 async function prepareFixture(
   pool: Pool,
   label: string,
@@ -108,7 +106,7 @@ async function prepareFixture(
       ],
     );
 
-    const userIds = Array.from({ length: 16 }, () => randomUUID());
+    const userIds = Array.from({ length: 32 }, () => randomUUID());
     for (let i = 0; i < userIds.length; i += 1) {
       await client.query(`INSERT INTO users (id, email, email_verified_at) VALUES ($1, $2, now())`, [
         userIds[i], `g2-${i}-${seasonId}@local.test`,
@@ -118,7 +116,7 @@ async function prepareFixture(
     // runtimes directly, so rosters are not materialized here.
     const entryIds: string[] = [];
     const prestartEntrantIds: string[] = [];
-    for (let i = 0; i < 16; i += 1) {
+    for (let i = 0; i < 32; i += 1) {
       const entryId = randomUUID();
       const revisionId = randomUUID();
       entryIds.push(entryId);
@@ -137,16 +135,20 @@ async function prepareFixture(
         [revisionId, entryId],
       );
       const entrant = await client.query<{ id: string }>(
-        `INSERT INTO major_prestart_entrants (season_id, competition_entry_id, roster_confirmed_at, roster_confirmed_by)
-         VALUES ($1, $2, now(), 'local-admin') RETURNING id`,
+        `INSERT INTO major_tournament_entrants (season_id, competition_entry_id)
+         VALUES ($1, $2) RETURNING id`,
         [seasonId, entryId],
       );
       prestartEntrantIds.push(entrant.rows[0]!.id);
+      await client.query(
+        `INSERT INTO major_tournament_seeds (season_id, tournament_entrant_id, seed) VALUES ($1, $2, $3)`,
+        [seasonId, entrant.rows[0]!.id, i + 1],
+      );
     }
 
     await client.query(
-      `INSERT INTO major_prestart_states (season_id, entrants_locked_at, entrants_locked_by, seed_revision, confirmed_seed_revision)
-       VALUES ($1, now(), 'local-admin', 1, 1)`,
+      `INSERT INTO major_prestart_states (season_id, entrants_locked_at, entrants_locked_by, seeds_confirmed_at, seeds_confirmed_by)
+       VALUES ($1, now(), 'local-admin', now(), 'local-admin')`,
       [seasonId],
     );
 
@@ -154,16 +156,17 @@ async function prepareFixture(
     const stageKeysWithRuns: { stageKey: string; runId: string }[] = [];
     for (const stageKey of stageKeys) {
       const ruleSnapshot = {
-        version: 2,
-        stage: stageKey === "playoff"
-          ? { key: stageKey, name: stageKey, type: "single_elim", teamCount: 8, matchFormat: "bo3", finalFormat: "bo5" }
-          : { key: stageKey, type: "swiss", teamCount: 16, matchFormat: "bo1" },
+        version: 4,
         rosterRules: { minTeamSize: capabilities.minTeamSize, maxTeamSize: capabilities.maxTeamSize, starterCount: capabilities.starterCount },
         affiliationRules: [],
-        stagePlan: STAGE_PLAN_KEYS.map((key) => ({ key })),
-        tournamentEntrants: [],
-        tournamentSeeds: [],
-        openingPairings: [],
+        competitiveProfile: null,
+        frozenCompetitiveFacts: [],
+        runOptions: {},
+        stagePlan: capabilities.stagePlan.map((stage) => ({
+          key: stage.key, name: stage.name, type: stage.type, teamCount: stage.teamCount,
+          matchFormat: stage.matchFormat!, finalFormat: stage.finalFormat ?? null,
+          advanceTiers: stage.advanceTiers, entrySeeds: stage.entrySeeds ?? null, seeds: stage.seeds ?? null,
+        })),
       };
       const run = await client.query<{ id: string }>(
         `INSERT INTO major_stage_runs (season_id, stage_key, rule_snapshot, started_by)
@@ -175,9 +178,9 @@ async function prepareFixture(
       if (stageKey === "stage1") {
         for (let i = 0; i < 16; i += 1) {
           await client.query(
-            `INSERT INTO major_stage_entrants (stage_run_id, entrant_id, competition_entry_id, tournament_seed, stage_seed)
-             VALUES ($1, $2, $3, $4, $4)`,
-            [runId, prestartEntrantIds[i], entryIds[i], i + 1],
+            `INSERT INTO major_stage_entrants (stage_run_id, season_id, tournament_entrant_id, stage_seed)
+             VALUES ($1, $2, $3, $4)`,
+            [runId, seasonId, prestartEntrantIds[i], i + 1],
           );
         }
       }
@@ -204,8 +207,11 @@ async function preparePlayoffFixture(pool: Pool, label: string): Promise<Playoff
     name: stage.name,
     type: stage.type,
     teamCount: stage.teamCount,
-    matchFormat: stage.matchFormat,
+    matchFormat: stage.matchFormat!,
     finalFormat: stage.finalFormat ?? null,
+    advanceTiers: stage.advanceTiers,
+    entrySeeds: stage.entrySeeds ?? null,
+    seeds: stage.seeds ?? null,
   }));
   const playoffStage = frozenStages.find((stage) => stage.key === "playoff");
   if (!playoffStage) throw new Error("playoff recovery fixture 缺少冻结淘汰赛规则。 ");
@@ -213,31 +219,29 @@ async function preparePlayoffFixture(pool: Pool, label: string): Promise<Playoff
   const client = await pool.connect();
   try {
     const entrants = await client.query<{ entrant_id: string; competition_entry_id: string }>(
-      `SELECT id AS entrant_id, competition_entry_id FROM major_prestart_entrants
+      `SELECT id AS entrant_id, competition_entry_id FROM major_tournament_entrants
        WHERE season_id = $1 ORDER BY id LIMIT 8`,
       [fixture.seasonId],
     );
     if (entrants.rows.length !== 8) throw new Error("playoff recovery fixture 必须有 8 支淘汰赛队伍。 ");
     const entryIds = entrants.rows.map((row) => row.competition_entry_id);
-    const tournamentEntrants = Array.from({ length: 32 }, (_, index) => ({
-      entrantId: randomUUID(),
-      competitionEntryId: randomUUID(),
-      tournamentSeed: index + 1,
-    }));
     await client.query(
       `UPDATE major_stage_runs SET rule_snapshot = $2::jsonb WHERE id = $1`,
       [playoffRun.runId, JSON.stringify({
+        version: 4,
         stagePlan: frozenStages,
-        stage: playoffStage,
-        tournamentEntrants,
-        hasThirdPlaceMatch: true,
+        rosterRules: { minTeamSize: capabilities.minTeamSize, maxTeamSize: capabilities.maxTeamSize, starterCount: capabilities.starterCount },
+        affiliationRules: [],
+        competitiveProfile: null,
+        frozenCompetitiveFacts: [],
+        runOptions: { hasThirdPlaceMatch: true },
       })],
     );
     for (let index = 0; index < entryIds.length; index += 1) {
       await client.query(
-        `INSERT INTO major_stage_entrants (stage_run_id, entrant_id, competition_entry_id, tournament_seed, stage_seed)
-         VALUES ($1, $2, $3, $4, $4)`,
-        [playoffRun.runId, entrants.rows[index]!.entrant_id, entryIds[index], index + 1],
+        `INSERT INTO major_stage_entrants (stage_run_id, season_id, tournament_entrant_id, stage_seed)
+         VALUES ($1, $2, $3, $4)`,
+        [playoffRun.runId, fixture.seasonId, entrants.rows[index]!.entrant_id, index + 1],
       );
     }
 
@@ -316,7 +320,9 @@ async function generateAndInsertRound1(pool: Pool, fixture: RecoveryFixture): Pr
   const client = await pool.connect();
   try {
     const entrantRows = await client.query<{ competition_entry_id: string; stage_seed: number }>(
-      `SELECT competition_entry_id, stage_seed FROM major_stage_entrants WHERE stage_run_id = $1 ORDER BY stage_seed`,
+      `SELECT entrant.competition_entry_id, stage_entrant.stage_seed FROM major_stage_entrants stage_entrant
+       INNER JOIN major_tournament_entrants entrant ON entrant.id = stage_entrant.tournament_entrant_id
+       WHERE stage_entrant.stage_run_id = $1 ORDER BY stage_entrant.stage_seed`,
       [run.runId],
     );
     const entrants = entrantRows.rows.map((row) => ({
@@ -426,7 +432,7 @@ async function cleanupFixture(pool: Pool, fixture: RecoveryFixture): Promise<voi
       WHERE e.stage_run_id = r.id AND r.season_id = $1`, [fixture.seasonId]);
     await client.query("DELETE FROM major_stage_runs WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM major_tournament_seeds WHERE season_id = $1", [fixture.seasonId]);
-    await client.query("DELETE FROM major_prestart_entrants WHERE season_id = $1", [fixture.seasonId]);
+    await client.query("DELETE FROM major_tournament_entrants WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM major_prestart_states WHERE season_id = $1", [fixture.seasonId]);
     await client.query("SET LOCAL session_replication_role = replica");
     await client.query("DELETE FROM competition_entry_roster_revisions WHERE entry_id IN (SELECT id FROM competition_entries WHERE competition_id = $1)", [fixture.seasonId]);
@@ -801,7 +807,14 @@ async function main(): Promise<void> {
           `INSERT INTO major_final_results (
              season_id, playoff_stage_run_id, champion_entry_id, placement_groups, status, finalized_by
            )
-           SELECT $1, $2, (SELECT competition_entry_id FROM major_stage_entrants WHERE stage_run_id = $2 ORDER BY stage_seed LIMIT 1), '[]'::jsonb, 'pending_confirmation', 'local-admin'
+           SELECT $1, $2, ordered.entry_ids->>0, jsonb_build_array(jsonb_build_object('from', 1, 'to', 32, 'entryIds', ordered.entry_ids)), 'pending_confirmation', 'local-admin'
+           FROM (
+             SELECT jsonb_agg(entrant.competition_entry_id::text ORDER BY seed.seed) AS entry_ids
+             FROM major_tournament_entrants entrant
+             INNER JOIN major_tournament_seeds seed
+               ON seed.tournament_entrant_id = entrant.id AND seed.season_id = entrant.season_id
+             WHERE entrant.season_id = $1
+           ) ordered
            RETURNING id`,
           [fixture.seasonId, run.runId],
         );
@@ -815,6 +828,29 @@ async function main(): Promise<void> {
           "F 官方名次存在时必须拒绝胜者更正",
         );
         await client.query(`DELETE FROM major_final_results WHERE season_id = $1`, [fixture.seasonId]);
+
+        // The application parser is not the only protection: malformed direct
+        // SQL must be rejected by the deferred database invariant as well.
+        await client.query("BEGIN");
+        try {
+          const malformed = await capturePostgresError(client, async () => {
+            await client.query(
+              `INSERT INTO major_final_results (
+               season_id, playoff_stage_run_id, champion_entry_id, placement_groups, status, finalized_by
+             )
+             SELECT $1, $2, entrant.competition_entry_id, '[]'::jsonb, 'pending_confirmation', 'local-admin'
+             FROM major_stage_entrants stage_entrant
+             INNER JOIN major_tournament_entrants entrant ON entrant.id = stage_entrant.tournament_entrant_id
+             WHERE stage_entrant.stage_run_id = $2
+             ORDER BY stage_entrant.stage_seed LIMIT 1`,
+              [fixture.seasonId, run.runId],
+            );
+            await client.query("SET CONSTRAINTS ALL IMMEDIATE");
+          });
+          expect(malformed).toMatchObject({ code: "P0001" });
+        } finally {
+          await client.query("ROLLBACK");
+        }
       }
 
       // G. 后续阶段 StageRun 已建立 → 本阶段胜者更正被拒绝。

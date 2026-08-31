@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TxDb } from "../../../src/db/client";
 import * as schema from "../../../src/db/schema";
 import { requestCompetitionEntryRosterChangeInTx } from "../../../src/lib/competition-entries/roster-change";
@@ -251,20 +251,20 @@ async function prepareReadyMajor(
       }
     }
     await client.query(
-      `INSERT INTO major_prestart_states (season_id, entrants_locked_at, entrants_locked_by, seed_revision, confirmed_seed_revision)
-       VALUES ($1, ${options.editablePrestart ? "NULL, NULL" : "now(), 'local-admin'"}, 1, 1)`,
+      `INSERT INTO major_prestart_states (season_id, entrants_locked_at, entrants_locked_by, seeds_confirmed_at, seeds_confirmed_by)
+       VALUES ($1, ${options.editablePrestart ? "NULL, NULL" : "now(), 'local-admin'"}, now(), 'local-admin')`,
       [seasonId],
     );
     for (let index = 0; index < 32; index += 1) {
       const entrant = await client.query<{ id: string }>(
-        `INSERT INTO major_prestart_entrants (id, season_id, competition_entry_id, event_roster_id, roster_confirmed_at, roster_confirmed_by)
-         VALUES ($1, $2, $3, $4, ${options.editablePrestart ? "NULL, NULL" : "now(), 'local-admin'"}) RETURNING id`,
-        [deterministicUuid(`${label}/entrant/${index + 1}`), seasonId, entryIds[index], eventRosterIds[index]],
+        `INSERT INTO major_tournament_entrants (id, season_id, competition_entry_id)
+         VALUES ($1, $2, $3) RETURNING id`,
+        [deterministicUuid(`${label}/entrant/${index + 1}`), seasonId, entryIds[index]],
       );
       const entrantId = entrant.rows[0]?.id;
       if (!entrantId) throw new Error("正式参赛队创建失败。");
       await client.query(
-        `INSERT INTO major_tournament_seeds (id, season_id, entrant_id, tournament_seed) VALUES ($1, $2, $3, $4)`,
+        `INSERT INTO major_tournament_seeds (id, season_id, tournament_entrant_id, seed) VALUES ($1, $2, $3, $4)`,
         [deterministicUuid(`${label}/seed/${index + 1}`), seasonId, entrantId, index + 1],
       );
     }
@@ -290,7 +290,7 @@ async function cleanupMajorFixture(pool: Pool, fixture: MajorFixture): Promise<v
       WHERE e.stage_run_id = r.id AND r.season_id = $1`, [fixture.seasonId]);
     await client.query("DELETE FROM major_stage_runs WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM major_tournament_seeds WHERE season_id = $1", [fixture.seasonId]);
-    await client.query("DELETE FROM major_prestart_entrants WHERE season_id = $1", [fixture.seasonId]);
+    await client.query("DELETE FROM major_tournament_entrants WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM major_prestart_states WHERE season_id = $1", [fixture.seasonId]);
     // Frozen-roster immutability and append-only provenance are intentional in
     // normal operation; local teardown bypasses row triggers for its own rows.
@@ -390,9 +390,11 @@ async function finishSwissRound(pool: Pool, stageRunId: string, round: number): 
 
 async function readSwissEvidence(pool: Pool, stageRunId: string): Promise<GoldenSwissEvidenceRow[]> {
   const entrants = await pool.query<{ competition_entry_id: string; entry_name: string; stage_seed: number; tournament_seed: number }>(`
-    SELECT e.competition_entry_id, en.name AS entry_name, e.stage_seed, e.tournament_seed
+    SELECT entrant.competition_entry_id, en.name AS entry_name, e.stage_seed, seed.seed AS tournament_seed
     FROM major_stage_entrants e
-    INNER JOIN competition_entries en ON en.id = e.competition_entry_id
+    INNER JOIN major_tournament_entrants entrant ON entrant.id = e.tournament_entrant_id
+    INNER JOIN major_tournament_seeds seed ON seed.tournament_entrant_id = entrant.id AND seed.season_id = e.season_id
+    INNER JOIN competition_entries en ON en.id = entrant.competition_entry_id
     WHERE e.stage_run_id = $1
     ORDER BY e.stage_seed
   `, [stageRunId]);
@@ -881,16 +883,15 @@ async function exerciseStartVsRosterChangeConcurrency(
       (SELECT count(*) FROM matches WHERE season_id = $1 AND ownership = 'major_stage') AS matches,
       (SELECT seeds_locked_at IS NOT NULL FROM major_prestart_states WHERE season_id = $1) AS "seedsLocked",
       (SELECT registration_status FROM competition_entries WHERE id = $2) AS "entryStatus",
-      (SELECT status FROM event_rosters WHERE entry_id = $2) AS "rosterStatus",
-      (SELECT roster_confirmed_at FROM major_prestart_entrants WHERE competition_entry_id = $2) AS "confirmedAt"
+      (SELECT status FROM event_rosters WHERE entry_id = $2) AS "rosterStatus"
   `, [fixture.seasonId, entryId]);
   const fact = facts.rows[0];
   if (!fact) throw new Error("start vs roster change 缺少最终事实。 ");
   if (startWon) {
-    if (fact.status !== "playing" || fact.runs !== "1" || fact.matches !== "8" || !fact.seedsLocked || fact.entryStatus !== "approved" || fact.rosterStatus !== "frozen" || !fact.confirmedAt) {
+    if (fact.status !== "playing" || fact.runs !== "1" || fact.matches !== "8" || !fact.seedsLocked || fact.entryStatus !== "approved" || fact.rosterStatus !== "frozen") {
       throw new Error("start 胜出后存在部分开赛、Entry 或冻结名单事实不一致。 ");
     }
-  } else if (fact.status !== "registration" || fact.runs !== "0" || fact.matches !== "0" || fact.seedsLocked || fact.entryStatus !== "changes_requested" || fact.rosterStatus === "frozen" || fact.confirmedAt !== null) {
+  } else if (fact.status !== "registration" || fact.runs !== "0" || fact.matches !== "0" || fact.seedsLocked || fact.entryStatus !== "changes_requested" || fact.rosterStatus === "frozen") {
     throw new Error("roster change 胜出后仍存在部分开赛或 stale frozen roster 事实。 ");
   }
 }
@@ -946,17 +947,15 @@ async function exerciseSaveVsRosterChangeConcurrency(
       e.registration_status AS "entryStatus",
       r.status AS "rosterStatus",
       r.source_roster_revision_id::text AS "sourceRevisionId",
-      approved.id::text AS "approvedRevisionId",
-      p.roster_confirmed_at AS "confirmedAt"
+      approved.id::text AS "approvedRevisionId"
     FROM competition_entries e
     INNER JOIN event_rosters r ON r.entry_id = e.id
-    INNER JOIN major_prestart_entrants p ON p.id = $2
     LEFT JOIN competition_entry_roster_revisions approved
       ON approved.id = e.approved_roster_revision_id AND approved.entry_id = e.id
     WHERE e.id = $1
-  `, [entryId, entrantId]);
+  `, [entryId]);
   const fact = facts.rows[0];
-  if (!fact || fact.entryStatus !== "changes_requested" || fact.rosterStatus === "frozen" || fact.confirmedAt !== null || fact.sourceRevisionId !== fact.approvedRevisionId) {
+  if (!fact || fact.entryStatus !== "changes_requested" || fact.rosterStatus === "frozen" || fact.sourceRevisionId !== fact.approvedRevisionId) {
     throw new Error("save vs roster change 后 Entry、event roster、approved revision 与 confirmation 不一致。 ");
   }
 }
@@ -992,12 +991,6 @@ async function exerciseStaleRosterCoherence(
      SET status = 'frozen', frozen_at = now(), frozen_by = 'local-admin'
      WHERE entry_id <> $1
        AND entry_id IN (SELECT id FROM competition_entries WHERE competition_id = $2)`,
-    [entryId, fixture.seasonId],
-  );
-  await pool.query(
-    `UPDATE major_prestart_entrants
-     SET roster_confirmed_at = now(), roster_confirmed_by = 'local-admin'
-     WHERE competition_entry_id <> $1 AND season_id = $2`,
     [entryId, fixture.seasonId],
   );
   await pool.query(
@@ -1054,10 +1047,6 @@ async function exerciseStaleRosterCoherence(
   await pool.query(
     "UPDATE event_rosters SET status = 'frozen', frozen_at = now(), frozen_by = 'local-admin' WHERE id = $1",
     [eventRosterId],
-  );
-  await pool.query(
-    "UPDATE major_prestart_entrants SET roster_confirmed_at = now(), roster_confirmed_by = 'local-admin' WHERE id = $1",
-    [deterministicUuid("coherence/entrant/1")],
   );
   await pool.query(
     "UPDATE major_prestart_states SET entrants_locked_at = now(), entrants_locked_by = 'local-admin' WHERE season_id = $1",
@@ -1177,27 +1166,27 @@ async function exerciseStartQualification(
   }
 }
 
-async function main(): Promise<void> {
-  const pool = new Pool({ connectionString: databaseUrl, ssl: false, max: 4 });
-  const database = drizzle(pool, { schema });
-  const fixtures: MajorFixture[] = [];
-  try {
-    await cleanupStaleMajorStartFixtures(pool);
-    await exerciseStartVsRosterChangeConcurrency(database, pool, fixtures);
-    await exerciseSaveVsRosterChangeConcurrency(database, pool, fixtures);
-    const ready = await prepareReadyMajor(pool, "retry");
-    fixtures.push(ready);
+interface MajorLifecycleContext {
+  pool: Pool;
+  database: ReturnType<typeof drizzle<typeof schema>>;
+  fixtures: MajorFixture[];
+  ready: MajorFixture | null;
+}
+
+async function startAndVerifyMajor(context: MajorLifecycleContext): Promise<void> {
+    const ready = await prepareReadyMajor(context.pool, "retry");
+    context.fixtures.push(ready);
     const retryResults = await Promise.all([
-      database.transaction((tx) => startMajorInTransaction(tx, { seasonId: ready.seasonId, actorId: "local-admin-a" })),
-      database.transaction((tx) => startMajorInTransaction(tx, { seasonId: ready.seasonId, actorId: "local-admin-b" })),
+      context.database.transaction((tx) => startMajorInTransaction(tx, { seasonId: ready.seasonId, actorId: "local-admin-a" })),
+      context.database.transaction((tx) => startMajorInTransaction(tx, { seasonId: ready.seasonId, actorId: "local-admin-b" })),
     ]);
     if (retryResults.filter((result) => result.created).length !== 1 || retryResults.some((result) => result.matchCount !== 8)) {
       throw new Error("并发重试没有收敛到一个 Stage 1 运行和 8 场比赛。");
     }
 
-    const client = await pool.connect();
+    const client = await context.pool.connect();
     try {
-      const started = await client.query<{ status: string; runs: string; entrants: string; matches: string; audits: string; seeds_locked: boolean; rule_snapshot: { stage?: { key?: string }; openingPairings?: unknown[]; affiliationRules?: Array<{ institutionCode?: string; minRosterMembers?: number; minStartingMembers?: number }> } }>(`
+      const started = await client.query<{ status: string; runs: string; entrants: string; matches: string; audits: string; seeds_locked: boolean; rule_snapshot: { version?: number; affiliationRules?: Array<{ institutionCode?: string; minRosterMembers?: number; minStartingMembers?: number }> } }>(`
         SELECT
           (SELECT status FROM seasons WHERE id = $1) AS status,
           (SELECT count(*) FROM major_stage_runs WHERE season_id = $1) AS runs,
@@ -1209,7 +1198,7 @@ async function main(): Promise<void> {
       `, [ready.seasonId]);
       const facts = started.rows[0];
       const frozenNjuRule = facts?.rule_snapshot?.affiliationRules?.find((rule) => rule.institutionCode === "4132010284");
-      if (facts?.status !== "playing" || facts.runs !== "1" || facts.entrants !== "16" || facts.matches !== "8" || facts.audits !== "1" || !facts.seeds_locked || facts.rule_snapshot?.stage?.key !== "stage1" || facts.rule_snapshot?.openingPairings?.length !== 8 || frozenNjuRule?.minRosterMembers !== 3 || frozenNjuRule.minStartingMembers !== 3) {
+      if (facts?.status !== "playing" || facts.runs !== "1" || facts.entrants !== "16" || facts.matches !== "8" || facts.audits !== "1" || !facts.seeds_locked || facts.rule_snapshot?.version !== 4 || frozenNjuRule?.minRosterMembers !== 3 || frozenNjuRule.minStartingMembers !== 3) {
         throw new Error("正式开赛没有完整固化状态、入口、比赛或审计事实。");
       }
       const firstMatch = await client.query<{ major_stage_run_id: string; entry_a_id: string; entry_b_id: string; stage: string; format: string }>(
@@ -1229,13 +1218,18 @@ async function main(): Promise<void> {
     } finally {
       client.release();
     }
+    context.ready = ready;
+}
 
-    const stage1RunId = await exerciseSwissRuntime(database, pool, ready);
+async function advanceMajorStagesAndPlayoff(context: MajorLifecycleContext): Promise<void> {
+    const ready = context.ready;
+    if (!ready) throw new Error("Stage 1 fixture 尚未启动。");
+    const stage1RunId = await exerciseSwissRuntime(context.database, context.pool, ready);
     const stage2Transitions = await Promise.all([
-      database.transaction((tx) => transitionMajorSwissStageInTransaction(tx, {
+      context.database.transaction((tx) => transitionMajorSwissStageInTransaction(tx, {
         seasonId: ready.seasonId, sourceStageRunId: stage1RunId, actorId: "local-admin-a",
       })),
-      database.transaction((tx) => transitionMajorSwissStageInTransaction(tx, {
+      context.database.transaction((tx) => transitionMajorSwissStageInTransaction(tx, {
         seasonId: ready.seasonId, sourceStageRunId: stage1RunId, actorId: "local-admin-b",
       })),
     ]);
@@ -1243,15 +1237,15 @@ async function main(): Promise<void> {
       throw new Error("并发 Stage 1→Stage 2 切换没有收敛到唯一的 StageRun 和首轮比赛。 ");
     }
     const stage2RunId = stage2Transitions[0]!.stageRunId;
-    await completeSwissStage(database, pool, ready.seasonId, stage2RunId);
-    const stage3Transition = await database.transaction((tx) => transitionMajorSwissStageInTransaction(tx, {
+    await completeSwissStage(context.database, context.pool, ready.seasonId, stage2RunId);
+    const stage3Transition = await context.database.transaction((tx) => transitionMajorSwissStageInTransaction(tx, {
       seasonId: ready.seasonId, sourceStageRunId: stage2RunId, actorId: "local-admin",
     }));
     if (!stage3Transition.created || stage3Transition.stageKey !== "stage3" || stage3Transition.matchCount !== 8) {
       throw new Error("Stage 2→Stage 3 没有创建完整的下一 StageRun。 ");
     }
-    await completeSwissStage(database, pool, ready.seasonId, stage3Transition.stageRunId);
-    const stageTransitionFacts = await pool.query<{ runs: string; entrants: string; matches: string; complete_runs: string; transitions: string }>(`
+    await completeSwissStage(context.database, context.pool, ready.seasonId, stage3Transition.stageRunId);
+    const stageTransitionFacts = await context.pool.query<{ runs: string; entrants: string; matches: string; complete_runs: string; transitions: string }>(`
       SELECT
         (SELECT count(*) FROM major_stage_runs WHERE season_id = $1) AS runs,
         (SELECT count(*) FROM major_stage_entrants e INNER JOIN major_stage_runs r ON r.id = e.stage_run_id WHERE r.season_id = $1) AS entrants,
@@ -1263,14 +1257,16 @@ async function main(): Promise<void> {
     if (!transitionFacts || transitionFacts.runs !== "3" || transitionFacts.entrants !== "48" || transitionFacts.matches !== "99" || transitionFacts.complete_runs !== "3" || transitionFacts.transitions !== "2") {
       throw new Error("三阶段连续运行没有形成逐 StageRun 隔离的 canonical entrants、比赛和切换审计事实。 ");
     }
-    await exercisePlayoffRuntime(database, pool, ready.seasonId, stage3Transition.stageRunId);
+    await exercisePlayoffRuntime(context.database, context.pool, ready.seasonId, stage3Transition.stageRunId);
+}
 
-    const rollback = await prepareReadyMajor(pool, "rollback");
-    fixtures.push(rollback);
-    await exerciseMissingCompetitiveProfile(database, pool, fixtures);
-    await exerciseStaleRosterCoherence(database, pool, fixtures);
-    await exerciseStartQualification(database, pool, fixtures);
-    const triggerClient = await pool.connect();
+async function exerciseStartFailureBoundaries(context: MajorLifecycleContext): Promise<void> {
+    const rollback = await prepareReadyMajor(context.pool, "rollback");
+    context.fixtures.push(rollback);
+    await exerciseMissingCompetitiveProfile(context.database, context.pool, context.fixtures);
+    await exerciseStaleRosterCoherence(context.database, context.pool, context.fixtures);
+    await exerciseStartQualification(context.database, context.pool, context.fixtures);
+    const triggerClient = await context.pool.connect();
     try {
       await triggerClient.query(`
         CREATE FUNCTION fail_local_major_start_match() RETURNS trigger LANGUAGE plpgsql AS $$
@@ -1279,7 +1275,7 @@ async function main(): Promise<void> {
         CREATE TRIGGER fail_local_major_start_match BEFORE INSERT ON matches
         FOR EACH ROW WHEN (NEW.ownership = 'major_stage') EXECUTE FUNCTION fail_local_major_start_match();
       `);
-      await database.transaction((tx) => startMajorInTransaction(tx, { seasonId: rollback.seasonId, actorId: "local-admin" }))
+      await context.database.transaction((tx) => startMajorInTransaction(tx, { seasonId: rollback.seasonId, actorId: "local-admin" }))
         .then(() => { throw new Error("预期启动事务因 sentinel 回滚，但操作成功。"); })
         .catch((error) => {
           // drizzle 会把 pg 错误包装成 DrizzleQueryError，sentinel 文本在 cause 里。
@@ -1306,15 +1302,36 @@ async function main(): Promise<void> {
       await triggerClient.query("DROP FUNCTION IF EXISTS fail_local_major_start_match()");
       triggerClient.release();
     }
-    console.log("Major local integration passed: start retry, 32-team lock, StageRun-scoped entrants and managed matches, three consecutive Swiss stages, persistent playoff through champion, pending final result, missing/illegal-result rejection, concurrent confirmation and transition, forced rollback, stale-roster coherence fail-closed with resync recovery, and start-time competitive qualification over the same frozen facts batch.");
-  } finally {
-    for (const fixture of fixtures) await cleanupMajorFixture(pool, fixture);
-    await pool.end();
-  }
 }
 
-describe("Major lifecycle PostgreSQL invariants", () => {
-  it("rehearses start, Swiss, playoff, recovery, and concurrency boundaries", async () => {
-    await main();
+describe.sequential("Major lifecycle PostgreSQL invariants", () => {
+  let context: MajorLifecycleContext;
+
+  beforeAll(async () => {
+    const pool = new Pool({ connectionString: databaseUrl, ssl: false, max: 4 });
+    context = { pool, database: drizzle(pool, { schema }), fixtures: [], ready: null };
+    await cleanupStaleMajorStartFixtures(pool);
+  });
+
+  afterAll(async () => {
+    for (const fixture of context.fixtures) await cleanupMajorFixture(context.pool, fixture);
+    await context.pool.end();
+  });
+
+  it("serializes prestart roster and Entry remediation", async () => {
+    await exerciseStartVsRosterChangeConcurrency(context.database, context.pool, context.fixtures);
+    await exerciseSaveVsRosterChangeConcurrency(context.database, context.pool, context.fixtures);
+  });
+
+  it("starts Stage 1 once and freezes canonical runtime facts", async () => {
+    await startAndVerifyMajor(context);
+  });
+
+  it("advances three Swiss StageRuns and finalizes the playoff", async () => {
+    await advanceMajorStagesAndPlayoff(context);
+  });
+
+  it("fails closed for stale roster, qualification, and rollback boundaries", async () => {
+    await exerciseStartFailureBoundaries(context);
   });
 });

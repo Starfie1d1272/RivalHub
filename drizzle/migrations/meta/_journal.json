@@ -169,6 +169,13 @@
       "when": 1788176143972,
       "tag": "0023_auth_permissions",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1788177556147,
+      "tag": "0024_major_runtime_convergence",
+      "breakpoints": true
     }
   ]
 }

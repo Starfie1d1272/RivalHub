@@ -1,4 +1,4 @@
-import { pgTable, uuid, integer, text, timestamp, pgEnum, check, boolean, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { pgTable, uuid, integer, text, timestamp, pgEnum, check, boolean, uniqueIndex, index, foreignKey } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { majorStageRuns } from "./major-stage";
 import { seasons } from "./seasons";
@@ -50,6 +50,9 @@ export const matches = pgTable("matches", {
 }, (t) => ({
   // 双方不能是同一支队
   entriesAreDifferent: check("matches_entries_different", sql`${t.entryAId} != ${t.entryBId}`),
+  entryASeasonScope: foreignKey({ columns: [t.entryAId, t.seasonId], foreignColumns: [competitionEntries.id, competitionEntries.competitionId], name: "matches_entry_a_season_scope_fk" }),
+  entryBSeasonScope: foreignKey({ columns: [t.entryBId, t.seasonId], foreignColumns: [competitionEntries.id, competitionEntries.competitionId], name: "matches_entry_b_season_scope_fk" }),
+  majorRunSeasonScope: foreignKey({ columns: [t.majorStageRunId, t.seasonId], foreignColumns: [majorStageRuns.id, majorStageRuns.seasonId], name: "matches_major_stage_run_season_scope_fk" }),
   // 系列赛比分非负
   scoreANonNegative: check("matches_score_a_nonneg", sql`${t.scoreA} IS NULL OR ${t.scoreA} >= 0`),
   scoreBNonNegative: check("matches_score_b_nonneg", sql`${t.scoreB} IS NULL OR ${t.scoreB} >= 0`),
