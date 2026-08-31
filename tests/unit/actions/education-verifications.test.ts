@@ -4,7 +4,7 @@ import { ErrorCode } from "@/lib/errors";
 
 describe("education verification action validation", () => {
   it("fails closed for malformed CHSI submission before database access", async () => {
-    const result = await submitEducationVerification({ institutionId: "not-a-uuid", academicStatus: "enrolled", evidenceType: "chsi_enrollment_report", evidenceUrl: "https://evil.example" });
+    const result = await submitEducationVerification({ institutionId: "not-a-uuid", academicStatus: "enrolled", evidenceCode: "not-a-chsi-code" });
     expect(result).toMatchObject({ success: false, error: { code: ErrorCode.VALIDATION_FAILED } });
   });
 

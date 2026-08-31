@@ -176,6 +176,13 @@
       "when": 1788177556147,
       "tag": "0024_major_runtime_convergence",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1788203801226,
+      "tag": "0025_stale_black_bolt",
+      "breakpoints": true
     }
   ]
 }
