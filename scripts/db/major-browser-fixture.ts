@@ -134,7 +134,6 @@ async function removeFixtureDatabaseRows(client: import("pg").PoolClient): Promi
   await client.query("DELETE FROM competition_entry_representative_changes WHERE entry_id IN (SELECT id FROM competition_entries WHERE competition_id = $1)", [FIXTURE_SEASON_ID]);
   await client.query("DELETE FROM competition_entry_legacy_identities WHERE entry_id IN (SELECT id FROM competition_entries WHERE competition_id = $1)", [FIXTURE_SEASON_ID]);
   await client.query("DELETE FROM competition_entries WHERE competition_id = $1", [FIXTURE_SEASON_ID]);
-  await client.query("DELETE FROM major_prestart_entrants WHERE season_id = $1", [FIXTURE_SEASON_ID]);
   await client.query("DELETE FROM major_prestart_issues WHERE season_id = $1", [FIXTURE_SEASON_ID]);
   await client.query("DELETE FROM major_prestart_states WHERE season_id = $1", [FIXTURE_SEASON_ID]);
   await client.query("DELETE FROM season_registrations WHERE season_id = $1", [FIXTURE_SEASON_ID]);
