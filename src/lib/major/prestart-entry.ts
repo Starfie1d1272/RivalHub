@@ -69,7 +69,7 @@ export async function assertPrestartEntryCoherenceInTx(
     .where(inArray(competitionEntries.id, entryIds)).orderBy(asc(competitionEntries.id)).for("update");
   const entryById = new Map(entryRows.map((entry) => [entry.id, entry]));
 
-  const results: Array<{ entrant: PrestartCoherenceEntrantRef; entry: typeof competitionEntries.$inferSelect; approvedRevisionNumber: number }> = [];
+  const results: Array<{ entrant: PrestartCoherenceEntrantRef; entry: typeof competitionEntries.$inferSelect }> = [];
   for (const entrant of entrants) {
     const entry = entryById.get(entrant.competitionEntryId);
     if (!entry) throw invariant(`参赛条目 ${entrant.competitionEntryId} 不存在。`);
@@ -83,15 +83,15 @@ export async function assertPrestartEntryCoherenceInTx(
         `参赛条目「${entry.name}」已重新进入${label}状态，不能再继续赛前确认、锁定或开赛；请先完成名单补正并重新审核批准。`,
       );
     }
-    if (entry.approvedRosterRevision === null) {
+    if (entry.approvedRosterRevisionId === null) {
       throw invariant(`参赛条目 ${entry.name} 缺少已批准报名名单版本。`);
     }
-    results.push({ entrant, entry, approvedRevisionNumber: entry.approvedRosterRevision });
+    results.push({ entrant, entry });
   }
 
   const revisionRows = await tx.select().from(competitionEntryRosterRevisions)
     .where(inArray(competitionEntryRosterRevisions.entryId, entryIds));
-  const revisionByKey = new Map(revisionRows.map((revision) => [`${revision.entryId}:${revision.revision}`, revision]));
+  const revisionById = new Map(revisionRows.map((revision) => [revision.id, revision]));
 
   const rosterIds = [...new Set(entrants
     .flatMap((entrant) => (entrant.eventRosterId ? [entrant.eventRosterId] : [])))].sort();
@@ -101,10 +101,10 @@ export async function assertPrestartEntryCoherenceInTx(
   const rosterById = new Map(rosterRows.map((roster) => [roster.id, roster]));
 
   const coherent: PrestartEntryCoherence[] = [];
-  for (const { entrant, entry, approvedRevisionNumber } of results) {
-    const approvedRevision = revisionByKey.get(`${entry.id}:${approvedRevisionNumber}`);
-    if (!approvedRevision || approvedRevision.entryId !== entry.id || approvedRevision.revision !== approvedRevisionNumber) {
-      throw invariant(`参赛条目 ${entry.name} 的 approvedRosterRevision 指向不存在的报名名单版本。`);
+  for (const { entrant, entry } of results) {
+    const approvedRevision = revisionById.get(entry.approvedRosterRevisionId!);
+    if (!approvedRevision || approvedRevision.entryId !== entry.id || approvedRevision.id !== entry.approvedRosterRevisionId) {
+      throw invariant(`参赛条目 ${entry.name} 的 approved roster revision 指向不存在的报名名单版本。`);
     }
     if (approvedRevision.status !== "approved") {
       throw invariant(`参赛条目 ${entry.name} 的已批准报名名单版本状态不再是 approved。`);

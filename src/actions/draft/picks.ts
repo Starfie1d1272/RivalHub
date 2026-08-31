@@ -500,7 +500,7 @@ async function executeDraftPick(
   const [roster] = await tx.select({ id: eventRosters.id }).from(eventRosters)
     .where(eq(eventRosters.entryId, input.entryId)).for("update");
   const [revision] = await tx.select({ id: competitionEntryRosterRevisions.id }).from(competitionEntryRosterRevisions)
-    .where(and(eq(competitionEntryRosterRevisions.entryId, input.entryId), eq(competitionEntryRosterRevisions.revision, 1))).for("update");
+    .where(and(eq(competitionEntryRosterRevisions.entryId, input.entryId), eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId))).for("update");
   if (!roster || !revision) throw new AppError(ErrorCode.INTERNAL_ERROR, "选秀参赛者缺少 roster owner。");
   await tx.insert(competitionEntryRosterMembers).values({
     revisionId: revision.id,
@@ -552,11 +552,11 @@ async function executeDraftPick(
       .update(seasons)
       .set({ status: "playing", updatedAt: now })
       .where(eq(seasons.id, input.seasonId));
-    await tx.update(eventRosters).set({ status: "frozen", frozenAt: now, frozenBy: input.captainUserId ?? "system:draft", updatedAt: now })
+    await tx.update(eventRosters).set({ sourceRosterRevisionId: sql`(SELECT entry.current_roster_revision_id FROM competition_entries entry WHERE entry.id = ${eventRosters.entryId})`, status: "frozen", confirmedAt: now, confirmedBy: input.captainUserId ?? "system:draft", frozenAt: now, frozenBy: input.captainUserId ?? "system:draft", updatedAt: now })
       .where(sql`${eventRosters.entryId} IN (SELECT ${competitionEntries.id} FROM ${competitionEntries} WHERE ${competitionEntries.competitionId} = ${input.seasonId})`);
     await tx.update(competitionEntryRosterRevisions).set({ status: "approved", submittedAt: now, approvedAt: now })
-      .where(sql`${competitionEntryRosterRevisions.entryId} IN (SELECT ${competitionEntries.id} FROM ${competitionEntries} WHERE ${competitionEntries.competitionId} = ${input.seasonId}) AND ${competitionEntryRosterRevisions.revision} = 1`);
-    await tx.update(competitionEntries).set({ approvedRosterRevision: 1, updatedAt: now })
+      .where(sql`${competitionEntryRosterRevisions.entryId} IN (SELECT ${competitionEntries.id} FROM ${competitionEntries} WHERE ${competitionEntries.competitionId} = ${input.seasonId}) AND ${competitionEntryRosterRevisions.id} = (SELECT entry.current_roster_revision_id FROM competition_entries entry WHERE entry.id = ${competitionEntryRosterRevisions.entryId})`);
+    await tx.update(competitionEntries).set({ approvedRosterRevisionId: competitionEntries.currentRosterRevisionId, updatedAt: now })
       .where(eq(competitionEntries.competitionId, input.seasonId));
 
     return { pickId: pick.id, slug: season.slug, idempotent: false, completed: true };

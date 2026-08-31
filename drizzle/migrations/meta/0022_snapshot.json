@@ -1,6 +1,6 @@
 {
-  "id": "e429cbf8-0c5b-43e6-89d7-8271282b3d50",
-  "prevId": "57eb79c2-3b6c-4d38-8188-075684dcff1a",
+  "id": "d01e9865-bb60-4368-835f-8faddc2e6156",
+  "prevId": "e429cbf8-0c5b-43e6-89d7-8271282b3d50",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -281,6 +281,52 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.competition_bracket_states": {
+      "name": "competition_bracket_states",
+      "schema": "",
+      "columns": {
+        "competition_id": {
+          "name": "competition_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "data": {
+          "name": "data",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "competition_bracket_states_competition_id_seasons_id_fk": {
+          "name": "competition_bracket_states_competition_id_seasons_id_fk",
+          "tableFrom": "competition_bracket_states",
+          "tableTo": "seasons",
+          "columnsFrom": [
+            "competition_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.competition_entries": {
       "name": "competition_entries",
       "schema": "",
@@ -537,36 +583,6 @@
           ],
           "columnsTo": [
             "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "competition_entries_current_roster_revision_scope_fk": {
-          "name": "competition_entries_current_roster_revision_scope_fk",
-          "tableFrom": "competition_entries",
-          "tableTo": "competition_entry_roster_revisions",
-          "columnsFrom": [
-            "current_roster_revision_id",
-            "id"
-          ],
-          "columnsTo": [
-            "id",
-            "entry_id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "competition_entries_approved_roster_revision_scope_fk": {
-          "name": "competition_entries_approved_roster_revision_scope_fk",
-          "tableFrom": "competition_entries",
-          "tableTo": "competition_entry_roster_revisions",
-          "columnsFrom": [
-            "approved_roster_revision_id",
-            "id"
-          ],
-          "columnsTo": [
-            "id",
-            "entry_id"
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
@@ -3490,12 +3506,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "ARRAY['igl','awper','opener','closer','anchor']"
-        },
-        "bracket_data": {
-          "name": "bracket_data",
-          "type": "json",
-          "primaryKey": false,
-          "notNull": false
         },
         "start_at": {
           "name": "start_at",

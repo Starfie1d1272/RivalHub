@@ -7,7 +7,6 @@ import {
   pgTable,
   text,
   timestamp,
-  unique,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
@@ -15,7 +14,6 @@ import { users } from "./users";
 
 export const teamLifecycleEnum = pgEnum("team_lifecycle", ["active", "disbanded"]);
 export const teamMembershipStatusEnum = pgEnum("team_membership_status", ["active", "benched", "left"]);
-export const teamMembershipRoleEnum = pgEnum("team_membership_role", ["captain", "member"]);
 export const teamMembershipEndReasonEnum = pgEnum("team_membership_end_reason", ["left", "kicked", "disbanded"]);
 export const teamInvitationKindEnum = pgEnum("team_invitation_kind", ["direct", "share_link"]);
 export const teamInvitationStatusEnum = pgEnum("team_invitation_status", ["pending", "accepted", "declined", "revoked", "expired"]);
@@ -52,7 +50,6 @@ export const teamMemberships = pgTable("team_memberships", {
   teamId: uuid("team_id").notNull().references(() => teams.id),
   userId: uuid("user_id").notNull().references(() => users.id),
   status: teamMembershipStatusEnum("status").notNull().default("active"),
-  role: teamMembershipRoleEnum("role").notNull().default("member"),
   startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
   endedAt: timestamp("ended_at", { withTimezone: true }),
   endedReason: teamMembershipEndReasonEnum("ended_reason"),
@@ -65,50 +62,35 @@ export const teamMemberships = pgTable("team_memberships", {
   oneCurrentPeriod: uniqueIndex("team_memberships_one_current_period")
     .on(t.teamId, t.userId)
     .where(sql`${t.endedAt} IS NULL`),
-  oneActiveTeamPerUser: uniqueIndex("team_memberships_one_active_team_per_user")
+  oneCurrentTeamPerUser: uniqueIndex("team_memberships_one_current_team_per_user")
     .on(t.userId)
-    .where(sql`${t.endedAt} IS NULL AND ${t.status} = 'active'`),
-  oneCurrentCaptainPerTeam: uniqueIndex("team_memberships_one_current_captain_per_team")
-    .on(t.teamId)
-    .where(sql`${t.endedAt} IS NULL AND ${t.role} = 'captain'`),
-  oneCurrentCaptaincyPerUser: uniqueIndex("team_memberships_one_current_captaincy_per_user")
-    .on(t.userId)
-    .where(sql`${t.endedAt} IS NULL AND ${t.role} = 'captain'`),
+    .where(sql`${t.endedAt} IS NULL`),
   periodShape: check(
     "team_memberships_period_shape_check",
     sql`(${t.endedAt} IS NULL AND ${t.endedReason} IS NULL AND ${t.status} <> 'left') OR (${t.endedAt} IS NOT NULL AND ${t.endedReason} IS NOT NULL AND ${t.status} = 'left')`,
   ),
-  captainMustBeActive: check(
-    "team_memberships_captain_must_be_active_check",
-    sql`${t.role} <> 'captain' OR (${t.status} = 'active' AND ${t.endedAt} IS NULL)`,
-  ),
 }));
 
-export const teamCaptainTenures = pgTable("team_captain_tenures", {
+export const teamCaptainChanges = pgTable("team_captain_changes", {
   id: uuid("id").primaryKey().defaultRandom(),
   teamId: uuid("team_id").notNull().references(() => teams.id),
-  userId: uuid("user_id").notNull().references(() => users.id),
-  startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
-  endedAt: timestamp("ended_at", { withTimezone: true }),
-  transferredBy: text("transferred_by"),
+  fromUserId: uuid("from_user_id").references(() => users.id),
+  toUserId: uuid("to_user_id").notNull().references(() => users.id),
+  changedAt: timestamp("changed_at", { withTimezone: true }).notNull().defaultNow(),
+  changedByActorId: text("changed_by_actor_id").notNull(),
 }, (t) => ({
-  oneCurrentTenure: uniqueIndex("team_captain_tenures_one_current_per_team")
-    .on(t.teamId)
-    .where(sql`${t.endedAt} IS NULL`),
-  teamStartedAtUnique: unique("team_captain_tenures_team_started_unique").on(t.teamId, t.startedAt),
+  teamChangedAtIndex: index("team_captain_changes_team_changed_at_idx").on(t.teamId, t.changedAt),
 }));
 
-export const teamNameHistory = pgTable("team_name_history", {
+export const teamNameChanges = pgTable("team_name_changes", {
   id: uuid("id").primaryKey().defaultRandom(),
   teamId: uuid("team_id").notNull().references(() => teams.id),
-  name: text("name").notNull(),
-  startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
-  endedAt: timestamp("ended_at", { withTimezone: true }),
-  changedBy: text("changed_by"),
+  oldName: text("old_name"),
+  newName: text("new_name").notNull(),
+  changedAt: timestamp("changed_at", { withTimezone: true }).notNull().defaultNow(),
+  changedByActorId: text("changed_by_actor_id").notNull(),
 }, (t) => ({
-  oneCurrentName: uniqueIndex("team_name_history_one_current_per_team")
-    .on(t.teamId)
-    .where(sql`${t.endedAt} IS NULL`),
+  teamChangedAtIndex: index("team_name_changes_team_changed_at_idx").on(t.teamId, t.changedAt),
 }));
 
 export const teamSlugAliases = pgTable("team_slug_aliases", {
@@ -141,8 +123,15 @@ export const teamInvitations = pgTable("team_invitations", {
     "team_invitations_kind_shape_check",
     sql`(${t.kind} = 'direct' AND ${t.invitedUserId} IS NOT NULL AND ${t.tokenHash} IS NULL) OR (${t.kind} = 'share_link' AND ${t.invitedUserId} IS NULL AND ${t.tokenHash} IS NOT NULL)`,
   ),
+  responseShape: check(
+    "team_invitations_response_shape_check",
+    sql`(${t.status} IN ('accepted', 'declined') AND ${t.respondedAt} IS NOT NULL AND ${t.respondedByUserId} IS NOT NULL)
+      OR (${t.status} IN ('pending', 'revoked', 'expired') AND ${t.respondedAt} IS NULL AND ${t.respondedByUserId} IS NULL)`,
+  ),
 }));
 
 export type Team = typeof teams.$inferSelect;
 export type TeamMembership = typeof teamMemberships.$inferSelect;
+export type TeamCaptainChange = typeof teamCaptainChanges.$inferSelect;
+export type TeamNameChange = typeof teamNameChanges.$inferSelect;
 export type TeamInvitation = typeof teamInvitations.$inferSelect;

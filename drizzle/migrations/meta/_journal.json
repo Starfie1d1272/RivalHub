@@ -152,8 +152,15 @@
     {
       "idx": 21,
       "version": "7",
-      "when": 1788163945986,
-      "tag": "0021_competition_bracket_state",
+      "when": 1788163521131,
+      "tag": "0021_team_entry_current_owners",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1788174471006,
+      "tag": "0022_competition_bracket_state",
       "breakpoints": true
     }
   ]

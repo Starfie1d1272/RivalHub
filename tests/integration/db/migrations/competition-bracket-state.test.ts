@@ -5,10 +5,10 @@ import { migrationFiles, replayMigration, withScratchDatabase } from "../harness
 
 describe("competition bracket state migration", () => {
   it("backfills non-null legacy state, verifies it, and removes the old owner", async () => {
-    await withScratchDatabase("rivalhub_0021", async (client: Client) => {
+    await withScratchDatabase("rivalhub_0022", async (client: Client) => {
       const migrations = migrationFiles((name) => /^\d{4}_.*\.sql$/.test(name));
-      const terminal = migrations.find((name) => name.startsWith("0021_"));
-      if (!terminal) throw new Error("找不到 0021 bracket state migration。");
+      const terminal = migrations.find((name) => name.startsWith("0022_"));
+      if (!terminal) throw new Error("找不到 0022 bracket state migration。");
 
       for (const migration of migrations.filter((name) => name !== terminal)) {
         await replayMigration(client, migration);
