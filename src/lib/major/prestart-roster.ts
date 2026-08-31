@@ -126,6 +126,10 @@ export async function saveMajorPrestartRosterInTx(
   await tx.update(eventRosters).set({
     status: "preparing",
     sourceRosterRevisionId: coherent.approvedRevision.id,
+    confirmedAt: null,
+    confirmedBy: null,
+    frozenAt: null,
+    frozenBy: null,
     updatedAt: new Date(),
   }).where(eq(eventRosters.id, entrant.eventRosterId));
   await tx.update(majorPrestartEntrants).set({

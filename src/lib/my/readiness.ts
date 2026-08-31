@@ -268,10 +268,10 @@ export async function loadMyReadiness(userId: string): Promise<MyReadinessModel>
   const [baseFacts, catalog, currentTeamRows, competitionRows, sanctionRows, platformFactRows] = await Promise.all([
     loadParticipantQualificationFacts([userId]),
     loadCompetitivePlatformCatalog(db),
-    db.select({ id: teams.id, name: teams.name, role: teamMemberships.role })
+    db.select({ id: teams.id, name: teams.name, captainUserId: teams.captainUserId })
       .from(teamMemberships)
       .innerJoin(teams, eq(teams.id, teamMemberships.teamId))
-      .where(and(eq(teamMemberships.userId, userId), eq(teamMemberships.status, "active"), isNull(teamMemberships.endedAt), eq(teams.status, "active")))
+      .where(and(eq(teamMemberships.userId, userId), isNull(teamMemberships.endedAt), eq(teams.status, "active")))
       .limit(1),
     db.select({
       id: competitionEntries.id,
@@ -352,7 +352,7 @@ export async function loadMyReadiness(userId: string): Promise<MyReadinessModel>
   return buildMyReadinessModel({
     user: baseFact ?? { displayName: null, perfectName: null, steamName: null },
     baseFact,
-    currentTeam: currentTeamRows[0] ?? null,
+    currentTeam: currentTeamRows[0] ? { ...currentTeamRows[0], role: currentTeamRows[0].captainUserId === userId ? "captain" : "member" } : null,
     competitiveProfiles,
     competitions: competitionRows,
     qualificationFactsByPlatform: factsByPlatform,

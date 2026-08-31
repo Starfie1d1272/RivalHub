@@ -21,6 +21,7 @@ async function main(): Promise<void> {
     benchedCaptain: randomUUID(),
     season: randomUUID(),
     entry: randomUUID(),
+    revision: randomUUID(),
     participant: randomUUID(),
     sanction: randomUUID(),
   };
@@ -54,10 +55,14 @@ async function main(): Promise<void> {
       await client.query(`INSERT INTO competitive_rank_facts (user_id, platform, kind, platform_season_key, rank, rating) VALUES ($1, $2, $3, $4, $5, 2000)`, [ids.user, platformKey, kind, seasonKey, ranks.rows.at(-1)!.rank_key]);
     }
     await client.query(`INSERT INTO teams (id, slug, name, creator_user_id, captain_user_id) VALUES ($1, $2, 'Local 我的 Team', $3, $3), ($4, $5, 'Local 替补 Team', $6, $6)`, [ids.activeTeam, `local-my-${ids.activeTeam.slice(0, 8)}`, ids.user, ids.benchedTeam, `local-my-benched-${ids.benchedTeam.slice(0, 8)}`, ids.benchedCaptain]);
-    await client.query(`INSERT INTO team_memberships (team_id, user_id, status, role, invited_by_user_id) VALUES ($1, $2, 'active', 'captain', $2), ($3, $2, 'benched', 'member', $4), ($3, $4, 'active', 'captain', $4)`, [ids.activeTeam, ids.user, ids.benchedTeam, ids.benchedCaptain]);
+    await client.query(`INSERT INTO team_memberships (team_id, user_id, status, invited_by_user_id) VALUES ($1, $2, 'active', $2), ($3, $4, 'active', $4)`, [ids.activeTeam, ids.user, ids.benchedTeam, ids.benchedCaptain]);
+    await client.query(`INSERT INTO team_captain_changes (team_id, from_user_id, to_user_id, changed_by_actor_id) VALUES ($1, NULL, $2, 'local-admin'), ($3, NULL, $4, 'local-admin')`, [ids.activeTeam, ids.user, ids.benchedTeam, ids.benchedCaptain]);
+    await client.query(`INSERT INTO team_name_changes (team_id, old_name, new_name, changed_by_actor_id) VALUES ($1, NULL, 'Local 我的 Team', 'local-admin'), ($2, NULL, 'Local 替补 Team', 'local-admin')`, [ids.activeTeam, ids.benchedTeam]);
     await client.query(`INSERT INTO seasons (id, slug, name, kind, status, registration_mode, has_captain_voting, has_draft, min_team_size, max_team_size, team_registration_config) VALUES ($1, $2, 'Local 我的赛事', 'Major', 'registration', 'team', false, false, 1, 5, $3::json)`, [ids.season, `local-my-season-${ids.season.slice(0, 8)}`, JSON.stringify(config)]);
-    await client.query(`INSERT INTO competition_entries (id, competition_id, source, team_id, name, representative_user_id, registration_status) VALUES ($1, $2, 'linked_team', $3, 'Local 我的 Entry', $4, 'approved')`, [ids.entry, ids.season, ids.activeTeam, ids.user]);
+    await client.query(`INSERT INTO competition_entries (id, competition_id, source, team_id, name, representative_user_id, current_roster_revision_id, approved_roster_revision_id, registration_status) VALUES ($1, $2, 'linked_team', $3, 'Local 我的 Entry', $4, $5, $5, 'approved')`, [ids.entry, ids.season, ids.activeTeam, ids.user, ids.revision]);
+    await client.query(`INSERT INTO competition_entry_representative_changes (entry_id, from_user_id, to_user_id, changed_by_actor_id) VALUES ($1, NULL, $2, 'local-admin')`, [ids.entry, ids.user]);
     await client.query(`INSERT INTO competition_entry_participants (id, entry_id, user_id, status, confirmed_at, invited_by_user_id) VALUES ($1, $2, $3, 'confirmed', now(), $3)`, [ids.participant, ids.entry, ids.user]);
+    await client.query(`INSERT INTO competition_entry_roster_revisions (id, entry_id, revision_number, status, created_by, approved_at) VALUES ($1, $2, 1, 'approved', 'local-admin', now())`, [ids.revision, ids.entry]);
     await client.query(`INSERT INTO disciplinary_cases (id, season_id, subject_user_id, status, effects, public_explanation, effective_from, issued_by) VALUES ($1, $2, $3, 'active', $4::jsonb, 'Local 公开说明', now() - interval '1 minute', 'local-admin')`, [ids.sanction, ids.season, ids.user, JSON.stringify(["registration_block", "roster_block", "match_participation_block"])]);
     await client.query("COMMIT");
     committed = true;
@@ -78,9 +83,14 @@ async function main(): Promise<void> {
     if (!committed) await client.query("ROLLBACK").catch(() => {});
     if (committed) {
       await client.query("BEGIN");
+      await client.query("SET LOCAL session_replication_role = replica");
       await client.query("DELETE FROM disciplinary_cases WHERE id = $1", [ids.sanction]);
       await client.query("DELETE FROM competition_entry_participants WHERE id = $1", [ids.participant]);
+      await client.query("DELETE FROM competition_entry_roster_revisions WHERE id = $1", [ids.revision]);
+      await client.query("DELETE FROM competition_entry_representative_changes WHERE entry_id = $1", [ids.entry]);
       await client.query("DELETE FROM competition_entries WHERE id = $1", [ids.entry]);
+      await client.query("DELETE FROM team_captain_changes WHERE team_id IN ($1, $2)", [ids.activeTeam, ids.benchedTeam]);
+      await client.query("DELETE FROM team_name_changes WHERE team_id IN ($1, $2)", [ids.activeTeam, ids.benchedTeam]);
       await client.query("DELETE FROM team_memberships WHERE team_id IN ($1, $2)", [ids.activeTeam, ids.benchedTeam]);
       await client.query("DELETE FROM teams WHERE id IN ($1, $2)", [ids.activeTeam, ids.benchedTeam]);
       await client.query("DELETE FROM education_verifications WHERE user_id = $1", [ids.user]);

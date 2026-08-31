@@ -1,5 +1,6 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { and, count, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
@@ -7,6 +8,7 @@ import {
   captainVotes,
   competitionEntries,
   competitionEntryParticipants,
+  competitionEntryRepresentativeChanges,
   competitionEntryRosterMembers,
   competitionEntryRosterRevisions,
   eventRosterMembers,
@@ -283,6 +285,7 @@ export async function confirmCaptains(
       const createdEntryIds: string[] = [];
       for (const [index, captain] of seeds.entries()) {
         const captainName = getPublicDisplayName(captain);
+        const revisionId = randomUUID();
         const [entry] = await tx
           .insert(competitionEntries)
           .values({
@@ -293,6 +296,7 @@ export async function confirmCaptains(
             sourceRegistrationId: captain.registrationId,
             formationOrder: index + 1,
             registrationStatus: "approved",
+            currentRosterRevisionId: revisionId,
           })
           .returning({ id: competitionEntries.id });
         createdEntryIds.push(entry.id);
@@ -305,11 +309,18 @@ export async function confirmCaptains(
           invitedByUserId: captain.userId,
         }).returning({ id: competitionEntryParticipants.id });
         const [revision] = await tx.insert(competitionEntryRosterRevisions).values({
+          id: revisionId,
           entryId: entry.id,
-          revision: 1,
+          revisionNumber: 1,
           status: "draft",
           createdBy: auditActorId(admin),
         }).returning({ id: competitionEntryRosterRevisions.id });
+        await tx.insert(competitionEntryRepresentativeChanges).values({
+          entryId: entry.id,
+          fromUserId: null,
+          toUserId: captain.userId,
+          changedByActorId: auditActorId(admin),
+        });
         await tx.insert(competitionEntryRosterMembers).values({
           revisionId: revision.id,
           participantId: participant.id,
@@ -319,7 +330,6 @@ export async function confirmCaptains(
         const [eventRoster] = await tx.insert(eventRosters).values({
           entryId: entry.id,
           status: "preparing",
-          policySnapshot: { source: "rivals_draft", competitionId: season.id },
         }).returning({ id: eventRosters.id });
         await tx.insert(eventRosterMembers).values({
           eventRosterId: eventRoster.id,

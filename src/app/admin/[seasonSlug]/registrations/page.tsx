@@ -36,7 +36,7 @@ export default async function AdminRegistrationsPage({ params }: PageProps) {
         status: competitionEntries.registrationStatus,
         reviewReason: competitionEntries.reviewReason,
         perfectTeamId: competitionEntries.perfectTeamId,
-        currentRosterRevision: competitionEntries.currentRosterRevision,
+        currentRosterRevisionId: competitionEntries.currentRosterRevisionId,
         representative: { displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName, email: users.email },
       })
       .from(competitionEntries)
@@ -47,7 +47,7 @@ export default async function AdminRegistrationsPage({ params }: PageProps) {
     const rosterRows = entryIds.length === 0
       ? []
       : await db
-          .select({ entryId: competitionEntryRosterRevisions.entryId, revision: competitionEntryRosterRevisions.revision, participantId: competitionEntryParticipants.id, userId: users.id, email: users.email, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName, perfectId: users.perfectId, status: competitionEntryParticipants.status, primary: competitionEntryRosterMembers.isPrimaryStarter })
+          .select({ entryId: competitionEntryRosterRevisions.entryId, revisionId: competitionEntryRosterRevisions.id, revision: competitionEntryRosterRevisions.revisionNumber, participantId: competitionEntryParticipants.id, userId: users.id, email: users.email, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName, perfectId: users.perfectId, status: competitionEntryParticipants.status, primary: competitionEntryRosterMembers.isPrimaryStarter })
           .from(competitionEntryRosterRevisions)
           .innerJoin(competitionEntryRosterMembers, eq(competitionEntryRosterMembers.revisionId, competitionEntryRosterRevisions.id))
           .innerJoin(competitionEntryParticipants, eq(competitionEntryParticipants.id, competitionEntryRosterMembers.participantId))
@@ -64,7 +64,7 @@ export default async function AdminRegistrationsPage({ params }: PageProps) {
       : undefined;
     const reviewRows = await Promise.all(entries.map(async (entry) => {
       const members = rosterRows
-        .filter((member) => member.entryId === entry.id && member.revision === entry.currentRosterRevision)
+        .filter((member) => member.entryId === entry.id && member.revisionId === entry.currentRosterRevisionId)
         .map((member) => ({
           ...member,
           label: getDisplayName(member),
