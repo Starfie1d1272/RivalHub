@@ -28,7 +28,7 @@
 
 ## 6. Long-lived Teams and CompetitionEntry
 
-`teams` 是独立于赛事的长期队伍；`team_memberships`、队长任期、名称历史和邀请表达其成员与治理事实。Team 不属于 Season。
+`teams` 是独立于赛事的长期队伍；`team_memberships`、append-only `team_captain_changes`、append-only `team_name_changes` 和邀请表达其成员与治理事实。Team 不属于 Season。
 
 `competition_entries` 是从报名草稿到赛事历史的唯一参赛身份。Major 通常由长期 Team 创建 Entry；Rivals 选秀队为 `teamId = null` 的赛事队伍。`competition_entry_participants` 表示本届参赛确认，报名名单 revision 表示审核材料，`event_rosters`/成员表示赛前确认名单，`match_rosters`/成员表示单场出场阵容。三层人员事实不得互相替代。
 
@@ -48,7 +48,7 @@
 
 ## 10. Major prestart
 
-`major_prestart_states`、`major_prestart_entrants`、`event_rosters`/成员、`major_tournament_seeds` 与 `major_prestart_issues` 管理开赛前的 readiness、参赛队、最终名单、种子和 blocker。只有完成相应确认的预启动事实才能被 Major start 消费。
+`major_prestart_states`、`major_tournament_entrants`、`event_rosters`/成员、`major_tournament_seeds` 与 `major_prestart_issues` 管理开赛前的 readiness、参赛队、最终名单、种子和 blocker。只有完成相应确认的预启动事实才能被 Major start 消费。
 
 ## 11. Major stage runtime
 
@@ -78,7 +78,7 @@
 
 | Live fact | Frozen or event-specific fact |
 |---|---|
-| Team application | approved formal team |
+| long-lived Team / mutable Entry roster revision | approved formal EventRoster |
 | live team membership | frozen tournament entrant / roster |
 | mutable season policy | StageRun rule snapshot |
 | current match result | correction / adjudication history |
@@ -114,7 +114,7 @@
 | 发布时的竞技上下文冻结 | `publishSeason` 事务：platform catalog current/previous/ladder → season frozen competitiveProfile（单一 owner：`src/lib/competitive/catalog.ts`） |
 | 队长交接的并发安全 | application/team 行锁 + season 行锁 + 目标成员 `FOR UPDATE`，全部判断基于锁定行 |
 | 赛前名单与已批准报名名单的一致性 | `src/lib/major/prestart-entry.ts`：确认、锁定与正式开赛前校验 Entry 仍 approved、approved revision 存在且 event roster 已同步到该版本 |
-| Major 赛前事务锁顺序 | `season / majorPrestartState → CompetitionEntry → eventRoster → majorPrestartEntrant`；名单显式重同步只放宽 source revision guard，完成写入后再由同一 coherence owner 严格复核 |
+| Major 赛前事务锁顺序 | `season / majorPrestartState → CompetitionEntry → eventRoster → majorTournamentEntrant`；名单显式重同步只放宽 source revision guard，完成写入后再由同一 coherence owner 严格复核 |
 | Major prestart readiness | prestart domain service 与明确 blocker |
 | StageRun 规则与参赛成员冻结 | rule snapshot + managed runtime；开赛时按冻结 competitiveProfile 重验参赛事实后，以同一批读取结果序列化 `frozenCompetitiveFacts` |
 | 一场 Major 比赛恰好 5 名首发 | match-roster service 与 lineup evaluator |
