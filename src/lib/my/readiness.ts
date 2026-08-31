@@ -32,7 +32,7 @@ import {
 } from "@/lib/qualification/service";
 import { normalizeTeamRegistrationConfig } from "@/types/season";
 
-export type MyReadinessState = "ready" | "incomplete" | "waiting" | "blocked" | "unknown";
+export type MyReadinessState = "ready" | "incomplete" | "waiting" | "blocked" | "unknown" | "not_applicable";
 
 export interface MyReadinessCta {
   href: string;
@@ -44,7 +44,7 @@ export interface MyReadinessItem {
   title: string;
   state: MyReadinessState;
   detail: string;
-  owner: string;
+  owner?: string;
   cta: MyReadinessCta;
 }
 
@@ -101,7 +101,7 @@ function item(
   title: string,
   state: MyReadinessState,
   detail: string,
-  owner: string,
+  owner: string | undefined,
   cta: MyReadinessCta,
 ): MyReadinessItem {
   return { id, title, state, detail, owner, cta };
@@ -109,36 +109,36 @@ function item(
 
 function latestEducationState(fact: ParticipantQualificationFacts | null): MyReadinessItem {
   if (!fact) {
-    return item("education", "教育认证", "unknown", "教育认证事实不可确认。", "平台", { href: "/settings/education", label: "查看教育认证" });
+    return item("education", "教育认证", "unknown", "教育认证资料暂时无法确认。", undefined, { href: "/settings/education", label: "查看教育认证" });
   }
   if (fact.approvedEducation) {
-    return item("education", "教育认证", "ready", "已存在通过的教育认证。赛事仍会按其当时规则核验。", "我", { href: "/settings/education", label: "查看教育认证" });
+    return item("education", "教育认证", "ready", "已存在通过的教育认证。赛事仍会按当届规则核验。", undefined, { href: "/settings/education", label: "查看教育认证" });
   }
   if (fact.educationHistory.some((entry) => entry.status === "pending")) {
     return item("education", "教育认证", "waiting", "教育材料正在等待审核。", "赛事管理员", { href: "/settings/education", label: "查看认证进度" });
   }
   if (fact.educationHistory.some((entry) => entry.status === "rejected")) {
-    return item("education", "教育认证", "blocked", "最近的教育认证未通过，需要重新提交材料。", "我", { href: "/settings/education", label: "重新提交材料" });
+    return item("education", "教育认证", "blocked", "最近的教育认证未通过，需要重新提交材料。", undefined, { href: "/settings/education", label: "重新提交材料" });
   }
-  return item("education", "教育认证", "incomplete", "尚未提交教育认证。", "我", { href: "/settings/education", label: "开始教育认证" });
+  return item("education", "教育认证", "incomplete", "尚未提交教育认证。", undefined, { href: "/settings/education", label: "开始教育认证" });
 }
 
 function profileState(fact: ParticipantQualificationFacts | null): MyReadinessItem {
   if (!fact) {
-    return item("profile", "长期个人资料", "unknown", "个人资料事实不可确认。", "平台", { href: "/settings", label: "查看参赛资料" });
+    return item("profile", "长期个人资料", "unknown", "个人资料暂时无法确认。", undefined, { href: "/settings", label: "查看参赛资料" });
   }
   const blockers = getParticipantIdentityBlockers(fact);
   if (blockers.length === 0) {
-    return item("profile", "长期个人资料", "ready", "展示昵称、Steam64、完美平台 ID、QQ 与邮箱验证已齐全。", "我", { href: "/settings", label: "查看参赛资料" });
+    return item("profile", "长期个人资料", "ready", "展示昵称、Steam64、完美平台 ID、QQ 与邮箱验证已齐全。", undefined, { href: "/settings", label: "查看参赛资料" });
   }
-  return item("profile", "长期个人资料", "incomplete", blockers.join(" "), "我", { href: "/settings", label: "完善参赛资料" });
+  return item("profile", "长期个人资料", "incomplete", blockers.join(" "), undefined, { href: "/settings", label: "完善参赛资料" });
 }
 
 function teamState(currentTeam: { id: string; name: string; role: string } | null): MyReadinessItem {
   if (!currentTeam) {
-    return item("team", "长期 Team", "incomplete", "你当前没有 active Team。加入队伍不等于自动参加赛事。", "我或队长", { href: "/my/teams", label: "管理我的队伍" });
+    return item("team", "当前队伍", "incomplete", "你当前没有加入队伍。加入队伍不等于自动参加赛事。", undefined, { href: "/my/teams", label: "管理我的队伍" });
   }
-  return item("team", "长期 Team", "ready", `${currentTeam.name} · ${currentTeam.role === "captain" ? "队长" : "成员"}。长期成员变更不会改写已报名赛事名单。`, "我与队长", { href: "/my/teams", label: "管理我的队伍" });
+  return item("team", "当前队伍", "ready", `${currentTeam.name} · ${currentTeam.role === "captain" ? "队长" : "成员"}。之后的队伍成员变更不会改写已报名赛事名单。`, undefined, { href: "/my/teams", label: "管理我的队伍" });
 }
 
 function entryState(source: MyCompetitionSource, userId: string): MyReadinessItem {
@@ -181,13 +181,13 @@ function entryState(source: MyCompetitionSource, userId: string): MyReadinessIte
       : source.registrationStatus === "rejected"
         ? { href, label: "查看审核说明" }
         : { href, label: "查看报名" };
-  const owner = source.registrationStatus === "draft"
-    ? "我"
-    : source.registrationStatus === "changes_requested"
+  const owner = source.registrationStatus === "changes_requested"
       ? "我与赛事管理员"
       : source.registrationStatus === "withdrawn"
         ? "我或赛事负责人"
-        : "赛事管理员";
+        : source.registrationStatus === "submitted" || source.registrationStatus === "waitlisted"
+          ? "赛事管理员"
+          : undefined;
   return item(`entry-${source.id}`, "当前报名状态", presentation.state, `${presentation.label}：${presentation.detail}`, owner, cta);
 }
 
@@ -198,16 +198,16 @@ function qualificationState(
   const href = `/${source.seasonSlug}/register`;
   const config = normalizeTeamRegistrationConfig(source.teamRegistrationConfig);
   if (!config.requireCompetitiveProfile) {
-    return item(`qualification-${source.id}`, "个人 qualification", "unknown", "本届赛事没有可展示的个人竞技 qualification 上下文；报名状态不因此推断为通过。", "赛事规则", { href, label: "查看本届报名" });
+    return item(`qualification-${source.id}`, "个人竞技资料", "not_applicable", "本届赛事不要求个人竞技资料；报名是否通过仍以赛事审核为准。", undefined, { href, label: "查看本届报名" });
   }
   if (!config.competitiveProfile || !fact) {
-    return item(`qualification-${source.id}`, "个人 qualification", "unknown", "本届赛事的个人 qualification 事实不可确认。", "赛事规则", { href, label: "查看本届报名" });
+    return item(`qualification-${source.id}`, "个人竞技资料", "unknown", "本届赛事的竞技资料暂时无法确认。", "赛事管理员", { href, label: "查看本届报名" });
   }
   const readiness = computeParticipantReadiness(fact, config.competitiveProfile);
   if (readiness.ready) {
-    return item(`qualification-${source.id}`, "个人 qualification", "ready", "个人资料满足本届冻结竞技上下文。队伍报名审核、正式 roster 与处罚仍单独决定 event eligibility。", "我与赛事管理员", { href, label: "查看本届报名" });
+    return item(`qualification-${source.id}`, "个人竞技资料", "ready", "个人资料符合本届赛事要求。报名审核、正式参赛名单与纪律限制仍会分别核验。", undefined, { href, label: "查看本届报名" });
   }
-  return item(`qualification-${source.id}`, "个人 qualification", "blocked", readiness.blockers.join(" "), "我", { href, label: "查看并补齐资料" });
+  return item(`qualification-${source.id}`, "个人竞技资料", "blocked", readiness.blockers.join(" "), undefined, { href, label: "查看并补齐资料" });
 }
 
 export function buildMyReadinessModel(input: {

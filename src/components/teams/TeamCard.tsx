@@ -94,10 +94,10 @@ export function TeamCard({
 
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--color-fg-mid)]">
           <span>
-            Captain <span className="font-medium text-[var(--color-fg)]">{captain?.name ?? "TBD"}</span>
+            队长 <span className="font-medium text-[var(--color-fg)]">{captain?.name ?? "TBD"}</span>
           </span>
-          <span>{starters.length} starters</span>
-          {subs.length > 0 && <span>{subs.length} subs</span>}
+          <span>{starters.length} 首发</span>
+          {subs.length > 0 && <span>{subs.length} 替补</span>}
         </div>
 
         <div className="grid grid-cols-3 gap-2">
@@ -135,7 +135,7 @@ export function TeamCard({
                 ) : (
                   p.name
                 )}
-                <span className="text-[10px] uppercase text-[var(--color-fg-dim)]">Sub</span>
+                <span className="text-[10px] text-[var(--color-fg-dim)]">替补</span>
               </span>
             ))}
           </div>

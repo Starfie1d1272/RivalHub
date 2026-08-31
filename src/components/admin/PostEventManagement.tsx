@@ -106,15 +106,15 @@ export function PostEventManagement({ data }: { data: PostEventManagementData })
       <div className="space-y-3 text-sm">
         <p className="text-[var(--color-fg-mid)]">奖项与比赛和最终名次分别管理。撤销冠军不会自动递补亚军；如需授予其他队伍，由管理员另行确认。</p>
         {data.finalResult?.status === "confirmed" && <div className="flex flex-wrap gap-2">
-          <Button variant="outline" disabled={isPending} onClick={() => grantResultHonor("champion", data.finalResult!.championEntryId, "Champion")}>授予 Champion</Button>
-          {runnerUpId && <Button variant="outline" disabled={isPending} onClick={() => grantResultHonor("runner_up", runnerUpId, "Runner-up")}>授予 Runner-up</Button>}
+          <Button variant="outline" disabled={isPending} onClick={() => grantResultHonor("champion", data.finalResult!.championEntryId, "冠军")}>授予冠军</Button>
+          {runnerUpId && <Button variant="outline" disabled={isPending} onClick={() => grantResultHonor("runner_up", runnerUpId, "亚军")}>授予亚军</Button>}
         </div>}
         {data.finalResult?.status === "confirmed" && placementOptions.length > 0 && <div className="grid gap-2 border border-[var(--color-border)] p-3 md:grid-cols-[1fr_auto]">
           <Select value={placementChoice} onValueChange={setPlacementChoice}><SelectTrigger><SelectValue placeholder="选择官方名次范围与队伍" /></SelectTrigger><SelectContent>{placementOptions.map((option) => <SelectItem key={option.key} value={option.key}>{option.from}–{option.to} · {teamName.get(option.entryId) ?? option.entryId}</SelectItem>)}</SelectContent></Select>
           <Button variant="outline" disabled={!placementChoice || isPending} onClick={() => {
             const selected = placementOptions.find((option) => option.key === placementChoice);
             if (!selected) return;
-            run(async () => grantTournamentHonor({ seasonId: data.seasonId, clientRequestId: requestId(), type: "placement", label: `Placement ${selected.from}–${selected.to}`, basis: "final_result", entryId: selected.entryId, placementFrom: selected.from, placementTo: selected.to }));
+            run(async () => grantTournamentHonor({ seasonId: data.seasonId, clientRequestId: requestId(), type: "placement", label: `第 ${selected.from}–${selected.to} 名`, basis: "final_result", entryId: selected.entryId, placementFrom: selected.from, placementTo: selected.to }));
           }}>授予名次荣誉</Button>
         </div>}
         <div className="grid gap-2 border border-[var(--color-border)] p-3 md:grid-cols-[1fr_1fr_auto]">
@@ -129,7 +129,7 @@ export function PostEventManagement({ data }: { data: PostEventManagementData })
         {data.honors.length === 0 ? <StatusBanner tone="info" title="尚无奖项" sub="确认赛事结果后，管理员可授予赛事奖项。" /> : <ul className="space-y-2">{data.honors.map((honor) => <li key={honor.id} className="flex flex-wrap items-center justify-between gap-2 border border-[var(--color-border)] p-3">
           <span>{honor.label} · {HONOR_STATE_LABELS[honor.state] ?? "状态待确认"} · {honor.entryId ? teamName.get(honor.entryId) ?? "队伍待确认" : honor.userId ?? "未授予"}{honor.placementFrom ? ` · ${honor.placementFrom}–${honor.placementTo}` : ""}</span>
           {honor.state === "valid" && <Button variant="destructive" size="sm" disabled={isPending} onClick={() => setConfirming({ kind: "honor", id: honor.id })}>撤销</Button>}
-          {confirming?.kind === "honor" && confirming.id === honor.id && <div className="w-full"><InlineConfirm danger confirmLabel="确认撤销" title="撤销此荣誉？" sub="不会自动授予任何其他队伍（包括 Runner-up）。" onCancel={() => setConfirming(null)} onConfirm={() => { setConfirming(null); run(async () => revokeTournamentHonor({ honorId: honor.id, reason: "管理员赛后撤销" })); }} /></div>}
+          {confirming?.kind === "honor" && confirming.id === honor.id && <div className="w-full"><InlineConfirm danger confirmLabel="确认撤销" title="撤销此荣誉？" sub="不会自动授予任何其他队伍（包括亚军）。" onCancel={() => setConfirming(null)} onConfirm={() => { setConfirming(null); run(async () => revokeTournamentHonor({ honorId: honor.id, reason: "管理员赛后撤销" })); }} /></div>}
         </li>)}</ul>}
       </div>
     </Panel>

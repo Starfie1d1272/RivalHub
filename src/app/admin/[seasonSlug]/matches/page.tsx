@@ -25,6 +25,7 @@ import {
 import { getFirstStageOfType, normalizeRegistrationConfig, normalizeStagePlan } from "@/types/season";
 import Link from "next/link";
 import { getStartingLineupPreflightInTx } from "@/lib/match-rosters/service";
+import { presentSeasonStatus } from "@/lib/seasons/presentation";
 
 const STATUS_SORT_ORDER: Record<string, number> = {
   in_progress: 0,
@@ -382,7 +383,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
       {season.status !== "playing" && matchCount === 0 && (
         <Panel pad={16} className="border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)]">
           <p className="text-sm text-[var(--color-warn)]">
-            赛季当前状态为「{season.status}」，需进入 playing 状态后才能生成赛程。
+            赛季当前状态为「{presentSeasonStatus(season.status).label}」，需进入比赛进行中状态后才能生成赛程。
           </p>
         </Panel>
       )}

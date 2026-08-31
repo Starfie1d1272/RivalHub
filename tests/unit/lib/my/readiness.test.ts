@@ -81,10 +81,10 @@ describe("我的 readiness read model", () => {
     expect(result.team.state).toBe("ready");
     expect(result.competitions[0]?.entry.state).toBe("ready");
     expect(result.competitions[0]?.qualification.state).toBe("ready");
-    expect(result.competitions[0]?.qualification.detail).toContain("仍单独决定 event eligibility");
+    expect(result.competitions[0]?.qualification.detail).toContain("报名审核、正式参赛名单与纪律限制仍会分别核验");
   });
 
-  it("routes missing education and incomplete competitive facts to their own owners", () => {
+  it("routes missing education and incomplete competitive facts to their own settings actions", () => {
     const missingEducation = fullFact({ approvedEducation: false, educationHistory: [] });
     const incompleteCompetitive = fullFact({ seasonPeaks: new Map() });
     const result = model({
@@ -93,9 +93,9 @@ describe("我的 readiness read model", () => {
       qualificationFactsByPlatform: new Map([["perfect_world", incompleteCompetitive]]),
     });
 
-    expect(result.education).toMatchObject({ state: "incomplete", owner: "我", cta: { href: "/settings/education" } });
+    expect(result.education).toMatchObject({ state: "incomplete", owner: undefined, cta: { href: "/settings/education" } });
     expect(result.competitiveProfiles[0]).toMatchObject({ state: "incomplete" });
-    expect(result.competitions[0]?.qualification).toMatchObject({ state: "blocked", owner: "我" });
+    expect(result.competitions[0]?.qualification).toMatchObject({ state: "blocked", owner: undefined });
   });
 
   it.each([
@@ -175,5 +175,18 @@ describe("我的 readiness read model", () => {
     expect(result.team.state).toBe("incomplete");
     expect(result.competitions[0]?.qualification.state).toBe("unknown");
     expect(result.competitions[0]?.qualification.state).not.toBe("ready");
+  });
+
+  it("marks competitive information as not applicable when the event does not require it", () => {
+    const result = model({
+      competitions: [competition({
+        teamRegistrationConfig: { ...MAJOR_TEAM_CONFIG, requireCompetitiveProfile: false },
+      })],
+    });
+
+    expect(result.competitions[0]?.qualification).toMatchObject({
+      state: "not_applicable",
+      title: "个人竞技资料",
+    });
   });
 });

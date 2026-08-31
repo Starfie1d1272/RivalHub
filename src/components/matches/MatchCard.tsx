@@ -63,7 +63,7 @@ export function MatchCard({
           <span className="text-xs text-[var(--color-fg-mid)]">{timeText}</span>
         )}
         <Badge variant="outline" className="text-xs text-[var(--color-fg-mid)]">
-          {MATCH_STAGE_LABELS[stage] ?? stage}
+          {MATCH_STAGE_LABELS[stage] ?? "比赛阶段"}
         </Badge>
         <Badge variant="outline" className="text-xs text-[var(--color-fg-mid)]">
           {MATCH_FORMAT_LABELS[format]}

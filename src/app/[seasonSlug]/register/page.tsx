@@ -175,7 +175,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
         <StatusBanner
           tone={getWindowTone(registrationWindow.phase, registrationWindow.canSubmit)}
           title={registrationWindow.message}
-          sub="审核通过后冻结报名 revision；赛前还会生成独立 frozen event roster。"
+          sub="审核通过后，报名名单将锁定；赛前还会确认独立的正式参赛名单。"
         />
         <CompetitionEntryFlow
           competitionId={season.id}
@@ -296,14 +296,14 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
                     }}
                   >
                     {cur} / {max}
-                    {full && <span className="ml-1">FULL</span>}
+                    {full && <span className="ml-1">已满</span>}
                   </div>
                 </div>
               );
             })}
             <div className="flex justify-between items-center pt-2" style={{ borderTop: "1px solid var(--color-border)" }}>
               <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--color-fg-dim)", fontFamily: "var(--font-display)" }}>
-                Approved
+                已通过
               </span>
               <span className="font-bold" style={{ fontFamily: "var(--font-mono)", fontSize: 13, color: "var(--color-fg)" }}>
                 {approvedCount} / {regConfig.maxTotal}

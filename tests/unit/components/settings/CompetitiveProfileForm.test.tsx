@@ -54,7 +54,7 @@ describe("CompetitiveProfileForm", () => {
 
     expect(screen.queryByText("当前竞技平台目录尚未完善")).not.toBeInTheDocument();
     expect(screen.getByText(/5E · 赛季资料/)).toBeInTheDocument();
-    expect(screen.getByText(/Rating\+ 是该平台 canonical performance Rating/)).toBeInTheDocument();
+    expect(screen.getByText(/Rating\+ 是该平台官方竞技评分/)).toBeInTheDocument();
   });
 
   it("shows star input and the exact inclusive range only for star-enabled ranks, including legacy null stars", async () => {

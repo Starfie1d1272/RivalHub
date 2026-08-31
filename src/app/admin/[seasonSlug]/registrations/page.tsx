@@ -13,6 +13,7 @@ import { isTeamRegistration } from "@/lib/utils/season";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { evaluateRosterQualification, getParticipantReadinessBatch, isHomeAffiliatedMember, loadEducationMembershipFacts, resolveCompetitiveContext, resolveSeasonEducationVerification } from "@/lib/qualification/service";
 import { normalizeAffiliationRules, normalizeTeamRegistrationConfig } from "@/types/season";
+import { presentSeasonStatus } from "@/lib/seasons/presentation";
 
 interface PageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -71,7 +72,7 @@ export default async function AdminRegistrationsPage({ params }: PageProps) {
           readiness: readinessByUser.get(member.userId),
         }));
       const qualification = competitiveContext === null
-        ? { blockers: ["赛事冻结的竞技平台目录不可确认。"] }
+        ? { blockers: ["该赛事采用的竞技资料暂时无法核验。"] }
         : await evaluateRosterQualification({
             members: members.map((member) => {
               const fact = educationFacts.get(member.userId);
@@ -100,7 +101,7 @@ export default async function AdminRegistrationsPage({ params }: PageProps) {
     }));
     return (
       <div className="container mx-auto max-w-3xl px-4 py-8">
-        <div className="mb-6"><Marker sub={`${entries.length} 支报名队伍 · 赛季状态：${season.status}`}>赛事报名审核 · {season.name}</Marker></div>
+        <div className="mb-6"><Marker sub={`${entries.length} 支报名队伍 · 赛季状态：${presentSeasonStatus(season.status).label}`}>赛事报名审核 · {season.name}</Marker></div>
         <CompetitionEntryReviewList entries={reviewRows} />
       </div>
     );
@@ -167,7 +168,7 @@ export default async function AdminRegistrationsPage({ params }: PageProps) {
   return (
     <div className="container mx-auto px-4 py-8 max-w-3xl">
       <div className="mb-6">
-        <Marker sub={`${registrations.length} 份已提交 · ${drafts.length} 份草稿 · 赛季状态：${season.status}`}>报名审核 · {season.name}</Marker>
+        <Marker sub={`${registrations.length} 份已提交 · ${drafts.length} 份草稿 · 赛季状态：${presentSeasonStatus(season.status).label}`}>报名审核 · {season.name}</Marker>
       </div>
 
       <RegistrationReviewList registrations={registrations} />
