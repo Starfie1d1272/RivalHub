@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { getPublicDisplayName } from "@/lib/utils/display-name";
+import { getPublicDisplayName } from "@/lib/identity/display-name";
 
 const POSITION_LABELS: Record<string, { cn: string; en: string }> = {
   igl:    { cn: "指挥",        en: "IGL" },

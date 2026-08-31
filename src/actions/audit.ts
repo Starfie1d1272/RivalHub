@@ -2,7 +2,7 @@
 
 import { and, desc, eq, gte, lt, or, count, like, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { getDisplayName } from "@/lib/utils/display-name";
+import { getDisplayName } from "@/lib/identity/display-name";
 import { auditLogs, competitionEntries, seasons, users, teams, matches, seasonRegistrations, draftPicks, adminInvites } from "@/db/schema";
 import { ok } from "@/types/action";
 import { requireSeasonAdmin, requireSuperAdmin } from "@/lib/auth/session";

@@ -12,7 +12,7 @@ describe("CompetitionEntry presentation", () => {
     ["waitlisted", "候补", "waiting"],
     ["approved", "已批准", "ready"],
   ] as const)("maps registration %s to its shared label and state", (status, label, state) => {
-    expect(presentCompetitionEntryRegistration(status)).toMatchObject({ label, state });
+    expect(presentCompetitionEntryRegistration(status)).toMatchObject({ label, state, tone: expect.any(String) });
   });
 
   it("marks invited members in a changes_requested revision as needing reconfirmation", () => {

@@ -3,7 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Field, Btn } from "@/components/rivalhub";
+import { Field } from "@/components/rivalhub";
+import { Button } from "@/components/ui/button";
 import { createBrowserClient } from "@/lib/auth/supabase";
 import { isPasswordPolicySatisfied, MIN_PASSWORD_LENGTH, PASSWORD_POLICY_MESSAGE } from "@/lib/config/auth-config";
 
@@ -40,7 +41,7 @@ export function ResetPasswordForm() {
       <Field id="password" label="新密码" type="password" placeholder={`至少 ${MIN_PASSWORD_LENGTH} 位，含大小写/数字/特殊字符`} value={password} onChange={setPassword} required minLength={MIN_PASSWORD_LENGTH} autoComplete="new-password" />
       <Field id="confirm-password" label="确认新密码" type="password" placeholder="再次输入密码" value={confirmPassword} onChange={setConfirmPassword} required minLength={MIN_PASSWORD_LENGTH} autoComplete="new-password" />
       <p className="text-xs text-[var(--color-fg-mid)]">{PASSWORD_POLICY_MESSAGE}。</p>
-      <Btn type="submit" full disabled={isPending}>{isPending ? "设置中…" : "设置新密码"}</Btn>
+      <Button type="submit" className="w-full" disabled={isPending}>{isPending ? "设置中…" : "设置新密码"}</Button>
     </form>
   );
 }

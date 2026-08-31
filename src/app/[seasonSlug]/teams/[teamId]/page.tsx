@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/db/client";
 import { competitionEntries, eventRosterMembers, eventRosters, matches, seasonRegistrations, seasons, users } from "@/db/schema";
 import { Marker, Panel, PosChip, Stat, StatusBanner } from "@/components/rivalhub";
-import { getPublicDisplayName } from "@/lib/utils/display-name";
+import { getPublicDisplayName } from "@/lib/identity/display-name";
 
 const registrationLabels: Record<string, string> = { draft: "草稿", submitted: "已提交", changes_requested: "需补正", waitlisted: "候补", approved: "已批准", rejected: "未通过", withdrawn: "已撤回" };
 

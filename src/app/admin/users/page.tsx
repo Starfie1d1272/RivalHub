@@ -4,11 +4,12 @@ import { asc, eq, isNotNull, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasonAdminGrants, users } from "@/db/schema";
 import { requireSuperAdmin } from "@/lib/auth/session";
-import { Marker, Panel, Btn } from "@/components/rivalhub";
+import { Marker, Panel } from "@/components/rivalhub";
+import { Button } from "@/components/ui/button";
 import { AdminUserList } from "@/components/admin/AdminUserList";
 import { UserSearchBar } from "@/components/admin/UserSearchBar";
 import { formatCST } from "@/lib/utils/date";
-import { getDisplayName } from "@/lib/utils/display-name";
+import { getDisplayName } from "@/lib/identity/display-name";
 
 interface PageProps {
   searchParams: Promise<{ tab?: string; q?: string; filter?: string }>;
@@ -249,12 +250,12 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
 function TabBar({ tab }: { tab: string }) {
   return (
     <div className="flex gap-1">
-      <Btn small ghost={tab !== "admins"} asChild>
+      <Button size="sm" variant={tab !== "admins" ? "ghost" : "outline"} asChild>
         <Link href="/admin/users?tab=admins">管理员</Link>
-      </Btn>
-      <Btn small ghost={tab !== "users"} asChild>
+      </Button>
+      <Button size="sm" variant={tab !== "users" ? "ghost" : "outline"} asChild>
         <Link href="/admin/users?tab=users">所有用户</Link>
-      </Btn>
+      </Button>
     </div>
   );
 }

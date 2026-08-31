@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { desc } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
-import { SEASON_STATUS_LABELS } from "@/types/season";
+import { presentSeasonStatus } from "@/lib/seasons/presentation";
 import { Panel, Marker, StatusPill } from "@/components/rivalhub";
 
 export const metadata: Metadata = { title: "所有赛季" };
@@ -30,13 +30,10 @@ export default async function SeasonsPage() {
               href={`/${season.slug}` as never}
             >
               <Panel className="hover:border-[var(--color-border-hi)] transition-colors" pad={0}>
-                <div className="h-1 w-full" style={{ backgroundColor: season.themeColor ?? "#f97316" }} />
+                {season.themeColor && <div className="h-1 w-full" style={{ backgroundColor: season.themeColor }} />}
                 <div className="p-5">
                   <div className="flex items-center gap-2 mb-3 text-xs">
-                    <StatusPill status={season.status} />
-                    <span className="text-[var(--color-fg-mid)]">
-                      {SEASON_STATUS_LABELS[season.status]}
-                    </span>
+                    <StatusPill {...presentSeasonStatus(season.status)} />
                     <span className="text-[var(--color-fg-dim)]">·</span>
                     <span className="text-[var(--color-fg-dim)]">{season.kind}</span>
                   </div>

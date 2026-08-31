@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { getPublicDisplayName } from "@/lib/utils/display-name";
+import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { positionLabel } from "@/lib/validators/registration";
 import type { DraftTeamSlot } from "@/lib/draft/data";
 

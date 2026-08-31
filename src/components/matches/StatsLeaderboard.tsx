@@ -1,6 +1,7 @@
 import React from "react";
 import Link from "next/link";
-import { Panel, Btn } from "@/components/rivalhub";
+import { Panel } from "@/components/rivalhub";
+import { Button } from "@/components/ui/button";
 import type { LeaderboardView } from "@/lib/matches/leaderboard-view";
 import { positionLabel } from "@/lib/validators/registration";
 
@@ -193,9 +194,9 @@ export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "cor
           </p>
           <div className="flex gap-1 flex-wrap">
             {VIEWS.map(({ key, label, defaultSort }) => (
-              <Btn key={key} small ghost={view !== key} asChild>
+              <Button key={key} size="sm" variant={view !== key ? "ghost" : "outline"} asChild>
                 <a href={statsHref({ nextSort: defaultSort, nextView: key })}>{label}</a>
-              </Btn>
+              </Button>
             ))}
           </div>
         </div>
@@ -206,9 +207,9 @@ export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "cor
           </p>
           <div className="flex gap-1 flex-wrap">
             {cols.map(({ key, label }) => (
-              <Btn key={key} small ghost={sort !== key} asChild>
+              <Button key={key} size="sm" variant={sort !== key ? "ghost" : "outline"} asChild>
                 <a href={statsHref({ nextSort: key })}>{label}</a>
-              </Btn>
+              </Button>
             ))}
           </div>
         </div>
@@ -220,13 +221,13 @@ export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "cor
           <p className="w-full text-[11px] font-semibold uppercase text-[var(--color-fg-dim)] mb-1.5" style={{ fontFamily: "var(--font-mono)" }}>
             Stage
           </p>
-          <Btn small ghost={currentStage !== ""} asChild>
+          <Button size="sm" variant={currentStage !== "" ? "ghost" : "outline"} asChild>
             <a href={statsHref({ nextStage: "" })}>全部</a>
-          </Btn>
+          </Button>
           {stages.map(({ key, name }) => (
-            <Btn key={key} small ghost={currentStage !== key} asChild>
+            <Button key={key} size="sm" variant={currentStage !== key ? "ghost" : "outline"} asChild>
               <a href={statsHref({ nextStage: key })}>{name}</a>
-            </Btn>
+            </Button>
           ))}
         </div>
       )}
@@ -237,11 +238,11 @@ export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "cor
           Position
         </p>
         {POSITIONS.map(({ key, label }) => (
-          <Btn key={key} small ghost={position !== key} asChild>
+          <Button key={key} size="sm" variant={position !== key ? "ghost" : "outline"} asChild>
             <a href={statsHref({ nextPosition: key })}>
               {label}
             </a>
-          </Btn>
+          </Button>
         ))}
       </div>
 

@@ -9,7 +9,9 @@ import { formatCSTDateTime } from "@/lib/utils/date";
 import { normalizeStagePlan } from "@/types/season";
 import type { SeasonStatus } from "@/types/season";
 import { showStats } from "@/lib/utils/season";
-import { StatusPill, Panel, Marker, ScrollHint, Stat, PhaseStep, Btn } from "@/components/rivalhub";
+import { presentSeasonStatus } from "@/lib/seasons/presentation";
+import { StatusPill, Panel, Marker, ScrollHint, Stat, PhaseStep } from "@/components/rivalhub";
+import { Button } from "@/components/ui/button";
 import { checkAdminSession } from "@/lib/auth/session";
 import { AdminShortcut } from "@/components/layout/AdminShortcut";
 import { StandingsTable } from "@/components/matches/StandingsTable";
@@ -207,7 +209,7 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
     <div className="container mx-auto px-4 py-10 space-y-8">
       <div className="relative mb-12 pt-6">
         <div className="flex items-center gap-3 mb-4 text-xs uppercase tracking-wider">
-          <StatusPill status={season.status} />
+          <StatusPill {...presentSeasonStatus(season.status)} />
           <span className="text-[var(--color-fg-dim)]">{season.kind}</span>
         </div>
         <div className="flex items-center gap-3 mb-4">
@@ -247,9 +249,9 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
               label={
                 <div className="flex items-center justify-between w-full">
                   <span>NEXT MATCHES</span>
-                  <Btn small ghost asChild>
+                  <Button size="sm" variant="ghost" asChild>
                     <Link href={`/${seasonSlug}/matches`}>VIEW ALL →</Link>
-                  </Btn>
+                  </Button>
                 </div>
               }
             >
@@ -302,11 +304,11 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
                 isFinal={false}
               />
               <div className="mt-3">
-                <Btn full ghost asChild>
+                <Button variant="ghost" className="w-full" asChild>
                   <Link href={`/${seasonSlug}/matches`} className="w-full">
                     查看完整排名 →
                   </Link>
-                </Btn>
+                </Button>
               </div>
             </Panel>
           )}

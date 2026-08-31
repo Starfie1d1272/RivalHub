@@ -3,7 +3,8 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { updateProfile, type ProfileInput } from "@/actions/account";
-import { Field, Btn } from "@/components/rivalhub";
+import { Field } from "@/components/rivalhub";
+import { Button } from "@/components/ui/button";
 
 interface ProfileFormProps {
   current: {
@@ -111,9 +112,9 @@ export function ProfileForm({ current }: ProfileFormProps) {
         onChange={set("qq")}
         maxLength={12}
       />
-      <Btn type="submit" full disabled={isPending}>
+      <Button type="submit" variant="outline" className="w-full" disabled={isPending}>
         {isPending ? "保存中…" : "保存信息"}
-      </Btn>
+      </Button>
     </form>
   );
 }

@@ -12,7 +12,7 @@ import { positionLabel } from "@/lib/validators/registration";
 import { MapPreferenceChips } from "@/components/rivalhub/MapPreferenceChips";
 import { PosChip } from "@/components/rivalhub/PosChip";
 import { PlayerInfoPopover } from "./PlayerInfoPopover";
-import { getPublicDisplayName } from "@/lib/utils/display-name";
+import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { sortByRank } from "@/lib/utils/rank";
 import { selectAutoPickCandidate } from "@/lib/draft/auto-pick";
 import type { CaptainDraftPlayer } from "@/lib/draft/data";

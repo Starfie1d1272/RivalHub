@@ -384,28 +384,6 @@ export function createMajorDefaultCapabilities(): SeasonCapabilities {
   return structuredClone(MAJOR_DEFAULT_CAPABILITIES) as SeasonCapabilities;
 }
 
-// ── 展示标签 ─────────────────────────────────────────────────────────────
-
-export const SEASON_STATUS_LABELS: Record<SeasonStatus, string> = {
-  draft: "未发布",
-  registration: "报名中",
-  voting: "投票中",
-  drafting: "选秀中",
-  playing: "进行中",
-  finished: "已结束",
-  archived: "已归档",
-};
-
-export const SEASON_STATUS_TONE: Record<SeasonStatus, "live" | "soon" | "done"> = {
-  draft:        "soon",
-  registration: "live",
-  voting:       "live",
-  drafting:     "live",
-  playing:      "live",
-  finished:     "done",
-  archived:     "done",
-};
-
 export const PLAYER_TYPE_LABELS: Record<PlayerType, string> = {
   enrolled: "在校",
   graduated: "毕业",

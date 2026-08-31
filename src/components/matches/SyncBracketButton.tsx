@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { syncBracketMatches } from "@/actions/matches";
-import { Btn } from "@/components/rivalhub";
+import { Button } from "@/components/ui/button";
 
 export function SyncBracketButton({ seasonId }: { seasonId: string }) {
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
@@ -21,9 +21,9 @@ export function SyncBracketButton({ seasonId }: { seasonId: string }) {
 
   return (
     <div className="flex items-center gap-3">
-      <Btn ghost onClick={handleSync} disabled={status === "loading"}>
+      <Button type="button" variant="ghost" onClick={handleSync} disabled={status === "loading"}>
         {status === "loading" ? "修复中…" : "修复 Bracket 比赛"}
-      </Btn>
+      </Button>
       {status === "done" && (
         <span className="text-xs text-[var(--color-fg-mid)]">
           {result.created === 0 && result.fixed === 0

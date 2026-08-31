@@ -6,7 +6,7 @@ import { seasons } from "@/db/schema";
 import { DraftLiveRoom } from "@/components/draft/DraftLiveRoom";
 import { Panel, Marker } from "@/components/rivalhub";
 import { getPublicDraftData } from "@/lib/draft/data";
-import { SEASON_STATUS_LABELS } from "@/types/season";
+import { presentSeasonStatus } from "@/lib/seasons/presentation";
 import { checkAdminSession } from "@/lib/auth/session";
 import { AdminShortcut } from "@/components/layout/AdminShortcut";
 
@@ -41,7 +41,7 @@ export default async function DraftPage({ params }: DraftPageProps) {
   }
 
   if (season.status !== "drafting") {
-    const stageLabel = SEASON_STATUS_LABELS[season.status] ?? season.status;
+    const stageLabel = presentSeasonStatus(season.status).label;
     const draftFinished =
       season.status === "playing" ||
       season.status === "finished" ||

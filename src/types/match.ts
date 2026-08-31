@@ -43,15 +43,6 @@ export interface MatchMap {
   createdAt: Date;
 }
 
-// ── 标签 ─────────────────────────────────────────────────────────────────
-
-export const MATCH_STATUS_LABELS: Record<MatchStatus, string> = {
-  scheduled: "待进行",
-  in_progress: "进行中",
-  finished: "已结束",
-  cancelled: "已取消",
-};
-
 export const MATCH_STAGE_LABELS: Record<string, string> = {
   qualifier: "排位赛",
   playoff: "正赛",

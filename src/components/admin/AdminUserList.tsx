@@ -3,10 +3,11 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { revokeUserAdminRole } from "@/actions/admin";
-import { getDisplayName } from "@/lib/utils/display-name";
+import { getDisplayName } from "@/lib/identity/display-name";
 import { formatCST } from "@/lib/utils/date";
-import { Panel, Btn } from "@/components/rivalhub";
+import { Panel } from "@/components/rivalhub";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 interface AdminUserRow {
   id: string;
@@ -97,14 +98,15 @@ export function AdminUserList({ users, seasonMap, currentUserId }: AdminUserList
               </td>
               <td className="px-4 py-3 text-right">
                 {u.id !== currentUserId && (
-                  <Btn
-                    small
-                    ghost
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
                     onClick={() => handleRevoke(u.id)}
                     className="text-[var(--color-danger)] hover:text-[var(--color-danger)]"
                   >
                     撤销
-                  </Btn>
+                  </Button>
                 )}
               </td>
             </tr>

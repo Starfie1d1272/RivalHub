@@ -3,7 +3,8 @@ import Link from "next/link";
 import type { RegistrationMode, SeasonStatus } from "@/types/season";
 import { APP_BRAND } from "@/lib/branding";
 import type { HomeEyebrow } from "@/lib/home/navigation";
-import { Btn, Panel } from "@/components/rivalhub";
+import { Panel } from "@/components/rivalhub";
+import { Button } from "@/components/ui/button";
 
 interface HomeHeroSeason {
   name: string;
@@ -51,17 +52,17 @@ export function HomeHero({ season, eyebrow }: HomeHeroProps) {
           {APP_BRAND.description}
         </div>
         <div className="flex gap-2.5 mt-5.5 flex-wrap">
-          <Btn primary asChild>
+          <Button asChild>
             <Link href={`/${season.slug}`}>进入赛季 →</Link>
-          </Btn>
+          </Button>
           {season.status === "registration" && (
-            <Btn asChild>
+            <Button variant="outline" asChild>
               <Link href={`/${season.slug}/register`}>{season.registrationMode === "team" ? "组队报名 / 创建或加入队伍" : "报名参赛"}</Link>
-            </Btn>
+            </Button>
           )}
-          <Btn ghost asChild>
+          <Button variant="ghost" asChild>
             <Link href="/seasons">查看所有赛季</Link>
-          </Btn>
+          </Button>
         </div>
       </div>
       <div

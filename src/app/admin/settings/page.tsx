@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { users } from "@/db/schema";
 import { checkAdminSession } from "@/lib/auth/session";
-import { getDisplayName } from "@/lib/utils/display-name";
+import { getDisplayName } from "@/lib/identity/display-name";
 import { Panel, StatusPill, Marker } from "@/components/rivalhub";
 
 const ENV_VARS = [
@@ -65,13 +65,13 @@ export default async function AdminSettingsPage() {
                     <div className="flex items-center gap-2">
                       <code className="text-xs font-mono text-[var(--color-fg)]">{key}</code>
                       {required && (
-                        <StatusPill status="必填" />
+                        <StatusPill label="必填" tone="warn" />
                       )}
                     </div>
                     <p className="text-xs text-[var(--color-fg-mid)]">{label}</p>
                     <p className="text-xs text-[var(--color-fg-mid)] opacity-70">{description}</p>
                   </div>
-                  <StatusPill status={isSet ? "已配置" : "未配置"} />
+                  <StatusPill label={isSet ? "已配置" : "未配置"} tone={isSet ? "success" : "neutral"} />
                 </div>
               );
             })}

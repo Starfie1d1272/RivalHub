@@ -1,6 +1,7 @@
 import Link from "next/link";
 import React from "react";
 import { cn } from "@/lib/utils/cn";
+import { presentMatchFormat } from "@/lib/matches/presentation";
 import { Separator } from "@/components/ui/separator";
 import { Panel, StatusPill } from "@/components/rivalhub";
 import { MatchStatusBadge } from "@/components/matches/MatchStatusBadge";
@@ -17,7 +18,6 @@ import { DeleteMatchButton } from "@/components/matches/DeleteMatchButton";
 import { CompletedAtInput } from "@/components/matches/CompletedAtInput";
 import { PreMatchOperatorChecklist } from "@/components/matches/PreMatchOperatorChecklist";
 import { toCSTDateTimeInput } from "@/lib/utils/date";
-import { MATCH_FORMAT_LABELS } from "@/types/match";
 
 export interface TeamMemberData {
   id: string;
@@ -156,7 +156,7 @@ export function AdminMatchRow({
           <span className="font-semibold">{teamBName}</span>
         </div>
         <div className="flex items-center gap-2">
-          <StatusPill status={MATCH_FORMAT_LABELS[match.format]} />
+          <StatusPill {...presentMatchFormat(match.format)} />
           <MatchStatusBadge
             status={match.status}
             isForfeit={match.isForfeit}

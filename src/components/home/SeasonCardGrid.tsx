@@ -1,6 +1,7 @@
 import React from "react";
 import Link from "next/link";
 import type { SeasonStatus } from "@/types/season";
+import { presentSeasonStatus } from "@/lib/seasons/presentation";
 import { Marker, Panel, StatusPill } from "@/components/rivalhub";
 
 interface SeasonCard {
@@ -38,7 +39,7 @@ export function SeasonCardGrid({
           <Link key={season.id} href={`/${season.slug}` as never}>
             <Panel className="transition-colors hover:border-[var(--color-border-hi)]">
               <div className="flex items-center gap-2 mb-2">
-                <StatusPill status={season.status} />
+                <StatusPill {...presentSeasonStatus(season.status)} />
                 <span
                   style={{
                     fontFamily: "var(--font-mono)",

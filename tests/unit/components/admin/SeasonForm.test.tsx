@@ -5,7 +5,7 @@ import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createSeason } from "@/actions/seasons";
+import { createSeason, deleteSeason } from "@/actions/seasons";
 import { SeasonForm } from "@/components/admin/SeasonForm";
 import {
   RIVALS_DEFAULT_CAPABILITIES,
@@ -49,6 +49,7 @@ vi.mock("@/components/ui/select", async () => {
 });
 
 const createSeasonMock = vi.mocked(createSeason);
+const deleteSeasonMock = vi.mocked(deleteSeason);
 
 function createInitial(
   capabilities: SeasonCapabilities,
@@ -79,6 +80,7 @@ describe("SeasonForm presets", () => {
       success: true,
       data: { seasonId: "11111111-1111-4111-8111-111111111111", slug: "test-season" },
     });
+    deleteSeasonMock.mockResolvedValue({ success: true, data: undefined });
   });
 
   it("does not show Major status in a Rivals display context", () => {
@@ -107,6 +109,18 @@ describe("SeasonForm presets", () => {
         }),
       }));
     });
+  });
+
+  it("requires an in-app confirmation before deleting a draft season", async () => {
+    const user = userEvent.setup();
+    render(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "选秀联赛")} />);
+
+    await user.click(screen.getByRole("button", { name: "删除赛季" }));
+    expect(screen.getByRole("alertdialog")).toHaveTextContent("确认删除这个草稿赛季？");
+    expect(deleteSeasonMock).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "删除赛季" }));
+    await waitFor(() => expect(deleteSeasonMock).toHaveBeenCalledWith("11111111-1111-4111-8111-111111111111"));
   });
 
 });
