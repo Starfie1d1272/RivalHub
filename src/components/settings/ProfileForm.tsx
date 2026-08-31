@@ -11,7 +11,6 @@ interface ProfileFormProps {
     displayName: string | null;
     steamName: string | null;
     perfectName: string | null;
-    perfectId: string | null;
     steam64: string | null;
     steamProfileUrl: string | null;
     qq: string | null;
@@ -23,7 +22,6 @@ export function ProfileForm({ current }: ProfileFormProps) {
     displayName: current.displayName ?? "",
     steamName: current.steamName ?? "",
     perfectName: current.perfectName ?? "",
-    perfectId: current.perfectId ?? "",
     steam64: current.steam64 ?? "",
     steamProfileUrl: current.steamProfileUrl ?? "",
     qq: current.qq ?? "",
@@ -67,15 +65,6 @@ export function ProfileForm({ current }: ProfileFormProps) {
         value={form.perfectName}
         onChange={set("perfectName")}
         maxLength={40}
-      />
-      <Field
-        id="perfect-id"
-        label="完美世界竞技平台 ID"
-        type="text"
-        placeholder="用于赛事身份核对，不等同于昵称"
-        value={form.perfectId}
-        onChange={set("perfectId")}
-        maxLength={128}
       />
       <Field
         id="steam-name"

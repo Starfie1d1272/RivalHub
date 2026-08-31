@@ -1,29 +1,22 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import React, { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { saveCompetitiveRoles } from "@/actions/competitive-profile";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/rivalhub";
+import { CS2_POSITION_LABELS, CS2_POSITION_VALUES, type Cs2Position } from "@/lib/config/cs2-positions";
 
-const ROLE_LABELS = {
-  igl: "指挥 IGL",
-  awper: "狙击 AWP",
-  entry: "突破 Entry",
-  closer: "残局 Closer",
-  anchor: "防守 Anchor",
-  support: "辅助 Support",
-  lurker: "自由人 Lurker",
-} as const;
+const ROLE_LABELS: Record<Cs2Position, string> = Object.fromEntries(
+  CS2_POSITION_VALUES.map((role) => [role, CS2_POSITION_LABELS[role].full]),
+) as Record<Cs2Position, string>;
 
-type Role = keyof typeof ROLE_LABELS;
-
-export function CompetitiveRolesForm({ initialRoles, initialPrimaryRole }: { initialRoles: Role[]; initialPrimaryRole: Role | null }) {
-  const [roles, setRoles] = useState<Role[]>(initialRoles);
-  const [primaryRole, setPrimaryRole] = useState<Role | null>(initialPrimaryRole);
+export function CompetitiveRolesForm({ initialRoles, initialPrimaryRole }: { initialRoles: Cs2Position[]; initialPrimaryRole: Cs2Position | null }) {
+  const [roles, setRoles] = useState<Cs2Position[]>(initialRoles);
+  const [primaryRole, setPrimaryRole] = useState<Cs2Position | null>(initialPrimaryRole);
   const [pending, startTransition] = useTransition();
 
-  function toggle(role: Role) {
+  function toggle(role: Cs2Position) {
     if (roles.includes(role)) {
       const next = roles.filter((item) => item !== role);
       setRoles(next);
@@ -39,7 +32,7 @@ export function CompetitiveRolesForm({ initialRoles, initialPrimaryRole }: { ini
     <div className="space-y-4">
       <p className="text-sm leading-6 text-[var(--color-fg-mid)]">选择 1–3 个常用位置，并指定主位置。它用于长期队伍招募与资料展示，不构成赛事资格门禁。</p>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {(Object.keys(ROLE_LABELS) as Role[]).map((role) => {
+        {CS2_POSITION_VALUES.map((role) => {
           const selected = roles.includes(role);
           return <div key={role} className={`flex items-center justify-between border p-3 ${selected ? "border-[var(--color-accent)]" : "border-[var(--color-border)]"}`}>
             <button type="button" className="text-sm" onClick={() => toggle(role)}>{selected ? "✓ " : ""}{ROLE_LABELS[role]}</button>

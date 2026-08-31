@@ -1,10 +1,11 @@
 import { boolean, check, index, integer, numeric, pgEnum, pgTable, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { users } from "./users";
+import { CS2_POSITION_VALUES } from "@/lib/config/cs2-positions";
 
 export const competitiveFactKindEnum = pgEnum("competitive_fact_kind", ["historical_peak", "season_peak"]);
 export const competitiveFactProvenanceEnum = pgEnum("competitive_fact_provenance", ["self_declared"]);
-export const cs2RoleEnum = pgEnum("cs2_role", ["igl", "awper", "entry", "closer", "anchor", "support", "lurker"]);
+export const cs2RoleEnum = pgEnum("cs2_role", CS2_POSITION_VALUES);
 
 /**
  * Long-lived competitive platform identity. The technical key is immutable

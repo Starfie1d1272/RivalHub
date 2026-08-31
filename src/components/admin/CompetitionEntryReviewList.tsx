@@ -22,7 +22,7 @@ interface ReviewEntry {
   maxRoster: number;
   starterCount: number;
   qualificationBlockers: string[];
-  members: Array<{ participantId: string; userId: string; email: string; perfectId: string | null; label: string; status: ParticipantStatus; primary: boolean; readiness?: { ready: boolean; blockers: string[]; educationApproved: boolean } }>;
+  members: Array<{ participantId: string; userId: string; email: string; label: string; status: ParticipantStatus; primary: boolean; readiness?: { ready: boolean; blockers: string[]; educationApproved: boolean } }>;
 }
 
 const STATUS: Record<EntryStatus, string> = {
@@ -74,7 +74,7 @@ export function CompetitionEntryReviewList({ entries }: { entries: ReviewEntry[]
         { label: entry.qualificationBlockers.length === 0 ? "资格评估已通过" : `资格 blocker：${entry.qualificationBlockers.join("；")}`, state: entry.qualificationBlockers.length === 0 ? "complete" : "blocked" },
         ...entry.members.map((member) => ({ label: member.readiness ? (member.readiness.ready ? `${member.label} · 学籍与竞技档案已就绪` : `${member.label} · ${member.readiness.blockers.join("；")}`) : `${member.label} · 资格将在审核动作中重新核验`, state: member.readiness?.ready ? "complete" as const : "pending" as const })),
       ]} /></div>
-      <div className="mt-4 grid gap-2 lg:grid-cols-2">{entry.members.map((member) => <div key={member.participantId} className="border border-[var(--color-border)] p-3 text-sm"><div className="flex flex-wrap items-center gap-2"><span className="font-medium">{member.label}</span><Badge variant="outline">{PARTICIPANT_STATUS[member.status]}</Badge>{member.primary && <Badge variant="outline">预定主力</Badge>}</div><p className="mt-1 text-xs text-[var(--color-fg-mid)]">学籍：{member.readiness?.educationApproved ? "已通过" : "待核验"} · 竞技档案：{member.readiness ? (member.readiness.ready ? "完整" : "存在 blocker") : "不要求或待审核核验"} · 完美 ID：{member.perfectId ?? "未填写"}</p>{member.readiness && !member.readiness.ready && <p className="mt-1 text-xs text-[var(--color-warn)]">{member.readiness.blockers.join("；")}</p>}</div>)}</div>
+      <div className="mt-4 grid gap-2 lg:grid-cols-2">{entry.members.map((member) => <div key={member.participantId} className="border border-[var(--color-border)] p-3 text-sm"><div className="flex flex-wrap items-center gap-2"><span className="font-medium">{member.label}</span><Badge variant="outline">{PARTICIPANT_STATUS[member.status]}</Badge>{member.primary && <Badge variant="outline">预定主力</Badge>}</div><p className="mt-1 text-xs text-[var(--color-fg-mid)]">学籍：{member.readiness?.educationApproved ? "已通过" : "待核验"} · 竞技档案：{member.readiness ? (member.readiness.ready ? "完整" : "存在 blocker") : "不要求或待审核核验"}</p>{member.readiness && !member.readiness.ready && <p className="mt-1 text-xs text-[var(--color-warn)]">{member.readiness.blockers.join("；")}</p>}</div>)}</div>
     </Panel>;
   })}</div>;
 }

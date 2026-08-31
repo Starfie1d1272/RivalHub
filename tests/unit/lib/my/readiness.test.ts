@@ -19,7 +19,6 @@ function fullFact(overrides: Partial<ParticipantQualificationFacts> = {}): Parti
     email: "a@example.test",
     emailVerifiedAt: new Date("2026-08-01T00:00:00Z"),
     steam64: "76561198000000001",
-    perfectId: "10001",
     qq: "12345",
     approvedEducation: true,
     educationHistory: [],
