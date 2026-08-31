@@ -7,6 +7,10 @@ on:
     branches: [main, dev, feat/major-2027-integration]
   workflow_dispatch:
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -48,7 +52,6 @@ jobs:
       - run: pnpm build
 
   local:
-    needs: quality
     runs-on: ubuntu-latest
     env:
       NEXT_TELEMETRY_DISABLED: 1

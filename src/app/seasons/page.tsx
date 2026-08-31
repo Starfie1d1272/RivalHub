@@ -1,5 +1,3 @@
-export const dynamic = "force-dynamic";
-
 import Link from "next/link";
 import type { Metadata } from "next";
 import { desc } from "drizzle-orm";

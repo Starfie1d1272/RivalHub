@@ -7,8 +7,6 @@ import { Marker } from "@/components/rivalhub";
 import { DraftAdminPanel } from "@/components/draft/DraftAdminPanel";
 import { getDraftAdminData } from "@/lib/draft/data";
 
-export const dynamic = "force-dynamic";
-
 interface AdminDraftPageProps {
   params: Promise<{ seasonSlug: string }>;
 }

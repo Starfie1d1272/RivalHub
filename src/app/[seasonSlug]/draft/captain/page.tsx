@@ -10,8 +10,6 @@ import { Panel, Btn } from "@/components/rivalhub";
 import { getUserSession } from "@/lib/auth/session";
 import { getCaptainDraftData, type DraftTeamSlot } from "@/lib/draft/data";
 
-export const dynamic = "force-dynamic";
-
 interface DraftCaptainPageProps {
   params: Promise<{ seasonSlug: string }>;
 }

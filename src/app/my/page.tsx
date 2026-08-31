@@ -1,5 +1,3 @@
-export const dynamic = "force-dynamic";
-
 import { redirect } from "next/navigation";
 import { MyReadinessDashboard } from "@/components/my/MyReadinessDashboard";
 import { getUserSession } from "@/lib/auth/session";

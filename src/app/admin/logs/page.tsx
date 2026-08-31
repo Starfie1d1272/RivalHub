@@ -4,8 +4,6 @@ import { fetchAuditLogs, getAuditSeasons } from "@/actions/audit";
 import { Marker } from "@/components/rivalhub";
 import { AuditLogTable } from "@/components/admin/AuditLogTable";
 
-export const dynamic = "force-dynamic";
-
 interface AdminLogsPageProps {
   searchParams: Promise<{
     page?: string;

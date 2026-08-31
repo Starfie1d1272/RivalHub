@@ -4,8 +4,6 @@ import { redirect } from "next/navigation";
 import { checkAdminSession } from "@/lib/auth/session";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
 
-export const dynamic = "force-dynamic";
-
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const headersList = await headers();
   const pathname = headersList.get("x-pathname") ?? "";

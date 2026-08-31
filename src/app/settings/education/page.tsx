@@ -1,5 +1,3 @@
-export const dynamic = "force-dynamic";
-
 import { and, desc, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { EducationVerificationPanel } from "@/components/settings/EducationVerificationPanel";

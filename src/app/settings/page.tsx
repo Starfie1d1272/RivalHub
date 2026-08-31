@@ -1,5 +1,3 @@
-export const dynamic = "force-dynamic";
-
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { getUserSession } from "@/lib/auth/session";

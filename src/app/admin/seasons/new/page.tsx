@@ -1,5 +1,3 @@
-export const dynamic = "force-dynamic";
-
 import { redirect } from "next/navigation";
 import { requireSuperAdmin } from "@/lib/auth/session";
 import { createCompetitionTemplate } from "@/lib/competition/templates";

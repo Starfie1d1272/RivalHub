@@ -6,6 +6,7 @@ import {
   parseLocalSupabaseStatus,
   type LocalSupabaseStatus,
 } from "./local-environment";
+import { acquireLocalVerificationLock } from "./local-lock";
 
 const PROJECT_ID = "rivalhub";
 const DOCKER_NETWORK = "rivalhub-local";
@@ -18,10 +19,27 @@ const nextBin = resolve(projectRoot, `node_modules/.bin/next${binSuffix}`);
 const vitestBin = resolve(projectRoot, `node_modules/.bin/vitest${binSuffix}`);
 const playwrightBin = resolve(projectRoot, `node_modules/.bin/playwright${binSuffix}`);
 const pnpmBin = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+const LOCKED_COMMANDS = new Set([
+  "start",
+  "stop",
+  "migrate",
+  "seed",
+  "verify",
+  "verify-migrations",
+  "test-integration",
+  "test-e2e",
+  "verify-local",
+  "bootstrap",
+  "reset",
+]);
 
 const command = process.argv[2];
+let releaseLocalLock: (() => void) | undefined;
 
 try {
+  if (command && LOCKED_COMMANDS.has(command)) {
+    releaseLocalLock = acquireLocalVerificationLock(command);
+  }
   switch (command) {
     case "start":
       startLocalStack();
@@ -82,7 +100,9 @@ try {
   }
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
-  process.exit(1);
+  process.exitCode = 1;
+} finally {
+  releaseLocalLock?.();
 }
 
 function startLocalStack(): void {

@@ -1,5 +1,3 @@
-export const dynamic = "force-dynamic";
-
 import Link from "next/link";
 import { inArray } from "drizzle-orm";
 import { redirect } from "next/navigation";

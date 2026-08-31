@@ -1,4 +1,10 @@
-/** Local PostgreSQL canary for claimInviteCode's invite-row serialization. */
+/**
+ * Local PostgreSQL canary for the invite-row serialization/maxUses pattern.
+ *
+ * This test intentionally executes the SQL pattern directly; it does not call
+ * production claimInviteCode(). PR5 must replace or upgrade it with real-PG
+ * evidence through the production command/service.
+ */
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { describe, it } from "vitest";
@@ -40,8 +46,8 @@ async function main() {
     await pool.end();
   }
 }
-describe("admin invite concurrency", () => {
-  it("serializes a single-use claim to one successful transaction", async () => {
+describe("admin invite row serialization pattern", () => {
+  it("serializes a single-use invite-row claim to one successful transaction", async () => {
     await main();
   });
 });

@@ -26,8 +26,6 @@ import { getFirstStageOfType, normalizeRegistrationConfig, normalizeStagePlan } 
 import Link from "next/link";
 import { getStartingLineupPreflightInTx } from "@/lib/match-rosters/service";
 
-export const dynamic = "force-dynamic";
-
 const STATUS_SORT_ORDER: Record<string, number> = {
   in_progress: 0,
   scheduled: 1,

@@ -6,8 +6,6 @@ import { CaptainConfirmPanel } from "@/components/captains/CaptainConfirmPanel";
 import { Panel, Marker } from "@/components/rivalhub";
 import { getPublicCaptainVotingData, getSeasonTeamCount } from "@/lib/captains/data";
 
-export const dynamic = "force-dynamic";
-
 interface AdminCaptainsPageProps {
   params: Promise<{ seasonSlug: string }>;
 }
