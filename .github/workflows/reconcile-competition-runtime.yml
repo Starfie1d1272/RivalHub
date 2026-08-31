@@ -2,14 +2,14 @@ name: Reconcile competition runtime
 
 on:
   push:
-    branches: [starfie1d/refactor-v2-competition-runtime]
+    branches:
+      - starfie1d/refactor-v2-competition-runtime
 
 permissions:
   contents: write
 
 jobs:
   reconcile:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -22,12 +22,12 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-      - name: Merge latest dev and regenerate migration
+      - name: Reconcile latest dev and regenerate migration
         shell: bash
         run: |
           set -euo pipefail
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git fetch origin dev
 
           set +e
@@ -46,14 +46,15 @@ tests/unit/actions/captain-identity.test.ts
 tests/unit/db/major-profile-migration.test.ts'
             unexpected="$(comm -23 <(printf '%s\n' "$conflicts" | sort) <(printf '%s\n' "$allowed" | sort))"
             if [ -n "$unexpected" ]; then
-              echo "Unexpected conflicts:" >&2
+              echo 'Unexpected conflicts:' >&2
               printf '%s\n' "$unexpected" >&2
               exit 1
             fi
-            for path in $conflicts; do
+            while IFS= read -r path; do
+              [ -z "$path" ] && continue
               git checkout --theirs -- "$path"
               git add "$path"
-            done
+            done <<< "$conflicts"
           fi
 
           git rm -f drizzle/migrations/0021_competition_bracket_state.sql 2>/dev/null || true
@@ -91,7 +92,7 @@ tests/unit/db/major-profile-migration.test.ts'
 
           python <<'PY'
           from pathlib import Path
-          import json
+          import json, re
 
           migrations = sorted(Path('drizzle/migrations').glob('0022_*.sql'))
           if len(migrations) != 1:
@@ -115,7 +116,6 @@ tests/unit/db/major-profile-migration.test.ts'
           tag = last['tag']
           p = Path('tests/unit/db/major-profile-migration.test.ts')
           s = p.read_text()
-          import re
           s = re.sub(r'idx: 21,\n\s+version: "7",\n\s+tag: "0021_team_entry_current_owners",', f'idx: 22,\n      version: "7",\n      tag: "{tag}",', s)
           p.write_text(s)
           PY
@@ -126,5 +126,5 @@ tests/unit/db/major-profile-migration.test.ts'
 
           git rm .github/workflows/reconcile-competition-runtime.yml
           git add -A
-          git commit -m "chore(competition-runtime): reconcile latest migration chain"
+          git commit -m 'chore(competition-runtime): reconcile latest migration chain'
           git push origin HEAD:starfie1d/refactor-v2-competition-runtime
