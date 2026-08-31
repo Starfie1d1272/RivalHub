@@ -1,0 +1,4 @@
+drizzle/migrations/meta/0021_snapshot.json
+drizzle/migrations/meta/_journal.json
+src/actions/teams.ts
+tests/unit/db/major-profile-migration.test.ts
