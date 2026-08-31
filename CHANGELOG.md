@@ -1,5 +1,80 @@
 # Changelog
 
+## 2.0.0
+
+RivalHub 2.0 是一次完整的赛事产品与领域模型升级。相较 1.x 以单届 Rivals 赛事为核心的实现，2.0 将用户身份、长期 Team、赛事参赛身份、资格、正式名单、比赛运行时与赛后历史拆分为明确的长期事实和赛事事实，并新增完整的 NJU Major 运营流程。
+
+### Added
+
+#### 完整的 Major 赛事运营流程
+
+新增 NJU Major 从报名到归档的完整生命周期：长期 Team 创建 CompetitionEntry；队员邀请、确认与报名名单 revision；教育身份、竞技档案与纪律限制的统一资格判断；管理员审核、候补、退回补正与重新提交；正式赛事名单确认与冻结；32 支正式参赛队的种子管理；三阶段 Swiss；Quarterfinal、Semifinal、季军赛与 Final；单场首发阵容确认；比赛时间协商、BP 与赛果管理；赛果更正与受控 downstream recovery；纪律处罚、赛后裁决、最终名次、正式荣誉与赛事归档。
+
+Major runtime 将 StageRun、TournamentEntrant、种子、比赛和最终名次持久化为正式赛事事实；已开始赛事不再依赖可变化的长期 Team 或当前用户资料解释历史。
+
+#### 长期 Team 与 CompetitionEntry
+
+Team 现在是跨赛事存在的长期一级实体，支持创建与资料维护、成员邀请与邀请链接、active / benched / left 生命周期、队长交接、招募状态、解散，以及队长和名称的 append-only 历史记录。
+
+CompetitionEntry 是一支 Team 或一组参赛者进入某届 Competition 的规范参赛身份，明确区分长期 Team membership、本届赛事 participant、报名承诺 roster revision、正式 EventRoster、StageEntrant 和单场 MatchRoster。Rivals 选秀队和 Major 长期 Team 因此可以在同一赛事身份模型下保留各自产品流程。
+
+#### 长期参与者资料与“我的”
+
+新增稳定的 `/my` 入口，集中呈现长期个人资料、教育认证、竞技档案、当前长期 Team、CompetitionEntry、当前赛事 qualification 和本人可见的有效纪律限制，并提供对应 blocker、处理方和下一步入口。`profile readiness` 与 `event eligibility` 保持独立，资料完整不再被误认为满足某届赛事资格。
+
+#### 教育认证、竞技平台目录与长期竞技档案
+
+教育资格从旧用户字段中独立出来，形成可审核的长期事实。2.0 内置完美世界竞技平台与 5E；平台统一拥有 rank ladder 与 canonical performance Rating，平台赛季只表达时间目录。竞技档案明确区分 rank、S 段 stars 与 platform Rating，赛事发布时冻结所需的平台、current / previous season 与 rank ladder 上下文。
+
+#### 纪律与赛后管理
+
+新增赛事级纪律处罚管理，支持报名、名单和出场限制、生效窗口、管理员内部证据、面向用户的说明、撤销与过期处理。Major 赛后新增独立的 final result confirmation、placement、adjudication、tournament honor、revoke / vacant 与 archive；纪律事实不会隐式修改既有比赛结果、名次或荣誉，冠军荣誉被撤销时不会自动将亚军递补为冠军。
+
+### Changed
+
+#### 赛事模型与运行时边界
+
+`competitionTemplate` 现在是 Rivals、Major 和 Custom 的明确模板身份；内置模板不再通过 capability 结构反推身份。运行中的赛事使用冻结的 StageRun 事实，Major Swiss 由 Major-managed runtime 管理，Bracket 的可变运行时状态由独立持久化 owner 管理。
+
+#### 正式名单、比赛名单与管理员权限
+
+报名名单、正式赛事名单和单场阵容不再互相替代。EventRoster 成为赛事名单确认与冻结的 lifecycle owner；Major 正式赛事 roster 为 5–9 人，单场比赛确认恰好 5 名首发。
+
+管理员统一使用正常的 Supabase Auth 账户体系。全局权限与赛事范围权限分别由 `users.role = super_admin` 和 `season_admin_grants` 表达，应用 session 只保存用户身份；管理员邀请码使用独立 claim ledger，支持并发安全的 `maxUses` 与重复领取保护。旧的本地 Root 管理员账户、独立管理员 cookie 和 `adminSeasonIds` 权限数组已经退役。
+
+#### UI 与产品语言
+
+状态文案由对应领域 presentation owner 提供，UI primitive 不再解释业务 enum。统一使用 shadcn Button、canonical display-name formatter、Asia/Shanghai 日期时间格式、semantic design tokens、accessible Dialog / AlertDialog / InlineConfirm；浏览器原生 `confirm()` 已退出产品 UI。长期 Team 工作区拆分为资料、成员、邀请和危险操作等明确任务区域。
+
+### Fixed
+
+- 修复 Major 报名被管理员退回后在报名截止时间之后无法完成限定补正并重新提交的问题。
+- 支持已退出或拒绝的 Entry participant 被重新邀请并再次确认；过期 Team invitation 不再永久占用重新邀请的位置。
+- qualification blocker 和成员状态改为明确的用户可读业务语言，并修复 EventRoster、approved revision 与 Major prestart 之间可能出现的名单漂移。
+- Major prestart 只接受已批准 CompetitionEntry 的已批准 roster revision；开赛前重新验证冻结竞技上下文，缺失或不完整时 fail closed。
+- 收口 Major start、名单补正与名单同步的事务锁顺序，补充真实 PostgreSQL 并发回归，并强化 TournamentEntrant、StageEntrant、Match、FinalResult 与 MatchRoster 的同赛事关系和数据库一致性。
+- 强化赛果更正、Semifinal / Final / 季军赛 downstream recovery 与已开始比赛的保护；最终名次持久化现在验证完整 placement、冠军一致性与赛事归属。
+- qualification、public identity、privacy DTO 和 frozen competitive context 均收敛到单一 canonical owner。
+
+### Security
+
+- 业务数据库继续采用 server-side access model，public Data API 对业务表默认拒绝；service role、session secret、Cron secret 和 Turnstile secret 保持 server-only。
+- 删除 legacy Root 管理员认证路径，权限不再缓存在应用 session。
+- Local Supabase 开发环境只允许 loopback 数据库目标；staging / remote database write 需要明确 target、目标确认与显式写入授权。
+- `pnpm db:push` 被禁止，所有数据库升级必须经过 active migrations；清理无实际 consumer 的 direct dependencies，并将仍需要的 security override 限定到明确依赖路径和退出条件。
+
+### Reliability & Testing
+
+测试体系采用分层 verification evidence：Vitest unit / domain tests、真实 PostgreSQL integration tests、migration replay、并发与 transaction regression、Playwright browser E2E、Local Supabase 完整验证，以及 production smoke / real-operation progressive validation。Coverage report 继续作为诊断工具，但不再作为全局百分比 merge gate；CI 同时验证 production build 与 Local Supabase / PostgreSQL / browser 流程。
+
+### Migration & Operations
+
+RivalHub 2.0 使用新的 active Drizzle migration chain，旧 migration history 保留为只读历史记录。升级和部署必须使用仓库提供的 migration workflow，不使用 `db:push`；远程数据库写入前先完成 Local 与 staging 验证，production 不运行 destructive rehearsal，staging 与 production 使用独立 Supabase project。数据库连接按 Supabase Transaction Pooler contract 配置。开发与 CI 基线为 Node.js 24 与 pnpm 10.34.5。
+
+### Compatibility / Scope
+
+RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Competition 继续使用已经实现并注册的阶段执行能力；不支持的阶段会在发布时 fail closed。2.0 保留未来赛事与其他游戏继续演进所需的结构边界，但没有提前引入 `Game`、`GameAccount`、N-way Match、通用 workflow DSL 或 tournament plugin database 等尚无真实消费者的模型。
+
 ## 2.0.0-rc.4
 
 ### Patch Changes
