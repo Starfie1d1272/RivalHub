@@ -21,29 +21,22 @@
 import { randomUUID } from "node:crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool, type PoolClient } from "pg";
-import * as schema from "../../src/db/schema";
+import { describe, expect, it } from "vitest";
+import * as schema from "../../../src/db/schema";
 import {
   applyResultCorrectionInTx,
   planResultCorrectionInTx,
-} from "../../src/lib/match-corrections/service";
-import { finalizeMajorPlayoffRoundInTransaction } from "../../src/lib/major/playoff-runtime";
-import { finalizeMajorSwissRoundInTransaction } from "../../src/lib/major/swiss-runtime";
-import { generateNextMajorSwissRound } from "../../src/lib/major/swiss";
-import { AppError, ErrorCode } from "../../src/lib/errors";
-import { createMajorDefaultCapabilities } from "../../src/types/season";
+} from "../../../src/lib/match-corrections/service";
+import { finalizeMajorPlayoffRoundInTransaction } from "../../../src/lib/major/playoff-runtime";
+import { finalizeMajorSwissRoundInTransaction } from "../../../src/lib/major/swiss-runtime";
+import { generateNextMajorSwissRound } from "../../../src/lib/major/swiss";
+import { AppError, ErrorCode } from "../../../src/lib/errors";
+import { createMajorDefaultCapabilities } from "../../../src/types/season";
+import { localDatabaseUrl } from "./harness/database";
 
-const databaseUrl = process.env.RIVALHUB_LOCAL_DATABASE_URL;
-if (!databaseUrl) throw new Error("RIVALHUB_LOCAL_DATABASE_URL 未设置。");
-const target = new URL(databaseUrl);
-if (!["localhost", "127.0.0.1", "::1", "[::1]"].includes(target.hostname)) {
-  throw new Error("结果恢复集成测试只允许 Local Supabase loopback 数据库。");
-}
+const databaseUrl = localDatabaseUrl();
 
 const ACTOR = "local-admin-g2";
-
-function assertCondition(condition: boolean, message: string): void {
-  if (!condition) throw new Error(message);
-}
 
 async function expectAppError(
   work: () => Promise<unknown>,
@@ -326,7 +319,7 @@ async function generateAndInsertRound1(pool: Pool, fixture: RecoveryFixture): Pr
       finalizedRound: 0,
       stageMatchFormat: "bo1",
     });
-    assertCondition(pairings.length === 8, "engine 必须给出 8 场首轮对阵");
+    expect(pairings.length === 8,  "engine 必须给出 8 场首轮对阵").toBe(true);
 
     const ids: string[] = [];
     for (let index = 0; index < pairings.length; index += 1) {
@@ -453,9 +446,9 @@ async function main(): Promise<void> {
         matchId: semifinalId,
         proposal: { scoreA: 1, scoreB: 2 },
       }));
-      assertCondition(plan.winnerChanges, "A 计划必须识别半决赛胜者变更");
-      assertCondition(plan.impacts.filter((impact) => impact.kind === "downstream_match").length === 2, "A 影响清单必须包含决赛和季军赛");
-      assertCondition(plan.impacts.every((impact) => impact.status === "scheduled"), "A 下游比赛必须仍未开始");
+      expect(plan.winnerChanges,  "A 计划必须识别半决赛胜者变更").toBe(true);
+      expect(plan.impacts.filter((impact) => impact.kind === "downstream_match").length === 2,  "A 影响清单必须包含决赛和季军赛").toBe(true);
+      expect(plan.impacts.every((impact) => impact.status === "scheduled"),  "A 下游比赛必须仍未开始").toBe(true);
 
       const applied = await database.transaction((tx) => applyResultCorrectionInTx(tx, {
         matchId: semifinalId,
@@ -463,8 +456,8 @@ async function main(): Promise<void> {
         actorId: ACTOR,
         confirmRecovery: true,
       }));
-      assertCondition(applied.invalidatedDownstreamMatches.length === 2, "A 必须同时作废决赛和季军赛");
-      assertCondition(applied.winnerChanged, "A 必须落库胜者变更");
+      expect(applied.invalidatedDownstreamMatches.length === 2,  "A 必须同时作废决赛和季军赛").toBe(true);
+      expect(applied.winnerChanged,  "A 必须落库胜者变更").toBe(true);
 
       const rebuilt = await database.transaction((tx) => finalizeMajorPlayoffRoundInTransaction(tx, {
         seasonId: fixture.seasonId,
@@ -472,7 +465,7 @@ async function main(): Promise<void> {
         expectedRound: "semifinal",
         actorId: ACTOR,
       }));
-      assertCondition(rebuilt.createdNextRound === 2 && !rebuilt.alreadyFinalized, "A 现有 playoff runtime 必须重建两场后续比赛");
+      expect(rebuilt.createdNextRound === 2 && !rebuilt.alreadyFinalized,  "A 现有 playoff runtime 必须重建两场后续比赛").toBe(true);
 
       const rebuiltRows = await pool.query<{ entry_round: string; entry_a_id: string; entry_b_id: string }>(
         `SELECT entry_round, entry_a_id, entry_b_id FROM matches
@@ -483,15 +476,15 @@ async function main(): Promise<void> {
       const byRound = new Map(rebuiltRows.rows.map((row) => [row.entry_round, row]));
       const finalRow = byRound.get("final");
       const thirdRow = byRound.get("third_place");
-      assertCondition(Boolean(finalRow && thirdRow), "A 重建后必须保留决赛与季军赛");
-      assertCondition(
+      expect(Boolean(finalRow && thirdRow),  "A 重建后必须保留决赛与季军赛").toBe(true);
+      expect(
         finalRow!.entry_a_id === fixture.entryIds[3] && finalRow!.entry_b_id === fixture.entryIds[1],
         "A 决赛必须使用更正后的半决赛胜者",
-      );
-      assertCondition(
+      ).toBe(true);
+      expect(
         thirdRow!.entry_a_id === fixture.entryIds[0] && thirdRow!.entry_b_id === fixture.entryIds[2],
         "A 季军赛必须使用更正后的半决赛负者",
-      );
+      ).toBe(true);
     }
 
     // ── B / C：决赛或季军赛已开始/完成时禁止自动恢复 ────────────────────
@@ -576,8 +569,8 @@ async function main(): Promise<void> {
         proposal: { scoreA: 1, scoreB: 2 },
       }));
       const downstream = plan.impacts.filter((impact) => impact.kind === "downstream_match");
-      assertCondition(downstream.length === 1, "D 影响清单只能包含受影响的一场半决赛");
-      assertCondition(downstream[0]!.managedKey === "sf-1", "D 影响清单必须指向 qf-1 所属的 sf-1");
+      expect(downstream.length === 1,  "D 影响清单只能包含受影响的一场半决赛").toBe(true);
+      expect(downstream[0]!.managedKey === "sf-1",  "D 影响清单必须指向 qf-1 所属的 sf-1").toBe(true);
 
       const applied = await database.transaction((tx) => applyResultCorrectionInTx(tx, {
         matchId: qfId,
@@ -585,7 +578,7 @@ async function main(): Promise<void> {
         actorId: ACTOR,
         confirmRecovery: true,
       }));
-      assertCondition(applied.invalidatedDownstreamMatches.length === 1, "D 只能作废受影响的半决赛");
+      expect(applied.invalidatedDownstreamMatches.length === 1,  "D 只能作废受影响的半决赛").toBe(true);
 
       const rebuilt = await database.transaction((tx) => finalizeMajorPlayoffRoundInTransaction(tx, {
         seasonId: fixture.seasonId,
@@ -593,19 +586,19 @@ async function main(): Promise<void> {
         expectedRound: "quarterfinal",
         actorId: ACTOR,
       }));
-      assertCondition(rebuilt.createdNextRound === 1, "D 只应补建缺失的半决赛");
+      expect(rebuilt.createdNextRound === 1,  "D 只应补建缺失的半决赛").toBe(true);
       const remaining = await pool.query<{ id: string; managed_key: string; entry_a_id: string; entry_b_id: string }>(
         `SELECT id, managed_key, entry_a_id, entry_b_id FROM matches
          WHERE major_stage_run_id = $1 AND entry_round = 'semifinal' ORDER BY managed_key`,
         [fixture.playoffRunId],
       );
-      assertCondition(remaining.rows.length === 2, "D 重建后必须有两场半决赛");
-      assertCondition(remaining.rows.some((row) => row.id === fixture.semifinalMatchIds[1]), "D 无关的 sf-2 必须保留");
+      expect(remaining.rows.length === 2,  "D 重建后必须有两场半决赛").toBe(true);
+      expect(remaining.rows.some((row) => row.id === fixture.semifinalMatchIds[1]),  "D 无关的 sf-2 必须保留").toBe(true);
       const rebuiltSf1 = remaining.rows.find((row) => row.managed_key === "sf-1");
-      assertCondition(
+      expect(
         rebuiltSf1?.entry_a_id === fixture.entryIds[7] && rebuiltSf1.entry_b_id === fixture.entryIds[3],
         "D sf-1 必须使用更正后的四分之一决赛胜者",
-      );
+      ).toBe(true);
     }
 
     // ── B：下游尚未生成的胜者更正 ──────────────────────────────────────
@@ -639,14 +632,14 @@ async function main(): Promise<void> {
           confirmRecovery: true,
         }),
       );
-      assertCondition(!applied.alreadyApplied && applied.winnerChanged, "B2 应应用胜者变更");
-      assertCondition(applied.invalidatedDownstreamMatches.length === 0, "B2 无下游时不应作废任何比赛");
+      expect(!applied.alreadyApplied && applied.winnerChanged,  "B2 应应用胜者变更").toBe(true);
+      expect(applied.invalidatedDownstreamMatches.length === 0,  "B2 无下游时不应作废任何比赛").toBe(true);
 
       const client = await pool.connect();
       try {
         const fact = await getMatchFact(client, m0);
-        assertCondition(fact.scoreA === 13 && fact.scoreB === 4, "B2 更正事实必须落库");
-        assertCondition(await auditCount(client, "match.result.corrected", m0) === 1, "B2 更正审计恰好一条");
+        expect(fact.scoreA === 13 && fact.scoreB === 4,  "B2 更正事实必须落库").toBe(true);
+        expect(await auditCount(client, "match.result.corrected", m0) === 1,  "B2 更正审计恰好一条").toBe(true);
 
         // 修正后经既有 finalize 路径重建第 2 轮。
         const rebuilt = await database.transaction((tx) =>
@@ -654,7 +647,7 @@ async function main(): Promise<void> {
             seasonId: fixture.seasonId, stageRunId: run.runId, expectedRound: 1, actorId: ACTOR,
           }),
         );
-        assertCondition(!rebuilt.alreadyFinalized && rebuilt.createdNextRound === 8, "B3 修正后确认第 1 轮应重建 8 场第 2 轮");
+        expect(!rebuilt.alreadyFinalized && rebuilt.createdNextRound === 8,  "B3 修正后确认第 1 轮应重建 8 场第 2 轮").toBe(true);
       } finally {
         client.release();
       }
@@ -684,7 +677,7 @@ async function main(): Promise<void> {
           actorId: ACTOR,
         }),
       );
-      assertCondition(!typoApplied.winnerChanged && !typoApplied.alreadyApplied, "A 同胜者笔误应为普通更正");
+      expect(!typoApplied.winnerChanged && !typoApplied.alreadyApplied,  "A 同胜者笔误应为普通更正").toBe(true);
 
       // A2. 弃赛形态同胜者更正。
       await database.transaction((tx) =>
@@ -696,7 +689,7 @@ async function main(): Promise<void> {
       );
       {
         const forfeitFact = await getMatchFact(client, r1.matchIdsByIndex[2]!);
-        assertCondition(forfeitFact.isForfeit, "A2 弃赛标记必须持久化");
+        expect(forfeitFact.isForfeit,  "A2 弃赛标记必须持久化").toBe(true);
       }
 
       // C. 计划层展示影响并要求显式确认。
@@ -704,12 +697,12 @@ async function main(): Promise<void> {
       const plan = await database.transaction((tx) =>
         planResultCorrectionInTx(tx, { matchId: m0, proposal: { scoreA: 13, scoreB: 4 } }),
       );
-      assertCondition(plan.winnerChanges, "C 计划必须识别胜者变更");
-      assertCondition(plan.blockedReasons.length === 0, "C 全部下游未开始时不应有 fail-closed 理由");
+      expect(plan.winnerChanges,  "C 计划必须识别胜者变更").toBe(true);
+      expect(plan.blockedReasons.length === 0,  "C 全部下游未开始时不应有 fail-closed 理由").toBe(true);
       const plannedInvalidations = plan.impacts.filter((impact) => impact.kind === "downstream_match" && impact.status === "scheduled");
-      assertCondition(plannedInvalidations.length === 8, "C 影响清单必须列出全部 8 场第 2 轮（配对可能涟漪重排）");
-      assertCondition(plan.impacts.some((impact) => impact.kind === "stage_run_rollback"), "C 计划必须包含 finalizedRound 回滚");
-      assertCondition(await auditCount(client, "match.result.corrected", m0) === 0, "C 前置状态：m0 尚无更正审计");
+      expect(plannedInvalidations.length === 8,  "C 影响清单必须列出全部 8 场第 2 轮（配对可能涟漪重排）").toBe(true);
+      expect(plan.impacts.some((impact) => impact.kind === "stage_run_rollback"),  "C 计划必须包含 finalizedRound 回滚").toBe(true);
+      expect(await auditCount(client, "match.result.corrected", m0) === 0,  "C 前置状态：m0 尚无更正审计").toBe(true);
 
       await expectAppError(
         () => database.transaction((tx) =>
@@ -723,23 +716,23 @@ async function main(): Promise<void> {
       const applied = await database.transaction((tx) =>
         applyResultCorrectionInTx(tx, { matchId: m0, proposal: { scoreA: 13, scoreB: 4 }, actorId: ACTOR, confirmRecovery: true }),
       );
-      assertCondition(applied.winnerChanged, "C2 应用必须成功");
-      assertCondition(applied.invalidatedDownstreamMatches.length === 8, "C2 应作废全部 8 场第 2 轮");
-      assertCondition(applied.rolledBackToFinalized === 0, "C2 finalizedRound 应回滚到 0");
-      assertCondition(await auditCount(client, "match.result.corrected", m0) === 1, "C2 更正审计恰好一条");
-      assertCondition(await auditCount(client, "major.stage.finalized_round.revoked", run.runId) === 1, "C2 回滚审计恰好一条");
-      assertCondition(await countManagedMatches(client, run.runId, 2) === 0, "C2 第 2 轮托管比赛应清空");
+      expect(applied.winnerChanged,  "C2 应用必须成功").toBe(true);
+      expect(applied.invalidatedDownstreamMatches.length === 8,  "C2 应作废全部 8 场第 2 轮").toBe(true);
+      expect(applied.rolledBackToFinalized === 0,  "C2 finalizedRound 应回滚到 0").toBe(true);
+      expect(await auditCount(client, "match.result.corrected", m0) === 1,  "C2 更正审计恰好一条").toBe(true);
+      expect(await auditCount(client, "major.stage.finalized_round.revoked", run.runId) === 1,  "C2 回滚审计恰好一条").toBe(true);
+      expect(await countManagedMatches(client, run.runId, 2) === 0,  "C2 第 2 轮托管比赛应清空").toBe(true);
       for (const invalidated of applied.invalidatedDownstreamMatches) {
-        assertCondition(await auditCount(client, "match.managed.invalidated", invalidated) === 1, "C2 每场作废必须有独立审计");
+        expect(await auditCount(client, "match.managed.invalidated", invalidated) === 1,  "C2 每场作废必须有独立审计").toBe(true);
       }
 
       // E. 重复提交同一更正请求：alreadyApplied 且不新增审计/不再作废。
       const repeat = await database.transaction((tx) =>
         applyResultCorrectionInTx(tx, { matchId: m0, proposal: { scoreA: 13, scoreB: 4 }, actorId: ACTOR, confirmRecovery: true }),
       );
-      assertCondition(repeat.alreadyApplied, "E 重复更正应 alreadyApplied");
-      assertCondition(repeat.invalidatedDownstreamMatches.length === 0, "E 重复更正不得再作废任何比赛");
-      assertCondition(await auditCount(client, "match.result.corrected", m0) === 1, "E 重复更正不得新增审计");
+      expect(repeat.alreadyApplied,  "E 重复更正应 alreadyApplied").toBe(true);
+      expect(repeat.invalidatedDownstreamMatches.length === 0,  "E 重复更正不得再作废任何比赛").toBe(true);
+      expect(await auditCount(client, "match.result.corrected", m0) === 1,  "E 重复更正不得新增审计").toBe(true);
 
       // C3/F. 经既有 finalize 确定性重建；重复 finalize 幂等。
       const rebuilt = await database.transaction((tx) =>
@@ -747,14 +740,14 @@ async function main(): Promise<void> {
           seasonId: fixture.seasonId, stageRunId: run.runId, expectedRound: 1, actorId: ACTOR,
         }),
       );
-      assertCondition(!rebuilt.alreadyFinalized && rebuilt.createdNextRound === 8, "C3 重建应重新生成 8 场第 2 轮");
+      expect(!rebuilt.alreadyFinalized && rebuilt.createdNextRound === 8,  "C3 重建应重新生成 8 场第 2 轮").toBe(true);
       const rebuildRepeat = await database.transaction((tx) =>
         finalizeMajorSwissRoundInTransaction(tx, {
           seasonId: fixture.seasonId, stageRunId: run.runId, expectedRound: 1, actorId: ACTOR,
         }),
       );
-      assertCondition(rebuildRepeat.alreadyFinalized && rebuildRepeat.createdNextRound === 0, "F 重复 finalize 幂等");
-      assertCondition(await countManagedMatches(client, run.runId, 2) === 8, "C3 重建后第 2 轮仍为 8 场");
+      expect(rebuildRepeat.alreadyFinalized && rebuildRepeat.createdNextRound === 0,  "F 重复 finalize 幂等").toBe(true);
+      expect(await countManagedMatches(client, run.runId, 2) === 8,  "C3 重建后第 2 轮仍为 8 场").toBe(true);
 
       // C4. 更正后的胜者（m0 teamA=高种子）必须真实出现在重建后的对阵中。
       {
@@ -767,7 +760,7 @@ async function main(): Promise<void> {
            WHERE major_stage_run_id = $1 AND round = 2 AND (entry_a_id = $2 OR entry_b_id = $2)`,
           [run.runId, restoredWinner],
         );
-        assertCondition(Number(containsNewWinner.rows[0]!.count) >= 1, "C4 恢复后的胜者必须出现在重建对阵中");
+        expect(Number(containsNewWinner.rows[0]!.count) >= 1,  "C4 恢复后的胜者必须出现在重建对阵中").toBe(true);
       }
 
       // D. 一场第 2 轮开始后再尝试另一场第 1 轮逆转 → hard block。
@@ -785,8 +778,8 @@ async function main(): Promise<void> {
           "D 已开始下游必须硬阻断",
         );
         const untouched = await getMatchFact(client, mLast);
-        assertCondition(untouched.scoreA === 13 && untouched.scoreB === 4, "D 阻断后原结果不变");
-        assertCondition(await getFinalizedRound(client, run.runId) === 1, "D 阻断后 finalizedRound 不变");
+        expect(untouched.scoreA === 13 && untouched.scoreB === 4,  "D 阻断后原结果不变").toBe(true);
+        expect(await getFinalizedRound(client, run.runId) === 1,  "D 阻断后 finalizedRound 不变").toBe(true);
       }
 
       // F. 注入官方名次事实 → 任何胜者更正被拒绝。
@@ -799,7 +792,7 @@ async function main(): Promise<void> {
            RETURNING id`,
           [fixture.seasonId, run.runId],
         );
-        assertCondition(Boolean(finalResultCheck.rows[0]?.id), "F 官方名次夹具注入成功");
+        expect(Boolean(finalResultCheck.rows[0]?.id),  "F 官方名次夹具注入成功").toBe(true);
         await expectAppError(
           () => database.transaction((tx) =>
             applyResultCorrectionInTx(tx, { matchId: typoTarget, proposal: { scoreA: 4, scoreB: 13 }, actorId: ACTOR, confirmRecovery: true }),
@@ -876,7 +869,8 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
+describe("Major result recovery PostgreSQL invariants", () => {
+  it("rebuilds only safe downstream facts and fails closed otherwise", async () => {
+    await main();
+  });
 });

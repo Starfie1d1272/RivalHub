@@ -48,7 +48,7 @@
 pnpm db:check
 pnpm db:local:reset
 pnpm db:local:verify-migrations
-pnpm test:team-registration:local
+pnpm test:integration
 pnpm test
 ```
 

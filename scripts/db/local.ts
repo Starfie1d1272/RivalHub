@@ -1,4 +1,5 @@
 import { spawnSync, type SpawnSyncOptions } from "node:child_process";
+import { rmSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   buildLocalAppEnvironment,
@@ -14,6 +15,9 @@ const supabaseBin = resolve(projectRoot, `node_modules/.bin/supabase${binSuffix}
 const drizzleBin = resolve(projectRoot, `node_modules/.bin/drizzle-kit${binSuffix}`);
 const tsxBin = resolve(projectRoot, `node_modules/.bin/tsx${binSuffix}`);
 const nextBin = resolve(projectRoot, `node_modules/.bin/next${binSuffix}`);
+const vitestBin = resolve(projectRoot, `node_modules/.bin/vitest${binSuffix}`);
+const playwrightBin = resolve(projectRoot, `node_modules/.bin/playwright${binSuffix}`);
+const pnpmBin = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 
 const command = process.argv[2];
 
@@ -37,59 +41,14 @@ try {
     case "verify-migrations":
       verifyLocalMigrations();
       break;
-    case "test-major-start":
-      testMajorStart();
+    case "test-integration":
+      runLocalIntegrationSuite(process.argv.slice(3));
       break;
-    case "test-major-golden":
-      testMajorStart();
+    case "test-e2e":
+      runLocalE2E(process.argv.slice(3));
       break;
-    case "test-major-browser":
-      runLocalBrowserFixture("create");
-      break;
-    case "cleanup-major-browser":
-      runLocalBrowserFixture("cleanup");
-      break;
-    case "test-team-registration":
-      runLocalIntegration("scripts/db/team-registration-integration.ts");
-      break;
-    case "test-competition-entry-migration":
-      runLocalIntegration("scripts/db/competition-entry-migration-replay.ts");
-      break;
-    case "test-competitive-catalog-migration":
-      runLocalIntegration("scripts/db/competitive-catalog-migration-replay.ts");
-      break;
-    case "test-competitive-catalog":
-      runLocalIntegration("scripts/db/competitive-catalog-integration.ts");
-      break;
-    case "test-major-profile":
-      runLocalIntegration("scripts/db/major-profile-integration.ts");
-      break;
-    case "test-major-prestart":
-      runLocalIntegration("scripts/db/major-prestart-integration.ts");
-      break;
-    case "test-major-roster-safety":
-      runLocalIntegration("scripts/db/major-roster-safety-integration.ts");
-      break;
-    case "test-major-result-recovery":
-      runLocalIntegration("scripts/db/major-result-recovery-integration.ts");
-      break;
-    case "test-invite-concurrency":
-      runLocalIntegration("scripts/db/invite-concurrency-integration.ts");
-      break;
-    case "test-team-invitation":
-      runLocalIntegration("scripts/db/team-invitation-integration.ts");
-      break;
-    case "test-discipline":
-      runLocalIntegration("scripts/db/discipline-integration.ts");
-      break;
-    case "test-my-readiness":
-      runLocalIntegration("scripts/db/my-readiness-integration.ts");
-      break;
-    case "test-postevent":
-      runLocalIntegration("scripts/db/postevent-integration.ts");
-      break;
-    case "test-season-governance":
-      runLocalIntegration("scripts/db/season-governance-integration.ts");
+    case "verify-local":
+      verifyLocalWorkflow();
       break;
     case "bootstrap":
       startLocalStack();
@@ -118,7 +77,7 @@ try {
       break;
     default:
       throw new Error(
-        "未知命令。可用命令：start | status | migrate | seed | verify | verify-migrations | test-major-start | test-major-golden | test-major-browser | cleanup-major-browser | test-team-registration | test-competition-entry-migration | test-competitive-catalog-migration | test-competitive-catalog | test-major-profile | test-major-prestart | test-major-roster-safety | test-major-result-recovery | test-invite-concurrency | test-team-invitation | test-discipline | test-my-readiness | test-postevent | test-season-governance | bootstrap | reset | stop | studio | dev | build",
+        "未知命令。可用命令：start | status | migrate | seed | verify | verify-migrations | test-integration | test-e2e | verify-local | bootstrap | reset | stop | studio | dev | build",
       );
   }
 } catch (error) {
@@ -183,32 +142,53 @@ function verifyLocalMigrations(): void {
   });
 }
 
-function testMajorStart(): void {
+function runLocalIntegrationSuite(args: readonly string[]): void {
   const status = readLocalStatus();
-  run(tsxBin, ["scripts/db/major-start-integration.ts"], {
-    env: {
-      ...sanitizedEnvironment(),
-      RIVALHUB_LOCAL_DATABASE_URL: status.databaseUrl,
-    },
-  });
-}
-
-function runLocalBrowserFixture(mode: "create" | "cleanup"): void {
-  const status = readLocalStatus();
-  run(tsxBin, ["scripts/db/major-browser-fixture.ts", mode], {
-    env: buildLocalAppEnvironment(status, sanitizedEnvironment()),
-  });
-}
-
-function runLocalIntegration(script: string): void {
-  const status = readLocalStatus();
-  run(tsxBin, [script], {
+  run(vitestBin, ["run", "--config=vitest.integration.config.ts", ...normalizeCliArgs(args)], {
     env: {
       ...sanitizedEnvironment(),
       RIVALHUB_LOCAL_DATABASE_URL: status.databaseUrl,
       DATABASE_URL: status.databaseUrl,
     },
   });
+}
+
+function runLocalE2E(args: readonly string[]): void {
+  const status = readLocalStatus();
+  const env = buildLocalAppEnvironment(status, sanitizedEnvironment());
+  let fixtureAttempted = false;
+  try {
+    fixtureAttempted = true;
+    run(tsxBin, ["scripts/db/major-browser-fixture.ts", "create"], { env });
+    run(playwrightBin, ["test", ...normalizeCliArgs(args)], { env });
+  } finally {
+    if (fixtureAttempted) {
+      run(tsxBin, ["scripts/db/major-browser-fixture.ts", "cleanup"], { env });
+      rmSync(resolve(projectRoot, ".agent-tmp", "major-browser-credentials.json"), { force: true });
+    }
+  }
+}
+
+function verifyLocalWorkflow(): void {
+  ensureLocalStack();
+  migrateLocalDatabase();
+  seedLocalDatabase();
+  verifyLocalStack();
+  run(pnpmBin, ["run", "verify"], { env: sanitizedEnvironment() });
+  runLocalIntegrationSuite([]);
+  runLocalE2E([]);
+}
+
+function ensureLocalStack(): void {
+  try {
+    readLocalStatus();
+  } catch {
+    startLocalStack();
+  }
+}
+
+function normalizeCliArgs(args: readonly string[]): string[] {
+  return args.filter((arg) => arg !== "--");
 }
 
 function resetLocalDatabase(): void {

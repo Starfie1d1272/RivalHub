@@ -1,32 +1,34 @@
 import { createHash } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool, type PoolClient } from "pg";
-import type { TxDb } from "../../src/db/client";
-import * as schema from "../../src/db/schema";
-import { requestCompetitionEntryRosterChangeInTx } from "../../src/lib/competition-entries/roster-change";
-import { saveMajorPrestartRosterInTx } from "../../src/lib/major/prestart-roster";
-import { startMajorInTransaction } from "../../src/lib/major/start";
-import { finalizeMajorSwissRoundInTransaction } from "../../src/lib/major/swiss-runtime";
-import { transitionMajorSwissStageInTransaction } from "../../src/lib/major/stage-transition";
-import { finalizeMajorPlayoffRoundInTransaction, startMajorPlayoffInTransaction } from "../../src/lib/major/playoff-runtime";
-import { projectMajorSwissStage, type MajorSwissMatchFact } from "../../src/lib/major/swiss";
-import { AppError, ErrorCode } from "../../src/lib/errors";
-import { createMajorDefaultCapabilities, type CompetitiveProfileConfig } from "../../src/types/season";
-import { createPerfectWorldRankOrder } from "../../src/lib/config/perfect-world";
+import { Pool } from "pg";
+import { describe, expect, it } from "vitest";
+import type { TxDb } from "../../../src/db/client";
+import * as schema from "../../../src/db/schema";
+import { requestCompetitionEntryRosterChangeInTx } from "../../../src/lib/competition-entries/roster-change";
+import { saveMajorPrestartRosterInTx } from "../../../src/lib/major/prestart-roster";
+import { startMajorInTransaction } from "../../../src/lib/major/start";
+import { finalizeMajorSwissRoundInTransaction } from "../../../src/lib/major/swiss-runtime";
+import { transitionMajorSwissStageInTransaction } from "../../../src/lib/major/stage-transition";
+import { finalizeMajorPlayoffRoundInTransaction, startMajorPlayoffInTransaction } from "../../../src/lib/major/playoff-runtime";
+import { projectMajorSwissStage, type MajorSwissMatchFact } from "../../../src/lib/major/swiss";
+import { AppError, ErrorCode } from "../../../src/lib/errors";
+import { createMajorDefaultCapabilities, type CompetitiveProfileConfig } from "../../../src/types/season";
+import { createPerfectWorldRankOrder } from "../../../src/lib/config/perfect-world";
 import {
   applyResultCorrectionInTx,
   planResultCorrectionInTx,
-} from "../../src/lib/match-corrections/service";
+} from "../../../src/lib/match-corrections/service";
 import {
   archiveTournamentInTx,
   confirmMajorFinalResultInTx,
   createPostEventAdjudicationInTx,
   grantTournamentHonorInTx,
   revokeTournamentHonorInTx,
-} from "../../src/lib/postevent/service";
-import { lockMatchInTx } from "../../src/lib/match-rosters/service";
-import { deleteCompetitivePlatformCatalog, seedCompetitivePlatformCatalog } from "./competitive-catalog-fixtures";
+} from "../../../src/lib/postevent/service";
+import { lockMatchInTx } from "../../../src/lib/match-rosters/service";
+import { deleteCompetitivePlatformCatalog, seedCompetitivePlatformCatalog } from "./harness/competitive-catalog-fixtures";
+import { capturePostgresError, localDatabaseUrl } from "./harness/database";
 
 const GOLDEN_PROFILE: CompetitiveProfileConfig = {
   // 专属 fixture 平台 key：不与 seed 内置 perfect_world 目录争夺 per-platform
@@ -42,27 +44,7 @@ function deterministicUuid(scope: string): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-${(parseInt(hex.slice(16, 18), 16) & 0x3f | 0x80).toString(16).padStart(2, "0")}${hex.slice(18, 20)}-${hex.slice(20)}`;
 }
 
-const databaseUrl = process.env.RIVALHUB_LOCAL_DATABASE_URL;
-if (!databaseUrl) throw new Error("RIVALHUB_LOCAL_DATABASE_URL 未设置。");
-const target = new URL(databaseUrl);
-if (!["localhost", "127.0.0.1", "::1", "[::1]"].includes(target.hostname)) {
-  throw new Error("Major 正式开赛集成测试只允许 Local Supabase loopback 数据库。");
-}
-
-let expectedErrorIndex = 0;
-
-async function expectPgError(client: PoolClient, work: () => Promise<unknown>, code: string): Promise<void> {
-  const savepoint = `expected_error_${expectedErrorIndex++}`;
-  await client.query(`SAVEPOINT ${savepoint}`);
-  try {
-    await work();
-  } catch (error) {
-    await client.query(`ROLLBACK TO SAVEPOINT ${savepoint}`);
-    if (typeof error === "object" && error !== null && "code" in error && (error as { code?: string }).code === code) return;
-    throw error;
-  }
-  throw new Error(`预期 PostgreSQL 错误 ${code}，但操作成功。`);
-}
+const databaseUrl = localDatabaseUrl();
 
 async function runConcurrencyTransaction<T>(
   database: ReturnType<typeof drizzle<typeof schema>>,
@@ -1177,11 +1159,12 @@ async function main(): Promise<void> {
       const match = firstMatch.rows[0];
       if (!match) throw new Error("未找到已生成的 managed match。");
       await client.query("BEGIN");
-      await expectPgError(client, () => client.query(
+      const duplicateManagedMatch = await capturePostgresError(client, () => client.query(
         `INSERT INTO matches (season_id, entry_a_id, entry_b_id, stage, round, format, ownership, major_stage_run_id, managed_key)
          VALUES ($1, $2, $3, $4, 1, $5, 'major_stage', $6, 'r1-1')`,
         [ready.seasonId, match.entry_a_id, match.entry_b_id, match.stage, match.format, match.major_stage_run_id],
-      ), "23505");
+      ));
+      expect(duplicateManagedMatch).toMatchObject({ code: "23505" });
       await client.query("ROLLBACK");
     } finally {
       client.release();
@@ -1270,7 +1253,8 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
+describe("Major lifecycle PostgreSQL invariants", () => {
+  it("rehearses start, Swiss, playoff, recovery, and concurrency boundaries", async () => {
+    await main();
+  });
 });

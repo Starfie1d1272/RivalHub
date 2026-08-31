@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { and, eq, not, count, or, desc, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons, competitionEntries, seasonRegistrations, users } from "@/db/schema";

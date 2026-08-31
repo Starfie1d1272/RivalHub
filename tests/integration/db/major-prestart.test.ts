@@ -1,24 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool, type PoolClient } from "pg";
-import * as schema from "../../src/db/schema";
-import { assertPrestartEntryCoherenceInTx } from "../../src/lib/major/prestart-entry";
-import { AppError, ErrorCode } from "../../src/lib/errors";
+import { Pool } from "pg";
+import { describe, expect, it } from "vitest";
+import * as schema from "../../../src/db/schema";
+import { assertPrestartEntryCoherenceInTx } from "../../../src/lib/major/prestart-entry";
+import { ErrorCode } from "../../../src/lib/errors";
+import { capturePostgresError, localDatabaseUrl } from "./harness/database";
 
-const databaseUrl = process.env.RIVALHUB_LOCAL_DATABASE_URL;
-if (!databaseUrl) throw new Error("RIVALHUB_LOCAL_DATABASE_URL 未设置。");
-const target = new URL(databaseUrl);
-if (!["localhost", "127.0.0.1", "::1", "[::1]"].includes(target.hostname)) throw new Error("Major 赛前集成测试只允许 Local Supabase loopback 数据库。");
-
-async function expectPgError(client: PoolClient, work: () => Promise<unknown>, code: string): Promise<void> {
-  await client.query("SAVEPOINT expected_error");
-  try { await work(); } catch (error) {
-    await client.query("ROLLBACK TO SAVEPOINT expected_error");
-    if (typeof error === "object" && error !== null && "code" in error && (error as { code?: string }).code === code) return;
-    throw error;
-  }
-  throw new Error(`预期 PostgreSQL 错误 ${code}，但操作成功。`);
-}
+const databaseUrl = localDatabaseUrl();
 
 async function main(): Promise<void> {
   const pool = new Pool({ connectionString: databaseUrl, ssl: false, max: 1 });
@@ -53,8 +42,10 @@ async function main(): Promise<void> {
     await client.query("UPDATE major_prestart_entrants SET roster_confirmed_at = now(), roster_confirmed_by = 'local-test' WHERE season_id = $1", [seasonId]);
     await client.query("UPDATE event_rosters SET status = 'frozen', frozen_at = now(), frozen_by = 'local-test' WHERE id IN (SELECT event_roster_id FROM major_prestart_entrants WHERE season_id = $1)", [seasonId]);
     await client.query("UPDATE major_prestart_states SET entrants_locked_at = now(), entrants_locked_by = 'local-test' WHERE season_id = $1", [seasonId]);
-    await expectPgError(client, () => client.query("UPDATE event_roster_members SET is_primary_starter = true WHERE event_roster_id = $1", [rosterId]), "23514");
-    await expectPgError(client, () => client.query("UPDATE event_rosters SET status = 'preparing' WHERE id = $1", [rosterId]), "23514");
+    const frozenMemberMutation = await capturePostgresError(client, () => client.query("UPDATE event_roster_members SET is_primary_starter = true WHERE event_roster_id = $1", [rosterId]));
+    expect(frozenMemberMutation).toMatchObject({ code: "23514" });
+    const frozenRosterMutation = await capturePostgresError(client, () => client.query("UPDATE event_rosters SET status = 'preparing' WHERE id = $1", [rosterId]));
+    expect(frozenRosterMutation).toMatchObject({ code: "23514" });
     const frozen = await client.query<{ rosters: string; locked: boolean }>("SELECT (SELECT count(*)::text FROM event_rosters WHERE id IN (SELECT event_roster_id FROM major_prestart_entrants WHERE season_id = $1) AND status = 'frozen') AS rosters, (SELECT entrants_locked_at IS NOT NULL FROM major_prestart_states WHERE season_id = $1) AS locked", [seasonId]);
     if (frozen.rows[0]?.rosters !== "32" || !frozen.rows[0]?.locked) throw new Error("Major 全局锁定没有冻结全部 32 支赛事名单。");
     await client.query("ROLLBACK");
@@ -125,7 +116,11 @@ async function exerciseEntryCoherenceGuard(): Promise<void> {
 
     // Case 1：Entry 重新进入补正 → 业务错误 fail closed。
     await guardPool.query("UPDATE competition_entries SET registration_status = 'changes_requested' WHERE id = $1", [ids.entryA]);
-    await expectGuardFailure(database, ids.season, refs, ErrorCode.VALIDATION_FAILED, "名单补正中");
+    const remediationError = await database.transaction(async (tx) => {
+      await assertPrestartEntryCoherenceInTx(tx, ids.season, refs);
+    }).catch((error: unknown) => error);
+    expect(remediationError).toMatchObject({ code: ErrorCode.VALIDATION_FAILED });
+    expect(remediationError).toHaveProperty("message", expect.stringContaining("名单补正中"));
     await guardPool.query("UPDATE competition_entries SET registration_status = 'approved' WHERE id = $1", [ids.entryA]);
 
     // Case 2：新批准 revision 存在但 event roster 未重同步 → 业务错误。
@@ -135,34 +130,28 @@ async function exerciseEntryCoherenceGuard(): Promise<void> {
     );
     await guardPool.query("UPDATE competition_entries SET current_roster_revision = 2, approved_roster_revision = 2 WHERE id = $1", [ids.entryB]);
     await guardPool.query("UPDATE event_rosters SET source_roster_revision_id = $1 WHERE id = $2", [ids.revisionB, ids.rosterB]);
-    await expectGuardFailure(database, ids.season, refs, ErrorCode.VALIDATION_FAILED, "重新同步最终名单");
+    const staleRosterError = await database.transaction(async (tx) => {
+      await assertPrestartEntryCoherenceInTx(tx, ids.season, refs);
+    }).catch((error: unknown) => error);
+    expect(staleRosterError).toMatchObject({ code: ErrorCode.VALIDATION_FAILED });
+    expect(staleRosterError).toHaveProperty("message", expect.stringContaining("重新同步最终名单"));
 
     // invariant：approvedRosterRevision 指向的版本不再是 approved → invariant error。
     await guardPool.query("UPDATE event_rosters SET source_roster_revision_id = $1 WHERE id = $2", [ids.revisionB2, ids.rosterB]);
     await guardPool.query("UPDATE competition_entry_roster_revisions SET status = 'superseded' WHERE id = $1", [ids.revisionB2]);
-    await expectGuardFailure(database, ids.season, refs, ErrorCode.INTERNAL_ERROR, "数据不一致");
+    const brokenRevisionError = await database.transaction(async (tx) => {
+      await assertPrestartEntryCoherenceInTx(tx, ids.season, refs);
+    }).catch((error: unknown) => error);
+    expect(brokenRevisionError).toMatchObject({ code: ErrorCode.INTERNAL_ERROR });
+    expect(brokenRevisionError).toHaveProperty("message", expect.stringContaining("数据不一致"));
   } finally {
     await cleanup();
     await guardPool.end();
   }
 }
 
-async function expectGuardFailure(
-  database: ReturnType<typeof drizzle<typeof schema>>,
-  seasonId: string,
-  refs: Parameters<typeof assertPrestartEntryCoherenceInTx>[2],
-  code: ErrorCode,
-  keyword: string,
-): Promise<void> {
-  try {
-    await database.transaction(async (tx) => {
-      await assertPrestartEntryCoherenceInTx(tx, seasonId, refs);
-    });
-  } catch (error) {
-    if (error instanceof AppError && error.code === code && error.message.includes(keyword)) return;
-    throw error;
-  }
-  throw new Error(`预期 coherence guard 因「${keyword}」拒绝，但操作成功。`);
-}
-
-void main().catch((error) => { console.error(error); process.exit(1); });
+describe("Major prestart PostgreSQL invariants", () => {
+  it("freezes all entrants and rejects post-lock roster drift", async () => {
+    await main();
+  });
+});

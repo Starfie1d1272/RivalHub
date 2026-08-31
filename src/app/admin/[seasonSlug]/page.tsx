@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { notFound } from "next/navigation";
 import { and, asc, eq } from "drizzle-orm";
 import { MajorPrestartConsole } from "@/components/admin/MajorPrestartConsole";

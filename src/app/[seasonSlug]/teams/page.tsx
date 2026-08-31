@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { asc, eq, inArray } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { db } from "@/db/client";

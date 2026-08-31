@@ -4,13 +4,16 @@
   "private": true,
   "license": "AGPL-3.0",
   "scripts": {
-    "dev": "NODE_OPTIONS='--dns-result-order=ipv4first' next dev",
+    "dev": "tsx scripts/with-node-options.ts next dev",
     "dev:local": "tsx scripts/db/local.ts dev",
     "build:local": "tsx scripts/db/local.ts build",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
     "type-check": "next typegen && tsc --noEmit",
+    "check": "pnpm type-check && pnpm lint && pnpm db:check && pnpm test",
+    "verify": "pnpm check && pnpm build",
+    "verify:local": "tsx scripts/db/local.ts verify-local",
     "db:generate": "drizzle-kit generate",
     "db:check": "drizzle-kit check",
     "db:push": "tsx scripts/db/block-drizzle-push.ts",
@@ -29,26 +32,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:e2e": "playwright test",
-    "test:team-registration:local": "tsx scripts/db/local.ts test-team-registration",
-    "test:competition-entry-migration:local": "tsx scripts/db/local.ts test-competition-entry-migration",
-    "test:major-profile:local": "tsx scripts/db/local.ts test-major-profile",
-    "test:major-browser:local": "tsx scripts/db/local.ts test-major-browser",
-    "cleanup:major-browser:local": "tsx scripts/db/local.ts cleanup-major-browser",
-    "test:major-lifecycle:local": "tsx scripts/db/local.ts test-major-start",
-    "test:major-golden:local": "pnpm run test:major-lifecycle:local",
-    "test:major-prestart:local": "tsx scripts/db/local.ts test-major-prestart",
-    "test:major-start:local": "pnpm run test:major-lifecycle:local",
-    "test:major-swiss:local": "pnpm run test:major-lifecycle:local",
-    "test:major-roster-safety:local": "tsx scripts/db/local.ts test-major-roster-safety",
-    "test:major-result-recovery:local": "tsx scripts/db/local.ts test-major-result-recovery",
-    "test:invite-concurrency:local": "tsx scripts/db/local.ts test-invite-concurrency",
-    "test:team-invitation:local": "tsx scripts/db/local.ts test-team-invitation",
-    "test:discipline:local": "tsx scripts/db/local.ts test-discipline",
-    "test:my-readiness:local": "tsx scripts/db/local.ts test-my-readiness",
-    "test:postevent:local": "tsx scripts/db/local.ts test-postevent",
-    "test:season-governance:local": "tsx scripts/db/local.ts test-season-governance",
-    "seed": "NODE_OPTIONS='--dns-result-order=ipv4first' tsx scripts/seed.ts"
+    "test:integration": "tsx scripts/db/local.ts test-integration",
+    "test:e2e": "tsx scripts/db/local.ts test-e2e",
+    "seed": "tsx scripts/with-node-options.ts tsx scripts/seed.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",
@@ -92,7 +78,7 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
-    "@types/node": "^22.15.17",
+    "@types/node": "^24.0.0",
     "@types/pg": "^8.11.15",
     "@types/react": "^19.1.4",
     "@types/react-dom": "^19.1.4",
@@ -110,8 +96,8 @@
     "typescript": "^5.8.3",
     "vitest": "^3.2.7"
   },
-  "packageManager": "pnpm@11.0.8",
+  "packageManager": "pnpm@10.34.5",
   "engines": {
-    "node": ">=20.0.0"
+    "node": "24.x"
   }
 }

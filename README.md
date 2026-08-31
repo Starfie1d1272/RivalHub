@@ -43,7 +43,11 @@ pnpm dev:local
 pnpm type-check
 pnpm lint
 pnpm test
+pnpm test:integration
 pnpm test:e2e
+pnpm check
+pnpm verify
+pnpm verify:local
 pnpm build
 pnpm db:check
 pnpm db:local:bootstrap

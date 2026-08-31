@@ -21,7 +21,6 @@ const localStorageImagePatterns =
 const nextConfig: NextConfig = {
   serverExternalPackages: ["pg"],
   typedRoutes: true,
-  typescript: { ignoreBuildErrors: true },
   eslint: { ignoreDuringBuilds: true },
   experimental: {
     serverActions: {

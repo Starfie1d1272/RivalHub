@@ -6,15 +6,10 @@ overrides:
   # GHSA-6g55-p6wh-862q / GHSA-r28c-9q8g-f849 / GHSA-qx2v-qp2m-jg93 / GHSA-fxqj-rqcc-2cmp:
   # next 15.5.24 精确 pin postcss@8.4.31（< 8.5.23 patched floor，覆盖全部 4 条 advisory），
   # path: .>next>postcss（含经由该实例的 nanoid GHSA-28wg-ghj8-5hjv / GHSA-2v37-7h3g-55p8）。
-  # 8.4.31 -> 8.5.23 为同 major 兼容升级；pnpm v11 对已存在 lockfile resolution 不做范围内重解析，
+  # 8.4.31 -> 8.5.23 为同 major 兼容升级；pnpm v10 对已存在 lockfile resolution 不做范围内重解析，
   # 故对该精确 pin 实例使用 override。
   # 退出条件：升级 Next（16.x 起 pin postcss 8.5.23+）后此 selector 不再命中，应移除。
   'postcss@8.4.31': 8.5.23
-  # GHSA-f88m-g3jw-g9cj: next optionalDependencies 的 sharp 实例停留在 0.34.5
-  # （< 0.35.0 patched floor）。next 15.5.24 声明范围 ^0.34.3 || ^0.35.3 已允许 0.35.x，
-  # 仅因 lockfile 停留未重解析；对该精确实例收敛到 0.35.4（已验证 build/原生二进制安装）。
-  # 退出条件：lockfile 因 next 或其他 owner 升级自然解析到 >= 0.35.0 后移除。
-  'sharp@0.34.5': 0.35.4
   # GHSA-w5hq-g745-h8pq: brackets-manager@1.9.1 -> uuid@9.0.1（< 11.1.1 patched floor）。
   # path: .>brackets-manager>uuid；brackets-manager 最新 1.11.0 仍声明 uuid ^9.0.0，
   # 上游生态尚未迁移，无法通过升级 owner 自然解决。uuid 11.1.1 保留 CJS 出口
@@ -22,27 +17,6 @@ overrides:
   # single-elim / double-elim / round-robin 全量格式测试验证。
   # 退出条件：brackets-manager 发布依赖 uuid >= 11 的版本后，移除本 override。
   'uuid@9.0.1': 11.1.1
-  # GHSA-fx2h-pf6j-xcff / GHSA-v6wh-96g9-6wx3: vitest 3.2.7 依赖树中 vite 实例
-  # 停留在 7.3.2（patched floor >= 7.3.5）。vitest 声明范围 ^5.0.0 || ^6.0.0 ||
-  # ^7.0.0-0 已允许 7.3.6，仅因 lockfile 停留未重解析；对该精确实例收敛到
-  # 7.3.6（其 esbuild 范围 ^0.27.0 || ^0.28.0 同时解决 GHSA-g7r4-m6w7-qqqr）。
-  # 退出条件：vitest 升级后 lockfile 自然解析 >= 7.3.5 时移除。
-  'vite@7.3.2': 7.3.6
-  # GHSA-52cp-r559-cp3m / GHSA-5p4m-2wfm-xmqj / GHSA-h67p-54hq-rp68:
-  # @changesets/cli 依赖树中 js-yaml 3.14.2（read-yaml-file ^3.13.1）与
-  # 4.2.0（@changesets/parse ^4.1.0）停留旧版，声明范围均允许 patched floor
-  # （3.15.x / >= 4.3.1），仅因 lockfile 停留未重解析；对精确实例分别收敛。
-  # 退出条件：@changesets/cli 升级重解析后移除。
-  'js-yaml@3.14.2': 3.15.2
-  'js-yaml@4.2.0': 4.3.1
-  # GHSA-3jxr-9vmj-r5cp / GHSA-mh99-v99m-4gvg / GHSA-rgw5-rvv9-x895 /
-  # GHSA-jxxr-4gwj-5jf2: minimatch 9/10 依赖树中 brace-expansion 实例
-  # （2.1.0 / 5.0.5）停留旧版，minimatch 声明范围允许 2.1.4 / 5.0.9，
-  # 仅因 lockfile 停留未重解析；对精确实例分别收敛。
-  # 退出条件：minimatch / @vitest/coverage-v8 / eslint-config-next 升级
-  # 重解析后移除。
-  'brace-expansion@2.1.0': 2.1.4
-  'brace-expansion@5.0.5': 5.0.9
   # GHSA-67mh-4wv8-2f99 / GHSA-g7r4-m6w7-qqqr: drizzle-kit 0.31.10（当前 latest）
   # 内部经 @esbuild-kit/core-utils pin esbuild ~0.18.20、经 tsx@4.21.0 pin
   # esbuild ~0.27，声明范围均无法到达 patched floor（>= 0.24.3 / >= 0.28.1）。

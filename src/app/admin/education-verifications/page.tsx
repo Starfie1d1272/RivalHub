@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { desc, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { EducationVerificationReviewQueue } from "@/components/admin/EducationVerificationReviewQueue";

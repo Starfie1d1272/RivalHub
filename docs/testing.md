@@ -23,36 +23,30 @@ RivalHub 以最高已完成的验证层级描述能力证据：
 |---|---|
 | `pnpm type-check` | Next route typegen + TypeScript |
 | `pnpm lint` | ESLint |
-| `pnpm test` | Vitest unit / integration suite |
-| `pnpm test:e2e` | Playwright browser suite |
+| `pnpm test` | Vitest unit suite 与不依赖数据库的组件/领域测试 |
+| `pnpm test:coverage` | V8 覆盖率诊断报告，不作为百分比 gate |
+| `pnpm test:integration` | 通过 Local runner 串行运行真实 PostgreSQL / migration replay suite |
+| `pnpm test:e2e` | 准备并清理 Local browser fixture 后运行 Playwright |
+| `pnpm check` | type-check + lint + db:check + test |
+| `pnpm verify` | check + production build；build 不需要数据库或 fake DB URL |
+| `pnpm verify:local` | 确保 Local ready，bootstrap/verify、verify、real-PG integration 与 browser E2E |
 | `pnpm db:check` | Drizzle active migration chain |
 | `pnpm build` | production build |
 | `pnpm build:local` | 注入 loopback Local Supabase 环境的 production build |
 
-`pnpm test:e2e` 会通过 `pnpm dev:local` 启动应用；运行前先启动并初始化 Local Supabase（例如 `pnpm db:local:bootstrap`），避免浏览器套件在缺少 Local 数据库连接时失败。
+`pnpm test:integration` 与 `pnpm test:e2e` 都拒绝缺少或非 loopback 的 Local 数据库目标。前者运行 `tests/integration/db/**/*.test.ts`，后者通过 `pnpm dev:local` 启动应用，并在测试前后自动创建、清理 browser fixture；运行前先执行 `pnpm db:local:bootstrap`。
 
-Local Supabase 集成入口：
+Local PostgreSQL / migration evidence：
 
 ```bash
-pnpm test:team-registration:local
-pnpm test:competition-entry-migration:local
-pnpm test:invite-concurrency:local
-pnpm test:team-invitation:local
-pnpm test:major-profile:local
-pnpm test:major-browser:local
-pnpm test:major-lifecycle:local
-pnpm test:major-prestart:local
-pnpm test:major-roster-safety:local
-pnpm test:major-result-recovery:local
-pnpm test:discipline:local
-pnpm test:my-readiness:local
-pnpm test:postevent:local
-pnpm test:season-governance:local
+pnpm test:integration
+pnpm test:integration -- tests/integration/db/major-start.test.ts
+pnpm test:integration -- tests/integration/db/migrations/competitive-catalog.test.ts
+pnpm test:e2e
+pnpm verify:local
 ```
 
-这些命令经 `scripts/db/local.ts` 运行，目标为 Local Supabase。`test:major-golden:local`、`test:major-start:local` 与 `test:major-swiss:local` 是 `test:major-lifecycle:local` 的 aliases。
-
-`test:major-lifecycle:local` 还会用两个真实 PostgreSQL 事务并发覆盖 Major start vs roster remediation、prestart roster save vs roster remediation；事务设置有限的 lock/statement timeout，并将 `40P01`、`55P03`、`57014` 视为失败，同时检查最终 Entry、event roster、entrant、StageRun、比赛和 seed facts，没有部分提交。
+所有 real-PG 套件通过 `scripts/db/local.ts` 注入同一个 loopback Local Supabase 目标，并由 `vitest.integration.config.ts` 关闭文件并发、保持 fixture 顺序独立。migration replay 使用独立 scratch database；不使用 testcontainers，也不以 mock 代替事务、约束或并发证据。需要缩小调试范围时直接使用 Vitest 文件或 `-t` pattern filter。
 
 ## Coverage intent
 
@@ -61,9 +55,9 @@ pnpm test:season-governance:local
 ## Test layers
 
 ```text
-Vitest unit/integration
+Vitest unit
         ↓
-Local Supabase integration
+Vitest real-PG / migration replay
         ↓
 Playwright browser E2E
         ↓

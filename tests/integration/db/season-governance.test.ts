@@ -2,49 +2,29 @@ import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { eq } from "drizzle-orm";
-import { deleteCompetitivePlatformCatalog, seedCompetitivePlatformCatalog } from "./competitive-catalog-fixtures";
+import { describe, expect, it } from "vitest";
+import { deleteCompetitivePlatformCatalog, seedCompetitivePlatformCatalog } from "./harness/competitive-catalog-fixtures";
+import { localDatabaseUrl } from "./harness/database";
 
 type Globals = {
-  schema: typeof import("../../src/db/schema");
-  assertSeasonHasNoHistoricalFacts: typeof import("../../src/lib/seasons/lifecycle")["assertSeasonHasNoHistoricalFacts"];
-  freezeCompetitiveContext: typeof import("../../src/lib/seasons/lifecycle")["freezeCompetitiveContext"];
-  transitionSeasonStatusInTx: typeof import("../../src/lib/seasons/lifecycle")["transitionSeasonStatusInTx"];
-  MAJOR_CONFIG: typeof import("../../src/types/season")["MAJOR_TEAM_CONFIG"];
+  schema: typeof import("../../../src/db/schema");
+  assertSeasonHasNoHistoricalFacts: typeof import("../../../src/lib/seasons/lifecycle")["assertSeasonHasNoHistoricalFacts"];
+  freezeCompetitiveContext: typeof import("../../../src/lib/seasons/lifecycle")["freezeCompetitiveContext"];
+  transitionSeasonStatusInTx: typeof import("../../../src/lib/seasons/lifecycle")["transitionSeasonStatusInTx"];
+  MAJOR_CONFIG: typeof import("../../../src/types/season")["MAJOR_TEAM_CONFIG"];
 };
 const globals = {} as Globals;
-
-let checkIndex = 0;
-function check(condition: boolean, message: string): void {
-  checkIndex++;
-  if (!condition) throw new Error(`断言失败 (#${checkIndex}): ${message}`);
-}
-
-async function expectFailure(work: () => Promise<unknown>, keyword: string): Promise<void> {
-  try {
-    await work();
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (message.includes(keyword)) return;
-    throw new Error(`预期错误包含「${keyword}」，实际为：${message}`);
-  }
-  throw new Error(`预期错误包含「${keyword}」，但操作成功。`);
-}
 
 const RANK_ORDER = ["D", "C", "B", "A", "S"];
 
 async function main(): Promise<void> {
   // Domain owners lazily connect through @/db/client, which reads DATABASE_URL;
   // env must be set before those imports resolve.
-  const databaseUrl = process.env.RIVALHUB_LOCAL_DATABASE_URL;
-  if (!databaseUrl) throw new Error("RIVALHUB_LOCAL_DATABASE_URL 未设置。");
-  const target = new URL(databaseUrl);
-  if (!["localhost", "127.0.0.1", "::1", "[::1]"].includes(target.hostname)) {
-    throw new Error("Season Governance 集成测试只允许 Local Supabase loopback 数据库。");
-  }
+  const databaseUrl = localDatabaseUrl();
   process.env.DATABASE_URL = process.env.DATABASE_URL ?? databaseUrl;
-  const schemaModule = await import("../../src/db/schema");
-  const { assertSeasonHasNoHistoricalFacts, freezeCompetitiveContext, transitionSeasonStatusInTx } = await import("../../src/lib/seasons/lifecycle");
-  const typeSeasons = await import("../../src/types/season");
+  const schemaModule = await import("../../../src/db/schema");
+  const { assertSeasonHasNoHistoricalFacts, freezeCompetitiveContext, transitionSeasonStatusInTx } = await import("../../../src/lib/seasons/lifecycle");
+  const typeSeasons = await import("../../../src/types/season");
   globals.schema = schemaModule;
   globals.assertSeasonHasNoHistoricalFacts = assertSeasonHasNoHistoricalFacts;
   globals.freezeCompetitiveContext = freezeCompetitiveContext;
@@ -84,7 +64,7 @@ async function seedFullyReadyUser(pool: Pool, id: string, seq: number): Promise<
 }
 
 async function exerciseQualificationPlatformIsolation(pool: Pool): Promise<void> {
-  const { getParticipantReadinessBatch } = await import("../../src/lib/qualification/service");
+  const { getParticipantReadinessBatch } = await import("../../../src/lib/qualification/service");
   const platform = `govqual-${randomUUID()}`;
   const otherPlatform = `govother-${randomUUID()}`;
   const rankOrder = ["D", "C", "B", "A", "S"];
@@ -127,11 +107,11 @@ async function exerciseQualificationPlatformIsolation(pool: Pool): Promise<void>
   });
 
   const foreign = readiness.get(foreignOnlyUser)!;
-  check(foreign.ready === false, `外部平台资料不得满足 ${platform} 资格；实际 ready=${foreign.ready}`);
-  check(foreign.blockers.some((blocker) => blocker.includes("缺少历史最高段位及 Rating")),
-    `外部平台资料缺失时应报缺少历史最高；实际 blockers: ${foreign.blockers.join(" ")}`);
+  expect(foreign.ready === false,  `外部平台资料不得满足 ${platform} 资格；实际 ready=${foreign.ready}`).toBe(true);
+  expect(foreign.blockers.some((blocker) => blocker.includes("缺少历史最高段位及 Rating")),
+    `外部平台资料缺失时应报缺少历史最高；实际 blockers: ${foreign.blockers.join(" ")}`).toBe(true);
   const home = readiness.get(homeUser)!;
-  check(home.ready === true, `本平台资料齐全的用户应 ready；实际 blockers: ${home.blockers.join(" ")}`);
+  expect(home.ready === true,  `本平台资料齐全的用户应 ready；实际 blockers: ${home.blockers.join(" ")}`).toBe(true);
 
   await pool.query("DELETE FROM competitive_rank_facts WHERE user_id = ANY($1::uuid[])", [[foreignOnlyUser, homeUser]]);
   await pool.query("DELETE FROM education_verifications WHERE user_id = ANY($1::uuid[])", [[foreignOnlyUser, homeUser]]);
@@ -179,7 +159,7 @@ async function exerciseCompetitiveFreezeLifecycle(pool: Pool): Promise<void> {
     frozen = await globals.freezeCompetitiveContext(tx, season) as unknown as { competitiveProfile: Record<string, string> };
   });
   const profile = frozen!.competitiveProfile;
-  check(profile.currentSeasonKey === "S21" && profile.previousSeasonKey === "S20", "发布冻结应解析 S21/S20");
+  expect(profile.currentSeasonKey === "S21" && profile.previousSeasonKey === "S20",  "发布冻结应解析 S21/S20").toBe(true);
 
   // The catalog later advances to S22; the frozen result held by the caller
   // (or a published season row) is never re-resolved.
@@ -192,8 +172,8 @@ async function exerciseCompetitiveFreezeLifecycle(pool: Pool): Promise<void> {
     [seasonId, JSON.stringify({ ...globals.MAJOR_CONFIG, competitiveProfile: profile })]);
   const published = await pool.query<{ team_registration_config: { competitiveProfile: Record<string, string> } }>(
     "SELECT team_registration_config FROM seasons WHERE id = $1", [seasonId]);
-  check(published.rows[0]?.team_registration_config.competitiveProfile.currentSeasonKey === "S21",
-    "已发布赛季的冻结上下文不受目录变化影响");
+  expect(published.rows[0]?.team_registration_config.competitiveProfile.currentSeasonKey === "S21",
+    "已发布赛季的冻结上下文不受目录变化影响").toBe(true);
 
   // A future publish of a NEW draft season re-resolves from the new catalog state.
   const secondDraft = await createMajorDraft(pool, `gov-freeze-2-${randomUUID()}`, platform);
@@ -203,8 +183,8 @@ async function exerciseCompetitiveFreezeLifecycle(pool: Pool): Promise<void> {
     refrozen = await globals.freezeCompetitiveContext(tx, season) as unknown as { competitiveProfile: Record<string, string> };
   });
   const newProfile = refrozen!.competitiveProfile;
-  check(newProfile.currentSeasonKey === "S22" && newProfile.previousSeasonKey === "S21",
-    `目录推进到 S22 后，下一次发布应重新解析 S22/S21；实际：${JSON.stringify(newProfile)}`);
+  expect(newProfile.currentSeasonKey === "S22" && newProfile.previousSeasonKey === "S21",
+    `目录推进到 S22 后，下一次发布应重新解析 S22/S21；实际：${JSON.stringify(newProfile)}`).toBe(true);
 
   await pool.query("DELETE FROM seasons WHERE id = $1", [seasonId]);
   await pool.query("DELETE FROM seasons WHERE id = $1", [secondDraft]);
@@ -245,13 +225,19 @@ async function exerciseEmptySeasonGuards(pool: Pool): Promise<void> {
     [randomUUID(), userId, emptySeason],
   );
   await db.transaction(async (tx) => {
-    await expectFailure(() => globals.assertSeasonHasNoHistoricalFacts(tx, emptySeason), "不能删除");
+    const deletionError = await globals.assertSeasonHasNoHistoricalFacts(tx, emptySeason).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+    expect(deletionError).toHaveProperty("message", expect.stringContaining("不能删除"));
   });
   await db.transaction(async (tx) => {
-    await expectFailure(
-      () => globals.assertSeasonHasNoHistoricalFacts(tx, emptySeason, "该赛季已经产生报名、队伍或赛程事实，不能撤回至草稿。"),
-      "不能撤回至草稿",
-    );
+    const draftReversionError = await globals.assertSeasonHasNoHistoricalFacts(
+      tx,
+      emptySeason,
+      "该赛季已经产生报名、队伍或赛程事实，不能撤回至草稿。",
+    ).then(() => undefined, (error: unknown) => error);
+    expect(draftReversionError).toHaveProperty("message", expect.stringContaining("不能撤回至草稿"));
   });
   await pool.query("DELETE FROM season_registrations WHERE season_id = $1", [emptySeason]);
   await pool.query("DELETE FROM users WHERE id = $1", [userId]);
@@ -265,7 +251,11 @@ async function exerciseEmptySeasonGuards(pool: Pool): Promise<void> {
     [randomUUID(), emptySeason, captain],
   );
   await db.transaction(async (tx) => {
-    await expectFailure(() => globals.assertSeasonHasNoHistoricalFacts(tx, emptySeason), "不能删除");
+    const entryDeletionError = await globals.assertSeasonHasNoHistoricalFacts(tx, emptySeason).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+    expect(entryDeletionError).toHaveProperty("message", expect.stringContaining("不能删除"));
   });
   await pool.query("DELETE FROM competition_entries WHERE competition_id = $1", [emptySeason]);
   await pool.query("DELETE FROM users WHERE id = $1", [captain]);
@@ -302,23 +292,28 @@ async function exerciseTerminalTransitions(pool: Pool): Promise<void> {
   // 非法迁移 fail closed：状态与审计都不落库。
   const registrationSeason = await seedStatusSeason(pool, "registration");
   await db.transaction(async (tx) => {
-    await expectFailure(
-      () => transition(tx, { seasonId: registrationSeason, from: "playing", to: "finished", action: "season.force_finish", actorId: "local-admin", failureMessage: "只有 playing 状态可手动结束" }),
-      "只有 playing 状态可手动结束",
-    );
+    const invalidTransitionError = await transition(tx, {
+      seasonId: registrationSeason,
+      from: "playing",
+      to: "finished",
+      action: "season.force_finish",
+      actorId: "local-admin",
+      failureMessage: "只有 playing 状态可手动结束",
+    }).then(() => undefined, (error: unknown) => error);
+    expect(invalidTransitionError).toHaveProperty("message", expect.stringContaining("只有 playing 状态可手动结束"));
   });
   const untouched = await readTerminalState(pool, registrationSeason);
-  check(untouched.status === "registration" && untouched.audits === "0", "非法终态迁移不能留下状态或审计。");
+  expect(untouched.status === "registration" && untouched.audits === "0",  "非法终态迁移不能留下状态或审计。").toBe(true);
   await pool.query("DELETE FROM seasons WHERE id = $1", [registrationSeason]);
 
   // 合法迁移：状态与审计同一事务落库。
   const playingSeason = await seedStatusSeason(pool, "playing");
   await db.transaction(async (tx) => {
     const result = await transition(tx, { seasonId: playingSeason, from: "playing", to: "finished", action: "season.force_finish", actorId: "local-admin", failureMessage: "只有 playing 状态可手动结束" });
-    check(typeof result.slug === "string" && result.slug.length > 0, "终态迁移应返回 slug。");
+    expect(typeof result.slug === "string" && result.slug.length > 0,  "终态迁移应返回 slug。").toBe(true);
   });
   const finished = await readTerminalState(pool, playingSeason);
-  check(finished.status === "finished" && finished.audits === "1", "playing → finished 应原子写入状态与审计。");
+  expect(finished.status === "finished" && finished.audits === "1",  "playing → finished 应原子写入状态与审计。").toBe(true);
 
   // 并发双迁移：行锁 + 状态复验，恰好一次成功、一次失败，且只有一条审计。
   const concurrentSeason = await seedStatusSeason(pool, "playing");
@@ -328,28 +323,34 @@ async function exerciseTerminalTransitions(pool: Pool): Promise<void> {
   ]);
   const succeeded = attempts.filter((attempt) => attempt.status === "fulfilled").length;
   const rejected = attempts.filter((attempt) => attempt.status === "rejected").length;
-  check(succeeded === 1 && rejected === 1, `并发终态迁移应收敛为一次成功一次拒绝；实际 ${succeeded}/${rejected}。`);
+  expect(succeeded === 1 && rejected === 1,  `并发终态迁移应收敛为一次成功一次拒绝；实际 ${succeeded}/${rejected}。`).toBe(true);
   const concurrentState = await readTerminalState(pool, concurrentSeason);
-  check(concurrentState.status === "finished" && concurrentState.audits === "1", "并发终态迁移后状态与审计应恰好各一份。");
+  expect(concurrentState.status === "finished" && concurrentState.audits === "1",  "并发终态迁移后状态与审计应恰好各一份。").toBe(true);
 
   // finished → archived 合法迁移；archived 之后不可再转换。
   await db.transaction(async (tx) => {
     await transition(tx, { seasonId: playingSeason, from: "finished", to: "archived", action: "season.archive", actorId: "local-admin", failureMessage: "只有 finished 状态可归档" });
   });
   await db.transaction(async (tx) => {
-    await expectFailure(
-      () => transition(tx, { seasonId: playingSeason, from: "finished", to: "archived", action: "season.archive", actorId: "local-admin", failureMessage: "只有 finished 状态可归档" }),
-      "只有 finished 状态可归档",
-    );
+    const repeatedArchiveError = await transition(tx, {
+      seasonId: playingSeason,
+      from: "finished",
+      to: "archived",
+      action: "season.archive",
+      actorId: "local-admin",
+      failureMessage: "只有 finished 状态可归档",
+    }).then(() => undefined, (error: unknown) => error);
+    expect(repeatedArchiveError).toHaveProperty("message", expect.stringContaining("只有 finished 状态可归档"));
   });
   const archived = await readTerminalState(pool, playingSeason);
-  check(archived.status === "archived" && archived.audits === "2", "finished → archived 应记录审计且不可重复。");
+  expect(archived.status === "archived" && archived.audits === "2",  "finished → archived 应记录审计且不可重复。").toBe(true);
 
   await pool.query("DELETE FROM audit_logs WHERE season_id IN ($1, $2)", [playingSeason, concurrentSeason]);
   await pool.query("DELETE FROM seasons WHERE id IN ($1, $2)", [playingSeason, concurrentSeason]);
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.stack : String(error));
-  process.exit(1);
+describe("season governance PostgreSQL invariants", () => {
+  it("serializes terminal transitions and preserves competitive freeze", async () => {
+    await main();
+  });
 });
