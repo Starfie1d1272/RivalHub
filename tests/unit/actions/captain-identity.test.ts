@@ -52,6 +52,7 @@ vi.mock("@/db/schema", () => {
   return {
     competitionEntries: mk("competitionEntries", { id: col("id"), competitionId: col("competition_id"), representativeUserId: col("representative_user_id") }),
     competitionEntryParticipants: mk("competitionEntryParticipants", { id: col("id") }),
+    competitionEntryRepresentativeChanges: mk("competitionEntryRepresentativeChanges", { id: col("id") }),
     competitionEntryRosterRevisions: mk("competitionEntryRosterRevisions", { id: col("id") }),
     competitionEntryRosterMembers: mk("competitionEntryRosterMembers", { id: col("id") }),
     eventRosters: mk("eventRosters", { id: col("id") }),
@@ -209,6 +210,7 @@ describe("confirmCaptains() — Rivals event-native Entry formation", () => {
       const values = t.values as Record<string, unknown>;
       expect(values.sourceRegistrationId).toBeTypeOf("string");
       expect(values.representativeUserId).toBeTypeOf("string");
+      expect(values.currentRosterRevisionId).toBeTypeOf("string");
       expect(values.source).toBe("event_native");
     }
     const byReg = new Map(CANDIDATES.map((c) => [c.registrationId, c.userId]));
@@ -216,6 +218,7 @@ describe("confirmCaptains() — Rivals event-native Entry formation", () => {
       const values = t.values as Record<string, string>;
       expect(byReg.get(values.sourceRegistrationId)).toBe(values.representativeUserId);
     }
+    expect(insertValuesCalls.filter((c) => c.table === "competitionEntryRepresentativeChanges")).toHaveLength(8);
   });
 
   it("keeps participant commitment separate from event roster membership", async () => {
