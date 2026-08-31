@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { migrationFiles, replayMigration, withScratchDatabase } from "../harness/migration-replay";
 
 describe("competition bracket state migration", () => {
-  it("backfills non-null legacy state, verifies it, and removes the old owner", async () => {
+  it("backfills non-null legacy state, removes the old owner, and preserves prior Team/Entry constraints", async () => {
     await withScratchDatabase("rivalhub_0022", async (client: Client) => {
       const migrations = migrationFiles((name) => /^\d{4}_.*\.sql$/.test(name));
       const terminal = migrations.find((name) => name.startsWith("0022_"));
@@ -74,6 +74,28 @@ describe("competition bracket state migration", () => {
         foreign_table_name: "seasons",
         foreign_column_name: "id",
       }]);
+
+      const preservedConstraints = await client.query<{ conname: string; condeferrable: boolean; condeferred: boolean }>(
+        `SELECT conname, condeferrable, condeferred
+         FROM pg_constraint
+         WHERE conname IN (
+           'competition_entries_current_roster_revision_scope_fk',
+           'competition_entries_approved_roster_revision_scope_fk'
+         )
+         ORDER BY conname`,
+      );
+      expect(preservedConstraints.rows).toEqual([
+        {
+          conname: "competition_entries_approved_roster_revision_scope_fk",
+          condeferrable: true,
+          condeferred: true,
+        },
+        {
+          conname: "competition_entries_current_roster_revision_scope_fk",
+          condeferrable: true,
+          condeferred: true,
+        },
+      ]);
     });
   });
 });
