@@ -76,3 +76,15 @@ jobs:
       - run: pnpm test:integration
 
       - run: pnpm test:e2e
+
+  # The main ruleset requires the stable `ci` context. Keep it as a small
+  # aggregate gate over the split quality and local evidence jobs.
+  ci:
+    if: ${{ always() }}
+    needs: [quality, local]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify quality and local gates
+        if: ${{ needs.quality.result != 'success' || needs.local.result != 'success' }}
+        run: exit 1
+      - run: echo "quality and local gates passed"
