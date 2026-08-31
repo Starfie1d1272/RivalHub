@@ -153,7 +153,7 @@ beforeEach(() => {
   resetAuditTracking(insertValuesCalls, updateSetCalls);
   selectResults.length = 0;
   executeResults.length = 0;
-  requireSuperAdminMock.mockResolvedValue(mockUserSession({ userId: "admin-1", role: "super_admin", authSource: "user" }));
+  requireSuperAdminMock.mockResolvedValue(mockUserSession({ userId: "admin-1", role: "super_admin" }));
   dbTransactionMock.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => fn(makeTx()));
 });
 

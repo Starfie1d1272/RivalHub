@@ -19,7 +19,7 @@ export default async function AdminLogsPage({ searchParams }: AdminLogsPageProps
   try {
     await requireSuperAdmin();
   } catch {
-    redirect("/admin/login");
+    redirect("/login");
   }
 
   const params = await searchParams;

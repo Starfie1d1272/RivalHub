@@ -82,18 +82,10 @@ const {
 
 vi.mock("@/lib/auth/session", () => ({
   requireSuperAdmin: requireSuperAdminMock,
-  auditActorId: vi.fn(
-    (session: { authSource: string; userId: string; legacyAdminId?: string }) => {
-      if (session.authSource === "root") {
-        return `root:${session.legacyAdminId ?? session.userId}`;
-      }
-      return session.userId;
-    },
-  ),
+  auditActorId: vi.fn((session: { userId: string }) => session.userId),
   requireAuth: vi.fn(),
   requireAdmin: vi.fn(),
   requireSeasonAdmin: vi.fn(),
-  getAdminSession: vi.fn(),
   getUserSession: vi.fn(),
 }));
 
@@ -442,11 +434,22 @@ describe("deleteSeason", () => {
     resetAuditTracking(insertValuesCalls, updateSetCalls);
     requireSuperAdminMock.mockResolvedValue(superAdminSession);
 
-    dbSelectMock.mockImplementation(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn().mockResolvedValue([{ value: 0 }]),
-      })),
-    }));
+    let selectCallCount = 0;
+    dbSelectMock.mockImplementation(() => {
+      selectCallCount += 1;
+      const rows = selectCallCount > 3 ? [] : [{ value: 0 }];
+      const fromResult: {
+        where: ReturnType<typeof vi.fn>;
+        innerJoin: ReturnType<typeof vi.fn>;
+      } = {
+        where: vi.fn(() => Object.assign(Promise.resolve(rows), {
+          limit: vi.fn().mockResolvedValue(rows),
+        })),
+        innerJoin: vi.fn(),
+      };
+      fromResult.innerJoin.mockReturnValue(fromResult);
+      return { from: vi.fn(() => fromResult) };
+    });
   });
 
   it("draft 状态且无报名记录时正常删除", async () => {

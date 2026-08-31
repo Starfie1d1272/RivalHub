@@ -122,7 +122,7 @@ export async function fetchAuditLogs(filters: AuditLogFilters = {}) {
 
     const resolvers: Promise<void>[] = [];
 
-    const userTypeIds = [...new Set([...(byType.get("user") ?? []), ...(byType.get("admin_user") ?? [])])];
+    const userTypeIds = [...new Set(byType.get("user") ?? [])];
     if (userTypeIds.length) {
       resolvers.push(
         db.select({ id: users.id, email: users.email, steamName: users.steamName, displayName: users.displayName, perfectName: users.perfectName })

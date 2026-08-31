@@ -1,7 +1,7 @@
 import { pgTable, uuid, text, timestamp, pgEnum, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
-export const userRoleEnum = pgEnum("user_role", ["user", "season_admin", "super_admin"]);
+export const userRoleEnum = pgEnum("user_role", ["user", "super_admin"]);
 export const emailVerificationSourceEnum = pgEnum("email_verification_source", ["signup_confirmation", "existing_account_reverification", "admin_migration"]);
 
 // 全局用户账号 — 通过 auth_id 关联 Supabase Auth
@@ -15,7 +15,6 @@ export const users = pgTable("users", {
 
   // 权限
   role: userRoleEnum("role").notNull().default("user"),
-  adminSeasonIds: uuid("admin_season_id").array().notNull().default(sql`'{}'::uuid[]`),
 
   // 基础信息（跨赛季持久）
   studentId: text("student_id"),          // legacy only; never use for Major eligibility

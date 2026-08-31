@@ -27,7 +27,8 @@ export interface HeaderSeason {
 
 export interface HeaderSession {
   userId: string;
-  role: "user" | "season_admin" | "super_admin";
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
 }
 
 interface HeaderClientProps {
@@ -102,8 +103,8 @@ export function HeaderClient({ seasons, session, avatarUrl, steamName, displayNa
     }
   }
 
-  const isAdmin = session && session.role !== "user";
-  const isSuperAdmin = session?.role === "super_admin";
+  const isAdmin = session?.isAdmin;
+  const isSuperAdmin = session?.isSuperAdmin;
   const userLabel = displayName ?? steamName ?? "RivalHub";
 
   return (

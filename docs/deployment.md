@@ -80,7 +80,7 @@ staging 与 production 分别配置：
 - `NEXT_PUBLIC_APP_URL`
 - Turnstile 与第三方服务 key
 
-生产启用 Supabase Confirm email。owner 经注册、邮箱确认和登录触发一次性 bootstrap；Root credentials 只用于明确启用的 emergency compatibility path。
+生产启用 Supabase Confirm email。owner 经注册、邮箱确认和登录触发一次性 bootstrap；管理员统一使用 Supabase Auth 与数据库中的当前授权事实。
 
 ## Cron
 

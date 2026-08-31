@@ -1,11 +1,18 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { randomBytes } from "crypto";
 import { eq, and, count, desc } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, seasonRegistrations, auditLogs, adminUsers, adminInvites, users, draftPicks } from "@/db/schema";
+import {
+  seasons,
+  seasonRegistrations,
+  auditLogs,
+  adminInvites,
+  seasonAdminGrants,
+  users,
+  draftPicks,
+} from "@/db/schema";
 import { ok, fail } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { actionError, failValidation } from "@/lib/action-utils";
@@ -13,61 +20,13 @@ import {
   auditActorId,
   requireSeasonAdmin,
   requireSuperAdmin,
-  getAdminSession,
 } from "@/lib/auth/session";
-import { verifyPassword, hashPassword } from "@/lib/utils/password";
-import { isProtectedRootUsername } from "@/lib/auth/root-protection";
 import { normalizeRegistrationConfig } from "@/types/season";
 import { maybeAdvanceFromRegistration } from "@/actions/transitions";
 import {
   type RegistrationStatus,
   validateTransition,
 } from "@/lib/registration-transitions";
-
-// ── 共享工具 ────────────────────────────────────────────
-
-async function createAdminSession(user: {
-  id: string;
-  username: string;
-  role: "super_admin" | "admin";
-}) {
-  const session = await getAdminSession();
-  session.isAdmin = true;
-  session.adminId = user.id;
-  session.adminUsername = user.username;
-  session.adminRole = user.role;
-  await session.save();
-}
-
-// ── 管理员登录 ──────────────────────────────────────────
-
-export async function adminLogin(username: string, password: string) {
-  if (!username || !password) {
-    return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请输入用户名和密码" });
-  }
-
-  const user = await db.query.adminUsers.findFirst({
-    where: eq(adminUsers.username, username),
-  });
-
-  if (!user) {
-    return fail({ code: ErrorCode.UNAUTHORIZED, message: "用户名或密码错误" });
-  }
-  if (!user.isActive) {
-    return fail({ code: ErrorCode.UNAUTHORIZED, message: "该账户已被停用" });
-  }
-  if (user.role !== "super_admin") {
-    return fail({ code: ErrorCode.UNAUTHORIZED, message: "请使用 /login 的邮箱密码入口登录管理员账号" });
-  }
-  if (!verifyPassword(password, user.passwordHash)) {
-    return fail({ code: ErrorCode.UNAUTHORIZED, message: "用户名或密码错误" });
-  }
-
-  await createAdminSession(user);
-  redirect("/admin");
-}
-
-// ── 管理员注册（需有效邀请码） ──────────────────────────
 
 // ── 审核报名 ────────────────────────────────────────────
 
@@ -190,18 +149,27 @@ export async function reviewRegistration(input: ReviewInput) {
 // ── 邀请码管理 ──────────────────────────────────────────
 
 export async function createInviteCode(input: {
-  role?: "admin" | "super_admin";
+  role?: "season_admin" | "super_admin";
   seasonId?: string;
   maxUses?: number;
   expiresInHours?: number;
 }) {
   const admin = await requireSuperAdmin();
-  const { role = "admin", seasonId, maxUses = 1, expiresInHours } = input;
+  const { role = "season_admin", seasonId, maxUses = 1, expiresInHours } = input;
 
-  if (role === "admin" && !seasonId) {
+  if (role === "season_admin" && !seasonId) {
     return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请选择赛季范围" });
   }
-  if (role === "admin" && seasonId) {
+  if (role === "super_admin" && seasonId) {
+    return fail({ code: ErrorCode.VALIDATION_FAILED, message: "超级管理员邀请码不能绑定赛季范围" });
+  }
+  if (!Number.isInteger(maxUses) || maxUses < 1) {
+    return fail({ code: ErrorCode.VALIDATION_FAILED, message: "使用次数必须是正整数" });
+  }
+  if (expiresInHours !== undefined && (!Number.isFinite(expiresInHours) || expiresInHours <= 0)) {
+    return fail({ code: ErrorCode.VALIDATION_FAILED, message: "有效期必须是正数" });
+  }
+  if (role === "season_admin" && seasonId) {
     const season = await db.query.seasons.findFirst({
       where: eq(seasons.id, seasonId),
       columns: { id: true },
@@ -215,27 +183,31 @@ export async function createInviteCode(input: {
   const expiresAt = expiresInHours
     ? new Date(Date.now() + expiresInHours * 3600_000)
     : null;
-  const inviteSeasonId = role === "admin" ? seasonId! : null;
+  const inviteSeasonId = role === "season_admin" ? seasonId! : null;
 
-  const [invite] = await db
-    .insert(adminInvites)
-    .values({
-      code,
-      createdBy: auditActorId(admin),
-      role,
+  const invite = await db.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(adminInvites)
+      .values({
+        code,
+        createdBy: auditActorId(admin),
+        role,
+        seasonId: inviteSeasonId,
+        maxUses,
+        expiresAt,
+      })
+      .returning({ id: adminInvites.id });
+    if (!created) throw new Error("邀请码创建失败");
+
+    await tx.insert(auditLogs).values({
       seasonId: inviteSeasonId,
-      maxUses,
-      expiresAt,
-    })
-    .returning({ id: adminInvites.id });
-
-  await db.insert(auditLogs).values({
-    seasonId: inviteSeasonId,
-    action: "admin.create_invite",
-    actorId: auditActorId(admin),
-    targetId: invite.id,
-    targetType: "admin_invite",
-    meta: { role, maxUses, expiresAt: expiresAt?.toISOString() ?? null },
+      action: "admin.create_invite",
+      actorId: auditActorId(admin),
+      targetId: created.id,
+      targetType: "admin_invite",
+      meta: { role, maxUses, expiresAt: expiresAt?.toISOString() ?? null },
+    });
+    return created;
   });
 
   revalidatePath("/admin/invites");
@@ -252,17 +224,26 @@ export async function createInviteCode(input: {
 export async function deactivateInviteCode(inviteId: string) {
   const admin = await requireSuperAdmin();
 
-  await db
-    .update(adminInvites)
-    .set({ isActive: false })
-    .where(eq(adminInvites.id, inviteId));
+  await db.transaction(async (tx) => {
+    const [invite] = await tx
+      .select({ id: adminInvites.id, seasonId: adminInvites.seasonId })
+      .from(adminInvites)
+      .where(eq(adminInvites.id, inviteId))
+      .for("update");
+    if (!invite) throw new AppError(ErrorCode.NOT_FOUND, "邀请码不存在");
 
-  await db.insert(auditLogs).values({
-    seasonId: null,
-    action: "admin.deactivate_invite",
-    actorId: auditActorId(admin),
-    targetId: inviteId,
-    targetType: "admin_invite",
+    await tx
+      .update(adminInvites)
+      .set({ isActive: false })
+      .where(eq(adminInvites.id, inviteId));
+
+    await tx.insert(auditLogs).values({
+      seasonId: invite.seasonId,
+      action: "admin.deactivate_invite",
+      actorId: auditActorId(admin),
+      targetId: inviteId,
+      targetType: "admin_invite",
+    });
   });
 
   revalidatePath("/admin/invites");
@@ -281,112 +262,6 @@ export async function getInviteCodes() {
   return ok(invites);
 }
 
-// ── 修改密码 ──────────────────────────────────────────
-
-export async function changePassword(currentPassword: string, newPassword: string) {
-  const admin = await requireSuperAdmin();
-
-  if (!newPassword || newPassword.length < 8) {
-    return fail({ code: ErrorCode.VALIDATION_FAILED, message: "新密码至少 8 个字符" });
-  }
-  if (admin.authSource !== "root" || !admin.legacyAdminId) {
-    return fail({ code: ErrorCode.FORBIDDEN, message: "该页面仅支持修改 Root 紧急账号密码" });
-  }
-
-  const user = await db.query.adminUsers.findFirst({
-    where: eq(adminUsers.id, admin.legacyAdminId),
-  });
-  if (!user) {
-    return fail({ code: ErrorCode.NOT_FOUND, message: "管理员账户不存在" });
-  }
-  if (!verifyPassword(currentPassword, user.passwordHash)) {
-    return fail({ code: ErrorCode.VALIDATION_FAILED, message: "当前密码错误" });
-  }
-
-  await db
-    .update(adminUsers)
-    .set({ passwordHash: hashPassword(newPassword), updatedAt: new Date() })
-    .where(eq(adminUsers.id, user.id));
-
-  await db.insert(auditLogs).values({
-    seasonId: null,
-    action: "admin.change_password",
-    actorId: auditActorId(admin),
-    targetId: user.id,
-    targetType: "admin_user",
-  });
-
-  return ok(undefined);
-}
-
-// ── 管理员列表 ────────────────────────────────────────
-
-export async function listAdminUsers() {
-  await requireSuperAdmin();
-
-  const rows = await db
-    .select()
-    .from(adminUsers)
-    .orderBy(adminUsers.createdAt);
-
-  return ok(rows);
-}
-
-export async function deactivateAdminUser(adminId: string) {
-  const admin = await requireSuperAdmin();
-
-  if (admin.authSource === "root" && admin.legacyAdminId === adminId) {
-    return fail({ code: ErrorCode.VALIDATION_FAILED, message: "不能停用自己的账户" });
-  }
-
-  const target = await db.query.adminUsers.findFirst({
-    where: eq(adminUsers.id, adminId),
-  });
-  if (!target) {
-    return fail({ code: ErrorCode.NOT_FOUND, message: "管理员不存在" });
-  }
-  if (isProtectedRootUsername(target.username)) {
-    return fail({ code: ErrorCode.FORBIDDEN, message: "不能停用根管理员" });
-  }
-
-  await db
-    .update(adminUsers)
-    .set({ isActive: false, updatedAt: new Date() })
-    .where(eq(adminUsers.id, adminId));
-
-  await db.insert(auditLogs).values({
-    seasonId: null,
-    action: "admin.deactivate_user",
-    actorId: auditActorId(admin),
-    targetId: adminId,
-    targetType: "admin_user",
-    meta: { targetUsername: target.username },
-  });
-
-  revalidatePath("/admin/users");
-  return ok(undefined);
-}
-
-export async function reactivateAdminUser(adminId: string) {
-  const admin = await requireSuperAdmin();
-
-  await db
-    .update(adminUsers)
-    .set({ isActive: true, updatedAt: new Date() })
-    .where(eq(adminUsers.id, adminId));
-
-  await db.insert(auditLogs).values({
-    seasonId: null,
-    action: "admin.reactivate_user",
-    actorId: auditActorId(admin),
-    targetId: adminId,
-    targetType: "admin_user",
-  });
-
-  revalidatePath("/admin/users");
-  return ok(undefined);
-}
-
 // ── 撤销用户管理员权限 ─────────────────────────────────────
 
 export async function revokeUserAdminRole(userId: string) {
@@ -397,18 +272,27 @@ export async function revokeUserAdminRole(userId: string) {
       return failValidation("不能撤销自己的权限");
     }
 
-    const target = await db.query.users.findFirst({
-      where: eq(users.id, userId),
-      columns: { id: true, role: true },
-    });
-    if (!target) {
-      throw new AppError(ErrorCode.NOT_FOUND, "用户不存在");
-    }
-
     await db.transaction(async (tx) => {
+      const [target] = await tx
+        .select({ id: users.id, role: users.role })
+        .from(users)
+        .where(eq(users.id, userId))
+        .for("update");
+      if (!target) {
+        throw new AppError(ErrorCode.NOT_FOUND, "用户不存在");
+      }
+
+      const grants = await tx
+        .select({ seasonId: seasonAdminGrants.seasonId })
+        .from(seasonAdminGrants)
+        .where(eq(seasonAdminGrants.userId, userId));
+
+      await tx
+        .delete(seasonAdminGrants)
+        .where(eq(seasonAdminGrants.userId, userId));
       await tx
         .update(users)
-        .set({ role: "user", adminSeasonIds: [], updatedAt: new Date() })
+        .set({ role: "user", updatedAt: new Date() })
         .where(eq(users.id, userId));
 
       await tx.insert(auditLogs).values({
@@ -417,7 +301,7 @@ export async function revokeUserAdminRole(userId: string) {
         actorId: auditActorId(session),
         targetId: userId,
         targetType: "user",
-        meta: { from: target.role },
+        meta: { from: target.role, seasonIds: grants.map((grant) => grant.seasonId) },
       });
     });
 

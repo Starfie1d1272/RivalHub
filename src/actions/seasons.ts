@@ -1,10 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq, count, inArray, sql } from "drizzle-orm";
+import { eq, count, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
-import { adminInvites, auditLogs, captainVotes, seasonRegistrations, seasons, competitionEntries, users } from "@/db/schema";
+import { adminInviteClaims, adminInvites, auditLogs, captainVotes, seasonRegistrations, seasons, competitionEntries } from "@/db/schema";
 import { ok, fail, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { actionError } from "@/lib/action-utils";
@@ -169,14 +169,14 @@ export async function deleteSeason(seasonId: string): Promise<ActionResult<void>
       if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
       if (season.status !== "draft") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有 draft 状态可删除");
       await assertSeasonHasNoHistoricalFacts(tx, seasonId);
-      const usedInvite = await tx.query.adminInvites.findFirst({
-        where: and(eq(adminInvites.seasonId, seasonId), sql`${adminInvites.usedCount} > 0`),
-        columns: { id: true },
-      });
+      const [usedInvite] = await tx
+        .select({ id: adminInvites.id })
+        .from(adminInvites)
+        .innerJoin(adminInviteClaims, eq(adminInviteClaims.inviteId, adminInvites.id))
+        .where(eq(adminInvites.seasonId, seasonId))
+        .limit(1);
       if (usedInvite) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "该赛季已有管理员授权记录，不能删除。");
       await tx.delete(adminInvites).where(eq(adminInvites.seasonId, seasonId));
-      await tx.update(users).set({ adminSeasonIds: sql`array_remove(${users.adminSeasonIds}, ${seasonId}::uuid)`, updatedAt: new Date() })
-        .where(sql`${seasonId}::uuid = ANY(${users.adminSeasonIds})`);
       await tx.delete(seasons).where(eq(seasons.id, seasonId));
       await tx.insert(auditLogs).values({
         seasonId: null,

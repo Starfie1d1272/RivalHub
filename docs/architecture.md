@@ -26,7 +26,7 @@ database internal object
   → public RSC payload / Client Component props
 ```
 
-服务端查询可读取 email、QQ、教育材料等私密字段以完成权限和业务判断。匿名或公开响应只传递明确的 public projection，不能把 internal query object 原样序列化到 RSC payload 或 Client Component props。email、QQ、`studentId`、`authId`、`adminSeasonIds`、审核材料和内部备注默认不是公开字段；public serializer 的回归测试保护这一边界。
+服务端查询可读取 email、QQ、教育材料等私密字段以完成权限和业务判断。匿名或公开响应只传递明确的 public projection，不能把 internal query object 原样序列化到 RSC payload 或 Client Component props。email、QQ、`studentId`、`authId`、赛季授权范围、审核材料和内部备注默认不是公开字段；public serializer 的回归测试保护这一边界。
 
 ## Built-in competition systems
 
@@ -60,7 +60,7 @@ Major 的正式运行时由 `src/lib/major/` 与 `major_*` persistence owners �
 ## Security and operational boundaries
 
 - Supabase Auth 管理邮箱账号；应用会话与角色由 `public.users` + `rivalhub-session` 管理。
-- `admin_users` + `rivalhub-admin` 是 legacy emergency compatibility path。
+- 管理员统一使用 Supabase Auth；`users.role` 与 `season_admin_grants` 是当前权限事实，`rivalhub-session` 只保存身份。
 - Data API 对业务表默认拒绝；Server-only DB 是业务读写 owner。新增 direct Supabase client 或 Realtime table 时，同一变更必须包含 explicit grant、RLS policy 与正反例测试。
 - Realtime 仅服务于 `draft_state`、`draft_picks` 和 `captain_votes`，且在数据库事务 commit 后发送。
 - active Drizzle migrations 是唯一 migration authority；`pnpm db:push` 被阻止。

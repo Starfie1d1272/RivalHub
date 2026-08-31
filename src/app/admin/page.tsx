@@ -8,16 +8,16 @@ import { Panel, Btn, StatusPill, Marker } from "@/components/rivalhub";
 
 export default async function AdminDashboardPage() {
   const admin = await checkAdminSession();
-  if (!admin) redirect("/admin/login");
+  if (!admin) redirect("/login");
 
   const allSeasons =
     admin.role === "super_admin"
       ? await db.select().from(seasons).orderBy(seasons.createdAt)
-      : admin.adminSeasonIds.length > 0
+      : admin.seasonIds.length > 0
         ? await db
             .select()
             .from(seasons)
-            .where(inArray(seasons.id, admin.adminSeasonIds))
+            .where(inArray(seasons.id, admin.seasonIds))
             .orderBy(seasons.createdAt)
         : [];
 

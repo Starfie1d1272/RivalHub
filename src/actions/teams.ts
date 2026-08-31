@@ -6,7 +6,7 @@ import { z } from "zod";
 import { db } from "@/db/client";
 import { teams, users } from "@/db/schema";
 import { actionError, failValidation, isPgUniqueViolation } from "@/lib/action-utils";
-import { auditActorId, requireActorWithRootFallback, requireAuth, requireSuperAdmin } from "@/lib/auth/session";
+import { auditActorId, requireAuth, requireSuperAdmin } from "@/lib/auth/session";
 import { createServiceClient } from "@/lib/auth/supabase";
 import { MAX_TEAM_NAME_LENGTH, MIN_TEAM_NAME_LENGTH } from "@/lib/config/team-config";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -203,11 +203,11 @@ export async function transferTeamCaptain(input: { teamId: string; toUserId: str
   const parsed = z.object({ teamId: uuid, toUserId: uuid }).safeParse(input);
   if (!parsed.success) return invalid("队长交接信息无效。");
   try {
-    const actor = await requireActorWithRootFallback();
+    const actor = await requireAuth();
     const currentTeam = await db.query.teams.findFirst({ where: eq(teams.id, parsed.data.teamId), columns: { captainUserId: true } });
-    const emergencyOverride = Boolean(currentTeam && currentTeam.captainUserId !== actor.userId);
-    if (emergencyOverride) await requireSuperAdmin();
-    await db.transaction((tx) => transferTeamCaptainInTx(tx, { teamId: parsed.data.teamId, actorUserId: actor.userId, toUserId: parsed.data.toUserId, actorId: actor.actorId, emergencyOverride }));
+    const adminOverride = Boolean(currentTeam && currentTeam.captainUserId !== actor.userId);
+    if (adminOverride) await requireSuperAdmin();
+    await db.transaction((tx) => transferTeamCaptainInTx(tx, { teamId: parsed.data.teamId, actorUserId: actor.userId, toUserId: parsed.data.toUserId, actorId: auditActorId(actor), emergencyOverride: adminOverride }));
     revalidateTeam();
     return ok(undefined);
   } catch (error) {
@@ -220,11 +220,11 @@ export async function disbandTeam(input: { teamId: string }): Promise<ActionResu
   const parsed = z.object({ teamId: uuid }).safeParse(input);
   if (!parsed.success) return invalid("队伍标识无效。");
   try {
-    const actor = await requireActorWithRootFallback();
+    const actor = await requireAuth();
     const currentTeam = await db.query.teams.findFirst({ where: eq(teams.id, parsed.data.teamId), columns: { captainUserId: true } });
-    const emergencyOverride = Boolean(currentTeam && currentTeam.captainUserId !== actor.userId);
-    if (emergencyOverride) await requireSuperAdmin();
-    const slug = await db.transaction((tx) => disbandTeamInTx(tx, { teamId: parsed.data.teamId, actorUserId: actor.userId, actorId: actor.actorId, emergencyOverride }));
+    const adminOverride = Boolean(currentTeam && currentTeam.captainUserId !== actor.userId);
+    if (adminOverride) await requireSuperAdmin();
+    const slug = await db.transaction((tx) => disbandTeamInTx(tx, { teamId: parsed.data.teamId, actorUserId: actor.userId, actorId: auditActorId(actor), emergencyOverride: adminOverride }));
     revalidateTeam(slug);
     return ok(undefined);
   } catch (error) { return actionError("disbandTeam", error); }

@@ -126,7 +126,7 @@ describe("admin discipline page", () => {
   it("rejects users without season admin permission", async () => {
     requireSeasonAdminMock.mockRejectedValue(new Error("forbidden"));
     await expect(AdminDisciplinePage({ params: Promise.resolve({ seasonSlug: "major-2027" }) })).rejects.toThrow("NEXT_REDIRECT");
-    expect(redirectMock).toHaveBeenCalledWith("/admin/login");
+    expect(redirectMock).toHaveBeenCalledWith("/login");
   });
 
   it("404s for unknown season slug", async () => {
