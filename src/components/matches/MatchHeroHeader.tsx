@@ -139,7 +139,7 @@ export function MatchHeroHeader({
             </div>
           )}
           <div className="mt-2 flex items-center justify-center gap-2 flex-wrap">
-            <PosChip pos={MATCH_STAGE_LABELS[match.stage] ?? match.stage} />
+            <PosChip pos={MATCH_STAGE_LABELS[match.stage] ?? "比赛阶段"} />
             <PosChip pos={MATCH_FORMAT_LABELS[match.format] ?? match.format} />
             <MatchStatusBadge status={match.status as "scheduled" | "in_progress" | "finished" | "cancelled"} isForfeit={match.isForfeit} scheduledAt={match.scheduledAt} />
           </div>

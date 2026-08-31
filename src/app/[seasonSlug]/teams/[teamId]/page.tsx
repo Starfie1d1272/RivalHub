@@ -5,8 +5,8 @@ import { db } from "@/db/client";
 import { competitionEntries, eventRosterMembers, eventRosters, matches, seasonRegistrations, seasons, users } from "@/db/schema";
 import { Marker, Panel, PosChip, Stat, StatusBanner } from "@/components/rivalhub";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
-
-const registrationLabels: Record<string, string> = { draft: "草稿", submitted: "已提交", changes_requested: "需补正", waitlisted: "候补", approved: "已批准", rejected: "未通过", withdrawn: "已撤回" };
+import { presentCompetitionEntryRegistration } from "@/lib/competition-entries/presentation";
+import { presentMatchStatus } from "@/lib/matches/presentation";
 
 export default async function CompetitionEntryDetailPage({ params }: { params: Promise<{ seasonSlug: string; teamId: string }> }) {
   const { seasonSlug, teamId: entryId } = await params;
@@ -25,9 +25,9 @@ export default async function CompetitionEntryDetailPage({ params }: { params: P
   for (const match of entryMatches.filter((row) => row.status === "finished")) { const own = match.entryAId === entry.id ? match.scoreA : match.scoreB; const other = match.entryAId === entry.id ? match.scoreB : match.scoreA; if ((own ?? 0) > (other ?? 0)) wins += 1; else losses += 1; }
   return <div className="container mx-auto max-w-4xl space-y-8 px-4 py-12">
     <div><p className="mb-2 text-xs text-[var(--color-fg-mid)]"><Link href={`/${seasonSlug}/teams`} className="hover:underline">赛事队伍</Link></p><Marker sub={season.name}>{entry.name}</Marker></div>
-    <StatusBanner tone={entry.registrationStatus === "approved" ? "success" : "info"} title={`报名状态：${registrationLabels[entry.registrationStatus]}`} sub={entry.teamId ? "赛事期间会保留当时的队名和图标。" : "这是为本届赛事组成的队伍。"} />
+    <StatusBanner tone={entry.registrationStatus === "approved" ? "success" : "info"} title={`报名状态：${presentCompetitionEntryRegistration(entry.registrationStatus).label}`} sub={entry.teamId ? "赛事期间会保留当时的队名和图标。" : "这是为本届赛事组成的队伍。"} />
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4"><Stat label="PLAYED" value={wins + losses} /><Stat label="WINS" value={wins} /><Stat label="LOSSES" value={losses} /><Stat label="ROSTER" value={roster.length} accent /></div>
       <Panel label="参赛名单" pad={20}><div className="divide-y divide-[var(--color-border)]">{roster.length ? roster.map((member) => <div key={member.userId} className="flex items-center justify-between py-3"><div className="flex items-center gap-2">{member.isStarter && <PosChip pos="S" small />}<Link href={`/players/${member.userId}`} className="font-medium hover:text-[var(--color-accent)]">{getPublicDisplayName(member)}</Link>{member.userId === entry.representativeUserId && <PosChip pos="R" small />}</div><span className="text-xs text-[var(--color-fg-mid)]">{member.primaryPosition ?? "—"} · {member.rosterStatus === "frozen" ? "名单已确认" : "名单准备中"}</span></div>) : <p className="text-sm text-[var(--color-fg-mid)]">名单尚未确认。</p>}</div></Panel>
-    <Panel label="比赛" pad={20}><div className="space-y-2">{entryMatches.length ? entryMatches.map((match) => { const opponentId = match.entryAId === entry.id ? match.entryBId : match.entryAId; return <Link key={match.id} href={`/${seasonSlug}/matches/${match.id}`} className="flex justify-between border border-[var(--color-border)] p-3 text-sm hover:bg-[var(--color-panel-hi)]"><span>对阵 {names.get(opponentId) ?? "待定"}</span><span>{match.status}{match.scoreA !== null && match.scoreB !== null ? ` · ${match.scoreA}:${match.scoreB}` : ""}</span></Link>; }) : <p className="text-sm text-[var(--color-fg-mid)]">暂无比赛。</p>}</div></Panel>
+    <Panel label="比赛" pad={20}><div className="space-y-2">{entryMatches.length ? entryMatches.map((match) => { const opponentId = match.entryAId === entry.id ? match.entryBId : match.entryAId; return <Link key={match.id} href={`/${seasonSlug}/matches/${match.id}`} className="flex justify-between border border-[var(--color-border)] p-3 text-sm hover:bg-[var(--color-panel-hi)]"><span>对阵 {names.get(opponentId) ?? "待定"}</span><span>{presentMatchStatus(match.status, { isForfeit: match.isForfeit, scheduledAt: match.scheduledAt }).label}{match.scoreA !== null && match.scoreB !== null ? ` · ${match.scoreA}:${match.scoreB}` : ""}</span></Link>; }) : <p className="text-sm text-[var(--color-fg-mid)]">暂无比赛。</p>}</div></Panel>
   </div>;
 }

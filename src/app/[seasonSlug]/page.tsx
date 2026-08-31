@@ -9,7 +9,7 @@ import { formatCSTDateTime } from "@/lib/utils/date";
 import { normalizeStagePlan } from "@/types/season";
 import type { SeasonStatus } from "@/types/season";
 import { showStats } from "@/lib/utils/season";
-import { presentSeasonStatus } from "@/lib/seasons/presentation";
+import { presentSeasonStatus, presentStageMarker } from "@/lib/seasons/presentation";
 import { StatusPill, Panel, Marker, ScrollHint, Stat, PhaseStep } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { checkAdminSession } from "@/lib/auth/session";
@@ -135,7 +135,7 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
       const stage = stagePlan[i];
       phases.push({
         key: stage.key,
-        label: stage.key.toUpperCase(),
+        label: presentStageMarker(stage, season.competitionTemplate),
         done: i < currentMatchIdx,
       });
     }
@@ -276,7 +276,7 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
                       </div>
                       <div className="shrink-0 flex flex-col items-end gap-0.5">
                         <span className="font-mono text-[10px] text-[var(--color-fg-dim)] uppercase tracking-wider">
-                          {match.stage}
+                          {stagePlan.find((stage) => stage.key === match.stage)?.name ?? "比赛阶段"}
                         </span>
                         {match.status === "in_progress" ? (
                           <span className="font-mono text-[10px] text-[var(--color-ok)]">● LIVE</span>
@@ -349,7 +349,7 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
             ? `${matchCountRow?.finished ?? 0}/${matchCountRow?.total ?? 0}`
             : "—"}
         />
-        <Stat label="STAGE" value={season.status.toUpperCase()} accent />
+        <Stat label="STAGE" value={presentSeasonStatus(season.status).label} accent />
       </div>
     </div>
   );

@@ -6,11 +6,11 @@ import {
 
 describe("CompetitionEntry presentation", () => {
   it.each([
-    ["draft", "草稿", "incomplete"],
-    ["submitted", "已提交", "waiting"],
+    ["draft", "待提交", "incomplete"],
+    ["submitted", "待审核", "waiting"],
     ["changes_requested", "需补正", "blocked"],
     ["waitlisted", "候补", "waiting"],
-    ["approved", "已批准", "ready"],
+    ["approved", "已通过", "ready"],
   ] as const)("maps registration %s to its shared label and state", (status, label, state) => {
     expect(presentCompetitionEntryRegistration(status)).toMatchObject({ label, state, tone: expect.any(String) });
   });

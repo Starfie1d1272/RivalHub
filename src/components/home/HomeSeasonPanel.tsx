@@ -303,7 +303,7 @@ function PanelStats({
     <div className="grid grid-cols-3 gap-2">
       <MiniStat label="TEAMS" value={teamCount} />
       <MiniStat label="PLAYERS" value={playerCount} accent />
-      <MiniStat label="STAGE" value={status.toUpperCase()} />
+      <MiniStat label="STAGE" value={presentSeasonStatus(status).label} />
     </div>
   );
 }

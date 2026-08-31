@@ -211,7 +211,7 @@ function PlatformIdentityRow({ key_, displayName, ratingLabel, pending, onSave }
       <div className="space-y-1">
         <p className="text-lg font-semibold">{displayName}</p>
         <p className="font-mono text-xs text-[var(--color-fg-dim)]">{key_}</p>
-        <p className="text-sm text-[var(--color-fg-mid)]">canonical performance Rating：{ratingLabel}（由产品定义，不可在后台修改）</p>
+        <p className="text-sm text-[var(--color-fg-mid)]">平台官方竞技评分：{ratingLabel}（由产品定义，不可在后台修改）</p>
         <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => { setDraft(displayName); setEditing(true); }}>修改平台信息</Button>
       </div>
     );
@@ -223,7 +223,7 @@ function PlatformIdentityRow({ key_, displayName, ratingLabel, pending, onSave }
         <Button type="button" size="sm" disabled={pending || !draft.trim()} onClick={() => { onSave(draft); setEditing(false); }}>保存</Button>
         <Button type="button" size="sm" variant="ghost" onClick={() => setEditing(false)}>取消</Button>
       </div>
-      <p className="font-mono text-xs text-[var(--color-fg-dim)]">{key_} · 平台标识与 canonical Rating 由产品定义，不可修改</p>
+      <p className="font-mono text-xs text-[var(--color-fg-dim)]">{key_} · 平台标识与官方竞技评分由产品定义，不可修改</p>
     </div>
   );
 }

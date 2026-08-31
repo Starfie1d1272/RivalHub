@@ -14,6 +14,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { SeasonStatus } from "@/types/season";
@@ -37,6 +38,14 @@ interface HeaderClientProps {
   avatarUrl?: string | null;
   steamName?: string | null;
   displayName?: string | null;
+}
+
+export function getAccountNavigationLinks(userId: string, needsProfile: boolean) {
+  return [
+    { href: "/my", label: "我的参赛" },
+    { href: `/players/${userId}`, label: "个人主页" },
+    { href: "/settings", label: "账号设置", needsProfile },
+  ];
 }
 
 function AvatarButton({ label, avatarUrl, imgError, onImgError }: {
@@ -106,6 +115,9 @@ export function HeaderClient({ seasons, session, avatarUrl, steamName, displayNa
   const isAdmin = session?.isAdmin;
   const isSuperAdmin = session?.isSuperAdmin;
   const userLabel = displayName ?? steamName ?? "RivalHub";
+  const accountLinks = session
+    ? getAccountNavigationLinks(session.userId, !displayName)
+    : [];
 
   return (
     <header
@@ -193,34 +205,26 @@ export function HeaderClient({ seasons, session, avatarUrl, steamName, displayNa
                       </Link>
                     </DropdownMenuItem>
                   )}
-                  <DropdownMenuItem asChild>
-                    <Link href="/my" className="cursor-pointer">我的</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href={`/players/${session.userId}`} className="cursor-pointer">
-                      我的主页
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href={"/settings" as never} className="cursor-pointer flex items-center gap-1.5">
-                      个人信息
-                      {!displayName && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] flex-shrink-0" />
-                      )}
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href={"/settings/password" as never} className="cursor-pointer">
-                      修改密码
-                    </Link>
-                  </DropdownMenuItem>
+                  {isAdmin && <DropdownMenuSeparator />}
+                  {accountLinks.map((link) => (
+                    <DropdownMenuItem key={link.href} asChild>
+                      <Link href={link.href as never} className="cursor-pointer flex items-center gap-1.5">
+                        {link.label}
+                        {link.needsProfile && <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] flex-shrink-0" />}
+                      </Link>
+                    </DropdownMenuItem>
+                  ))}
                   {!isSuperAdmin && (
+                    <>
+                    <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
                       <Link href="/invite" className="cursor-pointer">
                         使用邀请码
                       </Link>
                     </DropdownMenuItem>
+                    </>
                   )}
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem
                     className="text-[var(--color-danger)] focus:text-[var(--color-danger)] cursor-pointer"
                     onSelect={handleLogout}
@@ -276,55 +280,13 @@ export function HeaderClient({ seasons, session, avatarUrl, steamName, displayNa
                   <AvatarButton label={userLabel} avatarUrl={avatarUrl} imgError={imgError} onImgError={() => setImgError(true)} />
                   <span className="text-sm text-[var(--color-fg-dim)] truncate">{userLabel}</span>
                 </div>
-                {isAdmin && (
-                  <Link
-                    href="/admin"
-                    onClick={() => setMobileOpen(false)}
-                    className="px-3 py-2 rounded-md text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] hover:bg-[var(--color-panel-hi)]"
-                  >
-                    管理后台
-                  </Link>
-                )}
-                <Link
-                  href="/my"
-                  onClick={() => setMobileOpen(false)}
-                  className="px-3 py-2 rounded-md text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] hover:bg-[var(--color-panel-hi)]"
-                >
-                  我的
-                </Link>
-                <Link
-                  href={`/players/${session.userId}`}
-                  onClick={() => setMobileOpen(false)}
-                  className="px-3 py-2 rounded-md text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] hover:bg-[var(--color-panel-hi)]"
-                >
-                  我的主页
-                </Link>
-                <Link
-                  href={"/settings" as never}
-                  onClick={() => setMobileOpen(false)}
-                  className="px-3 py-2 rounded-md text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] hover:bg-[var(--color-panel-hi)] flex items-center gap-1.5"
-                >
-                  个人信息
-                  {!displayName && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] flex-shrink-0" />
-                  )}
-                </Link>
-                <Link
-                  href={"/settings/password" as never}
-                  onClick={() => setMobileOpen(false)}
-                  className="px-3 py-2 rounded-md text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] hover:bg-[var(--color-panel-hi)]"
-                >
-                  修改密码
-                </Link>
+                {isAdmin && <Link href="/admin" onClick={() => setMobileOpen(false)} className="px-3 py-2 rounded-md text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] hover:bg-[var(--color-panel-hi)]">管理后台</Link>}
+                {isAdmin && <div className="my-1 border-t border-[var(--color-border)]" />}
+                {accountLinks.map((link) => <Link key={link.href} href={link.href as never} onClick={() => setMobileOpen(false)} className="px-3 py-2 rounded-md text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] hover:bg-[var(--color-panel-hi)] flex items-center gap-1.5">{link.label}{link.needsProfile && <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] flex-shrink-0" />}</Link>)}
                 {!isSuperAdmin && (
-                  <Link
-                    href="/invite"
-                    onClick={() => setMobileOpen(false)}
-                    className="px-3 py-2 rounded-md text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] hover:bg-[var(--color-panel-hi)]"
-                  >
-                    使用邀请码
-                  </Link>
+                  <><div className="my-1 border-t border-[var(--color-border)]" /><Link href="/invite" onClick={() => setMobileOpen(false)} className="px-3 py-2 rounded-md text-sm text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] hover:bg-[var(--color-panel-hi)]">使用邀请码</Link></>
                 )}
+                <div className="my-1 border-t border-[var(--color-border)]" />
                 <button
                   onClick={() => {
                     setMobileOpen(false);

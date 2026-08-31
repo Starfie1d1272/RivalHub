@@ -22,9 +22,9 @@ export function presentCompetitionEntryRegistration(
 ): CompetitionEntryPresentation {
   switch (status) {
     case "approved":
-      return { label: "已批准", state: "ready", detail: "报名已获批准。赛事 roster 与单场出场仍是独立事实。", tone: "success" };
+      return { label: "已通过", state: "ready", detail: "报名已通过审核。正式参赛名单与单场首发仍会分别确定。", tone: "success" };
     case "submitted":
-      return { label: "已提交", state: "waiting", detail: "报名已提交，正在等待审核。", tone: "info" };
+      return { label: "待审核", state: "waiting", detail: "报名已提交，正在等待审核。", tone: "info" };
     case "waitlisted":
       return { label: "候补", state: "waiting", detail: "报名当前处于候补状态。", tone: "warn" };
     case "changes_requested":
@@ -34,7 +34,7 @@ export function presentCompetitionEntryRegistration(
     case "withdrawn":
       return { label: "已撤回", state: "blocked", detail: "本届报名已撤回。", tone: "neutral" };
     case "draft":
-      return { label: "草稿", state: "incomplete", detail: "报名仍在草稿阶段，尚未提交审核。", tone: "neutral" };
+      return { label: "待提交", state: "incomplete", detail: "报名尚未提交审核。", tone: "neutral" };
   }
 }
 
