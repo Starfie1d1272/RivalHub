@@ -1,4 +1,4 @@
-import { isStageExecutorSupported } from "@/lib/formats";
+import { isStageExecutorSupported } from "@/lib/formats/supported";
 import {
   MAJOR_DEFAULT_CAPABILITIES,
   normalizeAffiliationRules,
