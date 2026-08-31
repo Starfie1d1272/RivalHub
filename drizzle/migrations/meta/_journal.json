@@ -148,6 +148,13 @@
       "when": 1788089172919,
       "tag": "0020_competitive_catalog_stars_bootstrap",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1788163521131,
+      "tag": "0021_team_entry_current_owners",
+      "breakpoints": true
     }
   ]
 }

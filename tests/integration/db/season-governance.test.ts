@@ -244,12 +244,26 @@ async function exerciseEmptySeasonGuards(pool: Pool): Promise<void> {
 
   // A CompetitionEntry blocks too.
   const captain = randomUUID();
+  const entryId = randomUUID();
+  const revisionId = randomUUID();
   await seedUser(pool, captain);
-  await pool.query(
-    `INSERT INTO competition_entries (id, competition_id, source, name, representative_user_id, registration_status)
-     VALUES ($1, $2, 'event_native', 'Guarded Entry', $3, 'draft')`,
-    [randomUUID(), emptySeason, captain],
-  );
+  const entryClient = await pool.connect();
+  try {
+    await entryClient.query("BEGIN");
+    await entryClient.query(
+      `INSERT INTO competition_entries (id, competition_id, source, name, representative_user_id, current_roster_revision_id, registration_status)
+       VALUES ($1, $2, 'event_native', 'Guarded Entry', $3, $4, 'draft')`,
+      [entryId, emptySeason, captain, revisionId],
+    );
+    await entryClient.query("INSERT INTO competition_entry_representative_changes (entry_id, from_user_id, to_user_id, changed_by_actor_id) VALUES ($1, NULL, $2, 'local-admin')", [entryId, captain]);
+    await entryClient.query("INSERT INTO competition_entry_roster_revisions (id, entry_id, revision_number, status, created_by) VALUES ($1, $2, 1, 'draft', 'local-admin')", [revisionId, entryId]);
+    await entryClient.query("COMMIT");
+  } catch (error) {
+    await entryClient.query("ROLLBACK");
+    throw error;
+  } finally {
+    entryClient.release();
+  }
   await db.transaction(async (tx) => {
     const entryDeletionError = await globals.assertSeasonHasNoHistoricalFacts(tx, emptySeason).then(
       () => undefined,
@@ -257,7 +271,20 @@ async function exerciseEmptySeasonGuards(pool: Pool): Promise<void> {
     );
     expect(entryDeletionError).toHaveProperty("message", expect.stringContaining("不能删除"));
   });
-  await pool.query("DELETE FROM competition_entries WHERE competition_id = $1", [emptySeason]);
+  const entryCleanup = await pool.connect();
+  try {
+    await entryCleanup.query("BEGIN");
+    await entryCleanup.query("SET LOCAL session_replication_role = replica");
+    await entryCleanup.query("DELETE FROM competition_entry_roster_revisions WHERE entry_id = $1", [entryId]);
+    await entryCleanup.query("DELETE FROM competition_entry_representative_changes WHERE entry_id = $1", [entryId]);
+    await entryCleanup.query("DELETE FROM competition_entries WHERE id = $1", [entryId]);
+    await entryCleanup.query("COMMIT");
+  } catch (error) {
+    await entryCleanup.query("ROLLBACK");
+    throw error;
+  } finally {
+    entryCleanup.release();
+  }
   await pool.query("DELETE FROM users WHERE id = $1", [captain]);
 
   await pool.query("DELETE FROM seasons WHERE id = $1", [emptySeason]);

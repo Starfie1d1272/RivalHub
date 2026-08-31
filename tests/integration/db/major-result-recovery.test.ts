@@ -120,11 +120,21 @@ async function prepareFixture(
     const prestartEntrantIds: string[] = [];
     for (let i = 0; i < 16; i += 1) {
       const entryId = randomUUID();
+      const revisionId = randomUUID();
       entryIds.push(entryId);
       await client.query(
-        `INSERT INTO competition_entries (id, competition_id, source, name, representative_user_id, registration_status)
-         VALUES ($1, $2, 'event_native', $3, $4, 'approved')`,
-        [entryId, seasonId, `Entry ${i + 1}`, userIds[i]],
+        `INSERT INTO competition_entries (id, competition_id, source, name, representative_user_id, current_roster_revision_id, approved_roster_revision_id, registration_status)
+         VALUES ($1, $2, 'event_native', $3, $4, $5, $5, 'approved')`,
+        [entryId, seasonId, `Entry ${i + 1}`, userIds[i], revisionId],
+      );
+      await client.query(
+        "INSERT INTO competition_entry_representative_changes (entry_id, from_user_id, to_user_id, changed_by_actor_id) VALUES ($1, NULL, $2, 'local-admin')",
+        [entryId, userIds[i]],
+      );
+      await client.query(
+        `INSERT INTO competition_entry_roster_revisions (id, entry_id, revision_number, status, created_by, approved_at)
+         VALUES ($1, $2, 1, 'approved', 'local-admin', now())`,
+        [revisionId, entryId],
       );
       const entrant = await client.query<{ id: string }>(
         `INSERT INTO major_prestart_entrants (season_id, competition_entry_id, roster_confirmed_at, roster_confirmed_by)
@@ -418,6 +428,9 @@ async function cleanupFixture(pool: Pool, fixture: RecoveryFixture): Promise<voi
     await client.query("DELETE FROM major_tournament_seeds WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM major_prestart_entrants WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM major_prestart_states WHERE season_id = $1", [fixture.seasonId]);
+    await client.query("SET LOCAL session_replication_role = replica");
+    await client.query("DELETE FROM competition_entry_roster_revisions WHERE entry_id IN (SELECT id FROM competition_entries WHERE competition_id = $1)", [fixture.seasonId]);
+    await client.query("DELETE FROM competition_entry_representative_changes WHERE entry_id IN (SELECT id FROM competition_entries WHERE competition_id = $1)", [fixture.seasonId]);
     await client.query("DELETE FROM competition_entries WHERE competition_id = $1", [fixture.seasonId]);
     await client.query(`DELETE FROM users WHERE email LIKE '%' || $1 || '%'`, [fixture.seasonId]);
     await client.query("DELETE FROM seasons WHERE id = $1", [fixture.seasonId]);

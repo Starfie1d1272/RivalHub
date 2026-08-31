@@ -227,9 +227,13 @@ async function prepareFixture(pool: Pool, label: string): Promise<RosterSafetyFi
       const entryId = entryIds[side];
       const revisionId = randomUUID();
       await client.query(
-        `INSERT INTO competition_entries (id, competition_id, source, name, representative_user_id, registration_status, approved_roster_revision)
-         VALUES ($1, $2, 'event_native', $3, $4, 'approved', 1)`,
-        [entryId, seasonId, side === 0 ? "Entry Alpha" : "Entry Beta", sideUsers[0]],
+        `INSERT INTO competition_entries (id, competition_id, source, name, representative_user_id, current_roster_revision_id, approved_roster_revision_id, registration_status)
+         VALUES ($1, $2, 'event_native', $3, $4, $5, $5, 'approved')`,
+        [entryId, seasonId, side === 0 ? "Entry Alpha" : "Entry Beta", sideUsers[0], revisionId],
+      );
+      await client.query(
+        "INSERT INTO competition_entry_representative_changes (entry_id, from_user_id, to_user_id, changed_by_actor_id) VALUES ($1, NULL, $2, 'local-test')",
+        [entryId, sideUsers[0]],
       );
       const participantIds: string[] = [];
       for (let offset = 0; offset < layouts.length; offset += 1) {
@@ -242,7 +246,7 @@ async function prepareFixture(pool: Pool, label: string): Promise<RosterSafetyFi
         );
       }
       await client.query(
-        `INSERT INTO competition_entry_roster_revisions (id, entry_id, revision, status, created_by, approved_at)
+        `INSERT INTO competition_entry_roster_revisions (id, entry_id, revision_number, status, created_by, approved_at)
          VALUES ($1, $2, 1, 'approved', 'local-test', now())`,
         [revisionId, entryId],
       );
@@ -282,8 +286,8 @@ async function prepareFixture(pool: Pool, label: string): Promise<RosterSafetyFi
         );
       }
       revisionMemberIdsBySide.push(revisionMemberIds);
-      await client.query(`UPDATE event_rosters SET status = 'confirmed' WHERE id = $1`, [eventRosterIds[side]]);
-      await client.query(`UPDATE event_rosters SET status = 'frozen', frozen_at = now(), frozen_by = 'local-admin' WHERE id = $1`, [eventRosterIds[side]]);
+      await client.query(`UPDATE event_rosters SET status = 'confirmed', confirmed_at = now(), confirmed_by = 'local-admin' WHERE id = $1`, [eventRosterIds[side]]);
+      await client.query(`UPDATE event_rosters SET status = 'frozen', confirmed_at = now(), confirmed_by = 'local-admin', frozen_at = now(), frozen_by = 'local-admin' WHERE id = $1`, [eventRosterIds[side]]);
     }
 
     await client.query(
@@ -384,13 +388,12 @@ async function cleanupFixture(pool: Pool, fixture: RosterSafetyFixture): Promise
       [fixture.seasonId]);
     await client.query("DELETE FROM matches WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM major_stage_runs WHERE season_id = $1", [fixture.seasonId]);
-    // Frozen-roster immutability is intentional in normal operation; the local
-    // test cleanup bypasses row triggers to tear its own fixture down.
+    // Frozen-roster immutability and append-only provenance are intentional in
+    // normal operation; local teardown bypasses row triggers for its own rows.
     await client.query("SET LOCAL session_replication_role = replica");
     await client.query(`DELETE FROM event_roster_members WHERE event_roster_id IN (
       SELECT event_roster_id FROM major_prestart_entrants WHERE season_id = $1
     )`, [fixture.seasonId]);
-    await client.query("SET LOCAL session_replication_role = DEFAULT");
     await client.query("DELETE FROM major_prestart_entrants WHERE season_id = $1", [fixture.seasonId]);
     await client.query(`DELETE FROM event_rosters WHERE entry_id IN (
       SELECT id FROM competition_entries WHERE competition_id = $1
@@ -404,6 +407,9 @@ async function cleanupFixture(pool: Pool, fixture: RosterSafetyFixture): Promise
       SELECT id FROM competition_entries WHERE competition_id = $1
     )`, [fixture.seasonId]);
     await client.query(`DELETE FROM competition_entry_participants WHERE entry_id IN (
+      SELECT id FROM competition_entries WHERE competition_id = $1
+    )`, [fixture.seasonId]);
+    await client.query(`DELETE FROM competition_entry_representative_changes WHERE entry_id IN (
       SELECT id FROM competition_entries WHERE competition_id = $1
     )`, [fixture.seasonId]);
     await client.query("DELETE FROM major_prestart_states WHERE season_id = $1", [fixture.seasonId]);
