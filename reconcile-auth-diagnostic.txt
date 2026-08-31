@@ -1,3 +1,4 @@
+
 + set -euo pipefail
 + git config user.name 'github-actions[bot]'
 + git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
@@ -76,11 +77,10 @@ Lockfile is up to date, resolution step is skipped
 Progress: resolved [96m1[39m, reused [96m0[39m, downloaded [96m0[39m, added [96m0[39m
 Packages: [32m+658[39m
 
-Progress: resolved [96m658[39m, reused [96m0[39m, downloaded [96m121[39m, added [96m109[39m
-Progress: resolved [96m658[39m, reused [96m0[39m, downloaded [96m276[39m, added [96m275[39m
-Progress: resolved [96m658[39m, reused [96m0[39m, downloaded [96m462[39m, added [96m458[39m
-Progress: resolved [96m658[39m, reused [96m0[39m, downloaded [96m584[39m, added [96m582[39m
-Progress: resolved [96m658[39m, reused [96m0[39m, downloaded [96m657[39m, added [96m657[39m
+Progress: resolved [96m658[39m, reused [96m0[39m, downloaded [96m93[39m, added [96m62[39m
+Progress: resolved [96m658[39m, reused [96m0[39m, downloaded [96m181[39m, added [96m102[39m
+Progress: resolved [96m658[39m, reused [96m0[39m, downloaded [96m403[39m, added [96m256[39m
+Progress: resolved [96m658[39m, reused [96m0[39m, downloaded [96m655[39m, added [96m366[39m
 Progress: resolved [96m658[39m, reused [96m0[39m, downloaded [96m658[39m, added [96m658[39m, done
 [36m.../esbuild@0.25.12/node_modules/esbuild[39m [96mpostinstall[39m$ node install.js
 [35m.../esbuild@0.28.2/node_modules/esbuild[39m [96mpostinstall[39m$ node install.js
@@ -142,7 +142,7 @@ Progress: resolved [96m658[39m, reused [96m0[39m, downloaded [96m658[39m, 
 [32m+[39m typescript [90m5.9.3[39m
 [32m+[39m vitest [90m3.2.7[39m
 
-Done in 6.9s using pnpm v10.34.5
+Done in 5.8s using pnpm v10.34.5
 + pnpm exec drizzle-kit generate --name auth_permissions
 [90mNo config path provided, using default 'drizzle.config.ts'[39m
 [90mReading config file '/home/runner/work/RivalHub/RivalHub/drizzle.config.ts'[39m
