@@ -70,10 +70,9 @@ p.write_text(s)
 PY
 
 pnpm install --frozen-lockfile
-# Drizzle asks whether the new admin_invite_role is a new enum or a rename of
-# legacy admin_role. It is a distinct new owner, so select the default CREATE.
-# Scope the pseudo-TTY to drizzle only so the answer cannot be consumed by install.
-{ sleep 2; printf '\n'; sleep 12; } | timeout 15s script -q -e -c "pnpm exec drizzle-kit generate --name auth_permissions" /dev/null
+# admin_invite_role is a new canonical enum, not a rename of legacy admin_role.
+# Drizzle's selector is in raw terminal mode, so Enter is carriage return (CR).
+{ sleep 2; printf '\r'; sleep 12; } | timeout 15s script -q -e -c "pnpm exec drizzle-kit generate --name auth_permissions" /dev/null
 
 python <<'PY'
 from pathlib import Path
