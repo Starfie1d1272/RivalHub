@@ -4,7 +4,8 @@ import { resolve } from "node:path";
 import { Pool } from "pg";
 import { assertLocalDatabaseUrl } from "./local-environment";
 import { assertStagingDatabaseUrl } from "./staging-environment";
-import { isLegacyStandardMajorWithoutAffiliation, type SeasonCapabilities } from "../../src/types/season";
+import { isLegacyStandardMajorWithoutAffiliation } from "../../src/lib/competition/definition";
+import type { SeasonCapabilities } from "../../src/types/season";
 
 interface MigrationJournalEntry {
   tag: string;

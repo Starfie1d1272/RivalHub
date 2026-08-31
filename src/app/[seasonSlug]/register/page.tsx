@@ -115,7 +115,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
     if (entry) {
       const [revision] = await db.select({ id: competitionEntryRosterRevisions.id })
         .from(competitionEntryRosterRevisions)
-        .where(and(eq(competitionEntryRosterRevisions.entryId, entry.id), eq(competitionEntryRosterRevisions.revision, entry.currentRosterRevision)))
+        .where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id)))
         .limit(1);
       const candidateRows = entry.teamId
         ? await db.select({ membershipId: teamMemberships.id, userId: teamMemberships.userId, status: teamMemberships.status, email: users.email, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName })

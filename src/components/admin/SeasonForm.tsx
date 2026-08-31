@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { createSeason, deleteSeason, publishSeason, updateSeason, revertSeasonToDraft, revertSeasonToRegistration, forceFinishSeason, archiveSeason, type SeasonFormInput } from "@/actions/seasons";
 import {
   PLAYER_TYPE_LABELS,
-  checkStandardMajorCapabilities,
   type PlayerType,
   type RegistrationConfig,
   type SeasonCapabilities,
@@ -14,7 +13,8 @@ import {
   type TeamRegistrationConfig,
   type StagePlan,
 } from "@/types/season";
-import { createCompetitionTemplate, inferCompetitionTemplate, type CompetitionTemplate } from "@/lib/competition/templates";
+import { checkStandardMajorCapabilities } from "@/lib/competition/definition";
+import { createCompetitionTemplate, type CompetitionTemplate } from "@/lib/competition/templates";
 import { rankValues, RANK_LABELS } from "@/lib/validators/registration";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -62,9 +62,9 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  // Edit mode owns the persisted competitionTemplate identity; inference is
-  // only a fallback for payloads that predate the persisted column.
-  const initialTemplate = initial?.template ?? (initial ? inferCompetitionTemplate(initial as SeasonCapabilities) : "major");
+  // The persisted competitionTemplate is the sole identity owner. Missing
+  // identity is treated as custom instead of inferred from capability shape.
+  const initialTemplate = initial?.template ?? "custom";
   const defaultTemplate = createCompetitionTemplate(initialTemplate);
 
   const defaultConfig = initial?.registrationConfig ?? defaultTemplate.registrationConfig;

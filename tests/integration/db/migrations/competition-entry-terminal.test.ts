@@ -123,6 +123,34 @@ async function assertReplay(client: Client, rivals: { seasonId: string; teamIds:
   }
 }
 
+async function assertStableConvergenceReplay(client: Client, entryId: string, expectedProvenance: Array<{ legacy_type: string; legacy_id: string }>): Promise<void> {
+  const provenance = await client.query<{ legacy_type: string; legacy_id: string }>(`
+    SELECT identity_fact.legacy_type, identity_fact.legacy_id
+    FROM competition_entry_legacy_identities identity_fact
+    WHERE identity_fact.entry_id = $1
+    ORDER BY identity_fact.legacy_type, identity_fact.legacy_id
+  `, [entryId]);
+  const expected = [...expectedProvenance].sort((left, right) => `${left.legacy_type}:${left.legacy_id}`.localeCompare(`${right.legacy_type}:${right.legacy_id}`));
+  if (JSON.stringify(provenance.rows) !== JSON.stringify(expected)) {
+    throw new Error(`0021 必须保留完整 legacy provenance：${JSON.stringify({ expected, actual: provenance.rows })}`);
+  }
+
+  const pointers = await client.query<{ current_revision: number; approved_revision: number; approved_status: string }>(`
+    SELECT current_revision.revision_number AS current_revision,
+      approved_revision.revision_number AS approved_revision,
+      approved_revision.status::text AS approved_status
+    FROM competition_entries entry
+    JOIN competition_entry_roster_revisions current_revision
+      ON current_revision.id = entry.current_roster_revision_id AND current_revision.entry_id = entry.id
+    JOIN competition_entry_roster_revisions approved_revision
+      ON approved_revision.id = entry.approved_roster_revision_id AND approved_revision.entry_id = entry.id
+    WHERE entry.id = $1
+  `, [entryId]);
+  if (pointers.rows[0]?.current_revision !== 1 || pointers.rows[0]?.approved_revision !== 1 || pointers.rows[0]?.approved_status !== "approved") {
+    throw new Error(`0021 backfill 没有保留同 Entry approved revision pointer：${JSON.stringify(pointers.rows[0])}`);
+  }
+}
+
 async function main(): Promise<void> {
   await withScratchDatabase("rivalhub_0017", async (client) => {
       const migrations = migrationFiles((name) => /^00(?:0[0-9]|1[0-7])_.*\.sql$/.test(name));
@@ -133,7 +161,25 @@ async function main(): Promise<void> {
       if (!terminalMigration) throw new Error("找不到 0017 CompetitionEntry 迁移。");
       await replayMigration(client, terminalMigration);
       await assertReplay(client, rivals);
-      console.log("CompetitionEntry migration replay passed: Rivals 8/56/42 preserved; historical rejected, confirmed current commitment, invitation-only claim, and application/runtime identity reconciliation verified.");
+      const provenance = await client.query<{ entry_id: string; legacy_type: string; legacy_id: string; legacy_source_type: string | null; legacy_source_id: string | null }>(`
+        SELECT entry.id AS entry_id, identity_fact.legacy_type, identity_fact.legacy_id,
+          entry.legacy_source_type, entry.legacy_source_id
+        FROM competition_entries entry
+        JOIN competition_entry_legacy_identities identity_fact ON identity_fact.entry_id = entry.id
+        WHERE entry.registration_status = 'approved'
+        ORDER BY entry.name, identity_fact.legacy_type, identity_fact.legacy_id
+      `);
+      const provenanceEntryId = provenance.rows[0]?.entry_id;
+      if (!provenanceEntryId) throw new Error("找不到用于 0021 provenance backfill 的 approved Entry。");
+      const expectedProvenance = provenance.rows.filter((row) => row.entry_id === provenanceEntryId).map(({ legacy_type, legacy_id }) => ({ legacy_type, legacy_id }));
+      const missingPair = provenance.rows.find((row) => row.entry_id === provenanceEntryId && row.legacy_source_type && row.legacy_source_id);
+      if (!missingPair?.legacy_source_type || !missingPair.legacy_source_id) throw new Error("找不到要由 0021 恢复的 legacy provenance pair。");
+      await client.query("DELETE FROM competition_entry_legacy_identities WHERE entry_id = $1 AND legacy_type = $2 AND legacy_id = $3", [provenanceEntryId, missingPair.legacy_source_type, missingPair.legacy_source_id]);
+
+      const convergenceMigrations = migrationFiles((name) => /^00(?:1[89]|2[01])_.*\.sql$/.test(name));
+      for (const migration of convergenceMigrations) await replayMigration(client, migration);
+      await assertStableConvergenceReplay(client, provenanceEntryId, expectedProvenance);
+      console.log("CompetitionEntry migration replay passed: Rivals 8/56/42 preserved; 0021 backfilled current/approved pointers and restored deleted legacy provenance without retaining legacy columns.");
   });
 }
 

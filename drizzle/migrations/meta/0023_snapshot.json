@@ -1,9 +1,108 @@
 {
-  "id": "e429cbf8-0c5b-43e6-89d7-8271282b3d50",
-  "prevId": "57eb79c2-3b6c-4d38-8188-075684dcff1a",
+  "id": "3877dc45-fb51-470e-821f-ea11564e83fb",
+  "prevId": "d01e9865-bb60-4368-835f-8faddc2e6156",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
+    "public.admin_invite_claims": {
+      "name": "admin_invite_claims",
+      "schema": "",
+      "columns": {
+        "invite_id": {
+          "name": "invite_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "claimed_at": {
+          "name": "claimed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "admin_invite_claims_invite_id_idx": {
+          "name": "admin_invite_claims_invite_id_idx",
+          "columns": [
+            {
+              "expression": "invite_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "admin_invite_claims_user_id_idx": {
+          "name": "admin_invite_claims_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "admin_invite_claims_invite_id_admin_invites_id_fk": {
+          "name": "admin_invite_claims_invite_id_admin_invites_id_fk",
+          "tableFrom": "admin_invite_claims",
+          "tableTo": "admin_invites",
+          "columnsFrom": [
+            "invite_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "admin_invite_claims_user_id_users_id_fk": {
+          "name": "admin_invite_claims_user_id_users_id_fk",
+          "tableFrom": "admin_invite_claims",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "admin_invite_claims_invite_user_unique": {
+          "name": "admin_invite_claims_invite_user_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "invite_id",
+            "user_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.admin_invites": {
       "name": "admin_invites",
       "schema": "",
@@ -29,11 +128,11 @@
         },
         "role": {
           "name": "role",
-          "type": "admin_role",
+          "type": "admin_invite_role",
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": true,
-          "default": "'admin'"
+          "default": "'season_admin'"
         },
         "season_id": {
           "name": "season_id",
@@ -47,20 +146,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": 1
-        },
-        "used_count": {
-          "name": "used_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "used_by_usernames": {
-          "name": "used_by_usernames",
-          "type": "text[]",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::text[]"
         },
         "expires_at": {
           "name": "expires_at",
@@ -110,76 +195,16 @@
         }
       },
       "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.admin_users": {
-      "name": "admin_users",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
+      "checkConstraints": {
+        "admin_invites_max_uses_positive": {
+          "name": "admin_invites_max_uses_positive",
+          "value": "\"admin_invites\".\"max_uses\" > 0"
         },
-        "username": {
-          "name": "username",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "password_hash": {
-          "name": "password_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "role": {
-          "name": "role",
-          "type": "admin_role",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'admin'"
-        },
-        "is_active": {
-          "name": "is_active",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
+        "admin_invites_role_season_scope": {
+          "name": "admin_invites_role_season_scope",
+          "value": "(\"admin_invites\".\"role\" = 'season_admin' AND \"admin_invites\".\"season_id\" IS NOT NULL) OR (\"admin_invites\".\"role\" = 'super_admin' AND \"admin_invites\".\"season_id\" IS NULL)"
         }
       },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "admin_users_username_unique": {
-          "name": "admin_users_username_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "username"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.audit_logs": {
@@ -272,6 +297,52 @@
             "id"
           ],
           "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.competition_bracket_states": {
+      "name": "competition_bracket_states",
+      "schema": "",
+      "columns": {
+        "competition_id": {
+          "name": "competition_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "data": {
+          "name": "data",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "competition_bracket_states_competition_id_seasons_id_fk": {
+          "name": "competition_bracket_states_competition_id_seasons_id_fk",
+          "tableFrom": "competition_bracket_states",
+          "tableTo": "seasons",
+          "columnsFrom": [
+            "competition_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -537,36 +608,6 @@
           ],
           "columnsTo": [
             "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "competition_entries_current_roster_revision_scope_fk": {
-          "name": "competition_entries_current_roster_revision_scope_fk",
-          "tableFrom": "competition_entries",
-          "tableTo": "competition_entry_roster_revisions",
-          "columnsFrom": [
-            "current_roster_revision_id",
-            "id"
-          ],
-          "columnsTo": [
-            "id",
-            "entry_id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "competition_entries_approved_roster_revision_scope_fk": {
-          "name": "competition_entries_approved_roster_revision_scope_fk",
-          "tableFrom": "competition_entries",
-          "tableTo": "competition_entry_roster_revisions",
-          "columnsFrom": [
-            "approved_roster_revision_id",
-            "id"
-          ],
-          "columnsTo": [
-            "id",
-            "entry_id"
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
@@ -3247,13 +3288,6 @@
           "notNull": true,
           "default": "'user'"
         },
-        "admin_season_id": {
-          "name": "admin_season_id",
-          "type": "uuid[]",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::uuid[]"
-        },
         "student_id": {
           "name": "student_id",
           "type": "text",
@@ -3490,12 +3524,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "ARRAY['igl','awper','opener','closer','anchor']"
-        },
-        "bracket_data": {
-          "name": "bracket_data",
-          "type": "json",
-          "primaryKey": false,
-          "notNull": false
         },
         "start_at": {
           "name": "start_at",
@@ -6003,6 +6031,124 @@
       },
       "isRLSEnabled": false
     },
+    "public.season_admin_grants": {
+      "name": "season_admin_grants",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "season_id": {
+          "name": "season_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "granted_at": {
+          "name": "granted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "granted_by_user_id": {
+          "name": "granted_by_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "season_admin_grants_user_id_idx": {
+          "name": "season_admin_grants_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "season_admin_grants_season_id_idx": {
+          "name": "season_admin_grants_season_id_idx",
+          "columns": [
+            {
+              "expression": "season_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "season_admin_grants_user_id_users_id_fk": {
+          "name": "season_admin_grants_user_id_users_id_fk",
+          "tableFrom": "season_admin_grants",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "season_admin_grants_season_id_seasons_id_fk": {
+          "name": "season_admin_grants_season_id_seasons_id_fk",
+          "tableFrom": "season_admin_grants",
+          "tableTo": "seasons",
+          "columnsFrom": [
+            "season_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "season_admin_grants_granted_by_user_id_users_id_fk": {
+          "name": "season_admin_grants_granted_by_user_id_users_id_fk",
+          "tableFrom": "season_admin_grants",
+          "tableTo": "users",
+          "columnsFrom": [
+            "granted_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "season_admin_grants_user_season_unique": {
+          "name": "season_admin_grants_user_season_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "user_id",
+            "season_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.match_player_stats": {
       "name": "match_player_stats",
       "schema": "",
@@ -7392,12 +7538,12 @@
     }
   },
   "enums": {
-    "public.admin_role": {
-      "name": "admin_role",
+    "public.admin_invite_role": {
+      "name": "admin_invite_role",
       "schema": "public",
       "values": [
-        "super_admin",
-        "admin"
+        "season_admin",
+        "super_admin"
       ]
     },
     "public.competition_entry_participant_status": {
@@ -7559,7 +7705,6 @@
       "schema": "public",
       "values": [
         "user",
-        "season_admin",
         "super_admin"
       ]
     },

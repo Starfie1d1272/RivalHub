@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { eq, asc } from "drizzle-orm";
 import { db } from "@/db/client";
 import { majorFinalResults, seasons, matches, competitionEntries } from "@/db/schema";
-import { serializeBracket } from "@/lib/bracket";
+import { loadBracketState, serializeBracket } from "@/lib/bracket";
 import { calculateStandings } from "@/lib/standings";
 import { Panel, Marker } from "@/components/rivalhub";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -22,7 +22,6 @@ import { normalizeStagePlan } from "@/types/season";
 import { MatchTabsSection } from "@/components/matches/MatchTabsSection";
 import { checkAdminSession } from "@/lib/auth/session";
 import { AdminShortcut } from "@/components/layout/AdminShortcut";
-import type { BracketDatabase as Database } from "@/lib/bracket";
 
 interface MatchesPageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -39,7 +38,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
   ]);
   if (!season) notFound();
 
-  const [allTeams, allMatches, finalResult] = await Promise.all([
+  const [allTeams, allMatches, finalResult, bracketState] = await Promise.all([
     db.query.competitionEntries.findMany({
       where: eq(competitionEntries.competitionId, season.id),
       orderBy: [asc(competitionEntries.formationOrder)],
@@ -49,6 +48,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
       orderBy: [asc(matches.createdAt)],
     }),
     db.query.majorFinalResults.findFirst({ where: eq(majorFinalResults.seasonId, season.id) }),
+    loadBracketState(db, season.id),
   ]);
 
   const teamMap = new Map(allTeams.map((team) => [team.id, team.name]));
@@ -87,7 +87,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
         ] as const),
     ),
   );
-  const fullBracketData = serializeBracket((season.bracketData as Database | null) ?? null);
+  const fullBracketData = serializeBracket(bracketState);
   const defaultStageKey = resolveDefaultStageKey(stagePlan, allMatches);
 
   if (allMatches.length === 0 && allTeams.length === 0) {

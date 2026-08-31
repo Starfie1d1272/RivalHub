@@ -21,7 +21,7 @@ vi.mock("@/db/client", () => ({
 
 vi.mock("@/db/schema", () => ({
   matches: { id: {}, seasonId: {}, stage: {}, status: {}, entryAId: {}, entryBId: {}, scoreA: {}, scoreB: {}, createdAt: {}, entryRound: {} },
-  seasons: { id: {}, bracketData: {}, stagePlan: {} },
+  seasons: { id: {}, stagePlan: {} },
 }));
 
 vi.mock("drizzle-orm", () => ({

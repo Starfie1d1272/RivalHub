@@ -150,9 +150,9 @@ async function prepareReadyMajor(
     ], GOLDEN_PROFILE.rankOrder);
     await client.query(
       `INSERT INTO seasons (
-        id, slug, name, kind, status, registration_mode, has_captain_voting, has_draft,
+        id, slug, name, kind, competition_template, status, registration_mode, has_captain_voting, has_draft,
         stage_plan, registration_config, team_registration_config, affiliation_rules, min_team_size, max_team_size, starter_count, positions
-      ) VALUES ($1, $2, 'Local Major Start', 'Major', 'registration', $3, $4, $5, $6::json, $7::json, $8::json, $9::json, $10, $11, $12, $13::text[])`,
+      ) VALUES ($1, $2, 'Local Major Start', 'Major', 'major', 'registration', $3, $4, $5, $6::json, $7::json, $8::json, $9::json, $10, $11, $12, $13::text[])`,
       [
         seasonId, `local-golden-major-2026-08-${label}`,
         capabilities.registrationMode, capabilities.hasCaptainVoting, capabilities.hasDraft,
@@ -205,9 +205,13 @@ async function prepareReadyMajor(
       const entryId = entryIds[index]!;
       const memberUsers = userIds.slice(index * 5, index * 5 + 5);
       await client.query(
-        `INSERT INTO competition_entries (id, competition_id, source, name, representative_user_id, registration_status, approved_roster_revision, perfect_team_id)
-         VALUES ($1, $2, 'event_native', $3, $4, 'approved', 1, $5)`,
-        [entryId, seasonId, `Golden Team ${index + 1}`, memberUsers[0], `golden-team-${index + 1}`],
+        `INSERT INTO competition_entries (id, competition_id, source, name, representative_user_id, current_roster_revision_id, approved_roster_revision_id, registration_status, perfect_team_id)
+         VALUES ($1, $2, 'event_native', $3, $4, $5, $5, 'approved', $6)`,
+        [entryId, seasonId, `Golden Team ${index + 1}`, memberUsers[0], revisionIds[index], `golden-team-${index + 1}`],
+      );
+      await client.query(
+        "INSERT INTO competition_entry_representative_changes (entry_id, from_user_id, to_user_id, changed_by_actor_id) VALUES ($1, NULL, $2, 'local-admin')",
+        [entryId, memberUsers[0]],
       );
       for (let offset = 0; offset < 5; offset += 1) {
         await client.query(
@@ -217,7 +221,7 @@ async function prepareReadyMajor(
         );
       }
       await client.query(
-        `INSERT INTO competition_entry_roster_revisions (id, entry_id, revision, status, created_by, approved_at)
+        `INSERT INTO competition_entry_roster_revisions (id, entry_id, revision_number, status, created_by, approved_at)
          VALUES ($1, $2, 1, 'approved', 'local-admin', now())`,
         [revisionIds[index], entryId],
       );
@@ -242,8 +246,8 @@ async function prepareReadyMajor(
         );
       }
       if (!options.editablePrestart) {
-        await client.query(`UPDATE event_rosters SET status = 'confirmed' WHERE id = $1`, [eventRosterIds[index]]);
-        await client.query(`UPDATE event_rosters SET status = 'frozen', frozen_at = now(), frozen_by = 'local-admin' WHERE id = $1`, [eventRosterIds[index]]);
+        await client.query(`UPDATE event_rosters SET status = 'confirmed', confirmed_at = now(), confirmed_by = 'local-admin' WHERE id = $1`, [eventRosterIds[index]]);
+        await client.query(`UPDATE event_rosters SET status = 'frozen', confirmed_at = now(), confirmed_by = 'local-admin', frozen_at = now(), frozen_by = 'local-admin' WHERE id = $1`, [eventRosterIds[index]]);
       }
     }
     await client.query(
@@ -288,15 +292,14 @@ async function cleanupMajorFixture(pool: Pool, fixture: MajorFixture): Promise<v
     await client.query("DELETE FROM major_tournament_seeds WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM major_prestart_entrants WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM major_prestart_states WHERE season_id = $1", [fixture.seasonId]);
-    // Frozen-roster immutability is intentional in normal operation; the local
-    // test teardown bypasses row triggers to delete its own fixture rows only.
+    // Frozen-roster immutability and append-only provenance are intentional in
+    // normal operation; local teardown bypasses row triggers for its own rows.
     await client.query("SET LOCAL session_replication_role = replica");
     await client.query(`DELETE FROM event_roster_members WHERE event_roster_id IN (
       SELECT id FROM event_rosters WHERE entry_id IN (
         SELECT id FROM competition_entries WHERE competition_id = $1
       )
     )`, [fixture.seasonId]);
-    await client.query("SET LOCAL session_replication_role = DEFAULT");
     await client.query(`DELETE FROM event_rosters WHERE entry_id IN (
       SELECT id FROM competition_entries WHERE competition_id = $1
     )`, [fixture.seasonId]);
@@ -311,13 +314,16 @@ async function cleanupMajorFixture(pool: Pool, fixture: MajorFixture): Promise<v
     await client.query(`DELETE FROM competition_entry_participants WHERE entry_id IN (
       SELECT id FROM competition_entries WHERE competition_id = $1
     )`, [fixture.seasonId]);
+    await client.query(`DELETE FROM competition_entry_representative_changes WHERE entry_id IN (
+      SELECT id FROM competition_entries WHERE competition_id = $1
+    )`, [fixture.seasonId]);
     await client.query("DELETE FROM competition_entries WHERE competition_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM audit_logs WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM seasons WHERE id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM education_verifications WHERE user_id = ANY($1::uuid[])", [fixture.userIds]);
     await client.query("DELETE FROM competitive_rank_facts WHERE user_id = ANY($1::uuid[])", [fixture.userIds]);
     await client.query("DELETE FROM users WHERE id = ANY($1::uuid[])", [fixture.userIds]);
-    await deleteCompetitivePlatformCatalog(pool, GOLDEN_PROFILE.platform);
+    await deleteCompetitivePlatformCatalog(client, GOLDEN_PROFILE.platform);
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK");
@@ -946,7 +952,7 @@ async function exerciseSaveVsRosterChangeConcurrency(
     INNER JOIN event_rosters r ON r.entry_id = e.id
     INNER JOIN major_prestart_entrants p ON p.id = $2
     LEFT JOIN competition_entry_roster_revisions approved
-      ON approved.entry_id = e.id AND approved.revision = e.approved_roster_revision
+      ON approved.id = e.approved_roster_revision_id AND approved.entry_id = e.id
     WHERE e.id = $1
   `, [entryId, entrantId]);
   const fact = facts.rows[0];
@@ -964,12 +970,40 @@ async function exerciseStaleRosterCoherence(
   pool: Pool,
   fixtures: MajorFixture[],
 ): Promise<void> {
-  const fixture = await prepareReadyMajor(pool, "coherence");
+  const fixture = await prepareReadyMajor(pool, "coherence", { editablePrestart: true });
   fixtures.push(fixture);
   const entryId = deterministicUuid("coherence/entry/1");
   const revisionId = deterministicUuid("coherence/revision/1");
   const eventRosterId = deterministicUuid("coherence/event-roster/1");
   const nextRevisionId = deterministicUuid("coherence/revision-next/1");
+
+  // Keep one roster editable for the stale-sync scenario while making the
+  // other 31 entrants ready, so the final resync still exercises a complete
+  // Major start rather than failing on unrelated fixture readiness.
+  await pool.query(
+     `UPDATE event_rosters
+     SET status = 'confirmed', confirmed_at = now(), confirmed_by = 'local-admin'
+     WHERE entry_id <> $1
+       AND entry_id IN (SELECT id FROM competition_entries WHERE competition_id = $2)`,
+    [entryId, fixture.seasonId],
+  );
+  await pool.query(
+    `UPDATE event_rosters
+     SET status = 'frozen', frozen_at = now(), frozen_by = 'local-admin'
+     WHERE entry_id <> $1
+       AND entry_id IN (SELECT id FROM competition_entries WHERE competition_id = $2)`,
+    [entryId, fixture.seasonId],
+  );
+  await pool.query(
+    `UPDATE major_prestart_entrants
+     SET roster_confirmed_at = now(), roster_confirmed_by = 'local-admin'
+     WHERE competition_entry_id <> $1 AND season_id = $2`,
+    [entryId, fixture.seasonId],
+  );
+  await pool.query(
+    "UPDATE major_prestart_states SET entrants_locked_at = now(), entrants_locked_by = 'local-admin' WHERE season_id = $1",
+    [fixture.seasonId],
+  );
 
   // Scenario A：approved Entry → prestart → roster change → start blocked。
   await pool.query(
@@ -981,12 +1015,22 @@ async function exerciseStaleRosterCoherence(
 
   // Case 2：补正完成并获得 approved revision 2，但 event roster 仍指向 revision 1 → 仍被拒绝。
   await pool.query("UPDATE competition_entries SET registration_status = 'approved' WHERE id = $1", [entryId]);
-  await pool.query(
-    `INSERT INTO competition_entry_roster_revisions (id, entry_id, revision, status, created_by, approved_at)
-     VALUES ($1, $2, 2, 'approved', 'local-admin', now())`,
-    [nextRevisionId, entryId],
-  );
-  await pool.query("UPDATE competition_entries SET current_roster_revision = 2, approved_roster_revision = 2 WHERE id = $1", [entryId]);
+  const revisionTransition = await pool.connect();
+  try {
+    await revisionTransition.query("BEGIN");
+    await revisionTransition.query(
+      `INSERT INTO competition_entry_roster_revisions (id, entry_id, revision_number, status, created_by, approved_at)
+       VALUES ($1, $2, 2, 'approved', 'local-admin', now())`,
+      [nextRevisionId, entryId],
+    );
+    await revisionTransition.query("UPDATE competition_entries SET current_roster_revision_id = $2, approved_roster_revision_id = $2 WHERE id = $1", [entryId, nextRevisionId]);
+    await revisionTransition.query("COMMIT");
+  } catch (error) {
+    await revisionTransition.query("ROLLBACK");
+    throw error;
+  } finally {
+    revisionTransition.release();
+  }
   await expectMajorStartFailure(database, fixture.seasonId, "重新同步最终名单");
   await assertNoStartFacts(pool, fixture.seasonId);
 
@@ -1003,6 +1047,22 @@ async function exerciseStaleRosterCoherence(
     [nextRevisionId, ...revisionMembers.rows.flatMap((row) => [row.participant_id, row.user_id, row.is_primary_starter])],
   );
   await pool.query("UPDATE event_rosters SET source_roster_revision_id = $1 WHERE id = $2", [nextRevisionId, eventRosterId]);
+  await pool.query(
+    "UPDATE event_rosters SET status = 'confirmed', confirmed_at = now(), confirmed_by = 'local-admin' WHERE id = $1",
+    [eventRosterId],
+  );
+  await pool.query(
+    "UPDATE event_rosters SET status = 'frozen', frozen_at = now(), frozen_by = 'local-admin' WHERE id = $1",
+    [eventRosterId],
+  );
+  await pool.query(
+    "UPDATE major_prestart_entrants SET roster_confirmed_at = now(), roster_confirmed_by = 'local-admin' WHERE id = $1",
+    [deterministicUuid("coherence/entrant/1")],
+  );
+  await pool.query(
+    "UPDATE major_prestart_states SET entrants_locked_at = now(), entrants_locked_by = 'local-admin' WHERE season_id = $1",
+    [fixture.seasonId],
+  );
   const result = await database.transaction((tx) => startMajorInTransaction(tx, { seasonId: fixture.seasonId, actorId: "local-admin" }));
   if (!result.created || result.matchCount !== 8) throw new Error("重同步后开赛应成功创建 Stage 1。 ");
   const synced = await pool.query<{ source: string; status: string }>(

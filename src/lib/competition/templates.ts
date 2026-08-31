@@ -1,6 +1,5 @@
 import {
   CAPABILITY_PRESETS,
-  checkStandardMajorCapabilities,
   type SeasonCapabilities,
 } from "@/types/season";
 
@@ -66,14 +65,4 @@ export function createCompetitionTemplate(template: CompetitionTemplate): Season
     case "major": return createMajorTemplate();
     case "custom": return createCustomTournamentTemplate();
   }
-}
-
-export function inferCompetitionTemplate(capabilities: SeasonCapabilities): CompetitionTemplate {
-  if (checkStandardMajorCapabilities(capabilities).isStandardMajor) return "major";
-  if (
-    capabilities.registrationMode === "solo" &&
-    capabilities.hasCaptainVoting &&
-    capabilities.hasDraft
-  ) return "rivals";
-  return "custom";
 }

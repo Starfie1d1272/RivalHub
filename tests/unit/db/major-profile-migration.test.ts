@@ -25,15 +25,13 @@ describe("0012 competitive profile migration", () => {
       readFileSync(join(process.cwd(), "drizzle/migrations/meta/_journal.json"), "utf8"),
     ) as { entries: Array<{ idx: number; tag: string }> };
 
-    // The active chain can grow; the entries this file targets must remain in it.
+    // The active chain can grow; the 0012 entry this file targets must still
+    // be part of it and the journal must remain contiguous.
     expect(journal.entries.map(({ tag }) => tag)).toContain("0012_dapper_devos");
-    const catalogEntry = journal.entries.find(
-      ({ tag }) => tag === "0020_competitive_catalog_stars_bootstrap",
-    );
-    expect(catalogEntry).toMatchObject({
-      idx: 20,
+    expect(journal.entries.at(-1)).toMatchObject({
+      idx: 23,
       version: "7",
-      tag: "0020_competitive_catalog_stars_bootstrap",
+      tag: "0023_auth_permissions",
       breakpoints: true,
     });
   });

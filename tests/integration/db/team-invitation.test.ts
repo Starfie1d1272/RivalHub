@@ -28,8 +28,16 @@ async function main(): Promise<void> {
       [ids.team, `invite-lifecycle-${ids.team.slice(0, 8)}`, ids.captain],
     );
     await pool.query(
-      "INSERT INTO team_memberships (team_id, user_id, role, status, invited_by_user_id) VALUES ($1, $2, 'captain', 'active', $2)",
+      "INSERT INTO team_memberships (team_id, user_id, status, invited_by_user_id) VALUES ($1, $2, 'active', $2)",
       [ids.team, ids.captain],
+    );
+    await pool.query(
+      "INSERT INTO team_captain_changes (team_id, from_user_id, to_user_id, changed_by_actor_id) VALUES ($1, NULL, $2, 'local-test')",
+      [ids.team, ids.captain],
+    );
+    await pool.query(
+      "INSERT INTO team_name_changes (team_id, old_name, new_name, changed_by_actor_id) VALUES ($1, NULL, 'Invite Lifecycle Team', 'local-test')",
+      [ids.team],
     );
     await pool.query("COMMIT");
 
@@ -118,10 +126,23 @@ async function main(): Promise<void> {
 
     console.log("Team invitation lifecycle local integration passed: stale pending invite expiry, freed pending identity for re-invite, untouched fresh invites, and production accept path persisting expired outcomes without membership.");
   } finally {
-    await pool.query("DELETE FROM team_invitations WHERE team_id = $1", [ids.team]);
-    await pool.query("DELETE FROM team_memberships WHERE team_id = $1", [ids.team]);
-    await pool.query("DELETE FROM teams WHERE id = $1", [ids.team]);
-    await pool.query("DELETE FROM users WHERE id IN ($1, $2)", [ids.captain, ids.invitee]);
+    const cleanup = await pool.connect();
+    try {
+      await cleanup.query("BEGIN");
+      await cleanup.query("SET LOCAL session_replication_role = replica");
+      await cleanup.query("DELETE FROM team_invitations WHERE team_id = $1", [ids.team]);
+      await cleanup.query("DELETE FROM team_captain_changes WHERE team_id = $1", [ids.team]);
+      await cleanup.query("DELETE FROM team_name_changes WHERE team_id = $1", [ids.team]);
+      await cleanup.query("DELETE FROM team_memberships WHERE team_id = $1", [ids.team]);
+      await cleanup.query("DELETE FROM teams WHERE id = $1", [ids.team]);
+      await cleanup.query("DELETE FROM users WHERE id IN ($1, $2)", [ids.captain, ids.invitee]);
+      await cleanup.query("COMMIT");
+    } catch (error) {
+      await cleanup.query("ROLLBACK").catch(() => {});
+      throw error;
+    } finally {
+      cleanup.release();
+    }
     await pool.end();
   }
 }

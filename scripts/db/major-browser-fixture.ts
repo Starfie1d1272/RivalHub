@@ -112,6 +112,9 @@ async function findAuthUsers(auth: SupabaseClient): Promise<Array<{ id: string; 
 }
 
 async function removeFixtureDatabaseRows(client: import("pg").PoolClient): Promise<void> {
+  // Local fixture cleanup is the one operational path allowed to remove
+  // append-only provenance rows. Production writes never use this setting.
+  await client.query("SET LOCAL session_replication_role = replica");
   await client.query("DELETE FROM match_roster_players WHERE roster_id IN (SELECT id FROM match_rosters WHERE match_id IN (SELECT id FROM matches WHERE season_id = $1))", [FIXTURE_SEASON_ID]);
   await client.query("DELETE FROM match_rosters WHERE match_id IN (SELECT id FROM matches WHERE season_id = $1)", [FIXTURE_SEASON_ID]);
   await client.query("DELETE FROM matches WHERE season_id = $1", [FIXTURE_SEASON_ID]);
@@ -128,7 +131,7 @@ async function removeFixtureDatabaseRows(client: import("pg").PoolClient): Promi
   await client.query("DELETE FROM event_roster_members WHERE event_roster_id IN (SELECT id FROM event_rosters WHERE entry_id IN (SELECT id FROM competition_entries WHERE competition_id = $1))", [FIXTURE_SEASON_ID]);
   await client.query("DELETE FROM event_rosters WHERE entry_id IN (SELECT id FROM competition_entries WHERE competition_id = $1)", [FIXTURE_SEASON_ID]);
   await client.query("DELETE FROM competition_entry_participants WHERE entry_id IN (SELECT id FROM competition_entries WHERE competition_id = $1)", [FIXTURE_SEASON_ID]);
-  await client.query("DELETE FROM competition_entry_representative_tenures WHERE entry_id IN (SELECT id FROM competition_entries WHERE competition_id = $1)", [FIXTURE_SEASON_ID]);
+  await client.query("DELETE FROM competition_entry_representative_changes WHERE entry_id IN (SELECT id FROM competition_entries WHERE competition_id = $1)", [FIXTURE_SEASON_ID]);
   await client.query("DELETE FROM competition_entry_legacy_identities WHERE entry_id IN (SELECT id FROM competition_entries WHERE competition_id = $1)", [FIXTURE_SEASON_ID]);
   await client.query("DELETE FROM competition_entries WHERE competition_id = $1", [FIXTURE_SEASON_ID]);
   await client.query("DELETE FROM major_prestart_entrants WHERE season_id = $1", [FIXTURE_SEASON_ID]);
@@ -141,8 +144,8 @@ async function removeFixtureDatabaseRows(client: import("pg").PoolClient): Promi
   await client.query("DELETE FROM user_sessions WHERE user_id = ANY($1::uuid[])", [ACCOUNT_IDS]);
   await client.query("DELETE FROM team_invitations WHERE team_id IN (SELECT id FROM teams WHERE creator_user_id = ANY($1::uuid[]) OR captain_user_id = ANY($1::uuid[]))", [ACCOUNT_IDS]);
   await client.query("DELETE FROM team_memberships WHERE team_id IN (SELECT id FROM teams WHERE creator_user_id = ANY($1::uuid[]) OR captain_user_id = ANY($1::uuid[]))", [ACCOUNT_IDS]);
-  await client.query("DELETE FROM team_captain_tenures WHERE team_id IN (SELECT id FROM teams WHERE creator_user_id = ANY($1::uuid[]) OR captain_user_id = ANY($1::uuid[]))", [ACCOUNT_IDS]);
-  await client.query("DELETE FROM team_name_history WHERE team_id IN (SELECT id FROM teams WHERE creator_user_id = ANY($1::uuid[]) OR captain_user_id = ANY($1::uuid[]))", [ACCOUNT_IDS]);
+  await client.query("DELETE FROM team_captain_changes WHERE team_id IN (SELECT id FROM teams WHERE creator_user_id = ANY($1::uuid[]) OR captain_user_id = ANY($1::uuid[]))", [ACCOUNT_IDS]);
+  await client.query("DELETE FROM team_name_changes WHERE team_id IN (SELECT id FROM teams WHERE creator_user_id = ANY($1::uuid[]) OR captain_user_id = ANY($1::uuid[]))", [ACCOUNT_IDS]);
   await client.query("DELETE FROM team_slug_aliases WHERE team_id IN (SELECT id FROM teams WHERE creator_user_id = ANY($1::uuid[]) OR captain_user_id = ANY($1::uuid[]))", [ACCOUNT_IDS]);
   await client.query("DELETE FROM teams WHERE creator_user_id = ANY($1::uuid[]) OR captain_user_id = ANY($1::uuid[])", [ACCOUNT_IDS]);
   await client.query("DELETE FROM users WHERE id = ANY($1::uuid[])", [ACCOUNT_IDS]);

@@ -1,7 +1,166 @@
-import { isStageExecutorSupported } from "@/lib/formats";
-import type { SeasonCapabilities, StagePlan } from "@/types/season";
+import { isStageExecutorSupported } from "@/lib/formats/supported";
+import {
+  MAJOR_DEFAULT_CAPABILITIES,
+  normalizeAffiliationRules,
+  type SeasonCapabilities,
+  type StageConfig,
+  type StagePlan,
+} from "@/types/season";
 
 export type CompetitionDefinitionIssue = { path: string; message: string };
+
+export interface StandardMajorRuleCheck {
+  key:
+    | "registration-mode"
+    | "captain-voting"
+    | "draft"
+    | "team-size"
+    | "stage-count"
+    | "stage-order"
+    | "swiss-match-format"
+    | "entry-cohorts"
+    | "stage1-seeds"
+    | "affiliation-rule"
+    | "stage1"
+    | "stage2"
+    | "stage3"
+    | "playoff";
+  passed: boolean;
+  reason: string;
+}
+
+export interface StandardMajorCheckResult {
+  isStandardMajor: boolean;
+  checks: StandardMajorRuleCheck[];
+  failures: StandardMajorRuleCheck[];
+}
+
+function advancesEight(stage: StageConfig | undefined): boolean {
+  return stage?.advanceTiers.length === 1 &&
+    stage.advanceTiers[0]?.placement === "*" &&
+    stage.advanceTiers[0]?.count === 8;
+}
+
+function directEntrantCount(stage: StageConfig | undefined, isFirstStage = false): number | undefined {
+  if (!stage) return undefined;
+  return stage.entrySeeds ?? (isFirstStage ? stage.teamCount : 0);
+}
+
+function hasStandardStageOneSeeds(seeds: readonly number[] | undefined): boolean {
+  return seeds?.length === 16 &&
+    new Set(seeds).size === 16 &&
+    seeds.every((seed) => seed >= 17 && seed <= 32);
+}
+
+function hasFrozenMajorSwissMatchFormats(
+  stage1: StageConfig | undefined,
+  stage2: StageConfig | undefined,
+  stage3: StageConfig | undefined,
+): boolean {
+  return stage1?.matchFormat === "bo1" &&
+    stage2?.matchFormat === "bo1" &&
+    stage3?.matchFormat === "bo3";
+}
+
+/** Pure definition validation for the managed standard Major runtime. */
+export function checkStandardMajorCapabilities(
+  capabilities: SeasonCapabilities,
+): StandardMajorCheckResult {
+  const [stage1, stage2, stage3, playoff] = capabilities.stagePlan;
+  const checks: StandardMajorRuleCheck[] = [
+    {
+      key: "registration-mode",
+      passed: capabilities.registrationMode === "team",
+      reason: "标准 Major 使用队伍整体报名。",
+    },
+    {
+      key: "captain-voting",
+      passed: capabilities.hasCaptainVoting === false,
+      reason: "标准 Major 不启用队长投票。",
+    },
+    {
+      key: "draft",
+      passed: capabilities.hasDraft === false,
+      reason: "标准 Major 不启用蛇形选秀。",
+    },
+    {
+      key: "team-size",
+      passed: capabilities.minTeamSize === 5 && capabilities.maxTeamSize === 9 && capabilities.starterCount === 5,
+      reason: "标准 Major 固定正式名单 5–9 人、每队出场 5 人；报名提交与最终名单都按此执行。",
+    },
+    {
+      key: "stage-count",
+      passed: capabilities.stagePlan.length === 4,
+      reason: "标准 Major 必须包含三个瑞士轮阶段和一个淘汰赛阶段。",
+    },
+    {
+      key: "stage-order",
+      passed: capabilities.stagePlan.map(({ type }) => type).join("|") === "swiss|swiss|swiss|single_elim",
+      reason: "标准 Major 的阶段顺序必须为阶段一、阶段二、阶段三瑞士轮，随后是单败淘汰。",
+    },
+    {
+      key: "swiss-match-format",
+      passed: hasFrozenMajorSwissMatchFormats(stage1, stage2, stage3),
+      reason: "NJU Major 阶段一、阶段二的普通比赛为 BO1，决定晋级或淘汰的比赛由 Swiss 引擎升级为 BO3；阶段三全部为 BO3。",
+    },
+    {
+      key: "entry-cohorts",
+      passed:
+        directEntrantCount(stage1, true) === 16 &&
+        directEntrantCount(stage2) === 8 &&
+        directEntrantCount(stage3) === 8 &&
+        directEntrantCount(playoff) === 0,
+      reason: "标准 Major 必须按 16 / 8 / 8 三批队伍进入三个瑞士轮阶段，并由阶段三的 8 支晋级队进入淘汰赛。",
+    },
+    {
+      key: "stage1-seeds",
+      passed: hasStandardStageOneSeeds(stage1?.seeds),
+      reason: "阶段一必须完整且唯一地使用 17–32 号种子。",
+    },
+    {
+      key: "affiliation-rule",
+      passed: capabilities.affiliationRules.some((rule) =>
+        rule.institutionCode === "4132010284" &&
+        rule.eligibleAcademicStatuses.includes("enrolled") &&
+        rule.eligibleAcademicStatuses.includes("graduated") &&
+        rule.minRosterMembers === 3 &&
+        rule.minStartingMembers === 3,
+      ),
+      reason: "标准 Major 必须冻结南京大学在读/毕业成员名单至少 3 人、首发至少 3 人的高校归属规则。",
+    },
+    {
+      key: "stage1",
+      passed: stage1?.type === "swiss" && stage1.teamCount === 16 && advancesEight(stage1),
+      reason: "阶段一必须为 16 队瑞士轮，8 队晋级。",
+    },
+    {
+      key: "stage2",
+      passed: stage2?.type === "swiss" && stage2.teamCount === 16 && advancesEight(stage2),
+      reason: "阶段二必须为 16 队瑞士轮，8 队晋级。",
+    },
+    {
+      key: "stage3",
+      passed: stage3?.type === "swiss" && stage3.teamCount === 16 && advancesEight(stage3),
+      reason: "阶段三必须为 16 队瑞士轮，8 队晋级。",
+    },
+    {
+      key: "playoff",
+      passed: playoff?.type === "single_elim" && playoff.teamCount === 8 && playoff.matchFormat === "bo3" && playoff.finalFormat === "bo5",
+      reason: "淘汰赛必须为 8 队单败淘汰，四分之一决赛和半决赛 BO3、决赛 BO5。",
+    },
+  ];
+  const failures = checks.filter((check) => !check.passed);
+  return { isStandardMajor: failures.length === 0, checks, failures };
+}
+
+/** Read-only migration verifier for rows predating the explicit affiliation rule. */
+export function isLegacyStandardMajorWithoutAffiliation(capabilities: SeasonCapabilities): boolean {
+  return normalizeAffiliationRules(capabilities.affiliationRules).length === 0 &&
+    checkStandardMajorCapabilities({
+      ...capabilities,
+      affiliationRules: MAJOR_DEFAULT_CAPABILITIES.affiliationRules,
+    }).isStandardMajor;
+}
 
 /**
  * Structural validation for custom competition definitions.

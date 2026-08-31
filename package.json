@@ -38,7 +38,6 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",
-    "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-dialog": "^1.1.14",
     "@radix-ui/react-dropdown-menu": "^2.1.15",
     "@radix-ui/react-label": "^2.1.7",
@@ -46,8 +45,6 @@
     "@radix-ui/react-separator": "^1.1.8",
     "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-tabs": "^1.1.13",
-    "@radix-ui/react-toast": "^1.2.14",
-    "@radix-ui/react-tooltip": "^1.2.7",
     "@supabase/supabase-js": "^2.112.4",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
@@ -72,7 +69,6 @@
   "devDependencies": {
     "@changesets/cli": "^2.31.0",
     "@eslint/eslintrc": "^3.3.6",
-    "@neondatabase/serverless": "^0.10.4",
     "@playwright/test": "^1.52.0",
     "@tailwindcss/postcss": "^4.1.6",
     "@testing-library/jest-dom": "^6.6.3",
@@ -83,7 +79,6 @@
     "@types/react": "^19.1.4",
     "@types/react-dom": "^19.1.4",
     "@vitest/coverage-v8": "^3.2.7",
-    "dotenv": "^17.4.2",
     "drizzle-kit": "^0.31.1",
     "eslint": "^9.39.5",
     "eslint-config-next": "15.5.15",

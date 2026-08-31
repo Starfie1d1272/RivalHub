@@ -152,8 +152,22 @@
     {
       "idx": 21,
       "version": "7",
-      "when": 1788164059156,
-      "tag": "0021_mature_deadpool",
+      "when": 1788163521131,
+      "tag": "0021_team_entry_current_owners",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1788174471006,
+      "tag": "0022_competition_bracket_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1788176143972,
+      "tag": "0023_auth_permissions",
       "breakpoints": true
     }
   ]

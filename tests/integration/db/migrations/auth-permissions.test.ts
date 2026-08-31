@@ -10,10 +10,10 @@ import {
   withScratchDatabase,
 } from "../harness/migration-replay";
 
-const TERMINAL_MIGRATION = "0021_mature_deadpool.sql";
+const TERMINAL_MIGRATION = "0023_auth_permissions.sql";
 
 function preAuthMigrations(): string[] {
-  return migrationFiles((name) => /^00(?:0[0-9]|1[0-9]|20)_.*\.sql$/.test(name))
+  return migrationFiles((name) => /^\d{4}_.*\.sql$/.test(name))
     .filter((name) => name !== TERMINAL_MIGRATION);
 }
 
@@ -170,6 +170,34 @@ describe("auth-permissions migration", () => {
         { role: "super_admin", season_id: null, is_active: true },
         { role: "season_admin", season_id: seasonIds[0], is_active: false },
       ]);
+    });
+  });
+
+  it("preserves prior Team/Entry and bracket invariants across auth migration", async () => {
+    await withScratchDatabase("rivalhub_auth_preserves_prior_invariants", async (client) => {
+      await replayBeforeAuthMigration(client);
+      await replayMigration(client, TERMINAL_MIGRATION);
+
+      const constraints = await client.query<{ conname: string; condeferrable: boolean; condeferred: boolean }>(
+        `SELECT conname, condeferrable, condeferred
+         FROM pg_constraint
+         WHERE conname IN (
+           'competition_entries_current_roster_revision_scope_fk',
+           'competition_entries_approved_roster_revision_scope_fk'
+         )
+         ORDER BY conname`,
+      );
+      expect(constraints.rows).toEqual([
+        { conname: "competition_entries_approved_roster_revision_scope_fk", condeferrable: true, condeferred: true },
+        { conname: "competition_entries_current_roster_revision_scope_fk", condeferrable: true, condeferred: true },
+      ]);
+
+      const bracketOwner = await client.query<{ table_name: string | null; old_column_count: string }>(
+        `SELECT to_regclass('public.competition_bracket_states')::text AS table_name,
+                (SELECT count(*)::text FROM information_schema.columns
+                 WHERE table_schema = 'public' AND table_name = 'seasons' AND column_name = 'bracket_data') AS old_column_count`,
+      );
+      expect(bracketOwner.rows[0]).toEqual({ table_name: "competition_bracket_states", old_column_count: "0" });
     });
   });
 

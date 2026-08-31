@@ -57,7 +57,6 @@ function setupSeason() {
   seasonsFindFirstMock.mockResolvedValue({
     id: "season-1",
     slug: "spring-2026",
-    bracketData: null,
     stagePlan: "[]",
     registrationConfig: "{}",
   });

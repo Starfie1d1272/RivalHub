@@ -2,11 +2,10 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matches, seasons, competitionEntries } from "@/db/schema";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
-import { generateBracket, type BracketStageRef } from "@/lib/bracket";
+import { generateBracket, saveBracketState, type BracketStageRef } from "@/lib/bracket";
 import { calculateStandings } from "@/lib/standings";
 import { getFirstStageOfType, normalizeStagePlan } from "@/types/season";
 import type { StageExecutor } from "./types";
-import type { BracketDatabase as Database } from "@/lib/bracket";
 import { isStageComplete } from "./_shared";
 
 export const roundRobinExecutor: StageExecutor = {
@@ -53,10 +52,7 @@ export const roundRobinExecutor: StageExecutor = {
       matchCount++;
     }
 
-    await db
-      .update(seasons)
-      .set({ bracketData: data as Database, updatedAt: new Date() })
-      .where(eq(seasons.id, seasonId));
+    await saveBracketState(db, seasonId, data);
 
     return { matchCount };
   },
