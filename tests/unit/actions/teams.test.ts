@@ -263,16 +263,4 @@ describe("uploadTeamLogo", () => {
     expect(revalidatePathMock).toHaveBeenCalledWith("/teams");
   });
 
-  it("season has bracketData → logo upload unaffected", async () => {
-    setupOutsideTxTeam();
-    setupOutsideTxSeason({ bracketData: { participant: [], stage: [] } });
-    setupTxTeam();
-    setupSupabaseSuccess();
-
-    const fd = new FormData();
-    fd.append("file", new File(["test"], "test.png", { type: "image/png" }));
-    const result = await uploadTeamLogo(TEAM_ID, fd);
-
-    expect(result.success).toBe(true);
-  });
 });

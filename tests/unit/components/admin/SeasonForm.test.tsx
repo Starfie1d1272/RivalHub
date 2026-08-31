@@ -62,6 +62,7 @@ function createInitial(
     slug: "test-season",
     kind,
     status,
+    template: "rivals" as const,
     themeColor: "#f97316",
     startAt: null,
     registrationDeadline: null,

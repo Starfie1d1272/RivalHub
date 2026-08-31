@@ -49,7 +49,6 @@ function seasonRow(overrides?: Partial<SeasonRow>): SeasonRow {
     id: "00000000-0000-0000-0000-0000000000aa",
     slug: parsed.slug as string,
     createdAt: new Date(),
-    bracketData: null,
     ...parsed,
     status: "draft",
     competitionTemplate: "major",

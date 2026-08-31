@@ -2,6 +2,7 @@ export * from "./users";
 export * from "./education";
 export * from "./competitive-profile";
 export * from "./seasons";
+export * from "./competition-bracket-states";
 export * from "./registrations";
 export * from "./registration-drafts";
 export * from "./teams";

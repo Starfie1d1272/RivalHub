@@ -4,10 +4,10 @@ import {
   MAJOR_REGISTRATION_CONFIG,
   OPEN_TOURNAMENT_PRESET,
   RIVALS_DEFAULT_CAPABILITIES,
-  checkStandardMajorCapabilities,
   createMajorDefaultCapabilities,
   normalizeTeamRegistrationConfig,
 } from "@/types/season";
+import { checkStandardMajorCapabilities } from "@/lib/competition/definition";
 
 function expectStandardMajorFailure(
   capabilities: ReturnType<typeof createMajorDefaultCapabilities>,

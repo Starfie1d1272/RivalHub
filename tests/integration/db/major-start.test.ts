@@ -150,9 +150,9 @@ async function prepareReadyMajor(
     ], GOLDEN_PROFILE.rankOrder);
     await client.query(
       `INSERT INTO seasons (
-        id, slug, name, kind, status, registration_mode, has_captain_voting, has_draft,
+        id, slug, name, kind, competition_template, status, registration_mode, has_captain_voting, has_draft,
         stage_plan, registration_config, team_registration_config, affiliation_rules, min_team_size, max_team_size, starter_count, positions
-      ) VALUES ($1, $2, 'Local Major Start', 'Major', 'registration', $3, $4, $5, $6::json, $7::json, $8::json, $9::json, $10, $11, $12, $13::text[])`,
+      ) VALUES ($1, $2, 'Local Major Start', 'Major', 'major', 'registration', $3, $4, $5, $6::json, $7::json, $8::json, $9::json, $10, $11, $12, $13::text[])`,
       [
         seasonId, `local-golden-major-2026-08-${label}`,
         capabilities.registrationMode, capabilities.hasCaptainVoting, capabilities.hasDraft,

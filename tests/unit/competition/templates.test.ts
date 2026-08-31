@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { createCompetitionTemplate, createCustomTournamentTemplate, createMajorTemplate, createRivalsTemplate, inferCompetitionTemplate } from "@/lib/competition/templates";
+import { checkStandardMajorCapabilities } from "@/lib/competition/definition";
+import { createCompetitionTemplate, createCustomTournamentTemplate, createMajorTemplate, createRivalsTemplate } from "@/lib/competition/templates";
 import { isStageExecutorSupported } from "@/lib/formats";
-import { resolveCompetitionDefinition, type SeasonFormInput } from "@/lib/seasons/edit";
+import { planSeasonCreate, resolveCompetitionDefinition, seasonFormSchema, type SeasonFormInput } from "@/lib/seasons/edit";
 import type { SeasonCapabilities } from "@/types/season";
 
 function formInput(overrides?: Partial<SeasonFormInput>): SeasonFormInput {
@@ -40,14 +41,11 @@ describe("competition templates", () => {
     expect(capabilities.hasCaptainVoting).toBe(true);
     expect(capabilities.hasDraft).toBe(true);
     expect(capabilities.stagePlan.map((stage) => stage.type)).toEqual(["round_robin", "double_elim"]);
-    expect(inferCompetitionTemplate(capabilities)).toBe("rivals");
   });
 
-  it("Major preset passes the standard Major capability check and infers as major", async () => {
-    const { checkStandardMajorCapabilities } = await import("@/types/season");
+  it("Major preset passes the standard Major definition check", () => {
     const capabilities = createMajorTemplate();
     expect(checkStandardMajorCapabilities(capabilities).isStandardMajor).toBe(true);
-    expect(inferCompetitionTemplate(capabilities)).toBe("major");
   });
 
   it("custom tournament starts from an empty executable contract", () => {
@@ -81,6 +79,25 @@ describe("resolveCompetitionDefinition (draft canonicalization)", () => {
     expect(data.hasDraft).toBe(true);
     expect(data.stagePlan).toEqual(createRivalsTemplate().stagePlan);
     expect(data.kind).toBe("Rivals");
+  });
+
+  it("a custom draft whose shape mimics Major keeps custom identity", () => {
+    const major = createMajorTemplate();
+    const input = formInput({
+      template: "custom",
+      kind: "Major",
+      registrationMode: major.registrationMode,
+      hasCaptainVoting: major.hasCaptainVoting,
+      hasDraft: major.hasDraft,
+      minTeamSize: major.minTeamSize,
+      maxTeamSize: major.maxTeamSize,
+      starterCount: major.starterCount,
+      stagePlan: major.stagePlan,
+      affiliationRules: major.affiliationRules,
+      teamRegistrationConfig: major.teamRegistrationConfig,
+    });
+    expect(planSeasonCreate(input).template).toBe("custom");
+    expect(resolveCompetitionDefinition(input, true).stagePlan).toEqual(major.stagePlan);
   });
 
   it("a draft Major save re-canonicalizes tampered fixed rules from the factory", () => {
@@ -143,6 +160,18 @@ describe("isStageExecutorSupported", () => {
     expect(isStageExecutorSupported("single_elim")).toBe(true);
     expect(isStageExecutorSupported("double_elim")).toBe(true);
     expect(isStageExecutorSupported("swiss")).toBe(false);
-    expect(isStageExecutorSupported("gsl_group")).toBe(false);
+  });
+
+  it("rejects the removed GSL group stage at the form boundary", () => {
+    const result = seasonFormSchema.safeParse(formInput({
+      stagePlan: [{
+        key: "gsl",
+        name: "GSL",
+        type: "gsl_group",
+        teamCount: 8,
+        advanceTiers: [{ placement: "*", count: 4 }],
+      }] as never,
+    }));
+    expect(result.success).toBe(false);
   });
 });
