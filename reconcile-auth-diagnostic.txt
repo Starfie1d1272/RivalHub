@@ -76,15 +76,15 @@ Lockfile is up to date, resolution step is skipped
 Progress: resolved 1, reused 0, downloaded 0, added 0
 Packages: +658
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-Progress: resolved 658, reused 0, downloaded 100, added 65
-Progress: resolved 658, reused 0, downloaded 204, added 107
-Progress: resolved 658, reused 0, downloaded 421, added 238
-Progress: resolved 658, reused 0, downloaded 656, added 481
+Progress: resolved 658, reused 0, downloaded 106, added 68
+Progress: resolved 658, reused 0, downloaded 272, added 177
+Progress: resolved 658, reused 0, downloaded 493, added 359
+Progress: resolved 658, reused 0, downloaded 656, added 656
 Progress: resolved 658, reused 0, downloaded 658, added 658, done
-.../esbuild@0.25.12/node_modules/esbuild postinstall$ node install.js
 .../esbuild@0.28.2/node_modules/esbuild postinstall$ node install.js
-.../esbuild@0.25.12/node_modules/esbuild postinstall: Done
+.../esbuild@0.25.12/node_modules/esbuild postinstall$ node install.js
 .../esbuild@0.28.2/node_modules/esbuild postinstall: Done
+.../esbuild@0.25.12/node_modules/esbuild postinstall: Done
 
 dependencies:
 + @hookform/resolvers 5.2.2
@@ -141,7 +141,7 @@ devDependencies:
 + typescript 5.9.3
 + vitest 3.2.7
 
-Done in 5.7s using pnpm v10.34.5
+Done in 6s using pnpm v10.34.5
 + sleep 2
 + timeout 15s script -q -e -c 'pnpm exec drizzle-kit generate --name auth_permissions' /dev/null
 [90mNo config path provided, using default 'drizzle.config.ts'[39m
@@ -149,7 +149,13 @@ Done in 5.7s using pnpm v10.34.5
 [?25l
 Is [1m[34madmin_invite_role[39m[22m enum created or renamed from another enum?
 [32m❯ [39m[32m+[39m admin_invite_role              [90mcreate enum[39m
-  [33m~[39m admin_role › admin_invite_role [90mrename enum[39m+ printf '\n'
+  [33m~[39m admin_role › admin_invite_role [90mrename enum[39m+ printf '\r'
 + sleep 12
-
+[2K[1G[?25h[32m+[39m admin_invite_role [90menum will be created[39m
+[90m--- all enum conflicts resolved ---[39m
+[90m[39m
+[?25l
+Is [1m[34madmin_invite_claims[39m[22m table created or renamed from another table?
+[32m❯ [39m[32m+[39m admin_invite_claims               [90mcreate table[39m
+  [33m~[39m admin_users › admin_invite_claims [90mrename table[39m
 Session terminated, killing shell... ...killed.
