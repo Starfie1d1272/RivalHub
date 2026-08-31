@@ -77,8 +77,18 @@ export function getCompetitiveProfileBlockers(
  * or partial legacy snapshot is deliberately not repaired from today's live
  * catalog: that would rewrite historical event semantics.
  */
+function isCompleteCompetitiveContext(config: CompetitiveProfileConfig): boolean {
+  return Boolean(
+    config.platform.trim() &&
+    config.currentSeasonKey.trim() &&
+    config.previousSeasonKey.trim() &&
+    config.rankOrder.length > 0 &&
+    config.rankOrder.every((rank) => rank.trim().length > 0),
+  );
+}
+
 export async function resolveCompetitiveContext(config: CompetitiveProfileConfig): Promise<CompetitiveProfileConfig | null> {
-  return config.currentSeasonKey && config.previousSeasonKey && config.rankOrder.length > 0 ? config : null;
+  return isCompleteCompetitiveContext(config) ? config : null;
 }
 
 /** Batched loader for every live fact a qualification decision may need. */
@@ -267,8 +277,13 @@ export async function evaluateRosterQualificationFromFacts(input: {
   if (affiliationRules.length > 0) blockers.push(...education.blockers);
 
   const readinessByUser = new Map<string, ParticipantReadiness>();
-  if (competitiveProfile) {
-    const context = await resolveCompetitiveContext(competitiveProfile);
+  const context = competitiveProfile && isCompleteCompetitiveContext(competitiveProfile)
+    ? competitiveProfile
+    : null;
+  if (competitiveProfile && !context) {
+    blockers.push("竞技平台赛季目录尚未完成当前与上一赛季配置。");
+  }
+  if (context) {
     for (const member of members) {
       const fact = facts.get(member.userId);
       const readiness = fact
@@ -287,7 +302,7 @@ export async function evaluateRosterQualificationFromFacts(input: {
           return { ...readiness.strength, isHome };
         })
         .filter((item): item is PlayerStrengthInput & { isHome: boolean } => item !== null);
-      const strength = evaluateExternalStrengthRule({ config: competitiveProfile, players: primary });
+      const strength = evaluateExternalStrengthRule({ config: context, players: primary });
       if (!strength.eligible) blockers.push(...strength.blockers);
     }
   }
@@ -308,12 +323,19 @@ export async function evaluateRosterQualification(input: {
   primaryStarterUserIds?: readonly string[];
 }): Promise<RosterQualificationResult> {
   const { members, competitiveProfile } = input;
+  const resolvedCompetitiveProfile = competitiveProfile
+    ? await resolveCompetitiveContext(competitiveProfile)
+    : null;
   const facts = competitiveProfile
     ? await loadParticipantQualificationFacts(members.map((member) => member.userId), {
-        platform: (await resolveCompetitiveContext(competitiveProfile))?.platform ?? competitiveProfile.platform,
+        platform: resolvedCompetitiveProfile?.platform ?? competitiveProfile.platform,
       })
     : new Map<string, ParticipantQualificationFacts>();
-  return evaluateRosterQualificationFromFacts({ ...input, facts });
+  return evaluateRosterQualificationFromFacts({
+    ...input,
+    competitiveProfile: resolvedCompetitiveProfile ?? competitiveProfile,
+    facts,
+  });
 }
 
 /** Home-member test shared by application submit and admin review flows. */

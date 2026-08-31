@@ -1,4 +1,4 @@
-import { inArray } from "drizzle-orm";
+import { asc, inArray } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import { competitionEntries, competitionEntryRosterRevisions, eventRosters } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -51,16 +51,22 @@ function invariant(message: string): AppError {
  * refers to its competition Entry's currently approved roster revision and a
  * synced event roster. Entries are locked `FOR UPDATE` so a concurrent roster
  * change cannot slip in between this check and the caller's freeze.
+ *
+ * `requireEventRosterSync: false` is reserved for the explicit re-sync action
+ * (`saveMajorPrestartRoster`): it still validates Entry approval and revision
+ * integrity — and still locks the event roster — but skips the
+ * sourceRosterRevisionId equality it is about to re-establish itself.
  */
 export async function assertPrestartEntryCoherenceInTx(
   tx: TxDb,
   seasonId: string,
   entrants: readonly PrestartCoherenceEntrantRef[],
+  options: { requireEventRosterSync?: boolean } = {},
 ): Promise<PrestartEntryCoherence[]> {
   if (entrants.length === 0) return [];
-  const entryIds = [...new Set(entrants.map((entrant) => entrant.competitionEntryId))];
+  const entryIds = [...new Set(entrants.map((entrant) => entrant.competitionEntryId))].sort();
   const entryRows = await tx.select().from(competitionEntries)
-    .where(inArray(competitionEntries.id, entryIds)).for("update");
+    .where(inArray(competitionEntries.id, entryIds)).orderBy(asc(competitionEntries.id)).for("update");
   const entryById = new Map(entryRows.map((entry) => [entry.id, entry]));
 
   const results: Array<{ entrant: PrestartCoherenceEntrantRef; entry: typeof competitionEntries.$inferSelect; approvedRevisionNumber: number }> = [];
@@ -87,11 +93,11 @@ export async function assertPrestartEntryCoherenceInTx(
     .where(inArray(competitionEntryRosterRevisions.entryId, entryIds));
   const revisionByKey = new Map(revisionRows.map((revision) => [`${revision.entryId}:${revision.revision}`, revision]));
 
-  const rosterIds = entrants
-    .flatMap((entrant) => (entrant.eventRosterId ? [entrant.eventRosterId] : []));
+  const rosterIds = [...new Set(entrants
+    .flatMap((entrant) => (entrant.eventRosterId ? [entrant.eventRosterId] : [])))].sort();
   const rosterRows = rosterIds.length === 0
     ? []
-    : await tx.select().from(eventRosters).where(inArray(eventRosters.id, rosterIds)).for("update");
+    : await tx.select().from(eventRosters).where(inArray(eventRosters.id, rosterIds)).orderBy(asc(eventRosters.id)).for("update");
   const rosterById = new Map(rosterRows.map((roster) => [roster.id, roster]));
 
   const coherent: PrestartEntryCoherence[] = [];
@@ -113,7 +119,7 @@ export async function assertPrestartEntryCoherenceInTx(
     if (eventRoster.entryId !== entry.id) {
       throw invariant(`参赛条目 ${entry.name} 的赛事名单绑定不一致。`);
     }
-    if (eventRoster.sourceRosterRevisionId !== approvedRevision.id) {
+    if (options.requireEventRosterSync !== false && eventRoster.sourceRosterRevisionId !== approvedRevision.id) {
       throw new AppError(
         ErrorCode.VALIDATION_FAILED,
         `参赛条目「${entry.name}」的赛事名单仍指向旧的已批准报名名单版本；请重新同步最终名单后再继续。`,
@@ -129,8 +135,9 @@ export async function assertSinglePrestartEntryCoherenceInTx(
   tx: TxDb,
   seasonId: string,
   entrant: PrestartCoherenceEntrantRef,
+  options: { requireEventRosterSync?: boolean } = {},
 ): Promise<PrestartEntryCoherence> {
-  const [coherent] = await assertPrestartEntryCoherenceInTx(tx, seasonId, [entrant]);
+  const [coherent] = await assertPrestartEntryCoherenceInTx(tx, seasonId, [entrant], options);
   if (!coherent) throw invariant("正式参赛队缺少参赛条目引用。");
   return coherent;
 }

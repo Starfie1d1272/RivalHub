@@ -13,8 +13,6 @@ import {
   competitionEntryRosterMembers,
   competitionEntryRosterRevisions,
   competitionEntrySubmissions,
-  eventRosters,
-  majorPrestartEntrants,
   seasons,
   teamMemberships,
   teams,
@@ -34,6 +32,7 @@ import { getRegistrationWindowState } from "@/lib/registration/window";
 import { assertUsersNotBlockedInTx } from "@/lib/discipline/service";
 import { isTeamRegistration } from "@/lib/utils/season";
 import { getDisplayName } from "@/lib/identity/display-name";
+import { requestCompetitionEntryRosterChangeInTx } from "@/lib/competition-entries/roster-change";
 import { canEditCompetitionEntryRoster } from "@/lib/competition-entries/remediation";
 import { normalizeAffiliationRules, normalizeTeamRegistrationConfig } from "@/types/season";
 import { fail, ok, type ActionResult } from "@/types/action";
@@ -242,31 +241,11 @@ export async function requestCompetitionEntryRosterChange(input: { entryId: stri
   if (!parsed.success) return invalid("参赛条目标识无效。");
   try {
     const session = await requireAuth();
-    const result = await db.transaction(async (tx) => {
-      const entry = await lockRepresentativeEntry(tx, parsed.data.entryId, session.userId);
-      if (entry.registrationStatus !== "approved" || entry.approvedRosterRevision === null) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "只有已批准 Entry 可以发起 roster change。");
-      const [prestartRoster] = await tx.select({ id: eventRosters.id, status: eventRosters.status }).from(eventRosters).where(eq(eventRosters.entryId, entry.id)).for("update");
-      if (prestartRoster?.status === "frozen") throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "event roster 已冻结；名单变化必须走赛事运营裁决，不能回写报名事实。");
-      let prestartInvalidated = false;
-      if (prestartRoster) {
-        // 重新进入补正后，未冻结的赛前名单回到待同步/待确认状态，旧审批事实不再继续向上传递。
-        await tx.update(eventRosters).set({ status: "preparing", updatedAt: new Date() }).where(eq(eventRosters.id, prestartRoster.id));
-        await tx.update(majorPrestartEntrants).set({ rosterConfirmedAt: null, rosterConfirmedBy: null, updatedAt: new Date() })
-          .where(eq(majorPrestartEntrants.eventRosterId, prestartRoster.id));
-        prestartInvalidated = true;
-      }
-      const season = await loadSeasonOrThrow(tx, entry.competitionId);
-      if (!getRegistrationWindowState(season).canSubmit) throw new AppError(ErrorCode.REGISTRATION_CLOSED, "报名窗口已关闭；请联系赛事管理员发起名单变更。");
-      const [approved] = await tx.select().from(competitionEntryRosterRevisions).where(and(eq(competitionEntryRosterRevisions.entryId, entry.id), eq(competitionEntryRosterRevisions.revision, entry.approvedRosterRevision))).for("update");
-      if (!approved) throw new AppError(ErrorCode.INTERNAL_ERROR, "已批准 roster revision 不存在。");
-      const nextRevision = entry.currentRosterRevision + 1;
-      const [next] = await tx.insert(competitionEntryRosterRevisions).values({ entryId: entry.id, revision: nextRevision, status: "draft", createdBy: auditActorId(session) }).returning({ id: competitionEntryRosterRevisions.id });
-      const members = await tx.select().from(competitionEntryRosterMembers).where(eq(competitionEntryRosterMembers.revisionId, approved.id));
-      if (members.length > 0) await tx.insert(competitionEntryRosterMembers).values(members.map((member) => ({ revisionId: next.id, participantId: member.participantId, userId: member.userId, teamMembershipId: member.teamMembershipId, isPrimaryStarter: member.isPrimaryStarter })));
-      await tx.update(competitionEntries).set({ registrationStatus: "changes_requested", currentRosterRevision: nextRevision, reviewReason: "Entry representative requested an approved-roster change", updatedAt: new Date() }).where(eq(competitionEntries.id, entry.id));
-      await auditEntry(tx, { action: "competition_entry.roster_change.request", actorId: auditActorId(session), entryId: entry.id, competitionId: entry.competitionId, meta: { approvedRevision: approved.revision, nextRevision, prestartInvalidated } });
-      return { seasonSlug: season.slug };
-    });
+    const result = await db.transaction((tx) => requestCompetitionEntryRosterChangeInTx(tx, {
+      entryId: parsed.data.entryId,
+      representativeUserId: session.userId,
+      actorId: auditActorId(session),
+    }));
     revalidateEntry(result.seasonSlug, parsed.data.entryId);
     return ok(undefined);
   } catch (error) { return actionError("requestCompetitionEntryRosterChange", error); }

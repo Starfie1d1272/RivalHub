@@ -29,8 +29,8 @@ import { transitionMajorSwissStageInTransaction, type MajorStageTransitionResult
 import { finalizeMajorPlayoffRoundInTransaction, startMajorPlayoffInTransaction, type MajorPlayoffFinalizationResult, type MajorPlayoffStartResult } from "@/lib/major/playoff-runtime";
 import { revalidateSeasonPaths } from "@/lib/revalidation";
 import { assertPrestartEntryCoherenceInTx, assertSinglePrestartEntryCoherenceInTx } from "@/lib/major/prestart-entry";
-import { evaluateRosterEducationEligibility, resolveSeasonEducationVerification } from "@/lib/education/eligibility";
-import { loadEducationMembershipFacts } from "@/lib/qualification/service";
+import { loadApprovedRosterEducation, saveMajorPrestartRosterInTx } from "@/lib/major/prestart-roster";
+import { assertMajorPrestartEntrantsMutable, ensureMajorPrestartStateInTx } from "@/lib/major/prestart-state";
 
 const uuid = z.string().uuid();
 const issueCategory = z.enum(["qualification", "administration"]);
@@ -69,40 +69,8 @@ async function seasonAndAdminOrThrow(seasonId: string) {
   return { season, admin: await requireSeasonAdmin(seasonId) };
 }
 
-async function ensureState(tx: Parameters<Parameters<typeof db.transaction>[0]>[0], seasonId: string) {
-  await tx.insert(majorPrestartStates).values({ seasonId }).onConflictDoNothing();
-  const [state] = await tx.select().from(majorPrestartStates)
-    .where(eq(majorPrestartStates.seasonId, seasonId)).for("update");
-  if (!state) throw new AppError(ErrorCode.INTERNAL_ERROR, "赛前状态初始化失败");
-  return state;
-}
-
-function assertEntrantsMutable(state: { entrantsLockedAt: Date | null }): void {
-  if (state.entrantsLockedAt) {
-    throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "正式参赛队和最终名单已经锁定，不能再修改。");
-  }
-}
-
 function revalidateMajorPrestart(seasonSlug: string): void {
   revalidatePath(`/admin/${seasonSlug}`);
-}
-
-async function approvedRosterEducation(
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
-  userIds: readonly string[],
-  affiliationRules: ReturnType<typeof normalizeAffiliationRules>,
-): Promise<Map<string, string>> {
-  const facts = await loadEducationMembershipFacts(tx, userIds);
-  const resolved = [...facts.entries()].map(([userId, { email, emailVerifiedAt, history }]) => ({
-    userId,
-    email,
-    emailVerifiedAt,
-    verificationHistory: history,
-    verification: resolveSeasonEducationVerification(history, affiliationRules).selectedVerification,
-  }));
-  const decision = evaluateRosterEducationEligibility(resolved, affiliationRules);
-  if (!decision.eligible || decision.selectedVerificationIds.size !== userIds.length) throw new AppError(ErrorCode.VALIDATION_FAILED, decision.blockers.join(" "));
-  return decision.selectedVerificationIds;
 }
 
 export async function addMajorPrestartEntrant(input: { seasonId: string; competitionEntryId: string }): Promise<ActionResult<void>> {
@@ -111,8 +79,8 @@ export async function addMajorPrestartEntrant(input: { seasonId: string; competi
   try {
     const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
     await db.transaction(async (tx) => {
-      const state = await ensureState(tx, season.id);
-      assertEntrantsMutable(state);
+      const state = await ensureMajorPrestartStateInTx(tx, season.id);
+      assertMajorPrestartEntrantsMutable(state);
       const [entry] = await tx.select().from(competitionEntries)
         .where(and(eq(competitionEntries.id, parsed.data.competitionEntryId), eq(competitionEntries.competitionId, season.id), eq(competitionEntries.registrationStatus, "approved")));
       if (!entry) throw new AppError(ErrorCode.NOT_FOUND, "该 CompetitionEntry 不属于当前赛事或尚未批准。");
@@ -130,7 +98,7 @@ export async function addMajorPrestartEntrant(input: { seasonId: string; competi
       if (members.length < season.minTeamSize) {
         throw new AppError(ErrorCode.VALIDATION_FAILED, `正式队伍至少需要 ${season.minTeamSize} 名成员才能进入 Major。`);
       }
-      const verificationIds = await approvedRosterEducation(tx, members.map((member) => member.userId), normalizeAffiliationRules(season.affiliationRules));
+      const verificationIds = await loadApprovedRosterEducation(tx, members.map((member) => member.userId), normalizeAffiliationRules(season.affiliationRules));
       const [eventRoster] = await tx.insert(eventRosters).values({ entryId: entry.id, sourceRosterRevisionId: revision.id, status: "preparing", policySnapshot: { source: "major_prestart", competitionId: season.id } })
         .onConflictDoUpdate({ target: eventRosters.entryId, set: { sourceRosterRevisionId: revision.id, status: "preparing", frozenAt: null, frozenBy: null, updatedAt: new Date() } })
         .returning({ id: eventRosters.id });
@@ -155,7 +123,7 @@ export async function removeMajorPrestartEntrant(input: { seasonId: string; entr
   try {
     const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
     await db.transaction(async (tx) => {
-      assertEntrantsMutable(await ensureState(tx, season.id));
+      assertMajorPrestartEntrantsMutable(await ensureMajorPrestartStateInTx(tx, season.id));
       const [entrant] = await tx.select().from(majorPrestartEntrants)
         .where(and(eq(majorPrestartEntrants.id, parsed.data.entrantId), eq(majorPrestartEntrants.seasonId, season.id)));
       if (!entrant) throw new AppError(ErrorCode.NOT_FOUND, "正式参赛队不存在。");
@@ -180,39 +148,12 @@ export async function saveMajorPrestartRoster(input: z.infer<typeof rosterInput>
     if (userIds.length < season.minTeamSize || userIds.length > season.maxTeamSize) {
       return invalid(`最终名单必须为 ${season.minTeamSize}-${season.maxTeamSize} 人。`);
     }
-    await db.transaction(async (tx) => {
-      assertEntrantsMutable(await ensureState(tx, season.id));
-      const [entrant] = await tx.select().from(majorPrestartEntrants)
-        .where(and(eq(majorPrestartEntrants.id, parsed.data.entrantId), eq(majorPrestartEntrants.seasonId, season.id)));
-      if (!entrant) throw new AppError(ErrorCode.NOT_FOUND, "正式参赛队不存在。");
-      if (!entrant.eventRosterId) throw new AppError(ErrorCode.INTERNAL_ERROR, "正式参赛队缺少 event roster owner。");
-      const [eventRoster] = await tx.select().from(eventRosters).where(eq(eventRosters.id, entrant.eventRosterId)).for("update");
-      if (!eventRoster || eventRoster.status === "frozen") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "最终赛事名单已冻结，不能直接修改。");
-      if (eventRoster.status === "confirmed") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "请先显式重新开放这支队伍的最终赛事名单。");
-      const [entry] = await tx.select().from(competitionEntries).where(eq(competitionEntries.id, entrant.competitionEntryId));
-      if (!entry?.approvedRosterRevision) throw new AppError(ErrorCode.VALIDATION_FAILED, "Entry 缺少已批准报名 roster。");
-      const [revision] = await tx.select({ id: competitionEntryRosterRevisions.id }).from(competitionEntryRosterRevisions)
-        .where(and(eq(competitionEntryRosterRevisions.entryId, entry.id), eq(competitionEntryRosterRevisions.revision, entry.approvedRosterRevision)));
-      if (!revision) throw new AppError(ErrorCode.INTERNAL_ERROR, "已批准 roster revision 不存在。");
-      const formalMembers = await tx.select({ userId: competitionEntryRosterMembers.userId, participantId: competitionEntryRosterMembers.participantId, primary: competitionEntryRosterMembers.isPrimaryStarter })
-        .from(competitionEntryRosterMembers).innerJoin(competitionEntryParticipants, eq(competitionEntryParticipants.id, competitionEntryRosterMembers.participantId))
-        .where(and(eq(competitionEntryRosterMembers.revisionId, revision.id), eq(competitionEntryParticipants.status, "confirmed"), inArray(competitionEntryRosterMembers.userId, userIds)));
-      if (formalMembers.length !== userIds.length) {
-        throw new AppError(ErrorCode.VALIDATION_FAILED, "最终名单只能选择该正式队伍当前的成员。 ");
-      }
-      const verificationIds = await approvedRosterEducation(tx, userIds, normalizeAffiliationRules(season.affiliationRules));
-      await tx.delete(eventRosterMembers).where(eq(eventRosterMembers.eventRosterId, entrant.eventRosterId));
-      await tx.insert(eventRosterMembers).values(formalMembers.map((member) => ({ eventRosterId: entrant.eventRosterId!, userId: member.userId, participantId: member.participantId, isPrimaryStarter: member.primary, educationVerificationId: verificationIds.get(member.userId) })));
-      // 保存即重新同步：赛事名单改指当前已批准报名版本，成员随之重写。
-      await tx.update(eventRosters).set({ status: "preparing", sourceRosterRevisionId: revision.id, updatedAt: new Date() }).where(eq(eventRosters.id, entrant.eventRosterId));
-      await tx.update(majorPrestartEntrants).set({ rosterConfirmedAt: null, rosterConfirmedBy: null, updatedAt: new Date() })
-        .where(eq(majorPrestartEntrants.id, entrant.id));
-      await assertSinglePrestartEntryCoherenceInTx(tx, season.id, { competitionEntryId: entrant.competitionEntryId, eventRosterId: entrant.eventRosterId });
-      await tx.insert(auditLogs).values({
-        seasonId: season.id, action: "major_prestart.save_roster", actorId: auditActorId(admin),
-        targetId: entrant.id, targetType: "major_prestart_entrant", meta: { rosterSize: userIds.length, sourceRosterRevisionId: revision.id },
-      });
-    });
+    await db.transaction((tx) => saveMajorPrestartRosterInTx(tx, {
+      seasonId: season.id,
+      entrantId: parsed.data.entrantId,
+      userIds,
+      actorId: auditActorId(admin),
+    }));
     revalidateMajorPrestart(season.slug);
     return ok(undefined);
   } catch (error) { return actionError("saveMajorPrestartRoster", error); }
@@ -224,7 +165,7 @@ export async function confirmMajorPrestartRoster(input: { seasonId: string; entr
   try {
     const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
     await db.transaction(async (tx) => {
-      assertEntrantsMutable(await ensureState(tx, season.id));
+      assertMajorPrestartEntrantsMutable(await ensureMajorPrestartStateInTx(tx, season.id));
       const [entrant] = await tx.select().from(majorPrestartEntrants)
         .where(and(eq(majorPrestartEntrants.id, parsed.data.entrantId), eq(majorPrestartEntrants.seasonId, season.id)));
       if (!entrant) throw new AppError(ErrorCode.NOT_FOUND, "正式参赛队不存在。");
@@ -263,7 +204,7 @@ export async function reopenMajorPrestartRoster(input: { seasonId: string; entra
   try {
     const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
     await db.transaction(async (tx) => {
-      assertEntrantsMutable(await ensureState(tx, season.id));
+      assertMajorPrestartEntrantsMutable(await ensureMajorPrestartStateInTx(tx, season.id));
       const [entrant] = await tx.select().from(majorPrestartEntrants)
         .where(and(eq(majorPrestartEntrants.id, parsed.data.entrantId), eq(majorPrestartEntrants.seasonId, season.id))).for("update");
       if (!entrant?.eventRosterId) throw new AppError(ErrorCode.NOT_FOUND, "正式参赛队不存在或缺少赛事名单。");
@@ -287,8 +228,8 @@ export async function addMajorPrestartIssue(input: { seasonId: string; category:
   try {
     const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
     await db.transaction(async (tx) => {
-      const state = await ensureState(tx, season.id);
-      assertEntrantsMutable(state);
+      const state = await ensureMajorPrestartStateInTx(tx, season.id);
+      assertMajorPrestartEntrantsMutable(state);
       const [issue] = await tx.insert(majorPrestartIssues).values({ ...parsed.data }).returning({ id: majorPrestartIssues.id });
       await tx.insert(auditLogs).values({
         seasonId: season.id, action: "major_prestart.add_issue", actorId: auditActorId(admin),
@@ -327,7 +268,7 @@ export async function lockMajorPrestartEntrants(input: { seasonId: string }): Pr
   try {
     const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
     await db.transaction(async (tx) => {
-      const state = await ensureState(tx, season.id);
+      const state = await ensureMajorPrestartStateInTx(tx, season.id);
       if (state.entrantsLockedAt) return;
       const entrants = await tx.select({ id: majorPrestartEntrants.id, competitionEntryId: majorPrestartEntrants.competitionEntryId, eventRosterId: majorPrestartEntrants.eventRosterId, confirmedAt: majorPrestartEntrants.rosterConfirmedAt })
         .from(majorPrestartEntrants).where(eq(majorPrestartEntrants.seasonId, season.id));
@@ -377,7 +318,7 @@ export async function saveMajorTournamentSeeds(input: { seasonId: string; entryI
   try {
     const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
     await db.transaction(async (tx) => {
-      const state = await ensureState(tx, season.id);
+      const state = await ensureMajorPrestartStateInTx(tx, season.id);
       if (state.seedsLockedAt) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "赛事已经正式开赛，不能修改赛事种子。 ");
       if (!state.entrantsLockedAt) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "请先锁定正式参赛队和最终赛事名单。 ");
       const entrants = await tx.select({ id: majorPrestartEntrants.id, entryId: majorPrestartEntrants.competitionEntryId }).from(majorPrestartEntrants)
@@ -411,7 +352,7 @@ export async function confirmMajorTournamentSeeds(input: { seasonId: string }): 
   try {
     const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
     await db.transaction(async (tx) => {
-      const state = await ensureState(tx, season.id);
+      const state = await ensureMajorPrestartStateInTx(tx, season.id);
       if (state.seedsLockedAt) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "赛事已经正式开赛，不能重新确认赛事种子。 ");
       if (!state.entrantsLockedAt) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "请先锁定正式参赛队和最终赛事名单。 ");
       if (state.seedRevision < 1) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先保存赛事 1–32 种子排序。 ");
