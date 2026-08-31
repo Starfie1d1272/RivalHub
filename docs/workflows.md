@@ -1,6 +1,6 @@
 # RivalHub 工作流
 
-本文件描述当前 RC4 的生命周期与 owner boundary。政策规则由 [`rules/`](./rules/) 定义；精确 action 输入和错误码以 code 为准。
+本文件描述当前 2.0 实现的生命周期与 owner boundary。政策规则由 [`rules/`](./rules/) 定义；精确 action 输入和错误码以 code 为准。
 
 ## 1. Account / Auth
 
@@ -16,7 +16,7 @@
 
 ## 4. Competitive profile
 
-数据 owner 是 `competitive_platform_seasons` 与 `competitive_rank_facts`。`/settings/competitive` 直接读取全局目录，不依赖已发布 RivalHub 赛事；当前赛季、上一赛季置顶，其他仍启用的已编目赛季也可维护，未来赛季可以留空，历史赛季资料可补录。赛事 qualification evaluator 只检查该赛事冻结上下文要求的 exact season keys，因此目录推进不会让冻结了旧赛季的赛事资格失效。
+数据 owner 是 `competitive_platforms`、`competitive_platform_ranks`、`competitive_platform_seasons` 与 `competitive_rank_facts`：平台拥有 rank ladder，平台赛季只表达时间目录，竞技事实引用其中的稳定身份。`/settings/competitive` 直接读取全局目录，不依赖已发布 RivalHub 赛事；当前赛季、上一赛季置顶，其他仍启用的已编目赛季也可维护，未来赛季可以留空，历史赛季资料可补录。赛事 qualification evaluator 只检查该赛事冻结上下文要求的 exact season keys，因此目录推进不会让冻结了旧赛季的赛事资格失效。
 
 ## 5. Rivals solo registration
 
@@ -89,16 +89,6 @@ Rivals 的 voting/drafting 由 capability 启用；Major start 在 readiness、e
 - 撤回（registration → draft）与删除共用“无报名/队伍/赛程事实”guard；通过后撤回会解除 built-in 赛事的竞技冻结，下一次发布重新解析目录。
 - 删除（draft → deleted）拒绝已有 invite claim 的赛季；未领取的邀请码与其 claim ledger 随赛季删除，`season_admin_grants` 通过 season FK cascade 清理，`audit_logs.season_id` 为 SET NULL，并写入全局 `season.deleted` 审计。
 - 已发布赛季的编辑只接受名称、主题、时间等元数据；核心配置与冻结上下文不可被客户端输入或模板 factory 改写。
-
-### Team application
-
-```text
-draft / rejected → submitted
-submitted → approved | waitlisted | rejected
-waitlisted → approved | rejected
-```
-
-成员状态独立为 `invited → confirmed`。只有 draft/rejected application 可由队长编辑；submitted/waitlisted application 的审核与正式队伍物化由服务端控制。`approved` 已物化为正式队伍，不通过普通 review workflow 回退。
 
 ### Match
 

@@ -74,7 +74,7 @@ Major 的正式运行时由 `src/lib/major/` 与 `major_*` persistence owners �
 | Season capabilities / templates | `src/types/season.ts`, `src/actions/seasons.ts`, `src/db/schema/seasons.ts` |
 | Identity / education / competitive profile | `src/actions/account.ts`, `src/actions/education-verifications.ts`, `src/actions/competitive-profile.ts`, matching schema files |
 | Rivals registration / voting / draft | `src/actions/register.ts`, `src/actions/captains.ts`, `src/actions/draft/`, `src/lib/draft/` |
-| Team applications | `src/actions/team-applications.ts`, `src/lib/major/participant-readiness.ts`, `src/db/schema/team-applications.ts` |
+| Long-lived Teams / CompetitionEntry | `src/lib/teams/`, `src/lib/competition-entries/`, corresponding actions and schema files |
 | Major prestart and runtime | `src/actions/major-prestart.ts`, `src/lib/major/`, `src/db/schema/major-prestart.ts`, `src/db/schema/major-stage.ts` |
 | Matches / rosters / results | `src/actions/matches/`, `src/lib/matches/`, `src/db/schema/matches.ts`, `src/db/schema/match-rosters.ts` |
 | Discipline / post-event | `src/actions/discipline.ts`, `src/actions/postevent.ts`, `src/lib/discipline/`, matching schema files |
