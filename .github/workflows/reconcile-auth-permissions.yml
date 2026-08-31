@@ -23,4 +23,21 @@ jobs:
           node-version: 24
           cache: pnpm
       - name: Reconcile latest dev and regenerate auth migration
-        run: bash scripts/reconcile-auth-permissions.sh
+        shell: bash
+        run: |
+          set +e
+          bash -x scripts/reconcile-auth-permissions.sh > /tmp/reconcile-auth.log 2>&1
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            exit 0
+          fi
+          git merge --abort 2>/dev/null || true
+          git reset --hard HEAD
+          cp /tmp/reconcile-auth.log reconcile-auth-diagnostic.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add reconcile-auth-diagnostic.txt
+          git commit -m 'chore(auth): capture reconciliation failure point'
+          git push origin HEAD:refactor/v2-auth-permissions
+          exit 1
