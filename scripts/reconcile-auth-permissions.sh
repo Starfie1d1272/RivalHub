@@ -70,9 +70,9 @@ p.write_text(s)
 PY
 
 pnpm install --frozen-lockfile
-# Decision 1: create admin_invite_role (not rename legacy admin_role).
-# Decision 2: create admin_invite_claims (not rename legacy admin_users).
-{ sleep 2; printf '\r'; sleep 2; printf '\r'; sleep 10; } | timeout 15s script -q -e -c "pnpm exec drizzle-kit generate --name auth_permissions" /dev/null
+# 1) create admin_invite_role; 2) create admin_invite_claims;
+# 3) create season_admin_grants. None are renames of legacy root owners.
+{ sleep 2; printf '\r'; sleep 2; printf '\r'; sleep 2; printf '\r'; sleep 8; } | timeout 15s script -q -e -c "pnpm exec drizzle-kit generate --name auth_permissions" /dev/null
 
 python <<'PY'
 from pathlib import Path
