@@ -57,14 +57,14 @@ describe("admin dashboard", () => {
   it("redirects unauthenticated requests without reading admin.role", async () => {
     checkAdminSessionMock.mockResolvedValue(null);
 
-    await expect(AdminDashboardPage()).rejects.toThrow("REDIRECT:/admin/login");
-    expect(redirectMock).toHaveBeenCalledWith("/admin/login");
+    await expect(AdminDashboardPage()).rejects.toThrow("REDIRECT:/login");
+    expect(redirectMock).toHaveBeenCalledWith("/login");
   });
 
   it("routes season name and console CTA to the season console, not matches", async () => {
     checkAdminSessionMock.mockResolvedValue({
       role: "super_admin",
-      adminSeasonIds: [],
+      seasonIds: [],
     });
     mockSeasonRows([makeSeason()]);
 
@@ -77,7 +77,7 @@ describe("admin dashboard", () => {
   it("keeps matches / registrations / draft / captains as secondary shortcuts for an active season", async () => {
     checkAdminSessionMock.mockResolvedValue({
       role: "super_admin",
-      adminSeasonIds: [],
+      seasonIds: [],
     });
     mockSeasonRows([makeSeason()]);
 
@@ -93,7 +93,7 @@ describe("admin dashboard", () => {
   it("hides draft / captains shortcuts when the season capabilities are off", async () => {
     checkAdminSessionMock.mockResolvedValue({
       role: "super_admin",
-      adminSeasonIds: [],
+      seasonIds: [],
     });
     mockSeasonRows([makeSeason({ hasDraft: false, hasCaptainVoting: false })]);
 
@@ -106,7 +106,7 @@ describe("admin dashboard", () => {
   it("keeps the console entry for a finished season without active-stage shortcuts", async () => {
     checkAdminSessionMock.mockResolvedValue({
       role: "super_admin",
-      adminSeasonIds: [],
+      seasonIds: [],
     });
     mockSeasonRows([makeSeason({ status: "finished" })]);
 
@@ -120,8 +120,8 @@ describe("admin dashboard", () => {
 
   it("hides settings and new-season actions from a season admin", async () => {
     checkAdminSessionMock.mockResolvedValue({
-      role: "season_admin",
-      adminSeasonIds: [seasonId],
+      role: "user",
+      seasonIds: [seasonId],
     });
     mockSeasonRows([makeSeason()]);
 
@@ -134,8 +134,8 @@ describe("admin dashboard", () => {
 
   it("shows the empty state when a season admin has no assigned seasons", async () => {
     checkAdminSessionMock.mockResolvedValue({
-      role: "season_admin",
-      adminSeasonIds: [],
+      role: "user",
+      seasonIds: [],
     });
     mockSeasonRows([]);
 

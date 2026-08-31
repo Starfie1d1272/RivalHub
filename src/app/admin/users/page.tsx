@@ -1,9 +1,8 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { ne, asc } from "drizzle-orm";
-import { sql } from "drizzle-orm";
+import { asc, eq, isNotNull, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { users } from "@/db/schema";
+import { seasonAdminGrants, users } from "@/db/schema";
 import { requireSuperAdmin } from "@/lib/auth/session";
 import { Marker, Panel, Btn } from "@/components/rivalhub";
 import { AdminUserList } from "@/components/admin/AdminUserList";
@@ -20,21 +19,60 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
   try {
     admin = await requireSuperAdmin();
   } catch {
-    redirect("/admin/login");
+    redirect("/login");
   }
 
   const { tab = "admins", q = "", filter = "all" } = await searchParams;
 
   // ── 管理员 Tab ──────────────────────────────────────────────────────────
   if (tab !== "users") {
-    const [adminUsers, allSeasons] = await Promise.all([
-      db.query.users.findMany({
-        where: ne(users.role, "user"),
-        orderBy: [asc(users.createdAt)],
-      }),
+    const [adminRows, allSeasons] = await Promise.all([
+      db
+        .select({
+          id: users.id,
+          email: users.email,
+          steamName: users.steamName,
+          displayName: users.displayName,
+          perfectName: users.perfectName,
+          role: users.role,
+          seasonId: seasonAdminGrants.seasonId,
+          createdAt: users.createdAt,
+        })
+        .from(users)
+        .leftJoin(seasonAdminGrants, eq(seasonAdminGrants.userId, users.id))
+        .where(or(eq(users.role, "super_admin"), isNotNull(seasonAdminGrants.userId)))
+        .orderBy(asc(users.createdAt)),
       db.query.seasons.findMany(),
     ]);
     const seasonMap = Object.fromEntries(allSeasons.map((s) => [s.id, s.name]));
+    const adminById = new Map<string, {
+      id: string;
+      email: string;
+      steamName: string | null;
+      displayName: string | null;
+      perfectName: string | null;
+      role: "user" | "super_admin";
+      seasonIds: string[];
+      createdAt: Date;
+    }>();
+    for (const row of adminRows) {
+      const existing = adminById.get(row.id);
+      if (existing) {
+        if (row.seasonId) existing.seasonIds.push(row.seasonId);
+      } else {
+        adminById.set(row.id, {
+          id: row.id,
+          email: row.email,
+          steamName: row.steamName,
+          displayName: row.displayName,
+          perfectName: row.perfectName,
+          role: row.role,
+          seasonIds: row.seasonId ? [row.seasonId] : [],
+          createdAt: row.createdAt,
+        });
+      }
+    }
+    const adminUsers = [...adminById.values()];
 
     return (
       <div className="container mx-auto px-4 py-8 max-w-3xl space-y-6">
@@ -47,8 +85,8 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
             steamName: u.steamName,
             displayName: u.displayName,
             perfectName: u.perfectName,
-            role: u.role as "super_admin" | "season_admin",
-            adminSeasonIds: u.adminSeasonIds,
+            role: u.role === "super_admin" ? "super_admin" : "season_admin",
+            seasonIds: u.seasonIds,
             createdAt: u.createdAt.toISOString(),
           }))}
           seasonMap={seasonMap}

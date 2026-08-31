@@ -13,11 +13,10 @@ import { Separator } from "@/components/ui/separator";
 interface InviteRow {
   id: string;
   code: string;
-  role: "super_admin" | "admin";
+  role: "super_admin" | "season_admin";
   seasonId: string | null;
   maxUses: number;
-  usedCount: number;
-  usedByUsernames: string[];
+  claimCount: number;
   expiresAt: string | null;
   isActive: boolean;
   createdAt: string;
@@ -37,7 +36,7 @@ export function InviteManager({
   seasons: SeasonOption[];
 }) {
   const [invites, setInvites] = useState(initialInvites);
-  const [role, setRole] = useState<"admin" | "super_admin">("admin");
+  const [role, setRole] = useState<"season_admin" | "super_admin">("season_admin");
   const [seasonId, setSeasonId] = useState(seasons[0]?.id ?? "");
   const [maxUses, setMaxUses] = useState(1);
   const [expiresInHours, setExpiresInHours] = useState("");
@@ -48,7 +47,7 @@ export function InviteManager({
     startTransition(async () => {
       const result = await createInviteCode({
         role,
-        seasonId: role === "admin" ? seasonId : undefined,
+        seasonId: role === "season_admin" ? seasonId : undefined,
         maxUses: maxUses || 1,
         expiresInHours: expiresInHours ? Number(expiresInHours) : undefined,
       });
@@ -63,8 +62,7 @@ export function InviteManager({
             role: result.data.role,
             seasonId: result.data.seasonId,
             maxUses: result.data.maxUses,
-            usedCount: 0,
-            usedByUsernames: [],
+            claimCount: 0,
             expiresAt: result.data.expiresAt,
             isActive: true,
             createdAt: new Date().toISOString(),
@@ -104,14 +102,14 @@ export function InviteManager({
               className="h-9 rounded-sm border border-[var(--color-border)] bg-transparent px-3 text-sm"
               value={role}
               onChange={(e) =>
-                setRole(e.target.value as "admin" | "super_admin")
+                setRole(e.target.value as "season_admin" | "super_admin")
               }
             >
-              <option value="admin">管理员</option>
+              <option value="season_admin">赛季管理员</option>
               <option value="super_admin">超级管理员</option>
             </select>
           </div>
-          {role === "admin" && (
+          {role === "season_admin" && (
             <div className="space-y-1 min-w-44">
               <Label htmlFor="inv-season">赛季范围</Label>
               <select
@@ -152,7 +150,7 @@ export function InviteManager({
           <Button
             size="sm"
             onClick={handleCreate}
-            disabled={isPending || (role === "admin" && !seasonId)}
+            disabled={isPending || (role === "season_admin" && !seasonId)}
           >
             生成邀请码
           </Button>
@@ -176,17 +174,14 @@ export function InviteManager({
                 <code className="text-sm font-mono">{inv.code}</code>
                 <div className="flex items-center gap-2 mt-1 text-xs text-[var(--color-fg-mid)]">
                   <Badge variant="outline" className="text-xs">
-                    {inv.role === "super_admin" ? "超级管理员" : "管理员"}
+                    {inv.role === "super_admin" ? "超级管理员" : "赛季管理员"}
                   </Badge>
-                  {inv.role === "admin" && inv.seasonId && (
+                  {inv.role === "season_admin" && inv.seasonId && (
                     <span>范围：{seasonNameById.get(inv.seasonId) ?? inv.seasonId}</span>
                   )}
                   <span>
-                    使用 {inv.usedCount}/{inv.maxUses}
+                    使用 {inv.claimCount}/{inv.maxUses}
                   </span>
-                  {inv.usedByUsernames.length > 0 && (
-                    <span>使用者：{inv.usedByUsernames.join("、")}</span>
-                  )}
                   {inv.expiresAt && (
                     <span>
                       过期：{new Date(inv.expiresAt).toLocaleDateString("zh-CN")}
@@ -202,7 +197,7 @@ export function InviteManager({
                   )}
                 </div>
               </div>
-              {inv.isActive && inv.usedCount < inv.maxUses && (
+              {inv.isActive && inv.claimCount < inv.maxUses && (
                 <Button
                   size="sm"
                   variant="ghost"

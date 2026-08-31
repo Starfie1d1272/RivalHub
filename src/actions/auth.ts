@@ -1,10 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq, sql, type SQL } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { createPublicAuthClient, createServiceClient } from "@/lib/auth/supabase";
 import { db } from "@/db/client";
-import { users, adminInvites, auditLogs } from "@/db/schema";
+import { users } from "@/db/schema";
 import { ok, fail } from "@/types/action";
 import { ErrorCode } from "@/lib/errors";
 import type { ActionResult } from "@/types/action";
@@ -16,9 +16,9 @@ import { bootstrapConfiguredOwnerInTx } from "@/lib/auth/owner-bootstrap";
 import {
   requireAuth,
   createUserSession,
-  destroyAdminSession,
   destroyUserSession,
 } from "@/lib/auth/session";
+import { claimAdminInviteInTx } from "@/lib/auth/admin-invites";
 
 export async function loginWithPassword(
   email: string,
@@ -48,7 +48,6 @@ export async function loginWithPassword(
           email: normalizedEmail,
           authId: data.user.id,
           role: "user",
-          adminSeasonIds: [],
           updatedAt: new Date(),
         })
         .onConflictDoUpdate({
@@ -63,9 +62,6 @@ export async function loginWithPassword(
     await createUserSession({
       userId: userRow.id,
       email: userRow.email,
-      role: userRow.role,
-      adminSeasonIds: userRow.adminSeasonIds,
-      authSource: "user",
     });
 
     return ok({ email: normalizedEmail });
@@ -153,7 +149,6 @@ export async function signUp(
         email: normalizedEmail,
         authId: data.user.id,
         role: "user",
-        adminSeasonIds: [],
         updatedAt: new Date(),
       })
       .onConflictDoUpdate({
@@ -242,7 +237,6 @@ export async function sendPasswordResetEmail(email: string): Promise<ActionResul
 export async function logoutUser(): Promise<ActionResult<undefined>> {
   try {
     await destroyUserSession();
-    await destroyAdminSession();
     return ok(undefined);
   } catch (e) {
     return actionError("logoutUser", e);
@@ -257,105 +251,17 @@ export async function claimInviteCode(code: string): Promise<ActionResult<{ role
   const session = await requireAuth();
 
   try {
-    const result = await db.transaction(async (tx) => {
-      const [invite] = await tx
-        .select()
-        .from(adminInvites)
-        .where(eq(adminInvites.code, code.trim()))
-        .for("update");
-      const [currentUser] = await tx
-        .select()
-        .from(users)
-        .where(eq(users.id, session.userId))
-        .for("update");
+    const result = await db.transaction((tx) =>
+      claimAdminInviteInTx(tx, {
+        code: code.trim(),
+        userId: session.userId,
+      }),
+    );
 
-      if (!invite) {
-        return fail({ code: ErrorCode.UNAUTHORIZED, message: "邀请码无效" });
-      }
-      if (!currentUser) {
-        return fail({ code: ErrorCode.UNAUTHORIZED, message: "账号不存在，请重新登录后重试" });
-      }
-      if (!invite.isActive) {
-        return fail({ code: ErrorCode.UNAUTHORIZED, message: "邀请码已失效" });
-      }
-      if (invite.usedCount >= invite.maxUses) {
-        return fail({ code: ErrorCode.UNAUTHORIZED, message: "邀请码已用完" });
-      }
-      if (invite.expiresAt && new Date(invite.expiresAt) < new Date()) {
-        return fail({ code: ErrorCode.UNAUTHORIZED, message: "邀请码已过期" });
-      }
-      if (invite.role === "admin" && !invite.seasonId) {
-        return fail({ code: ErrorCode.VALIDATION_FAILED, message: "赛季管理员邀请码缺少赛季范围" });
-      }
-
-      const targetRole = invite.role === "super_admin" ? "super_admin" : "season_admin";
-      // 已有 super_admin 的用户不会被降级
-      const newRole = currentUser.role === "super_admin" ? "super_admin" : targetRole;
-      const updateSet: {
-        role: "user" | "season_admin" | "super_admin";
-        updatedAt: Date;
-        adminSeasonIds?: SQL<unknown>;
-      } = {
-        role: newRole,
-        updatedAt: new Date(),
-      };
-
-      if (newRole === "season_admin" && invite.seasonId) {
-        updateSet.adminSeasonIds = sql`(
-          SELECT ARRAY(
-            SELECT DISTINCT unnest(array_append(${users.adminSeasonIds}, ${invite.seasonId}::uuid))
-          )
-        )`;
-      }
-
-      const [updatedUser] = await tx
-        .update(users)
-        .set(updateSet)
-        .where(eq(users.id, session.userId))
-        .returning();
-
-      if (!updatedUser) {
-        return fail({
-          code: ErrorCode.UNAUTHORIZED,
-          message: "账号不存在，请重新登录后重试",
-        });
-      }
-
-      await tx
-        .update(adminInvites)
-        .set({
-          usedCount: invite.usedCount + 1,
-          isActive: invite.usedCount + 1 >= invite.maxUses ? false : invite.isActive,
-          usedByUsernames: sql`array_append(${adminInvites.usedByUsernames}, ${session.email})`,
-        })
-        .where(eq(adminInvites.id, invite.id));
-
-      await tx.insert(auditLogs).values({
-        seasonId: invite.seasonId,
-        action: "user.claim_invite",
-        actorId: session.userId,
-        targetId: session.userId,
-        targetType: "user",
-        meta: { inviteId: invite.id, newRole, email: session.email },
-      });
-
-      return ok({ updatedUser, newRole });
-    });
-
-    if (!result.success) return result;
-
-    const { updatedUser, newRole } = result.data;
-
-    await createUserSession({
-      userId: updatedUser.id,
-      email: updatedUser.email,
-      role: updatedUser.role,
-      adminSeasonIds: updatedUser.adminSeasonIds,
-      authSource: "user",
-    });
+    await createUserSession({ userId: result.userId, email: result.email });
 
     revalidatePath("/admin");
-    return ok({ role: newRole });
+    return ok({ role: result.role });
   } catch (e) {
     return actionError("claimInviteCode", e);
   }

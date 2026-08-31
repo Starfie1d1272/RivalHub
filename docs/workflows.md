@@ -87,7 +87,7 @@ Rivals 的 voting/drafting 由 capability 启用；Major start 在 readiness、e
 
 - 发布（draft → registration）在事务内冻结 requireCompetitiveProfile 赛事的竞技上下文（catalog current/previous/rank order）。
 - 撤回（registration → draft）与删除共用“无报名/队伍/赛程事实”guard；通过后撤回会解除 built-in 赛事的竞技冻结，下一次发布重新解析目录。
-- 删除（draft → deleted）清理未使用的管理员邀请与 `adminSeasonIds` 引用；`audit_logs.season_id` 为 SET NULL，并写入全局 `season.deleted` 审计。
+- 删除（draft → deleted）拒绝已有 invite claim 的赛季；未领取的邀请码与其 claim ledger 随赛季删除，`season_admin_grants` 通过 season FK cascade 清理，`audit_logs.season_id` 为 SET NULL，并写入全局 `season.deleted` 审计。
 - 已发布赛季的编辑只接受名称、主题、时间等元数据；核心配置与冻结上下文不可被客户端输入或模板 factory 改写。
 
 ### Team application

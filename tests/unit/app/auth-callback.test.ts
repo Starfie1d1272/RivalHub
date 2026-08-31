@@ -37,7 +37,6 @@ const userRow = {
   id: "00000000-0000-0000-0000-000000000001",
   email: "player@example.test",
   role: "user",
-  adminSeasonIds: [],
 };
 
 function configureDb(): void {
@@ -74,8 +73,7 @@ describe("email confirmation callback", () => {
 
     expect(response.headers.get("location")).toBe("http://127.0.0.1:3000/");
     expect(updateSetMock).toHaveBeenCalledWith(expect.objectContaining({ emailVerificationSource: "signup_confirmation" }));
-    expect(createUserSessionMock).toHaveBeenCalledWith({ userId: userRow.id, email: userRow.email, role: userRow.role, adminSeasonIds: userRow.adminSeasonIds, authSource: "user" });
-    expect(createUserSessionMock).not.toHaveBeenCalledWith(expect.objectContaining({ role: "super_admin" }));
+    expect(createUserSessionMock).toHaveBeenCalledWith({ userId: userRow.id, email: userRow.email });
   });
 
   it("rejects invalid tokens and unrecognised callback flows without a session or public user write", async () => {
@@ -97,6 +95,6 @@ describe("email confirmation callback", () => {
 
     expect(updateSetMock).toHaveBeenCalledWith(expect.objectContaining({ emailVerificationSource: "existing_account_reverification" }));
     expect(insertValuesMock).toHaveBeenCalledWith(expect.objectContaining({ authId: "auth-user-1", email: userRow.email }));
-    expect(createUserSessionMock).toHaveBeenCalledWith({ userId: userRow.id, email: userRow.email, role: userRow.role, adminSeasonIds: userRow.adminSeasonIds, authSource: "user" });
+    expect(createUserSessionMock).toHaveBeenCalledWith({ userId: userRow.id, email: userRow.email });
   });
 });

@@ -4,7 +4,7 @@
 
 ## 1. Accounts / Identity
 
-`users` 将应用账户关联到 Supabase Auth，并保存角色、跨赛事展示资料、Steam 与 Perfect World identity。`users.role` 为 `user`、`season_admin` 或 `super_admin`；`admin_users` 仅保存 legacy emergency Root 兼容身份，`admin_invites` 支持正常账号的管理员授予。
+`users` 将应用账户关联到 Supabase Auth，并保存角色、跨赛事展示资料、Steam 与 Perfect World identity。`users.role` 只允许 `user` 或 `super_admin`；`season_admin_grants` 保存用户对具体赛季的管理员授权，`admin_invites` 与 `admin_invite_claims` 支持正常账号的管理员授予和领取历史。
 
 `users.studentId` 是 legacy compatibility field，不能作为 Major eligibility source。
 
@@ -70,7 +70,7 @@
 
 ## 15. Operational/support data
 
-`user_sessions` 仅用于在线状态心跳，不是鉴权来源。Storage、Auth 与 Data API 的安全边界见 [`auth-and-permissions.md`](./auth-and-permissions.md)。
+`user_sessions` 仅用于在线状态心跳，不是鉴权来源。应用 session 只保存 Supabase 用户身份，当前角色与赛季 grant 每次从数据库读取。Storage、Auth 与 Data API 的安全边界见 [`auth-and-permissions.md`](./auth-and-permissions.md)。
 
 ## Intentional snapshots
 

@@ -148,6 +148,13 @@
       "when": 1788089172919,
       "tag": "0020_competitive_catalog_stars_bootstrap",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1788164059156,
+      "tag": "0021_mature_deadpool",
+      "breakpoints": true
     }
   ]
 }

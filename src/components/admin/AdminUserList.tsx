@@ -15,7 +15,7 @@ interface AdminUserRow {
   displayName: string | null;
   perfectName: string | null;
   role: "super_admin" | "season_admin";
-  adminSeasonIds: string[];
+  seasonIds: string[];
   createdAt: string;
 }
 
@@ -81,7 +81,7 @@ export function AdminUserList({ users, seasonMap, currentUserId }: AdminUserList
                     {u.role === "super_admin" ? "超级管理员" : "赛季管理员"}
                   </Badge>
                   {u.role === "season_admin" &&
-                    u.adminSeasonIds.map((sid) => {
+                    u.seasonIds.map((sid) => {
                       const name = seasonMap[sid];
                       if (!name) return null;
                       return (

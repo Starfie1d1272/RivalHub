@@ -16,7 +16,7 @@ export default async function SeasonSettingsPage({ params }: SeasonSettingsPageP
   try {
     await requireSuperAdmin();
   } catch {
-    redirect("/admin/login");
+    redirect("/login");
   }
 
   const { seasonSlug } = await params;

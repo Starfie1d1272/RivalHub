@@ -12,7 +12,7 @@ const PRIVATE_KEYS = [
   "qq",
   "studentId",
   "authId",
-  "adminSeasonIds",
+  "seasonIds",
   "internalEvidence",
   "notes",
   "competitionHistory",
@@ -35,7 +35,7 @@ describe("public payload serializers", () => {
       qq: "123456",
       studentId: "20260001",
       authId: "auth-private",
-      adminSeasonIds: ["season-private"],
+      seasonIds: ["season-private"],
       internalEvidence: "private evidence",
     };
 
@@ -74,7 +74,7 @@ describe("public payload serializers", () => {
       qq: "654321",
       studentId: "20260002",
       authId: "auth-private",
-      adminSeasonIds: ["season-private"],
+      seasonIds: ["season-private"],
       internalEvidence: "private evidence",
       notes: "时间冲突",
       gameplayStyle: "进攻型",

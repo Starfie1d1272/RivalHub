@@ -23,7 +23,6 @@ export function createFakeUser(overrides?: Record<string, unknown>) {
     id: randomUUID(),
     email: `user-${Date.now()}@test.com`,
     role: "user" as const,
-    adminSeasonIds: [],
     authId: randomUUID(),
     steam64: null,
     qq: null,

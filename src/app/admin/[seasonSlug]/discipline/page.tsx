@@ -27,7 +27,7 @@ export default async function AdminDisciplinePage({
   try {
     await requireSeasonAdmin(season.id);
   } catch {
-    redirect("/admin/login");
+    redirect("/login");
   }
 
   const result = await getSeasonSanctions(season.id);

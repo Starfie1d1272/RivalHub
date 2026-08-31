@@ -30,7 +30,7 @@ export default async function AdminSeasonLayout({
   try {
     admin = await requireSeasonAdmin(season.id);
   } catch {
-    redirect("/admin/login");
+    redirect("/login");
   }
 
   const hasMatches = season.stagePlan.length > 0;

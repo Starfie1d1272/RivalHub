@@ -5,7 +5,7 @@ import { loadCompetitivePlatformCatalog } from "@/lib/competitive/catalog";
 import { CompetitivePlatformCatalog } from "@/components/admin/CompetitivePlatformCatalog";
 
 export default async function CompetitiveSeasonsAdminPage() {
-  try { await requireSuperAdmin(); } catch { redirect("/admin/login"); }
+  try { await requireSuperAdmin(); } catch { redirect("/login"); }
   const platforms = await loadCompetitivePlatformCatalog(db);
   return (
     <div className="mx-auto w-full max-w-6xl space-y-5 px-6 py-8">

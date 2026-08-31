@@ -132,13 +132,7 @@ function migrateLocalDatabase(): void {
 
 function seedLocalDatabase(): void {
   const status = readLocalStatus();
-  const env = {
-    ...buildLocalAppEnvironment(status, sanitizedEnvironment()),
-    RIVALHUB_ROOT_USERNAME:
-      process.env.RIVALHUB_LOCAL_ROOT_USERNAME ?? "local-admin",
-    RIVALHUB_ROOT_PASSWORD:
-      process.env.RIVALHUB_LOCAL_ROOT_PASSWORD ?? "local-admin-password",
-  };
+  const env = buildLocalAppEnvironment(status, sanitizedEnvironment());
 
   run(tsxBin, ["scripts/seed.ts"], { env });
   run(tsxBin, ["scripts/db/seed-local-fixtures.ts"], { env });
@@ -391,8 +385,6 @@ function sanitizedEnvironment(): NodeJS.ProcessEnv {
     "RIVALHUB_DB_HOST_CONFIRM",
     "RIVALHUB_ALLOW_REMOTE_DB_WRITE",
     "RIVALHUB_LOCAL_DATABASE_URL",
-    "RIVALHUB_ROOT_USERNAME",
-    "RIVALHUB_ROOT_PASSWORD",
   ]) {
     delete env[key];
   }

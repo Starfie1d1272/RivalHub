@@ -3,7 +3,6 @@ import { db } from "@/db/client";
 import { users } from "@/db/schema";
 import { checkAdminSession } from "@/lib/auth/session";
 import { getDisplayName } from "@/lib/utils/display-name";
-import { ChangePasswordForm } from "@/components/admin/ChangePasswordForm";
 import { Panel, StatusPill, Marker } from "@/components/rivalhub";
 
 const ENV_VARS = [
@@ -41,16 +40,12 @@ export default async function AdminSettingsPage() {
           <Marker sub={`当前登录：${adminDisplayName}`}>系统设置</Marker>
         </div>
 
-        {/* 修改密码 */}
+        {/* 密码管理 */}
         <section className="space-y-4">
-          <h2 className="text-base font-semibold text-[var(--color-fg)]">修改密码</h2>
-          {admin.authSource === "root" ? (
-            <ChangePasswordForm />
-          ) : (
-            <Panel pad={16} className="text-sm text-[var(--color-fg-mid)]">
-              邮箱密码用户请在登录页或 Supabase Auth 流程中管理密码；此处仅用于 Root 紧急账号。
-            </Panel>
-          )}
+          <h2 className="text-base font-semibold text-[var(--color-fg)]">密码管理</h2>
+          <Panel pad={16} className="text-sm text-[var(--color-fg-mid)]">
+            管理员账号统一使用 Supabase Auth。请前往个人设置修改密码，权限变更会在下一次请求中从当前数据库事实读取。
+          </Panel>
         </section>
 
         {/* 环境变量状态 */}

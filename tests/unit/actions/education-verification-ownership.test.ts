@@ -31,7 +31,7 @@ import { submitEducationVerification } from "@/actions/education-verifications";
 describe("submitEducationVerification email ownership boundary", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    requireAuthMock.mockResolvedValue({ userId: "00000000-0000-0000-0000-000000000001", authSource: "user" });
+    requireAuthMock.mockResolvedValue({ userId: "00000000-0000-0000-0000-000000000001", email: "player@example.test" });
   });
 
   it("rejects an unverified authenticated account before any institution lookup or write", async () => {

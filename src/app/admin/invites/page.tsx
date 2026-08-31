@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
-import { asc, desc } from "drizzle-orm";
+import { asc, count, desc } from "drizzle-orm";
 import { db } from "@/db/client";
-import { adminInvites, seasons } from "@/db/schema";
+import { adminInviteClaims, adminInvites, seasons } from "@/db/schema";
 import { requireSuperAdmin } from "@/lib/auth/session";
 import { Marker } from "@/components/rivalhub";
 import { InviteManager } from "@/components/admin/InviteManager";
@@ -10,15 +10,19 @@ export default async function AdminInvitesPage() {
   try {
     await requireSuperAdmin();
   } catch {
-    redirect("/admin/login");
+    redirect("/login");
   }
 
-  const [rows, seasonRows] = await Promise.all([
+  const [rows, claimCounts, seasonRows] = await Promise.all([
     db
       .select()
       .from(adminInvites)
       .orderBy(desc(adminInvites.createdAt))
       .limit(50),
+    db
+      .select({ inviteId: adminInviteClaims.inviteId, claimCount: count() })
+      .from(adminInviteClaims)
+      .groupBy(adminInviteClaims.inviteId),
     db
       .select({
         id: seasons.id,
@@ -29,9 +33,12 @@ export default async function AdminInvitesPage() {
       .orderBy(asc(seasons.createdAt)),
   ]);
 
+  const claimCountByInviteId = new Map(
+    claimCounts.map((row) => [row.inviteId, Number(row.claimCount)]),
+  );
   const invites = rows.map((r) => ({
     ...r,
-    usedByUsernames: r.usedByUsernames ?? [],
+    claimCount: claimCountByInviteId.get(r.id) ?? 0,
     expiresAt: r.expiresAt?.toISOString() ?? null,
     createdAt: r.createdAt?.toISOString() ?? "",
   }));

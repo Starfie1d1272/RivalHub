@@ -8,7 +8,6 @@ const user = {
   id: "user-1",
   email: "owner@example.com",
   role: "user",
-  adminSeasonIds: [],
 } as unknown as BootstrapUser;
 
 function createTx(existingSuperAdmins: unknown[] = [], promotedUser: unknown = { ...user, role: "super_admin" }) {

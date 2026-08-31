@@ -1,16 +1,17 @@
 import { db } from "@/db/client";
 import { seasons, users } from "@/db/schema";
-import { getUserSession } from "@/lib/auth/session";
+import { getCurrentUserAuthorization, getUserSession } from "@/lib/auth/session";
 import { resolveAvatarUrl } from "@/lib/steam";
 import { HeaderClient } from "./HeaderClient";
 import { eq } from "drizzle-orm";
 
 export async function Header() {
-  const [allSeasons, session] = await Promise.all([
+  const [allSeasons, session, authorization] = await Promise.all([
     db
       .select({ slug: seasons.slug, name: seasons.name, status: seasons.status })
       .from(seasons),
     getUserSession(),
+    getCurrentUserAuthorization().catch(() => null),
   ]);
 
   const publicSeasons = allSeasons.filter(
@@ -41,7 +42,11 @@ export async function Header() {
   return (
     <HeaderClient
       seasons={publicSeasons}
-      session={session ? { userId: session.userId, role: session.role } : null}
+      session={session ? {
+        userId: session.userId,
+        isAdmin: authorization?.role === "super_admin" || Boolean(authorization?.seasonIds.length),
+        isSuperAdmin: authorization?.role === "super_admin",
+      } : null}
       avatarUrl={avatarUrl}
       steamName={currentUser?.steamName ?? null}
       displayName={currentUser?.displayName ?? null}

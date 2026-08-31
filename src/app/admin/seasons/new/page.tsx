@@ -9,7 +9,7 @@ export default async function NewSeasonPage() {
   try {
     await requireSuperAdmin();
   } catch {
-    redirect("/admin/login");
+    redirect("/login");
   }
 
   const major = createCompetitionTemplate("major");

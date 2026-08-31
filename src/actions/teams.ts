@@ -18,7 +18,7 @@ import {
   users,
 } from "@/db/schema";
 import { actionError, failValidation, isPgUniqueViolation } from "@/lib/action-utils";
-import { auditActorId, requireActorWithRootFallback, requireAuth, requireSuperAdmin } from "@/lib/auth/session";
+import { auditActorId, requireAuth, requireSuperAdmin } from "@/lib/auth/session";
 import { createServiceClient } from "@/lib/auth/supabase";
 import { MAX_TEAM_NAME_LENGTH, MIN_TEAM_NAME_LENGTH } from "@/lib/config/team-config";
 import { AppError, ErrorCode } from "@/lib/errors";
@@ -324,13 +324,13 @@ export async function transferTeamCaptain(input: { teamId: string; toUserId: str
   const parsed = z.object({ teamId: uuid, toUserId: uuid }).safeParse(input);
   if (!parsed.success) return invalid("队长交接信息无效。");
   try {
-    const actor = await requireActorWithRootFallback();
+    const actor = await requireAuth();
     await db.transaction(async (tx) => {
       const team = await lockTeam(tx, parsed.data.teamId);
-      let emergencyOverride = false;
+      let adminOverride = false;
       if (team.captainUserId !== actor.userId) {
         await requireSuperAdmin();
-        emergencyOverride = true;
+        adminOverride = true;
       }
       await tx.execute(sql`SELECT id FROM users WHERE id IN (${team.captainUserId}, ${parsed.data.toUserId}) ORDER BY id FOR UPDATE`);
       const memberships = await tx.select().from(teamMemberships).where(and(eq(teamMemberships.teamId, team.id), inArray(teamMemberships.userId, [team.captainUserId, parsed.data.toUserId]), isNull(teamMemberships.endedAt))).for("update");
@@ -342,9 +342,9 @@ export async function transferTeamCaptain(input: { teamId: string; toUserId: str
       await tx.update(teamMemberships).set({ role: "member", updatedAt: new Date() }).where(eq(teamMemberships.id, from.id));
       await tx.update(teamMemberships).set({ role: "captain", updatedAt: new Date() }).where(eq(teamMemberships.id, to.id));
       await tx.update(teamCaptainTenures).set({ endedAt: new Date() }).where(and(eq(teamCaptainTenures.teamId, team.id), isNull(teamCaptainTenures.endedAt)));
-      await tx.insert(teamCaptainTenures).values({ teamId: team.id, userId: parsed.data.toUserId, transferredBy: actor.actorId });
+      await tx.insert(teamCaptainTenures).values({ teamId: team.id, userId: parsed.data.toUserId, transferredBy: auditActorId(actor) });
       await tx.update(teams).set({ captainUserId: parsed.data.toUserId, updatedAt: new Date() }).where(eq(teams.id, team.id));
-      await auditTeam(tx, "team.captain.transfer", actor.actorId, team.id, { fromUserId: team.captainUserId, toUserId: parsed.data.toUserId, emergencyOverride });
+      await auditTeam(tx, "team.captain.transfer", auditActorId(actor), team.id, { fromUserId: team.captainUserId, toUserId: parsed.data.toUserId, adminOverride });
     });
     revalidateTeam();
     return ok(undefined);
@@ -358,13 +358,13 @@ export async function disbandTeam(input: { teamId: string }): Promise<ActionResu
   const parsed = z.object({ teamId: uuid }).safeParse(input);
   if (!parsed.success) return invalid("队伍标识无效。");
   try {
-    const actor = await requireActorWithRootFallback();
+    const actor = await requireAuth();
     const slug = await db.transaction(async (tx) => {
       const team = await lockTeam(tx, parsed.data.teamId);
-      let emergencyOverride = false;
+      let adminOverride = false;
       if (team.captainUserId !== actor.userId) {
         await requireSuperAdmin();
-        emergencyOverride = true;
+        adminOverride = true;
       }
       const [activeEntry] = await tx
         .select({ id: competitionEntries.id })
@@ -376,12 +376,12 @@ export async function disbandTeam(input: { teamId: string }): Promise<ActionResu
           sql`${seasons.status} NOT IN ('finished', 'archived')`,
         ))
         .limit(1);
-      if (activeEntry && !emergencyOverride) throw new AppError(ErrorCode.VALIDATION_FAILED, "队伍仍有进行中的赛事参赛条目，不能直接解散。");
+      if (activeEntry && !adminOverride) throw new AppError(ErrorCode.VALIDATION_FAILED, "队伍仍有进行中的赛事参赛条目，不能直接解散。");
       const now = new Date();
       await tx.update(teamMemberships).set({ status: "left", role: "member", endedAt: now, endedReason: "disbanded", updatedAt: now }).where(and(eq(teamMemberships.teamId, team.id), isNull(teamMemberships.endedAt)));
       await tx.update(teamCaptainTenures).set({ endedAt: now }).where(and(eq(teamCaptainTenures.teamId, team.id), isNull(teamCaptainTenures.endedAt)));
-      await tx.update(teams).set({ status: "disbanded", recruiting: false, disbandedAt: now, disbandedBy: actor.actorId, updatedAt: now }).where(eq(teams.id, team.id));
-      await auditTeam(tx, "team.disband", actor.actorId, team.id, { emergencyOverride, activeEntryId: activeEntry?.id ?? null });
+      await tx.update(teams).set({ status: "disbanded", recruiting: false, disbandedAt: now, disbandedBy: auditActorId(actor), updatedAt: now }).where(eq(teams.id, team.id));
+      await auditTeam(tx, "team.disband", auditActorId(actor), team.id, { adminOverride, activeEntryId: activeEntry?.id ?? null });
       return team.slug;
     });
     revalidateTeam(slug);

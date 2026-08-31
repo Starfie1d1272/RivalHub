@@ -38,7 +38,7 @@ RivalHub 以最高已完成的验证层级描述能力证据：
 
 Local PostgreSQL / migration evidence：
 
-多个 worktree 共享同一个 Local Supabase project/端口时，scripts/db/local.ts 会对 bootstrap、migration、seed、verify、real-PG integration、browser E2E、reset 和 verify:local 持有跨 worktree 的 OS 临时目录锁；占用者结束后才继续，异常退出留下的锁会按 PID 存活状态回收。普通 type-check、unit test 与 build 不经过该锁。invite-concurrency.test.ts 只证明 PostgreSQL invite row 的 FOR UPDATE serialization 与 maxUses pattern；它不调用 production claimInviteCode()，因此 PR5 Auth/Permission convergence 仍需用真实 production command/service 的 real-PG concurrency evidence 替换或升级这条 canary。
+多个 worktree 共享同一个 Local Supabase project/端口时，scripts/db/local.ts 会对 bootstrap、migration、seed、verify、real-PG integration、browser E2E、reset 和 verify:local 持有跨 worktree 的 OS 临时目录锁；占用者结束后才继续，异常退出留下的锁会按 PID 存活状态回收。普通 type-check、unit test 与 build 不经过该锁。`auth-permissions.test.ts` 回放 active migration 的旧权限数据并检查成功 backfill 与 fail-closed；`invite-concurrency.test.ts` 直接调用生产 `claimAdminInviteInTx`，用真实 PostgreSQL 事务证明 invite 锁、claim ledger、maxUses、grant 与 audit 的并发收敛。
 
 ```bash
 pnpm test:integration

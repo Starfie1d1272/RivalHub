@@ -29,7 +29,7 @@ import { getMatchRoster } from "@/actions/matches/roster";
 import { getSeasonHexagonScores } from "@/actions/hexagon";
 import { computeTeamDimensions } from "@/lib/utils/hexagon";
 import type { HexagonScores } from "@/lib/utils/hexagon";
-import { getUserSession } from "@/lib/auth/session";
+import { getUserSession, requireSeasonAdmin } from "@/lib/auth/session";
 import { normalizeRegistrationConfig } from "@/types/season";
 import { getTeamMapWinStats, getTeamPickStats, getTeamBanStats } from "@/lib/teams/data";
 import {
@@ -271,9 +271,12 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   let captainTeamMembers: { id: string; steamName: string; displayName: string | null; perfectName: string | null; primaryPosition: string }[] = [];
 
   if (userSession?.userId) {
-    isSeasonAdmin =
-      userSession.role === "super_admin" ||
-      (userSession.role === "season_admin" && userSession.adminSeasonIds.includes(season.id));
+    try {
+      await requireSeasonAdmin(season.id);
+      isSeasonAdmin = true;
+    } catch {
+      isSeasonAdmin = false;
+    }
 
     isCaptainA = teamA?.representativeUserId === userSession.userId;
     isCaptainB = teamB?.representativeUserId === userSession.userId;
