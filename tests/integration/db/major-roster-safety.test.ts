@@ -316,8 +316,18 @@ async function prepareFixture(pool: Pool, label: string): Promise<RosterSafetyFi
     // Frozen StageRun carrying the affiliation rules and competitive facts
     // accepted at launch.
     const ruleSnapshot = {
-      version: 3,
-      stage: { key: "stage1", type: "swiss", teamCount: 16, matchFormat: "bo1" },
+      version: 4,
+      stagePlan: capabilities.stagePlan.map((stage) => ({
+        key: stage.key,
+        name: stage.name,
+        type: stage.type,
+        teamCount: stage.teamCount,
+        matchFormat: stage.matchFormat!,
+        finalFormat: stage.finalFormat ?? null,
+        advanceTiers: stage.advanceTiers,
+        entrySeeds: stage.entrySeeds ?? null,
+        seeds: stage.seeds ?? null,
+      })),
       rosterRules: { minTeamSize: capabilities.minTeamSize, maxTeamSize: capabilities.maxTeamSize, starterCount: capabilities.starterCount },
       affiliationRules: [
         {
@@ -329,8 +339,7 @@ async function prepareFixture(pool: Pool, label: string): Promise<RosterSafetyFi
       ],
       competitiveProfile: { ...COMPETITIVE_PROFILE, rankOrder: [...COMPETITIVE_PROFILE.rankOrder] },
       frozenCompetitiveFacts,
-      tournamentEntrants: [],
-      tournamentSeeds: [],
+      runOptions: {},
     };
     const runResult = await client.query<{ id: string }>(
       `INSERT INTO major_stage_runs (season_id, stage_key, rule_snapshot, started_by)

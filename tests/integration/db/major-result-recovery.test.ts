@@ -803,11 +803,18 @@ async function main(): Promise<void> {
 
       // F. 注入官方名次事实 → 任何胜者更正被拒绝。
       {
-        const finalResultCheck = await client.query<{ id: string }>(
-          `INSERT INTO major_final_results (
+        // Do not keep the long-lived read client checked out while this block
+        // interleaves direct SQL with Drizzle transactions. The final-result
+        // invariant is deferred, and an isolated client keeps every expected
+        // failure and rollback scoped to this fixture section.
+        client.release();
+        const finalResultClient = await pool.connect();
+        try {
+          const finalResultCheck = await finalResultClient.query<{ id: string }>(
+            `INSERT INTO major_final_results (
              season_id, playoff_stage_run_id, champion_entry_id, placement_groups, status, finalized_by
            )
-           SELECT $1, $2, ordered.entry_ids->>0, jsonb_build_array(jsonb_build_object('from', 1, 'to', 32, 'entryIds', ordered.entry_ids)), 'pending_confirmation', 'local-admin'
+           SELECT $1, $2, (ordered.entry_ids->>0)::uuid, jsonb_build_array(jsonb_build_object('from', 1, 'to', 32, 'entryIds', ordered.entry_ids)), 'pending_confirmation', 'local-admin'
            FROM (
              SELECT jsonb_agg(entrant.competition_entry_id::text ORDER BY seed.seed) AS entry_ids
              FROM major_tournament_entrants entrant
@@ -816,55 +823,61 @@ async function main(): Promise<void> {
              WHERE entrant.season_id = $1
            ) ordered
            RETURNING id`,
-          [fixture.seasonId, run.runId],
-        );
-        expect(Boolean(finalResultCheck.rows[0]?.id),  "F 官方名次夹具注入成功").toBe(true);
-        await expectAppError(
-          () => database.transaction((tx) =>
-            applyResultCorrectionInTx(tx, { matchId: typoTarget, proposal: { scoreA: 4, scoreB: 13 }, actorId: ACTOR, confirmRecovery: true }),
-          ),
-          ErrorCode.VALIDATION_FAILED,
-          "官方名次已经生成",
-          "F 官方名次存在时必须拒绝胜者更正",
-        );
-        await client.query(`DELETE FROM major_final_results WHERE season_id = $1`, [fixture.seasonId]);
+            [fixture.seasonId, run.runId],
+          );
+          expect(Boolean(finalResultCheck.rows[0]?.id),  "F 官方名次夹具注入成功").toBe(true);
+          await expectAppError(
+            () => database.transaction((tx) =>
+              applyResultCorrectionInTx(tx, { matchId: typoTarget, proposal: { scoreA: 4, scoreB: 13 }, actorId: ACTOR, confirmRecovery: true }),
+            ),
+            ErrorCode.VALIDATION_FAILED,
+            "官方名次已经生成",
+            "F 官方名次存在时必须拒绝胜者更正",
+          );
+          await finalResultClient.query(`DELETE FROM major_final_results WHERE season_id = $1`, [fixture.seasonId]);
 
-        // The application parser is not the only protection: malformed direct
-        // SQL must be rejected by the deferred database invariant as well.
-        await client.query("BEGIN");
-        try {
-          const malformed = await capturePostgresError(client, async () => {
-            await client.query(
-              `INSERT INTO major_final_results (
-               season_id, playoff_stage_run_id, champion_entry_id, placement_groups, status, finalized_by
-             )
-             SELECT $1, $2, entrant.competition_entry_id, '[]'::jsonb, 'pending_confirmation', 'local-admin'
-             FROM major_stage_entrants stage_entrant
-             INNER JOIN major_tournament_entrants entrant ON entrant.id = stage_entrant.tournament_entrant_id
-             WHERE stage_entrant.stage_run_id = $2
-             ORDER BY stage_entrant.stage_seed LIMIT 1`,
-              [fixture.seasonId, run.runId],
-            );
-            await client.query("SET CONSTRAINTS ALL IMMEDIATE");
-          });
-          expect(malformed).toMatchObject({ code: "P0001" });
+          // The application parser is not the only protection: malformed direct
+          // SQL must be rejected by the deferred database invariant as well.
+          await finalResultClient.query("BEGIN");
+          try {
+            const malformed = await capturePostgresError(finalResultClient, async () => {
+              await finalResultClient.query(
+                `INSERT INTO major_final_results (
+                 season_id, playoff_stage_run_id, champion_entry_id, placement_groups, status, finalized_by
+               )
+               SELECT $1, $2, entrant.competition_entry_id, '[]'::jsonb, 'pending_confirmation', 'local-admin'
+               FROM major_stage_entrants stage_entrant
+               INNER JOIN major_tournament_entrants entrant ON entrant.id = stage_entrant.tournament_entrant_id
+               WHERE stage_entrant.stage_run_id = $2
+               ORDER BY stage_entrant.stage_seed LIMIT 1`,
+                [fixture.seasonId, run.runId],
+              );
+              await finalResultClient.query("SET CONSTRAINTS ALL IMMEDIATE");
+            });
+            expect(malformed).toMatchObject({ code: "P0001" });
+          } finally {
+            await finalResultClient.query("ROLLBACK");
+          }
         } finally {
-          await client.query("ROLLBACK");
+          finalResultClient.release();
         }
       }
 
       // G. 后续阶段 StageRun 已建立 → 本阶段胜者更正被拒绝。
-      await client.query(
-        `INSERT INTO major_stage_runs (season_id, stage_key, rule_snapshot, started_by)
-         SELECT r.season_id, 'stage2',
-                jsonb_set(r.rule_snapshot, '{stage}', '{"key":"stage2","type":"swiss","teamCount":16,"matchFormat":"bo1"}'::jsonb),
-                'local-admin'
-         FROM major_stage_runs r WHERE r.id = $1`,
-        [run.runId],
-      );
+      const stageTransitionClient = await pool.connect();
+      try {
+        await stageTransitionClient.query(
+          `INSERT INTO major_stage_runs (season_id, stage_key, rule_snapshot, started_by)
+           SELECT r.season_id, 'stage2',
+                  jsonb_set(r.rule_snapshot, '{stage}', '{"key":"stage2","type":"swiss","teamCount":16,"matchFormat":"bo1"}'::jsonb),
+                  'local-admin'
+           FROM major_stage_runs r WHERE r.id = $1`,
+          [run.runId],
+        );
+      } finally {
+        stageTransitionClient.release();
+      }
       fixtures.at(-1)!.stageKeysWithRuns.push({ stageKey: "stage2", runId: "(via-insert)" });
-
-      client.release();
 
       // 用独立 fixture 再验证一次完整阻断路径（不依赖主 fixture 内部顺序）。
       {
