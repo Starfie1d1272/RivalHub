@@ -9,17 +9,6 @@ import {
   normalizeTeamRegistrationConfig,
 } from "@/types/season";
 
-function expectFailure(
-  capabilities: ReturnType<typeof createMajorDefaultCapabilities>,
-  key: string,
-) {
-  const result = checkStandardMajorCapabilities(capabilities);
-  expect(result.isStandardMajor).toBe(false);
-  expect(result.failures).toEqual(
-    expect.arrayContaining([expect.objectContaining({ key, passed: false })]),
-  );
-}
-
 describe("checkStandardMajorCapabilities()", () => {
   it("accepts the current standard Major defaults", () => {
     const capabilities = createMajorDefaultCapabilities();
@@ -54,38 +43,82 @@ describe("checkStandardMajorCapabilities()", () => {
     const capabilities = createMajorDefaultCapabilities();
     capabilities.registrationMode = "solo";
 
-    expectFailure(capabilities, "registration-mode");
+    const result = checkStandardMajorCapabilities(capabilities);
+    expect(result).toMatchObject({
+      isStandardMajor: false,
+      failures: expect.arrayContaining([
+        expect.objectContaining({ key: "registration-mode", passed: false }),
+      ]),
+    });
   });
 
   it("rejects a Major whose team size or starter count deviates from the fixed 5–9/5 rule", () => {
-    expectFailure(
-      { ...createMajorDefaultCapabilities(), starterCount: 6 },
-      "team-size",
-    );
-    expectFailure(
-      { ...createMajorDefaultCapabilities(), minTeamSize: 6, maxTeamSize: 10 },
-      "team-size",
-    );
+    const starterCountChanged = checkStandardMajorCapabilities({
+      ...createMajorDefaultCapabilities(),
+      starterCount: 6,
+    });
+    expect(starterCountChanged).toMatchObject({
+      isStandardMajor: false,
+      failures: expect.arrayContaining([
+        expect.objectContaining({ key: "team-size", passed: false }),
+      ]),
+    });
+
+    const teamSizeChanged = checkStandardMajorCapabilities({
+      ...createMajorDefaultCapabilities(),
+      minTeamSize: 6,
+      maxTeamSize: 10,
+    });
+    expect(teamSizeChanged).toMatchObject({
+      isStandardMajor: false,
+      failures: expect.arrayContaining([
+        expect.objectContaining({ key: "team-size", passed: false }),
+      ]),
+    });
   });
 
   it("rejects captain voting or snake draft", () => {
     const votingEnabled = createMajorDefaultCapabilities();
     votingEnabled.hasCaptainVoting = true;
-    expectFailure(votingEnabled, "captain-voting");
+    const votingResult = checkStandardMajorCapabilities(votingEnabled);
+    expect(votingResult).toMatchObject({
+      isStandardMajor: false,
+      failures: expect.arrayContaining([
+        expect.objectContaining({ key: "captain-voting", passed: false }),
+      ]),
+    });
 
     const draftEnabled = createMajorDefaultCapabilities();
     draftEnabled.hasDraft = true;
-    expectFailure(draftEnabled, "draft");
+    const draftResult = checkStandardMajorCapabilities(draftEnabled);
+    expect(draftResult).toMatchObject({
+      isStandardMajor: false,
+      failures: expect.arrayContaining([
+        expect.objectContaining({ key: "draft", passed: false }),
+      ]),
+    });
   });
 
   it("rejects event-specific team roster limits: 5–9/5 is part of the standard identity", () => {
     const maxTeamSizeChanged = createMajorDefaultCapabilities();
     maxTeamSizeChanged.maxTeamSize = 8;
-    expectFailure(maxTeamSizeChanged, "team-size");
+    const maxTeamSizeResult = checkStandardMajorCapabilities(maxTeamSizeChanged);
+    expect(maxTeamSizeResult).toMatchObject({
+      isStandardMajor: false,
+      failures: expect.arrayContaining([
+        expect.objectContaining({ key: "team-size", passed: false }),
+      ]),
+    });
 
     const minTeamSizeChanged = createMajorDefaultCapabilities();
     minTeamSizeChanged.minTeamSize = 4;
-    expectFailure(minTeamSizeChanged, "team-size");
+    const minTeamSizeResult = checkStandardMajorCapabilities(minTeamSizeChanged);
+    expect(minTeamSizeResult).toMatchObject({
+      isStandardMajor: false,
+      failures: expect.arrayContaining([
+        expect.objectContaining({ key: "team-size", passed: false }),
+      ]),
+    });
   });
 
   it("allows event-specific registration limits and map pools", () => {
@@ -103,67 +136,139 @@ describe("checkStandardMajorCapabilities()", () => {
       capabilities.stagePlan[0],
     ];
 
-    expectFailure(capabilities, "entry-cohorts");
+    const result = checkStandardMajorCapabilities(capabilities);
+    expect(result).toMatchObject({
+      isStandardMajor: false,
+      failures: expect.arrayContaining([
+        expect.objectContaining({ key: "entry-cohorts", passed: false }),
+      ]),
+    });
   });
 
   it("rejects a changed stage team count", () => {
     const capabilities = createMajorDefaultCapabilities();
     capabilities.stagePlan[1].teamCount = 24;
 
-    expectFailure(capabilities, "stage2");
+    const result = checkStandardMajorCapabilities(capabilities);
+    expect(result).toMatchObject({
+      isStandardMajor: false,
+      failures: expect.arrayContaining([
+        expect.objectContaining({ key: "stage2", passed: false }),
+      ]),
+    });
   });
 
   it("rejects a changed Swiss advancement relationship", () => {
     const capabilities = createMajorDefaultCapabilities();
     capabilities.stagePlan[2].advanceTiers = [{ placement: "*", count: 6 }];
 
-    expectFailure(capabilities, "stage3");
+    const result = checkStandardMajorCapabilities(capabilities);
+    expect(result).toMatchObject({
+      isStandardMajor: false,
+      failures: expect.arrayContaining([
+        expect.objectContaining({ key: "stage3", passed: false }),
+      ]),
+    });
   });
 
   it("rejects a changed 16 / 8 / 8 entry cohort", () => {
     const capabilities = createMajorDefaultCapabilities();
     capabilities.stagePlan[1].entrySeeds = 7;
 
-    expectFailure(capabilities, "entry-cohorts");
+    const result = checkStandardMajorCapabilities(capabilities);
+    expect(result).toMatchObject({
+      isStandardMajor: false,
+      failures: expect.arrayContaining([
+        expect.objectContaining({ key: "entry-cohorts", passed: false }),
+      ]),
+    });
   });
 
   it("requires Stage 1 to contain exactly the unique 17–32 seed cohort", () => {
     const wrongCohort = createMajorDefaultCapabilities();
     wrongCohort.stagePlan[0].seeds = Array.from({ length: 16 }, (_, index) => index + 1);
-    expectFailure(wrongCohort, "stage1-seeds");
+    const wrongCohortResult = checkStandardMajorCapabilities(wrongCohort);
+    expect(wrongCohortResult).toMatchObject({
+      isStandardMajor: false,
+      failures: expect.arrayContaining([
+        expect.objectContaining({ key: "stage1-seeds", passed: false }),
+      ]),
+    });
 
     const missingCohort = createMajorDefaultCapabilities();
     missingCohort.stagePlan[0].seeds = undefined;
-    expectFailure(missingCohort, "stage1-seeds");
+    const missingCohortResult = checkStandardMajorCapabilities(missingCohort);
+    expect(missingCohortResult).toMatchObject({
+      isStandardMajor: false,
+      failures: expect.arrayContaining([
+        expect.objectContaining({ key: "stage1-seeds", passed: false }),
+      ]),
+    });
   });
 
   it("rejects a changed playoff structure", () => {
     const capabilities = createMajorDefaultCapabilities();
     capabilities.stagePlan[3].teamCount = 4;
 
-    expectFailure(capabilities, "playoff");
+    const result = checkStandardMajorCapabilities(capabilities);
+    expect(result).toMatchObject({
+      isStandardMajor: false,
+      failures: expect.arrayContaining([
+        expect.objectContaining({ key: "playoff", passed: false }),
+      ]),
+    });
   });
 
   it("rejects stage-format changes that would violate the frozen NJU Major policy", () => {
     const capabilities = createMajorDefaultCapabilities();
     capabilities.stagePlan[2].matchFormat = "bo1";
-    expectFailure(capabilities, "swiss-match-format");
+    const swissFormatResult = checkStandardMajorCapabilities(capabilities);
+    expect(swissFormatResult).toMatchObject({
+      isStandardMajor: false,
+      failures: expect.arrayContaining([
+        expect.objectContaining({ key: "swiss-match-format", passed: false }),
+      ]),
+    });
 
     const stage1Bo3 = createMajorDefaultCapabilities();
     stage1Bo3.stagePlan[0].matchFormat = "bo3";
-    expectFailure(stage1Bo3, "swiss-match-format");
+    const stage1Bo3Result = checkStandardMajorCapabilities(stage1Bo3);
+    expect(stage1Bo3Result).toMatchObject({
+      isStandardMajor: false,
+      failures: expect.arrayContaining([
+        expect.objectContaining({ key: "swiss-match-format", passed: false }),
+      ]),
+    });
 
     const stage2Bo3 = createMajorDefaultCapabilities();
     stage2Bo3.stagePlan[1].matchFormat = "bo3";
-    expectFailure(stage2Bo3, "swiss-match-format");
+    const stage2Bo3Result = checkStandardMajorCapabilities(stage2Bo3);
+    expect(stage2Bo3Result).toMatchObject({
+      isStandardMajor: false,
+      failures: expect.arrayContaining([
+        expect.objectContaining({ key: "swiss-match-format", passed: false }),
+      ]),
+    });
 
     const playoffBo1 = createMajorDefaultCapabilities();
     playoffBo1.stagePlan[3].matchFormat = "bo1";
-    expectFailure(playoffBo1, "playoff");
+    const playoffBo1Result = checkStandardMajorCapabilities(playoffBo1);
+    expect(playoffBo1Result).toMatchObject({
+      isStandardMajor: false,
+      failures: expect.arrayContaining([
+        expect.objectContaining({ key: "playoff", passed: false }),
+      ]),
+    });
 
     const finalBo3 = createMajorDefaultCapabilities();
     finalBo3.stagePlan[3].finalFormat = "bo3";
-    expectFailure(finalBo3, "playoff");
+    const finalBo3Result = checkStandardMajorCapabilities(finalBo3);
+    expect(finalBo3Result).toMatchObject({
+      isStandardMajor: false,
+      failures: expect.arrayContaining([
+        expect.objectContaining({ key: "playoff", passed: false }),
+      ]),
+    });
   });
 
   it.each([0, 1, 2])("rejects BO5 in Swiss Stage %i", (stageIndex) => {
@@ -171,7 +276,12 @@ describe("checkStandardMajorCapabilities()", () => {
     capabilities.stagePlan[stageIndex].matchFormat = "bo5";
 
     const result = checkStandardMajorCapabilities(capabilities);
-    expectFailure(capabilities, "swiss-match-format");
+    expect(result).toMatchObject({
+      isStandardMajor: false,
+      failures: expect.arrayContaining([
+        expect.objectContaining({ key: "swiss-match-format", passed: false }),
+      ]),
+    });
     expect(result.failures).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
