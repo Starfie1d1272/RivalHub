@@ -43,6 +43,7 @@
     "test:major-roster-safety:local": "tsx scripts/db/local.ts test-major-roster-safety",
     "test:major-result-recovery:local": "tsx scripts/db/local.ts test-major-result-recovery",
     "test:invite-concurrency:local": "tsx scripts/db/local.ts test-invite-concurrency",
+    "test:team-invitation:local": "tsx scripts/db/local.ts test-team-invitation",
     "test:discipline:local": "tsx scripts/db/local.ts test-discipline",
     "test:my-readiness:local": "tsx scripts/db/local.ts test-my-readiness",
     "test:postevent:local": "tsx scripts/db/local.ts test-postevent",

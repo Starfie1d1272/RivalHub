@@ -1,10 +1,10 @@
 import { count, eq } from "drizzle-orm";
 import type { db as dbClient } from "@/db/client";
-import { competitionEntries, matches, seasonRegistrations, seasons } from "@/db/schema";
+import { auditLogs, competitionEntries, matches, seasonRegistrations, seasons } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { resolveLiveCompetitiveContext } from "@/lib/competitive/catalog";
 import { createCompetitionTemplate } from "@/lib/competition/templates";
-import { normalizeTeamRegistrationConfig, type TeamRegistrationConfig } from "@/types/season";
+import { normalizeTeamRegistrationConfig, type SeasonStatus, type TeamRegistrationConfig } from "@/types/season";
 
 type Transaction = Parameters<Parameters<typeof dbClient.transaction>[0]>[0];
 
@@ -51,6 +51,31 @@ export function unfreezeBuiltInCompetitiveContext(season: {
       ? { ...draftTemplate.competitiveProfile }
       : undefined,
   };
+}
+
+/**
+ * Canonical row-locked season status transition with its audit record in the
+ * same transaction. `SELECT … FOR UPDATE` closes the check-then-write race
+ * between concurrent admins, so a committed business fact always has its
+ * committed audit counterpart and an illegal transition writes nothing.
+ */
+export async function transitionSeasonStatusInTx(
+  tx: Transaction,
+  input: { seasonId: string; from: SeasonStatus; to: SeasonStatus; action: string; actorId: string; failureMessage: string },
+): Promise<{ slug: string }> {
+  const [season] = await tx.select().from(seasons).where(eq(seasons.id, input.seasonId)).for("update");
+  if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在。");
+  if (season.status !== input.from) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, input.failureMessage);
+  await tx.update(seasons).set({ status: input.to, updatedAt: new Date() }).where(eq(seasons.id, season.id));
+  await tx.insert(auditLogs).values({
+    seasonId: season.id,
+    action: input.action,
+    actorId: input.actorId,
+    targetId: season.id,
+    targetType: "season",
+    meta: { slug: season.slug, from: season.status, to: input.to },
+  });
+  return { slug: season.slug };
 }
 
 /**

@@ -8,6 +8,7 @@ type Globals = {
   schema: typeof import("../../src/db/schema");
   assertSeasonHasNoHistoricalFacts: typeof import("../../src/lib/seasons/lifecycle")["assertSeasonHasNoHistoricalFacts"];
   freezeCompetitiveContext: typeof import("../../src/lib/seasons/lifecycle")["freezeCompetitiveContext"];
+  transitionSeasonStatusInTx: typeof import("../../src/lib/seasons/lifecycle")["transitionSeasonStatusInTx"];
   MAJOR_CONFIG: typeof import("../../src/types/season")["MAJOR_TEAM_CONFIG"];
 };
 const globals = {} as Globals;
@@ -42,18 +43,20 @@ async function main(): Promise<void> {
   }
   process.env.DATABASE_URL = process.env.DATABASE_URL ?? databaseUrl;
   const schemaModule = await import("../../src/db/schema");
-  const { assertSeasonHasNoHistoricalFacts, freezeCompetitiveContext } = await import("../../src/lib/seasons/lifecycle");
+  const { assertSeasonHasNoHistoricalFacts, freezeCompetitiveContext, transitionSeasonStatusInTx } = await import("../../src/lib/seasons/lifecycle");
   const typeSeasons = await import("../../src/types/season");
   globals.schema = schemaModule;
   globals.assertSeasonHasNoHistoricalFacts = assertSeasonHasNoHistoricalFacts;
   globals.freezeCompetitiveContext = freezeCompetitiveContext;
+  globals.transitionSeasonStatusInTx = transitionSeasonStatusInTx;
   globals.MAJOR_CONFIG = typeSeasons.MAJOR_TEAM_CONFIG;
   const pool = new Pool({ connectionString: databaseUrl, ssl: false, max: 6 });
   try {
     await exerciseCompetitiveFreezeLifecycle(pool);
     await exerciseEmptySeasonGuards(pool);
     await exerciseQualificationPlatformIsolation(pool);
-    console.log("Season Governance local integration passed: competitive freeze lifecycle, empty-season guards, and qualification platform isolation.");
+    await exerciseTerminalTransitions(pool);
+    console.log("Season Governance local integration passed: competitive freeze lifecycle, empty-season guards, qualification platform isolation, and row-locked terminal transitions with atomic audits.");
   } finally {
     await pool.end();
   }
@@ -268,6 +271,82 @@ async function exerciseEmptySeasonGuards(pool: Pool): Promise<void> {
   await pool.query("DELETE FROM users WHERE id = $1", [captain]);
 
   await pool.query("DELETE FROM seasons WHERE id = $1", [emptySeason]);
+}
+
+// ── Row-locked terminal transitions with atomic audits ──────────────────────
+
+async function seedStatusSeason(pool: Pool, status: string): Promise<string> {
+  const seasonId = randomUUID();
+  await pool.query(
+    `INSERT INTO seasons (id, slug, name, kind, status, registration_mode, has_captain_voting, has_draft, team_registration_config)
+     VALUES ($1, $2, 'Governance Terminal', '自定义赛事', $3::season_status, 'team', false, false, '{}'::json)`,
+    [seasonId, `gov-terminal-${randomUUID()}`, status],
+  );
+  return seasonId;
+}
+
+async function readTerminalState(pool: Pool, seasonId: string): Promise<{ status: string; audits: string }> {
+  const result = await pool.query<{ status: string; audits: string }>(
+    `SELECT status::text AS status,
+            (SELECT count(*)::text FROM audit_logs WHERE season_id = $1 AND target_type = 'season') AS audits
+     FROM seasons WHERE id = $1`,
+    [seasonId],
+  );
+  return result.rows[0] ?? { status: "missing", audits: "0" };
+}
+
+async function exerciseTerminalTransitions(pool: Pool): Promise<void> {
+  const db = drizzle(pool, { schema: globals.schema });
+  const transition = globals.transitionSeasonStatusInTx;
+
+  // 非法迁移 fail closed：状态与审计都不落库。
+  const registrationSeason = await seedStatusSeason(pool, "registration");
+  await db.transaction(async (tx) => {
+    await expectFailure(
+      () => transition(tx, { seasonId: registrationSeason, from: "playing", to: "finished", action: "season.force_finish", actorId: "local-admin", failureMessage: "只有 playing 状态可手动结束" }),
+      "只有 playing 状态可手动结束",
+    );
+  });
+  const untouched = await readTerminalState(pool, registrationSeason);
+  check(untouched.status === "registration" && untouched.audits === "0", "非法终态迁移不能留下状态或审计。");
+  await pool.query("DELETE FROM seasons WHERE id = $1", [registrationSeason]);
+
+  // 合法迁移：状态与审计同一事务落库。
+  const playingSeason = await seedStatusSeason(pool, "playing");
+  await db.transaction(async (tx) => {
+    const result = await transition(tx, { seasonId: playingSeason, from: "playing", to: "finished", action: "season.force_finish", actorId: "local-admin", failureMessage: "只有 playing 状态可手动结束" });
+    check(typeof result.slug === "string" && result.slug.length > 0, "终态迁移应返回 slug。");
+  });
+  const finished = await readTerminalState(pool, playingSeason);
+  check(finished.status === "finished" && finished.audits === "1", "playing → finished 应原子写入状态与审计。");
+
+  // 并发双迁移：行锁 + 状态复验，恰好一次成功、一次失败，且只有一条审计。
+  const concurrentSeason = await seedStatusSeason(pool, "playing");
+  const attempts = await Promise.allSettled([
+    db.transaction((tx) => transition(tx, { seasonId: concurrentSeason, from: "playing", to: "finished", action: "season.force_finish", actorId: "local-admin-a", failureMessage: "只有 playing 状态可手动结束" })),
+    db.transaction((tx) => transition(tx, { seasonId: concurrentSeason, from: "playing", to: "finished", action: "season.force_finish", actorId: "local-admin-b", failureMessage: "只有 playing 状态可手动结束" })),
+  ]);
+  const succeeded = attempts.filter((attempt) => attempt.status === "fulfilled").length;
+  const rejected = attempts.filter((attempt) => attempt.status === "rejected").length;
+  check(succeeded === 1 && rejected === 1, `并发终态迁移应收敛为一次成功一次拒绝；实际 ${succeeded}/${rejected}。`);
+  const concurrentState = await readTerminalState(pool, concurrentSeason);
+  check(concurrentState.status === "finished" && concurrentState.audits === "1", "并发终态迁移后状态与审计应恰好各一份。");
+
+  // finished → archived 合法迁移；archived 之后不可再转换。
+  await db.transaction(async (tx) => {
+    await transition(tx, { seasonId: playingSeason, from: "finished", to: "archived", action: "season.archive", actorId: "local-admin", failureMessage: "只有 finished 状态可归档" });
+  });
+  await db.transaction(async (tx) => {
+    await expectFailure(
+      () => transition(tx, { seasonId: playingSeason, from: "finished", to: "archived", action: "season.archive", actorId: "local-admin", failureMessage: "只有 finished 状态可归档" }),
+      "只有 finished 状态可归档",
+    );
+  });
+  const archived = await readTerminalState(pool, playingSeason);
+  check(archived.status === "archived" && archived.audits === "2", "finished → archived 应记录审计且不可重复。");
+
+  await pool.query("DELETE FROM audit_logs WHERE season_id IN ($1, $2)", [playingSeason, concurrentSeason]);
+  await pool.query("DELETE FROM seasons WHERE id IN ($1, $2)", [playingSeason, concurrentSeason]);
 }
 
 main().catch((error) => {

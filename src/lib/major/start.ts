@@ -1,4 +1,4 @@
-import { and, count, eq, inArray } from "drizzle-orm";
+import { and, asc, count, eq, inArray } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import {
   auditLogs,
@@ -12,13 +12,20 @@ import {
   majorTournamentSeeds,
   matches,
   seasons,
-  competitiveRankFacts,
 } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { buildMajorOpeningPlan } from "@/lib/major/opening";
 import { evaluateMajorPrestartReadiness } from "@/lib/major/prestart";
+import { assertPrestartEntryCoherenceInTx } from "@/lib/major/prestart-entry";
+import { ensureMajorPrestartStateInTx } from "@/lib/major/prestart-state";
 import { freezeAffiliationRules } from "@/lib/major/frozen-affiliation-rules";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
+import {
+  evaluateRosterQualificationFromFacts,
+  loadParticipantQualificationFacts,
+  resolveCompetitiveContext,
+  type ParticipantQualificationFacts,
+} from "@/lib/qualification/service";
 import {
   checkStandardMajorCapabilities,
   normalizeRegistrationConfig,
@@ -91,23 +98,50 @@ export async function startMajorInTransaction(
     throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "Major 只能从报名阶段由管理员显式正式开赛。");
   }
 
-  await tx.insert(majorPrestartStates).values({ seasonId: season.id }).onConflictDoNothing();
-  const [state] = await tx.select().from(majorPrestartStates)
-    .where(eq(majorPrestartStates.seasonId, season.id)).for("update");
-  if (!state) throw new AppError(ErrorCode.INTERNAL_ERROR, "赛前状态初始化失败。");
+  const state = await ensureMajorPrestartStateInTx(tx, season.id);
 
+  // 先只读 entrant refs；Entry/eventRoster 的行锁由 coherence guard 以
+  // canonical 顺序（Entry → eventRoster）获取，之后才锁 entrants，避免
+  // entrant → Entry 的锁顺序反转与 roster change 形成死锁窗口。prestart
+  // state 行锁已在上方串行化所有 prestart 管理 mutation，锁定期间 entrant
+  // 集合不可能漂移；仍显式校验，一旦漂移按 invariant fail closed。
+  const entrantRefs = await tx.select({
+    id: majorPrestartEntrants.id,
+    seasonId: majorPrestartEntrants.seasonId,
+    competitionEntryId: majorPrestartEntrants.competitionEntryId,
+    eventRosterId: majorPrestartEntrants.eventRosterId,
+  }).from(majorPrestartEntrants)
+    .where(eq(majorPrestartEntrants.seasonId, season.id)).orderBy(asc(majorPrestartEntrants.id));
+  // Fail closed before freezing anything when an entrant's registration fact
+  // and its prestart event roster have drifted (reopened remediation, stale
+  // approved revision, or a broken roster binding).
+  const coherenceRows = await assertPrestartEntryCoherenceInTx(
+    tx,
+    season.id,
+    entrantRefs.map((entrant) => ({ competitionEntryId: entrant.competitionEntryId, eventRosterId: entrant.eventRosterId })),
+  );
+  const entryNameByEntryId = new Map(coherenceRows.map((row) => [row.entry.id, row.entry.name]));
   const entrantRows = await tx.select({
     id: majorPrestartEntrants.id,
+    seasonId: majorPrestartEntrants.seasonId,
     competitionEntryId: majorPrestartEntrants.competitionEntryId,
     eventRosterId: majorPrestartEntrants.eventRosterId,
     rosterConfirmedAt: majorPrestartEntrants.rosterConfirmedAt,
   }).from(majorPrestartEntrants)
-    .where(eq(majorPrestartEntrants.seasonId, season.id)).for("update");
+    .where(eq(majorPrestartEntrants.seasonId, season.id)).orderBy(asc(majorPrestartEntrants.id)).for("update");
+  const refById = new Map(entrantRefs.map((ref) => [ref.id, ref]));
+  if (entrantRows.length !== entrantRefs.length || entrantRows.some((entrant) => {
+    const ref = refById.get(entrant.id);
+    return !ref || ref.seasonId !== entrant.seasonId || ref.competitionEntryId !== entrant.competitionEntryId || ref.eventRosterId !== entrant.eventRosterId;
+  })) {
+    throw new AppError(ErrorCode.INTERNAL_ERROR, "赛前参赛队集合在开赛校验期间发生变化，拒绝继续开赛。");
+  }
   const eventRosterIds = entrantRows.flatMap((entrant) => entrant.eventRosterId ? [entrant.eventRosterId] : []);
   const rosterRows = eventRosterIds.length === 0 ? [] : await tx.select({
     eventRosterId: eventRosterMembers.eventRosterId,
     userId: eventRosterMembers.userId,
     educationVerificationId: eventRosterMembers.educationVerificationId,
+    isPrimaryStarter: eventRosterMembers.isPrimaryStarter,
   }).from(eventRosterMembers)
     .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
     .where(and(inArray(eventRosterMembers.eventRosterId, eventRosterIds), eq(eventRosters.status, "frozen"))).for("update");
@@ -163,29 +197,74 @@ export async function startMajorInTransaction(
   const now = new Date();
   const openingPlan = buildMajorOpeningPlan({ teams: seeds, stageOneMatchFormat: stage.matchFormat });
   const entrantByEntryId = new Map(entrantRows.map((entrant) => [entrant.competitionEntryId, entrant]));
-  const competitiveProfile = capabilities.teamRegistrationConfig.requireCompetitiveProfile
-    ? capabilities.teamRegistrationConfig.competitiveProfile ?? null
+  const requiresCompetitiveProfile = capabilities.teamRegistrationConfig.requireCompetitiveProfile;
+  const configuredCompetitiveProfile = capabilities.teamRegistrationConfig.competitiveProfile ?? null;
+  const competitiveProfile = configuredCompetitiveProfile
+    ? await resolveCompetitiveContext(configuredCompetitiveProfile)
     : null;
+  if (requiresCompetitiveProfile && !competitiveProfile) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "本届赛事要求竞技资料，但发布时冻结的竞技平台目录不完整，不能正式开赛。");
+  }
+  const affiliationRules = capabilities.affiliationRules;
   const frozenParticipantIds = [...new Set(rosterRows.map((row) => row.userId))];
-  const competitiveRows = competitiveProfile && frozenParticipantIds.length > 0
-    ? await tx.select().from(competitiveRankFacts).where(and(
-        eq(competitiveRankFacts.platform, competitiveProfile.platform),
-        inArray(competitiveRankFacts.userId, frozenParticipantIds),
-      ))
-    : [];
+
+  // Start-time qualification: live participant facts may still change between
+  // approval and start, so the event's frozen competitive context is
+  // re-evaluated against the exact batch of facts that is about to be frozen.
+  // One batched load feeds both the qualification decision and the
+  // frozenCompetitiveFacts snapshot — never two different reads.
+  const needsQualificationLoad = (competitiveProfile !== null || affiliationRules.length > 0) && frozenParticipantIds.length > 0;
+  const qualificationFacts: ReadonlyMap<string, ParticipantQualificationFacts> = needsQualificationLoad
+    ? await loadParticipantQualificationFacts(frozenParticipantIds, {
+        executor: tx,
+        platform: competitiveProfile
+          ? competitiveProfile.platform
+          : undefined,
+      })
+    : new Map<string, ParticipantQualificationFacts>();
+  const membersByEventRoster = new Map<string, Array<{ userId: string; isPrimaryStarter: boolean }>>();
+  for (const row of rosterRows) {
+    const members = membersByEventRoster.get(row.eventRosterId) ?? [];
+    members.push({ userId: row.userId, isPrimaryStarter: row.isPrimaryStarter });
+    membersByEventRoster.set(row.eventRosterId, members);
+  }
+  const qualificationBlockers: string[] = [];
+  for (const entrant of entrantRows) {
+    const rosterMembers = entrant.eventRosterId ? membersByEventRoster.get(entrant.eventRosterId) ?? [] : [];
+    if (rosterMembers.length === 0) continue; // readiness already blocks empty/absent frozen rosters.
+    const qualification = await evaluateRosterQualificationFromFacts({
+      members: rosterMembers.map((member) => {
+        const fact = qualificationFacts.get(member.userId);
+        return {
+          userId: member.userId,
+          email: fact?.email ?? "",
+          emailVerifiedAt: fact?.emailVerifiedAt ?? null,
+          educationHistory: fact?.educationHistory ?? [],
+        };
+      }),
+      facts: qualificationFacts,
+      affiliationRules,
+      competitiveProfile,
+      primaryStarterUserIds: rosterMembers.filter((member) => member.isPrimaryStarter).map((member) => member.userId),
+    });
+    if (!qualification.eligible) {
+      qualificationBlockers.push(`参赛条目「${entryNameByEntryId.get(entrant.competitionEntryId) ?? entrant.competitionEntryId}」：${qualification.blockers.join(" ")}`);
+    }
+  }
+  if (qualificationBlockers.length > 0) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, qualificationBlockers.join(" "));
+  }
   const frozenCompetitiveFacts = frozenParticipantIds.map((userId) => {
-    const facts = competitiveRows.filter((fact) => fact.userId === userId);
-    const serialize = (fact: typeof competitiveRows[number] | undefined) => fact
-      ? { rank: fact.rank, rating: Number(fact.rating) }
-      : null;
+    const fact = qualificationFacts.get(userId);
+    const serialize = (peak: { rank: string; rating: number } | null) => (peak ? { rank: peak.rank, rating: peak.rating } : null);
     return {
       userId,
-      historicalPeak: serialize(facts.find((fact) => fact.kind === "historical_peak" && fact.platformSeasonKey === null)),
+      historicalPeak: competitiveProfile ? serialize(fact?.historicalPeak ?? null) : null,
       previousSeasonPeak: competitiveProfile
-        ? serialize(facts.find((fact) => fact.kind === "season_peak" && fact.platformSeasonKey === competitiveProfile.previousSeasonKey))
+        ? serialize(fact?.seasonPeaks?.get(competitiveProfile.previousSeasonKey) ?? null)
         : null,
       currentSeasonPeak: competitiveProfile
-        ? serialize(facts.find((fact) => fact.kind === "season_peak" && fact.platformSeasonKey === competitiveProfile.currentSeasonKey))
+        ? serialize(fact?.seasonPeaks?.get(competitiveProfile.currentSeasonKey) ?? null)
         : null,
     };
   });

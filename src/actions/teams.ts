@@ -25,6 +25,7 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import { TEAM_LOGO_BUCKET, TEAM_LOGO_EXTENSIONS } from "@/lib/config/team-logo";
 import { LOGO_ALLOWED_TYPES, LOGO_MAX_BYTES } from "@/lib/config/upload-limits";
 import { normalizeEmail } from "@/lib/utils/email";
+import { acceptTeamInvitationInTx, expirePendingInvitationsInTx } from "@/lib/teams/invitations";
 import { fail, ok, type ActionResult } from "@/types/action";
 
 const uuid = z.string().uuid();
@@ -125,13 +126,6 @@ export async function updateTeamProfile(input: { teamId: string; name: string; d
   } catch (error) { return actionError("updateTeamProfile", error); }
 }
 
-export async function updateTeamName(teamId: string, name: string): Promise<ActionResult<void>> {
-  const team = await db.query.teams.findFirst({ where: eq(teams.id, teamId) });
-  if (!team) return fail({ code: ErrorCode.NOT_FOUND, message: "队伍不存在。" });
-  const result = await updateTeamProfile({ teamId, name, description: team.description ?? undefined, recruiting: team.recruiting });
-  return result.success ? ok(undefined) : result;
-}
-
 export async function uploadTeamLogo(teamId: string, formData: FormData): Promise<ActionResult<{ logoUrl: string }>> {
   const file = formData.get("file");
   if (!(file instanceof File)) return failValidation("未提供文件");
@@ -176,8 +170,11 @@ export async function inviteTeamMember(input: { teamId: string; email: string })
       await assertInviteRate(tx, team.id);
       const current = await tx.query.teamMemberships.findFirst({ where: and(eq(teamMemberships.teamId, team.id), eq(teamMemberships.userId, user.id), isNull(teamMemberships.endedAt)) });
       if (current) throw new AppError(ErrorCode.REGISTRATION_DUPLICATE, "该用户当前已属于这支队伍。");
+      // 先把已过期的 pending direct 邀请收敛为 expired，再创建新邀请，
+      // 否则不再展示的过期邀请会永久占用 pending 身份并阻断重新邀请。
+      const expiredCount = await expirePendingInvitationsInTx(tx, { teamId: team.id, invitedUserId: user.id });
       await tx.insert(teamInvitations).values({ teamId: team.id, kind: "direct", invitedUserId: user.id, invitedByUserId: session.userId, expiresAt: new Date(Date.now() + INVITE_TTL_MS) });
-      await auditTeam(tx, "team.invite", auditActorId(session), team.id, { invitedUserId: user.id, kind: "direct" });
+      await auditTeam(tx, "team.invite", auditActorId(session), team.id, { invitedUserId: user.id, kind: "direct", expiredSuperseded: expiredCount });
     });
     revalidateTeam();
     return ok(undefined);
@@ -209,27 +206,16 @@ export async function acceptTeamInvitation(input: { invitationId?: string; token
   if (!parsed.success) return invalid("邀请标识无效。");
   try {
     const session = await requireAuth();
-    const result = await db.transaction(async (tx) => {
-      await tx.execute(sql`SELECT id FROM users WHERE id = ${session.userId} FOR UPDATE`);
-      const [invitation] = parsed.data.invitationId
-        ? await tx.select().from(teamInvitations).where(eq(teamInvitations.id, parsed.data.invitationId)).for("update")
-        : await tx.select().from(teamInvitations).where(eq(teamInvitations.tokenHash, tokenHash(parsed.data.token!))).for("update");
-      if (!invitation || invitation.status !== "pending") throw new AppError(ErrorCode.NOT_FOUND, "邀请不存在或已失效。");
-      if (invitation.expiresAt <= new Date()) {
-        throw new AppError(ErrorCode.VALIDATION_FAILED, "邀请已过期。");
-      }
-      if (invitation.kind === "direct" && invitation.invitedUserId !== session.userId) throw new AppError(ErrorCode.FORBIDDEN, "该邀请不属于你。");
-      const team = await lockTeam(tx, invitation.teamId);
-      if (team.status !== "active") throw new AppError(ErrorCode.VALIDATION_FAILED, "队伍已解散。");
-      const active = await tx.query.teamMemberships.findFirst({ where: and(eq(teamMemberships.userId, session.userId), eq(teamMemberships.status, "active"), isNull(teamMemberships.endedAt)) });
-      if (active) throw new AppError(ErrorCode.VALIDATION_FAILED, "你已在另一支长期队伍中处于 active。");
-      const sameCurrent = await tx.query.teamMemberships.findFirst({ where: and(eq(teamMemberships.teamId, team.id), eq(teamMemberships.userId, session.userId), isNull(teamMemberships.endedAt)) });
-      if (sameCurrent) throw new AppError(ErrorCode.REGISTRATION_DUPLICATE, "你当前已属于这支队伍。");
-      await tx.insert(teamMemberships).values({ teamId: team.id, userId: session.userId, status: "active", role: "member", invitedByUserId: invitation.invitedByUserId });
-      await tx.update(teamInvitations).set({ status: "accepted", respondedByUserId: session.userId, respondedAt: new Date(), updatedAt: new Date() }).where(eq(teamInvitations.id, invitation.id));
-      await auditTeam(tx, "team.invite.accept", auditActorId(session), team.id, { invitationId: invitation.id, userId: session.userId });
-      return { teamId: team.id, slug: team.slug };
-    });
+    const result = await db.transaction((tx) => acceptTeamInvitationInTx(tx, {
+      userId: session.userId,
+      actorId: auditActorId(session),
+      invitationId: parsed.data.invitationId,
+      tokenHash: parsed.data.token ? tokenHash(parsed.data.token) : undefined,
+    }));
+    if (result.kind === "expired") {
+      // 事务已正常提交并把邀请持久化为 expired；在这里才转成业务失败。
+      return fail({ code: ErrorCode.VALIDATION_FAILED, message: "邀请已过期。" });
+    }
     revalidateTeam(result.slug);
     return ok(result);
   } catch (error) {

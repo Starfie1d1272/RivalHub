@@ -10,8 +10,10 @@ import { seedCompetitivePlatformCatalog } from "./competitive-catalog-fixtures";
 
 const FIXTURE_SEASON_ID = deterministicUuid("major-browser-season");
 const FIXTURE_SLUG = "local-major-browser-2026-08";
+// 专属 fixture 平台 key：不与 seed 内置 perfect_world 目录争夺 per-platform
+// unique current 赛季，保证 bootstrap/reset 后 fixture 仍可重建。
 const PROFILE = {
-  platform: "perfect_world",
+  platform: "browser-perfect-world",
   currentSeasonKey: "browser-major-current",
   previousSeasonKey: "browser-major-previous",
   rankOrder: createPerfectWorldRankOrder(),
