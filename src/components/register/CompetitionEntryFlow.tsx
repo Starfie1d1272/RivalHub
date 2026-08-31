@@ -25,13 +25,16 @@ import {
   type CompetitionEntryParticipantStatus,
   type CompetitionEntryRegistrationStatus,
 } from "@/lib/competition-entries/presentation";
+import { CS2_POSITION_LABELS, CS2_POSITION_VALUES, type Cs2Position } from "@/lib/config/cs2-positions";
 
-type Role = "igl" | "awper" | "entry" | "closer" | "anchor" | "support" | "lurker";
+type Role = Cs2Position;
 type Readiness = { ready: boolean; blockers: string[]; educationApproved: boolean };
 type Candidate = { membershipId: string; userId: string; label: string; status: "active" | "benched"; roles: Role[]; primaryRole: Role | null; readiness?: Readiness };
 type RosterMember = Candidate & { participantId: string; confirmation: CompetitionEntryParticipantStatus; primary: boolean };
 
-const ROLE: Record<Role, string> = { igl: "IGL", awper: "AWPer", entry: "Entry", closer: "Closer", anchor: "Anchor", support: "Support", lurker: "Lurker" };
+const ROLE: Record<Role, string> = Object.fromEntries(
+  Object.entries(CS2_POSITION_LABELS).map(([role, label]) => [role, label.en]),
+) as Record<Role, string>;
 
 interface Props {
   competitionId: string;
@@ -80,7 +83,7 @@ export function CompetitionEntryFlow(props: Props) {
   for (const member of entry.roster) if (!candidates.has(member.userId)) candidates.set(member.userId, member);
   const primaryMembers = starters.map((id) => candidates.get(id)).filter((item): item is Candidate => Boolean(item));
   const roleSet = new Set(primaryMembers.flatMap((member) => member.primaryRole ? [member.primaryRole] : []));
-  const roleHint = ["igl", "awper", "entry", "closer", "anchor"].filter((role) => !roleSet.has(role as Role)).map((role) => ROLE[role as Role]);
+  const roleHint = CS2_POSITION_VALUES.filter((role) => !roleSet.has(role)).map((role) => ROLE[role]);
   const confirmed = entry.roster.filter((member) => member.confirmation === "confirmed").length;
   const blockers = [
     { label: `本届名单 ${selected.length}/${props.minRoster}–${props.maxRoster}`, state: selected.length >= props.minRoster && selected.length <= props.maxRoster ? "complete" as const : "blocked" as const },

@@ -48,7 +48,7 @@ export function CompetitiveProfileForm({ contexts }: { contexts: CompetitiveSeas
   const isComplete = (item: CompetitiveSeasonContext | undefined) => Boolean(
     item && item.ladder.length > 0 && item.seasons.some((season) => season.isCurrent) && item.seasons.some((season) => season.isPrevious),
   );
-  const initialContext = contexts.find(isComplete) ?? contexts[0];
+  const initialContext = contexts.find((item) => item.platform === "perfect_world" && isComplete(item)) ?? contexts.find(isComplete) ?? contexts[0];
   const firstUsablePlatform = initialContext?.platform ?? "";
   const [platform, setPlatform] = useState(firstUsablePlatform);
   const context = contexts.find((item) => item.platform === platform) ?? null;

@@ -39,7 +39,6 @@ function userRow(overrides?: Record<string, unknown>) {
     email: "a@rivalhub.test",
     emailVerifiedAt: new Date(),
     steam64: "76561198000000001",
-    perfectId: "1000001",
     qq: "10001",
     ...overrides,
   };
@@ -114,7 +113,6 @@ describe("participant readiness", () => {
     email: "a@rivalhub.test",
     emailVerifiedAt: new Date(),
     steam64: "76561198000000001",
-    perfectId: "1000001",
     qq: "10001",
     approvedEducation: true,
     educationHistory: [],
@@ -141,6 +139,11 @@ describe("participant readiness", () => {
     expect(readiness.blockers).toContain("请填写 Steam64 ID。");
     expect(readiness.blockers).toContain("请完成并通过高校身份认证。");
     expect(readiness.blockers).toContain("缺少上赛季最高段位及 Rating。");
+  });
+
+  it("accepts a participant whose canonical Perfect nickname is present", () => {
+    const readiness = computeParticipantReadiness(fullFact(), CONTEXT);
+    expect(readiness.blockers).not.toContain("请填写完美平台昵称。");
   });
 
   it("single-user readiness delegates to the batch path with identical results", async () => {

@@ -9,39 +9,24 @@ const databaseUrl = localDatabaseUrl();
 async function main(): Promise<void> {
   const pool = new Pool({ connectionString: databaseUrl, ssl: false, max: 1 });
   const client = await pool.connect();
-  const ids = { first: randomUUID(), second: randomUUID(), legacy: randomUUID(), emptyA: randomUUID(), emptyB: randomUUID() };
+  const ids = { first: randomUUID(), second: randomUUID(), legacy: randomUUID() };
 
   try {
     await client.query("BEGIN");
     await client.query(
-      `INSERT INTO users (id, email, perfect_name, perfect_id)
-       VALUES ($1, $2, $3, $4)`,
-      [ids.first, `profile-first-${ids.first}@local.test`, "Display Nick", "  Pw-Major-01  "],
-    );
-    const duplicatePerfectId = await capturePostgresError(client, () => client.query(
-      `INSERT INTO users (id, email, perfect_id) VALUES ($1, $2, $3)`,
-      [ids.second, `profile-second-${ids.second}@local.test`, "pw-major-01"],
-    ));
-    expect(duplicatePerfectId).toMatchObject({ code: "23505" });
-
-    await client.query(`UPDATE users SET perfect_id = $2 WHERE id = $1`, [ids.first, " PW-Major-02 "]);
-    await client.query(
-      `INSERT INTO users (id, email, perfect_id) VALUES ($1, $2, $3)`,
-      [ids.second, `profile-second-${ids.second}@local.test`, "pw-major-01"],
-    );
-    await client.query(
-      `INSERT INTO users (id, email, perfect_id) VALUES ($1, $2, NULL), ($3, $4, NULL)`,
-      [ids.emptyA, `profile-empty-a-${ids.emptyA}@local.test`, ids.emptyB, `profile-empty-b-${ids.emptyB}@local.test`],
+      `INSERT INTO users (id, email, perfect_name)
+       VALUES ($1, $2, $3), ($4, $5, $6)`,
+      [ids.first, `profile-first-${ids.first}@local.test`, "Display Nick", ids.second, `profile-second-${ids.second}@local.test`, "Second Nick"],
     );
     await client.query(
       `INSERT INTO users (id, email, perfect_name) VALUES ($1, $2, $3)`,
       [ids.legacy, `profile-legacy-${ids.legacy}@local.test`, "Legacy Nick"],
     );
-    const identity = await client.query<{ perfect_name: string | null; perfect_id: string | null }>(
-      `SELECT perfect_name, perfect_id FROM users WHERE id = $1`,
+    const identity = await client.query<{ perfect_name: string | null }>(
+      `SELECT perfect_name FROM users WHERE id = $1`,
       [ids.legacy],
     );
-    expect(identity.rows[0]).toEqual({ perfect_name: "Legacy Nick", perfect_id: null });
+    expect(identity.rows[0]).toEqual({ perfect_name: "Legacy Nick" });
 
     await client.query(
       `INSERT INTO competitive_platforms (key, display_name, rating_label) VALUES ('perfect_world', '完美世界竞技平台', 'Rating Pro')
@@ -137,7 +122,7 @@ async function main(): Promise<void> {
 }
 
 describe("Major competitive profile PostgreSQL invariants", () => {
-  it("enforces normalized profile identity and protected public boundaries", async () => {
+  it("preserves canonical profile facts and protected public boundaries", async () => {
     await main();
   });
 });

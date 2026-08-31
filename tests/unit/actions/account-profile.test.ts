@@ -20,7 +20,6 @@ const validInput = {
   displayName: " Test User ",
   steamName: " Steam Name ",
   perfectName: " Perfect Nick ",
-  perfectId: " Perfect-ID-01 ",
   steam64: "76561198000000001",
   steamProfileUrl: "https://steamcommunity.com/id/test",
   qq: "12345678",
@@ -37,24 +36,23 @@ beforeEach(() => {
 });
 
 describe("updateProfile Perfect identity boundary", () => {
-  it("trims and stores Perfect ID separately from the legacy/display nickname", async () => {
+  it("trims and stores the one canonical Perfect nickname", async () => {
     const result = await updateProfile(validInput);
 
     expect(result).toEqual({ success: true, data: undefined });
     const set = updateMock.mock.results[0]?.value.set;
     expect(set).toHaveBeenCalledWith(expect.objectContaining({
       perfectName: "Perfect Nick",
-      perfectId: "Perfect-ID-01",
       displayName: "Test User",
     }));
     expect(revalidatePathMock).toHaveBeenCalledWith("/settings");
   });
 
-  it("turns blank optional identity fields into null without touching legacy data semantics", async () => {
-    await updateProfile({ ...validInput, perfectName: "  ", perfectId: "\t" });
+  it("turns blank optional identity fields into null", async () => {
+    await updateProfile({ ...validInput, perfectName: "  " });
 
     const set = updateMock.mock.results[0]?.value.set;
-    expect(set).toHaveBeenCalledWith(expect.objectContaining({ perfectName: null, perfectId: null }));
+    expect(set).toHaveBeenCalledWith(expect.objectContaining({ perfectName: null }));
   });
 
   it("rejects malformed identity fields before authentication", async () => {
@@ -65,18 +63,4 @@ describe("updateProfile Perfect identity boundary", () => {
     expect(updateMock).not.toHaveBeenCalled();
   });
 
-  it("returns a participant-facing duplicate error for the normalized Perfect ID constraint", async () => {
-    updateMock.mockReturnValueOnce({
-      set: vi.fn().mockReturnValue({
-        where: vi.fn().mockRejectedValue({ code: "23505", constraint: "users_perfect_id_normalized_unique" }),
-      }),
-    });
-
-    const result = await updateProfile(validInput);
-
-    expect(result).toEqual({
-      success: false,
-      error: { code: ErrorCode.VALIDATION_FAILED, message: "该完美平台 ID 已被其他账号绑定。" },
-    });
-  });
 });

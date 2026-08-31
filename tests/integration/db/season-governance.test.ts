@@ -51,9 +51,9 @@ async function seedFullyReadyUser(pool: Pool, id: string, seq: number): Promise<
   await pool.query("DELETE FROM competitive_rank_facts WHERE user_id IN (SELECT id FROM users WHERE email = $1)", [email]);
   await pool.query("DELETE FROM users WHERE email = $1", [email]);
   await pool.query(
-    `INSERT INTO users (id, email, display_name, steam64, perfect_id, perfect_name, qq, email_verified_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, now())`,
-    [id, email, "Governance 选手", `76561198${id.replaceAll("-", "").slice(0, 12)}`, `gq-${id}`, `Perfect 选手 ${seq}`, `99000${seq}`],
+    `INSERT INTO users (id, email, display_name, steam64, perfect_name, qq, email_verified_at)
+     VALUES ($1, $2, $3, $4, $5, $6, now())`,
+    [id, email, "Governance 选手", `76561198${id.replaceAll("-", "").slice(0, 12)}`, `Perfect 选手 ${seq}`, `99000${seq}`],
   );
   await pool.query(
     `INSERT INTO education_verifications (user_id, institution_id, academic_status, evidence_type, status)

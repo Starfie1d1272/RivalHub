@@ -22,6 +22,23 @@ beforeAll(() => {
 });
 
 describe("CompetitiveProfileForm", () => {
+  it("defaults to the complete perfect_world context ahead of alphabetic catalog order", () => {
+    render(<CompetitiveProfileForm contexts={[
+      {
+        platform: "fivee", platformDisplayName: "5E", ratingLabel: "Rating+",
+        ladder: [{ rankKey: "S", label: "S", starMin: null, starMax: null }],
+        seasons: [{ seasonKey: "S23", label: "S23", isCurrent: false, isPrevious: true }, { seasonKey: "S24", label: "S24", isCurrent: true, isPrevious: false }], facts: [],
+      },
+      {
+        platform: "perfect_world", platformDisplayName: "完美世界竞技平台", ratingLabel: "Rating Pro",
+        ladder: [{ rankKey: "A", label: "A", starMin: null, starMax: null }],
+        seasons: [{ seasonKey: "2026s1", label: "2026S1", isCurrent: false, isPrevious: true }, { seasonKey: "2026s2", label: "2026S2", isCurrent: true, isPrevious: false }], facts: [],
+      },
+    ]} />);
+
+    expect(screen.getByText(/完美世界竞技平台 · 赛季资料/)).toBeInTheDocument();
+  });
+
   it("selects the first complete platform instead of locking the page on an incomplete one", () => {
     render(<CompetitiveProfileForm contexts={[
       { platform: "broken", platformDisplayName: "未完成平台", ratingLabel: "Rating", ladder: [], seasons: [], facts: [] },

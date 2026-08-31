@@ -11,6 +11,7 @@
  */
 
 import { PERFECT_WORLD_RANK_ORDER } from "@/lib/config/perfect-world";
+import { CS2_POSITION_LABELS, CS2_POSITION_VALUES } from "@/lib/config/cs2-positions";
 
 const PERFECT_WORLD_RANK_LABELS = Object.fromEntries(
   PERFECT_WORLD_RANK_ORDER.map((rank) => [rank, rank]),
@@ -18,20 +19,8 @@ const PERFECT_WORLD_RANK_LABELS = Object.fromEntries(
 
 export const REGISTRATION_DEFAULTS = {
   positions: {
-    values: [
-      "igl",
-      "awper",
-      "opener",
-      "closer",
-      "anchor",
-    ] as const,
-    labels: {
-      igl: { cn: "指挥", en: "IGL", full: "IGL（指挥）" },
-      awper: { cn: "狙击手", en: "AWPer", full: "AWPer（狙击手）" },
-      opener: { cn: "突破手", en: "Opener", full: "Opener（突破手）" },
-      closer: { cn: "自由人/残局", en: "Closer", full: "Closer（自由人/残局）" },
-      anchor: { cn: "主防", en: "Anchor", full: "Anchor（主防）" },
-    } as const,
+    values: CS2_POSITION_VALUES,
+    labels: CS2_POSITION_LABELS,
   },
 
   ranks: {
