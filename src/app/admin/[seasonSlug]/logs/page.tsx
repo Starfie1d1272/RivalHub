@@ -7,8 +7,6 @@ import { fetchAuditLogs } from "@/actions/audit";
 import { Marker } from "@/components/rivalhub";
 import { AuditLogTable } from "@/components/admin/AuditLogTable";
 
-export const dynamic = "force-dynamic";
-
 export default async function SeasonAuditLogPage({ params }: { params: Promise<{ seasonSlug: string }> }) {
   const { seasonSlug } = await params;
   const season = await db.query.seasons.findFirst({ where: eq(seasons.slug, seasonSlug), columns: { id: true, name: true } });

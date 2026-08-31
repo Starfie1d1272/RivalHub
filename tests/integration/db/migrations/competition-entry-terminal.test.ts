@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { Client } from "pg";
-import { migrationFiles, replayMigration, withScratchDatabase } from "./migration-replay";
+import { describe, it } from "vitest";
+import { migrationFiles, replayMigration, withScratchDatabase } from "../harness/migration-replay";
 
 async function insertRivalsFixture(client: Client): Promise<{ seasonId: string; teamIds: string[] }> {
   const seasonId = randomUUID();
@@ -136,4 +137,8 @@ async function main(): Promise<void> {
   });
 }
 
-void main().catch((error) => { console.error(error); process.exit(1); });
+describe("competition entry migration replay", () => {
+  it("preserves historical rows while materializing terminal identities", async () => {
+    await main();
+  });
+});

@@ -1,5 +1,3 @@
-export const dynamic = "force-dynamic";
-
 import Link from "next/link";
 import { and, asc, desc, eq, or, sql } from "drizzle-orm";
 import { notFound, redirect } from "next/navigation";

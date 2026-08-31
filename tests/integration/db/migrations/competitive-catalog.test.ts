@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { Client } from "pg";
-import { migrationFiles, replayMigration, withScratchDatabase } from "./migration-replay";
-import { BUILT_IN_COMPETITIVE_PLATFORMS } from "../../src/lib/competitive/builtins";
+import { describe, expect, it } from "vitest";
+import { migrationFiles, replayMigration, withScratchDatabase } from "../harness/migration-replay";
+import { capturePostgresError } from "../harness/database";
+import { BUILT_IN_COMPETITIVE_PLATFORMS } from "../../../../src/lib/competitive/builtins";
 
 /**
  * Local replay for the 0018 competitive platform catalog migration and the
@@ -44,20 +46,6 @@ async function runMigrationExpectingFailure(client: Client, name: string, keywor
     return message;
   }
   throw new Error(`迁移 ${name} 在冲突数据上成功执行，未按 fail closed 终止。`);
-}
-
-async function expectCheckViolation(client: Client, query: string, values: unknown[]): Promise<void> {
-  const savepoint = `expected_check_${randomUUID().replaceAll("-", "")}`;
-  await client.query(`SAVEPOINT ${savepoint}`);
-  try {
-    await client.query(query, values);
-  } catch (error) {
-    await client.query(`ROLLBACK TO SAVEPOINT ${savepoint}`);
-    if ((error as { code?: string }).code !== "23514") throw error;
-    return;
-  }
-  await client.query(`ROLLBACK TO SAVEPOINT ${savepoint}`);
-  throw new Error(`预期 CHECK 约束拒绝（23514），但操作成功：${query}`);
 }
 
 const LEGACY_RANK_ORDER = ["D", "C", "B", "A", "S"];
@@ -284,21 +272,21 @@ async function assert0020TerminalState(client: Client, opts: { userId: string; s
   // Savepoints require an explicit transaction block on the replay client.
   await client.query("BEGIN");
   try {
-    await expectCheckViolation(
-      client,
+    const badRange = await capturePostgresError(client, () => client.query(
       "INSERT INTO competitive_platform_ranks (platform_key, rank_key, label, sort_order, star_min, star_max) VALUES ('fivee', 'bad-range', 'bad-range', 99, NULL, 5)",
       [],
-    );
-    await expectCheckViolation(
-      client,
+    ));
+    expect(badRange).toMatchObject({ code: "23514" });
+    const reversedRange = await capturePostgresError(client, () => client.query(
       "INSERT INTO competitive_platform_ranks (platform_key, rank_key, label, sort_order, star_min, star_max) VALUES ('fivee', 'bad-order', 'bad-order', 99, 24, 10)",
       [],
-    );
-    await expectCheckViolation(
-      client,
+    ));
+    expect(reversedRange).toMatchObject({ code: "23514" });
+    const negativeStars = await capturePostgresError(client, () => client.query(
       "INSERT INTO competitive_rank_facts (user_id, platform, kind, rank, rating, stars) VALUES ($1, 'fivee', 'historical_peak', 'S', 1000, -1)",
       [opts.userId],
-    );
+    ));
+    expect(negativeStars).toMatchObject({ code: "23514" });
   } finally {
     await client.query("ROLLBACK");
   }
@@ -424,4 +412,8 @@ async function replay0020StarsBootstrap(): Promise<void> {
   });
 }
 
-void main().catch((error) => { console.error(error); process.exit(1); });
+describe("competitive catalog migration replay", () => {
+  it("fails closed on conflicts and preserves historical facts", async () => {
+    await main();
+  });
+});

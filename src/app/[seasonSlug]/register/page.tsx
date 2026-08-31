@@ -30,8 +30,6 @@ import { getPublicDisplayName } from "@/lib/utils/display-name";
 import { getParticipantReadinessBatch } from "@/lib/qualification/service";
 import { normalizeTeamRegistrationConfig } from "@/types/season";
 
-export const dynamic = "force-dynamic";
-
 interface RegisterPageProps {
   params: Promise<{ seasonSlug: string }>;
 }

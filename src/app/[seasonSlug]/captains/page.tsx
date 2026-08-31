@@ -11,8 +11,6 @@ import {
 } from "@/lib/captains/data";
 import { getUserSession } from "@/lib/auth/session";
 
-export const dynamic = "force-dynamic";
-
 interface CaptainsPageProps {
   params: Promise<{ seasonSlug: string }>;
 }

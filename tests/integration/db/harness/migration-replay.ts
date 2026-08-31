@@ -2,14 +2,10 @@ import { randomUUID } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Client } from "pg";
+import { localDatabaseUrl } from "./database";
 
 export function localReplayDatabaseUrl(prefix: string): { maintenanceUrl: string; databaseUrl: string; databaseName: string } {
-  const configured = process.env.RIVALHUB_LOCAL_DATABASE_URL;
-  if (!configured) throw new Error("RIVALHUB_LOCAL_DATABASE_URL 未设置。");
-  const local = new URL(configured);
-  if (!["localhost", "127.0.0.1", "::1", "[::1]"].includes(local.hostname)) {
-    throw new Error("迁移回放只允许 Local Supabase loopback 数据库。");
-  }
+  const configured = localDatabaseUrl();
   const databaseName = `${prefix}_${randomUUID().replaceAll("-", "")}`;
   const maintenance = new URL(configured);
   maintenance.pathname = "/postgres";

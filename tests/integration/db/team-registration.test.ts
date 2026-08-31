@@ -1,26 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { Pool, type PoolClient } from "pg";
+import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
-import * as schema from "../../src/db/schema";
-import { BUILT_IN_COMPETITIVE_PLATFORMS } from "../../src/lib/competitive/builtins";
-import { computeParticipantReadiness, loadParticipantQualificationFacts } from "../../src/lib/qualification/service";
+import { describe, expect, it } from "vitest";
+import * as schema from "../../../src/db/schema";
+import { BUILT_IN_COMPETITIVE_PLATFORMS } from "../../../src/lib/competitive/builtins";
+import { computeParticipantReadiness, loadParticipantQualificationFacts } from "../../../src/lib/qualification/service";
+import { capturePostgresError, localDatabaseUrl } from "./harness/database";
 
-const databaseUrl = process.env.RIVALHUB_LOCAL_DATABASE_URL;
-if (!databaseUrl) throw new Error("RIVALHUB_LOCAL_DATABASE_URL 未设置。");
-const target = new URL(databaseUrl);
-if (!['localhost', '127.0.0.1', '::1', '[::1]'].includes(target.hostname)) {
-  throw new Error("报名集成测试只允许 Local Supabase loopback 数据库。");
-}
-
-async function expectsPgError(client: PoolClient, work: () => Promise<unknown>, code: string): Promise<void> {
-  await client.query("SAVEPOINT expected_error");
-  try { await work(); } catch (error) {
-    await client.query("ROLLBACK TO SAVEPOINT expected_error");
-    if (typeof error === "object" && error !== null && "code" in error && (error as { code?: string }).code === code) return;
-    throw error;
-  }
-  throw new Error(`预期 PostgreSQL 错误 ${code}，但操作成功。`);
-}
+const databaseUrl = localDatabaseUrl();
 
 async function main(): Promise<void> {
   const pool = new Pool({ connectionString: databaseUrl, ssl: false, max: 5 });
@@ -67,9 +54,11 @@ async function main(): Promise<void> {
     await client.query("INSERT INTO event_roster_members (event_roster_id, participant_id, user_id, is_primary_starter) VALUES ($1, $2, $3, true)", [ids.roster, ids.participant, ids.captain]);
     const facts = await client.query<{ entries: string; commitments: string; frozen_members: string }>("SELECT (SELECT count(*) FROM competition_entries WHERE id = $1) entries, (SELECT count(*) FROM competition_entry_participants WHERE entry_id = $1) commitments, (SELECT count(*) FROM event_roster_members WHERE event_roster_id = $2) frozen_members", [ids.entry, ids.roster]);
     if (facts.rows[0]?.entries !== "1" || facts.rows[0]?.commitments !== "1" || facts.rows[0]?.frozen_members !== "1") throw new Error("报名、成员确认与赛事名单未分别持久化。");
-    await expectsPgError(client, () => client.query("INSERT INTO competition_entries (competition_id, source, team_id, name, representative_user_id) VALUES ($1, 'event_native', $2, 'invalid', $3)", [ids.season, ids.team, ids.captain]), "23514");
+    const invalidEntryShape = await capturePostgresError(client, () => client.query("INSERT INTO competition_entries (competition_id, source, team_id, name, representative_user_id) VALUES ($1, 'event_native', $2, 'invalid', $3)", [ids.season, ids.team, ids.captain]));
+    expect(invalidEntryShape).toMatchObject({ code: "23514" });
     await client.query("SET LOCAL ROLE authenticated");
-    await expectsPgError(client, () => client.query("SELECT id FROM competition_entries LIMIT 1"), "42501");
+    const deniedDataApiRead = await capturePostgresError(client, () => client.query("SELECT id FROM competition_entries LIMIT 1"));
+    expect(deniedDataApiRead).toMatchObject({ code: "42501" });
     await client.query("RESET ROLE");
     await client.query("ROLLBACK");
     await exerciseConcurrencyAndInvariants(pool);
@@ -88,7 +77,8 @@ async function exerciseReinviteRemediationAndPrestart(pool: Pool): Promise<void>
     await client.query("INSERT INTO seasons (id, slug, name, kind, status, registration_mode, has_captain_voting, has_draft, min_team_size, max_team_size, registration_deadline) VALUES ($1, $2, 'Local Remediation', 'Major', 'registration', 'team', false, false, 1, 5, now() - interval '1 minute')", [ids.season, `local-remediation-${ids.season}`]);
     await client.query("INSERT INTO competition_entries (id, competition_id, source, name, representative_user_id, registration_status, current_roster_revision) VALUES ($1, $2, 'event_native', 'Remediation Entry', $3, 'changes_requested', 2)", [ids.entry, ids.season, ids.captain]);
     await client.query("INSERT INTO competition_entry_participants (id, entry_id, user_id, status, withdrawn_at, invited_by_user_id) VALUES ($1, $2, $3, 'withdrawn', now(), $4)", [ids.participant, ids.entry, ids.member, ids.captain]);
-    await expectsPgError(client, () => client.query("INSERT INTO competition_entry_participants (entry_id, user_id, status, invited_by_user_id) VALUES ($1, $2, 'invited', $3)", [ids.entry, ids.member, ids.captain]), "23505");
+    const duplicateParticipantCommitment = await capturePostgresError(client, () => client.query("INSERT INTO competition_entry_participants (entry_id, user_id, status, invited_by_user_id) VALUES ($1, $2, 'invited', $3)", [ids.entry, ids.member, ids.captain]));
+    expect(duplicateParticipantCommitment).toMatchObject({ code: "23505" });
     // The action reuses this row (rather than inserting another commitment), then the participant must consent again.
     await client.query("UPDATE competition_entry_participants SET status = 'invited', confirmed_at = NULL, withdrawn_at = NULL, updated_at = now() WHERE id = $1", [ids.participant]);
     const reinvited = await client.query<{ status: string; commitments: string }>("SELECT status::text, (SELECT count(*)::text FROM competition_entry_participants WHERE entry_id = $1 AND user_id = $2) AS commitments FROM competition_entry_participants WHERE id = $3", [ids.entry, ids.member, ids.participant]);
@@ -161,19 +151,23 @@ async function exerciseConcurrencyAndInvariants(pool: Pool): Promise<void> {
     } finally { membershipA.release(); membershipB.release(); }
 
     await setup.query("BEGIN");
-    await expectsPgError(setup, () => setup.query("INSERT INTO competition_entry_roster_members (revision_id,participant_id,user_id) VALUES ($1,$2,$3)", [ids.revisionA, ids.participantB, ids.shared]), "23514");
+    const crossEntryRosterMember = await capturePostgresError(setup, () => setup.query("INSERT INTO competition_entry_roster_members (revision_id,participant_id,user_id) VALUES ($1,$2,$3)", [ids.revisionA, ids.participantB, ids.shared]));
+    expect(crossEntryRosterMember).toMatchObject({ code: "23514" });
     await setup.query("INSERT INTO event_roster_members (id,event_roster_id,participant_id,user_id) VALUES ($1,$2,$3,$4)", [ids.eventMemberA, ids.rosterA, ids.participantA, ids.shared]);
     await setup.query("INSERT INTO event_roster_members (id,event_roster_id,participant_id,user_id) VALUES ($1,$2,$3,$4)", [ids.eventMemberB, ids.rosterB, ids.participantB, ids.shared]);
     await setup.query("INSERT INTO matches (id,season_id,entry_a_id,entry_b_id,stage) VALUES ($1,$2,$3,$4,'fixture')", [ids.match, ids.season, ids.entryA, ids.entryB]);
     await setup.query("INSERT INTO match_rosters (id,match_id,entry_id,status) VALUES ($1,$2,$3,'submitted')", [ids.matchRoster, ids.match, ids.entryA]);
-    await expectsPgError(setup, () => setup.query("INSERT INTO match_roster_players (roster_id,event_roster_member_id) VALUES ($1,$2)", [ids.matchRoster, ids.eventMemberB]), "23514");
+    const crossEntryMatchPlayer = await capturePostgresError(setup, () => setup.query("INSERT INTO match_roster_players (roster_id,event_roster_member_id) VALUES ($1,$2)", [ids.matchRoster, ids.eventMemberB]));
+    expect(crossEntryMatchPlayer).toMatchObject({ code: "23514" });
     await setup.query("INSERT INTO match_roster_players (roster_id,event_roster_member_id) VALUES ($1,$2)", [ids.matchRoster, ids.eventMemberA]);
     await setup.query("UPDATE event_rosters SET status = 'confirmed' WHERE id = $1", [ids.rosterA]);
     await setup.query("UPDATE event_rosters SET status = 'preparing' WHERE id = $1", [ids.rosterA]);
     await setup.query("UPDATE event_rosters SET status = 'confirmed' WHERE id = $1", [ids.rosterA]);
     await setup.query("UPDATE event_rosters SET status = 'frozen', frozen_at = now(), frozen_by = 'local-test' WHERE id = $1", [ids.rosterA]);
-    await expectsPgError(setup, () => setup.query("DELETE FROM event_roster_members WHERE event_roster_id = $1", [ids.rosterA]), "23514");
-    await expectsPgError(setup, () => setup.query("UPDATE event_rosters SET status = 'preparing' WHERE id = $1", [ids.rosterA]), "23514");
+    const frozenRosterMemberDelete = await capturePostgresError(setup, () => setup.query("DELETE FROM event_roster_members WHERE event_roster_id = $1", [ids.rosterA]));
+    expect(frozenRosterMemberDelete).toMatchObject({ code: "23514" });
+    const frozenRosterReopen = await capturePostgresError(setup, () => setup.query("UPDATE event_rosters SET status = 'preparing' WHERE id = $1", [ids.rosterA]));
+    expect(frozenRosterReopen).toMatchObject({ code: "23514" });
     await setup.query("ROLLBACK");
   } finally {
     try {
@@ -300,4 +294,8 @@ async function exerciseQualificationWithRealCatalog(pool: Pool): Promise<void> {
   }
 }
 
-void main();
+describe("team registration PostgreSQL invariants", () => {
+  it("keeps commitment, roster, qualification, and privacy boundaries intact", async () => {
+    await main();
+  });
+});

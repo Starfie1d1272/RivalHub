@@ -7,8 +7,6 @@ import { getSeasonSanctions } from "@/actions/discipline";
 import { DisciplineManagement, type DisciplineSanctionRow } from "@/components/admin/DisciplineManagement";
 import { ErrorState } from "@/components/rivalhub";
 
-export const dynamic = "force-dynamic";
-
 /**
  * 赛事级个人纪律处罚管理。只处理个人 sanction 事实——不触达队伍、
  * 比赛结果、最终排名或荣誉；全部状态流转复用现有 discipline actions。

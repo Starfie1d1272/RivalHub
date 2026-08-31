@@ -7,11 +7,15 @@ on:
     branches: [main, dev, feat/major-2027-integration]
   workflow_dispatch:
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
 jobs:
-  ci:
+  quality:
     runs-on: ubuntu-latest
     env:
       NEXT_TELEMETRY_DISABLED: 1
@@ -19,10 +23,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        with:
+          version: 10.34.5
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
@@ -36,18 +42,37 @@ jobs:
             nextjs-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
             nextjs-${{ runner.os }}-
 
-      - run: pnpm type-check
+      - run: pnpm check
 
-      - run: pnpm lint
+      # Keep the migration-chain gate explicit in CI even though check also
+      # includes it, so a future check-script edit cannot silently remove it.
+      - run: pnpm db:check
 
-      # migration integrity gate：纯静态 snapshot 链校验，无需 DATABASE_URL / secrets
-      # （本地已验证：移除 .env.local 后 drizzle-kit check 仍正常通过）
-      - run: pnpm exec drizzle-kit check
-
-      - run: pnpm test:coverage
-
+      # This build must not depend on DATABASE_URL or a fake listening target.
       - run: pnpm build
-        env:
-          # Explicit non-listening loopback target exercises the existing unavailable-DB fallback
-          # without restoring pg defaults or exposing CI to any remote database.
-          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:1/postgres?sslmode=disable
+
+  local:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_TELEMETRY_DISABLED: 1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        with:
+          version: 10.34.5
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm exec playwright install --with-deps chromium
+
+      - run: pnpm db:local:bootstrap
+
+      - run: pnpm test:integration
+
+      - run: pnpm test:e2e

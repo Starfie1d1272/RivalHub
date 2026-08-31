@@ -6,14 +6,11 @@ export default defineConfig({
     environment: "node",
     setupFiles: ["./tests/setup.ts"],
     globals: true,
-    include: ["tests/unit/**/*.test.ts", "tests/unit/**/*.test.tsx", "src/**/*.test.ts", "src/**/*.test.tsx"],
-    exclude: ["tests/e2e/**"],
-    coverage: {
-      provider: "v8",
-      reporter: ["text", "json", "html"],
-      include: ["src/**"],
-      exclude: ["src/app/**", "src/components/ui/**"],
-    },
+    include: ["tests/integration/db/**/*.test.ts"],
+    fileParallelism: false,
+    maxConcurrency: 1,
+    testTimeout: 180_000,
+    hookTimeout: 180_000,
   },
   resolve: {
     alias: {

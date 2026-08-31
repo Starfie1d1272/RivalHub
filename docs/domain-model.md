@@ -101,7 +101,7 @@
 | bracket adapter | `src/lib/bracket/` |
 | Major Swiss | `src/lib/major/swiss.ts` |
 | 比赛 roster | `src/lib/match-rosters/` |
-| migration scratch replay 基础设施 | `scripts/db/migration-replay.ts` |
+| migration scratch replay 基础设施 | `tests/integration/db/harness/migration-replay.ts` |
 
 | 不变量 | 主要 owner |
 |---|---|

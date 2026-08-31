@@ -1,3 +1,7 @@
+// Header reads session and DB-backed season/user data for every application route.
+// Keep this as the single runtime rendering boundary until the Header contract changes.
+export const dynamic = "force-dynamic";
+
 import type { Metadata } from "next";
 import { Geist, JetBrains_Mono, Noto_Sans_SC } from "next/font/google";
 import "./globals.css";

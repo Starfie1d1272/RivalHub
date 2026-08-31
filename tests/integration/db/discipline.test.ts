@@ -13,14 +13,15 @@
  * 只允许 loopback Local Supabase。
  */
 import { randomUUID } from "node:crypto";
-import { createPerfectWorldRankOrder } from "../../src/lib/config/perfect-world";
+import { createPerfectWorldRankOrder } from "../../../src/lib/config/perfect-world";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool, type PoolClient } from "pg";
-import * as schema from "../../src/db/schema";
+import { describe, expect, it } from "vitest";
+import * as schema from "../../../src/db/schema";
 import {
   assertStartingLineupAllowedInTx,
   lockMatchInTx,
-} from "../../src/lib/match-rosters/service";
+} from "../../../src/lib/match-rosters/service";
 import {
   issueSanctionInTx,
   loadActiveSanctionsInTx,
@@ -29,22 +30,14 @@ import {
   resolveSanctionStatus,
   revokeSanctionInTx,
   serializeSanctionPublic,
-} from "../../src/lib/discipline/service";
-import { AppError } from "../../src/lib/errors";
-import { createMajorDefaultCapabilities } from "../../src/types/season";
+} from "../../../src/lib/discipline/service";
+import { AppError } from "../../../src/lib/errors";
+import { createMajorDefaultCapabilities } from "../../../src/types/season";
+import { localDatabaseUrl } from "./harness/database";
 
-const databaseUrl = process.env.RIVALHUB_LOCAL_DATABASE_URL;
-if (!databaseUrl) throw new Error("RIVALHUB_LOCAL_DATABASE_URL 未设置。");
-const target = new URL(databaseUrl);
-if (!["localhost", "127.0.0.1", "::1", "[::1]"].includes(target.hostname)) {
-  throw new Error("纪律集成测试只允许 Local Supabase loopback 数据库。");
-}
+const databaseUrl = localDatabaseUrl();
 
 const ACTOR = "local-admin-h1";
-
-function assertCondition(condition: boolean, message: string): void {
-  if (!condition) throw new Error(message);
-}
 
 const NJU_CODE = "4132010284";
 const OTHER_CODE = "4111010001";
@@ -411,7 +404,7 @@ async function main(): Promise<void> {
           if (!(e instanceof AppError)) throw e;
           if (!e.message.includes(emailsA[0]!)) throw new Error("S1 拦截名单未包含受罚者邮箱");
         }
-        assertCondition(threw, "S1 active registration_block 必须拦截");
+        expect(threw,  "S1 active registration_block 必须拦截").toBe(true);
 
         // Teammate unaffected: probing everyone EXCEPT the banned subject passes.
         const labelsWithoutCaptain = new Map<string, string>();
@@ -432,7 +425,7 @@ async function main(): Promise<void> {
                   effective_until AS "effectiveUntil", created_at AS "createdAt"
            FROM disciplinary_cases WHERE id = $1`, [captainCaseId])).rows[0];
         const serializedJson = JSON.stringify(serializeSanctionPublic(caseRow, new Date()));
-        assertCondition(!serializedJson.includes("secret-evidence-link"), "S1 公开序列化不得泄露内部证据");
+        expect(!serializedJson.includes("secret-evidence-link"),  "S1 公开序列化不得泄露内部证据").toBe(true);
       } finally {
         client.release();
       }
@@ -452,19 +445,19 @@ async function main(): Promise<void> {
           database as unknown as Parameters<typeof loadActiveSanctionsInTx>[0],
           { seasonId, effect: "registration_block" },
         );
-        assertCondition(blocked.size === 0, "S2 过期处罚不得再拦截");
+        expect(blocked.size === 0,  "S2 过期处罚不得再拦截").toBe(true);
         const refreshed = (await client.query(
           `SELECT status, effective_from AS "effectiveFrom", effective_until AS "effectiveUntil"
            FROM disciplinary_cases WHERE id = $1`, [captainCaseId])).rows[0];
-        assertCondition(resolveSanctionStatus(refreshed, new Date()) === "expired", "S2 派生状态应为 expired");
+        expect(resolveSanctionStatus(refreshed, new Date()) === "expired",  "S2 派生状态应为 expired").toBe(true);
 
         const firstExpire = await database.transaction((tx) =>
           markSanctionExpiredInTx(tx, { caseId: captainCaseId, actorId: ACTOR }));
-        assertCondition(!firstExpire.alreadyExpired, "S2 首次标记应执行");
+        expect(!firstExpire.alreadyExpired,  "S2 首次标记应执行").toBe(true);
         const secondExpire = await database.transaction((tx) =>
           markSanctionExpiredInTx(tx, { caseId: captainCaseId, actorId: ACTOR }));
-        assertCondition(secondExpire.alreadyExpired, "S2 重复标记幂等");
-        assertCondition((await auditCount(client, "sanction.expire", captainCaseId)) === 1, "S2 过期审计恰好一条");
+        expect(secondExpire.alreadyExpired,  "S2 重复标记幂等").toBe(true);
+        expect((await auditCount(client, "sanction.expire", captainCaseId)) === 1,  "S2 过期审计恰好一条").toBe(true);
       } finally {
         client.release();
       }
@@ -474,13 +467,13 @@ async function main(): Promise<void> {
     {
       const firstRevoke = await database.transaction((tx) =>
         revokeSanctionInTx(tx, { caseId: captainCaseId, actorId: ACTOR, reason: "复核后撤销" }));
-      assertCondition(!firstRevoke.alreadyRevoked, "S3 首次撤销应执行");
+      expect(!firstRevoke.alreadyRevoked,  "S3 首次撤销应执行").toBe(true);
       const secondRevoke = await database.transaction((tx) =>
         revokeSanctionInTx(tx, { caseId: captainCaseId, actorId: ACTOR, reason: "重复请求" }));
-      assertCondition(secondRevoke.alreadyRevoked, "S3 重复撤销幂等");
+      expect(secondRevoke.alreadyRevoked,  "S3 重复撤销幂等").toBe(true);
       const client = await pool.connect();
       try {
-        assertCondition((await auditCount(client, "sanction.revoke", captainCaseId)) === 1, "S3 撤销审计恰好一条");
+        expect((await auditCount(client, "sanction.revoke", captainCaseId)) === 1,  "S3 撤销审计恰好一条").toBe(true);
       } finally {
         client.release();
       }
@@ -501,7 +494,7 @@ async function main(): Promise<void> {
         });
         return true;
       });
-      assertCondition(baselineOk, "S4 基线双方阵容必须通过");
+      expect(baselineOk,  "S4 基线双方阵容必须通过").toBe(true);
 
       const participationCaseId = (
         await database.transaction((tx) =>
@@ -523,7 +516,7 @@ async function main(): Promise<void> {
           return error instanceof AppError ? error.message : null;
         }
       });
-      assertCondition(rejected !== null && rejected.includes("禁赛"), "S4 受罚者所在队阵容必须被拒绝");
+      expect(rejected !== null && rejected.includes("禁赛"),  "S4 受罚者所在队阵容必须被拒绝").toBe(true);
 
       // 另一队不受牵连。
       await database.transaction(async (tx) => {
@@ -541,7 +534,7 @@ async function main(): Promise<void> {
 
       const client = await pool.connect();
       try {
-        assertCondition((await auditCount(client, "sanction.issue", participationCaseId)) === 1, "S4 签发审计恰好一条");
+        expect((await auditCount(client, "sanction.issue", participationCaseId)) === 1,  "S4 签发审计恰好一条").toBe(true);
       } finally {
         client.release();
       }
@@ -552,11 +545,11 @@ async function main(): Promise<void> {
       const client = await pool.connect();
       try {
         const afterSnapshot = await snapshotTeamFacts(client, fixture);
-        assertCondition(afterSnapshot.rows[0]!.entrants === beforeSnapshot.rows[0]!.entrants, "S6 entrants 数量不变");
-        assertCondition(afterSnapshot.rows[0]!.members_a === beforeSnapshot.rows[0]!.members_a, "S6 冻结名单成员数量不变");
-        assertCondition(afterSnapshot.rows[0]!.entry_a_representative === beforeSnapshot.rows[0]!.entry_a_representative &&
+        expect(afterSnapshot.rows[0]!.entrants === beforeSnapshot.rows[0]!.entrants,  "S6 entrants 数量不变").toBe(true);
+        expect(afterSnapshot.rows[0]!.members_a === beforeSnapshot.rows[0]!.members_a,  "S6 冻结名单成员数量不变").toBe(true);
+        expect(afterSnapshot.rows[0]!.entry_a_representative === beforeSnapshot.rows[0]!.entry_a_representative &&
           afterSnapshot.rows[0]!.entry_b_representative === beforeSnapshot.rows[0]!.entry_b_representative,
-          "S6 Entry 代表归属不得被处罚流程改动");
+          "S6 Entry 代表归属不得被处罚流程改动").toBe(true);
       } finally {
         client.release();
       }
@@ -569,7 +562,8 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
+describe("discipline eligibility PostgreSQL invariants", () => {
+  it("keeps sanctions scoped to eligibility without changing team facts", async () => {
+    await main();
+  });
 });

@@ -4,11 +4,11 @@ import { resolve } from "node:path";
 
 /**
  * 2.0 真实用户任务 E2E（依赖 Local Supabase browser fixture）：
- * 运行前先 `pnpm db:local:bootstrap && pnpm test:major-browser:local`，
- * fixture 凭据写在 .agent-tmp/major-browser-credentials.json。
+ * `pnpm test:e2e` 会在本套件前准备 Local fixture，在结束后清理；
+ * fixture 凭据只短暂写在 .agent-tmp/major-browser-credentials.json。
  *
  * 覆盖：auth boundary（未登录访问 /my/teams 被送回登录页）→ 真实 Supabase
- * 登录 → 长期 Team 创建（重复运行复用既有 Team）→ 在已发布 Major 的报名页
+ * 登录 → 长期 Team 创建 → 在已发布 Major 的报名页
  * 创建 CompetitionEntry → 页面呈现与服务端 canonical 状态一致（草稿 + 报名检查），
  * 且 /my/competitions 与报名页读到同一份 Entry 状态。
  */
@@ -43,17 +43,20 @@ test("队长可以登录、建立长期队伍并发起本届 Major 报名", asyn
   await page.getByLabel("密码", { exact: true }).fill(credentials.password);
   await page.locator('button[type="submit"]').click();
   await page.waitForURL(/\/my\/teams/);
+  await page.waitForLoadState("networkidle");
 
-  // 长期 Team：无队时通过真实表单创建；重复运行复用既有 Team。先等页面
+  // 长期 Team：无队时通过真实表单创建；有队时读取既有 Team。先等页面
   // 渲染出两种状态之一，避免 hydration 早期 count() 竞态。
   const createTeamButton = page.getByRole("button", { name: "创建队伍" });
   const workspace = page.getByText("队伍资料");
   await expect(createTeamButton.or(workspace)).toBeVisible();
-  if (await createTeamButton.count()) {
+  if (await createTeamButton.isVisible()) {
     mkdirSync(resolve(process.cwd(), ".agent-tmp"), { recursive: true });
     await page.locator("input").first().fill(`E2E 队伍 ${Date.now()}`);
     await createTeamButton.click();
-    await expect(page.getByText("队伍已创建")).toBeVisible({ timeout: 20_000 });
+    // Toast 不是持久的业务状态；RSC 刷新后的 Team workspace 才证明 Server Action
+    // 已成功写入并由页面重新读取 canonical Team。
+    await expect(workspace).toBeVisible({ timeout: 20_000 });
   }
   await expect(workspace).toBeVisible({ timeout: 20_000 });
 

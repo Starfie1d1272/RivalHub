@@ -1,11 +1,16 @@
-/** Local PostgreSQL canary for claimInviteCode's invite-row serialization. */
+/**
+ * Local PostgreSQL canary for the invite-row serialization/maxUses pattern.
+ *
+ * This test intentionally executes the SQL pattern directly; it does not call
+ * production claimInviteCode(). PR5 must replace or upgrade it with real-PG
+ * evidence through the production command/service.
+ */
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
+import { describe, it } from "vitest";
+import { localDatabaseUrl } from "./harness/database";
 
-const url = process.env.RIVALHUB_LOCAL_DATABASE_URL;
-if (!url || !["localhost", "127.0.0.1", "::1", "[::1]"].includes(new URL(url).hostname)) {
-  throw new Error("邀请码并发测试只允许 Local Supabase loopback 数据库。");
-}
+const url = localDatabaseUrl();
 
 async function main() {
   const pool = new Pool({ connectionString: url, ssl: false, max: 4 });
@@ -41,4 +46,8 @@ async function main() {
     await pool.end();
   }
 }
-void main();
+describe("admin invite row serialization pattern", () => {
+  it("serializes a single-use invite-row claim to one successful transaction", async () => {
+    await main();
+  });
+});

@@ -24,8 +24,6 @@ import { checkAdminSession } from "@/lib/auth/session";
 import { AdminShortcut } from "@/components/layout/AdminShortcut";
 import type { BracketDatabase as Database } from "@/lib/bracket";
 
-export const dynamic = "force-dynamic";
-
 interface MatchesPageProps {
   params: Promise<{ seasonSlug: string }>;
   searchParams: Promise<{ team?: string }>;

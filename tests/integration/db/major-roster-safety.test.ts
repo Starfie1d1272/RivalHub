@@ -18,11 +18,12 @@
  * 只允许 loopback Local Supabase。
  */
 import { randomUUID } from "node:crypto";
-import { createPerfectWorldRankOrder } from "../../src/lib/config/perfect-world";
+import { createPerfectWorldRankOrder } from "../../../src/lib/config/perfect-world";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool, type PoolClient } from "pg";
-import * as schema from "../../src/db/schema";
-import { auditLogs } from "../../src/db/schema";
+import { describe, expect, it } from "vitest";
+import * as schema from "../../../src/db/schema";
+import { auditLogs } from "../../../src/db/schema";
 import {
   applyMatchStatusTransitionInTx,
   assertStartingLineupAllowedInTx,
@@ -30,16 +31,12 @@ import {
   lockMatchInTx,
   persistMatchRosterInTx,
   type MatchTransitionOutcome,
-} from "../../src/lib/match-rosters/service";
-import { AppError, ErrorCode } from "../../src/lib/errors";
-import { createMajorDefaultCapabilities } from "../../src/types/season";
+} from "../../../src/lib/match-rosters/service";
+import { AppError, ErrorCode } from "../../../src/lib/errors";
+import { createMajorDefaultCapabilities } from "../../../src/types/season";
+import { localDatabaseUrl } from "./harness/database";
 
-const databaseUrl = process.env.RIVALHUB_LOCAL_DATABASE_URL;
-if (!databaseUrl) throw new Error("RIVALHUB_LOCAL_DATABASE_URL 未设置。");
-const target = new URL(databaseUrl);
-if (!["localhost", "127.0.0.1", "::1", "[::1]"].includes(target.hostname)) {
-  throw new Error("阵容安全集成测试只允许 Local Supabase loopback 数据库。");
-}
+const databaseUrl = localDatabaseUrl();
 
 const ACTOR = "local-admin-g1";
 
@@ -51,10 +48,6 @@ async function expectAppError(work: () => Promise<unknown>, code: ErrorCode, hin
     throw new Error(`${hint ?? "操作"}：预期 AppError(${code})，实际 ${String(error)}`);
   }
   throw new Error(`${hint ?? "操作"}：预期失败（${code}），但操作成功。`);
-}
-
-function assertCondition(condition: boolean, message: string): void {
-  if (!condition) throw new Error(message);
 }
 
 async function countAudit(client: PoolClient, matchId: string, action: string): Promise<number> {
@@ -469,8 +462,8 @@ async function main(): Promise<void> {
           ErrorCode.VALIDATION_FAILED,
           "S1 未提交名单时开始比赛",
         );
-        assertCondition((await countRosters(client, mgMatch)) === 0, "S1 失败后不得产生任何隐式补名单");
-        assertCondition((await countAudit(client, mgMatch, "match.start")) === 0, "S1 不得写入 match.start 审计");
+        expect((await countRosters(client, mgMatch)) === 0,  "S1 失败后不得产生任何隐式补名单").toBe(true);
+        expect((await countAudit(client, mgMatch, "match.start")) === 0,  "S1 不得写入 match.start 审计").toBe(true);
       } finally {
         client.release();
       }
@@ -522,7 +515,7 @@ async function main(): Promise<void> {
         ErrorCode.VALIDATION_FAILED,
         "S5 冻结名单外选手",
       );
-      assertCondition(outsiderFailure.message.includes("不属于本队"), "S5 需要明确指出非本场名单 blocker");
+      expect(outsiderFailure.message.includes("不属于本队"),  "S5 需要明确指出非本场名单 blocker").toBe(true);
       const duplicateFailure = await expectAppError(
         () => submitLineupProductionLogic(database, {
           matchId: mgMatch, entryId: entryAId, source: "participant", submittedBy: null,
@@ -532,7 +525,7 @@ async function main(): Promise<void> {
         ErrorCode.VALIDATION_FAILED,
         "S6 重复选择队员",
       );
-      assertCondition(duplicateFailure.message.includes("重复选择"), "S6 需要明确指出重复 blocker");
+      expect(duplicateFailure.message.includes("重复选择"),  "S6 需要明确指出重复 blocker").toBe(true);
       const njuShortfall = await expectAppError(
         () => submitLineupProductionLogic(database, {
           matchId: mgMatch, entryId: entryAId, source: "participant", submittedBy: null,
@@ -541,7 +534,7 @@ async function main(): Promise<void> {
         ErrorCode.VALIDATION_FAILED,
         "S7 NJU 首发不足 3 人",
       );
-      assertCondition(njuShortfall.message.includes("南京大学"), "S7 需要给出 NJU 归属 shortfall 文案");
+      expect(njuShortfall.message.includes("南京大学"),  "S7 需要给出 NJU 归属 shortfall 文案").toBe(true);
     }
 
     // S8 admin 选择默认首发但未确认 → start 必须拒绝。
@@ -571,19 +564,19 @@ async function main(): Promise<void> {
         matchId: mgMatch, entryId: entryAId, source: "participant", submittedBy: null,
         starterIds: lineupA.starters, substituteIds: [],
       });
-      assertCondition(resubmitted.rosterId === adminSelectARoster, "S9 重复提交必须复用同一 roster 行");
+      expect(resubmitted.rosterId === adminSelectARoster,  "S9 重复提交必须复用同一 roster 行").toBe(true);
       const client = await pool.connect();
       try {
         const players = await client.query<{ count: string }>(
           `SELECT COUNT(*)::text AS count FROM match_roster_players WHERE roster_id = $1`,
           [resubmitted.rosterId],
         );
-        assertCondition(Number(players.rows[0]!.count) === 5, "S9 重提交后替补应被替换为空，保留恰好 5 行");
+        expect(Number(players.rows[0]!.count) === 5,  "S9 重提交后替补应被替换为空，保留恰好 5 行").toBe(true);
         const sources = await client.query<{ source: string }>(
           `SELECT source FROM match_rosters WHERE id = $1`,
           [resubmitted.rosterId],
         );
-        assertCondition(sources.rows[0]!.source === "participant", "S9 参赛方重提交必须把 source 改回 participant");
+        expect(sources.rows[0]!.source === "participant",  "S9 参赛方重提交必须把 source 改回 participant").toBe(true);
       } finally {
         client.release();
       }
@@ -598,12 +591,12 @@ async function main(): Promise<void> {
     // S10 显式确认 → pass；重复确认幂等且不新增审计。
     {
       const first = await confirmRosterProductionLogic(database, adminSelectARoster);
-      assertCondition(!first.alreadyConfirmed, "S10 首次确认应返回 alreadyConfirmed=false");
+      expect(!first.alreadyConfirmed,  "S10 首次确认应返回 alreadyConfirmed=false").toBe(true);
       const second = await confirmRosterProductionLogic(database, adminSelectARoster);
-      assertCondition(second.alreadyConfirmed, "S10 重复确认应为幂等 alreadyConfirmed=true");
+      expect(second.alreadyConfirmed,  "S10 重复确认应为幂等 alreadyConfirmed=true").toBe(true);
       const client = await pool.connect();
       try {
-        assertCondition((await countAuditById(client, adminSelectARoster)) === 1, "S10 重复确认不得产生第二条 match.roster.confirm 审计");
+        expect((await countAuditById(client, adminSelectARoster)) === 1,  "S10 重复确认不得产生第二条 match.roster.confirm 审计").toBe(true);
       } finally {
         client.release();
       }
@@ -618,21 +611,21 @@ async function main(): Promise<void> {
       const client = await pool.connect();
       try {
         const statusRow = await client.query<{ status: string }>(`SELECT status FROM matches WHERE id = $1`, [mgMatch]);
-        assertCondition(statusRow.rows[0]!.status === "in_progress", "S11 比赛应进入 in_progress");
-        assertCondition((await countAudit(client, mgMatch, "match.start")) === 1, "S11 应恰好一条 match.start 审计");
+        expect(statusRow.rows[0]!.status === "in_progress",  "S11 比赛应进入 in_progress").toBe(true);
+        expect((await countAudit(client, mgMatch, "match.start")) === 1,  "S11 应恰好一条 match.start 审计").toBe(true);
         const auditMeta = await client.query<{ meta: { lineups?: unknown[] } }>(
           `SELECT meta FROM audit_logs WHERE target_id = $1 AND action = 'match.start' LIMIT 1`,
           [mgMatch],
         );
-        assertCondition(Array.isArray(auditMeta.rows[0]!.meta?.lineups) && auditMeta.rows[0]!.meta!.lineups!.length === 2,
-          "S11 match.start 审计应包含两队首发摘要");
+        expect(Array.isArray(auditMeta.rows[0]!.meta?.lineups) && auditMeta.rows[0]!.meta!.lineups!.length === 2,
+          "S11 match.start 审计应包含两队首发摘要").toBe(true);
         const confirmedRows = await client.query<{ confirmed_by: string | null; confirmed_at: Date | null }>(
           `SELECT confirmed_by, confirmed_at FROM match_rosters WHERE match_id = $1`,
           [mgMatch],
         );
-        assertCondition(confirmedRows.rows.length === 2, "S11 两队各一条 canonical roster fact");
+        expect(confirmedRows.rows.length === 2,  "S11 两队各一条 canonical roster fact").toBe(true);
         for (const row of confirmedRows.rows) {
-          assertCondition(row.confirmed_by === ACTOR && row.confirmed_at !== null, "S11 确认事实必须持久化 confirmed_by/at");
+          expect(row.confirmed_by === ACTOR && row.confirmed_at !== null,  "S11 确认事实必须持久化 confirmed_by/at").toBe(true);
         }
       } finally {
         client.release();
@@ -678,7 +671,7 @@ async function main(): Promise<void> {
           ErrorCode.VALIDATION_FAILED,
           "S12 mutable 规则清空后冻结规则应继续生效",
         );
-        assertCondition(failure.message.includes("南京大学"), "S12 必须按冻结快照给出 NJU shortfall 文案");
+        expect(failure.message.includes("南京大学"),  "S12 必须按冻结快照给出 NJU shortfall 文案").toBe(true);
 
         const frozenFactsMatch = await createManagedMatch(pool, fixture, "r1-frozen-facts");
         await submitLineupProductionLogic(database, {
@@ -721,19 +714,19 @@ async function main(): Promise<void> {
         ),
       ]);
       const fulfilled = results.filter((r): r is PromiseFulfilledResult<MatchTransitionOutcome> => r.status === "fulfilled");
-      assertCondition(fulfilled.length === 1, "S13 并发 start 必须恰好一个成功");
+      expect(fulfilled.length === 1,  "S13 并发 start 必须恰好一个成功").toBe(true);
       const rejectedReason = results.find((r): r is PromiseRejectedResult => r.status === "rejected")!.reason;
-      assertCondition(
+      expect(
         rejectedReason instanceof AppError && rejectedReason.code === ErrorCode.MATCH_INVALID_TRANSITION,
         `S13 失败方必须是确定性的状态机拒绝，实际 ${String(rejectedReason)}`,
-      );
+      ).toBe(true);
 
       const client = await pool.connect();
       try {
-        assertCondition((await countAudit(client, mcMatch, "match.start")) === 1, "S13 只能产生一条 match.start 审计");
-        assertCondition((await countRosters(client, mcMatch)) === 2, "S13 不得产生重复 roster 行");
+        expect((await countAudit(client, mcMatch, "match.start")) === 1,  "S13 只能产生一条 match.start 审计").toBe(true);
+        expect((await countRosters(client, mcMatch)) === 2,  "S13 不得产生重复 roster 行").toBe(true);
         const statusRow = await client.query<{ status: string }>(`SELECT status FROM matches WHERE id = $1`, [mcMatch]);
-        assertCondition(statusRow.rows[0]!.status === "in_progress", "S13 比赛应处于 in_progress");
+        expect(statusRow.rows[0]!.status === "in_progress",  "S13 比赛应处于 in_progress").toBe(true);
       } finally {
         client.release();
       }
@@ -754,7 +747,8 @@ async function countAuditById(client: PoolClient, rosterId: string): Promise<num
   return Number(result.rows[0]?.count ?? "0");
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
+describe("Major roster safety PostgreSQL invariants", () => {
+  it("keeps starting lineups canonical, confirmed, and idempotent", async () => {
+    await main();
+  });
 });

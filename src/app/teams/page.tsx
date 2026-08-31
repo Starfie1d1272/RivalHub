@@ -1,5 +1,3 @@
-export const dynamic = "force-dynamic";
-
 import Link from "next/link";
 import { asc, eq, ilike, isNull, sql } from "drizzle-orm";
 import { db } from "@/db/client";

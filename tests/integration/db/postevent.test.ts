@@ -9,10 +9,11 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import * as schema from "../../src/db/schema";
-import { issueSanctionInTx } from "../../src/lib/discipline/service";
-import { AppError, ErrorCode } from "../../src/lib/errors";
-import { lockMatchInTx } from "../../src/lib/match-rosters/service";
+import { describe, expect, it } from "vitest";
+import * as schema from "../../../src/db/schema";
+import { issueSanctionInTx } from "../../../src/lib/discipline/service";
+import { AppError, ErrorCode } from "../../../src/lib/errors";
+import { lockMatchInTx } from "../../../src/lib/match-rosters/service";
 import {
   archiveTournamentInTx,
   confirmMajorFinalResultInTx,
@@ -21,20 +22,12 @@ import {
   revokeTournamentHonorInTx,
   serializePostEventAdjudicationPublic,
   serializeTournamentHonorPublic,
-} from "../../src/lib/postevent/service";
+} from "../../../src/lib/postevent/service";
+import { localDatabaseUrl } from "./harness/database";
 
-const databaseUrl = process.env.RIVALHUB_LOCAL_DATABASE_URL;
-if (!databaseUrl) throw new Error("RIVALHUB_LOCAL_DATABASE_URL 未设置。");
-const target = new URL(databaseUrl);
-if (!["localhost", "127.0.0.1", "::1", "[::1]"].includes(target.hostname)) {
-  throw new Error("H2 集成测试只允许 Local Supabase loopback 数据库。");
-}
+const databaseUrl = localDatabaseUrl();
 
 const ACTOR = "local-admin-h2";
-
-function assertCondition(condition: boolean, message: string): void {
-  if (!condition) throw new Error(message);
-}
 
 async function expectAppError(work: () => Promise<unknown>, code: ErrorCode, message: string): Promise<void> {
   try {
@@ -146,13 +139,13 @@ async function main(): Promise<void> {
               has_table_privilege('authenticated', c.oid, 'select') AS authenticated_can_select
        FROM pg_class c WHERE c.relname IN ('post_event_adjudications', 'tournament_honors') ORDER BY c.relname`,
     );
-    assertCondition(rls.rows.length === 2 && rls.rows.every((row) => row.rls && !row.anon_can_select && !row.authenticated_can_select), "H2 RLS 必须启用且 anon/authenticated 默认无权读取赛后事实。");
+    expect(rls.rows.length === 2 && rls.rows.every((row) => row.rls && !row.anon_can_select && !row.authenticated_can_select),  "H2 RLS 必须启用且 anon/authenticated 默认无权读取赛后事实。").toBe(true);
 
     // 1–2: pending → confirmed; repeated confirmation produces no duplicate audit.
     const firstConfirmation = await database.transaction((tx) => confirmMajorFinalResultInTx(tx, { seasonId: f.seasonId, actorId: ACTOR }));
-    assertCondition(!firstConfirmation.alreadyConfirmed, "P1 首次最终结果确认必须改变 pending 状态。");
+    expect(!firstConfirmation.alreadyConfirmed,  "P1 首次最终结果确认必须改变 pending 状态。").toBe(true);
     const repeatedConfirmation = await database.transaction((tx) => confirmMajorFinalResultInTx(tx, { seasonId: f.seasonId, actorId: ACTOR }));
-    assertCondition(repeatedConfirmation.alreadyConfirmed && repeatedConfirmation.resultId === f.resultId, "P2 重复确认必须幂等返回同一结果。");
+    expect(repeatedConfirmation.alreadyConfirmed && repeatedConfirmation.resultId === f.resultId,  "P2 重复确认必须幂等返回同一结果。").toBe(true);
 
     // 3–6: explicit Champion + Runner-up honors; revoke does not promote anyone.
     const championRequestId = randomUUID();
@@ -162,22 +155,22 @@ async function main(): Promise<void> {
     const repeatedChampionHonor = await database.transaction((tx) => grantTournamentHonorInTx(tx, {
       seasonId: f.seasonId, clientRequestId: championRequestId, type: "champion", label: "Champion", basis: "final_result", entryId: f.championId, actorId: ACTOR,
     }));
-    assertCondition(!repeatedChampionHonor.created && repeatedChampionHonor.honorId === championHonor.honorId, "P3 荣誉授予重试必须命中相同的结构性幂等事实。");
+    expect(!repeatedChampionHonor.created && repeatedChampionHonor.honorId === championHonor.honorId,  "P3 荣誉授予重试必须命中相同的结构性幂等事实。").toBe(true);
     const runnerUpHonor = await database.transaction((tx) => grantTournamentHonorInTx(tx, {
       seasonId: f.seasonId, clientRequestId: randomUUID(), type: "runner_up", label: "Runner-up", basis: "final_result", entryId: f.runnerUpId, actorId: ACTOR,
     }));
     const revokeChampion = await database.transaction((tx) => revokeTournamentHonorInTx(tx, { honorId: championHonor.honorId, actorId: ACTOR, reason: "explicit revocation" }));
-    assertCondition(!revokeChampion.alreadyRevoked, "P4 首次冠军撤销必须生效。");
+    expect(!revokeChampion.alreadyRevoked,  "P4 首次冠军撤销必须生效。").toBe(true);
     const honorState = await pool.query<{ champion: string; runner_up: string }>(
       `SELECT
          (SELECT state::text FROM tournament_honors WHERE id = $1) AS champion,
          (SELECT state::text FROM tournament_honors WHERE id = $2) AS runner_up`,
       [championHonor.honorId, runnerUpHonor.honorId],
     );
-    assertCondition(honorState.rows[0]?.champion === "revoked", "P4 冠军荣誉必须保留 revoked provenance。");
-    assertCondition(honorState.rows[0]?.runner_up === "valid", "P5 Runner-up 必须仍为 Runner-up。");
+    expect(honorState.rows[0]?.champion === "revoked",  "P4 冠军荣誉必须保留 revoked provenance。").toBe(true);
+    expect(honorState.rows[0]?.runner_up === "valid",  "P5 Runner-up 必须仍为 Runner-up。").toBe(true);
     const automaticPromotion = await pool.query(`SELECT id FROM tournament_honors WHERE season_id = $1 AND honor_key = 'champion' AND state = 'valid'`, [f.seasonId]);
-    assertCondition(automaticPromotion.rowCount === 0, "P6 不得自动授予新的 Champion。");
+    expect(automaticPromotion.rowCount === 0,  "P6 不得自动授予新的 Champion。").toBe(true);
 
     // 7–9: manual award lifecycle also never creates a replacement.
     const manualHonor = await database.transaction((tx) => grantTournamentHonorInTx(tx, {
@@ -185,8 +178,8 @@ async function main(): Promise<void> {
     }));
     await database.transaction((tx) => revokeTournamentHonorInTx(tx, { honorId: manualHonor.honorId, actorId: ACTOR, reason: "manual withdrawal" }));
     const manualState = await pool.query(`SELECT state::text FROM tournament_honors WHERE id = $1`, [manualHonor.honorId]);
-    assertCondition(manualState.rows[0]?.state === "revoked", "P8 手动奖项必须可撤销。");
-    assertCondition((await pool.query(`SELECT id FROM tournament_honors WHERE season_id = $1 AND honor_key = 'manual:fair-play' AND state = 'valid'`, [f.seasonId])).rowCount === 0, "P9 不得自动补发手动奖项。");
+    expect(manualState.rows[0]?.state === "revoked",  "P8 手动奖项必须可撤销。").toBe(true);
+    expect((await pool.query(`SELECT id FROM tournament_honors WHERE season_id = $1 AND honor_key = 'manual:fair-play' AND state = 'valid'`, [f.seasonId])).rowCount === 0,  "P9 不得自动补发手动奖项。").toBe(true);
 
     // 10–13: H1 personal case and explicit team adjudication cannot rewrite independent historical facts.
     const beforeFacts = await pool.query<{ placements: string; honors: string; score_a: number; score_b: number }>(
@@ -203,7 +196,7 @@ async function main(): Promise<void> {
       `SELECT json_agg(json_build_object('id', id, 'state', state::text) ORDER BY id)::text AS honors FROM tournament_honors WHERE season_id = $1`,
       [f.seasonId],
     );
-    assertCondition(beforeFacts.rows[0]?.honors === afterPersonalSanction.rows[0]?.honors, "P11 个人 H1 sanction 不得改写 honors。");
+    expect(beforeFacts.rows[0]?.honors === afterPersonalSanction.rows[0]?.honors,  "P11 个人 H1 sanction 不得改写 honors。").toBe(true);
     const ruling = await database.transaction((tx) => createPostEventAdjudicationInTx(tx, {
       seasonId: f.seasonId, clientRequestId: randomUUID(), kind: "team_sanction", target: "entry", targetEntryId: f.thirdId,
       impacts: ["honors"], reason: "team ruling", publicExplanation: "public team ruling", internalEvidence: "private ruling proof", actorId: ACTOR,
@@ -217,21 +210,21 @@ async function main(): Promise<void> {
               (SELECT score_b FROM matches WHERE id = $2) AS score_b`,
       [f.resultId, f.matchId],
     );
-    assertCondition(beforeFacts.rows[0]?.placements === afterFacts.rows[0]?.placements, "P10/P12 个人处罚与队伍裁决不得改写 placements。");
-    assertCondition(beforeFacts.rows[0]?.score_a === afterFacts.rows[0]?.score_a && beforeFacts.rows[0]?.score_b === afterFacts.rows[0]?.score_b, "P13 赛后事实不得改写 historical matches。");
-    assertCondition(rulingHonor.created, "P12 只有显式关联 honors 的裁决才可创建明确的新荣誉事实。");
+    expect(beforeFacts.rows[0]?.placements === afterFacts.rows[0]?.placements,  "P10/P12 个人处罚与队伍裁决不得改写 placements。").toBe(true);
+    expect(beforeFacts.rows[0]?.score_a === afterFacts.rows[0]?.score_a && beforeFacts.rows[0]?.score_b === afterFacts.rows[0]?.score_b,  "P13 赛后事实不得改写 historical matches。").toBe(true);
+    expect(rulingHonor.created,  "P12 只有显式关联 honors 的裁决才可创建明确的新荣誉事实。").toBe(true);
 
     // 19: public serializer is intentionally unable to leak internal evidence.
     const [rulingRow] = await database.select().from(schema.postEventAdjudications).where(eq(schema.postEventAdjudications.id, ruling.adjudicationId));
     const [honorRow] = await database.select().from(schema.tournamentHonors).where(eq(schema.tournamentHonors.id, rulingHonor.honorId));
-    assertCondition(!JSON.stringify(serializePostEventAdjudicationPublic(rulingRow!)).includes("private ruling proof"), "P19 裁决公开序列化不得泄露内部证据。");
-    assertCondition(!JSON.stringify(serializeTournamentHonorPublic(honorRow!)).includes("private"), "P19 荣誉公开序列化不得泄露私有字段。");
+    expect(!JSON.stringify(serializePostEventAdjudicationPublic(rulingRow!)).includes("private ruling proof"),  "P19 裁决公开序列化不得泄露内部证据。").toBe(true);
+    expect(!JSON.stringify(serializeTournamentHonorPublic(honorRow!)).includes("private"),  "P19 荣誉公开序列化不得泄露私有字段。").toBe(true);
 
     // 14–18: archive is idempotent; ordinary match mutation blocks, specialized post-event remains allowed.
     const firstArchive = await database.transaction((tx) => archiveTournamentInTx(tx, { seasonId: f.seasonId, actorId: ACTOR }));
-    assertCondition(!firstArchive.alreadyArchived, "P14 归档必须成功。");
+    expect(!firstArchive.alreadyArchived,  "P14 归档必须成功。").toBe(true);
     const secondArchive = await database.transaction((tx) => archiveTournamentInTx(tx, { seasonId: f.seasonId, actorId: ACTOR }));
-    assertCondition(secondArchive.alreadyArchived, "P15 重复归档必须幂等。");
+    expect(secondArchive.alreadyArchived,  "P15 重复归档必须幂等。").toBe(true);
     await expectAppError(
       () => database.transaction((tx) => lockMatchInTx(tx, f.matchId)),
       ErrorCode.VALIDATION_FAILED,
@@ -240,9 +233,9 @@ async function main(): Promise<void> {
     const postArchiveRuling = await database.transaction((tx) => createPostEventAdjudicationInTx(tx, {
       seasonId: f.seasonId, clientRequestId: randomUUID(), kind: "placement_statement", target: "season", impacts: ["official_placements"], reason: "archived ruling", publicExplanation: "archived public ruling", actorId: ACTOR,
     }));
-    assertCondition(postArchiveRuling.created, "P17 归档后专用赛后裁决必须允许。");
+    expect(postArchiveRuling.created,  "P17 归档后专用赛后裁决必须允许。").toBe(true);
     const postArchiveRevoke = await database.transaction((tx) => revokeTournamentHonorInTx(tx, { honorId: rulingHonor.honorId, actorId: ACTOR, reason: "archived revocation" }));
-    assertCondition(!postArchiveRevoke.alreadyRevoked, "P18 归档后专用荣誉撤销必须允许。");
+    expect(!postArchiveRevoke.alreadyRevoked,  "P18 归档后专用荣誉撤销必须允许。").toBe(true);
 
     // 20: each meaningful mutation has an audit entry; idempotent retries do not add duplicate transition audit.
     const audit = await pool.query<{ action: string; count: string }>(
@@ -250,9 +243,9 @@ async function main(): Promise<void> {
     );
     const auditCounts = new Map(audit.rows.map((row) => [row.action, Number(row.count)]));
     for (const action of ["major.result.confirm", "postevent.honor.grant", "postevent.honor.revoke", "sanction.issue", "postevent.adjudication.create", "major.archive"]) {
-      assertCondition((auditCounts.get(action) ?? 0) >= 1, `P20 缺少审计：${action}`);
+      expect((auditCounts.get(action) ?? 0) >= 1,  `P20 缺少审计：${action}`).toBe(true);
     }
-    assertCondition(auditCounts.get("major.result.confirm") === 1, "P20 幂等确认不得重复写审计。");
+    expect(auditCounts.get("major.result.confirm") === 1,  "P20 幂等确认不得重复写审计。").toBe(true);
     console.log("H2 post-event Local PostgreSQL integration passed (P1–P20).");
   } finally {
     if (fixture) await cleanup(pool, fixture);
@@ -260,4 +253,8 @@ async function main(): Promise<void> {
   }
 }
 
-void main();
+describe("post-event PostgreSQL invariants", () => {
+  it("keeps confirmation, adjudication, honors, audits, and archive boundaries atomic", async () => {
+    await main();
+  });
+});

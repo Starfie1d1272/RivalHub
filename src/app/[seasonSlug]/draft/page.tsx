@@ -10,8 +10,6 @@ import { SEASON_STATUS_LABELS } from "@/types/season";
 import { checkAdminSession } from "@/lib/auth/session";
 import { AdminShortcut } from "@/components/layout/AdminShortcut";
 
-export const dynamic = "force-dynamic";
-
 interface DraftPageProps {
   params: Promise<{ seasonSlug: string }>;
 }

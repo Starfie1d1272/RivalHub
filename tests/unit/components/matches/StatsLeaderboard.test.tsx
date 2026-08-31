@@ -22,7 +22,7 @@ describe("StatsLeaderboard", () => {
     render(
       <StatsLeaderboard rows={[]} sort="rating" position="" seasonSlug="test" />
     );
-    expect(screen.getByText("该赛季暂无已确认的玩家数据")).toBeDefined();
+    expect(screen.getByText("该赛季暂无已确认的玩家数据")).toBeInTheDocument();
   });
 
   it("renders player rows with links", () => {
@@ -42,9 +42,10 @@ describe("StatsLeaderboard", () => {
         ]}
       />
     );
-    expect(screen.getByText("张三")).toBeDefined();
-    expect(screen.getByText("1.25")).toBeDefined();
-    expect(screen.getByText("92.3")).toBeDefined();
+    expect(screen.getByRole("link", { name: "张三" })).toHaveAttribute("href", "/players/u1");
+    expect(screen.getByRole("link", { name: "Alpha" })).toHaveAttribute("href", "/test/teams/t1");
+    expect(screen.getByRole("cell", { name: "1.25" })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "92.3" })).toBeInTheDocument();
   });
 
   it("renders sort tabs with correct active state", () => {
@@ -64,7 +65,10 @@ describe("StatsLeaderboard", () => {
         ]}
       />
     );
-    expect(screen.getByText("李四")).toBeDefined();
+    const adr = screen.getByRole("link", { name: "ADR" });
+    expect(adr).toHaveAttribute("href", "/test/stats?sort=adr");
+    expect(adr).toHaveClass("border-input");
+    expect(screen.getByRole("link", { name: "Rating" })).not.toHaveClass("border-input");
   });
 
   it("renders position filter chips", () => {
@@ -84,6 +88,7 @@ describe("StatsLeaderboard", () => {
         ]}
       />
     );
-    expect(screen.getByText("王五")).toBeDefined();
+    expect(screen.getByRole("link", { name: "AWPer" })).toHaveAttribute("href", "/test/stats?sort=rating&position=awper");
+    expect(screen.getByRole("link", { name: "王五" })).toHaveAttribute("href", "/players/u1");
   });
 });

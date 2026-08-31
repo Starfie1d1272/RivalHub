@@ -3,17 +3,13 @@
  * It writes a complete, isolated fact set, reads it through the same server
  * loader as /my, then deletes only the generated rows.
  */
-import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
-import { loadMyReadiness } from "../../src/lib/my/readiness";
+import { describe, expect, it } from "vitest";
+import { loadMyReadiness } from "../../../src/lib/my/readiness";
+import { localDatabaseUrl } from "./harness/database";
 
-const databaseUrl = process.env.RIVALHUB_LOCAL_DATABASE_URL;
-if (!databaseUrl) throw new Error("RIVALHUB_LOCAL_DATABASE_URL 未设置。");
-const target = new URL(databaseUrl);
-if (!["localhost", "127.0.0.1", "::1", "[::1]"].includes(target.hostname)) {
-  throw new Error("我的资料集成测试只允许 Local Supabase loopback 数据库。");
-}
+const databaseUrl = localDatabaseUrl();
 
 async function main(): Promise<void> {
   const pool = new Pool({ connectionString: databaseUrl, ssl: false, max: 1 });
@@ -32,7 +28,7 @@ async function main(): Promise<void> {
   try {
     const platform = await client.query<{ key: string }>("SELECT key FROM competitive_platforms ORDER BY key LIMIT 1");
     const platformKey = platform.rows[0]?.key;
-    assert.ok(platformKey, "Local fixture 需要至少一个竞技平台目录。");
+    expect(platformKey).toBeTruthy();
     const catalog = await client.query<{ season_key: string; is_current: boolean; rank_key: string }>(
       `SELECT season.season_key, season.is_current, rank.rank_key
        FROM competitive_platform_seasons season
@@ -43,11 +39,13 @@ async function main(): Promise<void> {
     );
     const current = catalog.rows.find((row) => row.is_current);
     const previous = catalog.rows.find((row) => !row.is_current);
-    assert.ok(current && previous, "Local fixture 需要当前与上一赛季目录。");
+    expect(current).toBeDefined();
+    expect(previous).toBeDefined();
+    if (!current || !previous) throw new Error("Local fixture 需要当前与上一赛季目录。");
     const ranks = await client.query<{ rank_key: string }>("SELECT rank_key FROM competitive_platform_ranks WHERE platform_key = $1 ORDER BY sort_order", [platformKey]);
-    assert.ok(ranks.rows.length > 0, "Local fixture 需要竞技段位表。");
+    expect(ranks.rows.length).toBeGreaterThan(0);
     const institution = await client.query<{ id: string }>("SELECT id FROM institutions ORDER BY created_at LIMIT 1");
-    assert.ok(institution.rows[0], "Local fixture 需要教育机构目录。");
+    expect(institution.rows[0]).toBeTruthy();
     const config = { requireCompetitiveProfile: true, competitiveProfile: { platform: platformKey, currentSeasonKey: current.season_key, previousSeasonKey: previous.season_key, rankOrder: ranks.rows.map((row) => row.rank_key) } };
     await client.query("BEGIN");
     await client.query(`INSERT INTO users (id, email, display_name, steam64, perfect_id, qq, email_verified_at) VALUES ($1, $2, 'Local 我的选手', '76561198000000001', $3, '100001', now()), ($4, $5, 'Local 替补队长', '76561198000000002', $6, '100002', now())`, [ids.user, `my-readiness-${ids.user}@local.test`, `perfect-${ids.user}`, ids.benchedCaptain, `my-readiness-benched-${ids.benchedCaptain}@local.test`, `perfect-${ids.benchedCaptain}`]);
@@ -65,16 +63,16 @@ async function main(): Promise<void> {
     committed = true;
 
     const model = await loadMyReadiness(ids.user);
-    assert.equal(model.profile.state, "ready");
-    assert.equal(model.education.state, "ready");
-    assert.ok(model.competitiveProfiles.some((profile) => profile.key === platformKey && profile.state === "ready"), "竞技档案应由 catalog/profile owner 判定为 ready。");
-    assert.equal(model.team.state, "ready");
-    assert.match(model.team.detail, /Local 我的 Team/, "active 与 benched Team 同时存在时必须选择 active Team。");
-    assert.equal(model.competitions.length, 1);
-    assert.equal(model.competitions[0]?.entry.state, "ready");
-    assert.equal(model.competitions[0]?.qualification.state, "ready");
-    assert.deepEqual(model.competitions[0]?.sanctions[0]?.effects, ["registration_block", "roster_block", "match_participation_block"]);
-    assert.equal(JSON.stringify(model).includes("internalEvidence"), false);
+    expect(model.profile.state).toBe("ready");
+    expect(model.education.state).toBe("ready");
+    expect(model.competitiveProfiles.some((profile) => profile.key === platformKey && profile.state === "ready")).toBe(true);
+    expect(model.team.state).toBe("ready");
+    expect(model.team.detail).toMatch(/Local 我的 Team/);
+    expect(model.competitions).toHaveLength(1);
+    expect(model.competitions[0]?.entry.state).toBe("ready");
+    expect(model.competitions[0]?.qualification.state).toBe("ready");
+    expect(model.competitions[0]?.sanctions[0]?.effects).toEqual(["registration_block", "roster_block", "match_participation_block"]);
+    expect(JSON.stringify(model)).not.toContain("internalEvidence");
     console.log("我的资料 Local PostgreSQL composition suite passed.");
   } finally {
     if (!committed) await client.query("ROLLBACK").catch(() => {});
@@ -96,7 +94,8 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exit(1);
+describe("my readiness PostgreSQL composition", () => {
+  it("reads the user-facing readiness model from isolated facts", async () => {
+    await main();
+  });
 });
