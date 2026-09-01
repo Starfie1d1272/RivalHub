@@ -6,7 +6,7 @@ export interface ProtectedRemoteDatabaseConfig {
   poolerHost: string;
   poolerPort: string;
   requiresPgbouncer: boolean;
-  passwordKey: string;
+  passwordKey?: string;
   projectConfirmationKey: string;
   hostConfirmationKey?: string;
   databaseUrlKey: string;
@@ -32,9 +32,13 @@ export function buildProtectedRemoteEnvironment(
     throw new Error(`远程 ${config.target} migration 未授权；必须显式设置 RIVALHUB_ALLOW_REMOTE_DB_WRITE=${config.target}。`);
   }
 
-  const password = env[config.passwordKey];
+  const passwordKey = config.passwordKey;
+  if (!passwordKey) {
+    throw new Error(`db:${config.target}:* 未配置独立密码输入；该目标应使用自己的受保护 credential builder。`);
+  }
+  const password = env[passwordKey];
   if (!password?.trim()) {
-    throw new Error(`${config.passwordKey} 未设置；拒绝猜测或回退到其他凭据。`);
+    throw new Error(`${passwordKey} 未设置；拒绝猜测或回退到其他凭据。`);
   }
   const databaseUrl = assertProtectedRemoteDatabaseUrl(
     `postgresql://postgres.${config.projectRef}:${encodeURIComponent(password.trim())}@${config.poolerHost}:${config.poolerPort}/postgres${config.requiresPgbouncer ? "?pgbouncer=true" : ""}`,
