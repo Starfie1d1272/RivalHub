@@ -1,7 +1,7 @@
 import React from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { Panel, PosChip } from "@/components/rivalhub";
+import { TeamLogo } from "@/components/teams/TeamLogo";
 import { positionLabel } from "@/lib/validators/registration";
 
 interface PlayerPreview {
@@ -58,20 +58,12 @@ export function TeamCard({
   const starters = players.filter((p) => p.isStarter);
   const subs = players.filter((p) => !p.isStarter);
   const captain = players.find((p) => p.isCaptain);
-  const initial = teamName.trim()[0]?.toUpperCase() ?? "?";
-
   return (
     <Panel className="h-full hover:border-[var(--color-border-hi)] transition-colors">
       <div className="space-y-4">
         <div className="flex items-start justify-between gap-3">
           <Link href={`/${seasonSlug}/teams/${teamId}`} className="group flex min-w-0 items-center gap-3">
-            <div className="relative w-10 h-10 rounded-md overflow-hidden shrink-0 border border-[var(--color-border)] bg-[var(--color-panel-low)] flex items-center justify-center">
-              {logoUrl ? (
-                <Image src={logoUrl} alt={`${teamName} logo`} fill className="object-cover" />
-              ) : (
-                <span className="text-sm font-bold text-[var(--color-fg-dim)]">{initial}</span>
-              )}
-            </div>
+            <TeamLogo logoUrl={logoUrl ?? null} teamName={teamName} />
             <div className="min-w-0">
               <span className="text-xs text-[var(--color-fg-mid)]">{draftOrder === null ? "Team registration" : `Draft #${draftOrder}`}</span>
               <h3 className="font-bold text-lg text-[var(--color-fg)] leading-tight break-words group-hover:text-[var(--color-accent)] transition-colors">

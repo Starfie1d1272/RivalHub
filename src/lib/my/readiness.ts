@@ -46,6 +46,7 @@ export interface MyReadinessItem {
   detail: string;
   owner?: string;
   cta: MyReadinessCta;
+  secondaryCta?: MyReadinessCta;
 }
 
 export interface MyCompetitionSource {
@@ -103,8 +104,9 @@ function item(
   detail: string,
   owner: string | undefined,
   cta: MyReadinessCta,
+  secondaryCta?: MyReadinessCta,
 ): MyReadinessItem {
-  return { id, title, state, detail, owner, cta };
+  return { id, title, state, detail, owner, cta, ...(secondaryCta ? { secondaryCta } : {}) };
 }
 
 function latestEducationState(fact: ParticipantQualificationFacts | null): MyReadinessItem {
@@ -136,7 +138,15 @@ function profileState(fact: ParticipantQualificationFacts | null): MyReadinessIt
 
 function teamState(currentTeam: { id: string; name: string; role: string } | null): MyReadinessItem {
   if (!currentTeam) {
-    return item("team", "当前队伍", "incomplete", "你当前没有加入队伍。加入队伍不等于自动参加赛事。", undefined, { href: "/my/teams", label: "管理我的队伍" });
+    return item(
+      "team",
+      "当前队伍",
+      "incomplete",
+      "你还没有加入队伍。可以创建自己的队伍，或先查看已有队伍；加入队伍不会自动参加任何赛事。",
+      undefined,
+      { href: "/my/teams#create-team", label: "创建队伍" },
+      { href: "/teams", label: "查看队伍" },
+    );
   }
   return item("team", "当前队伍", "ready", `${currentTeam.name} · ${currentTeam.role === "captain" ? "队长" : "成员"}。之后的队伍成员变更不会改写已报名赛事名单。`, undefined, { href: "/my/teams", label: "管理我的队伍" });
 }

@@ -91,7 +91,7 @@ async function validateEntryRoster(
   if (season.starterCount > 0 && (primaryIds.length !== season.starterCount || new Set(primaryIds).size !== season.starterCount)) throw new AppError(ErrorCode.VALIDATION_FAILED, `必须指定恰好 ${season.starterCount} 名预定主力。`);
   if (options.requireCurrentTeamMembership && entry.teamId) {
     const activeMemberships = await tx.select({ userId: teamMemberships.userId }).from(teamMemberships).where(and(eq(teamMemberships.teamId, entry.teamId), eq(teamMemberships.status, "active"), isNull(teamMemberships.endedAt), inArray(teamMemberships.userId, rows.map((row) => row.userId))));
-    if (activeMemberships.length !== rows.length) throw new AppError(ErrorCode.VALIDATION_FAILED, "linked Team roster 中有人已不是当前 active member；选择会保留，但提交前必须明确处理。");
+    if (activeMemberships.length !== rows.length) throw new AppError(ErrorCode.VALIDATION_FAILED, "当前名单中有人已不再是这支队伍的当前成员；选择会保留，但提交前必须明确处理。");
   }
   if (config.requireTeamLogo && !entry.logoUrl) throw new AppError(ErrorCode.VALIDATION_FAILED, "本届赛事要求 Entry logo。");
   if (config.requireCompetitiveProfile && !entry.perfectTeamId?.trim()) throw new AppError(ErrorCode.VALIDATION_FAILED, "本届赛事要求完美战队 ID。");
@@ -124,10 +124,10 @@ export async function createCompetitionEntryInTx(tx: TxDb, input: { competitionI
   const window = getRegistrationWindowState(season);
   if (!window.canSubmit) throw new AppError(ErrorCode.REGISTRATION_CLOSED, window.message);
   const [team] = await tx.select().from(teams).where(eq(teams.id, input.teamId)).for("update");
-  if (!team || team.status !== "active") throw new AppError(ErrorCode.NOT_FOUND, "长期队伍不存在或已解散。");
-  if (team.captainUserId !== input.userId) throw new AppError(ErrorCode.FORBIDDEN, "只有长期 Team 队长可以创建参赛条目。");
+  if (!team || team.status !== "active") throw new AppError(ErrorCode.NOT_FOUND, "队伍不存在或已解散。");
+  if (team.captainUserId !== input.userId) throw new AppError(ErrorCode.FORBIDDEN, "只有队伍队长可以创建参赛条目。");
   const existing = await tx.query.competitionEntries.findFirst({ where: and(eq(competitionEntries.competitionId, season.id), eq(competitionEntries.teamId, team.id), inArray(competitionEntries.registrationStatus, ["draft", "submitted", "changes_requested", "waitlisted", "approved"])) });
-  if (existing) throw new AppError(ErrorCode.REGISTRATION_DUPLICATE, "这支 Team 已有本届有效参赛条目。");
+  if (existing) throw new AppError(ErrorCode.REGISTRATION_DUPLICATE, "这支队伍已有本届有效参赛条目。");
   const revisionId = randomUUID();
   const [entry] = await tx.insert(competitionEntries).values({ competitionId: season.id, source: "linked_team", teamId: team.id, name: team.name, logoUrl: team.logoUrl, representativeUserId: team.captainUserId, currentRosterRevisionId: revisionId }).returning({ id: competitionEntries.id });
   await tx.insert(competitionEntryRosterRevisions).values({ id: revisionId, entryId: entry.id, revisionNumber: 1, status: "draft", createdBy: input.actorId });
@@ -139,12 +139,12 @@ export async function createCompetitionEntryInTx(tx: TxDb, input: { competitionI
 export async function saveCompetitionEntryRosterInTx(tx: TxDb, input: { entryId: string; userIds: string[]; primaryStarterUserIds: string[]; perfectTeamId?: string; userId: string; actorId: string }): Promise<{ seasonSlug: string }> {
   const entry = await lockRepresentativeEntry(tx, input.entryId, input.userId);
   if (!editableStatuses.includes(entry.registrationStatus as typeof editableStatuses[number])) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前报名版本不可编辑。");
-  if (!entry.teamId) throw new AppError(ErrorCode.VALIDATION_FAILED, "event-native Entry 不通过 linked Team roster 编辑入口修改。");
+  if (!entry.teamId) throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事组队报名不能通过队伍名单编辑入口修改。");
   const season = await loadSeasonOrThrow(tx, entry.competitionId);
   const window = getRegistrationWindowState(season);
   if (!canEditCompetitionEntryRoster(entry.registrationStatus as "draft" | "changes_requested", window.canSubmit)) throw new AppError(ErrorCode.REGISTRATION_CLOSED, window.message);
   const currentMemberships = await tx.select().from(teamMemberships).where(and(eq(teamMemberships.teamId, entry.teamId), inArray(teamMemberships.userId, input.userIds), isNull(teamMemberships.endedAt)));
-  if (currentMemberships.length !== input.userIds.length) throw new AppError(ErrorCode.VALIDATION_FAILED, "新选择的名单成员必须当前仍属于 linked Team。");
+  if (currentMemberships.length !== input.userIds.length) throw new AppError(ErrorCode.VALIDATION_FAILED, "新选择的名单成员必须当前仍属于这支队伍。");
   const [revision] = await tx.select().from(competitionEntryRosterRevisions).where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id))).for("update");
   if (!revision || revision.status !== "draft") throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前 roster revision 不可编辑。");
   const existingParticipants = await tx.select().from(competitionEntryParticipants).where(eq(competitionEntryParticipants.entryId, entry.id));

@@ -21,7 +21,7 @@ const STATE: Record<MyReadinessState, { label: string; tone: "success" | "warn" 
 
 function ReadinessCard({ item }: { item: MyReadinessItem }) {
   const state = STATE[item.state];
-  return <div className="border border-[var(--color-border)] p-4 space-y-3"><div className="flex flex-wrap items-start justify-between gap-2"><h3 className="font-semibold">{item.title}</h3><span className="font-mono text-[10px] text-[var(--color-fg-mid)]">{state.label}</span></div><p className="text-sm leading-6 text-[var(--color-fg-mid)]">{item.detail}</p><div className="flex flex-wrap items-center justify-between gap-3">{item.owner && <span className="text-xs text-[var(--color-fg-dim)]">等待 {item.owner} 处理</span>}<Button size="sm" variant="outline" asChild><Link href={item.cta.href as never}>{item.cta.label}</Link></Button></div></div>;
+  return <div className="space-y-3 border border-[var(--color-border)] p-4"><div className="flex flex-wrap items-start justify-between gap-2"><h3 className="font-semibold">{item.title}</h3><span className="font-mono text-[10px] text-[var(--color-fg-mid)]">{state.label}</span></div><p className="text-sm leading-6 text-[var(--color-fg-mid)]">{item.detail}</p><div className="flex flex-wrap items-center justify-between gap-3">{item.owner && <span className="text-xs text-[var(--color-fg-dim)]">等待 {item.owner} 处理</span>}<div className="flex flex-wrap gap-2"><Button size="sm" asChild><Link href={item.cta.href as never}>{item.cta.label}</Link></Button>{item.secondaryCta && <Button size="sm" variant="outline" asChild><Link href={item.secondaryCta.href as never}>{item.secondaryCta.label}</Link></Button>}</div></div></div>;
 }
 
 function CompetitiveCard({ profile }: { profile: MyReadinessModel["competitiveProfiles"][number] }) {

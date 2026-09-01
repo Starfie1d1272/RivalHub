@@ -50,7 +50,37 @@ const model: MyReadinessModel = {
   }],
 };
 
+const noTeamModel: MyReadinessModel = {
+  ...model,
+  team: {
+    id: "team",
+    title: "当前队伍",
+    state: "incomplete",
+    detail: "你还没有加入队伍。可以创建自己的队伍，或先查看已有队伍；加入队伍不会自动参加任何赛事。",
+    cta: { href: "/my/teams#create-team", label: "创建队伍" },
+    secondaryCta: { href: "/teams", label: "查看队伍" },
+  },
+};
+
 describe("MyReadinessDashboard", () => {
+  it("shows create and browse actions for users without a Team", () => {
+    render(<MyReadinessDashboard model={noTeamModel} />);
+
+    const createLink = screen.getByRole("link", { name: "创建队伍" });
+    const browseLink = screen.getByRole("link", { name: "查看队伍" });
+    expect(createLink).toHaveAttribute("href", "/my/teams#create-team");
+    expect(browseLink).toHaveAttribute("href", "/teams");
+    expect(createLink).toHaveClass("bg-primary");
+    expect(browseLink).toHaveClass("border-input");
+  });
+
+  it("keeps existing Team cards to a single management action", () => {
+    render(<MyReadinessDashboard model={model} />);
+
+    expect(screen.getByRole("link", { name: "处理当前队伍" })).toHaveAttribute("href", "/settings");
+    expect(screen.queryByRole("link", { name: "查看队伍" })).not.toBeInTheDocument();
+  });
+
   it("shows the CTA while keeping event requirements distinct from profile readiness", () => {
     render(<MyReadinessDashboard model={model} />);
 

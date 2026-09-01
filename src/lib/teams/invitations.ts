@@ -56,7 +56,7 @@ export async function acceptTeamInvitationInTx(
   if (!team) throw new AppError(ErrorCode.NOT_FOUND, "队伍不存在。");
   if (team.status !== "active") throw new AppError(ErrorCode.VALIDATION_FAILED, "队伍已解散。");
   const currentMembership = await tx.query.teamMemberships.findFirst({ where: and(eq(teamMemberships.userId, input.userId), isNull(teamMemberships.endedAt)) });
-  if (currentMembership) throw new AppError(ErrorCode.VALIDATION_FAILED, "你已在另一支长期队伍中有当前成员身份。");
+  if (currentMembership) throw new AppError(ErrorCode.VALIDATION_FAILED, "你当前已经加入另一支队伍。");
   const sameCurrent = await tx.query.teamMemberships.findFirst({ where: and(eq(teamMemberships.teamId, team.id), eq(teamMemberships.userId, input.userId), isNull(teamMemberships.endedAt)) });
   if (sameCurrent) throw new AppError(ErrorCode.REGISTRATION_DUPLICATE, "你当前已属于这支队伍。");
   await tx.insert(teamMemberships).values({ teamId: team.id, userId: input.userId, status: "active", invitedByUserId: invitation.invitedByUserId });
