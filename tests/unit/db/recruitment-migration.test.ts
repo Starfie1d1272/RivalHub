@@ -16,4 +16,10 @@ describe("Recruitment migration", () => {
     expect(migration).toContain('ALTER TABLE "recruitment_interests" ENABLE ROW LEVEL SECURITY');
     expect(migration).toContain('REVOKE ALL ON TABLE "recruitment_intents", "recruitment_interests" FROM anon, authenticated');
   });
+
+  it("closes open intent before a target Season is deleted", () => {
+    expect(migration).toContain('CREATE TRIGGER "seasons_close_recruitment_on_delete" BEFORE DELETE ON "seasons"');
+    expect(migration).toContain('SET "status" = \'closed\'');
+    expect(migration).toContain('REVOKE EXECUTE ON FUNCTION "public"."close_recruitment_intents_for_deleted_target_season"()');
+  });
 });

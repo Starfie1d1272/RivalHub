@@ -35,6 +35,16 @@ CREATE INDEX "recruitment_intents_target_season_idx" ON "recruitment_intents" US
 CREATE INDEX "recruitment_interests_intent_idx" ON "recruitment_interests" USING btree ("recruitment_intent_id");--> statement-breakpoint
 CREATE INDEX "recruitment_interests_user_idx" ON "recruitment_interests" USING btree ("user_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "recruitment_interests_one_user_per_intent_unique" ON "recruitment_interests" USING btree ("recruitment_intent_id","user_id");--> statement-breakpoint
+CREATE OR REPLACE FUNCTION "public"."close_recruitment_intents_for_deleted_target_season"() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  UPDATE "recruitment_intents"
+  SET "status" = 'closed', "updated_at" = now()
+  WHERE "target_season_id" = OLD."id" AND "status" = 'open';
+  RETURN OLD;
+END;
+$$;--> statement-breakpoint
+CREATE TRIGGER "seasons_close_recruitment_on_delete" BEFORE DELETE ON "seasons" FOR EACH ROW EXECUTE FUNCTION "public"."close_recruitment_intents_for_deleted_target_season"();--> statement-breakpoint
+REVOKE EXECUTE ON FUNCTION "public"."close_recruitment_intents_for_deleted_target_season"() FROM PUBLIC, anon, authenticated;--> statement-breakpoint
 INSERT INTO "recruitment_intents" ("kind", "team_id", "positions", "status", "expires_at")
 SELECT 'team_recruiting', "id", ARRAY[]::cs2_role[], 'open', now() + interval '30 days'
 FROM "teams"

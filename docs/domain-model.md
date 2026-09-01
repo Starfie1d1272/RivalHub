@@ -117,6 +117,7 @@
 | 发布时的竞技上下文冻结 | `publishSeason` 事务：platform catalog current/previous/ladder → season frozen competitiveProfile（单一 owner：`src/lib/competitive/catalog.ts`） |
 | 队长交接的并发安全 | application/team 行锁 + season 行锁 + 目标成员 `FOR UPDATE`，全部判断基于锁定行 |
 | 一队/一人只有一条当前组队意向 | `recruitment_intents` owner shape + unique indexes + owner row lock |
+| 组队意向写入锁序 | `User`（如需）→ `Team` → target `Season`（如需）→ `RecruitmentIntent` → `RecruitmentInterest`；只持有 intent ID 的命令先非锁定查询 Team，再取得 Team 锁并重校验 intent |
 | 赛前名单与已批准报名名单的一致性 | `src/lib/major/prestart-entry.ts`：确认、锁定与正式开赛前校验 Entry 仍 approved、approved revision 存在且 event roster 已同步到该版本 |
 | Major 赛前事务锁顺序 | `season / majorPrestartState → CompetitionEntry → eventRoster → majorTournamentEntrant`；名单显式重同步只放宽 source revision guard，完成写入后再由同一 coherence owner 严格复核 |
 | Major prestart readiness | prestart domain service 与明确 blocker |

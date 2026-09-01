@@ -9,6 +9,7 @@ const {
   resolveAvatarUrlMock,
   loadCompetitivePlatformCatalogMock,
   getSeasonHexagonScoresMock,
+  getPublicPlayerLftMock,
 } = vi.hoisted(() => ({
   userFindFirstMock: vi.fn(),
   selectMock: vi.fn(),
@@ -16,6 +17,7 @@ const {
   resolveAvatarUrlMock: vi.fn(),
   loadCompetitivePlatformCatalogMock: vi.fn(),
   getSeasonHexagonScoresMock: vi.fn(),
+  getPublicPlayerLftMock: vi.fn(),
 }));
 
 vi.mock("@/db/client", () => ({
@@ -29,6 +31,7 @@ vi.mock("@/db/client", () => ({
 vi.mock("@/lib/steam", () => ({ resolveAvatarUrl: resolveAvatarUrlMock }));
 vi.mock("@/lib/competitive/catalog", () => ({ loadCompetitivePlatformCatalog: loadCompetitivePlatformCatalogMock }));
 vi.mock("@/actions/hexagon", () => ({ getSeasonHexagonScores: getSeasonHexagonScoresMock }));
+vi.mock("@/lib/recruitment/data", () => ({ getPublicPlayerLft: getPublicPlayerLftMock }));
 
 import PlayerPage from "@/app/players/[userId]/page";
 
@@ -61,6 +64,7 @@ describe("player page education wiring", () => {
     resolveAvatarUrlMock.mockResolvedValue(null);
     loadCompetitivePlatformCatalogMock.mockResolvedValue([]);
     getSeasonHexagonScoresMock.mockResolvedValue(new Map());
+    getPublicPlayerLftMock.mockResolvedValue(null);
     selectDistinctMock.mockImplementation(() => chain([]));
     selectMock.mockImplementation((selection?: Record<string, unknown>) => {
       if (selection && "institutionName" in selection) {

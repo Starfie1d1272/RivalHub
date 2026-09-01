@@ -24,7 +24,7 @@ export function PlayerLftEditorDialog({ targetSeasons, existing, label = "发布
   function save() {
     startTransition(async () => {
       const result = await savePlayerLft({ positions, targetSeasonId: targetSeasonId || null, note });
-      if (result.success) { toast.success("找队信息已公开，30 天内有效"); setOpen(false); router.refresh(); }
+      if (result.success) { toast.success("找队信息已公开，最长 30 天有效"); setOpen(false); router.refresh(); }
       else toast.error(result.error.message);
     });
   }

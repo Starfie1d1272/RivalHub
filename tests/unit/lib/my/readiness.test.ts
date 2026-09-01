@@ -77,7 +77,7 @@ describe("我的 readiness read model", () => {
 
     expect(result.team).toMatchObject({
       cta: { href: "/my/teams#create-team", label: "创建队伍" },
-      secondaryCta: { href: "/teams", label: "查看队伍" },
+      secondaryCta: { href: "/teams/recruitment?view=teams", label: "寻找队伍" },
     });
   });
 
