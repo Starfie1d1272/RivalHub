@@ -3,7 +3,7 @@ import { and, desc, eq, gt, inArray, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { recruitmentIntents, recruitmentInterests, seasons, teamMemberships, teams, userCompetitiveRoles, users } from "@/db/schema";
 import type { Cs2Position } from "@/lib/config/cs2-positions";
-import { recruitmentTargetAvailableCondition } from "@/lib/recruitment/target-policy";
+import { isRecruitmentTargetAvailable, recruitmentTargetAvailableCondition } from "@/lib/recruitment/target-policy";
 
 const publicName = sql<string>`coalesce(${users.displayName}, ${users.perfectName}, ${users.steamName}, '未知用户')`;
 
@@ -43,7 +43,11 @@ export interface PlayerLftCardData extends PublicRecruitmentIntent {
 function openConditions(kind: "team_recruiting" | "player_lft", filters: RecruitmentFilters) {
   const conditions = [eq(recruitmentIntents.kind, kind), eq(recruitmentIntents.status, "open"), gt(recruitmentIntents.expiresAt, new Date())];
   if (filters.targetSeasonId) conditions.push(eq(recruitmentIntents.targetSeasonId, filters.targetSeasonId));
-  if (filters.position) conditions.push(sql`${recruitmentIntents.positions} @> ARRAY[${filters.position}]::cs2_role[]`);
+  if (filters.position) {
+    conditions.push(kind === "team_recruiting"
+      ? sql`${recruitmentIntents.positions} = ARRAY[]::cs2_role[] OR ${recruitmentIntents.positions} @> ARRAY[${filters.position}]::cs2_role[]`
+      : sql`${recruitmentIntents.positions} @> ARRAY[${filters.position}]::cs2_role[]`);
+  }
   return conditions;
 }
 
@@ -141,18 +145,20 @@ export async function getPublicPlayerLft(userId: string): Promise<PublicRecruitm
 }
 
 export async function getTeamRecruitmentWorkspace(teamId: string, includeInterests: boolean): Promise<{
-  recruitment: (PublicRecruitmentIntent & { status: "open" | "closed" }) | null;
+  recruitment: (PublicRecruitmentIntent & { status: "open" | "closed"; isPubliclyActive: boolean }) | null;
   targetSeasons: Array<{ id: string; name: string }>;
   interests: Array<{ userId: string; name: string; positions: Cs2Position[] }>;
 }> {
   const now = new Date();
   const [intents, targetSeasons] = await Promise.all([
-    db.select({ id: recruitmentIntents.id, positions: recruitmentIntents.positions, targetSeasonId: recruitmentIntents.targetSeasonId, targetSeasonName: seasons.name, note: recruitmentIntents.note, status: recruitmentIntents.status, expiresAt: recruitmentIntents.expiresAt, updatedAt: recruitmentIntents.updatedAt })
+    db.select({ id: recruitmentIntents.id, positions: recruitmentIntents.positions, targetSeasonId: recruitmentIntents.targetSeasonId, targetSeasonName: seasons.name, targetSeasonStatus: seasons.status, targetSeasonRegistrationDeadline: seasons.registrationDeadline, note: recruitmentIntents.note, status: recruitmentIntents.status, expiresAt: recruitmentIntents.expiresAt, updatedAt: recruitmentIntents.updatedAt })
       .from(recruitmentIntents).leftJoin(seasons, eq(seasons.id, recruitmentIntents.targetSeasonId)).where(and(eq(recruitmentIntents.teamId, teamId), eq(recruitmentIntents.kind, "team_recruiting"))).limit(1),
     db.select({ id: seasons.id, name: seasons.name }).from(seasons).where(recruitmentTargetAvailableCondition(now)).orderBy(desc(seasons.createdAt)),
   ]);
-  const intent = intents[0] ? { ...intents[0], positions: intents[0].positions as Cs2Position[] } : null;
-  if (!intent || !includeInterests) return { recruitment: intent, targetSeasons, interests: [] };
+  const rawIntent = intents[0];
+  const isPubliclyActive = Boolean(rawIntent && rawIntent.status === "open" && rawIntent.expiresAt > now && (!rawIntent.targetSeasonId || (rawIntent.targetSeasonStatus && isRecruitmentTargetAvailable({ status: rawIntent.targetSeasonStatus, registrationDeadline: rawIntent.targetSeasonRegistrationDeadline }, now))));
+  const intent = rawIntent ? { id: rawIntent.id, positions: rawIntent.positions as Cs2Position[], targetSeasonId: rawIntent.targetSeasonId, targetSeasonName: rawIntent.targetSeasonName, note: rawIntent.note, status: rawIntent.status, expiresAt: rawIntent.expiresAt, updatedAt: rawIntent.updatedAt, isPubliclyActive } : null;
+  if (!intent || !includeInterests || !isPubliclyActive) return { recruitment: intent, targetSeasons, interests: [] };
   const interestRows = await db.select({ userId: users.id, name: publicName }).from(recruitmentInterests).innerJoin(users, eq(users.id, recruitmentInterests.userId)).where(eq(recruitmentInterests.recruitmentIntentId, intent.id));
   const interestedUserIds = interestRows.map((row) => row.userId);
   const roles = interestedUserIds.length ? await db.select({ userId: userCompetitiveRoles.userId, role: userCompetitiveRoles.role }).from(userCompetitiveRoles).where(inArray(userCompetitiveRoles.userId, interestedUserIds)) : [];

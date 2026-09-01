@@ -19,7 +19,7 @@ export function PlayerLftEditorDialog({ targetSeasons, existing, label = "发布
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [positions, setPositions] = useState<Cs2Position[]>(existing?.positions ?? []);
-  const [targetSeasonId, setTargetSeasonId] = useState(existing?.targetSeasonId ?? "");
+  const [targetSeasonId, setTargetSeasonId] = useState(existing?.targetSeasonId && targetSeasons.some((season) => season.id === existing.targetSeasonId) ? existing.targetSeasonId : "");
   const [note, setNote] = useState(existing?.note ?? "");
   function save() {
     startTransition(async () => {

@@ -18,7 +18,7 @@ import type { Cs2Position } from "@/lib/config/cs2-positions";
 type Membership = { id: string; userId: string; name: string; status: "active" | "benched" | "left" };
 type Invitation = { id: string; teamId: string; teamName: string; email?: string | null; expiresAt: string };
 type Team = { id: string; slug: string; name: string; logoUrl: string | null; description: string | null; captainUserId: string };
-type Recruitment = { id: string; positions: Cs2Position[]; targetSeasonId: string | null; targetSeasonName: string | null; note: string | null; status: "open" | "closed"; expiresAt: string } | null;
+type Recruitment = { id: string; positions: Cs2Position[]; targetSeasonId: string | null; targetSeasonName: string | null; note: string | null; status: "open" | "closed"; expiresAt: string; isPubliclyActive: boolean } | null;
 
 export function LongLivedTeamWorkspace({ team, currentUserId, memberships, incomingInvitations, outgoingInvitations, recruitment, targetSeasons, recruitmentInterests }: { team: Team | null; currentUserId: string; memberships: Membership[]; incomingInvitations: Invitation[]; outgoingInvitations: Invitation[]; recruitment: Recruitment; targetSeasons: Array<{ id: string; name: string }>; recruitmentInterests: Array<{ userId: string; name: string; positions: Cs2Position[] }> }) {
   const router = useRouter();

@@ -6,13 +6,11 @@ const RECRUITMENT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 type RecruitmentTargetSeason = Pick<typeof seasons.$inferSelect, "status" | "registrationDeadline">;
 
 /**
- * Recruitment may form around an unpublished future event, but not once the
- * competition has moved beyond registration. This is intentionally narrower
- * than the generic Season lifecycle and shared by writes, public reads, and
- * target selectors.
+ * Recruitment is only public while registration remains available. This is
+ * intentionally narrower than the generic Season lifecycle and shared by
+ * writes, public reads, workspace state, and target selectors.
  */
 export function isRecruitmentTargetAvailable(season: RecruitmentTargetSeason, now: Date): boolean {
-  if (season.status === "draft") return true;
   return season.status === "registration" && (!season.registrationDeadline || season.registrationDeadline > now);
 }
 
@@ -25,7 +23,6 @@ export function recruitmentTargetExpiresAt(season: RecruitmentTargetSeason | nul
 /** SQL projection of isRecruitmentTargetAvailable for the public read model. */
 export function recruitmentTargetAvailableCondition(now: Date) {
   return or(
-    eq(seasons.status, "draft"),
     and(eq(seasons.status, "registration"), or(isNull(seasons.registrationDeadline), gt(seasons.registrationDeadline, now))),
   );
 }

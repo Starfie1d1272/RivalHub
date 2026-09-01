@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import * as schema from "../../../src/db/schema";
 import { acceptTeamInvitationInTx } from "../../../src/lib/teams/invitations";
 import { closeTeamRecruitmentInTx, expressRecruitmentInterestInTx, upsertPlayerLftInTx, upsertTeamRecruitmentInTx } from "../../../src/lib/recruitment/commands";
+import { getPublicTeamRecruitment, getRecruitmentLobbyData, getTeamRecruitmentWorkspace } from "../../../src/lib/recruitment/data";
 import { ErrorCode } from "../../../src/lib/errors";
 import { localDatabaseUrl } from "./harness/database";
 
@@ -23,7 +24,7 @@ describe("recruitment PostgreSQL invariants", () => {
   it("keeps intent ownership separate from membership and closes LFT only through the canonical invite path", async () => {
     const pool = new Pool({ connectionString: databaseUrl, ssl: false, max: 4 });
     const database = drizzle(pool, { schema });
-    const ids = { captain: randomUUID(), interested: randomUUID(), member: randomUUID(), contender: randomUUID(), invitee: randomUUID(), team: randomUUID(), invitation: randomUUID(), draftSeason: randomUUID(), votingSeason: randomUUID() };
+    const ids = { captain: randomUUID(), interested: randomUUID(), member: randomUUID(), contender: randomUUID(), invitee: randomUUID(), team: randomUUID(), invitation: randomUUID(), draftSeason: randomUUID(), registrationSeason: randomUUID(), replacementSeason: randomUUID(), votingSeason: randomUUID() };
     try {
       await pool.query("BEGIN");
       await pool.query("INSERT INTO users (id, email, display_name) VALUES ($1, $2, 'Captain'), ($3, $4, 'Interested'), ($5, $6, 'Member'), ($7, $8, 'Contender'), ($9, $10, 'Invitee')", [
@@ -72,11 +73,34 @@ describe("recruitment PostgreSQL invariants", () => {
       );
       expect(afterClose.rows[0]?.status === "closed" && afterClose.rows[0]?.interests === "0", "关闭 Team 招募必须关闭 intent 并清除旧 interest。").toBe(true);
 
-      await pool.query("INSERT INTO seasons (id, slug, name, kind, status) VALUES ($1, $2, 'Draft target', 'custom', 'draft'), ($3, $4, 'Voting target', 'custom', 'voting')", [ids.draftSeason, `recruitment-draft-${ids.draftSeason.slice(0, 8)}`, ids.votingSeason, `recruitment-voting-${ids.votingSeason.slice(0, 8)}`]);
+      await pool.query("INSERT INTO seasons (id, slug, name, kind, status, registration_deadline) VALUES ($1, $2, 'Draft target', 'custom', 'draft', now() + interval '7 days'), ($3, $4, 'Registration target', 'custom', 'registration', now() + interval '7 days'), ($5, $6, 'Replacement target', 'custom', 'registration', now() + interval '7 days'), ($7, $8, 'Voting target', 'custom', 'voting', now() + interval '7 days')", [ids.draftSeason, `recruitment-draft-${ids.draftSeason.slice(0, 8)}`, ids.registrationSeason, `recruitment-registration-${ids.registrationSeason.slice(0, 8)}`, ids.replacementSeason, `recruitment-replacement-${ids.replacementSeason.slice(0, 8)}`, ids.votingSeason, `recruitment-voting-${ids.votingSeason.slice(0, 8)}`]);
+      await expect(database.transaction((tx) => upsertTeamRecruitmentInTx(tx, { teamId: ids.team, userId: ids.captain, actorId: ids.captain, positions: ["awper"], targetSeasonId: ids.draftSeason, note: null })))
+        .rejects.toMatchObject({ code: ErrorCode.VALIDATION_FAILED });
       await expect(database.transaction((tx) => upsertTeamRecruitmentInTx(tx, { teamId: ids.team, userId: ids.captain, actorId: ids.captain, positions: ["awper"], targetSeasonId: ids.votingSeason, note: null })))
         .rejects.toMatchObject({ code: ErrorCode.VALIDATION_FAILED });
-      await database.transaction((tx) => upsertTeamRecruitmentInTx(tx, { teamId: ids.team, userId: ids.captain, actorId: ids.captain, positions: ["awper"], targetSeasonId: ids.draftSeason, note: null }));
-      await pool.query("DELETE FROM seasons WHERE id = $1", [ids.draftSeason]);
+      await database.transaction((tx) => upsertTeamRecruitmentInTx(tx, { teamId: ids.team, userId: ids.captain, actorId: ids.captain, positions: ["awper"], targetSeasonId: ids.registrationSeason, note: null }));
+      expect(await getPublicTeamRecruitment(ids.team)).not.toBeNull();
+      const activeWorkspace = await getTeamRecruitmentWorkspace(ids.team, true);
+      expect(activeWorkspace.recruitment).toMatchObject({ isPubliclyActive: true, targetSeasonId: ids.registrationSeason });
+      expect(activeWorkspace.targetSeasons.map((season) => season.id)).toContain(ids.registrationSeason);
+      expect(activeWorkspace.targetSeasons.map((season) => season.id)).not.toContain(ids.draftSeason);
+
+      await pool.query("UPDATE seasons SET status = 'voting' WHERE id = $1", [ids.registrationSeason]);
+      expect(await getPublicTeamRecruitment(ids.team)).toBeNull();
+      const stoppedWorkspace = await getTeamRecruitmentWorkspace(ids.team, true);
+      expect(stoppedWorkspace.recruitment).toMatchObject({ isPubliclyActive: false, targetSeasonId: ids.registrationSeason });
+      expect(stoppedWorkspace.targetSeasons.map((season) => season.id)).not.toContain(ids.registrationSeason);
+      expect(stoppedWorkspace.targetSeasons.map((season) => season.id)).toContain(ids.replacementSeason);
+
+      await database.transaction((tx) => upsertTeamRecruitmentInTx(tx, { teamId: ids.team, userId: ids.captain, actorId: ids.captain, positions: [], targetSeasonId: ids.replacementSeason, note: null }));
+      expect((await getTeamRecruitmentWorkspace(ids.team, true)).recruitment).toMatchObject({ isPubliclyActive: true, targetSeasonId: ids.replacementSeason });
+      await pool.query("INSERT INTO recruitment_intents (kind, user_id, positions, status, expires_at) VALUES ('player_lft', $1, ARRAY[]::cs2_role[], 'open', now() + interval '1 day')", [ids.interested]);
+      const awperFilteredLobby = await getRecruitmentLobbyData({ position: "awper" });
+      const openerFilteredLobby = await getRecruitmentLobbyData({ position: "opener" });
+      expect(awperFilteredLobby.teamRecruitments.map((item) => item.teamId)).toContain(ids.team);
+      expect(openerFilteredLobby.teamRecruitments.map((item) => item.teamId)).toContain(ids.team);
+      expect(awperFilteredLobby.playerLfts.map((item) => item.userId)).not.toContain(ids.interested);
+      await pool.query("DELETE FROM seasons WHERE id = $1", [ids.replacementSeason]);
       const afterTargetDelete = await pool.query<{ status: string; targetSeasonId: string | null }>("SELECT status::text AS status, target_season_id AS \"targetSeasonId\" FROM recruitment_intents WHERE id = $1", [teamIntent.id]);
       expect(afterTargetDelete.rows[0]).toMatchObject({ status: "closed", targetSeasonId: null });
 
@@ -104,7 +128,7 @@ describe("recruitment PostgreSQL invariants", () => {
         await client.query("DELETE FROM team_name_changes WHERE team_id = $1", [ids.team]);
         await client.query("DELETE FROM team_memberships WHERE team_id = $1", [ids.team]);
         await client.query("DELETE FROM teams WHERE id = $1", [ids.team]);
-        await client.query("DELETE FROM seasons WHERE id IN ($1, $2)", [ids.draftSeason, ids.votingSeason]);
+        await client.query("DELETE FROM seasons WHERE id IN ($1, $2, $3, $4)", [ids.draftSeason, ids.registrationSeason, ids.replacementSeason, ids.votingSeason]);
         await client.query("DELETE FROM users WHERE id IN ($1, $2, $3, $4, $5)", [ids.captain, ids.interested, ids.member, ids.contender, ids.invitee]);
         await client.query("COMMIT");
       } catch (error) {
