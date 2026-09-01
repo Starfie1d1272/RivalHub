@@ -17,8 +17,9 @@ jobs:
       contents: write
     env:
       NEXT_TELEMETRY_DISABLED: 1
-      # Fixed non-secret Vercel target. The only credential this workflow needs
-      # is VERCEL_TOKEN; production DATABASE_URL remains owned by Vercel.
+      # Fixed non-secret Vercel target. VERCEL_TOKEN authorizes the exact
+      # production deployment; DATABASE_URL is a GitHub production Environment
+      # secret dedicated to the protected migration runner below.
       VERCEL_ORG_ID: team_0eIkBawGTdVjwYHdyrb20ZVV
       VERCEL_PROJECT_ID: prj_3bjmfKrSqRh4szrkEE4HpavnhI0E
       RIVALHUB_DB_TARGET: production
@@ -61,6 +62,8 @@ jobs:
             echo "GitHub production environment secret VERCEL_TOKEN is required." >&2
             exit 1
           fi
+          # This checks project access only. Vercel never exports Sensitive
+          # values to external runners, so it is deliberately not a DB source.
           vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
 
       - name: Validate active migration chain locally
@@ -70,22 +73,14 @@ jobs:
 
       - name: Migrate and verify production database
         env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
-          vercel env run -e production -- \
-            env \
-              RIVALHUB_DB_TARGET=production \
-              RIVALHUB_PRODUCTION_PROJECT_CONFIRM="$RIVALHUB_PRODUCTION_PROJECT_CONFIRM" \
-              RIVALHUB_PRODUCTION_DB_HOST_CONFIRM="$RIVALHUB_PRODUCTION_DB_HOST_CONFIRM" \
-              RIVALHUB_ALLOW_REMOTE_DB_WRITE=production \
-              pnpm db:production:migrate
-
-          vercel env run -e production -- \
-            env \
-              RIVALHUB_DB_TARGET=production \
-              RIVALHUB_PRODUCTION_PROJECT_CONFIRM="$RIVALHUB_PRODUCTION_PROJECT_CONFIRM" \
-              RIVALHUB_PRODUCTION_DB_HOST_CONFIRM="$RIVALHUB_PRODUCTION_DB_HOST_CONFIRM" \
-              pnpm db:production:verify
+          if [[ -z "$DATABASE_URL" || "$DATABASE_URL" == "[SENSITIVE]" ]]; then
+            echo "GitHub production environment secret DATABASE_URL is required." >&2
+            exit 1
+          fi
+          RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:migrate
+          pnpm db:production:verify
 
       - name: Deploy exact release commit to Vercel Production
         id: deploy
