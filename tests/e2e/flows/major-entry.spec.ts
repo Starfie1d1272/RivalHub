@@ -9,7 +9,7 @@ import { resolve } from "node:path";
  *
  * 覆盖：auth boundary（未登录访问 /my/teams 被送回登录页）→ 真实 Supabase
  * 登录 → 长期 Team 创建 → 在已发布 Major 的报名页
- * 创建 CompetitionEntry → 页面呈现与服务端 canonical 状态一致（草稿 + 报名检查），
+ * 创建 CompetitionEntry → 页面呈现与服务端 canonical 状态一致（待提交 + 报名检查），
  * 且 /my/competitions 与报名页读到同一份 Entry 状态。
  */
 const FIXTURE_SLUG = "local-major-browser-2026-08";
@@ -69,13 +69,13 @@ test("队长可以登录、建立长期队伍并发起本届 Major 报名", asyn
     await expect(page.getByText("报名记录已创建")).toBeVisible({ timeout: 20_000 });
   }
 
-  // 报名页与服务端 canonical 状态一致：draft Entry 呈现「· 草稿」与报名检查。
+  // 报名页与服务端 canonical 状态一致：draft Entry 呈现「· 待提交」与报名检查。
   await expect(page.getByText("3 · 报名检查")).toBeVisible();
-  await expect(page.getByText(/· 草稿/)).toBeVisible();
+  await expect(page.getByText(/· 待提交/)).toBeVisible();
 
   // “我的赛事”与报名页读到同一份 CompetitionEntry 状态（header 导航也含赛季名，取卡片）。
   await page.goto("/my/competitions");
   await expect(page.getByText(FIXTURE_SEASON_NAME).first()).toBeVisible();
   await expect(page.getByText("赛事报名").first()).toBeVisible();
-  await expect(page.getByText("草稿", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("待提交", { exact: true }).first()).toBeVisible();
 });
