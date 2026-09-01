@@ -61,6 +61,7 @@ const seasonFormBaseSchema = z.object({
   minTeamSize: z.number().int().min(1).max(20),
   maxTeamSize: z.number().int().min(1).max(20),
   starterCount: z.number().int().min(1).max(20),
+  commentatorFeeCents: z.number().int().min(0).max(1_000_000).default(0),
   positions: z.array(z.string().min(1)).min(1),
   stagePlan: stagePlanSchema,
   registrationConfig: registrationConfigSchema,
@@ -154,6 +155,7 @@ export function resolveCompetitionDefinition(data: z.infer<typeof seasonFormSche
     minTeamSize: builtIn.minTeamSize,
     maxTeamSize: builtIn.maxTeamSize,
     starterCount: builtIn.starterCount,
+    commentatorFeeCents: input.commentatorFeeCents,
     positions: input.positions,
     registrationConfig: {
       ...builtIn.registrationConfig,
@@ -195,6 +197,7 @@ export function planSeasonUpdate(existing: SeasonRow, parsed: z.infer<typeof sea
     startAt: data.startAt,
     registrationDeadline: data.registrationDeadline,
     endAt: data.endAt,
+    commentatorFeeCents: data.commentatorFeeCents,
     updatedAt: new Date(),
   };
 
@@ -226,6 +229,7 @@ export function planSeasonUpdate(existing: SeasonRow, parsed: z.infer<typeof sea
       minTeamSize: data.minTeamSize,
       maxTeamSize: data.maxTeamSize,
       starterCount: data.starterCount,
+      commentatorFeeCents: data.commentatorFeeCents,
       positions: data.positions,
       stagePlan: data.stagePlan as StagePlan,
       registrationConfig: normalizeRegistrationConfig(data.registrationConfig as RegistrationConfig),
@@ -254,6 +258,7 @@ export function planSeasonCreate(parsed: z.infer<typeof seasonFormSchema>): { te
       minTeamSize: data.minTeamSize,
       maxTeamSize: data.maxTeamSize,
       starterCount: data.starterCount,
+      commentatorFeeCents: data.commentatorFeeCents,
       positions: data.positions,
       stagePlan: data.stagePlan as StagePlan,
       registrationConfig: normalizeRegistrationConfig(data.registrationConfig as RegistrationConfig),

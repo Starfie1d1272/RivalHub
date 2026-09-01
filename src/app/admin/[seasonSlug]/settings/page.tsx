@@ -47,6 +47,7 @@ export default async function SeasonSettingsPage({ params }: SeasonSettingsPageP
           maxTeamSize: season.maxTeamSize,
           minTeamSize: season.minTeamSize,
           starterCount: season.starterCount,
+          commentatorFeeCents: season.commentatorFeeCents,
           positions: season.positions,
           stagePlan: normalizeStagePlan(season.stagePlan),
           registrationConfig: normalizeRegistrationConfig(season.registrationConfig),

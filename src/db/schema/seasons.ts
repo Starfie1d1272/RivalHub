@@ -56,6 +56,8 @@ export const seasons = pgTable("seasons", {
   maxTeamSize: integer("max_team_size").notNull().default(9),
   // 首发人数
   starterCount: integer("starter_count").notNull().default(5),
+  // 已确认解说场次的单人基础费用（分）。结算时会快照到具体场次，之后调整不回写历史。
+  commentatorFeeCents: integer("commentator_fee_cents").notNull().default(0),
   // 该赛季可用的位置标识符列表（应用层 Zod 校验报名时引用此列表）
   positions: text("positions").array().notNull().default(sql`ARRAY['igl','awper','opener','closer','anchor']`),
   // ──────────────────────────────────────────────────────────────────────

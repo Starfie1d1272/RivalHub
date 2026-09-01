@@ -188,6 +188,8 @@ export interface Season extends SeasonCapabilities {
   competitionTemplate: "rivals" | "major" | "custom";
   status: SeasonStatus;
   themeColor: string | null;
+  /** 已确认解说场次的单人费用（分）；确认后会快照到场次。 */
+  commentatorFeeCents: number;
   /** 报名提交开放时间；赛季发布后页面可见，但 now < startAt 时只能保存草稿。 */
   startAt: Date | null;
   /** 报名提交截止时间；超过后草稿和提交都关闭。 */

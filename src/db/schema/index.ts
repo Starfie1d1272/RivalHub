@@ -26,3 +26,5 @@ export * from "./match-veto-steps";
 export * from "./user-sessions";
 export * from "./discipline";
 export * from "./postevent";
+export * from "./postmatch";
+export * from "./community-awards";

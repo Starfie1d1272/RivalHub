@@ -20,6 +20,7 @@ function formInput(overrides?: Partial<SeasonFormInput>): SeasonFormInput {
     minTeamSize: 5,
     maxTeamSize: 9,
     starterCount: 5,
+    commentatorFeeCents: 0,
     positions: ["igl", "awper", "opener", "closer", "anchor"],
     stagePlan: [],
     registrationConfig: {

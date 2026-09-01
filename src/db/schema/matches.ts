@@ -44,6 +44,8 @@ export const matches = pgTable("matches", {
   scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
   completionDeadline: timestamp("completion_deadline", { withTimezone: true }),
   completedAt: timestamp("completed_at", { withTimezone: true }),
+  // 赛后公开录像链接；赛果、地图和玩家数据仍由各自的 canonical table 持有。
+  videoUrl: text("video_url"),
   mvpWinnerUserId: uuid("mvp_winner_user_id"), // 投票截止后锁定的 MVP 胜者
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
