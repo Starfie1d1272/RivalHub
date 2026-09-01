@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.0.2
+
+### Changed
+
+- 生产发版改为由 `v*` tag 的 release workflow 串行执行数据库前向迁移、严格校验、精确 Vercel Production 部署与 smoke test；普通 `main` production build 不能绕过 release gate。
+
+### Fixed
+
+- 公开玩家竞技档案改用长期竞技位置与平台目录展示位置、段位、赛季和星数，不再把赛事报名快照当作长期资料。
+
+### Migration & Operations
+
+- Production release 会在应用部署前执行 active Drizzle migration chain 并进行 exact verify；迁移或校验失败会中止新版本部署并保留上一版 production。
+
 ## 2.0.1
 
 ### Fixed
