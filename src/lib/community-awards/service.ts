@@ -97,8 +97,7 @@ export async function requestCommunityAwardSupplementInTx(
 ): Promise<{ seasonId: string }> {
   const award = await lockAwardInTx(tx, args.awardId);
   if (award.status !== "pending_review") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有待审核社区奖可以要求补充。 ");
-  const now = new Date();
-  await tx.update(communityAwards).set({ reviewNote: args.note, reviewedByUserId: args.actorId, reviewedAt: now, updatedAt: now })
+  await tx.update(communityAwards).set({ reviewNote: args.note, updatedAt: new Date() })
     .where(eq(communityAwards.id, award.id));
   await tx.insert(auditLogs).values({
     seasonId: award.seasonId,
