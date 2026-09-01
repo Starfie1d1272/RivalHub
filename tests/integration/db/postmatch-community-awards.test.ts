@@ -10,7 +10,8 @@ describe("postmatch PostgreSQL invariants", () => {
     const schema = await import("../../../src/db/schema");
     const { addMatchCommentatorInTx, revokePostMatchSubmissionInTx, submitPostMatchReportInTx, setMatchVideoUrlInTx, getPostMatchCompletion } = await import("../../../src/lib/postmatch/service");
     const { applyMatchStatusTransitionInTx } = await import("../../../src/lib/match-rosters/service");
-    const { addCommunityAwardEvidenceInTx, requestCommunityAwardSupplementInTx, resolveCommunityAwardInTx, reviewCommunityAwardInTx, reviseCommunityAwardInTx, submitCommunityAwardInTx } = await import("../../../src/lib/community-awards/service");
+    const { addCommunityAwardEvidenceInTx, requestCommunityAwardSupplementInTx, resolveCommunityAwardInTx, reviewCommunityAwardInTx, reviseCommunityAwardInTx, submitCommunityAwardInTx, withdrawCommunityAwardInTx } = await import("../../../src/lib/community-awards/service");
+    const { isPublicCommunityAward } = await import("../../../src/lib/community-awards/read-model");
     const pool = new Pool({ connectionString: databaseUrl, ssl: false }); const db = drizzle(pool, { schema });
     const seasonId = randomUUID(), adminA = randomUUID(), adminB = randomUUID(), adminC = randomUUID(), outsider = randomUUID(), representative = randomUUID(), entryA = randomUUID(), entryB = randomUUID(), revisionA = randomUUID(), revisionB = randomUUID(), matchId = randomUUID(), cancelledMatchId = randomUUID();
     try {
@@ -50,6 +51,23 @@ describe("postmatch PostgreSQL invariants", () => {
       await db.transaction((tx) => addCommunityAwardEvidenceInTx(tx, { awardId: award.awardId, submitterId: outsider, candidateUserId: adminA, matchId, explanation: "赛事相关人员的证据", videoUrl: "https://video.example/evidence" }));
       await db.transaction((tx) => resolveCommunityAwardInTx(tx, { awardId: award.awardId, status: "awarded", recipientUserId: adminA, outcomeNote: "确认获奖", actorId: adminB }));
       await db.transaction((tx) => resolveCommunityAwardInTx(tx, { awardId: award.awardId, status: "not_awarded", recipientUserId: null, outcomeNote: "更正结果", actorId: adminB }));
+
+      const supplementWithdraw = await db.transaction((tx) => submitCommunityAwardInTx(tx, { seasonId, submitterId: outsider, name: "待补充撤回奖", condition: "原条件", prize: "原奖品" }));
+      await db.transaction((tx) => requestCommunityAwardSupplementInTx(tx, { awardId: supplementWithdraw.awardId, note: "请补充可判断条件", actorId: adminA }));
+      const supplementRequested = await pool.query<{ status: string; reviewed_at: Date | null; review_note: string | null }>("SELECT status::text, reviewed_at, review_note FROM community_awards WHERE id=$1", [supplementWithdraw.awardId]);
+      expect(supplementRequested.rows[0]).toEqual({ status: "pending_review", reviewed_at: null, review_note: "请补充可判断条件" });
+      await db.transaction((tx) => withdrawCommunityAwardInTx(tx, { awardId: supplementWithdraw.awardId, submitterId: outsider }));
+      const preReviewWithdrawn = await pool.query<{ status: string; reviewed_at: Date | null }>("SELECT status::text, reviewed_at FROM community_awards WHERE id=$1", [supplementWithdraw.awardId]);
+      expect(preReviewWithdrawn.rows[0]?.status).toBe("withdrawn");
+      expect(isPublicCommunityAward(preReviewWithdrawn.rows[0]!.status, preReviewWithdrawn.rows[0]!.reviewed_at)).toBe(false);
+
+      const publishedWithdraw = await db.transaction((tx) => submitCommunityAwardInTx(tx, { seasonId, submitterId: outsider, name: "公开后撤回奖", condition: "公开条件", prize: "公开奖品" }));
+      await db.transaction((tx) => reviewCommunityAwardInTx(tx, { awardId: publishedWithdraw.awardId, status: "approved", reviewNote: null, actorId: adminA }));
+      await db.transaction((tx) => withdrawCommunityAwardInTx(tx, { awardId: publishedWithdraw.awardId, submitterId: outsider }));
+      const postReviewWithdrawn = await pool.query<{ status: string; reviewed_at: Date | null }>("SELECT status::text, reviewed_at FROM community_awards WHERE id=$1", [publishedWithdraw.awardId]);
+      expect(postReviewWithdrawn.rows[0]?.status).toBe("withdrawn");
+      expect(isPublicCommunityAward(postReviewWithdrawn.rows[0]!.status, postReviewWithdrawn.rows[0]!.reviewed_at)).toBe(true);
+
       const supplement = await db.transaction((tx) => submitCommunityAwardInTx(tx, { seasonId, submitterId: outsider, name: "补充奖", condition: "原条件", prize: "原奖品" }));
       await db.transaction((tx) => requestCommunityAwardSupplementInTx(tx, { awardId: supplement.awardId, note: "请补充可判断条件", actorId: adminA }));
       await db.transaction((tx) => reviseCommunityAwardInTx(tx, { awardId: supplement.awardId, submitterId: outsider, name: "补充奖", condition: "修订条件", prize: "修订奖品" }));
