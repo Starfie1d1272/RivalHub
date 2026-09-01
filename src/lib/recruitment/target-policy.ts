@@ -1,5 +1,5 @@
-import { and, eq, gt, isNull, or } from "drizzle-orm";
-import { seasons } from "@/db/schema";
+import { and, eq, gt, isNull, or, sql, type SQLWrapper } from "drizzle-orm";
+import { competitionEntries, seasons } from "@/db/schema";
 import { canSelfManageEventRoster } from "@/lib/registration/window";
 
 const RECRUITMENT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -15,6 +15,13 @@ type RecruitmentTargetSeason = Pick<typeof seasons.$inferSelect, "status" | "reg
  */
 export function isRecruitmentTargetAvailable(season: RecruitmentTargetSeason, now: Date): boolean {
   return canSelfManageEventRoster(season, now);
+}
+
+/** After new applications close, Team recruitment remains public only for a
+ * Team that already has an effective Entry whose roster can still change. */
+export function isTeamRecruitmentTargetAvailable(season: RecruitmentTargetSeason, hasEffectiveEntry: boolean, now: Date): boolean {
+  return isRecruitmentTargetAvailable(season, now)
+    && (!season.registrationClosesAt || season.registrationClosesAt > now || hasEffectiveEntry);
 }
 
 export function recruitmentTargetExpiresAt(season: RecruitmentTargetSeason | null, now: Date): Date {
@@ -33,6 +40,17 @@ export function recruitmentTargetAvailableCondition(now: Date) {
         gt(seasons.rosterChangeClosesAt, now),
         and(isNull(seasons.rosterChangeClosesAt), or(isNull(seasons.registrationClosesAt), gt(seasons.registrationClosesAt, now))),
       ),
+    ),
+  );
+}
+
+export function teamRecruitmentTargetAvailableCondition(now: Date, teamId: SQLWrapper) {
+  return and(
+    recruitmentTargetAvailableCondition(now),
+    or(
+      isNull(seasons.registrationClosesAt),
+      gt(seasons.registrationClosesAt, now),
+      sql`exists (select 1 from ${competitionEntries} where ${competitionEntries.competitionId} = ${seasons.id} and ${competitionEntries.teamId} = ${teamId} and ${competitionEntries.registrationStatus} not in ('rejected', 'withdrawn'))`,
     ),
   );
 }

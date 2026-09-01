@@ -9,7 +9,7 @@ import { formatCSTDateTime } from "@/lib/utils/date";
 import { normalizeStagePlan } from "@/types/season";
 import type { SeasonStatus } from "@/types/season";
 import { showStats } from "@/lib/utils/season";
-import { presentSeasonStatus, presentStageMarker } from "@/lib/seasons/presentation";
+import { presentSeasonParticipationState, presentSeasonStatus, presentStageMarker } from "@/lib/seasons/presentation";
 import { StatusPill, Panel, Marker, ScrollHint, Stat, PhaseStep } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { checkAdminSession } from "@/lib/auth/session";
@@ -212,7 +212,7 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
     <div className="container mx-auto px-4 py-10 space-y-8">
       <div className="relative mb-12 pt-6">
         <div className="flex items-center gap-3 mb-4 text-xs uppercase tracking-wider">
-          <StatusPill {...presentSeasonStatus(season.status)} />
+          <StatusPill {...presentSeasonParticipationState(season)} />
           <span className="text-[var(--color-fg-dim)]">{season.kind}</span>
         </div>
         <div className="flex items-center gap-3 mb-4">

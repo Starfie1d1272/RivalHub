@@ -33,7 +33,8 @@ export async function maybeAdvanceFromRegistration(
   if (
     !season ||
     season.status !== "registration" ||
-    season.registrationMode !== "solo"
+    season.registrationMode !== "solo" ||
+    !season.registrationOpenedAt
   ) return;
 
   const registrationConfig = normalizeRegistrationConfig(season.registrationConfig);

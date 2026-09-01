@@ -16,7 +16,7 @@
 
 `competitive_platforms` 是竞技平台的长期一级实体：平台持有稳定技术 key（创建后 immutable）、可修改的显示名称与 canonical performance Rating label（如完美世界的 Rating Pro、5E 的 Rating+；不是 Valve Premier CS Rating 这类 matchmaking / ladder score）。2.0 只内置 `perfect_world` 与 `fivee` 两个产品定义的平台目录，由 migration/bootstrap 建立，canonical owner 是 `src/lib/competitive/builtins.ts`（Perfect ladder 直接复用 `PERFECT_WORLD_RANK_ORDER`，5E below-S 共享同一基础）；后台不再提供“新增任意竞技平台”，只能维护既有内置目录的展示元数据。canonical performance Rating（Rating Pro / Rating+）由产品定义固定：migration 写入、runtime 读取、后台只读展示，不接受管理员修改，避免既有 rating 事实被重新解释。平台段位表 `competitive_platform_ranks` 由平台统一拥有：`rankKey` 是稳定身份、`label` 是可改的展示名，`sortOrder` 表达由低到高；S 段位携带 `starMin`/`starMax` 星数区间（无星段位两者皆 null，开放上限只有 `starMax` 为 null）。平台赛季 `competitive_platform_seasons` 只表达时间目录（platform + seasonKey 不可变身份、显示名、时间顺序、active 与唯一 current），不再拥有段位顺序。previous 赛季由时间顺序推导，没有第二个 mutable 标记。
 
-`competitive_rank_facts` 存储用户对任意已编目平台赛季或跨赛季 peak 的可审查竞技事实；`rank` 保存平台段位表的稳定 rankKey，不因管理员重命名 label 而失效；`rating` 保存该平台唯一 canonical performance Rating，不是 matchmaking score。`rank` ≠ `stars` ≠ `rating`：`stars` 是 S 段位内部精确星数（非负整数，必须落在该段位 starMin/starMax 区间内），只在提交或真实编辑该条事实时要求；迁移前未记录星数的 legacy 事实保持 NULL（展示为“星数待补充”），不猜默认值。stars 目前只是竞技事实，不参与 Major qualification 优先级。发布 requireCompetitiveProfile 的赛事时，平台目录的 current、previous 与当时生效的平台段位表（rankKey 序列）被冻结进该赛事的 `teamRegistrationConfig`，之后的目录变化不回写已发布赛事。删除或重排已被长期事实或冻结赛事上下文引用的段位会 fail closed；真实的平台段位体系调整应建立版本化 ladder，而不是覆盖历史语义。
+`competitive_rank_facts` 存储用户对任意已编目平台赛季或跨赛季 peak 的可审查竞技事实；`rank` 保存平台段位表的稳定 rankKey，不因管理员重命名 label 而失效；`rating` 保存该平台唯一 canonical performance Rating，不是 matchmaking score。`rank` ≠ `stars` ≠ `rating`：`stars` 是 S 段位内部精确星数（非负整数，必须落在该段位 starMin/starMax 区间内），只在提交或真实编辑该条事实时要求；迁移前未记录星数的 legacy 事实保持 NULL（展示为“星数待补充”），不猜默认值。stars 目前只是竞技事实，不参与 Major qualification 优先级。requireCompetitiveProfile 赛事在实际报名开放时冻结平台目录的 literal current、previous、rank order 与该届 evidence policy；发布只公开赛事，之后的目录变化不回写已经开放的赛事。删除或重排已被长期事实或冻结赛事上下文引用的段位会 fail closed；真实的平台段位体系调整应建立版本化 ladder，而不是覆盖历史语义。
 
 ## 4. Seasons
 
@@ -114,7 +114,7 @@
 | affiliation 与竞技资格 | `src/lib/qualification/` 单一 owner：batch fact loaders + pure evaluators |
 | “我的”长期资料与赛事任务聚合 | `src/lib/my/readiness.ts` 只编排 Team、CompetitionEntry、qualification、discipline 与 catalog read model，不重算 eligibility 规则 |
 | 内置赛事模板身份与固定语义 | `seasons.competitionTemplate` + canonical template factory（draft 保存时重新 canonicalize） |
-| 发布时的竞技上下文冻结 | `publishSeason` 事务：platform catalog current/previous/ladder → season frozen competitiveProfile（单一 owner：`src/lib/competitive/catalog.ts`） |
+| 报名开放时的竞技上下文冻结 | `openSeasonRegistrationInTx` 事务：platform catalog current/previous/ladder + evidence policy → season frozen competitiveProfile |
 | 队长交接的并发安全 | application/team 行锁 + season 行锁 + 目标成员 `FOR UPDATE`，全部判断基于锁定行 |
 | 一队/一人只有一条当前组队意向 | `recruitment_intents` owner shape + unique indexes + owner row lock |
 | 组队意向写入锁序 | `User`（如需）→ `Team` → target `Season`（如需）→ `RecruitmentIntent` → `RecruitmentInterest`；只持有 intent ID 的命令先非锁定查询 Team，再取得 Team 锁并重校验 intent |

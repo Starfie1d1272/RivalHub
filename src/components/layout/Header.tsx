@@ -8,7 +8,7 @@ import { eq } from "drizzle-orm";
 export async function Header() {
   const [allSeasons, session, authorization] = await Promise.all([
     db
-      .select({ slug: seasons.slug, name: seasons.name, status: seasons.status })
+      .select({ slug: seasons.slug, name: seasons.name, status: seasons.status, registrationOpensAt: seasons.registrationOpensAt, registrationOpenedAt: seasons.registrationOpenedAt, registrationClosesAt: seasons.registrationClosesAt })
       .from(seasons),
     getUserSession(),
     getCurrentUserAuthorization().catch(() => null),

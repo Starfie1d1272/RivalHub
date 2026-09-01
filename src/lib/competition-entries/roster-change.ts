@@ -53,7 +53,7 @@ export async function requestCompetitionEntryRosterChangeInTx(
   const [current] = await tx.select().from(competitionEntryRosterRevisions).where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id))).for("update");
   if (!current) throw new AppError(ErrorCode.INTERNAL_ERROR, "当前 roster revision 不存在。");
   const nextRevision = current.revisionNumber + 1;
-  const [next] = await tx.insert(competitionEntryRosterRevisions).values({ entryId: entry.id, revisionNumber: nextRevision, status: "draft", createdBy: input.actorId }).returning({ id: competitionEntryRosterRevisions.id });
+  const [next] = await tx.insert(competitionEntryRosterRevisions).values({ entryId: entry.id, revisionNumber: nextRevision, status: "draft", origin: "self_roster_change", createdBy: input.actorId }).returning({ id: competitionEntryRosterRevisions.id });
   const members = await tx.select().from(competitionEntryRosterMembers).where(eq(competitionEntryRosterMembers.revisionId, approved.id));
   if (members.length > 0) await tx.insert(competitionEntryRosterMembers).values(members.map((member) => ({ revisionId: next.id, participantId: member.participantId, userId: member.userId, teamMembershipId: member.teamMembershipId, isPrimaryStarter: member.isPrimaryStarter })));
   await tx.update(competitionEntries).set({ registrationStatus: "changes_requested", currentRosterRevisionId: next.id, reviewReason: "Entry representative requested an approved-roster change", updatedAt: new Date() }).where(eq(competitionEntries.id, entry.id));

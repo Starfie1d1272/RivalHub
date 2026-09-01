@@ -211,6 +211,13 @@
       "when": 1788291339580,
       "tag": "0029_season_participation_window",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1788294028294,
+      "tag": "0030_shiny_logan",
+      "breakpoints": true
     }
   ]
 }

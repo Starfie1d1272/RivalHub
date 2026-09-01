@@ -43,6 +43,12 @@ function effectiveRecentPeak(player: PlayerStrengthInput, config: CompetitivePro
   return strongest;
 }
 
+function evidenceWeights(config: CompetitiveProfileConfig) {
+  return config.evidencePolicy
+    ? config.evidencePolicy
+    : { historicalWeight: 50, referenceSeasonWeight: 20, recentSeasonWeight: 30 };
+}
+
 /** Rule-file order: weighted rank, historical, current, previous, historical Rating. */
 export function getPlayerStrengthBreakdown(player: PlayerStrengthInput, config: CompetitiveProfileConfig): PlayerStrengthBreakdown {
   const blockers: string[] = [];
@@ -60,7 +66,8 @@ export function getPlayerStrengthBreakdown(player: PlayerStrengthInput, config: 
   if (historicalValue === null || previousValue === null || currentValue === null) {
     return { available: false, blockers: ["申报段位不在本赛事公布的段位映射中。"], weightedRank: null, historicalValue, previousValue, currentValue, historicalRating: player.historicalPeak!.rating };
   }
-  return { available: true, blockers: [], weightedRank: historicalValue * 0.5 + previousValue * 0.2 + currentValue * 0.3, historicalValue, previousValue, currentValue, historicalRating: player.historicalPeak!.rating };
+  const weights = evidenceWeights(config);
+  return { available: true, blockers: [], weightedRank: (historicalValue * weights.historicalWeight + previousValue * weights.referenceSeasonWeight + currentValue * weights.recentSeasonWeight) / 100, historicalValue, previousValue, currentValue, historicalRating: player.historicalPeak!.rating };
 }
 
 export interface PlayerStrengthComparison {
@@ -77,8 +84,11 @@ export function comparePlayerStrength(left: PlayerStrengthInput, right: PlayerSt
   if (!leftBreakdown.available || !rightBreakdown.available) return { order: 0, reason: "至少一名选手的规则要求竞技资料不可确认，不能自动比较。", left: leftBreakdown, right: rightBreakdown };
   const comparisons: Array<[number, string]> = [
     [
-      (leftBreakdown.historicalValue! * 5 + leftBreakdown.previousValue! * 2 + leftBreakdown.currentValue! * 3) -
-        (rightBreakdown.historicalValue! * 5 + rightBreakdown.previousValue! * 2 + rightBreakdown.currentValue! * 3),
+      (() => {
+        const weights = evidenceWeights(config);
+        return (leftBreakdown.historicalValue! * weights.historicalWeight + leftBreakdown.previousValue! * weights.referenceSeasonWeight + leftBreakdown.currentValue! * weights.recentSeasonWeight) -
+          (rightBreakdown.historicalValue! * weights.historicalWeight + rightBreakdown.previousValue! * weights.referenceSeasonWeight + rightBreakdown.currentValue! * weights.recentSeasonWeight);
+      })(),
       config.evidencePolicy ? "综合段位参考值（历史 50%、前一完整赛季 20%、近期最高 30%）" : "综合段位参考值（历史 50%、上赛季 20%、当前赛季 30%）",
     ],
     [leftBreakdown.historicalValue! - rightBreakdown.historicalValue!, "历史最高段位"],

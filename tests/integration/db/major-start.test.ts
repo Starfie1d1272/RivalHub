@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { TxDb } from "../../../src/db/client";
 import * as schema from "../../../src/db/schema";
 import { requestCompetitionEntryRosterChangeInTx } from "../../../src/lib/competition-entries/roster-change";
+import { confirmCompetitionEntryParticipationInTx } from "../../../src/lib/competition-entries/commands";
 import { saveMajorPrestartRosterInTx } from "../../../src/lib/major/prestart-roster";
 import { startMajorInTransaction } from "../../../src/lib/major/start";
 import { finalizeMajorSwissRoundInTransaction } from "../../../src/lib/major/swiss-runtime";
@@ -959,6 +960,26 @@ async function exerciseSaveVsRosterChangeConcurrency(
   }
 }
 
+/** A self-service roster change cannot retain the generic changes_requested
+ * remediation exception after its roster-change deadline passes. */
+async function exerciseSelfRosterChangeDeadline(
+  database: ReturnType<typeof drizzle<typeof schema>>,
+  pool: Pool,
+  fixtures: MajorFixture[],
+): Promise<void> {
+  const label = "self-roster-deadline";
+  const fixture = await prepareReadyMajor(pool, label, { editablePrestart: true });
+  fixtures.push(fixture);
+  const entryId = deterministicUuid(`${label}/entry/1`);
+  const representativeUserId = fixture.userIds[0]!;
+  await database.transaction((tx) => requestCompetitionEntryRosterChangeInTx(tx, { entryId, representativeUserId, actorId: representativeUserId }));
+  const origin = await pool.query<{ origin: string }>("SELECT r.origin::text AS origin FROM competition_entries e INNER JOIN competition_entry_roster_revisions r ON r.id = e.current_roster_revision_id WHERE e.id = $1", [entryId]);
+  expect(origin.rows[0]?.origin).toBe("self_roster_change");
+  await pool.query("UPDATE seasons SET roster_change_closes_at = now() - interval '1 second' WHERE id = $1", [fixture.seasonId]);
+  await expect(database.transaction((tx) => confirmCompetitionEntryParticipationInTx(tx, { entryId, userId: representativeUserId, actorId: representativeUserId })))
+    .rejects.toMatchObject({ code: ErrorCode.REGISTRATION_CLOSED });
+}
+
 /**
  * Scenario A/B：已批准 Entry 重新进入补正（或换了新批准版本但 event roster
  * 未重同步）时，正式开赛必须 fail closed；显式重同步后才能开赛。
@@ -1320,6 +1341,10 @@ describe.sequential("Major lifecycle PostgreSQL invariants", () => {
   it("serializes prestart roster and Entry remediation", async () => {
     await exerciseStartVsRosterChangeConcurrency(context.database, context.pool, context.fixtures);
     await exerciseSaveVsRosterChangeConcurrency(context.database, context.pool, context.fixtures);
+  });
+
+  it("closes self-service roster changes at rosterChangeClosesAt", async () => {
+    await exerciseSelfRosterChangeDeadline(context.database, context.pool, context.fixtures);
   });
 
   it("starts Stage 1 once and freezes canonical runtime facts", async () => {

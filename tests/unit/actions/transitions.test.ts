@@ -63,12 +63,32 @@ describe("season automatic transitions", () => {
       hasCaptainVoting: false,
       registrationConfig: { maxTotal: 1 },
       registrationClosesAt: null,
+      registrationOpenedAt: new Date(),
     }, 1);
 
     await maybeAdvanceFromRegistration(tx as never, "season-1");
 
     expect(updateSetMock).toHaveBeenCalledWith(expect.objectContaining({ status: "playing" }));
     expect(insertMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not advance an unpublished solo registration even after its deadline", async () => {
+    const { tx, selectMock, updateMock, insertMock } = createTx({
+      id: "season-1",
+      slug: "rivals",
+      status: "registration",
+      registrationMode: "solo",
+      hasCaptainVoting: false,
+      registrationConfig: { maxTotal: 1 },
+      registrationClosesAt: new Date(0),
+      registrationOpenedAt: null,
+    }, 1);
+
+    await maybeAdvanceFromRegistration(tx as never, "season-1");
+
+    expect(selectMock).not.toHaveBeenCalled();
+    expect(updateMock).not.toHaveBeenCalled();
+    expect(insertMock).not.toHaveBeenCalled();
   });
 
   it("does not auto-finish a season whose stage plan contains Swiss", async () => {

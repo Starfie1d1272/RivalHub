@@ -77,6 +77,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
   const [kind, setKind] = useState(initial?.kind ?? "Major");
   const [themeColor, setThemeColor] = useState(initial?.themeColor ?? "");
   const [pendingTemplate, setPendingTemplate] = useState<CompetitionTemplate | null>(null);
+  const [publishConfirmationOpen, setPublishConfirmationOpen] = useState(false);
   const [dangerAction, setDangerAction] = useState<"delete" | "revert-draft" | "revert-registration" | "finish" | "archive" | null>(null);
   const [registrationOpensAt, setRegistrationOpensAt] = useState(initial?.registrationOpensAt ?? "");
   const [registrationClosesAt, setRegistrationClosesAt] = useState(initial?.registrationClosesAt ?? "");
@@ -639,7 +640,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
           <Button type="button" variant="destructive" disabled={isPending} onClick={() => setDangerAction("delete")}>
             删除赛季
           </Button>
-          <Button type="button" variant="outline" disabled={isPending} onClick={handlePublish}>
+          <Button type="button" variant="outline" disabled={isPending} onClick={() => setPublishConfirmationOpen(true)}>
             发布赛季
           </Button>
         </div>
@@ -678,6 +679,20 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
         </div>
       )}
       <SeasonDangerConfirmation action={dangerAction} onOpenChange={(open) => { if (!open) setDangerAction(null); }} onConfirm={() => { const action = dangerAction; setDangerAction(null); if (action === "delete") handleDelete(); if (action === "revert-draft") handleRevertToDraft(); if (action === "revert-registration") handleRevertToRegistration(); if (action === "finish") handleForceFinish(); if (action === "archive") handleArchive(); }} />
+      <AlertDialog open={publishConfirmationOpen} onOpenChange={setPublishConfirmationOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>发布 {name || "这个赛季"}？</AlertDialogTitle>
+            <AlertDialogDescription>
+              发布后赛事将对用户公开，核心赛制与资格规则将锁定。报名{registrationOpensAt ? `计划于 ${registrationOpensAt} 开放` : "时间待定"}；竞技参考赛季会在实际开放报名时冻结。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setPublishConfirmationOpen(false); handlePublish(); }}>确认发布</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

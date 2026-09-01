@@ -1,7 +1,7 @@
 import React from "react";
 import Link from "next/link";
 import type { SeasonStatus } from "@/types/season";
-import { presentSeasonStatus } from "@/lib/seasons/presentation";
+import { presentSeasonParticipationState } from "@/lib/seasons/presentation";
 import { Marker, Panel, StatusPill } from "@/components/rivalhub";
 
 interface SeasonCard {
@@ -10,6 +10,9 @@ interface SeasonCard {
   slug: string;
   kind: string;
   status: SeasonStatus;
+  registrationOpensAt?: Date | null;
+  registrationOpenedAt?: Date | null;
+  registrationClosesAt?: Date | null;
 }
 
 interface SeasonCardGridProps {
@@ -39,7 +42,7 @@ export function SeasonCardGrid({
           <Link key={season.id} href={`/${season.slug}` as never}>
             <Panel className="transition-colors hover:border-[var(--color-border-hi)]">
               <div className="flex items-center gap-2 mb-2">
-                <StatusPill {...presentSeasonStatus(season.status)} />
+                <StatusPill {...presentSeasonParticipationState({ ...season, registrationOpensAt: season.registrationOpensAt ?? null, registrationOpenedAt: season.registrationOpenedAt ?? null, registrationClosesAt: season.registrationClosesAt ?? null })} />
                 <span
                   style={{
                     fontFamily: "var(--font-mono)",

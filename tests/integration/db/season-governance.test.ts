@@ -166,7 +166,7 @@ async function exerciseCompetitiveFreezeLifecycle(pool: Pool): Promise<void> {
     frozen = season.teamRegistrationConfig as unknown as { competitiveProfile: Record<string, unknown> };
   });
   const profile = frozen!.competitiveProfile;
-  expect(profile.currentSeasonKey === "S20" && profile.previousSeasonKey === "S19",  "冻结应保留两届完整赛季").toBe(true);
+  expect(profile.currentSeasonKey === "S21" && profile.previousSeasonKey === "S20",  "冻结应保留 current/previous 的字面目录语义").toBe(true);
   expect((profile.evidencePolicy as unknown as { recentSeasonKeys?: string[] })?.recentSeasonKeys?.join(",") === "S20,S21", "冻结策略应把当前进行中赛季作为近期可选补充").toBe(true);
   const openAudit = await pool.query<{ count: string }>("SELECT count(*)::text AS count FROM audit_logs WHERE season_id = $1 AND action = 'season.registration_open'", [seasonId]);
   expect(openAudit.rows[0]?.count === "1", "报名开放与冻结必须留下同一事务内的审计事实。").toBe(true);
@@ -180,7 +180,7 @@ async function exerciseCompetitiveFreezeLifecycle(pool: Pool): Promise<void> {
   // must remain untouched by the catalog change above.
   const published = await pool.query<{ team_registration_config: { competitiveProfile: Record<string, string> } }>(
     "SELECT team_registration_config FROM seasons WHERE id = $1", [seasonId]);
-  expect(published.rows[0]?.team_registration_config.competitiveProfile.currentSeasonKey === "S20",
+  expect(published.rows[0]?.team_registration_config.competitiveProfile.currentSeasonKey === "S21",
     "已发布赛季的冻结上下文不受目录变化影响").toBe(true);
 
   // A future publish of a NEW draft season re-resolves from the new catalog state.
@@ -191,7 +191,7 @@ async function exerciseCompetitiveFreezeLifecycle(pool: Pool): Promise<void> {
     refrozen = await globals.freezeCompetitiveContext(tx, season) as unknown as { competitiveProfile: Record<string, string> };
   });
   const newProfile = refrozen!.competitiveProfile;
-  expect(newProfile.currentSeasonKey === "S21" && newProfile.previousSeasonKey === "S20",
+  expect(newProfile.currentSeasonKey === "S22" && newProfile.previousSeasonKey === "S21",
     `目录推进到 S22 后，下一次开放应重新解析完整赛季；实际：${JSON.stringify(newProfile)}`).toBe(true);
   expect((newProfile.evidencePolicy as unknown as { recentSeasonKeys?: string[] })?.recentSeasonKeys?.join(",") === "S21,S22",
     "新的冻结策略应消费 S21 与 S22 作为近期证据。").toBe(true);

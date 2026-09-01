@@ -188,7 +188,7 @@ export async function deleteCompetitivePlatformSeason(input: unknown): Promise<A
             team_registration_config->'competitiveProfile'->>'currentSeasonKey' = ${row.seasonKey}
             OR team_registration_config->'competitiveProfile'->>'previousSeasonKey' = ${row.seasonKey}
             OR team_registration_config->'competitiveProfile'->'evidencePolicy'->>'referenceSeasonKey' = ${row.seasonKey}
-            OR team_registration_config->'competitiveProfile'->'evidencePolicy'->'recentSeasonKeys' ? ${row.seasonKey}
+            OR (team_registration_config->'competitiveProfile'->'evidencePolicy'->'recentSeasonKeys')::jsonb ? ${row.seasonKey}
           )
         LIMIT 1
       `);

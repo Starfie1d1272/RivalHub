@@ -2,7 +2,7 @@ import React from "react";
 import Link from "next/link";
 import type { RegistrationMode, SeasonStatus } from "@/types/season";
 import { formatCSTDateTime } from "@/lib/utils/date";
-import { presentSeasonStatus } from "@/lib/seasons/presentation";
+import { presentSeasonParticipationState, presentSeasonStatus } from "@/lib/seasons/presentation";
 import { MiniStat, Panel, StatusPill } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 
@@ -13,6 +13,9 @@ interface HomePanelSeason {
   registrationMode: RegistrationMode;
   kind: string;
   positions: string[];
+  registrationOpensAt: Date | null;
+  registrationOpenedAt: Date | null;
+  registrationClosesAt: Date | null;
 }
 
 interface CandidateSummary {
@@ -146,7 +149,7 @@ export function HomeSeasonPanel({
       <div className="grid gap-3.5">
         <SeasonPanelTitle season={season} />
         <div className="flex items-center gap-2">
-          <StatusPill {...presentSeasonStatus(season.status)} />
+          <StatusPill {...presentSeasonParticipationState(season)} />
           <span
             style={{
               fontFamily: "var(--font-mono)",
@@ -182,7 +185,7 @@ function SeasonPanelTitle({ season }: { season: HomePanelSeason }) {
           letterSpacing: "var(--tracking-label)",
         }}
       >
-        {presentSeasonStatus(season.status).label}
+        {presentSeasonParticipationState(season).label}
       </div>
       <div
         className="mt-1 font-semibold"

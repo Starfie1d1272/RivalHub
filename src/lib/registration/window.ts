@@ -1,6 +1,6 @@
 import type { SeasonStatus } from "@/types/season";
 
-type RegistrationWindowSeason = {
+export type RegistrationWindowSeason = {
   status: SeasonStatus;
   registrationOpensAt: Date | string | null;
   registrationOpenedAt?: Date | string | null;

@@ -97,10 +97,10 @@ export async function freezeCompetitiveContext(
     ...config,
     competitiveProfile: {
       platform,
-      // Keep these stable slots for compatibility with pre-2.1 frozen
-      // snapshots; new evaluators consume evidencePolicy instead.
-      currentSeasonKey: context.previousSeasonKey,
-      previousSeasonKey: context.priorSeasonKey,
+      // Keep their literal catalog meaning for every frozen event. New
+      // evaluators consume evidencePolicy for the distinct reference rule.
+      currentSeasonKey: context.currentSeasonKey,
+      previousSeasonKey: context.previousSeasonKey,
       rankOrder: context.rankOrder,
       evidencePolicy: {
         historicalWeight: 50,

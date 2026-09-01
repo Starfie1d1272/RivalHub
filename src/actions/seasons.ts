@@ -218,8 +218,8 @@ export async function deleteSeason(seasonId: string): Promise<ActionResult<void>
 
 /**
  * 撤回赛季发布：registration → draft。仅当赛季没有产生任何报名、队伍或比赛
- * 事实时允许；built-in 赛事同时解除 publish 时冻结的竞技档案上下文，下一次
- * 发布会从平台赛季目录重新解析 current/previous。
+ * 事实时允许；built-in 赛事同时解除报名开放时冻结的竞技档案上下文，下一次
+ * 实际开放报名会从平台赛季目录重新解析。
  */
 export async function revertSeasonToDraft(seasonId: string): Promise<ActionResult<{ slug: string }>> {
   try {

@@ -39,8 +39,8 @@ describe("freezeCompetitiveContext", () => {
     const config = await freezeCompetitiveContext(tx, majorSeason("perfect_world"));
     expect(config.competitiveProfile).toEqual({
       platform: "perfect_world",
-      currentSeasonKey: "s20",
-      previousSeasonKey: "s19",
+      currentSeasonKey: "s21",
+      previousSeasonKey: "s20",
       rankOrder: ["bronze", "silver", "gold"],
       evidencePolicy: {
         historicalWeight: 50,
