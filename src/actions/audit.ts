@@ -3,7 +3,7 @@
 import { and, desc, eq, gte, lt, or, count, like, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { getDisplayName } from "@/lib/identity/display-name";
-import { auditLogs, competitionEntries, seasons, users, teams, matches, seasonRegistrations, draftPicks, adminInvites } from "@/db/schema";
+import { auditLogs, communityAwardEvidence, communityAwards, competitionEntries, seasons, users, teams, matches, seasonRegistrations, draftPicks, adminInvites } from "@/db/schema";
 import { ok } from "@/types/action";
 import { requireSeasonAdmin, requireSuperAdmin } from "@/lib/auth/session";
 import { actionError } from "@/lib/action-utils";
@@ -183,6 +183,11 @@ export async function fetchAuditLogs(filters: AuditLogFilters = {}) {
           }),
       );
     }
+
+    const awardIds = byType.get("community_award");
+    if (awardIds?.length) resolvers.push(db.select({ id: communityAwards.id, name: communityAwards.name }).from(communityAwards).where(inArray(communityAwards.id, awardIds)).then((rows) => { for (const row of rows) targetNameMap[row.id] = `社区奖：${row.name}`; }));
+    const evidenceIds = byType.get("community_award_evidence");
+    if (evidenceIds?.length) resolvers.push(db.select({ id: communityAwardEvidence.id, awardName: communityAwards.name }).from(communityAwardEvidence).innerJoin(communityAwards, eq(communityAwardEvidence.awardId, communityAwards.id)).where(inArray(communityAwardEvidence.id, evidenceIds)).then((rows) => { for (const row of rows) targetNameMap[row.id] = `社区奖证据：${row.awardName}`; }));
 
     const inviteIds = byType.get("admin_invite");
     if (inviteIds?.length) {

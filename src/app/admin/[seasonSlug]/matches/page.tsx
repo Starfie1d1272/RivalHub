@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { and, eq, asc, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, matches, competitionEntries, eventRosters, eventRosterMembers, matchMaps, matchRosters, matchRosterPlayers } from "@/db/schema";
+import { seasons, matches, competitionEntries, eventRosters, eventRosterMembers, matchMaps, matchRosters, matchRosterPlayers, matchCommentators, postMatchReports, seasonAdminGrants } from "@/db/schema";
 import { users, seasonRegistrations } from "@/db/schema";
 import { requireSeasonAdmin } from "@/lib/auth/session";
 import { calculateStandings } from "@/lib/standings";
@@ -26,6 +26,9 @@ import { getFirstStageOfType, normalizeRegistrationConfig, normalizeStagePlan } 
 import Link from "next/link";
 import { getStartingLineupPreflightInTx } from "@/lib/match-rosters/service";
 import { presentSeasonStatus } from "@/lib/seasons/presentation";
+import { getDisplayName } from "@/lib/identity/display-name";
+import { getPostMatchCompletion, POST_MATCH_COMPLETION_LABEL } from "@/lib/postmatch/service";
+import { presentMatchLabel } from "@/lib/matches/presentation";
 
 const STATUS_SORT_ORDER: Record<string, number> = {
   in_progress: 0,
@@ -110,6 +113,17 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
       orderBy: [asc(matches.createdAt)],
     }),
   ]);
+  const commentatorMatchIds = allMatches.filter((match) => match.status !== "cancelled").map((match) => match.id);
+  const finishedIds = allMatches.filter((match) => match.status === "finished").map((match) => match.id);
+  const [commentatorRows, submissionRows, seasonAdminRows] = await Promise.all([
+    commentatorMatchIds.length ? db.select({ matchId: matchCommentators.matchId, userId: users.id, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName, liveStreamUrl: users.liveStreamUrl }).from(matchCommentators).innerJoin(users, eq(matchCommentators.userId, users.id)).where(inArray(matchCommentators.matchId, commentatorMatchIds)) : [],
+    finishedIds.length ? db.select().from(postMatchReports).where(inArray(postMatchReports.matchId, finishedIds)) : [],
+    db.select({ userId: users.id, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName, liveStreamUrl: users.liveStreamUrl }).from(seasonAdminGrants).innerJoin(users, eq(seasonAdminGrants.userId, users.id)).where(eq(seasonAdminGrants.seasonId, season.id)),
+  ]);
+  const commentatorsByMatch = new Map<string, { userId: string; name: string; hasLiveStream: boolean }[]>();
+  for (const row of commentatorRows) { const list = commentatorsByMatch.get(row.matchId) ?? []; list.push({ userId: row.userId, name: getDisplayName(row), hasLiveStream: Boolean(row.liveStreamUrl) }); commentatorsByMatch.set(row.matchId, list); }
+  const submissionByMatch = new Map(submissionRows.map((row) => [row.matchId, row]));
+  const seasonAdmins = seasonAdminRows.map((row) => ({ userId: row.userId, name: getDisplayName(row), hasLiveStream: Boolean(row.liveStreamUrl) }));
 
   // 查进行中的比赛的地图记录（供 MapByMapInput 用）
   const inProgressMatchIds = allMatches
@@ -424,6 +438,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
       {batchDeadlineGroups.length > 0 && (
         <BatchDeadlineCard seasonId={season.id} groups={batchDeadlineGroups} />
       )}
+      {finishedIds.length > 0 && <details className="rounded border border-[var(--color-border)] px-4 py-3"><summary className="cursor-pointer text-sm font-medium">解说有效场次统计</summary><div className="mt-3 space-y-3 text-sm">{seasonAdmins.map((admin) => ({ admin, matches: allMatches.filter((match) => match.status === "finished" && Boolean(match.videoUrl) && Boolean(submissionByMatch.get(match.id)) && (commentatorsByMatch.get(match.id) ?? []).some((commentator) => commentator.userId === admin.userId)) })).filter(({ matches }) => matches.length > 0).map(({ admin, matches: effective }) => <div key={admin.userId}><strong>{admin.name}</strong> · {effective.length} 场<ul className="mt-1 list-disc space-y-1 pl-5 text-[var(--color-fg-mid)]">{effective.map((match) => <li key={match.id}>{presentMatchLabel({ stage: match.stage, stageName: stagePlan.find((stage) => stage.key === match.stage)?.name, round: match.round, entryRound: match.entryRound, teamAName: teamMap.get(match.entryAId) ?? "TBD", teamBName: teamMap.get(match.entryBId) ?? "TBD" })}</li>)}</ul></div>)}</div></details>}
 
       {/* Tab 面板 */}
       {matchCount > 0 && defaultStageKey && (
@@ -482,6 +497,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                         completedMaps={mapCompletedMaps(mapsByMatchId.get(m.id) ?? [])}
                         pendingMaps={mapPendingMaps(mapsByMatchId.get(m.id) ?? [])}
                         finishedMaps={mapFinishedMaps(mapsByMatch.get(m.id) ?? [])}
+                        postMatch={m.status !== "cancelled" ? { commentators: commentatorsByMatch.get(m.id) ?? [], seasonAdmins, submittedAt: submissionByMatch.get(m.id)?.submittedAt ?? null, submittedByUserId: submissionByMatch.get(m.id)?.submittedByUserId ?? null, videoUrl: m.videoUrl, completionLabel: POST_MATCH_COMPLETION_LABEL[getPostMatchCompletion(submissionByMatch.get(m.id)?.submittedAt ?? null, m.videoUrl)], canSubmit: m.status === "finished" } : null}
                       />
                     );
                   })}

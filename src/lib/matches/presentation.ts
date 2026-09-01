@@ -23,3 +23,8 @@ export function presentMatchStatus(status: MatchStatus, options?: { isForfeit?: 
 export function presentMatchFormat(format: MatchFormat): StatusPresentation {
   return MATCH_FORMAT_PRESENTATIONS[format];
 }
+
+export function presentMatchLabel(input: { stage: string; round?: number | null; entryRound?: string | null; teamAName: string; teamBName: string; stageName?: string | null }): string {
+  const phase = input.round != null ? `第 ${input.round} 轮` : input.entryRound ?? null;
+  return [input.stageName ?? input.stage, phase, `${input.teamAName} vs ${input.teamBName}`].filter(Boolean).join(" · ");
+}
