@@ -112,6 +112,7 @@ staging 与 production 分别配置：
 - `RIVALHUB_OWNER_EMAIL`
 - `CRON_SECRET`
 - `NEXT_PUBLIC_APP_URL`
+- `NEXT_PUBLIC_AUTH_EMAIL_RESEND_COOLDOWN_SECONDS`（必须与 Hosted Supabase Auth 的 `auth.email.max_frequency` 相同）
 - Turnstile 与第三方服务 key
 
 生产启用 Supabase Confirm email。owner 经注册、邮箱确认和登录触发一次性 bootstrap；管理员统一使用 Supabase Auth 与数据库中的当前授权事实。
