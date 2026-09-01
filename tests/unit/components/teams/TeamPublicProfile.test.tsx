@@ -5,11 +5,12 @@ import { describe, expect, it, vi } from "vitest";
 import { TeamPublicProfile } from "@/components/teams/TeamPublicProfile";
 
 vi.mock("next/image", () => ({ default: () => null }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 describe("TeamPublicProfile", () => {
   it("keeps core Team facts first and uses shared status presentations", () => {
     render(<TeamPublicProfile
-      team={{ name: "Rival Team", logoUrl: null, description: "队伍简介", recruiting: true, status: "active", captainUserId: "captain-1" }}
+      team={{ name: "Rival Team", logoUrl: null, description: "队伍简介", status: "active", captainUserId: "captain-1" }}
       currentMembers={[{ id: "member-1", userId: "captain-1", name: "队长甲", status: "active" }, { id: "member-2", userId: "member-1", name: "选手乙", status: "benched" }]}
       entries={[{ id: "entry-1", name: "Rival Entry", status: "approved", seasonName: "2026 秋季赛", seasonSlug: "autumn-2026", createdAt: new Date("2026-08-01T00:00:00Z") }]}
       nameChanges={[{ id: "name-1", oldName: null, newName: "Rival Team", changedAt: new Date("2026-08-01T00:00:00Z") }]}
@@ -17,6 +18,9 @@ describe("TeamPublicProfile", () => {
       playedCount={4}
       wins={3}
       currentUserMembership={{ userId: "captain-1", status: "active" }}
+      recruitment={{ id: "intent-1", positions: ["awper"], targetSeasonId: null, targetSeasonName: null, note: "缺一名主狙", expiresAt: new Date("2026-09-30T00:00:00Z"), updatedAt: new Date("2026-09-01T00:00:00Z") }}
+      viewerInterested={false}
+      loggedIn
     />);
 
     expect(screen.getByText("活跃")).toBeInTheDocument();
@@ -36,7 +40,7 @@ describe("TeamPublicProfile", () => {
 
   it("shows the requested competition empty state and hides visitor-only management", () => {
     render(<TeamPublicProfile
-      team={{ name: "Empty Team", logoUrl: null, description: null, recruiting: false, status: "active", captainUserId: "captain-1" }}
+      team={{ name: "Empty Team", logoUrl: null, description: null, status: "active", captainUserId: "captain-1" }}
       currentMembers={[]}
       entries={[]}
       nameChanges={[]}
@@ -44,6 +48,9 @@ describe("TeamPublicProfile", () => {
       playedCount={0}
       wins={0}
       currentUserMembership={null}
+      recruitment={null}
+      viewerInterested={false}
+      loggedIn={false}
     />);
 
     expect(screen.getByText("尚无赛事记录。")).toBeInTheDocument();

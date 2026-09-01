@@ -14,6 +14,7 @@ import {
 } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { expirePendingInvitationsInTx } from "@/lib/teams/invitations";
+import { closePlayerLftInTx, closeTeamRecruitmentForDisbandInTx } from "@/lib/recruitment/commands";
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const INVITE_RATE_LIMIT_PER_HOUR = 20;
@@ -75,6 +76,7 @@ export async function createTeamInTx(
   const slug = slugFor(input.name, teamId);
   await tx.insert(teams).values({ id: teamId, slug, name: input.name, description: input.description || null, creatorUserId: input.userId, captainUserId: input.userId });
   await tx.insert(teamMemberships).values({ teamId, userId: input.userId, status: "active", invitedByUserId: input.userId });
+  await closePlayerLftInTx(tx, { userId: input.userId });
   await tx.insert(teamCaptainChanges).values({ teamId, fromUserId: null, toUserId: input.userId, changedByActorId: input.actorId });
   await tx.insert(teamNameChanges).values({ teamId, oldName: null, newName: input.name, changedByActorId: input.actorId });
   await auditTeam(tx, "team.create", input.actorId, teamId, { name: input.name, creatorUserId: input.userId });
@@ -83,7 +85,7 @@ export async function createTeamInTx(
 
 export async function updateTeamProfileInTx(
   tx: TxDb,
-  input: { teamId: string; userId: string; actorId: string; name: string; description?: string | null; recruiting: boolean },
+  input: { teamId: string; userId: string; actorId: string; name: string; description?: string | null },
 ): Promise<{ oldSlug: string; slug: string }> {
   const team = await requireLockedCaptain(tx, input.teamId, input.userId);
   const nameChanged = team.name !== input.name;
@@ -92,8 +94,8 @@ export async function updateTeamProfileInTx(
     await tx.insert(teamNameChanges).values({ teamId: team.id, oldName: team.name, newName: input.name, changedAt: await nextNameChangeAt(tx, team.id), changedByActorId: input.actorId });
     await tx.insert(teamSlugAliases).values({ slug: team.slug, teamId: team.id }).onConflictDoNothing();
   }
-  await tx.update(teams).set({ name: input.name, slug: nextSlug, description: input.description || null, recruiting: input.recruiting, updatedAt: new Date() }).where(eq(teams.id, team.id));
-  await auditTeam(tx, "team.update_profile", input.actorId, team.id, { fromName: team.name, toName: input.name, recruiting: input.recruiting });
+  await tx.update(teams).set({ name: input.name, slug: nextSlug, description: input.description || null, updatedAt: new Date() }).where(eq(teams.id, team.id));
+  await auditTeam(tx, "team.update_profile", input.actorId, team.id, { fromName: team.name, toName: input.name });
   return { oldSlug: team.slug, slug: nextSlug };
 }
 
@@ -211,7 +213,8 @@ export async function disbandTeamInTx(tx: TxDb, input: { teamId: string; actorUs
   if (activeEntry && !input.emergencyOverride) throw new AppError(ErrorCode.VALIDATION_FAILED, "队伍仍有进行中的赛事参赛条目，不能直接解散。");
   const now = new Date();
   await tx.update(teamMemberships).set({ status: "left", endedAt: now, endedReason: "disbanded", updatedAt: now }).where(and(eq(teamMemberships.teamId, team.id), isNull(teamMemberships.endedAt)));
-  await tx.update(teams).set({ status: "disbanded", recruiting: false, disbandedAt: now, disbandedBy: input.actorId, updatedAt: now }).where(eq(teams.id, team.id));
+  await tx.update(teams).set({ status: "disbanded", disbandedAt: now, disbandedBy: input.actorId, updatedAt: now }).where(eq(teams.id, team.id));
+  await closeTeamRecruitmentForDisbandInTx(tx, team.id);
   await auditTeam(tx, "team.disband", input.actorId, team.id, { emergencyOverride: input.emergencyOverride, activeEntryId: activeEntry?.id ?? null });
   return team.slug;
 }

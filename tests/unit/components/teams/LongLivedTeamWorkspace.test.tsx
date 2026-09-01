@@ -39,7 +39,7 @@ describe("LongLivedTeamWorkspace", () => {
   });
 
   it("keeps the create action contract behind the anchored create section", async () => {
-    render(<LongLivedTeamWorkspace currentUserId="user-1" team={null} memberships={[]} incomingInvitations={[]} outgoingInvitations={[]} />);
+    render(<LongLivedTeamWorkspace currentUserId="user-1" team={null} memberships={[]} incomingInvitations={[]} outgoingInvitations={[]} recruitment={null} targetSeasons={[]} recruitmentInterests={[]} />);
 
     expect(document.getElementById("create-team")).toHaveClass("scroll-mt-24");
     expect(screen.getByText("创建你的队伍")).toBeInTheDocument();
@@ -52,7 +52,7 @@ describe("LongLivedTeamWorkspace", () => {
   });
 
   it("passes the existing logo and captain edit capability into the profile section", () => {
-    render(<LongLivedTeamWorkspace currentUserId="user-1" team={{ id: "team-1", slug: "rival-team", name: "Rival Team", logoUrl: "https://example.com/logo.png", description: null, recruiting: false, captainUserId: "user-1" }} memberships={[]} incomingInvitations={[]} outgoingInvitations={[]} />);
+    render(<LongLivedTeamWorkspace currentUserId="user-1" team={{ id: "team-1", slug: "rival-team", name: "Rival Team", logoUrl: "https://example.com/logo.png", description: null, captainUserId: "user-1" }} memberships={[]} incomingInvitations={[]} outgoingInvitations={[]} recruitment={null} targetSeasons={[]} recruitmentInterests={[]} />);
 
     expect(screen.getByRole("button", { name: "更换队伍图标" })).toBeInTheDocument();
   });

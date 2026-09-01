@@ -18,6 +18,7 @@ import { PlayerRadarChart } from "@/components/matches/PlayerRadarChart";
 import { loadCompetitivePlatformCatalog } from "@/lib/competitive/catalog";
 import { presentCompetitiveRole, presentPublicCompetitiveProfile } from "@/lib/competitive/presentation";
 import { presentPublicEducationIdentities } from "@/lib/education/presentation";
+import { getPublicPlayerLft } from "@/lib/recruitment/data";
 
 /**
  * 统计玩家 MVP 获胜次数（从 matches.mvp_winner_user_id 直读，已持久化缓存）。
@@ -65,7 +66,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
   if (!user) notFound();
 
   // ── 并行：报名记录 / MVP 胜场 / 个人数据 / Steam 头像 / 高校身份 ────────
-  const [registrations, mvpWinCount, playerStats, avatarUrl, competitiveFacts, competitiveRoles, competitiveCatalog, educationVerificationRows] = await Promise.all([
+  const [registrations, mvpWinCount, playerStats, avatarUrl, competitiveFacts, competitiveRoles, competitiveCatalog, educationVerificationRows, playerLft] = await Promise.all([
     db
       .select({
         id: seasonRegistrations.id,
@@ -144,6 +145,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
       .innerJoin(institutions, eq(educationVerifications.institutionId, institutions.id))
       .where(and(eq(educationVerifications.userId, userId), eq(educationVerifications.status, "approved")))
       .orderBy(asc(institutions.name), asc(educationVerifications.institutionId), desc(educationVerifications.submittedAt), asc(educationVerifications.id)),
+    getPublicPlayerLft(userId),
   ]);
 
   // ── 六维数据：仅对有数据的赛季查询 ──────────────────────────────────
@@ -289,6 +291,8 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
           </div>
         </div>
       </div>
+
+      {playerLft && <section className="space-y-3"><SectionHeading>正在找队</SectionHeading><Panel pad={16}><div className="space-y-3"><div className="flex flex-wrap gap-2">{playerLft.positions.map((position) => <PosChip key={position} pos={position} />)}</div>{playerLft.targetSeasonName && <p className="text-sm text-[var(--color-fg-mid)]">目标赛事 · {playerLft.targetSeasonName}</p>}{playerLft.note && <p className="text-sm leading-6 text-[var(--color-fg-mid)]">{playerLft.note}</p>}<Link href="/teams/recruitment?view=players" className="text-sm text-[var(--color-accent)]">查看组队大厅 →</Link></div></Panel></section>}
 
       {publicCompetitiveProfile.length > 0 && <section className="space-y-3"><SectionHeading>公开竞技档案</SectionHeading><Panel pad={16}><div className="space-y-4 text-sm">{publicCompetitiveProfile.map((platform) => <div key={platform.displayName} className="space-y-2"><p className="font-semibold text-[var(--color-fg)]">{platform.displayName}</p>{platform.facts.map((fact) => <p key={`${platform.displayName}-${fact.label}`}><span className="text-[var(--color-fg-mid)]">{fact.label}</span> · {fact.rankLabel}{fact.stars !== null ? ` ${fact.stars} 星` : ""} · {fact.ratingLabel} {fact.rating}</p>)}</div>)}</div></Panel></section>}
 

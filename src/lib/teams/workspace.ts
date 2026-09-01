@@ -11,7 +11,6 @@ export interface LongLivedTeamDto {
   name: string;
   logoUrl: string | null;
   description: string | null;
-  recruiting: boolean;
   captainUserId: string;
 }
 
@@ -22,7 +21,6 @@ export function toLongLivedTeamDto(team: Pick<Team, keyof LongLivedTeamDto>): Lo
     name: team.name,
     logoUrl: team.logoUrl,
     description: team.description,
-    recruiting: team.recruiting,
     captainUserId: team.captainUserId,
   };
 }

@@ -6,7 +6,7 @@ import { TeamDirectoryCard } from "@/components/teams/TeamDirectoryCard";
 
 describe("TeamDirectoryCard", () => {
   it("uses the long-lived Team identity, status presentation, and directory facts", () => {
-    render(<TeamDirectoryCard slug="rival-team" name="Rival Team" logoUrl={null} description={null} recruiting memberCount={5} status="active" captainName="队长甲" />);
+    render(<TeamDirectoryCard slug="rival-team" name="Rival Team" logoUrl={null} description={null} hasOpenRecruitment memberCount={5} status="active" captainName="队长甲" />);
 
     expect(screen.getByRole("link")).toHaveAttribute("href", "/teams/rival-team");
     expect(screen.getByText("R")).toBeInTheDocument();
@@ -18,7 +18,7 @@ describe("TeamDirectoryCard", () => {
   });
 
   it("presents a disbanded Team without carrying the recruiting badge", () => {
-    render(<TeamDirectoryCard slug="old-team" name="Old Team" logoUrl={null} description="历史队伍" recruiting status="disbanded" captainName="队长乙" memberCount={0} />);
+    render(<TeamDirectoryCard slug="old-team" name="Old Team" logoUrl={null} description="历史队伍" hasOpenRecruitment status="disbanded" captainName="队长乙" memberCount={0} />);
 
     expect(screen.getByText("已解散")).toBeInTheDocument();
     expect(screen.queryByText("招募中")).not.toBeInTheDocument();

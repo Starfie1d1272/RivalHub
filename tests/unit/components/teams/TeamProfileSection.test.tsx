@@ -15,10 +15,8 @@ const baseProps = {
   pending: false,
   name: "Rival Team",
   description: "公开简介",
-  recruiting: true,
   onNameChange: vi.fn(),
   onDescriptionChange: vi.fn(),
-  onRecruitingChange: vi.fn(),
   onSave: vi.fn(),
   onLeave: vi.fn(),
 };
@@ -31,7 +29,7 @@ describe("TeamProfileSection", () => {
     expect(screen.getByTestId("team-logo-upload")).toHaveAttribute("data-logo-url", "https://example.com/team.png");
     expect(screen.getByTestId("team-logo-upload")).toHaveAttribute("data-can-edit", "true");
     expect(screen.getByRole("button", { name: "保存资料" })).toBeInTheDocument();
-    expect(screen.getByRole("switch")).toBeInTheDocument();
+    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
   });
 
   it("shows the logo to a member without exposing upload or edit controls", () => {

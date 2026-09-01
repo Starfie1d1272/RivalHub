@@ -9,7 +9,7 @@ export function TeamDirectoryCard({
   name,
   logoUrl,
   description,
-  recruiting,
+  hasOpenRecruitment,
   status,
   captainName,
   memberCount,
@@ -18,7 +18,7 @@ export function TeamDirectoryCard({
   name: string;
   logoUrl: string | null;
   description: string | null;
-  recruiting: boolean;
+  hasOpenRecruitment: boolean;
   status: "active" | "disbanded";
   captainName: string;
   memberCount: number;
@@ -34,7 +34,7 @@ export function TeamDirectoryCard({
             </div>
             <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
               <StatusPill {...presentTeamStatus(status)} />
-              {status === "active" && recruiting && <StatusPill label="招募中" tone="accent" />}
+              {status === "active" && hasOpenRecruitment && <StatusPill label="招募中" tone="accent" />}
             </div>
           </div>
           <p className="line-clamp-2 min-h-10 text-sm text-[var(--color-fg-mid)]">{description ?? "暂无简介"}</p>
