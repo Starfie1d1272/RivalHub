@@ -1,24 +1,21 @@
 import { z } from "zod";
 
-const CHSI_HOSTS = new Set(["www.chsi.com.cn", "chsi.com.cn"]);
+const CURRENT_CHSI_CODE = /^[A-Z0-9]{16}$/;
+// CHSI switched newly requested reports from the historical 12-digit code to
+// 16 characters in 2019. Keep valid legacy reports reviewable without treating
+// arbitrary strings or report URLs as evidence.
+const LEGACY_CHSI_CODE = /^\d{12}$/;
 
-/** Accept only a normalized HTTPS URL on the official CHSI host. */
-export function normalizeChsiEvidenceUrl(value: string): string | null {
-  try {
-    const url = new URL(value.trim());
-    if (url.protocol !== "https:" || !CHSI_HOSTS.has(url.hostname.toLowerCase())) return null;
-    if (url.username || url.password) return null;
-    return url.toString();
-  } catch {
-    return null;
-  }
+/** Canonicalize display separators, then accept only CHSI's current or legacy code shapes. */
+export function normalizeChsiEvidenceCode(value: string): string | null {
+  const normalized = value.trim().replace(/[\s-]+/g, "").toUpperCase();
+  return CURRENT_CHSI_CODE.test(normalized) || LEGACY_CHSI_CODE.test(normalized) ? normalized : null;
 }
 
 export const educationSubmissionSchema = z.object({
   institutionId: z.string().uuid(),
   academicStatus: z.enum(["enrolled", "graduated"]),
-  evidenceType: z.enum(["chsi_enrollment_report", "chsi_education_report"]),
-  evidenceUrl: z.string().trim().min(1).max(2048),
+  evidenceCode: z.string().trim().min(1).max(64),
 });
 
 export function emailDomain(email: string): string | null {

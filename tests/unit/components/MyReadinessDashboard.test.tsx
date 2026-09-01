@@ -19,14 +19,14 @@ const model: MyReadinessModel = {
   profile: item("长期个人资料"),
   education: item("教育认证"),
   competitiveProfiles: [{ key: "perfect_world", displayName: "完美世界竞技", state: "ready", blockers: [] }],
-  team: item("长期 Team"),
+  team: item("当前队伍"),
   competitions: [{
     id: "entry-1",
     name: "Rival Five",
     seasonName: "2026 秋季赛",
     href: "/major-2026/register",
     entry: item("当前报名状态"),
-    qualification: item("个人 qualification", "unknown"),
+    qualification: item("个人竞技资料", "unknown"),
     sanctions: [{
       id: "case-1",
       seasonId: "season-1",
@@ -51,13 +51,13 @@ const model: MyReadinessModel = {
 };
 
 describe("MyReadinessDashboard", () => {
-  it("shows blocker owner and CTA while keeping eligibility distinct from profile readiness", () => {
+  it("shows the CTA while keeping event requirements distinct from profile readiness", () => {
     render(<MyReadinessDashboard model={model} />);
 
     expect(screen.getByText(/资料齐全不等于某届赛事一定可报名或出场/)).toBeInTheDocument();
-    expect(screen.getByText(/个人 qualification 只说明你的资料/)).toBeInTheDocument();
+    expect(screen.getByText(/个人竞技资料只说明你的资料/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "处理长期个人资料" })).toHaveAttribute("href", "/settings");
-    expect(screen.getByText("不可确认")).toBeInTheDocument();
+    expect(screen.getByText("暂时无法确认")).toBeInTheDocument();
   });
 
   it("renders all three sanction effects without private evidence", () => {

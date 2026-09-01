@@ -162,14 +162,13 @@ async function prepareReadyMajor(
       ],
     );
     await client.query(
-      `INSERT INTO users (id, email, email_verified_at, display_name, steam_name, perfect_name, perfect_id, steam64, steam_profile_url, qq, student_id)
+      `INSERT INTO users (id, email, email_verified_at, display_name, steam_name, perfect_name, steam64, steam_profile_url, qq, student_id)
        SELECT value::uuid,
               'golden-major-' || $2 || '-' || ordinal || '@local.test',
               now(),
               'Golden ' || $2 || ' Player ' || ordinal,
               'Golden ' || $2 || ' Steam ' || ordinal,
               'Golden ' || $2 || ' Perfect Name ' || ordinal,
-              'golden-perfect-' || $2 || '-' || ordinal,
               lpad((76561198000000000 + ordinal)::text, 17, '0'),
               'https://steamcommunity.com/profiles/' || lpad((76561198000000000 + ordinal)::text, 17, '0'),
               (10000000 + ordinal)::text,

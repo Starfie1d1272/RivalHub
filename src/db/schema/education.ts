@@ -39,7 +39,8 @@ export const educationVerifications = pgTable("education_verifications", {
   institutionId: uuid("institution_id").notNull().references(() => institutions.id),
   academicStatus: academicStatusEnum("academic_status").notNull(),
   evidenceType: educationEvidenceTypeEnum("evidence_type").notNull(),
-  evidenceUrl: text("evidence_url"),
+  /** CHSI online verification code; never expose outside the owner/admin review paths. */
+  evidenceCode: text("evidence_code"),
   status: educationVerificationStatusEnum("status").notNull().default("pending"),
   submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
   reviewedBy: text("reviewed_by"),

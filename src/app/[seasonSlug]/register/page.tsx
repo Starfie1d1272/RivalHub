@@ -175,7 +175,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
         <StatusBanner
           tone={getWindowTone(registrationWindow.phase, registrationWindow.canSubmit)}
           title={registrationWindow.message}
-          sub="审核通过后冻结报名 revision；赛前还会生成独立 frozen event roster。"
+          sub="审核通过后，报名名单将锁定；赛前还会确认独立的正式参赛名单。"
         />
         <CompetitionEntryFlow
           competitionId={season.id}

@@ -48,7 +48,7 @@ export function CompetitiveProfileForm({ contexts }: { contexts: CompetitiveSeas
   const isComplete = (item: CompetitiveSeasonContext | undefined) => Boolean(
     item && item.ladder.length > 0 && item.seasons.some((season) => season.isCurrent) && item.seasons.some((season) => season.isPrevious),
   );
-  const initialContext = contexts.find(isComplete) ?? contexts[0];
+  const initialContext = contexts.find((item) => item.platform === "perfect_world" && isComplete(item)) ?? contexts.find(isComplete) ?? contexts[0];
   const firstUsablePlatform = initialContext?.platform ?? "";
   const [platform, setPlatform] = useState(firstUsablePlatform);
   const context = contexts.find((item) => item.platform === platform) ?? null;
@@ -160,8 +160,8 @@ export function CompetitiveProfileForm({ contexts }: { contexts: CompetitiveSeas
   return <Panel label="竞技档案" pad={20}>
     <div className="space-y-5">
       {platformSelect}
-      <StatusBanner tone="info" title={`${context_.platformDisplayName} · 赛季资料`} sub={currentSeason ? `当前赛季：${currentSeason.label}。历史赛季也可以补充维护，供冻结了该赛季的赛事使用。` : "请如实自行申报。"} />
-      <p className="text-sm leading-6 text-[var(--color-fg-mid)]">系统依照平台段位表（由低到高）比较资料；{context_.ratingLabel} 是该平台 canonical performance Rating，仅在规则指定的同分比较中使用，不是 matchmaking / ladder score。未公布的跨平台换算不会由此页面推断。</p>
+      <StatusBanner tone="info" title={`${context_.platformDisplayName} · 赛季资料`} sub={currentSeason ? `当前赛季：${currentSeason.label}。也可补充历史赛季资料，供按该届规则核验的赛事使用。` : "请如实自行申报。"} />
+      <p className="text-sm leading-6 text-[var(--color-fg-mid)]">系统依照平台段位表（由低到高）核验资料；{context_.ratingLabel} 是该平台官方竞技评分，仅在赛事规则指定的同分比较中使用。未公布的跨平台换算不会由此页面推断。</p>
       {field("历史最高", historical, setHistorical, "不限定平台赛季，填写个人历史最高纪录", HISTORICAL_KEY)}
       {seasonFields.map((season) => field(
         `${season.isCurrent ? "当前赛季" : season.isPrevious ? "上一赛季" : "历史赛季"} · ${season.label}`,

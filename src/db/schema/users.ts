@@ -1,5 +1,4 @@
-import { pgTable, uuid, text, timestamp, pgEnum, uniqueIndex } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
+import { pgTable, uuid, text, timestamp, pgEnum } from "drizzle-orm/pg-core";
 
 export const userRoleEnum = pgEnum("user_role", ["user", "super_admin"]);
 export const emailVerificationSourceEnum = pgEnum("email_verification_source", ["signup_confirmation", "existing_account_reverification", "admin_migration"]);
@@ -20,8 +19,6 @@ export const users = pgTable("users", {
   studentId: text("student_id"),          // legacy only; never use for Major eligibility
   qq: text("qq"),
   perfectName: text("perfect_name"),       // 完美平台昵称
-  /** 完美世界竞技平台的账号 ID；与昵称分开，并按规范化值唯一。 */
-  perfectId: text("perfect_id"),
   displayName: text("display_name"),        // 用户自定义昵称（展示优先级最高）
   steamName: text("steam_name"),          // Steam 昵称
   steam64: text("steam64"),               // Steam 64 位 ID
@@ -30,10 +27,7 @@ export const users = pgTable("users", {
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => ({
-  perfectIdNormalizedUnique: uniqueIndex("users_perfect_id_normalized_unique")
-    .on(sql`lower(btrim(${t.perfectId}))`),
-}));
+});
 
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;

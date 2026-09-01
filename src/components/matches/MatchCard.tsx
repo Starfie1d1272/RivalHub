@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { MatchStatusBadge } from "./MatchStatusBadge";
-import { MATCH_FORMAT_LABELS, MATCH_STAGE_LABELS } from "@/types/match";
+import { MATCH_FORMAT_LABELS } from "@/types/match";
 import { formatCSTDateTime } from "@/lib/utils/date";
 import type { MatchFormat } from "@/types/match";
 
@@ -12,7 +12,7 @@ interface MatchCardProps {
   teamBName: string;
   scoreA: number | null;
   scoreB: number | null;
-  stage: string;
+  stageLabel: string;
   format: MatchFormat;
   status: "scheduled" | "in_progress" | "finished" | "cancelled";
   scheduledAt?: Date | string | null;
@@ -27,7 +27,7 @@ export function MatchCard({
   teamBName,
   scoreA,
   scoreB,
-  stage,
+  stageLabel,
   format,
   status,
   scheduledAt,
@@ -63,7 +63,7 @@ export function MatchCard({
           <span className="text-xs text-[var(--color-fg-mid)]">{timeText}</span>
         )}
         <Badge variant="outline" className="text-xs text-[var(--color-fg-mid)]">
-          {MATCH_STAGE_LABELS[stage] ?? stage}
+          {stageLabel}
         </Badge>
         <Badge variant="outline" className="text-xs text-[var(--color-fg-mid)]">
           {MATCH_FORMAT_LABELS[format]}

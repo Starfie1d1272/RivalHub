@@ -106,7 +106,7 @@ export function MajorPrestartManagement({ data }: { data: MajorPrestartManagemen
           () => addMajorPrestartEntrant({ seasonId: data.seasonId, competitionEntryId: teamId }), "已加入正式参赛队集合",
         ))}>加入正式参赛队</Button>
       </div>}
-      {data.entrants.length === 0 ? <p className="text-sm text-[var(--color-fg-mid)]">尚未选择正式参赛队。所有已审核 teams 不会自动成为 Major 参赛队。</p> : <div className="grid gap-3 md:grid-cols-2">
+      {data.entrants.length === 0 ? <p className="text-sm text-[var(--color-fg-mid)]">尚未选择正式参赛队。所有已审核队伍不会自动成为 Major 正式参赛队。</p> : <div className="grid gap-3 md:grid-cols-2">
         {data.entrants.map((entrant) => <div key={entrant.id} className="space-y-2"><EntrantRoster entrant={entrant} seasonId={data.seasonId} locked={locked} />
           {!locked && <Button size="sm" variant="ghost" disabled={isPending} onClick={() => startTransition(() => void showResult(
             () => removeMajorPrestartEntrant({ seasonId: data.seasonId, entrantId: entrant.id }), "已移出正式参赛队集合",

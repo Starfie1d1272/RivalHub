@@ -13,8 +13,7 @@ import {
 const TERMINAL_MIGRATION = "0023_auth_permissions.sql";
 
 function preAuthMigrations(): string[] {
-  return migrationFiles((name) => /^\d{4}_.*\.sql$/.test(name))
-    .filter((name) => name !== TERMINAL_MIGRATION);
+  return migrationFiles((name) => /^00(?:0[0-9]|1[0-9]|2[0-2])_.*\.sql$/.test(name));
 }
 
 async function replayBeforeAuthMigration(client: Client): Promise<void> {
