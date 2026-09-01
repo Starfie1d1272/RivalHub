@@ -19,6 +19,7 @@ import {
   resolveDefaultStageKey,
 } from "@/lib/matches/stage-views";
 import { normalizeStagePlan } from "@/types/season";
+import { presentStageMarker } from "@/lib/seasons/presentation";
 import { MatchTabsSection } from "@/components/matches/MatchTabsSection";
 import { checkAdminSession } from "@/lib/auth/session";
 import { AdminShortcut } from "@/components/layout/AdminShortcut";
@@ -83,7 +84,11 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
         .filter(({ stage, matches: stageMatches }) => stage.type === "swiss" && stageMatches.length > 0)
         .map(async ({ stage }) => [
           stage.key,
-          await getSwissViewData(season.id, stage.key, stage.name),
+          await getSwissViewData(
+            season.id,
+            stage.key,
+            presentStageMarker(stage, season.competitionTemplate),
+          ),
         ] as const),
     ),
   );
@@ -133,12 +138,13 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
                   value={stage.key}
                   className="data-[state=active]:bg-[var(--color-accent)] data-[state=active]:text-[var(--color-accent-fg)]"
                 >
-                  {stage.name}
+                  {presentStageMarker(stage, season.competitionTemplate)}
                 </TabsTrigger>
               ))}
             </TabsList>
 
             {stageViews.map(({ stage, matches: allStageMatches }) => {
+              const stageLabel = presentStageMarker(stage, season.competitionTemplate);
               const stageMatches = allStageMatches.filter(matchFilter);
               const { active, done } = splitMatches(stageMatches);
               const swissData = swissDataByStage.get(stage.key);
@@ -163,7 +169,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
                 <TabsContent key={stage.key} value={stage.key} className="space-y-8">
                   {canShowSwissBracket ? (
                     <section className="space-y-3">
-                      <h2 className="text-lg font-semibold text-[var(--color-fg)]">{stage.name}</h2>
+                      <h2 className="text-lg font-semibold text-[var(--color-fg)]">{stageLabel}</h2>
                       <SwissBracket data={swissData} seasonSlug={seasonSlug} />
                     </section>
                   ) : (
@@ -210,7 +216,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
                           <MatchTabsSection
                             activeMatches={active}
                             doneMatches={done}
-                            stage={stage.key}
+                            stageLabel={stageLabel}
                             seasonSlug={seasonSlug}
                             teamMap={teamMap}
                             unknownTeamName={isPlayoff ? "TBD" : "未知队伍"}
@@ -220,7 +226,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
 
                       {allStageMatches.length === 0 && (
                         <div className="text-center py-16 text-[var(--color-fg-mid)]">
-                          {stage.name}赛程尚未生成
+                          {stageLabel} 赛程尚未生成
                         </div>
                       )}
                     </>
