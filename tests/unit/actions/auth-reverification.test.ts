@@ -31,7 +31,7 @@ describe("resendCurrentEmailVerification", () => {
       email: "legacy@example.test",
       options: {
         shouldCreateUser: false,
-        emailRedirectTo: "https://staging.example.test/auth/callback/reverify",
+        emailRedirectTo: "https://staging.example.test/auth/confirmation?flow=reverify",
       },
     });
   });

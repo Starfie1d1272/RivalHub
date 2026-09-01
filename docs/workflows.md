@@ -4,7 +4,7 @@
 
 ## 1. Account / Auth
 
-用户通过 `/login` 进行 Supabase email/password 注册或登录。注册后需完成确认邮件并经 auth callback 建立 `rivalhub-session`；登录会同步应用账户并建立会话。密码恢复通过邮件跳转 `/reset-password`。
+用户通过 `/login` 进行 Supabase email/password 注册或登录。注册后邮件链接只会打开确认页；用户显式确认后才验证 token、建立 `rivalhub-session`。登录会同步应用账户并建立会话。密码恢复通过邮件跳转 `/reset-password`。
 
 ## 2. Long-lived participant profile
 

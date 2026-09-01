@@ -37,6 +37,12 @@ export async function loginWithPassword(
     const { data, error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
 
     if (error) {
+      if (authErrorCode(error) === "email_not_confirmed") {
+        return fail({
+          code: ErrorCode.EMAIL_NOT_CONFIRMED,
+          message: "邮箱尚未验证，请先完成邮箱验证；若未收到邮件，请检查垃圾邮件或重新发送。",
+        });
+      }
       return fail({ code: ErrorCode.UNAUTHORIZED, message: "邮箱或密码错误" });
     }
 
@@ -127,10 +133,13 @@ export async function signUp(
     const { data, error } = await supabase.auth.signUp({
       email: normalizedEmail,
       password,
-      options: { emailRedirectTo: callbackUrl("signup", next) },
+      options: { emailRedirectTo: confirmationUrl("signup", next) },
     });
 
     if (error) {
+      if (authErrorCode(error) === "over_email_send_rate_limit") {
+        return emailSendFailure(error, "验证邮件");
+      }
       // 不暴露邮箱是否已注册（防枚举），统一返回模糊提示。
       // Supabase signUp 在邮箱重复时返回 "already registered"，此处消费但不透传。
       return fail({ code: ErrorCode.VALIDATION_FAILED, message: "注册失败，请确认信息后重试" });
@@ -172,9 +181,9 @@ export async function resendSignupConfirmation(email: string, next?: string): Pr
     const { error } = await createPublicAuthClient().auth.resend({
       type: "signup",
       email: normalizeEmail(email),
-      options: { emailRedirectTo: callbackUrl("signup", next) },
+      options: { emailRedirectTo: confirmationUrl("signup", next) },
     });
-    if (error && process.env.NODE_ENV === "development") console.warn("[resendSignupConfirmation]", error.message);
+    if (error) return emailSendFailure(error, "验证邮件");
     return ok(undefined);
   } catch (e) { return actionError("resendSignupConfirmation", e); }
 }
@@ -188,17 +197,20 @@ export async function resendCurrentEmailVerification(): Promise<ActionResult<voi
     if (user.emailVerifiedAt) return ok(undefined);
     const { error } = await createServiceClient().auth.signInWithOtp({
       email: user.email,
-      options: { shouldCreateUser: false, emailRedirectTo: callbackUrl("reverify") },
+      options: { shouldCreateUser: false, emailRedirectTo: confirmationUrl("reverify") },
     });
-    if (error) return fail({ code: ErrorCode.INTERNAL_ERROR, message: "验证邮件暂时无法发送，请稍后重试。" });
+    if (error) return emailSendFailure(error, "验证邮件");
     return ok(undefined);
   } catch (e) { return actionError("resendCurrentEmailVerification", e); }
 }
 
-function callbackUrl(flow: "signup" | "reverify", next?: string): string {
+function confirmationUrl(flow: "signup" | "reverify", next?: string): string {
   const origin = process.env.NEXT_PUBLIC_APP_URL;
   if (!origin) throw new Error("NEXT_PUBLIC_APP_URL 未配置");
-  const url = new URL(`/auth/callback/${flow}`, origin);
+  const url = new URL("/auth/confirmation", origin);
+  // Email templates append their token parameters with `&`. Keep this query
+  // parameter even without `next`, otherwise a second `?` discards token_hash.
+  url.searchParams.set("flow", flow);
   const safeNext = safeNextPath(next);
   if (safeNext) url.searchParams.set("next", safeNext);
   return url.toString();
@@ -223,15 +235,24 @@ export async function sendPasswordResetEmail(email: string): Promise<ActionResul
 
     if (error) {
       // 不暴露邮箱是否存在（防枚举），但不能把真实的发信/配置失败伪装成成功。
-      if (process.env.NODE_ENV === "development") {
-        console.warn("[sendPasswordResetEmail]", error.message);
-      }
-      return fail({ code: ErrorCode.INTERNAL_ERROR, message: "重置邮件暂时无法发送，请稍后重试。" });
+      return emailSendFailure(error, "重置邮件");
     }
     return ok(undefined);
   } catch (e) {
     return actionError("sendPasswordResetEmail", e);
   }
+}
+
+function authErrorCode(error: unknown): string | null {
+  if (typeof error !== "object" || error === null || !("code" in error)) return null;
+  return typeof error.code === "string" ? error.code : null;
+}
+
+function emailSendFailure(error: unknown, emailKind: "验证邮件" | "重置邮件"): ActionResult<never> {
+  if (authErrorCode(error) === "over_email_send_rate_limit") {
+    return fail({ code: ErrorCode.EMAIL_SEND_RATE_LIMITED, message: "邮件发送过于频繁，请稍后再试。" });
+  }
+  return fail({ code: ErrorCode.INTERNAL_ERROR, message: `${emailKind}暂时无法发送，请稍后重试。` });
 }
 
 export async function logoutUser(): Promise<ActionResult<undefined>> {

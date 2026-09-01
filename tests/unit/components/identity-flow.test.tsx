@@ -8,8 +8,13 @@ import { LoginForm } from "@/components/auth/LoginForm";
 import { EducationVerificationPanel } from "@/components/settings/EducationVerificationPanel";
 import { EducationVerificationReviewQueue } from "@/components/admin/EducationVerificationReviewQueue";
 
+const { loginWithPasswordMock, resendSignupConfirmationMock } = vi.hoisted(() => ({
+  loginWithPasswordMock: vi.fn(),
+  resendSignupConfirmationMock: vi.fn(),
+}));
+
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-vi.mock("@/actions/auth", () => ({ loginWithPassword: vi.fn(), signUp: vi.fn(), resendSignupConfirmation: vi.fn(), resendCurrentEmailVerification: vi.fn() }));
+vi.mock("@/actions/auth", () => ({ loginWithPassword: loginWithPasswordMock, signUp: vi.fn(), resendSignupConfirmation: resendSignupConfirmationMock, resendCurrentEmailVerification: vi.fn() }));
 vi.mock("@/actions/education-verifications", () => ({ declareInstitutionalEmailEducation: vi.fn(), getInstitutionSearch: vi.fn(), submitEducationVerification: vi.fn(), reviewEducationVerification: vi.fn() }));
 vi.mock("@/components/auth/TurnstileWidget", () => ({ TurnstileWidget: () => <div data-testid="turnstile" /> }));
 
@@ -28,6 +33,38 @@ describe("identity flow UI", () => {
 
     expect(screen.getByLabelText("确认密码")).toBeInTheDocument();
     expect(screen.getByText(/至少 6 位，并包含大写字母、小写字母、数字和特殊字符/)).toBeInTheDocument();
+  });
+
+  it("takes a correctly authenticated unverified user to the resend path", async () => {
+    loginWithPasswordMock.mockResolvedValue({
+      success: false,
+      error: { code: "EMAIL_NOT_CONFIRMED", message: "邮箱尚未验证" },
+    });
+    render(<LoginForm />);
+
+    fireEvent.change(screen.getByLabelText("邮箱地址"), { target: { value: "player@example.test" } });
+    fireEvent.change(screen.getByLabelText("密码"), { target: { value: "Aa1!xx" } });
+    fireEvent.click(screen.getAllByRole("button", { name: "登录" })[1]);
+
+    expect(await screen.findByRole("button", { name: "重新发送验证邮件" })).toBeInTheDocument();
+    expect(screen.getByText(/检查垃圾邮件、广告邮件或其它分类/)).toBeInTheDocument();
+  });
+
+  it("after a successful resend, disables repeated sends for the configured cooldown", async () => {
+    loginWithPasswordMock.mockResolvedValue({
+      success: false,
+      error: { code: "EMAIL_NOT_CONFIRMED", message: "邮箱尚未验证" },
+    });
+    resendSignupConfirmationMock.mockResolvedValue({ success: true, data: undefined });
+    render(<LoginForm />);
+
+    fireEvent.change(screen.getByLabelText("邮箱地址"), { target: { value: "player@example.test" } });
+    fireEvent.change(screen.getByLabelText("密码"), { target: { value: "Aa1!xx" } });
+    fireEvent.click(screen.getAllByRole("button", { name: "登录" })[1]);
+    const resend = await screen.findByRole("button", { name: "重新发送验证邮件" });
+    fireEvent.click(resend);
+
+    expect(await screen.findByRole("button", { name: "请等待 60 秒后重试" })).toBeDisabled();
   });
 
   it("shows current email and education verification states without evidence URLs", () => {
