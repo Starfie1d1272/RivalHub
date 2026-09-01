@@ -53,7 +53,7 @@ export async function createTeam(input: { name: string; description?: string }):
     revalidateTeam(result.slug);
     return ok(result);
   } catch (error) {
-    if (isPgUniqueViolation(error)) return invalid("你当前已有 active 队伍或队长身份。");
+    if (isPgUniqueViolation(error)) return invalid("你当前已有队伍或担任队长。");
     return actionError("createTeam", error);
   }
 }
@@ -136,7 +136,7 @@ export async function acceptTeamInvitation(input: { invitationId?: string; token
     revalidateTeam(result.slug);
     return ok(result);
   } catch (error) {
-    if (isPgUniqueViolation(error)) return invalid("你当前已有 active 队伍。");
+    if (isPgUniqueViolation(error)) return invalid("你当前已有队伍。");
     return actionError("acceptTeamInvitation", error);
   }
 }
@@ -172,7 +172,7 @@ export async function setTeamMembershipStatus(input: { teamId: string; userId: s
     revalidateTeam();
     return ok(undefined);
   } catch (error) {
-    if (isPgUniqueViolation(error)) return invalid("该成员已在另一支长期队伍中处于 active。");
+    if (isPgUniqueViolation(error)) return invalid("该成员当前已属于另一支队伍。");
     return actionError("setTeamMembershipStatus", error);
   }
 }

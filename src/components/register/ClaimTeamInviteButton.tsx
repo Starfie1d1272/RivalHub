@@ -13,8 +13,8 @@ export function ClaimTeamInviteButton({ token }: { token: string }) {
   return <Button disabled={isPending} onClick={() => startTransition(async () => {
     const result = await acceptTeamInvitation({ token });
     if (!result.success) { toast.error(result.error.message); return; }
-    toast.success("已加入长期 Team");
+    toast.success("已加入队伍");
     router.push(`/teams/${result.data.slug}` as Route);
     router.refresh();
-  })}>{isPending ? "加入中…" : "加入长期 Team"}</Button>;
+  })}>{isPending ? "加入中…" : "加入队伍"}</Button>;
 }

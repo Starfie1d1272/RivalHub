@@ -69,7 +69,7 @@ export async function createTeamInTx(
   const currentCaptaincy = await tx.query.teams.findFirst({ where: and(eq(teams.captainUserId, input.userId), eq(teams.status, "active")) });
   if (currentCaptaincy) throw new AppError(ErrorCode.VALIDATION_FAILED, "你已担任一支队伍的队长；请先完成队长交接。");
   const currentMembership = await tx.query.teamMemberships.findFirst({ where: and(eq(teamMemberships.userId, input.userId), isNull(teamMemberships.endedAt)) });
-  if (currentMembership) throw new AppError(ErrorCode.VALIDATION_FAILED, "你已在一支长期队伍中有当前成员身份；请先结束原成员身份。");
+  if (currentMembership) throw new AppError(ErrorCode.VALIDATION_FAILED, "你当前已经加入一支队伍；请先退出原队伍。");
 
   const teamId = randomUUID();
   const slug = slugFor(input.name, teamId);
@@ -157,7 +157,7 @@ export async function revokeTeamInvitationInTx(tx: TxDb, input: { teamId: string
 
 export async function setTeamMembershipStatusInTx(tx: TxDb, input: { teamId: string; userId: string; targetUserId: string; status: "active" | "benched"; actorId: string }): Promise<void> {
   const team = await requireLockedCaptain(tx, input.teamId, input.userId);
-  if (input.targetUserId === team.captainUserId && input.status !== "active") throw new AppError(ErrorCode.VALIDATION_FAILED, "队长必须先完成交接，才能变为非 active。");
+  if (input.targetUserId === team.captainUserId && input.status !== "active") throw new AppError(ErrorCode.VALIDATION_FAILED, "队长必须先完成交接，才能变为非当前成员。");
   await tx.execute(sql`SELECT id FROM users WHERE id = ${input.targetUserId} FOR UPDATE`);
   const [membership] = await tx.select().from(teamMemberships).where(and(eq(teamMemberships.teamId, team.id), eq(teamMemberships.userId, input.targetUserId), isNull(teamMemberships.endedAt))).for("update");
   if (!membership) throw new AppError(ErrorCode.NOT_FOUND, "当前成员不存在。");

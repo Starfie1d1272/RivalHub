@@ -28,9 +28,9 @@ export function CompetitiveRolesForm({ initialRoles, initialPrimaryRole }: { ini
     setPrimaryRole(primaryRole ?? role);
   }
 
-  return <Panel label="长期位置偏好" pad={20}>
+  return <Panel label="位置偏好" pad={20}>
     <div className="space-y-4">
-      <p className="text-sm leading-6 text-[var(--color-fg-mid)]">选择 1–3 个常用位置，并指定主位置。它用于长期队伍招募与资料展示，不构成赛事资格门禁。</p>
+      <p className="text-sm leading-6 text-[var(--color-fg-mid)]">选择 1–3 个常用位置，并指定主位置。它用于队伍招募与资料展示，不构成赛事资格门禁。</p>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {CS2_POSITION_VALUES.map((role) => {
           const selected = roles.includes(role);

@@ -69,48 +69,61 @@ export function TeamLogoUpload({
     e.target.value = "";
   }
 
+  const surfaceClassName = [
+    "relative h-20 w-20 overflow-hidden rounded-md",
+    "border-2 border-[var(--color-border)] bg-[var(--color-bg-subtle)]",
+    "flex items-center justify-center select-none",
+    canEdit && !isPending ? "cursor-pointer group" : "",
+    isPending ? "cursor-wait" : "",
+  ].join(" ");
+  const surfaceContent = (
+    <>
+      {previewUrl ? (
+        <Image
+          src={previewUrl}
+          alt={`${teamName} logo`}
+          fill
+          className="object-cover"
+          unoptimized={previewUrl.startsWith("blob:")}
+        />
+      ) : (
+        <span className="text-2xl font-bold text-[var(--color-fg-dim)]">{initial}</span>
+      )}
+
+      {/* 上传中蒙层 */}
+      {isPending && (
+        <div className="absolute inset-0 flex items-center justify-center bg-[color-mix(in_srgb,var(--color-bg)_78%,transparent)]">
+          <Spinner />
+        </div>
+      )}
+
+      {/* 悬停蒙层（仅 canEdit） */}
+      {canEdit && !isPending && (
+        <div className="absolute inset-0 hidden items-center justify-center bg-[color-mix(in_srgb,var(--color-panel)_74%,transparent)] group-hover:flex">
+          <span className="px-1 text-center text-[10px] font-medium leading-tight text-[var(--color-fg)]">
+            更换<br />图标
+          </span>
+        </div>
+      )}
+    </>
+  );
+
   return (
     <div className="relative inline-block">
-      {/* 头像主体：80×80 圆形 */}
-      <div
-        className={[
-          "relative h-20 w-20 overflow-hidden",
-          "border-2 border-[var(--color-border)] bg-[var(--color-bg-subtle)]",
-          "flex items-center justify-center select-none",
-          canEdit ? "cursor-pointer group" : "",
-        ].join(" ")}
-        onClick={() => canEdit && !isPending && inputRef.current?.click()}
-        role={canEdit ? "button" : undefined}
-        aria-label={canEdit ? "更换队伍图标" : undefined}
-      >
-        {previewUrl ? (
-          <Image
-            src={previewUrl}
-            alt={`${teamName} logo`}
-            fill
-            className="object-cover"
-            unoptimized={previewUrl.startsWith("blob:")}
-          />
-        ) : (
-          <span className="text-2xl font-bold text-[var(--color-fg-dim)]">{initial}</span>
-        )}
-
-        {/* 上传中蒙层 */}
-        {isPending && (
-          <div className="absolute inset-0 flex items-center justify-center bg-[color-mix(in_srgb,var(--color-bg)_78%,transparent)]">
-            <Spinner />
-          </div>
-        )}
-
-        {/* 悬停蒙层（仅 canEdit） */}
-        {canEdit && !isPending && (
-          <div className="absolute inset-0 hidden items-center justify-center bg-[color-mix(in_srgb,var(--color-panel)_74%,transparent)] group-hover:flex">
-            <span className="px-1 text-center text-[10px] font-medium leading-tight text-[var(--color-fg)]">
-              更换<br />图标
-            </span>
-          </div>
-        )}
-      </div>
+      {/* 队伍图标主体：80×80 圆角方形 */}
+      {canEdit ? (
+        <button
+          type="button"
+          className={[surfaceClassName, "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-panel)]"].join(" ")}
+          onClick={() => inputRef.current?.click()}
+          disabled={isPending}
+          aria-label="更换队伍图标"
+        >
+          {surfaceContent}
+        </button>
+      ) : (
+        <div className={surfaceClassName}>{surfaceContent}</div>
+      )}
 
       {/* 隐藏 file input */}
       {canEdit && (

@@ -1,3 +1,5 @@
+import React from "react";
+
 interface StatProps {
   label: string;
   value: string | number;

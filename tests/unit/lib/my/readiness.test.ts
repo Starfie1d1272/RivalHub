@@ -72,6 +72,22 @@ function model(overrides: Partial<Parameters<typeof buildMyReadinessModel>[0]> =
 }
 
 describe("我的 readiness read model", () => {
+  it("gives users without a Team a create and browse handoff", () => {
+    const result = model({ currentTeam: null });
+
+    expect(result.team).toMatchObject({
+      cta: { href: "/my/teams#create-team", label: "创建队伍" },
+      secondaryCta: { href: "/teams", label: "查看队伍" },
+    });
+  });
+
+  it("keeps the existing Team state to one management CTA", () => {
+    const result = model();
+
+    expect(result.team.cta).toEqual({ href: "/my/teams", label: "管理我的队伍" });
+    expect(result.team.secondaryCta).toBeUndefined();
+  });
+
   it("keeps a fully prepared profile separate from the approved CompetitionEntry", () => {
     const result = model();
 

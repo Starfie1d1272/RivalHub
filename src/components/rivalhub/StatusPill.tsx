@@ -1,3 +1,4 @@
+import React from "react";
 import type { SemanticTone } from "@/lib/presentation";
 
 const TONE_COLOR: Record<SemanticTone, string> = {
