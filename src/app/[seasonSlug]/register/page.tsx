@@ -296,14 +296,14 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
                     }}
                   >
                     {cur} / {max}
-                    {full && <span className="ml-1">已满</span>}
+                    {full && <span className="ml-1">FULL</span>}
                   </div>
                 </div>
               );
             })}
             <div className="flex justify-between items-center pt-2" style={{ borderTop: "1px solid var(--color-border)" }}>
               <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--color-fg-dim)", fontFamily: "var(--font-display)" }}>
-                已通过
+                Approved
               </span>
               <span className="font-bold" style={{ fontFamily: "var(--font-mono)", fontSize: 13, color: "var(--color-fg)" }}>
                 {approvedCount} / {regConfig.maxTotal}
