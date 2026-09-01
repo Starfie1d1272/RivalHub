@@ -143,15 +143,15 @@ export function CompetitiveProfileForm({ contexts }: { contexts: CompetitiveSeas
             <SelectContent>{ladderFor(fact.rank).map((entry) => <SelectItem key={entry.rankKey} value={entry.rankKey}>{entry.label}</SelectItem>)}</SelectContent>
           </Select>
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor={`rating-${key}`}>对应 {context?.ratingLabel ?? "Rating"}</Label>
-          <Input id={`rating-${key}`} value={fact.rating} onChange={(event) => { setSaved(false); setFact({ ...fact, rating: event.target.value }); }} inputMode="decimal" placeholder={`可填写对应 ${context?.ratingLabel ?? "Rating"}`} />
-        </div>
         {hasStars && <div className="space-y-1.5">
           <Label htmlFor={`stars-${key}`}>星数</Label>
           <Input id={`stars-${key}`} value={fact.stars} onChange={(event) => { setSaved(false); setFact({ ...fact, stars: event.target.value }); }} inputMode="numeric" type="number" min={starMin ?? undefined} max={starMax ?? undefined} step={1} placeholder={legacyPending ? `星数待补充：${starRange}` : `星数：${starRange}`} />
           <p className="font-mono text-[11px] text-[var(--color-fg-mid)]">{legacyPending ? "历史资料未记录星数；保持段位与 Rating 不变可直接保存，修改后需补填。" : `星数：${starRange}`}</p>
         </div>}
+        <div className="space-y-1.5">
+          <Label htmlFor={`rating-${key}`}>对应 {context?.ratingLabel ?? "Rating"}</Label>
+          <Input id={`rating-${key}`} value={fact.rating} onChange={(event) => { setSaved(false); setFact({ ...fact, rating: event.target.value }); }} inputMode="decimal" placeholder={`可填写对应 ${context?.ratingLabel ?? "Rating"}`} />
+        </div>
       </div>
     </section>
     );
