@@ -6,6 +6,7 @@ export * from "./competition-bracket-states";
 export * from "./registrations";
 export * from "./registration-drafts";
 export * from "./teams";
+export * from "./recruitment";
 export * from "./competition-entries";
 export * from "./major-prestart";
 export * from "./major-stage";

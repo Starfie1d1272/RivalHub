@@ -142,10 +142,10 @@ function teamState(currentTeam: { id: string; name: string; role: string } | nul
       "team",
       "当前队伍",
       "incomplete",
-      "你还没有加入队伍。可以创建自己的队伍，或先查看已有队伍；加入队伍不会自动参加任何赛事。",
+      "你还没有加入队伍。可以创建自己的队伍，或在组队大厅寻找正在招募的队伍；加入队伍不会自动参加任何赛事。",
       undefined,
       { href: "/my/teams#create-team", label: "创建队伍" },
-      { href: "/teams", label: "查看队伍" },
+      { href: "/teams/recruitment?view=teams", label: "寻找队伍" },
     );
   }
   return item("team", "当前队伍", "ready", `${currentTeam.name} · ${currentTeam.role === "captain" ? "队长" : "成员"}。之后的队伍成员变更不会改写已报名赛事名单。`, undefined, { href: "/my/teams", label: "管理我的队伍" });

@@ -1,6 +1,5 @@
 import { sql } from "drizzle-orm";
 import {
-  boolean,
   check,
   index,
   pgEnum,
@@ -25,7 +24,6 @@ export const teams = pgTable("teams", {
   name: text("name").notNull(),
   logoUrl: text("logo_url"),
   description: text("description"),
-  recruiting: boolean("recruiting").notNull().default(false),
   status: teamLifecycleEnum("status").notNull().default("active"),
   creatorUserId: uuid("creator_user_id").notNull().references(() => users.id),
   captainUserId: uuid("captain_user_id").notNull().references(() => users.id),
