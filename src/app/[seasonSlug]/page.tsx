@@ -36,6 +36,9 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
   ]);
   if (!season) notFound();
   const stagePlan = normalizeStagePlan(season.stagePlan);
+  const stageLabelByKey = new Map(
+    stagePlan.map((stage) => [stage.key, presentStageMarker(stage, season.competitionTemplate)]),
+  );
   const hasMatches = stagePlan.length > 0;
 
   // 查询已初始化的赛程阶段（有 match 记录的 stage）
@@ -276,7 +279,7 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
                       </div>
                       <div className="shrink-0 flex flex-col items-end gap-0.5">
                         <span className="font-mono text-[10px] text-[var(--color-fg-dim)] uppercase tracking-wider">
-                          {stagePlan.find((stage) => stage.key === match.stage)?.name ?? "比赛阶段"}
+                          {stageLabelByKey.get(match.stage) ?? "比赛阶段"}
                         </span>
                         {match.status === "in_progress" ? (
                           <span className="font-mono text-[10px] text-[var(--color-ok)]">● LIVE</span>
