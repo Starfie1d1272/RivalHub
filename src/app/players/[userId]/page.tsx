@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
-import { eq, and, asc, inArray, sql } from "drizzle-orm";
+import { eq, and, asc, desc, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { competitionEntries, eventRosterMembers, eventRosters, users, seasonRegistrations, seasons, matches, matchMaps, competitiveRankFacts, userCompetitiveRoles } from "@/db/schema";
+import { competitionEntries, educationVerifications, eventRosterMembers, eventRosters, institutions, users, seasonRegistrations, seasons, matches, matchMaps, competitiveRankFacts, userCompetitiveRoles } from "@/db/schema";
 import { resolveAvatarUrl } from "@/lib/steam";
 import { PUBLIC_PLAYER_INFO_FIELDS } from "@/lib/utils/player-info-fields";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
@@ -17,6 +17,7 @@ import type { HexagonScores } from "@/lib/utils/hexagon";
 import { PlayerRadarChart } from "@/components/matches/PlayerRadarChart";
 import { loadCompetitivePlatformCatalog } from "@/lib/competitive/catalog";
 import { presentCompetitiveRole, presentPublicCompetitiveProfile } from "@/lib/competitive/presentation";
+import { presentPublicEducationIdentities } from "@/lib/education/presentation";
 
 /**
  * 统计玩家 MVP 获胜次数（从 matches.mvp_winner_user_id 直读，已持久化缓存）。
@@ -63,8 +64,8 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
   });
   if (!user) notFound();
 
-  // ── 并行：报名记录 / MVP 胜场 / 个人数据 / Steam 头像 ──────────────────
-  const [registrations, mvpWinCount, playerStats, avatarUrl, competitiveFacts, competitiveRoles, competitiveCatalog] = await Promise.all([
+  // ── 并行：报名记录 / MVP 胜场 / 个人数据 / Steam 头像 / 高校身份 ────────
+  const [registrations, mvpWinCount, playerStats, avatarUrl, competitiveFacts, competitiveRoles, competitiveCatalog, educationVerificationRows] = await Promise.all([
     db
       .select({
         id: seasonRegistrations.id,
@@ -130,6 +131,19 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
     db.select().from(competitiveRankFacts).where(eq(competitiveRankFacts.userId, userId)),
     db.select().from(userCompetitiveRoles).where(eq(userCompetitiveRoles.userId, userId)),
     loadCompetitivePlatformCatalog(db),
+    db
+      .select({
+        id: educationVerifications.id,
+        institutionId: educationVerifications.institutionId,
+        institutionName: institutions.name,
+        academicStatus: educationVerifications.academicStatus,
+        status: educationVerifications.status,
+        submittedAt: educationVerifications.submittedAt,
+      })
+      .from(educationVerifications)
+      .innerJoin(institutions, eq(educationVerifications.institutionId, institutions.id))
+      .where(and(eq(educationVerifications.userId, userId), eq(educationVerifications.status, "approved")))
+      .orderBy(asc(institutions.name), asc(educationVerifications.institutionId), desc(educationVerifications.submittedAt), asc(educationVerifications.id)),
   ]);
 
   // ── 六维数据：仅对有数据的赛季查询 ──────────────────────────────────
@@ -162,6 +176,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
     .sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary))
     .map((role) => presentCompetitiveRole(role.role))
     .filter((role): role is string => role !== null);
+  const publicEducationIdentities = presentPublicEducationIdentities(educationVerificationRows);
 
   // ── 跨赛季比赛战绩（以个人 OCR 出场记录为准）───────────────────────
   const teamIds = [...new Set(teamMemberRows.map((r) => r.teamId).filter(Boolean))];
@@ -243,6 +258,20 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
             <p className="text-xs" style={{ fontFamily: "var(--font-mono)", color: "var(--color-fg-dim)" }}>
               完美平台：{user.perfectName}
             </p>
+          )}
+
+          {publicEducationIdentities.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--color-fg-mid)]">
+              <span style={{ fontFamily: "var(--font-mono)", color: "var(--color-fg-dim)" }}>高校身份</span>
+              {publicEducationIdentities.map((education) => (
+                <span
+                  key={education.institutionName}
+                  className="inline-flex items-center rounded-sm border border-[var(--color-border)] bg-[var(--color-panel-low)] px-2 py-1"
+                >
+                  {education.institutionName} · {education.academicStatus} · {education.verificationLabel}
+                </span>
+              ))}
+            </div>
           )}
 
           <div className="flex flex-wrap items-center gap-2">
