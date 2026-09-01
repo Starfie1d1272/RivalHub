@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "已存在的 release tag（仅用于失败后的安全重试）"
+        required: true
+        type: string
 
 concurrency:
   group: rivalhub-production-release
@@ -25,20 +31,33 @@ jobs:
       RIVALHUB_DB_TARGET: production
       RIVALHUB_PRODUCTION_PROJECT_CONFIRM: sucokfotkypwqkckfynp
       RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: aws-0-ap-northeast-1.pooler.supabase.com:6543
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          ref: ${{ inputs.tag || github.ref }}
           fetch-depth: 0
-        # 不指定 ref，checkout 当前 tag 指向的 commit。release 的数据库、部署、
-        # changelog 与 GitHub Release 都必须来自同一个不可变 tag commit。
+        # 无论 tag push 或显式 retry，数据库、部署、changelog 与 GitHub Release
+        # 都必须来自同一个不可变 tag commit。
 
       - name: Require release tag commit on main
         run: |
-          git fetch origin main
-          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
-            echo "Release tag $GITHUB_REF_NAME does not point to a commit contained in main." >&2
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Release tag $RELEASE_TAG is invalid." >&2
             exit 1
           fi
+          git fetch origin main --tags
+          RELEASE_SHA="$(git rev-parse HEAD)"
+          TAG_SHA="$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")"
+          if [[ "$RELEASE_SHA" != "$TAG_SHA" ]]; then
+            echo "Release checkout does not match tag $RELEASE_TAG." >&2
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$RELEASE_SHA" origin/main; then
+            echo "Release tag $RELEASE_TAG does not point to a commit contained in main." >&2
+            exit 1
+          fi
+          echo "RELEASE_SHA=$RELEASE_SHA" >> "$GITHUB_ENV"
 
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
         with:
@@ -54,7 +73,7 @@ jobs:
       - name: Install pinned Vercel CLI
         run: pnpm add --global vercel@59.10.0
 
-      - name: Verify Vercel release credential
+      - name: Require Vercel release credential
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
@@ -62,9 +81,9 @@ jobs:
             echo "GitHub production environment secret VERCEL_TOKEN is required." >&2
             exit 1
           fi
-          # This checks project access only. Vercel never exports Sensitive
-          # values to external runners, so it is deliberately not a DB source.
-          vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+          # Project-scoped tokens can deploy but cannot read project settings
+          # or export Sensitive values. The later exact deployment is the
+          # authoritative capability check; this step must not call `pull`.
 
       - name: Validate active migration chain locally
         run: |
@@ -88,8 +107,8 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           DEPLOYMENT_URL="$(vercel deploy --prod --yes --token="$VERCEL_TOKEN" \
-            --build-env RIVALHUB_RELEASE_TAG="$GITHUB_REF_NAME" \
-            --build-env RIVALHUB_RELEASE_COMMIT="$GITHUB_SHA")"
+            --build-env RIVALHUB_RELEASE_TAG="$RELEASE_TAG" \
+            --build-env RIVALHUB_RELEASE_COMMIT="$RELEASE_SHA")"
           echo "url=$DEPLOYMENT_URL" >> "$GITHUB_OUTPUT"
           echo "Production deployment: $DEPLOYMENT_URL"
 
@@ -106,7 +125,7 @@ jobs:
 
       - name: Extract changelog for this version
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${RELEASE_TAG#v}"
           # 兼容两种标题：手写 `## [1.30.0] - date` 与 changeset 生成的 `## 1.30.0`
           awk -v ver="$VERSION" '
             $0 ~ "^## \\[?" ver "(\\]| |$)" { found=1; next }
@@ -118,21 +137,21 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${RELEASE_TAG#v}"
           if [[ "$VERSION" == *-* ]]; then
             RELEASE_FLAGS=(--prerelease --latest=false)
           else
             RELEASE_FLAGS=(--prerelease=false --latest)
           fi
 
-          if gh release view "$GITHUB_REF_NAME" &>/dev/null; then
-            echo "Release $GITHUB_REF_NAME already exists, updating notes..."
-            gh release edit "$GITHUB_REF_NAME" \
+          if gh release view "$RELEASE_TAG" &>/dev/null; then
+            echo "Release $RELEASE_TAG already exists, updating notes..."
+            gh release edit "$RELEASE_TAG" \
               --notes-file /tmp/release-notes.md \
               "${RELEASE_FLAGS[@]}"
           else
-            gh release create "$GITHUB_REF_NAME" \
-              --title "$GITHUB_REF_NAME" \
+            gh release create "$RELEASE_TAG" \
+              --title "$RELEASE_TAG" \
               --notes-file /tmp/release-notes.md \
               "${RELEASE_FLAGS[@]}"
           fi
