@@ -17,6 +17,7 @@ import { MapScoreCorrectInput } from "@/components/matches/MapScoreCorrectInput"
 import { DeleteMatchButton } from "@/components/matches/DeleteMatchButton";
 import { CompletedAtInput } from "@/components/matches/CompletedAtInput";
 import { PreMatchOperatorChecklist } from "@/components/matches/PreMatchOperatorChecklist";
+import { PostMatchRecordPanel, type PostMatchRecordData } from "@/components/matches/PostMatchRecordPanel";
 import { toCSTDateTimeInput } from "@/lib/utils/date";
 
 export interface TeamMemberData {
@@ -82,6 +83,7 @@ interface AdminMatchRowProps {
     ownership: string;
     bracketNodeId: string | null;
     completedAt: Date | null;
+    videoUrl?: string | null;
   };
   teamAName: string;
   teamBName: string;
@@ -108,6 +110,7 @@ interface AdminMatchRowProps {
     teamAStartSide: "t" | "ct" | null;
   }[];
   finishedMaps: { id: string; mapName: string; scoreA: number; scoreB: number }[];
+  postMatch?: PostMatchRecordData | null;
 }
 
 export function AdminMatchRow({
@@ -125,6 +128,7 @@ export function AdminMatchRow({
   completedMaps,
   pendingMaps,
   finishedMaps,
+  postMatch = null,
 }: AdminMatchRowProps) {
   const requiresPreflight = match.ownership === "major_stage";
   const startBlockers = getAdminMatchStartBlockers({
@@ -288,6 +292,7 @@ export function AdminMatchRow({
                   matchId={match.id}
                   initialValue={toCSTDateTimeInput(match.completedAt)}
                 />
+                {postMatch && <PostMatchRecordPanel matchId={match.id} data={postMatch} />}
                 {finishedMaps.map((map) => (
                   <div key={map.id}>
                     <StatsOCRPanel mapId={map.id} mapName={map.mapName} />

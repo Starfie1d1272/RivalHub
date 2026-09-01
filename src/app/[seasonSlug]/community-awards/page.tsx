@@ -1,4 +1,4 @@
-import { asc, eq, or } from "drizzle-orm";
+import { and, asc, eq, inArray, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { notFound } from "next/navigation";
 import { db } from "@/db/client";
@@ -10,7 +10,7 @@ import { getPublicDisplayName } from "@/lib/identity/display-name";
 async function getAwardBoardData(seasonId: string) {
   const recipient = alias(users, "community_award_recipient");
   const [awards, candidates, seasonMatches] = await Promise.all([
-    db.select({ award: communityAwards, submitter: { displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName }, recipient: { displayName: recipient.displayName, perfectName: recipient.perfectName, steamName: recipient.steamName } }).from(communityAwards).innerJoin(users, eq(communityAwards.submittedByUserId, users.id)).leftJoin(recipient, eq(communityAwards.recipientUserId, recipient.id)).where(eq(communityAwards.seasonId, seasonId)).orderBy(asc(communityAwards.createdAt)),
+    db.select({ award: communityAwards, submitter: { displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName }, recipient: { displayName: recipient.displayName, perfectName: recipient.perfectName, steamName: recipient.steamName } }).from(communityAwards).innerJoin(users, eq(communityAwards.submittedByUserId, users.id)).leftJoin(recipient, eq(communityAwards.recipientUserId, recipient.id)).where(and(eq(communityAwards.seasonId, seasonId), inArray(communityAwards.status, ["approved", "awarded", "not_awarded", "cancelled"]))).orderBy(asc(communityAwards.createdAt)),
     db.selectDistinct({ id: users.id, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName }).from(users)
       .leftJoin(seasonRegistrations, eq(seasonRegistrations.userId, users.id))
       .leftJoin(seasonAdminGrants, eq(seasonAdminGrants.userId, users.id))

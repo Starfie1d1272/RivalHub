@@ -103,7 +103,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
       getSeasonFinishedMatches(season.id, match.entryAId),
       getSeasonFinishedMatches(season.id, match.entryBId),
       getSeasonHexagonScores(season.id),
-      db.select({ displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName })
+      db.select({ userId: users.id, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName, liveStreamUrl: users.liveStreamUrl })
         .from(matchCommentators)
         .innerJoin(users, eq(matchCommentators.userId, users.id))
         .where(eq(matchCommentators.matchId, match.id)),
@@ -379,10 +379,11 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
         isFinished={isFinished}
       />
 
-      {isFinished && (commentatorRows.length > 0 || match.videoUrl) && (
+      {(commentatorRows.length > 0 || (isFinished && match.videoUrl)) && (
         <Panel label="赛后资料" pad={16}>
           {commentatorRows.length > 0 && <p className="text-sm">解说：{commentatorRows.map(getPublicDisplayName).join("、")}</p>}
-          {match.videoUrl && <a href={match.videoUrl} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-sm text-[var(--color-accent)] hover:underline">观看比赛录像 →</a>}
+          {!isFinished && commentatorRows.some((commentator) => commentator.liveStreamUrl) && <div className="mt-3 space-y-2"><p className="text-sm font-medium">{match.status === "in_progress" ? "正在直播 · 解说直播" : "直播解说"}</p>{commentatorRows.filter((commentator) => commentator.liveStreamUrl).map((commentator) => <p key={commentator.userId} className="text-sm">{getPublicDisplayName(commentator)} <a href={commentator.liveStreamUrl!} target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">进入直播间 ↗</a></p>)}</div>}
+          {isFinished && match.videoUrl && <a href={match.videoUrl} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-sm text-[var(--color-accent)] hover:underline">观看比赛录像 →</a>}
         </Panel>
       )}
 

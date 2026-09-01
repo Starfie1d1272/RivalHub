@@ -89,7 +89,6 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
   const [maxTeamSize, setMaxTeamSize] = useState(initial?.maxTeamSize ?? defaultTemplate.maxTeamSize);
   const [minTeamSize, setMinTeamSize] = useState(initial?.minTeamSize ?? defaultTemplate.minTeamSize);
   const [starterCount, setStarterCount] = useState(initial?.starterCount ?? defaultTemplate.starterCount);
-  const [commentatorFeeCents, setCommentatorFeeCents] = useState(initial?.commentatorFeeCents ?? 0);
   const [positions, setPositions] = useState(initial?.positions ?? defaultTemplate.positions);
   const [stagePlan, setStagePlan] = useState<StagePlan>(
     initial?.stagePlan ?? defaultTemplate.stagePlan,
@@ -204,7 +203,6 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
       minTeamSize,
       maxTeamSize,
       starterCount,
-      commentatorFeeCents,
       positions,
       stagePlan,
       registrationConfig: { ...registrationConfig, mapPool },
@@ -538,7 +536,6 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
           <div><Label htmlFor="max-team-size">每队人数上限</Label><Input id="max-team-size" type="number" min={1} value={maxTeamSize} disabled={coreLocked || isBuiltIn} onChange={(e) => setMaxTeamSize(Number(e.target.value))} /></div>
           <div><Label htmlFor="min-team-size">每队人数下限</Label><Input id="min-team-size" type="number" min={1} value={minTeamSize} disabled={coreLocked || isBuiltIn} onChange={(e) => setMinTeamSize(Number(e.target.value))} /></div>
           <div><Label htmlFor="starter-count">首发人数</Label><Input id="starter-count" type="number" min={1} value={starterCount} disabled={coreLocked || isBuiltIn} onChange={(e) => setStarterCount(Number(e.target.value))} /></div>
-          <div><Label htmlFor="commentator-fee">解说单场费用（分）</Label><Input id="commentator-fee" type="number" min={0} value={commentatorFeeCents} onChange={(e) => setCommentatorFeeCents(Number(e.target.value))} /><p className="mt-1 text-xs text-[var(--color-fg-dim)]">赛后确认时按此费率快照；之后改价不回写已确认场次。</p></div>
         </div>
         {isBuiltIn && registrationMode === "team" && (
           <p className="text-xs text-[var(--color-fg-dim)] mt-4">内置赛事体系的报名模式、队伍规模与首发人数由标准规则固定。</p>

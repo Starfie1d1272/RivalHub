@@ -1,5 +1,5 @@
 {
-  "id": "0624a4eb-8f68-4f6e-8563-cc9eb6107042",
+  "id": "3225f3c0-1c6a-4dc0-9dc3-b6f9058f9164",
   "prevId": "5f5afb65-1973-4565-894a-40aab78dc241",
   "version": "7",
   "dialect": "postgresql",
@@ -3694,6 +3694,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "live_stream_url": {
+          "name": "live_stream_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "avatar_url": {
           "name": "avatar_url",
           "type": "text",
@@ -3859,13 +3865,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": 5
-        },
-        "commentator_fee_cents": {
-          "name": "commentator_fee_cents",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
         },
         "positions": {
           "name": "positions",
@@ -8032,36 +8031,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "confirmed_at": {
-          "name": "confirmed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "confirmed_by_user_id": {
-          "name": "confirmed_by_user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "confirmed_fee_cents": {
-          "name": "confirmed_fee_cents",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "settled_at": {
-          "name": "settled_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "settled_by_user_id": {
-          "name": "settled_by_user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
@@ -8120,32 +8089,6 @@
           ],
           "onDelete": "restrict",
           "onUpdate": "no action"
-        },
-        "match_commentators_confirmed_by_user_id_users_id_fk": {
-          "name": "match_commentators_confirmed_by_user_id_users_id_fk",
-          "tableFrom": "match_commentators",
-          "tableTo": "users",
-          "columnsFrom": [
-            "confirmed_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "match_commentators_settled_by_user_id_users_id_fk": {
-          "name": "match_commentators_settled_by_user_id_users_id_fk",
-          "tableFrom": "match_commentators",
-          "tableTo": "users",
-          "columnsFrom": [
-            "settled_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -8159,16 +8102,7 @@
       },
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {
-        "match_commentators_confirmed_fee_check": {
-          "name": "match_commentators_confirmed_fee_check",
-          "value": "(\"match_commentators\".\"confirmed_at\" IS NULL AND \"match_commentators\".\"confirmed_fee_cents\" IS NULL AND \"match_commentators\".\"confirmed_by_user_id\" IS NULL)\n      OR (\"match_commentators\".\"confirmed_at\" IS NOT NULL AND \"match_commentators\".\"confirmed_fee_cents\" IS NOT NULL AND \"match_commentators\".\"confirmed_fee_cents\" >= 0 AND \"match_commentators\".\"confirmed_by_user_id\" IS NOT NULL)"
-        },
-        "match_commentators_settlement_check": {
-          "name": "match_commentators_settlement_check",
-          "value": "(\"match_commentators\".\"settled_at\" IS NULL AND \"match_commentators\".\"settled_by_user_id\" IS NULL)\n      OR (\"match_commentators\".\"settled_at\" IS NOT NULL AND \"match_commentators\".\"settled_by_user_id\" IS NOT NULL AND \"match_commentators\".\"confirmed_at\" IS NOT NULL)"
-        }
-      },
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.post_match_reports": {
@@ -8181,64 +8115,14 @@
           "primaryKey": true,
           "notNull": true
         },
-        "season_id": {
-          "name": "season_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "post_match_report_status",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'draft'"
-        },
         "submitted_by_user_id": {
           "name": "submitted_by_user_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "submitted_at": {
           "name": "submitted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "confirmed_by_user_id": {
-          "name": "confirmed_by_user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "confirmed_at": {
-          "name": "confirmed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "returned_by_user_id": {
-          "name": "returned_by_user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "returned_at": {
-          "name": "returned_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "return_reason": {
-          "name": "return_reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "updated_at": {
-          "name": "updated_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
@@ -8246,17 +8130,11 @@
         }
       },
       "indexes": {
-        "post_match_reports_season_id_status_idx": {
-          "name": "post_match_reports_season_id_status_idx",
+        "post_match_reports_submitted_by_user_id_idx": {
+          "name": "post_match_reports_submitted_by_user_id_idx",
           "columns": [
             {
-              "expression": "season_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "status",
+              "expression": "submitted_by_user_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -8282,19 +8160,6 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "post_match_reports_season_id_seasons_id_fk": {
-          "name": "post_match_reports_season_id_seasons_id_fk",
-          "tableFrom": "post_match_reports",
-          "tableTo": "seasons",
-          "columnsFrom": [
-            "season_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
         "post_match_reports_submitted_by_user_id_users_id_fk": {
           "name": "post_match_reports_submitted_by_user_id_users_id_fk",
           "tableFrom": "post_match_reports",
@@ -8305,53 +8170,14 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "post_match_reports_confirmed_by_user_id_users_id_fk": {
-          "name": "post_match_reports_confirmed_by_user_id_users_id_fk",
-          "tableFrom": "post_match_reports",
-          "tableTo": "users",
-          "columnsFrom": [
-            "confirmed_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "post_match_reports_returned_by_user_id_users_id_fk": {
-          "name": "post_match_reports_returned_by_user_id_users_id_fk",
-          "tableFrom": "post_match_reports",
-          "tableTo": "users",
-          "columnsFrom": [
-            "returned_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
+          "onDelete": "restrict",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {
-        "post_match_reports_submission_check": {
-          "name": "post_match_reports_submission_check",
-          "value": "(\"post_match_reports\".\"status\" IN ('submitted', 'returned', 'confirmed') AND \"post_match_reports\".\"submitted_by_user_id\" IS NOT NULL AND \"post_match_reports\".\"submitted_at\" IS NOT NULL)\n      OR (\"post_match_reports\".\"status\" = 'draft' AND \"post_match_reports\".\"submitted_by_user_id\" IS NULL AND \"post_match_reports\".\"submitted_at\" IS NULL)"
-        },
-        "post_match_reports_confirmation_check": {
-          "name": "post_match_reports_confirmation_check",
-          "value": "(\"post_match_reports\".\"status\" = 'confirmed' AND \"post_match_reports\".\"confirmed_by_user_id\" IS NOT NULL AND \"post_match_reports\".\"confirmed_at\" IS NOT NULL)\n      OR (\"post_match_reports\".\"status\" <> 'confirmed' AND \"post_match_reports\".\"confirmed_by_user_id\" IS NULL AND \"post_match_reports\".\"confirmed_at\" IS NULL)"
-        },
-        "post_match_reports_return_check": {
-          "name": "post_match_reports_return_check",
-          "value": "(\"post_match_reports\".\"status\" = 'returned' AND \"post_match_reports\".\"returned_by_user_id\" IS NOT NULL AND \"post_match_reports\".\"returned_at\" IS NOT NULL AND length(trim(coalesce(\"post_match_reports\".\"return_reason\", ''))) > 0)\n      OR (\"post_match_reports\".\"status\" <> 'returned' AND \"post_match_reports\".\"returned_by_user_id\" IS NULL AND \"post_match_reports\".\"returned_at\" IS NULL AND \"post_match_reports\".\"return_reason\" IS NULL)"
-        }
-      },
+      "checkConstraints": {},
       "isRLSEnabled": false
     }
   },
@@ -8755,16 +8581,6 @@
         "runner_up",
         "placement",
         "manual_award"
-      ]
-    },
-    "public.post_match_report_status": {
-      "name": "post_match_report_status",
-      "schema": "public",
-      "values": [
-        "draft",
-        "submitted",
-        "returned",
-        "confirmed"
       ]
     }
   },

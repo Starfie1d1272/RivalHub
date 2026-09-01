@@ -40,13 +40,17 @@ export async function reviseCommunityAwardInTx(
   args: { awardId: string; submitterId: string; name: string; condition: string; prize: string; supplementaryNote?: string | null },
 ): Promise<{ seasonId: string }> {
   const award = await lockAwardInTx(tx, args.awardId);
-  if (award.submittedByUserId !== args.submitterId) throw new AppError(ErrorCode.UNAUTHORIZED, "只有发起人可以补充这项社区奖。 ");
-  if (award.status !== "pending_review") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有待审核社区奖可以补充。 ");
+  if (award.submittedByUserId !== args.submitterId) throw new AppError(ErrorCode.FORBIDDEN, "只有发起人可以补充这项社区奖。 ");
+  if (award.status !== "pending_review" && award.status !== "rejected") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有待审核或被要求补充的社区奖可以修改。 ");
   await tx.update(communityAwards).set({
     name: args.name,
     condition: args.condition,
     prize: args.prize,
     supplementaryNote: args.supplementaryNote ?? null,
+    status: "pending_review",
+    reviewedByUserId: null,
+    reviewedAt: null,
+    reviewNote: null,
     updatedAt: new Date(),
   }).where(eq(communityAwards.id, award.id));
   await tx.insert(auditLogs).values({
@@ -111,7 +115,7 @@ export async function withdrawCommunityAwardInTx(
   args: { awardId: string; submitterId: string },
 ): Promise<{ seasonId: string }> {
   const award = await lockAwardInTx(tx, args.awardId);
-  if (award.submittedByUserId !== args.submitterId) throw new AppError(ErrorCode.UNAUTHORIZED, "只有发起人可以撤回这项社区奖。 ");
+  if (award.submittedByUserId !== args.submitterId) throw new AppError(ErrorCode.FORBIDDEN, "只有发起人可以撤回这项社区奖。 ");
   if (award.status !== "pending_review" && award.status !== "approved") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "已产生结果或已拒绝的社区奖不能由发起人撤回。 ");
   const now = new Date();
   await tx.update(communityAwards).set({ status: "withdrawn", recipientUserId: null, outcomeNote: "发起人撤回", outcomeByUserId: args.submitterId, outcomeAt: now, updatedAt: now })
@@ -165,7 +169,7 @@ export async function resolveCommunityAwardInTx(
   args: { awardId: string; status: "awarded" | "not_awarded" | "cancelled"; recipientUserId?: string | null; outcomeNote: string; actorId: string },
 ): Promise<{ seasonId: string }> {
   const award = await lockAwardInTx(tx, args.awardId);
-  if (award.status !== "approved") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有已公开社区奖可以结奖、记录不颁或取消。 ");
+  if (!["approved", "awarded", "not_awarded", "cancelled"].includes(award.status)) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有已公开或已结奖社区奖可以记录或更正结果。 ");
   if (args.status === "awarded" && !args.recipientUserId) throw new AppError(ErrorCode.VALIDATION_FAILED, "结奖时必须选择获奖者。 ");
   if (args.status !== "awarded" && args.recipientUserId) throw new AppError(ErrorCode.VALIDATION_FAILED, "不颁或取消时不能保留获奖者。 ");
   if (args.recipientUserId) {
@@ -187,7 +191,7 @@ export async function resolveCommunityAwardInTx(
     actorId: args.actorId,
     targetId: award.id,
     targetType: "community_award",
-    meta: { recipientUserId: args.recipientUserId ?? null },
+    meta: { previousStatus: award.status, previousRecipientUserId: award.recipientUserId, recipientUserId: args.recipientUserId ?? null },
   });
   return { seasonId: award.seasonId };
 }

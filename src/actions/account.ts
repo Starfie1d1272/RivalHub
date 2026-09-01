@@ -87,6 +87,7 @@ export interface ProfileInput {
   steam64: string;
   steamProfileUrl: string;
   qq: string;
+  liveStreamUrl?: string;
 }
 
 /** 更新个人信息（跨赛季字段） */
@@ -113,6 +114,13 @@ export async function updateProfile(
 
   const qq = input.qq.trim();
   if (qq && !/^\d{5,12}$/.test(qq)) return failValidation("QQ 号格式不正确");
+  const liveStreamUrl = input.liveStreamUrl?.trim() ?? "";
+  if (liveStreamUrl) {
+    try {
+      const url = new URL(liveStreamUrl);
+      if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("scheme");
+    } catch { return failValidation("直播间链接必须是合法的 http 或 https URL"); }
+  }
 
   try {
     const session = await requireAuth();
@@ -126,6 +134,7 @@ export async function updateProfile(
         steam64: steam64 || null,
         steamProfileUrl: steamProfileUrl || null,
         qq: qq || null,
+        liveStreamUrl: liveStreamUrl || null,
         updatedAt: new Date(),
       })
       .where(eq(users.id, session.userId));
