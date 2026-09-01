@@ -1,12 +1,16 @@
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { buildVercelProductionVerificationEnvironment } from "./db/production-environment";
+import { assertProductionReleaseBuild } from "./release/production-deployment";
 
 const projectRoot = resolve(process.cwd());
 const binSuffix = process.platform === "win32" ? ".cmd" : "";
 
 try {
   if (process.env.VERCEL_ENV === "production") {
+    // Production is release-only. Ordinary Git integration builds do not carry
+    // these workflow-injected markers and therefore fail before Next.js build.
+    assertProductionReleaseBuild(process.env);
     const productionEnvironment = buildVercelProductionVerificationEnvironment(process.env);
     run(resolve(projectRoot, `node_modules/.bin/tsx${binSuffix}`), ["scripts/db/verify-migrations.ts"], productionEnvironment);
   }
