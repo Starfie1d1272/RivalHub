@@ -45,6 +45,7 @@ import {
 import { getSeasonFinishedMatches } from "@/lib/matches/detail-data";
 import { MatchHeroHeader } from "@/components/matches/MatchHeroHeader";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
+import { getPublicLiveCommentators } from "@/lib/postmatch/service";
 
 interface MatchDetailPageProps {
   params: Promise<{ seasonSlug: string; matchId: string }>;
@@ -109,6 +110,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
         .where(eq(matchCommentators.matchId, match.id)),
     ]);
   const timeProposals = await getMatchTimeProposalViews(match.id, userSession?.userId);
+  const liveCommentators = getPublicLiveCommentators(match.status, commentatorRows);
 
   const allTeamMembers = allTeamMemberRows.map((row) => ({
     ...row,
@@ -380,9 +382,9 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
       />
 
       {(commentatorRows.length > 0 || (isFinished && match.videoUrl)) && (
-        <Panel label="赛后资料" pad={16}>
+        <Panel label={isFinished ? "赛后资料" : "解说与直播"} pad={16}>
           {commentatorRows.length > 0 && <p className="text-sm">解说：{commentatorRows.map(getPublicDisplayName).join("、")}</p>}
-          {!isFinished && commentatorRows.some((commentator) => commentator.liveStreamUrl) && <div className="mt-3 space-y-2"><p className="text-sm font-medium">{match.status === "in_progress" ? "正在直播 · 解说直播" : "直播解说"}</p>{commentatorRows.filter((commentator) => commentator.liveStreamUrl).map((commentator) => <p key={commentator.userId} className="text-sm">{getPublicDisplayName(commentator)} <a href={commentator.liveStreamUrl!} target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">进入直播间 ↗</a></p>)}</div>}
+          {liveCommentators.length > 0 && <div className="mt-3 space-y-2"><p className="text-sm font-medium">{match.status === "in_progress" ? "正在直播 · 解说直播" : "直播解说"}</p>{liveCommentators.map((commentator) => <p key={commentator.userId} className="text-sm">{getPublicDisplayName(commentator)} <a href={commentator.liveStreamUrl!} target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">进入直播间 ↗</a></p>)}</div>}
           {isFinished && match.videoUrl && <a href={match.videoUrl} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-sm text-[var(--color-accent)] hover:underline">观看比赛录像 →</a>}
         </Panel>
       )}

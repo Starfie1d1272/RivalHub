@@ -28,6 +28,8 @@ const ACTION_CATEGORIES: Record<string, { label: string; color: string }> = {
   season: { label: "赛季", color: "var(--color-warn)" },
   team: { label: "队伍", color: "var(--color-info)" },
   user: { label: "用户", color: "var(--color-fg-mid)" },
+  postmatch: { label: "赛后解说", color: "var(--color-accent-b)" },
+  community_award: { label: "社区奖", color: "var(--color-warn)" },
 };
 
 function getCategory(action: string) {
@@ -93,6 +95,21 @@ const ACTION_LABELS: Record<string, string> = {
   "postevent.adjudication.create": "创建赛后裁定",
   "user.change_password": "修改密码",
   "user.claim_invite": "使用邀请码",
+  "postmatch.commentator.add": "登记解说",
+  "postmatch.commentator.remove": "移除解说",
+  "postmatch.video.update": "更新比赛录像",
+  "postmatch.report.submit": "提交赛后资料",
+  "postmatch.report.revoke": "撤销赛后提交",
+  "community_award.submit": "提交社区奖",
+  "community_award.revise": "补充并重新提交社区奖",
+  "community_award.approved": "公开社区奖",
+  "community_award.rejected": "驳回社区奖",
+  "community_award.request_supplement": "要求补充社区奖",
+  "community_award.withdraw": "撤回社区奖",
+  "community_award.evidence.submit": "提交社区奖证据",
+  "community_award.awarded": "记录社区奖获奖结果",
+  "community_award.not_awarded": "记录社区奖不颁结果",
+  "community_award.cancelled": "取消或更正社区奖结果",
 };
 
 const PAGE_SIZE = 50;

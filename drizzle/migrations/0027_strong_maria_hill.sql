@@ -76,15 +76,16 @@ CREATE INDEX "post_match_reports_submitted_by_user_id_idx" ON "post_match_report
 --> statement-breakpoint
 CREATE OR REPLACE FUNCTION "public"."enforce_post_match_scope"()
 RETURNS trigger LANGUAGE plpgsql AS $$
-DECLARE match_season_id uuid;
+DECLARE match_season_id uuid; match_status text;
 BEGIN
   IF TG_TABLE_NAME = 'match_commentators' AND TG_OP = 'DELETE' THEN
     IF EXISTS (SELECT 1 FROM post_match_reports WHERE match_id = OLD.match_id) THEN RAISE EXCEPTION 'submitted commentator roster is immutable' USING ERRCODE = '23514'; END IF;
     RETURN OLD;
   END IF;
-  SELECT season_id INTO match_season_id FROM matches WHERE id = NEW.match_id;
+  SELECT season_id, status INTO match_season_id, match_status FROM matches WHERE id = NEW.match_id;
   IF match_season_id IS NULL THEN RAISE EXCEPTION 'match does not exist' USING ERRCODE = '23503'; END IF;
   IF TG_TABLE_NAME = 'match_commentators' THEN
+    IF match_status = 'cancelled' THEN RAISE EXCEPTION 'cancelled match cannot have commentators' USING ERRCODE = '23514'; END IF;
     IF EXISTS (SELECT 1 FROM post_match_reports WHERE match_id = NEW.match_id) THEN RAISE EXCEPTION 'submitted commentator roster is immutable' USING ERRCODE = '23514'; END IF;
     IF NOT EXISTS (SELECT 1 FROM season_admin_grants WHERE season_id = match_season_id AND user_id = NEW.user_id) THEN RAISE EXCEPTION 'commentator must be a season admin' USING ERRCODE = '23514'; END IF;
     IF (SELECT count(*) FROM match_commentators WHERE match_id = NEW.match_id) >= 2 THEN RAISE EXCEPTION 'a match has at most two commentators' USING ERRCODE = '23514'; END IF;

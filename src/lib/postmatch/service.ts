@@ -22,7 +22,7 @@ async function assertRosterEditableInTx(tx: TxDb, matchId: string) {
 export async function addMatchCommentatorInTx(tx: TxDb, args: { matchId: string; userId: string; actorId: string }) {
   const match = await lockMatchInTx(tx, args.matchId);
   await assertRosterEditableInTx(tx, match.id);
-  if (match.status !== "finished") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛结束后才能登记实际解说。");
+  if (match.status === "cancelled") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "已取消比赛不能登记解说。");
   await assertSeasonAdminInTx(tx, match.seasonId, args.userId);
   const current = await tx.select({ userId: matchCommentators.userId }).from(matchCommentators).where(eq(matchCommentators.matchId, match.id));
   if (current.length >= 2 && !current.some((row) => row.userId === args.userId)) throw new AppError(ErrorCode.VALIDATION_FAILED, "每场最多登记 2 名实际解说。");
@@ -65,3 +65,7 @@ export async function revokePostMatchSubmissionInTx(tx: TxDb, args: { matchId: s
 export type PostMatchCompletion = "pending_collection" | "waiting_video" | "completed";
 export function getPostMatchCompletion(submittedAt: Date | null, videoUrl: string | null): PostMatchCompletion { return !submittedAt ? "pending_collection" : videoUrl ? "completed" : "waiting_video"; }
 export const POST_MATCH_COMPLETION_LABEL: Record<PostMatchCompletion, string> = { pending_collection: "待整理", waiting_video: "等待录像", completed: "已完成" };
+
+export function getPublicLiveCommentators<T extends { liveStreamUrl: string | null }>(status: "scheduled" | "in_progress" | "finished" | "cancelled", commentators: T[]): T[] {
+  return status === "scheduled" || status === "in_progress" ? commentators.filter((commentator) => Boolean(commentator.liveStreamUrl)) : [];
+}

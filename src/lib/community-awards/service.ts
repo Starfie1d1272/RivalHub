@@ -1,7 +1,8 @@
 import { and, eq } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
-import { auditLogs, communityAwardEvidence, communityAwards, matches, seasons, users } from "@/db/schema";
+import { auditLogs, communityAwardEvidence, communityAwards, matches, seasons } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
+import { getSeasonAwardCandidates } from "@/lib/community-awards/read-model";
 
 async function lockAwardInTx(tx: TxDb, awardId: string) {
   const [award] = await tx.select().from(communityAwards).where(eq(communityAwards.id, awardId)).for("update");
@@ -142,8 +143,7 @@ export async function addCommunityAwardEvidenceInTx(
     if (!match) throw new AppError(ErrorCode.VALIDATION_FAILED, "证据比赛不属于当前赛事。 ");
   }
   if (args.candidateUserId) {
-    const [user] = await tx.select({ id: users.id }).from(users).where(eq(users.id, args.candidateUserId));
-    if (!user) throw new AppError(ErrorCode.VALIDATION_FAILED, "候选用户不存在。 ");
+    if (!(await getSeasonAwardCandidates(award.seasonId)).some((candidate) => candidate.id === args.candidateUserId)) throw new AppError(ErrorCode.VALIDATION_FAILED, "候选人不属于当前赛事相关人员。 ");
   }
   const [evidence] = await tx.insert(communityAwardEvidence).values({
     awardId: award.id,
@@ -173,8 +173,7 @@ export async function resolveCommunityAwardInTx(
   if (args.status === "awarded" && !args.recipientUserId) throw new AppError(ErrorCode.VALIDATION_FAILED, "结奖时必须选择获奖者。 ");
   if (args.status !== "awarded" && args.recipientUserId) throw new AppError(ErrorCode.VALIDATION_FAILED, "不颁或取消时不能保留获奖者。 ");
   if (args.recipientUserId) {
-    const [user] = await tx.select({ id: users.id }).from(users).where(eq(users.id, args.recipientUserId));
-    if (!user) throw new AppError(ErrorCode.VALIDATION_FAILED, "获奖者不存在。 ");
+    if (!(await getSeasonAwardCandidates(award.seasonId)).some((candidate) => candidate.id === args.recipientUserId)) throw new AppError(ErrorCode.VALIDATION_FAILED, "获奖者不属于当前赛事相关人员。 ");
   }
   const now = new Date();
   await tx.update(communityAwards).set({

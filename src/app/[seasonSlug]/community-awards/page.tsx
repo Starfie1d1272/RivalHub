@@ -2,31 +2,20 @@ import { and, asc, eq, inArray, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { notFound } from "next/navigation";
 import { db } from "@/db/client";
-import { communityAwards, competitionEntries, competitionEntryParticipants, matches, seasonAdminGrants, seasonRegistrations, seasons, users } from "@/db/schema";
+import { communityAwards, competitionEntries, matches, seasons, users } from "@/db/schema";
 import { CommunityAwardsBoard } from "@/components/community-awards/CommunityAwardsBoard";
 import { getCurrentUserAuthorization } from "@/lib/auth/session";
+import { getSeasonAwardCandidates } from "@/lib/community-awards/read-model";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
+import { presentMatchLabel } from "@/lib/matches/presentation";
+import { normalizeStagePlan } from "@/types/season";
 
-async function getAwardBoardData(seasonId: string) {
+const publicStatuses = ["approved", "awarded", "not_awarded", "cancelled"] as const;
+async function getPublicAwardData(seasonId: string, currentUserId: string | null, stagePlan: ReturnType<typeof normalizeStagePlan>) {
   const recipient = alias(users, "community_award_recipient");
-  const [awards, candidates, seasonMatches] = await Promise.all([
-    db.select({ award: communityAwards, submitter: { displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName }, recipient: { displayName: recipient.displayName, perfectName: recipient.perfectName, steamName: recipient.steamName } }).from(communityAwards).innerJoin(users, eq(communityAwards.submittedByUserId, users.id)).leftJoin(recipient, eq(communityAwards.recipientUserId, recipient.id)).where(and(eq(communityAwards.seasonId, seasonId), inArray(communityAwards.status, ["approved", "awarded", "not_awarded", "cancelled"]))).orderBy(asc(communityAwards.createdAt)),
-    db.selectDistinct({ id: users.id, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName }).from(users)
-      .leftJoin(seasonRegistrations, eq(seasonRegistrations.userId, users.id))
-      .leftJoin(seasonAdminGrants, eq(seasonAdminGrants.userId, users.id))
-      .leftJoin(competitionEntryParticipants, eq(competitionEntryParticipants.userId, users.id))
-      .leftJoin(competitionEntries, eq(competitionEntryParticipants.entryId, competitionEntries.id))
-      .where(or(eq(seasonRegistrations.seasonId, seasonId), eq(seasonAdminGrants.seasonId, seasonId), eq(competitionEntries.competitionId, seasonId))),
-    db.select({ id: matches.id, stage: matches.stage, round: matches.round }).from(matches).where(eq(matches.seasonId, seasonId)).orderBy(asc(matches.createdAt)),
-  ]);
-  return { awards: awards.map((row) => ({ ...row.award, submitterName: getPublicDisplayName(row.submitter), recipientName: row.recipient ? getPublicDisplayName(row.recipient) : null })), candidates: candidates.map((candidate) => ({ id: candidate.id, name: getPublicDisplayName(candidate) })), matches: seasonMatches.map((match) => ({ id: match.id, label: `${match.stage}${match.round ? ` · 第 ${match.round} 轮` : ""}` })) };
+  const rows = await db.select({ id: communityAwards.id, submittedByUserId: communityAwards.submittedByUserId, name: communityAwards.name, condition: communityAwards.condition, prize: communityAwards.prize, supplementaryNote: communityAwards.supplementaryNote, publicNote: communityAwards.publicNote, reviewNote: communityAwards.reviewNote, status: communityAwards.status, outcomeNote: communityAwards.outcomeNote, submitter: { displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName }, recipient: { displayName: recipient.displayName, perfectName: recipient.perfectName, steamName: recipient.steamName } }).from(communityAwards).innerJoin(users, eq(communityAwards.submittedByUserId, users.id)).leftJoin(recipient, eq(communityAwards.recipientUserId, recipient.id)).where(and(eq(communityAwards.seasonId, seasonId), currentUserId ? or(inArray(communityAwards.status, publicStatuses), eq(communityAwards.submittedByUserId, currentUserId)) : inArray(communityAwards.status, publicStatuses))).orderBy(asc(communityAwards.createdAt));
+  const [candidates, matchRows] = await Promise.all([getSeasonAwardCandidates(seasonId), db.select({ id: matches.id, stage: matches.stage, round: matches.round, entryRound: matches.entryRound, aName: competitionEntries.name, bId: matches.entryBId }).from(matches).innerJoin(competitionEntries, eq(matches.entryAId, competitionEntries.id)).where(eq(matches.seasonId, seasonId))]);
+  const bIds = [...new Set(matchRows.map((row) => row.bId))]; const bRows = bIds.length ? await db.select({ id: competitionEntries.id, name: competitionEntries.name }).from(competitionEntries).where(inArray(competitionEntries.id, bIds)) : []; const bNames = new Map(bRows.map((row) => [row.id, row.name]));
+  return { awards: rows.map((row) => ({ id: row.id, submittedByUserId: row.submittedByUserId, name: row.name, condition: row.condition, prize: row.prize, supplementaryNote: row.supplementaryNote, publicNote: row.publicNote, reviewNote: row.submittedByUserId === currentUserId ? row.reviewNote : null, status: row.status, submitterName: getPublicDisplayName(row.submitter), recipientName: row.recipient ? getPublicDisplayName(row.recipient) : null, outcomeNote: row.outcomeNote })), candidates, matches: matchRows.map((row) => ({ id: row.id, label: presentMatchLabel({ stage: row.stage, stageName: stagePlan.find((stage) => stage.key === row.stage)?.name, round: row.round, entryRound: row.entryRound, teamAName: row.aName, teamBName: bNames.get(row.bId) ?? "TBD" }) })) };
 }
-
-export default async function CommunityAwardsPage({ params }: { params: Promise<{ seasonSlug: string }> }) {
-  const { seasonSlug } = await params;
-  const season = await db.query.seasons.findFirst({ where: eq(seasons.slug, seasonSlug) });
-  if (!season) notFound();
-  const [data, authorization] = await Promise.all([getAwardBoardData(season.id), getCurrentUserAuthorization()]);
-  const isAdmin = authorization?.role === "super_admin" || authorization?.seasonIds.includes(season.id) || false;
-  return <div className="container mx-auto max-w-3xl space-y-6 px-4 py-8"><div><h1 className="text-2xl font-bold">社区奖 · {season.name}</h1><p className="mt-1 text-sm text-[var(--color-fg-mid)]">社区提出创意，赛事方审核与确认结果。正式赛事荣誉仍由独立的官方荣誉记录维护。</p></div><CommunityAwardsBoard seasonId={season.id} awards={data.awards} currentUserId={authorization?.userId ?? null} isAdmin={isAdmin} candidates={data.candidates} matches={data.matches} /></div>;
-}
+export default async function CommunityAwardsPage({ params }: { params: Promise<{ seasonSlug: string }> }) { const { seasonSlug } = await params; const season = await db.query.seasons.findFirst({ where: eq(seasons.slug, seasonSlug) }); if (!season) notFound(); const authorization = await getCurrentUserAuthorization(); const data = await getPublicAwardData(season.id, authorization?.userId ?? null, normalizeStagePlan(season.stagePlan)); return <div className="container mx-auto max-w-3xl space-y-6 px-4 py-8"><div><h1 className="text-2xl font-bold">社区奖 · {season.name}</h1><p className="mt-1 text-sm text-[var(--color-fg-mid)]">社区提出创意，赛事方审核与确认结果；不替代正式赛事荣誉。</p></div><CommunityAwardsBoard seasonId={season.id} awards={data.awards} currentUserId={authorization?.userId ?? null} isAdmin={false} candidates={data.candidates} matches={data.matches} /></div>; }

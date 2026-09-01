@@ -28,6 +28,7 @@ import { getStartingLineupPreflightInTx } from "@/lib/match-rosters/service";
 import { presentSeasonStatus } from "@/lib/seasons/presentation";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { getPostMatchCompletion, POST_MATCH_COMPLETION_LABEL } from "@/lib/postmatch/service";
+import { presentMatchLabel } from "@/lib/matches/presentation";
 
 const STATUS_SORT_ORDER: Record<string, number> = {
   in_progress: 0,
@@ -112,9 +113,10 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
       orderBy: [asc(matches.createdAt)],
     }),
   ]);
+  const commentatorMatchIds = allMatches.filter((match) => match.status !== "cancelled").map((match) => match.id);
   const finishedIds = allMatches.filter((match) => match.status === "finished").map((match) => match.id);
   const [commentatorRows, submissionRows, seasonAdminRows] = await Promise.all([
-    finishedIds.length ? db.select({ matchId: matchCommentators.matchId, userId: users.id, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName, liveStreamUrl: users.liveStreamUrl }).from(matchCommentators).innerJoin(users, eq(matchCommentators.userId, users.id)).where(inArray(matchCommentators.matchId, finishedIds)) : [],
+    commentatorMatchIds.length ? db.select({ matchId: matchCommentators.matchId, userId: users.id, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName, liveStreamUrl: users.liveStreamUrl }).from(matchCommentators).innerJoin(users, eq(matchCommentators.userId, users.id)).where(inArray(matchCommentators.matchId, commentatorMatchIds)) : [],
     finishedIds.length ? db.select().from(postMatchReports).where(inArray(postMatchReports.matchId, finishedIds)) : [],
     db.select({ userId: users.id, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName, liveStreamUrl: users.liveStreamUrl }).from(seasonAdminGrants).innerJoin(users, eq(seasonAdminGrants.userId, users.id)).where(eq(seasonAdminGrants.seasonId, season.id)),
   ]);
@@ -436,7 +438,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
       {batchDeadlineGroups.length > 0 && (
         <BatchDeadlineCard seasonId={season.id} groups={batchDeadlineGroups} />
       )}
-      {finishedIds.length > 0 && <details className="rounded border border-[var(--color-border)] px-4 py-3"><summary className="cursor-pointer text-sm font-medium">解说有效场次统计</summary><div className="mt-3 space-y-2 text-sm">{seasonAdmins.map((admin) => { const effective = allMatches.filter((match) => match.status === "finished" && Boolean(match.videoUrl) && Boolean(submissionByMatch.get(match.id)) && (commentatorsByMatch.get(match.id) ?? []).some((commentator) => commentator.userId === admin.userId)).map((match) => `${stagePlan.find((stage) => stage.key === match.stage)?.name ?? match.stage} · ${match.round ? `第 ${match.round} 轮 · ` : ""}${teamMap.get(match.entryAId) ?? "TBD"} vs ${teamMap.get(match.entryBId) ?? "TBD"}`); return <div key={admin.userId}><strong>{admin.name}</strong> · {effective.length} 场{effective.length > 0 && <span className="text-[var(--color-fg-mid)]">：{effective.join("；")}</span>}</div>; })}</div></details>}
+      {finishedIds.length > 0 && <details className="rounded border border-[var(--color-border)] px-4 py-3"><summary className="cursor-pointer text-sm font-medium">解说有效场次统计</summary><div className="mt-3 space-y-3 text-sm">{seasonAdmins.map((admin) => ({ admin, matches: allMatches.filter((match) => match.status === "finished" && Boolean(match.videoUrl) && Boolean(submissionByMatch.get(match.id)) && (commentatorsByMatch.get(match.id) ?? []).some((commentator) => commentator.userId === admin.userId)) })).filter(({ matches }) => matches.length > 0).map(({ admin, matches: effective }) => <div key={admin.userId}><strong>{admin.name}</strong> · {effective.length} 场<ul className="mt-1 list-disc space-y-1 pl-5 text-[var(--color-fg-mid)]">{effective.map((match) => <li key={match.id}>{presentMatchLabel({ stage: match.stage, stageName: stagePlan.find((stage) => stage.key === match.stage)?.name, round: match.round, entryRound: match.entryRound, teamAName: teamMap.get(match.entryAId) ?? "TBD", teamBName: teamMap.get(match.entryBId) ?? "TBD" })}</li>)}</ul></div>)}</div></details>}
 
       {/* Tab 面板 */}
       {matchCount > 0 && defaultStageKey && (
@@ -495,7 +497,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                         completedMaps={mapCompletedMaps(mapsByMatchId.get(m.id) ?? [])}
                         pendingMaps={mapPendingMaps(mapsByMatchId.get(m.id) ?? [])}
                         finishedMaps={mapFinishedMaps(mapsByMatch.get(m.id) ?? [])}
-                        postMatch={m.status === "finished" ? { commentators: commentatorsByMatch.get(m.id) ?? [], seasonAdmins, submittedAt: submissionByMatch.get(m.id)?.submittedAt ?? null, submittedByUserId: submissionByMatch.get(m.id)?.submittedByUserId ?? null, videoUrl: m.videoUrl, completionLabel: POST_MATCH_COMPLETION_LABEL[getPostMatchCompletion(submissionByMatch.get(m.id)?.submittedAt ?? null, m.videoUrl)] } : null}
+                        postMatch={m.status !== "cancelled" ? { commentators: commentatorsByMatch.get(m.id) ?? [], seasonAdmins, submittedAt: submissionByMatch.get(m.id)?.submittedAt ?? null, submittedByUserId: submissionByMatch.get(m.id)?.submittedByUserId ?? null, videoUrl: m.videoUrl, completionLabel: POST_MATCH_COMPLETION_LABEL[getPostMatchCompletion(submissionByMatch.get(m.id)?.submittedAt ?? null, m.videoUrl)], canSubmit: m.status === "finished" } : null}
                       />
                     );
                   })}

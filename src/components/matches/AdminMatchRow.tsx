@@ -181,6 +181,7 @@ export function AdminMatchRow({
             <Separator />
             {match.status !== "finished" && (
               <>
+                {postMatch && <PostMatchRecordPanel matchId={match.id} data={postMatch} />}
                 <div className="flex flex-wrap items-center gap-2">
       <AdminRosterDialog
                     matchId={match.id}
