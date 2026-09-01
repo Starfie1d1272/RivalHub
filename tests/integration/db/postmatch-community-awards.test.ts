@@ -16,7 +16,12 @@ describe("postmatch PostgreSQL invariants", () => {
       await pool.query("INSERT INTO seasons (id,slug,name,kind,status,registration_mode,has_captain_voting,has_draft) VALUES ($1,$2,'Postmatch','Major','playing','team',false,false)", [seasonId, `postmatch-${randomUUID()}`]);
       for (const [id, name] of [[adminA, "解说甲"], [adminB, "解说乙"], [adminC, "解说丙"], [outsider, "非管理员"], [representative, "代表"]]) await pool.query("INSERT INTO users (id,email,display_name) VALUES ($1,$2,$3)", [id, `${id}@local.test`, name]);
       await pool.query("INSERT INTO season_admin_grants (user_id,season_id) VALUES ($1,$4),($2,$4),($3,$4)", [adminA, adminB, adminC, seasonId]);
-      for (const [id, revision, name] of [[entryA, revisionA, "A 队"], [entryB, revisionB, "B 队"]]) { await pool.query("INSERT INTO competition_entries (id,competition_id,source,name,representative_user_id,current_roster_revision_id,approved_roster_revision_id,registration_status) VALUES ($1,$2,'event_native',$3,$4,$5,$5,'approved')", [id, seasonId, name, representative, revision]); await pool.query("INSERT INTO competition_entry_roster_revisions (id,entry_id,revision_number,status,created_by,approved_at) VALUES ($1,$2,1,'approved','local-test',now())", [revision, id]); }
+      const entryClient = await pool.connect();
+      try {
+        await entryClient.query("BEGIN");
+        for (const [id, revision, name] of [[entryA, revisionA, "A 队"], [entryB, revisionB, "B 队"]]) { await entryClient.query("INSERT INTO competition_entries (id,competition_id,source,name,representative_user_id,current_roster_revision_id,approved_roster_revision_id,registration_status) VALUES ($1,$2,'event_native',$3,$4,$5,$5,'approved')", [id, seasonId, name, representative, revision]); await entryClient.query("INSERT INTO competition_entry_representative_changes (entry_id,from_user_id,to_user_id,changed_by_actor_id) VALUES ($1,NULL,$2,'local-test')", [id, representative]); await entryClient.query("INSERT INTO competition_entry_roster_revisions (id,entry_id,revision_number,status,created_by,approved_at) VALUES ($1,$2,1,'approved','local-test',now())", [revision, id]); }
+        await entryClient.query("COMMIT");
+      } catch (error) { await entryClient.query("ROLLBACK"); throw error; } finally { entryClient.release(); }
       await pool.query("INSERT INTO matches (id,season_id,entry_a_id,entry_b_id,stage,format,status) VALUES ($1,$2,$3,$4,'final','bo1','scheduled')", [matchId, seasonId, entryA, entryB]);
       await db.transaction((tx) => addMatchCommentatorInTx(tx, { matchId, userId: adminA, actorId: adminA }));
       const nonAdmin = await pool.query("INSERT INTO match_commentators (match_id,user_id,added_by_user_id) VALUES ($1,$2,$3)", [matchId, outsider, adminA]).then(() => undefined, (error: { code?: string }) => error); expect(nonAdmin?.code).toBe("23514");
@@ -40,6 +45,24 @@ describe("postmatch PostgreSQL invariants", () => {
       await db.transaction((tx) => requestCommunityAwardSupplementInTx(tx, { awardId: supplement.awardId, note: "请补充可判断条件", actorId: adminA }));
       await db.transaction((tx) => reviseCommunityAwardInTx(tx, { awardId: supplement.awardId, submitterId: outsider, name: "补充奖", condition: "修订条件", prize: "修订奖品" }));
       const revised = await pool.query<{ status: string; review_note: string | null }>("SELECT status::text, review_note FROM community_awards WHERE id=$1", [supplement.awardId]); expect(revised.rows[0]).toEqual({ status: "pending_review", review_note: null });
-    } finally { await pool.query("DELETE FROM seasons WHERE id=$1", [seasonId]).catch(() => undefined); await pool.end(); }
+    } finally {
+      const cleanupClient = await pool.connect();
+      try {
+        await cleanupClient.query("BEGIN");
+        await cleanupClient.query("SET LOCAL session_replication_role = replica");
+        await cleanupClient.query("DELETE FROM community_award_evidence WHERE award_id IN (SELECT id FROM community_awards WHERE season_id = $1)", [seasonId]);
+        await cleanupClient.query("DELETE FROM community_awards WHERE season_id = $1", [seasonId]);
+        await cleanupClient.query("DELETE FROM post_match_reports WHERE match_id = $1", [matchId]);
+        await cleanupClient.query("DELETE FROM match_commentators WHERE match_id = $1", [matchId]);
+        await cleanupClient.query("DELETE FROM matches WHERE id = $1", [matchId]);
+        await cleanupClient.query("DELETE FROM competition_entry_roster_revisions WHERE entry_id IN ($1, $2)", [entryA, entryB]);
+        await cleanupClient.query("DELETE FROM competition_entry_representative_changes WHERE entry_id IN ($1, $2)", [entryA, entryB]);
+        await cleanupClient.query("DELETE FROM competition_entries WHERE id IN ($1, $2)", [entryA, entryB]);
+        await cleanupClient.query("DELETE FROM season_admin_grants WHERE season_id = $1", [seasonId]);
+        await cleanupClient.query("DELETE FROM seasons WHERE id = $1", [seasonId]);
+        await cleanupClient.query("DELETE FROM users WHERE id IN ($1, $2, $3, $4, $5)", [adminA, adminB, adminC, outsider, representative]);
+        await cleanupClient.query("COMMIT");
+      } catch { await cleanupClient.query("ROLLBACK").catch(() => undefined); } finally { cleanupClient.release(); await pool.end(); }
+    }
   });
 });

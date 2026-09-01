@@ -9,7 +9,7 @@ export type PostMatchRecordData = { commentators: { userId: string; name: string
 export function PostMatchRecordPanel({ matchId, data }: { matchId: string; data: PostMatchRecordData }) {
   const [isPending, startTransition] = useTransition();
   const [videoUrl, setVideoUrl] = useState(data.videoUrl ?? "");
-  const run = (work: () => Promise<{ success: boolean; error?: { message: string } }>, success: string) => startTransition(async () => { const result = await work(); result.success ? toast.success(success) : toast.error(result.error?.message ?? "操作失败。"); });
+  const run = (work: () => Promise<{ success: boolean; error?: { message: string } }>, success: string) => startTransition(async () => { const result = await work(); if (result.success) toast.success(success); else toast.error(result.error?.message ?? "操作失败。"); });
   const frozen = Boolean(data.submittedAt);
   return <section className="space-y-3 border-t border-[var(--color-border)] pt-3">
     <div className="flex items-center justify-between gap-2"><div><p className="font-mono text-[11px] tracking-[0.12em] text-[var(--color-fg-mid)]">解说与赛后资料</p><p className="text-xs text-[var(--color-fg-mid)]">当前状态：{data.completionLabel}。提交后名单冻结；录像可由赛事管理员后补。</p></div><span className="text-xs font-medium text-[var(--color-fg-mid)]">{data.completionLabel}</span></div>
