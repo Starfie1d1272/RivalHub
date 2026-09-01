@@ -24,6 +24,8 @@ describe("TeamPublicProfile", () => {
     expect(screen.getByText("我的队伍 · 队长")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "管理我的队伍" })).toHaveAttribute("href", "/my/teams");
     expect(screen.getAllByText("当前成员").length).toBeGreaterThan(0);
+    expect(screen.getByText("赛事记录")).toBeInTheDocument();
+    expect(screen.queryByText("参赛届数")).not.toBeInTheDocument();
     expect(screen.getByText("已通过")).toBeInTheDocument();
     expect(screen.getByText("Rival Entry")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /2026 秋季赛/ })).toHaveAttribute("href", "/autumn-2026/teams/entry-1");

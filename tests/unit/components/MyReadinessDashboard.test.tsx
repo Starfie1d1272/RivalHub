@@ -78,6 +78,7 @@ describe("MyReadinessDashboard", () => {
     render(<MyReadinessDashboard model={model} />);
 
     expect(screen.getByRole("link", { name: "处理当前队伍" })).toHaveAttribute("href", "/settings");
+    expect(screen.getByRole("link", { name: "处理当前队伍" })).toHaveClass("border-input");
     expect(screen.queryByRole("link", { name: "查看队伍" })).not.toBeInTheDocument();
   });
 

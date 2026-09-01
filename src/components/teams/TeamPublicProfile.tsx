@@ -53,7 +53,7 @@ export function TeamPublicProfile({ team, currentMembers, entries, nameChanges, 
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="当前成员" value={currentMembers.length} />
-        <Stat label="参赛届数" value={entries.length} />
+        <Stat label="赛事记录" value={entries.length} />
         <Stat label="比赛场次" value={playedCount} />
         <Stat label="获胜场次" value={wins} />
       </div>

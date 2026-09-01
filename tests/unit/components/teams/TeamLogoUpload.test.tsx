@@ -71,4 +71,22 @@ describe("TeamLogoUpload", () => {
 
     expect(click).toHaveBeenCalledOnce();
   });
+
+  it("uses a focusable button for keyboard-accessible logo editing", () => {
+    render(
+      <TeamLogoUpload
+        teamId="team-1"
+        currentLogoUrl={null}
+        teamName="Rival Team"
+        canEdit
+      />,
+    );
+
+    const control = screen.getByRole("button", { name: "更换队伍图标" });
+    expect(control.tagName).toBe("BUTTON");
+    expect(control).toHaveAttribute("type", "button");
+    control.focus();
+    expect(control).toHaveFocus();
+    expect(control).toHaveClass("focus-visible:ring-2");
+  });
 });
