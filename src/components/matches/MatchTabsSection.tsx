@@ -18,7 +18,7 @@ interface MatchRow {
 interface MatchTabsSectionProps {
   activeMatches: MatchRow[];
   doneMatches: MatchRow[];
-  stage: string;
+  stageLabel: string;
   seasonSlug: string;
   teamMap: Map<string, string>;
   /** 队伍名未找到时的 fallback 文案，默认"未知队伍" */
@@ -28,7 +28,7 @@ interface MatchTabsSectionProps {
 export function MatchTabsSection({
   activeMatches,
   doneMatches,
-  stage,
+  stageLabel,
   seasonSlug,
   teamMap,
   unknownTeamName = "未知队伍",
@@ -51,7 +51,7 @@ export function MatchTabsSection({
                 teamBName={teamMap.get(m.entryBId) ?? unknownTeamName}
                 scoreA={m.scoreA}
                 scoreB={m.scoreB}
-                stage={stage}
+                stageLabel={stageLabel}
                 format={isMatchFormat(m.format) ? m.format : "bo1"}
                 status={isMatchStatus(m.status) ? m.status : "scheduled"}
                 scheduledAt={m.scheduledAt}
@@ -75,7 +75,7 @@ export function MatchTabsSection({
                 teamBName={teamMap.get(m.entryBId) ?? unknownTeamName}
                 scoreA={m.scoreA}
                 scoreB={m.scoreB}
-                stage={stage}
+                stageLabel={stageLabel}
                 format={isMatchFormat(m.format) ? m.format : "bo1"}
                 status={isMatchStatus(m.status) ? m.status : "scheduled"}
                 scheduledAt={m.scheduledAt}
