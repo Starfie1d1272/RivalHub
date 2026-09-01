@@ -8,6 +8,7 @@ import {
   eventRosters,
   institutions,
   majorStageRuns,
+  matchCommentators,
   matchRosterPlayers,
   matchRosters,
   matches,
@@ -451,6 +452,10 @@ export async function applyMatchStatusTransitionInTx(
     args.nextStatus === "in_progress"
       ? await assertConfirmedLineupsForStartInTx(tx, locked)
       : null;
+  const clearedCommentators =
+    args.nextStatus === "cancelled"
+      ? await tx.delete(matchCommentators).where(eq(matchCommentators.matchId, locked.id)).returning({ userId: matchCommentators.userId })
+      : [];
 
   await tx
     .update(matches)
@@ -475,6 +480,9 @@ export async function applyMatchStatusTransitionInTx(
               substituteIds: summary.substituteIds,
             })),
           }
+        : {}),
+      ...(clearedCommentators.length > 0
+        ? { clearedCommentatorUserIds: clearedCommentators.map((commentator) => commentator.userId) }
         : {}),
     },
   });

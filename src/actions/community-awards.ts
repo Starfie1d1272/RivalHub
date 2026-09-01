@@ -17,6 +17,7 @@ import {
   withdrawCommunityAwardInTx,
 } from "@/lib/community-awards/service";
 import { AppError, ErrorCode } from "@/lib/errors";
+import { isHttpUrl } from "@/lib/external-url";
 import { fail, ok, type ActionResult } from "@/types/action";
 
 const uuid = z.string().uuid();
@@ -112,7 +113,7 @@ export async function withdrawCommunityAward(input: unknown): Promise<ActionResu
 }
 
 export async function addCommunityAwardEvidence(input: unknown): Promise<ActionResult<{ evidenceId: string }>> {
-  const parsed = z.object({ awardId: uuid, candidateUserId: uuid.nullable().optional(), matchId: uuid.nullable().optional(), explanation: z.string().trim().min(1).max(3000), videoUrl: z.string().url().max(2000).nullable().optional() }).safeParse(input);
+  const parsed = z.object({ awardId: uuid, candidateUserId: uuid.nullable().optional(), matchId: uuid.nullable().optional(), explanation: z.string().trim().min(1).max(3000), videoUrl: z.string().trim().max(2000).refine(isHttpUrl, "证据视频链接必须是 http 或 https URL").nullable().optional() }).safeParse(input);
   if (!parsed.success) return invalid("证据资料无效。 ");
   try {
     const user = await requireAuth();

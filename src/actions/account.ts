@@ -10,6 +10,7 @@ import { ok, fail, type ActionResult } from "@/types/action";
 import { failValidation, actionError } from "@/lib/action-utils";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { MIN_PASSWORD_LENGTH } from "@/lib/config/auth-config";
+import { isHttpUrl } from "@/lib/external-url";
 
 export async function changeUserPassword(
   oldPassword: string,
@@ -115,12 +116,7 @@ export async function updateProfile(
   const qq = input.qq.trim();
   if (qq && !/^\d{5,12}$/.test(qq)) return failValidation("QQ 号格式不正确");
   const liveStreamUrl = input.liveStreamUrl?.trim() ?? "";
-  if (liveStreamUrl) {
-    try {
-      const url = new URL(liveStreamUrl);
-      if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("scheme");
-    } catch { return failValidation("直播间链接必须是合法的 http 或 https URL"); }
-  }
+  if (liveStreamUrl && !isHttpUrl(liveStreamUrl)) return failValidation("直播间链接必须是合法的 http 或 https URL");
 
   try {
     const session = await requireAuth();

@@ -90,6 +90,7 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM season_admin_grants WHERE season_id = match_season_id AND user_id = NEW.user_id) THEN RAISE EXCEPTION 'commentator must be a season admin' USING ERRCODE = '23514'; END IF;
     IF (SELECT count(*) FROM match_commentators WHERE match_id = NEW.match_id) >= 2 THEN RAISE EXCEPTION 'a match has at most two commentators' USING ERRCODE = '23514'; END IF;
   ELSE
+    IF match_status <> 'finished' THEN RAISE EXCEPTION 'post-match reports require a finished match' USING ERRCODE = '23514'; END IF;
     IF NOT EXISTS (SELECT 1 FROM match_commentators WHERE match_id = NEW.match_id AND user_id = NEW.submitted_by_user_id) THEN RAISE EXCEPTION 'submitter must be a registered commentator' USING ERRCODE = '23514'; END IF;
   END IF;
   RETURN NEW;

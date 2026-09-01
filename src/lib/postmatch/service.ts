@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import { auditLogs, matchCommentators, matches, postMatchReports, seasonAdminGrants } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
+import { isHttpUrl } from "@/lib/external-url";
 
 async function lockMatchInTx(tx: TxDb, matchId: string) {
   const [match] = await tx.select().from(matches).where(eq(matches.id, matchId)).for("update");
@@ -67,5 +68,5 @@ export function getPostMatchCompletion(submittedAt: Date | null, videoUrl: strin
 export const POST_MATCH_COMPLETION_LABEL: Record<PostMatchCompletion, string> = { pending_collection: "待整理", waiting_video: "等待录像", completed: "已完成" };
 
 export function getPublicLiveCommentators<T extends { liveStreamUrl: string | null }>(status: "scheduled" | "in_progress" | "finished" | "cancelled", commentators: T[]): T[] {
-  return status === "scheduled" || status === "in_progress" ? commentators.filter((commentator) => Boolean(commentator.liveStreamUrl)) : [];
+  return status === "scheduled" || status === "in_progress" ? commentators.filter((commentator) => commentator.liveStreamUrl !== null && isHttpUrl(commentator.liveStreamUrl)) : [];
 }
