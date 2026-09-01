@@ -12,7 +12,6 @@ const STATE_LABEL = {
   unavailable: "尚未接入/不可确认",
 } as const;
 
-
 export function MajorPrestartConsole({
   seasonName,
   readiness,
@@ -51,7 +50,7 @@ export function MajorPrestartConsole({
       {swissRuntime && <MajorSwissRuntimeManagement data={swissRuntime} />}
       {playoffRuntime && <MajorPlayoffRuntimeManagement data={playoffRuntime} />}
 
-      <Panel label="阶段一首轮预览">
+      <Panel label="STAGE1 首轮预览">
         {readiness.openingPlan ? (
           <ol className="grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
             {readiness.openingPlan.firstRound.pairings.map((pairing) => (
