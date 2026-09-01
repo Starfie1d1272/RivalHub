@@ -161,8 +161,7 @@ site_url = "http://127.0.0.1:3000"
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
 additional_redirect_urls = [
-  "http://127.0.0.1:3000/auth/callback/signup",
-  "http://127.0.0.1:3000/auth/callback/reverify",
+  "http://127.0.0.1:3000/auth/confirmation",
 ]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
@@ -229,8 +228,10 @@ double_confirm_changes = true
 enable_confirmations = true
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false
-# Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
-max_frequency = "1s"
+# Keep local resend behavior aligned with the documented operational default
+# and the public client cooldown. This is local configuration only; it does
+# not assert the Hosted project's current production setting.
+max_frequency = "60s"
 # Number of characters used in the email OTP.
 otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).

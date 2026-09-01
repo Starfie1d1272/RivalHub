@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { ErrorCode } from "@/lib/errors";
 import { mockUserSession } from "tests/helpers";
 
@@ -10,6 +12,7 @@ const {
   claimAdminInviteInTxMock,
   signInWithPasswordMock,
   resetPasswordForEmailMock,
+  resendMock,
   signUpMock,
   revalidatePathMock,
   normalizeEmailMock,
@@ -24,6 +27,7 @@ const {
     claimAdminInviteInTxMock: vi.fn(),
     signInWithPasswordMock: vi.fn(),
     resetPasswordForEmailMock: vi.fn(),
+    resendMock: vi.fn(),
     signUpMock: vi.fn(),
     revalidatePathMock: vi.fn(),
     normalizeEmailMock: vi.fn((email: string) => email),
@@ -51,7 +55,7 @@ vi.mock("@/lib/auth/supabase", () => ({
       signUp: signUpMock,
     },
   }),
-  createPublicAuthClient: () => ({ auth: { signUp: signUpMock } }),
+  createPublicAuthClient: () => ({ auth: { signUp: signUpMock, resend: resendMock } }),
 }));
 
 vi.mock("next/cache", () => ({
@@ -75,7 +79,7 @@ vi.mock("@/db/client", () => {
   };
 });
 
-import { loginWithPassword, signUp, sendPasswordResetEmail, logoutUser, claimInviteCode } from "@/actions/auth";
+import { loginWithPassword, signUp, resendSignupConfirmation, sendPasswordResetEmail, logoutUser, claimInviteCode } from "@/actions/auth";
 import { MIN_PASSWORD_LENGTH } from "@/lib/config/auth-config";
 
 // ── helpers ───────────────────────────────────────────────────────────────
@@ -149,6 +153,21 @@ describe("loginWithPassword", () => {
     if (!result.success) {
       expect(result.error.code).toBe(ErrorCode.UNAUTHORIZED);
     }
+  });
+
+  it("未确认邮箱返回可继续验证的提示", async () => {
+    signInWithPasswordMock.mockResolvedValue({
+      data: { user: null },
+      error: { code: "email_not_confirmed", message: "Email not confirmed" },
+    });
+
+    const result = await loginWithPassword(VALID_EMAIL, VALID_PASSWORD);
+
+    expect(result).toMatchObject({
+      success: false,
+      error: { code: ErrorCode.EMAIL_NOT_CONFIRMED },
+    });
+    if (!result.success) expect(result.error.message).toContain("邮箱尚未验证");
   });
 
   it("正常登录：upsert user + createUserSession + 返回 email", async () => {
@@ -250,6 +269,18 @@ describe("signUp", () => {
     if (!result.success) {
       expect(result.error.code).toBe(ErrorCode.VALIDATION_FAILED);
     }
+  });
+
+  it("signup 的发信 rate limit 返回可操作提示", async () => {
+    signUpMock.mockResolvedValue({
+      data: { user: null },
+      error: { code: "over_email_send_rate_limit", message: "email rate limit exceeded" },
+    });
+
+    const result = await signUp(VALID_EMAIL, VALID_PASSWORD, VALID_PASSWORD);
+
+    expect(result).toMatchObject({ success: false, error: { code: ErrorCode.EMAIL_SEND_RATE_LIMITED } });
+    if (!result.success) expect(result.error.message).toBe("邮件发送过于频繁，请稍后再试。");
   });
 
   it("siteverify success=false：用户可见行为不变，仅输出脱敏 server 日志", async () => {
@@ -355,6 +386,59 @@ describe("signUp", () => {
   });
 });
 
+// ── resendSignupConfirmation ────────────────────────────────────────────
+
+describe("resendSignupConfirmation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.NEXT_PUBLIC_APP_URL = "https://match.starfie1d.top";
+    normalizeEmailMock.mockImplementation((e: string) => e.trim().toLowerCase());
+  });
+
+  it("成功时使用带 flow 参数的确认页 URL", async () => {
+    resendMock.mockResolvedValue({ error: null });
+
+    await expect(resendSignupConfirmation(" TEST@EXAMPLE.COM ", "/seasons/current")).resolves.toMatchObject({ success: true });
+    expect(resendMock).toHaveBeenCalledWith({
+      type: "signup",
+      email: "test@example.com",
+      options: { emailRedirectTo: "https://match.starfie1d.top/auth/confirmation?flow=signup&next=%2Fseasons%2Fcurrent" },
+    });
+  });
+
+  it("确认页 redirect 与版本化模板使用 ? + & 追加 token，避免双 ? 丢失 token", async () => {
+    resendMock.mockResolvedValue({ error: null });
+
+    await resendSignupConfirmation(VALID_EMAIL);
+
+    const [{ options }] = resendMock.mock.calls[0];
+    expect(options.emailRedirectTo).toBe("https://match.starfie1d.top/auth/confirmation?flow=signup");
+    const template = readFileSync(
+      resolve(process.cwd(), "supabase/templates/confirm-signup.html"),
+      "utf8",
+    );
+    expect(template).toContain("{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=email");
+  });
+
+  it("rate limit 不再伪装为已发送", async () => {
+    resendMock.mockResolvedValue({ error: { code: "over_email_send_rate_limit", message: "email rate limit exceeded" } });
+
+    const result = await resendSignupConfirmation(VALID_EMAIL);
+
+    expect(result).toMatchObject({ success: false, error: { code: ErrorCode.EMAIL_SEND_RATE_LIMITED } });
+    if (!result.success) expect(result.error.message).toBe("邮件发送过于频繁，请稍后再试。");
+  });
+
+  it("其它发信错误不伪装为已发送", async () => {
+    resendMock.mockResolvedValue({ error: { code: "unexpected_failure", message: "SMTP unavailable" } });
+
+    const result = await resendSignupConfirmation(VALID_EMAIL);
+
+    expect(result).toMatchObject({ success: false, error: { code: ErrorCode.INTERNAL_ERROR } });
+    if (!result.success) expect(result.error.message).toBe("验证邮件暂时无法发送，请稍后重试。");
+  });
+});
+
 // ── sendPasswordResetEmail ───────────────────────────────────────────────
 
 describe("sendPasswordResetEmail", () => {
@@ -388,6 +472,17 @@ describe("sendPasswordResetEmail", () => {
       expect(result.error.message).toBe("重置邮件暂时无法发送，请稍后重试。");
       expect(result.error.message).not.toContain("authorized");
     }
+  });
+
+  it("rate limit 返回可操作提示而不伪装成成功", async () => {
+    resetPasswordForEmailMock.mockResolvedValue({
+      error: { code: "over_email_send_rate_limit", message: "email rate limit exceeded", status: 429 },
+    });
+
+    const result = await sendPasswordResetEmail("test@example.com");
+
+    expect(result).toMatchObject({ success: false, error: { code: ErrorCode.EMAIL_SEND_RATE_LIMITED } });
+    if (!result.success) expect(result.error.message).toBe("邮件发送过于频繁，请稍后再试。");
   });
 });
 

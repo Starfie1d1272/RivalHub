@@ -5,12 +5,12 @@
 RivalHub 的唯一账户路径是 Supabase Auth email/password + `public.users` + `rivalhub-session`。`users.role` 只允许 `user` 与 `super_admin`；赛季管理员不是持久化全局角色，而是 `season_admin_grants` 中的精确用户—赛季授权事实。
 
 ```text
-signup → confirmation email → auth callback → application session
+signup → confirmation email → confirmation page → explicit confirmation POST → application session
 login  → password authentication → application session
 forgot password → recovery email → /reset-password
 ```
 
-注册与登录采用 email/password；邮件链接用于注册确认、既有邮箱重新验证和密码恢复。注册不会立即创建应用 session；auth callback 在确认邮箱后同步 `users.emailVerifiedAt` 并建立 session。登录路径会同步应用账号，并在必要时检查 owner bootstrap。
+注册与登录采用 email/password；邮件链接用于注册确认、既有邮箱重新验证和密码恢复。注册不会立即创建应用 session；确认页的 GET 不验证 token，而由用户显式确认后的 POST 同步 `users.emailVerifiedAt` 并建立 session。登录路径会同步应用账号，并在必要时检查 owner bootstrap。
 
 ## Owner bootstrap
 

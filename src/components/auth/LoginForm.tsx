@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useTransition, useCallback, useRef } from "react";
+import { useState, useTransition, useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { Field } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { loginWithPassword, resendSignupConfirmation, signUp } from "@/actions/auth";
 import { TurnstileWidget } from "@/components/auth/TurnstileWidget";
-import { isPasswordPolicySatisfied, MIN_PASSWORD_LENGTH, PASSWORD_POLICY_MESSAGE } from "@/lib/config/auth-config";
+import { EMAIL_RESEND_COOLDOWN_SECONDS, isPasswordPolicySatisfied, MIN_PASSWORD_LENGTH, PASSWORD_POLICY_MESSAGE } from "@/lib/config/auth-config";
 import { safeLocalRedirect } from "@/lib/auth/redirect";
 
 type Mode = "login" | "register";
@@ -19,6 +19,7 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [mode, setMode] = useState<Mode>(initialMode);
   const [awaitingEmail, setAwaitingEmail] = useState<string | null>(null);
+  const [resendAvailableAt, setResendAvailableAt] = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
   const redirectRef = useRef(safeLocalRedirect(redirectTo));
 
@@ -28,6 +29,15 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
     setTurnstileToken("");
     setTurnstileResetKey((key) => key + 1);
   };
+
+  useEffect(() => {
+    if (resendAvailableAt === null) return;
+    const timeout = window.setTimeout(
+      () => setResendAvailableAt(null),
+      Math.max(0, resendAvailableAt - Date.now()),
+    );
+    return () => window.clearTimeout(timeout);
+  }, [resendAvailableAt]);
 
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
@@ -48,10 +58,15 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
       if (result.success) {
         if (mode === "register") {
           setAwaitingEmail(email.trim());
+          setResendAvailableAt(Date.now() + EMAIL_RESEND_COOLDOWN_SECONDS * 1_000);
         } else {
           window.location.href = redirectRef.current;
         }
       } else {
+        if (mode === "login" && result.error.code === "EMAIL_NOT_CONFIRMED") {
+          setAwaitingEmail(email.trim());
+          return;
+        }
         if (mode === "register") {
           setTurnstileToken("");
           setTurnstileResetKey((key) => key + 1);
@@ -62,7 +77,8 @@ export function LoginForm({ initialMode = "login", redirectTo = "/" }: { initial
   }, [email, password, confirmPassword, mode, turnstileToken]);
 
   if (awaitingEmail) {
-    return <div className="space-y-4"><div className="rounded-sm border border-[var(--color-border)] p-4"><h2 className="font-semibold">验证邮件已发送</h2><p className="mt-2 break-all text-sm text-[var(--color-fg-mid)]">请打开 {awaitingEmail} 中的邮件完成验证。验证前不会登录 RivalHub。</p></div><Button type="button" variant="outline" className="w-full" disabled={isPending} onClick={() => startTransition(async () => { const result = await resendSignupConfirmation(awaitingEmail, redirectRef.current); if (result.success) toast.success("验证邮件已重新发送"); else toast.error(result.error.message); })}>重新发送验证邮件</Button><button type="button" className="w-full text-sm underline" onClick={() => { setAwaitingEmail(null); setMode("login"); }}>返回登录</button><button type="button" className="w-full text-sm underline" onClick={() => { setAwaitingEmail(null); setMode("register"); setEmail(""); setPassword(""); setConfirmPassword(""); setTurnstileToken(""); setTurnstileResetKey((key) => key + 1); }}>修改邮箱或重新注册</button></div>;
+    const isResendCoolingDown = resendAvailableAt !== null;
+    return <div className="space-y-4"><div className="rounded-sm border border-[var(--color-border)] p-4"><h2 className="font-semibold">验证邮件已发送</h2><p className="mt-2 break-all text-sm text-[var(--color-fg-mid)]">请打开 {awaitingEmail} 中的邮件完成验证。验证前不会登录 RivalHub。</p><p className="mt-2 text-sm text-[var(--color-fg-mid)]">如果收件箱中没有看到邮件，请检查垃圾邮件、广告邮件或其它分类。</p></div><Button type="button" variant="outline" className="w-full" disabled={isPending || isResendCoolingDown} onClick={() => startTransition(async () => { const result = await resendSignupConfirmation(awaitingEmail, redirectRef.current); if (result.success) { setResendAvailableAt(Date.now() + EMAIL_RESEND_COOLDOWN_SECONDS * 1_000); toast.success("验证邮件已重新发送"); } else toast.error(result.error.message); })}>{isResendCoolingDown ? `请等待 ${EMAIL_RESEND_COOLDOWN_SECONDS} 秒后重试` : "重新发送验证邮件"}</Button><button type="button" className="w-full text-sm underline" onClick={() => { setAwaitingEmail(null); setResendAvailableAt(null); setMode("login"); }}>返回登录</button><button type="button" className="w-full text-sm underline" onClick={() => { setAwaitingEmail(null); setResendAvailableAt(null); setMode("register"); setEmail(""); setPassword(""); setConfirmPassword(""); setTurnstileToken(""); setTurnstileResetKey((key) => key + 1); }}>使用其他邮箱</button></div>;
   }
 
   return (
