@@ -31,6 +31,8 @@ RivalHub 以最高已完成的验证层级描述能力证据：
 | `pnpm verify` | check + production build；build 不需要数据库或 fake DB URL |
 | `pnpm verify:local` | 确保 Local ready，bootstrap/verify、verify、real-PG integration 与 browser E2E |
 | `pnpm db:check` | Drizzle active migration chain |
+| `pnpm db:production:verify` | 严格只读校验明确确认的 production ledger、SQL SHA 与 terminal schema contract |
+| `pnpm db:production:migrate` | 先 Local/production preflight，再唯一的 Drizzle 前向迁移与自动 production verify |
 | `pnpm build` | production build |
 | `pnpm build:local` | 注入 loopback Local Supabase 环境的 production build |
 

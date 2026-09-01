@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { eq, and, asc, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { competitionEntries, eventRosterMembers, eventRosters, users, seasonRegistrations, seasons, matches, matchMaps, competitiveRankFacts } from "@/db/schema";
+import { competitionEntries, eventRosterMembers, eventRosters, users, seasonRegistrations, seasons, matches, matchMaps, competitiveRankFacts, userCompetitiveRoles } from "@/db/schema";
 import { resolveAvatarUrl } from "@/lib/steam";
 import { PUBLIC_PLAYER_INFO_FIELDS } from "@/lib/utils/player-info-fields";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
@@ -15,6 +15,8 @@ import { wAvg } from "@/lib/utils/stats";
 import { getSeasonHexagonScores } from "@/actions/hexagon";
 import type { HexagonScores } from "@/lib/utils/hexagon";
 import { PlayerRadarChart } from "@/components/matches/PlayerRadarChart";
+import { loadCompetitivePlatformCatalog } from "@/lib/competitive/catalog";
+import { presentCompetitiveRole, presentPublicCompetitiveProfile } from "@/lib/competitive/presentation";
 
 /**
  * 统计玩家 MVP 获胜次数（从 matches.mvp_winner_user_id 直读，已持久化缓存）。
@@ -62,19 +64,16 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
   if (!user) notFound();
 
   // ── 并行：报名记录 / MVP 胜场 / 个人数据 / Steam 头像 ──────────────────
-  const [registrations, mvpWinCount, playerStats, avatarUrl] = await Promise.all([
+  const [registrations, mvpWinCount, playerStats, avatarUrl, competitiveFacts, competitiveRoles, competitiveCatalog] = await Promise.all([
     db
       .select({
         id: seasonRegistrations.id,
         seasonId: seasonRegistrations.seasonId,
         primaryPosition: seasonRegistrations.primaryPosition,
-        secondaryPosition: seasonRegistrations.secondaryPosition,
         peakRank: seasonRegistrations.peakRank,
         peakRankSeason: seasonRegistrations.peakRankSeason,
         peakRating: seasonRegistrations.peakRating,
         peakWe: seasonRegistrations.peakWe,
-        currentSeasonPeakRank: seasonRegistrations.currentSeasonPeakRank,
-        currentRating: seasonRegistrations.currentRating,
         mapPreferences: seasonRegistrations.mapPreferences,
         highlightVideoUrl: seasonRegistrations.highlightVideoUrl,
         gameplayStyle: seasonRegistrations.gameplayStyle,
@@ -128,6 +127,9 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
       .groupBy(seasons.id, seasons.name, seasons.slug, seasons.createdAt)
       .orderBy(asc(seasons.createdAt)),
     resolveAvatarUrl({ avatarUrl: user.avatarUrl, steam64: user.steam64 }),
+    db.select().from(competitiveRankFacts).where(eq(competitiveRankFacts.userId, userId)),
+    db.select().from(userCompetitiveRoles).where(eq(userCompetitiveRoles.userId, userId)),
+    loadCompetitivePlatformCatalog(db),
   ]);
 
   // ── 六维数据：仅对有数据的赛季查询 ──────────────────────────────────
@@ -155,7 +157,11 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
     .where(eq(eventRosterMembers.userId, userId));
 
   const teamBySeasonId = new Map(teamMemberRows.map((r) => [r.seasonId, r]));
-  const competitiveFacts = await db.select().from(competitiveRankFacts).where(eq(competitiveRankFacts.userId, userId));
+  const publicCompetitiveProfile = presentPublicCompetitiveProfile(competitiveCatalog, competitiveFacts);
+  const publicCompetitiveRoles = competitiveRoles
+    .sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary))
+    .map((role) => presentCompetitiveRole(role.role))
+    .filter((role): role is string => role !== null);
 
   // ── 跨赛季比赛战绩（以个人 OCR 出场记录为准）───────────────────────
   const teamIds = [...new Set(teamMemberRows.map((r) => r.teamId).filter(Boolean))];
@@ -198,7 +204,8 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
 
   const played = totalWins + totalLosses;
 
-  // 最新报名的主位置
+  // Registration snapshots remain event history only; the header's current
+  // long-lived role preferences come from user_competitive_roles above.
   const latestReg = registrations[registrations.length - 1];
 
   // ── 生涯总计预计算 ──────────────────────────────────────────────────
@@ -239,12 +246,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
           )}
 
           <div className="flex flex-wrap items-center gap-2">
-            {latestReg && (
-              <>
-                <PosChip pos={POSITION_LABELS[latestReg.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? latestReg.primaryPosition} />
-                <PosChip pos={POSITION_LABELS[latestReg.secondaryPosition as keyof typeof POSITION_LABELS]?.cn ?? latestReg.secondaryPosition} />
-              </>
-            )}
+            {publicCompetitiveRoles.map((role) => <PosChip key={role} pos={role} />)}
             {user.steamProfileUrl && (
               <a
                 href={user.steamProfileUrl}
@@ -259,7 +261,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
         </div>
       </div>
 
-      {competitiveFacts.length > 0 && <section className="space-y-3"><SectionHeading>公开竞技档案</SectionHeading><Panel pad={16}><div className="space-y-2 text-sm">{competitiveFacts.map((fact) => <p key={fact.id}><span className="text-[var(--color-fg-mid)]">{fact.kind === "historical_peak" ? "历史最高" : `赛季 ${fact.platformSeasonKey ?? "—"} 最高`}</span> · {fact.rank} · Rating {String(fact.rating)}</p>)}</div></Panel></section>}
+      {publicCompetitiveProfile.length > 0 && <section className="space-y-3"><SectionHeading>公开竞技档案</SectionHeading><Panel pad={16}><div className="space-y-4 text-sm">{publicCompetitiveProfile.map((platform) => <div key={platform.displayName} className="space-y-2"><p className="font-semibold text-[var(--color-fg)]">{platform.displayName}</p>{platform.facts.map((fact) => <p key={`${platform.displayName}-${fact.label}`}><span className="text-[var(--color-fg-mid)]">{fact.label}</span> · {fact.rankLabel}{fact.stars !== null ? ` ${fact.stars} 星` : ""} · {fact.ratingLabel} {fact.rating}</p>)}</div>)}</div></Panel></section>}
 
       {latestReg && (
         <section className="space-y-3">
@@ -448,7 +450,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
         </section>
       )}
 
-      {/* 赛季记录 */}
+      {/* Immutable event-registration snapshots, deliberately separate from the long-lived profile above. */}
       {registrations.length > 0 && (
         <section className="space-y-3">
           <SectionHeading>参赛记录</SectionHeading>

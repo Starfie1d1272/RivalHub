@@ -5,16 +5,109 @@ on:
     tags:
       - "v*"
 
+concurrency:
+  group: rivalhub-production-release
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
+    environment: production
     permissions:
       contents: write
+    env:
+      NEXT_TELEMETRY_DISABLED: 1
+      # Fixed non-secret Vercel target. The only credential this workflow needs
+      # is VERCEL_TOKEN; production DATABASE_URL remains owned by Vercel.
+      VERCEL_ORG_ID: team_0eIkBawGTdVjwYHdyrb20ZVV
+      VERCEL_PROJECT_ID: prj_3bjmfKrSqRh4szrkEE4HpavnhI0E
+      RIVALHUB_DB_TARGET: production
+      RIVALHUB_PRODUCTION_PROJECT_CONFIRM: sucokfotkypwqkckfynp
+      RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: aws-0-ap-northeast-1.pooler.supabase.com:6543
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        # 不指定 ref，checkout 当前 tag 指向的 commit。
-        # 创建 tag 前必须确保对应 version 与 CHANGELOG 已随 release commit 进入 main，
-        # 使 tag checkout 包含完整的版本与发布说明。
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+        # 不指定 ref，checkout 当前 tag 指向的 commit。release 的数据库、部署、
+        # changelog 与 GitHub Release 都必须来自同一个不可变 tag commit。
+
+      - name: Require release tag commit on main
+        run: |
+          git fetch origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "Release tag $GITHUB_REF_NAME does not point to a commit contained in main." >&2
+            exit 1
+          fi
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        with:
+          version: 10.34.5
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install pinned Vercel CLI
+        run: pnpm add --global vercel@59.10.0
+
+      - name: Verify Vercel release credential
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          if [[ -z "$VERCEL_TOKEN" ]]; then
+            echo "GitHub production environment secret VERCEL_TOKEN is required." >&2
+            exit 1
+          fi
+          vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+
+      - name: Validate active migration chain locally
+        run: |
+          pnpm db:check
+          pnpm db:local:start
+
+      - name: Migrate and verify production database
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          vercel env run -e production -- \
+            env \
+              RIVALHUB_DB_TARGET=production \
+              RIVALHUB_PRODUCTION_PROJECT_CONFIRM="$RIVALHUB_PRODUCTION_PROJECT_CONFIRM" \
+              RIVALHUB_PRODUCTION_DB_HOST_CONFIRM="$RIVALHUB_PRODUCTION_DB_HOST_CONFIRM" \
+              RIVALHUB_ALLOW_REMOTE_DB_WRITE=production \
+              pnpm db:production:migrate
+
+          vercel env run -e production -- \
+            env \
+              RIVALHUB_DB_TARGET=production \
+              RIVALHUB_PRODUCTION_PROJECT_CONFIRM="$RIVALHUB_PRODUCTION_PROJECT_CONFIRM" \
+              RIVALHUB_PRODUCTION_DB_HOST_CONFIRM="$RIVALHUB_PRODUCTION_DB_HOST_CONFIRM" \
+              pnpm db:production:verify
+
+      - name: Deploy exact release commit to Vercel Production
+        id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          DEPLOYMENT_URL="$(vercel deploy --prod --yes --token="$VERCEL_TOKEN" \
+            --build-env RIVALHUB_RELEASE_TAG="$GITHUB_REF_NAME" \
+            --build-env RIVALHUB_RELEASE_COMMIT="$GITHUB_SHA")"
+          echo "url=$DEPLOYMENT_URL" >> "$GITHUB_OUTPUT"
+          echo "Production deployment: $DEPLOYMENT_URL"
+
+      - name: Smoke test production deployment
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
+        run: |
+          curl --fail --silent --show-error \
+            --retry 8 --retry-all-errors --retry-delay 5 \
+            "$DEPLOYMENT_URL/" >/dev/null
+          curl --fail --silent --show-error \
+            --retry 8 --retry-all-errors --retry-delay 5 \
+            "https://match.starfie1d.top/" >/dev/null
 
       - name: Extract changelog for this version
         run: |
@@ -48,3 +141,7 @@ jobs:
               --notes-file /tmp/release-notes.md \
               "${RELEASE_FLAGS[@]}"
           fi
+
+      - name: Stop Local Supabase
+        if: always()
+        run: pnpm db:local:stop || true

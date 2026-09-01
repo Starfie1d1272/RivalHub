@@ -1,1 +1,4 @@
-{}
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "tsx scripts/vercel-build.ts"
+}

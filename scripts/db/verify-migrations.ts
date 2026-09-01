@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { Pool } from "pg";
 import { assertLocalDatabaseUrl } from "./local-environment";
 import { assertStagingDatabaseUrl } from "./staging-environment";
+import { assertProductionConfirmations, assertProductionDatabaseUrl } from "./production-environment";
 import { isLegacyStandardMajorWithoutAffiliation } from "../../src/lib/competition/definition";
 import type { SeasonCapabilities } from "../../src/types/season";
 
@@ -18,7 +19,7 @@ async function main(): Promise<void> {
   const expected = readExpectedMigrations();
   const pool = new Pool({
     connectionString: databaseUrl,
-    ssl: target === "staging" ? { rejectUnauthorized: false } : false,
+    ssl: target === "staging" || target === "production" ? { rejectUnauthorized: false } : false,
     max: 1,
   });
 
@@ -71,9 +72,7 @@ async function main(): Promise<void> {
       hash: entry.hash,
       when: Number(entry.created_at),
     }));
-    if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-      throw new Error("Drizzle migration ledger 与 active migration chain 不完全一致。");
-    }
+    assertCompleteMigrationLedger(actual, expected);
 
     const legacyStandardRows = facts.seasons.filter((season) =>
       isLegacyStandardMajorWithoutAffiliation({
@@ -94,7 +93,21 @@ async function main(): Promise<void> {
       throw new Error(`发现 ${legacyStandardRows.length} 个 pre-0008 标准 Major 能力行缺少 affiliation_rules；拒绝猜测回填：${legacyStandardRows.map((row) => row.slug).join(", ")}`);
     }
 
-    console.log(`Migration verification passed for ${target}: ${expected.length} active migrations; no legacy standard Major affiliation backfill is required.`);
+    const terminalSchema = await pool.query<{
+      evidence_code: boolean;
+      evidence_url: boolean;
+      perfect_id: boolean;
+      roles: string[];
+    }>(`
+      SELECT
+        EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'education_verifications' AND column_name = 'evidence_code') AS evidence_code,
+        EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'education_verifications' AND column_name = 'evidence_url') AS evidence_url,
+        EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'perfect_id') AS perfect_id,
+        COALESCE((SELECT json_agg(enumlabel ORDER BY enumsortorder) FROM pg_enum WHERE enumtypid = 'public.cs2_role'::regtype), '[]'::json) AS roles
+    `);
+    assertCurrentTerminalSchema(terminalSchema.rows[0]);
+
+    console.log(`Migration verification passed for ${target}: ${expected.length} active migrations; active terminal schema contract is present.`);
   } finally {
     await pool.end();
   }
@@ -103,10 +116,14 @@ async function main(): Promise<void> {
 function databaseUrlFor(target: string | undefined, value: string | undefined): string {
   if (target === "local") return assertLocalDatabaseUrl(value);
   if (target === "staging") return assertStagingDatabaseUrl(value);
-  throw new Error("Migration verification 目标必须由受保护命令声明为 local 或 staging。");
+  if (target === "production") {
+    assertProductionConfirmations(process.env);
+    return assertProductionDatabaseUrl(value);
+  }
+  throw new Error("Migration verification 目标必须由受保护命令声明为 local、staging 或 production。");
 }
 
-function readExpectedMigrations(): Array<{ hash: string; when: number }> {
+export function readExpectedMigrations(): Array<{ hash: string; when: number }> {
   const migrationsDirectory = resolve(process.cwd(), "drizzle/migrations");
   const journal = JSON.parse(
     readFileSync(resolve(migrationsDirectory, "meta/_journal.json"), "utf8"),
@@ -120,7 +137,36 @@ function readExpectedMigrations(): Array<{ hash: string; when: number }> {
   }));
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exit(1);
-});
+export function assertCompleteMigrationLedger(
+  actual: readonly { hash: string; when: number }[],
+  expected: readonly { hash: string; when: number }[],
+): void {
+  if (actual.length < expected.length) {
+    throw new Error("Drizzle migration ledger 落后于 active migration chain；存在 pending migration。");
+  }
+  if (actual.length > expected.length) {
+    throw new Error("Drizzle migration ledger 包含 unexpected migration；拒绝继续。");
+  }
+  if (actual.some((entry, index) => entry.hash !== expected[index]?.hash || entry.when !== expected[index]?.when)) {
+    throw new Error("Drizzle migration ledger hash divergence；拒绝继续。");
+  }
+}
+
+export function assertCurrentTerminalSchema(facts: {
+  evidence_code: boolean;
+  evidence_url: boolean;
+  perfect_id: boolean;
+  roles: readonly string[];
+} | undefined): void {
+  const canonicalRoles = ["igl", "awper", "opener", "closer", "anchor"];
+  if (!facts?.evidence_code || facts.evidence_url || facts.perfect_id || JSON.stringify(facts.roles) !== JSON.stringify(canonicalRoles)) {
+    throw new Error("Active terminal schema contract 不完整：需要 evidence_code、无 evidence_url/perfect_id，且 cs2_role 为 canonical 集合。");
+  }
+}
+
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  });
+}

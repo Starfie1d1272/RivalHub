@@ -1,0 +1,40 @@
+import { describe, expect, it } from "vitest";
+import { presentCompetitiveRole, presentPublicCompetitiveProfile } from "@/lib/competitive/presentation";
+
+const catalog = [{
+  key: "perfect_world",
+  displayName: "完美平台",
+  ratingLabel: "Rating Pro",
+  ranks: [
+    { id: "bronze", rankKey: "bronze_s", label: "青铜 S", sortOrder: 1, starMin: 0, starMax: 9 },
+    { id: "gold", rankKey: "gold_s", label: "黄金 S", sortOrder: 2, starMin: 10, starMax: 24 },
+  ],
+  seasons: [
+    { id: "s1", seasonKey: "2026s1", label: "2026 第一赛季", sortOrder: 202601, active: true, isCurrent: false },
+    { id: "s2", seasonKey: "2026s2", label: "2026 第二赛季", sortOrder: 202602, active: true, isCurrent: true },
+  ],
+}];
+
+describe("public competitive profile presentation", () => {
+  it("uses catalog display labels, preserves stars and never exposes stored keys", () => {
+    const profile = presentPublicCompetitiveProfile(catalog, [
+      { id: "history", platform: "perfect_world", kind: "historical_peak", platformSeasonKey: null, rank: "gold_s", rating: "1.17", stars: 10 },
+      { id: "s1", platform: "perfect_world", kind: "season_peak", platformSeasonKey: "2026s1", rank: "bronze_s", rating: "1.10", stars: 8 },
+      { id: "s2", platform: "perfect_world", kind: "season_peak", platformSeasonKey: "2026s2", rank: "gold_s", rating: "1.17", stars: 10 },
+      { id: "unknown", platform: "unknown", kind: "season_peak", platformSeasonKey: "raw-season", rank: "raw-rank", rating: "9", stars: null },
+    ]);
+    expect(profile).toEqual([{
+      displayName: "完美平台",
+      facts: [
+        { label: "历史最高", rankLabel: "黄金 S", stars: 10, ratingLabel: "Rating Pro", rating: "1.17" },
+        { label: "2026 第二赛季 · 最高", rankLabel: "黄金 S", stars: 10, ratingLabel: "Rating Pro", rating: "1.17" },
+        { label: "2026 第一赛季 · 最高", rankLabel: "青铜 S", stars: 8, ratingLabel: "Rating Pro", rating: "1.10" },
+      ],
+    }]);
+  });
+
+  it("uses the shared long-lived role taxonomy and hides unknown persisted keys", () => {
+    expect(presentCompetitiveRole("igl")).toBe("IGL（指挥）");
+    expect(presentCompetitiveRole("legacy_position")).toBeNull();
+  });
+});

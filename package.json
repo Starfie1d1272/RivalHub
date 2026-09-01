@@ -1,6 +1,6 @@
 {
   "name": "rivalhub",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "private": true,
   "license": "AGPL-3.0",
   "scripts": {
@@ -19,6 +19,8 @@
     "db:push": "tsx scripts/db/block-drizzle-push.ts",
     "db:staging:migrate": "tsx scripts/db/staging.ts migrate",
     "db:staging:verify": "tsx scripts/db/staging.ts verify",
+    "db:production:migrate": "tsx scripts/db/production.ts migrate",
+    "db:production:verify": "tsx scripts/db/production.ts verify",
     "db:studio": "tsx scripts/db/local.ts studio",
     "db:local:start": "tsx scripts/db/local.ts start",
     "db:local:status": "tsx scripts/db/local.ts status",
