@@ -28,19 +28,27 @@ beforeEach(() => {
 });
 
 describe("freezeCompetitiveContext", () => {
-  it("freezes current, previous and the platform ladder rank keys", async () => {
+  it("freezes an event-owned three-season evidence policy and platform ladder", async () => {
     resolveLiveCompetitiveContextMock.mockResolvedValue({
       platform: "perfect_world",
       currentSeasonKey: "s21",
       previousSeasonKey: "s20",
+      priorSeasonKey: "s19",
       rankOrder: ["bronze", "silver", "gold"],
     });
     const config = await freezeCompetitiveContext(tx, majorSeason("perfect_world"));
     expect(config.competitiveProfile).toEqual({
       platform: "perfect_world",
-      currentSeasonKey: "s21",
-      previousSeasonKey: "s20",
+      currentSeasonKey: "s20",
+      previousSeasonKey: "s19",
       rankOrder: ["bronze", "silver", "gold"],
+      evidencePolicy: {
+        historicalWeight: 50,
+        referenceSeasonKey: "s19",
+        referenceSeasonWeight: 20,
+        recentSeasonKeys: ["s20", "s21"],
+        recentSeasonWeight: 30,
+      },
     });
   });
 
@@ -49,6 +57,7 @@ describe("freezeCompetitiveContext", () => {
       platform: "perfect_world",
       currentSeasonKey: "s21",
       previousSeasonKey: "s20",
+      priorSeasonKey: "s19",
       rankOrder: ["bronze"],
     });
     const season = majorSeason("perfect_world");

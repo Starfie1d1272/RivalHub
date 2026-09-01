@@ -93,10 +93,30 @@ export interface TeamRegistrationConfig {
 
 export interface CompetitiveProfileConfig {
   platform: string;
+  /**
+   * Compatibility slots for frozen 2.0 events. New events also persist an
+   * explicit evidencePolicy below; consumers must prefer it when present.
+   */
   currentSeasonKey: string;
   previousSeasonKey: string;
   /** Lowest → highest rank labels. Empty means no evaluator is configured yet. */
   rankOrder: string[];
+  evidencePolicy?: CompetitiveEvidencePolicy;
+}
+
+/**
+ * The event-owned, immutable policy for consuming platform season facts.
+ * `referenceSeasonKey` is the older complete season (20%), while the 30%
+ * recent term takes the strongest declared fact among all stable keys in
+ * `recentSeasonKeys` (normally the latest complete season plus the ongoing
+ * season). The platform catalog continues to own current/previous chronology.
+ */
+export interface CompetitiveEvidencePolicy {
+  historicalWeight: 50;
+  referenceSeasonKey: string;
+  referenceSeasonWeight: 20;
+  recentSeasonKeys: string[];
+  recentSeasonWeight: 30;
 }
 
 /**
@@ -188,10 +208,14 @@ export interface Season extends SeasonCapabilities {
   competitionTemplate: "rivals" | "major" | "custom";
   status: SeasonStatus;
   themeColor: string | null;
-  /** 报名提交开放时间；赛季发布后页面可见，但 now < startAt 时只能保存草稿。 */
-  startAt: Date | null;
-  /** 报名提交截止时间；超过后草稿和提交都关闭。 */
-  registrationDeadline: Date | null;
+  /** 报名开放时间；null 表示赛事已发布但报名时间待定。 */
+  registrationOpensAt: Date | null;
+  /** 报名实际开放的不可变事实。 */
+  registrationOpenedAt: Date | null;
+  /** 报名截止时间；超过后不再接受新的报名。 */
+  registrationClosesAt: Date | null;
+  /** 已有 Entry 最后可自行调整本届名单的时间；null 回退到报名截止。 */
+  rosterChangeClosesAt: Date | null;
   /** 赛季结束时间，仅用于展示/归档，不控制报名窗口。 */
   endAt: Date | null;
   createdAt: Date;
@@ -452,6 +476,15 @@ export function normalizeTeamRegistrationConfig(
           currentSeasonKey: config.competitiveProfile.currentSeasonKey.trim(),
           previousSeasonKey: config.competitiveProfile.previousSeasonKey.trim(),
           rankOrder: [...new Set(config.competitiveProfile.rankOrder.map((rank) => rank.trim()).filter(Boolean))],
+          evidencePolicy: config.competitiveProfile.evidencePolicy
+            ? {
+                historicalWeight: 50,
+                referenceSeasonKey: config.competitiveProfile.evidencePolicy.referenceSeasonKey.trim(),
+                referenceSeasonWeight: 20,
+                recentSeasonKeys: [...new Set(config.competitiveProfile.evidencePolicy.recentSeasonKeys.map((key) => key.trim()).filter(Boolean))],
+                recentSeasonWeight: 30,
+              }
+            : undefined,
         }
       : undefined,
   };

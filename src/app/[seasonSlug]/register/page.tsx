@@ -90,6 +90,19 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
   }
 
   const registrationWindow = getRegistrationWindowState(season);
+  if (registrationWindow.phase === "unscheduled" || registrationWindow.phase === "upcoming") {
+    return (
+      <div className="container mx-auto max-w-2xl px-4 py-16">
+        <Panel pad={40}>
+          <StatusBanner
+            tone="info"
+            title={season.name}
+            sub={registrationWindow.message}
+          />
+        </Panel>
+      </div>
+    );
+  }
   const userSession = await getUserSession();
   if (!userSession) {
     redirect(`/login?next=/${seasonSlug}/register`);
@@ -175,7 +188,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
         <StatusBanner
           tone={getWindowTone(registrationWindow.phase, registrationWindow.canSubmit)}
           title={registrationWindow.message}
-          sub="审核通过后，报名名单将锁定；赛前还会确认独立的正式参赛名单。"
+          sub={season.rosterChangeClosesAt ? `名单可自行调整至 ${formatCST(season.rosterChangeClosesAt)}；正式名单冻结另行记录。` : "名单调整截止时间与报名截止时间一致；正式名单冻结另行记录。"}
         />
         <CompetitionEntryFlow
           competitionId={season.id}
@@ -262,8 +275,9 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
           tone={getWindowTone(registrationWindow.phase, registrationWindow.canSubmit)}
           title={registrationWindow.message}
           sub={[
-            season.startAt ? `报名开始：${formatCST(season.startAt)}` : "报名开始：发布后立即开放",
-            season.registrationDeadline ? `报名截止：${formatCST(season.registrationDeadline)}` : "报名截止：未设置",
+            season.registrationOpensAt ? `报名开放：${formatCST(season.registrationOpensAt)}` : "报名开放：时间待定",
+            season.registrationClosesAt ? `报名截止：${formatCST(season.registrationClosesAt)}` : "报名截止：未设置",
+            season.rosterChangeClosesAt ? `名单调整截止：${formatCST(season.rosterChangeClosesAt)}` : "名单调整截止：与报名截止一致",
           ].join(" · ")}
         />
       </div>

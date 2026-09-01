@@ -10,6 +10,7 @@ type Globals = {
   schema: typeof import("../../../src/db/schema");
   assertSeasonHasNoHistoricalFacts: typeof import("../../../src/lib/seasons/lifecycle")["assertSeasonHasNoHistoricalFacts"];
   freezeCompetitiveContext: typeof import("../../../src/lib/seasons/lifecycle")["freezeCompetitiveContext"];
+  openSeasonRegistrationInTx: typeof import("../../../src/lib/seasons/lifecycle")["openSeasonRegistrationInTx"];
   transitionSeasonStatusInTx: typeof import("../../../src/lib/seasons/lifecycle")["transitionSeasonStatusInTx"];
   MAJOR_CONFIG: typeof import("../../../src/types/season")["MAJOR_TEAM_CONFIG"];
 };
@@ -23,11 +24,12 @@ async function main(): Promise<void> {
   const databaseUrl = localDatabaseUrl();
   process.env.DATABASE_URL = process.env.DATABASE_URL ?? databaseUrl;
   const schemaModule = await import("../../../src/db/schema");
-  const { assertSeasonHasNoHistoricalFacts, freezeCompetitiveContext, transitionSeasonStatusInTx } = await import("../../../src/lib/seasons/lifecycle");
+  const { assertSeasonHasNoHistoricalFacts, freezeCompetitiveContext, openSeasonRegistrationInTx, transitionSeasonStatusInTx } = await import("../../../src/lib/seasons/lifecycle");
   const typeSeasons = await import("../../../src/types/season");
   globals.schema = schemaModule;
   globals.assertSeasonHasNoHistoricalFacts = assertSeasonHasNoHistoricalFacts;
   globals.freezeCompetitiveContext = freezeCompetitiveContext;
+  globals.openSeasonRegistrationInTx = openSeasonRegistrationInTx;
   globals.transitionSeasonStatusInTx = transitionSeasonStatusInTx;
   globals.MAJOR_CONFIG = typeSeasons.MAJOR_TEAM_CONFIG;
   const pool = new Pool({ connectionString: databaseUrl, ssl: false, max: 6 });
@@ -124,9 +126,10 @@ async function exerciseQualificationPlatformIsolation(pool: Pool): Promise<void>
 
 async function seedCatalog(pool: Pool, platform: string): Promise<{ s21: string; s22: string }> {
   await seedCompetitivePlatformCatalog(pool, platform, [
-    { seasonKey: "S20", label: "S20 赛季", sortOrder: 0, isCurrent: false },
-    { seasonKey: "S21", label: "S21 赛季", sortOrder: 1, isCurrent: true },
-    { seasonKey: "S22", label: "S22 赛季", sortOrder: 2, isCurrent: false, active: false },
+    { seasonKey: "S19", label: "S19 赛季", sortOrder: 0, isCurrent: false },
+    { seasonKey: "S20", label: "S20 赛季", sortOrder: 1, isCurrent: false },
+    { seasonKey: "S21", label: "S21 赛季", sortOrder: 2, isCurrent: true },
+    { seasonKey: "S22", label: "S22 赛季", sortOrder: 3, isCurrent: false, active: false },
   ], RANK_ORDER);
   const catalog = await pool.query<{ id: string; season_key: string; is_current: boolean }>(
     "SELECT id, season_key, is_current FROM competitive_platform_seasons WHERE platform = $1", [platform],
@@ -152,14 +155,21 @@ async function exerciseCompetitiveFreezeLifecycle(pool: Pool): Promise<void> {
   const seasonId = await createMajorDraft(pool, `gov-freeze-${randomUUID()}`, platform);
 
   const db = drizzle(pool, { schema: globals.schema });
-  // Publish-time freeze resolves S20/S21 from the catalog.
-  let frozen: { competitiveProfile: Record<string, string> } | null = null;
+  // Registration-open freeze resolves two complete seasons plus the ongoing
+  // catalog season without changing catalog chronology.
+  await pool.query("UPDATE seasons SET status = 'registration', registration_opens_at = now() - interval '1 minute' WHERE id = $1", [seasonId]);
+  let frozen: { competitiveProfile: Record<string, unknown> } | null = null;
   await db.transaction(async (tx) => {
+    const opened = await globals.openSeasonRegistrationInTx(tx, { seasonId, actorId: "system" });
+    expect(opened.opened, "报名开放必须在同一事务中冻结竞技参考策略。").toBe(true);
     const [season] = await tx.select().from(globals.schema.seasons).where(eq(globals.schema.seasons.id, seasonId));
-    frozen = await globals.freezeCompetitiveContext(tx, season) as unknown as { competitiveProfile: Record<string, string> };
+    frozen = season.teamRegistrationConfig as unknown as { competitiveProfile: Record<string, unknown> };
   });
   const profile = frozen!.competitiveProfile;
-  expect(profile.currentSeasonKey === "S21" && profile.previousSeasonKey === "S20",  "发布冻结应解析 S21/S20").toBe(true);
+  expect(profile.currentSeasonKey === "S20" && profile.previousSeasonKey === "S19",  "冻结应保留两届完整赛季").toBe(true);
+  expect((profile.evidencePolicy as unknown as { recentSeasonKeys?: string[] })?.recentSeasonKeys?.join(",") === "S20,S21", "冻结策略应把当前进行中赛季作为近期可选补充").toBe(true);
+  const openAudit = await pool.query<{ count: string }>("SELECT count(*)::text AS count FROM audit_logs WHERE season_id = $1 AND action = 'season.registration_open'", [seasonId]);
+  expect(openAudit.rows[0]?.count === "1", "报名开放与冻结必须留下同一事务内的审计事实。").toBe(true);
 
   // The catalog later advances to S22; the frozen result held by the caller
   // (or a published season row) is never re-resolved.
@@ -168,11 +178,9 @@ async function exerciseCompetitiveFreezeLifecycle(pool: Pool): Promise<void> {
 
   // Persist the first freeze as a published season would have done; the row
   // must remain untouched by the catalog change above.
-  await pool.query("UPDATE seasons SET status = 'registration', team_registration_config = $2::json WHERE id = $1",
-    [seasonId, JSON.stringify({ ...globals.MAJOR_CONFIG, competitiveProfile: profile })]);
   const published = await pool.query<{ team_registration_config: { competitiveProfile: Record<string, string> } }>(
     "SELECT team_registration_config FROM seasons WHERE id = $1", [seasonId]);
-  expect(published.rows[0]?.team_registration_config.competitiveProfile.currentSeasonKey === "S21",
+  expect(published.rows[0]?.team_registration_config.competitiveProfile.currentSeasonKey === "S20",
     "已发布赛季的冻结上下文不受目录变化影响").toBe(true);
 
   // A future publish of a NEW draft season re-resolves from the new catalog state.
@@ -183,8 +191,10 @@ async function exerciseCompetitiveFreezeLifecycle(pool: Pool): Promise<void> {
     refrozen = await globals.freezeCompetitiveContext(tx, season) as unknown as { competitiveProfile: Record<string, string> };
   });
   const newProfile = refrozen!.competitiveProfile;
-  expect(newProfile.currentSeasonKey === "S22" && newProfile.previousSeasonKey === "S21",
-    `目录推进到 S22 后，下一次发布应重新解析 S22/S21；实际：${JSON.stringify(newProfile)}`).toBe(true);
+  expect(newProfile.currentSeasonKey === "S21" && newProfile.previousSeasonKey === "S20",
+    `目录推进到 S22 后，下一次开放应重新解析完整赛季；实际：${JSON.stringify(newProfile)}`).toBe(true);
+  expect((newProfile.evidencePolicy as unknown as { recentSeasonKeys?: string[] })?.recentSeasonKeys?.join(",") === "S21,S22",
+    "新的冻结策略应消费 S21 与 S22 作为近期证据。").toBe(true);
 
   await pool.query("DELETE FROM seasons WHERE id = $1", [seasonId]);
   await pool.query("DELETE FROM seasons WHERE id = $1", [secondDraft]);

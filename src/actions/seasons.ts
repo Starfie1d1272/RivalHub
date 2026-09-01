@@ -12,7 +12,7 @@ import { parseCSTInput } from "@/lib/utils/date";
 import { auditActorId, requireSuperAdmin } from "@/lib/auth/session";
 import { normalizeRegistrationConfig, type StagePlan } from "@/types/season";
 import { validateCompetitionDefinition } from "@/lib/competition/definition";
-import { assertSeasonHasNoHistoricalFacts, freezeCompetitiveContext, transitionSeasonStatusInTx, unfreezeBuiltInCompetitiveContext } from "@/lib/seasons/lifecycle";
+import { assertSeasonHasNoHistoricalFacts, openSeasonRegistrationInTx, transitionSeasonStatusInTx, unfreezeBuiltInCompetitiveContext } from "@/lib/seasons/lifecycle";
 import { seasonFormSchema, seasonUpdateFormSchema, planSeasonCreate, planSeasonUpdate, type SeasonFormInput } from "@/lib/seasons/edit";
 
 export type { SeasonFormInput };
@@ -21,10 +21,11 @@ function toDate(value: string | null): Date | null {
   return parseCSTInput(value);
 }
 
-function toDbDates(parsed: { startAt: string | null; registrationDeadline: string | null; endAt: string | null }) {
+function toDbDates(parsed: { registrationOpensAt: string | null; registrationClosesAt: string | null; rosterChangeClosesAt: string | null; endAt: string | null }) {
   return {
-    startAt: toDate(parsed.startAt),
-    registrationDeadline: toDate(parsed.registrationDeadline),
+    registrationOpensAt: toDate(parsed.registrationOpensAt),
+    registrationClosesAt: toDate(parsed.registrationClosesAt),
+    rosterChangeClosesAt: toDate(parsed.rosterChangeClosesAt),
     endAt: toDate(parsed.endAt),
   };
 }
@@ -137,15 +138,14 @@ export async function publishSeason(seasonId: string): Promise<ActionResult<{ sl
       if (!locked) throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
       if (locked.status !== "draft") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有 draft 状态可发布");
       if (locked.competitionTemplate === "custom") assertRunnableCustomDefinition(locked);
-      const teamRegistrationConfig = await freezeCompetitiveContext(tx, locked);
-      await tx.update(seasons).set({ status: "registration", teamRegistrationConfig, updatedAt: new Date() }).where(eq(seasons.id, seasonId));
+      await tx.update(seasons).set({ status: "registration", updatedAt: new Date() }).where(eq(seasons.id, seasonId));
       await tx.insert(auditLogs).values({
         seasonId,
         action: "season.publish",
         actorId: auditActorId(admin),
         targetId: seasonId,
         targetType: "season",
-        meta: { slug: locked.slug, from: "draft", to: "registration", competitiveContextFrozen: Boolean(teamRegistrationConfig.competitiveProfile?.currentSeasonKey) },
+        meta: { slug: locked.slug, from: "draft", to: "registration", registrationSchedule: locked.registrationOpensAt ? locked.registrationOpensAt.toISOString() : null },
       });
       return locked;
     });
@@ -157,6 +157,27 @@ export async function publishSeason(seasonId: string): Promise<ActionResult<{ sl
     return ok({ slug: season.slug });
   } catch (e) {
     return actionError("publishSeason", e);
+  }
+}
+
+/** Explicit operator action for an already-published unscheduled/upcoming event. */
+export async function openSeasonRegistration(seasonId: string): Promise<ActionResult<{ slug: string }>> {
+  try {
+    const admin = await requireSuperAdmin();
+    const result = await db.transaction((tx) => openSeasonRegistrationInTx(tx, {
+      seasonId,
+      actorId: auditActorId(admin),
+      openNow: true,
+    }));
+    if (!result.opened) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "报名已开放，或尚未满足开放条件。");
+    revalidatePath("/admin");
+    revalidatePath(`/admin/${result.slug}/settings`);
+    revalidatePath(`/${result.slug}`);
+    revalidatePath(`/${result.slug}/register`);
+    revalidatePath("/seasons");
+    return ok({ slug: result.slug });
+  } catch (e) {
+    return actionError("openSeasonRegistration", e);
   }
 }
 
@@ -214,6 +235,7 @@ export async function revertSeasonToDraft(seasonId: string): Promise<ActionResul
       const teamRegistrationConfig = unfreezeBuiltInCompetitiveContext(locked);
       await tx.update(seasons).set({
         status: "draft",
+        registrationOpenedAt: null,
         ...(teamRegistrationConfig ? { teamRegistrationConfig } : {}),
         updatedAt: new Date(),
       }).where(eq(seasons.id, seasonId));

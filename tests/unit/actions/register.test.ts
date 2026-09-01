@@ -105,8 +105,10 @@ const SEASON = createFakeSeason({
   id: SEASON_ID,
   slug: "spring-2026",
   status: "registration",
-  startAt: null,
-  registrationDeadline: null,
+  registrationOpensAt: null,
+  registrationOpenedAt: null,
+  registrationClosesAt: null,
+  rosterChangeClosesAt: null,
   registrationConfig: null,
   positions: ["opener", "closer", "anchor"],
 });

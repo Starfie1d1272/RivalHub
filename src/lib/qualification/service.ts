@@ -44,6 +44,24 @@ export interface ParticipantReadiness {
   educationApproved: boolean;
 }
 
+/** Adapts long-term facts to the event's frozen evidence policy in one place. */
+export function toPlayerStrengthInput(
+  fact: Pick<ParticipantQualificationFacts, "userId" | "displayName" | "perfectName" | "email" | "historicalPeak" | "seasonPeaks">,
+  context: CompetitiveProfileConfig | null,
+): PlayerStrengthInput {
+  const policy = context?.evidencePolicy;
+  return {
+    userId: fact.userId ?? "",
+    label: fact.displayName ?? fact.perfectName ?? fact.email ?? "未知选手",
+    historicalPeak: fact.historicalPeak,
+    previousSeasonPeak: fact.seasonPeaks?.get(policy?.referenceSeasonKey ?? context?.previousSeasonKey ?? "") ?? null,
+    currentSeasonPeak: fact.seasonPeaks?.get(context?.currentSeasonKey ?? "") ?? null,
+    recentSeasonPeaks: policy
+      ? policy.recentSeasonKeys.map((key) => fact.seasonPeaks?.get(key) ?? null)
+      : undefined,
+  };
+}
+
 /** Canonical long-term identity requirements shared by settings and read models. */
 export function getParticipantIdentityBlockers(fact: ParticipantQualificationFacts): string[] {
   const blockers: string[] = [];
@@ -61,13 +79,7 @@ export function getCompetitiveProfileBlockers(
   context: CompetitiveProfileConfig | null,
 ): string[] {
   if (!context) return ["竞技平台赛季目录尚未完成当前与上一赛季配置。"];
-  const strength: PlayerStrengthInput = {
-    userId: fact.userId ?? "",
-    label: fact.displayName ?? fact.perfectName ?? fact.email ?? "未知选手",
-    historicalPeak: fact.historicalPeak,
-    previousSeasonPeak: fact.seasonPeaks?.get(context.previousSeasonKey) ?? null,
-    currentSeasonPeak: fact.seasonPeaks?.get(context.currentSeasonKey) ?? null,
-  };
+  const strength = toPlayerStrengthInput(fact, context);
   return getPlayerStrengthBreakdown(strength, context).blockers;
 }
 
@@ -77,12 +89,22 @@ export function getCompetitiveProfileBlockers(
  * catalog: that would rewrite historical event semantics.
  */
 function isCompleteCompetitiveContext(config: CompetitiveProfileConfig): boolean {
-  return Boolean(
+  const baseComplete = Boolean(
     config.platform.trim() &&
     config.currentSeasonKey.trim() &&
     config.previousSeasonKey.trim() &&
     config.rankOrder.length > 0 &&
     config.rankOrder.every((rank) => rank.trim().length > 0),
+  );
+  if (!baseComplete) return false;
+  const policy = config.evidencePolicy;
+  return !policy || Boolean(
+    policy.historicalWeight === 50 &&
+    policy.referenceSeasonWeight === 20 &&
+    policy.recentSeasonWeight === 30 &&
+    policy.referenceSeasonKey.trim() &&
+    policy.recentSeasonKeys.length > 0 &&
+    policy.recentSeasonKeys.every((key) => key.trim()),
   );
 }
 
@@ -154,13 +176,7 @@ export function computeParticipantReadiness(
   fact: ParticipantQualificationFacts,
   context: CompetitiveProfileConfig | null,
 ): ParticipantReadiness {
-  const strength: PlayerStrengthInput = {
-    userId: fact.userId ?? "",
-    label: fact.displayName ?? fact.perfectName ?? fact.email ?? "未知选手",
-    historicalPeak: fact.historicalPeak,
-    previousSeasonPeak: fact.seasonPeaks?.get(context?.previousSeasonKey ?? "") ?? null,
-    currentSeasonPeak: fact.seasonPeaks?.get(context?.currentSeasonKey ?? "") ?? null,
-  };
+  const strength = toPlayerStrengthInput(fact, context);
   const blockers = context
     ? [
       ...getParticipantIdentityBlockers(fact),

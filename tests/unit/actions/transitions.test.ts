@@ -44,7 +44,7 @@ describe("season automatic transitions", () => {
       registrationMode: "team",
       hasCaptainVoting: false,
       registrationConfig: { maxTotal: 1 },
-      registrationDeadline: new Date(0),
+      registrationClosesAt: new Date(0),
     }, 1);
 
     await maybeAdvanceFromRegistration(tx as never, "season-1");
@@ -62,7 +62,7 @@ describe("season automatic transitions", () => {
       registrationMode: "solo",
       hasCaptainVoting: false,
       registrationConfig: { maxTotal: 1 },
-      registrationDeadline: null,
+      registrationClosesAt: null,
     }, 1);
 
     await maybeAdvanceFromRegistration(tx as never, "season-1");

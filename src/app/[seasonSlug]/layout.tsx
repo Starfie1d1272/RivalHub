@@ -10,6 +10,7 @@ import { hexToRgbString } from "@/lib/utils/color";
 import { normalizeStagePlan } from "@/types/season";
 import { showStats } from "@/lib/utils/season";
 import { getParticipantSummary } from "@/lib/participants/summary";
+import { checkAdminSession } from "@/lib/auth/session";
 
 const getSeason = cache(async (slug: string) => {
   return db.query.seasons.findFirst({ where: eq(seasons.slug, slug) });
@@ -34,6 +35,7 @@ export default async function SeasonLayout({ children, params }: SeasonLayoutPro
   const season = await getSeason(seasonSlug);
 
   if (!season) notFound();
+  if (season.status === "draft" && !(await checkAdminSession())) notFound();
 
   const { hasPlayers } = await getParticipantSummary(season);
 

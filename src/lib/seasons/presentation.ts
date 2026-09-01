@@ -4,7 +4,7 @@ import type { CompetitionTemplate } from "@/lib/competition/templates";
 
 const SEASON_STATUS_PRESENTATIONS: Record<SeasonStatus, StatusPresentation> = {
   draft: { label: "草稿", tone: "neutral" },
-  registration: { label: "报名开放", tone: "success" },
+  registration: { label: "已发布", tone: "success" },
   voting: { label: "投票中", tone: "warn" },
   drafting: { label: "选秀中", tone: "accent" },
   playing: { label: "LIVE", tone: "danger" },

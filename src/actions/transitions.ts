@@ -41,8 +41,8 @@ export async function maybeAdvanceFromRegistration(
   const full = approvedCount >= registrationConfig.maxTotal;
 
   const deadlinePassed =
-    season.registrationDeadline != null &&
-    new Date(season.registrationDeadline).getTime() <= Date.now();
+    season.registrationClosesAt != null &&
+    new Date(season.registrationClosesAt).getTime() <= Date.now();
 
   if (!full && !deadlinePassed) return;
 
@@ -65,7 +65,7 @@ export async function maybeAdvanceFromRegistration(
       reason: full ? "capacity_reached" : "deadline_passed",
       approvedCount,
       maxTotal: registrationConfig.maxTotal,
-      deadline: season.registrationDeadline?.toISOString() ?? null,
+      deadline: season.registrationClosesAt?.toISOString() ?? null,
     },
   });
 

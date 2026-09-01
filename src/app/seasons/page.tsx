@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { desc } from "drizzle-orm";
+import { desc, ne } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
 import { presentSeasonStatus } from "@/lib/seasons/presentation";
@@ -12,6 +12,7 @@ export default async function SeasonsPage() {
   const allSeasons = await db
     .select()
     .from(seasons)
+    .where(ne(seasons.status, "draft"))
     .orderBy(desc(seasons.createdAt));
 
   return (

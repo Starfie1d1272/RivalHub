@@ -155,8 +155,8 @@ async function removeFixtureDatabaseRows(client: import("pg").PoolClient): Promi
 async function insertFixture(client: import("pg").PoolClient, authIds: Map<string, string>): Promise<void> {
   const capabilities = createCapabilities();
   await client.query(
-    `INSERT INTO seasons (id, slug, name, kind, status, start_at, registration_deadline, registration_mode, has_captain_voting, has_draft, stage_plan, registration_config, team_registration_config, affiliation_rules, min_team_size, max_team_size, starter_count, positions)
-     VALUES ($1, $2, 'Local Major Browser Acceptance', 'Major', 'registration', now() - interval '1 hour', now() + interval '7 days', $3, $4, $5, $6::json, $7::json, $8::json, $9::json, $10, $11, $12, $13::text[])`,
+    `INSERT INTO seasons (id, slug, name, kind, status, registration_opens_at, registration_opened_at, registration_closes_at, registration_mode, has_captain_voting, has_draft, stage_plan, registration_config, team_registration_config, affiliation_rules, min_team_size, max_team_size, starter_count, positions)
+     VALUES ($1, $2, 'Local Major Browser Acceptance', 'Major', 'registration', now() - interval '1 hour', now() - interval '1 hour', now() + interval '7 days', $3, $4, $5, $6::json, $7::json, $8::json, $9::json, $10, $11, $12, $13::text[])`,
     [FIXTURE_SEASON_ID, FIXTURE_SLUG, capabilities.registrationMode, capabilities.hasCaptainVoting, capabilities.hasDraft, JSON.stringify(capabilities.stagePlan), JSON.stringify(capabilities.registrationConfig), JSON.stringify(capabilities.teamRegistrationConfig), JSON.stringify(capabilities.affiliationRules), capabilities.minTeamSize, capabilities.maxTeamSize, capabilities.starterCount, capabilities.positions],
   );
   for (const [index, key] of ACCOUNT_KEYS.entries()) {
