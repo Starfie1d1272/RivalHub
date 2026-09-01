@@ -5,7 +5,10 @@ import { Pool } from "pg";
 import { assertProductionConfirmations, assertProductionDatabaseUrl } from "./production-environment";
 
 interface MigrationJournalEntry { tag: string; when: number; }
-interface Migration { hash: string; when: number; }
+export interface Migration { hash: string; when: number; }
+export interface ExpectedMigration extends Migration { tag: string; }
+
+export const PRODUCTION_BASELINE_TAG = "0024_major_runtime_convergence";
 
 export async function verifyProductionPreflight(): Promise<void> {
   assertProductionConfirmations(process.env);
@@ -15,19 +18,19 @@ export async function verifyProductionPreflight(): Promise<void> {
   try {
     await pool.query("BEGIN TRANSACTION READ ONLY");
     const ledger = await pool.query<Migration>("SELECT hash, created_at::bigint::text AS when FROM drizzle.__drizzle_migrations ORDER BY created_at");
-    assertActiveChainPrefix(ledger.rows.map((row) => ({ hash: row.hash, when: Number(row.when) })), expected);
-    if (ledger.rows.length !== 25 && ledger.rows.length !== expected.length) {
-      throw new Error(`Production ledger 必须是已确认的 0024 前缀或完整 active chain；实际 ${ledger.rows.length}/${expected.length}。`);
-    }
+    const actual = ledger.rows.map((row) => ({ hash: row.hash, when: Number(row.when) }));
+    const state = assertResumableProductionLedger(actual, expected);
 
-    // 0025 and 0026 are the only pending migrations on the current production
-    // prefix. Run their destructive-data predicates read-only before Drizzle
-    // is permitted to start the forward write.
-    if (ledger.rows.length === 25) {
+    // At the confirmed 0024 baseline, prove the destructive-data predicates
+    // for the currently pending 0025/0026 pair before Drizzle is permitted to
+    // start the forward write. Once production has advanced beyond 0024, an
+    // exact active-chain prefix is resumable: a failed later migration must
+    // not make the canonical runner reject its own partial progress.
+    if (state.atBaseline) {
       await assert0024SchemaAndPendingData(pool);
     }
     await pool.query("ROLLBACK");
-    console.log(`Production migration preflight passed: ledger is an active-chain prefix (${ledger.rows.length}/${expected.length}).`);
+    console.log(`Production migration preflight passed: ledger is a resumable active-chain prefix (${ledger.rows.length}/${expected.length}).`);
   } catch (error) {
     try { await pool.query("ROLLBACK"); } catch { /* no transaction to roll back */ }
     throw error;
@@ -36,16 +39,35 @@ export async function verifyProductionPreflight(): Promise<void> {
   }
 }
 
+export function assertResumableProductionLedger(
+  actual: readonly Migration[],
+  expected: readonly ExpectedMigration[],
+): { baselineLength: number; atBaseline: boolean } {
+  assertActiveChainPrefix(actual, expected);
+  const baselineIndex = expected.findIndex((migration) => migration.tag === PRODUCTION_BASELINE_TAG);
+  if (baselineIndex < 0) {
+    throw new Error(`Active migration chain 缺少已确认的 production baseline ${PRODUCTION_BASELINE_TAG}。`);
+  }
+  const baselineLength = baselineIndex + 1;
+  if (actual.length < baselineLength) {
+    throw new Error(
+      `Production ledger 早于已确认的 ${PRODUCTION_BASELINE_TAG} baseline；实际 ${actual.length}/${expected.length}，拒绝自动前向迁移。`,
+    );
+  }
+  return { baselineLength, atBaseline: actual.length === baselineLength };
+}
+
 export function assertActiveChainPrefix(actual: readonly Migration[], expected: readonly Migration[]): void {
   if (actual.length > expected.length || actual.some((item, index) => item.hash !== expected[index]?.hash || item.when !== expected[index]?.when)) {
     throw new Error("Production Drizzle migration ledger 不是 active migration chain 的精确前缀；拒绝迁移。");
   }
 }
 
-export function readExpectedMigrations(): Migration[] {
+export function readExpectedMigrations(): ExpectedMigration[] {
   const migrationsDirectory = resolve(process.cwd(), "drizzle/migrations");
   const journal = JSON.parse(readFileSync(resolve(migrationsDirectory, "meta/_journal.json"), "utf8")) as { entries: MigrationJournalEntry[] };
   return journal.entries.map((entry) => ({
+    tag: entry.tag,
     hash: createHash("sha256").update(readFileSync(resolve(migrationsDirectory, `${entry.tag}.sql`), "utf8")).digest("hex"),
     when: entry.when,
   }));
