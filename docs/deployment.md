@@ -51,43 +51,24 @@ pnpm db:staging:migrate
 
 这些命令不执行 seed 或 `db:push`。缺少 Local 验证、确认值、staging 密码或写入 opt-in 时，命令在任何远程写入前停止。
 
-### Production migration and release transaction
+### Protected production migration and release transaction
 
-Production 的 active chain 只有一个 authority：`drizzle/migrations/meta/_journal.json` 与对应 SQL SHA-256。禁止裸 `drizzle-kit migrate`、手工 `ALTER TABLE`、`db:push`、seed 或 reset。
+Production 的 active chain 仍只有一个 authority：`drizzle/migrations/meta/_journal.json` 与对应 SQL SHA-256。只读核验与前向迁移只能使用以下受保护命令；禁止裸 `drizzle-kit migrate`、手工 `ALTER TABLE`、`db:push`、seed 或 reset。
 
-Production 与应用运行时统一使用同一个 Supabase **Transaction Pooler `DATABASE_URL`**：`aws-0-ap-northeast-1.pooler.supabase.com:6543`。不维护第二份 production database password。受保护命令复用 Vercel Production 的 runtime `DATABASE_URL`，但在查询或写入前仍严格验证固定 project ref、host、port、username 和 pooler shape；写入还必须显式设置 `RIVALHUB_ALLOW_REMOTE_DB_WRITE=production`。
-
-正常 production owner 是 [`.github/workflows/release.yml`](../.github/workflows/release.yml)，由不可变 `v*` tag 触发。它把数据库与应用部署作为同一条 release transaction 串行执行：
-
-1. checkout 精确 tag commit，并确认该 commit 已进入 `main`；
-2. 安装依赖与固定版本 Vercel CLI，读取 Vercel Production project/environment；
-3. 启动 Local Supabase，验证 active migration chain 可在真实 PostgreSQL 重放；
-4. 使用 Vercel 已有 Production `DATABASE_URL` 执行 production preflight、Drizzle forward migration 与 exact ledger/schema verify；
-5. 仅在数据库已达到该 tag 的 active chain 后，部署这个精确 tag commit 到 Vercel Production；
-6. 对 deployment URL 与 `match.starfie1d.top` 做 smoke test；
-7. 前述步骤全部成功后才创建或更新 GitHub Release。
-
-workflow 使用 GitHub `production` environment 串行化发版，并要求其中存在 `VERCEL_TOKEN`。这是 release runner 访问 Vercel 的部署凭据，不是第二份数据库凭据；`DATABASE_URL` 的 source of truth 仍只有 Vercel Production Environment。
-
-Vercel production builds 使用 [`scripts/vercel-build.ts`](../scripts/vercel-build.ts) 做最后一道 fail-closed gate：
-
-- Preview build 不读取 production DB；
-- Production build 必须携带 release workflow 注入的 `RIVALHUB_RELEASE_TAG` 与 `RIVALHUB_RELEASE_COMMIT`，普通 `main` Git auto-deploy 因缺少 release provenance 会在 `next build` 前失败，因此不会绕过 tag release；
-- release build 还必须通过 exact production migration ledger 与 terminal schema verification；build 本身永远不执行 migration。
-
-因此 production invariant 是：**schema first, exact verify, then exact tagged application deploy**。即使 Vercel Git integration 对 `main` 发起 production build attempt，也只能失败并保留上一版 production，不会把未正式发版的 commit 提升到 production。
-
-`db:production:migrate` 与 `db:production:verify` 仍保留为 workflow 使用的底层 primitive，也可用于明确授权的 break-glass 运维；日常发版不应依赖操作者在 tag 后手工补 migration。
+Production 与应用运行时统一使用同一个 Supabase **Transaction Pooler `DATABASE_URL`**：`aws-0-ap-northeast-1.pooler.supabase.com:6543`。不再维护 `RIVALHUB_PRODUCTION_DB_PASSWORD` 或第二份 production database credential。受保护命令复用运行时 `DATABASE_URL`，但在任何查询或写入前严格验证固定 project ref、host、port、username 和 pooler shape；因此“复用已有 secret”不等于接受任意 inherited connection string。
 
 ```bash
-# Break-glass read-only verification. DATABASE_URL 必须是既有 production runtime secret。
+# DATABASE_URL 使用与 production runtime 相同的现有 Transaction Pooler secret。
+# Strictly read-only: rejects a pending, divergent or unexpected ledger entry.
 DATABASE_URL='<existing production runtime DATABASE_URL>' \
 RIVALHUB_DB_TARGET=production \
 RIVALHUB_PRODUCTION_PROJECT_CONFIRM=sucokfotkypwqkckfynp \
 RIVALHUB_PRODUCTION_DB_HOST_CONFIRM=aws-0-ap-northeast-1.pooler.supabase.com:6543 \
 pnpm db:production:verify
 
-# Break-glass forward migration only; normal releases use release.yml.
+# Authorized forward migration only. It first validates the active chain in
+# Local PostgreSQL, reads the production preflight, runs Drizzle migrate, then
+# automatically runs the strict production verifier again.
 DATABASE_URL='<existing production runtime DATABASE_URL>' \
 RIVALHUB_DB_TARGET=production \
 RIVALHUB_PRODUCTION_PROJECT_CONFIRM=sucokfotkypwqkckfynp \
@@ -96,9 +77,13 @@ RIVALHUB_ALLOW_REMOTE_DB_WRITE=production \
 pnpm db:production:migrate
 ```
 
-当前 production preflight 只接受已确认的 `0024_major_runtime_convergence` ledger prefix 或完整 active chain。处于 0024 prefix 时，会在只读 transaction 中验证旧 schema shape，以及 0025 CHSI code extraction、0026 canonical role 的 fail-closed predicate。migration 后 verifier 要求完整 ledger SHA/timestamp sequence、`evidence_code` 存在、`evidence_url`/`perfect_id` 不存在，并要求 canonical `cs2_role` enum。
+在 Vercel Production 中 `DATABASE_URL` 本来就是应用访问 production DB 的 runtime secret，因此 migration/verify runner 应在能够继承该 Production environment 的受控执行环境中运行；不要把 URL 拆成第二份 password secret。显式 target、project、host 和 write authorization 仍是独立安全门禁。
 
-对于未来 migration，仍优先采用 expand → migrate/backfill → contract 的兼容策略。release workflow 的顺序保证不能替代 backward-compatible schema 设计：如果 migration 已成功而应用部署失败，上一版 production application 应尽可能仍能运行。
+Production preflight 以 `0024_major_runtime_convergence` 为已确认最低 baseline：早于 0024 的 ledger 直接拒绝；恰好位于 0024 时会在只读事务内验证旧 schema 形态以及 0025 CHSI-code extraction / 0026 role values 的 fail-closed predicates；任何晚于 0024 且仍是 active chain **精确前缀**的状态都允许继续前向执行，因此某个后续 migration 已成功、再后一个 migration 失败时可以安全重试 canonical runner。hash/timestamp divergence、unexpected entry 或超出 active chain 仍然 fail closed。迁移完成后 verify 要求完整 ledger SHA/timestamp sequence，并验证 `evidence_code` present/`evidence_url` absent、`perfect_id` absent 与 canonical `cs2_role` enum。
+
+正式 production release 由 `.github/workflows/release.yml` 的 `v*` tag workflow 独占：tag commit 必须已经包含在 `main`；runner 使用 GitHub `production` Environment 中的 `VERCEL_TOKEN` 访问 Vercel，但 production database credential 仍只存在于 Vercel Production `DATABASE_URL`。workflow 的固定顺序是 **tag/main 校验 → Local migration validation → production migrate → production verify → exact tag Vercel Production deploy → smoke test → GitHub Release**。数据库迁移因此属于 release transaction，而不是发版后的人工补丁。
+
+Vercel production builds 使用 [`scripts/vercel-build.ts`](../scripts/vercel-build.ts)：当 `VERCEL_ENV=production` 时，只有 release workflow 注入合法 `RIVALHUB_RELEASE_TAG` 与 `RIVALHUB_RELEASE_COMMIT` 后才继续；随后它使用现有 runtime Transaction Pooler `DATABASE_URL` 执行 exact production migration verify，再进入 `next build`。普通 `main` Git auto-deploy 即使被 Vercel 创建，也会在没有 release marker 时 fail closed 并保留上一版 production；Preview builds 不读取 production DB。build gate 只验证，不自动执行 migration，从而避免“DB 已前进但 application build 随后失败”的反向半发布状态。
 
 ### Explicit remote seed guard
 
