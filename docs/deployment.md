@@ -51,6 +51,33 @@ pnpm db:staging:migrate
 
 这些命令不执行 seed 或 `db:push`。缺少 Local 验证、确认值、staging 密码或写入 opt-in 时，命令在任何远程写入前停止。
 
+### Protected production migration and deployment gate
+
+Production 的 active chain 仍只有一个 authority：`drizzle/migrations/meta/_journal.json` 与对应 SQL SHA-256。只读核验与前向迁移只能使用以下受保护命令；禁止裸 `drizzle-kit migrate`、手工 `ALTER TABLE`、`db:push`、seed 或 reset。
+
+```bash
+# Strictly read-only: rejects a pending, divergent or unexpected ledger entry.
+RIVALHUB_DB_TARGET=production \
+RIVALHUB_PRODUCTION_PROJECT_CONFIRM=sucokfotkypwqkckfynp \
+RIVALHUB_PRODUCTION_DB_HOST_CONFIRM=aws-0.ap-northeast-1.pooler.supabase.com:5432 \
+RIVALHUB_PRODUCTION_DB_PASSWORD='<production database password>' \
+pnpm db:production:verify
+
+# Authorized forward migration only. It first validates the active chain in
+# Local PostgreSQL, reads the production preflight, runs Drizzle migrate, then
+# automatically runs the strict production verifier again.
+RIVALHUB_DB_TARGET=production \
+RIVALHUB_PRODUCTION_PROJECT_CONFIRM=sucokfotkypwqkckfynp \
+RIVALHUB_PRODUCTION_DB_HOST_CONFIRM=aws-0.ap-northeast-1.pooler.supabase.com:5432 \
+RIVALHUB_PRODUCTION_DB_PASSWORD='<production database password>' \
+RIVALHUB_ALLOW_REMOTE_DB_WRITE=production \
+pnpm db:production:migrate
+```
+
+The current preflight accepts only the confirmed `0024_major_runtime_convergence` ledger prefix (or an already complete active chain). At the 0024 prefix it proves, inside a read-only transaction, the old schema shape and the exact fail-closed predicates for 0025 CHSI-code extraction and 0026 role values before a remote write is allowed. After migration, verify proves the complete ledger SHA/timestamp sequence, `evidence_code` present/`evidence_url` absent, `perfect_id` absent and the canonical `cs2_role` enum.
+
+Vercel production builds use [`scripts/vercel-build.ts`](../scripts/vercel-build.ts): when `VERCEL_ENV=production`, it validates the already-configured `DATABASE_URL` against the exact production project and runs `db:production:verify` semantics before `next build`. A ledger mismatch therefore fails the build and leaves the previously deployed production version in place. Preview builds do not read production DB. The operational order is always **protected migrate → production verify → redeploy**; this is an enforceable deployment gate, not a release checklist.
+
 ### Explicit remote seed guard
 
 `pnpm seed` 不从 `.env.local` 读取远程目标。对 staging 或 production 的 seed 必须同时提供：
