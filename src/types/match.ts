@@ -45,7 +45,10 @@ export interface MatchMap {
 
 export const MATCH_STAGE_LABELS: Record<string, string> = {
   qualifier: "排位赛",
-  playoff: "正赛",
+  stage1: "STAGE1",
+  stage2: "STAGE2",
+  stage3: "STAGE3",
+  playoff: "PLAYOFF",
 };
 
 export const MATCH_FORMAT_LABELS: Record<MatchFormat, string> = {
