@@ -55,30 +55,33 @@ pnpm db:staging:migrate
 
 Production 的 active chain 仍只有一个 authority：`drizzle/migrations/meta/_journal.json` 与对应 SQL SHA-256。只读核验与前向迁移只能使用以下受保护命令；禁止裸 `drizzle-kit migrate`、手工 `ALTER TABLE`、`db:push`、seed 或 reset。
 
-Production 当前与应用运行时统一使用 Supabase **Transaction Pooler**：`aws-0-ap-northeast-1.pooler.supabase.com:6543`。受保护命令会固定 project ref、host、port、用户名和 `pgbouncer=true`，不会继承任意 `DATABASE_URL`。
+Production 与应用运行时统一使用同一个 Supabase **Transaction Pooler `DATABASE_URL`**：`aws-0-ap-northeast-1.pooler.supabase.com:6543`。不再维护 `RIVALHUB_PRODUCTION_DB_PASSWORD` 或第二份 production database credential。受保护命令复用运行时 `DATABASE_URL`，但在任何查询或写入前严格验证固定 project ref、host、port、username 和 pooler shape；因此“复用已有 secret”不等于接受任意 inherited connection string。
 
 ```bash
+# DATABASE_URL 使用与 production runtime 相同的现有 Transaction Pooler secret。
 # Strictly read-only: rejects a pending, divergent or unexpected ledger entry.
+DATABASE_URL='<existing production runtime DATABASE_URL>' \
 RIVALHUB_DB_TARGET=production \
 RIVALHUB_PRODUCTION_PROJECT_CONFIRM=sucokfotkypwqkckfynp \
 RIVALHUB_PRODUCTION_DB_HOST_CONFIRM=aws-0-ap-northeast-1.pooler.supabase.com:6543 \
-RIVALHUB_PRODUCTION_DB_PASSWORD='<production database password>' \
 pnpm db:production:verify
 
 # Authorized forward migration only. It first validates the active chain in
 # Local PostgreSQL, reads the production preflight, runs Drizzle migrate, then
 # automatically runs the strict production verifier again.
+DATABASE_URL='<existing production runtime DATABASE_URL>' \
 RIVALHUB_DB_TARGET=production \
 RIVALHUB_PRODUCTION_PROJECT_CONFIRM=sucokfotkypwqkckfynp \
 RIVALHUB_PRODUCTION_DB_HOST_CONFIRM=aws-0-ap-northeast-1.pooler.supabase.com:6543 \
-RIVALHUB_PRODUCTION_DB_PASSWORD='<production database password>' \
 RIVALHUB_ALLOW_REMOTE_DB_WRITE=production \
 pnpm db:production:migrate
 ```
 
+在 Vercel Production 中 `DATABASE_URL` 本来就是应用访问 production DB 的 runtime secret，因此 migration/verify runner 应在能够继承该 Production environment 的受控执行环境中运行；不要把 URL 拆成第二份 password secret。显式 target、project、host 和 write authorization 仍是独立安全门禁。
+
 The current preflight accepts only the confirmed `0024_major_runtime_convergence` ledger prefix (or an already complete active chain). At the 0024 prefix it proves, inside a read-only transaction, the old schema shape and the exact fail-closed predicates for 0025 CHSI-code extraction and 0026 role values before a remote write is allowed. After migration, verify proves the complete ledger SHA/timestamp sequence, `evidence_code` present/`evidence_url` absent, `perfect_id` absent and the canonical `cs2_role` enum.
 
-Vercel production builds use [`scripts/vercel-build.ts`](../scripts/vercel-build.ts): when `VERCEL_ENV=production`, it validates the already-configured runtime Transaction Pooler `DATABASE_URL` against the exact production project and runs `db:production:verify` semantics before `next build`. A ledger mismatch therefore fails the build and leaves the previously deployed production version in place. Preview builds do not read production DB. The operational order is always **protected migrate → production verify → redeploy**; this is an enforceable deployment gate, not a release checklist.
+Vercel production builds use [`scripts/vercel-build.ts`](../scripts/vercel-build.ts): when `VERCEL_ENV=production`, it validates the already-configured runtime Transaction Pooler `DATABASE_URL` against the exact production project and runs `db:production:verify` semantics before `next build`. A ledger mismatch therefore fails the build and leaves the previously deployed production version in place. Preview builds do not read production DB. The operational order is always **protected migrate → production verify → redeploy**；build gate 只验证，不自动执行 migration，从而避免“DB 已前进但 application build 随后失败”的反向半发布状态。
 
 ### Explicit remote seed guard
 
