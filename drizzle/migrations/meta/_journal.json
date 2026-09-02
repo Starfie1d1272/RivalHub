@@ -218,6 +218,13 @@
       "when": 1788294028294,
       "tag": "0030_shiny_logan",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1788316306621,
+      "tag": "0031_community-awards-server-only",
+      "breakpoints": true
     }
   ]
 }

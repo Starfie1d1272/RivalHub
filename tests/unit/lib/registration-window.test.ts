@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getRegistrationWindowState } from "@/lib/registration/window";
+import { canSelfChangeApprovedRoster, getRegistrationWindowState } from "@/lib/registration/window";
 
 const now = new Date("2026-05-12T12:00:00.000Z");
 
@@ -87,5 +87,27 @@ describe("getRegistrationWindowState", () => {
 
     expect(state.phase).toBe("upcoming");
     expect(state.canSubmit).toBe(false);
+  });
+});
+
+describe("canSelfChangeApprovedRoster", () => {
+  it("refuses an approved roster change before the actual registration transition", () => {
+    expect(canSelfChangeApprovedRoster({
+      status: "registration",
+      registrationOpensAt: "2026-05-11T12:00:00.000Z",
+      registrationOpenedAt: null,
+      registrationClosesAt: "2026-05-14T12:00:00.000Z",
+      rosterChangeClosesAt: "2026-05-16T12:00:00.000Z",
+    }, now)).toBe(false);
+  });
+
+  it("allows an approved roster change after the actual transition until its own deadline", () => {
+    expect(canSelfChangeApprovedRoster({
+      status: "registration",
+      registrationOpensAt: "2026-05-11T12:00:00.000Z",
+      registrationOpenedAt: "2026-05-11T12:00:01.000Z",
+      registrationClosesAt: "2026-05-12T11:00:00.000Z",
+      rosterChangeClosesAt: "2026-05-16T12:00:00.000Z",
+    }, now)).toBe(true);
   });
 });

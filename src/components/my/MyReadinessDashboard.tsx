@@ -26,7 +26,7 @@ function ReadinessCard({ item }: { item: MyReadinessItem }) {
 
 function CompetitiveCard({ profile }: { profile: MyReadinessModel["competitiveProfiles"][number] }) {
   const state = STATE[profile.state];
-  return <div className="border border-[var(--color-border)] p-4 space-y-3"><div className="flex flex-wrap items-start justify-between gap-2"><h3 className="font-semibold">{profile.displayName} 竞技档案</h3><span className="font-mono text-[10px] text-[var(--color-fg-mid)]">{state.label}</span></div><p className="text-sm leading-6 text-[var(--color-fg-mid)]">{profile.blockers.length === 0 ? "历史最高、当前与上一赛季资料齐全。具体赛事仍只使用其发布时冻结的上下文。" : profile.blockers.join(" ")}</p><Button size="sm" variant="outline" asChild><Link href="/settings/competitive">维护竞技档案</Link></Button></div>;
+  return <div className="border border-[var(--color-border)] p-4 space-y-3"><div className="flex flex-wrap items-start justify-between gap-2"><h3 className="font-semibold">{profile.displayName} 竞技档案</h3><span className="font-mono text-[10px] text-[var(--color-fg-mid)]">{state.label}</span></div><p className="text-sm leading-6 text-[var(--color-fg-mid)]">{profile.blockers.length === 0 ? "历史最高、当前与上一赛季资料齐全。具体赛事仍只使用其实际开放报名时冻结的上下文。" : profile.blockers.join(" ")}</p><Button size="sm" variant="outline" asChild><Link href="/settings/competitive">维护竞技档案</Link></Button></div>;
 }
 
 export function MyReadinessDashboard({ model }: { model: MyReadinessModel }) {

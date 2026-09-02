@@ -15,6 +15,13 @@ describe("postmatch PostgreSQL invariants", () => {
     const pool = new Pool({ connectionString: databaseUrl, ssl: false }); const db = drizzle(pool, { schema });
     const seasonId = randomUUID(), adminA = randomUUID(), adminB = randomUUID(), adminC = randomUUID(), outsider = randomUUID(), representative = randomUUID(), entryA = randomUUID(), entryB = randomUUID(), revisionA = randomUUID(), revisionB = randomUUID(), matchId = randomUUID(), cancelledMatchId = randomUUID();
     try {
+      const rls = await pool.query<{ table_name: string; rls: boolean; anon_can_select: boolean; authenticated_can_select: boolean }>(
+        `SELECT c.relname AS table_name, c.relrowsecurity AS rls,
+                has_table_privilege('anon', c.oid, 'select') AS anon_can_select,
+                has_table_privilege('authenticated', c.oid, 'select') AS authenticated_can_select
+         FROM pg_class c WHERE c.relname IN ('community_awards', 'community_award_evidence', 'match_commentators', 'post_match_reports') ORDER BY c.relname`,
+      );
+      expect(rls.rows.length === 4 && rls.rows.every((row) => row.rls && !row.anon_can_select && !row.authenticated_can_select), "社区奖与赛后事实必须由 server-only owner 读写。").toBe(true);
       await pool.query("INSERT INTO seasons (id,slug,name,kind,status,registration_mode,has_captain_voting,has_draft) VALUES ($1,$2,'Postmatch','Major','playing','team',false,false)", [seasonId, `postmatch-${randomUUID()}`]);
       for (const [id, name] of [[adminA, "解说甲"], [adminB, "解说乙"], [adminC, "解说丙"], [outsider, "非管理员"], [representative, "代表"]]) await pool.query("INSERT INTO users (id,email,display_name) VALUES ($1,$2,$3)", [id, `${id}@local.test`, name]);
       await pool.query("INSERT INTO season_admin_grants (user_id,season_id) VALUES ($1,$4),($2,$4),($3,$4)", [adminA, adminB, adminC, seasonId]);

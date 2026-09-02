@@ -1,26 +1,22 @@
-import { asc, eq, inArray } from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
+import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { db } from "@/db/client";
-import { communityAwardEvidence, communityAwards, competitionEntries, matches, seasons, users } from "@/db/schema";
+import { seasons } from "@/db/schema";
 import { CommunityAwardsBoard } from "@/components/community-awards/CommunityAwardsBoard";
 import { requireSeasonAdmin } from "@/lib/auth/session";
-import { getSeasonAwardCandidates } from "@/lib/community-awards/read-model";
-import { getPublicDisplayName } from "@/lib/identity/display-name";
-import { presentMatchLabel } from "@/lib/matches/presentation";
+import { getAdminCommunityAwardBoardData } from "@/lib/community-awards/data";
 import { normalizeStagePlan } from "@/types/season";
 
 export default async function AdminCommunityAwardsPage({ params }: { params: Promise<{ seasonSlug: string }> }) {
-  const { seasonSlug } = await params; const season = await db.query.seasons.findFirst({ where: eq(seasons.slug, seasonSlug) }); if (!season) notFound(); const admin = await requireSeasonAdmin(season.id);
-  const recipient = alias(users, "award_recipient"), evidenceSubmitter = alias(users, "evidence_submitter"), evidenceCandidate = alias(users, "evidence_candidate");
-  const [awardRows, evidenceRows, candidates, matchRows] = await Promise.all([
-    db.select({ id: communityAwards.id, submittedByUserId: communityAwards.submittedByUserId, name: communityAwards.name, condition: communityAwards.condition, prize: communityAwards.prize, supplementaryNote: communityAwards.supplementaryNote, publicNote: communityAwards.publicNote, reviewNote: communityAwards.reviewNote, status: communityAwards.status, outcomeNote: communityAwards.outcomeNote, submitter: { displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName }, recipient: { displayName: recipient.displayName, perfectName: recipient.perfectName, steamName: recipient.steamName } }).from(communityAwards).innerJoin(users, eq(communityAwards.submittedByUserId, users.id)).leftJoin(recipient, eq(communityAwards.recipientUserId, recipient.id)).where(eq(communityAwards.seasonId, season.id)).orderBy(asc(communityAwards.createdAt)),
-    db.select({ id: communityAwardEvidence.id, awardId: communityAwardEvidence.awardId, explanation: communityAwardEvidence.explanation, videoUrl: communityAwardEvidence.videoUrl, createdAt: communityAwardEvidence.createdAt, matchId: communityAwardEvidence.matchId, submitter: { displayName: evidenceSubmitter.displayName, perfectName: evidenceSubmitter.perfectName, steamName: evidenceSubmitter.steamName }, candidate: { displayName: evidenceCandidate.displayName, perfectName: evidenceCandidate.perfectName, steamName: evidenceCandidate.steamName } }).from(communityAwardEvidence).innerJoin(communityAwards, eq(communityAwardEvidence.awardId, communityAwards.id)).innerJoin(evidenceSubmitter, eq(communityAwardEvidence.submittedByUserId, evidenceSubmitter.id)).leftJoin(evidenceCandidate, eq(communityAwardEvidence.candidateUserId, evidenceCandidate.id)).where(eq(communityAwards.seasonId, season.id)),
-    getSeasonAwardCandidates(season.id),
-    db.select({ id: matches.id, stage: matches.stage, round: matches.round, entryRound: matches.entryRound, aName: competitionEntries.name, bId: matches.entryBId }).from(matches).innerJoin(competitionEntries, eq(matches.entryAId, competitionEntries.id)).where(eq(matches.seasonId, season.id)),
-  ]);
-  const bIds = [...new Set(matchRows.map((row) => row.bId))]; const bRows = bIds.length ? await db.select({ id: competitionEntries.id, name: competitionEntries.name }).from(competitionEntries).where(inArray(competitionEntries.id, bIds)) : []; const bNames = new Map(bRows.map((row) => [row.id, row.name])); const stagePlan = normalizeStagePlan(season.stagePlan); const matchLabels = new Map(matchRows.map((row) => [row.id, presentMatchLabel({ stage: row.stage, stageName: stagePlan.find((stage) => stage.key === row.stage)?.name, round: row.round, entryRound: row.entryRound, teamAName: row.aName, teamBName: bNames.get(row.bId) ?? "TBD" })]));
-  const evidenceByAward = new Map<string, { id: string; submitterName: string; candidateName: string | null; matchLabel: string | null; explanation: string; videoUrl: string | null; createdAt: string }[]>(); for (const row of evidenceRows) { const list = evidenceByAward.get(row.awardId) ?? []; list.push({ id: row.id, submitterName: getPublicDisplayName(row.submitter), candidateName: row.candidate ? getPublicDisplayName(row.candidate) : null, matchLabel: row.matchId ? matchLabels.get(row.matchId) ?? null : null, explanation: row.explanation, videoUrl: row.videoUrl, createdAt: row.createdAt.toLocaleString("zh-CN") }); evidenceByAward.set(row.awardId, list); }
-  const awards = awardRows.map((row) => ({ ...row, submitterName: getPublicDisplayName(row.submitter), recipientName: row.recipient ? getPublicDisplayName(row.recipient) : null, evidence: evidenceByAward.get(row.id) ?? [] })); const matchOptions = [...matchLabels].map(([id, label]) => ({ id, label })); const groups = [{ label: "待审核", awards: awards.filter((award) => award.status === "pending_review" || award.status === "rejected") }, { label: "已公开待结奖", awards: awards.filter((award) => award.status === "approved") }, { label: "已结束", awards: awards.filter((award) => ["awarded", "not_awarded", "cancelled", "withdrawn"].includes(award.status)) }];
-  return <div className="container mx-auto max-w-4xl space-y-6 px-4 py-8"><div><h1 className="text-2xl font-bold">社区奖管理 · {season.name}</h1><p className="mt-1 text-sm text-[var(--color-fg-mid)]">审核、补充、证据、结奖与纠错均在此完成。</p></div>{groups.map((group) => <section key={group.label} className="space-y-3"><h2 className="text-lg font-semibold">{group.label}</h2><CommunityAwardsBoard seasonId={season.id} awards={group.awards} currentUserId={admin.userId} isAdmin candidates={candidates} matches={matchOptions} allowSubmission={false} /></section>)}</div>;
+  const { seasonSlug } = await params;
+  const season = await db.query.seasons.findFirst({ where: eq(seasons.slug, seasonSlug) });
+  if (!season) notFound();
+  const admin = await requireSeasonAdmin(season.id);
+  const data = await getAdminCommunityAwardBoardData(db, { seasonId: season.id, stagePlan: normalizeStagePlan(season.stagePlan) });
+  const groups = [
+    { label: "待审核", awards: data.awards.filter((award) => award.status === "pending_review" || award.status === "rejected") },
+    { label: "已公开待结奖", awards: data.awards.filter((award) => award.status === "approved") },
+    { label: "已结束", awards: data.awards.filter((award) => ["awarded", "not_awarded", "cancelled", "withdrawn"].includes(award.status)) },
+  ];
+  return <div className="container mx-auto max-w-4xl space-y-6 px-4 py-8"><div><h1 className="text-2xl font-bold">社区奖管理 · {season.name}</h1><p className="mt-1 text-sm text-[var(--color-fg-mid)]">审核、补充、证据、结奖与纠错均在此完成。</p></div>{groups.map((group) => <section key={group.label} className="space-y-3"><h2 className="text-lg font-semibold">{group.label}</h2><CommunityAwardsBoard seasonId={season.id} awards={group.awards} currentUserId={admin.userId} isAdmin candidates={data.candidates} matches={data.matches} allowSubmission={false} /></section>)}</div>;
 }

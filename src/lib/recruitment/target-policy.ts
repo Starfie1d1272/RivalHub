@@ -1,6 +1,5 @@
 import { and, eq, gt, isNull, or, sql, type SQLWrapper } from "drizzle-orm";
 import { competitionEntries, seasons } from "@/db/schema";
-import { canSelfManageEventRoster } from "@/lib/registration/window";
 
 const RECRUITMENT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -13,8 +12,14 @@ type RecruitmentTargetSeason = Pick<typeof seasons.$inferSelect, "status" | "reg
  * event roster. This is shared by writes, public reads, workspace state, and
  * target selectors.
  */
+export function canRecruitForSeason(season: RecruitmentTargetSeason, now: Date): boolean {
+  if (season.status !== "registration") return false;
+  const deadline = season.rosterChangeClosesAt ?? season.registrationClosesAt;
+  return !deadline || deadline > now;
+}
+
 export function isRecruitmentTargetAvailable(season: RecruitmentTargetSeason, now: Date): boolean {
-  return canSelfManageEventRoster(season, now);
+  return canRecruitForSeason(season, now);
 }
 
 /** After new applications close, Team recruitment remains public only for a
