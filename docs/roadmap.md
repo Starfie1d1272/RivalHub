@@ -71,7 +71,7 @@ v2.0 stable 的目标不是把整个 2.x backlog 一次完成，而是形成一�
 - Platform 拥有长期 rank ladder；
 - Platform Season 只表达时间目录；
 - 用户竞技事实记录 rank / stars / platform Rating，各自语义独立；
-- Event 在发布时引用并冻结当时的 competitive context；
+- Event 在实际开放报名时引用并冻结当时的 competitive context；发布只锁定公开赛事规则；
 - 后续目录变化不得改写已经发布赛事的资格语义。
 
 ### “我的”任务入口

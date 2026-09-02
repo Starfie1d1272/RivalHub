@@ -1,14 +1,17 @@
 import { z } from "zod";
 import { createCompetitionTemplate, type CompetitionTemplate } from "@/lib/competition/templates";
 import { AppError, ErrorCode } from "@/lib/errors";
+import { parseCSTInput } from "@/lib/utils/date";
 import {
   normalizeAffiliationRules,
   normalizeRegistrationConfig,
   normalizeTeamRegistrationConfig,
   type InstitutionAffiliationRule,
+  type CompetitiveFallbackConversion,
   type RegistrationConfig,
   type StagePlan,
   type TeamRegistrationConfig,
+  type SeasonStatus,
 } from "@/types/season";
 import type { seasons } from "@/db/schema";
 
@@ -114,6 +117,10 @@ export const seasonFormSchema = withSeasonRefinements(seasonFormBaseSchema);
 export const seasonUpdateFormSchema = withSeasonRefinements(seasonFormBaseSchema.extend({ id: z.string().uuid() }));
 
 export type SeasonFormInput = z.input<typeof seasonFormSchema>;
+// Keep planner input tied to the concrete object schema. The refinement helper
+// intentionally accepts a generic Zod schema, so inferring from the refined
+// value would otherwise erase the fields to `any`.
+type ParsedSeasonForm = z.infer<typeof seasonFormBaseSchema>;
 
 export function withSeasonRefinements<T extends z.ZodTypeAny>(schema: T) {
   return schema
@@ -165,7 +172,7 @@ export function assertUniqueStageKeys(stagePlan: StagePlan): void {
  * map pool and general metadata. Custom drafts keep their own input — the
  * persisted template identity is not re-inferred from shape.
  */
-export function resolveCompetitionDefinition(data: z.infer<typeof seasonFormSchema>, applyTemplate: boolean): Omit<typeof data, "template"> {
+export function resolveCompetitionDefinition(data: ParsedSeasonForm, applyTemplate: boolean): Omit<ParsedSeasonForm, "template"> {
   const { template, ...input } = data;
   if (!template || !applyTemplate || template === "custom") return input;
   const builtIn = createCompetitionTemplate(template as CompetitionTemplate);
@@ -188,7 +195,10 @@ export function resolveCompetitionDefinition(data: z.infer<typeof seasonFormSche
         ? { ...builtIn.teamRegistrationConfig.competitiveProfile, fallbackConversion }
         : undefined,
     },
-    affiliationRules: builtIn.affiliationRules,
+    affiliationRules: builtIn.affiliationRules.map((rule) => ({
+      ...rule,
+      eligibleAcademicStatuses: [...rule.eligibleAcademicStatuses],
+    })),
     minTeamSize: builtIn.minTeamSize,
     maxTeamSize: builtIn.maxTeamSize,
     starterCount: builtIn.starterCount,
@@ -203,59 +213,181 @@ export function resolveCompetitionDefinition(data: z.infer<typeof seasonFormSche
 export type SeasonRow = typeof seasons.$inferSelect;
 type SeasonUpdateSet = Partial<Omit<typeof seasons.$inferInsert, "id">>;
 
+export type SeasonEditPhase =
+  | "draft"
+  | "published_preopen"
+  | "registration_opened"
+  | "playing"
+  | "terminal";
+
+export interface SeasonEditCapabilities {
+  phase: SeasonEditPhase;
+  canEditSlug: boolean;
+  canEditTemplate: boolean;
+  canEditPublicRules: boolean;
+  canEditRegistrationOpenSchedule: boolean;
+  canEditRegistrationDeadlines: boolean;
+  canEditFallbackConversion: boolean;
+  canEditMetadata: boolean;
+}
+
+export interface SeasonEditLifecycleInput {
+  status: SeasonStatus;
+  registrationOpenedAt: Date | null;
+  competitionTemplate: CompetitionTemplate;
+}
+
+/**
+ * The single lifecycle-derived capability contract shared by the server
+ * planner and the admin editor. `registrationOpenedAt` is the immutable
+ * transition fact; a scheduled opening time is only editable before it.
+ */
+export function getSeasonEditCapabilities({
+  status,
+  registrationOpenedAt,
+  competitionTemplate,
+}: SeasonEditLifecycleInput): SeasonEditCapabilities {
+  const phase: SeasonEditPhase = status === "draft"
+    ? "draft"
+    : status === "playing"
+      ? "playing"
+      : status === "finished" || status === "archived"
+        ? "terminal"
+        : status === "registration" && !registrationOpenedAt
+          ? "published_preopen"
+          : "registration_opened";
+  const isDraft = phase === "draft";
+
+  return {
+    phase,
+    canEditSlug: isDraft,
+    canEditTemplate: isDraft,
+    canEditPublicRules: isDraft,
+    canEditRegistrationOpenSchedule: !registrationOpenedAt,
+    canEditRegistrationDeadlines: phase === "draft" || phase === "published_preopen" || phase === "registration_opened",
+    canEditFallbackConversion: isDraft || (phase === "published_preopen" && competitionTemplate === "major"),
+    canEditMetadata: true,
+  };
+}
+
+type SeasonDateInput = Pick<ParsedSeasonForm, "registrationOpensAt" | "registrationClosesAt" | "rosterChangeClosesAt" | "endAt">;
+
+function toDbDates(data: SeasonDateInput): Pick<typeof seasons.$inferInsert, "registrationOpensAt" | "registrationClosesAt" | "rosterChangeClosesAt" | "endAt"> {
+  return {
+    registrationOpensAt: parseCSTInput(data.registrationOpensAt),
+    registrationClosesAt: parseCSTInput(data.registrationClosesAt),
+    rosterChangeClosesAt: parseCSTInput(data.rosterChangeClosesAt),
+    endAt: parseCSTInput(data.endAt),
+  };
+}
+
 function sameJson(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+function sameDate(left: Date | null | undefined, right: Date | null | undefined): boolean {
+  if (!left || !right) return left === right;
+  return left.getTime() === right.getTime();
+}
+
+function withoutFallback(config: TeamRegistrationConfig): TeamRegistrationConfig {
+  const result = { ...config };
+  if (config.competitiveProfile) {
+    const profile = { ...config.competitiveProfile };
+    delete profile.fallbackConversion;
+    result.competitiveProfile = profile;
+  }
+  return result;
+}
+
+function withFallback(config: TeamRegistrationConfig, fallback: CompetitiveFallbackConversion | undefined): TeamRegistrationConfig {
+  if (!config.competitiveProfile) return config;
+  const competitiveProfile = { ...config.competitiveProfile };
+  if (fallback) competitiveProfile.fallbackConversion = fallback;
+  else delete competitiveProfile.fallbackConversion;
+  return { ...config, competitiveProfile };
+}
+
 /**
- * Plans one season edit against the persisted row. The persisted
- * competitionTemplate is the identity owner: client input may switch it only
- * while the season is still a draft, and non-draft edits carry only metadata
- * (name, theme, dates) so a published Major's frozen competitiveProfile
- * context can never be rewritten by the template factory or client payload.
+ * Plans one season edit against the persisted row. The capability contract is
+ * the only lifecycle authority: draft edits are canonicalized by the selected
+ * template, while published edits reject every unauthorized delta instead of
+ * silently dropping it. The temporary Major fallback exception only returns a
+ * team config whose sole changed leaf is competitiveProfile.fallbackConversion.
  */
-export function planSeasonUpdate(existing: SeasonRow, parsed: z.infer<typeof seasonFormSchema>): { template: CompetitionTemplate; set: SeasonUpdateSet } {
-  const template = parsed.template ?? existing.competitionTemplate;
-  if (template !== existing.competitionTemplate && existing.status !== "draft") {
+export function planSeasonUpdate(existing: SeasonRow, parsed: ParsedSeasonForm): { template: CompetitionTemplate; set: SeasonUpdateSet } {
+  const template = parsed.template ?? existing.competitionTemplate ?? "custom";
+  const capabilities = getSeasonEditCapabilities({
+    status: existing.status,
+    registrationOpenedAt: existing.registrationOpenedAt,
+    competitionTemplate: existing.competitionTemplate,
+  });
+  if (!capabilities.canEditTemplate && template !== existing.competitionTemplate) {
     throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有 draft 状态可切换赛事体系");
   }
-  const data = resolveCompetitionDefinition(parsed, existing.status === "draft" && template !== "custom");
+  if (!capabilities.canEditSlug && parsed.slug !== existing.slug) {
+    throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "已发布赛事不能修改 slug");
+  }
+  const data = resolveCompetitionDefinition(parsed, capabilities.canEditTemplate && template !== "custom");
   assertUniqueStageKeys(data.stagePlan as StagePlan);
+  const submittedDates = toDbDates(data);
+  if (!capabilities.canEditRegistrationOpenSchedule && !sameDate(existing.registrationOpensAt, submittedDates.registrationOpensAt)) {
+    throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "报名实际开放后不能修改报名开放时间");
+  }
+  if (!capabilities.canEditRegistrationDeadlines && (
+    !sameDate(existing.registrationClosesAt, submittedDates.registrationClosesAt) ||
+    !sameDate(existing.rosterChangeClosesAt, submittedDates.rosterChangeClosesAt)
+  )) {
+    throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "比赛开始后不能修改报名运营截止时间");
+  }
   const normalizedTeamConfig = normalizeTeamRegistrationConfig(
     (data.teamRegistrationConfig ?? {}) as TeamRegistrationConfig,
   );
+  const existingTeamConfig = normalizeTeamRegistrationConfig(existing.teamRegistrationConfig);
+  const registrationConfig = normalizeRegistrationConfig(data.registrationConfig as RegistrationConfig);
+  const affiliationRules = normalizeAffiliationRules(data.affiliationRules as InstitutionAffiliationRule[] | undefined);
+  const teamConfigChangedWithoutFallback = !sameJson(withoutFallback(existingTeamConfig), withoutFallback(normalizedTeamConfig));
+  const fallbackChanged = !sameJson(
+    existingTeamConfig.competitiveProfile?.fallbackConversion,
+    normalizedTeamConfig.competitiveProfile?.fallbackConversion,
+  );
+  const publicRulesChanged =
+    existing.registrationMode !== data.registrationMode ||
+    existing.hasCaptainVoting !== data.hasCaptainVoting ||
+    existing.hasDraft !== data.hasDraft ||
+    existing.maxTeamSize !== data.maxTeamSize ||
+    existing.minTeamSize !== data.minTeamSize ||
+    existing.starterCount !== data.starterCount ||
+    !sameJson(existing.positions, data.positions) ||
+    !sameJson(existing.stagePlan, data.stagePlan) ||
+    !sameJson(normalizeRegistrationConfig(existing.registrationConfig), registrationConfig) ||
+    teamConfigChangedWithoutFallback ||
+    !sameJson(normalizeAffiliationRules(existing.affiliationRules), affiliationRules);
+
+  if (!capabilities.canEditPublicRules && (publicRulesChanged || (fallbackChanged && !capabilities.canEditFallbackConversion))) {
+    throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有 draft 状态可修改核心赛季配置");
+  }
 
   const metadata: SeasonUpdateSet = {
+    slug: capabilities.canEditSlug ? data.slug : existing.slug,
     name: data.name,
     kind: data.kind,
     competitionTemplate: template,
     themeColor: data.themeColor,
-    // Once the canonical transition has occurred, the scheduled time is a
-    // historical operator record rather than editable metadata. Keep the
-    // persisted value even if a stale client submits a different value.
-    registrationOpensAt: existing.registrationOpenedAt ? existing.registrationOpensAt : data.registrationOpensAt,
-    registrationClosesAt: data.registrationClosesAt,
-    rosterChangeClosesAt: data.rosterChangeClosesAt,
-    endAt: data.endAt,
+    registrationOpensAt: capabilities.canEditRegistrationOpenSchedule ? submittedDates.registrationOpensAt : existing.registrationOpensAt,
+    registrationClosesAt: capabilities.canEditRegistrationDeadlines ? submittedDates.registrationClosesAt : existing.registrationClosesAt,
+    rosterChangeClosesAt: capabilities.canEditRegistrationDeadlines ? submittedDates.rosterChangeClosesAt : existing.rosterChangeClosesAt,
+    endAt: submittedDates.endAt,
     updatedAt: new Date(),
   };
 
-  if (existing.status !== "draft") {
-    const coreChanged =
-      existing.registrationMode !== data.registrationMode ||
-      existing.hasCaptainVoting !== data.hasCaptainVoting ||
-      existing.hasDraft !== data.hasDraft ||
-      existing.maxTeamSize !== data.maxTeamSize ||
-      existing.minTeamSize !== data.minTeamSize ||
-      existing.starterCount !== data.starterCount ||
-      !sameJson(existing.positions, data.positions) ||
-      !sameJson(existing.stagePlan, data.stagePlan) ||
-      !sameJson(normalizeTeamRegistrationConfig(existing.teamRegistrationConfig), normalizedTeamConfig) ||
-      !sameJson(normalizeAffiliationRules(existing.affiliationRules), normalizeAffiliationRules(data.affiliationRules as InstitutionAffiliationRule[] | undefined));
-    if (coreChanged) {
-      throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有 draft 状态可修改核心赛季配置");
-    }
-    return { template, set: metadata };
+  if (!capabilities.canEditPublicRules) {
+    return {
+      template,
+      set: fallbackChanged
+        ? { ...metadata, teamRegistrationConfig: withFallback(existingTeamConfig, normalizedTeamConfig.competitiveProfile?.fallbackConversion) }
+        : metadata,
+    };
   }
 
   return {
@@ -270,14 +402,14 @@ export function planSeasonUpdate(existing: SeasonRow, parsed: z.infer<typeof sea
       starterCount: data.starterCount,
       positions: data.positions,
       stagePlan: data.stagePlan as StagePlan,
-      registrationConfig: normalizeRegistrationConfig(data.registrationConfig as RegistrationConfig),
+      registrationConfig,
       teamRegistrationConfig: normalizedTeamConfig,
-      affiliationRules: normalizeAffiliationRules(data.affiliationRules as InstitutionAffiliationRule[] | undefined),
+      affiliationRules,
     },
   };
 }
 
-export function planSeasonCreate(parsed: z.infer<typeof seasonFormSchema>): { template: CompetitionTemplate; set: typeof seasons.$inferInsert } {
+export function planSeasonCreate(parsed: ParsedSeasonForm): { template: CompetitionTemplate; set: typeof seasons.$inferInsert } {
   const template = parsed.template ?? "custom";
   const data = resolveCompetitionDefinition(parsed, true);
   assertUniqueStageKeys(data.stagePlan as StagePlan);
@@ -290,6 +422,7 @@ export function planSeasonCreate(parsed: z.infer<typeof seasonFormSchema>): { te
       competitionTemplate: template,
       status: "draft",
       themeColor: data.themeColor,
+      ...toDbDates(data),
       registrationMode: data.registrationMode,
       hasCaptainVoting: data.hasCaptainVoting,
       hasDraft: data.hasDraft,

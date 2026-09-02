@@ -25,7 +25,8 @@ interface TeamConfigFormProps {
  * roster/identity rules live in the season's affiliationRules, positions in
  * season.positions, member removal in the application state machine, and the
  * competitive profile context is resolved from the global platform catalog at
- * publish time.
+ * registration open; the temporary event-owned fallback can be edited only
+ * before that actual transition.
  */
 export function TeamConfigForm({ value, competitivePlatforms, fallbackOnly = false, disabled = false, onChange }: TeamConfigFormProps) {
   function set<K extends keyof TeamRegistrationConfig>(key: K, val: TeamRegistrationConfig[K]) {

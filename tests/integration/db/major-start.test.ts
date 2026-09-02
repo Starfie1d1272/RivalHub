@@ -1088,7 +1088,7 @@ async function exerciseStaleRosterCoherence(
 }
 
 /**
- * requireCompetitiveProfile=true 但发布时冻结的 competitiveProfile 缺失/不完整
+ * requireCompetitiveProfile=true 但报名开放时冻结的 competitiveProfile 缺失/不完整
  * → start 边界显式 fail closed，不允许在没有竞技资格规则的情况下继续开赛。
  */
 async function exerciseMissingCompetitiveProfile(

@@ -118,7 +118,7 @@ describe("resolveCompetitionDefinition (draft canonicalization)", () => {
     expect(data.hasCaptainVoting).toBe(false);
     expect(data.hasDraft).toBe(false);
     expect(data.stagePlan).toEqual(major.stagePlan);
-    expect(data.teamRegistrationConfig.requireCompetitiveProfile).toBe(true);
+    expect(data.teamRegistrationConfig?.requireCompetitiveProfile).toBe(true);
     expect(data.affiliationRules).toEqual(major.affiliationRules);
     expect(data.kind).toBe("Major");
   });
