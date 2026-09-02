@@ -5,6 +5,7 @@ import { CS2_POSITION_VALUES } from "@/lib/config/cs2-positions";
 
 export const competitiveFactKindEnum = pgEnum("competitive_fact_kind", ["historical_peak", "season_peak"]);
 export const competitiveFactProvenanceEnum = pgEnum("competitive_fact_provenance", ["self_declared"]);
+export const competitiveFactStatusEnum = pgEnum("competitive_fact_status", ["ranked", "unranked"]);
 export const cs2RoleEnum = pgEnum("cs2_role", CS2_POSITION_VALUES);
 
 /**
@@ -81,11 +82,15 @@ export const competitiveRankFacts = pgTable("competitive_rank_facts", {
   kind: competitiveFactKindEnum("kind").notNull(),
   /** Required for season_peak; null only for the cross-season historical peak. */
   platformSeasonKey: text("platform_season_key"),
-  rank: text("rank").notNull(),
+  /** A season fact can be an explicit unranked declaration. */
+  status: competitiveFactStatusEnum("status").notNull().default("ranked"),
+  rank: text("rank"),
   /** The platform's canonical performance Rating; never a matchmaking score (e.g. Valve CS Rating). */
-  rating: numeric("rating", { precision: 8, scale: 2 }).notNull(),
+  rating: numeric("rating", { precision: 8, scale: 2 }),
   /** Exact self-declared in-rank progress. Legacy facts intentionally remain null. */
   stars: integer("stars"),
+  /** Optional provenance for historical_peak; never replaces season fact identity. */
+  achievedSeasonKey: text("achieved_season_key"),
   provenance: competitiveFactProvenanceEnum("provenance").notNull().default("self_declared"),
   declaredAt: timestamp("declared_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -94,6 +99,25 @@ export const competitiveRankFacts = pgTable("competitive_rank_facts", {
     .on(t.userId, t.platform, t.kind, sql`coalesce(${t.platformSeasonKey}, '')`),
   userPlatformIndex: index("competitive_rank_facts_user_platform_idx").on(t.userId, t.platform),
   starsNonNegative: check("competitive_rank_facts_stars_non_negative", sql`${t.stars} IS NULL OR ${t.stars} >= 0`),
+  validFactShape: check("competitive_rank_facts_valid_fact_shape", sql`
+    (
+      ${t.kind} = 'historical_peak'
+      AND ${t.status} = 'ranked'
+      AND ${t.platformSeasonKey} IS NULL
+      AND ${t.rank} IS NOT NULL
+      AND ${t.rating} IS NOT NULL
+    ) OR (
+      ${t.kind} = 'season_peak'
+      AND ${t.platformSeasonKey} IS NOT NULL
+      AND (
+        (${t.status} = 'ranked' AND ${t.rank} IS NOT NULL AND ${t.rating} IS NOT NULL)
+        OR (${t.status} = 'unranked' AND ${t.rank} IS NULL AND ${t.stars} IS NULL)
+      )
+    )
+  `),
+  achievedSeasonOnlyForHistoricalPeak: check("competitive_rank_facts_achieved_season_shape", sql`
+    (${t.kind} = 'historical_peak') OR ${t.achievedSeasonKey} IS NULL
+  `),
 }));
 
 /** Long-lived self-declared preferences. They are hints, never eligibility gates. */

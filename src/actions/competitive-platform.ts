@@ -57,21 +57,46 @@ export async function updateCompetitivePlatform(input: unknown): Promise<ActionR
 // ── Season chronology ───────────────────────────────────────────────────────
 
 export async function createCompetitivePlatformSeason(input: unknown): Promise<ActionResult<{ id: string }>> {
-  const parsed = z.object({ platform: z.string().trim().min(1).max(64), seasonKey: seasonKeySchema, label: labelSchema }).safeParse(input);
+  const parsed = z.object({
+    platform: z.string().trim().min(1).max(64),
+    seasonKey: seasonKeySchema,
+    label: labelSchema,
+    insertAt: z.object({ seasonId: z.string().uuid(), position: z.enum(["before", "after"]) }).optional(),
+  }).safeParse(input);
   if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请填写所属平台、赛季标识和显示名称。" });
   try {
     const session = await requireSuperAdmin();
-    const { platform, seasonKey, label } = parsed.data;
+    const { platform, label, insertAt } = parsed.data;
+    const seasonKey = parsed.data.seasonKey.toLowerCase();
     if (!isBuiltInCompetitivePlatformKey(platform)) throw new AppError(ErrorCode.VALIDATION_FAILED, "2.0 仅维护 Perfect World 与 5E 内置竞技平台。新增平台需要明确的产品与迁移变更。");
     const result = await db.transaction(async (tx) => {
       const platformRow = await tx.query.competitivePlatforms.findFirst({ where: eq(competitivePlatforms.key, platform) });
       if (!platformRow) throw new AppError(ErrorCode.NOT_FOUND, "竞技平台不存在，请先创建平台。");
       const duplicate = await tx.query.competitivePlatformSeasons.findFirst({ where: and(eq(competitivePlatformSeasons.platform, platform), eq(competitivePlatformSeasons.seasonKey, seasonKey)) });
       if (duplicate) throw new AppError(ErrorCode.VALIDATION_FAILED, `该平台已存在赛季标识 ${seasonKey}；赛季标识创建后不可修改。`);
-      const [{ maxOrder }] = await tx.select({ maxOrder: sql<number>`coalesce(max(${competitivePlatformSeasons.sortOrder}), -1)` }).from(competitivePlatformSeasons).where(eq(competitivePlatformSeasons.platform, platform));
-      const [row] = await tx.insert(competitivePlatformSeasons).values({ platform, seasonKey, label, sortOrder: Number(maxOrder) + 1, active: true, isCurrent: false }).returning({ id: competitivePlatformSeasons.id });
+      const existing = await tx.select().from(competitivePlatformSeasons)
+        .where(eq(competitivePlatformSeasons.platform, platform))
+        .orderBy(asc(competitivePlatformSeasons.sortOrder));
+      let insertIndex = existing.length;
+      if (insertAt) {
+        const targetIndex = existing.findIndex((season) => season.id === insertAt.seasonId);
+        if (targetIndex < 0) throw new AppError(ErrorCode.VALIDATION_FAILED, "插入位置不属于该竞技平台。");
+        insertIndex = insertAt.position === "before" ? targetIndex : targetIndex + 1;
+      }
+      // Reindex as one transaction. Temporary values avoid the unique
+      // (platform, sortOrder) index during a dense historical insertion.
+      const lowest = Math.min(0, ...existing.map((season) => season.sortOrder));
+      const temporaryOrder = lowest - existing.length - 2;
+      const [row] = await tx.insert(competitivePlatformSeasons).values({ platform, seasonKey, label, sortOrder: temporaryOrder, active: true, isCurrent: false }).returning({ id: competitivePlatformSeasons.id });
       if (!row) throw new AppError(ErrorCode.INTERNAL_ERROR, "赛季目录项创建失败。");
-      await tx.insert(auditLogs).values({ action: "competitive_platform_season.create", actorId: auditActorId(session), targetId: row.id, targetType: "competitive_platform_season", meta: { platform, seasonKey, label } });
+      const chronological = [...existing.slice(0, insertIndex), { id: row.id }, ...existing.slice(insertIndex)];
+      for (const [index, season] of chronological.entries()) {
+        await tx.update(competitivePlatformSeasons).set({ sortOrder: temporaryOrder - index - 1 }).where(eq(competitivePlatformSeasons.id, season.id));
+      }
+      for (const [index, season] of chronological.entries()) {
+        await tx.update(competitivePlatformSeasons).set({ sortOrder: (index + 1) * 10, updatedAt: new Date() }).where(eq(competitivePlatformSeasons.id, season.id));
+      }
+      await tx.insert(auditLogs).values({ action: "competitive_platform_season.create", actorId: auditActorId(session), targetId: row.id, targetType: "competitive_platform_season", meta: { platform, seasonKey, label, insertAt: insertAt ?? null } });
       return row;
     });
     revalidateCatalog();
@@ -143,7 +168,7 @@ export async function setCurrentCompetitivePlatformSeason(input: unknown): Promi
  * never violated mid-transaction.
  */
 export async function moveCompetitivePlatformSeason(input: unknown): Promise<ActionResult<void>> {
-  const parsed = z.object({ id: z.string().uuid(), direction: z.enum(["up", "down"]) }).safeParse(input);
+  const parsed = z.object({ id: z.string().uuid(), direction: z.enum(["earlier", "later"]) }).safeParse(input);
   if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "排序指令无效。" });
   try {
     const session = await requireSuperAdmin();
@@ -151,10 +176,10 @@ export async function moveCompetitivePlatformSeason(input: unknown): Promise<Act
     await db.transaction(async (tx) => {
       const row = await tx.query.competitivePlatformSeasons.findFirst({ where: eq(competitivePlatformSeasons.id, id) });
       if (!row) throw new AppError(ErrorCode.NOT_FOUND, "赛季目录项不存在。");
-      const neighborWhere = direction === "up"
+      const neighborWhere = direction === "earlier"
         ? and(eq(competitivePlatformSeasons.platform, row.platform), lt(competitivePlatformSeasons.sortOrder, row.sortOrder))
         : and(eq(competitivePlatformSeasons.platform, row.platform), gt(competitivePlatformSeasons.sortOrder, row.sortOrder));
-      const [neighbor] = await tx.select().from(competitivePlatformSeasons).where(neighborWhere).orderBy(direction === "up" ? desc(competitivePlatformSeasons.sortOrder) : asc(competitivePlatformSeasons.sortOrder)).limit(1);
+      const [neighbor] = await tx.select().from(competitivePlatformSeasons).where(neighborWhere).orderBy(direction === "earlier" ? desc(competitivePlatformSeasons.sortOrder) : asc(competitivePlatformSeasons.sortOrder)).limit(1);
       if (!neighbor) return;
       const orders = await tx.select({ sortOrder: competitivePlatformSeasons.sortOrder }).from(competitivePlatformSeasons).where(eq(competitivePlatformSeasons.platform, row.platform));
       const [rowTemporary, neighborTemporary] = temporarySortOrders(orders.map((item) => item.sortOrder));

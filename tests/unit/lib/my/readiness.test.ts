@@ -157,13 +157,13 @@ describe("我的 readiness read model", () => {
     expect(result.competitions[0]?.entry.detail).toContain("已确认参赛");
   });
 
-  it("only selects required platforms and platforms with user facts for readiness cards", () => {
+  it("shows the complete catalog in canonical long-lived profile order", () => {
     const catalog = [
       { key: "perfect", displayName: "Perfect", ratingLabel: "Rating", ranks: [], seasons: [] },
       { key: "5e", displayName: "5E", ratingLabel: "Rating", ranks: [], seasons: [] },
     ];
 
-    expect(selectMyCompetitiveProfilePlatformKeys(catalog, new Set(["perfect"]), new Set())).toEqual(["perfect"]);
+    expect(selectMyCompetitiveProfilePlatformKeys(catalog, new Set(["perfect"]), new Set())).toEqual(["perfect", "5e"]);
     expect(selectMyCompetitiveProfilePlatformKeys(catalog, new Set(["perfect"]), new Set(["5e"]))).toEqual(["perfect", "5e"]);
   });
 

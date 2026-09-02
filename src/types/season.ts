@@ -102,6 +102,20 @@ export interface CompetitiveProfileConfig {
   /** Lowest → highest rank labels. Empty means no evaluator is configured yet. */
   rankOrder: string[];
   evidencePolicy?: CompetitiveEvidencePolicy;
+  /** Optional event-owned 5E fallback mapping, copied into the registration freeze. */
+  fallbackConversion?: CompetitiveFallbackConversion;
+}
+
+/**
+ * An audited, event-owned equivalence policy. Mapping is deliberately not
+ * product-global: changing it later must not reinterpret an opened event.
+ */
+export interface CompetitiveFallbackConversion {
+  sourcePlatform: "fivee";
+  version: string;
+  /** Frozen primary-season → source-season correspondence. */
+  seasonKeyMap: Record<string, string>;
+  rankMap: Record<string, string>;
 }
 
 /**
@@ -483,6 +497,18 @@ export function normalizeTeamRegistrationConfig(
                 referenceSeasonWeight: 20,
                 recentSeasonKeys: [...new Set(config.competitiveProfile.evidencePolicy.recentSeasonKeys.map((key) => key.trim()).filter(Boolean))],
                 recentSeasonWeight: 30,
+              }
+            : undefined,
+          fallbackConversion: config.competitiveProfile.fallbackConversion
+            ? {
+                sourcePlatform: "fivee",
+                version: config.competitiveProfile.fallbackConversion.version.trim(),
+                seasonKeyMap: Object.fromEntries(Object.entries(config.competitiveProfile.fallbackConversion.seasonKeyMap)
+                  .map(([primary, source]) => [primary.trim(), source.trim()])
+                  .filter(([primary, source]) => primary && source)),
+                rankMap: Object.fromEntries(Object.entries(config.competitiveProfile.fallbackConversion.rankMap)
+                  .map(([source, target]) => [source.trim(), target.trim()])
+                  .filter(([source, target]) => source && target)),
               }
             : undefined,
         }

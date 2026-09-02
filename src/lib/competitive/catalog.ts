@@ -3,6 +3,7 @@ import type { db as dbClient } from "@/db/client";
 import { competitivePlatformRanks, competitivePlatformSeasons, competitivePlatforms, competitiveRankFacts } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import type { CompetitiveProfileConfig } from "@/types/season";
+import { compareCompetitivePlatformPriority } from "./builtins";
 
 /**
  * Single read-model owner for the competitive platform catalog: platforms,
@@ -52,7 +53,7 @@ export async function loadCompetitivePlatformCatalog(
     executor.select().from(competitivePlatformRanks).orderBy(asc(competitivePlatformRanks.platformKey), asc(competitivePlatformRanks.sortOrder)),
     executor.select().from(competitivePlatformSeasons).orderBy(asc(competitivePlatformSeasons.platform), asc(competitivePlatformSeasons.sortOrder)),
   ]);
-  return platforms.map((platform) => ({
+  return platforms.sort((left, right) => compareCompetitivePlatformPriority(left.key, right.key)).map((platform) => ({
     key: platform.key,
     displayName: platform.displayName,
     ratingLabel: platform.ratingLabel,
@@ -175,7 +176,7 @@ export async function loadReferencedPlatformRankKeys(
     FROM seasons
     WHERE team_registration_config->'competitiveProfile'->>'platform' = ${platform}
   `);
-  return new Set([...facts.map((row) => row.rank), ...frozen.rows.map((row) => row.rank)]);
+  return new Set([...facts.map((row) => row.rank).filter((rank): rank is string => rank !== null), ...frozen.rows.map((row) => row.rank)]);
 }
 
 /** Fail closed before a ladder mutation would rewrite referenced semantics. */

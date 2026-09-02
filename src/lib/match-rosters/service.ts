@@ -54,12 +54,17 @@ function frozenCompetitiveProfile(ruleSnapshot: unknown): CompetitiveProfileConf
   if (policy && (policy.historicalWeight !== 50 || policy.referenceSeasonWeight !== 20 || policy.recentSeasonWeight !== 30 || typeof policy.referenceSeasonKey !== "string" || !Array.isArray(policy.recentSeasonKeys) || !policy.recentSeasonKeys.every((key) => typeof key === "string"))) {
     throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结的竞技参考策略不可用。");
   }
+  const fallback = profile.fallbackConversion;
+  if (fallback && (fallback.sourcePlatform !== "fivee" || typeof fallback.version !== "string" || !fallback.seasonKeyMap || typeof fallback.seasonKeyMap !== "object" || !fallback.rankMap || typeof fallback.rankMap !== "object")) {
+    throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结的 5E fallback 映射不可用。");
+  }
   return {
     platform: profile.platform,
     currentSeasonKey: profile.currentSeasonKey,
     previousSeasonKey: profile.previousSeasonKey,
     rankOrder: profile.rankOrder.filter((rank): rank is string => typeof rank === "string"),
     evidencePolicy: policy ? { historicalWeight: 50, referenceSeasonKey: policy.referenceSeasonKey, referenceSeasonWeight: 20, recentSeasonKeys: [...policy.recentSeasonKeys], recentSeasonWeight: 30 } : undefined,
+    fallbackConversion: fallback ? { sourcePlatform: "fivee", version: fallback.version, seasonKeyMap: { ...fallback.seasonKeyMap }, rankMap: { ...fallback.rankMap } } : undefined,
   };
 }
 

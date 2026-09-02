@@ -225,6 +225,13 @@
       "when": 1788316306621,
       "tag": "0031_community-awards-server-only",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1788325421247,
+      "tag": "0032_competitive_fact_states",
+      "breakpoints": true
     }
   ]
 }
