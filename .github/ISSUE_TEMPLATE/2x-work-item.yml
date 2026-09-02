@@ -1,0 +1,57 @@
+name: 2.x 工作项
+description: 创建 RivalHub 2.x 产品、架构、基础设施、性能或 UX 工作项
+title: "[2.x] "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请使用自然中文描述问题。创建后确认该 Issue 存在且仅存在一个 `priority:P0` / `priority:P1` / `priority:P2` / `priority:P3` label；`next` 仅用于当前正在推进或紧接着推进的少数主题。
+
+  - type: textarea
+    id: background
+    attributes:
+      label: 背景
+      description: 当前发生了什么，为什么值得处理；有真实代码、日志、截图或用户反馈时优先给出证据。
+      placeholder: 描述当前状态、已确认问题和必要上下文。
+    validations:
+      required: true
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: 目标
+      description: 完成后系统或用户应该达到什么状态。
+      placeholder: 描述目标状态，不必提前写死实现方案。
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: 范围 / 边界
+      description: 可选。仅在需要限制 scope、明确非目标或 canonical owner 时填写。
+      placeholder: 哪些内容属于本 Issue，哪些明确不属于。
+    validations:
+      required: false
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 验收
+      description: 使用可验证结果描述完成条件。
+      placeholder: |
+        - [ ] 可验证结果 1
+        - [ ] 可验证结果 2
+    validations:
+      required: true
+
+  - type: textarea
+    id: related
+    attributes:
+      label: 关联
+      description: 可选。只填写真实依赖、前置或相关 Issue / PR。
+      placeholder: "例如：#123、PR #456"
+    validations:
+      required: false
