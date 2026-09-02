@@ -180,6 +180,36 @@ export async function verifySupabaseServices(): Promise<void> {
   }
 }
 
+export async function verifyAuthService(): Promise<void> {
+  assertDeclaredDatabaseTarget(process.env);
+  const apiUrl = assertLocalHttpUrl(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    "NEXT_PUBLIC_SUPABASE_URL",
+  );
+  const serviceRoleKey = required(process.env.SUPABASE_SERVICE_ROLE_KEY, "service role key");
+  const client = createClient(apiUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  let createdUserId: string | undefined;
+
+  try {
+    const createdUser = await client.auth.admin.createUser({
+      email: `verify-auth-${randomUUID()}@rivalhub.local`,
+      password: `Local-${randomUUID()}-pass`,
+      email_confirm: true,
+    });
+    if (createdUser.error || !createdUser.data.user) {
+      throw new Error(`Local Auth 验证失败：${createdUser.error?.message ?? "unknown"}`);
+    }
+    createdUserId = createdUser.data.user.id;
+    console.log("Supabase Auth-only verification passed: admin create/delete.");
+  } finally {
+    if (createdUserId) {
+      await client.auth.admin.deleteUser(createdUserId);
+    }
+  }
+}
+
 function required(value: string | undefined, label: string): string {
   if (!value?.trim()) throw new Error(`${label} 未设置。`);
   return value.trim();

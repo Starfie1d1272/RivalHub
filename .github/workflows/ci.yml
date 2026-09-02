@@ -17,7 +17,6 @@ on:
         type: choice
         options:
           - none
-          - pg17
           - supabase-cli
           - system-profile
 
@@ -95,35 +94,6 @@ jobs:
     if: needs.plan.outputs.run_postgres == 'true'
     needs: plan
     runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
-        with:
-          version: 11.25.0
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version: 24.x
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm db:check
-      - run: pnpm db:local:start-db
-      - run: pnpm db:local:bootstrap-db
-      - run: pnpm db:local:verify-db
-      - run: pnpm test:integration
-        env:
-          RIVALHUB_INTEGRATION_WORKERS: 2
-
-  benchmark-pg17:
-    name: benchmark / postgres:17 / sample-${{ matrix.sample }}
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.benchmark == 'pg17' }}
-    runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        sample: [1, 2, 3]
     services:
       postgres:
         image: postgres:17
@@ -173,6 +143,128 @@ jobs:
           exit 1
       - run: pnpm db:check
       - run: pnpm test:integration:pg17
+
+  benchmark-supabase-cli:
+    name: benchmark / supabase-${{ matrix.cli }} / sample-${{ matrix.sample }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.benchmark == 'supabase-cli' }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        cli: [2.115.0, 2.116.0]
+        sample: [1, 2, 3]
+    env:
+      RIVALHUB_SUPABASE_CLI_VERSION: ${{ matrix.cli }}
+      RIVALHUB_SUPABASE_PROFILE: full
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        with:
+          version: 11.25.0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24.x
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - name: Prepare exact Supabase CLI
+        shell: bash
+        run: |
+          started_ms=$(date +%s%3N)
+          corepack pnpm dlx --package "supabase@${{ matrix.cli }}" supabase --version
+          ended_ms=$(date +%s%3N)
+          echo "timing cli-prepare: $((ended_ms - started_ms))ms"
+      - name: Verify local command composition
+        run: corepack pnpm exec vitest run tests/unit/db/seed-script-contract.test.ts tests/unit/db/local-environment.test.ts
+      - name: Start minimal Supabase services
+        shell: bash
+        run: |
+          started_ms=$(date +%s%3N)
+          corepack pnpm db:local:start-services
+          ended_ms=$(date +%s%3N)
+          echo "timing start-services: $((ended_ms - started_ms))ms"
+      - name: Bootstrap active Drizzle chain
+        shell: bash
+        run: |
+          started_ms=$(date +%s%3N)
+          corepack pnpm db:local:bootstrap-services
+          ended_ms=$(date +%s%3N)
+          echo "timing bootstrap-services: $((ended_ms - started_ms))ms"
+      - run: corepack pnpm db:local:verify-migrations
+      - name: Verify Supabase contract
+        shell: bash
+        run: |
+          started_ms=$(date +%s%3N)
+          corepack pnpm db:local:verify-supabase
+          ended_ms=$(date +%s%3N)
+          echo "timing verify-supabase: $((ended_ms - started_ms))ms"
+      - run: google-chrome --version
+      - name: Run Auth E2E
+        shell: bash
+        run: |
+          started_ms=$(date +%s%3N)
+          corepack pnpm test:e2e
+          ended_ms=$(date +%s%3N)
+          echo "timing e2e: $((ended_ms - started_ms))ms"
+        env:
+          PLAYWRIGHT_CHANNEL: chrome
+          PLAYWRIGHT_WORKERS: 1
+
+  benchmark-system-profile:
+    name: benchmark / system-${{ matrix.profile }} / sample-${{ matrix.sample }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.benchmark == 'system-profile' }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [auth, full]
+        sample: [1, 2, 3]
+    env:
+      RIVALHUB_SUPABASE_CLI_VERSION: 2.115.0
+      RIVALHUB_SUPABASE_PROFILE: ${{ matrix.profile }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        with:
+          version: 11.25.0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24.x
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - name: Prepare exact Supabase CLI
+        run: corepack pnpm dlx --package supabase@2.115.0 supabase --version
+      - run: corepack pnpm exec vitest run tests/unit/db/seed-script-contract.test.ts tests/unit/db/local-environment.test.ts
+      - name: Start selected system profile
+        shell: bash
+        run: |
+          started_ms=$(date +%s%3N)
+          corepack pnpm db:local:start-services
+          ended_ms=$(date +%s%3N)
+          echo "timing start-services: $((ended_ms - started_ms))ms"
+      - run: corepack pnpm db:local:bootstrap-services
+      - name: Verify selected service contract
+        if: matrix.profile == 'full'
+        run: corepack pnpm db:local:verify-supabase
+      - name: Verify Auth-only contract
+        if: matrix.profile == 'auth'
+        run: corepack pnpm exec tsx scripts/db/verify-auth.ts
+      - run: google-chrome --version
+      - name: Run Auth E2E
+        shell: bash
+        run: |
+          started_ms=$(date +%s%3N)
+          corepack pnpm test:e2e
+          ended_ms=$(date +%s%3N)
+          echo "timing e2e: $((ended_ms - started_ms))ms"
+        env:
+          PLAYWRIGHT_CHANNEL: chrome
+          PLAYWRIGHT_WORKERS: 1
 
   system:
     name: system
