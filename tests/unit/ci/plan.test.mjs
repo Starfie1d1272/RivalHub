@@ -11,21 +11,33 @@ describe("changed-surface planner", () => {
     expect(result.full).toBe(false);
   });
 
-  it("maps domain, database, and app changes to the smallest evidence set", () => {
-    const result = classifyChangedFiles([
-      { status: "M", paths: ["src/lib/major/opening.ts"] },
-      { status: "M", paths: ["src/db/schema/major.ts"] },
-      { status: "M", paths: ["src/app/admin/[seasonSlug]/page.tsx"] },
-    ]);
-    expect(result.requiredJobs).toEqual(["static", "postgres", "system"]);
+  it.each([
+    ["src/components/layout/Footer.tsx", ["static"]],
+    ["src/lib/major/opening.ts", ["static"]],
+    ["src/lib/data/standings.ts", ["static", "postgres"]],
+    ["src/actions/competitive-profile.ts", ["static", "postgres"]],
+    ["src/actions/recruitment.ts", ["static", "postgres"]],
+    ["src/actions/auth.ts", ["static", "postgres", "system"]],
+    ["src/lib/auth/supabase.ts", ["static", "system"]],
+    ["src/actions/teams.ts", ["static", "postgres", "system"]],
+    ["src/app/privacy/page.tsx", ["static"]],
+    ["src/app/[seasonSlug]/page.tsx", ["static", "postgres"]],
+    ["src/app/my/teams/page.tsx", ["static", "postgres", "system"]],
+    ["src/db/schema/major-stage.ts", ["static", "postgres"]],
+    ["drizzle/migrations/0032_competitive_fact_states.sql", ["postgres"]],
+    ["supabase/config.toml", ["system"]],
+  ])("classifies one changed file %s as %j", (path, requiredJobs) => {
+    const result = classifyChangedFiles([{ status: "M", paths: [path] }]);
+    expect(result.requiredJobs).toEqual(requiredJobs);
     expect(result.full).toBe(false);
   });
 
-  it("requires database and system evidence for auth changes", () => {
-    const result = classifyChangedFiles([
-      { status: "M", paths: ["src/lib/auth/session.ts"] },
+  it("keeps the session boundary on all three evidence lanes", () => {
+    expect(classifyChangedFiles([{ status: "M", paths: ["src/lib/auth/session.ts"] }]).requiredJobs).toEqual([
+      "static",
+      "postgres",
+      "system",
     ]);
-    expect(result.requiredJobs).toEqual(["static", "postgres", "system"]);
   });
 
   it("fails closed for renames, deletes, and unclassified files", () => {

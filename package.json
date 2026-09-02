@@ -44,6 +44,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:integration": "tsx scripts/db/local.ts test-integration",
+    "test:integration:pg17": "tsx scripts/db/pg17-integration.ts",
     "test:e2e": "tsx scripts/db/local.ts test-e2e",
     "seed": "tsx scripts/with-node-options.ts tsx scripts/seed.ts"
   },

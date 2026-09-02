@@ -9,6 +9,17 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      benchmark:
+        description: Optional fresh-run benchmark lane
+        required: true
+        default: none
+        type: choice
+        options:
+          - none
+          - pg17
+          - supabase-cli
+          - system-profile
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -104,6 +115,64 @@ jobs:
       - run: pnpm test:integration
         env:
           RIVALHUB_INTEGRATION_WORKERS: 2
+
+  benchmark-pg17:
+    name: benchmark / postgres:17 / sample-${{ matrix.sample }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.benchmark == 'pg17' }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        sample: [1, 2, 3]
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 1s
+          --health-timeout 5s
+          --health-retries 60
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      RIVALHUB_LOCAL_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+      RIVALHUB_DB_TARGET: local
+      RIVALHUB_INTEGRATION_WORKERS: 2
+      RIVALHUB_TIMING: 1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        with:
+          version: 11.25.0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24.x
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - name: Measure PostgreSQL readiness
+        shell: bash
+        run: |
+          started_ms=$(date +%s%3N)
+          for attempt in {1..120}; do
+            if PGPASSWORD=postgres pg_isready -h 127.0.0.1 -p 5432 -U postgres -d postgres >/dev/null 2>&1; then
+              ended_ms=$(date +%s%3N)
+              echo "timing pg-ready: $((ended_ms - started_ms))ms"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "PostgreSQL service did not become ready within 120 seconds" >&2
+          exit 1
+      - run: pnpm db:check
+      - run: pnpm test:integration:pg17
 
   system:
     name: system

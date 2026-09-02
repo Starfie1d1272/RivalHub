@@ -1,8 +1,33 @@
 import { execFileSync } from "node:child_process";
-import { appendFileSync } from "node:fs";
+import { appendFileSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const CAPABILITIES = ["static", "postgres", "system"];
+const DB_BACKED_APP_PREFIXES = [
+  "src/app/[seasonSlug]/",
+  "src/app/admin/",
+  "src/app/my/",
+  "src/app/players/",
+  "src/app/seasons/",
+  "src/app/settings/",
+  "src/app/team-invites/",
+  "src/app/teams/",
+];
+const SYSTEM_APP_PREFIXES = [
+  "src/app/auth/",
+  "src/app/login/",
+  "src/app/forgot-password/",
+  "src/app/reset-password/",
+  "src/app/my/",
+  "src/app/[seasonSlug]/register/",
+];
+const SYSTEM_ACTION_PREFIXES = [
+  "src/actions/auth",
+  "src/actions/competition-entries.ts",
+  "src/actions/major-prestart.ts",
+  "src/actions/register.ts",
+];
 
 export function classifyChangedFiles(entries, options = {}) {
   const { forceFull = false } = options;
@@ -74,33 +99,90 @@ function classifyPath(path) {
     return { capabilities: "full", reason: `toolchain/CI/harness surface: ${path}` };
   }
 
+  if (path.startsWith("supabase/") && path !== "supabase/config.toml") {
+    return { capabilities: "full", reason: `Supabase project surface: ${path}` };
+  }
+  if (path === "supabase/config.toml") {
+    return { capabilities: ["system"], reason: `Supabase service contract: ${path}` };
+  }
+
+  if (path.startsWith("drizzle/migrations/")) {
+    return { capabilities: ["postgres"], reason: `migration replay surface: ${path}` };
+  }
   if (path.startsWith("drizzle/") || path.startsWith("src/db/")) {
     return { capabilities: ["static", "postgres"], reason: `database surface: ${path}` };
   }
-  if (
-    path.startsWith("src/lib/auth/") ||
-    path.startsWith("src/lib/session/") ||
-    path.startsWith("src/actions/auth") ||
-    path.startsWith("src/app/auth/") ||
-    path.startsWith("src/app/login/") ||
-    path.startsWith("src/app/forgot-password/") ||
-    path.startsWith("src/app/reset-password/")
-  ) {
-    return { capabilities: ["static", "postgres", "system"], reason: `auth/session surface: ${path}` };
+
+  const source = readSourceDependencies(path);
+  if (source.unreadable) {
+    return { capabilities: "full", reason: `source dependency surface unreadable: ${path}` };
   }
-  if (path.startsWith("src/app/") || path.startsWith("src/actions/") || path === "src/proxy.ts" || path === "src/middleware.ts") {
-    return { capabilities: ["static", "system"], reason: `app/action route surface: ${path}` };
+
+  if (path.startsWith("src/actions/")) {
+    const capabilities = ["static", "postgres"];
+    if (
+      SYSTEM_ACTION_PREFIXES.some((prefix) => path.startsWith(prefix)) ||
+      source.usesSupabase
+    ) {
+      capabilities.push("system");
+    }
+    return {
+      capabilities,
+      reason: `Server Action surface${source.usesSupabase ? " with Supabase dependency" : ""}: ${path}`,
+    };
   }
-  if (path.startsWith("src/components/") || path.startsWith("tests/unit/")) {
-    return { capabilities: ["static"], reason: `UI/unit surface: ${path}` };
+
+  if (path.startsWith("src/app/")) {
+    const capabilities = ["static"];
+    if (DB_BACKED_APP_PREFIXES.some((prefix) => path.startsWith(prefix)) || source.usesDatabase) {
+      capabilities.push("postgres");
+    }
+    if (SYSTEM_APP_PREFIXES.some((prefix) => path.startsWith(prefix)) || source.usesSupabase) {
+      capabilities.push("system");
+    }
+    return { capabilities, reason: `App Router surface: ${path}` };
   }
+
+  if (path.startsWith("src/components/")) {
+    const capabilities = ["static"];
+    if (source.usesDatabase) capabilities.push("postgres");
+    if (source.usesSupabase) capabilities.push("system");
+    return { capabilities, reason: `UI surface: ${path}` };
+  }
+
+  if (path.startsWith("tests/unit/")) {
+    return { capabilities: ["static"], reason: `unit surface: ${path}` };
+  }
+
   if (path.startsWith("src/lib/")) {
-    return { capabilities: ["static"], reason: `domain surface: ${path}` };
+    const capabilities = ["static"];
+    if (source.usesDatabase) capabilities.push("postgres");
+    if (source.usesSupabase || path === "src/lib/auth/session.ts" || path.startsWith("src/lib/session/")) {
+      capabilities.push("system");
+    }
+    return { capabilities, reason: `library surface: ${path}` };
   }
   if (path.startsWith("public/") || path.startsWith("styles/") || path.endsWith(".css")) {
     return { capabilities: ["static"], reason: `presentation asset surface: ${path}` };
   }
   return { capabilities: "full", reason: `unclassified surface: ${path}` };
+}
+
+function readSourceDependencies(path) {
+  if (!path.startsWith("src/") || !/\.(?:[cm]?[jt]sx?)$/.test(path)) {
+    return { usesDatabase: false, usesSupabase: false, unreadable: false };
+  }
+
+  try {
+    const source = readFileSync(resolve(process.cwd(), path), "utf8");
+    return {
+      usesDatabase: /(?:from\s+|import\s*\()\s*["']@\/db\/(?:client|schema)["']/.test(source),
+      usesSupabase: /(?:from\s+|import\s*\()\s*["'](?:@\/lib\/auth\/supabase|@supabase\/supabase-js)["']/.test(source),
+      unreadable: false,
+    };
+  } catch {
+    return { usesDatabase: false, usesSupabase: false, unreadable: true };
+  }
 }
 
 function resultFor(requiredJobs, full, reason) {

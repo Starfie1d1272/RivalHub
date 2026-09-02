@@ -24,14 +24,18 @@ async function main(): Promise<void> {
   const runId = randomUUID().replaceAll("-", "").slice(0, 12);
   const baselineName = `rh355_baseline_${runId}`;
   const databases: IsolatedDatabase[] = [];
+  const integrationStartedAt = Date.now();
 
   try {
-    await createDatabaseFromTemplate(configuredUrl, baselineName);
+    await timedAsync("baseline-create", () => createDatabaseFromTemplate(configuredUrl, baselineName));
     const baselineUrl = databaseUrl(configuredUrl, baselineName);
     databases.push({ name: baselineName, url: baselineUrl });
+    const bootstrapStartedAt = Date.now();
     bootstrapDatabase(baselineUrl);
+    reportTiming("integration-bootstrap", bootstrapStartedAt);
 
     const admin = await connectMaintenance(configuredUrl);
+    const workerCloneStartedAt = Date.now();
     try {
       for (let index = 1; index <= workerCount; index += 1) {
         const name = `rh355_worker_${runId}_${index}`;
@@ -41,12 +45,14 @@ async function main(): Promise<void> {
     } finally {
       await admin.end();
     }
+    reportTiming("worker-clones", workerCloneStartedAt);
 
     const workerUrls = databases.slice(1).map((database) => database.url);
     console.log(
       `PostgreSQL integration isolation: cloned ${workerUrls.length} worker databases from a migrated/seeded template1 baseline.`,
     );
 
+    const vitestStartedAt = Date.now();
     const result = spawnSync(
       vitestBin,
       ["run", "--config=vitest.integration.config.ts", ...normalizeArgs(process.argv.slice(2))],
@@ -67,8 +73,10 @@ async function main(): Promise<void> {
     if ((result.status ?? 1) !== 0) {
       throw new Error(`真实 PostgreSQL integration 失败（exit ${result.status ?? "unknown"}）。`);
     }
+    reportTiming("vitest", vitestStartedAt);
   } finally {
-    await dropDatabases(configuredUrl, databases.map((database) => database.name));
+    await timedAsync("cleanup", () => dropDatabases(configuredUrl, databases.map((database) => database.name)));
+    reportTiming("integration-total", integrationStartedAt);
   }
 }
 
@@ -88,10 +96,10 @@ function bootstrapDatabase(databaseUrlValue: string): void {
     RIVALHUB_LOCAL_DATABASE_URL: databaseUrlValue,
     RIVALHUB_DB_TARGET: "local",
   };
-  runCommand(drizzleBin, ["migrate", "--config=drizzle.local.config.ts"], env);
-  runCommand(tsxBin, ["scripts/seed.ts"], env);
-  runCommand(tsxBin, ["scripts/db/seed-local-fixtures.ts"], env);
-  runCommand(tsxBin, ["scripts/db/verify-db.ts"], env);
+  runCommand("migrate", drizzleBin, ["migrate", "--config=drizzle.local.config.ts"], env);
+  runCommand("seed", tsxBin, ["scripts/seed.ts"], env);
+  runCommand("fixtures", tsxBin, ["scripts/db/seed-local-fixtures.ts"], env);
+  runCommand("verify-db", tsxBin, ["scripts/db/verify-db.ts"], env);
 }
 
 async function connectMaintenance(configuredUrl: string): Promise<Client> {
@@ -112,16 +120,36 @@ async function dropDatabases(configuredUrl: string, names: readonly string[]): P
   }
 }
 
-function runCommand(executable: string, args: readonly string[], env: NodeJS.ProcessEnv): void {
-  const result = spawnSync(executable, [...args], {
-    cwd: projectRoot,
-    env,
-    stdio: "inherit",
-  });
-  if (result.error) throw result.error;
-  if (result.signal) throw new Error(`${executable} 被信号 ${result.signal} 终止。`);
-  if (result.status !== 0) {
-    throw new Error(`${executable} 执行失败（exit ${result.status ?? "unknown"}）。`);
+function runCommand(label: string, executable: string, args: readonly string[], env: NodeJS.ProcessEnv): void {
+  const startedAt = Date.now();
+  try {
+    const result = spawnSync(executable, [...args], {
+      cwd: projectRoot,
+      env,
+      stdio: "inherit",
+    });
+    if (result.error) throw result.error;
+    if (result.signal) throw new Error(`${executable} 被信号 ${result.signal} 终止。`);
+    if (result.status !== 0) {
+      throw new Error(`${executable} 执行失败（exit ${result.status ?? "unknown"}）。`);
+    }
+  } finally {
+    reportTiming(label, startedAt);
+  }
+}
+
+async function timedAsync<T>(label: string, operation: () => Promise<T>): Promise<T> {
+  const startedAt = Date.now();
+  try {
+    return await operation();
+  } finally {
+    reportTiming(label, startedAt);
+  }
+}
+
+function reportTiming(label: string, startedAt: number): void {
+  if (process.env.RIVALHUB_TIMING === "1") {
+    console.log(`timing ${label}: ${Date.now() - startedAt}ms`);
   }
 }
 
