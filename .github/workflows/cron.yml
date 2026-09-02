@@ -9,20 +9,31 @@ permissions: {}
 
 jobs:
   trigger:
+    name: Cron / ${{ matrix.name }}
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: draft-timeout
+            path: /api/cron/draft-timeout
+          - name: check-registration-deadline
+            path: /api/cron/check-registration-deadline
+          - name: match-time-auto-award
+            path: /api/cron/match-time-auto-award
     steps:
-      - name: Draft timeout
+      - name: Invoke ${{ matrix.name }}
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          CRON_PATH: ${{ matrix.path }}
         run: |
-          curl -fsS \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "https://match.starfie1d.top/api/cron/draft-timeout"
-      - name: Check registration deadline
-        run: |
-          curl -fsS \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "https://match.starfie1d.top/api/cron/check-registration-deadline"
-      - name: Match time auto award
-        run: |
-          curl -fsS \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "https://match.starfie1d.top/api/cron/match-time-auto-award"
+          curl --fail --silent --show-error \
+            --connect-timeout 10 \
+            --max-time 60 \
+            --retry 2 \
+            --retry-all-errors \
+            --retry-delay 5 \
+            --retry-max-time 180 \
+            --header "Authorization: Bearer ${CRON_SECRET}" \
+            "https://match.starfie1d.top${CRON_PATH}"

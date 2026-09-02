@@ -1,4 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "tsx scripts/vercel-build.ts"
+  "buildCommand": "tsx scripts/vercel-build.ts",
+  "regions": ["hnd1"],
+  "git": {
+    "deploymentEnabled": {
+      "main": false
+    }
+  }
 }
