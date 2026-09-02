@@ -11,8 +11,6 @@ import {
 } from "@/db/schema";
 import {
   loadCompetitivePlatformCatalog,
-  resolvePlatformCatalog,
-  toCompetitiveProfileConfig,
   type CompetitivePlatformCatalogEntry,
 } from "@/lib/competitive/catalog";
 import { serializeSanctionPublic, type SanctionEffect } from "@/lib/discipline/service";
@@ -25,7 +23,6 @@ import {
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import {
   computeParticipantReadiness,
-  getCompetitiveProfileBlockers,
   getParticipantIdentityBlockers,
   loadParticipantQualificationFacts,
   type ParticipantQualificationFacts,
@@ -77,6 +74,8 @@ export interface MyCompetitiveProfileSource {
   displayName: string;
   state: MyReadinessState;
   blockers: string[];
+  /** Optional platforms remain visible as long-lived profile maintenance. */
+  required?: boolean;
 }
 
 export interface MyReadinessModel {
@@ -95,6 +94,21 @@ export interface MyReadinessModel {
     sanctions: MySanctionSource[];
   }>;
   sanctions: MySanctionSource[];
+}
+
+export interface SettingsProfileReadiness {
+  profile: MyReadinessItem;
+  education: MyReadinessItem;
+  competitiveProfiles: MyCompetitiveProfileSource[];
+  ready: boolean;
+}
+
+export function isSettingsProfileReadinessReady(
+  profile: MyReadinessItem,
+  education: MyReadinessItem,
+  competitiveProfiles: readonly MyCompetitiveProfileSource[],
+): boolean {
+  return profile.state === "ready" && education.state === "ready" && competitiveProfiles.filter((item) => item.required).every((item) => item.state === "ready");
 }
 
 function item(
@@ -269,9 +283,81 @@ export function selectMyCompetitiveProfilePlatformKeys(
   const selected = new Set([...requiredPlatforms, ...platformsWithFacts]);
   const catalogKeys = catalog.map((platform) => platform.key);
   return [
-    ...catalogKeys.filter((key) => selected.has(key)),
+    // Settings is long-lived profile maintenance, not a simulated event. Show
+    // both product platforms in canonical order even before the user has facts.
+    ...catalogKeys,
     ...[...selected].filter((key) => !catalogKeys.includes(key)).sort(),
   ];
+}
+
+function buildCompetitiveProfileSources(
+  catalog: readonly CompetitivePlatformCatalogEntry[],
+  platformKeys: readonly string[],
+  factsByPlatform: ReadonlyMap<string, ParticipantQualificationFacts | null>,
+  requiredPlatforms: ReadonlySet<string>,
+): MyCompetitiveProfileSource[] {
+  const catalogByKey = new Map(catalog.map((platform) => [platform.key, platform]));
+  return platformKeys.map((key) => {
+    const platform = catalogByKey.get(key);
+    if (!platform) {
+      return { key, displayName: key, state: "unknown", blockers: ["该平台的竞技目录不可确认。"], required: requiredPlatforms.has(key) };
+    }
+    const current = platform.seasons.find((season) => season.isCurrent && season.active);
+    if (!current || platform.ranks.length === 0) return { key: platform.key, displayName: platform.displayName, state: "unknown", blockers: ["平台目录缺少当前赛季或段位表，竞技档案不可确认。"], required: requiredPlatforms.has(platform.key) };
+    const fact = factsByPlatform.get(platform.key) ?? null;
+    if (!fact) {
+      return { key: platform.key, displayName: platform.displayName, state: "unknown", blockers: ["竞技档案事实不可确认。"], required: requiredPlatforms.has(platform.key) };
+    }
+    const blockers: string[] = [];
+    if (!fact.historicalPeak) blockers.push(`${platform.displayName} · 历史最高尚未录入。`);
+    if (!fact.seasonPeaks?.has(current.seasonKey)) blockers.push(`${platform.displayName} · ${current.label} 尚未录入。`);
+    return { key: platform.key, displayName: platform.displayName, state: blockers.length === 0 ? "ready" : "incomplete", blockers, required: requiredPlatforms.has(platform.key) };
+  });
+}
+
+async function loadCompetitiveProfileSources(
+  userId: string,
+  catalog: readonly CompetitivePlatformCatalogEntry[],
+  requiredPlatforms: ReadonlySet<string>,
+  platformsWithFacts: ReadonlySet<string>,
+): Promise<MyCompetitiveProfileSource[]> {
+  const platformKeys = selectMyCompetitiveProfilePlatformKeys(catalog, requiredPlatforms, platformsWithFacts);
+  const factsByPlatform = new Map<string, ParticipantQualificationFacts | null>();
+  await Promise.all(platformKeys.map(async (platform) => {
+    const facts = await loadParticipantQualificationFacts([userId], { platform });
+    factsByPlatform.set(platform, facts.get(userId) ?? null);
+  }));
+  return buildCompetitiveProfileSources(catalog, platformKeys, factsByPlatform, requiredPlatforms);
+}
+
+/**
+ * Settings maintains durable personal facts only. It deliberately does not
+ * select a live event catalog or simulate a Major qualification decision.
+ * Event-specific qualification remains owned by the entry/event views.
+ */
+export async function loadSettingsProfileReadiness(userId: string): Promise<SettingsProfileReadiness> {
+  const [baseFacts, catalog, platformFactRows] = await Promise.all([
+    loadParticipantQualificationFacts([userId]),
+    loadCompetitivePlatformCatalog(db),
+    db.selectDistinct({ platform: competitiveRankFacts.platform })
+      .from(competitiveRankFacts)
+      .where(eq(competitiveRankFacts.userId, userId)),
+  ]);
+  const baseFact = baseFacts.get(userId) ?? null;
+  const competitiveProfiles = await loadCompetitiveProfileSources(
+    userId,
+    catalog,
+    new Set(["perfect_world"]),
+    new Set(platformFactRows.map((row) => row.platform)),
+  );
+  const profile = profileState(baseFact);
+  const education = latestEducationState(baseFact);
+  return {
+    profile,
+    education,
+    competitiveProfiles,
+    ready: isSettingsProfileReadinessReady(profile, education, competitiveProfiles),
+  };
 }
 
 export async function loadMyReadiness(userId: string): Promise<MyReadinessModel> {
@@ -314,35 +400,14 @@ export async function loadMyReadiness(userId: string): Promise<MyReadinessModel>
     const config = normalizeTeamRegistrationConfig(row.teamRegistrationConfig);
     if (config.requireCompetitiveProfile && config.competitiveProfile) requiredPlatforms.add(config.competitiveProfile.platform);
   }
-  const platformKeys = selectMyCompetitiveProfilePlatformKeys(
-    catalog,
-    requiredPlatforms,
-    new Set(platformFactRows.map((row) => row.platform)),
-  );
-  const catalogByKey = new Map(catalog.map((platform) => [platform.key, platform]));
-
+  const platformKeys = selectMyCompetitiveProfilePlatformKeys(catalog, requiredPlatforms, new Set(platformFactRows.map((row) => row.platform)));
   const factsByPlatform = new Map<string, ParticipantQualificationFacts | null>();
   await Promise.all(platformKeys.map(async (platform) => {
     const facts = await loadParticipantQualificationFacts([userId], { platform });
     factsByPlatform.set(platform, facts.get(userId) ?? null);
   }));
 
-  const competitiveProfiles: MyCompetitiveProfileSource[] = platformKeys.map((key) => {
-    const platform = catalogByKey.get(key);
-    if (!platform) {
-      return { key, displayName: key, state: "unknown", blockers: ["该平台的竞技目录不可确认。"] };
-    }
-    const context = resolvePlatformCatalog(platform);
-    if (!context) {
-      return { key: platform.key, displayName: platform.displayName, state: "unknown", blockers: ["平台目录缺少当前赛季、上一赛季或段位表，竞技档案不可确认。"] };
-    }
-    const fact = factsByPlatform.get(platform.key) ?? null;
-    if (!fact) {
-      return { key: platform.key, displayName: platform.displayName, state: "unknown", blockers: ["竞技档案事实不可确认。"] };
-    }
-    const blockers = getCompetitiveProfileBlockers(fact, toCompetitiveProfileConfig({ platform: platform.key, ...context }));
-    return { key: platform.key, displayName: platform.displayName, state: blockers.length === 0 ? "ready" : "incomplete", blockers };
-  });
+  const competitiveProfiles = buildCompetitiveProfileSources(catalog, platformKeys, factsByPlatform, requiredPlatforms);
 
   const now = new Date();
   const sanctions = sanctionRows

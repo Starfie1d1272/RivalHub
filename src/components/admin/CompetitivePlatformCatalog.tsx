@@ -21,11 +21,16 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { InlineConfirm, Panel, StatusBanner } from "@/components/rivalhub";
 
 type Platform = CompetitivePlatformCatalogEntry;
 
 type Run = (work: () => Promise<{ success: boolean; error?: { message: string } }>, okMessage: string) => void;
+
+function suggestedSeasonKey(label: string): string {
+  return label.trim().toLowerCase().replace(/\s+/g, "-");
+}
 
 function useCatalogActions() {
   const router = useRouter();
@@ -52,7 +57,7 @@ function SeasonStatusChips({ season, platform }: { season: Platform["seasons"][n
 
 export function CompetitivePlatformCatalog({ platforms }: { platforms: Platform[] }) {
   const { pending, run } = useCatalogActions();
-  const [newSeason, setNewSeason] = useState<{ platform: string; seasonKey: string; label: string } | null>(null);
+  const [newSeason, setNewSeason] = useState<{ platform: string; seasonKey: string; seasonKeyManuallyEdited: boolean; label: string; insertSeasonId: string; insertPosition: "before" | "after" } | null>(null);
   const [seasonLabelDraft, setSeasonLabelDraft] = useState<{ id: string; label: string } | null>(null);
   const [newRank, setNewRank] = useState<{ platform: string; label: string; rankKey: string } | null>(null);
   const [rankLabelDraft, setRankLabelDraft] = useState<{ id: string; label: string } | null>(null);
@@ -77,14 +82,16 @@ export function CompetitivePlatformCatalog({ platforms }: { platforms: Platform[
               <section className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-semibold">赛季</h3>
-                  <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => setNewSeason({ platform: platform.key, seasonKey: "", label: "" })}>+ 新增赛季</Button>
+                  <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => setNewSeason({ platform: platform.key, seasonKey: "", seasonKeyManuallyEdited: false, label: "", insertSeasonId: "append", insertPosition: "before" })}>+ 新增赛季</Button>
                 </div>
                 {newSeason?.platform === platform.key && (
-                  <div className="grid gap-3 rounded-sm border border-[var(--color-border)] p-4 sm:grid-cols-[1fr_1fr_auto]">
-                    <div className="space-y-1.5"><Label>赛季标识（创建后不可修改）</Label><Input value={newSeason.seasonKey} onChange={(event) => setNewSeason({ ...newSeason, seasonKey: event.target.value })} placeholder="例如 S24" className="font-mono" /></div>
-                    <div className="space-y-1.5"><Label>显示名称</Label><Input value={newSeason.label} onChange={(event) => setNewSeason({ ...newSeason, label: event.target.value })} placeholder="例如 2026 秋季赛" /></div>
+                  <div className="grid gap-3 rounded-sm border border-[var(--color-border)] p-4 sm:grid-cols-2">
+                    <div className="space-y-1.5"><Label>显示名称</Label><Input value={newSeason.label} onChange={(event) => setNewSeason({ ...newSeason, label: event.target.value, seasonKey: newSeason.seasonKeyManuallyEdited ? newSeason.seasonKey : suggestedSeasonKey(event.target.value) })} placeholder="例如 2026S2" /></div>
+                    <div className="space-y-1.5"><Label>稳定标识（创建后不可修改）</Label><Input value={newSeason.seasonKey} onChange={(event) => setNewSeason({ ...newSeason, seasonKey: event.target.value, seasonKeyManuallyEdited: true })} placeholder={suggestedSeasonKey(newSeason.label) || "例如 2026s2"} className="font-mono" /><p className="text-xs text-[var(--color-fg-mid)]">默认持续由显示名称规范化生成；手动编辑后请在创建前核对，后续不会变更。</p></div>
+                    <div className="space-y-1.5"><Label>插入位置</Label><Select value={newSeason.insertSeasonId} onValueChange={(insertSeasonId) => setNewSeason({ ...newSeason, insertSeasonId })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="append">作为最新赛季</SelectItem>{seasons.map((season) => <SelectItem key={season.id} value={season.id}>{season.label}</SelectItem>)}</SelectContent></Select></div>
+                    {newSeason.insertSeasonId !== "append" && <div className="space-y-1.5"><Label>相对位置</Label><Select value={newSeason.insertPosition} onValueChange={(position: "before" | "after") => setNewSeason({ ...newSeason, insertPosition: position })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="before">插入到该赛季之前</SelectItem><SelectItem value="after">插入到该赛季之后</SelectItem></SelectContent></Select></div>}
                     <div className="flex items-end gap-2">
-                      <Button type="button" size="sm" disabled={pending || !newSeason.seasonKey.trim() || !newSeason.label.trim()} onClick={() => run(() => createCompetitivePlatformSeason({ platform: newSeason.platform, seasonKey: newSeason.seasonKey, label: newSeason.label }), "赛季已新增")}>创建</Button>
+                      <Button type="button" size="sm" disabled={pending || !(newSeason.seasonKey || suggestedSeasonKey(newSeason.label)).trim() || !newSeason.label.trim()} onClick={() => run(() => createCompetitivePlatformSeason({ platform: newSeason.platform, seasonKey: newSeason.seasonKey || suggestedSeasonKey(newSeason.label), label: newSeason.label, insertAt: newSeason.insertSeasonId === "append" ? undefined : { seasonId: newSeason.insertSeasonId, position: newSeason.insertPosition } }), "赛季已新增")}>创建</Button>
                       <Button type="button" size="sm" variant="ghost" onClick={() => setNewSeason(null)}>取消</Button>
                     </div>
                   </div>
@@ -106,8 +113,8 @@ export function CompetitivePlatformCatalog({ platforms }: { platforms: Platform[
                         <SeasonStatusChips season={season} platform={platform} />
                       </div>
                       <div className="flex flex-wrap items-center gap-1.5 text-sm">
-                        <Button type="button" size="sm" variant="ghost" disabled={pending || index === seasons.length - 1} onClick={() => run(() => moveCompetitivePlatformSeason({ id: season.id, direction: "up" }), "时间顺序已更新")} title="时间顺序前移（更早）">↑</Button>
-                        <Button type="button" size="sm" variant="ghost" disabled={pending || index === 0} onClick={() => run(() => moveCompetitivePlatformSeason({ id: season.id, direction: "down" }), "时间顺序已更新")} title="时间顺序后移（更晚）">↓</Button>
+                        <Button type="button" size="sm" variant="ghost" disabled={pending || index === 0} onClick={() => run(() => moveCompetitivePlatformSeason({ id: season.id, direction: "later" }), "时间顺序已更新")} title="视觉上移（更晚赛季）">↑</Button>
+                        <Button type="button" size="sm" variant="ghost" disabled={pending || index === seasons.length - 1} onClick={() => run(() => moveCompetitivePlatformSeason({ id: season.id, direction: "earlier" }), "时间顺序已更新")} title="视觉下移（更早赛季）">↓</Button>
                         <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => setSeasonLabelDraft({ id: season.id, label: season.label })}>编辑</Button>
                         <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => run(() => setCompetitivePlatformSeasonActive({ id: season.id, active: !season.active }), season.active ? "赛季已停用" : "赛季已启用")}>{season.active ? "停用" : "启用"}</Button>
                         {!season.isCurrent && <Button type="button" size="sm" variant="outline" disabled={pending || !season.active} onClick={() => setConfirmAction({ kind: "set-current", id: season.id, title: `设为当前赛季`, sub: `当前赛季将从 ${seasons.find((item) => item.isCurrent)?.label ?? "（无）"} 切换为 ${season.label}；原当前赛季将成为历史/上一赛季。` })}>设为当前赛季</Button>}

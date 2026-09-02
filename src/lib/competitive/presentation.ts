@@ -6,17 +6,19 @@ export interface CompetitiveProfileFactForPresentation {
   platform: string;
   kind: "historical_peak" | "season_peak";
   platformSeasonKey: string | null;
-  rank: string;
-  rating: string | number;
+  status?: "ranked" | "unranked";
+  rank: string | null;
+  rating: string | number | null;
   stars: number | null;
+  achievedSeasonKey?: string | null;
 }
 
 export interface PublicCompetitiveProfileFact {
   label: string;
   rankLabel: string;
   stars: number | null;
-  ratingLabel: string;
-  rating: string;
+  ratingLabel: string | null;
+  rating: string | null;
 }
 
 export interface PublicCompetitiveProfilePlatform {
@@ -35,10 +37,16 @@ export function presentPublicCompetitiveProfile(
     const visible = facts
       .filter((fact) => fact.platform === platform.key)
       .flatMap((fact): Array<PublicCompetitiveProfileFact & { order: number }> => {
-        const rank = ranks.get(fact.rank);
+        if (fact.status === "unranked") {
+          const season = fact.platformSeasonKey ? seasons.get(fact.platformSeasonKey) : undefined;
+          if (!season) return [];
+          return [{ label: season.label, rankLabel: "未定级", stars: null, ratingLabel: fact.rating === null ? null : platform.ratingLabel, rating: fact.rating === null ? null : String(fact.rating), order: season.sortOrder }];
+        }
+        const rank = fact.rank ? ranks.get(fact.rank) : undefined;
         if (!rank) return [];
         if (fact.kind === "historical_peak") {
-          return [{ label: "历史最高", rankLabel: rank.label, stars: rank.starMin === null ? null : fact.stars, ratingLabel: platform.ratingLabel, rating: String(fact.rating), order: Number.POSITIVE_INFINITY }];
+          const achieved = fact.achievedSeasonKey ? seasons.get(fact.achievedSeasonKey) : undefined;
+          return [{ label: achieved ? `历史最高 · ${achieved.label}` : "历史最高", rankLabel: rank.label, stars: rank.starMin === null ? null : fact.stars, ratingLabel: platform.ratingLabel, rating: String(fact.rating), order: Number.POSITIVE_INFINITY }];
         }
         const season = fact.platformSeasonKey ? seasons.get(fact.platformSeasonKey) : undefined;
         if (!season) return [];

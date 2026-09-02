@@ -29,7 +29,7 @@ export default async function SeasonSettingsPage({ params }: SeasonSettingsPageP
     <div className="container mx-auto px-4 py-8 max-w-3xl">
       <SeasonForm
         mode="edit"
-        competitivePlatforms={catalog.map((platform) => ({ key: platform.key, displayName: platform.displayName }))}
+        competitivePlatforms={catalog.map((platform) => ({ key: platform.key, displayName: platform.displayName, seasons: platform.seasons.map((season) => ({ seasonKey: season.seasonKey, label: season.label, active: season.active })), ranks: platform.ranks.map((rank) => ({ rankKey: rank.rankKey, label: rank.label })) }))}
         initial={{
           id: season.id,
           name: season.name,

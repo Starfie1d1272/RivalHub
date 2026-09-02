@@ -94,6 +94,27 @@ async function main(): Promise<void> {
     ));
     expect(negativeStars).toMatchObject({ code: "23514" });
 
+    // 2.x distinguishes an explicit unranked declaration from no fact row;
+    // only the declared shape may omit rank/stars, and historical peak remains
+    // a ranked provenance-bearing fact.
+    await client.query(
+      `INSERT INTO competitive_rank_facts (user_id, platform, kind, platform_season_key, status, rank, rating, stars)
+       VALUES ($1, 'perfect_world', 'season_peak', 'major-current', 'unranked', NULL, NULL, NULL)`,
+      [ids.second],
+    );
+    const invalidUnranked = await capturePostgresError(client, () => client.query(
+      `INSERT INTO competitive_rank_facts (user_id, platform, kind, platform_season_key, status, rank, rating)
+       VALUES ($1, 'perfect_world', 'season_peak', 'major-current', 'unranked', 'A', 1000)`,
+      [ids.legacy],
+    ));
+    expect(invalidUnranked).toMatchObject({ code: "23514" });
+    const invalidHistoricalUnranked = await capturePostgresError(client, () => client.query(
+      `INSERT INTO competitive_rank_facts (user_id, platform, kind, status, rank, rating)
+       VALUES ($1, 'perfect_world', 'historical_peak', 'unranked', NULL, NULL)`,
+      [ids.legacy],
+    ));
+    expect(invalidHistoricalUnranked).toMatchObject({ code: "23514" });
+
     const protectedTables = await client.query<{ relrowsecurity: boolean; anon_select: boolean; authenticated_select: boolean }>(
       `SELECT c.relrowsecurity,
               has_table_privilege('anon', 'public.' || c.relname, 'SELECT') AS anon_select,

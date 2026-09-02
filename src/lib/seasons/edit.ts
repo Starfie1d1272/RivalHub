@@ -91,6 +91,15 @@ const seasonFormBaseSchema = z.object({
         recentSeasonKeys: z.array(z.string().min(1).max(128)).min(1).max(8),
         recentSeasonWeight: z.literal(30),
       }).optional(),
+      fallbackConversion: z.object({
+        sourcePlatform: z.literal("fivee"),
+        // A draft can deliberately retain an incomplete operator mapping. It
+        // becomes usable only when registration freeze validates every actual
+        // evidence slot; empty placeholders are never persisted.
+        version: z.string().max(128),
+        seasonKeyMap: z.record(z.string().min(1).max(128), z.string().min(1).max(128)),
+        rankMap: z.record(z.string().min(1).max(64), z.string().min(1).max(64)),
+      }).optional(),
     }).optional(),
   }).optional(),
   affiliationRules: z.array(z.object({
@@ -160,6 +169,12 @@ export function resolveCompetitionDefinition(data: z.infer<typeof seasonFormSche
   const { template, ...input } = data;
   if (!template || !applyTemplate || template === "custom") return input;
   const builtIn = createCompetitionTemplate(template as CompetitionTemplate);
+  // Built-in competition semantics remain template-owned. Major's reviewed
+  // 5E equivalence map is the sole event-operator overlay and is frozen when
+  // registration opens; no other client team setting can escape canonicalization.
+  const fallbackConversion = template === "major"
+    ? input.teamRegistrationConfig?.competitiveProfile?.fallbackConversion
+    : undefined;
   return {
     ...input,
     kind: template === "major" ? "Major" : "Rivals",
@@ -167,7 +182,12 @@ export function resolveCompetitionDefinition(data: z.infer<typeof seasonFormSche
     hasCaptainVoting: builtIn.hasCaptainVoting,
     hasDraft: builtIn.hasDraft,
     stagePlan: builtIn.stagePlan,
-    teamRegistrationConfig: builtIn.teamRegistrationConfig,
+    teamRegistrationConfig: {
+      ...builtIn.teamRegistrationConfig,
+      competitiveProfile: builtIn.teamRegistrationConfig.competitiveProfile
+        ? { ...builtIn.teamRegistrationConfig.competitiveProfile, fallbackConversion }
+        : undefined,
+    },
     affiliationRules: builtIn.affiliationRules,
     minTeamSize: builtIn.minTeamSize,
     maxTeamSize: builtIn.maxTeamSize,

@@ -32,7 +32,7 @@ export default async function CompetitiveProfileSettingsPage() {
           isCurrent: season.id === current?.id,
           isPrevious: previous ? season.id === previous.id : false,
         })),
-      facts: facts.filter((item) => item.platform === platform.key).map((item) => ({ kind: item.kind, platformSeasonKey: item.platformSeasonKey, rank: item.rank, rating: String(item.rating), stars: item.stars })),
+      facts: facts.filter((item) => item.platform === platform.key).map((item) => ({ kind: item.kind, platformSeasonKey: item.platformSeasonKey, status: item.status, rank: item.rank, rating: item.rating === null ? null : String(item.rating), stars: item.stars, achievedSeasonKey: item.achievedSeasonKey })),
     };
   });
   return <div className="space-y-5"><div><p className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-accent)]">PARTICIPANT PROFILE</p><h1 className="mt-1 text-3xl font-semibold">竞技档案</h1></div><CompetitiveRolesForm initialRoles={roles.map((role) => role.role)} initialPrimaryRole={roles.find((role) => role.isPrimary)?.role ?? null} /><CompetitiveProfileForm contexts={contexts} /></div>;

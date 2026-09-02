@@ -1,8 +1,9 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { db as dbClient } from "@/db/client";
 import { competitivePlatformRanks, competitivePlatformSeasons, competitivePlatforms, competitiveRankFacts } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
-import type { CompetitiveProfileConfig } from "@/types/season";
+import type { CompetitiveFallbackConversion, CompetitiveProfileConfig } from "@/types/season";
+import { compareCompetitivePlatformPriority } from "./builtins";
 
 /**
  * Single read-model owner for the competitive platform catalog: platforms,
@@ -52,7 +53,7 @@ export async function loadCompetitivePlatformCatalog(
     executor.select().from(competitivePlatformRanks).orderBy(asc(competitivePlatformRanks.platformKey), asc(competitivePlatformRanks.sortOrder)),
     executor.select().from(competitivePlatformSeasons).orderBy(asc(competitivePlatformSeasons.platform), asc(competitivePlatformSeasons.sortOrder)),
   ]);
-  return platforms.map((platform) => ({
+  return platforms.sort((left, right) => compareCompetitivePlatformPriority(left.key, right.key)).map((platform) => ({
     key: platform.key,
     displayName: platform.displayName,
     ratingLabel: platform.ratingLabel,
@@ -175,7 +176,42 @@ export async function loadReferencedPlatformRankKeys(
     FROM seasons
     WHERE team_registration_config->'competitiveProfile'->>'platform' = ${platform}
   `);
-  return new Set([...facts.map((row) => row.rank), ...frozen.rows.map((row) => row.rank)]);
+  const fallback = await executor.execute<{ rank: string }>(sql`
+    SELECT DISTINCT fallback_rank.rank AS rank
+    FROM seasons
+    CROSS JOIN LATERAL jsonb_object_keys(
+      COALESCE((team_registration_config->'competitiveProfile'->'fallbackConversion'->'rankMap')::jsonb, '{}'::jsonb)
+    ) AS fallback_rank(rank)
+    WHERE team_registration_config->'competitiveProfile'->'fallbackConversion'->>'sourcePlatform' = ${platform}
+  `);
+  return new Set([
+    ...facts.map((row) => row.rank).filter((rank): rank is string => rank !== null),
+    ...frozen.rows.map((row) => row.rank),
+    ...fallback.rows.map((row) => row.rank),
+  ]);
+}
+
+/**
+ * A frozen equivalence policy may only name source identities that still
+ * exist in the source catalog. This is checked at registration freeze and
+ * complements catalog deletion guards for already-persisted policies.
+ */
+export async function fallbackCatalogReferencesExist(
+  executor: DatabaseExecutor,
+  fallback: CompetitiveFallbackConversion,
+): Promise<boolean> {
+  const seasonKeys = [...new Set(Object.values(fallback.seasonKeyMap))];
+  const rankKeys = [...new Set(Object.keys(fallback.rankMap))];
+  if (seasonKeys.length === 0 || rankKeys.length === 0 || seasonKeys.some((key) => !key) || rankKeys.some((key) => !key)) return false;
+  const [sourceSeasons, sourceRanks] = await Promise.all([
+    executor.select({ seasonKey: competitivePlatformSeasons.seasonKey })
+      .from(competitivePlatformSeasons)
+      .where(and(eq(competitivePlatformSeasons.platform, fallback.sourcePlatform), inArray(competitivePlatformSeasons.seasonKey, seasonKeys))),
+    executor.select({ rankKey: competitivePlatformRanks.rankKey })
+      .from(competitivePlatformRanks)
+      .where(and(eq(competitivePlatformRanks.platformKey, fallback.sourcePlatform), inArray(competitivePlatformRanks.rankKey, rankKeys))),
+  ]);
+  return sourceSeasons.length === seasonKeys.length && sourceRanks.length === rankKeys.length;
 }
 
 /** Fail closed before a ladder mutation would rewrite referenced semantics. */

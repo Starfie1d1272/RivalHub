@@ -37,4 +37,15 @@ describe("public competitive profile presentation", () => {
     expect(presentCompetitiveRole("igl")).toBe("IGL（指挥）");
     expect(presentCompetitiveRole("legacy_position")).toBeNull();
   });
+
+  it("presents explicit unranked separately from missing facts and labels historical provenance", () => {
+    const profile = presentPublicCompetitiveProfile(catalog, [
+      { id: "history", platform: "perfect_world", kind: "historical_peak", platformSeasonKey: null, status: "ranked", rank: "gold_s", rating: "1.17", stars: 10, achievedSeasonKey: "2026s1" },
+      { id: "unranked", platform: "perfect_world", kind: "season_peak", platformSeasonKey: "2026s2", status: "unranked", rank: null, rating: null, stars: null, achievedSeasonKey: null },
+    ]);
+    expect(profile[0]?.facts).toEqual([
+      { label: "历史最高 · 2026 第一赛季", rankLabel: "黄金 S", stars: 10, ratingLabel: "Rating Pro", rating: "1.17" },
+      { label: "2026 第二赛季", rankLabel: "未定级", stars: null, ratingLabel: null, rating: null },
+    ]);
+  });
 });

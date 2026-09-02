@@ -9,6 +9,7 @@ import { createSeason, deleteSeason } from "@/actions/seasons";
 import { SeasonForm } from "@/components/admin/SeasonForm";
 import {
   RIVALS_DEFAULT_CAPABILITIES,
+  MAJOR_DEFAULT_CAPABILITIES,
   type SeasonCapabilities,
 } from "@/types/season";
 
@@ -110,6 +111,27 @@ describe("SeasonForm presets", () => {
         }),
       }));
     });
+  });
+
+  it("gives a draft Major an explicit sparse 5E fallback mapping owner without exposing its standard team rules", async () => {
+    const user = userEvent.setup();
+    const initial = { ...createInitial(structuredClone(MAJOR_DEFAULT_CAPABILITIES), "Major"), template: "major" as const };
+    render(<SeasonForm mode="create" competitivePlatforms={[
+      { key: "perfect_world", displayName: "Perfect World", seasons: [{ seasonKey: "s21", label: "S21", active: true }], ranks: [{ rankKey: "A", label: "A" }] },
+      { key: "fivee", displayName: "5E", seasons: [{ seasonKey: "5e-s21", label: "S21", active: true }], ranks: [{ rankKey: "S", label: "S" }] },
+    ]} initial={initial} />);
+
+    expect(screen.getByText("允许审核过的 5E 竞技资料等效补充")).toBeInTheDocument();
+    expect(screen.queryByText("队伍管理")).not.toBeInTheDocument();
+    await user.click(screen.getByLabelText("允许审核过的 5E 竞技资料等效补充"));
+    await user.click(screen.getByRole("button", { name: "保存为草稿" }));
+    await waitFor(() => expect(createSeasonMock).toHaveBeenCalledWith(expect.objectContaining({
+      teamRegistrationConfig: expect.objectContaining({
+        competitiveProfile: expect.objectContaining({
+          fallbackConversion: { sourcePlatform: "fivee", version: "", seasonKeyMap: {}, rankMap: {} },
+        }),
+      }),
+    })));
   });
 
   it("requires an in-app confirmation before deleting a draft season", async () => {

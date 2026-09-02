@@ -17,9 +17,11 @@ import {
   isHomeAffiliatedMember,
   loadParticipantQualificationFacts,
   resolveCompetitiveContext,
+  toPlayerStrengthInput,
   type ParticipantQualificationFacts,
 } from "@/lib/qualification/service";
 import type { CompetitiveProfileConfig } from "@/types/season";
+import { comparePlayerStrength } from "@/lib/major/player-strength";
 
 const CONTEXT: CompetitiveProfileConfig = {
   platform: "perfect_world",
@@ -85,9 +87,9 @@ describe("qualification facts loader", () => {
     const fact = facts.get(USER_ID)!;
     expect(fact.approvedEducation).toBe(true);
     expect(fact.educationHistory).toHaveLength(1);
-    expect(fact.historicalPeak).toEqual({ rank: "S", rating: 1900 });
-    expect(fact.seasonPeaks?.get("S20")).toEqual({ rank: "A", rating: 1700 });
-    expect(fact.seasonPeaks?.get("S21")).toEqual({ rank: "S", rating: 1850 });
+    expect(fact.historicalPeak).toMatchObject({ rank: "S", rating: 1900, sourcePlatform: "perfect_world", sourceRank: "S" });
+    expect(fact.seasonPeaks?.get("S20")).toMatchObject({ rank: "A", rating: 1700, sourcePlatform: "perfect_world", sourceSeasonKey: "S20", sourceRank: "A" });
+    expect(fact.seasonPeaks?.get("S21")).toMatchObject({ rank: "S", rating: 1850, sourcePlatform: "perfect_world", sourceSeasonKey: "S21", sourceRank: "S" });
   });
 
   it("returns an empty map without issuing queries for an empty roster", async () => {
@@ -138,12 +140,77 @@ describe("participant readiness", () => {
     expect(readiness.ready).toBe(false);
     expect(readiness.blockers).toContain("请填写 Steam64 ID。");
     expect(readiness.blockers).toContain("请完成并通过高校身份认证。");
-    expect(readiness.blockers).toContain("缺少上赛季最高段位及 Rating。");
+    expect(readiness.blockers).toContain("缺少perfect_world · S20 的最高段位及 Rating。");
   });
 
   it("accepts a participant whose canonical Perfect nickname is present", () => {
     const readiness = computeParticipantReadiness(fullFact(), CONTEXT);
     expect(readiness.blockers).not.toContain("请填写完美平台昵称。");
+  });
+
+  it("uses an explicitly frozen 5E mapping only when primary season facts are unavailable", () => {
+    const context: CompetitiveProfileConfig = {
+      ...CONTEXT,
+      fallbackConversion: {
+        sourcePlatform: "fivee",
+        version: "major-2026-v1",
+        seasonKeyMap: { S20: "5E-S20", S21: "5E-S21" },
+        rankMap: { S: "A", SS: "S" },
+      },
+    };
+    const readiness = computeParticipantReadiness(fullFact({
+      seasonPeaks: new Map([["S20", { status: "unranked", rank: null, rating: null }], ["S21", { status: "unranked", rank: null, rating: null }]]),
+      fallbackFacts: {
+        historicalPeak: null,
+        seasonPeaks: new Map([["5E-S20", { rank: "S", rating: 1700 }], ["5E-S21", { rank: "SS", rating: 1850 }]]),
+      },
+    }), context);
+    expect(readiness.ready).toBe(true);
+    expect(readiness.strength.previousSeasonPeak).toMatchObject({ rank: "A", rating: 0, ratingComparable: false, sourcePlatform: "fivee", sourceSeasonKey: "5E-S20", sourceRank: "S", conversionVersion: "major-2026-v1" });
+    expect(readiness.strength.currentSeasonPeak).toMatchObject({ rank: "S", rating: 0, ratingComparable: false, sourcePlatform: "fivee", sourceSeasonKey: "5E-S21", sourceRank: "SS", conversionVersion: "major-2026-v1" });
+  });
+
+  it("fails closed for an unmapped evidence season instead of guessing an identically named 5E season", async () => {
+    const context: CompetitiveProfileConfig = {
+      ...CONTEXT,
+      fallbackConversion: {
+        sourcePlatform: "fivee",
+        version: "major-2026-v1",
+        seasonKeyMap: { S20: "5E-S20" },
+        rankMap: { S: "A" },
+      },
+    };
+    await expect(resolveCompetitiveContext(context)).resolves.toBeNull();
+    const strength = toPlayerStrengthInput(fullFact({
+      seasonPeaks: new Map(),
+      fallbackFacts: { historicalPeak: null, seasonPeaks: new Map([["S21", { rank: "S", rating: 2200 }]]) },
+    }), context);
+    expect(strength.currentSeasonPeak).toBeNull();
+  });
+
+  it("never compares a 5E Rating+ as though it were a Perfect Rating Pro", () => {
+    const context: CompetitiveProfileConfig = {
+      ...CONTEXT,
+      fallbackConversion: {
+        sourcePlatform: "fivee",
+        version: "major-2026-v1",
+        seasonKeyMap: { S20: "5E-S20", S21: "5E-S21" },
+        rankMap: { S: "S" },
+      },
+    };
+    const fallback = toPlayerStrengthInput(fullFact({
+      historicalPeak: null,
+      seasonPeaks: new Map(),
+      fallbackFacts: {
+        historicalPeak: { rank: "S", rating: 2100 },
+        seasonPeaks: new Map([["5E-S20", { rank: "S", rating: 2100 }], ["5E-S21", { rank: "S", rating: 2100 }]]),
+      },
+    }), context);
+    const perfect = toPlayerStrengthInput(fullFact({
+      historicalPeak: { rank: "S", rating: 1.18 },
+      seasonPeaks: new Map([["S20", { rank: "S", rating: 1.18 }], ["S21", { rank: "S", rating: 1.18 }]]),
+    }), context);
+    expect(comparePlayerStrength(fallback, perfect, context)).toMatchObject({ order: 0, reason: "所有规则指定的比较项均相同，视为实力相当。" });
   });
 
   it("single-user readiness delegates to the batch path with identical results", async () => {
@@ -165,7 +232,7 @@ describe("participant readiness", () => {
 
     expect(batch.get(USER_ID)).toEqual(single);
     expect(single.ready).toBe(false);
-    expect(single.blockers.join(" ")).toContain("缺少上赛季最高段位及 Rating");
+    expect(single.blockers.join(" ")).toContain("缺少perfect_world · S20 的最高段位及 Rating");
   });
 });
 
