@@ -69,7 +69,7 @@ pnpm db:studio
 - 会进入版本发布、影响用户/管理员体验或 production runtime/data contract 的 `feat` / `fix` / `refactor` / migration / runtime security 变更，必须在**同一个 feature PR** 中提交对应 `.changeset/*.md`；不要把 changeset 留到发版时补写。
 - 纯文档、纯测试、CI/开发工具，以及仅 development dependency 且不改变 shipped runtime / 用户行为的变更，可以不写 changeset；PR 中应明确写出“无需 changeset”及原因。
 - Changeset 摘要是面向 release/CHANGELOG 的用户可读说明，默认用中文描述可观察影响，不把内部实现细节或 commit message 原样当作 release note。
-- feature PR 合入 `dev` 时关联 Issue 使用 `Refs #N`；不要依赖 `Closes #N` 在非默认分支自动关 Issue。Issue 在对应变更进入 `main` / release convergence 后统一关闭。
+- feature PR 关联 Issue 默认使用 `Refs #N`；不要依赖 `Closes #N` 在非默认分支自动关闭 Issue。当实现 PR 已成功合入 `dev` 且 Issue 的验收条件全部满足时，应立即将 Issue 以 `completed` 关闭；Issue 状态表示工作是否完成，不承担“是否已发布 production”的版本队列语义。待发布内容由 Changesets、`dev...main` diff、CHANGELOG 与 release path 追踪。只有当 Issue 的验收条件明确包含 production 部署、真实生产验收、外部配置或其它 merge 后动作时，才继续保持 open，并在 Issue 中明确记录剩余关闭条件。
 - 版本、CHANGELOG 与 release path 由 Changesets 和 `.claude/skills/release.md` 共同定义。禁止手改 `package.json` version，且仅在 release commit 已进入 `main` 后创建 release tag。
 
 ## Documentation authority
