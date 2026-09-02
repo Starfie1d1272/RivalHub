@@ -35,6 +35,7 @@ const LOCKED_COMMANDS = new Set([
   "verify",
   "verify-db",
   "verify-supabase",
+  "verify-auth",
   "verify-migrations",
   "test-integration",
   "test-e2e",
@@ -79,6 +80,9 @@ try {
       break;
     case "verify-supabase":
       verifySupabaseServices();
+      break;
+    case "verify-auth":
+      verifyAuthService();
       break;
     case "verify-migrations":
       verifyLocalMigrations();
@@ -129,7 +133,7 @@ try {
       break;
     default:
       throw new Error(
-        "未知命令。可用命令：start | start-db | start-services | status | migrate | seed | verify | verify-db | verify-supabase | verify-migrations | test-integration | test-e2e | verify-local | bootstrap | bootstrap-db | bootstrap-services | reset | stop | studio | dev | build",
+        "未知命令。可用命令：start | start-db | start-services | status | migrate | seed | verify | verify-db | verify-supabase | verify-auth | verify-migrations | test-integration | test-e2e | verify-local | bootstrap | bootstrap-db | bootstrap-services | reset | stop | studio | dev | build",
       );
   }
 } catch (error) {
@@ -224,6 +228,13 @@ function verifyDatabase(): void {
 function verifySupabaseServices(): void {
   const status = readLocalStatus();
   run(tsxBin, ["scripts/db/verify-supabase.ts"], {
+    env: buildLocalAppEnvironment(status, sanitizedEnvironment()),
+  });
+}
+
+function verifyAuthService(): void {
+  const status = readLocalStatus();
+  run(tsxBin, ["scripts/db/verify-auth.ts"], {
     env: buildLocalAppEnvironment(status, sanitizedEnvironment()),
   });
 }

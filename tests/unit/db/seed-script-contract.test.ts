@@ -15,6 +15,9 @@ describe("seed command safety contract", () => {
 
     expect(packageJson.scripts?.seed).toContain("tsx scripts/seed.ts");
     expect(packageJson.scripts?.["db:local:reset"]).toContain("scripts/db/local.ts reset");
+    expect(packageJson.scripts?.["db:local:verify-auth"]).toContain(
+      "scripts/db/local.ts verify-auth",
+    );
     expect(packageJson.scripts?.seed).not.toContain("--env-file");
     expect(packageJson.scripts?.seed).not.toContain(".env.local");
     expect(seedScript).toContain("assertDeclaredDatabaseTarget(process.env)");

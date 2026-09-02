@@ -253,7 +253,7 @@ jobs:
         run: corepack pnpm db:local:verify-supabase
       - name: Verify Auth-only contract
         if: matrix.profile == 'auth'
-        run: corepack pnpm exec tsx scripts/db/verify-auth.ts
+        run: corepack pnpm db:local:verify-auth
       - run: google-chrome --version
       - name: Run Auth E2E
         shell: bash
