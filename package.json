@@ -34,7 +34,6 @@
     "db:local:verify": "tsx scripts/db/local.ts verify",
     "db:local:verify-db": "tsx scripts/db/local.ts verify-db",
     "db:local:verify-supabase": "tsx scripts/db/local.ts verify-supabase",
-    "db:local:verify-auth": "tsx scripts/db/local.ts verify-auth",
     "db:local:verify-migrations": "tsx scripts/db/local.ts verify-migrations",
     "db:local:bootstrap": "tsx scripts/db/local.ts bootstrap",
     "db:local:bootstrap-db": "tsx scripts/db/local.ts bootstrap-db",

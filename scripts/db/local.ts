@@ -24,7 +24,6 @@ const corepackBin = process.platform === "win32" ? "corepack.cmd" : "corepack";
 // These names are the Supabase CLI's current --exclude values.
 const MINIMAL_SUPABASE_EXCLUDES =
   "realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor";
-const AUTH_SUPABASE_EXCLUDES = `${MINIMAL_SUPABASE_EXCLUDES},storage-api,postgrest`;
 const LOCKED_COMMANDS = new Set([
   "start",
   "start-db",
@@ -35,7 +34,6 @@ const LOCKED_COMMANDS = new Set([
   "verify",
   "verify-db",
   "verify-supabase",
-  "verify-auth",
   "verify-migrations",
   "test-integration",
   "test-e2e",
@@ -81,9 +79,6 @@ try {
     case "verify-supabase":
       verifySupabaseServices();
       break;
-    case "verify-auth":
-      verifyAuthService();
-      break;
     case "verify-migrations":
       verifyLocalMigrations();
       break;
@@ -116,7 +111,7 @@ try {
       resetLocalDatabase();
       break;
     case "stop":
-      run(...supabaseInvocation(["stop", "--project-id", PROJECT_ID]), {
+      run(supabaseBin, ["stop", "--project-id", PROJECT_ID], {
         env: sanitizedEnvironment(),
       });
       break;
@@ -133,7 +128,7 @@ try {
       break;
     default:
       throw new Error(
-        "未知命令。可用命令：start | start-db | start-services | status | migrate | seed | verify | verify-db | verify-supabase | verify-auth | verify-migrations | test-integration | test-e2e | verify-local | bootstrap | bootstrap-db | bootstrap-services | reset | stop | studio | dev | build",
+        "未知命令。可用命令：start | start-db | start-services | status | migrate | seed | verify | verify-db | verify-supabase | verify-migrations | test-integration | test-e2e | verify-local | bootstrap | bootstrap-db | bootstrap-services | reset | stop | studio | dev | build",
       );
   }
 } catch (error) {
@@ -147,7 +142,8 @@ function startLocalDatabase(): void {
   ensureDockerReady();
   ensureLoopbackDockerNetwork();
   runQuiet(
-    ...supabaseInvocation(["db", "start", "--network-id", DOCKER_NETWORK, "--yes"]),
+    supabaseBin,
+    ["db", "start", "--network-id", DOCKER_NETWORK, "--yes"],
     sanitizedEnvironment(),
   );
   printDatabaseStatus(readLocalDatabaseStatus());
@@ -157,7 +153,8 @@ function startLocalStack(): void {
   ensureDockerReady();
   ensureLoopbackDockerNetwork();
   runQuiet(
-    ...supabaseInvocation(["start", "--network-id", DOCKER_NETWORK, "--yes"]),
+    supabaseBin,
+    ["start", "--network-id", DOCKER_NETWORK, "--yes"],
     sanitizedEnvironment(),
   );
   printStatus(readLocalStatus());
@@ -167,14 +164,8 @@ function startLocalServices(): void {
   ensureDockerReady();
   ensureLoopbackDockerNetwork();
   runQuiet(
-    ...supabaseInvocation([
-      "start",
-      "--exclude",
-      supabaseExcludes(),
-      "--network-id",
-      DOCKER_NETWORK,
-      "--yes",
-    ]),
+    supabaseBin,
+    ["start", "--exclude", MINIMAL_SUPABASE_EXCLUDES, "--network-id", DOCKER_NETWORK, "--yes"],
     sanitizedEnvironment(),
   );
   printStatus(readLocalStatus());
@@ -228,13 +219,6 @@ function verifyDatabase(): void {
 function verifySupabaseServices(): void {
   const status = readLocalStatus();
   run(tsxBin, ["scripts/db/verify-supabase.ts"], {
-    env: buildLocalAppEnvironment(status, sanitizedEnvironment()),
-  });
-}
-
-function verifyAuthService(): void {
-  const status = readLocalStatus();
-  run(tsxBin, ["scripts/db/verify-auth.ts"], {
     env: buildLocalAppEnvironment(status, sanitizedEnvironment()),
   });
 }
@@ -310,7 +294,8 @@ function normalizeCliArgs(args: readonly string[]): string[] {
 function resetLocalDatabase(): void {
   readLocalStatus();
   run(
-    ...supabaseInvocation([
+    supabaseBin,
+    [
       "db",
       "reset",
       "--local",
@@ -318,7 +303,7 @@ function resetLocalDatabase(): void {
       "--network-id",
       DOCKER_NETWORK,
       "--yes",
-    ]),
+    ],
     { env: sanitizedEnvironment() },
   );
   migrateLocalDatabase();
@@ -346,28 +331,10 @@ function runLocalBuild(): void {
   run(nextBin, ["build"], { env });
 }
 
-function supabaseInvocation(args: readonly string[]): [string, string[]] {
-  const version = process.env.RIVALHUB_SUPABASE_CLI_VERSION?.trim();
-  if (!version) return [supabaseBin, [...args]];
-  return [
-    corepackBin,
-    ["pnpm", "dlx", "--package", `supabase@${version}`, "supabase", ...args],
-  ];
-}
-
-function supabaseExcludes(): string {
-  const profile = process.env.RIVALHUB_SUPABASE_PROFILE?.trim() || "full";
-  if (profile !== "full" && profile !== "auth") {
-    throw new Error("RIVALHUB_SUPABASE_PROFILE 必须是 full 或 auth。");
-  }
-  return profile === "auth" ? AUTH_SUPABASE_EXCLUDES : MINIMAL_SUPABASE_EXCLUDES;
-}
-
 function readLocalStatus(): LocalSupabaseStatus {
-  const [executable, args] = supabaseInvocation(["status", "--output", "json"]);
   const result = spawnSync(
-    executable,
-    args,
+    supabaseBin,
+    ["status", "--output", "json"],
     {
       cwd: projectRoot,
       env: sanitizedEnvironment(),
@@ -385,10 +352,9 @@ function readLocalStatus(): LocalSupabaseStatus {
 }
 
 function readLocalDatabaseStatus(): LocalDatabaseStatus {
-  const [executable, args] = supabaseInvocation(["status", "--output", "json"]);
   const result = spawnSync(
-    executable,
-    args,
+    supabaseBin,
+    ["status", "--output", "json"],
     {
       cwd: projectRoot,
       env: sanitizedEnvironment(),
