@@ -1,16 +1,17 @@
 import Link from "next/link";
 import { inArray } from "drizzle-orm";
-import { redirect } from "next/navigation";
 import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
-import { checkAdminSession } from "@/lib/auth/session";
+import { requireAdmin } from "@/lib/auth/session";
+import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import { presentSeasonStatus } from "@/lib/seasons/presentation";
 import { Panel, StatusPill, Marker } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
+import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 
 export default async function AdminDashboardPage() {
-  const admin = await checkAdminSession();
-  if (!admin) redirect("/login");
+  const admin = await resolveAdminPageAccess(requireAdmin);
+  if (!admin) return <AdminAccessDenied />;
 
   const allSeasons =
     admin.role === "super_admin"

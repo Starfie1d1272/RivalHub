@@ -3,6 +3,7 @@ import * as React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mockUserSession } from "tests/helpers";
 import type { DisciplinaryCase } from "@/db/schema";
+import { AppError, ErrorCode } from "@/lib/errors";
 
 const { seasonFindFirstMock, selectMock, requireSeasonAdminMock, getSeasonSanctionsMock, notFoundMock, redirectMock } = vi.hoisted(() => ({
   seasonFindFirstMock: vi.fn(),
@@ -123,10 +124,38 @@ describe("admin discipline page", () => {
     expect(html).toContain("没有权限执行该操作。");
   });
 
-  it("rejects users without season admin permission", async () => {
-    requireSeasonAdminMock.mockRejectedValue(new Error("forbidden"));
+  it("redirects an unauthenticated user to login", async () => {
+    requireSeasonAdminMock.mockRejectedValue(new AppError(ErrorCode.UNAUTHORIZED, "请先登录"));
     await expect(AdminDisciplinePage({ params: Promise.resolve({ seasonSlug: "major-2027" }) })).rejects.toThrow("NEXT_REDIRECT");
     expect(redirectMock).toHaveBeenCalledWith("/login");
+  });
+
+  it("renders a forbidden state for an authenticated user without season access", async () => {
+    requireSeasonAdminMock.mockRejectedValue(new AppError(ErrorCode.FORBIDDEN, "权限不足"));
+
+    const page = await AdminDisciplinePage({ params: Promise.resolve({ seasonSlug: "major-2027" }) });
+    const html = renderToStaticMarkup(page);
+
+    expect(html).toContain("权限不足");
+    expect(html).toContain("当前账号已登录");
+    expect(redirectMock).not.toHaveBeenCalled();
+    expect(getSeasonSanctionsMock).not.toHaveBeenCalled();
+  });
+
+  it("rethrows unexpected season authorization failures", async () => {
+    const loaderError = new Error("database unavailable");
+    requireSeasonAdminMock.mockRejectedValue(loaderError);
+
+    await expect(AdminDisciplinePage({ params: Promise.resolve({ seasonSlug: "major-2027" }) })).rejects.toBe(loaderError);
+    expect(redirectMock).not.toHaveBeenCalled();
+  });
+
+  it("rethrows unexpected page loader failures after authorization", async () => {
+    const loaderError = new Error("sanctions loader unavailable");
+    getSeasonSanctionsMock.mockRejectedValue(loaderError);
+
+    await expect(AdminDisciplinePage({ params: Promise.resolve({ seasonSlug: "major-2027" }) })).rejects.toBe(loaderError);
+    expect(redirectMock).not.toHaveBeenCalled();
   });
 
   it("404s for unknown season slug", async () => {

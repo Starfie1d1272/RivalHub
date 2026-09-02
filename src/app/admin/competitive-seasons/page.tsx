@@ -1,11 +1,12 @@
-import { redirect } from "next/navigation";
 import { requireSuperAdmin } from "@/lib/auth/session";
+import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import { db } from "@/db/client";
 import { loadCompetitivePlatformCatalog } from "@/lib/competitive/catalog";
 import { CompetitivePlatformCatalog } from "@/components/admin/CompetitivePlatformCatalog";
+import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 
 export default async function CompetitiveSeasonsAdminPage() {
-  try { await requireSuperAdmin(); } catch { redirect("/login"); }
+  if (!(await resolveAdminPageAccess(requireSuperAdmin))) return <AdminAccessDenied />;
   const platforms = await loadCompetitivePlatformCatalog(db);
   return (
     <div className="mx-auto w-full max-w-6xl space-y-5 px-6 py-8">

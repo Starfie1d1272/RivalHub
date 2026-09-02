@@ -76,6 +76,17 @@ export class AppError extends Error {
   }
 }
 
+export function isAppErrorCode(error: unknown, code: ErrorCode): error is AppError {
+  return error instanceof AppError && error.code === code;
+}
+
+export function isExpectedAuthFailure(error: unknown): error is AppError {
+  return (
+    isAppErrorCode(error, ErrorCode.UNAUTHORIZED) ||
+    isAppErrorCode(error, ErrorCode.FORBIDDEN)
+  );
+}
+
 // 错误代码 → 默认中文提示（可被覆盖）
 export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   UNAUTHORIZED: "请先登录",

@@ -1,10 +1,11 @@
-import { redirect } from "next/navigation";
 import Link from "next/link";
 import { asc, eq, isNotNull, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasonAdminGrants, users } from "@/db/schema";
 import { requireSuperAdmin } from "@/lib/auth/session";
+import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import { Marker, Panel } from "@/components/rivalhub";
+import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { Button } from "@/components/ui/button";
 import { AdminUserList } from "@/components/admin/AdminUserList";
 import { UserSearchBar } from "@/components/admin/UserSearchBar";
@@ -16,12 +17,8 @@ interface PageProps {
 }
 
 export default async function AdminUsersPage({ searchParams }: PageProps) {
-  let admin;
-  try {
-    admin = await requireSuperAdmin();
-  } catch {
-    redirect("/login");
-  }
+  const admin = await resolveAdminPageAccess(requireSuperAdmin);
+  if (!admin) return <AdminAccessDenied />;
 
   const { tab = "admins", q = "", filter = "all" } = await searchParams;
 

@@ -1,17 +1,14 @@
-import { redirect } from "next/navigation";
 import { asc, count, desc } from "drizzle-orm";
 import { db } from "@/db/client";
 import { adminInviteClaims, adminInvites, seasons } from "@/db/schema";
 import { requireSuperAdmin } from "@/lib/auth/session";
+import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import { Marker } from "@/components/rivalhub";
+import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { InviteManager } from "@/components/admin/InviteManager";
 
 export default async function AdminInvitesPage() {
-  try {
-    await requireSuperAdmin();
-  } catch {
-    redirect("/login");
-  }
+  if (!(await resolveAdminPageAccess(requireSuperAdmin))) return <AdminAccessDenied />;
 
   const [rows, claimCounts, seasonRows] = await Promise.all([
     db

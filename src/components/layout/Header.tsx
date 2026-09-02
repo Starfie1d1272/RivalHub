@@ -1,6 +1,6 @@
 import { db } from "@/db/client";
 import { seasons, users } from "@/db/schema";
-import { getCurrentUserAuthorization, getUserSession } from "@/lib/auth/session";
+import { checkAdminSession, getUserSession } from "@/lib/auth/session";
 import { resolveAvatarUrl } from "@/lib/steam";
 import { HeaderClient } from "./HeaderClient";
 import { eq } from "drizzle-orm";
@@ -11,7 +11,7 @@ export async function Header() {
       .select({ slug: seasons.slug, name: seasons.name, status: seasons.status, registrationOpensAt: seasons.registrationOpensAt, registrationOpenedAt: seasons.registrationOpenedAt, registrationClosesAt: seasons.registrationClosesAt })
       .from(seasons),
     getUserSession(),
-    getCurrentUserAuthorization().catch(() => null),
+    checkAdminSession(),
   ]);
 
   const publicSeasons = allSeasons.filter(
