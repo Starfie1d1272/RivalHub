@@ -70,7 +70,7 @@ plan → static ─┐
 
 `scripts/ci/plan.mjs` 根据 changed surface 选择 capability：文档-only 只运行 `plan + ci-gate`；代码域分别进入 `static`、`postgres` 或 `system`；rename/delete、未分类、toolchain、workflow、release、merge queue 和手动运行 fail closed 到 full。`ci-gate` 会区分预期 skipped 与 required failure/skipped/cancelled，只有 planner 明确声明的 capability 可以跳过。
 
-只有 pull request 使用上述 selective graph；`push` 到 `dev`、`main` 或 Major integration branch、`merge_group`、已发布 `release` 以及 `workflow_dispatch` 都将 `FORCE_FULL`，运行 `static + postgres + system + ci-gate` 的完整 convergence gate。
+只有 pull request 使用上述 selective graph；`push` 到 `dev` 或 `main`、`merge_group`、已发布 `release` 以及 `workflow_dispatch` 都将 `FORCE_FULL`，运行 `static + postgres + system + ci-gate` 的完整 convergence gate。
 
 当前 planner contract 如下：
 
