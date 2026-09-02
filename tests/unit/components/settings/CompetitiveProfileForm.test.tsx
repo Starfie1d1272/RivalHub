@@ -76,10 +76,13 @@ describe("CompetitiveProfileForm", () => {
     expect(screen.getByPlaceholderText("星数待补充：10–24")).toBeInTheDocument();
     expect(screen.getByText(/历史资料未记录星数/)).toBeInTheDocument();
     expect(screen.getByLabelText("星数")).toHaveValue(null);
+    const labelsInHistoricalField = () => Array.from(screen.getByText("历史最高").closest("section")?.querySelectorAll("label") ?? []).map((label) => label.textContent?.trim());
+    expect(labelsInHistoricalField()).toEqual(["段位", "星数", "对应 Rating Pro"]);
 
     await user.click(screen.getAllByRole("combobox")[0]!);
     await user.click(screen.getByText("A++"));
     expect(screen.queryByLabelText("星数")).not.toBeInTheDocument();
+    expect(labelsInHistoricalField()).toEqual(["段位", "对应 Rating Pro"]);
   });
 
   it("saves an untouched legacy null-stars fact unchanged, but blocks a real edit until stars are filled", async () => {

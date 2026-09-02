@@ -187,10 +187,12 @@ export async function deleteCompetitivePlatformSeason(input: unknown): Promise<A
           AND (
             team_registration_config->'competitiveProfile'->>'currentSeasonKey' = ${row.seasonKey}
             OR team_registration_config->'competitiveProfile'->>'previousSeasonKey' = ${row.seasonKey}
+            OR team_registration_config->'competitiveProfile'->'evidencePolicy'->>'referenceSeasonKey' = ${row.seasonKey}
+            OR (team_registration_config->'competitiveProfile'->'evidencePolicy'->'recentSeasonKeys')::jsonb ? ${row.seasonKey}
           )
         LIMIT 1
       `);
-      if (frozen.rows.length > 0) throw new AppError(ErrorCode.VALIDATION_FAILED, "已有已发布赛事冻结的竞技上下文引用该平台赛季，不能删除。");
+      if (frozen.rows.length > 0) throw new AppError(ErrorCode.VALIDATION_FAILED, "已有已开放报名赛事冻结的竞技上下文引用该平台赛季，不能删除。");
       await tx.delete(competitivePlatformSeasons).where(eq(competitivePlatformSeasons.id, id));
       await tx.insert(auditLogs).values({ action: "competitive_platform_season.delete", actorId: auditActorId(session), targetId: id, targetType: "competitive_platform_season", meta: { platform: row.platform, seasonKey: row.seasonKey } });
     });

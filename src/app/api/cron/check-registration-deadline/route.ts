@@ -4,6 +4,7 @@ import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
 import { maybeAdvanceFromRegistration } from "@/actions/transitions";
 import { validateCronAuth } from "@/lib/cron-auth";
+import { openSeasonRegistrationInTx } from "@/lib/seasons/lifecycle";
 
 export async function GET(request: Request) {
   const authError = validateCronAuth(request);
@@ -15,9 +16,12 @@ export async function GET(request: Request) {
     .where(eq(seasons.status, "registration"));
 
   let advanced = 0;
+  let opened = 0;
 
   for (const s of activeSeasons) {
     await db.transaction(async (tx) => {
+      const openResult = await openSeasonRegistrationInTx(tx, { seasonId: s.id, actorId: "system" });
+      if (openResult.opened) opened++;
       await maybeAdvanceFromRegistration(tx, s.id);
     });
     advanced++;
@@ -25,5 +29,5 @@ export async function GET(request: Request) {
 
   const skipped = activeSeasons.length - advanced;
 
-  return NextResponse.json({ ok: true, advanced, skipped });
+  return NextResponse.json({ ok: true, opened, advanced, skipped });
 }

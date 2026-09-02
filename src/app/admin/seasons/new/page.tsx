@@ -27,8 +27,9 @@ export default async function NewSeasonPage() {
           template: "major",
           status: "draft",
           themeColor: null,
-          startAt: null,
-          registrationDeadline: null,
+          registrationOpensAt: null,
+          registrationClosesAt: null,
+          rosterChangeClosesAt: null,
           endAt: null,
           ...major,
         }}

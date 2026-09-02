@@ -29,9 +29,23 @@ async function main(): Promise<void> {
     const referenced = await loadReferencedPlatformRankKeys(executor, platform);
     expect([...referenced].sort()).toEqual(["C+", "C++", "青铜S"].sort());
     await expect(assertPlatformRanksMutable(executor, platform, ["C++"])).rejects.toThrow(
-      /已被竞技资料或已发布赛事冻结的段位顺序引用/,
+      /已被竞技资料或已开放报名赛事冻结的段位顺序引用/,
     );
     await expect(assertPlatformRanksMutable(executor, platform, ["unreferenced"])).resolves.not.toThrow();
+
+    // The catalog delete guard must execute against json columns as jsonb when
+    // checking a frozen evidencePolicy.recentSeasonKeys array.
+    await client.query(
+      "UPDATE seasons SET team_registration_config = $2::json WHERE id = $1",
+      [seasonId, JSON.stringify({ competitiveProfile: { platform, currentSeasonKey: "legacy-current", previousSeasonKey: "legacy-previous", rankOrder: [], evidencePolicy: { historicalWeight: 50, referenceSeasonKey: "older", referenceSeasonWeight: 20, recentSeasonKeys: ["recent-only"], recentSeasonWeight: 30 } } })],
+    );
+    const recentPolicyReference = await client.query(
+      `SELECT id FROM seasons
+       WHERE team_registration_config->'competitiveProfile'->>'platform' = $1
+         AND (team_registration_config->'competitiveProfile'->'evidencePolicy'->'recentSeasonKeys')::jsonb ? $2`,
+      [platform, "recent-only"],
+    );
+    expect(recentPolicyReference.rowCount).toBe(1);
 
     // Star metadata shape is enforced by the database: no starMax without a
     // starMin, no descending range, no negative fact stars.

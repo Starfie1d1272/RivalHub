@@ -49,10 +49,18 @@ describe("updateProfile Perfect identity boundary", () => {
   });
 
   it("turns blank optional identity fields into null", async () => {
-    await updateProfile({ ...validInput, perfectName: "  " });
+    await updateProfile({ ...validInput, perfectName: "  ", liveStreamUrl: "  " });
 
     const set = updateMock.mock.results[0]?.value.set;
-    expect(set).toHaveBeenCalledWith(expect.objectContaining({ perfectName: null }));
+    expect(set).toHaveBeenCalledWith(expect.objectContaining({ perfectName: null, liveStreamUrl: null }));
+  });
+
+  it("stores only valid http(s) live-stream URLs", async () => {
+    await updateProfile({ ...validInput, liveStreamUrl: " https://live.example/room " });
+    expect(updateMock.mock.results[0]?.value.set).toHaveBeenCalledWith(expect.objectContaining({ liveStreamUrl: "https://live.example/room" }));
+    vi.clearAllMocks();
+    const result = await updateProfile({ ...validInput, liveStreamUrl: "javascript:alert(1)" });
+    expect(result).toMatchObject({ success: false, error: { code: ErrorCode.VALIDATION_FAILED } });
   });
 
   it("rejects malformed identity fields before authentication", async () => {

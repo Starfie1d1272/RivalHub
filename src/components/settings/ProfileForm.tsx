@@ -14,6 +14,7 @@ interface ProfileFormProps {
     steam64: string | null;
     steamProfileUrl: string | null;
     qq: string | null;
+    liveStreamUrl: string | null;
   };
 }
 
@@ -25,6 +26,7 @@ export function ProfileForm({ current }: ProfileFormProps) {
     steam64: current.steam64 ?? "",
     steamProfileUrl: current.steamProfileUrl ?? "",
     qq: current.qq ?? "",
+    liveStreamUrl: current.liveStreamUrl ?? "",
   });
   const [isPending, startTransition] = useTransition();
 
@@ -57,6 +59,11 @@ export function ProfileForm({ current }: ProfileFormProps) {
         minLength={2}
         maxLength={20}
       />
+      <div className="space-y-1 border-t border-[var(--color-border)] pt-4">
+        <p className="text-sm font-medium">解说资料</p>
+        <p className="text-xs text-[var(--color-fg-mid)]">用于你作为赛事解说时，在比赛页面向观众展示直播入口。不填写不会影响普通参赛资料。</p>
+      </div>
+      <Field id="live-stream-url" label="直播间链接" type="url" placeholder="https://..." value={form.liveStreamUrl ?? ""} onChange={set("liveStreamUrl")} />
       <Field
         id="perfect-name"
         label="完美平台昵称"

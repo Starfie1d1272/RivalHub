@@ -69,6 +69,8 @@ export interface ResolvedCatalogContext {
   platform: string;
   currentSeasonKey: string;
   previousSeasonKey: string;
+  /** The active season immediately before `previousSeasonKey`, if catalogued. */
+  priorSeasonKey?: string | null;
   /** Lowest → highest stable rank keys of the platform ladder. */
   rankOrder: string[];
 }
@@ -149,7 +151,11 @@ export async function resolveLiveCompetitiveContext(
     ranks: ranks.map((rank) => ({ id: rank.id, rankKey: rank.rankKey, label: rank.label, sortOrder: rank.sortOrder, starMin: rank.starMin, starMax: rank.starMax })),
     seasons: seasons.map((season) => ({ id: season.id, seasonKey: season.seasonKey, label: season.label, sortOrder: season.sortOrder, active: season.active, isCurrent: season.isCurrent })),
   });
-  return resolved ? { platform, ...resolved } : null;
+  if (!resolved) return null;
+  const prior = seasons
+    .filter((season) => season.active && season.sortOrder < (seasons.find((season) => season.seasonKey === resolved.previousSeasonKey)?.sortOrder ?? Number.NEGATIVE_INFINITY))
+    .sort((a, b) => b.sortOrder - a.sortOrder)[0] ?? null;
+  return { platform, ...resolved, priorSeasonKey: prior?.seasonKey ?? null };
 }
 
 /**
@@ -181,7 +187,7 @@ export async function assertPlatformRanksMutable(
   const referenced = await loadReferencedPlatformRankKeys(executor, platform);
   const blocked = rankKeys.find((key) => referenced.has(key));
   if (blocked) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, `段位 ${blocked} 已被竞技资料或已发布赛事冻结的段位顺序引用，不能修改。`);
+    throw new AppError(ErrorCode.VALIDATION_FAILED, `段位 ${blocked} 已被竞技资料或已开放报名赛事冻结的段位顺序引用，不能修改。`);
   }
 }
 

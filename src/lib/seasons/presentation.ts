@@ -1,10 +1,11 @@
 import type { StatusPresentation } from "@/lib/presentation";
 import type { SeasonStatus, StageConfig } from "@/types/season";
 import type { CompetitionTemplate } from "@/lib/competition/templates";
+import { getRegistrationWindowState, type RegistrationWindowSeason } from "@/lib/registration/window";
 
 const SEASON_STATUS_PRESENTATIONS: Record<SeasonStatus, StatusPresentation> = {
   draft: { label: "草稿", tone: "neutral" },
-  registration: { label: "报名开放", tone: "success" },
+  registration: { label: "已发布", tone: "success" },
   voting: { label: "投票中", tone: "warn" },
   drafting: { label: "选秀中", tone: "accent" },
   playing: { label: "LIVE", tone: "danger" },
@@ -14,6 +15,19 @@ const SEASON_STATUS_PRESENTATIONS: Record<SeasonStatus, StatusPresentation> = {
 
 export function presentSeasonStatus(status: SeasonStatus): StatusPresentation {
   return SEASON_STATUS_PRESENTATIONS[status];
+}
+
+/** Public participation label for a published Season; lifecycle status stays
+ * separate so non-registration phases continue to use their canonical label. */
+export function presentSeasonParticipationState(season: RegistrationWindowSeason): StatusPresentation {
+  if (season.status !== "registration") return presentSeasonStatus(season.status);
+  switch (getRegistrationWindowState(season).phase) {
+    case "unscheduled": return { label: "报名时间待定", tone: "neutral" };
+    case "upcoming": return { label: "即将开放", tone: "warn" };
+    case "open": return { label: "报名中", tone: "success" };
+    case "closed": return { label: "报名已截止", tone: "neutral" };
+    default: return presentSeasonStatus(season.status);
+  }
 }
 
 const MAJOR_STAGE_MARKERS: Record<string, string> = {

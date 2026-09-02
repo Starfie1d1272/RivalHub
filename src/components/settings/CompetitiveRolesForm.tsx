@@ -28,15 +28,19 @@ export function CompetitiveRolesForm({ initialRoles, initialPrimaryRole }: { ini
     setPrimaryRole(primaryRole ?? role);
   }
 
-  return <Panel label="长期位置偏好" pad={20}>
+  return <Panel label="位置偏好" pad={20}>
     <div className="space-y-4">
-      <p className="text-sm leading-6 text-[var(--color-fg-mid)]">选择 1–3 个常用位置，并指定主位置。它用于长期队伍招募与资料展示，不构成赛事资格门禁。</p>
+      <p className="text-sm leading-6 text-[var(--color-fg-mid)]">选择 1–3 个常用位置，并指定主位置。它用于队伍招募与资料展示，不构成赛事资格门禁。</p>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {CS2_POSITION_VALUES.map((role) => {
           const selected = roles.includes(role);
-          return <div key={role} className={`flex items-center justify-between border p-3 ${selected ? "border-[var(--color-accent)]" : "border-[var(--color-border)]"}`}>
-            <button type="button" className="text-sm" onClick={() => toggle(role)}>{selected ? "✓ " : ""}{ROLE_LABELS[role]}</button>
-            {selected && <button type="button" className="font-mono text-[10px] text-[var(--color-fg-mid)]" onClick={() => setPrimaryRole(role)}>{primaryRole === role ? "主位置" : "设为主位置"}</button>}
+          const primary = selected && primaryRole === role;
+          return <div key={role} className={`flex min-w-0 items-center justify-between gap-3 rounded-sm border p-3 transition-colors ${primary ? "border-[var(--color-accent)] bg-[var(--color-accent-soft)]" : selected ? "border-[var(--color-accent)] bg-[var(--color-panel-hi)]" : "border-[var(--color-border)] bg-[var(--color-panel)]"}`}>
+            <button type="button" aria-pressed={selected} className="min-w-0 flex-1 rounded-sm px-1 py-1 text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-panel)]" onClick={() => toggle(role)}>
+              <span aria-hidden={!selected} className="mr-2 inline-flex min-w-4 items-center justify-center font-mono text-xs font-bold text-[var(--color-accent)]">{selected ? "✓" : ""}</span>
+              <span>{ROLE_LABELS[role]}</span>
+            </button>
+            {primary ? <span className="shrink-0 rounded-sm border border-[var(--color-accent)] bg-[var(--color-accent)] px-2 py-1 font-mono text-[11px] font-bold text-[var(--color-accent-fg)]">主位置</span> : selected && <Button type="button" variant="ghost" size="sm" className="shrink-0 px-2 text-xs text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]" onClick={() => setPrimaryRole(role)}>设为主位置</Button>}
           </div>;
         })}
       </div>

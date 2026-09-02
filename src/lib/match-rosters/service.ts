@@ -8,6 +8,7 @@ import {
   eventRosters,
   institutions,
   majorStageRuns,
+  matchCommentators,
   matchRosterPlayers,
   matchRosters,
   matches,
@@ -49,7 +50,17 @@ function frozenCompetitiveProfile(ruleSnapshot: unknown): CompetitiveProfileConf
   if (!candidate || typeof candidate !== "object") throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 缺少冻结的竞技档案规则。");
   const profile = candidate as Partial<CompetitiveProfileConfig>;
   if (typeof profile.platform !== "string" || typeof profile.currentSeasonKey !== "string" || typeof profile.previousSeasonKey !== "string" || !Array.isArray(profile.rankOrder)) throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结的竞技档案规则不可用。");
-  return { platform: profile.platform, currentSeasonKey: profile.currentSeasonKey, previousSeasonKey: profile.previousSeasonKey, rankOrder: profile.rankOrder.filter((rank): rank is string => typeof rank === "string") };
+  const policy = profile.evidencePolicy;
+  if (policy && (policy.historicalWeight !== 50 || policy.referenceSeasonWeight !== 20 || policy.recentSeasonWeight !== 30 || typeof policy.referenceSeasonKey !== "string" || !Array.isArray(policy.recentSeasonKeys) || !policy.recentSeasonKeys.every((key) => typeof key === "string"))) {
+    throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结的竞技参考策略不可用。");
+  }
+  return {
+    platform: profile.platform,
+    currentSeasonKey: profile.currentSeasonKey,
+    previousSeasonKey: profile.previousSeasonKey,
+    rankOrder: profile.rankOrder.filter((rank): rank is string => typeof rank === "string"),
+    evidencePolicy: policy ? { historicalWeight: 50, referenceSeasonKey: policy.referenceSeasonKey, referenceSeasonWeight: 20, recentSeasonKeys: [...policy.recentSeasonKeys], recentSeasonWeight: 30 } : undefined,
+  };
 }
 
 function frozenCompetitiveFacts(ruleSnapshot: unknown): Map<string, PlayerStrengthInput> {
@@ -59,7 +70,7 @@ function frozenCompetitiveFacts(ruleSnapshot: unknown): Map<string, PlayerStreng
   const result = new Map<string, PlayerStrengthInput>();
   for (const row of rows) {
     if (!row || typeof row !== "object") throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
-    const value = row as { userId?: unknown; historicalPeak?: unknown; previousSeasonPeak?: unknown; currentSeasonPeak?: unknown };
+    const value = row as { userId?: unknown; historicalPeak?: unknown; previousSeasonPeak?: unknown; currentSeasonPeak?: unknown; recentSeasonPeaks?: unknown };
     if (typeof value.userId !== "string" || !value.userId) throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
     const rank = (fact: unknown) => {
       if (fact === null) return null;
@@ -68,7 +79,15 @@ function frozenCompetitiveFacts(ruleSnapshot: unknown): Map<string, PlayerStreng
       if (typeof candidate.rank !== "string" || typeof candidate.rating !== "number") throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
       return { rank: candidate.rank, rating: candidate.rating };
     };
-    result.set(value.userId, { userId: value.userId, label: value.userId, historicalPeak: rank(value.historicalPeak), previousSeasonPeak: rank(value.previousSeasonPeak), currentSeasonPeak: rank(value.currentSeasonPeak) });
+    if (value.recentSeasonPeaks !== undefined && !Array.isArray(value.recentSeasonPeaks)) throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
+    result.set(value.userId, {
+      userId: value.userId,
+      label: value.userId,
+      historicalPeak: rank(value.historicalPeak),
+      previousSeasonPeak: rank(value.previousSeasonPeak),
+      currentSeasonPeak: rank(value.currentSeasonPeak),
+      recentSeasonPeaks: Array.isArray(value.recentSeasonPeaks) ? value.recentSeasonPeaks.map(rank) : undefined,
+    });
   }
   return result;
 }
@@ -451,6 +470,10 @@ export async function applyMatchStatusTransitionInTx(
     args.nextStatus === "in_progress"
       ? await assertConfirmedLineupsForStartInTx(tx, locked)
       : null;
+  const clearedCommentators =
+    args.nextStatus === "cancelled"
+      ? await tx.delete(matchCommentators).where(eq(matchCommentators.matchId, locked.id)).returning({ userId: matchCommentators.userId })
+      : [];
 
   await tx
     .update(matches)
@@ -475,6 +498,9 @@ export async function applyMatchStatusTransitionInTx(
               substituteIds: summary.substituteIds,
             })),
           }
+        : {}),
+      ...(clearedCommentators.length > 0
+        ? { clearedCommentatorUserIds: clearedCommentators.map((commentator) => commentator.userId) }
         : {}),
     },
   });

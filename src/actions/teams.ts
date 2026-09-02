@@ -14,6 +14,7 @@ import { TEAM_LOGO_BUCKET, TEAM_LOGO_EXTENSIONS } from "@/lib/config/team-logo";
 import { LOGO_ALLOWED_TYPES, LOGO_MAX_BYTES } from "@/lib/config/upload-limits";
 import { normalizeEmail } from "@/lib/utils/email";
 import { acceptTeamInvitationInTx } from "@/lib/teams/invitations";
+import { removeInterestAfterInvitationInTx } from "@/lib/recruitment/commands";
 import {
   createTeamInTx,
   createTeamShareInvitationInTx,
@@ -40,6 +41,7 @@ function invalid(message: string): ActionResult<never> {
 
 function revalidateTeam(slug?: string): void {
   revalidatePath("/teams");
+  revalidatePath("/teams/recruitment");
   revalidatePath("/my/teams");
   if (slug) revalidatePath(`/teams/${slug}`);
 }
@@ -53,13 +55,13 @@ export async function createTeam(input: { name: string; description?: string }):
     revalidateTeam(result.slug);
     return ok(result);
   } catch (error) {
-    if (isPgUniqueViolation(error)) return invalid("你当前已有 active 队伍或队长身份。");
+    if (isPgUniqueViolation(error)) return invalid("你当前已有队伍或担任队长。");
     return actionError("createTeam", error);
   }
 }
 
-export async function updateTeamProfile(input: { teamId: string; name: string; description?: string; recruiting: boolean }): Promise<ActionResult<{ slug: string }>> {
-  const parsed = z.object({ teamId: uuid, name: teamName, description: description.optional(), recruiting: z.boolean() }).safeParse(input);
+export async function updateTeamProfile(input: { teamId: string; name: string; description?: string }): Promise<ActionResult<{ slug: string }>> {
+  const parsed = z.object({ teamId: uuid, name: teamName, description: description.optional() }).safeParse(input);
   if (!parsed.success) return invalid("队伍资料无效。");
   try {
     const session = await requireAuth();
@@ -108,6 +110,27 @@ export async function inviteTeamMember(input: { teamId: string; email: string })
   }
 }
 
+/** A Lobby handoff; the canonical invitation command remains the only Team invite owner. */
+export async function inviteTeamMemberByUserId(input: { teamId: string; userId: string; recruitmentIntentId?: string }): Promise<ActionResult<void>> {
+  const parsed = z.object({ teamId: uuid, userId: uuid, recruitmentIntentId: uuid.optional() }).safeParse(input);
+  if (!parsed.success) return invalid("邀请对象无效。");
+  try {
+    const session = await requireAuth();
+    await db.transaction(async (tx) => {
+      await inviteTeamMemberInTx(tx, { teamId: parsed.data.teamId, userId: session.userId, invitedUserId: parsed.data.userId, actorId: auditActorId(session) });
+      if (parsed.data.recruitmentIntentId) {
+        await removeInterestAfterInvitationInTx(tx, { recruitmentIntentId: parsed.data.recruitmentIntentId, teamId: parsed.data.teamId, userId: parsed.data.userId });
+      }
+    });
+    revalidatePath(`/players/${parsed.data.userId}`);
+    revalidateTeam();
+    return ok(undefined);
+  } catch (error) {
+    if (isPgUniqueViolation(error)) return invalid("该邀请已存在。");
+    return actionError("inviteTeamMemberByUserId", error);
+  }
+}
+
 export async function createTeamShareInvitation(input: { teamId: string }): Promise<ActionResult<{ token: string; expiresAt: string }>> {
   const parsed = z.object({ teamId: uuid }).safeParse(input);
   if (!parsed.success) return invalid("队伍标识无效。");
@@ -136,7 +159,7 @@ export async function acceptTeamInvitation(input: { invitationId?: string; token
     revalidateTeam(result.slug);
     return ok(result);
   } catch (error) {
-    if (isPgUniqueViolation(error)) return invalid("你当前已有 active 队伍。");
+    if (isPgUniqueViolation(error)) return invalid("你当前已有队伍。");
     return actionError("acceptTeamInvitation", error);
   }
 }
@@ -172,7 +195,7 @@ export async function setTeamMembershipStatus(input: { teamId: string; userId: s
     revalidateTeam();
     return ok(undefined);
   } catch (error) {
-    if (isPgUniqueViolation(error)) return invalid("该成员已在另一支长期队伍中处于 active。");
+    if (isPgUniqueViolation(error)) return invalid("该成员当前已属于另一支队伍。");
     return actionError("setTeamMembershipStatus", error);
   }
 }

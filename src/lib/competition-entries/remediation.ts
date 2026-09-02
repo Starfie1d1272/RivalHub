@@ -1,14 +1,20 @@
+import { canSelfChangeApprovedRoster, canSubmitEntry, type RegistrationWindowSeason } from "@/lib/registration/window";
+
 export type CompetitionEntryEditableStatus = "draft" | "changes_requested";
+export type CompetitionEntryRosterRevisionOrigin = "initial" | "admin_remediation" | "self_roster_change";
 
 /**
- * A normal registration deadline closes ordinary editing. An administrator's
- * `changes_requested` decision is the one narrow exception: the representative
- * may repair the current revision and resubmit it, but cannot create a new
- * registration or request an unrelated post-approval roster change.
+ * The revision origin, rather than mutable review text, distinguishes ordinary
+ * registration, an administrator-requested remediation, and a self-service
+ * approved-roster change. Every roster mutation consumes this one policy.
  */
-export function canEditCompetitionEntryRoster(
+export function canMutateCompetitionEntryRoster(
   status: CompetitionEntryEditableStatus,
-  canSubmit: boolean,
+  origin: CompetitionEntryRosterRevisionOrigin,
+  season: RegistrationWindowSeason,
+  now = new Date(),
 ): boolean {
-  return canSubmit || status === "changes_requested";
+  if (status === "draft") return canSubmitEntry(season, now);
+  if (origin === "admin_remediation") return true;
+  return origin === "self_roster_change" && canSelfChangeApprovedRoster(season, now);
 }

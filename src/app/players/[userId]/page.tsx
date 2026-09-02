@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
-import { eq, and, asc, inArray, sql } from "drizzle-orm";
+import { eq, and, asc, desc, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { competitionEntries, eventRosterMembers, eventRosters, users, seasonRegistrations, seasons, matches, matchMaps, competitiveRankFacts, userCompetitiveRoles } from "@/db/schema";
+import { competitionEntries, educationVerifications, eventRosterMembers, eventRosters, institutions, users, seasonRegistrations, seasons, matches, matchMaps, competitiveRankFacts, userCompetitiveRoles } from "@/db/schema";
 import { resolveAvatarUrl } from "@/lib/steam";
 import { PUBLIC_PLAYER_INFO_FIELDS } from "@/lib/utils/player-info-fields";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
@@ -17,6 +17,8 @@ import type { HexagonScores } from "@/lib/utils/hexagon";
 import { PlayerRadarChart } from "@/components/matches/PlayerRadarChart";
 import { loadCompetitivePlatformCatalog } from "@/lib/competitive/catalog";
 import { presentCompetitiveRole, presentPublicCompetitiveProfile } from "@/lib/competitive/presentation";
+import { presentPublicEducationIdentities } from "@/lib/education/presentation";
+import { getPublicPlayerLft } from "@/lib/recruitment/data";
 
 /**
  * 统计玩家 MVP 获胜次数（从 matches.mvp_winner_user_id 直读，已持久化缓存）。
@@ -63,8 +65,8 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
   });
   if (!user) notFound();
 
-  // ── 并行：报名记录 / MVP 胜场 / 个人数据 / Steam 头像 ──────────────────
-  const [registrations, mvpWinCount, playerStats, avatarUrl, competitiveFacts, competitiveRoles, competitiveCatalog] = await Promise.all([
+  // ── 并行：报名记录 / MVP 胜场 / 个人数据 / Steam 头像 / 高校身份 ────────
+  const [registrations, mvpWinCount, playerStats, avatarUrl, competitiveFacts, competitiveRoles, competitiveCatalog, educationVerificationRows, playerLft] = await Promise.all([
     db
       .select({
         id: seasonRegistrations.id,
@@ -130,6 +132,20 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
     db.select().from(competitiveRankFacts).where(eq(competitiveRankFacts.userId, userId)),
     db.select().from(userCompetitiveRoles).where(eq(userCompetitiveRoles.userId, userId)),
     loadCompetitivePlatformCatalog(db),
+    db
+      .select({
+        id: educationVerifications.id,
+        institutionId: educationVerifications.institutionId,
+        institutionName: institutions.name,
+        academicStatus: educationVerifications.academicStatus,
+        status: educationVerifications.status,
+        submittedAt: educationVerifications.submittedAt,
+      })
+      .from(educationVerifications)
+      .innerJoin(institutions, eq(educationVerifications.institutionId, institutions.id))
+      .where(and(eq(educationVerifications.userId, userId), eq(educationVerifications.status, "approved")))
+      .orderBy(asc(institutions.name), asc(educationVerifications.institutionId), desc(educationVerifications.submittedAt), asc(educationVerifications.id)),
+    getPublicPlayerLft(userId),
   ]);
 
   // ── 六维数据：仅对有数据的赛季查询 ──────────────────────────────────
@@ -162,6 +178,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
     .sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary))
     .map((role) => presentCompetitiveRole(role.role))
     .filter((role): role is string => role !== null);
+  const publicEducationIdentities = presentPublicEducationIdentities(educationVerificationRows);
 
   // ── 跨赛季比赛战绩（以个人 OCR 出场记录为准）───────────────────────
   const teamIds = [...new Set(teamMemberRows.map((r) => r.teamId).filter(Boolean))];
@@ -245,6 +262,20 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
             </p>
           )}
 
+          {publicEducationIdentities.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--color-fg-mid)]">
+              <span style={{ fontFamily: "var(--font-mono)", color: "var(--color-fg-dim)" }}>高校身份</span>
+              {publicEducationIdentities.map((education) => (
+                <span
+                  key={education.institutionName}
+                  className="inline-flex items-center rounded-sm border border-[var(--color-border)] bg-[var(--color-panel-low)] px-2 py-1"
+                >
+                  {education.institutionName} · {education.academicStatus} · {education.verificationLabel}
+                </span>
+              ))}
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center gap-2">
             {publicCompetitiveRoles.map((role) => <PosChip key={role} pos={role} />)}
             {user.steamProfileUrl && (
@@ -260,6 +291,8 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
           </div>
         </div>
       </div>
+
+      {playerLft && <section className="space-y-3"><SectionHeading>正在找队</SectionHeading><Panel pad={16}><div className="space-y-3"><div className="flex flex-wrap gap-2">{playerLft.positions.map((position) => <PosChip key={position} pos={position} />)}</div>{playerLft.targetSeasonName && <p className="text-sm text-[var(--color-fg-mid)]">目标赛事 · {playerLft.targetSeasonName}</p>}{playerLft.note && <p className="text-sm leading-6 text-[var(--color-fg-mid)]">{playerLft.note}</p>}<Link href="/teams/recruitment?view=players" className="text-sm text-[var(--color-accent)]">查看组队大厅 →</Link></div></Panel></section>}
 
       {publicCompetitiveProfile.length > 0 && <section className="space-y-3"><SectionHeading>公开竞技档案</SectionHeading><Panel pad={16}><div className="space-y-4 text-sm">{publicCompetitiveProfile.map((platform) => <div key={platform.displayName} className="space-y-2"><p className="font-semibold text-[var(--color-fg)]">{platform.displayName}</p>{platform.facts.map((fact) => <p key={`${platform.displayName}-${fact.label}`}><span className="text-[var(--color-fg-mid)]">{fact.label}</span> · {fact.rankLabel}{fact.stars !== null ? ` ${fact.stars} 星` : ""} · {fact.ratingLabel} {fact.rating}</p>)}</div>)}</div></Panel></section>}
 

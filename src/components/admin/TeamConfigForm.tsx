@@ -60,7 +60,7 @@ export function TeamConfigForm({ value, competitivePlatforms, onChange }: TeamCo
       <div>
         <h3 className="text-sm font-medium mb-3">Major 竞技档案规则</h3>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={value.requireCompetitiveProfile ?? false} onChange={(event) => set("requireCompetitiveProfile", event.target.checked)} />报名与首发必须完成竞技档案</label>
-        <p className="mt-1 text-xs text-[var(--color-fg-dim)]">发布时将从平台赛季目录冻结当前与上一赛季及段位顺序；之后的目录变更不影响已发布赛事。</p>
+        <p className="mt-1 text-xs text-[var(--color-fg-dim)]">实际开放报名时将从平台赛季目录冻结当前与上一赛季及段位顺序；之后的目录变更不影响已开放报名赛事。</p>
         {value.requireCompetitiveProfile && (
           <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>

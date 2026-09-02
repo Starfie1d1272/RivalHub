@@ -1,4 +1,37 @@
-<h2>确认你的 RivalHub 邮箱</h2>
-<p>打开确认页面后，再由你本人点击按钮完成注册。</p>
-<p><a href="{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=email">前往确认邮箱</a></p>
-<p>如果不是你发起的注册，可以忽略此邮件。</p>
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="x-apple-disable-message-reformatting">
+    <title>确认你的 RivalHub 邮箱</title>
+  </head>
+  <body style="margin:0;padding:0;background:#f4f4f5;color:#18181b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">打开确认页面后，再由你本人完成邮箱验证。</div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f4f4f5;">
+      <tr><td align="center" style="padding:32px 16px;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:600px;background:#ffffff;border:1px solid #e4e4e7;border-radius:8px;overflow:hidden;">
+          <tr><td style="padding:18px 28px;background:#18181b;">
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr>
+              <td style="padding-right:10px;"><img src="https://match.starfie1d.top/brand/rivalhub/icon-192-transparent.png" width="32" height="32" alt="RivalHub" style="display:block;border:0;outline:none;"></td>
+              <td style="color:#ffffff;font-size:20px;font-weight:700;letter-spacing:-0.2px;">Rival<span style="color:#f97316;">Hub</span></td>
+            </tr></table>
+          </td></tr>
+          <tr><td style="padding:36px 28px 28px;">
+            <h1 style="margin:0 0 16px;font-size:24px;line-height:32px;font-weight:700;color:#18181b;">确认你的邮箱</h1>
+            <p style="margin:0 0 24px;font-size:15px;line-height:24px;color:#52525b;">欢迎加入 RivalHub。完成验证后，你可以使用报名、赛事互动和个人竞技档案等功能。</p>
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr><td style="border-radius:6px;background:#ea580c;">
+              <a href="{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=email" style="display:inline-block;padding:12px 20px;color:#ffffff;font-size:15px;line-height:20px;font-weight:700;text-decoration:none;">确认邮箱</a>
+            </td></tr></table>
+            <p style="margin:20px 0 0;font-size:14px;line-height:22px;color:#52525b;">点击按钮只会打开 RivalHub；你还需要在 RivalHub 内再次确认，邮箱验证才会完成。</p>
+            <hr style="margin:28px 0;border:0;border-top:1px solid #e4e4e7;">
+            <p style="margin:0 0 10px;font-size:13px;line-height:20px;color:#71717a;">按钮无法打开？请复制以下完整链接到浏览器：</p>
+            <p style="margin:0;font-size:12px;line-height:18px;word-break:break-all;"><a href="{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=email" style="color:#c2410c;text-decoration:underline;">{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=email</a></p>
+            <p style="margin:28px 0 0;font-size:13px;line-height:20px;color:#71717a;">不是你发起的注册？你可以忽略这封邮件。RivalHub 不会通过邮件索要你的密码、验证码或付款信息。</p>
+          </td></tr>
+        </table>
+        <p style="margin:16px 0 0;font-size:12px;line-height:18px;color:#71717a;">本邮件由 RivalHub 账号系统自动发送<br><a href="https://match.starfie1d.top" style="color:#71717a;text-decoration:underline;">match.starfie1d.top</a></p>
+      </td></tr>
+    </table>
+  </body>
+</html>

@@ -3,7 +3,7 @@
 import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { createSeason, deleteSeason, publishSeason, updateSeason, revertSeasonToDraft, revertSeasonToRegistration, forceFinishSeason, archiveSeason, type SeasonFormInput } from "@/actions/seasons";
+import { createSeason, deleteSeason, openSeasonRegistration, publishSeason, updateSeason, revertSeasonToDraft, revertSeasonToRegistration, forceFinishSeason, archiveSeason, type SeasonFormInput } from "@/actions/seasons";
 import {
   PLAYER_TYPE_LABELS,
   type PlayerType,
@@ -40,7 +40,7 @@ const NO_RANK = "__none__";
 
 interface SeasonFormProps {
   mode: "create" | "edit";
-  initial?: SeasonFormInput;
+  initial?: SeasonFormInput & { registrationOpenedAt?: Date | null };
   competitivePlatforms: Array<{ key: string; displayName: string }>;
 }
 
@@ -77,9 +77,11 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
   const [kind, setKind] = useState(initial?.kind ?? "Major");
   const [themeColor, setThemeColor] = useState(initial?.themeColor ?? "");
   const [pendingTemplate, setPendingTemplate] = useState<CompetitionTemplate | null>(null);
+  const [publishConfirmationOpen, setPublishConfirmationOpen] = useState(false);
   const [dangerAction, setDangerAction] = useState<"delete" | "revert-draft" | "revert-registration" | "finish" | "archive" | null>(null);
-  const [startAt, setStartAt] = useState(initial?.startAt ?? "");
-  const [registrationDeadline, setRegistrationDeadline] = useState(initial?.registrationDeadline ?? "");
+  const [registrationOpensAt, setRegistrationOpensAt] = useState(initial?.registrationOpensAt ?? "");
+  const [registrationClosesAt, setRegistrationClosesAt] = useState(initial?.registrationClosesAt ?? "");
+  const [rosterChangeClosesAt, setRosterChangeClosesAt] = useState(initial?.rosterChangeClosesAt ?? "");
   const [endAt, setEndAt] = useState(initial?.endAt ?? "");
   const [registrationMode, setRegistrationMode] = useState<"solo" | "team">(
     initial?.registrationMode ?? defaultTemplate.registrationMode,
@@ -194,8 +196,9 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
       kind,
       template,
       themeColor: emptyToNull(themeColor),
-      startAt: emptyToNull(startAt),
-      registrationDeadline: emptyToNull(registrationDeadline),
+      registrationOpensAt: emptyToNull(registrationOpensAt),
+      registrationClosesAt: emptyToNull(registrationClosesAt),
+      rosterChangeClosesAt: emptyToNull(rosterChangeClosesAt),
       endAt: emptyToNull(endAt),
       registrationMode,
       hasCaptainVoting: registrationMode === "team" ? false : hasCaptainVoting,
@@ -237,6 +240,19 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
       if (result.success) {
         toast.success("赛季已发布");
         router.push(`/admin/${result.data.slug}/settings` as never);
+        router.refresh();
+      } else {
+        toast.error(result.error.message);
+      }
+    });
+  }
+
+  function handleOpenRegistration() {
+    if (!initial?.id) return;
+    startTransition(async () => {
+      const result = await openSeasonRegistration(initial.id);
+      if (result.success) {
+        toast.success("报名已开放，竞技参考策略已冻结");
         router.refresh();
       } else {
         toast.error(result.error.message);
@@ -325,6 +341,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
       <Card className="p-6 space-y-8">
         <div>
           <h1 className="text-2xl font-bold">{title}</h1>
+          <p className="mt-1 text-sm text-[var(--color-fg-dim)]">创建后仅保存为内部草稿；时间字段均可稍后填写。</p>
         </div>
 
         <section className="space-y-2">
@@ -380,12 +397,16 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
             <div><Label>赛事体系</Label><Input value={template === "major" ? "Major" : template === "rivals" ? "Rivals" : "自定义赛事"} disabled /></div>
             <div><Label>主题色</Label><ThemeColorPicker value={themeColor} onChange={setThemeColor} /></div>
             <div>
-              <Label htmlFor="start-at">报名开始时间</Label>
-              <Input id="start-at" type="datetime-local" value={startAt ?? ""} onChange={(e) => setStartAt(e.target.value)} />
+              <Label htmlFor="registration-opens-at">报名开放时间</Label>
+              <Input id="registration-opens-at" type="datetime-local" value={registrationOpensAt ?? ""} onChange={(e) => setRegistrationOpensAt(e.target.value)} />
             </div>
             <div>
-              <Label htmlFor="registration-deadline">报名截止时间</Label>
-              <Input id="registration-deadline" type="datetime-local" value={registrationDeadline ?? ""} onChange={(e) => setRegistrationDeadline(e.target.value)} />
+              <Label htmlFor="registration-closes-at">报名截止时间</Label>
+              <Input id="registration-closes-at" type="datetime-local" value={registrationClosesAt ?? ""} onChange={(e) => setRegistrationClosesAt(e.target.value)} />
+            </div>
+            <div>
+              <Label htmlFor="roster-change-closes-at">名单调整截止时间</Label>
+              <Input id="roster-change-closes-at" type="datetime-local" value={rosterChangeClosesAt ?? ""} onChange={(e) => setRosterChangeClosesAt(e.target.value)} />
             </div>
             <div><Label htmlFor="end-at">赛季结束时间</Label><Input id="end-at" type="datetime-local" value={endAt ?? ""} onChange={(e) => setEndAt(e.target.value)} /></div>
           </div>
@@ -464,7 +485,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
 
         <div className="flex justify-end">
           <Button type="button" disabled={isPending} onClick={handleSubmit}>
-            {isPending ? "创建中…" : "创建赛季"}
+            {isPending ? "保存中…" : "保存为草稿"}
           </Button>
         </div>
       </Card>
@@ -503,14 +524,19 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
       <Panel label="时间设置" pad={20}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <Label htmlFor="start-at">报名开始时间</Label>
-            <Input id="start-at" type="datetime-local" value={startAt ?? ""} onChange={(e) => setStartAt(e.target.value)} />
-            <p className="text-xs text-[var(--color-fg-dim)] mt-1">赛季发布后页面立即可见；到此时间前只能保存草稿。</p>
+            <Label htmlFor="registration-opens-at">报名开放时间</Label>
+            <Input id="registration-opens-at" type="datetime-local" value={registrationOpensAt ?? ""} disabled={Boolean(initial?.registrationOpenedAt)} onChange={(e) => setRegistrationOpensAt(e.target.value)} />
+            <p className="text-xs text-[var(--color-fg-dim)] mt-1">可稍后填写；留空表示赛事已公开但报名时间待定。实际开放后将冻结竞技参考策略。</p>
           </div>
           <div>
-            <Label htmlFor="registration-deadline">报名截止时间</Label>
-            <Input id="registration-deadline" type="datetime-local" value={registrationDeadline ?? ""} onChange={(e) => setRegistrationDeadline(e.target.value)} />
-            <p className="text-xs text-[var(--color-fg-dim)] mt-1">截止后关闭草稿保存和正式提交。</p>
+            <Label htmlFor="registration-closes-at">报名截止时间</Label>
+            <Input id="registration-closes-at" type="datetime-local" value={registrationClosesAt ?? ""} onChange={(e) => setRegistrationClosesAt(e.target.value)} />
+            <p className="text-xs text-[var(--color-fg-dim)] mt-1">截止后不再接受新的报名。</p>
+          </div>
+          <div>
+            <Label htmlFor="roster-change-closes-at">名单调整截止时间</Label>
+            <Input id="roster-change-closes-at" type="datetime-local" value={rosterChangeClosesAt ?? ""} onChange={(e) => setRosterChangeClosesAt(e.target.value)} />
+            <p className="text-xs text-[var(--color-fg-dim)] mt-1">已报名队伍可在此之前自行调整本届名单；留空时回退到报名截止时间。</p>
           </div>
           <div>
             <Label htmlFor="end-at">赛季结束时间</Label>
@@ -614,13 +640,18 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
           <Button type="button" variant="destructive" disabled={isPending} onClick={() => setDangerAction("delete")}>
             删除赛季
           </Button>
-          <Button type="button" variant="outline" disabled={isPending} onClick={handlePublish}>
+          <Button type="button" variant="outline" disabled={isPending} onClick={() => setPublishConfirmationOpen(true)}>
             发布赛季
           </Button>
         </div>
       )}
       {initial?.status === "registration" && (
         <div className="flex items-center justify-end gap-3 pt-2">
+          {!initial.registrationOpenedAt && (
+            <Button type="button" disabled={isPending} onClick={handleOpenRegistration}>
+              立即开放报名
+            </Button>
+          )}
           <Button type="button" variant="outline" disabled={isPending} onClick={() => setDangerAction("revert-draft")}>
             撤回至草稿
           </Button>
@@ -648,6 +679,20 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
         </div>
       )}
       <SeasonDangerConfirmation action={dangerAction} onOpenChange={(open) => { if (!open) setDangerAction(null); }} onConfirm={() => { const action = dangerAction; setDangerAction(null); if (action === "delete") handleDelete(); if (action === "revert-draft") handleRevertToDraft(); if (action === "revert-registration") handleRevertToRegistration(); if (action === "finish") handleForceFinish(); if (action === "archive") handleArchive(); }} />
+      <AlertDialog open={publishConfirmationOpen} onOpenChange={setPublishConfirmationOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>发布 {name || "这个赛季"}？</AlertDialogTitle>
+            <AlertDialogDescription>
+              发布后赛事将对用户公开，核心赛制与资格规则将锁定。报名{registrationOpensAt ? `计划于 ${registrationOpensAt} 开放` : "时间待定"}；竞技参考赛季会在实际开放报名时冻结。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setPublishConfirmationOpen(false); handlePublish(); }}>确认发布</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -9,7 +9,7 @@ import {
   seasons,
 } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { getRegistrationWindowState } from "@/lib/registration/window";
+import { canSelfChangeApprovedRoster } from "@/lib/registration/window";
 
 /**
  * Canonical approved-roster change transition: the Entry representative reopens
@@ -31,7 +31,7 @@ export async function requestCompetitionEntryRosterChangeInTx(
   const [entryScope] = await tx.select({ competitionId: competitionEntries.competitionId })
     .from(competitionEntries).where(eq(competitionEntries.id, input.entryId));
   if (!entryScope) throw new AppError(ErrorCode.NOT_FOUND, "赛事参赛条目不存在。");
-  const [season] = await tx.select({ slug: seasons.slug, status: seasons.status, startAt: seasons.startAt, registrationDeadline: seasons.registrationDeadline })
+  const [season] = await tx.select({ slug: seasons.slug, status: seasons.status, registrationOpensAt: seasons.registrationOpensAt, registrationOpenedAt: seasons.registrationOpenedAt, registrationClosesAt: seasons.registrationClosesAt, rosterChangeClosesAt: seasons.rosterChangeClosesAt })
     .from(seasons).where(eq(seasons.id, entryScope.competitionId)).for("update");
   if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛事不存在。");
   const [entry] = await tx.select().from(competitionEntries)
@@ -47,13 +47,13 @@ export async function requestCompetitionEntryRosterChangeInTx(
     await tx.update(eventRosters).set({ status: "preparing", confirmedAt: null, confirmedBy: null, frozenAt: null, frozenBy: null, updatedAt: new Date() }).where(eq(eventRosters.id, prestartRoster.id));
     prestartInvalidated = true;
   }
-  if (!getRegistrationWindowState(season).canSubmit) throw new AppError(ErrorCode.REGISTRATION_CLOSED, "报名窗口已关闭；请联系赛事管理员发起名单变更。");
+  if (!canSelfChangeApprovedRoster(season)) throw new AppError(ErrorCode.REGISTRATION_CLOSED, "名单调整窗口当前不可用；请联系赛事管理员发起变更。");
   const [approved] = await tx.select().from(competitionEntryRosterRevisions).where(and(eq(competitionEntryRosterRevisions.id, entry.approvedRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id))).for("update");
   if (!approved) throw new AppError(ErrorCode.INTERNAL_ERROR, "已批准 roster revision 不存在。");
   const [current] = await tx.select().from(competitionEntryRosterRevisions).where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id))).for("update");
   if (!current) throw new AppError(ErrorCode.INTERNAL_ERROR, "当前 roster revision 不存在。");
   const nextRevision = current.revisionNumber + 1;
-  const [next] = await tx.insert(competitionEntryRosterRevisions).values({ entryId: entry.id, revisionNumber: nextRevision, status: "draft", createdBy: input.actorId }).returning({ id: competitionEntryRosterRevisions.id });
+  const [next] = await tx.insert(competitionEntryRosterRevisions).values({ entryId: entry.id, revisionNumber: nextRevision, status: "draft", origin: "self_roster_change", createdBy: input.actorId }).returning({ id: competitionEntryRosterRevisions.id });
   const members = await tx.select().from(competitionEntryRosterMembers).where(eq(competitionEntryRosterMembers.revisionId, approved.id));
   if (members.length > 0) await tx.insert(competitionEntryRosterMembers).values(members.map((member) => ({ revisionId: next.id, participantId: member.participantId, userId: member.userId, teamMembershipId: member.teamMembershipId, isPrimaryStarter: member.isPrimaryStarter })));
   await tx.update(competitionEntries).set({ registrationStatus: "changes_requested", currentRosterRevisionId: next.id, reviewReason: "Entry representative requested an approved-roster change", updatedAt: new Date() }).where(eq(competitionEntries.id, entry.id));

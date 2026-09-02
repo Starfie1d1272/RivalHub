@@ -205,7 +205,7 @@ export async function startMajorInTransaction(
     ? await resolveCompetitiveContext(configuredCompetitiveProfile)
     : null;
   if (requiresCompetitiveProfile && !competitiveProfile) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "本届赛事要求竞技资料，但发布时冻结的竞技平台目录不完整，不能正式开赛。");
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "本届赛事要求竞技资料，但实际开放报名时冻结的竞技平台目录不完整，不能正式开赛。");
   }
   const affiliationRules = capabilities.affiliationRules;
   const frozenParticipantIds = [...new Set(rosterRows.map((row) => row.userId))];
@@ -263,11 +263,14 @@ export async function startMajorInTransaction(
       userId,
       historicalPeak: competitiveProfile ? serialize(fact?.historicalPeak ?? null) : null,
       previousSeasonPeak: competitiveProfile
-        ? serialize(fact?.seasonPeaks?.get(competitiveProfile.previousSeasonKey) ?? null)
+        ? serialize(fact?.seasonPeaks?.get(competitiveProfile.evidencePolicy?.referenceSeasonKey ?? competitiveProfile.previousSeasonKey) ?? null)
         : null,
       currentSeasonPeak: competitiveProfile
         ? serialize(fact?.seasonPeaks?.get(competitiveProfile.currentSeasonKey) ?? null)
         : null,
+      recentSeasonPeaks: competitiveProfile?.evidencePolicy
+        ? competitiveProfile.evidencePolicy.recentSeasonKeys.map((key) => serialize(fact?.seasonPeaks?.get(key) ?? null))
+        : undefined,
     };
   });
   const ruleSnapshot = makeMajorRunSnapshotV4({

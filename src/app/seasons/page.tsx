@@ -1,9 +1,9 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { desc } from "drizzle-orm";
+import { desc, ne } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
-import { presentSeasonStatus } from "@/lib/seasons/presentation";
+import { presentSeasonParticipationState } from "@/lib/seasons/presentation";
 import { Panel, Marker, StatusPill } from "@/components/rivalhub";
 
 export const metadata: Metadata = { title: "所有赛季" };
@@ -12,6 +12,7 @@ export default async function SeasonsPage() {
   const allSeasons = await db
     .select()
     .from(seasons)
+    .where(ne(seasons.status, "draft"))
     .orderBy(desc(seasons.createdAt));
 
   return (
@@ -33,7 +34,7 @@ export default async function SeasonsPage() {
                 {season.themeColor && <div className="h-1 w-full" style={{ backgroundColor: season.themeColor }} />}
                 <div className="p-5">
                   <div className="flex items-center gap-2 mb-3 text-xs">
-                    <StatusPill {...presentSeasonStatus(season.status)} />
+                    <StatusPill {...presentSeasonParticipationState(season)} />
                     <span className="text-[var(--color-fg-dim)]">·</span>
                     <span className="text-[var(--color-fg-dim)]">{season.kind}</span>
                   </div>

@@ -13,7 +13,7 @@ export default async function SettingsPage() {
   if (!session) redirect("/login");
 
   const [user, catalog] = await Promise.all([
-    db.query.users.findFirst({ where: eq(users.id, session.userId), columns: { displayName: true, steamName: true, perfectName: true, steam64: true, steamProfileUrl: true, qq: true } }),
+    db.query.users.findFirst({ where: eq(users.id, session.userId), columns: { displayName: true, steamName: true, perfectName: true, steam64: true, steamProfileUrl: true, qq: true, liveStreamUrl: true } }),
     loadCompetitivePlatformCatalog(db),
   ]);
   const resolved = catalog
@@ -36,7 +36,7 @@ export default async function SettingsPage() {
       : <StatusBanner tone="info" title="参赛资料入口" sub="平台赛季目录尚未完成当前与上一赛季配置；你仍可先完善个人资料与教育认证。" />}
 
     <Panel label="参赛资料" pad={20}>
-      <ProfileForm current={{ displayName: user?.displayName ?? null, steamName: user?.steamName ?? null, perfectName: user?.perfectName ?? null, steam64: user?.steam64 ?? null, steamProfileUrl: user?.steamProfileUrl ?? null, qq: user?.qq ?? null }} />
+      <ProfileForm current={{ displayName: user?.displayName ?? null, steamName: user?.steamName ?? null, perfectName: user?.perfectName ?? null, steam64: user?.steam64 ?? null, steamProfileUrl: user?.steamProfileUrl ?? null, qq: user?.qq ?? null, liveStreamUrl: user?.liveStreamUrl ?? null }} />
     </Panel>
     {readyItems.length > 0 && <Panel label="下一步" pad={0}><Checklist items={readyItems} /></Panel>}
   </div>;

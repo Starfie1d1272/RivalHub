@@ -190,6 +190,41 @@
       "when": 1788205890931,
       "tag": "0026_certain_annihilus",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1788263348979,
+      "tag": "0027_strong_maria_hill",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1788283900341,
+      "tag": "0028_big_wilson_fisk",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1788291339580,
+      "tag": "0029_season_participation_window",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1788294028294,
+      "tag": "0030_shiny_logan",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1788316306621,
+      "tag": "0031_community-awards-server-only",
+      "breakpoints": true
     }
   ]
 }

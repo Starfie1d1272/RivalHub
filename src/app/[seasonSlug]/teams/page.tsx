@@ -23,7 +23,7 @@ export default async function CompetitionEntriesPage({ params }: { params: Promi
   return <div className="container mx-auto max-w-6xl space-y-8 px-4 py-12">
     <div className="flex items-center justify-between"><Marker sub={season.name}>赛事队伍</Marker>{admin && <AdminShortcut href={`/admin/${seasonSlug}/settings`} label="赛事管理" />}</div>
     <div className="grid grid-cols-3 gap-3 sm:gap-4"><Stat label="参赛队伍" value={entries.length} /><Stat label="正式选手" value={members.length} /><Stat label="比赛" value={`${seasonMatches.filter((match) => match.status === "finished").length}/${seasonMatches.length}`} /></div>
-    <p className="text-xs text-[var(--color-fg-dim)]">这里展示本届赛事队伍；长期队伍资料与历史请到队伍页面查看。</p>
+    <p className="text-xs text-[var(--color-fg-dim)]">这里展示本届赛事队伍；队伍资料与历史请到队伍页面查看。</p>
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">{entries.map((entry) => <TeamCard key={entry.id} teamId={entry.id} teamName={entry.name} seasonSlug={seasonSlug} draftOrder={entry.formationOrder} logoUrl={entry.logoUrl} players={(membersByEntry.get(entry.id) ?? []).map((member) => ({ name: getPublicDisplayName(member), primaryPosition: member.primaryPosition ?? "—", isStarter: member.isStarter, isCaptain: member.userId === entry.representativeUserId, userId: member.userId }))} record={record(entry.id)} summary={null} />)}</div>
   </div>;
 }

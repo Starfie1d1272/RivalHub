@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { eq, and, inArray, isNotNull } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, matches, competitionEntries, eventRosters, eventRosterMembers, matchMaps, users, seasonRegistrations } from "@/db/schema";
+import { seasons, matches, competitionEntries, eventRosters, eventRosterMembers, matchCommentators, matchMaps, users, seasonRegistrations } from "@/db/schema";
 import { matchPlayerStats } from "@/db/schema/player-stats";
 import { matchMvpVotes } from "@/db/schema/mvp-votes";
 import { MatchMvpVote } from "@/components/matches/MatchMvpVote";
@@ -44,6 +44,9 @@ import {
 } from "@/lib/matches/detail-stats";
 import { getSeasonFinishedMatches } from "@/lib/matches/detail-data";
 import { MatchHeroHeader } from "@/components/matches/MatchHeroHeader";
+import { getPublicDisplayName } from "@/lib/identity/display-name";
+import { getPublicLiveCommentators } from "@/lib/postmatch/service";
+import { isHttpUrl } from "@/lib/external-url";
 
 interface MatchDetailPageProps {
   params: Promise<{ seasonSlug: string; matchId: string }>;
@@ -73,7 +76,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   const isFinished = match.status === "finished";
 
   // Phase 3: 所有独立查询并行
-  const [rosterA, rosterB, userSession, allTeamMemberRows, seasonMatchesA, seasonMatchesB, seasonHexagonScores] =
+  const [rosterA, rosterB, userSession, allTeamMemberRows, seasonMatchesA, seasonMatchesB, seasonHexagonScores, commentatorRows] =
     await Promise.all([
       getMatchRoster(match.id, match.entryAId),
       getMatchRoster(match.id, match.entryBId),
@@ -102,8 +105,13 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
       getSeasonFinishedMatches(season.id, match.entryAId),
       getSeasonFinishedMatches(season.id, match.entryBId),
       getSeasonHexagonScores(season.id),
+      db.select({ userId: users.id, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName, liveStreamUrl: users.liveStreamUrl })
+        .from(matchCommentators)
+        .innerJoin(users, eq(matchCommentators.userId, users.id))
+        .where(eq(matchCommentators.matchId, match.id)),
     ]);
   const timeProposals = await getMatchTimeProposalViews(match.id, userSession?.userId);
+  const liveCommentators = getPublicLiveCommentators(match.status, commentatorRows);
 
   const allTeamMembers = allTeamMemberRows.map((row) => ({
     ...row,
@@ -373,6 +381,14 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
         teamB={teamB}
         isFinished={isFinished}
       />
+
+      {(commentatorRows.length > 0 || (isFinished && match.videoUrl && isHttpUrl(match.videoUrl))) && (
+        <Panel label={isFinished ? "赛后资料" : "解说与直播"} pad={16}>
+          {commentatorRows.length > 0 && <p className="text-sm">解说：{commentatorRows.map(getPublicDisplayName).join("、")}</p>}
+          {liveCommentators.length > 0 && <div className="mt-3 space-y-2"><p className="text-sm font-medium">{match.status === "in_progress" ? "正在直播 · 解说直播" : "直播解说"}</p>{liveCommentators.map((commentator) => <p key={commentator.userId} className="text-sm">{getPublicDisplayName(commentator)} <a href={commentator.liveStreamUrl!} target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">进入直播间 ↗</a></p>)}</div>}
+          {isFinished && match.videoUrl && isHttpUrl(match.videoUrl) && <a href={match.videoUrl} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-sm text-[var(--color-accent)] hover:underline">观看比赛录像 →</a>}
+        </Panel>
+      )}
 
       {/* 赛季综合对比（比赛未结束时显示） */}
       {!isFinished && (

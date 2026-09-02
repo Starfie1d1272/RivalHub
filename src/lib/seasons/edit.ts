@@ -52,8 +52,9 @@ const seasonFormBaseSchema = z.object({
   template: z.enum(["rivals", "major", "custom"]).optional(),
   status: z.enum(["draft", "registration", "voting", "drafting", "playing", "finished", "archived"]).optional(),
   themeColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, "主题色需为 #RRGGBB 格式").nullable(),
-  startAt: z.string().nullable(),
-  registrationDeadline: z.string().nullable(),
+  registrationOpensAt: z.string().nullable(),
+  registrationClosesAt: z.string().nullable(),
+  rosterChangeClosesAt: z.string().nullable(),
   endAt: z.string().nullable(),
   registrationMode: z.enum(["solo", "team"]),
   hasCaptainVoting: z.boolean(),
@@ -83,6 +84,13 @@ const seasonFormBaseSchema = z.object({
       currentSeasonKey: z.string().max(128),
       previousSeasonKey: z.string().max(128),
       rankOrder: z.array(z.string().min(1).max(64)).max(64),
+      evidencePolicy: z.object({
+        historicalWeight: z.literal(50),
+        referenceSeasonKey: z.string().min(1).max(128),
+        referenceSeasonWeight: z.literal(20),
+        recentSeasonKeys: z.array(z.string().min(1).max(128)).min(1).max(8),
+        recentSeasonWeight: z.literal(30),
+      }).optional(),
     }).optional(),
   }).optional(),
   affiliationRules: z.array(z.object({
@@ -110,12 +118,22 @@ export function withSeasonRefinements<T extends z.ZodTypeAny>(schema: T) {
     })
     .refine(
       (data) => {
-        if (!data.startAt || !data.registrationDeadline) return true;
-        return new Date(data.registrationDeadline) > new Date(data.startAt);
+        if (!data.registrationOpensAt || !data.registrationClosesAt) return true;
+        return new Date(data.registrationClosesAt) > new Date(data.registrationOpensAt);
       },
       {
-        path: ["registrationDeadline"],
+        path: ["registrationClosesAt"],
         message: "报名截止时间必须晚于报名开始时间",
+      },
+    )
+    .refine(
+      (data) => {
+        if (!data.registrationClosesAt || !data.rosterChangeClosesAt) return true;
+        return new Date(data.rosterChangeClosesAt) >= new Date(data.registrationClosesAt);
+      },
+      {
+        path: ["rosterChangeClosesAt"],
+        message: "名单调整截止时间不能早于报名截止时间",
       },
     );
 }
@@ -192,8 +210,12 @@ export function planSeasonUpdate(existing: SeasonRow, parsed: z.infer<typeof sea
     kind: data.kind,
     competitionTemplate: template,
     themeColor: data.themeColor,
-    startAt: data.startAt,
-    registrationDeadline: data.registrationDeadline,
+    // Once the canonical transition has occurred, the scheduled time is a
+    // historical operator record rather than editable metadata. Keep the
+    // persisted value even if a stale client submits a different value.
+    registrationOpensAt: existing.registrationOpenedAt ? existing.registrationOpensAt : data.registrationOpensAt,
+    registrationClosesAt: data.registrationClosesAt,
+    rosterChangeClosesAt: data.rosterChangeClosesAt,
     endAt: data.endAt,
     updatedAt: new Date(),
   };

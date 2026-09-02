@@ -65,8 +65,9 @@ function createInitial(
     status,
     template: "rivals" as const,
     themeColor: "#f97316",
-    startAt: null,
-    registrationDeadline: null,
+    registrationOpensAt: null,
+    registrationClosesAt: null,
+    rosterChangeClosesAt: null,
     endAt: null,
   };
 }
@@ -97,7 +98,7 @@ describe("SeasonForm presets", () => {
     expect(screen.getByLabelText("每队人数上限")).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "Major" }));
     await user.click(screen.getByRole("button", { name: "Rivals" }));
-    await user.click(screen.getByRole("button", { name: "创建赛季" }));
+    await user.click(screen.getByRole("button", { name: "保存为草稿" }));
 
     await waitFor(() => {
       expect(createSeasonMock).toHaveBeenCalledWith(expect.objectContaining({

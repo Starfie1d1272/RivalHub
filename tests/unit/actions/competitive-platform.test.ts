@@ -275,7 +275,7 @@ describe("season catalog actions", () => {
     executeResults.push([{ id: "season-9" }]);
     const frozenResult = await deleteCompetitivePlatformSeason({ id: SEASON_ID });
     expect(frozenResult.success).toBe(false);
-    expect(errMessage(frozenResult)).toContain("已发布赛事冻结");
+    expect(errMessage(frozenResult)).toContain("已开放报名赛事冻结");
   });
 
   it("deletes an unreferenced season with an audit log", async () => {
