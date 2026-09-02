@@ -185,6 +185,7 @@ function draftSeason(overrides?: Record<string, unknown>) {
     slug: "test-2026",
     name: "Test Season 2026",
     kind: "联赛",
+    competitionTemplate: "rivals" as const,
     status: "draft",
     registrationMode: "solo",
     hasCaptainVoting: true,
@@ -316,16 +317,70 @@ describe("updateSeason", () => {
     expect(updateSetCalls).toHaveLength(0);
   });
 
-  it("尝试修改 slug 返回 fail", async () => {
+  it("draft 状态允许修改 slug，并返回最终 slug", async () => {
     seasonsFindFirstMock.mockResolvedValue(draftSeason({ slug: "original-slug" }));
 
     const result = await updateSeason({ ...VALID_INPUT, id: SEASON_ID, slug: "different-slug" });
 
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.code).toBe(ErrorCode.VALIDATION_FAILED);
-      expect(result.error.message).toContain("slug");
+    expect(result).toMatchObject({ success: true, data: { slug: "different-slug" } });
+    expect(updateSetCalls).toContainEqual(expect.objectContaining({ slug: "different-slug" }));
+    expect(revalidatePathMock).toHaveBeenCalledWith("/admin/different-slug/settings");
+  });
+
+  it("已发布状态下修改 slug 返回 SEASON_INVALID_STATUS", async () => {
+    seasonsFindFirstMock.mockResolvedValue(nonDraftSeason("registration"));
+
+    const result = await updateSeason({ ...VALID_INPUT, id: SEASON_ID, slug: "different-slug" });
+
+    expect(result).toMatchObject({ success: false, error: { code: ErrorCode.SEASON_INVALID_STATUS } });
+    expect(updateSetCalls).toHaveLength(0);
+  });
+
+  it("已发布状态下修改 registrationConfig 返回 SEASON_INVALID_STATUS", async () => {
+    seasonsFindFirstMock.mockResolvedValue(nonDraftSeason("registration"));
+
+    const result = await updateSeason({
+      ...VALID_INPUT,
+      id: SEASON_ID,
+      registrationConfig: { ...VALID_INPUT.registrationConfig, screenshotCount: 3 },
+    });
+
+    expect(result).toMatchObject({ success: false, error: { code: ErrorCode.SEASON_INVALID_STATUS } });
+    expect(updateSetCalls).toHaveLength(0);
+  });
+
+  it("更新 action 只写入 planner 生成的 Date 字段", async () => {
+    seasonsFindFirstMock.mockResolvedValue(draftSeason({
+      registrationOpensAt: new Date("2026-05-01T02:00:00.000Z"),
+      registrationClosesAt: new Date("2026-05-02T02:00:00.000Z"),
+    }));
+
+    const result = await updateSeason({
+      ...VALID_INPUT,
+      id: SEASON_ID,
+      registrationOpensAt: "2026-05-01T10:00",
+      registrationClosesAt: "2026-05-03T10:00",
+    });
+
+    expect(result.success).toBe(true);
+    expect(updateSetCalls).toContainEqual(expect.objectContaining({
+      registrationOpensAt: new Date("2026-05-01T02:00:00.000Z"),
+      registrationClosesAt: new Date("2026-05-03T02:00:00.000Z"),
+    }));
+    const update = updateSetCalls.find((value) => value && typeof value === "object" && "registrationOpensAt" in value) as Record<string, unknown>;
+    expect(update.registrationOpensAt).not.toBe("2026-05-01T10:00");
+  });
+
+  it("已发布状态下相同的核心配置仍可保存 metadata", async () => {
+    seasonsFindFirstMock.mockResolvedValue(nonDraftSeason("registration"));
+
+    const result = await updateSeason({ ...VALID_INPUT, id: SEASON_ID, name: "Updated Season Name" });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.slug).toBe("test-2026");
     }
+    expect(updateSetCalls.length).toBeGreaterThanOrEqual(1);
   });
 
   it("非 draft 状态下修改核心配置返回 fail", async () => {
@@ -353,18 +408,6 @@ describe("updateSeason", () => {
     expect(result).toMatchObject({ success: false, error: { code: ErrorCode.SEASON_INVALID_STATUS } });
   });
 
-  it("非 draft 状态下仅修改名称等非核心字段应成功", async () => {
-    seasonsFindFirstMock.mockResolvedValue(nonDraftSeason("registration"));
-
-    const result = await updateSeason({ ...VALID_INPUT, id: SEASON_ID, name: "Updated Season Name" });
-
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.slug).toBe("test-2026");
-    }
-
-    expect(updateSetCalls.length).toBeGreaterThanOrEqual(1);
-  });
 });
 
 // ── publishSeason ───────────────────────────────────────────────────────────

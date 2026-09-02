@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -26,6 +26,7 @@ const MATCH_FORMATS = ["bo1", "bo3", "bo5"] as const;
 
 interface StagePlanEditorProps {
   value: StagePlan;
+  disabled?: boolean;
   onChange: (plan: StagePlan) => void;
 }
 
@@ -59,17 +60,20 @@ function updateStage(stages: StagePlan, index: number, patch: Partial<StageConfi
   return stages.map((s, i) => (i === index ? { ...s, ...patch } : s));
 }
 
-export function StagePlanEditor({ value, onChange }: StagePlanEditorProps) {
+export function StagePlanEditor({ value, disabled = false, onChange }: StagePlanEditorProps) {
   const [pendingPreset, setPendingPreset] = useState<"rivals" | "clear" | null>(null);
   function addStage() {
+    if (disabled) return;
     onChange([...value, emptyStage()]);
   }
 
   function removeStage(index: number) {
+    if (disabled) return;
     onChange(value.filter((_, i) => i !== index));
   }
 
   function applyPreset(preset: "rivals" | "clear") {
+    if (disabled) return;
     setPendingPreset(preset);
   }
 
@@ -80,6 +84,7 @@ export function StagePlanEditor({ value, onChange }: StagePlanEditorProps) {
           <button
             type="button"
             className="absolute top-2 right-2 text-xs text-destructive hover:underline"
+            disabled={disabled}
             onClick={() => removeStage(index)}
           >
             删除阶段
@@ -90,6 +95,7 @@ export function StagePlanEditor({ value, onChange }: StagePlanEditorProps) {
               <Label>阶段名称</Label>
               <Input
                 value={stage.name}
+                disabled={disabled}
                 onChange={(e) => {
                   const name = e.target.value;
                   const key = stage.key || stageNameToKey(name);
@@ -102,6 +108,7 @@ export function StagePlanEditor({ value, onChange }: StagePlanEditorProps) {
               <Label>阶段标识 (key)</Label>
               <Input
                 value={stage.key}
+                disabled={disabled}
                 onChange={(e) => onChange(updateStage(value, index, { key: e.target.value }))}
                 placeholder="英文标识"
               />
@@ -110,6 +117,7 @@ export function StagePlanEditor({ value, onChange }: StagePlanEditorProps) {
               <Label>赛制类型</Label>
               <Select
                 value={stage.type}
+                disabled={disabled}
                 onValueChange={(v) => {
                   const type = v as StageType;
                   onChange(updateStage(value, index, {
@@ -135,6 +143,7 @@ export function StagePlanEditor({ value, onChange }: StagePlanEditorProps) {
               <Input
                 type="number" min={2} max={128}
                 value={stage.teamCount}
+                disabled={disabled}
                 onChange={(e) => onChange(updateStage(value, index, { teamCount: Number(e.target.value) }))}
               />
             </div>
@@ -142,6 +151,7 @@ export function StagePlanEditor({ value, onChange }: StagePlanEditorProps) {
               <Label>比赛 BO</Label>
               <Select
                 value={stage.matchFormat ?? "bo1"}
+                disabled={disabled}
                 onValueChange={(v) => onChange(updateStage(value, index, { matchFormat: v as "bo1" | "bo3" | "bo5" }))}
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -159,6 +169,7 @@ export function StagePlanEditor({ value, onChange }: StagePlanEditorProps) {
               <div className="flex items-center gap-2">
                 <Select
                   value={stage.advanceTiers[0]?.placement ?? "*"}
+                  disabled={disabled}
                   onValueChange={(placement) => onChange(updateStage(value, index, {
                     advanceTiers: [{ placement, count: stage.advanceTiers[0]?.count ?? 1 }],
                   }))}
@@ -175,6 +186,7 @@ export function StagePlanEditor({ value, onChange }: StagePlanEditorProps) {
                   type="number" min={1}
                   className="w-20"
                   value={stage.advanceTiers[0]?.count ?? 1}
+                  disabled={disabled}
                   onChange={(e) => onChange(updateStage(value, index, {
                     advanceTiers: [{ ...stage.advanceTiers[0], placement: stage.advanceTiers[0]?.placement ?? "*", count: Number(e.target.value) }],
                   }))}
@@ -199,6 +211,7 @@ export function StagePlanEditor({ value, onChange }: StagePlanEditorProps) {
                 <input
                   type="checkbox"
                   checked={stage.hasThirdPlaceMatch ?? false}
+                  disabled={disabled}
                   onChange={(e) => onChange(updateStage(value, index, { hasThirdPlaceMatch: e.target.checked }))}
                 />
                 三四名决赛
@@ -207,6 +220,7 @@ export function StagePlanEditor({ value, onChange }: StagePlanEditorProps) {
                 <Label>决赛 BO 覆写</Label>
                 <Select
                   value={stage.finalFormat ?? "__none__"}
+                  disabled={disabled}
                   onValueChange={(v) => onChange(updateStage(value, index, {
                     finalFormat: v === "__none__" ? undefined : (v as "bo3" | "bo5"),
                   }))}
@@ -225,10 +239,10 @@ export function StagePlanEditor({ value, onChange }: StagePlanEditorProps) {
       ))}
 
       <div className="flex flex-wrap items-center gap-3">
-        <Button type="button" variant="outline" size="sm" onClick={addStage}>
+        <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={addStage}>
           添加阶段
         </Button>
-        <Select onValueChange={(v) => v !== "__none__" && applyPreset(v as "rivals" | "clear")}>
+        <Select disabled={disabled} onValueChange={(v) => v !== "__none__" && applyPreset(v as "rivals" | "clear")}>
           <SelectTrigger className="w-44"><SelectValue placeholder="预设赛制..." /></SelectTrigger>
           <SelectContent>
             <SelectItem value="rivals">Rivals 8队</SelectItem>
@@ -237,12 +251,12 @@ export function StagePlanEditor({ value, onChange }: StagePlanEditorProps) {
           </SelectContent>
         </Select>
         {value.length > 0 && (
-          <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => applyPreset("clear")}>
+          <Button type="button" variant="ghost" size="sm" className="text-destructive" disabled={disabled} onClick={() => applyPreset("clear")}>
             清空阶段
           </Button>
         )}
       </div>
-      {pendingPreset && <InlineConfirm danger={pendingPreset === "clear"} title={pendingPreset === "clear" ? "确认清空所有赛程阶段？" : "确认覆盖当前赛制配置？"} sub={pendingPreset === "clear" ? "此操作会移除当前所有阶段。" : "将应用 Rivals 8 队预设。"} confirmLabel={pendingPreset === "clear" ? "清空" : "应用预设"} onCancel={() => setPendingPreset(null)} onConfirm={() => { onChange(pendingPreset === "clear" ? [] : structuredClone(RIVALS_STAGE_PLAN)); setPendingPreset(null); }} />}
+      {pendingPreset && !disabled && <InlineConfirm danger={pendingPreset === "clear"} title={pendingPreset === "clear" ? "确认清空所有赛程阶段？" : "确认覆盖当前赛制配置？"} sub={pendingPreset === "clear" ? "此操作会移除当前所有阶段。" : "将应用 Rivals 8 队预设。"} confirmLabel={pendingPreset === "clear" ? "清空" : "应用预设"} onCancel={() => setPendingPreset(null)} onConfirm={() => { if (disabled) return; onChange(pendingPreset === "clear" ? [] : structuredClone(RIVALS_STAGE_PLAN)); setPendingPreset(null); }} />}
     </div>
   );
 }

@@ -326,7 +326,7 @@ async function exerciseQualificationWithRealCatalog(pool: Pool): Promise<void> {
     );
     if (starStars.rows[0]?.stars !== 50) throw new Error("S 段 fixture 必须带精确星数。");
 
-    // A published Major freezes exactly this context at publish time.
+    // An already published Major retains exactly this context for registration-time use.
     const seasonId = randomUUID();
     await client.query(
       `INSERT INTO seasons (id, slug, name, kind, status, registration_mode, min_team_size, max_team_size, team_registration_config)
