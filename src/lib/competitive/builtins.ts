@@ -75,6 +75,21 @@ export type BuiltInCompetitivePlatformKey = keyof typeof BUILT_IN_COMPETITIVE_PL
 
 export const BUILT_IN_COMPETITIVE_PLATFORM_KEYS = Object.keys(BUILT_IN_COMPETITIVE_PLATFORMS) as BuiltInCompetitivePlatformKey[];
 
+/**
+ * Product-owned presentation and evidence priority. Never derive this from a
+ * database key: Perfect World is the Major's primary platform, while 5E is
+ * supporting long-lived evidence.
+ */
+export const COMPETITIVE_PLATFORM_PRIORITY = ["perfect_world", "fivee"] as const;
+
+export function compareCompetitivePlatformPriority(left: string, right: string): number {
+  const leftIndex = COMPETITIVE_PLATFORM_PRIORITY.indexOf(left as typeof COMPETITIVE_PLATFORM_PRIORITY[number]);
+  const rightIndex = COMPETITIVE_PLATFORM_PRIORITY.indexOf(right as typeof COMPETITIVE_PLATFORM_PRIORITY[number]);
+  const normalizedLeft = leftIndex < 0 ? Number.MAX_SAFE_INTEGER : leftIndex;
+  const normalizedRight = rightIndex < 0 ? Number.MAX_SAFE_INTEGER : rightIndex;
+  return normalizedLeft - normalizedRight || left.localeCompare(right);
+}
+
 export function isBuiltInCompetitivePlatformKey(value: string): value is BuiltInCompetitivePlatformKey {
   // hasOwnProperty instead of `in`: the `in` operator walks the prototype
   // chain, so "toString" / "constructor" / "__proto__" would pass.

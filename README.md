@@ -50,7 +50,13 @@ pnpm verify
 pnpm verify:local
 pnpm build
 pnpm db:check
+pnpm db:local:start-db
+pnpm db:local:start-services
 pnpm db:local:bootstrap
+pnpm db:local:bootstrap-db
+pnpm db:local:bootstrap-services
+pnpm db:local:verify-db
+pnpm db:local:verify-supabase
 pnpm db:local:reset
 ```
 

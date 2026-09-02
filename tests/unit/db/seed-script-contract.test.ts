@@ -14,10 +14,13 @@ describe("seed command safety contract", () => {
     const localWrapper = readWorkspaceFile("../../../scripts/db/local.ts");
 
     expect(packageJson.scripts?.seed).toContain("tsx scripts/seed.ts");
+    expect(packageJson.scripts?.["db:local:reset"]).toContain("scripts/db/local.ts reset");
     expect(packageJson.scripts?.seed).not.toContain("--env-file");
     expect(packageJson.scripts?.seed).not.toContain(".env.local");
     expect(seedScript).toContain("assertDeclaredDatabaseTarget(process.env)");
     expect(localWrapper).toContain('run(tsxBin, ["scripts/seed.ts"], { env });');
     expect(localWrapper).toContain("buildLocalAppEnvironment");
+    expect(localWrapper).toContain('"db",\n      "reset",\n      "--local",\n      "--no-seed"');
+    expect(localWrapper).toContain("migrateLocalDatabase();\n  seedLocalDatabase();\n  verifyLocalStack();");
   });
 });

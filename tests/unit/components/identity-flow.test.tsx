@@ -66,7 +66,8 @@ describe("identity flow UI", () => {
     const resend = await screen.findByRole("button", { name: "重新发送验证邮件" });
     fireEvent.click(resend);
 
-    expect(await screen.findByRole("button", { name: "请等待 60 秒后重试" })).toBeDisabled();
+    await waitFor(() => expect(resendSignupConfirmationMock).toHaveBeenCalledTimes(1), { timeout: 10_000 });
+    await waitFor(() => expect(screen.getByRole("button", { name: "请等待 60 秒后重试" })).toBeDisabled(), { timeout: 5_000 });
   });
 
   it("shows current email and education verification states without evidence URLs", () => {

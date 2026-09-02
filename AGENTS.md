@@ -51,6 +51,16 @@ pnpm db:studio
 - `admin_users` / `rivalhub-admin` 仅是 emergency compatibility path。
 - Fresh deployment 通过配置的 `RIVALHUB_OWNER_EMAIL` 在尚不存在 `super_admin` 时一次性 bootstrap；不得把“第一个注册用户”当作 owner。
 
+## Issue governance
+
+- 2.x Issue 标题统一使用 `[2.x] <问题或目标>`；`Infra`、`Perf`、`UX` 等工作类别不再作为标题前缀，避免与版本线混用。
+- Open 2.x Issue 必须且只能有一个 `priority:P0` / `priority:P1` / `priority:P2` / `priority:P3` label；优先级以 label 为唯一 authority，正文不再重复维护 `## 优先级`。
+- 计划性工作默认使用 `enhancement` 等现有类型 label；`next` 仅用于当前正在推进或紧接着推进的极少数主题，不是新的优先级等级。
+- milestone 与 assignee 默认留空；只有存在真实 release boundary 或明确 owner 时才设置，不为了“元数据完整”机械填写。
+- Issue 正文以 `背景 → 目标 → 验收` 为最小结构；`范围/边界`、`非目标`、`关联` 仅在确实有助于限定实现时增加。小 Issue 不需要为了模板制造空章节，大型产品/架构 Issue 可以按实际规则展开。
+- 通过 GitHub API、ChatGPT、Codex 或其它 agent 创建/修改 Issue 时，必须显式设置标题和 labels；不要假设 GitHub UI 的 Issue Form 会自动应用到 API 写入。
+- 人工从 GitHub UI 创建 2.x 工作项时优先使用 `.github/ISSUE_TEMPLATE/2x-work-item.yml`；创建后确认存在且仅存在一个 `priority:P*` label。
+
 ## Branches and releases
 
 - `main` 是 production branch，`dev` 是下一版本 integration/staging branch；二者均不 force push，只通过 PR 合入。
@@ -59,7 +69,7 @@ pnpm db:studio
 - 会进入版本发布、影响用户/管理员体验或 production runtime/data contract 的 `feat` / `fix` / `refactor` / migration / runtime security 变更，必须在**同一个 feature PR** 中提交对应 `.changeset/*.md`；不要把 changeset 留到发版时补写。
 - 纯文档、纯测试、CI/开发工具，以及仅 development dependency 且不改变 shipped runtime / 用户行为的变更，可以不写 changeset；PR 中应明确写出“无需 changeset”及原因。
 - Changeset 摘要是面向 release/CHANGELOG 的用户可读说明，默认用中文描述可观察影响，不把内部实现细节或 commit message 原样当作 release note。
-- feature PR 合入 `dev` 时关联 Issue 使用 `Refs #N`；不要依赖 `Closes #N` 在非默认分支自动关 Issue。Issue 在对应变更进入 `main` / release convergence 后统一关闭。
+- feature PR 关联 Issue 默认使用 `Refs #N`；不要依赖 `Closes #N` 在非默认分支自动关闭 Issue。当实现 PR 已成功合入 `dev` 且 Issue 的验收条件全部满足时，应立即将 Issue 以 `completed` 关闭；Issue 状态表示工作是否完成，不承担“是否已发布 production”的版本队列语义。待发布内容由 Changesets、`dev...main` diff、CHANGELOG 与 release path 追踪。只有当 Issue 的验收条件明确包含 production 部署、真实生产验收、外部配置或其它 merge 后动作时，才继续保持 open，并在 Issue 中明确记录剩余关闭条件。
 - 版本、CHANGELOG 与 release path 由 Changesets 和 `.claude/skills/release.md` 共同定义。禁止手改 `package.json` version，且仅在 release commit 已进入 `main` 后创建 release tag。
 
 ## Documentation authority
@@ -70,3 +80,13 @@ pnpm db:studio
 - 历史过程与历史验收：`docs/archive/**`。
 
 详细入口见 `docs/README.md`。`CLAUDE.md` 只引用本文件，避免平行工程手册。
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

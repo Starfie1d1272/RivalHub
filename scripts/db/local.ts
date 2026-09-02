@@ -3,7 +3,9 @@ import { rmSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   buildLocalAppEnvironment,
+  parseLocalDatabaseStatus,
   parseLocalSupabaseStatus,
+  type LocalDatabaseStatus,
   type LocalSupabaseStatus,
 } from "./local-environment";
 import { acquireLocalVerificationLock } from "./local-lock";
@@ -16,20 +18,29 @@ const supabaseBin = resolve(projectRoot, `node_modules/.bin/supabase${binSuffix}
 const drizzleBin = resolve(projectRoot, `node_modules/.bin/drizzle-kit${binSuffix}`);
 const tsxBin = resolve(projectRoot, `node_modules/.bin/tsx${binSuffix}`);
 const nextBin = resolve(projectRoot, `node_modules/.bin/next${binSuffix}`);
-const vitestBin = resolve(projectRoot, `node_modules/.bin/vitest${binSuffix}`);
 const playwrightBin = resolve(projectRoot, `node_modules/.bin/playwright${binSuffix}`);
-const pnpmBin = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+const corepackBin = process.platform === "win32" ? "corepack.cmd" : "corepack";
+// Keep only the services exercised by Auth, Storage, PostgREST and browser E2E.
+// These names are the Supabase CLI's current --exclude values.
+const MINIMAL_SUPABASE_EXCLUDES =
+  "realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor";
 const LOCKED_COMMANDS = new Set([
   "start",
+  "start-db",
+  "start-services",
   "stop",
   "migrate",
   "seed",
   "verify",
+  "verify-db",
+  "verify-supabase",
   "verify-migrations",
   "test-integration",
   "test-e2e",
   "verify-local",
   "bootstrap",
+  "bootstrap-db",
+  "bootstrap-services",
   "reset",
 ]);
 
@@ -44,6 +55,12 @@ try {
     case "start":
       startLocalStack();
       break;
+    case "start-services":
+      startLocalServices();
+      break;
+    case "start-db":
+      startLocalDatabase();
+      break;
     case "status":
       printStatus(readLocalStatus());
       break;
@@ -55,6 +72,12 @@ try {
       break;
     case "verify":
       verifyLocalStack();
+      break;
+    case "verify-db":
+      verifyDatabase();
+      break;
+    case "verify-supabase":
+      verifySupabaseServices();
       break;
     case "verify-migrations":
       verifyLocalMigrations();
@@ -73,6 +96,16 @@ try {
       migrateLocalDatabase();
       seedLocalDatabase();
       verifyLocalStack();
+      break;
+    case "bootstrap-services":
+      ensureLocalServices();
+      migrateLocalDatabase();
+      seedLocalDatabase();
+      break;
+    case "bootstrap-db":
+      ensureLocalDatabase();
+      migrateLocalDatabase();
+      seedLocalDatabase();
       break;
     case "reset":
       resetLocalDatabase();
@@ -95,7 +128,7 @@ try {
       break;
     default:
       throw new Error(
-        "未知命令。可用命令：start | status | migrate | seed | verify | verify-migrations | test-integration | test-e2e | verify-local | bootstrap | reset | stop | studio | dev | build",
+        "未知命令。可用命令：start | start-db | start-services | status | migrate | seed | verify | verify-db | verify-supabase | verify-migrations | test-integration | test-e2e | verify-local | bootstrap | bootstrap-db | bootstrap-services | reset | stop | studio | dev | build",
       );
   }
 } catch (error) {
@@ -103,6 +136,17 @@ try {
   process.exitCode = 1;
 } finally {
   releaseLocalLock?.();
+}
+
+function startLocalDatabase(): void {
+  ensureDockerReady();
+  ensureLoopbackDockerNetwork();
+  runQuiet(
+    supabaseBin,
+    ["db", "start", "--network-id", DOCKER_NETWORK, "--yes"],
+    sanitizedEnvironment(),
+  );
+  printDatabaseStatus(readLocalDatabaseStatus());
 }
 
 function startLocalStack(): void {
@@ -116,8 +160,19 @@ function startLocalStack(): void {
   printStatus(readLocalStatus());
 }
 
+function startLocalServices(): void {
+  ensureDockerReady();
+  ensureLoopbackDockerNetwork();
+  runQuiet(
+    supabaseBin,
+    ["start", "--exclude", MINIMAL_SUPABASE_EXCLUDES, "--network-id", DOCKER_NETWORK, "--yes"],
+    sanitizedEnvironment(),
+  );
+  printStatus(readLocalStatus());
+}
+
 function migrateLocalDatabase(): void {
-  const status = readLocalStatus();
+  const status = readLocalDatabaseStatus();
   run(
     drizzleBin,
     ["migrate", "--config=drizzle.local.config.ts"],
@@ -131,8 +186,13 @@ function migrateLocalDatabase(): void {
 }
 
 function seedLocalDatabase(): void {
-  const status = readLocalStatus();
-  const env = buildLocalAppEnvironment(status, sanitizedEnvironment());
+  const status = readLocalDatabaseStatus();
+  const env = {
+    ...sanitizedEnvironment(),
+    DATABASE_URL: status.databaseUrl,
+    RIVALHUB_LOCAL_DATABASE_URL: status.databaseUrl,
+    RIVALHUB_DB_TARGET: "local",
+  };
 
   run(tsxBin, ["scripts/seed.ts"], { env });
   run(tsxBin, ["scripts/db/seed-local-fixtures.ts"], { env });
@@ -145,8 +205,26 @@ function verifyLocalStack(): void {
   });
 }
 
-function verifyLocalMigrations(): void {
+function verifyDatabase(): void {
+  const status = readLocalDatabaseStatus();
+  run(tsxBin, ["scripts/db/verify-db.ts"], {
+    env: {
+      ...sanitizedEnvironment(),
+      DATABASE_URL: status.databaseUrl,
+      RIVALHUB_DB_TARGET: "local",
+    },
+  });
+}
+
+function verifySupabaseServices(): void {
   const status = readLocalStatus();
+  run(tsxBin, ["scripts/db/verify-supabase.ts"], {
+    env: buildLocalAppEnvironment(status, sanitizedEnvironment()),
+  });
+}
+
+function verifyLocalMigrations(): void {
+  const status = readLocalDatabaseStatus();
   run(tsxBin, ["scripts/db/verify-migrations.ts"], {
     env: {
       ...sanitizedEnvironment(),
@@ -157,8 +235,8 @@ function verifyLocalMigrations(): void {
 }
 
 function runLocalIntegrationSuite(args: readonly string[]): void {
-  const status = readLocalStatus();
-  run(vitestBin, ["run", "--config=vitest.integration.config.ts", ...normalizeCliArgs(args)], {
+  const status = readLocalDatabaseStatus();
+  run(tsxBin, ["scripts/db/integration-runner.ts", ...normalizeCliArgs(args)], {
     env: {
       ...sanitizedEnvironment(),
       RIVALHUB_LOCAL_DATABASE_URL: status.databaseUrl,
@@ -184,20 +262,28 @@ function runLocalE2E(args: readonly string[]): void {
 }
 
 function verifyLocalWorkflow(): void {
-  ensureLocalStack();
+  ensureLocalServices();
   migrateLocalDatabase();
   seedLocalDatabase();
   verifyLocalStack();
-  run(pnpmBin, ["run", "verify"], { env: sanitizedEnvironment() });
+  run(corepackBin, ["pnpm", "run", "verify"], { env: sanitizedEnvironment() });
   runLocalIntegrationSuite([]);
   runLocalE2E([]);
 }
 
-function ensureLocalStack(): void {
+function ensureLocalServices(): void {
   try {
     readLocalStatus();
   } catch {
-    startLocalStack();
+    startLocalServices();
+  }
+}
+
+function ensureLocalDatabase(): void {
+  try {
+    readLocalDatabaseStatus();
+  } catch {
+    startLocalDatabase();
   }
 }
 
@@ -259,10 +345,30 @@ function readLocalStatus(): LocalSupabaseStatus {
 
   if (result.error || result.status !== 0) {
     throw new Error(
-      "Local Supabase 未运行或状态不可读；请先执行 pnpm db:local:start。",
+      "Local Supabase service 未运行或状态不可读；请先执行 pnpm db:local:start-services。",
     );
   }
   return parseLocalSupabaseStatus(result.stdout);
+}
+
+function readLocalDatabaseStatus(): LocalDatabaseStatus {
+  const result = spawnSync(
+    supabaseBin,
+    ["status", "--output", "json"],
+    {
+      cwd: projectRoot,
+      env: sanitizedEnvironment(),
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+
+  if (result.error || result.status !== 0) {
+    throw new Error(
+      "Local PostgreSQL 未运行或状态不可读；请先执行 pnpm db:local:start-db。",
+    );
+  }
+  return parseLocalDatabaseStatus(result.stdout);
 }
 
 function ensureDockerReady(): void {
@@ -328,9 +434,14 @@ function printStatus(status: LocalSupabaseStatus): void {
       "Local Supabase ready:",
       `  Database: ${database.hostname}:${database.port}`,
       `  API: ${status.apiUrl}`,
-      `  Studio: ${status.studioUrl ?? "http://127.0.0.1:54323"}`,
+      `  Studio: ${status.studioUrl ?? "disabled (minimal profile)"}`,
     ].join("\n"),
   );
+}
+
+function printDatabaseStatus(status: LocalDatabaseStatus): void {
+  const database = new URL(status.databaseUrl);
+  console.log(["Local PostgreSQL ready:", `  Database: ${database.hostname}:${database.port}`].join("\n"));
 }
 
 function run(

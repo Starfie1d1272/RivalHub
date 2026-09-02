@@ -33,12 +33,10 @@ describe("participant profile semantics migration", () => {
 
       await replayMigration(client, TERMINAL_MIGRATION);
 
-      const [columns, roles, enumValues, index] = await Promise.all([
-        client.query<{ column_name: string }>("SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'perfect_id'"),
-        client.query<{ role: string; is_primary: boolean }>("SELECT role::text, is_primary FROM user_competitive_roles WHERE user_id = $1", [userId]),
-        client.query<{ enumlabel: string }>("SELECT enumlabel FROM pg_enum WHERE enumtypid = 'public.cs2_role'::regtype ORDER BY enumsortorder"),
-        client.query<{ indexname: string }>("SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'users_perfect_id_normalized_unique'"),
-      ]);
+      const columns = await client.query<{ column_name: string }>("SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'perfect_id'");
+      const roles = await client.query<{ role: string; is_primary: boolean }>("SELECT role::text, is_primary FROM user_competitive_roles WHERE user_id = $1", [userId]);
+      const enumValues = await client.query<{ enumlabel: string }>("SELECT enumlabel FROM pg_enum WHERE enumtypid = 'public.cs2_role'::regtype ORDER BY enumsortorder");
+      const index = await client.query<{ indexname: string }>("SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'users_perfect_id_normalized_unique'");
       expect(columns.rows).toEqual([]);
       expect(index.rows).toEqual([]);
       expect(roles.rows).toEqual([{ role: "igl", is_primary: true }]);
@@ -66,10 +64,8 @@ describe("participant profile semantics migration", () => {
       }
       expect(failedClosed).toBe(true);
 
-      const [column, roles] = await Promise.all([
-        client.query<{ column_name: string }>("SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'perfect_id'"),
-        client.query<{ role: string }>("SELECT role::text FROM user_competitive_roles WHERE user_id = $1", [userId]),
-      ]);
+      const column = await client.query<{ column_name: string }>("SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'perfect_id'");
+      const roles = await client.query<{ role: string }>("SELECT role::text FROM user_competitive_roles WHERE user_id = $1", [userId]);
       expect(column.rows).toHaveLength(1);
       expect(roles.rows).toEqual([{ role: "support" }]);
     });

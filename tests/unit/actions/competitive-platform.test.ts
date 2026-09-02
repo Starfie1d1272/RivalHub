@@ -193,14 +193,23 @@ describe("platform identity actions", () => {
 // ── Season chronology ───────────────────────────────────────────────────────
 
 describe("season catalog actions", () => {
-  it("creates a season with server-assigned chronology and audits it", async () => {
+  it("creates a season with normalized identity, transactional chronology and an audit", async () => {
     queryFindFirst.competitivePlatforms.mockResolvedValue({ key: "perfect_world", displayName: "完美世界竞技平台" });
     queryFindFirst.competitivePlatformSeasons.mockResolvedValue(undefined);
-    selectResults.push([{ maxOrder: 4 }]);
+    selectResults.push([]);
     const result = await createCompetitivePlatformSeason({ platform: "perfect_world", seasonKey: "S24", label: "S24 赛季" });
     expect(result.success).toBe(true);
-    expect(insertValuesCalls[0]).toMatchObject({ platform: "perfect_world", seasonKey: "S24", sortOrder: 5, isCurrent: false, active: true });
+    expect(insertValuesCalls[0]).toMatchObject({ platform: "perfect_world", seasonKey: "s24", sortOrder: -2, isCurrent: false, active: true });
     expect(findAuditEntry(insertValuesCalls, "competitive_platform_season.create")).toBeDefined();
+  });
+
+  it("rejects a normalized key that collides with a legacy row differing only by case", async () => {
+    queryFindFirst.competitivePlatforms.mockResolvedValue({ key: "perfect_world", displayName: "完美世界竞技平台" });
+    selectResults.push([{ id: SEASON_ID, platform: "perfect_world", seasonKey: "S24", sortOrder: 10 }]);
+    const result = await createCompetitivePlatformSeason({ platform: "perfect_world", seasonKey: "s24", label: "S24 赛季" });
+    expect(result.success).toBe(false);
+    expect(errMessage(result)).toContain("已存在赛季标识 s24");
+    expect(insertValuesCalls).toHaveLength(0);
   });
 
   it("refuses to create a season for an unknown platform", async () => {
@@ -252,7 +261,7 @@ describe("season catalog actions", () => {
       [{ id: UUID_B, platform: "perfect_world", seasonKey: "S23", sortOrder: 1, isCurrent: false, active: true }],
       [{ sortOrder: -2 }, { sortOrder: -1 }, { sortOrder: 1 }, { sortOrder: 2 }],
     );
-    const result = await moveCompetitivePlatformSeason({ id: SEASON_ID, direction: "up" });
+    const result = await moveCompetitivePlatformSeason({ id: SEASON_ID, direction: "earlier" });
     expect(result.success).toBe(true);
     expect(updateSetCalls.map((call) => (call as { sortOrder?: number }).sortOrder)).toEqual([-4, -3, 1, 2]);
   });
@@ -264,7 +273,7 @@ describe("season catalog actions", () => {
     expect(errMessage(result)).toContain("当前赛季");
   });
 
-  it("blocks deleting a season referenced by long-term facts or a frozen event context", async () => {
+  it("blocks deleting a season referenced by long-term facts (including historical provenance) or a frozen event context", async () => {
     queryFindFirst.competitivePlatformSeasons.mockResolvedValue({ id: SEASON_ID, platform: "perfect_world", seasonKey: "S23", label: "S23", isCurrent: false, active: true });
     queryFindFirst.competitiveRankFacts.mockResolvedValue({ id: "fact-1" });
     const factResult = await deleteCompetitivePlatformSeason({ id: SEASON_ID });
@@ -401,6 +410,21 @@ describe("saveCompetitiveProfile platform-ladder validation", () => {
     expect(insertValuesCalls.filter((entry) => (entry as { action?: string }).action)).toEqual([
       expect.objectContaining({ action: "competitive_profile.self_declare" }),
     ]);
+  });
+
+  it("persists explicit unranked without fabricating a rank and removes an explicit unrecorded fact", async () => {
+    queueLadder({ existingFacts: [{ id: "old-season", kind: "season_peak", platformSeasonKey: "s20", rank: "silver", rating: "1800", stars: null }] });
+    const result = await saveCompetitiveProfile({
+      platform: "perfect_world",
+      historicalPeak: { rank: "gold", rating: 2100, achievedSeasonKey: "s21" },
+      seasonPeaks: [
+        { seasonKey: "s20", status: "unrecorded" },
+        { seasonKey: "s21", status: "unranked", rating: null },
+      ],
+    });
+    expect(result.success).toBe(true);
+    expect(insertValuesCalls).toContainEqual(expect.objectContaining({ status: "unranked", rank: null, rating: null, stars: null }));
+    expect(dbDeleteMock).toHaveBeenCalled();
   });
 
   it("rejects ranks outside the platform ladder", async () => {

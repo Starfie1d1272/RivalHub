@@ -41,7 +41,12 @@ const NO_RANK = "__none__";
 interface SeasonFormProps {
   mode: "create" | "edit";
   initial?: SeasonFormInput & { registrationOpenedAt?: Date | null };
-  competitivePlatforms: Array<{ key: string; displayName: string }>;
+  competitivePlatforms: Array<{
+    key: string;
+    displayName: string;
+    seasons?: Array<{ seasonKey: string; label: string; active: boolean }>;
+    ranks?: Array<{ rankKey: string; label: string }>;
+  }>;
 }
 
 function emptyToNull(value: string): string | null {
@@ -475,6 +480,12 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
             <TeamConfigForm value={teamConfig} maxTeamSize={maxTeamSize} competitivePlatforms={competitivePlatforms} onChange={setTeamConfig} />
           </section>
         )}
+        {registrationMode === "team" && template === "major" && (
+          <section className="space-y-4">
+            <h2 className="font-semibold">5E 等效竞技资料</h2>
+            <TeamConfigForm value={teamConfig} competitivePlatforms={competitivePlatforms} fallbackOnly disabled={coreLocked} onChange={setTeamConfig} />
+          </section>
+        )}
 
         {registrationMode === "team" && <section className="space-y-4"><h2 className="font-semibold">比赛图池</h2><MapPoolEditor value={mapPool} onChange={setMapPool} /></section>}
 
@@ -623,6 +634,12 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
       {registrationMode === "team" && template === "custom" && (
         <Panel label="队伍报名配置" pad={20}>
           <TeamConfigForm value={teamConfig} maxTeamSize={maxTeamSize} competitivePlatforms={competitivePlatforms} onChange={setTeamConfig} />
+          <SaveBtn />
+        </Panel>
+      )}
+      {registrationMode === "team" && template === "major" && (
+        <Panel label="5E 等效竞技资料" pad={20}>
+          <TeamConfigForm value={teamConfig} competitivePlatforms={competitivePlatforms} fallbackOnly disabled={coreLocked} onChange={setTeamConfig} />
           <SaveBtn />
         </Panel>
       )}

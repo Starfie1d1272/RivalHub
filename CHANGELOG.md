@@ -1,6 +1,72 @@
 # Changelog
 
-## 2.1.0
+## [2.2.0]
+
+RivalHub 2.2 进一步收口长期竞技档案与 Major 竞技资格模型，并补全组队大厅中的公开竞技信息。本版本同时完成 Next.js 16 与验证工具链升级，使长期资料、赛事冻结事实和后续开发验证建立在更稳定的一套语义与工程基线上。
+
+### Added
+
+#### 更完整的长期竞技档案
+
+竞技档案现在可以明确区分“未录入”“未定级”和“已定级”，不再把缺失资料与玩家真实处于未定级状态混为一谈。
+
+赛季竞技资料支持显式记录未定级；已定级资料继续记录段位、平台 Rating 以及适用时的星数。历史最高资料还可以选择记录实际达成该成绩的赛季，公开页面和资料维护页会使用这一来源信息进行展示。
+
+更早的历史赛季在资料维护页改为紧凑展示，并可按需展开编辑，减少长期积累多个赛季后页面的信息密度。
+
+#### 竞技平台历史赛季目录
+
+管理员现在可以在 Perfect World 和 5E 的竞技赛季目录中直接将历史赛季插入指定赛季之前或之后，并维护清晰的时间顺序。
+
+赛季标识继续作为稳定技术身份保存，创建后不可修改；显示名称可以调整。已经被长期竞技资料、历史最高来源或赛事冻结规则引用的赛季会受到保护，不能被误删。
+
+#### 组队大厅公开竞技摘要
+
+组队大厅的“选手找队”卡片现在会直接展示允许公开的长期竞技摘要。
+
+Perfect World 始终作为主要平台优先展示，5E 作为次级信息；卡片会在有限空间内展示历史最高以及当前或最近可用赛季的竞技情况，同时正确保留“未定级”状态。
+
+有公开头像的选手现在会显示真实头像；没有头像时继续使用昵称首字母作为 fallback。
+
+这些信息仍直接读取长期竞技档案，不会复制或持久化到组队意向中；完整竞技历史继续由 Player Profile 负责展示。
+
+### Changed
+
+#### Perfect World 成为长期资料与 Major 的主竞技平台
+
+个人设置页的长期资料完成状态现在以 Perfect World 竞技资料为必需项。5E 资料仍可长期维护和公开展示，但不会因为没有填写 5E 而使个人资料始终处于未完成状态。
+
+Major 竞技资格继续使用赛事自身冻结的竞技上下文，不会因为后续平台赛季目录变化而重新解释已经发布或已经开始的赛事。
+
+当赛事明确配置并冻结经过审核的 5E fallback 规则时，缺少可用 Perfect World 证据的资料可以按照该届赛事保存的赛季对应和段位映射使用 5E 信息。缺失映射时系统会停止推断，而不会根据名称或当前目录自行猜测对应关系。
+
+5E 的 Rating+ 不会被当作 Perfect World 的 Rating Pro 进行大小比较；fallback 只提供审核后的等效段位信息。
+
+#### 竞技资料与赛事资格职责进一步分离
+
+长期个人资料的“是否填写完整”和某一届赛事的“是否满足参赛要求”现在使用更明确的不同判断边界。
+
+设置页负责长期身份、教育认证和主要竞技资料维护；具体 Major 仍按照当届冻结规则重新核验竞技资料、报名状态、正式名单和纪律限制。
+
+### Fixed
+
+修正了未定级资料在公开展示和资料编辑中的语义，使“未定级”保持为真实竞技状态，而不是被重复拼入赛季名称或误判为缺失资料。
+
+修正竞技赛季目录排序与视觉移动语义，并加强历史赛季插入、重复标识和被引用赛季删除时的保护。
+
+收紧 Perfect World 与 5E fallback 的比较边界，避免缺失映射、跨平台 Rating 或后续目录变化改变赛事既有竞技资格含义。
+
+### Migration & Operations
+
+本版本包含 `0032_competitive_fact_states` 数据库迁移，为长期竞技事实增加明确的 ranked / unranked 状态以及历史最高达成赛季来源，并通过数据库约束限制不合法的事实组合。已有竞技事实会保持 ranked 语义，无需人工重录。
+
+应用运行与构建基线升级至 Next.js 16.3.4 和 React 19.2.5，并同步升级相关测试与构建工具链。
+
+CI 验证现在按变更实际需要拆分静态检查、真实 PostgreSQL、真实 Supabase 服务和浏览器端验证；受保护分支与正式发布路径仍执行完整验证。
+
+生产升级仍必须通过 RivalHub 标准 release workflow 执行 active Drizzle migration chain、生产数据库校验、精确版本 Vercel Production 部署和 smoke test。不要使用 `db:push` 或绕过 release gate 直接修改 production schema。
+
+## [2.1.0]
 
 RivalHub 2.1 继续完善长期 Team、赛事参与和赛后社区体验。本版本新增组队大厅与社区奖流程，并进一步拆分赛事发布、报名开放、报名截止和名单调整截止，使下一届 Major 的筹备、组队和正式报名可以围绕同一套长期事实与赛事事实自然衔接。
 
@@ -85,13 +151,13 @@ Major 不再在赛事发布时冻结竞技平台赛季，而是在**实际开放
 
 生产环境继续通过 RivalHub release workflow 执行 active Drizzle migration chain、迁移校验、精确版本 Vercel Production 部署和 smoke test；不要使用 `db:push` 或绕过 release gate 直接修改 production schema。
 
-## 2.0.3
+## [2.0.3]
 
 ### Fixed
 
 - 注册邮箱确认改为用户在确认页显式确认后才生效，避免邮件安全扫描器预取链接自动完成验证；未验证、链接失效与邮件发送受限时提供可继续操作的提示。
 
-## 2.0.2
+## [2.0.2]
 
 ### Changed
 
@@ -105,7 +171,7 @@ Major 不再在赛事发布时冻结竞技平台赛季，而是在**实际开放
 
 - Production release 会在应用部署前执行 active Drizzle migration chain 并进行 exact verify；迁移或校验失败会中止新版本部署并保留上一版 production。
 
-## 2.0.1
+## [2.0.1]
 
 ### Fixed
 
@@ -113,7 +179,7 @@ Major 不再在赛事发布时冻结竞技平台赛季，而是在**实际开放
 - 统一长期参赛资料的完美平台身份与 CS2 五位置定义，并将竞技档案默认入口设为完美世界竞技平台。
 - 统一参赛入口、报名状态、赛事阶段和竞技资料说明，减少用户界面中的内部术语与状态值泄漏。
 
-## 2.0.0
+## [2.0.0]
 
 RivalHub 2.0 是一次完整的赛事产品与领域模型升级。相较 1.x 以单届 Rivals 赛事为核心的实现，2.0 将用户身份、长期 Team、赛事参赛身份、资格、正式名单、比赛运行时与赛后历史拆分为明确的长期事实和赛事事实，并新增完整的 NJU Major 运营流程。
 
@@ -188,31 +254,31 @@ RivalHub 2.0 使用新的 active Drizzle migration chain，旧 migration history
 
 RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Competition 继续使用已经实现并注册的阶段执行能力；不支持的阶段会在发布时 fail closed。2.0 保留未来赛事与其他游戏继续演进所需的结构边界，但没有提前引入 `Game`、`GameAccount`、N-way Match、通用 workflow DSL 或 tournament plugin database 等尚无真实消费者的模型。
 
-## 2.0.0-rc.4
+## [2.0.0-rc.4]
 
 ### Patch Changes
 
 - b2b7ae4: Converge 2.0 competition templates, participant qualification context, and administrator lifecycle workflows.
 
-## 2.0.0-rc.3
+## [2.0.0-rc.3]
 
 ### Patch Changes
 
 - 收敛公开队长、选秀与比赛协商 DTO，修复登录态导航、登录回跳安全、历史赛季入口与隐私链接。
 
-## 2.0.0-rc.2
+## [2.0.0-rc.2]
 
 ### Patch Changes
 
 - 对齐生产 Supabase 强密码策略，增加注册和重置密码确认，刷新失败的一次性 Turnstile 校验，并避免吞掉密码重置发信错误。
 
-## 2.0.0-rc.1
+## [2.0.0-rc.1]
 
 ### Patch Changes
 
 - 明确 legacy Root 管理员登录入口与标准 owner email bootstrap 的边界。
 
-## 2.0.0-rc.0
+## [2.0.0-rc.0]
 
 ### Major Changes
 
@@ -1487,6 +1553,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.2.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.1.0...v2.2.0
+[2.1.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.0.3...v2.1.0
+[2.0.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.0.2...v2.0.3
+[2.0.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.0.1...v2.0.2
+[2.0.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.0.0...v2.0.1
+[2.0.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.0.0-rc.4...v2.0.0
+[2.0.0-rc.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.0.0-rc.3...v2.0.0-rc.4
+[2.0.0-rc.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.0.0-rc.2...v2.0.0-rc.3
+[2.0.0-rc.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.0.0-rc.1...v2.0.0-rc.2
+[2.0.0-rc.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.0.0-rc.0...v2.0.0-rc.1
+[2.0.0-rc.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.30.1...v2.0.0-rc.0
 [1.30.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.29.0...v1.30.0
 [1.29.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.28.2...v1.29.0
 [1.28.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.28.1...v1.28.2

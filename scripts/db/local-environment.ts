@@ -16,6 +16,10 @@ export interface LocalSupabaseStatus {
   studioUrl?: string;
 }
 
+export interface LocalDatabaseStatus {
+  databaseUrl: string;
+}
+
 export function assertLocalDatabaseUrl(
   value: string | undefined,
   label = "DATABASE_URL",
@@ -31,18 +35,7 @@ export function assertLocalHttpUrl(
 }
 
 export function parseLocalSupabaseStatus(raw: string): LocalSupabaseStatus {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    throw new Error("无法解析 Local Supabase 状态；请确认本地栈已启动。");
-  }
-
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("Local Supabase 状态格式无效。");
-  }
-
-  const values = parsed as Record<string, unknown>;
+  const values = parseStatusObject(raw);
   const databaseUrl = assertLocalDatabaseUrl(stringValue(values.DB_URL), "Supabase DB_URL");
   const apiUrl = assertLocalHttpUrl(stringValue(values.API_URL), "Supabase API_URL");
   const publishableKey = requiredString(
@@ -63,6 +56,13 @@ export function parseLocalSupabaseStatus(raw: string): LocalSupabaseStatus {
     studioUrl: studioUrlValue
       ? assertLocalHttpUrl(studioUrlValue, "Supabase STUDIO_URL")
       : undefined,
+  };
+}
+
+export function parseLocalDatabaseStatus(raw: string): LocalDatabaseStatus {
+  const values = parseStatusObject(raw);
+  return {
+    databaseUrl: assertLocalDatabaseUrl(stringValue(values.DB_URL), "Supabase DB_URL"),
   };
 }
 
@@ -151,4 +151,18 @@ function requiredString(value: string | undefined, label: string): string {
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
+}
+
+function parseStatusObject(raw: string): Record<string, unknown> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error("无法解析 Local Supabase 状态；请确认本地栈已启动。");
+  }
+
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("Local Supabase 状态格式无效。");
+  }
+  return parsed as Record<string, unknown>;
 }

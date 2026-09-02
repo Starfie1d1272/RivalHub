@@ -3,6 +3,13 @@ import type { CompetitiveProfileConfig } from "@/types/season";
 export interface PlayerStrengthFact {
   rank: string;
   rating: number;
+  /** Only same-platform Ratings are comparable in the final strength tie-break. */
+  ratingComparable?: boolean;
+  /** Frozen origin for an equivalence-derived fact; omitted for legacy snapshots. */
+  sourcePlatform?: string;
+  sourceSeasonKey?: string | null;
+  sourceRank?: string;
+  conversionVersion?: string;
 }
 
 export interface PlayerStrengthInput {
@@ -67,7 +74,7 @@ export function getPlayerStrengthBreakdown(player: PlayerStrengthInput, config: 
     return { available: false, blockers: ["申报段位不在本赛事公布的段位映射中。"], weightedRank: null, historicalValue, previousValue, currentValue, historicalRating: player.historicalPeak!.rating };
   }
   const weights = evidenceWeights(config);
-  return { available: true, blockers: [], weightedRank: (historicalValue * weights.historicalWeight + previousValue * weights.referenceSeasonWeight + currentValue * weights.recentSeasonWeight) / 100, historicalValue, previousValue, currentValue, historicalRating: player.historicalPeak!.rating };
+  return { available: true, blockers: [], weightedRank: (historicalValue * weights.historicalWeight + previousValue * weights.referenceSeasonWeight + currentValue * weights.recentSeasonWeight) / 100, historicalValue, previousValue, currentValue, historicalRating: player.historicalPeak!.ratingComparable === false ? null : player.historicalPeak!.rating };
 }
 
 export interface PlayerStrengthComparison {
@@ -94,7 +101,9 @@ export function comparePlayerStrength(left: PlayerStrengthInput, right: PlayerSt
     [leftBreakdown.historicalValue! - rightBreakdown.historicalValue!, "历史最高段位"],
     [leftBreakdown.currentValue! - rightBreakdown.currentValue!, config.evidencePolicy ? "近期赛季最高段位" : "当前赛季最高段位"],
     [leftBreakdown.previousValue! - rightBreakdown.previousValue!, config.evidencePolicy ? "前一完整赛季最高段位" : "上赛季最高段位"],
-    [leftBreakdown.historicalRating! - rightBreakdown.historicalRating!, "历史最高段位对应 Rating"],
+    ...(leftBreakdown.historicalRating !== null && rightBreakdown.historicalRating !== null
+      ? [[leftBreakdown.historicalRating - rightBreakdown.historicalRating, "历史最高段位对应 Rating"] as [number, string]]
+      : []),
   ];
   const found = comparisons.find(([value]) => value !== 0);
   return { order: found ? (found[0] > 0 ? 1 : -1) : 0, reason: found ? `按${found[1]}区分。` : "所有规则指定的比较项均相同，视为实力相当。", left: leftBreakdown, right: rightBreakdown };

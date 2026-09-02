@@ -144,7 +144,9 @@ async function completeSwissFactsForFinalPlacement(tx: TxDb, seasonId: string, s
       matches: matchRows.filter((match) => match.majorStageRunId === run.id).map(swissFact),
     };
   };
-  const [stage1, stage2, stage3] = await Promise.all([factsFor(swissKeys[0]!), factsFor(swissKeys[1]!), factsFor(swissKeys[2]!)]);
+  const stage1 = await factsFor(swissKeys[0]!);
+  const stage2 = await factsFor(swissKeys[1]!);
+  const stage3 = await factsFor(swissKeys[2]!);
   return { stage1, stage2, stage3 };
 }
 
