@@ -1,23 +1,21 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
 import { requireSuperAdmin } from "@/lib/auth/session";
+import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import { normalizeAffiliationRules, normalizeRegistrationConfig, normalizeStagePlan, normalizeTeamRegistrationConfig } from "@/types/season";
 import { SeasonForm } from "@/components/admin/SeasonForm";
 import { toCSTDateTimeInput } from "@/lib/utils/date";
 import { loadCompetitivePlatformCatalog } from "@/lib/competitive/catalog";
+import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 
 interface SeasonSettingsPageProps {
   params: Promise<{ seasonSlug: string }>;
 }
 
 export default async function SeasonSettingsPage({ params }: SeasonSettingsPageProps) {
-  try {
-    await requireSuperAdmin();
-  } catch {
-    redirect("/login");
-  }
+  if (!(await resolveAdminPageAccess(requireSuperAdmin))) return <AdminAccessDenied />;
 
   const { seasonSlug } = await params;
   const [season, catalog] = await Promise.all([db.query.seasons.findFirst({

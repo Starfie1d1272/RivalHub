@@ -1,9 +1,11 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { users } from "@/db/schema";
-import { checkAdminSession } from "@/lib/auth/session";
+import { requireAdmin } from "@/lib/auth/session";
+import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { Panel, StatusPill, Marker } from "@/components/rivalhub";
+import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 
 const ENV_VARS = [
   {
@@ -27,7 +29,8 @@ const ENV_VARS = [
 ] as const;
 
 export default async function AdminSettingsPage() {
-  const admin = (await checkAdminSession())!;
+  const admin = await resolveAdminPageAccess(requireAdmin);
+  if (!admin) return <AdminAccessDenied />;
   const adminUser = await db.query.users.findFirst({
     where: eq(users.id, admin.userId),
     columns: { steamName: true, displayName: true, perfectName: true },

@@ -1,15 +1,16 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import * as React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { AppError, ErrorCode } from "@/lib/errors";
 
-const { checkAdminSessionMock, redirectMock, selectMock } = vi.hoisted(() => ({
-  checkAdminSessionMock: vi.fn(),
+const { requireAdminMock, redirectMock, selectMock } = vi.hoisted(() => ({
+  requireAdminMock: vi.fn(),
   redirectMock: vi.fn(),
   selectMock: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/session", () => ({
-  checkAdminSession: checkAdminSessionMock,
+  requireAdmin: requireAdminMock,
 }));
 vi.mock("next/navigation", () => ({
   redirect: redirectMock,
@@ -55,14 +56,25 @@ describe("admin dashboard", () => {
   });
 
   it("redirects unauthenticated requests without reading admin.role", async () => {
-    checkAdminSessionMock.mockResolvedValue(null);
+    requireAdminMock.mockRejectedValue(new AppError(ErrorCode.UNAUTHORIZED, "请先登录"));
 
     await expect(AdminDashboardPage()).rejects.toThrow("REDIRECT:/login");
     expect(redirectMock).toHaveBeenCalledWith("/login");
   });
 
+  it("renders a forbidden state for an authenticated non-admin", async () => {
+    requireAdminMock.mockRejectedValue(new AppError(ErrorCode.FORBIDDEN, "权限不足"));
+
+    const html = await renderPage();
+
+    expect(html).toContain("权限不足");
+    expect(html).toContain("当前账号已登录");
+    expect(redirectMock).not.toHaveBeenCalled();
+    expect(selectMock).not.toHaveBeenCalled();
+  });
+
   it("routes season name and console CTA to the season console, not matches", async () => {
-    checkAdminSessionMock.mockResolvedValue({
+    requireAdminMock.mockResolvedValue({
       role: "super_admin",
       seasonIds: [],
     });
@@ -75,7 +87,7 @@ describe("admin dashboard", () => {
   });
 
   it("keeps matches / registrations / draft / captains as secondary shortcuts for an active season", async () => {
-    checkAdminSessionMock.mockResolvedValue({
+    requireAdminMock.mockResolvedValue({
       role: "super_admin",
       seasonIds: [],
     });
@@ -91,7 +103,7 @@ describe("admin dashboard", () => {
   });
 
   it("hides draft / captains shortcuts when the season capabilities are off", async () => {
-    checkAdminSessionMock.mockResolvedValue({
+    requireAdminMock.mockResolvedValue({
       role: "super_admin",
       seasonIds: [],
     });
@@ -104,7 +116,7 @@ describe("admin dashboard", () => {
   });
 
   it("keeps the console entry for a finished season without active-stage shortcuts", async () => {
-    checkAdminSessionMock.mockResolvedValue({
+    requireAdminMock.mockResolvedValue({
       role: "super_admin",
       seasonIds: [],
     });
@@ -119,7 +131,7 @@ describe("admin dashboard", () => {
   });
 
   it("hides settings and new-season actions from a season admin", async () => {
-    checkAdminSessionMock.mockResolvedValue({
+    requireAdminMock.mockResolvedValue({
       role: "user",
       seasonIds: [seasonId],
     });
@@ -133,7 +145,7 @@ describe("admin dashboard", () => {
   });
 
   it("shows the empty state when a season admin has no assigned seasons", async () => {
-    checkAdminSessionMock.mockResolvedValue({
+    requireAdminMock.mockResolvedValue({
       role: "user",
       seasonIds: [],
     });

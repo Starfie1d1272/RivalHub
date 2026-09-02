@@ -94,6 +94,13 @@ describe("auth session guards", () => {
     });
   });
 
+  it("requireAdmin rejects an ordinary user with FORBIDDEN", async () => {
+    getIronSessionMock.mockResolvedValueOnce(session(identity));
+    mockCurrentAuthorization("user", []);
+
+    await expect(requireAdmin()).rejects.toMatchObject({ code: ErrorCode.FORBIDDEN });
+  });
+
   it("requireSuperAdmin and requireSeasonAdmin use current DB facts", async () => {
     getIronSessionMock.mockResolvedValueOnce(session(identity));
     mockCurrentAuthorization("super_admin", []);
@@ -105,18 +112,56 @@ describe("auth session guards", () => {
 
     getIronSessionMock.mockResolvedValueOnce(session(identity));
     mockCurrentAuthorization("user", ["other-season"]);
-    await expect(requireSeasonAdmin("season-1")).rejects.toMatchObject({ code: ErrorCode.UNAUTHORIZED });
+    await expect(requireSeasonAdmin("season-1")).rejects.toMatchObject({ code: ErrorCode.FORBIDDEN });
+
+    getIronSessionMock.mockResolvedValueOnce(session(identity));
+    mockCurrentAuthorization("user", ["season-1"]);
+    await expect(requireSuperAdmin()).rejects.toMatchObject({ code: ErrorCode.FORBIDDEN });
   });
 
   it("revocation takes effect while the identity cookie remains valid", async () => {
     getIronSessionMock.mockResolvedValueOnce(session(identity));
     mockCurrentAuthorization("user", []);
 
-    await expect(requireSeasonAdmin("season-1")).rejects.toMatchObject({ code: ErrorCode.UNAUTHORIZED });
+    await expect(requireSeasonAdmin("season-1")).rejects.toMatchObject({ code: ErrorCode.FORBIDDEN });
   });
 
   it("checkAdminSession returns null for an unauthenticated server component", async () => {
     getIronSessionMock.mockResolvedValueOnce(session());
     await expect(checkAdminSession()).resolves.toBeNull();
+  });
+
+  it("checkAdminSession returns null for an expected authorization denial", async () => {
+    getIronSessionMock.mockResolvedValueOnce(session(identity));
+    mockCurrentAuthorization("user", []);
+
+    await expect(checkAdminSession()).resolves.toBeNull();
+  });
+
+  it("checkAdminSession rethrows unexpected authorization loader failures", async () => {
+    const loaderError = new Error("database unavailable");
+    getIronSessionMock.mockResolvedValueOnce(session(identity));
+    selectMock.mockImplementationOnce(() => {
+      throw loaderError;
+    });
+
+    await expect(checkAdminSession()).rejects.toBe(loaderError);
+  });
+
+  it("treats a session whose user row disappeared as UNAUTHORIZED", async () => {
+    getIronSessionMock.mockResolvedValueOnce(session(identity));
+    selectMock
+      .mockReturnValueOnce({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue([]) }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue([]),
+        }),
+      });
+
+    await expect(requireAdmin()).rejects.toMatchObject({ code: ErrorCode.UNAUTHORIZED });
   });
 });

@@ -30,6 +30,7 @@ import { getSeasonHexagonScores } from "@/actions/hexagon";
 import { computeTeamDimensions } from "@/lib/utils/hexagon";
 import type { HexagonScores } from "@/lib/utils/hexagon";
 import { getUserSession, requireSeasonAdmin } from "@/lib/auth/session";
+import { isExpectedAuthFailure } from "@/lib/errors";
 import { normalizeRegistrationConfig } from "@/types/season";
 import { getTeamMapWinStats, getTeamPickStats, getTeamBanStats } from "@/lib/teams/data";
 import {
@@ -282,7 +283,8 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
     try {
       await requireSeasonAdmin(season.id);
       isSeasonAdmin = true;
-    } catch {
+    } catch (error) {
+      if (!isExpectedAuthFailure(error)) throw error;
       isSeasonAdmin = false;
     }
 
