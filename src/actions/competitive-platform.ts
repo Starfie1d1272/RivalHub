@@ -1,6 +1,6 @@
 "use server";
 
-import { and, asc, desc, eq, gt, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db/client";
@@ -72,11 +72,19 @@ export async function createCompetitivePlatformSeason(input: unknown): Promise<A
     const result = await db.transaction(async (tx) => {
       const platformRow = await tx.query.competitivePlatforms.findFirst({ where: eq(competitivePlatforms.key, platform) });
       if (!platformRow) throw new AppError(ErrorCode.NOT_FOUND, "竞技平台不存在，请先创建平台。");
-      const duplicate = await tx.query.competitivePlatformSeasons.findFirst({ where: and(eq(competitivePlatformSeasons.platform, platform), eq(competitivePlatformSeasons.seasonKey, seasonKey)) });
-      if (duplicate) throw new AppError(ErrorCode.VALIDATION_FAILED, `该平台已存在赛季标识 ${seasonKey}；赛季标识创建后不可修改。`);
+      // Serialize creation per platform. The case-insensitive legacy-key
+      // check below must also hold when two operators submit variants such as
+      // S24 and s24 concurrently.
+      await tx.execute(sql`SELECT key FROM competitive_platforms WHERE key = ${platform} FOR UPDATE`);
       const existing = await tx.select().from(competitivePlatformSeasons)
         .where(eq(competitivePlatformSeasons.platform, platform))
         .orderBy(asc(competitivePlatformSeasons.sortOrder));
+      // The server normalizes new identities, but legacy rows may predate the
+      // normalization rule. Compare the canonical form so S24 and s24 can
+      // never become two identities for the same platform.
+      if (existing.some((season) => season.seasonKey.toLowerCase() === seasonKey)) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, `该平台已存在赛季标识 ${seasonKey}；赛季标识创建后不可修改。`);
+      }
       let insertIndex = existing.length;
       if (insertAt) {
         const targetIndex = existing.findIndex((season) => season.id === insertAt.seasonId);
@@ -204,7 +212,13 @@ export async function deleteCompetitivePlatformSeason(input: unknown): Promise<A
       const row = await tx.query.competitivePlatformSeasons.findFirst({ where: eq(competitivePlatformSeasons.id, id) });
       if (!row) throw new AppError(ErrorCode.NOT_FOUND, "赛季目录项不存在。");
       if (row.isCurrent) throw new AppError(ErrorCode.VALIDATION_FAILED, "该赛季是当前赛季；请先把其他赛季设为当前赛季后再删除。");
-      const reference = await tx.query.competitiveRankFacts.findFirst({ where: and(eq(competitiveRankFacts.platform, row.platform), eq(competitiveRankFacts.platformSeasonKey, row.seasonKey)), columns: { id: true } });
+      const reference = await tx.query.competitiveRankFacts.findFirst({ where: and(
+        eq(competitiveRankFacts.platform, row.platform),
+        or(
+          eq(competitiveRankFacts.platformSeasonKey, row.seasonKey),
+          eq(competitiveRankFacts.achievedSeasonKey, row.seasonKey),
+        ),
+      ), columns: { id: true } });
       if (reference) throw new AppError(ErrorCode.VALIDATION_FAILED, "已有竞技资料引用该平台赛季，不能删除。");
       const frozen = await tx.execute(sql`
         SELECT id FROM seasons

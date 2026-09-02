@@ -80,9 +80,22 @@ function frozenCompetitiveFacts(ruleSnapshot: unknown): Map<string, PlayerStreng
     const rank = (fact: unknown) => {
       if (fact === null) return null;
       if (!fact || typeof fact !== "object") throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
-      const candidate = fact as { rank?: unknown; rating?: unknown };
+      const candidate = fact as { rank?: unknown; rating?: unknown; ratingComparable?: unknown; sourcePlatform?: unknown; sourceSeasonKey?: unknown; sourceRank?: unknown; conversionVersion?: unknown };
       if (typeof candidate.rank !== "string" || typeof candidate.rating !== "number") throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
-      return { rank: candidate.rank, rating: candidate.rating };
+      if (candidate.ratingComparable !== undefined && typeof candidate.ratingComparable !== "boolean") throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
+      if (candidate.sourcePlatform !== undefined && typeof candidate.sourcePlatform !== "string") throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
+      if (candidate.sourceSeasonKey !== undefined && candidate.sourceSeasonKey !== null && typeof candidate.sourceSeasonKey !== "string") throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
+      if (candidate.sourceRank !== undefined && typeof candidate.sourceRank !== "string") throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
+      if (candidate.conversionVersion !== undefined && candidate.conversionVersion !== null && typeof candidate.conversionVersion !== "string") throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
+      return {
+        rank: candidate.rank,
+        rating: candidate.rating,
+        ratingComparable: candidate.ratingComparable,
+        sourcePlatform: candidate.sourcePlatform,
+        sourceSeasonKey: candidate.sourceSeasonKey as string | null | undefined,
+        sourceRank: candidate.sourceRank,
+        conversionVersion: candidate.conversionVersion as string | undefined,
+      };
     };
     if (value.recentSeasonPeaks !== undefined && !Array.isArray(value.recentSeasonPeaks)) throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
     result.set(value.userId, {

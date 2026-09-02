@@ -73,6 +73,17 @@ describe("freezeCompetitiveContext", () => {
     );
   });
 
+  it("refuses to open registration when a configured 5E fallback omits an actual frozen evidence slot", async () => {
+    resolveLiveCompetitiveContextMock.mockResolvedValue({
+      platform: "perfect_world", currentSeasonKey: "s21", previousSeasonKey: "s20", priorSeasonKey: "s19", rankOrder: ["bronze", "silver"],
+    });
+    const season = majorSeason("perfect_world");
+    season.teamRegistrationConfig.competitiveProfile!.fallbackConversion = {
+      sourcePlatform: "fivee", version: "major-2026-v1", seasonKeyMap: { s20: "5e-s20", s21: "5e-s21" }, rankMap: { bronze: "bronze" },
+    };
+    await expect(freezeCompetitiveContext(tx, season)).rejects.toThrow("5E fallback 映射必须覆盖本届冻结的全部赛季证据槽");
+  });
+
   it("passes seasons without a competitive-profile requirement through untouched", async () => {
     const season = {
       id: "season-1",

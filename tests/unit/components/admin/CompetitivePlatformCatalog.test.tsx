@@ -73,4 +73,15 @@ describe("CompetitivePlatformCatalog", () => {
     await user.click(screen.getByRole("button", { name: "确认删除" }));
     expect(deleteCompetitivePlatformRank).toHaveBeenCalledWith({ id: "rank-c" });
   });
+
+  it("keeps generating the stable season key from the label until an operator edits it", async () => {
+    const user = userEvent.setup();
+    render(<CompetitivePlatformCatalog platforms={[{
+      key: "perfect_world", displayName: "完美世界竞技平台", ratingLabel: "Rating Pro",
+      ranks: [], seasons: [],
+    }]} />);
+    await user.click(screen.getByRole("button", { name: "+ 新增赛季" }));
+    await user.type(screen.getByPlaceholderText("例如 2026S2"), "2025S4");
+    expect(screen.getAllByRole("textbox")[1]).toHaveValue("2025s4");
+  });
 });

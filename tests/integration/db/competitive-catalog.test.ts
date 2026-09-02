@@ -33,6 +33,25 @@ async function main(): Promise<void> {
     );
     await expect(assertPlatformRanksMutable(executor, platform, ["unreferenced"])).resolves.not.toThrow();
 
+    // The season-delete guard must retain historical provenance too: a
+    // historical peak can point at a catalog season without using it as its
+    // own platformSeasonKey.
+    await client.query(
+      "INSERT INTO competitive_platform_seasons (platform, season_key, label, sort_order, active, is_current) VALUES ($1, 'provenance-season', 'Provenance season', 1, true, false)",
+      [platform],
+    );
+    await client.query(
+      "UPDATE competitive_rank_facts SET achieved_season_key = 'provenance-season' WHERE user_id = $1 AND platform = $2 AND kind = 'historical_peak'",
+      [userId, platform],
+    );
+    const provenanceReference = await client.query(
+      `SELECT id FROM competitive_rank_facts
+       WHERE platform = $1
+         AND (platform_season_key = $2 OR achieved_season_key = $2)`,
+      [platform, "provenance-season"],
+    );
+    expect(provenanceReference.rowCount).toBe(1);
+
     // The catalog delete guard must execute against json columns as jsonb when
     // checking a frozen evidencePolicy.recentSeasonKeys array.
     await client.query(

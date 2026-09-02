@@ -45,7 +45,7 @@ describe("public competitive profile presentation", () => {
     ]);
     expect(profile[0]?.facts).toEqual([
       { label: "历史最高 · 2026 第一赛季", rankLabel: "黄金 S", stars: 10, ratingLabel: "Rating Pro", rating: "1.17" },
-      { label: "2026 第二赛季 · 未定级", rankLabel: "未定级", stars: null, ratingLabel: null, rating: null },
+      { label: "2026 第二赛季", rankLabel: "未定级", stars: null, ratingLabel: null, rating: null },
     ]);
   });
 });

@@ -57,7 +57,7 @@ function SeasonStatusChips({ season, platform }: { season: Platform["seasons"][n
 
 export function CompetitivePlatformCatalog({ platforms }: { platforms: Platform[] }) {
   const { pending, run } = useCatalogActions();
-  const [newSeason, setNewSeason] = useState<{ platform: string; seasonKey: string; label: string; insertSeasonId: string; insertPosition: "before" | "after" } | null>(null);
+  const [newSeason, setNewSeason] = useState<{ platform: string; seasonKey: string; seasonKeyManuallyEdited: boolean; label: string; insertSeasonId: string; insertPosition: "before" | "after" } | null>(null);
   const [seasonLabelDraft, setSeasonLabelDraft] = useState<{ id: string; label: string } | null>(null);
   const [newRank, setNewRank] = useState<{ platform: string; label: string; rankKey: string } | null>(null);
   const [rankLabelDraft, setRankLabelDraft] = useState<{ id: string; label: string } | null>(null);
@@ -82,12 +82,12 @@ export function CompetitivePlatformCatalog({ platforms }: { platforms: Platform[
               <section className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-semibold">赛季</h3>
-                  <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => setNewSeason({ platform: platform.key, seasonKey: "", label: "", insertSeasonId: "append", insertPosition: "before" })}>+ 新增赛季</Button>
+                  <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => setNewSeason({ platform: platform.key, seasonKey: "", seasonKeyManuallyEdited: false, label: "", insertSeasonId: "append", insertPosition: "before" })}>+ 新增赛季</Button>
                 </div>
                 {newSeason?.platform === platform.key && (
                   <div className="grid gap-3 rounded-sm border border-[var(--color-border)] p-4 sm:grid-cols-2">
-                    <div className="space-y-1.5"><Label>显示名称</Label><Input value={newSeason.label} onChange={(event) => setNewSeason({ ...newSeason, label: event.target.value, seasonKey: newSeason.seasonKey || suggestedSeasonKey(event.target.value) })} placeholder="例如 2026S2" /></div>
-                    <div className="space-y-1.5"><Label>稳定标识（创建后不可修改）</Label><Input value={newSeason.seasonKey} onChange={(event) => setNewSeason({ ...newSeason, seasonKey: event.target.value })} placeholder={suggestedSeasonKey(newSeason.label) || "例如 2026s2"} className="font-mono" /><p className="text-xs text-[var(--color-fg-mid)]">默认由显示名称规范化生成；请在创建前核对，后续不会变更。</p></div>
+                    <div className="space-y-1.5"><Label>显示名称</Label><Input value={newSeason.label} onChange={(event) => setNewSeason({ ...newSeason, label: event.target.value, seasonKey: newSeason.seasonKeyManuallyEdited ? newSeason.seasonKey : suggestedSeasonKey(event.target.value) })} placeholder="例如 2026S2" /></div>
+                    <div className="space-y-1.5"><Label>稳定标识（创建后不可修改）</Label><Input value={newSeason.seasonKey} onChange={(event) => setNewSeason({ ...newSeason, seasonKey: event.target.value, seasonKeyManuallyEdited: true })} placeholder={suggestedSeasonKey(newSeason.label) || "例如 2026s2"} className="font-mono" /><p className="text-xs text-[var(--color-fg-mid)]">默认持续由显示名称规范化生成；手动编辑后请在创建前核对，后续不会变更。</p></div>
                     <div className="space-y-1.5"><Label>插入位置</Label><Select value={newSeason.insertSeasonId} onValueChange={(insertSeasonId) => setNewSeason({ ...newSeason, insertSeasonId })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="append">作为最新赛季</SelectItem>{seasons.map((season) => <SelectItem key={season.id} value={season.id}>{season.label}</SelectItem>)}</SelectContent></Select></div>
                     {newSeason.insertSeasonId !== "append" && <div className="space-y-1.5"><Label>相对位置</Label><Select value={newSeason.insertPosition} onValueChange={(position: "before" | "after") => setNewSeason({ ...newSeason, insertPosition: position })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="before">插入到该赛季之前</SelectItem><SelectItem value="after">插入到该赛季之后</SelectItem></SelectContent></Select></div>}
                     <div className="flex items-end gap-2">

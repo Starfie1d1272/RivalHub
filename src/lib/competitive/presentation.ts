@@ -40,7 +40,7 @@ export function presentPublicCompetitiveProfile(
         if (fact.status === "unranked") {
           const season = fact.platformSeasonKey ? seasons.get(fact.platformSeasonKey) : undefined;
           if (!season) return [];
-          return [{ label: `${season.label} · 未定级`, rankLabel: "未定级", stars: null, ratingLabel: fact.rating === null ? null : platform.ratingLabel, rating: fact.rating === null ? null : String(fact.rating), order: season.sortOrder }];
+          return [{ label: season.label, rankLabel: "未定级", stars: null, ratingLabel: fact.rating === null ? null : platform.ratingLabel, rating: fact.rating === null ? null : String(fact.rating), order: season.sortOrder }];
         }
         const rank = fact.rank ? ranks.get(fact.rank) : undefined;
         if (!rank) return [];

@@ -3,6 +3,7 @@ import type { db as dbClient } from "@/db/client";
 import { auditLogs, competitionEntries, matches, seasonRegistrations, seasons } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { resolveLiveCompetitiveContext } from "@/lib/competitive/catalog";
+import { resolveCompetitiveContext } from "@/lib/qualification/service";
 import { createCompetitionTemplate } from "@/lib/competition/templates";
 import { normalizeTeamRegistrationConfig, type SeasonStatus, type TeamRegistrationConfig } from "@/types/season";
 
@@ -46,7 +47,7 @@ export function unfreezeBuiltInCompetitiveContext(season: {
   return {
     ...config,
     competitiveProfile: draftTemplate.competitiveProfile
-      ? { ...draftTemplate.competitiveProfile }
+      ? { ...draftTemplate.competitiveProfile, fallbackConversion: config.competitiveProfile?.fallbackConversion }
       : undefined,
   };
 }
@@ -93,31 +94,35 @@ export async function freezeCompetitiveContext(
   if (!context || !context.priorSeasonKey) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, `请先在竞技平台目录中为 ${platform} 配置唯一的当前赛季、两届启用的历史赛季和平台段位表。`);
   }
+  const competitiveProfile = {
+    platform,
+    // Keep their literal catalog meaning for every frozen event. New
+    // evaluators consume evidencePolicy for the distinct reference rule.
+    currentSeasonKey: context.currentSeasonKey,
+    previousSeasonKey: context.previousSeasonKey,
+    rankOrder: context.rankOrder,
+    evidencePolicy: {
+      historicalWeight: 50 as const,
+      referenceSeasonKey: context.priorSeasonKey,
+      referenceSeasonWeight: 20 as const,
+      recentSeasonKeys: [context.previousSeasonKey, context.currentSeasonKey],
+      recentSeasonWeight: 30 as const,
+    },
+    fallbackConversion: config.competitiveProfile?.fallbackConversion
+      ? {
+          sourcePlatform: "fivee" as const,
+          version: config.competitiveProfile.fallbackConversion.version,
+          seasonKeyMap: { ...config.competitiveProfile.fallbackConversion.seasonKeyMap },
+          rankMap: { ...config.competitiveProfile.fallbackConversion.rankMap },
+        }
+      : undefined,
+  };
+  if (!await resolveCompetitiveContext(competitiveProfile)) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "5E fallback 映射必须覆盖本届冻结的全部赛季证据槽，并映射到已公布的 Perfect 段位后才能开放报名。");
+  }
   return {
     ...config,
-    competitiveProfile: {
-      platform,
-      // Keep their literal catalog meaning for every frozen event. New
-      // evaluators consume evidencePolicy for the distinct reference rule.
-      currentSeasonKey: context.currentSeasonKey,
-      previousSeasonKey: context.previousSeasonKey,
-      rankOrder: context.rankOrder,
-      evidencePolicy: {
-        historicalWeight: 50,
-        referenceSeasonKey: context.priorSeasonKey,
-        referenceSeasonWeight: 20,
-        recentSeasonKeys: [context.previousSeasonKey, context.currentSeasonKey],
-        recentSeasonWeight: 30,
-      },
-      fallbackConversion: config.competitiveProfile?.fallbackConversion
-        ? {
-            sourcePlatform: "fivee",
-            version: config.competitiveProfile.fallbackConversion.version,
-            seasonKeyMap: { ...config.competitiveProfile.fallbackConversion.seasonKeyMap },
-            rankMap: { ...config.competitiveProfile.fallbackConversion.rankMap },
-          }
-        : undefined,
-    },
+    competitiveProfile,
   };
 }
 

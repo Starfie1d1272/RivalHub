@@ -1150,7 +1150,7 @@ async function exerciseStartQualification(
     "DELETE FROM competitive_rank_facts WHERE user_id = $1 AND platform = $2 AND kind = 'season_peak' AND platform_season_key = $3",
     [victim, platform, currentKey],
   );
-  await expectMajorStartFailure(database, fixture.seasonId, "缺少当前赛季");
+  await expectMajorStartFailure(database, fixture.seasonId, `${platform} · ${currentKey}`);
   await assertNoStartFacts(pool, fixture.seasonId);
 
   // Case B：恢复合法事实 → 开赛成功，且 frozenCompetitiveFacts 与通过校验的同一批 facts 一致。
@@ -1161,7 +1161,7 @@ async function exerciseStartQualification(
   );
   const result = await database.transaction((tx) => startMajorInTransaction(tx, { seasonId: fixture.seasonId, actorId: "local-admin" }));
   if (!result.created || result.matchCount !== 8) throw new Error("恢复合法事实后开赛应成功。 ");
-  const snapshotRow = await pool.query<{ rule_snapshot: { frozenCompetitiveFacts?: Array<{ userId: string; historicalPeak: { rank: string; rating: number } | null; previousSeasonPeak: { rank: string; rating: number } | null; currentSeasonPeak: { rank: string; rating: number } | null }> } }>(
+  const snapshotRow = await pool.query<{ rule_snapshot: { frozenCompetitiveFacts?: Array<{ userId: string; historicalPeak: { rank: string; rating: number } | null; previousSeasonPeak: { rank: string; rating: number } | null; currentSeasonPeak: { rank: string; rating: number; sourcePlatform?: string; sourceSeasonKey?: string | null; sourceRank?: string; conversionVersion?: string | null } | null }> } }>(
     "SELECT rule_snapshot FROM major_stage_runs WHERE id = $1",
     [result.stageRunId],
   );
@@ -1169,6 +1169,9 @@ async function exerciseStartQualification(
   if (!frozenFact) throw new Error("StageRun 冻结竞技事实缺少 victim。 ");
   if (frozenFact.currentSeasonPeak?.rank !== originalFact.rank || frozenFact.currentSeasonPeak?.rating !== Number(originalFact.rating)) {
     throw new Error(`冻结的当前赛季事实与通过 qualification 的 facts 不一致：${JSON.stringify(frozenFact)}`);
+  }
+  if (frozenFact.currentSeasonPeak.sourcePlatform !== platform || frozenFact.currentSeasonPeak.sourceSeasonKey !== currentKey || frozenFact.currentSeasonPeak.sourceRank !== originalFact.rank || frozenFact.currentSeasonPeak.conversionVersion !== null) {
+    throw new Error(`冻结的当前赛季事实缺少可解释的来源：${JSON.stringify(frozenFact.currentSeasonPeak)}`);
   }
   if (!frozenFact.historicalPeak || !frozenFact.previousSeasonPeak) {
     throw new Error("StageRun 冻结竞技事实缺少历史/上赛季峰值。 ");

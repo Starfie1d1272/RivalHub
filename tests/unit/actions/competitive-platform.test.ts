@@ -203,6 +203,15 @@ describe("season catalog actions", () => {
     expect(findAuditEntry(insertValuesCalls, "competitive_platform_season.create")).toBeDefined();
   });
 
+  it("rejects a normalized key that collides with a legacy row differing only by case", async () => {
+    queryFindFirst.competitivePlatforms.mockResolvedValue({ key: "perfect_world", displayName: "完美世界竞技平台" });
+    selectResults.push([{ id: SEASON_ID, platform: "perfect_world", seasonKey: "S24", sortOrder: 10 }]);
+    const result = await createCompetitivePlatformSeason({ platform: "perfect_world", seasonKey: "s24", label: "S24 赛季" });
+    expect(result.success).toBe(false);
+    expect(errMessage(result)).toContain("已存在赛季标识 s24");
+    expect(insertValuesCalls).toHaveLength(0);
+  });
+
   it("refuses to create a season for an unknown platform", async () => {
     queryFindFirst.competitivePlatforms.mockResolvedValue(undefined);
     const result = await createCompetitivePlatformSeason({ platform: "ghost", seasonKey: "S1", label: "S1" });
@@ -264,7 +273,7 @@ describe("season catalog actions", () => {
     expect(errMessage(result)).toContain("当前赛季");
   });
 
-  it("blocks deleting a season referenced by long-term facts or a frozen event context", async () => {
+  it("blocks deleting a season referenced by long-term facts (including historical provenance) or a frozen event context", async () => {
     queryFindFirst.competitivePlatformSeasons.mockResolvedValue({ id: SEASON_ID, platform: "perfect_world", seasonKey: "S23", label: "S23", isCurrent: false, active: true });
     queryFindFirst.competitiveRankFacts.mockResolvedValue({ id: "fact-1" });
     const factResult = await deleteCompetitivePlatformSeason({ id: SEASON_ID });

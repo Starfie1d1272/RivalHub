@@ -261,7 +261,19 @@ export async function startMajorInTransaction(
   const frozenCompetitiveFacts = frozenParticipantIds.map((userId) => {
     const fact = qualificationFacts.get(userId);
     const effective = competitiveProfile && fact ? toPlayerStrengthInput(fact, competitiveProfile) : null;
-    const serialize = (peak: { rank: string | null; rating: number | null } | null | undefined) => (peak?.rank && peak.rating !== null && peak.rating !== undefined ? { rank: peak.rank, rating: peak.rating } : null);
+    const serialize = (peak: ReturnType<typeof toPlayerStrengthInput>["historicalPeak"] | null | undefined) => (
+      peak?.rank && peak.rating !== null && peak.rating !== undefined
+        ? {
+            rank: peak.rank,
+            rating: peak.rating,
+            ratingComparable: peak.ratingComparable ?? true,
+            sourcePlatform: peak.sourcePlatform ?? competitiveProfile?.platform,
+            sourceSeasonKey: peak.sourceSeasonKey ?? null,
+            sourceRank: peak.sourceRank ?? peak.rank,
+            conversionVersion: peak.conversionVersion ?? null,
+          }
+        : null
+    );
     return {
       userId,
       historicalPeak: competitiveProfile ? serialize(effective?.historicalPeak) : null,
