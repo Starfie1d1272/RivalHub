@@ -20,7 +20,7 @@
 
 ## 4. Seasons
 
-`seasons` 是赛事容器，包含状态、时间、人数、positions 与 capability configuration。Rivals、Major 与自定义赛事由 canonical template factory 建立初始定义；`competitionTemplate` 是持久化的模板身份 owner，编辑时服务端以其为准，draft 内置赛事每次保存都重新 canonicalize 固定语义；`kind` 只用于展示。报名方式、选秀、阶段和资格规则由 capability fields 及关联配置决定。StagePlan 是可变的赛季定义，启动后不能代替冻结的 StageRun 事实。
+`seasons` 是赛事容器，包含状态、时间、人数、positions 与 capability configuration。Rivals、Major 与自定义赛事由 canonical template factory 建立初始定义；`competitionTemplate` 是持久化的模板身份 owner，编辑时服务端以其为准，draft 内置赛事每次保存都重新 canonicalize 固定语义；`kind` 只用于展示。报名方式、选秀、阶段和资格规则由 capability fields 及关联配置决定。StagePlan 是可变的赛季定义，启动后不能代替冻结的 StageRun 事实。后台编辑能力由 `src/lib/seasons/edit.ts#getSeasonEditCapabilities` 这一纯 owner 根据 persisted status 与 `registrationOpenedAt` 派生，SeasonForm 与 server planner 共用该语义，不按 `kind` 分支。
 
 ## 5. Rivals registrations
 
@@ -114,6 +114,7 @@
 | affiliation 与竞技资格 | `src/lib/qualification/` 单一 owner：batch fact loaders + pure evaluators |
 | “我的”长期资料与赛事任务聚合 | `src/lib/my/readiness.ts` 只编排 Team、CompetitionEntry、qualification、discipline 与 catalog read model，不重算 eligibility 规则 |
 | 内置赛事模板身份与固定语义 | `seasons.competitionTemplate` + canonical template factory（draft 保存时重新 canonicalize） |
+| 赛事设置生命周期编辑能力 | `src/lib/seasons/edit.ts#getSeasonEditCapabilities` + `planSeasonUpdate`（UI 与 server 共用 capability contract） |
 | 报名开放时的竞技上下文冻结 | `openSeasonRegistrationInTx` 事务：platform catalog current/previous/ladder + evidence policy → season frozen competitiveProfile |
 | 队长交接的并发安全 | application/team 行锁 + season 行锁 + 目标成员 `FOR UPDATE`，全部判断基于锁定行 |
 | 一队/一人只有一条当前组队意向 | `recruitment_intents` owner shape + unique indexes + owner row lock |

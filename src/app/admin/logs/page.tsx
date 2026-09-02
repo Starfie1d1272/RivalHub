@@ -1,7 +1,8 @@
-import { redirect } from "next/navigation";
 import { requireSuperAdmin } from "@/lib/auth/session";
+import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import { fetchAuditLogs, getAuditSeasons } from "@/actions/audit";
 import { Marker } from "@/components/rivalhub";
+import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { AuditLogTable } from "@/components/admin/AuditLogTable";
 
 interface AdminLogsPageProps {
@@ -16,11 +17,7 @@ interface AdminLogsPageProps {
 }
 
 export default async function AdminLogsPage({ searchParams }: AdminLogsPageProps) {
-  try {
-    await requireSuperAdmin();
-  } catch {
-    redirect("/login");
-  }
+  if (!(await resolveAdminPageAccess(requireSuperAdmin))) return <AdminAccessDenied />;
 
   const params = await searchParams;
   const [logsResult, seasonsResult] = await Promise.all([

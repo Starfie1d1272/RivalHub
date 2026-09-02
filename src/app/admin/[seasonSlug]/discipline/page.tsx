@@ -1,10 +1,12 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons, users } from "@/db/schema";
 import { requireSeasonAdmin } from "@/lib/auth/session";
+import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import { getSeasonSanctions } from "@/actions/discipline";
 import { DisciplineManagement, type DisciplineSanctionRow } from "@/components/admin/DisciplineManagement";
+import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { ErrorState } from "@/components/rivalhub";
 
 /**
@@ -24,10 +26,8 @@ export default async function AdminDisciplinePage({
   });
   if (!season) notFound();
 
-  try {
-    await requireSeasonAdmin(season.id);
-  } catch {
-    redirect("/login");
+  if (!(await resolveAdminPageAccess(() => requireSeasonAdmin(season.id)))) {
+    return <AdminAccessDenied />;
   }
 
   const result = await getSeasonSanctions(season.id);

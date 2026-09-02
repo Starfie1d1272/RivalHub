@@ -1,9 +1,11 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
 import { requireSeasonAdmin } from "@/lib/auth/session";
+import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
+import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { SeasonSubNav } from "@/components/admin/SeasonSubNav";
 
 export default async function AdminSeasonLayout({
@@ -26,12 +28,8 @@ export default async function AdminSeasonLayout({
   });
   if (!season) notFound();
 
-  let admin;
-  try {
-    admin = await requireSeasonAdmin(season.id);
-  } catch {
-    redirect("/login");
-  }
+  const admin = await resolveAdminPageAccess(() => requireSeasonAdmin(season.id));
+  if (!admin) return <AdminAccessDenied />;
 
   const hasMatches = season.stagePlan.length > 0;
   const isSuperAdmin = admin.role === "super_admin";

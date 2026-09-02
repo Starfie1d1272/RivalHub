@@ -89,7 +89,10 @@ Rivals 的 voting/drafting 由 capability 启用；Major start 在 readiness、e
 - 实际报名开放由 `openSeasonRegistrationInTx` 在同一事务内记录 `registrationOpenedAt`、冻结 requireCompetitiveProfile 赛事的 current/previous/rank order 及证据策略，并写入审计。
 - 撤回（registration → draft）与删除共用“无报名/队伍/赛程事实”guard；通过后撤回会解除 built-in 赛事的竞技冻结，下一次实际开放报名重新解析目录。
 - 删除（draft → deleted）拒绝已有 invite claim 的赛季；未领取的邀请码与其 claim ledger 随赛季删除，`season_admin_grants` 通过 season FK cascade 清理，`audit_logs.season_id` 为 SET NULL，并写入全局 `season.deleted` 审计。
-- 已发布赛季的编辑只接受名称、主题、时间等元数据；核心配置与冻结上下文不可被客户端输入或模板 factory 改写。
+- 赛季设置的编辑能力由 `src/lib/seasons/edit.ts` 的纯 capability contract 统一派生：发布（`draft → registration`）即锁定 slug、模板、报名模式、投票/选秀能力、队伍规模、positions、stage plan、map pool、`registrationConfig`、归属/资格规则及其它公开赛事规则，不因报名尚未开放而继续改赛制。
+- 已发布但尚未实际开放报名时（`status = registration` 且 `registrationOpenedAt IS NULL`），仍可调整报名开放/截止/名单调整时间、`endAt`、名称和主题色；当前过渡期的 Major event-owned 5E `fallbackConversion` 也仅在此阶段允许调整。实际开放由 `openSeasonRegistrationInTx` 记录不可变的 `registrationOpenedAt`，并冻结本届 competitive context 与 fallback。
+- 实际开放后到比赛开始前，`registrationOpensAt` 与 competitive context/fallback 永久冻结，但 `registrationClosesAt`、`rosterChangeClosesAt` 仍可运营调整；进入 `playing`、`finished` 或 `archived` 后，这两个报名运营 deadline 也锁定。名称、主题色与 `endAt` 仍属于允许的 metadata。
+- `revertSeasonToDraft` 成功后会清除实际开放事实并解除 built-in 竞技冻结，赛季重新获得 draft 的完整编辑能力；#365 的 versioned canonical 5E policy 不在本流程内。
 
 ### Match
 

@@ -8,7 +8,6 @@ import { adminInviteClaims, adminInvites, auditLogs, captainVotes, seasonRegistr
 import { ok, fail, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { actionError } from "@/lib/action-utils";
-import { parseCSTInput } from "@/lib/utils/date";
 import { auditActorId, requireSuperAdmin } from "@/lib/auth/session";
 import { normalizeRegistrationConfig, type StagePlan } from "@/types/season";
 import { validateCompetitionDefinition } from "@/lib/competition/definition";
@@ -16,19 +15,6 @@ import { assertSeasonHasNoHistoricalFacts, openSeasonRegistrationInTx, transitio
 import { seasonFormSchema, seasonUpdateFormSchema, planSeasonCreate, planSeasonUpdate, type SeasonFormInput } from "@/lib/seasons/edit";
 
 export type { SeasonFormInput };
-
-function toDate(value: string | null): Date | null {
-  return parseCSTInput(value);
-}
-
-function toDbDates(parsed: { registrationOpensAt: string | null; registrationClosesAt: string | null; rosterChangeClosesAt: string | null; endAt: string | null }) {
-  return {
-    registrationOpensAt: toDate(parsed.registrationOpensAt),
-    registrationClosesAt: toDate(parsed.registrationClosesAt),
-    rosterChangeClosesAt: toDate(parsed.rosterChangeClosesAt),
-    endAt: toDate(parsed.endAt),
-  };
-}
 
 function fieldErrorsFromZod(error: z.ZodError): Record<string, string> {
   const fieldErrors: Record<string, string> = {};
@@ -67,7 +53,6 @@ export async function createSeason(input: SeasonFormInput): Promise<ActionResult
     const season = await db.transaction(async (tx) => {
       const [created] = await tx.insert(seasons).values({
         ...plan.set,
-        ...toDbDates(parsed.data),
       }).returning({ id: seasons.id, slug: seasons.slug });
       if (!created) throw new AppError(ErrorCode.INTERNAL_ERROR, "赛季创建失败。");
       await tx.insert(auditLogs).values({
@@ -103,27 +88,30 @@ export async function updateSeason(input: SeasonFormInput): Promise<ActionResult
     const updated = await db.transaction(async (tx) => {
       const [existing] = await tx.select().from(seasons).where(eq(seasons.id, parsed.data.id)).for("update");
       if (!existing) throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
-      if (existing.slug !== parsed.data.slug) {
-        throw new AppError(ErrorCode.VALIDATION_FAILED, "编辑赛季时不能修改 slug");
-      }
       const { template, set } = planSeasonUpdate(existing, parsed.data);
-      await tx.update(seasons).set({
-        ...set,
-        ...toDbDates(parsed.data),
-      }).where(eq(seasons.id, existing.id));
+      await tx.update(seasons).set(set).where(eq(seasons.id, existing.id));
+      const nextSlug = set.slug ?? existing.slug;
+      const metadataOnly = !["registrationMode", "hasCaptainVoting", "hasDraft", "minTeamSize", "maxTeamSize", "starterCount", "positions", "stagePlan", "registrationConfig", "teamRegistrationConfig", "affiliationRules"].some((key) => key in set);
       await tx.insert(auditLogs).values({
         seasonId: existing.id,
         action: "season.update",
         actorId: auditActorId(admin),
         targetId: existing.id,
         targetType: "season",
-        meta: { slug: existing.slug, template, metadataOnly: !("stagePlan" in set) },
+        meta: { slug: nextSlug, template, metadataOnly },
       });
-      return existing;
+      return { oldSlug: existing.slug, slug: nextSlug };
     });
 
     revalidatePath("/admin");
-    revalidatePath(`/admin/${updated.slug}/settings`);
+    revalidatePath("/");
+    revalidatePath("/seasons");
+    revalidatePath(`/admin/${updated.oldSlug}/settings`);
+    revalidatePath(`/${updated.oldSlug}`);
+    if (updated.slug !== updated.oldSlug) {
+      revalidatePath(`/admin/${updated.slug}/settings`);
+      revalidatePath(`/${updated.slug}`);
+    }
     return ok({ slug: updated.slug });
   } catch (e) {
     return actionError("updateSeason", e);

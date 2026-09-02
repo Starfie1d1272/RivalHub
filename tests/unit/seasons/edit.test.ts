@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planSeasonCreate, planSeasonUpdate } from "@/lib/seasons/edit";
+import { getSeasonEditCapabilities, planSeasonCreate, planSeasonUpdate } from "@/lib/seasons/edit";
 import { unfreezeBuiltInCompetitiveContext } from "@/lib/seasons/lifecycle";
 import { seasonFormSchema } from "@/lib/seasons/edit";
 import { createMajorTemplate, createRivalsTemplate } from "@/lib/competition/templates";
@@ -54,6 +54,7 @@ function seasonRow(overrides?: Partial<SeasonRow>): SeasonRow {
     ...parsed,
     status: "draft",
     competitionTemplate: "major",
+    registrationOpenedAt: null,
     ...overrides,
   } as SeasonRow;
 }
@@ -63,6 +64,69 @@ function parseInput(overrides?: Record<string, unknown>) {
 }
 
 describe("planSeasonUpdate template identity", () => {
+  it("derives one explicit capability matrix from persisted lifecycle facts", () => {
+    expect(getSeasonEditCapabilities({ status: "draft", registrationOpenedAt: null, competitionTemplate: "custom" })).toMatchObject({
+      phase: "draft",
+      canEditSlug: true,
+      canEditTemplate: true,
+      canEditPublicRules: true,
+      canEditRegistrationOpenSchedule: true,
+      canEditRegistrationDeadlines: true,
+      canEditFallbackConversion: true,
+      canEditMetadata: true,
+    });
+    expect(getSeasonEditCapabilities({ status: "registration", registrationOpenedAt: null, competitionTemplate: "major" })).toMatchObject({
+      phase: "published_preopen",
+      canEditSlug: false,
+      canEditTemplate: false,
+      canEditPublicRules: false,
+      canEditRegistrationOpenSchedule: true,
+      canEditRegistrationDeadlines: true,
+      canEditFallbackConversion: true,
+    });
+    expect(getSeasonEditCapabilities({ status: "registration", registrationOpenedAt: new Date(), competitionTemplate: "major" })).toMatchObject({
+      phase: "registration_opened",
+      canEditSlug: false,
+      canEditTemplate: false,
+      canEditPublicRules: false,
+      canEditRegistrationOpenSchedule: false,
+      canEditRegistrationDeadlines: true,
+      canEditFallbackConversion: false,
+    });
+    expect(getSeasonEditCapabilities({ status: "playing", registrationOpenedAt: new Date(), competitionTemplate: "major" })).toMatchObject({
+      phase: "playing",
+      canEditRegistrationDeadlines: false,
+      canEditMetadata: true,
+    });
+    expect(getSeasonEditCapabilities({ status: "archived", registrationOpenedAt: new Date(), competitionTemplate: "major" })).toMatchObject({
+      phase: "terminal",
+      canEditRegistrationDeadlines: false,
+      canEditMetadata: true,
+    });
+  });
+
+  it("allows a draft slug change but rejects it after publish", () => {
+    expect(planSeasonUpdate(seasonRow(), parseInput({ slug: "draft-renamed" })).set.slug).toBe("draft-renamed");
+    expect(() => planSeasonUpdate(
+      seasonRow({ status: "registration" }),
+      parseInput({ slug: "published-renamed" }),
+    )).toThrowError(/不能修改 slug/);
+  });
+
+  it("allows a draft template switch and canonicalizes the selected template", () => {
+    const row = seasonRow({ competitionTemplate: "custom", status: "draft" });
+    const parsed = parseInput({
+      template: "rivals",
+      registrationMode: "team",
+      hasCaptainVoting: false,
+      hasDraft: false,
+    });
+    const { template, set } = planSeasonUpdate(row, parsed);
+    expect(template).toBe("rivals");
+    expect(set.competitionTemplate).toBe("rivals");
+    expect(set.registrationMode).toBe("solo");
+  });
+
   it("re-canonicalizes a draft Major even when the client replays the persisted template", () => {
     const tampered = parseInput({
       stagePlan: [{ ...MAJOR_TEMPLATE.stagePlan[0]!, teamCount: 4 }],
@@ -178,6 +242,108 @@ describe("planSeasonUpdate template identity", () => {
     const row = seasonRow({ status: "registration" });
     const parsed = parseInput({ maxTeamSize: 12 });
     expect(() => planSeasonUpdate(row, parsed)).toThrowError(/只有 draft 状态可修改核心赛季配置/);
+  });
+
+  it("refuses every published registrationConfig delta instead of silently ignoring it", () => {
+    const row = seasonRow({ status: "registration" });
+    const parsed = parseInput({
+      registrationConfig: {
+        ...MAJOR_TEMPLATE.registrationConfig,
+        screenshotCount: MAJOR_TEMPLATE.registrationConfig.screenshotCount + 1,
+      },
+    });
+    expect(() => planSeasonUpdate(row, parsed)).toThrowError(/只有 draft 状态可修改核心赛季配置/);
+  });
+
+  it("allows a published pre-open schedule edit but freezes the schedule after actual opening", () => {
+    const openedAt = new Date("2026-05-01T02:00:00.000Z");
+    const row = seasonRow({
+      status: "registration",
+      registrationOpenedAt: null,
+      registrationOpensAt: null,
+    });
+    const preOpen = planSeasonUpdate(row, parseInput({ registrationOpensAt: "2026-05-01T10:00" }));
+    expect(preOpen.set.registrationOpensAt).toEqual(openedAt);
+
+    const openedRow = seasonRow({
+      status: "registration",
+      registrationOpenedAt: openedAt,
+      registrationOpensAt: openedAt,
+    });
+    expect(() => planSeasonUpdate(openedRow, parseInput({ registrationOpensAt: "2026-05-02T10:00" }))).toThrowError(/不能修改报名开放时间/);
+  });
+
+  it("allows only a Major fallback delta before open and freezes it at actual open", () => {
+    const fallbackConversion = {
+      sourcePlatform: "fivee" as const,
+      version: "major-2026-v1",
+      seasonKeyMap: { S21: "5e-s21" },
+      rankMap: { S: "A" },
+    };
+    const withFallback = parseInput({
+      teamRegistrationConfig: {
+        ...MAJOR_TEAM_CONFIG_FROZEN,
+        competitiveProfile: { ...MAJOR_TEAM_CONFIG_FROZEN.competitiveProfile, fallbackConversion },
+      },
+    });
+    const preOpen = planSeasonUpdate(seasonRow({ status: "registration" }), withFallback);
+    expect(preOpen.set.teamRegistrationConfig?.competitiveProfile?.fallbackConversion).toEqual(fallbackConversion);
+    expect(preOpen.set.teamRegistrationConfig?.allowExternal).toBe(MAJOR_TEAM_CONFIG_FROZEN.allowExternal);
+    expect(preOpen.set).not.toHaveProperty("registrationConfig");
+
+    expect(() => planSeasonUpdate(seasonRow({ status: "registration", registrationOpenedAt: new Date() }), withFallback)).toThrowError(/只有 draft 状态可修改核心赛季配置/);
+    expect(() => planSeasonUpdate(seasonRow({ status: "registration" }), parseInput({
+      teamRegistrationConfig: {
+        ...MAJOR_TEAM_CONFIG_FROZEN,
+        allowExternal: false,
+        competitiveProfile: { ...MAJOR_TEAM_CONFIG_FROZEN.competitiveProfile, fallbackConversion },
+      },
+    }))).toThrowError(/只有 draft 状态可修改核心赛季配置/);
+  });
+
+  it("keeps registration deadlines operational through pre-playing phases and locks them at playing", () => {
+    const openedAt = new Date("2026-05-01T02:00:00.000Z");
+    const currentClose = new Date("2026-05-02T02:00:00.000Z");
+    const currentRoster = new Date("2026-05-03T02:00:00.000Z");
+    const row = seasonRow({
+      status: "voting",
+      registrationOpenedAt: openedAt,
+      registrationOpensAt: openedAt,
+      registrationClosesAt: currentClose,
+      rosterChangeClosesAt: currentRoster,
+    });
+    const updated = planSeasonUpdate(row, parseInput({
+      registrationOpensAt: "2026-05-01T10:00",
+      registrationClosesAt: "2026-05-04T10:00",
+      rosterChangeClosesAt: "2026-05-05T10:00",
+    }));
+    expect(updated.set.registrationClosesAt).toEqual(new Date("2026-05-04T02:00:00.000Z"));
+    expect(updated.set.rosterChangeClosesAt).toEqual(new Date("2026-05-05T02:00:00.000Z"));
+
+    const playingRow = seasonRow({ ...row, status: "playing" });
+    expect(() => planSeasonUpdate(playingRow, parseInput({
+      registrationOpensAt: "2026-05-01T10:00",
+      registrationClosesAt: "2026-05-04T10:00",
+      rosterChangeClosesAt: "2026-05-05T10:00",
+    }))).toThrowError(/不能修改报名运营截止时间/);
+  });
+
+  it("keeps name, theme and endAt as editable metadata after publish", () => {
+    const openedAt = new Date("2026-05-01T02:00:00.000Z");
+    const result = planSeasonUpdate(seasonRow({
+      status: "playing",
+      registrationOpenedAt: openedAt,
+      registrationOpensAt: openedAt,
+    }), parseInput({
+      name: "Renamed Major",
+      themeColor: "#112233",
+      registrationOpensAt: "2026-05-01T10:00",
+      endAt: "2026-06-01T10:00",
+    }));
+    expect(result.set.name).toBe("Renamed Major");
+    expect(result.set.themeColor).toBe("#112233");
+    expect(result.set.endAt).toEqual(new Date("2026-06-01T02:00:00.000Z"));
+    expect(result.set).not.toHaveProperty("stagePlan");
   });
 
   it("a non-draft template switch is refused", () => {

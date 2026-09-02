@@ -1,10 +1,11 @@
 import { getIronSession } from "iron-session";
 import { cookies } from "next/headers";
 import { eq } from "drizzle-orm";
+import { cache } from "react";
 
 import { db } from "@/db/client";
 import { seasonAdminGrants, users } from "@/db/schema";
-import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
+import { AppError, ErrorCode, ERROR_MESSAGES, isExpectedAuthFailure } from "@/lib/errors";
 
 export interface UserSession {
   userId: string;
@@ -37,7 +38,9 @@ function userSessionOptions() {
   };
 }
 
-export async function getUserSession(): Promise<UserSession | null> {
+// React cache memoizes this only for the current server render/request. It is
+// intentionally not Next's persistent or cross-request cache.
+export const getUserSession = cache(async (): Promise<UserSession | null> => {
   const session = await getIronSession<SessionPayload>(await cookies(), userSessionOptions());
   if (!session.userId || !session.email) return null;
 
@@ -45,7 +48,7 @@ export async function getUserSession(): Promise<UserSession | null> {
     userId: session.userId,
     email: session.email,
   };
-}
+});
 
 export async function createUserSession(user: UserSession): Promise<void> {
   const session = await getIronSession<SessionPayload>(await cookies(), userSessionOptions());
@@ -83,13 +86,13 @@ export async function requireAdmin(): Promise<CurrentUserAuthorization> {
   if (authorization.role === "super_admin" || authorization.seasonIds.length > 0) {
     return authorization;
   }
-  throw new AppError(ErrorCode.UNAUTHORIZED, ERROR_MESSAGES[ErrorCode.UNAUTHORIZED]);
+  throw new AppError(ErrorCode.FORBIDDEN, ERROR_MESSAGES[ErrorCode.FORBIDDEN]);
 }
 
 export async function requireSuperAdmin(): Promise<CurrentUserAuthorization> {
   const authorization = await requireCurrentAuthorization();
   if (authorization.role === "super_admin") return authorization;
-  throw new AppError(ErrorCode.UNAUTHORIZED, ERROR_MESSAGES[ErrorCode.UNAUTHORIZED]);
+  throw new AppError(ErrorCode.FORBIDDEN, ERROR_MESSAGES[ErrorCode.FORBIDDEN]);
 }
 
 export async function requireSeasonAdmin(seasonId: string): Promise<CurrentUserAuthorization> {
@@ -97,18 +100,23 @@ export async function requireSeasonAdmin(seasonId: string): Promise<CurrentUserA
   if (authorization.role === "super_admin" || authorization.seasonIds.includes(seasonId)) {
     return authorization;
   }
-  throw new AppError(ErrorCode.UNAUTHORIZED, ERROR_MESSAGES[ErrorCode.UNAUTHORIZED]);
+  throw new AppError(ErrorCode.FORBIDDEN, ERROR_MESSAGES[ErrorCode.FORBIDDEN]);
 }
 
-export async function getCurrentUserAuthorization(): Promise<CurrentUserAuthorization | null> {
+// Keep the DB-derived role/grants request-scoped as well, so layout and nested
+// privilege gates share one authorization snapshot without sharing it later.
+export const getCurrentUserAuthorization = cache(async (): Promise<CurrentUserAuthorization | null> => {
   const session = await getUserSession();
   if (!session) return null;
   return loadCurrentAuthorization(session);
-}
+});
 
 async function requireCurrentAuthorization(): Promise<CurrentUserAuthorization> {
-  const session = await requireAuth();
-  return loadCurrentAuthorization(session);
+  const authorization = await getCurrentUserAuthorization();
+  if (!authorization) {
+    throw new AppError(ErrorCode.UNAUTHORIZED, ERROR_MESSAGES[ErrorCode.UNAUTHORIZED]);
+  }
+  return authorization;
 }
 
 async function loadCurrentAuthorization(session: UserSession): Promise<CurrentUserAuthorization> {
@@ -139,7 +147,8 @@ async function loadCurrentAuthorization(session: UserSession): Promise<CurrentUs
 export async function checkAdminSession(): Promise<CurrentUserAuthorization | null> {
   try {
     return await requireAdmin();
-  } catch {
-    return null;
+  } catch (error) {
+    if (isExpectedAuthFailure(error)) return null;
+    throw error;
   }
 }

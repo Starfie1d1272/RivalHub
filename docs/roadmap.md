@@ -71,8 +71,8 @@ v2.0 stable 的目标不是把整个 2.x backlog 一次完成，而是形成一�
 - Platform 拥有长期 rank ladder；
 - Platform Season 只表达时间目录；
 - 用户竞技事实记录 rank / stars / platform Rating，各自语义独立；
-- Event 在发布时引用并冻结当时的 competitive context；
-- 后续目录变化不得改写已经发布赛事的资格语义。
+- Event 在实际开放报名时引用并冻结当时的 competitive context；发布只锁定公开赛事规则；
+- 后续目录变化不得改写已经实际开放报名赛事的资格语义。
 
 ### “我的”任务入口
 
@@ -206,7 +206,7 @@ Simulator hypothetical state ─X→ official match / settlement facts
 
 - Platform 拥有 rank ladder 与平台 identity；
 - Platform Season 是时间目录；
-- Event publish 时冻结 qualification context；
+- Event 在实际开放报名时冻结 qualification context；publish 只锁定公开赛事规则与政策身份；
 - rank、stars 与 performance Rating 是不同事实，不因 UI 展示方便而合并。
 
 ### Readiness / Eligibility / Sanction
