@@ -109,7 +109,7 @@ export function TeamConfigForm({ value, competitivePlatforms, fallbackOnly = fal
                 updateFallback({
                   sourcePlatform: "fivee",
                   version: "",
-                  seasonKeyMap: Object.fromEntries(selectedSeasons.filter((season) => season.active).map((season) => [season.seasonKey, ""])),
+                  seasonKeyMap: {},
                   rankMap: {},
                 });
               }}
@@ -126,7 +126,12 @@ export function TeamConfigForm({ value, competitivePlatforms, fallbackOnly = fal
               {selectedSeasons.filter((season) => season.active).map((season) => (
                 <div key={season.seasonKey} className="space-y-1.5">
                   <Label>{selectedPlatform.displayName} · {season.label}</Label>
-                  <Select disabled={disabled} value={fallback.seasonKeyMap[season.seasonKey] || "__unmapped__"} onValueChange={(sourceSeasonKey) => updateFallback({ ...fallback, seasonKeyMap: { ...fallback.seasonKeyMap, [season.seasonKey]: sourceSeasonKey === "__unmapped__" ? "" : sourceSeasonKey } })}>
+                  <Select disabled={disabled} value={fallback.seasonKeyMap[season.seasonKey] || "__unmapped__"} onValueChange={(sourceSeasonKey) => {
+                    const seasonKeyMap = { ...fallback.seasonKeyMap };
+                    if (sourceSeasonKey === "__unmapped__") delete seasonKeyMap[season.seasonKey];
+                    else seasonKeyMap[season.seasonKey] = sourceSeasonKey;
+                    updateFallback({ ...fallback, seasonKeyMap });
+                  }}>
                     <SelectTrigger><SelectValue placeholder="选择对应的 5E 赛季" /></SelectTrigger>
                     <SelectContent><SelectItem value="__unmapped__">尚未映射</SelectItem>{fiveeSeasons.map((source) => <SelectItem key={source.seasonKey} value={source.seasonKey}>5E · {source.label}</SelectItem>)}</SelectContent>
                   </Select>

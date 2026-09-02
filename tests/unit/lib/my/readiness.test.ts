@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/db/client", () => ({ db: {} }));
 
-import { buildMyReadinessModel, selectMyCompetitiveProfilePlatformKeys, type MyCompetitionSource, type MySanctionSource } from "@/lib/my/readiness";
+import { buildMyReadinessModel, isSettingsProfileReadinessReady, selectMyCompetitiveProfilePlatformKeys, type MyCompetitionSource, type MySanctionSource } from "@/lib/my/readiness";
 import type { SanctionEffect } from "@/lib/discipline/service";
 import type { ParticipantQualificationFacts } from "@/lib/qualification/service";
 import { MAJOR_TEAM_CONFIG } from "@/types/season";
@@ -165,6 +165,15 @@ describe("我的 readiness read model", () => {
 
     expect(selectMyCompetitiveProfilePlatformKeys(catalog, new Set(["perfect"]), new Set())).toEqual(["perfect", "5e"]);
     expect(selectMyCompetitiveProfilePlatformKeys(catalog, new Set(["perfect"]), new Set(["5e"]))).toEqual(["perfect", "5e"]);
+  });
+
+  it("keeps an unmaintained optional 5E profile out of settings readiness", () => {
+    const profile = { id: "profile", title: "长期个人资料", state: "ready" as const, detail: "", cta: { href: "/settings", label: "查看" } };
+    const education = { id: "education", title: "教育认证", state: "ready" as const, detail: "", cta: { href: "/settings/education", label: "查看" } };
+    expect(isSettingsProfileReadinessReady(profile, education, [
+      { key: "perfect_world", displayName: "完美世界竞技", state: "ready", blockers: [], required: true },
+      { key: "fivee", displayName: "5E", state: "incomplete", blockers: ["5E · 历史最高尚未录入。"], required: false },
+    ])).toBe(true);
   });
 
   it("surfaces every active sanction effect with the affected competition", () => {

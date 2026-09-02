@@ -18,7 +18,7 @@ export default async function SettingsPage() {
   const readyItems = [
     ...(readiness.profile.state === "ready" ? [] : [{ label: readiness.profile.detail, state: readiness.profile.state === "unknown" ? "pending" as const : "blocked" as const, href: readiness.profile.cta.href }]),
     ...(readiness.education.state === "ready" ? [] : [{ label: readiness.education.detail, state: readiness.education.state === "unknown" || readiness.education.state === "waiting" ? "pending" as const : "blocked" as const, href: readiness.education.cta.href }]),
-    ...readiness.competitiveProfiles.flatMap((profile) => profile.state === "ready" ? [] : profile.blockers.map((label) => ({ label, state: profile.state === "unknown" ? "pending" as const : "blocked" as const, href: "/settings/competitive" }))),
+    ...readiness.competitiveProfiles.flatMap((profile) => profile.required && profile.state !== "ready" ? profile.blockers.map((label) => ({ label, state: profile.state === "unknown" ? "pending" as const : "blocked" as const, href: "/settings/competitive" })) : []),
   ];
 
   return <div className="space-y-6">

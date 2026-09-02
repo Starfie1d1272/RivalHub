@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planSeasonUpdate } from "@/lib/seasons/edit";
+import { planSeasonCreate, planSeasonUpdate } from "@/lib/seasons/edit";
 import { unfreezeBuiltInCompetitiveContext } from "@/lib/seasons/lifecycle";
 import { seasonFormSchema } from "@/lib/seasons/edit";
 import { createMajorTemplate, createRivalsTemplate } from "@/lib/competition/templates";
@@ -82,6 +82,43 @@ describe("planSeasonUpdate template identity", () => {
     expect(set.minTeamSize).toBe(5);
     expect(set.maxTeamSize).toBe(9);
     expect(set.starterCount).toBe(5);
+  });
+
+  it("preserves only a Major's reviewed 5E fallback overlay on create and draft update", () => {
+    const fallbackConversion = {
+      sourcePlatform: "fivee" as const,
+      version: "major-2026-v1",
+      seasonKeyMap: { s19: "5e-s19", s20: "5e-s20", s21: "5e-s21" },
+      rankMap: { S: "A" },
+    };
+    const parsed = parseInput({
+      teamRegistrationConfig: {
+        ...MAJOR_TEAM_CONFIG_FROZEN,
+        allowExternal: false,
+        competitiveProfile: { ...MAJOR_TEAM_CONFIG_FROZEN.competitiveProfile, platform: "fivee", fallbackConversion },
+      },
+    });
+
+    for (const set of [planSeasonCreate(parsed).set, planSeasonUpdate(seasonRow(), parsed).set]) {
+      expect(set.teamRegistrationConfig).toMatchObject({
+        ...MAJOR_TEMPLATE.teamRegistrationConfig,
+        competitiveProfile: { ...MAJOR_TEMPLATE.teamRegistrationConfig.competitiveProfile, fallbackConversion },
+      });
+      expect(set.teamRegistrationConfig?.allowExternal).toBe(MAJOR_TEMPLATE.teamRegistrationConfig.allowExternal);
+      expect(set.teamRegistrationConfig?.competitiveProfile?.platform).toBe("perfect_world");
+    }
+  });
+
+  it("accepts an incomplete draft fallback map and defers completeness to registration freeze", () => {
+    expect(() => parseInput({
+      teamRegistrationConfig: {
+        ...MAJOR_TEAM_CONFIG_FROZEN,
+        competitiveProfile: {
+          ...MAJOR_TEAM_CONFIG_FROZEN.competitiveProfile,
+          fallbackConversion: { sourcePlatform: "fivee", version: "", seasonKeyMap: {}, rankMap: {} },
+        },
+      },
+    })).not.toThrow();
   });
 
   it("a draft Rivals save canonicalizes tampered team size back to the fixed 7/7/5", () => {

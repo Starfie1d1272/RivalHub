@@ -56,6 +56,7 @@ export function CompetitiveProfileForm({ contexts }: { contexts: CompetitiveSeas
   const [seasonFacts, setSeasonFacts] = useState<Record<string, Fact>>(() => Object.fromEntries((first?.seasons ?? []).map((season) => [season.seasonKey, factFor(first, season.seasonKey)])));
   const [initialFacts, setInitialFacts] = useState<Record<string, InitialFact>>(() => initialFactsFor(first));
   const [expanded, setExpanded] = useState(false);
+  const [editingHistory, setEditingHistory] = useState<Set<string>>(() => new Set());
   const [saved, setSaved] = useState(false);
 
   function choosePlatform(nextPlatform: string) {
@@ -65,7 +66,7 @@ export function CompetitiveProfileForm({ contexts }: { contexts: CompetitiveSeas
     setAchievedSeasonKey(next?.facts.find((fact) => fact.kind === "historical_peak")?.achievedSeasonKey ?? "unknown");
     setSeasonFacts(Object.fromEntries((next?.seasons ?? []).map((season) => [season.seasonKey, factFor(next, season.seasonKey)])));
     setInitialFacts(initialFactsFor(next));
-    setExpanded(false); setSaved(false);
+    setExpanded(false); setEditingHistory(new Set()); setSaved(false);
   }
 
   const platformSelect = contexts.length > 1 ? <div className="space-y-1.5"><Label>竞技平台</Label><Select value={platform} onValueChange={choosePlatform}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{contexts.map((item) => <SelectItem key={item.platform} value={item.platform}>{item.platformDisplayName}</SelectItem>)}</SelectContent></Select></div> : null;
@@ -93,6 +94,14 @@ export function CompetitiveProfileForm({ contexts }: { contexts: CompetitiveSeas
     </section>;
   }
 
+  function compactHistory(title: string, key: string, fact: Fact) {
+    const action = fact.status === "unrecorded" ? "补充" : "编辑";
+    return <section key={key} className="flex flex-wrap items-center justify-between gap-3 border-l-2 border-[var(--color-border-hi)] pl-4">
+      <div><h3 className="text-sm font-semibold">{title}</h3><p className="mt-1 text-sm text-[var(--color-fg-mid)]">{summary(fact, context!)}</p></div>
+      <Button type="button" variant="outline" size="sm" aria-label={`${action} ${title}`} onClick={() => setEditingHistory((current) => new Set(current).add(key))}>{action}</Button>
+    </section>;
+  }
+
   const invalidRanked = (key: string, fact: Fact) => {
     if (fact.status !== "ranked") return false;
     const rank = context.ladder.find((entry) => entry.rankKey === fact.rank);
@@ -105,7 +114,14 @@ export function CompetitiveProfileForm({ contexts }: { contexts: CompetitiveSeas
     <StatusBanner tone="info" title={`${context.platformDisplayName} · 长期竞技资料`} sub="未录入表示尚未声明；未定级是有效事实；已定级必须填写段位与 Rating。具体赛事会按当届冻结规则单独核验。" />
     {editor("历史最高", HISTORICAL_KEY, historical, setHistorical, false)}
     <div className="max-w-sm space-y-1.5"><Label>历史最高达成赛季（可选）</Label><Select value={achievedSeasonKey} onValueChange={setAchievedSeasonKey}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="unknown">不确定 / 暂不填写</SelectItem>{context.seasons.map((season) => <SelectItem key={season.seasonKey} value={season.seasonKey}>{season.label}</SelectItem>)}</SelectContent></Select></div>
-    <div className="space-y-4"><div><h2 className="text-base font-semibold">近期赛季</h2><p className="mt-1 text-sm text-[var(--color-fg-mid)]">当前、上一赛季与已维护资料优先展示；更早赛季可按需展开。</p></div>{visibleSeasons.map((season) => editor(`${season.isCurrent ? "当前赛季" : season.isPrevious ? "上一赛季" : "历史赛季"} · ${season.label}`, season.seasonKey, seasonFacts[season.seasonKey] ?? emptyFact(), (value) => { setSaved(false); setSeasonFacts((current) => ({ ...current, [season.seasonKey]: value })); }, true))}</div>
+    <div className="space-y-4"><div><h2 className="text-base font-semibold">近期赛季</h2><p className="mt-1 text-sm text-[var(--color-fg-mid)]">当前、上一赛季可直接维护；更早历史赛季以摘要显示，按需展开编辑。</p></div>{visibleSeasons.map((season) => {
+      const title = `${season.isCurrent ? "当前赛季" : season.isPrevious ? "上一赛季" : "历史赛季"} · ${season.label}`;
+      const fact = seasonFacts[season.seasonKey] ?? emptyFact();
+      const setFact = (value: Fact) => { setSaved(false); setSeasonFacts((current) => ({ ...current, [season.seasonKey]: value })); };
+      return season.isCurrent || season.isPrevious || editingHistory.has(season.seasonKey)
+        ? editor(title, season.seasonKey, fact, setFact, true)
+        : compactHistory(title, season.seasonKey, fact);
+    })}</div>
     {!expanded && hiddenCount > 0 && <Button type="button" variant="outline" onClick={() => setExpanded(true)}>展开全部历史赛季（{hiddenCount}）</Button>}
     {saved && <StatusBanner tone="success" title="竞技档案已保存" sub="报名和赛务审核会使用你最新保存的资料。" />}
     <div className="flex flex-wrap items-center gap-3"><Button disabled={pending} onClick={() => {

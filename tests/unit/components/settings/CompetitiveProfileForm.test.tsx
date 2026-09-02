@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
 import React from "react";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { CompetitiveProfileForm } from "@/components/settings/CompetitiveProfileForm";
 
@@ -38,5 +39,14 @@ describe("CompetitiveProfileForm", () => {
     expect(screen.getByRole("button", { name: /展开全部历史赛季/ })).toBeInTheDocument();
     expect(screen.getByText("历史赛季 · 2025S4")).toBeInTheDocument(); // maintained entries remain visible
     expect(screen.queryByText("历史赛季 · 2025S3")).toBeNull();
+  });
+
+  it("shows maintained older history as a compact summary until it is explicitly edited", async () => {
+    const user = userEvent.setup();
+    render(<CompetitiveProfileForm contexts={[perfect]} />);
+    expect(screen.getByRole("button", { name: "编辑 历史赛季 · 2025S4" })).toBeInTheDocument();
+    expect(screen.getAllByText("资料状态")).toHaveLength(2);
+    await user.click(screen.getByRole("button", { name: "编辑 历史赛季 · 2025S4" }));
+    expect(screen.getAllByText("资料状态")).toHaveLength(3);
   });
 });

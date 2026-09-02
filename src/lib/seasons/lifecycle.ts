@@ -2,7 +2,7 @@ import { count, eq } from "drizzle-orm";
 import type { db as dbClient } from "@/db/client";
 import { auditLogs, competitionEntries, matches, seasonRegistrations, seasons } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { resolveLiveCompetitiveContext } from "@/lib/competitive/catalog";
+import { fallbackCatalogReferencesExist, resolveLiveCompetitiveContext } from "@/lib/competitive/catalog";
 import { resolveCompetitiveContext } from "@/lib/qualification/service";
 import { createCompetitionTemplate } from "@/lib/competition/templates";
 import { normalizeTeamRegistrationConfig, type SeasonStatus, type TeamRegistrationConfig } from "@/types/season";
@@ -119,6 +119,9 @@ export async function freezeCompetitiveContext(
   };
   if (!await resolveCompetitiveContext(competitiveProfile)) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "5E fallback 映射必须覆盖本届冻结的全部赛季证据槽，并映射到已公布的 Perfect 段位后才能开放报名。");
+  }
+  if (competitiveProfile.fallbackConversion && !await fallbackCatalogReferencesExist(tx, competitiveProfile.fallbackConversion)) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "5E fallback 映射引用的赛季或段位已不在竞技目录中，不能开放报名。");
   }
   return {
     ...config,

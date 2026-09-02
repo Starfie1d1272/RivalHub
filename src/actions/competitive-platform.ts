@@ -228,6 +228,14 @@ export async function deleteCompetitivePlatformSeason(input: unknown): Promise<A
             OR team_registration_config->'competitiveProfile'->>'previousSeasonKey' = ${row.seasonKey}
             OR team_registration_config->'competitiveProfile'->'evidencePolicy'->>'referenceSeasonKey' = ${row.seasonKey}
             OR (team_registration_config->'competitiveProfile'->'evidencePolicy'->'recentSeasonKeys')::jsonb ? ${row.seasonKey}
+            OR (
+              team_registration_config->'competitiveProfile'->'fallbackConversion'->>'sourcePlatform' = ${row.platform}
+              AND EXISTS (
+                SELECT 1
+                FROM jsonb_each_text(COALESCE((team_registration_config->'competitiveProfile'->'fallbackConversion'->'seasonKeyMap')::jsonb, '{}'::jsonb)) AS fallback_season(primary_key, source_key)
+                WHERE fallback_season.source_key = ${row.seasonKey}
+              )
+            )
           )
         LIMIT 1
       `);

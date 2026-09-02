@@ -74,6 +74,8 @@ export interface MyCompetitiveProfileSource {
   displayName: string;
   state: MyReadinessState;
   blockers: string[];
+  /** Optional platforms remain visible as long-lived profile maintenance. */
+  required?: boolean;
 }
 
 export interface MyReadinessModel {
@@ -99,6 +101,14 @@ export interface SettingsProfileReadiness {
   education: MyReadinessItem;
   competitiveProfiles: MyCompetitiveProfileSource[];
   ready: boolean;
+}
+
+export function isSettingsProfileReadinessReady(
+  profile: MyReadinessItem,
+  education: MyReadinessItem,
+  competitiveProfiles: readonly MyCompetitiveProfileSource[],
+): boolean {
+  return profile.state === "ready" && education.state === "ready" && competitiveProfiles.filter((item) => item.required).every((item) => item.state === "ready");
 }
 
 function item(
@@ -284,23 +294,24 @@ function buildCompetitiveProfileSources(
   catalog: readonly CompetitivePlatformCatalogEntry[],
   platformKeys: readonly string[],
   factsByPlatform: ReadonlyMap<string, ParticipantQualificationFacts | null>,
+  requiredPlatforms: ReadonlySet<string>,
 ): MyCompetitiveProfileSource[] {
   const catalogByKey = new Map(catalog.map((platform) => [platform.key, platform]));
   return platformKeys.map((key) => {
     const platform = catalogByKey.get(key);
     if (!platform) {
-      return { key, displayName: key, state: "unknown", blockers: ["该平台的竞技目录不可确认。"] };
+      return { key, displayName: key, state: "unknown", blockers: ["该平台的竞技目录不可确认。"], required: requiredPlatforms.has(key) };
     }
     const current = platform.seasons.find((season) => season.isCurrent && season.active);
-    if (!current || platform.ranks.length === 0) return { key: platform.key, displayName: platform.displayName, state: "unknown", blockers: ["平台目录缺少当前赛季或段位表，竞技档案不可确认。"] };
+    if (!current || platform.ranks.length === 0) return { key: platform.key, displayName: platform.displayName, state: "unknown", blockers: ["平台目录缺少当前赛季或段位表，竞技档案不可确认。"], required: requiredPlatforms.has(platform.key) };
     const fact = factsByPlatform.get(platform.key) ?? null;
     if (!fact) {
-      return { key: platform.key, displayName: platform.displayName, state: "unknown", blockers: ["竞技档案事实不可确认。"] };
+      return { key: platform.key, displayName: platform.displayName, state: "unknown", blockers: ["竞技档案事实不可确认。"], required: requiredPlatforms.has(platform.key) };
     }
     const blockers: string[] = [];
     if (!fact.historicalPeak) blockers.push(`${platform.displayName} · 历史最高尚未录入。`);
     if (!fact.seasonPeaks?.has(current.seasonKey)) blockers.push(`${platform.displayName} · ${current.label} 尚未录入。`);
-    return { key: platform.key, displayName: platform.displayName, state: blockers.length === 0 ? "ready" : "incomplete", blockers };
+    return { key: platform.key, displayName: platform.displayName, state: blockers.length === 0 ? "ready" : "incomplete", blockers, required: requiredPlatforms.has(platform.key) };
   });
 }
 
@@ -316,7 +327,7 @@ async function loadCompetitiveProfileSources(
     const facts = await loadParticipantQualificationFacts([userId], { platform });
     factsByPlatform.set(platform, facts.get(userId) ?? null);
   }));
-  return buildCompetitiveProfileSources(catalog, platformKeys, factsByPlatform);
+  return buildCompetitiveProfileSources(catalog, platformKeys, factsByPlatform, requiredPlatforms);
 }
 
 /**
@@ -336,7 +347,7 @@ export async function loadSettingsProfileReadiness(userId: string): Promise<Sett
   const competitiveProfiles = await loadCompetitiveProfileSources(
     userId,
     catalog,
-    new Set(),
+    new Set(["perfect_world"]),
     new Set(platformFactRows.map((row) => row.platform)),
   );
   const profile = profileState(baseFact);
@@ -345,7 +356,7 @@ export async function loadSettingsProfileReadiness(userId: string): Promise<Sett
     profile,
     education,
     competitiveProfiles,
-    ready: profile.state === "ready" && education.state === "ready" && competitiveProfiles.every((item) => item.state === "ready"),
+    ready: isSettingsProfileReadinessReady(profile, education, competitiveProfiles),
   };
 }
 
@@ -396,7 +407,7 @@ export async function loadMyReadiness(userId: string): Promise<MyReadinessModel>
     factsByPlatform.set(platform, facts.get(userId) ?? null);
   }));
 
-  const competitiveProfiles = buildCompetitiveProfileSources(catalog, platformKeys, factsByPlatform);
+  const competitiveProfiles = buildCompetitiveProfileSources(catalog, platformKeys, factsByPlatform, requiredPlatforms);
 
   const now = new Date();
   const sanctions = sanctionRows
