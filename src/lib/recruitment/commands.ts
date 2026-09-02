@@ -1,9 +1,9 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
-import { auditLogs, recruitmentIntents, recruitmentInterests, seasons, teamMemberships, teams } from "@/db/schema";
+import { auditLogs, competitionEntries, recruitmentIntents, recruitmentInterests, seasons, teamMemberships, teams } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import type { Cs2Position } from "@/lib/config/cs2-positions";
-import { isRecruitmentTargetAvailable, recruitmentTargetExpiresAt } from "@/lib/recruitment/target-policy";
+import { isRecruitmentTargetAvailable, isTeamRecruitmentTargetAvailable, recruitmentTargetExpiresAt } from "@/lib/recruitment/target-policy";
 
 async function auditRecruitment(tx: TxDb, action: string, actorId: string, targetId: string, targetType: "recruitment_intent" | "recruitment_interest", meta?: Record<string, unknown>) {
   await tx.insert(auditLogs).values({ seasonId: null, action, actorId, targetId, targetType, meta: meta ?? null });
@@ -27,10 +27,16 @@ async function lockUser(tx: TxDb, userId: string) {
   if (result.rowCount !== 1) throw new AppError(ErrorCode.NOT_FOUND, "用户不存在。");
 }
 
-async function recruitmentExpiry(tx: TxDb, targetSeasonId: string | null, now: Date): Promise<Date> {
+async function recruitmentExpiry(tx: TxDb, targetSeasonId: string | null, now: Date, teamId?: string): Promise<Date> {
   if (!targetSeasonId) return recruitmentTargetExpiresAt(null, now);
   const [season] = await tx.select().from(seasons).where(eq(seasons.id, targetSeasonId)).for("update");
-  if (!season || !isRecruitmentTargetAvailable(season, now)) throw new AppError(ErrorCode.VALIDATION_FAILED, "目标赛事当前不可用于公开组队。");
+  if (!season) throw new AppError(ErrorCode.VALIDATION_FAILED, "目标赛事当前不可用于公开组队。");
+  const hasEffectiveEntry = teamId ? Boolean(await tx.query.competitionEntries.findFirst({
+    where: and(eq(competitionEntries.competitionId, season.id), eq(competitionEntries.teamId, teamId), inArray(competitionEntries.registrationStatus, ["draft", "submitted", "changes_requested", "waitlisted", "approved"])),
+    columns: { id: true },
+  })) : false;
+  const available = teamId ? isTeamRecruitmentTargetAvailable(season, hasEffectiveEntry, now) : isRecruitmentTargetAvailable(season, now);
+  if (!available) throw new AppError(ErrorCode.VALIDATION_FAILED, "目标赛事当前不可用于公开组队。");
   return recruitmentTargetExpiresAt(season, now);
 }
 
@@ -52,7 +58,7 @@ export async function upsertTeamRecruitmentInTx(
 ): Promise<{ id: string; expiresAt: Date }> {
   await requireLockedCaptain(tx, input.teamId, input.userId);
   const now = new Date();
-  const expiresAt = await recruitmentExpiry(tx, input.targetSeasonId, now);
+  const expiresAt = await recruitmentExpiry(tx, input.targetSeasonId, now, input.teamId);
   const [existing] = await tx.select().from(recruitmentIntents).where(eq(recruitmentIntents.teamId, input.teamId)).for("update");
   if (existing) {
     const [intent] = await tx.update(recruitmentIntents).set({ positions: input.positions, targetSeasonId: input.targetSeasonId, note: input.note, status: "open", expiresAt, updatedAt: now }).where(eq(recruitmentIntents.id, existing.id)).returning({ id: recruitmentIntents.id, expiresAt: recruitmentIntents.expiresAt });

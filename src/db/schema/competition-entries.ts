@@ -29,6 +29,9 @@ export const competitionEntryParticipantStatusEnum = pgEnum("competition_entry_p
 export const competitionEntryRosterRevisionStatusEnum = pgEnum("competition_entry_roster_revision_status", [
   "draft", "submitted", "approved", "superseded",
 ]);
+export const competitionEntryRosterRevisionOriginEnum = pgEnum("competition_entry_roster_revision_origin", [
+  "initial", "admin_remediation", "self_roster_change",
+]);
 export const competitionEntrySubmissionDecisionEnum = pgEnum("competition_entry_submission_decision", [
   "submitted", "changes_requested", "waitlisted", "approved", "rejected", "withdrawn",
 ]);
@@ -127,6 +130,8 @@ export const competitionEntryRosterRevisions = pgTable("competition_entry_roster
   entryId: uuid("entry_id").notNull().references(() => competitionEntries.id),
   revisionNumber: integer("revision_number").notNull(),
   status: competitionEntryRosterRevisionStatusEnum("status").notNull().default("draft"),
+  /** Why this draft revision may be edited after the ordinary registration window. */
+  origin: competitionEntryRosterRevisionOriginEnum("origin").notNull().default("initial"),
   createdBy: text("created_by").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   submittedAt: timestamp("submitted_at", { withTimezone: true }),

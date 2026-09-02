@@ -73,7 +73,7 @@ describe("recruitment PostgreSQL invariants", () => {
       );
       expect(afterClose.rows[0]?.status === "closed" && afterClose.rows[0]?.interests === "0", "关闭 Team 招募必须关闭 intent 并清除旧 interest。").toBe(true);
 
-      await pool.query("INSERT INTO seasons (id, slug, name, kind, status, registration_deadline) VALUES ($1, $2, 'Draft target', 'custom', 'draft', now() + interval '7 days'), ($3, $4, 'Registration target', 'custom', 'registration', now() + interval '7 days'), ($5, $6, 'Replacement target', 'custom', 'registration', now() + interval '7 days'), ($7, $8, 'Voting target', 'custom', 'voting', now() + interval '7 days')", [ids.draftSeason, `recruitment-draft-${ids.draftSeason.slice(0, 8)}`, ids.registrationSeason, `recruitment-registration-${ids.registrationSeason.slice(0, 8)}`, ids.replacementSeason, `recruitment-replacement-${ids.replacementSeason.slice(0, 8)}`, ids.votingSeason, `recruitment-voting-${ids.votingSeason.slice(0, 8)}`]);
+      await pool.query("INSERT INTO seasons (id, slug, name, kind, status, registration_closes_at) VALUES ($1, $2, 'Draft target', 'custom', 'draft', now() + interval '7 days'), ($3, $4, 'Registration target', 'custom', 'registration', now() + interval '7 days'), ($5, $6, 'Replacement target', 'custom', 'registration', now() + interval '7 days'), ($7, $8, 'Voting target', 'custom', 'voting', now() + interval '7 days')", [ids.draftSeason, `recruitment-draft-${ids.draftSeason.slice(0, 8)}`, ids.registrationSeason, `recruitment-registration-${ids.registrationSeason.slice(0, 8)}`, ids.replacementSeason, `recruitment-replacement-${ids.replacementSeason.slice(0, 8)}`, ids.votingSeason, `recruitment-voting-${ids.votingSeason.slice(0, 8)}`]);
       await expect(database.transaction((tx) => upsertTeamRecruitmentInTx(tx, { teamId: ids.team, userId: ids.captain, actorId: ids.captain, positions: ["awper"], targetSeasonId: ids.draftSeason, note: null })))
         .rejects.toMatchObject({ code: ErrorCode.VALIDATION_FAILED });
       await expect(database.transaction((tx) => upsertTeamRecruitmentInTx(tx, { teamId: ids.team, userId: ids.captain, actorId: ids.captain, positions: ["awper"], targetSeasonId: ids.votingSeason, note: null })))
@@ -92,6 +92,21 @@ describe("recruitment PostgreSQL invariants", () => {
       expect(stoppedWorkspace.targetSeasons.map((season) => season.id)).not.toContain(ids.registrationSeason);
       expect(stoppedWorkspace.targetSeasons.map((season) => season.id)).toContain(ids.replacementSeason);
 
+      // Once new applications close, a Team needs its own effective Entry to
+      // keep recruiting through the separate roster-change window.
+      await pool.query("UPDATE seasons SET registration_closes_at = now() - interval '1 second', roster_change_closes_at = now() + interval '1 day' WHERE id = $1", [ids.replacementSeason]);
+      await expect(database.transaction((tx) => upsertTeamRecruitmentInTx(tx, { teamId: ids.team, userId: ids.captain, actorId: ids.captain, positions: [], targetSeasonId: ids.replacementSeason, note: null })))
+        .rejects.toMatchObject({ code: ErrorCode.VALIDATION_FAILED });
+      const entryId = randomUUID();
+      const revisionId = randomUUID();
+      await pool.query("BEGIN");
+      await pool.query(
+        "INSERT INTO competition_entries (id, competition_id, source, team_id, name, representative_user_id, current_roster_revision_id, registration_status) VALUES ($1, $2, 'linked_team', $3, 'Recruitment Team', $4, $5, 'draft')",
+        [entryId, ids.replacementSeason, ids.team, ids.captain, revisionId],
+      );
+      await pool.query("INSERT INTO competition_entry_representative_changes (entry_id, from_user_id, to_user_id, changed_by_actor_id) VALUES ($1, NULL, $2, $3)", [entryId, ids.captain, ids.captain]);
+      await pool.query("INSERT INTO competition_entry_roster_revisions (id, entry_id, revision_number, status, created_by) VALUES ($1, $2, 1, 'draft', $3)", [revisionId, entryId, ids.captain]);
+      await pool.query("COMMIT");
       await database.transaction((tx) => upsertTeamRecruitmentInTx(tx, { teamId: ids.team, userId: ids.captain, actorId: ids.captain, positions: [], targetSeasonId: ids.replacementSeason, note: null }));
       expect((await getTeamRecruitmentWorkspace(ids.team, true)).recruitment).toMatchObject({ isPubliclyActive: true, targetSeasonId: ids.replacementSeason });
       await pool.query("INSERT INTO recruitment_intents (kind, user_id, positions, status, expires_at) VALUES ('player_lft', $1, ARRAY[]::cs2_role[], 'open', now() + interval '1 day')", [ids.interested]);
@@ -100,6 +115,11 @@ describe("recruitment PostgreSQL invariants", () => {
       expect(awperFilteredLobby.teamRecruitments.map((item) => item.teamId)).toContain(ids.team);
       expect(openerFilteredLobby.teamRecruitments.map((item) => item.teamId)).toContain(ids.team);
       expect(awperFilteredLobby.playerLfts.map((item) => item.userId)).not.toContain(ids.interested);
+      await pool.query("BEGIN");
+      await pool.query("SET LOCAL session_replication_role = replica");
+      await pool.query("DELETE FROM competition_entry_roster_revisions WHERE id = $1", [revisionId]);
+      await pool.query("DELETE FROM competition_entries WHERE id = $1", [entryId]);
+      await pool.query("COMMIT");
       await pool.query("DELETE FROM seasons WHERE id = $1", [ids.replacementSeason]);
       const afterTargetDelete = await pool.query<{ status: string; targetSeasonId: string | null }>("SELECT status::text AS status, target_season_id AS \"targetSeasonId\" FROM recruitment_intents WHERE id = $1", [teamIntent.id]);
       expect(afterTargetDelete.rows[0]).toMatchObject({ status: "closed", targetSeasonId: null });

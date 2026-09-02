@@ -8,7 +8,7 @@ import { Menu, X } from "lucide-react";
 import { toast } from "sonner";
 import { APP_BRAND } from "@/lib/branding";
 import { cn } from "@/lib/utils/cn";
-import { presentSeasonStatus } from "@/lib/seasons/presentation";
+import { presentSeasonParticipationState } from "@/lib/seasons/presentation";
 import { logoutUser } from "@/actions/auth";
 import {
   DropdownMenu,
@@ -24,6 +24,9 @@ export interface HeaderSeason {
   slug: string;
   name: string;
   status: SeasonStatus;
+  registrationOpensAt: Date | null;
+  registrationOpenedAt: Date | null;
+  registrationClosesAt: Date | null;
 }
 
 export interface HeaderSession {
@@ -93,7 +96,7 @@ export function HeaderClient({ seasons, session, avatarUrl, steamName, displayNa
   const seasonLinks = seasons.map((s) => ({
     href: `/${s.slug}`,
     label: s.name,
-    badge: presentSeasonStatus(s.status).label,
+    badge: presentSeasonParticipationState(s).label,
     active: pathname.startsWith(`/${s.slug}`),
   }));
   const navLinks = [

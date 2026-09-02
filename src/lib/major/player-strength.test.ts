@@ -101,6 +101,26 @@ describe("Major player strength comparator", () => {
     expect(low.weightedRank).toBe(2);
     expect(getPlayerStrengthBreakdown(player("fivee", "5E", "5E", "5E"), CONFIG).available).toBe(false);
   });
+
+  it("uses the strongest declared recent season instead of penalizing an ongoing reset", () => {
+    const policyConfig: CompetitiveProfileConfig = {
+      ...CONFIG,
+      evidencePolicy: {
+        historicalWeight: 50,
+        referenceSeasonKey: "2024-complete",
+        referenceSeasonWeight: 20,
+        recentSeasonKeys: ["2025-complete", "2026-ongoing"],
+        recentSeasonWeight: 30,
+      },
+    };
+    const playerWithReset = {
+      ...player("reset", "A", "A", "C"),
+      recentSeasonPeaks: [{ rank: "魔王S", rating: 1200 }, { rank: "C", rating: 800 }],
+    };
+    const breakdown = getPlayerStrengthBreakdown(playerWithReset, policyConfig);
+    expect(breakdown.available).toBe(true);
+    expect(breakdown.currentValue).toBe(CONFIG.rankOrder.indexOf("魔王S") + 1);
+  });
 });
 
 describe("Major external-member strength rule", () => {

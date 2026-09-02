@@ -33,6 +33,20 @@ async function main(): Promise<void> {
     );
     await expect(assertPlatformRanksMutable(executor, platform, ["unreferenced"])).resolves.not.toThrow();
 
+    // The catalog delete guard must execute against json columns as jsonb when
+    // checking a frozen evidencePolicy.recentSeasonKeys array.
+    await client.query(
+      "UPDATE seasons SET team_registration_config = $2::json WHERE id = $1",
+      [seasonId, JSON.stringify({ competitiveProfile: { platform, currentSeasonKey: "legacy-current", previousSeasonKey: "legacy-previous", rankOrder: [], evidencePolicy: { historicalWeight: 50, referenceSeasonKey: "older", referenceSeasonWeight: 20, recentSeasonKeys: ["recent-only"], recentSeasonWeight: 30 } } })],
+    );
+    const recentPolicyReference = await client.query(
+      `SELECT id FROM seasons
+       WHERE team_registration_config->'competitiveProfile'->>'platform' = $1
+         AND (team_registration_config->'competitiveProfile'->'evidencePolicy'->'recentSeasonKeys')::jsonb ? $2`,
+      [platform, "recent-only"],
+    );
+    expect(recentPolicyReference.rowCount).toBe(1);
+
     // Star metadata shape is enforced by the database: no starMax without a
     // starMin, no descending range, no negative fact stars.
     const malformedRankShape = await capturePostgresError(client, () => client.query(

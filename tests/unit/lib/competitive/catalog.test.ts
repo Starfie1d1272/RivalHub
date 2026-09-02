@@ -143,7 +143,7 @@ describe("competitive catalog mutation and snapshot helpers", () => {
       select: () => ({ from: () => ({ where: () => ({ limit: () => Promise.resolve(rows[call++]!), orderBy: () => Promise.resolve(rows[call++]!) }) }) }),
     };
     await expect(resolveLiveCompetitiveContext(executor as never, "fivee")).resolves.toEqual({
-      platform: "fivee", currentSeasonKey: "s6", previousSeasonKey: "s5", rankOrder: ["C+"],
+      platform: "fivee", currentSeasonKey: "s6", previousSeasonKey: "s5", priorSeasonKey: null, rankOrder: ["C+"],
     });
   });
 });

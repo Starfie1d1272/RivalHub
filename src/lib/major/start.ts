@@ -263,11 +263,14 @@ export async function startMajorInTransaction(
       userId,
       historicalPeak: competitiveProfile ? serialize(fact?.historicalPeak ?? null) : null,
       previousSeasonPeak: competitiveProfile
-        ? serialize(fact?.seasonPeaks?.get(competitiveProfile.previousSeasonKey) ?? null)
+        ? serialize(fact?.seasonPeaks?.get(competitiveProfile.evidencePolicy?.referenceSeasonKey ?? competitiveProfile.previousSeasonKey) ?? null)
         : null,
       currentSeasonPeak: competitiveProfile
         ? serialize(fact?.seasonPeaks?.get(competitiveProfile.currentSeasonKey) ?? null)
         : null,
+      recentSeasonPeaks: competitiveProfile?.evidencePolicy
+        ? competitiveProfile.evidencePolicy.recentSeasonKeys.map((key) => serialize(fact?.seasonPeaks?.get(key) ?? null))
+        : undefined,
     };
   });
   const ruleSnapshot = makeMajorRunSnapshotV4({

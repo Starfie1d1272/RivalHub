@@ -31,11 +31,9 @@ export async function assertSeasonHasNoHistoricalFacts(
 }
 
 /**
- * Reverts the publish-time competitive context freeze for built-in templates:
- * the frozen current/previous season keys and rank order are reset to the
- * template's draft context so the next publish resolves fresh facts from the
- * global platform catalog. Historical finished seasons are never touched by
- * this helper — it only runs inside the revert-to-draft transaction.
+ * Reverts the registration-open competitive context freeze for built-in
+ * templates, restoring the draft's unbound policy. Historical finished events
+ * are never touched by this helper — it only runs inside revert-to-draft.
  */
 export function unfreezeBuiltInCompetitiveContext(season: {
   competitionTemplate: "rivals" | "major" | "custom";
@@ -79,12 +77,10 @@ export async function transitionSeasonStatusInTx(
 }
 
 /**
- * Publish-time competitive context freeze. When the season requires a
- * competitive profile, the platform catalog's current season, the active
- * season before it and the platform-owned rank ladder are frozen into
- * teamRegistrationConfig. Once published, later catalog changes never alter a
- * season's frozen context. A missing current/previous season or an empty
- * ladder fails closed — there is no fallback rank order.
+ * Registration-open competitive context freeze. The event consumes two stable
+ * completed-season references plus the catalog's current (possibly ongoing)
+ * season, while the catalog itself remains free to advance its current pointer.
+ * This function must run in the same transaction that opens participation.
  */
 export async function freezeCompetitiveContext(
   tx: Transaction,
@@ -94,16 +90,63 @@ export async function freezeCompetitiveContext(
   if (!config.requireCompetitiveProfile) return config;
   const platform = config.competitiveProfile?.platform ?? "perfect_world";
   const context = await resolveLiveCompetitiveContext(tx, platform);
-  if (!context) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, `请先在竞技平台目录中为 ${platform} 配置唯一的当前赛季、启用的上一赛季和平台段位表。`);
+  if (!context || !context.priorSeasonKey) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, `请先在竞技平台目录中为 ${platform} 配置唯一的当前赛季、两届启用的历史赛季和平台段位表。`);
   }
   return {
     ...config,
     competitiveProfile: {
       platform,
+      // Keep their literal catalog meaning for every frozen event. New
+      // evaluators consume evidencePolicy for the distinct reference rule.
       currentSeasonKey: context.currentSeasonKey,
       previousSeasonKey: context.previousSeasonKey,
       rankOrder: context.rankOrder,
+      evidencePolicy: {
+        historicalWeight: 50,
+        referenceSeasonKey: context.priorSeasonKey,
+        referenceSeasonWeight: 20,
+        recentSeasonKeys: [context.previousSeasonKey, context.currentSeasonKey],
+        recentSeasonWeight: 30,
+      },
     },
   };
+}
+
+/**
+ * Canonical participation-open transition. It row-locks the published event,
+ * freezes its competitive evidence exactly once, and records the audit fact in
+ * the same transaction. Both the admin "open now" action and scheduled cron
+ * processing use this owner so a catalog change cannot race an application.
+ */
+export async function openSeasonRegistrationInTx(
+  tx: Transaction,
+  input: { seasonId: string; actorId: string; now?: Date; openNow?: boolean },
+): Promise<{ slug: string; opened: boolean }> {
+  const now = input.now ?? new Date();
+  const [season] = await tx.select().from(seasons).where(eq(seasons.id, input.seasonId)).for("update");
+  if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛事不存在。");
+  if (season.status !== "registration") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有已发布赛事可以开放报名。");
+  if (season.registrationOpenedAt) return { slug: season.slug, opened: false };
+  const configuredOpenAt = input.openNow ? now : season.registrationOpensAt;
+  if (!configuredOpenAt || configuredOpenAt.getTime() > now.getTime()) return { slug: season.slug, opened: false };
+  const config = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
+  const teamRegistrationConfig = config.requireCompetitiveProfile
+    ? await freezeCompetitiveContext(tx, season)
+    : config;
+  await tx.update(seasons).set({
+    registrationOpensAt: configuredOpenAt,
+    registrationOpenedAt: now,
+    teamRegistrationConfig,
+    updatedAt: now,
+  }).where(eq(seasons.id, season.id));
+  await tx.insert(auditLogs).values({
+    seasonId: season.id,
+    action: "season.registration_open",
+    actorId: input.actorId,
+    targetId: season.id,
+    targetType: "season",
+    meta: { slug: season.slug, registrationOpensAt: configuredOpenAt.toISOString(), competitiveContextFrozen: config.requireCompetitiveProfile },
+  });
+  return { slug: season.slug, opened: true };
 }

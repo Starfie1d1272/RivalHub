@@ -27,7 +27,7 @@ import { getRegistrationWindowState } from "@/lib/registration/window";
 import { assertUsersNotBlockedInTx } from "@/lib/discipline/service";
 import { isTeamRegistration } from "@/lib/utils/season";
 import { getDisplayName } from "@/lib/identity/display-name";
-import { canEditCompetitionEntryRoster } from "@/lib/competition-entries/remediation";
+import { canMutateCompetitionEntryRoster } from "@/lib/competition-entries/remediation";
 import { normalizeAffiliationRules, normalizeTeamRegistrationConfig } from "@/types/season";
 
 const editableStatuses = ["draft", "changes_requested"] as const;
@@ -141,12 +141,12 @@ export async function saveCompetitionEntryRosterInTx(tx: TxDb, input: { entryId:
   if (!editableStatuses.includes(entry.registrationStatus as typeof editableStatuses[number])) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前报名版本不可编辑。");
   if (!entry.teamId) throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事组队报名不能通过队伍名单编辑入口修改。");
   const season = await loadSeasonOrThrow(tx, entry.competitionId);
-  const window = getRegistrationWindowState(season);
-  if (!canEditCompetitionEntryRoster(entry.registrationStatus as "draft" | "changes_requested", window.canSubmit)) throw new AppError(ErrorCode.REGISTRATION_CLOSED, window.message);
   const currentMemberships = await tx.select().from(teamMemberships).where(and(eq(teamMemberships.teamId, entry.teamId), inArray(teamMemberships.userId, input.userIds), isNull(teamMemberships.endedAt)));
   if (currentMemberships.length !== input.userIds.length) throw new AppError(ErrorCode.VALIDATION_FAILED, "新选择的名单成员必须当前仍属于这支队伍。");
   const [revision] = await tx.select().from(competitionEntryRosterRevisions).where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id))).for("update");
   if (!revision || revision.status !== "draft") throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前 roster revision 不可编辑。");
+  const window = getRegistrationWindowState(season);
+  if (!canMutateCompetitionEntryRoster(entry.registrationStatus as "draft" | "changes_requested", revision.origin, season)) throw new AppError(ErrorCode.REGISTRATION_CLOSED, window.message);
   const existingParticipants = await tx.select().from(competitionEntryParticipants).where(eq(competitionEntryParticipants.entryId, entry.id));
   const selected = new Set(input.userIds);
   const confirmedRemoved = existingParticipants.filter((participant) => participant.status === "confirmed" && !selected.has(participant.userId));
@@ -178,6 +178,10 @@ export async function confirmCompetitionEntryParticipationInTx(tx: TxDb, input: 
   const [participant] = await tx.select().from(competitionEntryParticipants).where(and(eq(competitionEntryParticipants.entryId, entry.id), eq(competitionEntryParticipants.userId, input.userId))).for("update");
   if (!participant) throw new AppError(ErrorCode.NOT_FOUND, "你不在当前 Entry roster 中。");
   const season = await loadSeasonOrThrow(tx, entry.competitionId);
+  const [revision] = await tx.select().from(competitionEntryRosterRevisions).where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id))).for("update");
+  if (!revision || revision.status !== "draft") throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前 roster revision 不可编辑。");
+  const window = getRegistrationWindowState(season);
+  if (!canMutateCompetitionEntryRoster(entry.registrationStatus as "draft" | "changes_requested", revision.origin, season)) throw new AppError(ErrorCode.REGISTRATION_CLOSED, window.message);
   if (participant.status === "confirmed") return { seasonSlug: season.slug, alreadyConfirmed: true };
   if (participant.status !== "invited") throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前成员状态不能确认参赛。");
   const [claim] = await tx.insert(competitionEntryActiveClaims).values({ competitionId: entry.competitionId, userId: input.userId, entryId: entry.id, participantId: participant.id }).onConflictDoNothing().returning({ entryId: competitionEntryActiveClaims.entryId });
@@ -233,8 +237,8 @@ export async function submitCompetitionEntryInTx(tx: TxDb, input: { entryId: str
   if (!editableStatuses.includes(entry.registrationStatus as typeof editableStatuses[number])) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前报名状态不能提交。");
   const season = await loadSeasonOrThrow(tx, entry.competitionId);
   const window = getRegistrationWindowState(season);
-  if (!canEditCompetitionEntryRoster(entry.registrationStatus as "draft" | "changes_requested", window.canSubmit)) throw new AppError(ErrorCode.REGISTRATION_CLOSED, window.message);
   const validated = await validateEntryRoster(tx, entry, season, ["draft"], { requireCurrentTeamMembership: true });
+  if (!canMutateCompetitionEntryRoster(entry.registrationStatus as "draft" | "changes_requested", validated.revision.origin, season)) throw new AppError(ErrorCode.REGISTRATION_CLOSED, window.message);
   const [{ value }] = await tx.select({ value: count() }).from(competitionEntrySubmissions).where(eq(competitionEntrySubmissions.entryId, entry.id));
   const now = new Date();
   await tx.update(competitionEntryRosterRevisions).set({ status: "submitted", submittedAt: now }).where(eq(competitionEntryRosterRevisions.id, validated.revision.id));
@@ -257,7 +261,7 @@ export async function reviewCompetitionEntryInTx(tx: TxDb, input: { entryId: str
   await tx.update(competitionEntrySubmissions).set({ decision: input.decision, decidedBy: input.actorId, decidedAt: now, reason: input.reason || null }).where(eq(competitionEntrySubmissions.id, submission.id));
   if (input.decision === "changes_requested") {
     const nextRevision = revision.revisionNumber + 1;
-    const [next] = await tx.insert(competitionEntryRosterRevisions).values({ entryId: entry.id, revisionNumber: nextRevision, status: "draft", createdBy: input.actorId }).returning({ id: competitionEntryRosterRevisions.id });
+    const [next] = await tx.insert(competitionEntryRosterRevisions).values({ entryId: entry.id, revisionNumber: nextRevision, status: "draft", origin: "admin_remediation", createdBy: input.actorId }).returning({ id: competitionEntryRosterRevisions.id });
     const members = await tx.select().from(competitionEntryRosterMembers).where(eq(competitionEntryRosterMembers.revisionId, revision.id));
     if (members.length > 0) await tx.insert(competitionEntryRosterMembers).values(members.map((member) => ({ revisionId: next.id, participantId: member.participantId, userId: member.userId, teamMembershipId: member.teamMembershipId, isPrimaryStarter: member.isPrimaryStarter })));
     await tx.update(competitionEntryRosterRevisions).set({ status: "superseded" }).where(eq(competitionEntryRosterRevisions.id, revision.id));

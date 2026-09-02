@@ -60,8 +60,16 @@ export const seasons = pgTable("seasons", {
   positions: text("positions").array().notNull().default(sql`ARRAY['igl','awper','opener','closer','anchor']`),
   // ──────────────────────────────────────────────────────────────────────
 
-  startAt: timestamp("start_at", { withTimezone: true }),
-  registrationDeadline: timestamp("registration_deadline", { withTimezone: true }),
+  // Participation dates belong to the published event, not its tournament
+  // lifecycle. A null opening time means the public event is not scheduled to
+  // accept applications yet; it never means "open immediately".
+  registrationOpensAt: timestamp("registration_opens_at", { withTimezone: true }),
+  /** Actual canonical transition fact; separate from an operator's schedule. */
+  registrationOpenedAt: timestamp("registration_opened_at", { withTimezone: true }),
+  registrationClosesAt: timestamp("registration_closes_at", { withTimezone: true }),
+  // This is a planned self-service deadline only. The auditable immutable fact
+  // remains event_rosters.frozen_at.
+  rosterChangeClosesAt: timestamp("roster_change_closes_at", { withTimezone: true }),
   endAt: timestamp("end_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

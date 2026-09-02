@@ -1,13 +1,16 @@
 import type { SeasonStatus } from "@/types/season";
 
-type RegistrationWindowSeason = {
+export type RegistrationWindowSeason = {
   status: SeasonStatus;
-  startAt: Date | string | null;
-  registrationDeadline: Date | string | null;
+  registrationOpensAt: Date | string | null;
+  registrationOpenedAt?: Date | string | null;
+  registrationClosesAt: Date | string | null;
+  rosterChangeClosesAt?: Date | string | null;
 };
 
 export type RegistrationWindowPhase =
   | "hidden"
+  | "unscheduled"
   | "upcoming"
   | "open"
   | "closed";
@@ -18,6 +21,16 @@ export interface RegistrationWindowState {
   canSaveDraft: boolean;
   canSubmit: boolean;
   message: string;
+}
+
+/** One canonical self-service boundary for approved CompetitionEntry rosters. */
+export function canSelfManageEventRoster(
+  season: Pick<RegistrationWindowSeason, "status" | "registrationClosesAt" | "rosterChangeClosesAt">,
+  now: Date = new Date(),
+): boolean {
+  if (season.status !== "registration") return false;
+  const deadline = toTime(season.rosterChangeClosesAt ?? season.registrationClosesAt);
+  return deadline === null || now.getTime() < deadline;
 }
 
 function toTime(value: Date | string | null): number | null {
@@ -48,8 +61,19 @@ export function getRegistrationWindowState(
   }
 
   const nowTime = now.getTime();
-  const startTime = toTime(season.startAt);
-  const deadlineTime = toTime(season.registrationDeadline);
+  const startTime = toTime(season.registrationOpensAt);
+  const openedTime = toTime(season.registrationOpenedAt ?? null);
+  const deadlineTime = toTime(season.registrationClosesAt);
+
+  if (startTime === null) {
+    return {
+      phase: "unscheduled",
+      canViewForm: true,
+      canSaveDraft: false,
+      canSubmit: false,
+      message: "报名开放时间待定。",
+    };
+  }
 
   if (deadlineTime !== null && nowTime >= deadlineTime) {
     return {
@@ -65,9 +89,19 @@ export function getRegistrationWindowState(
     return {
       phase: "upcoming",
       canViewForm: true,
-      canSaveDraft: true,
+      canSaveDraft: false,
       canSubmit: false,
-      message: "报名提交尚未开放，可以先保存草稿。",
+      message: "报名尚未开放。",
+    };
+  }
+
+  if (openedTime === null) {
+    return {
+      phase: "upcoming",
+      canViewForm: true,
+      canSaveDraft: false,
+      canSubmit: false,
+      message: "报名开放正在确认中，请稍后刷新。",
     };
   }
 
