@@ -27,6 +27,7 @@ RivalHub 以最高已完成的验证层级描述能力证据：
 | `pnpm test` | Vitest unit suite 与不依赖数据库的组件/领域测试 |
 | `pnpm test:coverage` | V8 覆盖率诊断报告，不作为百分比 gate |
 | `pnpm test:integration` | 通过 Local runner 运行真实 PostgreSQL / migration replay suite |
+| `pnpm test:integration:pg17` | CI PostgreSQL 17 service lane：active Drizzle chain、seed/fixture、verify-db、template clone 与 integration suite |
 | `pnpm test:e2e` | 准备并清理 Local browser fixture 后运行 Playwright |
 | `pnpm check` | type-check + lint + db:check + test |
 | `pnpm verify` | check + production build；build 不需要数据库或 fake DB URL |
@@ -56,6 +57,8 @@ pnpm verify:local
 
 所有 real-PG 套件通过 `scripts/db/local.ts` 注入 loopback Local PostgreSQL。integration runner 先从 `template1` 创建基线库，使用现有 Drizzle runner、seed 和 verify 回放 active chain，再为每个 Vitest worker 创建独立 template clone；migration replay 的 scratch database 仍单独串行执行，不使用 testcontainers，也不以 mock 代替事务、约束或并发证据。Vitest 保持 `pool: forks` 与 `isolate: true`；需要缩小调试范围时直接使用 Vitest 文件或 `-t` pattern filter。
 
+CI 的 `postgres` job 使用官方 `postgres:17` service container，不启动 Supabase CLI 或任何 Auth、Storage、Kong、PostgREST、Studio、Realtime 等服务；`scripts/db/prepare-pg17.ts` 只在 vanilla PostgreSQL 缺少时建立 `anon` 与 `authenticated` 两个 `NOLOGIN` 角色，并验证 `gen_random_uuid()`，不修改 active migrations。随后 `test:integration:pg17` 依次完成 33 条 migration、seed、fixture、`verify-db`、worker clone 和完整 integration suite。开发者的 `db:local:start-db` 仍保留为 Local Supabase 兼容入口，不是 CI migration authority。
+
 ## PR CI graph
 
 ```text
@@ -66,6 +69,29 @@ plan → static ─┐
 ```
 
 `scripts/ci/plan.mjs` 根据 changed surface 选择 capability：文档-only 只运行 `plan + ci-gate`；代码域分别进入 `static`、`postgres` 或 `system`；rename/delete、未分类、toolchain、workflow、release、merge queue 和手动运行 fail closed 到 full。`ci-gate` 会区分预期 skipped 与 required failure/skipped/cancelled，只有 planner 明确声明的 capability 可以跳过。
+
+只有 pull request 使用上述 selective graph；`push` 到 `dev`、`main` 或 Major integration branch、`merge_group`、已发布 `release` 以及 `workflow_dispatch` 都将 `FORCE_FULL`，运行 `static + postgres + system + ci-gate` 的完整 convergence gate。
+
+当前 planner contract 如下：
+
+| changed surface | required evidence |
+|---|---|
+| `docs/**`、README 等文档 | none（只保留 `plan + ci-gate`） |
+| pure domain、formatter、普通 presentation UI | static |
+| 普通 `src/actions/**`、直接 DB 的 `src/lib/**` / server page、`src/db/**` | static + postgres |
+| `src/actions/auth.ts`、`competition-entries.ts`、`major-prestart.ts`、`register.ts`；Auth/session boundary；`src/app/login/**`、确认/密码路由；直接使用 Supabase 的 action/lib/component | static + postgres + system（仅由实际 DB/Supabase 依赖或显式 critical path 增加） |
+| `supabase/config.toml` | system |
+| `drizzle/migrations/**` | postgres |
+| `playwright.config.ts`、`tests/e2e/**`、CI/test harness、package/toolchain、其它 Supabase project 文件 | FULL |
+| unknown、rename、delete、无法读取的 source | FULL |
+
+普通 `src/app/**` 不再自动触发 system；planner 只检查少量显式 critical path 和 source 的 direct DB/Supabase import，不构建大型自定义 dependency graph。`tests/unit/ci/plan.test.mjs` 对上述边界使用单文件 regression cases；`tests/unit/ci/gate.test.mjs` 同时证明 planner-declared skipped 可通过，而 required/unexpected skipped、failure、cancelled 会失败。
+
+`system` 只维护一个 full profile：最小启动集合为 PostgreSQL、Auth、Storage、PostgREST、Kong，随后验证 Auth、Storage、Data API deny-by-default 与 Major Entry browser journey。Major Entry journey 本身验证真实 Auth → Team → CompetitionEntry → canonical page，不上传 Storage object；Storage 仍由同一 system job 的独立 service contract 证明，而不是被误当作 Entry E2E 的直接依赖。
+
+本 Issue 的 fresh runner 对照没有采用 Supabase CLI 2.116.0：2.115.0 与 2.116.0 各 3 次完整回归均通过，但 `start-services` 中位数分别为 81.915s 与 84.951s，E2E 中位数分别为 26.156s 与 29.803s，未达到稳定的实质收益。因此仓库继续锁定 2.115.0；不保留 CLI/profile benchmark lane。
+
+E2E 中偶尔出现的 `Error: The destination stream closed early` 已在本地与 fresh Actions 重复观察；在当前 Next/React server-renderer 路径中对应 response destination close 的 RSC teardown noise。只要同一 run 的 E2E 结果为 3 passed / 1 expected skip 且 fixture cleanup 成功，不把它静默成测试通过，也不修改 Next 依赖；若伴随失败请求、测试失败或 cleanup 失败，仍按 runtime regression 处理并阻断交付。
 
 ## Verification contracts
 

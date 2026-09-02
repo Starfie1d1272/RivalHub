@@ -34,6 +34,8 @@ pnpm verify:local
 
 wrapper 从 `supabase status --output json` 获取连接，并验证 DB/API 指向 loopback；若状态包含 Studio，也会校验其 loopback URL。它不会读取 `.env.local` 的远程 `DATABASE_URL`，也不接受远程 URL fallback。`reset` 仅用于开发者明确要求的 Local 破坏性重建，再重放 active Drizzle migrations、fixtures 与验证；CI migration replay 使用独立 scratch/template database，不调用 `db reset`，不存在第二套业务 migration authority。`verify:local` 会确保最小服务栈 ready，重放 bootstrap/verify、运行不依赖数据库的 `verify`，随后运行 real-PG integration 与 browser E2E，并清理专用 fixture。
 
+CI 的 DB-only critical path 不使用 `start-db`：`.github/workflows/ci.yml` 的 `postgres` job 直接使用官方 `postgres:17` service container，设置最小 `anon` / `authenticated` `NOLOGIN` prerequisite 后，通过 `test:integration:pg17` 回放完整 active Drizzle chain、seed、fixtures、`verify-db` 与 template-clone integration。`start-db` 仍是开发者 Local Supabase 兼容命令；无论 Local 还是 CI，active migrations 都只由 canonical Drizzle chain 执行。
+
 ## Active migrations
 
 `drizzle/migrations/` 是活动迁移链，`drizzle/legacy-migrations/` 是只读历史。`pnpm db:check` 校验活动链；`pnpm db:push` 被阻止，因为它无法执行 custom SQL、data backfill 或 fail-closed validation。
