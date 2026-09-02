@@ -11,8 +11,6 @@ import {
 } from "@/db/schema";
 import {
   loadCompetitivePlatformCatalog,
-  resolvePlatformCatalog,
-  toCompetitiveProfileConfig,
   type CompetitivePlatformCatalogEntry,
 } from "@/lib/competitive/catalog";
 import { serializeSanctionPublic, type SanctionEffect } from "@/lib/discipline/service";
@@ -25,7 +23,6 @@ import {
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import {
   computeParticipantReadiness,
-  getCompetitiveProfileBlockers,
   getParticipantIdentityBlockers,
   loadParticipantQualificationFacts,
   type ParticipantQualificationFacts,
@@ -269,7 +266,9 @@ export function selectMyCompetitiveProfilePlatformKeys(
   const selected = new Set([...requiredPlatforms, ...platformsWithFacts]);
   const catalogKeys = catalog.map((platform) => platform.key);
   return [
-    ...catalogKeys.filter((key) => selected.has(key)),
+    // Settings is long-lived profile maintenance, not a simulated event. Show
+    // both product platforms in canonical order even before the user has facts.
+    ...catalogKeys,
     ...[...selected].filter((key) => !catalogKeys.includes(key)).sort(),
   ];
 }
@@ -332,15 +331,15 @@ export async function loadMyReadiness(userId: string): Promise<MyReadinessModel>
     if (!platform) {
       return { key, displayName: key, state: "unknown", blockers: ["该平台的竞技目录不可确认。"] };
     }
-    const context = resolvePlatformCatalog(platform);
-    if (!context) {
-      return { key: platform.key, displayName: platform.displayName, state: "unknown", blockers: ["平台目录缺少当前赛季、上一赛季或段位表，竞技档案不可确认。"] };
-    }
+    const current = platform.seasons.find((season) => season.isCurrent && season.active);
+    if (!current || platform.ranks.length === 0) return { key: platform.key, displayName: platform.displayName, state: "unknown", blockers: ["平台目录缺少当前赛季或段位表，竞技档案不可确认。"] };
     const fact = factsByPlatform.get(platform.key) ?? null;
     if (!fact) {
       return { key: platform.key, displayName: platform.displayName, state: "unknown", blockers: ["竞技档案事实不可确认。"] };
     }
-    const blockers = getCompetitiveProfileBlockers(fact, toCompetitiveProfileConfig({ platform: platform.key, ...context }));
+    const blockers: string[] = [];
+    if (!fact.historicalPeak) blockers.push(`${platform.displayName} · 历史最高尚未录入。`);
+    if (!fact.seasonPeaks?.has(current.seasonKey)) blockers.push(`${platform.displayName} · ${current.label} 尚未录入。`);
     return { key: platform.key, displayName: platform.displayName, state: blockers.length === 0 ? "ready" : "incomplete", blockers };
   });
 

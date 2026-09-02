@@ -109,6 +109,14 @@ export async function freezeCompetitiveContext(
         recentSeasonKeys: [context.previousSeasonKey, context.currentSeasonKey],
         recentSeasonWeight: 30,
       },
+      fallbackConversion: config.competitiveProfile?.fallbackConversion
+        ? {
+            sourcePlatform: "fivee",
+            version: config.competitiveProfile.fallbackConversion.version,
+            seasonKeyMap: { ...config.competitiveProfile.fallbackConversion.seasonKeyMap },
+            rankMap: { ...config.competitiveProfile.fallbackConversion.rankMap },
+          }
+        : undefined,
     },
   };
 }

@@ -26,6 +26,7 @@ import {
   evaluateRosterQualificationFromFacts,
   loadParticipantQualificationFacts,
   resolveCompetitiveContext,
+  toPlayerStrengthInput,
   type ParticipantQualificationFacts,
 } from "@/lib/qualification/service";
 import {
@@ -222,6 +223,7 @@ export async function startMajorInTransaction(
         platform: competitiveProfile
           ? competitiveProfile.platform
           : undefined,
+        fallbackPlatform: competitiveProfile?.fallbackConversion?.sourcePlatform,
       })
     : new Map<string, ParticipantQualificationFacts>();
   const membersByEventRoster = new Map<string, Array<{ userId: string; isPrimaryStarter: boolean }>>();
@@ -258,18 +260,19 @@ export async function startMajorInTransaction(
   }
   const frozenCompetitiveFacts = frozenParticipantIds.map((userId) => {
     const fact = qualificationFacts.get(userId);
-    const serialize = (peak: { rank: string; rating: number } | null) => (peak ? { rank: peak.rank, rating: peak.rating } : null);
+    const effective = competitiveProfile && fact ? toPlayerStrengthInput(fact, competitiveProfile) : null;
+    const serialize = (peak: { rank: string | null; rating: number | null } | null | undefined) => (peak?.rank && peak.rating !== null && peak.rating !== undefined ? { rank: peak.rank, rating: peak.rating } : null);
     return {
       userId,
-      historicalPeak: competitiveProfile ? serialize(fact?.historicalPeak ?? null) : null,
+      historicalPeak: competitiveProfile ? serialize(effective?.historicalPeak) : null,
       previousSeasonPeak: competitiveProfile
-        ? serialize(fact?.seasonPeaks?.get(competitiveProfile.evidencePolicy?.referenceSeasonKey ?? competitiveProfile.previousSeasonKey) ?? null)
+        ? serialize(effective?.previousSeasonPeak)
         : null,
       currentSeasonPeak: competitiveProfile
-        ? serialize(fact?.seasonPeaks?.get(competitiveProfile.currentSeasonKey) ?? null)
+        ? serialize(effective?.currentSeasonPeak)
         : null,
       recentSeasonPeaks: competitiveProfile?.evidencePolicy
-        ? competitiveProfile.evidencePolicy.recentSeasonKeys.map((key) => serialize(fact?.seasonPeaks?.get(key) ?? null))
+        ? effective?.recentSeasonPeaks?.map(serialize) ?? []
         : undefined,
     };
   });

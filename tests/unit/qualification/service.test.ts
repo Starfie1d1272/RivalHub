@@ -138,12 +138,34 @@ describe("participant readiness", () => {
     expect(readiness.ready).toBe(false);
     expect(readiness.blockers).toContain("请填写 Steam64 ID。");
     expect(readiness.blockers).toContain("请完成并通过高校身份认证。");
-    expect(readiness.blockers).toContain("缺少上赛季最高段位及 Rating。");
+    expect(readiness.blockers).toContain("缺少perfect_world · S20 的最高段位及 Rating。");
   });
 
   it("accepts a participant whose canonical Perfect nickname is present", () => {
     const readiness = computeParticipantReadiness(fullFact(), CONTEXT);
     expect(readiness.blockers).not.toContain("请填写完美平台昵称。");
+  });
+
+  it("uses an explicitly frozen 5E mapping only when primary season facts are unavailable", () => {
+    const context: CompetitiveProfileConfig = {
+      ...CONTEXT,
+      fallbackConversion: {
+        sourcePlatform: "fivee",
+        version: "major-2026-v1",
+        seasonKeyMap: { S20: "5E-S20", S21: "5E-S21" },
+        rankMap: { S: "A", SS: "S" },
+      },
+    };
+    const readiness = computeParticipantReadiness(fullFact({
+      seasonPeaks: new Map([["S20", { status: "unranked", rank: null, rating: null }], ["S21", { status: "unranked", rank: null, rating: null }]]),
+      fallbackFacts: {
+        historicalPeak: null,
+        seasonPeaks: new Map([["5E-S20", { rank: "S", rating: 1700 }], ["5E-S21", { rank: "SS", rating: 1850 }]]),
+      },
+    }), context);
+    expect(readiness.ready).toBe(true);
+    expect(readiness.strength.previousSeasonPeak).toEqual({ rank: "A", rating: 1700 });
+    expect(readiness.strength.currentSeasonPeak).toEqual({ rank: "S", rating: 1850 });
   });
 
   it("single-user readiness delegates to the batch path with identical results", async () => {
@@ -165,7 +187,7 @@ describe("participant readiness", () => {
 
     expect(batch.get(USER_ID)).toEqual(single);
     expect(single.ready).toBe(false);
-    expect(single.blockers.join(" ")).toContain("缺少上赛季最高段位及 Rating");
+    expect(single.blockers.join(" ")).toContain("缺少perfect_world · S20 的最高段位及 Rating");
   });
 });
 

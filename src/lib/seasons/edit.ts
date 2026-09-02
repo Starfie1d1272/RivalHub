@@ -91,6 +91,12 @@ const seasonFormBaseSchema = z.object({
         recentSeasonKeys: z.array(z.string().min(1).max(128)).min(1).max(8),
         recentSeasonWeight: z.literal(30),
       }).optional(),
+      fallbackConversion: z.object({
+        sourcePlatform: z.literal("fivee"),
+        version: z.string().min(1).max(128),
+        seasonKeyMap: z.record(z.string().min(1).max(128), z.string().min(1).max(128)),
+        rankMap: z.record(z.string().min(1).max(64), z.string().min(1).max(64)).refine((value) => Object.keys(value).length > 0),
+      }).optional(),
     }).optional(),
   }).optional(),
   affiliationRules: z.array(z.object({
