@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, dev, feat/major-2027-integration]
+    branches: [main, dev]
   pull_request:
-    branches: [main, dev, feat/major-2027-integration]
+    branches: [main, dev]
   merge_group:
   release:
     types: [published]
