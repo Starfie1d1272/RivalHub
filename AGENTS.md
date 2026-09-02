@@ -51,6 +51,16 @@ pnpm db:studio
 - `admin_users` / `rivalhub-admin` 仅是 emergency compatibility path。
 - Fresh deployment 通过配置的 `RIVALHUB_OWNER_EMAIL` 在尚不存在 `super_admin` 时一次性 bootstrap；不得把“第一个注册用户”当作 owner。
 
+## Issue governance
+
+- 2.x Issue 标题统一使用 `[2.x] <问题或目标>`；`Infra`、`Perf`、`UX` 等工作类别不再作为标题前缀，避免与版本线混用。
+- Open 2.x Issue 必须且只能有一个 `priority:P0` / `priority:P1` / `priority:P2` / `priority:P3` label；优先级以 label 为唯一 authority，正文不再重复维护 `## 优先级`。
+- 计划性工作默认使用 `enhancement` 等现有类型 label；`next` 仅用于当前正在推进或紧接着推进的极少数主题，不是新的优先级等级。
+- milestone 与 assignee 默认留空；只有存在真实 release boundary 或明确 owner 时才设置，不为了“元数据完整”机械填写。
+- Issue 正文以 `背景 → 目标 → 验收` 为最小结构；`范围/边界`、`非目标`、`关联` 仅在确实有助于限定实现时增加。小 Issue 不需要为了模板制造空章节，大型产品/架构 Issue 可以按实际规则展开。
+- 通过 GitHub API、ChatGPT、Codex 或其它 agent 创建/修改 Issue 时，必须显式设置标题和 labels；不要假设 GitHub UI 的 Issue Form 会自动应用到 API 写入。
+- 人工从 GitHub UI 创建 2.x 工作项时优先使用 `.github/ISSUE_TEMPLATE/2x-work-item.yml`；创建后确认存在且仅存在一个 `priority:P*` label。
+
 ## Branches and releases
 
 - `main` 是 production branch，`dev` 是下一版本 integration/staging branch；二者均不 force push，只通过 PR 合入。
