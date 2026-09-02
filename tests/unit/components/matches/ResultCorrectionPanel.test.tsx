@@ -173,6 +173,6 @@ describe("ResultCorrectionPanel", () => {
     await user.click(screen.getByRole("button", { name: "计算影响清单" }));
     await waitFor(() => expect(mockedPlan).toHaveBeenCalled());
     expect(screen.queryByText(/胜者将变更/)).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "计算影响清单" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "计算影响清单" })).toBeInTheDocument());
   });
 });

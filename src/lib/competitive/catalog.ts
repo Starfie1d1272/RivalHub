@@ -48,11 +48,9 @@ export interface CompetitivePlatformCatalogEntry {
 export async function loadCompetitivePlatformCatalog(
   executor: DatabaseExecutor,
 ): Promise<CompetitivePlatformCatalogEntry[]> {
-  const [platforms, ranks, seasons] = await Promise.all([
-    executor.select().from(competitivePlatforms).orderBy(asc(competitivePlatforms.key)),
-    executor.select().from(competitivePlatformRanks).orderBy(asc(competitivePlatformRanks.platformKey), asc(competitivePlatformRanks.sortOrder)),
-    executor.select().from(competitivePlatformSeasons).orderBy(asc(competitivePlatformSeasons.platform), asc(competitivePlatformSeasons.sortOrder)),
-  ]);
+  const platforms = await executor.select().from(competitivePlatforms).orderBy(asc(competitivePlatforms.key));
+  const ranks = await executor.select().from(competitivePlatformRanks).orderBy(asc(competitivePlatformRanks.platformKey), asc(competitivePlatformRanks.sortOrder));
+  const seasons = await executor.select().from(competitivePlatformSeasons).orderBy(asc(competitivePlatformSeasons.platform), asc(competitivePlatformSeasons.sortOrder));
   return platforms.sort((left, right) => compareCompetitivePlatformPriority(left.key, right.key)).map((platform) => ({
     key: platform.key,
     displayName: platform.displayName,
@@ -144,10 +142,8 @@ export async function resolveLiveCompetitiveContext(
 ): Promise<ResolvedCatalogContext | null> {
   const [platformRow] = await executor.select().from(competitivePlatforms).where(eq(competitivePlatforms.key, platform)).limit(1);
   if (!platformRow) return null;
-  const [seasons, ranks] = await Promise.all([
-    executor.select().from(competitivePlatformSeasons).where(and(eq(competitivePlatformSeasons.platform, platform), eq(competitivePlatformSeasons.active, true))).orderBy(asc(competitivePlatformSeasons.sortOrder)),
-    executor.select().from(competitivePlatformRanks).where(eq(competitivePlatformRanks.platformKey, platform)).orderBy(asc(competitivePlatformRanks.sortOrder)),
-  ]);
+  const seasons = await executor.select().from(competitivePlatformSeasons).where(and(eq(competitivePlatformSeasons.platform, platform), eq(competitivePlatformSeasons.active, true))).orderBy(asc(competitivePlatformSeasons.sortOrder));
+  const ranks = await executor.select().from(competitivePlatformRanks).where(eq(competitivePlatformRanks.platformKey, platform)).orderBy(asc(competitivePlatformRanks.sortOrder));
   const resolved = resolvePlatformCatalog({
     ranks: ranks.map((rank) => ({ id: rank.id, rankKey: rank.rankKey, label: rank.label, sortOrder: rank.sortOrder, starMin: rank.starMin, starMax: rank.starMax })),
     seasons: seasons.map((season) => ({ id: season.id, seasonKey: season.seasonKey, label: season.label, sortOrder: season.sortOrder, active: season.active, isCurrent: season.isCurrent })),
@@ -203,14 +199,12 @@ export async function fallbackCatalogReferencesExist(
   const seasonKeys = [...new Set(Object.values(fallback.seasonKeyMap))];
   const rankKeys = [...new Set(Object.keys(fallback.rankMap))];
   if (seasonKeys.length === 0 || rankKeys.length === 0 || seasonKeys.some((key) => !key) || rankKeys.some((key) => !key)) return false;
-  const [sourceSeasons, sourceRanks] = await Promise.all([
-    executor.select({ seasonKey: competitivePlatformSeasons.seasonKey })
-      .from(competitivePlatformSeasons)
-      .where(and(eq(competitivePlatformSeasons.platform, fallback.sourcePlatform), inArray(competitivePlatformSeasons.seasonKey, seasonKeys))),
-    executor.select({ rankKey: competitivePlatformRanks.rankKey })
-      .from(competitivePlatformRanks)
-      .where(and(eq(competitivePlatformRanks.platformKey, fallback.sourcePlatform), inArray(competitivePlatformRanks.rankKey, rankKeys))),
-  ]);
+  const sourceSeasons = await executor.select({ seasonKey: competitivePlatformSeasons.seasonKey })
+    .from(competitivePlatformSeasons)
+    .where(and(eq(competitivePlatformSeasons.platform, fallback.sourcePlatform), inArray(competitivePlatformSeasons.seasonKey, seasonKeys)));
+  const sourceRanks = await executor.select({ rankKey: competitivePlatformRanks.rankKey })
+    .from(competitivePlatformRanks)
+    .where(and(eq(competitivePlatformRanks.platformKey, fallback.sourcePlatform), inArray(competitivePlatformRanks.rankKey, rankKeys)));
   return sourceSeasons.length === seasonKeys.length && sourceRanks.length === rankKeys.length;
 }
 

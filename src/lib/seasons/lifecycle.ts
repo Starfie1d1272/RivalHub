@@ -21,11 +21,9 @@ export async function assertSeasonHasNoHistoricalFacts(
   seasonId: string,
   message: string = SEASON_HAS_FACTS_DELETE_MESSAGE,
 ): Promise<void> {
-  const [registrations, entries, scheduledMatches] = await Promise.all([
-    tx.select({ value: count() }).from(seasonRegistrations).where(eq(seasonRegistrations.seasonId, seasonId)),
-    tx.select({ value: count() }).from(competitionEntries).where(eq(competitionEntries.competitionId, seasonId)),
-    tx.select({ value: count() }).from(matches).where(eq(matches.seasonId, seasonId)),
-  ]);
+  const registrations = await tx.select({ value: count() }).from(seasonRegistrations).where(eq(seasonRegistrations.seasonId, seasonId));
+  const entries = await tx.select({ value: count() }).from(competitionEntries).where(eq(competitionEntries.competitionId, seasonId));
+  const scheduledMatches = await tx.select({ value: count() }).from(matches).where(eq(matches.seasonId, seasonId));
   if ([registrations, entries, scheduledMatches].some(([row]) => Number(row?.value ?? 0) > 0)) {
     throw new AppError(ErrorCode.SEASON_INVALID_STATUS, message);
   }

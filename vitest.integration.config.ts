@@ -3,12 +3,15 @@ import { resolve } from "path";
 
 export default defineConfig({
   test: {
+    name: "integration-postgres",
     environment: "node",
-    setupFiles: ["./tests/setup.ts"],
     globals: true,
     include: ["tests/integration/db/**/*.test.ts"],
-    fileParallelism: false,
-    maxConcurrency: 1,
+    pool: "forks",
+    isolate: true,
+    fileParallelism: true,
+    maxWorkers: Number(process.env.RIVALHUB_INTEGRATION_WORKERS ?? 2),
+    setupFiles: ["./tests/integration/setup.ts"],
     testTimeout: 180_000,
     hookTimeout: 180_000,
   },

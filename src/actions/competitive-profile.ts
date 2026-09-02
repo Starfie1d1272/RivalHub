@@ -75,10 +75,8 @@ export async function saveCompetitiveProfile(input: unknown): Promise<ActionResu
     await db.transaction(async (tx) => {
       const [platformRow] = await tx.select().from(competitivePlatforms).where(eq(competitivePlatforms.key, platform)).limit(1);
       if (!platformRow) throw new AppError(ErrorCode.VALIDATION_FAILED, "竞技平台不存在，不能保存竞技档案。");
-      const [ladder, seasons] = await Promise.all([
-        tx.select().from(competitivePlatformRanks).where(eq(competitivePlatformRanks.platformKey, platform)),
-        tx.select().from(competitivePlatformSeasons).where(eq(competitivePlatformSeasons.platform, platform)),
-      ]);
+      const ladder = await tx.select().from(competitivePlatformRanks).where(eq(competitivePlatformRanks.platformKey, platform));
+      const seasons = await tx.select().from(competitivePlatformSeasons).where(eq(competitivePlatformSeasons.platform, platform));
       const ladderByKey = new Map(ladder.map((rank) => [rank.rankKey, rank]));
       const seasonKeys = new Set(seasons.map((season) => season.seasonKey));
       const existingFacts = await tx.select().from(competitiveRankFacts).where(and(eq(competitiveRankFacts.userId, session.userId), eq(competitiveRankFacts.platform, platform)));

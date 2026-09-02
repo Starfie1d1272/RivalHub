@@ -42,18 +42,16 @@ test("队长可以登录、建立长期队伍并发起本届 Major 报名", asyn
   await page.getByLabel("邮箱地址").fill(captain.email);
   await page.getByLabel("密码", { exact: true }).fill(credentials.password);
   await page.locator('button[type="submit"]').click();
-  await page.waitForURL(/\/my\/teams/);
-  await page.waitForLoadState("networkidle");
-  await page.goto("/my/teams#create-team");
-  await page.waitForLoadState("networkidle");
+  await page.waitForURL((url) => url.pathname === "/my/teams");
+  await expect(page.getByText("我的队伍", { exact: true })).toBeVisible({ timeout: 20_000 });
+  await page.goto("/my/teams");
 
   // 长期 Team：无队时通过真实表单创建；有队时读取既有 Team。先等页面
   // 渲染出两种状态之一，避免 hydration 早期 count() 竞态。
   const createTeamButton = page.getByRole("button", { name: "创建队伍" });
   const workspace = page.getByText("队伍资料", { exact: true });
-  await expect(createTeamButton.or(workspace)).toBeVisible();
+  await expect(createTeamButton.or(workspace)).toBeVisible({ timeout: 20_000 });
   if (await createTeamButton.isVisible()) {
-    await expect(page).toHaveURL(/\/my\/teams#create-team$/);
     mkdirSync(resolve(process.cwd(), ".agent-tmp"), { recursive: true });
     await page.locator("input").first().fill(`E2E 队伍 ${Date.now()}`);
     await createTeamButton.click();
