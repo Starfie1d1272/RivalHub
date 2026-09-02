@@ -18,7 +18,7 @@ import {
 } from "@/actions/competitive-platform";
 import { resolveCatalogSeasonRoles, type CompetitivePlatformCatalogEntry } from "@/lib/competitive/catalog";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -26,18 +26,65 @@ import { InlineConfirm, Panel, StatusBanner } from "@/components/rivalhub";
 
 type Platform = CompetitivePlatformCatalogEntry;
 
-type Run = (work: () => Promise<{ success: boolean; error?: { message: string } }>, okMessage: string) => void;
+type Run = (work: () => Promise<{ success: boolean; error?: { message: string } }>, okMessage: string, onSuccess?: () => void) => void;
+
+type NewSeasonDraft = {
+  platform: string;
+  seasonKey: string;
+  seasonKeyManuallyEdited: boolean;
+  label: string;
+  chronology: string;
+  showAdvancedSeasonKey: boolean;
+};
+
+type SeasonChronologyOption = {
+  value: string;
+  label: string;
+  insertAt?: { seasonId: string; position: "before" | "after" };
+};
 
 function suggestedSeasonKey(label: string): string {
   return label.trim().toLowerCase().replace(/\s+/g, "-");
 }
 
+function seasonKeyForDraft(draft: NewSeasonDraft): string {
+  return (draft.seasonKeyManuallyEdited ? draft.seasonKey : suggestedSeasonKey(draft.label)).trim().toLowerCase();
+}
+
+/**
+ * The catalog is displayed newest-first, while the action inserts into its
+ * oldest-first chronology. For a visible gap, anchoring on the older season
+ * and inserting after it preserves the intended final position.
+ */
+function buildSeasonChronologyOptions(seasons: Platform["seasons"]): SeasonChronologyOption[] {
+  const options: SeasonChronologyOption[] = [{ value: "latest", label: "作为最新赛季" }];
+  for (let index = 0; index < seasons.length - 1; index += 1) {
+    const newer = seasons[index];
+    const older = seasons[index + 1];
+    if (!newer || !older) continue;
+    options.push({
+      value: `gap:${older.id}`,
+      label: `位于 ${newer.label} 与 ${older.label} 之间`,
+      insertAt: { seasonId: older.id, position: "after" },
+    });
+  }
+  const oldest = seasons[seasons.length - 1];
+  if (oldest) {
+    options.push({
+      value: `before:${oldest.id}`,
+      label: `早于最早赛季（${oldest.label}）`,
+      insertAt: { seasonId: oldest.id, position: "before" },
+    });
+  }
+  return options;
+}
+
 function useCatalogActions() {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const run: Run = (work, okMessage) => startTransition(async () => {
+  const run: Run = (work, okMessage, onSuccess) => startTransition(async () => {
     const result = await work();
-    if (result.success) { toast.success(okMessage); router.refresh(); }
+    if (result.success) { toast.success(okMessage); onSuccess?.(); router.refresh(); }
     else toast.error(result.error?.message ?? "操作失败，请稍后重试。");
   });
   return { pending, run };
@@ -57,11 +104,33 @@ function SeasonStatusChips({ season, platform }: { season: Platform["seasons"][n
 
 export function CompetitivePlatformCatalog({ platforms }: { platforms: Platform[] }) {
   const { pending, run } = useCatalogActions();
-  const [newSeason, setNewSeason] = useState<{ platform: string; seasonKey: string; seasonKeyManuallyEdited: boolean; label: string; insertSeasonId: string; insertPosition: "before" | "after" } | null>(null);
+  const [newSeason, setNewSeason] = useState<NewSeasonDraft | null>(null);
   const [seasonLabelDraft, setSeasonLabelDraft] = useState<{ id: string; label: string } | null>(null);
   const [newRank, setNewRank] = useState<{ platform: string; label: string; rankKey: string } | null>(null);
   const [rankLabelDraft, setRankLabelDraft] = useState<{ id: string; label: string } | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ kind: "set-current" | "delete-season" | "delete-rank"; id: string; title: string; sub?: string } | null>(null);
+  const newSeasonPlatform = newSeason ? platforms.find((platform) => platform.key === newSeason.platform) : undefined;
+  const newSeasonSeasons = newSeasonPlatform ? [...newSeasonPlatform.seasons].sort((a, b) => b.sortOrder - a.sortOrder) : [];
+  const newSeasonChronologyOptions = buildSeasonChronologyOptions(newSeasonSeasons);
+  const selectedNewSeasonChronology = newSeasonChronologyOptions.find((option) => option.value === newSeason?.chronology);
+  const newSeasonKey = newSeason ? seasonKeyForDraft(newSeason) : "";
+  const canCreateSeason = Boolean(newSeason?.label.trim() && newSeasonKey && selectedNewSeasonChronology);
+
+  const submitNewSeason = () => {
+    if (!newSeason || !newSeason.label.trim() || !newSeasonKey || !selectedNewSeasonChronology) return;
+    const draft = newSeason;
+    const chronology = selectedNewSeasonChronology;
+    run(
+      () => createCompetitivePlatformSeason({
+        platform: draft.platform,
+        seasonKey: newSeasonKey,
+        label: draft.label,
+        ...(chronology.insertAt ? { insertAt: chronology.insertAt } : {}),
+      }),
+      "赛季已新增",
+      () => setNewSeason(null),
+    );
+  };
 
   return (
     <div className="space-y-5">
@@ -82,20 +151,8 @@ export function CompetitivePlatformCatalog({ platforms }: { platforms: Platform[
               <section className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-semibold">赛季</h3>
-                  <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => setNewSeason({ platform: platform.key, seasonKey: "", seasonKeyManuallyEdited: false, label: "", insertSeasonId: "append", insertPosition: "before" })}>+ 新增赛季</Button>
+                  <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => setNewSeason({ platform: platform.key, seasonKey: "", seasonKeyManuallyEdited: false, label: "", chronology: "latest", showAdvancedSeasonKey: false })}>+ 新增赛季</Button>
                 </div>
-                {newSeason?.platform === platform.key && (
-                  <div className="grid gap-3 rounded-sm border border-[var(--color-border)] p-4 sm:grid-cols-2">
-                    <div className="space-y-1.5"><Label>显示名称</Label><Input value={newSeason.label} onChange={(event) => setNewSeason({ ...newSeason, label: event.target.value, seasonKey: newSeason.seasonKeyManuallyEdited ? newSeason.seasonKey : suggestedSeasonKey(event.target.value) })} placeholder="例如 2026S2" /></div>
-                    <div className="space-y-1.5"><Label>稳定标识（创建后不可修改）</Label><Input value={newSeason.seasonKey} onChange={(event) => setNewSeason({ ...newSeason, seasonKey: event.target.value, seasonKeyManuallyEdited: true })} placeholder={suggestedSeasonKey(newSeason.label) || "例如 2026s2"} className="font-mono" /><p className="text-xs text-[var(--color-fg-mid)]">默认持续由显示名称规范化生成；手动编辑后请在创建前核对，后续不会变更。</p></div>
-                    <div className="space-y-1.5"><Label>插入位置</Label><Select value={newSeason.insertSeasonId} onValueChange={(insertSeasonId) => setNewSeason({ ...newSeason, insertSeasonId })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="append">作为最新赛季</SelectItem>{seasons.map((season) => <SelectItem key={season.id} value={season.id}>{season.label}</SelectItem>)}</SelectContent></Select></div>
-                    {newSeason.insertSeasonId !== "append" && <div className="space-y-1.5"><Label>相对位置</Label><Select value={newSeason.insertPosition} onValueChange={(position: "before" | "after") => setNewSeason({ ...newSeason, insertPosition: position })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="before">插入到该赛季之前</SelectItem><SelectItem value="after">插入到该赛季之后</SelectItem></SelectContent></Select></div>}
-                    <div className="flex items-end gap-2">
-                      <Button type="button" size="sm" disabled={pending || !(newSeason.seasonKey || suggestedSeasonKey(newSeason.label)).trim() || !newSeason.label.trim()} onClick={() => run(() => createCompetitivePlatformSeason({ platform: newSeason.platform, seasonKey: newSeason.seasonKey || suggestedSeasonKey(newSeason.label), label: newSeason.label, insertAt: newSeason.insertSeasonId === "append" ? undefined : { seasonId: newSeason.insertSeasonId, position: newSeason.insertPosition } }), "赛季已新增")}>创建</Button>
-                      <Button type="button" size="sm" variant="ghost" onClick={() => setNewSeason(null)}>取消</Button>
-                    </div>
-                  </div>
-                )}
                 {seasons.length === 0 && <p className="text-sm text-[var(--color-fg-mid)]">该平台还没有赛季目录。新增当前赛季与上一赛季后，参赛者才能维护竞技档案、赛事才能冻结资格上下文。</p>}
                 <div className="divide-y divide-[var(--color-border)] rounded-sm border border-[var(--color-border)]">
                   {seasons.map((season, index) => (
@@ -171,6 +228,98 @@ export function CompetitivePlatformCatalog({ platforms }: { platforms: Platform[
           </Panel>
         );
       })}
+
+      <Dialog open={Boolean(newSeason)} onOpenChange={(open) => { if (!open) setNewSeason(null); }}>
+        {newSeason && newSeasonPlatform && (
+          <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>新增历史赛季</DialogTitle>
+              <DialogDescription>补录赛季目录并选择它在时间线中的位置。创建后不会自动成为当前赛季。</DialogDescription>
+            </DialogHeader>
+
+            <form className="space-y-5" onSubmit={(event) => { event.preventDefault(); submitNewSeason(); }}>
+              <div className="space-y-1.5">
+                <Label htmlFor="new-season-label">赛季名称</Label>
+                <Input
+                  id="new-season-label"
+                  autoFocus
+                  value={newSeason.label}
+                  onChange={(event) => setNewSeason({ ...newSeason, label: event.target.value })}
+                  placeholder="例如 2025 S4"
+                />
+                <p className="text-xs text-[var(--color-fg-mid)]">这是管理员和参赛资料中展示的赛季名称。</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="new-season-chronology">时间位置</Label>
+                <Select
+                  value={newSeason.chronology}
+                  onValueChange={(chronology) => setNewSeason({ ...newSeason, chronology })}
+                  disabled={pending}
+                >
+                  <SelectTrigger id="new-season-chronology" aria-label="时间位置">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {newSeasonChronologyOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-[var(--color-fg-mid)]">直接选择创建后希望看到的时间位置。</p>
+              </div>
+
+              <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-panel-low)] p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-medium text-[var(--color-fg-mid)]">稳定标识</p>
+                    <p className="mt-1 text-sm">
+                      {newSeason.seasonKeyManuallyEdited ? "将使用：" : "将自动生成："}
+                      <span className="font-mono">{newSeasonKey || (newSeason.seasonKeyManuallyEdited ? "待填写" : "输入名称后生成")}</span>
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    aria-expanded={newSeason.showAdvancedSeasonKey}
+                    aria-controls="new-season-stable-key"
+                    onClick={() => setNewSeason({ ...newSeason, showAdvancedSeasonKey: !newSeason.showAdvancedSeasonKey })}
+                  >
+                    {newSeason.showAdvancedSeasonKey ? "收起高级设置" : "高级设置"}
+                  </Button>
+                </div>
+                {newSeason.showAdvancedSeasonKey && (
+                  <div className="mt-3 space-y-1.5">
+                    <Label htmlFor="new-season-stable-key">稳定标识（创建后不可修改）</Label>
+                    <Input
+                      id="new-season-stable-key"
+                      value={newSeason.seasonKeyManuallyEdited ? newSeason.seasonKey : suggestedSeasonKey(newSeason.label)}
+                      onChange={(event) => setNewSeason({ ...newSeason, seasonKey: event.target.value, seasonKeyManuallyEdited: true })}
+                      placeholder={suggestedSeasonKey(newSeason.label) || "例如 2025-s4"}
+                      className="font-mono"
+                    />
+                    <p className="text-xs text-[var(--color-fg-mid)]">仅在需要对齐既有外部标识时修改；名称变化不会覆盖人工设置。</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2 rounded-sm border border-[var(--color-border)] p-3" aria-live="polite">
+                <p className="text-sm font-semibold">创建前确认</p>
+                <div className="space-y-1 text-sm">
+                  <p>名称：{newSeason.label.trim() || "未填写"}</p>
+                  <p>稳定标识：{newSeasonKey || (newSeason.seasonKeyManuallyEdited ? "待填写" : "输入名称后生成")}</p>
+                  <p>时间位置：{selectedNewSeasonChronology?.label ?? "请选择时间位置"}</p>
+                </div>
+                <p className="pt-1 text-xs font-medium text-[var(--color-fg-mid)]">创建后不会自动成为当前赛季</p>
+              </div>
+
+              <DialogFooter className="gap-2">
+                <Button type="button" variant="ghost" onClick={() => setNewSeason(null)}>取消</Button>
+                <Button type="submit" disabled={pending || !canCreateSeason}>{pending ? "添加中..." : "添加赛季"}</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        )}
+      </Dialog>
 
       <Dialog open={Boolean(confirmAction)} onOpenChange={(open) => { if (!open) setConfirmAction(null); }}>
         {confirmAction && <DialogContent className="max-w-md">
