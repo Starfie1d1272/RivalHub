@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { presentCompetitiveRole, presentPublicCompetitiveProfile } from "@/lib/competitive/presentation";
+import { presentCompetitiveRole, presentPublicCompetitiveProfile, presentPublicCompetitiveSummary } from "@/lib/competitive/presentation";
 
 const catalog = [{
   key: "perfect_world",
@@ -16,6 +16,65 @@ const catalog = [{
 }];
 
 describe("public competitive profile presentation", () => {
+  it("keeps only historical and current facts in the compact summary", () => {
+    const summary = presentPublicCompetitiveSummary(catalog, [
+      { id: "history", platform: "perfect_world", kind: "historical_peak", platformSeasonKey: null, rank: "gold_s", rating: "1.17", stars: 10, achievedSeasonKey: "2026s1" },
+      { id: "current", platform: "perfect_world", kind: "season_peak", platformSeasonKey: "2026s2", rank: "gold_s", rating: "1.17", stars: 10 },
+    ]);
+
+    expect(summary).toEqual([{
+      displayName: "完美平台",
+      facts: [
+        { label: "历史最高 · 2026 第一赛季", rankLabel: "黄金 S", stars: 10, ratingLabel: "Rating Pro", rating: "1.17" },
+        { label: "2026 第二赛季 · 最高", rankLabel: "黄金 S", stars: 10, ratingLabel: "Rating Pro", rating: "1.17" },
+      ],
+    }]);
+  });
+
+  it("does not include an older season when the current season fact exists", () => {
+    const summary = presentPublicCompetitiveSummary(catalog, [
+      { id: "history", platform: "perfect_world", kind: "historical_peak", platformSeasonKey: null, rank: "gold_s", rating: "1.17", stars: 10 },
+      { id: "previous", platform: "perfect_world", kind: "season_peak", platformSeasonKey: "2026s1", rank: "bronze_s", rating: "1.10", stars: 8 },
+      { id: "current", platform: "perfect_world", kind: "season_peak", platformSeasonKey: "2026s2", rank: "gold_s", rating: "1.17", stars: 10 },
+    ]);
+
+    expect(summary[0]?.facts.map((fact) => fact.label)).toEqual(["历史最高", "2026 第二赛季 · 最高"]);
+  });
+
+  it("falls back to the most recent recorded season when current is missing", () => {
+    const summary = presentPublicCompetitiveSummary(catalog, [
+      { id: "history", platform: "perfect_world", kind: "historical_peak", platformSeasonKey: null, rank: "gold_s", rating: "1.17", stars: 10 },
+      { id: "previous", platform: "perfect_world", kind: "season_peak", platformSeasonKey: "2026s1", rank: "bronze_s", rating: "1.10", stars: 8 },
+    ]);
+
+    expect(summary[0]?.facts.map((fact) => fact.label)).toEqual(["历史最高", "2026 第一赛季 · 最高"]);
+  });
+
+  it("keeps an explicit current unranked fact instead of falling back", () => {
+    const summary = presentPublicCompetitiveSummary(catalog, [
+      { id: "history", platform: "perfect_world", kind: "historical_peak", platformSeasonKey: null, rank: "gold_s", rating: "1.17", stars: 10, achievedSeasonKey: "2026s1" },
+      { id: "previous", platform: "perfect_world", kind: "season_peak", platformSeasonKey: "2026s1", rank: "bronze_s", rating: "1.10", stars: 8 },
+      { id: "current", platform: "perfect_world", kind: "season_peak", platformSeasonKey: "2026s2", status: "unranked", rank: null, rating: "0.98", stars: null },
+    ]);
+
+    expect(summary[0]?.facts).toEqual([
+      { label: "历史最高 · 2026 第一赛季", rankLabel: "黄金 S", stars: 10, ratingLabel: "Rating Pro", rating: "1.17" },
+      { label: "2026 第二赛季", rankLabel: "未定级", stars: null, ratingLabel: "Rating Pro", rating: "0.98" },
+    ]);
+  });
+
+  it("does not expose stable platform, season or rank keys", () => {
+    const summary = presentPublicCompetitiveSummary(catalog, [
+      { id: "history", platform: "perfect_world", kind: "historical_peak", platformSeasonKey: null, rank: "gold_s", rating: "1.17", stars: 10 },
+      { id: "current", platform: "perfect_world", kind: "season_peak", platformSeasonKey: "2026s2", rank: "gold_s", rating: "1.17", stars: 10 },
+    ]);
+    const publicResult = JSON.stringify(summary);
+
+    expect(publicResult).not.toContain("perfect_world");
+    expect(publicResult).not.toContain("2026s2");
+    expect(publicResult).not.toContain("gold_s");
+  });
+
   it("uses catalog display labels, preserves stars and never exposes stored keys", () => {
     const profile = presentPublicCompetitiveProfile(catalog, [
       { id: "history", platform: "perfect_world", kind: "historical_peak", platformSeasonKey: null, rank: "gold_s", rating: "1.17", stars: 10 },

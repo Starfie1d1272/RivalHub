@@ -1,7 +1,9 @@
 import { alias } from "drizzle-orm/pg-core";
 import { and, desc, eq, gt, inArray, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { competitionEntries, recruitmentIntents, recruitmentInterests, seasons, teamMemberships, teams, userCompetitiveRoles, users } from "@/db/schema";
+import { competitiveRankFacts, competitionEntries, recruitmentIntents, recruitmentInterests, seasons, teamMemberships, teams, userCompetitiveRoles, users } from "@/db/schema";
+import { loadCompetitivePlatformCatalog } from "@/lib/competitive/catalog";
+import { presentPublicCompetitiveSummary, type PublicCompetitiveProfilePlatform } from "@/lib/competitive/presentation";
 import type { Cs2Position } from "@/lib/config/cs2-positions";
 import { isTeamRecruitmentTargetAvailable, recruitmentTargetAvailableCondition, teamRecruitmentTargetAvailableCondition } from "@/lib/recruitment/target-policy";
 
@@ -38,6 +40,7 @@ export interface PlayerLftCardData extends PublicRecruitmentIntent {
   currentTeamId: string | null;
   competitiveRoles: Cs2Position[];
   currentTeamName: string | null;
+  competitiveSummary: PublicCompetitiveProfilePlatform[];
 }
 
 function openConditions(kind: "team_recruiting" | "player_lft", filters: RecruitmentFilters) {
@@ -102,9 +105,9 @@ export async function getRecruitmentLobbyData(filters: RecruitmentFilters, viewe
     db.select({ id: seasons.id, name: seasons.name }).from(seasons).where(recruitmentTargetAvailableCondition(now)).orderBy(desc(seasons.createdAt)),
   ]);
   const teamIds = teamRows.map((row) => row.teamId);
-  const playerIds = playerRows.map((row) => row.userId);
+  const playerIds = [...new Set(playerRows.map((row) => row.userId))];
   const interestIntentIds = teamRows.map((row) => row.id);
-  const [memberCounts, roles, interests] = await Promise.all([
+  const [memberCounts, roles, interests, rankFacts, competitiveCatalog] = await Promise.all([
     teamIds.length
       ? db.select({ teamId: teamMemberships.teamId, count: sql<number>`count(*)::int` }).from(teamMemberships).where(and(inArray(teamMemberships.teamId, teamIds), isNull(teamMemberships.endedAt))).groupBy(teamMemberships.teamId)
       : Promise.resolve([]),
@@ -114,13 +117,19 @@ export async function getRecruitmentLobbyData(filters: RecruitmentFilters, viewe
     viewerUserId && interestIntentIds.length
       ? db.select({ recruitmentIntentId: recruitmentInterests.recruitmentIntentId }).from(recruitmentInterests).where(and(eq(recruitmentInterests.userId, viewerUserId), inArray(recruitmentInterests.recruitmentIntentId, interestIntentIds)))
       : Promise.resolve([]),
+    playerIds.length
+      ? db.select({ id: competitiveRankFacts.id, userId: competitiveRankFacts.userId, platform: competitiveRankFacts.platform, kind: competitiveRankFacts.kind, platformSeasonKey: competitiveRankFacts.platformSeasonKey, status: competitiveRankFacts.status, rank: competitiveRankFacts.rank, rating: competitiveRankFacts.rating, stars: competitiveRankFacts.stars, achievedSeasonKey: competitiveRankFacts.achievedSeasonKey }).from(competitiveRankFacts).where(inArray(competitiveRankFacts.userId, playerIds))
+      : Promise.resolve([]),
+    playerIds.length ? loadCompetitivePlatformCatalog(db) : Promise.resolve([]),
   ]);
   const countByTeam = new Map(memberCounts.map((row) => [row.teamId, row.count]));
   const rolesByUser = new Map<string, Cs2Position[]>();
   for (const row of roles) rolesByUser.set(row.userId, [...(rolesByUser.get(row.userId) ?? []), row.role]);
+  const factsByUser = new Map<string, typeof rankFacts>();
+  for (const row of rankFacts) factsByUser.set(row.userId, [...(factsByUser.get(row.userId) ?? []), row]);
   return {
     teamRecruitments: teamRows.map((row) => ({ ...row, positions: row.positions as Cs2Position[], memberCount: countByTeam.get(row.teamId) ?? 0 })),
-    playerLfts: playerRows.map((row) => ({ ...row, positions: row.positions as Cs2Position[], competitiveRoles: rolesByUser.get(row.userId) ?? [] })),
+    playerLfts: playerRows.map((row) => ({ ...row, positions: row.positions as Cs2Position[], competitiveRoles: rolesByUser.get(row.userId) ?? [], competitiveSummary: presentPublicCompetitiveSummary(competitiveCatalog, factsByUser.get(row.userId) ?? []) })),
     targetSeasons,
     viewerInterestedIntentIds: new Set(interests.map((row) => row.recruitmentIntentId)),
   };
