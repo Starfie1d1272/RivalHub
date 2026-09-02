@@ -196,14 +196,12 @@ export async function loadParticipantQualificationFacts(
   const rankFactsFilter = platforms.length > 0
     ? and(inArray(competitiveRankFacts.userId, ids), inArray(competitiveRankFacts.platform, platforms))
     : inArray(competitiveRankFacts.userId, ids);
-  const [userRows, verificationRows, rankRows] = await Promise.all([
-    executor.select({ id: users.id, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName, email: users.email, emailVerifiedAt: users.emailVerifiedAt, steam64: users.steam64, qq: users.qq })
-      .from(users).where(inArray(users.id, ids)),
-    executor.select({ userId: educationVerifications.userId, id: educationVerifications.id, status: educationVerifications.status, academicStatus: educationVerifications.academicStatus, institutionCode: institutions.moeInstitutionCode, institutionName: institutions.name, submittedAt: educationVerifications.submittedAt })
-      .from(educationVerifications).innerJoin(institutions, eq(educationVerifications.institutionId, institutions.id))
-      .where(inArray(educationVerifications.userId, ids)),
-    executor.select().from(competitiveRankFacts).where(rankFactsFilter),
-  ]);
+  const userRows = await executor.select({ id: users.id, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName, email: users.email, emailVerifiedAt: users.emailVerifiedAt, steam64: users.steam64, qq: users.qq })
+    .from(users).where(inArray(users.id, ids));
+  const verificationRows = await executor.select({ userId: educationVerifications.userId, id: educationVerifications.id, status: educationVerifications.status, academicStatus: educationVerifications.academicStatus, institutionCode: institutions.moeInstitutionCode, institutionName: institutions.name, submittedAt: educationVerifications.submittedAt })
+    .from(educationVerifications).innerJoin(institutions, eq(educationVerifications.institutionId, institutions.id))
+    .where(inArray(educationVerifications.userId, ids));
+  const rankRows = await executor.select().from(competitiveRankFacts).where(rankFactsFilter);
 
   const approvedEducation = new Set(
     verificationRows.filter((row) => row.status === "approved").map((row) => row.userId),

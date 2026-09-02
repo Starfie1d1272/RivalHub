@@ -14,17 +14,25 @@
 
 ```bash
 pnpm db:local:start
+pnpm db:local:start-db
+pnpm db:local:start-services
 pnpm db:local:migrate
 pnpm db:local:seed
 pnpm db:local:verify
+pnpm db:local:verify-db
+pnpm db:local:verify-supabase
 pnpm db:local:bootstrap
+pnpm db:local:bootstrap-db
+pnpm db:local:bootstrap-services
 pnpm db:local:reset
 pnpm dev:local
 pnpm build:local
 pnpm verify:local
 ```
 
-wrapper 从 `supabase status --output json` 获取连接，并验证 DB/API/Studio 都指向 loopback。它不会读取 `.env.local` 的远程 `DATABASE_URL`，也不接受远程 URL fallback。`reset` 仅重建 Local Supabase，再重放 active Drizzle migrations、fixtures 与验证；不存在第二套业务 migration authority。`verify:local` 会确保 Local ready，重放 bootstrap/verify、运行不依赖数据库的 `verify`，随后运行 real-PG integration 与 browser E2E，并清理专用 fixture。
+`start-db` 使用 `supabase db start` 只启动 PostgreSQL；`start-services` 使用最小服务集合启动 PostgreSQL、Auth、Storage、PostgREST 和 Kong，并排除 Realtime、Mailpit、Studio、imgproxy、PgMeta、Edge Runtime、Logflare、Vector 与 Supavisor。`start` 和 `bootstrap` 保留为完整兼容入口；`bootstrap-db` / `verify-db` 只处理数据库，`bootstrap-services` / `verify-supabase` 只处理服务 contract。
+
+wrapper 从 `supabase status --output json` 获取连接，并验证 DB/API 指向 loopback；若状态包含 Studio，也会校验其 loopback URL。它不会读取 `.env.local` 的远程 `DATABASE_URL`，也不接受远程 URL fallback。`reset` 仅用于开发者明确要求的 Local 破坏性重建，再重放 active Drizzle migrations、fixtures 与验证；CI migration replay 使用独立 scratch/template database，不调用 `db reset`，不存在第二套业务 migration authority。`verify:local` 会确保最小服务栈 ready，重放 bootstrap/verify、运行不依赖数据库的 `verify`，随后运行 real-PG integration 与 browser E2E，并清理专用 fixture。
 
 ## Active migrations
 

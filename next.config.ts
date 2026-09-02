@@ -21,7 +21,10 @@ const localStorageImagePatterns =
 const nextConfig: NextConfig = {
   serverExternalPackages: ["pg"],
   typedRoutes: true,
-  eslint: { ignoreDuringBuilds: true },
+  typescript: {
+    ignoreBuildErrors: true,
+    tsconfigPath: "tsconfig.app.json",
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: "10mb",

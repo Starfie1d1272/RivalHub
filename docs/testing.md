@@ -21,22 +21,26 @@ RivalHub 以最高已完成的验证层级描述能力证据：
 
 | 命令 | 用途 |
 |---|---|
-| `pnpm type-check` | Next route typegen + TypeScript |
+| `pnpm type-check` | Next route typegen + app/tests/scripts 三个独立 TypeScript project |
+| `pnpm type-check:app` / `pnpm type-check:tests` / `pnpm type-check:scripts` | 分别校验 app、测试与 scripts 边界 |
 | `pnpm lint` | ESLint |
 | `pnpm test` | Vitest unit suite 与不依赖数据库的组件/领域测试 |
 | `pnpm test:coverage` | V8 覆盖率诊断报告，不作为百分比 gate |
-| `pnpm test:integration` | 通过 Local runner 串行运行真实 PostgreSQL / migration replay suite |
+| `pnpm test:integration` | 通过 Local runner 运行真实 PostgreSQL / migration replay suite |
 | `pnpm test:e2e` | 准备并清理 Local browser fixture 后运行 Playwright |
 | `pnpm check` | type-check + lint + db:check + test |
 | `pnpm verify` | check + production build；build 不需要数据库或 fake DB URL |
 | `pnpm verify:local` | 确保 Local ready，bootstrap/verify、verify、real-PG integration 与 browser E2E |
+| `pnpm db:local:start-db` / `pnpm db:local:start-services` | 分别启动仅 PostgreSQL 或最小 Supabase 服务栈 |
+| `pnpm db:local:bootstrap-db` / `pnpm db:local:bootstrap-services` | 分别完成数据库或服务栈的迁移与 fixture bootstrap |
+| `pnpm db:local:verify-db` / `pnpm db:local:verify-supabase` | 分别验证 PostgreSQL contract 或 Auth/Storage/Data API |
 | `pnpm db:check` | Drizzle active migration chain |
 | `pnpm db:production:verify` | 严格只读校验明确确认的 production ledger、SQL SHA 与 terminal schema contract |
 | `pnpm db:production:migrate` | 先 Local/production preflight，再唯一的 Drizzle 前向迁移与自动 production verify |
 | `pnpm build` | production build |
 | `pnpm build:local` | 注入 loopback Local Supabase 环境的 production build |
 
-`pnpm test:integration` 与 `pnpm test:e2e` 都拒绝缺少或非 loopback 的 Local 数据库目标。前者运行 `tests/integration/db/**/*.test.ts`，后者通过 `pnpm dev:local` 启动应用，并在测试前后自动创建、清理 browser fixture；运行前先执行 `pnpm db:local:bootstrap`。
+`pnpm test:integration` 与 `pnpm test:e2e` 都拒绝缺少或非 loopback 的 Local 数据库目标。前者运行 `tests/integration/db/**/*.test.ts`，后者通过 `pnpm dev:local` 启动应用，并在测试前后自动创建、清理 browser fixture；运行前先执行 `pnpm db:local:bootstrap`。CI 的 E2E 使用 runner 上已有的 system Chrome（`PLAYWRIGHT_CHANNEL=chrome`），不执行 `playwright install`；本地未安装 Playwright bundled browser 时可使用同一环境变量。
 
 Local PostgreSQL / migration evidence：
 
@@ -50,7 +54,18 @@ pnpm test:e2e
 pnpm verify:local
 ```
 
-所有 real-PG 套件通过 `scripts/db/local.ts` 注入同一个 loopback Local Supabase 目标，并由 `vitest.integration.config.ts` 关闭文件并发、保持 fixture 顺序独立。migration replay 使用独立 scratch database；不使用 testcontainers，也不以 mock 代替事务、约束或并发证据。需要缩小调试范围时直接使用 Vitest 文件或 `-t` pattern filter。
+所有 real-PG 套件通过 `scripts/db/local.ts` 注入 loopback Local PostgreSQL。integration runner 先从 `template1` 创建基线库，使用现有 Drizzle runner、seed 和 verify 回放 active chain，再为每个 Vitest worker 创建独立 template clone；migration replay 的 scratch database 仍单独串行执行，不使用 testcontainers，也不以 mock 代替事务、约束或并发证据。Vitest 保持 `pool: forks` 与 `isolate: true`；需要缩小调试范围时直接使用 Vitest 文件或 `-t` pattern filter。
+
+## PR CI graph
+
+```text
+plan → static ─┐
+             ├→ ci-gate
+       postgres ┤
+       system ──┘
+```
+
+`scripts/ci/plan.mjs` 根据 changed surface 选择 capability：文档-only 只运行 `plan + ci-gate`；代码域分别进入 `static`、`postgres` 或 `system`；rename/delete、未分类、toolchain、workflow、release、merge queue 和手动运行 fail closed 到 full。`ci-gate` 会区分预期 skipped 与 required failure/skipped/cancelled，只有 planner 明确声明的 capability 可以跳过。
 
 ## Verification contracts
 

@@ -5,6 +5,9 @@ on:
     branches: [main, dev, feat/major-2027-integration]
   pull_request:
     branches: [main, dev, feat/major-2027-integration]
+  merge_group:
+  release:
+    types: [published]
   workflow_dispatch:
 
 concurrency:
@@ -14,65 +17,134 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  NEXT_TELEMETRY_DISABLED: 1
+  CI: true
+
 jobs:
-  quality:
-    runs-on: ubuntu-latest
-    env:
-      NEXT_TELEMETRY_DISABLED: 1
+  plan:
+    name: plan
+    runs-on: ubuntu-24.04
+    outputs:
+      full: ${{ steps.plan.outputs.full }}
+      run_static: ${{ steps.plan.outputs.run_static }}
+      run_postgres: ${{ steps.plan.outputs.run_postgres }}
+      run_system: ${{ steps.plan.outputs.run_system }}
+      required_jobs: ${{ steps.plan.outputs.required_jobs }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Plan changed surface
+        id: plan
+        run: node scripts/ci/plan.mjs
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+          FORCE_FULL: ${{ github.event_name != 'pull_request' }}
+
+  static:
+    name: static / ${{ matrix.task }}
+    if: needs.plan.outputs.run_static == 'true'
+    needs: plan
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        task: [type-app, type-tests, type-scripts, lint, unit, build]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
         with:
-          version: 10.34.5
+          version: 11.25.0
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version: 24
+          node-version: 24.x
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Cache Next.js build
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      - name: Run static task
+        run: |
+          case "${{ matrix.task }}" in
+            type-app) pnpm type-check:app ;;
+            type-tests) pnpm type-check:tests ;;
+            type-scripts) pnpm type-check:scripts ;;
+            lint) pnpm lint ;;
+            unit) pnpm test ;;
+            build) env -u DATABASE_URL pnpm build ;;
+            *) echo "unknown static task" >&2; exit 1 ;;
+          esac
+
+  postgres:
+    name: postgres
+    if: needs.plan.outputs.run_postgres == 'true'
+    needs: plan
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
         with:
-          path: .next/cache
-          key: nextjs-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('src/**/*.ts', 'src/**/*.tsx') }}
-          restore-keys: |
-            nextjs-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
-            nextjs-${{ runner.os }}-
+          version: 11.25.0
 
-      - run: pnpm check
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24.x
+          cache: pnpm
 
-      # Keep the migration-chain gate explicit in CI even though check also
-      # includes it, so a future check-script edit cannot silently remove it.
+      - run: pnpm install --frozen-lockfile
       - run: pnpm db:check
+      - run: pnpm db:local:start-db
+      - run: pnpm db:local:bootstrap-db
+      - run: pnpm db:local:verify-db
+      - run: pnpm test:integration
+        env:
+          RIVALHUB_INTEGRATION_WORKERS: 2
 
-      # This build must not depend on DATABASE_URL or a fake listening target.
-      - run: pnpm build
-
-  local:
-    runs-on: ubuntu-latest
-    env:
-      NEXT_TELEMETRY_DISABLED: 1
+  system:
+    name: system
+    if: needs.plan.outputs.run_system == 'true'
+    needs: plan
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
         with:
-          version: 10.34.5
+          version: 11.25.0
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version: 24
+          node-version: 24.x
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
-
-      - run: pnpm exec playwright install --with-deps chromium
-
-      - run: pnpm db:local:bootstrap
-
-      - run: pnpm test:integration
-
+      - run: pnpm db:local:start-services
+      - run: pnpm db:local:bootstrap-services
+      - run: pnpm db:local:verify-supabase
+      - run: google-chrome --version
       - run: pnpm test:e2e
+        env:
+          PLAYWRIGHT_CHANNEL: chrome
+          PLAYWRIGHT_WORKERS: 1
+
+  ci-gate:
+    name: ci-gate
+    if: ${{ always() }}
+    needs: [plan, static, postgres, system]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Validate required evidence
+        run: node scripts/ci/gate.mjs
+        env:
+          PLAN_RESULT: ${{ needs.plan.result }}
+          STATIC_RESULT: ${{ needs.static.result }}
+          POSTGRES_RESULT: ${{ needs.postgres.result }}
+          SYSTEM_RESULT: ${{ needs.system.result }}
+          REQUIRED_JOBS: ${{ needs.plan.outputs.required_jobs }}
