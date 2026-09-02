@@ -142,7 +142,7 @@ export async function addCommunityAwardEvidenceInTx(
     if (!match) throw new AppError(ErrorCode.VALIDATION_FAILED, "证据比赛不属于当前赛事。 ");
   }
   if (args.candidateUserId) {
-    if (!(await getSeasonAwardCandidates(award.seasonId)).some((candidate) => candidate.id === args.candidateUserId)) throw new AppError(ErrorCode.VALIDATION_FAILED, "候选人不属于当前赛事相关人员。 ");
+    if (!(await getSeasonAwardCandidates(tx, award.seasonId)).some((candidate) => candidate.id === args.candidateUserId)) throw new AppError(ErrorCode.VALIDATION_FAILED, "候选人不属于当前赛事相关人员。 ");
   }
   const [evidence] = await tx.insert(communityAwardEvidence).values({
     awardId: award.id,
@@ -172,7 +172,7 @@ export async function resolveCommunityAwardInTx(
   if (args.status === "awarded" && !args.recipientUserId) throw new AppError(ErrorCode.VALIDATION_FAILED, "结奖时必须选择获奖者。 ");
   if (args.status !== "awarded" && args.recipientUserId) throw new AppError(ErrorCode.VALIDATION_FAILED, "不颁或取消时不能保留获奖者。 ");
   if (args.recipientUserId) {
-    if (!(await getSeasonAwardCandidates(award.seasonId)).some((candidate) => candidate.id === args.recipientUserId)) throw new AppError(ErrorCode.VALIDATION_FAILED, "获奖者不属于当前赛事相关人员。 ");
+    if (!(await getSeasonAwardCandidates(tx, award.seasonId)).some((candidate) => candidate.id === args.recipientUserId)) throw new AppError(ErrorCode.VALIDATION_FAILED, "获奖者不属于当前赛事相关人员。 ");
   }
   const now = new Date();
   await tx.update(communityAwards).set({

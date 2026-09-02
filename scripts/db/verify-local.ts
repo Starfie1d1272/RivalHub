@@ -17,6 +17,10 @@ async function main(): Promise<void> {
     "competitive_platform_ranks",
     "competitive_platform_seasons",
     "competitive_rank_facts",
+    "community_awards",
+    "community_award_evidence",
+    "match_commentators",
+    "post_match_reports",
   ] as const;
   // Probe columns must exist on every table; competitive_platforms keys on
   // `key` instead of a uuid `id`.
@@ -25,6 +29,10 @@ async function main(): Promise<void> {
     competitive_platform_ranks: "id",
     competitive_platform_seasons: "id",
     competitive_rank_facts: "id",
+    community_awards: "id",
+    community_award_evidence: "id",
+    match_commentators: "match_id",
+    post_match_reports: "match_id",
   };
 
   const databaseUrl = assertLocalDatabaseUrl(process.env.DATABASE_URL);

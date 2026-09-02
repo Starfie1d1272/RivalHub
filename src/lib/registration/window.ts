@@ -23,12 +23,22 @@ export interface RegistrationWindowState {
   message: string;
 }
 
-/** One canonical self-service boundary for approved CompetitionEntry rosters. */
-export function canSelfManageEventRoster(
-  season: Pick<RegistrationWindowSeason, "status" | "registrationClosesAt" | "rosterChangeClosesAt">,
+/** New Entry submissions only open after the recorded registration transition. */
+export function canSubmitEntry(
+  season: RegistrationWindowSeason,
   now: Date = new Date(),
 ): boolean {
-  if (season.status !== "registration") return false;
+  return getRegistrationWindowState(season, now).canSubmit;
+}
+
+/** Approved rosters may change only after this event actually opened registration. */
+export function canSelfChangeApprovedRoster(
+  season: RegistrationWindowSeason,
+  now: Date = new Date(),
+): boolean {
+  if (season.status !== "registration" || !season.registrationOpenedAt) return false;
+  const opensAt = toTime(season.registrationOpensAt);
+  if (opensAt === null || now.getTime() < opensAt) return false;
   const deadline = toTime(season.rosterChangeClosesAt ?? season.registrationClosesAt);
   return deadline === null || now.getTime() < deadline;
 }

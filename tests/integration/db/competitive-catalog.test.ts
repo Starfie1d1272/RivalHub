@@ -29,7 +29,7 @@ async function main(): Promise<void> {
     const referenced = await loadReferencedPlatformRankKeys(executor, platform);
     expect([...referenced].sort()).toEqual(["C+", "C++", "青铜S"].sort());
     await expect(assertPlatformRanksMutable(executor, platform, ["C++"])).rejects.toThrow(
-      /已被竞技资料或已发布赛事冻结的段位顺序引用/,
+      /已被竞技资料或已开放报名赛事冻结的段位顺序引用/,
     );
     await expect(assertPlatformRanksMutable(executor, platform, ["unreferenced"])).resolves.not.toThrow();
 

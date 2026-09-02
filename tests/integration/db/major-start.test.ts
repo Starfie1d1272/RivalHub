@@ -152,8 +152,8 @@ async function prepareReadyMajor(
     await client.query(
       `INSERT INTO seasons (
         id, slug, name, kind, competition_template, status, registration_mode, has_captain_voting, has_draft,
-        stage_plan, registration_config, team_registration_config, affiliation_rules, min_team_size, max_team_size, starter_count, positions
-      ) VALUES ($1, $2, 'Local Major Start', 'Major', 'major', 'registration', $3, $4, $5, $6::json, $7::json, $8::json, $9::json, $10, $11, $12, $13::text[])`,
+        stage_plan, registration_config, team_registration_config, affiliation_rules, min_team_size, max_team_size, starter_count, positions, registration_opens_at, registration_opened_at
+      ) VALUES ($1, $2, 'Local Major Start', 'Major', 'major', 'registration', $3, $4, $5, $6::json, $7::json, $8::json, $9::json, $10, $11, $12, $13::text[], now(), now())`,
       [
         seasonId, `local-golden-major-2026-08-${label}`,
         capabilities.registrationMode, capabilities.hasCaptainVoting, capabilities.hasDraft,
@@ -972,6 +972,10 @@ async function exerciseSelfRosterChangeDeadline(
   fixtures.push(fixture);
   const entryId = deterministicUuid(`${label}/entry/1`);
   const representativeUserId = fixture.userIds[0]!;
+  await pool.query("UPDATE seasons SET registration_opened_at = NULL WHERE id = $1", [fixture.seasonId]);
+  await expect(database.transaction((tx) => requestCompetitionEntryRosterChangeInTx(tx, { entryId, representativeUserId, actorId: representativeUserId })))
+    .rejects.toMatchObject({ code: ErrorCode.REGISTRATION_CLOSED });
+  await pool.query("UPDATE seasons SET registration_opened_at = now() WHERE id = $1", [fixture.seasonId]);
   await database.transaction((tx) => requestCompetitionEntryRosterChangeInTx(tx, { entryId, representativeUserId, actorId: representativeUserId }));
   const origin = await pool.query<{ origin: string }>("SELECT r.origin::text AS origin FROM competition_entries e INNER JOIN competition_entry_roster_revisions r ON r.id = e.current_roster_revision_id WHERE e.id = $1", [entryId]);
   expect(origin.rows[0]?.origin).toBe("self_roster_change");

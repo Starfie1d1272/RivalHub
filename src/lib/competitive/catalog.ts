@@ -187,7 +187,7 @@ export async function assertPlatformRanksMutable(
   const referenced = await loadReferencedPlatformRankKeys(executor, platform);
   const blocked = rankKeys.find((key) => referenced.has(key));
   if (blocked) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, `段位 ${blocked} 已被竞技资料或已发布赛事冻结的段位顺序引用，不能修改。`);
+    throw new AppError(ErrorCode.VALIDATION_FAILED, `段位 ${blocked} 已被竞技资料或已开放报名赛事冻结的段位顺序引用，不能修改。`);
   }
 }
 

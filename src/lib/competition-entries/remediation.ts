@@ -1,4 +1,4 @@
-import { canSelfManageEventRoster, getRegistrationWindowState, type RegistrationWindowSeason } from "@/lib/registration/window";
+import { canSelfChangeApprovedRoster, canSubmitEntry, type RegistrationWindowSeason } from "@/lib/registration/window";
 
 export type CompetitionEntryEditableStatus = "draft" | "changes_requested";
 export type CompetitionEntryRosterRevisionOrigin = "initial" | "admin_remediation" | "self_roster_change";
@@ -14,7 +14,7 @@ export function canMutateCompetitionEntryRoster(
   season: RegistrationWindowSeason,
   now = new Date(),
 ): boolean {
-  if (status === "draft") return getRegistrationWindowState(season, now).canSubmit;
+  if (status === "draft") return canSubmitEntry(season, now);
   if (origin === "admin_remediation") return true;
-  return origin === "self_roster_change" && canSelfManageEventRoster(season, now);
+  return origin === "self_roster_change" && canSelfChangeApprovedRoster(season, now);
 }

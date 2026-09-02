@@ -205,7 +205,7 @@ export async function startMajorInTransaction(
     ? await resolveCompetitiveContext(configuredCompetitiveProfile)
     : null;
   if (requiresCompetitiveProfile && !competitiveProfile) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "本届赛事要求竞技资料，但发布时冻结的竞技平台目录不完整，不能正式开赛。");
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "本届赛事要求竞技资料，但实际开放报名时冻结的竞技平台目录不完整，不能正式开赛。");
   }
   const affiliationRules = capabilities.affiliationRules;
   const frozenParticipantIds = [...new Set(rosterRows.map((row) => row.userId))];
