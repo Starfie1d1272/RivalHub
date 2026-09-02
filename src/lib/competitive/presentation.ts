@@ -64,6 +64,31 @@ export function presentPublicCompetitiveProfile(
   });
 }
 
+/** Select the compact public view without creating a second presentation format. */
+export function presentPublicCompetitiveSummary(
+  catalog: readonly CompetitivePlatformCatalogEntry[],
+  facts: readonly CompetitiveProfileFactForPresentation[],
+): PublicCompetitiveProfilePlatform[] {
+  const selectedFacts = catalog.flatMap((platform) => {
+    const platformFacts = facts.filter((fact) => fact.platform === platform.key);
+    const historical = platformFacts.find((fact) => fact.kind === "historical_peak");
+    const seasonFacts = platformFacts.filter((fact) => fact.kind === "season_peak");
+    const seasons = new Map(platform.seasons.map((season) => [season.seasonKey, season]));
+    const currentSeason = platform.seasons.find((season) => season.active && season.isCurrent);
+    const currentFact = currentSeason
+      ? seasonFacts.find((fact) => fact.platformSeasonKey === currentSeason.seasonKey)
+      : undefined;
+    const recentFact = currentFact
+      ? undefined
+      : [...seasonFacts]
+        .filter((fact) => fact.platformSeasonKey !== null && seasons.has(fact.platformSeasonKey))
+        .sort((left, right) => (seasons.get(right.platformSeasonKey!)?.sortOrder ?? Number.NEGATIVE_INFINITY) - (seasons.get(left.platformSeasonKey!)?.sortOrder ?? Number.NEGATIVE_INFINITY))[0];
+    return [historical, currentFact ?? recentFact].filter((fact): fact is CompetitiveProfileFactForPresentation => Boolean(fact));
+  });
+
+  return presentPublicCompetitiveProfile(catalog, selectedFacts);
+}
+
 /** Long-lived roles use the shared CS2 taxonomy, never a registration snapshot label. */
 export function presentCompetitiveRole(role: string): string | null {
   return CS2_POSITION_LABELS[role as keyof typeof CS2_POSITION_LABELS]?.full ?? null;

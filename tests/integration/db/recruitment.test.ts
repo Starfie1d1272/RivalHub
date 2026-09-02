@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { describe, expect, it } from "vitest";
 import * as schema from "../../../src/db/schema";
+import { loadCompetitivePlatformCatalog } from "../../../src/lib/competitive/catalog";
 import { acceptTeamInvitationInTx } from "../../../src/lib/teams/invitations";
 import { closeTeamRecruitmentInTx, expressRecruitmentInterestInTx, upsertPlayerLftInTx, upsertTeamRecruitmentInTx } from "../../../src/lib/recruitment/commands";
 import { getPublicTeamRecruitment, getRecruitmentLobbyData, getTeamRecruitmentWorkspace } from "../../../src/lib/recruitment/data";
@@ -109,7 +110,41 @@ describe("recruitment PostgreSQL invariants", () => {
       await pool.query("COMMIT");
       await database.transaction((tx) => upsertTeamRecruitmentInTx(tx, { teamId: ids.team, userId: ids.captain, actorId: ids.captain, positions: [], targetSeasonId: ids.replacementSeason, note: null }));
       expect((await getTeamRecruitmentWorkspace(ids.team, true)).recruitment).toMatchObject({ isPubliclyActive: true, targetSeasonId: ids.replacementSeason });
-      await pool.query("INSERT INTO recruitment_intents (kind, user_id, positions, status, expires_at) VALUES ('player_lft', $1, ARRAY[]::cs2_role[], 'open', now() + interval '1 day')", [ids.interested]);
+      const playerIntent = (await pool.query<{ id: string }>("INSERT INTO recruitment_intents (kind, user_id, positions, status, expires_at) VALUES ('player_lft', $1, ARRAY[]::cs2_role[], 'open', now() + interval '1 day') RETURNING id", [ids.interested])).rows[0];
+      if (!playerIntent) throw new Error("could not create recruitment player intent");
+      const competitiveCatalog = await loadCompetitivePlatformCatalog(database);
+      const perfect = competitiveCatalog.find((platform) => platform.key === "perfect_world");
+      const fivee = competitiveCatalog.find((platform) => platform.key === "fivee");
+      const perfectCurrent = perfect?.seasons.find((season) => season.active && season.isCurrent);
+      const perfectPrevious = perfect && perfectCurrent
+        ? perfect.seasons.filter((season) => season.active && season.sortOrder < perfectCurrent.sortOrder).sort((left, right) => right.sortOrder - left.sortOrder)[0]
+        : undefined;
+      const fiveeCurrent = fivee?.seasons.find((season) => season.active && season.isCurrent);
+      const perfectRank = perfect?.ranks.slice().sort((left, right) => right.sortOrder - left.sortOrder)[0];
+      const fiveeRank = fivee?.ranks.slice().sort((left, right) => right.sortOrder - left.sortOrder)[0];
+      if (!perfect || !fivee || !perfectCurrent || !perfectPrevious || !fiveeCurrent || !perfectRank || !fiveeRank) {
+        throw new Error("内置竞技目录缺少 Recruitment summary integration 所需的当前赛季、上一赛季或合法段位。");
+      }
+      const perfectStars = perfectRank.starMin === null ? null : perfectRank.starMin;
+      const fiveeStars = fiveeRank.starMin === null ? null : fiveeRank.starMin;
+      await pool.query(
+        `INSERT INTO competitive_rank_facts (user_id, platform, kind, platform_season_key, status, rank, rating, stars, achieved_season_key)
+         VALUES ($1, 'perfect_world', 'historical_peak', NULL, 'ranked', $2, 1500, $3, NULL),
+                ($1, 'perfect_world', 'season_peak', $4, 'ranked', $2, 1400, $3, NULL),
+                ($1, 'perfect_world', 'season_peak', $5, 'unranked', NULL, NULL, NULL, NULL),
+                ($1, 'fivee', 'historical_peak', NULL, 'ranked', $6, 1800, $7, NULL),
+                ($1, 'fivee', 'season_peak', $8, 'ranked', $6, 1700, $7, NULL)`,
+        [ids.interested, perfectRank.rankKey, perfectStars, perfectPrevious.seasonKey, perfectCurrent.seasonKey, fiveeRank.rankKey, fiveeStars, fiveeCurrent.seasonKey],
+      );
+      const competitiveLobby = await getRecruitmentLobbyData({});
+      const competitivePlayer = competitiveLobby.playerLfts.find((item) => item.userId === ids.interested);
+      expect(competitivePlayer?.competitiveSummary.map((platform) => platform.displayName)).toEqual([perfect.displayName, fivee.displayName]);
+      expect(competitivePlayer?.competitiveSummary[0]?.facts).toHaveLength(2);
+      expect(competitivePlayer?.competitiveSummary[0]?.facts.map((fact) => fact.label)).toEqual(["历史最高", perfectCurrent.label]);
+      expect(competitivePlayer?.competitiveSummary[0]?.facts[1]).toMatchObject({ rankLabel: "未定级", stars: null, ratingLabel: null, rating: null });
+      const persistedIntent = await pool.query<{ payload: Record<string, unknown> }>("SELECT to_jsonb(recruitment_intents) AS payload FROM recruitment_intents WHERE id = $1", [playerIntent.id]);
+      expect(persistedIntent.rows[0]?.payload).not.toHaveProperty("competitive_summary");
+      expect(persistedIntent.rows[0]?.payload).not.toHaveProperty("competitiveSummary");
       const awperFilteredLobby = await getRecruitmentLobbyData({ position: "awper" });
       const openerFilteredLobby = await getRecruitmentLobbyData({ position: "opener" });
       expect(awperFilteredLobby.teamRecruitments.map((item) => item.teamId)).toContain(ids.team);
@@ -143,6 +178,7 @@ describe("recruitment PostgreSQL invariants", () => {
         await client.query("SET LOCAL session_replication_role = replica");
         await client.query("DELETE FROM recruitment_interests WHERE user_id IN ($1, $2, $3, $4, $5)", [ids.captain, ids.interested, ids.member, ids.contender, ids.invitee]);
         await client.query("DELETE FROM recruitment_intents WHERE team_id = $1 OR user_id IN ($2, $3, $4, $5, $6)", [ids.team, ids.captain, ids.interested, ids.member, ids.contender, ids.invitee]);
+        await client.query("DELETE FROM competitive_rank_facts WHERE user_id IN ($1, $2, $3, $4, $5)", [ids.captain, ids.interested, ids.member, ids.contender, ids.invitee]);
         await client.query("DELETE FROM team_invitations WHERE team_id = $1", [ids.team]);
         await client.query("DELETE FROM team_captain_changes WHERE team_id = $1", [ids.team]);
         await client.query("DELETE FROM team_name_changes WHERE team_id = $1", [ids.team]);
