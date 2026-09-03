@@ -13,6 +13,9 @@ import { formatCSTShortDate } from "@/lib/utils/date";
 import { presentTeamMembershipStatus } from "@/lib/teams/presentation";
 import { getTeamRecruitmentWorkspace } from "@/lib/recruitment/data";
 
+// Viewer-specific membership and invitation state is request-bound.
+export const instant = false;
+
 const publicName = sql<string>`coalesce(${users.displayName}, ${users.perfectName}, ${users.steamName}, '未命名用户')`;
 
 export default async function MyTeamsPage() {
