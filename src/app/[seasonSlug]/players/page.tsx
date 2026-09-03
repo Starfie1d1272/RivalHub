@@ -1,14 +1,14 @@
-import { cache } from "react";
 import { notFound } from "next/navigation";
 import { eq, and, asc, or, sql } from "drizzle-orm";
 import Link from "next/link";
 import { db } from "@/db/client";
-import { competitionEntries, eventRosterMembers, eventRosters, seasons, seasonRegistrations, users } from "@/db/schema";
+import { competitionEntries, eventRosterMembers, eventRosters, seasonRegistrations, users } from "@/db/schema";
 import { Marker, Stat } from "@/components/rivalhub";
 import { PlayerDirectoryRow } from "@/components/players/PlayerDirectoryRow";
 import { countDirectoryPlayersWithTeam, sortPlayerDirectory } from "@/lib/players/directory-order";
 import { positionLabel, positionValues } from "@/lib/validators/registration";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
+import { getPublicOrAuthorizedDraftSeason, getPublicSeasonBySlug } from "@/lib/data/public-seasons";
 import type { Metadata } from "next";
 
 interface PlayersPageProps {
@@ -16,14 +16,9 @@ interface PlayersPageProps {
   searchParams: Promise<{ position?: string }>;
 }
 
-/** 用 React.cache() 去重，generateMetadata 和页面组件共享同一次查询 */
-const getSeason = cache(async (slug: string) => {
-  return db.query.seasons.findFirst({ where: eq(seasons.slug, slug) });
-});
-
 export async function generateMetadata({ params }: PlayersPageProps): Promise<Metadata> {
   const { seasonSlug } = await params;
-  const season = await getSeason(seasonSlug);
+  const season = await getPublicSeasonBySlug(seasonSlug);
   return {
     title: season ? `${season.name} · 选手名单` : "选手名单",
   };
@@ -33,7 +28,7 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
   const { seasonSlug } = await params;
   const { position = "" } = await searchParams;
 
-  const season = await getSeason(seasonSlug);
+  const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
 
   const whereConditions = position

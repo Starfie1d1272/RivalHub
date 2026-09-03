@@ -4,12 +4,13 @@ import type { Route } from "next";
 import type { Metadata } from "next";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { competitionEntries, seasons } from "@/db/schema";
+import { competitionEntries } from "@/db/schema";
 import { CaptainDraftPanel } from "@/components/draft/CaptainDraftPanel";
 import { Panel } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { getUserSession } from "@/lib/auth/session";
 import { getCaptainDraftData, type DraftTeamSlot } from "@/lib/draft/data";
+import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 
 interface DraftCaptainPageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -22,9 +23,7 @@ export async function generateMetadata({ params }: DraftCaptainPageProps): Promi
 
 export default async function DraftCaptainPage({ params }: DraftCaptainPageProps) {
   const { seasonSlug } = await params;
-  const season = await db.query.seasons.findFirst({
-    where: eq(seasons.slug, seasonSlug),
-  });
+  const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
 
   if (!season.hasDraft) {

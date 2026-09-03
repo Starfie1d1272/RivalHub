@@ -14,7 +14,6 @@ interface SeasonNavProps {
   hasDraft: boolean;
   hasMatches: boolean;
   hasStats: boolean;
-  hasPlayers: boolean;
 }
 
 interface NavItem {
@@ -29,7 +28,6 @@ export function SeasonNav({
   hasDraft,
   hasMatches,
   hasStats,
-  hasPlayers,
 }: SeasonNavProps) {
   const pathname = usePathname();
   const isHistorical = status === "finished" || status === "archived";
@@ -40,7 +38,7 @@ export function SeasonNav({
     ...(hasCaptainVoting ? [{ label: isHistorical ? "队长投票结果" : "队长投票", href: `/${slug}/captains` }] : []),
     ...(hasDraft ? [{ label: isHistorical ? "选秀回顾" : "选秀", href: `/${slug}/draft` }] : []),
     { label: "队伍", href: `/${slug}/teams` },
-    ...(hasPlayers ? [{ label: "选手", href: `/${slug}/players` }] : []),
+    { label: "选手", href: `/${slug}/players` },
     ...(hasMatches ? [{ label: "赛程", href: `/${slug}/matches` }] : []),
     { label: "社区奖", href: `/${slug}/community-awards` },
     ...(hasStats ? [{ label: "数据统计", href: `/${slug}/stats` }] : []),

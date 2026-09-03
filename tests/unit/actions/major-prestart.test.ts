@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ErrorCode } from "@/lib/errors";
 
 vi.mock("@/db/client", () => ({ db: {} }));
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), updateTag: vi.fn() }));
 
 import {
   addMajorPrestartEntrant,

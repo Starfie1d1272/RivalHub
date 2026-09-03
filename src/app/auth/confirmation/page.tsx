@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { EmailConfirmationForm } from "@/components/auth/EmailConfirmationForm";
 
+export const instant = false;
+
 export default async function ConfirmationPage({
   searchParams,
 }: {

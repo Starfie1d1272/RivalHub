@@ -225,7 +225,7 @@ export async function runDraftTimeoutCron(): Promise<DraftTimeoutCronSummary> {
     const result = await runAutoPickForSeason(state.seasonId, now);
     if (result.picked) {
       picked += 1;
-      revalidateDraftPaths(result.slug);
+      revalidateDraftPaths(result.slug, "route");
     } else {
       skipped += 1;
       if (result.reason === "no_eligible_player") {
@@ -658,6 +658,6 @@ async function getAutoPickCandidates(
     }));
 }
 
-function revalidateDraftPaths(slug: string) {
-  revalidateSeasonPaths(slug, ["draft", "draftCaptain", "teams", "adminDraft"]);
+function revalidateDraftPaths(slug: string, mode: "action" | "route" = "action") {
+  revalidateSeasonPaths(slug, ["draft", "draftCaptain", "teams", "adminDraft"], { mode });
 }

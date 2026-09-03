@@ -16,6 +16,9 @@ import { getUserSession } from "@/lib/auth/session";
 import { getPublicPlayerLft, getRecruitmentLobbyData } from "@/lib/recruitment/data";
 import { formatCSTShortDate } from "@/lib/utils/date";
 
+// Search filters and viewer-specific recruiting actions are request-bound.
+export const instant = false;
+
 function isPosition(value: string | undefined): value is Cs2Position {
   return Boolean(value && (CS2_POSITION_VALUES as readonly string[]).includes(value));
 }

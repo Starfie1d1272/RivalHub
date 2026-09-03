@@ -1,4 +1,6 @@
+import { Suspense } from "react";
 import Link from "next/link";
+import { connection } from "next/server";
 import { and, asc, eq, gt, ilike, isNull, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { recruitmentIntents, teamMemberships, teams, users } from "@/db/schema";
@@ -11,7 +13,16 @@ import { countPendingDirectTeamInvitations } from "@/lib/teams/invitations";
 import { getTeamDirectoryCta } from "@/lib/teams/presentation";
 import { TeamSectionNav } from "@/components/teams/TeamSectionNav";
 
-export default async function TeamDirectoryPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+export default function TeamDirectoryPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  return (
+    <Suspense fallback={<TeamDirectoryFallback />}>
+      <TeamDirectoryContent searchParams={searchParams} />
+    </Suspense>
+  );
+}
+
+async function TeamDirectoryContent({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  await connection();
   const [{ q }, session] = await Promise.all([searchParams, getUserSession()]);
   const query = q?.trim() ?? "";
   const [rows, counts, currentTeamRows, pendingDirectInvitationCount] = await Promise.all([
@@ -34,5 +45,9 @@ export default async function TeamDirectoryPage({ searchParams }: { searchParams
   const countByTeam = new Map(counts.map((row) => [row.teamId, row.value]));
   const currentTeam = currentTeamRows[0] ?? null;
   const cta = getTeamDirectoryCta(Boolean(currentTeam), pendingDirectInvitationCount);
-  return <div className="container mx-auto max-w-6xl px-4 py-12 sm:py-16"><div className="mb-8 space-y-5"><div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between"><Marker sub="查看队伍、成员和赛事履历">队伍</Marker><div className="flex w-full flex-col gap-3 md:w-auto md:items-end">{session && <Button size="sm" asChild><Link href={cta.href as never}>{cta.label}</Link></Button>}<form className="flex w-full max-w-md gap-2 sm:max-w-sm"><Input name="q" defaultValue={query} placeholder="搜索队名" /><Button type="submit" variant="outline">搜索</Button></form></div></div><TeamSectionNav active="directory" /></div>{rows.length === 0 ? <EmptyState title="没有找到符合条件的队伍" /> : <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{rows.map((team) => <TeamDirectoryCard key={team.id} slug={team.slug} name={team.name} logoUrl={team.logoUrl} description={team.description} hasOpenRecruitment={team.hasOpenRecruitment} status={team.status} captainName={team.captainName} memberCount={countByTeam.get(team.id) ?? 0} />)}</div>}</div>;
+  return <div className="container mx-auto max-w-6xl px-4 py-12 sm:py-16"><div className="mb-8 space-y-5"><div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between"><Marker sub="查看队伍、成员和赛事履历">队伍</Marker><div className="flex w-full flex-col gap-3 md:w-auto md:items-end">{session && <Button size="sm" asChild><Link href={cta.href as never}>{cta.label}</Link></Button>}<form className="flex w-full max-w-md gap-2 sm:max-w-sm"><Input name="q" defaultValue={query} placeholder="搜索队名" className="min-w-0" /><Button type="submit" variant="outline">搜索</Button></form></div></div><TeamSectionNav active="directory" /></div>{rows.length === 0 ? <EmptyState title="没有找到符合条件的队伍" /> : <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{rows.map((team) => <TeamDirectoryCard key={team.id} slug={team.slug} name={team.name} logoUrl={team.logoUrl} description={team.description} hasOpenRecruitment={team.hasOpenRecruitment} status={team.status} captainName={team.captainName} memberCount={countByTeam.get(team.id) ?? 0} />)}</div>}</div>;
+}
+
+function TeamDirectoryFallback() {
+  return <div className="container mx-auto min-h-[60vh] max-w-6xl px-4 py-12" aria-busy="true" />;
 }

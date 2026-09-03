@@ -1,20 +1,16 @@
-import { cache } from "react";
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { eq } from "drizzle-orm";
-import { db } from "@/db/client";
-import { seasons } from "@/db/schema";
+import { connection } from "next/server";
 import { Breadcrumb } from "@/components/layout/Breadcrumb";
 import { SeasonNav } from "@/components/layout/SeasonNav";
 import { hexToRgbString } from "@/lib/utils/color";
 import { normalizeStagePlan } from "@/types/season";
 import { showStats } from "@/lib/utils/season";
-import { getParticipantSummary } from "@/lib/participants/summary";
-import { checkAdminSession } from "@/lib/auth/session";
-
-const getSeason = cache(async (slug: string) => {
-  return db.query.seasons.findFirst({ where: eq(seasons.slug, slug) });
-});
+import {
+  getPublicOrAuthorizedDraftSeason,
+  getPublicSeasonBySlug,
+} from "@/lib/data/public-seasons";
 
 interface SeasonLayoutProps {
   children: React.ReactNode;
@@ -23,21 +19,26 @@ interface SeasonLayoutProps {
 
 export async function generateMetadata({ params }: SeasonLayoutProps): Promise<Metadata> {
   const { seasonSlug } = await params;
-  const season = await getSeason(seasonSlug);
+  const season = await getPublicSeasonBySlug(seasonSlug);
   return {
     title: season?.name ?? seasonSlug,
   };
 }
 
-export default async function SeasonLayout({ children, params }: SeasonLayoutProps) {
-  const { seasonSlug } = await params;
+export default function SeasonLayout({ children, params }: SeasonLayoutProps) {
+  return (
+    <Suspense fallback={<SeasonLayoutFallback />}>
+      <SeasonLayoutContent params={params}>{children}</SeasonLayoutContent>
+    </Suspense>
+  );
+}
 
-  const season = await getSeason(seasonSlug);
+async function SeasonLayoutContent({ children, params }: SeasonLayoutProps) {
+  await connection();
+  const { seasonSlug } = await params;
+  const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
 
   if (!season) notFound();
-  if (season.status === "draft" && !(await checkAdminSession())) notFound();
-
-  const { hasPlayers } = await getParticipantSummary(season);
 
   return (
     <div
@@ -62,9 +63,12 @@ export default async function SeasonLayout({ children, params }: SeasonLayoutPro
         hasDraft={season.hasDraft}
         hasMatches={normalizeStagePlan(season.stagePlan).length > 0}
         hasStats={showStats(season)}
-        hasPlayers={hasPlayers}
       />
       {children}
     </div>
   );
+}
+
+function SeasonLayoutFallback() {
+  return <div className="min-h-[50vh]" aria-busy="true" />;
 }

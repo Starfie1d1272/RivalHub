@@ -1,9 +1,12 @@
-import { and, eq, not, count, or, desc, inArray } from "drizzle-orm";
+import { Suspense } from "react";
+import { connection } from "next/server";
+import { and, eq, count, or, desc } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, competitionEntries, seasonRegistrations, users } from "@/db/schema";
+import { competitionEntries, seasonRegistrations, users } from "@/db/schema";
 import { captainVotes } from "@/db/schema/votes";
 import { matches } from "@/db/schema/matches";
 import { normalizeRegistrationConfig } from "@/types/season";
+import { getPublicSeasonCatalog } from "@/lib/data/public-seasons";
 import {
   buildHomeEyebrow,
   buildHomeNavEntries,
@@ -15,22 +18,21 @@ import { HomeSeasonPanel } from "@/components/home/HomeSeasonPanel";
 import { SeasonCardGrid } from "@/components/home/SeasonCardGrid";
 import { Panel, EmptyState } from "@/components/rivalhub";
 import { getParticipantSummary } from "@/lib/participants/summary";
-import { getUserSession } from "@/lib/auth/session";
 
-export default async function HomePage() {
-  const [activeSeasons, session] = await Promise.all([
-    db
-      .select()
-      .from(seasons)
-      .where(
-        and(
-          not(eq(seasons.status, "archived")),
-          not(eq(seasons.status, "draft"))
-        )
-      )
-      .orderBy(seasons.createdAt),
-    getUserSession(),
-  ]);
+export default function HomePage() {
+  return (
+    <Suspense fallback={<HomeFallback />}>
+      <HomeContent />
+    </Suspense>
+  );
+}
+
+async function HomeContent() {
+  await connection();
+  const allSeasons = await getPublicSeasonCatalog();
+  const activeSeasons = allSeasons
+    .filter((season) => season.status !== "archived")
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
   const featured = activeSeasons[0];
   const others = activeSeasons.slice(1);
@@ -48,20 +50,16 @@ export default async function HomePage() {
     );
   }
 
-  // 历届已归档赛季
-  const archivedSeasons = await db
-    .select({ id: seasons.id, name: seasons.name, slug: seasons.slug, kind: seasons.kind, status: seasons.status })
-    .from(seasons)
-    .where(eq(seasons.status, "archived"))
-    .orderBy(desc(seasons.createdAt))
-    .limit(6);
+  const archivedSeasons = allSeasons
+    .filter((season) => season.status === "archived")
+    .slice(0, 6);
 
   // 并行查询：基础统计 + 按状态的动态数据
   const [
     [featuredTeamCount],
     participantSummary,
     registrationCounts,
-    topVoteCandidates,
+    topCandidatesWithNames,
     liveAndUpcomingMatches,
   ] = await Promise.all([
     db.select({ value: count() }).from(competitionEntries).where(eq(competitionEntries.competitionId, featured.id)),
@@ -85,27 +83,25 @@ export default async function HomePage() {
           )
           .groupBy(seasonRegistrations.primaryPosition)
       : Promise.resolve([] as { position: string; cnt: number }[]),
-    // 仅 voting 状态时查询 TOP 3 候选人
+    // 仅 voting 状态时查询 TOP 3 候选人及姓名，避免二次串行查询。
     featured.status === "voting"
       ? db
           .select({
-            candidateRegistrationId: captainVotes.candidateRegistrationId,
+            displayName: users.displayName,
+            perfectName: users.perfectName,
             voteCount: count(),
           })
           .from(captainVotes)
-          .where(
-            inArray(
-              captainVotes.candidateRegistrationId,
-              db
-                .select({ id: seasonRegistrations.id })
-                .from(seasonRegistrations)
-                .where(eq(seasonRegistrations.seasonId, featured.id))
-            )
+          .innerJoin(
+            seasonRegistrations,
+            eq(captainVotes.candidateRegistrationId, seasonRegistrations.id),
           )
-          .groupBy(captainVotes.candidateRegistrationId)
+          .innerJoin(users, eq(seasonRegistrations.userId, users.id))
+          .where(eq(seasonRegistrations.seasonId, featured.id))
+          .groupBy(users.id, users.displayName, users.perfectName)
           .orderBy(desc(count()))
           .limit(3)
-      : Promise.resolve([] as { candidateRegistrationId: string; voteCount: number }[]),
+      : Promise.resolve([] as { displayName: string | null; perfectName: string | null; voteCount: number }[]),
     // 仅 playing 状态时查询 LIVE + 下一场
     featured.status === "playing"
       ? db
@@ -130,31 +126,10 @@ export default async function HomePage() {
       : Promise.resolve([] as { id: string; status: string; scheduledAt: Date | null; format: string }[]),
   ]);
 
-  // voting 状态：查询候选人名字
-  let topCandidatesWithNames: { name: string; voteCount: number }[] = [];
-  if (featured.status === "voting" && topVoteCandidates.length > 0) {
-    const regIds = topVoteCandidates.map((v) => v.candidateRegistrationId);
-    const regRows = await db
-      .select({
-        id: seasonRegistrations.id,
-        userId: seasonRegistrations.userId,
-      })
-      .from(seasonRegistrations)
-      .where(inArray(seasonRegistrations.id, regIds));
-
-    const userIds = regRows.map((r) => r.userId);
-    const userRows = await db
-      .select({ id: users.id, perfectName: users.perfectName, displayName: users.displayName })
-      .from(users)
-      .where(inArray(users.id, userIds));
-
-    topCandidatesWithNames = topVoteCandidates.map((v) => {
-      const reg = regRows.find((r) => r.id === v.candidateRegistrationId);
-      const user = reg ? userRows.find((u) => u.id === reg.userId) : undefined;
-      const name = user?.displayName ?? user?.perfectName ?? "未知选手";
-      return { name, voteCount: Number(v.voteCount) };
-    });
-  }
+  const namedCandidates = topCandidatesWithNames.map((candidate) => ({
+    name: candidate.displayName ?? candidate.perfectName ?? "未知选手",
+    voteCount: Number(candidate.voteCount),
+  }));
 
   // registration 状态：整理位置报名数据
   const regConfig = normalizeRegistrationConfig(featured.registrationConfig);
@@ -165,7 +140,7 @@ export default async function HomePage() {
 
   const eyebrow = buildHomeEyebrow(featured.status, featured.slug);
   const { tier1Entry, tier2Entries, tier3Entries } = selectHomeNavTiers(
-    buildHomeNavEntries(featured, { isAuthenticated: Boolean(session) }),
+    buildHomeNavEntries(featured),
     featured.status
   );
 
@@ -178,7 +153,7 @@ export default async function HomePage() {
           season={featured}
           maxPerPosition={maxPerPosition}
           positionCountMap={positionCountMap}
-          topCandidatesWithNames={topCandidatesWithNames}
+          topCandidatesWithNames={namedCandidates}
           liveAndUpcomingMatches={liveAndUpcomingMatches}
           teamCount={featuredTeamCount?.value ?? 0}
           playerCount={participantSummary.count}
@@ -197,6 +172,16 @@ export default async function HomePage() {
         title="历届赛季"
         seasons={archivedSeasons}
       />
+    </div>
+  );
+}
+
+function HomeFallback() {
+  return (
+    <div className="mx-auto px-4 lg:px-9 py-8 max-w-[1240px]">
+      <Panel>
+        <EmptyState title="正在加载赛季" sub="请稍候。" />
+      </Panel>
     </div>
   );
 }

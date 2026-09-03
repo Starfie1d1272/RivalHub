@@ -1,55 +1,93 @@
-import { db } from "@/db/client";
-import { seasons, users } from "@/db/schema";
-import { checkAdminSession, getUserSession } from "@/lib/auth/session";
-import { resolveAvatarUrl } from "@/lib/steam";
-import { HeaderClient } from "./HeaderClient";
+import { cache, Suspense } from "react";
 import { eq } from "drizzle-orm";
 
-export async function Header() {
-  const [allSeasons, session, authorization] = await Promise.all([
-    db
-      .select({ slug: seasons.slug, name: seasons.name, status: seasons.status, registrationOpensAt: seasons.registrationOpensAt, registrationOpenedAt: seasons.registrationOpenedAt, registrationClosesAt: seasons.registrationClosesAt })
-      .from(seasons),
-    getUserSession(),
-    checkAdminSession(),
-  ]);
+import { db } from "@/db/client";
+import { users } from "@/db/schema";
+import { getCurrentUserAuthorization } from "@/lib/auth/session";
 
-  const publicSeasons = allSeasons.filter(
-    (s) => s.status !== "archived" && s.status !== "draft"
-  );
+import { HeaderClient } from "./HeaderClient";
+import { HeaderNavigationFallback } from "./HeaderNavigation";
+import { HeaderPublicNavigation } from "./HeaderPublicNavigation";
+import { HeaderViewerClient } from "./HeaderViewerClient";
+import type { HeaderSession } from "./Header.types";
 
-  const currentUser = session
-    ? await db.query.users.findFirst({
-        where: eq(users.id, session.userId),
-        columns: { id: true, avatarUrl: true, steamName: true, displayName: true, steam64: true },
-      })
-    : null;
+const getHeaderViewer = cache(async (): Promise<{
+  session: HeaderSession;
+  avatarUrl: string | null;
+  steamName: string | null;
+  displayName: string | null;
+} | null> => {
+  const authorization = await getCurrentUserAuthorization();
+  if (!authorization) return null;
 
-  const avatarUrl = await resolveAvatarUrl({
-    avatarUrl: currentUser?.avatarUrl,
-    steam64: currentUser?.steam64,
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, authorization.userId),
+    columns: { avatarUrl: true, steamName: true, displayName: true },
   });
 
-  // 拉取到新头像 URL 时回写 DB，保持缓存不过期
-  if (avatarUrl && avatarUrl !== currentUser?.avatarUrl && currentUser) {
-    db.update(users)
-      .set({ avatarUrl })
-      .where(eq(users.id, currentUser.id))
-      .execute()
-      .catch(() => {}); // fire-and-forget，不阻塞渲染
-  }
+  return {
+    session: {
+      userId: authorization.userId,
+      isAdmin: authorization.role === "super_admin" || authorization.seasonIds.length > 0,
+      isSuperAdmin: authorization.role === "super_admin",
+    },
+    avatarUrl: user?.avatarUrl ?? null,
+    steamName: user?.steamName ?? null,
+    displayName: user?.displayName ?? null,
+  };
+});
 
+async function HeaderViewer({ variant }: { variant: "desktop" | "mobile" }) {
+  const viewer = await getHeaderViewer();
+  return (
+    <HeaderViewerClient
+      variant={variant}
+      session={viewer?.session ?? null}
+      avatarUrl={viewer?.avatarUrl}
+      steamName={viewer?.steamName}
+      displayName={viewer?.displayName}
+    />
+  );
+}
+
+function HeaderViewerFallback({ variant }: { variant: "desktop" | "mobile" }) {
+  if (variant === "mobile") return null;
+  return (
+    <div className="hidden sm:block">
+      <span
+        aria-hidden="true"
+        className="inline-flex h-7 min-w-12 items-center justify-center rounded-sm border border-[var(--color-border)] px-2 text-xs font-bold text-[var(--color-fg-mid)]"
+        style={{ fontFamily: "var(--font-mono)", letterSpacing: "var(--tracking-label)" }}
+      >
+        登录
+      </span>
+    </div>
+  );
+}
+
+export function Header() {
   return (
     <HeaderClient
-      seasons={publicSeasons}
-      session={session ? {
-        userId: session.userId,
-        isAdmin: authorization?.role === "super_admin" || Boolean(authorization?.seasonIds.length),
-        isSuperAdmin: authorization?.role === "super_admin",
-      } : null}
-      avatarUrl={avatarUrl}
-      steamName={currentUser?.steamName ?? null}
-      displayName={currentUser?.displayName ?? null}
+      desktopNavigation={
+        <Suspense fallback={<HeaderNavigationFallback />}>
+          <HeaderPublicNavigation />
+        </Suspense>
+      }
+      mobileNavigation={
+        <Suspense fallback={<HeaderNavigationFallback mobile />}>
+          <HeaderPublicNavigation mobile />
+        </Suspense>
+      }
+      desktopViewer={
+        <Suspense fallback={<HeaderViewerFallback variant="desktop" />}>
+          <HeaderViewer variant="desktop" />
+        </Suspense>
+      }
+      mobileViewer={
+        <Suspense fallback={<HeaderViewerFallback variant="mobile" />}>
+          <HeaderViewer variant="mobile" />
+        </Suspense>
+      }
     />
   );
 }

@@ -91,6 +91,7 @@ vi.mock("@/lib/auth/session", () => ({
 
 vi.mock("next/cache", () => ({
   revalidatePath: revalidatePathMock,
+  updateTag: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({

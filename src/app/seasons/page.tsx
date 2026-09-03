@@ -1,19 +1,24 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { desc, ne } from "drizzle-orm";
-import { db } from "@/db/client";
-import { seasons } from "@/db/schema";
+import { connection } from "next/server";
+import { getPublicSeasonCatalog } from "@/lib/data/public-seasons";
 import { presentSeasonParticipationState } from "@/lib/seasons/presentation";
 import { Panel, Marker, StatusPill } from "@/components/rivalhub";
 
 export const metadata: Metadata = { title: "所有赛季" };
 
-export default async function SeasonsPage() {
-  const allSeasons = await db
-    .select()
-    .from(seasons)
-    .where(ne(seasons.status, "draft"))
-    .orderBy(desc(seasons.createdAt));
+export default function SeasonsPage() {
+  return (
+    <Suspense fallback={<SeasonsFallback />}>
+      <SeasonsContent />
+    </Suspense>
+  );
+}
+
+async function SeasonsContent() {
+  await connection();
+  const allSeasons = await getPublicSeasonCatalog();
 
   return (
     <div className="container mx-auto px-4 py-12 sm:py-16">
@@ -45,6 +50,14 @@ export default async function SeasonsPage() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function SeasonsFallback() {
+  return (
+    <div className="container mx-auto px-4 py-12 sm:py-16">
+      <Marker sub="正在读取公开赛季">所有赛季</Marker>
     </div>
   );
 }

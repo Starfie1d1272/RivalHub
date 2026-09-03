@@ -102,6 +102,7 @@ vi.mock("@/lib/auth/session", async (importOriginal) => {
 
 vi.mock("next/cache", () => ({
   revalidatePath: revalidatePathMock,
+  updateTag: vi.fn(),
 }));
 
 vi.mock("@/db/client", () => ({

@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { getUserSession } from "@/lib/auth/session";
 import { ClaimInviteForm } from "@/components/auth/ClaimInviteForm";
 
+export const instant = false;
+
 interface Props {
   searchParams: Promise<{ code?: string }>;
 }

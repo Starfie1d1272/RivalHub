@@ -95,6 +95,7 @@ vi.mock("@/lib/discipline/service", () => ({
 
 vi.mock("next/cache", () => ({
   revalidatePath: revalidatePathMock,
+  updateTag: vi.fn(),
 }));
 
 // ── import after mocks ─────────────────────────────────────────────────────────

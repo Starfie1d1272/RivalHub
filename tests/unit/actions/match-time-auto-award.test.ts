@@ -151,7 +151,7 @@ describe("runMatchTimeAutoAwardCron", () => {
         scheduledAt: proposedTime.toISOString(),
       },
     });
-    expect(revalidateMatchPathsMock).toHaveBeenCalledWith("spring", "match-1");
+    expect(revalidateMatchPathsMock).toHaveBeenCalledWith("spring", "match-1", { mode: "route" });
   });
 
   it("skips matches without pending proposals", async () => {

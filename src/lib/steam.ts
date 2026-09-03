@@ -31,12 +31,3 @@ export async function getSteamAvatar(steam64: string): Promise<string | null> {
     return null;
   }
 }
-
-/** 优先从 Steam API 拉取最新头像，DB 缓存 URL 做兜底 */
-export async function resolveAvatarUrl(user: {
-  avatarUrl?: string | null;
-  steam64?: string | null;
-}): Promise<string | null> {
-  const freshUrl = user.steam64 ? await getSteamAvatar(user.steam64) : null;
-  return freshUrl ?? user.avatarUrl ?? null;
-}

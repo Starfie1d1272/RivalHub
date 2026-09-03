@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { eq, and, inArray, isNotNull } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, matches, competitionEntries, eventRosters, eventRosterMembers, matchCommentators, matchMaps, users, seasonRegistrations } from "@/db/schema";
+import { matches, competitionEntries, eventRosters, eventRosterMembers, matchCommentators, matchMaps, users, seasonRegistrations } from "@/db/schema";
 import { matchPlayerStats } from "@/db/schema/player-stats";
 import { matchMvpVotes } from "@/db/schema/mvp-votes";
 import { MatchMvpVote } from "@/components/matches/MatchMvpVote";
@@ -48,6 +48,7 @@ import { MatchHeroHeader } from "@/components/matches/MatchHeroHeader";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { getPublicLiveCommentators } from "@/lib/postmatch/service";
 import { isHttpUrl } from "@/lib/external-url";
+import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 
 interface MatchDetailPageProps {
   params: Promise<{ seasonSlug: string; matchId: string }>;
@@ -57,7 +58,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   const { seasonSlug, matchId } = await params;
 
   const [season, match] = await Promise.all([
-    db.query.seasons.findFirst({ where: eq(seasons.slug, seasonSlug) }),
+    getPublicOrAuthorizedDraftSeason(seasonSlug),
     db.query.matches.findFirst({ where: eq(matches.id, matchId) }),
   ]);
   if (!season) notFound();

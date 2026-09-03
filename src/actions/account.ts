@@ -11,6 +11,7 @@ import { failValidation, actionError } from "@/lib/action-utils";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { MIN_PASSWORD_LENGTH } from "@/lib/config/auth-config";
 import { isHttpUrl } from "@/lib/external-url";
+import { updatePublicPlayerTag } from "@/lib/revalidation";
 
 export async function changeUserPassword(
   oldPassword: string,
@@ -112,6 +113,7 @@ export async function updateProfile(
       })
       .where(eq(users.id, session.userId));
 
+    updatePublicPlayerTag(session.userId);
     revalidatePath("/settings");
     return ok(undefined);
   } catch (e) { return actionError("updateProfile", e); }
