@@ -3,9 +3,9 @@ export type ReleaseEnvironment = Readonly<Record<string, string | undefined>>;
 const RELEASE_TAG_PATTERN = /^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 
 /**
- * Production Vercel builds are release-only. Git integration may still create
- * a production build attempt from main, but without the release workflow's
- * build marker it fails before reading production schema or running Next.js.
+ * Production Vercel builds are release-only. The repository disables main's
+ * Git auto-deployment, but this gate remains defense-in-depth for any
+ * unexpected production build that reaches Vercel without release markers.
  */
 export function assertProductionReleaseBuild(env: ReleaseEnvironment): void {
   if (env.VERCEL_ENV !== "production") return;

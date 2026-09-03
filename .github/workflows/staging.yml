@@ -1,0 +1,63 @@
+name: Staging database rehearsal
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "要验证并用于 staging rehearsal 的 branch、tag 或 commit"
+        required: true
+        default: dev
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  staging:
+    runs-on: ubuntu-24.04
+    environment: staging
+    env:
+      NEXT_TELEMETRY_DISABLED: 1
+      RIVALHUB_DB_TARGET: staging
+      RIVALHUB_STAGING_PROJECT_CONFIRM: cueazphyskstwdhnzsxx
+      RIVALHUB_ALLOW_REMOTE_DB_WRITE: staging
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      - name: Record requested ref and checked-out commit
+        env:
+          REQUESTED_REF: ${{ inputs.ref }}
+        run: |
+          echo "Requested ref: $REQUESTED_REF"
+          echo "Checked-out commit: $(git rev-parse HEAD)"
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        with:
+          version: 11.25.0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24.x
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Start Local PostgreSQL for migration replay
+        run: pnpm db:local:start-db
+
+      - name: Migrate staging with protected canonical wrapper
+        env:
+          RIVALHUB_STAGING_DB_PASSWORD: ${{ secrets.RIVALHUB_STAGING_DB_PASSWORD }}
+        run: pnpm db:staging:migrate
+
+      - name: Verify staging schema and migration ledger
+        env:
+          RIVALHUB_STAGING_DB_PASSWORD: ${{ secrets.RIVALHUB_STAGING_DB_PASSWORD }}
+        run: pnpm db:staging:verify
+
+      - name: Stop Local PostgreSQL
+        if: always()
+        run: pnpm db:local:stop

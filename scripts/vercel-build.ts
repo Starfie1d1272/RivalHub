@@ -8,8 +8,8 @@ const binSuffix = process.platform === "win32" ? ".cmd" : "";
 
 try {
   if (process.env.VERCEL_ENV === "production") {
-    // Production is release-only. Ordinary Git integration builds do not carry
-    // these workflow-injected markers and therefore fail before Next.js build.
+    // Production is release-only. If an unexpected production build reaches
+    // Vercel, it must carry the release workflow's markers or fail closed.
     assertProductionReleaseBuild(process.env);
     const productionEnvironment = buildVercelProductionVerificationEnvironment(process.env);
     run(resolve(projectRoot, `node_modules/.bin/tsx${binSuffix}`), ["scripts/db/verify-migrations.ts"], productionEnvironment);

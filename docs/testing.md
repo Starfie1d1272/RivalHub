@@ -135,3 +135,5 @@ CompetitionEntry → roster revision → member invite / confirmation
 ## Change-level validation
 
 文档或小改动至少运行相关 checker；运行时、schema 或 workflow 改动应增加相应单测/本地集成验证。提交前检查 diff、未跟踪文件、敏感信息和生成产物；不要以 PR 文字或视觉 demo 代替实际验证。
+
+部署配置与 workflow 的静态 contract 由 `tests/unit/release/runtime-contract.test.ts` 覆盖：它检查 Vercel region、`main` 单 branch deployment gate、protected staging workflow 的 trigger/target/cleanup，以及 Cron matrix 的独立执行、retry、timeout 和 failure propagation。该测试不会连接 staging/production 数据库，也不会调用真实 Cron endpoint；staging remote rehearsal 只能由合并后的 GitHub `staging` Environment workflow 在人工需要时触发。
