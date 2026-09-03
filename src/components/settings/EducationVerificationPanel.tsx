@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { declareInstitutionalEmailEducation, getInstitutionSearch, submitEducationVerification } from "@/actions/education-verifications";
+import { declareInstitutionalEmailEducation, getInstitutionSearch, submitEducationVerification, type EducationSubmissionOutcome } from "@/actions/education-verifications";
 import { resendCurrentEmailVerification } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,7 +21,7 @@ export function EducationVerificationPanel({ email, emailVerified, hasInstitutio
   const [institutions, setInstitutions] = useState<Institution[]>([]);
   const [institution, setInstitution] = useState<Institution | null>(null);
   const [evidenceCode, setEvidenceCode] = useState("");
-  const run = (fn: () => Promise<{ success: boolean; error?: { message: string } }>, message: string) => startTransition(async () => { const result = await fn(); if (result.success) toast.success(message); else toast.error(result.error?.message ?? "操作失败，请稍后重试"); });
+  const run = <T,>(fn: () => Promise<{ success: true; data: T } | { success: false; error: { message: string } }>, message: string | ((data: T) => string)) => startTransition(async () => { const result = await fn(); if (result.success) toast.success(typeof message === "function" ? message(result.data) : message); else toast.error(result.error.message ?? "操作失败，请稍后重试"); });
   const search = () => run(async () => { const result = await getInstitutionSearch(query); if (result.success) setInstitutions(result.data); return result; }, "已更新学校搜索结果");
   const selectInstitution = (item: Institution) => { setInstitution(item); setQuery(item.name); setInstitutions([]); };
   const resetInstitution = () => { setInstitution(null); setInstitutions([]); };
@@ -73,7 +73,7 @@ export function EducationVerificationPanel({ email, emailVerified, hasInstitutio
         <div className="flex flex-wrap gap-2"><Button variant={academicStatus === "enrolled" ? "default" : "outline"} onClick={() => setAcademicStatus("enrolled")}>在读</Button><Button variant={academicStatus === "graduated" ? "default" : "outline"} onClick={() => setAcademicStatus("graduated")}>已毕业</Button></div>
         <StatusBanner tone="info" title={academicStatus === "enrolled" ? "需要《教育部学籍在线验证报告》" : "需要《教育部学历证书电子注册备案表》"} sub="复制报告中的在线验证码（通常为 16 位）；管理员会在学信网官方验证系统人工核验。" />
         <div className="space-y-1.5"><Label htmlFor="chsi-evidence-code">学信网在线验证码</Label><Input id="chsi-evidence-code" value={evidenceCode} onChange={(event) => setEvidenceCode(event.target.value)} placeholder="请输入报告中的在线验证码" autoComplete="off" /></div>
-        <Button disabled={pending || !institution || !evidenceCode.trim()} onClick={() => run(() => submitEducationVerification({ institutionId: institution?.id, academicStatus, evidenceCode }), "教育认证已提交，等待管理员审核")}>提交认证材料</Button>
+        <Button disabled={pending || !institution || !evidenceCode.trim()} onClick={() => run<EducationSubmissionOutcome>(() => submitEducationVerification({ institutionId: institution?.id, academicStatus, evidenceCode }), (outcome) => outcome === "created" ? "教育认证已提交，等待管理员审核" : outcome === "already_pending" ? "该验证码已提交，正在等待管理员审核" : "该验证码已通过审核，无需重复提交")}>提交认证材料</Button>
       </div>
     </Panel>}
     <Panel label="认证记录" pad={0}>
