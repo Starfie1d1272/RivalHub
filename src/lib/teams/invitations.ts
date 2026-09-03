@@ -1,5 +1,5 @@
-import { and, eq, isNull, lte, sql } from "drizzle-orm";
-import type { TxDb } from "@/db/client";
+import { and, count, eq, gt, isNull, lte, sql } from "drizzle-orm";
+import { db, type TxDb } from "@/db/client";
 import { auditLogs, teamInvitations, teamMemberships, teams } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { closePlayerLftInTx } from "@/lib/recruitment/commands";
@@ -26,6 +26,35 @@ export async function expirePendingInvitationsInTx(
     .where(and(...conditions))
     .returning({ id: teamInvitations.id });
   return expired.length;
+}
+
+function pendingDirectInvitationWhere(userId: string, now: Date) {
+  return and(
+    eq(teamInvitations.kind, "direct"),
+    eq(teamInvitations.invitedUserId, userId),
+    eq(teamInvitations.status, "pending"),
+    gt(teamInvitations.expiresAt, now),
+    eq(teams.status, "active"),
+  );
+}
+
+/** 供本人入口复用的有效 direct invitation 读取 owner。 */
+export async function getPendingDirectTeamInvitations(userId: string, now = new Date()) {
+  return db
+    .select({ id: teamInvitations.id, teamId: teams.id, teamName: teams.name, expiresAt: teamInvitations.expiresAt })
+    .from(teamInvitations)
+    .innerJoin(teams, eq(teams.id, teamInvitations.teamId))
+    .where(pendingDirectInvitationWhere(userId, now));
+}
+
+/** `/my` 与 `/teams` 只需要 invitation 的 count，不把完整 row 带入 readiness。 */
+export async function countPendingDirectTeamInvitations(userId: string, now = new Date()): Promise<number> {
+  const [row] = await db
+    .select({ value: count() })
+    .from(teamInvitations)
+    .innerJoin(teams, eq(teams.id, teamInvitations.teamId))
+    .where(pendingDirectInvitationWhere(userId, now));
+  return Number(row?.value ?? 0);
 }
 
 export type AcceptTeamInvitationOutcome =

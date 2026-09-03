@@ -22,6 +22,8 @@ jobs:
             path: /api/cron/check-registration-deadline
           - name: match-time-auto-award
             path: /api/cron/match-time-auto-award
+          - name: cleanup-education-evidence
+            path: /api/cron/cleanup-education-evidence
     steps:
       - name: Invoke ${{ matrix.name }}
         env:
