@@ -137,6 +137,7 @@ jobs:
           echo "PostgreSQL service did not become ready within 120 seconds" >&2
           exit 1
       - run: pnpm db:check
+      - run: pnpm db:release-compat
       - run: pnpm test:integration:pg17
 
   dependency-review:

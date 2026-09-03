@@ -37,6 +37,7 @@ RivalHub 以最高已完成的验证层级描述能力证据：
 | `pnpm db:local:verify-db` / `pnpm db:local:verify-supabase` | 分别验证 PostgreSQL contract 或 Auth/Storage/Data API |
 | `pnpm db:check` | Drizzle active migration chain |
 | `pnpm db:migration-risk` | active migration SQL 的 compatibility/locking risk classifier |
+| `pnpm db:release-compat` | previous stable shipped app → next active migration 的 N/N+1 compatibility gate |
 | `pnpm knip` | default module graph 的 dead-code/dependency/export hygiene |
 | `pnpm knip --production` | shipped production graph 的 dead-code/dependency hygiene |
 | `pnpm db:production:verify` | 严格只读校验明确确认的 production ledger、SQL SHA 与 terminal schema contract |
@@ -63,6 +64,8 @@ pnpm verify:local
 所有 real-PG 套件通过 `scripts/db/local.ts` 注入 loopback Local PostgreSQL。integration runner 先从 `template1` 创建基线库，使用现有 Drizzle runner、seed 和 verify 回放 active chain，再为每个 Vitest worker 创建独立 template clone；migration replay 的 scratch database 仍单独串行执行，不使用 testcontainers，也不以 mock 代替事务、约束或并发证据。Vitest 保持 `pool: forks` 与 `isolate: true`；需要缩小调试范围时直接使用 Vitest 文件或 `-t` pattern filter。
 
 CI 的 `postgres` job 使用官方 `postgres:17` service container，不启动 Supabase CLI 或任何 Auth、Storage、Kong、PostgREST、Studio、Realtime 等服务；`scripts/db/prepare-pg17.ts` 只在 vanilla PostgreSQL 缺少时建立 `anon` 与 `authenticated` 两个 `NOLOGIN` 角色，并验证 `gen_random_uuid()`，不修改 active migrations。随后 `test:integration:pg17` 依次完成 33 条 migration、seed、fixture、`verify-db`、worker clone 和完整 integration suite。开发者的 `db:local:start-db` 仍保留为 Local Supabase 兼容入口，不是 CI migration authority。
+
+PostgreSQL CI 在现有 service container 中按 `db:check → db:release-compat → test:integration:pg17` 执行；release workflow 在 production migrate 前再次执行 `db:release-compat`，不创建重复的 PostgreSQL/Supabase job。`tests/unit/db/release-compat.test.ts` 使用临时 git repository、stable/prerelease tags、previous source 与 candidate migration 覆盖 DROP/RENAME owner 依赖、annotation 不得绕过、ALTER TYPE/SET NOT NULL fail closed、additive/no-change pass、explicit invalid ref 与可定位 evidence 输出。
 
 ## PR CI graph
 
