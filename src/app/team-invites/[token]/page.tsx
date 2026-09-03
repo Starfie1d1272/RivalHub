@@ -21,7 +21,7 @@ export default async function TeamInvitePage({ params }: { params: Promise<{ tok
   const next = `/team-invites/${token}`;
   return <div className="mx-auto flex min-h-[60vh] max-w-xl items-center px-4 py-10"><Panel className="w-full" pad={28}>
     <div className="space-y-5"><div><p className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-accent)]">TEAM INVITATION</p><h1 className="mt-2 text-2xl font-semibold">加入 {invite.teamName}</h1></div>
-      <StatusBanner tone="info" title="这是队伍邀请" sub="加入队伍不等于参加任何赛事；参赛时仍需在对应赛事中确认名单。" />
+      <StatusBanner tone="info" title="这是队伍邀请" sub="接受邀请即加入队伍；加入队伍不等于参加任何赛事，参赛时仍需在对应赛事中确认名单。" />
       {session ? <ClaimTeamInviteButton token={token} /> : <div className="flex flex-wrap gap-2"><Link className="rounded-sm bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-[var(--color-accent-fg)]" href={`/login?next=${encodeURIComponent(next)}`}>登录后加入</Link><Link className="rounded-sm border border-[var(--color-border)] px-4 py-2 text-sm font-medium" href={`/login?mode=register&next=${encodeURIComponent(next)}`}>注册后加入</Link></div>}
     </div>
   </Panel></div>;

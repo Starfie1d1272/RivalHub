@@ -62,6 +62,7 @@ function model(overrides: Partial<Parameters<typeof buildMyReadinessModel>[0]> =
     user: fact,
     baseFact: fact,
     currentTeam: { id: "team-1", name: "Rival Five", role: "captain" },
+    pendingDirectInvitationCount: 0,
     competitiveProfiles: [{ key: "perfect_world", displayName: "完美世界竞技", state: "ready", blockers: [] }],
     competitions: [competition()],
     qualificationFactsByPlatform: new Map([["perfect_world", fact]]),
@@ -77,6 +78,17 @@ describe("我的 readiness read model", () => {
 
     expect(result.team).toMatchObject({
       cta: { href: "/my/teams#create-team", label: "创建队伍" },
+      secondaryCta: { href: "/teams/recruitment?view=teams", label: "寻找队伍" },
+    });
+  });
+
+  it("turns pending direct invitations into the primary no-Team handoff", () => {
+    const result = model({ currentTeam: null, pendingDirectInvitationCount: 2 });
+
+    expect(result.team).toMatchObject({
+      state: "waiting",
+      detail: "你有 2 个待处理的队伍邀请。接受邀请即加入队伍，不需要再次申请或等待审核。",
+      cta: { href: "/my/teams", label: "处理队伍邀请" },
       secondaryCta: { href: "/teams/recruitment?view=teams", label: "寻找队伍" },
     });
   });

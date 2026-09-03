@@ -18,3 +18,9 @@ export function presentTeamStatus(status: "active" | "disbanded"): StatusPresent
 export function presentTeamMembershipStatus(status: "active" | "benched" | "left"): StatusPresentation {
   return TEAM_MEMBERSHIP_PRESENTATIONS[status];
 }
+
+export function getTeamDirectoryCta(currentTeam: boolean, pendingDirectInvitationCount: number): { href: string; label: string } {
+  if (currentTeam) return { href: "/my/teams", label: "管理我的队伍" };
+  if (pendingDirectInvitationCount > 0) return { href: "/my/teams", label: "处理队伍邀请" };
+  return { href: "/my/teams#create-team", label: "创建队伍" };
+}
