@@ -1,6 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { competitiveRankFacts, educationVerifications, institutions, users } from "@/db/schema";
+import { BUILT_IN_COMPETITIVE_PLATFORMS, isBuiltInCompetitivePlatformKey } from "@/lib/competitive/builtins";
 import { getPlayerStrengthBreakdown, evaluateExternalStrengthRule, type PlayerStrengthInput } from "@/lib/major/player-strength";
 import {
   evaluateRosterEducationEligibility,
@@ -125,6 +126,83 @@ export function getParticipantIdentityBlockers(fact: ParticipantQualificationFac
   return blockers;
 }
 
+type SelectableCompetitivePeak = {
+  status?: "ranked" | "unranked";
+  rank: string | null;
+  rating: number | null;
+  stars?: number | null;
+};
+
+function selectedCompetitivePeak(
+  primary: SelectableCompetitivePeak | null | undefined,
+  fallback: SelectableCompetitivePeak | null | undefined,
+  primaryPlatform: string,
+  fallbackPlatform: string | undefined,
+): { peak: QualificationPeak | QualificationSeasonPeak; platform: string } | null {
+  if (primary?.status !== "unranked" && primary?.rank && primary.rating !== null && primary.rating !== undefined) {
+    return { peak: primary, platform: primaryPlatform };
+  }
+  if (fallback?.rank && fallback.rating !== null && fallback.rating !== undefined && fallbackPlatform) {
+    return { peak: fallback, platform: fallbackPlatform };
+  }
+  return null;
+}
+
+/** Star-rank facts remain nullable in storage for migration compatibility, but
+ * a declared fact used by a live qualification context is incomplete until its
+ * exact stars are supplied by the participant. */
+function getMissingStarBlockers(
+  fact: ParticipantQualificationFacts,
+  context: CompetitiveProfileConfig,
+): string[] {
+  const fallbackPlatform = context.fallbackConversion?.sourcePlatform;
+  const slots: Array<{
+    label: string;
+    primary: SelectableCompetitivePeak | null | undefined;
+    fallback: SelectableCompetitivePeak | null | undefined;
+  }> = [
+    { label: "历史最高", primary: fact.historicalPeak, fallback: fact.fallbackFacts?.historicalPeak },
+  ];
+  const policy = context.evidencePolicy;
+  const referenceSeasonKey = policy?.referenceSeasonKey ?? context.previousSeasonKey;
+  slots.push({
+    label: policy ? `前一完整赛季 · ${referenceSeasonKey}` : `上一赛季 · ${referenceSeasonKey}`,
+    primary: fact.seasonPeaks?.get(referenceSeasonKey),
+    fallback: fact.fallbackFacts?.seasonPeaks.get(referenceSeasonKey),
+  });
+  const recentSeasonKeys = policy?.recentSeasonKeys ?? [context.currentSeasonKey];
+  for (const seasonKey of recentSeasonKeys) {
+    slots.push({
+      label: policy ? `近期赛季 · ${seasonKey}` : `当前赛季 · ${seasonKey}`,
+      primary: fact.seasonPeaks?.get(seasonKey),
+      fallback: fact.fallbackFacts?.seasonPeaks.get(seasonKey),
+    });
+  }
+
+  const definitionsByPlatform = new Map<string, Map<string, { label: string; starMin: number | null }>>();
+  if (isBuiltInCompetitivePlatformKey(context.platform)) {
+    definitionsByPlatform.set(context.platform, new Map(
+      BUILT_IN_COMPETITIVE_PLATFORMS[context.platform].ranks.map((rank) => [rank.rankKey, { label: rank.label, starMin: rank.starMin }]),
+    ));
+  }
+  if (fallbackPlatform && isBuiltInCompetitivePlatformKey(fallbackPlatform)) {
+    definitionsByPlatform.set(fallbackPlatform, new Map(
+      BUILT_IN_COMPETITIVE_PLATFORMS[fallbackPlatform].ranks.map((rank) => [rank.rankKey, { label: rank.label, starMin: rank.starMin }]),
+    ));
+  }
+
+  const blockers: string[] = [];
+  for (const slot of slots) {
+    const selected = selectedCompetitivePeak(slot.primary, slot.fallback, context.platform, fallbackPlatform);
+    if (!selected?.peak.rank) continue;
+    const rank = definitionsByPlatform.get(selected.platform)?.get(selected.peak.rank);
+    if (rank?.starMin !== null && rank?.starMin !== undefined && (selected.peak.stars === null || selected.peak.stars === undefined)) {
+      blockers.push(`${slot.label}的 ${rank.label} 段位需要填写准确星数，竞技资料未填写完整。`);
+    }
+  }
+  return blockers;
+}
+
 /** Canonical competitive-profile completeness for one frozen or catalog context. */
 function getCompetitiveProfileBlockers(
   fact: ParticipantQualificationFacts,
@@ -132,13 +210,15 @@ function getCompetitiveProfileBlockers(
 ): string[] {
   if (!context) return ["竞技平台赛季目录尚未完成当前与上一赛季配置。"];
   const strength = toPlayerStrengthInput(fact, context);
-  return getPlayerStrengthBreakdown(strength, context).blockers.map((blocker) => {
+  const profileBlockers = getMissingStarBlockers(fact, context);
+  const strengthBlockers = getPlayerStrengthBreakdown(strength, context).blockers.map((blocker) => {
     if (!context.evidencePolicy && blocker.includes("缺少上赛季")) return `缺少${context.platform} · ${context.previousSeasonKey} 的最高段位及 Rating。`;
     if (!context.evidencePolicy && blocker.includes("缺少当前赛季")) return `缺少${context.platform} · ${context.currentSeasonKey} 的最高段位及 Rating。`;
     if (context.evidencePolicy && blocker.includes("前一完整")) return `缺少${context.platform} · ${context.evidencePolicy.referenceSeasonKey} 的最高段位及 Rating。`;
     if (context.evidencePolicy && blocker.includes("近期赛季")) return `缺少${context.platform} · ${context.evidencePolicy.recentSeasonKeys.join(" / ")} 的可用竞技资料。`;
     return blocker;
   });
+  return [...profileBlockers, ...strengthBlockers];
 }
 
 /**

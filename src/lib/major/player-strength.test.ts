@@ -192,10 +192,10 @@ describe("Major external-member strength rule", () => {
     expect(result.blockers.join(" ")).not.toContain("external-ok");
   });
 
-  it("does not silently compare when there is no NJU reference or stars are missing", () => {
+  it("does not silently compare when there is no NJU reference or required stars are missing", () => {
     expect(evaluateExternalStrengthRule({ config: CONFIG, players: [{ ...home, isHome: false }] }).blockers[0]).toContain("没有可确认的南京大学成员");
 
-    // S 段位缺少准确星数 → 自动判断不足，进入人工审核。
+    // S 段位缺少准确星数 → 资料未完成，直接阻止提交。
     const insufficient = player("external-no-stars", "钻石S", "A", "A");
     const result = evaluateExternalStrengthRule({
       config: CONFIG,
@@ -206,5 +206,6 @@ describe("Major external-member strength rule", () => {
     });
     expect(result.eligible).toBe(false);
     expect(result.blockers.join(" ")).toContain("缺少准确星数");
+    expect(result.blockers.join(" ")).not.toContain("人工审核");
   });
 });

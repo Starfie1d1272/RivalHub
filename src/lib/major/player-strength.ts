@@ -134,8 +134,8 @@ function historicalPeakStarPosition(player: PlayerStrengthInput): HistoricalPeak
 
 /**
  * 队内最强外校选手的完美世界历史最高总星数不得高于队内最强本校选手超过
- * `externalStrengthMaxStarGap`（默认 3）星。缺星数或缺少历史最高视为“自动
- * 判断不足”，返回不可自动通过，交由赛委会人工审核。
+ * `externalStrengthMaxStarGap`（默认 3）星。缺星数或缺少历史最高表示竞技
+ * 资料未填写完整，返回 blocker，要求选手补充后再提交。
  */
 export function evaluateExternalStrengthRule(input: { players: Array<PlayerStrengthInput & { isHome: boolean }>; config: CompetitiveProfileConfig }): { eligible: boolean; blockers: string[] } {
   const home = input.players.filter((player) => player.isHome);
@@ -151,7 +151,7 @@ export function evaluateExternalStrengthRule(input: { players: Array<PlayerStren
     if (position.kind === "stars") return position.stars;
     if (position.kind === "starless") return Number.NEGATIVE_INFINITY;
     if (position.kind === "insufficient") {
-      blockers.push(`选手 ${player.label} 的历史最高属于 S 段位但缺少准确星数，无法自动判断外校相对实力限制，需赛委会人工审核。`);
+      blockers.push(`选手 ${player.label} 的历史最高属于 S 段位但缺少准确星数，竞技资料未填写完整，无法执行外校相对实力限制，请先补充后再提交。`);
     } else {
       blockers.push(`选手 ${player.label} 缺少历史最高段位，无法自动判断外校相对实力限制。`);
     }
