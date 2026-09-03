@@ -590,12 +590,12 @@ export async function verifyDatabaseAccessMatrix(
         ) AS authenticated_privileges,
         COALESCE(
           (
-            SELECT array_agg(policyname ORDER BY policyname)
+            SELECT array_agg(policyname::text ORDER BY policyname)::text[]
             FROM pg_policies
             WHERE schemaname = 'public' AND tablename = c.relname
           ),
           ARRAY[]::text[]
-        ) AS policy_names,
+        )::text[] AS policy_names,
         EXISTS (
           SELECT 1
           FROM pg_publication AS publication
@@ -612,15 +612,21 @@ export async function verifyDatabaseAccessMatrix(
     `,
     [TABLE_PRIVILEGES],
   );
+  const facts = factsResult.rows.map((row) => ({
+    ...row,
+    anon_privileges: normalizeTextArray(row.anon_privileges),
+    authenticated_privileges: normalizeTextArray(row.authenticated_privileges),
+    policy_names: normalizeTextArray(row.policy_names),
+  }));
   assertDatabaseAccessMatrixFacts(
     tableResult.rows.map((row) => row.table_name),
-    factsResult.rows,
+    facts,
   );
 
   console.log(
     `${context} database access matrix passed: ${DATABASE_ACCESS_MATRIX.length} public base tables, deny-by-default, RLS/policy/publication contract aligned.`,
   );
-  return factsResult.rows;
+  return facts;
 }
 
 export function assertDatabaseAccessMatrixFacts(
@@ -712,6 +718,16 @@ export function renderDatabaseAccessMatrixMarkdown(): string {
 
 function formatPrivileges(privileges: readonly string[]): string {
   return privileges.length > 0 ? privileges.join(", ") : "无";
+}
+
+function normalizeTextArray(value: readonly string[] | string): string[] {
+  if (typeof value !== "string") return [...value];
+  if (value === "{}") return [];
+  return value
+    .slice(1, -1)
+    .split(",")
+    .map((item) => item.replace(/^"|"$/g, "").replaceAll('\\"', '"').replaceAll('\\\\', '\\'))
+    .filter(Boolean);
 }
 
 function escapeMarkdownCell(value: string): string {
