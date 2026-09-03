@@ -8,7 +8,6 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import { requireAuth, requireSeasonAdmin } from "@/lib/auth/session";
 import { getMatchOrThrow, getSeasonOrThrow, actionError } from "@/lib/action-utils";
 import { revalidateMatchPaths } from "@/lib/revalidation";
-import { getPublicMatchTimeProposals } from "@/lib/matches/time-proposals";
 import {
   TIME_CONFIRMATION_BUFFER_HOURS,
   assertBeforeTimeConfirmationCutoff,
@@ -276,13 +275,6 @@ export async function runMatchTimeAutoAwardCron(
     skipped,
     failed,
   };
-}
-
-/**
- * 查询某场比赛的所有时间提议（按创建时间倒序）。
- */
-export async function getTimeProposals(matchId: string) {
-  return getPublicMatchTimeProposals(matchId);
 }
 
 async function autoAcceptExpiredProposals(

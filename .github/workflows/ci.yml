@@ -52,7 +52,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        task: [type-app, type-tests, type-scripts, lint, unit, build]
+        task: [type-app, type-tests, type-scripts, lint, unit, dead-code, build]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -75,6 +75,7 @@ jobs:
             type-scripts) pnpm type-check:scripts ;;
             lint) pnpm lint ;;
             unit) pnpm test ;;
+            dead-code) pnpm knip && pnpm knip --production ;;
             build) env -u DATABASE_URL pnpm build ;;
             *) echo "unknown static task" >&2; exit 1 ;;
           esac
@@ -102,10 +103,14 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
       RIVALHUB_LOCAL_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
       RIVALHUB_DB_TARGET: local
+      RIVALHUB_MIGRATION_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+      RIVALHUB_MIGRATION_HEAD_SHA: ${{ github.sha }}
       RIVALHUB_INTEGRATION_WORKERS: 2
       RIVALHUB_TIMING: 1
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
         with:
@@ -133,6 +138,17 @@ jobs:
           exit 1
       - run: pnpm db:check
       - run: pnpm test:integration:pg17
+
+  dependency-review:
+    name: dependency-review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5
+        with:
+          fail-on-severity: moderate
 
   system:
     name: system
@@ -164,7 +180,7 @@ jobs:
   ci-gate:
     name: ci-gate
     if: ${{ always() }}
-    needs: [plan, static, postgres, system]
+    needs: [plan, static, postgres, system, dependency-review]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -176,4 +192,6 @@ jobs:
           STATIC_RESULT: ${{ needs.static.result }}
           POSTGRES_RESULT: ${{ needs.postgres.result }}
           SYSTEM_RESULT: ${{ needs.system.result }}
+          DEPENDENCY_REVIEW_RESULT: ${{ needs.dependency-review.result }}
+          EVENT_NAME: ${{ github.event_name }}
           REQUIRED_JOBS: ${{ needs.plan.outputs.required_jobs }}

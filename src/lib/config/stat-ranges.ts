@@ -1,6 +1,6 @@
 // CS2 单图玩家数据合法范围 [min, max | null]
 // null 表示无上限（只检查非负），仅对数学上有硬边界的字段设置上限。
-export const STAT_RANGES: Record<string, readonly [number, number | null]> = {
+const STAT_RANGES: Record<string, readonly [number, number | null]> = {
   // 计数类：只需非负，不设上限（OT 场次可以很高）
   kills:      [0, null],
   deaths:     [0, null],

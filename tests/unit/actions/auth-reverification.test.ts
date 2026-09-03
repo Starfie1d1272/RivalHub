@@ -8,7 +8,7 @@ const { requireAuthMock, userFindFirstMock, signInWithOtpMock } = vi.hoisted(() 
 
 vi.mock("@/lib/auth/session", () => ({ requireAuth: requireAuthMock }));
 vi.mock("@/db/client", () => ({ db: { query: { users: { findFirst: userFindFirstMock } } } }));
-vi.mock("@/lib/auth/supabase", () => ({
+vi.mock("@/lib/auth/supabase-server", () => ({
   createServiceClient: () => ({ auth: { signInWithOtp: signInWithOtpMock } }),
   createPublicAuthClient: () => ({ auth: {} }),
 }));

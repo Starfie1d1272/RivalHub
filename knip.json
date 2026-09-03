@@ -1,0 +1,67 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "rules": {
+    "files": "error",
+    "dependencies": "error",
+    "devDependencies": "error",
+    "unlisted": "error",
+    "unresolved": "error",
+    "binaries": "error",
+    "catalog": "error",
+    "catalogReferences": "error",
+    "duplicates": "error",
+    "exports": "warn",
+    "nsExports": "warn",
+    "types": "warn",
+    "nsTypes": "warn",
+    "enumMembers": "warn",
+    "namespaceMembers": "warn"
+  },
+  "entry": [
+    "drizzle.config.ts!",
+    "drizzle.local.config.ts!",
+    "drizzle.staging.config.ts!",
+    "drizzle.production.config.ts!",
+    "vitest.config.ts!",
+    "vitest.integration.config.ts!",
+    "playwright.config.ts!",
+    "next.config.ts!",
+    "postcss.config.mjs!",
+    "eslint.config.mjs!",
+    "scripts/ci/plan.mjs!",
+    "scripts/ci/gate.mjs!",
+    "scripts/db/block-drizzle-push.ts!",
+    "scripts/db/local.ts!",
+    "scripts/db/integration-runner.ts!",
+    "scripts/db/pg17-integration.ts!",
+    "scripts/db/major-browser-fixture.ts!",
+    "scripts/db/seed-local-fixtures.ts!",
+    "scripts/db/verify-db.ts!",
+    "scripts/db/verify-local.ts!",
+    "scripts/db/verify-supabase.ts!",
+    "scripts/db/verify-migrations.ts!",
+    "scripts/db/migration-risk.ts!",
+    "scripts/db/staging.ts!",
+    "scripts/db/production.ts!",
+    "scripts/db/production-preflight.ts!",
+    "scripts/seed.ts!",
+    "scripts/vercel-build.ts!",
+    "scripts/with-node-options.ts!",
+    "tests/mocks/server-only.ts"
+  ],
+  "project": [
+    "src/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}!",
+    "scripts/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}!",
+    "tests/**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}",
+    "*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}!"
+  ],
+  "ignoreDependencies": [
+    "supabase"
+  ],
+  "vitest": {
+    "config": [
+      "vitest.config.ts",
+      "vitest.integration.config.ts"
+    ]
+  }
+}

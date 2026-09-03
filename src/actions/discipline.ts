@@ -1,6 +1,6 @@
 "use server";
 
-import { and, asc, eq, ilike, or } from "drizzle-orm";
+import { asc, eq, ilike, or } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   disciplinaryCases,
@@ -20,7 +20,6 @@ import {
   markSanctionExpiredInTx,
   resolveSanctionStatus,
   revokeSanctionInTx,
-  serializeSanctionPublic,
   SANCTION_EFFECTS,
   type SanctionEffect,
 } from "@/lib/discipline/service";
@@ -169,24 +168,6 @@ export async function getSeasonSanctions(
     return ok(rows.map((row) => ({ ...row, resolvedStatus: resolveSanctionStatus(row, now) })));
   } catch (e) {
     return actionError("getSeasonSanctions", e);
-  }
-}
-
-/**
- * 公开（面向非管理页面）的赛季处罚摘要——内部证据永不序列化。
- */
-export async function getSeasonPublicSanctions(
-  seasonId: string,
-): Promise<ActionResult<ReturnType<typeof serializeSanctionPublic>[]>> {
-  try {
-    const rows = await db
-      .select()
-      .from(disciplinaryCases)
-      .where(and(eq(disciplinaryCases.seasonId, seasonId)));
-    const now = new Date();
-    return ok(rows.map((row) => serializeSanctionPublic(row, now)));
-  } catch (e) {
-    return actionError("getSeasonPublicSanctions", e);
   }
 }
 

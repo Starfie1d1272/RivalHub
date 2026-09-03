@@ -3,7 +3,7 @@ import {
   DRAFT_TEAMS,
 } from "@/types/draft";
 
-export const DRAFT_POSITION_LIMIT_PER_TEAM = 2;
+const DRAFT_POSITION_LIMIT_PER_TEAM = 2;
 
 export interface DraftTeamOrder {
   id: string;

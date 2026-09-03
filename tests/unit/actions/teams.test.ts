@@ -53,7 +53,7 @@ vi.mock("@/lib/auth/session", () => ({
   auditActorId: vi.fn((session: { userId: string }) => session.userId),
 }));
 
-vi.mock("@/lib/auth/supabase", () => ({
+vi.mock("@/lib/auth/supabase-server", () => ({
   createServiceClient: vi.fn(() => ({
     storage: {
       from: vi.fn(() => ({

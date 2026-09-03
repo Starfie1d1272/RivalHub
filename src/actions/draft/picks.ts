@@ -22,10 +22,8 @@ import { failValidation, actionError } from "@/lib/action-utils";
 import { revalidateSeasonPaths } from "@/lib/revalidation";
 import {
   pickPlayerSchema,
-  autoPickSchema,
   skipDraftTurnSchema,
   type PickPlayerInput,
-  type AutoPickInput,
   type SkipDraftTurnInput,
 } from "@/lib/validators/draft";
 import { DRAFT_ROUND_TIMEOUT_SECONDS, DRAFT_TOTAL_ROUNDS } from "@/types/draft";
@@ -110,35 +108,11 @@ export async function pickPlayer(
   }
 }
 
-// ── 超时自动选择 ───────────────────────────────────────────
-
-export async function autoPick(
-  input: AutoPickInput,
-): Promise<ActionResult<{ picked: boolean; pickId?: string; completed?: boolean; reason?: string }>> {
-  const parsed = autoPickSchema.safeParse(input);
-  if (!parsed.success) {
-    return failValidation("自动选择参数无效");
-  }
-
-  try {
-    await requireSeasonAdmin(parsed.data.seasonId);
-    const result = await runAutoPickForSeason(parsed.data.seasonId);
-    if (result.picked) {
-      revalidateDraftPaths(result.slug);
-    }
-    return ok({
-      picked: result.picked,
-      pickId: result.pickId,
-      completed: result.completed,
-      reason: result.reason,
-    });
-  } catch (e) {
-    return actionError("autoPick", e);
-  }
-}
-
-// ── 管理员强制跳过当前轮次（用于无可选选手时解除卡死）───────────────────────────────────────
-
+/**
+ * Operator-only recovery path for the rare timeout state with no eligible
+ * candidate. It is intentionally retained even when static callers are absent:
+ * the timeout cron reports this action as the manual remediation.
+ */
 export async function skipDraftTurn(
   input: SkipDraftTurnInput,
 ): Promise<ActionResult<{ skipped: boolean; completed: boolean }>> {
@@ -182,20 +156,12 @@ export async function skipDraftTurn(
       const now = new Date();
 
       if (!next) {
-        await tx
-          .update(draftState)
-          .set({
-            currentRound: DRAFT_TOTAL_ROUNDS + 1,
-            currentEntryId: null,
-            roundDeadline: null,
-            isActive: false,
-            updatedAt: now,
-          })
-          .where(eq(draftState.id, ds.id));
-        await tx
-          .update(seasons)
-          .set({ status: "playing", updatedAt: now })
-          .where(eq(seasons.id, parsed.data.seasonId));
+        await finalizeDraft(tx, {
+          seasonId: parsed.data.seasonId,
+          draftStateId: ds.id,
+          now,
+          actorId: auditActorId(admin),
+        });
 
         await tx.insert(auditLogs).values({
           seasonId: parsed.data.seasonId,
@@ -538,26 +504,12 @@ async function executeDraftPick(
   const next = getNextEntryId(seasonTeams, input.entryId, ds.currentRound);
 
   if (!next) {
-    await tx
-      .update(draftState)
-      .set({
-        currentRound: DRAFT_TOTAL_ROUNDS + 1,
-        currentEntryId: null,
-        roundDeadline: null,
-        isActive: false,
-        updatedAt: now,
-      })
-      .where(eq(draftState.id, ds.id));
-    await tx
-      .update(seasons)
-      .set({ status: "playing", updatedAt: now })
-      .where(eq(seasons.id, input.seasonId));
-    await tx.update(eventRosters).set({ sourceRosterRevisionId: sql`(SELECT entry.current_roster_revision_id FROM competition_entries entry WHERE entry.id = ${eventRosters.entryId})`, status: "frozen", confirmedAt: now, confirmedBy: input.captainUserId ?? "system:draft", frozenAt: now, frozenBy: input.captainUserId ?? "system:draft", updatedAt: now })
-      .where(sql`${eventRosters.entryId} IN (SELECT ${competitionEntries.id} FROM ${competitionEntries} WHERE ${competitionEntries.competitionId} = ${input.seasonId})`);
-    await tx.update(competitionEntryRosterRevisions).set({ status: "approved", submittedAt: now, approvedAt: now })
-      .where(sql`${competitionEntryRosterRevisions.entryId} IN (SELECT ${competitionEntries.id} FROM ${competitionEntries} WHERE ${competitionEntries.competitionId} = ${input.seasonId}) AND ${competitionEntryRosterRevisions.id} = (SELECT entry.current_roster_revision_id FROM competition_entries entry WHERE entry.id = ${competitionEntryRosterRevisions.entryId})`);
-    await tx.update(competitionEntries).set({ approvedRosterRevisionId: competitionEntries.currentRosterRevisionId, updatedAt: now })
-      .where(eq(competitionEntries.competitionId, input.seasonId));
+    await finalizeDraft(tx, {
+      seasonId: input.seasonId,
+      draftStateId: ds.id,
+      now,
+      actorId: input.captainUserId ?? "system:draft",
+    });
 
     return { pickId: pick.id, slug: season.slug, idempotent: false, completed: true };
   }
@@ -575,6 +527,46 @@ async function executeDraftPick(
     .where(eq(draftState.id, ds.id));
 
   return { pickId: pick.id, slug: season.slug, idempotent: false, completed: false };
+}
+
+async function finalizeDraft(
+  tx: DraftTransaction,
+  input: { seasonId: string; draftStateId: string; now: Date; actorId: string },
+): Promise<void> {
+  await tx
+    .update(draftState)
+    .set({
+      currentRound: DRAFT_TOTAL_ROUNDS + 1,
+      currentEntryId: null,
+      roundDeadline: null,
+      isActive: false,
+      updatedAt: input.now,
+    })
+    .where(eq(draftState.id, input.draftStateId));
+  await tx
+    .update(seasons)
+    .set({ status: "playing", updatedAt: input.now })
+    .where(eq(seasons.id, input.seasonId));
+  await tx
+    .update(eventRosters)
+    .set({
+      sourceRosterRevisionId: sql`(SELECT entry.current_roster_revision_id FROM competition_entries entry WHERE entry.id = ${eventRosters.entryId})`,
+      status: "frozen",
+      confirmedAt: input.now,
+      confirmedBy: input.actorId,
+      frozenAt: input.now,
+      frozenBy: input.actorId,
+      updatedAt: input.now,
+    })
+    .where(sql`${eventRosters.entryId} IN (SELECT ${competitionEntries.id} FROM ${competitionEntries} WHERE ${competitionEntries.competitionId} = ${input.seasonId})`);
+  await tx
+    .update(competitionEntryRosterRevisions)
+    .set({ status: "approved", submittedAt: input.now, approvedAt: input.now })
+    .where(sql`${competitionEntryRosterRevisions.entryId} IN (SELECT ${competitionEntries.id} FROM ${competitionEntries} WHERE ${competitionEntries.competitionId} = ${input.seasonId}) AND ${competitionEntryRosterRevisions.id} = (SELECT entry.current_roster_revision_id FROM competition_entries entry WHERE entry.id = ${competitionEntryRosterRevisions.entryId})`);
+  await tx
+    .update(competitionEntries)
+    .set({ approvedRosterRevisionId: competitionEntries.currentRosterRevisionId, updatedAt: input.now })
+    .where(eq(competitionEntries.competitionId, input.seasonId));
 }
 
 function assertDeadline(

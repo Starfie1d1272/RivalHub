@@ -36,12 +36,17 @@ RivalHub 以最高已完成的验证层级描述能力证据：
 | `pnpm db:local:bootstrap-db` / `pnpm db:local:bootstrap-services` | 分别完成数据库或服务栈的迁移与 fixture bootstrap |
 | `pnpm db:local:verify-db` / `pnpm db:local:verify-supabase` | 分别验证 PostgreSQL contract 或 Auth/Storage/Data API |
 | `pnpm db:check` | Drizzle active migration chain |
+| `pnpm db:migration-risk` | active migration SQL 的 compatibility/locking risk classifier |
+| `pnpm knip` | default module graph 的 dead-code/dependency/export hygiene |
+| `pnpm knip --production` | shipped production graph 的 dead-code/dependency hygiene |
 | `pnpm db:production:verify` | 严格只读校验明确确认的 production ledger、SQL SHA 与 terminal schema contract |
 | `pnpm db:production:migrate` | 先 Local/production preflight，再唯一的 Drizzle 前向迁移与自动 production verify |
 | `pnpm build` | production build |
 | `pnpm build:local` | 注入 loopback Local Supabase 环境的 production build |
 
 `pnpm test:integration` 与 `pnpm test:e2e` 都拒绝缺少或非 loopback 的 Local 数据库目标。前者运行 `tests/integration/db/**/*.test.ts`，后者通过 `pnpm dev:local` 启动应用，并在测试前后自动创建、清理 browser fixture；运行前先执行 `pnpm db:local:bootstrap`。CI 的 E2E 使用 runner 上已有的 system Chrome（`PLAYWRIGHT_CHANNEL=chrome`），不执行 `playwright install`；本地未安装 Playwright bundled browser 时可使用同一环境变量。
+
+Knip 的 `knip.json` 只把 package scripts、CI/config entrypoints 与测试 shim 声明为 entry；末尾 `!` 是 Knip 的 production-entry 标记，不是 dead-code ignore。`supabase` 是唯一显式 dependency exception，因为 Local runner 通过 `node_modules/.bin/supabase` 动态调用 CLI；其余 files、dependencies、unlisted、unresolved 与 duplicate issue 均保持 error。`exports`/`types` warning 会完整输出，只有逐项确认属于稳定 schema、DTO 或测试/运行时公共 contract 时才保留。
 
 Local PostgreSQL / migration evidence：
 
@@ -70,6 +75,8 @@ plan → static ─┐
 
 `scripts/ci/plan.mjs` 根据 changed surface 选择 capability：文档-only 只运行 `plan + ci-gate`；代码域分别进入 `static`、`postgres` 或 `system`；rename/delete、未分类、toolchain、workflow、release、merge queue 和手动运行 fail closed 到 full。`ci-gate` 会区分预期 skipped 与 required failure/skipped/cancelled，只有 planner 明确声明的 capability 可以跳过。
 
+`static` matrix 当前包含 type-check、lint、unit、build 与 `dead-code`；`dead-code` 在同一个 install 后按顺序运行 `pnpm knip` 和 `pnpm knip --production`。它是现有 static capability 的一个 task，不改变 #355 的 selective/full convergence graph。
+
 只有 pull request 使用上述 selective graph；`push` 到 `dev` 或 `main`、`merge_group`、已发布 `release` 以及 `workflow_dispatch` 都将 `FORCE_FULL`，运行 `static + postgres + system + ci-gate` 的完整 convergence gate。
 
 当前 planner contract 如下：
@@ -85,13 +92,11 @@ plan → static ─┐
 | `playwright.config.ts`、`tests/e2e/**`、CI/test harness、package/toolchain、其它 Supabase project 文件 | FULL |
 | unknown、rename、delete、无法读取的 source | FULL |
 
-普通 `src/app/**` 不再自动触发 system；planner 只检查少量显式 critical path 和 source 的 direct DB/Supabase import，不构建大型自定义 dependency graph。`tests/unit/ci/plan.test.mjs` 对上述边界使用单文件 regression cases；`tests/unit/ci/gate.test.mjs` 同时证明 planner-declared skipped 可通过，而 required/unexpected skipped、failure、cancelled 会失败。
+普通 `src/app/**` 按显式 critical path 和 source 的 direct DB/Supabase import 进入对应 capability；`tests/unit/ci/plan.test.mjs` 对这些边界使用单文件 regression cases；`tests/unit/ci/gate.test.mjs` 同时证明 planner-declared skipped 可通过，而 required/unexpected skipped、failure、cancelled 会失败。
 
 `system` 只维护一个 full profile：最小启动集合为 PostgreSQL、Auth、Storage、PostgREST、Kong，随后验证 Auth、Storage、Data API deny-by-default 与 Major Entry browser journey。Major Entry journey 本身验证真实 Auth → Team → CompetitionEntry → canonical page，不上传 Storage object；Storage 仍由同一 system job 的独立 service contract 证明，而不是被误当作 Entry E2E 的直接依赖。
 
-本 Issue 的 fresh runner 对照没有采用 Supabase CLI 2.116.0：2.115.0 与 2.116.0 各 3 次完整回归均通过，但 `start-services` 中位数分别为 81.915s 与 84.951s，E2E 中位数分别为 26.156s 与 29.803s，未达到稳定的实质收益。因此仓库继续锁定 2.115.0；不保留 CLI/profile benchmark lane。
-
-E2E 中偶尔出现的 `Error: The destination stream closed early` 已在本地与 fresh Actions 重复观察；在当前 Next/React server-renderer 路径中对应 response destination close 的 RSC teardown noise。只要同一 run 的 E2E 结果为 3 passed / 1 expected skip 且 fixture cleanup 成功，不把它静默成测试通过，也不修改 Next 依赖；若伴随失败请求、测试失败或 cleanup 失败，仍按 runtime regression 处理并阻断交付。
+E2E 中出现 `Error: The destination stream closed early` 时，按当前 Next/React server-renderer 路径的 response destination close / RSC teardown 诊断；只有同一 run 的 E2E 结果为 3 passed / 1 expected skip 且 fixture cleanup 成功时，才按已知 teardown noise 记录。若同时出现失败请求、测试失败或 cleanup 失败，按 runtime regression 处理并阻断交付。
 
 ## Verification contracts
 
@@ -130,8 +135,12 @@ CompetitionEntry → roster revision → member invite / confirmation
 
 完整 destructive lifecycle 只在独立 staging DB 执行，结束后 reset staging DB。它用于专项运营演练；2.0 RC 的稳定 gate 是 automated/local integration → RC production smoke → real registrations progressive validation。production 仅进行真实赛事所需 smoke，不承担模拟清理工作。
 
-本轮覆盖 canonical Rivals/Major template、custom definition fail-closed publish gate、平台赛季目录身份与冻结引用、qualification 单一 owner、empty-draft 删除/撤回 guard 与队长交接事务语义；完整 staging lifecycle 仅作为专项演练，不构成 RC 上线门槛。
-
 ## Change-level validation
 
 文档或小改动至少运行相关 checker；运行时、schema 或 workflow 改动应增加相应单测/本地集成验证。提交前检查 diff、未跟踪文件、敏感信息和生成产物；不要以 PR 文字或视觉 demo 代替实际验证。
+
+## Strategy guardrails
+
+测试层回答不同的运行时问题，不以堆数量替代证据。当前策略不设置全仓 coverage percentage gate，不把更多 Playwright journey 或 property-based testing 作为每个变更的默认要求；后者只在未来针对明确 combinatorial blind spot 的 pilot 中评估。`test:coverage` 继续是诊断工具，real-PG/migration replay 继续证明真实事务、约束与并发语义。
+
+部署配置与 workflow 的静态 contract 由 `tests/unit/release/runtime-contract.test.ts` 覆盖：它检查 Vercel region、`main` 单 branch deployment gate、protected staging workflow 的 trigger/target/cleanup，以及 Cron matrix 的独立执行、retry、timeout 和 failure propagation。该测试不会连接 staging/production 数据库，也不会调用真实 Cron endpoint；staging remote rehearsal 只能由合并后的 GitHub `staging` Environment workflow 在人工需要时触发。

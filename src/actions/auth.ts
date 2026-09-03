@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
-import { createPublicAuthClient, createServiceClient } from "@/lib/auth/supabase";
+import { createPublicAuthClient, createServiceClient } from "@/lib/auth/supabase-server";
 import { db } from "@/db/client";
 import { users } from "@/db/schema";
 import { ok, fail } from "@/types/action";

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { Client } from "pg";
 import { localDatabaseUrl } from "./database";
 
-export function localReplayDatabaseUrl(prefix: string): { maintenanceUrl: string; databaseUrl: string; databaseName: string } {
+function localReplayDatabaseUrl(prefix: string): { maintenanceUrl: string; databaseUrl: string; databaseName: string } {
   const configured = localDatabaseUrl();
   const databaseName = `${prefix}_${randomUUID().replaceAll("-", "")}`;
   const maintenance = new URL(configured);

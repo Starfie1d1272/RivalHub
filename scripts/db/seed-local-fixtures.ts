@@ -1,4 +1,4 @@
-import { db } from "../../src/db/client";
+import { db } from "../../src/db/client-runtime";
 import { seasons } from "../../src/db/schema";
 import { createMajorDefaultCapabilities } from "../../src/types/season";
 import { assertDeclaredDatabaseTarget } from "./local-environment";

@@ -1,5 +1,33 @@
 # Changelog
 
+## [2.2.2]
+
+RivalHub 2.2.2 聚焦日常赛事运营与个人资料维护的可靠性，改善后台审计日志、竞技档案编辑与定时任务运行，并修复选秀异常恢复时的名单收尾。
+
+### Changed
+
+#### 个人竞技档案维护
+
+个人竞技位置偏好改为更紧凑的选择方式；竞技资料按近期赛季与更早历史拆分，更早赛季默认以摘要展示，并可按需展开或收起，减少长期资料较多时的页面负担。
+
+#### 后台操作日志
+
+后台操作日志现在使用统一的中文动作、类别与目标展示，并改善目标对象解析、筛选和详情摘要。日志为空与加载失败会明确区分；客户端只接收经过整理的安全展示数据，不再依赖原始 JSON 解释操作内容。
+
+### Fixed
+
+#### 选秀异常恢复
+
+修复选秀最后一轮因无可选选手而由管理员跳过时的完成收尾。异常恢复现在与正常选秀完成共用同一收尾逻辑，正式赛事名单会正确冻结并记录为已确认。
+
+### Migration & Operations
+
+#### 发布、staging 与定时任务
+
+生产部署继续只通过正式 release workflow 执行，普通 `main` 更新不再产生无效的 Vercel Production 自动部署。新增受控的手动 staging migration / verify 工作流；多个 Cron 任务改为独立执行和重试，单个任务失败不会阻止其它定时任务运行，同时最终失败仍会明确使对应 workflow 失败。
+
+本版本不包含新的数据库 schema migration；生产发布仍应通过 `v*` tag 触发的标准 release workflow 完成数据库校验、精确版本部署与 smoke test。
+
 ## [2.2.1]
 
 RivalHub 2.2.1 聚焦管理员赛事配置、访问反馈和规则内容展示，进一步收口发布后的赛事事实边界。
@@ -1579,6 +1607,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.2.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.2.1...v2.2.2
 [2.2.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.2.0...v2.2.1
 [2.2.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.0.3...v2.1.0

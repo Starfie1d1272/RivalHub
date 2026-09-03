@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const createClientMock = vi.hoisted(() => vi.fn());
 vi.mock("@supabase/supabase-js", () => ({ createClient: createClientMock }));
 
-import { createBrowserClient, createPublicAuthClient, createServiceClient } from "@/lib/auth/supabase";
+import { createBrowserClient } from "@/lib/auth/supabase";
+import { createPublicAuthClient, createServiceClient } from "@/lib/auth/supabase-server";
 
 describe("Supabase client boundaries", () => {
   beforeEach(() => {

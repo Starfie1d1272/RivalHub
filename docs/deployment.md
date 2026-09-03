@@ -5,10 +5,48 @@
 | 环境 | 用途 | 数据库规则 |
 |---|---|---|
 | local | 开发、migration/fixture 验证、并发与破坏性测试 | 仅 loopback Local Supabase，由 `db:local:*` 注入 |
-| staging / preview | 独立的上线前 lifecycle rehearsal | 独立 Supabase project，与 production 隔离 |
+| preview | `dev`、feature branch、PR 和 release branch 的应用预览 | 由 Vercel Git Preview 提供；不授予 staging 数据库写入权限 |
+| staging | 受保护的 migration rehearsal 与 schema verification | 独立 Supabase project，由手动 GitHub Environment workflow 访问 |
 | production | 正式赛事与真实用户 | 只做真实赛事所需操作；不运行 destructive rehearsal |
 
-`dev` 或 Vercel Preview 不自动证明数据库隔离。确认 target Vercel environment 和 Supabase project 后，才可在 staging 执行 seed、migration rehearsal、写入型 E2E 或赛事模拟。
+`dev` 或 Vercel Preview 不自动证明数据库隔离。**Preview ≠ staging DB authorization**：必须确认 target Vercel environment 和 Supabase project，才可在 staging 执行 seed、migration rehearsal、写入型 E2E 或赛事模拟。
+
+## Vercel deployment contract
+
+Repository-level Vercel Functions region 固定为 `hnd1`，与 production 当前运行配置一致。不要在本仓库增加 fallback 或多 region；也不要借此调整 Function runtime、memory 或 Supabase region。
+
+### Preview
+
+`dev`、feature branch、PR 和 release branch 继续通过 Vercel Git Integration 创建 Preview deployment。`vercel.json` 只关闭 `main` branch 的 Git auto-deployment，未声明的 branch 继续使用默认开启语义；GitHub Integration、PR Preview 与 CLI deployment 均保留。
+
+### Production
+
+普通 `main` merge 不再创建 Vercel Git Production deployment。正式发布仍只有以下入口：
+
+```text
+release commit 合入 main
+→ 创建 v* tag
+→ .github/workflows/release.yml
+→ active Drizzle migration / verify
+→ vercel deploy --prod（精确 release commit）
+→ smoke
+```
+
+`scripts/vercel-build.ts` 与 `assertProductionReleaseBuild()` 继续保留：任何意外的 Production build 若没有合法 release marker，仍会 fail closed。关闭 `main` auto-deployment 不等于移除 production provenance gate。
+
+### Staging
+
+应用 Preview 不会自动部署或迁移 staging。需要真实 staging rehearsal 时，人工触发 [`.github/workflows/staging.yml`](../.github/workflows/staging.yml) 的 `workflow_dispatch`，并使用 `ref` input 指定 branch、tag 或 commit（默认 `dev`）。workflow 会记录实际 checkout 的 commit SHA，在 GitHub `staging` Environment 保护下执行：
+
+```text
+checkout requested ref
+→ pnpm db:local:start-db
+→ pnpm db:staging:migrate
+→ pnpm db:staging:verify
+→ always stop Local PostgreSQL
+```
+
+`db:staging:migrate` 内部已经负责 `drizzle check`、Local migration replay、Local verify、protected staging migrate 和 staging verify；workflow 不复制 migration algorithm、不执行 seed、reset 或 `db:push`。GitHub `staging` Environment 需要提供 `RIVALHUB_STAGING_DB_PASSWORD`；project confirmation 固定使用 `cueazphyskstwdhnzsxx`，写入必须由 `RIVALHUB_ALLOW_REMOTE_DB_WRITE=staging` 显式授权。该 workflow 只准备和验证 staging DB，不创建 staging app deployment，也不形成自动 `dev → staging → production` promotion pipeline。
 
 ## Local Supabase
 
@@ -38,9 +76,24 @@ CI 的 DB-only critical path 不使用 `start-db`：`.github/workflows/ci.yml` �
 
 ## Active migrations
 
-`drizzle/migrations/` 是活动迁移链，`drizzle/legacy-migrations/` 是只读历史。`pnpm db:check` 校验活动链；`pnpm db:push` 被阻止，因为它无法执行 custom SQL、data backfill 或 fail-closed validation。
+`drizzle/migrations/` 是活动迁移链，`drizzle/legacy-migrations/` 是只读历史。`pnpm db:check` 先对 changed surface 运行 migration-risk classifier，再校验活动链；`pnpm db:push` 被阻止，因为它无法执行 custom SQL、data backfill 或 fail-closed validation。
 
 远程 migration 前必须确认独立环境、当前 migration baseline、精确 target 及显式写入授权。RLS、policy、trigger 和 Data API grants 应作为同一 active Drizzle migration 的 custom SQL 管理，不使用手工 schema patch。
+
+### Migration compatibility contract
+
+Production schema evolution 默认遵循 **expand → deploy → contract**：先加入新结构或兼容读写所需的 backfill，再部署能够同时处理旧/新形态的应用；只有旧应用不再读写旧结构后，后续 release 才进行 contract cleanup。小型纯 additive migration 不需要为了形式主义拆成多个 release，但会破坏旧应用兼容性的变化必须跨 release 收敛。
+
+`pnpm db:migration-risk` 是 active Drizzle SQL changed surface 的风险分类器，不是兼容性证明器。它默认比较 `RIVALHUB_MIGRATION_BASE_SHA` 与 `RIVALHUB_MIGRATION_HEAD_SHA`（本地未提供 baseline 时检查当前未提交/未跟踪的 active migration），并报告以下 compatibility/locking risk：`DROP TABLE/COLUMN/TYPE`、rename、`ALTER COLUMN TYPE`、`SET NOT NULL`，以及明显可能 rewrite 或取得 exclusive lock 的 DDL。它不会重新分类未改动的历史 migration，也不建立第二份 migration ledger。命中后仍可做有意的 contract cleanup，但必须在对应 SQL 语句前留下 durable 注释，例如：
+
+```sql
+-- rivalhub:migration-risk: contract cleanup after the previous release stopped reading/writing <old field>
+ALTER TABLE ... DROP COLUMN ...;
+```
+
+注释只记录兼容性策略、清理阶段和原因，不自动证明安全。带风险的 migration 仍须通过 Local/real-PG replay、必要的 staging rehearsal 与 production preflight；active Drizzle ledger 仍是唯一 migration authority，checker 不建立 shadow migration system。明显 blocking risk 的 SQL 可以在经过验证的 SQL/session 中显式设置 bounded `lock_timeout` 或 `statement_timeout`，但本仓库不向 Drizzle URL 猜测性注入全局 timeout。
+
+本地要复现 CI 的 changed-surface 判定，应显式使用当前 `dev` 基线，例如：`RIVALHUB_MIGRATION_BASE_SHA=$(git merge-base HEAD origin/dev) RIVALHUB_MIGRATION_HEAD_SHA=HEAD pnpm db:migration-risk`。CI 在 checkout 完整历史后传入 PR base/head SHA；没有 active migration 变化时，checker 明确输出 no changed active migrations。
 
 ### Protected staging migration
 
@@ -93,7 +146,7 @@ Production preflight 以 `0024_major_runtime_convergence` 为已确认最低 bas
 
 正式 production release 由 `.github/workflows/release.yml` 的 `v*` tag workflow 独占：tag commit 必须已经包含在 `main`；runner 从 GitHub `production` Environment 取得 `VERCEL_TOKEN` 与仅用于 migration/verify 的 `DATABASE_URL`。workflow 的固定顺序是 **tag/main 校验 → Local migration validation → production migrate → production verify → exact tag Vercel Production deploy → smoke test → GitHub Release**。数据库迁移因此属于 release transaction，而不是发版后的人工补丁。若已发布 tag 的 workflow 因基础设施故障中止，可用同一 workflow 的手动入口指定该既有 tag 重试；它会重新核对 tag commit、完整 ledger 与 deploy provenance，不会移动 tag。
 
-Vercel production builds 使用 [`scripts/vercel-build.ts`](../scripts/vercel-build.ts)：当 `VERCEL_ENV=production` 时，只有 release workflow 注入合法 `RIVALHUB_RELEASE_TAG` 与 `RIVALHUB_RELEASE_COMMIT` 后才继续；随后它使用现有 runtime Transaction Pooler `DATABASE_URL` 执行 exact production migration verify，再进入 `next build`。普通 `main` Git auto-deploy 即使被 Vercel 创建，也会在没有 release marker 时 fail closed 并保留上一版 production；Preview builds 不读取 production DB。build gate 只验证，不自动执行 migration，从而避免“DB 已前进但 application build 随后失败”的反向半发布状态。
+Vercel production builds 使用 [`scripts/vercel-build.ts`](../scripts/vercel-build.ts)：当 `VERCEL_ENV=production` 时，只有 release workflow 注入合法 `RIVALHUB_RELEASE_TAG` 与 `RIVALHUB_RELEASE_COMMIT` 后才继续；随后它使用现有 runtime Transaction Pooler `DATABASE_URL` 执行 exact production migration verify，再进入 `next build`。普通 `main` Git auto-deploy 已由 repository config 关闭；如果出现其它意外 Production build，没有 release marker 时仍会 fail closed。Preview builds 不读取 production DB。build gate 只验证，不自动执行 migration，从而避免“DB 已前进但 application build 随后失败”的反向半发布状态。
 
 ### Explicit remote seed guard
 
@@ -129,7 +182,7 @@ staging 与 production 分别配置：
 
 ## Cron
 
-生产 Cron 由 `.github/workflows/cron.yml` 每 5 分钟调用：
+生产 Cron 由 `.github/workflows/cron.yml` 每 5 分钟触发一个 `fail-fast: false` matrix；三个 endpoint 是三个独立 execution。单个 child 使用 connection timeout 10 秒、request max 60 秒、2 次 retry（最多 3 次尝试，retry 总窗口 180 秒），job timeout 为 5 分钟。一个 endpoint 最终失败不会取消其它两个 child，但不会被 `continue-on-error` 或 `|| true` 吞掉，因此 workflow 最终会显示 failure。
 
 ```text
 /api/cron/draft-timeout
@@ -137,7 +190,7 @@ staging 与 production 分别配置：
 /api/cron/match-time-auto-award
 ```
 
-请求使用 `Authorization: Bearer $CRON_SECRET`。Vercel 环境变量和 GitHub Actions secret 必须配置相同的 `CRON_SECRET`；调度方式变化时，同步更新 workflow、部署配置和本文件。
+请求使用 `Authorization: Bearer $CRON_SECRET`，secret 只通过 GitHub Actions 环境变量注入。Vercel 环境变量和 GitHub Actions secret 必须配置相同的 `CRON_SECRET`；三个 Cron route 的业务幂等 owner 不变，调度、retry 或 timeout 变化时同步更新 workflow 与本文件。
 
 ## Production diagnostics
 

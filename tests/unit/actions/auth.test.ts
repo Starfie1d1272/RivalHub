@@ -47,7 +47,7 @@ vi.mock("@/lib/auth/admin-invites", () => ({
   claimAdminInviteInTx: claimAdminInviteInTxMock,
 }));
 
-vi.mock("@/lib/auth/supabase", () => ({
+vi.mock("@/lib/auth/supabase-server", () => ({
   createServiceClient: () => ({
     auth: {
       signInWithPassword: signInWithPasswordMock,

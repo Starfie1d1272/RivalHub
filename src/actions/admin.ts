@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { randomBytes } from "crypto";
-import { eq, and, count, desc } from "drizzle-orm";
+import { eq, and, count } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   seasons,
@@ -248,18 +248,6 @@ export async function deactivateInviteCode(inviteId: string) {
 
   revalidatePath("/admin/invites");
   return ok(undefined);
-}
-
-export async function getInviteCodes() {
-  await requireSuperAdmin();
-
-  const invites = await db
-    .select()
-    .from(adminInvites)
-    .orderBy(desc(adminInvites.createdAt))
-    .limit(50);
-
-  return ok(invites);
 }
 
 // ── 撤销用户管理员权限 ─────────────────────────────────────

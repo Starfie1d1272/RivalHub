@@ -45,7 +45,7 @@ function summary(fact: Fact, context: CompetitiveSeasonContext): string {
   return `${rank}${fact.stars ? ` · ${fact.stars}★` : ""}${fact.rating ? ` · ${context.ratingLabel} ${fact.rating}` : ""}`;
 }
 
-/** Full catalog access with current/previous and maintained older facts surfaced first. */
+/** Keep recent editors fixed while exposing older catalog facts on demand. */
 export function CompetitiveProfileForm({ contexts }: { contexts: CompetitiveSeasonContext[] }) {
   const [pending, startTransition] = useTransition();
   const first = contexts.find((item) => item.platform === "perfect_world") ?? contexts[0];
@@ -56,7 +56,7 @@ export function CompetitiveProfileForm({ contexts }: { contexts: CompetitiveSeas
   const [seasonFacts, setSeasonFacts] = useState<Record<string, Fact>>(() => Object.fromEntries((first?.seasons ?? []).map((season) => [season.seasonKey, factFor(first, season.seasonKey)])));
   const [initialFacts, setInitialFacts] = useState<Record<string, InitialFact>>(() => initialFactsFor(first));
   const [expanded, setExpanded] = useState(false);
-  const [editingHistory, setEditingHistory] = useState<Set<string>>(() => new Set());
+  const [editingHistory, setEditingHistory] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
   function choosePlatform(nextPlatform: string) {
@@ -66,23 +66,31 @@ export function CompetitiveProfileForm({ contexts }: { contexts: CompetitiveSeas
     setAchievedSeasonKey(next?.facts.find((fact) => fact.kind === "historical_peak")?.achievedSeasonKey ?? "unknown");
     setSeasonFacts(Object.fromEntries((next?.seasons ?? []).map((season) => [season.seasonKey, factFor(next, season.seasonKey)])));
     setInitialFacts(initialFactsFor(next));
-    setExpanded(false); setEditingHistory(new Set()); setSaved(false);
+    setExpanded(false); setEditingHistory(null); setSaved(false);
   }
 
-  const platformSelect = contexts.length > 1 ? <div className="space-y-1.5"><Label>竞技平台</Label><Select value={platform} onValueChange={choosePlatform}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{contexts.map((item) => <SelectItem key={item.platform} value={item.platform}>{item.platformDisplayName}</SelectItem>)}</SelectContent></Select></div> : null;
-  if (!context || context.ladder.length === 0 || !context.seasons.some((season) => season.isCurrent)) return <Panel label="竞技档案" pad={20}><div className="space-y-5">{platformSelect}<StatusBanner tone="warn" title="当前竞技平台目录尚未完善" sub="管理员需要配置平台段位表和当前赛季后，才可维护这份长期竞技资料。" /></div></Panel>;
+  const platformSelect = contexts.length > 1 ? <div className="space-y-1.5"><Label htmlFor="competitive-platform">竞技平台</Label><Select value={platform} onValueChange={choosePlatform}><SelectTrigger id="competitive-platform"><SelectValue /></SelectTrigger><SelectContent>{contexts.map((item) => <SelectItem key={item.platform} value={item.platform}>{item.platformDisplayName}</SelectItem>)}</SelectContent></Select></div> : null;
+  if (!context || context.ladder.length === 0 || !context.seasons.some((season) => season.isCurrent)) return <Panel label="竞技资料" pad={20}><div className="space-y-5">{platformSelect}<StatusBanner tone="warn" title="当前竞技平台目录尚未完善" sub="管理员需要配置平台段位表和当前赛季后，才可维护这份长期竞技资料。" /></div></Panel>;
 
-  const maintained = new Set(context.seasons.filter((season) => seasonFacts[season.seasonKey]?.status !== "unrecorded").map((season) => season.seasonKey));
-  const visibleSeasons = expanded ? context.seasons : context.seasons.filter((season) => season.isCurrent || season.isPrevious || maintained.has(season.seasonKey));
-  const hiddenCount = context.seasons.length - visibleSeasons.length;
+  const recentSeasons = context.seasons.filter((season) => season.isCurrent || season.isPrevious);
+  const olderSeasons = context.seasons.filter((season) => !season.isCurrent && !season.isPrevious);
+  const maintainedOlder = new Set(olderSeasons.filter((season) => seasonFacts[season.seasonKey]?.status !== "unrecorded").map((season) => season.seasonKey));
+  const visibleOlderSeasons = expanded ? olderSeasons : olderSeasons.filter((season) => maintainedOlder.has(season.seasonKey) || editingHistory === season.seasonKey);
+  const hiddenOlderCount = olderSeasons.filter((season) => !maintainedOlder.has(season.seasonKey)).length;
 
-  function editor(title: string, key: string, fact: Fact, setFact: (value: Fact) => void, allowUnrecorded: boolean) {
+  function editor(title: string, key: string, fact: Fact, setFact: (value: Fact) => void, allowUnrecorded: boolean, options: { after?: React.ReactNode; onCollapse?: () => void } = {}) {
     const selected = context!.ladder.find((entry) => entry.rankKey === fact.rank);
     const hasStars = selected?.starMin !== null && selected?.starMin !== undefined;
     const previous = initialFacts[key];
     const untouchedLegacy = previous?.status === "ranked" && previous.stars === "" && previous.rank === fact.rank && previous.rating === fact.rating;
     return <section key={key} className="space-y-3 border-l-2 border-[var(--color-border-hi)] pl-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-2"><h3 className="text-sm font-semibold">{title}</h3><span className="font-mono text-xs text-[var(--color-fg-mid)]">{summary(fact, context!)}</span></div>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold">{title}</h3>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <span className="font-mono text-xs text-[var(--color-fg-mid)]">{summary(fact, context!)}</span>
+          {options.onCollapse && <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-xs text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]" aria-label={`收起 ${title}`} onClick={options.onCollapse}>收起</Button>}
+        </div>
+      </div>
       {allowUnrecorded && <div className="max-w-56 space-y-1.5"><Label>资料状态</Label><Select value={fact.status} onValueChange={(status) => { setSaved(false); setFact(status === "ranked" ? { ...fact, status } : { status: status as FactStatus, rank: "", rating: status === "unranked" ? fact.rating : "", stars: "" }); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="unrecorded">未录入</SelectItem><SelectItem value="unranked">未定级</SelectItem><SelectItem value="ranked">已定级</SelectItem></SelectContent></Select></div>}
       {fact.status === "unrecorded" && <p className="text-sm text-[var(--color-fg-mid)]">尚未对这届作出声明；赛事若明确要求这届且没有可用 fallback，会提示你补充资料。</p>}
       {fact.status === "unranked" && <div className="max-w-sm space-y-1.5"><Label>对应 {context!.ratingLabel}（可选）</Label><Input value={fact.rating} onChange={(event) => { setSaved(false); setFact({ ...fact, rating: event.target.value }); }} inputMode="decimal" placeholder="没有可留空" /></div>}
@@ -91,6 +99,7 @@ export function CompetitiveProfileForm({ contexts }: { contexts: CompetitiveSeas
         {hasStars && <div className="space-y-1.5"><Label>星数</Label><Input value={fact.stars} onChange={(event) => { setSaved(false); setFact({ ...fact, stars: event.target.value }); }} inputMode="numeric" type="number" min={selected?.starMin ?? undefined} max={selected?.starMax ?? undefined} step={1} placeholder={untouchedLegacy ? "历史资料未记录星数" : `${selected?.starMin}–${selected?.starMax ?? "∞"}`} /></div>}
         <div className="space-y-1.5"><Label>对应 {context!.ratingLabel}</Label><Input value={fact.rating} onChange={(event) => { setSaved(false); setFact({ ...fact, rating: event.target.value }); }} inputMode="decimal" /></div>
       </div>}
+      {options.after}
     </section>;
   }
 
@@ -98,7 +107,7 @@ export function CompetitiveProfileForm({ contexts }: { contexts: CompetitiveSeas
     const action = fact.status === "unrecorded" ? "补充" : "编辑";
     return <section key={key} className="flex flex-wrap items-center justify-between gap-3 border-l-2 border-[var(--color-border-hi)] pl-4">
       <div><h3 className="text-sm font-semibold">{title}</h3><p className="mt-1 text-sm text-[var(--color-fg-mid)]">{summary(fact, context!)}</p></div>
-      <Button type="button" variant="outline" size="sm" aria-label={`${action} ${title}`} onClick={() => setEditingHistory((current) => new Set(current).add(key))}>{action}</Button>
+      <Button type="button" variant="outline" size="sm" aria-label={`${action} ${title}`} onClick={() => setEditingHistory(key)}>{action}</Button>
     </section>;
   }
 
@@ -109,20 +118,31 @@ export function CompetitiveProfileForm({ contexts }: { contexts: CompetitiveSeas
     return !fact.rank || !fact.rating || needsStars;
   };
 
-  return <Panel label="竞技档案" pad={20}><div className="space-y-5">
+  return <Panel label="竞技资料" pad={20}><div className="space-y-5">
     {platformSelect}
     <StatusBanner tone="info" title={`${context.platformDisplayName} · 长期竞技资料`} sub="未录入表示尚未声明；未定级是有效事实；已定级必须填写段位与 Rating。具体赛事会按当届冻结规则单独核验。" />
-    {editor("历史最高", HISTORICAL_KEY, historical, setHistorical, false)}
-    <div className="max-w-sm space-y-1.5"><Label>历史最高达成赛季（可选）</Label><Select value={achievedSeasonKey} onValueChange={setAchievedSeasonKey}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="unknown">不确定 / 暂不填写</SelectItem>{context.seasons.map((season) => <SelectItem key={season.seasonKey} value={season.seasonKey}>{season.label}</SelectItem>)}</SelectContent></Select></div>
-    <div className="space-y-4"><div><h2 className="text-base font-semibold">近期赛季</h2><p className="mt-1 text-sm text-[var(--color-fg-mid)]">当前、上一赛季可直接维护；更早历史赛季以摘要显示，按需展开编辑。</p></div>{visibleSeasons.map((season) => {
+    {editor("历史最高", HISTORICAL_KEY, historical, setHistorical, false, { after: <div className="max-w-sm space-y-1.5"><Label htmlFor="competitive-achieved-season">历史最高达成赛季（可选）</Label><Select value={achievedSeasonKey} onValueChange={(value) => { setSaved(false); setAchievedSeasonKey(value); }}><SelectTrigger id="competitive-achieved-season"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="unknown">不确定 / 暂不填写</SelectItem>{context.seasons.map((season) => <SelectItem key={season.seasonKey} value={season.seasonKey}>{season.label}</SelectItem>)}</SelectContent></Select></div> })}
+    <section aria-labelledby="recent-seasons-heading" className="space-y-4">
+      <div><h2 id="recent-seasons-heading" className="text-base font-semibold">近期赛季</h2><p className="mt-1 text-sm text-[var(--color-fg-mid)]">当前、上一赛季可直接维护。</p></div>
+      {recentSeasons.map((season) => {
       const title = `${season.isCurrent ? "当前赛季" : season.isPrevious ? "上一赛季" : "历史赛季"} · ${season.label}`;
       const fact = seasonFacts[season.seasonKey] ?? emptyFact();
       const setFact = (value: Fact) => { setSaved(false); setSeasonFacts((current) => ({ ...current, [season.seasonKey]: value })); };
-      return season.isCurrent || season.isPrevious || editingHistory.has(season.seasonKey)
-        ? editor(title, season.seasonKey, fact, setFact, true)
-        : compactHistory(title, season.seasonKey, fact);
-    })}</div>
-    {!expanded && hiddenCount > 0 && <Button type="button" variant="outline" onClick={() => setExpanded(true)}>展开全部历史赛季（{hiddenCount}）</Button>}
+      return editor(title, season.seasonKey, fact, setFact, true);
+      })}
+    </section>
+    {olderSeasons.length > 0 && <section aria-labelledby="older-history-heading" className="space-y-4">
+      <div><h2 id="older-history-heading" className="text-base font-semibold">更早历史资料</h2><p className="mt-1 text-sm text-[var(--color-fg-mid)]">已维护的历史事实会保留在这里；其它赛季可按需查看和补充。</p></div>
+      {visibleOlderSeasons.map((season) => {
+        const title = `历史赛季 · ${season.label}`;
+        const fact = seasonFacts[season.seasonKey] ?? emptyFact();
+        const setFact = (value: Fact) => { setSaved(false); setSeasonFacts((current) => ({ ...current, [season.seasonKey]: value })); };
+        return editingHistory === season.seasonKey
+          ? editor(title, season.seasonKey, fact, setFact, true, { onCollapse: () => setEditingHistory(null) })
+          : compactHistory(title, season.seasonKey, fact);
+      })}
+      {hiddenOlderCount > 0 && <Button type="button" variant="outline" aria-expanded={expanded} onClick={() => setExpanded((current) => !current)}>{expanded ? "收起历史赛季" : `查看全部历史赛季（${hiddenOlderCount}）`}</Button>}
+    </section>}
     {saved && <StatusBanner tone="success" title="竞技档案已保存" sub="报名和赛务审核会使用你最新保存的资料。" />}
     <div className="flex flex-wrap items-center gap-3"><Button disabled={pending} onClick={() => {
       if (invalidRanked(HISTORICAL_KEY, historical)) { toast.error("历史最高需要填写段位、Rating，以及所选段位要求的星数。"); return; }

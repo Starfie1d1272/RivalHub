@@ -1,7 +1,7 @@
 import { requireSuperAdmin } from "@/lib/auth/session";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import { fetchAuditLogs, getAuditSeasons } from "@/actions/audit";
-import { Marker } from "@/components/rivalhub";
+import { ErrorState, Marker } from "@/components/rivalhub";
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { AuditLogTable } from "@/components/admin/AuditLogTable";
 
@@ -33,16 +33,28 @@ export default async function AdminLogsPage({ searchParams }: AdminLogsPageProps
     getAuditSeasons(),
   ]);
 
-  const logs = logsResult.success ? logsResult.data.logs : [];
-  const total = logsResult.success ? logsResult.data.total : 0;
-  const actorNameMap = logsResult.success ? (logsResult.data.actorNameMap ?? {}) : {};
-  const targetNameMap = logsResult.success ? (logsResult.data.targetNameMap ?? {}) : {};
-  const seasons = seasonsResult.success ? seasonsResult.data : [];
+  const pageClass = "container mx-auto max-w-6xl px-4 py-8";
+  if (!logsResult.success) {
+    return (
+      <div className={pageClass}>
+        <Marker>操作日志</Marker>
+        <ErrorState code={logsResult.error.code} title="无法加载操作日志" sub={logsResult.error.message} />
+      </div>
+    );
+  }
+  if (!seasonsResult.success) {
+    return (
+      <div className={pageClass}>
+        <Marker>操作日志</Marker>
+        <ErrorState code={seasonsResult.error.code} title="无法加载赛季筛选项" sub={seasonsResult.error.message} />
+      </div>
+    );
+  }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
+    <div className={pageClass}>
       <Marker>操作日志</Marker>
-      <AuditLogTable initialLogs={logs} initialTotal={total} seasons={seasons} initialActorNameMap={actorNameMap} initialTargetNameMap={targetNameMap} />
+      <AuditLogTable initialLogs={logsResult.data.logs} initialTotal={logsResult.data.total} seasons={seasonsResult.data} />
     </div>
   );
 }

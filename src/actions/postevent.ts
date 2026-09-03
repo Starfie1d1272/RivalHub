@@ -16,8 +16,6 @@ import {
   grantTournamentHonorInTx,
   revokePostEventAdjudicationInTx,
   revokeTournamentHonorInTx,
-  serializePostEventAdjudicationPublic,
-  serializeTournamentHonorPublic,
 } from "@/lib/postevent/service";
 import { fail, ok, type ActionResult } from "@/types/action";
 
@@ -156,21 +154,4 @@ export async function archiveMajorTournament(input: unknown): Promise<ActionResu
     revalidatePostEvent(season.slug);
     return ok(result);
   } catch (error) { return actionError("archiveMajorTournament", error); }
-}
-
-export async function getSeasonPublicPostEventFacts(seasonId: string): Promise<ActionResult<{
-  adjudications: ReturnType<typeof serializePostEventAdjudicationPublic>[];
-  honors: ReturnType<typeof serializeTournamentHonorPublic>[];
-}>> {
-  if (!uuid.safeParse(seasonId).success) return invalid("赛季标识无效。");
-  try {
-    const [adjudications, honors] = await Promise.all([
-      db.select().from(postEventAdjudications).where(eq(postEventAdjudications.seasonId, seasonId)),
-      db.select().from(tournamentHonors).where(eq(tournamentHonors.seasonId, seasonId)),
-    ]);
-    return ok({
-      adjudications: adjudications.map(serializePostEventAdjudicationPublic),
-      honors: honors.map(serializeTournamentHonorPublic),
-    });
-  } catch (error) { return actionError("getSeasonPublicPostEventFacts", error); }
 }

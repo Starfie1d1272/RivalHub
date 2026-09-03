@@ -181,7 +181,7 @@ async function loadFrozenRosterUserIdsInTx(
   return { ids, verificationsByUser };
 }
 
-export async function loadTeamLineupContextInTx(
+async function loadTeamLineupContextInTx(
   tx: TxDb,
   match: Match,
   entryId: string,
@@ -531,7 +531,7 @@ export async function applyMatchStatusTransitionInTx(
  * still validates against freshly loaded facts. There is no fallback path here
  * by design — nothing infers starters from membership ordering.
  */
-export async function assertConfirmedLineupsForStartInTx(
+async function assertConfirmedLineupsForStartInTx(
   tx: TxDb,
   match: Match,
 ): Promise<StartLineupSummary[]> {
