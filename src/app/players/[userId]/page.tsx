@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { eq, and, asc, desc, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { competitionEntries, educationVerifications, eventRosterMembers, eventRosters, institutions, seasonRegistrations, seasons, matches, matchMaps, competitiveRankFacts, userCompetitiveRoles } from "@/db/schema";
+import { competitionEntries, educationVerifications, eventRosterMembers, eventRosters, institutions, seasonRegistrations, seasons, matches, matchMaps, competitiveRankFacts, userCompetitiveRoles, userMapPreferences } from "@/db/schema";
 import { getPublicPlayerById } from "@/lib/data/public-players";
 import { PUBLIC_PLAYER_INFO_FIELDS } from "@/lib/utils/player-info-fields";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
@@ -75,7 +75,7 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
   if (!user) notFound();
 
   // ── 并行：报名记录 / MVP 胜场 / 个人数据 / 高校身份 ────────────────
-  const [registrations, mvpWinCount, playerStats, competitiveFacts, competitiveRoles, competitiveCatalog, educationVerificationRows, playerLft] = await Promise.all([
+  const [registrations, mvpWinCount, playerStats, competitiveFacts, competitiveRoles, mapPreferences, competitiveCatalog, educationVerificationRows, playerLft] = await Promise.all([
     db
       .select({
         id: seasonRegistrations.id,
@@ -139,6 +139,7 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
       .orderBy(asc(seasons.createdAt)),
     db.select().from(competitiveRankFacts).where(eq(competitiveRankFacts.userId, userId)),
     db.select().from(userCompetitiveRoles).where(eq(userCompetitiveRoles.userId, userId)),
+    db.select().from(userMapPreferences).where(eq(userMapPreferences.userId, userId)),
     loadCompetitivePlatformCatalog(db),
     db
       .select({
@@ -232,6 +233,11 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
   // Registration snapshots remain event history only; the header's current
   // long-lived role preferences come from user_competitive_roles above.
   const latestReg = registrations[registrations.length - 1];
+  const effectiveMapPrefs = mapPreferences[0]?.mapPreferences?.length
+    ? mapPreferences[0].mapPreferences
+    : latestReg?.mapPreferences?.length
+      ? latestReg.mapPreferences
+      : null;
 
   // ── 生涯总计预计算 ──────────────────────────────────────────────────
   const totalMaps = playerStats.reduce((s, x) => s + x.maps, 0);
@@ -304,11 +310,11 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
 
       {publicCompetitiveProfile.length > 0 && <section className="space-y-3"><SectionHeading>公开竞技档案</SectionHeading><Panel pad={16}><div className="space-y-4 text-sm">{publicCompetitiveProfile.map((platform) => <div key={platform.displayName} className="space-y-2"><p className="font-semibold text-[var(--color-fg)]">{platform.displayName}</p>{platform.facts.map((fact) => <p key={`${platform.displayName}-${fact.label}`}><span className="text-[var(--color-fg-mid)]">{fact.label}</span> · {fact.rankLabel}{fact.stars !== null ? ` ${fact.stars} 星` : ""}{fact.ratingLabel && fact.rating !== null ? ` · ${fact.ratingLabel} ${fact.rating}` : ""}</p>)}</div>)}</div></Panel></section>}
 
-      {latestReg && (
+      {effectiveMapPrefs && (
         <section className="space-y-3">
-          <SectionHeading>地图偏好</SectionHeading>
+          <SectionHeading>地图熟练度</SectionHeading>
           <Panel>
-            <MapPreferenceChips preferences={latestReg.mapPreferences ?? []} minLevel="basic" />
+            <MapPreferenceChips preferences={effectiveMapPrefs} minLevel="basic" />
           </Panel>
         </section>
       )}

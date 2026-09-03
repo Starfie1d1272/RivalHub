@@ -1,10 +1,11 @@
 import { alias } from "drizzle-orm/pg-core";
 import { and, desc, eq, gt, inArray, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { competitiveRankFacts, competitionEntries, recruitmentIntents, recruitmentInterests, seasons, teamMemberships, teams, userCompetitiveRoles, users } from "@/db/schema";
+import { competitiveRankFacts, competitionEntries, recruitmentIntents, recruitmentInterests, seasons, teamMemberships, teams, userCompetitiveRoles, userMapPreferences, users } from "@/db/schema";
 import { loadCompetitivePlatformCatalog } from "@/lib/competitive/catalog";
 import { presentPublicCompetitiveSummary, type PublicCompetitiveProfilePlatform } from "@/lib/competitive/presentation";
 import type { Cs2Position } from "@/lib/config/cs2-positions";
+import type { MapPreference } from "@/types/season";
 import { isTeamRecruitmentTargetAvailable, recruitmentTargetAvailableCondition, teamRecruitmentTargetAvailableCondition } from "@/lib/recruitment/target-policy";
 
 const publicName = sql<string>`coalesce(${users.displayName}, ${users.perfectName}, ${users.steamName}, '未知用户')`;
@@ -39,6 +40,7 @@ export interface PlayerLftCardData extends PublicRecruitmentIntent {
   avatarUrl: string | null;
   currentTeamId: string | null;
   competitiveRoles: Cs2Position[];
+  mapPreferences: MapPreference[];
   currentTeamName: string | null;
   competitiveSummary: PublicCompetitiveProfilePlatform[];
 }
@@ -107,12 +109,15 @@ export async function getRecruitmentLobbyData(filters: RecruitmentFilters, viewe
   const teamIds = teamRows.map((row) => row.teamId);
   const playerIds = [...new Set(playerRows.map((row) => row.userId))];
   const interestIntentIds = teamRows.map((row) => row.id);
-  const [memberCounts, roles, interests, rankFacts, competitiveCatalog] = await Promise.all([
+  const [memberCounts, roles, mapPreferences, interests, rankFacts, competitiveCatalog] = await Promise.all([
     teamIds.length
       ? db.select({ teamId: teamMemberships.teamId, count: sql<number>`count(*)::int` }).from(teamMemberships).where(and(inArray(teamMemberships.teamId, teamIds), isNull(teamMemberships.endedAt))).groupBy(teamMemberships.teamId)
       : Promise.resolve([]),
     playerIds.length
       ? db.select({ userId: userCompetitiveRoles.userId, role: userCompetitiveRoles.role }).from(userCompetitiveRoles).where(inArray(userCompetitiveRoles.userId, playerIds))
+      : Promise.resolve([]),
+    playerIds.length
+      ? db.select({ userId: userMapPreferences.userId, mapPreferences: userMapPreferences.mapPreferences }).from(userMapPreferences).where(inArray(userMapPreferences.userId, playerIds))
       : Promise.resolve([]),
     viewerUserId && interestIntentIds.length
       ? db.select({ recruitmentIntentId: recruitmentInterests.recruitmentIntentId }).from(recruitmentInterests).where(and(eq(recruitmentInterests.userId, viewerUserId), inArray(recruitmentInterests.recruitmentIntentId, interestIntentIds)))
@@ -125,11 +130,13 @@ export async function getRecruitmentLobbyData(filters: RecruitmentFilters, viewe
   const countByTeam = new Map(memberCounts.map((row) => [row.teamId, row.count]));
   const rolesByUser = new Map<string, Cs2Position[]>();
   for (const row of roles) rolesByUser.set(row.userId, [...(rolesByUser.get(row.userId) ?? []), row.role]);
+  const mapPreferencesByUser = new Map<string, MapPreference[]>();
+  for (const row of mapPreferences) mapPreferencesByUser.set(row.userId, row.mapPreferences);
   const factsByUser = new Map<string, typeof rankFacts>();
   for (const row of rankFacts) factsByUser.set(row.userId, [...(factsByUser.get(row.userId) ?? []), row]);
   return {
     teamRecruitments: teamRows.map((row) => ({ ...row, positions: row.positions as Cs2Position[], memberCount: countByTeam.get(row.teamId) ?? 0 })),
-    playerLfts: playerRows.map((row) => ({ ...row, positions: row.positions as Cs2Position[], competitiveRoles: rolesByUser.get(row.userId) ?? [], competitiveSummary: presentPublicCompetitiveSummary(competitiveCatalog, factsByUser.get(row.userId) ?? []) })),
+    playerLfts: playerRows.map((row) => ({ ...row, positions: row.positions as Cs2Position[], competitiveRoles: rolesByUser.get(row.userId) ?? [], mapPreferences: mapPreferencesByUser.get(row.userId) ?? [], competitiveSummary: presentPublicCompetitiveSummary(competitiveCatalog, factsByUser.get(row.userId) ?? []) })),
     targetSeasons,
     viewerInterestedIntentIds: new Set(interests.map((row) => row.recruitmentIntentId)),
   };

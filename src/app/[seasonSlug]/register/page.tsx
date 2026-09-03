@@ -11,6 +11,7 @@ import {
   teamMemberships,
   teams,
   userCompetitiveRoles,
+  userMapPreferences,
   users,
 } from "@/db/schema";
 import { getPositionCounts, getApprovedCount } from "@/actions/register";
@@ -201,7 +202,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
     );
   }
 
-  const [positionCounts, approvedCount, currentRegistration, currentUser] = await Promise.all([
+  const [positionCounts, approvedCount, currentRegistration, currentUser, mapPreferences] = await Promise.all([
     getPositionCounts(season.id),
     getApprovedCount(season.id),
     db.query.seasonRegistrations.findFirst({
@@ -213,12 +214,14 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
     db.query.users.findFirst({
       where: eq(users.id, userSession.userId),
     }),
+    db.select().from(userMapPreferences).where(eq(userMapPreferences.userId, userSession.userId)),
   ]);
   const regConfig = normalizeRegistrationConfig(season.registrationConfig);
   const maxPerPos = regConfig.maxPerPosition;
   const existingStatus = currentRegistration?.status ?? null;
   const existingStatusLabel = existingStatus ? REGISTRATION_STATUS_LABELS[existingStatus] : null;
   const canEditExisting = !!currentRegistration && currentRegistration.status !== "approved";
+  const longTermMapPreferences = mapPreferences[0]?.mapPreferences ?? null;
   const initialValues = currentRegistration
     ? {
         email: userSession.email,
@@ -247,7 +250,9 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
         notes: currentRegistration.notes ?? "",
         antiCheatPledge: true as const,
       }
-    : undefined;
+    : longTermMapPreferences
+      ? { mapPreferences: longTermMapPreferences }
+      : undefined;
 
   // 位置容量数据
   const capacityEntries = season.positions.map((pos) => {

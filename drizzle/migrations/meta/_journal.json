@@ -232,6 +232,13 @@
       "when": 1788325421247,
       "tag": "0032_competitive_fact_states",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1788440049853,
+      "tag": "0033_user_map_preferences",
+      "breakpoints": true
     }
   ]
 }

@@ -4,13 +4,15 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db/client";
-import { auditLogs, competitivePlatforms, competitivePlatformRanks, competitivePlatformSeasons, competitiveRankFacts, userCompetitiveRoles } from "@/db/schema";
+import { auditLogs, competitivePlatforms, competitivePlatformRanks, competitivePlatformSeasons, competitiveRankFacts, userCompetitiveRoles, userMapPreferences } from "@/db/schema";
 import { actionError } from "@/lib/action-utils";
 import { auditActorId, requireAuth } from "@/lib/auth/session";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { fail, ok, type ActionResult } from "@/types/action";
 import { CS2_POSITION_VALUES } from "@/lib/config/cs2-positions";
 import { updatePublicPlayerTag } from "@/lib/revalidation";
+import { DEFAULT_CS2_MAP_POOL } from "@/types/season";
+import { mapPreferencesSchema } from "@/lib/validators/map-preferences";
 
 const starsSchema = z.number().int().nonnegative().nullable().optional().default(null);
 const rankedFactSchema = z.object({ status: z.literal("ranked").optional().default("ranked"), rank: z.string().trim().min(1).max(64), rating: z.coerce.number().finite().min(0).max(999999), stars: starsSchema });
@@ -134,4 +136,34 @@ export async function saveCompetitiveProfile(input: unknown): Promise<ActionResu
     updatePublicPlayerTag(session.userId);
     return ok(undefined);
   } catch (error) { return actionError("saveCompetitiveProfile", error); }
+}
+
+/**
+ * Long-lived map proficiency — the canonical user-level owner reused by season
+ * registrations (pre-fill) and the recruitment lobby (summary display).
+ */
+export async function saveMapPreferences(input: unknown): Promise<ActionResult<void>> {
+  const parsed = z.object({ mapPreferences: mapPreferencesSchema(DEFAULT_CS2_MAP_POOL) }).safeParse(input);
+  if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请为每张地图选择熟练度，且至少 3 张达到「能打」及以上、强图最多 3 张。" });
+  try {
+    const session = await requireAuth();
+    await db.transaction(async (tx) => {
+      const [existing] = await tx.select().from(userMapPreferences).where(eq(userMapPreferences.userId, session.userId)).limit(1);
+      if (existing) await tx.update(userMapPreferences).set({ mapPreferences: parsed.data.mapPreferences, updatedAt: new Date() }).where(eq(userMapPreferences.userId, session.userId));
+      else await tx.insert(userMapPreferences).values({ userId: session.userId, mapPreferences: parsed.data.mapPreferences });
+      await tx.insert(auditLogs).values({
+        seasonId: null,
+        action: "map_preferences.self_declare",
+        actorId: auditActorId(session),
+        targetId: session.userId,
+        targetType: "user",
+        meta: { mapCount: parsed.data.mapPreferences.length },
+      });
+    });
+    revalidatePath("/settings/competitive");
+    revalidatePath(`/players/${session.userId}`);
+    revalidatePath("/teams/recruitment");
+    updatePublicPlayerTag(session.userId);
+    return ok(undefined);
+  } catch (error) { return actionError("saveMapPreferences", error); }
 }
