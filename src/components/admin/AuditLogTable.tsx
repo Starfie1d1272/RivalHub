@@ -81,17 +81,18 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, routeBase = 
     if (seasonScopeId) filters.seasonScopeId = seasonScopeId;
 
     setLoadError(null);
-    startTransition(() => {
-      void fetchAuditLogs(filters)
-        .then((result) => {
-          if (!result.success) {
-            setLoadError(AUDIT_LOG_LOAD_ERROR_MESSAGE);
-            return;
-          }
-          setLogs(result.data.logs);
-          setTotal(result.data.total);
-        })
-        .catch(() => setLoadError(AUDIT_LOG_LOAD_ERROR_MESSAGE));
+    startTransition(async () => {
+      try {
+        const result = await fetchAuditLogs(filters);
+        if (!result.success) {
+          setLoadError(AUDIT_LOG_LOAD_ERROR_MESSAGE);
+          return;
+        }
+        setLogs(result.data.logs);
+        setTotal(result.data.total);
+      } catch {
+        setLoadError(AUDIT_LOG_LOAD_ERROR_MESSAGE);
+      }
     });
   }, [currentAction, currentActor, currentDateFrom, currentDateTo, currentPage, currentSeason, seasonScopeId, startTransition]);
 
