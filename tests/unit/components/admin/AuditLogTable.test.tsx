@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuditLogView } from "@/lib/audit/presentation";
 
@@ -110,6 +110,32 @@ describe("AuditLogTable", () => {
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("操作日志加载失败"));
     expect(screen.getAllByText("通过教育认证审核").length).toBeGreaterThanOrEqual(2);
     expect(screen.queryByText("暂无日志记录")).not.toBeInTheDocument();
+  });
+
+  it("keeps the pending indicator until an async reload finishes", async () => {
+    let resolveReload: ((value: { success: true; data: { logs: AuditLogView[]; total: number } }) => void) | undefined;
+    fetchAuditLogsMock.mockImplementationOnce(() => new Promise((resolve) => {
+      resolveReload = resolve;
+    }));
+
+    const { rerender } = renderTable();
+    fireEvent.change(screen.getByLabelText("起始日期"), { target: { value: "2026-09-01" } });
+    setQuery({ dateFrom: "2026-09-01" });
+    rerender(
+      <AuditLogTable
+        initialLogs={[knownLog, unknownLog]}
+        initialTotal={2}
+        seasons={[{ id: "season-1", name: "Major 2027" }]}
+      />,
+    );
+
+    await waitFor(() => expect(fetchAuditLogsMock).toHaveBeenCalledTimes(1));
+    expect(screen.getByText("加载中…")).toBeInTheDocument();
+
+    await act(async () => {
+      resolveReload?.({ success: true, data: { logs: [knownLog], total: 1 } });
+    });
+    await waitFor(() => expect(screen.queryByText("加载中…")).not.toBeInTheDocument());
   });
 
   it("distinguishes a true empty result from a load error", () => {
