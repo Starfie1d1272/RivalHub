@@ -1,7 +1,8 @@
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { eq, asc } from "drizzle-orm";
 import { db } from "@/db/client";
-import { majorFinalResults, seasons, matches, competitionEntries } from "@/db/schema";
+import { majorFinalResults, matches, competitionEntries } from "@/db/schema";
 import { loadBracketState, serializeBracket } from "@/lib/bracket";
 import { calculateStandings } from "@/lib/standings";
 import { Panel, Marker } from "@/components/rivalhub";
@@ -21,8 +22,8 @@ import {
 import { normalizeStagePlan } from "@/types/season";
 import { presentStageMarker } from "@/lib/seasons/presentation";
 import { MatchTabsSection } from "@/components/matches/MatchTabsSection";
-import { checkAdminSession } from "@/lib/auth/session";
-import { AdminShortcut } from "@/components/layout/AdminShortcut";
+import { AdminShortcutSlot } from "@/components/layout/AdminShortcutSlot";
+import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 
 interface MatchesPageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -33,10 +34,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
   const { seasonSlug } = await params;
   const { team: filterTeamId } = await searchParams;
 
-  const [season, adminSession] = await Promise.all([
-    db.query.seasons.findFirst({ where: eq(seasons.slug, seasonSlug) }),
-    checkAdminSession(),
-  ]);
+  const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
 
   const [allTeams, allMatches, finalResult, bracketState] = await Promise.all([
@@ -107,7 +105,9 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
     <div className="container mx-auto px-4 py-12 max-w-5xl space-y-8">
       <div className="flex items-center justify-between">
         <Marker sub={season.name}>赛程总览</Marker>
-        {adminSession && <AdminShortcut href={`/admin/${seasonSlug}/matches`} />}
+        <Suspense fallback={null}>
+          <AdminShortcutSlot href={`/admin/${seasonSlug}/matches`} />
+        </Suspense>
       </div>
 
       {allTeams.length > 0 && (

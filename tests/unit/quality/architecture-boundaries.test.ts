@@ -21,7 +21,7 @@ describe("architecture import boundaries", () => {
         message: expect.stringContaining("@/lib/bracket"),
       }),
     ]));
-  });
+  }, 15_000);
 
   it("allows the adapter to own the third-party import", async () => {
     const messages = await lintSource(

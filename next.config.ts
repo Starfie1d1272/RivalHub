@@ -19,6 +19,7 @@ const localStorageImagePatterns =
     : [];
 
 const nextConfig: NextConfig = {
+  cacheComponents: true,
   serverExternalPackages: ["pg"],
   typedRoutes: true,
   typescript: {

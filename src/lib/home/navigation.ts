@@ -43,7 +43,7 @@ export function buildHomeEyebrow(status: SeasonStatus, slug: string): HomeEyebro
 
 export function buildHomeNavEntries(
   season: HomeNavSeason,
-  auth: HomeNavAuthState,
+  auth?: HomeNavAuthState,
 ): HomeNavEntry[] {
   const isHistorical = season.status === "finished" || season.status === "archived";
   const entries: (HomeNavEntry & { show: boolean })[] = [
@@ -105,10 +105,10 @@ export function buildHomeNavEntries(
     },
     {
       key: "login",
-      href: auth.isAuthenticated ? "/my" : "/login",
-      label: auth.isAuthenticated ? "我的" : "登录 / 注册",
-      mono: auth.isAuthenticated ? "MY RIVALHUB" : "LOGIN",
-      meta: auth.isAuthenticated ? "资料与赛事" : "参赛者入口",
+      href: auth ? (auth.isAuthenticated ? "/my" : "/login") : "/my",
+      label: auth ? (auth.isAuthenticated ? "我的" : "登录 / 注册") : "我的 RivalHub",
+      mono: auth ? (auth.isAuthenticated ? "MY RIVALHUB" : "LOGIN") : "MY RIVALHUB",
+      meta: auth ? (auth.isAuthenticated ? "资料与赛事" : "参赛者入口") : "资料与赛事",
       show: true,
     },
   ];

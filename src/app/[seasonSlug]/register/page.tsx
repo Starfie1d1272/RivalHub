@@ -7,7 +7,6 @@ import {
   competitionEntryParticipants,
   competitionEntryRosterMembers,
   competitionEntryRosterRevisions,
-  seasons,
   seasonRegistrations,
   teamMemberships,
   teams,
@@ -29,6 +28,7 @@ import { CompetitionEntryFlow } from "@/components/register/CompetitionEntryFlow
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { getParticipantReadinessBatch } from "@/lib/qualification/service";
 import { normalizeTeamRegistrationConfig } from "@/types/season";
+import { getPublicOrAuthorizedDraftSeason, getPublicSeasonBySlug } from "@/lib/data/public-seasons";
 
 interface RegisterPageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -36,18 +36,14 @@ interface RegisterPageProps {
 
 export async function generateMetadata({ params }: RegisterPageProps): Promise<Metadata> {
   const { seasonSlug } = await params;
-  const season = await db.query.seasons.findFirst({
-    where: eq(seasons.slug, seasonSlug),
-  });
+  const season = await getPublicSeasonBySlug(seasonSlug);
   return { title: season ? `报名 · ${season.name}` : "报名" };
 }
 
 export default async function RegisterPage({ params }: RegisterPageProps) {
   const { seasonSlug } = await params;
 
-  const season = await db.query.seasons.findFirst({
-    where: eq(seasons.slug, seasonSlug),
-  });
+  const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
 
   if (!isSoloRegistration(season) && !isTeamRegistration(season)) {

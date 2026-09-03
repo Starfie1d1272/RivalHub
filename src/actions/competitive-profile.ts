@@ -10,6 +10,7 @@ import { auditActorId, requireAuth } from "@/lib/auth/session";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { fail, ok, type ActionResult } from "@/types/action";
 import { CS2_POSITION_VALUES } from "@/lib/config/cs2-positions";
+import { updatePublicPlayerTag } from "@/lib/revalidation";
 
 const starsSchema = z.number().int().nonnegative().nullable().optional().default(null);
 const rankedFactSchema = z.object({ status: z.literal("ranked").optional().default("ranked"), rank: z.string().trim().min(1).max(64), rating: z.coerce.number().finite().min(0).max(999999), stars: starsSchema });
@@ -53,6 +54,7 @@ export async function saveCompetitiveRoles(input: unknown): Promise<ActionResult
     revalidatePath("/settings/competitive");
     revalidatePath(`/players/${session.userId}`);
     revalidatePath("/my/teams");
+    updatePublicPlayerTag(session.userId);
     return ok(undefined);
   } catch (error) { return actionError("saveCompetitiveRoles", error); }
 }
@@ -129,6 +131,7 @@ export async function saveCompetitiveProfile(input: unknown): Promise<ActionResu
       }
       await tx.insert(auditLogs).values({ action: "competitive_profile.self_declare", actorId: auditActorId(session), targetId: session.userId, targetType: "user", meta: { platform, seasonKeys: seasonPeaks.map((peak) => peak.seasonKey) } });
     });
+    updatePublicPlayerTag(session.userId);
     return ok(undefined);
   } catch (error) { return actionError("saveCompetitiveProfile", error); }
 }

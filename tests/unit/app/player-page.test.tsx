@@ -2,11 +2,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import * as React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const connectionMock = vi.hoisted(() => vi.fn());
+const getPublicPlayerByIdMock = vi.hoisted(() => vi.fn());
 const {
   userFindFirstMock,
   selectMock,
   selectDistinctMock,
-  resolveAvatarUrlMock,
   loadCompetitivePlatformCatalogMock,
   getSeasonHexagonScoresMock,
   getPublicPlayerLftMock,
@@ -14,7 +15,6 @@ const {
   userFindFirstMock: vi.fn(),
   selectMock: vi.fn(),
   selectDistinctMock: vi.fn(),
-  resolveAvatarUrlMock: vi.fn(),
   loadCompetitivePlatformCatalogMock: vi.fn(),
   getSeasonHexagonScoresMock: vi.fn(),
   getPublicPlayerLftMock: vi.fn(),
@@ -28,12 +28,13 @@ vi.mock("@/db/client", () => ({
   },
 }));
 
-vi.mock("@/lib/steam", () => ({ resolveAvatarUrl: resolveAvatarUrlMock }));
 vi.mock("@/lib/competitive/catalog", () => ({ loadCompetitivePlatformCatalog: loadCompetitivePlatformCatalogMock }));
 vi.mock("@/actions/hexagon", () => ({ getSeasonHexagonScores: getSeasonHexagonScoresMock }));
 vi.mock("@/lib/recruitment/data", () => ({ getPublicPlayerLft: getPublicPlayerLftMock }));
+vi.mock("next/server", () => ({ connection: connectionMock }));
+vi.mock("@/lib/data/public-players", () => ({ getPublicPlayerById: getPublicPlayerByIdMock }));
 
-import PlayerPage from "@/app/players/[userId]/page";
+import { PlayerPageContent } from "@/app/players/[userId]/page";
 
 function chain<T>(value: T) {
   const result = {
@@ -52,7 +53,8 @@ describe("player page education wiring", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal("React", React);
-    userFindFirstMock.mockResolvedValue({
+    connectionMock.mockResolvedValue(undefined);
+    getPublicPlayerByIdMock.mockResolvedValue({
       id: "user-1",
       displayName: "玩家甲",
       perfectName: null,
@@ -61,7 +63,6 @@ describe("player page education wiring", () => {
       steamProfileUrl: null,
       avatarUrl: null,
     });
-    resolveAvatarUrlMock.mockResolvedValue(null);
     loadCompetitivePlatformCatalogMock.mockResolvedValue([]);
     getSeasonHexagonScoresMock.mockResolvedValue(new Map());
     getPublicPlayerLftMock.mockResolvedValue(null);
@@ -82,7 +83,7 @@ describe("player page education wiring", () => {
   });
 
   it("renders approved education identity and keeps the page query explicit", async () => {
-    const page = await PlayerPage({ params: Promise.resolve({ userId: "user-1" }) });
+    const page = await PlayerPageContent({ params: Promise.resolve({ userId: "user-1" }) });
     const html = renderToStaticMarkup(page);
 
     expect(html).toContain("高校身份");

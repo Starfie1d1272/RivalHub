@@ -8,6 +8,8 @@ import { getUserSession } from "@/lib/auth/session";
 import { Panel, StatusBanner } from "@/components/rivalhub";
 import { ClaimTeamInviteButton } from "@/components/register/ClaimTeamInviteButton";
 
+export const instant = false;
+
 export default async function TeamInvitePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   if (!/^[A-Za-z0-9_-]{32,}$/.test(token)) notFound();

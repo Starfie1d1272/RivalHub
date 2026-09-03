@@ -1,6 +1,9 @@
 import React from "react";
 import { SettingsNav } from "@/components/settings/SettingsNav";
 
+// Settings reads the signed-in user's session and private profile data.
+export const instant = false;
+
 export default function SettingsLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return <main className="container mx-auto max-w-6xl px-4 py-8 sm:py-10">
     <div className="mb-5 lg:hidden"><SettingsNav /></div>

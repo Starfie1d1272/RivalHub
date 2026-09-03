@@ -6,18 +6,18 @@ import { type Season } from "@/types/season";
 // ── 阶段判断（基于 status）────────────────────────────────────────────────
 
 /** 是否为个人报名模式 */
-export function isSoloRegistration(season: Season): boolean {
+export function isSoloRegistration(season: Pick<Season, "registrationMode">): boolean {
   return season.registrationMode === "solo";
 }
 
 /** 是否为队伍整体报名模式 */
-export function isTeamRegistration(season: Season): boolean {
+export function isTeamRegistration(season: Pick<Season, "registrationMode">): boolean {
   return season.registrationMode === "team";
 }
 
 // ── 展示工具 ──────────────────────────────────────────────────────────────
 
 /** 是否展示数据统计入口（赛季 playing 或 finished 时有比赛数据可看） */
-export function showStats(season: Season): boolean {
+export function showStats(season: Pick<Season, "status">): boolean {
   return season.status === "playing" || season.status === "finished" || season.status === "archived";
 }

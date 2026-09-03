@@ -5,6 +5,10 @@ import { getUserSession } from "@/lib/auth/session";
 import { safeLocalRedirect } from "@/lib/auth/redirect";
 import { redirect } from "next/navigation";
 
+// Login intentionally waits on request-scoped cookies and query parameters.
+// Keep the auth entrypoint blocking without opting the application shell out.
+export const instant = false;
+
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ mode?: string; next?: string | string[] }> }) {
   const params = await searchParams;
   const next = Array.isArray(params.next) ? params.next[0] : params.next;

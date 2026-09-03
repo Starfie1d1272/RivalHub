@@ -5,6 +5,7 @@ import { eq, count, and, not, inArray } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import { seasons, seasonRegistrations, auditLogs, matches } from "@/db/schema";
 import { normalizeRegistrationConfig, normalizeStagePlan } from "@/types/season";
+import { revalidatePublicSeasonTags, updatePublicSeasonTags } from "@/lib/revalidation";
 
 async function getApprovedCountInTx(tx: TxDb, seasonId: string): Promise<number> {
   const [row] = await tx
@@ -26,6 +27,7 @@ async function getApprovedCountInTx(tx: TxDb, seasonId: string): Promise<number>
 export async function maybeAdvanceFromRegistration(
   tx: TxDb,
   seasonId: string,
+  options: { invalidation?: "action" | "route" } = {},
 ): Promise<void> {
   const season = await tx.query.seasons.findFirst({
     where: eq(seasons.id, seasonId),
@@ -70,6 +72,11 @@ export async function maybeAdvanceFromRegistration(
     },
   });
 
+  if (options.invalidation === "route") {
+    revalidatePublicSeasonTags(season.slug, season.id);
+  } else {
+    updatePublicSeasonTags(season.slug, season.id);
+  }
   revalidatePath(`/${season.slug}`);
   revalidatePath(`/admin/${season.slug}/registrations`);
 }
@@ -119,5 +126,6 @@ export async function maybeFinishSeason(
     meta: { from: "playing", to: "finished", reason: "all_matches_completed" },
   });
 
+  updatePublicSeasonTags(season.slug, season.id);
   revalidatePath(`/${season.slug}`);
 }

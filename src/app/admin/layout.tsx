@@ -4,6 +4,10 @@ import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
 
+// The admin tree is authenticated and intentionally blocking; it must not be
+// queried during a production build without a request/session context.
+export const instant = false;
+
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const session = await resolveAdminPageAccess(requireAdmin);
   if (!session) return <AdminAccessDenied />;

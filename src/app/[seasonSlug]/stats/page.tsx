@@ -1,7 +1,5 @@
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons } from "@/db/schema";
 import { sql } from "drizzle-orm";
 import { StatsLeaderboard } from "@/components/matches/StatsLeaderboard";
 import { normalizeLeaderboardState } from "@/lib/matches/leaderboard-view";
@@ -9,6 +7,7 @@ import { Marker } from "@/components/rivalhub";
 import { roundWeightedAvg, killWeightedAvg, perRound, roundsExpr } from "@/lib/stats";
 import { normalizeStagePlan } from "@/types/season";
 import type { Metadata } from "next";
+import { getPublicOrAuthorizedDraftSeason, getPublicSeasonBySlug } from "@/lib/data/public-seasons";
 
 interface StatsPageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -17,9 +16,7 @@ interface StatsPageProps {
 
 export async function generateMetadata({ params }: StatsPageProps): Promise<Metadata> {
   const { seasonSlug } = await params;
-  const season = await db.query.seasons.findFirst({
-    where: eq(seasons.slug, seasonSlug),
-  });
+  const season = await getPublicSeasonBySlug(seasonSlug);
   return {
     title: season ? `${season.name} · 数据统计` : "数据统计",
   };
@@ -30,9 +27,7 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
   const { sort: rawSort, position = "", view: rawView, stage = "" } = await searchParams;
   const { sort, view } = normalizeLeaderboardState({ sort: rawSort, view: rawView });
 
-  const season = await db.query.seasons.findFirst({
-    where: eq(seasons.slug, seasonSlug),
-  });
+  const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
 
   const stages = normalizeStagePlan(season.stagePlan).map((s) => ({ key: s.key, name: s.name }));

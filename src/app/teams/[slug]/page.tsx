@@ -1,5 +1,7 @@
+import { Suspense } from "react";
 import { and, asc, desc, eq, or, sql } from "drizzle-orm";
 import { notFound, redirect } from "next/navigation";
+import { connection } from "next/server";
 import { db } from "@/db/client";
 import { competitionEntries, matches, recruitmentInterests, seasons, teamCaptainChanges, teamMemberships, teamNameChanges, teamSlugAliases, teams, users } from "@/db/schema";
 import { TeamPublicProfile } from "@/components/teams/TeamPublicProfile";
@@ -8,7 +10,16 @@ import { getPublicTeamRecruitment } from "@/lib/recruitment/data";
 
 const publicName = sql<string>`coalesce(${users.displayName}, ${users.perfectName}, ${users.steamName}, '未命名用户')`;
 
-export default async function TeamProfilePage({ params }: { params: Promise<{ slug: string }> }) {
+export default function TeamProfilePage({ params }: { params: Promise<{ slug: string }> }) {
+  return (
+    <Suspense fallback={<TeamProfileFallback />}>
+      <TeamProfileContent params={params} />
+    </Suspense>
+  );
+}
+
+async function TeamProfileContent({ params }: { params: Promise<{ slug: string }> }) {
+  await connection();
   const { slug } = await params;
   let team = await db.query.teams.findFirst({ where: eq(teams.slug, slug) });
   if (!team) {
@@ -33,4 +44,8 @@ export default async function TeamProfilePage({ params }: { params: Promise<{ sl
   const current = members.filter((member) => member.endedAt === null);
   const viewerInterest = session && recruitment ? await db.query.recruitmentInterests.findFirst({ where: and(eq(recruitmentInterests.recruitmentIntentId, recruitment.id), eq(recruitmentInterests.userId, session.userId)), columns: { id: true } }) : null;
   return <div className="container mx-auto max-w-6xl px-4 py-12 sm:py-16"><TeamPublicProfile team={team} currentMembers={current} entries={entries} nameChanges={names} captainChanges={captains} playedCount={played.length} wins={wins} currentUserMembership={session ? current.find((member) => member.userId === session.userId) ?? null : null} recruitment={recruitment} viewerInterested={Boolean(viewerInterest)} loggedIn={Boolean(session)} /></div>;
+}
+
+function TeamProfileFallback() {
+  return <div className="container mx-auto min-h-[60vh] max-w-6xl px-4 py-12" aria-busy="true" />;
 }

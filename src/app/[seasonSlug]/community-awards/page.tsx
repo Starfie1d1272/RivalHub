@@ -1,15 +1,14 @@
-import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { db } from "@/db/client";
-import { seasons } from "@/db/schema";
 import { CommunityAwardsBoard } from "@/components/community-awards/CommunityAwardsBoard";
 import { getCurrentUserAuthorization } from "@/lib/auth/session";
 import { getPublicCommunityAwardBoardData } from "@/lib/community-awards/data";
 import { normalizeStagePlan } from "@/types/season";
+import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 
 export default async function CommunityAwardsPage({ params }: { params: Promise<{ seasonSlug: string }> }) {
   const { seasonSlug } = await params;
-  const season = await db.query.seasons.findFirst({ where: eq(seasons.slug, seasonSlug) });
+  const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
   const authorization = await getCurrentUserAuthorization();
   const data = await getPublicCommunityAwardBoardData(db, { seasonId: season.id, currentUserId: authorization?.userId ?? null, stagePlan: normalizeStagePlan(season.stagePlan) });

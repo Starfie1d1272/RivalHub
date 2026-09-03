@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { captainVotes, seasonRegistrations, seasons } from "@/db/schema";
+import { captainVotes, seasonRegistrations } from "@/db/schema";
 import { CaptainVotingPanel } from "@/components/captains/CaptainVotingPanel";
 import { Panel } from "@/components/rivalhub";
 import {
@@ -10,6 +10,7 @@ import {
   type PublicCaptainVoter,
 } from "@/lib/captains/data";
 import { getUserSession } from "@/lib/auth/session";
+import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 
 interface CaptainsPageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -17,9 +18,7 @@ interface CaptainsPageProps {
 
 export default async function CaptainsPage({ params }: CaptainsPageProps) {
   const { seasonSlug } = await params;
-  const season = await db.query.seasons.findFirst({
-    where: eq(seasons.slug, seasonSlug),
-  });
+  const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
 
   if (!season.hasCaptainVoting) {

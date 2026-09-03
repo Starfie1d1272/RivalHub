@@ -263,7 +263,7 @@ export async function runMatchTimeAutoAwardCron(
     const { matchId, result } = item.value;
     if (result.awarded) {
       awarded += 1;
-      revalidateMatchPaths(result.seasonSlug, matchId);
+      revalidateMatchPaths(result.seasonSlug, matchId, { mode: "route" });
     } else {
       skipped += 1;
     }
@@ -375,7 +375,7 @@ async function autoAcceptSingleProposal(
       where: eq(seasons.id, match.seasonId),
     });
     if (season) {
-      revalidateMatchPaths(season.slug, matchId);
+      revalidateMatchPaths(season.slug, matchId, { mode: "route" });
     }
 
     return true;
