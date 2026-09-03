@@ -122,4 +122,12 @@ describe("identity flow UI", () => {
     expect(screen.getByRole("button", { name: "复制验证码" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "通过" })).toBeInTheDocument();
   });
+
+  it("shows cleared CHSI evidence as a retention-policy state", () => {
+    render(<EducationVerificationReviewQueue rows={[{ id: "22222222-2222-4222-8222-222222222222", email: "player@example.test", displayName: null, institution: "南京大学", code: "4132010284", academicStatus: "graduated", evidenceType: "chsi_education_report", evidenceCode: null, status: "approved", submittedAt: new Date().toISOString(), reviewNote: null }]} />);
+
+    expect(screen.getByText("在线验证码：已按保留策略清理")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "复制验证码" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /在学信网核验/ })).not.toBeInTheDocument();
+  });
 });

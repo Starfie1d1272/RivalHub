@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import React, { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { createInviteCode, deactivateInviteCode } from "@/actions/admin";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,16 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { formatCSTShortDate } from "@/lib/utils/date";
 
 interface InviteRow {
@@ -29,6 +39,13 @@ interface SeasonOption {
   slug: string;
 }
 
+interface PendingSuperAdminInvite {
+  maxUses: number;
+  expiresInHours?: number;
+}
+
+type InviteCreateInput = Parameters<typeof createInviteCode>[0];
+
 export function InviteManager({
   invites: initialInvites,
   seasons,
@@ -41,17 +58,14 @@ export function InviteManager({
   const [seasonId, setSeasonId] = useState(seasons[0]?.id ?? "");
   const [maxUses, setMaxUses] = useState(1);
   const [expiresInHours, setExpiresInHours] = useState("");
+  const [pendingSuperAdminInvite, setPendingSuperAdminInvite] =
+    useState<PendingSuperAdminInvite | null>(null);
   const [isPending, startTransition] = useTransition();
   const seasonNameById = new Map(seasons.map((season) => [season.id, season.name]));
 
-  function handleCreate() {
+  function submitInvite(input: InviteCreateInput) {
     startTransition(async () => {
-      const result = await createInviteCode({
-        role,
-        seasonId: role === "season_admin" ? seasonId : undefined,
-        maxUses: maxUses || 1,
-        expiresInHours: expiresInHours ? Number(expiresInHours) : undefined,
-      });
+      const result = await createInviteCode(input);
       if (!result.success) {
         toast.error(result.error.message);
       } else {
@@ -71,6 +85,37 @@ export function InviteManager({
           ...prev,
         ]);
       }
+    });
+  }
+
+  function handleCreate() {
+    const input: InviteCreateInput = {
+      role,
+      seasonId: role === "season_admin" ? seasonId : undefined,
+      maxUses: maxUses || 1,
+      expiresInHours: expiresInHours ? Number(expiresInHours) : undefined,
+    };
+
+    if (role === "super_admin") {
+      setPendingSuperAdminInvite({
+        maxUses: input.maxUses ?? 1,
+        expiresInHours: input.expiresInHours,
+      });
+      return;
+    }
+
+    submitInvite(input);
+  }
+
+  function handleConfirmSuperAdmin() {
+    if (!pendingSuperAdminInvite) return;
+
+    const invite = pendingSuperAdminInvite;
+    setPendingSuperAdminInvite(null);
+    submitInvite({
+      role: "super_admin",
+      maxUses: invite.maxUses,
+      expiresInHours: invite.expiresInHours,
     });
   }
 
@@ -156,7 +201,69 @@ export function InviteManager({
             生成邀请码
           </Button>
         </div>
+        {role === "super_admin" && (
+          <div
+            role="alert"
+            className="mt-4 rounded-sm border border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)] p-3 text-sm"
+          >
+            <p className="font-medium text-[var(--color-warn)]">
+              高权限提示：超级管理员邀请码
+            </p>
+            <p className="mt-1 text-[var(--color-fg-mid)]">
+              超级管理员拥有跨赛事管理、教育认证审核及全局管理能力。仅应发给确实需要全局权限的人员；日常赛务请使用“赛季管理员”。
+            </p>
+          </div>
+        )}
       </Card>
+
+      <AlertDialog
+        open={pendingSuperAdminInvite !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingSuperAdminInvite(null);
+        }}
+      >
+        {pendingSuperAdminInvite && (
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>确认生成超级管理员邀请码？</AlertDialogTitle>
+              <AlertDialogDescription>
+                这不是某一赛事范围内的管理员邀请码，而是拥有跨赛事全局管理能力的超级管理员权限。请确认下面的设置。
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <dl className="space-y-2 rounded-sm border border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)] p-3 text-sm">
+              <div className="flex items-center justify-between gap-4">
+                <dt className="text-[var(--color-fg-mid)]">角色</dt>
+                <dd className="font-medium">超级管理员</dd>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <dt className="text-[var(--color-fg-mid)]">权限范围</dt>
+                <dd className="text-right font-medium">跨赛事全局（不绑定单一赛事）</dd>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <dt className="text-[var(--color-fg-mid)]">使用次数（maxUses）</dt>
+                <dd className="font-medium">{pendingSuperAdminInvite.maxUses} 次</dd>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <dt className="text-[var(--color-fg-mid)]">有效期</dt>
+                <dd className="text-right font-medium">
+                  {pendingSuperAdminInvite.expiresInHours === undefined
+                    ? "永久有效，直到撤销或用尽"
+                    : `${pendingSuperAdminInvite.expiresInHours} 小时（从生成时起算）`}
+                </dd>
+              </div>
+            </dl>
+            <AlertDialogFooter>
+              <AlertDialogCancel>取消</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={isPending}
+                onClick={handleConfirmSuperAdmin}
+              >
+                确认生成超级管理员邀请码
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        )}
+      </AlertDialog>
 
       <Separator />
 

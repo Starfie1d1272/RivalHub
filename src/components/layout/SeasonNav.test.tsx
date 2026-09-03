@@ -20,7 +20,6 @@ describe("SeasonNav", () => {
         hasDraft
         hasMatches
         hasStats
-        hasPlayers
       />,
     );
 
@@ -46,7 +45,6 @@ describe("SeasonNav", () => {
         hasDraft
         hasMatches
         hasStats
-        hasPlayers
       />,
     );
 

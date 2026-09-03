@@ -10,6 +10,7 @@ const {
   getApprovedCountMock,
   getUserSessionMock,
   registrationFormMock,
+  publicSeasonMock,
 } = vi.hoisted(() => ({
   seasonFindFirstMock: vi.fn(),
   registrationFindFirstMock: vi.fn(),
@@ -18,6 +19,7 @@ const {
   getApprovedCountMock: vi.fn(),
   getUserSessionMock: vi.fn(),
   registrationFormMock: vi.fn(() => null),
+  publicSeasonMock: vi.fn(),
 }));
 
 vi.mock("@/db/client", () => ({
@@ -36,6 +38,10 @@ vi.mock("@/actions/register", () => ({
 }));
 
 vi.mock("@/lib/auth/session", () => ({ getUserSession: getUserSessionMock }));
+vi.mock("@/lib/data/public-seasons", () => ({
+  getPublicOrAuthorizedDraftSeason: publicSeasonMock,
+  getPublicSeasonBySlug: vi.fn(),
+}));
 
 vi.mock("@/components/register/RegistrationForm", () => ({
   RegistrationForm: registrationFormMock,
@@ -47,17 +53,16 @@ describe("team registration page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal("React", React);
-  });
-
-  it("renders an unavailable state before season status or solo registration flow", async () => {
-    seasonFindFirstMock.mockResolvedValue({
+    publicSeasonMock.mockResolvedValue({
       id: "season-1",
       slug: "major",
       name: "RivalHub Major",
       status: "draft",
       registrationMode: "team",
     });
+  });
 
+  it("renders an unavailable state before season status or solo registration flow", async () => {
     const page = await RegisterPage({
       params: Promise.resolve({ seasonSlug: "major" }),
     });

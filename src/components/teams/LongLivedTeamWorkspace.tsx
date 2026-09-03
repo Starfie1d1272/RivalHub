@@ -17,6 +17,7 @@ import type { Cs2Position } from "@/lib/config/cs2-positions";
 
 type Membership = { id: string; userId: string; name: string; status: "active" | "benched" | "left" };
 type Invitation = { id: string; teamId: string; teamName: string; email?: string | null; expiresAt: string };
+type GeneratedShareLink = { url: string; expiresAt: string };
 type Team = { id: string; slug: string; name: string; logoUrl: string | null; description: string | null; captainUserId: string };
 type Recruitment = { id: string; positions: Cs2Position[]; targetSeasonId: string | null; targetSeasonName: string | null; note: string | null; status: "open" | "closed"; expiresAt: string; isPubliclyActive: boolean } | null;
 
@@ -26,7 +27,7 @@ export function LongLivedTeamWorkspace({ team, currentUserId, memberships, incom
   const [name, setName] = useState(team?.name ?? "");
   const [description, setDescription] = useState(team?.description ?? "");
   const [email, setEmail] = useState("");
-  const [shareLink, setShareLink] = useState<string | null>(null);
+  const [shareLink, setShareLink] = useState<GeneratedShareLink | null>(null);
 
   function run(work: () => Promise<{ success: boolean; error?: { message: string } }>, success: string) {
     startTransition(async () => {
@@ -38,7 +39,7 @@ export function LongLivedTeamWorkspace({ team, currentUserId, memberships, incom
     });
   }
 
-  const invitations = <TeamInvitationsSection team={team} incoming={incomingInvitations} outgoing={outgoingInvitations} isCaptain={team?.captainUserId === currentUserId} pending={pending} email={email} shareLink={shareLink} onEmailChange={setEmail} onAccept={(invitationId) => run(() => acceptTeamInvitation({ invitationId }), "已加入队伍")} onDecline={(invitationId) => run(() => declineTeamInvitation({ invitationId }), "已拒绝邀请")} onInvite={() => team && run(async () => { const result = await inviteTeamMember({ teamId: team.id, email }); if (result.success) setEmail(""); return result; }, "邀请已发送")} onCreateShareLink={() => team && startTransition(async () => { const result = await createTeamShareInvitation({ teamId: team.id }); if (result.success) setShareLink(`${window.location.origin}/team-invites/${result.data.token}`); else toast.error(result.error.message); })} onRevoke={(invitationId) => team && run(() => revokeTeamInvitation({ teamId: team.id, invitationId }), "邀请已撤销")} />;
+  const invitations = <TeamInvitationsSection team={team} incoming={incomingInvitations} outgoing={outgoingInvitations} isCaptain={team?.captainUserId === currentUserId} pending={pending} email={email} shareLink={shareLink} onEmailChange={setEmail} onAccept={(invitationId) => run(() => acceptTeamInvitation({ invitationId }), "已加入队伍")} onDecline={(invitationId) => run(() => declineTeamInvitation({ invitationId }), "已拒绝邀请")} onInvite={() => team && run(async () => { const result = await inviteTeamMember({ teamId: team.id, email }); if (result.success) setEmail(""); return result; }, "邀请已发送")} onCreateShareLink={() => team && startTransition(async () => { const result = await createTeamShareInvitation({ teamId: team.id }); if (result.success) setShareLink({ url: `${window.location.origin}/team-invites/${result.data.token}`, expiresAt: result.data.expiresAt }); else toast.error(result.error.message); })} onRevoke={(invitationId) => team && run(() => revokeTeamInvitation({ teamId: team.id, invitationId }), "邀请已撤销")} />;
 
   if (!team) return <div className="space-y-5">{invitations}<div id="create-team" className="scroll-mt-24"><Panel label="创建队伍" pad={20}><div className="space-y-4"><StatusBanner tone="info" title="创建你的队伍" sub="创建后可以持续维护队伍资料和成员；参加具体赛事时再单独报名。" /><div className="space-y-1.5"><Label htmlFor="new-team-name">队伍名称</Label><Input id="new-team-name" value={name} onChange={(event) => setName(event.target.value)} /></div><div className="space-y-1.5"><Label htmlFor="new-team-description">简介</Label><Input id="new-team-description" value={description} onChange={(event) => setDescription(event.target.value)} /></div><Button type="button" disabled={pending} onClick={() => run(() => createTeam({ name, description }), "队伍已创建")}>{pending ? "创建中…" : "创建队伍"}</Button></div></Panel></div></div>;
 

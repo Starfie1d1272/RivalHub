@@ -21,6 +21,7 @@ import {
   type CompetitionEntryRegistrationStatus,
 } from "@/lib/competition-entries/presentation";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
+import { countPendingDirectTeamInvitations } from "@/lib/teams/invitations";
 import {
   computeParticipantReadiness,
   getParticipantIdentityBlockers,
@@ -150,8 +151,19 @@ function profileState(fact: ParticipantQualificationFacts | null): MyReadinessIt
   return item("profile", "长期个人资料", "incomplete", blockers.join(" "), undefined, { href: "/settings", label: "完善参赛资料" });
 }
 
-function teamState(currentTeam: { id: string; name: string; role: string } | null): MyReadinessItem {
+function teamState(currentTeam: { id: string; name: string; role: string } | null, pendingDirectInvitationCount: number): MyReadinessItem {
   if (!currentTeam) {
+    if (pendingDirectInvitationCount > 0) {
+      return item(
+        "team",
+        "当前队伍",
+        "waiting",
+        `你有 ${pendingDirectInvitationCount} 个待处理的队伍邀请。接受邀请即加入队伍，不需要再次申请或等待审核。`,
+        undefined,
+        { href: "/my/teams", label: "处理队伍邀请" },
+        { href: "/teams/recruitment?view=teams", label: "寻找队伍" },
+      );
+    }
     return item(
       "team",
       "当前队伍",
@@ -238,6 +250,7 @@ export function buildMyReadinessModel(input: {
   user: { displayName: string | null; perfectName: string | null; steamName: string | null };
   baseFact: ParticipantQualificationFacts | null;
   currentTeam: { id: string; name: string; role: string } | null;
+  pendingDirectInvitationCount: number;
   competitiveProfiles: MyCompetitiveProfileSource[];
   competitions: MyCompetitionSource[];
   qualificationFactsByPlatform: Map<string, ParticipantQualificationFacts | null>;
@@ -255,7 +268,7 @@ export function buildMyReadinessModel(input: {
     profile: profileState(input.baseFact),
     education: latestEducationState(input.baseFact),
     competitiveProfiles: input.competitiveProfiles,
-    team: teamState(input.currentTeam),
+    team: teamState(input.currentTeam, input.pendingDirectInvitationCount),
     competitions: input.competitions.map((competition) => {
       const config = normalizeTeamRegistrationConfig(competition.teamRegistrationConfig);
       const fact = config.competitiveProfile
@@ -361,7 +374,7 @@ export async function loadSettingsProfileReadiness(userId: string): Promise<Sett
 }
 
 export async function loadMyReadiness(userId: string): Promise<MyReadinessModel> {
-  const [baseFacts, catalog, currentTeamRows, competitionRows, sanctionRows, platformFactRows] = await Promise.all([
+  const [baseFacts, catalog, currentTeamRows, pendingDirectInvitationCount, competitionRows, sanctionRows, platformFactRows] = await Promise.all([
     loadParticipantQualificationFacts([userId]),
     loadCompetitivePlatformCatalog(db),
     db.select({ id: teams.id, name: teams.name, captainUserId: teams.captainUserId })
@@ -369,6 +382,7 @@ export async function loadMyReadiness(userId: string): Promise<MyReadinessModel>
       .innerJoin(teams, eq(teams.id, teamMemberships.teamId))
       .where(and(eq(teamMemberships.userId, userId), isNull(teamMemberships.endedAt), eq(teams.status, "active")))
       .limit(1),
+    countPendingDirectTeamInvitations(userId),
     db.select({
       id: competitionEntries.id,
       name: competitionEntries.name,
@@ -428,6 +442,7 @@ export async function loadMyReadiness(userId: string): Promise<MyReadinessModel>
     user: baseFact ?? { displayName: null, perfectName: null, steamName: null },
     baseFact,
     currentTeam: currentTeamRows[0] ? { ...currentTeamRows[0], role: currentTeamRows[0].captainUserId === userId ? "captain" : "member" } : null,
+    pendingDirectInvitationCount,
     competitiveProfiles,
     competitions: competitionRows,
     qualificationFactsByPlatform: factsByPlatform,

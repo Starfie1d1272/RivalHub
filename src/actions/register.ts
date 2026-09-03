@@ -16,6 +16,7 @@ import { normalizeEmail } from "@/lib/utils/email";
 import { compactUndefined } from "@/lib/utils/object";
 import { getSteamAvatar } from "@/lib/steam";
 import { assertUsersNotBlockedInTx } from "@/lib/discipline/service";
+import { updatePublicPlayerTag } from "@/lib/revalidation";
 
 const draftSchema = z.object({
   seasonId: z.string().uuid("赛季 ID 格式不正确"),
@@ -291,6 +292,7 @@ export async function submitRegistration(input: RegistrationFormData) {
     if (!updatedUser) {
       throw new AppError(ErrorCode.INTERNAL_ERROR, ERROR_MESSAGES.INTERNAL_ERROR);
     }
+    updatePublicPlayerTag(updatedUser.id);
 
     const registrationValues = {
       playerType: data.playerType,

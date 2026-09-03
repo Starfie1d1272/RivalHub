@@ -1,10 +1,12 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import { connection } from "next/server";
 import { notFound } from "next/navigation";
 import { eq, count, or, and, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { UserPlus, Vote, Users, Swords, Shuffle, BarChart3, UserRoundSearch } from "lucide-react";
 import { db } from "@/db/client";
-import { seasons, matches, competitionEntries } from "@/db/schema";
+import { matches, competitionEntries } from "@/db/schema";
 import { formatCSTDateTime } from "@/lib/utils/date";
 import { normalizeStagePlan } from "@/types/season";
 import type { SeasonStatus } from "@/types/season";
@@ -12,11 +14,11 @@ import { showStats } from "@/lib/utils/season";
 import { presentSeasonParticipationState, presentSeasonStatus, presentStageMarker } from "@/lib/seasons/presentation";
 import { StatusPill, Panel, Marker, ScrollHint, Stat, PhaseStep } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
-import { checkAdminSession } from "@/lib/auth/session";
-import { AdminShortcut } from "@/components/layout/AdminShortcut";
+import { AdminShortcutSlot } from "@/components/layout/AdminShortcutSlot";
 import { StandingsTable } from "@/components/matches/StandingsTable";
 import { getStandings } from "@/lib/data/standings";
 import { getParticipantSummary } from "@/lib/participants/summary";
+import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 
 const STATUS_IDX: Record<SeasonStatus, number> = {
   draft: 0, registration: 1, voting: 2, drafting: 3,
@@ -27,13 +29,19 @@ interface SeasonPageProps {
   params: Promise<{ seasonSlug: string }>;
 }
 
-export default async function SeasonPage({ params }: SeasonPageProps) {
+export default function SeasonPage({ params }: SeasonPageProps) {
+  return (
+    <Suspense fallback={<SeasonPageFallback />}>
+      <SeasonPageContent params={params} />
+    </Suspense>
+  );
+}
+
+export async function SeasonPageContent({ params }: SeasonPageProps) {
+  await connection();
   const { seasonSlug } = await params;
 
-  const [season, adminSession] = await Promise.all([
-    db.query.seasons.findFirst({ where: eq(seasons.slug, seasonSlug) }),
-    checkAdminSession(),
-  ]);
+  const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
   const stagePlan = normalizeStagePlan(season.stagePlan);
   const stageLabelByKey = new Map(
@@ -186,7 +194,7 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
       show: season.hasDraft,
     },
     {
-      href: `/${seasonSlug}/competitionEntries`,
+      href: `/${seasonSlug}/teams`,
       label: "队伍阵容",
       description: "查看各队选手分布",
       icon: Users,
@@ -219,9 +227,9 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
           <h1 className="text-4xl sm:text-5xl font-bold text-[var(--color-fg)] leading-tight">
             {season.name}
           </h1>
-          {adminSession && (
-            <AdminShortcut href={`/admin/${seasonSlug}/settings`} />
-          )}
+          <Suspense fallback={null}>
+            <AdminShortcutSlot href={`/admin/${seasonSlug}/settings`} />
+          </Suspense>
         </div>
       </div>
 
@@ -356,4 +364,8 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
       </div>
     </div>
   );
+}
+
+function SeasonPageFallback() {
+  return <div className="container mx-auto min-h-[60vh] px-4 py-10" aria-busy="true" />;
 }

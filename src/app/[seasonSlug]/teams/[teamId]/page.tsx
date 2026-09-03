@@ -2,15 +2,16 @@ import Link from "next/link";
 import { and, eq, inArray, or } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { db } from "@/db/client";
-import { competitionEntries, eventRosterMembers, eventRosters, matches, seasonRegistrations, seasons, users } from "@/db/schema";
+import { competitionEntries, eventRosterMembers, eventRosters, matches, seasonRegistrations, users } from "@/db/schema";
 import { Marker, Panel, PosChip, Stat, StatusBanner } from "@/components/rivalhub";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { presentCompetitionEntryRegistration } from "@/lib/competition-entries/presentation";
 import { presentMatchStatus } from "@/lib/matches/presentation";
+import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 
 export default async function CompetitionEntryDetailPage({ params }: { params: Promise<{ seasonSlug: string; teamId: string }> }) {
   const { seasonSlug, teamId: entryId } = await params;
-  const season = await db.query.seasons.findFirst({ where: eq(seasons.slug, seasonSlug) });
+  const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
   const entry = await db.query.competitionEntries.findFirst({ where: and(eq(competitionEntries.id, entryId), eq(competitionEntries.competitionId, season.id)) });
   if (!entry) notFound();

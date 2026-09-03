@@ -1,8 +1,10 @@
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import { eq, and, asc, desc, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { competitionEntries, educationVerifications, eventRosterMembers, eventRosters, institutions, users, seasonRegistrations, seasons, matches, matchMaps, competitiveRankFacts, userCompetitiveRoles } from "@/db/schema";
-import { resolveAvatarUrl } from "@/lib/steam";
+import { competitionEntries, educationVerifications, eventRosterMembers, eventRosters, institutions, seasonRegistrations, seasons, matches, matchMaps, competitiveRankFacts, userCompetitiveRoles } from "@/db/schema";
+import { getPublicPlayerById } from "@/lib/data/public-players";
 import { PUBLIC_PLAYER_INFO_FIELDS } from "@/lib/utils/player-info-fields";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { Panel, Stat, PosChip } from "@/components/rivalhub";
@@ -57,16 +59,23 @@ function AvatarFallback({ name }: { name: string }) {
   );
 }
 
-export default async function PlayerPage({ params }: PlayerPageProps) {
+export default function PlayerPage({ params }: PlayerPageProps) {
+  return (
+    <Suspense fallback={<PlayerPageFallback />}>
+      <PlayerPageContent params={params} />
+    </Suspense>
+  );
+}
+
+export async function PlayerPageContent({ params }: PlayerPageProps) {
+  await connection();
   const { userId } = await params;
 
-  const user = await db.query.users.findFirst({
-    where: eq(users.id, userId),
-  });
+  const user = await getPublicPlayerById(userId);
   if (!user) notFound();
 
-  // ── 并行：报名记录 / MVP 胜场 / 个人数据 / Steam 头像 / 高校身份 ────────
-  const [registrations, mvpWinCount, playerStats, avatarUrl, competitiveFacts, competitiveRoles, competitiveCatalog, educationVerificationRows, playerLft] = await Promise.all([
+  // ── 并行：报名记录 / MVP 胜场 / 个人数据 / 高校身份 ────────────────
+  const [registrations, mvpWinCount, playerStats, competitiveFacts, competitiveRoles, competitiveCatalog, educationVerificationRows, playerLft] = await Promise.all([
     db
       .select({
         id: seasonRegistrations.id,
@@ -128,7 +137,6 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
       )
       .groupBy(seasons.id, seasons.name, seasons.slug, seasons.createdAt)
       .orderBy(asc(seasons.createdAt)),
-    resolveAvatarUrl({ avatarUrl: user.avatarUrl, steam64: user.steam64 }),
     db.select().from(competitiveRankFacts).where(eq(competitiveRankFacts.userId, userId)),
     db.select().from(userCompetitiveRoles).where(eq(userCompetitiveRoles.userId, userId)),
     loadCompetitivePlatformCatalog(db),
@@ -240,9 +248,9 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
 
       {/* 头像 + 基本信息 */}
       <div className="flex items-center gap-6">
-        {avatarUrl ? (
+        {user.avatarUrl ? (
           <Image
-            src={avatarUrl}
+            src={user.avatarUrl}
             alt={getPublicDisplayName(user)}
             width={96}
             height={96}
@@ -540,4 +548,8 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
       )}
     </div>
   );
+}
+
+function PlayerPageFallback() {
+  return <div className="container mx-auto min-h-[60vh] max-w-3xl px-4 py-12" aria-busy="true" />;
 }

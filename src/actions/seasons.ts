@@ -13,6 +13,7 @@ import { normalizeRegistrationConfig, type StagePlan } from "@/types/season";
 import { validateCompetitionDefinition } from "@/lib/competition/definition";
 import { assertSeasonHasNoHistoricalFacts, openSeasonRegistrationInTx, transitionSeasonStatusInTx, unfreezeBuiltInCompetitiveContext } from "@/lib/seasons/lifecycle";
 import { seasonFormSchema, seasonUpdateFormSchema, planSeasonCreate, planSeasonUpdate, type SeasonFormInput } from "@/lib/seasons/edit";
+import { updatePublicSeasonTags } from "@/lib/revalidation";
 
 export type { SeasonFormInput };
 
@@ -66,6 +67,7 @@ export async function createSeason(input: SeasonFormInput): Promise<ActionResult
       return created;
     });
 
+    updatePublicSeasonTags(season.slug);
     revalidatePath("/admin");
     return ok({ seasonId: season.id, slug: season.slug });
   } catch (e) {
@@ -103,6 +105,8 @@ export async function updateSeason(input: SeasonFormInput): Promise<ActionResult
       return { oldSlug: existing.slug, slug: nextSlug };
     });
 
+    updatePublicSeasonTags(updated.oldSlug);
+    if (updated.slug !== updated.oldSlug) updatePublicSeasonTags(updated.slug);
     revalidatePath("/admin");
     revalidatePath("/");
     revalidatePath("/seasons");
@@ -138,6 +142,7 @@ export async function publishSeason(seasonId: string): Promise<ActionResult<{ sl
       return locked;
     });
 
+    updatePublicSeasonTags(season.slug);
     revalidatePath("/admin");
     revalidatePath(`/admin/${season.slug}/settings`);
     revalidatePath(`/${season.slug}`);
@@ -158,6 +163,7 @@ export async function openSeasonRegistration(seasonId: string): Promise<ActionRe
       openNow: true,
     }));
     if (!result.opened) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "报名已开放，或尚未满足开放条件。");
+    updatePublicSeasonTags(result.slug);
     revalidatePath("/admin");
     revalidatePath(`/admin/${result.slug}/settings`);
     revalidatePath(`/${result.slug}`);
@@ -172,7 +178,7 @@ export async function openSeasonRegistration(seasonId: string): Promise<ActionRe
 export async function deleteSeason(seasonId: string): Promise<ActionResult<void>> {
   try {
     const admin = await requireSuperAdmin();
-    await db.transaction(async (tx) => {
+    const deleted = await db.transaction(async (tx) => {
       await tx.execute(sql`SELECT id FROM seasons WHERE id = ${seasonId} FOR UPDATE`);
       const season = await tx.query.seasons.findFirst({ where: eq(seasons.id, seasonId) });
       if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
@@ -195,8 +201,10 @@ export async function deleteSeason(seasonId: string): Promise<ActionResult<void>
         targetType: "season",
         meta: { slug: season.slug },
       });
+      return { slug: season.slug };
     });
 
+    updatePublicSeasonTags(deleted.slug);
     revalidatePath("/admin");
     return ok(undefined);
   } catch (e) {
@@ -238,6 +246,7 @@ export async function revertSeasonToDraft(seasonId: string): Promise<ActionResul
       return locked;
     });
 
+    updatePublicSeasonTags(season.slug);
     revalidatePath("/admin");
     revalidatePath(`/admin/${season.slug}/settings`);
     revalidatePath(`/${season.slug}`);
@@ -287,6 +296,7 @@ export async function revertSeasonToRegistration(seasonId: string): Promise<Acti
       return locked;
     });
 
+    updatePublicSeasonTags(season.slug);
     revalidatePath("/admin");
     revalidatePath(`/admin/${season.slug}/settings`);
     revalidatePath(`/${season.slug}`);
@@ -309,6 +319,7 @@ export async function forceFinishSeason(seasonId: string): Promise<ActionResult<
       failureMessage: "只有 playing 状态可手动结束",
     }));
 
+    updatePublicSeasonTags(season.slug);
     revalidatePath("/admin");
     revalidatePath(`/admin/${season.slug}/settings`);
     revalidatePath(`/${season.slug}`);
@@ -331,6 +342,7 @@ export async function archiveSeason(seasonId: string): Promise<ActionResult<{ sl
       failureMessage: "只有 finished 状态可归档",
     }));
 
+    updatePublicSeasonTags(season.slug);
     revalidatePath("/admin");
     revalidatePath(`/admin/${season.slug}/settings`);
     revalidatePath(`/${season.slug}`);

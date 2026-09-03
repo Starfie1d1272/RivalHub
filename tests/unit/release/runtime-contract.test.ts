@@ -52,13 +52,14 @@ describe("deployment and operations contracts", () => {
       "/api/cron/draft-timeout",
       "/api/cron/check-registration-deadline",
       "/api/cron/match-time-auto-award",
+      "/api/cron/cleanup-education-evidence",
     ];
 
     expect(workflow).toContain("fail-fast: false");
     expect(workflow).toContain("timeout-minutes: 5");
     expect(workflow).toContain("matrix:");
     for (const path of paths) expect(workflow).toContain(`path: ${path}`);
-    expect((workflow.match(/path: \/api\/cron\//g) ?? [])).toHaveLength(3);
+    expect((workflow.match(/path: \/api\/cron\//g) ?? [])).toHaveLength(4);
     expect(workflow).toContain("CRON_SECRET: ${{ secrets.CRON_SECRET }}");
     expect(workflow).toContain('Authorization: Bearer ${CRON_SECRET}');
     expect(workflow).toContain("--fail");

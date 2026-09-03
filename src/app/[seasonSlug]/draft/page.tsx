@@ -1,14 +1,12 @@
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { eq } from "drizzle-orm";
-import { db } from "@/db/client";
-import { seasons } from "@/db/schema";
 import { DraftLiveRoom } from "@/components/draft/DraftLiveRoom";
 import { Panel, Marker } from "@/components/rivalhub";
 import { getPublicDraftData } from "@/lib/draft/data";
 import { presentSeasonStatus } from "@/lib/seasons/presentation";
-import { checkAdminSession } from "@/lib/auth/session";
-import { AdminShortcut } from "@/components/layout/AdminShortcut";
+import { AdminShortcutSlot } from "@/components/layout/AdminShortcutSlot";
+import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 
 interface DraftPageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -21,10 +19,7 @@ export async function generateMetadata({ params }: DraftPageProps): Promise<Meta
 
 export default async function DraftPage({ params }: DraftPageProps) {
   const { seasonSlug } = await params;
-  const [season, adminSession] = await Promise.all([
-    db.query.seasons.findFirst({ where: eq(seasons.slug, seasonSlug) }),
-    checkAdminSession(),
-  ]);
+  const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
 
   if (!season.hasDraft) {
@@ -118,9 +113,9 @@ export default async function DraftPage({ params }: DraftPageProps) {
         <Marker sub="实时更新选秀进度，队伍阵容与选手池自动刷新。">
           选秀直播间 · {season.name}
         </Marker>
-        {adminSession && (
-          <AdminShortcut href={`/admin/${seasonSlug}/draft`} />
-        )}
+        <Suspense fallback={null}>
+          <AdminShortcutSlot href={`/admin/${seasonSlug}/draft`} />
+        </Suspense>
       </div>
 
       {data.state.isActive && (

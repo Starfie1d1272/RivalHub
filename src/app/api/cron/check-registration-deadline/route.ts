@@ -22,7 +22,7 @@ export async function GET(request: Request) {
     await db.transaction(async (tx) => {
       const openResult = await openSeasonRegistrationInTx(tx, { seasonId: s.id, actorId: "system" });
       if (openResult.opened) opened++;
-      await maybeAdvanceFromRegistration(tx, s.id);
+      await maybeAdvanceFromRegistration(tx, s.id, { invalidation: "route" });
     });
     advanced++;
   }

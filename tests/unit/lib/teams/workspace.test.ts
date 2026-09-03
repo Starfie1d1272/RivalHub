@@ -1,5 +1,16 @@
 import { describe, it, expect } from "vitest";
+import { getTeamDirectoryCta } from "@/lib/teams/presentation";
 import { toLongLivedTeamDto } from "@/lib/teams/workspace";
+
+describe("队伍目录入口", () => {
+  it.each([
+    [true, 3, { href: "/my/teams", label: "管理我的队伍" }],
+    [false, 2, { href: "/my/teams", label: "处理队伍邀请" }],
+    [false, 0, { href: "/my/teams#create-team", label: "创建队伍" }],
+  ] as const)("按当前 Team 与 pending invitation 选择 CTA", (currentTeam, invitationCount, expected) => {
+    expect(getTeamDirectoryCta(currentTeam, invitationCount)).toEqual(expected);
+  });
+});
 
 /** /my/teams 必须只把白名单 DTO 传给 Client Component，不能透传完整 DB row。 */
 describe("toLongLivedTeamDto", () => {

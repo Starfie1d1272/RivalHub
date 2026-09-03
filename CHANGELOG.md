@@ -1,5 +1,37 @@
 # Changelog
 
+## [2.2.3]
+
+RivalHub 2.2.3 聚焦公开页面性能、组队邀请可发现性与运营安全，进一步减少公共渲染关键路径上的请求依赖，并收口教育认证临时凭证和高权限邀请码的操作边界。
+
+### Changed
+
+#### 公开页面渲染与缓存
+
+公开页面迁移到 Next.js 16 Cache Components 模型。赛事目录、公开赛事资料与公开玩家资料按数据语义建立共享缓存；登录态、管理员权限、草稿预览等请求特定信息继续保持服务端实时校验。Header 与公开玩家页面不再把 Steam API 刷新放在首屏渲染关键路径中，赛事进行中的实时数据仍保持实时读取，并补全对应的语义化缓存失效。
+
+#### Team 邀请体验
+
+未加入队伍的用户收到直接邀请后，现在可以从“我的”和队伍目录明确看到并进入待处理邀请，不再被“创建队伍”入口绕过。分享邀请链接明确标注为单次使用、7 天有效，并展示到期与撤销语义；接受有效邀请后会直接加入长期 Team。
+
+#### 教育认证凭证保留策略
+
+学信网在线验证码在认证审核完成后保留 7 天供短期复核，随后由受保护的定时任务自动清理。认证结果、学校、学籍状态与审核记录继续长期保留，管理员页面会明确显示临时核验凭证已按保留策略清理。
+
+#### 超级管理员邀请码防误操作
+
+创建超级管理员邀请码时新增全局高权限风险提示与二次确认，确认内容会明确角色、使用次数和有效期；赛季管理员邀请码继续保持原有直接生成流程。服务端权限校验、审计、撤销和邀请码使用限制保持不变。
+
+### Fixed
+
+#### 赛事首页队伍入口
+
+修复赛事首页“队伍阵容”仍指向已退役 `/competitionEntries` 路由导致的生产 404，入口现在统一进入 canonical `/{seasonSlug}/teams` 页面。
+
+### Migration & Operations
+
+本版本不包含新的数据库 schema migration。教育认证凭证清理由现有受保护 Cron 运行体系执行；生产发布仍通过 `v*` tag 触发标准 release workflow，完成数据库校验、精确版本 Vercel Production 部署与 smoke test。
+
 ## [2.2.2]
 
 RivalHub 2.2.2 聚焦日常赛事运营与个人资料维护的可靠性，改善后台审计日志、竞技档案编辑与定时任务运行，并修复选秀异常恢复时的名单收尾。
@@ -1607,6 +1639,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.2.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.2.2...v2.2.3
 [2.2.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.2.1...v2.2.2
 [2.2.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.2.0...v2.2.1
 [2.2.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.1.0...v2.2.0
