@@ -267,6 +267,7 @@ export async function startMajorInTransaction(
             rank: peak.rank,
             rating: peak.rating,
             ratingComparable: peak.ratingComparable ?? true,
+            stars: peak.stars ?? null,
             sourcePlatform: peak.sourcePlatform ?? competitiveProfile?.platform,
             sourceSeasonKey: peak.sourceSeasonKey ?? null,
             sourceRank: peak.sourceRank ?? peak.rank,

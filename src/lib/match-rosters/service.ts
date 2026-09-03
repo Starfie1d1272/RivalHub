@@ -80,9 +80,10 @@ function frozenCompetitiveFacts(ruleSnapshot: unknown): Map<string, PlayerStreng
     const rank = (fact: unknown) => {
       if (fact === null) return null;
       if (!fact || typeof fact !== "object") throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
-      const candidate = fact as { rank?: unknown; rating?: unknown; ratingComparable?: unknown; sourcePlatform?: unknown; sourceSeasonKey?: unknown; sourceRank?: unknown; conversionVersion?: unknown };
+      const candidate = fact as { rank?: unknown; rating?: unknown; ratingComparable?: unknown; stars?: unknown; sourcePlatform?: unknown; sourceSeasonKey?: unknown; sourceRank?: unknown; conversionVersion?: unknown };
       if (typeof candidate.rank !== "string" || typeof candidate.rating !== "number") throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
       if (candidate.ratingComparable !== undefined && typeof candidate.ratingComparable !== "boolean") throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
+      if (candidate.stars !== undefined && candidate.stars !== null && typeof candidate.stars !== "number") throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
       if (candidate.sourcePlatform !== undefined && typeof candidate.sourcePlatform !== "string") throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
       if (candidate.sourceSeasonKey !== undefined && candidate.sourceSeasonKey !== null && typeof candidate.sourceSeasonKey !== "string") throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
       if (candidate.sourceRank !== undefined && typeof candidate.sourceRank !== "string") throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
@@ -91,6 +92,7 @@ function frozenCompetitiveFacts(ruleSnapshot: unknown): Map<string, PlayerStreng
         rank: candidate.rank,
         rating: candidate.rating,
         ratingComparable: candidate.ratingComparable,
+        stars: candidate.stars as number | null | undefined,
         sourcePlatform: candidate.sourcePlatform,
         sourceSeasonKey: candidate.sourceSeasonKey as string | null | undefined,
         sourceRank: candidate.sourceRank,

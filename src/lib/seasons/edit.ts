@@ -87,6 +87,7 @@ const seasonFormBaseSchema = z.object({
       currentSeasonKey: z.string().max(128),
       previousSeasonKey: z.string().max(128),
       rankOrder: z.array(z.string().min(1).max(64)).max(64),
+      externalStrengthMaxStarGap: z.number().int().min(0).max(100).optional(),
       evidencePolicy: z.object({
         historicalWeight: z.literal(50),
         referenceSeasonKey: z.string().min(1).max(128),

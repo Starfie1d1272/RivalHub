@@ -45,6 +45,7 @@ export interface ParticipantQualificationFacts {
 type QualificationPeak = {
   rank: string;
   rating: number;
+  stars?: number | null;
   sourcePlatform?: string;
   sourceSeasonKey?: string | null;
   sourceRank?: string;
@@ -54,6 +55,7 @@ type QualificationSeasonPeak = {
   status?: "ranked" | "unranked";
   rank: string | null;
   rating: number | null;
+  stars?: number | null;
   sourcePlatform?: string;
   sourceSeasonKey?: string | null;
   sourceRank?: string;
@@ -75,22 +77,22 @@ export function toPlayerStrengthInput(
   const fallback = context?.fallbackConversion;
   const lowestRank = context?.rankOrder[0] ?? null;
   const resolve = (
-    primary: { status?: "ranked" | "unranked"; rank: string | null; rating: number | null; sourcePlatform?: string; sourceSeasonKey?: string | null; sourceRank?: string } | null | undefined,
-    fallbackFact: { rank: string | null; rating: number | null; sourcePlatform?: string; sourceSeasonKey?: string | null; sourceRank?: string } | null | undefined,
+    primary: { status?: "ranked" | "unranked"; rank: string | null; rating: number | null; stars?: number | null; sourcePlatform?: string; sourceSeasonKey?: string | null; sourceRank?: string } | null | undefined,
+    fallbackFact: { rank: string | null; rating: number | null; stars?: number | null; sourcePlatform?: string; sourceSeasonKey?: string | null; sourceRank?: string } | null | undefined,
   ) => {
     if (primary?.status !== "unranked" && primary?.rank && primary.rating !== null && primary.rating !== undefined) {
-      return { rank: primary.rank, rating: primary.rating, sourcePlatform: primary.sourcePlatform, sourceSeasonKey: primary.sourceSeasonKey, sourceRank: primary.sourceRank };
+      return { rank: primary.rank, rating: primary.rating, stars: primary.stars ?? null, sourcePlatform: primary.sourcePlatform, sourceSeasonKey: primary.sourceSeasonKey, sourceRank: primary.sourceRank };
     }
     if (fallback && fallbackFact?.rank && fallbackFact.rating !== null) {
       const rank = fallback.rankMap[fallbackFact.rank];
       // A 5E Rating+ has no reviewed conversion to Perfect Rating Pro. It can
       // establish an equivalent rank, but must not participate in Rating Pro's
-      // final tie-break.
-      if (rank) return { rank, rating: 0, ratingComparable: false, sourcePlatform: fallback.sourcePlatform, sourceSeasonKey: fallbackFact.sourceSeasonKey, sourceRank: fallbackFact.rank, conversionVersion: fallback.version };
+      // final tie-break. 5E 星数同样不折算为 Perfect 星数，历史最高星数保持 null。
+      if (rank) return { rank, rating: 0, ratingComparable: false, stars: null, sourcePlatform: fallback.sourcePlatform, sourceSeasonKey: fallbackFact.sourceSeasonKey, sourceRank: fallbackFact.rank, conversionVersion: fallback.version };
     }
     // Explicitly unranked is a declared lowest available platform state. The
     // lowest frozen rank is derived from the event map, not a magic rank key.
-    if (primary?.status === "unranked" && lowestRank) return { rank: lowestRank, rating: 0, sourcePlatform: primary.sourcePlatform, sourceSeasonKey: primary.sourceSeasonKey };
+    if (primary?.status === "unranked" && lowestRank) return { rank: lowestRank, rating: 0, stars: null, sourcePlatform: primary.sourcePlatform, sourceSeasonKey: primary.sourceSeasonKey };
     return null;
   };
   const fallbackFor = (seasonKey: string) => {
@@ -222,12 +224,12 @@ export async function loadParticipantQualificationFacts(
     const seasonPeaks = new Map<string, QualificationSeasonPeak>();
     for (const row of platformFacts) {
       if (row.kind === "season_peak" && row.platformSeasonKey !== null) {
-        seasonPeaks.set(row.platformSeasonKey, { status: row.status, rank: row.rank, rating: row.rating === null ? null : Number(row.rating), sourcePlatform: row.platform, sourceSeasonKey: row.platformSeasonKey, sourceRank: row.rank ?? undefined });
+        seasonPeaks.set(row.platformSeasonKey, { status: row.status, rank: row.rank, rating: row.rating === null ? null : Number(row.rating), stars: row.stars, sourcePlatform: row.platform, sourceSeasonKey: row.platformSeasonKey, sourceRank: row.rank ?? undefined });
       }
     }
     const fallbackHistorical = fallbackPlatformFacts.find((row) => row.kind === "historical_peak" && row.platformSeasonKey === null);
     const fallbackSeasonPeaks = new Map<string, QualificationSeasonPeak>();
-    for (const row of fallbackPlatformFacts) if (row.kind === "season_peak" && row.platformSeasonKey !== null) fallbackSeasonPeaks.set(row.platformSeasonKey, { status: row.status, rank: row.rank, rating: row.rating === null ? null : Number(row.rating), sourcePlatform: row.platform, sourceSeasonKey: row.platformSeasonKey, sourceRank: row.rank ?? undefined });
+    for (const row of fallbackPlatformFacts) if (row.kind === "season_peak" && row.platformSeasonKey !== null) fallbackSeasonPeaks.set(row.platformSeasonKey, { status: row.status, rank: row.rank, rating: row.rating === null ? null : Number(row.rating), stars: row.stars, sourcePlatform: row.platform, sourceSeasonKey: row.platformSeasonKey, sourceRank: row.rank ?? undefined });
     facts.set(user.id, {
       userId: user.id,
       displayName: user.displayName,
@@ -239,9 +241,9 @@ export async function loadParticipantQualificationFacts(
       qq: user.qq,
       approvedEducation: approvedEducation.has(user.id),
       educationHistory: historyByUser.get(user.id) ?? [],
-      historicalPeak: historical?.rank && historical.rating !== null ? { rank: historical.rank, rating: Number(historical.rating), sourcePlatform: historical.platform, sourceSeasonKey: historical.achievedSeasonKey, sourceRank: historical.rank } : null,
+      historicalPeak: historical?.rank && historical.rating !== null ? { rank: historical.rank, rating: Number(historical.rating), stars: historical.stars, sourcePlatform: historical.platform, sourceSeasonKey: historical.achievedSeasonKey, sourceRank: historical.rank } : null,
       seasonPeaks,
-      fallbackFacts: options.fallbackPlatform ? { historicalPeak: fallbackHistorical?.rank && fallbackHistorical.rating !== null ? { rank: fallbackHistorical.rank, rating: Number(fallbackHistorical.rating), sourcePlatform: fallbackHistorical.platform, sourceSeasonKey: fallbackHistorical.achievedSeasonKey, sourceRank: fallbackHistorical.rank } : null, seasonPeaks: fallbackSeasonPeaks } : undefined,
+      fallbackFacts: options.fallbackPlatform ? { historicalPeak: fallbackHistorical?.rank && fallbackHistorical.rating !== null ? { rank: fallbackHistorical.rank, rating: Number(fallbackHistorical.rating), stars: fallbackHistorical.stars, sourcePlatform: fallbackHistorical.platform, sourceSeasonKey: fallbackHistorical.achievedSeasonKey, sourceRank: fallbackHistorical.rank } : null, seasonPeaks: fallbackSeasonPeaks } : undefined,
     });
   }
   return facts;

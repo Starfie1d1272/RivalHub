@@ -127,8 +127,8 @@ describe("participant readiness", () => {
     const readiness = computeParticipantReadiness(fullFact(), CONTEXT);
     expect(readiness.ready).toBe(true);
     expect(readiness.blockers).toEqual([]);
-    expect(readiness.strength.previousSeasonPeak).toEqual({ rank: "A", rating: 1700 });
-    expect(readiness.strength.currentSeasonPeak).toEqual({ rank: "S", rating: 1850 });
+    expect(readiness.strength.previousSeasonPeak).toEqual({ rank: "A", rating: 1700, stars: null });
+    expect(readiness.strength.currentSeasonPeak).toEqual({ rank: "S", rating: 1850, stars: null });
   });
 
   it("an incomplete participant reports the exact blockers", () => {

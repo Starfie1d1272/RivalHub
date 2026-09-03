@@ -94,6 +94,21 @@ export function TeamConfigForm({ value, competitivePlatforms, fallbackOnly = fal
               </Select>
               {competitivePlatforms.length === 0 && <p className="mt-1 text-xs text-[var(--color-danger)]">尚未建立竞技平台目录；赛事发布会 fail closed。</p>}
             </div>
+            <div>
+              <Label>外校实力星差上限</Label>
+              <Input
+                disabled={disabled}
+                type="number"
+                min={0}
+                value={value.competitiveProfile?.externalStrengthMaxStarGap ?? 3}
+                onChange={(event) => {
+                  const next = event.target.value === "" ? 3 : Math.max(0, Math.trunc(Number(event.target.value)));
+                  const profile = value.competitiveProfile ?? { platform, currentSeasonKey: "", previousSeasonKey: "", rankOrder: [] };
+                  onChange({ ...value, competitiveProfile: { ...profile, externalStrengthMaxStarGap: Number.isFinite(next) ? next : 3 } });
+                }}
+              />
+              <p className="mt-1 text-xs text-[var(--color-fg-dim)]">外校最强队员的历史最高总星数不得高于本校最强队员超过此星数。</p>
+            </div>
           </div>
         )}
       </div>}
