@@ -122,7 +122,7 @@ export type SeasonFormInput = z.input<typeof seasonFormSchema>;
 // value would otherwise erase the fields to `any`.
 type ParsedSeasonForm = z.infer<typeof seasonFormBaseSchema>;
 
-export function withSeasonRefinements<T extends z.ZodTypeAny>(schema: T) {
+function withSeasonRefinements<T extends z.ZodTypeAny>(schema: T) {
   return schema
     .refine((data) => data.starterCount <= data.maxTeamSize, {
       path: ["starterCount"],
@@ -154,7 +154,7 @@ export function withSeasonRefinements<T extends z.ZodTypeAny>(schema: T) {
     );
 }
 
-export function assertUniqueStageKeys(stagePlan: StagePlan): void {
+function assertUniqueStageKeys(stagePlan: StagePlan): void {
   const keys = new Set<string>();
   for (const stage of stagePlan) {
     if (keys.has(stage.key)) {

@@ -3,7 +3,7 @@
 import { eq, and, count, asc, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matches, competitionEntries, auditLogs, seasons } from "@/db/schema";
-import { ok, fail } from "@/types/action";
+import { ok } from "@/types/action";
 import type { ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { requireSeasonAdmin } from "@/lib/auth/session";
@@ -197,24 +197,4 @@ export async function initializeStage(
   } catch (e) {
     return actionError("initializeStage", e);
   }
-}
-
-/**
- * 向后兼容现有 UI：自动查找 stagePlan 中最后一个淘汰赛阶段并初始化。
- */
-export async function generatePlayoff(
-  seasonId: string
-): Promise<ActionResult<{ matchCount: number }>> {
-  const season = await getSeasonOrThrow(seasonId);
-  const stagePlan = normalizeStagePlan(season.stagePlan);
-  const playoff = [...stagePlan].reverse().find(
-    (s) => s.type === "double_elim" || s.type === "single_elim",
-  );
-  if (!playoff) {
-    return fail({
-      code: ErrorCode.SEASON_CAPABILITY_DISABLED,
-      message: "该赛季没有淘汰赛阶段",
-    });
-  }
-  return initializeStage(seasonId, playoff.key);
 }

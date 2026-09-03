@@ -124,7 +124,7 @@ export function getParticipantIdentityBlockers(fact: ParticipantQualificationFac
 }
 
 /** Canonical competitive-profile completeness for one frozen or catalog context. */
-export function getCompetitiveProfileBlockers(
+function getCompetitiveProfileBlockers(
   fact: ParticipantQualificationFacts,
   context: CompetitiveProfileConfig | null,
 ): string[] {

@@ -1,3 +1,5 @@
+import "server-only";
+
 import { playerRowLenientSchema, type ScoreboardOCRResult, type OCRProvider, type PlayerRowOCR } from "./types";
 
 const DEFAULT_API_URL = "https://api.siliconflow.cn/v1/chat/completions";

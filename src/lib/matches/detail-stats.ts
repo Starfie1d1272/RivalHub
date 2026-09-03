@@ -6,7 +6,7 @@ import type { StatRowInput } from "@/lib/stats/aggregate";
 
 export type MatchPlayerStatsRow = typeof matchPlayerStats.$inferSelect;
 
-export const TEAM_COLORS = ["#ff6b1a", "#3aa1ff", "#a8ff3a", "#ff3a7a", "#9b6bff", "#ffd23a", "#3affc7", "#ff8a3a"];
+const TEAM_COLORS = ["#ff6b1a", "#3aa1ff", "#a8ff3a", "#ff3a7a", "#9b6bff", "#ffd23a", "#3affc7", "#ff8a3a"];
 
 export function teamBadgeData(name: string, idx: number): { tag: string; color: string } {
   return { tag: name.slice(0, 3).toUpperCase(), color: TEAM_COLORS[idx % TEAM_COLORS.length] };

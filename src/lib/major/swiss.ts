@@ -133,8 +133,8 @@ export interface MajorSwissQualifier {
 // ── 常量 ────────────────────────────────────────────────
 
 export const MAJOR_SWISS_TEAM_COUNT = 16;
-export const MAJOR_SWISS_WIN_THRESHOLD = 3;
-export const MAJOR_SWISS_LOSS_THRESHOLD = 3;
+const MAJOR_SWISS_WIN_THRESHOLD = 3;
+const MAJOR_SWISS_LOSS_THRESHOLD = 3;
 
 const MAJOR_SWISS_MAX_ROUND = 5;
 const MAJOR_SWISS_ADVANCE_COUNT = MAJOR_SWISS_TEAM_COUNT / 2;

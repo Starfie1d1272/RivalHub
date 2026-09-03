@@ -23,7 +23,7 @@ const {
   bootstrapConfiguredOwnerInTxMock: vi.fn(),
 }));
 
-vi.mock("@/lib/auth/supabase", () => ({
+vi.mock("@/lib/auth/supabase-server", () => ({
   createPublicAuthClient: () => ({ auth: { verifyOtp: verifyOtpMock } }),
 }));
 vi.mock("@/lib/auth/session", () => ({ createUserSession: createUserSessionMock }));

@@ -1,3 +1,5 @@
+import "server-only";
+
 import { and, count, eq } from "drizzle-orm";
 
 import type { TxDb } from "@/db/client";

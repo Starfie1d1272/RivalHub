@@ -1,7 +1,7 @@
 import React from "react";
 import Link from "next/link";
 
-export type ChecklistState = "complete" | "blocked" | "pending" | "manual";
+type ChecklistState = "complete" | "blocked" | "pending" | "manual";
 
 export interface ChecklistItem {
   label: string;

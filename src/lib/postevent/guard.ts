@@ -26,16 +26,3 @@ export async function assertSeasonAllowsTournamentMutationInTx(
     );
   }
 }
-
-export type SeasonArchiveStatus = Awaited<ReturnType<typeof loadSeasonStatusInTx>>;
-
-export async function loadSeasonStatusInTx(
-  txOrDb: Pick<TxDb, "select">,
-  seasonId: string,
-): Promise<string | null> {
-  const [row] = await txOrDb
-    .select({ status: seasons.status })
-    .from(seasons)
-    .where(eq(seasons.id, seasonId));
-  return row?.status ?? null;
-}

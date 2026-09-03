@@ -5,7 +5,7 @@ import { db } from "@/db/client";
 import { users } from "@/db/schema";
 import { actionError } from "@/lib/action-utils";
 import { createUserSession } from "@/lib/auth/session";
-import { createPublicAuthClient } from "@/lib/auth/supabase";
+import { createPublicAuthClient } from "@/lib/auth/supabase-server";
 import { bootstrapConfiguredOwnerInTx } from "@/lib/auth/owner-bootstrap";
 import { safeLocalRedirect } from "@/lib/auth/redirect";
 import { ErrorCode } from "@/lib/errors";

@@ -7,7 +7,7 @@ import { db } from "@/db/client";
 import { teams, users } from "@/db/schema";
 import { actionError, failValidation, isPgUniqueViolation } from "@/lib/action-utils";
 import { auditActorId, requireAuth, requireSuperAdmin } from "@/lib/auth/session";
-import { createServiceClient } from "@/lib/auth/supabase";
+import { createServiceClient } from "@/lib/auth/supabase-server";
 import { MAX_TEAM_NAME_LENGTH, MIN_TEAM_NAME_LENGTH } from "@/lib/config/team-config";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { TEAM_LOGO_BUCKET, TEAM_LOGO_EXTENSIONS } from "@/lib/config/team-logo";

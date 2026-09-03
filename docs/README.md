@@ -17,7 +17,7 @@
 
 | 文档 | 阅读目的 |
 |---|---|
-| [`roadmap.md`](./roadmap.md) | 以 RC4 为基线的 2.x 方向、顺序与依赖 |
+| [`roadmap.md`](./roadmap.md) | 2.x 长期方向、顺序与依赖 |
 | [`architecture.md`](./architecture.md) | 架构边界、赛事运行时与稳定代码域映射 |
 | [`domain-model.md`](./domain-model.md) | 领域实体、关系、冻结事实与 integrity owner |
 | [`workflows.md`](./workflows.md) | 报名、比赛与赛后生命周期 |
@@ -26,6 +26,8 @@
 | [`testing.md`](./testing.md) | 自动化验证、环境分层、专项演练与 production canary |
 | [`ui-system.md`](./ui-system.md) | UI tokens、交互与产品文案 |
 | [`operations/major-referee-guide.md`](./operations/major-referee-guide.md) | Major 当日裁判/管理员操作 |
+
+仓库协作与交付规则见根目录 [`CONTRIBUTING.md`](../CONTRIBUTING.md)；Agent 的最小入口见 [`AGENTS.md`](../AGENTS.md)。两者不复制本文档中的技术 authority。
 
 ## Decisions and history
 

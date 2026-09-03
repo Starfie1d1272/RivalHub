@@ -1,9 +1,11 @@
+import "server-only";
+
 import { fail } from "@/types/action";
 import type { ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, matches, seasonRegistrations } from "@/db/schema";
+import { seasons, matches } from "@/db/schema";
 
 // ── Error handling ──
 
@@ -34,12 +36,4 @@ export async function getMatchOrThrow(matchId: string) {
   const match = await db.query.matches.findFirst({ where: eq(matches.id, matchId) });
   if (!match) throw new AppError(ErrorCode.MATCH_NOT_FOUND, ERROR_MESSAGES.MATCH_NOT_FOUND);
   return match;
-}
-
-export async function getRegistrationOrThrow(registrationId: string) {
-  const reg = await db.query.seasonRegistrations.findFirst({
-    where: eq(seasonRegistrations.id, registrationId),
-  });
-  if (!reg) throw new AppError(ErrorCode.NOT_FOUND, "报名记录不存在");
-  return reg;
 }

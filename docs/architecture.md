@@ -2,20 +2,20 @@
 
 ## System shape
 
-RivalHub 使用 Next.js App Router。页面以 Server Components 为主；受控写入通过 Server Actions；Cron 使用 API Route；Drizzle 访问 Postgres；Supabase 提供 Auth、Storage 与受限 Realtime；iron-session 承载应用会话。
+RivalHub 使用 Next.js App Router。页面默认使用 Server Components；first-party UI mutation 通常通过 Server Actions，HTTP/protocol integration 可使用 Route Handler，但所有入口共享同一个 canonical domain operation。Drizzle 访问 Postgres；Supabase 提供 Auth、Storage 与当前受限的 Realtime；iron-session 承载应用会话。
 
 ```text
 Browser
   └─ Next.js App Router
        ├─ Server Components ── Drizzle ── Postgres
-       ├─ Server Actions ──── Drizzle / Supabase Auth / Storage
-       ├─ Cron API Routes ── CRON_SECRET
-       └─ Client islands ─── Supabase Realtime (approved tables only)
+       ├─ Server Actions / protocol routes ── canonical domain operations
+       │                                      └─ Drizzle / Supabase Auth / Storage
+       └─ Client islands ─── Supabase Realtime (current allowlist)
 ```
 
-页面负责路由、读取和呈现；复杂事务、资格判断、赛制和恢复逻辑位于 `src/actions/` 与 `src/lib/`。业务写入不得由页面、客户端组件或普通 API Route 旁路完成。所有管理操作写入 `audit_logs`。
+页面负责路由、读取和呈现；复杂事务、资格判断、赛制和恢复逻辑位于 `src/actions/` 与 `src/lib/` 的 canonical owner。页面和客户端组件不旁路写入；普通 API/协议入口如存在，也必须委托同一 domain operation。所有管理操作写入 `audit_logs`。
 
-Server Action 拥有鉴权、输入验证和 transaction boundary；可以跨 action 复用的 qualification、roster、赛制、恢复或序列化逻辑下沉至 `src/lib/<domain>/`。页面与 action 不重复实现同一领域规则。
+entrypoint 负责鉴权与输入验证；transaction boundary 可以由 action 直接持有，也可以由可复用的 server-only domain service 作为 canonical owner。qualification、roster、赛制、恢复或序列化逻辑不得在页面与 action 中重复实现。
 
 ## Public data boundary
 
@@ -27,6 +27,12 @@ database internal object
 ```
 
 服务端查询可读取 email、QQ、教育材料等私密字段以完成权限和业务判断。匿名或公开响应只传递明确的 public projection，不能把 internal query object 原样序列化到 RSC payload 或 Client Component props。email、QQ、`studentId`、`authId`、赛季授权范围、审核材料和内部备注默认不是公开字段；public serializer 的回归测试保护这一边界。
+
+## Stable application contracts
+
+- Server Action 和其它应用入口使用 `ActionResult<T>`、`ok()` / `fail()` 表达预期结果；错误码由 `src/lib/errors.ts` 维护。
+- 时间持久化为 UTC，展示层按产品约定转换为 `Asia/Shanghai`。
+- `brackets-manager` 只由 `src/lib/bracket/` adapter 接触；其它 domain 依赖 adapter 暴露的类型和操作。
 
 ## Built-in competition systems
 
@@ -62,7 +68,7 @@ Major 的正式运行时由 `src/lib/major/` 与 `major_*` persistence owners �
 - Supabase Auth 管理邮箱账号；应用会话与角色由 `public.users` + `rivalhub-session` 管理。
 - 管理员统一使用 Supabase Auth；`users.role` 与 `season_admin_grants` 是当前权限事实，`rivalhub-session` 只保存身份。
 - Data API 对业务表默认拒绝；Server-only DB 是业务读写 owner。新增 direct Supabase client 或 Realtime table 时，同一变更必须包含 explicit grant、RLS policy 与正反例测试。
-- Realtime 仅服务于 `draft_state`、`draft_picks` 和 `captain_votes`，且在数据库事务 commit 后发送。
+- 当前 Realtime surface 仅服务于 `draft_state`、`draft_picks` 和 `captain_votes`，且在数据库事务 commit 后发送。新增 surface 不是自动禁止，但必须在同一变更中定义权限、RLS/GRANT、一致性语义与正反例测试。
 - active Drizzle migrations 是唯一 migration authority；`pnpm db:push` 被阻止。
 - Local、staging、production 是独立边界，详细执行方式见 [`deployment.md`](./deployment.md)。
 

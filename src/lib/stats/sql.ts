@@ -1,6 +1,5 @@
 import { sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
-import type { StatFilter } from "./types";
 
 /**
  * 回合数表达式：优先图级比分（BO3/BO5），BO1 fallback 到赛事级比分。
@@ -36,18 +35,4 @@ export function perRound(col: string): SQL {
   return sql`CASE WHEN sum(${roundsExpr}) > 0
     THEN sum(${sql.raw(col)})::numeric / sum(${roundsExpr})
     ELSE NULL END`;
-}
-
-/**
- * 根据 StatFilter 生成附加 WHERE 条件（追加到现有 WHERE 之后）
- * 依赖别名：m = matches, mm = match_maps
- * 返回空 SQL 时不添加任何条件
- */
-export function filterToSql(filter: Pick<StatFilter, "stage" | "mapName" | "format">): SQL {
-  const parts: SQL[] = [];
-  if (filter.stage) parts.push(sql`AND m.stage = ${filter.stage}`);
-  if (filter.mapName) parts.push(sql`AND mm.map_name = ${filter.mapName}`);
-  if (filter.format) parts.push(sql`AND m.format = ${filter.format}`);
-  if (parts.length === 0) return sql``;
-  return sql.join(parts, sql` `);
 }
