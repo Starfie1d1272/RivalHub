@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db/client";
 import { auditLogs, educationVerifications, institutionEmailDomains, institutions, users } from "@/db/schema";
@@ -16,7 +16,9 @@ function refresh(): void {
   revalidatePath("/admin/education-verifications");
 }
 
-export async function submitEducationVerification(input: unknown): Promise<ActionResult<void>> {
+export type EducationSubmissionOutcome = "created" | "already_pending" | "already_approved";
+
+export async function submitEducationVerification(input: unknown): Promise<ActionResult<EducationSubmissionOutcome>> {
   const parsed = educationSubmissionSchema.safeParse(input);
   if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请完整填写学校、身份和有效的学信网在线验证码。" });
   const evidenceCode = normalizeChsiEvidenceCode(parsed.data.evidenceCode);
@@ -32,7 +34,22 @@ export async function submitEducationVerification(input: unknown): Promise<Actio
     }
     const institution = await db.query.institutions.findFirst({ where: eq(institutions.id, parsed.data.institutionId) });
     if (!institution) throw new AppError(ErrorCode.NOT_FOUND, "所选高校不存在，请刷新后重试。");
-    await db.transaction(async (tx) => {
+    const outcome = await db.transaction(async (tx) => {
+      // There is intentionally no permanent fingerprint or unique constraint
+      // for evidence codes. Serialize only this user's normalized code for the
+      // duration of the transaction, so concurrent submissions cannot both pass
+      // the existing-row check while unrelated submissions remain independent.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`education-verification:${session.userId}:${evidenceCode}`}, 0))`);
+      const existing = await tx.query.educationVerifications.findFirst({
+        where: and(eq(educationVerifications.userId, session.userId), eq(educationVerifications.evidenceCode, evidenceCode)),
+        columns: { status: true },
+      });
+      if (existing?.status === "pending") return "already_pending" as const;
+      if (existing?.status === "approved") return "already_approved" as const;
+      if (existing?.status === "rejected") {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "该验证码此前已被驳回，请提交新的有效验证码。");
+      }
+
       const [verification] = await tx.insert(educationVerifications).values({
         userId: session.userId,
         institutionId: institution.id,
@@ -44,9 +61,10 @@ export async function submitEducationVerification(input: unknown): Promise<Actio
         action: "education_verification.submit", actorId: auditActorId(session), targetId: verification?.id,
         targetType: "education_verification", meta: { institutionId: institution.id, evidenceType: parsed.data.academicStatus === "enrolled" ? "chsi_enrollment_report" : "chsi_education_report" },
       });
+      return "created" as const;
     });
     refresh();
-    return ok(undefined);
+    return ok(outcome);
   } catch (error) { return actionError("submitEducationVerification", error); }
 }
 
@@ -82,8 +100,16 @@ export async function declareInstitutionalEmailEducation(input: { academicStatus
 }
 
 export async function reviewEducationVerification(input: { id: string; decision: "approved" | "rejected"; reviewNote?: string }): Promise<ActionResult<void>> {
-  const parsed = z.object({ id: z.string().uuid(), decision: z.enum(["approved", "rejected"]), reviewNote: z.string().trim().max(1000).optional() }).safeParse(input);
-  if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "审核输入无效。" });
+  const reviewSchema = z.object({ id: z.string().uuid(), decision: z.enum(["approved", "rejected"]), reviewNote: z.string().trim().max(1000).optional() }).superRefine((value, ctx) => {
+    if (value.decision === "rejected" && !value.reviewNote) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["reviewNote"], message: "驳回原因不能为空。" });
+    }
+  });
+  const parsed = reviewSchema.safeParse(input);
+  if (!parsed.success) {
+    const reasonIssue = parsed.error.issues.find((issue) => issue.message === "驳回原因不能为空。");
+    return fail({ code: ErrorCode.VALIDATION_FAILED, message: reasonIssue?.message ?? "审核输入无效。" });
+  }
   try {
     // Education evidence is global sensitive identity data.  A season-scoped
     // administrator must not obtain cross-season CHSI access merely by having
