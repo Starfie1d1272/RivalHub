@@ -28,7 +28,7 @@ Rivals 用户在报名窗口填写个人报名并可保存草稿。提交由 Ser
 
 ## 7. Rivals draft
 
-队长/管理员操作选秀时，系统以行锁锁定 `draft_state`，先判定 `clientRequestId` 幂等，再验证轮次、身份、位置与可选性，在同一事务写 pick、Entry participant / roster member / event roster member 与下一轮状态。commit 后才更新 Realtime。
+队长/管理员操作选秀时，系统以行锁锁定 `draft_state`，先判定 `clientRequestId` 幂等，再验证轮次、身份、位置与可选性，在同一事务写 pick、Entry participant / roster member / event roster member 与下一轮状态。commit 后由直播页面通过服务端刷新/轮询读取最新事实。
 
 ## 8. Major entry registration
 
@@ -116,6 +116,6 @@ forfeit 是 `finished` 的结果形态，不是额外比赛状态。结果更正
 3. 校验 draft active、当前队伍、deadline、队长、目标报名状态、未被选择和位置上限；
 4. 写入 `draft_picks`、Entry participant / roster member / event roster member 事实与 audit log；
 5. 推进 `draft_state`，最后一 pick 将赛季推进为 `playing`；
-6. commit 后 revalidate；Realtime client 只消费已提交的 `draft_state` 与 `draft_picks` 更新。
+6. commit 后 revalidate；直播页面只通过服务端刷新/轮询消费已提交的 `draft_state` 与 `draft_picks`。
 
 幂等检查必须早于 turn/state 校验：第一次请求成功推进轮次后，安全重试仍需得到同一成功结果。

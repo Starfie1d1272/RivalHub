@@ -6,7 +6,7 @@ import { migrationFiles, replayMigration, withScratchDatabase } from "../harness
 const TERMINAL_MIGRATION = "0025_stale_black_bolt.sql";
 
 async function replayBeforeEvidenceMigration(client: Client): Promise<void> {
-  for (const migration of migrationFiles((name) => /^\d{4}_.*\.sql$/.test(name)).filter((name) => name !== TERMINAL_MIGRATION)) {
+  for (const migration of migrationFiles((name) => /^\d{4}_.*\.sql$/.test(name)).filter((name) => name < TERMINAL_MIGRATION)) {
     await replayMigration(client, migration);
   }
 }

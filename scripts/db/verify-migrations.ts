@@ -7,6 +7,7 @@ import { assertStagingDatabaseUrl } from "./staging-environment";
 import { assertProductionConfirmations, assertProductionDatabaseUrl } from "./production-environment";
 import { isLegacyStandardMajorWithoutAffiliation } from "../../src/lib/competition/definition";
 import type { SeasonCapabilities } from "../../src/types/season";
+import { verifyDatabaseAccessMatrix } from "./access-matrix";
 
 interface MigrationJournalEntry {
   tag: string;
@@ -106,6 +107,7 @@ async function main(): Promise<void> {
         COALESCE((SELECT json_agg(enumlabel ORDER BY enumsortorder) FROM pg_enum WHERE enumtypid = 'public.cs2_role'::regtype), '[]'::json) AS roles
     `);
     assertCurrentTerminalSchema(terminalSchema.rows[0]);
+    await verifyDatabaseAccessMatrix(pool, `Migration verification (${target})`);
 
     console.log(`Migration verification passed for ${target}: ${expected.length} active migrations; active terminal schema contract is present.`);
   } finally {

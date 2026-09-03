@@ -38,7 +38,7 @@
 
 ## 7. Captain voting / draft
 
-`captain_votes` 是 Rivals 投票记录。`draft_state` 维护单届实时选秀状态，`draft_picks` 用 `clientRequestId` 支持幂等。选秀与队员写入在同一事务内完成，事务完成后才可发送 Realtime。
+`captain_votes` 是 Rivals 投票记录。`draft_state` 维护单届选秀状态，`draft_picks` 用 `clientRequestId` 支持幂等。选秀与队员写入在同一事务内完成；直播页面通过服务端刷新/轮询读取已提交事实。
 
 ## 8. Matches
 
@@ -126,6 +126,6 @@
 | 一场 Major 比赛恰好 5 名首发 | match-roster service 与 lineup evaluator |
 | 管理 mutation 的审计 | Server Action transaction + `audit_logs` |
 | team logo 类型与大小 | server upload validation + Storage bucket |
-| public Data API 默认拒绝 | active migration 的 grants / RLS |
+| public Data API 默认拒绝 | `security/database-access-matrix.md` + active migration 的 grants / RLS |
 
 DB constraint、transaction、domain evaluator 与 frozen snapshot 各自覆盖不同的风险。不能以任一层替代另一层，也不应把需要业务语义的约束伪装为单纯字段检查。

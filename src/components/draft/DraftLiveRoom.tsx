@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DRAFT_TOTAL_ROUNDS } from "@/types/draft";
-import { createBrowserClient } from "@/lib/auth/supabase";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { DraftCountdown } from "./DraftCountdown";
 import { TeamDraftGrid } from "./TeamDraftGrid";
@@ -12,7 +11,6 @@ import type { PublicDraftData } from "@/lib/draft/data";
 
 interface DraftLiveRoomProps {
   data: PublicDraftData;
-  seasonId: string;
   seasonPositions: string[];
   readonly?: boolean;
 }
@@ -24,7 +22,6 @@ interface PickNotification {
 
 export function DraftLiveRoom({
   data,
-  seasonId,
   seasonPositions,
   readonly: isReadonly,
 }: DraftLiveRoomProps) {
@@ -39,15 +36,6 @@ export function DraftLiveRoom({
   const [notificationVisible, setNotificationVisible] = useState(false);
   const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const removeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Debounce refresh to avoid burst DB pressure from Realtime + polling overlap
-  const lastRefreshRef = useRef(0);
-  const debouncedRefresh = useCallback(() => {
-    const now = Date.now();
-    if (now - lastRefreshRef.current < 3000) return;
-    lastRefreshRef.current = now;
-    router.refresh();
-  }, [router]);
 
   const showPickNotification = useCallback(
     (payload: { steamName?: string; displayName?: string | null; perfectName?: string | null; team_id?: string }) => {
@@ -80,44 +68,9 @@ export function DraftLiveRoom({
   // 轮询兜底（10 秒刷新）—— 仅直播模式
   useEffect(() => {
     if (isReadonly) return;
-    const timer = window.setInterval(debouncedRefresh, 10_000);
+    const timer = window.setInterval(() => router.refresh(), 10_000);
     return () => window.clearInterval(timer);
-  }, [debouncedRefresh, isReadonly]);
-
-  // Realtime 订阅 —— 仅直播模式
-  useEffect(() => {
-    if (isReadonly) return;
-    const supabase = createBrowserClient();
-    const channel = supabase
-      .channel(`draft-live:${seasonId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "draft_state",
-          filter: `season_id=eq.${seasonId}`,
-        },
-        () => debouncedRefresh(),
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "draft_picks",
-          filter: `season_id=eq.${seasonId}`,
-        },
-        () => {
-          debouncedRefresh();
-        },
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [debouncedRefresh, seasonId, isReadonly]);
+  }, [isReadonly, router]);
 
   // Watch for new picks via completedPicks changes
   const prevPickCountRef = useRef(completedPicks.length);
