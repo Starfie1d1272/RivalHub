@@ -7,12 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TeamDirectoryCard } from "@/components/teams/TeamDirectoryCard";
 import { getUserSession } from "@/lib/auth/session";
+import { countPendingDirectTeamInvitations } from "@/lib/teams/invitations";
+import { getTeamDirectoryCta } from "@/lib/teams/presentation";
 import { TeamSectionNav } from "@/components/teams/TeamSectionNav";
 
 export default async function TeamDirectoryPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const [{ q }, session] = await Promise.all([searchParams, getUserSession()]);
   const query = q?.trim() ?? "";
-  const [rows, counts, currentTeamRows] = await Promise.all([
+  const [rows, counts, currentTeamRows, pendingDirectInvitationCount] = await Promise.all([
     db.select({
       id: teams.id,
       slug: teams.slug,
@@ -27,8 +29,10 @@ export default async function TeamDirectoryPage({ searchParams }: { searchParams
     session
       ? db.select({ slug: teams.slug }).from(teamMemberships).innerJoin(teams, eq(teams.id, teamMemberships.teamId)).where(and(eq(teamMemberships.userId, session.userId), isNull(teamMemberships.endedAt), eq(teams.status, "active"))).limit(1)
       : Promise.resolve([]),
+    session ? countPendingDirectTeamInvitations(session.userId) : Promise.resolve(0),
   ]);
   const countByTeam = new Map(counts.map((row) => [row.teamId, row.value]));
   const currentTeam = currentTeamRows[0] ?? null;
-  return <div className="container mx-auto max-w-6xl px-4 py-12 sm:py-16"><div className="mb-8 space-y-5"><div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between"><Marker sub="查看队伍、成员和赛事履历">队伍</Marker><div className="flex w-full flex-col gap-3 md:w-auto md:items-end">{session && <Button size="sm" asChild><Link href={currentTeam ? "/my/teams" : "/my/teams#create-team"}>{currentTeam ? "管理我的队伍" : "创建队伍"}</Link></Button>}<form className="flex w-full max-w-md gap-2 sm:max-w-sm"><Input name="q" defaultValue={query} placeholder="搜索队名" className="min-w-0" /><Button type="submit" variant="outline">搜索</Button></form></div></div><TeamSectionNav active="directory" /></div>{rows.length === 0 ? <EmptyState title="没有找到符合条件的队伍" /> : <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{rows.map((team) => <TeamDirectoryCard key={team.id} slug={team.slug} name={team.name} logoUrl={team.logoUrl} description={team.description} hasOpenRecruitment={team.hasOpenRecruitment} status={team.status} captainName={team.captainName} memberCount={countByTeam.get(team.id) ?? 0} />)}</div>}</div>;
+  const cta = getTeamDirectoryCta(Boolean(currentTeam), pendingDirectInvitationCount);
+  return <div className="container mx-auto max-w-6xl px-4 py-12 sm:py-16"><div className="mb-8 space-y-5"><div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between"><Marker sub="查看队伍、成员和赛事履历">队伍</Marker><div className="flex w-full flex-col gap-3 md:w-auto md:items-end">{session && <Button size="sm" asChild><Link href={cta.href as never}>{cta.label}</Link></Button>}<form className="flex w-full max-w-md gap-2 sm:max-w-sm"><Input name="q" defaultValue={query} placeholder="搜索队名" /><Button type="submit" variant="outline">搜索</Button></form></div></div><TeamSectionNav active="directory" /></div>{rows.length === 0 ? <EmptyState title="没有找到符合条件的队伍" /> : <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{rows.map((team) => <TeamDirectoryCard key={team.id} slug={team.slug} name={team.name} logoUrl={team.logoUrl} description={team.description} hasOpenRecruitment={team.hasOpenRecruitment} status={team.status} captainName={team.captainName} memberCount={countByTeam.get(team.id) ?? 0} />)}</div>}</div>;
 }
