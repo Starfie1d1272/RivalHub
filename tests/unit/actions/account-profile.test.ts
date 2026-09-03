@@ -10,7 +10,7 @@ const { requireAuthMock, updateMock, revalidatePathMock } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/auth/session", () => ({ requireAuth: requireAuthMock }));
-vi.mock("@/lib/auth/supabase", () => ({ createServiceClient: vi.fn() }));
+vi.mock("@/lib/auth/supabase-server", () => ({ createServiceClient: vi.fn() }));
 vi.mock("@/db/client", () => ({ db: { update: updateMock } }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 

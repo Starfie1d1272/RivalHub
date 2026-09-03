@@ -153,7 +153,7 @@ export function serializePublicDraftPlayer(row: DraftPlayerSource): PublicDraftP
   };
 }
 
-export function serializeCaptainDraftPlayer(
+function serializeCaptainDraftPlayer(
   row: CaptainDraftPlayerSource,
 ): CaptainDraftPlayer {
   return {

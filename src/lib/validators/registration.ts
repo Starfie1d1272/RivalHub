@@ -22,15 +22,6 @@ export function positionLabel(position: string): string {
   return POSITION_LABELS[position as keyof typeof POSITION_LABELS]?.en ?? position;
 }
 
-/** 位置单字母缩写 */
-export const POS_ABBR: Record<string, string> = {
-  opener: "O",
-  closer: "C",
-  anchor: "A",
-  igl: "I",
-  awper: "W",
-};
-
 // ── 从配置派生段位常量 ──────────────────────────────
 export const rankValues = REGISTRATION_DEFAULTS.ranks.values;
 export type Rank = RankValue;
@@ -293,11 +284,7 @@ export function buildRegistrationSchema(
     );
 }
 
-export const registrationSchema = buildRegistrationSchema(
-  RIVALS_REGISTRATION_CONFIG,
-  positionValues,
-);
-
 // ── 导出类型 ─────────────────────────────────────────
-export type RegistrationFormData = z.infer<typeof registrationSchema>;
-export type RegistrationInput = z.input<typeof registrationSchema>;
+type RegistrationSchema = ReturnType<typeof buildRegistrationSchema>;
+export type RegistrationFormData = z.infer<RegistrationSchema>;
+export type RegistrationInput = z.input<RegistrationSchema>;

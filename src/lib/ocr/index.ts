@@ -1,3 +1,5 @@
+import "server-only";
+
 import type { OCRProvider, ScoreboardOCRResult } from "./types";
 import { siliconflowProvider } from "./siliconflow";
 
@@ -24,4 +26,3 @@ export async function extractScoreboardFromBase64(
 
 // 重新导出
 export type { PlayerRowOCR, ScoreboardOCRResult, OCRProvider } from "./types";
-export { siliconflowProvider } from "./siliconflow";

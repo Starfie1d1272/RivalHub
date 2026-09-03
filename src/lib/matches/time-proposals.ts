@@ -37,21 +37,6 @@ function loadMatchTimeProposalRows(matchId: string): Promise<MatchTimeProposalSo
     .orderBy(desc(matchTimeProposals.createdAt));
 }
 
-/** Public read model with no actor or force-assignment identifiers. */
-export async function getPublicMatchTimeProposals(
-  matchId: string,
-): Promise<PublicMatchTimeProposal[]> {
-  const rows = await loadMatchTimeProposalRows(matchId);
-  return rows.map((row) => ({
-    id: row.id,
-    status: row.status,
-    proposedTime: row.proposedTime,
-    responseAt: row.responseAt,
-    rejectReason: row.rejectReason,
-    createdAt: row.createdAt,
-  }));
-}
-
 /** Server-only projection for the authenticated viewer of the match page. */
 export async function getMatchTimeProposalViews(
   matchId: string,

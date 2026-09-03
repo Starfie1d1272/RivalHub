@@ -177,7 +177,7 @@ function readSourceDependencies(path) {
     const source = readFileSync(resolve(process.cwd(), path), "utf8");
     return {
       usesDatabase: /(?:from\s+|import\s*\()\s*["']@\/db\/(?:client|schema)["']/.test(source),
-      usesSupabase: /(?:from\s+|import\s*\()\s*["'](?:@\/lib\/auth\/supabase|@supabase\/supabase-js)["']/.test(source),
+      usesSupabase: /(?:from\s+|import\s*\()\s*["'](?:@\/lib\/auth\/supabase(?:-server)?|@supabase\/supabase-js)["']/.test(source),
       unreadable: false,
     };
   } catch {

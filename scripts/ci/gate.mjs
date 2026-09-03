@@ -5,9 +5,22 @@ const statuses = {
   postgres: process.env.POSTGRES_RESULT,
   system: process.env.SYSTEM_RESULT,
 };
+const dependencyReviewStatus = process.env.DEPENDENCY_REVIEW_RESULT;
+const eventName = process.env.EVENT_NAME || process.env.GITHUB_EVENT_NAME;
 
 if (statuses.plan !== "success") {
   fail(`plan 未成功：${statuses.plan ?? "missing"}`);
+}
+
+if (eventName === "pull_request") {
+  if (dependencyReviewStatus !== "success") {
+    fail(`pull_request 的 dependency-review 未成功：${dependencyReviewStatus ?? "missing"}`);
+  }
+  console.log("required dependency-review: success");
+} else if (dependencyReviewStatus !== "skipped" && dependencyReviewStatus !== "success") {
+  fail(`非 pull_request 的 dependency-review 出现异常状态：${dependencyReviewStatus ?? "missing"}`);
+} else {
+  console.log(`optional dependency-review: ${dependencyReviewStatus}`);
 }
 
 for (const job of ["static", "postgres", "system"]) {

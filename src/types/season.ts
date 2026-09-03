@@ -169,7 +169,7 @@ export const MAJOR_TEAM_CONFIG: TeamRegistrationConfig = {
 };
 
 /** Compatibility fallback for historical rows that predate team registration configuration. */
-export const DEFAULT_TEAM_REGISTRATION_CONFIG: TeamRegistrationConfig = {
+const DEFAULT_TEAM_REGISTRATION_CONFIG: TeamRegistrationConfig = {
   allowExternal: true,
   graduateCountsAsHome: false,
   minHomeMembers: 0,
@@ -302,7 +302,7 @@ export const RIVALS_REGISTRATION_CONFIG: RegistrationConfig = {
 };
 
 /** 选秀联赛预设：个人报名 → 队长投票 → 蛇形选秀 → 循环赛 + 双败淘汰 */
-export const DRAFT_LEAGUE_PRESET: SeasonCapabilities = {
+const DRAFT_LEAGUE_PRESET: SeasonCapabilities = {
   registrationMode: "solo",
   hasCaptainVoting: true,
   hasDraft: true,
@@ -409,7 +409,7 @@ export const CAPABILITY_PRESETS = {
   },
 } as const;
 
-// 向后兼容别名
+/** @alias Compatibility name retained for existing admin/test consumers. */
 export const RIVALS_DEFAULT_CAPABILITIES = DRAFT_LEAGUE_PRESET;
 export const MAJOR_DEFAULT_CAPABILITIES = CAPABILITY_PRESETS.major;
 
@@ -540,12 +540,6 @@ export function getStageByKey(stagePlan: StagePlan | null | undefined, key: stri
 
 export function getFirstStage(stagePlan: StagePlan | null | undefined): StageConfig | null {
   return normalizeStagePlan(stagePlan)[0] ?? null;
-}
-
-export function getNextStage(stagePlan: StagePlan | null | undefined, key: string): StageConfig | null {
-  const stages = normalizeStagePlan(stagePlan);
-  const index = stages.findIndex((stage) => stage.key === key);
-  return index >= 0 ? stages[index + 1] ?? null : null;
 }
 
 export function getPreviousStage(stagePlan: StagePlan | null | undefined, key: string): StageConfig | null {

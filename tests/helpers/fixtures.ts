@@ -65,17 +65,3 @@ export function createFakeRegistration(overrides?: Record<string, unknown>) {
     ...overrides,
   };
 }
-
-export function createFakeTeam(overrides?: Record<string, unknown>) {
-  return {
-    id: randomUUID(),
-    seasonId: randomUUID(),
-    name: "Test Team",
-    captainRegistrationId: randomUUID(),
-    draftOrder: 1,
-    logoUrl: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    ...overrides,
-  };
-}

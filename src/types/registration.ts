@@ -23,8 +23,6 @@ export interface Registration {
   updatedAt: Date;
 }
 
-export { POSITION_LABELS } from "@/lib/validators/registration";
-
 /** 审核状态中文标签 */
 export const REGISTRATION_STATUS_LABELS: Record<RegistrationStatus, string> = {
   pending: "待审核",
@@ -32,9 +30,3 @@ export const REGISTRATION_STATUS_LABELS: Record<RegistrationStatus, string> = {
   rejected: "已拒绝",
   waitlisted: "候补名单",
 };
-
-/** 每个位置的报名上限 */
-export const POSITION_CAP = 15;
-
-/** 每队同一主选位置的最大人数（选秀约束） */
-export const TEAM_POSITION_CAP = 3;

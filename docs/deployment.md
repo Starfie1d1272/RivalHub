@@ -76,9 +76,24 @@ CI 的 DB-only critical path 不使用 `start-db`：`.github/workflows/ci.yml` �
 
 ## Active migrations
 
-`drizzle/migrations/` 是活动迁移链，`drizzle/legacy-migrations/` 是只读历史。`pnpm db:check` 校验活动链；`pnpm db:push` 被阻止，因为它无法执行 custom SQL、data backfill 或 fail-closed validation。
+`drizzle/migrations/` 是活动迁移链，`drizzle/legacy-migrations/` 是只读历史。`pnpm db:check` 先对 changed surface 运行 migration-risk classifier，再校验活动链；`pnpm db:push` 被阻止，因为它无法执行 custom SQL、data backfill 或 fail-closed validation。
 
 远程 migration 前必须确认独立环境、当前 migration baseline、精确 target 及显式写入授权。RLS、policy、trigger 和 Data API grants 应作为同一 active Drizzle migration 的 custom SQL 管理，不使用手工 schema patch。
+
+### Migration compatibility contract
+
+Production schema evolution 默认遵循 **expand → deploy → contract**：先加入新结构或兼容读写所需的 backfill，再部署能够同时处理旧/新形态的应用；只有旧应用不再读写旧结构后，后续 release 才进行 contract cleanup。小型纯 additive migration 不需要为了形式主义拆成多个 release，但会破坏旧应用兼容性的变化必须跨 release 收敛。
+
+`pnpm db:migration-risk` 是 active Drizzle SQL changed surface 的风险分类器，不是兼容性证明器。它默认比较 `RIVALHUB_MIGRATION_BASE_SHA` 与 `RIVALHUB_MIGRATION_HEAD_SHA`（本地未提供 baseline 时检查当前未提交/未跟踪的 active migration），并报告以下 compatibility/locking risk：`DROP TABLE/COLUMN/TYPE`、rename、`ALTER COLUMN TYPE`、`SET NOT NULL`，以及明显可能 rewrite 或取得 exclusive lock 的 DDL。它不会重新分类未改动的历史 migration，也不建立第二份 migration ledger。命中后仍可做有意的 contract cleanup，但必须在对应 SQL 语句前留下 durable 注释，例如：
+
+```sql
+-- rivalhub:migration-risk: contract cleanup after the previous release stopped reading/writing <old field>
+ALTER TABLE ... DROP COLUMN ...;
+```
+
+注释只记录兼容性策略、清理阶段和原因，不自动证明安全。带风险的 migration 仍须通过 Local/real-PG replay、必要的 staging rehearsal 与 production preflight；active Drizzle ledger 仍是唯一 migration authority，checker 不建立 shadow migration system。明显 blocking risk 的 SQL 可以在经过验证的 SQL/session 中显式设置 bounded `lock_timeout` 或 `statement_timeout`，但本仓库不向 Drizzle URL 猜测性注入全局 timeout。
+
+本地要复现 CI 的 changed-surface 判定，应显式使用当前 `dev` 基线，例如：`RIVALHUB_MIGRATION_BASE_SHA=$(git merge-base HEAD origin/dev) RIVALHUB_MIGRATION_HEAD_SHA=HEAD pnpm db:migration-risk`。CI 在 checkout 完整历史后传入 PR base/head SHA；没有 active migration 变化时，checker 明确输出 no changed active migrations。
 
 ### Protected staging migration
 

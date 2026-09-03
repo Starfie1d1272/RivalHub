@@ -2,7 +2,7 @@
 
 ## 文档定位
 
-本文件只维护 **2.x 的长期产品方向、依赖关系、release contract 与领域边界**，不再充当实时 TODO、Issue 状态表或最近变更日志。
+本文件只维护 **2.x 的长期产品方向、依赖关系、release contract 与领域边界**，不再充当实时 TODO、Issue 状态表或变更日志。
 
 以下信息应分别以各自 authority 为准：
 

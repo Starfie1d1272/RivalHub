@@ -1,3 +1,5 @@
+import "server-only";
+
 interface SteamPlayerSummary {
   steamid: string;
   personaname: string;

@@ -9,7 +9,7 @@ import { normalizeTeamRegistrationConfig, type SeasonStatus, type TeamRegistrati
 
 type Transaction = Parameters<Parameters<typeof dbClient.transaction>[0]>[0];
 
-export const SEASON_HAS_FACTS_DELETE_MESSAGE = "该赛季已经产生报名、队伍或赛程事实，不能删除。";
+const SEASON_HAS_FACTS_DELETE_MESSAGE = "该赛季已经产生报名、队伍或赛程事实，不能删除。";
 
 /**
  * Shared "no participation facts" guard for destructive draft lifecycle
