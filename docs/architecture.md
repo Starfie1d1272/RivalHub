@@ -68,6 +68,7 @@ Major 的正式运行时由 `src/lib/major/` 与 `major_*` persistence owners �
 - Supabase Auth 管理邮箱账号；应用会话与角色由 `public.users` + `rivalhub-session` 管理。
 - 管理员统一使用 Supabase Auth；`users.role` 与 `season_admin_grants` 是当前权限事实，`rivalhub-session` 只保存身份。
 - Data API 对业务表默认拒绝；Server-only DB 是业务读写 owner。新增 direct Supabase client 或 Realtime table 时，同一变更必须包含 explicit grant、RLS policy 与正反例测试。
+- 应用代码统一通过 server-only 的 `src/db/client.ts` 取得 Drizzle client；Node CLI 入口使用共享的 `src/db/client-runtime.ts`，并由 ESLint 约束应用代码回到 canonical facade。
 - 当前 Realtime surface 仅服务于 `draft_state`、`draft_picks` 和 `captain_votes`，且在数据库事务 commit 后发送。新增 surface 不是自动禁止，但必须在同一变更中定义权限、RLS/GRANT、一致性语义与正反例测试。
 - active Drizzle migrations 是唯一 migration authority；`pnpm db:push` 被阻止。
 - Local、staging、production 是独立边界，详细执行方式见 [`deployment.md`](./deployment.md)。
