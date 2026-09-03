@@ -1,4 +1,5 @@
 import type { CompetitiveProfileConfig } from "@/types/season";
+import { PERFECT_WORLD_STAR_RANKS } from "@/lib/config/perfect-world";
 
 export interface PlayerStrengthFact {
   rank: string;
@@ -10,6 +11,8 @@ export interface PlayerStrengthFact {
   sourceSeasonKey?: string | null;
   sourceRank?: string;
   conversionVersion?: string;
+  /** Total stars on a star-based (S) rank; null for starless ranks or legacy facts. */
+  stars?: number | null;
 }
 
 export interface PlayerStrengthInput {
@@ -109,16 +112,77 @@ export function comparePlayerStrength(left: PlayerStrengthInput, right: PlayerSt
   return { order: found ? (found[0] > 0 ? 1 : -1) : 0, reason: found ? `按${found[1]}区分。` : "所有规则指定的比较项均相同，视为实力相当。", left: leftBreakdown, right: rightBreakdown };
 }
 
+/** 外校队员相对本校最强队员的历史最高总星数最大允许差值（默认 3 星）。 */
+const DEFAULT_EXTERNAL_STRENGTH_MAX_STAR_GAP = 3;
+
+const PERFECT_WORLD_STAR_RANK_SET = new Set<string>(PERFECT_WORLD_STAR_RANKS);
+
+type HistoricalPeakStarPosition =
+  | { kind: "missing" }
+  | { kind: "starless" }
+  | { kind: "insufficient" }
+  | { kind: "stars"; stars: number };
+
+/** 历史最高竞技水平按总星数归类，作为外校相对限制的唯一比较口径。 */
+function historicalPeakStarPosition(player: PlayerStrengthInput): HistoricalPeakStarPosition {
+  const fact = player.historicalPeak;
+  if (!fact || !fact.rank) return { kind: "missing" };
+  if (!PERFECT_WORLD_STAR_RANK_SET.has(fact.rank)) return { kind: "starless" };
+  if (fact.stars === null || fact.stars === undefined) return { kind: "insufficient" };
+  return { kind: "stars", stars: fact.stars };
+}
+
+/**
+ * 队内最强外校选手的完美世界历史最高总星数不得高于队内最强本校选手超过
+ * `externalStrengthMaxStarGap`（默认 3）星。缺星数或缺少历史最高视为“自动
+ * 判断不足”，返回不可自动通过，交由赛委会人工审核。
+ */
 export function evaluateExternalStrengthRule(input: { players: Array<PlayerStrengthInput & { isHome: boolean }>; config: CompetitiveProfileConfig }): { eligible: boolean; blockers: string[] } {
   const home = input.players.filter((player) => player.isHome);
   const external = input.players.filter((player) => !player.isHome);
   if (home.length === 0) return { eligible: false, blockers: ["阵容中没有可确认的南京大学成员，无法执行外校成员实力限制。"] };
-  const strongestHome = home.reduce((strongest, player) => comparePlayerStrength(player, strongest, input.config).order > 0 ? player : strongest);
+  if (external.length === 0) return { eligible: true, blockers: [] };
+
+  const maxGap = input.config.externalStrengthMaxStarGap ?? DEFAULT_EXTERNAL_STRENGTH_MAX_STAR_GAP;
   const blockers: string[] = [];
-  for (const player of external) {
-    const comparison = comparePlayerStrength(player, strongestHome, input.config);
-    if (!comparison.left.available || !comparison.right.available) blockers.push(`${player.label} 与南京大学成员 ${strongestHome.label} 的实力资料不可确认：${comparison.reason}`);
-    else if (comparison.order > 0) blockers.push(`外校选手 ${player.label} 的实力高于阵容中最强南京大学成员 ${strongestHome.label}：${comparison.reason}`);
+
+  const resolve = (player: PlayerStrengthInput & { isHome: boolean }): number | null => {
+    const position = historicalPeakStarPosition(player);
+    if (position.kind === "stars") return position.stars;
+    if (position.kind === "starless") return Number.NEGATIVE_INFINITY;
+    if (position.kind === "insufficient") {
+      blockers.push(`选手 ${player.label} 的历史最高属于 S 段位但缺少准确星数，无法自动判断外校相对实力限制，需赛委会人工审核。`);
+    } else {
+      blockers.push(`选手 ${player.label} 缺少历史最高段位，无法自动判断外校相对实力限制。`);
+    }
+    return null;
+  };
+
+  const homeStars: number[] = [];
+  const externalStars: number[] = [];
+  for (const player of home) {
+    const value = resolve(player);
+    if (value !== null) homeStars.push(value);
   }
-  return { eligible: blockers.length === 0, blockers };
+  for (const player of external) {
+    const value = resolve(player);
+    if (value !== null) externalStars.push(value);
+  }
+  if (blockers.length > 0) return { eligible: false, blockers: [...new Set(blockers)] };
+
+  const strongestHome = homeStars.length > 0 ? Math.max(...homeStars) : Number.NEGATIVE_INFINITY;
+  const strongestExternal = externalStars.length > 0 ? Math.max(...externalStars) : Number.NEGATIVE_INFINITY;
+
+  // 外校无可比星数（无 S 段位成员）时不会超过本校基线。
+  if (strongestExternal === Number.NEGATIVE_INFINITY) return { eligible: true, blockers: [] };
+  if (strongestHome === Number.NEGATIVE_INFINITY) {
+    const externalLabel = external[externalStars.indexOf(strongestExternal)].label;
+    return { eligible: false, blockers: [`外校选手 ${externalLabel} 的历史最高属于 S 段位，而本校成员均无 S 段位星数，超出外校相对实力限制。`] };
+  }
+  if (strongestExternal - strongestHome > maxGap) {
+    const externalLabel = external[externalStars.indexOf(strongestExternal)].label;
+    const homeLabel = home[homeStars.indexOf(strongestHome)].label;
+    return { eligible: false, blockers: [`外校选手 ${externalLabel} 的历史最高（${strongestExternal} 星）高于本校最强 ${homeLabel}（${strongestHome} 星）超过 ${maxGap} 星，超出外校相对实力限制。`] };
+  }
+  return { eligible: true, blockers: [] };
 }

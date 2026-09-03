@@ -104,6 +104,8 @@ export interface CompetitiveProfileConfig {
   evidencePolicy?: CompetitiveEvidencePolicy;
   /** Optional event-owned 5E fallback mapping, copied into the registration freeze. */
   fallbackConversion?: CompetitiveFallbackConversion;
+  /** 外校最强队员相对本校最强队员的历史最高总星数最大允许差值（默认 3）。 */
+  externalStrengthMaxStarGap?: number;
 }
 
 /**
@@ -165,6 +167,7 @@ export const MAJOR_TEAM_CONFIG: TeamRegistrationConfig = {
     currentSeasonKey: "",
     previousSeasonKey: "",
     rankOrder: [],
+    externalStrengthMaxStarGap: 3,
   },
 };
 
@@ -490,6 +493,7 @@ export function normalizeTeamRegistrationConfig(
           currentSeasonKey: config.competitiveProfile.currentSeasonKey.trim(),
           previousSeasonKey: config.competitiveProfile.previousSeasonKey.trim(),
           rankOrder: [...new Set(config.competitiveProfile.rankOrder.map((rank) => rank.trim()).filter(Boolean))],
+          externalStrengthMaxStarGap: Math.max(0, Math.trunc(config.competitiveProfile.externalStrengthMaxStarGap ?? 3)),
           evidencePolicy: config.competitiveProfile.evidencePolicy
             ? {
                 historicalWeight: 50,
