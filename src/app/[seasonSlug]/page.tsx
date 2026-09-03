@@ -37,7 +37,7 @@ export default function SeasonPage({ params }: SeasonPageProps) {
   );
 }
 
-async function SeasonPageContent({ params }: SeasonPageProps) {
+export async function SeasonPageContent({ params }: SeasonPageProps) {
   await connection();
   const { seasonSlug } = await params;
 
@@ -194,7 +194,7 @@ async function SeasonPageContent({ params }: SeasonPageProps) {
       show: season.hasDraft,
     },
     {
-      href: `/${seasonSlug}/competitionEntries`,
+      href: `/${seasonSlug}/teams`,
       label: "队伍阵容",
       description: "查看各队选手分布",
       icon: Users,
