@@ -22,10 +22,16 @@ const eslintConfig = [
       "no-restricted-globals": ["error", { name: "confirm", message: "Use InlineConfirm or AlertDialog instead." }],
       "no-restricted-properties": ["error", { object: "window", property: "confirm", message: "Use InlineConfirm or AlertDialog instead." }],
       "no-restricted-imports": ["error", {
-        paths: [{
-          name: "brackets-manager",
-          message: "Use the canonical @/lib/bracket adapter; direct brackets-manager imports are only allowed under src/lib/bracket/.",
-        }],
+        paths: [
+          {
+            name: "brackets-manager",
+            message: "Use the canonical @/lib/bracket adapter; direct brackets-manager imports are only allowed under src/lib/bracket/.",
+          },
+          {
+            name: "@/db/client-runtime",
+            message: "Use the canonical server-only @/db/client facade; the runtime implementation is reserved for Node CLI entrypoints.",
+          },
+        ],
       }],
     },
   },

@@ -31,4 +31,18 @@ describe("architecture import boundaries", () => {
 
     expect(messages.filter((message) => message.ruleId === "no-restricted-imports")).toHaveLength(0);
   });
+
+  it("rejects direct database runtime imports outside the server-only facade", async () => {
+    const messages = await lintSource(
+      "src/lib/standings/direct-db-runtime-import.ts",
+      'import { db } from "@/db/client-runtime";\nvoid db;\n',
+    );
+
+    expect(messages).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        ruleId: "no-restricted-imports",
+        message: expect.stringContaining("@/db/client"),
+      }),
+    ]));
+  });
 });
