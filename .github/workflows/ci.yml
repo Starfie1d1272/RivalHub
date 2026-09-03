@@ -180,7 +180,7 @@ jobs:
   ci-gate:
     name: ci-gate
     if: ${{ always() }}
-    needs: [plan, static, postgres, system]
+    needs: [plan, static, postgres, system, dependency-review]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -192,4 +192,6 @@ jobs:
           STATIC_RESULT: ${{ needs.static.result }}
           POSTGRES_RESULT: ${{ needs.postgres.result }}
           SYSTEM_RESULT: ${{ needs.system.result }}
+          DEPENDENCY_REVIEW_RESULT: ${{ needs.dependency-review.result }}
+          EVENT_NAME: ${{ github.event_name }}
           REQUIRED_JOBS: ${{ needs.plan.outputs.required_jobs }}

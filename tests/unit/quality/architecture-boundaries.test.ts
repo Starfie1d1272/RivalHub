@@ -45,4 +45,27 @@ describe("architecture import boundaries", () => {
       }),
     ]));
   });
+
+  it("rejects relative database runtime imports outside the server-only facade", async () => {
+    const messages = await lintSource(
+      "src/lib/standings/relative-db-runtime-import.ts",
+      'import { db } from "../../db/client-runtime";\nvoid db;\n',
+    );
+
+    expect(messages).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        ruleId: "no-restricted-imports",
+        message: expect.stringContaining("canonical server-only @/db/client facade"),
+      }),
+    ]));
+  });
+
+  it("allows the server-only facade to import its runtime implementation", async () => {
+    const messages = await lintSource(
+      "src/db/client.ts",
+      'import { db } from "./client-runtime";\nvoid db;\n',
+    );
+
+    expect(messages.filter((message) => message.ruleId === "no-restricted-imports")).toHaveLength(0);
+  });
 });
