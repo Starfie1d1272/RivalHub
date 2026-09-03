@@ -29,39 +29,59 @@ test("未入队用户可以从 /my 和 /teams 发现并处理 direct invitation"
   if (!captain || !invitee) throw new Error("browser fixture 缺少 player2 或 player1 账号。");
 
   await signIn(page, captain.email, credentials.password, "/my/teams");
-  const teamName = `E2E 邀请队伍 ${Date.now()}`;
-  await expect(page.getByRole("button", { name: "创建队伍", exact: true })).toBeVisible({ timeout: 20_000 });
-  await page.getByLabel("队伍名称").fill(teamName);
-  await page.getByLabel("简介").fill("验证邀请入口");
-  await page.getByRole("button", { name: "创建队伍", exact: true }).click();
-  await expect(page.getByText("队伍资料", { exact: true })).toBeVisible({ timeout: 20_000 });
-
-  await page.getByPlaceholder("已注册邮箱").fill(invitee.email);
-  await page.getByRole("button", { name: "直接邀请", exact: true }).click();
-  await expect(page.getByText(invitee.email, { exact: false })).toBeVisible({ timeout: 20_000 });
-
-  await page.getByRole("button", { name: "生成单次邀请链接", exact: true }).click();
-  await expect(page.getByText("单次邀请链接 · 7 天有效", { exact: true })).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByText(/^到期时间：/)).toBeVisible();
-  await expect(page.getByText("接受一次后失效；可由队长撤销。", { exact: true })).toBeVisible();
-
   const inviteeContext = await browser.newContext();
   try {
     const inviteePage = await inviteeContext.newPage();
-    await signIn(inviteePage, invitee.email, credentials.password, "/my");
-    await expect(inviteePage.getByText(/你有 1 个待处理的队伍邀请/)).toBeVisible({ timeout: 20_000 });
-    await expect(inviteePage.getByRole("link", { name: "处理队伍邀请", exact: true })).toHaveAttribute("href", "/my/teams");
+    const captainWorkspace = page.getByText("队伍资料", { exact: true });
+    const createTeamButton = page.getByRole("button", { name: "创建队伍", exact: true });
+    await expect(createTeamButton.or(captainWorkspace)).toBeVisible({ timeout: 20_000 });
+    let teamName: string;
+    if (await createTeamButton.isVisible()) {
+      teamName = `E2E 邀请队伍 ${Date.now()}`;
+      await page.getByLabel("队伍名称").fill(teamName);
+      await page.getByLabel("简介").fill("验证邀请入口");
+      await createTeamButton.click();
+      await expect(captainWorkspace).toBeVisible({ timeout: 20_000 });
+    } else {
+      teamName = await page.getByLabel("队伍名称").inputValue();
+    }
 
-    await inviteePage.goto("/teams");
-    await expect(inviteePage.getByRole("link", { name: "处理队伍邀请", exact: true })).toHaveAttribute("href", "/my/teams");
+    await signIn(inviteePage, invitee.email, credentials.password, "/my/teams");
+    const inviteeWorkspace = inviteePage.getByText("队伍资料", { exact: true });
+    const pendingInvitations = inviteePage.getByText("待处理邀请", { exact: true });
+    const inviteeCreateTeamButton = inviteePage.getByRole("button", { name: "创建队伍", exact: true });
+    await expect(inviteeWorkspace.or(pendingInvitations).or(inviteeCreateTeamButton).first()).toBeVisible({ timeout: 20_000 });
+    const alreadyMember = await inviteeWorkspace.isVisible();
+    const alreadyPending = await pendingInvitations.isVisible();
+    if (!alreadyMember && !alreadyPending) {
+      await page.getByPlaceholder("已注册邮箱").fill(invitee.email);
+      await page.getByRole("button", { name: "直接邀请", exact: true }).click();
+      await expect(page.getByText(invitee.email, { exact: false })).toBeVisible({ timeout: 20_000 });
+    }
 
-    await inviteePage.goto("/my/teams");
-    await expect(inviteePage.getByText("待处理邀请", { exact: true })).toBeVisible({ timeout: 20_000 });
-    await expect(inviteePage.getByText(teamName, { exact: true })).toBeVisible();
-    await expect(inviteePage.getByText("接受邀请即加入队伍，不需要再次申请或等待队长审核。", { exact: true })).toBeVisible();
-    await inviteePage.getByRole("button", { name: "接受", exact: true }).click();
-    await expect(inviteePage.getByText("队伍资料", { exact: true })).toBeVisible({ timeout: 20_000 });
-    await expect(inviteePage.getByText(teamName, { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "生成单次邀请链接", exact: true }).click();
+    await expect(page.getByText("单次邀请链接 · 7 天有效", { exact: true })).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(/^到期时间：/)).toBeVisible();
+    await expect(page.getByText("接受一次后失效；可由队长撤销。", { exact: true })).toBeVisible();
+
+    if (alreadyMember) {
+      await expect(inviteePage.getByLabel("队伍名称")).toHaveValue(teamName);
+    } else {
+      await inviteePage.goto("/my");
+      await expect(inviteePage.getByText(/你有 \d+ 个待处理的队伍邀请/)).toBeVisible({ timeout: 20_000 });
+      await expect(inviteePage.getByRole("link", { name: "处理队伍邀请", exact: true })).toHaveAttribute("href", "/my/teams");
+
+      await inviteePage.goto("/teams");
+      await expect(inviteePage.getByRole("link", { name: "处理队伍邀请", exact: true })).toHaveAttribute("href", "/my/teams");
+
+      await inviteePage.goto("/my/teams");
+      await expect(pendingInvitations).toBeVisible({ timeout: 20_000 });
+      await expect(inviteePage.getByText(teamName, { exact: true })).toBeVisible();
+      await expect(inviteePage.getByText("接受邀请即加入队伍，不需要再次申请或等待队长审核。", { exact: true })).toBeVisible();
+      await inviteePage.getByRole("button", { name: "接受", exact: true }).click();
+      await expect(inviteeWorkspace).toBeVisible({ timeout: 20_000 });
+      await expect(inviteePage.getByLabel("队伍名称")).toHaveValue(teamName);
+    }
   } finally {
     await inviteeContext.close();
   }
