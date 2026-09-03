@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   classifyMigrationSql,
+  extractMigrationContractOwners,
   MIGRATION_RISK_ANNOTATION,
 } from "../../../scripts/db/migration-risk";
 
@@ -16,6 +17,7 @@ describe("migration risk classifier", () => {
     ["drop", `DROP TABLE old_teams;`],
     ["rename", `ALTER TABLE teams RENAME COLUMN old_name TO name;`],
     ["alter-type", `ALTER TABLE teams ALTER COLUMN name TYPE varchar(160);`],
+    ["alter-type", `ALTER TYPE team_status ADD VALUE 'paused';`],
     ["set-not-null", `ALTER TABLE teams ALTER COLUMN name SET NOT NULL;`],
     ["rewrite-or-exclusive-lock", `CREATE INDEX teams_name_idx ON teams (name);`],
     ["rewrite-or-exclusive-lock", `ALTER TABLE teams ADD CONSTRAINT teams_name_key UNIQUE (name);`],
@@ -59,5 +61,21 @@ ALTER TABLE teams DROP COLUMN old_name;
       END
       $$;
     `)).toEqual([]);
+  });
+
+  it("extracts quoted owners without treating keyword-shaped identifiers as SQL keywords", () => {
+    const finding = classifyMigrationSql(`ALTER TABLE "drop" RENAME TO "table";`)[0];
+    expect(finding?.category).toBe("rename");
+    expect(finding ? extractMigrationContractOwners(finding) : []).toMatchObject([
+      { kind: "relation", identifier: "drop", renamedTo: "table" },
+    ]);
+  });
+
+  it("extracts every column owner from a multi-action DROP statement", () => {
+    const finding = classifyMigrationSql(`ALTER TABLE teams DROP COLUMN old_name, DROP COLUMN old_code;`)[0];
+    expect(finding ? extractMigrationContractOwners(finding) : []).toMatchObject([
+      { kind: "column", relation: "teams", identifier: "old_name" },
+      { kind: "column", relation: "teams", identifier: "old_code" },
+    ]);
   });
 });

@@ -41,6 +41,7 @@
     "scripts/db/verify-supabase.ts!",
     "scripts/db/verify-migrations.ts!",
     "scripts/db/migration-risk.ts!",
+    "scripts/db/release-compat.ts!",
     "scripts/db/staging.ts!",
     "scripts/db/production.ts!",
     "scripts/db/production-preflight.ts!",

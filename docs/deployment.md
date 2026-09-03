@@ -95,6 +95,17 @@ ALTER TABLE ... DROP COLUMN ...;
 
 本地要复现 CI 的 changed-surface 判定，应显式使用当前 `dev` 基线，例如：`RIVALHUB_MIGRATION_BASE_SHA=$(git merge-base HEAD origin/dev) RIVALHUB_MIGRATION_HEAD_SHA=HEAD pnpm db:migration-risk`。CI 在 checkout 完整历史后传入 PR base/head SHA；没有 active migration 变化时，checker 明确输出 no changed active migrations。
 
+`pnpm db:release-compat` 是独立于 `db:migration-risk` 的 N/N+1 兼容性门禁。它默认从当前 revision 可达的 stable `vX.Y.Z` tag 中选择最新且不在 candidate HEAD 上的 tag 作为 previous production baseline，并忽略 `-rc` 等 prerelease；CI/测试可用 `RIVALHUB_PREVIOUS_RELEASE_TAG` 显式指定 tag 或 revision，显式值无法解析时直接 fail closed。PR CI 通过 `RIVALHUB_MIGRATION_BASE_SHA` / `RIVALHUB_MIGRATION_HEAD_SHA` 限定 candidate changed surface；release tag workflow 在没有这两个覆盖值时，以 previous stable commit 到 candidate HEAD 的 active migration surface 复核一次。需要 source 证明时，checker 只读取 previous stable tag 中的 `src/db/schema/**`、`src/actions/**`、`src/lib/**`、`src/app/**`、`src/components/**` 与 `scripts/**`，并输出 migration `path:line` 及 previous source `path:line` evidence。
+
+DROP/RENAME 的 relation、column、type owner 若仍被 previous stable shipped code 以 Drizzle schema/property 或带 table context 的 SQL 使用则拒绝；migration-risk annotation 只表示 cleanup 意图，不能绕过该证明。`ALTER TYPE` 与 `SET NOT NULL` 第一版始终 fail closed；`rewrite-or-exclusive-lock` 仍由 migration-risk 和 migration review 负责，不被误当作 app contract 证明。无法安全解析 owner 或无法判断 schema context 时同样拒绝猜测。
+
+发布顺序固定为：
+
+```text
+Release N+1: expand + backfill + app switch；保留 N 仍依赖的旧 owner
+Release N+2: previous stable 已不再读写 old owner 后才允许 contract
+```
+
 ### Protected staging migration
 
 `pnpm db:staging:migrate` 和 `pnpm db:staging:verify` 只服务受保护的 `rivalhub-dev` staging workflow。命令拒绝继承 `DATABASE_URL` 或 `.env.local`，并对 project ref、Transaction Pooler shape 和写入授权 fail closed。

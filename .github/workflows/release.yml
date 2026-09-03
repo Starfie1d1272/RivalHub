@@ -90,6 +90,9 @@ jobs:
           pnpm db:check
           pnpm db:local:start
 
+      - name: Validate previous release compatibility
+        run: pnpm db:release-compat
+
       - name: Migrate and verify production database
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
