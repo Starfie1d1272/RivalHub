@@ -148,9 +148,13 @@ export async function saveMapPreferences(input: unknown): Promise<ActionResult<v
   try {
     const session = await requireAuth();
     await db.transaction(async (tx) => {
-      const [existing] = await tx.select().from(userMapPreferences).where(eq(userMapPreferences.userId, session.userId)).limit(1);
-      if (existing) await tx.update(userMapPreferences).set({ mapPreferences: parsed.data.mapPreferences, updatedAt: new Date() }).where(eq(userMapPreferences.userId, session.userId));
-      else await tx.insert(userMapPreferences).values({ userId: session.userId, mapPreferences: parsed.data.mapPreferences });
+      const now = new Date();
+      await tx.insert(userMapPreferences)
+        .values({ userId: session.userId, mapPreferences: parsed.data.mapPreferences, updatedAt: now })
+        .onConflictDoUpdate({
+          target: userMapPreferences.userId,
+          set: { mapPreferences: parsed.data.mapPreferences, updatedAt: now },
+        });
       await tx.insert(auditLogs).values({
         seasonId: null,
         action: "map_preferences.self_declare",
