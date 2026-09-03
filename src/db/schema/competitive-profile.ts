@@ -1,7 +1,8 @@
-import { boolean, check, index, integer, numeric, pgEnum, pgTable, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, index, integer, jsonb, numeric, pgEnum, pgTable, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { users } from "./users";
 import { CS2_POSITION_VALUES } from "@/lib/config/cs2-positions";
+import type { MapPreference } from "@/types/season";
 
 export const competitiveFactKindEnum = pgEnum("competitive_fact_kind", ["historical_peak", "season_peak"]);
 export const competitiveFactProvenanceEnum = pgEnum("competitive_fact_provenance", ["self_declared"]);
@@ -136,8 +137,20 @@ export const userCompetitiveRoles = pgTable("user_competitive_roles", {
   userIndex: index("user_competitive_roles_user_idx").on(t.userId),
 }));
 
+/**
+ * Long-lived map proficiency, decoupled from any single season registration.
+ * One canonical set per user over the product's CS2 map pool; season
+ * registrations pre-fill from here and may snapshot a per-event override.
+ */
+export const userMapPreferences = pgTable("user_map_preferences", {
+  userId: uuid("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  mapPreferences: jsonb("map_preferences").$type<MapPreference[]>().notNull().default(sql`'[]'::jsonb`),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export type CompetitivePlatform = typeof competitivePlatforms.$inferSelect;
 export type CompetitivePlatformRank = typeof competitivePlatformRanks.$inferSelect;
 export type CompetitivePlatformSeason = typeof competitivePlatformSeasons.$inferSelect;
 export type CompetitiveRankFact = typeof competitiveRankFacts.$inferSelect;
 export type UserCompetitiveRole = typeof userCompetitiveRoles.$inferSelect;
+export type UserMapPreferences = typeof userMapPreferences.$inferSelect;
