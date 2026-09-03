@@ -23,7 +23,7 @@ RivalHub 是面向高校电竞赛事的开源赛事管理平台，并为其他�
 
 ## 技术栈
 
-Next.js App Router、TypeScript strict、Tailwind CSS、shadcn/ui、Drizzle ORM、Supabase Postgres/Auth/Storage/Realtime、iron-session、Vitest、Playwright 与 Vercel。架构与边界见 [docs/architecture.md](./docs/architecture.md)。
+Next.js App Router、TypeScript strict、Tailwind CSS、shadcn/ui、Drizzle ORM、Supabase Postgres/Auth/Storage、iron-session、Vitest、Playwright 与 Vercel。架构与边界见 [docs/architecture.md](./docs/architecture.md)。
 
 ## 快速开始
 

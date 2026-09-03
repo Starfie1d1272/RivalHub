@@ -70,6 +70,8 @@ pnpm verify:local
 
 `start-db` 使用 `supabase db start` 只启动 PostgreSQL；`start-services` 使用最小服务集合启动 PostgreSQL、Auth、Storage、PostgREST 和 Kong，并排除 Realtime、Mailpit、Studio、imgproxy、PgMeta、Edge Runtime、Logflare、Vector 与 Supavisor。`start` 和 `bootstrap` 保留为完整兼容入口；`bootstrap-db` / `verify-db` 只处理数据库，`bootstrap-services` / `verify-supabase` 只处理服务 contract。
 
+`0034_database_access_boundary` 将所有 application-owned public base tables 收口为 server-only：撤销 `anon`/`authenticated` 的 table privileges、启用 RLS，并确保这些表不属于 `supabase_realtime` publication。`verify-db`、`verify-supabase`、migration verification 与 `db:production:verify` 都会读取 [`security/database-access-matrix.md`](./security/database-access-matrix.md) 对实际 PostgreSQL facts 做 fail-closed 比对；新增 public table 若没有矩阵分类不会通过验证。浏览器选秀/投票页面继续使用既有 polling，不依赖 Realtime 服务。
+
 wrapper 从 `supabase status --output json` 获取连接，并验证 DB/API 指向 loopback；若状态包含 Studio，也会校验其 loopback URL。它不会读取 `.env.local` 的远程 `DATABASE_URL`，也不接受远程 URL fallback。`reset` 仅用于开发者明确要求的 Local 破坏性重建，再重放 active Drizzle migrations、fixtures 与验证；CI migration replay 使用独立 scratch/template database，不调用 `db reset`，不存在第二套业务 migration authority。`verify:local` 会确保最小服务栈 ready，重放 bootstrap/verify、运行不依赖数据库的 `verify`，随后运行 real-PG integration 与 browser E2E，并清理专用 fixture。
 
 CI 的 DB-only critical path 不使用 `start-db`：`.github/workflows/ci.yml` 的 `postgres` job 直接使用官方 `postgres:17` service container，设置最小 `anon` / `authenticated` `NOLOGIN` prerequisite 后，通过 `test:integration:pg17` 回放完整 active Drizzle chain、seed、fixtures、`verify-db` 与 template-clone integration。`start-db` 仍是开发者 Local Supabase 兼容命令；无论 Local 还是 CI，active migrations 都只由 canonical Drizzle chain 执行。

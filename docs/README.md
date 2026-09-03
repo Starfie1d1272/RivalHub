@@ -22,6 +22,7 @@
 | [`domain-model.md`](./domain-model.md) | 领域实体、关系、冻结事实与 integrity owner |
 | [`workflows.md`](./workflows.md) | 报名、比赛与赛后生命周期 |
 | [`auth-and-permissions.md`](./auth-and-permissions.md) | 登录、角色、会话与 Data API 安全基线 |
+| [`security/database-access-matrix.md`](./security/database-access-matrix.md) | 所有 public application table 的 browser/Realtime/服务端访问分类与 terminal contract |
 | [`deployment.md`](./deployment.md) | Local、staging、production 与迁移安全 |
 | [`testing.md`](./testing.md) | 自动化验证、环境分层、专项演练与 production canary |
 | [`ui-system.md`](./ui-system.md) | UI tokens、交互与产品文案 |

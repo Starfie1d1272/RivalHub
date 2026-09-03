@@ -48,7 +48,7 @@ Fresh deployment 的标准 bootstrap 是 `RIVALHUB_OWNER_EMAIL`：当该配置�
 
 ## Data API / RLS baseline
 
-当前安全基线是：业务数据库仅由 server-side application code 访问；`anon` 与 `authenticated` 对 public business tables 无业务 grants；Data API 默认拒绝。active migrations 已撤销 public business-table grants，Local Supabase 同时配置 `auto_expose_new_tables = false`。
+当前安全基线是：业务数据库仅由 server-side application code 访问；`anon` 与 `authenticated` 对 public business tables 无业务 grants；Data API 默认拒绝。0034 active migration 对全部 application-owned public base tables 启用 RLS 并撤销 grants；完整的表级分类、consumer inventory 和 terminal facts 见 [`security/database-access-matrix.md`](./security/database-access-matrix.md)。Local Supabase 同时配置 `auto_expose_new_tables = false`。
 
 这不是一份未来 direct-client 产品的 RLS policy matrix。若某一变更新增 direct Supabase client、公开数据面或 Realtime table，它必须在同一变更中明确提供：
 
@@ -57,7 +57,7 @@ Fresh deployment 的标准 bootstrap 是 `RIVALHUB_OWNER_EMAIL`：当该配置�
 3. 正向与拒绝路径测试；
 4. 对应文档更新。
 
-现有 Realtime 仅允许 `draft_state`、`draft_picks` 与 `captain_votes`。
+当前 first-party browser Supabase client 仅用于 Auth。`DraftLiveRoom` 与 `CaptainVotingPanel` 的旧 Realtime 订阅已删除，UI 继续使用 server refresh/polling；任何未来 direct Data API 或 Realtime surface 都必须先更新访问矩阵并补齐实际 consumer、RLS/grant/publication 与正反例测试。
 
 ## Secrets and recovery
 
