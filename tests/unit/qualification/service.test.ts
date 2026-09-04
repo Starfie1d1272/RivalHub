@@ -183,19 +183,19 @@ describe("participant readiness", () => {
         sourcePlatform: "fivee",
         version: "major-2026-v1",
         seasonKeyMap: { S20: "5E-S20", S21: "5E-S21" },
-        mapping: { belowSRankMap: { S: "A", SS: "S" }, starSegments: [{minStar:0,maxStar:null,targetRank:"A",targetStarFloor:null,slopeNum:0,slopeDen:1}], relativeSeasonAlignment: true },
+        mapping: { belowSRankMap: { A: "A", B: "B" }, starSegments: [{minStar:0,maxStar:null,targetRank:"A",targetStarFloor:null,slopeNum:0,slopeDen:1}], relativeSeasonAlignment: true },
       },
     };
     const readiness = computeParticipantReadiness(fullFact({
       seasonPeaks: new Map([["S20", { status: "unranked", rank: null, rating: null }], ["S21", { status: "unranked", rank: null, rating: null }]]),
       fallbackFacts: {
         historicalPeak: null,
-        seasonPeaks: new Map([["5E-S20", { rank: "S", rating: 1700 }], ["5E-S21", { rank: "SS", rating: 1850 }]]),
+        seasonPeaks: new Map([["5E-S20", { rank: "A", rating: 1700 }], ["5E-S21", { rank: "B", rating: 1850 }]]),
       },
     }), context);
     expect(readiness.ready).toBe(true);
-    expect(readiness.strength.previousSeasonPeak).toMatchObject({ rank: "A", rating: 0, ratingComparable: false, sourcePlatform: "fivee", sourceSeasonKey: "5E-S20", sourceRank: "S", conversionVersion: "major-2026-v1" });
-    expect(readiness.strength.currentSeasonPeak).toMatchObject({ rank: "S", rating: 0, ratingComparable: false, sourcePlatform: "fivee", sourceSeasonKey: "5E-S21", sourceRank: "SS", conversionVersion: "major-2026-v1" });
+    expect(readiness.strength.previousSeasonPeak).toMatchObject({ rank: "A", rating: 0, ratingComparable: false, sourcePlatform: "fivee", sourceSeasonKey: "5E-S20", sourceRank: "A", conversionVersion: "major-2026-v1" });
+    expect(readiness.strength.currentSeasonPeak).toMatchObject({ rank: "B", rating: 0, ratingComparable: false, sourcePlatform: "fivee", sourceSeasonKey: "5E-S21", sourceRank: "B", conversionVersion: "major-2026-v1" });
   });
 
   it("fails closed for an unmapped evidence season instead of guessing an identically named 5E season", async () => {
@@ -223,20 +223,20 @@ describe("participant readiness", () => {
         sourcePlatform: "fivee",
         version: "major-2026-v1",
         seasonKeyMap: { S20: "5E-S20", S21: "5E-S21" },
-        mapping: { belowSRankMap: { S: "S" }, starSegments: [{minStar:0,maxStar:null,targetRank:"A",targetStarFloor:null,slopeNum:0,slopeDen:1}], relativeSeasonAlignment: true },
+        mapping: { belowSRankMap: { A: "A" }, starSegments: [{minStar:0,maxStar:null,targetRank:"A",targetStarFloor:null,slopeNum:0,slopeDen:1}], relativeSeasonAlignment: true },
       },
     };
     const fallback = toPlayerStrengthInput(fullFact({
       historicalPeak: null,
       seasonPeaks: new Map(),
       fallbackFacts: {
-        historicalPeak: { rank: "S", rating: 2100 },
-        seasonPeaks: new Map([["5E-S20", { rank: "S", rating: 2100 }], ["5E-S21", { rank: "S", rating: 2100 }]]),
+        historicalPeak: { rank: "A", rating: 2100 },
+        seasonPeaks: new Map([["5E-S20", { rank: "A", rating: 2100 }], ["5E-S21", { rank: "A", rating: 2100 }]]),
       },
     }), context);
     const perfect = toPlayerStrengthInput(fullFact({
-      historicalPeak: { rank: "S", rating: 1.18 },
-      seasonPeaks: new Map([["S20", { rank: "S", rating: 1.18 }], ["S21", { rank: "S", rating: 1.18 }]]),
+      historicalPeak: { rank: "A", rating: 1.18 },
+      seasonPeaks: new Map([["S20", { rank: "A", rating: 1.18 }], ["S21", { rank: "A", rating: 1.18 }]]),
     }), context);
     expect(comparePlayerStrength(fallback, perfect, context)).toMatchObject({ order: 0, reason: "所有规则指定的比较项均相同，视为实力相当。" });
   });
