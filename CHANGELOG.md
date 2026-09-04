@@ -1,5 +1,35 @@
 # Changelog
 
+## [2.3.0]
+
+RivalHub 2.3 聚焦赛事事实、竞技换算、个人资料与邀请流程的统一语义，并补全认证和外链的安全边界。
+
+### Added
+
+#### 版本化竞技换算策略
+
+平台新增版本化的 5E → Perfect 换算策略。首版 `2026.09` 采用星数级分段线性换算与向上取整；标准 Major 在开放报名时自动冻结已批准的策略版本，当前与历史赛季会按相对位置正确匹配，不再依赖运营手填映射。
+
+### Changed
+
+#### 赛果、统计与地图资料
+
+BO1、BO3 与 BO5 现在以统一方式保存官方系列赛比分和实际地图回合比分。玩家页、赛季榜单及比赛详情共享同一统计 contract，正确区分 null/zero、ADR、HS% 与每回合指标的有效分母和展示精度。
+
+地图目录、当前 Active Duty、赛事图池和长期地图熟练度的职责边界已收口；用户在目标赛事未填写地图时会得到正确呈现。
+
+### Fixed
+
+#### 认证、邀请与外链安全
+
+重复注册已确认账号时不再错误绑定 `auth_id`，历史 dangling identity mapping 也会安全修复；返回提示保持不泄露账号状态。Steam 个人资料链接现使用统一的规范化与可信域校验，公开及管理端都会防御性处理不可信外链。
+
+失效的 Team 分享邀请链接会显示明确业务状态，且不能再次被接受。重复 Team 邀请的数据库唯一约束错误也会被准确映射为业务提示，避免泄露底层查询异常或误报无关冲突。
+
+### Migration & Operations
+
+本版本包含三条 forward migration：`0036_auth_id_reconciliation`、`0037_match_score_semantics` 与 `0038_conversion_policies`。生产升级仍只通过 `v*` tag 触发标准 release workflow，依次执行 active migration replay、previous stable compatibility、production migrate/verify、精确版本 Vercel Production 部署与 smoke test。
+
 ## [2.2.4]
 
 RivalHub 2.2.4 聚焦 Major 报名资格、长期竞技资料、数据库安全边界与发布可靠性。地图熟练度现在成为可长期维护的个人资料；Major 外校成员限制改为明确的完美世界历史最高总星数相对规则，并支持对可解除的政策限制进行有理由、可审计的管理员例外处理。
