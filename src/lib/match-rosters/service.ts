@@ -19,6 +19,8 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import { frozenStageRunAffiliationRules } from "@/lib/major/frozen-affiliation-rules";
 import { parseMajorRunSnapshot } from "@/lib/major/run-snapshot";
 import { evaluateExternalStrengthRule, getPlayerStrengthBreakdown, type PlayerStrengthInput } from "@/lib/major/player-strength";
+import { unresolvedQualificationFindings } from "@/lib/competition-entries/restriction-overrides";
+import type { FrozenRestrictionOverrideSnapshot } from "@/lib/major/run-snapshot";
 import { assertMatchTransition } from "@/lib/match-transitions";
 import { loadActiveSanctionsInTx } from "@/lib/discipline/service";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
@@ -40,6 +42,11 @@ export interface TeamLineupContext {
   memberFacts: Map<string, LineupMemberFact>;
   competitiveProfile: CompetitiveProfileConfig | null;
   frozenCompetitiveFacts: Map<string, PlayerStrengthInput> | null;
+  /** Source revision of the frozen event roster, used to bind snapshot overrides. */
+  frozenRosterRevisionId: string | null;
+  /** Explicitly absent on legacy StageRuns, which must not gain new rules. */
+  externalStrengthGapEnabled: boolean;
+  frozenRestrictionOverrides: readonly FrozenRestrictionOverrideSnapshot[];
   policy: MatchLineupPolicy;
 }
 
@@ -54,6 +61,9 @@ function frozenCompetitiveProfile(ruleSnapshot: unknown): CompetitiveProfileConf
   if (policy && (policy.historicalWeight !== 50 || policy.referenceSeasonWeight !== 20 || policy.recentSeasonWeight !== 30 || typeof policy.referenceSeasonKey !== "string" || !Array.isArray(policy.recentSeasonKeys) || !policy.recentSeasonKeys.every((key) => typeof key === "string"))) {
     throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结的竞技参考策略不可用。");
   }
+  if (profile.externalStrengthMaxStarGap !== undefined && (!Number.isSafeInteger(profile.externalStrengthMaxStarGap) || profile.externalStrengthMaxStarGap < 0)) {
+    throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结的外校星差阈值不可用。 ");
+  }
   const fallback = profile.fallbackConversion;
   if (fallback && (fallback.sourcePlatform !== "fivee" || typeof fallback.version !== "string" || !fallback.seasonKeyMap || typeof fallback.seasonKeyMap !== "object" || !fallback.rankMap || typeof fallback.rankMap !== "object")) {
     throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结的 5E fallback 映射不可用。");
@@ -65,6 +75,7 @@ function frozenCompetitiveProfile(ruleSnapshot: unknown): CompetitiveProfileConf
     rankOrder: profile.rankOrder.filter((rank): rank is string => typeof rank === "string"),
     evidencePolicy: policy ? { historicalWeight: 50, referenceSeasonKey: policy.referenceSeasonKey, referenceSeasonWeight: 20, recentSeasonKeys: [...policy.recentSeasonKeys], recentSeasonWeight: 30 } : undefined,
     fallbackConversion: fallback ? { sourcePlatform: "fivee", version: fallback.version, seasonKeyMap: { ...fallback.seasonKeyMap }, rankMap: { ...fallback.rankMap } } : undefined,
+    externalStrengthMaxStarGap: typeof profile.externalStrengthMaxStarGap === "number" ? profile.externalStrengthMaxStarGap : undefined,
   };
 }
 
@@ -75,14 +86,16 @@ function frozenCompetitiveFacts(ruleSnapshot: unknown): Map<string, PlayerStreng
   const result = new Map<string, PlayerStrengthInput>();
   for (const row of rows) {
     if (!row || typeof row !== "object") throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
-    const value = row as { userId?: unknown; historicalPeak?: unknown; previousSeasonPeak?: unknown; currentSeasonPeak?: unknown; recentSeasonPeaks?: unknown };
+    const value = row as { userId?: unknown; label?: unknown; historicalPeak?: unknown; previousSeasonPeak?: unknown; currentSeasonPeak?: unknown; recentSeasonPeaks?: unknown };
     if (typeof value.userId !== "string" || !value.userId) throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
+    if (value.label !== undefined && (typeof value.label !== "string" || !value.label)) throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
     const rank = (fact: unknown) => {
       if (fact === null) return null;
       if (!fact || typeof fact !== "object") throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
-      const candidate = fact as { rank?: unknown; rating?: unknown; ratingComparable?: unknown; sourcePlatform?: unknown; sourceSeasonKey?: unknown; sourceRank?: unknown; conversionVersion?: unknown };
+      const candidate = fact as { rank?: unknown; rating?: unknown; ratingComparable?: unknown; stars?: unknown; sourcePlatform?: unknown; sourceSeasonKey?: unknown; sourceRank?: unknown; conversionVersion?: unknown };
       if (typeof candidate.rank !== "string" || typeof candidate.rating !== "number") throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
       if (candidate.ratingComparable !== undefined && typeof candidate.ratingComparable !== "boolean") throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
+      if (candidate.stars !== undefined && candidate.stars !== null && typeof candidate.stars !== "number") throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
       if (candidate.sourcePlatform !== undefined && typeof candidate.sourcePlatform !== "string") throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
       if (candidate.sourceSeasonKey !== undefined && candidate.sourceSeasonKey !== null && typeof candidate.sourceSeasonKey !== "string") throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
       if (candidate.sourceRank !== undefined && typeof candidate.sourceRank !== "string") throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
@@ -91,6 +104,7 @@ function frozenCompetitiveFacts(ruleSnapshot: unknown): Map<string, PlayerStreng
         rank: candidate.rank,
         rating: candidate.rating,
         ratingComparable: candidate.ratingComparable,
+        stars: candidate.stars as number | null | undefined,
         sourcePlatform: candidate.sourcePlatform,
         sourceSeasonKey: candidate.sourceSeasonKey as string | null | undefined,
         sourceRank: candidate.sourceRank,
@@ -100,7 +114,7 @@ function frozenCompetitiveFacts(ruleSnapshot: unknown): Map<string, PlayerStreng
     if (value.recentSeasonPeaks !== undefined && !Array.isArray(value.recentSeasonPeaks)) throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
     result.set(value.userId, {
       userId: value.userId,
-      label: value.userId,
+      label: typeof value.label === "string" ? value.label : value.userId,
       historicalPeak: rank(value.historicalPeak),
       previousSeasonPeak: rank(value.previousSeasonPeak),
       currentSeasonPeak: rank(value.currentSeasonPeak),
@@ -136,9 +150,9 @@ async function loadFrozenRosterUserIdsInTx(
   tx: TxDb,
   seasonId: string,
   entryId: string,
-): Promise<{ ids: ReadonlySet<string>; verificationsByUser: Map<string, LineupMemberFact["verification"]> }> {
+): Promise<{ ids: ReadonlySet<string>; verificationsByUser: Map<string, LineupMemberFact["verification"]>; rosterRevisionId: string | null }> {
   const [roster] = await tx
-    .select({ id: eventRosters.id, status: eventRosters.status })
+    .select({ id: eventRosters.id, status: eventRosters.status, sourceRosterRevisionId: eventRosters.sourceRosterRevisionId })
     .from(eventRosters)
     .innerJoin(competitionEntries, eq(competitionEntries.id, eventRosters.entryId))
     .where(and(eq(competitionEntries.competitionId, seasonId), eq(eventRosters.entryId, entryId)));
@@ -178,7 +192,7 @@ async function loadFrozenRosterUserIdsInTx(
       });
     }
   }
-  return { ids, verificationsByUser };
+  return { ids, verificationsByUser, rosterRevisionId: roster.sourceRosterRevisionId };
 }
 
 async function loadTeamLineupContextInTx(
@@ -199,6 +213,9 @@ async function loadTeamLineupContextInTx(
   let verificationsByUser: Map<string, LineupMemberFact["verification"]> | null = null;
   let competitiveProfile: CompetitiveProfileConfig | null = null;
   let frozenCompetitiveFactsByUser: Map<string, PlayerStrengthInput> | null = null;
+  let frozenRosterRevisionId: string | null = null;
+  let externalStrengthGapEnabled = false;
+  let frozenRestrictionOverrides: readonly FrozenRestrictionOverrideSnapshot[] = [];
   const [season] = await tx
     .select({ starterCount: seasons.starterCount })
     .from(seasons)
@@ -224,7 +241,9 @@ async function loadTeamLineupContextInTx(
       throw new AppError(ErrorCode.INTERNAL_ERROR, "托管比赛缺少对应的 StageRun。");
     }
     // Parse once before every frozen consumer; never use mutable season rules.
-    parseMajorRunSnapshot(stageRun.ruleSnapshot, stageRun.stageKey);
+    const frozenSnapshot = parseMajorRunSnapshot(stageRun.ruleSnapshot, stageRun.stageKey);
+    externalStrengthGapEnabled = frozenSnapshot.qualificationPolicy?.externalStrengthGap?.enabled === true;
+    frozenRestrictionOverrides = frozenSnapshot.frozenRestrictionOverrides ?? [];
     policy = resolveMatchLineupPolicy({
       ownership: match.ownership,
       seasonStarterCount: season.starterCount,
@@ -232,11 +251,24 @@ async function loadTeamLineupContextInTx(
     });
     // Frozen at StageRun creation; never read from mutable season configuration.
     rules = frozenStageRunAffiliationRules(stageRun.ruleSnapshot);
-    competitiveProfile = frozenCompetitiveProfile(stageRun.ruleSnapshot);
+    const configuredCompetitiveProfile = frozenCompetitiveProfile(stageRun.ruleSnapshot);
+    // The StageRun policy is the runtime authority.  Keep the profile's
+    // platform/rank facts, but consume the threshold that was frozen with
+    // this run instead of a mutable or merely duplicated profile value.
+    competitiveProfile = configuredCompetitiveProfile && frozenSnapshot.qualificationPolicy?.externalStrengthGap
+      ? {
+          ...configuredCompetitiveProfile,
+          externalStrengthMaxStarGap: frozenSnapshot.qualificationPolicy.externalStrengthGap.maxGap,
+        }
+      : configuredCompetitiveProfile;
     frozenCompetitiveFactsByUser = competitiveProfile ? frozenCompetitiveFacts(stageRun.ruleSnapshot) : null;
     const frozen = await loadFrozenRosterUserIdsInTx(tx, match.seasonId, entryId);
     frozenRosterUserIds = frozen.ids;
     verificationsByUser = frozen.verificationsByUser;
+    frozenRosterRevisionId = frozen.rosterRevisionId;
+    if (externalStrengthGapEnabled && !competitiveProfile) {
+      throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 启用了外校星差规则但缺少冻结竞技档案。 ");
+    }
   }
 
   const memberRows = await tx
@@ -263,7 +295,7 @@ async function loadTeamLineupContextInTx(
     });
   }
 
-  return { rules, frozenRosterUserIds, memberFacts, competitiveProfile, frozenCompetitiveFacts: frozenCompetitiveFactsByUser, policy };
+  return { rules, frozenRosterUserIds, memberFacts, competitiveProfile, frozenCompetitiveFacts: frozenCompetitiveFactsByUser, frozenRosterRevisionId, externalStrengthGapEnabled, frozenRestrictionOverrides, policy };
 }
 
 export async function assertStartingLineupAllowedInTx(
@@ -309,8 +341,18 @@ export async function getStartingLineupPreflightInTx(
       const isHome = Boolean(verification && context.rules.some((rule) => rule.institutionCode === verification.institutionCode && rule.eligibleAcademicStatuses.includes(verification.academicStatus)));
       return { ...strength, isHome };
     });
-    const externalRule = evaluateExternalStrengthRule({ players, config: context.competitiveProfile });
-    blockers.push(...externalRule.blockers);
+    // The new external-strength policy is opt-in in the frozen snapshot. A
+    // legacy StageRun without this capability keeps its historical
+    // completeness/affiliation semantics and is never reinterpreted by the
+    // current three-star rule.
+    if (context.externalStrengthGapEnabled) {
+      const externalRule = evaluateExternalStrengthRule({ players, config: context.competitiveProfile });
+      const overrides = context.frozenRestrictionOverrides.filter((override) =>
+        override.entryId === args.entryId && override.rosterRevisionId === context.frozenRosterRevisionId,
+      );
+      const unresolved = unresolvedQualificationFindings(externalRule.findings, overrides);
+      blockers.push(...unresolved.map((finding) => finding.message));
+    }
   }
   return { valid: blockers.length === 0, blockers: [...new Set(blockers)], affiliatedStarterCounts: result.affiliatedStarterCounts };
 }

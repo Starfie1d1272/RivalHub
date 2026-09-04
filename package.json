@@ -1,6 +1,6 @@
 {
   "name": "rivalhub",
-  "version": "2.2.3",
+  "version": "2.2.4",
   "private": true,
   "license": "AGPL-3.0",
   "scripts": {
@@ -20,6 +20,7 @@
     "db:generate": "drizzle-kit generate",
     "db:check": "corepack pnpm db:migration-risk && drizzle-kit check",
     "db:migration-risk": "tsx scripts/db/migration-risk.ts",
+    "db:release-compat": "tsx scripts/db/release-compat.ts",
     "db:push": "tsx scripts/db/block-drizzle-push.ts",
     "db:staging:migrate": "tsx scripts/db/staging.ts migrate",
     "db:staging:verify": "tsx scripts/db/staging.ts verify",

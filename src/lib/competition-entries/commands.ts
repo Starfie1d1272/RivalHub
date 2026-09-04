@@ -9,6 +9,7 @@ import {
   competitionEntryRepresentativeChanges,
   competitionEntryRosterMembers,
   competitionEntryRosterRevisions,
+  competitionEntryRestrictionOverrides,
   competitionEntrySubmissions,
   seasons,
   teamMemberships,
@@ -17,12 +18,20 @@ import {
 } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import {
-  evaluateRosterQualification,
+  evaluateRosterQualificationFromFacts,
   isHomeAffiliatedMember,
-  loadEducationMembershipFacts,
+  loadParticipantQualificationFacts,
   resolveCompetitiveContext,
   resolveSeasonEducationVerification,
+  type ParticipantQualificationFacts,
+  type RosterQualificationResult,
 } from "@/lib/qualification/service";
+import {
+  loadActiveRestrictionOverridesInTx,
+  sameQualificationFindingSnapshot,
+  snapshotQualificationFinding,
+  unresolvedQualificationFindings,
+} from "@/lib/competition-entries/restriction-overrides";
 import { getRegistrationWindowState } from "@/lib/registration/window";
 import { assertUsersNotBlockedInTx } from "@/lib/discipline/service";
 import { isTeamRegistration } from "@/lib/utils/season";
@@ -64,12 +73,26 @@ async function nextRepresentativeChangeAt(tx: TxDb, entryId: string): Promise<Da
   return new Date(Math.max(now, latest ? latest.changedAt.getTime() + 1 : now));
 }
 
+function assertQualificationFindingsAllowed(
+  qualification: RosterQualificationResult,
+  options: { requireActiveRestrictionOverrides: boolean; overrides: readonly (typeof competitionEntryRestrictionOverrides.$inferSelect)[] },
+): void {
+  const unresolved = options.requireActiveRestrictionOverrides
+    ? unresolvedQualificationFindings(qualification.findings, options.overrides)
+    : qualification.findings.filter((finding) => !finding.waivable);
+  if (unresolved.length === 0) return;
+  throw new AppError(
+    ErrorCode.VALIDATION_FAILED,
+    unresolved.map((finding) => finding.message).join(" "),
+  );
+}
+
 async function validateEntryRoster(
   tx: TxDb,
   entry: typeof competitionEntries.$inferSelect,
   season: typeof seasons.$inferSelect,
   allowedRevisionStatuses: readonly ("draft" | "submitted")[],
-  options: { requireCurrentTeamMembership: boolean },
+  options: { requireCurrentTeamMembership: boolean; requireActiveRestrictionOverrides?: boolean },
 ) {
   const [revision] = await tx.select().from(competitionEntryRosterRevisions).where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id))).for("update");
   if (!revision || !allowedRevisionStatuses.includes(revision.status as "draft" | "submitted")) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前 roster revision 不可用于此操作。");
@@ -79,43 +102,68 @@ async function validateEntryRoster(
     .where(eq(competitionEntryRosterMembers.revisionId, revision.id));
   if (rows.length < season.minTeamSize || rows.length > season.maxTeamSize) throw new AppError(ErrorCode.VALIDATION_FAILED, `本届名单需为 ${season.minTeamSize}-${season.maxTeamSize} 人。`);
   if (rows.some((row) => row.participantStatus !== "confirmed")) throw new AppError(ErrorCode.VALIDATION_FAILED, "所有 roster participant 必须分别确认代表本 Entry 参赛。");
-  const participantUsers = rows.length === 0
-    ? []
-    : await tx.select({ id: users.id, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName, email: users.email })
-      .from(users).where(inArray(users.id, rows.map((row) => row.userId)));
-  const userLabels = new Map(participantUsers.map((user) => [user.id, getDisplayName(user)]));
-  await assertUsersNotBlockedInTx(tx, { seasonId: season.id, userLabels, effect: "registration_block", message: "以下成员当前被禁止报名" });
-  await assertUsersNotBlockedInTx(tx, { seasonId: season.id, userLabels, effect: "roster_block", message: "以下成员当前不能进入赛事名单" });
   const config = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
   const primaryIds = rows.filter((row) => row.primary).map((row) => row.userId);
   if (season.starterCount > 0 && (primaryIds.length !== season.starterCount || new Set(primaryIds).size !== season.starterCount)) throw new AppError(ErrorCode.VALIDATION_FAILED, `必须指定恰好 ${season.starterCount} 名预定主力。`);
+  const affiliationRules = normalizeAffiliationRules(season.affiliationRules);
+  const needsQualificationFacts = config.requireCompetitiveProfile || affiliationRules.length > 0;
+  let qualificationFacts = new Map<string, ParticipantQualificationFacts>();
+  let competitiveProfile: Awaited<ReturnType<typeof resolveCompetitiveContext>> = null;
+  let userLabels: Map<string, string>;
+  if (needsQualificationFacts) {
+    if (config.requireCompetitiveProfile) {
+      if (!config.competitiveProfile) throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事尚未冻结竞技档案规则。");
+      competitiveProfile = await resolveCompetitiveContext(config.competitiveProfile);
+      if (!competitiveProfile) throw new AppError(ErrorCode.VALIDATION_FAILED, "竞技平台赛季目录不可确认。");
+    }
+    // One bundle supplies labels, education/affiliation and (when requested)
+    // competitive facts for the complete roster decision.
+    qualificationFacts = await loadParticipantQualificationFacts(rows.map((row) => row.userId), {
+      executor: tx,
+      includeCompetitiveFacts: competitiveProfile !== null,
+      platform: competitiveProfile?.platform,
+      fallbackPlatform: competitiveProfile?.fallbackConversion?.sourcePlatform,
+    });
+    userLabels = new Map(rows.map((row) => {
+      const fact = qualificationFacts.get(row.userId);
+      return [row.userId, getDisplayName(fact ?? {})] as const;
+    }));
+  } else {
+    const participantUsers = rows.length === 0
+      ? []
+      : await tx.select({ id: users.id, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName, email: users.email })
+        .from(users).where(inArray(users.id, rows.map((row) => row.userId)));
+    userLabels = new Map(participantUsers.map((user) => [user.id, getDisplayName(user)]));
+  }
+  await assertUsersNotBlockedInTx(tx, { seasonId: season.id, userLabels, effect: "registration_block", message: "以下成员当前被禁止报名" });
+  await assertUsersNotBlockedInTx(tx, { seasonId: season.id, userLabels, effect: "roster_block", message: "以下成员当前不能进入赛事名单" });
   if (options.requireCurrentTeamMembership && entry.teamId) {
     const activeMemberships = await tx.select({ userId: teamMemberships.userId }).from(teamMemberships).where(and(eq(teamMemberships.teamId, entry.teamId), eq(teamMemberships.status, "active"), isNull(teamMemberships.endedAt), inArray(teamMemberships.userId, rows.map((row) => row.userId))));
     if (activeMemberships.length !== rows.length) throw new AppError(ErrorCode.VALIDATION_FAILED, "当前名单中有人已不再是这支队伍的当前成员；选择会保留，但提交前必须明确处理。");
   }
   if (config.requireTeamLogo && !entry.logoUrl) throw new AppError(ErrorCode.VALIDATION_FAILED, "本届赛事要求 Entry logo。");
   if (config.requireCompetitiveProfile && !entry.perfectTeamId?.trim()) throw new AppError(ErrorCode.VALIDATION_FAILED, "本届赛事要求完美战队 ID。");
-  const affiliationRules = normalizeAffiliationRules(season.affiliationRules);
-  if (config.requireCompetitiveProfile || affiliationRules.length > 0) {
-    const facts = await loadEducationMembershipFacts(tx, rows.map((row) => row.userId));
+  if (needsQualificationFacts) {
     const members = rows.map((row) => {
-      const userFacts = facts.get(row.userId);
-      const history = userFacts?.history ?? [];
+      const userFacts = qualificationFacts.get(row.userId);
+      const history = userFacts?.educationHistory ?? [];
       const selected = resolveSeasonEducationVerification(history, affiliationRules).selectedVerification;
       return { userId: row.userId, email: userFacts?.email ?? "", emailVerifiedAt: userFacts?.emailVerifiedAt ?? null, educationHistory: history, isHome: isHomeAffiliatedMember({ institutionCode: selected?.institutionCode ?? null, academicStatus: selected?.academicStatus ?? null }, affiliationRules) };
     });
-    if (config.requireCompetitiveProfile) {
-      if (!config.competitiveProfile) throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事尚未冻结竞技档案规则。");
-      const profile = await resolveCompetitiveContext(config.competitiveProfile);
-      if (!profile) throw new AppError(ErrorCode.VALIDATION_FAILED, "竞技平台赛季目录不可确认。");
-      const qualification = await evaluateRosterQualification({ members, affiliationRules, competitiveProfile: profile, primaryStarterUserIds: primaryIds });
-      if (!qualification.eligible) throw new AppError(ErrorCode.VALIDATION_FAILED, qualification.blockers.join(" "));
-    } else {
-      const qualification = await evaluateRosterQualification({ members, affiliationRules, primaryStarterUserIds: primaryIds });
-      if (!qualification.eligible) throw new AppError(ErrorCode.VALIDATION_FAILED, qualification.blockers.join(" "));
-    }
+    const qualification = await evaluateRosterQualificationFromFacts({
+      members,
+      facts: qualificationFacts,
+      affiliationRules,
+      competitiveProfile,
+      primaryStarterUserIds: primaryIds,
+    });
+    const overrides = options.requireActiveRestrictionOverrides
+      ? await loadActiveRestrictionOverridesInTx(tx, { competitionId: entry.competitionId, entryIds: [entry.id], rosterRevisionIds: [revision.id] })
+      : [];
+    assertQualificationFindingsAllowed(qualification, { requireActiveRestrictionOverrides: Boolean(options.requireActiveRestrictionOverrides), overrides });
+    return { revision, rosterSize: rows.length, primaryIds, qualification };
   }
-  return { revision, rosterSize: rows.length, primaryIds };
+  return { revision, rosterSize: rows.length, primaryIds, qualification: null };
 }
 
 export async function createCompetitionEntryInTx(tx: TxDb, input: { competitionId: string; teamId: string; userId: string; actorId: string }): Promise<{ entryId: string; seasonSlug: string }> {
@@ -237,7 +285,7 @@ export async function submitCompetitionEntryInTx(tx: TxDb, input: { entryId: str
   if (!editableStatuses.includes(entry.registrationStatus as typeof editableStatuses[number])) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前报名状态不能提交。");
   const season = await loadSeasonOrThrow(tx, entry.competitionId);
   const window = getRegistrationWindowState(season);
-  const validated = await validateEntryRoster(tx, entry, season, ["draft"], { requireCurrentTeamMembership: true });
+  const validated = await validateEntryRoster(tx, entry, season, ["draft"], { requireCurrentTeamMembership: true, requireActiveRestrictionOverrides: false });
   if (!canMutateCompetitionEntryRoster(entry.registrationStatus as "draft" | "changes_requested", validated.revision.origin, season)) throw new AppError(ErrorCode.REGISTRATION_CLOSED, window.message);
   const [{ value }] = await tx.select({ value: count() }).from(competitionEntrySubmissions).where(eq(competitionEntrySubmissions.entryId, entry.id));
   const now = new Date();
@@ -248,6 +296,111 @@ export async function submitCompetitionEntryInTx(tx: TxDb, input: { entryId: str
   return { seasonSlug: season.slug };
 }
 
+/** Grant one currently-present, explicitly waivable qualification restriction. */
+export async function grantCompetitionEntryRestrictionOverrideInTx(
+  tx: TxDb,
+  input: { entryId: string; restrictionCode: string; reason: string; actorId: string },
+): Promise<{ seasonSlug: string; overrideId: string; alreadyGranted: boolean }> {
+  const entry = await lockEntry(tx, input.entryId);
+  if (!["submitted", "waitlisted"].includes(entry.registrationStatus)) {
+    throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "只有已提交或候补 Entry 可以解除资格限制。 ");
+  }
+  const reason = input.reason.trim();
+  const restrictionCode = input.restrictionCode.trim();
+  if (!reason || !restrictionCode) throw new AppError(ErrorCode.VALIDATION_FAILED, "解除限制必须填写具体限制和非空理由。 ");
+  const season = await loadSeasonOrThrow(tx, entry.competitionId);
+  const validated = await validateEntryRoster(tx, entry, season, ["submitted"], {
+    requireCurrentTeamMembership: false,
+    requireActiveRestrictionOverrides: false,
+  });
+  const matchingFindings = validated.qualification?.findings.filter((candidate) => candidate.code === restrictionCode) ?? [];
+  const finding = matchingFindings[0];
+  if (!finding) throw new AppError(ErrorCode.VALIDATION_FAILED, "当前报名不存在该资格限制，拒绝写入解除记录。 ");
+  if (matchingFindings.some((candidate) => !candidate.waivable)) throw new AppError(ErrorCode.VALIDATION_FAILED, "资料不完整或结构性问题不可通过解除限制处理。 ");
+
+  const [active] = await tx.select().from(competitionEntryRestrictionOverrides)
+    .where(and(
+      eq(competitionEntryRestrictionOverrides.entryId, entry.id),
+      eq(competitionEntryRestrictionOverrides.rosterRevisionId, validated.revision.id),
+      eq(competitionEntryRestrictionOverrides.restrictionCode, restrictionCode),
+      isNull(competitionEntryRestrictionOverrides.revokedAt),
+    ))
+    .for("update");
+  if (active) {
+    if (sameQualificationFindingSnapshot(active.findingSnapshot, finding)) {
+      return { seasonSlug: season.slug, overrideId: active.id, alreadyGranted: true };
+    }
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "该解除记录对应的资格事实已经变化，请先撤销旧记录后重新解除。 ");
+  }
+
+  const grantedAt = new Date();
+  const [override] = await tx.insert(competitionEntryRestrictionOverrides).values({
+    competitionId: entry.competitionId,
+    entryId: entry.id,
+    rosterRevisionId: validated.revision.id,
+    restrictionCode,
+    findingSnapshot: snapshotQualificationFinding(finding),
+    reason,
+    grantedBy: input.actorId,
+    grantedAt,
+  }).returning({ id: competitionEntryRestrictionOverrides.id });
+  if (!override) throw new AppError(ErrorCode.INTERNAL_ERROR, "解除限制记录创建失败。 ");
+  await auditEntry(tx, {
+    action: "competition_entry.restriction_override.grant",
+    actorId: input.actorId,
+    entryId: entry.id,
+    competitionId: entry.competitionId,
+    meta: {
+      overrideId: override.id,
+      rosterRevisionId: validated.revision.id,
+      restrictionCode,
+      findingSnapshot: snapshotQualificationFinding(finding),
+      reason,
+      grantedAt: grantedAt.toISOString(),
+    },
+  });
+  return { seasonSlug: season.slug, overrideId: override.id, alreadyGranted: false };
+}
+
+/** Revoke a pre-approval restriction override without deleting its history. */
+export async function revokeCompetitionEntryRestrictionOverrideInTx(
+  tx: TxDb,
+  input: { entryId: string; restrictionCode: string; actorId: string },
+): Promise<{ seasonSlug: string }> {
+  const entry = await lockEntry(tx, input.entryId);
+  if (!["submitted", "waitlisted"].includes(entry.registrationStatus)) {
+    throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "只有待审核或候补 Entry 可以撤销解除限制。 ");
+  }
+  const [override] = await tx.select().from(competitionEntryRestrictionOverrides)
+    .where(and(
+      eq(competitionEntryRestrictionOverrides.entryId, entry.id),
+      eq(competitionEntryRestrictionOverrides.rosterRevisionId, entry.currentRosterRevisionId),
+      eq(competitionEntryRestrictionOverrides.restrictionCode, input.restrictionCode.trim()),
+      isNull(competitionEntryRestrictionOverrides.revokedAt),
+    ))
+    .for("update");
+  if (!override) throw new AppError(ErrorCode.NOT_FOUND, "当前报名没有对应的有效解除记录。 ");
+  const now = new Date();
+  await tx.update(competitionEntryRestrictionOverrides).set({ revokedBy: input.actorId, revokedAt: now }).where(eq(competitionEntryRestrictionOverrides.id, override.id));
+  await auditEntry(tx, {
+    action: "competition_entry.restriction_override.revoke",
+    actorId: input.actorId,
+    entryId: entry.id,
+    competitionId: entry.competitionId,
+    meta: {
+      overrideId: override.id,
+      rosterRevisionId: override.rosterRevisionId,
+      restrictionCode: override.restrictionCode,
+      findingSnapshot: override.findingSnapshot,
+      reason: override.reason,
+      grantedBy: override.grantedBy,
+      grantedAt: override.grantedAt.toISOString(),
+      revokedAt: now.toISOString(),
+    },
+  });
+  return { seasonSlug: (await loadSeasonOrThrow(tx, entry.competitionId)).slug };
+}
+
 export async function reviewCompetitionEntryInTx(tx: TxDb, input: { entryId: string; decision: "changes_requested" | "waitlisted" | "approved" | "rejected"; reason?: string; actorId: string }): Promise<{ seasonSlug: string }> {
   const entry = await lockEntry(tx, input.entryId);
   const season = await loadSeasonOrThrow(tx, entry.competitionId);
@@ -256,7 +409,9 @@ export async function reviewCompetitionEntryInTx(tx: TxDb, input: { entryId: str
   if (!revision) throw new AppError(ErrorCode.INTERNAL_ERROR, "Entry roster revision 不完整。");
   const [submission] = await tx.select().from(competitionEntrySubmissions).where(and(eq(competitionEntrySubmissions.entryId, entry.id), eq(competitionEntrySubmissions.rosterRevisionId, revision.id))).for("update");
   if (!submission) throw new AppError(ErrorCode.INTERNAL_ERROR, "Entry submission revision 不完整。");
-  if (input.decision === "approved") await validateEntryRoster(tx, entry, season, ["submitted"], { requireCurrentTeamMembership: false });
+  if (input.decision === "approved") {
+    await validateEntryRoster(tx, entry, season, ["submitted"], { requireCurrentTeamMembership: false, requireActiveRestrictionOverrides: true });
+  }
   const now = new Date();
   await tx.update(competitionEntrySubmissions).set({ decision: input.decision, decidedBy: input.actorId, decidedAt: now, reason: input.reason || null }).where(eq(competitionEntrySubmissions.id, submission.id));
   if (input.decision === "changes_requested") {

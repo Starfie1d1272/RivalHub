@@ -95,3 +95,9 @@ export function isBuiltInCompetitivePlatformKey(value: string): value is BuiltIn
   // chain, so "toString" / "constructor" / "__proto__" would pass.
   return Object.prototype.hasOwnProperty.call(BUILT_IN_COMPETITIVE_PLATFORMS, value);
 }
+
+/** Whether a built-in rank definition requires an exact in-rank star count. */
+export function isBuiltInStarRank(platform: string, rankKey: string): boolean {
+  return isBuiltInCompetitivePlatformKey(platform)
+    && BUILT_IN_COMPETITIVE_PLATFORMS[platform].ranks.some((rank) => rank.rankKey === rankKey && rank.starMin !== null);
+}

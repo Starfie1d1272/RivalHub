@@ -1,19 +1,21 @@
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db/client";
-import { competitiveRankFacts, userCompetitiveRoles } from "@/db/schema";
+import { competitiveRankFacts, userCompetitiveRoles, userMapPreferences } from "@/db/schema";
 import { CompetitiveProfileForm, type CompetitiveSeasonContext } from "@/components/settings/CompetitiveProfileForm";
 import { CompetitiveRolesForm } from "@/components/settings/CompetitiveRolesForm";
+import { MapPreferencesForm } from "@/components/settings/MapPreferencesForm";
 import { getUserSession } from "@/lib/auth/session";
 import { loadCompetitivePlatformCatalog, resolveCatalogSeasonRoles } from "@/lib/competitive/catalog";
 
 export default async function CompetitiveProfileSettingsPage() {
   const session = await getUserSession();
   if (!session) redirect("/login?next=/settings/competitive");
-  const [catalog, facts, roles] = await Promise.all([
+  const [catalog, facts, roles, mapPreferences] = await Promise.all([
     loadCompetitivePlatformCatalog(db),
     db.select().from(competitiveRankFacts).where(eq(competitiveRankFacts.userId, session.userId)),
     db.select().from(userCompetitiveRoles).where(eq(userCompetitiveRoles.userId, session.userId)),
+    db.select().from(userMapPreferences).where(eq(userMapPreferences.userId, session.userId)),
   ]);
   const contexts: CompetitiveSeasonContext[] = catalog.map((platform) => {
     const { current, previous } = resolveCatalogSeasonRoles(platform);
@@ -35,5 +37,5 @@ export default async function CompetitiveProfileSettingsPage() {
       facts: facts.filter((item) => item.platform === platform.key).map((item) => ({ kind: item.kind, platformSeasonKey: item.platformSeasonKey, status: item.status, rank: item.rank, rating: item.rating === null ? null : String(item.rating), stars: item.stars, achievedSeasonKey: item.achievedSeasonKey })),
     };
   });
-  return <div className="space-y-5"><div><p className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-accent)]">PARTICIPANT PROFILE</p><h1 className="mt-1 text-3xl font-semibold">竞技档案</h1></div><CompetitiveRolesForm initialRoles={roles.map((role) => role.role)} initialPrimaryRole={roles.find((role) => role.isPrimary)?.role ?? null} /><CompetitiveProfileForm contexts={contexts} /></div>;
+  return <div className="space-y-5"><div><p className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-accent)]">PARTICIPANT PROFILE</p><h1 className="mt-1 text-3xl font-semibold">竞技档案</h1></div><CompetitiveRolesForm initialRoles={roles.map((role) => role.role)} initialPrimaryRole={roles.find((role) => role.isPrimary)?.role ?? null} /><MapPreferencesForm initialPreferences={mapPreferences[0]?.mapPreferences ?? []} /><CompetitiveProfileForm contexts={contexts} /></div>;
 }

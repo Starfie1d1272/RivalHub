@@ -8,28 +8,7 @@ import {
   assertLocalDatabaseUrl,
   assertLocalHttpUrl,
 } from "./local-environment";
-
-const privateDataApiTables = [
-  "competitive_platforms",
-  "competitive_platform_ranks",
-  "competitive_platform_seasons",
-  "competitive_rank_facts",
-  "community_awards",
-  "community_award_evidence",
-  "match_commentators",
-  "post_match_reports",
-] as const;
-
-const privateDataApiProbeColumns: Record<(typeof privateDataApiTables)[number], string> = {
-  competitive_platforms: "key",
-  competitive_platform_ranks: "id",
-  competitive_platform_seasons: "id",
-  competitive_rank_facts: "id",
-  community_awards: "id",
-  community_award_evidence: "id",
-  match_commentators: "match_id",
-  post_match_reports: "match_id",
-};
+import { DATABASE_ACCESS_MATRIX, verifyDatabaseAccessMatrix } from "./access-matrix";
 
 export async function verifyDatabaseContract(): Promise<void> {
   assertDeclaredDatabaseTarget(process.env);
@@ -65,34 +44,10 @@ export async function verifyDatabaseContract(): Promise<void> {
       throw new Error("本地 Major fixture 缺失或不唯一。");
     }
 
-    const rlsFacts = await pool.query<{
-      table_name: string;
-      rls_enabled: boolean;
-      anon_select: boolean;
-      authenticated_select: boolean;
-    }>(
-      `
-      SELECT
-        c.relname AS table_name,
-        c.relrowsecurity AS rls_enabled,
-        has_table_privilege('anon', format('public.%I', c.relname), 'SELECT') AS anon_select,
-        has_table_privilege('authenticated', format('public.%I', c.relname), 'SELECT') AS authenticated_select
-      FROM pg_class c
-      INNER JOIN pg_namespace n ON n.oid = c.relnamespace
-      WHERE n.nspname = 'public' AND c.relkind = 'r' AND c.relname = ANY($1::text[])
-      `,
-      [privateDataApiTables],
-    );
-    const rlsByTable = new Map(rlsFacts.rows.map((row) => [row.table_name, row]));
-    for (const tableName of privateDataApiTables) {
-      const row = rlsByTable.get(tableName);
-      if (!row || !row.rls_enabled || row.anon_select || row.authenticated_select) {
-        throw new Error(`${tableName} 未满足 PostgreSQL deny-by-default / RLS 约束。`);
-      }
-    }
+    await verifyDatabaseAccessMatrix(pool, "Local PostgreSQL");
 
     console.log(
-      `PostgreSQL verification passed: ${journal.entries.length} migrations, fixture, RLS/grant deny-by-default.`,
+      `PostgreSQL verification passed: ${journal.entries.length} migrations, fixture, full public access matrix.`,
     );
   } finally {
     await pool.end();
@@ -105,19 +60,24 @@ export async function verifySupabaseServices(): Promise<void> {
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     "NEXT_PUBLIC_SUPABASE_URL",
   );
+  const databaseUrl = assertLocalDatabaseUrl(process.env.DATABASE_URL);
   const publishableKey = required(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, "publishable key");
   const serviceRoleKey = required(process.env.SUPABASE_SERVICE_ROLE_KEY, "service role key");
   const client = createClient(apiUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+  const pool = new Pool({ connectionString: databaseUrl, ssl: false, max: 1 });
   let createdUserId: string | undefined;
   let createdBucketId: string | undefined;
 
   try {
+    await verifyDatabaseAccessMatrix(pool, "Local Supabase");
+
     const email = `verify-${randomUUID()}@rivalhub.local`;
+    const password = `Local-${randomUUID()}-pass`;
     const createdUser = await client.auth.admin.createUser({
       email,
-      password: `Local-${randomUUID()}-pass`,
+      password,
       email_confirm: true,
     });
     if (createdUser.error || !createdUser.data.user) {
@@ -143,32 +103,23 @@ export async function verifySupabaseServices(): Promise<void> {
       throw new Error(`Local Storage download 验证失败：${downloaded.error?.message ?? "content mismatch"}`);
     }
 
-    const anonRead = await fetch(`${apiUrl}/rest/v1/seasons?select=id&limit=1`, {
-      headers: {
-        apikey: publishableKey,
-        Authorization: `Bearer ${publishableKey}`,
-      },
+    const authenticatedClient = createClient(apiUrl, publishableKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
     });
-    if (anonRead.status !== 401 && anonRead.status !== 403) {
-      throw new Error(
-        `public.seasons 的匿名 Data API 结果不是明确拒绝（HTTP ${anonRead.status}）。`,
-      );
-    }
-    for (const tableName of privateDataApiTables) {
-      const response = await fetch(`${apiUrl}/rest/v1/${tableName}?select=${privateDataApiProbeColumns[tableName]}&limit=1`, {
-        headers: {
-          apikey: publishableKey,
-          Authorization: `Bearer ${publishableKey}`,
-        },
-      });
-      if (response.status !== 401 && response.status !== 403) {
-        throw new Error(
-          `${tableName} 的匿名 Data API 结果不是明确拒绝（HTTP ${response.status}）。`,
-        );
-      }
+    const signedIn = await authenticatedClient.auth.signInWithPassword({ email, password });
+    if (signedIn.error || !signedIn.data.session?.access_token) {
+      throw new Error(`Local Auth authenticated session 验证失败：${signedIn.error?.message ?? "missing access token"}`);
     }
 
-    console.log("Supabase service verification passed: Auth, Storage, Data API deny-by-default.");
+    await verifyDeniedDataApiAccess(apiUrl, publishableKey, publishableKey, "anon");
+    await verifyDeniedDataApiAccess(
+      apiUrl,
+      publishableKey,
+      signedIn.data.session.access_token,
+      "authenticated",
+    );
+
+    console.log("Supabase service verification passed: Auth, Storage, full Data API deny-by-default.");
   } finally {
     if (createdBucketId) {
       await client.storage.from(createdBucketId).remove(["probe.txt"]);
@@ -176,6 +127,30 @@ export async function verifySupabaseServices(): Promise<void> {
     }
     if (createdUserId) {
       await client.auth.admin.deleteUser(createdUserId);
+    }
+    await pool.end();
+  }
+}
+
+async function verifyDeniedDataApiAccess(
+  apiUrl: string,
+  publishableKey: string,
+  token: string,
+  role: "anon" | "authenticated",
+): Promise<void> {
+  const headers = {
+    apikey: publishableKey,
+    Authorization: `Bearer ${token}`,
+  };
+  for (const entry of DATABASE_ACCESS_MATRIX) {
+    const response = await fetch(
+      `${apiUrl}/rest/v1/${entry.table}?select=*&limit=1`,
+      { headers },
+    );
+    if (![401, 403, 404].includes(response.status)) {
+      throw new Error(
+        `${role} Data API 对 public.${entry.table} 未明确拒绝（HTTP ${response.status}）。`,
+      );
     }
   }
 }

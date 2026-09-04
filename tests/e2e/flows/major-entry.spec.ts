@@ -47,7 +47,7 @@ test("队长可以登录、建立长期队伍并发起本届 Major 报名", asyn
   await page.goto("/my/teams");
 
   // 长期 Team：无队时通过真实表单创建；有队时读取既有 Team。先等页面
-  // 渲染出两种状态之一，避免 hydration 早期 count() 竞态。
+  // 渲染出两种 canonical 状态之一，避免流式导航早期对 DOM 做瞬时探测。
   const createTeamButton = page.getByRole("button", { name: "创建队伍" });
   const workspace = page.getByText("队伍资料", { exact: true });
   await expect(createTeamButton.or(workspace)).toBeVisible({ timeout: 20_000 });
@@ -62,17 +62,23 @@ test("队长可以登录、建立长期队伍并发起本届 Major 报名", asyn
   await expect(workspace).toBeVisible({ timeout: 20_000 });
 
   // 在已发布的 Major 报名页创建 CompetitionEntry（重复运行时读取既有 Entry）。
+  // `locator.count()` 不等待流式 RSC 完成，曾在慢 runner 上瞬时返回 0，导致
+  // 测试跳过创建动作后再错误等待不存在的“报名检查”。这里先等待页面进入
+  // “可开始报名”或“已有报名”任一 canonical 状态，再分支。
   await page.goto(`/${FIXTURE_SLUG}/register`);
-  if (await page.getByRole("button", { name: "开始报名" }).count()) {
+  const startEntryButton = page.getByRole("button", { name: "开始报名" });
+  const entryChecklist = page.getByText("3 · 报名检查");
+  await expect(startEntryButton.or(entryChecklist)).toBeVisible({ timeout: 20_000 });
+  if (await startEntryButton.isVisible()) {
     await page.getByRole("combobox").click();
     await page.getByRole("option").first().click();
-    await page.getByRole("button", { name: "开始报名" }).click();
+    await startEntryButton.click();
     await expect(page.getByText("报名记录已创建")).toBeVisible({ timeout: 20_000 });
   }
 
   // 报名页与服务端 canonical 状态一致：draft Entry 呈现「· 待提交」与报名检查。
-  await expect(page.getByText("3 · 报名检查")).toBeVisible();
-  await expect(page.getByText(/· 待提交/)).toBeVisible();
+  await expect(entryChecklist).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(/· 待提交/)).toBeVisible({ timeout: 20_000 });
 
   // “我的赛事”与报名页读到同一份 CompetitionEntry 状态（header 导航也含赛季名，取卡片）。
   await page.goto("/my/competitions");

@@ -97,6 +97,19 @@ describe("qualification facts loader", () => {
     expect(facts.size).toBe(0);
     expect(selectMock).not.toHaveBeenCalled();
   });
+
+  it("skips competitive reads for an education-only fact bundle", async () => {
+    queueFactSelects({
+      verifications: [{ userId: USER_ID, id: "v1", status: "approved", academicStatus: "enrolled", institutionCode: "4132010284", institutionName: "南京大学", submittedAt: new Date() }],
+      rankFacts: [{ userId: USER_ID, platform: "perfect_world", kind: "historical_peak", platformSeasonKey: null, rank: "S", rating: "1900.00" }],
+    });
+
+    const facts = await loadParticipantQualificationFacts([USER_ID], { includeCompetitiveFacts: false });
+
+    expect(facts.get(USER_ID)?.approvedEducation).toBe(true);
+    expect(facts.get(USER_ID)?.historicalPeak).toBeNull();
+    expect(selectMock).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("frozen competitive context", () => {
@@ -127,8 +140,22 @@ describe("participant readiness", () => {
     const readiness = computeParticipantReadiness(fullFact(), CONTEXT);
     expect(readiness.ready).toBe(true);
     expect(readiness.blockers).toEqual([]);
-    expect(readiness.strength.previousSeasonPeak).toEqual({ rank: "A", rating: 1700 });
-    expect(readiness.strength.currentSeasonPeak).toEqual({ rank: "S", rating: 1850 });
+    expect(readiness.strength.previousSeasonPeak).toEqual({ rank: "A", rating: 1700, stars: null });
+    expect(readiness.strength.currentSeasonPeak).toEqual({ rank: "S", rating: 1850, stars: null });
+  });
+
+  it("blocks a legacy star-rank fact until the participant supplies exact stars", () => {
+    const readiness = computeParticipantReadiness(fullFact({
+      historicalPeak: { rank: "黄金S", rating: 1900, stars: null },
+      seasonPeaks: new Map([[
+        "S20", { rank: "A", rating: 1700 },
+      ], [
+        "S21", { rank: "A", rating: 1850 },
+      ]]),
+    }), { ...CONTEXT, rankOrder: ["A", "黄金S"] });
+    expect(readiness.ready).toBe(false);
+    expect(readiness.blockers).toContain("历史最高的 黄金S 段位需要填写准确星数，竞技资料未填写完整。");
+    expect(readiness.findings).toContainEqual(expect.objectContaining({ code: "competitive_profile_incomplete", waivable: false }));
   });
 
   it("an incomplete participant reports the exact blockers", () => {
@@ -141,6 +168,7 @@ describe("participant readiness", () => {
     expect(readiness.blockers).toContain("请填写 Steam64 ID。");
     expect(readiness.blockers).toContain("请完成并通过高校身份认证。");
     expect(readiness.blockers).toContain("缺少perfect_world · S20 的最高段位及 Rating。");
+    expect(readiness.findings.every((finding) => finding.waivable === false)).toBe(true);
   });
 
   it("accepts a participant whose canonical Perfect nickname is present", () => {
@@ -233,6 +261,31 @@ describe("participant readiness", () => {
     expect(batch.get(USER_ID)).toEqual(single);
     expect(single.ready).toBe(false);
     expect(single.blockers.join(" ")).toContain("缺少perfect_world · S20 的最高段位及 Rating");
+  });
+
+  it("uses a preloaded fact bundle without issuing a second read", async () => {
+    const fact: ParticipantQualificationFacts = {
+      userId: USER_ID,
+      displayName: "选手甲",
+      perfectName: "perfect-a",
+      steamName: "steam-a",
+      email: "a@rivalhub.test",
+      emailVerifiedAt: new Date(),
+      steam64: "76561198000000001",
+      qq: "10001",
+      approvedEducation: true,
+      educationHistory: [],
+      historicalPeak: { rank: "A", rating: 1500 },
+      seasonPeaks: new Map([
+        ["S20", { rank: "A", rating: 1500 }],
+        ["S21", { rank: "A", rating: 1500 }],
+      ]),
+    };
+
+    const readiness = await getParticipantReadinessBatch([USER_ID], CONTEXT, { facts: new Map([[USER_ID, fact]]) });
+
+    expect(readiness.get(USER_ID)?.ready).toBe(true);
+    expect(selectMock).not.toHaveBeenCalled();
   });
 });
 

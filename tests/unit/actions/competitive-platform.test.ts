@@ -473,7 +473,7 @@ describe("saveCompetitiveProfile platform-ladder validation", () => {
     expect(dbTransactionMock).not.toHaveBeenCalled();
   });
 
-  it("passes an untouched legacy null-stars fact through without fabricating stars", async () => {
+  it("requires legacy star-rank facts to be completed instead of preserving missing stars", async () => {
     queueLadder({
       ladder: [{ rankKey: "黄金S", starMin: 10, starMax: 24 }],
       existingFacts: [{ id: "fact-1", kind: "historical_peak", platformSeasonKey: null, rank: "黄金S", rating: "2100.00", stars: null }],
@@ -481,11 +481,9 @@ describe("saveCompetitiveProfile platform-ladder validation", () => {
     const result = await saveCompetitiveProfile({
       platform: "perfect_world", historicalPeak: { rank: "黄金S", rating: 2100, stars: null }, seasonPeaks: [],
     });
-    expect(result.success).toBe(true);
-    expect(updateSetCalls).toEqual([expect.objectContaining({ rank: "黄金S", rating: "2100", stars: null })]);
-    expect(insertValuesCalls.filter((entry) => (entry as { action?: string }).action)).toEqual([
-      expect.objectContaining({ action: "competitive_profile.self_declare" }),
-    ]);
+    expect(result.success).toBe(false);
+    expect(errMessage(result)).toContain("需要填写准确星数");
+    expect(updateSetCalls).toEqual([]);
   });
 
   it("rejects a real edit of a legacy fact and a fresh star fact until stars are supplied", async () => {

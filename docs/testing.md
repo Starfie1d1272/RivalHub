@@ -34,9 +34,10 @@ RivalHub 以最高已完成的验证层级描述能力证据：
 | `pnpm verify:local` | 确保 Local ready，bootstrap/verify、verify、real-PG integration 与 browser E2E |
 | `pnpm db:local:start-db` / `pnpm db:local:start-services` | 分别启动仅 PostgreSQL 或最小 Supabase 服务栈 |
 | `pnpm db:local:bootstrap-db` / `pnpm db:local:bootstrap-services` | 分别完成数据库或服务栈的迁移与 fixture bootstrap |
-| `pnpm db:local:verify-db` / `pnpm db:local:verify-supabase` | 分别验证 PostgreSQL contract 或 Auth/Storage/Data API |
+| `pnpm db:local:verify-db` / `pnpm db:local:verify-supabase` | 分别验证 PostgreSQL contract 或 Auth/Storage/Data API；两者都执行完整 public access matrix |
 | `pnpm db:check` | Drizzle active migration chain |
 | `pnpm db:migration-risk` | active migration SQL 的 compatibility/locking risk classifier |
+| `pnpm db:release-compat` | previous stable shipped app → next active migration 的 N/N+1 compatibility gate |
 | `pnpm knip` | default module graph 的 dead-code/dependency/export hygiene |
 | `pnpm knip --production` | shipped production graph 的 dead-code/dependency hygiene |
 | `pnpm db:production:verify` | 严格只读校验明确确认的 production ledger、SQL SHA 与 terminal schema contract |
@@ -62,7 +63,9 @@ pnpm verify:local
 
 所有 real-PG 套件通过 `scripts/db/local.ts` 注入 loopback Local PostgreSQL。integration runner 先从 `template1` 创建基线库，使用现有 Drizzle runner、seed 和 verify 回放 active chain，再为每个 Vitest worker 创建独立 template clone；migration replay 的 scratch database 仍单独串行执行，不使用 testcontainers，也不以 mock 代替事务、约束或并发证据。Vitest 保持 `pool: forks` 与 `isolate: true`；需要缩小调试范围时直接使用 Vitest 文件或 `-t` pattern filter。
 
-CI 的 `postgres` job 使用官方 `postgres:17` service container，不启动 Supabase CLI 或任何 Auth、Storage、Kong、PostgREST、Studio、Realtime 等服务；`scripts/db/prepare-pg17.ts` 只在 vanilla PostgreSQL 缺少时建立 `anon` 与 `authenticated` 两个 `NOLOGIN` 角色，并验证 `gen_random_uuid()`，不修改 active migrations。随后 `test:integration:pg17` 依次完成 33 条 migration、seed、fixture、`verify-db`、worker clone 和完整 integration suite。开发者的 `db:local:start-db` 仍保留为 Local Supabase 兼容入口，不是 CI migration authority。
+CI 的 `postgres` job 使用官方 `postgres:17` service container，不启动 Supabase CLI 或任何 Auth、Storage、Kong、PostgREST、Studio、Realtime 等服务；`scripts/db/prepare-pg17.ts` 只在 vanilla PostgreSQL 缺少时建立 `anon` 与 `authenticated` 两个 `NOLOGIN` 角色，并验证 `gen_random_uuid()`，不修改 active migrations。随后 `test:integration:pg17` 回放完整 active chain、seed、fixture、`verify-db`、worker clone 和完整 integration suite；其中 `database-access-boundary.test.ts` 回放 0034，验证 64 张 public base table 的 matrix、trusted server bracket CRUD 以及 anon/authenticated bracket SELECT/INSERT/UPDATE/DELETE 的 `42501` 拒绝。开发者的 `db:local:start-db` 仍保留为 Local Supabase 兼容入口，不是 CI migration authority。
+
+PostgreSQL CI 在现有 service container 中按 `db:check → db:release-compat → test:integration:pg17` 执行；release workflow 在 production migrate 前再次执行 `db:release-compat`，不创建重复的 PostgreSQL/Supabase job。`tests/unit/db/release-compat.test.ts` 使用临时 git repository、stable/prerelease tags、previous source 与 candidate migration 覆盖 DROP/RENAME owner 依赖、production lineage 与 release/dev diverged topology、explicit stable tag 的 fail-closed 解析、annotation 不得绕过、ALTER TYPE/SET NOT NULL fail closed、additive/no-change pass 与可定位 evidence 输出。`tests/unit/db/migration-risk.test.ts` 同时覆盖 contract/locking annotation 的 category 匹配、缺失/错配拒绝和 file/line/category 输出。
 
 ## PR CI graph
 
@@ -100,7 +103,7 @@ E2E 中出现 `Error: The destination stream closed early` 时，按当前 Next/
 
 ## Verification contracts
 
-单元测试覆盖 capability、状态和 action input boundary，包括 persisted template identity、custom definition validator（executor registry 与 groupCount 晋级计算）、qualification batch/single parity 与竞技上下文冻结/解冻；本地集成测试覆盖 Major Entry registration（含跨 Entry aggregate invariant）、0017 migration replay、长期 participant profile、browser fixture、prestart（含 prestart↔CompetitionEntry coherence guard）、StageRun lifecycle（含开赛前名单一致性 fail-closed 与开赛时按冻结规则重验竞技资料）、roster safety、result recovery、discipline、post-event、“我的”资料/Team/CompetitionEntry/qualification/sanction 组合 read model、Team 邀请过期生命周期，以及 season governance（空赛季删除/撤回 guard、竞技冻结生命周期、队长交接并发语义、行锁终态转换与原子审计）。所有入口都运行在 CompetitionEntry/event-roster schema 上。历史 Golden Major rehearsal 保存在 [`archive/rehearsals/`](./archive/rehearsals/)，不是当前策略的替代品。
+单元测试覆盖 capability、状态和 action input boundary，包括 persisted template identity、custom definition validator（executor registry 与 groupCount 晋级计算）、qualification batch/single parity 与竞技上下文冻结/解冻；`tests/unit/db/access-matrix.test.ts` 同时锁定 64 张 public base table 的完整分类、0034 RLS/revoke 迁移、文档生成一致性、未分类表/意外 grant/publication/policy 缺失的 fail-closed 行为，以及浏览器仅保留 Auth、选秀/投票继续 polling 的 contract。真实 PostgreSQL 集成测试覆盖 access matrix terminal replay、trusted server bracket CRUD 和 anon/authenticated CRUD deny；本地集成测试还覆盖 Major Entry registration（含跨 Entry aggregate invariant）、0017 migration replay、长期 participant profile、browser fixture、prestart（含 prestart↔CompetitionEntry coherence guard）、StageRun lifecycle（含开赛前名单一致性 fail-closed 与开赛时按冻结规则重验竞技资料）、roster safety、result recovery、discipline、post-event、“我的”资料/Team/CompetitionEntry/qualification/sanction 组合 read model、Team 邀请过期生命周期，以及 season governance（空赛季删除/撤回 guard、竞技冻结生命周期、队长交接并发语义、行锁终态转换与原子审计）。所有入口都运行在 CompetitionEntry/event-roster schema 上。历史 Golden Major rehearsal 保存在 [`archive/rehearsals/`](./archive/rehearsals/)，不是当前策略的替代品。
 
 ## Test layers
 

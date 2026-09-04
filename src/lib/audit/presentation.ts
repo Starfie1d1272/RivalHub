@@ -141,6 +141,8 @@ export const AUDIT_ACTION_DEFINITIONS: Readonly<Record<string, AuditActionDefini
   "competition_entry.rejected": { label: "驳回参赛队报名", category: "entry" },
   "competition_entry.withdrawn": { label: "参赛队退出赛事", category: "entry" },
   "competition_entry.representative.transfer": { label: "转移参赛队代表", category: "entry" },
+  "competition_entry.restriction_override.grant": { label: "解除参赛限制", category: "entry" },
+  "competition_entry.restriction_override.revoke": { label: "撤销参赛限制解除", category: "entry" },
 
   "user.change_password": { label: "修改密码", category: "user" },
   "user.claim_invite": { label: "使用管理员邀请码", category: "user" },

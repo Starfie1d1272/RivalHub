@@ -8,7 +8,6 @@ import { castVote, retractVote } from "@/actions/captains";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/rivalhub";
-import { createBrowserClient } from "@/lib/auth/supabase";
 import { MAX_CAPTAIN_VOTES } from "@/lib/captains/rules";
 import { positionLabel } from "@/lib/validators/registration";
 import type {
@@ -45,23 +44,6 @@ export function CaptainVotingPanel({
   // votes 已在服务端按当前用户过滤
   const votedCandidateIds = new Set(votes.map((vote) => vote.candidateRegistrationId));
   const maxVotes = Math.max(1, ...candidates.map((candidate) => candidate.voteCount));
-
-  useEffect(() => {
-    if (!isVotingOpen) return;
-    const supabase = createBrowserClient();
-    const channel = supabase
-      .channel("captain-votes")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "captain_votes" },
-        () => router.refresh(),
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [isVotingOpen, router]);
 
   function handleCast(candidateId: string) {
     if (!currentVoter) {

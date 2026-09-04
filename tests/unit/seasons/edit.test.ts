@@ -365,6 +365,7 @@ describe("unfreezeBuiltInCompetitiveContext", () => {
       currentSeasonKey: "",
       previousSeasonKey: "",
       rankOrder: [],
+      externalStrengthMaxStarGap: 3,
     });
   });
 

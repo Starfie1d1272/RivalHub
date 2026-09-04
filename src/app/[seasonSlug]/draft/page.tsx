@@ -63,7 +63,6 @@ export default async function DraftPage({ params }: DraftPageProps) {
         </Marker>
         <DraftLiveRoom
           data={data}
-          seasonId={season.id}
           seasonPositions={season.positions}
           readonly
         />
@@ -99,7 +98,6 @@ export default async function DraftPage({ params }: DraftPageProps) {
 
         <DraftLiveRoom
           data={data}
-          seasonId={season.id}
           seasonPositions={season.positions}
           readonly
         />
@@ -110,7 +108,7 @@ export default async function DraftPage({ params }: DraftPageProps) {
   return (
     <main className="container mx-auto max-w-7xl px-4 py-10 space-y-8">
       <div className="flex items-center justify-between">
-        <Marker sub="实时更新选秀进度，队伍阵容与选手池自动刷新。">
+        <Marker sub="自动刷新选秀进度，队伍阵容与选手池。">
           选秀直播间 · {season.name}
         </Marker>
         <Suspense fallback={null}>
@@ -193,7 +191,6 @@ export default async function DraftPage({ params }: DraftPageProps) {
           )}
         <DraftLiveRoom
           data={data}
-          seasonId={season.id}
           seasonPositions={season.positions}
         />
     </main>

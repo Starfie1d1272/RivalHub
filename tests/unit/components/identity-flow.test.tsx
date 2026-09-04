@@ -8,14 +8,16 @@ import { LoginForm } from "@/components/auth/LoginForm";
 import { EducationVerificationPanel } from "@/components/settings/EducationVerificationPanel";
 import { EducationVerificationReviewQueue } from "@/components/admin/EducationVerificationReviewQueue";
 
-const { loginWithPasswordMock, resendSignupConfirmationMock, getInstitutionSearchMock, submitEducationVerificationMock } = vi.hoisted(() => ({
+const { loginWithPasswordMock, resendSignupConfirmationMock, getInstitutionSearchMock, submitEducationVerificationMock, toastSuccessMock, toastErrorMock } = vi.hoisted(() => ({
   loginWithPasswordMock: vi.fn(),
   resendSignupConfirmationMock: vi.fn(),
   getInstitutionSearchMock: vi.fn(),
   submitEducationVerificationMock: vi.fn(),
+  toastSuccessMock: vi.fn(),
+  toastErrorMock: vi.fn(),
 }));
 
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { success: toastSuccessMock, error: toastErrorMock } }));
 vi.mock("@/actions/auth", () => ({ loginWithPassword: loginWithPasswordMock, signUp: vi.fn(), resendSignupConfirmation: resendSignupConfirmationMock, resendCurrentEmailVerification: vi.fn() }));
 vi.mock("@/actions/education-verifications", () => ({ declareInstitutionalEmailEducation: vi.fn(), getInstitutionSearch: getInstitutionSearchMock, submitEducationVerification: submitEducationVerificationMock, reviewEducationVerification: vi.fn() }));
 vi.mock("@/components/auth/TurnstileWidget", () => ({ TurnstileWidget: () => <div data-testid="turnstile" /> }));
@@ -74,12 +76,13 @@ describe("identity flow UI", () => {
     render(<EducationVerificationPanel email="player@example.test" emailVerified={false} hasInstitutionalFastPath={false} verifications={[{ id: "1", institution: "南京大学", code: "4132010284", academicStatus: "enrolled", evidenceType: "chsi_enrollment_report", status: "rejected", reviewNote: "学校不一致", submittedAt: new Date().toISOString() }]} />);
     expect(screen.getByText("邮箱尚未验证")).toBeInTheDocument();
     expect(screen.getByText("南京大学 · 在读 · 已驳回")).toBeInTheDocument();
+    expect(screen.getByText("审核说明：学校不一致")).toBeInTheDocument();
     expect(screen.queryByText(/chsi\.com\.cn/)).not.toBeInTheDocument();
   });
 
   it("keeps school search, selection, reset, and submission tied to the selected institution", async () => {
     getInstitutionSearchMock.mockResolvedValue({ success: true, data: [{ id: "institution-1", name: "南京大学", code: "4132010284", province: "江苏" }] });
-    submitEducationVerificationMock.mockResolvedValue({ success: true, data: undefined });
+    submitEducationVerificationMock.mockResolvedValue({ success: true, data: "created" });
     render(<EducationVerificationPanel email="player@example.test" emailVerified hasInstitutionalFastPath={false} verifications={[]} />);
 
     expect(screen.getByLabelText("学校")).toBeInTheDocument();
@@ -111,6 +114,21 @@ describe("identity flow UI", () => {
     fireEvent.click(await screen.findByRole("button", { name: /南京大学/ }));
     fireEvent.click(submit);
     await waitFor(() => expect(submitEducationVerificationMock).toHaveBeenCalledWith({ institutionId: "institution-1", academicStatus: "graduated", evidenceCode: "ABCD1234EFGH5678" }));
+  });
+
+  it("shows an already-approved outcome instead of a pending-submission toast", async () => {
+    getInstitutionSearchMock.mockResolvedValue({ success: true, data: [{ id: "institution-1", name: "南京大学", code: "4132010284", province: "江苏" }] });
+    submitEducationVerificationMock.mockResolvedValue({ success: true, data: "already_approved" });
+    render(<EducationVerificationPanel email="player@example.test" emailVerified hasInstitutionalFastPath={false} verifications={[]} />);
+
+    fireEvent.change(screen.getByLabelText("学校"), { target: { value: "南京" } });
+    fireEvent.click(screen.getByRole("button", { name: "搜索高校" }));
+    fireEvent.click(await screen.findByRole("button", { name: /南京大学/ }));
+    fireEvent.change(screen.getByLabelText("学信网在线验证码"), { target: { value: "ABCD1234EFGH5678" } });
+    fireEvent.click(screen.getByRole("button", { name: "提交认证材料" }));
+
+    await waitFor(() => expect(toastSuccessMock).toHaveBeenCalledWith("该验证码已通过审核，无需重复提交"));
+    expect(toastSuccessMock).not.toHaveBeenCalledWith("教育认证已提交，等待管理员审核");
   });
 
   it("renders the admin review queue with a protected CHSI verification path", () => {

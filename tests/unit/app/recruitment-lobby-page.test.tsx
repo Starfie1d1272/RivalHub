@@ -20,7 +20,7 @@ vi.mock("@/lib/recruitment/data", () => ({
 import RecruitmentLobbyPage from "@/app/teams/recruitment/page";
 
 const updatedAt = new Date("2026-09-01T16:00:00.000Z");
-const basePlayer = { id: "player-intent", positions: ["awper"], targetSeasonId: null, targetSeasonName: null, note: null, expiresAt: new Date("2026-09-30T00:00:00.000Z"), updatedAt, userId: "player-1", name: "选手", avatarUrl: null, currentTeamId: null, currentTeamName: null, competitiveRoles: ["awper"], competitiveSummary: [] };
+const basePlayer = { id: "player-intent", positions: ["awper"], targetSeasonId: null, targetSeasonName: null, note: null, expiresAt: new Date("2026-09-30T00:00:00.000Z"), updatedAt, userId: "player-1", name: "选手", avatarUrl: null, currentTeamId: null, currentTeamName: null, competitiveRoles: ["awper"], mapPreferences: [], competitiveSummary: [] };
 const baseLobbyData = {
   teamRecruitments: [{ id: "team-intent", positions: [], targetSeasonId: null, targetSeasonName: null, note: null, expiresAt: new Date("2026-09-30T00:00:00.000Z"), updatedAt, teamId: "team-1", teamSlug: "rival-team", teamName: "Rival Team", logoUrl: null, captainName: "队长", memberCount: 4 }],
   playerLfts: [basePlayer],
@@ -98,5 +98,21 @@ describe("recruitment lobby cards", () => {
     expect(html).toContain("5E");
     expect(html).toContain("未定级");
     expect(html.indexOf("完美世界竞技平台")).toBeLessThan(html.indexOf("5E"));
+  });
+
+  it("renders map proficiency when provided and an explicit unfilled state otherwise", async () => {
+    getRecruitmentLobbyDataMock.mockResolvedValueOnce({
+      ...baseLobbyData,
+      playerLfts: [{ ...basePlayer, mapPreferences: [{ map: "de_mirage", level: "strong" }, { map: "de_inferno", level: "proficient" }] }],
+    });
+    const page = await RecruitmentLobbyPage({ searchParams: Promise.resolve({ view: "players" }) });
+    const html = renderToStaticMarkup(page);
+    expect(html).toContain("地图熟练度");
+    expect(html).toContain("Mirage");
+
+    getRecruitmentLobbyDataMock.mockResolvedValueOnce({ ...baseLobbyData, playerLfts: [{ ...basePlayer, mapPreferences: [] }] });
+    const emptyPage = await RecruitmentLobbyPage({ searchParams: Promise.resolve({ view: "players" }) });
+    const emptyHtml = renderToStaticMarkup(emptyPage);
+    expect(emptyHtml).toContain("未填写地图熟练度");
   });
 });

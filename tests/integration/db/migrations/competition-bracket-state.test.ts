@@ -10,7 +10,7 @@ describe("competition bracket state migration", () => {
       const terminal = migrations.find((name) => name.startsWith("0022_"));
       if (!terminal) throw new Error("找不到 0022 bracket state migration。");
 
-      for (const migration of migrations.filter((name) => name !== terminal)) {
+      for (const migration of migrations.filter((name) => name < terminal)) {
         await replayMigration(client, migration);
       }
 

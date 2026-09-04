@@ -232,6 +232,27 @@
       "when": 1788325421247,
       "tag": "0032_competitive_fact_states",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1788440049853,
+      "tag": "0033_user_map_preferences",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1788443757762,
+      "tag": "0034_database_access_boundary",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1788486357950,
+      "tag": "0035_colorful_black_widow",
+      "breakpoints": true
     }
   ]
 }

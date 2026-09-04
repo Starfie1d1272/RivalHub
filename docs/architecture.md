@@ -2,7 +2,7 @@
 
 ## System shape
 
-RivalHub 使用 Next.js App Router。页面默认使用 Server Components；first-party UI mutation 通常通过 Server Actions，HTTP/protocol integration 可使用 Route Handler，但所有入口共享同一个 canonical domain operation。Drizzle 访问 Postgres；Supabase 提供 Auth、Storage 与当前受限的 Realtime；iron-session 承载应用会话。
+RivalHub 使用 Next.js App Router。页面默认使用 Server Components；first-party UI mutation 通常通过 Server Actions，HTTP/protocol integration 可使用 Route Handler，但所有入口共享同一个 canonical domain operation。Drizzle 访问 Postgres；Supabase 提供 Auth 与 Storage；iron-session 承载应用会话。
 
 ```text
 Browser
@@ -10,7 +10,7 @@ Browser
        ├─ Server Components ── Drizzle ── Postgres
        ├─ Server Actions / protocol routes ── canonical domain operations
        │                                      └─ Drizzle / Supabase Auth / Storage
-       └─ Client islands ─── Supabase Realtime (current allowlist)
+       └─ Client islands ─── Supabase Auth only; live views use server refresh/polling
 ```
 
 页面负责路由、读取和呈现；复杂事务、资格判断、赛制和恢复逻辑位于 `src/actions/` 与 `src/lib/` 的 canonical owner。页面和客户端组件不旁路写入；普通 API/协议入口如存在，也必须委托同一 domain operation。所有管理操作写入 `audit_logs`。
@@ -67,9 +67,9 @@ Major 的正式运行时由 `src/lib/major/` 与 `major_*` persistence owners �
 
 - Supabase Auth 管理邮箱账号；应用会话与角色由 `public.users` + `rivalhub-session` 管理。
 - 管理员统一使用 Supabase Auth；`users.role` 与 `season_admin_grants` 是当前权限事实，`rivalhub-session` 只保存身份。
-- Data API 对业务表默认拒绝；Server-only DB 是业务读写 owner。新增 direct Supabase client 或 Realtime table 时，同一变更必须包含 explicit grant、RLS policy 与正反例测试。
+- Data API 对业务表默认拒绝；Server-only DB 是业务读写 owner。完整的 public table 分类与 terminal contract 见 [`security/database-access-matrix.md`](./security/database-access-matrix.md)，由 `scripts/db/access-matrix.ts` 在 migration/local/production verification 中 fail closed。
 - 应用代码统一通过 server-only 的 `src/db/client.ts` 取得 Drizzle client；Node CLI 入口使用共享的 `src/db/client-runtime.ts`，并由 ESLint 约束应用代码回到 canonical facade。
-- 当前 Realtime surface 仅服务于 `draft_state`、`draft_picks` 和 `captain_votes`，且在数据库事务 commit 后发送。新增 surface 不是自动禁止，但必须在同一变更中定义权限、RLS/GRANT、一致性语义与正反例测试。
+- 当前 first-party browser Supabase client 仅用于 Auth；`DraftLiveRoom` 与 `CaptainVotingPanel` 使用现有 server refresh/polling fallback，不再订阅业务表 Realtime。若未来新增 direct Supabase client 或 Realtime table，必须在矩阵中声明最小权限、RLS policy、一致性语义与正反例测试。
 - active Drizzle migrations 是唯一 migration authority；`pnpm db:push` 被阻止。
 - Local、staging、production 是独立边界，详细执行方式见 [`deployment.md`](./deployment.md)。
 

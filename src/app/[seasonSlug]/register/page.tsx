@@ -11,11 +11,12 @@ import {
   teamMemberships,
   teams,
   userCompetitiveRoles,
+  userMapPreferences,
   users,
 } from "@/db/schema";
 import { getPositionCounts, getApprovedCount } from "@/actions/register";
 import { RegistrationForm } from "@/components/register/RegistrationForm";
-import { normalizeRegistrationConfig } from "@/types/season";
+import { normalizeAffiliationRules, normalizeRegistrationConfig, normalizeTeamRegistrationConfig } from "@/types/season";
 import { REGISTRATION_STATUS_LABELS } from "@/types/registration";
 import { Panel, StatusBanner, PosChip } from "@/components/rivalhub";
 import { positionLabel } from "@/lib/validators/registration";
@@ -26,8 +27,7 @@ import { isSoloRegistration } from "@/lib/utils/season";
 import { isTeamRegistration } from "@/lib/utils/season";
 import { CompetitionEntryFlow } from "@/components/register/CompetitionEntryFlow";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
-import { getParticipantReadinessBatch } from "@/lib/qualification/service";
-import { normalizeTeamRegistrationConfig } from "@/types/season";
+import { evaluateRosterQualificationFromFacts, getParticipantReadinessBatch, isHomeAffiliatedMember, loadParticipantQualificationFacts, resolveCompetitiveContext, resolveSeasonEducationVerification, type ParticipantQualificationFacts } from "@/lib/qualification/service";
 import { getPublicOrAuthorizedDraftSeason, getPublicSeasonBySlug } from "@/lib/data/public-seasons";
 
 interface RegisterPageProps {
@@ -141,9 +141,41 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
         : [];
       const userIds = [...new Set([...candidateRows.map((row) => row.userId), ...rosterRows.map((row) => row.userId)])];
       const teamConfig = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
-      const readinessByUser = teamConfig.requireCompetitiveProfile && teamConfig.competitiveProfile
-        ? await getParticipantReadinessBatch(userIds, teamConfig.competitiveProfile)
+      const affiliationRules = normalizeAffiliationRules(season.affiliationRules);
+      const hasCompetitiveProfile = Boolean(teamConfig.requireCompetitiveProfile && teamConfig.competitiveProfile);
+      const competitiveContext = hasCompetitiveProfile
+        ? await resolveCompetitiveContext(teamConfig.competitiveProfile!)
+        : undefined;
+      const needsQualificationFacts = hasCompetitiveProfile || affiliationRules.length > 0;
+      const qualificationFacts: Map<string, ParticipantQualificationFacts> = needsQualificationFacts
+        ? await loadParticipantQualificationFacts(userIds, {
+            platform: competitiveContext?.platform ?? teamConfig.competitiveProfile?.platform,
+            fallbackPlatform: competitiveContext?.fallbackConversion?.sourcePlatform,
+            includeCompetitiveFacts: hasCompetitiveProfile,
+          })
         : new Map();
+      const readinessByUser = hasCompetitiveProfile
+        ? await getParticipantReadinessBatch(userIds, teamConfig.competitiveProfile!, { facts: qualificationFacts })
+        : new Map();
+      const qualification = competitiveContext === null
+        ? { findings: [{ code: "competitive_context_unavailable", message: "该赛事采用的竞技资料暂时无法核验。", waivable: false }] }
+        : await evaluateRosterQualificationFromFacts({
+            members: rosterRows.map((member) => {
+              const fact = qualificationFacts.get(member.userId);
+              const education = resolveSeasonEducationVerification(fact?.educationHistory ?? [], affiliationRules).selectedVerification;
+              return {
+                userId: member.userId,
+                email: fact?.email ?? member.email,
+                emailVerifiedAt: fact?.emailVerifiedAt ?? null,
+                educationHistory: fact?.educationHistory ?? [],
+                isHome: isHomeAffiliatedMember(education ?? { institutionCode: null, academicStatus: null }, affiliationRules),
+              };
+            }),
+            facts: qualificationFacts,
+            affiliationRules,
+            competitiveProfile: competitiveContext,
+            primaryStarterUserIds: rosterRows.filter((member) => member.primary).map((member) => member.userId),
+          });
       const roleRows = userIds.length ? await db.select({ userId: userCompetitiveRoles.userId, role: userCompetitiveRoles.role, isPrimary: userCompetitiveRoles.isPrimary }).from(userCompetitiveRoles).where(inArray(userCompetitiveRoles.userId, userIds)) : [];
       const rolesByUser = new Map<string, Array<(typeof roleRows)[number]["role"]>>();
       const primaryRoleByUser = new Map<string, (typeof roleRows)[number]["role"]>();
@@ -159,6 +191,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
         representativeUserId: entry.representativeUserId,
         perfectTeamId: entry.perfectTeamId,
         reviewReason: entry.reviewReason,
+        qualificationFindings: qualification.findings,
         candidates,
         roster: rosterRows.map((row) => ({
           participantId: row.participantId,
@@ -201,7 +234,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
     );
   }
 
-  const [positionCounts, approvedCount, currentRegistration, currentUser] = await Promise.all([
+  const [positionCounts, approvedCount, currentRegistration, currentUser, mapPreferences] = await Promise.all([
     getPositionCounts(season.id),
     getApprovedCount(season.id),
     db.query.seasonRegistrations.findFirst({
@@ -213,12 +246,14 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
     db.query.users.findFirst({
       where: eq(users.id, userSession.userId),
     }),
+    db.select().from(userMapPreferences).where(eq(userMapPreferences.userId, userSession.userId)),
   ]);
   const regConfig = normalizeRegistrationConfig(season.registrationConfig);
   const maxPerPos = regConfig.maxPerPosition;
   const existingStatus = currentRegistration?.status ?? null;
   const existingStatusLabel = existingStatus ? REGISTRATION_STATUS_LABELS[existingStatus] : null;
   const canEditExisting = !!currentRegistration && currentRegistration.status !== "approved";
+  const longTermMapPreferences = mapPreferences[0]?.mapPreferences ?? null;
   const initialValues = currentRegistration
     ? {
         email: userSession.email,
@@ -247,7 +282,9 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
         notes: currentRegistration.notes ?? "",
         antiCheatPledge: true as const,
       }
-    : undefined;
+    : longTermMapPreferences
+      ? { mapPreferences: longTermMapPreferences }
+      : undefined;
 
   // 位置容量数据
   const capacityEntries = season.positions.map((pos) => {

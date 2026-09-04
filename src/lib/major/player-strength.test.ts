@@ -21,11 +21,12 @@ function player(
   previous: string,
   current: string,
   historicalRating = 1000,
+  historicalStars: number | null = null,
 ): PlayerStrengthInput {
   return {
     userId: label,
     label,
-    historicalPeak: { rank: historical, rating: historicalRating },
+    historicalPeak: { rank: historical, rating: historicalRating, stars: historicalStars },
     previousSeasonPeak: { rank: previous, rating: 900 },
     currentSeasonPeak: { rank: current, rating: 800 },
   };
@@ -124,31 +125,73 @@ describe("Major player strength comparator", () => {
 });
 
 describe("Major external-member strength rule", () => {
-  const home = player("nju-strongest", "青铜S", "A", "A");
-  const weakerHome = player("nju-weaker", "A", "A", "A");
+  const home = player("nju-strongest", "钻石S", "A", "A", 1000, 35);
 
   it("allows an all-NJU lineup", () => {
-    expect(evaluateExternalStrengthRule({ config: CONFIG, players: [home, weakerHome].map((item) => ({ ...item, isHome: true })) })).toEqual({ eligible: true, blockers: [] });
+    expect(evaluateExternalStrengthRule({ config: CONFIG, players: [home, player("nju-weaker", "黄金S", "A", "A", 1000, 10)].map((item) => ({ ...item, isHome: true })) })).toEqual({ eligible: true, blockers: [], findings: [] });
   });
 
-  it.each([
-    { label: "external-equal", fact: player("external-equal", "A", "A", "A"), eligible: true },
-    { label: "external-weaker", fact: player("external-weaker", "A", "B", "A"), eligible: true },
-    { label: "external-stronger", fact: player("external-stronger", "魔王S", "魔王S", "魔王S"), eligible: false },
-  ])("handles $label against the strongest NJU reference", ({ fact, eligible, label }) => {
+  it("allows an external within 3 stars of the strongest NJU member", () => {
     const result = evaluateExternalStrengthRule({
       config: CONFIG,
       players: [
-        { ...weakerHome, isHome: true },
-        { ...fact, isHome: false },
+        { ...home, isHome: true },
+        { ...player("external-38", "钻石S", "A", "A", 1000, 38), isHome: false },
       ],
     });
-    expect(result.eligible).toBe(eligible);
-    if (!eligible) {
-      expect(result.blockers[0]).toContain(label);
-      expect(result.blockers[0]).toContain("nju-weaker");
-      expect(result.blockers[0]).toContain("综合段位参考值");
-    }
+    expect(result.eligible).toBe(true);
+  });
+
+  it("blocks an external more than 3 stars above the strongest NJU member", () => {
+    const result = evaluateExternalStrengthRule({
+      config: CONFIG,
+      players: [
+        { ...home, isHome: true },
+        { ...player("external-39", "钻石S", "A", "A", 1000, 39), isHome: false },
+      ],
+    });
+    expect(result.eligible).toBe(false);
+    expect(result.blockers.join(" ")).toContain("external-39");
+    expect(result.blockers.join(" ")).toContain("nju-strongest");
+    expect(result.findings).toMatchObject([{ code: "external_strength_gap", waivable: true }]);
+  });
+
+  it("allows an external with no S stars (below-S rank)", () => {
+    const result = evaluateExternalStrengthRule({
+      config: CONFIG,
+      players: [
+        { ...home, isHome: true },
+        { ...player("external-a", "A++", "A", "A"), isHome: false },
+      ],
+    });
+    expect(result.eligible).toBe(true);
+  });
+
+  it("does not treat 5E stars as Perfect World historical stars", () => {
+    const external = player("external-5e", "S", "A", "A", 1000, 99);
+    const result = evaluateExternalStrengthRule({
+      config: CONFIG,
+      players: [
+        { ...home, isHome: true },
+        { ...external, isHome: false, historicalPeak: { ...external.historicalPeak!, sourcePlatform: "fivee" } },
+      ],
+    });
+
+    expect(result.eligible).toBe(true);
+    expect(result.findings).toEqual([]);
+  });
+
+  it("blocks when the NJU baseline has no S stars but an external does", () => {
+    const result = evaluateExternalStrengthRule({
+      config: CONFIG,
+      players: [
+        { ...player("nju-a", "A++", "A", "A"), isHome: true },
+        { ...player("external-30", "钻石S", "A", "A", 1000, 30), isHome: false },
+      ],
+    });
+    expect(result.eligible).toBe(false);
+    expect(result.blockers.join(" ")).toContain("本校成员均无 S 段位星数");
+    expect(result.findings).toMatchObject([{ code: "external_strength_gap", waivable: true }]);
   });
 
   it("blocks when any of multiple external members violates the rule", () => {
@@ -156,23 +199,30 @@ describe("Major external-member strength rule", () => {
       config: CONFIG,
       players: [
         { ...home, isHome: true },
-        { ...player("external-ok", "A", "A", "A"), isHome: false },
-        { ...player("external-bad", "魔王S", "魔王S", "魔王S"), isHome: false },
+        { ...player("external-ok", "黄金S", "A", "A", 1000, 20), isHome: false },
+        { ...player("external-bad", "钻石S", "A", "A", 1000, 45), isHome: false },
       ],
     });
     expect(result.eligible).toBe(false);
     expect(result.blockers.join(" ")).toContain("external-bad");
-    expect(result.blockers.join(" ")).toContain("nju-strongest");
     expect(result.blockers.join(" ")).not.toContain("external-ok");
   });
 
-  it("does not silently compare when there is no NJU reference or facts are missing", () => {
+  it("does not silently compare when there is no NJU reference or required stars are missing", () => {
     expect(evaluateExternalStrengthRule({ config: CONFIG, players: [{ ...home, isHome: false }] }).blockers[0]).toContain("没有可确认的南京大学成员");
-    const missing = player("external-missing", "A", "A", "A");
-    missing.currentSeasonPeak = null;
-    const result = evaluateExternalStrengthRule({ config: CONFIG, players: [{ ...home, isHome: true }, { ...missing, isHome: false }] });
+
+    // S 段位缺少准确星数 → 资料未完成，直接阻止提交。
+    const insufficient = player("external-no-stars", "钻石S", "A", "A");
+    const result = evaluateExternalStrengthRule({
+      config: CONFIG,
+      players: [
+        { ...home, isHome: true },
+        { ...insufficient, isHome: false },
+      ],
+    });
     expect(result.eligible).toBe(false);
-    expect(result.blockers.join(" ")).toContain("external-missing");
-    expect(result.blockers.join(" ")).toContain("资料不可确认");
+    expect(result.blockers.join(" ")).toContain("缺少准确星数");
+    expect(result.blockers.join(" ")).not.toContain("人工审核");
+    expect(result.findings).toMatchObject([{ code: "competitive_profile_incomplete", waivable: false }]);
   });
 });

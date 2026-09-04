@@ -14,9 +14,9 @@
 
 ## 3. Competitive profile
 
-`competitive_platforms` 是竞技平台的长期一级实体：平台持有稳定技术 key（创建后 immutable）、可修改的显示名称与 canonical performance Rating label（如完美世界的 Rating Pro、5E 的 Rating+；不是 Valve Premier CS Rating 这类 matchmaking / ladder score）。2.0 只内置 `perfect_world` 与 `fivee` 两个产品定义的平台目录，由 migration/bootstrap 建立，canonical owner 是 `src/lib/competitive/builtins.ts`（Perfect ladder 直接复用 `PERFECT_WORLD_RANK_ORDER`，5E below-S 共享同一基础）；后台不再提供“新增任意竞技平台”，只能维护既有内置目录的展示元数据。canonical performance Rating（Rating Pro / Rating+）由产品定义固定：migration 写入、runtime 读取、后台只读展示，不接受管理员修改，避免既有 rating 事实被重新解释。平台段位表 `competitive_platform_ranks` 由平台统一拥有：`rankKey` 是稳定身份、`label` 是可改的展示名，`sortOrder` 表达由低到高；S 段位携带 `starMin`/`starMax` 星数区间（无星段位两者皆 null，开放上限只有 `starMax` 为 null）。平台赛季 `competitive_platform_seasons` 只表达时间目录（platform + seasonKey 不可变身份、显示名、时间顺序、active 与唯一 current），不再拥有段位顺序。previous 赛季由时间顺序推导，没有第二个 mutable 标记。
+`competitive_platforms` 是竞技平台的长期一级实体：平台持有稳定技术 key（创建后 immutable）、可修改的显示名称与 canonical performance Rating label（如完美世界的 Rating Pro、5E 的 Rating+；不是 Valve Premier CS Rating 这类 matchmaking / ladder score）。2.0 只内置 `perfect_world` 与 `fivee` 两个产品定义的平台目录，由 migration/bootstrap 建立，canonical owner 是 `src/lib/competitive/builtins.ts`（Perfect ladder 直接复用 `PERFECT_WORLD_RANK_ORDER`，5E below-S 共享同一基础）；后台不再提供“新增任意竞技平台”，只能维护既有内置目录的展示元数据。canonical performance Rating（Rating Pro / Rating+）由产品定义固定：migration 写入、runtime 读取、后台只读展示，不接受管理员修改，避免既有 rating 事实被重新解释。平台段位表 `competitive_platform_ranks` 由平台统一拥有：`rankKey` 是稳定身份、`label` 是可改的展示名，`sortOrder` 表达由低到高；S 段位携带 `starMin`/`starMax` 星数区间（无星段位两者皆 null，开放上限只有 `starMax` 为 null）。`BUILT_IN_COMPETITIVE_PLATFORMS` 是 bootstrap 与内置产品语义的 frozen definition，`isBuiltInStarRank()` 等派生判断从同一 rank definition 读取；数据库 catalog 仍是 runtime 的平台/段位展示与目录 owner。本次不扩展 `CompetitiveProfileConfig` 的 snapshot contract，StageRun 继续保存已解析的竞技事实，不能依赖未来 mutable catalog 重解释历史。平台赛季 `competitive_platform_seasons` 只表达时间目录（platform + seasonKey 不可变身份、显示名、时间顺序、active 与唯一 current），不再拥有段位顺序。previous 赛季由时间顺序推导，没有第二个 mutable 标记。
 
-`competitive_rank_facts` 存储用户对任意已编目平台赛季或跨赛季 peak 的可审查竞技事实；`rank` 保存平台段位表的稳定 rankKey，不因管理员重命名 label 而失效；`rating` 保存该平台唯一 canonical performance Rating，不是 matchmaking score。`rank` ≠ `stars` ≠ `rating`：`stars` 是 S 段位内部精确星数（非负整数，必须落在该段位 starMin/starMax 区间内），只在提交或真实编辑该条事实时要求；迁移前未记录星数的 legacy 事实保持 NULL（展示为“星数待补充”），不猜默认值。stars 目前只是竞技事实，不参与 Major qualification 优先级。requireCompetitiveProfile 赛事在实际报名开放时冻结平台目录的 literal current、previous、rank order 与该届 evidence policy；发布只公开赛事，之后的目录变化不回写已经开放的赛事。删除或重排已被长期事实或冻结赛事上下文引用的段位会 fail closed；真实的平台段位体系调整应建立版本化 ladder，而不是覆盖历史语义。
+`competitive_rank_facts` 存储用户对任意已编目平台赛季或跨赛季 peak 的可审查竞技事实；`rank` 保存平台段位表的稳定 rankKey，不因管理员重命名 label 而失效；`rating` 保存该平台唯一 canonical performance Rating，不是 matchmaking score。`rank` ≠ `stars` ≠ `rating`：`stars` 是 S 段位内部精确星数（非负整数，必须落在该段位 starMin/starMax 区间内），已定级的星段位在保存和赛事资格 readiness 中都必须有准确星数；迁移前未记录星数的 legacy 事实在存储层保持 NULL（不猜默认值），但用户重新保存或进入需要该事实的报名流程时必须补填，不能作为资料完整或人工解除限制的替代状态。stars 目前只是竞技事实，不参与 Major qualification 的加权排序；Major 外校相对实力检查会直接使用完美世界历史最高总星数。requireCompetitiveProfile 赛事在实际报名开放时冻结平台目录的 literal current、previous、rank order 与该届 evidence policy；发布只公开赛事，之后的目录变化不回写已经开放的赛事。删除或重排已被长期事实或冻结赛事上下文引用的段位会 fail closed；真实的平台段位体系调整应建立版本化 ladder，而不是覆盖历史语义。
 
 ## 4. Seasons
 
@@ -34,11 +34,13 @@
 
 `competition_entries` 是从报名草稿到赛事历史的唯一参赛身份。Major 通常由长期 Team 创建 Entry；Rivals 选秀队为 `teamId = null` 的赛事队伍。`competition_entry_participants` 表示本届参赛确认，报名名单 revision 表示审核材料，`event_rosters`/成员表示赛前确认名单，`match_rosters`/成员表示单场出场阵容。三层人员事实不得互相替代。
 
+`competition_entry_restriction_overrides` 是 Entry 审核中的显式政策决定 ledger：每条记录绑定一个 Entry、当前 `rosterRevisionId`、typed qualification finding 的 `restrictionCode` 与完整 finding snapshot，另存具体理由、授予人/时间和可审计的撤销人/时间。snapshot 保留当时的 message 与 presentation/evidence metadata 供 audit/history 使用，但 finding identity 与 override matching 只使用 `code`、`waivable` 和规范化的 semantic metadata；对 `external_strength_gap` 而言，identity 仅包含双方最高星数与当前星差阈值，选中的 strongest player 的 user ID/label 不属于政策事实。文案或 evidence 选择变化本身不会使同一政策事实 stale。它只允许解除 `waivable=true` 的当前政策限制；身份、资料缺失和 roster/state 完整性 finding 不可被该表替代。新的 roster revision 不继承旧 revision 的有效解除。
+
 旧 `team_applications`、season-bound `teams` 和 `team_members` 已由 active schema 退役；迁移 provenance 仅支持历史追溯，不参与运行时授权或比赛 identity。
 
 ## 7. Captain voting / draft
 
-`captain_votes` 是 Rivals 投票记录。`draft_state` 维护单届实时选秀状态，`draft_picks` 用 `clientRequestId` 支持幂等。选秀与队员写入在同一事务内完成，事务完成后才可发送 Realtime。
+`captain_votes` 是 Rivals 投票记录。`draft_state` 维护单届选秀状态，`draft_picks` 用 `clientRequestId` 支持幂等。选秀与队员写入在同一事务内完成；直播页面通过服务端刷新/轮询读取已提交事实。
 
 ## 8. Matches
 
@@ -54,7 +56,7 @@
 
 ## 11. Major stage runtime
 
-`major_stage_runs` 冻结阶段规则与运行时 identity；`major_stage_entrants` 是阶段参与者的 canonical truth；`major_final_results` 记录待确认/已确认的最终结果。冻结 affiliation / rule snapshot 支持恢复、审计和历史复现，不应被当作可去重的重复数据。
+`major_stage_runs` 冻结阶段规则与运行时 identity；`major_stage_entrants` 是阶段参与者的 canonical truth；`major_final_results` 记录待确认/已确认的最终结果。新的 StageRun 还冻结资格能力开关、外校星差阈值、批准名单的竞技事实和当前 revision 的有效政策解除；比赛只消费这些冻结事实。冻结 affiliation / rule snapshot 支持恢复、审计和历史复现，不应被当作可去重的重复数据。没有新资格能力字段的 legacy StageRun 不会被当前 3 星规则重新解释。
 
 ## 12. Discipline
 
@@ -99,6 +101,7 @@
 | 竞技平台目录 / current / previous chronology | `src/lib/competitive/catalog.ts` |
 | 组队大厅 intent、有效期与 interest | `src/lib/recruitment/commands.ts` |
 | 资格与 readiness | `src/lib/qualification/` |
+| 资格限制解除 ledger | `src/lib/competition-entries/restriction-overrides.ts` + `src/lib/competition-entries/commands.ts` |
 | CompetitionEntry 面向参赛者的状态文案 | `src/lib/competition-entries/presentation.ts` |
 | Dialog / modal primitive | `src/components/ui/dialog.tsx` |
 | bracket adapter | `src/lib/bracket/` |
@@ -123,9 +126,10 @@
 | Major 赛前事务锁顺序 | `season / majorPrestartState → CompetitionEntry → eventRoster → majorTournamentEntrant`；名单显式重同步只放宽 source revision guard，完成写入后再由同一 coherence owner 严格复核 |
 | Major prestart readiness | prestart domain service 与明确 blocker |
 | StageRun 规则与参赛成员冻结 | rule snapshot + managed runtime；开赛时按冻结 competitiveProfile 重验参赛事实后，以同一批读取结果序列化 `frozenCompetitiveFacts` |
+| typed qualification finding 与政策解除 | `src/lib/qualification/` 产生 finding；`competition_entry_restriction_overrides` 只持久化当前 revision 的可解除 finding，并由 `src/lib/major/start.ts` 冻结到 StageRun |
 | 一场 Major 比赛恰好 5 名首发 | match-roster service 与 lineup evaluator |
 | 管理 mutation 的审计 | Server Action transaction + `audit_logs` |
 | team logo 类型与大小 | server upload validation + Storage bucket |
-| public Data API 默认拒绝 | active migration 的 grants / RLS |
+| public Data API 默认拒绝 | `security/database-access-matrix.md` + active migration 的 grants / RLS |
 
 DB constraint、transaction、domain evaluator 与 frozen snapshot 各自覆盖不同的风险。不能以任一层替代另一层，也不应把需要业务语义的约束伪装为单纯字段检查。

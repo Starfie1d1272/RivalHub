@@ -190,16 +190,19 @@ async function prepareReadyMajor(
     );
     const rankRows = userIds.flatMap((userId, index) => {
       const rank = index % 5 < 3 ? GOLDEN_PROFILE.rankOrder[10]! : GOLDEN_PROFILE.rankOrder[7]!;
+      // The golden fixture deliberately uses the built-in S rank key on a
+      // private catalog; complete S facts still need an exact star count.
+      const stars = index % 5 < 3 ? 10 : null;
       return [
-        { id: deterministicUuid(`${label}/rank/${index + 1}/historical`), kind: "historical_peak", seasonKey: null, rank, rating: index % 5 < 3 ? "1800.00" : "1500.00" },
-        { id: deterministicUuid(`${label}/rank/${index + 1}/previous`), kind: "season_peak", seasonKey: GOLDEN_PROFILE.previousSeasonKey, rank, rating: index % 5 < 3 ? "1750.00" : "1450.00" },
-        { id: deterministicUuid(`${label}/rank/${index + 1}/current`), kind: "season_peak", seasonKey: GOLDEN_PROFILE.currentSeasonKey, rank, rating: index % 5 < 3 ? "1700.00" : "1400.00" },
+        { id: deterministicUuid(`${label}/rank/${index + 1}/historical`), kind: "historical_peak", seasonKey: null, rank, rating: index % 5 < 3 ? "1800.00" : "1500.00", stars },
+        { id: deterministicUuid(`${label}/rank/${index + 1}/previous`), kind: "season_peak", seasonKey: GOLDEN_PROFILE.previousSeasonKey, rank, rating: index % 5 < 3 ? "1750.00" : "1450.00", stars },
+        { id: deterministicUuid(`${label}/rank/${index + 1}/current`), kind: "season_peak", seasonKey: GOLDEN_PROFILE.currentSeasonKey, rank, rating: index % 5 < 3 ? "1700.00" : "1400.00", stars },
       ].map((fact) => ({ ...fact, userId }));
     });
     await client.query(
-      `INSERT INTO competitive_rank_facts (id, user_id, platform, kind, platform_season_key, rank, rating)
-       VALUES ${rankRows.map((_, index) => `($${index * 7 + 1}, $${index * 7 + 2}, $${index * 7 + 3}, $${index * 7 + 4}, $${index * 7 + 5}, $${index * 7 + 6}, $${index * 7 + 7})`).join(", ")}`,
-      rankRows.flatMap((row) => [row.id, row.userId, GOLDEN_PROFILE.platform, row.kind, row.seasonKey, row.rank, row.rating]),
+      `INSERT INTO competitive_rank_facts (id, user_id, platform, kind, platform_season_key, rank, rating, stars)
+       VALUES ${rankRows.map((_, index) => `($${index * 8 + 1}, $${index * 8 + 2}, $${index * 8 + 3}, $${index * 8 + 4}, $${index * 8 + 5}, $${index * 8 + 6}, $${index * 8 + 7}, $${index * 8 + 8})`).join(", ")}`,
+      rankRows.flatMap((row) => [row.id, row.userId, GOLDEN_PROFILE.platform, row.kind, row.seasonKey, row.rank, row.rating, row.stars]),
     );
     for (let index = 0; index < 32; index += 1) {
       const entryId = entryIds[index]!;
@@ -1130,8 +1133,8 @@ async function exerciseStartQualification(
   const victim = fixture.userIds[0]!;
   const platform = GOLDEN_PROFILE.platform;
   const currentKey = GOLDEN_PROFILE.currentSeasonKey;
-  const original = await pool.query<{ rank: string; rating: string }>(
-    "SELECT rank, rating::text AS rating FROM competitive_rank_facts WHERE user_id = $1 AND platform = $2 AND kind = 'season_peak' AND platform_season_key = $3",
+  const original = await pool.query<{ rank: string; rating: string; stars: number | null }>(
+    "SELECT rank, rating::text AS rating, stars FROM competitive_rank_facts WHERE user_id = $1 AND platform = $2 AND kind = 'season_peak' AND platform_season_key = $3",
     [victim, platform, currentKey],
   );
   const originalFact = original.rows[0];
@@ -1155,9 +1158,9 @@ async function exerciseStartQualification(
 
   // Case B：恢复合法事实 → 开赛成功，且 frozenCompetitiveFacts 与通过校验的同一批 facts 一致。
   await pool.query(
-    `INSERT INTO competitive_rank_facts (id, user_id, platform, kind, platform_season_key, rank, rating)
-     VALUES ($1, $2, $3, 'season_peak', $4, $5, $6)`,
-    [deterministicUuid("qualification/restored-current"), victim, platform, currentKey, originalFact.rank, originalFact.rating],
+    `INSERT INTO competitive_rank_facts (id, user_id, platform, kind, platform_season_key, rank, rating, stars)
+     VALUES ($1, $2, $3, 'season_peak', $4, $5, $6, $7)`,
+    [deterministicUuid("qualification/restored-current"), victim, platform, currentKey, originalFact.rank, originalFact.rating, originalFact.stars],
   );
   const result = await database.transaction((tx) => startMajorInTransaction(tx, { seasonId: fixture.seasonId, actorId: "local-admin" }));
   if (!result.created || result.matchCount !== 8) throw new Error("恢复合法事实后开赛应成功。 ");
