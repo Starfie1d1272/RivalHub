@@ -6,7 +6,7 @@ import { capturePostgresError } from "../harness/database";
 import { migrationFiles, replayMigration, withScratchDatabase } from "../harness/migration-replay";
 
 const TERMINAL_MIGRATION = "0035_colorful_black_widow.sql";
-const CONVERSION_POLICY_MIGRATION = "0037_conversion_policies.sql";
+const CONVERSION_POLICY_MIGRATION = "0038_conversion_policies.sql";
 
 describe("database access boundary migration", () => {
   it("replays the terminal contract, keeps the trusted server path, and denies anon/authenticated CRUD", async () => {

@@ -21,7 +21,7 @@ const restrictionOverrideMigration = readFileSync(
   "utf8",
 );
 const conversionPolicyMigration = readFileSync(
-  join(root, "drizzle/migrations/0037_conversion_policies.sql"),
+  join(root, "drizzle/migrations/0038_conversion_policies.sql"),
   "utf8",
 );
 const migration = `${terminalMigration}\n${restrictionOverrideMigration}\n${conversionPolicyMigration}`;
@@ -40,7 +40,7 @@ function expectedFacts(): DatabaseAccessFacts[] {
 describe("database access matrix", () => {
   it("classifies every current public application table and keeps the generated document aligned", () => {
     const snapshot = JSON.parse(
-      readFileSync(join(root, "drizzle/migrations/meta/0037_snapshot.json"), "utf8"),
+      readFileSync(join(root, "drizzle/migrations/meta/0038_snapshot.json"), "utf8"),
     ) as { tables: Record<string, unknown> };
     const snapshotTables = Object.keys(snapshot.tables)
       .map((table) => table.replace(/^public\./, ""))
