@@ -374,6 +374,10 @@ CompetitionEntry 是一支 Team 或一组参赛者进入某届 Competition 的�
 
 RivalHub 2.0 使用新的 active Drizzle migration chain，旧 migration history 保留为只读历史记录。升级和部署必须使用仓库提供的 migration workflow，不使用 `db:push`；远程数据库写入前先完成 Local 与 staging 验证，production 不运行 destructive rehearsal，staging 与 production 使用独立 Supabase project。数据库连接按 Supabase Transaction Pooler contract 配置。开发与 CI 基线为 Node.js 24 与 pnpm 10.34.5。
 
+### Compatibility / Scope
+
+RivalHub 2.0 当前正式内置 Rivals · Spring 与 Major · Autumn。Custom Competition 继续使用已经实现并注册的阶段执行能力；不支持的阶段会在发布时 fail closed。2.0 保留未来赛事与其他游戏继续演进所需的结构边界，但没有提前引入 `Game`、`GameAccount`、N-way Match、通用 workflow DSL 或 tournament plugin database 等尚无真实消费者的模型。
+
 ## [2.0.0-rc.4]
 
 ### Patch Changes
@@ -522,8 +526,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Stats 页 GROUP BY SQL 错误**：OCR fallback CTE 引用 `ocr.avg_rating_ocr` 未用聚合函数包裹，PostgreSQL 拒绝运行；改用 `min()` 包裹解决
-- **CI 测试失败**：PlayerStatsTable 测试 mock 补全 `statSourceEnum`、`matchMaps` 和 `db.query.matchMaps`
+- **Stats 页 500 错误**：`demo_player_stats` 查询中 `COALESCE(dps.user_id, dp.name)` 类型不匹配（uuid vs text），4 处 GROUP BY 全部加 `::text` 显式 cast 修复
 
 ## [1.27.7] - 2026-05-30
 
@@ -544,6 +547,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Stats 页 GROUP BY SQL 错误**：OCR fallback CTE 引用 `ocr.avg_rating_ocr` 未用聚合函数包裹，PostgreSQL 拒绝运行；改用 `min()` 包裹解决
 - **CI 测试失败**：PlayerStatsTable 测试 mock 补全 `statSourceEnum`、`matchMaps` 和 `db.query.matchMaps`
+
+### Added
+
+- **weapon-names 别名映射测试**：新增 `src/lib/demo/weapon-names.test.ts` 覆盖 13 个映射和 fallthrough 场景
 
 ## [1.27.5] - 2026-05-30
 
@@ -1446,7 +1453,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **赛季导航**「选手」入口（按 approved 报名数 > 0 条件渲染，遵循 capability 门控）
 - **`getDisplayName()` 工具函数**：统一展示名称派生（displayName > perfectName > steamName > email），全站替代 `steamName ?? "未知选手"`
 - **display_name 系统**：users 表新增 `display_name` 字段，设置页支持修改昵称，Header 未设置时橙色提示
-- **选秀队长面板重构**：按段位+Rt排序统一列表（替代旧的分列布局），满员位置灰显禁用，新增队长阵容摘要可折叠面板
+- **选秀队长面板重构**：按段位+Rt 排序统一列表（替代旧的分列布局），满员位置灰显禁用，新增队长阵容摘要可折叠面板
 - **选秀观众端增强**：pick 通知 Banner 3 秒淡出动画，选手池统一排序
 - **队伍联系方式**：同队成员可见 QQ 与邮箱（仅队伍详情页渲染）
 - `public/favicon.ico`：静态 favicon 防止路由被 `[seasonSlug]` 吞噬
