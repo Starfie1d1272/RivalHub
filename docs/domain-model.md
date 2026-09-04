@@ -34,7 +34,7 @@
 
 `competition_entries` 是从报名草稿到赛事历史的唯一参赛身份。Major 通常由长期 Team 创建 Entry；Rivals 选秀队为 `teamId = null` 的赛事队伍。`competition_entry_participants` 表示本届参赛确认，报名名单 revision 表示审核材料，`event_rosters`/成员表示赛前确认名单，`match_rosters`/成员表示单场出场阵容。三层人员事实不得互相替代。
 
-`competition_entry_restriction_overrides` 是 Entry 审核中的显式政策决定 ledger：每条记录绑定一个 Entry、当前 `rosterRevisionId`、typed qualification finding 的 `restrictionCode` 与完整 finding snapshot，另存具体理由、授予人/时间和可审计的撤销人/时间。snapshot 保留当时的 message 与 presentation metadata 供 audit/history 使用，但 finding identity 与 override matching 只使用 `code`、`waivable` 和规范化的 semantic metadata；文案变化本身不会使同一政策事实 stale。它只允许解除 `waivable=true` 的当前政策限制；身份、资料缺失和 roster/state 完整性 finding 不可被该表替代。新的 roster revision 不继承旧 revision 的有效解除。
+`competition_entry_restriction_overrides` 是 Entry 审核中的显式政策决定 ledger：每条记录绑定一个 Entry、当前 `rosterRevisionId`、typed qualification finding 的 `restrictionCode` 与完整 finding snapshot，另存具体理由、授予人/时间和可审计的撤销人/时间。snapshot 保留当时的 message 与 presentation/evidence metadata 供 audit/history 使用，但 finding identity 与 override matching 只使用 `code`、`waivable` 和规范化的 semantic metadata；对 `external_strength_gap` 而言，identity 仅包含双方最高星数与当前星差阈值，选中的 strongest player 的 user ID/label 不属于政策事实。文案或 evidence 选择变化本身不会使同一政策事实 stale。它只允许解除 `waivable=true` 的当前政策限制；身份、资料缺失和 roster/state 完整性 finding 不可被该表替代。新的 roster revision 不继承旧 revision 的有效解除。
 
 旧 `team_applications`、season-bound `teams` 和 `team_members` 已由 active schema 退役；迁移 provenance 仅支持历史追溯，不参与运行时授权或比赛 identity。
 

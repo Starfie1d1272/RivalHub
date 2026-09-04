@@ -16,10 +16,16 @@ interface QualificationFindingIdentity {
   metadata?: Record<string, unknown>;
 }
 
+const EXTERNAL_STRENGTH_FACT_KEYS = [
+  "strongestExternalStars",
+  "strongestHomeStars",
+  "externalStrengthMaxStarGap",
+] as const;
+
 /**
- * Stable semantic metadata for the finding identity.  Labels identify the
- * current presentation of the strongest players, not the policy fact itself;
- * their changes must not revoke an existing policy decision.
+ * Stable semantic metadata for the finding identity.  The selected strongest
+ * players are evidence for the policy fact, not part of its identity; their
+ * IDs and labels must not revoke an existing policy decision.
  */
 function semanticFindingMetadata(
   finding: Pick<QualificationFinding, "code" | "metadata">,
@@ -27,7 +33,9 @@ function semanticFindingMetadata(
   if (!finding.metadata) return undefined;
   if (finding.code !== "external_strength_gap") return finding.metadata;
   const semantic = Object.fromEntries(
-    Object.entries(finding.metadata).filter(([key]) => key !== "externalLabel" && key !== "homeLabel"),
+    EXTERNAL_STRENGTH_FACT_KEYS
+      .filter((key) => key in finding.metadata!)
+      .map((key) => [key, finding.metadata![key]]),
   );
   return Object.keys(semantic).length > 0 ? semantic : undefined;
 }

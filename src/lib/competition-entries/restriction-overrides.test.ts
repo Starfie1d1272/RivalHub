@@ -36,21 +36,34 @@ describe("qualification restriction override snapshots", () => {
     expect(snapshot.message).toBe(finding.message);
   });
 
-  it("ignores presentation labels but rejects a changed semantic actor or code", () => {
+  it("ignores presentation and actor identity but rejects changed policy facts or code", () => {
     const labeled = {
       ...finding,
-      metadata: { ...finding.metadata, externalUserId: "external-1", externalLabel: "旧名称", homeLabel: "本校旧名称" },
+      metadata: {
+        ...finding.metadata,
+        externalUserId: "external-a",
+        homeUserId: "home-c",
+        externalLabel: "外校 A",
+        homeLabel: "本校 C",
+      },
     };
     const snapshot = snapshotQualificationFinding(labeled);
 
     expect(sameQualificationFindingSnapshot(snapshot, {
       ...labeled,
       message: "更新后的限制说明。",
-      metadata: { ...labeled.metadata, externalLabel: "新名称", homeLabel: "本校新名称" },
+      metadata: {
+        ...labeled.metadata,
+        externalUserId: "external-b",
+        homeUserId: "home-d",
+        externalLabel: "外校 B",
+        homeLabel: "本校 D",
+      },
     })).toBe(true);
+    expect(snapshot.metadata).toMatchObject({ externalUserId: "external-a", homeUserId: "home-c" });
     expect(sameQualificationFindingSnapshot(snapshot, {
       ...labeled,
-      metadata: { ...labeled.metadata, externalUserId: "external-2" },
+      metadata: { ...labeled.metadata, strongestExternalStars: 40 },
     })).toBe(false);
     expect(sameQualificationFindingSnapshot(snapshot, { ...labeled, code: "different_restriction" })).toBe(false);
   });
