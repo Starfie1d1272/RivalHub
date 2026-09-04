@@ -86,18 +86,23 @@ CI 的 DB-only critical path 不使用 `start-db`：`.github/workflows/ci.yml` �
 
 Production schema evolution 默认遵循 **expand → deploy → contract**：先加入新结构或兼容读写所需的 backfill，再部署能够同时处理旧/新形态的应用；只有旧应用不再读写旧结构后，后续 release 才进行 contract cleanup。小型纯 additive migration 不需要为了形式主义拆成多个 release，但会破坏旧应用兼容性的变化必须跨 release 收敛。
 
-`pnpm db:migration-risk` 是 active Drizzle SQL changed surface 的风险分类器，不是兼容性证明器。它默认比较 `RIVALHUB_MIGRATION_BASE_SHA` 与 `RIVALHUB_MIGRATION_HEAD_SHA`（本地未提供 baseline 时检查当前未提交/未跟踪的 active migration），并报告以下 compatibility/locking risk：`DROP TABLE/COLUMN/TYPE`、rename、`ALTER COLUMN TYPE`、`SET NOT NULL`，以及明显可能 rewrite 或取得 exclusive lock 的 DDL。它不会重新分类未改动的历史 migration，也不建立第二份 migration ledger。命中后仍可做有意的 contract cleanup，但必须在对应 SQL 语句前留下 durable 注释，例如：
+`pnpm db:migration-risk` 是 active Drizzle SQL changed surface 的风险分类器，不是兼容性证明器。它默认比较 `RIVALHUB_MIGRATION_BASE_SHA` 与 `RIVALHUB_MIGRATION_HEAD_SHA`（本地未提供 baseline 时检查当前未提交/未跟踪的 active migration），并报告以下 compatibility/locking risk：`DROP TABLE/COLUMN/TYPE`、rename、`ALTER COLUMN TYPE`、`SET NOT NULL`，以及明显可能 rewrite 或取得 exclusive lock 的 DDL。它不会重新分类未改动的历史 migration，也不建立第二份 migration ledger。两类风险必须使用与 statement category 对应的 durable annotation：
 
 ```sql
--- rivalhub:migration-risk: contract cleanup after the previous release stopped reading/writing <old field>
+-- rivalhub:migration-risk: contract-cleanup <why the previous app no longer reads or writes the owner>
 ALTER TABLE ... DROP COLUMN ...;
 ```
 
-注释只记录兼容性策略、清理阶段和原因，不自动证明安全。带风险的 migration 仍须通过 Local/real-PG replay、必要的 staging rehearsal 与 production preflight；active Drizzle ledger 仍是唯一 migration authority，checker 不建立 shadow migration system。明显 blocking risk 的 SQL 可以在经过验证的 SQL/session 中显式设置 bounded `lock_timeout` 或 `statement_timeout`，但本仓库不向 Drizzle URL 猜测性注入全局 timeout。
+```sql
+-- rivalhub:migration-risk: locking-reviewed <why this rewrite or lock is bounded and acceptable>
+CREATE INDEX ...;
+```
+
+`contract-cleanup` 只接受 `DROP`、rename、`ALTER TYPE`/`ALTER COLUMN TYPE` 与 `SET NOT NULL`；`locking-reviewed` 只接受 `rewrite-or-exclusive-lock`（例如非 concurrent `CREATE INDEX` 与 `ADD CONSTRAINT`）。annotation category 错配或缺失都会 fail closed。注释只记录风险策略、阶段和原因，不自动证明安全；带风险的 migration 仍须通过 Local/real-PG replay、必要的 staging rehearsal 与 production preflight。active Drizzle ledger 仍是唯一 migration authority，checker 不建立 shadow migration system。明显 blocking risk 的 SQL 可以在经过验证的 SQL/session 中显式设置 bounded `lock_timeout` 或 `statement_timeout`，但本仓库不向 Drizzle URL 猜测性注入全局 timeout。
 
 本地要复现 CI 的 changed-surface 判定，应显式使用当前 `dev` 基线，例如：`RIVALHUB_MIGRATION_BASE_SHA=$(git merge-base HEAD origin/dev) RIVALHUB_MIGRATION_HEAD_SHA=HEAD pnpm db:migration-risk`。CI 在 checkout 完整历史后传入 PR base/head SHA；没有 active migration 变化时，checker 明确输出 no changed active migrations。
 
-`pnpm db:release-compat` 是独立于 `db:migration-risk` 的 N/N+1 兼容性门禁。它默认从当前 revision 可达的 stable `vX.Y.Z` tag 中选择最新且不在 candidate HEAD 上的 tag 作为 previous production baseline，并忽略 `-rc` 等 prerelease；CI/测试可用 `RIVALHUB_PREVIOUS_RELEASE_TAG` 显式指定 tag 或 revision，显式值无法解析时直接 fail closed。PR CI 通过 `RIVALHUB_MIGRATION_BASE_SHA` / `RIVALHUB_MIGRATION_HEAD_SHA` 限定 candidate changed surface；release tag workflow 在没有这两个覆盖值时，以 previous stable commit 到 candidate HEAD 的 active migration surface 复核一次。需要 source 证明时，checker 只读取 previous stable tag 中的 `src/db/schema/**`、`src/actions/**`、`src/lib/**`、`src/app/**`、`src/components/**` 与 `scripts/**`，并输出 migration `path:line` 及 previous source `path:line` evidence。
+`pnpm db:release-compat` 是独立于 `db:migration-risk` 的 N/N+1 兼容性门禁。它解析的是 actual previous production stable，而不是 candidate branch 的最高 ancestor tag：若设置 `RIVALHUB_PREVIOUS_RELEASE_TAG`，该值必须是可解析的 stable `vX.Y.Z` tag；空值、raw revision、无效 tag 与 `-rc` 等 prerelease 都直接 fail closed。未显式指定时，CI/release 将 `RIVALHUB_PRODUCTION_STABLE_REF` 设为 `origin/main`，resolver 在该 production lineage 上按 semver 选择早于 candidate 的最新 stable tag；显式提供的 production ref 为空或不可解析时同样 fail closed。candidate 的 tag commit 不要求是 candidate HEAD 的 ancestor，也没有静默退回 ancestor tag 的路径。CI 与 release workflow 都在 gate 前取得完整的 `origin/main`/tag history。PR CI 通过 `RIVALHUB_MIGRATION_BASE_SHA` / `RIVALHUB_MIGRATION_HEAD_SHA` 仅限定 candidate changed surface；release tag workflow 在没有这两个覆盖值时，以 previous production stable commit 到 candidate HEAD 的 active migration surface 复核一次。需要 source 证明时，checker 只读取 previous stable tag 中的 `src/db/schema/**`、`src/actions/**`、`src/lib/**`、`src/app/**`、`src/components/**` 与 `scripts/**`，并输出 migration `path:line` 及 previous source `path:line` evidence。
 
 DROP/RENAME 的 relation、column、type owner 若仍被 previous stable shipped code 以 Drizzle schema/property 或带 table context 的 SQL 使用则拒绝；migration-risk annotation 只表示 cleanup 意图，不能绕过该证明。`ALTER TYPE` 与 `SET NOT NULL` 第一版始终 fail closed；`rewrite-or-exclusive-lock` 仍由 migration-risk 和 migration review 负责，不被误当作 app contract 证明。无法安全解析 owner 或无法判断 schema context 时同样拒绝猜测。
 

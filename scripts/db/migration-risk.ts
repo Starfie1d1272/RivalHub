@@ -3,8 +3,12 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const MIGRATION_RISK_ANNOTATION =
-  "-- rivalhub:migration-risk: contract cleanup after the previous release stopped reading/writing <old field>";
+export const MIGRATION_CONTRACT_ANNOTATION =
+  "-- rivalhub:migration-risk: contract-cleanup <reason>";
+export const MIGRATION_LOCKING_ANNOTATION =
+  "-- rivalhub:migration-risk: locking-reviewed <reason>";
+
+export type MigrationRiskAnnotationKind = "contract-cleanup" | "locking-reviewed";
 
 export type MigrationRiskCategory =
   | "drop"
@@ -20,6 +24,7 @@ export interface MigrationRiskFinding {
   statement: string;
   statementText?: string;
   annotation?: string;
+  annotationKind?: MigrationRiskAnnotationKind;
 }
 
 export interface MigrationRiskClassifierOptions {
@@ -56,7 +61,7 @@ const RISK_PATTERNS: ReadonlyArray<readonly [MigrationRiskCategory, RegExp]> = [
   ],
 ];
 
-const ANNOTATION_PATTERN = /^\s*--\s*rivalhub:migration-risk:\s*(contract cleanup after the previous release stopped reading\/writing\s+\S.*)$/i;
+const ANNOTATION_PATTERN = /^\s*--\s*rivalhub:migration-risk:\s*(contract-cleanup|locking-reviewed)\s+(\S.*)$/i;
 
 /**
  * Classify only the SQL statements that are visibly risky to compatibility
@@ -81,13 +86,17 @@ export function classifyMigrationSql(
 
     for (const [category, pattern] of RISK_PATTERNS) {
       if (pattern.test(masked)) {
+        const expectedAnnotationKind = annotationKindForCategory(category);
+        const acceptedAnnotation = annotation?.kind === expectedAnnotationKind ? annotation : undefined;
         findings.push({
           category,
           filePath,
           line,
           statement: statementPreview,
           ...(options.includeStatementText ? { statementText: statement.text } : {}),
-          ...(annotation ? { annotation } : {}),
+          ...(acceptedAnnotation
+            ? { annotation: acceptedAnnotation.reason, annotationKind: acceptedAnnotation.kind }
+            : {}),
         });
       }
     }
@@ -151,7 +160,8 @@ function main(): void {
 
   if (unannotated.length > 0) {
     console.error("migration-risk: risky SQL requires a durable annotation immediately before the statement:");
-    console.error(MIGRATION_RISK_ANNOTATION);
+    console.error(`contract risk: ${MIGRATION_CONTRACT_ANNOTATION}`);
+    console.error(`locking risk: ${MIGRATION_LOCKING_ANNOTATION}`);
     process.exitCode = 1;
     return;
   }
@@ -604,11 +614,21 @@ function firstCodeLineOffset(masked: string): number {
   return lines.findIndex((line) => line.trim().length > 0);
 }
 
-function findImmediateAnnotation(statement: string, codeLineOffset: number): string | undefined {
+function findImmediateAnnotation(
+  statement: string,
+  codeLineOffset: number,
+): { kind: MigrationRiskAnnotationKind; reason: string } | undefined {
   const lines = statement.split(/\r?\n/).slice(0, codeLineOffset);
   const previous = [...lines].reverse().find((line) => line.trim().length > 0);
   const match = previous?.match(ANNOTATION_PATTERN);
-  return match?.[1]?.trim();
+  const kind = match?.[1]?.toLowerCase();
+  const reason = match?.[2]?.trim();
+  if ((kind !== "contract-cleanup" && kind !== "locking-reviewed") || !reason) return undefined;
+  return { kind, reason };
+}
+
+function annotationKindForCategory(category: MigrationRiskCategory): MigrationRiskAnnotationKind {
+  return category === "rewrite-or-exclusive-lock" ? "locking-reviewed" : "contract-cleanup";
 }
 
 function lineNumberAt(sql: string, offset: number): number {

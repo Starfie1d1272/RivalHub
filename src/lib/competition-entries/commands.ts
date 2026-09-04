@@ -20,10 +20,10 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import {
   evaluateRosterQualificationFromFacts,
   isHomeAffiliatedMember,
-  loadEducationMembershipFacts,
   loadParticipantQualificationFacts,
   resolveCompetitiveContext,
   resolveSeasonEducationVerification,
+  type ParticipantQualificationFacts,
   type RosterQualificationResult,
 } from "@/lib/qualification/service";
 import {
@@ -102,62 +102,66 @@ async function validateEntryRoster(
     .where(eq(competitionEntryRosterMembers.revisionId, revision.id));
   if (rows.length < season.minTeamSize || rows.length > season.maxTeamSize) throw new AppError(ErrorCode.VALIDATION_FAILED, `本届名单需为 ${season.minTeamSize}-${season.maxTeamSize} 人。`);
   if (rows.some((row) => row.participantStatus !== "confirmed")) throw new AppError(ErrorCode.VALIDATION_FAILED, "所有 roster participant 必须分别确认代表本 Entry 参赛。");
-  const participantUsers = rows.length === 0
-    ? []
-    : await tx.select({ id: users.id, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName, email: users.email })
-      .from(users).where(inArray(users.id, rows.map((row) => row.userId)));
-  const userLabels = new Map(participantUsers.map((user) => [user.id, getDisplayName(user)]));
-  await assertUsersNotBlockedInTx(tx, { seasonId: season.id, userLabels, effect: "registration_block", message: "以下成员当前被禁止报名" });
-  await assertUsersNotBlockedInTx(tx, { seasonId: season.id, userLabels, effect: "roster_block", message: "以下成员当前不能进入赛事名单" });
   const config = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
   const primaryIds = rows.filter((row) => row.primary).map((row) => row.userId);
   if (season.starterCount > 0 && (primaryIds.length !== season.starterCount || new Set(primaryIds).size !== season.starterCount)) throw new AppError(ErrorCode.VALIDATION_FAILED, `必须指定恰好 ${season.starterCount} 名预定主力。`);
+  const affiliationRules = normalizeAffiliationRules(season.affiliationRules);
+  const needsQualificationFacts = config.requireCompetitiveProfile || affiliationRules.length > 0;
+  let qualificationFacts = new Map<string, ParticipantQualificationFacts>();
+  let competitiveProfile: Awaited<ReturnType<typeof resolveCompetitiveContext>> = null;
+  let userLabels: Map<string, string>;
+  if (needsQualificationFacts) {
+    if (config.requireCompetitiveProfile) {
+      if (!config.competitiveProfile) throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事尚未冻结竞技档案规则。");
+      competitiveProfile = await resolveCompetitiveContext(config.competitiveProfile);
+      if (!competitiveProfile) throw new AppError(ErrorCode.VALIDATION_FAILED, "竞技平台赛季目录不可确认。");
+    }
+    // One bundle supplies labels, education/affiliation and (when requested)
+    // competitive facts for the complete roster decision.
+    qualificationFacts = await loadParticipantQualificationFacts(rows.map((row) => row.userId), {
+      executor: tx,
+      includeCompetitiveFacts: competitiveProfile !== null,
+      platform: competitiveProfile?.platform,
+      fallbackPlatform: competitiveProfile?.fallbackConversion?.sourcePlatform,
+    });
+    userLabels = new Map(rows.map((row) => {
+      const fact = qualificationFacts.get(row.userId);
+      return [row.userId, getDisplayName(fact ?? {})] as const;
+    }));
+  } else {
+    const participantUsers = rows.length === 0
+      ? []
+      : await tx.select({ id: users.id, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName, email: users.email })
+        .from(users).where(inArray(users.id, rows.map((row) => row.userId)));
+    userLabels = new Map(participantUsers.map((user) => [user.id, getDisplayName(user)]));
+  }
+  await assertUsersNotBlockedInTx(tx, { seasonId: season.id, userLabels, effect: "registration_block", message: "以下成员当前被禁止报名" });
+  await assertUsersNotBlockedInTx(tx, { seasonId: season.id, userLabels, effect: "roster_block", message: "以下成员当前不能进入赛事名单" });
   if (options.requireCurrentTeamMembership && entry.teamId) {
     const activeMemberships = await tx.select({ userId: teamMemberships.userId }).from(teamMemberships).where(and(eq(teamMemberships.teamId, entry.teamId), eq(teamMemberships.status, "active"), isNull(teamMemberships.endedAt), inArray(teamMemberships.userId, rows.map((row) => row.userId))));
     if (activeMemberships.length !== rows.length) throw new AppError(ErrorCode.VALIDATION_FAILED, "当前名单中有人已不再是这支队伍的当前成员；选择会保留，但提交前必须明确处理。");
   }
   if (config.requireTeamLogo && !entry.logoUrl) throw new AppError(ErrorCode.VALIDATION_FAILED, "本届赛事要求 Entry logo。");
   if (config.requireCompetitiveProfile && !entry.perfectTeamId?.trim()) throw new AppError(ErrorCode.VALIDATION_FAILED, "本届赛事要求完美战队 ID。");
-  const affiliationRules = normalizeAffiliationRules(season.affiliationRules);
-  if (config.requireCompetitiveProfile || affiliationRules.length > 0) {
-    const facts = await loadEducationMembershipFacts(tx, rows.map((row) => row.userId));
+  if (needsQualificationFacts) {
     const members = rows.map((row) => {
-      const userFacts = facts.get(row.userId);
-      const history = userFacts?.history ?? [];
+      const userFacts = qualificationFacts.get(row.userId);
+      const history = userFacts?.educationHistory ?? [];
       const selected = resolveSeasonEducationVerification(history, affiliationRules).selectedVerification;
       return { userId: row.userId, email: userFacts?.email ?? "", emailVerifiedAt: userFacts?.emailVerifiedAt ?? null, educationHistory: history, isHome: isHomeAffiliatedMember({ institutionCode: selected?.institutionCode ?? null, academicStatus: selected?.academicStatus ?? null }, affiliationRules) };
     });
-    if (config.requireCompetitiveProfile) {
-      if (!config.competitiveProfile) throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事尚未冻结竞技档案规则。");
-      const profile = await resolveCompetitiveContext(config.competitiveProfile);
-      if (!profile) throw new AppError(ErrorCode.VALIDATION_FAILED, "竞技平台赛季目录不可确认。");
-      const qualificationFacts = await loadParticipantQualificationFacts(rows.map((row) => row.userId), {
-        executor: tx,
-        platform: profile.platform,
-        fallbackPlatform: profile.fallbackConversion?.sourcePlatform,
-      });
-      const qualification = await evaluateRosterQualificationFromFacts({
-        members,
-        facts: qualificationFacts,
-        affiliationRules,
-        competitiveProfile: profile,
-        primaryStarterUserIds: primaryIds,
-      });
-      const overrides = options.requireActiveRestrictionOverrides
-        ? await loadActiveRestrictionOverridesInTx(tx, { competitionId: entry.competitionId, entryIds: [entry.id], rosterRevisionIds: [revision.id] })
-        : [];
-      assertQualificationFindingsAllowed(qualification, { requireActiveRestrictionOverrides: Boolean(options.requireActiveRestrictionOverrides), overrides });
-      return { revision, rosterSize: rows.length, primaryIds, qualification };
-    } else {
-      const qualification = await evaluateRosterQualificationFromFacts({
-        members,
-        facts: new Map(),
-        affiliationRules,
-        primaryStarterUserIds: primaryIds,
-      });
-      assertQualificationFindingsAllowed(qualification, { requireActiveRestrictionOverrides: false, overrides: [] });
-      return { revision, rosterSize: rows.length, primaryIds, qualification };
-    }
+    const qualification = await evaluateRosterQualificationFromFacts({
+      members,
+      facts: qualificationFacts,
+      affiliationRules,
+      competitiveProfile,
+      primaryStarterUserIds: primaryIds,
+    });
+    const overrides = options.requireActiveRestrictionOverrides
+      ? await loadActiveRestrictionOverridesInTx(tx, { competitionId: entry.competitionId, entryIds: [entry.id], rosterRevisionIds: [revision.id] })
+      : [];
+    assertQualificationFindingsAllowed(qualification, { requireActiveRestrictionOverrides: Boolean(options.requireActiveRestrictionOverrides), overrides });
+    return { revision, rosterSize: rows.length, primaryIds, qualification };
   }
   return { revision, rosterSize: rows.length, primaryIds, qualification: null };
 }

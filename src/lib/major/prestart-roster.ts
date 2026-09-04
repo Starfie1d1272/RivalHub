@@ -13,7 +13,7 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import { evaluateRosterEducationEligibility, resolveSeasonEducationVerification } from "@/lib/education/eligibility";
 import { assertSinglePrestartEntryCoherenceInTx } from "@/lib/major/prestart-entry";
 import { assertMajorPrestartEntrantsMutable, ensureMajorPrestartStateInTx } from "@/lib/major/prestart-state";
-import { loadEducationMembershipFacts } from "@/lib/qualification/service";
+import { loadParticipantQualificationFacts } from "@/lib/qualification/service";
 import { normalizeAffiliationRules } from "@/types/season";
 
 export interface SaveMajorPrestartRosterInput {
@@ -28,13 +28,13 @@ export async function loadApprovedRosterEducation(
   userIds: readonly string[],
   affiliationRules: Parameters<typeof evaluateRosterEducationEligibility>[1],
 ): Promise<Map<string, string>> {
-  const facts = await loadEducationMembershipFacts(tx, userIds);
-  const resolved = [...facts.entries()].map(([userId, { email, emailVerifiedAt, history }]) => ({
+  const facts = await loadParticipantQualificationFacts(userIds, { executor: tx, includeCompetitiveFacts: false });
+  const resolved = [...facts.entries()].map(([userId, fact]) => ({
     userId,
-    email,
-    emailVerifiedAt,
-    verificationHistory: history,
-    verification: resolveSeasonEducationVerification(history, affiliationRules).selectedVerification,
+    email: fact.email ?? "",
+    emailVerifiedAt: fact.emailVerifiedAt,
+    verificationHistory: fact.educationHistory,
+    verification: resolveSeasonEducationVerification(fact.educationHistory, affiliationRules).selectedVerification,
   }));
   const decision = evaluateRosterEducationEligibility(resolved, affiliationRules);
   if (!decision.eligible || decision.selectedVerificationIds.size !== userIds.length) {

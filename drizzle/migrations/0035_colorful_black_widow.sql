@@ -19,19 +19,19 @@ REVOKE ALL PRIVILEGES ON TABLE "competition_entry_restriction_overrides" FROM an
 --> statement-breakpoint
 ALTER TABLE "competition_entry_restriction_overrides" ENABLE ROW LEVEL SECURITY;
 --> statement-breakpoint
--- rivalhub:migration-risk: contract cleanup after the previous release stopped reading/writing <legacy qualification state>
+-- rivalhub:migration-risk: locking-reviewed new override ledger is empty at creation, so foreign-key validation scans no child rows
 ALTER TABLE "competition_entry_restriction_overrides" ADD CONSTRAINT "competition_entry_restriction_overrides_competition_id_seasons_id_fk" FOREIGN KEY ("competition_id") REFERENCES "public"."seasons"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
--- rivalhub:migration-risk: contract cleanup after the previous release stopped reading/writing <legacy qualification state>
+-- rivalhub:migration-risk: locking-reviewed new override ledger is empty at creation, so foreign-key validation scans no child rows
 ALTER TABLE "competition_entry_restriction_overrides" ADD CONSTRAINT "competition_entry_restriction_overrides_entry_id_competition_entries_id_fk" FOREIGN KEY ("entry_id") REFERENCES "public"."competition_entries"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
--- rivalhub:migration-risk: contract cleanup after the previous release stopped reading/writing <legacy qualification state>
+-- rivalhub:migration-risk: locking-reviewed new override ledger is empty at creation, so foreign-key validation scans no child rows
 ALTER TABLE "competition_entry_restriction_overrides" ADD CONSTRAINT "competition_entry_restriction_overrides_roster_revision_id_competition_entry_roster_revisions_id_fk" FOREIGN KEY ("roster_revision_id") REFERENCES "public"."competition_entry_roster_revisions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
--- rivalhub:migration-risk: contract cleanup after the previous release stopped reading/writing <legacy qualification state>
+-- rivalhub:migration-risk: locking-reviewed new override ledger is empty at creation, so foreign-key validation scans no child rows
 ALTER TABLE "competition_entry_restriction_overrides" ADD CONSTRAINT "competition_entry_restriction_overrides_entry_competition_scope_fk" FOREIGN KEY ("entry_id","competition_id") REFERENCES "public"."competition_entries"("id","competition_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
--- rivalhub:migration-risk: contract cleanup after the previous release stopped reading/writing <legacy qualification state>
+-- rivalhub:migration-risk: locking-reviewed new override ledger is empty at creation, so foreign-key validation scans no child rows
 ALTER TABLE "competition_entry_restriction_overrides" ADD CONSTRAINT "competition_entry_restriction_overrides_revision_entry_scope_fk" FOREIGN KEY ("roster_revision_id","entry_id") REFERENCES "public"."competition_entry_roster_revisions"("id","entry_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
--- rivalhub:migration-risk: contract cleanup after the previous release stopped reading/writing <legacy qualification state>
+-- rivalhub:migration-risk: locking-reviewed new override ledger is empty at creation, so synchronous index build is bounded to the new table
 CREATE UNIQUE INDEX "competition_entry_restriction_overrides_active_unique" ON "competition_entry_restriction_overrides" USING btree ("entry_id","roster_revision_id","restriction_code") WHERE "competition_entry_restriction_overrides"."revoked_at" IS NULL;--> statement-breakpoint
--- rivalhub:migration-risk: contract cleanup after the previous release stopped reading/writing <legacy qualification state>
+-- rivalhub:migration-risk: locking-reviewed new override ledger is empty at creation, so synchronous index build is bounded to the new table
 CREATE INDEX "competition_entry_restriction_overrides_entry_idx" ON "competition_entry_restriction_overrides" USING btree ("entry_id","roster_revision_id");--> statement-breakpoint
--- rivalhub:migration-risk: contract cleanup after the previous release stopped reading/writing <legacy qualification state>
+-- rivalhub:migration-risk: locking-reviewed new override ledger is empty at creation, so synchronous index build is bounded to the new table
 CREATE INDEX "competition_entry_restriction_overrides_competition_idx" ON "competition_entry_restriction_overrides" USING btree ("competition_id");

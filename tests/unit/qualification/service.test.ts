@@ -97,6 +97,19 @@ describe("qualification facts loader", () => {
     expect(facts.size).toBe(0);
     expect(selectMock).not.toHaveBeenCalled();
   });
+
+  it("skips competitive reads for an education-only fact bundle", async () => {
+    queueFactSelects({
+      verifications: [{ userId: USER_ID, id: "v1", status: "approved", academicStatus: "enrolled", institutionCode: "4132010284", institutionName: "南京大学", submittedAt: new Date() }],
+      rankFacts: [{ userId: USER_ID, platform: "perfect_world", kind: "historical_peak", platformSeasonKey: null, rank: "S", rating: "1900.00" }],
+    });
+
+    const facts = await loadParticipantQualificationFacts([USER_ID], { includeCompetitiveFacts: false });
+
+    expect(facts.get(USER_ID)?.approvedEducation).toBe(true);
+    expect(facts.get(USER_ID)?.historicalPeak).toBeNull();
+    expect(selectMock).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("frozen competitive context", () => {
@@ -248,6 +261,31 @@ describe("participant readiness", () => {
     expect(batch.get(USER_ID)).toEqual(single);
     expect(single.ready).toBe(false);
     expect(single.blockers.join(" ")).toContain("缺少perfect_world · S20 的最高段位及 Rating");
+  });
+
+  it("uses a preloaded fact bundle without issuing a second read", async () => {
+    const fact: ParticipantQualificationFacts = {
+      userId: USER_ID,
+      displayName: "选手甲",
+      perfectName: "perfect-a",
+      steamName: "steam-a",
+      email: "a@rivalhub.test",
+      emailVerifiedAt: new Date(),
+      steam64: "76561198000000001",
+      qq: "10001",
+      approvedEducation: true,
+      educationHistory: [],
+      historicalPeak: { rank: "A", rating: 1500 },
+      seasonPeaks: new Map([
+        ["S20", { rank: "A", rating: 1500 }],
+        ["S21", { rank: "A", rating: 1500 }],
+      ]),
+    };
+
+    const readiness = await getParticipantReadinessBatch([USER_ID], CONTEXT, { facts: new Map([[USER_ID, fact]]) });
+
+    expect(readiness.get(USER_ID)?.ready).toBe(true);
+    expect(selectMock).not.toHaveBeenCalled();
   });
 });
 

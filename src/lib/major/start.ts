@@ -225,6 +225,7 @@ export async function startMajorInTransaction(
           ? competitiveProfile.platform
           : undefined,
         fallbackPlatform: competitiveProfile?.fallbackConversion?.sourcePlatform,
+        includeCompetitiveFacts: competitiveProfile !== null,
       })
     : new Map<string, ParticipantQualificationFacts>();
   const membersByEventRoster = new Map<string, Array<{ userId: string; isPrimaryStarter: boolean }>>();

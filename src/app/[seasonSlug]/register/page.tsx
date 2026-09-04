@@ -27,7 +27,7 @@ import { isSoloRegistration } from "@/lib/utils/season";
 import { isTeamRegistration } from "@/lib/utils/season";
 import { CompetitionEntryFlow } from "@/components/register/CompetitionEntryFlow";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
-import { evaluateRosterQualification, getParticipantReadinessBatch, isHomeAffiliatedMember, loadEducationMembershipFacts, resolveCompetitiveContext, resolveSeasonEducationVerification } from "@/lib/qualification/service";
+import { evaluateRosterQualificationFromFacts, getParticipantReadinessBatch, isHomeAffiliatedMember, loadParticipantQualificationFacts, resolveCompetitiveContext, resolveSeasonEducationVerification, type ParticipantQualificationFacts } from "@/lib/qualification/service";
 import { getPublicOrAuthorizedDraftSeason, getPublicSeasonBySlug } from "@/lib/data/public-seasons";
 
 interface RegisterPageProps {
@@ -141,28 +141,37 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
         : [];
       const userIds = [...new Set([...candidateRows.map((row) => row.userId), ...rosterRows.map((row) => row.userId)])];
       const teamConfig = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
-      const readinessByUser = teamConfig.requireCompetitiveProfile && teamConfig.competitiveProfile
-        ? await getParticipantReadinessBatch(userIds, teamConfig.competitiveProfile)
-        : new Map();
       const affiliationRules = normalizeAffiliationRules(season.affiliationRules);
-      const educationFacts = await loadEducationMembershipFacts(db, rosterRows.map((row) => row.userId));
-      const competitiveContext = teamConfig.requireCompetitiveProfile && teamConfig.competitiveProfile
-        ? await resolveCompetitiveContext(teamConfig.competitiveProfile)
+      const hasCompetitiveProfile = Boolean(teamConfig.requireCompetitiveProfile && teamConfig.competitiveProfile);
+      const competitiveContext = hasCompetitiveProfile
+        ? await resolveCompetitiveContext(teamConfig.competitiveProfile!)
         : undefined;
+      const needsQualificationFacts = hasCompetitiveProfile || affiliationRules.length > 0;
+      const qualificationFacts: Map<string, ParticipantQualificationFacts> = needsQualificationFacts
+        ? await loadParticipantQualificationFacts(userIds, {
+            platform: competitiveContext?.platform ?? teamConfig.competitiveProfile?.platform,
+            fallbackPlatform: competitiveContext?.fallbackConversion?.sourcePlatform,
+            includeCompetitiveFacts: hasCompetitiveProfile,
+          })
+        : new Map();
+      const readinessByUser = hasCompetitiveProfile
+        ? await getParticipantReadinessBatch(userIds, teamConfig.competitiveProfile!, { facts: qualificationFacts })
+        : new Map();
       const qualification = competitiveContext === null
         ? { findings: [{ code: "competitive_context_unavailable", message: "该赛事采用的竞技资料暂时无法核验。", waivable: false }] }
-        : await evaluateRosterQualification({
+        : await evaluateRosterQualificationFromFacts({
             members: rosterRows.map((member) => {
-              const fact = educationFacts.get(member.userId);
-              const education = resolveSeasonEducationVerification(fact?.history ?? [], affiliationRules).selectedVerification;
+              const fact = qualificationFacts.get(member.userId);
+              const education = resolveSeasonEducationVerification(fact?.educationHistory ?? [], affiliationRules).selectedVerification;
               return {
                 userId: member.userId,
                 email: fact?.email ?? member.email,
                 emailVerifiedAt: fact?.emailVerifiedAt ?? null,
-                educationHistory: fact?.history ?? [],
+                educationHistory: fact?.educationHistory ?? [],
                 isHome: isHomeAffiliatedMember(education ?? { institutionCode: null, academicStatus: null }, affiliationRules),
               };
             }),
+            facts: qualificationFacts,
             affiliationRules,
             competitiveProfile: competitiveContext,
             primaryStarterUserIds: rosterRows.filter((member) => member.primary).map((member) => member.userId),

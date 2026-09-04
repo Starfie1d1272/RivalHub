@@ -4,7 +4,10 @@ import {
   competitionEntryRestrictionOverrides,
   type CompetitionEntryRestrictionOverride,
 } from "@/db/schema";
-import type { QualificationFinding } from "@/lib/qualification/finding";
+import {
+  sameQualificationFindingFact,
+  type QualificationFinding,
+} from "@/lib/qualification/finding";
 
 export type FindingSnapshot = QualificationFinding;
 
@@ -31,7 +34,7 @@ export function sameQualificationFindingSnapshot(
   snapshot: unknown,
   finding: QualificationFinding,
 ): boolean {
-  return JSON.stringify(canonicalize(snapshot)) === JSON.stringify(snapshotQualificationFinding(finding));
+  return sameQualificationFindingFact(snapshot, finding);
 }
 
 export async function loadActiveRestrictionOverridesInTx(

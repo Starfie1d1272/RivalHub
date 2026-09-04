@@ -29,6 +29,7 @@ jobs:
       VERCEL_ORG_ID: team_0eIkBawGTdVjwYHdyrb20ZVV
       VERCEL_PROJECT_ID: prj_3bjmfKrSqRh4szrkEE4HpavnhI0E
       RIVALHUB_DB_TARGET: production
+      RIVALHUB_PRODUCTION_STABLE_REF: origin/main
       RIVALHUB_PRODUCTION_PROJECT_CONFIRM: sucokfotkypwqkckfynp
       RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: aws-0-ap-northeast-1.pooler.supabase.com:6543
       RELEASE_TAG: ${{ inputs.tag || github.ref_name }}

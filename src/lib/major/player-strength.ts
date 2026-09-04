@@ -1,5 +1,5 @@
 import type { CompetitiveProfileConfig } from "@/types/season";
-import { PERFECT_WORLD_STAR_RANKS } from "@/lib/config/perfect-world";
+import { isBuiltInStarRank } from "@/lib/competitive/builtins";
 import type { QualificationFinding } from "@/lib/qualification/finding";
 
 export interface PlayerStrengthFact {
@@ -175,8 +175,6 @@ export function comparePlayerStrength(left: PlayerStrengthInput, right: PlayerSt
 /** 外校队员相对本校最强队员的历史最高总星数最大允许差值（默认 3 星）。 */
 const DEFAULT_EXTERNAL_STRENGTH_MAX_STAR_GAP = 3;
 
-const PERFECT_WORLD_STAR_RANK_SET = new Set<string>(PERFECT_WORLD_STAR_RANKS);
-
 type HistoricalPeakStarPosition =
   | { kind: "missing" }
   | { kind: "starless" }
@@ -187,7 +185,11 @@ type HistoricalPeakStarPosition =
 function historicalPeakStarPosition(player: PlayerStrengthInput): HistoricalPeakStarPosition {
   const fact = player.historicalPeak;
   if (!fact || !fact.rank) return { kind: "missing" };
-  if (!PERFECT_WORLD_STAR_RANK_SET.has(fact.rank)) return { kind: "starless" };
+  // The external-member policy is defined only in Perfect World total stars.
+  // A same-named 5E rank must never be interpreted as Perfect World stars.
+  if ((fact.sourcePlatform ?? "perfect_world") !== "perfect_world" || !isBuiltInStarRank("perfect_world", fact.rank)) {
+    return { kind: "starless" };
+  }
   if (fact.stars === null || fact.stars === undefined) return { kind: "insufficient" };
   return { kind: "stars", stars: fact.stars };
 }
