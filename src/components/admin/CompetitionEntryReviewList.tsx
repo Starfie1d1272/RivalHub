@@ -2,11 +2,12 @@
 
 import { useTransition } from "react";
 import { toast } from "sonner";
-import { reviewCompetitionEntry } from "@/actions/competition-entries";
+import { grantCompetitionEntryRestrictionOverride, reviewCompetitionEntry, revokeCompetitionEntryRestrictionOverride } from "@/actions/competition-entries";
 import { presentCompetitionEntryRegistration } from "@/lib/competition-entries/presentation";
 import { Checklist, Panel, StatusBanner } from "@/components/rivalhub";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import type { QualificationFinding } from "@/lib/qualification/service";
 
 type EntryStatus = "draft" | "submitted" | "changes_requested" | "waitlisted" | "approved" | "rejected" | "withdrawn";
 type ParticipantStatus = "invited" | "confirmed" | "declined" | "withdrawn";
@@ -23,7 +24,9 @@ interface ReviewEntry {
   maxRoster: number;
   starterCount: number;
   qualificationBlockers: string[];
-  members: Array<{ participantId: string; userId: string; email: string; label: string; status: ParticipantStatus; primary: boolean; readiness?: { ready: boolean; blockers: string[]; educationApproved: boolean } }>;
+  qualificationFindings: QualificationFinding[];
+  activeRestrictionOverrides: Array<{ id: string; restrictionCode: string; findingSnapshot: unknown; reason: string; grantedBy: string; grantedAt: string; snapshotMatches: boolean }>;
+  members: Array<{ participantId: string; userId: string; email: string; label: string; status: ParticipantStatus; primary: boolean; readiness?: { ready: boolean; blockers: string[]; findings: QualificationFinding[]; educationApproved: boolean } }>;
 }
 
 const PARTICIPANT_STATUS: Record<ParticipantStatus, string> = {
@@ -47,6 +50,25 @@ export function CompetitionEntryReviewList({ entries }: { entries: ReviewEntry[]
     });
   };
 
+  const grantOverride = (entry: ReviewEntry, finding: QualificationFinding) => {
+    if (!finding.waivable) return;
+    const reason = window.prompt(`请填写解除“${finding.message}”的具体理由：`)?.trim();
+    if (!reason) return;
+    startTransition(async () => {
+      const result = await grantCompetitionEntryRestrictionOverride({ entryId: entry.id, restrictionCode: finding.code, reason });
+      if (!result.success) toast.error(result.error.message);
+      else toast.success("资格限制已解除并记录审计");
+    });
+  };
+
+  const revokeOverride = (entry: ReviewEntry, finding: QualificationFinding) => {
+    startTransition(async () => {
+      const result = await revokeCompetitionEntryRestrictionOverride({ entryId: entry.id, restrictionCode: finding.code });
+      if (!result.success) toast.error(result.error.message);
+      else toast.success("资格限制解除已撤销");
+    });
+  };
+
   if (entries.length === 0) return <StatusBanner tone="info" title="暂无赛事报名" sub="报名草稿创建后会显示在这里。" />;
 
   return <div className="space-y-5">{entries.map((entry) => {
@@ -59,11 +81,29 @@ export function CompetitionEntryReviewList({ entries }: { entries: ReviewEntry[]
         {(entry.status === "submitted" || entry.status === "waitlisted") && <div className="flex flex-wrap gap-2"><Button size="sm" disabled={pending} onClick={() => review(entry.id, "approved")}>批准</Button><Button size="sm" variant="outline" disabled={pending} onClick={() => review(entry.id, "waitlisted")}>候补</Button><Button size="sm" variant="outline" disabled={pending} onClick={() => review(entry.id, "changes_requested")}>要求补正</Button><Button size="sm" variant="destructive" disabled={pending} onClick={() => review(entry.id, "rejected")}>拒绝</Button></div>}
       </div>
       {entry.reviewReason && <div className="mt-4"><StatusBanner tone="warn" title="审核说明" sub={entry.reviewReason} /></div>}
+      {entry.qualificationFindings.length > 0 && <div className="mt-4 space-y-2">
+        {entry.qualificationFindings.map((finding, index) => {
+          const override = finding.waivable ? entry.activeRestrictionOverrides.find((candidate) => candidate.restrictionCode === finding.code) : undefined;
+          return <div key={`${finding.code}-${index}`} className="border border-[var(--color-border)] p-3 text-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div><Badge variant="outline">{finding.waivable ? "可解除政策限制" : "资料/事实不足，不可解除"}</Badge><p className="mt-2 font-medium">{finding.message}</p></div>
+              {finding.waivable && (override ? <Button size="sm" variant="outline" disabled={pending} onClick={() => revokeOverride(entry, finding)}>撤销解除</Button> : <Button size="sm" disabled={pending} onClick={() => grantOverride(entry, finding)}>解除限制</Button>)}
+            </div>
+            {finding.metadata && <p className="mt-2 text-xs text-[var(--color-fg-mid)]">自动判断事实：{Object.entries(finding.metadata).map(([key, value]) => `${key}=${String(value)}`).join(" · ")}</p>}
+            {override && <>
+              <p className={`mt-2 text-xs ${override.snapshotMatches ? "text-[var(--color-ok)]" : "text-[var(--color-warn)]"}`}>
+                {override.snapshotMatches ? "已解除" : "解除记录对应的资格事实已变化，请先撤销旧记录后重新确认"}：{override.reason} · 操作者 {override.grantedBy} · {new Date(override.grantedAt).toLocaleString("zh-CN")}
+              </p>
+              <p className="mt-1 break-all text-xs text-[var(--color-fg-dim)]">解除时 finding snapshot：{JSON.stringify(override.findingSnapshot)}</p>
+            </>}
+          </div>;
+        })}
+      </div>}
       <div className="mt-4"><Checklist items={[
         { label: `报名名单 ${entry.members.length}/${entry.minRoster}–${entry.maxRoster}`, state: rosterReady ? "complete" : "blocked" },
         { label: `成员确认 ${confirmed}/${entry.members.length}`, state: entry.members.length > 0 && confirmed === entry.members.length ? "complete" : "blocked" },
         { label: `预定主力 ${starters}/${entry.starterCount}`, state: starters === entry.starterCount ? "complete" : "blocked" },
-        { label: entry.qualificationBlockers.length === 0 ? "资格评估已通过" : `资格问题：${entry.qualificationBlockers.join("；")}`, state: entry.qualificationBlockers.length === 0 ? "complete" : "blocked" },
+        { label: entry.qualificationFindings.length === 0 ? "资格评估已通过" : entry.qualificationFindings.some((finding) => !finding.waivable) ? `资格资料仍不完整：${entry.qualificationBlockers.join("；")}` : entry.qualificationFindings.every((finding) => entry.activeRestrictionOverrides.some((override) => override.restrictionCode === finding.code && override.snapshotMatches)) ? "自动资格规则不通过，但限制已逐条解除" : `待解除资格限制：${entry.qualificationBlockers.join("；")}`, state: entry.qualificationFindings.some((finding) => !finding.waivable) || entry.qualificationFindings.some((finding) => finding.waivable && !entry.activeRestrictionOverrides.some((override) => override.restrictionCode === finding.code && override.snapshotMatches)) ? "blocked" : "complete" },
         ...entry.members.map((member) => ({ label: member.readiness ? (member.readiness.ready ? `${member.label} · 学籍与竞技档案已就绪` : `${member.label} · ${member.readiness.blockers.join("；")}`) : `${member.label} · 资格将在审核动作中重新核验`, state: member.readiness?.ready ? "complete" as const : "pending" as const })),
       ]} /></div>
       <div className="mt-4 grid gap-2 lg:grid-cols-2">{entry.members.map((member) => <div key={member.participantId} className="border border-[var(--color-border)] p-3 text-sm"><div className="flex flex-wrap items-center gap-2"><span className="font-medium">{member.label}</span><Badge variant="outline">{PARTICIPANT_STATUS[member.status]}</Badge>{member.primary && <Badge variant="outline">预定主力</Badge>}</div><p className="mt-1 text-xs text-[var(--color-fg-mid)]">学籍：{member.readiness?.educationApproved ? "已通过" : "待核验"} · 竞技档案：{member.readiness ? (member.readiness.ready ? "完整" : "存在未满足项") : "不要求或待审核核验"}</p>{member.readiness && !member.readiness.ready && <p className="mt-1 text-xs text-[var(--color-warn)]">{member.readiness.blockers.join("；")}</p>}</div>)}</div>

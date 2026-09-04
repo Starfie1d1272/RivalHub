@@ -13,7 +13,9 @@ import {
   confirmCompetitionEntryParticipationInTx,
   createCompetitionEntryInTx,
   declineCompetitionEntryParticipationInTx,
+  grantCompetitionEntryRestrictionOverrideInTx,
   reviewCompetitionEntryInTx,
+  revokeCompetitionEntryRestrictionOverrideInTx,
   saveCompetitionEntryRosterInTx,
   submitCompetitionEntryInTx,
   transferCompetitionEntryRepresentativeInTx,
@@ -150,6 +152,38 @@ export async function reviewCompetitionEntry(input: { entryId: string; decision:
     revalidateEntry(result.seasonSlug, parsed.data.entryId);
     return ok(undefined);
   } catch (error) { return actionError("reviewCompetitionEntry", error); }
+}
+
+export async function grantCompetitionEntryRestrictionOverride(input: { entryId: string; restrictionCode: string; reason: string }): Promise<ActionResult<void>> {
+  const parsed = z.object({ entryId: uuid, restrictionCode: z.string().trim().min(1).max(128), reason: z.string().trim().min(1).max(1000) }).safeParse(input);
+  if (!parsed.success) return invalid("解除限制必须指定具体限制并填写非空理由。 ");
+  try {
+    const existing = await db.query.competitionEntries.findFirst({ where: eq(competitionEntries.id, parsed.data.entryId), columns: { competitionId: true } });
+    if (!existing) throw new AppError(ErrorCode.NOT_FOUND, "赛事参赛条目不存在。 ");
+    const admin = await requireSeasonAdmin(existing.competitionId);
+    const result = await db.transaction((tx) => grantCompetitionEntryRestrictionOverrideInTx(tx, {
+      ...parsed.data,
+      actorId: auditActorId(admin),
+    }));
+    revalidateEntry(result.seasonSlug, parsed.data.entryId);
+    return ok(undefined);
+  } catch (error) { return actionError("grantCompetitionEntryRestrictionOverride", error); }
+}
+
+export async function revokeCompetitionEntryRestrictionOverride(input: { entryId: string; restrictionCode: string }): Promise<ActionResult<void>> {
+  const parsed = z.object({ entryId: uuid, restrictionCode: z.string().trim().min(1).max(128) }).safeParse(input);
+  if (!parsed.success) return invalid("解除限制标识无效。 ");
+  try {
+    const existing = await db.query.competitionEntries.findFirst({ where: eq(competitionEntries.id, parsed.data.entryId), columns: { competitionId: true } });
+    if (!existing) throw new AppError(ErrorCode.NOT_FOUND, "赛事参赛条目不存在。 ");
+    const admin = await requireSeasonAdmin(existing.competitionId);
+    const result = await db.transaction((tx) => revokeCompetitionEntryRestrictionOverrideInTx(tx, {
+      ...parsed.data,
+      actorId: auditActorId(admin),
+    }));
+    revalidateEntry(result.seasonSlug, parsed.data.entryId);
+    return ok(undefined);
+  } catch (error) { return actionError("revokeCompetitionEntryRestrictionOverride", error); }
 }
 
 export async function transferCompetitionEntryRepresentative(input: { entryId: string; toUserId: string }): Promise<ActionResult<void>> {

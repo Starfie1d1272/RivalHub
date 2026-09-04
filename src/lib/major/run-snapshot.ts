@@ -19,12 +19,50 @@ const frozenEntrantSchema = z.object({
   tournamentSeed: z.number().int().min(1).max(32),
 });
 
+const qualificationPolicySchema = z.object({
+  externalStrengthGap: z.object({
+    enabled: z.boolean(),
+    maxGap: z.number().int().nonnegative(),
+  }),
+});
+
+const qualificationFindingSnapshotSchema = z.object({
+  code: z.string().min(1),
+  message: z.string(),
+  waivable: z.boolean(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+
+const frozenRestrictionOverrideSchema = z.object({
+  entryId: z.string().uuid(),
+  rosterRevisionId: z.string().uuid(),
+  restrictionCode: z.string().min(1),
+  findingSnapshot: qualificationFindingSnapshotSchema,
+  reason: z.string().min(1),
+  grantedBy: z.string().min(1),
+  grantedAt: z.string().min(1),
+}).superRefine((value, ctx) => {
+  if (value.restrictionCode !== value.findingSnapshot.code) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "解除记录的 restrictionCode 必须与 finding snapshot code 一致" });
+  }
+  if (!value.findingSnapshot.waivable) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "StageRun 只能冻结可解除的 qualification finding" });
+  }
+  if (!value.reason.trim()) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "解除记录必须包含具体理由" });
+  }
+});
+
 const frozenInputObject = z.object({
   stagePlan: z.array(stageSchema).min(1),
   rosterRules: z.object({ minTeamSize: z.number().int().positive(), maxTeamSize: z.number().int().positive(), starterCount: z.number().int().positive() }),
   affiliationRules: z.array(z.unknown()).readonly(),
   competitiveProfile: z.unknown().nullable(),
   frozenCompetitiveFacts: z.array(z.unknown()),
+  /** Explicit capability marker; absent means a legacy StageRun. */
+  qualificationPolicy: qualificationPolicySchema.optional(),
+  /** Active waivable restrictions frozen for the approved roster revisions. */
+  frozenRestrictionOverrides: z.array(frozenRestrictionOverrideSchema).optional(),
 });
 
 const frozenInputSchema = frozenInputObject.superRefine((value, ctx) => {
@@ -62,6 +100,8 @@ const v4Schema = withFrozenInputInvariants(frozenInputObject.extend({
 }));
 
 export type MajorRunStage = z.infer<typeof stageSchema>;
+export type MajorRunQualificationPolicy = z.infer<typeof qualificationPolicySchema>;
+export type FrozenRestrictionOverrideSnapshot = z.infer<typeof frozenRestrictionOverrideSchema>;
 export type MajorRunSnapshot = z.infer<typeof frozenInputSchema> & {
   version: 3 | 4;
   stage: MajorRunStage;
@@ -110,6 +150,8 @@ export function makeMajorRunSnapshotV4(input: z.input<typeof frozenInputSchema> 
     affiliationRules: parsed.data.affiliationRules,
     competitiveProfile: parsed.data.competitiveProfile,
     frozenCompetitiveFacts: parsed.data.frozenCompetitiveFacts,
+    ...(parsed.data.qualificationPolicy ? { qualificationPolicy: parsed.data.qualificationPolicy } : {}),
+    ...(parsed.data.frozenRestrictionOverrides ? { frozenRestrictionOverrides: parsed.data.frozenRestrictionOverrides } : {}),
     runOptions: input.hasThirdPlaceMatch === undefined ? {} : { hasThirdPlaceMatch: input.hasThirdPlaceMatch },
   };
 }

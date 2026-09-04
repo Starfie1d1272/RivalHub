@@ -142,6 +142,7 @@ describe("participant readiness", () => {
     }), { ...CONTEXT, rankOrder: ["A", "黄金S"] });
     expect(readiness.ready).toBe(false);
     expect(readiness.blockers).toContain("历史最高的 黄金S 段位需要填写准确星数，竞技资料未填写完整。");
+    expect(readiness.findings).toContainEqual(expect.objectContaining({ code: "competitive_profile_incomplete", waivable: false }));
   });
 
   it("an incomplete participant reports the exact blockers", () => {
@@ -154,6 +155,7 @@ describe("participant readiness", () => {
     expect(readiness.blockers).toContain("请填写 Steam64 ID。");
     expect(readiness.blockers).toContain("请完成并通过高校身份认证。");
     expect(readiness.blockers).toContain("缺少perfect_world · S20 的最高段位及 Rating。");
+    expect(readiness.findings.every((finding) => finding.waivable === false)).toBe(true);
   });
 
   it("accepts a participant whose canonical Perfect nickname is present", () => {

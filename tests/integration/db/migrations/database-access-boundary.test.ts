@@ -5,7 +5,7 @@ import { verifyDatabaseAccessMatrix } from "../../../../scripts/db/access-matrix
 import { capturePostgresError } from "../harness/database";
 import { migrationFiles, replayMigration, withScratchDatabase } from "../harness/migration-replay";
 
-const TERMINAL_MIGRATION = "0034_database_access_boundary.sql";
+const TERMINAL_MIGRATION = "0035_colorful_black_widow.sql";
 
 describe("database access boundary migration", () => {
   it("replays the terminal contract, keeps the trusted server path, and denies anon/authenticated CRUD", async () => {
@@ -30,7 +30,7 @@ describe("database access boundary migration", () => {
       );
 
       await replayMigration(client, TERMINAL_MIGRATION);
-      await verifyDatabaseAccessMatrix(client, "0034 migration replay");
+      await verifyDatabaseAccessMatrix(client, "0035 migration replay");
 
       const trustedRead = await client.query<{ data: unknown }>(
         "SELECT data FROM competition_bracket_states WHERE competition_id = $1",

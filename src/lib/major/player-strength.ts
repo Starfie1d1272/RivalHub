@@ -1,5 +1,6 @@
 import type { CompetitiveProfileConfig } from "@/types/season";
 import { PERFECT_WORLD_STAR_RANKS } from "@/lib/config/perfect-world";
+import type { QualificationFinding } from "@/lib/qualification/finding";
 
 export interface PlayerStrengthFact {
   rank: string;
@@ -59,22 +60,81 @@ function evidenceWeights(config: CompetitiveProfileConfig) {
     : { historicalWeight: 50, referenceSeasonWeight: 20, recentSeasonWeight: 30 };
 }
 
+/**
+ * Typed completeness/shape findings for the weighted strength evaluator.
+ * `getPlayerStrengthBreakdown` below remains the numeric owner and derives its
+ * compatibility `blockers` from this result.
+ */
+export function getPlayerStrengthFindings(
+  player: PlayerStrengthInput,
+  config: CompetitiveProfileConfig,
+): QualificationFinding[] {
+  const findings: QualificationFinding[] = [];
+  if (!config.platform || !config.currentSeasonKey || !config.previousSeasonKey || config.rankOrder.length === 0) {
+    findings.push({
+      code: "competitive_context_unavailable",
+      message: "赛事尚未配置完美平台当前/上赛季或段位映射。",
+      waivable: false,
+      metadata: { field: "competitive_context" },
+    });
+  }
+  if (!player.historicalPeak) {
+    findings.push({
+      code: "competitive_profile_incomplete",
+      message: "缺少历史最高段位及 Rating。",
+      waivable: false,
+      metadata: { field: "historical_peak" },
+    });
+  }
+  if (!player.previousSeasonPeak) {
+    findings.push({
+      code: "competitive_profile_incomplete",
+      message: config.evidencePolicy ? "缺少前一完整赛季最高段位及 Rating。" : "缺少上赛季最高段位及 Rating。",
+      waivable: false,
+      metadata: { field: "reference_season_peak", seasonKey: config.evidencePolicy?.referenceSeasonKey ?? config.previousSeasonKey },
+    });
+  }
+  const recentPeak = effectiveRecentPeak(player, config);
+  if (!recentPeak) {
+    findings.push({
+      code: "competitive_profile_incomplete",
+      message: config.evidencePolicy ? "缺少近期赛季最高段位及 Rating。" : "缺少当前赛季最高段位及 Rating。",
+      waivable: false,
+      metadata: { field: "recent_season_peak", seasonKeys: config.evidencePolicy?.recentSeasonKeys ?? [config.currentSeasonKey] },
+    });
+  }
+  if (findings.length > 0) return findings;
+
+  const historicalValue = rankValue(player.historicalPeak!.rank, config);
+  const previousValue = rankValue(player.previousSeasonPeak!.rank, config);
+  const currentValue = rankValue(recentPeak!.rank, config);
+  if (historicalValue === null || previousValue === null || currentValue === null) {
+    findings.push({
+      code: "competitive_profile_invalid_rank",
+      message: "申报段位不在本赛事公布的段位映射中。",
+      waivable: false,
+      metadata: {
+        field: "rank",
+        historicalRank: player.historicalPeak!.rank,
+        referenceRank: player.previousSeasonPeak!.rank,
+        recentRank: recentPeak!.rank,
+      },
+    });
+  }
+  return findings;
+}
+
 /** Rule-file order: weighted rank, historical, current, previous, historical Rating. */
 export function getPlayerStrengthBreakdown(player: PlayerStrengthInput, config: CompetitiveProfileConfig): PlayerStrengthBreakdown {
-  const blockers: string[] = [];
-  if (!config.platform || !config.currentSeasonKey || !config.previousSeasonKey || config.rankOrder.length === 0) {
-    blockers.push("赛事尚未配置完美平台当前/上赛季或段位映射。");
-  }
-  if (!player.historicalPeak) blockers.push("缺少历史最高段位及 Rating。");
-  if (!player.previousSeasonPeak) blockers.push(config.evidencePolicy ? "缺少前一完整赛季最高段位及 Rating。" : "缺少上赛季最高段位及 Rating。");
+  const findings = getPlayerStrengthFindings(player, config);
+  const blockers = findings.map((finding) => finding.message);
   const recentPeak = effectiveRecentPeak(player, config);
-  if (!recentPeak) blockers.push(config.evidencePolicy ? "缺少近期赛季最高段位及 Rating。" : "缺少当前赛季最高段位及 Rating。");
   if (blockers.length > 0) return { available: false, blockers, weightedRank: null, historicalValue: null, previousValue: null, currentValue: null, historicalRating: null };
   const historicalValue = rankValue(player.historicalPeak!.rank, config);
   const previousValue = rankValue(player.previousSeasonPeak!.rank, config);
   const currentValue = rankValue(recentPeak!.rank, config);
   if (historicalValue === null || previousValue === null || currentValue === null) {
-    return { available: false, blockers: ["申报段位不在本赛事公布的段位映射中。"], weightedRank: null, historicalValue, previousValue, currentValue, historicalRating: player.historicalPeak!.rating };
+    return { available: false, blockers: findings.map((finding) => finding.message), weightedRank: null, historicalValue, previousValue, currentValue, historicalRating: player.historicalPeak!.rating };
   }
   const weights = evidenceWeights(config);
   return { available: true, blockers: [], weightedRank: (historicalValue * weights.historicalWeight + previousValue * weights.referenceSeasonWeight + currentValue * weights.recentSeasonWeight) / 100, historicalValue, previousValue, currentValue, historicalRating: player.historicalPeak!.ratingComparable === false ? null : player.historicalPeak!.rating };
@@ -135,54 +195,99 @@ function historicalPeakStarPosition(player: PlayerStrengthInput): HistoricalPeak
 /**
  * 队内最强外校选手的完美世界历史最高总星数不得高于队内最强本校选手超过
  * `externalStrengthMaxStarGap`（默认 3）星。缺星数或缺少历史最高表示竞技
- * 资料未填写完整，返回 blocker，要求选手补充后再提交。
+ * 资料未填写完整时返回 non-waivable finding；明确触发的政策限制则返回
+ * waivable finding，供 Entry review 使用。
  */
-export function evaluateExternalStrengthRule(input: { players: Array<PlayerStrengthInput & { isHome: boolean }>; config: CompetitiveProfileConfig }): { eligible: boolean; blockers: string[] } {
+export function evaluateExternalStrengthRule(input: { players: Array<PlayerStrengthInput & { isHome: boolean }>; config: CompetitiveProfileConfig }): { eligible: boolean; blockers: string[]; findings: QualificationFinding[] } {
   const home = input.players.filter((player) => player.isHome);
   const external = input.players.filter((player) => !player.isHome);
-  if (home.length === 0) return { eligible: false, blockers: ["阵容中没有可确认的南京大学成员，无法执行外校成员实力限制。"] };
-  if (external.length === 0) return { eligible: true, blockers: [] };
+  if (home.length === 0) {
+    const findings: QualificationFinding[] = [{
+      code: "external_strength_reference_missing",
+      message: "阵容中没有可确认的南京大学成员，无法执行外校成员实力限制。",
+      waivable: false,
+      metadata: { field: "home_reference" },
+    }];
+    return { eligible: false, blockers: findings.map((finding) => finding.message), findings };
+  }
+  if (external.length === 0) return { eligible: true, blockers: [], findings: [] };
 
   const maxGap = input.config.externalStrengthMaxStarGap ?? DEFAULT_EXTERNAL_STRENGTH_MAX_STAR_GAP;
-  const blockers: string[] = [];
+  const findings: QualificationFinding[] = [];
 
   const resolve = (player: PlayerStrengthInput & { isHome: boolean }): number | null => {
     const position = historicalPeakStarPosition(player);
     if (position.kind === "stars") return position.stars;
     if (position.kind === "starless") return Number.NEGATIVE_INFINITY;
     if (position.kind === "insufficient") {
-      blockers.push(`选手 ${player.label} 的历史最高属于 S 段位但缺少准确星数，竞技资料未填写完整，无法执行外校相对实力限制，请先补充后再提交。`);
+      findings.push({
+        code: "competitive_profile_incomplete",
+        message: `选手 ${player.label} 的历史最高属于 S 段位但缺少准确星数，竞技资料未填写完整，无法执行外校相对实力限制，请先补充后再提交。`,
+        waivable: false,
+        metadata: { field: "historical_peak.stars", userId: player.userId, rank: player.historicalPeak?.rank ?? null },
+      });
     } else {
-      blockers.push(`选手 ${player.label} 缺少历史最高段位，无法自动判断外校相对实力限制。`);
+      findings.push({
+        code: "external_strength_data_incomplete",
+        message: `选手 ${player.label} 缺少历史最高段位，无法自动判断外校相对实力限制。`,
+        waivable: false,
+        metadata: { field: "historical_peak", userId: player.userId },
+      });
     }
     return null;
   };
 
-  const homeStars: number[] = [];
-  const externalStars: number[] = [];
+  const homeStars: Array<{ player: PlayerStrengthInput & { isHome: boolean }; stars: number }> = [];
+  const externalStars: Array<{ player: PlayerStrengthInput & { isHome: boolean }; stars: number }> = [];
   for (const player of home) {
     const value = resolve(player);
-    if (value !== null) homeStars.push(value);
+    if (value !== null && value !== Number.NEGATIVE_INFINITY) homeStars.push({ player, stars: value });
   }
   for (const player of external) {
     const value = resolve(player);
-    if (value !== null) externalStars.push(value);
+    if (value !== null && value !== Number.NEGATIVE_INFINITY) externalStars.push({ player, stars: value });
   }
-  if (blockers.length > 0) return { eligible: false, blockers: [...new Set(blockers)] };
+  if (findings.length > 0) return { eligible: false, blockers: [...new Set(findings.map((finding) => finding.message))], findings };
 
-  const strongestHome = homeStars.length > 0 ? Math.max(...homeStars) : Number.NEGATIVE_INFINITY;
-  const strongestExternal = externalStars.length > 0 ? Math.max(...externalStars) : Number.NEGATIVE_INFINITY;
+  const strongestHome = homeStars.length > 0 ? Math.max(...homeStars.map((item) => item.stars)) : Number.NEGATIVE_INFINITY;
+  const strongestExternal = externalStars.length > 0 ? Math.max(...externalStars.map((item) => item.stars)) : Number.NEGATIVE_INFINITY;
 
   // 外校无可比星数（无 S 段位成员）时不会超过本校基线。
-  if (strongestExternal === Number.NEGATIVE_INFINITY) return { eligible: true, blockers: [] };
+  if (strongestExternal === Number.NEGATIVE_INFINITY) return { eligible: true, blockers: [], findings: [] };
   if (strongestHome === Number.NEGATIVE_INFINITY) {
-    const externalLabel = external[externalStars.indexOf(strongestExternal)].label;
-    return { eligible: false, blockers: [`外校选手 ${externalLabel} 的历史最高属于 S 段位，而本校成员均无 S 段位星数，超出外校相对实力限制。`] };
+    const strongestExternalPlayer = externalStars.find((item) => item.stars === strongestExternal)!.player;
+    const finding: QualificationFinding = {
+      code: "external_strength_gap",
+      message: `外校选手 ${strongestExternalPlayer.label} 的历史最高属于 S 段位，而本校成员均无 S 段位星数，超出外校相对实力限制。`,
+      waivable: true,
+      metadata: {
+        strongestExternalStars: strongestExternal,
+        strongestHomeStars: null,
+        externalStrengthMaxStarGap: maxGap,
+        externalUserId: strongestExternalPlayer.userId,
+        externalLabel: strongestExternalPlayer.label,
+      },
+    };
+    return { eligible: false, blockers: [finding.message], findings: [finding] };
   }
   if (strongestExternal - strongestHome > maxGap) {
-    const externalLabel = external[externalStars.indexOf(strongestExternal)].label;
-    const homeLabel = home[homeStars.indexOf(strongestHome)].label;
-    return { eligible: false, blockers: [`外校选手 ${externalLabel} 的历史最高（${strongestExternal} 星）高于本校最强 ${homeLabel}（${strongestHome} 星）超过 ${maxGap} 星，超出外校相对实力限制。`] };
+    const strongestExternalPlayer = externalStars.find((item) => item.stars === strongestExternal)!.player;
+    const strongestHomePlayer = homeStars.find((item) => item.stars === strongestHome)!.player;
+    const finding: QualificationFinding = {
+      code: "external_strength_gap",
+      message: `外校选手 ${strongestExternalPlayer.label} 的历史最高（${strongestExternal} 星）高于本校最强 ${strongestHomePlayer.label}（${strongestHome} 星）超过 ${maxGap} 星，超出外校相对实力限制。`,
+      waivable: true,
+      metadata: {
+        strongestExternalStars: strongestExternal,
+        strongestHomeStars: strongestHome,
+        externalStrengthMaxStarGap: maxGap,
+        externalUserId: strongestExternalPlayer.userId,
+        externalLabel: strongestExternalPlayer.label,
+        homeUserId: strongestHomePlayer.userId,
+        homeLabel: strongestHomePlayer.label,
+      },
+    };
+    return { eligible: false, blockers: [finding.message], findings: [finding] };
   }
-  return { eligible: true, blockers: [] };
+  return { eligible: true, blockers: [], findings: [] };
 }
