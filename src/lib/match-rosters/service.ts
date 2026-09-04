@@ -65,7 +65,7 @@ function frozenCompetitiveProfile(ruleSnapshot: unknown): CompetitiveProfileConf
     throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结的外校星差阈值不可用。 ");
   }
   const fallback = profile.fallbackConversion;
-  if (fallback && (fallback.sourcePlatform !== "fivee" || typeof fallback.version !== "string" || !fallback.seasonKeyMap || typeof fallback.seasonKeyMap !== "object" || !fallback.rankMap || typeof fallback.rankMap !== "object")) {
+  if (fallback && (fallback.sourcePlatform !== "fivee" || typeof fallback.version !== "string" || !fallback.seasonKeyMap || typeof fallback.seasonKeyMap !== "object" || !fallback.mapping || typeof fallback.mapping !== "object")) {
     throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结的 5E fallback 映射不可用。");
   }
   return {
@@ -74,7 +74,7 @@ function frozenCompetitiveProfile(ruleSnapshot: unknown): CompetitiveProfileConf
     previousSeasonKey: profile.previousSeasonKey,
     rankOrder: profile.rankOrder.filter((rank): rank is string => typeof rank === "string"),
     evidencePolicy: policy ? { historicalWeight: 50, referenceSeasonKey: policy.referenceSeasonKey, referenceSeasonWeight: 20, recentSeasonKeys: [...policy.recentSeasonKeys], recentSeasonWeight: 30 } : undefined,
-    fallbackConversion: fallback ? { sourcePlatform: "fivee", version: fallback.version, seasonKeyMap: { ...fallback.seasonKeyMap }, rankMap: { ...fallback.rankMap } } : undefined,
+    fallbackConversion: fallback ? { sourcePlatform: "fivee", version: fallback.version, seasonKeyMap: { ...fallback.seasonKeyMap }, mapping: fallback.mapping } : undefined,
     externalStrengthMaxStarGap: typeof profile.externalStrengthMaxStarGap === "number" ? profile.externalStrengthMaxStarGap : undefined,
   };
 }

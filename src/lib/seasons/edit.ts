@@ -102,7 +102,7 @@ const seasonFormBaseSchema = z.object({
         // evidence slot; empty placeholders are never persisted.
         version: z.string().max(128),
         seasonKeyMap: z.record(z.string().min(1).max(128), z.string().min(1).max(128)),
-        rankMap: z.record(z.string().min(1).max(64), z.string().min(1).max(64)),
+        mapping: z.unknown(),
       }).optional(),
     }).optional(),
   }).optional(),

@@ -11,6 +11,7 @@ export interface PlayerStrengthFact {
   sourcePlatform?: string;
   sourceSeasonKey?: string | null;
   sourceRank?: string;
+  sourceStars?: number | null;
   conversionVersion?: string;
   /** Total stars on a star-based (S) rank; null for starless ranks or legacy facts. */
   stars?: number | null;

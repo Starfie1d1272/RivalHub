@@ -4,7 +4,7 @@
 
 ## 结论
 
-- 当前 active chain 的 65 张 application-owned `public` base table 全部归类为 `server_only`。业务数据库只由 server-side Drizzle 访问，browser Data API consumer 为零。
+- 当前 active chain 的 66 张 application-owned `public` base table 全部归类为 `server_only`。业务数据库只由 server-side Drizzle 访问，browser Data API consumer 为零。
 - `users`、`user_sessions`、`admin_invites`、`admin_invite_claims`、`season_admin_grants`、`audit_logs`、education evidence、Major prestart/runtime 和 bracket runtime 均按高敏感 server-only 处理。
 - 2026-09-03 production 只读 inventory 在 migration 前确认 `competition_bracket_states` 是明确的 anon/authenticated CRUD privilege 例外；Issue #395 的 forward migration 将其与其余表统一收口。
 - `DraftLiveRoom` 与 `CaptainVotingPanel` 的 Realtime subscription 已删除。两处继续使用既有 10 秒 polling fallback；`ResetPasswordForm` 保留 browser Supabase client，但仅调用 Supabase Auth，不调用 public table Data API。
@@ -33,6 +33,7 @@
 | competitive_platform_ranks | 内部等级目录配置 | 竞技资料目录 | src/lib/competitive/catalog.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 目录由服务端 bootstrap 和冻结快照 owner 管理。 |
 | competitive_platform_seasons | 内部赛季目录配置 | 竞技资料目录 | src/lib/competitive/catalog.ts; src/actions/competitive-platform.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 目录 season key 和 rank order 不能由 Data API 改写。 |
 | competitive_platforms | 内部平台目录配置 | 竞技资料目录 | src/lib/competitive/catalog.ts; src/actions/competitive-platform.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 平台定义是服务端产品配置，不是浏览器公开写入面。 |
+| conversion_policies | 跨平台换算策略 | 竞技资料目录 | src/lib/competitive/conversion-policy.ts; src/lib/seasons/lifecycle.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 版本化换算策略是服务端产品配置，冻结快照由注册开放 owner 管理。 |
 | competitive_rank_facts | 个人竞技事实 | 个人竞技资料 | src/actions/competitive-profile.ts; src/lib/qualification/service.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 竞技资料与资格判断需要服务端授权、冻结和 projection。 |
 | disciplinary_case_idempotency | 纪律 mutation ledger | 纪律 | src/lib/discipline/service.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 幂等 key 只用于服务端纪律事务，不形成客户端数据面。 |
 | disciplinary_cases | 高敏感纪律事实 | 纪律 | src/lib/discipline/service.ts; src/actions/discipline.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | sanction、effect 和内部 reason 由授权管理员服务端维护。 |

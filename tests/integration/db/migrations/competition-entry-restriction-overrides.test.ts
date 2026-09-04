@@ -14,6 +14,9 @@ describe("qualification restriction override migration", () => {
         await replayMigration(client, migration);
       }
       await replayMigration(client, TERMINAL_MIGRATION);
+      for (const migration of migrations.filter((name) => name > TERMINAL_MIGRATION)) {
+        await replayMigration(client, migration);
+      }
 
       await verifyDatabaseAccessMatrix(client, "0035 qualification restriction override replay");
 
