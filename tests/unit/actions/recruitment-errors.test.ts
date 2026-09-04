@@ -37,18 +37,18 @@ const USER_ID = "11111111-1111-4111-8111-111111111111";
 const INTENT_ID = "22222222-2222-4222-8222-222222222222";
 
 describe("Recruitment interest error mapping", () => {
-  let consoleErrorMock: ReturnType<typeof vi.spyOn>;
+  let stderrWriteMock: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     requireAuthMock.mockResolvedValue({ userId: USER_ID, email: "player@example.com" });
     auditActorIdMock.mockReturnValue(USER_ID);
     transactionMock.mockImplementation((callback: (tx: unknown) => unknown) => callback(TX));
-    consoleErrorMock = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    stderrWriteMock = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
   });
 
   afterEach(() => {
-    consoleErrorMock.mockRestore();
+    stderrWriteMock.mockRestore();
   });
 
   it("passes through the canonical duplicate-interest AppError", async () => {
@@ -59,7 +59,7 @@ describe("Recruitment interest error mapping", () => {
     const result = await expressRecruitmentInterest({ recruitmentIntentId: INTENT_ID });
 
     expect(result).toEqual({ success: false, error: { code: ErrorCode.REGISTRATION_DUPLICATE, message: "你已表达过加入意向。" } });
-    expect(consoleErrorMock).not.toHaveBeenCalled();
+    expect(stderrWriteMock).not.toHaveBeenCalled();
   });
 
   it("does not turn an unrelated wrapped unique error into a duplicate-interest message", async () => {
@@ -70,6 +70,6 @@ describe("Recruitment interest error mapping", () => {
     const result = await expressRecruitmentInterest({ recruitmentIntentId: INTENT_ID });
 
     expect(result).toEqual({ success: false, error: { code: ErrorCode.INTERNAL_ERROR, message: "服务器内部错误，请稍后重试" } });
-    expect(consoleErrorMock).toHaveBeenCalledOnce();
+    expect(stderrWriteMock).toHaveBeenCalledOnce();
   });
 });

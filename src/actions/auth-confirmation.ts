@@ -12,6 +12,7 @@ import { ErrorCode } from "@/lib/errors";
 import { normalizeEmail } from "@/lib/utils/email";
 import { fail, ok } from "@/types/action";
 import type { ActionResult } from "@/types/action";
+import { traceOperation } from "@/lib/observability/tracing";
 
 type ConfirmationFlow = "signup" | "reverify";
 
@@ -32,10 +33,14 @@ export async function confirmEmailVerification(
   }
 
   try {
-    const { data, error } = await createPublicAuthClient().auth.verifyOtp({
+    const { data, error } = await traceOperation("provider.supabase.auth.verify_email", {
+      scope: "provider",
+      operation: "auth.verify_email",
+      provider: "supabase-auth",
+    }, () => createPublicAuthClient().auth.verifyOtp({
       token_hash: tokenHash,
       type: flow === "signup" ? "email" : "magiclink",
-    });
+    }));
     if (error || !data.user?.email || !data.user.email_confirmed_at) {
       return confirmationFailure();
     }

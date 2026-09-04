@@ -19,7 +19,7 @@ describe("Supabase client boundaries", () => {
     expect(createClientMock).toHaveBeenCalledWith(
       "https://project.supabase.test",
       "service-role-key",
-      { auth: { autoRefreshToken: false, persistSession: false } },
+      expect.objectContaining({ auth: { autoRefreshToken: false, persistSession: false }, global: { fetch: expect.any(Function) } }),
     );
   });
 
@@ -28,7 +28,7 @@ describe("Supabase client boundaries", () => {
     expect(createClientMock).toHaveBeenCalledWith(
       "https://project.supabase.test",
       "anon-key",
-      { auth: { autoRefreshToken: false, persistSession: false } },
+      expect.objectContaining({ auth: { autoRefreshToken: false, persistSession: false }, global: { fetch: expect.any(Function) } }),
     );
   });
 

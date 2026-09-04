@@ -293,7 +293,7 @@ describe("castVote()", () => {
   });
 
   it("不将 wrong constraint 的 wrapped 23505 映射为 VOTE_DUPLICATE", async () => {
-    const consoleErrorMock = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const stderrWriteMock = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
     try {
       setupCastVoteBeforeInsert();
       mockTxInsertVoteFailure({ cause: { code: "23505", constraint: "teams_slug_unique" } });
@@ -301,9 +301,9 @@ describe("castVote()", () => {
       const result = await castVote(CAST_INPUT);
 
       expect(result).toEqual({ success: false, error: { code: ErrorCode.INTERNAL_ERROR, message: "服务器内部错误，请稍后重试" } });
-      expect(consoleErrorMock).toHaveBeenCalledOnce();
+      expect(stderrWriteMock).toHaveBeenCalledOnce();
     } finally {
-      consoleErrorMock.mockRestore();
+      stderrWriteMock.mockRestore();
     }
   });
 });

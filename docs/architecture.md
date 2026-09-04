@@ -72,6 +72,7 @@ Major 的正式运行时由 `src/lib/major/` 与 `major_*` persistence owners �
 - 当前 first-party browser Supabase client 仅用于 Auth；`DraftLiveRoom` 与 `CaptainVotingPanel` 使用现有 server refresh/polling fallback，不再订阅业务表 Realtime。若未来新增 direct Supabase client 或 Realtime table，必须在矩阵中声明最小权限、RLS policy、一致性语义与正反例测试。
 - active Drizzle migrations 是唯一 migration authority；`pnpm db:push` 被阻止。
 - Local、staging、production 是独立边界，详细执行方式见 [`deployment.md`](./deployment.md)。
+- runtime structured logs/traces 由 `src/lib/observability/` 统一拥有；audit log 仍只记录业务事实，操作手册见 [`operations/observability.md`](./operations/observability.md)。
 
 ## Stable code-area map
 

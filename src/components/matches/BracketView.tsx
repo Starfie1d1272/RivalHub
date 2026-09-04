@@ -318,7 +318,7 @@ export function BracketView({ data, themeColor, matchNodeMap, seasonSlug }: Brac
           };
         }
       })
-      .catch(console.error);
+      .catch(() => undefined);
   }, [scriptReady, data, matchNodeMap, seasonSlug, router]);
 
   if (data.stage.length === 0) {

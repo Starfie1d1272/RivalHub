@@ -1,20 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { safeLocalRedirect } from "@/lib/auth/redirect";
+import { withRouteObservability } from "@/lib/observability/route";
 
 export async function GET(request: NextRequest) {
-  const applicationOrigin = process.env.NEXT_PUBLIC_APP_URL ?? request.nextUrl.origin;
-  const url = new URL(request.url);
-  const flow = callbackFlow(url);
-  const tokenHash = url.searchParams.get("token_hash");
-  if (!flow || !tokenHash) {
-    return confirmationFailure(applicationOrigin);
-  }
-  const confirmationUrl = new URL("/auth/confirmation", applicationOrigin);
-  confirmationUrl.searchParams.set("flow", flow);
-  confirmationUrl.searchParams.set("token_hash", tokenHash);
-  const next = safeLocalRedirect(url.searchParams.get("next"), "");
-  if (next) confirmationUrl.searchParams.set("next", next);
-  return NextResponse.redirect(confirmationUrl);
+  return withRouteObservability(request, "/auth/callback", async () => {
+    const applicationOrigin = process.env.NEXT_PUBLIC_APP_URL ?? request.nextUrl.origin;
+    const url = new URL(request.url);
+    const flow = callbackFlow(url);
+    const tokenHash = url.searchParams.get("token_hash");
+    if (!flow || !tokenHash) {
+      return confirmationFailure(applicationOrigin);
+    }
+    const confirmationUrl = new URL("/auth/confirmation", applicationOrigin);
+    confirmationUrl.searchParams.set("flow", flow);
+    confirmationUrl.searchParams.set("token_hash", tokenHash);
+    const next = safeLocalRedirect(url.searchParams.get("next"), "");
+    if (next) confirmationUrl.searchParams.set("next", next);
+    return NextResponse.redirect(confirmationUrl);
+  });
 }
 
 function confirmationFailure(applicationOrigin: string): NextResponse {

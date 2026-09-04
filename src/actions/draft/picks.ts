@@ -19,6 +19,7 @@ import { ok, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { auditActorId, requireAuth, requireSeasonAdmin } from "@/lib/auth/session";
 import { failValidation, actionError } from "@/lib/action-utils";
+import { logEvent } from "@/lib/observability/logger";
 import { revalidateSeasonPaths } from "@/lib/revalidation";
 import {
   pickPlayerSchema,
@@ -229,9 +230,14 @@ export async function runDraftTimeoutCron(): Promise<DraftTimeoutCronSummary> {
     } else {
       skipped += 1;
       if (result.reason === "no_eligible_player") {
-        console.warn(
-          `[draft-timeout-cron] season ${state.seasonId}: no eligible player, manual skip required (admin → draft.skip_turn)`,
-        );
+        logEvent({
+          level: "warn",
+          event: "draft.timeout.manual_skip_required",
+          scope: "draft",
+          operation: "timeout",
+          errorClass: "expected",
+          safeContext: { reason: "no_eligible_player", status: "manual_skip_required" },
+        });
       }
     }
   }

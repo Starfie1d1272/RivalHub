@@ -29,6 +29,7 @@ import { finalizeMajorSwissRoundInTransaction, type MajorSwissRoundFinalizationR
 import { transitionMajorSwissStageInTransaction, type MajorStageTransitionResult } from "@/lib/major/stage-transition";
 import { finalizeMajorPlayoffRoundInTransaction, startMajorPlayoffInTransaction, type MajorPlayoffFinalizationResult, type MajorPlayoffStartResult } from "@/lib/major/playoff-runtime";
 import { revalidateSeasonPaths } from "@/lib/revalidation";
+import { traceOperation } from "@/lib/observability/tracing";
 import { assertPrestartEntryCoherenceInTx, assertSinglePrestartEntryCoherenceInTx } from "@/lib/major/prestart-entry";
 import { loadApprovedRosterEducation, saveMajorPrestartRosterInTx } from "@/lib/major/prestart-roster";
 import { assertMajorPrestartEntrantsMutable, ensureMajorPrestartStateInTx } from "@/lib/major/prestart-state";
@@ -386,10 +387,14 @@ export async function startMajor(input: { seasonId: string }): Promise<ActionRes
   if (!parsed.success) return invalid("赛季标识无效。");
   try {
     const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
-    const result = await db.transaction((tx) => startMajorInTransaction(tx, {
+    const result = await traceOperation("major.start", {
+      scope: "major",
+      operation: "start",
+      attributes: { "rivalhub.workflow": "major_runtime" },
+    }, () => db.transaction((tx) => startMajorInTransaction(tx, {
       seasonId: season.id,
       actorId: auditActorId(admin),
-    }));
+    })));
     revalidateMajorPrestart(season.slug);
     revalidateSeasonPaths(season.slug, ["matches", "adminMatches"]);
     return ok(result);
@@ -402,12 +407,16 @@ export async function finalizeMajorSwissRound(input: { seasonId: string; stageRu
   if (!parsed.success) return invalid("赛季或待确认轮次无效。 ");
   try {
     const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
-    const result = await db.transaction((tx) => finalizeMajorSwissRoundInTransaction(tx, {
+    const result = await traceOperation("major.swiss_round.finalize", {
+      scope: "major",
+      operation: "swiss_round.finalize",
+      attributes: { "rivalhub.workflow": "major_runtime" },
+    }, () => db.transaction((tx) => finalizeMajorSwissRoundInTransaction(tx, {
       seasonId: season.id,
       stageRunId: parsed.data.stageRunId,
       expectedRound: parsed.data.expectedRound,
       actorId: auditActorId(admin),
-    }));
+    })));
     revalidateMajorPrestart(season.slug);
     revalidateSeasonPaths(season.slug, ["matches", "adminMatches"]);
     return ok(result);
@@ -419,11 +428,15 @@ export async function transitionMajorSwissStage(input: { seasonId: string; sourc
   if (!parsed.success) return invalid("阶段切换请求无效。 ");
   try {
     const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
-    const result = await db.transaction((tx) => transitionMajorSwissStageInTransaction(tx, {
+    const result = await traceOperation("major.swiss_stage.transition", {
+      scope: "major",
+      operation: "swiss_stage.transition",
+      attributes: { "rivalhub.workflow": "major_runtime" },
+    }, () => db.transaction((tx) => transitionMajorSwissStageInTransaction(tx, {
       seasonId: season.id,
       sourceStageRunId: parsed.data.sourceStageRunId,
       actorId: auditActorId(admin),
-    }));
+    })));
     revalidateMajorPrestart(season.slug);
     revalidateSeasonPaths(season.slug, ["matches", "adminMatches"]);
     return ok(result);
@@ -435,9 +448,13 @@ export async function startMajorPlayoff(input: { seasonId: string; sourceStageRu
   if (!parsed.success) return invalid("淘汰赛启动请求无效。 ");
   try {
     const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
-    const result = await db.transaction((tx) => startMajorPlayoffInTransaction(tx, {
+    const result = await traceOperation("major.playoff.start", {
+      scope: "major",
+      operation: "playoff.start",
+      attributes: { "rivalhub.workflow": "major_runtime" },
+    }, () => db.transaction((tx) => startMajorPlayoffInTransaction(tx, {
       seasonId: season.id, sourceStageRunId: parsed.data.sourceStageRunId, actorId: auditActorId(admin), hasThirdPlaceMatch: parsed.data.hasThirdPlaceMatch,
-    }));
+    })));
     revalidateMajorPrestart(season.slug);
     revalidateSeasonPaths(season.slug, ["matches", "adminMatches"]);
     return ok(result);

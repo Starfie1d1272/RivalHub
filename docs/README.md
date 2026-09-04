@@ -14,6 +14,7 @@
 | 本地启动开发环境 | [`operations/local-development.md`](./operations/local-development.md) |
 | 判断一个改动需要什么测试 | [`testing.md`](./testing.md) |
 | 查看 CI 行为与排障方法 | [`operations/ci.md`](./operations/ci.md) |
+| 查询生产日志、trace 与敏感字段治理 | [`operations/observability.md`](./operations/observability.md) |
 | 新增或审查数据库 migration | [`operations/database-migrations.md`](./operations/database-migrations.md) |
 | 做 staging 数据库演练 | [`operations/staging.md`](./operations/staging.md) |
 | 准备和执行正式发布 | [`operations/release.md`](./operations/release.md) |
@@ -57,6 +58,7 @@ RivalHub 尽量让一种稳定事实只由一个位置维护。
 
 - [`operations/local-development.md`](./operations/local-development.md)
 - [`operations/ci.md`](./operations/ci.md)
+- [`operations/observability.md`](./operations/observability.md)
 - [`operations/database-migrations.md`](./operations/database-migrations.md)
 - [`operations/staging.md`](./operations/staging.md)
 - [`operations/release.md`](./operations/release.md)

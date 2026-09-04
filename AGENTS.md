@@ -16,6 +16,7 @@ RivalHub 是基于 Next.js App Router、TypeScript、Drizzle/PostgreSQL、Supaba
 - active Drizzle migration chain 是唯一 schema authority；local、staging、production 严格隔离，禁止用 `db:push` 绕过 active chain。
 - 管理员或其它特权状态变更形成 audit fact，并尽可能与业务 mutation 处在同一一致性边界。
 - 第三方或特殊运行时通过 canonical adapter/contract 接入；`brackets-manager` 只能经 `@/lib/bracket`，新增 Realtime 或 direct Supabase surface 必须同时定义权限、RLS/GRANT、一致性语义和正反例测试。
+- runtime structured logs、错误分类与 tracing 只由 `src/lib/observability/` canonical owner 提供；`audit_logs` 仍只记录业务事实。Better Stack 仅使用 `BETTER_STACK_SOURCE_TOKEN` 与 `BETTER_STACK_INGESTING_HOST`，新增事件/span 或排障步骤先遵循 [`docs/operations/observability.md`](docs/operations/observability.md)。
 
 这些是跨域性质级约束，不是当前实现枚举：first-party UI mutation 通常使用 Server Action，但 HTTP/protocol integration 可以使用 Route Handler；Client Component、Realtime surface 和 transaction service 按实际 runtime 与 domain owner 判断。Draft locking/idempotency、capability 及具体 Realtime allowlist 由对应 domain docs/tests 维护。
 

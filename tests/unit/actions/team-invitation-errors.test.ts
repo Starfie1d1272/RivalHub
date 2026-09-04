@@ -78,7 +78,7 @@ function wrappedUniqueError(constraint: string): unknown {
 }
 
 describe("Team invitation unique-constraint mapping", () => {
-  let consoleErrorMock: ReturnType<typeof vi.spyOn>;
+  let stderrWriteMock: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -87,11 +87,11 @@ describe("Team invitation unique-constraint mapping", () => {
     userFindFirstMock.mockResolvedValue({ id: INVITEE_ID, email: INVITEE_EMAIL });
     transactionMock.mockImplementation((callback: (tx: unknown) => unknown) => callback(TX));
     removeInterestAfterInvitationInTxMock.mockResolvedValue(undefined);
-    consoleErrorMock = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    stderrWriteMock = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
   });
 
   afterEach(() => {
-    consoleErrorMock.mockRestore();
+    stderrWriteMock.mockRestore();
   });
 
   it("maps the wrapped pending-invitation constraint for email invitations", async () => {
@@ -100,7 +100,7 @@ describe("Team invitation unique-constraint mapping", () => {
     const result = await inviteTeamMember({ teamId: TEAM_ID, email: INVITEE_EMAIL });
 
     expect(result).toEqual({ success: false, error: { code: ErrorCode.VALIDATION_FAILED, message: "该邀请已存在。" } });
-    expect(consoleErrorMock).not.toHaveBeenCalled();
+    expect(stderrWriteMock).not.toHaveBeenCalled();
   });
 
   it("does not map an unrelated wrapped unique constraint for email invitations", async () => {
@@ -109,7 +109,7 @@ describe("Team invitation unique-constraint mapping", () => {
     const result = await inviteTeamMember({ teamId: TEAM_ID, email: INVITEE_EMAIL });
 
     expect(result).toEqual({ success: false, error: { code: ErrorCode.INTERNAL_ERROR, message: "服务器内部错误，请稍后重试" } });
-    expect(consoleErrorMock).toHaveBeenCalledOnce();
+    expect(stderrWriteMock).toHaveBeenCalledOnce();
   });
 
   it("uses the same exact mapping for the player-page handoff", async () => {
