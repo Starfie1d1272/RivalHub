@@ -81,7 +81,7 @@ describe("freezeCompetitiveContext", () => {
     });
     const season = majorSeason("perfect_world");
     season.teamRegistrationConfig.competitiveProfile!.fallbackConversion = {
-      sourcePlatform: "fivee", version: "major-2026-v1", seasonKeyMap: { s20: "5e-s20", s21: "5e-s21" }, rankMap: { bronze: "bronze" },
+      sourcePlatform: "fivee", version: "major-2026-v1", seasonKeyMap: { s20: "5e-s20", s21: "5e-s21" }, mapping: { belowSRankMap: { bronze: "bronze" }, starSegments: [{minStar:0,maxStar:null,targetRank:"A",targetStarFloor:null,slopeNum:0,slopeDen:1}], relativeSeasonAlignment: true },
     };
     await expect(freezeCompetitiveContext(tx, season)).rejects.toThrow("5E fallback 映射必须覆盖本届冻结的全部赛季证据槽");
   });
@@ -93,7 +93,7 @@ describe("freezeCompetitiveContext", () => {
     fallbackCatalogReferencesExistMock.mockResolvedValue(false);
     const season = majorSeason("perfect_world");
     season.teamRegistrationConfig.competitiveProfile!.fallbackConversion = {
-      sourcePlatform: "fivee", version: "major-2026-v1", seasonKeyMap: { s19: "5e-s19", s20: "5e-s20", s21: "5e-s21" }, rankMap: { bronze: "bronze" },
+      sourcePlatform: "fivee", version: "major-2026-v1", seasonKeyMap: { s19: "5e-s19", s20: "5e-s20", s21: "5e-s21" }, mapping: { belowSRankMap: { bronze: "bronze" }, starSegments: [{minStar:0,maxStar:null,targetRank:"A",targetStarFloor:null,slopeNum:0,slopeDen:1}], relativeSeasonAlignment: true },
     };
     await expect(freezeCompetitiveContext(tx, season)).rejects.toThrow("5E fallback 映射引用的赛季或段位已不在竞技目录中");
   });

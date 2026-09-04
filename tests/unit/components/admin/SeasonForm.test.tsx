@@ -133,7 +133,7 @@ describe("SeasonForm presets", () => {
     await waitFor(() => expect(createSeasonMock).toHaveBeenCalledWith(expect.objectContaining({
       teamRegistrationConfig: expect.objectContaining({
         competitiveProfile: expect.objectContaining({
-          fallbackConversion: { sourcePlatform: "fivee", version: "", seasonKeyMap: {}, rankMap: {} },
+          fallbackConversion: { sourcePlatform: "fivee", version: "", seasonKeyMap: {}, mapping: { belowSRankMap: {}, starSegments: [{minStar:0,maxStar:null,targetRank:"A",targetStarFloor:null,slopeNum:0,slopeDen:1}], relativeSeasonAlignment: true } },
         }),
       }),
     })));

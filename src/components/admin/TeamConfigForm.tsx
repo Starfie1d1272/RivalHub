@@ -34,17 +34,6 @@ export function TeamConfigForm({ value, competitivePlatforms, fallbackOnly = fal
   }
   const platform = value.competitiveProfile?.platform ?? competitivePlatforms[0]?.key ?? "";
   const selectedPlatform = competitivePlatforms.find((item) => item.key === platform);
-  const fivee = competitivePlatforms.find((item) => item.key === "fivee");
-  const fallback = value.competitiveProfile?.fallbackConversion;
-  const selectedSeasons = selectedPlatform?.seasons ?? [];
-  const selectedRanks = selectedPlatform?.ranks ?? [];
-  const fiveeSeasons = fivee?.seasons ?? [];
-  const fiveeRanks = fivee?.ranks ?? [];
-
-  function updateFallback(next: NonNullable<TeamRegistrationConfig["competitiveProfile"]>["fallbackConversion"] | undefined) {
-    const profile = value.competitiveProfile ?? { platform, currentSeasonKey: "", previousSeasonKey: "", rankOrder: [] };
-    onChange({ ...value, competitiveProfile: { ...profile, fallbackConversion: next } });
-  }
 
   return (
     <div className="space-y-6">
@@ -112,67 +101,8 @@ export function TeamConfigForm({ value, competitivePlatforms, fallbackOnly = fal
           </div>
         )}
       </div>}
-      {fallbackOnly && <p className="text-sm text-[var(--color-fg-mid)]">标准 Major 固定使用 Perfect World 竞技档案；如启用 5E 等效补充，必须在这里填写审核过的冻结映射。</p>}
-      {value.requireCompetitiveProfile && platform === "perfect_world" && fivee && selectedPlatform && (
-        <div className="space-y-4 rounded-sm border border-[var(--color-border)] p-4">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              disabled={disabled}
-              checked={Boolean(fallback)}
-              onChange={(event) => {
-                if (!event.target.checked) return updateFallback(undefined);
-                updateFallback({
-                  sourcePlatform: "fivee",
-                  version: "",
-                  seasonKeyMap: {},
-                  rankMap: {},
-                });
-              }}
-            />
-            允许审核过的 5E 竞技资料等效补充
-          </label>
-          <p className="text-xs text-[var(--color-fg-dim)]">仅转换 5E 段位；Rating+ 不会作为 Perfect 的 Rating Pro 比较。开放报名时会冻结并校验当届实际使用的每个赛季对应，缺失则拒绝开放。</p>
-          {fallback && <>
-            <div className="max-w-sm space-y-1.5">
-              <Label>映射版本</Label>
-              <Input disabled={disabled} value={fallback.version} onChange={(event) => updateFallback({ ...fallback, version: event.target.value })} placeholder="例如 major-2026-v1" />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {selectedSeasons.filter((season) => season.active).map((season) => (
-                <div key={season.seasonKey} className="space-y-1.5">
-                  <Label>{selectedPlatform.displayName} · {season.label}</Label>
-                  <Select disabled={disabled} value={fallback.seasonKeyMap[season.seasonKey] || "__unmapped__"} onValueChange={(sourceSeasonKey) => {
-                    const seasonKeyMap = { ...fallback.seasonKeyMap };
-                    if (sourceSeasonKey === "__unmapped__") delete seasonKeyMap[season.seasonKey];
-                    else seasonKeyMap[season.seasonKey] = sourceSeasonKey;
-                    updateFallback({ ...fallback, seasonKeyMap });
-                  }}>
-                    <SelectTrigger><SelectValue placeholder="选择对应的 5E 赛季" /></SelectTrigger>
-                    <SelectContent><SelectItem value="__unmapped__">尚未映射</SelectItem>{fiveeSeasons.map((source) => <SelectItem key={source.seasonKey} value={source.seasonKey}>5E · {source.label}</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
-              ))}
-            </div>
-            <div className="space-y-2">
-              <Label>5E 段位 → Perfect 等效段位</Label>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {fiveeRanks.map((source) => <div key={source.rankKey} className="space-y-1.5">
-                  <span className="text-xs text-[var(--color-fg-mid)]">5E · {source.label}</span>
-                  <Select disabled={disabled} value={fallback.rankMap[source.rankKey] || "__unmapped__"} onValueChange={(targetRank) => {
-                    const rankMap = { ...fallback.rankMap };
-                    if (targetRank === "__unmapped__") delete rankMap[source.rankKey];
-                    else rankMap[source.rankKey] = targetRank;
-                    updateFallback({ ...fallback, rankMap });
-                  }}>
-                    <SelectTrigger><SelectValue placeholder="选择 Perfect 等效段位" /></SelectTrigger>
-                    <SelectContent><SelectItem value="__unmapped__">不参与 fallback</SelectItem>{selectedRanks.map((target) => <SelectItem key={target.rankKey} value={target.rankKey}>{selectedPlatform.displayName} · {target.label}</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>)}
-              </div>
-            </div>
-          </>}
-        </div>
+      {value.requireCompetitiveProfile && platform === "perfect_world" && (
+        <p className="text-sm text-[var(--color-fg-mid)]">标准 Major 将使用当前已批准的 5E → Perfect 换算策略，开放报名时自动冻结对应版本与赛季对应，无需手动填写映射。</p>
       )}
     </div>
   );

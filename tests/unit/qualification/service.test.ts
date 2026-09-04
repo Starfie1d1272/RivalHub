@@ -183,7 +183,7 @@ describe("participant readiness", () => {
         sourcePlatform: "fivee",
         version: "major-2026-v1",
         seasonKeyMap: { S20: "5E-S20", S21: "5E-S21" },
-        rankMap: { S: "A", SS: "S" },
+        mapping: { belowSRankMap: { S: "A", SS: "S" }, starSegments: [{minStar:0,maxStar:null,targetRank:"A",targetStarFloor:null,slopeNum:0,slopeDen:1}], relativeSeasonAlignment: true },
       },
     };
     const readiness = computeParticipantReadiness(fullFact({
@@ -205,7 +205,7 @@ describe("participant readiness", () => {
         sourcePlatform: "fivee",
         version: "major-2026-v1",
         seasonKeyMap: { S20: "5E-S20" },
-        rankMap: { S: "A" },
+        mapping: { belowSRankMap: { S: "A" }, starSegments: [{minStar:0,maxStar:null,targetRank:"A",targetStarFloor:null,slopeNum:0,slopeDen:1}], relativeSeasonAlignment: true },
       },
     };
     await expect(resolveCompetitiveContext(context)).resolves.toBeNull();
@@ -223,7 +223,7 @@ describe("participant readiness", () => {
         sourcePlatform: "fivee",
         version: "major-2026-v1",
         seasonKeyMap: { S20: "5E-S20", S21: "5E-S21" },
-        rankMap: { S: "S" },
+        mapping: { belowSRankMap: { S: "S" }, starSegments: [{minStar:0,maxStar:null,targetRank:"A",targetStarFloor:null,slopeNum:0,slopeDen:1}], relativeSeasonAlignment: true },
       },
     };
     const fallback = toPlayerStrengthInput(fullFact({

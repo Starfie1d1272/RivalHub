@@ -48,11 +48,11 @@ async function main(): Promise<void> {
     );
     await client.query(
       "UPDATE seasons SET team_registration_config = $2::json WHERE id = $1",
-      [seasonId, JSON.stringify({ competitiveProfile: { platform, rankOrder: [], fallbackConversion: { sourcePlatform: fallbackPlatform, version: "major-2026-v1", seasonKeyMap: { s21: "5e-s21" }, rankMap: { "5e-s": "C++" } } } })],
+      [seasonId, JSON.stringify({ competitiveProfile: { platform, rankOrder: [], fallbackConversion: { sourcePlatform: fallbackPlatform, version: "major-2026-v1", seasonKeyMap: { s21: "5e-s21" }, mapping: { belowSRankMap: { "5e-s": "C++" }, starSegments: [{minStar:0,maxStar:null,targetRank:"A",targetStarFloor:null,slopeNum:0,slopeDen:1}], relativeSeasonAlignment: true } } } })],
     );
     expect([...await loadReferencedPlatformRankKeys(executor, fallbackPlatform)]).toEqual(["5e-s"]);
-    await expect(fallbackCatalogReferencesExist(executor, { sourcePlatform: fallbackPlatform as "fivee", version: "major-2026-v1", seasonKeyMap: { s21: "5e-s21" }, rankMap: { "5e-s": "C++" } })).resolves.toBe(true);
-    await expect(fallbackCatalogReferencesExist(executor, { sourcePlatform: fallbackPlatform as "fivee", version: "major-2026-v1", seasonKeyMap: { s21: "missing" }, rankMap: { "5e-s": "C++" } })).resolves.toBe(false);
+    await expect(fallbackCatalogReferencesExist(executor, { sourcePlatform: fallbackPlatform as "fivee", version: "major-2026-v1", seasonKeyMap: { s21: "5e-s21" }, mapping: { belowSRankMap: { "5e-s": "C++" }, starSegments: [{minStar:0,maxStar:null,targetRank:"A",targetStarFloor:null,slopeNum:0,slopeDen:1}], relativeSeasonAlignment: true } })).resolves.toBe(true);
+    await expect(fallbackCatalogReferencesExist(executor, { sourcePlatform: fallbackPlatform as "fivee", version: "major-2026-v1", seasonKeyMap: { s21: "missing" }, mapping: { belowSRankMap: { "5e-s": "C++" }, starSegments: [{minStar:0,maxStar:null,targetRank:"A",targetStarFloor:null,slopeNum:0,slopeDen:1}], relativeSeasonAlignment: true } })).resolves.toBe(false);
 
     const fallbackSeasonReference = await client.query(
       `SELECT id FROM seasons

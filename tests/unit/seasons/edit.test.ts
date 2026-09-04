@@ -153,7 +153,7 @@ describe("planSeasonUpdate template identity", () => {
       sourcePlatform: "fivee" as const,
       version: "major-2026-v1",
       seasonKeyMap: { s19: "5e-s19", s20: "5e-s20", s21: "5e-s21" },
-      rankMap: { S: "A" },
+      mapping: { belowSRankMap: { S: "A" }, starSegments: [{minStar:0,maxStar:null,targetRank:"A",targetStarFloor:null,slopeNum:0,slopeDen:1}], relativeSeasonAlignment: true },
     };
     const parsed = parseInput({
       teamRegistrationConfig: {
@@ -179,7 +179,7 @@ describe("planSeasonUpdate template identity", () => {
         ...MAJOR_TEAM_CONFIG_FROZEN,
         competitiveProfile: {
           ...MAJOR_TEAM_CONFIG_FROZEN.competitiveProfile,
-          fallbackConversion: { sourcePlatform: "fivee", version: "", seasonKeyMap: {}, rankMap: {} },
+          fallbackConversion: { sourcePlatform: "fivee", version: "", seasonKeyMap: {}, mapping: { belowSRankMap: {}, starSegments: [{minStar:0,maxStar:null,targetRank:"A",targetStarFloor:null,slopeNum:0,slopeDen:1}], relativeSeasonAlignment: true } },
         },
       },
     })).not.toThrow();
@@ -278,7 +278,7 @@ describe("planSeasonUpdate template identity", () => {
       sourcePlatform: "fivee" as const,
       version: "major-2026-v1",
       seasonKeyMap: { S21: "5e-s21" },
-      rankMap: { S: "A" },
+      mapping: { belowSRankMap: { S: "A" }, starSegments: [{minStar:0,maxStar:null,targetRank:"A",targetStarFloor:null,slopeNum:0,slopeDen:1}], relativeSeasonAlignment: true },
     };
     const withFallback = parseInput({
       teamRegistrationConfig: {
