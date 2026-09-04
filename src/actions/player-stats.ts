@@ -14,7 +14,7 @@ import { ok, fail, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { actionError } from "@/lib/action-utils";
 import { isPgUniqueViolation } from "@/db/errors";
-import { captureException } from "@/lib/observability/logger";
+import { captureException } from "@/lib/observability/server";
 import { MVP_DEADLINE_MS } from "@/lib/utils/date";
 import { extractScoreboardFromBase64 } from "@/lib/ocr";
 import type { PlayerRowOCR } from "@/lib/ocr";

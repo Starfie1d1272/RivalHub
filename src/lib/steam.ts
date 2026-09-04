@@ -1,8 +1,7 @@
 import "server-only";
 
-import { captureException, logEvent } from "@/lib/observability/logger";
 import { providerFetch } from "@/lib/observability/fetch";
-import { traceOperation } from "@/lib/observability/tracing";
+import { captureException, logEvent, traceOperation } from "@/lib/observability/server";
 
 interface SteamPlayerSummary {
   steamid: string;

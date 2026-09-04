@@ -23,7 +23,7 @@ import {
   withdrawCompetitionEntryParticipationInTx,
 } from "@/lib/competition-entries/commands";
 import { fail, ok, type ActionResult } from "@/types/action";
-import { traceOperation } from "@/lib/observability/tracing";
+import { traceOperation } from "@/lib/observability/server";
 
 const uuid = z.string().uuid();
 function invalid(message: string): ActionResult<never> {

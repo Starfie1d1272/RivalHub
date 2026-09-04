@@ -27,7 +27,7 @@ import {
   computeSeriesScoreAfterMap,
   validateMapScore,
 } from "@/lib/matches/result-rules";
-import { traceOperation } from "@/lib/observability/tracing";
+import { traceOperation } from "@/lib/observability/server";
 
 /**
  * 将 bracket 推进后解析出的新对阵批量写入 matches 表。

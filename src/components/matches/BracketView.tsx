@@ -219,7 +219,9 @@ export function BracketView({ data, themeColor, matchNodeMap, seasonSlug }: Brac
             "grand-final": "胜者组决赛胜者",
           },
         })
-        .catch(() => {});
+        .catch(() => {
+          console.warn("[RivalHub] bracket locale unavailable; using fallback labels.");
+        });
     }
 
     window.bracketsViewer

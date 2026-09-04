@@ -29,7 +29,7 @@ import { finalizeMajorSwissRoundInTransaction, type MajorSwissRoundFinalizationR
 import { transitionMajorSwissStageInTransaction, type MajorStageTransitionResult } from "@/lib/major/stage-transition";
 import { finalizeMajorPlayoffRoundInTransaction, startMajorPlayoffInTransaction, type MajorPlayoffFinalizationResult, type MajorPlayoffStartResult } from "@/lib/major/playoff-runtime";
 import { revalidateSeasonPaths } from "@/lib/revalidation";
-import { traceOperation } from "@/lib/observability/tracing";
+import { traceOperation } from "@/lib/observability/server";
 import { assertPrestartEntryCoherenceInTx, assertSinglePrestartEntryCoherenceInTx } from "@/lib/major/prestart-entry";
 import { loadApprovedRosterEducation, saveMajorPrestartRosterInTx } from "@/lib/major/prestart-roster";
 import { assertMajorPrestartEntrantsMutable, ensureMajorPrestartStateInTx } from "@/lib/major/prestart-state";

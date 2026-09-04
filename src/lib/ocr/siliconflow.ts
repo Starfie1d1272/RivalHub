@@ -1,9 +1,8 @@
 import "server-only";
 
 import { playerRowLenientSchema, type ScoreboardOCRResult, type OCRProvider, type PlayerRowOCR } from "./types";
-import { captureException, logEvent } from "@/lib/observability/logger";
 import { providerFetch } from "@/lib/observability/fetch";
-import { traceOperation } from "@/lib/observability/tracing";
+import { captureException, logEvent, traceOperation } from "@/lib/observability/server";
 
 const DEFAULT_API_URL = "https://api.siliconflow.cn/v1/chat/completions";
 const DEFAULT_MODEL = "Qwen/Qwen3-VL-8B-Instruct";

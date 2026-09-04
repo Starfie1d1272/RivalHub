@@ -1,12 +1,12 @@
 import "server-only";
 
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-proto";
-import { SimpleLogRecordProcessor, type LogRecordProcessor } from "@opentelemetry/sdk-logs";
-import { SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
+import { BatchLogRecordProcessor, type LogRecordProcessor } from "@opentelemetry/sdk-logs";
+import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { OTLPHttpProtoTraceExporter, registerOTel, type SpanProcessorOrName } from "@vercel/otel";
 import { getBetterStackConfig, OBSERVABILITY_SERVICE_NAME } from "@/lib/observability/config";
 import { getFetchInstrumentationConfig } from "@/lib/observability/instrumentation-config";
-import { logEvent } from "@/lib/observability/logger";
+import { logEvent } from "@/lib/observability/server";
 
 let registered = false;
 
@@ -21,9 +21,9 @@ export function registerNodeObservability(): void {
       url: betterStack.config.tracesUrl,
       headers: betterStack.config.headers,
     };
-    spanProcessors.push(new SimpleSpanProcessor(new OTLPHttpProtoTraceExporter(exporterConfig)));
+    spanProcessors.push(new BatchSpanProcessor(new OTLPHttpProtoTraceExporter(exporterConfig)));
     logRecordProcessors = [
-      new SimpleLogRecordProcessor({
+      new BatchLogRecordProcessor({
         exporter: new OTLPLogExporter({
           url: betterStack.config.logsUrl,
           headers: betterStack.config.headers,

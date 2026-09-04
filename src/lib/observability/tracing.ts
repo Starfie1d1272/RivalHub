@@ -27,6 +27,16 @@ const ALLOWED_ATTRIBUTES = new Set([
   "server.address",
 ]);
 
+const erroredSpans = new WeakSet<object>();
+
+export function markSpanErrored(span: Span): void {
+  erroredSpans.add(span);
+}
+
+function hasSpanErrored(span: Span): boolean {
+  return erroredSpans.has(span);
+}
+
 export async function traceOperation<T>(name: string, options: TraceOptions, work: (span: Span) => Promise<T>): Promise<T> {
   const tracer = trace.getTracer("rivalhub");
   const span = tracer.startSpan(safeSpanName(name), { attributes: sanitizeSpanAttributes(options) });
@@ -34,16 +44,35 @@ export async function traceOperation<T>(name: string, options: TraceOptions, wor
   return otelContext.with(trace.setSpan(otelContext.active(), span), async () => {
     try {
       const result = await work(span);
-      try {
-        span.setStatus({ code: SpanStatusCode.OK });
-      } catch {
-        // Span recording is best effort.
+      if (!hasSpanErrored(span)) {
+        try {
+          span.setStatus({ code: SpanStatusCode.OK });
+        } catch {
+          // Span recording is best effort.
+        }
       }
       return result;
     } catch (error) {
       const classification = classifyError(error);
+      try {
+        span.setAttribute("rivalhub.error_class", classification.errorClass);
+        if (classification.errorCode) span.setAttribute("rivalhub.error_code", classification.errorCode);
+      } catch {
+        // Span recording is best effort.
+      }
+      if (classification.errorClass === "expected") {
+        try {
+          span.setAttribute("rivalhub.outcome", "expected");
+          span.setStatus({ code: SpanStatusCode.UNSET });
+        } catch {
+          // Span recording is best effort.
+        }
+        throw error;
+      }
+
       const exception = extractSafeException(error, classification.pg ?? null);
       try {
+        markSpanErrored(span);
         span.recordException({
           name: exception.name ?? "Error",
           ...(exception.message ? { message: exception.message } : {}),

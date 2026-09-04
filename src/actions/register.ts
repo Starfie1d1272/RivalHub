@@ -17,7 +17,7 @@ import { compactUndefined } from "@/lib/utils/object";
 import { getSteamAvatar } from "@/lib/steam";
 import { assertUsersNotBlockedInTx } from "@/lib/discipline/service";
 import { updatePublicPlayerTag } from "@/lib/revalidation";
-import { traceOperation } from "@/lib/observability/tracing";
+import { traceOperation } from "@/lib/observability/server";
 
 const draftSchema = z.object({
   seasonId: z.string().uuid("赛季 ID 格式不正确"),

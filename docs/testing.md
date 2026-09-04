@@ -44,7 +44,7 @@ production smoke / real operations
 
 ### Runtime observability 变化
 
-结构化事件、错误分类、脱敏、trace 属性和 provider fetch contract 使用 `tests/unit/lib/observability/` 的 unit evidence；生产 source 的 `no-console` contract 由同目录测试与 ESLint 双重约束。涉及 DB、Auth 或 provider 的接入仍按对应真实环境证据补跑。
+结构化事件、错误分类、脱敏、trace 属性和 provider fetch contract 使用 `tests/unit/lib/observability/` 的 unit evidence；server/runtime source 的 `no-console` 边界由 ESLint 维护，client-only fallback 由对应组件行为和 lint 文件边界维护。涉及 DB、Auth 或 provider 的接入仍按对应真实环境证据补跑。
 
 ### Migration 变化
 

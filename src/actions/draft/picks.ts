@@ -19,7 +19,7 @@ import { ok, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { auditActorId, requireAuth, requireSeasonAdmin } from "@/lib/auth/session";
 import { failValidation, actionError } from "@/lib/action-utils";
-import { logEvent } from "@/lib/observability/logger";
+import { logEvent } from "@/lib/observability/server";
 import { revalidateSeasonPaths } from "@/lib/revalidation";
 import {
   pickPlayerSchema,

@@ -15,9 +15,10 @@ canonical event + critical span ──► Vercel Runtime Logs / OTEL traces
 
 - Vercel 保留为部署、Runtime Logs、Runtime Error Groups、Analytics 和 Speed Insights 的平台入口。
 - Better Stack 只作为外部长历史、trace/error 查询和告警 sink；RivalHub 不建立自有 log database，也不使用 Vercel Drain。
-- OTel 在服务端通过 `@vercel/otel` 初始化。Node runtime 将结构化 log 和 trace 以 OTLP 发往 Better Stack；Edge runtime 只使用可兼容的 trace exporter。
+- OTel 在服务端通过 `@vercel/otel` 初始化。Node runtime 将结构化 log 和 trace 以批处理 OTLP 发往 Better Stack；Edge runtime 只使用 Vercel 原生 OTel，不挂载 Better Stack exporter。
 - Development 和 test 默认不向外部 Better Stack 发送 telemetry。exporter 或 sink 故障只影响观测，不改变核心请求结果。
 - Client Component 不携带 Better Stack token，也不直接调用 Better Stack。
+- Next server code 通过带 `server-only` 的 `@/lib/observability/server` facade 访问 logger/tracing；`src/db/client-runtime.ts` 是显式保留的 Node application/CLI runtime boundary。
 
 ## 环境变量
 
@@ -126,7 +127,7 @@ return traceOperation("competition_entry.submit", {
 }, () => canonicalSubmitInTx(...));
 ```
 
-不要为正常成功路径逐条记录日志，不要复制领域 transition/错误分类，不要在 component 中写 console 或直接配置外部 sink。新增 safeContext key 时必须同时补 redaction 单测，并检查它不会成为 ID、body、query 或 secret 的旁路。
+不要为正常成功路径逐条记录日志，不要复制领域 transition/错误分类，不要在 component 中配置外部 sink。Client Component 只有在存在明确 fallback 时才可输出固定、非敏感的浏览器诊断，不能输出 raw exception/payload 或用空 catch 静默吞错。新增 safeContext key 时必须同时补 redaction 单测，并检查它不会成为 ID、body、query 或 secret 的旁路。
 
 ## 告警原则
 
@@ -145,7 +146,7 @@ return traceOperation("competition_entry.submit", {
 代码与 Preview-ready 检查：
 
 - `pnpm type-check`、`pnpm lint`、observability unit tests；
-- 生产 `src/**` 无裸 `console.*`；
+- server/runtime-owned `src/**` 无裸 `console.*`；client-only fallback 的例外由 ESLint 文件边界明确声明；
 - 结构化事件不包含 secret、token、邮箱、教育证据、request body、SQL params 或 provider raw response；
 - `BETTER_STACK_SOURCE_TOKEN` 与 `BETTER_STACK_INGESTING_HOST` 仅在 Preview/Production 配置，且两套环境使用不同 source 值；
 - Preview/Production deployment 页面能按 requestId/traceId/release 查询，并能区分 Vercel 与 Better Stack 的同一事件；

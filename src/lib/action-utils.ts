@@ -3,7 +3,7 @@ import "server-only";
 import { fail } from "@/types/action";
 import type { ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
-import { captureException } from "@/lib/observability/logger";
+import { captureException } from "@/lib/observability/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons, matches } from "@/db/schema";

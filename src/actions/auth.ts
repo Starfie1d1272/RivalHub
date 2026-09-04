@@ -19,9 +19,8 @@ import {
   destroyUserSession,
 } from "@/lib/auth/session";
 import { claimAdminInviteInTx } from "@/lib/auth/admin-invites";
-import { captureException, logEvent } from "@/lib/observability/logger";
 import { providerFetch } from "@/lib/observability/fetch";
-import { traceOperation } from "@/lib/observability/tracing";
+import { captureException, logEvent, traceOperation } from "@/lib/observability/server";
 
 export async function loginWithPassword(
   email: string,

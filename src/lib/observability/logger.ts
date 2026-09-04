@@ -3,6 +3,7 @@ import { context as traceContext, SpanStatusCode, trace } from "@opentelemetry/a
 import { getObservabilityContext, normalizeRequestId, normalizeRoute } from "@/lib/observability/context";
 import { classifyError, type ErrorClass, type ErrorClassificationOverrides } from "@/lib/observability/errors";
 import { extractSafeException, redactText, safeCode, sanitizeSafeContext, type SafeException } from "@/lib/observability/redact";
+import { markSpanErrored } from "./tracing";
 
 type LogLevel = "debug" | "info" | "warn" | "error" | "fatal";
 
@@ -140,7 +141,8 @@ export function captureException(event: string, error: unknown, options: Capture
   try {
     const pgInfo = options.pgInfo === undefined ? undefined : options.pgInfo;
     const classification = classifyError(error, { ...options, ...(pgInfo !== undefined ? { pgInfo } : {}) });
-    const exception = extractSafeException(error, classification.pg ?? null);
+    const expected = classification.errorClass === "expected";
+    const exception = expected ? undefined : extractSafeException(error, classification.pg ?? null);
     const safeContext = {
       ...options.safeContext,
       ...(options.provider ? { provider: options.provider } : {}),
@@ -150,7 +152,7 @@ export function captureException(event: string, error: unknown, options: Capture
       ...(classification.pg?.column ? { column: classification.pg.column } : {}),
     };
     const logged = logEvent({
-      level: options.level ?? levelFor(classification.errorClass),
+      level: options.level ?? (expected ? "info" : levelFor(classification.errorClass)),
       event,
       scope: options.scope,
       operation: options.operation,
@@ -164,7 +166,7 @@ export function captureException(event: string, error: unknown, options: Capture
       exception,
       safeContext,
     });
-    recordExceptionOnActiveSpan(exception, classification);
+    if (!expected && exception) recordExceptionOnActiveSpan(exception, classification);
     return logged;
   } catch {
     return undefined;
@@ -180,6 +182,7 @@ function recordExceptionOnActiveSpan(exception: SafeException, classification: {
       ...(exception.message ? { message: exception.message } : {}),
       ...(exception.stack ? { stack: exception.stack } : {}),
     };
+    markSpanErrored(span);
     span.recordException(record);
     span.setAttribute("rivalhub.error_class", classification.errorClass);
     if (classification.errorCode) span.setAttribute("rivalhub.error_code", classification.errorCode);

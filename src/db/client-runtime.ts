@@ -2,8 +2,10 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as schema from "./schema";
-import { captureException, logEvent } from "@/lib/observability/logger";
-import { traceOperation } from "@/lib/observability/tracing";
+// This module is reserved for Node application/CLI entrypoints; the relative
+// imports intentionally bypass the Next server-only facade.
+import { captureException, logEvent } from "../lib/observability/logger";
+import { traceOperation } from "../lib/observability/tracing";
 
 function createPool(): Pool {
   const connectionString = requireDatabaseUrl();

@@ -1,8 +1,7 @@
 import "server-only";
 
-import { logEvent } from "@/lib/observability/logger";
 import { createRequestContext, withObservabilityContext } from "@/lib/observability/context";
-import { traceOperation } from "@/lib/observability/tracing";
+import { logEvent, traceOperation } from "@/lib/observability/server";
 
 export async function withRouteObservability<T extends Response>(
   request: Request,

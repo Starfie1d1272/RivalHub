@@ -13,7 +13,7 @@ import {
   planResultCorrectionInTx,
   recordRecoveryAdjudicationInTx,
 } from "@/lib/match-corrections/service";
-import { traceOperation } from "@/lib/observability/tracing";
+import { traceOperation } from "@/lib/observability/server";
 
 /**
  * G2 result-correction workflow: plan → review impact → explicit confirm.

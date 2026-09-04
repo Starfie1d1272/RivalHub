@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { logEvent } from "@/lib/observability/logger";
+import { captureException, logEvent } from "@/lib/observability/logger";
+import { AppError, ErrorCode } from "@/lib/errors";
 
 describe("structured observability events", () => {
   it("contains correlation and deployment fields while keeping context bounded", () => {
@@ -41,6 +42,23 @@ describe("structured observability events", () => {
     expect(serialized).not.toContain("password");
     expect(Number.isNaN(Date.parse(event.timestamp))).toBe(false);
     writeSpy.mockRestore();
+    vi.unstubAllEnvs();
+  });
+
+  it("logs expected outcomes as low-noise info without recording an exception", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    const writeSpy = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+
+    const event = captureException("action.expected", new AppError(ErrorCode.VALIDATION_FAILED, "输入无效"), {
+      scope: "action",
+      operation: "validate",
+    });
+
+    expect(event).toMatchObject({ level: "info", errorClass: "expected" });
+    expect(event?.exception).toBeUndefined();
+    expect(writeSpy).toHaveBeenCalledOnce();
+    vi.restoreAllMocks();
     vi.unstubAllEnvs();
   });
 });

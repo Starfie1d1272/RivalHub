@@ -12,7 +12,7 @@ export async function register(): Promise<void> {
 
 export const onRequestError: Instrumentation.onRequestError = async (error, request, context) => {
   const { requestContextFromHeaders } = await import("@/lib/observability/context");
-  const { captureException } = await import("@/lib/observability/logger");
+  const { captureException } = await import("@/lib/observability/server");
   const requestContext = requestContextFromHeaders(request.headers, context.routePath ?? request.path, request.path);
   captureException("next.request.unhandled_error", error, {
     scope: "next",

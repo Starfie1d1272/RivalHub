@@ -32,6 +32,14 @@ const eslintConfig = [
             name: "@/db/client-runtime",
             message: "Use the canonical server-only @/db/client facade; the runtime implementation is reserved for Node CLI entrypoints.",
           },
+          {
+            name: "@/lib/observability/logger",
+            message: "Use the server-only @/lib/observability/server facade.",
+          },
+          {
+            name: "@/lib/observability/tracing",
+            message: "Use the server-only @/lib/observability/server facade.",
+          },
         ],
         patterns: [
           {
@@ -40,6 +48,14 @@ const eslintConfig = [
           },
         ],
       }],
+    },
+  },
+  {
+    // This is a client-only rendering enhancement. It logs a fixed message
+    // without the rejected value; the rendered fallback remains the UX path.
+    files: ["src/components/matches/BracketView.tsx"],
+    rules: {
+      "no-console": "off",
     },
   },
   {

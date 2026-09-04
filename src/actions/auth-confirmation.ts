@@ -12,7 +12,7 @@ import { ErrorCode } from "@/lib/errors";
 import { normalizeEmail } from "@/lib/utils/email";
 import { fail, ok } from "@/types/action";
 import type { ActionResult } from "@/types/action";
-import { traceOperation } from "@/lib/observability/tracing";
+import { traceOperation } from "@/lib/observability/server";
 
 type ConfirmationFlow = "signup" | "reverify";
 
