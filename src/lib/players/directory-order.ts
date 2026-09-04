@@ -3,7 +3,7 @@ interface DirectoryPlayer {
   currentRating: number;
   stats: {
     maps: number;
-    avgRating: number;
+    avgRating: number | null;
   } | null;
 }
 

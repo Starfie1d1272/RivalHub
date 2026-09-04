@@ -87,6 +87,21 @@ describe("PlayerStatsTable", () => {
     expect(screen.getByText("1.35")).toBeDefined();
   });
 
+  it("keeps missing map values unknown while showing real zero", async () => {
+    mockFindMany.mockResolvedValue([
+      { id: "p1", userId: null, perfectName: "缺失数据", kills: null, deaths: null, assists: null, adr: null, ratingPro: null, hsPercent: null, firstKills: null, multiKills: null, clutches: null, rws: null, we: null },
+      { id: "p2", userId: null, perfectName: "零数据", kills: 0, deaths: 0, assists: 0, adr: 0, ratingPro: 0, hsPercent: 0, firstKills: 0, multiKills: 0, clutches: 0, rws: 0, we: 0 },
+    ]);
+    const jsx = await PlayerStatsTable(baseProps);
+    render(jsx);
+
+    expect(screen.getByText("缺失数据")).toBeInTheDocument();
+    expect(screen.getByText("零数据")).toBeInTheDocument();
+    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(10);
+    expect(screen.getAllByText("0").length).toBeGreaterThanOrEqual(6);
+    expect(screen.getAllByText("0.0").length).toBe(2);
+  });
+
   it("assigns players through the frozen event roster", async () => {
     mockFindMany.mockResolvedValue([
       { id: "p1", userId: "u-a", perfectName: "A队选手", kills: 10, deaths: 5, assists: 3, adr: 80, ratingPro: 1.1, hsPercent: 50, firstKills: 2, multiKills: 1, clutches: 0, rws: 12, we: 1.5 },

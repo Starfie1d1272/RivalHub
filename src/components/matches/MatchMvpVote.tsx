@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Panel } from "@/components/rivalhub";
 import { castMatchMvpVote } from "@/actions/player-stats";
 import { isDeadlinePassed, MVP_DEADLINE_MS } from "@/lib/utils/date";
+import { formatStat, type StatMetric } from "@/lib/stats";
 
 interface MvpCandidate {
   userId: string | null;
@@ -123,10 +124,9 @@ export function MatchMvpVote({
                 <tr className="border-t border-[var(--color-border)]">
                   {STAT_COLS.map((c) => {
                     const v = mvpStats[c.key];
-                    const val = v != null ? (c.fmt ? c.fmt(v as never) : String(v)) : "—";
                     return (
                       <td key={c.key} className="py-1.5 tabular-nums text-center text-[var(--color-fg)]">
-                        {val}
+                        {formatStat(c.metric, v)}
                       </td>
                     );
                   })}
@@ -210,23 +210,23 @@ export function MatchMvpVote({
                       : "var(--color-fg)",
                   }}
                 >
-                  {c.ratingPro != null ? c.ratingPro.toFixed(2) : "—"}
+                  {formatStat("ratingPro", c.ratingPro)}
                 </span>
               </div>
 
               <div className="grid grid-cols-5 gap-1 text-center text-xs mb-2">
-                <StatCell label="K" value={c.kills} />
-                <StatCell label="D" value={c.deaths} />
-                <StatCell label="A" value={c.assists} />
-                <StatCell label="ADR" value={c.adr} fmt={(v) => v.toFixed(1)} />
-                <StatCell label="RWS" value={c.rws} fmt={(v) => v.toFixed(1)} />
+                <StatCell label="K" value={c.kills} metric="kills" />
+                <StatCell label="D" value={c.deaths} metric="deaths" />
+                <StatCell label="A" value={c.assists} metric="assists" />
+                <StatCell label="ADR" value={c.adr} metric="adr" />
+                <StatCell label="RWS" value={c.rws} metric="rws" />
               </div>
 
               <div className="grid grid-cols-4 gap-1 text-center text-[11px] mb-2">
-                <StatCell label="HS%" value={c.hsPercent} fmt={(v) => `${v.toFixed(0)}%`} />
-                <StatCell label="FK" value={c.firstKills} />
-                <StatCell label="MK" value={c.multiKills} />
-                <StatCell label="残局" value={c.clutches} />
+                <StatCell label="HS%" value={c.hsPercent} metric="hsPercent" />
+                <StatCell label="FK" value={c.firstKills} metric="firstKills" />
+                <StatCell label="MK" value={c.multiKills} metric="multiKills" />
+                <StatCell label="残局" value={c.clutches} metric="clutches" />
               </div>
 
               <div className="flex items-center justify-between border-t border-[var(--color-border)] pt-2">
@@ -246,31 +246,31 @@ export function MatchMvpVote({
 function StatCell({
   label,
   value,
-  fmt,
+  metric,
 }: {
   label: string;
   value: number | null;
-  fmt?: (v: number) => string;
+  metric: StatMetric;
 }) {
   return (
     <div>
       <span className="text-[var(--color-fg-dim)]">{label}</span>
       <span className="tabular-nums block text-[var(--color-fg)]">
-        {value != null ? (fmt ? fmt(value) : String(value)) : "—"}
+        {formatStat(metric, value)}
       </span>
     </div>
   );
 }
 
 const STAT_COLS = [
-  { key: "kills" as const,     label: "K",    fmt: undefined as ((v: number) => string) | undefined },
-  { key: "deaths" as const,    label: "D",    fmt: undefined },
-  { key: "assists" as const,   label: "A",    fmt: undefined },
-  { key: "hsPercent" as const, label: "HS%",  fmt: (v: number) => `${v.toFixed(0)}%` },
-  { key: "firstKills" as const,label: "FK",   fmt: undefined },
-  { key: "multiKills" as const,label: "MK",   fmt: undefined },
-  { key: "clutches" as const,  label: "残局", fmt: undefined },
-  { key: "adr" as const,       label: "ADR",  fmt: (v: number) => v.toFixed(1) },
-  { key: "rws" as const,       label: "RWS",  fmt: (v: number) => v.toFixed(1) },
-  { key: "ratingPro" as const, label: "Rating", fmt: (v: number) => v.toFixed(2) },
-];
+  { key: "kills" as const,      label: "K",      metric: "kills" },
+  { key: "deaths" as const,     label: "D",      metric: "deaths" },
+  { key: "assists" as const,    label: "A",      metric: "assists" },
+  { key: "hsPercent" as const,  label: "HS%",    metric: "hsPercent" },
+  { key: "firstKills" as const, label: "FK",     metric: "firstKills" },
+  { key: "multiKills" as const, label: "MK",     metric: "multiKills" },
+  { key: "clutches" as const,   label: "残局",   metric: "clutches" },
+  { key: "adr" as const,        label: "ADR",    metric: "adr" },
+  { key: "rws" as const,        label: "RWS",    metric: "rws" },
+  { key: "ratingPro" as const,  label: "Rating", metric: "ratingPro" },
+] as const satisfies readonly { key: keyof MvpCandidate; label: string; metric: StatMetric }[];

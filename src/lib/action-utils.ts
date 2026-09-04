@@ -6,6 +6,7 @@ import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons, matches } from "@/db/schema";
+export { isPgUniqueViolation } from "@/db/errors";
 
 // ── Error handling ──
 
@@ -17,11 +18,6 @@ export function actionError(scope: string, e: unknown): ActionResult<never> {
   if (e instanceof AppError) return fail({ code: e.code, message: e.message });
   console.error(`[${scope}]`, e);
   return fail({ code: ErrorCode.INTERNAL_ERROR, message: ERROR_MESSAGES.INTERNAL_ERROR });
-}
-
-export function isPgUniqueViolation(e: unknown): boolean {
-  return typeof e === "object" && e !== null && "code" in e &&
-    (e as { code: string }).code === "23505";
 }
 
 // ── DB query helpers ──

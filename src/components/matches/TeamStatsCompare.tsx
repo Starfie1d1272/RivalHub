@@ -1,4 +1,5 @@
 import { Panel } from "@/components/rivalhub";
+import { formatNumber, formatStat } from "@/lib/stats";
 
 interface TeamStat {
   wins: number;
@@ -107,26 +108,26 @@ export function TeamStatsCompare({
       />
       <StatRow
         label="胜率"
-        valA={`${wrA.toFixed(1)}%`}
-        valB={`${wrB.toFixed(1)}%`}
+        valA={`${formatNumber(wrA, 1)}%`}
+        valB={`${formatNumber(wrB, 1)}%`}
         winner={compare(wrA, wrB)}
       />
       <StatRow
         label="Rating"
-        valA={statA.avgRating != null ? statA.avgRating.toFixed(2) : "—"}
-        valB={statB.avgRating != null ? statB.avgRating.toFixed(2) : "—"}
+        valA={formatStat("ratingPro", statA.avgRating)}
+        valB={formatStat("ratingPro", statB.avgRating)}
         winner={compare(statA.avgRating, statB.avgRating)}
       />
       <StatRow
         label="ADR"
-        valA={statA.avgAdr != null ? statA.avgAdr.toFixed(1) : "—"}
-        valB={statB.avgAdr != null ? statB.avgAdr.toFixed(1) : "—"}
+        valA={formatStat("adr", statA.avgAdr)}
+        valB={formatStat("adr", statB.avgAdr)}
         winner={compare(statA.avgAdr, statB.avgAdr)}
       />
       <StatRow
         label="K/D"
-        valA={statA.avgKd != null ? statA.avgKd.toFixed(2) : "—"}
-        valB={statB.avgKd != null ? statB.avgKd.toFixed(2) : "—"}
+        valA={formatStat("kd", statA.avgKd)}
+        valB={formatStat("kd", statB.avgKd)}
         winner={compare(statA.avgKd, statB.avgKd)}
       />
     </Panel>

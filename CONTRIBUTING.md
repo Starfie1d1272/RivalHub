@@ -17,6 +17,10 @@
 - `dev` 合入且 Issue 验收条件已经满足后，Issue 才可关闭；如果验收仍包含 production、真实运营、外部配置或其它 merge 后动作，应保持 open 并记录剩余条件。创建 PR 本身不关闭 Issue。
 - release tag 只有在对应 release commit 已进入 `main` 后创建；production migration、exact-tag deployment 和 smoke 的顺序以 [`docs/deployment.md`](docs/deployment.md) 与 protected workflow 为准。
 
+### 本地 Node/pnpm runtime
+
+`packageManager`、`devEngines.runtime` 和 `engines.node` 共同声明仓库的 pnpm 11.25.0 / Node 24.x contract。pnpm 11 会在 `pnpm install` 时解析 `devEngines.runtime`，并将所需 Node runtime 记录为 `pnpm-lock.yaml` 中的 `node@runtime` 条目；首次安装或清空 pnpm runtime cache 时需要联网下载，后续安装复用缓存。不要删除该 lockfile 条目，也不要把 Node/pnpm 版本重新写回 workflow 私有常量；GitHub Actions 的 `pnpm/setup` 会从同一 manifest 接管 runtime、cache 和 frozen install。
+
 ## 验证与提交前检查
 
 按变更范围选择 [`docs/testing.md`](docs/testing.md) 中的 evidence。至少检查完整 diff、未跟踪文件、敏感信息、临时产物和 active migration 归属；不要用视觉 demo 或 PR 文案替代运行时证据。
