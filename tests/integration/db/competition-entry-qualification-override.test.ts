@@ -125,6 +125,10 @@ describe("competition entry qualification restriction overrides PostgreSQL", () 
         [ids.entry, ids.season, ids.home, ids.revision],
       );
       await client.query(
+        "INSERT INTO competition_entry_representative_changes (entry_id, from_user_id, to_user_id, changed_by_actor_id) VALUES ($1, NULL, $2, 'local-test')",
+        [ids.entry, ids.home],
+      );
+      await client.query(
         `INSERT INTO competition_entry_participants (id, entry_id, user_id, status, confirmed_at, invited_by_user_id)
          VALUES ($1, $3, $4, 'confirmed', now(), $4), ($2, $3, $5, 'confirmed', now(), $4)`,
         [ids.homeParticipant, ids.externalParticipant, ids.entry, ids.home, ids.external],
