@@ -1,39 +1,65 @@
-# RivalHub 文档入口
+# RivalHub 文档
+
+本目录维护 RivalHub 当前有效的产品、领域、工程与运营文档。README 负责帮助读者找到正确 owner；它不是文件百科，也不复制 GitHub Issues、代码或 release notes 中的瞬时状态。
+
+## 从这里开始
+
+| 我想做什么 | 先看这里 |
+| --- | --- |
+| 第一次了解 RivalHub | [`../README.md`](../README.md) |
+| 参与开发或提交 PR | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) |
+| 理解系统架构 | [`architecture.md`](./architecture.md) |
+| 理解核心领域实体和边界 | [`domain-model.md`](./domain-model.md) |
+| 理解用户与赛事生命周期 | [`workflows.md`](./workflows.md) |
+| 本地启动开发环境 | [`operations/local-development.md`](./operations/local-development.md) |
+| 判断一个改动需要什么测试 | [`testing.md`](./testing.md) |
+| 看 CI 为什么运行或失败 | [`operations/ci.md`](./operations/ci.md) |
+| 新增或审查数据库 migration | [`operations/database-migrations.md`](./operations/database-migrations.md) |
+| 做 staging 数据库演练 | [`operations/staging.md`](./operations/staging.md) |
+| 准备和执行正式发布 | [`operations/release.md`](./operations/release.md) |
+| 理解登录、角色和权限 | [`auth-and-permissions.md`](./auth-and-permissions.md) |
+| 理解 UI 与产品语言 | [`ui-system.md`](./ui-system.md) |
+| 查看 2.x 长期方向 | [`roadmap.md`](./roadmap.md) |
+| 查看 NJU Major 赛事政策 | [`rules/nju-major.md`](./rules/nju-major.md) |
+| 查看历史材料 | [`archive/README.md`](./archive/README.md) |
 
 ## Authority
 
-每一项稳定事实只有一个 active documentation owner：
+RivalHub 避免让同一事实同时由多份文档维护。
 
-| 事实类型 | Authority |
-|---|---|
+| 事实 | Authority |
+| --- | --- |
+| 当前业务实现 | code、schema、active migrations 与 tests |
+| 当前技术边界 | active technical docs + 对应 code/tests |
 | 赛事政策 | [`rules/`](./rules/) |
-| 当前技术实现 | code、schema、active migrations、tests 与下列 active technical docs |
-| 已接受但尚未实现的设计 | [`decisions/`](./decisions/) |
-| 历史过程、旧交付物与历史验收 | [`archive/`](./archive/) |
+| 已接受但尚未实现的产品/架构决策 | [`decisions/`](./decisions/) |
+| 当前工作状态与优先级 | GitHub Issues / labels / PRs |
+| 版本内容 | Changesets、CHANGELOG、GitHub Releases |
+| 历史过程、旧设计与历史验收 | [`archive/`](./archive/) |
 
-发现 active 文档冲突时，应在同一变更中消除冲突，而不是以“更靠近代码”的描述临时裁决。
+如果 active 文档与代码、schema、migration 或 tests 冲突，应在同一变更中修正文档，而不是继续维护两套事实。
 
 ## Active technical docs
 
-| 文档 | 阅读目的 |
-|---|---|
-| [`roadmap.md`](./roadmap.md) | 2.x 长期方向、顺序与依赖 |
-| [`architecture.md`](./architecture.md) | 架构边界、赛事运行时与稳定代码域映射 |
-| [`domain-model.md`](./domain-model.md) | 领域实体、关系、冻结事实与 integrity owner |
-| [`workflows.md`](./workflows.md) | 报名、比赛与赛后生命周期 |
-| [`auth-and-permissions.md`](./auth-and-permissions.md) | 登录、角色、会话与 Data API 安全基线 |
-| [`security/database-access-matrix.md`](./security/database-access-matrix.md) | 所有 public application table 的 browser/Realtime/服务端访问分类与 terminal contract |
-| [`deployment.md`](./deployment.md) | Local、staging、production 与迁移安全 |
-| [`testing.md`](./testing.md) | 自动化验证、环境分层、专项演练与 production canary |
-| [`ui-system.md`](./ui-system.md) | UI tokens、交互与产品文案 |
-| [`operations/major-referee-guide.md`](./operations/major-referee-guide.md) | Major 当日裁判/管理员操作 |
+- [`architecture.md`](./architecture.md)：系统边界、赛事运行时与 canonical code areas。
+- [`domain-model.md`](./domain-model.md)：长期身份、Team、CompetitionEntry、比赛与赛事事实。
+- [`workflows.md`](./workflows.md)：账号、报名、选秀、Major、比赛、纪律与赛后生命周期。
+- [`auth-and-permissions.md`](./auth-and-permissions.md)：Auth、session、角色与 Data API 安全边界。
+- [`security/database-access-matrix.md`](./security/database-access-matrix.md)：public application tables 的访问分类与生成式安全 contract。
+- [`testing.md`](./testing.md)：不同验证层证明什么，以及如何选择证据。
+- [`deployment.md`](./deployment.md)：local / preview / staging / production 的稳定边界。
+- [`ui-system.md`](./ui-system.md)：UI tokens、组件语言与交互约束。
+- [`roadmap.md`](./roadmap.md)：2.x 产品方向和长期依赖，不维护实时 TODO。
 
-仓库协作与交付规则见根目录 [`CONTRIBUTING.md`](../CONTRIBUTING.md)；Agent 的最小入口见 [`AGENTS.md`](../AGENTS.md)。两者不复制本文档中的技术 authority。
+## Operations
 
-## Decisions and history
+`operations/` 回答“具体怎么做”，允许包含命令、workflow 名称和故障排查步骤；稳定概念仍由上面的 technical docs 拥有。
 
-- [`decisions/2.x-product-domains.md`](./decisions/2.x-product-domains.md) 记录 Team、奖项、DAK、个人工作台与历史产品的已接受边界和待决策问题。
-- [`decisions/competition-entry-terminal-migration.md`](./decisions/competition-entry-terminal-migration.md) 记录长期队伍与赛事参赛记录的终态迁移、旧 ID 来源追溯和退役验收条件。
-- [`archive/README.md`](./archive/README.md) 是历史 process artifacts、兼容记录、readiness snapshot、rehearsal 与集成交接材料的分类入口。
+- [`operations/local-development.md`](./operations/local-development.md)
+- [`operations/ci.md`](./operations/ci.md)
+- [`operations/database-migrations.md`](./operations/database-migrations.md)
+- [`operations/staging.md`](./operations/staging.md)
+- [`operations/release.md`](./operations/release.md)
+- [`operations/major-referee-guide.md`](./operations/major-referee-guide.md)
 
-精确代码定位使用 repository search、IDE 或 GitHub search；本文档不维护逐文件百科。
+精确代码定位使用 repository search、IDE 或 GitHub search；本文档不维护逐文件清单。
