@@ -15,6 +15,7 @@ import { evaluateRosterQualificationFromFacts, getParticipantReadinessBatch, isH
 import { sameQualificationFindingSnapshot } from "@/lib/competition-entries/restriction-overrides";
 import { normalizeAffiliationRules, normalizeTeamRegistrationConfig } from "@/types/season";
 import { presentSeasonStatus } from "@/lib/seasons/presentation";
+import { normalizeSteamProfileUrl } from "@/lib/external-url";
 
 interface PageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -198,7 +199,7 @@ export default async function AdminRegistrationsPage({ params }: PageProps) {
     displayName: r.displayName ?? null,
     perfectName: r.perfectName ?? null,
     steam64: r.steam64 ?? null,
-    steamProfileUrl: r.steamProfileUrl ?? null,
+    steamProfileUrl: normalizeSteamProfileUrl(r.steamProfileUrl),
     qq: r.qq ?? null,
   }));
 

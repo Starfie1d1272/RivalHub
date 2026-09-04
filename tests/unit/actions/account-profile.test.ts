@@ -71,4 +71,50 @@ describe("updateProfile Perfect identity boundary", () => {
     expect(updateMock).not.toHaveBeenCalled();
   });
 
+  it("normalizes valid Steam profile URL and stores canonical form", async () => {
+    const result = await updateProfile({
+      ...validInput,
+      steamProfileUrl: "  https://steamcommunity.com/id/test/?foo=bar#baz  ",
+    });
+
+    expect(result).toEqual({ success: true, data: undefined });
+    const set = updateMock.mock.results[0]?.value.set;
+    expect(set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        steamProfileUrl: "https://steamcommunity.com/id/test",
+      }),
+    );
+  });
+
+  it("rejects invalid Steam profile URLs and CodeQL bypass payloads without updating DB", async () => {
+    const bypassPayloads = [
+      "https://steamcommunity.com.attacker.example/id/test",
+      "https://attacker.example/steamcommunity.com",
+      "https://attacker.example/?next=steamcommunity.com",
+      "https://steamcommunity.com/profiles/76561198000000001/edit",
+      "https://steamcommunity.com/tradeoffer/new",
+      "https://steamcommunity.com/id/test/friends",
+      "not a url",
+    ];
+
+    for (const url of bypassPayloads) {
+      vi.clearAllMocks();
+      const result = await updateProfile({ ...validInput, steamProfileUrl: url });
+
+      expect(result).toMatchObject({
+        success: false,
+        error: { code: ErrorCode.VALIDATION_FAILED },
+      });
+      expect(updateMock).not.toHaveBeenCalled();
+    }
+  });
+
+  it("stores blank Steam profile URL as null", async () => {
+    await updateProfile({ ...validInput, steamProfileUrl: "   " });
+
+    const set = updateMock.mock.results[0]?.value.set;
+    expect(set).toHaveBeenCalledWith(
+      expect.objectContaining({ steamProfileUrl: null }),
+    );
+  });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import React, { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { reviewRegistration } from "@/actions/admin";
 import { Button } from "@/components/ui/button";
