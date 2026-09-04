@@ -37,7 +37,6 @@ describe("competition entry qualification restriction overrides PostgreSQL", () 
       external: randomUUID(),
       entry: randomUUID(),
       revision: randomUUID(),
-      nextRevision: randomUUID(),
       homeParticipant: randomUUID(),
       externalParticipant: randomUUID(),
       homeRosterMember: randomUUID(),
@@ -79,6 +78,7 @@ describe("competition entry qualification restriction overrides PostgreSQL", () 
       minStartingMembers: 0,
     }];
     const client = await pool.connect();
+    let nextRevisionId: string | null = null;
     try {
       const institutionRows = await client.query<{ id: string; code: string }>(
         "SELECT id, moe_institution_code AS code FROM institutions WHERE moe_institution_code IN ('4132010284', '4111010001')",
@@ -187,17 +187,6 @@ describe("competition entry qualification restriction overrides PostgreSQL", () 
         actorId: "local-admin",
       }));
       expect(firstGrant.alreadyGranted).toBe(false);
-      await client.query(
-        `INSERT INTO competition_entry_roster_revisions (id, entry_id, revision_number, status, origin, created_by)
-         VALUES ($1, $2, 2, 'draft', 'self_roster_change', 'local-test')`,
-        [ids.nextRevision, ids.entry],
-      );
-      const nextRevisionOverrides = await database.transaction((tx) => loadActiveRestrictionOverridesInTx(tx, {
-        competitionId: ids.season,
-        entryIds: [ids.entry],
-        rosterRevisionIds: [ids.nextRevision],
-      }));
-      expect(nextRevisionOverrides).toEqual([]);
       await database.transaction((tx) => revokeCompetitionEntryRestrictionOverrideInTx(tx, {
         entryId: ids.entry,
         restrictionCode: "external_strength_gap",
@@ -213,6 +202,39 @@ describe("competition entry qualification restriction overrides PostgreSQL", () 
 
       await database.transaction((tx) => reviewCompetitionEntryInTx(tx, {
         entryId: ids.entry,
+        decision: "changes_requested",
+        reason: "需要在新的 roster revision 上重新确认赛事事实。",
+        actorId: "local-admin-3",
+      }));
+      const currentRevision = await client.query<{ id: string }>(
+        "SELECT current_roster_revision_id AS id FROM competition_entries WHERE id = $1",
+        [ids.entry],
+      );
+      const currentRevisionId = currentRevision.rows[0]?.id;
+      if (!currentRevisionId) throw new Error("changes_requested 没有创建新的 current roster revision。");
+      nextRevisionId = currentRevisionId;
+      const nextRevisionOverrides = await database.transaction((tx) => loadActiveRestrictionOverridesInTx(tx, {
+        competitionId: ids.season,
+        entryIds: [ids.entry],
+        rosterRevisionIds: [currentRevisionId],
+      }));
+      expect(nextRevisionOverrides).toEqual([]);
+
+      await database.transaction((tx) => submitCompetitionEntryInTx(tx, {
+        entryId: ids.entry,
+        userId: ids.home,
+        actorId: "local-admin-3",
+      }));
+      const thirdGrant = await database.transaction((tx) => grantCompetitionEntryRestrictionOverrideInTx(tx, {
+        entryId: ids.entry,
+        restrictionCode: "external_strength_gap",
+        reason: "新 roster revision 已重新核对，明确解除该政策限制。",
+        actorId: "local-admin-3",
+      }));
+      expect(thirdGrant.alreadyGranted).toBe(false);
+
+      await database.transaction((tx) => reviewCompetitionEntryInTx(tx, {
+        entryId: ids.entry,
         decision: "approved",
         actorId: "local-admin-3",
       }));
@@ -221,7 +243,9 @@ describe("competition entry qualification restriction overrides PostgreSQL", () 
         `SELECT entry.registration_status AS status,
                 revision.status AS revision_status,
                 (SELECT count(*) FROM competition_entry_restriction_overrides override
-                 WHERE override.entry_id = entry.id AND override.revoked_at IS NULL)::text AS active_overrides,
+                 WHERE override.entry_id = entry.id
+                   AND override.roster_revision_id = entry.current_roster_revision_id
+                   AND override.revoked_at IS NULL)::text AS active_overrides,
                 (SELECT count(*) FROM audit_logs audit
                  WHERE audit.target_id = entry.id::text AND audit.action = 'competition_entry.restriction_override.grant')::text AS grant_audits,
                 (SELECT count(*) FROM audit_logs audit
@@ -235,7 +259,7 @@ describe("competition entry qualification restriction overrides PostgreSQL", () 
         status: "approved",
         revision_status: "approved",
         active_overrides: "1",
-        grant_audits: "2",
+        grant_audits: "3",
         revoke_audits: "1",
       });
       const overrides = await client.query<{ roster_revision_id: string; revoked_at: Date | null; reason: string }>(
@@ -244,10 +268,11 @@ describe("competition entry qualification restriction overrides PostgreSQL", () 
          WHERE entry_id = $1`,
         [ids.entry],
       );
-      expect(overrides.rows).toHaveLength(2);
-      expect(overrides.rows.every((row) => row.roster_revision_id === ids.revision)).toBe(true);
+      expect(overrides.rows).toHaveLength(3);
+      expect(overrides.rows.filter((row) => row.roster_revision_id === ids.revision)).toHaveLength(2);
+      expect(overrides.rows.filter((row) => row.roster_revision_id === currentRevisionId)).toHaveLength(1);
       const revoked = overrides.rows.find((row) => row.revoked_at !== null);
-      const active = overrides.rows.find((row) => row.revoked_at === null);
+      const active = overrides.rows.find((row) => row.revoked_at === null && row.roster_revision_id === currentRevisionId);
       expect(revoked).toBeDefined();
       expect(active?.reason).toContain("重新核对");
       const audits = await client.query<{ action: string; meta: { rosterRevisionId?: string; restrictionCode?: string; reason?: string; findingSnapshot?: unknown } }>(
@@ -258,9 +283,9 @@ describe("competition entry qualification restriction overrides PostgreSQL", () 
          ORDER BY created_at, id`,
         [ids.entry],
       );
-      expect(audits.rows).toHaveLength(3);
+      expect(audits.rows).toHaveLength(4);
       expect(audits.rows.every((audit) =>
-        audit.meta.rosterRevisionId === ids.revision &&
+        (audit.meta.rosterRevisionId === ids.revision || audit.meta.rosterRevisionId === currentRevisionId) &&
         audit.meta.restrictionCode === "external_strength_gap" &&
         typeof audit.meta.reason === "string" &&
         audit.meta.findingSnapshot !== undefined,
@@ -270,9 +295,8 @@ describe("competition entry qualification restriction overrides PostgreSQL", () 
       await client.query("DELETE FROM audit_logs WHERE season_id = $1", [ids.season]).catch(() => {});
       await client.query("DELETE FROM competition_entry_restriction_overrides WHERE entry_id = $1", [ids.entry]).catch(() => {});
       await client.query("DELETE FROM competition_entry_submissions WHERE entry_id = $1", [ids.entry]).catch(() => {});
-      await client.query("DELETE FROM competition_entry_roster_members WHERE revision_id = $1", [ids.revision]).catch(() => {});
-      await client.query("DELETE FROM competition_entry_roster_revisions WHERE id = $1", [ids.nextRevision]).catch(() => {});
-      await client.query("DELETE FROM competition_entry_roster_revisions WHERE id = $1", [ids.revision]).catch(() => {});
+      await client.query("DELETE FROM competition_entry_roster_members WHERE revision_id = ANY($1::uuid[])", [[ids.revision, ...(nextRevisionId ? [nextRevisionId] : [])]]).catch(() => {});
+      await client.query("DELETE FROM competition_entry_roster_revisions WHERE entry_id = $1", [ids.entry]).catch(() => {});
       await client.query("DELETE FROM competition_entry_participants WHERE entry_id = $1", [ids.entry]).catch(() => {});
       await client.query("DELETE FROM competition_entries WHERE id = $1", [ids.entry]).catch(() => {});
       await client.query("DELETE FROM competitive_rank_facts WHERE user_id = ANY($1::uuid[])", [[ids.home, ids.external]]).catch(() => {});
