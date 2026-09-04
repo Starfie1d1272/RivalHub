@@ -1,18 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
+import { formatStat, type StatMetric } from "@/lib/stats";
 
 interface PlayerStats {
   userId: string | null;
   perfectName: string;
   maps: number;
-  avgRating: number;
-  avgAdr: number;
+  avgRating: number | null;
+  avgAdr: number | null;
   kdRatio: number | null;
-  avgHs: number;
-  fkpr: number;
-  avgWe: number;
+  avgHs: number | null;
+  fkpr: number | null;
+  avgWe: number | null;
 }
 
 interface MatchLineupsH2HProps {
@@ -29,9 +30,10 @@ function CompareBar({
   aVal,
   bVal,
 }: {
-  aVal: number;
-  bVal: number;
+  aVal: number | null;
+  bVal: number | null;
 }) {
+  if (aVal == null || bVal == null) return null;
   const total = aVal + bVal;
   const aPct = total > 0 ? (aVal / total) * 100 : 50;
   return (
@@ -44,15 +46,15 @@ function CompareBar({
 
 interface StatRowProps {
   label: string;
-  aVal: number;
-  bVal: number;
-  format?: (v: number) => string;
+  aVal: number | null;
+  bVal: number | null;
+  metric: StatMetric;
   showBar?: boolean;
 }
 
-function StatRow({ label, aVal, bVal, format, showBar = true }: StatRowProps) {
-  const fmt = format ?? ((v: number) => v.toString());
-  const aWins = aVal >= bVal;
+function StatRow({ label, aVal, bVal, metric, showBar = true }: StatRowProps) {
+  const known = aVal != null && bVal != null;
+  const aWins = known && aVal >= bVal;
 
   return (
     <div className="flex items-center gap-2 py-1">
@@ -63,9 +65,9 @@ function StatRow({ label, aVal, bVal, format, showBar = true }: StatRowProps) {
         className="w-16 text-right text-xs tabular-nums shrink-0 font-medium"
         style={{ color: aWins ? A_COLOR : "var(--color-fg-mid)" }}
       >
-        {fmt(aVal)}
+        {formatStat(metric, aVal)}
       </span>
-      {showBar ? (
+      {showBar && known ? (
         <div className="flex-1 min-w-0">
           <CompareBar aVal={aVal} bVal={bVal} />
         </div>
@@ -74,9 +76,9 @@ function StatRow({ label, aVal, bVal, format, showBar = true }: StatRowProps) {
       )}
       <span
         className="w-16 text-left text-xs tabular-nums shrink-0 font-medium"
-        style={{ color: !aWins ? B_COLOR : "var(--color-fg-mid)" }}
+        style={{ color: known && !aWins ? B_COLOR : "var(--color-fg-mid)" }}
       >
-        {fmt(bVal)}
+        {formatStat(metric, bVal)}
       </span>
     </div>
   );
@@ -96,6 +98,7 @@ function PlayerButton({
   const color = side === "a" ? A_COLOR : B_COLOR;
   return (
     <button
+      type="button"
       onClick={onClick}
       className="px-2 py-1 text-xs rounded transition-all"
       style={{
@@ -128,9 +131,6 @@ export function MatchLineupsH2H({
       <p className="text-xs text-[var(--color-fg-dim)] py-2">暂无阵容数据</p>
     );
   }
-
-  const kdA = pa.kdRatio ?? 0;
-  const kdB = pb.kdRatio ?? 0;
 
   return (
     <div
@@ -210,37 +210,37 @@ export function MatchLineupsH2H({
           label="Rating"
           aVal={pa.avgRating}
           bVal={pb.avgRating}
-          format={(v) => v.toFixed(2)}
+          metric="ratingPro"
         />
         <StatRow
           label="ADR"
           aVal={pa.avgAdr}
           bVal={pb.avgAdr}
-          format={(v) => v.toFixed(1)}
+          metric="adr"
         />
         <StatRow
           label="K/D"
-          aVal={kdA}
-          bVal={kdB}
-          format={(v) => v.toFixed(2)}
+          aVal={pa.kdRatio}
+          bVal={pb.kdRatio}
+          metric="kd"
         />
         <StatRow
           label="HS%"
           aVal={pa.avgHs}
           bVal={pb.avgHs}
-          format={(v) => `${v.toFixed(0)}%`}
+          metric="hsPercent"
         />
         <StatRow
           label="FKPR /100r"
           aVal={pa.fkpr}
           bVal={pb.fkpr}
-          format={(v) => (v * 100).toFixed(1)}
+          metric="fkpr"
         />
         <StatRow
           label="WE"
           aVal={pa.avgWe}
           bVal={pb.avgWe}
-          format={(v) => v.toFixed(1)}
+          metric="we"
         />
       </div>
 

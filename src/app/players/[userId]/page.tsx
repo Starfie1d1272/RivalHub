@@ -12,8 +12,9 @@ import { MapPreferenceChips } from "@/components/rivalhub/MapPreferenceChips";
 import Image from "next/image";
 import Link from "next/link";
 import { POSITION_LABELS } from "@/lib/validators/registration";
-import { matchPlayerStats } from "@/db/schema/player-stats";
-import { wAvg } from "@/lib/utils/stats";
+import { matchPlayerStats, type MatchPlayerStat } from "@/db/schema/player-stats";
+import { avgNums } from "@/lib/utils/stats";
+import { aggregatePlayerRows, formatNumber, formatStat, type AggregatedPlayerStats, type StatRowInput } from "@/lib/stats";
 import { getSeasonHexagonScores } from "@/actions/hexagon";
 import type { HexagonScores } from "@/lib/utils/hexagon";
 import { PlayerRadarChart } from "@/components/matches/PlayerRadarChart";
@@ -35,6 +36,73 @@ async function getMvpWinCount(userId: string): Promise<number> {
 
 interface PlayerPageProps {
   params: Promise<{ userId: string }>;
+}
+
+type PlayerStatRow = Pick<
+  MatchPlayerStat,
+  | "mapId"
+  | "userId"
+  | "perfectName"
+  | "kills"
+  | "deaths"
+  | "assists"
+  | "hsPercent"
+  | "firstKills"
+  | "multiKills"
+  | "clutches"
+  | "adr"
+  | "rws"
+  | "ratingPro"
+  | "we"
+ > & {
+  seasonId: string;
+  seasonName: string;
+  seasonSlug: string;
+  seasonCreatedAt: Date;
+  rounds: number | null;
+};
+
+type PlayerSeasonStats = AggregatedPlayerStats & {
+  seasonId: string;
+  seasonName: string;
+  seasonSlug: string;
+  seasonCreatedAt: Date;
+  avgKills: number | null;
+  avgDeaths: number | null;
+  avgAssists: number | null;
+};
+
+function toStatInput(row: PlayerStatRow): StatRowInput {
+  return {
+    userId: row.userId,
+    perfectName: row.perfectName,
+    kills: row.kills,
+    deaths: row.deaths,
+    assists: row.assists,
+    hsPercent: row.hsPercent,
+    firstKills: row.firstKills,
+    multiKills: row.multiKills,
+    clutches: row.clutches,
+    adr: row.adr,
+    rws: row.rws,
+    ratingPro: row.ratingPro,
+    we: row.we,
+    rounds: row.rounds,
+  };
+}
+
+function aggregateSeasonRows(rows: PlayerStatRow[]): PlayerSeasonStats {
+  const aggregate = aggregatePlayerRows(rows.map(toStatInput));
+  return {
+    ...aggregate,
+    seasonId: rows[0].seasonId,
+    seasonName: rows[0].seasonName,
+    seasonSlug: rows[0].seasonSlug,
+    seasonCreatedAt: rows[0].seasonCreatedAt,
+    avgKills: avgNums(rows.map((row) => row.kills)),
+    avgDeaths: avgNums(rows.map((row) => row.deaths)),
+    avgAssists: avgNums(rows.map((row) => row.assists)),
+  };
 }
 
 function pct(n: number, d: number) {
@@ -75,7 +143,7 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
   if (!user) notFound();
 
   // ── 并行：报名记录 / MVP 胜场 / 个人数据 / 高校身份 ────────────────
-  const [registrations, mvpWinCount, playerStats, competitiveFacts, competitiveRoles, mapPreferences, competitiveCatalog, educationVerificationRows, playerLft] = await Promise.all([
+  const [registrations, mvpWinCount, rawPlayerStats, competitiveFacts, competitiveRoles, mapPreferences, competitiveCatalog, educationVerificationRows, playerLft] = await Promise.all([
     db
       .select({
         id: seasonRegistrations.id,
@@ -105,25 +173,25 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
     getMvpWinCount(userId),
     db
       .select({
+        mapId: matchPlayerStats.mapId,
+        userId: matchPlayerStats.userId,
+        perfectName: matchPlayerStats.perfectName,
+        kills: matchPlayerStats.kills,
+        deaths: matchPlayerStats.deaths,
+        assists: matchPlayerStats.assists,
+        hsPercent: matchPlayerStats.hsPercent,
+        firstKills: matchPlayerStats.firstKills,
+        multiKills: matchPlayerStats.multiKills,
+        clutches: matchPlayerStats.clutches,
+        adr: matchPlayerStats.adr,
+        rws: matchPlayerStats.rws,
+        ratingPro: matchPlayerStats.ratingPro,
+        we: matchPlayerStats.we,
         seasonId: seasons.id,
         seasonName: seasons.name,
         seasonSlug: seasons.slug,
         seasonCreatedAt: seasons.createdAt,
-        maps: sql<number>`count(distinct ${matchPlayerStats.mapId})::int`,
-        avgKills: sql<number>`round(avg(${matchPlayerStats.kills})::numeric, 1)`,
-        avgDeaths: sql<number>`round(avg(${matchPlayerStats.deaths})::numeric, 1)`,
-        avgAssists: sql<number>`round(avg(${matchPlayerStats.assists})::numeric, 1)`,
-        avgRating: sql<number>`round(avg(${matchPlayerStats.ratingPro})::numeric, 2)`,
-        avgAdr: sql<number>`round(avg(${matchPlayerStats.adr})::numeric, 1)`,
-        avgWe: sql<number>`round(avg(${matchPlayerStats.we})::numeric, 1)`,
-        avgHs: sql<number>`round(avg(${matchPlayerStats.hsPercent})::numeric, 0)`,
-        avgRws: sql<number>`round(avg(${matchPlayerStats.rws})::numeric, 2)`,
-        totalKills: sql<number>`sum(${matchPlayerStats.kills})::int`,
-        totalDeaths: sql<number>`sum(${matchPlayerStats.deaths})::int`,
-        totalFirstKills: sql<number>`sum(${matchPlayerStats.firstKills})::int`,
-        totalMultiKills: sql<number>`sum(${matchPlayerStats.multiKills})::int`,
-        totalClutches: sql<number>`sum(${matchPlayerStats.clutches})::int`,
-        totalRounds: sql<number>`sum(${matchMaps.scoreA} + ${matchMaps.scoreB})::int`,
+        rounds: sql<number | null>`${matchMaps.scoreA} + ${matchMaps.scoreB}`,
       })
       .from(matchPlayerStats)
       .innerJoin(matches, eq(matchPlayerStats.matchId, matches.id))
@@ -135,7 +203,6 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
           sql`${matchPlayerStats.verifiedByAdmin} IS NOT NULL`,
         )
       )
-      .groupBy(seasons.id, seasons.name, seasons.slug, seasons.createdAt)
       .orderBy(asc(seasons.createdAt)),
     db.select().from(competitiveRankFacts).where(eq(competitiveRankFacts.userId, userId)),
     db.select().from(userCompetitiveRoles).where(eq(userCompetitiveRoles.userId, userId)),
@@ -156,6 +223,19 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
       .orderBy(asc(institutions.name), asc(educationVerifications.institutionId), desc(educationVerifications.submittedAt), asc(educationVerifications.id)),
     getPublicPlayerLft(userId),
   ]);
+
+  const rowsBySeason = new Map<string, PlayerStatRow[]>();
+  for (const row of rawPlayerStats) {
+    const seasonRows = rowsBySeason.get(row.seasonId) ?? [];
+    seasonRows.push(row);
+    rowsBySeason.set(row.seasonId, seasonRows);
+  }
+  const playerStats = [...rowsBySeason.values()]
+    .map(aggregateSeasonRows)
+    .sort((a, b) => a.seasonCreatedAt.getTime() - b.seasonCreatedAt.getTime());
+  const careerStats = rawPlayerStats.length > 0
+    ? aggregatePlayerRows(rawPlayerStats.map(toStatInput))
+    : null;
 
   // ── 六维数据：仅对有数据的赛季查询 ──────────────────────────────────
   const hexagonBySeasonSlug = new Map<string, HexagonScores>();
@@ -236,13 +316,7 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
   const effectiveMapPrefs = mapPreferences[0]?.mapPreferences ?? [];
 
   // ── 生涯总计预计算 ──────────────────────────────────────────────────
-  const totalMaps = playerStats.reduce((s, x) => s + x.maps, 0);
-  const totalKillsAll = playerStats.reduce((s, x) => s + x.totalKills, 0);
-  const totalDeathsAll = playerStats.reduce((s, x) => s + x.totalDeaths, 0);
-  const totalFirstKillsAll = playerStats.reduce((s, x) => s + x.totalFirstKills, 0);
-  const totalMultiKillsAll = playerStats.reduce((s, x) => s + x.totalMultiKills, 0);
-  const totalClutchesAll = playerStats.reduce((s, x) => s + x.totalClutches, 0);
-  const totalRoundsAll = playerStats.reduce((s, x) => s + x.totalRounds, 0);
+  const totalMaps = careerStats?.maps ?? 0;
   const mvpCount = mvpWinCount;
 
   return (
@@ -382,26 +456,16 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
             </span>
             <div className="grid grid-cols-4 sm:grid-cols-5 gap-3 text-center mt-3">
               {[
-                { label: "Rating", value: wAvg(playerStats, "avgRating", 2) },
-                { label: "ADR", value: wAvg(playerStats, "avgAdr") },
-                { label: "RWS", value: wAvg(playerStats, "avgRws", 2) },
-                {
-                  label: "K/D",
-                  value: totalKillsAll > 0 && totalDeathsAll > 0
-                    ? (totalKillsAll / totalDeathsAll).toFixed(2)
-                    : "—",
-                },
-                { label: "WE", value: wAvg(playerStats, "avgWe") },
-                { label: "KPR", value: totalRoundsAll > 0 ? (totalKillsAll / totalRoundsAll).toFixed(2) : "—" },
-                { label: "FKPR /100r", value: totalRoundsAll > 0 ? (totalFirstKillsAll / totalRoundsAll * 100).toFixed(1) : "—" },
-                { label: "MKPR /100r", value: totalRoundsAll > 0 ? (totalMultiKillsAll / totalRoundsAll * 100).toFixed(1) : "—" },
-                { label: "CPR /100r", value: totalRoundsAll > 0 ? (totalClutchesAll / totalRoundsAll * 100).toFixed(1) : "—" },
-                {
-                  label: "HS%",
-                  value: totalMaps > 0
-                    ? Math.round(playerStats.reduce((s, x) => s + x.avgHs * x.maps, 0) / totalMaps) + "%"
-                    : "—",
-                },
+                { label: "Rating", value: formatStat("ratingPro", careerStats?.ratingPro) },
+                { label: "ADR", value: formatStat("adr", careerStats?.adr) },
+                { label: "RWS", value: formatStat("rws", careerStats?.rws) },
+                { label: "K/D", value: formatStat("kd", careerStats?.kd) },
+                { label: "WE", value: formatStat("we", careerStats?.we) },
+                { label: "KPR", value: formatStat("kpr", careerStats?.kpr) },
+                { label: "FKPR /100r", value: formatStat("fkpr", careerStats?.fkpr) },
+                { label: "MKPR /100r", value: formatStat("mkpr", careerStats?.mkpr) },
+                { label: "CPR /100r", value: formatStat("cpr", careerStats?.cpr) },
+                { label: "HS%", value: formatStat("hsPercent", careerStats?.hsPercent) },
               ].map(({ label, value }) => (
                 <div key={label}>
                   <p className="text-lg font-bold text-[var(--color-fg)]">
@@ -426,39 +490,37 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
                   {ps.seasonName}
                 </Link>
                 <span className="text-[11px] text-[var(--color-fg-dim)]">
-                  {ps.maps} 图 · 场均 {ps.avgKills}-{ps.avgDeaths}-{ps.avgAssists}
+                  {ps.maps} 图 · 场均 {formatNumber(ps.avgKills, 1)}-{formatNumber(ps.avgDeaths, 1)}-{formatNumber(ps.avgAssists, 1)}
                 </span>
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--color-fg-mid)]">
                 <span>
                   Rating{" "}
                   <span className="text-[var(--color-accent)] font-semibold">
-                    {ps.avgRating}
+                    {formatStat("ratingPro", ps.ratingPro)}
                   </span>
                 </span>
                 <span>
                   ADR{" "}
-                  <span className="text-[var(--color-fg)]">{ps.avgAdr}</span>
+                  <span className="text-[var(--color-fg)]">{formatStat("adr", ps.adr)}</span>
                 </span>
                 <span>
                   RWS{" "}
-                  <span className="text-[var(--color-fg)]">{ps.avgRws}</span>
+                  <span className="text-[var(--color-fg)]">{formatStat("rws", ps.rws)}</span>
                 </span>
                 <span>
                   K/D{" "}
                   <span className="text-[var(--color-fg)]">
-                    {ps.avgDeaths > 0
-                      ? (ps.totalKills / ps.totalDeaths).toFixed(2)
-                      : "—"}
+                    {formatStat("kd", ps.kd)}
                   </span>
                 </span>
                 <span>
                   WE{" "}
-                  <span className="text-[var(--color-fg)]">{ps.avgWe}</span>
+                  <span className="text-[var(--color-fg)]">{formatStat("we", ps.we)}</span>
                 </span>
                 <span>
                   HS{" "}
-                  <span className="text-[var(--color-fg)]">{ps.avgHs}%</span>
+                  <span className="text-[var(--color-fg)]">{formatStat("hsPercent", ps.hsPercent)}</span>
                 </span>
               </div>
             </Panel>

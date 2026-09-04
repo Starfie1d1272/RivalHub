@@ -2,6 +2,7 @@ import React from "react";
 import Link from "next/link";
 import { Panel, PosChip } from "@/components/rivalhub";
 import { positionLabel } from "@/lib/validators/registration";
+import { formatNumber, formatStat } from "@/lib/stats";
 
 export interface PlayerDirectoryData {
   userId: string;
@@ -16,8 +17,8 @@ export interface PlayerDirectoryData {
   teamName: string | null;
   stats: {
     maps: number;
-    avgRating: number;
-    avgAdr: number;
+    avgRating: number | null;
+    avgAdr: number | null;
     avgKd: number | null;
   } | null;
 }
@@ -59,18 +60,18 @@ export function PlayerDirectoryRow({ player }: { player: PlayerDirectoryData }) 
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-1.5">
             <DirectoryMetric label="Peak Rank" value={player.peakRank} />
-            <DirectoryMetric label="Peak RT" value={player.peakRating.toFixed(2)} />
+            <DirectoryMetric label="Peak RT" value={formatNumber(player.peakRating, 2)} />
             <DirectoryMetric label="Current Rank" value={player.currentRank} />
-            <DirectoryMetric label="Current RT" value={player.currentRating.toFixed(2)} />
+            <DirectoryMetric label="Current RT" value={formatNumber(player.currentRating, 2)} />
           </div>
         </div>
 
         {player.stats ? (
           <div className="flex flex-wrap gap-x-4 gap-y-1.5 border-t border-[var(--color-border)] pt-2 lg:justify-end lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
             <DirectoryMetric label="Maps" value={player.stats.maps} />
-            <DirectoryMetric label="Rating" value={player.stats.avgRating.toFixed(2)} />
-            <DirectoryMetric label="ADR" value={player.stats.avgAdr.toFixed(1)} />
-            <DirectoryMetric label="K/D" value={player.stats.avgKd != null ? player.stats.avgKd.toFixed(2) : "—"} />
+            <DirectoryMetric label="Rating" value={formatStat("ratingPro", player.stats.avgRating)} />
+            <DirectoryMetric label="ADR" value={formatStat("adr", player.stats.avgAdr)} />
+            <DirectoryMetric label="K/D" value={formatStat("kd", player.stats.avgKd)} />
           </div>
         ) : (
           <div className="border-t border-[var(--color-border)] pt-2 text-xs uppercase text-[var(--color-fg-dim)] lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0 lg:text-right" style={{ fontFamily: "var(--font-mono)" }}>

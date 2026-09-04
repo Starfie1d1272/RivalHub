@@ -91,4 +91,32 @@ describe("StatsLeaderboard", () => {
     expect(screen.getByRole("link", { name: "AWPer" })).toHaveAttribute("href", "/test/stats?sort=rating&position=awper");
     expect(screen.getByRole("link", { name: "王五" })).toHaveAttribute("href", "/players/u1");
   });
+
+  it("renders unknown metrics as em dashes and preserves real zero", () => {
+    render(
+      <StatsLeaderboard
+        seasonSlug="test"
+        sort="rating"
+        position=""
+        rows={[
+          {
+            userId: "u-null", perfectName: "Unknown", position: null,
+            teamName: null, teamId: null,
+            maps: 1, avgRating: null, avgAdr: null, avgRws: null, avgWe: null, avgHs: null,
+            kdRatio: null, kpr: null, fkpr: null, mkpr: null, cpr: null,
+          },
+          {
+            userId: "u-zero", perfectName: "Zero", position: null,
+            teamName: null, teamId: null,
+            maps: 1, avgRating: 0, avgAdr: 0, avgRws: 0, avgWe: 0, avgHs: 0,
+            kdRatio: 0, kpr: 0, fkpr: 0, mkpr: 0, cpr: 0,
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(5);
+    expect(screen.getAllByText("0.00").length).toBeGreaterThanOrEqual(3);
+    expect(screen.getByText("0%")).toBeInTheDocument();
+  });
 });

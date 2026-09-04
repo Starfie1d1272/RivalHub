@@ -7,6 +7,22 @@ import {
   computeDimensions,
 } from "@/lib/utils/hexagon";
 import type { PlayerMetrics, HexagonScores } from "@/lib/utils/hexagon";
+import {
+  perRound,
+  ratioOfSums,
+  roundWeightedAvg,
+  roundsExpr,
+  simpleAvg,
+  sumKnown,
+} from "@/lib/stats";
+
+type NumericPlayerMetrics = Omit<PlayerMetrics, "userId">;
+
+function hasCompleteMetrics(
+  values: { [key in keyof NumericPlayerMetrics]: number | null },
+): values is NumericPlayerMetrics {
+  return Object.values(values).every((value) => value != null && Number.isFinite(value) && value >= 0);
+}
 
 /**
  * 聚合赛事内所有有 verified 数据的选手的原始指标，
@@ -17,24 +33,44 @@ import type { PlayerMetrics, HexagonScores } from "@/lib/utils/hexagon";
 export async function getSeasonHexagonScores(
   seasonId: string
 ): Promise<Map<string, HexagonScores>> {
-  // 回合数只来自实际打过的地图；matches 仅保存系列赛比分。
+  const kprExpr = perRound("mps.kills");
+  const dprExpr = perRound("mps.deaths");
+  const aprExpr = perRound("mps.assists");
+  const fkprExpr = perRound("mps.first_kills");
+  const mkprExpr = perRound("mps.multi_kills");
+  const cprExpr = perRound("mps.clutches");
+  const adrExpr = roundWeightedAvg("mps.adr");
+  const rwsExpr = simpleAvg("mps.rws");
+  const weExpr = simpleAvg("mps.we");
+  const ratingExpr = simpleAvg("mps.rating_pro");
+  const kdExpr = ratioOfSums("mps.kills", "mps.deaths");
+  const killsSumExpr = sumKnown("mps.kills");
+  const assistsSumExpr = sumKnown("mps.assists");
+  const deathsSumExpr = sumKnown("mps.deaths");
+  const kdaExpr = sql`CASE
+    WHEN ${killsSumExpr} IS NOT NULL
+      AND ${assistsSumExpr} IS NOT NULL
+      AND ${deathsSumExpr} > 0
+    THEN (${killsSumExpr} + ${assistsSumExpr})::numeric / ${deathsSumExpr}
+    ELSE NULL
+  END`;
+
   const { rows } = await db.execute(sql`
     SELECT
       mps.user_id,
-      sum(mps.kills)::float        / NULLIF(sum(mm.score_a + mm.score_b), 0)  AS kpr,
-      sum(mps.deaths)::float       / NULLIF(sum(mm.score_a + mm.score_b), 0)  AS dpr,
-      sum(mps.assists)::float      / NULLIF(sum(mm.score_a + mm.score_b), 0)  AS apr,
-      sum(mps.first_kills)::float  / NULLIF(sum(mm.score_a + mm.score_b), 0)  AS fkpr,
-      sum(mps.multi_kills)::float  / NULLIF(sum(mm.score_a + mm.score_b), 0)  AS mkpr,
-      sum(mps.clutches)::float     / NULLIF(sum(mm.score_a + mm.score_b), 0)  AS cpr,
-      sum(mps.adr * (mm.score_a + mm.score_b))
-        / NULLIF(sum(mm.score_a + mm.score_b), 0)                             AS adr,
-      avg(mps.rws)                                                                                             AS rws,
-      avg(mps.we)                                                                                              AS we,
-      avg(mps.rating_pro)                                                                                      AS rating_pro,
-      sum(mps.kills)::float        / NULLIF(sum(mps.deaths), 0)                                               AS kd,
-      (sum(mps.kills) + sum(mps.assists))::float / NULLIF(sum(mps.deaths), 0)                                 AS kda,
-      sum(mm.score_a + mm.score_b)::int                                      AS total_rounds
+      ${kprExpr} AS kpr,
+      ${dprExpr} AS dpr,
+      ${aprExpr} AS apr,
+      ${fkprExpr} AS fkpr,
+      ${mkprExpr} AS mkpr,
+      ${cprExpr} AS cpr,
+      ${adrExpr} AS adr,
+      ${rwsExpr} AS rws,
+      ${weExpr} AS we,
+      ${ratingExpr} AS rating_pro,
+      ${kdExpr} AS kd,
+      ${kdaExpr} AS kda,
+      sum(${roundsExpr}) FILTER (WHERE ${roundsExpr} IS NOT NULL)::int AS total_rounds
     FROM match_player_stats mps
     JOIN matches m  ON m.id  = mps.match_id
     JOIN match_maps mm ON mm.id = mps.map_id
@@ -48,24 +84,32 @@ export async function getSeasonHexagonScores(
     return new Map();
   }
 
-  const n = (v: unknown) => Number(v) || 0;
+  const toFinite = (value: unknown): number | null => {
+    if (value == null) return null;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  };
 
-  const players: PlayerMetrics[] = rows.map((r) => ({
-    userId:      r.user_id as string,
-    kpr:         n(r.kpr),
-    dpr:         n(r.dpr),
-    apr:         n(r.apr),
-    kd:          n(r.kd),
-    kda:         n(r.kda),
-    fkpr:        n(r.fkpr),
-    mkpr:        n(r.mkpr),
-    cpr:         n(r.cpr),
-    adr:         n(r.adr),
-    rws:         n(r.rws),
-    we:          n(r.we),
-    ratingPro:   n(r.rating_pro),
-    totalRounds: n(r.total_rounds),
-  }));
+  const players: PlayerMetrics[] = rows.flatMap((r) => {
+    const values = {
+      kpr: toFinite(r.kpr),
+      dpr: toFinite(r.dpr),
+      apr: toFinite(r.apr),
+      kd: toFinite(r.kd),
+      kda: toFinite(r.kda),
+      fkpr: toFinite(r.fkpr),
+      mkpr: toFinite(r.mkpr),
+      cpr: toFinite(r.cpr),
+      adr: toFinite(r.adr),
+      rws: toFinite(r.rws),
+      we: toFinite(r.we),
+      ratingPro: toFinite(r.rating_pro),
+      totalRounds: toFinite(r.total_rounds),
+    };
+    if (!hasCompleteMetrics(values)) return [];
+    if (values.totalRounds <= 0) return [];
+    return [{ userId: r.user_id as string, ...values }];
+  });
 
   const eventStats = computeEventStats(players);
 
