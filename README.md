@@ -12,6 +12,8 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/Starfie1d1272/RivalHub/releases"><img src="https://img.shields.io/github/v/release/Starfie1d1272/RivalHub?display_name=tag" alt="Latest Release" /></a>
+  <a href="https://github.com/Starfie1d1272/RivalHub/actions/workflows/ci.yml"><img src="https://github.com/Starfie1d1272/RivalHub/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-blue.svg" alt="License: AGPL-3.0" /></a>
   <img src="https://img.shields.io/badge/Next.js-App_Router-black?logo=next.js" alt="Next.js" />
   <img src="https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white" alt="TypeScript" />
@@ -30,59 +32,57 @@
 
 ![RivalHub — 赛事首页](./docs/assets/screenshots/rivalhub-home.png)
 
-RivalHub 从真实高校电竞赛事的运营需求出发，把报名、资格、组队、赛制运行、比赛管理、数据统计与赛后历史放在同一个系统里。
+RivalHub 是一个面向高校电竞赛事的开源赛事平台。目前主要用于 NJU Rivals 和 NJU Major，覆盖报名、组队、资格审核、赛程、比赛管理、数据统计和赛事历史。
 
-当前官方实例服务于 NJU 电竞赛事，但 RivalHub 的领域模型面向可以持续运营、跨赛季沉淀的高校电竞赛事。
+Rivals 与 Major 共用账号、长期 Team、比赛和数据基础设施，同时保留各自不同的报名方式和赛制流程。
 
-## Features
+## 主要功能
 
-- **选手档案** — 跨赛季的统一身份，维护账号、教育资格与竞技记录。
-- **队伍与参赛管理** — 队伍作为长期实体存在，每届赛事通过独立参赛记录管理名单与审核，历史赛事记录不受后续变更影响。
-- **报名与资格审核** — 个人 / 队伍报名、成员确认、资格核验、补正、候补与管理员审核。
-- **赛事运行** — 选秀、Swiss、循环赛、双败淘汰、Playoffs；赛制推进与名单冻结基于结构化赛事状态。
-- **比赛运营** — 时间协商、阵容与 BP、地图与系列赛结果、弃赛、更正、恢复、纪律与赛后确认。
-- **数据与历史** — 赛季排行榜、选手与队伍表现、比赛结果沉淀为可查询的长期记录。
+- **选手与竞技档案** — 统一维护身份、教育资格和竞技资料，并在不同赛事之间复用。
+- **Team 与参赛管理** — Team 长期存在，每届赛事单独管理参赛名单、成员确认和审核状态。
+- **报名与资格审核** — 支持个人或队伍报名、资格核验、补正、候补和管理员审核。
+- **赛事流程** — 已覆盖选秀、循环赛、Swiss、双败淘汰和 Playoffs 等流程。
+- **比赛管理** — 支持时间协商、阵容与 BP、地图和系列赛结果、弃赛、更正、恢复与纪律处理。
+- **数据统计** — 提供赛季排行榜、比赛结果和选手统计，并持续完善跨赛事历史展示。
 
-## Built-in Tournament Systems
+## Rivals 与 Major
 
-RivalHub 内置 Rivals 与 Major 两套平行赛事体系，共享长期身份、Team、比赛与数据基础设施，保留各自参赛与赛制语义。
+| 体系 | 参赛方式 | 主要流程 |
+| --- | --- | --- |
+| **Rivals** | 个人报名 | 审核 → 队长投票 → 蛇形选秀 → 循环赛 → 双败淘汰 |
+| **Major** | 长期 Team 组队报名 | 成员确认 → 资格审核 → 管理审核 → 赛前冻结 → 三阶段 Swiss → Playoffs |
 
-| 体系       | 参赛方式           | 主要流程                                                     |
-| ---------- | ------------------ | ------------------------------------------------------------ |
-| **Rivals** | 个人报名           | 审核 → 队长投票 → 蛇形选秀 → 循环赛 → 双败淘汰               |
-| **Major**  | 长期 Team 组队报名 | 成员确认 → qualification → 管理审核 → 赛前冻结 → 三阶段 Swiss → Playoffs |
+2026 NJU Rivals 已完整通过 RivalHub 运行，覆盖从报名、选秀到比赛、统计和赛季收尾的完整流程。
 
-2026 NJU Rivals 已通过 RivalHub 完成真实赛事运行，覆盖从报名、选秀到比赛、统计与赛季收尾的完整链路。
+## 赛事运行
 
-## Tournament in Action
-
-赛程推进、胜负关系和阶段状态直接由结构化赛事数据驱动，不依赖人工维护的展示副本。管理侧保留资格、名单、赛制、赛果更正与恢复等受控入口。
+从选秀、循环赛到双败淘汰，赛程和晋级关系都在 RivalHub 内推进；Major 则进一步覆盖 Team 报名、资格审核、Swiss 和 Playoffs。管理员可以在后台处理名单、比赛结果、更正和恢复等赛务工作。
 
 ![Rivals 双败淘汰赛](./docs/assets/screenshots/rivals-bracket.png)
 
-## Data & History
+## 数据与历史
 
-比赛结束不是数据生命周期的终点。地图、系列赛、选手表现、队伍与赛季结果持续沉淀为公开数据和长期档案。
+比赛结果和选手数据会继续用于赛季排行榜与统计页面。更完整的 Player、Team 与 Event 跨赛事历史仍在 2.x 中继续完善。
 
 ![Rivals 赛季排行榜](./docs/assets/screenshots/rivals-ranking.png)
 
-## Scope
+## 项目范围
 
-RivalHub 2.x 专注于把官方实例和真实赛事运营做完整、做稳定。代码以 AGPL-3.0 开源，可用于阅读、研究、修改和本地开发。2.x 阶段暂不将第三方 production self-hosting 作为正式支持目标。
+RivalHub 2.x 先把官方实例和真实赛事运营做好。代码以 AGPL-3.0 开源，可用于阅读、研究、修改和本地开发；第三方 production self-hosting 暂不作为 2.x 的正式支持目标。
 
-未来产品方向与领域依赖见 [`docs/roadmap.md`](./docs/roadmap.md)。实时开发状态以 GitHub Issues 为准。
+后续产品方向见 [`docs/roadmap.md`](./docs/roadmap.md)，具体开发状态以 GitHub Issues 为准。
 
-## Getting Started
+## 本地开发
 
-### Prerequisites
+### 环境要求
 
-| 依赖    | 版本                |
-| ------- | ------------------- |
-| Node.js | `24.x`              |
-| pnpm    | `11.x`              |
-| Docker  | Local Supabase 需要 |
+| 依赖 | 版本 |
+| --- | --- |
+| Node.js | `24.x` |
+| pnpm | `11.x` |
+| Docker | Local Supabase 需要 |
 
-### Quick Start
+### 快速开始
 
 ```bash
 pnpm install
@@ -90,30 +90,22 @@ pnpm db:local:bootstrap
 pnpm dev:local
 ```
 
-Local Supabase 由仓库 wrapper 启动并注入 loopback 连接；不会把 `.env.local` 的远程数据库作为 fallback。环境与迁移边界见 [docs/deployment.md](./docs/deployment.md)。
+本地开发使用仓库提供的 Local Supabase 配置。完整环境、数据库迁移、CI 和发布说明从 [`docs/README.md`](./docs/README.md) 进入对应文档。
 
-## Docs
+## 文档
 
-| 文档                                                         | 说明                              |
-| ------------------------------------------------------------ | --------------------------------- |
-| [AGENTS.md](./AGENTS.md)                                     | 持久工程约束                      |
-| [docs/README.md](./docs/README.md)                           | 文档入口与 authority              |
-| [docs/roadmap.md](./docs/roadmap.md)                         | 2.x 方向、顺序与依赖              |
-| [docs/architecture.md](./docs/architecture.md)               | 技术架构与代码域映射              |
-| [docs/domain-model.md](./docs/domain-model.md)               | 领域模型与数据边界                |
-| [docs/workflows.md](./docs/workflows.md)                     | 用户与运营生命周期                |
-| [docs/auth-and-permissions.md](./docs/auth-and-permissions.md) | Auth、权限与 Data API 安全基线    |
-| [docs/deployment.md](./docs/deployment.md)                   | Local / Staging / Production 环境 |
-| [docs/testing.md](./docs/testing.md)                         | 测试策略与环境分层                |
-| [docs/ui-system.md](./docs/ui-system.md)                     | UI 系统与产品语言                 |
-| [docs/rules/nju-major.md](./docs/rules/nju-major.md)         | NJU Major 赛事政策                |
+| 文档 | 用途 |
+| --- | --- |
+| [`docs/README.md`](./docs/README.md) | 文档入口 |
+| [`docs/roadmap.md`](./docs/roadmap.md) | 2.x 主线与 3.x 展望 |
+| [`docs/architecture.md`](./docs/architecture.md) | 系统架构 |
+| [`docs/domain-model.md`](./docs/domain-model.md) | 核心领域模型 |
+| [`CONTRIBUTING.md`](./CONTRIBUTING.md) | 开发与提交规范 |
 
-历史过程材料在 [docs/archive/](./docs/archive/)。
-
-## Security
+## 安全
 
 安全问题请不要在公开 Issue 中披露技术细节，按仓库的 [Security Policy](https://github.com/Starfie1d1272/RivalHub/security/policy) 使用私密渠道报告。
 
-## License
+## 许可证
 
 [GNU Affero General Public License v3.0](./LICENSE)
