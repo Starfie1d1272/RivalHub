@@ -16,58 +16,30 @@ export interface MapWinStats {
   played: number;
 }
 
-/** 每图胜率，兼容 BO1（via decider veto step）和 BO3/BO5（via matchMaps） */
+/** 每图胜率：所有 format 均只统计 matchMaps 中实际完成的地图。 */
 export async function getTeamMapWinStats(
   entryId: string,
   teamMatches: MatchRef[],
 ): Promise<Map<string, MapWinStats>> {
   if (!teamMatches.length) return new Map();
   const matchRef = new Map(teamMatches.map((m) => [m.id, m]));
-  const bo1Matches = teamMatches.filter((m) => m.format === "bo1");
-  const bo35Matches = teamMatches.filter((m) => m.format !== "bo1");
   const mapStats = new Map<string, MapWinStats>();
 
-  if (bo35Matches.length) {
-    const maps = await db.query.matchMaps.findMany({
-      where: inArray(matchMaps.matchId, bo35Matches.map((m) => m.id)),
+  const maps = await db.query.matchMaps.findMany({
+    where: inArray(matchMaps.matchId, teamMatches.map((m) => m.id)),
+  });
+  for (const mp of maps) {
+    if (mp.scoreA === null || mp.scoreB === null) continue;
+    const match = matchRef.get(mp.matchId);
+    if (!match) continue;
+    const isA = match.entryAId === entryId;
+    const myScore = isA ? mp.scoreA : mp.scoreB;
+    const oppScore = isA ? mp.scoreB : mp.scoreA;
+    const prev = mapStats.get(mp.mapName) ?? { wins: 0, played: 0 };
+    mapStats.set(mp.mapName, {
+      wins: prev.wins + (myScore > oppScore ? 1 : 0),
+      played: prev.played + 1,
     });
-    for (const mp of maps) {
-      if (mp.scoreA === null || mp.scoreB === null) continue;
-      const match = matchRef.get(mp.matchId);
-      if (!match) continue;
-      const isA = match.entryAId === entryId;
-      const myScore = isA ? mp.scoreA : mp.scoreB;
-      const oppScore = isA ? mp.scoreB : mp.scoreA;
-      const prev = mapStats.get(mp.mapName) ?? { wins: 0, played: 0 };
-      mapStats.set(mp.mapName, {
-        wins: prev.wins + (myScore > oppScore ? 1 : 0),
-        played: prev.played + 1,
-      });
-    }
-  }
-
-  if (bo1Matches.length) {
-    const deciders = await db
-      .select({ matchId: matchVetoSteps.matchId, mapName: matchVetoSteps.mapName })
-      .from(matchVetoSteps)
-      .where(
-        and(
-          inArray(matchVetoSteps.matchId, bo1Matches.map((m) => m.id)),
-          eq(matchVetoSteps.actionType, "decider"),
-        ),
-      );
-    for (const d of deciders) {
-      const match = matchRef.get(d.matchId);
-      if (!match) continue;
-      const isA = match.entryAId === entryId;
-      const myScore = isA ? (match.scoreA ?? 0) : (match.scoreB ?? 0);
-      const oppScore = isA ? (match.scoreB ?? 0) : (match.scoreA ?? 0);
-      const prev = mapStats.get(d.mapName) ?? { wins: 0, played: 0 };
-      mapStats.set(d.mapName, {
-        wins: prev.wins + (myScore > oppScore ? 1 : 0),
-        played: prev.played + 1,
-      });
-    }
   }
 
   return mapStats;

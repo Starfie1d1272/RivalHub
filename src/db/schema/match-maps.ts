@@ -33,7 +33,7 @@ export const matchMaps = pgTable(
     /** Team A 上半场起始边（决胜图由刀赛决定，结果填入此字段）*/
     teamAStartSide: sideEnum("team_a_start_side"),
 
-    /** 单图比分（未开始为 null）*/
+    /** 实际单图回合比分（未开始为 null）*/
     scoreA: integer("score_a"),
     scoreB: integer("score_b"),
 
@@ -48,6 +48,10 @@ export const matchMaps = pgTable(
     // 单图比分非负（无上限，兼容加时赛）
     scoreANonNeg: check("match_maps_score_a_nonneg", sql`${t.scoreA} IS NULL OR ${t.scoreA} >= 0`),
     scoreBNonNeg: check("match_maps_score_b_nonneg", sql`${t.scoreB} IS NULL OR ${t.scoreB} >= 0`),
+    scorePairComplete: check(
+      "match_maps_score_pair_complete",
+      sql`(${t.scoreA} IS NULL AND ${t.scoreB} IS NULL) OR (${t.scoreA} IS NOT NULL AND ${t.scoreB} IS NOT NULL)`,
+    ),
   })
 );
 

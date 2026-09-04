@@ -56,7 +56,7 @@ Entry 为具体比赛提交或由管理员选定阵容；阵容成员必须是�
 
 ## 14. Match execution / result
 
-比赛可进行时间协商、BP、地图结果与赛果录入。结果由对应 Server Action 验证、写审计并在适用时推进赛程。管理的 Major match 必须通过其 runtime owner 结算。
+比赛可进行时间协商、BP、地图结果与赛果录入。正常比赛先由 BP 确定实际地图并建立 pending `match_maps`，再由 `recordMapResult` 写入实际地图回合比分，并从已完成地图推导 `matches` 的官方系列赛比分；弃赛只写官方系列赛结果，不制造未进行的地图。结果由对应 Server Action 验证、写审计并在适用时推进赛程。管理的 Major match 必须通过其 runtime owner 结算。
 
 ## 15. Result correction
 

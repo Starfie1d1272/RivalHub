@@ -123,7 +123,7 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
         totalFirstKills: sql<number>`sum(${matchPlayerStats.firstKills})::int`,
         totalMultiKills: sql<number>`sum(${matchPlayerStats.multiKills})::int`,
         totalClutches: sql<number>`sum(${matchPlayerStats.clutches})::int`,
-        totalRounds: sql<number>`sum(COALESCE(${matchMaps.scoreA} + ${matchMaps.scoreB}, ${matches.scoreA} + ${matches.scoreB}))::int`,
+        totalRounds: sql<number>`sum(${matchMaps.scoreA} + ${matchMaps.scoreB})::int`,
       })
       .from(matchPlayerStats)
       .innerJoin(matches, eq(matchPlayerStats.matchId, matches.id))

@@ -24,6 +24,7 @@ import { presentStageMarker } from "@/lib/seasons/presentation";
 import { MatchTabsSection } from "@/components/matches/MatchTabsSection";
 import { AdminShortcutSlot } from "@/components/layout/AdminShortcutSlot";
 import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
+import { getMatchMapRoundScores } from "@/lib/data/standings";
 
 interface MatchesPageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -51,6 +52,9 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
   ]);
 
   const teamMap = new Map(allTeams.map((team) => [team.id, team.name]));
+  const roundScoresByMatchId = await getMatchMapRoundScores(
+    allMatches.filter((match) => match.status === "finished").map((match) => match.id),
+  );
   const stagePlan = normalizeStagePlan(season.stagePlan);
   const { views: stageViews, unconfiguredMatches } = buildStageViews(stagePlan, allMatches);
   const matchFilter = (match: { entryAId: string; entryBId: string }) =>
@@ -153,6 +157,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
                 ? calculateStandings(
                     getTeamsReferencedByMatches(allTeams, allStageMatches),
                     allStageMatches.filter((match) => match.status === "finished"),
+                    roundScoresByMatchId,
                   )
                 : [];
               const isPlayoff = stage.type === "double_elim" || stage.type === "single_elim";

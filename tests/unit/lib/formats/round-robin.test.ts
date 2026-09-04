@@ -23,12 +23,15 @@ vi.mock("@/db/client", () => ({
 
 vi.mock("@/db/schema", () => ({
   matches: { id: {}, seasonId: {}, stage: {}, status: {}, entryAId: {}, entryBId: {}, scoreA: {}, scoreB: {} },
+  matchMaps: { matchId: {}, scoreA: {}, scoreB: {} },
   competitionEntries: { id: {}, name: {}, competitionId: {}, draftOrder: {} },
 }));
 
 vi.mock("drizzle-orm", () => ({
   eq: vi.fn(),
   and: vi.fn(),
+  inArray: vi.fn(),
+  isNotNull: vi.fn(),
   count: vi.fn(),
   sql: vi.fn((strings: TemplateStringsArray) => strings.join("")),
 }));
@@ -87,9 +90,9 @@ describe("roundRobinExecutor", () => {
       ]);
 
       mockMatchFindMany.mockResolvedValue([
-        { id: "m1", seasonId: "season-1", entryAId: "t1", entryBId: "t2", status: "finished", scoreA: 13, scoreB: 8, stage: "round-robin" },
-        { id: "m2", seasonId: "season-1", entryAId: "t1", entryBId: "t3", status: "finished", scoreA: 13, scoreB: 5, stage: "round-robin" },
-        { id: "m3", seasonId: "season-1", entryAId: "t2", entryBId: "t3", status: "finished", scoreA: 13, scoreB: 6, stage: "round-robin" },
+        { id: "m1", seasonId: "season-1", entryAId: "t1", entryBId: "t2", status: "finished", scoreA: 1, scoreB: 0, stage: "round-robin" },
+        { id: "m2", seasonId: "season-1", entryAId: "t1", entryBId: "t3", status: "finished", scoreA: 1, scoreB: 0, stage: "round-robin" },
+        { id: "m3", seasonId: "season-1", entryAId: "t2", entryBId: "t3", status: "finished", scoreA: 1, scoreB: 0, stage: "round-robin" },
       ]);
 
       const result = await roundRobinExecutor.getQualifiers("season-1", {

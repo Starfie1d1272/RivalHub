@@ -379,8 +379,8 @@ async function finishSwissRound(pool: Pool, stageRunId: string, round: number): 
     for (let index = 0; index < roundMatches.rows.length; index += 1) {
       const match = roundMatches.rows[index];
       const teamAWins = (round + index) % 2 === 0;
-      const scoreA = match.format === "bo1" ? (teamAWins ? 13 : 11) : (teamAWins ? 2 : 1);
-      const scoreB = match.format === "bo1" ? (teamAWins ? 11 : 13) : (teamAWins ? 1 : 2);
+      const scoreA = match.format === "bo1" ? (teamAWins ? 1 : 0) : (teamAWins ? 2 : 1);
+      const scoreB = match.format === "bo1" ? (teamAWins ? 0 : 1) : (teamAWins ? 1 : 2);
       await client.query(
         `UPDATE matches SET score_a = $2, score_b = $3, status = 'finished', completed_at = now(), updated_at = now() WHERE id = $1`,
         [match.id, scoreA, scoreB],
@@ -534,43 +534,51 @@ async function exerciseSwissRuntime(
 
   await finishSwissRound(pool, stageRunId, 1);
   const client = await pool.connect();
-  let corruptedMatchId: string;
+  let correctionTargetId: string;
+  let correctionProposal: { scoreA: number; scoreB: number };
   try {
-    const invalid = await client.query<{ id: string }>(
-      `SELECT id FROM matches WHERE season_id = $1 AND ownership = 'major_stage' AND round = 1 ORDER BY managed_key LIMIT 1`,
+    const target = await client.query<{ id: string; score_a: number | null; score_b: number | null }>(
+      `SELECT id, score_a, score_b FROM matches WHERE season_id = $1 AND ownership = 'major_stage' AND round = 1 ORDER BY managed_key LIMIT 1`,
       [fixture.seasonId],
     );
-    corruptedMatchId = invalid.rows[0]?.id ?? "";
-    if (!corruptedMatchId) throw new Error("缺少用于非法比分验证的 R1 比赛。 ");
-    await client.query("UPDATE matches SET score_a = 0, score_b = 0 WHERE id = $1", [corruptedMatchId]);
+    const row = target.rows[0];
+    if (!row) throw new Error("缺少用于结果更正验证的 R1 比赛。 ");
+    correctionTargetId = row.id;
+    if (row.score_a === null || row.score_b === null || row.score_a === row.score_b) {
+      throw new Error("结果更正验证目标缺少合法的 BO1 系列赛比分。 ");
+    }
+    correctionProposal = row.score_a > row.score_b
+      ? { scoreA: 0, scoreB: 1 }
+      : { scoreA: 1, scoreB: 0 };
+    await client.query("BEGIN");
+    const malformed = await capturePostgresError(client, () =>
+      client.query("UPDATE matches SET score_a = 0, score_b = 0 WHERE id = $1", [correctionTargetId]),
+    );
+    await client.query("ROLLBACK");
+    if (postgresErrorCode(malformed) !== "23514") {
+      throw new Error(`数据库应拒绝非法 BO1 系列赛比分，实际错误：${postgresErrorDetail(malformed)}`);
+    }
   } finally {
     client.release();
   }
-  await expectSwissRuntimeFailure(() => database.transaction((tx) => finalizeMajorSwissRoundInTransaction(tx, {
-    seasonId: fixture.seasonId, stageRunId, expectedRound: 1, actorId: "local-admin",
-  })));
-  const restoreClient = await pool.connect();
-  try {
-    await restoreClient.query("UPDATE matches SET score_a = 13, score_b = 11 WHERE id = $1", [corruptedMatchId]);
-  } finally {
-    restoreClient.release();
-  }
   const correctionPlan = await database.transaction((tx) => planResultCorrectionInTx(tx, {
-    matchId: corruptedMatchId,
-    proposal: { scoreA: 16, scoreB: 13 },
+    matchId: correctionTargetId,
+    proposal: correctionProposal,
   }));
-  if (correctionPlan.winnerChanges || correctionPlan.blockedReasons.length > 0) {
-    throw new Error("Golden rehearsal 的同胜者结果更正不应被错误阻断。 ");
+  if (!correctionPlan.winnerChanges || correctionPlan.blockedReasons.length > 0) {
+    throw new Error("Golden rehearsal 的合法 BO1 系列赛结果更正不应被错误阻断。 ");
   }
   const appliedCorrection = await database.transaction((tx) => applyResultCorrectionInTx(tx, {
-    matchId: corruptedMatchId,
-    proposal: { scoreA: 16, scoreB: 13 },
+    matchId: correctionTargetId,
+    proposal: correctionProposal,
     actorId: "local-admin",
+    confirmRecovery: true,
   }));
   const repeatedCorrection = await database.transaction((tx) => applyResultCorrectionInTx(tx, {
-    matchId: corruptedMatchId,
-    proposal: { scoreA: 16, scoreB: 13 },
+    matchId: correctionTargetId,
+    proposal: correctionProposal,
     actorId: "local-admin-retry",
+    confirmRecovery: true,
   }));
   if (appliedCorrection.alreadyApplied || repeatedCorrection.alreadyApplied !== true) {
     throw new Error("Golden rehearsal 的结果更正重试没有保持幂等。 ");

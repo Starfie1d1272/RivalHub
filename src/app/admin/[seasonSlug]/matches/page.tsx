@@ -29,6 +29,7 @@ import { presentSeasonStatus } from "@/lib/seasons/presentation";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { getPostMatchCompletion, POST_MATCH_COMPLETION_LABEL } from "@/lib/postmatch/service";
 import { presentMatchLabel } from "@/lib/matches/presentation";
+import { getMatchMapRoundScores } from "@/lib/data/standings";
 
 const STATUS_SORT_ORDER: Record<string, number> = {
   in_progress: 0,
@@ -39,7 +40,7 @@ const STATUS_SORT_ORDER: Record<string, number> = {
 
 function mapCompletedMaps(records: { mapOrder: number; mapName: string; scoreA: number | null; scoreB: number | null; pickedByEntryId: string | null; teamAStartSide: string | null }[]) {
   return records
-    .filter((r) => r.scoreA !== null)
+    .filter((r) => r.scoreA !== null && r.scoreB !== null)
     .map((r) => ({
       mapOrder: r.mapOrder,
       mapName: r.mapName,
@@ -50,9 +51,9 @@ function mapCompletedMaps(records: { mapOrder: number; mapName: string; scoreA: 
     }));
 }
 
-function mapPendingMaps(records: { mapOrder: number; mapName: string; scoreA: number | null; pickedByEntryId: string | null; teamAStartSide: string | null }[]) {
+function mapPendingMaps(records: { mapOrder: number; mapName: string; scoreA: number | null; scoreB: number | null; pickedByEntryId: string | null; teamAStartSide: string | null }[]) {
   return records
-    .filter((r) => r.scoreA === null)
+    .filter((r) => r.scoreA === null && r.scoreB === null)
     .map((r) => ({
       mapOrder: r.mapOrder,
       mapName: r.mapName,
@@ -174,6 +175,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
     arr.push(map);
     mapsByMatch.set(map.matchId, arr);
   }
+  const roundScoresByMatchId = await getMatchMapRoundScores(finishedMatchIds);
 
   const matchCount = allMatches.length;
   const hasSwissStage = stagePlan.some((stage) => stage.type === "swiss");
@@ -205,6 +207,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
         calculateStandings(
           getTeamsReferencedByMatches(allTeams, view.matches),
           view.matches.filter((match) => match.status === "finished"),
+          roundScoresByMatchId,
         ),
       ]),
   );

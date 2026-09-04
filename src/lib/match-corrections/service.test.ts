@@ -135,24 +135,24 @@ describe("deriveSwissFinalizedRollback", () => {
 });
 
 describe("validateResultCorrectionProposal", () => {
-  it("accepts a legal BO1 13:x score and resolves the winner", () => {
-    const result = validateResultCorrectionProposal(baseMatch(), { scoreA: 13, scoreB: 9 });
+  it("accepts a legal BO1 series score and resolves the winner", () => {
+    const result = validateResultCorrectionProposal(baseMatch(), { scoreA: 1, scoreB: 0 });
     expect(result.winnerTeamId).toBe(TEAM_A);
     expect(result.isForfeit).toBe(false);
   });
 
   it("resolves a B-side winner", () => {
-    const result = validateResultCorrectionProposal(baseMatch(), { scoreA: 4, scoreB: 13 });
+    const result = validateResultCorrectionProposal(baseMatch(), { scoreA: 0, scoreB: 1 });
     expect(result.winnerTeamId).toBe(TEAM_B);
   });
 
   it("rejects negative and non-integer scores", () => {
-    expect(() => validateResultCorrectionProposal(baseMatch(), { scoreA: -1, scoreB: 13 })).toThrow(AppError);
-    expect(() => validateResultCorrectionProposal(baseMatch(), { scoreA: 12.5, scoreB: 13 })).toThrow(AppError);
+    expect(() => validateResultCorrectionProposal(baseMatch(), { scoreA: -1, scoreB: 1 })).toThrow(AppError);
+    expect(() => validateResultCorrectionProposal(baseMatch(), { scoreA: 1.5, scoreB: 1 })).toThrow(AppError);
   });
 
   it("rejects ties", () => {
-    expect(() => validateResultCorrectionProposal(baseMatch(), { scoreA: 9, scoreB: 9 })).toThrow(/平局/);
+    expect(() => validateResultCorrectionProposal(baseMatch(), { scoreA: 1, scoreB: 1 })).toThrow(/平局/);
   });
 
   it("enforces exact series thresholds for non-forfeit corrections", () => {
@@ -163,11 +163,11 @@ describe("validateResultCorrectionProposal", () => {
 
   it("requires the canonical forfeit shape when marked as forfeit", () => {
     expect(
-      validateResultCorrectionProposal(baseMatch(), { scoreA: 13, scoreB: 0, isForfeit: true }).isForfeit,
+      validateResultCorrectionProposal(baseMatch(), { scoreA: 1, scoreB: 0, isForfeit: true }).isForfeit,
     ).toBe(true);
     expect(() =>
-      validateResultCorrectionProposal(baseMatch(), { scoreA: 16, scoreB: 3, isForfeit: true }),
-    ).toThrow(/弃赛判负的标准比分为 13:0/);
+      validateResultCorrectionProposal(baseMatch(), { scoreA: 2, scoreB: 0, isForfeit: true }),
+    ).toThrow(/弃赛判负的标准比分为 1:0/);
     const bo3 = { ...baseMatch(), format: "bo3" as const };
     expect(() =>
       validateResultCorrectionProposal(bo3, { scoreA: 1, scoreB: 2, isForfeit: false }),
@@ -179,7 +179,7 @@ describe("validateResultCorrectionProposal", () => {
 
   it("inherits forfeit semantics from the existing fact when the proposal omits the flag", () => {
     const forfeited = { ...baseMatch(), isForfeit: true };
-    expect(() => validateResultCorrectionProposal(forfeited, { scoreA: 7, scoreB: 13 })).toThrow(/弃赛判负/);
+    expect(() => validateResultCorrectionProposal(forfeited, { scoreA: 0, scoreB: 2 })).toThrow(/弃赛判负/);
   });
 });
 

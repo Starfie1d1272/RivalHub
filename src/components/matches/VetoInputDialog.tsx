@@ -114,8 +114,8 @@ function buildTemplate(
     case "bo5":
       // A ban, B ban → A/B/A/B pick → decider (B picks side)
       return [
-        { actionType: "ban", mapName: "", entryId: entryBId, side: null },
         { actionType: "ban", mapName: "", entryId: entryAId, side: null },
+        { actionType: "ban", mapName: "", entryId: entryBId, side: null },
         { actionType: "pick", mapName: "", entryId: entryAId, side: null },
         { actionType: "pick", mapName: "", entryId: entryBId, side: null },
         { actionType: "pick", mapName: "", entryId: entryAId, side: null },
