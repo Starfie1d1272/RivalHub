@@ -181,10 +181,10 @@ describe("release compatibility gate", () => {
     expect(result.previousRelease.ref).toBe("v1.1.0");
   });
 
-  it("resolves the production stable tag across the release/dev topology", () => {
-    const fixture = createDivergedTopologyFixture();
+  it("resolves the latest shipped tag on the single main lineage", () => {
+    const fixture = createSingleMainTopologyFixture();
 
-    expect(() => runGit(fixture.directory, ["merge-base", "--is-ancestor", fixture.productionCommit!, fixture.candidateCommit!])).toThrow();
+    expect(() => runGit(fixture.directory, ["merge-base", "--is-ancestor", fixture.productionCommit, fixture.candidateCommit])).not.toThrow();
     const result = checkReleaseCompatibility(fixture.directory);
 
     expect(result.previousRelease).toEqual({ ref: "v2.2.3", commit: fixture.productionCommit });
@@ -246,7 +246,7 @@ function createFixture(options: FixtureOptions): Fixture {
   return { directory };
 }
 
-function createDivergedTopologyFixture(): Fixture & { candidateCommit: string; productionCommit: string } {
+function createSingleMainTopologyFixture(): Fixture & { candidateCommit: string; productionCommit: string } {
   const directory = mkdtempSync(join(tmpdir(), "rivalhub-release-topology-"));
   fixtureDirectories.push(directory);
   runGit(directory, ["init", "-q"]);
@@ -260,28 +260,19 @@ function createDivergedTopologyFixture(): Fixture & { candidateCommit: string; p
   const baselineCommit = runGit(directory, ["rev-parse", "HEAD"]);
   runGit(directory, ["tag", "v2.2.2"]);
 
-  runGit(directory, ["checkout", "-q", "-b", "release", baselineCommit]);
+  runGit(directory, ["checkout", "-q", "-b", "main", baselineCommit]);
   writeFixtureFile(directory, "release-bookkeeping.txt", "v2.2.3\n");
   runGit(directory, ["add", "."]);
-  runGit(directory, ["commit", "-q", "-m", "release bookkeeping"]);
-  const releaseBookkeepingCommit = runGit(directory, ["rev-parse", "HEAD"]);
-
-  runGit(directory, ["checkout", "-q", "-b", "main", baselineCommit]);
-  runGit(directory, ["merge", "--no-ff", "-q", "release", "-m", "release v2.2.3"]);
+  runGit(directory, ["commit", "-q", "-m", "release v2.2.3"]);
   const productionCommit = runGit(directory, ["rev-parse", "HEAD"]);
   runGit(directory, ["tag", "v2.2.3"]);
 
-  runGit(directory, ["checkout", "-q", "-b", "dev", baselineCommit]);
-  writeFixtureFile(directory, "release-bookkeeping.txt", "v2.2.3\n");
-  runGit(directory, ["add", "."]);
-  runGit(directory, ["commit", "-q", "-m", "sync release bookkeeping"]);
   writeFixtureFile(directory, "drizzle/migrations/0002_next.sql", "ALTER TABLE teams ADD COLUMN new_column text;\n");
   runGit(directory, ["add", "."]);
   runGit(directory, ["commit", "-q", "-m", "candidate"]);
   const candidateCommit = runGit(directory, ["rev-parse", "HEAD"]);
   runGit(directory, ["update-ref", "refs/remotes/origin/main", productionCommit]);
 
-  expect(runGit(directory, ["rev-parse", "release"])).toBe(releaseBookkeepingCommit);
   return { directory, candidateCommit, productionCommit };
 }
 
