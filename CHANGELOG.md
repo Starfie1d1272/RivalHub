@@ -1,5 +1,43 @@
 # Changelog
 
+## [2.2.4]
+
+RivalHub 2.2.4 聚焦 Major 报名资格、长期竞技资料、数据库安全边界与发布可靠性。地图熟练度现在成为可长期维护的个人资料；Major 外校成员限制改为明确的完美世界历史最高总星数相对规则，并支持对可解除的政策限制进行有理由、可审计的管理员例外处理。
+
+### Added
+
+#### 长期地图熟练度
+
+地图熟练度从单届报名信息沉淀为长期个人竞技资料。用户可以在个人竞技档案中直接维护各地图熟练度，后续赛事报名会从长期资料预填并允许当届覆盖；组队大厅的玩家求队卡片和公开个人主页也会展示对应摘要。已有赛事报名中的地图熟练度会回填到长期资料，首次并发保存使用原子 upsert，避免主键竞争。
+
+### Changed
+
+#### Major 外校成员相对实力规则
+
+Major 外校成员实力限制统一为完美世界历史最高总星数口径：队内最强外校选手不得高于队内最强本校选手超过赛事配置的星差上限，默认上限为 3 星。S 段位缺少准确星数时视为资料不完整，必须由选手补齐，不能通过管理员例外绕过；5E 星数不会被折算或误认成完美世界星数。
+
+#### 资格限制人工解除与历史冻结
+
+赛事资格评估现在区分不可解除的资料/身份问题和可由管理员明确处理的政策限制。超过外校星差上限时，管理员可以填写非空理由，对当前 roster revision 授予或撤销限制解除；操作会进入审计记录，新的 roster revision 不继承旧解除。Major 开赛时会把资格规则、报名名单竞技事实以及仍有效的解除记录冻结进 StageRun，后续资料或文案变化不会重新解释已开始赛事。
+
+#### 教育认证审核
+
+同一用户重复提交相同学信网在线验证码时改为幂等处理，不再产生重复待审核记录；已通过的相同验证码会直接复用既有认证结果。管理员驳回认证时必须填写可见原因，服务端同样强制校验。
+
+### Security
+
+#### Public 数据库访问边界
+
+应用拥有的 public 业务表统一收口为 server-only 访问模型：启用 RLS、撤销 anon/authenticated 的 Data API CRUD privileges，并移除没有正确客户端权限模型的业务表 Realtime 发布。选秀和投票等需要刷新体验的页面继续通过已有轮询路径更新，不通过放宽数据库权限来维持失效订阅。
+
+### Reliability & Migration
+
+发布链路新增 previous production stable → candidate schema 的 N/N+1 兼容性门禁，PR CI 与正式 release 会以真实 production stable lineage 为基线验证 active migration，而不是把候选分支上“可达的最新 tag”误当生产版本。数据库 migration risk 注释同时区分 contract cleanup 与 locking/rewrite review，类型错配或缺失会 fail closed。
+
+认证、报名等请求态工作区明确保持 request-bound，避免 Cache Components 对私有状态做错误的 instant-navigation 缓存判断；Major 报名 E2E 改为等待 canonical 页面状态，减少流式 RSC 瞬时探测竞态。资格判断也统一复用同一批预加载事实，避免报名审核与开赛冻结读取两套重叠资料。
+
+本版本包含三条新的 forward migration：`0033_long_lived_map_preferences` 将地图熟练度沉淀为长期资料并回填既有报名数据；`0034_secure_public_tables` 收口现有 public 业务表的 RLS、Data API privileges 与 Realtime 边界；`0035_colorful_black_widow` 新增按 roster revision 绑定、可审计 grant/revoke 的资格限制解除 ledger。生产升级必须继续通过 `v*` tag 触发标准 release workflow，完成 active migration replay、production migrate/verify、精确版本 Vercel Production 部署与 smoke test。
+
 ## [2.2.3]
 
 RivalHub 2.2.3 聚焦公开页面性能、组队邀请可发现性与运营安全，进一步减少公共渲染关键路径上的请求依赖，并收口教育认证临时凭证和高权限邀请码的操作边界。
@@ -1639,6 +1677,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.2.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.2.3...v2.2.4
 [2.2.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.2.2...v2.2.3
 [2.2.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.2.1...v2.2.2
 [2.2.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.2.0...v2.2.1
