@@ -7,7 +7,7 @@ import {
   type PlayerType,
   type RegistrationConfig,
 } from "@/types/season";
-import { mapPreferencesSchema } from "@/lib/validators/map-preferences";
+import { eventMapPreferencesSchema } from "@/lib/validators/map-preferences";
 import type { PositionValue, RankValue } from "@/lib/config/registration-defaults";
 
 // ── 从配置派生位置常量 ──────────────────────────────
@@ -195,7 +195,7 @@ export function buildRegistrationSchema(
         .max(config.screenshotCount, `最多填写 ${config.screenshotCount} 个截图链接`)
         .transform((urls) => urls.map((url) => url.trim()).filter(Boolean)),
 
-      mapPreferences: mapPreferencesSchema(mapPool),
+      mapPreferences: eventMapPreferencesSchema(mapPool),
 
       // ── 风格与经历 ──
       gameplayStyle: z

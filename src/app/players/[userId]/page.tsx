@@ -230,14 +230,10 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
 
   const played = totalWins + totalLosses;
 
-  // Registration snapshots remain event history only; the header's current
-  // long-lived role preferences come from user_competitive_roles above.
+  // Registration snapshots remain event history only; current map facts come
+  // exclusively from the sparse user_map_preferences owner.
   const latestReg = registrations[registrations.length - 1];
-  const effectiveMapPrefs = mapPreferences[0]?.mapPreferences?.length
-    ? mapPreferences[0].mapPreferences
-    : latestReg?.mapPreferences?.length
-      ? latestReg.mapPreferences
-      : null;
+  const effectiveMapPrefs = mapPreferences[0]?.mapPreferences ?? [];
 
   // ── 生涯总计预计算 ──────────────────────────────────────────────────
   const totalMaps = playerStats.reduce((s, x) => s + x.maps, 0);
@@ -310,14 +306,12 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
 
       {publicCompetitiveProfile.length > 0 && <section className="space-y-3"><SectionHeading>公开竞技档案</SectionHeading><Panel pad={16}><div className="space-y-4 text-sm">{publicCompetitiveProfile.map((platform) => <div key={platform.displayName} className="space-y-2"><p className="font-semibold text-[var(--color-fg)]">{platform.displayName}</p>{platform.facts.map((fact) => <p key={`${platform.displayName}-${fact.label}`}><span className="text-[var(--color-fg-mid)]">{fact.label}</span> · {fact.rankLabel}{fact.stars !== null ? ` ${fact.stars} 星` : ""}{fact.ratingLabel && fact.rating !== null ? ` · ${fact.ratingLabel} ${fact.rating}` : ""}</p>)}</div>)}</div></Panel></section>}
 
-      {effectiveMapPrefs && (
-        <section className="space-y-3">
-          <SectionHeading>地图熟练度</SectionHeading>
-          <Panel>
-            <MapPreferenceChips preferences={effectiveMapPrefs} minLevel="basic" />
-          </Panel>
-        </section>
-      )}
+      <section className="space-y-3">
+        <SectionHeading>地图熟练度</SectionHeading>
+        <Panel>
+          <MapPreferenceChips preferences={effectiveMapPrefs} minLevel="none" showUnfilled />
+        </Panel>
+      </section>
 
       {/* 选手自述 */}
       {latestReg &&

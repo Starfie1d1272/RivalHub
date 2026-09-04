@@ -3,6 +3,7 @@ import {
   MAP_PREFERENCE_LABELS,
   MAP_PREFERENCE_LEVELS,
   type MapPreference,
+  type MapPreferenceDraft,
   type MapPreferenceLevel,
 } from "@/types/season";
 
@@ -25,17 +26,34 @@ export function mapPreferenceWeight(level: MapPreferenceLevel): number {
   return index === -1 ? 0 : index;
 }
 
-export function defaultMapPreferences(mapPool: readonly string[]): MapPreference[] {
-  return mapPool.map((map) => ({ map, level: "basic" }));
+export function defaultMapPreferences(mapPool: readonly string[]): MapPreferenceDraft[] {
+  return projectMapPreferences([], mapPool);
 }
 
-export function normalizeMapPreferences(
-  preferences: readonly MapPreference[] | null | undefined,
+/**
+ * Project sparse user facts into a context-specific map pool. Missing maps are
+ * deliberately nullable so the UI can show "未填写" without manufacturing a
+ * persisted `basic` or `none` fact.
+ */
+export function projectMapPreferences(
+  preferences: readonly MapPreferenceDraft[] | null | undefined,
   mapPool: readonly string[],
-): MapPreference[] {
-  const byMap = new Map((preferences ?? []).map((pref) => [pref.map, pref.level]));
+): MapPreferenceDraft[] {
+  const byMap = new Map<string, MapPreferenceLevel>();
+  for (const preference of preferences ?? []) {
+    if (preference.level !== null) byMap.set(preference.map, preference.level);
+  }
   return mapPool.map((map) => ({
     map,
-    level: byMap.get(map) ?? "basic",
+    level: byMap.get(map) ?? null,
   }));
+}
+
+/** Convert editable/projection state to the sparse facts accepted by storage. */
+export function toMapPreferenceFacts(
+  preferences: readonly MapPreferenceDraft[] | null | undefined,
+): MapPreference[] {
+  return (preferences ?? []).filter(
+    (preference): preference is MapPreference => preference.level !== null,
+  );
 }

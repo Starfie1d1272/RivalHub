@@ -507,8 +507,8 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "user_map_preferences",
     "个人竞技资料",
     "个人地图熟练度",
-    "src/actions/competitive-profile.ts; src/lib/recruitment/data.ts",
-    "长期资料由服务端 action 更新，队伍/个人页面消费最小 projection。",
+    "src/actions/competitive-profile.ts; src/lib/maps.ts; src/lib/recruitment/data.ts",
+    "长期资料由服务端 action 更新；个人页与组队大厅只消费按当前 Active Duty 或目标赛事图池生成的最小 projection。",
   ),
   serverOnly(
     "user_sessions",

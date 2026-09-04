@@ -18,6 +18,8 @@
 
 `competitive_rank_facts` 存储用户对任意已编目平台赛季或跨赛季 peak 的可审查竞技事实；`rank` 保存平台段位表的稳定 rankKey，不因管理员重命名 label 而失效；`rating` 保存该平台唯一 canonical performance Rating，不是 matchmaking score。`rank` ≠ `stars` ≠ `rating`：`stars` 是 S 段位内部精确星数（非负整数，必须落在该段位 starMin/starMax 区间内），已定级的星段位在保存和赛事资格 readiness 中都必须有准确星数；迁移前未记录星数的 legacy 事实在存储层保持 NULL（不猜默认值），但用户重新保存或进入需要该事实的报名流程时必须补填，不能作为资料完整或人工解除限制的替代状态。stars 目前只是竞技事实，不参与 Major qualification 的加权排序；Major 外校相对实力检查会直接使用完美世界历史最高总星数。requireCompetitiveProfile 赛事在实际报名开放时冻结平台目录的 literal current、previous、rank order 与该届 evidence policy；发布只公开赛事，之后的目录变化不回写已经开放的赛事。删除或重排已被长期事实或冻结赛事上下文引用的段位会 fail closed；真实的平台段位体系调整应建立版本化 ladder，而不是覆盖历史语义。
 
+CS2 地图也分为相互独立的事实 owner：`CS2_MAP_CATALOG` 是保留历史条目的稳定地图目录，`CURRENT_CS2_ACTIVE_DUTY_MAP_POOL` 是可轮换的当前 Active Duty；当前 Active Duty 为 `de_mirage`、`de_inferno`、`de_nuke`、`de_ancient`、`de_dust2`、`de_anubis`、`de_cache`。`user_map_preferences` 只保存用户明确填写的稳定目录事实，缺失地图保持 unknown；`season_registrations.mapPreferences` 是该赛事报名时的历史快照，`seasons.registrationConfig.mapPool` 则是赛事自身冻结的图池。跨上下文展示与报名预填由 `src/lib/maps.ts` 投影，不能把缺失事实转成 `basic` 或显式 `none`，也不能以赛事快照回写长期资料。
+
 ## 4. Seasons
 
 `seasons` 是赛事容器，包含状态、时间、人数、positions 与 capability configuration。Rivals、Major 与自定义赛事由 canonical template factory 建立初始定义；`competitionTemplate` 是持久化的模板身份 owner，编辑时服务端以其为准，draft 内置赛事每次保存都重新 canonicalize 固定语义；`kind` 只用于展示。报名方式、选秀、阶段和资格规则由 capability fields 及关联配置决定。StagePlan 是可变的赛季定义，启动后不能代替冻结的 StageRun 事实。后台编辑能力由 `src/lib/seasons/edit.ts#getSeasonEditCapabilities` 这一纯 owner 根据 persisted status 与 `registrationOpenedAt` 派生，SeasonForm 与 server planner 共用该语义，不按 `kind` 分支。
@@ -99,6 +101,7 @@
 | 人类可读用户身份（公开） | `src/lib/identity/display-name.ts` → `getPublicDisplayName()` |
 | 人类可读用户身份（内部） | `src/lib/identity/display-name.ts` → `getDisplayName()` |
 | 竞技平台目录 / current / previous chronology | `src/lib/competitive/catalog.ts` |
+| CS2 稳定地图目录 / current Active Duty / 上下文投影 | `src/types/season.ts` + `src/lib/maps.ts` |
 | 组队大厅 intent、有效期与 interest | `src/lib/recruitment/commands.ts` |
 | 资格与 readiness | `src/lib/qualification/` |
 | 资格限制解除 ledger | `src/lib/competition-entries/restriction-overrides.ts` + `src/lib/competition-entries/commands.ts` |

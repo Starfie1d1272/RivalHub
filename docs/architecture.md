@@ -79,6 +79,7 @@ Major 的正式运行时由 `src/lib/major/` 与 `major_*` persistence owners �
 |---|---|
 | Auth / session / owner bootstrap | `src/lib/auth/`, `src/actions/auth.ts`, `src/app/auth/` |
 | Season capabilities / templates | `src/types/season.ts`, `src/actions/seasons.ts`, `src/db/schema/seasons.ts` |
+| CS2 map catalog / Active Duty / event projection | `src/types/season.ts`, `src/lib/maps.ts`, `src/lib/recruitment/data.ts` |
 | Identity / education / competitive profile | `src/actions/account.ts`, `src/actions/education-verifications.ts`, `src/actions/competitive-profile.ts`, matching schema files |
 | Rivals registration / voting / draft | `src/actions/register.ts`, `src/actions/captains.ts`, `src/actions/draft/`, `src/lib/draft/` |
 | Long-lived Teams / CompetitionEntry | `src/lib/teams/`, `src/lib/competition-entries/`, corresponding actions and schema files |
