@@ -231,9 +231,17 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   const starterStatsA = teamRawStatsA.filter((r) => r.userId && starterAIdSet.has(r.userId));
   const starterStatsB = teamRawStatsB.filter((r) => r.userId && starterBIdSet.has(r.userId));
 
+  // 所有 format 的统计回合数都只来自已记录的地图级比分。
+  const seasonMapRoundsMap = new Map<string, number>();
+  for (const map of seasonMapScoresRaw) {
+    if (map.scoreA !== null && map.scoreB !== null) {
+      seasonMapRoundsMap.set(map.id, map.scoreA + map.scoreB);
+    }
+  }
+
   // 队伍赛季平均数据（用于 TeamStatsCompare）
-  const teamAvgA = computeTeamAvgStats(teamRawStatsA);
-  const teamAvgB = computeTeamAvgStats(teamRawStatsB);
+  const teamAvgA = computeTeamAvgStats(teamRawStatsA, seasonMapRoundsMap);
+  const teamAvgB = computeTeamAvgStats(teamRawStatsB, seasonMapRoundsMap);
 
   // 雷达图数据
   const radarDataA = buildRadarData(mapPool, mapWinA, pickStatsA, banStatsA);
@@ -249,15 +257,6 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   const teamHexA = hexA.length > 0 ? computeTeamDimensions(hexA) : null;
   const teamHexB = hexB.length > 0 ? computeTeamDimensions(hexB) : null;
   const showHexComparison = teamHexA != null && teamHexB != null && !isFinished;
-
-  // 首发选手赛季数据（用于 MatchLineupsH2H）
-  // 用图级比分构建 mapRoundsMap（key: mapId），修复原来用系列赛比分当回合数的 bug
-  const seasonMapRoundsMap = new Map<string, number>();
-  for (const m of seasonMapScoresRaw) {
-    if (m.scoreA !== null && m.scoreB !== null) {
-      seasonMapRoundsMap.set(m.id, m.scoreA + m.scoreB);
-    }
-  }
 
   // 当前比赛图级回合数（用于 aggregateFinishedPlayerStats）
   const currentMapRoundsMap = new Map<string, number>();
@@ -335,13 +334,13 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
     userId: string | null;
     perfectName: string;
     teamId: string;
-    kills: number;
-    deaths: number;
-    assists: number;
+    kills: number | null;
+    deaths: number | null;
+    assists: number | null;
     hsPercent: number | null;
-    firstKills: number;
-    multiKills: number;
-    clutches: number;
+    firstKills: number | null;
+    multiKills: number | null;
+    clutches: number | null;
     adr: number | null;
     rws: number | null;
     ratingPro: number | null;

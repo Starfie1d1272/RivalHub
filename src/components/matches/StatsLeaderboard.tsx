@@ -4,6 +4,7 @@ import { Panel } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import type { LeaderboardView } from "@/lib/matches/leaderboard-view";
 import { positionLabel } from "@/lib/validators/registration";
+import { formatNumber, formatStat } from "@/lib/stats";
 
 interface LeaderboardRow {
   userId: string | null;
@@ -12,16 +13,16 @@ interface LeaderboardRow {
   teamName: string | null;
   teamId: string | null;
   maps: number;
-  avgRating: number;
-  avgAdr: number;
-  avgRws: number;
-  avgWe: number;
-  avgHs: number;
+  avgRating: number | null;
+  avgAdr: number | null;
+  avgRws: number | null;
+  avgWe: number | null;
+  avgHs: number | null;
   kdRatio: number | null;
-  kpr: number;
-  fkpr: number;
-  mkpr: number;
-  cpr: number;
+  kpr: number | null;
+  fkpr: number | null;
+  mkpr: number | null;
+  cpr: number | null;
 }
 
 interface StatsLeaderboardProps {
@@ -61,7 +62,7 @@ const BASE_COLS: ColDef[] = [
     key: "maps",
     label: "Maps",
     getValue: (r) => r.maps,
-    format: (v) => String(v ?? 0),
+    format: (v) => formatNumber(v, 0),
   },
 ];
 
@@ -71,31 +72,31 @@ const CORE_COLS: ColDef[] = [
     key: "rating",
     label: "Rating",
     getValue: (r) => r.avgRating,
-    format: (v) => (v ?? 0).toFixed(2),
+    format: (v) => formatStat("ratingPro", v),
   },
   {
     key: "adr",
     label: "ADR",
     getValue: (r) => r.avgAdr,
-    format: (v) => (v ?? 0).toFixed(1),
+    format: (v) => formatStat("adr", v),
   },
   {
     key: "kd",
     label: "K/D",
     getValue: (r) => r.kdRatio,
-    format: (v) => (v != null ? v.toFixed(2) : "—"),
+    format: (v) => formatStat("kd", v),
   },
   {
     key: "kpr",
     label: "KPR",
     getValue: (r) => r.kpr,
-    format: (v) => (v ?? 0).toFixed(2),
+    format: (v) => formatStat("kpr", v),
   },
   {
     key: "hs",
     label: "HS%",
     getValue: (r) => r.avgHs,
-    format: (v) => (v ?? 0).toFixed(1) + "%",
+    format: (v) => formatStat("hsPercent", v),
   },
 ];
 
@@ -105,25 +106,25 @@ const IMPACT_COLS: ColDef[] = [
     key: "rating",
     label: "Rating",
     getValue: (r) => r.avgRating,
-    format: (v) => (v ?? 0).toFixed(2),
+    format: (v) => formatStat("ratingPro", v),
   },
   {
     key: "fk",
     label: "FKPR /100r",
     getValue: (r) => r.fkpr,
-    format: (v) => (v != null ? (v * 100).toFixed(1) : "—"),
+    format: (v) => formatStat("fkpr", v),
   },
   {
     key: "mk",
     label: "MKPR /100r",
     getValue: (r) => r.mkpr,
-    format: (v) => (v != null ? (v * 100).toFixed(1) : "—"),
+    format: (v) => formatStat("mkpr", v),
   },
   {
     key: "clutch",
     label: "CPR /100r",
     getValue: (r) => r.cpr,
-    format: (v) => (v != null ? (v * 100).toFixed(1) : "—"),
+    format: (v) => formatStat("cpr", v),
   },
 ];
 
@@ -133,19 +134,19 @@ const ADVANCED_COLS: ColDef[] = [
     key: "rating",
     label: "Rating",
     getValue: (r) => r.avgRating,
-    format: (v) => (v ?? 0).toFixed(2),
+    format: (v) => formatStat("ratingPro", v),
   },
   {
     key: "we",
     label: "WE",
     getValue: (r) => r.avgWe,
-    format: (v) => (v ?? 0).toFixed(1),
+    format: (v) => formatStat("we", v),
   },
   {
     key: "rws",
     label: "RWS",
     getValue: (r) => r.avgRws,
-    format: (v) => (v ?? 0).toFixed(2),
+    format: (v) => formatStat("rws", v),
   },
 ];
 
@@ -315,7 +316,7 @@ export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "cor
                   {cols.map((col) => {
                     const val = col.getValue(r);
                     const isSort = sort === col.key;
-                    const isHighRating = col.key === "rating" && (val ?? 0) >= 1.2;
+                    const isHighRating = col.key === "rating" && val != null && val >= 1.2;
                     return (
                       <td
                         key={col.key}
