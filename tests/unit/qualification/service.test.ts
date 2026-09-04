@@ -131,6 +131,19 @@ describe("participant readiness", () => {
     expect(readiness.strength.currentSeasonPeak).toEqual({ rank: "S", rating: 1850, stars: null });
   });
 
+  it("blocks a legacy star-rank fact until the participant supplies exact stars", () => {
+    const readiness = computeParticipantReadiness(fullFact({
+      historicalPeak: { rank: "黄金S", rating: 1900, stars: null },
+      seasonPeaks: new Map([[
+        "S20", { rank: "A", rating: 1700 },
+      ], [
+        "S21", { rank: "A", rating: 1850 },
+      ]]),
+    }), { ...CONTEXT, rankOrder: ["A", "黄金S"] });
+    expect(readiness.ready).toBe(false);
+    expect(readiness.blockers).toContain("历史最高的 黄金S 段位需要填写准确星数，竞技资料未填写完整。");
+  });
+
   it("an incomplete participant reports the exact blockers", () => {
     const readiness = computeParticipantReadiness(fullFact({
       steam64: null,

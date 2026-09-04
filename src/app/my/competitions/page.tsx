@@ -8,6 +8,9 @@ import { getUserSession } from "@/lib/auth/session";
 import { presentCompetitionEntryParticipation, presentCompetitionEntryRegistration } from "@/lib/competition-entries/presentation";
 import { presentSeasonStatus } from "@/lib/seasons/presentation";
 
+// This dashboard is entirely viewer-specific and intentionally request-bound.
+export const instant = false;
+
 export default async function MyCompetitionsPage() {
   const session = await getUserSession();
   if (!session) redirect("/login?next=/my/competitions");

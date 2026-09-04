@@ -99,12 +99,7 @@ export async function saveCompetitiveProfile(input: unknown): Promise<ActionResu
           }
           return;
         }
-        // Legacy facts predate exact stars. An untouched fact whose stored stars
-        // are still null passes through unchanged instead of being blocked or
-        // silently filled with a guessed value; any real edit must supply stars.
-        const existing = existingByKey.get(key);
-        const untouchedLegacy = existing !== undefined && existing.stars === null && existing.rank === fact.rank && Number(existing.rating) === fact.rating;
-        if (!untouchedLegacy) throw new AppError(ErrorCode.VALIDATION_FAILED, `${rank.label} 需要填写准确星数。`);
+        throw new AppError(ErrorCode.VALIDATION_FAILED, `${rank.label} 需要填写准确星数。`);
       };
       if (historicalPeak.achievedSeasonKey && !seasonKeys.has(historicalPeak.achievedSeasonKey)) {
         throw new AppError(ErrorCode.VALIDATION_FAILED, `历史最高达成赛季 ${historicalPeak.achievedSeasonKey} 不在目录中，不能保存。`);
@@ -148,9 +143,13 @@ export async function saveMapPreferences(input: unknown): Promise<ActionResult<v
   try {
     const session = await requireAuth();
     await db.transaction(async (tx) => {
-      const [existing] = await tx.select().from(userMapPreferences).where(eq(userMapPreferences.userId, session.userId)).limit(1);
-      if (existing) await tx.update(userMapPreferences).set({ mapPreferences: parsed.data.mapPreferences, updatedAt: new Date() }).where(eq(userMapPreferences.userId, session.userId));
-      else await tx.insert(userMapPreferences).values({ userId: session.userId, mapPreferences: parsed.data.mapPreferences });
+      const now = new Date();
+      await tx.insert(userMapPreferences)
+        .values({ userId: session.userId, mapPreferences: parsed.data.mapPreferences, updatedAt: now })
+        .onConflictDoUpdate({
+          target: userMapPreferences.userId,
+          set: { mapPreferences: parsed.data.mapPreferences, updatedAt: now },
+        });
       await tx.insert(auditLogs).values({
         seasonId: null,
         action: "map_preferences.self_declare",

@@ -11,7 +11,6 @@ import { Panel, StatusBanner } from "@/components/rivalhub";
 
 type FactStatus = "ranked" | "unranked" | "unrecorded";
 type Fact = { status: FactStatus; rank: string; rating: string; stars: string };
-type InitialFact = Omit<Fact, "status"> & { status: "ranked" | "unranked" };
 const HISTORICAL_KEY = "historical";
 const emptyFact = (): Fact => ({ status: "unrecorded", rank: "", rating: "", stars: "" });
 
@@ -27,15 +26,6 @@ export type CompetitiveSeasonContext = {
 function factFor(context: CompetitiveSeasonContext | undefined, key: string): Fact {
   const row = context?.facts.find((fact) => (key === HISTORICAL_KEY ? fact.kind === "historical_peak" : fact.kind === "season_peak" && fact.platformSeasonKey === key));
   return row ? { status: row.status ?? "ranked", rank: row.rank ?? "", rating: row.rating ?? "", stars: row.stars === null ? "" : String(row.stars) } : emptyFact();
-}
-
-function initialFactsFor(context: CompetitiveSeasonContext | undefined): Record<string, InitialFact> {
-  const result: Record<string, InitialFact> = {};
-  for (const row of context?.facts ?? []) {
-    const key = row.kind === "historical_peak" ? HISTORICAL_KEY : row.platformSeasonKey;
-    if (key) result[key] = { status: row.status ?? "ranked", rank: row.rank ?? "", rating: row.rating ?? "", stars: row.stars === null ? "" : String(row.stars) };
-  }
-  return result;
 }
 
 function summary(fact: Fact, context: CompetitiveSeasonContext): string {
@@ -54,7 +44,6 @@ export function CompetitiveProfileForm({ contexts }: { contexts: CompetitiveSeas
   const [historical, setHistorical] = useState<Fact>(() => ({ ...factFor(first, HISTORICAL_KEY), status: "ranked" }));
   const [achievedSeasonKey, setAchievedSeasonKey] = useState(() => first?.facts.find((fact) => fact.kind === "historical_peak")?.achievedSeasonKey ?? "unknown");
   const [seasonFacts, setSeasonFacts] = useState<Record<string, Fact>>(() => Object.fromEntries((first?.seasons ?? []).map((season) => [season.seasonKey, factFor(first, season.seasonKey)])));
-  const [initialFacts, setInitialFacts] = useState<Record<string, InitialFact>>(() => initialFactsFor(first));
   const [expanded, setExpanded] = useState(false);
   const [editingHistory, setEditingHistory] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -65,7 +54,6 @@ export function CompetitiveProfileForm({ contexts }: { contexts: CompetitiveSeas
     setHistorical({ ...factFor(next, HISTORICAL_KEY), status: "ranked" });
     setAchievedSeasonKey(next?.facts.find((fact) => fact.kind === "historical_peak")?.achievedSeasonKey ?? "unknown");
     setSeasonFacts(Object.fromEntries((next?.seasons ?? []).map((season) => [season.seasonKey, factFor(next, season.seasonKey)])));
-    setInitialFacts(initialFactsFor(next));
     setExpanded(false); setEditingHistory(null); setSaved(false);
   }
 
@@ -81,8 +69,6 @@ export function CompetitiveProfileForm({ contexts }: { contexts: CompetitiveSeas
   function editor(title: string, key: string, fact: Fact, setFact: (value: Fact) => void, allowUnrecorded: boolean, options: { after?: React.ReactNode; onCollapse?: () => void } = {}) {
     const selected = context!.ladder.find((entry) => entry.rankKey === fact.rank);
     const hasStars = selected?.starMin !== null && selected?.starMin !== undefined;
-    const previous = initialFacts[key];
-    const untouchedLegacy = previous?.status === "ranked" && previous.stars === "" && previous.rank === fact.rank && previous.rating === fact.rating;
     return <section key={key} className="space-y-3 border-l-2 border-[var(--color-border-hi)] pl-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold">{title}</h3>
@@ -96,7 +82,7 @@ export function CompetitiveProfileForm({ contexts }: { contexts: CompetitiveSeas
       {fact.status === "unranked" && <div className="max-w-sm space-y-1.5"><Label>对应 {context!.ratingLabel}（可选）</Label><Input value={fact.rating} onChange={(event) => { setSaved(false); setFact({ ...fact, rating: event.target.value }); }} inputMode="decimal" placeholder="没有可留空" /></div>}
       {fact.status === "ranked" && <div className={`grid gap-3 ${hasStars ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
         <div className="space-y-1.5"><Label>段位</Label><Select value={fact.rank || undefined} onValueChange={(rank) => { setSaved(false); setFact({ ...fact, rank, stars: "" }); }}><SelectTrigger><SelectValue placeholder="选择段位" /></SelectTrigger><SelectContent>{context!.ladder.map((entry) => <SelectItem key={entry.rankKey} value={entry.rankKey}>{entry.label}</SelectItem>)}</SelectContent></Select></div>
-        {hasStars && <div className="space-y-1.5"><Label>星数</Label><Input value={fact.stars} onChange={(event) => { setSaved(false); setFact({ ...fact, stars: event.target.value }); }} inputMode="numeric" type="number" min={selected?.starMin ?? undefined} max={selected?.starMax ?? undefined} step={1} placeholder={untouchedLegacy ? "历史资料未记录星数" : `${selected?.starMin}–${selected?.starMax ?? "∞"}`} /></div>}
+        {hasStars && <div className="space-y-1.5"><Label>星数</Label><Input required value={fact.stars} onChange={(event) => { setSaved(false); setFact({ ...fact, stars: event.target.value }); }} inputMode="numeric" type="number" min={selected?.starMin ?? undefined} max={selected?.starMax ?? undefined} step={1} placeholder={`${selected?.starMin}–${selected?.starMax ?? "∞"}`} /></div>}
         <div className="space-y-1.5"><Label>对应 {context!.ratingLabel}</Label><Input value={fact.rating} onChange={(event) => { setSaved(false); setFact({ ...fact, rating: event.target.value }); }} inputMode="decimal" /></div>
       </div>}
       {options.after}
@@ -114,13 +100,13 @@ export function CompetitiveProfileForm({ contexts }: { contexts: CompetitiveSeas
   const invalidRanked = (key: string, fact: Fact) => {
     if (fact.status !== "ranked") return false;
     const rank = context.ladder.find((entry) => entry.rankKey === fact.rank);
-    const needsStars = rank?.starMin !== null && rank?.starMin !== undefined && fact.stars === "" && !(initialFacts[key]?.status === "ranked" && initialFacts[key]?.stars === "" && initialFacts[key]?.rank === fact.rank && initialFacts[key]?.rating === fact.rating);
+    const needsStars = rank?.starMin !== null && rank?.starMin !== undefined && fact.stars === "";
     return !fact.rank || !fact.rating || needsStars;
   };
 
   return <Panel label="竞技资料" pad={20}><div className="space-y-5">
     {platformSelect}
-    <StatusBanner tone="info" title={`${context.platformDisplayName} · 长期竞技资料`} sub="未录入表示尚未声明；未定级是有效事实；已定级必须填写段位与 Rating。具体赛事会按当届冻结规则单独核验。" />
+    <StatusBanner tone="info" title={`${context.platformDisplayName} · 长期竞技资料`} sub="未录入表示尚未声明；未定级是有效事实；已定级必须填写段位、星段位的准确星数与 Rating。具体赛事会按当届冻结规则单独核验。" />
     {editor("历史最高", HISTORICAL_KEY, historical, setHistorical, false, { after: <div className="max-w-sm space-y-1.5"><Label htmlFor="competitive-achieved-season">历史最高达成赛季（可选）</Label><Select value={achievedSeasonKey} onValueChange={(value) => { setSaved(false); setAchievedSeasonKey(value); }}><SelectTrigger id="competitive-achieved-season"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="unknown">不确定 / 暂不填写</SelectItem>{context.seasons.map((season) => <SelectItem key={season.seasonKey} value={season.seasonKey}>{season.label}</SelectItem>)}</SelectContent></Select></div> })}
     <section aria-labelledby="recent-seasons-heading" className="space-y-4">
       <div><h2 id="recent-seasons-heading" className="text-base font-semibold">近期赛季</h2><p className="mt-1 text-sm text-[var(--color-fg-mid)]">当前、上一赛季可直接维护。</p></div>

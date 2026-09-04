@@ -259,9 +259,9 @@ async function exerciseConcurrencyAndInvariants(pool: Pool): Promise<void> {
 
 /**
  * Combined acceptance against the real 0020 built-in catalog (no mock
- * S23/S24): a non-star A++ member, an S-tier member with exact stars and a
- * legacy S member whose stars stayed NULL must all reach competitive
- * readiness, while an off-ladder rank fails the published mapping. The
+ * S23/S24): a non-star A++ member, two S-tier members with exact stars must
+ * reach competitive readiness, while an off-ladder rank fails the published
+ * mapping. The
  * canonical qualification evaluator owns every stars decision — the
  * CompetitionEntry UI only consumes readiness props.
  */
@@ -291,12 +291,12 @@ async function exerciseQualificationWithRealCatalog(pool: Pool): Promise<void> {
       throw new Error(`0020 魔王S 星数区间不符：${JSON.stringify(demonKing.rows[0])}`);
     }
 
-    const users = { normal: randomUUID(), star: randomUUID(), legacy: randomUUID(), offLadder: randomUUID() };
+    const users = { normal: randomUUID(), star: randomUUID(), secondStar: randomUUID(), offLadder: randomUUID() };
     const values: Array<[string, string, string, string, number | null]> = [];
-    for (const [key, rank] of [["normal", "A++"], ["star", "魔王S"], ["legacy", "黄金S"], ["offLadder", "Grandmaster"]] as const) {
-      // Only the star member carries the post-#293 exact-stars fact shape; the
-      // legacy member is the pre-stars shape (S rank, stars NULL).
-      values.push([users[key], `${key}-${users[key]}@local.test`, rank, rank, key === "star" ? 50 : null]);
+    for (const [key, rank] of [["normal", "A++"], ["star", "魔王S"], ["secondStar", "黄金S"], ["offLadder", "Grandmaster"]] as const) {
+      // Every declared S-tier fact must carry its exact stars; an old NULL
+      // value is incomplete profile data and is not a readiness pass-through.
+      values.push([users[key], `${key}-${users[key]}@local.test`, rank, rank, key === "star" ? 50 : key === "secondStar" ? 10 : null]);
     }
     for (const [id, email] of values) {
       await client.query(
@@ -314,12 +314,11 @@ async function exerciseQualificationWithRealCatalog(pool: Pool): Promise<void> {
         [id, historical, current, stars],
       );
     }
-    // The legacy member is the pre-stars fact shape: rank on the ladder, stars NULL.
-    const legacyStars = await client.query<{ stars: number | null }>(
+    const secondStarStars = await client.query<{ stars: number | null }>(
       "SELECT stars FROM competitive_rank_facts WHERE user_id = $1 AND rank = '黄金S' LIMIT 1",
-      [users.legacy],
+      [users.secondStar],
     );
-    if (legacyStars.rows[0]?.stars !== null) throw new Error("legacy fixture 必须保持 stars NULL。");
+    if (secondStarStars.rows[0]?.stars !== 10) throw new Error("黄金S fixture 必须带精确星数。");
     const starStars = await client.query<{ stars: number | null }>(
       "SELECT stars FROM competitive_rank_facts WHERE user_id = $1 AND rank = '魔王S' LIMIT 1",
       [users.star],
