@@ -9,9 +9,9 @@ import { ok, fail, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { actionError } from "@/lib/action-utils";
 import { auditActorId, requireSuperAdmin } from "@/lib/auth/session";
-import { normalizeRegistrationConfig, type StagePlan } from "@/types/season";
+import { normalizeRegistrationConfig, normalizeTeamRegistrationConfig, type StagePlan, type TeamRegistrationConfig } from "@/types/season";
 import { validateCompetitionDefinition } from "@/lib/competition/definition";
-import { assertSeasonHasNoHistoricalFacts, openSeasonRegistrationInTx, transitionSeasonStatusInTx, unfreezeBuiltInCompetitiveContext } from "@/lib/seasons/lifecycle";
+import { assertSeasonHasNoHistoricalFacts, openSeasonRegistrationInTx, resolveConversionPolicyForPublish, transitionSeasonStatusInTx, unfreezeBuiltInCompetitiveContext } from "@/lib/seasons/lifecycle";
 import { seasonFormSchema, seasonUpdateFormSchema, planSeasonCreate, planSeasonUpdate, type SeasonFormInput } from "@/lib/seasons/edit";
 import { updatePublicSeasonTags } from "@/lib/revalidation";
 
@@ -122,7 +122,8 @@ export async function updateSeason(input: SeasonFormInput): Promise<ActionResult
   }
 }
 
-export async function publishSeason(seasonId: string): Promise<ActionResult<{ slug: string }>> {  try {
+export async function publishSeason(seasonId: string): Promise<ActionResult<{ slug: string }>> {
+  try {
     const admin = await requireSuperAdmin();
     const season = await db.transaction(async (tx) => {
       await tx.execute(sql`SELECT id FROM seasons WHERE id = ${seasonId} FOR UPDATE`);
@@ -130,14 +131,52 @@ export async function publishSeason(seasonId: string): Promise<ActionResult<{ sl
       if (!locked) throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
       if (locked.status !== "draft") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有 draft 状态可发布");
       if (locked.competitionTemplate === "custom") assertRunnableCustomDefinition(locked);
-      await tx.update(seasons).set({ status: "registration", updatedAt: new Date() }).where(eq(seasons.id, seasonId));
+
+      const config = normalizeTeamRegistrationConfig(locked.teamRegistrationConfig);
+      let nextTeamRegistrationConfig: TeamRegistrationConfig | null = locked.teamRegistrationConfig as TeamRegistrationConfig | null;
+
+      if (config.requireCompetitiveProfile) {
+        const platform = config.competitiveProfile?.platform ?? "perfect_world";
+        if (platform === "perfect_world") {
+          const resolvedPolicy = await resolveConversionPolicyForPublish(
+            tx,
+            platform,
+            config.competitiveProfile?.conversionPolicyId,
+            config.competitiveProfile?.conversionPolicyVersion,
+          );
+          nextTeamRegistrationConfig = {
+            ...config,
+            competitiveProfile: {
+              platform,
+              currentSeasonKey: config.competitiveProfile?.currentSeasonKey ?? "",
+              previousSeasonKey: config.competitiveProfile?.previousSeasonKey ?? "",
+              rankOrder: config.competitiveProfile?.rankOrder ?? [],
+              ...config.competitiveProfile,
+              conversionPolicyId: resolvedPolicy.id,
+              conversionPolicyVersion: resolvedPolicy.version,
+            },
+          };
+        }
+      }
+
+      await tx.update(seasons).set({
+        status: "registration",
+        ...(nextTeamRegistrationConfig ? { teamRegistrationConfig: nextTeamRegistrationConfig } : {}),
+        updatedAt: new Date(),
+      }).where(eq(seasons.id, seasonId));
       await tx.insert(auditLogs).values({
         seasonId,
         action: "season.publish",
         actorId: auditActorId(admin),
         targetId: seasonId,
         targetType: "season",
-        meta: { slug: locked.slug, from: "draft", to: "registration", registrationSchedule: locked.registrationOpensAt ? locked.registrationOpensAt.toISOString() : null },
+        meta: {
+          slug: locked.slug,
+          from: "draft",
+          to: "registration",
+          registrationSchedule: locked.registrationOpensAt ? locked.registrationOpensAt.toISOString() : null,
+          conversionPolicyVersion: nextTeamRegistrationConfig?.competitiveProfile?.conversionPolicyVersion ?? null,
+        },
       });
       return locked;
     });

@@ -13,7 +13,7 @@ import {
   assertMatchTransition,
   resolveMatchFormat,
 } from "@/lib/match-transitions";
-import { getMaxMaps, getWinThreshold, isMatchStatus } from "@/types/match";
+import { getMaxMaps, isMatchStatus } from "@/types/match";
 import { actionError, getSeasonOrThrow, getMatchOrThrow } from "@/lib/action-utils";
 import {
   applyMatchStatusTransitionInTx,
@@ -25,14 +25,12 @@ import { normalizeRegistrationConfig, normalizeStagePlan } from "@/types/season"
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 import {
   computeSeriesScoreAfterMap,
-  isValidCS2RoundScore,
   validateMapScore,
-  validateSeriesScore,
 } from "@/lib/matches/result-rules";
 
 /**
  * 将 bracket 推进后解析出的新对阵批量写入 matches 表。
- * recordMatchResult 和 recordMapResult 共用。
+ * recordMapResult 使用。
  */
 async function insertResolvedBracketMatches(
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
@@ -110,94 +108,12 @@ export async function updateMatchStatus(
   }
 }
 
-// ── 录入比赛结果 ──────────────────────────────────────────────────────────
-
-/**
- * 录入系列赛比分，将比赛标记为 finished，并推进 bracket。
- * 若 bracket 中因此产生新的已确定对阵，自动创建对应 DB match 记录。
- */
-export async function recordMatchResult(
-  matchId: string,
-  scoreA: number,
-  scoreB: number
-): Promise<ActionResult<void>> {
-  try {
-    const match = await getMatchOrThrow(matchId);
-    validateSeriesScore(match.format, scoreA, scoreB);
-    const session = await requireSeasonAdmin(match.seasonId);
-    if (!isMatchStatus(match.status)) {
-      throw new AppError(ErrorCode.INTERNAL_ERROR, `无效的比赛状态: ${match.status}`);
-    }
-    assertMatchTransition(match.status, "finished");
-
-    const season = await getSeasonOrThrow(match.seasonId);
-
-    // 事务保护：score 更新 + bracket 推进 + audit 原子化
-    await db.transaction(async (tx) => {
-      const locked = await lockMatchInTx(tx, matchId);
-      if (!isMatchStatus(locked.status)) throw new AppError(ErrorCode.INTERNAL_ERROR, `无效的比赛状态: ${locked.status}`);
-      assertMatchTransition(locked.status, "finished");
-      validateSeriesScore(locked.format, scoreA, scoreB);
-      const hasVeto = await tx.query.matchVetoSteps.findFirst({ where: eq(matchVetoSteps.matchId, matchId), columns: { id: true } });
-      if (!hasVeto) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先录入 BP 再录入比分");
-      const [lockedSeason] = await tx.select().from(seasons).where(eq(seasons.id, locked.seasonId)).for("update");
-      if (!lockedSeason) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
-      const bracketState = await loadBracketState(tx, locked.seasonId);
-      await tx
-        .update(matches)
-        .set({
-          scoreA,
-          scoreB,
-          status: "finished",
-          completedAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .where(eq(matches.id, matchId));
-
-      // 推进 bracket（若 bracket 已初始化）
-      if (bracketState && locked.bracketNodeId) {
-        const { updatedData, newResolvedMatches } = await bracketAdvance(
-          locked.bracketNodeId,
-          scoreA,
-          scoreB,
-          bracketState,
-        );
-
-        await saveBracketState(tx, match.seasonId, updatedData);
-
-        await insertResolvedBracketMatches(
-          tx, match.seasonId, match.stage,
-          updatedData as Database, newResolvedMatches,
-          normalizeStagePlan(lockedSeason.stagePlan),
-        );
-      }
-
-      await maybeFinishSeason(tx, match.seasonId);
-
-      await tx.insert(auditLogs).values({
-        seasonId: locked.seasonId,
-        action: "match.record_result",
-        actorId: session.email,
-        targetId: matchId,
-        targetType: "match",
-        meta: { scoreA, scoreB },
-      });
-    }); // end db.transaction
-
-    revalidateMatchPaths(season.slug, matchId);
-
-    return ok(undefined);
-  } catch (e) {
-    return actionError("recordMatchResult", e);
-  }
-}
-
 // ── 录入单图结果（BO1/BO3/BO5） ───────────────────────────────────────────────
 
 /**
  * 录入一张地图的比赛结果。
  * 系统根据已完成地图自动计算大比分，达到 maxWins 时自动结束系列赛并推进 bracket。
- * 支持 BO1/BO3/BO5；BO1 也可继续走 recordMatchResult 直接录入总分。
+ * 支持 BO1/BO3/BO5；matches 只保存由实际地图胜负推导出的系列赛比分。
  */
 export async function recordMapResult(
   matchId: string,
@@ -250,6 +166,9 @@ export async function recordMapResult(
         where: eq(matchMaps.matchId, matchId),
       });
       const existingRow = existingMaps.find((m) => m.mapName === mapName);
+      if (existingMaps.some((m) => (m.scoreA === null) !== (m.scoreB === null))) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "地图比分数据不完整，无法继续录入");
+      }
       if (existingRow && existingRow.scoreA !== null) {
         throw new AppError(ErrorCode.VALIDATION_FAILED, `地图 ${mapName} 已录入比分`);
       }
@@ -284,7 +203,7 @@ export async function recordMapResult(
 
       if (seriesFinished) {
         await tx.delete(matchMaps).where(
-          and(eq(matchMaps.matchId, matchId), isNull(matchMaps.scoreA))
+          and(eq(matchMaps.matchId, matchId), isNull(matchMaps.scoreA), isNull(matchMaps.scoreB))
         );
 
         await tx.update(matches).set({
@@ -518,96 +437,6 @@ export async function batchSetCompletionDeadline(input: {
   }
 }
 
-// ── 修正已完成比赛的比分 ──────────────────────────────────────────────────
-
-/**
- * 修正已完成比赛的比分（只允许不改变胜者的纠错）。
- * 改变胜者的修正会与已推进的 bracket 结果矛盾，当前版本无法安全重建后续赛程，一律拒绝。
- * BO1 合法胜者回合数：13、16、19、22、…（MR12 公式：13 + 3k，k ≥ 0）。
- */
-export async function correctMatchScore(
-  matchId: string,
-  scoreA: number,
-  scoreB: number
-): Promise<ActionResult<void>> {
-  try {
-    if (!Number.isInteger(scoreA) || !Number.isInteger(scoreB) || scoreA < 0 || scoreB < 0) {
-      throw new AppError(ErrorCode.MATCH_INVALID_SCORE, "比分必须为非负整数");
-    }
-    if (scoreA === scoreB) {
-      throw new AppError(ErrorCode.MATCH_INVALID_SCORE, "系列赛不能平局，必须分出胜负");
-    }
-
-    const match = await getMatchOrThrow(matchId);
-    if (match.status !== "finished") {
-      throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "只能修正已完成比赛的比分");
-    }
-
-    if (match.format === "bo1") {
-      const winner = Math.max(scoreA, scoreB);
-      const loser = Math.min(scoreA, scoreB);
-      if (!isValidCS2RoundScore(winner, loser)) {
-        throw new AppError(
-          ErrorCode.MATCH_INVALID_SCORE,
-          "BO1 比分不合法，胜者回合数须满足 13 + 3k（如 13、16、19、22…）"
-        );
-      }
-    } else {
-      const maxWins = getWinThreshold(match.format);
-      const winner = Math.max(scoreA, scoreB);
-      const loser = Math.min(scoreA, scoreB);
-      if (winner !== maxWins || loser >= maxWins) {
-        throw new AppError(
-          ErrorCode.MATCH_INVALID_SCORE,
-          `${match.format.toUpperCase()} 系列赛比分不合法（胜者须恰好赢 ${maxWins} 图）`
-        );
-      }
-    }
-
-    // winner guard：拒绝改变胜者的纠错（当前版本无法安全重建 downstream bracket）
-    const prevWinner =
-      match.scoreA !== null && match.scoreB !== null
-        ? match.scoreA > match.scoreB
-          ? match.entryAId
-          : match.entryBId
-        : null;
-    const nextWinner = scoreA > scoreB ? match.entryAId : match.entryBId;
-    if (prevWinner !== null && prevWinner !== nextWinner) {
-      throw new AppError(
-        ErrorCode.VALIDATION_FAILED,
-        "该修正会改变比赛胜者。当前版本无法安全重建后续赛程，请勿直接修改；需通过赛事事故处理流程解决。"
-      );
-    }
-
-    const session = await requireSeasonAdmin(match.seasonId);
-    const season = await getSeasonOrThrow(match.seasonId);
-    const prevScoreA = match.scoreA;
-    const prevScoreB = match.scoreB;
-
-    await db.transaction(async (tx) => {
-      await assertSeasonAllowsTournamentMutationInTx(tx, match.seasonId);
-      await tx
-        .update(matches)
-        .set({ scoreA, scoreB, updatedAt: new Date() })
-        .where(eq(matches.id, matchId));
-
-      await tx.insert(auditLogs).values({
-        seasonId: match.seasonId,
-        action: "match.correct_score",
-        actorId: session.email,
-        targetId: matchId,
-        targetType: "match",
-        meta: { prevScoreA, prevScoreB, scoreA, scoreB },
-      });
-    });
-
-    revalidateMatchPaths(season.slug, matchId);
-    return ok(undefined);
-  } catch (e) {
-    return actionError("correctMatchScore", e);
-  }
-}
-
 // ── 删除比赛 ──────────────────────────────────────────────────────────────
 
 /**
@@ -733,7 +562,7 @@ export async function correctMapScore(
       where: eq(matchMaps.id, mapId),
     });
     if (!mapRecord) throw new AppError(ErrorCode.NOT_FOUND, "地图记录不存在");
-    if (mapRecord.scoreA === null) {
+    if (mapRecord.scoreA === null || mapRecord.scoreB === null) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "该图尚未录入比分，无法修正");
     }
 
@@ -752,6 +581,9 @@ export async function correctMapScore(
       const allMaps = await tx.query.matchMaps.findMany({
         where: eq(matchMaps.matchId, mapRecord.matchId),
       });
+      if (allMaps.some((m) => (m.scoreA === null) !== (m.scoreB === null))) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "地图比分数据不完整，无法修正");
+      }
       const otherMaps = allMaps.filter((m) => m.id !== mapId);
       const { mapWinsA, mapWinsB, seriesFinished } = computeSeriesScoreAfterMap(
         match.format,
@@ -896,7 +728,7 @@ export async function syncBracketMatches(seasonId: string): Promise<ActionResult
 // ── 弃赛判负 ─────────────────────────────────────────────────────────────────
 
 const FORFEIT_WINNER_SCORE: Record<"bo1" | "bo3" | "bo5", number> = {
-  bo1: 13,
+  bo1: 1,
   bo3: 2,
   bo5: 3,
 };
@@ -932,7 +764,7 @@ export async function forfeitMatch(
     await db.transaction(async (tx) => {
       await assertSeasonAllowsTournamentMutationInTx(tx, match.seasonId);
       await tx.delete(matchMaps).where(
-        and(eq(matchMaps.matchId, matchId), isNull(matchMaps.scoreA))
+        and(eq(matchMaps.matchId, matchId), isNull(matchMaps.scoreA), isNull(matchMaps.scoreB))
       );
 
       await tx

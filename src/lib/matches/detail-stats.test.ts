@@ -44,20 +44,35 @@ describe("match detail stats", () => {
   it("computes team record from finished scores", () => {
     expect(
       computeRecord("team-a", [
-        { entryAId: "team-a", entryBId: "team-b", scoreA: 13, scoreB: 8 },
-        { entryAId: "team-c", entryBId: "team-a", scoreA: 13, scoreB: 11 },
+        { entryAId: "team-a", entryBId: "team-b", scoreA: 1, scoreB: 0 },
+        { entryAId: "team-c", entryBId: "team-a", scoreA: 1, scoreB: 0 },
         { entryAId: "team-a", entryBId: "team-d", scoreA: null, scoreB: null },
       ]),
     ).toEqual({ wins: 1, losses: 1 });
   });
 
-  it("computes average team stats with kill/death ratio", () => {
+  it("computes team stats with canonical ADR weighting and kill/death ratio", () => {
+    expect(
+      computeTeamAvgStats(
+        [
+          statRow({ mapId: "map-1", kills: 20, deaths: 10, adr: 90, ratingPro: 1.2 }),
+          statRow({ mapId: "map-2", kills: 10, deaths: 15, adr: 70, ratingPro: 0.8 }),
+        ],
+        new Map([
+          ["map-1", 24],
+          ["map-2", 30],
+        ]),
+      ),
+    ).toEqual({ avgRating: 1, avgAdr: 4260 / 54, avgKd: 1.2 });
+  });
+
+  it("keeps ADR unknown when map rounds are unavailable", () => {
     expect(
       computeTeamAvgStats([
         statRow({ kills: 20, deaths: 10, adr: 90, ratingPro: 1.2 }),
         statRow({ kills: 10, deaths: 15, adr: 70, ratingPro: 0.8 }),
       ]),
-    ).toEqual({ avgRating: 1, avgAdr: 80, avgKd: 1.2 });
+    ).toEqual({ avgRating: 1, avgAdr: null, avgKd: 1.2 });
   });
 
   it("builds radar percentages from map stats", () => {

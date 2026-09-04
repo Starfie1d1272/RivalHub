@@ -41,8 +41,8 @@ function planFixture(overrides: Partial<{
     matchId: "match-1",
     stageKey: "stage1",
     stageType: "swiss",
-    current: { scoreA: 9, scoreB: 13, isForfeit: false },
-    proposed: { scoreA: 13, scoreB: 4, isForfeit: false },
+    current: { scoreA: 0, scoreB: 1, isForfeit: false },
+    proposed: { scoreA: 1, scoreB: 0, isForfeit: false },
     currentWinnerTeamId: "team-b",
     proposedWinnerTeamId: "team-a",
     winnerChanges: true,
@@ -56,8 +56,8 @@ function planFixture(overrides: Partial<{
 
 async function fillScores(user: ReturnType<typeof userEvent.setup>) {
   const inputs = screen.getAllByPlaceholderText("比分");
-  await user.type(inputs[0]!, "13");
-  await user.type(inputs[1]!, "4");
+  await user.type(inputs[0]!, "1");
+  await user.type(inputs[1]!, "0");
 }
 
 beforeEach(() => {
@@ -128,7 +128,7 @@ describe("ResultCorrectionPanel", () => {
 
     await waitFor(() => expect(mockedApply).toHaveBeenCalled());
     expect(mockedApply.mock.calls[0]![0]).toBe("match-1");
-    expect(mockedApply.mock.calls[0]![1]).toMatchObject({ scoreA: 13, scoreB: 4, confirmRecovery: false });
+    expect(mockedApply.mock.calls[0]![1]).toMatchObject({ scoreA: 1, scoreB: 0, confirmRecovery: false });
   });
 
   it("rejects impossible score input without calling any action", async () => {

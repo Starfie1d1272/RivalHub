@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  DEFAULT_CS2_MAP_POOL,
+  CURRENT_CS2_ACTIVE_DUTY_MAP_POOL,
   MAJOR_REGISTRATION_CONFIG,
   OPEN_TOURNAMENT_PRESET,
   RIVALS_DEFAULT_CAPABILITIES,
@@ -38,9 +38,9 @@ describe("checkStandardMajorCapabilities()", () => {
     expect(MAJOR_REGISTRATION_CONFIG.mapPool).toEqual([
       "de_ancient", "de_anubis", "de_cache", "de_dust2", "de_inferno", "de_mirage", "de_nuke",
     ]);
-    expect(RIVALS_DEFAULT_CAPABILITIES.registrationConfig.mapPool).toEqual([...DEFAULT_CS2_MAP_POOL]);
+    expect(RIVALS_DEFAULT_CAPABILITIES.registrationConfig.mapPool).toEqual([...CURRENT_CS2_ACTIVE_DUTY_MAP_POOL]);
     expect(MAJOR_REGISTRATION_CONFIG.mapPool).not.toContain("de_overpass");
-    expect(RIVALS_DEFAULT_CAPABILITIES.registrationConfig.mapPool).toContain("de_overpass");
+    expect(RIVALS_DEFAULT_CAPABILITIES.registrationConfig.mapPool).toContain("de_cache");
   });
 
   it("accepts a deep clone of the standard Major defaults", () => {

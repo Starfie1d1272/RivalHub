@@ -103,12 +103,13 @@ describe("recruitment lobby cards", () => {
   it("renders map proficiency when provided and an explicit unfilled state otherwise", async () => {
     getRecruitmentLobbyDataMock.mockResolvedValueOnce({
       ...baseLobbyData,
-      playerLfts: [{ ...basePlayer, mapPreferences: [{ map: "de_mirage", level: "strong" }, { map: "de_inferno", level: "proficient" }] }],
+      playerLfts: [{ ...basePlayer, targetSeasonId: "season-1", targetSeasonName: "目标赛事", mapPreferenceContextLabel: "目标赛事图池熟练度", mapPreferences: [{ map: "de_cache", level: null }, { map: "de_mirage", level: "strong" }] }],
     });
     const page = await RecruitmentLobbyPage({ searchParams: Promise.resolve({ view: "players" }) });
     const html = renderToStaticMarkup(page);
-    expect(html).toContain("地图熟练度");
+    expect(html).toContain("目标赛事图池熟练度");
     expect(html).toContain("Mirage");
+    expect(html).toContain("未填写 1 张");
 
     getRecruitmentLobbyDataMock.mockResolvedValueOnce({ ...baseLobbyData, playerLfts: [{ ...basePlayer, mapPreferences: [] }] });
     const emptyPage = await RecruitmentLobbyPage({ searchParams: Promise.resolve({ view: "players" }) });

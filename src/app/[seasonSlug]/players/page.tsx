@@ -9,6 +9,7 @@ import { countDirectoryPlayersWithTeam, sortPlayerDirectory } from "@/lib/player
 import { positionLabel, positionValues } from "@/lib/validators/registration";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { getPublicOrAuthorizedDraftSeason, getPublicSeasonBySlug } from "@/lib/data/public-seasons";
+import { ratioOfSums, roundWeightedAvg, simpleAvg } from "@/lib/stats";
 import type { Metadata } from "next";
 
 interface PlayersPageProps {
@@ -79,20 +80,16 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
   const teamByRegId = new Map(teamMemberRows.flatMap((row) => row.registrationId ? [[row.registrationId, row.teamName] as const] : []));
 
   const playerStatResult = await db.execute(sql`
+    -- Keep the raw nullable values; presentation precision belongs to the row component.
     SELECT
       mps.user_id,
       count(distinct mps.map_id)::int AS maps,
-      round(avg(mps.rating_pro)::numeric, 2) AS avg_rating,
-      -- ADR 回合加权（JOIN match_maps mm2），避免简单均值失真
-      round(
-        CASE WHEN sum(mm2.score_a + mm2.score_b) > 0
-          THEN sum(mps.adr * (mm2.score_a + mm2.score_b))::numeric / sum(mm2.score_a + mm2.score_b)
-          ELSE NULL END
-      ::numeric, 1) AS avg_adr,
-      round((sum(mps.kills)::numeric / nullif(sum(mps.deaths), 0)), 2) AS avg_kd
+      ${simpleAvg("mps.rating_pro")} AS avg_rating,
+      ${roundWeightedAvg("mps.adr")} AS avg_adr,
+      ${ratioOfSums("mps.kills", "mps.deaths")} AS avg_kd
     FROM match_player_stats mps
     JOIN matches m ON m.id = mps.match_id
-    JOIN match_maps mm2 ON mm2.id = mps.map_id
+    JOIN match_maps mm ON mm.id = mps.map_id
     WHERE m.season_id = ${season.id}
       AND mps.verified_by_admin IS NOT NULL
       AND mps.user_id IS NOT NULL
@@ -103,8 +100,8 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
       row.user_id as string,
       {
         maps: Number(row.maps),
-        avgRating: Number(row.avg_rating),
-        avgAdr: Number(row.avg_adr),
+        avgRating: row.avg_rating == null ? null : Number(row.avg_rating),
+        avgAdr: row.avg_adr == null ? null : Number(row.avg_adr),
         avgKd: row.avg_kd == null ? null : Number(row.avg_kd),
       },
     ]),

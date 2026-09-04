@@ -4,6 +4,7 @@ import { matches, seasons, competitionEntries } from "@/db/schema";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { generateBracket, saveBracketState, type BracketStageRef } from "@/lib/bracket";
 import { calculateStandings } from "@/lib/standings";
+import { getMatchMapRoundScores } from "@/lib/data/standings";
 import { getFirstStageOfType, normalizeStagePlan } from "@/types/season";
 import type { StageExecutor } from "./types";
 import { isStageComplete } from "./_shared";
@@ -72,7 +73,8 @@ export const roundRobinExecutor: StageExecutor = {
         eq(matches.status, "finished"),
       ),
     });
-    const standings = calculateStandings(seasonTeams, finishedMatches);
+    const roundScores = await getMatchMapRoundScores(finishedMatches.map((match) => match.id));
+    const standings = calculateStandings(seasonTeams, finishedMatches, roundScores);
     const advanceCount = config.advanceTiers.reduce((sum, t) => sum + t.count, 0);
     return standings.slice(0, advanceCount).map((s) => ({
       teamId: s.teamId,

@@ -143,6 +143,25 @@ const VALID_INPUT = {
   antiCheatPledge: true as const,
 };
 
+const VALID_SCHEMA_INPUT = {
+  ...VALID_INPUT,
+  playerType: "enrolled",
+  peakRank: "A+",
+  peakRankSeason: "S1 2026",
+  peakRating: 1.5,
+  currentSeasonPeakRank: "A",
+  currentRating: 1.4,
+  mapPreferences: [
+    { map: "de_mirage", level: "strong" },
+    { map: "de_inferno", level: "proficient" },
+    { map: "de_nuke", level: "playable" },
+    { map: "de_ancient", level: "basic" },
+    { map: "de_dust2", level: "basic" },
+    { map: "de_anubis", level: "basic" },
+    { map: "de_cache", level: "none" },
+  ],
+};
+
 // ── 工具：mock db.select 链式调用返回 [{count: N}] ──────────────────────────
 function mockSelectCount(n: number) {
   selectMock.mockReturnValueOnce({
@@ -393,6 +412,96 @@ describe("submitRegistration()", () => {
     expectAuditLog(insertValuesCalls, "registration.submit", { actorId: USER_ID, targetId: NEW_REG_ID });
 
     expect(revalidatePathMock).toHaveBeenCalledWith(`/${SEASON.slug}/register`);
+  });
+
+  it("持久化规范化后的 Steam 个人资料链接（去除空白、query、hash）", async () => {
+    const { buildRegistrationSchema: realBuildRegistrationSchema } =
+      await vi.importActual<typeof import("@/lib/validators/registration")>(
+        "@/lib/validators/registration",
+      );
+    setupHappyPathBase();
+    buildRegistrationSchemaMock.mockImplementation((config, positions) =>
+      realBuildRegistrationSchema(config, positions),
+    );
+    userFindFirstMock.mockResolvedValue(USER);
+    registrationFindFirstMock.mockResolvedValue(null);
+
+    mockSelectCount(0);
+    mockSelectCount(0);
+
+    const userUpdateSetSpy = vi.fn().mockReturnValue({
+      where: vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([{ ...USER, steam64: VALID_SCHEMA_INPUT.steam64 }]),
+      }),
+    });
+    updateMock.mockReturnValueOnce({ set: userUpdateSetSpy });
+
+    const NEW_REG_ID = "44444444-4444-4444-4444-444444444444";
+    insertMock
+      .mockReturnValueOnce({
+        values: vi.fn().mockReturnValue({
+          returning: vi.fn().mockResolvedValue([{ id: NEW_REG_ID }]),
+        }),
+      })
+      .mockReturnValueOnce({
+        values: vi.fn((vals: unknown) => {
+          insertValuesCalls.push(vals);
+          return Promise.resolve();
+        }),
+      });
+
+    deleteMock.mockReturnValueOnce({
+      where: vi.fn().mockResolvedValue(undefined),
+    });
+
+    const result = await submitRegistration({
+      ...VALID_SCHEMA_INPUT,
+      steamProfileUrl: "  https://steamcommunity.com/id/test/?foo=bar#baz  ",
+    } as never);
+
+    expect(result.success).toBe(true);
+    expect(userUpdateSetSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        steamProfileUrl: "https://steamcommunity.com/id/test",
+      }),
+    );
+  });
+
+  it("拒绝 CodeQL 绕过格式的 Steam 个人资料链接，不进入写链", async () => {
+    const { buildRegistrationSchema: realBuildRegistrationSchema } =
+      await vi.importActual<typeof import("@/lib/validators/registration")>(
+        "@/lib/validators/registration",
+      );
+
+    const bypassPayloads = [
+      "https://steamcommunity.com.attacker.example/id/test",
+      "https://attacker.example/steamcommunity.com",
+      "https://attacker.example/?next=steamcommunity.com",
+      "https://steamcommunity.com/profiles/76561198000000001/edit",
+      "https://steamcommunity.com/tradeoffer/new",
+    ];
+
+    for (const url of bypassPayloads) {
+      vi.clearAllMocks();
+      setupHappyPathBase();
+      buildRegistrationSchemaMock.mockImplementation((config, positions) =>
+        realBuildRegistrationSchema(config, positions),
+      );
+      userFindFirstMock.mockResolvedValue(USER);
+
+      const result = await submitRegistration({
+        ...VALID_SCHEMA_INPUT,
+        steamProfileUrl: url,
+      } as never);
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.code).toBe(ErrorCode.VALIDATION_FAILED);
+        expect(result.error.fieldErrors?.steamProfileUrl).toBeDefined();
+      }
+      expect(updateMock).not.toHaveBeenCalled();
+      expect(insertMock).not.toHaveBeenCalled();
+    }
   });
 });
 

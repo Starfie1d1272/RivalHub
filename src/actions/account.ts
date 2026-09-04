@@ -10,7 +10,7 @@ import { ok, fail, type ActionResult } from "@/types/action";
 import { failValidation, actionError } from "@/lib/action-utils";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { MIN_PASSWORD_LENGTH } from "@/lib/config/auth-config";
-import { isHttpUrl } from "@/lib/external-url";
+import { isHttpUrl, normalizeSteamProfileUrl } from "@/lib/external-url";
 import { updatePublicPlayerTag } from "@/lib/revalidation";
 
 export async function changeUserPassword(
@@ -86,9 +86,13 @@ export async function updateProfile(
   const steam64 = input.steam64.trim();
   if (steam64 && !/^\d{17}$/.test(steam64)) return failValidation("Steam64 ID 格式不正确（应为 17 位数字）");
 
-  const steamProfileUrl = input.steamProfileUrl.trim();
-  if (steamProfileUrl && !steamProfileUrl.startsWith("https://steamcommunity.com/")) {
-    return failValidation("Steam 个人资料链接格式不正确");
+  const rawSteamProfileUrl = input.steamProfileUrl.trim();
+  let steamProfileUrl: string | null = null;
+  if (rawSteamProfileUrl) {
+    steamProfileUrl = normalizeSteamProfileUrl(rawSteamProfileUrl);
+    if (!steamProfileUrl) {
+      return failValidation("Steam 个人资料链接格式不正确");
+    }
   }
 
   const qq = input.qq.trim();
@@ -106,7 +110,7 @@ export async function updateProfile(
         steamName: steamName || null,
         perfectName: perfectName || null,
         steam64: steam64 || null,
-        steamProfileUrl: steamProfileUrl || null,
+        steamProfileUrl,
         qq: qq || null,
         liveStreamUrl: liveStreamUrl || null,
         updatedAt: new Date(),

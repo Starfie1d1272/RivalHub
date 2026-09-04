@@ -23,10 +23,10 @@ export function buildPositionLabel(
 }
 
 export function countMapPreferenceLevels(
-  mapPreferences: { map: string; level: MapPreferenceLevel }[],
+  mapPreferences: { map: string; level: MapPreferenceLevel | null }[],
 ): { playableCount: number; strongCount: number } {
   return {
-    playableCount: mapPreferences.filter((preference) => PLAYABLE_MAP_LEVELS.has(preference.level)).length,
+    playableCount: mapPreferences.filter((preference) => preference.level !== null && PLAYABLE_MAP_LEVELS.has(preference.level)).length,
     strongCount: mapPreferences.filter((preference) => preference.level === "strong").length,
   };
 }

@@ -227,12 +227,12 @@ describe("correction workflow actions", () => {
     mockedGetMatch.mockResolvedValue(FINISHED_MATCH as never);
     stubs.planResultCorrectionInTx.mockResolvedValue({ winnerChanges: true, impacts: [] });
 
-    const result = await planMatchResultCorrection("match-1", { scoreA: 13, scoreB: 4 });
+    const result = await planMatchResultCorrection("match-1", { scoreA: 1, scoreB: 0 });
 
     expect(result.success).toBe(true);
     const [txArg, args] = stubs.planResultCorrectionInTx.mock.calls[0]!;
     expect(txArg).toBe(stubs.txStub);
-    expect(args.proposal).toEqual({ scoreA: 13, scoreB: 4 });
+    expect(args.proposal).toEqual({ scoreA: 1, scoreB: 0 });
   });
 
   it("forwards confirmRecovery as an explicit boolean flag", async () => {
@@ -245,14 +245,14 @@ describe("correction workflow actions", () => {
     });
 
     const result = await applyMatchResultCorrection("match-1", {
-      scoreA: 13,
-      scoreB: 4,
+      scoreA: 1,
+      scoreB: 0,
       confirmRecovery: true,
     });
 
     expect(result.success).toBe(true);
     expect(stubs.applyResultCorrectionInTx.mock.calls[0]![1]).toMatchObject({
-      proposal: { scoreA: 13, scoreB: 4 },
+      proposal: { scoreA: 1, scoreB: 0 },
       actorId: "admin@local.test",
       confirmRecovery: true,
     });

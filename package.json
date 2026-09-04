@@ -1,6 +1,6 @@
 {
   "name": "rivalhub",
-  "version": "2.2.4",
+  "version": "2.3.0",
   "private": true,
   "license": "AGPL-3.0",
   "scripts": {
@@ -13,12 +13,12 @@
     "type-check:app": "next typegen && tsc -p tsconfig.app.json --noEmit",
     "type-check:tests": "tsc -p tsconfig.tests.json --noEmit",
     "type-check:scripts": "tsc -p tsconfig.scripts.json --noEmit",
-    "type-check": "corepack pnpm type-check:app && corepack pnpm type-check:tests && corepack pnpm type-check:scripts",
-    "check": "corepack pnpm type-check && corepack pnpm lint && corepack pnpm db:check && corepack pnpm test",
-    "verify": "corepack pnpm check && corepack pnpm build",
+    "type-check": "pnpm type-check:app && pnpm type-check:tests && pnpm type-check:scripts",
+    "check": "pnpm type-check && pnpm lint && pnpm db:check && pnpm test",
+    "verify": "pnpm check && pnpm build",
     "verify:local": "tsx scripts/db/local.ts verify-local",
     "db:generate": "drizzle-kit generate",
-    "db:check": "corepack pnpm db:migration-risk && drizzle-kit check",
+    "db:check": "pnpm db:migration-risk && drizzle-kit check",
     "db:migration-risk": "tsx scripts/db/migration-risk.ts",
     "db:release-compat": "tsx scripts/db/release-compat.ts",
     "db:push": "tsx scripts/db/block-drizzle-push.ts",
@@ -109,6 +109,13 @@
     "vitest": "4.1.11"
   },
   "packageManager": "pnpm@11.25.0",
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": "24.x",
+      "onFail": "download"
+    }
+  },
   "engines": {
     "node": "24.x"
   }

@@ -118,25 +118,16 @@ describe("SeasonForm presets", () => {
     });
   });
 
-  it("gives a draft Major an explicit sparse 5E fallback mapping owner without exposing its standard team rules", async () => {
-    const user = userEvent.setup();
+  it("shows the standard Major's policy-driven 5E fallback note without a hand-entered mapping", () => {
     const initial = { ...createInitial(structuredClone(MAJOR_DEFAULT_CAPABILITIES), "Major"), template: "major" as const };
     render(<SeasonForm mode="create" competitivePlatforms={[
       { key: "perfect_world", displayName: "Perfect World", seasons: [{ seasonKey: "s21", label: "S21", active: true }], ranks: [{ rankKey: "A", label: "A" }] },
       { key: "fivee", displayName: "5E", seasons: [{ seasonKey: "5e-s21", label: "S21", active: true }], ranks: [{ rankKey: "S", label: "S" }] },
     ]} initial={initial} />);
 
-    expect(screen.getByText("允许审核过的 5E 竞技资料等效补充")).toBeInTheDocument();
+    expect(screen.getByText(/当前已批准的 5E/)).toBeInTheDocument();
+    expect(screen.queryByText("允许审核过的 5E 竞技资料等效补充")).not.toBeInTheDocument();
     expect(screen.queryByText("队伍管理")).not.toBeInTheDocument();
-    await user.click(screen.getByLabelText("允许审核过的 5E 竞技资料等效补充"));
-    await user.click(screen.getByRole("button", { name: "保存为草稿" }));
-    await waitFor(() => expect(createSeasonMock).toHaveBeenCalledWith(expect.objectContaining({
-      teamRegistrationConfig: expect.objectContaining({
-        competitiveProfile: expect.objectContaining({
-          fallbackConversion: { sourcePlatform: "fivee", version: "", seasonKeyMap: {}, rankMap: {} },
-        }),
-      }),
-    })));
   });
 
   it("requires an in-app confirmation before deleting a draft season", async () => {
@@ -223,18 +214,6 @@ describe("SeasonForm presets", () => {
 
     expect(screen.getByLabelText("队长可转让")).toBeDisabled();
     expect(screen.getByLabelText("队伍名必须唯一")).toBeDisabled();
-  });
-
-  it("only enables the Major fallback before actual registration opens", () => {
-    const platforms = [
-      { key: "perfect_world", displayName: "Perfect World", seasons: [{ seasonKey: "s21", label: "S21", active: true }], ranks: [{ rankKey: "A", label: "A" }] },
-      { key: "fivee", displayName: "5E", seasons: [{ seasonKey: "5e-s21", label: "S21", active: true }], ranks: [{ rankKey: "S", label: "S" }] },
-    ];
-    const { rerender } = render(<SeasonForm mode="edit" competitivePlatforms={platforms} initial={createInitial(structuredClone(MAJOR_DEFAULT_CAPABILITIES), "Major", "registration", { template: "major" })} />);
-    expect(screen.getByLabelText("允许审核过的 5E 竞技资料等效补充")).toBeEnabled();
-
-    rerender(<SeasonForm mode="edit" competitivePlatforms={platforms} initial={createInitial(structuredClone(MAJOR_DEFAULT_CAPABILITIES), "Major", "registration", { template: "major", registrationOpenedAt: new Date("2026-05-01T00:00:00.000Z") })} />);
-    expect(screen.getByLabelText("允许审核过的 5E 竞技资料等效补充")).toBeDisabled();
   });
 
   it("keeps registration deadlines operational before and after opening, then locks them at playing", () => {

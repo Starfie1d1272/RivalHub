@@ -11,8 +11,7 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import { fail, ok, type ActionResult } from "@/types/action";
 import { CS2_POSITION_VALUES } from "@/lib/config/cs2-positions";
 import { updatePublicPlayerTag } from "@/lib/revalidation";
-import { DEFAULT_CS2_MAP_POOL } from "@/types/season";
-import { mapPreferencesSchema } from "@/lib/validators/map-preferences";
+import { longTermMapPreferencesSchema } from "@/lib/validators/map-preferences";
 
 const starsSchema = z.number().int().nonnegative().nullable().optional().default(null);
 const rankedFactSchema = z.object({ status: z.literal("ranked").optional().default("ranked"), rank: z.string().trim().min(1).max(64), rating: z.coerce.number().finite().min(0).max(999999), stars: starsSchema });
@@ -138,8 +137,8 @@ export async function saveCompetitiveProfile(input: unknown): Promise<ActionResu
  * registrations (pre-fill) and the recruitment lobby (summary display).
  */
 export async function saveMapPreferences(input: unknown): Promise<ActionResult<void>> {
-  const parsed = z.object({ mapPreferences: mapPreferencesSchema(DEFAULT_CS2_MAP_POOL) }).safeParse(input);
-  if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请为每张地图选择熟练度，且至少 3 张达到「能打」及以上、强图最多 3 张。" });
+  const parsed = z.object({ mapPreferences: longTermMapPreferencesSchema() }).safeParse(input);
+  if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "长期地图资料只能保存稳定地图目录中的不重复熟练度事实；未填写地图无需提交。" });
   try {
     const session = await requireAuth();
     await db.transaction(async (tx) => {

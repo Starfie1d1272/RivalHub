@@ -3,12 +3,80 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const projectRoot = resolve(process.cwd());
+const PNPM_SETUP_SHA = "703c52620218391530e48b9e8870d5c0082e1b9b";
 
 function readProjectFile(path: string): string {
   return readFileSync(resolve(projectRoot, path), "utf8");
 }
 
+function readPackageManifest(): {
+  packageManager?: string;
+  engines?: { node?: string };
+  devEngines?: { runtime?: { name?: string; version?: string; onFail?: string } };
+  scripts?: Record<string, string>;
+} {
+  return JSON.parse(readProjectFile("package.json")) as {
+    packageManager?: string;
+    engines?: { node?: string };
+    devEngines?: { runtime?: { name?: string; version?: string; onFail?: string } };
+    scripts?: Record<string, string>;
+  };
+}
+
+function readWorkflowJob(workflow: string, jobName: string): string {
+  const match = workflow.match(new RegExp(`\\n  ${jobName}:\\n([\\s\\S]*?)(?=\\n  [a-z][\\w-]*:\\n|$)`));
+  if (!match) throw new Error(`workflow job not found: ${jobName}`);
+  return match[1];
+}
+
+function expectPnpmSetup(workflow: string, jobNames: string[]): void {
+  expect(workflow).not.toContain("pnpm/action-setup");
+  expect(workflow).not.toContain("actions/setup-node");
+  expect(workflow).not.toContain("pnpm install --frozen-lockfile");
+  expect(workflow.match(/uses: pnpm\/setup@[0-9a-f]{40}/g) ?? []).toHaveLength(jobNames.length);
+
+  for (const jobName of jobNames) {
+    const job = readWorkflowJob(workflow, jobName);
+    expect(job).toContain(`uses: pnpm/setup@${PNPM_SETUP_SHA} # v2.1.0`);
+    expect(job).toContain("cache: true");
+    expect(job).toContain("require-lockfile: true");
+    expect(job).not.toContain("version: 11.25.0");
+    expect(job).not.toContain("node-version:");
+  }
+}
+
 describe("deployment and operations contracts", () => {
+  it("keeps pnpm and Node runtime ownership in the package manifest", () => {
+    const manifest = readPackageManifest();
+
+    expect(manifest.packageManager).toBe("pnpm@11.25.0");
+    expect(manifest.engines?.node).toBe("24.x");
+    expect(manifest.devEngines?.runtime).toEqual({
+      name: "node",
+      version: "24.x",
+      onFail: "download",
+    });
+    expect(Object.values(manifest.scripts ?? {}).some((script) => script.includes("corepack pnpm"))).toBe(false);
+    expect(readProjectFile("scripts/db/local.ts")).not.toContain("corepack");
+    expect(readProjectFile("playwright.config.ts")).not.toContain("corepack");
+    expect(readProjectFile("pnpm-lock.yaml")).toMatch(
+      /node:\n\s+specifier: runtime:24\.x\n\s+version: runtime:24\.\d+\.\d+/,
+    );
+  });
+
+  it("uses the pinned pnpm/setup owner only in dependency-bearing CI jobs", () => {
+    const ci = readProjectFile(".github/workflows/ci.yml");
+    const staging = readProjectFile(".github/workflows/staging.yml");
+    const release = readProjectFile(".github/workflows/release.yml");
+
+    expectPnpmSetup(ci, ["static", "postgres", "system"]);
+    expectPnpmSetup(staging, ["staging"]);
+    expectPnpmSetup(release, ["release"]);
+    expect(readWorkflowJob(ci, "plan")).not.toContain("pnpm/setup");
+    expect(readWorkflowJob(ci, "ci-gate")).not.toContain("pnpm/setup");
+    expect(readWorkflowJob(ci, "dependency-review")).not.toContain("pnpm/setup");
+  });
+
   it("declares the single Vercel Function region and disables only main Git deployment", () => {
     const config = JSON.parse(readProjectFile("vercel.json")) as {
       buildCommand?: string;

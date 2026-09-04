@@ -1,7 +1,7 @@
-import { sumNums, avgNums, weightedAvgNums } from "@/lib/utils/stats";
+import { avgNums, sumNums, weightedAvgNums } from "@/lib/utils/stats";
 import type { AggregatedPlayerStats } from "./types";
 
-/** match_player_stats 行 + rounds（必须由调用方传入，来自 matchMaps.scoreA+scoreB） */
+/** match_player_stats 行 + rounds（来自 matchMaps.scoreA + scoreB）。 */
 export interface StatRowInput {
   userId: string | null;
   perfectName: string;
@@ -16,26 +16,51 @@ export interface StatRowInput {
   rws: number | null;
   ratingPro: number | null;
   we: number | null;
-  /** 该图回合总数（matchMaps.scoreA + matchMaps.scoreB） */
-  rounds: number;
+  /** 该图回合总数；无法从比赛事实得到时为 null。 */
+  rounds: number | null;
+}
+
+type CountMetric = "kills" | "deaths" | "assists" | "firstKills" | "multiKills" | "clutches";
+type CompleteSumMetric = CountMetric | "rounds";
+
+function completeSum(rows: StatRowInput[], metric: CompleteSumMetric): number | null {
+  const values = rows.map((row) => row[metric]);
+  if (values.some((value) => value == null)) return null;
+  return sumNums(values as number[]);
+}
+
+/** 只使用对应 count 与 rounds 都已知的行。 */
+function perRoundKnown(rows: StatRowInput[], metric: CountMetric): number | null {
+  let numerator = 0;
+  let denominator = 0;
+  let hasKnownValue = false;
+
+  for (const row of rows) {
+    const value = row[metric];
+    if (value == null || row.rounds == null) continue;
+    hasKnownValue = true;
+    numerator += value;
+    denominator += row.rounds;
+  }
+
+  return hasKnownValue && denominator > 0 ? numerator / denominator : null;
 }
 
 /**
  * 规范化 in-memory 多图聚合（同一选手的多行 → 单一 AggregatedPlayerStats）：
- * - ADR：回合加权
- * - HS%：击杀数加权
- * - Rating/RWS/WE：简单图均
- * - KD/KPR/FKPR/MKPR/CPR：累计比 / 累计 per-round
+ * - ADR：只对 ADR 与 rounds 都已知的图回合加权
+ * - HS%：只对 HS% 与 kills 都已知的图按击杀数加权
+ * - Rating/RWS/WE：已知图简单均值
+ * - count：纳入范围任一行缺失即返回 null；真实全量 0 保留为 0
+ * - KD：使用 complete raw kills / deaths
+ * - KPR/FKPR/MKPR/CPR：只用对应 count 与 rounds 都已知的行
  */
 export function aggregatePlayerRows(rows: StatRowInput[]): AggregatedPlayerStats {
   if (rows.length === 0) throw new Error("aggregatePlayerRows: empty rows");
 
-  const totalRounds = rows.reduce((s, r) => s + r.rounds, 0);
-  const totalKills = sumNums(rows.map((r) => r.kills)) ?? 0;
-  const totalDeaths = sumNums(rows.map((r) => r.deaths)) ?? 0;
-  const totalFirstKills = sumNums(rows.map((r) => r.firstKills)) ?? 0;
-  const totalMultiKills = sumNums(rows.map((r) => r.multiKills)) ?? 0;
-  const totalClutches = sumNums(rows.map((r) => r.clutches)) ?? 0;
+  const totalRounds = completeSum(rows, "rounds");
+  const totalKills = completeSum(rows, "kills");
+  const totalDeaths = completeSum(rows, "deaths");
 
   return {
     userId: rows[0].userId,
@@ -44,25 +69,19 @@ export function aggregatePlayerRows(rows: StatRowInput[]): AggregatedPlayerStats
     totalRounds,
     kills: totalKills,
     deaths: totalDeaths,
-    assists: sumNums(rows.map((r) => r.assists)) ?? 0,
-    firstKills: totalFirstKills,
-    multiKills: totalMultiKills,
-    clutches: totalClutches,
-    kd: totalDeaths > 0 ? totalKills / totalDeaths : null,
-    kpr: totalRounds > 0 ? totalKills / totalRounds : null,
-    fkpr: totalRounds > 0 ? totalFirstKills / totalRounds : null,
-    mkpr: totalRounds > 0 ? totalMultiKills / totalRounds : null,
-    cpr: totalRounds > 0 ? totalClutches / totalRounds : null,
-    adr:
-      totalRounds > 0
-        ? rows.reduce((s, r) => s + (r.adr ?? 0) * r.rounds, 0) / totalRounds
-        : null,
-    hsPercent: weightedAvgNums(
-      rows.map((r) => r.hsPercent),
-      rows.map((r) => r.kills),
-    ),
-    ratingPro: avgNums(rows.map((r) => r.ratingPro)),
-    rws: avgNums(rows.map((r) => r.rws)),
-    we: avgNums(rows.map((r) => r.we)),
+    assists: completeSum(rows, "assists"),
+    firstKills: completeSum(rows, "firstKills"),
+    multiKills: completeSum(rows, "multiKills"),
+    clutches: completeSum(rows, "clutches"),
+    kd: totalKills != null && totalDeaths != null && totalDeaths > 0 ? totalKills / totalDeaths : null,
+    kpr: perRoundKnown(rows, "kills"),
+    fkpr: perRoundKnown(rows, "firstKills"),
+    mkpr: perRoundKnown(rows, "multiKills"),
+    cpr: perRoundKnown(rows, "clutches"),
+    adr: weightedAvgNums(rows.map((row) => row.adr), rows.map((row) => row.rounds)),
+    hsPercent: weightedAvgNums(rows.map((row) => row.hsPercent), rows.map((row) => row.kills)),
+    ratingPro: avgNums(rows.map((row) => row.ratingPro)),
+    rws: avgNums(rows.map((row) => row.rws)),
+    we: avgNums(rows.map((row) => row.we)),
   };
 }

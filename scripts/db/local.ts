@@ -19,7 +19,7 @@ const drizzleBin = resolve(projectRoot, `node_modules/.bin/drizzle-kit${binSuffi
 const tsxBin = resolve(projectRoot, `node_modules/.bin/tsx${binSuffix}`);
 const nextBin = resolve(projectRoot, `node_modules/.bin/next${binSuffix}`);
 const playwrightBin = resolve(projectRoot, `node_modules/.bin/playwright${binSuffix}`);
-const corepackBin = process.platform === "win32" ? "corepack.cmd" : "corepack";
+const pnpmBin = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 // Keep only the services exercised by Auth, Storage, PostgREST and browser E2E.
 // These names are the Supabase CLI's current --exclude values.
 const MINIMAL_SUPABASE_EXCLUDES =
@@ -266,7 +266,7 @@ function verifyLocalWorkflow(): void {
   migrateLocalDatabase();
   seedLocalDatabase();
   verifyLocalStack();
-  run(corepackBin, ["pnpm", "run", "verify"], { env: sanitizedEnvironment() });
+  run(pnpmBin, ["run", "verify"], { env: sanitizedEnvironment() });
   runLocalIntegrationSuite([]);
   runLocalE2E([]);
 }

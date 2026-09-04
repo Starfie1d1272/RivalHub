@@ -51,7 +51,7 @@ Knip 的 `knip.json` 只把 package scripts、CI/config entrypoints 与测试 sh
 
 Local PostgreSQL / migration evidence：
 
-多个 worktree 共享同一个 Local Supabase project/端口时，scripts/db/local.ts 会对 bootstrap、migration、seed、verify、real-PG integration、browser E2E、reset 和 verify:local 持有跨 worktree 的 OS 临时目录锁；占用者结束后才继续，异常退出留下的锁会按 PID 存活状态回收。普通 type-check、unit test 与 build 不经过该锁。`auth-permissions.test.ts` 回放 active migration 的旧权限数据并检查成功 backfill 与 fail-closed；`invite-concurrency.test.ts` 直接调用生产 `claimAdminInviteInTx`，用真实 PostgreSQL 事务证明 invite 锁、claim ledger、maxUses、grant 与 audit 的并发收敛。
+多个 worktree 共享同一个 Local Supabase project/端口时，scripts/db/local.ts 会对 bootstrap、migration、seed、verify、real-PG integration、browser E2E、reset 和 verify:local 持有跨 worktree 的 OS 临时目录锁；占用者结束后才继续，异常退出留下的锁会按 PID 存活状态回收。普通 type-check、unit test 与 build 不经过该锁。`auth-permissions.test.ts` 回放 active migration 的旧权限数据并检查成功 backfill 与 fail-closed；`auth-id-reconciliation.test.ts` 覆盖 normalized email 的唯一修复、有效映射保留、幂等重跑及 unmatched/ambiguous/duplicate target 的 fail-closed；`invite-concurrency.test.ts` 直接调用生产 `claimAdminInviteInTx`，用真实 PostgreSQL 事务证明 invite 锁、claim ledger、maxUses、grant 与 audit 的并发收敛。
 
 ```bash
 pnpm test:integration

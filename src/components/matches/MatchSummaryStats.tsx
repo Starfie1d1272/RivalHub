@@ -2,18 +2,19 @@ import React from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils/cn";
 import { Panel } from "@/components/rivalhub";
+import { formatStat, type StatMetric } from "@/lib/stats";
 
 export interface SummaryPlayer {
   userId: string | null;
   perfectName: string;
   teamId: string;
-  kills: number;
-  deaths: number;
-  assists: number;
+  kills: number | null;
+  deaths: number | null;
+  assists: number | null;
   hsPercent: number | null;
-  firstKills: number;
-  multiKills: number;
-  clutches: number;
+  firstKills: number | null;
+  multiKills: number | null;
+  clutches: number | null;
   adr: number | null;
   rws: number | null;
   ratingPro: number | null;
@@ -32,17 +33,17 @@ interface MatchSummaryStatsProps {
 }
 
 const COLS = [
-  { key: "ratingPro", label: "Rating", fmt: (v: number | null) => v != null ? v.toFixed(2) : "—" },
-  { key: "kills",     label: "K" },
-  { key: "deaths",    label: "D" },
-  { key: "assists",   label: "A" },
-  { key: "adr",       label: "ADR", fmt: (v: number | null) => v != null ? v.toFixed(1) : "—" },
-  { key: "hsPercent", label: "HS%", fmt: (v: number | null) => v != null ? `${v.toFixed(0)}%` : "—" },
-  { key: "firstKills",  label: "FK" },
-  { key: "multiKills",  label: "MK" },
-  { key: "clutches",    label: "CL" },
-  { key: "we",          label: "WE", fmt: (v: number | null) => v != null ? v.toFixed(1) : "—" },
-] as const;
+  { key: "ratingPro", label: "Rating", metric: "ratingPro" },
+  { key: "kills",     label: "K",      metric: "kills" },
+  { key: "deaths",    label: "D",      metric: "deaths" },
+  { key: "assists",   label: "A",      metric: "assists" },
+  { key: "adr",       label: "ADR",    metric: "adr" },
+  { key: "hsPercent", label: "HS%",    metric: "hsPercent" },
+  { key: "firstKills",label: "FK",     metric: "firstKills" },
+  { key: "multiKills",label: "MK",     metric: "multiKills" },
+  { key: "clutches",  label: "CL",     metric: "clutches" },
+  { key: "we",        label: "WE",     metric: "we" },
+] as const satisfies readonly { key: keyof SummaryPlayer; label: string; metric: StatMetric }[];
 
 /** 按 Rating Pro 降序排序，null 排末尾 */
 function byRatingDesc(a: SummaryPlayer, b: SummaryPlayer): number {
@@ -74,8 +75,8 @@ function PlayerRow({ player }: PlayerRowProps) {
         )}
       </td>
       {COLS.map((col) => {
-        const raw = player[col.key as keyof SummaryPlayer] as number | null;
-        const val = "fmt" in col && col.fmt ? col.fmt(raw) : (raw ?? "—");
+        const raw = player[col.key];
+        const val = formatStat(col.metric, raw as number | null);
         return (
           <td
             key={col.key}

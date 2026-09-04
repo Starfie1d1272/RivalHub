@@ -21,7 +21,7 @@ import { loadRegistrationDraft, saveRegistrationDraft, submitRegistration } from
 import type { RegistrationWindowState } from "@/lib/registration/window";
 import { normalizeEmail } from "@/lib/utils/email";
 import { compactUndefined } from "@/lib/utils/object";
-import { defaultMapPreferences, normalizeMapPreferences } from "@/lib/maps";
+import { defaultMapPreferences, projectMapPreferences } from "@/lib/maps";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -102,7 +102,7 @@ export function RegistrationForm({
       willingToBeCaptain: initialValues?.willingToBeCaptain ?? false,
       playerType: initialValues?.playerType ?? registrationConfig.allowedPlayerTypes[0],
       screenshotUrls: initialValues?.screenshotUrls ?? Array.from({ length: registrationConfig.screenshotCount }, () => ""),
-      mapPreferences: normalizeMapPreferences(
+      mapPreferences: projectMapPreferences(
         initialValues?.mapPreferences,
         registrationConfig.mapPool,
       ),
@@ -174,7 +174,7 @@ export function RegistrationForm({
             ...draftValues,
             seasonId,
             email: normalized,
-            mapPreferences: normalizeMapPreferences(
+            mapPreferences: projectMapPreferences(
               draftValues.mapPreferences,
               registrationConfig.mapPool,
             ),
@@ -244,13 +244,13 @@ export function RegistrationForm({
           : parseFloat(String(v)),
         });
 
-  const setMapLevel = (map: string, level: MapPreferenceLevel) => {
+  const setMapLevel = (map: string, level: MapPreferenceLevel | null) => {
     const current = watch("mapPreferences") ?? defaultMapPreferences(registrationConfig.mapPool);
     const next = registrationConfig.mapPool.map((item) => ({
       map: item,
       level: item === map
         ? level
-        : current.find((preference) => preference.map === item)?.level ?? "basic",
+        : current.find((preference) => preference.map === item)?.level ?? null,
     }));
     setValue("mapPreferences", next, { shouldValidate: true });
   };

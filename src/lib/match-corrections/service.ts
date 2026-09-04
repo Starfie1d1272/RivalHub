@@ -25,7 +25,7 @@ import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard"
 export interface ResultCorrectionProposal {
   scoreA: number;
   scoreB: number;
-  /** Marks the corrected fact as a forfeit result (skips normal series shape). */
+  /** Marks the corrected fact as an official forfeit series result. */
   isForfeit?: boolean;
 }
 
@@ -224,7 +224,7 @@ export function resolveWinnerTeamId(match: Pick<Match, "entryAId" | "entryBId" |
 }
 
 const FORFEIT_WINNER_SCORE: Record<"bo1" | "bo3" | "bo5", number> = {
-  bo1: 13,
+  bo1: 1,
   bo3: 2,
   bo5: 3,
 };

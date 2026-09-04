@@ -2,6 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { competitiveRankFacts, educationVerifications, institutions, users } from "@/db/schema";
 import { BUILT_IN_COMPETITIVE_PLATFORMS, isBuiltInCompetitivePlatformKey } from "@/lib/competitive/builtins";
+import { convertFiveeToPerfect } from "@/lib/competitive/conversion-policy";
 import { evaluateExternalStrengthRule, getPlayerStrengthFindings, type PlayerStrengthInput } from "@/lib/major/player-strength";
 import {
   blockersFromQualificationFindings,
@@ -91,11 +92,37 @@ export function toPlayerStrengthInput(
       return { rank: primary.rank, rating: primary.rating, stars: primary.stars ?? null, sourcePlatform: primary.sourcePlatform, sourceSeasonKey: primary.sourceSeasonKey, sourceRank: primary.sourceRank };
     }
     if (fallback && fallbackFact?.rank && fallbackFact.rating !== null) {
-      const rank = fallback.rankMap[fallbackFact.rank];
-      // A 5E Rating+ has no reviewed conversion to Perfect Rating Pro. It can
-      // establish an equivalent rank, but must not participate in Rating Pro's
-      // final tie-break. 5E 星数同样不折算为 Perfect 星数，历史最高星数保持 null。
-      if (rank) return { rank, rating: 0, ratingComparable: false, stars: null, sourcePlatform: fallback.sourcePlatform, sourceSeasonKey: fallbackFact.sourceSeasonKey, sourceRank: fallbackFact.rank, conversionVersion: fallback.version };
+      if (fallback.mapping) {
+        const converted = convertFiveeToPerfect(fallbackFact.rank, fallbackFact.stars ?? null, fallback.mapping);
+        // A 5E Rating+ has no reviewed conversion to Perfect Rating Pro. It can
+        // establish an equivalent rank, but must not participate in Rating Pro's
+        // final tie-break.
+        if (converted) {
+          return {
+            rank: converted.rank,
+            rating: 0,
+            ratingComparable: false,
+            stars: converted.stars,
+            sourcePlatform: fallback.sourcePlatform,
+            sourceSeasonKey: fallbackFact.sourceSeasonKey,
+            sourceRank: fallbackFact.rank,
+            sourceStars: fallbackFact.stars ?? null,
+            conversionVersion: fallback.version,
+          };
+        }
+      } else if (fallback.rankMap && Object.hasOwn(fallback.rankMap, fallbackFact.rank)) {
+        return {
+          rank: fallback.rankMap[fallbackFact.rank],
+          rating: 0,
+          ratingComparable: false,
+          stars: null,
+          sourcePlatform: fallback.sourcePlatform,
+          sourceSeasonKey: fallbackFact.sourceSeasonKey,
+          sourceRank: fallbackFact.rank,
+          sourceStars: fallbackFact.stars ?? null,
+          conversionVersion: fallback.version,
+        };
+      }
     }
     // Explicitly unranked is a declared lowest available platform state. The
     // lowest frozen rank is derived from the event map, not a magic rank key.
@@ -292,8 +319,19 @@ function isCompleteCompetitiveContext(config: CompetitiveProfileConfig): boolean
     config.fallbackConversion.version.trim() &&
     requiredFallbackSeasonKeys.every((primary) => config.fallbackConversion!.seasonKeyMap[primary]?.trim()) &&
     Object.entries(config.fallbackConversion.seasonKeyMap).every(([primary, source]) => primary.trim() && source.trim()) &&
-    Object.keys(config.fallbackConversion.rankMap).length > 0 &&
-    Object.entries(config.fallbackConversion.rankMap).every(([source, target]) => source.trim() && config.rankOrder.includes(target)),
+    (
+      (
+        config.fallbackConversion.mapping &&
+        Object.keys(config.fallbackConversion.mapping.belowSRankMap).length > 0 &&
+        config.fallbackConversion.mapping.starSegments.length > 0 &&
+        config.fallbackConversion.mapping.starSegments.every((segment) => config.rankOrder.includes(segment.targetRank))
+      ) ||
+      (
+        config.fallbackConversion.rankMap &&
+        Object.keys(config.fallbackConversion.rankMap).length > 0 &&
+        Object.values(config.fallbackConversion.rankMap).every((rank) => config.rankOrder.includes(rank))
+      )
+    ),
   );
   return policyComplete && fallbackComplete;
 }

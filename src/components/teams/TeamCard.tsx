@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Panel, PosChip } from "@/components/rivalhub";
 import { TeamLogo } from "@/components/teams/TeamLogo";
 import { positionLabel } from "@/lib/validators/registration";
+import { formatStat } from "@/lib/stats";
 
 interface PlayerPreview {
   name: string;
@@ -27,8 +28,8 @@ interface TeamCardProps {
   };
   summary?: {
     maps: number;
-    avgRating: number;
-    avgAdr: number;
+    avgRating: number | null;
+    avgAdr: number | null;
   } | null;
 }
 
@@ -94,8 +95,8 @@ export function TeamCard({
 
         <div className="grid grid-cols-3 gap-2">
           <SummaryStat label="Maps" value={summary?.maps ?? "—"} />
-          <SummaryStat label="Rating" value={summary ? summary.avgRating.toFixed(2) : "—"} />
-          <SummaryStat label="ADR" value={summary ? summary.avgAdr.toFixed(1) : "—"} />
+          <SummaryStat label="Rating" value={formatStat("ratingPro", summary?.avgRating)} />
+          <SummaryStat label="ADR" value={formatStat("adr", summary?.avgAdr)} />
         </div>
 
         <div className="space-y-1.5 border-t border-[var(--color-border)] pt-3">

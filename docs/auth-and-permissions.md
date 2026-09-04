@@ -10,7 +10,7 @@ login  → password authentication → application session
 forgot password → recovery email → /reset-password
 ```
 
-注册与登录采用 email/password；邮件链接用于注册确认、既有邮箱重新验证和密码恢复。注册不会立即创建应用 session；确认页的 GET 不验证 token，而由用户显式确认后的 POST 同步 `users.emailVerifiedAt` 并建立 session。登录路径会同步应用账号，并在必要时检查 owner bootstrap。
+注册与登录采用 email/password；邮件链接用于注册确认、既有邮箱重新验证和密码恢复。注册 action 只消费 Auth 的结果并返回不泄露账号状态的统一提示，不根据 signup response 的 user id 写入 `public.users` 或绑定 `auth_id`。注册不会立即创建应用 session；确认页的 GET 不验证 token，而由用户显式确认后的 POST 在确认 `email_confirmed_at` 后同步 `users.emailVerifiedAt`、绑定 `auth_id` 并建立 session。已存在账号则由成功密码登录同步或修复应用账号，并在必要时检查 owner bootstrap。
 
 ## Owner bootstrap
 

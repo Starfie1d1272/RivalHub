@@ -341,7 +341,7 @@ describe("signUp", () => {
     }
   });
 
-  it("siteverify success=true 时流程不受日志扩展影响，正常进入注册", async () => {
+  it("siteverify success=true 时流程不受日志扩展影响，进入统一注册结果", async () => {
     const originalSecret = process.env.TURNSTILE_SECRET_KEY;
     process.env.TURNSTILE_SECRET_KEY = "0xtest-secret-key";
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -350,13 +350,13 @@ describe("signUp", () => {
       vi.fn().mockResolvedValue({ json: () => Promise.resolve({ success: true }) }),
     );
     signUpMock.mockResolvedValue({ data: { user: { id: "auth-uuid-3" } }, error: null });
-    makeInsertChain([MOCK_USER_ROW]);
-
     try {
       const result = await signUp(VALID_EMAIL, VALID_PASSWORD, VALID_PASSWORD, "valid-token");
 
       expect(result.success).toBe(true);
       expect(signUpMock).toHaveBeenCalledOnce();
+      expect(dbInsertMock).not.toHaveBeenCalled();
+      expect(createUserSessionMock).not.toHaveBeenCalled();
       expect(errorSpy).not.toHaveBeenCalled();
     } finally {
       vi.unstubAllGlobals();
@@ -369,20 +369,41 @@ describe("signUp", () => {
     }
   });
 
-  it("正常注册：insert user、发送确认流程且不创建 session", async () => {
+  it("正常注册：只返回统一账号设置结果，不绑定 Auth identity 或创建 session", async () => {
     signUpMock.mockResolvedValue({
       data: { user: { id: "auth-uuid-2" } },
       error: null,
     });
-    makeInsertChain([MOCK_USER_ROW]);
-
     const result = await signUp(VALID_EMAIL, VALID_PASSWORD, VALID_PASSWORD);
 
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.email).toBe(VALID_EMAIL);
     }
+    expect(dbInsertMock).not.toHaveBeenCalled();
     expect(createUserSessionMock).not.toHaveBeenCalled();
+  });
+
+  it("repeated signup 的 obfuscated user 也不写入 public.users.auth_id", async () => {
+    signUpMock.mockResolvedValue({
+      data: { user: { id: "obfuscated-auth-id" } },
+      error: null,
+    });
+
+    const result = await signUp(VALID_EMAIL, VALID_PASSWORD, VALID_PASSWORD);
+
+    expect(result).toEqual({ success: true, data: { email: VALID_EMAIL } });
+    expect(dbInsertMock).not.toHaveBeenCalled();
+    expect(createUserSessionMock).not.toHaveBeenCalled();
+  });
+
+  it("Auth 成功但没有 user payload 时仍不猜测 identity，进入统一结果", async () => {
+    signUpMock.mockResolvedValue({ data: { user: null }, error: null });
+
+    const result = await signUp(VALID_EMAIL, VALID_PASSWORD, VALID_PASSWORD);
+
+    expect(result).toEqual({ success: true, data: { email: VALID_EMAIL } });
+    expect(dbInsertMock).not.toHaveBeenCalled();
   });
 });
 

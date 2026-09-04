@@ -6,7 +6,7 @@ import { Checklist, type ChecklistItem, Panel, StatusBanner } from "@/components
 
 export interface PreMatchTeamState { name: string; submitted: boolean; confirmed: boolean; starters: number; preflight: { valid: boolean; blockers: string[] } | null; }
 
-export function PreMatchOperatorChecklist({ teamA, teamB, mapState, requiresPreflight = false }: { teamA: PreMatchTeamState; teamB: PreMatchTeamState; mapState: "not_recorded" | "recorded" | "not_required"; requiresPreflight?: boolean }) {
+export function PreMatchOperatorChecklist({ teamA, teamB, mapState, requiresPreflight = false }: { teamA: PreMatchTeamState; teamB: PreMatchTeamState; mapState: "not_recorded" | "recorded"; requiresPreflight?: boolean }) {
   const [manual, setManual] = useState({ room: false, server: false, bp: false, ready: false });
   const teamItems = (team: PreMatchTeamState): ChecklistItem[] => [
     { label: `${team.name} · 首发名单`, state: team.submitted ? "complete" : "blocked", detail: team.submitted ? "名单已提交。" : "尚未提交首发名单。" },
@@ -17,7 +17,7 @@ export function PreMatchOperatorChecklist({ teamA, teamB, mapState, requiresPref
   const manualItems: Array<{ key: keyof typeof manual; label: string; detail: string }> = [
     { key: "room", label: "Perfect 房间已创建", detail: "请在完美平台完成创建并通知双方。" },
     { key: "server", label: "服务器与裁判已就绪", detail: "确认比赛服务器、裁判安排和通讯渠道。" },
-    { key: "bp", label: "地图 BP 已处理", detail: mapState === "recorded" ? "RivalHub 中已记录地图信息；请核对双方执行结果。" : mapState === "not_required" ? "本场无需额外地图 BP。" : "需要时通过地图 BP 录入操作记录。" },
+    { key: "bp", label: "地图 BP 已处理", detail: mapState === "recorded" ? "RivalHub 中已记录地图信息；请核对双方执行结果。" : "先通过地图 BP 录入实际比赛地图。" },
     { key: "ready", label: "双方已 ready", detail: "人工确认双方选手和裁判可以开始。" },
   ];
   const rosterBlockers = [teamA, teamB].flatMap((team) => !team.submitted ? [`${team.name} 尚未提交首发`] : team.starters !== 5 ? [`${team.name} 当前不是 5 名首发`] : !team.confirmed ? [`${team.name} 首发尚未确认`] : requiresPreflight && !team.preflight?.valid ? team.preflight?.blockers.map((blocker) => `${team.name}：${blocker}`) ?? [`${team.name} 尚未完成首发资格检查`] : []);

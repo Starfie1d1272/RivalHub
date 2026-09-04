@@ -1,6 +1,5 @@
 import type { matchPlayerStats } from "@/db/schema/player-stats";
 import type { MapWinStats } from "@/lib/teams/data";
-import { avgNums, sumNums } from "@/lib/utils/stats";
 import { aggregatePlayerRows } from "@/lib/stats/aggregate";
 import type { StatRowInput } from "@/lib/stats/aggregate";
 
@@ -30,25 +29,30 @@ export function computeRecord(
 
 export function computeTeamAvgStats(rows: MatchPlayerStatsRow[], mapRoundsMap?: Map<string, number>) {
   if (!rows.length) return { avgRating: null, avgAdr: null, avgKd: null };
-  const totalKills = sumNums(rows.map((r) => r.kills)) ?? 0;
-  const totalDeaths = sumNums(rows.map((r) => r.deaths)) ?? 0;
-
-  // ADR：回合加权（需 mapRoundsMap），无法获取时降级为简单均值
-  let avgAdr: number | null;
-  if (mapRoundsMap) {
-    const totalRounds = rows.reduce((s, r) => s + (mapRoundsMap.get(r.mapId) ?? 0), 0);
-    avgAdr =
-      totalRounds > 0
-        ? rows.reduce((s, r) => s + (r.adr ?? 0) * (mapRoundsMap.get(r.mapId) ?? 0), 0) / totalRounds
-        : null;
-  } else {
-    avgAdr = avgNums(rows.map((r) => r.adr));
-  }
-
+  const aggregate = aggregatePlayerRows(rows.map((row) => toStatInput(row, mapRoundsMap?.get(row.mapId) ?? null)));
   return {
-    avgRating: avgNums(rows.map((r) => r.ratingPro)),
-    avgAdr,
-    avgKd: totalDeaths > 0 ? totalKills / totalDeaths : null,
+    avgRating: aggregate.ratingPro,
+    avgAdr: aggregate.adr,
+    avgKd: aggregate.kd,
+  };
+}
+
+function toStatInput(row: MatchPlayerStatsRow, rounds: number | null): StatRowInput {
+  return {
+    userId: row.userId,
+    perfectName: row.perfectName,
+    kills: row.kills,
+    deaths: row.deaths,
+    assists: row.assists,
+    hsPercent: row.hsPercent,
+    firstKills: row.firstKills,
+    multiKills: row.multiKills,
+    clutches: row.clutches,
+    adr: row.adr,
+    rws: row.rws,
+    ratingPro: row.ratingPro,
+    we: row.we,
+    rounds,
   };
 }
 
@@ -132,43 +136,28 @@ export function buildLineupsPlayers(
         userId,
         perfectName,
         maps: 0,
-        avgRating: 0,
-        avgAdr: 0,
+        avgRating: null,
+        avgAdr: null,
         kdRatio: null,
-        avgHs: 0,
-        fkpr: 0,
-        avgWe: 0,
+        avgHs: null,
+        fkpr: null,
+        avgWe: null,
       };
     }
 
-    const statInputs: StatRowInput[] = playerRows.map((r) => ({
-      userId: r.userId,
-      perfectName: r.perfectName,
-      kills: r.kills,
-      deaths: r.deaths,
-      assists: r.assists,
-      hsPercent: r.hsPercent,
-      firstKills: r.firstKills,
-      multiKills: r.multiKills,
-      clutches: r.clutches,
-      adr: r.adr,
-      rws: r.rws,
-      ratingPro: r.ratingPro,
-      we: r.we,
-      rounds: mapRoundsMap.get(r.mapId) ?? 0,
-    }));
+    const statInputs: StatRowInput[] = playerRows.map((row) => toStatInput(row, mapRoundsMap.get(row.mapId) ?? null));
 
     const agg = aggregatePlayerRows(statInputs);
     return {
       userId,
       perfectName,
       maps: agg.maps,
-      avgRating: agg.ratingPro ?? 0,
-      avgAdr: agg.adr ?? 0,
+      avgRating: agg.ratingPro,
+      avgAdr: agg.adr,
       kdRatio: agg.kd,
-      avgHs: agg.hsPercent ?? 0,
-      fkpr: agg.fkpr ?? 0,
-      avgWe: agg.we ?? 0,
+      avgHs: agg.hsPercent,
+      fkpr: agg.fkpr,
+      avgWe: agg.we,
     };
   });
 }
@@ -189,33 +178,20 @@ export function aggregateFinishedPlayerStats(
   }
 
   const aggregated = Array.from(groupMap.values()).map((rows) => {
-    const statInputs: StatRowInput[] = rows.map((r) => ({
-      userId: r.userId,
-      perfectName: r.perfectName,
-      kills: r.kills,
-      deaths: r.deaths,
-      assists: r.assists,
-      hsPercent: r.hsPercent,
-      firstKills: r.firstKills,
-      multiKills: r.multiKills,
-      clutches: r.clutches,
-      adr: r.adr,
-      rws: r.rws,
-      ratingPro: r.ratingPro,
-      we: r.we,
-      rounds: mapRoundsMap ? (mapRoundsMap.get(r.mapId) ?? 0) : 0,
-    }));
+    const statInputs: StatRowInput[] = rows.map((row) =>
+      toStatInput(row, mapRoundsMap?.get(row.mapId) ?? null),
+    );
     const agg = aggregatePlayerRows(statInputs);
     return {
       userId: agg.userId,
       perfectName: agg.perfectName,
-      kills: agg.kills as number | null,
-      deaths: agg.deaths as number | null,
-      assists: agg.assists as number | null,
+      kills: agg.kills,
+      deaths: agg.deaths,
+      assists: agg.assists,
       hsPercent: agg.hsPercent,
-      firstKills: agg.firstKills as number | null,
-      multiKills: agg.multiKills as number | null,
-      clutches: agg.clutches as number | null,
+      firstKills: agg.firstKills,
+      multiKills: agg.multiKills,
+      clutches: agg.clutches,
       adr: agg.adr,
       rws: agg.rws,
       ratingPro: agg.ratingPro,
@@ -224,7 +200,12 @@ export function aggregateFinishedPlayerStats(
   });
 
   const mvpCandidates = aggregated
-    .sort((a, b) => (b.ratingPro ?? 0) - (a.ratingPro ?? 0))
+    .sort((a, b) => {
+      if (a.ratingPro == null && b.ratingPro == null) return 0;
+      if (a.ratingPro == null) return 1;
+      if (b.ratingPro == null) return -1;
+      return b.ratingPro - a.ratingPro;
+    })
     .slice(0, 4);
 
   const summaryPlayers = aggregated
@@ -232,12 +213,6 @@ export function aggregateFinishedPlayerStats(
       ...p,
       teamId: p.userId ? (userIdToTeamId.get(p.userId) ?? "") : "",
       mapsPlayed: groupMap.get(p.userId ?? `name:${p.perfectName}`)?.length ?? 1,
-      kills: p.kills ?? 0,
-      deaths: p.deaths ?? 0,
-      assists: p.assists ?? 0,
-      firstKills: p.firstKills ?? 0,
-      multiKills: p.multiKills ?? 0,
-      clutches: p.clutches ?? 0,
     }))
     .filter((p) => p.teamId === entryAId || p.teamId === entryBId);
 

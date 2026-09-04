@@ -22,13 +22,15 @@ export interface AggregatedPlayerStats {
   userId: string | null;
   perfectName: string;
   maps: number;
-  totalRounds: number;
-  kills: number;
-  deaths: number;
-  assists: number;
-  firstKills: number;
-  multiKills: number;
-  clutches: number;
+  /** 回合事实完整时的总和；任一纳入行缺失时为 null。 */
+  totalRounds: number | null;
+  /** 每个 count 字段都要求纳入行完整，并保留真实 0。 */
+  kills: number | null;
+  deaths: number | null;
+  assists: number | null;
+  firstKills: number | null;
+  multiKills: number | null;
+  clutches: number | null;
   /** sum(kills) / sum(deaths) */
   kd: number | null;
   /** sum(kills) / sum(rounds) */
