@@ -1,11 +1,11 @@
-import { count, eq } from "drizzle-orm";
+import { and, count, desc, eq } from "drizzle-orm";
 import type { db as dbClient } from "@/db/client";
-import { auditLogs, competitionEntries, matches, seasonRegistrations, seasons } from "@/db/schema";
+import { auditLogs, competitionEntries, conversionPolicies, matches, seasonRegistrations, seasons } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { fallbackCatalogReferencesExist, resolveLiveCompetitiveContext } from "@/lib/competitive/catalog";
+import { fallbackCatalogReferencesExist, resolveLiveCompetitiveContext, type ResolvedCatalogContext } from "@/lib/competitive/catalog";
 import { resolveCompetitiveContext } from "@/lib/qualification/service";
 import { createCompetitionTemplate } from "@/lib/competition/templates";
-import { normalizeTeamRegistrationConfig, type SeasonStatus, type TeamRegistrationConfig } from "@/types/season";
+import { normalizeTeamRegistrationConfig, type CompetitiveFallbackConversion, type SeasonStatus, type TeamRegistrationConfig } from "@/types/season";
 
 type Transaction = Parameters<Parameters<typeof dbClient.transaction>[0]>[0];
 
@@ -76,6 +76,39 @@ export async function transitionSeasonStatusInTx(
 }
 
 /**
+ * Resolve the frozen 5E fallback for a standard Major at registration open.
+ * The season correspondence is positional (current↔current, previous↔previous,
+ * prior↔prior); the mapping content comes from the current approved policy.
+ */
+async function resolveFallbackConversionForFreeze(
+  tx: Transaction,
+  context: ResolvedCatalogContext,
+  platform: string,
+): Promise<CompetitiveFallbackConversion | undefined> {
+  if (platform !== "perfect_world") return undefined;
+  const [approvedPolicy] = await tx.select().from(conversionPolicies)
+    .where(and(
+      eq(conversionPolicies.sourcePlatform, "fivee"),
+      eq(conversionPolicies.targetPlatform, platform),
+      eq(conversionPolicies.status, "approved"),
+    ))
+    .orderBy(desc(conversionPolicies.approvedAt)).limit(1);
+  if (!approvedPolicy) return undefined;
+  const fiveeContext = await resolveLiveCompetitiveContext(tx, "fivee");
+  if (!fiveeContext) return undefined;
+  return {
+    sourcePlatform: "fivee",
+    version: approvedPolicy.version,
+    seasonKeyMap: {
+      [context.currentSeasonKey]: fiveeContext.currentSeasonKey,
+      [context.previousSeasonKey]: fiveeContext.previousSeasonKey,
+      ...(context.priorSeasonKey && fiveeContext.priorSeasonKey ? { [context.priorSeasonKey]: fiveeContext.priorSeasonKey } : {}),
+    },
+    mapping: approvedPolicy.mapping,
+  };
+}
+
+/**
  * Registration-open competitive context freeze. The event consumes two stable
  * completed-season references plus the catalog's current (possibly ongoing)
  * season, while the catalog itself remains free to advance its current pointer.
@@ -92,6 +125,7 @@ export async function freezeCompetitiveContext(
   if (!context || !context.priorSeasonKey) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, `请先在竞技平台目录中为 ${platform} 配置唯一的当前赛季、两届启用的历史赛季和平台段位表。`);
   }
+  const fallbackConversion = await resolveFallbackConversionForFreeze(tx, context, platform);
   const competitiveProfile = {
     platform,
     // Keep their literal catalog meaning for every frozen event. New
@@ -106,14 +140,7 @@ export async function freezeCompetitiveContext(
       recentSeasonKeys: [context.previousSeasonKey, context.currentSeasonKey],
       recentSeasonWeight: 30 as const,
     },
-    fallbackConversion: config.competitiveProfile?.fallbackConversion
-      ? {
-          sourcePlatform: "fivee" as const,
-          version: config.competitiveProfile.fallbackConversion.version,
-          seasonKeyMap: { ...config.competitiveProfile.fallbackConversion.seasonKeyMap },
-          rankMap: { ...config.competitiveProfile.fallbackConversion.rankMap },
-        }
-      : undefined,
+    fallbackConversion,
   };
   if (!await resolveCompetitiveContext(competitiveProfile)) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "5E fallback 映射必须覆盖本届冻结的全部赛季证据槽，并映射到已公布的 Perfect 段位后才能开放报名。");

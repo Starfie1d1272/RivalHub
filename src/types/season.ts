@@ -1,5 +1,7 @@
 // 共享赛季类型——与 Drizzle schema 对齐
 
+import type { ConversionPolicyMapping } from "@/lib/competitive/conversion-policy";
+
 export type SeasonKind = string;
 
 export type SeasonStatus =
@@ -115,9 +117,10 @@ export interface CompetitiveProfileConfig {
 export interface CompetitiveFallbackConversion {
   sourcePlatform: "fivee";
   version: string;
-  /** Frozen primary-season → source-season correspondence. */
+  /** Frozen primary-season → source-season correspondence (positional). */
   seasonKeyMap: Record<string, string>;
-  rankMap: Record<string, string>;
+  /** Star-level conversion mapping (below-S rank map + S-tier star segments). */
+  mapping: ConversionPolicyMapping;
 }
 
 /**
@@ -510,9 +513,7 @@ export function normalizeTeamRegistrationConfig(
                 seasonKeyMap: Object.fromEntries(Object.entries(config.competitiveProfile.fallbackConversion.seasonKeyMap)
                   .map(([primary, source]) => [primary.trim(), source.trim()])
                   .filter(([primary, source]) => primary && source)),
-                rankMap: Object.fromEntries(Object.entries(config.competitiveProfile.fallbackConversion.rankMap)
-                  .map(([source, target]) => [source.trim(), target.trim()])
-                  .filter(([source, target]) => source && target)),
+                mapping: config.competitiveProfile.fallbackConversion.mapping,
               }
             : undefined,
         }
