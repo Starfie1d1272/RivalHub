@@ -135,6 +135,9 @@ export function ResultCorrectionPanel({
       <p className="text-xs text-[var(--color-fg-mid)]">
         先计算影响清单并审阅；改变胜者会要求显式确认恢复。已开始/完成的下游比赛不会被自动改写。
       </p>
+      <p className="text-xs text-[var(--color-fg-mid)]">
+        这里填写官方系列赛比分（BO1 为 1:0 / 0:1；BO3、BO5 为地图胜场比分），实际单图回合比分请在逐图修正中处理。
+      </p>
 
       {!plan ? (
         <>

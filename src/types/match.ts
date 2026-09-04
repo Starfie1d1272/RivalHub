@@ -15,7 +15,7 @@ export interface Match {
   stage: MatchStage;
   round: number | null;
   format: MatchFormat;
-  /** 系列赛比分（如 BO3 中 2:1）；单图比分见 MatchMap */
+  /** 官方系列赛比分（所有 format；BO1 为 1:0 / 0:1）；单图回合比分见 MatchMap */
   scoreA: number | null;
   scoreB: number | null;
   status: MatchStatus;

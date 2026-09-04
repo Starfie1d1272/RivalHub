@@ -17,16 +17,14 @@ export function validateSeriesScore(
     throw new AppError(ErrorCode.MATCH_INVALID_SCORE, "系列赛不能平局，必须分出胜负");
   }
 
-  const maxWins = format === "bo1" ? null : getWinThreshold(format);
-  if (maxWins !== null) {
-    const winner = Math.max(scoreA, scoreB);
-    const loser = Math.min(scoreA, scoreB);
-    if (winner !== maxWins || loser >= maxWins) {
-      throw new AppError(
-        ErrorCode.MATCH_INVALID_SCORE,
-        `${format.toUpperCase()} 系列赛比分不合法（胜者须恰好赢 ${maxWins} 图）`,
-      );
-    }
+  const maxWins = getWinThreshold(format);
+  const winner = Math.max(scoreA, scoreB);
+  const loser = Math.min(scoreA, scoreB);
+  if (winner !== maxWins || loser >= maxWins) {
+    throw new AppError(
+      ErrorCode.MATCH_INVALID_SCORE,
+      `${format.toUpperCase()} 系列赛比分不合法（胜者须恰好赢 ${maxWins} 图）`,
+    );
   }
 
   return { scoreA, scoreB };
@@ -59,7 +57,7 @@ export function computeSeriesScoreAfterMap(
   scoreB: number,
 ): { mapWinsA: number; mapWinsB: number; seriesFinished: boolean } {
   const maxWins = getWinThreshold(format);
-  const scoredMaps = existingMaps.filter((m) => m.scoreA !== null);
+  const scoredMaps = existingMaps.filter((m) => m.scoreA !== null && m.scoreB !== null);
   const allMaps = [...scoredMaps, { scoreA, scoreB }];
   let mapWinsA = 0;
   let mapWinsB = 0;

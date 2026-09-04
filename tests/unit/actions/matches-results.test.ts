@@ -49,7 +49,7 @@ vi.mock("@/lib/revalidation", () => ({
 }));
 
 // ── import after mocks ─────────────────────────────────────────────────────────
-import { correctMatchScore, correctMapScore } from "@/actions/matches/results";
+import { correctMapScore } from "@/actions/matches/results";
 import { matches, matchMaps } from "@/db/schema";
 
 // ── helpers ─────────────────────────────────────────────────────────────────────
@@ -140,89 +140,6 @@ function setupTxMaps(maps: { id: string; scoreA: number; scoreB: number }[]) {
     })),
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-describe("correctMatchScore — winner guard", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    matchesUpdateSetCalls.length = 0;
-    matchMapsUpdateSetCalls.length = 0;
-    txInsertValuesCalls.length = 0;
-    setupSeason();
-    setupAdminSession();
-    setupTxWriteMocks();
-  });
-
-  it("BO3 same winner correction (2:0 → 2:1) → success + audit", async () => {
-    setupMatch({ format: "bo3", scoreA: 2, scoreB: 0 });
-
-    const result = await correctMatchScore("match-1", 2, 1);
-
-    expect(result.success).toBe(true);
-    expect(matchesUpdateSetCalls).toContainEqual({
-      scoreA: 2,
-      scoreB: 1,
-      updatedAt: expect.any(Date),
-    });
-    expect(
-      txInsertValuesCalls.some(
-        (v) => (v as { action: string }).action === "match.correct_score",
-      ),
-    ).toBe(true);
-  });
-
-  it("BO3 winner-changing correction (2:1 → 1:2) → reject without writes", async () => {
-    setupMatch({ format: "bo3", scoreA: 2, scoreB: 1 });
-
-    const result = await correctMatchScore("match-1", 1, 2);
-
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.code).toBe(ErrorCode.VALIDATION_FAILED);
-      expect(result.error.message).toContain("改变比赛胜者");
-    }
-    expect(matchesUpdateSetCalls).toEqual([]);
-    expect(txInsertValuesCalls).toEqual([]);
-  });
-
-  it("BO1 same winner correction (13:8 → 16:14) → success", async () => {
-    setupMatch({ format: "bo1", scoreA: 13, scoreB: 8 });
-
-    const result = await correctMatchScore("match-1", 16, 14);
-
-    expect(result.success).toBe(true);
-    expect(matchesUpdateSetCalls).toContainEqual({
-      scoreA: 16,
-      scoreB: 14,
-      updatedAt: expect.any(Date),
-    });
-  });
-
-  it("BO1 winner-changing correction (13:8 → 8:13) → reject without writes", async () => {
-    setupMatch({ format: "bo1", scoreA: 13, scoreB: 8 });
-
-    const result = await correctMatchScore("match-1", 8, 13);
-
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.message).toContain("改变比赛胜者");
-    }
-    expect(matchesUpdateSetCalls).toEqual([]);
-    expect(txInsertValuesCalls).toEqual([]);
-  });
-
-  it("BO1 illegal MR12 score still rejected (14:13)", async () => {
-    setupMatch({ format: "bo1", scoreA: 13, scoreB: 8 });
-
-    const result = await correctMatchScore("match-1", 14, 13);
-
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.code).toBe(ErrorCode.MATCH_INVALID_SCORE);
-    }
-    expect(matchesUpdateSetCalls).toEqual([]);
-  });
-});
 
 // ─────────────────────────────────────────────────────────────────────────────
 describe("correctMapScore — shared legality + winner guard", () => {

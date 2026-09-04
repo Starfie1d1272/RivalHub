@@ -21,12 +21,15 @@ vi.mock("@/db/client", () => ({
 
 vi.mock("@/db/schema", () => ({
   matches: { id: {}, seasonId: {}, stage: {}, status: {}, entryAId: {}, entryBId: {}, scoreA: {}, scoreB: {}, createdAt: {}, entryRound: {} },
+  matchMaps: { matchId: {}, scoreA: {}, scoreB: {} },
   seasons: { id: {}, stagePlan: {} },
 }));
 
 vi.mock("drizzle-orm", () => ({
   eq: vi.fn(),
   and: vi.fn(),
+  inArray: vi.fn(),
+  isNotNull: vi.fn(),
   count: vi.fn(),
   sql: vi.fn((strings: TemplateStringsArray) => strings.join("")),
   desc: vi.fn(),

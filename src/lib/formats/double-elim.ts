@@ -4,6 +4,7 @@ import { matches, seasons } from "@/db/schema";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { generateBracket, loadBracketState, saveBracketState, seedPlayoff, type BracketStageRef, type BracketParticipantRef } from "@/lib/bracket";
 import { calculateStandings } from "@/lib/standings";
+import { getMatchMapRoundScores } from "@/lib/data/standings";
 import { getPreviousStage, normalizeStagePlan } from "@/types/season";
 import type { StageExecutor } from "./types";
 import type { QualifiedTeam } from "@/types/season";
@@ -63,7 +64,8 @@ export const doubleElimExecutor: StageExecutor = {
         eq(matches.status, "finished"),
       ),
     });
-    const standings = calculateStandings(teams, finishedMatches);
+    const roundScores = await getMatchMapRoundScores(finishedMatches.map((match) => match.id));
+    const standings = calculateStandings(teams, finishedMatches, roundScores);
 
     if (!bracketState) {
       // Fallback: qualifier matches were created manually, so the bracket skeleton

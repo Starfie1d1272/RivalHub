@@ -46,7 +46,7 @@ CS2 地图也分为相互独立的事实 owner：`CS2_MAP_CATALOG` 是保留历�
 
 ## 8. Matches
 
-`matches` 表示赛程和比赛状态，并区分 `manual` 与 `major_stage` ownership。`match_maps`、`match_veto_steps`、`match_time_proposals`、`match_mvp_votes` 与 `match_player_stats` 记录比赛细节。结果更正必须保留 audit 与适用的运行时边界。
+`matches` 表示赛程、比赛状态和官方系列赛结果；`scoreA/scoreB` 在 BO1、BO3、BO5 中始终是系列赛地图胜场比分。`match_maps` 持有所有实际进行地图的回合比分，正常 BO1 也必须有一行 scored map；弃赛不制造虚构地图。`match_veto_steps`、`match_time_proposals`、`match_mvp_votes` 与 `match_player_stats` 记录比赛细节。结果更正必须保留 audit 与适用的运行时边界。
 
 ## 9. Match rosters
 

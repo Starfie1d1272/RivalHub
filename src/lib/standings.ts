@@ -7,11 +7,16 @@
 //   4. 相互战绩（head-to-head胜负）
 //   5. 抽签（原始 draftOrder）
 //
-// BO1 场景下：matches.scoreA/scoreB 存储的是回合数（如 13、8），
-// 胜者 = 回合数更高的一方（不允许平局）。
+// matches.scoreA/scoreB 始终是系列赛比分；排名中的回合项只消费
+// match_maps 中实际完成地图的回合事实。弃赛没有实际地图，因此不贡献回合数。
 
 import type { CompetitionEntry } from "@/db/schema/competition-entries";
 import type { Match } from "@/db/schema/matches";
+
+export interface MatchRoundScore {
+  scoreA: number;
+  scoreB: number;
+}
 
 export interface TeamStanding {
   teamId: string;
@@ -36,6 +41,7 @@ export interface TeamStanding {
 export function calculateStandings(
   competitionEntries: CompetitionEntry[],
   finishedMatches: Match[],
+  roundScoresByMatchId: ReadonlyMap<string, readonly MatchRoundScore[]>,
 ): TeamStanding[] {
   // 初始化每支队伍的数据
   const stats = new Map<string, { wins: number; losses: number; netRounds: number; totalRoundsWon: number }>();
@@ -51,10 +57,12 @@ export function calculateStandings(
     const scoreA = m.scoreA;
     const scoreB = m.scoreB;
 
-    a.totalRoundsWon += scoreA;
-    b.totalRoundsWon += scoreB;
-    a.netRounds += scoreA - scoreB;
-    b.netRounds += scoreB - scoreA;
+    for (const mapScore of roundScoresByMatchId.get(m.id) ?? []) {
+      a.totalRoundsWon += mapScore.scoreA;
+      b.totalRoundsWon += mapScore.scoreB;
+      a.netRounds += mapScore.scoreA - mapScore.scoreB;
+      b.netRounds += mapScore.scoreB - mapScore.scoreA;
+    }
     if (scoreA > scoreB) { a.wins++; b.losses++; }
     else { b.wins++; a.losses++; }
   }
@@ -75,7 +83,7 @@ export function calculateStandings(
         (m.entryAId === a.teamId && m.entryBId === b.teamId) ||
         (m.entryAId === b.teamId && m.entryBId === a.teamId),
     );
-    if (h2h) {
+    if (h2h && h2h.scoreA !== null && h2h.scoreB !== null && h2h.scoreA !== h2h.scoreB) {
       const aWonH2H =
         (h2h.entryAId === a.teamId && (h2h.scoreA ?? 0) > (h2h.scoreB ?? 0)) ||
         (h2h.entryBId === a.teamId && (h2h.scoreB ?? 0) > (h2h.scoreA ?? 0));

@@ -77,8 +77,8 @@ describe("audit presentation owner", () => {
 
   it("summarizes only approved low-sensitivity metadata", () => {
     const summary = summarizeAuditMeta("match.record_result", {
-      scoreA: 13,
-      scoreB: 9,
+      scoreA: 1,
+      scoreB: 0,
       token: "secret-token",
       evidenceCode: "secret-code",
       internalEvidence: "private evidence",
@@ -86,7 +86,7 @@ describe("audit presentation owner", () => {
       note: "private note",
       email: "player@example.test",
     });
-    expect(summary).toContain("比分 13:9");
+    expect(summary).toContain("比分 1:0");
     expect(summary).not.toContain("secret-token");
     expect(summary).not.toContain("secret-code");
     expect(summary).not.toContain("private evidence");

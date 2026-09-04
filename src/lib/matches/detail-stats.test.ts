@@ -44,8 +44,8 @@ describe("match detail stats", () => {
   it("computes team record from finished scores", () => {
     expect(
       computeRecord("team-a", [
-        { entryAId: "team-a", entryBId: "team-b", scoreA: 13, scoreB: 8 },
-        { entryAId: "team-c", entryBId: "team-a", scoreA: 13, scoreB: 11 },
+        { entryAId: "team-a", entryBId: "team-b", scoreA: 1, scoreB: 0 },
+        { entryAId: "team-c", entryBId: "team-a", scoreA: 1, scoreB: 0 },
         { entryAId: "team-a", entryBId: "team-d", scoreA: null, scoreB: null },
       ]),
     ).toEqual({ wins: 1, losses: 1 });
