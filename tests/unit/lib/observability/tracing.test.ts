@@ -1,7 +1,8 @@
-import { SpanStatusCode, trace } from "@opentelemetry/api";
+import { context, ROOT_CONTEXT, SpanStatusCode, trace, type Context, type ContextManager } from "@opentelemetry/api";
 import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppError, ErrorCode } from "@/lib/errors";
+import { captureException } from "@/lib/observability/logger";
 import { traceOperation } from "@/lib/observability/tracing";
 
 const spanExporter = new InMemorySpanExporter();
@@ -9,6 +10,33 @@ const tracerProvider = new BasicTracerProvider({
   spanProcessors: [new SimpleSpanProcessor(spanExporter)],
 });
 trace.setGlobalTracerProvider(tracerProvider);
+
+let activeContext: Context = ROOT_CONTEXT;
+const contextManager: ContextManager = {
+  active: () => activeContext,
+  with<A extends unknown[], F extends (...args: A) => ReturnType<F>>(
+    nextContext: Context,
+    fn: F,
+    thisArg?: ThisParameterType<F>,
+    ...args: A
+  ): ReturnType<F> {
+    const previousContext = activeContext;
+    activeContext = nextContext;
+    try {
+      return fn.call(thisArg, ...args);
+    } finally {
+      activeContext = previousContext;
+    }
+  },
+  bind: <T>(_context: Context, target: T) => target,
+  enable() { return this; },
+  disable() {
+    activeContext = ROOT_CONTEXT;
+    return this;
+  },
+};
+context.setGlobalContextManager(contextManager);
+afterAll(() => context.disable());
 
 describe("observability tracing", () => {
   beforeEach(() => spanExporter.reset());
@@ -72,5 +100,29 @@ describe("observability tracing", () => {
     expect(span?.status.code).toBe(SpanStatusCode.ERROR);
     expect(span?.events).toHaveLength(1);
     expect(span?.attributes["error.type"]).toBe("application");
+  });
+
+  it("preserves an error captured while returning a handled fallback", async () => {
+    const writeSpy = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    try {
+      await expect(traceOperation("test.handled", {}, async () => {
+        captureException("test.handled_failure", new Error("handled dependency failure"), {
+          scope: "test",
+          operation: "handled",
+          errorClass: "dependency",
+        });
+        return "fallback";
+      })).resolves.toBe("fallback");
+      await tracerProvider.forceFlush();
+
+      const span = spanExporter.getFinishedSpans()[0];
+      expect(span?.status.code).toBe(SpanStatusCode.ERROR);
+      expect(span?.events).toHaveLength(1);
+      expect(span?.attributes).toMatchObject({
+        "rivalhub.error_class": "dependency",
+      });
+    } finally {
+      writeSpy.mockRestore();
+    }
   });
 });
