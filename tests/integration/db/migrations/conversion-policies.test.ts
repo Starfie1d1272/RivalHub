@@ -56,39 +56,42 @@ describe("conversion policies migration", () => {
       expect(policy.mapping.belowSRankMap["A"]).toBe("B++");
 
       await client.query("BEGIN");
-      for (const role of ["anon", "authenticated"] as const) {
-        await client.query(`SET LOCAL ROLE ${role}`);
-        const deniedSelect = await capturePostgresError(client, () =>
-          client.query("SELECT id FROM conversion_policies"),
+      try {
+        for (const role of ["anon", "authenticated"] as const) {
+          await client.query(`SET LOCAL ROLE ${role}`);
+          const deniedSelect = await capturePostgresError(client, () =>
+            client.query("SELECT id FROM conversion_policies"),
+          );
+          expect(deniedSelect).toMatchObject({ code: "42501" });
+          await client.query("RESET ROLE");
+        }
+
+        const duplicateVersionError = await capturePostgresError(client, () =>
+          client.query(
+            `INSERT INTO conversion_policies (source_platform, target_platform, version, status, mapping)
+             VALUES ('fivee', 'perfect_world', '2026.09', 'draft', '{}'::jsonb)`,
+          ),
         );
-        expect(deniedSelect).toMatchObject({ code: "42501" });
-        await client.query("RESET ROLE");
+        expect(duplicateVersionError).toMatchObject({ code: "23505" });
+
+        const duplicateCurrentError = await capturePostgresError(client, () =>
+          client.query(
+            `INSERT INTO conversion_policies (source_platform, target_platform, version, status, is_current, mapping)
+             VALUES ('fivee', 'perfect_world', '2026.10', 'approved', true, '{}'::jsonb)`,
+          ),
+        );
+        expect(duplicateCurrentError).toMatchObject({ code: "23505" });
+
+        const unapprovedCurrentError = await capturePostgresError(client, () =>
+          client.query(
+            `INSERT INTO conversion_policies (source_platform, target_platform, version, status, is_current, mapping)
+             VALUES ('fivee', 'perfect_world', '2026.11', 'draft', true, '{}'::jsonb)`,
+          ),
+        );
+        expect(unapprovedCurrentError).toMatchObject({ code: "23514" });
+      } finally {
+        await client.query("ROLLBACK");
       }
-      await client.query("COMMIT");
-
-      const duplicateVersionError = await capturePostgresError(client, () =>
-        client.query(
-          `INSERT INTO conversion_policies (source_platform, target_platform, version, status, mapping)
-           VALUES ('fivee', 'perfect_world', '2026.09', 'draft', '{}'::jsonb)`,
-        ),
-      );
-      expect(duplicateVersionError).toMatchObject({ code: "23505" });
-
-      const duplicateCurrentError = await capturePostgresError(client, () =>
-        client.query(
-          `INSERT INTO conversion_policies (source_platform, target_platform, version, status, is_current, mapping)
-           VALUES ('fivee', 'perfect_world', '2026.10', 'approved', true, '{}'::jsonb)`,
-        ),
-      );
-      expect(duplicateCurrentError).toMatchObject({ code: "23505" });
-
-      const unapprovedCurrentError = await capturePostgresError(client, () =>
-        client.query(
-          `INSERT INTO conversion_policies (source_platform, target_platform, version, status, is_current, mapping)
-           VALUES ('fivee', 'perfect_world', '2026.11', 'draft', true, '{}'::jsonb)`,
-        ),
-      );
-      expect(unapprovedCurrentError).toMatchObject({ code: "23514" });
     });
   });
 });
