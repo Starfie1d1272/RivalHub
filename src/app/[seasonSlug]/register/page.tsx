@@ -22,6 +22,7 @@ import { Panel, StatusBanner, PosChip } from "@/components/rivalhub";
 import { positionLabel } from "@/lib/validators/registration";
 import { getRegistrationWindowState, getWindowTone } from "@/lib/registration/window";
 import { formatCST } from "@/lib/utils/date";
+import { projectMapPreferences } from "@/lib/maps";
 import { getUserSession } from "@/lib/auth/session";
 import { isSoloRegistration } from "@/lib/utils/season";
 import { isTeamRegistration } from "@/lib/utils/season";
@@ -253,7 +254,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
   const existingStatus = currentRegistration?.status ?? null;
   const existingStatusLabel = existingStatus ? REGISTRATION_STATUS_LABELS[existingStatus] : null;
   const canEditExisting = !!currentRegistration && currentRegistration.status !== "approved";
-  const longTermMapPreferences = mapPreferences[0]?.mapPreferences ?? null;
+  const longTermMapPreferences = mapPreferences[0]?.mapPreferences;
   const initialValues = currentRegistration
     ? {
         email: userSession.email,
@@ -283,7 +284,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
         antiCheatPledge: true as const,
       }
     : longTermMapPreferences
-      ? { mapPreferences: longTermMapPreferences }
+      ? { mapPreferences: projectMapPreferences(longTermMapPreferences, regConfig.mapPool) }
       : undefined;
 
   // 位置容量数据
