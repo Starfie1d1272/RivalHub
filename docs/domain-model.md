@@ -22,7 +22,7 @@ CS2 地图也分为相互独立的事实 owner：`CS2_MAP_CATALOG` 是保留历�
 
 ## 4. Seasons
 
-`seasons` 是赛事容器，包含状态、时间、人数、positions 与 capability configuration。Rivals、Major 与自定义赛事由 canonical template factory 建立初始定义；`competitionTemplate` 是持久化的模板身份 owner，编辑时服务端以其为准，draft 内置赛事每次保存都重新 canonicalize 固定语义；`kind` 只用于展示。报名方式、选秀、社区奖、阶段和资格规则由 capability fields 及关联配置决定。`hasCommunityAwards` 默认开启，是独立于赛事阶段的公开能力：草稿可关闭，发布后随公开规则冻结；关闭时公开/后台入口及社区奖 server mutation 均不可用。StagePlan 是可变的赛季定义，启动后不能代替冻结的 StageRun 事实。后台编辑能力由 `src/lib/seasons/edit.ts#getSeasonEditCapabilities` 这一纯 owner 根据 persisted status 与 `registrationOpenedAt` 派生，SeasonForm 与 server planner 共用该语义，不按 `kind` 分支。
+`seasons` 是赛事容器，包含状态、时间、人数、positions 与 capability configuration。Rivals、Major 与自定义赛事由 canonical template factory 建立初始定义；`competitionTemplate` 是持久化的模板身份 owner，编辑时服务端以其为准，draft 内置赛事每次保存都重新 canonicalize 固定语义；`kind` 只用于展示。报名方式、选秀、社区奖、阶段和资格规则由 capability fields 及关联配置决定。`hasCommunityAwards` 默认开启，是独立于赛事阶段的公开能力：草稿可关闭，发布后随公开规则冻结；关闭时公开/后台入口及社区奖 server mutation 均不可用。StagePlan 是可变的赛季定义，启动后不能代替冻结的 StageRun 事实。后台编辑能力由 `src/lib/seasons/edit.ts#getSeasonEditCapabilities` 这一纯 owner 根据 persisted status 与 `registrationOpenedAt` 派生，SeasonForm 与 server planner 共用该语义，不按 `kind` 分支。全局赛事目录的生命周期分组是 presentation-only projection，由 `src/lib/seasons/presentation.ts#getSeasonLifecycleGroup` 根据 `status` 与实际报名开放事实 `registrationOpenedAt` 派生；它不创建 `currentSeasonId` 或其它全局 singleton。
 
 ## 5. Rivals registrations
 
@@ -126,6 +126,8 @@ CS2 地图也分为相互独立的事实 owner：`CS2_MAP_CATALOG` 是保留历�
 | affiliation 与竞技资格 | `src/lib/qualification/` 单一 owner：batch fact loaders + pure evaluators |
 | “我的”长期资料与赛事任务聚合 | `src/lib/my/readiness.ts` 只编排 Team、CompetitionEntry、qualification、discipline 与 catalog read model，不重算 eligibility 规则 |
 | 内置赛事模板身份与固定语义 | `seasons.competitionTemplate` + canonical template factory（draft 保存时重新 canonicalize） |
+| 全局赛事生命周期目录分组 | `src/lib/seasons/presentation.ts#getSeasonLifecycleGroup` + `groupSeasonsByLifecycle` |
+| 公共首页主赛事选择 | `src/lib/home/navigation.ts#selectFeaturedSeason`（presentation-only，不持久化） |
 | 赛事设置生命周期编辑能力 | `src/lib/seasons/edit.ts#getSeasonEditCapabilities` + `planSeasonUpdate`（UI 与 server 共用 capability contract） |
 | 赛事公开能力（含社区奖） | `seasons.hasCommunityAwards` + `src/lib/seasons/edit.ts#planSeasonUpdate`（草稿可改，发布后冻结） |
 | 社区奖 transition 与 capability guard | `src/lib/community-awards/service.ts`（事务内统一复用） |
