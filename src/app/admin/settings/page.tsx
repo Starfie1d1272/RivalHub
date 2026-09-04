@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { users } from "@/db/schema";
-import { requireAdmin } from "@/lib/auth/session";
+import { requireSuperAdmin } from "@/lib/auth/session";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { Panel, StatusPill, Marker } from "@/components/rivalhub";
@@ -29,7 +29,7 @@ const ENV_VARS = [
 ] as const;
 
 export default async function AdminSettingsPage() {
-  const admin = await resolveAdminPageAccess(requireAdmin);
+  const admin = await resolveAdminPageAccess(requireSuperAdmin);
   if (!admin) return <AdminAccessDenied />;
   const adminUser = await db.query.users.findFirst({
     where: eq(users.id, admin.userId),
@@ -40,7 +40,7 @@ export default async function AdminSettingsPage() {
   return (
     <div className="container mx-auto px-4 py-8 max-w-2xl space-y-10">
         <div>
-          <Marker sub={`当前登录：${adminDisplayName}`}>系统设置</Marker>
+          <Marker sub={`当前登录：${adminDisplayName}`}>系统状态</Marker>
         </div>
 
         {/* 密码管理 */}

@@ -10,6 +10,7 @@ import { getPublicSeasonCatalog } from "@/lib/data/public-seasons";
 import {
   buildHomeEyebrow,
   buildHomeNavEntries,
+  selectFeaturedSeason,
   selectHomeNavTiers,
 } from "@/lib/home/navigation";
 import { HomeHero } from "@/components/home/HomeHero";
@@ -18,6 +19,7 @@ import { HomeSeasonPanel } from "@/components/home/HomeSeasonPanel";
 import { SeasonCardGrid } from "@/components/home/SeasonCardGrid";
 import { Panel, EmptyState } from "@/components/rivalhub";
 import { getParticipantSummary } from "@/lib/participants/summary";
+import { isRegistrationActuallyOpen } from "@/lib/seasons/presentation";
 
 export default function HomePage() {
   return (
@@ -30,12 +32,10 @@ export default function HomePage() {
 async function HomeContent() {
   await connection();
   const allSeasons = await getPublicSeasonCatalog();
-  const activeSeasons = allSeasons
-    .filter((season) => season.status !== "archived")
-    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-
-  const featured = activeSeasons[0];
-  const others = activeSeasons.slice(1);
+  const featured = selectFeaturedSeason(allSeasons);
+  const others = allSeasons.filter(
+    (season) => season.status !== "archived" && season.id !== featured?.id,
+  );
 
   if (!featured) {
     return (
@@ -65,7 +65,7 @@ async function HomeContent() {
     db.select({ value: count() }).from(competitionEntries).where(eq(competitionEntries.competitionId, featured.id)),
     getParticipantSummary(featured),
     // 仅 registration 状态时查询
-    featured.status === "registration"
+    isRegistrationActuallyOpen(featured)
       ? db
           .select({
             position: seasonRegistrations.primaryPosition,
@@ -138,7 +138,7 @@ async function HomeContent() {
     registrationCounts.map((r) => [r.position, Number(r.cnt)])
   );
 
-  const eyebrow = buildHomeEyebrow(featured.status, featured.slug);
+  const eyebrow = buildHomeEyebrow(featured.status, featured.slug, featured.registrationOpenedAt);
   const { tier1Entry, tier2Entries, tier3Entries } = selectHomeNavTiers(
     buildHomeNavEntries(featured),
     featured.status

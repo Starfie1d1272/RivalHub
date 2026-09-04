@@ -1,5 +1,50 @@
 import { describe, expect, it } from "vitest";
-import { presentSeasonParticipationState, presentSeasonStatus, presentStageMarker } from "@/lib/seasons/presentation";
+import {
+  getSeasonLifecycleGroup,
+  groupSeasonsByLifecycle,
+  presentSeasonLifecycleSummary,
+  presentSeasonParticipationState,
+  presentSeasonStatus,
+  presentStageMarker,
+} from "@/lib/seasons/presentation";
+
+describe("season lifecycle directory presentation", () => {
+  it.each([
+    ["playing", new Date("2026-08-01"), "active"],
+    ["voting", null, "active"],
+    ["drafting", null, "active"],
+    ["registration", new Date("2026-08-01"), "active"],
+    ["registration", null, "upcoming"],
+    ["draft", null, "draft"],
+    ["finished", null, "recent"],
+    ["archived", null, "archived"],
+  ] as const)("maps %s with registration fact %s to %s", (status, registrationOpenedAt, group) => {
+    expect(getSeasonLifecycleGroup({ status, registrationOpenedAt })).toBe(group);
+  });
+
+  it("keeps pre-open registration visibly distinct from an operational season", () => {
+    expect(presentSeasonLifecycleSummary({ status: "registration", registrationOpenedAt: null })).toBe(
+      "已发布 · 报名未开放",
+    );
+  });
+
+  it("groups every season exactly once in the directory order", () => {
+    const seasons = [
+      { id: "active", status: "playing" as const, registrationOpenedAt: new Date("2026-08-01") },
+      { id: "upcoming", status: "registration" as const, registrationOpenedAt: null },
+      { id: "finished", status: "finished" as const },
+      { id: "archived", status: "archived" as const },
+    ];
+
+    const grouped = groupSeasonsByLifecycle(seasons);
+
+    expect(grouped.active.map((season) => season.id)).toEqual(["active"]);
+    expect(grouped.upcoming.map((season) => season.id)).toEqual(["upcoming"]);
+    expect(grouped.recent.map((season) => season.id)).toEqual(["finished"]);
+    expect(grouped.archived.map((season) => season.id)).toEqual(["archived"]);
+    expect(Object.values(grouped).flat()).toHaveLength(seasons.length);
+  });
+});
 
 describe("season status presentation", () => {
   it("keeps normal UI labels out of internal enum vocabulary", () => {
