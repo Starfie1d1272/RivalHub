@@ -15,7 +15,7 @@ canonical event + critical span ──► Vercel Runtime Logs / OTEL traces
 
 - Vercel 保留为部署、Runtime Logs、Runtime Error Groups、Analytics 和 Speed Insights 的平台入口。
 - Better Stack 只作为外部长历史、trace/error 查询和告警 sink；RivalHub 不建立自有 log database，也不使用 Vercel Drain。
-- OTel 在服务端通过 `@vercel/otel` 初始化。Node runtime 将结构化 log 和 trace 以批处理 OTLP 发往 Better Stack；Edge runtime 只使用 Vercel 原生 OTel，不挂载 Better Stack exporter。
+- OTel 在服务端通过 `@vercel/otel` 初始化。Node runtime 将结构化 log 和 trace 以批处理 OTLP 发往 Better Stack；Route Handler 在响应后通过 Next `after()` 触发一次 bounded flush，避免 serverless 实例在 batch delay 前冻结；Edge runtime 只使用 Vercel 原生 OTel，不挂载 Better Stack exporter。
 - Development 和 test 默认不向外部 Better Stack 发送 telemetry。exporter 或 sink 故障只影响观测，不改变核心请求结果。
 - Client Component 不携带 Better Stack token，也不直接调用 Better Stack。
 - Next server code 通过带 `server-only` 的 `@/lib/observability/server` facade 访问 logger/tracing；`src/db/client-runtime.ts` 是显式保留的 Node application/CLI runtime boundary。
@@ -46,7 +46,7 @@ BETTER_STACK_INGESTING_HOST=<server-only Better Stack OTLP ingest host>
 | `errorCode` / `retryable` | 稳定错误分类与是否可重试 |
 | `route` / `requestId` | 路由模板和请求关联 ID；不放 query string |
 | `traceId` / `spanId` | 当前 OTel span 的关联信息 |
-| `release` / `deployment` / `environment` | commit、Vercel deployment 与运行环境 |
+| `release` / `deployment` / `environment` | commit（CLI deployment 无 commit metadata 时回退为 deployment）、Vercel deployment 与运行环境 |
 | `durationMs` | 有边界的 operation duration |
 | `safeContext` | 仅 allowlist 中的低敏诊断字段 |
 

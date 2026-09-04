@@ -65,8 +65,10 @@ function buildStructuredEvent(input: LogEventInput, now = new Date()): Structure
   const spanContext = activeSpan?.spanContext();
   const runtimeEnv = typeof process === "undefined" ? undefined : process.env;
   const environment = runtimeEnv?.VERCEL_ENV ?? runtimeEnv?.NODE_ENV ?? "unknown";
-  const release = runtimeEnv?.VERCEL_GIT_COMMIT_SHA ?? runtimeEnv?.GIT_COMMIT_SHA;
-  const deployment = runtimeEnv?.VERCEL_DEPLOYMENT_ID;
+  const release = runtimeEnv?.VERCEL_GIT_COMMIT_SHA?.trim()
+    || runtimeEnv?.GIT_COMMIT_SHA?.trim()
+    || runtimeEnv?.VERCEL_DEPLOYMENT_ID?.trim();
+  const deployment = runtimeEnv?.VERCEL_DEPLOYMENT_ID?.trim();
 
   const event: StructuredEvent = {
     timestamp: now.toISOString(),

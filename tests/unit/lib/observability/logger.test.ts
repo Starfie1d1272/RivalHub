@@ -61,4 +61,26 @@ describe("structured observability events", () => {
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
   });
+
+  it("uses the deployment as a release marker for CLI deployments", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("VERCEL_GIT_COMMIT_SHA", "");
+    vi.stubEnv("GIT_COMMIT_SHA", "");
+    vi.stubEnv("VERCEL_DEPLOYMENT_ID", "dpl_424");
+    const writeSpy = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+
+    try {
+      const event = logEvent({
+        event: "observability.exporter.enabled",
+        scope: "observability",
+        operation: "configuration",
+      });
+
+      expect(event).toMatchObject({ release: "dpl_424", deployment: "dpl_424" });
+    } finally {
+      writeSpy.mockRestore();
+      vi.unstubAllEnvs();
+    }
+  });
 });

@@ -1,7 +1,8 @@
 import "server-only";
 
+import { after } from "next/server";
 import { createRequestContext, withObservabilityContext } from "@/lib/observability/context";
-import { logEvent, traceOperation } from "@/lib/observability/server";
+import { flushObservability, logEvent, traceOperation } from "@/lib/observability/server";
 
 export async function withRouteObservability<T extends Response>(
   request: Request,
@@ -21,21 +22,29 @@ export async function withRouteObservability<T extends Response>(
       },
     },
     async (span) => {
-      const response = await handler();
-      span.setAttribute("http.response.status_code", response.status);
-      if (response.status >= 500) {
-        logEvent({
-          level: "error",
-          event: "http.response.server_error",
-          scope: "http",
-          operation: request.method.toLowerCase(),
-          route,
-          errorClass: "application",
-          retryable: true,
-          safeContext: { status: response.status },
-        });
+      try {
+        const response = await handler();
+        span.setAttribute("http.response.status_code", response.status);
+        if (response.status >= 500) {
+          logEvent({
+            level: "error",
+            event: "http.response.server_error",
+            scope: "http",
+            operation: request.method.toLowerCase(),
+            route,
+            errorClass: "application",
+            retryable: true,
+            safeContext: { status: response.status },
+          });
+        }
+        return response;
+      } finally {
+        try {
+          after(() => flushObservability());
+        } catch {
+          // The response must not depend on the Next request context.
+        }
       }
-      return response;
     },
   ));
 }

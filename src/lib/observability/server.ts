@@ -4,4 +4,5 @@ import "server-only";
 // implementation modules remain Node-compatible because client-runtime.ts is
 // also used by the repository's explicit PostgreSQL CLI entrypoints.
 export { captureException, logEvent } from "./logger";
+export { flushObservability } from "./flush";
 export { traceOperation } from "./tracing";
