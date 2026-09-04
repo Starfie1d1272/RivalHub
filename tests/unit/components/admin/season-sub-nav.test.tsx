@@ -21,6 +21,7 @@ function renderNav(props: Partial<Parameters<typeof SeasonSubNav>[0]> = {}) {
       seasonSlug="nju-major-2026"
       hasCaptainVoting={true}
       hasDraft={true}
+      hasCommunityAwards={true}
       hasMatches={true}
       showSettings={true}
       {...props}
@@ -91,5 +92,11 @@ describe("SeasonSubNav", () => {
 
     const link = screen.getByRole("link", { name: "纪律处罚" });
     expect(link.style.borderBottom).toContain("var(--color-accent)");
+  });
+
+  it("hides the community-awards tab when the season capability is disabled", () => {
+    renderNav({ hasCommunityAwards: false });
+
+    expect(screen.queryByRole("link", { name: "社区奖" })).not.toBeInTheDocument();
   });
 });

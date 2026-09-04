@@ -44,6 +44,7 @@ export default async function SeasonSettingsPage({ params }: SeasonSettingsPageP
           registrationMode: season.registrationMode,
           hasCaptainVoting: season.hasCaptainVoting,
           hasDraft: season.hasDraft,
+          hasCommunityAwards: season.hasCommunityAwards,
           maxTeamSize: season.maxTeamSize,
           minTeamSize: season.minTeamSize,
           starterCount: season.starterCount,

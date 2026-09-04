@@ -61,6 +61,7 @@ async function SeasonLayoutContent({ children, params }: SeasonLayoutProps) {
         status={season.status}
         hasCaptainVoting={season.hasCaptainVoting}
         hasDraft={season.hasDraft}
+        hasCommunityAwards={season.hasCommunityAwards}
         hasMatches={normalizeStagePlan(season.stagePlan).length > 0}
         hasStats={showStats(season)}
       />

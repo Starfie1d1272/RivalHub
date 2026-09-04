@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { describe, expect, it } from "vitest";
+import type { TxDb } from "@/db/client";
 import { localDatabaseUrl } from "./harness/database";
 
 describe("postmatch PostgreSQL invariants", () => {
@@ -23,6 +24,8 @@ describe("postmatch PostgreSQL invariants", () => {
       );
       expect(rls.rows.length === 4 && rls.rows.every((row) => row.rls && !row.anon_can_select && !row.authenticated_can_select), "社区奖与赛后事实必须由 server-only owner 读写。").toBe(true);
       await pool.query("INSERT INTO seasons (id,slug,name,kind,status,registration_mode,has_captain_voting,has_draft) VALUES ($1,$2,'Postmatch','Major','playing','team',false,false)", [seasonId, `postmatch-${randomUUID()}`]);
+      const defaultCapability = await pool.query<{ has_community_awards: boolean }>("SELECT has_community_awards FROM seasons WHERE id=$1", [seasonId]);
+      expect(defaultCapability.rows[0]?.has_community_awards).toBe(true);
       for (const [id, name] of [[adminA, "解说甲"], [adminB, "解说乙"], [adminC, "解说丙"], [outsider, "非管理员"], [representative, "代表"]]) await pool.query("INSERT INTO users (id,email,display_name) VALUES ($1,$2,$3)", [id, `${id}@local.test`, name]);
       await pool.query("INSERT INTO season_admin_grants (user_id,season_id) VALUES ($1,$4),($2,$4),($3,$4)", [adminA, adminB, adminC, seasonId]);
       const entryClient = await pool.connect();
@@ -97,6 +100,41 @@ describe("postmatch PostgreSQL invariants", () => {
         await cleanupClient.query("DELETE FROM users WHERE id IN ($1, $2, $3, $4, $5)", [adminA, adminB, adminC, outsider, representative]);
         await cleanupClient.query("COMMIT");
       } catch { await cleanupClient.query("ROLLBACK").catch(() => undefined); } finally { cleanupClient.release(); await pool.end(); }
+    }
+  });
+
+  it("fails closed for every community-awards mutation when the season capability is disabled", async () => {
+    const databaseUrl = localDatabaseUrl(); process.env.DATABASE_URL = process.env.DATABASE_URL ?? databaseUrl;
+    const schema = await import("../../../src/db/schema");
+    const { addCommunityAwardEvidenceInTx, requestCommunityAwardSupplementInTx, resolveCommunityAwardInTx, reviewCommunityAwardInTx, reviseCommunityAwardInTx, submitCommunityAwardInTx, withdrawCommunityAwardInTx } = await import("../../../src/lib/community-awards/service");
+    const pool = new Pool({ connectionString: databaseUrl, ssl: false }); const db = drizzle(pool, { schema });
+    const seasonId = randomUUID();
+    const submitterId = randomUUID();
+    try {
+      await pool.query("INSERT INTO seasons (id,slug,name,kind,status) VALUES ($1,$2,'Disabled awards','custom','playing')", [seasonId, `disabled-community-awards-${seasonId}`]);
+      await pool.query("INSERT INTO users (id,email,display_name) VALUES ($1,$2,'Award submitter')", [submitterId, `${submitterId}@local.test`]);
+      const award = await db.transaction((tx) => submitCommunityAwardInTx(tx, { seasonId, submitterId, name: "Disabled award", condition: "Condition", prize: "Prize" }));
+      await pool.query("UPDATE seasons SET has_community_awards = false WHERE id = $1", [seasonId]);
+
+      const guardedMutations: Array<(tx: TxDb) => Promise<unknown>> = [
+        (tx: TxDb) => submitCommunityAwardInTx(tx, { seasonId, submitterId, name: "Blocked submit", condition: "Condition", prize: "Prize" }),
+        (tx: TxDb) => reviseCommunityAwardInTx(tx, { awardId: award.awardId, submitterId, name: "Updated", condition: "Condition", prize: "Prize" }),
+        (tx: TxDb) => reviewCommunityAwardInTx(tx, { awardId: award.awardId, status: "approved", reviewNote: null, actorId: submitterId }),
+        (tx: TxDb) => requestCommunityAwardSupplementInTx(tx, { awardId: award.awardId, note: "Please supplement", actorId: submitterId }),
+        (tx: TxDb) => withdrawCommunityAwardInTx(tx, { awardId: award.awardId, submitterId }),
+        (tx: TxDb) => addCommunityAwardEvidenceInTx(tx, { awardId: award.awardId, submitterId, explanation: "Blocked evidence" }),
+        (tx: TxDb) => resolveCommunityAwardInTx(tx, { awardId: award.awardId, status: "awarded", recipientUserId: submitterId, outcomeNote: "Blocked result", actorId: submitterId }),
+      ];
+
+      for (const mutation of guardedMutations) {
+        await expect(db.transaction((tx) => mutation(tx))).rejects.toMatchObject({ code: "SEASON_CAPABILITY_DISABLED" });
+      }
+    } finally {
+      await pool.query("DELETE FROM audit_logs WHERE season_id = $1", [seasonId]).catch(() => undefined);
+      await pool.query("DELETE FROM community_awards WHERE season_id = $1", [seasonId]).catch(() => undefined);
+      await pool.query("DELETE FROM seasons WHERE id = $1", [seasonId]).catch(() => undefined);
+      await pool.query("DELETE FROM users WHERE id = $1", [submitterId]).catch(() => undefined);
+      await pool.end();
     }
   });
 });

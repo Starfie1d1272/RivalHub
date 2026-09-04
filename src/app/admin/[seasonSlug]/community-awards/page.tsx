@@ -11,6 +11,7 @@ export default async function AdminCommunityAwardsPage({ params }: { params: Pro
   const { seasonSlug } = await params;
   const season = await db.query.seasons.findFirst({ where: eq(seasons.slug, seasonSlug) });
   if (!season) notFound();
+  if (!season.hasCommunityAwards) notFound();
   const admin = await requireSeasonAdmin(season.id);
   const data = await getAdminCommunityAwardBoardData(db, { seasonId: season.id, stagePlan: normalizeStagePlan(season.stagePlan) });
   const groups = [

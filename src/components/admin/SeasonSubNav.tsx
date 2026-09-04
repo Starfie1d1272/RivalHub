@@ -9,12 +9,14 @@ export function SeasonSubNav({
   seasonSlug,
   hasCaptainVoting,
   hasDraft,
+  hasCommunityAwards,
   hasMatches,
   showSettings,
 }: {
   seasonSlug: string;
   hasCaptainVoting: boolean;
   hasDraft: boolean;
+  hasCommunityAwards: boolean;
   hasMatches: boolean;
   showSettings: boolean;
 }) {
@@ -25,7 +27,7 @@ export function SeasonSubNav({
     { label: "报名审核", href: `/admin/${seasonSlug}/registrations` },
     { label: "纪律处罚", href: `/admin/${seasonSlug}/discipline` },
     { label: "赛事日志", href: `/admin/${seasonSlug}/logs` },
-    { label: "社区奖", href: `/admin/${seasonSlug}/community-awards` },
+    ...(hasCommunityAwards ? [{ label: "社区奖", href: `/admin/${seasonSlug}/community-awards` }] : []),
     ...(hasCaptainVoting ? [{ label: "队长确认", href: `/admin/${seasonSlug}/captains` }] : []),
     ...(hasDraft ? [{ label: "选秀控制", href: `/admin/${seasonSlug}/draft` }] : []),
     ...(hasMatches ? [{ label: "赛程管理", href: `/admin/${seasonSlug}/matches` }] : []),

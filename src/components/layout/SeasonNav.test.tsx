@@ -18,6 +18,7 @@ describe("SeasonNav", () => {
         status="registration"
         hasCaptainVoting
         hasDraft
+        hasCommunityAwards={true}
         hasMatches
         hasStats
       />,
@@ -43,6 +44,7 @@ describe("SeasonNav", () => {
         status="finished"
         hasCaptainVoting
         hasDraft
+        hasCommunityAwards={true}
         hasMatches
         hasStats
       />,
@@ -58,5 +60,21 @@ describe("SeasonNav", () => {
       "社区奖",
       "数据统计",
     ]);
+  });
+
+  it("hides the community-awards link when the capability is disabled", () => {
+    render(
+      <SeasonNav
+        slug="disabled"
+        status="playing"
+        hasCaptainVoting={false}
+        hasDraft={false}
+        hasCommunityAwards={false}
+        hasMatches={false}
+        hasStats={false}
+      />,
+    );
+
+    expect(screen.queryByRole("link", { name: "社区奖" })).not.toBeInTheDocument();
   });
 });

@@ -1,0 +1,1 @@
+ALTER TABLE "seasons" ADD COLUMN "has_community_awards" boolean DEFAULT true NOT NULL;
