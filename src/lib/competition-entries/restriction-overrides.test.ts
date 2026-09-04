@@ -27,6 +27,34 @@ describe("qualification restriction override snapshots", () => {
     ], [{ restrictionCode: finding.code, findingSnapshot: snapshot }])).toHaveLength(1);
   });
 
+  it("keeps an override when only the human-readable message changes", () => {
+    const snapshot = snapshotQualificationFinding(finding);
+    const relabeled = { ...finding, message: "该外校选手超过本届允许的 3 星差值。" };
+
+    expect(sameQualificationFindingSnapshot(snapshot, relabeled)).toBe(true);
+    expect(unresolvedQualificationFindings([relabeled], [{ restrictionCode: finding.code, findingSnapshot: snapshot }])).toEqual([]);
+    expect(snapshot.message).toBe(finding.message);
+  });
+
+  it("ignores presentation labels but rejects a changed semantic actor or code", () => {
+    const labeled = {
+      ...finding,
+      metadata: { ...finding.metadata, externalUserId: "external-1", externalLabel: "旧名称", homeLabel: "本校旧名称" },
+    };
+    const snapshot = snapshotQualificationFinding(labeled);
+
+    expect(sameQualificationFindingSnapshot(snapshot, {
+      ...labeled,
+      message: "更新后的限制说明。",
+      metadata: { ...labeled.metadata, externalLabel: "新名称", homeLabel: "本校新名称" },
+    })).toBe(true);
+    expect(sameQualificationFindingSnapshot(snapshot, {
+      ...labeled,
+      metadata: { ...labeled.metadata, externalUserId: "external-2" },
+    })).toBe(false);
+    expect(sameQualificationFindingSnapshot(snapshot, { ...labeled, code: "different_restriction" })).toBe(false);
+  });
+
   it("canonicalizes metadata key order without weakening the snapshot", () => {
     const snapshot = snapshotQualificationFinding(finding);
     expect(sameQualificationFindingSnapshot({
@@ -45,6 +73,7 @@ describe("qualification restriction override snapshots", () => {
         strongestExternalStars: 39,
       },
     });
+    expect(snapshot.message).toBe(finding.message);
   });
 
   it("never treats non-waivable findings as overrideable", () => {

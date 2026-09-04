@@ -64,7 +64,11 @@ describe("parseMajorRunSnapshot", () => {
     const parsed = parseMajorRunSnapshot(snapshot, "stage-1");
     expect(parsed.qualificationPolicy).toEqual({ externalStrengthGap: { enabled: true, maxGap: 3 } });
     expect(parsed.frozenRestrictionOverrides).toHaveLength(1);
-    expect(parsed.frozenRestrictionOverrides?.[0]).toMatchObject({ restrictionCode: "external_strength_gap", rosterRevisionId: "00000000-0000-0000-0000-000000000002" });
+    expect(parsed.frozenRestrictionOverrides?.[0]).toMatchObject({
+      restrictionCode: "external_strength_gap",
+      rosterRevisionId: "00000000-0000-0000-0000-000000000002",
+      findingSnapshot: { message: "外校选手高于本校基线超过 3 星。" },
+    });
   });
 });
 import { randomUUID } from "node:crypto";

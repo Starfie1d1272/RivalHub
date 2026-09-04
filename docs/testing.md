@@ -65,7 +65,7 @@ pnpm verify:local
 
 CI 的 `postgres` job 使用官方 `postgres:17` service container，不启动 Supabase CLI 或任何 Auth、Storage、Kong、PostgREST、Studio、Realtime 等服务；`scripts/db/prepare-pg17.ts` 只在 vanilla PostgreSQL 缺少时建立 `anon` 与 `authenticated` 两个 `NOLOGIN` 角色，并验证 `gen_random_uuid()`，不修改 active migrations。随后 `test:integration:pg17` 回放完整 active chain、seed、fixture、`verify-db`、worker clone 和完整 integration suite；其中 `database-access-boundary.test.ts` 回放 0034，验证 64 张 public base table 的 matrix、trusted server bracket CRUD 以及 anon/authenticated bracket SELECT/INSERT/UPDATE/DELETE 的 `42501` 拒绝。开发者的 `db:local:start-db` 仍保留为 Local Supabase 兼容入口，不是 CI migration authority。
 
-PostgreSQL CI 在现有 service container 中按 `db:check → db:release-compat → test:integration:pg17` 执行；release workflow 在 production migrate 前再次执行 `db:release-compat`，不创建重复的 PostgreSQL/Supabase job。`tests/unit/db/release-compat.test.ts` 使用临时 git repository、stable/prerelease tags、previous source 与 candidate migration 覆盖 DROP/RENAME owner 依赖、annotation 不得绕过、ALTER TYPE/SET NOT NULL fail closed、additive/no-change pass、explicit invalid ref 与可定位 evidence 输出。
+PostgreSQL CI 在现有 service container 中按 `db:check → db:release-compat → test:integration:pg17` 执行；release workflow 在 production migrate 前再次执行 `db:release-compat`，不创建重复的 PostgreSQL/Supabase job。`tests/unit/db/release-compat.test.ts` 使用临时 git repository、stable/prerelease tags、previous source 与 candidate migration 覆盖 DROP/RENAME owner 依赖、production lineage 与 release/dev diverged topology、explicit stable tag 的 fail-closed 解析、annotation 不得绕过、ALTER TYPE/SET NOT NULL fail closed、additive/no-change pass 与可定位 evidence 输出。`tests/unit/db/migration-risk.test.ts` 同时覆盖 contract/locking annotation 的 category 匹配、缺失/错配拒绝和 file/line/category 输出。
 
 ## PR CI graph
 

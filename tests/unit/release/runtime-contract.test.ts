@@ -52,12 +52,15 @@ describe("deployment and operations contracts", () => {
 
     expect(ci).toContain("fetch-depth: 0");
     expect(ci).toContain("RIVALHUB_MIGRATION_BASE_SHA:");
+    expect(ci).toContain("RIVALHUB_PRODUCTION_STABLE_REF: origin/main");
+    expect(ci).toContain("git fetch origin main --tags");
     expect(ci).toContain("- run: pnpm db:check");
     expect(ci).toContain("- run: pnpm db:release-compat");
     expect(ci.indexOf("- run: pnpm db:release-compat")).toBeGreaterThan(ci.indexOf("- run: pnpm db:check"));
     expect(ci.indexOf("- run: pnpm test:integration:pg17")).toBeGreaterThan(ci.indexOf("- run: pnpm db:release-compat"));
 
     expect(release).toContain("fetch-depth: 0");
+    expect(release).toContain("RIVALHUB_PRODUCTION_STABLE_REF: origin/main");
     expect(release).toContain("run: pnpm db:release-compat");
     expect(release.indexOf("run: pnpm db:release-compat")).toBeLessThan(release.indexOf("pnpm db:production:migrate"));
   });

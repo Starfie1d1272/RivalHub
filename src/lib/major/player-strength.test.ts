@@ -167,6 +167,20 @@ describe("Major external-member strength rule", () => {
     expect(result.eligible).toBe(true);
   });
 
+  it("does not treat 5E stars as Perfect World historical stars", () => {
+    const external = player("external-5e", "S", "A", "A", 1000, 99);
+    const result = evaluateExternalStrengthRule({
+      config: CONFIG,
+      players: [
+        { ...home, isHome: true },
+        { ...external, isHome: false, historicalPeak: { ...external.historicalPeak!, sourcePlatform: "fivee" } },
+      ],
+    });
+
+    expect(result.eligible).toBe(true);
+    expect(result.findings).toEqual([]);
+  });
+
   it("blocks when the NJU baseline has no S stars but an external does", () => {
     const result = evaluateExternalStrengthRule({
       config: CONFIG,

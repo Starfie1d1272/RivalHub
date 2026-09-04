@@ -105,6 +105,7 @@ jobs:
       RIVALHUB_DB_TARGET: local
       RIVALHUB_MIGRATION_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
       RIVALHUB_MIGRATION_HEAD_SHA: ${{ github.sha }}
+      RIVALHUB_PRODUCTION_STABLE_REF: origin/main
       RIVALHUB_INTEGRATION_WORKERS: 2
       RIVALHUB_TIMING: 1
     steps:
@@ -122,6 +123,8 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+      - name: Fetch production stable lineage
+        run: git fetch origin main --tags
       - name: Measure PostgreSQL readiness
         shell: bash
         run: |

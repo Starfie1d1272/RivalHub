@@ -5,7 +5,7 @@
  * duplicating the ladder.
  */
 import { describe, expect, it } from "vitest";
-import { BUILT_IN_COMPETITIVE_PLATFORMS, BUILT_IN_COMPETITIVE_PLATFORM_KEYS, isBuiltInCompetitivePlatformKey } from "@/lib/competitive/builtins";
+import { BUILT_IN_COMPETITIVE_PLATFORMS, BUILT_IN_COMPETITIVE_PLATFORM_KEYS, isBuiltInCompetitivePlatformKey, isBuiltInStarRank } from "@/lib/competitive/builtins";
 
 function expectContiguousLadder(ranks: Array<{ sortOrder: number }>): void {
   ranks.forEach((rank, index) => expect(rank.sortOrder).toBe(index));
@@ -21,6 +21,9 @@ describe("built-in competitive platform definitions", () => {
     expect(isBuiltInCompetitivePlatformKey("toString")).toBe(false);
     expect(isBuiltInCompetitivePlatformKey("constructor")).toBe(false);
     expect(isBuiltInCompetitivePlatformKey("__proto__")).toBe(false);
+    expect(isBuiltInStarRank("perfect_world", "黄金S")).toBe(true);
+    expect(isBuiltInStarRank("perfect_world", "A")).toBe(false);
+    expect(isBuiltInStarRank("unknown", "黄金S")).toBe(false);
   });
 
   it("pins Perfect World on Rating Pro with the shared ladder and S-tier star ranges", () => {

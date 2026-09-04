@@ -19,7 +19,7 @@ RivalHub 是面向高校电竞赛事的开源赛事管理平台，并为其他�
 
 验证证据按实现、自动化验证、完整环境演练与生产实战验证递进。测试策略和环境边界见 [docs/testing.md](./docs/testing.md)。
 
-当前发布基线为 v2.0.0。后续 2.x 的方向、优先级与依赖见 [docs/roadmap.md](./docs/roadmap.md)；完整 staging lifecycle 保留为专项演练，不是稳定版的强制 gate。
+当前生产发布基线为 v2.2.3。后续 2.x 的方向、优先级与依赖见 [docs/roadmap.md](./docs/roadmap.md)；完整 staging lifecycle 保留为专项演练，不是稳定版的强制 gate。
 
 ## 技术栈
 

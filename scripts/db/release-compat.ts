@@ -20,6 +20,7 @@ const SHIPPED_SOURCE_ROOTS = [
 ] as const;
 
 const STABLE_TAG_PATTERN = /^v(\d+)\.(\d+)\.(\d+)$/;
+const DEFAULT_PRODUCTION_STABLE_REF = "origin/main";
 
 export interface ReleaseTagResolution {
   ref: string;
@@ -98,33 +99,71 @@ export function checkReleaseCompatibility(cwd = process.cwd()): ReleaseCompatibi
 }
 
 export function resolvePreviousStableRelease(cwd = process.cwd(), head = "HEAD"): ReleaseTagResolution {
+  const headCommit = resolveGitRevision(cwd, head, "RIVALHUB_MIGRATION_HEAD_SHA");
   const configuredExplicit = process.env.RIVALHUB_PREVIOUS_RELEASE_TAG;
   if (configuredExplicit !== undefined) {
     const explicit = configuredExplicit.trim();
+    if (!STABLE_TAG_PATTERN.test(explicit)) {
+      throw new Error(`RIVALHUB_PREVIOUS_RELEASE_TAG 必须是 production stable tag vX.Y.Z，不能使用空值、revision 或 prerelease：${configuredExplicit}`);
+    }
+    const commit = resolveStableTag(cwd, explicit, "RIVALHUB_PREVIOUS_RELEASE_TAG");
+    if (commit === headCommit) {
+      throw new Error(`RIVALHUB_PREVIOUS_RELEASE_TAG ${explicit} 与 candidate HEAD 相同；previous production stable 必须早于 candidate。`);
+    }
     return {
       ref: explicit,
-      commit: resolveGitRevision(cwd, explicit, "RIVALHUB_PREVIOUS_RELEASE_TAG"),
+      commit,
     };
   }
 
-  const headCommit = resolveGitRevision(cwd, head, "RIVALHUB_MIGRATION_HEAD_SHA");
-  const stableTags = git(cwd, ["tag", "--merged", headCommit, "--list", "v*"])
+  const configuredProductionRef = process.env.RIVALHUB_PRODUCTION_STABLE_REF;
+  const productionRef = configuredProductionRef === undefined
+    ? DEFAULT_PRODUCTION_STABLE_REF
+    : configuredProductionRef.trim();
+  const productionCommit = resolveGitRevision(cwd, productionRef, "RIVALHUB_PRODUCTION_STABLE_REF");
+  const candidateVersion = stableTagsAtCommit(cwd, headCommit)[0]?.version;
+  const stableTags = stableTagsMergedInto(cwd, productionCommit);
+
+  for (const candidate of stableTags) {
+    if (candidateVersion && compareStableVersions(candidate.version, candidateVersion) >= 0) continue;
+    const commit = resolveStableTag(cwd, candidate.tag, "stable release tag");
+    if (commit === headCommit) continue;
+    return { ref: candidate.tag, commit };
+  }
+
+  throw new Error(
+    `无法从 production stable ref ${productionRef} 解析 previous production stable release；需要 lineage 中早于 candidate 的 vX.Y.Z tag，且会忽略 prerelease tag。`,
+  );
+}
+
+function stableTagsMergedInto(
+  cwd: string,
+  productionCommit: string,
+): Array<{ tag: string; version: [number, number, number] }> {
+  return stableTagsFromGitOutput(git(cwd, ["tag", "--merged", productionCommit, "--list", "v*"]));
+}
+
+function stableTagsAtCommit(
+  cwd: string,
+  commit: string,
+): Array<{ tag: string; version: [number, number, number] }> {
+  return stableTagsFromGitOutput(git(cwd, ["tag", "--points-at", commit, "--list", "v*"]));
+}
+
+function stableTagsFromGitOutput(
+  output: string,
+): Array<{ tag: string; version: [number, number, number] }> {
+  return output
     .split(/\r?\n/)
     .map((tag) => tag.trim())
     .filter((tag) => STABLE_TAG_PATTERN.test(tag))
     .map((tag) => ({ tag, version: parseStableTag(tag) }))
     .filter((candidate): candidate is { tag: string; version: [number, number, number] } => Boolean(candidate.version))
     .sort((left, right) => compareStableVersions(right.version, left.version));
+}
 
-  for (const candidate of stableTags) {
-    const commit = resolveGitRevision(cwd, candidate.tag, "stable release tag");
-    if (commit === headCommit) continue;
-    return { ref: candidate.tag, commit };
-  }
-
-  throw new Error(
-    `无法从当前 revision ${head} 解析 previous stable release；需要可达的 vX.Y.Z tag，且会忽略 prerelease tag。`,
-  );
+function resolveStableTag(cwd: string, tag: string, label: string): string {
+  return resolveGitRevision(cwd, `refs/tags/${tag}`, label);
 }
 
 function evaluateFinding(finding: MigrationRiskFinding, sources: readonly ShippedSource[]): CompatibilityFinding {

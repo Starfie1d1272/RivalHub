@@ -302,15 +302,22 @@ export async function resolveCompetitiveContext(config: CompetitiveProfileConfig
   return isCompleteCompetitiveContext(config) ? config : null;
 }
 
-/** Batched loader for every live fact a qualification decision may need. */
+/** Batched loader for one qualification fact bundle per roster request. */
 export async function loadParticipantQualificationFacts(
   userIds: readonly string[],
-  options: { platform?: string; fallbackPlatform?: string; executor?: DatabaseExecutor } = {},
+  options: {
+    platform?: string;
+    fallbackPlatform?: string;
+    executor?: DatabaseExecutor;
+    /** Skip rank facts for education/affiliation-only decisions. */
+    includeCompetitiveFacts?: boolean;
+  } = {},
 ): Promise<Map<string, ParticipantQualificationFacts>> {
   const executor = options.executor ?? db;
   const facts = new Map<string, ParticipantQualificationFacts>();
   if (userIds.length === 0) return facts;
   const ids = [...new Set(userIds)];
+  const includeCompetitiveFacts = options.includeCompetitiveFacts ?? true;
   const platforms = [options.platform, options.fallbackPlatform].filter((item): item is string => Boolean(item));
   const rankFactsFilter = platforms.length > 0
     ? and(inArray(competitiveRankFacts.userId, ids), inArray(competitiveRankFacts.platform, platforms))
@@ -320,7 +327,9 @@ export async function loadParticipantQualificationFacts(
   const verificationRows = await executor.select({ userId: educationVerifications.userId, id: educationVerifications.id, status: educationVerifications.status, academicStatus: educationVerifications.academicStatus, institutionCode: institutions.moeInstitutionCode, institutionName: institutions.name, submittedAt: educationVerifications.submittedAt })
     .from(educationVerifications).innerJoin(institutions, eq(educationVerifications.institutionId, institutions.id))
     .where(inArray(educationVerifications.userId, ids));
-  const rankRows = await executor.select().from(competitiveRankFacts).where(rankFactsFilter);
+  const rankRows = includeCompetitiveFacts
+    ? await executor.select().from(competitiveRankFacts).where(rankFactsFilter)
+    : [];
 
   const approvedEducation = new Set(
     verificationRows.filter((row) => row.status === "approved").map((row) => row.userId),
@@ -387,11 +396,12 @@ export function computeParticipantReadiness(
 export async function getParticipantReadinessBatch(
   userIds: readonly string[],
   config: CompetitiveProfileConfig,
+  options: { facts?: ReadonlyMap<string, ParticipantQualificationFacts> } = {},
 ): Promise<Map<string, ParticipantReadiness>> {
   const context = await resolveCompetitiveContext(config);
   // Rank facts are platform-scoped: a participant's facts on another platform
   // must never satisfy this event's frozen context.
-  const facts = await loadParticipantQualificationFacts(userIds, { platform: context?.platform ?? config.platform, fallbackPlatform: context?.fallbackConversion?.sourcePlatform });
+  const facts = options.facts ?? await loadParticipantQualificationFacts(userIds, { platform: context?.platform ?? config.platform, fallbackPlatform: context?.fallbackConversion?.sourcePlatform });
   const result = new Map<string, ParticipantReadiness>();
   for (const userId of [...new Set(userIds)]) {
     const fact = facts.get(userId);
@@ -410,28 +420,6 @@ export async function getParticipantReadiness(userId: string, config: Competitiv
   if (readiness) return readiness;
   const findings: QualificationFinding[] = [{ code: "participant_missing", message: "选手账号不存在。", waivable: false, metadata: { field: "participant" } }];
   return { ready: false, blockers: blockersFromQualificationFindings(findings), findings, strength: { userId, label: "选手", historicalPeak: null, previousSeasonPeak: null, currentSeasonPeak: null }, educationApproved: false };
-}
-
-/** Batched education assertion loader usable inside open transactions. */
-export async function loadEducationMembershipFacts(
-  executor: DatabaseExecutor,
-  userIds: readonly string[],
-): Promise<Map<string, { email: string; emailVerifiedAt: Date | null; history: SeasonEducationVerification[] }>> {
-  const result = new Map<string, { email: string; emailVerifiedAt: Date | null; history: SeasonEducationVerification[] }>();
-  if (userIds.length === 0) return result;
-  const rows = await executor.select({ userId: users.id, email: users.email, emailVerifiedAt: users.emailVerifiedAt, verificationId: educationVerifications.id, verificationStatus: educationVerifications.status, verificationAcademicStatus: educationVerifications.academicStatus, institutionCode: institutions.moeInstitutionCode, institutionName: institutions.name, verificationSubmittedAt: educationVerifications.submittedAt })
-    .from(users)
-    .leftJoin(educationVerifications, eq(educationVerifications.userId, users.id))
-    .leftJoin(institutions, eq(educationVerifications.institutionId, institutions.id))
-    .where(inArray(users.id, [...new Set(userIds)]));
-  for (const row of rows) {
-    const current = result.get(row.userId) ?? { email: row.email, emailVerifiedAt: row.emailVerifiedAt, history: [] };
-    if (row.verificationId && row.verificationStatus && row.verificationAcademicStatus && row.institutionName) {
-      current.history.push({ id: row.verificationId, status: row.verificationStatus, academicStatus: row.verificationAcademicStatus, institutionCode: row.institutionCode, institutionName: row.institutionName, submittedAt: row.verificationSubmittedAt });
-    }
-    result.set(row.userId, current);
-  }
-  return result;
 }
 
 export interface RosterQualificationMember {
@@ -532,35 +520,6 @@ export async function evaluateRosterQualificationFromFacts(input: {
   return { eligible: uniqueFindings.length === 0, blockers: blockersFromQualificationFindings(uniqueFindings), findings: uniqueFindings, education, readinessByUser };
 }
 
-/**
- * Full roster qualification decision: roster education eligibility (pure) plus
- * batched live readiness and the external-strength rule when the event freezes
- * a competitive profile context.
- */
-export async function evaluateRosterQualification(input: {
-  members: readonly RosterQualificationMember[];
-  affiliationRules: readonly InstitutionAffiliationRule[];
-  /** Frozen event context; omit when the event does not require a competitive profile. */
-  competitiveProfile?: CompetitiveProfileConfig | null;
-  primaryStarterUserIds?: readonly string[];
-}): Promise<RosterQualificationResult> {
-  const { members, competitiveProfile } = input;
-  const resolvedCompetitiveProfile = competitiveProfile
-    ? await resolveCompetitiveContext(competitiveProfile)
-    : null;
-  const facts = competitiveProfile
-    ? await loadParticipantQualificationFacts(members.map((member) => member.userId), {
-        platform: resolvedCompetitiveProfile?.platform ?? competitiveProfile.platform,
-        fallbackPlatform: resolvedCompetitiveProfile?.fallbackConversion?.sourcePlatform,
-      })
-    : new Map<string, ParticipantQualificationFacts>();
-  return evaluateRosterQualificationFromFacts({
-    ...input,
-    competitiveProfile: resolvedCompetitiveProfile ?? competitiveProfile,
-    facts,
-  });
-}
-
 /** Home-member test shared by application submit and admin review flows. */
 export function isHomeAffiliatedMember(
   member: { institutionCode: string | null; academicStatus: string | null },
@@ -573,7 +532,7 @@ export function isHomeAffiliatedMember(
   );
 }
 
-// Re-exported for the resolveSeasonEducationVerification consumers that build
-// member histories before calling evaluateRosterQualification.
+// Re-exported for consumers that build member histories before calling the
+// facts-based roster evaluator.
 export { resolveSeasonEducationVerification };
 export type { QualificationFinding } from "@/lib/qualification/finding";
