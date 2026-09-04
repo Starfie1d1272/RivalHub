@@ -1,5 +1,5 @@
 {
-  "id": "8e50072a-8854-469a-b5bc-b4bcbbae61b0",
+  "id": "d51ba86d-3a94-4039-a034-6078e647a4a6",
   "prevId": "854123f4-37f7-4218-a479-1a78bbe3534a",
   "version": "7",
   "dialect": "postgresql",
@@ -3150,6 +3150,13 @@
           "primaryKey": false,
           "notNull": true
         },
+        "is_current": {
+          "name": "is_current",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "approved_at": {
           "name": "approved_at",
           "type": "timestamp with time zone",
@@ -3177,12 +3184,67 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "conversion_policies_source_target_version_unique": {
+          "name": "conversion_policies_source_target_version_unique",
+          "columns": [
+            {
+              "expression": "source_platform",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "target_platform",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "version",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "conversion_policies_one_current_per_pair": {
+          "name": "conversion_policies_one_current_per_pair",
+          "columns": [
+            {
+              "expression": "source_platform",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "target_platform",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"conversion_policies\".\"is_current\"",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "conversion_policies_current_must_be_approved": {
+          "name": "conversion_policies_current_must_be_approved",
+          "value": "NOT \"conversion_policies\".\"is_current\" OR \"conversion_policies\".\"status\" = 'approved'"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.disciplinary_case_idempotency": {
@@ -7073,6 +7135,14 @@
           "name": "matches_score_b_nonneg",
           "value": "\"matches\".\"score_b\" IS NULL OR \"matches\".\"score_b\" >= 0"
         },
+        "matches_score_pair_complete": {
+          "name": "matches_score_pair_complete",
+          "value": "(\"matches\".\"score_a\" IS NULL AND \"matches\".\"score_b\" IS NULL) OR (\"matches\".\"score_a\" IS NOT NULL AND \"matches\".\"score_b\" IS NOT NULL)"
+        },
+        "matches_series_score_shape": {
+          "name": "matches_series_score_shape",
+          "value": "(\"matches\".\"score_a\" IS NULL AND \"matches\".\"score_b\" IS NULL)\n      OR (\"matches\".\"format\" = 'bo1' AND GREATEST(\"matches\".\"score_a\", \"matches\".\"score_b\") = 1 AND LEAST(\"matches\".\"score_a\", \"matches\".\"score_b\") = 0)\n      OR (\"matches\".\"format\" = 'bo3' AND GREATEST(\"matches\".\"score_a\", \"matches\".\"score_b\") = 2 AND LEAST(\"matches\".\"score_a\", \"matches\".\"score_b\") BETWEEN 0 AND 1)\n      OR (\"matches\".\"format\" = 'bo5' AND GREATEST(\"matches\".\"score_a\", \"matches\".\"score_b\") = 3 AND LEAST(\"matches\".\"score_a\", \"matches\".\"score_b\") BETWEEN 0 AND 2)"
+        },
         "matches_managed_major_match_shape": {
           "name": "matches_managed_major_match_shape",
           "value": "(\"matches\".\"ownership\" = 'manual' AND \"matches\".\"major_stage_run_id\" IS NULL AND \"matches\".\"managed_key\" IS NULL)\n      OR (\"matches\".\"ownership\" = 'major_stage' AND \"matches\".\"major_stage_run_id\" IS NOT NULL AND \"matches\".\"managed_key\" IS NOT NULL)"
@@ -7201,6 +7271,10 @@
         "match_maps_score_b_nonneg": {
           "name": "match_maps_score_b_nonneg",
           "value": "\"match_maps\".\"score_b\" IS NULL OR \"match_maps\".\"score_b\" >= 0"
+        },
+        "match_maps_score_pair_complete": {
+          "name": "match_maps_score_pair_complete",
+          "value": "(\"match_maps\".\"score_a\" IS NULL AND \"match_maps\".\"score_b\" IS NULL) OR (\"match_maps\".\"score_a\" IS NOT NULL AND \"match_maps\".\"score_b\" IS NOT NULL)"
         }
       },
       "isRLSEnabled": false

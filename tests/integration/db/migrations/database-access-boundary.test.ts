@@ -6,7 +6,6 @@ import { capturePostgresError } from "../harness/database";
 import { migrationFiles, replayMigration, withScratchDatabase } from "../harness/migration-replay";
 
 const TERMINAL_MIGRATION = "0035_colorful_black_widow.sql";
-const CONVERSION_POLICY_MIGRATION = "0038_conversion_policies.sql";
 
 describe("database access boundary migration", () => {
   it("replays the terminal contract, keeps the trusted server path, and denies anon/authenticated CRUD", async () => {
@@ -31,7 +30,9 @@ describe("database access boundary migration", () => {
       );
 
       await replayMigration(client, TERMINAL_MIGRATION);
-      await replayMigration(client, CONVERSION_POLICY_MIGRATION);
+      for (const migration of migrations.filter((name) => name > TERMINAL_MIGRATION)) {
+        await replayMigration(client, migration);
+      }
       await verifyDatabaseAccessMatrix(client, "0035 migration replay");
 
       const trustedRead = await client.query<{ data: unknown }>(

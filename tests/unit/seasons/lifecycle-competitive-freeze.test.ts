@@ -10,7 +10,7 @@ vi.mock("@/lib/competitive/catalog", async (importOriginal) => {
   return { ...original, fallbackCatalogReferencesExist: fallbackCatalogReferencesExistMock, resolveLiveCompetitiveContext: resolveLiveCompetitiveContextMock };
 });
 
-import { freezeCompetitiveContext } from "@/lib/seasons/lifecycle";
+import { freezeCompetitiveContext, resolveConversionPolicyForPublish } from "@/lib/seasons/lifecycle";
 
 type SeasonArg = Parameters<typeof freezeCompetitiveContext>[1];
 
@@ -51,6 +51,7 @@ function mockPolicySelect(rows: unknown[]) {
         orderBy: () => ({
           limit: async () => rows,
         }),
+        limit: async () => rows,
       }),
     }),
   });
@@ -145,5 +146,114 @@ describe("freezeCompetitiveContext", () => {
     const config = await freezeCompetitiveContext(tx, season);
     expect(config.competitiveProfile).toBeUndefined();
     expect(resolveLiveCompetitiveContextMock).not.toHaveBeenCalled();
+  });
+
+  it("freezes the specific policy locked at publish even if another policy is approved later", async () => {
+    resolveLiveCompetitiveContextMock
+      .mockResolvedValueOnce(PERFECT_CONTEXT)
+      .mockResolvedValueOnce(FIVE_CONTEXT);
+    const LOCKED_POLICY = {
+      id: "policy-locked",
+      sourcePlatform: "fivee",
+      targetPlatform: "perfect_world",
+      version: "2026.09",
+      status: "approved",
+      mapping: POLICY.mapping,
+    };
+    mockPolicySelect([LOCKED_POLICY]);
+    const season = majorSeason("perfect_world");
+    season.teamRegistrationConfig.competitiveProfile = {
+      platform: "perfect_world",
+      currentSeasonKey: "",
+      previousSeasonKey: "",
+      rankOrder: [],
+      conversionPolicyVersion: "2026.09",
+      conversionPolicyId: "policy-locked",
+    };
+    const config = await freezeCompetitiveContext(tx, season);
+    expect(config.competitiveProfile!.fallbackConversion).toEqual({
+      sourcePlatform: "fivee",
+      version: "2026.09",
+      seasonKeyMap: { s21: "5e-s21", s20: "5e-s20", s19: "5e-s19" },
+      mapping: POLICY.mapping,
+    });
+    expect(config.competitiveProfile!.conversionPolicyVersion).toBe("2026.09");
+    expect(config.competitiveProfile!.conversionPolicyId).toBe("policy-locked");
+  });
+
+  it("fails closed when the locked policy has been retired", async () => {
+    resolveLiveCompetitiveContextMock.mockResolvedValue(PERFECT_CONTEXT);
+    const RETIRED_POLICY = {
+      id: "policy-retired",
+      sourcePlatform: "fivee",
+      targetPlatform: "perfect_world",
+      version: "2026.09",
+      status: "retired",
+      mapping: POLICY.mapping,
+    };
+    mockPolicySelect([RETIRED_POLICY]);
+    const season = majorSeason("perfect_world");
+    season.teamRegistrationConfig.competitiveProfile = {
+      platform: "perfect_world",
+      currentSeasonKey: "",
+      previousSeasonKey: "",
+      rankOrder: [],
+      conversionPolicyVersion: "2026.09",
+    };
+    await expect(freezeCompetitiveContext(tx, season)).rejects.toThrow("只有 approved 策略可以开放报名");
+  });
+
+  it("fails closed when the locked policy is not found", async () => {
+    resolveLiveCompetitiveContextMock.mockResolvedValue(PERFECT_CONTEXT);
+    mockPolicySelect([]);
+    const season = majorSeason("perfect_world");
+    season.teamRegistrationConfig.competitiveProfile = {
+      platform: "perfect_world",
+      currentSeasonKey: "",
+      previousSeasonKey: "",
+      rankOrder: [],
+      conversionPolicyVersion: "nonexistent-version",
+    };
+    await expect(freezeCompetitiveContext(tx, season)).rejects.toThrow("赛事选用的 5E 换算策略版本 (nonexistent-version) 不存在");
+  });
+
+  it("fails closed when 5E context lacks prior season for relative season alignment", async () => {
+    resolveLiveCompetitiveContextMock
+      .mockResolvedValueOnce(PERFECT_CONTEXT)
+      .mockResolvedValueOnce({ ...FIVE_CONTEXT, priorSeasonKey: null });
+    mockPolicySelect([POLICY]);
+    await expect(freezeCompetitiveContext(tx, majorSeason("perfect_world"))).rejects.toThrow("无法完成相对赛季对齐");
+  });
+});
+
+describe("resolveConversionPolicyForPublish", () => {
+  it("resolves the current active approved policy by default", async () => {
+    const ACTIVE_POLICY = { id: "p1", version: "2026.09", isCurrent: true, status: "approved" };
+    mockPolicySelect([ACTIVE_POLICY]);
+    const result = await resolveConversionPolicyForPublish(tx, "perfect_world");
+    expect(result).toEqual({ id: "p1", version: "2026.09" });
+  });
+
+  it("resolves an explicitly requested approved policy version", async () => {
+    const REQUESTED = { id: "p2", version: "2026.08", status: "approved" };
+    mockPolicySelect([REQUESTED]);
+    const result = await resolveConversionPolicyForPublish(tx, "perfect_world", undefined, "2026.08");
+    expect(result).toEqual({ id: "p2", version: "2026.08" });
+  });
+
+  it("fails closed if the requested policy is retired", async () => {
+    const RETIRED = { id: "p2", version: "2026.08", status: "retired" };
+    mockPolicySelect([RETIRED]);
+    await expect(resolveConversionPolicyForPublish(tx, "perfect_world", undefined, "2026.08")).rejects.toThrow("尚未启用或已被废弃");
+  });
+
+  it("fails closed if the requested policy is not found", async () => {
+    mockPolicySelect([]);
+    await expect(resolveConversionPolicyForPublish(tx, "perfect_world", undefined, "2099.99")).rejects.toThrow("不存在");
+  });
+
+  it("fails closed if no approved policy exists at all", async () => {
+    mockPolicySelect([]);
+    await expect(resolveConversionPolicyForPublish(tx, "perfect_world")).rejects.toThrow("未找到已启用的 5E 换算策略");
   });
 });

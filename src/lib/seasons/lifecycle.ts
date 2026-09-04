@@ -76,35 +76,166 @@ export async function transitionSeasonStatusInTx(
 }
 
 /**
- * Resolve the frozen 5E fallback for a standard Major at registration open.
- * The season correspondence is positional (current↔current, previous↔previous,
- * prior↔prior); the mapping content comes from the current approved policy.
+ * Resolves and locks the approved ConversionPolicy on season publish.
+ * Fails closed if the requested policy is missing or not approved,
+ * or if no approved policy exists when competitive profile is required.
  */
-async function resolveFallbackConversionForFreeze(
+export async function resolveConversionPolicyForPublish(
   tx: Transaction,
-  context: ResolvedCatalogContext,
   platform: string,
-): Promise<CompetitiveFallbackConversion | undefined> {
-  if (platform !== "perfect_world") return undefined;
-  const [approvedPolicy] = await tx.select().from(conversionPolicies)
+  requestedPolicyId?: string,
+  requestedPolicyVersion?: string,
+): Promise<{ id: string; version: string }> {
+  if (requestedPolicyId) {
+    const [policy] = await tx.select().from(conversionPolicies)
+      .where(and(
+        eq(conversionPolicies.id, requestedPolicyId),
+        eq(conversionPolicies.sourcePlatform, "fivee"),
+        eq(conversionPolicies.targetPlatform, platform),
+      ))
+      .limit(1);
+    if (!policy) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "指定的 5E 换算策略不存在。");
+    }
+    if (policy.status !== "approved") {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, `指定的 5E 换算策略 (${policy.version}) 尚未启用或已被废弃。`);
+    }
+    return { id: policy.id, version: policy.version };
+  }
+
+  if (requestedPolicyVersion) {
+    const [policy] = await tx.select().from(conversionPolicies)
+      .where(and(
+        eq(conversionPolicies.version, requestedPolicyVersion),
+        eq(conversionPolicies.sourcePlatform, "fivee"),
+        eq(conversionPolicies.targetPlatform, platform),
+      ))
+      .limit(1);
+    if (!policy) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, `指定的 5E 换算策略版本 (${requestedPolicyVersion}) 不存在。`);
+    }
+    if (policy.status !== "approved") {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, `指定的 5E 换算策略版本 (${policy.version}) 尚未启用或已被废弃。`);
+    }
+    return { id: policy.id, version: policy.version };
+  }
+
+  const [currentPolicy] = await tx.select().from(conversionPolicies)
+    .where(and(
+      eq(conversionPolicies.sourcePlatform, "fivee"),
+      eq(conversionPolicies.targetPlatform, platform),
+      eq(conversionPolicies.status, "approved"),
+      eq(conversionPolicies.isCurrent, true),
+    ))
+    .limit(1);
+
+  if (currentPolicy) {
+    return { id: currentPolicy.id, version: currentPolicy.version };
+  }
+
+  const [latestApproved] = await tx.select().from(conversionPolicies)
     .where(and(
       eq(conversionPolicies.sourcePlatform, "fivee"),
       eq(conversionPolicies.targetPlatform, platform),
       eq(conversionPolicies.status, "approved"),
     ))
-    .orderBy(desc(conversionPolicies.approvedAt)).limit(1);
-  if (!approvedPolicy) return undefined;
+    .orderBy(desc(conversionPolicies.approvedAt))
+    .limit(1);
+
+  if (latestApproved) {
+    return { id: latestApproved.id, version: latestApproved.version };
+  }
+
+  throw new AppError(ErrorCode.VALIDATION_FAILED, "未找到已启用的 5E 换算策略，不能发布赛事。");
+}
+
+/**
+ * Resolve the frozen 5E fallback for a standard Major at registration open.
+ * The season correspondence is positional (current↔current, previous↔previous,
+ * prior↔prior); the mapping content comes from the policy locked at publish
+ * or the active approved policy.
+ */
+async function resolveFallbackConversionForFreeze(
+  tx: Transaction,
+  context: ResolvedCatalogContext,
+  platform: string,
+  selectedPolicyId?: string,
+  selectedPolicyVersion?: string,
+): Promise<CompetitiveFallbackConversion | undefined> {
+  if (platform !== "perfect_world") return undefined;
+
+  let policy: typeof conversionPolicies.$inferSelect | undefined;
+
+  if (selectedPolicyId) {
+    const [found] = await tx.select().from(conversionPolicies)
+      .where(and(
+        eq(conversionPolicies.id, selectedPolicyId),
+        eq(conversionPolicies.sourcePlatform, "fivee"),
+        eq(conversionPolicies.targetPlatform, platform),
+      ))
+      .limit(1);
+    if (!found) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事选用的 5E 换算策略不存在，不能开放报名。");
+    }
+    if (found.status !== "approved") {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, `赛事选用的 5E 换算策略 (${found.version}) 状态为 ${found.status}，只有 approved 策略可以开放报名。`);
+    }
+    policy = found;
+  } else if (selectedPolicyVersion) {
+    const [found] = await tx.select().from(conversionPolicies)
+      .where(and(
+        eq(conversionPolicies.version, selectedPolicyVersion),
+        eq(conversionPolicies.sourcePlatform, "fivee"),
+        eq(conversionPolicies.targetPlatform, platform),
+      ))
+      .limit(1);
+    if (!found) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, `赛事选用的 5E 换算策略版本 (${selectedPolicyVersion}) 不存在，不能开放报名。`);
+    }
+    if (found.status !== "approved") {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, `赛事选用的 5E 换算策略 (${found.version}) 状态为 ${found.status}，只有 approved 策略可以开放报名。`);
+    }
+    policy = found;
+  } else {
+    const [current] = await tx.select().from(conversionPolicies)
+      .where(and(
+        eq(conversionPolicies.sourcePlatform, "fivee"),
+        eq(conversionPolicies.targetPlatform, platform),
+        eq(conversionPolicies.status, "approved"),
+        eq(conversionPolicies.isCurrent, true),
+      ))
+      .limit(1);
+    if (current) {
+      policy = current;
+    } else {
+      const [latest] = await tx.select().from(conversionPolicies)
+        .where(and(
+          eq(conversionPolicies.sourcePlatform, "fivee"),
+          eq(conversionPolicies.targetPlatform, platform),
+          eq(conversionPolicies.status, "approved"),
+        ))
+        .orderBy(desc(conversionPolicies.approvedAt))
+        .limit(1);
+      policy = latest;
+    }
+  }
+
+  if (!policy) return undefined;
+
   const fiveeContext = await resolveLiveCompetitiveContext(tx, "fivee");
-  if (!fiveeContext) return undefined;
+  if (!fiveeContext || !fiveeContext.currentSeasonKey || !fiveeContext.previousSeasonKey || !fiveeContext.priorSeasonKey) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "5E 平台竞技目录未配置完整的当前赛季、上一赛季或前一赛季，无法完成相对赛季对齐。");
+  }
+
   return {
     sourcePlatform: "fivee",
-    version: approvedPolicy.version,
+    version: policy.version,
     seasonKeyMap: {
       [context.currentSeasonKey]: fiveeContext.currentSeasonKey,
       [context.previousSeasonKey]: fiveeContext.previousSeasonKey,
       ...(context.priorSeasonKey && fiveeContext.priorSeasonKey ? { [context.priorSeasonKey]: fiveeContext.priorSeasonKey } : {}),
     },
-    mapping: approvedPolicy.mapping,
+    mapping: policy.mapping,
   };
 }
 
@@ -125,7 +256,13 @@ export async function freezeCompetitiveContext(
   if (!context || !context.priorSeasonKey) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, `请先在竞技平台目录中为 ${platform} 配置唯一的当前赛季、两届启用的历史赛季和平台段位表。`);
   }
-  const fallbackConversion = await resolveFallbackConversionForFreeze(tx, context, platform);
+  const fallbackConversion = await resolveFallbackConversionForFreeze(
+    tx,
+    context,
+    platform,
+    config.competitiveProfile?.conversionPolicyId,
+    config.competitiveProfile?.conversionPolicyVersion,
+  );
   const competitiveProfile = {
     platform,
     // Keep their literal catalog meaning for every frozen event. New
@@ -140,6 +277,8 @@ export async function freezeCompetitiveContext(
       recentSeasonKeys: [context.previousSeasonKey, context.currentSeasonKey],
       recentSeasonWeight: 30 as const,
     },
+    conversionPolicyVersion: fallbackConversion?.version ?? config.competitiveProfile?.conversionPolicyVersion,
+    conversionPolicyId: config.competitiveProfile?.conversionPolicyId,
     fallbackConversion,
   };
   if (!await resolveCompetitiveContext(competitiveProfile)) {

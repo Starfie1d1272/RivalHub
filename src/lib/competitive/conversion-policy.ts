@@ -34,10 +34,14 @@ export function convertFiveeToPerfect(
   mapping: ConversionPolicyMapping,
 ): { rank: string; stars: number | null } | null {
   if (!isBuiltInStarRank("fivee", rank)) {
-    const target = mapping.belowSRankMap[rank];
-    return target ? { rank: target, stars: null } : null;
+    if (Object.hasOwn(mapping.belowSRankMap, rank)) {
+      const target = mapping.belowSRankMap[rank];
+      return target ? { rank: target, stars: null } : null;
+    }
+    return null;
   }
   if (stars === null || stars === undefined) return null;
+  if (!Number.isInteger(stars) || stars < 0) return null;
   const segment = mapping.starSegments.find((candidate) => stars >= candidate.minStar && (candidate.maxStar === null || stars <= candidate.maxStar));
   if (!segment) return null;
   if (segment.targetStarFloor === null) return { rank: segment.targetRank, stars: null };

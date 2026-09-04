@@ -198,6 +198,86 @@ describe("participant readiness", () => {
     expect(readiness.strength.currentSeasonPeak).toMatchObject({ rank: "B", rating: 0, ratingComparable: false, sourcePlatform: "fivee", sourceSeasonKey: "5E-S21", sourceRank: "B", conversionVersion: "major-2026-v1" });
   });
 
+  it("supports historical frozen snapshots with legacy rankMap", async () => {
+    const context: CompetitiveProfileConfig = {
+      ...CONTEXT,
+      fallbackConversion: {
+        sourcePlatform: "fivee",
+        version: "legacy-2025-v1",
+        seasonKeyMap: { S20: "5E-S20", S21: "5E-S21" },
+        rankMap: { A: "A", B: "B" },
+      },
+    };
+    await expect(resolveCompetitiveContext(context)).resolves.toEqual(context);
+    const readiness = computeParticipantReadiness(fullFact({
+      seasonPeaks: new Map([["S20", { status: "unranked", rank: null, rating: null }], ["S21", { status: "unranked", rank: null, rating: null }]]),
+      fallbackFacts: {
+        historicalPeak: null,
+        seasonPeaks: new Map([
+          ["5E-S20", { rank: "A", rating: 1700, stars: 12 }],
+          ["5E-S21", { rank: "B", rating: 1850, stars: null }],
+        ]),
+      },
+    }), context);
+    expect(readiness.ready).toBe(true);
+    expect(readiness.strength.previousSeasonPeak).toEqual({
+      rank: "A",
+      rating: 0,
+      ratingComparable: false,
+      stars: null,
+      sourcePlatform: "fivee",
+      sourceSeasonKey: "5E-S20",
+      sourceRank: "A",
+      sourceStars: 12,
+      conversionVersion: "legacy-2025-v1",
+    });
+    expect(readiness.strength.currentSeasonPeak).toEqual({
+      rank: "B",
+      rating: 0,
+      ratingComparable: false,
+      stars: null,
+      sourcePlatform: "fivee",
+      sourceSeasonKey: "5E-S21",
+      sourceRank: "B",
+      sourceStars: null,
+      conversionVersion: "legacy-2025-v1",
+    });
+  });
+
+  it("preserves full qualification explainability for converted 5E star facts", () => {
+    const context: CompetitiveProfileConfig = {
+      ...CONTEXT,
+      fallbackConversion: {
+        sourcePlatform: "fivee",
+        version: "major-2026.09",
+        seasonKeyMap: { S20: "5E-S20", S21: "5E-S21" },
+        mapping: {
+          belowSRankMap: { A: "A" },
+          starSegments: [{ minStar: 6, maxStar: 12, targetRank: "S", targetStarFloor: 0, slopeNum: 9, slopeDen: 6 }],
+          relativeSeasonAlignment: true,
+        },
+      },
+    };
+    const input = toPlayerStrengthInput(fullFact({
+      seasonPeaks: new Map([["S20", { status: "unranked", rank: null, rating: null }]]),
+      fallbackFacts: {
+        historicalPeak: null,
+        seasonPeaks: new Map([["5E-S20", { rank: "S", rating: 2200, stars: 8 }]]),
+      },
+    }), context);
+    expect(input.previousSeasonPeak).toEqual({
+      rank: "S",
+      rating: 0,
+      ratingComparable: false,
+      stars: 3, // 0 + ceil((8-6)*9/6) = 3
+      sourcePlatform: "fivee",
+      sourceSeasonKey: "5E-S20",
+      sourceRank: "S",
+      sourceStars: 8,
+      conversionVersion: "major-2026.09",
+    });
+  });
+
   it("fails closed for an unmapped evidence season instead of guessing an identically named 5E season", async () => {
     const context: CompetitiveProfileConfig = {
       ...CONTEXT,

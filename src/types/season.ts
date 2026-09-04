@@ -117,6 +117,10 @@ export interface CompetitiveProfileConfig {
   fallbackConversion?: CompetitiveFallbackConversion;
   /** 外校最强队员相对本校最强队员的历史最高总星数最大允许差值（默认 3）。 */
   externalStrengthMaxStarGap?: number;
+  /** Selected ConversionPolicy version (e.g. "2026.09"); fixed at publish. */
+  conversionPolicyVersion?: string;
+  /** Selected ConversionPolicy stable id; fixed at publish. */
+  conversionPolicyId?: string;
 }
 
 /**
@@ -129,7 +133,9 @@ export interface CompetitiveFallbackConversion {
   /** Frozen primary-season → source-season correspondence (positional). */
   seasonKeyMap: Record<string, string>;
   /** Star-level conversion mapping (below-S rank map + S-tier star segments). */
-  mapping: ConversionPolicyMapping;
+  mapping?: ConversionPolicyMapping;
+  /** Legacy rank-level conversion map for historical frozen events. */
+  rankMap?: Record<string, string>;
 }
 
 /**
@@ -529,6 +535,8 @@ export function normalizeTeamRegistrationConfig(
                 recentSeasonWeight: 30,
               }
             : undefined,
+          conversionPolicyVersion: config.competitiveProfile.conversionPolicyVersion?.trim() || undefined,
+          conversionPolicyId: config.competitiveProfile.conversionPolicyId?.trim() || undefined,
           fallbackConversion: config.competitiveProfile.fallbackConversion
             ? {
                 sourcePlatform: "fivee",
@@ -536,7 +544,18 @@ export function normalizeTeamRegistrationConfig(
                 seasonKeyMap: Object.fromEntries(Object.entries(config.competitiveProfile.fallbackConversion.seasonKeyMap)
                   .map(([primary, source]) => [primary.trim(), source.trim()])
                   .filter(([primary, source]) => primary && source)),
-                mapping: config.competitiveProfile.fallbackConversion.mapping,
+                ...(config.competitiveProfile.fallbackConversion.mapping
+                  ? { mapping: config.competitiveProfile.fallbackConversion.mapping }
+                  : {}),
+                ...(config.competitiveProfile.fallbackConversion.rankMap
+                  ? {
+                      rankMap: Object.fromEntries(
+                        Object.entries(config.competitiveProfile.fallbackConversion.rankMap)
+                          .map(([source, target]) => [source.trim(), target.trim()])
+                          .filter(([source, target]) => source && target),
+                      ),
+                    }
+                  : {}),
               }
             : undefined,
         }

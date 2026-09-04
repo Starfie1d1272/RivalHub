@@ -197,7 +197,11 @@ export async function fallbackCatalogReferencesExist(
   fallback: CompetitiveFallbackConversion,
 ): Promise<boolean> {
   const seasonKeys = [...new Set(Object.values(fallback.seasonKeyMap))];
-  const rankKeys = [...new Set(Object.keys(fallback.mapping.belowSRankMap))];
+  const rankKeys = fallback.mapping
+    ? [...new Set(Object.keys(fallback.mapping.belowSRankMap))]
+    : fallback.rankMap
+      ? [...new Set(Object.keys(fallback.rankMap))]
+      : [];
   if (seasonKeys.length === 0 || rankKeys.length === 0 || seasonKeys.some((key) => !key) || rankKeys.some((key) => !key)) return false;
   const sourceSeasons = await executor.select({ seasonKey: competitivePlatformSeasons.seasonKey })
     .from(competitivePlatformSeasons)
