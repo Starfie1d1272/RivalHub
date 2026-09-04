@@ -140,6 +140,18 @@ describe("deployment and operations contracts", () => {
     expect(release.indexOf("run: pnpm db:release-compat")).toBeLessThan(release.indexOf("pnpm db:production:migrate"));
   });
 
+  it("retries an immutable GitHub Release without editing its published metadata", () => {
+    const release = readProjectFile(".github/workflows/release.yml");
+
+    expect(release).toContain('gh release view "$RELEASE_TAG" --json isImmutable --jq .isImmutable');
+    expect(release).toContain('Release $RELEASE_TAG is immutable; keeping published metadata.');
+    expect(release).toMatch(
+      /if \[\[ "\$\(gh release view "\$RELEASE_TAG" --json isImmutable --jq \.isImmutable\)" == "true" \]\]; then[\s\S]*?else[\s\S]*?gh release edit "\$RELEASE_TAG"/,
+    );
+    expect(release).toContain('gh release edit "$RELEASE_TAG"');
+    expect(release).toContain('gh release create "$RELEASE_TAG"');
+  });
+
   it("runs each production Cron endpoint independently with bounded retries", () => {
     const workflow = readProjectFile(".github/workflows/cron.yml");
     const paths = [

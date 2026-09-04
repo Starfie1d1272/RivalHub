@@ -143,10 +143,14 @@ jobs:
           fi
 
           if gh release view "$RELEASE_TAG" &>/dev/null; then
-            echo "Release $RELEASE_TAG already exists, updating notes..."
-            gh release edit "$RELEASE_TAG" \
-              --notes-file /tmp/release-notes.md \
-              "${RELEASE_FLAGS[@]}"
+            if [[ "$(gh release view "$RELEASE_TAG" --json isImmutable --jq .isImmutable)" == "true" ]]; then
+              echo "Release $RELEASE_TAG is immutable; keeping published metadata."
+            else
+              echo "Release $RELEASE_TAG already exists, updating notes..."
+              gh release edit "$RELEASE_TAG" \
+                --notes-file /tmp/release-notes.md \
+                "${RELEASE_FLAGS[@]}"
+            fi
           else
             gh release create "$RELEASE_TAG" \
               --title "$RELEASE_TAG" \
