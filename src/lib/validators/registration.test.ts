@@ -121,6 +121,39 @@ describe("buildRegistrationSchema", () => {
     expect(result.success).toBe(false);
   });
 
+  it("rejects CodeQL bypass payloads for steamProfileUrl", () => {
+    const schema = buildSchema();
+    const bypassPayloads = [
+      "https://steamcommunity.com.attacker.example/id/testplayer",
+      "https://attacker.example/steamcommunity.com",
+      "https://attacker.example/?next=steamcommunity.com",
+      "https://steamcommunity.com@attacker.example/id/testplayer",
+      "https://steamcommunity.com/profiles/76561198000000000/edit",
+      "https://steamcommunity.com/tradeoffer/new",
+    ];
+
+    for (const url of bypassPayloads) {
+      const result = schema.safeParse(validData({ steamProfileUrl: url }));
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues.some((i) => i.path.includes("steamProfileUrl"))).toBe(true);
+      }
+    }
+  });
+
+  it("canonicalizes valid steamProfileUrl by removing query, hash, and trailing slashes", () => {
+    const schema = buildSchema();
+    const result = schema.safeParse(
+      validData({
+        steamProfileUrl: "  https://steamcommunity.com/id/testplayer/?ref=friend#status  ",
+      }),
+    );
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.steamProfileUrl).toBe("https://steamcommunity.com/id/testplayer");
+    }
+  });
+
   it("accepts empty screenshot links", () => {
     const schema = buildSchema();
     const result = schema.safeParse(validData({ screenshotUrls: [] }));

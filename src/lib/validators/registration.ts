@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normalizeSteamProfileUrl } from "@/lib/external-url";
 import { REGISTRATION_DEFAULTS } from "@/lib/config/registration-defaults";
 import {
   PLAYER_TYPE_LABELS,
@@ -113,11 +114,17 @@ export function buildRegistrationSchema(
       steamProfileUrl: z
         .string()
         .min(1, "请填写 Steam 个人资料链接")
-        .url("请输入有效的链接")
-        .refine(
-          (v) => v.includes("steamcommunity.com"),
-          "链接必须为 steamcommunity.com 域名",
-        ),
+        .transform((v, ctx) => {
+          const normalized = normalizeSteamProfileUrl(v);
+          if (!normalized) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: "Steam 个人资料链接格式不正确",
+            });
+            return z.NEVER;
+          }
+          return normalized;
+        }),
 
       // ── 位置 ──
       primaryPosition: z.string().refine((v) => positions.includes(v), {
