@@ -93,8 +93,8 @@ describe("competition entry qualification restriction overrides PostgreSQL", () 
         `INSERT INTO seasons (
           id, slug, name, kind, competition_template, status, registration_mode,
           has_captain_voting, has_draft, team_registration_config, affiliation_rules,
-          min_team_size, max_team_size, starter_count
-        ) VALUES ($1, $2, 'Qualification Override Fixture', 'Major', 'major', 'registration', 'team', false, false, $3::json, $4::json, 2, 2, 2)`,
+          min_team_size, max_team_size, starter_count, registration_opens_at, registration_opened_at
+        ) VALUES ($1, $2, 'Qualification Override Fixture', 'Major', 'major', 'registration', 'team', false, false, $3::json, $4::json, 2, 2, 2, now(), now())`,
         [ids.season, `local-override-${ids.season}`, JSON.stringify(teamConfig), JSON.stringify(affiliationRules)],
       );
       await client.query(
