@@ -161,6 +161,21 @@ function mockTxInsertVoteReturning(id: string) {
   });
 }
 
+function mockTxInsertVoteFailure(error: unknown) {
+  txInsertMock.mockReturnValue({
+    values: vi.fn().mockReturnValue({
+      returning: vi.fn().mockRejectedValue(error),
+    }),
+  });
+}
+
+function setupCastVoteBeforeInsert() {
+  mockTxVoterCandidate(VOTER_REG, CANDIDATE_REG);
+  txSeasonFindFirstMock.mockResolvedValue(SEASON);
+  mockTxSelectCount(0);
+  txCaptainVoteFindFirstMock.mockResolvedValue(null);
+}
+
 // ── 工具：mock db.insert(auditLogs).values(...)，并记录调用值 ────────────────
 function mockDbInsertAudit() {
   dbInsertMock.mockReturnValue({
@@ -249,6 +264,47 @@ describe("castVote()", () => {
       actorId: USER_ID_1,
       targetId: CANDIDATE_REG_ID,
     });
+  });
+
+  it("正常重复投票继续由 domain validation 返回 VOTE_DUPLICATE", async () => {
+    setupCastVoteBeforeInsert();
+    validateCaptainVoteMock.mockReturnValue(ErrorCode.VOTE_DUPLICATE);
+
+    const result = await castVote(CAST_INPUT);
+
+    expect(result).toEqual({ success: false, error: { code: ErrorCode.VOTE_DUPLICATE, message: "您已为该候选人投票" } });
+    expect(txInsertMock).not.toHaveBeenCalled();
+  });
+
+  it("仅将 wrapped 23505 与精确 captain vote constraint 映射为 VOTE_DUPLICATE", async () => {
+    setupCastVoteBeforeInsert();
+    mockTxInsertVoteFailure({
+      query: "insert into captain_votes ...",
+      params: ["sensitive-value"],
+      cause: {
+        code: "23505",
+        constraint: "captain_votes_voter_registration_id_candidate_registration_id_unique",
+      },
+    });
+
+    const result = await castVote(CAST_INPUT);
+
+    expect(result).toEqual({ success: false, error: { code: ErrorCode.VOTE_DUPLICATE, message: "您已为该候选人投票" } });
+  });
+
+  it("不将 wrong constraint 的 wrapped 23505 映射为 VOTE_DUPLICATE", async () => {
+    const consoleErrorMock = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      setupCastVoteBeforeInsert();
+      mockTxInsertVoteFailure({ cause: { code: "23505", constraint: "teams_slug_unique" } });
+
+      const result = await castVote(CAST_INPUT);
+
+      expect(result).toEqual({ success: false, error: { code: ErrorCode.INTERNAL_ERROR, message: "服务器内部错误，请稍后重试" } });
+      expect(consoleErrorMock).toHaveBeenCalledOnce();
+    } finally {
+      consoleErrorMock.mockRestore();
+    }
   });
 });
 

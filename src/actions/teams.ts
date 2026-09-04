@@ -32,6 +32,8 @@ import {
 } from "@/lib/teams/commands";
 import { fail, ok, type ActionResult } from "@/types/action";
 
+const PENDING_DIRECT_INVITATION_CONSTRAINT = "team_invitations_one_pending_direct_per_user";
+
 const uuid = z.string().uuid();
 const teamName = z.string().trim().min(MIN_TEAM_NAME_LENGTH).max(MAX_TEAM_NAME_LENGTH);
 const description = z.string().trim().max(500);
@@ -54,10 +56,7 @@ export async function createTeam(input: { name: string; description?: string }):
     const result = await db.transaction((tx) => createTeamInTx(tx, { name: parsed.data.name, description: parsed.data.description, userId: session.userId, actorId: auditActorId(session) }));
     revalidateTeam(result.slug);
     return ok(result);
-  } catch (error) {
-    if (isPgUniqueViolation(error)) return invalid("你当前已有队伍或担任队长。");
-    return actionError("createTeam", error);
-  }
+  } catch (error) { return actionError("createTeam", error); }
 }
 
 export async function updateTeamProfile(input: { teamId: string; name: string; description?: string }): Promise<ActionResult<{ slug: string }>> {
@@ -105,7 +104,7 @@ export async function inviteTeamMember(input: { teamId: string; email: string })
     revalidateTeam();
     return ok(undefined);
   } catch (error) {
-    if (isPgUniqueViolation(error)) return invalid("该邀请已存在。");
+    if (isPgUniqueViolation(error, PENDING_DIRECT_INVITATION_CONSTRAINT)) return invalid("该邀请已存在。");
     return actionError("inviteTeamMember", error);
   }
 }
@@ -126,7 +125,7 @@ export async function inviteTeamMemberByUserId(input: { teamId: string; userId: 
     revalidateTeam();
     return ok(undefined);
   } catch (error) {
-    if (isPgUniqueViolation(error)) return invalid("该邀请已存在。");
+    if (isPgUniqueViolation(error, PENDING_DIRECT_INVITATION_CONSTRAINT)) return invalid("该邀请已存在。");
     return actionError("inviteTeamMemberByUserId", error);
   }
 }
@@ -158,10 +157,7 @@ export async function acceptTeamInvitation(input: { invitationId?: string; token
     }
     revalidateTeam(result.slug);
     return ok(result);
-  } catch (error) {
-    if (isPgUniqueViolation(error)) return invalid("你当前已有队伍。");
-    return actionError("acceptTeamInvitation", error);
-  }
+  } catch (error) { return actionError("acceptTeamInvitation", error); }
 }
 
 export async function declineTeamInvitation(input: { invitationId: string }): Promise<ActionResult<void>> {
@@ -194,10 +190,7 @@ export async function setTeamMembershipStatus(input: { teamId: string; userId: s
     await db.transaction((tx) => setTeamMembershipStatusInTx(tx, { teamId: parsed.data.teamId, userId: session.userId, targetUserId: parsed.data.userId, status: parsed.data.status, actorId: auditActorId(session) }));
     revalidateTeam();
     return ok(undefined);
-  } catch (error) {
-    if (isPgUniqueViolation(error)) return invalid("该成员当前已属于另一支队伍。");
-    return actionError("setTeamMembershipStatus", error);
-  }
+  } catch (error) { return actionError("setTeamMembershipStatus", error); }
 }
 
 export async function leaveTeam(input: { teamId: string }): Promise<ActionResult<void>> {
@@ -233,10 +226,7 @@ export async function transferTeamCaptain(input: { teamId: string; toUserId: str
     await db.transaction((tx) => transferTeamCaptainInTx(tx, { teamId: parsed.data.teamId, actorUserId: actor.userId, toUserId: parsed.data.toUserId, actorId: auditActorId(actor), emergencyOverride: adminOverride }));
     revalidateTeam();
     return ok(undefined);
-  } catch (error) {
-    if (isPgUniqueViolation(error)) return invalid("新队长已担任另一支队伍的队长。");
-    return actionError("transferTeamCaptain", error);
-  }
+  } catch (error) { return actionError("transferTeamCaptain", error); }
 }
 
 export async function disbandTeam(input: { teamId: string }): Promise<ActionResult<void>> {

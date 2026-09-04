@@ -38,6 +38,8 @@ import {
 import { failValidation, actionError, isPgUniqueViolation } from "@/lib/action-utils";
 import { revalidateSeasonPaths } from "@/lib/revalidation";
 
+const CAPTAIN_VOTE_UNIQUE_CONSTRAINT = "captain_votes_voter_registration_id_candidate_registration_id_unique";
+
 export async function castVote(
   input: CastVoteInput,
 ): Promise<ActionResult<{ voteId: string }>> {
@@ -114,7 +116,7 @@ export async function castVote(
     await revalidateCaptainPaths(parsed.data.voterRegistrationId);
     return ok({ voteId });
   } catch (e) {
-    if (isPgUniqueViolation(e)) {
+    if (isPgUniqueViolation(e, CAPTAIN_VOTE_UNIQUE_CONSTRAINT)) {
       return fail({ code: ErrorCode.VOTE_DUPLICATE, message: ERROR_MESSAGES.VOTE_DUPLICATE });
     }
     return actionError("castVote", e);
