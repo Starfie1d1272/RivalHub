@@ -69,7 +69,7 @@ export async function traceOperation<T>(name: string, options: TraceOptions, wor
   });
 }
 
-export function sanitizeSpanAttributes(options: TraceOptions): Record<string, string | number | boolean> {
+function sanitizeSpanAttributes(options: TraceOptions): Record<string, string | number | boolean> {
   const attributes: Record<string, string | number | boolean> = {};
   const builtIns: Record<string, string | undefined> = {
     "rivalhub.scope": options.scope,

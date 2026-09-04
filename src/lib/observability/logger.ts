@@ -6,7 +6,7 @@ import { getObservabilityContext, normalizeRequestId, normalizeRoute } from "@/l
 import { classifyError, type ErrorClass, type ErrorClassificationOverrides } from "@/lib/observability/errors";
 import { extractSafeException, redactText, safeCode, sanitizeSafeContext, type SafeException } from "@/lib/observability/redact";
 
-export type LogLevel = "debug" | "info" | "warn" | "error" | "fatal";
+type LogLevel = "debug" | "info" | "warn" | "error" | "fatal";
 
 export interface StructuredEvent {
   timestamp: string;
@@ -60,7 +60,7 @@ export interface CaptureExceptionOptions extends ErrorClassificationOverrides {
 
 const logger = logs.getLogger("rivalhub");
 
-export function buildStructuredEvent(input: LogEventInput, now = new Date()): StructuredEvent {
+function buildStructuredEvent(input: LogEventInput, now = new Date()): StructuredEvent {
   const requestContext = getObservabilityContext();
   const activeSpan = trace.getActiveSpan();
   const spanContext = activeSpan?.spanContext();

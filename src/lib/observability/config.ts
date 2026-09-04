@@ -1,6 +1,6 @@
 export const OBSERVABILITY_SERVICE_NAME = "rivalhub";
 
-export type RuntimeEnvironment = "development" | "test" | "preview" | "production" | "unknown";
+type RuntimeEnvironment = "development" | "test" | "preview" | "production" | "unknown";
 
 export interface BetterStackConfig {
   baseUrl: string;

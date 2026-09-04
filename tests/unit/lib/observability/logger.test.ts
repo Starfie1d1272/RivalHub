@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { buildStructuredEvent } from "@/lib/observability/logger";
+import { logEvent } from "@/lib/observability/logger";
 
 describe("structured observability events", () => {
   it("contains correlation and deployment fields while keeping context bounded", () => {
@@ -10,7 +10,8 @@ describe("structured observability events", () => {
     const circular: Record<string, unknown> = {};
     circular.self = circular;
 
-    const event = buildStructuredEvent({
+    const writeSpy = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    const event = logEvent({
       level: "error",
       event: "provider.failure",
       scope: "provider",
@@ -24,10 +25,9 @@ describe("structured observability events", () => {
       message: "upstream unavailable",
       exception: { name: "Error", message: "Bearer secret must not survive" },
       safeContext: { provider: "siliconflow", count: 2, password: "secret", raw: circular },
-    }, new Date("2026-09-05T00:00:00.000Z"));
+    });
 
     expect(event).toMatchObject({
-      timestamp: "2026-09-05T00:00:00.000Z",
       environment: "preview",
       route: "/admin/season",
       requestId: "req-424",
@@ -39,6 +39,8 @@ describe("structured observability events", () => {
     const serialized = JSON.stringify(event);
     expect(serialized).not.toContain("secret");
     expect(serialized).not.toContain("password");
+    expect(Number.isNaN(Date.parse(event.timestamp))).toBe(false);
+    writeSpy.mockRestore();
     vi.unstubAllEnvs();
   });
 });
