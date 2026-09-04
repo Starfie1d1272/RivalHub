@@ -29,7 +29,6 @@ BO1、BO3 与 BO5 现在以统一方式保存官方系列赛比分和实际地�
 ### Migration & Operations
 
 本版本包含三条 forward migration：`0036_auth_id_reconciliation`、`0037_match_score_semantics` 与 `0038_conversion_policies`。生产升级仍只通过 `v*` tag 触发标准 release workflow，依次执行 active migration replay、previous stable compatibility、production migrate/verify、精确版本 Vercel Production 部署与 smoke test。
-
 ## [2.2.4]
 
 RivalHub 2.2.4 聚焦 Major 报名资格、长期竞技资料、数据库安全边界与发布可靠性。地图熟练度现在成为可长期维护的个人资料；Major 外校成员限制改为明确的完美世界历史最高总星数相对规则，并支持对可解除的政策限制进行有理由、可审计的管理员例外处理。
