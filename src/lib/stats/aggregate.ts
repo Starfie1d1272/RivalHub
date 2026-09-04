@@ -21,9 +21,12 @@ export interface StatRowInput {
 }
 
 type CountMetric = "kills" | "deaths" | "assists" | "firstKills" | "multiKills" | "clutches";
+type CompleteSumMetric = CountMetric | "rounds";
 
-function sumKnown(rows: StatRowInput[], metric: CountMetric): number | null {
-  return sumNums(rows.map((row) => row[metric]));
+function completeSum(rows: StatRowInput[], metric: CompleteSumMetric): number | null {
+  const values = rows.map((row) => row[metric]);
+  if (values.some((value) => value == null)) return null;
+  return sumNums(values as number[]);
 }
 
 /** 只使用对应 count 与 rounds 都已知的行。 */
@@ -48,16 +51,16 @@ function perRoundKnown(rows: StatRowInput[], metric: CountMetric): number | null
  * - ADR：只对 ADR 与 rounds 都已知的图回合加权
  * - HS%：只对 HS% 与 kills 都已知的图按击杀数加权
  * - Rating/RWS/WE：已知图简单均值
- * - count：只合并已录到的行；全量缺失返回 null
- * - KD：已知 kills / 已知 deaths
+ * - count：纳入范围任一行缺失即返回 null；真实全量 0 保留为 0
+ * - KD：使用 complete raw kills / deaths
  * - KPR/FKPR/MKPR/CPR：只用对应 count 与 rounds 都已知的行
  */
 export function aggregatePlayerRows(rows: StatRowInput[]): AggregatedPlayerStats {
   if (rows.length === 0) throw new Error("aggregatePlayerRows: empty rows");
 
-  const totalRounds = sumNums(rows.map((row) => row.rounds));
-  const totalKills = sumKnown(rows, "kills");
-  const totalDeaths = sumKnown(rows, "deaths");
+  const totalRounds = completeSum(rows, "rounds");
+  const totalKills = completeSum(rows, "kills");
+  const totalDeaths = completeSum(rows, "deaths");
 
   return {
     userId: rows[0].userId,
@@ -66,10 +69,10 @@ export function aggregatePlayerRows(rows: StatRowInput[]): AggregatedPlayerStats
     totalRounds,
     kills: totalKills,
     deaths: totalDeaths,
-    assists: sumKnown(rows, "assists"),
-    firstKills: sumKnown(rows, "firstKills"),
-    multiKills: sumKnown(rows, "multiKills"),
-    clutches: sumKnown(rows, "clutches"),
+    assists: completeSum(rows, "assists"),
+    firstKills: completeSum(rows, "firstKills"),
+    multiKills: completeSum(rows, "multiKills"),
+    clutches: completeSum(rows, "clutches"),
     kd: totalKills != null && totalDeaths != null && totalDeaths > 0 ? totalKills / totalDeaths : null,
     kpr: perRoundKnown(rows, "kills"),
     fkpr: perRoundKnown(rows, "firstKills"),

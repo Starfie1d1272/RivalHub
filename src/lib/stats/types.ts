@@ -22,9 +22,9 @@ export interface AggregatedPlayerStats {
   userId: string | null;
   perfectName: string;
   maps: number;
-  /** 已知回合数之和；所有回合事实都缺失时为 null。 */
+  /** 回合事实完整时的总和；任一纳入行缺失时为 null。 */
   totalRounds: number | null;
-  /** 每个 count 字段都保留“全量缺失”和真实 0 的区别。 */
+  /** 每个 count 字段都要求纳入行完整，并保留真实 0。 */
   kills: number | null;
   deaths: number | null;
   assists: number | null;

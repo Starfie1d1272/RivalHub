@@ -16,16 +16,36 @@ export function simpleAvg(col: string): SQL {
   return sql`avg(${rawColumn(col)})`;
 }
 
-/** 已知 source 的 count 总和；所有 source 都是 NULL 时返回 NULL。 */
-export function sumKnown(col: string): SQL {
-  return sql`sum(${rawColumn(col)})`;
+/** 原始总计要求所有纳入行都有 source；任一 NULL 即返回 NULL。 */
+export function completeSum(col: string | SQL): SQL {
+  const expression = typeof col === "string" ? rawColumn(col) : col;
+  return sql`CASE
+    WHEN count(${expression}) = count(*) THEN sum(${expression})
+    ELSE NULL
+  END`;
 }
 
-/** 两个已知 count 总和之比；分子或有效分母缺失/为零时返回 NULL。 */
+/** 两个完整 raw total 之比；任一 total 缺失或有效分母为零时返回 NULL。 */
 export function ratioOfSums(numerator: string, denominator: string): SQL {
+  const numeratorSum = completeSum(numerator);
+  const denominatorSum = completeSum(denominator);
   return sql`CASE
-    WHEN sum(${rawColumn(numerator)}) IS NOT NULL AND sum(${rawColumn(denominator)}) > 0
-    THEN sum(${rawColumn(numerator)})::numeric / sum(${rawColumn(denominator)})
+    WHEN ${numeratorSum} IS NOT NULL AND ${denominatorSum} > 0
+    THEN ${numeratorSum}::numeric / ${denominatorSum}
+    ELSE NULL
+  END`;
+}
+
+/** 三个完整 raw total 的 KDA；任一 total 缺失或死亡数为零时返回 NULL。 */
+export function kdaOfSums(kills: string, assists: string, deaths: string): SQL {
+  const killsSum = completeSum(kills);
+  const assistsSum = completeSum(assists);
+  const deathsSum = completeSum(deaths);
+  return sql`CASE
+    WHEN ${killsSum} IS NOT NULL
+      AND ${assistsSum} IS NOT NULL
+      AND ${deathsSum} > 0
+    THEN (${killsSum} + ${assistsSum})::numeric / ${deathsSum}
     ELSE NULL
   END`;
 }

@@ -13,7 +13,8 @@ import {
   roundWeightedAvg,
   roundsExpr,
   simpleAvg,
-  sumKnown,
+  completeSum,
+  kdaOfSums,
 } from "@/lib/stats";
 
 type NumericPlayerMetrics = Omit<PlayerMetrics, "userId">;
@@ -44,16 +45,7 @@ export async function getSeasonHexagonScores(
   const weExpr = simpleAvg("mps.we");
   const ratingExpr = simpleAvg("mps.rating_pro");
   const kdExpr = ratioOfSums("mps.kills", "mps.deaths");
-  const killsSumExpr = sumKnown("mps.kills");
-  const assistsSumExpr = sumKnown("mps.assists");
-  const deathsSumExpr = sumKnown("mps.deaths");
-  const kdaExpr = sql`CASE
-    WHEN ${killsSumExpr} IS NOT NULL
-      AND ${assistsSumExpr} IS NOT NULL
-      AND ${deathsSumExpr} > 0
-    THEN (${killsSumExpr} + ${assistsSumExpr})::numeric / ${deathsSumExpr}
-    ELSE NULL
-  END`;
+  const kdaExpr = kdaOfSums("mps.kills", "mps.assists", "mps.deaths");
 
   const { rows } = await db.execute(sql`
     SELECT
@@ -70,7 +62,7 @@ export async function getSeasonHexagonScores(
       ${ratingExpr} AS rating_pro,
       ${kdExpr} AS kd,
       ${kdaExpr} AS kda,
-      sum(${roundsExpr}) FILTER (WHERE ${roundsExpr} IS NOT NULL)::int AS total_rounds
+      ${completeSum(roundsExpr)}::int AS total_rounds
     FROM match_player_stats mps
     JOIN matches m  ON m.id  = mps.match_id
     JOIN match_maps mm ON mm.id = mps.map_id

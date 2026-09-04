@@ -6,7 +6,8 @@ export {
   killWeightedAvg,
   perRound,
   simpleAvg,
-  sumKnown,
+  completeSum,
   ratioOfSums,
+  kdaOfSums,
 } from "./sql";
 export { formatNumber, formatStat, type StatMetric } from "./format";

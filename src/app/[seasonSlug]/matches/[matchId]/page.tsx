@@ -231,7 +231,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   const starterStatsA = teamRawStatsA.filter((r) => r.userId && starterAIdSet.has(r.userId));
   const starterStatsB = teamRawStatsB.filter((r) => r.userId && starterBIdSet.has(r.userId));
 
-  // 用图级比分构建回合数；BO1 在 canonical helper 内 fallback 到比赛级比分。
+  // 所有 format 的统计回合数都只来自已记录的地图级比分。
   const seasonMapRoundsMap = new Map<string, number>();
   for (const map of seasonMapScoresRaw) {
     if (map.scoreA !== null && map.scoreB !== null) {
