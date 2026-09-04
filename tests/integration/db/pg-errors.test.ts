@@ -33,27 +33,57 @@ function directInvitation(ids: FixtureIds, id = randomUUID()): typeof schema.tea
 }
 
 async function seedFixture(pool: Pool, ids: FixtureIds): Promise<void> {
-  await pool.query(
-    "INSERT INTO users (id, email) VALUES ($1, $2), ($3, $4)",
-    [ids.captain, `pg-errors-captain-${ids.captain}@local.test`, ids.invitee, `pg-errors-invitee-${ids.invitee}@local.test`],
-  );
-  await pool.query(
-    `INSERT INTO teams (id, slug, name, creator_user_id, captain_user_id)
-     VALUES ($1, $2, 'PG error extraction team', $3, $3)`,
-    [ids.team, `pg-errors-${ids.team.slice(0, 8)}`, ids.captain],
-  );
-  await pool.query(
-    `INSERT INTO team_memberships (team_id, user_id, status, invited_by_user_id)
-     VALUES ($1, $2, 'active', $2)`,
-    [ids.team, ids.captain],
-  );
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "INSERT INTO users (id, email) VALUES ($1, $2), ($3, $4)",
+      [ids.captain, `pg-errors-captain-${ids.captain}@local.test`, ids.invitee, `pg-errors-invitee-${ids.invitee}@local.test`],
+    );
+    await client.query(
+      `INSERT INTO teams (id, slug, name, creator_user_id, captain_user_id)
+       VALUES ($1, $2, 'PG error extraction team', $3, $3)`,
+      [ids.team, `pg-errors-${ids.team.slice(0, 8)}`, ids.captain],
+    );
+    await client.query(
+      `INSERT INTO team_memberships (team_id, user_id, status, invited_by_user_id)
+       VALUES ($1, $2, 'active', $2)`,
+      [ids.team, ids.captain],
+    );
+    await client.query(
+      "INSERT INTO team_captain_changes (team_id, from_user_id, to_user_id, changed_by_actor_id) VALUES ($1, NULL, $2, 'pg-errors-test')",
+      [ids.team, ids.captain],
+    );
+    await client.query(
+      "INSERT INTO team_name_changes (team_id, old_name, new_name, changed_by_actor_id) VALUES ($1, NULL, 'PG error extraction team', 'pg-errors-test')",
+      [ids.team],
+    );
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 async function cleanupFixture(pool: Pool, ids: FixtureIds): Promise<void> {
-  await pool.query("DELETE FROM team_invitations WHERE team_id = $1", [ids.team]);
-  await pool.query("DELETE FROM team_memberships WHERE team_id = $1", [ids.team]);
-  await pool.query("DELETE FROM teams WHERE id = $1", [ids.team]);
-  await pool.query("DELETE FROM users WHERE id IN ($1, $2)", [ids.captain, ids.invitee]);
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("DELETE FROM team_invitations WHERE team_id = $1", [ids.team]);
+    await client.query("DELETE FROM team_captain_changes WHERE team_id = $1", [ids.team]);
+    await client.query("DELETE FROM team_name_changes WHERE team_id = $1", [ids.team]);
+    await client.query("DELETE FROM team_memberships WHERE team_id = $1", [ids.team]);
+    await client.query("DELETE FROM teams WHERE id = $1", [ids.team]);
+    await client.query("DELETE FROM users WHERE id IN ($1, $2)", [ids.captain, ids.invitee]);
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 describe("PostgreSQL error extraction integration", () => {
