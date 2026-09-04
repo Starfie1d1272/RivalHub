@@ -23,6 +23,15 @@ export interface MapPreference {
   level: MapPreferenceLevel;
 }
 
+/**
+ * Editable/presentation map preference. `null` means the user has not made a
+ * declaration; it must never be persisted as the explicit `none` level.
+ */
+export interface MapPreferenceDraft {
+  map: string;
+  level: MapPreferenceLevel | null;
+}
+
 export interface AdvanceTier {
   /** 名次标识："*" = 全部晋级；"1st"/"2nd"/"3rd" 等 = 分层晋级 */
   placement: string;
@@ -71,7 +80,7 @@ export interface RegistrationConfig {
   screenshotCount: number;
   /** 总报名人数上限，默认 56。到达后新报名被拒绝 */
   maxTotal: number;
-  /** 当前赛季 CS2 图池；报名地图偏好和比赛录入共用这组配置 */
+  /** Event-owned CS2 map pool; solo registration and match entry consume this frozen config. */
   mapPool: string[];
 }
 
@@ -245,28 +254,42 @@ export interface Season extends SeasonCapabilities {
 // ── Capability 预设 ───────────────────────────────────────────────────────
 
 export const CS2_POSITIONS = ["igl", "awper", "opener", "closer", "anchor"];
-export const DEFAULT_CS2_MAP_POOL = [
+
+/** Stable CS2 map catalog. Valve rotation never removes historical entries. */
+export const CS2_MAP_CATALOG = [
+  { key: "de_mirage", label: "Mirage" },
+  { key: "de_inferno", label: "Inferno" },
+  { key: "de_nuke", label: "Nuke" },
+  { key: "de_ancient", label: "Ancient" },
+  { key: "de_dust2", label: "Dust2" },
+  { key: "de_anubis", label: "Anubis" },
+  { key: "de_train", label: "Train" },
+  { key: "de_cache", label: "Cache" },
+  { key: "de_overpass", label: "Overpass" },
+  { key: "de_vertigo", label: "Vertigo" },
+] as const;
+
+export type Cs2MapKey = (typeof CS2_MAP_CATALOG)[number]["key"];
+
+export const SUPPORTED_CS2_MAP_KEYS: readonly Cs2MapKey[] = CS2_MAP_CATALOG.map(
+  ({ key }) => key,
+) as Cs2MapKey[];
+
+/** Current Valve/Premier reference pool; mutable rotation is isolated here. */
+export const CURRENT_CS2_ACTIVE_DUTY_MAP_POOL = [
   "de_mirage",
   "de_inferno",
   "de_nuke",
   "de_ancient",
   "de_dust2",
   "de_anubis",
-  "de_overpass",
-] as const;
+  "de_cache",
+] as const satisfies readonly Cs2MapKey[];
 
-export const MAP_LABELS: Record<string, string> = {
-  de_mirage: "Mirage",
-  de_inferno: "Inferno",
-  de_nuke: "Nuke",
-  de_ancient: "Ancient",
-  de_dust2: "Dust2",
-  de_anubis: "Anubis",
-  de_train: "Train",
-  de_cache: "Cache",
-  de_overpass: "Overpass",
-  de_vertigo: "Vertigo",
-};
+/** Compatibility formatter dictionary derived from the stable catalog. */
+export const MAP_LABELS: Record<string, string> = Object.fromEntries(
+  CS2_MAP_CATALOG.map(({ key, label }) => [key, label]),
+);
 
 export const MAP_PREFERENCE_LEVELS: readonly MapPreferenceLevel[] = [
   "none",
@@ -304,7 +327,7 @@ export const RIVALS_REGISTRATION_CONFIG: RegistrationConfig = {
   maxPerPosition: 15,
   screenshotCount: 1,
   maxTotal: 56,
-  mapPool: [...DEFAULT_CS2_MAP_POOL],
+  mapPool: [...CURRENT_CS2_ACTIVE_DUTY_MAP_POOL],
 };
 
 /** 选秀联赛预设：个人报名 → 队长投票 → 蛇形选秀 → 循环赛 + 双败淘汰 */

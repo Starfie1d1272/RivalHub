@@ -59,7 +59,7 @@ Major 的正式运行时由 `src/lib/major/` 与 `major_*` persistence owners �
 
 ## Match lifecycle and recovery
 
-比赛、地图、BP、阵容、时间协商和结果由各自 schema/action owner 维护。Major match 带有 managed ownership 与 `stageRunId` 归属，结果结算推进同一 StageRun 的完整事实。更正必须遵守已冻结的规则和后续阶段边界；当恢复会改变后续配对时，使用 Major recovery 逻辑而不是直接改 projection。
+比赛、地图、BP、阵容、时间协商和结果由各自 schema/action owner 维护。`matches.scoreA/scoreB` 是所有 format 的官方系列赛比分，`match_maps.scoreA/scoreB` 是实际进行地图的回合比分；正常比赛结果只能由 map-level owner 写入，弃赛不制造虚构地图。Major match 带有 managed ownership 与 `stageRunId` 归属，结果结算推进同一 StageRun 的完整事实。更正必须遵守已冻结的规则和后续阶段边界；当恢复会改变后续配对时，使用 Major recovery 逻辑而不是直接改 projection。
 
 纪律与赛后领域保持独立：sanction、adjudication、placement 与 honor 不相互暗示结果。无季军赛时保留 3–4 placement group；最终结果先进入 `pending_confirmation`，确认后才形成可归档的历史事实。
 
@@ -79,6 +79,7 @@ Major 的正式运行时由 `src/lib/major/` 与 `major_*` persistence owners �
 |---|---|
 | Auth / session / owner bootstrap | `src/lib/auth/`, `src/actions/auth.ts`, `src/app/auth/` |
 | Season capabilities / templates | `src/types/season.ts`, `src/actions/seasons.ts`, `src/db/schema/seasons.ts` |
+| CS2 map catalog / Active Duty / event projection | `src/types/season.ts`, `src/lib/maps.ts`, `src/lib/recruitment/data.ts` |
 | Identity / education / competitive profile | `src/actions/account.ts`, `src/actions/education-verifications.ts`, `src/actions/competitive-profile.ts`, matching schema files |
 | Rivals registration / voting / draft | `src/actions/register.ts`, `src/actions/captains.ts`, `src/actions/draft/`, `src/lib/draft/` |
 | Long-lived Teams / CompetitionEntry | `src/lib/teams/`, `src/lib/competition-entries/`, corresponding actions and schema files |

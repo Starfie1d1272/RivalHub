@@ -28,8 +28,8 @@ export const matches = pgTable("matches", {
   entryRound: text("entry_round"),                                       // bracket entry round; null for non-elimination stages
   // ──────────────────────────────────────────────────────────────────────
 
-  // 整场系列赛比分（如 BO3 中 2:1）
-  // 单图比分见 match_maps 表
+  // 官方系列赛比分（所有 format；BO1 为 1:0 / 0:1）
+  // 实际单图回合比分见 match_maps 表
   scoreA: integer("score_a"),
   scoreB: integer("score_b"),
 
@@ -58,6 +58,17 @@ export const matches = pgTable("matches", {
   // 系列赛比分非负
   scoreANonNegative: check("matches_score_a_nonneg", sql`${t.scoreA} IS NULL OR ${t.scoreA} >= 0`),
   scoreBNonNegative: check("matches_score_b_nonneg", sql`${t.scoreB} IS NULL OR ${t.scoreB} >= 0`),
+  scorePairComplete: check(
+    "matches_score_pair_complete",
+    sql`(${t.scoreA} IS NULL AND ${t.scoreB} IS NULL) OR (${t.scoreA} IS NOT NULL AND ${t.scoreB} IS NOT NULL)`,
+  ),
+  seriesScoreShape: check(
+    "matches_series_score_shape",
+    sql`(${t.scoreA} IS NULL AND ${t.scoreB} IS NULL)
+      OR (${t.format} = 'bo1' AND GREATEST(${t.scoreA}, ${t.scoreB}) = 1 AND LEAST(${t.scoreA}, ${t.scoreB}) = 0)
+      OR (${t.format} = 'bo3' AND GREATEST(${t.scoreA}, ${t.scoreB}) = 2 AND LEAST(${t.scoreA}, ${t.scoreB}) BETWEEN 0 AND 1)
+      OR (${t.format} = 'bo5' AND GREATEST(${t.scoreA}, ${t.scoreB}) = 3 AND LEAST(${t.scoreA}, ${t.scoreB}) BETWEEN 0 AND 2)`,
+  ),
   managedMajorMatchShape: check(
     "matches_managed_major_match_shape",
     sql`(${t.ownership} = 'manual' AND ${t.majorStageRunId} IS NULL AND ${t.managedKey} IS NULL)

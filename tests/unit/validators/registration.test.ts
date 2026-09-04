@@ -33,7 +33,7 @@ function validInput() {
       { map: "de_ancient", level: "basic" },
       { map: "de_dust2", level: "basic" },
       { map: "de_anubis", level: "basic" },
-      { map: "de_overpass", level: "none" },
+      { map: "de_cache", level: "none" },
     ],
     gameplayStyle: "进攻型步枪手",
     competitionHistory: "参加过校级比赛",
@@ -136,7 +136,7 @@ describe("buildRegistrationSchema", () => {
         { map: "de_ancient", level: "basic" },
         { map: "de_dust2", level: "basic" },
         { map: "de_anubis", level: "basic" },
-        { map: "de_overpass", level: "none" },
+        { map: "de_cache", level: "none" },
       ],
     });
     expect(r.success).toBe(false);
@@ -152,7 +152,7 @@ describe("buildRegistrationSchema", () => {
         { map: "de_ancient", level: "strong" },
         { map: "de_dust2", level: "playable" },
         { map: "de_anubis", level: "basic" },
-        { map: "de_overpass", level: "none" },
+        { map: "de_cache", level: "none" },
       ],
     });
     expect(r.success).toBe(false);

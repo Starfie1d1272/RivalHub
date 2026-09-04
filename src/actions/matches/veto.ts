@@ -121,7 +121,7 @@ export async function saveVetoSteps(
         const existingMaps = await tx.query.matchMaps.findMany({
           where: eq(matchMaps.matchId, matchId),
         });
-        if (existingMaps.some((m) => m.scoreA != null)) {
+        if (existingMaps.some((m) => (m.scoreA === null) !== (m.scoreB === null) || m.scoreA != null)) {
           throw new AppError(
             ErrorCode.VALIDATION_FAILED,
             "已有地图录入了比分，无法重新录入 BP。如需补录请在赛后操作。",

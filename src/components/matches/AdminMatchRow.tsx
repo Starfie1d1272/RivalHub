@@ -169,7 +169,7 @@ export function AdminMatchRow({
         </div>
       </div>
 
-      {match.status === "scheduled" && <><PreMatchOperatorChecklist requiresPreflight={requiresPreflight} teamA={{ name: teamAName, submitted: Boolean(teamARoster), confirmed: teamARoster?.status === "confirmed", starters: teamARoster?.starters.length ?? 0, preflight: teamAPreflight }} teamB={{ name: teamBName, submitted: Boolean(teamBRoster), confirmed: teamBRoster?.status === "confirmed", starters: teamBRoster?.starters.length ?? 0, preflight: teamBPreflight }} mapState={match.format === "bo1" ? "not_required" : completedMaps.length + pendingMaps.length > 0 ? "recorded" : "not_recorded"} /><p className="text-xs leading-5 text-[var(--color-fg-mid)]">默认宽限为 15 分钟，不会自动判负。延长宽限或重新排期请使用赛程时间；需要判负时请在下方“裁决与弃赛”记录原因。</p></>}
+      {match.status === "scheduled" && <><PreMatchOperatorChecklist requiresPreflight={requiresPreflight} teamA={{ name: teamAName, submitted: Boolean(teamARoster), confirmed: teamARoster?.status === "confirmed", starters: teamARoster?.starters.length ?? 0, preflight: teamAPreflight }} teamB={{ name: teamBName, submitted: Boolean(teamBRoster), confirmed: teamBRoster?.status === "confirmed", starters: teamBRoster?.starters.length ?? 0, preflight: teamBPreflight }} mapState={completedMaps.length + pendingMaps.length > 0 ? "recorded" : "not_recorded"} /><p className="text-xs leading-5 text-[var(--color-fg-mid)]">默认宽限为 15 分钟，不会自动判负。延长宽限或重新排期请使用赛程时间；需要判负时请在下方“裁决与弃赛”记录原因。</p></>}
 
       {/* Operations */}
       {match.status !== "cancelled" && (
@@ -212,7 +212,7 @@ export function AdminMatchRow({
                   currentScheduledAt={match.scheduledAt}
                   currentCompletionDeadline={match.completionDeadline}
                 />
-                {(match.format === "bo3" || match.format === "bo5") && match.status === "in_progress" ? (
+                {match.status === "in_progress" ? (
                   <MapByMapInput
                     matchId={match.id}
                     format={match.format}
@@ -227,10 +227,7 @@ export function AdminMatchRow({
                 ) : (
                   <ScoreInput
                     matchId={match.id}
-                    teamAName={teamAName}
-                    teamBName={teamBName}
                     currentStatus={match.status}
-                    format={match.format}
                     startBlockers={startBlockers}
                   />
                 )}
@@ -273,15 +270,9 @@ export function AdminMatchRow({
                     ))}
                   </div>
                 ) : (
-                  <ScoreInput
-                    matchId={match.id}
-                    teamAName={teamAName}
-                    teamBName={teamBName}
-                    currentStatus="finished"
-                    format={match.format}
-                    currentScoreA={match.scoreA}
-                    currentScoreB={match.scoreB}
-                  />
+                  <p className="text-xs leading-5 text-[var(--color-fg-mid)]">
+                    {match.isForfeit ? "本场为弃赛，无实际进行的地图，不提供地图比分或 Stats OCR。" : "本场没有已记录的实际地图比分，不能通过系列赛比分直接修改。"}
+                  </p>
                 )}
                 <ResultCorrectionPanel
                   matchId={match.id}

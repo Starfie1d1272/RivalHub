@@ -5,7 +5,8 @@ import { competitiveRankFacts, competitionEntries, recruitmentIntents, recruitme
 import { loadCompetitivePlatformCatalog } from "@/lib/competitive/catalog";
 import { presentPublicCompetitiveSummary, type PublicCompetitiveProfilePlatform } from "@/lib/competitive/presentation";
 import type { Cs2Position } from "@/lib/config/cs2-positions";
-import type { MapPreference } from "@/types/season";
+import { projectMapPreferences } from "@/lib/maps";
+import { CURRENT_CS2_ACTIVE_DUTY_MAP_POOL, normalizeRegistrationConfig, type MapPreferenceDraft } from "@/types/season";
 import { isTeamRecruitmentTargetAvailable, recruitmentTargetAvailableCondition, teamRecruitmentTargetAvailableCondition } from "@/lib/recruitment/target-policy";
 
 const publicName = sql<string>`coalesce(${users.displayName}, ${users.perfectName}, ${users.steamName}, '未知用户')`;
@@ -40,7 +41,8 @@ export interface PlayerLftCardData extends PublicRecruitmentIntent {
   avatarUrl: string | null;
   currentTeamId: string | null;
   competitiveRoles: Cs2Position[];
-  mapPreferences: MapPreference[];
+  mapPreferences: MapPreferenceDraft[];
+  mapPreferenceContextLabel: string;
   currentTeamName: string | null;
   competitiveSummary: PublicCompetitiveProfilePlatform[];
 }
@@ -64,7 +66,7 @@ export async function getRecruitmentLobbyData(filters: RecruitmentFilters, viewe
 }> {
   const currentPlayerTeam = alias(teams, "recruitment_current_player_team");
   const now = new Date();
-  const [teamRows, playerRows, targetSeasons] = await Promise.all([
+  const [teamRows, playerRows, targetSeasonRows] = await Promise.all([
     db.select({
       id: recruitmentIntents.id,
       positions: recruitmentIntents.positions,
@@ -104,8 +106,12 @@ export async function getRecruitmentLobbyData(filters: RecruitmentFilters, viewe
       .leftJoin(seasons, eq(seasons.id, recruitmentIntents.targetSeasonId))
       .where(and(...openConditions("player_lft", filters), or(isNull(recruitmentIntents.targetSeasonId), recruitmentTargetAvailableCondition(now))))
       .orderBy(desc(recruitmentIntents.updatedAt)),
-    db.select({ id: seasons.id, name: seasons.name }).from(seasons).where(recruitmentTargetAvailableCondition(now)).orderBy(desc(seasons.createdAt)),
+    db.select({ id: seasons.id, name: seasons.name, registrationConfig: seasons.registrationConfig }).from(seasons).where(recruitmentTargetAvailableCondition(now)).orderBy(desc(seasons.createdAt)),
   ]);
+  const targetSeasons = targetSeasonRows.map(({ id, name }) => ({ id, name }));
+  const targetMapPools = new Map(
+    targetSeasonRows.map((season) => [season.id, normalizeRegistrationConfig(season.registrationConfig).mapPool]),
+  );
   const teamIds = teamRows.map((row) => row.teamId);
   const playerIds = [...new Set(playerRows.map((row) => row.userId))];
   const interestIntentIds = teamRows.map((row) => row.id);
@@ -130,13 +136,23 @@ export async function getRecruitmentLobbyData(filters: RecruitmentFilters, viewe
   const countByTeam = new Map(memberCounts.map((row) => [row.teamId, row.count]));
   const rolesByUser = new Map<string, Cs2Position[]>();
   for (const row of roles) rolesByUser.set(row.userId, [...(rolesByUser.get(row.userId) ?? []), row.role]);
-  const mapPreferencesByUser = new Map<string, MapPreference[]>();
+  const mapPreferencesByUser = new Map<string, MapPreferenceDraft[]>();
   for (const row of mapPreferences) mapPreferencesByUser.set(row.userId, row.mapPreferences);
   const factsByUser = new Map<string, typeof rankFacts>();
   for (const row of rankFacts) factsByUser.set(row.userId, [...(factsByUser.get(row.userId) ?? []), row]);
+  const mapPoolForPlayer = (targetSeasonId: string | null) => targetSeasonId
+    ? targetMapPools.get(targetSeasonId) ?? [...CURRENT_CS2_ACTIVE_DUTY_MAP_POOL]
+    : CURRENT_CS2_ACTIVE_DUTY_MAP_POOL;
   return {
     teamRecruitments: teamRows.map((row) => ({ ...row, positions: row.positions as Cs2Position[], memberCount: countByTeam.get(row.teamId) ?? 0 })),
-    playerLfts: playerRows.map((row) => ({ ...row, positions: row.positions as Cs2Position[], competitiveRoles: rolesByUser.get(row.userId) ?? [], mapPreferences: mapPreferencesByUser.get(row.userId) ?? [], competitiveSummary: presentPublicCompetitiveSummary(competitiveCatalog, factsByUser.get(row.userId) ?? []) })),
+    playerLfts: playerRows.map((row) => ({
+      ...row,
+      positions: row.positions as Cs2Position[],
+      competitiveRoles: rolesByUser.get(row.userId) ?? [],
+      mapPreferences: projectMapPreferences(mapPreferencesByUser.get(row.userId) ?? [], mapPoolForPlayer(row.targetSeasonId)),
+      mapPreferenceContextLabel: row.targetSeasonId ? "目标赛事图池熟练度" : "当前 Active Duty 熟练度",
+      competitiveSummary: presentPublicCompetitiveSummary(competitiveCatalog, factsByUser.get(row.userId) ?? []),
+    })),
     targetSeasons,
     viewerInterestedIntentIds: new Set(interests.map((row) => row.recruitmentIntentId)),
   };

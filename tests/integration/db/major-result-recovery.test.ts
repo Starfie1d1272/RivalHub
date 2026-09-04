@@ -6,7 +6,7 @@
  *  B/C. started or finished final/third-place blocks automatic recovery
  *  D. quarterfinal correction invalidates only its actual semifinal path
  *  B. 下游生成前的胜者更正（无需作废任何比赛，修正后 finalize 可重建）
- *  A. 同胜者比分笔误最小更正（含弃赛形态）
+ *  A. BO1 官方系列赛结果与弃赛形态更正
  *  C. 下游已生成但未开始：plan 展示影响 → 显式确认恢复 → 作废未开始下游
  *     + 回滚 finalizedRound → 经既有 finalize 确定性重建
  *  E. 重复更正请求幂等；重复 finalize 幂等
@@ -370,8 +370,8 @@ async function finishRound1Matches(
     await client.query("BEGIN");
     for (let index = 0; index < ctx.matchIdsByIndex.length; index += 1) {
       const matchId = ctx.matchIdsByIndex[index]!;
-      // flipped: 高种子(A) 9 : 低种子(B) 13 —— 爆冷；否则 A 13:4。
-      const [scoreA, scoreB] = flips.has(index) ? [9, 13] : [13, 4];
+      // flipped: 高种子(A) 0 : 低种子(B) 1 —— 爆冷；否则 A 1:0。
+      const [scoreA, scoreB] = flips.has(index) ? [0, 1] : [1, 0];
       await client.query(
         `UPDATE matches SET score_a = $2, score_b = $3, status = 'finished', completed_at = now(), updated_at = now()
          WHERE id = $1`,
@@ -626,7 +626,7 @@ async function main(): Promise<void> {
       fixtures.push(fixture);
       const run = fixture.stageKeysWithRuns[0]!;
       const r1 = await generateAndInsertRound1(pool, fixture);
-      // m0 爆冷：低种子 13:9 取胜，随后管理员更正回高种子获胜。
+      // m0 爆冷：低种子以 0:1 取胜，随后管理员更正回高种子获胜。
       await finishRound1Matches(pool, r1, { flipMatchIndexes: [0] });
 
       const m0 = r1.matchIdsByIndex[0]!;
@@ -634,7 +634,7 @@ async function main(): Promise<void> {
         () => database.transaction((tx) =>
           applyResultCorrectionInTx(tx, {
             matchId: m0,
-            proposal: { scoreA: 13, scoreB: 4 },
+            proposal: { scoreA: 1, scoreB: 0 },
             actorId: ACTOR,
           }),
         ),
@@ -646,7 +646,7 @@ async function main(): Promise<void> {
       const applied = await database.transaction((tx) =>
         applyResultCorrectionInTx(tx, {
           matchId: m0,
-          proposal: { scoreA: 13, scoreB: 4 },
+          proposal: { scoreA: 1, scoreB: 0 },
           actorId: ACTOR,
           confirmRecovery: true,
         }),
@@ -657,7 +657,7 @@ async function main(): Promise<void> {
       const client = await pool.connect();
       try {
         const fact = await getMatchFact(client, m0);
-        expect(fact.scoreA === 13 && fact.scoreB === 4,  "B2 更正事实必须落库").toBe(true);
+        expect(fact.scoreA === 1 && fact.scoreB === 0,  "B2 更正事实必须落库").toBe(true);
         expect(await auditCount(client, "match.result.corrected", m0) === 1,  "B2 更正审计恰好一条").toBe(true);
 
         // 修正后经既有 finalize 路径重建第 2 轮。
@@ -687,22 +687,22 @@ async function main(): Promise<void> {
 
       const client = await pool.connect();
 
-      // A. 同胜者笔误最小更正。
+      // A. 已 canonical 的 BO1 系列赛结果重复提交时应幂等。
       const typoTarget = r1.matchIdsByIndex[1]!;
       const typoApplied = await database.transaction((tx) =>
         applyResultCorrectionInTx(tx, {
           matchId: typoTarget,
-          proposal: { scoreA: 13, scoreB: 9 },
+          proposal: { scoreA: 1, scoreB: 0 },
           actorId: ACTOR,
         }),
       );
-      expect(!typoApplied.winnerChanged && !typoApplied.alreadyApplied,  "A 同胜者笔误应为普通更正").toBe(true);
+      expect(!typoApplied.winnerChanged && typoApplied.alreadyApplied,  "A canonical BO1 结果重复提交应幂等").toBe(true);
 
       // A2. 弃赛形态同胜者更正。
       await database.transaction((tx) =>
         applyResultCorrectionInTx(tx, {
           matchId: r1.matchIdsByIndex[2]!,
-          proposal: { scoreA: 13, scoreB: 0, isForfeit: true },
+          proposal: { scoreA: 1, scoreB: 0, isForfeit: true },
           actorId: ACTOR,
         }),
       );
@@ -714,7 +714,7 @@ async function main(): Promise<void> {
       // C. 计划层展示影响并要求显式确认。
       const m0 = r1.matchIdsByIndex[0]!;
       const plan = await database.transaction((tx) =>
-        planResultCorrectionInTx(tx, { matchId: m0, proposal: { scoreA: 13, scoreB: 4 } }),
+        planResultCorrectionInTx(tx, { matchId: m0, proposal: { scoreA: 1, scoreB: 0 } }),
       );
       expect(plan.winnerChanges,  "C 计划必须识别胜者变更").toBe(true);
       expect(plan.blockedReasons.length === 0,  "C 全部下游未开始时不应有 fail-closed 理由").toBe(true);
@@ -725,7 +725,7 @@ async function main(): Promise<void> {
 
       await expectAppError(
         () => database.transaction((tx) =>
-          applyResultCorrectionInTx(tx, { matchId: m0, proposal: { scoreA: 13, scoreB: 4 }, actorId: ACTOR }),
+          applyResultCorrectionInTx(tx, { matchId: m0, proposal: { scoreA: 1, scoreB: 0 }, actorId: ACTOR }),
         ),
         ErrorCode.VALIDATION_FAILED,
         "显式确认恢复流程",
@@ -733,7 +733,7 @@ async function main(): Promise<void> {
       );
 
       const applied = await database.transaction((tx) =>
-        applyResultCorrectionInTx(tx, { matchId: m0, proposal: { scoreA: 13, scoreB: 4 }, actorId: ACTOR, confirmRecovery: true }),
+        applyResultCorrectionInTx(tx, { matchId: m0, proposal: { scoreA: 1, scoreB: 0 }, actorId: ACTOR, confirmRecovery: true }),
       );
       expect(applied.winnerChanged,  "C2 应用必须成功").toBe(true);
       expect(applied.invalidatedDownstreamMatches.length === 8,  "C2 应作废全部 8 场第 2 轮").toBe(true);
@@ -747,7 +747,7 @@ async function main(): Promise<void> {
 
       // E. 重复提交同一更正请求：alreadyApplied 且不新增审计/不再作废。
       const repeat = await database.transaction((tx) =>
-        applyResultCorrectionInTx(tx, { matchId: m0, proposal: { scoreA: 13, scoreB: 4 }, actorId: ACTOR, confirmRecovery: true }),
+        applyResultCorrectionInTx(tx, { matchId: m0, proposal: { scoreA: 1, scoreB: 0 }, actorId: ACTOR, confirmRecovery: true }),
       );
       expect(repeat.alreadyApplied,  "E 重复更正应 alreadyApplied").toBe(true);
       expect(repeat.invalidatedDownstreamMatches.length === 0,  "E 重复更正不得再作废任何比赛").toBe(true);
@@ -790,14 +790,14 @@ async function main(): Promise<void> {
         const mLast = r1.matchIdsByIndex[r1.matchIdsByIndex.length - 1]!;
         await expectAppError(
           () => database.transaction((tx) =>
-            applyResultCorrectionInTx(tx, { matchId: mLast, proposal: { scoreA: 4, scoreB: 13 }, actorId: ACTOR, confirmRecovery: true }),
+            applyResultCorrectionInTx(tx, { matchId: mLast, proposal: { scoreA: 0, scoreB: 1 }, actorId: ACTOR, confirmRecovery: true }),
           ),
           ErrorCode.VALIDATION_FAILED,
           "已经开始或完成",
           "D 已开始下游必须硬阻断",
         );
         const untouched = await getMatchFact(client, mLast);
-        expect(untouched.scoreA === 13 && untouched.scoreB === 4,  "D 阻断后原结果不变").toBe(true);
+        expect(untouched.scoreA === 1 && untouched.scoreB === 0,  "D 阻断后原结果不变").toBe(true);
         expect(await getFinalizedRound(client, run.runId) === 1,  "D 阻断后 finalizedRound 不变").toBe(true);
       }
 
@@ -828,7 +828,7 @@ async function main(): Promise<void> {
           expect(Boolean(finalResultCheck.rows[0]?.id),  "F 官方名次夹具注入成功").toBe(true);
           await expectAppError(
             () => database.transaction((tx) =>
-              applyResultCorrectionInTx(tx, { matchId: typoTarget, proposal: { scoreA: 4, scoreB: 13 }, actorId: ACTOR, confirmRecovery: true }),
+              applyResultCorrectionInTx(tx, { matchId: typoTarget, proposal: { scoreA: 0, scoreB: 1 }, actorId: ACTOR, confirmRecovery: true }),
             ),
             ErrorCode.VALIDATION_FAILED,
             "官方名次已经生成",
@@ -910,7 +910,7 @@ async function main(): Promise<void> {
           () => database.transaction((tx) =>
             applyResultCorrectionInTx(tx, {
               matchId: r1Late.matchIdsByIndex[0]!,
-              proposal: { scoreA: 13, scoreB: 4 },
+              proposal: { scoreA: 1, scoreB: 0 },
               actorId: ACTOR,
               confirmRecovery: true,
             }),

@@ -17,24 +17,24 @@ import type { PlayerMetrics, HexagonScores } from "@/lib/utils/hexagon";
 export async function getSeasonHexagonScores(
   seasonId: string
 ): Promise<Map<string, HexagonScores>> {
-  // 回合数：优先 map 级（BO3/BO5），BO1 fallback 到 match 级
+  // 回合数只来自实际打过的地图；matches 仅保存系列赛比分。
   const { rows } = await db.execute(sql`
     SELECT
       mps.user_id,
-      sum(mps.kills)::float        / NULLIF(sum(COALESCE(mm.score_a + mm.score_b, m.score_a + m.score_b)), 0)  AS kpr,
-      sum(mps.deaths)::float       / NULLIF(sum(COALESCE(mm.score_a + mm.score_b, m.score_a + m.score_b)), 0)  AS dpr,
-      sum(mps.assists)::float      / NULLIF(sum(COALESCE(mm.score_a + mm.score_b, m.score_a + m.score_b)), 0)  AS apr,
-      sum(mps.first_kills)::float  / NULLIF(sum(COALESCE(mm.score_a + mm.score_b, m.score_a + m.score_b)), 0)  AS fkpr,
-      sum(mps.multi_kills)::float  / NULLIF(sum(COALESCE(mm.score_a + mm.score_b, m.score_a + m.score_b)), 0)  AS mkpr,
-      sum(mps.clutches)::float     / NULLIF(sum(COALESCE(mm.score_a + mm.score_b, m.score_a + m.score_b)), 0)  AS cpr,
-      sum(mps.adr * COALESCE(mm.score_a + mm.score_b, m.score_a + m.score_b))
-        / NULLIF(sum(COALESCE(mm.score_a + mm.score_b, m.score_a + m.score_b)), 0)                             AS adr,
+      sum(mps.kills)::float        / NULLIF(sum(mm.score_a + mm.score_b), 0)  AS kpr,
+      sum(mps.deaths)::float       / NULLIF(sum(mm.score_a + mm.score_b), 0)  AS dpr,
+      sum(mps.assists)::float      / NULLIF(sum(mm.score_a + mm.score_b), 0)  AS apr,
+      sum(mps.first_kills)::float  / NULLIF(sum(mm.score_a + mm.score_b), 0)  AS fkpr,
+      sum(mps.multi_kills)::float  / NULLIF(sum(mm.score_a + mm.score_b), 0)  AS mkpr,
+      sum(mps.clutches)::float     / NULLIF(sum(mm.score_a + mm.score_b), 0)  AS cpr,
+      sum(mps.adr * (mm.score_a + mm.score_b))
+        / NULLIF(sum(mm.score_a + mm.score_b), 0)                             AS adr,
       avg(mps.rws)                                                                                             AS rws,
       avg(mps.we)                                                                                              AS we,
       avg(mps.rating_pro)                                                                                      AS rating_pro,
       sum(mps.kills)::float        / NULLIF(sum(mps.deaths), 0)                                               AS kd,
       (sum(mps.kills) + sum(mps.assists))::float / NULLIF(sum(mps.deaths), 0)                                 AS kda,
-      sum(COALESCE(mm.score_a + mm.score_b, m.score_a + m.score_b))::int                                      AS total_rounds
+      sum(mm.score_a + mm.score_b)::int                                      AS total_rounds
     FROM match_player_stats mps
     JOIN matches m  ON m.id  = mps.match_id
     JOIN match_maps mm ON mm.id = mps.map_id
