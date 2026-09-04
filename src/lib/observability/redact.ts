@@ -1,5 +1,3 @@
-import "server-only";
-
 import { extractPgError, type PgErrorInfo } from "@/db/errors";
 
 export interface SafeException {

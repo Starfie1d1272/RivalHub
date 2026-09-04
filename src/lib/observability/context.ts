@@ -1,5 +1,3 @@
-import "server-only";
-
 import { context as otelContext, createContextKey } from "@opentelemetry/api";
 
 export interface RequestContext {

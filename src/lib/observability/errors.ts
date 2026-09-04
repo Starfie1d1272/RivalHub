@@ -1,5 +1,3 @@
-import "server-only";
-
 import { AppError, ErrorCode } from "@/lib/errors";
 import { extractPgError, type PgErrorInfo } from "@/db/errors";
 import { safeCode } from "@/lib/observability/redact";

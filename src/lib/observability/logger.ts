@@ -1,5 +1,3 @@
-import "server-only";
-
 import { logs, SeverityNumber } from "@opentelemetry/api-logs";
 import { context as traceContext, SpanStatusCode, trace } from "@opentelemetry/api";
 import { getObservabilityContext, normalizeRequestId, normalizeRoute } from "@/lib/observability/context";

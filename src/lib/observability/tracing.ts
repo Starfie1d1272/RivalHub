@@ -1,5 +1,3 @@
-import "server-only";
-
 import { context as otelContext, SpanStatusCode, trace, type Span } from "@opentelemetry/api";
 import { classifyError } from "@/lib/observability/errors";
 import { extractSafeException, redactText } from "@/lib/observability/redact";

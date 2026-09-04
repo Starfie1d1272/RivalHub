@@ -1,5 +1,3 @@
-import "server-only";
-
 export interface PgErrorInfo {
   code: string;
   constraint?: string;
