@@ -93,7 +93,7 @@ export async function updateSeason(input: SeasonFormInput): Promise<ActionResult
       const { template, set } = planSeasonUpdate(existing, parsed.data);
       await tx.update(seasons).set(set).where(eq(seasons.id, existing.id));
       const nextSlug = set.slug ?? existing.slug;
-      const metadataOnly = !["registrationMode", "hasCaptainVoting", "hasDraft", "minTeamSize", "maxTeamSize", "starterCount", "positions", "stagePlan", "registrationConfig", "teamRegistrationConfig", "affiliationRules"].some((key) => key in set);
+      const metadataOnly = !["registrationMode", "hasCaptainVoting", "hasDraft", "hasCommunityAwards", "minTeamSize", "maxTeamSize", "starterCount", "positions", "stagePlan", "registrationConfig", "teamRegistrationConfig", "affiliationRules"].some((key) => key in set);
       await tx.insert(auditLogs).values({
         seasonId: existing.id,
         action: "season.update",

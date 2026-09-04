@@ -221,6 +221,7 @@ export interface SeasonCapabilities {
   registrationMode: RegistrationMode;
   hasCaptainVoting: boolean;
   hasDraft: boolean;
+  hasCommunityAwards: boolean;
   /** 赛事阶段计划；空数组 = 无赛程阶段 */
   stagePlan: StagePlan;
   /** 报名规则配置 */
@@ -341,6 +342,7 @@ const DRAFT_LEAGUE_PRESET: SeasonCapabilities = {
   registrationMode: "solo",
   hasCaptainVoting: true,
   hasDraft: true,
+  hasCommunityAwards: true,
   stagePlan: RIVALS_STAGE_PLAN,
   registrationConfig: RIVALS_REGISTRATION_CONFIG,
   teamRegistrationConfig: {
@@ -369,6 +371,7 @@ export const OPEN_TOURNAMENT_PRESET: SeasonCapabilities = {
   registrationMode: "team",
   hasCaptainVoting: false,
   hasDraft: false,
+  hasCommunityAwards: true,
   stagePlan: RIVALS_STAGE_PLAN,
   registrationConfig: RIVALS_REGISTRATION_CONFIG,
   teamRegistrationConfig: { ...MAJOR_TEAM_CONFIG, requireTeamLogo: false },
@@ -428,6 +431,7 @@ export const CAPABILITY_PRESETS = {
     registrationMode: "team" as const,
     hasCaptainVoting: false,
     hasDraft: false,
+    hasCommunityAwards: true,
     stagePlan: MAJOR_STAGE_PLAN,
     registrationConfig: MAJOR_REGISTRATION_CONFIG,
     teamRegistrationConfig: MAJOR_TEAM_CONFIG,

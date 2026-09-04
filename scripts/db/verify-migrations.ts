@@ -35,6 +35,7 @@ async function main(): Promise<void> {
         registration_mode: SeasonCapabilities["registrationMode"];
         has_captain_voting: boolean;
         has_draft: boolean;
+        has_community_awards: boolean;
         stage_plan: SeasonCapabilities["stagePlan"];
         registration_config: SeasonCapabilities["registrationConfig"];
         team_registration_config: SeasonCapabilities["teamRegistrationConfig"];
@@ -56,7 +57,7 @@ async function main(): Promise<void> {
         COALESCE(
           (SELECT json_agg(row_to_json(s))
            FROM (
-             SELECT id, slug, registration_mode, has_captain_voting, has_draft,
+             SELECT id, slug, registration_mode, has_captain_voting, has_draft, has_community_awards,
                stage_plan, registration_config, team_registration_config,
                affiliation_rules, min_team_size, max_team_size, starter_count, positions
              FROM public.seasons
@@ -80,6 +81,7 @@ async function main(): Promise<void> {
         registrationMode: season.registration_mode,
         hasCaptainVoting: season.has_captain_voting,
         hasDraft: season.has_draft,
+        hasCommunityAwards: season.has_community_awards,
         stagePlan: season.stage_plan,
         registrationConfig: season.registration_config,
         teamRegistrationConfig: season.team_registration_config,

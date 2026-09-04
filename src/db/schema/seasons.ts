@@ -34,6 +34,8 @@ export const seasons = pgTable("seasons", {
   hasCaptainVoting: boolean("has_captain_voting").notNull().default(true),
   // 是否有蛇形选秀环节
   hasDraft: boolean("has_draft").notNull().default(true),
+  // 是否启用社区奖能力；默认开启，发布后由赛季公开规则生命周期锁定
+  hasCommunityAwards: boolean("has_community_awards").notNull().default(true),
   // 赛制阶段计划；matches.stage 存这里的 StageConfig.key
   stagePlan: json("stage_plan").$type<StagePlan>().notNull().default(sql`'[]'::json`),
   // 报名配置；缺失字段由应用层 fallback 到默认配置

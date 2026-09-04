@@ -22,7 +22,7 @@ CS2 地图也分为相互独立的事实 owner：`CS2_MAP_CATALOG` 是保留历�
 
 ## 4. Seasons
 
-`seasons` 是赛事容器，包含状态、时间、人数、positions 与 capability configuration。Rivals、Major 与自定义赛事由 canonical template factory 建立初始定义；`competitionTemplate` 是持久化的模板身份 owner，编辑时服务端以其为准，draft 内置赛事每次保存都重新 canonicalize 固定语义；`kind` 只用于展示。报名方式、选秀、阶段和资格规则由 capability fields 及关联配置决定。StagePlan 是可变的赛季定义，启动后不能代替冻结的 StageRun 事实。后台编辑能力由 `src/lib/seasons/edit.ts#getSeasonEditCapabilities` 这一纯 owner 根据 persisted status 与 `registrationOpenedAt` 派生，SeasonForm 与 server planner 共用该语义，不按 `kind` 分支。全局赛事目录的生命周期分组是 presentation-only projection，由 `src/lib/seasons/presentation.ts#getSeasonLifecycleGroup` 根据 `status` 与实际报名开放事实 `registrationOpenedAt` 派生；它不创建 `currentSeasonId` 或其它全局 singleton。
+`seasons` 是赛事容器，包含状态、时间、人数、positions 与 capability configuration。Rivals、Major 与自定义赛事由 canonical template factory 建立初始定义；`competitionTemplate` 是持久化的模板身份 owner，编辑时服务端以其为准，draft 内置赛事每次保存都重新 canonicalize 固定语义；`kind` 只用于展示。报名方式、选秀、社区奖、阶段和资格规则由 capability fields 及关联配置决定。`hasCommunityAwards` 默认开启，是独立于赛事阶段的公开能力：草稿可关闭，发布后随公开规则冻结；关闭时公开/后台入口及社区奖 server mutation 均不可用。StagePlan 是可变的赛季定义，启动后不能代替冻结的 StageRun 事实。后台编辑能力由 `src/lib/seasons/edit.ts#getSeasonEditCapabilities` 这一纯 owner 根据 persisted status 与 `registrationOpenedAt` 派生，SeasonForm 与 server planner 共用该语义，不按 `kind` 分支。全局赛事目录的生命周期分组是 presentation-only projection，由 `src/lib/seasons/presentation.ts#getSeasonLifecycleGroup` 根据 `status` 与实际报名开放事实 `registrationOpenedAt` 派生；它不创建 `currentSeasonId` 或其它全局 singleton。
 
 ## 5. Rivals registrations
 
@@ -68,13 +68,19 @@ CS2 地图也分为相互独立的事实 owner：`CS2_MAP_CATALOG` 是保留历�
 
 `post_event_adjudications` 保存赛后裁决，`tournament_honors` 保存冠军、亚军、名次或手动奖项及其有效/撤销/空缺状态。冠军被撤销不会自动把亚军提升为冠军；每项历史事实需要独立裁决。
 
-`tournament_honors` 继续是最终官方荣誉事实。未来奖项定义、候选或资格、申请或提名、材料、审核与补充、最终授予和领取确认属于独立产品流程；其模板、自动资格、申领范围、材料要求和状态仍待产品决策，不能从当前 honor 表反推答案。
+`tournament_honors` 继续是最终官方荣誉事实。社区奖不写入此表，也不替代冠军、MVP、EVP 等官方荣誉。
 
-## 14. Audit
+## 14. Community awards
+
+`community_awards` 与 `community_award_evidence` 是独立于 post-event 的社区奖流程事实。用户提交奖项名称、条件、奖品与说明，管理员可审核、要求补充或驳回；公开后由赛事相关人员提交候选、比赛或视频证据，管理员记录获奖、不颁、取消及必要的终态纠错。候选人与比赛必须属于当前赛事相关事实，public read model 只展示公开/终态以及提交者自己的待处理项。
+
+社区奖生命周期可跨赛事发布前、进行中和结束后；它不由 `season.status` 推导是否可用。`seasons.hasCommunityAwards` 是唯一能力事实，`src/lib/community-awards/service.ts` 的事务边界统一校验该开关后再执行 submit、revise、review、supplement、withdraw、evidence 与 resolve；关闭时所有这些 mutation fail closed。该流程没有规则 DSL、自动评估、投票或支付语义。
+
+## 15. Audit
 
 `audit_logs` 是管理操作的持久审计轨迹。它与业务事实互补，不代替可查询的领域状态。管理员写操作必须同时考虑结果与审计记录。
 
-## 15. Operational/support data
+## 16. Operational/support data
 
 `user_sessions` 仅用于在线状态心跳，不是鉴权来源。应用 session 只保存 Supabase 用户身份，当前角色与赛季 grant 每次从数据库读取。Storage、Auth 与 Data API 的安全边界见 [`auth-and-permissions.md`](./auth-and-permissions.md)。
 
@@ -123,6 +129,8 @@ CS2 地图也分为相互独立的事实 owner：`CS2_MAP_CATALOG` 是保留历�
 | 全局赛事生命周期目录分组 | `src/lib/seasons/presentation.ts#getSeasonLifecycleGroup` + `groupSeasonsByLifecycle` |
 | 公共首页主赛事选择 | `src/lib/home/navigation.ts#selectFeaturedSeason`（presentation-only，不持久化） |
 | 赛事设置生命周期编辑能力 | `src/lib/seasons/edit.ts#getSeasonEditCapabilities` + `planSeasonUpdate`（UI 与 server 共用 capability contract） |
+| 赛事公开能力（含社区奖） | `seasons.hasCommunityAwards` + `src/lib/seasons/edit.ts#planSeasonUpdate`（草稿可改，发布后冻结） |
+| 社区奖 transition 与 capability guard | `src/lib/community-awards/service.ts`（事务内统一复用） |
 | 报名开放时的竞技上下文冻结 | `openSeasonRegistrationInTx` 事务：platform catalog current/previous/ladder + evidence policy → season frozen competitiveProfile |
 | 队长交接的并发安全 | application/team 行锁 + season 行锁 + 目标成员 `FOR UPDATE`，全部判断基于锁定行 |
 | 一队/一人只有一条当前组队意向 | `recruitment_intents` owner shape + unique indexes + owner row lock |

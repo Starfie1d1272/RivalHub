@@ -96,6 +96,26 @@ describe("SeasonForm presets", () => {
     expect(screen.queryByText(/标准 Major 摘要|当前配置已偏离标准 Major/)).not.toBeInTheDocument();
   });
 
+  it("defaults community awards on and submits a draft capability toggle", async () => {
+    const user = userEvent.setup();
+    render(<SeasonForm mode="create" competitivePlatforms={[]} initial={createInitial(structuredClone(MAJOR_DEFAULT_CAPABILITIES), "Major")} />);
+
+    const toggle = screen.getByRole("checkbox", { name: "社区奖" });
+    expect(toggle).toBeChecked();
+    await user.click(toggle);
+    await user.click(screen.getByRole("button", { name: "保存为草稿" }));
+
+    await waitFor(() => expect(createSeasonMock).toHaveBeenCalledWith(expect.objectContaining({ hasCommunityAwards: false })));
+  });
+
+  it("locks the community-awards capability after publish", () => {
+    render(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(MAJOR_DEFAULT_CAPABILITIES), "Major", "registration", { template: "major", hasCommunityAwards: false })} />);
+
+    const toggle = screen.getByRole("checkbox", { name: "社区奖" });
+    expect(toggle).not.toBeChecked();
+    expect(toggle).toBeDisabled();
+  });
+
   it("resets the registration total after applying Major then Rivals; built-in team size controls are fixed", async () => {
     const user = userEvent.setup();
     render(<SeasonForm mode="create" competitivePlatforms={[{ key: "perfect_world", displayName: "完美世界竞技平台" }]} initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "选秀联赛")} />);
