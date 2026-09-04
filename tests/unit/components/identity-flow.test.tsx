@@ -8,8 +8,9 @@ import { LoginForm } from "@/components/auth/LoginForm";
 import { EducationVerificationPanel } from "@/components/settings/EducationVerificationPanel";
 import { EducationVerificationReviewQueue } from "@/components/admin/EducationVerificationReviewQueue";
 
-const { loginWithPasswordMock, resendSignupConfirmationMock, getInstitutionSearchMock, submitEducationVerificationMock, toastSuccessMock, toastErrorMock } = vi.hoisted(() => ({
+const { loginWithPasswordMock, signUpMock, resendSignupConfirmationMock, getInstitutionSearchMock, submitEducationVerificationMock, toastSuccessMock, toastErrorMock } = vi.hoisted(() => ({
   loginWithPasswordMock: vi.fn(),
+  signUpMock: vi.fn(),
   resendSignupConfirmationMock: vi.fn(),
   getInstitutionSearchMock: vi.fn(),
   submitEducationVerificationMock: vi.fn(),
@@ -18,9 +19,14 @@ const { loginWithPasswordMock, resendSignupConfirmationMock, getInstitutionSearc
 }));
 
 vi.mock("sonner", () => ({ toast: { success: toastSuccessMock, error: toastErrorMock } }));
-vi.mock("@/actions/auth", () => ({ loginWithPassword: loginWithPasswordMock, signUp: vi.fn(), resendSignupConfirmation: resendSignupConfirmationMock, resendCurrentEmailVerification: vi.fn() }));
+vi.mock("@/actions/auth", () => ({ loginWithPassword: loginWithPasswordMock, signUp: signUpMock, resendSignupConfirmation: resendSignupConfirmationMock, resendCurrentEmailVerification: vi.fn() }));
 vi.mock("@/actions/education-verifications", () => ({ declareInstitutionalEmailEducation: vi.fn(), getInstitutionSearch: getInstitutionSearchMock, submitEducationVerification: submitEducationVerificationMock, reviewEducationVerification: vi.fn() }));
-vi.mock("@/components/auth/TurnstileWidget", () => ({ TurnstileWidget: () => <div data-testid="turnstile" /> }));
+vi.mock("@/components/auth/TurnstileWidget", () => ({
+  TurnstileWidget: ({ onVerify }: { onVerify: (token: string) => void }) => {
+    React.useEffect(() => onVerify("test-turnstile-token"), [onVerify]);
+    return <div data-testid="turnstile" />;
+  },
+}));
 
 describe("identity flow UI", () => {
   beforeEach(() => { vi.clearAllMocks(); vi.stubGlobal("React", React); vi.stubGlobal("prompt", vi.fn(() => "审核通过")); });
@@ -54,6 +60,27 @@ describe("identity flow UI", () => {
     expect(screen.getByText(/检查垃圾邮件、广告邮件或其它分类/)).toBeInTheDocument();
   });
 
+  it("uses the same anonymous account-setup presentation after signup success", async () => {
+    signUpMock.mockResolvedValue({ success: true, data: { email: "new@example.test" } });
+    render(<LoginForm initialMode="register" />);
+
+    fireEvent.change(screen.getByLabelText("邮箱地址"), { target: { value: "new@example.test" } });
+    fireEvent.change(screen.getByLabelText("密码"), { target: { value: "Aa1!xx" } });
+    fireEvent.change(screen.getByLabelText("确认密码"), { target: { value: "Aa1!xx" } });
+    const submit = screen.getAllByRole("button", { name: "注册" })[1]!;
+    await waitFor(() => expect(submit).not.toBeDisabled());
+    fireEvent.click(submit);
+
+    expect(await screen.findByRole("heading", { name: "继续完成账号设置" })).toBeInTheDocument();
+    expect(screen.getByText("如果这是你首次使用该邮箱注册，请前往邮箱完成验证。")).toBeInTheDocument();
+    expect(screen.getByText("如果你此前已经使用这个邮箱注册过 RivalHub，请直接登录；忘记密码可以重新设置。")).toBeInTheDocument();
+    expect(screen.getByText("为保护账号隐私，我们不会在这里确认该邮箱是否已注册。")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "去登录" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "找回密码" })).toHaveAttribute("href", "/forgot-password");
+    expect(screen.getByRole("button", { name: "请等待 60 秒后重试" })).toBeDisabled();
+    expect(screen.queryByText("验证邮件已发送")).not.toBeInTheDocument();
+  });
+
   it("after a successful resend, disables repeated sends for the configured cooldown", async () => {
     loginWithPasswordMock.mockResolvedValue({
       success: false,
@@ -70,6 +97,7 @@ describe("identity flow UI", () => {
 
     await waitFor(() => expect(resendSignupConfirmationMock).toHaveBeenCalledTimes(1), { timeout: 10_000 });
     await waitFor(() => expect(screen.getByRole("button", { name: "请等待 60 秒后重试" })).toBeDisabled(), { timeout: 5_000 });
+    expect(toastSuccessMock).toHaveBeenCalledWith("已提交验证邮件重发请求；如果该邮箱仍待验证，请检查收件箱及垃圾邮件等分类。");
   });
 
   it("shows current email and education verification states without evidence URLs", () => {

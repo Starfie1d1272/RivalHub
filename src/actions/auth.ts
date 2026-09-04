@@ -130,7 +130,7 @@ export async function signUp(
 
   try {
     const supabase = createPublicAuthClient();
-    const { data, error } = await supabase.auth.signUp({
+    const { error } = await supabase.auth.signUp({
       email: normalizedEmail,
       password,
       options: { emailRedirectTo: confirmationUrl("signup", next) },
@@ -145,29 +145,10 @@ export async function signUp(
       return fail({ code: ErrorCode.VALIDATION_FAILED, message: "注册失败，请确认信息后重试" });
     }
 
-    if (!data.user) {
-      return fail({ code: ErrorCode.INTERNAL_ERROR, message: "注册失败，请稍后重试" });
-    }
-
-    // 事务保护：auth.users 行已创建，若 public.users 插入失败则回滚会话。
-    // 极端情况下（DB 断开）auth.users 会遗留孤立行，下次登录时 loginWithPassword
-    // 的 upsert 兜底修复，属于可接受的低概率不一致。
-    await db
-      .insert(users)
-      .values({
-        email: normalizedEmail,
-        authId: data.user.id,
-        role: "user",
-        updatedAt: new Date(),
-      })
-      .onConflictDoUpdate({
-        target: users.email,
-        set: { authId: data.user.id, updatedAt: new Date() },
-      })
-      .returning();
-
-    // Never establish an iron-session here: Auth confirmation is the only
-    // path that can create a session for a newly registered account.
+    // Supabase may return an obfuscated user for a repeated signup. The
+    // response id is therefore not proof of a canonical Auth identity.
+    // Binding belongs only to the explicit confirmation or password-login
+    // paths, and signup never creates an application session.
     return ok({ email: normalizedEmail });
   } catch (e) {
     return actionError("signUp", e);
