@@ -128,7 +128,7 @@ describe("Major external-member strength rule", () => {
   const home = player("nju-strongest", "钻石S", "A", "A", 1000, 35);
 
   it("allows an all-NJU lineup", () => {
-    expect(evaluateExternalStrengthRule({ config: CONFIG, players: [home, player("nju-weaker", "黄金S", "A", "A", 1000, 10)].map((item) => ({ ...item, isHome: true })) })).toEqual({ eligible: true, blockers: [] });
+    expect(evaluateExternalStrengthRule({ config: CONFIG, players: [home, player("nju-weaker", "黄金S", "A", "A", 1000, 10)].map((item) => ({ ...item, isHome: true })) })).toEqual({ eligible: true, blockers: [], findings: [] });
   });
 
   it("allows an external within 3 stars of the strongest NJU member", () => {
@@ -153,6 +153,7 @@ describe("Major external-member strength rule", () => {
     expect(result.eligible).toBe(false);
     expect(result.blockers.join(" ")).toContain("external-39");
     expect(result.blockers.join(" ")).toContain("nju-strongest");
+    expect(result.findings).toMatchObject([{ code: "external_strength_gap", waivable: true }]);
   });
 
   it("allows an external with no S stars (below-S rank)", () => {
@@ -176,6 +177,7 @@ describe("Major external-member strength rule", () => {
     });
     expect(result.eligible).toBe(false);
     expect(result.blockers.join(" ")).toContain("本校成员均无 S 段位星数");
+    expect(result.findings).toMatchObject([{ code: "external_strength_gap", waivable: true }]);
   });
 
   it("blocks when any of multiple external members violates the rule", () => {
@@ -207,5 +209,6 @@ describe("Major external-member strength rule", () => {
     expect(result.eligible).toBe(false);
     expect(result.blockers.join(" ")).toContain("缺少准确星数");
     expect(result.blockers.join(" ")).not.toContain("人工审核");
+    expect(result.findings).toMatchObject([{ code: "competitive_profile_incomplete", waivable: false }]);
   });
 });

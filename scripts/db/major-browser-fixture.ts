@@ -22,6 +22,7 @@ const PROFILE = {
   rankOrder: createPerfectWorldRankOrder(),
 };
 const FIXTURE_RANK = PROFILE.rankOrder[10]!;
+const FIXTURE_STARS = 10;
 const PASSWORD = "Browser-Major-2026!";
 const ACCOUNT_KEYS = ["captain", "player1", "player2", "player3", "player4"] as const;
 const ACCOUNT_EMAILS = ACCOUNT_KEYS.map((key) => `major-browser-${key}@smail.nju.edu.cn`);
@@ -175,15 +176,15 @@ async function insertFixture(client: import("pg").PoolClient, authIds: Map<strin
   const facts = ACCOUNT_KEYS.filter((key) => key !== "player1").flatMap((key) => {
     const userId = ACCOUNT_IDS[ACCOUNT_KEYS.indexOf(key)]!;
     return [
-      [deterministicUuid(`major-browser-fact-${key}-historical`), userId, "historical_peak", null, FIXTURE_RANK, "2.00"],
-      [deterministicUuid(`major-browser-fact-${key}-previous`), userId, "season_peak", PROFILE.previousSeasonKey, FIXTURE_RANK, "1.90"],
-      [deterministicUuid(`major-browser-fact-${key}-current`), userId, "season_peak", PROFILE.currentSeasonKey, FIXTURE_RANK, "1.80"],
+      [deterministicUuid(`major-browser-fact-${key}-historical`), userId, "historical_peak", null, FIXTURE_RANK, "2.00", FIXTURE_STARS],
+      [deterministicUuid(`major-browser-fact-${key}-previous`), userId, "season_peak", PROFILE.previousSeasonKey, FIXTURE_RANK, "1.90", FIXTURE_STARS],
+      [deterministicUuid(`major-browser-fact-${key}-current`), userId, "season_peak", PROFILE.currentSeasonKey, FIXTURE_RANK, "1.80", FIXTURE_STARS],
     ];
   });
-  for (const [id, userId, kind, seasonKey, rank, rating] of facts) {
+  for (const [id, userId, kind, seasonKey, rank, rating, stars] of facts) {
     await client.query(
-      `INSERT INTO competitive_rank_facts (id, user_id, platform, kind, platform_season_key, rank, rating) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [id, userId, PROFILE.platform, kind, seasonKey, rank, rating],
+      `INSERT INTO competitive_rank_facts (id, user_id, platform, kind, platform_season_key, rank, rating, stars) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [id, userId, PROFILE.platform, kind, seasonKey, rank, rating, stars],
     );
   }
   for (const key of ACCOUNT_KEYS.filter((item) => item !== "player1")) {

@@ -26,9 +26,10 @@ import {
   type CompetitionEntryRegistrationStatus,
 } from "@/lib/competition-entries/presentation";
 import { CS2_POSITION_LABELS, CS2_POSITION_VALUES, type Cs2Position } from "@/lib/config/cs2-positions";
+import type { QualificationFinding } from "@/lib/qualification/service";
 
 type Role = Cs2Position;
-type Readiness = { ready: boolean; blockers: string[]; educationApproved: boolean };
+type Readiness = { ready: boolean; blockers: string[]; findings: QualificationFinding[]; educationApproved: boolean };
 type Candidate = { membershipId: string; userId: string; label: string; status: "active" | "benched"; roles: Role[]; primaryRole: Role | null; readiness?: Readiness };
 type RosterMember = Candidate & { participantId: string; confirmation: CompetitionEntryParticipantStatus; primary: boolean };
 
@@ -52,6 +53,7 @@ interface Props {
     representativeUserId: string;
     perfectTeamId: string | null;
     reviewReason: string | null;
+    qualificationFindings: QualificationFinding[];
     roster: RosterMember[];
     candidates: Candidate[];
   };
@@ -96,6 +98,13 @@ export function CompetitionEntryFlow(props: Props) {
         : `${member.label} · 等待成员确认后核验资格`,
       state: member.readiness?.ready ? "complete" as const : "blocked" as const,
     })) : []),
+    ...(entry.qualificationFindings.length > 0 ? [{
+      label: entry.qualificationFindings.some((finding) => !finding.waivable)
+        ? `资格资料仍不完整：${entry.qualificationFindings.filter((finding) => !finding.waivable).map((finding) => finding.message).join("；")}`
+        : `自动资格规则不通过，待赛事管理员解除：${entry.qualificationFindings.map((finding) => finding.message).join("；")}`,
+      state: entry.qualificationFindings.some((finding) => !finding.waivable) ? "blocked" as const : "pending" as const,
+      detail: "可解除限制不会被显示为系统自动通过；管理员必须针对具体限制留下理由。",
+    }] : [{ label: "自动资格规则已通过", state: "complete" as const }]),
     { label: roleHint.length === 0 ? "预定主力角色分布较完整" : `角色软提示：可考虑补充 ${roleHint.join(" / ")}`, state: roleHint.length === 0 ? "complete" as const : "pending" as const, detail: "角色仅用于推荐；重复 AWPer、没有 IGL 或任何角色缺口都不会阻止提交。" },
   ];
   const ready = blockers.filter((item) => item.state !== "pending").every((item) => item.state === "complete");

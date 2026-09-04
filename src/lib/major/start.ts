@@ -20,6 +20,7 @@ import { assertPrestartEntryCoherenceInTx } from "@/lib/major/prestart-entry";
 import { ensureMajorPrestartStateInTx } from "@/lib/major/prestart-state";
 import { freezeAffiliationRules } from "@/lib/major/frozen-affiliation-rules";
 import { makeMajorRunSnapshotV4 } from "@/lib/major/run-snapshot";
+import { loadActiveRestrictionOverridesInTx, unresolvedQualificationFindings } from "@/lib/competition-entries/restriction-overrides";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 import { checkStandardMajorCapabilities } from "@/lib/competition/definition";
 import {
@@ -232,6 +233,16 @@ export async function startMajorInTransaction(
     members.push({ userId: row.userId, isPrimaryStarter: row.isPrimaryStarter });
     membersByEventRoster.set(row.eventRosterId, members);
   }
+  const activeRestrictionOverrides = await loadActiveRestrictionOverridesInTx(tx, {
+    competitionId: season.id,
+    entryIds: entrantRows.map((entrant) => entrant.competitionEntryId),
+    rosterRevisionIds: coherenceRows.map((row) => row.approvedRevision.id),
+  });
+  const overridesByEntryAndRevision = new Map<string, typeof activeRestrictionOverrides>();
+  for (const override of activeRestrictionOverrides) {
+    const key = `${override.entryId}:${override.rosterRevisionId}`;
+    overridesByEntryAndRevision.set(key, [...(overridesByEntryAndRevision.get(key) ?? []), override]);
+  }
   const qualificationBlockers: string[] = [];
   for (const entrant of entrantRows) {
     const rosterMembers = membersByEventRoster.get(coherenceRows.find((row) => row.entry.id === entrant.competitionEntryId)?.eventRoster.id ?? "") ?? [];
@@ -251,8 +262,13 @@ export async function startMajorInTransaction(
       competitiveProfile,
       primaryStarterUserIds: rosterMembers.filter((member) => member.isPrimaryStarter).map((member) => member.userId),
     });
-    if (!qualification.eligible) {
-      qualificationBlockers.push(`参赛条目「${entryNameByEntryId.get(entrant.competitionEntryId) ?? entrant.competitionEntryId}」：${qualification.blockers.join(" ")}`);
+    const coherence = coherenceRows.find((row) => row.entry.id === entrant.competitionEntryId);
+    const overrides = coherence
+      ? overridesByEntryAndRevision.get(`${entrant.competitionEntryId}:${coherence.approvedRevision.id}`) ?? []
+      : [];
+    const unresolved = unresolvedQualificationFindings(qualification.findings, overrides);
+    if (unresolved.length > 0) {
+      qualificationBlockers.push(`参赛条目「${entryNameByEntryId.get(entrant.competitionEntryId) ?? entrant.competitionEntryId}」：${unresolved.map((finding) => finding.message).join(" ")}`);
     }
   }
   if (qualificationBlockers.length > 0) {
@@ -277,6 +293,7 @@ export async function startMajorInTransaction(
     );
     return {
       userId,
+      label: effective?.label ?? fact?.displayName ?? fact?.perfectName ?? fact?.email ?? userId,
       historicalPeak: competitiveProfile ? serialize(effective?.historicalPeak) : null,
       previousSeasonPeak: competitiveProfile
         ? serialize(effective?.previousSeasonPeak)
@@ -310,6 +327,21 @@ export async function startMajorInTransaction(
     },
     affiliationRules: freezeAffiliationRules(capabilities.affiliationRules),
     competitiveProfile,
+    qualificationPolicy: {
+      externalStrengthGap: {
+        enabled: competitiveProfile !== null,
+        maxGap: competitiveProfile?.externalStrengthMaxStarGap ?? 3,
+      },
+    },
+    frozenRestrictionOverrides: activeRestrictionOverrides.map((override) => ({
+      entryId: override.entryId,
+      rosterRevisionId: override.rosterRevisionId,
+      restrictionCode: override.restrictionCode,
+      findingSnapshot: override.findingSnapshot,
+      reason: override.reason,
+      grantedBy: override.grantedBy,
+      grantedAt: override.grantedAt.toISOString(),
+    })),
     // Immutable participant-level historical / previous / current values.
     // Match lineup validation must never consult mutable rank facts again.
     frozenCompetitiveFacts,

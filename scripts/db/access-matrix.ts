@@ -175,6 +175,13 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "提交序列和审核决策用于 canonical lifecycle 与 audit。",
   ),
   serverOnly(
+    "competition_entry_restriction_overrides",
+    "CompetitionEntry / review",
+    "资格限制解除与审计事实",
+    "src/lib/competition-entries/restriction-overrides.ts; src/lib/competition-entries/commands.ts",
+    "只记录管理员针对当前 roster revision 的显式、可解除政策限制；资料缺失仍由资格 owner 阻断。",
+  ),
+  serverOnly(
     "competitive_platform_ranks",
     "竞技资料目录",
     "内部等级目录配置",
@@ -701,7 +708,7 @@ export function renderDatabaseAccessMatrixMarkdown(): string {
     "",
     "## 结论",
     "",
-    "- 当前 active chain 的 64 张 application-owned `public` base table 全部归类为 `server_only`。业务数据库只由 server-side Drizzle 访问，browser Data API consumer 为零。",
+    "- 当前 active chain 的 65 张 application-owned `public` base table 全部归类为 `server_only`。业务数据库只由 server-side Drizzle 访问，browser Data API consumer 为零。",
     "- `users`、`user_sessions`、`admin_invites`、`admin_invite_claims`、`season_admin_grants`、`audit_logs`、education evidence、Major prestart/runtime 和 bracket runtime 均按高敏感 server-only 处理。",
     "- 2026-09-03 production 只读 inventory 在 migration 前确认 `competition_bracket_states` 是明确的 anon/authenticated CRUD privilege 例外；Issue #395 的 forward migration 将其与其余表统一收口。",
     "- `DraftLiveRoom` 与 `CaptainVotingPanel` 的 Realtime subscription 已删除。两处继续使用既有 10 秒 polling fallback；`ResetPasswordForm` 保留 browser Supabase client，但仅调用 Supabase Auth，不调用 public table Data API。",

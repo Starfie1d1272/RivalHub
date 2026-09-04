@@ -16,7 +16,7 @@ import {
 } from "@/db/schema";
 import { getPositionCounts, getApprovedCount } from "@/actions/register";
 import { RegistrationForm } from "@/components/register/RegistrationForm";
-import { normalizeRegistrationConfig } from "@/types/season";
+import { normalizeAffiliationRules, normalizeRegistrationConfig, normalizeTeamRegistrationConfig } from "@/types/season";
 import { REGISTRATION_STATUS_LABELS } from "@/types/registration";
 import { Panel, StatusBanner, PosChip } from "@/components/rivalhub";
 import { positionLabel } from "@/lib/validators/registration";
@@ -27,8 +27,7 @@ import { isSoloRegistration } from "@/lib/utils/season";
 import { isTeamRegistration } from "@/lib/utils/season";
 import { CompetitionEntryFlow } from "@/components/register/CompetitionEntryFlow";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
-import { getParticipantReadinessBatch } from "@/lib/qualification/service";
-import { normalizeTeamRegistrationConfig } from "@/types/season";
+import { evaluateRosterQualification, getParticipantReadinessBatch, isHomeAffiliatedMember, loadEducationMembershipFacts, resolveCompetitiveContext, resolveSeasonEducationVerification } from "@/lib/qualification/service";
 import { getPublicOrAuthorizedDraftSeason, getPublicSeasonBySlug } from "@/lib/data/public-seasons";
 
 interface RegisterPageProps {
@@ -145,6 +144,29 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
       const readinessByUser = teamConfig.requireCompetitiveProfile && teamConfig.competitiveProfile
         ? await getParticipantReadinessBatch(userIds, teamConfig.competitiveProfile)
         : new Map();
+      const affiliationRules = normalizeAffiliationRules(season.affiliationRules);
+      const educationFacts = await loadEducationMembershipFacts(db, rosterRows.map((row) => row.userId));
+      const competitiveContext = teamConfig.requireCompetitiveProfile && teamConfig.competitiveProfile
+        ? await resolveCompetitiveContext(teamConfig.competitiveProfile)
+        : undefined;
+      const qualification = competitiveContext === null
+        ? { findings: [{ code: "competitive_context_unavailable", message: "该赛事采用的竞技资料暂时无法核验。", waivable: false }] }
+        : await evaluateRosterQualification({
+            members: rosterRows.map((member) => {
+              const fact = educationFacts.get(member.userId);
+              const education = resolveSeasonEducationVerification(fact?.history ?? [], affiliationRules).selectedVerification;
+              return {
+                userId: member.userId,
+                email: fact?.email ?? member.email,
+                emailVerifiedAt: fact?.emailVerifiedAt ?? null,
+                educationHistory: fact?.history ?? [],
+                isHome: isHomeAffiliatedMember(education ?? { institutionCode: null, academicStatus: null }, affiliationRules),
+              };
+            }),
+            affiliationRules,
+            competitiveProfile: competitiveContext,
+            primaryStarterUserIds: rosterRows.filter((member) => member.primary).map((member) => member.userId),
+          });
       const roleRows = userIds.length ? await db.select({ userId: userCompetitiveRoles.userId, role: userCompetitiveRoles.role, isPrimary: userCompetitiveRoles.isPrimary }).from(userCompetitiveRoles).where(inArray(userCompetitiveRoles.userId, userIds)) : [];
       const rolesByUser = new Map<string, Array<(typeof roleRows)[number]["role"]>>();
       const primaryRoleByUser = new Map<string, (typeof roleRows)[number]["role"]>();
@@ -160,6 +182,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
         representativeUserId: entry.representativeUserId,
         perfectTeamId: entry.perfectTeamId,
         reviewReason: entry.reviewReason,
+        qualificationFindings: qualification.findings,
         candidates,
         roster: rosterRows.map((row) => ({
           participantId: row.participantId,

@@ -4,7 +4,7 @@
 
 ## 结论
 
-- 当前 active chain 的 64 张 application-owned `public` base table 全部归类为 `server_only`。业务数据库只由 server-side Drizzle 访问，browser Data API consumer 为零。
+- 当前 active chain 的 65 张 application-owned `public` base table 全部归类为 `server_only`。业务数据库只由 server-side Drizzle 访问，browser Data API consumer 为零。
 - `users`、`user_sessions`、`admin_invites`、`admin_invite_claims`、`season_admin_grants`、`audit_logs`、education evidence、Major prestart/runtime 和 bracket runtime 均按高敏感 server-only 处理。
 - 2026-09-03 production 只读 inventory 在 migration 前确认 `competition_bracket_states` 是明确的 anon/authenticated CRUD privilege 例外；Issue #395 的 forward migration 将其与其余表统一收口。
 - `DraftLiveRoom` 与 `CaptainVotingPanel` 的 Realtime subscription 已删除。两处继续使用既有 10 秒 polling fallback；`ResetPasswordForm` 保留 browser Supabase client，但仅调用 Supabase Auth，不调用 public table Data API。
@@ -29,6 +29,7 @@
 | competition_entry_roster_members | 提交名单成员与起发标记 | CompetitionEntry / roster | src/lib/competition-entries/commands.ts; src/app/admin/[seasonSlug]/registrations/page.tsx | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 名单包含个人身份和参赛资格上下文，仅由服务端 read model 投影。 |
 | competition_entry_roster_revisions | 提交名单版本与审核事实 | CompetitionEntry / roster | src/lib/competition-entries/roster-change.ts; src/lib/competition-entries/commands.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | revision、审批指针和 remediation 不能由客户端直接修改。 |
 | competition_entry_submissions | 报名审核决策历史 | CompetitionEntry / review | src/lib/competition-entries/commands.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 提交序列和审核决策用于 canonical lifecycle 与 audit。 |
+| competition_entry_restriction_overrides | 资格限制解除与审计事实 | CompetitionEntry / review | src/lib/competition-entries/restriction-overrides.ts; src/lib/competition-entries/commands.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 只记录管理员针对当前 roster revision 的显式、可解除政策限制；资料缺失仍由资格 owner 阻断。 |
 | competitive_platform_ranks | 内部等级目录配置 | 竞技资料目录 | src/lib/competitive/catalog.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 目录由服务端 bootstrap 和冻结快照 owner 管理。 |
 | competitive_platform_seasons | 内部赛季目录配置 | 竞技资料目录 | src/lib/competitive/catalog.ts; src/actions/competitive-platform.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 目录 season key 和 rank order 不能由 Data API 改写。 |
 | competitive_platforms | 内部平台目录配置 | 竞技资料目录 | src/lib/competitive/catalog.ts; src/actions/competitive-platform.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 平台定义是服务端产品配置，不是浏览器公开写入面。 |
