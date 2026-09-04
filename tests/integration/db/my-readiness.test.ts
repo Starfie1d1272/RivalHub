@@ -32,10 +32,10 @@ async function main(): Promise<void> {
     const platform = await client.query<{ key: string }>("SELECT key FROM competitive_platforms ORDER BY key LIMIT 1");
     const platformKey = platform.rows[0]?.key;
     expect(platformKey).toBeTruthy();
-    const catalog = await client.query<{ season_key: string; is_current: boolean; rank_key: string }>(
-      `SELECT season.season_key, season.is_current, rank.rank_key
+    const catalog = await client.query<{ season_key: string; is_current: boolean; rank_key: string; star_min: number | null }>(
+      `SELECT season.season_key, season.is_current, rank.rank_key, rank.star_min
        FROM competitive_platform_seasons season
-       CROSS JOIN LATERAL (SELECT rank_key FROM competitive_platform_ranks WHERE platform_key = season.platform ORDER BY sort_order DESC LIMIT 1) rank
+       CROSS JOIN LATERAL (SELECT rank_key, star_min FROM competitive_platform_ranks WHERE platform_key = season.platform ORDER BY sort_order DESC LIMIT 1) rank
        WHERE season.platform = $1 AND season.active = true
        ORDER BY season.sort_order DESC`,
       [platformKey],
@@ -45,7 +45,7 @@ async function main(): Promise<void> {
     expect(current).toBeDefined();
     expect(previous).toBeDefined();
     if (!current || !previous) throw new Error("Local fixture 需要当前与上一赛季目录。");
-    const ranks = await client.query<{ rank_key: string }>("SELECT rank_key FROM competitive_platform_ranks WHERE platform_key = $1 ORDER BY sort_order", [platformKey]);
+    const ranks = await client.query<{ rank_key: string; star_min: number | null }>("SELECT rank_key, star_min FROM competitive_platform_ranks WHERE platform_key = $1 ORDER BY sort_order", [platformKey]);
     expect(ranks.rows.length).toBeGreaterThan(0);
     const institution = await client.query<{ id: string }>("SELECT id FROM institutions ORDER BY created_at LIMIT 1");
     expect(institution.rows[0]).toBeTruthy();
@@ -54,7 +54,8 @@ async function main(): Promise<void> {
     await client.query(`INSERT INTO users (id, email, display_name, steam64, perfect_name, qq, email_verified_at) VALUES ($1, $2, 'Local 我的选手', '76561198000000001', $3, '100001', now()), ($4, $5, 'Local 替补队长', '76561198000000002', $6, '100002', now()), ($7, $8, 'Local 待处理邀请', NULL, NULL, NULL, now())`, [ids.user, `my-readiness-${ids.user}@local.test`, `perfect-${ids.user}`, ids.benchedCaptain, `my-readiness-benched-${ids.benchedCaptain}@local.test`, `perfect-${ids.benchedCaptain}`, ids.noTeamUser, `my-readiness-invitee-${ids.noTeamUser}@local.test`]);
     await client.query(`INSERT INTO education_verifications (user_id, institution_id, academic_status, evidence_type, status, reviewed_by, reviewed_at) VALUES ($1, $2, 'enrolled', 'manual_other', 'approved', 'local-admin', now())`, [ids.user, institution.rows[0]!.id]);
     for (const [kind, seasonKey] of [["historical_peak", null], ["season_peak", previous.season_key], ["season_peak", current.season_key]] as const) {
-      await client.query(`INSERT INTO competitive_rank_facts (user_id, platform, kind, platform_season_key, rank, rating) VALUES ($1, $2, $3, $4, $5, 2000)`, [ids.user, platformKey, kind, seasonKey, ranks.rows.at(-1)!.rank_key]);
+      const peakRank = ranks.rows.at(-1)!;
+      await client.query(`INSERT INTO competitive_rank_facts (user_id, platform, kind, platform_season_key, rank, rating, stars) VALUES ($1, $2, $3, $4, $5, 2000, $6)`, [ids.user, platformKey, kind, seasonKey, peakRank.rank_key, peakRank.star_min]);
     }
     await client.query(`INSERT INTO teams (id, slug, name, creator_user_id, captain_user_id) VALUES ($1, $2, 'Local 我的 Team', $3, $3), ($4, $5, 'Local 替补 Team', $6, $6)`, [ids.activeTeam, `local-my-${ids.activeTeam.slice(0, 8)}`, ids.user, ids.benchedTeam, `local-my-benched-${ids.benchedTeam.slice(0, 8)}`, ids.benchedCaptain]);
     await client.query(`INSERT INTO team_memberships (team_id, user_id, status, invited_by_user_id) VALUES ($1, $2, 'active', $2), ($3, $4, 'active', $4)`, [ids.activeTeam, ids.user, ids.benchedTeam, ids.benchedCaptain]);
