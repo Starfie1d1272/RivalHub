@@ -1,154 +1,115 @@
-# RivalHub 2.x Roadmap
+# RivalHub Roadmap
 
-## 文档定位
+## 定位
 
-本文件只描述 RivalHub 2.x 的长期产品方向、领域边界与结构性依赖。
+Roadmap 只描述 RivalHub 的长期产品方向、主要依赖和版本边界。
 
-它**不是**实时 TODO、Issue 状态表、版本 changelog 或 release checklist。当前优先级与实施状态以 GitHub Issues / labels / PRs 为准；已发布内容以 Changesets、CHANGELOG 和 GitHub Releases 为准。
+具体工作状态、优先级和实施进度以 GitHub Issues / labels / PRs 为准；已经发布的内容以 Changesets、CHANGELOG 和 GitHub Releases 为准。
 
-## 2.x 已建立的基础
+## 从 2.0 到 2.x
 
-RivalHub 2.x 的基础目标已经从“单届赛事工具”转向“可跨赛季持续运营的赛事平台”。后续能力应继续建立在以下事实边界之上。
+RivalHub 2.0 最初围绕 Major 的正式运营需求展开。为了把 Major 从报名真正推进到开赛和赛后，项目逐步补齐了长期 Team、CompetitionEntry、资格审核、赛事生命周期、赛前冻结、Swiss / Playoffs、比赛管理和赛后事实等能力。
 
-### 长期参与者身份
+这些能力后来不再只服务 Major，而是成为 RivalHub 2.x 的整体基础。2.x 接下来的目标，是把 RivalHub 做成一套成熟的高校 CS 赛事运营产品：赛事本身能稳定运行，Player / Team / Event 能跨赛季沉淀，赛后数据能继续利用，用户也有更多观赛和参与方式。
 
-- 用户账号、教育资格与竞技档案属于跨赛事长期事实；
-- profile readiness 与某届赛事的 event eligibility 分离；
-- 展示身份、竞技目录、qualification 和赛事快照各自拥有明确 owner。
+## 2.x 当前主线
 
-### 长期 Team 与赛事参赛
+### 1. 赛事运营成熟度
 
-- Team 是长期一级实体；
-- CompetitionEntry 表示某支 Team 或某组参赛者进入某一届赛事的参赛身份；
-- 加入长期 Team 不等于自动参加赛事；
-- 报名名单、正式赛事名单、阶段 entrants 与 match roster 保持分层。
+先把真实办赛过程中最容易依赖人工判断、临时页面和现场经验的部分继续收口。
 
-### 正式赛事事实
+当前重点包括：
 
-- qualification 由服务端 canonical evaluator 计算；
-- 赛事在关键节点冻结需要稳定复现的参赛和竞技上下文；
-- 比赛、赛果、恢复、纪律、placement 与 honor 不互相用 UI projection 推断；
-- 赛后历史消费已经确认的正式事实，而不是重算过去。
+- [#424 生产可观测性、Tracing 与敏感日志治理](https://github.com/Starfie1d1272/RivalHub/issues/424)；
+- [#368 赛事后台工作区与 Major 赛前运营流程](https://github.com/Starfie1d1272/RivalHub/issues/368)；
+- [#409 高价值列表的搜索、筛选、排序与分页](https://github.com/Starfie1d1272/RivalHub/issues/409)；
+- [#365 版本化 5E → Perfect 换算策略与赛事冻结快照](https://github.com/Starfie1d1272/RivalHub/issues/365) 的剩余管理与展示能力。
 
-### 数据与发布边界
+这一阶段的目标不是继续增加更多后台页面，而是让报名、审核、名单、种子、比赛和赛后操作形成顺畅、可解释、可恢复的完整工作流。
 
-- active Drizzle migrations 是唯一数据库迁移 authority；
-- schema evolution 需要兼顾上一稳定版本与下一版本的部署兼容性；
-- `main` 是 releasable trunk，`v*` tag 才是正式 shipped identity；
-- production migration、exact-tag deployment 与 smoke 属于受保护 release transaction。
+### 2. 历史、荣誉与数据
 
-## 2.x 产品主线
+赛事结束以后，结果不应只留在当届页面里。2.x 会继续把正式赛事事实整理成长期可查看、可纠错、可复用的数据。
 
-### 1. 参与者、Team 与 Eligibility
+主要方向：
 
-继续完善“一个人 / 一支队伍长期是谁，以及在某届赛事里现在能做什么”。
+- [#265 赛事历史与统一赛后面板](https://github.com/Starfie1d1272/RivalHub/issues/265)；
+- [#266 奖项、荣誉与赛后产品](https://github.com/Starfie1d1272/RivalHub/issues/266)；
+- [#268 RivalHub ↔ DAK 数据闭环](https://github.com/Starfie1d1272/RivalHub/issues/268)。
 
-重点包括：
+目标包括更完整的 Player / Team / Event 历史、正式荣誉、可追溯的赛后数据，以及 RivalHub 与 Demo / OCR / DAK 之间清晰的数据边界。
 
-- 长期 profile 与竞技档案；
-- 长期 Team 的成员、队长、邀请与招募；
-- CompetitionEntry 的报名、成员确认、qualification、补正、审核与 readiness；
-- 教育资格、竞技上下文和 sanction 与 event eligibility 的组合；
-- “我的 RivalHub”作为个人任务和 blocker 的稳定入口。
+### 3. 观赛互动
 
-### 2. 赛事运行与运营质量
+在正式赛事运行稳定以后，RivalHub 可以进一步增加不影响正式赛果的观赛与预测玩法。
 
-继续收口真实办赛过程中最容易出现人工旁路和状态歧义的环节。
+主要方向：
 
-重点包括：
+- [#273 Major 赛事模拟器与 Pick'Em 竞猜](https://github.com/Starfie1d1272/RivalHub/issues/273)；
+- [#274 Major Prediction Points](https://github.com/Starfie1d1272/RivalHub/issues/274)。
 
-- Rivals 与 Major 的正式生命周期；
-- 赛前名单、种子与 opening plan；
-- Stage runtime、pairing、bracket 与比赛推进；
-- match roster、时间协商、BP、地图和系列赛结果；
-- result correction / recovery、纪律与赛后确认；
-- 管理员工作台的可解释状态、明确 blocker 与安全操作边界。
+Simulator、Pick'Em 和 Prediction Points 都只消费正式赛事结果，不反向影响比赛、pairing、seed 或 placement。
 
-### 3. 历史、荣誉与长期展示
+### 4. Player progression
 
-让一届赛事结束后留下稳定、可引用、可纠错的长期事实。
+当赛事历史和数据来源稳定以后，再继续扩展长期 Player 产品。
 
-重点包括：
+当前保留方向：
 
-- Player / Team / Event 长期历史；
-- placement、正式荣誉、社区奖与纪律记录的边界；
-- tournament honor 的提名、证据、投票、审核与最终确认；
-- 公开事实、本人可见事实和管理员内部事实的展示隔离。
-
-### 4. RivalHub ↔ DAK 数据闭环
-
-把 Demo / OCR / 分析产物接入赛事运营，但不改变 official facts owner。
-
-目标包括：
-
-- 版本化 artifact contract；
-- Steam、roster、match identity 对齐；
-- provenance、人工确认、更正与失败回退；
-- OCR / DAK 派生数据与官方赛果的差异核对；
-- 为赛后分析与奖项提供可追溯证据。
-
-RivalHub 继续拥有身份、正式 roster、赛程、赛果、裁决和最终 honor；分析系统拥有解析与派生分析。
-
-### 5. Spectator engagement
-
-在不污染正式赛事事实的前提下扩展观赛参与感。
-
-可能包括：
-
-- Major scenario simulator；
-- Pick'Em 与挑战；
-- Coin / Badge progression；
-- Prediction Points、settlement ledger 与 leaderboard。
-
-预测、模拟和积分默认都不是 official tournament facts，也不建立现实货币充值、提现或兑换。
-
-### 6. Player progression
-
-在稳定赛事事实和长期竞技档案之上继续扩展个人产品：
-
-- Rating / performance 趋势；
+- [#153 Rating 趋势与长期个人成就](https://github.com/Starfie1d1272/RivalHub/issues/153)；
 - 跨赛事统计；
-- 长期成绩与荣誉；
-- profile 中的赛事历史和成就表达。
+- 长期成绩、荣誉和成就展示。
 
-派生展示可以演进，但不得重新定义已经确认的比赛或赛事结果。
+这些能力建立在已经确认的赛事事实和明确来源的数据上，不重新定义过去的比赛结果。
 
-## 主要依赖关系
+## 主要依赖
 
 ```text
-Competitive Platform Catalog
-          ↓
-long-term Competitive Profile
-          ↓
-qualification ───────────────┐
-                             ↓
-Long-lived Team → CompetitionEntry → readiness → prestart → event runtime
-                             │                         │
-                             └──────────────→ history ←┘
+赛事运营事实
+    ↓
+Player / Team / Event 历史
+    ├──→ 荣誉与赛后展示
+    └──→ + DAK / OCR → 更完整的赛后数据
 
-RivalHub official facts ───────────────┐
-                                       ├→ post-event / history / awards
-DAK artifacts + provenance ────────────┘
-
-Simulator / Prediction ─X→ official match facts
+稳定 Major runtime
+    ↓
+Simulator / Pick'Em
+    ↓
+Prediction Points
 ```
 
-`─X→` 表示明确禁止作为正式事实来源。
+## 3.x 展望
+
+3.x 目前不是已经承诺的功能清单，也没有确定发布时间。它表示在 2.x 把官方实例和高校 CS 赛事运营做成熟以后，RivalHub 可能进入的下一阶段。
+
+如果说 2.x 主要解决“RivalHub 能稳定办好一套完整赛事”，那么 3.x 更可能讨论“同一套产品能力如何服务更多组织、更多部署场景和更广的赛事生态”。
+
+候选方向包括：
+
+### 多组织与多社区
+
+让同一个 RivalHub 实例承载多个赛事组织或高校社群，各自拥有赛事、管理员、品牌和权限范围，同时保留跨组织的 Player 身份。
+
+### 正式支持 production self-hosting
+
+如果未来把第三方部署作为正式产品能力，需要给出完整的安装、升级、Secrets、Auth、Storage、数据库迁移、监控、备份和恢复约定，而不是直接复用官方实例的运维流程。
+
+### 更清晰的游戏能力边界
+
+RivalHub 当前明显以 CS 赛事为主。未来如果出现真实的多游戏需求，应把通用赛事能力与游戏特有的竞技身份、地图 / BP、阵容和统计能力进一步分开，而不是简单增加一个游戏字段。
+
+### API 与外部集成
+
+随着 DAK、直播工具、Bot 或其它赛事服务增加，可以再考虑稳定的 API、Webhook 和集成边界，让外部工具消费 RivalHub 的正式赛事事实。
+
+这些方向只有在出现真实需求并形成明确产品边界后，才进入正式 3.x 规划。
 
 ## 2.x 非目标
 
-2.x 不以“支持任意第三方 production 部署”为产品目标。仓库保持开源并支持本地开发，但当前产品、运维和发布设计优先服务 RivalHub 官方实例与真实赛事运营。
+2.x 不把第三方 production self-hosting 作为正式支持目标。仓库继续保持开源并支持本地开发，但当前产品、运维和发布设计优先服务 RivalHub 官方实例与真实赛事运营。
 
-如果未来将 self-hosting 作为正式产品能力，应单独定义：安装、升级、Secrets、邮件、Auth、Storage、数据库迁移、监控、备份、灾难恢复和版本兼容承诺，而不是把现有 production runbook 包装成通用教程。
+## 维护
 
-## 维护规则
+只有长期产品方向、主要依赖或 major version 边界发生变化时才更新本文件。
 
-只有以下变化需要更新 Roadmap：
-
-- 2.x 产品方向新增、取消或明显重排；
-- 长期领域边界或 canonical owner 改变；
-- 两个产品域之间的结构性依赖改变；
-- release contract 或产品支持范围改变；
-- 某条主线移出 2.x 或进入下一 major version。
-
-普通 PR merge、Issue close、label 变化、测试数量、migration 数量和当前版本号都不应写入本文件。
+普通 PR merge、Issue close、label 变化、当前版本号、测试数量和 migration 数量不写入 Roadmap。
