@@ -71,6 +71,7 @@ async function cleanupFixture(pool: Pool, ids: FixtureIds): Promise<void> {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    await client.query("SET LOCAL session_replication_role = replica");
     await client.query("DELETE FROM team_invitations WHERE team_id = $1", [ids.team]);
     await client.query("DELETE FROM team_captain_changes WHERE team_id = $1", [ids.team]);
     await client.query("DELETE FROM team_name_changes WHERE team_id = $1", [ids.team]);
