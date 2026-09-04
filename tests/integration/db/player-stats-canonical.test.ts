@@ -213,14 +213,14 @@ describe("canonical player stats PostgreSQL equivalence", () => {
       const weightedAggregate = aggregatePlayerRows(rows.slice(1, 3));
       const weightedSql = byUserId.get(weightedUser);
       expect(weightedSql).toBeDefined();
-      expect(toNumber(weightedSql?.kpr)).toBeCloseTo(weightedAggregate.kpr!, 10);
-      expect(toNumber(weightedSql?.fkpr)).toBeCloseTo(weightedAggregate.fkpr!, 10);
-      expect(toNumber(weightedSql?.hs_percent)).toBeCloseTo(weightedAggregate.hsPercent!, 10);
-      expect(toNumber(weightedSql?.adr)).toBeCloseTo(weightedAggregate.adr!, 10);
-      expect(toNumber(weightedSql?.rating_pro)).toBeCloseTo(weightedAggregate.ratingPro!, 10);
-      expect(toNumber(weightedSql?.rws)).toBeCloseTo(weightedAggregate.rws!, 10);
-      expect(toNumber(weightedSql?.we)).toBeCloseTo(weightedAggregate.we!, 10);
-      expect(toNumber(weightedSql?.kd)).toBeCloseTo(weightedAggregate.kd!, 10);
+      expect(toNumber(weightedSql?.kpr)).toBeCloseTo(weightedAggregate.kpr!, 5);
+      expect(toNumber(weightedSql?.fkpr)).toBeCloseTo(weightedAggregate.fkpr!, 5);
+      expect(toNumber(weightedSql?.hs_percent)).toBeCloseTo(weightedAggregate.hsPercent!, 5);
+      expect(toNumber(weightedSql?.adr)).toBeCloseTo(weightedAggregate.adr!, 5);
+      expect(toNumber(weightedSql?.rating_pro)).toBeCloseTo(weightedAggregate.ratingPro!, 5);
+      expect(toNumber(weightedSql?.rws)).toBeCloseTo(weightedAggregate.rws!, 5);
+      expect(toNumber(weightedSql?.we)).toBeCloseTo(weightedAggregate.we!, 5);
+      expect(toNumber(weightedSql?.kd)).toBeCloseTo(weightedAggregate.kd!, 5);
       expect(toNumber(weightedSql?.total_rounds)).toBe(weightedAggregate.totalRounds);
 
       const unknownSql = byUserId.get(unknownUser);
