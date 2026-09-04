@@ -6,7 +6,7 @@ on:
       ref:
         description: "要验证并用于 staging rehearsal 的 branch、tag 或 commit"
         required: true
-        default: dev
+        default: main
         type: string
 
 permissions:

@@ -5,11 +5,11 @@
 | 环境 | 用途 | 数据库规则 |
 |---|---|---|
 | local | 开发、migration/fixture 验证、并发与破坏性测试 | 仅 loopback Local Supabase，由 `db:local:*` 注入 |
-| preview | `dev`、feature branch、PR 和 release branch 的应用预览 | 由 Vercel Git Preview 提供；不授予 staging 数据库写入权限 |
+| preview | feature branch、PR 和 release branch 的应用预览 | 由 Vercel Git Preview 提供；不授予 staging 数据库写入权限 |
 | staging | 受保护的 migration rehearsal 与 schema verification | 独立 Supabase project，由手动 GitHub Environment workflow 访问 |
 | production | 正式赛事与真实用户 | 只做真实赛事所需操作；不运行 destructive rehearsal |
 
-`dev` 或 Vercel Preview 不自动证明数据库隔离。**Preview ≠ staging DB authorization**：必须确认 target Vercel environment 和 Supabase project，才可在 staging 执行 seed、migration rehearsal、写入型 E2E 或赛事模拟。
+Vercel Preview 不自动证明数据库隔离。**Preview ≠ staging DB authorization**：必须确认 target Vercel environment 和 Supabase project，才可在 staging 执行 seed、migration rehearsal、写入型 E2E 或赛事模拟。
 
 ## Vercel deployment contract
 
@@ -17,7 +17,7 @@ Repository-level Vercel Functions region 固定为 `hnd1`，与 production 当�
 
 ### Preview
 
-`dev`、feature branch、PR 和 release branch 继续通过 Vercel Git Integration 创建 Preview deployment。`vercel.json` 只关闭 `main` branch 的 Git auto-deployment，未声明的 branch 继续使用默认开启语义；GitHub Integration、PR Preview 与 CLI deployment 均保留。
+feature branch、PR 和 release branch 继续通过 Vercel Git Integration 创建 Preview deployment。`vercel.json` 只关闭 `main` branch 的 Git auto-deployment，未声明的 branch 继续使用默认开启语义；GitHub Integration、PR Preview 与 CLI deployment 均保留。
 
 ### Production
 
@@ -36,7 +36,7 @@ release commit 合入 main
 
 ### Staging
 
-应用 Preview 不会自动部署或迁移 staging。需要真实 staging rehearsal 时，人工触发 [`.github/workflows/staging.yml`](../.github/workflows/staging.yml) 的 `workflow_dispatch`，并使用 `ref` input 指定 branch、tag 或 commit（默认 `dev`）。workflow 会记录实际 checkout 的 commit SHA，在 GitHub `staging` Environment 保护下执行：
+应用 Preview 不会自动部署或迁移 staging。需要真实 staging rehearsal 时，人工触发 [`.github/workflows/staging.yml`](../.github/workflows/staging.yml) 的 `workflow_dispatch`，并使用 `ref` input 指定 branch、tag 或 commit（默认 `main`）。workflow 会记录实际 checkout 的 commit SHA，在 GitHub `staging` Environment 保护下执行：
 
 ```text
 checkout requested ref
@@ -46,7 +46,7 @@ checkout requested ref
 → always stop Local PostgreSQL
 ```
 
-`db:staging:migrate` 内部已经负责 `drizzle check`、Local migration replay、Local verify、protected staging migrate 和 staging verify；workflow 不复制 migration algorithm、不执行 seed、reset 或 `db:push`。GitHub `staging` Environment 需要提供 `RIVALHUB_STAGING_DB_PASSWORD`；project confirmation 固定使用 `cueazphyskstwdhnzsxx`，写入必须由 `RIVALHUB_ALLOW_REMOTE_DB_WRITE=staging` 显式授权。该 workflow 只准备和验证 staging DB，不创建 staging app deployment，也不形成自动 `dev → staging → production` promotion pipeline。
+`db:staging:migrate` 内部已经负责 `drizzle check`、Local migration replay、Local verify、protected staging migrate 和 staging verify；workflow 不复制 migration algorithm、不执行 seed、reset 或 `db:push`。GitHub `staging` Environment 需要提供 `RIVALHUB_STAGING_DB_PASSWORD`；project confirmation 固定使用 `cueazphyskstwdhnzsxx`，写入必须由 `RIVALHUB_ALLOW_REMOTE_DB_WRITE=staging` 显式授权。该 workflow 只准备和验证 staging DB，不创建 staging app deployment，也不形成自动 `main → staging → production` promotion pipeline。
 
 ## Local Supabase
 
@@ -100,9 +100,9 @@ CREATE INDEX ...;
 
 `contract-cleanup` 只接受 `DROP`、rename、`ALTER TYPE`/`ALTER COLUMN TYPE` 与 `SET NOT NULL`；`locking-reviewed` 只接受 `rewrite-or-exclusive-lock`（例如非 concurrent `CREATE INDEX` 与 `ADD CONSTRAINT`）。annotation category 错配或缺失都会 fail closed。注释只记录风险策略、阶段和原因，不自动证明安全；带风险的 migration 仍须通过 Local/real-PG replay、必要的 staging rehearsal 与 production preflight。active Drizzle ledger 仍是唯一 migration authority，checker 不建立 shadow migration system。明显 blocking risk 的 SQL 可以在经过验证的 SQL/session 中显式设置 bounded `lock_timeout` 或 `statement_timeout`，但本仓库不向 Drizzle URL 猜测性注入全局 timeout。
 
-本地要复现 CI 的 changed-surface 判定，应显式使用当前 `dev` 基线，例如：`RIVALHUB_MIGRATION_BASE_SHA=$(git merge-base HEAD origin/dev) RIVALHUB_MIGRATION_HEAD_SHA=HEAD pnpm db:migration-risk`。CI 在 checkout 完整历史后传入 PR base/head SHA；没有 active migration 变化时，checker 明确输出 no changed active migrations。
+本地要复现 CI 的 changed-surface 判定，应显式使用当前 `main` 基线，例如：`RIVALHUB_MIGRATION_BASE_SHA=$(git merge-base HEAD origin/main) RIVALHUB_MIGRATION_HEAD_SHA=HEAD pnpm db:migration-risk`。CI 在 checkout 完整历史后传入 PR base/head SHA；没有 active migration 变化时，checker 明确输出 no changed active migrations。
 
-`pnpm db:release-compat` 是独立于 `db:migration-risk` 的 N/N+1 兼容性门禁。它解析的是 actual previous production stable，而不是 candidate branch 的最高 ancestor tag：若设置 `RIVALHUB_PREVIOUS_RELEASE_TAG`，该值必须是可解析的 stable `vX.Y.Z` tag；空值、raw revision、无效 tag 与 `-rc` 等 prerelease 都直接 fail closed。未显式指定时，CI/release 将 `RIVALHUB_PRODUCTION_STABLE_REF` 设为 `origin/main`，resolver 在该 production lineage 上按 semver 选择早于 candidate 的最新 stable tag；显式提供的 production ref 为空或不可解析时同样 fail closed。candidate 的 tag commit 不要求是 candidate HEAD 的 ancestor，也没有静默退回 ancestor tag 的路径。CI 与 release workflow 都在 gate 前取得完整的 `origin/main`/tag history。PR CI 通过 `RIVALHUB_MIGRATION_BASE_SHA` / `RIVALHUB_MIGRATION_HEAD_SHA` 仅限定 candidate changed surface；release tag workflow 在没有这两个覆盖值时，以 previous production stable commit 到 candidate HEAD 的 active migration surface 复核一次。需要 source 证明时，checker 只读取 previous stable tag 中的 `src/db/schema/**`、`src/actions/**`、`src/lib/**`、`src/app/**`、`src/components/**` 与 `scripts/**`，并输出 migration `path:line` 及 previous source `path:line` evidence。
+`pnpm db:release-compat` 是独立于 `db:migration-risk` 的 N/N+1 兼容性门禁。它解析的是 single-trunk 上实际的 previous production stable，而不是 candidate branch 上偶然可见的最高 tag：若设置 `RIVALHUB_PREVIOUS_RELEASE_TAG`，该值必须是可解析的 stable `vX.Y.Z` tag；空值、raw revision、无效 tag 与 `-rc` 等 prerelease 都直接 fail closed。未显式指定时，CI/release 将 `RIVALHUB_PRODUCTION_STABLE_REF` 设为 `origin/main`，resolver 在该 main lineage 上按 semver 选择早于 candidate 的最新 stable tag；显式提供的 production ref 为空或不可解析时同样 fail closed。release retry 的 candidate tag 必须是实际 checkout commit，也没有静默退回其它 tag 的路径。CI 与 release workflow 都在 gate 前取得完整的 `origin/main`/tag history。PR CI 通过 `RIVALHUB_MIGRATION_BASE_SHA` / `RIVALHUB_MIGRATION_HEAD_SHA` 仅限定 candidate changed surface；release tag workflow 在没有这两个覆盖值时，以 previous production stable commit 到 candidate HEAD 的 active migration surface 复核一次。需要 source 证明时，checker 只读取 previous stable tag 中的 `src/db/schema/**`、`src/actions/**`、`src/lib/**`、`src/app/**`、`src/components/**` 与 `scripts/**`，并输出 migration `path:line` 及 previous source `path:line` evidence。
 
 DROP/RENAME 的 relation、column、type owner 若仍被 previous stable shipped code 以 Drizzle schema/property 或带 table context 的 SQL 使用则拒绝；migration-risk annotation 只表示 cleanup 意图，不能绕过该证明。`ALTER TYPE` 与 `SET NOT NULL` 第一版始终 fail closed；`rewrite-or-exclusive-lock` 仍由 migration-risk 和 migration review 负责，不被误当作 app contract 证明。无法安全解析 owner 或无法判断 schema context 时同样拒绝猜测。
 
@@ -115,7 +115,7 @@ Release N+2: previous stable 已不再读写 old owner 后才允许 contract
 
 ### Protected staging migration
 
-`pnpm db:staging:migrate` 和 `pnpm db:staging:verify` 只服务受保护的 `rivalhub-dev` staging workflow。命令拒绝继承 `DATABASE_URL` 或 `.env.local`，并对 project ref、Transaction Pooler shape 和写入授权 fail closed。
+`pnpm db:staging:migrate` 和 `pnpm db:staging:verify` 只服务受保护的 staging workflow。命令拒绝继承 `DATABASE_URL` 或 `.env.local`，并对 project ref、Transaction Pooler shape 和写入授权 fail closed。
 
 ```bash
 # Read-only ledger and schema verification

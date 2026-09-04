@@ -91,7 +91,7 @@ v2.0 stable 的目标不是把整个 2.x backlog 一次完成，而是形成一�
 - active Drizzle migrations 是唯一 migration authority；
 - stable 发布必须验证真实前序版本到当前 schema 的升级路径，而不只验证 fresh database；
 - release commit、production migration、smoke、tag 与 GitHub Release 按仓库 release 规则执行；
-- 已进入 `dev` 但仍保持 Open 的 release-gate Issue，在对应变更进入 `main` / release convergence 后统一关闭。
+- 已进入 `main` 但仍保持 Open 的 release-gate Issue，在对应 stable release 完成后统一关闭。
 
 ## 2.x 产品主线
 

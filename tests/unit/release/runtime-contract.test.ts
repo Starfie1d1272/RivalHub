@@ -77,6 +77,13 @@ describe("deployment and operations contracts", () => {
     expect(readWorkflowJob(ci, "dependency-review")).not.toContain("pnpm/setup");
   });
 
+  it("uses main as the sole long-lived CI ref", () => {
+    const ci = readProjectFile(".github/workflows/ci.yml");
+
+    expect(ci).toContain("branches: [main]");
+    expect(ci).not.toMatch(/branches:\s*\[[^\]]*\bdev\b/);
+  });
+
   it("declares the single Vercel Function region and disables only main Git deployment", () => {
     const config = JSON.parse(readProjectFile("vercel.json")) as {
       buildCommand?: string;
@@ -95,7 +102,7 @@ describe("deployment and operations contracts", () => {
 
     expect(workflow).toMatch(/^on:\n  workflow_dispatch:\s*$/m);
     expect(workflow).not.toMatch(/^\s+(push|pull_request|schedule|release):/m);
-    expect(workflow).toContain("default: dev");
+    expect(workflow).toContain("default: main");
     expect(workflow).toContain("ref: ${{ inputs.ref }}");
     expect(workflow).toContain("git rev-parse HEAD");
     expect(workflow).toContain("environment: staging");
