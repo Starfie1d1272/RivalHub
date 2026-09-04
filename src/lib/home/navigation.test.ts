@@ -2,8 +2,77 @@ import { describe, expect, it } from "vitest";
 import {
   buildHomeEyebrow,
   buildHomeNavEntries,
+  selectFeaturedSeason,
   selectHomeNavTiers,
 } from "./navigation";
+
+function featuredSeason(overrides: Partial<{
+  id: string;
+  status: "draft" | "registration" | "voting" | "drafting" | "playing" | "finished" | "archived";
+  registrationOpenedAt: Date | null;
+  createdAt: Date;
+}> = {}) {
+  return {
+    id: "season-1",
+    status: "finished" as const,
+    registrationOpenedAt: null,
+    createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    ...overrides,
+  };
+}
+
+describe("featured season selector", () => {
+  it("prefers a published but not-yet-open season over an older finished season", () => {
+    const finished = featuredSeason({
+      id: "finished",
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    });
+    const upcoming = featuredSeason({
+      id: "upcoming",
+      status: "registration",
+      registrationOpenedAt: null,
+      createdAt: new Date("2026-02-01T00:00:00.000Z"),
+    });
+
+    expect(selectFeaturedSeason([finished, upcoming])?.id).toBe("upcoming");
+  });
+
+  it("uses the declared priority before recency and excludes archived seasons", () => {
+    const oldPlaying = featuredSeason({
+      id: "playing",
+      status: "playing",
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    });
+    const newerRegistration = featuredSeason({
+      id: "registration",
+      status: "registration",
+      registrationOpenedAt: new Date("2026-02-01T00:00:00.000Z"),
+      createdAt: new Date("2026-03-01T00:00:00.000Z"),
+    });
+    const newestArchived = featuredSeason({
+      id: "archived",
+      status: "archived",
+      createdAt: new Date("2026-04-01T00:00:00.000Z"),
+    });
+
+    expect(selectFeaturedSeason([newestArchived, newerRegistration, oldPlaying])?.id).toBe("playing");
+  });
+
+  it("uses newer creation time as the deterministic tie breaker", () => {
+    const older = featuredSeason({
+      id: "older",
+      status: "voting",
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    });
+    const newer = featuredSeason({
+      id: "newer",
+      status: "drafting",
+      createdAt: new Date("2026-02-01T00:00:00.000Z"),
+    });
+
+    expect(selectFeaturedSeason([older, newer])?.id).toBe("newer");
+  });
+});
 
 describe("home navigation helpers", () => {
   it("prioritizes registration when a solo season is registering", () => {
@@ -13,6 +82,7 @@ describe("home navigation helpers", () => {
       hasCaptainVoting: true,
       hasDraft: true,
       status: "registration",
+      registrationOpenedAt: new Date("2026-08-01T00:00:00.000Z"),
     }, { isAuthenticated: false });
     const tiers = selectHomeNavTiers(entries, "registration");
 
@@ -37,6 +107,7 @@ describe("home navigation helpers", () => {
       hasCaptainVoting: false,
       hasDraft: false,
       status: "registration",
+      registrationOpenedAt: new Date("2026-08-01T00:00:00.000Z"),
     }, { isAuthenticated: false });
 
     expect(entries.map((entry) => entry.key)).toEqual([
@@ -58,6 +129,10 @@ describe("home navigation helpers", () => {
     expect(buildHomeEyebrow("finished", "nju-rivals-2026")).toEqual({
       text: "[ RIVALHUB / NJU RIVALS 2026 ]",
       color: "var(--color-accent)",
+    });
+    expect(buildHomeEyebrow("registration", "nju-rivals-2026", null)).toEqual({
+      text: "● REGISTRATION UPCOMING",
+      color: "var(--color-warn)",
     });
   });
 

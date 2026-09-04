@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { RegistrationMode, SeasonStatus } from "@/types/season";
 import { APP_BRAND } from "@/lib/branding";
 import type { HomeEyebrow } from "@/lib/home/navigation";
+import { isRegistrationActuallyOpen } from "@/lib/seasons/presentation";
 import { Panel } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 
@@ -11,6 +12,7 @@ interface HomeHeroSeason {
   slug: string;
   status: SeasonStatus;
   registrationMode: RegistrationMode;
+  registrationOpenedAt?: Date | string | null;
 }
 
 interface HomeHeroProps {
@@ -19,6 +21,8 @@ interface HomeHeroProps {
 }
 
 export function HomeHero({ season, eyebrow }: HomeHeroProps) {
+  const registrationIsOpen = isRegistrationActuallyOpen(season);
+
   return (
     <Panel className="overflow-hidden relative" pad={0}>
       <div className="p-7 relative z-10">
@@ -55,7 +59,7 @@ export function HomeHero({ season, eyebrow }: HomeHeroProps) {
           <Button asChild>
             <Link href={`/${season.slug}`}>进入赛季 →</Link>
           </Button>
-          {season.status === "registration" && (
+          {registrationIsOpen && (
             <Button variant="outline" asChild>
               <Link href={`/${season.slug}/register`}>{season.registrationMode === "team" ? "组队报名 / 创建或加入队伍" : "报名参赛"}</Link>
             </Button>
@@ -71,9 +75,11 @@ export function HomeHero({ season, eyebrow }: HomeHeroProps) {
         style={{
           background: `
             radial-gradient(circle at 90% 10%, ${
-              season.status === "registration" ? "var(--color-ok-soft)"
-                : season.status === "voting" ? "var(--color-warn-soft)"
-                : "var(--color-accent-soft)"
+              registrationIsOpen
+                ? "var(--color-ok-soft)"
+                : season.status === "registration" || season.status === "voting"
+                  ? "var(--color-warn-soft)"
+                  : "var(--color-accent-soft)"
             } 0, transparent 40%),
             repeating-linear-gradient(0deg, transparent 0 32px, color-mix(in srgb, var(--color-border) 25%, transparent) 32px 33px)
           `,

@@ -1,4 +1,12 @@
 import type { RegistrationMode, SeasonStatus } from "@/types/season";
+import { getSeasonLifecycleGroup, isRegistrationActuallyOpen } from "@/lib/seasons/presentation";
+
+export interface FeaturedSeasonInput {
+  id: string;
+  status: SeasonStatus;
+  registrationOpenedAt?: Date | string | null;
+  createdAt: Date | string;
+}
 
 export interface HomeNavSeason {
   slug: string;
@@ -6,6 +14,7 @@ export interface HomeNavSeason {
   hasCaptainVoting: boolean;
   hasDraft: boolean;
   status: SeasonStatus;
+  registrationOpenedAt?: Date | string | null;
 }
 
 export interface HomeNavAuthState {
@@ -25,8 +34,51 @@ export interface HomeEyebrow {
   color: string;
 }
 
-export function buildHomeEyebrow(status: SeasonStatus, slug: string): HomeEyebrow {
+/**
+ * Choose the public homepage's primary season without creating a persisted
+ * current-season singleton. Priority is a presentation concern and uses only
+ * persisted lifecycle facts.
+ */
+export function selectFeaturedSeason<T extends FeaturedSeasonInput>(
+  seasons: readonly T[],
+): T | undefined {
+  return seasons
+    .map((season, index) => ({ season, index, priority: getFeaturedSeasonPriority(season) }))
+    .filter((entry): entry is { season: T; index: number; priority: number } => entry.priority !== null)
+    .sort((a, b) => {
+      if (a.priority !== b.priority) return a.priority - b.priority;
+
+      const createdAtDifference = getTimestamp(b.season.createdAt) - getTimestamp(a.season.createdAt);
+      if (createdAtDifference !== 0) return createdAtDifference;
+
+      const idDifference = a.season.id.localeCompare(b.season.id);
+      return idDifference !== 0 ? idDifference : a.index - b.index;
+    })
+    .map((entry) => entry.season)[0];
+}
+
+function getFeaturedSeasonPriority(season: FeaturedSeasonInput): number | null {
+  if (season.status === "playing") return 0;
+  if (season.status === "voting" || season.status === "drafting") return 1;
+  if (season.status === "registration") return isRegistrationActuallyOpen(season) ? 2 : 3;
+  if (getSeasonLifecycleGroup(season) === "recent") return 4;
+  return null;
+}
+
+function getTimestamp(value: Date | string): number {
+  const timestamp = typeof value === "string" ? Date.parse(value) : value.getTime();
+  return Number.isFinite(timestamp) ? timestamp : Number.NEGATIVE_INFINITY;
+}
+
+export function buildHomeEyebrow(
+  status: SeasonStatus,
+  slug: string,
+  registrationOpenedAt?: Date | string | null,
+): HomeEyebrow {
   if (status === "registration") {
+    if (registrationOpenedAt == null) {
+      return { text: "● REGISTRATION UPCOMING", color: "var(--color-warn)" };
+    }
     return { text: "● REGISTRATION OPEN", color: "var(--color-ok)" };
   }
   if (status === "voting") {
@@ -53,7 +105,7 @@ export function buildHomeNavEntries(
       label: season.registrationMode === "team" ? "组队报名" : "报名参赛",
       mono: "REGISTER",
       meta: season.registrationMode === "team" ? "创建或加入队伍" : "个人报名",
-      show: !isHistorical,
+      show: !isHistorical && (season.status !== "registration" || isRegistrationActuallyOpen(season)),
     },
     {
       key: "captains",

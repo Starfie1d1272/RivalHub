@@ -1,22 +1,14 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
 import { logoutUser } from "@/actions/auth";
+import { getAdminNavigation, type AdminRole } from "@/lib/admin/navigation";
 
-const NAV_ITEMS = [
-  { href: "/admin", label: "赛季管理" },
-  { href: "/admin/users", label: "用户管理" },
-  { href: "/admin/education-verifications", label: "教育认证审核" },
-  { href: "/admin/invites", label: "邀请码" },
-  { href: "/admin/competitive-seasons", label: "竞技平台", superAdminOnly: true },
-  { href: "/admin/logs", label: "操作日志" },
-  { href: "/admin/settings", label: "系统设置" },
-] as const;
-
-export function AdminSidebar({ email, role }: { email: string; role: "season_admin" | "super_admin" }) {
+export function AdminSidebar({ email, role }: { email: string; role: AdminRole }) {
   const pathname = usePathname();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -50,29 +42,45 @@ export function AdminSidebar({ email, role }: { email: string; role: "season_adm
       </div>
 
       {/* nav */}
-      <nav className="flex min-w-0 flex-1 overflow-x-auto md:block">
-        {NAV_ITEMS.filter((item) => !("superAdminOnly" in item && item.superAdminOnly) || role === "super_admin").map((item) => {
-          const active = item.href === "/admin"
-            ? pathname === "/admin"
-            : pathname.startsWith(item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="inline-flex shrink-0 items-center px-3 py-3 md:block md:px-5 md:py-2.5"
+      <nav aria-label="管理后台导航" className="flex min-w-0 flex-1 overflow-x-auto md:block">
+        {getAdminNavigation(role).map((group) => (
+          <div key={group.key} className="shrink-0 md:mb-3">
+            <div
+              className="px-3 pb-1 pt-2.5 md:px-5 md:pt-1"
               style={{
-                background: active ? "var(--color-panel)" : "transparent",
-                borderLeft: `2px solid ${active ? "var(--color-accent)" : "transparent"}`,
-                color: active ? "var(--color-fg)" : "var(--color-fg-mid)",
-                fontFamily: "var(--font-sans)",
-                fontWeight: active ? 600 : 500,
-                fontSize: 13,
+                color: "var(--color-fg-dim)",
+                fontFamily: "var(--font-mono)",
+                fontSize: 10,
+                letterSpacing: "var(--tracking-label)",
               }}
             >
-              {item.label}
-            </Link>
-          );
-        })}
+              {group.label}
+            </div>
+            {group.items.map((item) => {
+              const active = item.href === "/admin"
+                ? pathname === "/admin"
+                : pathname.startsWith(item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href as never}
+                  aria-current={active ? "page" : undefined}
+                  className="inline-flex shrink-0 items-center px-3 py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] md:block md:px-5 md:py-2"
+                  style={{
+                    background: active ? "var(--color-panel)" : "transparent",
+                    borderLeft: `2px solid ${active ? "var(--color-accent)" : "transparent"}`,
+                    color: active ? "var(--color-fg)" : "var(--color-fg-mid)",
+                    fontFamily: "var(--font-sans)",
+                    fontWeight: active ? 600 : 500,
+                    fontSize: 13,
+                  }}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
       </nav>
 
       {/* footer */}
@@ -93,7 +101,7 @@ export function AdminSidebar({ email, role }: { email: string; role: "season_adm
         <button
           onClick={handleLogout}
           disabled={isPending}
-          className="text-xs text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] transition-colors disabled:opacity-50"
+          className="text-xs text-[var(--color-fg-mid)] transition-colors hover:text-[var(--color-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 disabled:opacity-50"
         >
           {isPending ? "退出中…" : "退出登录 →"}
         </button>
