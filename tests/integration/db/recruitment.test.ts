@@ -64,6 +64,8 @@ describe("recruitment PostgreSQL invariants", () => {
       await database.transaction((tx) => expressRecruitmentInterestInTx(tx, { recruitmentIntentId: teamIntent.id, userId: ids.interested, actorId: ids.interested }));
       const interestCount = await pool.query<{ count: string }>("SELECT count(*)::text AS count FROM recruitment_interests WHERE recruitment_intent_id = $1 AND user_id = $2", [teamIntent.id, ids.interested]);
       expect(interestCount.rows[0]?.count === "1", "表达加入意向只能写 recruitment_interests，不能直接创建 membership。").toBe(true);
+      await expect(database.transaction((tx) => expressRecruitmentInterestInTx(tx, { recruitmentIntentId: teamIntent.id, userId: ids.interested, actorId: ids.interested })))
+        .rejects.toMatchObject({ code: ErrorCode.REGISTRATION_DUPLICATE, message: "你已表达过加入意向。" });
       const membershipCount = await pool.query<{ count: string }>("SELECT count(*)::text AS count FROM team_memberships WHERE team_id = $1 AND user_id = $2 AND ended_at IS NULL", [ids.team, ids.interested]);
       expect(membershipCount.rows[0]?.count === "0", "interest 不是成员关系。").toBe(true);
 

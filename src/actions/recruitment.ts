@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db/client";
-import { actionError, isPgUniqueViolation } from "@/lib/action-utils";
+import { actionError } from "@/lib/action-utils";
 import { auditActorId, requireAuth } from "@/lib/auth/session";
 import { CS2_POSITION_VALUES } from "@/lib/config/cs2-positions";
 import {
@@ -101,10 +101,7 @@ export async function expressRecruitmentInterest(input: { recruitmentIntentId: s
     await db.transaction((tx) => expressRecruitmentInterestInTx(tx, { recruitmentIntentId: parsed.data.recruitmentIntentId, userId: session.userId, actorId: auditActorId(session) }));
     revalidateRecruitment(session.userId);
     return ok(undefined);
-  } catch (error) {
-    if (isPgUniqueViolation(error)) return invalid("你已表达过加入意向。");
-    return actionError("expressRecruitmentInterest", error);
-  }
+  } catch (error) { return actionError("expressRecruitmentInterest", error); }
 }
 
 export async function withdrawRecruitmentInterest(input: { recruitmentIntentId: string }): Promise<ActionResult<void>> {

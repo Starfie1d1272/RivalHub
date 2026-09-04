@@ -124,6 +124,18 @@ export async function inviteTeamMemberInTx(
   const current = await tx.query.teamMemberships.findFirst({ where: and(eq(teamMemberships.teamId, team.id), eq(teamMemberships.userId, input.invitedUserId), isNull(teamMemberships.endedAt)) });
   if (current) throw new AppError(ErrorCode.REGISTRATION_DUPLICATE, "该用户当前已属于这支队伍。");
   const expiredCount = await expirePendingInvitationsInTx(tx, { teamId: team.id, invitedUserId: input.invitedUserId });
+  // The locked Team row serializes invitation attempts for this Team; check
+  // the remaining pending identity before relying on the partial unique index.
+  const [pendingInvitation] = await tx.select({ id: teamInvitations.id })
+    .from(teamInvitations)
+    .where(and(
+      eq(teamInvitations.teamId, team.id),
+      eq(teamInvitations.kind, "direct"),
+      eq(teamInvitations.invitedUserId, input.invitedUserId),
+      eq(teamInvitations.status, "pending"),
+    ))
+    .limit(1);
+  if (pendingInvitation) throw new AppError(ErrorCode.VALIDATION_FAILED, "该邀请已存在。");
   await tx.insert(teamInvitations).values({ teamId: team.id, kind: "direct", invitedUserId: input.invitedUserId, invitedByUserId: input.userId, expiresAt: new Date(Date.now() + INVITE_TTL_MS) });
   await auditTeam(tx, "team.invite", input.actorId, team.id, { invitedUserId: input.invitedUserId, kind: "direct", expiredSuperseded: expiredCount });
 }
