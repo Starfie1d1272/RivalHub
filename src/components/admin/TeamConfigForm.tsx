@@ -33,7 +33,6 @@ export function TeamConfigForm({ value, competitivePlatforms, fallbackOnly = fal
     onChange({ ...value, [key]: val });
   }
   const platform = value.competitiveProfile?.platform ?? competitivePlatforms[0]?.key ?? "";
-  const selectedPlatform = competitivePlatforms.find((item) => item.key === platform);
 
   return (
     <div className="space-y-6">
