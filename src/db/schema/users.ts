@@ -3,10 +3,10 @@ import { pgTable, uuid, text, timestamp, pgEnum } from "drizzle-orm/pg-core";
 export const userRoleEnum = pgEnum("user_role", ["user", "super_admin"]);
 export const emailVerificationSourceEnum = pgEnum("email_verification_source", ["signup_confirmation", "existing_account_reverification", "admin_migration"]);
 
-// 全局用户账号 — 通过 auth_id 关联 Supabase Auth
+// 全局用户账号 — auth_id 只在已证明的 Supabase Auth 身份路径绑定
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
-  authId: uuid("auth_id").unique(), // Supabase auth.users FK
+  authId: uuid("auth_id").unique(), // verified Supabase Auth identity; no cross-schema FK
   email: text("email").notNull().unique(),
   /** Null means the RivalHub ownership fact is unknown; do not infer it from Auth history. */
   emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
