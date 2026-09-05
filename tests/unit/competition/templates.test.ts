@@ -18,6 +18,7 @@ function formInput(overrides?: Partial<SeasonFormInput>): SeasonFormInput {
     registrationMode: "team",
     hasCaptainVoting: false,
     hasDraft: false,
+    hasCommunityAwards: true,
     minTeamSize: 5,
     maxTeamSize: 9,
     starterCount: 5,
@@ -41,18 +42,21 @@ describe("competition templates", () => {
     expect(capabilities.registrationMode).toBe("solo");
     expect(capabilities.hasCaptainVoting).toBe(true);
     expect(capabilities.hasDraft).toBe(true);
+    expect(capabilities.hasCommunityAwards).toBe(true);
     expect(capabilities.stagePlan.map((stage) => stage.type)).toEqual(["round_robin", "double_elim"]);
   });
 
   it("Major preset passes the standard Major definition check", () => {
     const capabilities = createMajorTemplate();
     expect(checkStandardMajorCapabilities(capabilities).isStandardMajor).toBe(true);
+    expect(capabilities.hasCommunityAwards).toBe(true);
   });
 
   it("custom tournament starts from an empty executable contract", () => {
     const capabilities = createCustomTournamentTemplate();
     expect(capabilities.stagePlan).toEqual([]);
     expect(capabilities.hasDraft).toBe(false);
+    expect(capabilities.hasCommunityAwards).toBe(true);
   });
 
   it("createCompetitionTemplate returns an independent clone per call", () => {
@@ -121,6 +125,11 @@ describe("resolveCompetitionDefinition (draft canonicalization)", () => {
     expect(data.teamRegistrationConfig?.requireCompetitiveProfile).toBe(true);
     expect(data.affiliationRules).toEqual(major.affiliationRules);
     expect(data.kind).toBe("Major");
+  });
+
+  it("preserves an explicitly disabled community-awards capability on a built-in draft", () => {
+    const data = resolveCompetitionDefinition(formInput({ template: "major", hasCommunityAwards: false }) as never, true);
+    expect(data.hasCommunityAwards).toBe(false);
   });
 
   it("a draft Rivals save keeps canonical fixed rules (7/7/5) while overlaying positions and map pool", () => {

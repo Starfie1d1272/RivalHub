@@ -23,6 +23,7 @@ function input(overrides?: Record<string, unknown>) {
     registrationMode: "team" as const,
     hasCaptainVoting: false,
     hasDraft: false,
+    hasCommunityAwards: true,
     minTeamSize: 5,
     maxTeamSize: 9,
     starterCount: 5,
@@ -146,6 +147,18 @@ describe("planSeasonUpdate template identity", () => {
     expect(set.minTeamSize).toBe(5);
     expect(set.maxTeamSize).toBe(9);
     expect(set.starterCount).toBe(5);
+  });
+
+  it("allows a draft operator to disable community awards and preserves the choice through built-in canonicalization", () => {
+    const { set } = planSeasonUpdate(seasonRow(), parseInput({ hasCommunityAwards: false }));
+    expect(set.hasCommunityAwards).toBe(false);
+  });
+
+  it("rejects a community-awards capability change after publish", () => {
+    expect(() => planSeasonUpdate(
+      seasonRow({ status: "registration", hasCommunityAwards: true }),
+      parseInput({ hasCommunityAwards: false }),
+    )).toThrowError(/只有 draft 状态可修改核心赛季配置/);
   });
 
   it("preserves only a Major's reviewed 5E fallback overlay on create and draft update", () => {

@@ -152,6 +152,7 @@ const VALID_INPUT = {
   registrationMode: "solo" as const,
   hasCaptainVoting: true,
   hasDraft: true,
+  hasCommunityAwards: true,
   minTeamSize: 4,
   maxTeamSize: 8,
   starterCount: 5,
@@ -191,6 +192,7 @@ function draftSeason(overrides?: Record<string, unknown>) {
     registrationMode: "solo",
     hasCaptainVoting: true,
     hasDraft: true,
+    hasCommunityAwards: true,
     minTeamSize: 4,
     maxTeamSize: 8,
     starterCount: 5,
@@ -326,6 +328,17 @@ describe("updateSeason", () => {
     expect(result).toMatchObject({ success: true, data: { slug: "different-slug" } });
     expect(updateSetCalls).toContainEqual(expect.objectContaining({ slug: "different-slug" }));
     expect(revalidatePathMock).toHaveBeenCalledWith("/admin/different-slug/settings");
+  });
+
+  it("草稿可以关闭社区奖并将其作为公开规则写入", async () => {
+    seasonsFindFirstMock.mockResolvedValue(draftSeason());
+
+    const result = await updateSeason({ ...VALID_INPUT, id: SEASON_ID, hasCommunityAwards: false });
+
+    expect(result).toMatchObject({ success: true });
+    expect(updateSetCalls).toContainEqual(expect.objectContaining({ hasCommunityAwards: false }));
+    const entry = findAuditEntry(insertValuesCalls, "season.update") as { meta: { metadataOnly: boolean } } | undefined;
+    expect(entry?.meta.metadataOnly).toBe(false);
   });
 
   it("已发布状态下修改 slug 返回 SEASON_INVALID_STATUS", async () => {

@@ -28,6 +28,7 @@ export type PublicSeason = Pick<
   | "registrationMode"
   | "hasCaptainVoting"
   | "hasDraft"
+  | "hasCommunityAwards"
   | "stagePlan"
   | "registrationConfig"
   | "teamRegistrationConfig"
@@ -55,6 +56,7 @@ const publicSeasonColumns = {
   registrationMode: seasons.registrationMode,
   hasCaptainVoting: seasons.hasCaptainVoting,
   hasDraft: seasons.hasDraft,
+  hasCommunityAwards: seasons.hasCommunityAwards,
   stagePlan: seasons.stagePlan,
   registrationConfig: seasons.registrationConfig,
   teamRegistrationConfig: seasons.teamRegistrationConfig,

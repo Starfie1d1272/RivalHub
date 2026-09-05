@@ -62,6 +62,7 @@ const seasonFormBaseSchema = z.object({
   registrationMode: z.enum(["solo", "team"]),
   hasCaptainVoting: z.boolean(),
   hasDraft: z.boolean(),
+  hasCommunityAwards: z.boolean(),
   minTeamSize: z.number().int().min(1).max(20),
   maxTeamSize: z.number().int().min(1).max(20),
   starterCount: z.number().int().min(1).max(20),
@@ -189,6 +190,9 @@ export function resolveCompetitionDefinition(data: ParsedSeasonForm, applyTempla
     registrationMode: builtIn.registrationMode,
     hasCaptainVoting: builtIn.hasCaptainVoting,
     hasDraft: builtIn.hasDraft,
+    // Community awards are an operator-owned capability, not built-in
+    // competition semantics. Preserve an explicit draft choice.
+    hasCommunityAwards: input.hasCommunityAwards,
     stagePlan: builtIn.stagePlan,
     teamRegistrationConfig: {
       ...builtIn.teamRegistrationConfig,
@@ -356,6 +360,7 @@ export function planSeasonUpdate(existing: SeasonRow, parsed: ParsedSeasonForm):
     existing.registrationMode !== data.registrationMode ||
     existing.hasCaptainVoting !== data.hasCaptainVoting ||
     existing.hasDraft !== data.hasDraft ||
+    existing.hasCommunityAwards !== data.hasCommunityAwards ||
     existing.maxTeamSize !== data.maxTeamSize ||
     existing.minTeamSize !== data.minTeamSize ||
     existing.starterCount !== data.starterCount ||
@@ -398,6 +403,7 @@ export function planSeasonUpdate(existing: SeasonRow, parsed: ParsedSeasonForm):
       registrationMode: data.registrationMode,
       hasCaptainVoting: data.hasCaptainVoting,
       hasDraft: data.hasDraft,
+      hasCommunityAwards: data.hasCommunityAwards,
       minTeamSize: data.minTeamSize,
       maxTeamSize: data.maxTeamSize,
       starterCount: data.starterCount,
@@ -427,6 +433,7 @@ export function planSeasonCreate(parsed: ParsedSeasonForm): { template: Competit
       registrationMode: data.registrationMode,
       hasCaptainVoting: data.hasCaptainVoting,
       hasDraft: data.hasDraft,
+      hasCommunityAwards: data.hasCommunityAwards,
       minTeamSize: data.minTeamSize,
       maxTeamSize: data.maxTeamSize,
       starterCount: data.starterCount,

@@ -47,7 +47,7 @@ Major 的正式运行时由 `src/lib/major/` 与 `major_*` persistence owners �
 
 ## Competition extension contract
 
-赛季使用 capability-driven 设计。`seasons.kind` 是展示/历史标签，业务功能必须从 `registrationMode`、`hasCaptainVoting`、`hasDraft`、`stagePlan`、报名配置、队伍配置和 affiliation rules 推导。
+赛季使用 capability-driven 设计。`seasons.kind` 是展示/历史标签，业务功能必须从 `registrationMode`、`hasCaptainVoting`、`hasDraft`、`hasCommunityAwards`、`stagePlan`、报名配置、队伍配置和 affiliation rules 推导。
 
 `src/types/season.ts` 定义通用 extension contract：
 

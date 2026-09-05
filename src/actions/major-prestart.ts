@@ -50,6 +50,7 @@ function standardMajorOrThrow(season: typeof seasons.$inferSelect): void {
     registrationMode: season.registrationMode,
     hasCaptainVoting: season.hasCaptainVoting,
     hasDraft: season.hasDraft,
+    hasCommunityAwards: season.hasCommunityAwards,
     stagePlan: normalizeStagePlan(season.stagePlan),
     registrationConfig: normalizeRegistrationConfig(season.registrationConfig),
     teamRegistrationConfig: normalizeTeamRegistrationConfig(season.teamRegistrationConfig),

@@ -4,9 +4,23 @@ import { auditLogs, communityAwardEvidence, communityAwards, matches, seasons } 
 import { AppError, ErrorCode } from "@/lib/errors";
 import { getSeasonAwardCandidates } from "@/lib/community-awards/read-model";
 
+async function assertCommunityAwardsEnabledInTx(tx: TxDb, seasonId: string) {
+  const [season] = await tx.select({
+    id: seasons.id,
+    status: seasons.status,
+    hasCommunityAwards: seasons.hasCommunityAwards,
+  }).from(seasons).where(eq(seasons.id, seasonId)).for("update");
+  if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在。 ");
+  if (!season.hasCommunityAwards) {
+    throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "该赛事未启用社区奖。 ");
+  }
+  return season;
+}
+
 async function lockAwardInTx(tx: TxDb, awardId: string) {
   const [award] = await tx.select().from(communityAwards).where(eq(communityAwards.id, awardId)).for("update");
   if (!award) throw new AppError(ErrorCode.NOT_FOUND, "社区奖不存在。 ");
+  await assertCommunityAwardsEnabledInTx(tx, award.seasonId);
   return award;
 }
 
@@ -14,8 +28,7 @@ export async function submitCommunityAwardInTx(
   tx: TxDb,
   args: { seasonId: string; submitterId: string; name: string; condition: string; prize: string; supplementaryNote?: string | null },
 ): Promise<{ awardId: string }> {
-  const [season] = await tx.select({ id: seasons.id, status: seasons.status }).from(seasons).where(eq(seasons.id, args.seasonId));
-  if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在。 ");
+  const season = await assertCommunityAwardsEnabledInTx(tx, args.seasonId);
   if (season.status === "archived") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "已归档赛事不能提交新的社区奖。 ");
   const [award] = await tx.insert(communityAwards).values({
     seasonId: args.seasonId,

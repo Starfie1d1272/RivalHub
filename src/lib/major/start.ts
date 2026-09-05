@@ -50,6 +50,7 @@ function capabilitiesFromSeason(season: typeof seasons.$inferSelect) {
     registrationMode: season.registrationMode,
     hasCaptainVoting: season.hasCaptainVoting,
     hasDraft: season.hasDraft,
+    hasCommunityAwards: season.hasCommunityAwards,
     stagePlan: normalizeStagePlan(season.stagePlan),
     registrationConfig: normalizeRegistrationConfig(season.registrationConfig),
     teamRegistrationConfig: normalizeTeamRegistrationConfig(season.teamRegistrationConfig),

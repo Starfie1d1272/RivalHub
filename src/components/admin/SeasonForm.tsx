@@ -118,6 +118,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
   );
   const [hasCaptainVoting, setHasCaptainVoting] = useState(initial?.hasCaptainVoting ?? defaultTemplate.hasCaptainVoting);
   const [hasDraft, setHasDraft] = useState(initial?.hasDraft ?? defaultTemplate.hasDraft);
+  const [hasCommunityAwards, setHasCommunityAwards] = useState(initial?.hasCommunityAwards ?? defaultTemplate.hasCommunityAwards);
   const [maxTeamSize, setMaxTeamSize] = useState(initial?.maxTeamSize ?? defaultTemplate.maxTeamSize);
   const [minTeamSize, setMinTeamSize] = useState(initial?.minTeamSize ?? defaultTemplate.minTeamSize);
   const [starterCount, setStarterCount] = useState(initial?.starterCount ?? defaultTemplate.starterCount);
@@ -235,6 +236,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
       registrationMode,
       hasCaptainVoting: registrationMode === "team" ? false : hasCaptainVoting,
       hasDraft: registrationMode === "team" ? false : hasDraft,
+      hasCommunityAwards,
       minTeamSize,
       maxTeamSize,
       starterCount,
@@ -454,6 +456,23 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
         </section>
 
         <section className="space-y-4">
+          <h2 className="font-semibold">功能</h2>
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              aria-label="社区奖"
+              checked={hasCommunityAwards}
+              disabled={!editCapabilities.canEditPublicRules}
+              onChange={(e) => setHasCommunityAwards(e.target.checked)}
+            />
+            <span>
+              <span className="font-medium">社区奖</span>
+              <span className="mt-1 block text-xs text-[var(--color-fg-dim)]">默认启用；发布后按赛事公开规则锁定。关闭后公开页、后台入口和社区奖操作均不可用。</span>
+            </span>
+          </label>
+        </section>
+
+        <section className="space-y-4">
           <h2 className="font-semibold">参赛与队伍设置</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -607,6 +626,23 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
             <Input id="end-at" type="datetime-local" value={endAt ?? ""} onChange={(e) => setEndAt(e.target.value)} />
           </div>
         </div>
+        <SaveBtn />
+      </Panel>
+
+      <Panel label="功能" pad={20}>
+        <label className="flex items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            aria-label="社区奖"
+            checked={hasCommunityAwards}
+            disabled={!editCapabilities.canEditPublicRules}
+            onChange={(e) => setHasCommunityAwards(e.target.checked)}
+          />
+          <span>
+            <span className="font-medium">社区奖</span>
+            <span className="mt-1 block text-xs text-[var(--color-fg-dim)]">默认启用；发布后按赛事公开规则锁定。关闭后公开页、后台入口和社区奖操作均不可用。</span>
+          </span>
+        </label>
         <SaveBtn />
       </Panel>
 

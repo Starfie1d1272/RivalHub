@@ -22,6 +22,7 @@ export default async function AdminSeasonLayout({
       id: true,
       hasCaptainVoting: true,
       hasDraft: true,
+      hasCommunityAwards: true,
       stagePlan: true,
       status: true,
     },
@@ -40,6 +41,7 @@ export default async function AdminSeasonLayout({
         seasonSlug={seasonSlug}
         hasCaptainVoting={season.hasCaptainVoting}
         hasDraft={season.hasDraft}
+        hasCommunityAwards={season.hasCommunityAwards}
         hasMatches={hasMatches}
         showSettings={isSuperAdmin}
       />

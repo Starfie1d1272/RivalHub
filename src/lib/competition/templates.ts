@@ -11,6 +11,7 @@ function createBaseCompetitionTemplate(): SeasonCapabilities {
     registrationMode: "team",
     hasCaptainVoting: false,
     hasDraft: false,
+    hasCommunityAwards: true,
     stagePlan: [],
     registrationConfig: {
       allowedPlayerTypes: ["enrolled", "graduated", "external"],

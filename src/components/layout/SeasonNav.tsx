@@ -12,6 +12,7 @@ interface SeasonNavProps {
   status: SeasonStatus;
   hasCaptainVoting: boolean;
   hasDraft: boolean;
+  hasCommunityAwards: boolean;
   hasMatches: boolean;
   hasStats: boolean;
 }
@@ -26,6 +27,7 @@ export function SeasonNav({
   status,
   hasCaptainVoting,
   hasDraft,
+  hasCommunityAwards,
   hasMatches,
   hasStats,
 }: SeasonNavProps) {
@@ -40,7 +42,7 @@ export function SeasonNav({
     { label: "队伍", href: `/${slug}/teams` },
     { label: "选手", href: `/${slug}/players` },
     ...(hasMatches ? [{ label: "赛程", href: `/${slug}/matches` }] : []),
-    { label: "社区奖", href: `/${slug}/community-awards` },
+    ...(hasCommunityAwards ? [{ label: "社区奖", href: `/${slug}/community-awards` }] : []),
     ...(hasStats ? [{ label: "数据统计", href: `/${slug}/stats` }] : []),
   ];
 

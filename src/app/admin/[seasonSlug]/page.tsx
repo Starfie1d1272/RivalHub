@@ -132,6 +132,7 @@ export default async function AdminMajorConsolePage({ params }: AdminMajorConsol
       registrationMode: season.registrationMode,
       hasCaptainVoting: season.hasCaptainVoting,
       hasDraft: season.hasDraft,
+      hasCommunityAwards: season.hasCommunityAwards,
       stagePlan: normalizeStagePlan(season.stagePlan),
       registrationConfig: normalizeRegistrationConfig(season.registrationConfig),
       teamRegistrationConfig: normalizeTeamRegistrationConfig(season.teamRegistrationConfig),

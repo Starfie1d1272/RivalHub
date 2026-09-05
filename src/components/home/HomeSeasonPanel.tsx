@@ -2,7 +2,14 @@ import React from "react";
 import Link from "next/link";
 import type { RegistrationMode, SeasonStatus } from "@/types/season";
 import { formatCSTDateTime } from "@/lib/utils/date";
-import { presentSeasonParticipationState, presentSeasonStatus } from "@/lib/seasons/presentation";
+import {
+  getSeasonLifecycleGroup,
+  isRegistrationActuallyOpen,
+  presentSeasonLifecycle,
+  presentSeasonLifecycleSummary,
+  presentSeasonParticipationState,
+  presentSeasonStatus,
+} from "@/lib/seasons/presentation";
 import { MiniStat, Panel, StatusPill } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 
@@ -49,7 +56,7 @@ export function HomeSeasonPanel({
   teamCount,
   playerCount,
 }: HomeSeasonPanelProps) {
-  if (season.status === "registration") {
+  if (isRegistrationActuallyOpen(season)) {
     return (
       <Panel label="REGISTRATION">
         <div className="grid gap-3.5">
@@ -145,11 +152,12 @@ export function HomeSeasonPanel({
   }
 
   return (
-    <Panel label="CURRENT SEASON">
+    <Panel label={getSeasonLifecycleGroup(season) === "upcoming" ? "UPCOMING" : "CURRENT SEASON"}>
       <div className="grid gap-3.5">
-        <SeasonPanelTitle season={season} />
+        <SeasonPanelTitle season={season} useLifecycleSummary />
         <div className="flex items-center gap-2">
-          <StatusPill {...presentSeasonParticipationState(season)} />
+          <StatusPill {...presentSeasonLifecycle(season)} />
+          <span className="text-xs text-[var(--color-fg-mid)]">{presentSeasonLifecycleSummary(season)}</span>
           <span
             style={{
               fontFamily: "var(--font-mono)",
@@ -173,7 +181,11 @@ export function HomeSeasonPanel({
   );
 }
 
-function SeasonPanelTitle({ season }: { season: HomePanelSeason }) {
+function SeasonPanelTitle({ season, useLifecycleSummary = false }: { season: HomePanelSeason; useLifecycleSummary?: boolean }) {
+  const label = useLifecycleSummary
+    ? presentSeasonLifecycleSummary(season)
+    : presentSeasonParticipationState(season).label;
+
   return (
     <div>
       <div
@@ -185,7 +197,7 @@ function SeasonPanelTitle({ season }: { season: HomePanelSeason }) {
           letterSpacing: "var(--tracking-label)",
         }}
       >
-        {presentSeasonParticipationState(season).label}
+        {label}
       </div>
       <div
         className="mt-1 font-semibold"
