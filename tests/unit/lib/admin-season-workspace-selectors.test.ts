@@ -15,6 +15,13 @@ const baseSummary: SeasonWorkspaceOverviewSummary = {
   activeAdjudications: 0,
 };
 
+const blockedReadiness = {
+  canStart: false,
+  blockers: ["名单仍待确认。"],
+  checks: [{ key: "teams" as const, label: "队伍", state: "blocked" as const, blockers: ["名单仍待确认。"] }],
+  openingPlan: null,
+};
+
 describe("season workspace selectors", () => {
   it("projects solo registrations separately from team entries", () => {
     expect(projectRegistrationSummary("solo", [
@@ -42,7 +49,7 @@ describe("season workspace selectors", () => {
       null,
     );
     expect(archived.href).toBe("/admin/archived-event/post-event");
-    expect(archived.detail).toContain("只读");
+    expect(archived.detail).toContain("查看收尾记录");
 
     const playingWithMatches = selectSeasonWorkspaceNextAction(
       { slug: "live-event", status: "playing", registrationOpenedAt: new Date() },
@@ -61,14 +68,14 @@ describe("season workspace selectors", () => {
     const preopen = selectSeasonWorkspaceNextAction(
       { slug: "preopen-event", status: "registration", registrationOpenedAt: null },
       baseSummary,
-      null,
+      blockedReadiness,
     );
     expect(preopen.href).toBe("/admin/preopen-event/registrations");
 
     const registrationWithBlocker = selectSeasonWorkspaceNextAction(
       { slug: "blocked-event", status: "registration", registrationOpenedAt: new Date() },
       baseSummary,
-      { canStart: false, blockers: ["名单仍待确认。"], checks: [{ key: "teams", label: "队伍", state: "blocked", blockers: ["名单仍待确认。"] }], openingPlan: null },
+      blockedReadiness,
     );
     expect(registrationWithBlocker.href).toBe("/admin/blocked-event/prestart");
   });
