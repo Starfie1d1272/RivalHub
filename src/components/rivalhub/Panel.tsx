@@ -2,21 +2,29 @@ import React from "react";
 import { Card, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils/cn";
 
-interface PanelProps {
+export interface PanelProps {
   children: React.ReactNode;
   className?: string;
+  contentClassName?: string;
   hi?: boolean;
   label?: React.ReactNode;
-  pad?: number;
   hoverable?: boolean;
   teamColor?: string;
 }
 
-export function Panel({ children, className, hi, label, pad = 16, hoverable, teamColor }: PanelProps) {
+export function Panel({
+  children,
+  className,
+  contentClassName,
+  hi,
+  label,
+  hoverable,
+  teamColor,
+}: PanelProps) {
   return (
     <Card
       className={cn(
-        hoverable && "transition-all duration-[180ms] ease-out hover:-translate-y-0.5 hover:border-[var(--color-border-hi)] hover:shadow-[0_4px_20px_color-mix(in_srgb,var(--color-accent)_3%,transparent)]",
+        hoverable && "transition-all duration-[var(--duration-normal)] ease-[var(--ease-tactical)] hover:-translate-y-0.5 hover:border-[var(--color-border-hover)] hover:shadow-[0_4px_20px_color-mix(in_srgb,var(--color-accent)_3%,transparent)]",
         className
       )}
       style={{
@@ -39,7 +47,7 @@ export function Panel({ children, className, hi, label, pad = 16, hoverable, tea
           {typeof label === "string" ? <span>{label}</span> : label}
         </CardHeader>
       )}
-      <div style={{ padding: pad }}>{children}</div>
+      <div className={cn("p-4", contentClassName)}>{children}</div>
     </Card>
   );
 }

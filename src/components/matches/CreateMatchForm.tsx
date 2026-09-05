@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -77,7 +78,7 @@ export function CreateMatchForm({ seasonId, teams, stages }: CreateMatchFormProp
           <DialogDescription>手动创建一场比赛，不关联 Bracket 节点。</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
+        <DialogBody className="space-y-4">
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-[var(--color-fg-mid)]">队伍 A</label>
             <Select value={entryAId} onValueChange={setTeamAId}>
@@ -137,7 +138,7 @@ export function CreateMatchForm({ seasonId, teams, stages }: CreateMatchFormProp
           {entryAId && entryBId && entryAId === entryBId && (
             <p className="text-xs text-[var(--color-danger)]">双方队伍不能相同</p>
           )}
-        </div>
+        </DialogBody>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>取消</Button>

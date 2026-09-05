@@ -1,38 +1,55 @@
 @import "tailwindcss";
 
 @theme {
-  /* shadcn/ui color bridge — maps `:root` HSL vars to Tailwind v4 --color-* */
-  --color-background: hsl(var(--background));
-  --color-foreground: hsl(var(--foreground));
-  --color-card: hsl(var(--card));
-  --color-card-foreground: hsl(var(--card-foreground));
-  --color-popover: hsl(var(--popover));
-  --color-popover-foreground: hsl(var(--popover-foreground));
-  --color-primary: hsl(var(--primary));
-  --color-primary-foreground: hsl(var(--primary-foreground));
-  --color-secondary: hsl(var(--secondary));
-  --color-secondary-foreground: hsl(var(--secondary-foreground));
-  --color-muted: hsl(var(--muted));
-  --color-muted-foreground: hsl(var(--muted-foreground));
-  --color-destructive: hsl(var(--destructive));
-  --color-destructive-foreground: hsl(var(--destructive-foreground));
-  --color-input: hsl(var(--input));
-  --color-ring: hsl(var(--ring));
+  /* shadcn/Tailwind bridge: aliases only; semantic values live below. */
+  --color-background: var(--color-bg);
+  --color-foreground: var(--color-fg);
+  --color-card: var(--color-panel);
+  --color-card-foreground: var(--color-fg);
+  --color-popover: var(--color-panel-hi);
+  --color-popover-foreground: var(--color-fg);
+  --color-primary: var(--color-accent);
+  --color-primary-foreground: var(--color-accent-fg);
+  --color-secondary: var(--color-panel-hi);
+  --color-secondary-foreground: var(--color-fg);
+  --color-muted: var(--color-panel-low);
+  --color-muted-foreground: var(--color-fg-mid);
+  --color-accent-foreground: var(--color-accent-fg);
+  --color-destructive: var(--color-danger);
+  --color-destructive-foreground: var(--color-fg);
+  --color-input: var(--color-border);
+  --color-ring: var(--color-border-focus);
 
   /* Surfaces */
   --color-bg: #0a0c10;
   --color-panel: #10131a;
   --color-panel-hi: #161a24;
   --color-panel-low: #0d1016;
+  --color-overlay: rgba(3, 6, 10, 0.84);
+  --color-surface-page: var(--color-bg);
+  --color-surface-panel: var(--color-panel);
+  --color-surface-raised: var(--color-panel-hi);
+  --color-surface-inset: var(--color-panel-low);
+  --color-surface-overlay: var(--color-overlay);
 
   /* Borders */
   --color-border: #1f2530;
   --color-border-hi: #2c3340;
+  --color-border-static: var(--color-border);
+  --color-border-hover: var(--color-border-hi);
+  --color-border-selected: var(--color-accent);
+  --color-border-focus: var(--color-accent);
+  --color-border-danger: var(--color-danger);
 
   /* Text */
   --color-fg: #e7ecf3;
   --color-fg-mid: #8e96a3;
   --color-fg-dim: #525a6a;
+  --color-fg-primary: var(--color-fg);
+  --color-fg-secondary: var(--color-fg-mid);
+  --color-fg-essential: #b8c0cc;
+  --color-fg-disabled: var(--color-fg-dim);
+  --color-fg-decorative: var(--color-fg-dim);
 
   /* Accent (team A) */
   --color-accent: #ff6b1a;
@@ -56,6 +73,10 @@
   --color-danger: #ff5470;
   --color-danger-soft: rgba(255, 84, 112, 0.08);
   --color-danger-edge: rgba(255, 84, 112, 0.35);
+  --color-data-positive: var(--color-ok);
+  --color-data-negative: var(--color-danger);
+  --color-data-neutral: var(--color-fg-mid);
+  --color-data-missing: var(--color-fg-dim);
 
   /* Info */
   --color-info: #4a9eff;
@@ -74,11 +95,23 @@
   --tracking-ticker: 0.08em;
   --tracking-eyebrow: 0.18em;
 
+  /* Interaction and layering */
+  --duration-fast: 120ms;
+  --duration-normal: 180ms;
+  --duration-deliberate: 260ms;
+  --ease-tactical: cubic-bezier(0.22, 1, 0.36, 1);
+  --z-base: 0;
+  --z-sticky: 20;
+  --z-overlay: 50;
+  --z-toast: 60;
+  --size-icon-sm: 16px;
+  --size-icon-md: 20px;
+  --size-icon-lg: 24px;
+
   /* Radii */
   --radius-sm: 0px;
   --radius-md: 2px;
   --radius-lg: 3px;
-  --radius: 3px;
 
   /* Background */
   --background-image-grid-hairline: linear-gradient(
@@ -103,27 +136,7 @@
 
 @layer base {
   :root {
-    /* shadcn-compatible CSS variables */
-    --background: 220 16% 6%;
-    --foreground: 220 18% 93%;
-    --card: 222 16% 9%;
-    --card-foreground: 220 18% 93%;
-    --popover: 222 16% 9%;
-    --popover-foreground: 220 18% 93%;
-    --primary: 21 100% 55%;
-    --primary-foreground: 220 16% 6%;
-    --secondary: 222 16% 12%;
-    --secondary-foreground: 220 18% 93%;
-    --muted: 222 16% 10%;
-    --muted-foreground: 220 10% 60%;
-    --accent: 21 100% 55%;
-    --accent-foreground: 220 16% 6%;
-    --destructive: 348 100% 66%;
-    --destructive-foreground: 220 18% 93%;
-    --border: 220 22% 16%;
-    --input: 220 22% 16%;
-    --ring: 21 100% 55%;
-    --radius: 3px;
+    color-scheme: dark;
   }
 
   body {
@@ -134,15 +147,31 @@
     font-family: var(--font-sans);
     font-feature-settings: "cv11", "ss01";
   }
+
+  :focus-visible {
+    outline: 2px solid var(--color-border-focus);
+    outline-offset: 2px;
+  }
 }
 
 .skeleton {
   background: linear-gradient(
     90deg,
-    hsl(var(--card)) 0%,
-    hsl(var(--border)) 40%,
-    hsl(var(--card)) 80%
+    var(--color-panel-low) 0%,
+    var(--color-border) 40%,
+    var(--color-panel-low) 80%
   );
   background-size: 200% 100%;
   animation: var(--animate-skeleton-sweep);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 1ms !important;
+  }
 }

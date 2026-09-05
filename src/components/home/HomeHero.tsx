@@ -24,7 +24,7 @@ export function HomeHero({ season, eyebrow }: HomeHeroProps) {
   const registrationIsOpen = isRegistrationActuallyOpen(season);
 
   return (
-    <Panel className="overflow-hidden relative" pad={0}>
+    <Panel className="overflow-hidden relative" contentClassName="p-0">
       <div className="p-7 relative z-10">
         <div
           className="mb-3 font-bold"

@@ -5,7 +5,9 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -233,23 +235,24 @@ export function VetoInputDialog({
           录入 BP
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>
             BP 选图 · {teamAName} vs {teamBName}（{format.toUpperCase()}）
           </DialogTitle>
         </DialogHeader>
 
-        {matchStatus === "finished" && (
-          <p className="text-xs text-[var(--color-fg-mid)] bg-[var(--color-panel-low)] px-3 py-2 rounded-md">
-            赛后补录：仅更新 BP 步骤，不重建地图记录（已有比分行不受影响）
-          </p>
-        )}
+        <DialogBody className="space-y-3">
+          {matchStatus === "finished" && (
+            <p className="rounded-md bg-[var(--color-panel-low)] px-3 py-2 text-xs text-[var(--color-fg-mid)]">
+              赛后补录：仅更新 BP 步骤，不重建地图记录（已有比分行不受影响）
+            </p>
+          )}
 
-        {loading ? (
-          <p className="text-sm text-[var(--color-fg-mid)] py-4">加载中…</p>
-        ) : null}
-        <div className="space-y-3">
+          {loading ? (
+            <p className="py-4 text-sm text-[var(--color-fg-mid)]">加载中…</p>
+          ) : null}
+          <div className="space-y-3">
           {steps.map((step, i) => (
             <div
               key={i}
@@ -329,9 +332,10 @@ export function VetoInputDialog({
               )}
             </div>
           ))}
-        </div>
+          </div>
+        </DialogBody>
 
-        <div className="flex justify-end gap-3 pt-2">
+        <DialogFooter className="gap-3">
           <Button
             variant="outline"
             size="sm"
@@ -343,7 +347,7 @@ export function VetoInputDialog({
           <Button size="sm" onClick={handleSave} disabled={isPending}>
             {isPending ? "保存中..." : "保存 BP"}
           </Button>
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

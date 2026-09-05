@@ -41,7 +41,7 @@ export function templateLabel(template: CompetitionTemplate): string {
 export function SettingsPanel({ id, label, children }: { id: string; label: string; children: ReactNode }) {
   return (
     <section id={id} aria-labelledby={`${id}-title`} className="scroll-mt-6">
-      <Panel label={<h2 id={`${id}-title`}>{label}</h2>} pad={20}>
+      <Panel label={<h2 id={`${id}-title`}>{label}</h2>} contentClassName="p-5">
         {children}
       </Panel>
     </section>

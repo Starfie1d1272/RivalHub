@@ -128,7 +128,7 @@ export function ResultCorrectionPanel({
   }
 
   return (
-    <Panel label="比分更正与恢复" pad={16} className="space-y-3">
+    <Panel label="比分更正与恢复" contentClassName="space-y-3 p-4">
       <p className="text-sm font-medium text-[var(--color-fg)]">
         比分更正与恢复 · {teamAName} vs {teamBName}（{format.toUpperCase()}）
       </p>

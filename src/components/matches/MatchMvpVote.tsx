@@ -91,7 +91,7 @@ export function MatchMvpVote({
   // ── 投票截止：展示 MVP 结果 ──
   if (votingClosed) {
     return (
-      <Panel pad={24} className="space-y-5">
+      <Panel contentClassName="space-y-5 p-6">
         <div className="text-center space-y-1">
           <p className="text-sm text-[var(--color-fg-mid)]">本场 MVP</p>
           <p className="text-2xl font-bold text-[var(--color-accent)]">
@@ -171,7 +171,7 @@ export function MatchMvpVote({
   }
 
   return (
-    <Panel pad={20} className="space-y-4">
+    <Panel contentClassName="space-y-4 p-5">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h3 className="text-base font-semibold text-[var(--color-fg)]">
           本场 MVP 投票

@@ -12,7 +12,7 @@ CS2 canonical position names 保持英文：`igl`、`awper`、`opener`、`closer
 
 ## Token ownership
 
-视觉 token 的 source of truth 是 `src/app/globals.css` 的 `@theme` 与 `:root`。组件使用既有 token，不为单页创建平行色板。
+视觉 token 的 source of truth 是 `src/app/globals.css` 的 `@theme` 与 `:root`。当前语义值直接定义在 `@theme`；shadcn/Tailwind 名称只是指向这些值的 bridge alias，不得重新引入一套 HSL 数值或单页色板。组件使用既有 token，不为单页创建平行色板。
 
 | Token family | 用途 |
 |---|---|
@@ -23,6 +23,13 @@ CS2 canonical position names 保持英文：`igl`、`awper`、`opener`、`closer
 | `--color-ok*` / `--color-warn*` / `--color-danger*` / `--color-info*` | 语义状态 |
 | `--font-sans` / `--font-display` / `--font-mono` | 正文、标题、标签/标识 |
 | `--radius*` | 紧凑一致的控件与卡片圆角 |
+
+组件 contract：
+
+- `Panel.className` 只表达外层 surface 的几何、边框、宽度和交互；正文排版、间距与正文布局使用 `contentClassName`。`Panel` 不再接受数字 `pad`，避免同一组件存在两套 spacing API。
+- `PageHeader` 输出语义页面标题，可组合 eyebrow、description、status 与 actions；`SectionHeader`/`Section` 用于区块标题与垂直节奏。`Marker` 只保留给紧凑 tactical marker，不承担页面 heading。
+- `PageLayout` 统一页面 gutter，并提供 `narrow`、`standard`、`wide`、`workbench` 四种宽度变体。密集赛务页面使用 `workbench`，其父级不得用窄的固定 `max-width` 截断子工作台。
+- `DialogContent` 统一 viewport gutter、最大高度、surface、边框、focus 与 reduced-motion 基线；长内容放入 `DialogBody`，操作放入 `DialogFooter`，不在消费者重复实现滚动容器。
 
 颜色表达语义时必须同时提供文字、图标或结构性反馈；accent 不替代 success、warning 或 danger。字体、字号和字重至少区分页面标题、区块标题、正文、辅助信息与数据值。
 
@@ -80,5 +87,6 @@ CS2 canonical position names 保持英文：`igl`、`awper`、`opener`、`closer
 - heading 层级、label、状态文本和对比度必须可被辅助技术理解。
 - Dialog、Toast 和动态更新保留合理焦点管理与读屏提示。
 - 颜色、形状与文本共同表达比赛、资格和错误状态。
+- `:focus-visible` 使用全局可见 focus ring；动效必须允许 `prefers-reduced-motion: reduce` 关闭或压缩。
 
 本文件维护跨页面的 UI contract。组件实现和页面组合可演进，但新增模式应先复用现有 token 与 shared component 语义。

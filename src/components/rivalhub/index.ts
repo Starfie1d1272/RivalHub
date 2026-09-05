@@ -1,4 +1,6 @@
 export { Panel } from "./Panel";
+export { PageHeader, SectionHeader, type PageHeaderProps, type SectionHeaderProps } from "./PageHeader";
+export { PageLayout, Section, type PageLayoutVariant } from "./Layout";
 export { Stat, MiniStat } from "./Stat";
 export { Marker } from "./Marker";
 export { Field } from "./Field";

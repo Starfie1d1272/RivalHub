@@ -223,7 +223,7 @@ export function DisciplineManagement({
     <div className="space-y-6">
       <section className="space-y-3">
         <h2 className="text-base font-semibold text-[var(--color-fg)]">签发处罚</h2>
-        <Panel pad={20} className="space-y-4">
+        <Panel contentClassName="space-y-4 p-5">
           <div className="space-y-2">
             <label className="block text-sm text-[var(--color-fg-mid)]" htmlFor="discipline-subject-search">
               搜索被处罚用户（姓名 / Steam 昵称 / 邮箱，至少 2 个字符）
@@ -347,7 +347,7 @@ export function DisciplineManagement({
         ) : (
           <div className="space-y-3">
             {visibleSanctions.map((row) => (
-              <Panel key={row.id} pad={16} className="space-y-2">
+              <Panel key={row.id} contentClassName="space-y-2 p-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-semibold text-[var(--color-fg)]">{row.subjectLabel}</span>
                   <span
@@ -356,7 +356,7 @@ export function DisciplineManagement({
                     style={
                       row.resolvedStatus === "active"
                         ? { background: "color-mix(in srgb, var(--color-danger) 12%, transparent)", color: "var(--color-danger)" }
-                        : { background: "var(--color-soft, rgba(128,128,128,0.12))", color: "var(--color-fg-mid)" }
+                        : { background: "var(--color-panel-low)", color: "var(--color-fg-mid)" }
                     }
                   >
                     {STATUS_LABELS[row.resolvedStatus]}

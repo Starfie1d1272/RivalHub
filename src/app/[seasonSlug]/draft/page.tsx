@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { DraftLiveRoom } from "@/components/draft/DraftLiveRoom";
-import { Panel, Marker } from "@/components/rivalhub";
+import { PageHeader, PageLayout, Panel } from "@/components/rivalhub";
 import { getPublicDraftData } from "@/lib/draft/data";
 import { presentSeasonStatus } from "@/lib/seasons/presentation";
 import { AdminShortcutSlot } from "@/components/layout/AdminShortcutSlot";
@@ -24,14 +24,14 @@ export default async function DraftPage({ params }: DraftPageProps) {
 
   if (!season.hasDraft) {
     return (
-      <main className="container mx-auto max-w-5xl px-4 py-10 space-y-8">
-        <Panel pad={32}>
-          <h1 className="text-2xl font-bold">选秀直播间 · {season.name}</h1>
+      <PageLayout as="div" variant="standard" className="space-y-8">
+        <PageHeader title={`选秀直播间 · ${season.name}`} />
+        <Panel contentClassName="p-8">
           <p className="mt-2 text-sm text-[var(--color-fg-mid)]">
             该赛季未启用蛇形选秀。
           </p>
         </Panel>
-      </main>
+      </PageLayout>
     );
   }
 
@@ -44,29 +44,22 @@ export default async function DraftPage({ params }: DraftPageProps) {
 
     if (!draftFinished) {
       return (
-        <main className="container mx-auto max-w-5xl px-4 py-10 space-y-8">
-          <Panel pad={32}>
-            <h1 className="text-2xl font-bold">选秀直播间 · {season.name}</h1>
-            <p className="mt-2 text-sm text-[var(--color-fg-mid)]">
-              选秀尚未开放 · 当前阶段：{stageLabel}
-            </p>
-          </Panel>
-        </main>
+        <PageLayout as="div" variant="standard" className="space-y-8">
+          <PageHeader title={`选秀直播间 · ${season.name}`} description={`选秀尚未开放 · 当前阶段：${stageLabel}`} />
+        </PageLayout>
       );
     }
 
     const data = await getPublicDraftData(season.id);
     return (
-      <main className="container mx-auto max-w-7xl px-4 py-10 space-y-8">
-        <Marker sub="选秀已结束，以下为完整选人记录。">
-          选秀回顾 · {season.name}
-        </Marker>
+      <PageLayout as="div" variant="wide" className="space-y-8">
+        <PageHeader title={`选秀回顾 · ${season.name}`} description="选秀已结束，以下为完整选人记录。" />
         <DraftLiveRoom
           data={data}
           seasonPositions={season.positions}
           readonly
         />
-      </main>
+      </PageLayout>
     );
   }
 
@@ -74,10 +67,8 @@ export default async function DraftPage({ params }: DraftPageProps) {
 
   if (!data.state) {
     return (
-      <main className="container mx-auto max-w-7xl px-4 py-10 space-y-8">
-        <Marker sub="队伍已组建，选秀尚未启动。队长可提前查看选手池研究阵容。">
-          选秀预览 · {season.name}
-        </Marker>
+      <PageLayout as="div" variant="wide" className="space-y-8">
+        <PageHeader title={`选秀预览 · ${season.name}`} description="队伍已组建，选秀尚未启动。队长可提前查看选手池研究阵容。" />
 
         <div className="mb-6 rounded-sm border border-[var(--color-accent-edge)] bg-[var(--color-accent-soft)] px-4 py-3">
           <p className="text-sm text-[var(--color-fg-mid)]">
@@ -101,20 +92,17 @@ export default async function DraftPage({ params }: DraftPageProps) {
           seasonPositions={season.positions}
           readonly
         />
-      </main>
+      </PageLayout>
     );
   }
 
   return (
-    <main className="container mx-auto max-w-7xl px-4 py-10 space-y-8">
-      <div className="flex items-center justify-between">
-        <Marker sub="自动刷新选秀进度，队伍阵容与选手池。">
-          选秀直播间 · {season.name}
-        </Marker>
-        <Suspense fallback={null}>
-          <AdminShortcutSlot href={`/admin/${seasonSlug}/draft`} />
-        </Suspense>
-      </div>
+    <PageLayout as="div" variant="wide" className="space-y-8">
+      <PageHeader
+        title={`选秀直播间 · ${season.name}`}
+        description="自动刷新选秀进度，队伍阵容与选手池。"
+        actions={<Suspense fallback={null}><AdminShortcutSlot href={`/admin/${seasonSlug}/draft`} /></Suspense>}
+      />
 
       {data.state.isActive && (
         <div>
@@ -128,7 +116,7 @@ export default async function DraftPage({ params }: DraftPageProps) {
       )}
 
       {data.state.isActive && (
-        <Panel pad={0}>
+        <Panel contentClassName="p-0">
           <div className="grid grid-cols-2 md:grid-cols-4 items-stretch">
             {/* LIVE indicator */}
             <div className="flex items-center gap-3.5 min-w-0 md:border-r border-[var(--color-border)]" style={{ padding: "16px 20px" }}>
@@ -193,6 +181,6 @@ export default async function DraftPage({ params }: DraftPageProps) {
           data={data}
           seasonPositions={season.positions}
         />
-    </main>
+    </PageLayout>
   );
 }

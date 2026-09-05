@@ -3,7 +3,7 @@ import { eq, and, asc, or, sql } from "drizzle-orm";
 import Link from "next/link";
 import { db } from "@/db/client";
 import { competitionEntries, eventRosterMembers, eventRosters, seasonRegistrations, users } from "@/db/schema";
-import { Marker, Stat } from "@/components/rivalhub";
+import { PageHeader, PageLayout, Stat } from "@/components/rivalhub";
 import { PlayerDirectoryRow } from "@/components/players/PlayerDirectoryRow";
 import { countDirectoryPlayersWithTeam, sortPlayerDirectory } from "@/lib/players/directory-order";
 import { positionLabel, positionValues } from "@/lib/validators/registration";
@@ -130,8 +130,12 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
   );
 
   return (
-    <div className="container mx-auto px-4 py-12 max-w-6xl space-y-8">
-      <Marker sub={`${season.name} · ${registrations.length} 人已通过审核`}>选手名单</Marker>
+    <PageLayout as="div" variant="wide" className="space-y-8">
+      <PageHeader
+        title="选手名单"
+        eyebrow={season.name}
+        description={`${registrations.length} 人已通过审核`}
+      />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <Stat label="PLAYERS" value={registrations.length} />
@@ -174,6 +178,6 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
           ))}
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }

@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
 import { CaptainConfirmPanel } from "@/components/captains/CaptainConfirmPanel";
-import { Panel, Marker } from "@/components/rivalhub";
+import { PageHeader, Panel } from "@/components/rivalhub";
 import { getPublicCaptainVotingData, getSeasonTeamCount } from "@/lib/captains/data";
 
 interface AdminCaptainsPageProps {
@@ -19,14 +19,14 @@ export default async function AdminCaptainsPage({ params }: AdminCaptainsPagePro
 
   if (!season.hasCaptainVoting) {
     return (
-      <main className="container mx-auto max-w-5xl px-4 py-8">
-        <Panel pad={32}>
-          <Marker>队长确认 · {season.name}</Marker>
+      <div className="space-y-6">
+        <PageHeader title={`队长确认 · ${season.name}`} />
+        <Panel contentClassName="p-8">
           <p className="text-sm text-[var(--color-fg-mid)]">
             该赛季未启用队长投票。
           </p>
         </Panel>
-      </main>
+      </div>
     );
   }
 
@@ -36,10 +36,8 @@ export default async function AdminCaptainsPage({ params }: AdminCaptainsPagePro
   ]);
 
   return (
-    <main className="container mx-auto max-w-6xl px-4 py-8">
-      <div className="mb-8">
-        <Marker sub="查看票数排序，确认前 8 名后自动生成队伍与 draft order。">队长确认 · {season.name}</Marker>
-      </div>
+    <div className="space-y-6">
+      <PageHeader title={`队长确认 · ${season.name}`} description="查看票数排序，确认前 8 名后自动生成队伍与 draft order。" />
 
       <CaptainConfirmPanel
         seasonId={season.id}
@@ -47,6 +45,6 @@ export default async function AdminCaptainsPage({ params }: AdminCaptainsPagePro
         teamCount={teamCount}
         candidates={data.candidates}
       />
-    </main>
+    </div>
   );
 }

@@ -1,7 +1,7 @@
 import React from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { EmptyState, Marker, Panel, PosChip, Stat, StatusPill } from "@/components/rivalhub";
+import { EmptyState, PageHeader, Panel, PosChip, Stat, StatusPill } from "@/components/rivalhub";
 import { TeamLogo } from "@/components/teams/TeamLogo";
 import { RecruitmentInterestButton } from "@/components/recruitment/RecruitmentInterestButton";
 import type { PublicRecruitmentIntent } from "@/lib/recruitment/data";
@@ -39,23 +39,26 @@ export function TeamPublicProfile({ team, currentMembers, entries, nameChanges, 
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
-        <div className="flex min-w-0 items-start gap-4">
-          <TeamLogo logoUrl={team.logoUrl} teamName={team.name} size="lg" />
-          <div className="min-w-0 flex-1">
-            <Marker sub={`${currentMembers.length} 名当前成员`}>{team.name}</Marker>
-            <p className="max-w-2xl text-sm leading-6 text-[var(--color-fg-mid)]">{team.description ?? "暂无队伍简介。"}</p>
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              <StatusPill {...presentTeamStatus(team.status)} />
-              {team.status === "active" && recruitment && <StatusPill label="招募中" tone="accent" />}
-              {currentUserMembership && <StatusPill label={membershipLabel ?? "我的队伍 · 成员"} tone="accent" />}
-            </div>
+      <PageHeader
+        title={(
+          <span className="flex items-center gap-4">
+            <TeamLogo logoUrl={team.logoUrl} teamName={team.name} size="lg" />
+            <span>{team.name}</span>
+          </span>
+        )}
+        eyebrow={`${currentMembers.length} 名当前成员`}
+        description={team.description ?? "暂无队伍简介。"}
+        status={(
+          <div className="flex flex-wrap items-center gap-1.5">
+            <StatusPill {...presentTeamStatus(team.status)} />
+            {team.status === "active" && recruitment && <StatusPill label="招募中" tone="accent" />}
+            {currentUserMembership && <StatusPill label={membershipLabel ?? "我的队伍 · 成员"} tone="accent" />}
           </div>
-        </div>
-        {currentUserMembership && team.status === "active" && <Button asChild><Link href="/my/teams">管理我的队伍</Link></Button>}
-      </div>
+        )}
+        actions={currentUserMembership && team.status === "active" ? <Button asChild><Link href="/my/teams">管理我的队伍</Link></Button> : undefined}
+      />
 
-      {recruitment && <Panel label="正在招募" pad={20}>
+      {recruitment && <Panel label="正在招募" contentClassName="p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="space-y-3"><div className="flex flex-wrap items-center gap-2"><span className="text-sm text-[var(--color-fg-mid)]">需要位置</span>{recruitment.positions.length ? recruitment.positions.map((position) => <PosChip key={position} pos={position} />) : <span className="text-sm">位置不限</span>}</div>{recruitment.targetSeasonName && <p className="text-sm text-[var(--color-fg-mid)]">目标赛事 · {recruitment.targetSeasonName}</p>}{recruitment.note && <p className="max-w-2xl text-sm leading-6 text-[var(--color-fg-mid)]">{recruitment.note}</p>}<p className="text-xs text-[var(--color-fg-dim)]">更新于 {formatCSTShortDate(recruitment.updatedAt)}</p></div>{!currentUserMembership && <RecruitmentInterestButton recruitmentIntentId={recruitment.id} interested={viewerInterested} loggedIn={loggedIn} />}
         </div>
@@ -69,7 +72,7 @@ export function TeamPublicProfile({ team, currentMembers, entries, nameChanges, 
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <Panel label="当前成员" pad={20}>
+        <Panel label="当前成员" contentClassName="p-5">
           <div className="divide-y divide-[var(--color-border)]">
             {currentMembers.length > 0 ? currentMembers.map((member) => (
               <div key={member.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
@@ -83,7 +86,7 @@ export function TeamPublicProfile({ team, currentMembers, entries, nameChanges, 
           </div>
         </Panel>
 
-        <Panel label="赛事履历" pad={20}>
+        <Panel label="赛事履历" contentClassName="p-5">
           <div className="divide-y divide-[var(--color-border)]">
             {entries.length > 0 ? entries.map((entry) => (
               <Link key={entry.id} href={`/${entry.seasonSlug}/teams/${entry.id}`} className="flex flex-wrap items-center justify-between gap-3 py-3 hover:bg-[var(--color-panel-hi)]">
@@ -95,7 +98,7 @@ export function TeamPublicProfile({ team, currentMembers, entries, nameChanges, 
         </Panel>
       </div>
 
-      <Panel label="队伍历史" pad={20}>
+      <Panel label="队伍历史" contentClassName="p-5">
         <div className="grid gap-6 md:grid-cols-2">
           <div className="space-y-3">
             <h3 className="font-semibold">名称变更</h3>

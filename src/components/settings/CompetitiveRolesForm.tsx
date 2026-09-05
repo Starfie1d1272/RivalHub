@@ -26,7 +26,7 @@ export function CompetitiveRolesForm({ initialRoles, initialPrimaryRole }: { ini
     setPrimaryRole(primaryRole ?? role);
   }
 
-  return <Panel label="位置偏好" pad={20}>
+  return <Panel label="位置偏好" contentClassName="p-5">
     <div className="space-y-5">
       <p className="text-sm leading-6 text-[var(--color-fg-mid)]">选择 1–3 个常用位置，并指定主位置。它用于队伍招募与资料展示，不构成赛事资格门禁。</p>
       <div className="space-y-2">

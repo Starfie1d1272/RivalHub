@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
 import { competitionEntries, competitionEntryParticipants, competitionEntryRestrictionOverrides, competitionEntryRosterMembers, competitionEntryRosterRevisions, seasons, seasonRegistrations, users, registrationDrafts } from "@/db/schema";
-import { Marker } from "@/components/rivalhub";
+import { PageHeader } from "@/components/rivalhub";
 import {
   RegistrationReviewList,
   type RegistrationRow,
@@ -139,7 +139,7 @@ export default async function AdminRegistrationsPage({ params }: PageProps) {
     }));
     return (
       <div className="container mx-auto max-w-3xl px-4 py-8">
-        <div className="mb-6"><Marker sub={`${entries.length} 支报名队伍 · 赛季状态：${presentSeasonStatus(season.status).label}`}>赛事报名审核 · {season.name}</Marker></div>
+        <PageHeader title={`赛事报名审核 · ${season.name}`} description={`${entries.length} 支报名队伍 · 赛季状态：${presentSeasonStatus(season.status).label}`} />
         <CompetitionEntryReviewList entries={reviewRows} />
       </div>
     );
@@ -205,9 +205,7 @@ export default async function AdminRegistrationsPage({ params }: PageProps) {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-3xl">
-      <div className="mb-6">
-        <Marker sub={`${registrations.length} 份已提交 · ${drafts.length} 份草稿 · 赛季状态：${presentSeasonStatus(season.status).label}`}>报名审核 · {season.name}</Marker>
-      </div>
+      <PageHeader title={`报名审核 · ${season.name}`} description={`${registrations.length} 份已提交 · ${drafts.length} 份草稿 · 赛季状态：${presentSeasonStatus(season.status).label}`} />
 
       <RegistrationReviewList registrations={registrations} />
 

@@ -28,7 +28,7 @@ export function TeamProfileSection({
   onSave: () => void;
   onLeave: () => void;
 }) {
-  return <Panel label="队伍资料" pad={20}><div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+  return <Panel label="队伍资料" contentClassName="p-5"><div className="flex flex-col gap-4 sm:flex-row sm:items-start">
     <TeamLogoUpload teamId={team.id} currentLogoUrl={team.logoUrl} teamName={team.name} canEdit={isCaptain} />
     <div className="min-w-0 flex-1 space-y-4">
       <div className="space-y-1.5"><Label htmlFor={`team-name-${team.id}`}>队伍名称</Label><Input id={`team-name-${team.id}`} value={name} disabled={!isCaptain} onChange={(event) => onNameChange(event.target.value)} /></div>

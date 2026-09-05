@@ -39,7 +39,7 @@ function bracketThemeStyle(themeColor?: string | null): React.CSSProperties {
     // 默认禁用 hover 描边；可点击比赛由 JS 直接写 inline style 触发橙色
     "--border-hover-color": "var(--color-border)",
     "--border-selected-color": themeColor ?? "var(--color-accent)",
-    "--win-color": "var(--color-success)",
+    "--win-color": "var(--color-ok)",
     "--loss-color": "var(--color-danger)",
     // 队伍名 + "vs" + 队伍名 + 胜者/败者 标签较长，加宽对阵卡片
     "--match-width": "280px",

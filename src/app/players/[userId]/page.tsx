@@ -376,9 +376,9 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
         </div>
       </div>
 
-      {playerLft && <section className="space-y-3"><SectionHeading>正在找队</SectionHeading><Panel pad={16}><div className="space-y-3"><div className="flex flex-wrap gap-2">{playerLft.positions.map((position) => <PosChip key={position} pos={position} />)}</div>{playerLft.targetSeasonName && <p className="text-sm text-[var(--color-fg-mid)]">目标赛事 · {playerLft.targetSeasonName}</p>}{playerLft.note && <p className="text-sm leading-6 text-[var(--color-fg-mid)]">{playerLft.note}</p>}<Link href="/teams/recruitment?view=players" className="text-sm text-[var(--color-accent)]">查看组队大厅 →</Link></div></Panel></section>}
+      {playerLft && <section className="space-y-3"><SectionHeading>正在找队</SectionHeading><Panel contentClassName="p-4"><div className="space-y-3"><div className="flex flex-wrap gap-2">{playerLft.positions.map((position) => <PosChip key={position} pos={position} />)}</div>{playerLft.targetSeasonName && <p className="text-sm text-[var(--color-fg-mid)]">目标赛事 · {playerLft.targetSeasonName}</p>}{playerLft.note && <p className="text-sm leading-6 text-[var(--color-fg-mid)]">{playerLft.note}</p>}<Link href="/teams/recruitment?view=players" className="text-sm text-[var(--color-accent)]">查看组队大厅 →</Link></div></Panel></section>}
 
-      {publicCompetitiveProfile.length > 0 && <section className="space-y-3"><SectionHeading>公开竞技档案</SectionHeading><Panel pad={16}><div className="space-y-4 text-sm">{publicCompetitiveProfile.map((platform) => <div key={platform.displayName} className="space-y-2"><p className="font-semibold text-[var(--color-fg)]">{platform.displayName}</p>{platform.facts.map((fact) => <p key={`${platform.displayName}-${fact.label}`}><span className="text-[var(--color-fg-mid)]">{fact.label}</span> · {fact.rankLabel}{fact.stars !== null ? ` ${fact.stars} 星` : ""}{fact.ratingLabel && fact.rating !== null ? ` · ${fact.ratingLabel} ${fact.rating}` : ""}</p>)}</div>)}</div></Panel></section>}
+      {publicCompetitiveProfile.length > 0 && <section className="space-y-3"><SectionHeading>公开竞技档案</SectionHeading><Panel contentClassName="p-4"><div className="space-y-4 text-sm">{publicCompetitiveProfile.map((platform) => <div key={platform.displayName} className="space-y-2"><p className="font-semibold text-[var(--color-fg)]">{platform.displayName}</p>{platform.facts.map((fact) => <p key={`${platform.displayName}-${fact.label}`}><span className="text-[var(--color-fg-mid)]">{fact.label}</span> · {fact.rankLabel}{fact.stars !== null ? ` ${fact.stars} 星` : ""}{fact.ratingLabel && fact.rating !== null ? ` · ${fact.ratingLabel} ${fact.rating}` : ""}</p>)}</div>)}</div></Panel></section>}
 
       <section className="space-y-3">
         <SectionHeading>地图熟练度</SectionHeading>
@@ -393,7 +393,7 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
           latestReg.competitionHistory?.trim()) && (
           <section className="space-y-3">
             <SectionHeading>选手自述</SectionHeading>
-            <Panel pad={16}>
+            <Panel contentClassName="p-4">
               <div className="space-y-2">
                 {PUBLIC_PLAYER_INFO_FIELDS
                   .map(({ key, label }) => {
@@ -481,7 +481,7 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
 
           {/* 按赛季分组 */}
           {[...playerStats].reverse().map((ps) => (
-            <Panel key={ps.seasonSlug} pad={16}>
+            <Panel key={ps.seasonSlug} contentClassName="p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Link
                   href={`/${ps.seasonSlug}/stats`}
@@ -534,7 +534,7 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
                 const scores = hexagonBySeasonSlug.get(ps.seasonSlug);
                 if (!scores) return null;
                 return (
-                  <Panel key={ps.seasonSlug} pad={16}>
+                  <Panel key={ps.seasonSlug} contentClassName="p-4">
                     <div className="text-xs font-semibold text-[var(--color-fg-mid)] mb-3">
                       {ps.seasonName}
                     </div>
@@ -564,7 +564,7 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
               const peakParts = [`${reg.peakRank} (${reg.peakRankSeason})`, `Rating ${reg.peakRating.toFixed(2)}`];
               if (reg.peakWe != null) peakParts.push(`WE ${reg.peakWe.toFixed(1)}`);
               return (
-                <Panel key={reg.id} pad={16}>
+                <Panel key={reg.id} contentClassName="p-4">
                   <div className="flex items-start justify-between gap-3 flex-wrap">
                     <div className="min-w-0 space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -604,7 +604,7 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
       )}
 
       {registrations.length === 0 && (
-        <Panel pad={32} className="text-center">
+        <Panel contentClassName="p-8 text-center">
           <p className="text-[var(--color-fg-mid)]">暂无参赛记录</p>
         </Panel>
       )}
