@@ -76,7 +76,7 @@ PostgreSQL 分类必须复用 `src/db/errors.ts` 的 `extractPgError()`。日志
 - DB query、连接池创建、重建和一次 retry；
 - Supabase Auth/session、Turnstile、Steam、SiliconFlow/OCR；
 - Rivals registration submit；CompetitionEntry submit/review；
-- Major start、Swiss round finalize、stage transition、playoff start；
+- Major prestart final entrant selection/reconciliation and lock, Major start、Swiss round finalize、stage transition、playoff start；
 - match result record、result correction plan/apply/adjudication。
 
 Span name、`rivalhub.*`、`db.*`、HTTP method/status 和 provider 等属性必须是低基数值。默认不加 user/team/entry ID、email、昵称或业务 payload。跨 provider 的 trace propagation 只对自有 deployment URL 开启；Supabase、Steam、SiliconFlow、Cloudflare Turnstile 和 Better Stack 均不接收 RivalHub trace headers。

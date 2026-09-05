@@ -1,6 +1,6 @@
 import "server-only";
 
-import { asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   competitionEntries,
@@ -16,6 +16,7 @@ import {
   users,
 } from "@/db/schema";
 import { evaluateMajorPrestartReadiness, type MajorPrestartReadiness } from "@/lib/major/prestart";
+import { getDisplayName } from "@/lib/identity/display-name";
 import type { Season } from "@/db/schema/seasons";
 import { normalizeAffiliationRules, normalizeRegistrationConfig, normalizeStagePlan, normalizeTeamRegistrationConfig } from "@/types/season";
 import type { MajorPrestartPageData } from "./types";
@@ -91,24 +92,49 @@ export function buildMajorReadiness(
 }
 
 export async function loadMajorPrestartPageData(season: Season): Promise<MajorPrestartPageData> {
-  const seasonTeams = await db.query.competitionEntries.findMany({
-    where: eq(competitionEntries.competitionId, season.id),
-    orderBy: [asc(competitionEntries.createdAt)],
-    columns: { id: true, name: true },
-  });
-  const teamIds = seasonTeams.map((team) => team.id);
-  const formalMembers = teamIds.length === 0 ? [] : await db
-    .select({ teamId: competitionEntryRosterRevisions.entryId, userId: competitionEntryRosterMembers.userId, email: users.email })
-    .from(competitionEntryRosterMembers)
-    .innerJoin(competitionEntryRosterRevisions, eq(competitionEntryRosterMembers.revisionId, competitionEntryRosterRevisions.id))
-    .innerJoin(users, eq(competitionEntryRosterMembers.userId, users.id))
-    .where(inArray(competitionEntryRosterRevisions.entryId, teamIds));
-  const candidatesByTeam = new Map<string, Array<{ userId: string; email: string }>>();
-  for (const member of formalMembers) {
-    const candidates = candidatesByTeam.get(member.teamId) ?? [];
-    candidates.push({ userId: member.userId, email: member.email });
-    candidatesByTeam.set(member.teamId, candidates);
+  const approvedEntries = await db.select({
+    id: competitionEntries.id,
+    name: competitionEntries.name,
+    representativeUserId: competitionEntries.representativeUserId,
+    submittedAt: competitionEntries.submittedAt,
+    reviewedAt: competitionEntries.reviewedAt,
+    approvedRosterRevisionId: competitionEntries.approvedRosterRevisionId,
+  }).from(competitionEntries)
+    .where(and(eq(competitionEntries.competitionId, season.id), eq(competitionEntries.registrationStatus, "approved")))
+    .orderBy(asc(competitionEntries.name));
+  const approvedRevisionIds = approvedEntries.flatMap((entry) => entry.approvedRosterRevisionId ? [entry.approvedRosterRevisionId] : []);
+  const approvedRevisionRows = approvedRevisionIds.length === 0 ? [] : await db.select({
+    id: competitionEntryRosterRevisions.id,
+    approvedAt: competitionEntryRosterRevisions.approvedAt,
+  }).from(competitionEntryRosterRevisions).where(inArray(competitionEntryRosterRevisions.id, approvedRevisionIds));
+  const approvedAtByRevisionId = new Map(approvedRevisionRows.map((revision) => [revision.id, revision.approvedAt]));
+  const representativeIds = [...new Set(approvedEntries.map((entry) => entry.representativeUserId))];
+  const [approvedMemberRows, representativeRows] = await Promise.all([
+    approvedRevisionIds.length === 0 ? Promise.resolve([]) : db.select({
+      entryId: competitionEntryRosterRevisions.entryId,
+      userId: competitionEntryRosterMembers.userId,
+      email: users.email,
+      isPrimaryStarter: competitionEntryRosterMembers.isPrimaryStarter,
+    }).from(competitionEntryRosterMembers)
+      .innerJoin(competitionEntryRosterRevisions, eq(competitionEntryRosterMembers.revisionId, competitionEntryRosterRevisions.id))
+      .innerJoin(users, eq(competitionEntryRosterMembers.userId, users.id))
+      .where(inArray(competitionEntryRosterMembers.revisionId, approvedRevisionIds))
+      .orderBy(asc(competitionEntryRosterRevisions.entryId), asc(competitionEntryRosterMembers.userId)),
+    representativeIds.length === 0 ? Promise.resolve([]) : db.select({
+      id: users.id,
+      displayName: users.displayName,
+      perfectName: users.perfectName,
+      steamName: users.steamName,
+      email: users.email,
+    }).from(users).where(inArray(users.id, representativeIds)),
+  ]);
+  const approvedMembersByEntryId = new Map<string, Array<{ userId: string; email: string; isPrimaryStarter: boolean }>>();
+  for (const member of approvedMemberRows) {
+    const members = approvedMembersByEntryId.get(member.entryId) ?? [];
+    members.push({ userId: member.userId, email: member.email ?? "", isPrimaryStarter: member.isPrimaryStarter });
+    approvedMembersByEntryId.set(member.entryId, members);
   }
+  const representativeNameById = new Map(representativeRows.map((user) => [user.id, getDisplayName(user)]));
 
   const [state, entrantRows, rosterRows, issueRows, seedRows, stageRunRows] = await Promise.all([
     db.query.majorPrestartStates.findFirst({ where: eq(majorPrestartStates.seasonId, season.id) }),
@@ -117,12 +143,13 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
       teamId: majorTournamentEntrants.competitionEntryId,
       teamName: competitionEntries.name,
       rosterStatus: eventRosters.status,
+      sourceRosterRevisionId: eventRosters.sourceRosterRevisionId,
     }).from(majorTournamentEntrants)
       .innerJoin(competitionEntries, eq(majorTournamentEntrants.competitionEntryId, competitionEntries.id))
       .innerJoin(eventRosters, eq(majorTournamentEntrants.competitionEntryId, eventRosters.entryId))
       .where(eq(majorTournamentEntrants.seasonId, season.id))
       .orderBy(asc(competitionEntries.name)),
-    db.select({ entrantId: majorTournamentEntrants.id, userId: eventRosterMembers.userId, email: users.email, educationVerificationId: eventRosterMembers.educationVerificationId })
+    db.select({ entrantId: majorTournamentEntrants.id, userId: eventRosterMembers.userId, email: users.email, educationVerificationId: eventRosterMembers.educationVerificationId, isPrimaryStarter: eventRosterMembers.isPrimaryStarter })
       .from(eventRosterMembers)
       .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
       .innerJoin(majorTournamentEntrants, eq(majorTournamentEntrants.competitionEntryId, eventRosters.entryId))
@@ -141,11 +168,12 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
 
   const readiness = buildMajorReadiness(season, state, entrantRows, rosterRows, issueRows, seedRows);
   const entrantIds = new Set(entrantRows.map((entrant) => entrant.id));
-  const rosterByEntrant = new Map<string, Array<{ userId: string; email: string; educationVerificationId: string | null }>>();
+  const selectedEntryIds = new Set(entrantRows.map((entrant) => entrant.teamId));
+  const rosterByEntrant = new Map<string, Array<{ userId: string; email: string; educationVerificationId: string | null; isPrimaryStarter: boolean }>>();
   for (const member of rosterRows) {
     if (!entrantIds.has(member.entrantId)) continue;
     const roster = rosterByEntrant.get(member.entrantId) ?? [];
-    roster.push({ userId: member.userId, email: member.email ?? "", educationVerificationId: member.educationVerificationId });
+    roster.push({ userId: member.userId, email: member.email ?? "", educationVerificationId: member.educationVerificationId, isPrimaryStarter: member.isPrimaryStarter });
     rosterByEntrant.set(member.entrantId, roster);
   }
 
@@ -155,15 +183,30 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
     management: {
       seasonId: season.id,
       entrantsLocked: Boolean(state?.entrantsLockedAt),
-      availableTeams: seasonTeams.filter((team) => !entrantRows.some((entrant) => entrant.teamId === team.id)).map((team) => ({
-        id: team.id,
-        name: team.name,
-        members: candidatesByTeam.get(team.id) ?? [],
+      approvedCandidates: approvedEntries.filter((entry): entry is typeof entry & { approvedRosterRevisionId: string } => Boolean(entry.approvedRosterRevisionId)).map((entry) => ({
+        id: entry.id,
+        name: entry.name,
+        representativeName: representativeNameById.get(entry.representativeUserId) ?? "未知用户",
+        submittedAt: entry.submittedAt?.toISOString() ?? null,
+        reviewedAt: entry.reviewedAt?.toISOString() ?? null,
+        approvedAt: approvedAtByRevisionId.get(entry.approvedRosterRevisionId)?.toISOString() ?? null,
+        approvedRosterRevisionId: entry.approvedRosterRevisionId,
+        qualificationStatus: "approved" as const,
+        selectedAsEntrant: selectedEntryIds.has(entry.id),
+        roster: {
+          memberCount: approvedMembersByEntryId.get(entry.id)?.length ?? 0,
+          primaryStarterCount: approvedMembersByEntryId.get(entry.id)?.filter((member) => member.isPrimaryStarter).length ?? 0,
+          members: approvedMembersByEntryId.get(entry.id) ?? [],
+        },
       })),
       entrants: entrantRows.map((entrant) => ({
         ...entrant,
-        roster: (rosterByEntrant.get(entrant.id) ?? []).map((member) => ({ userId: member.userId, email: member.email })),
-        candidates: candidatesByTeam.get(entrant.teamId) ?? [],
+        roster: (rosterByEntrant.get(entrant.id) ?? []).map((member) => ({
+          userId: member.userId,
+          email: member.email,
+          isPrimaryStarter: member.isPrimaryStarter,
+          educationVerificationId: member.educationVerificationId,
+        })),
       })),
       issues: issueRows.map((issue) => ({ id: issue.id, category: issue.category, label: issue.label, resolved: Boolean(issue.resolvedAt) })),
     },

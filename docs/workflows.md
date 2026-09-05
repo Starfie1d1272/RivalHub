@@ -44,7 +44,8 @@ Rivals 用户在报名窗口填写个人报名并可保存草稿。提交由 Ser
 
 ## 11. Major prestart
 
-管理员维护预启动 entrants、最终名单、种子和 blockers。readiness 必须给出具体 blocker 与下一步操作。锁定/确认后的预启动事实被 `startMajor` 消费，创建 Stage 1 运行时；预览 opening plan 不能替代完整 readiness。
+Major prestart 将已批准的 CompetitionEntry 作为候选池，不再把管理员逐队加入或手工挑选 5–9 人名单作为正常流程。管理员一次提交最终 Entry 集合：容量不超过 32 时可全选，超过 32 时必须明确选择恰好 32 个，不按实力或报名时间推导 Top32；事务会从每个 Entry 的 `approvedRosterRevisionId` materialize / reconcile Entry-owned EventRoster，并保留主力与教育证据。名单调整必须由队长和成员在 Entry roster-change 流程中完成、重新审核后自动同步；管理员只处理明确 blocker/例外，再用一次统一动作冻结正式参赛队与 EventRoster。readiness 必须给出具体 blocker 与下一步操作。锁定后的预启动事实被 `startMajor` 消费，创建 Stage 1 运行时；预览 opening plan 不能替代完整 readiness。
+特殊的名单补正、重新开放或确认动作只用于处理明确例外，必须填写原因并产生审计记录；正常流程不提供逐队管理员名单选择器。
 
 赛事工作区按生命周期组织这些能力：`/admin/{seasonSlug}` 只展示 lifecycle、时间、按报名模式投影的摘要、当前赛前 readiness 和下一步 CTA；完整 Major 赛前操作位于 `/prestart`。Rivals 的队长确认和选秀保留 `/captains`、`/draft` URL，并作为 `/prestart` 下的 capability 入口展示。工作区 shell 消费 `hasCaptainVoting`、`hasDraft`、`hasCommunityAwards` 与 StagePlan，不为不同赛事模板复制导航。
 

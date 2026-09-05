@@ -38,14 +38,29 @@ export interface MajorPrestartPageData {
   management: {
     seasonId: string;
     entrantsLocked: boolean;
-    availableTeams: Array<{ id: string; name: string; members: Array<{ userId: string; email: string }> }>;
+    approvedCandidates: Array<{
+      id: string;
+      name: string;
+      representativeName: string;
+      submittedAt: string | null;
+      reviewedAt: string | null;
+      approvedAt: string | null;
+      approvedRosterRevisionId: string;
+      qualificationStatus: "approved";
+      selectedAsEntrant: boolean;
+      roster: {
+        memberCount: number;
+        primaryStarterCount: number;
+        members: Array<{ userId: string; email: string; isPrimaryStarter: boolean }>;
+      };
+    }>;
     entrants: Array<{
       id: string;
       teamId: string;
       teamName: string;
       rosterStatus: "preparing" | "confirmed" | "frozen";
-      roster: Array<{ userId: string; email: string }>;
-      candidates: Array<{ userId: string; email: string }>;
+      sourceRosterRevisionId: string | null;
+      roster: Array<{ userId: string; email: string; isPrimaryStarter: boolean; educationVerificationId: string | null }>;
     }>;
     issues: Array<{ id: string; category: "qualification" | "administration"; label: string; resolved: boolean }>;
   };

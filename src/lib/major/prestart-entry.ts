@@ -51,10 +51,11 @@ function invariant(message: string): AppError {
  * Entry-owned event roster. Entries are locked `FOR UPDATE` so a concurrent roster
  * change cannot slip in between this check and the caller's freeze.
  *
- * `requireEventRosterSync: false` is reserved for the explicit re-sync action
- * (`saveMajorPrestartRoster`): it still validates Entry approval and revision
- * integrity — and still locks the event roster — but skips the
- * sourceRosterRevisionId equality it is about to re-establish itself.
+ * `requireEventRosterSync: false` is reserved for the explicit resync owners
+ * (Major final selection and approved Entry re-approval, plus the existing
+ * repair action): it still validates Entry approval and revision integrity —
+ * and still locks the event roster — but skips the sourceRosterRevisionId
+ * equality the caller is about to re-establish.
  */
 export async function assertPrestartEntryCoherenceInTx(
   tx: TxDb,
