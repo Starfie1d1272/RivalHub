@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.4.1]
+
+### Fixed
+
+#### Major 管理工作区
+
+修复 v2.4.0 中 Major 单届赛事后台概览无法正常加载的问题。正式参赛队伍概览现在会正确读取 CompetitionEntry 与 EventRoster 事实，不再因服务端查询缺少必要关联而触发页面渲染错误。
+
 ## [2.4.0]
 
 RivalHub 2.4 聚焦赛事后台工作区与 Major 赛前运营成熟度：管理员现在可以从已批准报名一路完成正式参赛队、赛事名单、种子建议、最终种子、比赛工作台与赛后收尾；同时补齐跨生命周期社区奖能力和生产级可观测性基础。
@@ -65,6 +73,7 @@ BO1、BO3 与 BO5 现在以统一方式保存官方系列赛比分和实际地�
 ### Migration & Operations
 
 本版本包含三条 forward migration：`0036_auth_id_reconciliation`、`0037_match_score_semantics` 与 `0038_conversion_policies`。生产升级仍只通过 `v*` tag 触发标准 release workflow，依次执行 active migration replay、previous stable compatibility、production migrate/verify、精确版本 Vercel Production 部署与 smoke test。
+
 ## [2.2.4]
 
 RivalHub 2.2.4 聚焦 Major 报名资格、长期竞技资料、数据库安全边界与发布可靠性。地图熟练度现在成为可长期维护的个人资料；Major 外校成员限制改为明确的完美世界历史最高总星数相对规则，并支持对可解除的政策限制进行有理由、可审计的管理员例外处理。
@@ -643,7 +652,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **PRISM 狙击维度畸变**：无狙击信号选手直接置 0（非百分位排名）；全等值返回 50
 - **Stats 页默认排序**：`ratingPro`(全 null) → `RR`
 - **选手主页 RWS/WE/ratingPro 归零**：OCR 专属查询回填，Demo 图不影响
-- **KAST 数据翻倍(**×100)\\*\\*：修复聚合层多余的乘法
+- **KAST 数据翻倍(**×100)\\_\\_：修复聚合层多余的乘法
 - **HS 爆头数 → 爆头率(%)**：语义更正
 - **选手列表双行**：PlayerStatsTable 补充 `source` 过滤
 - **Kill Feed 布局**：改为卡片+限高滚动
@@ -1742,6 +1751,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.4.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.4.0...v2.4.1
 [2.4.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.2.4...v2.3.0
 [2.2.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.2.3...v2.2.4
