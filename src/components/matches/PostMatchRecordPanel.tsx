@@ -4,8 +4,9 @@ import { toast } from "sonner";
 import { addMatchCommentator, removeMatchCommentator, revokePostMatchSubmission, submitPostMatchReport, updateMatchVideoUrl } from "@/actions/postmatch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import type { AdminPostMatchRecordData } from "@/lib/admin/matches/types";
 
-export type PostMatchRecordData = { commentators: { userId: string; name: string; hasLiveStream: boolean }[]; seasonAdmins: { userId: string; name: string; hasLiveStream: boolean }[]; submittedAt: Date | null; submittedByUserId: string | null; videoUrl: string | null; completionLabel: string; canSubmit: boolean };
+export type PostMatchRecordData = AdminPostMatchRecordData;
 export function PostMatchRecordPanel({ matchId, data }: { matchId: string; data: PostMatchRecordData }) {
   const [isPending, startTransition] = useTransition();
   const [videoUrl, setVideoUrl] = useState(data.videoUrl ?? "");

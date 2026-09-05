@@ -52,6 +52,8 @@ CS2 地图也分为相互独立的事实 owner：`CS2_MAP_CATALOG` 是保留历�
 
 `matches` 表示赛程、比赛状态和官方系列赛结果；`scoreA/scoreB` 在 BO1、BO3、BO5 中始终是系列赛地图胜场比分。`match_maps` 持有所有实际进行地图的回合比分，正常 BO1 也必须有一行 scored map；弃赛不制造虚构地图。`match_veto_steps`、`match_time_proposals`、`match_mvp_votes` 与 `match_player_stats` 记录比赛细节。结果更正必须保留 audit 与适用的运行时边界。
 
+管理端比赛总览与单场工作台是两个 presentation/read-model boundary：`src/lib/admin/matches/overview.ts` 只投影阶段、standings、赛程和轻量状态，`src/lib/admin/matches/workbench.ts` 才读取指定比赛的 roster、BP/地图、结果、赛后资料与 preflight。它们共享上述 canonical facts，不创建新的比赛、结果或 roster owner；概览中的比赛摘要只通过 workbench 链接进入单场操作。
+
 ## 9. Match rosters
 
 `match_rosters` 与 `match_roster_players` 是具体比赛的提交/确认阵容；它们把某一场比赛的可操作名单与冻结赛事名单分开。Major match roster 校验基于对应的冻结阶段事实。
@@ -133,6 +135,7 @@ CS2 地图也分为相互独立的事实 owner：`CS2_MAP_CATALOG` 是保留历�
 | 全局赛事生命周期目录分组 | `src/lib/seasons/presentation.ts#getSeasonLifecycleGroup` + `groupSeasonsByLifecycle` |
 | 公共首页主赛事选择 | `src/lib/home/navigation.ts#selectFeaturedSeason`（presentation-only，不持久化） |
 | 单届赛事 workspace read-model 编排 | `src/lib/admin/season-workspace/{overview,major-prestart,post-event,selectors,types}.ts` + `/admin/[seasonSlug]` route pages（不拥有 mutation） |
+| 管理端比赛总览与单场工作台 read-model | `src/lib/admin/matches/{overview,workbench,shared,types}.ts` + `/admin/[seasonSlug]/matches` routes（不拥有 mutation） |
 | 赛事设置生命周期编辑能力 | `src/lib/seasons/edit.ts#getSeasonEditCapabilities` + `planSeasonUpdate`（UI 与 server 共用 capability contract） |
 | 赛事公开能力（含社区奖） | `seasons.hasCommunityAwards` + `src/lib/seasons/edit.ts#planSeasonUpdate`（草稿可改，发布后冻结） |
 | 社区奖 transition 与 capability guard | `src/lib/community-awards/service.ts`（事务内统一复用） |

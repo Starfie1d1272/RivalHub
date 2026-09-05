@@ -10,7 +10,7 @@ import {
   confirmMatchRoster,
 } from "@/actions/matches/roster";
 import { AdminRosterDialog } from "@/components/matches/AdminRosterDialog";
-import type { RosterData } from "@/components/matches/AdminMatchRow";
+import type { RosterData } from "@/lib/admin/matches/types";
 import { ok } from "@/types/action";
 
 vi.mock("next/navigation", () => ({

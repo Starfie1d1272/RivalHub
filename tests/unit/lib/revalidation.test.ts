@@ -33,6 +33,7 @@ describe("scoped revalidation", () => {
     expect(revalidatePathMock.mock.calls).toEqual([
       ["/major-2027/matches"],
       ["/admin/major-2027/matches"],
+      ["/admin/major-2027/matches/match-1"],
       ["/major-2027/matches/match-1"],
     ]);
   });
