@@ -134,14 +134,26 @@ describe("admin match read models PostgreSQL integration", () => {
            id, entry_id, source_roster_revision_id, status,
            confirmed_at, confirmed_by, frozen_at, frozen_by
          ) VALUES
-           ($1, $2, $3, 'frozen', now(), 'admin-read-model-test', now(), 'admin-read-model-test'),
-           ($4, $5, $6, 'frozen', now(), 'admin-read-model-test', now(), 'admin-read-model-test')`,
+           ($1, $2, $3, 'preparing', NULL, NULL, NULL, NULL),
+           ($4, $5, $6, 'preparing', NULL, NULL, NULL, NULL)`,
         [ids.eventRosterA, ids.entryA, ids.revisionA, ids.eventRosterB, ids.entryB, ids.revisionB],
       );
       await pool.query(
         `INSERT INTO event_roster_members (id, event_roster_id, user_id, is_primary_starter)
          VALUES ($1, $2, $3, true), ($4, $5, $6, true)`,
         [ids.memberA, ids.eventRosterA, ids.playerA, ids.memberB, ids.eventRosterB, ids.playerB],
+      );
+      await pool.query(
+        `UPDATE event_rosters
+         SET status = 'confirmed', confirmed_at = now(), confirmed_by = 'admin-read-model-test'
+         WHERE id IN ($1, $2)`,
+        [ids.eventRosterA, ids.eventRosterB],
+      );
+      await pool.query(
+        `UPDATE event_rosters
+         SET status = 'frozen', frozen_at = now(), frozen_by = 'admin-read-model-test'
+         WHERE id IN ($1, $2)`,
+        [ids.eventRosterA, ids.eventRosterB],
       );
       await pool.query(
         `INSERT INTO matches (
