@@ -108,6 +108,8 @@ Rivals 的 voting/drafting 由 capability 启用；Major start 在 readiness、e
 - 实际开放后到比赛开始前，`registrationOpensAt` 与 competitive context/fallback 永久冻结，但 `registrationClosesAt`、`rosterChangeClosesAt` 仍可运营调整；进入 `playing`、`finished` 或 `archived` 后，这两个报名运营 deadline 也锁定。名称、主题色与 `endAt` 仍属于允许的 metadata。
 - `revertSeasonToDraft` 成功后会清除实际开放事实并解除 built-in 竞技冻结，赛季重新获得 draft 的完整编辑能力；#365 的 versioned canonical 5E policy 不在本流程内。
 
+管理端赛事设置页按“基本信息 / 时间与生命周期 / 报名与名单 / 资格规则 / 赛制与地图 / 竞技参考 / 功能 / 危险操作”组织现有设置。它复用上述 capability、lifecycle、qualification、StagePlan 与 ConversionPolicy owner；当规则或竞技上下文已冻结时，页面在对应分区同时展示状态、冻结原因与 canonical identity/version，而不是在客户端复制业务判断。
+
 ### Match
 
 ```text

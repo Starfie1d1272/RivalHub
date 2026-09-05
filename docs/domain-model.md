@@ -24,6 +24,8 @@ CS2 地图也分为相互独立的事实 owner：`CS2_MAP_CATALOG` 是保留历�
 
 `seasons` 是赛事容器，包含状态、时间、人数、positions 与 capability configuration。Rivals、Major 与自定义赛事由 canonical template factory 建立初始定义；`competitionTemplate` 是持久化的模板身份 owner，编辑时服务端以其为准，draft 内置赛事每次保存都重新 canonicalize 固定语义；`kind` 只用于展示。报名方式、选秀、社区奖、阶段和资格规则由 capability fields 及关联配置决定。`hasCommunityAwards` 默认开启，是独立于赛事阶段的公开能力：草稿可关闭，发布后随公开规则冻结；关闭时公开/后台入口及社区奖 server mutation 均不可用。StagePlan 是可变的赛季定义，启动后不能代替冻结的 StageRun 事实。后台编辑能力由 `src/lib/seasons/edit.ts#getSeasonEditCapabilities` 这一纯 owner 根据 persisted status 与 `registrationOpenedAt` 派生，SeasonForm 与 server planner 共用该语义，不按 `kind` 分支。全局赛事目录的生命周期分组是 presentation-only projection，由 `src/lib/seasons/presentation.ts#getSeasonLifecycleGroup` 根据 `status` 与实际报名开放事实 `registrationOpenedAt` 派生；它不创建 `currentSeasonId` 或其它全局 singleton。
 
+赛事设置编辑页的 presentation IA 固定为八个分区：基本信息、时间与生命周期、报名与名单、资格规则、赛制与地图、竞技参考、功能、危险操作。分区只负责组织现有 owner 的输入或只读事实：写入仍统一经过 `SeasonForm → actions/seasons → planSeasonUpdate → getSeasonEditCapabilities`，生命周期按钮仍调用既有 transition action；`registrationOpenedAt`、冻结的 competitive context 与 `ConversionPolicy` identity/version 只作明确的 lifecycle/策略事实展示，不由页面重算资格、生命周期或换算规则。
+
 单届赛事 workspace 也是 presentation/read-model boundary，不新增领域事实：root `/admin/{seasonSlug}` 只编排 lifecycle、时间、摘要、当前赛前 readiness 与下一步；`/prestart`、`/matches`、`/post-event` 分别消费赛前、阶段运行/比赛、赛后 closure read-model。overview 按 `registrationMode` 从 `competition_entries` 或 `season_registrations` 投影报名事实；Major 额外读取 entrant、名单、seed 与最终结果事实，非 Major 只展示通用摘要。导航由 capability 和 server authorization 决定，旧 `/captains`、`/draft` URL 保留为 Rivals 赛前子入口。
 
 ## 5. Rivals registrations
