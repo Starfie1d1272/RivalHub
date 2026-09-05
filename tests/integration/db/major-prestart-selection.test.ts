@@ -125,8 +125,17 @@ async function prepareFixture(pool: Pool): Promise<SelectionFixture> {
     );
     for (const [index, userId] of allUserIds.entries()) {
       await client.query(
-        "INSERT INTO users (id, email, email_verified_at, display_name) VALUES ($1, $2, now(), $3)",
-        [userId, `issue-368-3b-${index}-${seasonId}@local.test`, `3B Player ${index}`],
+        `INSERT INTO users (
+           id, email, email_verified_at, display_name, perfect_name, steam64, qq
+         ) VALUES ($1, $2, now(), $3, $4, $5, $6)`,
+        [
+          userId,
+          `issue-368-3b-${index}-${seasonId}@local.test`,
+          `3B Player ${index}`,
+          `3B Perfect ${index}`,
+          String(76561198000000000 + index),
+          String(10000000 + index),
+        ],
       );
       await client.query(
         `INSERT INTO competitive_rank_facts (user_id, platform, kind, platform_season_key, rank, rating)
