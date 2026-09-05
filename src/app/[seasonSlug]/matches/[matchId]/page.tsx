@@ -385,7 +385,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
       />
 
       {(commentatorRows.length > 0 || (isFinished && match.videoUrl && isHttpUrl(match.videoUrl))) && (
-        <Panel label={isFinished ? "赛后资料" : "解说与直播"} pad={16}>
+        <Panel label={isFinished ? "赛后资料" : "解说与直播"} contentClassName="p-4">
           {commentatorRows.length > 0 && <p className="text-sm">解说：{commentatorRows.map(getPublicDisplayName).join("、")}</p>}
           {liveCommentators.length > 0 && <div className="mt-3 space-y-2"><p className="text-sm font-medium">{match.status === "in_progress" ? "正在直播 · 解说直播" : "直播解说"}</p>{liveCommentators.map((commentator) => <p key={commentator.userId} className="text-sm">{getPublicDisplayName(commentator)} <a href={commentator.liveStreamUrl!} target="_blank" rel="noopener noreferrer" className="text-[var(--color-accent)] hover:underline">进入直播间 ↗</a></p>)}</div>}
           {isFinished && match.videoUrl && isHttpUrl(match.videoUrl) && <a href={match.videoUrl} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-sm text-[var(--color-accent)] hover:underline">观看比赛录像 →</a>}
@@ -484,7 +484,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
             {/* 单图 Tab */}
             {(isFinished ? maps.filter((m) => m.scoreA !== null && m.scoreB !== null) : maps).map((map) => (
               <TabsContent key={map.id} value={map.id}>
-                <Panel pad={16} className="space-y-3">
+                <Panel contentClassName="space-y-3 p-4">
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
                       <span className="text-xs text-[var(--color-fg-mid)] w-5">#{map.mapOrder}</span>
@@ -528,7 +528,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
         <section className="space-y-3">
           <h2 className="text-lg font-semibold text-[var(--color-fg)]">比赛结果</h2>
           {match.isForfeit ? (
-            <Panel pad={16}>
+            <Panel contentClassName="p-4">
               <p className="text-sm text-[var(--color-fg-mid)]">
                 本场比赛以弃赛结束，未进行实际对局。
               </p>
@@ -542,7 +542,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
               teamBName={teamB?.name ?? "队伍 B"}
             />
           ) : (
-            <Panel pad={16}>
+            <Panel contentClassName="p-4">
               <p className="text-sm text-[var(--color-fg-mid)]">
                 {MATCH_FORMAT_LABELS[match.format] ?? match.format.toUpperCase()} 系列赛总分：{match.scoreA} : {match.scoreB}
               </p>
@@ -566,7 +566,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
 
       {showHexComparison && (
         <section className="space-y-3">
-          <Panel label="六维能力对比" pad={16}>
+          <Panel label="六维能力对比" contentClassName="p-4">
             <PlayerRadarChart
               players={[
                 { name: teamA?.name ?? "队伍 A", scores: teamHexA, color: "var(--color-accent)", strokeColor: "var(--color-accent)" },
@@ -585,7 +585,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
       {!isFinished && (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold text-[var(--color-fg)]">赛前名单</h2>
-          <Panel pad={16}>
+          <Panel contentClassName="p-4">
             <MatchRosterView
               teamAName={teamA?.name ?? "队伍 A"}
               teamARoster={teamARoster}
@@ -594,7 +594,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
             />
           </Panel>
           {(isCaptainA || isCaptainB) && (
-            <Panel pad={16}>
+            <Panel contentClassName="p-4">
               <h3 className="text-sm font-medium">提交名单</h3>
               <MatchRosterForm
                 matchId={match.id}
@@ -615,7 +615,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
       {match.status === "scheduled" && (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold text-[var(--color-fg)]">比赛时间协商</h2>
-          <Panel pad={16}>
+          <Panel contentClassName="p-4">
             <MatchTimeNegotiation
               matchId={match.id}
               isCaptainA={isCaptainA}
@@ -628,7 +628,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
               bufferHours={getTimeBufferHoursForStage(season.stagePlan, match.stage)}
             />
           </Panel>
-          <Panel pad={16}>
+          <Panel contentClassName="p-4">
             <h3 className="text-sm font-medium mb-2">协商历史</h3>
             <TimeProposalHistory proposals={timeProposals} />
           </Panel>

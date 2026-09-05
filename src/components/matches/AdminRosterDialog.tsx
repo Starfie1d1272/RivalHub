@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -330,7 +331,7 @@ export function AdminRosterDialog({
           管理名单
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>
             名单管理 · {teamAName} vs {teamBName}
@@ -338,7 +339,7 @@ export function AdminRosterDialog({
           <DialogDescription>为双方选择并确认本场 5 名首发选手。</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
+        <DialogBody className="space-y-6">
           <RosterTeamSection
             teamName={teamAName}
             teamId={entryAId}
@@ -356,7 +357,7 @@ export function AdminRosterDialog({
             existingRoster={teamBRoster}
             allowSubstitutes={allowSubstitutes}
           />
-        </div>
+        </DialogBody>
       </DialogContent>
     </Dialog>
   );

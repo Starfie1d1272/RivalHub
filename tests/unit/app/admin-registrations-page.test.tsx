@@ -40,6 +40,7 @@ vi.mock("@/components/admin/DraftRegistrationTable", () => ({
 }));
 
 vi.mock("@/components/rivalhub", () => ({
+  PageHeader: ({ title, description }: { title: React.ReactNode; description?: React.ReactNode }) => <header><h1>{title}</h1>{description}</header>,
   Marker: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 

@@ -44,14 +44,14 @@ export function AdminUserList({ users, seasonMap, currentUserId }: AdminUserList
 
   if (localUsers.length === 0) {
     return (
-      <Panel pad={32} className="text-center text-[var(--color-fg-mid)] text-sm">
+      <Panel contentClassName="p-8 text-center text-sm text-[var(--color-fg-mid)]">
         暂无管理员用户
       </Panel>
     );
   }
 
   return (
-    <Panel pad={0} className="overflow-hidden">
+    <Panel contentClassName="p-0" className="overflow-hidden">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-[var(--color-border)] text-[10px] uppercase tracking-wider text-[var(--color-fg-dim)]">

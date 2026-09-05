@@ -18,7 +18,7 @@ export function DraftRegistrationTable({ drafts }: DraftRegistrationTableProps) 
       {drafts.length === 0 ? (
         <EmptyState title="暂无草稿报名" />
       ) : (
-        <Panel pad={16}>
+        <Panel contentClassName="p-4">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>

@@ -56,7 +56,7 @@ export function BatchDeadlineCard({ seasonId, groups }: BatchDeadlineCardProps) 
   }
 
   return (
-    <Panel pad={16} className="space-y-4">
+    <Panel contentClassName="space-y-4 p-4">
       <h3 className="text-sm font-semibold text-[var(--color-fg)]">
         批量设置截止时间
       </h3>

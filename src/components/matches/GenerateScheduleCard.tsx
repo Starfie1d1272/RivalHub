@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -68,7 +69,10 @@ export function GenerateScheduleCard({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>确认生成赛程？</DialogTitle>
-            <DialogDescription className="space-y-2 pt-2">
+            <DialogDescription>请确认按赛季配置初始化第一个阶段。</DialogDescription>
+          </DialogHeader>
+          <DialogBody>
+            <div className="space-y-2 text-sm leading-6 text-[var(--color-fg-secondary)]">
               <span className="block">
                 系统将根据赛季配置初始化第一个阶段。
               </span>
@@ -80,8 +84,8 @@ export function GenerateScheduleCard({
               <span className="block text-[var(--color-warn)] font-medium">
                 生成后无法重置，请确认队伍名单已完整。
               </span>
-            </DialogDescription>
-          </DialogHeader>
+            </div>
+          </DialogBody>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setOpen(false)} disabled={isPending}>
               取消

@@ -49,7 +49,7 @@ export function MapPreferencesForm({ initialPreferences }: { initialPreferences:
   }
 
   return (
-    <Panel pad={20}>
+    <Panel contentClassName="p-5">
       <div className="space-y-5">
         <div>
           <p className="text-sm text-[var(--color-fg-mid)]">

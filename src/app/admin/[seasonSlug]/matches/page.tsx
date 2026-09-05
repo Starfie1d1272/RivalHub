@@ -10,7 +10,7 @@ import { StandingsTable } from "@/components/matches/StandingsTable";
 import { SyncBracketButton } from "@/components/matches/SyncBracketButton";
 import { MajorPlayoffRuntimeManagement } from "@/components/admin/MajorPlayoffRuntimeManagement";
 import { MajorSwissRuntimeManagement } from "@/components/admin/MajorSwissRuntimeManagement";
-import { Panel } from "@/components/rivalhub";
+import { PageHeader, Panel, Section } from "@/components/rivalhub";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { loadAdminMatchOverview } from "@/lib/admin/matches/overview";
 import { presentMatchLabel } from "@/lib/matches/presentation";
@@ -32,14 +32,11 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
 
   return (
     <div className="min-w-0 space-y-6">
-      <header className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--color-fg)]">比赛总览 · {data.season.name}</h1>
-          <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
-            按阶段查看赛程、积分与 Major runtime；进入单场工作台处理本场运营细节。
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
+      <PageHeader
+        title={`比赛总览 · ${data.season.name}`}
+        description="按阶段查看赛程、积分与 Major runtime；进入单场工作台处理本场运营细节。"
+        actions={(
+          <>
           {data.teams.length >= 2 && data.stagePlan.length > 0 && (
             <CreateMatchForm
               seasonId={data.season.id}
@@ -53,8 +50,9 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
           >
             查看公开赛程 →
           </Link>
-        </div>
-      </header>
+          </>
+        )}
+      />
 
       {matchCount > 0 && (
         <AdminMatchFilter
@@ -66,7 +64,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
       {unconfiguredMatchNotice(data.unconfiguredMatches)}
 
       {data.season.status !== "playing" && matchCount === 0 && (
-        <Panel pad={16} className="border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)]">
+        <Panel contentClassName="p-4" className="border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)]">
           <p className="text-sm text-[var(--color-warn)]">
             赛季当前状态为「{presentSeasonStatus(data.season.status).label}」，需进入比赛进行中状态后才能生成赛程。
           </p>
@@ -82,7 +80,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
       )}
 
       {data.season.status === "playing" && matchCount === 0 && data.teams.length >= 2 && data.hasSwissStage && (
-        <Panel pad={16} className="border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)]">
+        <Panel contentClassName="p-4" className="border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)]">
           <p className="text-sm text-[var(--color-warn)]">该赛制的自动赛程运行尚未启用。</p>
         </Panel>
       )}
@@ -146,15 +144,15 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
             return (
               <TabsContent key={stage.key} value={stage.key} className="mt-4 space-y-6">
                 {standings.length > 0 && (
-                  <section className="space-y-2">
+                  <Section className="space-y-2">
                     <h2 className="text-base font-semibold text-[var(--color-fg)]">积分榜</h2>
-                    <Panel pad={0} className="overflow-hidden">
+                    <Panel contentClassName="p-0" className="overflow-hidden">
                       <StandingsTable standings={standings} seasonSlug={seasonSlug} isFinal={false} />
                     </Panel>
-                  </section>
+                  </Section>
                 )}
 
-                <section className="space-y-3">
+                <Section>
                   <div>
                     <h2 className="text-base font-semibold text-[var(--color-fg)]">赛程</h2>
                     <p className="mt-1 text-xs text-[var(--color-fg-mid)]">
@@ -162,7 +160,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                     </p>
                   </div>
                   {matches.length === 0 ? (
-                    <Panel pad={32} className="text-center text-[var(--color-fg-mid)]">暂无比赛记录</Panel>
+                    <Panel contentClassName="p-8 text-center text-[var(--color-fg-mid)]">暂无比赛记录</Panel>
                   ) : (
                     <div className="space-y-3">
                       {matches.map((match) => (
@@ -177,7 +175,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                       ))}
                     </div>
                   )}
-                </section>
+                </Section>
               </TabsContent>
             );
           })}
@@ -185,7 +183,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
       )}
 
       {!data.canGenerate && matchCount === 0 && (
-        <Panel pad={32} className="text-center text-[var(--color-fg-mid)]">暂无比赛记录</Panel>
+        <Panel contentClassName="p-8 text-center text-[var(--color-fg-mid)]">暂无比赛记录</Panel>
       )}
     </div>
   );
@@ -194,7 +192,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
 function unconfiguredMatchNotice(matches: { stage: string }[]) {
   if (matches.length === 0) return null;
   return (
-    <Panel pad={16} className="border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)]">
+    <Panel contentClassName="p-4" className="border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)]">
       <p className="text-sm text-[var(--color-warn)]">
         检测到 {matches.length} 场比赛引用了当前 StagePlan 中不存在的阶段，请检查赛制配置。
       </p>

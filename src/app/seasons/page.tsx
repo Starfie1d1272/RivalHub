@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { connection } from "next/server";
 import { getPublicSeasonCatalog } from "@/lib/data/public-seasons";
 import { presentSeasonParticipationState } from "@/lib/seasons/presentation";
-import { Panel, Marker, StatusPill } from "@/components/rivalhub";
+import { PageHeader, PageLayout, Panel, StatusPill } from "@/components/rivalhub";
 
 export const metadata: Metadata = { title: "所有赛季" };
 
@@ -21,10 +21,8 @@ async function SeasonsContent() {
   const allSeasons = await getPublicSeasonCatalog();
 
   return (
-    <div className="container mx-auto px-4 py-12 sm:py-16">
-      <div className="mb-10">
-        <Marker sub={`共 ${allSeasons.length} 个赛季归档`}>所有赛季</Marker>
-      </div>
+    <PageLayout as="div" variant="wide">
+      <PageHeader title="所有赛季" description={`共 ${allSeasons.length} 个赛季归档`} className="mb-10" />
 
       {allSeasons.length === 0 ? (
         <p className="text-[var(--color-fg-dim)] text-center py-16">暂无赛季记录</p>
@@ -35,7 +33,7 @@ async function SeasonsContent() {
               key={season.id}
               href={`/${season.slug}` as never}
             >
-              <Panel className="hover:border-[var(--color-border-hi)] transition-colors" pad={0}>
+              <Panel className="hover:border-[var(--color-border-hi)] transition-colors" contentClassName="p-0">
                 {season.themeColor && <div className="h-1 w-full" style={{ backgroundColor: season.themeColor }} />}
                 <div className="p-5">
                   <div className="flex items-center gap-2 mb-3 text-xs">
@@ -50,14 +48,14 @@ async function SeasonsContent() {
           ))}
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }
 
 function SeasonsFallback() {
   return (
-    <div className="container mx-auto px-4 py-12 sm:py-16">
-      <Marker sub="正在读取公开赛季">所有赛季</Marker>
-    </div>
+    <PageLayout as="div" variant="wide">
+      <PageHeader title="所有赛季" description="正在读取公开赛季" />
+    </PageLayout>
   );
 }

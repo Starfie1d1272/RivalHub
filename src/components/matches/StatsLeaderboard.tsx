@@ -159,7 +159,7 @@ const VIEW_COLS: Record<LeaderboardView, ColDef[]> = {
 export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "core", stages, currentStage = "" }: StatsLeaderboardProps) {
   if (rows.length === 0) {
     return (
-      <Panel pad={32} className="text-center text-[var(--color-fg-mid)]">
+      <Panel contentClassName="p-8 text-center text-[var(--color-fg-mid)]">
         该赛季暂无已确认的玩家数据
       </Panel>
     );
@@ -248,7 +248,7 @@ export function StatsLeaderboard({ rows, sort, position, seasonSlug, view = "cor
       </div>
 
       {/* 核心视图压进桌面宽度；窄屏仍可横向滚动。 */}
-      <Panel pad={0} className="overflow-hidden">
+      <Panel contentClassName="p-0" className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[680px] table-fixed">
             <colgroup>

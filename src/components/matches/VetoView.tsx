@@ -57,7 +57,7 @@ export async function VetoView({
   return (
     <section className="space-y-3">
       <h2 className="text-lg font-semibold text-[var(--color-fg)]">BP 流程</h2>
-      <Panel pad={16}>
+      <Panel contentClassName="p-4">
         <div className="space-y-2">
           {steps.map((step) => {
             const verb = ACTION_VERBS[step.actionType] ?? step.actionType;

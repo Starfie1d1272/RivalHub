@@ -3,7 +3,7 @@ import { db } from "@/db/client";
 import { adminInviteClaims, adminInvites, seasons } from "@/db/schema";
 import { requireSuperAdmin } from "@/lib/auth/session";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
-import { Marker } from "@/components/rivalhub";
+import { PageHeader, PageLayout } from "@/components/rivalhub";
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { InviteManager } from "@/components/admin/InviteManager";
 
@@ -41,9 +41,9 @@ export default async function AdminInvitesPage() {
   }));
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-2xl">
-      <Marker>邀请码管理</Marker>
+    <PageLayout as="div" variant="narrow">
+      <PageHeader title="邀请码管理" />
       <InviteManager invites={invites} seasons={seasonRows} />
-    </div>
+    </PageLayout>
   );
 }

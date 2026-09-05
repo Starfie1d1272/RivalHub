@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getUserSession } from "@/lib/auth/session";
-import { Marker } from "@/components/rivalhub";
+import { PageHeader } from "@/components/rivalhub";
 import { ChangePasswordForm } from "@/components/settings/ChangePasswordForm";
 
 export default async function ChangePasswordPage() {
@@ -9,7 +9,7 @@ export default async function ChangePasswordPage() {
 
   return (
     <div className="max-w-md space-y-6">
-      <Marker>修改密码</Marker>
+      <PageHeader title="修改密码" />
       <ChangePasswordForm />
     </div>
   );

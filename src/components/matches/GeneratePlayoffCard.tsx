@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -56,13 +57,16 @@ export function GeneratePlayoffCard({ seasonId, stageKey, stageName, standings }
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>确认生成{stageName}？</DialogTitle>
-              <DialogDescription className="space-y-3 pt-2">
+              <DialogDescription>请确认按当前积分榜生成{stageName}对阵。</DialogDescription>
+            </DialogHeader>
+            <DialogBody>
+              <div className="space-y-3 text-sm leading-6 text-[var(--color-fg-secondary)]">
                 <span className="block">系统将按以下种子顺序生成{stageName}对阵：</span>
                 <div className="space-y-1">
                   {standings.map((s) => (
                     <div key={s.teamId} className="flex items-center justify-between text-sm">
                       <span>
-                        <span className="font-bold text-[var(--primary)] w-5 inline-block">#{s.seed}</span>
+                        <span className="inline-block w-5 font-bold text-[var(--color-accent)]">#{s.seed}</span>
                         {" "}{s.teamName}
                       </span>
                       <span className="text-[var(--color-fg-mid)]">
@@ -71,8 +75,8 @@ export function GeneratePlayoffCard({ seasonId, stageKey, stageName, standings }
                     </div>
                   ))}
                 </div>
-              </DialogDescription>
-            </DialogHeader>
+              </div>
+            </DialogBody>
             <DialogFooter className="gap-2">
               <Button variant="outline" onClick={() => setOpen(false)} disabled={isPending}>
                 取消

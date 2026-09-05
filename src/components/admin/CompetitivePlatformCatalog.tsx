@@ -18,7 +18,7 @@ import {
 } from "@/actions/competitive-platform";
 import { resolveCatalogSeasonRoles, type CompetitivePlatformCatalogEntry } from "@/lib/competitive/catalog";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -140,7 +140,7 @@ export function CompetitivePlatformCatalog({ platforms }: { platforms: Platform[
         const ranks = [...platform.ranks].sort((a, b) => a.sortOrder - b.sortOrder);
         const seasons = [...platform.seasons].sort((a, b) => b.sortOrder - a.sortOrder);
         return (
-          <Panel key={platform.key} label={platform.displayName} pad={0}>
+          <Panel key={platform.key} label={platform.displayName} contentClassName="p-0">
             <div className="space-y-5 p-5">
               {/* Platform identity */}
               <div className="flex flex-wrap items-end justify-between gap-3">
@@ -231,13 +231,14 @@ export function CompetitivePlatformCatalog({ platforms }: { platforms: Platform[
 
       <Dialog open={Boolean(newSeason)} onOpenChange={(open) => { if (!open) setNewSeason(null); }}>
         {newSeason && newSeasonPlatform && (
-          <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
+          <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>新增历史赛季</DialogTitle>
               <DialogDescription>补录赛季目录并选择它在时间线中的位置。创建后不会自动成为当前赛季。</DialogDescription>
             </DialogHeader>
 
-            <form className="space-y-5" onSubmit={(event) => { event.preventDefault(); submitNewSeason(); }}>
+            <form className="contents" onSubmit={(event) => { event.preventDefault(); submitNewSeason(); }}>
+              <DialogBody className="space-y-5">
               <div className="space-y-1.5">
                 <Label htmlFor="new-season-label">赛季名称</Label>
                 <Input
@@ -312,6 +313,7 @@ export function CompetitivePlatformCatalog({ platforms }: { platforms: Platform[
                 <p className="pt-1 text-xs font-medium text-[var(--color-fg-mid)]">创建后不会自动成为当前赛季</p>
               </div>
 
+              </DialogBody>
               <DialogFooter className="gap-2">
                 <Button type="button" variant="ghost" onClick={() => setNewSeason(null)}>取消</Button>
                 <Button type="submit" disabled={pending || !canCreateSeason}>{pending ? "添加中..." : "添加赛季"}</Button>
@@ -324,6 +326,7 @@ export function CompetitivePlatformCatalog({ platforms }: { platforms: Platform[
       <Dialog open={Boolean(confirmAction)} onOpenChange={(open) => { if (!open) setConfirmAction(null); }}>
         {confirmAction && <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>{confirmAction.kind === "set-current" ? "切换当前赛季" : "确认删除"}</DialogTitle><DialogDescription className="sr-only">请确认这项竞技平台目录操作。</DialogDescription></DialogHeader>
+          <DialogBody>
               {confirmAction.kind === "set-current" ? (
                 <InlineConfirm
                   title={confirmAction.title}
@@ -349,6 +352,7 @@ export function CompetitivePlatformCatalog({ platforms }: { platforms: Platform[
                   onCancel={() => setConfirmAction(null)}
                 />
               )}
+          </DialogBody>
         </DialogContent>}
       </Dialog>
     </div>

@@ -112,7 +112,7 @@ export function AdminMatchWorkbench({
 
   return (
     <Panel
-      pad={20}
+      contentClassName="p-5"
       className={cn(
         "space-y-6",
         match.status === "in_progress" && "border-l-[3px] border-[var(--color-accent)]",

@@ -58,7 +58,7 @@ export function CompetitiveProfileForm({ contexts }: { contexts: CompetitiveSeas
   }
 
   const platformSelect = contexts.length > 1 ? <div className="space-y-1.5"><Label htmlFor="competitive-platform">竞技平台</Label><Select value={platform} onValueChange={choosePlatform}><SelectTrigger id="competitive-platform"><SelectValue /></SelectTrigger><SelectContent>{contexts.map((item) => <SelectItem key={item.platform} value={item.platform}>{item.platformDisplayName}</SelectItem>)}</SelectContent></Select></div> : null;
-  if (!context || context.ladder.length === 0 || !context.seasons.some((season) => season.isCurrent)) return <Panel label="竞技资料" pad={20}><div className="space-y-5">{platformSelect}<StatusBanner tone="warn" title="当前竞技平台目录尚未完善" sub="管理员需要配置平台段位表和当前赛季后，才可维护这份长期竞技资料。" /></div></Panel>;
+  if (!context || context.ladder.length === 0 || !context.seasons.some((season) => season.isCurrent)) return <Panel label="竞技资料" contentClassName="p-5"><div className="space-y-5">{platformSelect}<StatusBanner tone="warn" title="当前竞技平台目录尚未完善" sub="管理员需要配置平台段位表和当前赛季后，才可维护这份长期竞技资料。" /></div></Panel>;
 
   const recentSeasons = context.seasons.filter((season) => season.isCurrent || season.isPrevious);
   const olderSeasons = context.seasons.filter((season) => !season.isCurrent && !season.isPrevious);
@@ -104,7 +104,7 @@ export function CompetitiveProfileForm({ contexts }: { contexts: CompetitiveSeas
     return !fact.rank || !fact.rating || needsStars;
   };
 
-  return <Panel label="竞技资料" pad={20}><div className="space-y-5">
+  return <Panel label="竞技资料" contentClassName="p-5"><div className="space-y-5">
     {platformSelect}
     <StatusBanner tone="info" title={`${context.platformDisplayName} · 长期竞技资料`} sub="未录入表示尚未声明；未定级是有效事实；已定级必须填写段位、星段位的准确星数与 Rating。具体赛事会按当届冻结规则单独核验。" />
     {editor("历史最高", HISTORICAL_KEY, historical, setHistorical, false, { after: <div className="max-w-sm space-y-1.5"><Label htmlFor="competitive-achieved-season">历史最高达成赛季（可选）</Label><Select value={achievedSeasonKey} onValueChange={(value) => { setSaved(false); setAchievedSeasonKey(value); }}><SelectTrigger id="competitive-achieved-season"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="unknown">不确定 / 暂不填写</SelectItem>{context.seasons.map((season) => <SelectItem key={season.seasonKey} value={season.seasonKey}>{season.label}</SelectItem>)}</SelectContent></Select></div> })}

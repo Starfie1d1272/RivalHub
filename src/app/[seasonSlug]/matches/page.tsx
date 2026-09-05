@@ -5,7 +5,7 @@ import { db } from "@/db/client";
 import { majorFinalResults, matches, competitionEntries } from "@/db/schema";
 import { loadBracketState, serializeBracket } from "@/lib/bracket";
 import { calculateStandings } from "@/lib/standings";
-import { Panel, Marker } from "@/components/rivalhub";
+import { PageHeader, PageLayout, Panel } from "@/components/rivalhub";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BracketView } from "@/components/matches/BracketView";
 import { MatchTeamFilter } from "@/components/matches/MatchTeamFilter";
@@ -106,20 +106,23 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
   }
 
   return (
-    <div className="container mx-auto px-4 py-12 max-w-5xl space-y-8">
-      <div className="flex items-center justify-between">
-        <Marker sub={season.name}>赛程总览</Marker>
-        <Suspense fallback={null}>
-          <AdminShortcutSlot href={`/admin/${seasonSlug}/matches`} />
-        </Suspense>
-      </div>
+    <PageLayout as="div" variant="standard" className="space-y-8">
+      <PageHeader
+        title="赛程总览"
+        eyebrow={season.name}
+        actions={(
+          <Suspense fallback={null}>
+            <AdminShortcutSlot href={`/admin/${seasonSlug}/matches`} />
+          </Suspense>
+        )}
+      />
 
       {allTeams.length > 0 && (
         <MatchTeamFilter teams={allTeams.map((team) => ({ id: team.id, name: team.name }))} />
       )}
 
       {unconfiguredMatches.length > 0 && (
-        <Panel pad={16} className="border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)]">
+        <Panel contentClassName="p-4" className="border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)]">
           <p className="text-sm text-[var(--color-warn)]">
             部分赛程数据与当前阶段配置不一致。
           </p>
@@ -127,13 +130,13 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
       )}
 
       {finalResult?.status === "pending_confirmation" && (
-        <Panel pad={16} className="border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)]">
+        <Panel contentClassName="p-4" className="border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)]">
           <p className="text-sm text-[var(--color-warn)]">淘汰赛已结束，冠军和正式名次正在等待赛事方确认；赛事不会静默归档。</p>
         </Panel>
       )}
 
       {defaultStageKey && (
-        <Panel pad={24}>
+        <Panel contentClassName="p-6">
           <Tabs defaultValue={defaultStageKey} className="w-full">
             <TabsList className="mb-6 max-w-full justify-start overflow-x-auto bg-[var(--color-panel)] border border-[var(--color-border)] p-1">
               {stageViews.map(({ stage }) => (
@@ -242,6 +245,6 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
           </Tabs>
         </Panel>
       )}
-    </div>
+    </PageLayout>
   );
 }

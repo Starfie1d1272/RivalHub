@@ -3,7 +3,7 @@ import { db } from "@/db/client";
 import { sql } from "drizzle-orm";
 import { StatsLeaderboard } from "@/components/matches/StatsLeaderboard";
 import { normalizeLeaderboardState } from "@/lib/matches/leaderboard-view";
-import { Marker } from "@/components/rivalhub";
+import { PageHeader, PageLayout } from "@/components/rivalhub";
 import {
   killWeightedAvg,
   perRound,
@@ -135,8 +135,8 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
   }));
 
   return (
-    <div className="container mx-auto px-4 py-12 max-w-5xl space-y-6">
-      <Marker sub={season.name}>赛季排行榜</Marker>
+    <PageLayout as="div" variant="standard" className="space-y-6">
+      <PageHeader title="赛季排行榜" eyebrow={season.name} />
       <StatsLeaderboard
         rows={leaderboardRows}
         sort={sort}
@@ -146,6 +146,6 @@ export default async function StatsPage({ params, searchParams }: StatsPageProps
         stages={stages}
         currentStage={stage}
       />
-    </div>
+    </PageLayout>
   );
 }
