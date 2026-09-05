@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { isBuiltInStarRank } from "@/lib/competitive/builtins";
 import { presentCompetitiveRankSummary } from "@/lib/competitive/presentation";
+import { formatCST } from "@/lib/utils/date";
 import type { MajorPrestartPageData } from "@/lib/admin/season-workspace/types";
 import { Marker, Panel } from "@/components/rivalhub";
 
@@ -96,19 +97,13 @@ export function MajorTournamentSeedsManagement({ data }: { data: MajorTournament
   const initialOrderKey = initialOrder.join(",");
   const [order, setOrder] = useState<string[]>(initialOrder);
   const [overrideReason, setOverrideReason] = useState(data.overrideReason ?? "");
-  const [viewSort, setViewSort] = useState<"recommendation" | "strength">("recommendation");
 
   useEffect(() => setOrder(initialOrderKey ? initialOrderKey.split(",") : []), [initialOrderKey]);
   useEffect(() => setOverrideReason(data.overrideReason ?? ""), [data.overrideReason]);
 
   const teamById = useMemo(() => new Map(data.entrants.map((entrant) => [entrant.teamId, entrant])), [data.entrants]);
   const recommendation = data.recommendation;
-  const analysisRows = useMemo(() => {
-    const rows = [...(recommendation?.teams ?? [])];
-    if (viewSort === "strength") rows.sort((left, right) => right.teamSeedStrengthScaled - left.teamSeedStrengthScaled || left.displayOrder - right.displayOrder);
-    else rows.sort((left, right) => left.displayOrder - right.displayOrder);
-    return rows;
-  }, [recommendation, viewSort]);
+  const analysisRows = useMemo(() => [...(recommendation?.teams ?? [])].sort((left, right) => left.displayOrder - right.displayOrder), [recommendation]);
   const tieGroupSizes = useMemo(() => {
     const sizes = new Map<number, number>();
     for (const team of recommendation?.teams ?? []) {
@@ -116,6 +111,7 @@ export function MajorTournamentSeedsManagement({ data }: { data: MajorTournament
     }
     return sizes;
   }, [recommendation]);
+  const recommendationReady = data.recommendationStatus === "ready";
   const confirmed = data.seedsConfirmed;
   const orderMatchesSaved = order.length === saved.length && order.every((teamId, index) => teamId === saved[index]);
   const move = (index: number, offset: -1 | 1) => setOrder((current) => {
@@ -145,8 +141,8 @@ export function MajorTournamentSeedsManagement({ data }: { data: MajorTournament
             <p className="mt-1 text-sm text-[var(--color-fg-mid)]">系统建议是 immutable snapshot；下面的最终排序是管理员人工事实。查看分析表的排序不会改变最终种子。</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" disabled={isPending || order.length !== capacity} onClick={save}>保存排序</Button>
-            <Button disabled={isPending || confirmed || data.seeds.length !== capacity || !orderMatchesSaved} onClick={() => startTransition(async () => {
+            <Button variant="outline" disabled={isPending || !recommendationReady || order.length !== capacity} onClick={save}>保存排序</Button>
+            <Button disabled={isPending || !recommendationReady || confirmed || data.seeds.length !== capacity || !orderMatchesSaved} onClick={() => startTransition(async () => {
               const result = await confirmMajorTournamentSeeds({ seasonId: data.seasonId });
               if (!result.success) toast.error(result.error.message); else toast.success("赛事种子已确认");
             })}>确认种子</Button>
@@ -159,11 +155,8 @@ export function MajorTournamentSeedsManagement({ data }: { data: MajorTournament
 
         {data.recommendation && <section className="space-y-3">
           <div className="flex flex-wrap items-end justify-between gap-3">
-            <div><h3 className="font-medium text-[var(--color-fg)]">系统种子分析表</h3><p className="mt-1 text-xs text-[var(--color-fg-mid)]">快照 v{data.recommendation.version} · {sourceLabel(data.recommendation.platform)} · ConversionPolicy {data.recommendation.conversionPolicyId ?? "未指定"} / {data.recommendation.conversionPolicyVersion ?? "未指定版本"} · 生成于 {data.recommendation.generatedAt}</p></div>
-            <div className="flex gap-2" aria-label="分析表查看排序">
-              <Button type="button" size="sm" variant={viewSort === "recommendation" ? "default" : "outline"} onClick={() => setViewSort("recommendation")}>按系统建议</Button>
-              <Button type="button" size="sm" variant={viewSort === "strength" ? "default" : "outline"} onClick={() => setViewSort("strength")}>按参考值排序</Button>
-            </div>
+            <div><h3 className="font-medium text-[var(--color-fg)]">系统种子分析表</h3><p className="mt-1 text-xs text-[var(--color-fg-mid)]">快照 v{data.recommendation.version} · {sourceLabel(data.recommendation.platform)} · ConversionPolicy {data.recommendation.conversionPolicyId ?? "未指定"} / {data.recommendation.conversionPolicyVersion ?? "未指定版本"} · 生成于 {formatCST(data.recommendation.generatedAt)}</p></div>
+            <span className="text-xs text-[var(--color-fg-mid)]">按系统建议排序 · 不改变最终 seed</span>
           </div>
           <div className="overflow-x-auto border border-[var(--color-border)]">
             <table className="min-w-[1160px] w-full text-left text-xs">

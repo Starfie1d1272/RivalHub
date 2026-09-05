@@ -187,6 +187,24 @@ describe("seed recommendation snapshot contract", () => {
     expect(analyzeFinalSeedOrder(["weak", "strong"], recommendations)).toMatchObject({ divergesFromRecommendation: true, resolvesSystemTie: false });
   });
 
+  it("does not call an incomplete final order a recommendation divergence", () => {
+    const recommendations = [
+      { competitionEntryId: "alpha", recommendationRank: 1, tieGroup: 1, displayOrder: 1 },
+      { competitionEntryId: "bravo", recommendationRank: 2, tieGroup: 2, displayOrder: 2 },
+    ];
+
+    expect(analyzeFinalSeedOrder([], recommendations)).toMatchObject({
+      divergesFromRecommendation: false,
+      resolvesSystemTie: false,
+      rowStatusByTeamId: { alpha: "unsaved", bravo: "unsaved" },
+    });
+    expect(analyzeFinalSeedOrder(["alpha"], recommendations)).toMatchObject({
+      divergesFromRecommendation: false,
+      resolvesSystemTie: false,
+      rowStatusByTeamId: { alpha: "unsaved", bravo: "unsaved" },
+    });
+  });
+
   it("labels internal tie ordering separately from a cross-group adjustment", () => {
     const recommendations = [
       { competitionEntryId: "alpha", recommendationRank: 1, tieGroup: 1, displayOrder: 1 },
@@ -202,7 +220,7 @@ describe("seed recommendation snapshot contract", () => {
     expect(analyzeFinalSeedOrder(["charlie", "alpha", "bravo"], recommendations)).toMatchObject({
       divergesFromRecommendation: true,
       resolvesSystemTie: false,
-      rowStatusByTeamId: { alpha: "adjusted", bravo: "adjusted", charlie: "adjusted" },
+      rowStatusByTeamId: { alpha: "aligned", bravo: "adjusted", charlie: "adjusted" },
     });
   });
 });

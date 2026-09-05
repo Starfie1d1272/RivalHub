@@ -134,7 +134,11 @@ export function analyzeFinalSeedOrder(
     .sort((left, right) => left.displayOrder! - right.displayOrder!)
     .map((recommendation) => recommendation.competitionEntryId);
   const finalOrder = [...finalTeamIds];
-  const exactOrderMatches = finalOrder.length === recommendationOrder.length && finalOrder.every((teamId, index) => teamId === recommendationOrder[index]);
+  const recommendationTeamIds = new Set(recommendationOrder);
+  const hasCompleteFinalOrder = finalOrder.length === recommendationOrder.length
+    && new Set(finalOrder).size === finalOrder.length
+    && finalOrder.every((teamId) => recommendationTeamIds.has(teamId));
+  const exactOrderMatches = hasCompleteFinalOrder && finalOrder.every((teamId, index) => teamId === recommendationOrder[index]);
   const finalGroupOrder = finalOrder.map((teamId) => {
     const recommendation = recommendationByTeamId.get(teamId);
     return recommendation ? `${recommendation.recommendationRank}:${recommendation.tieGroup}` : null;
@@ -143,7 +147,9 @@ export function analyzeFinalSeedOrder(
     const recommendation = recommendationByTeamId.get(teamId)!;
     return `${recommendation.recommendationRank}:${recommendation.tieGroup}`;
   });
-  const followsSystemGroups = finalGroupOrder.length === recommendationGroupOrder.length && finalGroupOrder.every((group, index) => group === recommendationGroupOrder[index]);
+  const followsSystemGroups = hasCompleteFinalOrder
+    && finalGroupOrder.length === recommendationGroupOrder.length
+    && finalGroupOrder.every((group, index) => group === recommendationGroupOrder[index]);
   const tieGroupSizes = new Map<number, number>();
   for (const recommendation of recommendations) {
     if (recommendation.tieGroup !== null) tieGroupSizes.set(recommendation.tieGroup, (tieGroupSizes.get(recommendation.tieGroup) ?? 0) + 1);
@@ -154,20 +160,28 @@ export function analyzeFinalSeedOrder(
   }
   const rowStatusByTeamId = Object.fromEntries(recommendations.map((recommendation) => {
     const finalSeed = finalSeedByTeamId[recommendation.competitionEntryId];
-    const status: SeedOrderRowStatus = finalSeed === null
-      ? "unsaved"
-      : exactOrderMatches
-        ? "aligned"
-        : followsSystemGroups
-          ? recommendation.tieGroup !== null && (tieGroupSizes.get(recommendation.tieGroup) ?? 0) > 1
-            ? "tie_resolved"
-            : "aligned"
-          : "adjusted";
+    const finalIndex = finalSeed === null ? null : finalSeed - 1;
+    const finalGroup = finalIndex === null ? null : finalGroupOrder[finalIndex];
+    const expectedGroup = finalIndex === null ? null : recommendationGroupOrder[finalIndex];
+    let status: SeedOrderRowStatus = "unsaved";
+    if (hasCompleteFinalOrder && finalSeed !== null) {
+      if (exactOrderMatches) {
+        status = "aligned";
+      } else if (followsSystemGroups) {
+        status = recommendation.tieGroup !== null && (tieGroupSizes.get(recommendation.tieGroup) ?? 0) > 1
+          ? "tie_resolved"
+          : "aligned";
+      } else {
+        // Cross-group changes are classified by the row's final slot, not
+        // propagated to every persisted team in the tournament.
+        status = finalGroup === expectedGroup ? "aligned" : "adjusted";
+      }
+    }
     return [recommendation.competitionEntryId, status];
   })) as Record<string, SeedOrderRowStatus>;
   return {
-    divergesFromRecommendation: !followsSystemGroups,
-    resolvesSystemTie: followsSystemGroups && !exactOrderMatches,
+    divergesFromRecommendation: hasCompleteFinalOrder && !followsSystemGroups,
+    resolvesSystemTie: hasCompleteFinalOrder && followsSystemGroups && !exactOrderMatches,
     recommendationOrder,
     finalOrder,
     finalSeedByTeamId,
