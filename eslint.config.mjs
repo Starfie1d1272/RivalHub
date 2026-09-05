@@ -51,8 +51,7 @@ const eslintConfig = [
     },
   },
   {
-    // This is a client-only rendering enhancement. It logs a fixed message
-    // without the rejected value; the rendered fallback remains the UX path.
+    // This client-only rendering fallback logs a fixed message without the error payload.
     files: ["src/components/matches/BracketView.tsx"],
     rules: {
       "no-console": "off",

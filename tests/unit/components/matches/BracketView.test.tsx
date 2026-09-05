@@ -97,6 +97,15 @@ describe("BracketView", () => {
     expect(push).toHaveBeenCalledWith("/spring-2026/matches/match-uuid");
   });
 
+  it("shows a visible fallback when brackets-viewer rendering fails", async () => {
+    renderBracket.mockRejectedValueOnce(new Error("renderer unavailable"));
+    const { BracketView } = await import("@/components/matches/BracketView");
+
+    render(<BracketView data={bracketData} />);
+
+    expect(await screen.findByRole("status")).toHaveTextContent("赛程暂时无法加载");
+  });
+
   it("overrides brackets-viewer theme variables for Tactical Grid", async () => {
     const { BracketView } = await import("@/components/matches/BracketView");
 
