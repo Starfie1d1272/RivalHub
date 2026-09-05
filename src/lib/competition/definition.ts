@@ -2,6 +2,9 @@ import { isStageExecutorSupported } from "@/lib/formats/supported";
 import {
   MAJOR_DEFAULT_CAPABILITIES,
   normalizeAffiliationRules,
+  normalizeRegistrationConfig,
+  normalizeStagePlan,
+  normalizeTeamRegistrationConfig,
   type SeasonCapabilities,
   type StageConfig,
   type StagePlan,
@@ -31,8 +34,33 @@ export interface StandardMajorRuleCheck {
 
 export interface StandardMajorCheckResult {
   isStandardMajor: boolean;
+  entrantCapacity: number;
   checks: StandardMajorRuleCheck[];
   failures: StandardMajorRuleCheck[];
+}
+
+export type SeasonCapabilityRow = Pick<SeasonCapabilities,
+  "registrationMode" | "hasCaptainVoting" | "hasDraft" | "hasCommunityAwards" | "stagePlan" |
+  "registrationConfig" | "teamRegistrationConfig" | "affiliationRules" | "minTeamSize" |
+  "maxTeamSize" | "starterCount" | "positions"
+>;
+
+/** Project a persisted season row into the canonical capability contract. */
+export function capabilitiesFromSeason(season: SeasonCapabilityRow): SeasonCapabilities {
+  return {
+    registrationMode: season.registrationMode,
+    hasCaptainVoting: season.hasCaptainVoting,
+    hasDraft: season.hasDraft,
+    hasCommunityAwards: season.hasCommunityAwards,
+    stagePlan: normalizeStagePlan(season.stagePlan),
+    registrationConfig: normalizeRegistrationConfig(season.registrationConfig),
+    teamRegistrationConfig: normalizeTeamRegistrationConfig(season.teamRegistrationConfig),
+    affiliationRules: normalizeAffiliationRules(season.affiliationRules),
+    minTeamSize: season.minTeamSize,
+    maxTeamSize: season.maxTeamSize,
+    starterCount: season.starterCount,
+    positions: season.positions,
+  };
 }
 
 function advancesEight(stage: StageConfig | undefined): boolean {
@@ -44,6 +72,10 @@ function advancesEight(stage: StageConfig | undefined): boolean {
 function directEntrantCount(stage: StageConfig | undefined, isFirstStage = false): number | undefined {
   if (!stage) return undefined;
   return stage.entrySeeds ?? (isFirstStage ? stage.teamCount : 0);
+}
+
+function entrantCapacity(stagePlan: readonly StageConfig[]): number {
+  return stagePlan.reduce((total, stage, index) => total + (directEntrantCount(stage, index === 0) ?? 0), 0);
 }
 
 function hasStandardStageOneSeeds(seeds: readonly number[] | undefined): boolean {
@@ -67,6 +99,7 @@ export function checkStandardMajorCapabilities(
   capabilities: SeasonCapabilities,
 ): StandardMajorCheckResult {
   const [stage1, stage2, stage3, playoff] = capabilities.stagePlan;
+  const capacity = entrantCapacity(capabilities.stagePlan);
   const checks: StandardMajorRuleCheck[] = [
     {
       key: "registration-mode",
@@ -150,7 +183,7 @@ export function checkStandardMajorCapabilities(
     },
   ];
   const failures = checks.filter((check) => !check.passed);
-  return { isStandardMajor: failures.length === 0, checks, failures };
+  return { isStandardMajor: failures.length === 0, entrantCapacity: capacity, checks, failures };
 }
 
 /** Read-only migration verifier for rows predating the explicit affiliation rule. */

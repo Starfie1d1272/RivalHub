@@ -37,6 +37,7 @@ import { assertUsersNotBlockedInTx } from "@/lib/discipline/service";
 import { isTeamRegistration } from "@/lib/utils/season";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { canMutateCompetitionEntryRoster } from "@/lib/competition-entries/remediation";
+import { reconcileMajorPrestartRosterAfterApprovalInTx } from "@/lib/major/prestart-roster";
 import { normalizeAffiliationRules, normalizeTeamRegistrationConfig } from "@/types/season";
 
 const editableStatuses = ["draft", "changes_requested"] as const;
@@ -91,11 +92,11 @@ async function validateEntryRoster(
   tx: TxDb,
   entry: typeof competitionEntries.$inferSelect,
   season: typeof seasons.$inferSelect,
-  allowedRevisionStatuses: readonly ("draft" | "submitted")[],
+  allowedRevisionStatuses: readonly ("draft" | "submitted" | "approved")[],
   options: { requireCurrentTeamMembership: boolean; requireActiveRestrictionOverrides?: boolean },
 ) {
   const [revision] = await tx.select().from(competitionEntryRosterRevisions).where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id))).for("update");
-  if (!revision || !allowedRevisionStatuses.includes(revision.status as "draft" | "submitted")) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前 roster revision 不可用于此操作。");
+  if (!revision || !allowedRevisionStatuses.includes(revision.status as "draft" | "submitted" | "approved")) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前 roster revision 不可用于此操作。");
   const rows = await tx.select({ userId: competitionEntryRosterMembers.userId, primary: competitionEntryRosterMembers.isPrimaryStarter, participantStatus: competitionEntryParticipants.status })
     .from(competitionEntryRosterMembers)
     .innerJoin(competitionEntryParticipants, eq(competitionEntryRosterMembers.participantId, competitionEntryParticipants.id))
@@ -164,6 +165,25 @@ async function validateEntryRoster(
     return { revision, rosterSize: rows.length, primaryIds, qualification };
   }
   return { revision, rosterSize: rows.length, primaryIds, qualification: null };
+}
+
+/**
+ * Re-check an approved Entry before it becomes a selected Major entrant.
+ * Qualification and restriction semantics stay in the Entry command owner;
+ * prestart only consumes this contract before materializing EventRoster.
+ */
+export async function validateApprovedCompetitionEntryRosterInTx(
+  tx: TxDb,
+  entry: typeof competitionEntries.$inferSelect,
+  season: typeof seasons.$inferSelect,
+) {
+  if (entry.registrationStatus !== "approved" || !entry.approvedRosterRevisionId || entry.currentRosterRevisionId !== entry.approvedRosterRevisionId) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "只能选择当前仍处于 approved 状态且指向已批准名单版本的 CompetitionEntry。 ");
+  }
+  return validateEntryRoster(tx, entry, season, ["approved"], {
+    requireCurrentTeamMembership: false,
+    requireActiveRestrictionOverrides: true,
+  });
 }
 
 export async function createCompetitionEntryInTx(tx: TxDb, input: { competitionId: string; teamId: string; userId: string; actorId: string }): Promise<{ entryId: string; seasonSlug: string }> {
@@ -402,8 +422,12 @@ export async function revokeCompetitionEntryRestrictionOverrideInTx(
 }
 
 export async function reviewCompetitionEntryInTx(tx: TxDb, input: { entryId: string; decision: "changes_requested" | "waitlisted" | "approved" | "rejected"; reason?: string; actorId: string }): Promise<{ seasonSlug: string }> {
+  const [entryScope] = await tx.select({ competitionId: competitionEntries.competitionId })
+    .from(competitionEntries).where(eq(competitionEntries.id, input.entryId));
+  if (!entryScope) throw new AppError(ErrorCode.NOT_FOUND, "赛事参赛条目不存在。");
+  const [season] = await tx.select().from(seasons).where(eq(seasons.id, entryScope.competitionId)).for("update");
+  if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛事不存在。 ");
   const entry = await lockEntry(tx, input.entryId);
-  const season = await loadSeasonOrThrow(tx, entry.competitionId);
   if (!["submitted", "waitlisted"].includes(entry.registrationStatus)) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "只有已提交或候补 Entry 可以审核。");
   const [revision] = await tx.select().from(competitionEntryRosterRevisions).where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id))).for("update");
   if (!revision) throw new AppError(ErrorCode.INTERNAL_ERROR, "Entry roster revision 不完整。");
@@ -423,7 +447,10 @@ export async function reviewCompetitionEntryInTx(tx: TxDb, input: { entryId: str
     await tx.update(competitionEntries).set({ registrationStatus: "changes_requested", currentRosterRevisionId: next.id, reviewedAt: now, reviewReason: input.reason, updatedAt: now }).where(eq(competitionEntries.id, entry.id));
   } else {
     await tx.update(competitionEntries).set({ registrationStatus: input.decision, approvedRosterRevisionId: input.decision === "approved" ? revision.id : entry.approvedRosterRevisionId, reviewedAt: now, reviewReason: input.reason || null, updatedAt: now }).where(eq(competitionEntries.id, entry.id));
-    if (input.decision === "approved") await tx.update(competitionEntryRosterRevisions).set({ status: "approved", approvedAt: now }).where(eq(competitionEntryRosterRevisions.id, revision.id));
+    if (input.decision === "approved") {
+      await tx.update(competitionEntryRosterRevisions).set({ status: "approved", approvedAt: now }).where(eq(competitionEntryRosterRevisions.id, revision.id));
+      await reconcileMajorPrestartRosterAfterApprovalInTx(tx, { seasonId: season.id, entryId: entry.id, actorId: input.actorId });
+    }
     if (input.decision === "rejected") await tx.delete(competitionEntryActiveClaims).where(eq(competitionEntryActiveClaims.entryId, entry.id));
   }
   await auditEntry(tx, { action: `competition_entry.${input.decision}`, actorId: input.actorId, entryId: entry.id, competitionId: entry.competitionId, meta: { from: entry.registrationStatus, to: input.decision, rosterRevision: revision.revisionNumber, reason: input.reason || null } });

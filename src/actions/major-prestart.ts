@@ -1,15 +1,11 @@
 "use server";
 
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db/client";
 import {
   auditLogs,
-  competitionEntries,
-  competitionEntryParticipants,
-  competitionEntryRosterMembers,
-  competitionEntryRosterRevisions,
   eventRosterMembers,
   eventRosters,
   majorTournamentEntrants,
@@ -21,8 +17,7 @@ import {
 import { actionError } from "@/lib/action-utils";
 import { auditActorId, requireSeasonAdmin } from "@/lib/auth/session";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { checkStandardMajorCapabilities } from "@/lib/competition/definition";
-import { normalizeAffiliationRules, normalizeRegistrationConfig, normalizeStagePlan, normalizeTeamRegistrationConfig } from "@/types/season";
+import { getStandardMajorDefinition } from "@/lib/major/standard";
 import { fail, ok, type ActionResult } from "@/types/action";
 import { startMajorInTransaction, type MajorStartResult } from "@/lib/major/start";
 import { finalizeMajorSwissRoundInTransaction, type MajorSwissRoundFinalizationResult } from "@/lib/major/swiss-runtime";
@@ -30,39 +25,26 @@ import { transitionMajorSwissStageInTransaction, type MajorStageTransitionResult
 import { finalizeMajorPlayoffRoundInTransaction, startMajorPlayoffInTransaction, type MajorPlayoffFinalizationResult, type MajorPlayoffStartResult } from "@/lib/major/playoff-runtime";
 import { revalidateSeasonPaths } from "@/lib/revalidation";
 import { traceOperation } from "@/lib/observability/server";
-import { assertPrestartEntryCoherenceInTx, assertSinglePrestartEntryCoherenceInTx } from "@/lib/major/prestart-entry";
-import { loadApprovedRosterEducation, saveMajorPrestartRosterInTx } from "@/lib/major/prestart-roster";
+import { assertSinglePrestartEntryCoherenceInTx } from "@/lib/major/prestart-entry";
+import { lockMajorPrestartEntrantsInTx, selectMajorEntrantsAndSyncRostersInTx } from "@/lib/major/prestart-entrants";
+import { saveMajorPrestartRosterInTx } from "@/lib/major/prestart-roster";
 import { assertMajorPrestartEntrantsMutable, ensureMajorPrestartStateInTx } from "@/lib/major/prestart-state";
 
 const uuid = z.string().uuid();
 const issueCategory = z.enum(["qualification", "administration"]);
-const rosterInput = z.object({ seasonId: uuid, entrantId: uuid, userIds: z.array(uuid).min(1).max(16) });
+const rosterRepairInput = z.object({ seasonId: uuid, entrantId: uuid, userIds: z.array(uuid).min(1).max(16), reason: z.string().trim().min(1).max(1000) });
+const rosterExceptionInput = z.object({ seasonId: uuid, entrantId: uuid, reason: z.string().trim().min(1).max(1000) });
+const entrantSelectionInput = z.object({ seasonId: uuid, competitionEntryIds: z.array(uuid) });
 
 function invalid(message: string): ActionResult<never> {
   return fail({ code: ErrorCode.VALIDATION_FAILED, message });
 }
 
 function standardMajorOrThrow(season: typeof seasons.$inferSelect): void {
-  if (season.competitionTemplate !== "major") {
-    throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "当前赛事不是 Major 赛事模板，不能管理赛前事实。");
-  }
-  const result = checkStandardMajorCapabilities({
-    registrationMode: season.registrationMode,
-    hasCaptainVoting: season.hasCaptainVoting,
-    hasDraft: season.hasDraft,
-    hasCommunityAwards: season.hasCommunityAwards,
-    stagePlan: normalizeStagePlan(season.stagePlan),
-    registrationConfig: normalizeRegistrationConfig(season.registrationConfig),
-    teamRegistrationConfig: normalizeTeamRegistrationConfig(season.teamRegistrationConfig),
-    affiliationRules: normalizeAffiliationRules(season.affiliationRules),
-    minTeamSize: season.minTeamSize,
-    maxTeamSize: season.maxTeamSize,
-    starterCount: season.starterCount,
-    positions: season.positions,
+  getStandardMajorDefinition(season, {
+    notMajor: "当前赛事不是 Major 赛事模板，不能管理赛前事实。",
+    notStandard: "当前赛事不是标准 Major，不能管理赛前事实。",
   });
-  if (!result.isStandardMajor) {
-    throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "当前赛事不是标准 Major，不能管理赛前事实。");
-  }
 }
 
 async function seasonAndAdminOrThrow(seasonId: string) {
@@ -77,76 +59,33 @@ async function seasonAndAdminOrThrow(seasonId: string) {
 
 function revalidateMajorPrestart(seasonSlug: string): void {
   revalidatePath(`/admin/${seasonSlug}`);
+  revalidatePath(`/admin/${seasonSlug}/prestart`);
 }
 
-export async function addMajorPrestartEntrant(input: { seasonId: string; competitionEntryId: string }): Promise<ActionResult<void>> {
-  const parsed = z.object({ seasonId: uuid, competitionEntryId: uuid }).safeParse(input);
-  if (!parsed.success) return invalid("赛季或队伍标识无效。");
+export async function selectMajorEntrants(input: { seasonId: string; competitionEntryIds: string[] }): Promise<ActionResult<void>> {
+  const parsed = entrantSelectionInput.safeParse(input);
+  if (!parsed.success || new Set(parsed.data.competitionEntryIds).size !== parsed.data.competitionEntryIds.length) {
+    return invalid("正式参赛队选择无效，不能包含重复 Entry。 ");
+  }
   try {
     const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
-    await db.transaction(async (tx) => {
-      const state = await ensureMajorPrestartStateInTx(tx, season.id);
-      assertMajorPrestartEntrantsMutable(state);
-      const [entry] = await tx.select().from(competitionEntries)
-        .where(and(eq(competitionEntries.id, parsed.data.competitionEntryId), eq(competitionEntries.competitionId, season.id), eq(competitionEntries.registrationStatus, "approved")));
-      if (!entry) throw new AppError(ErrorCode.NOT_FOUND, "该 CompetitionEntry 不属于当前赛事或尚未批准。");
-      const existing = await tx.query.majorTournamentEntrants.findFirst({
-        where: and(eq(majorTournamentEntrants.seasonId, season.id), eq(majorTournamentEntrants.competitionEntryId, entry.id)),
-      });
-      if (existing) return;
-      if (!entry.approvedRosterRevisionId) throw new AppError(ErrorCode.VALIDATION_FAILED, "Entry 缺少已批准的报名 roster revision。");
-      const [revision] = await tx.select({ id: competitionEntryRosterRevisions.id }).from(competitionEntryRosterRevisions)
-        .where(and(eq(competitionEntryRosterRevisions.id, entry.approvedRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id)));
-      if (!revision) throw new AppError(ErrorCode.VALIDATION_FAILED, "Entry 缺少已批准的报名 roster revision。");
-      const members = await tx.select({ userId: competitionEntryRosterMembers.userId, participantId: competitionEntryRosterMembers.participantId, primary: competitionEntryRosterMembers.isPrimaryStarter })
-        .from(competitionEntryRosterMembers)
-        .innerJoin(competitionEntryParticipants, eq(competitionEntryParticipants.id, competitionEntryRosterMembers.participantId))
-        .where(and(eq(competitionEntryRosterMembers.revisionId, revision.id), eq(competitionEntryParticipants.status, "confirmed")));
-      if (members.length < season.minTeamSize) {
-        throw new AppError(ErrorCode.VALIDATION_FAILED, `正式队伍至少需要 ${season.minTeamSize} 名成员才能进入 Major。`);
-      }
-      const verificationIds = await loadApprovedRosterEducation(tx, members.map((member) => member.userId), normalizeAffiliationRules(season.affiliationRules));
-      const [eventRoster] = await tx.insert(eventRosters).values({ entryId: entry.id, sourceRosterRevisionId: revision.id, status: "preparing" })
-        .onConflictDoUpdate({ target: eventRosters.entryId, set: { sourceRosterRevisionId: revision.id, status: "preparing", confirmedAt: null, confirmedBy: null, frozenAt: null, frozenBy: null, updatedAt: new Date() } })
-        .returning({ id: eventRosters.id });
-      const [entrant] = await tx.insert(majorTournamentEntrants).values({ seasonId: season.id, competitionEntryId: entry.id })
-        .returning({ id: majorTournamentEntrants.id });
-      if (!entrant) throw new AppError(ErrorCode.INTERNAL_ERROR, "正式参赛队创建失败。");
-      await tx.delete(eventRosterMembers).where(eq(eventRosterMembers.eventRosterId, eventRoster.id));
-      await tx.insert(eventRosterMembers).values(members.map((member) => ({ eventRosterId: eventRoster.id, userId: member.userId, participantId: member.participantId, isPrimaryStarter: member.primary, educationVerificationId: verificationIds.get(member.userId) })));
-      await tx.insert(auditLogs).values({
-        seasonId: season.id, action: "major_prestart.add_entrant", actorId: auditActorId(admin),
-        targetId: entrant.id, targetType: "major_tournament_entrant", meta: { competitionEntryId: entry.id, eventRosterId: eventRoster.id, rosterSize: members.length },
-      });
-    });
+    await traceOperation("major.prestart.select_entrants", {
+      scope: "major",
+      operation: "prestart.select_entrants",
+      attributes: { "rivalhub.workflow": "major_prestart" },
+    }, () => db.transaction((tx) => selectMajorEntrantsAndSyncRostersInTx(tx, {
+      seasonId: season.id,
+      competitionEntryIds: parsed.data.competitionEntryIds,
+      actorId: auditActorId(admin),
+    })));
     revalidateMajorPrestart(season.slug);
     return ok(undefined);
-  } catch (error) { return actionError("addMajorPrestartEntrant", error); }
+  } catch (error) { return actionError("selectMajorEntrants", error); }
 }
 
-export async function removeMajorPrestartEntrant(input: { seasonId: string; entrantId: string }): Promise<ActionResult<void>> {
-  const parsed = z.object({ seasonId: uuid, entrantId: uuid }).safeParse(input);
-  if (!parsed.success) return invalid("赛季或正式参赛队标识无效。");
-  try {
-    const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
-    await db.transaction(async (tx) => {
-      assertMajorPrestartEntrantsMutable(await ensureMajorPrestartStateInTx(tx, season.id));
-      const [entrant] = await tx.select().from(majorTournamentEntrants)
-        .where(and(eq(majorTournamentEntrants.id, parsed.data.entrantId), eq(majorTournamentEntrants.seasonId, season.id)));
-      if (!entrant) throw new AppError(ErrorCode.NOT_FOUND, "正式参赛队不存在。");
-      await tx.delete(majorTournamentEntrants).where(eq(majorTournamentEntrants.id, entrant.id));
-      await tx.insert(auditLogs).values({
-        seasonId: season.id, action: "major_prestart.remove_entrant", actorId: auditActorId(admin),
-        targetId: entrant.id, targetType: "major_tournament_entrant", meta: { competitionEntryId: entrant.competitionEntryId },
-      });
-    });
-    revalidateMajorPrestart(season.slug);
-    return ok(undefined);
-  } catch (error) { return actionError("removeMajorPrestartEntrant", error); }
-}
-
-export async function saveMajorPrestartRoster(input: z.infer<typeof rosterInput>): Promise<ActionResult<void>> {
-  const parsed = rosterInput.safeParse(input);
+/** Explicit exception path only; normal flow uses selectMajorEntrants. */
+export async function repairMajorPrestartRoster(input: z.infer<typeof rosterRepairInput>): Promise<ActionResult<void>> {
+  const parsed = rosterRepairInput.safeParse(input);
   if (!parsed.success) return invalid("最终名单输入无效。");
   const userIds = [...new Set(parsed.data.userIds)];
   if (userIds.length !== parsed.data.userIds.length) return invalid("最终名单中不能重复同一位选手。");
@@ -159,15 +98,16 @@ export async function saveMajorPrestartRoster(input: z.infer<typeof rosterInput>
       seasonId: season.id,
       entrantId: parsed.data.entrantId,
       userIds,
+      reason: parsed.data.reason,
       actorId: auditActorId(admin),
     }));
     revalidateMajorPrestart(season.slug);
     return ok(undefined);
-  } catch (error) { return actionError("saveMajorPrestartRoster", error); }
+  } catch (error) { return actionError("repairMajorPrestartRoster", error); }
 }
 
-export async function confirmMajorPrestartRoster(input: { seasonId: string; entrantId: string }): Promise<ActionResult<void>> {
-  const parsed = z.object({ seasonId: uuid, entrantId: uuid }).safeParse(input);
+export async function confirmMajorPrestartRoster(input: z.input<typeof rosterExceptionInput>): Promise<ActionResult<void>> {
+  const parsed = rosterExceptionInput.safeParse(input);
   if (!parsed.success) return invalid("赛季或正式参赛队标识无效。");
   try {
     const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
@@ -194,7 +134,7 @@ export async function confirmMajorPrestartRoster(input: { seasonId: string; entr
       await tx.update(eventRosters).set({ status: "confirmed", confirmedAt: now, confirmedBy: auditActorId(admin), updatedAt: now }).where(eq(eventRosters.id, coherent.eventRoster.id));
       await tx.insert(auditLogs).values({
         seasonId: season.id, action: "major_prestart.confirm_roster", actorId: auditActorId(admin),
-        targetId: entrant.id, targetType: "major_tournament_entrant", meta: { rosterSize: roster.length },
+        targetId: entrant.id, targetType: "major_tournament_entrant", meta: { rosterSize: roster.length, reason: parsed.data.reason },
       });
     });
     revalidateMajorPrestart(season.slug);
@@ -203,8 +143,8 @@ export async function confirmMajorPrestartRoster(input: { seasonId: string; entr
 }
 
 /** 已确认的单队名单在全局锁定前可由管理员显式重新开放；该动作不会解冻赛事。 */
-export async function reopenMajorPrestartRoster(input: { seasonId: string; entrantId: string }): Promise<ActionResult<void>> {
-  const parsed = z.object({ seasonId: uuid, entrantId: uuid }).safeParse(input);
+export async function reopenMajorPrestartRoster(input: z.input<typeof rosterExceptionInput>): Promise<ActionResult<void>> {
+  const parsed = rosterExceptionInput.safeParse(input);
   if (!parsed.success) return invalid("赛季或正式参赛队标识无效。");
   try {
     const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
@@ -218,7 +158,7 @@ export async function reopenMajorPrestartRoster(input: { seasonId: string; entra
       if (roster.status === "frozen") throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "最终赛事名单已冻结，不能重新开放。");
       if (roster.status === "confirmed") {
         await tx.update(eventRosters).set({ status: "preparing", confirmedAt: null, confirmedBy: null, frozenAt: null, frozenBy: null, updatedAt: new Date() }).where(eq(eventRosters.id, roster.id));
-        await tx.insert(auditLogs).values({ seasonId: season.id, action: "major_prestart.reopen_roster", actorId: auditActorId(admin), targetId: entrant.id, targetType: "major_tournament_entrant", meta: { eventRosterId: roster.id } });
+        await tx.insert(auditLogs).values({ seasonId: season.id, action: "major_prestart.reopen_roster", actorId: auditActorId(admin), targetId: entrant.id, targetType: "major_tournament_entrant", meta: { eventRosterId: roster.id, reason: parsed.data.reason } });
       }
     });
     revalidateMajorPrestart(season.slug);
@@ -271,47 +211,14 @@ export async function lockMajorPrestartEntrants(input: { seasonId: string }): Pr
   if (!parsed.success) return invalid("赛季标识无效。");
   try {
     const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
-    await db.transaction(async (tx) => {
-      const state = await ensureMajorPrestartStateInTx(tx, season.id);
-      if (state.entrantsLockedAt) return;
-      const entrants = await tx.select({ id: majorTournamentEntrants.id, competitionEntryId: majorTournamentEntrants.competitionEntryId })
-        .from(majorTournamentEntrants).where(eq(majorTournamentEntrants.seasonId, season.id));
-      const coherent = await assertPrestartEntryCoherenceInTx(tx, season.id, entrants.map((entrant) => ({ competitionEntryId: entrant.competitionEntryId })));
-      if (entrants.length !== 32) throw new AppError(ErrorCode.VALIDATION_FAILED, "锁定前必须恰好选择 32 支正式参赛队。 ");
-      if (coherent.some((row) => row.eventRoster.status !== "confirmed")) throw new AppError(ErrorCode.VALIDATION_FAILED, "所有正式参赛队必须先确认最终赛事名单。 ");
-      const rosterCounts = await tx.execute(sql`
-        SELECT e.id AS entrant_id, count(*)::int AS count
-        FROM major_tournament_entrants e
-        INNER JOIN event_rosters er ON er.entry_id = e.competition_entry_id AND er.status = 'confirmed'
-        INNER JOIN event_roster_members r ON r.event_roster_id = er.id
-        WHERE e.id IN (${sql.join(entrants.map((entrant) => sql`${entrant.id}`), sql`, `)})
-        GROUP BY e.id
-      `);
-      if (rosterCounts.rows.length !== entrants.length || rosterCounts.rows.some((row) => Number(row.count) < season.minTeamSize || Number(row.count) > season.maxTeamSize)) {
-        throw new AppError(ErrorCode.VALIDATION_FAILED, "存在不符合人数规则的最终赛事名单。 ");
-      }
-      const duplicate = await tx.execute(sql`
-        SELECT r.user_id FROM event_roster_members r
-        INNER JOIN event_rosters er ON er.id = r.event_roster_id
-        INNER JOIN major_tournament_entrants e ON e.competition_entry_id = er.entry_id
-        WHERE e.season_id = ${season.id}
-        GROUP BY r.user_id HAVING count(*) > 1 LIMIT 1
-      `);
-      if (duplicate.rows.length > 0) throw new AppError(ErrorCode.VALIDATION_FAILED, "最终赛事名单存在重复选手。 ");
-      const unresolved = await tx.query.majorPrestartIssues.findFirst({
-        where: and(eq(majorPrestartIssues.seasonId, season.id), sql`${majorPrestartIssues.resolvedAt} IS NULL`),
-      });
-      if (unresolved) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先处理所有资格和管理事项。 ");
-      const now = new Date();
-      await tx.update(eventRosters).set({ status: "frozen", confirmedAt: now, confirmedBy: auditActorId(admin), frozenAt: now, frozenBy: auditActorId(admin), updatedAt: now })
-        .where(inArray(eventRosters.id, coherent.map((row) => row.eventRoster.id)));
-      await tx.update(majorPrestartStates).set({ entrantsLockedAt: new Date(), entrantsLockedBy: auditActorId(admin), updatedAt: new Date() })
-        .where(eq(majorPrestartStates.id, state.id));
-      await tx.insert(auditLogs).values({
-        seasonId: season.id, action: "major_prestart.lock_entrants", actorId: auditActorId(admin),
-        targetId: state.id, targetType: "major_prestart_state", meta: { entrantCount: entrants.length },
-      });
-    });
+    await traceOperation("major.prestart.lock_entrants", {
+      scope: "major",
+      operation: "prestart.lock_entrants",
+      attributes: { "rivalhub.workflow": "major_prestart" },
+    }, () => db.transaction((tx) => lockMajorPrestartEntrantsInTx(tx, {
+      seasonId: season.id,
+      actorId: auditActorId(admin),
+    })));
     revalidateMajorPrestart(season.slug);
     return ok(undefined);
   } catch (error) { return actionError("lockMajorPrestartEntrants", error); }

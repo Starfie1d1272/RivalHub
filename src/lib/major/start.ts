@@ -22,7 +22,7 @@ import { freezeAffiliationRules } from "@/lib/major/frozen-affiliation-rules";
 import { makeMajorRunSnapshotV4 } from "@/lib/major/run-snapshot";
 import { loadActiveRestrictionOverridesInTx, unresolvedQualificationFindings } from "@/lib/competition-entries/restriction-overrides";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
-import { checkStandardMajorCapabilities } from "@/lib/competition/definition";
+import { getStandardMajorDefinition } from "@/lib/major/standard";
 import {
   evaluateRosterQualificationFromFacts,
   loadParticipantQualificationFacts,
@@ -30,12 +30,6 @@ import {
   toPlayerStrengthInput,
   type ParticipantQualificationFacts,
 } from "@/lib/qualification/service";
-import {
-  normalizeRegistrationConfig,
-  normalizeStagePlan,
-  normalizeTeamRegistrationConfig,
-  normalizeAffiliationRules,
-} from "@/types/season";
 
 const STAGE_ONE_MANAGED_MATCH_COUNT = 8;
 
@@ -43,23 +37,6 @@ export interface MajorStartResult {
   stageRunId: string;
   created: boolean;
   matchCount: number;
-}
-
-function capabilitiesFromSeason(season: typeof seasons.$inferSelect) {
-  return {
-    registrationMode: season.registrationMode,
-    hasCaptainVoting: season.hasCaptainVoting,
-    hasDraft: season.hasDraft,
-    hasCommunityAwards: season.hasCommunityAwards,
-    stagePlan: normalizeStagePlan(season.stagePlan),
-    registrationConfig: normalizeRegistrationConfig(season.registrationConfig),
-    teamRegistrationConfig: normalizeTeamRegistrationConfig(season.teamRegistrationConfig),
-    affiliationRules: normalizeAffiliationRules(season.affiliationRules),
-    minTeamSize: season.minTeamSize,
-    maxTeamSize: season.maxTeamSize,
-    starterCount: season.starterCount,
-    positions: season.positions,
-  };
 }
 
 /**
@@ -75,15 +52,10 @@ export async function startMajorInTransaction(
   const [season] = await tx.select().from(seasons)
     .where(eq(seasons.id, input.seasonId)).for("update");
   if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
-  if (season.competitionTemplate !== "major") {
-    throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "当前赛事不是 Major 赛事模板，不能正式开赛。");
-  }
-
-  const capabilities = capabilitiesFromSeason(season);
-  const standardMajor = checkStandardMajorCapabilities(capabilities);
-  if (!standardMajor.isStandardMajor) {
-    throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "当前赛事不是标准 Major，不能正式开赛。");
-  }
+  const { capabilities } = getStandardMajorDefinition(season, {
+    notMajor: "当前赛事不是 Major 赛事模板，不能正式开赛。",
+    notStandard: "当前赛事不是标准 Major，不能正式开赛。",
+  });
   const stage = capabilities.stagePlan[0];
   if (!stage || (stage.matchFormat !== "bo1" && stage.matchFormat !== "bo3")) {
     throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "标准 Major 的阶段一赛制不可用于正式开赛。");

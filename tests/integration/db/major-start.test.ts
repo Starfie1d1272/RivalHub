@@ -927,6 +927,7 @@ async function exerciseSaveVsRosterChangeConcurrency(
       seasonId: fixture.seasonId,
       entrantId,
       userIds,
+      reason: "并发名单补正测试",
       actorId: "local-save",
     })),
     runConcurrencyTransaction(database, (tx) => requestCompetitionEntryRosterChangeInTx(tx, {
