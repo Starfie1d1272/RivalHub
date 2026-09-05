@@ -227,7 +227,7 @@ describe("SeasonForm presets", () => {
     for (const section of ["基本信息", "时间与生命周期", "报名与名单", "资格规则", "赛制与地图", "竞技参考", "功能", "危险操作"]) {
       expect(screen.getByRole("heading", { name: section })).toBeInTheDocument();
     }
-    expect(screen.getByText(/5E → 完美世界竞技平台 · ConversionPolicy 尚未绑定/)).toBeInTheDocument();
+    expect(screen.getByText(/完美世界竞技平台 · ConversionPolicy 尚未绑定/)).toBeInTheDocument();
   });
 
   it("shows the frozen ConversionPolicy identity after registration opens", () => {
@@ -272,7 +272,7 @@ describe("SeasonForm presets", () => {
       initial={initial}
     />);
 
-    expect(screen.getByText(/ConversionPolicy 2026\.09/)).toBeInTheDocument();
+    expect(screen.getByText(/5E → 完美世界竞技平台 · ConversionPolicy 2026\.09/)).toBeInTheDocument();
     expect(screen.getByText("本届已在报名开放时冻结；全局 policy 后续变化不会影响本届。")).toBeInTheDocument();
     expect(screen.getByText("策略 ID：policy-2026-09")).toBeInTheDocument();
   });
@@ -333,7 +333,7 @@ describe("SeasonForm presets", () => {
     expect(screen.getByTestId("season-lifecycle-explanation")).toHaveTextContent("公开赛事规则已锁定");
 
     rerender(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "公开赛", "registration", { registrationOpenedAt: new Date("2026-05-01T00:00:00.000Z") })} />);
-    expect(screen.getByTestId("season-lifecycle-explanation")).toHaveTextContent("竞技上下文、5E fallback 和实际开放时间已冻结");
+    expect(screen.getByTestId("season-lifecycle-explanation")).toHaveTextContent("竞技上下文、ConversionPolicy 策略身份与冻结快照、实际开放时间已冻结");
 
     rerender(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "公开赛", "playing", { registrationOpenedAt: new Date("2026-05-01T00:00:00.000Z") })} />);
     expect(screen.getByTestId("season-lifecycle-explanation")).toHaveTextContent("比赛已开始");
