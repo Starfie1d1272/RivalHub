@@ -13,6 +13,7 @@ import { MajorSwissRuntimeManagement } from "@/components/admin/MajorSwissRuntim
 import { Panel } from "@/components/rivalhub";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { loadAdminMatchOverview } from "@/lib/admin/matches/overview";
+import { presentMatchLabel } from "@/lib/matches/presentation";
 import { presentSeasonStatus } from "@/lib/seasons/presentation";
 
 interface AdminMatchesPageProps {
@@ -27,6 +28,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
   if (!data) notFound();
 
   const matchCount = data.matches.length;
+  const teamNameById = new Map(data.teams.map((team) => [team.id, team.name]));
 
   return (
     <div className="min-w-0 space-y-6">
@@ -103,6 +105,33 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
       {data.swissRuntime && <MajorSwissRuntimeManagement data={data.swissRuntime} />}
       {data.playoffRuntime && <MajorPlayoffRuntimeManagement data={data.playoffRuntime} />}
 
+      {data.commentaryEffectiveness.length > 0 && (
+        <details className="rounded border border-[var(--color-border)] px-4 py-3">
+          <summary className="cursor-pointer text-sm font-medium">解说有效场次统计</summary>
+          <div className="mt-3 space-y-3 text-sm">
+            {data.commentaryEffectiveness.map(({ admin, matches }) => (
+              <div key={admin.userId}>
+                <strong>{admin.name}</strong> · {matches.length} 场
+                <ul className="mt-1 list-disc space-y-1 pl-5 text-[var(--color-fg-mid)]">
+                  {matches.map((match) => (
+                    <li key={match.id}>
+                      {presentMatchLabel({
+                        stage: match.stage,
+                        stageName: data.stagePlan.find((stage) => stage.key === match.stage)?.name,
+                        round: match.round,
+                        entryRound: match.entryRound,
+                        teamAName: teamNameById.get(match.entryAId) ?? "TBD",
+                        teamBName: teamNameById.get(match.entryBId) ?? "TBD",
+                      })}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+
       {matchCount > 0 && data.defaultStageKey && (
         <Tabs defaultValue={data.defaultStageKey}>
           <TabsList className="max-w-full justify-start overflow-x-auto">
@@ -140,8 +169,8 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                         <AdminMatchRow
                           key={match.id}
                           match={match}
-                          teamAName={data.teams.find((team) => team.id === match.entryAId)?.name ?? (isPlayoff ? "TBD" : "未知队伍")}
-                          teamBName={data.teams.find((team) => team.id === match.entryBId)?.name ?? (isPlayoff ? "TBD" : "未知队伍")}
+                          teamAName={teamNameById.get(match.entryAId) ?? (isPlayoff ? "TBD" : "未知队伍")}
+                          teamBName={teamNameById.get(match.entryBId) ?? (isPlayoff ? "TBD" : "未知队伍")}
                           seasonSlug={seasonSlug}
                           stageName={stage.name}
                         />

@@ -34,6 +34,11 @@ export interface AdminPostMatchRecordData {
   canSubmit: boolean;
 }
 
+export interface AdminCommentaryEffectiveness {
+  admin: { userId: string; name: string; hasLiveStream: boolean };
+  matches: AdminMatchSummary[];
+}
+
 /** Explicit summary projection used by the season-level matches overview. */
 export interface AdminMatchSummary {
   id: Match["id"];
@@ -78,9 +83,9 @@ export interface AdminMatchOverviewData {
   season: Pick<Season, "id" | "slug" | "name" | "status">;
   teams: Pick<CompetitionEntry, "id" | "name">[];
   stagePlan: StagePlan;
-  mapPool: string[];
   matches: AdminMatchSummary[];
   stageViews: { stage: StageConfig; matches: AdminMatchSummary[] }[];
+  commentaryEffectiveness: AdminCommentaryEffectiveness[];
   unconfiguredMatches: AdminMatchSummary[];
   standingsByStage: Map<string, TeamStanding[]>;
   qualifierStandings: TeamStanding[];

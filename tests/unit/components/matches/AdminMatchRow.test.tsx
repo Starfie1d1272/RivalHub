@@ -11,7 +11,7 @@ vi.mock("@/components/rivalhub", () => ({ Panel: ({ children }: { children?: Rea
 vi.mock("@/components/matches/MatchStatusBadge", () => ({ MatchStatusBadge: () => null }));
 
 import { AdminMatchRow } from "@/components/matches/AdminMatchRow";
-import { getAdminMatchStartBlockers } from "@/lib/matches/admin-start-blockers";
+import { getAdminMatchStartBlockers } from "@/lib/admin/matches/start-blockers";
 
 const roster = { rosterId: "roster", starters: ["1", "2", "3", "4", "5"], substitutes: [], status: "confirmed" };
 

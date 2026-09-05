@@ -52,7 +52,7 @@ CS2 地图也分为相互独立的事实 owner：`CS2_MAP_CATALOG` 是保留历�
 
 `matches` 表示赛程、比赛状态和官方系列赛结果；`scoreA/scoreB` 在 BO1、BO3、BO5 中始终是系列赛地图胜场比分。`match_maps` 持有所有实际进行地图的回合比分，正常 BO1 也必须有一行 scored map；弃赛不制造虚构地图。`match_veto_steps`、`match_time_proposals`、`match_mvp_votes` 与 `match_player_stats` 记录比赛细节。结果更正必须保留 audit 与适用的运行时边界。
 
-管理端比赛总览与单场工作台是两个 presentation/read-model boundary：`src/lib/admin/matches/overview.ts` 只投影阶段、standings、赛程和轻量状态，`src/lib/admin/matches/workbench.ts` 才读取指定比赛的 roster、BP/地图、结果、赛后资料与 preflight。它们共享上述 canonical facts，不创建新的比赛、结果或 roster owner；概览中的比赛摘要只通过 workbench 链接进入单场操作。
+管理端比赛总览与单场工作台是两个 presentation/read-model boundary：`src/lib/admin/matches/overview.ts` 只投影阶段、standings、赛程和轻量状态，并保留基于录像、赛后提交与解说分配事实的 season-level 有效场次聚合；`src/lib/admin/matches/workbench.ts` 才读取指定比赛的 roster、BP/地图、结果、赛后资料与 preflight。它们共享上述 canonical facts，不创建新的比赛、结果或 roster owner；概览中的比赛摘要只通过 workbench 链接进入单场操作。
 
 ## 9. Match rosters
 

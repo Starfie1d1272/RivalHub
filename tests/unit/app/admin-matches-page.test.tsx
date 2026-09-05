@@ -60,9 +60,9 @@ function overviewData(): AdminMatchOverviewData {
     season: { id: "season-1", slug: "major", name: "Major", status: "playing" },
     teams: [{ id: "entry-a", name: "Alpha" }, { id: "entry-b", name: "Beta" }],
     stagePlan: [stage],
-    mapPool: ["de_inferno"],
     matches: [match],
     stageViews: [{ stage, matches: [match] }],
+    commentaryEffectiveness: [],
     unconfiguredMatches: [],
     standingsByStage: new Map(),
     qualifierStandings: [],
@@ -100,5 +100,23 @@ describe("AdminMatchesPage overview boundary", () => {
     expect(rowProps).not.toHaveProperty("teamARoster");
     expect(rowProps).not.toHaveProperty("finishedMaps");
     expect(rowProps).not.toHaveProperty("postMatch");
+  });
+
+  it("keeps the season-level commentary effectiveness aggregate on the overview", async () => {
+    const data = overviewData();
+    data.commentaryEffectiveness = [{
+      admin: { userId: "admin-1", name: "解说甲", hasLiveStream: true },
+      matches: [data.matches[0]!],
+    }];
+    loadOverviewMock.mockResolvedValue(data);
+
+    const html = renderToStaticMarkup(await AdminMatchesPage({
+      params: Promise.resolve({ seasonSlug: "major" }),
+      searchParams: Promise.resolve({}),
+    }));
+
+    expect(html).toContain("解说有效场次统计");
+    expect(html).toContain("解说甲");
+    expect(html).toContain("1 场");
   });
 });

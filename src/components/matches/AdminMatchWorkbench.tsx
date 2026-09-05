@@ -20,16 +20,10 @@ import { PreMatchOperatorChecklist } from "@/components/matches/PreMatchOperator
 import { PostMatchRecordPanel } from "@/components/matches/PostMatchRecordPanel";
 import type { AdminMatchWorkbenchData } from "@/lib/admin/matches/types";
 import { getDisplayName } from "@/lib/identity/display-name";
-import { getAdminMatchStartBlockers } from "@/lib/matches/admin-start-blockers";
-import { toCSTDateTimeInput } from "@/lib/utils/date";
+import { getAdminMatchStartBlockers } from "@/lib/admin/matches/start-blockers";
+import { formatCSTDateTime, toCSTDateTimeInput } from "@/lib/utils/date";
 
 export type AdminMatchWorkbenchProps = AdminMatchWorkbenchData;
-
-function formatScheduledAt(value: Date | null): string {
-  return value
-    ? value.toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })
-    : "尚未排期";
-}
 
 function RosterSummary({
   teamName,
@@ -144,8 +138,8 @@ export function AdminMatchWorkbench({
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--color-fg-mid)]">
           <span>{matchLabel}</span>
-          <span>排期：{formatScheduledAt(match.scheduledAt)}</span>
-          {match.completionDeadline && <span>截止：{formatScheduledAt(match.completionDeadline)}</span>}
+          <span>排期：{match.scheduledAt ? formatCSTDateTime(match.scheduledAt) : "尚未排期"}</span>
+          {match.completionDeadline && <span>截止：{formatCSTDateTime(match.completionDeadline)}</span>}
         </div>
         <Link
           href={`/admin/${season.slug}/matches`}

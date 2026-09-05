@@ -5,6 +5,7 @@ import { presentMatchFormat, presentMatchLabel } from "@/lib/matches/presentatio
 import { Panel, StatusPill } from "@/components/rivalhub";
 import { MatchStatusBadge } from "@/components/matches/MatchStatusBadge";
 import type { AdminMatchSummary } from "@/lib/admin/matches/types";
+import { formatCSTDateTime } from "@/lib/utils/date";
 
 export interface AdminMatchRowProps {
   match: AdminMatchSummary;
@@ -63,7 +64,7 @@ export function AdminMatchRow({
             teamBName,
           })}
         </span>
-        <span>{match.scheduledAt ? `排期：${match.scheduledAt.toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })}` : "尚未排期"}</span>
+        <span>{match.scheduledAt ? `排期：${formatCSTDateTime(match.scheduledAt)}` : "尚未排期"}</span>
         {match.ownership === "major_stage" ? <span>Major runtime 管理</span> : <span>手动比赛</span>}
       </div>
 
