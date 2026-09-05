@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 import type { CompetitiveProfileConfig } from "@/types/season";
 import {
   analyzeFinalSeedOrder,
+  buildTeamSeedRecommendations,
+} from "./team-seed-recommendation";
+import {
   buildFrozenSetFingerprint,
   buildSeedRecommendationSnapshotPayload,
-  buildTeamSeedRecommendations,
   getSeedRecommendationSnapshotStatus,
   snapshotPayloadsEqual,
-} from "./team-seed-recommendation";
+} from "./seed-recommendation-snapshot";
 import type { PlayerStrengthInput } from "./player-strength";
 
 const config = {
@@ -36,6 +38,17 @@ describe("buildTeamSeedRecommendations", () => {
 
     expect(result[0]).toMatchObject({ teamId: "strong", recommendationRank: 1, teamSeedStrength: 3 });
     expect(result[1]).toMatchObject({ teamId: "weak", recommendationRank: 2, teamSeedStrength: 1 });
+  });
+
+  it("uses a stable scaled score for equal mathematical averages with different compositions", () => {
+    const ranked = (prefix: string, ranks: string[]) => ranks.map((rank, index) => player(`${prefix}-${index + 1}`, rank));
+    const result = buildTeamSeedRecommendations([
+      { teamId: "left", teamName: "Left", starters: ranked("left", ["A", "A", "A", "C", "C"]) },
+      { teamId: "right", teamName: "Right", starters: ranked("right", ["A", "A", "B", "B", "C"]) },
+    ], config);
+
+    expect(result[0]).toMatchObject({ teamSeedStrength: 1.8, teamSeedStrengthScaled: 180, recommendationRank: 1, tieGroup: 1 });
+    expect(result[1]).toMatchObject({ teamSeedStrength: 1.8, teamSeedStrengthScaled: 180, recommendationRank: 1, tieGroup: 1 });
   });
 
   it.each([
@@ -92,6 +105,44 @@ describe("seed recommendation snapshot contract", () => {
     expect(getSeedRecommendationSnapshotStatus({ snapshot: { entrantSetFingerprint: "other", context: payload.context, recommendations: payload.recommendations }, seasonId: "season-1", frozenSetFingerprint: fingerprint })).toBe("mismatch");
   });
 
+  it("persists the effective recent fact selected by the strength policy", () => {
+    const policyConfig = {
+      ...config,
+      evidencePolicy: {
+        historicalWeight: 50,
+        referenceSeasonKey: "previous",
+        referenceSeasonWeight: 20,
+        recentSeasonKeys: ["older", "current"],
+        recentSeasonWeight: 30,
+      },
+    } as CompetitiveProfileConfig;
+    const starter = player("effective-recent");
+    starter.currentSeasonPeak = { rank: "A", rating: 1, sourceSeasonKey: "current" };
+    starter.recentSeasonPeaks = [
+      { rank: "C", rating: 3, sourceSeasonKey: "older" },
+      { rank: "A", rating: 1, sourceSeasonKey: "current" },
+    ];
+    const payload = buildSeedRecommendationSnapshotPayload({
+      seasonId: "season-1",
+      frozenTeams: [{
+        identity: {
+          entrantId: "entrant-1",
+          competitionEntryId: "entry-1",
+          eventRosterId: "roster-1",
+          sourceRosterRevisionId: "revision-1",
+          teamName: "Team",
+          members: five("effective-recent").map((member) => ({ userId: member.userId, participantId: null, educationVerificationId: `edu-${member.userId}`, isPrimaryStarter: true })),
+        },
+        starters: Array.from({ length: 5 }, (_, index) => ({ ...starter, userId: `effective-recent-${index + 1}`, label: `effective-recent-${index + 1}` })),
+      }],
+      competitiveContext: policyConfig,
+    });
+    expect(payload.recommendations[0]?.starters[0]?.breakdown).toMatchObject({
+      currentValue: 3,
+      effectiveRecentPeak: { rank: "C", sourceSeasonKey: "older" },
+    });
+  });
+
   it("remains ready and idempotent after a PostgreSQL jsonb key-order round trip", () => {
     const frozenTeams = [{
       identity: {
@@ -134,5 +185,24 @@ describe("seed recommendation snapshot contract", () => {
     ];
     expect(analyzeFinalSeedOrder(["strong", "weak"], recommendations).divergesFromRecommendation).toBe(false);
     expect(analyzeFinalSeedOrder(["weak", "strong"], recommendations)).toMatchObject({ divergesFromRecommendation: true, resolvesSystemTie: false });
+  });
+
+  it("labels internal tie ordering separately from a cross-group adjustment", () => {
+    const recommendations = [
+      { competitionEntryId: "alpha", recommendationRank: 1, tieGroup: 1, displayOrder: 1 },
+      { competitionEntryId: "bravo", recommendationRank: 1, tieGroup: 1, displayOrder: 2 },
+      { competitionEntryId: "charlie", recommendationRank: 3, tieGroup: 2, displayOrder: 3 },
+    ];
+    expect(analyzeFinalSeedOrder(["bravo", "alpha", "charlie"], recommendations)).toMatchObject({
+      divergesFromRecommendation: false,
+      resolvesSystemTie: true,
+      rowStatusByTeamId: { alpha: "tie_resolved", bravo: "tie_resolved", charlie: "aligned" },
+      finalSeedByTeamId: { alpha: 2, bravo: 1, charlie: 3 },
+    });
+    expect(analyzeFinalSeedOrder(["charlie", "alpha", "bravo"], recommendations)).toMatchObject({
+      divergesFromRecommendation: true,
+      resolvesSystemTie: false,
+      rowStatusByTeamId: { alpha: "adjusted", bravo: "adjusted", charlie: "adjusted" },
+    });
   });
 });

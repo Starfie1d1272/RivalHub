@@ -20,12 +20,12 @@ import { evaluateMajorPrestartReadiness, type MajorPrestartReadiness } from "@/l
 import { capabilitiesFromSeason } from "@/lib/competition/definition";
 import { getStandardMajorDefinition } from "@/lib/major/standard";
 import { getDisplayName } from "@/lib/identity/display-name";
+import { analyzeFinalSeedOrder, type SeedOrderDecision } from "@/lib/major/team-seed-recommendation";
 import {
-  analyzeFinalSeedOrder,
   buildFrozenSetFingerprint,
+  frozenTeamsForSnapshot,
   getSeedRecommendationSnapshotStatus,
-  type SeedRecommendationFrozenTeamV1,
-} from "@/lib/major/team-seed-recommendation";
+} from "@/lib/major/seed-recommendation-snapshot";
 import type { Season } from "@/db/schema/seasons";
 import type { MajorPrestartPageData } from "./types";
 
@@ -57,33 +57,11 @@ type MajorIssueRow = {
 
 type MajorSeedRow = { teamId: string; tournamentSeed: number };
 
-export function frozenTeamsForSnapshot(
-  entrants: readonly MajorEntrantRow[],
-  rosterRows: readonly MajorRosterMemberRow[],
-): SeedRecommendationFrozenTeamV1[] {
-  const rosterByEntrant = new Map<string, MajorRosterMemberRow[]>();
-  for (const member of rosterRows) {
-    rosterByEntrant.set(member.entrantId, [...(rosterByEntrant.get(member.entrantId) ?? []), member]);
-  }
-  return entrants.map((entrant) => ({
-    entrantId: entrant.id,
-    competitionEntryId: entrant.teamId,
-    eventRosterId: entrant.eventRosterId,
-    sourceRosterRevisionId: entrant.sourceRosterRevisionId,
-    teamName: entrant.teamName ?? entrant.teamId,
-    members: (rosterByEntrant.get(entrant.id) ?? []).map((member) => ({
-      userId: member.userId,
-      participantId: member.participantId,
-      educationVerificationId: member.educationVerificationId,
-      isPrimaryStarter: member.isPrimaryStarter,
-    })),
-  }));
-}
-
 function projectRecommendationFact(fact: {
   rank: string;
   stars: number | null;
   sourcePlatform: string | null;
+  sourceSeasonKey: string | null;
   sourceRank: string | null;
   sourceStars: number | null;
   conversionVersion: string | null;
@@ -92,6 +70,7 @@ function projectRecommendationFact(fact: {
     rank: fact.rank,
     stars: fact.stars,
     sourcePlatform: fact.sourcePlatform,
+    sourceSeasonKey: fact.sourceSeasonKey,
     sourceRank: fact.sourceRank,
     sourceStars: fact.sourceStars,
     conversionVersion: fact.conversionVersion,
@@ -101,6 +80,7 @@ function projectRecommendationFact(fact: {
 function projectRecommendationSnapshot(
   snapshot: typeof majorSeedRecommendationSnapshots.$inferSelect | undefined,
   status: "missing" | "ready" | "mismatch",
+  seedDecision: SeedOrderDecision | null,
 ): MajorPrestartPageData["seedManagement"]["recommendation"] {
   if (!snapshot || status !== "ready") return null;
   const context = snapshot.context;
@@ -118,9 +98,12 @@ function projectRecommendationSnapshot(
         teamId: recommendation.competitionEntryId,
         teamName: recommendation.teamName,
         teamSeedStrength: recommendation.teamSeedStrength!,
+        teamSeedStrengthScaled: recommendation.teamSeedStrengthScaled!,
         recommendationRank: recommendation.recommendationRank!,
         tieGroup: recommendation.tieGroup!,
         displayOrder: recommendation.displayOrder!,
+        finalSeed: seedDecision?.finalSeedByTeamId[recommendation.competitionEntryId] ?? null,
+        finalOrderStatus: seedDecision?.rowStatusByTeamId[recommendation.competitionEntryId] ?? "unsaved",
         starters: recommendation.starters.map((starter) => ({
           userId: starter.userId,
           label: starter.label,
@@ -128,11 +111,13 @@ function projectRecommendationSnapshot(
           previousSeasonPeak: projectRecommendationFact(starter.input.previousSeasonPeak),
           currentSeasonPeak: projectRecommendationFact(starter.input.currentSeasonPeak),
           recentSeasonPeaks: starter.input.recentSeasonPeaks.map(projectRecommendationFact),
+          effectiveRecentPeak: projectRecommendationFact(starter.breakdown.effectiveRecentPeak),
           breakdown: {
             weightedRank: starter.breakdown.weightedRank!,
             historicalValue: starter.breakdown.historicalValue!,
             previousValue: starter.breakdown.previousValue!,
             currentValue: starter.breakdown.currentValue!,
+            effectiveRecentPeak: projectRecommendationFact(starter.breakdown.effectiveRecentPeak),
             historicalRating: starter.breakdown.historicalRating,
           },
         })),
@@ -321,7 +306,7 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
       seedsConfirmed: Boolean(state?.seedsConfirmedAt && state.seedsConfirmedBy),
       overrideReason: state?.seedOverrideReason ?? null,
       recommendationStatus,
-      recommendation: projectRecommendationSnapshot(snapshot, recommendationStatus),
+      recommendation: projectRecommendationSnapshot(snapshot, recommendationStatus, seedDecision),
       firstRound: readiness.openingPlan?.firstRound.pairings.map((pairing) => ({
         higherSeed: pairing.higherSeed.tournamentSeed,
         lowerSeed: pairing.lowerSeed.tournamentSeed,

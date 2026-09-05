@@ -148,7 +148,7 @@ CS2 地图也分为相互独立的事实 owner：`CS2_MAP_CATALOG` 是保留历�
 | Major 标准定义、最终 entrant 选择与 EventRoster 同步 | `src/lib/major/standard.ts` + `src/lib/competition/definition.ts` + `src/lib/major/prestart-entrants.ts` + `src/lib/major/prestart-roster.ts`：canonical stage-plan capacity、Entry qualification re-check、最终集合 materialize、approved revision mirror、统一冻结与同事务 audit |
 | Major 赛前事务锁顺序 | `season / majorPrestartState → CompetitionEntry → eventRoster → majorTournamentEntrant`；名单显式重同步只放宽 source revision guard，完成写入后再由同一 coherence owner 严格复核 |
 | Major prestart readiness | prestart domain service 与明确 blocker |
-| Major seed recommendation snapshot 与人工最终种子 | `src/lib/major/prestart-entrants.ts` 在统一冻结事务中调用 `src/lib/major/team-seed-recommendation.ts`；`src/lib/major/prestart-seeds.ts` 写入 `majorTournamentSeeds` 与 `majorPrestartStates.seedOverrideReason` 及 audit，`src/lib/major/start.ts` 只消费并校验 snapshot |
+| Major seed recommendation snapshot 与人工最终种子 | `src/lib/major/prestart-entrants.ts` 在统一冻结事务中调用 `team-seed-recommendation.ts` 的排名 owner 与 `seed-recommendation-snapshot.ts` 的版本化 contract；`src/lib/major/prestart-seeds.ts` 写入 `majorTournamentSeeds` 与 `majorPrestartStates.seedOverrideReason` 及 audit，`src/lib/major/start.ts` 只消费并校验 snapshot |
 | StageRun 规则与参赛成员冻结 | rule snapshot + managed runtime；开赛时按冻结 competitiveProfile 重验参赛事实后，以同一批读取结果序列化 `frozenCompetitiveFacts` |
 | typed qualification finding 与政策解除 | `src/lib/qualification/` 产生 finding；`competition_entry_restriction_overrides` 只持久化当前 revision 的可解除 finding，并由 `src/lib/major/start.ts` 冻结到 StageRun |
 | 一场 Major 比赛恰好 5 名首发 | match-roster service 与 lineup evaluator |

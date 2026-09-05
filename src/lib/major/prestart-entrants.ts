@@ -22,10 +22,11 @@ import { assertMajorPrestartEntrantsMutable, ensureMajorPrestartStateInTx } from
 import {
   buildFrozenSetFingerprint,
   buildSeedRecommendationSnapshotPayload,
+  frozenTeamsForSnapshot,
   getSeedRecommendationSnapshotStatus,
   snapshotPayloadsEqual,
   type FrozenSeedRecommendationTeamInput,
-} from "@/lib/major/team-seed-recommendation";
+} from "@/lib/major/seed-recommendation-snapshot";
 import {
   loadParticipantQualificationFacts,
   resolveCompetitiveContext,
@@ -317,23 +318,27 @@ export async function lockMajorPrestartEntrantsInTx(
   if (unresolved) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先处理所有资格和管理事项。 ");
 
   const coherenceByEntryId = new Map(coherent.map((row) => [row.entry.id, row]));
-  const frozenTeamInputs: FrozenSeedRecommendationTeamInput[] = entrantRows.map((entrant) => {
-    const entryCoherence = coherenceByEntryId.get(entrant.competitionEntryId);
-    if (!entryCoherence) throw new AppError(ErrorCode.INTERNAL_ERROR, "正式参赛队缺少一致性校验结果。 ");
-    const members = rosterByEntrant.get(entrant.id) ?? [];
-    const identity = {
-      entrantId: entrant.id,
-      competitionEntryId: entrant.competitionEntryId,
-      eventRosterId: entryCoherence.eventRoster.id,
-      sourceRosterRevisionId: entryCoherence.eventRoster.sourceRosterRevisionId,
-      teamName: entryCoherence.entry.name,
-      members: members.map((member) => ({
-        userId: member.userId,
-        participantId: member.participantId,
-        educationVerificationId: member.educationVerificationId,
-        isPrimaryStarter: member.primary,
-      })),
-    };
+  const frozenIdentities = frozenTeamsForSnapshot(
+    entrantRows.map((entrant) => {
+      const entryCoherence = coherenceByEntryId.get(entrant.competitionEntryId);
+      if (!entryCoherence) throw new AppError(ErrorCode.INTERNAL_ERROR, "正式参赛队缺少一致性校验结果。 ");
+      return {
+        id: entrant.id,
+        teamId: entrant.competitionEntryId,
+        eventRosterId: entryCoherence.eventRoster.id,
+        sourceRosterRevisionId: entryCoherence.eventRoster.sourceRosterRevisionId,
+        teamName: entryCoherence.entry.name,
+      };
+    }),
+    rosterRows.map((member) => ({
+      entrantId: member.entrantId,
+      userId: member.userId,
+      participantId: member.participantId,
+      educationVerificationId: member.educationVerificationId,
+      isPrimaryStarter: member.primary,
+    })),
+  );
+  const frozenTeamInputs: FrozenSeedRecommendationTeamInput[] = frozenIdentities.map((identity) => {
     return { identity, starters: [] };
   });
   const frozenSetFingerprint = buildFrozenSetFingerprint(

@@ -30,12 +30,33 @@ function isConverted(fact: RecommendationFact): boolean {
   return fact?.sourcePlatform === "fivee" && Boolean(fact.sourceRank);
 }
 
+const FINAL_ORDER_STATUS_LABEL: Record<NonNullable<MajorTournamentSeedsManagementData["recommendation"]>["teams"][number]["finalOrderStatus"], string> = {
+  aligned: "与系统一致",
+  tie_resolved: "系统并列 · 人工定序",
+  adjusted: "人工调整",
+  unsaved: "未保存",
+};
+
 function FactLine({ label, fact, platform }: { label: string; fact: RecommendationFact; platform: string }) {
   return <p>{label}：{formatFact(fact, platform)} {isConverted(fact) && <span className="ml-1 rounded border border-[var(--color-accent)] px-1 py-0.5 text-[10px] text-[var(--color-accent)]">5E 换算</span>}</p>;
 }
 
 function StarterSummary({ starter, platform }: { starter: RecommendationStarter; platform: string }) {
-  const primaryFact = starter.currentSeasonPeak ?? starter.previousSeasonPeak ?? starter.historicalPeak;
+  const primaryFact = starter.effectiveRecentPeak ?? starter.currentSeasonPeak ?? starter.previousSeasonPeak ?? starter.historicalPeak;
+  const provenanceFacts = [
+    starter.historicalPeak,
+    starter.previousSeasonPeak,
+    starter.currentSeasonPeak,
+    starter.effectiveRecentPeak,
+  ]
+    .filter((fact): fact is NonNullable<RecommendationFact> => isConverted(fact))
+    .filter((fact, index, facts) => facts.findIndex((other) =>
+      other.rank === fact.rank &&
+      other.sourceSeasonKey === fact.sourceSeasonKey &&
+      other.sourceRank === fact.sourceRank &&
+      other.sourceStars === fact.sourceStars &&
+      other.conversionVersion === fact.conversionVersion,
+    ) === index);
   return (
     <details className="border border-[var(--color-border)] bg-[var(--color-panel-low)] px-2 py-1.5">
       <summary className="cursor-pointer list-none text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]">
@@ -46,11 +67,12 @@ function StarterSummary({ starter, platform }: { starter: RecommendationStarter;
       <div className="mt-2 space-y-1 border-t border-[var(--color-border)] pt-2 text-[11px] leading-5 text-[var(--color-fg-mid)]">
         <FactLine label="历史最高" fact={starter.historicalPeak} platform={platform} />
         <FactLine label="前一完整赛季" fact={starter.previousSeasonPeak} platform={platform} />
-        <FactLine label="近期" fact={starter.currentSeasonPeak} platform={platform} />
+        <FactLine label="当前赛季候选" fact={starter.currentSeasonPeak} platform={platform} />
+        <FactLine label="近期（实际参与 30%）" fact={starter.effectiveRecentPeak} platform={platform} />
         <p>weightedRank {starter.breakdown.weightedRank.toFixed(2)} · 段位值 {starter.breakdown.historicalValue}/{starter.breakdown.previousValue}/{starter.breakdown.currentValue}{starter.breakdown.historicalRating === null ? "" : ` · 历史 Rating ${starter.breakdown.historicalRating}`}</p>
-        {[starter.historicalPeak, starter.previousSeasonPeak, starter.currentSeasonPeak].filter(isConverted).map((fact, index) => (
+        {provenanceFacts.map((fact, index) => (
           <p key={`${starter.userId}-source-${index}`}>
-            来源：{sourceLabel(fact!.sourcePlatform)} · 原始 {fact!.sourceRank}{fact!.sourceStars === null ? "" : ` · ${fact!.sourceStars} 星`} · conversion {fact!.conversionVersion ?? "未记录"}
+            来源：{sourceLabel(fact.sourcePlatform)}{fact.sourceSeasonKey ? ` · 赛季 ${fact.sourceSeasonKey}` : ""} · 原始 {fact.sourceRank}{fact.sourceStars === null ? "" : ` · ${fact.sourceStars} 星`} · conversion {fact.conversionVersion ?? "未记录"}
           </p>
         ))}
       </div>
@@ -83,7 +105,7 @@ export function MajorTournamentSeedsManagement({ data }: { data: MajorTournament
   const recommendation = data.recommendation;
   const analysisRows = useMemo(() => {
     const rows = [...(recommendation?.teams ?? [])];
-    if (viewSort === "strength") rows.sort((left, right) => right.teamSeedStrength - left.teamSeedStrength || left.displayOrder - right.displayOrder);
+    if (viewSort === "strength") rows.sort((left, right) => right.teamSeedStrengthScaled - left.teamSeedStrengthScaled || left.displayOrder - right.displayOrder);
     else rows.sort((left, right) => left.displayOrder - right.displayOrder);
     return rows;
   }, [recommendation, viewSort]);
@@ -145,8 +167,8 @@ export function MajorTournamentSeedsManagement({ data }: { data: MajorTournament
           </div>
           <div className="overflow-x-auto border border-[var(--color-border)]">
             <table className="min-w-[1160px] w-full text-left text-xs">
-              <thead className="bg-[var(--color-panel-low)] text-[var(--color-fg-mid)]"><tr><th className="px-3 py-2">系统建议</th><th className="px-3 py-2">TeamSeedStrength</th><th className="px-3 py-2">5 名 frozen primary starters · 竞技资料</th></tr></thead>
-              <tbody>{analysisRows.map((team) => <tr key={team.teamId} className="border-t border-[var(--color-border)] align-top"><td className="w-36 px-3 py-3"><p className="font-medium text-[var(--color-fg)]">#{team.recommendationRank} · {team.teamName}</p><p className="mt-1 text-[var(--color-fg-mid)]">{(tieGroupSizes.get(team.tieGroup) ?? 0) > 1 ? `系统并列 · 组 ${team.tieGroup}` : "无系统并列"}</p></td><td className="w-32 px-3 py-3 font-mono text-[var(--color-fg)]">{team.teamSeedStrength.toFixed(2)}</td><td className="px-3 py-3"><div className="grid gap-2 md:grid-cols-5">{team.starters.map((starter) => <StarterSummary key={starter.userId} starter={starter} platform={data.recommendation!.platform} />)}</div></td></tr>)}</tbody>
+              <thead className="bg-[var(--color-panel-low)] text-[var(--color-fg-mid)]"><tr><th className="px-3 py-2">系统建议</th><th className="px-3 py-2">TeamSeedStrength</th><th className="px-3 py-2">最终 seed / 调整状态</th><th className="px-3 py-2">5 名 frozen primary starters · 竞技资料</th></tr></thead>
+              <tbody>{analysisRows.map((team) => <tr key={team.teamId} className="border-t border-[var(--color-border)] align-top"><td className="w-36 px-3 py-3"><p className="font-medium text-[var(--color-fg)]">#{team.recommendationRank} · {team.teamName}</p><p className="mt-1 text-[var(--color-fg-mid)]">{(tieGroupSizes.get(team.tieGroup) ?? 0) > 1 ? `系统并列 · 组 ${team.tieGroup}` : "无系统并列"}</p></td><td className="w-32 px-3 py-3 font-mono text-[var(--color-fg)]">{team.teamSeedStrength.toFixed(2)}</td><td className="w-28 px-3 py-3 font-mono text-[var(--color-fg)]">{team.finalSeed === null ? "未保存" : `#${team.finalSeed}`}<p className="mt-1 font-sans text-[11px] text-[var(--color-fg-mid)]">{FINAL_ORDER_STATUS_LABEL[team.finalOrderStatus]}</p></td><td className="px-3 py-3"><div className="grid gap-2 md:grid-cols-5">{team.starters.map((starter) => <StarterSummary key={starter.userId} starter={starter} platform={data.recommendation!.platform} />)}</div></td></tr>)}</tbody>
             </table>
           </div>
         </section>}

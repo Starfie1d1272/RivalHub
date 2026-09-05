@@ -34,6 +34,8 @@ export interface PlayerStrengthBreakdown {
   historicalValue: number | null;
   previousValue: number | null;
   currentValue: number | null;
+  /** The exact recent fact selected by the canonical evidence policy. */
+  effectiveRecentPeak: PlayerStrengthFact | null;
   historicalRating: number | null;
 }
 
@@ -130,15 +132,15 @@ export function getPlayerStrengthBreakdown(player: PlayerStrengthInput, config: 
   const findings = getPlayerStrengthFindings(player, config);
   const blockers = findings.map((finding) => finding.message);
   const recentPeak = effectiveRecentPeak(player, config);
-  if (blockers.length > 0) return { available: false, blockers, weightedRank: null, historicalValue: null, previousValue: null, currentValue: null, historicalRating: null };
+  if (blockers.length > 0) return { available: false, blockers, weightedRank: null, historicalValue: null, previousValue: null, currentValue: null, effectiveRecentPeak: recentPeak, historicalRating: null };
   const historicalValue = rankValue(player.historicalPeak!.rank, config);
   const previousValue = rankValue(player.previousSeasonPeak!.rank, config);
   const currentValue = rankValue(recentPeak!.rank, config);
   if (historicalValue === null || previousValue === null || currentValue === null) {
-    return { available: false, blockers: findings.map((finding) => finding.message), weightedRank: null, historicalValue, previousValue, currentValue, historicalRating: player.historicalPeak!.rating };
+    return { available: false, blockers: findings.map((finding) => finding.message), weightedRank: null, historicalValue, previousValue, currentValue, effectiveRecentPeak: recentPeak, historicalRating: player.historicalPeak!.rating };
   }
   const weights = evidenceWeights(config);
-  return { available: true, blockers: [], weightedRank: (historicalValue * weights.historicalWeight + previousValue * weights.referenceSeasonWeight + currentValue * weights.recentSeasonWeight) / 100, historicalValue, previousValue, currentValue, historicalRating: player.historicalPeak!.ratingComparable === false ? null : player.historicalPeak!.rating };
+  return { available: true, blockers: [], weightedRank: (historicalValue * weights.historicalWeight + previousValue * weights.referenceSeasonWeight + currentValue * weights.recentSeasonWeight) / 100, historicalValue, previousValue, currentValue, effectiveRecentPeak: recentPeak, historicalRating: player.historicalPeak!.ratingComparable === false ? null : player.historicalPeak!.rating };
 }
 
 export interface PlayerStrengthComparison {

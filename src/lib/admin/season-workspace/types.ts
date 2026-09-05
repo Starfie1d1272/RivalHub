@@ -1,4 +1,5 @@
 import type { MajorPrestartReadiness } from "@/lib/major/prestart";
+import type { SeedOrderRowStatus } from "@/lib/major/team-seed-recommendation";
 import type { Season } from "@/db/schema/seasons";
 
 type SeasonWorkspaceOverviewSeason = Pick<
@@ -84,9 +85,12 @@ export interface MajorPrestartPageData {
         teamId: string;
         teamName: string;
         teamSeedStrength: number;
+        teamSeedStrengthScaled: number;
         recommendationRank: number;
         tieGroup: number;
         displayOrder: number;
+        finalSeed: number | null;
+        finalOrderStatus: SeedOrderRowStatus;
         starters: Array<{
           userId: string;
           label: string;
@@ -94,6 +98,7 @@ export interface MajorPrestartPageData {
             rank: string;
             stars: number | null;
             sourcePlatform: string | null;
+            sourceSeasonKey: string | null;
             sourceRank: string | null;
             sourceStars: number | null;
             conversionVersion: string | null;
@@ -102,6 +107,7 @@ export interface MajorPrestartPageData {
             rank: string;
             stars: number | null;
             sourcePlatform: string | null;
+            sourceSeasonKey: string | null;
             sourceRank: string | null;
             sourceStars: number | null;
             conversionVersion: string | null;
@@ -110,6 +116,7 @@ export interface MajorPrestartPageData {
             rank: string;
             stars: number | null;
             sourcePlatform: string | null;
+            sourceSeasonKey: string | null;
             sourceRank: string | null;
             sourceStars: number | null;
             conversionVersion: string | null;
@@ -118,15 +125,34 @@ export interface MajorPrestartPageData {
             rank: string;
             stars: number | null;
             sourcePlatform: string | null;
+            sourceSeasonKey: string | null;
             sourceRank: string | null;
             sourceStars: number | null;
             conversionVersion: string | null;
           } | null>;
+          effectiveRecentPeak: {
+            rank: string;
+            stars: number | null;
+            sourcePlatform: string | null;
+            sourceSeasonKey: string | null;
+            sourceRank: string | null;
+            sourceStars: number | null;
+            conversionVersion: string | null;
+          } | null;
           breakdown: {
             weightedRank: number;
             historicalValue: number;
             previousValue: number;
             currentValue: number;
+            effectiveRecentPeak: {
+              rank: string;
+              stars: number | null;
+              sourcePlatform: string | null;
+              sourceSeasonKey: string | null;
+              sourceRank: string | null;
+              sourceStars: number | null;
+              conversionVersion: string | null;
+            } | null;
             historicalRating: number | null;
           };
         }>;

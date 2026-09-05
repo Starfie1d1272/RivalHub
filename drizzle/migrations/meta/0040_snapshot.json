@@ -1,5 +1,5 @@
 {
-  "id": "e9fa160d-6485-43c6-9d50-67e4b756ca3f",
+  "id": "dd7961ee-259d-40b2-8174-bb09cdd5a17a",
   "prevId": "1502d8b4-c2a9-43d8-93a8-3bdc0acca976",
   "version": "7",
   "dialect": "postgresql",
@@ -5953,6 +5953,12 @@
         },
         "seeds_confirmed_by": {
           "name": "seeds_confirmed_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "seed_override_reason": {
+          "name": "seed_override_reason",
           "type": "text",
           "primaryKey": false,
           "notNull": false

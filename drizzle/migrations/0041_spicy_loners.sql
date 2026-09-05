@@ -1,1 +1,0 @@
-ALTER TABLE "major_prestart_states" ADD COLUMN "seed_override_reason" text;

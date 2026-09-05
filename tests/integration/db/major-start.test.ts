@@ -9,7 +9,7 @@ import { requestCompetitionEntryRosterChangeInTx } from "../../../src/lib/compet
 import { confirmCompetitionEntryParticipationInTx } from "../../../src/lib/competition-entries/commands";
 import { saveMajorPrestartRosterInTx } from "../../../src/lib/major/prestart-roster";
 import { lockMajorPrestartEntrantsInTx } from "../../../src/lib/major/prestart-entrants";
-import { saveMajorTournamentSeedsInTx } from "../../../src/lib/major/prestart-seeds";
+import { confirmMajorTournamentSeedsInTx, saveMajorTournamentSeedsInTx } from "../../../src/lib/major/prestart-seeds";
 import { startMajorInTransaction } from "../../../src/lib/major/start";
 import { finalizeMajorSwissRoundInTransaction } from "../../../src/lib/major/swiss-runtime";
 import { transitionMajorSwissStageInTransaction } from "../../../src/lib/major/stage-transition";
@@ -851,6 +851,60 @@ async function assertNoStartFacts(pool: Pool, seasonId: string): Promise<void> {
   }
 }
 
+async function assertSeedMutationsBlockedBySnapshot(
+  database: ReturnType<typeof drizzle<typeof schema>>,
+  pool: Pool,
+  seasonId: string,
+): Promise<void> {
+  const beforeSeeds = await pool.query<{ entryId: string; seed: number }>(
+    `SELECT e.competition_entry_id AS "entryId", s.seed
+     FROM major_tournament_seeds s
+     INNER JOIN major_tournament_entrants e ON e.id = s.tournament_entrant_id
+     WHERE s.season_id = $1
+     ORDER BY s.seed`,
+    [seasonId],
+  );
+  const beforeState = await pool.query<{ reason: string | null; confirmedAt: Date | null; saveAudits: string }>(
+    `SELECT seed_override_reason AS reason, seeds_confirmed_at AS "confirmedAt",
+       (SELECT count(*)::text FROM audit_logs WHERE season_id = $1 AND action = 'major_prestart.save_tournament_seeds') AS "saveAudits"
+     FROM major_prestart_states WHERE season_id = $1`,
+    [seasonId],
+  );
+  const rejectedSave = await database.transaction((tx) => saveMajorTournamentSeedsInTx(tx, {
+    seasonId,
+    entryIds: beforeSeeds.rows.map((row) => row.entryId),
+    overrideReason: null,
+    actorId: "integration-admin",
+  })).catch((caught: unknown) => caught);
+  expect(rejectedSave).toMatchObject({ code: ErrorCode.VALIDATION_FAILED });
+  const rejectedConfirm = await database.transaction((tx) => confirmMajorTournamentSeedsInTx(tx, {
+    seasonId,
+    actorId: "integration-admin",
+  })).catch((caught: unknown) => caught);
+  expect(rejectedConfirm).toMatchObject({ code: ErrorCode.VALIDATION_FAILED });
+
+  const afterSeeds = await pool.query<{ entryId: string; seed: number }>(
+    `SELECT e.competition_entry_id AS "entryId", s.seed
+     FROM major_tournament_seeds s
+     INNER JOIN major_tournament_entrants e ON e.id = s.tournament_entrant_id
+     WHERE s.season_id = $1
+     ORDER BY s.seed`,
+    [seasonId],
+  );
+  const afterState = await pool.query<{ reason: string | null; confirmedAt: Date | null; saveAudits: string }>(
+    `SELECT seed_override_reason AS reason, seeds_confirmed_at AS "confirmedAt",
+       (SELECT count(*)::text FROM audit_logs WHERE season_id = $1 AND action = 'major_prestart.save_tournament_seeds') AS "saveAudits"
+     FROM major_prestart_states WHERE season_id = $1`,
+    [seasonId],
+  );
+  expect(afterSeeds.rows).toEqual(beforeSeeds.rows);
+  expect(afterState.rows[0]).toMatchObject({
+    reason: beforeState.rows[0]?.reason,
+    saveAudits: beforeState.rows[0]?.saveAudits,
+  });
+  expect(afterState.rows[0]?.confirmedAt?.getTime()).toBe(beforeState.rows[0]?.confirmedAt?.getTime());
+}
+
 /** Snapshot、最终种子与确认事实都是 independent start gates。 */
 async function exerciseSeedRecommendationReadinessBoundaries(
   database: ReturnType<typeof drizzle<typeof schema>>,
@@ -860,8 +914,16 @@ async function exerciseSeedRecommendationReadinessBoundaries(
   const missingSnapshot = await prepareReadyMajor(pool, "seed-snapshot-missing");
   fixtures.push(missingSnapshot);
   await pool.query("DELETE FROM major_seed_recommendation_snapshots WHERE season_id = $1", [missingSnapshot.seasonId]);
+  await assertSeedMutationsBlockedBySnapshot(database, pool, missingSnapshot.seasonId);
   await expectMajorStartFailure(database, missingSnapshot.seasonId, "系统种子建议快照");
   await assertNoStartFacts(pool, missingSnapshot.seasonId);
+
+  const malformedSnapshot = await prepareReadyMajor(pool, "seed-snapshot-malformed");
+  fixtures.push(malformedSnapshot);
+  await pool.query("UPDATE major_seed_recommendation_snapshots SET context = '{}'::jsonb WHERE season_id = $1", [malformedSnapshot.seasonId]);
+  await assertSeedMutationsBlockedBySnapshot(database, pool, malformedSnapshot.seasonId);
+  await expectMajorStartFailure(database, malformedSnapshot.seasonId, "系统种子建议快照");
+  await assertNoStartFacts(pool, malformedSnapshot.seasonId);
 
   const mismatchedSnapshot = await prepareReadyMajor(pool, "seed-snapshot-mismatch");
   fixtures.push(mismatchedSnapshot);
@@ -869,6 +931,7 @@ async function exerciseSeedRecommendationReadinessBoundaries(
     "UPDATE major_seed_recommendation_snapshots SET entrant_set_fingerprint = repeat('0', 64) WHERE season_id = $1",
     [mismatchedSnapshot.seasonId],
   );
+  await assertSeedMutationsBlockedBySnapshot(database, pool, mismatchedSnapshot.seasonId);
   await expectMajorStartFailure(database, mismatchedSnapshot.seasonId, "系统种子建议快照");
   await assertNoStartFacts(pool, mismatchedSnapshot.seasonId);
 

@@ -15,7 +15,7 @@ import { sql } from "drizzle-orm";
 import type {
   SeedRecommendationSnapshotContextV1,
   SeedRecommendationTeamV1,
-} from "@/lib/major/team-seed-recommendation";
+} from "@/lib/major/seed-recommendation-snapshot";
 import { seasons } from "./seasons";
 import { competitionEntries } from "./competition-entries";
 

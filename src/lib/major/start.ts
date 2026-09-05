@@ -26,9 +26,12 @@ import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard"
 import { getStandardMajorDefinition } from "@/lib/major/standard";
 import {
   analyzeFinalSeedOrder,
-  buildFrozenSetFingerprint,
-  getSeedRecommendationSnapshotStatus,
 } from "@/lib/major/team-seed-recommendation";
+import {
+  buildFrozenSetFingerprint,
+  frozenTeamsForSnapshot,
+  getSeedRecommendationSnapshotStatus,
+} from "@/lib/major/seed-recommendation-snapshot";
 import {
   evaluateRosterQualificationFromFacts,
   loadParticipantQualificationFacts,
@@ -152,24 +155,37 @@ export async function startMajorInTransaction(
     return entryId ? [{ teamId: entryId, tournamentSeed: seed.tournamentSeed }] : [];
   });
   const coherenceByEntryId = new Map(coherenceRows.map((row) => [row.entry.id, row]));
-  const frozenTeams = entrantRows.map((entrant) => {
-    const coherence = coherenceByEntryId.get(entrant.competitionEntryId);
-    if (!coherence) throw new AppError(ErrorCode.INTERNAL_ERROR, "正式参赛队缺少一致性校验结果。");
-    const members = rosterByEventRoster.get(coherence.eventRoster.id) ?? [];
-    return {
-      entrantId: entrant.id,
-      competitionEntryId: entrant.competitionEntryId,
-      eventRosterId: coherence.eventRoster.id,
-      sourceRosterRevisionId: coherence.eventRoster.sourceRosterRevisionId,
-      teamName: coherence.entry.name,
-      members: members.map((member) => ({
+  const entrantIdByEventRosterId = new Map(
+    entrantRows.map((entrant) => {
+      const coherence = coherenceByEntryId.get(entrant.competitionEntryId);
+      if (!coherence) throw new AppError(ErrorCode.INTERNAL_ERROR, "正式参赛队缺少一致性校验结果。");
+      return [coherence.eventRoster.id, entrant.id] as const;
+    }),
+  );
+  const frozenTeams = frozenTeamsForSnapshot(
+    entrantRows.map((entrant) => {
+      const coherence = coherenceByEntryId.get(entrant.competitionEntryId);
+      if (!coherence) throw new AppError(ErrorCode.INTERNAL_ERROR, "正式参赛队缺少一致性校验结果。");
+      return {
+        id: entrant.id,
+        teamId: entrant.competitionEntryId,
+        eventRosterId: coherence.eventRoster.id,
+        sourceRosterRevisionId: coherence.eventRoster.sourceRosterRevisionId,
+        teamName: coherence.entry.name,
+      };
+    }),
+    rosterRows.map((member) => {
+      const entrantId = entrantIdByEventRosterId.get(member.eventRosterId);
+      if (!entrantId) throw new AppError(ErrorCode.INTERNAL_ERROR, "冻结 EventRoster 缺少正式参赛队绑定。");
+      return {
+        entrantId,
         userId: member.userId,
         participantId: member.participantId,
         educationVerificationId: member.educationVerificationId,
         isPrimaryStarter: member.isPrimaryStarter,
-      })),
-    };
-  });
+      };
+    }),
+  );
   const frozenSetFingerprint = buildFrozenSetFingerprint(season.id, frozenTeams);
   const [snapshot] = await tx.select().from(majorSeedRecommendationSnapshots)
     .where(eq(majorSeedRecommendationSnapshots.seasonId, season.id)).for("update");

@@ -20,8 +20,8 @@ import {
 } from "@/db/schema";
 import type { Season } from "@/db/schema/seasons";
 import { buildMajorReadiness } from "./major-prestart";
-import { frozenTeamsForSnapshot } from "./major-prestart";
-import { analyzeFinalSeedOrder, buildFrozenSetFingerprint, getSeedRecommendationSnapshotStatus } from "@/lib/major/team-seed-recommendation";
+import { analyzeFinalSeedOrder } from "@/lib/major/team-seed-recommendation";
+import { buildFrozenSetFingerprint, frozenTeamsForSnapshot, getSeedRecommendationSnapshotStatus } from "@/lib/major/seed-recommendation-snapshot";
 import { projectRegistrationSummary, selectSeasonWorkspaceNextAction } from "./selectors";
 import type { SeasonWorkspaceOverviewData, SeasonWorkspaceOverviewSummary } from "./types";
 
