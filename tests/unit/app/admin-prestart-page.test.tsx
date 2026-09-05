@@ -9,7 +9,7 @@ const { seasonFindFirstMock, loadMajorPrestartMock, majorConsoleMock } = vi.hois
 }));
 
 vi.mock("@/db/client", () => ({ db: { query: { seasons: { findFirst: seasonFindFirstMock } } } }));
-vi.mock("@/lib/admin/season-workspace", () => ({ loadMajorPrestartPageData: loadMajorPrestartMock }));
+vi.mock("@/lib/admin/season-workspace/major-prestart", () => ({ loadMajorPrestartPageData: loadMajorPrestartMock }));
 vi.mock("@/components/admin/MajorPrestartConsole", () => ({ MajorPrestartConsole: majorConsoleMock }));
 vi.mock("next/navigation", () => ({ notFound: vi.fn(() => { throw new Error("NEXT_NOT_FOUND"); }) }));
 

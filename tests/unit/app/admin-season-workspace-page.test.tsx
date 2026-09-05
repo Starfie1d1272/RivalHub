@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { loadOverviewMock } = vi.hoisted(() => ({ loadOverviewMock: vi.fn() }));
 
-vi.mock("@/lib/admin/season-workspace", () => ({
+vi.mock("@/lib/admin/season-workspace/overview", () => ({
   loadSeasonWorkspaceOverview: loadOverviewMock,
 }));
 vi.mock("next/navigation", () => ({
@@ -24,6 +24,7 @@ describe("AdminSeasonOverviewPage", () => {
         name: "NJU Major 2026",
         status: "playing",
         competitionTemplate: "major",
+        registrationMode: "team",
         registrationOpenedAt: new Date("2026-08-01T00:00:00.000Z"),
         registrationOpensAt: null,
         registrationClosesAt: null,
@@ -33,10 +34,10 @@ describe("AdminSeasonOverviewPage", () => {
       summary: {
         pendingApplications: 0,
         approvedEntries: 0,
+        formedTeamCount: 0,
         entrantCount: 0,
         frozenEntrantCount: 0,
         matchCount: 0,
-        stageRunCount: 0,
         unresolvedPrestartIssues: 0,
         scheduledMatchesWithoutConfirmedLineups: 0,
         finalResultPendingConfirmation: false,

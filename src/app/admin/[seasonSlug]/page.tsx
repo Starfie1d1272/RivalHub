@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { SeasonWorkspaceOverview } from "@/components/admin/SeasonWorkspaceOverview";
-import { loadSeasonWorkspaceOverview } from "@/lib/admin/season-workspace";
+import { loadSeasonWorkspaceOverview } from "@/lib/admin/season-workspace/overview";
 
 export default async function AdminSeasonOverviewPage({ params }: { params: Promise<{ seasonSlug: string }> }) {
   const { seasonSlug } = await params;

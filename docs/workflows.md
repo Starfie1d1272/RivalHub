@@ -46,7 +46,7 @@ Rivals 用户在报名窗口填写个人报名并可保存草稿。提交由 Ser
 
 管理员维护预启动 entrants、最终名单、种子和 blockers。readiness 必须给出具体 blocker 与下一步操作。锁定/确认后的预启动事实被 `startMajor` 消费，创建 Stage 1 运行时；预览 opening plan 不能替代完整 readiness。
 
-赛事工作区按生命周期组织这些能力：`/admin/{seasonSlug}` 只展示 lifecycle、时间、摘要、canonical readiness 和下一步 CTA；完整 Major 赛前操作位于 `/prestart`。Rivals 的队长确认和选秀保留 `/captains`、`/draft` URL，并作为 `/prestart` 下的 capability 入口展示。工作区 shell 消费 `hasCaptainVoting`、`hasDraft`、`hasCommunityAwards` 与 StagePlan，不为不同赛事模板复制导航。
+赛事工作区按生命周期组织这些能力：`/admin/{seasonSlug}` 只展示 lifecycle、时间、按报名模式投影的摘要、当前赛前 readiness 和下一步 CTA；完整 Major 赛前操作位于 `/prestart`。Rivals 的队长确认和选秀保留 `/captains`、`/draft` URL，并作为 `/prestart` 下的 capability 入口展示。工作区 shell 消费 `hasCaptainVoting`、`hasDraft`、`hasCommunityAwards` 与 StagePlan，不为不同赛事模板复制导航。
 
 ## 12. Stage runtime
 
@@ -78,9 +78,9 @@ Entry 为具体比赛提交或由管理员选定阵容；阵容成员必须是�
 
 ## 18. Post-event / archive
 
-Major 最终结果先处于 `pending_confirmation`，确认后生成可引用的 final result、placement 与 honor。赛后 adjudication 与 archive 遵守各自的状态和权限边界；归档后通常比赛变更受限，专门的赛后工作流仍保留明确入口。
+Major 最终结果先处于 `pending_confirmation`，确认后生成可引用的 final result、placement 与 honor。赛后 adjudication 与 archive 遵守各自的状态和权限边界；归档后通常比赛变更受限，专门的赛后工作流仍保留明确入口。非 Major 赛事的 `/post-event` 只提供通用 closure 摘要，不推导 Major 专属的官方名次或荣誉事实。
 
-赛事工作区的 `/admin/{seasonSlug}/post-event` 独立承载 closure、官方结果、裁决、荣誉和归档；root 只展示待处理摘要，不加载这些完整 editor。`/discipline` 与 `/logs` 属于跨生命周期的赛事治理 utility，继续复用原有 discipline/audit owner。
+赛事工作区的 `/admin/{seasonSlug}/post-event` 独立承载 capability 适用的 closure、官方结果、裁决、荣誉和归档；Major 使用完整 final-result editor，非 Major 只呈现通用 closure 摘要。root 只展示待处理摘要，不加载这些完整 editor。`/discipline` 与 `/logs` 属于跨生命周期的赛事治理 utility，继续复用原有 discipline/audit owner。
 
 ## Compact state contracts
 

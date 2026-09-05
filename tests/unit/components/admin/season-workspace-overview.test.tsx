@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import React from "react";
 import { describe, expect, it } from "vitest";
 import { SeasonWorkspaceOverview } from "@/components/admin/SeasonWorkspaceOverview";
-import type { SeasonWorkspaceOverviewData } from "@/lib/admin/season-workspace";
+import type { SeasonWorkspaceOverviewData } from "@/lib/admin/season-workspace/types";
 
 const data: SeasonWorkspaceOverviewData = {
   season: {
@@ -11,6 +11,7 @@ const data: SeasonWorkspaceOverviewData = {
     name: "NJU Major 2026",
     status: "registration",
     competitionTemplate: "major",
+    registrationMode: "team",
     registrationOpenedAt: null,
     registrationOpensAt: null,
     registrationClosesAt: null,
@@ -20,10 +21,10 @@ const data: SeasonWorkspaceOverviewData = {
   summary: {
     pendingApplications: 1,
     approvedEntries: 3,
+    formedTeamCount: 3,
     entrantCount: 2,
     frozenEntrantCount: 1,
     matchCount: 0,
-    stageRunCount: 0,
     unresolvedPrestartIssues: 2,
     scheduledMatchesWithoutConfirmedLineups: 0,
     finalResultPendingConfirmation: false,
@@ -48,5 +49,21 @@ describe("SeasonWorkspaceOverview", () => {
     expect(html).toContain("进入下一步");
     expect(html).not.toContain("正式开赛确认");
     expect(html).not.toContain("赛事 1–32 种子");
+  });
+
+  it("uses a Rivals-specific formed-team metric and personal registration wording", () => {
+    const html = renderToStaticMarkup(<SeasonWorkspaceOverview data={{
+      ...data,
+      season: { ...data.season, slug: "rivals-s1", name: "Rivals S1", competitionTemplate: "rivals", registrationMode: "solo" },
+      summary: { ...data.summary, pendingApplications: 8, approvedEntries: 24, formedTeamCount: 4, entrantCount: 0, frozenEntrantCount: 0 },
+      nextAction: { label: "处理报名审核", detail: "8 份报名等待管理员处理。", href: "/admin/rivals-s1/registrations" },
+    }} />);
+
+    expect(html).toContain("已形成队伍");
+    expect(html).toContain(">4<");
+    expect(html).not.toContain("正式参赛队");
+    expect(html).toContain("待审核个人报名");
+    expect(html).not.toContain("未确认参赛名单");
+    expect(html).not.toContain("最终结果待确认");
   });
 });

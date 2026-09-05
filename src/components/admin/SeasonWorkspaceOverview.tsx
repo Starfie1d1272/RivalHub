@@ -4,25 +4,23 @@ import { Marker, Panel, StatusPill } from "@/components/rivalhub";
 import { AdminExceptionSummary } from "@/components/admin/AdminExceptionSummary";
 import { Button } from "@/components/ui/button";
 import { presentSeasonLifecycle, presentSeasonLifecycleSummary, presentSeasonStatus } from "@/lib/seasons/presentation";
-import type { SeasonWorkspaceOverviewData } from "@/lib/admin/season-workspace";
+import { formatCST } from "@/lib/utils/date";
+import type { SeasonWorkspaceOverviewData } from "@/lib/admin/season-workspace/types";
 
 function formatDate(value: Date | null): string {
   if (!value) return "未配置";
-  return new Intl.DateTimeFormat("zh-CN", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "Asia/Shanghai",
-  }).format(value);
+  return formatCST(value);
 }
 
 export function SeasonWorkspaceOverview({ data }: { data: SeasonWorkspaceOverviewData }) {
   const { season, summary, readiness, nextAction } = data;
   const lifecycle = presentSeasonLifecycle(season);
   const status = presentSeasonStatus(season.status);
+  const isTeamRegistration = season.registrationMode === "team";
   const stats = [
     { label: "待审核报名", value: summary.pendingApplications },
     { label: "已批准报名", value: summary.approvedEntries },
-    { label: "正式参赛队", value: `${summary.frozenEntrantCount}/${summary.entrantCount}` },
+    { label: isTeamRegistration ? "正式参赛队" : "已形成队伍", value: isTeamRegistration ? `${summary.frozenEntrantCount}/${summary.entrantCount}` : summary.formedTeamCount },
     { label: "比赛", value: summary.matchCount },
   ];
 
@@ -65,11 +63,11 @@ export function SeasonWorkspaceOverview({ data }: { data: SeasonWorkspaceOvervie
       </div>
 
       {readiness && (
-        <Panel label="当前 readiness">
+        <Panel label="当前赛前 readiness">
           <div className="flex flex-wrap items-center gap-2">
             <StatusPill label={readiness.canStart ? "已就绪" : "需处理"} tone={readiness.canStart ? "success" : "warn"} />
             <span className="text-sm text-[var(--color-fg-mid)]">
-              {readiness.canStart ? "当前 canonical 赛前检查已通过。" : `${readiness.blockers.length} 项 blocker 仍待处理。`}
+              {readiness.canStart ? "当前赛前 readiness 已通过。" : `${readiness.blockers.length} 项 blocker 仍待处理。`}
             </span>
           </div>
           {!readiness.canStart && readiness.blockers.length > 0 && (
@@ -84,6 +82,8 @@ export function SeasonWorkspaceOverview({ data }: { data: SeasonWorkspaceOvervie
       )}
 
       <AdminExceptionSummary seasonSlug={season.slug} data={{
+        competitionTemplate: season.competitionTemplate,
+        registrationMode: season.registrationMode,
         pendingApplications: summary.pendingApplications,
         unresolvedPrestartIssues: summary.unresolvedPrestartIssues,
         unconfirmedEntrants: summary.entrantCount - summary.frozenEntrantCount,
