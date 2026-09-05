@@ -70,13 +70,19 @@ describe("admin season workspace overview PostgreSQL integration", () => {
         `INSERT INTO event_rosters (
            id, entry_id, source_roster_revision_id, status,
            confirmed_at, confirmed_by, frozen_at, frozen_by
-         ) VALUES ($1, $2, $3, 'frozen', now(), 'admin-season-workspace-overview', now(), 'admin-season-workspace-overview')`,
+         ) VALUES ($1, $2, $3, 'confirmed', now(), 'admin-season-workspace-overview', NULL, NULL)`,
         [ids.eventRoster, ids.entry, ids.revision],
       );
       await client.query(
         `INSERT INTO event_roster_members (id, event_roster_id, user_id, is_primary_starter)
          VALUES ($1, $2, $3, true)`,
         [ids.member, ids.eventRoster, ids.user],
+      );
+      await client.query(
+        `UPDATE event_rosters
+         SET status = 'frozen', frozen_at = now(), frozen_by = 'admin-season-workspace-overview'
+         WHERE id = $1`,
+        [ids.eventRoster],
       );
       await client.query(
         `INSERT INTO major_tournament_entrants (id, season_id, competition_entry_id)
