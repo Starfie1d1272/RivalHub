@@ -15,10 +15,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Marker, Panel } from "@/components/rivalhub";
 import type { ActionResult } from "@/types/action";
 
-const MAJOR_ENTRANT_CAPACITY = 32;
-
 export interface MajorPrestartManagementData {
   seasonId: string;
+  entrantCapacity: number;
   entrantsLocked: boolean;
   approvedCandidates: Array<{
     id: string;
@@ -129,9 +128,10 @@ export function MajorPrestartManagement({ data }: { data: MajorPrestartManagemen
   const [issueLabel, setIssueLabel] = useState("");
   const [issueCategory, setIssueCategory] = useState<"qualification" | "administration">("qualification");
   const locked = data.entrantsLocked;
+  const entrantCapacity = data.entrantCapacity;
   const selectedCount = selectedIds.size;
   const approvedCount = data.approvedCandidates.length;
-  const requiresExactCapacity = approvedCount > MAJOR_ENTRANT_CAPACITY;
+  const requiresExactCapacity = approvedCount > entrantCapacity;
 
   useEffect(() => {
     setSelectedIds(new Set(data.entrants.map((entrant) => entrant.teamId)));
@@ -155,7 +155,7 @@ export function MajorPrestartManagement({ data }: { data: MajorPrestartManagemen
               {locked ? "已锁定正式参赛队" : "选择正式参赛队"}
             </Marker>
             <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
-              {locked ? "锁定后，本页不能再修改正式参赛队、EventRoster 或事项；下一步是独立保存并确认 1–32 种子。" : "Entry approval 是候选资格；保存选择会从每个 Entry 的最新 approved roster revision 原子同步 EventRoster，最后统一冻结 32 支队伍。"}
+              {locked ? "锁定后，本页不能再修改正式参赛队、EventRoster 或事项；下一步是独立保存并确认种子。" : "Entry approval 是候选资格；保存选择会从每个 Entry 的最新 approved roster revision 原子同步 EventRoster，最后统一冻结达到赛事容量的队伍。"}
             </p>
           </div>
           {!locked && <Button disabled={isPending} onClick={() => startTransition(() => void showResult(
@@ -164,16 +164,16 @@ export function MajorPrestartManagement({ data }: { data: MajorPrestartManagemen
         </div>
       </Panel>
 
-      <Panel label={`最终参赛队选择 (${selectedCount}/${MAJOR_ENTRANT_CAPACITY})`}>
+      <Panel label={`最终参赛队选择 (${selectedCount}/${entrantCapacity})`}>
         <div className="mb-4 space-y-2 text-sm text-[var(--color-fg-mid)]">
           <p>候选池只展示当前赛事中已批准的 CompetitionEntry；资格审核、成员确认、主力与教育事实由 Entry owner 维护，本页不再逐队手工选择 5–9 人。</p>
-          <p>{approvedCount <= MAJOR_ENTRANT_CAPACITY ? `当前 ${approvedCount} 支已批准队伍不超过容量，可一键选中全部。` : `当前 ${approvedCount} 支已批准队伍超过容量，必须手动选择恰好 ${MAJOR_ENTRANT_CAPACITY} 支；不按实力、报名时间或 Top32 自动排序。`}</p>
+          <p>{approvedCount <= entrantCapacity ? `当前 ${approvedCount} 支已批准队伍不超过容量，可一键选中全部。` : `当前 ${approvedCount} 支已批准队伍超过容量，必须手动选择恰好 ${entrantCapacity} 支；不按实力、报名时间或自动排序。`}</p>
         </div>
         {!locked && <div className="mb-4 flex flex-wrap gap-2">
-          {approvedCount <= MAJOR_ENTRANT_CAPACITY && <Button size="sm" variant="outline" disabled={isPending || approvedCount === 0} onClick={() => setSelectedIds(new Set(data.approvedCandidates.map((candidate) => candidate.id)))}>
+          {approvedCount <= entrantCapacity && <Button size="sm" variant="outline" disabled={isPending || approvedCount === 0} onClick={() => setSelectedIds(new Set(data.approvedCandidates.map((candidate) => candidate.id)))}>
             一键选择全部已批准
           </Button>}
-          <Button size="sm" disabled={isPending || (requiresExactCapacity && selectedCount !== MAJOR_ENTRANT_CAPACITY)} onClick={() => startTransition(() => void showResult(
+          <Button size="sm" disabled={isPending || (requiresExactCapacity && selectedCount !== entrantCapacity)} onClick={() => startTransition(() => void showResult(
             () => selectMajorEntrants({ seasonId: data.seasonId, competitionEntryIds: [...selectedIds] }), "正式参赛队已保存，EventRoster 已按 approved revision 同步",
           ))}>
             保存选择并同步 EventRoster
@@ -184,7 +184,7 @@ export function MajorPrestartManagement({ data }: { data: MajorPrestartManagemen
         </div>}
       </Panel>
 
-      <Panel label={`已 materialize 的正式名单 (${data.entrants.length}/${MAJOR_ENTRANT_CAPACITY})`}>
+      <Panel label={`已 materialize 的正式名单 (${data.entrants.length}/${entrantCapacity})`}>
         <p className="mb-4 text-sm text-[var(--color-fg-mid)]">下方是当前最终选择对应的 Entry-owned EventRoster，只读展示同步来源、主力标记与教育证据；名单变更必须由队长和成员在 Entry roster-change 流程中完成并重新审核。</p>
         {data.entrants.length === 0 ? <p className="text-sm text-[var(--color-fg-mid)]">尚未保存最终选择。</p> : <div className="grid gap-3 md:grid-cols-2">
           {data.entrants.map((entrant) => <SyncedEntrant key={entrant.id} entrant={entrant} />)}

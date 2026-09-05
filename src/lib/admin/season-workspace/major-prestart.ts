@@ -16,9 +16,10 @@ import {
   users,
 } from "@/db/schema";
 import { evaluateMajorPrestartReadiness, type MajorPrestartReadiness } from "@/lib/major/prestart";
+import { capabilitiesFromSeason } from "@/lib/competition/definition";
+import { getStandardMajorDefinition } from "@/lib/major/standard";
 import { getDisplayName } from "@/lib/identity/display-name";
 import type { Season } from "@/db/schema/seasons";
-import { normalizeAffiliationRules, normalizeRegistrationConfig, normalizeStagePlan, normalizeTeamRegistrationConfig } from "@/types/season";
 import type { MajorPrestartPageData } from "./types";
 
 type MajorEntrantRow = {
@@ -61,22 +62,10 @@ export function buildMajorReadiness(
     rosterByEntrant.set(member.entrantId, roster);
   }
 
+  const capabilities = capabilitiesFromSeason(season);
   return evaluateMajorPrestartReadiness({
     competitionTemplate: season.competitionTemplate,
-    capabilities: {
-      registrationMode: season.registrationMode,
-      hasCaptainVoting: season.hasCaptainVoting,
-      hasDraft: season.hasDraft,
-      hasCommunityAwards: season.hasCommunityAwards,
-      stagePlan: normalizeStagePlan(season.stagePlan),
-      registrationConfig: normalizeRegistrationConfig(season.registrationConfig),
-      teamRegistrationConfig: normalizeTeamRegistrationConfig(season.teamRegistrationConfig),
-      affiliationRules: normalizeAffiliationRules(season.affiliationRules),
-      minTeamSize: season.minTeamSize,
-      maxTeamSize: season.maxTeamSize,
-      starterCount: season.starterCount,
-      positions: season.positions,
-    },
+    capabilities,
     teams: entrants.map((entrant) => ({
       teamId: entrant.teamId,
       playerIds: (rosterByEntrant.get(entrant.id) ?? []).map((member) => member.userId),
@@ -92,6 +81,7 @@ export function buildMajorReadiness(
 }
 
 export async function loadMajorPrestartPageData(season: Season): Promise<MajorPrestartPageData> {
+  const { entrantCapacity } = getStandardMajorDefinition(season);
   const approvedEntries = await db.select({
     id: competitionEntries.id,
     name: competitionEntries.name,
@@ -182,6 +172,7 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
     readiness,
     management: {
       seasonId: season.id,
+      entrantCapacity,
       entrantsLocked: Boolean(state?.entrantsLockedAt),
       approvedCandidates: approvedEntries.filter((entry): entry is typeof entry & { approvedRosterRevisionId: string } => Boolean(entry.approvedRosterRevisionId)).map((entry) => ({
         id: entry.id,

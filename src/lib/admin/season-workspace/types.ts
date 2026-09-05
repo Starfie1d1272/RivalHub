@@ -37,6 +37,7 @@ export interface MajorPrestartPageData {
   readiness: MajorPrestartReadiness;
   management: {
     seasonId: string;
+    entrantCapacity: number;
     entrantsLocked: boolean;
     approvedCandidates: Array<{
       id: string;

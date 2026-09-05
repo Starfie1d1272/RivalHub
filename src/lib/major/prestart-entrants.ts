@@ -13,36 +13,17 @@ import {
   seasons,
 } from "@/db/schema";
 import { validateApprovedCompetitionEntryRosterInTx } from "@/lib/competition-entries/commands";
-import { checkStandardMajorCapabilities } from "@/lib/competition/definition";
+import { getStandardMajorDefinition, type StandardMajorDefinition } from "@/lib/major/standard";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { assertPrestartEntryCoherenceInTx, type PrestartEntryCoherence } from "@/lib/major/prestart-entry";
 import { syncApprovedRosterToEventRosterInTx } from "@/lib/major/prestart-roster";
 import { assertMajorPrestartEntrantsMutable, ensureMajorPrestartStateInTx } from "@/lib/major/prestart-state";
-import { normalizeAffiliationRules, normalizeRegistrationConfig, normalizeStagePlan, normalizeTeamRegistrationConfig } from "@/types/season";
 
-const MAJOR_ENTRANT_CAPACITY = 32;
-
-function assertStandardMajorSeason(season: typeof seasons.$inferSelect): void {
-  if (season.competitionTemplate !== "major") {
-    throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "当前赛事不是 Major 赛事模板，不能管理赛前正式参赛队。 ");
-  }
-  const result = checkStandardMajorCapabilities({
-    registrationMode: season.registrationMode,
-    hasCaptainVoting: season.hasCaptainVoting,
-    hasDraft: season.hasDraft,
-    hasCommunityAwards: season.hasCommunityAwards,
-    stagePlan: normalizeStagePlan(season.stagePlan),
-    registrationConfig: normalizeRegistrationConfig(season.registrationConfig),
-    teamRegistrationConfig: normalizeTeamRegistrationConfig(season.teamRegistrationConfig),
-    affiliationRules: normalizeAffiliationRules(season.affiliationRules),
-    minTeamSize: season.minTeamSize,
-    maxTeamSize: season.maxTeamSize,
-    starterCount: season.starterCount,
-    positions: season.positions,
+function assertStandardMajorSeason(season: typeof seasons.$inferSelect): StandardMajorDefinition {
+  return getStandardMajorDefinition(season, {
+    notMajor: "当前赛事不是 Major 赛事模板，不能管理赛前正式参赛队。 ",
+    notStandard: "当前赛事不是标准 Major，不能管理赛前正式参赛队。 ",
   });
-  if (!result.isStandardMajor) {
-    throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "当前赛事不是标准 Major，不能管理赛前正式参赛队。 ");
-  }
 }
 
 export interface SelectMajorEntrantsResult {
@@ -58,13 +39,13 @@ export async function selectMajorEntrantsAndSyncRostersInTx(
 ): Promise<SelectMajorEntrantsResult> {
   const [season] = await tx.select().from(seasons).where(eq(seasons.id, input.seasonId)).for("update");
   if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
-  assertStandardMajorSeason(season);
+  const { entrantCapacity } = assertStandardMajorSeason(season);
   const state = await ensureMajorPrestartStateInTx(tx, season.id);
   assertMajorPrestartEntrantsMutable(state);
 
   const selectedEntryIds = [...input.competitionEntryIds];
-  if (selectedEntryIds.length > MAJOR_ENTRANT_CAPACITY) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, `Major 最多只能选择 ${MAJOR_ENTRANT_CAPACITY} 支正式参赛队。 `);
+  if (selectedEntryIds.length > entrantCapacity) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, `Major 最多只能选择 ${entrantCapacity} 支正式参赛队。 `);
   }
   if (new Set(selectedEntryIds).size !== selectedEntryIds.length) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "正式参赛队不能重复选择。 ");
@@ -77,8 +58,8 @@ export async function selectMajorEntrantsAndSyncRostersInTx(
     .where(and(eq(competitionEntries.competitionId, season.id), eq(competitionEntries.registrationStatus, "approved")))
     .orderBy(asc(competitionEntries.id))
     .for("update");
-  if (approvedEntries.length > MAJOR_ENTRANT_CAPACITY && selectedEntryIds.length !== MAJOR_ENTRANT_CAPACITY) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, `当前有 ${approvedEntries.length} 支已批准队伍，最终正式参赛队必须恰好选择 ${MAJOR_ENTRANT_CAPACITY} 支。 `);
+  if (approvedEntries.length > entrantCapacity && selectedEntryIds.length !== entrantCapacity) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, `当前有 ${approvedEntries.length} 支已批准队伍，最终正式参赛队必须恰好选择 ${entrantCapacity} 支。 `);
   }
   const approvedById = new Map(approvedEntries.map((entry) => [entry.id, entry]));
   for (const entryId of selectedEntryIds) {
@@ -250,9 +231,9 @@ export async function lockMajorPrestartEntrantsInTx(
 ): Promise<LockMajorEntrantsResult> {
   const [season] = await tx.select().from(seasons).where(eq(seasons.id, input.seasonId)).for("update");
   if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
-  assertStandardMajorSeason(season);
+  const { entrantCapacity } = assertStandardMajorSeason(season);
   const state = await ensureMajorPrestartStateInTx(tx, season.id);
-  if (state.entrantsLockedAt) return { seasonSlug: season.slug, entrantCount: MAJOR_ENTRANT_CAPACITY, alreadyLocked: true };
+  if (state.entrantsLockedAt) return { seasonSlug: season.slug, entrantCount: entrantCapacity, alreadyLocked: true };
 
   const entrantRefs = await tx.select({
     id: majorTournamentEntrants.id,
@@ -266,8 +247,8 @@ export async function lockMajorPrestartEntrantsInTx(
     season.id,
     entrantRefs.map((entrant) => ({ competitionEntryId: entrant.competitionEntryId })),
   );
-  if (entrantRefs.length !== MAJOR_ENTRANT_CAPACITY) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, `锁定前必须恰好选择 ${MAJOR_ENTRANT_CAPACITY} 支正式参赛队。 `);
+  if (entrantRefs.length !== entrantCapacity) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, `锁定前必须恰好选择 ${entrantCapacity} 支正式参赛队。 `);
   }
   if (coherent.some((row) => row.eventRoster.status !== "confirmed")) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "所有正式参赛队必须先由已批准报名名单同步并确认。 ");

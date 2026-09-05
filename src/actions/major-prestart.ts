@@ -17,8 +17,7 @@ import {
 import { actionError } from "@/lib/action-utils";
 import { auditActorId, requireSeasonAdmin } from "@/lib/auth/session";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { checkStandardMajorCapabilities } from "@/lib/competition/definition";
-import { normalizeAffiliationRules, normalizeRegistrationConfig, normalizeStagePlan, normalizeTeamRegistrationConfig } from "@/types/season";
+import { getStandardMajorDefinition } from "@/lib/major/standard";
 import { fail, ok, type ActionResult } from "@/types/action";
 import { startMajorInTransaction, type MajorStartResult } from "@/lib/major/start";
 import { finalizeMajorSwissRoundInTransaction, type MajorSwissRoundFinalizationResult } from "@/lib/major/swiss-runtime";
@@ -35,33 +34,17 @@ const uuid = z.string().uuid();
 const issueCategory = z.enum(["qualification", "administration"]);
 const rosterRepairInput = z.object({ seasonId: uuid, entrantId: uuid, userIds: z.array(uuid).min(1).max(16), reason: z.string().trim().min(1).max(1000) });
 const rosterExceptionInput = z.object({ seasonId: uuid, entrantId: uuid, reason: z.string().trim().min(1).max(1000) });
-const entrantSelectionInput = z.object({ seasonId: uuid, competitionEntryIds: z.array(uuid).max(32) });
+const entrantSelectionInput = z.object({ seasonId: uuid, competitionEntryIds: z.array(uuid) });
 
 function invalid(message: string): ActionResult<never> {
   return fail({ code: ErrorCode.VALIDATION_FAILED, message });
 }
 
 function standardMajorOrThrow(season: typeof seasons.$inferSelect): void {
-  if (season.competitionTemplate !== "major") {
-    throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "当前赛事不是 Major 赛事模板，不能管理赛前事实。");
-  }
-  const result = checkStandardMajorCapabilities({
-    registrationMode: season.registrationMode,
-    hasCaptainVoting: season.hasCaptainVoting,
-    hasDraft: season.hasDraft,
-    hasCommunityAwards: season.hasCommunityAwards,
-    stagePlan: normalizeStagePlan(season.stagePlan),
-    registrationConfig: normalizeRegistrationConfig(season.registrationConfig),
-    teamRegistrationConfig: normalizeTeamRegistrationConfig(season.teamRegistrationConfig),
-    affiliationRules: normalizeAffiliationRules(season.affiliationRules),
-    minTeamSize: season.minTeamSize,
-    maxTeamSize: season.maxTeamSize,
-    starterCount: season.starterCount,
-    positions: season.positions,
+  getStandardMajorDefinition(season, {
+    notMajor: "当前赛事不是 Major 赛事模板，不能管理赛前事实。",
+    notStandard: "当前赛事不是标准 Major，不能管理赛前事实。",
   });
-  if (!result.isStandardMajor) {
-    throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "当前赛事不是标准 Major，不能管理赛前事实。");
-  }
 }
 
 async function seasonAndAdminOrThrow(seasonId: string) {

@@ -93,6 +93,67 @@ function sameEventRosterMembers(
   });
 }
 
+type EventRosterMaterializationMember = {
+  userId: string;
+  participantId: string;
+  primary: boolean;
+  educationVerificationId: string | null | undefined;
+};
+
+/** Apply one concrete approved-roster snapshot to its EventRoster. */
+async function applyEventRosterMaterializationInTx(
+  tx: TxDb,
+  input: {
+    eventRosterId: string;
+    sourceRosterRevisionId: string;
+    members: readonly EventRosterMaterializationMember[];
+    status: "preparing" | "confirmed";
+    actorId: string;
+  },
+): Promise<void> {
+  const now = new Date();
+  if (input.status === "confirmed") {
+    await tx.update(eventRosters).set({
+      sourceRosterRevisionId: input.sourceRosterRevisionId,
+      status: "confirmed",
+      confirmedAt: now,
+      confirmedBy: input.actorId,
+      frozenAt: null,
+      frozenBy: null,
+      updatedAt: now,
+    }).where(eq(eventRosters.id, input.eventRosterId));
+  } else {
+    await tx.update(eventRosters).set({
+      status: "preparing",
+      confirmedAt: null,
+      confirmedBy: null,
+      frozenAt: null,
+      frozenBy: null,
+      updatedAt: now,
+    }).where(eq(eventRosters.id, input.eventRosterId));
+  }
+  await tx.delete(eventRosterMembers).where(eq(eventRosterMembers.eventRosterId, input.eventRosterId));
+  if (input.members.length > 0) {
+    await tx.insert(eventRosterMembers).values(input.members.map((member) => ({
+      eventRosterId: input.eventRosterId,
+      userId: member.userId,
+      participantId: member.participantId,
+      isPrimaryStarter: member.primary,
+      educationVerificationId: member.educationVerificationId ?? null,
+    })));
+  }
+  if (input.status === "confirmed") return;
+  await tx.update(eventRosters).set({
+    sourceRosterRevisionId: input.sourceRosterRevisionId,
+    status: "preparing",
+    confirmedAt: null,
+    confirmedBy: null,
+    frozenAt: null,
+    frozenBy: null,
+    updatedAt: now,
+  }).where(eq(eventRosters.id, input.eventRosterId));
+}
+
 /**
  * Copy the approved Entry roster into its Entry-owned EventRoster.
  *
@@ -147,34 +208,18 @@ export async function syncApprovedRosterToEventRosterInTx(
     return { eventRosterId: eventRoster.id, rosterSize: approvedMembers.length, changed: false };
   }
 
-  const now = new Date();
-  if (eventRoster.status !== "preparing") {
-    await tx.update(eventRosters).set({
-      status: "preparing",
-      confirmedAt: null,
-      confirmedBy: null,
-      frozenAt: null,
-      frozenBy: null,
-      updatedAt: now,
-    }).where(eq(eventRosters.id, eventRoster.id));
-  }
-  await tx.delete(eventRosterMembers).where(eq(eventRosterMembers.eventRosterId, eventRoster.id));
-  await tx.insert(eventRosterMembers).values(approvedMembers.map((member) => ({
+  await applyEventRosterMaterializationInTx(tx, {
     eventRosterId: eventRoster.id,
-    userId: member.userId,
-    participantId: member.participantId,
-    isPrimaryStarter: member.primary,
-    educationVerificationId: verificationIds.get(member.userId),
-  })));
-  await tx.update(eventRosters).set({
     sourceRosterRevisionId: approvedRevision.id,
+    members: approvedMembers.map((member) => ({
+      userId: member.userId,
+      participantId: member.participantId,
+      primary: member.primary,
+      educationVerificationId: verificationIds.get(member.userId),
+    })),
     status: "confirmed",
-    confirmedAt: now,
-    confirmedBy: actorId,
-    frozenAt: null,
-    frozenBy: null,
-    updatedAt: now,
-  }).where(eq(eventRosters.id, eventRoster.id));
+    actorId,
+  });
   await assertSinglePrestartEntryCoherenceInTx(tx, season.id, { competitionEntryId: entry.id });
   return { eventRosterId: eventRoster.id, rosterSize: approvedMembers.length, changed: true };
 }
@@ -307,25 +352,23 @@ export async function saveMajorPrestartRosterInTx(
   if (formalMembers.length !== input.userIds.length) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "最终名单只能选择该正式队伍当前的成员。 ");
   }
+  if (season.starterCount > 0 && formalMembers.filter((member) => member.primary).length !== season.starterCount) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, `最终名单必须指定恰好 ${season.starterCount} 名主力。`);
+  }
   const verificationIds = await loadApprovedRosterEducation(tx, input.userIds, normalizeAffiliationRules(season.affiliationRules));
 
-  await tx.delete(eventRosterMembers).where(eq(eventRosterMembers.eventRosterId, eventRoster.id));
-  await tx.insert(eventRosterMembers).values(formalMembers.map((member) => ({
+  await applyEventRosterMaterializationInTx(tx, {
     eventRosterId: eventRoster.id,
-    userId: member.userId,
-    participantId: member.participantId,
-    isPrimaryStarter: member.primary,
-    educationVerificationId: verificationIds.get(member.userId),
-  })));
-  await tx.update(eventRosters).set({
-    status: "preparing",
     sourceRosterRevisionId: coherent.approvedRevision.id,
-    confirmedAt: null,
-    confirmedBy: null,
-    frozenAt: null,
-    frozenBy: null,
-    updatedAt: new Date(),
-  }).where(eq(eventRosters.id, eventRoster.id));
+    members: formalMembers.map((member) => ({
+      userId: member.userId,
+      participantId: member.participantId,
+      primary: member.primary,
+      educationVerificationId: verificationIds.get(member.userId),
+    })),
+    status: "preparing",
+    actorId: input.actorId,
+  });
 
   await assertSinglePrestartEntryCoherenceInTx(tx, season.id, {
     competitionEntryId: entrant.competitionEntryId,

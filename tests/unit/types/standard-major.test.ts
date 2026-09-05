@@ -27,6 +27,7 @@ describe("checkStandardMajorCapabilities()", () => {
     const result = checkStandardMajorCapabilities(capabilities);
 
     expect(result.isStandardMajor).toBe(true);
+    expect(result.entrantCapacity).toBe(32);
     expect(result.failures).toEqual([]);
     expect(result.checks.every((check) => check.passed)).toBe(true);
     expect(capabilities.stagePlan[2]?.matchFormat).toBe("bo3");

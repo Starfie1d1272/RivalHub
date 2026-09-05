@@ -144,7 +144,7 @@ CS2 地图也分为相互独立的事实 owner：`CS2_MAP_CATALOG` 是保留历�
 | 一队/一人只有一条当前组队意向 | `recruitment_intents` owner shape + unique indexes + owner row lock |
 | 组队意向写入锁序 | `User`（如需）→ `Team` → target `Season`（如需）→ `RecruitmentIntent` → `RecruitmentInterest`；只持有 intent ID 的命令先非锁定查询 Team，再取得 Team 锁并重校验 intent |
 | 赛前名单与已批准报名名单的一致性 | `src/lib/major/prestart-entry.ts`：确认、锁定与正式开赛前校验 Entry 仍 approved、approved revision 存在且 event roster 已同步到该版本 |
-| Major 最终 entrant 选择与 EventRoster 同步 | `src/lib/major/prestart-entrants.ts` + `src/lib/major/prestart-roster.ts`：容量、Entry qualification re-check、最终集合 materialize、approved revision mirror、统一冻结与同事务 audit |
+| Major 标准定义、最终 entrant 选择与 EventRoster 同步 | `src/lib/major/standard.ts` + `src/lib/competition/definition.ts` + `src/lib/major/prestart-entrants.ts` + `src/lib/major/prestart-roster.ts`：canonical stage-plan capacity、Entry qualification re-check、最终集合 materialize、approved revision mirror、统一冻结与同事务 audit |
 | Major 赛前事务锁顺序 | `season / majorPrestartState → CompetitionEntry → eventRoster → majorTournamentEntrant`；名单显式重同步只放宽 source revision guard，完成写入后再由同一 coherence owner 严格复核 |
 | Major prestart readiness | prestart domain service 与明确 blocker |
 | StageRun 规则与参赛成员冻结 | rule snapshot + managed runtime；开赛时按冻结 competitiveProfile 重验参赛事实后，以同一批读取结果序列化 `frozenCompetitiveFacts` |
