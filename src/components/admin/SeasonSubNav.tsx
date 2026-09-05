@@ -45,7 +45,7 @@ export function SeasonSubNav({
   const settingsTabs = showSettings ? [{ label: "设置", href: `${root}/settings` }] : [];
 
   const renderTabs = (tabs: { label: string; href: string; active?: boolean; title?: string }[]) => tabs.map((tab) => {
-    const active = tab.active || pathname === tab.href || pathname.startsWith(tab.href + "/");
+    const active = tab.active || pathname === tab.href || (tab.href !== root && pathname.startsWith(tab.href + "/"));
     return (
       <Link
         key={tab.href}
