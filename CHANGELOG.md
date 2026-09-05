@@ -523,19 +523,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **评分与 demo 解析模块迁移至外部包**：评分计算逻辑（RR 标量 + PRISM 八维画像）独立为 `github:Starfie1d1272/rival-rating`，`src/lib/rating/index.ts` 统一入口，权重更新无需改动 RivalHub 核心代码
+- **评分与 demo 解析模块迁移至外部包**：删除本地 `src/lib/rating/{rr,prism,types,weights}` 与 `src/lib/demo/{parse-package,schemas}`，评分实现改从 `@rivalhub/rival-rating` 导入、demo 解析改从 `cs2-demo-format` 导入，核心仓库不再维护这部分实现，权重/解析逻辑更新走对应外部仓库打 tag → `pnpm update` 流程
 - **默认权重 JSON 直引**：`@rivalhub/rival-rating` 增加 `weights/*` 到 exports map，`src/lib/rating/index.ts` 直接 import `rr-v1.json` / `prism-v1.json`，规避上游 ESM `with { type: "json" }` 兼容问题
+
+### Added
+
 - **校准数据导出脚本**：`scripts/calibration/export-indicators.ts` 读取 demo ZIP 解析并导出 RRIndicators（player-map / player-season / parse-report），供 rival-rating 做数据 QA 与权重校准
+
+### Fixed
+
+- **排行榜多列排序失效**：Advanced / Demo 视图下多列排序未生效
+- **经济类型 `"full"` 漏计**：`recomputeSeasonRatings` 未将 `"full"` 归入 fullBuyRounds，导致 RR 重算 fullBuy 统计偏低
 
 ## [1.28.2] - 2026-05-30
 
 ### Added
 
 - **接入 @rivalhub/rival-rating 外部仓库**：评分计算逻辑（RR 标量 + PRISM 八维画像）独立为 `github:Starfie1d1272/rival-rating`，`src/lib/rating/index.ts` 统一入口，权重更新无需改动 RivalHub 核心代码
+- **MatchRadarSection 双 Tab 组件**：赛前能力雷达支持 PRISM 八维 / 六维 Tab 切换，不再互斥回退
 
 ### Fixed
 
 - **RR 重算数据分裂**：多 steamId64 指向同一 userId 时，`recomputeSeasonRatings` 按 steamId64 分组导致数据被拆成多份各自评分，修复为按 userId 合并所有 steam 数据后统一计算
+- **选手页 500 错误**：`getOcrAveragesBySeason` 查询 `SELECT seasons.id` 但未 JOIN `seasons` 表，Drizzle 报 `seasons is not part of the query`，改为 `matches.seasonId`
+- **赛前能力雷达修复**：六维数据源从 starters 改为全队成员，修复无 roster 时只显示一队；八维/六维条件互斥改为双 Tab
+- **排行榜 Rating Pro 排序乱序**：ORDER BY `avg(rating_pro)` 对 demo 源为 NULL 导致排序失效，改为 `COALESCE(avg(...), min(ocr.avg_rating_ocr))` 与 SELECT 对齐
+- **Demo 导入 NaN 全链路修复**：JSON.parse 前清洗 NaN/Infinity、vec3 Zod schema 允许 null 坐标、DB 兜底
+- **force 导入模式 DELETE ANY(array) 语法错误**：`= ANY(ARRAY[...])` → `sql.join` 避免 Postgres malformed array literal
+- **min(uuid) → min(uuid::text)**：Postgres 不支持 UUID 类型的 min() 聚合
 
 ## [1.28.1] - 2026-05-30
 
@@ -628,7 +643,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **PRISM 狙击维度畸变**：无狙击信号选手直接置 0（非百分位排名）；全等值返回 50
 - **Stats 页默认排序**：`ratingPro`(全 null) → `RR`
 - **选手主页 RWS/WE/ratingPro 归零**：OCR 专属查询回填，Demo 图不影响
-- **KAST 数据翻倍(**×100)\*\*：修复聚合层多余的乘法
+- **KAST 数据翻倍(**×100)\\*\\*：修复聚合层多余的乘法
 - **HS 爆头数 → 爆头率(%)**：语义更正
 - **选手列表双行**：PlayerStatsTable 补充 `source` 过滤
 - **Kill Feed 布局**：改为卡片+限高滚动
@@ -924,7 +939,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Bracket 晋级比赛漏创建**：`insertResolvedBracketMatches` 之前用 bracket participant ID 作为 draft_order 数组下标查队伍，两者顺序不一致导致映射错误、晋级比赛被静默跳过；改为通过 participant name → team name查找，同时新增 `syncBracketMatches` action 及后台「修复 Bracket 缺失比赛」按钮供一次性补全历史遗漏
+- **Bracket 晋级比赛漏创建**：`insertResolvedBracketMatches` 之前用 bracket participant ID 作为 draft_order 数组下标查队伍，两者顺序不一致导致映射错误、晋级比赛被静默跳过；改为通过 participant name → team name 查找，同时新增 `syncBracketMatches` action 及后台「修复 Bracket 缺失比赛」按钮供一次性补全历史遗漏
 - **OCR 超时**：`siliconflow.ts` 请求超时从 60s 延长至 180s，修复 Qwen3-VL-8B-Instruct 在高负载时处理大截图超时报错
 
 ## [1.23.0] - 2026-05-23
@@ -939,10 +954,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **逐图录入绑定 format**：`MapByMapInput` 改为在 BO3 / BO5 格式比赛进行时展示，不再限于淘汰赛阶段
 - **MapByMapInput UX**：BP 已记录选边时不再重复展示选边下拉框；比分输入框上方新增队伍名标签；决胜图选边标签统一为"{队伍名} 起始边"
 - **图三 OCR 过滤**：BO3 系列赛 2:0 结束后，BP 预占的第三图占位行不再出现在 OCR 录入面板
-
-### Fixed
-
-- **数据校验**：BP 保存后自动创建 match_maps 预占行；series result 按已完成地图推导，不再允许跳过必要 BP / map result owner。
 
 ## [1.22.1] - 2026-05-23
 
@@ -1229,7 +1240,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **admin 赛程**：`in_progress` 卡片左侧 3px accent 竖线标识；操作区改用 `<details>` 折叠，默认收起
 - `--color-fg-muted`（未定义 token）修复为 `--color-fg-dim`
 - admin 赛程 className 拼接改用 `cn()` 工具函数，消除无效 template literal
-- **全站 hardcoded Tailwind 颜色替换为 design tokens**：MatchTimeNegotiation/MatchRosterView/TimeProposalHistory/SwissBracket/MatchStatusBadge/StandingsTable 等 30+ 组件统一使用 `--color-ok`/`--color-danger`/`--color-warn`/`--color-info` token 体系
+- **全站 hardcoded Tailwind 颜色替换为 design tokens**：MatchTimeNegotiation/MatchRosterView/MatchRosterForm/TimeProposalHistory/SwissBracket/MatchStatusBadge/StandingsTable 等 30+ 组件统一使用 `--color-ok`/`--color-danger`/`--color-warn`/`--color-info` token 体系
 - `--color-yellow`/`--color-red`/`--color-surface-muted` 等无效 token 全部修复
 - CLAUDE.md 组件清单与实际文件同步，补充 `scripts/check-claude-md.sh` 校验脚本
 
@@ -1364,7 +1375,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **消除重复**：提取 SIDE_LABELS（4 处 →1）、getMaxMaps()（2 处→1）、validateTeamMembers()（2 处→1）
+- **消除重复**：提取 SIDE_LABELS（4 处 →1）、getMaxMaps()（2 处 →1）、validateTeamMembers()（2 处 →1）
 - **移除 orphan**：MatchDetail.tsx（已被内联 server component 替代）
 - **清理 JSX 注释**：移除叙述性注释
 
@@ -1731,6 +1742,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.4.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.3.0...v2.4.0
+[2.3.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.2.4...v2.3.0
 [2.2.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.2.3...v2.2.4
 [2.2.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.2.2...v2.2.3
 [2.2.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.2.1...v2.2.2
