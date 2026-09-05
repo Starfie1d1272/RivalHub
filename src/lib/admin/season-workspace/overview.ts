@@ -61,6 +61,7 @@ async function loadMajorOverviewFacts(season: Season): Promise<MajorOverviewFact
       sourceRosterRevisionId: eventRosters.sourceRosterRevisionId,
       rosterStatus: eventRosters.status,
     }).from(majorTournamentEntrants)
+      .innerJoin(competitionEntries, eq(majorTournamentEntrants.competitionEntryId, competitionEntries.id))
       .innerJoin(eventRosters, eq(majorTournamentEntrants.competitionEntryId, eventRosters.entryId))
       .where(eq(majorTournamentEntrants.seasonId, season.id)),
     db.select({ entrantId: majorTournamentEntrants.id, eventRosterId: eventRosterMembers.eventRosterId, userId: eventRosterMembers.userId, participantId: eventRosterMembers.participantId, educationVerificationId: eventRosterMembers.educationVerificationId, isPrimaryStarter: eventRosterMembers.isPrimaryStarter })
