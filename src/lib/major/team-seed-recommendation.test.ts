@@ -6,6 +6,7 @@ import {
   buildSeedRecommendationSnapshotPayload,
   buildTeamSeedRecommendations,
   getSeedRecommendationSnapshotStatus,
+  snapshotPayloadsEqual,
 } from "./team-seed-recommendation";
 import type { PlayerStrengthInput } from "./player-strength";
 
@@ -89,6 +90,41 @@ describe("seed recommendation snapshot contract", () => {
     expect(payload.recommendations[0]?.starters).toHaveLength(5);
     expect(getSeedRecommendationSnapshotStatus({ snapshot: { entrantSetFingerprint: fingerprint, context: payload.context, recommendations: payload.recommendations }, seasonId: "season-1", frozenSetFingerprint: fingerprint })).toBe("ready");
     expect(getSeedRecommendationSnapshotStatus({ snapshot: { entrantSetFingerprint: "other", context: payload.context, recommendations: payload.recommendations }, seasonId: "season-1", frozenSetFingerprint: fingerprint })).toBe("mismatch");
+  });
+
+  it("remains ready and idempotent after a PostgreSQL jsonb key-order round trip", () => {
+    const frozenTeams = [{
+      identity: {
+        entrantId: "entrant-1",
+        competitionEntryId: "entry-1",
+        eventRosterId: "roster-1",
+        sourceRosterRevisionId: "revision-1",
+        teamName: "Team",
+        members: five("team").map((member) => ({ userId: member.userId, participantId: null, educationVerificationId: `edu-${member.userId}`, isPrimaryStarter: true })),
+      },
+      starters: five("team"),
+    }];
+    const payload = buildSeedRecommendationSnapshotPayload({ seasonId: "season-1", frozenTeams, competitiveContext: config });
+    const reorderKeys = (value: unknown): unknown => {
+      if (Array.isArray(value)) return value.map(reorderKeys);
+      if (typeof value !== "object" || value === null) return value;
+      const record = value as Record<string, unknown>;
+      return Object.fromEntries(Object.keys(record).sort().reverse().map((key) => [key, reorderKeys(record[key])]));
+    };
+    const roundTrippedContext = reorderKeys(payload.context);
+    const roundTrippedRecommendations = reorderKeys(payload.recommendations);
+    const fingerprint = payload.context.frozenSetFingerprint;
+
+    expect(getSeedRecommendationSnapshotStatus({
+      snapshot: {
+        entrantSetFingerprint: fingerprint,
+        context: roundTrippedContext,
+        recommendations: roundTrippedRecommendations,
+      },
+      seasonId: "season-1",
+      frozenSetFingerprint: fingerprint,
+    })).toBe("ready");
+    expect(snapshotPayloadsEqual({ context: roundTrippedContext, recommendations: roundTrippedRecommendations }, payload)).toBe(true);
   });
 
   it("detects a final human order crossing recommendation groups without changing the snapshot", () => {

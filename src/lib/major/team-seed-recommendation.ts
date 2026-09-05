@@ -285,10 +285,21 @@ export function buildTeamSeedRecommendations(
 function canonicalFrozenSet(frozenTeams: readonly SeedRecommendationFrozenTeamV1[]) {
   return frozenTeams
     .map((team) => ({
-      ...team,
-      members: [...team.members].sort((left, right) => left.userId.localeCompare(right.userId)),
+      entrantId: team.entrantId,
+      competitionEntryId: team.competitionEntryId,
+      eventRosterId: team.eventRosterId,
+      sourceRosterRevisionId: team.sourceRosterRevisionId,
+      teamName: team.teamName,
+      members: [...team.members]
+        .map((member) => ({
+          userId: member.userId,
+          participantId: member.participantId,
+          educationVerificationId: member.educationVerificationId,
+          isPrimaryStarter: member.isPrimaryStarter,
+        }))
+        .sort((left, right) => compareStrings(left.userId, right.userId)),
     }))
-    .sort((left, right) => left.entrantId.localeCompare(right.entrantId));
+    .sort((left, right) => compareStrings(left.entrantId, right.entrantId));
 }
 
 export function buildFrozenSetFingerprint(
@@ -565,8 +576,22 @@ export function snapshotPayloadsEqual(
   left: { context: unknown; recommendations: unknown },
   right: SeedRecommendationSnapshotPayloadV1,
 ): boolean {
-  return JSON.stringify(left.context) === JSON.stringify(right.context) &&
-    JSON.stringify(left.recommendations) === JSON.stringify(right.recommendations);
+  return stableJson(left.context) === stableJson(right.context) &&
+    stableJson(left.recommendations) === stableJson(right.recommendations);
+}
+
+function stableJson(value: unknown): string {
+  return JSON.stringify(stableJsonValue(value));
+}
+
+function stableJsonValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stableJsonValue);
+  if (!isRecord(value)) return value;
+  return Object.fromEntries(
+    Object.keys(value)
+      .sort()
+      .map((key) => [key, stableJsonValue(value[key])]),
+  );
 }
 
 export function analyzeFinalSeedOrder(
