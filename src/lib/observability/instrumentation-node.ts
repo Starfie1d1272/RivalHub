@@ -7,13 +7,14 @@ import { OTLPHttpProtoTraceExporter, registerOTel, type SpanProcessorOrName } fr
 import { getBetterStackConfig, OBSERVABILITY_SERVICE_NAME } from "@/lib/observability/config";
 import { getFetchInstrumentationConfig } from "@/lib/observability/instrumentation-config";
 import { logEvent } from "@/lib/observability/server";
+import { SanitizingSpanProcessor } from "@/lib/observability/span-sanitizer";
 
 let registered = false;
 
 export function registerNodeObservability(): void {
   if (registered) return;
   const betterStack = getBetterStackConfig();
-  const spanProcessors: SpanProcessorOrName[] = ["auto"];
+  const spanProcessors: SpanProcessorOrName[] = [new SanitizingSpanProcessor(), "auto"];
   let logRecordProcessors: LogRecordProcessor[] | undefined;
 
   if (betterStack.enabled && betterStack.config) {
