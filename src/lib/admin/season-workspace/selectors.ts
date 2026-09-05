@@ -35,7 +35,7 @@ export function selectSeasonWorkspaceNextAction(
   if (season.status === "finished" || season.status === "archived") {
     return {
       label: "查看赛后工作区",
-      detail: season.status === "archived" ? "赛事已归档，赛后收尾记录以只读方式查看。" : "赛事已结束，可进行官方收尾。",
+      detail: season.status === "archived" ? "赛事已归档，可进入赛后工作区查看收尾记录。" : "赛事已结束，可进行官方收尾。",
       href: `/admin/${season.slug}/post-event`,
     };
   }
@@ -62,6 +62,10 @@ export function selectSeasonWorkspaceNextAction(
       };
     }
 
+    if (season.registrationOpenedAt === null) {
+      return { label: "准备报名入口", detail: "赛事已发布，但报名尚未实际开放。", href: `/admin/${season.slug}/registrations` };
+    }
+
     const readinessBlocker = readiness?.blockers[0];
     if (readinessBlocker) {
       return {
@@ -71,9 +75,6 @@ export function selectSeasonWorkspaceNextAction(
       };
     }
 
-    if (season.registrationOpenedAt === null) {
-      return { label: "准备报名入口", detail: "赛事已发布，但报名尚未实际开放。", href: `/admin/${season.slug}/registrations` };
-    }
     return { label: "查看赛前工作区", detail: "报名窗口已开放，可继续准备赛事运营流程。", href: `/admin/${season.slug}/prestart` };
   }
 
