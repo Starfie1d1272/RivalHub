@@ -1,5 +1,41 @@
 # Changelog
 
+## [2.4.0]
+
+RivalHub 2.4 聚焦赛事后台工作区与 Major 赛前运营成熟度：管理员现在可以从已批准报名一路完成正式参赛队、赛事名单、种子建议、最终种子、比赛工作台与赛后收尾；同时补齐跨生命周期社区奖能力和生产级可观测性基础。
+
+### Added
+
+#### Major 正式参赛与种子建议
+
+Major 赛前管理现在把已批准的 CompetitionEntry 作为正式参赛候选池，标准赛事容量直接来自 Major stage plan。管理员确定最终 entrant set 后，系统会按最新 approved roster revision 自动同步 EventRoster，并在统一冻结事务中形成正式参赛事实。
+
+正式名单冻结时新增不可变的 SeedRecommendationSnapshot。系统以五名预定主力的 canonical strength 简单平均生成可解释的种子建议，保留竞技证据、5E → Perfect 换算来源和 ConversionPolicy 版本；完全相同的参考值保持系统并列。最终 1–32 seed 仍由赛委会人工确认，偏离系统建议时记录理由并进入审计，开赛 readiness 会验证 entrant、EventRoster、snapshot 与最终种子的一致性。
+
+#### 社区奖赛事能力
+
+社区奖成为正式赛事 capability：新赛事默认启用，可在草稿阶段关闭，发布后随公开赛事规则冻结。关闭时公开页面、后台入口与服务端 mutation 会同时 fail closed；启用时继续覆盖赛前征集审核、比赛期间候选证据与赛后结奖，而不是被误归入单一赛后模块。
+
+### Changed
+
+#### 管理后台与单届赛事工作区
+
+全局后台改为按赛事生命周期组织目录，并按真实管理员权限展示用户与权限、教育认证、竞技平台、审计和系统状态等入口。公共首页的主赛事也改为稳定的 presentation selector，不再让已经结束的旧赛事因为创建顺序继续占据主位。
+
+单届赛事后台收口为总览、报名、赛前、比赛、社区奖（如启用）和赛后等稳定工作流。总览只展示 lifecycle、关键事实、blocker 与下一步；赛事设置按基本信息、时间与生命周期、报名与名单、资格、赛制与地图、竞技参考、功能和危险操作分区，并直接展示被冻结的 canonical 事实与原因。
+
+#### 比赛运营工作台
+
+管理端比赛页拆分为轻量赛事比赛总览与 `/admin/{seasonSlug}/matches/{matchId}` 单场工作台。总览聚焦阶段、积分、赛程和批量运营；实际首发、BP / 地图、结果、赛后资料、更正与恢复操作集中在单场上下文中，并继续复用既有 match、roster、audit 与 observability owner。
+
+### Reliability & Operations
+
+应用建立 server-side structured observability、OpenTelemetry tracing、统一错误分类与敏感字段治理，并接入 Better Stack Preview / Production 配置 contract。运行日志与业务审计保持独立；telemetry sink 失败不会成为核心业务失败原因。Better Stack 的真实 Production trace / alert acceptance 在本版本部署后继续按 #424 验收，不在 release note 中提前宣称完成。
+
+仓库发布模型已经收敛为 single-trunk + immutable tag：`main` 是持续可发布主干，只有 `vX.Y.Z` tag 触发受保护的生产 migration、verify、精确 Vercel Production 部署、smoke 与 GitHub Release。工程文档同时整理为按任务进入的 operations 指南。
+
+本版本包含两条新的 forward migration：`0039_clumsy_doctor_octopus` 增加赛事社区奖 capability，`0040_major_seed_recommendation_snapshot` 保存 Major 不可变种子建议快照与相关赛前状态。生产升级继续只通过 `v2.4.0` tag 触发标准 release workflow。
+
 ## [2.3.0]
 
 RivalHub 2.3 聚焦赛事事实、竞技换算、个人资料与邀请流程的统一语义，并补全认证和外链的安全边界。
@@ -607,7 +643,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **PRISM 狙击维度畸变**：无狙击信号选手直接置 0（非百分位排名）；全等值返回 50
 - **Stats 页默认排序**：`ratingPro`(全 null) → `RR`
 - **选手主页 RWS/WE/ratingPro 归零**：OCR 专属查询回填，Demo 图不影响
-- **KAST 数据翻倍(**×100)\*\*：修复聚合层多余的乘法
+- **KAST 数据翻倍(**×100)\\*\\*：修复聚合层多余的乘法
 - **HS 爆头数 → 爆头率(%)**：语义更正
 - **选手列表双行**：PlayerStatsTable 补充 `source` 过滤
 - **Kill Feed 布局**：改为卡片+限高滚动
@@ -1706,6 +1742,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.4.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.3.0...v2.4.0
+[2.3.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.2.4...v2.3.0
 [2.2.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.2.3...v2.2.4
 [2.2.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.2.2...v2.2.3
 [2.2.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.2.1...v2.2.2
