@@ -6,8 +6,6 @@ import {
   type MajorOpeningPlan,
 } from "./opening";
 
-const MAJOR_TEAM_COUNT = 32;
-
 export type MajorPrestartCheckKey =
   | "rules"
   | "teams"
@@ -18,6 +16,8 @@ export type MajorPrestartCheckKey =
   | "qualification"
   | "administration"
   | "seeds"
+  | "seed-recommendation"
+  | "seed-override"
   | "reconfirmations"
   | "opening-plan";
 
@@ -54,6 +54,15 @@ export interface MajorPrestartTournamentSeedFact {
   tournamentSeed: number;
 }
 
+export interface MajorPrestartSeedRecommendationFact {
+  status: "missing" | "ready" | "mismatch";
+}
+
+export interface MajorPrestartSeedOverrideFact {
+  required: boolean;
+  reason: string | null;
+}
+
 export interface MajorPrestartReadinessInput {
   competitionTemplate: CompetitionTemplate;
   capabilities: SeasonCapabilities;
@@ -64,6 +73,8 @@ export interface MajorPrestartReadinessInput {
   administrativeIssues: readonly MajorPrestartIssueFact[] | null;
   tournamentSeeds: readonly MajorPrestartTournamentSeedFact[] | null;
   seedConfirmation: { confirmed: boolean } | null;
+  seedRecommendation: MajorPrestartSeedRecommendationFact | null;
+  seedOverride: MajorPrestartSeedOverrideFact | null;
 }
 
 export interface MajorPrestartReadiness {
@@ -242,12 +253,35 @@ function checkSeedConfirmation(
     : blocked("reconfirmations", "种子重新确认", ["赛事种子已变化，必须重新确认后才能开赛。"]);
 }
 
+function checkSeedRecommendation(
+  fact: MajorPrestartReadinessInput["seedRecommendation"],
+): MajorPrestartCheck {
+  if (fact === null) return unavailable("seed-recommendation", "系统种子建议快照");
+  if (fact.status === "ready") return ready("seed-recommendation", "系统种子建议快照");
+  return blocked(
+    "seed-recommendation",
+    "系统种子建议快照",
+    [fact.status === "missing"
+      ? "系统种子建议快照尚未生成，请先完成正式参赛队和 EventRoster 的统一冻结。"
+      : "系统种子建议快照与当前冻结的参赛队或 EventRoster 不一致，请重新核对冻结事实。"],
+  );
+}
+
+function checkSeedOverride(
+  fact: MajorPrestartReadinessInput["seedOverride"],
+): MajorPrestartCheck {
+  if (fact === null) return unavailable("seed-override", "种子人工偏离说明");
+  if (!fact.required || Boolean(fact.reason?.trim())) return ready("seed-override", "种子人工偏离说明");
+  return blocked("seed-override", "种子人工偏离说明", ["最终种子偏离系统建议时，必须填写简短的人工调整原因。"]);
+}
+
 function checkSeeds(
   teams: readonly MajorPrestartTeamFact[] | null,
   facts: readonly MajorPrestartTournamentSeedFact[] | null,
+  capacity: number,
 ): { check: MajorPrestartCheck; seeds: readonly MajorPrestartTournamentSeedFact[] | null } {
   if (facts === null || teams === null) {
-    return { check: unavailable("seeds", "赛事 1–32 种子"), seeds: null };
+    return { check: unavailable("seeds", `赛事 1–${capacity} 种子`), seeds: null };
   }
 
   const teamIds = new Set(teams.map((team) => team.teamId));
@@ -258,21 +292,21 @@ function checkSeeds(
     if (!teamIds.has(fact.teamId)) blockers.push(`种子 ${fact.tournamentSeed} 指向不存在的队伍 ${fact.teamId}。`);
     if (seenTeams.has(fact.teamId)) blockers.push(`队伍 ${fact.teamId} 被分配了重复种子。`);
     seenTeams.add(fact.teamId);
-    if (!Number.isInteger(fact.tournamentSeed) || fact.tournamentSeed < 1 || fact.tournamentSeed > MAJOR_TEAM_COUNT) {
-      blockers.push(`队伍 ${fact.teamId} 的种子必须是 1–32 的整数。`);
+    if (!Number.isInteger(fact.tournamentSeed) || fact.tournamentSeed < 1 || fact.tournamentSeed > capacity) {
+      blockers.push(`队伍 ${fact.teamId} 的种子必须是 1–${capacity} 的整数。`);
     } else if (seenSeeds.has(fact.tournamentSeed)) {
       blockers.push(`赛事种子 ${fact.tournamentSeed} 重复。`);
     }
     seenSeeds.add(fact.tournamentSeed);
   }
-  for (let seed = 1; seed <= MAJOR_TEAM_COUNT; seed += 1) {
+  for (let seed = 1; seed <= capacity; seed += 1) {
     if (!seenSeeds.has(seed)) blockers.push(`赛事种子 ${seed} 尚未分配。`);
   }
   for (const teamId of teamIds) {
     if (!seenTeams.has(teamId)) blockers.push(`队伍 ${teamId} 尚未分配赛事种子。`);
   }
   return {
-    check: blockers.length === 0 ? ready("seeds", "赛事 1–32 种子") : blocked("seeds", "赛事 1–32 种子", blockers),
+    check: blockers.length === 0 ? ready("seeds", `赛事 1–${capacity} 种子`) : blocked("seeds", `赛事 1–${capacity} 种子`, blockers),
     seeds: blockers.length === 0 ? facts : null,
   };
 }
@@ -297,21 +331,22 @@ export function evaluateMajorPrestartReadiness(
       ? ready("rules", "标准 Major 规则")
       : blocked("rules", "标准 Major 规则", ruleBlockers),
   ];
+  const entrantCapacity = rules?.entrantCapacity ?? 0;
 
   const teamBlockers = input.teams === null
     ? null
     : [
         ...invalidTeamIds(input.teams),
-        ...(input.teams.length === MAJOR_TEAM_COUNT
+        ...(rules?.isStandardMajor === true && input.teams.length === entrantCapacity
           ? []
-          : [`当前有 ${input.teams.length} 支队伍，Major 开赛需要恰好 32 支队伍。`]),
+          : [`当前有 ${input.teams.length} 支队伍，Major 开赛需要恰好 ${entrantCapacity || "标准容量"} 支队伍。`]),
       ];
   checks.push(
     teamBlockers === null
-      ? unavailable("teams", "32 支参赛队伍")
+      ? unavailable("teams", `${entrantCapacity || "标准容量"} 支参赛队伍`)
       : teamBlockers.length === 0
-        ? ready("teams", "32 支参赛队伍")
-        : blocked("teams", "32 支参赛队伍", teamBlockers),
+        ? ready("teams", `${entrantCapacity} 支参赛队伍`)
+        : blocked("teams", `${entrantCapacity || "标准容量"} 支参赛队伍`, teamBlockers),
   );
   checks.push(checkEntrantsLocked(input.entrantsLocked));
   checks.push(checkRosters(input.teams, input.capabilities));
@@ -319,8 +354,10 @@ export function evaluateMajorPrestartReadiness(
   checks.push(checkTeamConfirmations("confirmations", "参赛确认", input.confirmations, input.teams));
   checks.push(checkIssues("qualification", "资格事项", input.qualificationIssues));
   checks.push(checkIssues("administration", "管理事项", input.administrativeIssues));
-  const seedResult = checkSeeds(input.teams, input.tournamentSeeds);
+  const seedResult = checkSeeds(input.teams, input.tournamentSeeds, entrantCapacity);
   checks.push(seedResult.check);
+  checks.push(checkSeedRecommendation(input.seedRecommendation));
+  checks.push(checkSeedOverride(input.seedOverride));
   checks.push(checkSeedConfirmation(input.seedConfirmation));
 
   let openingPlan: MajorOpeningPlan | null = null;
@@ -330,9 +367,10 @@ export function evaluateMajorPrestartReadiness(
     teamBlockers === null ||
     teamBlockers.length > 0 ||
     seedResult.seeds === null ||
+    entrantCapacity <= 0 ||
     (stageOneMatchFormat !== "bo1" && stageOneMatchFormat !== "bo3")
   ) {
-    checks.push(blocked("opening-plan", "开赛计划", ["开赛计划不可用：标准 Major 结构、32 队身份、完整 1–32 种子和阶段一赛制必须先可用于构造预览。"]));
+    checks.push(blocked("opening-plan", "开赛计划", [`开赛计划不可用：标准 Major 结构、${entrantCapacity || "标准容量"} 队身份、完整 1–${entrantCapacity || "标准容量"} 种子和阶段一赛制必须先可用于构造预览。`]));
   } else {
     try {
       openingPlan = buildMajorOpeningPlan({

@@ -3,6 +3,7 @@ import {
   check,
   foreignKey,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   text,
@@ -11,6 +12,10 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+import type {
+  SeedRecommendationSnapshotContextV1,
+  SeedRecommendationTeamV1,
+} from "@/lib/major/seed-recommendation-snapshot";
 import { seasons } from "./seasons";
 import { competitionEntries } from "./competition-entries";
 
@@ -31,6 +36,8 @@ export const majorPrestartStates = pgTable("major_prestart_states", {
   /** Explicit confirmation is cleared by every seed edit. */
   seedsConfirmedAt: timestamp("seeds_confirmed_at", { withTimezone: true }),
   seedsConfirmedBy: text("seeds_confirmed_by"),
+  /** Required when final human seeds cross a system recommendation group. */
+  seedOverrideReason: text("seed_override_reason"),
   /** The confirmed 1–32 tournament order becomes immutable when the Major starts. */
   seedsLockedAt: timestamp("seeds_locked_at", { withTimezone: true }),
   seedsLockedBy: text("seeds_locked_by"),
@@ -87,6 +94,16 @@ export const majorTournamentSeeds = pgTable("major_tournament_seeds", {
   validSeed: check("major_tournament_seeds_seed_range_check", sql`${t.seed} BETWEEN 1 AND 32`),
 }));
 
+/** Immutable event-scoped explanation of the system seed recommendation. */
+export const majorSeedRecommendationSnapshots = pgTable("major_seed_recommendation_snapshots", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  seasonId: uuid("season_id").notNull().unique().references(() => seasons.id),
+  entrantSetFingerprint: text("entrant_set_fingerprint").notNull(),
+  generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
+  context: jsonb("context").$type<SeedRecommendationSnapshotContextV1>().notNull(),
+  recommendations: jsonb("recommendations").$type<SeedRecommendationTeamV1[]>().notNull(),
+});
+
 /** Explicit work items. Empty means none are recorded, never an inferred fact. */
 export const majorPrestartIssues = pgTable("major_prestart_issues", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -104,4 +121,5 @@ export const majorPrestartIssues = pgTable("major_prestart_issues", {
 export type MajorPrestartState = typeof majorPrestartStates.$inferSelect;
 export type MajorTournamentEntrant = typeof majorTournamentEntrants.$inferSelect;
 export type MajorTournamentSeed = typeof majorTournamentSeeds.$inferSelect;
+export type MajorSeedRecommendationSnapshot = typeof majorSeedRecommendationSnapshots.$inferSelect;
 export type MajorPrestartIssue = typeof majorPrestartIssues.$inferSelect;

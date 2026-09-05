@@ -281,6 +281,13 @@
       "when": 1788558162378,
       "tag": "0039_clumsy_doctor_octopus",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1788621800638,
+      "tag": "0040_major_seed_recommendation_snapshot",
+      "breakpoints": true
     }
   ]
 }

@@ -10,8 +10,6 @@ import {
   eventRosters,
   majorTournamentEntrants,
   majorPrestartIssues,
-  majorPrestartStates,
-  majorTournamentSeeds,
   seasons,
 } from "@/db/schema";
 import { actionError } from "@/lib/action-utils";
@@ -29,12 +27,14 @@ import { assertSinglePrestartEntryCoherenceInTx } from "@/lib/major/prestart-ent
 import { lockMajorPrestartEntrantsInTx, selectMajorEntrantsAndSyncRostersInTx } from "@/lib/major/prestart-entrants";
 import { saveMajorPrestartRosterInTx } from "@/lib/major/prestart-roster";
 import { assertMajorPrestartEntrantsMutable, ensureMajorPrestartStateInTx } from "@/lib/major/prestart-state";
+import { confirmMajorTournamentSeedsInTx, saveMajorTournamentSeedsInTx } from "@/lib/major/prestart-seeds";
 
 const uuid = z.string().uuid();
 const issueCategory = z.enum(["qualification", "administration"]);
 const rosterRepairInput = z.object({ seasonId: uuid, entrantId: uuid, userIds: z.array(uuid).min(1).max(16), reason: z.string().trim().min(1).max(1000) });
 const rosterExceptionInput = z.object({ seasonId: uuid, entrantId: uuid, reason: z.string().trim().min(1).max(1000) });
 const entrantSelectionInput = z.object({ seasonId: uuid, competitionEntryIds: z.array(uuid) });
+const tournamentSeedsInput = z.object({ seasonId: uuid, entryIds: z.array(uuid), overrideReason: z.string().trim().max(500).optional() });
 
 function invalid(message: string): ActionResult<never> {
   return fail({ code: ErrorCode.VALIDATION_FAILED, message });
@@ -224,34 +224,19 @@ export async function lockMajorPrestartEntrants(input: { seasonId: string }): Pr
   } catch (error) { return actionError("lockMajorPrestartEntrants", error); }
 }
 
-export async function saveMajorTournamentSeeds(input: { seasonId: string; entryIds: string[] }): Promise<ActionResult<void>> {
-  const parsed = z.object({ seasonId: uuid, entryIds: z.array(uuid).length(32) }).safeParse(input);
-  if (!parsed.success) return invalid("赛事种子必须提供恰好 32 支队伍。 ");
-  if (new Set(parsed.data.entryIds).size !== 32) return invalid("赛事种子不能包含重复 Entry。 ");
+export async function saveMajorTournamentSeeds(input: { seasonId: string; entryIds: string[]; overrideReason?: string }): Promise<ActionResult<void>> {
+  const parsed = tournamentSeedsInput.safeParse(input);
+  if (!parsed.success) return invalid("赛事种子或人工调整说明无效。 ");
+  if (new Set(parsed.data.entryIds).size !== parsed.data.entryIds.length) return invalid("赛事种子不能包含重复 Entry。 ");
   try {
     const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
     await db.transaction(async (tx) => {
-      const state = await ensureMajorPrestartStateInTx(tx, season.id);
-      if (state.seedsLockedAt) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "赛事已经正式开赛，不能修改赛事种子。 ");
-      if (!state.entrantsLockedAt) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "请先锁定正式参赛队和最终赛事名单。 ");
-      const entrants = await tx.select({ id: majorTournamentEntrants.id, entryId: majorTournamentEntrants.competitionEntryId }).from(majorTournamentEntrants)
-        .where(eq(majorTournamentEntrants.seasonId, season.id));
-      const entrantsByEntryId = new Map(entrants.map((entrant) => [entrant.entryId, entrant]));
-      if (entrantsByEntryId.size !== 32 || parsed.data.entryIds.some((entryId) => !entrantsByEntryId.has(entryId))) {
-        throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事种子必须且只能覆盖已锁定的 32 支正式参赛队。 ");
-      }
-      await tx.delete(majorTournamentSeeds).where(eq(majorTournamentSeeds.seasonId, season.id));
-      await tx.insert(majorTournamentSeeds).values(parsed.data.entryIds.map((entryId, index) => ({
-        seasonId: season.id, tournamentEntrantId: entrantsByEntryId.get(entryId)!.id, seed: index + 1,
-      })));
-      await tx.update(majorPrestartStates).set({
-        seedsConfirmedAt: null,
-        seedsConfirmedBy: null,
-        updatedAt: new Date(),
-      }).where(eq(majorPrestartStates.id, state.id));
-      await tx.insert(auditLogs).values({
-        seasonId: season.id, action: "major_prestart.save_tournament_seeds", actorId: auditActorId(admin),
-        targetId: state.id, targetType: "major_prestart_state", meta: { seedCount: 32 },
+      const overrideReason = parsed.data.overrideReason?.trim() || null;
+      await saveMajorTournamentSeedsInTx(tx, {
+        seasonId: season.id,
+        entryIds: parsed.data.entryIds,
+        overrideReason,
+        actorId: auditActorId(admin),
       });
     });
     revalidateMajorPrestart(season.slug);
@@ -265,23 +250,9 @@ export async function confirmMajorTournamentSeeds(input: { seasonId: string }): 
   try {
     const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
     await db.transaction(async (tx) => {
-      const state = await ensureMajorPrestartStateInTx(tx, season.id);
-      if (state.seedsLockedAt) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "赛事已经正式开赛，不能重新确认赛事种子。 ");
-      if (!state.entrantsLockedAt) throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "请先锁定正式参赛队和最终赛事名单。 ");
-      const countResult = await tx.execute<{ seed_count: string; team_count: string }>(sql`
-        SELECT count(*) AS seed_count, count(DISTINCT tournament_entrant_id) AS team_count
-        FROM major_tournament_seeds WHERE season_id = ${season.id}
-      `);
-      const counts = countResult.rows[0];
-      if (Number(counts?.seed_count) !== 32 || Number(counts?.team_count) !== 32) {
-        throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事种子不完整，不能确认。 ");
-      }
-      const now = new Date();
-      await tx.update(majorPrestartStates).set({ seedsConfirmedAt: now, seedsConfirmedBy: auditActorId(admin), updatedAt: now })
-        .where(eq(majorPrestartStates.id, state.id));
-      await tx.insert(auditLogs).values({
-        seasonId: season.id, action: "major_prestart.confirm_tournament_seeds", actorId: auditActorId(admin),
-        targetId: state.id, targetType: "major_prestart_state", meta: { seedCount: 32 },
+      await confirmMajorTournamentSeedsInTx(tx, {
+        seasonId: season.id,
+        actorId: auditActorId(admin),
       });
     });
     revalidateMajorPrestart(season.slug);

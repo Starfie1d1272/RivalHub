@@ -121,6 +121,7 @@ describe("Major player strength comparator", () => {
     const breakdown = getPlayerStrengthBreakdown(playerWithReset, policyConfig);
     expect(breakdown.available).toBe(true);
     expect(breakdown.currentValue).toBe(CONFIG.rankOrder.indexOf("魔王S") + 1);
+    expect(breakdown.effectiveRecentPeak).toMatchObject({ rank: "魔王S", rating: 1200 });
   });
 });
 

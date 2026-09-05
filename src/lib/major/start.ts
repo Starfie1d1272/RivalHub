@@ -10,6 +10,7 @@ import {
   majorStageEntrants,
   majorStageRuns,
   majorTournamentSeeds,
+  majorSeedRecommendationSnapshots,
   matches,
   seasons,
 } from "@/db/schema";
@@ -23,6 +24,14 @@ import { makeMajorRunSnapshotV4 } from "@/lib/major/run-snapshot";
 import { loadActiveRestrictionOverridesInTx, unresolvedQualificationFindings } from "@/lib/competition-entries/restriction-overrides";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 import { getStandardMajorDefinition } from "@/lib/major/standard";
+import {
+  analyzeFinalSeedOrder,
+} from "@/lib/major/team-seed-recommendation";
+import {
+  buildFrozenSetFingerprint,
+  frozenTeamsForSnapshot,
+  getSeedRecommendationSnapshotStatus,
+} from "@/lib/major/seed-recommendation-snapshot";
 import {
   evaluateRosterQualificationFromFacts,
   loadParticipantQualificationFacts,
@@ -52,7 +61,7 @@ export async function startMajorInTransaction(
   const [season] = await tx.select().from(seasons)
     .where(eq(seasons.id, input.seasonId)).for("update");
   if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
-  const { capabilities } = getStandardMajorDefinition(season, {
+  const { capabilities, entrantCapacity } = getStandardMajorDefinition(season, {
     notMajor: "当前赛事不是 Major 赛事模板，不能正式开赛。",
     notStandard: "当前赛事不是标准 Major，不能正式开赛。",
   });
@@ -116,6 +125,7 @@ export async function startMajorInTransaction(
   const rosterRows = eventRosterIds.length === 0 ? [] : await tx.select({
     eventRosterId: eventRosterMembers.eventRosterId,
     userId: eventRosterMembers.userId,
+    participantId: eventRosterMembers.participantId,
     educationVerificationId: eventRosterMembers.educationVerificationId,
     isPrimaryStarter: eventRosterMembers.isPrimaryStarter,
   }).from(eventRosterMembers)
@@ -133,10 +143,10 @@ export async function startMajorInTransaction(
   }).from(majorTournamentSeeds)
     .where(eq(majorTournamentSeeds.seasonId, season.id)).for("update");
 
-  const rosterByEventRoster = new Map<string, Array<{ userId: string; educationVerificationId: string | null }>>();
+  const rosterByEventRoster = new Map<string, Array<{ userId: string; participantId: string | null; educationVerificationId: string | null; isPrimaryStarter: boolean }>>();
   for (const roster of rosterRows) {
     const members = rosterByEventRoster.get(roster.eventRosterId) ?? [];
-    members.push({ userId: roster.userId, educationVerificationId: roster.educationVerificationId });
+    members.push({ userId: roster.userId, participantId: roster.participantId, educationVerificationId: roster.educationVerificationId, isPrimaryStarter: roster.isPrimaryStarter });
     rosterByEventRoster.set(roster.eventRosterId, members);
   }
   const entryIdByEntrantId = new Map(entrantRows.map((entrant) => [entrant.id, entrant.competitionEntryId]));
@@ -144,6 +154,49 @@ export async function startMajorInTransaction(
     const entryId = entryIdByEntrantId.get(seed.entrantId);
     return entryId ? [{ teamId: entryId, tournamentSeed: seed.tournamentSeed }] : [];
   });
+  const coherenceByEntryId = new Map(coherenceRows.map((row) => [row.entry.id, row]));
+  const entrantIdByEventRosterId = new Map(
+    entrantRows.map((entrant) => {
+      const coherence = coherenceByEntryId.get(entrant.competitionEntryId);
+      if (!coherence) throw new AppError(ErrorCode.INTERNAL_ERROR, "正式参赛队缺少一致性校验结果。");
+      return [coherence.eventRoster.id, entrant.id] as const;
+    }),
+  );
+  const frozenTeams = frozenTeamsForSnapshot(
+    entrantRows.map((entrant) => {
+      const coherence = coherenceByEntryId.get(entrant.competitionEntryId);
+      if (!coherence) throw new AppError(ErrorCode.INTERNAL_ERROR, "正式参赛队缺少一致性校验结果。");
+      return {
+        id: entrant.id,
+        teamId: entrant.competitionEntryId,
+        eventRosterId: coherence.eventRoster.id,
+        sourceRosterRevisionId: coherence.eventRoster.sourceRosterRevisionId,
+        teamName: coherence.entry.name,
+      };
+    }),
+    rosterRows.map((member) => {
+      const entrantId = entrantIdByEventRosterId.get(member.eventRosterId);
+      if (!entrantId) throw new AppError(ErrorCode.INTERNAL_ERROR, "冻结 EventRoster 缺少正式参赛队绑定。");
+      return {
+        entrantId,
+        userId: member.userId,
+        participantId: member.participantId,
+        educationVerificationId: member.educationVerificationId,
+        isPrimaryStarter: member.isPrimaryStarter,
+      };
+    }),
+  );
+  const frozenSetFingerprint = buildFrozenSetFingerprint(season.id, frozenTeams);
+  const [snapshot] = await tx.select().from(majorSeedRecommendationSnapshots)
+    .where(eq(majorSeedRecommendationSnapshots.seasonId, season.id)).for("update");
+  const recommendationStatus = getSeedRecommendationSnapshotStatus({
+    snapshot,
+    seasonId: season.id,
+    frozenSetFingerprint,
+  });
+  const seedDecision = recommendationStatus === "ready" && snapshot
+    ? analyzeFinalSeedOrder(seeds.map((seed) => seed.teamId), snapshot.recommendations)
+    : null;
   const readiness = evaluateMajorPrestartReadiness({
     competitionTemplate: season.competitionTemplate,
     capabilities,
@@ -163,6 +216,8 @@ export async function startMajorInTransaction(
       .map((issue) => ({ label: issue.label, resolved: Boolean(issue.resolvedAt) })),
     tournamentSeeds: seeds,
     seedConfirmation: { confirmed: state.seedsConfirmedAt !== null && state.seedsConfirmedBy !== null },
+    seedRecommendation: { status: recommendationStatus },
+    seedOverride: { required: seedDecision?.divergesFromRecommendation ?? false, reason: state.seedOverrideReason ?? null },
   });
   if (!readiness.canStart || !readiness.openingPlan) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, readiness.blockers[0] ?? "Major 赛前检查未通过。");
@@ -371,9 +426,9 @@ export async function startMajorInTransaction(
     targetType: "major_stage_run",
     meta: {
       stageKey: stage.key,
-      lockedEntrants: 32,
-      lockedRosters: 32,
-      lockedTournamentSeeds: 32,
+      lockedEntrants: entrantCapacity,
+      lockedRosters: entrantCapacity,
+      lockedTournamentSeeds: entrantCapacity,
       stageEntrants: 16,
       managedMatches: createdMatches.length,
     },

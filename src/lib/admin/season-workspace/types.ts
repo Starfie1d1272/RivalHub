@@ -1,4 +1,5 @@
 import type { MajorPrestartReadiness } from "@/lib/major/prestart";
+import type { SeedOrderRowStatus } from "@/lib/major/team-seed-recommendation";
 import type { Season } from "@/db/schema/seasons";
 
 type SeasonWorkspaceOverviewSeason = Pick<
@@ -71,6 +72,92 @@ export interface MajorPrestartPageData {
     entrants: Array<{ teamId: string; teamName: string }>;
     seeds: Array<{ teamId: string; tournamentSeed: number }>;
     seedsConfirmed: boolean;
+    overrideReason: string | null;
+    recommendationStatus: "missing" | "ready" | "mismatch";
+    recommendation: {
+      version: 1;
+      generatedAt: string;
+      platform: string;
+      conversionPolicyId: string | null;
+      conversionPolicyVersion: string | null;
+      teams: Array<{
+        entrantId: string;
+        teamId: string;
+        teamName: string;
+        teamSeedStrength: number;
+        teamSeedStrengthScaled: number;
+        recommendationRank: number;
+        tieGroup: number;
+        displayOrder: number;
+        finalSeed: number | null;
+        finalOrderStatus: SeedOrderRowStatus;
+        starters: Array<{
+          userId: string;
+          label: string;
+          historicalPeak: {
+            rank: string;
+            stars: number | null;
+            sourcePlatform: string | null;
+            sourceSeasonKey: string | null;
+            sourceRank: string | null;
+            sourceStars: number | null;
+            conversionVersion: string | null;
+          } | null;
+          previousSeasonPeak: {
+            rank: string;
+            stars: number | null;
+            sourcePlatform: string | null;
+            sourceSeasonKey: string | null;
+            sourceRank: string | null;
+            sourceStars: number | null;
+            conversionVersion: string | null;
+          } | null;
+          currentSeasonPeak: {
+            rank: string;
+            stars: number | null;
+            sourcePlatform: string | null;
+            sourceSeasonKey: string | null;
+            sourceRank: string | null;
+            sourceStars: number | null;
+            conversionVersion: string | null;
+          } | null;
+          recentSeasonPeaks: Array<{
+            rank: string;
+            stars: number | null;
+            sourcePlatform: string | null;
+            sourceSeasonKey: string | null;
+            sourceRank: string | null;
+            sourceStars: number | null;
+            conversionVersion: string | null;
+          } | null>;
+          effectiveRecentPeak: {
+            rank: string;
+            stars: number | null;
+            sourcePlatform: string | null;
+            sourceSeasonKey: string | null;
+            sourceRank: string | null;
+            sourceStars: number | null;
+            conversionVersion: string | null;
+          } | null;
+          breakdown: {
+            weightedRank: number;
+            historicalValue: number;
+            previousValue: number;
+            currentValue: number;
+            effectiveRecentPeak: {
+              rank: string;
+              stars: number | null;
+              sourcePlatform: string | null;
+              sourceSeasonKey: string | null;
+              sourceRank: string | null;
+              sourceStars: number | null;
+              conversionVersion: string | null;
+            } | null;
+            historicalRating: number | null;
+          };
+        }>;
+      }>;
+    } | null;
     firstRound: Array<{ higherSeed: number; lowerSeed: number; format: "bo1" | "bo3" }> | null;
   };
   started: boolean;

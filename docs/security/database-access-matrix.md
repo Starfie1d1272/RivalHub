@@ -4,7 +4,7 @@
 
 ## 结论
 
-- 当前 active chain 的 66 张 application-owned `public` base table 全部归类为 `server_only`。业务数据库只由 server-side Drizzle 访问，browser Data API consumer 为零。
+- 当前 active chain 的 67 张 application-owned `public` base table 全部归类为 `server_only`。业务数据库只由 server-side Drizzle 访问，browser Data API consumer 为零。
 - `users`、`user_sessions`、`admin_invites`、`admin_invite_claims`、`season_admin_grants`、`audit_logs`、education evidence、Major prestart/runtime 和 bracket runtime 均按高敏感 server-only 处理。
 - 2026-09-03 production 只读 inventory 在 migration 前确认 `competition_bracket_states` 是明确的 anon/authenticated CRUD privilege 例外；Issue #395 的 forward migration 将其与其余表统一收口。
 - `DraftLiveRoom` 与 `CaptainVotingPanel` 的 Realtime subscription 已删除。两处继续使用既有 10 秒 polling fallback；`ResetPasswordForm` 保留 browser Supabase client，但仅调用 Supabase Auth，不调用 public table Data API。
@@ -47,6 +47,7 @@
 | major_final_results | 官方最终结果事实 | Major post-event | src/lib/postevent/service.ts; src/lib/major/placement.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 最终结果需 confirmation/adjudication 后归档，禁止客户端旁路写入。 |
 | major_prestart_issues | 开赛前内部 blocker 与审计 | Major prestart | src/actions/major-prestart.ts; src/lib/audit/targets.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | prestart issue 只供管理员修复和审计使用。 |
 | major_prestart_states | 开赛前状态与锁定事实 | Major prestart | src/actions/major-prestart.ts; src/lib/major/prestart-state.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | entrant/seed lock 是开赛门禁，不是客户端状态。 |
+| major_seed_recommendation_snapshots | 高敏感冻结竞技事实与来源 | Major prestart | src/lib/major/prestart-entrants.ts; src/lib/major/prestart-seeds.ts; src/lib/admin/season-workspace/major-prestart.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 系统建议快照绑定冻结 entrant/EventRoster、竞技 provenance 与 ConversionPolicy，只由服务端 freeze/read model 访问，不能通过 Data API 暴露。 |
 | major_stage_entrants | 阶段参赛事实 | Major stage runtime | src/lib/major/run-entrants.ts; src/lib/major/stage-transition.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | stage entrant 与 StageRun 的一致性由 Major runtime owner 维护。 |
 | major_stage_runs | 阶段运行时与恢复状态 | Major stage runtime | src/lib/major/; src/actions/major-prestart.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | StageRun 是 Swiss/playoff/recovery 的 canonical runtime boundary。 |
 | major_tournament_entrants | 赛事参赛物化事实 | Major prestart | src/lib/major/run-entrants.ts; src/actions/major-prestart.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 正式参赛队及其冻结 roster 只由 server-side prestart 流程物化。 |

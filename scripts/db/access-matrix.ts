@@ -301,6 +301,13 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "entrant/seed lock 是开赛门禁，不是客户端状态。",
   ),
   serverOnly(
+    "major_seed_recommendation_snapshots",
+    "Major prestart",
+    "高敏感冻结竞技事实与来源",
+    "src/lib/major/prestart-entrants.ts; src/lib/major/prestart-seeds.ts; src/lib/admin/season-workspace/major-prestart.ts",
+    "系统建议快照绑定冻结 entrant/EventRoster、竞技 provenance 与 ConversionPolicy，只由服务端 freeze/read model 访问，不能通过 Data API 暴露。",
+  ),
+  serverOnly(
     "major_stage_entrants",
     "Major stage runtime",
     "阶段参赛事实",
@@ -715,7 +722,7 @@ export function renderDatabaseAccessMatrixMarkdown(): string {
     "",
     "## 结论",
     "",
-    "- 当前 active chain 的 66 张 application-owned `public` base table 全部归类为 `server_only`。业务数据库只由 server-side Drizzle 访问，browser Data API consumer 为零。",
+    "- 当前 active chain 的 67 张 application-owned `public` base table 全部归类为 `server_only`。业务数据库只由 server-side Drizzle 访问，browser Data API consumer 为零。",
     "- `users`、`user_sessions`、`admin_invites`、`admin_invite_claims`、`season_admin_grants`、`audit_logs`、education evidence、Major prestart/runtime 和 bracket runtime 均按高敏感 server-only 处理。",
     "- 2026-09-03 production 只读 inventory 在 migration 前确认 `competition_bracket_states` 是明确的 anon/authenticated CRUD privilege 例外；Issue #395 的 forward migration 将其与其余表统一收口。",
     "- `DraftLiveRoom` 与 `CaptainVotingPanel` 的 Realtime subscription 已删除。两处继续使用既有 10 秒 polling fallback；`ResetPasswordForm` 保留 browser Supabase client，但仅调用 Supabase Auth，不调用 public table Data API。",

@@ -26,6 +26,16 @@ export interface PublicCompetitiveProfilePlatform {
   facts: PublicCompetitiveProfileFact[];
 }
 
+/** Compact rank wording shared by dense admin/profile views. */
+export function presentCompetitiveRankSummary(
+  rankLabel: string,
+  stars: number | null,
+  isStarRank: boolean,
+): string {
+  if (!isStarRank) return rankLabel;
+  return stars === null ? `${rankLabel} · 星数缺失` : `${rankLabel} · ${stars} 星`;
+}
+
 /** Public presentation is catalog-backed: no persisted platform, season or rank key may leak into the player page. */
 export function presentPublicCompetitiveProfile(
   catalog: readonly CompetitivePlatformCatalogEntry[],
