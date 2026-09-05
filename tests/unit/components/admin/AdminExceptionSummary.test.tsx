@@ -18,7 +18,9 @@ describe("AdminExceptionSummary", () => {
     }} />);
 
     expect(screen.getByRole("link", { name: /待审核组队报名/ })).toHaveAttribute("href", "/admin/nju-major/registrations");
+    expect(screen.getByRole("link", { name: /赛前待解决事项/ })).toHaveAttribute("href", "/admin/nju-major/prestart");
     expect(screen.getByRole("link", { name: /已排期但名单未确认/ })).toHaveAttribute("href", "/admin/nju-major/matches");
+    expect(screen.getByRole("link", { name: /最终结果待确认/ })).toHaveAttribute("href", "/admin/nju-major/post-event");
     expect(screen.getByText("5")).toBeInTheDocument();
   });
 });

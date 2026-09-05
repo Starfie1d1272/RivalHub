@@ -20,6 +20,7 @@ export default async function AdminSeasonLayout({
     where: eq(seasons.slug, seasonSlug),
     columns: {
       id: true,
+      registrationMode: true,
       hasCaptainVoting: true,
       hasDraft: true,
       hasCommunityAwards: true,
@@ -39,6 +40,7 @@ export default async function AdminSeasonLayout({
     <div className="container mx-auto px-4 py-8 max-w-6xl">
       <SeasonSubNav
         seasonSlug={seasonSlug}
+        registrationMode={season.registrationMode}
         hasCaptainVoting={season.hasCaptainVoting}
         hasDraft={season.hasDraft}
         hasCommunityAwards={season.hasCommunityAwards}

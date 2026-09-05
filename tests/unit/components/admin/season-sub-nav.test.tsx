@@ -19,6 +19,7 @@ function renderNav(props: Partial<Parameters<typeof SeasonSubNav>[0]> = {}) {
   return render(
     <SeasonSubNav
       seasonSlug="nju-major-2026"
+      registrationMode="team"
       hasCaptainVoting={true}
       hasDraft={true}
       hasCommunityAwards={true}
@@ -38,7 +39,7 @@ describe("SeasonSubNav", () => {
   it("links 纪律处罚 to the season discipline admin page", () => {
     renderNav();
 
-    expect(screen.getByRole("link", { name: "纪律处罚" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "纪律与处罚" })).toHaveAttribute(
       "href",
       "/admin/nju-major-2026/discipline",
     );
@@ -47,40 +48,40 @@ describe("SeasonSubNav", () => {
   it("keeps the discipline entry available regardless of draft/captain/match capabilities", () => {
     renderNav({ hasCaptainVoting: false, hasDraft: false, hasMatches: false });
 
-    expect(screen.getByRole("link", { name: "纪律处罚" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "纪律与处罚" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "队长确认" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "选秀控制" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "赛程管理" })).not.toBeInTheDocument();
   });
 
-  it("does not disturb the existing prestart/runtime/post-event console tabs", () => {
+  it("organizes the workspace by lifecycle and keeps the governance routes available", () => {
     renderNav();
 
-    expect(screen.getByRole("link", { name: "赛事控制台" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "总览" })).toHaveAttribute(
       "href",
       "/admin/nju-major-2026",
     );
-    expect(screen.getByRole("link", { name: "报名审核" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "报名" })).toHaveAttribute(
       "href",
       "/admin/nju-major-2026/registrations",
     );
-    expect(screen.getByRole("link", { name: "赛事日志" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "赛前" })).toHaveAttribute(
       "href",
-      "/admin/nju-major-2026/logs",
+      "/admin/nju-major-2026/prestart",
     );
-    expect(screen.getByRole("link", { name: "队长确认" })).toHaveAttribute(
-      "href",
-      "/admin/nju-major-2026/captains",
-    );
-    expect(screen.getByRole("link", { name: "选秀控制" })).toHaveAttribute(
-      "href",
-      "/admin/nju-major-2026/draft",
-    );
-    expect(screen.getByRole("link", { name: "赛程管理" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "比赛" })).toHaveAttribute(
       "href",
       "/admin/nju-major-2026/matches",
     );
-    expect(screen.getByRole("link", { name: "赛季设置" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "赛后" })).toHaveAttribute(
+      "href",
+      "/admin/nju-major-2026/post-event",
+    );
+    expect(screen.getByRole("link", { name: "操作日志" })).toHaveAttribute(
+      "href",
+      "/admin/nju-major-2026/logs",
+    );
+    expect(screen.getByRole("link", { name: "设置" })).toHaveAttribute(
       "href",
       "/admin/nju-major-2026/settings",
     );
@@ -90,7 +91,7 @@ describe("SeasonSubNav", () => {
     pathnameMock.mockReturnValue("/admin/nju-major-2026/discipline");
     renderNav();
 
-    const link = screen.getByRole("link", { name: "纪律处罚" });
+    const link = screen.getByRole("link", { name: "纪律与处罚" });
     expect(link.style.borderBottom).toContain("var(--color-accent)");
   });
 
@@ -98,5 +99,20 @@ describe("SeasonSubNav", () => {
     renderNav({ hasCommunityAwards: false });
 
     expect(screen.queryByRole("link", { name: "社区奖" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the prestart tab active for retained captain and draft URLs", () => {
+    pathnameMock.mockReturnValue("/admin/nju-major-2026/draft");
+    renderNav();
+
+    expect(screen.getByRole("link", { name: "赛前" }).style.borderBottom).toContain("var(--color-accent)");
+    expect(screen.queryByRole("link", { name: "选秀控制" })).not.toBeInTheDocument();
+  });
+
+  it("hides settings from a season admin while keeping the workspace routes", () => {
+    renderNav({ showSettings: false });
+
+    expect(screen.queryByRole("link", { name: "设置" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "总览" })).toBeInTheDocument();
   });
 });

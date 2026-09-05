@@ -7,19 +7,9 @@ import { finalizeMajorSwissRound, startMajorPlayoff, transitionMajorSwissStage }
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Marker, Panel } from "@/components/rivalhub";
+import type { MajorSwissRuntimeData } from "@/lib/admin/major-runtime";
 
-export interface MajorSwissRuntimeData {
-  seasonId: string;
-  stageRunId: string;
-  stageKey: string;
-  finalizedRound: 0 | 1 | 2 | 3 | 4 | 5;
-  currentRound: 1 | 2 | 3 | 4 | 5;
-  currentMatchCount: number;
-  completedMatchCount: number;
-  stageComplete: boolean;
-  nextStageName: string | null;
-  nextStageType: "swiss" | "playoff" | null;
-}
+export type { MajorSwissRuntimeData } from "@/lib/admin/major-runtime";
 
 export function MajorSwissRuntimeManagement({ data }: { data: MajorSwissRuntimeData }) {
   const router = useRouter();

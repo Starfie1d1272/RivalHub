@@ -7,15 +7,9 @@ import { finalizeMajorPlayoffRound } from "@/actions/major-prestart";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Marker, Panel } from "@/components/rivalhub";
+import type { MajorPlayoffRuntimeData } from "@/lib/admin/major-runtime";
 
-export interface MajorPlayoffRuntimeData {
-  seasonId: string;
-  stageRunId: string;
-  currentRound: "quarterfinal" | "semifinal" | "final" | null;
-  currentMatchCount: number;
-  completedMatchCount: number;
-  resultPendingConfirmation: boolean;
-}
+export type { MajorPlayoffRuntimeData } from "@/lib/admin/major-runtime";
 
 const ROUND_LABEL = { quarterfinal: "八强赛", semifinal: "半决赛", final: "总决赛" } as const;
 

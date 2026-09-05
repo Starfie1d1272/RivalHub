@@ -3,8 +3,6 @@ import type { MajorPrestartReadiness } from "@/lib/major/prestart";
 import { MajorPrestartManagement, type MajorPrestartManagementData } from "./MajorPrestartManagement";
 import { MajorTournamentSeedsManagement, type MajorTournamentSeedsManagementData } from "./MajorTournamentSeedsManagement";
 import { MajorStartManagement } from "./MajorStartManagement";
-import { MajorSwissRuntimeManagement, type MajorSwissRuntimeData } from "./MajorSwissRuntimeManagement";
-import { MajorPlayoffRuntimeManagement, type MajorPlayoffRuntimeData } from "./MajorPlayoffRuntimeManagement";
 
 const STATE_LABEL = {
   ready: "已就绪",
@@ -18,22 +16,18 @@ export function MajorPrestartConsole({
   management,
   seedManagement,
   started,
-  swissRuntime,
-  playoffRuntime,
 }: {
   seasonName: string;
   readiness: MajorPrestartReadiness;
   management: MajorPrestartManagementData;
   seedManagement: MajorTournamentSeedsManagementData;
   started: boolean;
-  swissRuntime: MajorSwissRuntimeData | null;
-  playoffRuntime: MajorPlayoffRuntimeData | null;
 }) {
   return (
     <div className="space-y-6">
       <div>
         <Marker sub={readiness.canStart ? "可进入开赛流程" : "准备未完成"}>
-          赛事控制台 · {seasonName}
+          赛事赛前 · {seasonName}
         </Marker>
         <p className="text-sm text-[var(--color-fg-mid)]">
           按赛前检查、正式名单、种子和阶段推进依次完成。每次确认都会重新检查当前资料。
@@ -47,8 +41,6 @@ export function MajorPrestartConsole({
       <MajorPrestartManagement data={management} />
       <MajorTournamentSeedsManagement data={seedManagement} />
       <MajorStartManagement seasonId={management.seasonId} openingPlan={readiness.openingPlan} canStart={readiness.canStart} started={started} />
-      {swissRuntime && <MajorSwissRuntimeManagement data={swissRuntime} />}
-      {playoffRuntime && <MajorPlayoffRuntimeManagement data={playoffRuntime} />}
 
       <Panel label="STAGE1 首轮预览">
         {readiness.openingPlan ? (

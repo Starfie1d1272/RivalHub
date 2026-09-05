@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { and, eq, asc, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { seasons, matches, competitionEntries, eventRosters, eventRosterMembers, matchMaps, matchRosters, matchRosterPlayers, matchCommentators, postMatchReports, seasonAdminGrants } from "@/db/schema";
+import { seasons, matches, competitionEntries, eventRosters, eventRosterMembers, matchMaps, matchRosters, matchRosterPlayers, matchCommentators, postMatchReports, seasonAdminGrants, majorFinalResults, majorStageRuns } from "@/db/schema";
 import { users, seasonRegistrations } from "@/db/schema";
 import { requireSeasonAdmin } from "@/lib/auth/session";
 import { calculateStandings } from "@/lib/standings";
@@ -30,6 +30,9 @@ import { getDisplayName } from "@/lib/identity/display-name";
 import { getPostMatchCompletion, POST_MATCH_COMPLETION_LABEL } from "@/lib/postmatch/service";
 import { presentMatchLabel } from "@/lib/matches/presentation";
 import { getMatchMapRoundScores } from "@/lib/data/standings";
+import { MajorPlayoffRuntimeManagement } from "@/components/admin/MajorPlayoffRuntimeManagement";
+import { MajorSwissRuntimeManagement } from "@/components/admin/MajorSwissRuntimeManagement";
+import { buildMajorRuntimeData } from "@/lib/admin/major-runtime";
 
 const STATUS_SORT_ORDER: Record<string, number> = {
   in_progress: 0,
@@ -104,7 +107,7 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
   if (!season) notFound();
   await requireSeasonAdmin(season.id);
 
-  const [allTeams, allMatches] = await Promise.all([
+  const [allTeams, allMatches, stageRunRows, finalResult] = await Promise.all([
     db.query.competitionEntries.findMany({
       where: eq(competitionEntries.competitionId, season.id),
       orderBy: [asc(competitionEntries.formationOrder)],
@@ -113,6 +116,10 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
       where: eq(matches.seasonId, season.id),
       orderBy: [asc(matches.createdAt)],
     }),
+    db.select({ id: majorStageRuns.id, stageKey: majorStageRuns.stageKey, finalizedRound: majorStageRuns.finalizedRound })
+      .from(majorStageRuns)
+      .where(eq(majorStageRuns.seasonId, season.id)),
+    db.query.majorFinalResults.findFirst({ where: eq(majorFinalResults.seasonId, season.id) }),
   ]);
   const commentatorMatchIds = allMatches.filter((match) => match.status !== "cancelled").map((match) => match.id);
   const finishedIds = allMatches.filter((match) => match.status === "finished").map((match) => match.id);
@@ -145,6 +152,13 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
 
   const teamMap = new Map(allTeams.map((t) => [t.id, t.name]));
   const stagePlan = normalizeStagePlan(season.stagePlan);
+  const { swissRuntime, playoffRuntime } = buildMajorRuntimeData({
+    seasonId: season.id,
+    stagePlan,
+    stageRuns: stageRunRows,
+    matches: allMatches,
+    finalResultStatus: finalResult?.status,
+  });
   const mapPool = normalizeRegistrationConfig(season.registrationConfig).mapPool;
   const qualifierStage = getFirstStageOfType(stagePlan, ["round_robin", "swiss"]);
   const playoffStage = getFirstStageOfType(stagePlan, ["double_elim", "single_elim"]);
@@ -441,6 +455,8 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
       {batchDeadlineGroups.length > 0 && (
         <BatchDeadlineCard seasonId={season.id} groups={batchDeadlineGroups} />
       )}
+      {swissRuntime && <MajorSwissRuntimeManagement data={swissRuntime} />}
+      {playoffRuntime && <MajorPlayoffRuntimeManagement data={playoffRuntime} />}
       {finishedIds.length > 0 && <details className="rounded border border-[var(--color-border)] px-4 py-3"><summary className="cursor-pointer text-sm font-medium">解说有效场次统计</summary><div className="mt-3 space-y-3 text-sm">{seasonAdmins.map((admin) => ({ admin, matches: allMatches.filter((match) => match.status === "finished" && Boolean(match.videoUrl) && Boolean(submissionByMatch.get(match.id)) && (commentatorsByMatch.get(match.id) ?? []).some((commentator) => commentator.userId === admin.userId)) })).filter(({ matches }) => matches.length > 0).map(({ admin, matches: effective }) => <div key={admin.userId}><strong>{admin.name}</strong> · {effective.length} 场<ul className="mt-1 list-disc space-y-1 pl-5 text-[var(--color-fg-mid)]">{effective.map((match) => <li key={match.id}>{presentMatchLabel({ stage: match.stage, stageName: stagePlan.find((stage) => stage.key === match.stage)?.name, round: match.round, entryRound: match.entryRound, teamAName: teamMap.get(match.entryAId) ?? "TBD", teamBName: teamMap.get(match.entryBId) ?? "TBD" })}</li>)}</ul></div>)}</div></details>}
 
       {/* Tab 面板 */}
