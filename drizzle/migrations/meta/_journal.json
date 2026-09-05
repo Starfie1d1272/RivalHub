@@ -288,6 +288,13 @@
       "when": 1788606257141,
       "tag": "0040_daily_wrecking_crew",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1788611174084,
+      "tag": "0041_spicy_loners",
+      "breakpoints": true
     }
   ]
 }

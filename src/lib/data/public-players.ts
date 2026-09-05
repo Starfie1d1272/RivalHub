@@ -44,3 +44,4 @@ export async function getPublicPlayerById(userId: string): Promise<PublicPlayer 
     steamProfileUrl: normalizeSteamProfileUrl(player.steamProfileUrl),
   };
 }
+

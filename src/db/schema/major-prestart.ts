@@ -12,6 +12,10 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+import type {
+  SeedRecommendationSnapshotContextV1,
+  SeedRecommendationTeamV1,
+} from "@/lib/major/team-seed-recommendation";
 import { seasons } from "./seasons";
 import { competitionEntries } from "./competition-entries";
 
@@ -32,6 +36,8 @@ export const majorPrestartStates = pgTable("major_prestart_states", {
   /** Explicit confirmation is cleared by every seed edit. */
   seedsConfirmedAt: timestamp("seeds_confirmed_at", { withTimezone: true }),
   seedsConfirmedBy: text("seeds_confirmed_by"),
+  /** Required when final human seeds cross a system recommendation group. */
+  seedOverrideReason: text("seed_override_reason"),
   /** The confirmed 1–32 tournament order becomes immutable when the Major starts. */
   seedsLockedAt: timestamp("seeds_locked_at", { withTimezone: true }),
   seedsLockedBy: text("seeds_locked_by"),
@@ -94,8 +100,8 @@ export const majorSeedRecommendationSnapshots = pgTable("major_seed_recommendati
   seasonId: uuid("season_id").notNull().unique().references(() => seasons.id),
   entrantSetFingerprint: text("entrant_set_fingerprint").notNull(),
   generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
-  context: jsonb("context").$type<Record<string, unknown>>().notNull(),
-  recommendations: jsonb("recommendations").$type<unknown[]>().notNull(),
+  context: jsonb("context").$type<SeedRecommendationSnapshotContextV1>().notNull(),
+  recommendations: jsonb("recommendations").$type<SeedRecommendationTeamV1[]>().notNull(),
 });
 
 /** Explicit work items. Empty means none are recorded, never an inferred fact. */

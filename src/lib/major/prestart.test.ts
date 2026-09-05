@@ -22,6 +22,8 @@ function makeInput(): MajorPrestartReadinessInput {
     administrativeIssues: [],
     tournamentSeeds: teamIds.map((teamId, index) => ({ teamId, tournamentSeed: index + 1 })),
     seedConfirmation: { confirmed: true },
+    seedRecommendation: { status: "ready" },
+    seedOverride: { required: false, reason: null },
   };
 }
 
@@ -118,6 +120,24 @@ describe("evaluateMajorPrestartReadiness", () => {
 
     expect(result.canStart).toBe(false);
     expect(result.blockers.join("\n")).toContain("未冻结的教育认证依据");
+  });
+
+  it("blocks a missing or mismatched immutable recommendation snapshot", () => {
+    const missing = makeInput();
+    missing.seedRecommendation = { status: "missing" };
+    expect(evaluateMajorPrestartReadiness(missing).checks.find((check) => check.key === "seed-recommendation")).toMatchObject({ state: "blocked" });
+
+    const mismatch = makeInput();
+    mismatch.seedRecommendation = { status: "mismatch" };
+    expect(evaluateMajorPrestartReadiness(mismatch).blockers.join("\n")).toContain("不一致");
+  });
+
+  it("requires a persisted reason when final seeds cross a system recommendation group", () => {
+    const input = makeInput();
+    input.seedOverride = { required: true, reason: null };
+    expect(evaluateMajorPrestartReadiness(input).checks.find((check) => check.key === "seed-override")).toMatchObject({ state: "blocked" });
+    input.seedOverride = { required: true, reason: "赛委会复核" };
+    expect(evaluateMajorPrestartReadiness(input).checks.find((check) => check.key === "seed-override")).toMatchObject({ state: "ready" });
   });
 
   it.each([

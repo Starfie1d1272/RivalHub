@@ -8,6 +8,7 @@ import {
   eventRosters,
   majorPrestartIssues,
   majorPrestartStates,
+  majorSeedRecommendationSnapshots,
   majorTournamentEntrants,
   majorTournamentSeeds,
   seasons,
@@ -18,6 +19,20 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import { assertPrestartEntryCoherenceInTx, type PrestartEntryCoherence } from "@/lib/major/prestart-entry";
 import { syncApprovedRosterToEventRosterInTx } from "@/lib/major/prestart-roster";
 import { assertMajorPrestartEntrantsMutable, ensureMajorPrestartStateInTx } from "@/lib/major/prestart-state";
+import {
+  buildFrozenSetFingerprint,
+  buildSeedRecommendationSnapshotPayload,
+  getSeedRecommendationSnapshotStatus,
+  snapshotPayloadsEqual,
+  type FrozenSeedRecommendationTeamInput,
+} from "@/lib/major/team-seed-recommendation";
+import {
+  loadParticipantQualificationFacts,
+  resolveCompetitiveContext,
+  toPlayerStrengthInput,
+  type ParticipantQualificationFacts,
+} from "@/lib/qualification/service";
+import type { PlayerStrengthInput } from "@/lib/major/player-strength";
 
 function assertStandardMajorSeason(season: typeof seasons.$inferSelect): StandardMajorDefinition {
   return getStandardMajorDefinition(season, {
@@ -231,9 +246,8 @@ export async function lockMajorPrestartEntrantsInTx(
 ): Promise<LockMajorEntrantsResult> {
   const [season] = await tx.select().from(seasons).where(eq(seasons.id, input.seasonId)).for("update");
   if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在");
-  const { entrantCapacity } = assertStandardMajorSeason(season);
+  const { entrantCapacity, capabilities } = assertStandardMajorSeason(season);
   const state = await ensureMajorPrestartStateInTx(tx, season.id);
-  if (state.entrantsLockedAt) return { seasonSlug: season.slug, entrantCount: entrantCapacity, alreadyLocked: true };
 
   const entrantRefs = await tx.select({
     id: majorTournamentEntrants.id,
@@ -250,7 +264,7 @@ export async function lockMajorPrestartEntrantsInTx(
   if (entrantRefs.length !== entrantCapacity) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, `锁定前必须恰好选择 ${entrantCapacity} 支正式参赛队。 `);
   }
-  if (coherent.some((row) => row.eventRoster.status !== "confirmed")) {
+  if (coherent.some((row) => row.eventRoster.status !== "confirmed" && row.eventRoster.status !== "frozen")) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "所有正式参赛队必须先由已批准报名名单同步并确认。 ");
   }
 
@@ -268,7 +282,9 @@ export async function lockMajorPrestartEntrantsInTx(
 
   const rosterRows = await tx.select({
     entrantId: majorTournamentEntrants.id,
+    eventRosterId: eventRosterMembers.eventRosterId,
     userId: eventRosterMembers.userId,
+    participantId: eventRosterMembers.participantId,
     educationVerificationId: eventRosterMembers.educationVerificationId,
     primary: eventRosterMembers.isPrimaryStarter,
   }).from(eventRosterMembers)
@@ -300,6 +316,126 @@ export async function lockMajorPrestartEntrantsInTx(
     .limit(1);
   if (unresolved) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先处理所有资格和管理事项。 ");
 
+  const coherenceByEntryId = new Map(coherent.map((row) => [row.entry.id, row]));
+  const frozenTeamInputs: FrozenSeedRecommendationTeamInput[] = entrantRows.map((entrant) => {
+    const entryCoherence = coherenceByEntryId.get(entrant.competitionEntryId);
+    if (!entryCoherence) throw new AppError(ErrorCode.INTERNAL_ERROR, "正式参赛队缺少一致性校验结果。 ");
+    const members = rosterByEntrant.get(entrant.id) ?? [];
+    const identity = {
+      entrantId: entrant.id,
+      competitionEntryId: entrant.competitionEntryId,
+      eventRosterId: entryCoherence.eventRoster.id,
+      sourceRosterRevisionId: entryCoherence.eventRoster.sourceRosterRevisionId,
+      teamName: entryCoherence.entry.name,
+      members: members.map((member) => ({
+        userId: member.userId,
+        participantId: member.participantId,
+        educationVerificationId: member.educationVerificationId,
+        isPrimaryStarter: member.primary,
+      })),
+    };
+    return { identity, starters: [] };
+  });
+  const frozenSetFingerprint = buildFrozenSetFingerprint(
+    season.id,
+    frozenTeamInputs.map((team) => team.identity),
+  );
+  const [existingSnapshot] = await tx.select().from(majorSeedRecommendationSnapshots)
+    .where(eq(majorSeedRecommendationSnapshots.seasonId, season.id));
+
+  // A retry after the unified freeze must validate the immutable snapshot
+  // identity, but must not re-read mutable competitive facts and silently
+  // reinterpret the historical recommendation.
+  if (state.entrantsLockedAt) {
+    const snapshotStatus = getSeedRecommendationSnapshotStatus({
+      snapshot: existingSnapshot,
+      seasonId: season.id,
+      frozenSetFingerprint,
+    });
+    if (snapshotStatus !== "ready") {
+      throw new AppError(ErrorCode.INTERNAL_ERROR, "已锁定的正式名单缺少与当前冻结集合一致的种子建议快照。 ");
+    }
+    return { seasonSlug: season.slug, entrantCount: entrantCapacity, alreadyLocked: true };
+  }
+
+  if (existingSnapshot && getSeedRecommendationSnapshotStatus({
+    snapshot: existingSnapshot,
+    seasonId: season.id,
+    frozenSetFingerprint,
+  }) !== "ready") {
+    throw new AppError(ErrorCode.INTERNAL_ERROR, "已有种子建议快照与本次冻结输入不一致，拒绝覆盖。 ");
+  }
+
+  const configuredCompetitiveProfile = capabilities.teamRegistrationConfig.competitiveProfile ?? null;
+  const competitiveProfile = configuredCompetitiveProfile
+    ? await resolveCompetitiveContext(configuredCompetitiveProfile)
+    : null;
+  if (capabilities.teamRegistrationConfig.requireCompetitiveProfile && !competitiveProfile) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "本届赛事要求竞技资料，但当前冻结的竞技平台目录不完整，不能生成种子建议。 ");
+  }
+  if (!competitiveProfile) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "缺少生成种子建议所需的竞技上下文。 ");
+  }
+
+  const primaryUserIds = rosterRows.filter((member) => member.primary).map((member) => member.userId);
+  const qualificationFacts: ReadonlyMap<string, ParticipantQualificationFacts> = await loadParticipantQualificationFacts(primaryUserIds, {
+    executor: tx,
+    platform: competitiveProfile.platform,
+    fallbackPlatform: competitiveProfile.fallbackConversion?.sourcePlatform,
+    includeCompetitiveFacts: true,
+  });
+  const strengthInputFor = (userId: string): PlayerStrengthInput => {
+    const fact = qualificationFacts.get(userId);
+    if (!fact) {
+      return { userId, label: userId, historicalPeak: null, previousSeasonPeak: null, currentSeasonPeak: null };
+    }
+    return toPlayerStrengthInput(fact, competitiveProfile);
+  };
+  for (const team of frozenTeamInputs) {
+    team.starters = (rosterByEntrant.get(team.identity.entrantId) ?? [])
+      .filter((member) => member.primary)
+      .map((member) => strengthInputFor(member.userId));
+  }
+
+  const snapshotPayload = buildSeedRecommendationSnapshotPayload({
+    seasonId: season.id,
+    frozenTeams: frozenTeamInputs,
+    competitiveContext: competitiveProfile,
+  });
+  if (snapshotPayload.context.frozenSetFingerprint !== frozenSetFingerprint) {
+    throw new AppError(ErrorCode.INTERNAL_ERROR, "种子建议快照的冻结集合指纹计算不一致。 ");
+  }
+  const unavailableTeam = snapshotPayload.recommendations.find((recommendation) =>
+    recommendation.teamSeedStrength === null ||
+    recommendation.starters.length !== season.starterCount ||
+    recommendation.starters.some((starter) => !starter.breakdown.available),
+  );
+  if (unavailableTeam) {
+    const blocker = unavailableTeam.starters.flatMap((starter) => starter.breakdown.blockers)[0];
+    throw new AppError(ErrorCode.VALIDATION_FAILED, `队伍「${unavailableTeam.teamName}」无法生成完整种子建议${blocker ? `：${blocker}` : ""}。`);
+  }
+
+  let snapshotId = existingSnapshot?.id ?? null;
+  if (existingSnapshot) {
+    const snapshotStatus = getSeedRecommendationSnapshotStatus({
+      snapshot: existingSnapshot,
+      seasonId: season.id,
+      frozenSetFingerprint,
+    });
+    if (snapshotStatus !== "ready" || !snapshotPayloadsEqual(existingSnapshot, snapshotPayload)) {
+      throw new AppError(ErrorCode.INTERNAL_ERROR, "已有种子建议快照与本次冻结输入不一致，拒绝覆盖。 ");
+    }
+  } else {
+    const [insertedSnapshot] = await tx.insert(majorSeedRecommendationSnapshots).values({
+      seasonId: season.id,
+      entrantSetFingerprint: frozenSetFingerprint,
+      context: snapshotPayload.context,
+      recommendations: snapshotPayload.recommendations,
+    }).returning({ id: majorSeedRecommendationSnapshots.id });
+    snapshotId = insertedSnapshot?.id ?? null;
+    if (!snapshotId) throw new AppError(ErrorCode.INTERNAL_ERROR, "种子建议快照创建失败。 ");
+  }
+
   const now = new Date();
   await tx.update(eventRosters).set({
     status: "frozen",
@@ -320,7 +456,12 @@ export async function lockMajorPrestartEntrantsInTx(
     actorId: input.actorId,
     targetId: state.id,
     targetType: "major_prestart_state",
-    meta: { entrantCount: entrantRows.length },
+    meta: {
+      entrantCount: entrantRows.length,
+      seedRecommendationSnapshotId: snapshotId,
+      seedRecommendationSnapshotVersion: snapshotPayload.context.version,
+      frozenSetFingerprint,
+    },
   });
   return { seasonSlug: season.slug, entrantCount: entrantRows.length, alreadyLocked: false };
 }

@@ -10,6 +10,7 @@ import {
   eventRosters,
   majorPrestartIssues,
   majorPrestartStates,
+  majorSeedRecommendationSnapshots,
   majorStageRuns,
   majorTournamentEntrants,
   majorTournamentSeeds,
@@ -19,21 +20,32 @@ import { evaluateMajorPrestartReadiness, type MajorPrestartReadiness } from "@/l
 import { capabilitiesFromSeason } from "@/lib/competition/definition";
 import { getStandardMajorDefinition } from "@/lib/major/standard";
 import { getDisplayName } from "@/lib/identity/display-name";
+import {
+  analyzeFinalSeedOrder,
+  buildFrozenSetFingerprint,
+  getSeedRecommendationSnapshotStatus,
+  type SeedRecommendationFrozenTeamV1,
+} from "@/lib/major/team-seed-recommendation";
 import type { Season } from "@/db/schema/seasons";
 import type { MajorPrestartPageData } from "./types";
 
 type MajorEntrantRow = {
   id: string;
   teamId: string;
-  teamName?: string;
+  teamName?: string | null;
+  eventRosterId: string;
+  sourceRosterRevisionId: string | null;
   rosterStatus: "preparing" | "confirmed" | "frozen";
 };
 
 type MajorRosterMemberRow = {
   entrantId: string;
+  eventRosterId: string;
   userId: string;
+  participantId: string | null;
   email?: string;
   educationVerificationId: string | null;
+  isPrimaryStarter: boolean;
 };
 
 type MajorIssueRow = {
@@ -45,6 +57,89 @@ type MajorIssueRow = {
 
 type MajorSeedRow = { teamId: string; tournamentSeed: number };
 
+export function frozenTeamsForSnapshot(
+  entrants: readonly MajorEntrantRow[],
+  rosterRows: readonly MajorRosterMemberRow[],
+): SeedRecommendationFrozenTeamV1[] {
+  const rosterByEntrant = new Map<string, MajorRosterMemberRow[]>();
+  for (const member of rosterRows) {
+    rosterByEntrant.set(member.entrantId, [...(rosterByEntrant.get(member.entrantId) ?? []), member]);
+  }
+  return entrants.map((entrant) => ({
+    entrantId: entrant.id,
+    competitionEntryId: entrant.teamId,
+    eventRosterId: entrant.eventRosterId,
+    sourceRosterRevisionId: entrant.sourceRosterRevisionId,
+    teamName: entrant.teamName ?? entrant.teamId,
+    members: (rosterByEntrant.get(entrant.id) ?? []).map((member) => ({
+      userId: member.userId,
+      participantId: member.participantId,
+      educationVerificationId: member.educationVerificationId,
+      isPrimaryStarter: member.isPrimaryStarter,
+    })),
+  }));
+}
+
+function projectRecommendationFact(fact: {
+  rank: string;
+  stars: number | null;
+  sourcePlatform: string | null;
+  sourceRank: string | null;
+  sourceStars: number | null;
+  conversionVersion: string | null;
+} | null) {
+  return fact ? {
+    rank: fact.rank,
+    stars: fact.stars,
+    sourcePlatform: fact.sourcePlatform,
+    sourceRank: fact.sourceRank,
+    sourceStars: fact.sourceStars,
+    conversionVersion: fact.conversionVersion,
+  } : null;
+}
+
+function projectRecommendationSnapshot(
+  snapshot: typeof majorSeedRecommendationSnapshots.$inferSelect | undefined,
+  status: "missing" | "ready" | "mismatch",
+): MajorPrestartPageData["seedManagement"]["recommendation"] {
+  if (!snapshot || status !== "ready") return null;
+  const context = snapshot.context;
+  return {
+    version: context.version,
+    generatedAt: snapshot.generatedAt.toISOString(),
+    platform: context.competitiveContext.platform,
+    conversionPolicyId: context.competitiveContext.conversionPolicyId,
+    conversionPolicyVersion: context.competitiveContext.conversionPolicyVersion,
+    teams: snapshot.recommendations
+      .filter((recommendation) => recommendation.teamSeedStrength !== null && recommendation.recommendationRank !== null && recommendation.tieGroup !== null && recommendation.displayOrder !== null)
+      .sort((left, right) => left.displayOrder! - right.displayOrder!)
+      .map((recommendation) => ({
+        entrantId: recommendation.entrantId,
+        teamId: recommendation.competitionEntryId,
+        teamName: recommendation.teamName,
+        teamSeedStrength: recommendation.teamSeedStrength!,
+        recommendationRank: recommendation.recommendationRank!,
+        tieGroup: recommendation.tieGroup!,
+        displayOrder: recommendation.displayOrder!,
+        starters: recommendation.starters.map((starter) => ({
+          userId: starter.userId,
+          label: starter.label,
+          historicalPeak: projectRecommendationFact(starter.input.historicalPeak),
+          previousSeasonPeak: projectRecommendationFact(starter.input.previousSeasonPeak),
+          currentSeasonPeak: projectRecommendationFact(starter.input.currentSeasonPeak),
+          recentSeasonPeaks: starter.input.recentSeasonPeaks.map(projectRecommendationFact),
+          breakdown: {
+            weightedRank: starter.breakdown.weightedRank!,
+            historicalValue: starter.breakdown.historicalValue!,
+            previousValue: starter.breakdown.previousValue!,
+            currentValue: starter.breakdown.currentValue!,
+            historicalRating: starter.breakdown.historicalRating,
+          },
+        })),
+      })),
+  };
+}
+
 export function buildMajorReadiness(
   season: Season,
   state: typeof majorPrestartStates.$inferSelect | undefined,
@@ -52,6 +147,10 @@ export function buildMajorReadiness(
   rosterRows: readonly MajorRosterMemberRow[],
   issueRows: readonly MajorIssueRow[],
   seedRows: readonly MajorSeedRow[],
+  options: {
+    seedRecommendation: { status: "missing" | "ready" | "mismatch" };
+    seedOverride: { required: boolean; reason: string | null };
+  } = { seedRecommendation: { status: "missing" }, seedOverride: { required: false, reason: null } },
 ): MajorPrestartReadiness {
   const entrantIds = new Set(entrants.map((entrant) => entrant.id));
   const rosterByEntrant = new Map<string, MajorRosterMemberRow[]>();
@@ -77,6 +176,8 @@ export function buildMajorReadiness(
     administrativeIssues: issueRows.filter((issue) => issue.category === "administration").map((issue) => ({ label: issue.label, resolved: Boolean(issue.resolvedAt) })),
     tournamentSeeds: seedRows,
     seedConfirmation: state ? { confirmed: state.seedsConfirmedAt !== null && state.seedsConfirmedBy !== null } : null,
+    seedRecommendation: options.seedRecommendation,
+    seedOverride: options.seedOverride,
   });
 }
 
@@ -126,12 +227,13 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
   }
   const representativeNameById = new Map(representativeRows.map((user) => [user.id, getDisplayName(user)]));
 
-  const [state, entrantRows, rosterRows, issueRows, seedRows, stageRunRows] = await Promise.all([
+  const [state, entrantRows, rosterRows, issueRows, seedRows, snapshot, stageRunRows] = await Promise.all([
     db.query.majorPrestartStates.findFirst({ where: eq(majorPrestartStates.seasonId, season.id) }),
     db.select({
       id: majorTournamentEntrants.id,
       teamId: majorTournamentEntrants.competitionEntryId,
       teamName: competitionEntries.name,
+      eventRosterId: eventRosters.id,
       rosterStatus: eventRosters.status,
       sourceRosterRevisionId: eventRosters.sourceRosterRevisionId,
     }).from(majorTournamentEntrants)
@@ -139,7 +241,7 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
       .innerJoin(eventRosters, eq(majorTournamentEntrants.competitionEntryId, eventRosters.entryId))
       .where(eq(majorTournamentEntrants.seasonId, season.id))
       .orderBy(asc(competitionEntries.name)),
-    db.select({ entrantId: majorTournamentEntrants.id, userId: eventRosterMembers.userId, email: users.email, educationVerificationId: eventRosterMembers.educationVerificationId, isPrimaryStarter: eventRosterMembers.isPrimaryStarter })
+    db.select({ entrantId: majorTournamentEntrants.id, eventRosterId: eventRosterMembers.eventRosterId, userId: eventRosterMembers.userId, participantId: eventRosterMembers.participantId, email: users.email, educationVerificationId: eventRosterMembers.educationVerificationId, isPrimaryStarter: eventRosterMembers.isPrimaryStarter })
       .from(eventRosterMembers)
       .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
       .innerJoin(majorTournamentEntrants, eq(majorTournamentEntrants.competitionEntryId, eventRosters.entryId))
@@ -153,10 +255,20 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
       .innerJoin(majorTournamentEntrants, eq(majorTournamentSeeds.tournamentEntrantId, majorTournamentEntrants.id))
       .where(eq(majorTournamentSeeds.seasonId, season.id))
       .orderBy(asc(majorTournamentSeeds.seed)),
+    db.query.majorSeedRecommendationSnapshots.findFirst({ where: eq(majorSeedRecommendationSnapshots.seasonId, season.id) }),
     db.select({ id: majorStageRuns.id }).from(majorStageRuns).where(eq(majorStageRuns.seasonId, season.id)),
   ]);
 
-  const readiness = buildMajorReadiness(season, state, entrantRows, rosterRows, issueRows, seedRows);
+  const frozenTeams = frozenTeamsForSnapshot(entrantRows, rosterRows);
+  const frozenSetFingerprint = buildFrozenSetFingerprint(season.id, frozenTeams);
+  const recommendationStatus = getSeedRecommendationSnapshotStatus({ snapshot, seasonId: season.id, frozenSetFingerprint });
+  const seedDecision = recommendationStatus === "ready" && snapshot
+    ? analyzeFinalSeedOrder(seedRows.map((seed) => seed.teamId), snapshot.recommendations)
+    : null;
+  const readiness = buildMajorReadiness(season, state, entrantRows, rosterRows, issueRows, seedRows, {
+    seedRecommendation: { status: recommendationStatus },
+    seedOverride: { required: seedDecision?.divergesFromRecommendation ?? false, reason: state?.seedOverrideReason ?? null },
+  });
   const entrantIds = new Set(entrantRows.map((entrant) => entrant.id));
   const selectedEntryIds = new Set(entrantRows.map((entrant) => entrant.teamId));
   const rosterByEntrant = new Map<string, Array<{ userId: string; email: string; educationVerificationId: string | null; isPrimaryStarter: boolean }>>();
@@ -207,6 +319,9 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
       entrants: entrantRows.map((entrant) => ({ teamId: entrant.teamId, teamName: entrant.teamName ?? entrant.teamId })),
       seeds: seedRows,
       seedsConfirmed: Boolean(state?.seedsConfirmedAt && state.seedsConfirmedBy),
+      overrideReason: state?.seedOverrideReason ?? null,
+      recommendationStatus,
+      recommendation: projectRecommendationSnapshot(snapshot, recommendationStatus),
       firstRound: readiness.openingPlan?.firstRound.pairings.map((pairing) => ({
         higherSeed: pairing.higherSeed.tournamentSeed,
         lowerSeed: pairing.lowerSeed.tournamentSeed,

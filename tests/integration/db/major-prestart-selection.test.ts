@@ -360,6 +360,7 @@ async function cleanup(pool: Pool, fixture: SelectionFixture): Promise<void> {
     await client.query("BEGIN");
     await client.query("SET LOCAL session_replication_role = replica");
     await client.query("DELETE FROM audit_logs WHERE season_id = $1", [fixture.seasonId]);
+    await client.query("DELETE FROM major_seed_recommendation_snapshots WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM major_tournament_seeds WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM major_tournament_entrants WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM major_prestart_states WHERE season_id = $1", [fixture.seasonId]);
@@ -391,6 +392,7 @@ async function cleanupFullFreeze(pool: Pool, fixture: FullFreezeFixture): Promis
     await client.query("BEGIN");
     await client.query("SET LOCAL session_replication_role = replica");
     await client.query("DELETE FROM audit_logs WHERE season_id = $1", [fixture.seasonId]);
+    await client.query("DELETE FROM major_seed_recommendation_snapshots WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM major_tournament_seeds WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM major_tournament_entrants WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM major_prestart_states WHERE season_id = $1", [fixture.seasonId]);
@@ -610,6 +612,18 @@ async function exerciseSuccessfulFreezeWorkflow(): Promise<void> {
       [fixture.seasonId],
     );
     expect(audit.rows[0]?.count).toBe("1");
+    const snapshot = await pool.query<{ version: string; frozenTeams: string; recommendations: string; starters: string; fingerprint: string }>(
+      `SELECT context->>'version' AS version,
+              jsonb_array_length(context->'frozenTeams')::text AS "frozenTeams",
+              jsonb_array_length(recommendations)::text AS recommendations,
+              jsonb_array_length(recommendations->0->'starters')::text AS starters,
+              entrant_set_fingerprint AS fingerprint
+       FROM major_seed_recommendation_snapshots WHERE season_id = $1`,
+      [fixture.seasonId],
+    );
+    expect(snapshot.rows).toHaveLength(1);
+    expect(snapshot.rows[0]).toMatchObject({ version: "1", frozenTeams: String(fixture.entries.length), recommendations: String(fixture.entries.length), starters: "5" });
+    expect(snapshot.rows[0]?.fingerprint).toMatch(/^[a-f0-9]{64}$/);
 
     const retry = await database.transaction((tx) => lockMajorPrestartEntrantsInTx(tx, {
       seasonId: fixture!.seasonId,
@@ -621,6 +635,21 @@ async function exerciseSuccessfulFreezeWorkflow(): Promise<void> {
       [fixture.seasonId],
     );
     expect(retryAudit.rows[0]?.count).toBe("1");
+
+    await pool.query(
+      "UPDATE major_seed_recommendation_snapshots SET entrant_set_fingerprint = repeat('0', 64) WHERE season_id = $1",
+      [fixture.seasonId],
+    );
+    const mismatch = await database.transaction((tx) => lockMajorPrestartEntrantsInTx(tx, {
+      seasonId: fixture!.seasonId,
+      actorId: ACTOR,
+    })).catch((caught: unknown) => caught);
+    expect(mismatch).toMatchObject({ code: ErrorCode.INTERNAL_ERROR });
+    const snapshotCount = await pool.query<{ count: string }>(
+      "SELECT count(*)::text AS count FROM major_seed_recommendation_snapshots WHERE season_id = $1",
+      [fixture.seasonId],
+    );
+    expect(snapshotCount.rows[0]?.count).toBe("1");
   } finally {
     if (fixture) await cleanupFullFreeze(pool, fixture);
     await pool.end();
@@ -634,5 +663,60 @@ describe("Major prestart final Entry selection", () => {
 
   it("locks exactly the canonical capacity in PostgreSQL and is idempotent", async () => {
     await exerciseSuccessfulFreezeWorkflow();
+  });
+
+  it.each([
+    ["missing strength evidence", "missing-evidence"],
+    ["invalid rank mapping", "invalid-rank"],
+    ["not exactly five primary starters", "primary-count"],
+  ])("rolls back the entire unified freeze when there is %s", async (_label, variant) => {
+    const pool = new Pool({ connectionString: databaseUrl, ssl: false, max: 4 });
+    const database = drizzle(pool, { schema });
+    let fixture: FullFreezeFixture | undefined;
+    try {
+      fixture = await prepareFullFreezeFixture(pool);
+      const entryIds = fixture.entries.map((entry) => entry.entryId);
+      await database.transaction((tx) => selectMajorEntrantsAndSyncRostersInTx(tx, {
+        seasonId: fixture!.seasonId,
+        competitionEntryIds: entryIds,
+        actorId: ACTOR,
+      }));
+      const firstUserId = fixture.entries[0]!.userIds[0]!;
+      if (variant === "missing-evidence") {
+        await pool.query("DELETE FROM competitive_rank_facts WHERE user_id = $1 AND kind = 'historical_peak'", [firstUserId]);
+      } else if (variant === "invalid-rank") {
+        await pool.query("UPDATE competitive_rank_facts SET rank = 'not-in-policy' WHERE user_id = $1 AND kind = 'historical_peak'", [firstUserId]);
+      } else {
+        await pool.query(
+          "UPDATE event_roster_members SET is_primary_starter = false WHERE event_roster_id = (SELECT id FROM event_rosters WHERE entry_id = $1) AND user_id = $2",
+          [fixture.entries[0]!.entryId, firstUserId],
+        );
+      }
+
+      const error = await database.transaction((tx) => lockMajorPrestartEntrantsInTx(tx, {
+        seasonId: fixture!.seasonId,
+        actorId: ACTOR,
+      })).catch((caught: unknown) => caught);
+      expect(error).toMatchObject({ code: ErrorCode.VALIDATION_FAILED });
+
+      const state = await pool.query<{ entrantsLockedAt: Date | null }>(
+        "SELECT entrants_locked_at AS \"entrantsLockedAt\" FROM major_prestart_states WHERE season_id = $1",
+        [fixture.seasonId],
+      );
+      expect(state.rows[0]?.entrantsLockedAt).toBeNull();
+      const frozen = await pool.query<{ count: string }>(
+        "SELECT count(*)::text AS count FROM event_rosters WHERE entry_id = ANY($1::uuid[]) AND status = 'frozen'",
+        [entryIds],
+      );
+      expect(frozen.rows[0]?.count).toBe("0");
+      const snapshots = await pool.query<{ count: string }>(
+        "SELECT count(*)::text AS count FROM major_seed_recommendation_snapshots WHERE season_id = $1",
+        [fixture.seasonId],
+      );
+      expect(snapshots.rows[0]?.count).toBe("0");
+    } finally {
+      if (fixture) await cleanupFullFreeze(pool, fixture);
+      await pool.end();
+    }
   });
 });

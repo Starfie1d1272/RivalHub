@@ -71,6 +71,67 @@ export interface MajorPrestartPageData {
     entrants: Array<{ teamId: string; teamName: string }>;
     seeds: Array<{ teamId: string; tournamentSeed: number }>;
     seedsConfirmed: boolean;
+    overrideReason: string | null;
+    recommendationStatus: "missing" | "ready" | "mismatch";
+    recommendation: {
+      version: 1;
+      generatedAt: string;
+      platform: string;
+      conversionPolicyId: string | null;
+      conversionPolicyVersion: string | null;
+      teams: Array<{
+        entrantId: string;
+        teamId: string;
+        teamName: string;
+        teamSeedStrength: number;
+        recommendationRank: number;
+        tieGroup: number;
+        displayOrder: number;
+        starters: Array<{
+          userId: string;
+          label: string;
+          historicalPeak: {
+            rank: string;
+            stars: number | null;
+            sourcePlatform: string | null;
+            sourceRank: string | null;
+            sourceStars: number | null;
+            conversionVersion: string | null;
+          } | null;
+          previousSeasonPeak: {
+            rank: string;
+            stars: number | null;
+            sourcePlatform: string | null;
+            sourceRank: string | null;
+            sourceStars: number | null;
+            conversionVersion: string | null;
+          } | null;
+          currentSeasonPeak: {
+            rank: string;
+            stars: number | null;
+            sourcePlatform: string | null;
+            sourceRank: string | null;
+            sourceStars: number | null;
+            conversionVersion: string | null;
+          } | null;
+          recentSeasonPeaks: Array<{
+            rank: string;
+            stars: number | null;
+            sourcePlatform: string | null;
+            sourceRank: string | null;
+            sourceStars: number | null;
+            conversionVersion: string | null;
+          } | null>;
+          breakdown: {
+            weightedRank: number;
+            historicalValue: number;
+            previousValue: number;
+            currentValue: number;
+            historicalRating: number | null;
+          };
+        }>;
+      }>;
+    } | null;
     firstRound: Array<{ higherSeed: number; lowerSeed: number; format: "bo1" | "bo3" }> | null;
   };
   started: boolean;
