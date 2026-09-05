@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool, type PoolClient } from "pg";
 import { describe, expect, it } from "vitest";
@@ -19,6 +20,8 @@ const COMPETITIVE_PROFILE = {
   previousSeasonKey: "issue-368-3b-previous",
   rankOrder: createPerfectWorldRankOrder(),
 } as const;
+
+type Database = ReturnType<typeof drizzle<typeof schema>>;
 
 interface EntryFixture {
   entryId: string;
@@ -200,24 +203,41 @@ async function readCounts(pool: Pool, fixture: SelectionFixture): Promise<{ entr
   return { entrants: Number(row.entrants), cRosters: Number(row.cRosters), auditSelection: Number(row.auditSelection), auditReconcile: Number(row.auditReconcile) };
 }
 
-async function createApprovedRevision(pool: Pool, entry: EntryFixture, memberUserIds: readonly string[], revisionNumber: number): Promise<string> {
-  const revisionId = randomUUID();
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    await insertApprovedRevision(client, entry, revisionId, revisionNumber, memberUserIds);
-    await client.query(
-      "UPDATE competition_entries SET current_roster_revision_id = $2, approved_roster_revision_id = $2, updated_at = now() WHERE id = $1",
-      [entry.entryId, revisionId],
-    );
-    await client.query("COMMIT");
-  } catch (error) {
-    await client.query("ROLLBACK").catch(() => undefined);
-    throw error;
-  } finally {
-    client.release();
-  }
-  return revisionId;
+async function approveRevisionAndReconcile(
+  database: Database,
+  seasonId: string,
+  entry: EntryFixture,
+  memberUserIds: readonly string[],
+  revisionNumber: number,
+  revisionId = randomUUID(),
+): Promise<boolean> {
+  return database.transaction(async (tx) => {
+    const participants = await tx.select({
+      id: schema.competitionEntryParticipants.id,
+      userId: schema.competitionEntryParticipants.userId,
+    }).from(schema.competitionEntryParticipants)
+      .where(eq(schema.competitionEntryParticipants.entryId, entry.entryId));
+    const participantByUserId = new Map(participants.map((participant) => [participant.userId, participant.id]));
+    await tx.insert(schema.competitionEntryRosterRevisions).values({
+      id: revisionId,
+      entryId: entry.entryId,
+      revisionNumber,
+      status: "approved",
+      createdBy: ACTOR,
+      approvedAt: new Date(),
+    });
+    await tx.insert(schema.competitionEntryRosterMembers).values(memberUserIds.map((userId, index) => {
+      const participantId = participantByUserId.get(userId);
+      if (!participantId) throw new Error(`fixture participant missing for ${entry.entryId}/${userId}`);
+      return { revisionId, participantId, userId, isPrimaryStarter: index < 5 };
+    }));
+    await tx.update(schema.competitionEntries).set({
+      currentRosterRevisionId: revisionId,
+      approvedRosterRevisionId: revisionId,
+      updatedAt: new Date(),
+    }).where(eq(schema.competitionEntries.id, entry.entryId));
+    return reconcileMajorPrestartRosterAfterApprovalInTx(tx, { seasonId, entryId: entry.entryId, actorId: ACTOR });
+  });
 }
 
 async function cleanup(pool: Pool, fixture: SelectionFixture): Promise<void> {
@@ -289,12 +309,8 @@ async function exerciseSelectionWorkflow(): Promise<void> {
     expect(expanded).toMatchObject({ selectedCount: 2, synchronizedRosterCount: 1, changed: true });
     expect(await readRoster(pool, fixture.entryB.entryId)).toMatchObject({ status: "confirmed", source: fixture.entryB.revisionId, members: 5, primary: 5, missingEducation: 0 });
 
-    const revisionA2 = await createApprovedRevision(pool, fixture.entryA, fixture.entryA.userIds, 2);
-    const reconciled = await database.transaction((tx) => reconcileMajorPrestartRosterAfterApprovalInTx(tx, {
-      seasonId: fixture!.seasonId,
-      entryId: fixture!.entryA.entryId,
-      actorId: ACTOR,
-    }));
+    const revisionA2 = randomUUID();
+    const reconciled = await approveRevisionAndReconcile(database, fixture.seasonId, fixture.entryA, fixture.entryA.userIds, 2, revisionA2);
     expect(reconciled).toBe(true);
     expect(await readRoster(pool, fixture.entryA.entryId)).toMatchObject({ status: "confirmed", source: revisionA2, members: 6, primary: 5, missingEducation: 0 });
 
@@ -332,12 +348,8 @@ async function exerciseSelectionWorkflow(): Promise<void> {
     expect((removeFrozenError as AppError).message).toContain("冻结");
     expect(await readCounts(pool, fixture)).toMatchObject({ entrants: 1 });
 
-    const revisionB2 = await createApprovedRevision(pool, fixture.entryB, fixture.entryB.userIds, 2);
-    const frozenError = await database.transaction((tx) => reconcileMajorPrestartRosterAfterApprovalInTx(tx, {
-      seasonId: fixture!.seasonId,
-      entryId: fixture!.entryB.entryId,
-      actorId: ACTOR,
-    })).catch((error: unknown) => error);
+    const revisionB2 = randomUUID();
+    const frozenError = await approveRevisionAndReconcile(database, fixture.seasonId, fixture.entryB, fixture.entryB.userIds, 2, revisionB2).catch((error: unknown) => error);
     expect(frozenError).toMatchObject({ code: ErrorCode.SEASON_INVALID_STATUS });
     expect((frozenError as AppError).message).toContain("已冻结");
     expect(await readRoster(pool, fixture.entryB.entryId)).toMatchObject({ status: "frozen", source: fixture.entryB.revisionId, members: 5, primary: 5, missingEducation: 0 });
