@@ -125,7 +125,7 @@ interface GoldenFinalEvidence {
 async function prepareReadyMajor(
   pool: Pool,
   label: string,
-  options: { editablePrestart?: boolean } = {},
+  options: { editablePrestart?: boolean; distinctRecommendationGroups?: boolean } = {},
 ): Promise<MajorFixture> {
   const client = await pool.connect();
   const seasonId = deterministicUuid(`${label}/season`);
@@ -191,7 +191,10 @@ async function prepareReadyMajor(
       educationRows.flatMap((row) => [row.id, row.userId, row.institutionId, row.academicStatus]),
     );
     const rankRows = userIds.flatMap((userId, index) => {
-      const rank = index % 5 < 3 ? GOLDEN_PROFILE.rankOrder[10]! : GOLDEN_PROFILE.rankOrder[7]!;
+      const teamIndex = Math.floor(index / 5);
+      const rank = options.distinctRecommendationGroups
+        ? teamIndex === 0 ? GOLDEN_PROFILE.rankOrder[10]! : GOLDEN_PROFILE.rankOrder[7]!
+        : index % 5 < 3 ? GOLDEN_PROFILE.rankOrder[10]! : GOLDEN_PROFILE.rankOrder[7]!;
       // The golden fixture deliberately uses the built-in S rank key on a
       // private catalog; complete S facts still need an exact star count.
       const stars = index % 5 < 3 ? 10 : null;
@@ -884,7 +887,7 @@ async function exerciseSeedRecommendationReadinessBoundaries(
   await expectMajorStartFailure(database, unconfirmedSeeds.seasonId, "重新确认");
   await assertNoStartFacts(pool, unconfirmedSeeds.seasonId);
 
-  const missingOverride = await prepareReadyMajor(pool, "seed-final-missing-override");
+  const missingOverride = await prepareReadyMajor(pool, "seed-final-missing-override", { distinctRecommendationGroups: true });
   fixtures.push(missingOverride);
   const seedPair = await pool.query<{ entrantId: string; tournamentSeed: number }>(
     `SELECT e.id AS "entrantId", s.seed AS "tournamentSeed"
@@ -914,7 +917,7 @@ async function exerciseFinalSeedOverridePersistence(
   pool: Pool,
   fixtures: MajorFixture[],
 ): Promise<void> {
-  const fixture = await prepareReadyMajor(pool, "seed-override-persistence");
+  const fixture = await prepareReadyMajor(pool, "seed-override-persistence", { distinctRecommendationGroups: true });
   fixtures.push(fixture);
   const beforeSnapshot = await pool.query<{ recommendations: unknown }>(
     "SELECT recommendations FROM major_seed_recommendation_snapshots WHERE season_id = $1",
