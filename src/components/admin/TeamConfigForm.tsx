@@ -15,6 +15,7 @@ interface TeamConfigFormProps {
     ranks?: Array<{ rankKey: string; label: string }>;
   }>;
   fallbackOnly?: boolean;
+  view?: "all" | "team" | "competitive";
   disabled?: boolean;
   onChange: (value: TeamRegistrationConfig) => void;
 }
@@ -28,15 +29,17 @@ interface TeamConfigFormProps {
  * registration open; the temporary event-owned fallback can be edited only
  * before that actual transition.
  */
-export function TeamConfigForm({ value, competitivePlatforms, fallbackOnly = false, disabled = false, onChange }: TeamConfigFormProps) {
+export function TeamConfigForm({ value, competitivePlatforms, fallbackOnly = false, view = "all", disabled = false, onChange }: TeamConfigFormProps) {
   function set<K extends keyof TeamRegistrationConfig>(key: K, val: TeamRegistrationConfig[K]) {
     onChange({ ...value, [key]: val });
   }
   const platform = value.competitiveProfile?.platform ?? competitivePlatforms[0]?.key ?? "";
+  const showTeamSettings = view !== "competitive";
+  const showCompetitiveSettings = view !== "team";
 
   return (
     <div className="space-y-6">
-      {!fallbackOnly && <div>
+      {!fallbackOnly && showTeamSettings && <div>
         <h3 className="text-sm font-medium mb-3">队伍管理</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <label className="flex items-center gap-2 text-sm">
@@ -66,8 +69,8 @@ export function TeamConfigForm({ value, competitivePlatforms, fallbackOnly = fal
         </div>
       </div>}
 
-      {!fallbackOnly && <div>
-        <h3 className="text-sm font-medium mb-3">Major 竞技档案规则</h3>
+      {!fallbackOnly && showCompetitiveSettings && <div>
+        <h3 className="text-sm font-medium mb-3">竞技档案规则</h3>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={disabled} checked={value.requireCompetitiveProfile ?? false} onChange={(event) => set("requireCompetitiveProfile", event.target.checked)} />报名与首发必须完成竞技档案</label>
         <p className="mt-1 text-xs text-[var(--color-fg-dim)]">实际开放报名时将从平台赛季目录冻结当前与上一赛季及段位顺序；之后的目录变更不影响已开放报名赛事。</p>
         {value.requireCompetitiveProfile && (

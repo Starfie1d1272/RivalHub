@@ -56,7 +56,7 @@ const updateSeasonMock = vi.mocked(updateSeason);
 function createInitial(
   capabilities: SeasonCapabilities,
   kind: string,
-  status: "draft" | "registration" | "voting" | "playing" | "finished" = "draft",
+  status: "draft" | "registration" | "voting" | "playing" | "finished" | "archived" = "draft",
   overrides: Record<string, unknown> = {},
 ) {
   return {
@@ -214,11 +214,89 @@ describe("SeasonForm presets", () => {
     const { rerender } = render(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "公开赛")} />);
     await user.click(screen.getByRole("button", { name: "Major" }));
     await user.click(screen.getByRole("button", { name: "确认" }));
-    expect(screen.getByText("5E 等效竞技资料")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "竞技参考" })).toBeInTheDocument();
 
     rerender(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(MAJOR_DEFAULT_CAPABILITIES), "Major", "registration", { template: "major" })} />);
     expect(screen.getByDisplayValue("Major")).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Major" })).not.toBeInTheDocument();
+  });
+
+  it("organizes edit settings into the agreed presentation sections", () => {
+    render(<SeasonForm mode="edit" competitivePlatforms={[{ key: "perfect_world", displayName: "完美世界竞技平台" }]} initial={createInitial(structuredClone(MAJOR_DEFAULT_CAPABILITIES), "Major")} />);
+
+    for (const section of ["基本信息", "时间与生命周期", "报名与名单", "资格规则", "赛制与地图", "竞技参考", "功能", "危险操作"]) {
+      expect(screen.getByRole("heading", { name: section })).toBeInTheDocument();
+    }
+    expect(screen.getByText(/5E → 完美世界竞技平台 · ConversionPolicy 尚未绑定/)).toBeInTheDocument();
+  });
+
+  it("shows the frozen ConversionPolicy identity after registration opens", () => {
+    const initial = createInitial(structuredClone(MAJOR_DEFAULT_CAPABILITIES), "Major", "registration", {
+      template: "major",
+      registrationOpenedAt: new Date("2026-09-01T00:00:00.000Z"),
+      teamRegistrationConfig: {
+        ...structuredClone(MAJOR_DEFAULT_CAPABILITIES.teamRegistrationConfig),
+        competitiveProfile: {
+          ...structuredClone(MAJOR_DEFAULT_CAPABILITIES.teamRegistrationConfig.competitiveProfile!),
+          currentSeasonKey: "perfect-2026",
+          previousSeasonKey: "perfect-2025",
+          rankOrder: ["A", "S"],
+          evidencePolicy: {
+            historicalWeight: 50,
+            referenceSeasonKey: "perfect-2025",
+            referenceSeasonWeight: 20,
+            recentSeasonKeys: ["perfect-2025", "perfect-2026"],
+            recentSeasonWeight: 30,
+          },
+          conversionPolicyId: "policy-2026-09",
+          conversionPolicyVersion: "2026.09",
+          fallbackConversion: {
+            sourcePlatform: "fivee",
+            version: "2026.09",
+            seasonKeyMap: { "perfect-2026": "fivee-2026" },
+          },
+        },
+      },
+    });
+
+    render(<SeasonForm
+      mode="edit"
+      competitivePlatforms={[{
+        key: "perfect_world",
+        displayName: "完美世界竞技平台",
+        seasons: [
+          { seasonKey: "perfect-2025", label: "2025 完整赛季", active: false },
+          { seasonKey: "perfect-2026", label: "2026 赛季", active: true },
+        ],
+      }]}
+      initial={initial}
+    />);
+
+    expect(screen.getByText(/ConversionPolicy 2026\.09/)).toBeInTheDocument();
+    expect(screen.getByText("本届已在报名开放时冻结；全局 policy 后续变化不会影响本届。")).toBeInTheDocument();
+    expect(screen.getByText("策略 ID：policy-2026-09")).toBeInTheDocument();
+  });
+
+  it("keeps status-specific lifecycle actions in the settings sections", () => {
+    const { rerender } = render(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "公开赛", "draft")} />);
+    expect(screen.getByRole("button", { name: "发布赛季" })).toBeInTheDocument();
+
+    rerender(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "公开赛", "registration")} />);
+    expect(screen.getByRole("button", { name: "立即开放报名" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "撤回至草稿" })).toBeInTheDocument();
+
+    rerender(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "公开赛", "voting")} />);
+    expect(screen.getByRole("button", { name: "撤回至报名阶段" })).toBeInTheDocument();
+
+    rerender(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "公开赛", "playing")} />);
+    expect(screen.getByRole("button", { name: "手动结束赛季" })).toBeInTheDocument();
+
+    rerender(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "公开赛", "finished")} />);
+    expect(screen.getByRole("button", { name: "归档赛季" })).toBeInTheDocument();
+
+    rerender(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "公开赛", "archived")} />);
+    expect(screen.getByText("当前状态没有可用的危险操作。")).toBeInTheDocument();
+    expect(screen.getByTestId("season-lifecycle-explanation")).toHaveTextContent("赛事已结束");
   });
 
   it("locks custom public registration controls after publish", () => {

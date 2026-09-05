@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { createSeason, deleteSeason, openSeasonRegistration, publishSeason, updateSeason, revertSeasonToDraft, revertSeasonToRegistration, forceFinishSeason, archiveSeason, type SeasonFormInput } from "@/actions/seasons";
@@ -12,10 +12,14 @@ import {
   type InstitutionAffiliationRule,
   type TeamRegistrationConfig,
   type StagePlan,
+  type SeasonStatus,
+  STAGE_TYPE_LABELS,
 } from "@/types/season";
 import { checkStandardMajorCapabilities } from "@/lib/competition/definition";
 import { createCompetitionTemplate, type CompetitionTemplate } from "@/lib/competition/templates";
 import { getSeasonEditCapabilities, type SeasonEditPhase } from "@/lib/seasons/edit";
+import { presentSeasonStatus } from "@/lib/seasons/presentation";
+import { formatCST } from "@/lib/utils/date";
 import { rankValues, RANK_LABELS } from "@/lib/validators/registration";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -84,6 +88,243 @@ function LifecycleExplanation({ phase }: { phase: SeasonEditPhase }) {
   return (
     <div data-testid="season-lifecycle-explanation" className="rounded-sm border border-[var(--color-border)] bg-[var(--color-panel-hi)] px-4 py-3 text-sm text-[var(--color-fg-mid)]">
       {lifecycleExplanation(phase)}
+    </div>
+  );
+}
+
+type CompetitivePlatformOption = SeasonFormProps["competitivePlatforms"][number];
+
+const EDIT_PHASE_LABELS: Record<SeasonEditPhase, string> = {
+  draft: "草稿编辑",
+  published_preopen: "已发布 · 报名未开放",
+  registration_opened: "报名已开放",
+  playing: "比赛进行中",
+  terminal: "赛事已结束",
+};
+
+function templateLabel(template: CompetitionTemplate): string {
+  return template === "major" ? "Major" : template === "rivals" ? "Rivals" : "自定义赛事";
+}
+
+function SettingsPanel({ id, label, children }: { id: string; label: string; children: ReactNode }) {
+  return (
+    <section id={id} aria-labelledby={`${id}-title`} className="scroll-mt-6">
+      <Panel label={<h2 id={`${id}-title`}>{label}</h2>} pad={20}>
+        {children}
+      </Panel>
+    </section>
+  );
+}
+
+function FrozenFact({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="rounded-sm border border-[var(--color-info-edge)] bg-[var(--color-info-soft)] px-4 py-3 text-sm" data-testid="season-frozen-fact">
+      <p className="font-medium text-[var(--color-fg)]">{title}</p>
+      <p className="mt-1 leading-6 text-[var(--color-fg-mid)]">{children}</p>
+    </div>
+  );
+}
+
+function formatDateFact(value: Date | null | undefined): string {
+  return value ? formatCST(value) : "未配置";
+}
+
+function formatPlatform(platform: string | undefined, platforms: readonly CompetitivePlatformOption[]): string {
+  if (!platform) return "未配置";
+  return platforms.find((item) => item.key === platform)?.displayName ?? platform;
+}
+
+function formatPlatformSeason(
+  platform: string | undefined,
+  seasonKey: string | undefined,
+  platforms: readonly CompetitivePlatformOption[],
+): string {
+  if (!seasonKey) return "未配置";
+  const season = platforms.find((item) => item.key === platform)?.seasons?.find((item) => item.seasonKey === seasonKey);
+  return season ? `${season.label}（${season.seasonKey}）` : seasonKey;
+}
+
+function LifecycleFacts({
+  status,
+  phase,
+  registrationOpenedAt,
+}: {
+  status: SeasonStatus;
+  phase: SeasonEditPhase;
+  registrationOpenedAt?: Date | null;
+}) {
+  return (
+    <dl className="mb-5 grid gap-3 border-b border-[var(--color-border)] pb-5 text-sm sm:grid-cols-3">
+      <div><dt className="text-[var(--color-fg-mid)]">当前状态</dt><dd className="mt-1 font-medium">{presentSeasonStatus(status).label}</dd></div>
+      <div><dt className="text-[var(--color-fg-mid)]">编辑阶段</dt><dd className="mt-1 font-medium">{EDIT_PHASE_LABELS[phase]}</dd></div>
+      <div><dt className="text-[var(--color-fg-mid)]">实际报名开放</dt><dd className="mt-1 font-medium">{formatDateFact(registrationOpenedAt)}</dd></div>
+    </dl>
+  );
+}
+
+function TeamQualificationSummary({ config }: { config: TeamRegistrationConfig }) {
+  return (
+    <div className="space-y-3">
+      <h3 className="text-sm font-medium">队伍教育与归属要求</h3>
+      <dl className="grid gap-3 text-sm sm:grid-cols-2">
+        <div><dt className="text-[var(--color-fg-mid)]">外校成员</dt><dd className="mt-1 font-medium">{config.allowExternal ? "允许" : "不允许"}</dd></div>
+        <div><dt className="text-[var(--color-fg-mid)]">毕业生计入本校</dt><dd className="mt-1 font-medium">{config.graduateCountsAsHome ? "计入" : "不计入"}</dd></div>
+        <div><dt className="text-[var(--color-fg-mid)]">本校成员下限</dt><dd className="mt-1 font-medium">{config.minHomeMembers} 人</dd></div>
+        <div><dt className="text-[var(--color-fg-mid)]">在读成员下限</dt><dd className="mt-1 font-medium">{config.minEnrolledMembers} 人</dd></div>
+        <div><dt className="text-[var(--color-fg-mid)]">外校成员上限</dt><dd className="mt-1 font-medium">{config.maxExternalMembers} 人</dd></div>
+      </dl>
+      <p className="text-xs leading-5 text-[var(--color-fg-dim)]">以上是当前赛事配置的 canonical 资格事实；实际报名、名单与首发资格由对应 qualification owner 在服务端复核。</p>
+    </div>
+  );
+}
+
+function TeamRegistrationSummary({ config }: { config: TeamRegistrationConfig }) {
+  return (
+    <div className="mt-5 space-y-3 border-t border-[var(--color-border)] pt-5">
+      <h3 className="text-sm font-medium">队伍报名与名单事实</h3>
+      <dl className="grid gap-3 text-sm sm:grid-cols-2">
+        <div><dt className="text-[var(--color-fg-mid)]">队长可转让</dt><dd className="mt-1 font-medium">{config.captainCanTransfer ? "允许" : "不允许"}</dd></div>
+        <div><dt className="text-[var(--color-fg-mid)]">队长可移除成员</dt><dd className="mt-1 font-medium">{config.captainCanKick ? "允许" : "不允许"}</dd></div>
+        <div><dt className="text-[var(--color-fg-mid)]">队伍名唯一</dt><dd className="mt-1 font-medium">{config.requireUniqueTeamName ? "要求" : "不要求"}</dd></div>
+        <div><dt className="text-[var(--color-fg-mid)]">队伍 Logo</dt><dd className="mt-1 font-medium">{config.requireTeamLogo ? "要求" : "不要求"}</dd></div>
+        <div><dt className="text-[var(--color-fg-mid)]">报名后锁定名单</dt><dd className="mt-1 font-medium">{config.lockAfterRegistration ? "是" : "否"}</dd></div>
+        <div><dt className="text-[var(--color-fg-mid)]">位置要求</dt><dd className="mt-1 font-medium">{config.requirePositions ? `每位置最多 ${config.maxPerPositionPerTeam} 人` : "无额外位置要求"}</dd></div>
+      </dl>
+      <p className="text-xs leading-5 text-[var(--color-fg-dim)]">这些是当前赛事保存的 roster/registration canonical facts；内置赛事由 template owner 固定。</p>
+    </div>
+  );
+}
+
+function SoloQualificationSummary({
+  allowedPlayerTypes,
+  currentMin,
+  peakMin,
+  maxPerPosition,
+  screenshotCount,
+}: {
+  allowedPlayerTypes: readonly PlayerType[];
+  currentMin: string;
+  peakMin: string;
+  maxPerPosition: number;
+  screenshotCount: number;
+}) {
+  const formatRank = (value: string) => {
+    if (value === NO_RANK) return "无门槛";
+    return value in RANK_LABELS ? RANK_LABELS[value as keyof typeof RANK_LABELS] : value;
+  };
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-sm font-medium">个人报名资格</h3>
+      <dl className="grid gap-3 text-sm sm:grid-cols-2">
+        <div><dt className="text-[var(--color-fg-mid)]">允许身份</dt><dd className="mt-1 font-medium">{allowedPlayerTypes.map((type) => PLAYER_TYPE_LABELS[type]).join("、")}</dd></div>
+        <div><dt className="text-[var(--color-fg-mid)]">当前段位门槛</dt><dd className="mt-1 font-medium">{formatRank(currentMin)}</dd></div>
+        <div><dt className="text-[var(--color-fg-mid)]">历史段位门槛</dt><dd className="mt-1 font-medium">{formatRank(peakMin)}</dd></div>
+        <div><dt className="text-[var(--color-fg-mid)]">每位置上限</dt><dd className="mt-1 font-medium">{maxPerPosition} 人</dd></div>
+        <div><dt className="text-[var(--color-fg-mid)]">截图链接数量</dt><dd className="mt-1 font-medium">{screenshotCount}</dd></div>
+      </dl>
+      <p className="text-xs leading-5 text-[var(--color-fg-dim)]">这里展示当前赛事保存的 canonical registrationConfig；报名时由服务端 qualification owner 复核。</p>
+    </div>
+  );
+}
+
+function AffiliationRulesSummary({ rules }: { rules: readonly InstitutionAffiliationRule[] }) {
+  return (
+    <div className="space-y-3">
+      <h3 className="text-sm font-medium">学校归属规则</h3>
+      {rules.length === 0 ? (
+        <p className="text-sm text-[var(--color-fg-mid)]">当前没有额外的学校归属规则。</p>
+      ) : (
+        <ul className="space-y-2 text-sm">
+          {rules.map((rule) => (
+            <li key={`${rule.institutionCode}-${rule.minRosterMembers}-${rule.minStartingMembers}`} className="rounded-sm border border-[var(--color-border)] px-3 py-2.5">
+              <span className="font-medium">机构 {rule.institutionCode}</span>
+              <span className="mt-1 block text-[var(--color-fg-mid)]">
+                {rule.eligibleAcademicStatuses.includes("enrolled") ? "在读" : ""}
+                {rule.eligibleAcademicStatuses.includes("enrolled") && rule.eligibleAcademicStatuses.includes("graduated") ? " / " : ""}
+                {rule.eligibleAcademicStatuses.includes("graduated") ? "毕业" : ""}
+                · 名单至少 {rule.minRosterMembers} 人 · 预定首发至少 {rule.minStartingMembers} 人
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="text-xs leading-5 text-[var(--color-fg-dim)]">这里仅展示赛事保存的 canonical affiliation rule，不在页面复制 qualification evaluator。</p>
+    </div>
+  );
+}
+
+function CompetitiveReferenceSummary({
+  config,
+  platforms,
+  frozen,
+}: {
+  config: TeamRegistrationConfig;
+  platforms: readonly CompetitivePlatformOption[];
+  frozen: boolean;
+}) {
+  const profile = config.competitiveProfile;
+  if (!config.requireCompetitiveProfile || !profile) {
+    return <p className="text-sm text-[var(--color-fg-mid)]">当前赛事未启用队伍竞技档案要求；报名资格不会从这里推断竞技事实。</p>;
+  }
+
+  const evidencePolicy = profile.evidencePolicy;
+  const policyVersion = profile.conversionPolicyVersion;
+  const policyId = profile.conversionPolicyId;
+  const sourcePlatform = profile.fallbackConversion?.sourcePlatform === "fivee" || profile.platform === "perfect_world" ? "5E" : "平台换算策略";
+  const primaryPlatform = formatPlatform(profile.platform, platforms);
+  const currentSeason = formatPlatformSeason(profile.platform, profile.currentSeasonKey, platforms);
+  const previousSeason = formatPlatformSeason(profile.platform, profile.previousSeasonKey, platforms);
+  const referenceSeason = formatPlatformSeason(profile.platform, evidencePolicy?.referenceSeasonKey ?? profile.previousSeasonKey, platforms);
+  const recentSeasons = (evidencePolicy?.recentSeasonKeys ?? [profile.previousSeasonKey, profile.currentSeasonKey])
+    .filter(Boolean)
+    .map((key) => formatPlatformSeason(profile.platform, key, platforms));
+
+  return (
+    <div className="space-y-4">
+      <dl className="grid gap-3 text-sm sm:grid-cols-2">
+        <div><dt className="text-[var(--color-fg-mid)]">主平台</dt><dd className="mt-1 font-medium">{primaryPlatform}</dd></div>
+        <div><dt className="text-[var(--color-fg-mid)]">当前平台赛季</dt><dd className="mt-1 font-medium">{currentSeason}</dd></div>
+        <div><dt className="text-[var(--color-fg-mid)]">上一平台赛季</dt><dd className="mt-1 font-medium">{previousSeason}</dd></div>
+        <div><dt className="text-[var(--color-fg-mid)]">历史参考赛季（20%）</dt><dd className="mt-1 font-medium">{referenceSeason}</dd></div>
+        <div className="sm:col-span-2"><dt className="text-[var(--color-fg-mid)]">近期竞技事实（30%）</dt><dd className="mt-1 font-medium">{recentSeasons.length > 0 ? recentSeasons.join("、") : "未配置"}</dd></div>
+        <div><dt className="text-[var(--color-fg-mid)]">冻结段位顺序</dt><dd className="mt-1 font-medium">{profile.rankOrder.length > 0 ? `${profile.rankOrder.length} 个段位` : "未配置"}</dd></div>
+        <div><dt className="text-[var(--color-fg-mid)]">外校实力星差上限</dt><dd className="mt-1 font-medium">{profile.externalStrengthMaxStarGap ?? 3} 星</dd></div>
+      </dl>
+
+      {policyVersion || policyId || profile.fallbackConversion ? (
+        <FrozenFact title={`${sourcePlatform} → ${primaryPlatform} · ConversionPolicy ${policyVersion ?? "未标记版本"}`}>
+          {frozen
+            ? "本届已在报名开放时冻结；全局 policy 后续变化不会影响本届。"
+            : "当前赛事绑定已批准的 policy identity；报名开放时会把对应赛季与换算快照一并冻结。"}
+          {policyId && <span className="mt-1 block font-mono text-xs">策略 ID：{policyId}</span>}
+          {profile.fallbackConversion?.version && <span className="mt-1 block text-xs">事件换算快照版本：{profile.fallbackConversion.version} · 来源：{sourcePlatform}</span>}
+        </FrozenFact>
+      ) : (
+        <FrozenFact title={`${sourcePlatform} → ${primaryPlatform} · ConversionPolicy 尚未绑定`}>
+          发布时由服务端选择已批准的 policy；这里不手工编辑 mapping 或 version。实际开放报名时，平台赛季、段位顺序与换算快照由 canonical lifecycle owner 冻结。
+        </FrozenFact>
+      )}
+    </div>
+  );
+}
+
+function StagePlanSummary({ stagePlan }: { stagePlan: StagePlan }) {
+  if (stagePlan.length === 0) return <p className="text-sm text-[var(--color-fg-mid)]">当前没有配置比赛阶段。</p>;
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-[var(--color-fg-dim)]">内置赛事的 StagePlan 由 template canonical owner 固定；此处只读展示阶段与赛制事实。</p>
+      <ol className="space-y-2">
+        {stagePlan.map((stage, index) => (
+          <li key={`${stage.key}-${index}`} className="rounded-sm border border-[var(--color-border)] px-3 py-2.5 text-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="font-medium">{stage.name}</span>
+              <span className="font-mono text-xs text-[var(--color-fg-mid)]">{STAGE_TYPE_LABELS[stage.type]} · {stage.teamCount} 队</span>
+            </div>
+            <p className="mt-1 text-[var(--color-fg-mid)]">主赛制 {stage.matchFormat?.toUpperCase() ?? "未配置"}{stage.finalFormat ? ` · 决赛 ${stage.finalFormat.toUpperCase()}` : ""}{stage.hasThirdPlaceMatch ? " · 含季军赛" : ""}</p>
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }
@@ -559,15 +800,14 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="space-y-3">
         <h1 className="text-2xl font-bold">{title}</h1>
         <LifecycleExplanation phase={editCapabilities.phase} />
       </div>
 
-      {/* Panel 1: 基础信息 */}
-      <Panel label="基础信息" pad={20}>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <SettingsPanel id="basic" label="基本信息">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <Label htmlFor="season-name">名称</Label>
             <Input id="season-name" value={name} onChange={(e) => setName(e.target.value)} />
@@ -575,7 +815,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
           <div>
             <Label htmlFor="season-slug">Slug</Label>
             <Input id="season-slug" value={slug} disabled={!editCapabilities.canEditSlug} onChange={(e) => { setSlugManuallyEdited(true); setSlug(e.target.value); }} />
-            <p className="text-xs text-[var(--color-fg-dim)] mt-1">{editCapabilities.canEditSlug ? "草稿可修改 slug；名称修改不会自动重写已有 URL 标识。" : "发布后锁定 URL 标识。"}</p>
+            <p className="mt-1 text-xs text-[var(--color-fg-dim)]">{editCapabilities.canEditSlug ? "草稿可修改 slug；名称修改不会自动重写已有 URL 标识。" : "发布后锁定 URL 标识。"}</p>
           </div>
           <div>
             <Label>赛事体系</Label>
@@ -592,7 +832,12 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
                 {pendingTemplate && <InlineConfirm title="切换赛事体系会覆盖当前赛制配置" sub="请确认后应用新的内置模板。" onCancel={() => setPendingTemplate(null)} onConfirm={() => { applyTemplate(pendingTemplate); setPendingTemplate(null); }} />}
               </>
             ) : (
-              <Input value={template === "major" ? "Major" : template === "rivals" ? "Rivals" : "自定义赛事"} disabled />
+              <Input value={templateLabel(template)} disabled />
+            )}
+            {!editCapabilities.canEditTemplate && (
+              <div className="mt-3">
+                <FrozenFact title={`赛事体系：${templateLabel(template)}`}>已发布后不可修改赛事体系与其 canonical 公开规则。</FrozenFact>
+              </div>
             )}
           </div>
           <div>
@@ -601,53 +846,41 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
           </div>
         </div>
         <SaveBtn />
-      </Panel>
+      </SettingsPanel>
 
-      {/* Panel 2: 时间设置 */}
-      <Panel label="时间设置" pad={20}>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <SettingsPanel id="lifecycle" label="时间与生命周期">
+        <LifecycleFacts status={initial?.status ?? "draft"} phase={editCapabilities.phase} registrationOpenedAt={initial?.registrationOpenedAt} />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <Label htmlFor="registration-opens-at">报名开放时间</Label>
             <Input id="registration-opens-at" type="datetime-local" value={registrationOpensAt ?? ""} disabled={!editCapabilities.canEditRegistrationOpenSchedule} onChange={(e) => setRegistrationOpensAt(e.target.value)} />
-            <p className="text-xs text-[var(--color-fg-dim)] mt-1">{editCapabilities.canEditRegistrationOpenSchedule ? "可稍后填写；留空表示赛事已公开但报名时间待定。" : "实际开放后锁定报名开放时间。"}</p>
+            <p className="mt-1 text-xs text-[var(--color-fg-dim)]">{editCapabilities.canEditRegistrationOpenSchedule ? "可稍后填写；留空表示赛事已公开但报名时间待定。" : "实际开放后锁定报名开放时间。"}</p>
           </div>
           <div>
             <Label htmlFor="registration-closes-at">报名截止时间</Label>
             <Input id="registration-closes-at" type="datetime-local" value={registrationClosesAt ?? ""} disabled={!editCapabilities.canEditRegistrationDeadlines} onChange={(e) => setRegistrationClosesAt(e.target.value)} />
-            <p className="text-xs text-[var(--color-fg-dim)] mt-1">截止后不再接受新的报名。{editCapabilities.canEditRegistrationDeadlines ? "比赛开始前仍可运营调整。" : "比赛开始后锁定。"}</p>
+            <p className="mt-1 text-xs text-[var(--color-fg-dim)]">截止后不再接受新的报名。{editCapabilities.canEditRegistrationDeadlines ? "比赛开始前仍可运营调整。" : "比赛开始后锁定。"}</p>
           </div>
           <div>
             <Label htmlFor="roster-change-closes-at">名单调整截止时间</Label>
             <Input id="roster-change-closes-at" type="datetime-local" value={rosterChangeClosesAt ?? ""} disabled={!editCapabilities.canEditRegistrationDeadlines} onChange={(e) => setRosterChangeClosesAt(e.target.value)} />
-            <p className="text-xs text-[var(--color-fg-dim)] mt-1">已报名队伍可在此之前自行调整本届名单；留空时回退到报名截止时间。{editCapabilities.canEditRegistrationDeadlines ? "比赛开始前仍可运营调整。" : "比赛开始后锁定。"}</p>
+            <p className="mt-1 text-xs text-[var(--color-fg-dim)]">已报名队伍可在此之前自行调整本届名单；留空时回退到报名截止时间。{editCapabilities.canEditRegistrationDeadlines ? "比赛开始前仍可运营调整。" : "比赛开始后锁定。"}</p>
           </div>
           <div>
             <Label htmlFor="end-at">赛季结束时间</Label>
             <Input id="end-at" type="datetime-local" value={endAt ?? ""} onChange={(e) => setEndAt(e.target.value)} />
+            <p className="mt-1 text-xs text-[var(--color-fg-dim)]">仅作为赛事 metadata 与赛后收尾参考，不替代生命周期 transition owner。</p>
           </div>
         </div>
+        <div className="mt-5 flex flex-wrap items-center justify-end gap-3 border-t border-[var(--color-border)] pt-4">
+          {initial?.status === "draft" && <Button type="button" variant="outline" disabled={isPending} onClick={() => setPublishConfirmationOpen(true)}>发布赛季</Button>}
+          {initial?.status === "registration" && !initial.registrationOpenedAt && <Button type="button" disabled={isPending} onClick={handleOpenRegistration}>立即开放报名</Button>}
+        </div>
         <SaveBtn />
-      </Panel>
+      </SettingsPanel>
 
-      <Panel label="功能" pad={20}>
-        <label className="flex items-start gap-2 text-sm">
-          <input
-            type="checkbox"
-            aria-label="社区奖"
-            checked={hasCommunityAwards}
-            disabled={!editCapabilities.canEditPublicRules}
-            onChange={(e) => setHasCommunityAwards(e.target.checked)}
-          />
-          <span>
-            <span className="font-medium">社区奖</span>
-            <span className="mt-1 block text-xs text-[var(--color-fg-dim)]">默认启用；发布后按赛事公开规则锁定。关闭后公开页、后台入口和社区奖操作均不可用。</span>
-          </span>
-        </label>
-        <SaveBtn />
-      </Panel>
-
-      <Panel label="参赛与队伍设置" pad={20}>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <SettingsPanel id="registration" label="报名与名单">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <Label>报名模式</Label>
             <Select value={registrationMode} disabled={!editCapabilities.canEditPublicRules || isBuiltIn} onValueChange={(v) => handleRegistrationModeChange(v as "solo" | "team")}>
@@ -664,127 +897,136 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
           <div><Label htmlFor="starter-count">首发人数</Label><Input id="starter-count" type="number" min={1} value={starterCount} disabled={!editCapabilities.canEditPublicRules || isBuiltIn} onChange={(e) => setStarterCount(Number(e.target.value))} /></div>
         </div>
         {isBuiltIn && registrationMode === "team" && (
-          <p className="text-xs text-[var(--color-fg-dim)] mt-4">内置赛事体系的报名模式、队伍规模与首发人数由标准规则固定。</p>
+          <>
+            <FrozenFact title={`${templateLabel(template)} · 队伍报名规则`}>
+              报名模式、队伍规模和首发人数由当前赛事 template canonical owner 固定；页面不会让客户端绕过标准规则提交另一套值。
+            </FrozenFact>
+            <TeamRegistrationSummary config={teamConfig} />
+          </>
         )}
         {registrationMode === "solo" && (
-          <div className="flex flex-wrap gap-4 text-sm mt-4">
+          <div className="mt-4 flex flex-wrap gap-4 text-sm">
             <label className="flex items-center gap-2"><input type="checkbox" checked={hasCaptainVoting} disabled={!editCapabilities.canEditPublicRules || isBuiltIn} onChange={(e) => setHasCaptainVoting(e.target.checked)} />队长投票</label>
             <label className="flex items-center gap-2"><input type="checkbox" checked={hasDraft} disabled={!editCapabilities.canEditPublicRules || isBuiltIn} onChange={(e) => setHasDraft(e.target.checked)} />蛇形选秀</label>
           </div>
         )}
+        {registrationMode === "team" && template === "custom" && (
+          <div className="mt-5 border-t border-[var(--color-border)] pt-5">
+            <TeamConfigForm view="team" value={teamConfig} maxTeamSize={maxTeamSize} competitivePlatforms={competitivePlatforms} disabled={!editCapabilities.canEditPublicRules} onChange={setTeamConfig} />
+          </div>
+        )}
         <SaveBtn />
-      </Panel>
+      </SettingsPanel>
 
-      {/* Panel 4: 比赛图池 (built-in solo) / 报名规则 (custom solo) / 队伍报名配置 (custom team) */}
-      {registrationMode === "solo" && isBuiltIn && (
-        <Panel label="比赛图池" pad={20}>
+      <SettingsPanel id="qualification" label="资格规则">
+        {registrationMode === "solo" && !isBuiltIn ? (
+          <div className="space-y-5">
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium">个人报名资格</h3>
+              <div className="flex flex-wrap gap-4 text-sm">
+                {PLAYER_TYPES.map((type) => (
+                  <label key={type} className="flex items-center gap-2">
+                    <input type="checkbox" checked={allowedPlayerTypes.includes(type)} disabled={!editCapabilities.canEditPublicRules} onChange={() => togglePlayerType(type)} />
+                    {PLAYER_TYPE_LABELS[type]}
+                  </label>
+                ))}
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <Label>当前段位门槛</Label>
+                  <Select disabled={!editCapabilities.canEditPublicRules} value={currentMin} onValueChange={setCurrentMin}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value={NO_RANK}>无门槛</SelectItem>{rankValues.map((rank) => <SelectItem key={rank} value={rank}>{RANK_LABELS[rank]}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>历史段位门槛</Label>
+                  <Select disabled={!editCapabilities.canEditPublicRules} value={peakMin} onValueChange={setPeakMin}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value={NO_RANK}>无门槛</SelectItem>{rankValues.map((rank) => <SelectItem key={rank} value={rank}>{RANK_LABELS[rank]}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div><Label htmlFor="max-position">每位置上限</Label><Input id="max-position" type="number" min={1} max={50} value={maxPerPosition} disabled={!editCapabilities.canEditPublicRules} onChange={(e) => setMaxPerPosition(Number(e.target.value))} /></div>
+                <div><Label htmlFor="screenshot-count">截图链接数量</Label><Input id="screenshot-count" type="number" min={1} max={5} value={screenshotCount} disabled={!editCapabilities.canEditPublicRules} onChange={(e) => setScreenshotCount(Number(e.target.value))} /></div>
+              </div>
+            </div>
+            <AffiliationRulesSummary rules={affiliationRules} />
+          </div>
+        ) : (
+          <div className="space-y-5">
+            {registrationMode === "solo" && (
+              <SoloQualificationSummary
+                allowedPlayerTypes={allowedPlayerTypes}
+                currentMin={currentMin}
+                peakMin={peakMin}
+                maxPerPosition={maxPerPosition}
+                screenshotCount={screenshotCount}
+              />
+            )}
+            {registrationMode === "team" && <TeamQualificationSummary config={teamConfig} />}
+            <AffiliationRulesSummary rules={affiliationRules} />
+          </div>
+        )}
+        <SaveBtn />
+      </SettingsPanel>
+
+      <SettingsPanel id="format" label="赛制与地图">
+        <div className="space-y-5">
           <MapPoolEditor value={mapPool} disabled={!editCapabilities.canEditPublicRules} onChange={setMapPool} />
-          <SaveBtn />
-        </Panel>
-      )}
-      {registrationMode === "solo" && !isBuiltIn && (
-        <Panel label="报名规则" pad={20}>
-          <div className="flex flex-wrap gap-4 text-sm mb-4">
-            {PLAYER_TYPES.map((type) => (
-              <label key={type} className="flex items-center gap-2">
-                <input type="checkbox" checked={allowedPlayerTypes.includes(type)} disabled={!editCapabilities.canEditPublicRules} onChange={() => togglePlayerType(type)} />
-                {PLAYER_TYPE_LABELS[type]}
-              </label>
-            ))}
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <Label>当前段位门槛</Label>
-              <Select disabled={!editCapabilities.canEditPublicRules} value={currentMin} onValueChange={setCurrentMin}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NO_RANK}>无门槛</SelectItem>
-                  {rankValues.map((rank) => (<SelectItem key={rank} value={rank}>{RANK_LABELS[rank]}</SelectItem>))}
-                </SelectContent>
-              </Select>
+          {template === "custom" ? (
+            <div className="border-t border-[var(--color-border)] pt-5">
+              <h3 className="mb-3 text-sm font-medium">赛程阶段</h3>
+              <StagePlanEditor value={stagePlan} disabled={!editCapabilities.canEditPublicRules} onChange={setStagePlan} />
             </div>
-            <div>
-              <Label>历史段位门槛</Label>
-              <Select disabled={!editCapabilities.canEditPublicRules} value={peakMin} onValueChange={setPeakMin}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NO_RANK}>无门槛</SelectItem>
-                  {rankValues.map((rank) => (<SelectItem key={rank} value={rank}>{RANK_LABELS[rank]}</SelectItem>))}
-                </SelectContent>
-              </Select>
+          ) : (
+            <div className="border-t border-[var(--color-border)] pt-5">
+              <StagePlanSummary stagePlan={stagePlan} />
             </div>
-            <div><Label htmlFor="max-position">每位置上限</Label><Input id="max-position" type="number" min={1} max={50} value={maxPerPosition} disabled={!editCapabilities.canEditPublicRules} onChange={(e) => setMaxPerPosition(Number(e.target.value))} /></div>
-            <div><Label htmlFor="screenshot-count">截图链接数量</Label><Input id="screenshot-count" type="number" min={1} max={5} value={screenshotCount} disabled={!editCapabilities.canEditPublicRules} onChange={(e) => setScreenshotCount(Number(e.target.value))} /></div>
-            <div className="sm:col-span-2"><MapPoolEditor value={mapPool} disabled={!editCapabilities.canEditPublicRules} onChange={setMapPool} /></div>
-          </div>
-          <SaveBtn />
-        </Panel>
-      )}
-      {registrationMode === "team" && template === "custom" && (
-        <Panel label="队伍报名配置" pad={20}>
-          <TeamConfigForm value={teamConfig} maxTeamSize={maxTeamSize} competitivePlatforms={competitivePlatforms} disabled={!editCapabilities.canEditPublicRules} onChange={setTeamConfig} />
-          <SaveBtn />
-        </Panel>
-      )}
-      {registrationMode === "team" && template === "major" && (
-        <Panel label="5E 等效竞技资料" pad={20}>
-          <TeamConfigForm value={teamConfig} competitivePlatforms={competitivePlatforms} fallbackOnly disabled={!editCapabilities.canEditFallbackConversion} onChange={setTeamConfig} />
-          <SaveBtn />
-        </Panel>
-      )}
-
-      {registrationMode === "team" && <Panel label="比赛图池" pad={20}><MapPoolEditor value={mapPool} disabled={!editCapabilities.canEditPublicRules} onChange={setMapPool} /><SaveBtn /></Panel>}
-
-      {template === "custom" && <Panel label="赛程阶段" pad={20}>
-        <StagePlanEditor value={stagePlan} disabled={!editCapabilities.canEditPublicRules} onChange={setStagePlan} />
-        <SaveBtn />
-      </Panel>}
-
-      {/* 底部操作区（按赛季状态展示不同操作） */}
-      {initial?.status === "draft" && (
-        <div className="flex items-center justify-between gap-3 pt-2">
-          <Button type="button" variant="destructive" disabled={isPending} onClick={() => setDangerAction("delete")}>
-            删除赛季
-          </Button>
-          <Button type="button" variant="outline" disabled={isPending} onClick={() => setPublishConfirmationOpen(true)}>
-            发布赛季
-          </Button>
-        </div>
-      )}
-      {initial?.status === "registration" && (
-        <div className="flex items-center justify-end gap-3 pt-2">
-          {!initial.registrationOpenedAt && (
-            <Button type="button" disabled={isPending} onClick={handleOpenRegistration}>
-              立即开放报名
-            </Button>
           )}
-          <Button type="button" variant="outline" disabled={isPending} onClick={() => setDangerAction("revert-draft")}>
-            撤回至草稿
-          </Button>
         </div>
-      )}
-      {initial?.status === "voting" && (
-        <div className="flex items-center justify-end gap-3 pt-2">
-          <Button type="button" variant="outline" disabled={isPending} onClick={() => setDangerAction("revert-registration")}>
-            撤回至报名阶段
-          </Button>
+        <SaveBtn />
+      </SettingsPanel>
+
+      <SettingsPanel id="competitive" label="竞技参考">
+        {template === "custom" && registrationMode === "team" && !initial?.registrationOpenedAt ? (
+          <>
+            {!editCapabilities.canEditPublicRules && (
+              <div className="mb-4">
+                <FrozenFact title="竞技参考：已发布后不可修改">实际开放报名时由 canonical lifecycle owner 冻结平台赛季、段位顺序与策略快照。</FrozenFact>
+              </div>
+            )}
+            <TeamConfigForm view="competitive" value={teamConfig} competitivePlatforms={competitivePlatforms} disabled={!editCapabilities.canEditPublicRules} onChange={setTeamConfig} />
+          </>
+        ) : (
+          <CompetitiveReferenceSummary config={teamConfig} platforms={competitivePlatforms} frozen={Boolean(initial?.registrationOpenedAt)} />
+        )}
+        <SaveBtn />
+      </SettingsPanel>
+
+      <SettingsPanel id="features" label="功能">
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" aria-label="社区奖" checked={hasCommunityAwards} disabled={!editCapabilities.canEditPublicRules} onChange={(e) => setHasCommunityAwards(e.target.checked)} />
+          <span>
+            <span className="font-medium">社区奖</span>
+            <span className="mt-1 block text-xs text-[var(--color-fg-dim)]">默认启用；发布后按赛事公开规则锁定。关闭后公开页、后台入口和社区奖操作均不可用。</span>
+          </span>
+        </label>
+        {!editCapabilities.canEditPublicRules && <div className="mt-4"><FrozenFact title={`社区奖：${hasCommunityAwards ? "已启用" : "已关闭"}`}>社区奖是赛事公开 capability；发布后不能再改变，入口和服务端操作会继续消费这个事实。</FrozenFact></div>}
+        <SaveBtn />
+      </SettingsPanel>
+
+      <SettingsPanel id="danger" label="危险操作">
+        <div className="space-y-3">
+          {initial?.status === "draft" && <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-medium">删除草稿赛季</p><p className="text-sm text-[var(--color-fg-mid)]">只有尚未产生报名、队伍或赛程事实的草稿可以删除。</p></div><Button type="button" variant="destructive" disabled={isPending} onClick={() => setDangerAction("delete")}>删除赛季</Button></div>}
+          {initial?.status === "registration" && <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-medium">撤回至草稿</p><p className="text-sm text-[var(--color-fg-mid)]">撤回前由服务端检查赛事是否仍没有历史事实。</p></div><Button type="button" variant="outline" disabled={isPending} onClick={() => setDangerAction("revert-draft")}>撤回至草稿</Button></div>}
+          {initial?.status === "voting" && <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-medium">撤回至报名阶段</p><p className="text-sm text-[var(--color-fg-mid)]">该操作会清空投票事实，并继续由现有 transition owner 校验。</p></div><Button type="button" variant="outline" disabled={isPending} onClick={() => setDangerAction("revert-registration")}>撤回至报名阶段</Button></div>}
+          {initial?.status === "playing" && <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-medium">手动结束赛事</p><p className="text-sm text-[var(--color-fg-mid)]">仅用于无法自动结束的极端情况；结果与审计仍由服务端 owner 处理。</p></div><Button type="button" variant="outline" disabled={isPending} onClick={() => setDangerAction("finish")}>手动结束赛季</Button></div>}
+          {initial?.status === "finished" && <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-medium">归档赛事</p><p className="text-sm text-[var(--color-fg-mid)]">归档后赛事进入只读历史状态。</p></div><Button type="button" variant="outline" disabled={isPending} onClick={() => setDangerAction("archive")}>归档赛季</Button></div>}
+          {!(["draft", "registration", "voting", "playing", "finished"] as const).includes(initial?.status as never) && <p className="text-sm text-[var(--color-fg-mid)]">当前状态没有可用的危险操作。</p>}
         </div>
-      )}
-      {initial?.status === "playing" && (
-        <div className="flex items-center justify-end gap-3 pt-2">
-          <Button type="button" variant="outline" disabled={isPending} onClick={() => setDangerAction("finish")}>
-            手动结束赛季
-          </Button>
-        </div>
-      )}
-      {initial?.status === "finished" && (
-        <div className="flex items-center justify-end gap-3 pt-2">
-          <Button type="button" variant="outline" disabled={isPending} onClick={() => setDangerAction("archive")}>
-            归档赛季
-          </Button>
-        </div>
-      )}
-      <SeasonDangerConfirmation action={dangerAction} onOpenChange={(open) => { if (!open) setDangerAction(null); }} onConfirm={() => { const action = dangerAction; setDangerAction(null); if (action === "delete") handleDelete(); if (action === "revert-draft") handleRevertToDraft(); if (action === "revert-registration") handleRevertToRegistration(); if (action === "finish") handleForceFinish(); if (action === "archive") handleArchive(); }} />
+        <SeasonDangerConfirmation action={dangerAction} onOpenChange={(open) => { if (!open) setDangerAction(null); }} onConfirm={() => { const action = dangerAction; setDangerAction(null); if (action === "delete") handleDelete(); if (action === "revert-draft") handleRevertToDraft(); if (action === "revert-registration") handleRevertToRegistration(); if (action === "finish") handleForceFinish(); if (action === "archive") handleArchive(); }} />
+      </SettingsPanel>
+
       <AlertDialog open={publishConfirmationOpen} onOpenChange={setPublishConfirmationOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
