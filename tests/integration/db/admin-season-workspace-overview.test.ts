@@ -61,6 +61,12 @@ describe("admin season workspace overview PostgreSQL integration", () => {
         [ids.entry, ids.season, ids.user, ids.revision],
       );
       await client.query(
+        `INSERT INTO competition_entry_representative_changes (
+           entry_id, from_user_id, to_user_id, changed_by_actor_id
+         ) VALUES ($1, NULL, $2, 'admin-season-workspace-overview')`,
+        [ids.entry, ids.user],
+      );
+      await client.query(
         `INSERT INTO competition_entry_roster_revisions (
            id, entry_id, revision_number, status, created_by, approved_at
          ) VALUES ($1, $2, 1, 'approved', 'admin-season-workspace-overview', now())`,
@@ -119,6 +125,7 @@ describe("admin season workspace overview PostgreSQL integration", () => {
         await client.query("DELETE FROM event_roster_members WHERE id = $1", [ids.member]);
         await client.query("DELETE FROM event_rosters WHERE id = $1", [ids.eventRoster]);
         await client.query("DELETE FROM competition_entry_roster_revisions WHERE id = $1", [ids.revision]);
+        await client.query("DELETE FROM competition_entry_representative_changes WHERE entry_id = $1", [ids.entry]);
         await client.query("DELETE FROM competition_entries WHERE id = $1", [ids.entry]);
         await client.query("DELETE FROM seasons WHERE id = $1", [ids.season]);
         await client.query("DELETE FROM users WHERE id = $1", [ids.user]);
