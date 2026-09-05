@@ -24,7 +24,11 @@ const conversionPolicyMigration = readFileSync(
   join(root, "drizzle/migrations/0038_conversion_policies.sql"),
   "utf8",
 );
-const migration = `${terminalMigration}\n${restrictionOverrideMigration}\n${conversionPolicyMigration}`;
+const seedRecommendationSnapshotMigration = readFileSync(
+  join(root, "drizzle/migrations/0040_daily_wrecking_crew.sql"),
+  "utf8",
+);
+const migration = `${terminalMigration}\n${restrictionOverrideMigration}\n${conversionPolicyMigration}\n${seedRecommendationSnapshotMigration}`;
 
 function expectedFacts(): DatabaseAccessFacts[] {
   return DATABASE_ACCESS_MATRIX.map((entry) => ({
@@ -40,13 +44,13 @@ function expectedFacts(): DatabaseAccessFacts[] {
 describe("database access matrix", () => {
   it("classifies every current public application table and keeps the generated document aligned", () => {
     const snapshot = JSON.parse(
-      readFileSync(join(root, "drizzle/migrations/meta/0038_snapshot.json"), "utf8"),
+      readFileSync(join(root, "drizzle/migrations/meta/0041_snapshot.json"), "utf8"),
     ) as { tables: Record<string, unknown> };
     const snapshotTables = Object.keys(snapshot.tables)
       .map((table) => table.replace(/^public\./, ""))
       .sort();
 
-    expect(DATABASE_ACCESS_MATRIX).toHaveLength(66);
+    expect(DATABASE_ACCESS_MATRIX).toHaveLength(67);
     expect(new Set(DATABASE_ACCESS_TABLES).size).toBe(DATABASE_ACCESS_TABLES.length);
     expect(snapshotTables).toEqual([...DATABASE_ACCESS_TABLES].sort());
     expect(renderDatabaseAccessMatrixMarkdown()).toBe(
@@ -67,7 +71,13 @@ describe("database access matrix", () => {
     const publicationTables = [...(publicationTablesBlock ?? "").matchAll(/'([^']+)'/g)]
       .map((match) => match[1])
       .sort();
-    expect(publicationTables).toEqual([...DATABASE_ACCESS_TABLES].filter((table) => table !== "competition_entry_restriction_overrides" && table !== "conversion_policies").sort());
+    expect(publicationTables).toEqual(
+      [...DATABASE_ACCESS_TABLES]
+        .filter((table) =>
+          !["competition_entry_restriction_overrides", "conversion_policies", "major_seed_recommendation_snapshots"].includes(table),
+        )
+        .sort(),
+    );
     expect(restrictionOverrideMigration).toContain('ALTER TABLE "competition_entry_restriction_overrides" ENABLE ROW LEVEL SECURITY;');
     expect(restrictionOverrideMigration).toContain('REVOKE ALL PRIVILEGES ON TABLE "competition_entry_restriction_overrides" FROM anon, authenticated;');
     expect(conversionPolicyMigration).toContain('ALTER TABLE "conversion_policies" ENABLE ROW LEVEL SECURITY;');

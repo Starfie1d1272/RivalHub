@@ -10,3 +10,7 @@ CREATE TABLE "major_seed_recommendation_snapshots" (
 --> statement-breakpoint
 -- rivalhub:migration-risk: locking-reviewed reviewed the new season foreign key; this table is created empty and the constraint is validated during migration replay.
 ALTER TABLE "major_seed_recommendation_snapshots" ADD CONSTRAINT "major_seed_recommendation_snapshots_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id") ON DELETE no action ON UPDATE no action;
+--> statement-breakpoint
+ALTER TABLE "major_seed_recommendation_snapshots" ENABLE ROW LEVEL SECURITY;
+--> statement-breakpoint
+REVOKE ALL PRIVILEGES ON TABLE "major_seed_recommendation_snapshots" FROM anon, authenticated;
