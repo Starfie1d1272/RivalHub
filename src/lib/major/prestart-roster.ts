@@ -352,9 +352,6 @@ export async function saveMajorPrestartRosterInTx(
   if (formalMembers.length !== input.userIds.length) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "最终名单只能选择该正式队伍当前的成员。 ");
   }
-  if (season.starterCount > 0 && formalMembers.filter((member) => member.primary).length !== season.starterCount) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, `最终名单必须指定恰好 ${season.starterCount} 名主力。`);
-  }
   const verificationIds = await loadApprovedRosterEducation(tx, input.userIds, normalizeAffiliationRules(season.affiliationRules));
 
   await applyEventRosterMaterializationInTx(tx, {
