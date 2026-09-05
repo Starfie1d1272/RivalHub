@@ -1,5 +1,41 @@
 # Changelog
 
+## [2.4.0]
+
+RivalHub 2.4 聚焦赛事后台工作区与 Major 赛前运营成熟度：管理员现在可以从已批准报名一路完成正式参赛队、赛事名单、种子建议、最终种子、比赛工作台与赛后收尾；同时补齐跨生命周期社区奖能力和生产级可观测性基础。
+
+### Added
+
+#### Major 正式参赛与种子建议
+
+Major 赛前管理现在把已批准的 CompetitionEntry 作为正式参赛候选池，标准赛事容量直接来自 Major stage plan。管理员确定最终 entrant set 后，系统会按最新 approved roster revision 自动同步 EventRoster，并在统一冻结事务中形成正式参赛事实。
+
+正式名单冻结时新增不可变的 SeedRecommendationSnapshot。系统以五名预定主力的 canonical strength 简单平均生成可解释的种子建议，保留竞技证据、5E → Perfect 换算来源和 ConversionPolicy 版本；完全相同的参考值保持系统并列。最终 1–32 seed 仍由赛委会人工确认，偏离系统建议时记录理由并进入审计，开赛 readiness 会验证 entrant、EventRoster、snapshot 与最终种子的一致性。
+
+#### 社区奖赛事能力
+
+社区奖成为正式赛事 capability：新赛事默认启用，可在草稿阶段关闭，发布后随公开赛事规则冻结。关闭时公开页面、后台入口与服务端 mutation 会同时 fail closed；启用时继续覆盖赛前征集审核、比赛期间候选证据与赛后结奖，而不是被误归入单一赛后模块。
+
+### Changed
+
+#### 管理后台与单届赛事工作区
+
+全局后台改为按赛事生命周期组织目录，并按真实管理员权限展示用户与权限、教育认证、竞技平台、审计和系统状态等入口。公共首页的主赛事也改为稳定的 presentation selector，不再让已经结束的旧赛事因为创建顺序继续占据主位。
+
+单届赛事后台收口为总览、报名、赛前、比赛、社区奖（如启用）和赛后等稳定工作流。总览只展示 lifecycle、关键事实、blocker 与下一步；赛事设置按基本信息、时间与生命周期、报名与名单、资格、赛制与地图、竞技参考、功能和危险操作分区，并直接展示被冻结的 canonical 事实与原因。
+
+#### 比赛运营工作台
+
+管理端比赛页拆分为轻量赛事比赛总览与 `/admin/{seasonSlug}/matches/{matchId}` 单场工作台。总览聚焦阶段、积分、赛程和批量运营；实际首发、BP / 地图、结果、赛后资料、更正与恢复操作集中在单场上下文中，并继续复用既有 match、roster、audit 与 observability owner。
+
+### Reliability & Operations
+
+应用建立 server-side structured observability、OpenTelemetry tracing、统一错误分类与敏感字段治理，并接入 Better Stack Preview / Production 配置 contract。运行日志与业务审计保持独立；telemetry sink 失败不会成为核心业务失败原因。Better Stack 的真实 Production trace / alert acceptance 在本版本部署后继续按 #424 验收，不在 release note 中提前宣称完成。
+
+仓库发布模型已经收敛为 single-trunk + immutable tag：`main` 是持续可发布主干，只有 `vX.Y.Z` tag 触发受保护的生产 migration、verify、精确 Vercel Production 部署、smoke 与 GitHub Release。工程文档同时整理为按任务进入的 operations 指南。
+
+本版本包含两条新的 forward migration：`0039_clumsy_doctor_octopus` 增加赛事社区奖 capability，`0040_major_seed_recommendation_snapshot` 保存 Major 不可变种子建议快照与相关赛前状态。生产升级继续只通过 `v2.4.0` tag 触发标准 release workflow。
+
 ## [2.3.0]
 
 RivalHub 2.3 聚焦赛事事实、竞技换算、个人资料与邀请流程的统一语义，并补全认证和外链的安全边界。
@@ -487,34 +523,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **评分与 demo 解析模块迁移至外部包**：删除本地 `src/lib/rating/{rr,prism,types,weights}` 与 `src/lib/demo/{parse-package,schemas}`，评分实现改从 `@rivalhub/rival-rating` 导入、demo 解析改从 `cs2-demo-format` 导入，核心仓库不再维护这部分实现，权重/解析逻辑更新走对应外部仓库打 tag → `pnpm update` 流程
+- **评分与 demo 解析模块迁移至外部包**：评分计算逻辑（RR 标量 + PRISM 八维画像）独立为 `github:Starfie1d1272/rival-rating`，`src/lib/rating/index.ts` 统一入口，权重更新无需改动 RivalHub 核心代码
 - **默认权重 JSON 直引**：`@rivalhub/rival-rating` 增加 `weights/*` 到 exports map，`src/lib/rating/index.ts` 直接 import `rr-v1.json` / `prism-v1.json`，规避上游 ESM `with { type: "json" }` 兼容问题
-
-### Added
-
 - **校准数据导出脚本**：`scripts/calibration/export-indicators.ts` 读取 demo ZIP 解析并导出 RRIndicators（player-map / player-season / parse-report），供 rival-rating 做数据 QA 与权重校准
-
-### Fixed
-
-- **排行榜多列排序失效**：Advanced / Demo 视图下多列排序未生效
-- **经济类型 `"full"` 漏计**：`recomputeSeasonRatings` 未将 `"full"` 归入 fullBuyRounds，导致 RR 重算 fullBuy 统计偏低
 
 ## [1.28.2] - 2026-05-30
 
 ### Added
 
 - **接入 @rivalhub/rival-rating 外部仓库**：评分计算逻辑（RR 标量 + PRISM 八维画像）独立为 `github:Starfie1d1272/rival-rating`，`src/lib/rating/index.ts` 统一入口，权重更新无需改动 RivalHub 核心代码
-- **MatchRadarSection 双 Tab 组件**：赛前能力雷达支持 PRISM 八维 / 六维 Tab 切换，不再互斥回退
 
 ### Fixed
 
 - **RR 重算数据分裂**：多 steamId64 指向同一 userId 时，`recomputeSeasonRatings` 按 steamId64 分组导致数据被拆成多份各自评分，修复为按 userId 合并所有 steam 数据后统一计算
-- **选手页 500 错误**：`getOcrAveragesBySeason` 查询 `SELECT seasons.id` 但未 JOIN `seasons` 表，Drizzle 报 `seasons is not part of the query`，改为 `matches.seasonId`
-- **赛前能力雷达修复**：六维数据源从 starters 改为全队成员，修复无 roster 时只显示一队；八维/六维条件互斥改为双 Tab
-- **排行榜 Rating Pro 排序乱序**：ORDER BY `avg(rating_pro)` 对 demo 源为 NULL 导致排序失效，改为 `COALESCE(avg(...), min(ocr.avg_rating_ocr))` 与 SELECT 对齐
-- **Demo 导入 NaN 全链路修复**：JSON.parse 前清洗 NaN/Infinity、vec3 Zod schema 允许 null 坐标、DB 兜底
-- **force 导入模式 DELETE ANY(array) 语法错误**：`= ANY(ARRAY[...])` → `sql.join` 避免 Postgres malformed array literal
-- **min(uuid) → min(uuid::text)**：Postgres 不支持 UUID 类型的 min() 聚合
 
 ## [1.28.1] - 2026-05-30
 
@@ -903,7 +924,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Bracket 晋级比赛漏创建**：`insertResolvedBracketMatches` 之前用 bracket participant ID 作为 draft_order 数组下标查队伍，两者顺序不一致导致映射错误、晋级比赛被静默跳过；改为通过 participant name → team name 查找，同时新增 `syncBracketMatches` action 及后台「修复 Bracket 缺失比赛」按钮供一次性补全历史遗漏
+- **Bracket 晋级比赛漏创建**：`insertResolvedBracketMatches` 之前用 bracket participant ID 作为 draft_order 数组下标查队伍，两者顺序不一致导致映射错误、晋级比赛被静默跳过；改为通过 participant name → team name查找，同时新增 `syncBracketMatches` action 及后台「修复 Bracket 缺失比赛」按钮供一次性补全历史遗漏
 - **OCR 超时**：`siliconflow.ts` 请求超时从 60s 延长至 180s，修复 Qwen3-VL-8B-Instruct 在高负载时处理大截图超时报错
 
 ## [1.23.0] - 2026-05-23
@@ -918,6 +939,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **逐图录入绑定 format**：`MapByMapInput` 改为在 BO3 / BO5 格式比赛进行时展示，不再限于淘汰赛阶段
 - **MapByMapInput UX**：BP 已记录选边时不再重复展示选边下拉框；比分输入框上方新增队伍名标签；决胜图选边标签统一为"{队伍名} 起始边"
 - **图三 OCR 过滤**：BO3 系列赛 2:0 结束后，BP 预占的第三图占位行不再出现在 OCR 录入面板
+
+### Fixed
+
+- **数据校验**：BP 保存后自动创建 match_maps 预占行；series result 按已完成地图推导，不再允许跳过必要 BP / map result owner。
 
 ## [1.22.1] - 2026-05-23
 
@@ -1204,7 +1229,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **admin 赛程**：`in_progress` 卡片左侧 3px accent 竖线标识；操作区改用 `<details>` 折叠，默认收起
 - `--color-fg-muted`（未定义 token）修复为 `--color-fg-dim`
 - admin 赛程 className 拼接改用 `cn()` 工具函数，消除无效 template literal
-- **全站 hardcoded Tailwind 颜色替换为 design tokens**：MatchTimeNegotiation/MatchRosterView/MatchRosterForm/TimeProposalHistory/SwissBracket/MatchStatusBadge/StandingsTable 等 30+ 组件统一使用 `--color-ok`/`--color-danger`/`--color-warn`/`--color-info` token 体系
+- **全站 hardcoded Tailwind 颜色替换为 design tokens**：MatchTimeNegotiation/MatchRosterView/TimeProposalHistory/SwissBracket/MatchStatusBadge/StandingsTable 等 30+ 组件统一使用 `--color-ok`/`--color-danger`/`--color-warn`/`--color-info` token 体系
 - `--color-yellow`/`--color-red`/`--color-surface-muted` 等无效 token 全部修复
 - CLAUDE.md 组件清单与实际文件同步，补充 `scripts/check-claude-md.sh` 校验脚本
 
@@ -1339,7 +1364,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **消除重复**：提取 SIDE_LABELS（4 处 →1）、getMaxMaps()（2 处 →1）、validateTeamMembers()（2 处 →1）
+- **消除重复**：提取 SIDE_LABELS（4 处 →1）、getMaxMaps()（2 处→1）、validateTeamMembers()（2 处→1）
 - **移除 orphan**：MatchDetail.tsx（已被内联 server component 替代）
 - **清理 JSX 注释**：移除叙述性注释
 
