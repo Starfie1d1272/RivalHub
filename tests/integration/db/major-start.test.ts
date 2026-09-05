@@ -1450,7 +1450,8 @@ async function exerciseStartFailureBoundaries(context: MajorLifecycleContext): P
         BEGIN RAISE EXCEPTION 'local major start rollback sentinel'; END;
         $$;
         CREATE TRIGGER fail_local_major_start_match BEFORE INSERT ON matches
-        FOR EACH ROW WHEN (NEW.ownership = 'major_stage') EXECUTE FUNCTION fail_local_major_start_match();
+        FOR EACH ROW WHEN (NEW.ownership = 'major_stage' AND NEW.season_id = '${rollback.seasonId}'::uuid)
+        EXECUTE FUNCTION fail_local_major_start_match();
       `);
       await context.database.transaction((tx) => startMajorInTransaction(tx, { seasonId: rollback.seasonId, actorId: "local-admin" }))
         .then(() => { throw new Error("预期启动事务因 sentinel 回滚，但操作成功。"); })
