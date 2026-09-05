@@ -1,7 +1,10 @@
 import React from "react";
 import Link from "next/link";
+import type { CompetitionTemplate } from "@/lib/competition/templates";
 
 export interface AdminExceptionSummaryData {
+  competitionTemplate: CompetitionTemplate;
+  registrationMode: "solo" | "team";
   pendingApplications: number;
   unresolvedPrestartIssues: number;
   unconfirmedEntrants: number;
@@ -12,12 +15,16 @@ export interface AdminExceptionSummaryData {
 
 export function AdminExceptionSummary({ seasonSlug, data }: { seasonSlug: string; data: AdminExceptionSummaryData }) {
   const items = [
-    { label: "待审核组队报名", value: data.pendingApplications, href: `/admin/${seasonSlug}/registrations` },
-    { label: "赛前待解决事项", value: data.unresolvedPrestartIssues, href: `/admin/${seasonSlug}` },
-    { label: "未确认参赛名单", value: data.unconfirmedEntrants, href: `/admin/${seasonSlug}` },
+    { label: data.registrationMode === "team" ? "待审核组队报名" : "待审核个人报名", value: data.pendingApplications, href: `/admin/${seasonSlug}/registrations` },
+    ...(data.competitionTemplate === "major" ? [
+      { label: "赛前待解决事项", value: data.unresolvedPrestartIssues, href: `/admin/${seasonSlug}/prestart` },
+      { label: "未确认参赛名单", value: data.unconfirmedEntrants, href: `/admin/${seasonSlug}/prestart` },
+    ] : []),
     { label: "已排期但名单未确认", value: data.scheduledMatchesWithoutConfirmedLineups, href: `/admin/${seasonSlug}/matches` },
-    { label: "最终结果待确认", value: data.finalResultPendingConfirmation ? 1 : 0, href: `/admin/${seasonSlug}` },
-    { label: "生效中的赛后裁定", value: data.activeAdjudications, href: `/admin/${seasonSlug}` },
+    ...(data.competitionTemplate === "major" ? [
+      { label: "最终结果待确认", value: data.finalResultPendingConfirmation ? 1 : 0, href: `/admin/${seasonSlug}/post-event` },
+    ] : []),
+    { label: "生效中的赛后裁定", value: data.activeAdjudications, href: `/admin/${seasonSlug}/post-event` },
   ];
 
   return (
@@ -28,7 +35,7 @@ export function AdminExceptionSummary({ seasonSlug, data }: { seasonSlug: string
       </div>
       <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
         {items.map((item) => (
-          <Link key={item.label} href={item.href as never} className="rounded-md border border-border px-3 py-2 transition-colors hover:bg-muted">
+          <Link key={item.label} href={item.href as never} className="rounded-md border border-border px-3 py-2 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]">
             <span className="block text-lg font-semibold tabular-nums">{item.value}</span>
             <span className="block text-xs text-muted-foreground">{item.label}</span>
           </Link>
