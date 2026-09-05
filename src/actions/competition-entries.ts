@@ -23,6 +23,7 @@ import {
   withdrawCompetitionEntryParticipationInTx,
 } from "@/lib/competition-entries/commands";
 import { fail, ok, type ActionResult } from "@/types/action";
+import { traceOperation } from "@/lib/observability/server";
 
 const uuid = z.string().uuid();
 function invalid(message: string): ActionResult<never> {
@@ -126,11 +127,15 @@ export async function submitCompetitionEntry(input: { entryId: string }): Promis
   if (!parsed.success) return invalid("参赛条目标识无效。");
   try {
     const session = await requireAuth();
-    const result = await db.transaction((tx) => submitCompetitionEntryInTx(tx, {
+    const result = await traceOperation("competition_entry.submit", {
+      scope: "competition_entry",
+      operation: "submit",
+      attributes: { "rivalhub.workflow": "competition_entry" },
+    }, () => db.transaction((tx) => submitCompetitionEntryInTx(tx, {
       entryId: parsed.data.entryId,
       userId: session.userId,
       actorId: auditActorId(session),
-    }));
+    })));
     revalidateEntry(result.seasonSlug, parsed.data.entryId);
     return ok(undefined);
   } catch (error) { return actionError("submitCompetitionEntry", error); }
@@ -143,12 +148,16 @@ export async function reviewCompetitionEntry(input: { entryId: string; decision:
     const existing = await db.query.competitionEntries.findFirst({ where: eq(competitionEntries.id, parsed.data.entryId), columns: { competitionId: true } });
     if (!existing) throw new AppError(ErrorCode.NOT_FOUND, "赛事参赛条目不存在。");
     const admin = await requireSeasonAdmin(existing.competitionId);
-    const result = await db.transaction((tx) => reviewCompetitionEntryInTx(tx, {
+    const result = await traceOperation("competition_entry.review", {
+      scope: "competition_entry",
+      operation: "review",
+      attributes: { "rivalhub.workflow": "competition_entry" },
+    }, () => db.transaction((tx) => reviewCompetitionEntryInTx(tx, {
       entryId: parsed.data.entryId,
       decision: parsed.data.decision,
       reason: parsed.data.reason,
       actorId: auditActorId(admin),
-    }));
+    })));
     revalidateEntry(result.seasonSlug, parsed.data.entryId);
     return ok(undefined);
   } catch (error) { return actionError("reviewCompetitionEntry", error); }

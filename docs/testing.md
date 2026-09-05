@@ -42,6 +42,10 @@ production smoke / real operations
 
 在 unit / PostgreSQL 证据之外运行 system/browser evidence。浏览器测试验证用户任务，不重复穷举 pure rule。
 
+### Runtime observability 变化
+
+结构化事件、错误分类、脱敏、trace 属性和 provider fetch contract 使用 `tests/unit/lib/observability/` 的 unit evidence；server/runtime source 的 `no-console` 边界由 ESLint 维护，client-only fallback 由对应组件行为和 lint 文件边界维护。涉及 DB、Auth 或 provider 的接入仍按对应真实环境证据补跑。
+
 ### Migration 变化
 
 除 real PostgreSQL replay 外，还需要执行 migration risk / release compatibility 检查。是否需要 staging rehearsal 取决于兼容性、锁、回填、远程状态和 release 风险。

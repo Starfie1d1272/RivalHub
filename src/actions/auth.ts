@@ -19,6 +19,8 @@ import {
   destroyUserSession,
 } from "@/lib/auth/session";
 import { claimAdminInviteInTx } from "@/lib/auth/admin-invites";
+import { providerFetch } from "@/lib/observability/fetch";
+import { captureException, logEvent, traceOperation } from "@/lib/observability/server";
 
 export async function loginWithPassword(
   email: string,
@@ -34,7 +36,11 @@ export async function loginWithPassword(
 
   try {
     const supabase = createServiceClient();
-    const { data, error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
+    const { data, error } = await traceOperation("provider.supabase.auth.sign_in", {
+      scope: "provider",
+      operation: "auth.sign_in",
+      provider: "supabase-auth",
+    }, () => supabase.auth.signInWithPassword({ email: normalizedEmail, password }));
 
     if (error) {
       if (authErrorCode(error) === "email_not_confirmed") {
@@ -104,11 +110,15 @@ export async function signUp(
       return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请完成验证码校验" });
     }
     try {
-      const verifyResult = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+      const verifyResult = await traceOperation("provider.turnstile.verify", {
+        scope: "provider",
+        operation: "turnstile.verify",
+        provider: "turnstile",
+      }, () => providerFetch("turnstile")("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ secret: secretKey, response: turnstileToken }),
-      });
+      }));
       const verifyData = await verifyResult.json() as {
         success: boolean;
         "error-codes"?: string[];
@@ -116,25 +126,43 @@ export async function signUp(
         action?: string;
       };
       if (!verifyData.success) {
-        console.error("[turnstile] siteverify failed", {
-          errorCodes: verifyData["error-codes"] ?? [],
-          hostname: verifyData.hostname ?? null,
-          action: verifyData.action ?? null,
+        logEvent({
+          level: "warn",
+          event: "auth.turnstile.rejected",
+          scope: "security",
+          operation: "signup.turnstile",
+          errorClass: "expected",
+          safeContext: {
+            errorCodes: (verifyData["error-codes"] ?? []).slice(0, 3),
+            hostname: verifyData.hostname,
+            action: verifyData.action,
+          },
         });
         return fail({ code: ErrorCode.VALIDATION_FAILED, message: "验证码校验失败，请刷新后重试" });
       }
-    } catch {
+    } catch (error) {
+      captureException("provider.turnstile.failure", error, {
+        scope: "provider",
+        operation: "turnstile.verify",
+        errorClass: "dependency",
+        retryable: true,
+        safeContext: { provider: "turnstile" },
+      });
       return fail({ code: ErrorCode.INTERNAL_ERROR, message: "验证服务暂不可用，请稍后重试" });
     }
   }
 
   try {
     const supabase = createPublicAuthClient();
-    const { error } = await supabase.auth.signUp({
+    const { error } = await traceOperation("provider.supabase.auth.sign_up", {
+      scope: "provider",
+      operation: "auth.sign_up",
+      provider: "supabase-auth",
+    }, () => supabase.auth.signUp({
       email: normalizedEmail,
       password,
       options: { emailRedirectTo: confirmationUrl("signup", next) },
-    });
+    }));
 
     if (error) {
       if (authErrorCode(error) === "over_email_send_rate_limit") {
@@ -159,11 +187,15 @@ export async function signUp(
 export async function resendSignupConfirmation(email: string, next?: string): Promise<ActionResult<void>> {
   if (!email || !email.includes("@")) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请输入有效的邮箱地址" });
   try {
-    const { error } = await createPublicAuthClient().auth.resend({
+    const { error } = await traceOperation("provider.supabase.auth.resend", {
+      scope: "provider",
+      operation: "auth.resend",
+      provider: "supabase-auth",
+    }, () => createPublicAuthClient().auth.resend({
       type: "signup",
       email: normalizeEmail(email),
       options: { emailRedirectTo: confirmationUrl("signup", next) },
-    });
+    }));
     if (error) return emailSendFailure(error, "验证邮件");
     return ok(undefined);
   } catch (e) { return actionError("resendSignupConfirmation", e); }
@@ -176,10 +208,14 @@ export async function resendCurrentEmailVerification(): Promise<ActionResult<voi
     const user = await db.query.users.findFirst({ where: eq(users.id, session.userId) });
     if (!user) return fail({ code: ErrorCode.UNAUTHORIZED, message: "账号不存在，请重新登录。" });
     if (user.emailVerifiedAt) return ok(undefined);
-    const { error } = await createServiceClient().auth.signInWithOtp({
+    const { error } = await traceOperation("provider.supabase.auth.reverify", {
+      scope: "provider",
+      operation: "auth.reverify",
+      provider: "supabase-auth",
+    }, () => createServiceClient().auth.signInWithOtp({
       email: user.email,
       options: { shouldCreateUser: false, emailRedirectTo: confirmationUrl("reverify") },
-    });
+    }));
     if (error) return emailSendFailure(error, "验证邮件");
     return ok(undefined);
   } catch (e) { return actionError("resendCurrentEmailVerification", e); }
@@ -210,9 +246,13 @@ export async function sendPasswordResetEmail(email: string): Promise<ActionResul
 
   try {
     const supabase = createServiceClient();
-    const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+    const { error } = await traceOperation("provider.supabase.auth.password_reset", {
+      scope: "provider",
+      operation: "auth.password_reset",
+      provider: "supabase-auth",
+    }, () => supabase.auth.resetPasswordForEmail(normalizedEmail, {
       redirectTo: new URL("/reset-password", process.env.NEXT_PUBLIC_APP_URL).toString(),
-    });
+    }));
 
     if (error) {
       // 不暴露邮箱是否存在（防枚举），但不能把真实的发信/配置失败伪装成成功。
@@ -230,9 +270,28 @@ function authErrorCode(error: unknown): string | null {
 }
 
 function emailSendFailure(error: unknown, emailKind: "验证邮件" | "重置邮件"): ActionResult<never> {
-  if (authErrorCode(error) === "over_email_send_rate_limit") {
+  const providerCode = authErrorCode(error);
+  if (providerCode === "over_email_send_rate_limit") {
+    logEvent({
+      level: "info",
+      event: "auth.mail.rate_limited",
+      scope: "provider",
+      operation: "auth.mail_send",
+      errorClass: "expected",
+      retryable: true,
+      safeContext: { provider: "supabase-auth", providerCode, kind: emailKind },
+    });
     return fail({ code: ErrorCode.EMAIL_SEND_RATE_LIMITED, message: "邮件发送过于频繁，请稍后再试。" });
   }
+  logEvent({
+    level: "error",
+    event: "auth.mail.provider_failure",
+    scope: "provider",
+    operation: "auth.mail_send",
+    errorClass: "dependency",
+    retryable: true,
+    safeContext: { provider: "supabase-auth", providerCode: providerCode ?? "unknown", kind: emailKind },
+  });
   return fail({ code: ErrorCode.INTERNAL_ERROR, message: `${emailKind}暂时无法发送，请稍后重试。` });
 }
 

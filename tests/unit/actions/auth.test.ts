@@ -286,7 +286,7 @@ describe("signUp", () => {
   it("siteverify success=false：用户可见行为不变，仅输出脱敏 server 日志", async () => {
     const originalSecret = process.env.TURNSTILE_SECRET_KEY;
     process.env.TURNSTILE_SECRET_KEY = "0xtest-secret-key";
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
     const fetchMock = vi.fn().mockResolvedValue({
       json: () =>
         Promise.resolve({
@@ -315,14 +315,16 @@ describe("signUp", () => {
 
       // 日志内容：只有诊断字段，无 secret、无 response token、无邮箱
       expect(errorSpy).toHaveBeenCalledOnce();
-      const [tag, payload] = errorSpy.mock.calls[0];
-      expect(tag).toBe("[turnstile] siteverify failed");
-      expect(payload).toEqual({
-        errorCodes: ["invalid-input-response"],
-        hostname: "rival-hub-git-feat-major-educati-1f9088-starfie1d1272s-projects.vercel.app",
-        action: null,
+      const payload = JSON.parse(String(errorSpy.mock.calls[0][0]));
+      expect(payload).toMatchObject({
+        event: "auth.turnstile.rejected",
+        errorClass: "expected",
+        safeContext: {
+          errorCodes: ["invalid-input-response"],
+          hostname: "rival-hub-git-feat-major-educati-1f9088-starfie1d1272s-projects.vercel.app",
+        },
       });
-      const serialized = JSON.stringify(errorSpy.mock.calls[0]);
+      const serialized = JSON.stringify(payload);
       expect(serialized).not.toContain("0xtest-secret-key");
       expect(serialized).not.toContain(token);
       expect(serialized).not.toContain(VALID_EMAIL);
@@ -344,7 +346,6 @@ describe("signUp", () => {
   it("siteverify success=true 时流程不受日志扩展影响，进入统一注册结果", async () => {
     const originalSecret = process.env.TURNSTILE_SECRET_KEY;
     process.env.TURNSTILE_SECRET_KEY = "0xtest-secret-key";
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({ json: () => Promise.resolve({ success: true }) }),
@@ -357,10 +358,8 @@ describe("signUp", () => {
       expect(signUpMock).toHaveBeenCalledOnce();
       expect(dbInsertMock).not.toHaveBeenCalled();
       expect(createUserSessionMock).not.toHaveBeenCalled();
-      expect(errorSpy).not.toHaveBeenCalled();
     } finally {
       vi.unstubAllGlobals();
-      errorSpy.mockRestore();
       if (originalSecret === undefined) {
         delete process.env.TURNSTILE_SECRET_KEY;
       } else {

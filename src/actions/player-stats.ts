@@ -13,6 +13,8 @@ import { eventRosterMembers, eventRosters } from "@/db/schema/competition-entrie
 import { ok, fail, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { actionError } from "@/lib/action-utils";
+import { isPgUniqueViolation } from "@/db/errors";
+import { captureException } from "@/lib/observability/server";
 import { MVP_DEADLINE_MS } from "@/lib/utils/date";
 import { extractScoreboardFromBase64 } from "@/lib/ocr";
 import type { PlayerRowOCR } from "@/lib/ocr";
@@ -100,7 +102,11 @@ export async function extractStatsFromScreenshot(
     if (e instanceof AppError) {
       return fail({ code: e.code, message: e.message });
     }
-    console.error("[extractStatsFromScreenshot]", e);
+    captureException("action.unexpected_error", e, {
+      scope: "action",
+      operation: "extractStatsFromScreenshot",
+      errorClass: "application",
+    });
     return fail({ code: ErrorCode.INTERNAL_ERROR, message: "OCR 识别失败，请检查截图格式后重试" });
   }
 }
@@ -236,7 +242,11 @@ export async function getMatchPlayerOptions(mapId: string): Promise<PlayerOption
       userId: p.userId,
       perfectName: p.perfectName ?? "(未填写昵称)",
     }));
-  } catch {
+  } catch (error) {
+    captureException("action.player_options_failure", error, {
+      scope: "action",
+      operation: "getMatchPlayerOptions",
+    });
     return [];
   }
 }
@@ -326,10 +336,14 @@ export async function castMatchMvpVote(
     return ok(undefined);
   } catch (e) {
     if (e instanceof AppError) return fail({ code: e.code, message: e.message });
-    if (e instanceof Error && e.message.includes("uniq_voter_per_match")) {
+    if (isPgUniqueViolation(e, "match_mvp_votes_match_id_voter_user_id_unique")) {
       return fail({ code: ErrorCode.VOTE_DUPLICATE, message: "您已为本场比赛投过 MVP 票" });
     }
-    console.error("[castMatchMvpVote]", e);
+    captureException("action.unexpected_error", e, {
+      scope: "action",
+      operation: "castMatchMvpVote",
+      errorClass: "application",
+    });
     return fail({ code: ErrorCode.INTERNAL_ERROR, message: ERROR_MESSAGES.INTERNAL_ERROR });
   }
 }
@@ -356,7 +370,11 @@ export async function ensureMvpWinner(matchId: string): Promise<string | null> {
 
     return winner.playerUserId;
   } catch (e) {
-    console.error("[ensureMvpWinner]", e);
+    captureException("action.background_failure", e, {
+      scope: "action",
+      operation: "ensureMvpWinner",
+      errorClass: "application",
+    });
     return null;
   }
 }

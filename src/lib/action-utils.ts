@@ -3,6 +3,7 @@ import "server-only";
 import { fail } from "@/types/action";
 import type { ActionResult } from "@/types/action";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
+import { captureException } from "@/lib/observability/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons, matches } from "@/db/schema";
@@ -15,8 +16,18 @@ export function failValidation(message: string): ActionResult<never> {
 }
 
 export function actionError(scope: string, e: unknown): ActionResult<never> {
-  if (e instanceof AppError) return fail({ code: e.code, message: e.message });
-  console.error(`[${scope}]`, e);
+  if (e instanceof AppError) {
+    if (e.code === ErrorCode.INTERNAL_ERROR) {
+      captureException("action.internal_error", e, {
+        scope: "action",
+        operation: scope,
+        errorClass: "application",
+        errorCode: e.code,
+      });
+    }
+    return fail({ code: e.code, message: e.message });
+  }
+  captureException("action.unexpected_error", e, { scope: "action", operation: scope });
   return fail({ code: ErrorCode.INTERNAL_ERROR, message: ERROR_MESSAGES.INTERNAL_ERROR });
 }
 

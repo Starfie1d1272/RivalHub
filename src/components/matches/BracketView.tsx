@@ -200,11 +200,13 @@ function computeSlotLabel(
 export function BracketView({ data, themeColor, matchNodeMap, seasonSlug }: BracketViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scriptReady, setScriptReady] = useState(false);
+  const [renderError, setRenderError] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
     if (!scriptReady || !window.bracketsViewer || data.stage.length === 0) return;
     if (data.match.length === 0) return;
+    setRenderError(false);
 
     // 注入中文 locale：把 BYE 翻译为 TBD，并将 origin hint 翻译为中文
     if (window.bracketsViewer.addLocale) {
@@ -219,7 +221,9 @@ export function BracketView({ data, themeColor, matchNodeMap, seasonSlug }: Brac
             "grand-final": "胜者组决赛胜者",
           },
         })
-        .catch(() => {});
+        .catch(() => {
+          console.warn("[RivalHub] bracket locale unavailable; using fallback labels.");
+        });
     }
 
     window.bracketsViewer
@@ -318,7 +322,10 @@ export function BracketView({ data, themeColor, matchNodeMap, seasonSlug }: Brac
           };
         }
       })
-      .catch(console.error);
+      .catch(() => {
+        setRenderError(true);
+        console.warn("[RivalHub] bracket rendering unavailable; showing fallback.");
+      });
   }, [scriptReady, data, matchNodeMap, seasonSlug, router]);
 
   if (data.stage.length === 0) {
@@ -337,6 +344,11 @@ export function BracketView({ data, themeColor, matchNodeMap, seasonSlug }: Brac
         onReady={() => setScriptReady(true)}
       />
       <div className="overflow-x-auto">
+        {renderError ? (
+          <p className="py-16 text-center text-[var(--color-fg-mid)]" role="status">
+            赛程暂时无法加载，请稍后重试
+          </p>
+        ) : null}
         <div
           id="bracket-container"
           className="brackets-viewer"

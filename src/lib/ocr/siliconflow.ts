@@ -1,6 +1,8 @@
 import "server-only";
 
 import { playerRowLenientSchema, type ScoreboardOCRResult, type OCRProvider, type PlayerRowOCR } from "./types";
+import { providerFetch } from "@/lib/observability/fetch";
+import { captureException, logEvent, traceOperation } from "@/lib/observability/server";
 
 const DEFAULT_API_URL = "https://api.siliconflow.cn/v1/chat/completions";
 const DEFAULT_MODEL = "Qwen/Qwen3-VL-8B-Instruct";
@@ -84,36 +86,85 @@ async function callAPI(params: CallParams) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 180000);
 
-  let response: Response;
-  try {
-    response = await fetch(params.apiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${params.apiKey}`,
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-  } finally {
-    clearTimeout(timer);
-  }
+  return traceOperation("provider.siliconflow.chat_completion", {
+    scope: "provider",
+    operation: "ocr.chat_completion",
+    provider: "siliconflow",
+    attributes: { "rivalhub.workflow": "ocr" },
+  }, async () => {
+    let response: Response;
+    try {
+      response = await providerFetch("siliconflow")(params.apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${params.apiKey}`,
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } catch (error) {
+      captureException("provider.siliconflow.request_failure", error, {
+        scope: "provider",
+        operation: "ocr.chat_completion",
+        provider: "siliconflow",
+        errorClass: "dependency",
+        retryable: true,
+        safeContext: { responseFormat: params.withResponseFormat, phase: "request" },
+      });
+      return { ok: false, status: 0 } as const;
+    } finally {
+      clearTimeout(timer);
+    }
 
-  console.error("[OCR] API 响应状态:", response.status);
+    if (!response.ok) {
+      await response.text().catch(() => undefined);
+      logEvent({
+        level: "error",
+        event: "provider.siliconflow.http_failure",
+        scope: "provider",
+        operation: "ocr.chat_completion",
+        errorClass: "dependency",
+        retryable: response.status >= 500 || response.status === 429,
+        safeContext: {
+          provider: "siliconflow",
+          httpStatus: response.status,
+          responseFormat: params.withResponseFormat,
+        },
+      });
+      return { ok: false, status: response.status } as const;
+    }
 
-  if (!response.ok) {
-    const text = await response.text();
-    console.error("[OCR] API 错误响应:", text.slice(0, 500));
-    return { ok: false, status: response.status, text } as const;
-  }
+    let json: unknown;
+    try {
+      json = await response.json();
+    } catch (error) {
+      captureException("provider.siliconflow.response_parse_failure", error, {
+        scope: "provider",
+        operation: "ocr.chat_completion",
+        provider: "siliconflow",
+        errorClass: "dependency",
+        retryable: true,
+        safeContext: { phase: "json_parse" },
+      });
+      throw new Error("SiliconFlow API 返回格式异常");
+    }
 
-  const json = await response.json();
-  const content = json?.choices?.[0]?.message?.content;
-  if (!content) {
-    console.error("[OCR] API 返回体无 content:", JSON.stringify(json).slice(0, 500));
-    throw new Error("SiliconFlow API 返回为空");
-  }
-  return { ok: true, content } as const;
+    const content = getResponseContent(json);
+    if (!content) {
+      logEvent({
+        level: "error",
+        event: "provider.siliconflow.empty_response",
+        scope: "provider",
+        operation: "ocr.chat_completion",
+        errorClass: "dependency",
+        retryable: true,
+        safeContext: { phase: "content", responseFormat: params.withResponseFormat },
+      });
+      throw new Error("SiliconFlow API 返回为空");
+    }
+    return { ok: true, content } as const;
+  });
 }
 
 async function extract(base64Image: string, mimeType: string): Promise<ScoreboardOCRResult> {
@@ -125,71 +176,132 @@ async function extract(base64Image: string, mimeType: string): Promise<Scoreboar
   const apiUrl = process.env.SILICONFLOW_API_URL || DEFAULT_API_URL;
   const model = process.env.SILICONFLOW_MODEL || DEFAULT_MODEL;
 
-  console.error("[OCR] 图片大小:", base64Image.length, "bytes, MIME:", mimeType, "模型:", model);
+  return traceOperation("provider.siliconflow.ocr", {
+    scope: "provider",
+    operation: "ocr.extract",
+    provider: "siliconflow",
+    attributes: { "rivalhub.workflow": "ocr" },
+  }, async () => {
+    logEvent({
+      level: "info",
+      event: "provider.siliconflow.request_started",
+      scope: "provider",
+      operation: "ocr.extract",
+      safeContext: { provider: "siliconflow", imageBytes: base64Image.length, mimeType, model },
+    });
 
-  const callParams: CallParams = { apiUrl, apiKey, model, base64Image, mimeType, withResponseFormat: true };
+    const callParams: CallParams = { apiUrl, apiKey, model, base64Image, mimeType, withResponseFormat: true };
 
-  let result = await callAPI(callParams);
+    let result = await callAPI(callParams);
 
-  if (!result.ok && result.status === 400) {
-    console.error("[OCR] response_format 被拒（400），回退无格式重试");
-    callParams.withResponseFormat = false;
-    result = await callAPI(callParams);
-  }
-
-  if (!result.ok) {
-    throw new Error(`SiliconFlow API 错误 ${result.status}: ${result.text}`);
-  }
-
-  console.error("[OCR] 模型原始返回:", result.content.slice(0, 2000));
-
-  let parsed: unknown;
-  try {
-    parsed = extractJson(result.content);
-    console.error("[OCR] JSON 解析成功，players 数量:", Array.isArray(parsed) ? parsed.length : (parsed as Record<string, unknown>)?.players ? ((parsed as Record<string, unknown>).players as unknown[]).length : "未知");
-  } catch (e) {
-    console.error("[OCR] JSON 解析失败:", e instanceof Error ? e.message : e);
-    console.error("[OCR] 原始内容前 2000 字符:", result.content.slice(0, 2000));
-    throw e;
-  }
-
-  let rawPlayers: unknown[];
-  try {
-    rawPlayers = extractPlayersArray(parsed) as unknown[];
-  } catch (e) {
-    console.error("[OCR] extractPlayersArray 失败:", e instanceof Error ? e.message : e);
-    console.error("[OCR] parsed 结构:", JSON.stringify(parsed).slice(0, 1000));
-    throw e;
-  }
-
-  console.error("[OCR] 提取到", rawPlayers.length, "行原始数据");
-
-  if (rawPlayers.length === 0) {
-    throw new Error("OCR 结果格式校验失败：players 数组为空");
-  }
-  if (rawPlayers.length > 20) {
-    rawPlayers = rawPlayers.slice(0, 20);
-  }
-
-  const validPlayers: PlayerRowOCR[] = [];
-  let idx = 0;
-  for (const row of rawPlayers) {
-    const r = playerRowLenientSchema.safeParse(row);
-    if (!r.success) {
-      console.warn(`[OCR] 第 ${idx + 1} 行无有效玩家名称，已丢弃`, r.error.issues.slice(0, 3));
-    } else {
-      validPlayers.push(r.data);
+    if (!result.ok && result.status === 400) {
+      logEvent({
+        level: "info",
+        event: "provider.siliconflow.response_format_fallback",
+        scope: "provider",
+        operation: "ocr.extract",
+        errorClass: "expected",
+        safeContext: { provider: "siliconflow", httpStatus: 400, reason: "response_format_rejected" },
+      });
+      callParams.withResponseFormat = false;
+      result = await callAPI(callParams);
     }
-    idx++;
-  }
 
-  console.error("[OCR] 验证通过", validPlayers.length, "行，丢弃", rawPlayers.length - validPlayers.length, "行");
+    if (!result.ok) {
+      throw new Error(result.status > 0 ? `SiliconFlow API 错误（HTTP ${result.status}）` : "SiliconFlow API 请求失败");
+    }
 
-  if (validPlayers.length === 0) {
-    throw new Error("OCR 结果格式校验失败：没有可用的玩家数据行");
-  }
+    let parsed: unknown;
+    try {
+      parsed = extractJson(result.content);
+    } catch (error) {
+      captureException("provider.siliconflow.response_invalid", error, {
+        scope: "provider",
+        operation: "ocr.parse",
+        provider: "siliconflow",
+        errorClass: "dependency",
+        retryable: true,
+        safeContext: { phase: "json_parse" },
+      });
+      throw error;
+    }
 
-  return { players: validPlayers };
+    const parsedCount = Array.isArray(parsed)
+      ? parsed.length
+      : parsed && typeof parsed === "object" && Array.isArray((parsed as Record<string, unknown>).players)
+        ? ((parsed as Record<string, unknown>).players as unknown[]).length
+        : 0;
+    logEvent({
+      level: "info",
+      event: "provider.siliconflow.response_received",
+      scope: "provider",
+      operation: "ocr.parse",
+      safeContext: { provider: "siliconflow", count: parsedCount, responseFormat: callParams.withResponseFormat },
+    });
+
+    let rawPlayers: unknown[];
+    try {
+      rawPlayers = extractPlayersArray(parsed) as unknown[];
+    } catch (error) {
+      captureException("provider.siliconflow.response_shape_invalid", error, {
+        scope: "provider",
+        operation: "ocr.parse",
+        provider: "siliconflow",
+        errorClass: "dependency",
+        retryable: true,
+        safeContext: { phase: "shape" },
+      });
+      throw error;
+    }
+
+    if (rawPlayers.length === 0) {
+      throw new Error("OCR 结果格式校验失败：players 数组为空");
+    }
+    if (rawPlayers.length > 20) rawPlayers = rawPlayers.slice(0, 20);
+
+    const validPlayers: PlayerRowOCR[] = [];
+    let idx = 0;
+    for (const row of rawPlayers) {
+      const r = playerRowLenientSchema.safeParse(row);
+      if (!r.success) {
+        logEvent({
+          level: "warn",
+          event: "provider.siliconflow.row_rejected",
+          scope: "provider",
+          operation: "ocr.validate",
+          errorClass: "expected",
+          safeContext: { provider: "siliconflow", rowIndex: idx + 1, reason: "invalid_player_row" },
+        });
+      } else {
+        validPlayers.push(r.data);
+      }
+      idx++;
+    }
+
+    logEvent({
+      level: "info",
+      event: "provider.siliconflow.result",
+      scope: "provider",
+      operation: "ocr.validate",
+      safeContext: { provider: "siliconflow", count: validPlayers.length, status: "completed" },
+    });
+
+    if (validPlayers.length === 0) {
+      throw new Error("OCR 结果格式校验失败：没有可用的玩家数据行");
+    }
+
+    return { players: validPlayers };
+  });
+}
+
+function getResponseContent(value: unknown): string | null {
+  if (!value || typeof value !== "object") return null;
+  const choices = (value as Record<string, unknown>).choices;
+  if (!Array.isArray(choices) || !choices[0] || typeof choices[0] !== "object") return null;
+  const message = (choices[0] as Record<string, unknown>).message;
+  if (!message || typeof message !== "object") return null;
+  const content = (message as Record<string, unknown>).content;
+  return typeof content === "string" && content.trim() ? content : null;
 }
 
 export const siliconflowProvider: OCRProvider = {

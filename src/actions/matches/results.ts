@@ -27,6 +27,7 @@ import {
   computeSeriesScoreAfterMap,
   validateMapScore,
 } from "@/lib/matches/result-rules";
+import { traceOperation } from "@/lib/observability/server";
 
 /**
  * 将 bracket 推进后解析出的新对阵批量写入 matches 表。
@@ -88,7 +89,11 @@ export async function updateMatchStatus(
     assertMatchTransition(match.status, nextStatus);
 
     const seasonForStatus = await getSeasonOrThrow(match.seasonId);
-    await db.transaction(async (tx) => {
+    await traceOperation("match.status.transition", {
+      scope: "match",
+      operation: "status.transition",
+      attributes: { "rivalhub.workflow": "match_runtime" },
+    }, () => db.transaction(async (tx) => {
       await applyMatchStatusTransitionInTx(tx, {
         matchId,
         nextStatus,
@@ -98,7 +103,7 @@ export async function updateMatchStatus(
       if (nextStatus === "cancelled") {
         await maybeFinishSeason(tx, match.seasonId);
       }
-    });
+    }));
 
     revalidateMatchPaths(seasonForStatus.slug, matchId);
 
@@ -149,7 +154,11 @@ export async function recordMapResult(
     // 所有写操作及其依赖的读操作放入同一事务，防止 TOCTOU
     let seriesFinished = false;
 
-    await db.transaction(async (tx) => {
+    await traceOperation("match.result.record", {
+      scope: "match",
+      operation: "result.record",
+      attributes: { "rivalhub.workflow": "match_runtime" },
+    }, () => db.transaction(async (tx) => {
       const locked = await lockMatchInTx(tx, matchId);
       if (locked.status !== "in_progress") throw new AppError(ErrorCode.MATCH_INVALID_TRANSITION, "比赛状态不允许录入地图结果");
       const hasVeto = await tx.query.matchVetoSteps.findFirst({ where: eq(matchVetoSteps.matchId, matchId), columns: { id: true } });
@@ -240,7 +249,7 @@ export async function recordMapResult(
         targetType: "match",
         meta: { mapOrder, mapName, scoreA, scoreB, seriesFinished },
       });
-    });
+    }));
 
     revalidateMatchPaths(season.slug, matchId);
 

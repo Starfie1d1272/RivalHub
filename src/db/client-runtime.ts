@@ -2,16 +2,27 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as schema from "./schema";
+// This module is reserved for Node application/CLI entrypoints; the relative
+// imports intentionally bypass the Next server-only facade.
+import { captureException, logEvent } from "../lib/observability/logger";
+import { traceOperation } from "../lib/observability/tracing";
 
 function createPool(): Pool {
   const connectionString = requireDatabaseUrl();
   const url = new URL(connectionString);
-  console.log("[db] 连接目标:", url.hostname, "SSL:", shouldUseSsl(connectionString) ? "on" : "off");
+  const ssl = shouldUseSsl(connectionString);
+  logEvent({
+    level: "info",
+    event: "db.pool.created",
+    scope: "database",
+    operation: "pool.create",
+    safeContext: { host: url.hostname, ssl },
+  });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pgConfig: any = {
     connectionString,
-    ssl: shouldUseSsl(connectionString) ? { rejectUnauthorized: false } : undefined,
+    ssl: ssl ? { rejectUnauthorized: false } : undefined,
     // Transaction Pooler (port 6543) 共享连接池，适合 serverless
     // 回退 Session Pooler (port 5432) 时删除 prepare: false 并调回 max: 1
     prepare: false,
@@ -20,13 +31,7 @@ function createPool(): Pool {
     connectionTimeoutMillis: 10000,
   };
 
-  const pool = new Pool(pgConfig);
-
-  pool.on("error", (err) => {
-    console.error("[db] pool error:", err.message);
-  });
-
-  return pool;
+  return new Pool(pgConfig);
 }
 
 let pool: Pool | null = null;
@@ -54,17 +59,32 @@ async function rebuildPool(): Promise<void> {
     pool = createPool();
     _db = drizzle(pool, { schema });
     setupPoolGuard(pool);
-    console.error("[db] Pool 已重建");
+    logEvent({ level: "warn", event: "db.pool.rebuilt", scope: "database", operation: "pool.rebuild" });
+  })().finally(() => {
     rebuilding = null;
-  })();
+  });
   return rebuilding;
 }
 
 function setupPoolGuard(p: Pool) {
   p.on("error", (err: NodeJS.ErrnoException) => {
-    console.error("[db] pool error:", err.message);
-    if (err.code === "ECONNREFUSED" || err.code === "ENOTFOUND") {
-      rebuildPool();
+    const connectionError = isConnectionError(err);
+    captureException("db.pool.error", err, {
+      scope: "database",
+      operation: "pool.error",
+      errorClass: "database",
+      retryable: connectionError,
+      safeContext: { phase: "guard" },
+    });
+    if (connectionError) {
+      void rebuildPool().catch((rebuildError: unknown) => {
+        captureException("db.pool.rebuild_failure", rebuildError, {
+          scope: "database",
+          operation: "pool.rebuild",
+          errorClass: "database",
+          retryable: true,
+        });
+      });
     }
   });
 
@@ -76,22 +96,43 @@ function setupPoolGuard(p: Pool) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (p as any).query = async function (...args: any[]) {
+    const queryOperation = getQueryOperation(args);
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         // attempt 0：用当前 pool 的原始 query
         // attempt 1（rebuild 后）：pool 已指向新 Pool，用新 Pool 的原始 query
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const queryFn = attempt === 0 ? _orig : ((pool as any).__orig ?? _orig);
-        return await queryFn(...args);
+        return await traceOperation("db.query", {
+          scope: "database",
+          operation: "query",
+          attributes: {
+            "db.system": "postgresql",
+            "db.operation": queryOperation,
+            "rivalhub.attempt": attempt,
+          },
+        }, () => queryFn(...args));
       } catch (err: unknown) {
-        const e = err as NodeJS.ErrnoException;
-        if (
-          attempt === 0 &&
-          (e.code === "ECONNREFUSED" || e.code === "ENOTFOUND" || e.message?.includes("Connection terminated"))
-        ) {
+        if (attempt === 0 && isConnectionError(err)) {
+          logEvent({
+            level: "warn",
+            event: "db.query.retry",
+            scope: "database",
+            operation: "query",
+            errorClass: "database",
+            retryable: true,
+            safeContext: { attempt, queryOperation },
+          });
           await rebuildPool();
           continue;
         }
+        captureException("db.query.failure", err, {
+          scope: "database",
+          operation: "query",
+          errorClass: "database",
+          retryable: isConnectionError(err),
+          safeContext: { attempt, queryOperation },
+        });
         throw err;
       }
     }
@@ -130,7 +171,32 @@ function shouldUseSsl(databaseUrl?: string): boolean {
     if (url.searchParams.get("sslmode") === "disable") return false;
     return !["localhost", "127.0.0.1", "::1"].includes(url.hostname);
   } catch {
-    console.error("[db] malformed DATABASE_URL, defaulting to SSL enabled");
+    logEvent({
+      level: "warn",
+      event: "db.connection_string.invalid",
+      scope: "database",
+      operation: "connection.configure",
+      errorClass: "database",
+      safeContext: { phase: "ssl_detection" },
+    });
     return true;
   }
+}
+
+function isConnectionError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { code?: unknown; message?: unknown };
+  return candidate.code === "ECONNREFUSED" || candidate.code === "ENOTFOUND" ||
+    (typeof candidate.message === "string" && candidate.message.includes("Connection terminated"));
+}
+
+function getQueryOperation(args: unknown[]): string {
+  const first = args[0];
+  const text = typeof first === "string"
+    ? first
+    : first && typeof first === "object" && "text" in first && typeof first.text === "string"
+      ? first.text
+      : "unknown";
+  const operation = text.trim().split(/\s+/, 1)[0]?.toLowerCase();
+  return operation && /^[a-z]+$/.test(operation) ? operation : "unknown";
 }

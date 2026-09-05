@@ -19,6 +19,7 @@ const eslintConfig = [
   {
     files: ["src/**/*.{ts,tsx}"],
     rules: {
+      "no-console": "error",
       "no-restricted-globals": ["error", { name: "confirm", message: "Use InlineConfirm or AlertDialog instead." }],
       "no-restricted-properties": ["error", { object: "window", property: "confirm", message: "Use InlineConfirm or AlertDialog instead." }],
       "no-restricted-imports": ["error", {
@@ -31,6 +32,14 @@ const eslintConfig = [
             name: "@/db/client-runtime",
             message: "Use the canonical server-only @/db/client facade; the runtime implementation is reserved for Node CLI entrypoints.",
           },
+          {
+            name: "@/lib/observability/logger",
+            message: "Use the server-only @/lib/observability/server facade.",
+          },
+          {
+            name: "@/lib/observability/tracing",
+            message: "Use the server-only @/lib/observability/server facade.",
+          },
         ],
         patterns: [
           {
@@ -39,6 +48,13 @@ const eslintConfig = [
           },
         ],
       }],
+    },
+  },
+  {
+    // This client-only rendering fallback logs a fixed message without the error payload.
+    files: ["src/components/matches/BracketView.tsx"],
+    rules: {
+      "no-console": "off",
     },
   },
   {
