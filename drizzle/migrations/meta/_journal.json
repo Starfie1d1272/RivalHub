@@ -281,6 +281,13 @@
       "when": 1788558162378,
       "tag": "0039_clumsy_doctor_octopus",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1788606257141,
+      "tag": "0040_daily_wrecking_crew",
+      "breakpoints": true
     }
   ]
 }

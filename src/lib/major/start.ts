@@ -10,6 +10,7 @@ import {
   majorStageEntrants,
   majorStageRuns,
   majorTournamentSeeds,
+  majorSeedRecommendationSnapshots,
   matches,
   seasons,
 } from "@/db/schema";
@@ -280,6 +281,19 @@ export async function startMajorInTransaction(
         : undefined,
     };
   });
+  // Persist the exact strength evidence used at the event freeze point. The
+  // snapshot is immutable and intentionally separate from final tournament seeds.
+  const snapshotRecommendations = entrantRows.map((entrant) => {
+    const members = rosterRows.filter((row) => row.eventRosterId === coherenceRows.find((c) => c.entry.id === entrant.competitionEntryId)?.eventRoster.id && row.isPrimaryStarter);
+    const facts = members.map((member) => frozenCompetitiveFacts.find((fact) => fact.userId === member.userId));
+    return { teamId: entrant.competitionEntryId, starters: facts };
+  });
+  await tx.insert(majorSeedRecommendationSnapshots).values({
+    seasonId: season.id,
+    entrantSetFingerprint: entrantRows.map((entrant) => entrant.id).sort().join(":"),
+    context: { platform: competitiveProfile?.platform ?? null, conversionPolicyVersion: competitiveProfile?.conversionPolicyVersion ?? null },
+    recommendations: snapshotRecommendations,
+  }).onConflictDoNothing({ target: majorSeedRecommendationSnapshots.seasonId });
   const ruleSnapshot = makeMajorRunSnapshotV4({
     // StageRun is the immutable tournament rule owner. Match-roster (G1)
     // must consume this frozen value rather than seasons.affiliationRules.
