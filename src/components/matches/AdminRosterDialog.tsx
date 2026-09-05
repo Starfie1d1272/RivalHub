@@ -17,7 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { adminSelectMatchRoster, confirmMatchRoster } from "@/actions/matches/roster";
-import type { RosterData } from "@/components/matches/AdminMatchRow";
+import type { RosterData } from "@/lib/admin/matches/types";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 

@@ -52,7 +52,9 @@ Rivals 用户在报名窗口填写个人报名并可保存草稿。提交由 Ser
 
 Major 的 Swiss 阶段由 managed StageRun 运行。每次 pairing、回合结算、推进和恢复都绑定 StageRun；canonical truth 来自 entrants 与已完成比赛。阶段 1、2 的普通比赛为 BO1，晋级/淘汰局为 BO3；阶段 3 全部为 BO3。淘汰赛 QF BO3、SF BO3、Final BO5。
 
-赛事级 `/admin/{seasonSlug}/matches` 是比赛阶段工作区，承载阶段、standings、赛程、阵容和既有 runtime 控件；Swiss/Playoff 阶段推进不再挂在赛事 root。单场比赛行为仍由既有 match owner 提供，本次只调整 read-model 与页面归位。
+赛事级 `/admin/{seasonSlug}/matches` 是比赛总览 read-model：承载阶段、standings、赛程、筛选、批量截止时间和既有 Swiss/Playoff runtime 控件。总览只读取比赛摘要与阶段状态，不加载整届 event roster、match roster、BP/地图明细、赛后提交详情或 OCR 数据；其中解说有效场次统计只聚合已完成、有录像、已提交赛后资料且已登记解说的轻量比赛摘要。每场列表通过 `/admin/{seasonSlug}/matches/{matchId}` 进入单场比赛工作台。
+
+单场比赛工作台按概览、首发、BP/地图、结果、赛后资料和危险操作/恢复组织内容。它只读取当前比赛及双方 frozen event roster、实际 match roster、地图/结果、解说/赛后资料和开赛前 preflight，并复用既有 `src/actions/matches/`、roster、veto、post-match 与 OCR 组件。比赛 actual lineup 是本场事实，可以不同于赛事 primary starter；workbench 不新增 match truth source，也不复制 Major runtime。Swiss/Playoff 阶段推进不再挂在赛事 root。
 
 ## 13. Match roster
 

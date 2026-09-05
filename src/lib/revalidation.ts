@@ -73,5 +73,6 @@ export function revalidateMatchPaths(
   options: { mode?: RevalidationMode } = {},
 ) {
   revalidateSeasonPaths(slug, ["matches", "adminMatches"], options);
+  nextCache.revalidatePath(`/admin/${slug}/matches/${matchId}`);
   nextCache.revalidatePath(`/${slug}/matches/${matchId}`);
 }

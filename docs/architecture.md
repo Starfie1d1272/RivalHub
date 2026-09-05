@@ -86,6 +86,7 @@ Major 的正式运行时由 `src/lib/major/` 与 `major_*` persistence owners �
 | Long-lived Teams / CompetitionEntry | `src/lib/teams/`, `src/lib/competition-entries/`, corresponding actions and schema files |
 | Major prestart and runtime | `src/actions/major-prestart.ts`, `src/lib/major/`, `src/db/schema/major-prestart.ts`, `src/db/schema/major-stage.ts` |
 | Matches / rosters / results | `src/actions/matches/`, `src/lib/matches/`, `src/db/schema/matches.ts`, `src/db/schema/match-rosters.ts` |
+| Admin match overview / workbench read-model | `src/lib/admin/matches/{overview,workbench,shared,types}.ts` + `/admin/[seasonSlug]/matches` routes（只读编排，不拥有 mutation） |
 | Discipline / post-event | `src/actions/discipline.ts`, `src/actions/postevent.ts`, `src/lib/discipline/`, matching schema files |
 | Schema / active migrations | `src/db/schema/`, `drizzle/migrations/` |
 | CI / Cron | `.github/workflows/`, `src/app/api/cron/` |

@@ -1,161 +1,44 @@
 import Link from "next/link";
 import React from "react";
 import { cn } from "@/lib/utils/cn";
-import { presentMatchFormat } from "@/lib/matches/presentation";
-import { Separator } from "@/components/ui/separator";
+import { presentMatchFormat, presentMatchLabel } from "@/lib/matches/presentation";
 import { Panel, StatusPill } from "@/components/rivalhub";
 import { MatchStatusBadge } from "@/components/matches/MatchStatusBadge";
-import { ScoreInput } from "@/components/matches/ScoreInput";
-import { MapByMapInput } from "@/components/matches/MapByMapInput";
-import { ScheduledAtInput } from "@/components/matches/ScheduledAtInput";
-import { VetoInputDialog } from "@/components/matches/VetoInputDialog";
-import { AdminRosterDialog } from "@/components/matches/AdminRosterDialog";
-import { ResultCorrectionPanel } from "@/components/matches/ResultCorrectionPanel";
-import { StatsOCRPanel } from "@/components/matches/StatsOCRPanel";
-import { ForfeitButton } from "@/components/matches/ForfeitButton";
-import { MapScoreCorrectInput } from "@/components/matches/MapScoreCorrectInput";
-import { DeleteMatchButton } from "@/components/matches/DeleteMatchButton";
-import { CompletedAtInput } from "@/components/matches/CompletedAtInput";
-import { PreMatchOperatorChecklist } from "@/components/matches/PreMatchOperatorChecklist";
-import { PostMatchRecordPanel, type PostMatchRecordData } from "@/components/matches/PostMatchRecordPanel";
-import { toCSTDateTimeInput } from "@/lib/utils/date";
+import type { AdminMatchSummary } from "@/lib/admin/matches/types";
+import { formatCSTDateTime } from "@/lib/utils/date";
 
-export interface TeamMemberData {
-  id: string;
-  entryId: string;
-  steamName: string;
-  displayName: string | null;
-  perfectName: string | null;
-  primaryPosition: string;
-}
-
-export interface RosterData {
-  rosterId: string | null;
-  starters: string[];
-  substitutes: string[];
-  status: string | null;
-}
-
-interface StartBlockerInput {
-  requiresPreflight: boolean;
-  teamAName: string;
-  teamBName: string;
-  teamARoster: RosterData | null;
-  teamBRoster: RosterData | null;
-  teamAPreflight: { valid: boolean; blockers: string[] } | null;
-  teamBPreflight: { valid: boolean; blockers: string[] } | null;
-}
-
-export function getAdminMatchStartBlockers({
-  requiresPreflight,
-  teamAName,
-  teamBName,
-  teamARoster,
-  teamBRoster,
-  teamAPreflight,
-  teamBPreflight,
-}: StartBlockerInput): string[] {
-  return [[teamAName, teamARoster, teamAPreflight], [teamBName, teamBRoster, teamBPreflight]].flatMap(([name, roster, preflight]) => {
-    const typed = roster as RosterData | null;
-    if (!typed) return [`${name} 尚未提交首发`];
-    if (typed.starters.length !== 5) return [`${name} 当前不是 5 名首发`];
-    if (typed.status !== "confirmed") return [`${name} 首发尚未确认`];
-    if (!requiresPreflight) return [];
-    const eligibility = preflight as { valid: boolean; blockers: string[] } | null;
-    if (!eligibility) return [`${name} 尚未完成首发资格检查`];
-    if (!eligibility.valid) return eligibility.blockers.map((blocker) => `${name}：${blocker}`);
-    return [];
-  });
-}
-
-interface AdminMatchRowProps {
-  match: {
-    id: string;
-    status: "scheduled" | "in_progress" | "finished" | "cancelled";
-    format: "bo1" | "bo3" | "bo5";
-    isForfeit: boolean;
-    scoreA: number | null;
-    scoreB: number | null;
-    scheduledAt: Date | null;
-    completionDeadline: Date | null;
-    entryAId: string;
-    entryBId: string;
-    ownership: string;
-    bracketNodeId: string | null;
-    completedAt: Date | null;
-    videoUrl?: string | null;
-  };
+export interface AdminMatchRowProps {
+  match: AdminMatchSummary;
   teamAName: string;
   teamBName: string;
   seasonSlug: string;
-  mapPool: string[];
-  teamAMembers: TeamMemberData[];
-  teamBMembers: TeamMemberData[];
-  teamARoster: RosterData | null;
-  teamBRoster: RosterData | null;
-  teamAPreflight: { valid: boolean; blockers: string[] } | null;
-  teamBPreflight: { valid: boolean; blockers: string[] } | null;
-  completedMaps: {
-    mapOrder: number;
-    mapName: string;
-    scoreA: number;
-    scoreB: number;
-    pickedByEntryId: string | null;
-    teamAStartSide: "t" | "ct" | null;
-  }[];
-  pendingMaps: {
-    mapOrder: number;
-    mapName: string;
-    pickedByEntryId: string | null;
-    teamAStartSide: "t" | "ct" | null;
-  }[];
-  finishedMaps: { id: string; mapName: string; scoreA: number; scoreB: number }[];
-  postMatch?: PostMatchRecordData | null;
+  stageName?: string | null;
 }
 
+/**
+ * Lightweight season-level match summary. Operational detail is deliberately
+ * linked to the match workbench instead of being rendered in every row.
+ */
 export function AdminMatchRow({
   match,
   teamAName,
   teamBName,
   seasonSlug,
-  mapPool,
-  teamAMembers,
-  teamBMembers,
-  teamARoster,
-  teamBRoster,
-  teamAPreflight,
-  teamBPreflight,
-  completedMaps,
-  pendingMaps,
-  finishedMaps,
-  postMatch = null,
+  stageName,
 }: AdminMatchRowProps) {
-  const requiresPreflight = match.ownership === "major_stage";
-  const startBlockers = getAdminMatchStartBlockers({
-    requiresPreflight,
-    teamAName,
-    teamBName,
-    teamARoster,
-    teamBRoster,
-    teamAPreflight,
-    teamBPreflight,
-  });
   return (
     <Panel
       pad={16}
       className={cn(
         "space-y-3",
-        match.status === "in_progress" && "border-l-[3px] border-[var(--color-accent)]"
+        match.status === "in_progress" && "border-l-[3px] border-[var(--color-accent)]",
       )}
     >
-      {/* Header: team names + score + badges */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
           <span className="font-semibold">{teamAName}</span>
           <span className="text-[var(--color-fg-mid)]">
-            {match.status === "finished"
-              ? `${match.scoreA ?? 0} : ${match.scoreB ?? 0}`
-              : "vs"}
+            {match.status === "finished" ? `${match.scoreA ?? 0} : ${match.scoreB ?? 0}` : "vs"}
           </span>
           <span className="font-semibold">{teamBName}</span>
         </div>
@@ -169,143 +52,42 @@ export function AdminMatchRow({
         </div>
       </div>
 
-      {match.status === "scheduled" && <><PreMatchOperatorChecklist requiresPreflight={requiresPreflight} teamA={{ name: teamAName, submitted: Boolean(teamARoster), confirmed: teamARoster?.status === "confirmed", starters: teamARoster?.starters.length ?? 0, preflight: teamAPreflight }} teamB={{ name: teamBName, submitted: Boolean(teamBRoster), confirmed: teamBRoster?.status === "confirmed", starters: teamBRoster?.starters.length ?? 0, preflight: teamBPreflight }} mapState={completedMaps.length + pendingMaps.length > 0 ? "recorded" : "not_recorded"} /><p className="text-xs leading-5 text-[var(--color-fg-mid)]">默认宽限为 15 分钟，不会自动判负。延长宽限或重新排期请使用赛程时间；需要判负时请在下方“裁决与弃赛”记录原因。</p></>}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--color-fg-mid)]">
+        <span className="font-mono">比赛 ID：{match.id}</span>
+        <span>
+          {presentMatchLabel({
+            stage: match.stage,
+            stageName,
+            round: match.round,
+            entryRound: match.entryRound,
+            teamAName,
+            teamBName,
+          })}
+        </span>
+        <span>{match.scheduledAt ? `排期：${formatCSTDateTime(match.scheduledAt)}` : "尚未排期"}</span>
+        {match.ownership === "major_stage" ? <span>Major runtime 管理</span> : <span>手动比赛</span>}
+      </div>
 
-      {/* Operations */}
-      {match.status !== "cancelled" && (
-        <details open={match.status === "in_progress" ? true : undefined}>
-          <summary className="cursor-pointer select-none list-none text-[11px] font-mono text-[var(--color-fg-dim)] hover:text-[var(--color-fg)] py-1 transition-colors">
-            {match.status === "finished" ? "▸ 数据录入" : "▸ 操作"}
-          </summary>
-          <div className="space-y-3 pt-2">
-            <Separator />
-            {match.status !== "finished" && (
-              <>
-                {postMatch && <PostMatchRecordPanel matchId={match.id} data={postMatch} />}
-                <div className="flex flex-wrap items-center gap-2">
-      <AdminRosterDialog
-                    matchId={match.id}
-                    teamAName={teamAName}
-                    teamBName={teamBName}
-                    entryAId={match.entryAId}
-                    entryBId={match.entryBId}
-                    teamAMembers={teamAMembers}
-                    teamBMembers={teamBMembers}
-                    teamARoster={teamARoster}
-        teamBRoster={teamBRoster}
-        allowSubstitutes={match.ownership !== "major_stage"}
-                  />
-                  {(match.status === "scheduled" || match.status === "in_progress") && (
-                    <VetoInputDialog
-                      matchId={match.id}
-                      format={match.format}
-                      teamAName={teamAName}
-                      teamBName={teamBName}
-                      entryAId={match.entryAId}
-                      entryBId={match.entryBId}
-                      mapPool={mapPool}
-                    />
-                  )}
-                </div>
-                <ScheduledAtInput
-                  matchId={match.id}
-                  currentScheduledAt={match.scheduledAt}
-                  currentCompletionDeadline={match.completionDeadline}
-                />
-                {match.status === "in_progress" ? (
-                  <MapByMapInput
-                    matchId={match.id}
-                    format={match.format}
-                    teamAName={teamAName}
-                    teamBName={teamBName}
-                    entryAId={match.entryAId}
-                    entryBId={match.entryBId}
-                    completedMaps={completedMaps}
-                    pendingMaps={pendingMaps}
-                    mapPool={mapPool}
-                  />
-                ) : (
-                  <ScoreInput
-                    matchId={match.id}
-                    currentStatus={match.status}
-                    startBlockers={startBlockers}
-                  />
-                )}
-                <div className="space-y-2 border-t border-[var(--color-border)] pt-3"><p className="font-mono text-[11px] tracking-[0.12em] text-[var(--color-fg-mid)]">裁决与弃赛</p><p className="text-xs leading-5 text-[var(--color-fg-mid)]">延长、重新排期或双方协商可先调整赛程。判负必须明确弃赛方与原因，并记录正式结果与审计。</p><ForfeitButton
-                  matchId={match.id}
-                  entryAId={match.entryAId}
-                  entryBId={match.entryBId}
-                  teamAName={teamAName}
-                  teamBName={teamBName}
-                /></div>
-              </>
-            )}
-            {match.status === "finished" && (
-              <>
-                <div className="flex flex-wrap items-center gap-2">
-                  <VetoInputDialog
-                    matchId={match.id}
-                    format={match.format}
-                    teamAName={teamAName}
-                    teamBName={teamBName}
-                    entryAId={match.entryAId}
-                    entryBId={match.entryBId}
-                    mapPool={mapPool}
-                    matchStatus="finished"
-                  />
-                </div>
-                {finishedMaps.length > 0 ? (
-                  <div className="space-y-1">
-                    <p className="text-xs text-[var(--color-fg-mid)]">逐图比分（修改后大比分自动更新）</p>
-                    {finishedMaps.map((map) => (
-                      <MapScoreCorrectInput
-                        key={map.id}
-                        mapId={map.id}
-                        mapName={map.mapName}
-                        scoreA={map.scoreA}
-                        scoreB={map.scoreB}
-                        teamAName={teamAName}
-                        teamBName={teamBName}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs leading-5 text-[var(--color-fg-mid)]">
-                    {match.isForfeit ? "本场为弃赛，无实际进行的地图，不提供地图比分或 Stats OCR。" : "本场没有已记录的实际地图比分，不能通过系列赛比分直接修改。"}
-                  </p>
-                )}
-                <ResultCorrectionPanel
-                  matchId={match.id}
-                  teamAName={teamAName}
-                  teamBName={teamBName}
-                  format={match.format}
-                />
-                <CompletedAtInput
-                  matchId={match.id}
-                  initialValue={toCSTDateTimeInput(match.completedAt)}
-                />
-                {postMatch && <PostMatchRecordPanel matchId={match.id} data={postMatch} />}
-                {finishedMaps.map((map) => (
-                  <div key={map.id}>
-                    <StatsOCRPanel mapId={map.id} mapName={map.mapName} />
-                  </div>
-                ))}
-              </>
-            )}
-          </div>
-        </details>
-      )}
-
-      {/* Footer */}
-      <div className="flex items-center justify-between gap-2">
-        <Link
-          href={`/${seasonSlug}/matches/${match.id}`}
-          className="text-xs text-[var(--color-fg-dim)] hover:text-[var(--color-fg)] transition-colors"
-          target="_blank"
-        >
-          查看公开页 ↗
-        </Link>
-        {match.bracketNodeId == null && <DeleteMatchButton matchId={match.id} />}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-border)] pt-3">
+        <p className="text-xs text-[var(--color-fg-mid)]">
+          首发、BP、结果、赛后资料与恢复操作均在单场工作台完成。
+        </p>
+        <div className="flex items-center gap-3">
+          <Link
+            href={`/admin/${seasonSlug}/matches/${match.id}`}
+            className="text-sm font-medium text-[var(--color-accent)] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
+          >
+            进入比赛工作台 →
+          </Link>
+          <Link
+            href={`/${seasonSlug}/matches/${match.id}`}
+            className="text-xs text-[var(--color-fg-dim)] hover:text-[var(--color-fg)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
+            target="_blank"
+            rel="noreferrer"
+          >
+            查看公开页 ↗
+          </Link>
+        </div>
       </div>
     </Panel>
   );
