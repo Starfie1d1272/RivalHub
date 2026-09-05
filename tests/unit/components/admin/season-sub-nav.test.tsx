@@ -95,6 +95,14 @@ describe("SeasonSubNav", () => {
     expect(link.style.borderBottom).toContain("var(--color-accent)");
   });
 
+  it("does not keep the overview tab active on nested workspace routes", () => {
+    pathnameMock.mockReturnValue("/admin/nju-major-2026/matches/match-1");
+    renderNav();
+
+    expect(screen.getByRole("link", { name: "比赛" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "总览" })).not.toHaveAttribute("aria-current");
+  });
+
   it("hides the community-awards tab when the season capability is disabled", () => {
     renderNav({ hasCommunityAwards: false });
 
@@ -106,6 +114,7 @@ describe("SeasonSubNav", () => {
     renderNav();
 
     expect(screen.getByRole("link", { name: "赛前" }).style.borderBottom).toContain("var(--color-accent)");
+    expect(screen.getByRole("link", { name: "总览" })).not.toHaveAttribute("aria-current");
     expect(screen.queryByRole("link", { name: "选秀控制" })).not.toBeInTheDocument();
   });
 
