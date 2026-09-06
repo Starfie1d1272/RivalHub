@@ -32,6 +32,31 @@ const CONTEXT: CompetitiveProfileConfig = {
 
 const USER_ID = "00000000-0000-0000-0000-000000000001";
 
+const STRONGEST_CONTEXT: CompetitiveProfileConfig = {
+  platform: "perfect_world",
+  currentSeasonKey: "S21",
+  previousSeasonKey: "S20",
+  rankOrder: ["A", "黄金S", "钻石S"],
+  evidencePolicy: {
+    historicalWeight: 50,
+    referenceSeasonKey: "S20",
+    referenceSeasonWeight: 20,
+    recentSeasonKeys: ["S20", "S21"],
+    recentSeasonWeight: 30,
+    sourceSelection: "strongest_equivalent",
+  },
+  fallbackConversion: {
+    sourcePlatform: "fivee",
+    version: "test-2026.09",
+    seasonKeyMap: { S20: "5E-S20", S21: "5E-S21" },
+    mapping: {
+      belowSRankMap: { A: "A" },
+      starSegments: [{ minStar: 0, maxStar: 25, targetRank: "黄金S", targetStarFloor: 0, slopeNum: 1, slopeDen: 1 }],
+      relativeSeasonAlignment: true,
+    },
+  },
+};
+
 function userRow(overrides?: Record<string, unknown>) {
   return {
     id: USER_ID,
@@ -196,6 +221,98 @@ describe("participant readiness", () => {
     expect(readiness.ready).toBe(true);
     expect(readiness.strength.previousSeasonPeak).toMatchObject({ rank: "A", rating: 0, ratingComparable: false, sourcePlatform: "fivee", sourceSeasonKey: "5E-S20", sourceRank: "A", conversionVersion: "major-2026-v1" });
     expect(readiness.strength.currentSeasonPeak).toMatchObject({ rank: "B", rating: 0, ratingComparable: false, sourcePlatform: "fivee", sourceSeasonKey: "5E-S21", sourceRank: "B", conversionVersion: "major-2026-v1" });
+  });
+
+  it("selects the stronger equivalent fact independently for each slot", () => {
+    const readiness = computeParticipantReadiness(fullFact({
+      historicalPeak: { rank: "A", rating: 1000 },
+      seasonPeaks: new Map([
+        ["S20", { rank: "A", rating: 1000 }],
+        ["S21", { rank: "A", rating: 1000 }],
+      ]),
+      fallbackFacts: {
+        historicalPeak: { rank: "S", rating: 2200, stars: 5 },
+        seasonPeaks: new Map([["5E-S20", { rank: "S", rating: 2200, stars: 24 }]]),
+      },
+    }), STRONGEST_CONTEXT);
+
+    expect(readiness.ready).toBe(true);
+    expect(readiness.strength.historicalPeak).toMatchObject({
+      rank: "黄金S",
+      stars: 5,
+      sourcePlatform: "fivee",
+      sourceRank: "S",
+      sourceStars: 5,
+      ratingComparable: false,
+    });
+    expect(readiness.strength.previousSeasonPeak).toMatchObject({
+      rank: "黄金S",
+      stars: 24,
+      sourcePlatform: "fivee",
+      sourceSeasonKey: "5E-S20",
+    });
+    expect(readiness.strength.currentSeasonPeak).toMatchObject({ rank: "A" });
+  });
+
+  it("uses target stars for same-rank selection and prefers native Perfect on an exact tie", () => {
+    const higherFivee = computeParticipantReadiness(fullFact({
+      historicalPeak: { rank: "黄金S", rating: 1000, stars: 10 },
+      fallbackFacts: {
+        historicalPeak: { rank: "S", rating: 9999, stars: 24 },
+        seasonPeaks: new Map(),
+      },
+    }), STRONGEST_CONTEXT);
+    expect(higherFivee.strength.historicalPeak).toMatchObject({ sourcePlatform: "fivee", stars: 24, sourceStars: 24 });
+
+    const exactTie = computeParticipantReadiness(fullFact({
+      historicalPeak: { rank: "黄金S", rating: 1000, stars: 10 },
+      fallbackFacts: {
+        historicalPeak: { rank: "S", rating: 9999, stars: 10 },
+        seasonPeaks: new Map(),
+      },
+    }), STRONGEST_CONTEXT);
+    expect(exactTie.strength.historicalPeak).toMatchObject({ stars: 10 });
+  });
+
+  it("treats Perfect unranked as the lowest usable state and lets 5E replace it", () => {
+    const readiness = computeParticipantReadiness(fullFact({
+      historicalPeak: { status: "unranked", rank: null, rating: null },
+      fallbackFacts: {
+        historicalPeak: { rank: "S", rating: 2200, stars: 6 },
+        seasonPeaks: new Map(),
+      },
+    }), STRONGEST_CONTEXT);
+    expect(readiness.ready).toBe(true);
+    expect(readiness.strength.historicalPeak).toMatchObject({ rank: "黄金S", sourcePlatform: "fivee" });
+  });
+
+  it("allows a native Perfect fact when 5E is absent, but fails closed for declared 5E S facts without stars", () => {
+    const nativeOnly = computeParticipantReadiness(fullFact({ historicalPeak: { rank: "A", rating: 1000 } }), STRONGEST_CONTEXT);
+    expect(nativeOnly.ready).toBe(true);
+
+    const missingStars = computeParticipantReadiness(fullFact({
+      fallbackFacts: {
+        historicalPeak: { rank: "S", rating: 2200, stars: null },
+        seasonPeaks: new Map(),
+      },
+    }), STRONGEST_CONTEXT);
+    expect(missingStars.ready).toBe(false);
+    expect(missingStars.findings).toContainEqual(expect.objectContaining({ code: "competitive_profile_incomplete", waivable: false, metadata: expect.objectContaining({ platform: "fivee" }) }));
+  });
+
+  it("takes the stronger equivalent recent candidate after resolving each season slot", () => {
+    const readiness = computeParticipantReadiness(fullFact({
+      seasonPeaks: new Map([
+        ["S20", { rank: "黄金S", rating: 1000, stars: 10 }],
+        ["S21", { rank: "A", rating: 1000 }],
+      ]),
+      fallbackFacts: {
+        historicalPeak: null,
+        seasonPeaks: new Map([["5E-S20", { rank: "S", rating: 9999, stars: 24 }]]),
+      },
+    }), STRONGEST_CONTEXT);
+    expect(readiness.strength.recentSeasonPeaks?.[0]).toMatchObject({ sourcePlatform: "fivee", stars: 24 });
+    expect(readiness.strength.recentSeasonPeaks?.[1]).toMatchObject({ rank: "A" });
   });
 
   it("supports historical frozen snapshots with legacy rankMap", async () => {

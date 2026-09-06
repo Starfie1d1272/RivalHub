@@ -412,7 +412,8 @@ function isEvidencePolicy(value: unknown): value is CompetitiveProfileConfig["ev
     value.referenceSeasonWeight === 20 &&
     Array.isArray(value.recentSeasonKeys) &&
     value.recentSeasonKeys.every((key) => typeof key === "string") &&
-    value.recentSeasonWeight === 30;
+    value.recentSeasonWeight === 30 &&
+    (value.sourceSelection === undefined || value.sourceSelection === "primary_then_fallback" || value.sourceSelection === "strongest_equivalent");
 }
 
 function isCompetitiveContext(value: unknown): value is SeedRecommendationCompetitiveContextV1 {

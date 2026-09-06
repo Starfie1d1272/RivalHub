@@ -201,6 +201,7 @@ export function CompetitiveReferenceSummary({
   }
 
   const evidencePolicy = profile.evidencePolicy;
+  const sourceSelection = evidencePolicy?.sourceSelection ?? "primary_then_fallback";
   const policyVersion = profile.conversionPolicyVersion;
   const policyId = profile.conversionPolicyId;
   const sourcePlatform = profile.fallbackConversion?.sourcePlatform === "fivee" ? "5E" : null;
@@ -221,6 +222,7 @@ export function CompetitiveReferenceSummary({
         <div><dt className="text-[var(--color-fg-mid)]">上一平台赛季</dt><dd className="mt-1 font-medium">{previousSeason}</dd></div>
         <div><dt className="text-[var(--color-fg-mid)]">历史参考赛季（20%）</dt><dd className="mt-1 font-medium">{referenceSeason}</dd></div>
         <div className="sm:col-span-2"><dt className="text-[var(--color-fg-mid)]">近期竞技事实（30%）</dt><dd className="mt-1 font-medium">{recentSeasons.length > 0 ? recentSeasons.join("、") : "未配置"}</dd></div>
+        <div className="sm:col-span-2"><dt className="text-[var(--color-fg-mid)]">竞技证据来源</dt><dd className="mt-1 font-medium">{sourceSelection === "strongest_equivalent" ? "主比较尺度：Perfect World；Perfect 与 5E 等效事实按对应槽位自动取更强者，完全相同时优先 Perfect。" : "历史兼容：主平台优先，5E 仅在主平台资料不可用时作为等效补充。"}</dd></div>
         <div><dt className="text-[var(--color-fg-mid)]">冻结段位顺序</dt><dd className="mt-1 font-medium">{profile.rankOrder.length > 0 ? `${profile.rankOrder.length} 个段位` : "未配置"}</dd></div>
         <div><dt className="text-[var(--color-fg-mid)]">外校实力星差上限</dt><dd className="mt-1 font-medium">{profile.externalStrengthMaxStarGap ?? 3} 星</dd></div>
       </dl>

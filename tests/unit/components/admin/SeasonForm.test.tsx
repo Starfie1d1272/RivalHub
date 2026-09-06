@@ -138,14 +138,14 @@ describe("SeasonForm presets", () => {
     });
   });
 
-  it("shows the standard Major's policy-driven 5E fallback note without a hand-entered mapping", () => {
+  it("shows the standard Major's policy-driven 5E equivalence note without a hand-entered mapping", () => {
     const initial = { ...createInitial(structuredClone(MAJOR_DEFAULT_CAPABILITIES), "Major"), template: "major" as const };
     render(<SeasonForm mode="create" competitivePlatforms={[
       { key: "perfect_world", displayName: "Perfect World", seasons: [{ seasonKey: "s21", label: "S21", active: true }], ranks: [{ rankKey: "A", label: "A" }] },
       { key: "fivee", displayName: "5E", seasons: [{ seasonKey: "5e-s21", label: "S21", active: true }], ranks: [{ rankKey: "S", label: "S" }] },
     ]} initial={initial} />);
 
-    expect(screen.getByText(/当前已批准的 5E/)).toBeInTheDocument();
+    expect(screen.getByText(/Perfect 与 5E 等效竞技事实中按证据槽位自动择高/)).toBeInTheDocument();
     expect(screen.queryByText("允许审核过的 5E 竞技资料等效补充")).not.toBeInTheDocument();
     expect(screen.queryByText("队伍管理")).not.toBeInTheDocument();
   });

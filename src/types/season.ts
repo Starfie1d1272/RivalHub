@@ -113,7 +113,7 @@ export interface CompetitiveProfileConfig {
   /** Lowest → highest rank labels. Empty means no evaluator is configured yet. */
   rankOrder: string[];
   evidencePolicy?: CompetitiveEvidencePolicy;
-  /** Optional event-owned 5E fallback mapping, copied into the registration freeze. */
+  /** Optional event-owned 5E equivalence mapping, copied into the registration freeze; the field name remains for legacy snapshots. */
   fallbackConversion?: CompetitiveFallbackConversion;
   /** 外校最强队员相对本校最强队员的历史最高总星数最大允许差值（默认 3）。 */
   externalStrengthMaxStarGap?: number;
@@ -122,6 +122,8 @@ export interface CompetitiveProfileConfig {
   /** Selected ConversionPolicy stable id; fixed at publish. */
   conversionPolicyId?: string;
 }
+
+type CompetitiveSourceSelection = "primary_then_fallback" | "strongest_equivalent";
 
 /**
  * An audited, event-owned equivalence policy. Mapping is deliberately not
@@ -151,6 +153,8 @@ export interface CompetitiveEvidencePolicy {
   referenceSeasonWeight: 20;
   recentSeasonKeys: string[];
   recentSeasonWeight: 30;
+  /** Legacy snapshots omit this and retain primary-first semantics. */
+  sourceSelection?: CompetitiveSourceSelection;
 }
 
 /**
@@ -537,6 +541,9 @@ export function normalizeTeamRegistrationConfig(
                 referenceSeasonWeight: 20,
                 recentSeasonKeys: [...new Set(config.competitiveProfile.evidencePolicy.recentSeasonKeys.map((key) => key.trim()).filter(Boolean))],
                 recentSeasonWeight: 30,
+                ...(config.competitiveProfile.evidencePolicy.sourceSelection === "primary_then_fallback" || config.competitiveProfile.evidencePolicy.sourceSelection === "strongest_equivalent"
+                  ? { sourceSelection: config.competitiveProfile.evidencePolicy.sourceSelection }
+                  : {}),
               }
             : undefined,
           conversionPolicyVersion: config.competitiveProfile.conversionPolicyVersion?.trim() || undefined,

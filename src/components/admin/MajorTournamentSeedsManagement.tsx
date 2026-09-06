@@ -39,7 +39,7 @@ const FINAL_ORDER_STATUS_LABEL: Record<NonNullable<MajorTournamentSeedsManagemen
 };
 
 function FactLine({ label, fact, platform }: { label: string; fact: RecommendationFact; platform: string }) {
-  return <p>{label}：{formatFact(fact, platform)} {isConverted(fact) && <span className="ml-1 rounded border border-[var(--color-accent)] px-1 py-0.5 text-[10px] text-[var(--color-accent)]">5E 换算</span>}</p>;
+  return <p>{label}：{formatFact(fact, platform)} {isConverted(fact) && <span className="ml-1 rounded border border-[var(--color-accent)] px-1 py-0.5 text-[10px] text-[var(--color-accent)]">采用 5E 等效</span>}</p>;
 }
 
 function StarterSummary({ starter, platform }: { starter: RecommendationStarter; platform: string }) {
@@ -63,7 +63,7 @@ function StarterSummary({ starter, platform }: { starter: RecommendationStarter;
       <summary className="cursor-pointer list-none text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]">
         <span className="font-medium text-[var(--color-fg)]">{starter.label}</span>
         <span className="ml-2 font-mono text-[var(--color-fg-mid)]">{formatFact(primaryFact, platform)}</span>
-        {isConverted(primaryFact) && <span className="ml-2 rounded border border-[var(--color-accent)] px-1 py-0.5 text-[10px] text-[var(--color-accent)]">5E 换算</span>}
+        {isConverted(primaryFact) && <span className="ml-2 rounded border border-[var(--color-accent)] px-1 py-0.5 text-[10px] text-[var(--color-accent)]">采用 5E 等效</span>}
       </summary>
       <div className="mt-2 space-y-1 border-t border-[var(--color-border)] pt-2 text-[11px] leading-5 text-[var(--color-fg-mid)]">
         <FactLine label="历史最高" fact={starter.historicalPeak} platform={platform} />
