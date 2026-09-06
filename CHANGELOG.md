@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.6.0]
+
+RivalHub 2.6 统一了高价值列表的查询与分页体验。公共队伍发现与管理员运营队列现在都使用可分享、可恢复的 URL 状态，让筛选后的结果总数和页面位置始终对应同一组真实数据。
+
+### Changed
+
+#### 审核与运营队列
+
+教育认证审核现在支持搜索、核心筛选、排序和每页 25 条的稳定分页。管理员可以在队伍报名中按报名状态、队名或代表信息快速定位对象，并按本届赛事的 canonical qualification 结果筛选 ready 或 blocked 队伍；资格筛选后的总数与分页会按筛选结果重新计算。
+
+个人报名、邀请码历史、纪律处罚和用户目录也完成正式查询与分页。邀请码不再因历史记录数量而遗漏，纪律页默认聚焦当前有效处罚，用户目录不再受“最近 200 条”限制。
+
+#### 队伍与组队发现
+
+队伍目录默认只显示 active 队伍，支持按队伍或队长搜索、筛选正在招募的队伍，并按成员数排序。组队大厅的队伍与玩家视图新增文本搜索；队伍可按规模筛选，玩家地图筛选继续使用目标赛事图池和 `playable` / `strong` 熟练度语义。
+
+#### 列表交互一致性
+
+这些列表会将搜索、筛选、排序和页码保留在 URL 中：改变搜索或筛选时回到第一页，翻页时保留其它条件。默认值不会制造冗余 URL，非法 query 会回退到确定的默认状态；移动端工具栏也保持可操作。
+
 ## [2.5.0]
 
 RivalHub 2.5 完成了新一轮赛事竞技规则与界面基础设施收口。标准 Major 现在会统一比较 Perfect World 与 5E 等效竞技事实，并在报名开放时冻结本届实际采用的竞技证据；同时，Tactical Grid 的页面布局、面板、Dialog、移动端交互和视觉回归基线进一步统一，为后续公共赛事页面与管理工具提供稳定的 UI 基础。
@@ -1909,3 +1929,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [1.1.0]: https://github.com/Starfie1d1272/RivalHub/compare/v1.0.2...v1.1.0
 [1.0.2]: https://github.com/Starfie1d1272/RivalHub/compare/v1.0.0...v1.0.2
 [1.0.0]: https://github.com/Starfie1d1272/RivalHub/compare/v0.3.0...v1.0.0
+[2.6.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.5.0...v2.6.0
