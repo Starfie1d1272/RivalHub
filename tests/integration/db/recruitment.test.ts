@@ -25,11 +25,11 @@ describe("recruitment PostgreSQL invariants", () => {
   it("keeps intent ownership separate from membership and closes LFT only through the canonical invite path", async () => {
     const pool = new Pool({ connectionString: databaseUrl, ssl: false, max: 4 });
     const database = drizzle(pool, { schema });
-    const ids = { captain: randomUUID(), interested: randomUUID(), member: randomUUID(), contender: randomUUID(), invitee: randomUUID(), team: randomUUID(), invitation: randomUUID(), draftSeason: randomUUID(), registrationSeason: randomUUID(), replacementSeason: randomUUID(), votingSeason: randomUUID() };
+    const ids = { captain: randomUUID(), interested: randomUUID(), member: randomUUID(), contender: randomUUID(), invitee: randomUUID(), targetUnknown: randomUUID(), team: randomUUID(), invitation: randomUUID(), draftSeason: randomUUID(), registrationSeason: randomUUID(), replacementSeason: randomUUID(), votingSeason: randomUUID() };
     try {
       await pool.query("BEGIN");
-      await pool.query("INSERT INTO users (id, email, display_name) VALUES ($1, $2, 'Captain'), ($3, $4, 'Interested'), ($5, $6, 'Member'), ($7, $8, 'Contender'), ($9, $10, 'Invitee')", [
-        ids.captain, `recruitment-captain-${ids.captain}@local.test`, ids.interested, `recruitment-interested-${ids.interested}@local.test`, ids.member, `recruitment-member-${ids.member}@local.test`, ids.contender, `recruitment-contender-${ids.contender}@local.test`, ids.invitee, `recruitment-invitee-${ids.invitee}@local.test`,
+      await pool.query("INSERT INTO users (id, email, display_name) VALUES ($1, $2, 'Captain'), ($3, $4, 'Interested'), ($5, $6, 'Member'), ($7, $8, 'Contender'), ($9, $10, 'Invitee'), ($11, $12, 'Target Unknown')", [
+        ids.captain, `recruitment-captain-${ids.captain}@local.test`, ids.interested, `recruitment-interested-${ids.interested}@local.test`, ids.member, `recruitment-member-${ids.member}@local.test`, ids.contender, `recruitment-contender-${ids.contender}@local.test`, ids.invitee, `recruitment-invitee-${ids.invitee}@local.test`, ids.targetUnknown, `recruitment-target-unknown-${ids.targetUnknown}@local.test`,
       ]);
       await pool.query("INSERT INTO teams (id, slug, name, creator_user_id, captain_user_id) VALUES ($1, $2, 'Recruitment Team', $3, $3)", [ids.team, `recruitment-${ids.team.slice(0, 8)}`, ids.captain]);
       await pool.query("INSERT INTO team_memberships (team_id, user_id, status, invited_by_user_id) VALUES ($1, $2, 'active', $2)", [ids.team, ids.captain]);
@@ -115,10 +115,22 @@ describe("recruitment PostgreSQL invariants", () => {
       expect((await getTeamRecruitmentWorkspace(ids.team, true)).recruitment).toMatchObject({ isPubliclyActive: true, targetSeasonId: ids.replacementSeason });
       const playerIntent = (await pool.query<{ id: string }>("INSERT INTO recruitment_intents (kind, user_id, target_season_id, positions, status, expires_at) VALUES ('player_lft', $1, $2, ARRAY[]::cs2_role[], 'open', now() + interval '1 day') RETURNING id", [ids.interested, ids.replacementSeason])).rows[0];
       if (!playerIntent) throw new Error("could not create recruitment player intent");
-      await pool.query("INSERT INTO user_map_preferences (user_id, map_preferences) VALUES ($1, $2::jsonb)", [ids.interested, JSON.stringify([
-        { map: "de_overpass", level: "strong" },
-        { map: "de_cache", level: "none" },
-      ])]);
+      await pool.query(
+        "INSERT INTO recruitment_intents (kind, user_id, target_season_id, positions, status, expires_at) VALUES ('player_lft', $1, $2, ARRAY[]::cs2_role[], 'open', now() + interval '1 day'), ('player_lft', $3, NULL, ARRAY[]::cs2_role[], 'open', now() + interval '1 day'), ('player_lft', $4, NULL, ARRAY[]::cs2_role[], 'open', now() + interval '1 day')",
+        [ids.targetUnknown, ids.replacementSeason, ids.contender, ids.invitee],
+      );
+      await pool.query("INSERT INTO user_map_preferences (user_id, map_preferences) VALUES ($1, $2::jsonb), ($3, $4::jsonb), ($5, $6::jsonb)", [
+        ids.interested, JSON.stringify([
+          { map: "de_custom_nju", level: "strong" },
+          { map: "de_cache", level: "none" },
+        ]),
+        ids.contender, JSON.stringify([
+          { map: "de_mirage", level: "playable" },
+        ]),
+        ids.invitee, JSON.stringify([
+          { map: "de_mirage", level: "none" },
+        ]),
+      ]);
       const competitiveCatalog = await loadCompetitivePlatformCatalog(database);
       const perfect = competitiveCatalog.find((platform) => platform.key === "perfect_world");
       const fivee = competitiveCatalog.find((platform) => platform.key === "fivee");
@@ -148,12 +160,25 @@ describe("recruitment PostgreSQL invariants", () => {
       expect(competitivePlayer?.competitiveSummary.map((platform) => platform.displayName)).toEqual([perfect.displayName, fivee.displayName]);
       expect(competitivePlayer?.mapPreferenceContextLabel).toBe("目标赛事图池熟练度");
       expect(competitivePlayer?.mapPreferences).toEqual([
-        { map: "de_custom_nju", level: null },
+        { map: "de_custom_nju", level: "strong" },
         { map: "de_cache", level: "none" },
       ]);
       expect(competitivePlayer?.competitiveSummary[0]?.facts).toHaveLength(2);
       expect(competitivePlayer?.competitiveSummary[0]?.facts.map((fact) => fact.label)).toEqual(["历史最高", perfectCurrent.label]);
       expect(competitivePlayer?.competitiveSummary[0]?.facts[1]).toMatchObject({ rankLabel: "未定级", stars: null, ratingLabel: null, rating: null });
+      const teamNameSearch = await getRecruitmentLobbyData({ q: "Recruitment Team" });
+      expect(teamNameSearch.teamRecruitments.map((item) => item.teamId)).toEqual([ids.team]);
+      const captainSearch = await getRecruitmentLobbyData({ q: "Captain" });
+      expect(captainSearch.teamRecruitments.map((item) => item.teamId)).toEqual([ids.team]);
+      const playerSearch = await getRecruitmentLobbyData({ q: "Interested" });
+      expect(playerSearch.playerLfts.map((item) => item.userId)).toEqual([ids.interested]);
+
+      const targetMapMatch = await getRecruitmentLobbyData({ targetSeasonId: ids.replacementSeason, map: "de_custom_nju" });
+      expect(targetMapMatch.playerLfts.map((item) => item.userId)).toEqual([ids.interested]);
+      const targetNoneMap = await getRecruitmentLobbyData({ targetSeasonId: ids.replacementSeason, map: "de_cache" });
+      expect(targetNoneMap.playerLfts.map((item) => item.userId)).toEqual([]);
+      const activeDutyMapMatch = await getRecruitmentLobbyData({ map: "de_mirage" });
+      expect(activeDutyMapMatch.playerLfts.map((item) => item.userId)).toEqual([ids.contender]);
       const persistedIntent = await pool.query<{ payload: Record<string, unknown> }>("SELECT to_jsonb(recruitment_intents) AS payload FROM recruitment_intents WHERE id = $1", [playerIntent.id]);
       expect(persistedIntent.rows[0]?.payload).not.toHaveProperty("competitive_summary");
       expect(persistedIntent.rows[0]?.payload).not.toHaveProperty("competitiveSummary");
@@ -188,17 +213,17 @@ describe("recruitment PostgreSQL invariants", () => {
       try {
         await client.query("BEGIN");
         await client.query("SET LOCAL session_replication_role = replica");
-        await client.query("DELETE FROM recruitment_interests WHERE user_id IN ($1, $2, $3, $4, $5)", [ids.captain, ids.interested, ids.member, ids.contender, ids.invitee]);
-        await client.query("DELETE FROM recruitment_intents WHERE team_id = $1 OR user_id IN ($2, $3, $4, $5, $6)", [ids.team, ids.captain, ids.interested, ids.member, ids.contender, ids.invitee]);
-        await client.query("DELETE FROM user_map_preferences WHERE user_id IN ($1, $2, $3, $4, $5)", [ids.captain, ids.interested, ids.member, ids.contender, ids.invitee]);
-        await client.query("DELETE FROM competitive_rank_facts WHERE user_id IN ($1, $2, $3, $4, $5)", [ids.captain, ids.interested, ids.member, ids.contender, ids.invitee]);
+        await client.query("DELETE FROM recruitment_interests WHERE user_id IN ($1, $2, $3, $4, $5, $6)", [ids.captain, ids.interested, ids.member, ids.contender, ids.invitee, ids.targetUnknown]);
+        await client.query("DELETE FROM recruitment_intents WHERE team_id = $1 OR user_id IN ($2, $3, $4, $5, $6, $7)", [ids.team, ids.captain, ids.interested, ids.member, ids.contender, ids.invitee, ids.targetUnknown]);
+        await client.query("DELETE FROM user_map_preferences WHERE user_id IN ($1, $2, $3, $4, $5, $6)", [ids.captain, ids.interested, ids.member, ids.contender, ids.invitee, ids.targetUnknown]);
+        await client.query("DELETE FROM competitive_rank_facts WHERE user_id IN ($1, $2, $3, $4, $5, $6)", [ids.captain, ids.interested, ids.member, ids.contender, ids.invitee, ids.targetUnknown]);
         await client.query("DELETE FROM team_invitations WHERE team_id = $1", [ids.team]);
         await client.query("DELETE FROM team_captain_changes WHERE team_id = $1", [ids.team]);
         await client.query("DELETE FROM team_name_changes WHERE team_id = $1", [ids.team]);
         await client.query("DELETE FROM team_memberships WHERE team_id = $1", [ids.team]);
         await client.query("DELETE FROM teams WHERE id = $1", [ids.team]);
         await client.query("DELETE FROM seasons WHERE id IN ($1, $2, $3, $4)", [ids.draftSeason, ids.registrationSeason, ids.replacementSeason, ids.votingSeason]);
-        await client.query("DELETE FROM users WHERE id IN ($1, $2, $3, $4, $5)", [ids.captain, ids.interested, ids.member, ids.contender, ids.invitee]);
+        await client.query("DELETE FROM users WHERE id IN ($1, $2, $3, $4, $5, $6)", [ids.captain, ids.interested, ids.member, ids.contender, ids.invitee, ids.targetUnknown]);
         await client.query("COMMIT");
       } catch (error) {
         await client.query("ROLLBACK").catch(() => {});
