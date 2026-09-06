@@ -27,7 +27,7 @@ import {
 const identity = { userId: "user-1", email: "player@example.test" };
 
 function session(data: Record<string, unknown> = {}) {
-  return { ...data, save: vi.fn(), destroy: vi.fn(), update: vi.fn() };
+  return { ...data, save: vi.fn(), destroy: vi.fn(), updateConfig: vi.fn() };
 }
 
 function mockCurrentAuthorization(role: "user" | "super_admin", seasonIds: string[]) {
@@ -65,6 +65,7 @@ describe("auth session guards", () => {
     expect(writable).not.toHaveProperty("role");
     expect(writable).not.toHaveProperty("seasonIds");
     expect(writable).not.toHaveProperty("extra");
+    expect(writable.updateConfig).toEqual(expect.any(Function));
     expect(writable.save).toHaveBeenCalledOnce();
   });
 

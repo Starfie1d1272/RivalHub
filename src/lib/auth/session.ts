@@ -57,7 +57,7 @@ export async function createUserSession(user: UserSession): Promise<void> {
 
   // Clear any pre-existing payload so an old cookie cannot retain authorization data.
   // Keep iron-session's methods; every other enumerable key is session payload.
-  const sessionMethods = new Set(["save", "destroy", "update"]);
+  const sessionMethods = new Set(["save", "destroy", "updateConfig"]);
   for (const key of Object.keys(session)) {
     if (!sessionMethods.has(key)) delete session[key];
   }
