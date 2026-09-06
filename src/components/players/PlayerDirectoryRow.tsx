@@ -38,7 +38,7 @@ function DirectoryMetric({ label, value }: { label: string; value: string | numb
 
 export function PlayerDirectoryRow({ player }: { player: PlayerDirectoryData }) {
   return (
-    <Panel hoverable pad={12}>
+    <Panel hoverable contentClassName="p-3">
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1.15fr)_auto] lg:items-center">
         <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">

@@ -12,7 +12,7 @@ import { normalizeStagePlan } from "@/types/season";
 import type { SeasonStatus } from "@/types/season";
 import { showStats } from "@/lib/utils/season";
 import { presentSeasonParticipationState, presentSeasonStatus, presentStageMarker } from "@/lib/seasons/presentation";
-import { StatusPill, Panel, Marker, ScrollHint, Stat, PhaseStep } from "@/components/rivalhub";
+import { SectionHeader, StatusPill, Panel, ScrollHint, Stat, PhaseStep } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { AdminShortcutSlot } from "@/components/layout/AdminShortcutSlot";
 import { StandingsTable } from "@/components/matches/StandingsTable";
@@ -234,7 +234,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
       </div>
 
       {/* Phase tracker */}
-      <Panel pad={24}>
+      <Panel contentClassName="p-6">
         <ScrollHint fromColor="var(--color-panel)">
           <div className="flex items-start">
             {phases.map((phase, i) => (
@@ -326,7 +326,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
         </div>
       )}
 
-      <Marker sub="快速访问各功能模块">赛季导航</Marker>
+      <SectionHeader title="赛季导航" description="快速访问各功能模块" />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {quickLinks.map(({ href, label, description, icon: Icon }) => (

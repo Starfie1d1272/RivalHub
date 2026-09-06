@@ -29,8 +29,8 @@ export function EducationVerificationPanel({ email, emailVerified, hasInstitutio
   return <div className="space-y-5">
     <StatusBanner tone={emailVerified ? "success" : "warn"} title={emailVerified ? "邮箱已验证" : "邮箱尚未验证"} sub={emailVerified ? `${email} 已完成邮箱所有权验证。` : "请先验证当前账号邮箱，验证后才能参加新的赛事报名或提交教育认证。"} />
     {!emailVerified && <Button disabled={pending} onClick={() => run(resendCurrentEmailVerification, "验证邮件已发送，请打开邮件完成验证")}>验证当前邮箱</Button>}
-    {emailVerified && hasInstitutionalFastPath && <Panel label="1 · 南京大学学生邮箱快速认证" pad={20}><div className="space-y-4"><p className="text-sm leading-6 text-[var(--color-fg-mid)]">当前邮箱精确匹配南京大学学生邮箱。选择教育身份后即可走快速认证；不适用时可使用下方学信网或人工审核路径。</p><div className="flex flex-wrap gap-2"><Button variant={academicStatus === "enrolled" ? "default" : "outline"} onClick={() => setAcademicStatus("enrolled")}>在读</Button><Button variant={academicStatus === "graduated" ? "default" : "outline"} onClick={() => setAcademicStatus("graduated")}>已毕业</Button></div><Button disabled={pending} onClick={() => run(() => declareInstitutionalEmailEducation({ academicStatus }), "南京大学学校邮箱已认证")}>确认教育身份</Button></div></Panel>}
-    {emailVerified && <Panel label={hasInstitutionalFastPath ? "2 · 学信网材料人工审核" : "教育身份认证"} pad={20}>
+    {emailVerified && hasInstitutionalFastPath && <Panel label="1 · 南京大学学生邮箱快速认证" contentClassName="p-5"><div className="space-y-4"><p className="text-sm leading-6 text-[var(--color-fg-mid)]">当前邮箱精确匹配南京大学学生邮箱。选择教育身份后即可走快速认证；不适用时可使用下方学信网或人工审核路径。</p><div className="flex flex-wrap gap-2"><Button variant={academicStatus === "enrolled" ? "default" : "outline"} onClick={() => setAcademicStatus("enrolled")}>在读</Button><Button variant={academicStatus === "graduated" ? "default" : "outline"} onClick={() => setAcademicStatus("graduated")}>已毕业</Button></div><Button disabled={pending} onClick={() => run(() => declareInstitutionalEmailEducation({ academicStatus }), "南京大学学校邮箱已认证")}>确认教育身份</Button></div></Panel>}
+    {emailVerified && <Panel label={hasInstitutionalFastPath ? "2 · 学信网材料人工审核" : "教育身份认证"} contentClassName="p-5">
       <div className="space-y-4">
         <p className="text-sm leading-6 text-[var(--color-fg-mid)]">无法使用南京大学学生邮箱的选手，请在学信档案申请在线验证报告。平台只会将报告中的在线验证码提供给超级管理员在学信网核验，不会公开展示，也不会保存学信网账号。</p>
         <a className="inline-flex text-sm underline" href="https://my.chsi.com.cn/archive/index.jsp" target="_blank" rel="noreferrer">前往学信档案申请在线验证报告</a>
@@ -76,7 +76,7 @@ export function EducationVerificationPanel({ email, emailVerified, hasInstitutio
         <Button disabled={pending || !institution || !evidenceCode.trim()} onClick={() => run<EducationSubmissionOutcome>(() => submitEducationVerification({ institutionId: institution?.id, academicStatus, evidenceCode }), (outcome) => outcome === "created" ? "教育认证已提交，等待管理员审核" : outcome === "already_pending" ? "该验证码已提交，正在等待管理员审核" : "该验证码已通过审核，无需重复提交")}>提交认证材料</Button>
       </div>
     </Panel>}
-    <Panel label="认证记录" pad={0}>
+    <Panel label="认证记录" contentClassName="p-0">
       {verifications.length === 0 ? <p className="p-5 text-sm text-[var(--color-fg-mid)]">尚无教育认证记录。</p> : <Checklist items={verifications.map((item) => ({
         label: `${item.institution} · ${item.academicStatus === "enrolled" ? "在读" : "已毕业"} · ${statusLabel[item.status]}`,
         detail: item.status === "rejected" && item.reviewNote ? `审核说明：${item.reviewNote}` : `提交于 ${item.submittedAt}`,

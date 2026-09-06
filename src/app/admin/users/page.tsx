@@ -4,7 +4,7 @@ import { db } from "@/db/client";
 import { seasonAdminGrants, users } from "@/db/schema";
 import { requireSuperAdmin } from "@/lib/auth/session";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
-import { Marker, Panel } from "@/components/rivalhub";
+import { PageHeader, Panel } from "@/components/rivalhub";
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { Button } from "@/components/ui/button";
 import { AdminUserList } from "@/components/admin/AdminUserList";
@@ -74,7 +74,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
 
     return (
       <div className="container mx-auto px-4 py-8 max-w-3xl space-y-6">
-        <Marker>用户管理</Marker>
+        <PageHeader title="用户管理" />
         <TabBar tab="admins" />
         <AdminUserList
           users={adminUsers.map((u) => ({
@@ -144,7 +144,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl space-y-6">
-      <Marker>用户管理</Marker>
+      <PageHeader title="用户管理" />
       <TabBar tab="users" />
 
       {/* 统计卡片 */}
@@ -155,7 +155,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
           { label: "仅注册未参赛", value: stats.not_participated ?? 0 },
           { label: "近 30 天新增", value: stats.recent_30d ?? 0 },
         ].map(({ label, value, accent }) => (
-          <Panel key={label} pad={16}>
+          <Panel key={label} contentClassName="p-4">
             <p
               className="text-2xl font-bold tabular-nums"
               style={accent ? { color: "var(--color-accent)" } : undefined}
@@ -171,7 +171,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
       <UserSearchBar q={q} filter={filter} />
 
       {/* 表格 */}
-      <Panel pad={0} className="overflow-hidden">
+      <Panel contentClassName="p-0" className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[560px]">
             <thead>

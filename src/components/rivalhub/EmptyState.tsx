@@ -48,17 +48,9 @@ export function EmptyState({
         {title}
       </div>
       {sub && (
-        <div
-          className="mt-2 mx-auto max-w-[380px] leading-relaxed"
-          style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: 11,
-            color: "var(--color-fg-mid)",
-            letterSpacing: "var(--tracking-ticker)",
-          }}
-        >
+        <p className="mx-auto mt-2 max-w-[380px] font-sans text-sm leading-6 text-[var(--color-fg-secondary)]">
           {sub}
-        </div>
+        </p>
       )}
       {action && <div className="mt-4.5">{action}</div>}
     </div>

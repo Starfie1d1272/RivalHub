@@ -7,7 +7,7 @@ export default function Loading() {
         <div className="h-3 w-24 animate-pulse rounded bg-[var(--color-panel-hi)]" />
         <div className="h-8 w-48 animate-pulse rounded bg-[var(--color-panel-hi)]" />
       </div>
-      <Panel pad={20}>
+      <Panel contentClassName="p-5">
         <div className="h-48 animate-pulse rounded bg-[var(--color-panel-hi)]" />
       </Panel>
     </div>

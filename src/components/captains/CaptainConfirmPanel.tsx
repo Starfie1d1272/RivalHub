@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -149,7 +150,10 @@ export function CaptainConfirmPanel({
               <AlertTriangle className="size-5 text-[var(--color-warn)]" />
               确认队长
             </DialogTitle>
-            <DialogDescription className="space-y-3 pt-2">
+            <DialogDescription>请核对队长列表后确认生成队伍。</DialogDescription>
+          </DialogHeader>
+          <DialogBody>
+            <div className="space-y-3 text-sm leading-6 text-[var(--color-fg-secondary)]">
               <p>
                 即将确认前 <strong>{CAPTAIN_TEAM_COUNT}</strong> 名队长并生成队伍，
                 赛季将从 <strong>voting</strong> 推进到 <strong>drafting</strong>。
@@ -173,8 +177,8 @@ export function CaptainConfirmPanel({
                   </span>
                 ))}
               </p>
-            </DialogDescription>
-          </DialogHeader>
+            </div>
+          </DialogBody>
           <DialogFooter>
             <Button
               variant="outline"

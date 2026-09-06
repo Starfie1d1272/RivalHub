@@ -11,7 +11,7 @@ import {
   presentSeasonLifecycleSummary,
   presentSeasonStatus,
 } from "@/lib/seasons/presentation";
-import { Panel, StatusPill, Marker } from "@/components/rivalhub";
+import { PageHeader, PageLayout, Panel, StatusPill } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 
@@ -32,17 +32,16 @@ export default async function AdminDashboardPage() {
   const seasonsByLifecycle = groupSeasonsByLifecycle(allSeasons);
 
   return (
-    <div className="container mx-auto max-w-5xl space-y-8 px-4 py-8">
-      <Marker
-        sub={`${allSeasons.length} 个赛事`}
-        action={admin.role === "super_admin" ? (
+    <PageLayout as="div" variant="standard" className="space-y-8">
+      <PageHeader
+        title="赛事"
+        description={`${allSeasons.length} 个赛事`}
+        actions={admin.role === "super_admin" ? (
           <Button size="sm" variant="outline" asChild>
             <Link href="/admin/seasons/new">新建赛事</Link>
           </Button>
         ) : undefined}
-      >
-        赛事
-      </Marker>
+      />
 
       {allSeasons.length === 0 ? (
         <Panel>
@@ -70,7 +69,7 @@ export default async function AdminDashboardPage() {
 
                 <div className="grid gap-3">
                   {groupSeasons.map((season) => (
-                    <Panel key={season.id} pad={16}>
+                    <Panel key={season.id} contentClassName="p-4">
                       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
@@ -99,6 +98,6 @@ export default async function AdminDashboardPage() {
           })}
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }

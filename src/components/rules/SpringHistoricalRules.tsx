@@ -24,7 +24,7 @@ export function SpringHistoricalRules() {
       </section>
 
       {/* 一、比赛简介 */}
-      <Panel pad={20}>
+      <Panel contentClassName="p-5">
         <Marker>一、比赛简介</Marker>
         <p>
           NJU Rivals 是南京大学 CS2 社团举办的校内赛事，定位为「纯校内、强竞技」。
@@ -42,7 +42,7 @@ export function SpringHistoricalRules() {
       </Panel>
 
       {/* 二、比赛时间安排 */}
-      <Panel pad={20}>
+      <Panel contentClassName="p-5">
         <Marker>二、比赛时间安排</Marker>
         <ul className="list-disc pl-5 space-y-1">
           <li>报名期：报名通道预计于公告发布后 1-2 周内开放，开放时间预计持续 3 天</li>
@@ -57,7 +57,7 @@ export function SpringHistoricalRules() {
       </Panel>
 
       {/* 三、报名规则 */}
-      <Panel pad={20}>
+      <Panel contentClassName="p-5">
         <Marker>三、报名规则</Marker>
 
         <Section heading="3.1 资格要求">
@@ -171,7 +171,7 @@ export function SpringHistoricalRules() {
       </Panel>
 
       {/* 四、队伍组建 */}
-      <Panel pad={20}>
+      <Panel contentClassName="p-5">
         <Marker>四、队伍组建</Marker>
 
         <Section heading="4.1 队伍构成">
@@ -206,7 +206,7 @@ export function SpringHistoricalRules() {
       </Panel>
 
       {/* 五、赛制 */}
-      <Panel pad={20}>
+      <Panel contentClassName="p-5">
         <Marker>五、赛制</Marker>
 
         <Section heading="5.1 排位赛（小组循环）">
@@ -282,7 +282,7 @@ export function SpringHistoricalRules() {
       </Panel>
 
       {/* 六、比赛执行规则 */}
-      <Panel pad={20}>
+      <Panel contentClassName="p-5">
         <Marker>六、比赛执行规则</Marker>
 
         <Section heading="6.1 比赛时间确认">
@@ -378,7 +378,7 @@ export function SpringHistoricalRules() {
       </Panel>
 
       {/* 七、反作弊条款 */}
-      <Panel pad={20}>
+      <Panel contentClassName="p-5">
         <Marker>七、反作弊条款</Marker>
         <p>报名即视为同意以下全部条款。报名表中的反作弊承诺勾选项必须确认勾选方可提交。</p>
         <ul className="list-disc pl-5 space-y-1 mt-3">
@@ -413,7 +413,7 @@ export function SpringHistoricalRules() {
       </Panel>
 
       {/* 八、赛委会与解说 */}
-      <Panel pad={20}>
+      <Panel contentClassName="p-5">
         <Marker>八、赛委会与解说</Marker>
         <p>本届赛事由 NJU CS2 社团赛委会主办，沿用往届成熟的解说与 OB 班底。</p>
         <ul className="list-disc pl-5 space-y-1 mt-2">
@@ -425,7 +425,7 @@ export function SpringHistoricalRules() {
       </Panel>
 
       {/* 九、联系方式 */}
-      <Panel pad={20}>
+      <Panel contentClassName="p-5">
         <Marker>九、联系方式</Marker>
         <ul className="list-disc pl-5 space-y-1">
           <li>QQ 群：895849839</li>

@@ -4,7 +4,7 @@ import { users } from "@/db/schema";
 import { requireSuperAdmin } from "@/lib/auth/session";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import { getDisplayName } from "@/lib/identity/display-name";
-import { Panel, StatusPill, Marker } from "@/components/rivalhub";
+import { PageHeader, Panel, StatusPill } from "@/components/rivalhub";
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 
 const ENV_VARS = [
@@ -39,14 +39,12 @@ export default async function AdminSettingsPage() {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-2xl space-y-10">
-        <div>
-          <Marker sub={`当前登录：${adminDisplayName}`}>系统状态</Marker>
-        </div>
+        <PageHeader title="系统状态" description={`当前登录：${adminDisplayName}`} />
 
         {/* 密码管理 */}
         <section className="space-y-4">
           <h2 className="text-base font-semibold text-[var(--color-fg)]">密码管理</h2>
-          <Panel pad={16} className="text-sm text-[var(--color-fg-mid)]">
+          <Panel contentClassName="p-4 text-sm text-[var(--color-fg-mid)]">
             管理员账号统一使用 Supabase Auth。请前往个人设置修改密码，权限变更会在下一次请求中从当前数据库事实读取。
           </Panel>
         </section>
@@ -59,7 +57,7 @@ export default async function AdminSettingsPage() {
               这些配置需在服务器环境变量中设置（.env.local 或 Vercel Dashboard），不能通过界面修改。
             </p>
           </div>
-          <Panel pad={0} className="overflow-hidden divide-y divide-[var(--color-border)]">
+          <Panel contentClassName="p-0 divide-y divide-[var(--color-border)]" className="overflow-hidden">
             {ENV_VARS.map(({ key, label, description, required }) => {
               const isSet = !!process.env[key];
               return (

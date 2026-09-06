@@ -136,7 +136,7 @@ function UnavailablePanel({
 }) {
   return (
     <main className="container mx-auto max-w-4xl px-4 py-10">
-      <Panel pad={32}>
+      <Panel contentClassName="p-8">
         <h1 className="text-2xl font-bold">{title}</h1>
         <p className="mt-2 text-sm text-[var(--color-fg-mid)]">{message}</p>
         {href && action && (

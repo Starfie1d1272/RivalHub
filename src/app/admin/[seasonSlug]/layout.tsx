@@ -7,6 +7,7 @@ import { requireSeasonAdmin } from "@/lib/auth/session";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { SeasonSubNav } from "@/components/admin/SeasonSubNav";
+import { PageLayout } from "@/components/rivalhub";
 
 export default async function AdminSeasonLayout({
   children,
@@ -37,7 +38,7 @@ export default async function AdminSeasonLayout({
   const isSuperAdmin = admin.role === "super_admin";
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl">
+    <PageLayout as="div" variant="workbench" className="space-y-6">
       <SeasonSubNav
         seasonSlug={seasonSlug}
         registrationMode={season.registrationMode}
@@ -48,6 +49,6 @@ export default async function AdminSeasonLayout({
         showSettings={isSuperAdmin}
       />
       {children}
-    </div>
+    </PageLayout>
   );
 }

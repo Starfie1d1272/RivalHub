@@ -26,7 +26,7 @@ export default async function TeamInvitePage({ params }: { params: Promise<{ tok
   const presentation = presentTeamShareInvitation(invite);
   const next = `/team-invites/${token}`;
   const session = presentation.canAccept ? await getUserSession() : null;
-  return <div className="mx-auto flex min-h-[60vh] max-w-xl items-center px-4 py-10"><Panel className="w-full" pad={28}>
+  return <div className="mx-auto flex min-h-[60vh] max-w-xl items-center px-4 py-10"><Panel className="w-full" contentClassName="p-7">
     <div className="space-y-5"><div><p className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-accent)]">TEAM INVITATION</p><h1 className="mt-2 text-2xl font-semibold">{presentation.canAccept ? `加入 ${invite.teamName}` : presentation.title}</h1></div>
       <StatusBanner tone={presentation.canAccept ? "info" : "warn"} title={presentation.title} sub={presentation.sub} />
       {presentation.canAccept && (session ? <ClaimTeamInviteButton token={token} /> : <div className="flex flex-wrap gap-2"><Link className="rounded-sm bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-[var(--color-accent-fg)]" href={`/login?next=${encodeURIComponent(next)}`}>登录后加入</Link><Link className="rounded-sm border border-[var(--color-border)] px-4 py-2 text-sm font-medium" href={`/login?mode=register&next=${encodeURIComponent(next)}`}>注册后加入</Link></div>)}

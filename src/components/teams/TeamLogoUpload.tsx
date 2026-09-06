@@ -71,7 +71,7 @@ export function TeamLogoUpload({
 
   const surfaceClassName = [
     "relative h-20 w-20 overflow-hidden rounded-md",
-    "border-2 border-[var(--color-border)] bg-[var(--color-bg-subtle)]",
+    "border-2 border-[var(--color-border)] bg-[var(--color-panel-low)]",
     "flex items-center justify-center select-none",
     canEdit && !isPending ? "cursor-pointer group" : "",
     isPending ? "cursor-wait" : "",

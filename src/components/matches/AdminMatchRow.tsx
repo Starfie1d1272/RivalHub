@@ -28,7 +28,7 @@ export function AdminMatchRow({
 }: AdminMatchRowProps) {
   return (
     <Panel
-      pad={16}
+      contentClassName="p-4"
       className={cn(
         "space-y-3",
         match.status === "in_progress" && "border-l-[3px] border-[var(--color-accent)]",

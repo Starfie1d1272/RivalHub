@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/db/client";
 import { teamInvitations, teamMemberships, teams, users } from "@/db/schema";
 import { LongLivedTeamWorkspace } from "@/components/teams/LongLivedTeamWorkspace";
-import { Marker, Panel } from "@/components/rivalhub";
+import { PageHeader, PageLayout, Panel } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { getUserSession } from "@/lib/auth/session";
 import { toLongLivedTeamDto } from "@/lib/teams/workspace";
@@ -32,5 +32,19 @@ export default async function MyTeamsPage() {
     current && current.team.captainUserId === session.userId ? db.select({ id: teamInvitations.id, teamId: teams.id, teamName: teams.name, email: users.email, expiresAt: teamInvitations.expiresAt }).from(teamInvitations).innerJoin(teams, eq(teams.id, teamInvitations.teamId)).leftJoin(users, eq(users.id, teamInvitations.invitedUserId)).where(and(eq(teamInvitations.teamId, current.team.id), eq(teamInvitations.status, "pending"), gt(teamInvitations.expiresAt, new Date()))) : Promise.resolve([]),
     current ? getTeamRecruitmentWorkspace(current.team.id, current.team.captainUserId === session.userId) : Promise.resolve({ recruitment: null, targetSeasons: [], interests: [] }),
   ]);
-  return <div className="container mx-auto space-y-6 px-4 py-12 sm:py-16"><div className="flex flex-wrap items-end justify-between gap-3"><Marker sub="管理队伍资料、成员与邀请">我的队伍</Marker><div className="flex flex-wrap items-center gap-3">{current && <Button size="sm" variant="outline" asChild><Link href={`/teams/${current.team.slug}`}>查看队伍主页 →</Link></Button>}<Link className="text-sm text-[var(--color-accent)]" href="/my/competitions">查看我的赛事 →</Link></div></div><LongLivedTeamWorkspace key={current?.team.id ?? "no-team"} currentUserId={session.userId} team={current ? toLongLivedTeamDto(current.team) : null} memberships={members} incomingInvitations={incoming.map((item) => ({ ...item, expiresAt: item.expiresAt.toISOString() }))} outgoingInvitations={outgoing.map((item) => ({ ...item, expiresAt: item.expiresAt.toISOString() }))} recruitment={recruitmentWorkspace.recruitment ? { ...recruitmentWorkspace.recruitment, expiresAt: recruitmentWorkspace.recruitment.expiresAt.toISOString() } : null} targetSeasons={recruitmentWorkspace.targetSeasons} recruitmentInterests={recruitmentWorkspace.interests} />{periods.length > 0 && <Panel label="成员历史" pad={20}><div className="space-y-2">{periods.map((row) => <Link key={row.membership.id} href={`/teams/${row.team.slug}`} className="flex flex-wrap justify-between gap-2 border-b border-[var(--color-border)] py-2 text-sm"><span>{row.team.name} · {row.team.captainUserId === row.membership.userId ? "队长" : "成员"}</span><span className="text-[var(--color-fg-mid)]">{formatCSTShortDate(row.membership.startedAt)} — {row.membership.endedAt ? formatCSTShortDate(row.membership.endedAt) : "至今"} · {presentTeamMembershipStatus(row.membership.status).label}</span></Link>)}</div></Panel>}</div>;
+  return (
+    <PageLayout as="div" variant="standard" className="space-y-8">
+      <PageHeader
+        title="我的队伍"
+        description="管理队伍资料、成员与邀请"
+        actions={(
+          <div className="flex flex-wrap items-center gap-3">
+            {current && <Button size="sm" variant="outline" asChild><Link href={`/teams/${current.team.slug}`}>查看队伍主页 →</Link></Button>}
+            <Link className="text-sm text-[var(--color-accent)]" href="/my/competitions">查看我的赛事 →</Link>
+          </div>
+        )}
+      />
+      <LongLivedTeamWorkspace key={current?.team.id ?? "no-team"} currentUserId={session.userId} team={current ? toLongLivedTeamDto(current.team) : null} memberships={members} incomingInvitations={incoming.map((item) => ({ ...item, expiresAt: item.expiresAt.toISOString() }))} outgoingInvitations={outgoing.map((item) => ({ ...item, expiresAt: item.expiresAt.toISOString() }))} recruitment={recruitmentWorkspace.recruitment ? { ...recruitmentWorkspace.recruitment, expiresAt: recruitmentWorkspace.recruitment.expiresAt.toISOString() } : null} targetSeasons={recruitmentWorkspace.targetSeasons} recruitmentInterests={recruitmentWorkspace.interests} />{periods.length > 0 && <Panel label="成员历史" contentClassName="p-5"><div className="space-y-2">{periods.map((row) => <Link key={row.membership.id} href={`/teams/${row.team.slug}`} className="flex flex-wrap justify-between gap-2 border-b border-[var(--color-border)] py-2 text-sm"><span>{row.team.name} · {row.team.captainUserId === row.membership.userId ? "队长" : "成员"}</span><span className="text-[var(--color-fg-mid)]">{formatCSTShortDate(row.membership.startedAt)} — {row.membership.endedAt ? formatCSTShortDate(row.membership.endedAt) : "至今"} · {presentTeamMembershipStatus(row.membership.status).label}</span></Link>)}</div></Panel>}
+    </PageLayout>
+  );
 }

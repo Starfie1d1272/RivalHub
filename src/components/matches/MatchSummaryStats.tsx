@@ -175,7 +175,7 @@ export function MatchSummaryStats({
   if (noPanel) return content;
 
   return (
-    <Panel pad={12} className="space-y-4">
+    <Panel contentClassName="space-y-4 p-3">
       {content}
     </Panel>
   );

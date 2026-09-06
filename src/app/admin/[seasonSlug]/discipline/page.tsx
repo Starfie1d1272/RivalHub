@@ -7,7 +7,7 @@ import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import { getSeasonSanctions } from "@/actions/discipline";
 import { DisciplineManagement, type DisciplineSanctionRow } from "@/components/admin/DisciplineManagement";
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
-import { ErrorState } from "@/components/rivalhub";
+import { ErrorState, PageHeader } from "@/components/rivalhub";
 
 /**
  * 赛事级个人纪律处罚管理。只处理个人 sanction 事实——不触达队伍、
@@ -34,7 +34,7 @@ export default async function AdminDisciplinePage({
   if (!result.success) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-bold text-[var(--color-fg)]">纪律处罚管理 · {season.name}</h1>
+        <PageHeader title={`纪律处罚管理 · ${season.name}`} />
         <ErrorState
           code={result.error.code}
           title="无法加载纪律处罚记录"
@@ -78,12 +78,10 @@ export default async function AdminDisciplinePage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-[var(--color-fg)]">纪律处罚管理 · {season.name}</h1>
-        <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
-          个人处罚只对被处罚用户本人、在指定生效窗口内拦截对应能力，不连带队伍或历史事实。
-        </p>
-      </div>
+      <PageHeader
+        title={`纪律处罚管理 · ${season.name}`}
+        description="个人处罚只对被处罚用户本人、在指定生效窗口内拦截对应能力，不连带队伍或历史事实。"
+      />
       <DisciplineManagement seasonId={season.id} sanctions={sanctions} />
     </div>
   );

@@ -5,7 +5,7 @@ import { seasons } from "@/db/schema";
 import { requireSeasonAdmin } from "@/lib/auth/session";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import { fetchAuditLogs } from "@/actions/audit";
-import { ErrorState, Marker } from "@/components/rivalhub";
+import { ErrorState, PageHeader } from "@/components/rivalhub";
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { AuditLogTable } from "@/components/admin/AuditLogTable";
 
@@ -20,14 +20,14 @@ export default async function SeasonAuditLogPage({ params }: { params: Promise<{
   if (!result.success) {
     return (
       <div className="min-w-0 space-y-5">
-        <Marker sub={season.name}>赛事日志 / 操作记录</Marker>
+        <PageHeader title="赛事日志 / 操作记录" eyebrow={season.name} />
         <ErrorState code={result.error.code} title="无法加载赛事操作日志" sub={result.error.message} />
       </div>
     );
   }
   return (
     <div className="min-w-0 space-y-5">
-      <Marker sub={season.name}>赛事日志 / 操作记录</Marker>
+      <PageHeader title="赛事日志 / 操作记录" eyebrow={season.name} />
       <AuditLogTable
         initialLogs={result.data.logs}
         initialTotal={result.data.total}

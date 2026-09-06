@@ -5,6 +5,7 @@ import { connection } from "next/server";
 import { db } from "@/db/client";
 import { competitionEntries, matches, recruitmentInterests, seasons, teamCaptainChanges, teamMemberships, teamNameChanges, teamSlugAliases, teams, users } from "@/db/schema";
 import { TeamPublicProfile } from "@/components/teams/TeamPublicProfile";
+import { PageLayout } from "@/components/rivalhub";
 import { getUserSession } from "@/lib/auth/session";
 import { getPublicTeamRecruitment } from "@/lib/recruitment/data";
 
@@ -43,7 +44,7 @@ async function TeamProfileContent({ params }: { params: Promise<{ slug: string }
   const wins = played.filter((match) => (entryIds.includes(match.entryAId) && (match.scoreA ?? 0) > (match.scoreB ?? 0)) || (entryIds.includes(match.entryBId) && (match.scoreB ?? 0) > (match.scoreA ?? 0))).length;
   const current = members.filter((member) => member.endedAt === null);
   const viewerInterest = session && recruitment ? await db.query.recruitmentInterests.findFirst({ where: and(eq(recruitmentInterests.recruitmentIntentId, recruitment.id), eq(recruitmentInterests.userId, session.userId)), columns: { id: true } }) : null;
-  return <div className="container mx-auto max-w-6xl px-4 py-12 sm:py-16"><TeamPublicProfile team={team} currentMembers={current} entries={entries} nameChanges={names} captainChanges={captains} playedCount={played.length} wins={wins} currentUserMembership={session ? current.find((member) => member.userId === session.userId) ?? null : null} recruitment={recruitment} viewerInterested={Boolean(viewerInterest)} loggedIn={Boolean(session)} /></div>;
+  return <PageLayout as="div" variant="standard" className="space-y-8"><TeamPublicProfile team={team} currentMembers={current} entries={entries} nameChanges={names} captainChanges={captains} playedCount={played.length} wins={wins} currentUserMembership={session ? current.find((member) => member.userId === session.userId) ?? null : null} recruitment={recruitment} viewerInterested={Boolean(viewerInterest)} loggedIn={Boolean(session)} /></PageLayout>;
 }
 
 function TeamProfileFallback() {

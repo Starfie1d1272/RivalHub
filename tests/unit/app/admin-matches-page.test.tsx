@@ -22,7 +22,11 @@ vi.mock("@/components/matches/SyncBracketButton", () => ({ SyncBracketButton: ()
 vi.mock("@/components/admin/MajorSwissRuntimeManagement", () => ({ MajorSwissRuntimeManagement: () => null }));
 vi.mock("@/components/admin/MajorPlayoffRuntimeManagement", () => ({ MajorPlayoffRuntimeManagement: () => null }));
 vi.mock("@/components/matches/StandingsTable", () => ({ StandingsTable: () => null }));
-vi.mock("@/components/rivalhub", () => ({ Panel: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }));
+vi.mock("@/components/rivalhub", () => ({
+  PageHeader: ({ title, description, actions }: { title: React.ReactNode; description?: React.ReactNode; actions?: React.ReactNode }) => <header><h1>{title}</h1>{description}<div>{actions}</div></header>,
+  Panel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  Section: ({ children }: { children: React.ReactNode }) => <section>{children}</section>,
+}));
 vi.mock("@/components/ui/tabs", () => ({
   Tabs: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   TabsList: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,

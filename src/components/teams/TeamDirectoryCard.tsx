@@ -25,7 +25,7 @@ export function TeamDirectoryCard({
 }) {
   return (
     <Link href={`/teams/${slug}`} className="block h-full">
-      <Panel className="h-full transition-colors hover:border-[var(--color-border-hi)]" pad={20}>
+      <Panel className="h-full transition-colors hover:border-[var(--color-border-hi)]" contentClassName="p-5">
         <div className="space-y-4">
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">

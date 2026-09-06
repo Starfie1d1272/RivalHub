@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { eq, count } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons, competitionEntries } from "@/db/schema";
-import { Marker } from "@/components/rivalhub";
+import { PageHeader } from "@/components/rivalhub";
 import { DraftAdminPanel } from "@/components/draft/DraftAdminPanel";
 import { getDraftAdminData } from "@/lib/draft/data";
 
@@ -32,10 +32,8 @@ export default async function AdminDraftPage({ params }: AdminDraftPageProps) {
   const data = season.hasDraft ? await getDraftAdminData(season.id) : null;
 
   return (
-    <main className="container mx-auto max-w-6xl px-4 py-8">
-      <div className="mb-8">
-        <Marker sub="启动、暂停、恢复选秀流程。选秀开始后选手可围观实时进度。">选秀管理 · {season.name}</Marker>
-      </div>
+    <div className="space-y-6">
+      <PageHeader title={`选秀管理 · ${season.name}`} description="启动、暂停、恢复选秀流程。选秀开始后选手可围观实时进度。" />
 
       <DraftAdminPanel
         seasonId={season.id}
@@ -44,6 +42,6 @@ export default async function AdminDraftPage({ params }: AdminDraftPageProps) {
         teamCount={teamCount}
         data={data}
       />
-    </main>
+    </div>
   );
 }

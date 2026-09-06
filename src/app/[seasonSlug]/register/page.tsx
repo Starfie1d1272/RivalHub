@@ -50,7 +50,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
   if (!isSoloRegistration(season) && !isTeamRegistration(season)) {
     return (
       <div className="container mx-auto px-4 py-16 max-w-2xl">
-        <Panel pad={40}>
+        <Panel contentClassName="p-10">
           <StatusBanner
             tone="info"
             title={season.name}
@@ -73,7 +73,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
     };
     return (
       <div className="container mx-auto px-4 py-16 max-w-2xl">
-        <Panel pad={40}>
+        <Panel contentClassName="p-10">
         <div className="text-center">
           <StatusBanner
             tone="info"
@@ -90,7 +90,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
   if (registrationWindow.phase === "unscheduled" || registrationWindow.phase === "upcoming") {
     return (
       <div className="container mx-auto max-w-2xl px-4 py-16">
-        <Panel pad={40}>
+        <Panel contentClassName="p-10">
           <StatusBanner
             tone="info"
             title={season.name}
@@ -375,7 +375,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
         </div>
       )}
 
-      <Panel pad={24}>
+      <Panel contentClassName="p-6">
         {currentRegistration?.status === "approved" ? (
           <div className="py-10 text-center">
             <h2 className="text-xl font-bold text-[var(--color-fg)]">报名已通过</h2>
