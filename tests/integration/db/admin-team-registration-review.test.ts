@@ -31,6 +31,14 @@ describe("PR3 team registration review PostgreSQL integration", () => {
     const marker = `team-review-${ids.season}`;
     const now = Date.now();
     const institutionCode = "4132010284";
+    const paginationEntries = Array.from({ length: 50 }, (_, index) => ({
+      id: randomUUID(),
+      participantId: randomUUID(),
+      revisionId: randomUUID(),
+      memberId: randomUUID(),
+      ready: index % 2 === 0,
+      index,
+    }));
 
     try {
       const institution = await pool.query<{ id: string }>(
@@ -173,6 +181,44 @@ describe("PR3 team registration review PostgreSQL integration", () => {
             ids.approvedMember, ids.approvedRevision, ids.approvedParticipant, ids.readyUser,
           ],
         );
+        // Keep 25 derived-ready and 25 derived-blocked entries older than the
+        // named fixtures below. This makes each derived qualification filter
+        // cross its 25-row page boundary and preserves a deterministic page 2.
+        for (const entry of paginationEntries) {
+          const userId = entry.ready ? ids.readyUser : ids.blockedUser;
+          const submittedAt = new Date(now - (1_000 + entry.index) * 60 * 1000);
+          await client.query(
+            `INSERT INTO competition_entries (
+               id, competition_id, source, name, representative_user_id,
+               current_roster_revision_id, registration_status, submitted_at, created_at, updated_at
+             ) VALUES ($1, $2, 'event_native', $3, $4, $5, 'submitted', $6, $6, $6)`,
+            [entry.id, ids.season, `${marker} Pagination ${entry.index}`, userId, entry.revisionId, submittedAt],
+          );
+          await client.query(
+            `INSERT INTO competition_entry_representative_changes (
+               entry_id, from_user_id, to_user_id, changed_by_actor_id
+             ) VALUES ($1, NULL, $2, 'pr3-team-review')`,
+            [entry.id, userId],
+          );
+          await client.query(
+            `INSERT INTO competition_entry_participants (
+               id, entry_id, user_id, status, confirmed_at, invited_by_user_id
+             ) VALUES ($1, $2, $3, 'confirmed', now(), $3)`,
+            [entry.participantId, entry.id, userId],
+          );
+          await client.query(
+            `INSERT INTO competition_entry_roster_revisions (
+               id, entry_id, revision_number, status, created_by
+             ) VALUES ($1, $2, 1, 'submitted', 'pr3-team-review')`,
+            [entry.revisionId, entry.id],
+          );
+          await client.query(
+            `INSERT INTO competition_entry_roster_members (
+               id, revision_id, participant_id, user_id, is_primary_starter
+             ) VALUES ($1, $2, $3, $4, true)`,
+            [entry.memberId, entry.revisionId, entry.participantId, userId],
+          );
+        }
         await client.query("COMMIT");
       } catch (error) {
         await client.query("ROLLBACK");
@@ -217,13 +263,7 @@ describe("PR3 team registration review PostgreSQL integration", () => {
         season,
         normalizeTeamRegistrationReviewQuery(new URLSearchParams()),
       );
-      expect(review).toMatchObject({ total: 2, page: 1, pageSize: 25, totalPages: 1, hasAnyRecords: true });
-      expect(review.rows.map((row) => row.id)).toEqual([ids.readyEntry, ids.blockedEntry]);
-      expect(review.rows[0]?.qualificationFindings).toEqual([]);
-      expect(review.rows[1]?.qualificationFindings.length).toBeGreaterThan(0);
-      expect(review.rows[1]?.activeRestrictionOverrides).toEqual([
-        expect.objectContaining({ id: ids.override, snapshotMatches: false }),
-      ]);
+      expect(review).toMatchObject({ total: 52, page: 1, pageSize: 25, totalPages: 3, hasAnyRecords: true });
 
       const newest = await getTeamRegistrationReview(
         season,
@@ -244,6 +284,10 @@ describe("PR3 team registration review PostgreSQL integration", () => {
       );
       expect(bySearch.total).toBe(1);
       expect(bySearch.rows[0]?.id).toBe(ids.blockedEntry);
+      expect(bySearch.rows[0]?.qualificationFindings.length).toBeGreaterThan(0);
+      expect(bySearch.rows[0]?.activeRestrictionOverrides).toEqual([
+        expect.objectContaining({ id: ids.override, snapshotMatches: false }),
+      ]);
 
       const ready = await getTeamRegistrationReview(
         season,
@@ -253,21 +297,31 @@ describe("PR3 team registration review PostgreSQL integration", () => {
         season,
         normalizeTeamRegistrationReviewQuery(new URLSearchParams({ qualification: "blocked" })),
       );
-      expect(ready.total).toBe(1);
-      expect(ready.rows[0]?.id).toBe(ids.readyEntry);
-      expect(blocked.total).toBe(1);
-      expect(blocked.rows[0]?.id).toBe(ids.blockedEntry);
+      expect(ready).toMatchObject({ total: 26, page: 1, pageSize: 25, totalPages: 2 });
+      expect(blocked).toMatchObject({ total: 26, page: 1, pageSize: 25, totalPages: 2 });
+      const readyPageTwo = await getTeamRegistrationReview(
+        season,
+        normalizeTeamRegistrationReviewQuery(new URLSearchParams({ qualification: "ready", page: "2" })),
+      );
+      const blockedPageTwo = await getTeamRegistrationReview(
+        season,
+        normalizeTeamRegistrationReviewQuery(new URLSearchParams({ qualification: "blocked", page: "2" })),
+      );
+      expect(readyPageTwo).toMatchObject({ total: 26, page: 2, pageSize: 25, totalPages: 2 });
+      expect(readyPageTwo.rows.map((row) => row.id)).toEqual([ids.readyEntry]);
+      expect(blockedPageTwo).toMatchObject({ total: 26, page: 2, pageSize: 25, totalPages: 2 });
+      expect(blockedPageTwo.rows.map((row) => row.id)).toEqual([ids.blockedEntry]);
     } finally {
       const cleanup = await pool.connect();
       try {
         await cleanup.query("BEGIN");
         await cleanup.query("SET LOCAL session_replication_role = replica");
         await cleanup.query("DELETE FROM competition_entry_restriction_overrides WHERE id = $1", [ids.override]);
-        await cleanup.query("DELETE FROM competition_entry_roster_members WHERE id = ANY($1::uuid[])", [[ids.readyMember, ids.blockedMember, ids.approvedMember]]);
-        await cleanup.query("DELETE FROM competition_entry_participants WHERE id = ANY($1::uuid[])", [[ids.readyParticipant, ids.blockedParticipant, ids.approvedParticipant]]);
-        await cleanup.query("DELETE FROM competition_entry_roster_revisions WHERE id = ANY($1::uuid[])", [[ids.readyRevision, ids.blockedRevision, ids.approvedRevision]]);
-        await cleanup.query("DELETE FROM competition_entry_representative_changes WHERE entry_id = ANY($1::uuid[])", [[ids.readyEntry, ids.blockedEntry, ids.approvedEntry]]);
-        await cleanup.query("DELETE FROM competition_entries WHERE id = ANY($1::uuid[])", [[ids.readyEntry, ids.blockedEntry, ids.approvedEntry]]);
+        await cleanup.query("DELETE FROM competition_entry_roster_members WHERE id = ANY($1::uuid[])", [[...paginationEntries.map((entry) => entry.memberId), ids.readyMember, ids.blockedMember, ids.approvedMember]]);
+        await cleanup.query("DELETE FROM competition_entry_participants WHERE id = ANY($1::uuid[])", [[...paginationEntries.map((entry) => entry.participantId), ids.readyParticipant, ids.blockedParticipant, ids.approvedParticipant]]);
+        await cleanup.query("DELETE FROM competition_entry_roster_revisions WHERE id = ANY($1::uuid[])", [[...paginationEntries.map((entry) => entry.revisionId), ids.readyRevision, ids.blockedRevision, ids.approvedRevision]]);
+        await cleanup.query("DELETE FROM competition_entry_representative_changes WHERE entry_id = ANY($1::uuid[])", [[...paginationEntries.map((entry) => entry.id), ids.readyEntry, ids.blockedEntry, ids.approvedEntry]]);
+        await cleanup.query("DELETE FROM competition_entries WHERE id = ANY($1::uuid[])", [[...paginationEntries.map((entry) => entry.id), ids.readyEntry, ids.blockedEntry, ids.approvedEntry]]);
         await cleanup.query("DELETE FROM education_verifications WHERE user_id = ANY($1::uuid[])", [[ids.readyUser, ids.blockedUser]]);
         await cleanup.query("DELETE FROM seasons WHERE id = $1", [ids.season]);
         await cleanup.query("DELETE FROM users WHERE id = ANY($1::uuid[])", [[ids.readyUser, ids.blockedUser]]);
