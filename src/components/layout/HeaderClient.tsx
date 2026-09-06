@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import React, { useState, type ReactNode } from "react";
 import { Menu, X } from "lucide-react";
 
 import { APP_BRAND } from "@/lib/branding";
@@ -67,9 +67,12 @@ export function HeaderClient({
         </div>
         {desktopViewer}
         <button
+          type="button"
           className="sm:hidden p-2 text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
           onClick={() => setMobileOpen((open) => !open)}
-          aria-label="菜单"
+          aria-expanded={mobileOpen}
+          aria-controls="rivalhub-mobile-navigation"
+          aria-label={mobileOpen ? "收起菜单" : "展开菜单"}
         >
           {mobileOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
@@ -77,7 +80,8 @@ export function HeaderClient({
 
       {mobileOpen && (
         <div
-          className="sm:hidden border-t border-[var(--color-border)] bg-[var(--color-panel)] px-4 py-3 flex flex-col gap-1"
+          id="rivalhub-mobile-navigation"
+          className="sm:hidden col-span-full min-w-0 border-t border-[var(--color-border)] bg-[var(--color-panel)] px-4 py-3 flex flex-col gap-1"
           onClick={() => setMobileOpen(false)}
         >
           {mobileNavigation}
