@@ -10,6 +10,7 @@ describe("education review queue PostgreSQL read model", () => {
     const userIds: string[] = [];
     const verificationIds: string[] = [];
     const now = new Date("2026-09-06T00:00:00.000Z");
+    const evidenceMarker = randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase();
 
     try {
       const institutions = await pool.query<{ id: string; name: string }>("SELECT id, name FROM institutions ORDER BY name, id LIMIT 2");
@@ -18,10 +19,10 @@ describe("education review queue PostgreSQL read model", () => {
       const secondInstitution = institutions.rows[1]!;
 
       const baseRows = [
-        { status: "pending", academicStatus: "enrolled", institutionId: firstInstitution.id, submittedAt: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000), reviewedAt: null, evidenceCode: `${marker}-retained`, displayName: `EducationReviewDisplay-${marker}` },
-        { status: "pending", academicStatus: "graduated", institutionId: secondInstitution.id, submittedAt: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000), reviewedAt: null, evidenceCode: `${marker}-new-pending`, displayName: "Pending Newer" },
-        { status: "approved", academicStatus: "graduated", institutionId: firstInstitution.id, submittedAt: new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000), reviewedAt: new Date(now.getTime() - 60 * 60 * 1000), evidenceCode: `${marker}-approved`, displayName: "Approved Recently" },
-        { status: "rejected", academicStatus: "enrolled", institutionId: secondInstitution.id, submittedAt: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000), reviewedAt: new Date(now.getTime() - 2 * 60 * 60 * 1000), evidenceCode: `${marker}-rejected`, displayName: "Rejected Earlier" },
+        { status: "pending", academicStatus: "enrolled", institutionId: firstInstitution.id, submittedAt: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000), reviewedAt: null, evidenceCode: `${evidenceMarker}R001`, displayName: `EducationReviewDisplay-${marker}` },
+        { status: "pending", academicStatus: "graduated", institutionId: secondInstitution.id, submittedAt: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000), reviewedAt: null, evidenceCode: `${evidenceMarker}P001`, displayName: "Pending Newer" },
+        { status: "approved", academicStatus: "graduated", institutionId: firstInstitution.id, submittedAt: new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000), reviewedAt: new Date(now.getTime() - 60 * 60 * 1000), evidenceCode: `${evidenceMarker}A001`, displayName: "Approved Recently" },
+        { status: "rejected", academicStatus: "enrolled", institutionId: secondInstitution.id, submittedAt: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000), reviewedAt: new Date(now.getTime() - 2 * 60 * 60 * 1000), evidenceCode: `${evidenceMarker}J001`, displayName: "Rejected Earlier" },
       ] as const;
       const extraRows = Array.from({ length: 26 }, (_, index) => ({
         status: "pending" as const,
@@ -29,7 +30,7 @@ describe("education review queue PostgreSQL read model", () => {
         institutionId: firstInstitution.id,
         submittedAt: new Date(now.getTime() - (index + 1) * 60 * 1000),
         reviewedAt: null,
-        evidenceCode: `${marker}-page-${index}`,
+        evidenceCode: `${evidenceMarker}${String(index).padStart(4, "0")}`,
         displayName: `Page User ${index}`,
       }));
       const rows = [...baseRows, ...extraRows];
@@ -62,7 +63,7 @@ describe("education review queue PostgreSQL read model", () => {
       expect(byDisplayName.rows).toHaveLength(1);
       expect(byDisplayName.rows[0]?.displayName).toBe(`EducationReviewDisplay-${marker}`);
 
-      const byEvidence = await getEducationReviewQueue(new URLSearchParams({ q: `${marker}-approved`, status: "all" }));
+      const byEvidence = await getEducationReviewQueue(new URLSearchParams({ q: `${evidenceMarker}A001`, status: "all" }));
       expect(byEvidence.rows).toHaveLength(1);
       expect(byEvidence.rows[0]?.status).toBe("approved");
 
@@ -86,7 +87,7 @@ describe("education review queue PostgreSQL read model", () => {
       expect(clamped.rows).toHaveLength(3);
 
       await pool.query("UPDATE education_verifications SET evidence_code = NULL WHERE id = $1", [verificationIds[0]]);
-      const afterRetention = await getEducationReviewQueue(new URLSearchParams({ q: `${marker}-retained`, status: "all" }));
+      const afterRetention = await getEducationReviewQueue(new URLSearchParams({ q: `${evidenceMarker}R001`, status: "all" }));
       expect(afterRetention.total).toBe(0);
 
       await pool.query("UPDATE education_verifications SET status = 'approved', reviewed_at = $2 WHERE id = $1", [verificationIds[0], now]);
