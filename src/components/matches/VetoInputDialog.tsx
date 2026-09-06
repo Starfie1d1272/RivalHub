@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import React, { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,6 +43,14 @@ interface StepEdit {
   side: "t" | "ct" | null;
 }
 
+type VetoLoadState =
+  | { status: "loading" }
+  | { status: "loaded-empty" }
+  | { status: "loaded-existing" }
+  | { status: "load-error"; message: string };
+
+const VETO_LOAD_ERROR_MESSAGE = "BP 读取失败，请重试。";
+
 const ACTION_LABELS: Record<VetoActionType, string> = {
   ban: "ban",
   pick: "pick",
@@ -60,9 +68,9 @@ function SideSelect({
   onSideChange: (side: "t" | "ct" | null) => void;
 }) {
   return (
-    <>
-      <span className="text-[11px] text-[var(--color-fg-mid)] shrink-0">{label}</span>
-      <div className="w-20">
+    <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:flex-nowrap">
+      <span className="min-w-0 flex-1 break-words text-[11px] leading-4 text-[var(--color-fg-mid)]">{label}</span>
+      <div className="w-20 shrink-0">
         <Select
           value={side ?? "_none"}
           onValueChange={(v) =>
@@ -79,7 +87,7 @@ function SideSelect({
           </SelectContent>
         </Select>
       </div>
-    </>
+    </div>
   );
 }
 
@@ -141,8 +149,10 @@ export function VetoInputDialog({
   const [steps, setSteps] = useState<StepEdit[]>(() =>
     buildTemplate(format, entryAId, entryBId),
   );
-  const [loading, setLoading] = useState(false);
+  const [loadState, setLoadState] = useState<VetoLoadState>({ status: "loading" });
+  const loadAttemptRef = useRef(0);
   const [isPending, startTransition] = useTransition();
+  const canEdit = loadState.status === "loaded-empty" || loadState.status === "loaded-existing";
 
   function teamName(entryId: string | null) {
     if (entryId === entryAId) return teamAName;
@@ -179,6 +189,10 @@ export function VetoInputDialog({
   }
 
   function handleSave() {
+    if (!canEdit) {
+      toast.error("BP 尚未成功读取，不能保存。请重试读取后再操作。");
+      return;
+    }
     if (!isValid()) {
       toast.error("请完整填写所有 BP 步骤，且地图不能重复");
       return;
@@ -200,30 +214,41 @@ export function VetoInputDialog({
     });
   }
 
-  async function handleOpenChange(next: boolean) {
-    if (next) {
-      setLoading(true);
-      setOpen(true);
-      try {
-        const existing = await getMatchVetoSteps(matchId);
-        if (existing.length > 0) {
-          setSteps(
-            existing.map((s) => ({
-              actionType: s.actionType as VetoActionType,
-              mapName: s.mapName,
-              entryId: s.entryId,
-              side: s.side as "t" | "ct" | null,
-            })),
-          );
-        } else {
-          setSteps(buildTemplate(format, entryAId, entryBId));
-        }
-      } catch {
+  async function loadVetoSteps() {
+    const attempt = loadAttemptRef.current + 1;
+    loadAttemptRef.current = attempt;
+    setLoadState({ status: "loading" });
+
+    try {
+      const existing = await getMatchVetoSteps(matchId);
+      if (attempt !== loadAttemptRef.current) return;
+
+      if (existing.length > 0) {
+        setSteps(
+          existing.map((s) => ({
+            actionType: s.actionType as VetoActionType,
+            mapName: s.mapName,
+            entryId: s.entryId,
+            side: s.side as "t" | "ct" | null,
+          })),
+        );
+        setLoadState({ status: "loaded-existing" });
+      } else {
         setSteps(buildTemplate(format, entryAId, entryBId));
-      } finally {
-        setLoading(false);
+        setLoadState({ status: "loaded-empty" });
       }
+    } catch {
+      if (attempt !== loadAttemptRef.current) return;
+      setLoadState({ status: "load-error", message: VETO_LOAD_ERROR_MESSAGE });
+    }
+  }
+
+  function handleOpenChange(next: boolean) {
+    if (next) {
+      setOpen(true);
+      void loadVetoSteps();
     } else {
+      loadAttemptRef.current += 1;
       setOpen(false);
     }
   }
@@ -237,114 +262,151 @@ export function VetoInputDialog({
       </DialogTrigger>
       <DialogContent size="lg">
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="min-w-0 break-words">
             BP 选图 · {teamAName} vs {teamBName}（{format.toUpperCase()}）
           </DialogTitle>
         </DialogHeader>
 
-        <DialogBody className="space-y-3">
+        <DialogBody data-testid="veto-load-state" data-veto-load-state={loadState.status} className="min-w-0 space-y-3 overflow-x-hidden">
           {matchStatus === "finished" && (
-            <p className="rounded-md bg-[var(--color-panel-low)] px-3 py-2 text-xs text-[var(--color-fg-mid)]">
+            <p className="break-words rounded-md bg-[var(--color-panel-low)] px-3 py-2 text-xs text-[var(--color-fg-mid)]">
               赛后补录：仅更新 BP 步骤，不重建地图记录（已有比分行不受影响）
             </p>
           )}
 
-          {loading ? (
-            <p className="py-4 text-sm text-[var(--color-fg-mid)]">加载中…</p>
-          ) : null}
-          <div className="space-y-3">
-          {steps.map((step, i) => (
-            <div
-              key={i}
-              className="flex items-center gap-3 p-3 rounded-md border border-[var(--color-border)]"
-            >
-              {/* 序号 */}
-              <span className="text-sm text-[var(--color-fg-mid)] w-6 text-right tabular-nums">
-                {i + 1}
-              </span>
+          {loadState.status === "loading" && (
+            <p role="status" aria-live="polite" className="py-4 text-sm text-[var(--color-fg-mid)]">
+              正在读取已保存的 BP…
+            </p>
+          )}
 
-              {/* 操作类型 */}
-              <span className="text-xs font-mono uppercase w-16 text-center px-1.5 py-0.5 rounded-sm bg-[var(--color-panel-low)] text-[var(--color-fg-mid)]">
-                {ACTION_LABELS[step.actionType]}
-              </span>
-
-              {/* 执行队伍 */}
-              <div className="flex gap-1">
-                <button
-                  type="button"
-                  onClick={() => updateStep(i, { entryId: step.entryId === entryAId ? null : entryAId, side: step.entryId === entryAId ? null : step.side })}
-                  className={cn(
-                    "px-2.5 py-1 text-xs rounded border transition-colors",
-                    step.entryId === entryAId
-                      ? "bg-[var(--color-accent)] text-[var(--color-accent-fg)] border-[var(--color-accent)]"
-                      : "border-[var(--color-border)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
-                  )}
-                >
-                  A
-                </button>
-                <button
-                  type="button"
-                  onClick={() => updateStep(i, { entryId: step.entryId === entryBId ? null : entryBId, side: step.entryId === entryBId ? null : step.side })}
-                  className={cn(
-                    "px-2.5 py-1 text-xs rounded border transition-colors",
-                    step.entryId === entryBId
-                      ? "bg-[var(--color-accent-b)] text-[var(--color-accent-b-fg)] border-[var(--color-accent-b)]"
-                      : "border-[var(--color-border)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]"
-                  )}
-                >
-                  B
-                </button>
+          {loadState.status === "load-error" && (
+            <div role="alert" className="space-y-3 rounded-md border border-[var(--color-border-danger)] bg-[var(--color-danger-soft)] px-3 py-3">
+              <div className="space-y-1">
+                <p className="font-medium">BP 读取失败</p>
+                <p className="break-words text-sm leading-5 text-[var(--color-fg-mid)]">
+                  {loadState.message} 为避免覆盖未知服务器状态，请先成功读取。
+                </p>
               </div>
-
-              {/* 地图 */}
-              <div className="flex-1">
-                <Select
-                  value={step.mapName}
-                  onValueChange={(v) => updateStep(i, { mapName: v })}
-                >
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="选择地图" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableMaps(i).map((m) => (
-                      <SelectItem key={m} value={m}>
-                        {mapLabel(m)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* 选边（pick: 对手选边；decider: 选中队伍选边）*/}
-              {step.actionType === "pick" && step.entryId && (
-                <SideSelect
-                  label={`→ ${teamName(step.entryId === entryAId ? entryBId : entryAId)}选边`}
-                  side={step.side}
-                  onSideChange={(side) => updateStep(i, { side })}
-                />
-              )}
-              {step.actionType === "decider" && step.entryId && (
-                <SideSelect
-                  label="→ 选边"
-                  side={step.side}
-                  onSideChange={(side) => updateStep(i, { side })}
-                />
-              )}
+              <Button type="button" variant="outline" size="sm" onClick={() => void loadVetoSteps()}>
+                重试读取
+              </Button>
             </div>
-          ))}
-          </div>
+          )}
+
+          {loadState.status === "loaded-empty" && (
+            <p role="status" className="break-words rounded-md bg-[var(--color-panel-low)] px-3 py-2 text-xs text-[var(--color-fg-mid)]">
+              尚未录入 BP，可按模板开始。
+            </p>
+          )}
+
+          {loadState.status === "loaded-existing" && (
+            <p role="status" className="break-words rounded-md bg-[var(--color-panel-low)] px-3 py-2 text-xs text-[var(--color-fg-mid)]">
+              已加载已保存的 BP，可直接编辑。
+            </p>
+          )}
+
+          {canEdit && (
+            <div className="min-w-0 space-y-3">
+              {steps.map((step, i) => (
+                <div
+                  key={i}
+                  data-testid="veto-step"
+                  data-veto-step
+                  className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2 gap-y-2 rounded-md border border-[var(--color-border)] p-3 sm:flex sm:items-center sm:gap-3"
+                >
+                  {/* 序号 */}
+                  <span className="w-6 shrink-0 text-right text-sm tabular-nums text-[var(--color-fg-mid)]">
+                    {i + 1}
+                  </span>
+
+                  <div className="flex min-w-0 flex-col gap-2 sm:contents">
+                    <div className="flex min-w-0 items-center gap-2">
+                      {/* 操作类型 */}
+                      <span className="w-16 shrink-0 rounded-sm bg-[var(--color-panel-low)] px-1.5 py-0.5 text-center font-mono text-xs uppercase text-[var(--color-fg-mid)]">
+                        {ACTION_LABELS[step.actionType]}
+                      </span>
+
+                      {/* 执行队伍 */}
+                      <div className="flex shrink-0 gap-1">
+                        <button
+                          type="button"
+                          onClick={() => updateStep(i, { entryId: step.entryId === entryAId ? null : entryAId, side: step.entryId === entryAId ? null : step.side })}
+                          className={cn(
+                            "rounded border px-2.5 py-1 text-xs transition-colors",
+                            step.entryId === entryAId
+                              ? "border-[var(--color-accent)] bg-[var(--color-accent)] text-[var(--color-accent-fg)]"
+                              : "border-[var(--color-border)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]",
+                          )}
+                        >
+                          A
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateStep(i, { entryId: step.entryId === entryBId ? null : entryBId, side: step.entryId === entryBId ? null : step.side })}
+                          className={cn(
+                            "rounded border px-2.5 py-1 text-xs transition-colors",
+                            step.entryId === entryBId
+                              ? "border-[var(--color-accent-b)] bg-[var(--color-accent-b)] text-[var(--color-accent-b-fg)]"
+                              : "border-[var(--color-border)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]",
+                          )}
+                        >
+                          B
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 地图 */}
+                    <div className="min-w-0 sm:flex-1">
+                      <Select
+                        value={step.mapName}
+                        onValueChange={(v) => updateStep(i, { mapName: v })}
+                      >
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="选择地图" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableMaps(i).map((m) => (
+                            <SelectItem key={m} value={m}>
+                              {mapLabel(m)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* 选边（pick: 对手选边；decider: 选中队伍选边）*/}
+                    {step.actionType === "pick" && step.entryId && (
+                      <SideSelect
+                        label={`→ ${teamName(step.entryId === entryAId ? entryBId : entryAId)}选边`}
+                        side={step.side}
+                        onSideChange={(side) => updateStep(i, { side })}
+                      />
+                    )}
+                    {step.actionType === "decider" && step.entryId && (
+                      <SideSelect
+                        label="→ 选边"
+                        side={step.side}
+                        onSideChange={(side) => updateStep(i, { side })}
+                      />
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </DialogBody>
 
-        <DialogFooter className="gap-3">
+        <DialogFooter className="gap-2 sm:gap-3">
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setSteps(buildTemplate(format, entryAId, entryBId))}
-            disabled={isPending}
+            onClick={() => canEdit && setSteps(buildTemplate(format, entryAId, entryBId))}
+            disabled={isPending || !canEdit}
           >
             重置模板
           </Button>
-          <Button size="sm" onClick={handleSave} disabled={isPending}>
+          <Button size="sm" onClick={handleSave} disabled={isPending || !canEdit}>
             {isPending ? "保存中..." : "保存 BP"}
           </Button>
         </DialogFooter>
