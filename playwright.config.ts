@@ -11,6 +11,9 @@ export default defineConfig({
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000",
     trace: "on-first-retry",
   },
+  // Keep one baseline per browser project so a local macOS run can validate
+  // the same deterministic reference that the Linux CI runner consumes.
+  snapshotPathTemplate: "{snapshotDir}/{testFileDir}/{testFileName}-snapshots/{arg}{-projectName}{ext}",
   projects: [
     {
       name: "chromium",

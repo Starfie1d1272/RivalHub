@@ -43,6 +43,19 @@ CS2 canonical position names 保持英文：`igl`、`awper`、`opener`、`closer
 - `Panel` 承载同一业务区块；`StatusBanner` 用于状态解释；`Checklist` 用于多项 readiness；`StatusPill` 用于紧凑状态；`EmptyState`、`ErrorState` 和 `Skeleton` 表达专门状态。
 - 表格保持稳定列序、可扫描日期/状态和明确空态；窄屏提供卡片、摘要或可滚动替代布局。
 
+## Dense data and overflow
+
+Raw `<table>` 与 shadcn `Table` 继续由各自的 domain consumer 使用。本文件冻结跨页面的 presentation contract；Table implementation 以及 query、search、sort、filter 和 pagination 语义，仍由各自 owner 负责。
+
+- 表头与数据行保持清楚层级；密度来自稳定分组与行距，不靠不可读的小字号。
+- 数字列默认使用 `tabular-nums`，需要比较大小时优先右对齐或其它稳定对齐方式。
+- `null`、`unknown` 与未提供数据使用明确的 `—` 或对应状态；missing 与数值 `0` 保持可区分。
+- 横向二维数据由最近的局部容器拥有 `overflow-x-auto`，页面与 document 的宽度保持在自身 layout contract 内。
+- identity / label 列保持可扫描；sticky column 只有在真实任务明显受益时才使用。
+- 移动端若 primary metric 会因横滚而首屏不可读，应额外提供摘要、卡片或主指标呈现；具体页面转换由对应页面与列表 owner 负责。
+
+`ScrollHint` 的责任是表达局部容器仍有可横向滚动内容：无 overflow 时不显示提示，滚动到一侧时只显示另一侧，滚动中间时显示两侧。它保留 `pointer-events-none` 与 `fromColor` 语义；domain navigation 由业务组件负责，页面级 overflow 由 page layout contract 负责。
+
 ## Loading, empty and error states
 
 每个数据区显式处理三态：
@@ -93,3 +106,14 @@ CS2 canonical position names 保持英文：`igl`、`awper`、`opener`、`closer
 - `:focus-visible` 使用全局可见 focus ring；动效必须允许 `prefers-reduced-motion: reduce` 关闭或压缩。
 
 本文件维护跨页面的 UI contract。组件实现和页面组合可演进，但新增模式应先复用现有 token 与 shared component 语义。
+
+## Visual regression governance
+
+Visual regression 只锁定少量 deterministic reference，功能 E2E 继续验证真实用户任务。reference 应来自真实页面 consumer，并满足以下条件：
+
+- 以目标 heading 或页面内容可见作为 readiness；
+- 优先截图页面主内容区域，把动态导航、在线人数、实时赛事时间和随机内容排除在 baseline 外；
+- 使用固定 viewport、既有 Playwright project，并在截图时关闭动画与 caret；
+- baseline 命名包含页面与状态语义；只有预期的 presentation contract 变化才更新 baseline。
+
+页面应保持自身 layout contract；普通内容不产生页面级横向溢出，二维数据只在局部容器内滚动。本文件定义跨页面 presentation，页面 IA、domain rule 与列表 query/sort/filter semantics 由对应 owner 负责。
