@@ -27,6 +27,13 @@ Fresh deployment 的 owner bootstrap 只通过 `RIVALHUB_OWNER_EMAIL`：当尚�
 | `requireAdmin()` | super admin 或至少一个 season grant |
 | `requireSuperAdmin()` | 全局高权限操作 |
 
+| 能力 | 普通用户 | Season admin | Super admin |
+| --- | ---: | ---: | ---: |
+| 账户、报名、Team 等参与者操作 | ✓ | ✓ | ✓ |
+| 管理获授权赛事的报名、比赛、纪律与赛后 | — | ✓ | ✓ |
+| 创建/配置赛事、管理全局用户/机构/邀请码 | — | — | ✓ |
+| 查询全局 audit | — | — | ✓ |
+
 客户端隐藏按钮不构成授权。所有 privileged mutation 必须在服务端重新鉴权，并在适用时写 audit。
 
 管理员邀请只给正常 Supabase 用户授予 `season_admin` scope 或 `super_admin`。invite usage、claim ledger、并发上限和重复领取由 transaction + DB constraint 保护；撤销授权读取当前数据库事实，不依赖客户端缓存。
