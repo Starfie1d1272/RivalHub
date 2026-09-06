@@ -11,7 +11,12 @@ import { formatCSTDateTime } from "@/lib/utils/date";
 import { normalizeStagePlan } from "@/types/season";
 import type { SeasonStatus } from "@/types/season";
 import { showStats } from "@/lib/utils/season";
-import { presentSeasonParticipationState, presentSeasonStatus, presentStageMarker } from "@/lib/seasons/presentation";
+import {
+  isRegistrationActuallyOpen,
+  presentSeasonParticipationState,
+  presentSeasonStatus,
+  presentStageMarker,
+} from "@/lib/seasons/presentation";
 import { SectionHeader, StatusPill, Panel, ScrollHint, Stat, PhaseStep } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { AdminShortcutSlot } from "@/components/layout/AdminShortcutSlot";
@@ -164,13 +169,14 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
   if (currentPhaseIdx === -1) currentPhaseIdx = phases.length - 1;
 
   const isHistorical = season.status === "finished" || season.status === "archived";
+  const registrationIsOpen = isRegistrationActuallyOpen(season);
   const quickLinks = [
     {
       href: `/${seasonSlug}/register`,
       label: "立即报名",
       description: "提交报名信息",
       icon: UserPlus,
-      show: !isHistorical,
+      show: !isHistorical && registrationIsOpen,
     },
     {
       href: `/${seasonSlug}/players`,

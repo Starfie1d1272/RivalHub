@@ -53,6 +53,7 @@ describe("season page navigation", () => {
       name: "2026 NJU Major",
       status: "registration",
       registrationMode: "team",
+      registrationOpenedAt: null,
       stagePlan: [],
       competitionTemplate: "major",
       hasCaptainVoting: false,
@@ -73,5 +74,37 @@ describe("season page navigation", () => {
 
     expect(html).toMatch(/href="\/2026-nju-major\/teams"[\s\S]*队伍阵容/);
     expect(html).not.toContain("/competitionEntries");
+  });
+
+  it.each([
+    ["pre-open registration", "registration", null, false],
+    ["open registration", "registration", new Date("2026-09-01T00:00:00.000Z"), true],
+    ["finished season", "finished", new Date("2026-09-01T00:00:00.000Z"), false],
+    ["archived season", "archived", new Date("2026-09-01T00:00:00.000Z"), false],
+  ] as const)("shows the registration shortcut only for %s", async (_label, status, registrationOpenedAt, shouldShow) => {
+    getPublicOrAuthorizedDraftSeasonMock.mockResolvedValue({
+      id: "season-major",
+      slug: "2026-nju-major",
+      name: "2026 NJU Major",
+      status,
+      registrationMode: "team",
+      registrationOpenedAt,
+      stagePlan: [],
+      competitionTemplate: "major",
+      hasCaptainVoting: false,
+      hasDraft: false,
+    });
+
+    const page = await SeasonPageContent({
+      params: Promise.resolve({ seasonSlug: "2026-nju-major" }),
+    });
+    const html = renderToStaticMarkup(page);
+
+    if (shouldShow) {
+      expect(html).toMatch(/href="\/2026-nju-major\/register"[\s\S]*立即报名/);
+    } else {
+      expect(html).not.toContain("/2026-nju-major/register");
+      expect(html).not.toContain("立即报名");
+    }
   });
 });
