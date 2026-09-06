@@ -7,7 +7,7 @@ import { matchMvpVotes } from "@/db/schema/mvp-votes";
 import { MatchMvpVote } from "@/components/matches/MatchMvpVote";
 import { Panel, PosChip } from "@/components/rivalhub";
 import { mapLabel } from "@/lib/maps";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { MATCH_FORMAT_LABELS, SIDE_LABELS } from "@/types/match";
 import { PlayerStatsTable } from "@/components/matches/PlayerStatsTable";
 import { StatsOCRPanel } from "@/components/matches/StatsOCRPanel";
@@ -45,6 +45,7 @@ import {
 } from "@/lib/matches/detail-stats";
 import { getSeasonFinishedMatches } from "@/lib/matches/detail-data";
 import { MatchHeroHeader } from "@/components/matches/MatchHeroHeader";
+import { MatchMapTabsNavigation } from "@/components/matches/MatchMapTabsNavigation";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { getPublicLiveCommentators } from "@/lib/postmatch/service";
 import { isHttpUrl } from "@/lib/external-url";
@@ -372,7 +373,9 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   }
 
   const showSummaryTab = isFinished && summaryPlayers.length > 0;
-  const defaultTab = showSummaryTab ? "summary" : (maps[0]?.id ?? "");
+  // 已结束比赛仅显示已录入比分的图；进行中/未开始显示所有地图
+  const visibleMaps = isFinished ? maps.filter((m) => m.scoreA !== null && m.scoreB !== null) : maps;
+  const defaultTab = showSummaryTab ? "summary" : (visibleMaps[0]?.id ?? "");
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-3xl space-y-8">
@@ -440,33 +443,17 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
 
       {/* 地图结果 */}
       {maps.length > 0 ? (
-        <section className="space-y-3">
+        <section className="min-w-0 space-y-3">
           <h2 className="text-lg font-semibold text-[var(--color-fg)]">地图结果</h2>
           <Tabs defaultValue={defaultTab}>
-            <TabsList>
-              {showSummaryTab && (
-                <TabsTrigger value="summary" className="text-xs">
-                  整场汇总
-                </TabsTrigger>
-              )}
-              {/* 已结束比赛仅显示已录入比分的图；进行中/未开始显示所有地图 */}
-              {(isFinished ? maps.filter((m) => m.scoreA !== null && m.scoreB !== null) : maps).map((map) => (
-                <TabsTrigger key={map.id} value={map.id} className="text-xs">
-                  {mapLabel(map.mapName)}
-                  {map.pickedByEntryId && (
-                    <span
-                      className="ml-1 text-[10px] font-mono px-1 py-0.5"
-                      style={{ background: "var(--color-ok-soft)", color: "var(--color-ok)" }}
-                    >
-                      {map.pickedByEntryId === match.entryAId
-                        ? teamA?.name?.slice(0, 3).toUpperCase()
-                        : teamB?.name?.slice(0, 3).toUpperCase()}{" "}
-                      PICK
-                    </span>
-                  )}
-                </TabsTrigger>
-              ))}
-            </TabsList>
+            <MatchMapTabsNavigation
+              maps={visibleMaps}
+              showSummaryTab={showSummaryTab}
+              teamAId={match.entryAId}
+              teamBId={match.entryBId}
+              teamAName={teamA?.name}
+              teamBName={teamB?.name}
+            />
 
             {/* 整场汇总 Tab */}
             {showSummaryTab && (
@@ -482,7 +469,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
             )}
 
             {/* 单图 Tab */}
-            {(isFinished ? maps.filter((m) => m.scoreA !== null && m.scoreB !== null) : maps).map((map) => (
+            {visibleMaps.map((map) => (
               <TabsContent key={map.id} value={map.id}>
                 <Panel contentClassName="space-y-3 p-4">
                   <div className="flex items-center justify-between gap-4">
