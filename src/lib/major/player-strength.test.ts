@@ -15,6 +15,18 @@ const CONFIG: CompetitiveProfileConfig = {
   rankOrder: createPerfectWorldRankOrder(),
 };
 
+const STRONGEST_CONFIG: CompetitiveProfileConfig = {
+  ...CONFIG,
+  evidencePolicy: {
+    historicalWeight: 50,
+    referenceSeasonKey: "2025-previous",
+    referenceSeasonWeight: 20,
+    recentSeasonKeys: ["2025-previous", "2026-current"],
+    recentSeasonWeight: 30,
+    sourceSelection: "strongest_equivalent",
+  },
+};
+
 function player(
   label: string,
   historical: string,
@@ -123,6 +135,27 @@ describe("Major player strength comparator", () => {
     expect(breakdown.currentValue).toBe(CONFIG.rankOrder.indexOf("魔王S") + 1);
     expect(breakdown.effectiveRecentPeak).toMatchObject({ rank: "魔王S", rating: 1200 });
   });
+
+  it("keeps legacy policy snapshots rank-first when recent ranks tie", () => {
+    const legacyPolicyConfig: CompetitiveProfileConfig = {
+      ...CONFIG,
+      evidencePolicy: {
+        historicalWeight: 50,
+        referenceSeasonKey: "2024-complete",
+        referenceSeasonWeight: 20,
+        recentSeasonKeys: ["2025-complete", "2026-ongoing"],
+        recentSeasonWeight: 30,
+      },
+    };
+    const breakdown = getPlayerStrengthBreakdown({
+      ...player("legacy", "A", "A", "A"),
+      recentSeasonPeaks: [
+        { rank: "A", rating: 1200, stars: 10 },
+        { rank: "A", rating: 800, stars: 20 },
+      ],
+    }, legacyPolicyConfig);
+    expect(breakdown.effectiveRecentPeak).toMatchObject({ rating: 1200, stars: 10 });
+  });
 });
 
 describe("Major external-member strength rule", () => {
@@ -180,6 +213,68 @@ describe("Major external-member strength rule", () => {
 
     expect(result.eligible).toBe(true);
     expect(result.findings).toEqual([]);
+  });
+
+  it("uses the selected strongest-equivalent historical fact for a Perfect-native home and 5E external", () => {
+    const result = evaluateExternalStrengthRule({
+      config: STRONGEST_CONFIG,
+      players: [
+        { ...home, isHome: true },
+        {
+          ...player("external-5e-38", "钻石S", "A", "A", 1000, 38),
+          isHome: false,
+          historicalPeak: { rank: "钻石S", rating: 0, stars: 38, sourcePlatform: "fivee", sourceRank: "SSS", sourceStars: 29, conversionVersion: "test" },
+        },
+      ],
+    });
+    expect(result.eligible).toBe(true);
+  });
+
+  it("uses a stronger 5E-equivalent home fact against a native Perfect external", () => {
+    const result = evaluateExternalStrengthRule({
+      config: STRONGEST_CONFIG,
+      players: [
+        {
+          ...home,
+          isHome: true,
+          historicalPeak: { rank: "钻石S", rating: 0, stars: 35, sourcePlatform: "fivee", sourceRank: "SSS", sourceStars: 20, conversionVersion: "test" },
+        },
+        { ...player("external-perfect-38", "钻石S", "A", "A", 1000, 38), isHome: false },
+      ],
+    });
+    expect(result.eligible).toBe(true);
+  });
+
+  it("uses target stars rather than raw sourceStars for a 5E-versus-5E +4 finding", () => {
+    const result = evaluateExternalStrengthRule({
+      config: STRONGEST_CONFIG,
+      players: [
+        {
+          ...home,
+          isHome: true,
+          historicalPeak: { rank: "钻石S", rating: 0, stars: 35, sourcePlatform: "fivee", sourceRank: "SS", sourceStars: 1, conversionVersion: "test" },
+        },
+        {
+          ...player("external-5e-39", "钻石S", "A", "A", 1000, 39),
+          isHome: false,
+          historicalPeak: { rank: "钻石S", rating: 0, stars: 39, sourcePlatform: "fivee", sourceRank: "SSS", sourceStars: 99, conversionVersion: "test" },
+        },
+      ],
+    });
+    expect(result.eligible).toBe(false);
+    expect(result.findings).toMatchObject([{ code: "external_strength_gap", waivable: true, metadata: expect.objectContaining({ strongestHomeStars: 35, strongestExternalStars: 39 }) }]);
+  });
+
+  it("triggers when the selected external fact reaches Perfect S stars but home remains starless", () => {
+    const result = evaluateExternalStrengthRule({
+      config: STRONGEST_CONFIG,
+      players: [
+        { ...player("nju-a", "A++", "A", "A"), isHome: true },
+        { ...player("external-5e-s", "黄金S", "A", "A", 1000, 10), isHome: false, historicalPeak: { rank: "黄金S", rating: 0, stars: 10, sourcePlatform: "fivee", sourceRank: "S", sourceStars: 6, conversionVersion: "test" } },
+      ],
+    });
+    expect(result.eligible).toBe(false);
+    expect(result.findings).toMatchObject([{ code: "external_strength_gap", waivable: true }]);
   });
 
   it("blocks when the NJU baseline has no S stars but an external does", () => {

@@ -58,14 +58,14 @@ function frozenCompetitiveProfile(ruleSnapshot: unknown): CompetitiveProfileConf
   const profile = candidate as Partial<CompetitiveProfileConfig>;
   if (typeof profile.platform !== "string" || typeof profile.currentSeasonKey !== "string" || typeof profile.previousSeasonKey !== "string" || !Array.isArray(profile.rankOrder)) throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结的竞技档案规则不可用。");
   const policy = profile.evidencePolicy;
-  if (policy && (policy.historicalWeight !== 50 || policy.referenceSeasonWeight !== 20 || policy.recentSeasonWeight !== 30 || typeof policy.referenceSeasonKey !== "string" || !Array.isArray(policy.recentSeasonKeys) || !policy.recentSeasonKeys.every((key) => typeof key === "string"))) {
+  if (policy && (policy.historicalWeight !== 50 || policy.referenceSeasonWeight !== 20 || policy.recentSeasonWeight !== 30 || typeof policy.referenceSeasonKey !== "string" || !Array.isArray(policy.recentSeasonKeys) || !policy.recentSeasonKeys.every((key) => typeof key === "string") || (policy.sourceSelection !== undefined && policy.sourceSelection !== "primary_then_fallback" && policy.sourceSelection !== "strongest_equivalent"))) {
     throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结的竞技参考策略不可用。");
   }
   if (profile.externalStrengthMaxStarGap !== undefined && (!Number.isSafeInteger(profile.externalStrengthMaxStarGap) || profile.externalStrengthMaxStarGap < 0)) {
     throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结的外校星差阈值不可用。 ");
   }
   const fallback = profile.fallbackConversion;
-  if (fallback && (fallback.sourcePlatform !== "fivee" || typeof fallback.version !== "string" || !fallback.seasonKeyMap || typeof fallback.seasonKeyMap !== "object" || !fallback.mapping || typeof fallback.mapping !== "object")) {
+  if (fallback && (fallback.sourcePlatform !== "fivee" || typeof fallback.version !== "string" || !fallback.seasonKeyMap || typeof fallback.seasonKeyMap !== "object" || (!fallback.mapping && !fallback.rankMap) || (fallback.mapping && typeof fallback.mapping !== "object") || (fallback.rankMap && typeof fallback.rankMap !== "object"))) {
     throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结的 5E fallback 映射不可用。");
   }
   return {
@@ -73,8 +73,8 @@ function frozenCompetitiveProfile(ruleSnapshot: unknown): CompetitiveProfileConf
     currentSeasonKey: profile.currentSeasonKey,
     previousSeasonKey: profile.previousSeasonKey,
     rankOrder: profile.rankOrder.filter((rank): rank is string => typeof rank === "string"),
-    evidencePolicy: policy ? { historicalWeight: 50, referenceSeasonKey: policy.referenceSeasonKey, referenceSeasonWeight: 20, recentSeasonKeys: [...policy.recentSeasonKeys], recentSeasonWeight: 30 } : undefined,
-    fallbackConversion: fallback ? { sourcePlatform: "fivee", version: fallback.version, seasonKeyMap: { ...fallback.seasonKeyMap }, mapping: fallback.mapping } : undefined,
+    evidencePolicy: policy ? { historicalWeight: 50, referenceSeasonKey: policy.referenceSeasonKey, referenceSeasonWeight: 20, recentSeasonKeys: [...policy.recentSeasonKeys], recentSeasonWeight: 30, ...(policy.sourceSelection ? { sourceSelection: policy.sourceSelection } : {}) } : undefined,
+    fallbackConversion: fallback ? { sourcePlatform: "fivee", version: fallback.version, seasonKeyMap: { ...fallback.seasonKeyMap }, ...(fallback.mapping ? { mapping: fallback.mapping } : {}), ...(fallback.rankMap ? { rankMap: { ...fallback.rankMap } } : {}) } : undefined,
     externalStrengthMaxStarGap: typeof profile.externalStrengthMaxStarGap === "number" ? profile.externalStrengthMaxStarGap : undefined,
   };
 }
@@ -92,10 +92,11 @@ function frozenCompetitiveFacts(ruleSnapshot: unknown): Map<string, PlayerStreng
     const rank = (fact: unknown) => {
       if (fact === null) return null;
       if (!fact || typeof fact !== "object") throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
-      const candidate = fact as { rank?: unknown; rating?: unknown; ratingComparable?: unknown; stars?: unknown; sourcePlatform?: unknown; sourceSeasonKey?: unknown; sourceRank?: unknown; conversionVersion?: unknown };
+      const candidate = fact as { rank?: unknown; rating?: unknown; ratingComparable?: unknown; stars?: unknown; sourcePlatform?: unknown; sourceSeasonKey?: unknown; sourceRank?: unknown; sourceStars?: unknown; conversionVersion?: unknown };
       if (typeof candidate.rank !== "string" || typeof candidate.rating !== "number") throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
       if (candidate.ratingComparable !== undefined && typeof candidate.ratingComparable !== "boolean") throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
       if (candidate.stars !== undefined && candidate.stars !== null && typeof candidate.stars !== "number") throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
+      if (candidate.sourceStars !== undefined && candidate.sourceStars !== null && (typeof candidate.sourceStars !== "number" || !Number.isSafeInteger(candidate.sourceStars) || candidate.sourceStars < 0)) throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
       if (candidate.sourcePlatform !== undefined && typeof candidate.sourcePlatform !== "string") throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
       if (candidate.sourceSeasonKey !== undefined && candidate.sourceSeasonKey !== null && typeof candidate.sourceSeasonKey !== "string") throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
       if (candidate.sourceRank !== undefined && typeof candidate.sourceRank !== "string") throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结竞技事实不可用。");
@@ -108,6 +109,7 @@ function frozenCompetitiveFacts(ruleSnapshot: unknown): Map<string, PlayerStreng
         sourcePlatform: candidate.sourcePlatform,
         sourceSeasonKey: candidate.sourceSeasonKey as string | null | undefined,
         sourceRank: candidate.sourceRank,
+        sourceStars: candidate.sourceStars as number | null | undefined,
         conversionVersion: candidate.conversionVersion as string | undefined,
       };
     };

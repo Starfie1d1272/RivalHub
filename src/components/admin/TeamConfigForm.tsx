@@ -104,7 +104,7 @@ export function TeamConfigForm({ value, competitivePlatforms, fallbackOnly = fal
         )}
       </div>}
       {value.requireCompetitiveProfile && platform === "perfect_world" && (
-        <p className="text-sm text-[var(--color-fg-mid)]">标准 Major 将使用当前已批准的 5E → Perfect 换算策略，开放报名时自动冻结对应版本与赛季对应，无需手动填写映射。</p>
+        <p className="text-sm text-[var(--color-fg-mid)]">标准 Major 将在 Perfect 与 5E 等效竞技事实中按证据槽位自动择高，开放报名时冻结对应版本与赛季对应，无需手动选择平台或填写映射。</p>
       )}
     </div>
   );

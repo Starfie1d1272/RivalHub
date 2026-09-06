@@ -44,15 +44,61 @@ function rankValue(rank: string, config: CompetitiveProfileConfig): number | nul
   return index < 0 ? null : index + 1;
 }
 
+function targetUsesStars(rank: string, config: CompetitiveProfileConfig): boolean {
+  return isBuiltInStarRank(config.platform === "perfect_world" ? "perfect_world" : config.platform, rank);
+}
+
+function isPerfectNative(fact: PlayerStrengthFact): boolean {
+  return fact.sourcePlatform === undefined || fact.sourcePlatform === "perfect_world";
+}
+
+/**
+ * Compare two facts already expressed on the event's canonical target ladder.
+ * Rating is deliberately absent: a converted 5E Rating+ can never become a
+ * Perfect Rating Pro tie-break, and stars only select the source fact within a
+ * target rank.
+ */
+export function comparePlayerStrengthFacts(
+  left: PlayerStrengthFact,
+  right: PlayerStrengthFact,
+  config: CompetitiveProfileConfig,
+): number {
+  const leftRank = rankValue(left.rank, config);
+  const rightRank = rankValue(right.rank, config);
+  if (leftRank !== null && rightRank !== null && leftRank !== rightRank) return leftRank - rightRank;
+  if (leftRank === null || rightRank === null) {
+    if (leftRank !== rightRank) return leftRank === null ? -1 : 1;
+  }
+
+  if (targetUsesStars(left.rank, config) && targetUsesStars(right.rank, config)) {
+    const leftStars = left.stars ?? Number.NEGATIVE_INFINITY;
+    const rightStars = right.stars ?? Number.NEGATIVE_INFINITY;
+    if (leftStars !== rightStars) return leftStars - rightStars;
+  }
+
+  // Exact target rank/star ties prefer the native Perfect fact. This is the
+  // only source-platform tie-break and never compares cross-platform Rating.
+  if (isPerfectNative(left) !== isPerfectNative(right)) return isPerfectNative(left) ? 1 : -1;
+  return 0;
+}
+
 function effectiveRecentPeak(player: PlayerStrengthInput, config: CompetitiveProfileConfig): PlayerStrengthFact | null {
   if (!config.evidencePolicy) return player.currentSeasonPeak;
   const candidates = player.recentSeasonPeaks ?? [];
+  if (config.evidencePolicy.sourceSelection !== "strongest_equivalent") {
+    let strongestLegacy: PlayerStrengthFact | null = null;
+    for (const candidate of candidates) {
+      if (!candidate) continue;
+      const value = rankValue(candidate.rank, config);
+      if (value === null) return candidate;
+      if (!strongestLegacy || value > (rankValue(strongestLegacy.rank, config) ?? Number.NEGATIVE_INFINITY)) strongestLegacy = candidate;
+    }
+    return strongestLegacy;
+  }
   let strongest: PlayerStrengthFact | null = null;
   for (const candidate of candidates) {
     if (!candidate) continue;
-    const value = rankValue(candidate.rank, config);
-    if (value === null) return candidate;
-    if (!strongest || value > (rankValue(strongest.rank, config) ?? Number.NEGATIVE_INFINITY)) strongest = candidate;
+    if (!strongest || comparePlayerStrengthFacts(candidate, strongest, config) > 0) strongest = candidate;
   }
   return strongest;
 }
@@ -185,12 +231,14 @@ type HistoricalPeakStarPosition =
   | { kind: "stars"; stars: number };
 
 /** 历史最高竞技水平按总星数归类，作为外校相对限制的唯一比较口径。 */
-function historicalPeakStarPosition(player: PlayerStrengthInput): HistoricalPeakStarPosition {
+function historicalPeakStarPosition(player: PlayerStrengthInput, config: CompetitiveProfileConfig): HistoricalPeakStarPosition {
   const fact = player.historicalPeak;
   if (!fact || !fact.rank) return { kind: "missing" };
-  // The external-member policy is defined only in Perfect World total stars.
-  // A same-named 5E rank must never be interpreted as Perfect World stars.
-  if ((fact.sourcePlatform ?? "perfect_world") !== "perfect_world" || !isBuiltInStarRank("perfect_world", fact.rank)) {
+  // Legacy StageRuns intentionally retain the old native-Perfect-only rule.
+  // New strongest-equivalent snapshots carry target Perfect rank/stars even
+  // when the selected source fact originated on 5E.
+  const strongestEquivalent = config.evidencePolicy?.sourceSelection === "strongest_equivalent";
+  if ((!strongestEquivalent && (fact.sourcePlatform ?? "perfect_world") !== "perfect_world") || !isBuiltInStarRank("perfect_world", fact.rank)) {
     return { kind: "starless" };
   }
   if (fact.stars === null || fact.stars === undefined) return { kind: "insufficient" };
@@ -221,7 +269,7 @@ export function evaluateExternalStrengthRule(input: { players: Array<PlayerStren
   const findings: QualificationFinding[] = [];
 
   const resolve = (player: PlayerStrengthInput & { isHome: boolean }): number | null => {
-    const position = historicalPeakStarPosition(player);
+    const position = historicalPeakStarPosition(player, input.config);
     if (position.kind === "stars") return position.stars;
     if (position.kind === "starless") return Number.NEGATIVE_INFINITY;
     if (position.kind === "insufficient") {

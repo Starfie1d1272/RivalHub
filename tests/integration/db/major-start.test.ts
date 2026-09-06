@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -29,7 +29,8 @@ import {
   grantTournamentHonorInTx,
   revokeTournamentHonorInTx,
 } from "../../../src/lib/postevent/service";
-import { lockMatchInTx } from "../../../src/lib/match-rosters/service";
+import { applyMatchStatusTransitionInTx, confirmMatchRosterInTx, lockMatchInTx, persistMatchRosterInTx } from "../../../src/lib/match-rosters/service";
+import { openSeasonRegistrationInTx } from "../../../src/lib/seasons/lifecycle";
 import { deleteCompetitivePlatformCatalog, seedCompetitivePlatformCatalog } from "./harness/competitive-catalog-fixtures";
 import { capturePostgresError, localDatabaseUrl } from "./harness/database";
 
@@ -41,6 +42,11 @@ const GOLDEN_PROFILE: CompetitiveProfileConfig = {
   previousSeasonKey: "golden-major-2026-previous",
   rankOrder: createPerfectWorldRankOrder(),
 };
+
+const ISSUE_461_PRIOR_SEASONS = {
+  perfect: "issue-461-perfect-prior",
+  fivee: "issue-461-fivee-prior",
+} as const;
 
 function deterministicUuid(scope: string): string {
   const hex = createHash("sha256").update(`rivalhub-golden-major:${scope}`).digest("hex").slice(0, 32);
@@ -91,6 +97,7 @@ function assertNoConcurrencyTimeout(
 interface MajorFixture {
   seasonId: string;
   userIds: string[];
+  cleanupCatalogSeasons?: Array<{ platform: string; seasonKeys: readonly string[] }>;
 }
 
 interface GoldenSwissEvidenceRow {
@@ -125,7 +132,7 @@ interface GoldenFinalEvidence {
 async function prepareReadyMajor(
   pool: Pool,
   label: string,
-  options: { editablePrestart?: boolean; distinctRecommendationGroups?: boolean } = {},
+  options: { editablePrestart?: boolean; distinctRecommendationGroups?: boolean; registrationFreeze?: boolean } = {},
 ): Promise<MajorFixture> {
   const client = await pool.connect();
   const seasonId = deterministicUuid(`${label}/season`);
@@ -133,8 +140,23 @@ async function prepareReadyMajor(
   const eventRosterIds = Array.from({ length: 32 }, (_, index) => deterministicUuid(`${label}/event-roster/${index + 1}`));
   const revisionIds = Array.from({ length: 32 }, (_, index) => deterministicUuid(`${label}/revision/${index + 1}`));
   const userIds = Array.from({ length: 160 }, (_, index) => deterministicUuid(`${label}/user/${index + 1}`));
+  const registrationFreeze = options.registrationFreeze === true;
+  const profilePlatform = registrationFreeze ? "perfect_world" : GOLDEN_PROFILE.platform;
+  const profileRankOrder = registrationFreeze ? createPerfectWorldRankOrder() : GOLDEN_PROFILE.rankOrder;
   const capabilities = createMajorDefaultCapabilities();
-  capabilities.teamRegistrationConfig.competitiveProfile = GOLDEN_PROFILE;
+  capabilities.teamRegistrationConfig.competitiveProfile = registrationFreeze
+    ? { platform: profilePlatform, currentSeasonKey: "", previousSeasonKey: "", rankOrder: [] }
+    : GOLDEN_PROFILE;
+  let primarySeasonKeys = registrationFreeze
+    ? []
+    : [GOLDEN_PROFILE.previousSeasonKey, GOLDEN_PROFILE.currentSeasonKey];
+  let fallbackSeasonKeys: string[] = [];
+  const cleanupCatalogSeasons = registrationFreeze
+    ? [
+        { platform: "perfect_world", seasonKeys: [ISSUE_461_PRIOR_SEASONS.perfect] },
+        { platform: "fivee", seasonKeys: [ISSUE_461_PRIOR_SEASONS.fivee] },
+      ]
+    : undefined;
   const njuInstitution = await client.query<{ id: string }>(
     "SELECT id FROM institutions WHERE moe_institution_code = '4132010284'",
   );
@@ -147,17 +169,41 @@ async function prepareReadyMajor(
 
   try {
     await client.query("BEGIN");
-    await seedCompetitivePlatformCatalog(client, GOLDEN_PROFILE.platform, [
-      { seasonKey: GOLDEN_PROFILE.previousSeasonKey, label: "Golden previous", sortOrder: 0, isCurrent: false },
-      { seasonKey: GOLDEN_PROFILE.currentSeasonKey, label: "Golden current", sortOrder: 1, isCurrent: true },
-    ], GOLDEN_PROFILE.rankOrder);
+    if (registrationFreeze) {
+      await seedCompetitivePlatformCatalog(client, "perfect_world", [
+        { seasonKey: ISSUE_461_PRIOR_SEASONS.perfect, label: "Issue 461 prior Perfect", sortOrder: -1, isCurrent: false },
+      ], profileRankOrder);
+      await seedCompetitivePlatformCatalog(client, "fivee", [
+        { seasonKey: ISSUE_461_PRIOR_SEASONS.fivee, label: "Issue 461 prior 5E", sortOrder: -1, isCurrent: false },
+      ], []);
+      const liveSeasons = async (platform: string): Promise<string[]> => {
+        const rows = await client.query<{ season_key: string; sort_order: number; is_current: boolean }>(
+          "SELECT season_key, sort_order, is_current FROM competitive_platform_seasons WHERE platform = $1 AND active = true ORDER BY sort_order",
+          [platform],
+        );
+        const current = rows.rows.find((row) => row.is_current);
+        if (!current) throw new Error(`Issue 461 fixture 缺少 ${platform} 当前赛季。`);
+        const beforeCurrent = rows.rows.filter((row) => row.sort_order < current.sort_order).sort((left, right) => right.sort_order - left.sort_order);
+        const previous = beforeCurrent[0];
+        const prior = beforeCurrent[1];
+        if (!previous || !prior) throw new Error(`Issue 461 fixture 的 ${platform} 目录缺少 previous/prior 赛季。`);
+        return [prior.season_key, previous.season_key, current.season_key];
+      };
+      primarySeasonKeys = await liveSeasons("perfect_world");
+      fallbackSeasonKeys = await liveSeasons("fivee");
+    } else {
+      await seedCompetitivePlatformCatalog(client, GOLDEN_PROFILE.platform, [
+        { seasonKey: GOLDEN_PROFILE.previousSeasonKey, label: "Golden previous", sortOrder: 0, isCurrent: false },
+        { seasonKey: GOLDEN_PROFILE.currentSeasonKey, label: "Golden current", sortOrder: 1, isCurrent: true },
+      ], profileRankOrder);
+    }
     await client.query(
       `INSERT INTO seasons (
         id, slug, name, kind, competition_template, status, registration_mode, has_captain_voting, has_draft,
         stage_plan, registration_config, team_registration_config, affiliation_rules, min_team_size, max_team_size, starter_count, positions, registration_opens_at, registration_opened_at
-      ) VALUES ($1, $2, 'Local Major Start', 'Major', 'major', 'registration', $3, $4, $5, $6::json, $7::json, $8::json, $9::json, $10, $11, $12, $13::text[], now(), now())`,
+      ) VALUES ($1, $2, 'Local Major Start', 'Major', 'major', 'registration', $3, $4, $5, $6::json, $7::json, $8::json, $9::json, $10, $11, $12, $13::text[], now(), ${registrationFreeze ? "NULL" : "now()"})`,
       [
-        seasonId, `local-golden-major-2026-08-${label}`,
+        seasonId, `${registrationFreeze ? "local-major-start-" : "local-golden-major-2026-08-"}${label}`,
         capabilities.registrationMode, capabilities.hasCaptainVoting, capabilities.hasDraft,
         JSON.stringify(capabilities.stagePlan), JSON.stringify(capabilities.registrationConfig),
         JSON.stringify(capabilities.teamRegistrationConfig), JSON.stringify(capabilities.affiliationRules),
@@ -190,24 +236,58 @@ async function prepareReadyMajor(
        VALUES ${educationRows.map((_, index) => `($${index * 4 + 1}, $${index * 4 + 2}, $${index * 4 + 3}, $${index * 4 + 4}, 'manual_other', 'approved', 'local-admin', now())`).join(", ")}`,
       educationRows.flatMap((row) => [row.id, row.userId, row.institutionId, row.academicStatus]),
     );
-    const rankRows = userIds.flatMap((userId, index) => {
+    type FixtureRankRow = {
+      id: string;
+      userId: string;
+      platform: string;
+      kind: "historical_peak" | "season_peak";
+      seasonKey: string | null;
+      rank: string;
+      rating: string;
+      stars: number | null;
+    };
+    type FixtureRankFact = Omit<FixtureRankRow, "userId" | "platform"> & { isFallback: boolean };
+    const rankRows: FixtureRankRow[] = userIds.flatMap((userId, index) => {
       const teamIndex = Math.floor(index / 5);
-      const rank = options.distinctRecommendationGroups
-        ? teamIndex === 0 ? GOLDEN_PROFILE.rankOrder[10]! : GOLDEN_PROFILE.rankOrder[7]!
-        : index % 5 < 3 ? GOLDEN_PROFILE.rankOrder[10]! : GOLDEN_PROFILE.rankOrder[7]!;
-      // The golden fixture deliberately uses the built-in S rank key on a
-      // private catalog; complete S facts still need an exact star count.
-      const stars = index % 5 < 3 ? 10 : null;
-      return [
-        { id: deterministicUuid(`${label}/rank/${index + 1}/historical`), kind: "historical_peak", seasonKey: null, rank, rating: index % 5 < 3 ? "1800.00" : "1500.00", stars },
-        { id: deterministicUuid(`${label}/rank/${index + 1}/previous`), kind: "season_peak", seasonKey: GOLDEN_PROFILE.previousSeasonKey, rank, rating: index % 5 < 3 ? "1750.00" : "1450.00", stars },
-        { id: deterministicUuid(`${label}/rank/${index + 1}/current`), kind: "season_peak", seasonKey: GOLDEN_PROFILE.currentSeasonKey, rank, rating: index % 5 < 3 ? "1700.00" : "1400.00", stars },
-      ].map((fact) => ({ ...fact, userId }));
+      const isHome = index % 5 < 3;
+      const rank = registrationFreeze
+        ? isHome ? "钻石S" : "A++"
+        : options.distinctRecommendationGroups
+          ? teamIndex === 0 ? profileRankOrder[10]! : profileRankOrder[7]!
+          : isHome ? profileRankOrder[10]! : profileRankOrder[7]!;
+      const stars = registrationFreeze ? isHome ? 34 : null : isHome ? 10 : null;
+      const primaryFacts: FixtureRankFact[] = [
+        { id: deterministicUuid(`${label}/rank/${index + 1}/historical`), kind: "historical_peak" as const, seasonKey: null, rank, rating: isHome ? "1800.00" : "1500.00", stars },
+        ...primarySeasonKeys.map((seasonKey, seasonIndex) => ({
+          id: deterministicUuid(`${label}/rank/${index + 1}/primary-${seasonIndex}`),
+          kind: "season_peak" as const,
+          seasonKey,
+          rank,
+          rating: isHome ? "1750.00" : "1450.00",
+          stars,
+          isFallback: false,
+        })),
+      ].map((fact) => ({ ...fact, isFallback: false }));
+      const fallbackFacts: FixtureRankFact[] = registrationFreeze && !isHome
+        ? [
+            { id: deterministicUuid(`${label}/rank/${index + 1}/fallback-historical`), kind: "historical_peak", seasonKey: null, rank: "SS", rating: "2200.00", stars: 35, isFallback: true },
+            ...fallbackSeasonKeys.map((seasonKey, seasonIndex) => ({
+              id: deterministicUuid(`${label}/rank/${index + 1}/fallback-${seasonIndex}`),
+              kind: "season_peak" as const,
+              seasonKey,
+              rank: "SS",
+              rating: "2200.00",
+              stars: 35,
+              isFallback: true,
+            })),
+          ]
+        : [];
+      return [...primaryFacts, ...fallbackFacts].map(({ isFallback, ...fact }) => ({ ...fact, userId, platform: isFallback ? "fivee" : profilePlatform }));
     });
     await client.query(
       `INSERT INTO competitive_rank_facts (id, user_id, platform, kind, platform_season_key, rank, rating, stars)
        VALUES ${rankRows.map((_, index) => `($${index * 8 + 1}, $${index * 8 + 2}, $${index * 8 + 3}, $${index * 8 + 4}, $${index * 8 + 5}, $${index * 8 + 6}, $${index * 8 + 7}, $${index * 8 + 8})`).join(", ")}`,
-      rankRows.flatMap((row) => [row.id, row.userId, GOLDEN_PROFILE.platform, row.kind, row.seasonKey, row.rank, row.rating, row.stars]),
+      rankRows.flatMap((row) => [row.id, row.userId, row.platform, row.kind, row.seasonKey, row.rank, row.rating, row.stars]),
     );
     for (let index = 0; index < 32; index += 1) {
       const entryId = entryIds[index]!;
@@ -281,17 +361,28 @@ async function prepareReadyMajor(
   } finally {
     client.release();
   }
+  if (registrationFreeze) {
+    const database = drizzle(pool, { schema });
+    try {
+      await database.transaction((tx) => openSeasonRegistrationInTx(tx, { seasonId, actorId: "local-admin", openNow: false }));
+    } catch (error) {
+      await cleanupMajorFixture(pool, { seasonId, userIds, cleanupCatalogSeasons });
+      throw error;
+    }
+  }
   if (!options.editablePrestart) {
     const database = drizzle(pool, { schema });
     await database.transaction((tx) => lockMajorPrestartEntrantsInTx(tx, { seasonId, actorId: "local-admin" }));
   }
-  return { seasonId, userIds };
+  return { seasonId, userIds, cleanupCatalogSeasons };
 }
 
 async function cleanupMajorFixture(pool: Pool, fixture: MajorFixture): Promise<void> {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    await client.query("DELETE FROM match_roster_players WHERE roster_id IN (SELECT id FROM match_rosters WHERE match_id IN (SELECT id FROM matches WHERE season_id = $1))", [fixture.seasonId]);
+    await client.query("DELETE FROM match_rosters WHERE match_id IN (SELECT id FROM matches WHERE season_id = $1)", [fixture.seasonId]);
     await client.query("DELETE FROM matches WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM tournament_honors WHERE season_id = $1", [fixture.seasonId]);
     await client.query("DELETE FROM post_event_adjudications WHERE season_id = $1", [fixture.seasonId]);
@@ -334,7 +425,11 @@ async function cleanupMajorFixture(pool: Pool, fixture: MajorFixture): Promise<v
     await client.query("DELETE FROM education_verifications WHERE user_id = ANY($1::uuid[])", [fixture.userIds]);
     await client.query("DELETE FROM competitive_rank_facts WHERE user_id = ANY($1::uuid[])", [fixture.userIds]);
     await client.query("DELETE FROM users WHERE id = ANY($1::uuid[])", [fixture.userIds]);
-    await deleteCompetitivePlatformCatalog(client, GOLDEN_PROFILE.platform);
+    if (fixture.cleanupCatalogSeasons) {
+      for (const cleanup of fixture.cleanupCatalogSeasons) await deleteCompetitivePlatformCatalog(client, cleanup.platform, cleanup.seasonKeys);
+    } else {
+      await deleteCompetitivePlatformCatalog(client, GOLDEN_PROFILE.platform);
+    }
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK");
@@ -348,8 +443,8 @@ async function cleanupMajorFixture(pool: Pool, fixture: MajorFixture): Promise<v
 async function cleanupStaleMajorStartFixtures(pool: Pool): Promise<void> {
   const client = await pool.connect();
   try {
-    const fixtures = await client.query<{ season_id: string; user_ids: string[] }>(`
-      SELECT s.id AS season_id, COALESCE(array_agg(DISTINCT p.user_id) FILTER (WHERE p.user_id IS NOT NULL), '{}') AS user_ids
+    const fixtures = await client.query<{ season_id: string; user_ids: string[]; slug: string }>(`
+      SELECT s.id AS season_id, s.slug, COALESCE(array_agg(DISTINCT p.user_id) FILTER (WHERE p.user_id IS NOT NULL), '{}') AS user_ids
       FROM seasons s
       LEFT JOIN competition_entries e ON e.competition_id = s.id
       LEFT JOIN competition_entry_participants p ON p.entry_id = e.id
@@ -357,8 +452,19 @@ async function cleanupStaleMajorStartFixtures(pool: Pool): Promise<void> {
       GROUP BY s.id
     `);
     for (const fixture of fixtures.rows) {
-      await cleanupMajorFixture(pool, { seasonId: fixture.season_id, userIds: fixture.user_ids });
+      await cleanupMajorFixture(pool, {
+        seasonId: fixture.season_id,
+        userIds: fixture.user_ids,
+        cleanupCatalogSeasons: fixture.slug.startsWith("local-major-start-")
+          ? [
+              { platform: "perfect_world", seasonKeys: [ISSUE_461_PRIOR_SEASONS.perfect] },
+              { platform: "fivee", seasonKeys: [ISSUE_461_PRIOR_SEASONS.fivee] },
+            ]
+          : undefined,
+      });
     }
+    await deleteCompetitivePlatformCatalog(pool, "perfect_world", [ISSUE_461_PRIOR_SEASONS.perfect]);
+    await deleteCompetitivePlatformCatalog(pool, "fivee", [ISSUE_461_PRIOR_SEASONS.fivee]);
   } finally {
     client.release();
   }
@@ -1404,6 +1510,143 @@ async function exerciseStartQualification(
   }
 }
 
+interface Issue461FrozenPeak {
+  rank: string;
+  rating: number;
+  ratingComparable?: boolean;
+  stars: number | null;
+  sourcePlatform?: string | null;
+  sourceSeasonKey?: string | null;
+  sourceRank?: string | null;
+  sourceStars?: number | null;
+  conversionVersion?: string | null;
+}
+
+interface Issue461FrozenPlayer {
+  userId: string;
+  historicalPeak: Issue461FrozenPeak | null;
+  previousSeasonPeak: Issue461FrozenPeak | null;
+  currentSeasonPeak: Issue461FrozenPeak | null;
+  recentSeasonPeaks?: Array<Issue461FrozenPeak | null>;
+}
+
+/** #461 real-PG chain: registration freeze → seed snapshot → Major start →
+ * StageRun provenance → match roster confirmation/start. */
+async function exerciseStrongestEquivalentFullChain(
+  database: ReturnType<typeof drizzle<typeof schema>>,
+  pool: Pool,
+  fixtures: MajorFixture[],
+): Promise<void> {
+  const fixture = await prepareReadyMajor(pool, "strongest-equivalent-full-chain", { registrationFreeze: true });
+  fixtures.push(fixture);
+
+  const started = await database.transaction((tx) => startMajorInTransaction(tx, {
+    seasonId: fixture.seasonId,
+    actorId: "local-admin",
+  }));
+  if (!started.created || started.matchCount !== 8) {
+    throw new Error("#461 strongest-equivalent fixture 未形成首轮 8 场托管比赛。 ");
+  }
+
+  type Issue461CompetitiveProfile = {
+    evidencePolicy?: { sourceSelection?: string };
+    fallbackConversion?: { version?: string };
+  };
+  type Issue461Snapshot = {
+    competitiveProfile?: Issue461CompetitiveProfile;
+    qualificationPolicy?: { externalStrengthGap?: { enabled?: boolean; maxGap?: number } };
+    frozenCompetitiveFacts?: Issue461FrozenPlayer[];
+  };
+  type Issue461SeedContext = {
+    competitiveContext?: Issue461CompetitiveProfile & { evidencePolicy?: { sourceSelection?: string } };
+  };
+  const frozen = await pool.query<{
+    registrationOpenedAt: Date | null;
+    teamRegistrationConfig: { competitiveProfile?: Issue461CompetitiveProfile };
+    seedContext: Issue461SeedContext | null;
+    ruleSnapshot: Issue461Snapshot;
+  }>(`
+    SELECT
+      s.registration_opened_at AS "registrationOpenedAt",
+      s.team_registration_config AS "teamRegistrationConfig",
+      snapshot.context AS "seedContext",
+      run.rule_snapshot AS "ruleSnapshot"
+    FROM seasons s
+    INNER JOIN major_stage_runs run ON run.id = $2
+    LEFT JOIN major_seed_recommendation_snapshots snapshot ON snapshot.season_id = s.id
+    WHERE s.id = $1
+  `, [fixture.seasonId, started.stageRunId]);
+  const frozenRow = frozen.rows[0];
+  const eventProfile = frozenRow?.teamRegistrationConfig.competitiveProfile;
+  const seedProfile = frozenRow?.seedContext?.competitiveContext;
+  const runProfile = frozenRow?.ruleSnapshot.competitiveProfile;
+  if (!frozenRow?.registrationOpenedAt || eventProfile?.evidencePolicy?.sourceSelection !== "strongest_equivalent" || eventProfile.fallbackConversion?.version !== "2026.09" || seedProfile?.evidencePolicy?.sourceSelection !== "strongest_equivalent" || seedProfile.fallbackConversion?.version !== "2026.09" || runProfile?.evidencePolicy?.sourceSelection !== "strongest_equivalent" || runProfile.fallbackConversion?.version !== "2026.09") {
+    throw new Error("#461 的 sourceSelection 或 5E 换算版本没有沿 registration → seed snapshot → StageRun 冻结。 ");
+  }
+  if (frozenRow.ruleSnapshot.qualificationPolicy?.externalStrengthGap?.enabled !== true || frozenRow.ruleSnapshot.qualificationPolicy.externalStrengthGap.maxGap !== 3) {
+    throw new Error("#461 StageRun 没有冻结 +3 外校实力规则。 ");
+  }
+
+  const external = frozenRow.ruleSnapshot.frozenCompetitiveFacts?.find((fact) => fact.userId === fixture.userIds[3]);
+  const home = frozenRow.ruleSnapshot.frozenCompetitiveFacts?.find((fact) => fact.userId === fixture.userIds[0]);
+  if (!external || !home) throw new Error("#461 StageRun 冻结竞技事实缺少 home/external 代表选手。 ");
+  const selectedExternalPeaks = [external.historicalPeak, external.previousSeasonPeak, external.currentSeasonPeak, ...(external.recentSeasonPeaks ?? [])];
+  if (selectedExternalPeaks.length !== 5 || selectedExternalPeaks.some((peak) => !peak || peak.rank !== "钻石S" || peak.stars !== 37 || peak.sourcePlatform !== "fivee" || peak.sourceRank !== "SS" || peak.sourceStars !== 35 || peak.conversionVersion !== "2026.09" || peak.ratingComparable !== false)) {
+    throw new Error(`#461 没有在每个 evidence slot 选中 5E→Perfect 的最强等效事实：${JSON.stringify(selectedExternalPeaks)}`);
+  }
+  if (home.historicalPeak?.rank !== "钻石S" || home.historicalPeak.stars !== 34 || home.historicalPeak.sourcePlatform !== "perfect_world" || home.historicalPeak.sourceRank !== "钻石S" || home.historicalPeak.sourceStars !== null || home.historicalPeak.conversionVersion !== null || external.historicalPeak?.stars !== home.historicalPeak.stars + 3) {
+    throw new Error("#461 real-PG qualification 没有保留 native Perfect 与 5E 等效事实的目标星数 provenance。 ");
+  }
+
+  const firstMatch = await pool.query<{ id: string; entryAId: string; entryBId: string }>(`
+    SELECT id, entry_a_id AS "entryAId", entry_b_id AS "entryBId"
+    FROM matches
+    WHERE major_stage_run_id = $1 AND ownership = 'major_stage'
+    ORDER BY managed_key
+    LIMIT 1
+  `, [started.stageRunId]);
+  const matchRef = firstMatch.rows[0];
+  if (!matchRef) throw new Error("#461 缺少用于 match replay 的首轮比赛。 ");
+
+  const replay = await database.transaction(async (tx) => {
+    const match = await lockMatchInTx(tx, matchRef.id);
+    for (const entryId of [match.entryAId, match.entryBId]) {
+      const members = await tx
+        .select({ id: schema.eventRosterMembers.id })
+        .from(schema.eventRosterMembers)
+        .innerJoin(schema.eventRosters, eq(schema.eventRosters.id, schema.eventRosterMembers.eventRosterId))
+        .where(and(eq(schema.eventRosters.entryId, entryId), eq(schema.eventRosters.status, "frozen")))
+        .limit(5);
+      if (members.length !== 5) throw new Error("#461 match replay fixture 的 frozen event roster 不是 5 名队员。 ");
+      const persisted = await persistMatchRosterInTx(tx, {
+        match,
+        entryId,
+        submittedBy: null,
+        source: "admin_select",
+        starterIds: members.map((member) => member.id),
+      });
+      await confirmMatchRosterInTx(tx, { rosterId: persisted.rosterId, actorId: "local-admin" });
+    }
+    return applyMatchStatusTransitionInTx(tx, { matchId: match.id, nextStatus: "in_progress", actorId: "local-admin" });
+  });
+  if (replay.to !== "in_progress" || !replay.lineups || replay.lineups.length !== 2 || replay.lineups.some((lineup) => lineup.status !== "confirmed" || lineup.starterIds.length !== 5)) {
+    throw new Error("#461 match replay 没有从两个 confirmed roster 进入 in_progress。 ");
+  }
+  const replayFacts = await pool.query<{ status: string; rosters: string; confirmed: string; startAudits: string }>(`
+    SELECT
+      m.status::text AS status,
+      (SELECT count(*)::text FROM match_rosters WHERE match_id = m.id) AS rosters,
+      (SELECT count(*)::text FROM match_rosters WHERE match_id = m.id AND status = 'confirmed') AS confirmed,
+      (SELECT count(*)::text FROM audit_logs WHERE target_id = m.id::text AND action = 'match.start') AS "startAudits"
+    FROM matches m
+    WHERE m.id = $1
+  `, [matchRef.id]);
+  const replayFact = replayFacts.rows[0];
+  if (!replayFact || replayFact.status !== "in_progress" || replayFact.rosters !== "2" || replayFact.confirmed !== "2" || replayFact.startAudits !== "1") {
+    throw new Error("#461 match replay 没有留下两个 confirmed roster 与 match.start 审计事实。 ");
+  }
+}
+
 interface MajorLifecycleContext {
   pool: Pool;
   database: ReturnType<typeof drizzle<typeof schema>>;
@@ -1570,6 +1813,10 @@ describe.sequential("Major lifecycle PostgreSQL invariants", () => {
 
   it("starts Stage 1 once and freezes canonical runtime facts", async () => {
     await startAndVerifyMajor(context);
+  });
+
+  it("freezes strongest-equivalent evidence through StageRun into a live match", async () => {
+    await exerciseStrongestEquivalentFullChain(context.database, context.pool, context.fixtures);
   });
 
   it("advances three Swiss StageRuns and finalizes the playoff", async () => {

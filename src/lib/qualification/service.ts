@@ -1,9 +1,9 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { competitiveRankFacts, educationVerifications, institutions, users } from "@/db/schema";
-import { BUILT_IN_COMPETITIVE_PLATFORMS, isBuiltInCompetitivePlatformKey } from "@/lib/competitive/builtins";
+import { BUILT_IN_COMPETITIVE_PLATFORMS, isBuiltInCompetitivePlatformKey, isBuiltInStarRank } from "@/lib/competitive/builtins";
 import { convertFiveeToPerfect } from "@/lib/competitive/conversion-policy";
-import { evaluateExternalStrengthRule, getPlayerStrengthFindings, type PlayerStrengthInput } from "@/lib/major/player-strength";
+import { comparePlayerStrengthFacts, evaluateExternalStrengthRule, getPlayerStrengthFindings, type PlayerStrengthFact, type PlayerStrengthInput } from "@/lib/major/player-strength";
 import {
   blockersFromQualificationFindings,
   uniqueQualificationFindings,
@@ -50,8 +50,9 @@ export interface ParticipantQualificationFacts {
 }
 
 type QualificationPeak = {
-  rank: string;
-  rating: number;
+  status?: "ranked" | "unranked";
+  rank: string | null;
+  rating: number | null;
   stars?: number | null;
   sourcePlatform?: string;
   sourceSeasonKey?: string | null;
@@ -68,6 +69,14 @@ type QualificationSeasonPeak = {
   sourceRank?: string;
 };
 
+type SelectableCompetitivePeak = QualificationPeak | QualificationSeasonPeak;
+
+type CompetitiveEvidenceSlot = {
+  label: string;
+  primary: SelectableCompetitivePeak | null | undefined;
+  fallback: SelectableCompetitivePeak | null | undefined;
+};
+
 export interface ParticipantReadiness {
   ready: boolean;
   blockers: string[];
@@ -76,29 +85,41 @@ export interface ParticipantReadiness {
   educationApproved: boolean;
 }
 
-/** Adapts long-term facts to the event's frozen evidence policy in one place. */
-export function toPlayerStrengthInput(
-  fact: Pick<ParticipantQualificationFacts, "userId" | "displayName" | "perfectName" | "email" | "historicalPeak" | "seasonPeaks" | "fallbackFacts">,
-  context: CompetitiveProfileConfig | null,
-): PlayerStrengthInput {
+function createCompetitiveCandidateResolver(context: CompetitiveProfileConfig | null): (
+  primary: SelectableCompetitivePeak | null | undefined,
+  fallbackFact: SelectableCompetitivePeak | null | undefined,
+) => PlayerStrengthFact | null {
   const policy = context?.evidencePolicy;
   const fallback = context?.fallbackConversion;
   const lowestRank = context?.rankOrder[0] ?? null;
-  const resolve = (
-    primary: { status?: "ranked" | "unranked"; rank: string | null; rating: number | null; stars?: number | null; sourcePlatform?: string; sourceSeasonKey?: string | null; sourceRank?: string } | null | undefined,
-    fallbackFact: { rank: string | null; rating: number | null; stars?: number | null; sourcePlatform?: string; sourceSeasonKey?: string | null; sourceRank?: string } | null | undefined,
-  ) => {
-    if (primary?.status !== "unranked" && primary?.rank && primary.rating !== null && primary.rating !== undefined) {
-      return { rank: primary.rank, rating: primary.rating, stars: primary.stars ?? null, sourcePlatform: primary.sourcePlatform, sourceSeasonKey: primary.sourceSeasonKey, sourceRank: primary.sourceRank };
+  const sourceSelection = policy?.sourceSelection ?? "primary_then_fallback";
+  const nativeCandidate = (primary: SelectableCompetitivePeak | null | undefined): PlayerStrengthFact | null => {
+    if (primary?.status === "unranked") {
+      // Explicitly unranked is a declared lowest available platform state. The
+      // lowest frozen rank is derived from the event map, not a magic rank key.
+      return lowestRank
+        ? { rank: lowestRank, rating: 0, ratingComparable: false, stars: null, sourcePlatform: primary.sourcePlatform, sourceSeasonKey: primary.sourceSeasonKey }
+        : null;
     }
-    if (fallback && fallbackFact?.rank && fallbackFact.rating !== null) {
-      if (fallback.mapping) {
-        const converted = convertFiveeToPerfect(fallbackFact.rank, fallbackFact.stars ?? null, fallback.mapping);
-        // A 5E Rating+ has no reviewed conversion to Perfect Rating Pro. It can
-        // establish an equivalent rank, but must not participate in Rating Pro's
-        // final tie-break.
-        if (converted) {
-          return {
+    if (!primary?.rank || primary.rating === null || primary.rating === undefined) return null;
+    return {
+      rank: primary.rank,
+      rating: primary.rating,
+      stars: primary.stars ?? null,
+      sourcePlatform: primary.sourcePlatform,
+      sourceSeasonKey: primary.sourceSeasonKey,
+      ...(primary.sourceRank !== undefined ? { sourceRank: primary.sourceRank } : {}),
+    };
+  };
+  const fallbackCandidate = (fallbackFact: SelectableCompetitivePeak | null | undefined): PlayerStrengthFact | null => {
+    if (!fallback || !fallbackFact?.rank || fallbackFact.rating === null || fallbackFact.rating === undefined) return null;
+    if (fallback.mapping) {
+      const converted = convertFiveeToPerfect(fallbackFact.rank, fallbackFact.stars ?? null, fallback.mapping);
+      // A 5E Rating+ has no reviewed conversion to Perfect Rating Pro. It can
+      // establish an equivalent rank, but must not participate in Rating Pro's
+      // final tie-break.
+      return converted
+        ? {
             rank: converted.rank,
             rating: 0,
             ratingComparable: false,
@@ -108,27 +129,51 @@ export function toPlayerStrengthInput(
             sourceRank: fallbackFact.rank,
             sourceStars: fallbackFact.stars ?? null,
             conversionVersion: fallback.version,
-          };
-        }
-      } else if (fallback.rankMap && Object.hasOwn(fallback.rankMap, fallbackFact.rank)) {
-        return {
-          rank: fallback.rankMap[fallbackFact.rank],
-          rating: 0,
-          ratingComparable: false,
-          stars: null,
-          sourcePlatform: fallback.sourcePlatform,
-          sourceSeasonKey: fallbackFact.sourceSeasonKey,
-          sourceRank: fallbackFact.rank,
-          sourceStars: fallbackFact.stars ?? null,
-          conversionVersion: fallback.version,
-        };
-      }
+          }
+        : null;
     }
-    // Explicitly unranked is a declared lowest available platform state. The
-    // lowest frozen rank is derived from the event map, not a magic rank key.
-    if (primary?.status === "unranked" && lowestRank) return { rank: lowestRank, rating: 0, stars: null, sourcePlatform: primary.sourcePlatform, sourceSeasonKey: primary.sourceSeasonKey };
+    if (fallback.rankMap && Object.hasOwn(fallback.rankMap, fallbackFact.rank)) {
+      return {
+        rank: fallback.rankMap[fallbackFact.rank]!,
+        rating: 0,
+        ratingComparable: false,
+        stars: null,
+        sourcePlatform: fallback.sourcePlatform,
+        sourceSeasonKey: fallbackFact.sourceSeasonKey,
+        sourceRank: fallbackFact.rank,
+        sourceStars: fallbackFact.stars ?? null,
+        conversionVersion: fallback.version,
+      };
+    }
     return null;
   };
+  const candidateIsUsable = (candidate: PlayerStrengthFact): boolean =>
+    !isBuiltInStarRank(context?.platform ?? "perfect_world", candidate.rank) || candidate.stars !== null && candidate.stars !== undefined;
+  return (primary, fallbackFact) => {
+    const native = nativeCandidate(primary);
+    const converted = fallbackCandidate(fallbackFact);
+    if (sourceSelection !== "strongest_equivalent") {
+      // Preserve the legacy primary-first rule, including its treatment of an
+      // explicitly unranked primary as a fallback opportunity.
+      if (primary?.status !== "unranked" && native) return native;
+      return converted ?? native;
+    }
+    const usableNative = native && candidateIsUsable(native) ? native : null;
+    const usableConverted = converted && candidateIsUsable(converted) ? converted : null;
+    if (!usableNative) return usableConverted ?? native;
+    if (!usableConverted) return usableNative;
+    return comparePlayerStrengthFacts(usableConverted, usableNative, context!) > 0 ? usableConverted : usableNative;
+  };
+}
+
+/** Adapts long-term facts to the event's frozen evidence policy in one place. */
+export function toPlayerStrengthInput(
+  fact: Pick<ParticipantQualificationFacts, "userId" | "displayName" | "perfectName" | "email" | "historicalPeak" | "seasonPeaks" | "fallbackFacts">,
+  context: CompetitiveProfileConfig | null,
+): PlayerStrengthInput {
+  const policy = context?.evidencePolicy;
+  const fallback = context?.fallbackConversion;
+  const resolve = createCompetitiveCandidateResolver(context);
   const fallbackFor = (seasonKey: string) => {
     const sourceSeasonKey = fallback?.seasonKeyMap[seasonKey];
     const source = sourceSeasonKey ? fact.fallbackFacts?.seasonPeaks.get(sourceSeasonKey) : undefined;
@@ -163,28 +208,6 @@ export function getParticipantIdentityBlockers(fact: ParticipantQualificationFac
   return blockersFromQualificationFindings(getParticipantIdentityFindings(fact));
 }
 
-type SelectableCompetitivePeak = {
-  status?: "ranked" | "unranked";
-  rank: string | null;
-  rating: number | null;
-  stars?: number | null;
-};
-
-function selectedCompetitivePeak(
-  primary: SelectableCompetitivePeak | null | undefined,
-  fallback: SelectableCompetitivePeak | null | undefined,
-  primaryPlatform: string,
-  fallbackPlatform: string | undefined,
-): { peak: QualificationPeak | QualificationSeasonPeak; platform: string } | null {
-  if (primary?.status !== "unranked" && primary?.rank && primary.rating !== null && primary.rating !== undefined) {
-    return { peak: primary, platform: primaryPlatform };
-  }
-  if (fallback?.rank && fallback.rating !== null && fallback.rating !== undefined && fallbackPlatform) {
-    return { peak: fallback, platform: fallbackPlatform };
-  }
-  return null;
-}
-
 /** Star-rank facts remain nullable in storage for migration compatibility, but
  * a declared fact used by a live qualification context is incomplete until its
  * exact stars are supplied by the participant. */
@@ -193,26 +216,28 @@ function getMissingStarFindings(
   context: CompetitiveProfileConfig,
 ): QualificationFinding[] {
   const fallbackPlatform = context.fallbackConversion?.sourcePlatform;
-  const slots: Array<{
-    label: string;
-    primary: SelectableCompetitivePeak | null | undefined;
-    fallback: SelectableCompetitivePeak | null | undefined;
-  }> = [
+  const policy = context.evidencePolicy;
+  const sourceSelection = policy?.sourceSelection ?? "primary_then_fallback";
+  const resolve = createCompetitiveCandidateResolver(context);
+  const fallbackFor = (seasonKey: string) => {
+    const sourceSeasonKey = context.fallbackConversion?.seasonKeyMap[seasonKey];
+    return sourceSeasonKey ? fact.fallbackFacts?.seasonPeaks.get(sourceSeasonKey) : undefined;
+  };
+  const slots: CompetitiveEvidenceSlot[] = [
     { label: "历史最高", primary: fact.historicalPeak, fallback: fact.fallbackFacts?.historicalPeak },
   ];
-  const policy = context.evidencePolicy;
   const referenceSeasonKey = policy?.referenceSeasonKey ?? context.previousSeasonKey;
   slots.push({
     label: policy ? `前一完整赛季 · ${referenceSeasonKey}` : `上一赛季 · ${referenceSeasonKey}`,
     primary: fact.seasonPeaks?.get(referenceSeasonKey),
-    fallback: fact.fallbackFacts?.seasonPeaks.get(referenceSeasonKey),
+    fallback: fallbackFor(referenceSeasonKey),
   });
   const recentSeasonKeys = policy?.recentSeasonKeys ?? [context.currentSeasonKey];
   for (const seasonKey of recentSeasonKeys) {
     slots.push({
       label: policy ? `近期赛季 · ${seasonKey}` : `当前赛季 · ${seasonKey}`,
       primary: fact.seasonPeaks?.get(seasonKey),
-      fallback: fact.fallbackFacts?.seasonPeaks.get(seasonKey),
+      fallback: fallbackFor(seasonKey),
     });
   }
 
@@ -229,21 +254,37 @@ function getMissingStarFindings(
   }
 
   const findings: QualificationFinding[] = [];
+  const missingStarsFor = (
+    peak: SelectableCompetitivePeak | null | undefined,
+    platform: string | undefined,
+  ): { label: string; rankKey: string } | null => {
+    if (!peak?.rank || !platform) return null;
+    const rank = definitionsByPlatform.get(platform)?.get(peak.rank);
+    if (!rank || rank.starMin === null || rank.starMin === undefined || (peak.stars !== null && peak.stars !== undefined)) return null;
+    return { label: rank.label, rankKey: peak.rank };
+  };
   for (const slot of slots) {
-    const selected = selectedCompetitivePeak(slot.primary, slot.fallback, context.platform, fallbackPlatform);
-    if (!selected?.peak.rank) continue;
-    const rank = definitionsByPlatform.get(selected.platform)?.get(selected.peak.rank);
-    if (rank?.starMin !== null && rank?.starMin !== undefined && (selected.peak.stars === null || selected.peak.stars === undefined)) {
+    const selected = resolve(slot.primary, slot.fallback);
+    const primaryMissing = missingStarsFor(slot.primary, context.platform);
+    const fallbackMissing = missingStarsFor(slot.fallback, fallbackPlatform);
+    const primaryHasPriorityInLegacy = slot.primary?.status !== "unranked" && Boolean(
+      slot.primary?.rank && slot.primary.rating !== null && slot.primary.rating !== undefined,
+    );
+    const selectedFallback = Boolean(fallbackPlatform && selected?.sourcePlatform === fallbackPlatform);
+    const report = sourceSelection === "strongest_equivalent"
+      ? fallbackMissing ?? (primaryMissing && !selectedFallback ? primaryMissing : null)
+      : primaryHasPriorityInLegacy ? primaryMissing : fallbackMissing;
+    if (report) {
       findings.push({
         code: "competitive_profile_incomplete",
-        message: `${slot.label}的 ${rank.label} 段位需要填写准确星数，竞技资料未填写完整。`,
+        message: `${slot.label}的 ${report.label} 段位需要填写准确星数，竞技资料未填写完整。`,
         waivable: false,
         metadata: {
           field: "stars",
           slot: slot.label,
-          platform: selected.platform,
-          rankKey: selected.peak.rank,
-          rankLabel: rank.label,
+          platform: fallbackMissing && sourceSelection === "strongest_equivalent" ? fallbackPlatform : context.platform,
+          rankKey: report.rankKey,
+          rankLabel: report.label,
         },
       });
     }
@@ -306,7 +347,8 @@ function isCompleteCompetitiveContext(config: CompetitiveProfileConfig): boolean
     policy.recentSeasonWeight === 30 &&
     policy.referenceSeasonKey.trim() &&
     policy.recentSeasonKeys.length > 0 &&
-    policy.recentSeasonKeys.every((key) => key.trim()),
+    policy.recentSeasonKeys.every((key) => key.trim()) &&
+    (policy.sourceSelection === undefined || policy.sourceSelection === "primary_then_fallback" || policy.sourceSelection === "strongest_equivalent"),
   );
   const requiredFallbackSeasonKeys = [...new Set([
     config.currentSeasonKey,
@@ -394,6 +436,12 @@ export async function loadParticipantQualificationFacts(
     const fallbackHistorical = fallbackPlatformFacts.find((row) => row.kind === "historical_peak" && row.platformSeasonKey === null);
     const fallbackSeasonPeaks = new Map<string, QualificationSeasonPeak>();
     for (const row of fallbackPlatformFacts) if (row.kind === "season_peak" && row.platformSeasonKey !== null) fallbackSeasonPeaks.set(row.platformSeasonKey, { status: row.status, rank: row.rank, rating: row.rating === null ? null : Number(row.rating), stars: row.stars, sourcePlatform: row.platform, sourceSeasonKey: row.platformSeasonKey, sourceRank: row.rank ?? undefined });
+    const toHistoricalPeak = (row: typeof historical): QualificationPeak | null => {
+      if (!row) return null;
+      if (row.status === "unranked") return { status: "unranked", rank: null, rating: null, stars: row.stars, sourcePlatform: row.platform, sourceSeasonKey: row.achievedSeasonKey, sourceRank: row.rank ?? undefined };
+      if (row.rank === null && row.rating === null) return null;
+      return { status: row.status, rank: row.rank, rating: row.rating === null ? null : Number(row.rating), stars: row.stars, sourcePlatform: row.platform, sourceSeasonKey: row.achievedSeasonKey, sourceRank: row.rank ?? undefined };
+    };
     facts.set(user.id, {
       userId: user.id,
       displayName: user.displayName,
@@ -405,9 +453,9 @@ export async function loadParticipantQualificationFacts(
       qq: user.qq,
       approvedEducation: approvedEducation.has(user.id),
       educationHistory: historyByUser.get(user.id) ?? [],
-      historicalPeak: historical?.rank && historical.rating !== null ? { rank: historical.rank, rating: Number(historical.rating), stars: historical.stars, sourcePlatform: historical.platform, sourceSeasonKey: historical.achievedSeasonKey, sourceRank: historical.rank } : null,
+      historicalPeak: toHistoricalPeak(historical),
       seasonPeaks,
-      fallbackFacts: options.fallbackPlatform ? { historicalPeak: fallbackHistorical?.rank && fallbackHistorical.rating !== null ? { rank: fallbackHistorical.rank, rating: Number(fallbackHistorical.rating), stars: fallbackHistorical.stars, sourcePlatform: fallbackHistorical.platform, sourceSeasonKey: fallbackHistorical.achievedSeasonKey, sourceRank: fallbackHistorical.rank } : null, seasonPeaks: fallbackSeasonPeaks } : undefined,
+      fallbackFacts: options.fallbackPlatform ? { historicalPeak: toHistoricalPeak(fallbackHistorical), seasonPeaks: fallbackSeasonPeaks } : undefined,
     });
   }
   return facts;

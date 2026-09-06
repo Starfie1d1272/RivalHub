@@ -95,6 +95,7 @@ const seasonFormBaseSchema = z.object({
         referenceSeasonWeight: z.literal(20),
         recentSeasonKeys: z.array(z.string().min(1).max(128)).min(1).max(8),
         recentSeasonWeight: z.literal(30),
+        sourceSelection: z.enum(["primary_then_fallback", "strongest_equivalent"]).optional(),
       }).optional(),
       fallbackConversion: z.object({
         sourcePlatform: z.literal("fivee"),

@@ -89,6 +89,7 @@ describe("freezeCompetitiveContext", () => {
         referenceSeasonWeight: 20,
         recentSeasonKeys: ["s20", "s21"],
         recentSeasonWeight: 30,
+        sourceSelection: "strongest_equivalent",
       },
     });
   });
