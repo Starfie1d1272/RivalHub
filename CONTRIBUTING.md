@@ -8,6 +8,7 @@
 - 2.x Issue 标题使用 `[2.x] <问题或目标>`；开放 Issue 必须且只能有一个 `priority:P0`–`priority:P3` label。计划性工作使用现有类型 label；milestone/assignee 只有存在真实 release boundary 或明确 owner 时设置。
 - Issue 最小结构是背景 → 目标 → 验收；只有能限定实现时才增加范围、非目标或关联。通过 API/agent 创建或修改 Issue 时显式设置 title 和 labels，不能假设 UI form 自动补齐。
 - PR 标题、正文、Changeset 摘要和 release note 默认使用中文，必要的代码名、字段名、协议名和库名保留英文。PR 关联 Issue 使用 `Refs #N`，不要用 `Closes` 代替验收判断。
+- PR 标题必须符合 `type(scope): 摘要`；`scope` 可选，允许的 `type` 为 `feat`、`fix`、`refactor`、`perf`、`docs`、`test`、`build`、`ci`、`chore`、`release`、`revert`。摘要必须非空；人工 PR 摘要默认使用中文，但不机器强制语言，Dependabot 等自动化标题也必须保持合法。`[2.x]` 只用于 Issue 标题，不用于 PR 标题。示例：`feat(major): 补齐赛前冻结`、`fix: 修复移动端溢出`、`ci: 强制统一 PR 标题格式`、`release: v2.5.0`。
 - `main` PR 依赖 strict up-to-date 的自动化 `ci-gate` 与已解决的 review thread；普通 PR 不以第二人 approval 作为仓库质量策略。规则是否实际生效以 GitHub ruleset 为准，而不是只看本文件。
 
 ## Changeset、合并与 release
