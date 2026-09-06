@@ -63,33 +63,29 @@ function describeWindow(row: DisciplineSanctionRow): string {
   return `${from} → ${formatCST(row.effectiveUntil)}`;
 }
 
+interface DisciplineManagementProps {
+  seasonId: string;
+  seasonSlug: string;
+  sanctions: DisciplineSanctionRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  normalizedQuery: DisciplineAdminQuery;
+  hasAnyRecords: boolean;
+}
+
 export function DisciplineManagement({
   seasonId,
-  seasonSlug = "discipline",
+  seasonSlug,
   sanctions,
-  total = sanctions.length,
-  page = 1,
-  pageSize = 25,
-  totalPages = Math.ceil(total / pageSize),
-  normalizedQuery = {
-    q: undefined,
-    status: DISCIPLINE_ADMIN_DEFAULTS.status,
-    sort: DISCIPLINE_ADMIN_DEFAULTS.sort,
-    page,
-    pageSize: 25,
-  },
-  hasAnyRecords = sanctions.length > 0,
-}: {
-  seasonId: string;
-  seasonSlug?: string;
-  sanctions: DisciplineSanctionRow[];
-  total?: number;
-  page?: number;
-  pageSize?: number;
-  totalPages?: number;
-  normalizedQuery?: DisciplineAdminQuery;
-  hasAnyRecords?: boolean;
-}) {
+  total,
+  page,
+  pageSize,
+  totalPages,
+  normalizedQuery,
+  hasAnyRecords,
+}: DisciplineManagementProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { update } = useListQueryParams({

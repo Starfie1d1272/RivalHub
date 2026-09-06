@@ -8,8 +8,7 @@ import { PageHeader, Panel, ResultSummary } from "@/components/rivalhub";
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { Button } from "@/components/ui/button";
 import { AdminUserList } from "@/components/admin/AdminUserList";
-import { AdminUsersPagination } from "@/components/admin/AdminUsersPagination";
-import { UserSearchBar } from "@/components/admin/UserSearchBar";
+import { AdminUsersListWorkspace } from "@/components/admin/AdminUsersListWorkspace";
 import { formatCST } from "@/lib/utils/date";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { getAdminUserStats, getAdminUsersList, normalizeAdminUsersQuery } from "@/lib/admin/users";
@@ -131,82 +130,81 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
       </div>
 
       {/* 搜索 + 筛选 */}
-      <UserSearchBar filter={query.filter} />
-
-      {/* 表格 */}
-      <Panel contentClassName="p-0" className="overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[560px]">
-            <thead>
-              <tr className="border-b border-[var(--color-border)] text-[10px] uppercase tracking-wider text-[var(--color-fg-dim)]">
-                <th className="px-4 py-3 text-left">选手</th>
-                <th className="px-4 py-3 text-left">邮箱</th>
-                <th className="px-4 py-3 text-center">参赛赛季</th>
-                <th className="px-4 py-3 text-right">注册时间</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--color-border)]">
-              {userList.rows.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-[var(--color-fg-dim)] text-sm">
-                    {userList.hasAnyRecords ? "没有符合当前筛选条件的用户" : "暂无用户"}
-                  </td>
+      <AdminUsersListWorkspace filter={query.filter} page={userList.page} totalPages={userList.totalPages}>
+        {/* 表格 */}
+        <Panel contentClassName="p-0" className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[560px]">
+              <thead>
+                <tr className="border-b border-[var(--color-border)] text-[10px] uppercase tracking-wider text-[var(--color-fg-dim)]">
+                  <th className="px-4 py-3 text-left">选手</th>
+                  <th className="px-4 py-3 text-left">邮箱</th>
+                  <th className="px-4 py-3 text-center">参赛赛季</th>
+                  <th className="px-4 py-3 text-right">注册时间</th>
                 </tr>
-              )}
-              {userList.rows.map((r) => {
-                const name = getDisplayName({
-                  displayName: r.display_name as string | null,
-                  perfectName: r.perfect_name as string | null,
-                  steamName: r.steam_name as string | null,
-                });
-                const seasonCount = Number(r.season_count);
-                const hasParticipated = seasonCount > 0;
-                return (
-                  <tr
-                    key={r.id as string}
-                    className="hover:bg-[var(--color-surface-raised)] transition-colors"
-                  >
-                    <td className="px-4 py-2.5 font-medium text-[var(--color-fg)]">
-                      {hasParticipated ? (
-                        <Link
-                          href={`/players/${r.id}`}
-                          className="hover:text-[var(--color-accent)] transition-colors"
-                        >
-                          {name}
-                        </Link>
-                      ) : (
-                        <span className="text-[var(--color-fg-mid)]">{name}</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5 text-xs text-[var(--color-fg-mid)]">
-                      {r.email as string}
-                    </td>
-                    <td className="px-4 py-2.5 text-center tabular-nums text-sm">
-                      {hasParticipated ? (
-                        <span style={{ color: "var(--color-accent)" }}>{seasonCount}</span>
-                      ) : (
-                        <span className="text-[var(--color-fg-dim)]">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5 text-right text-xs text-[var(--color-fg-dim)] tabular-nums">
-                      {formatCST(r.created_at as string)}
+              </thead>
+              <tbody className="divide-y divide-[var(--color-border)]">
+                {userList.rows.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-8 text-center text-[var(--color-fg-dim)] text-sm">
+                      {userList.hasAnyRecords ? "没有符合当前筛选条件的用户" : "暂无用户"}
                     </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                )}
+                {userList.rows.map((r) => {
+                  const name = getDisplayName({
+                    displayName: r.display_name as string | null,
+                    perfectName: r.perfect_name as string | null,
+                    steamName: r.steam_name as string | null,
+                  });
+                  const seasonCount = Number(r.season_count);
+                  const hasParticipated = seasonCount > 0;
+                  return (
+                    <tr
+                      key={r.id as string}
+                      className="hover:bg-[var(--color-surface-raised)] transition-colors"
+                    >
+                      <td className="px-4 py-2.5 font-medium text-[var(--color-fg)]">
+                        {hasParticipated ? (
+                          <Link
+                            href={`/players/${r.id}`}
+                            className="hover:text-[var(--color-accent)] transition-colors"
+                          >
+                            {name}
+                          </Link>
+                        ) : (
+                          <span className="text-[var(--color-fg-mid)]">{name}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5 text-xs text-[var(--color-fg-mid)]">
+                        {r.email as string}
+                      </td>
+                      <td className="px-4 py-2.5 text-center tabular-nums text-sm">
+                        {hasParticipated ? (
+                          <span style={{ color: "var(--color-accent)" }}>{seasonCount}</span>
+                        ) : (
+                          <span className="text-[var(--color-fg-dim)]">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5 text-right text-xs text-[var(--color-fg-dim)] tabular-nums">
+                        {formatCST(r.created_at as string)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+        <div className="flex items-center justify-between gap-3">
+          <ResultSummary
+            total={userList.total}
+            page={userList.page}
+            pageSize={userList.pageSize}
+            totalPages={userList.totalPages}
+          />
         </div>
-      </Panel>
-      <div className="flex items-center justify-between gap-3">
-        <ResultSummary
-          total={userList.total}
-          page={userList.page}
-          pageSize={userList.pageSize}
-          totalPages={userList.totalPages}
-        />
-      </div>
-      <AdminUsersPagination page={userList.page} totalPages={userList.totalPages} />
+      </AdminUsersListWorkspace>
     </div>
   );
 }

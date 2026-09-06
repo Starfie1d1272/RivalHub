@@ -47,6 +47,29 @@ const baseRow: RegistrationRow = {
   qq: "12345678",
 };
 
+const baseProps: React.ComponentProps<typeof RegistrationReviewList> = {
+  seasonSlug: "spring",
+  positions: ["opener", "closer"],
+  registrations: [baseRow],
+  total: 1,
+  page: 1,
+  pageSize: 25,
+  totalPages: 1,
+  normalizedQuery: {
+    q: undefined,
+    status: "pending",
+    position: undefined,
+    sort: "oldest",
+    page: 1,
+    pageSize: 25,
+  },
+  hasAnyRecords: true,
+};
+
+function renderRegistrationList(overrides: Partial<React.ComponentProps<typeof RegistrationReviewList>> = {}) {
+  return render(<RegistrationReviewList {...baseProps} {...overrides} />);
+}
+
 describe("RegistrationReviewList Steam link presentation", () => {
   beforeEach(() => {
     searchParamsMock.get.mockReturnValue(null);
@@ -54,7 +77,7 @@ describe("RegistrationReviewList Steam link presentation", () => {
   });
 
   it("renders clickable Steam profile link when steamProfileUrl is provided and safe", () => {
-    render(<RegistrationReviewList registrations={[baseRow]} />);
+    renderRegistrationList();
 
     const link = screen.getByRole("link", { name: "Steam 主页" });
     expect(link).toBeInTheDocument();
@@ -64,18 +87,20 @@ describe("RegistrationReviewList Steam link presentation", () => {
   });
 
   it("does not render clickable Steam link when steamProfileUrl is null (e.g. invalid legacy URL)", () => {
-    render(
-      <RegistrationReviewList
-        registrations={[
-          {
-            ...baseRow,
-            steamProfileUrl: null,
-          },
-        ]}
-      />,
-    );
+    renderRegistrationList({
+      registrations: [{ ...baseRow, steamProfileUrl: null }],
+    });
 
     expect(screen.queryByRole("link", { name: "Steam 主页" })).toBeNull();
     expect(screen.queryByText("Steam 主页")).toBeNull();
+  });
+
+  it("labels newest registration sorting by submission time", () => {
+    renderRegistrationList({
+      normalizedQuery: { ...baseProps.normalizedQuery, sort: "newest" },
+    });
+
+    expect(screen.getByRole("option", { name: "最近提交" })).toHaveValue("newest");
+    expect(screen.queryByRole("option", { name: "最近更新" })).toBeNull();
   });
 });

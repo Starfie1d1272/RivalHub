@@ -39,7 +39,7 @@ const STATUS_OPTIONS = [
 
 const SORT_OPTIONS = [
   { value: "oldest", label: "最早报名" },
-  { value: "newest", label: "最近更新" },
+  { value: "newest", label: "最近提交" },
 ] as const;
 
 const SELECT_CLASS_NAME = "min-w-0 max-w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-panel-low)] px-3 py-2 text-sm text-[var(--color-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-focus)]";
@@ -52,36 +52,29 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 interface Props {
-  seasonSlug?: string;
-  positions?: readonly string[];
+  seasonSlug: string;
+  positions: readonly string[];
   registrations: RegistrationRow[];
-  total?: number;
-  page?: number;
-  pageSize?: number;
-  totalPages?: number;
-  normalizedQuery?: SoloRegistrationReviewQuery;
-  hasAnyRecords?: boolean;
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  normalizedQuery: SoloRegistrationReviewQuery;
+  hasAnyRecords: boolean;
 }
 
 export function RegistrationReviewList({
-  seasonSlug = "registrations",
+  seasonSlug,
   positions,
   registrations,
-  total = registrations.length,
-  page = 1,
-  pageSize = 25,
-  totalPages = Math.ceil(total / pageSize),
-  normalizedQuery = {
-    q: undefined,
-    status: SOLO_REGISTRATION_REVIEW_DEFAULTS.status,
-    position: undefined,
-    sort: SOLO_REGISTRATION_REVIEW_DEFAULTS.sort,
-    page,
-    pageSize: 25,
-  },
-  hasAnyRecords = registrations.length > 0,
+  total,
+  page,
+  pageSize,
+  totalPages,
+  normalizedQuery,
+  hasAnyRecords,
 }: Props) {
-  const availablePositions = positions ?? [];
+  const availablePositions = positions;
   const router = useRouter();
   const searchParams = useSearchParams();
   const { update } = useListQueryParams({

@@ -2,7 +2,7 @@
 import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { UserSearchBar } from "@/components/admin/UserSearchBar";
+import { AdminUsersListWorkspace } from "@/components/admin/AdminUsersListWorkspace";
 
 const { pushMock, replaceMock, searchParamsMock } = vi.hoisted(() => ({
   pushMock: vi.fn(),
@@ -16,7 +16,15 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => searchParamsMock,
 }));
 
-describe("UserSearchBar", () => {
+function renderUsersWorkspace(overrides: Partial<React.ComponentProps<typeof AdminUsersListWorkspace>> = {}) {
+  return render(
+    <AdminUsersListWorkspace filter="all" page={1} totalPages={1} {...overrides}>
+      <div />
+    </AdminUsersListWorkspace>,
+  );
+}
+
+describe("AdminUsersListWorkspace", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     searchParamsMock.get.mockImplementation((key: string) => key === "tab" ? "users" : null);
@@ -24,7 +32,7 @@ describe("UserSearchBar", () => {
   });
 
   it("keeps the users tab and updates only the filter", () => {
-    render(<UserSearchBar filter="all" />);
+    renderUsersWorkspace();
 
     fireEvent.click(screen.getByRole("button", { name: "参赛过" }));
 
@@ -34,8 +42,23 @@ describe("UserSearchBar", () => {
   it("shows a clear action for a non-default filter", () => {
     searchParamsMock.get.mockImplementation((key: string) => key === "tab" ? "users" : key === "filter" ? "none" : null);
     searchParamsMock.toString.mockReturnValue("tab=users&filter=none");
-    render(<UserSearchBar filter="none" />);
+    renderUsersWorkspace({ filter: "none" });
 
     expect(screen.getByRole("button", { name: "清除筛选" })).toBeInTheDocument();
+  });
+
+  it("uses the same query owner for pagination and preserves the current filters", () => {
+    searchParamsMock.get.mockImplementation((key: string) => {
+      if (key === "tab") return "users";
+      if (key === "q") return "player";
+      if (key === "filter") return "participated";
+      return null;
+    });
+    searchParamsMock.toString.mockReturnValue("tab=users&q=player&filter=participated");
+    renderUsersWorkspace({ filter: "participated", totalPages: 3 });
+
+    fireEvent.click(screen.getByRole("button", { name: "下一页" }));
+
+    expect(pushMock).toHaveBeenCalledWith("/admin/users?tab=users&q=player&filter=participated&page=2");
   });
 });

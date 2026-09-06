@@ -7,7 +7,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createInviteCode, deactivateInviteCode } from "@/actions/admin";
 import { InviteManager } from "@/components/admin/InviteManager";
-import { ADMIN_INVITE_PAGE_SIZE } from "@/lib/admin/invites-contract";
+import { ADMIN_INVITE_PAGE_SIZE, type AdminInviteHistoryResult } from "@/lib/admin/invites-contract";
 
 const { searchParamsMock, refreshMock } = vi.hoisted(() => ({
   searchParamsMock: { get: vi.fn(), toString: vi.fn() },
@@ -39,18 +39,20 @@ const deactivateInviteCodeMock = vi.mocked(deactivateInviteCode);
 
 const seasons = [{ id: "season-1", name: "春季赛", slug: "spring" }];
 
-function renderInviteManager() {
+const emptyHistory: AdminInviteHistoryResult = {
+  rows: [],
+  total: 0,
+  page: 1,
+  pageSize: ADMIN_INVITE_PAGE_SIZE,
+  totalPages: 0,
+  normalizedQuery: { role: "all", state: "all", sort: "newest", page: 1, pageSize: ADMIN_INVITE_PAGE_SIZE },
+  hasAnyRecords: false,
+};
+
+function renderInviteManager(history: AdminInviteHistoryResult = emptyHistory) {
   return render(
     <InviteManager
-      history={{
-        rows: [],
-        total: 0,
-        page: 1,
-        pageSize: ADMIN_INVITE_PAGE_SIZE,
-        totalPages: 0,
-        normalizedQuery: { role: "all", state: "all", sort: "newest", page: 1, pageSize: ADMIN_INVITE_PAGE_SIZE },
-        hasAnyRecords: false,
-      }}
+      history={history}
       seasons={seasons}
     />,
   );
@@ -90,6 +92,7 @@ describe("InviteManager", () => {
         expiresInHours: undefined,
       }),
     );
+    await waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(1));
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 
@@ -151,5 +154,32 @@ describe("InviteManager", () => {
 
     expect(createInviteCodeMock).not.toHaveBeenCalled();
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+
+  it("refreshes the current query after revoking an invite", async () => {
+    const user = userEvent.setup();
+    renderInviteManager({
+      ...emptyHistory,
+      rows: [{
+        id: "invite-1",
+        code: "invite-code",
+        role: "season_admin",
+        seasonId: "season-1",
+        seasonName: "春季赛",
+        maxUses: 1,
+        claimCount: 0,
+        state: "usable",
+        expiresAt: null,
+        createdAt: "2026-09-01T00:00:00.000Z",
+      }],
+      total: 1,
+      totalPages: 1,
+      hasAnyRecords: true,
+    });
+
+    await user.click(screen.getByRole("button", { name: "撤销" }));
+
+    await waitFor(() => expect(deactivateInviteCodeMock).toHaveBeenCalledWith("invite-1"));
+    await waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(1));
   });
 });

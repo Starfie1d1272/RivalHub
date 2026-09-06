@@ -53,6 +53,28 @@ function row(overrides: Partial<DisciplineSanctionRow> = {}): DisciplineSanction
   };
 }
 
+const baseProps: React.ComponentProps<typeof DisciplineManagement> = {
+  seasonId: "season-1",
+  seasonSlug: "spring",
+  sanctions: [row()],
+  total: 1,
+  page: 1,
+  pageSize: 25,
+  totalPages: 1,
+  normalizedQuery: {
+    q: undefined,
+    status: "active",
+    sort: "newest",
+    page: 1,
+    pageSize: 25,
+  },
+  hasAnyRecords: true,
+};
+
+function renderDisciplineManagement(overrides: Partial<React.ComponentProps<typeof DisciplineManagement>> = {}) {
+  return render(<DisciplineManagement {...baseProps} {...overrides} />);
+}
+
 async function searchAndPickSubject() {
   fireEvent.change(screen.getByLabelText(/搜索被处罚用户/), { target: { value: "玩家乙" } });
   await waitFor(() => expect(screen.getByRole("option", { name: /玩家乙/ })).toBeInTheDocument());
@@ -74,9 +96,7 @@ describe("DisciplineManagement", () => {
   });
 
   it("shows resolved status, effects, window and admin-only internal evidence", () => {
-    render(
-      <DisciplineManagement seasonId="season-1" sanctions={[row()]} />,
-    );
+    renderDisciplineManagement();
 
     expect(screen.getByText("生效中", { selector: "[data-status]" })).toBeInTheDocument();
     // 效果 chip + 签发表单中的复选框标签
@@ -86,18 +106,15 @@ describe("DisciplineManagement", () => {
   });
 
   it("renders the empty state when the season has no sanctions", () => {
-    render(<DisciplineManagement seasonId="season-1" sanctions={[]} />);
+    renderDisciplineManagement({ sanctions: [], total: 0, totalPages: 0, hasAnyRecords: false });
     expect(screen.getByText("本赛事暂无纪律处罚记录")).toBeInTheDocument();
   });
 
   it("writes the resolved status filter to the list URL", () => {
-    render(
-      <DisciplineManagement
-        seasonId="season-1"
-        seasonSlug="spring"
-        sanctions={[row(), row({ id: "case-2", subjectLabel: "玩家乙", resolvedStatus: "revoked", storedStatus: "revoked", revocationReason: "误判" })]}
-      />,
-    );
+    renderDisciplineManagement({
+      sanctions: [row(), row({ id: "case-2", subjectLabel: "玩家乙", resolvedStatus: "revoked", storedStatus: "revoked", revocationReason: "误判" })],
+      total: 2,
+    });
 
     fireEvent.change(screen.getByLabelText("处罚状态"), { target: { value: "revoked" } });
     expect(replaceMock).toHaveBeenCalledWith("/admin/spring/discipline?status=revoked");
@@ -107,7 +124,7 @@ describe("DisciplineManagement", () => {
   });
 
   it("does not search until the query reaches the minimum length", async () => {
-    render(<DisciplineManagement seasonId="season-1" sanctions={[]} />);
+    renderDisciplineManagement({ sanctions: [], total: 0, totalPages: 0, hasAnyRecords: false });
 
     fireEvent.change(screen.getByLabelText(/搜索被处罚用户/), { target: { value: "甲" } });
     await new Promise((resolve) => setTimeout(resolve, 400));
@@ -116,7 +133,7 @@ describe("DisciplineManagement", () => {
   });
 
   it("searches subjects on demand and surfaces search errors", async () => {
-    render(<DisciplineManagement seasonId="season-1" sanctions={[]} />);
+    renderDisciplineManagement({ sanctions: [], total: 0, totalPages: 0, hasAnyRecords: false });
 
     fireEvent.change(screen.getByLabelText(/搜索被处罚用户/), { target: { value: "玩家乙" } });
     await waitFor(() => expect(searchSanctionSubjectsMock).toHaveBeenCalledWith({ seasonId: "season-1", query: "玩家乙" }));
@@ -131,7 +148,7 @@ describe("DisciplineManagement", () => {
   });
 
   it("blocks issuing without subject or effect selection and does not call the action", () => {
-    render(<DisciplineManagement seasonId="season-1" sanctions={[]} />);
+    renderDisciplineManagement({ sanctions: [], total: 0, totalPages: 0, hasAnyRecords: false });
 
     fireEvent.click(screen.getByRole("button", { name: "签发处罚" }));
     expect(screen.getByRole("alert")).toHaveTextContent("请先搜索并选择被处罚用户。");
@@ -139,7 +156,7 @@ describe("DisciplineManagement", () => {
   });
 
   it("issues a sanction with the searched subject, effects and open-ended window", async () => {
-    render(<DisciplineManagement seasonId="season-1" sanctions={[]} />);
+    renderDisciplineManagement({ sanctions: [], total: 0, totalPages: 0, hasAnyRecords: false });
 
     await searchAndPickSubject();
     fireEvent.click(screen.getByRole("checkbox", { name: "参赛拦截" }));
@@ -159,7 +176,7 @@ describe("DisciplineManagement", () => {
   });
 
   it("blocks revocation without a reason and does not call the action", () => {
-    render(<DisciplineManagement seasonId="season-1" sanctions={[row()]} />);
+    renderDisciplineManagement();
 
     fireEvent.click(screen.getByRole("button", { name: "撤销" }));
     const confirmButton = screen.getByRole("button", { name: "确认撤销" });
@@ -169,7 +186,7 @@ describe("DisciplineManagement", () => {
   });
 
   it("revokes a sanction through the inline reason form", async () => {
-    render(<DisciplineManagement seasonId="season-1" sanctions={[row()]} />);
+    renderDisciplineManagement();
 
     fireEvent.click(screen.getByRole("button", { name: "撤销" }));
     fireEvent.change(screen.getByLabelText(/撤销原因/), { target: { value: "证据不足" } });
@@ -180,16 +197,14 @@ describe("DisciplineManagement", () => {
   });
 
   it("offers explicit expire only for stored-active rows whose window has passed", async () => {
-    render(
-      <DisciplineManagement
-        seasonId="season-1"
-        sanctions={[
-          row({ id: "case-stale", resolvedStatus: "expired", effectiveUntil: "2026-08-02T00:00:00.000Z" }),
-          row({ id: "case-live" }),
-          row({ id: "case-expired", storedStatus: "expired", resolvedStatus: "expired" }),
-        ]}
-      />,
-    );
+    renderDisciplineManagement({
+      sanctions: [
+        row({ id: "case-stale", resolvedStatus: "expired", effectiveUntil: "2026-08-02T00:00:00.000Z" }),
+        row({ id: "case-live" }),
+        row({ id: "case-expired", storedStatus: "expired", resolvedStatus: "expired" }),
+      ],
+      total: 3,
+    });
 
     const expireButtons = screen.getAllByRole("button", { name: "标记过期" });
     expect(expireButtons).toHaveLength(1);
@@ -200,7 +215,7 @@ describe("DisciplineManagement", () => {
 
   it("surfaces action errors inline", async () => {
     revokeSanctionMock.mockResolvedValue({ success: false, error: { code: "FORBIDDEN", message: "没有权限执行该操作。" } });
-    render(<DisciplineManagement seasonId="season-1" sanctions={[row()]} />);
+    renderDisciplineManagement();
 
     fireEvent.click(screen.getByRole("button", { name: "撤销" }));
     fireEvent.change(screen.getByLabelText(/撤销原因/), { target: { value: "误操作" } });

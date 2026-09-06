@@ -344,7 +344,7 @@ export async function getSoloRegistrationReview(
   const where = and(...conditions);
   const orderBy = query.sort === "oldest"
     ? [asc(seasonRegistrations.createdAt), asc(seasonRegistrations.id)]
-    : [desc(seasonRegistrations.updatedAt), desc(seasonRegistrations.id)];
+    : [desc(seasonRegistrations.createdAt), desc(seasonRegistrations.id)];
 
   const [[totalRow], [datasetRow]] = await Promise.all([
     db

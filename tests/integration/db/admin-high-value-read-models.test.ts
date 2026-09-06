@@ -17,10 +17,12 @@ describe("PR3 admin operational list read models", () => {
     const pool = createLocalPool({ max: 8 });
     const marker = `pr3-${randomUUID().replaceAll("-", "")}`;
     const seasonId = randomUUID();
+    const largeInviteSeasonId = randomUUID();
     const userIds = Array.from({ length: 52 }, () => randomUUID());
     const registrationIds = Array.from({ length: 26 }, () => randomUUID());
     const inviteIds = Array.from({ length: 5 }, () => randomUUID());
-    const caseIds = Array.from({ length: 3 }, () => randomUUID());
+    const largeInviteIds = Array.from({ length: 52 }, () => randomUUID());
+    const caseIds = Array.from({ length: 26 }, () => randomUUID());
     const now = new Date();
 
     try {
@@ -28,6 +30,11 @@ describe("PR3 admin operational list read models", () => {
         `INSERT INTO seasons (id, slug, name, kind, status, registration_mode, positions)
          VALUES ($1, $2, $3, 'Rivals', 'registration', 'solo', $4::text[])`,
         [seasonId, `${marker}-season`, `PR3 ${marker}`, ["rifler", "awper"]],
+      );
+      await pool.query(
+        `INSERT INTO seasons (id, slug, name, kind, status, registration_mode, positions)
+         VALUES ($1, $2, $3, 'Rivals', 'registration', 'solo', $4::text[])`,
+        [largeInviteSeasonId, `${marker}-large-invites`, `PR3 large invites ${marker}`, ["rifler", "awper"]],
       );
 
       for (const [index, userId] of userIds.entries()) {
@@ -47,14 +54,15 @@ describe("PR3 admin operational list read models", () => {
 
       for (const [index, registrationId] of registrationIds.entries()) {
         const createdAt = new Date(now.getTime() - (index + 1) * 60 * 60 * 1000);
+        const updatedAt = new Date(now.getTime() - (registrationIds.length - index) * 60 * 60 * 1000);
         await pool.query(
           `INSERT INTO season_registrations (
              id, user_id, season_id, primary_position, secondary_position,
              peak_rank, peak_rank_season, peak_rating,
              current_season_peak_rank, current_rating, gameplay_style,
              created_at, updated_at
-           ) VALUES ($1, $2, $3, 'rifler', 'awper', 'A+', 'PR3', 1.5, 'A', 1.4, '稳健', $4, $4)`,
-          [registrationId, userIds[index], seasonId, createdAt],
+           ) VALUES ($1, $2, $3, 'rifler', 'awper', 'A+', 'PR3', 1.5, 'A', 1.4, '稳健', $4, $5)`,
+          [registrationId, userIds[index], seasonId, createdAt, updatedAt],
         );
       }
 
@@ -80,6 +88,19 @@ describe("PR3 admin operational list read models", () => {
          VALUES ($1, $2, $3, 'super_admin', NULL, 1, $4)`,
         [inviteIds[4], `${marker}-global`, userIds[0], now],
       );
+      for (const [index, inviteId] of largeInviteIds.entries()) {
+        await pool.query(
+          `INSERT INTO admin_invites (id, code, created_by, role, season_id, max_uses, expires_at, is_active, created_at)
+           VALUES ($1, $2, $3, 'season_admin', $4, 1, NULL, TRUE, $5)`,
+          [
+            inviteId,
+            `${marker}-large-${index}`,
+            userIds[0],
+            largeInviteSeasonId,
+            new Date(now.getTime() - (largeInviteIds.length - index) * 60 * 1000),
+          ],
+        );
+      }
 
       const disciplineFixtures = [
         {
@@ -106,7 +127,15 @@ describe("PR3 admin operational list read models", () => {
           revokedAt: new Date(now.getTime() - 2 * 60 * 60 * 1000),
           reason: "测试撤销",
         },
-      ] as const;
+        ...caseIds.slice(3).map((id) => ({
+          id,
+          status: "active",
+          effectiveFrom: new Date(now.getTime() - 5 * 60 * 60 * 1000),
+          effectiveUntil: null,
+          revokedAt: null,
+          reason: null,
+        })),
+      ];
       for (const [index, sanction] of disciplineFixtures.entries()) {
         await pool.query(
           `INSERT INTO disciplinary_cases (
@@ -132,6 +161,7 @@ describe("PR3 admin operational list read models", () => {
       }
 
       const inviteHistory = await getAdminInviteHistory(normalizeAdminInviteQuery(new URLSearchParams({
+        role: "season_admin",
         season: seasonId,
         sort: "expires_soon",
       })));
@@ -145,10 +175,36 @@ describe("PR3 admin operational list read models", () => {
       expect(inviteHistory.rows[2]?.claimCount).toBe(1);
       expect(inviteHistory.hasAnyRecords).toBe(true);
       const exhausted = await getAdminInviteHistory(normalizeAdminInviteQuery(new URLSearchParams({
+        role: "season_admin",
         season: seasonId,
         state: "exhausted",
       })));
       expect(exhausted.total).toBe(1);
+
+      const largeInviteHistory = await getAdminInviteHistory(normalizeAdminInviteQuery(new URLSearchParams({
+        role: "season_admin",
+        season: largeInviteSeasonId,
+        sort: "newest",
+      })));
+      expect(largeInviteHistory.total).toBe(52);
+      expect(largeInviteHistory.rows).toHaveLength(25);
+      expect(largeInviteHistory.totalPages).toBe(3);
+      expect(largeInviteHistory.rows[0]?.id).toBe(largeInviteIds[largeInviteIds.length - 1]);
+      const largeInviteHistoryLastPage = await getAdminInviteHistory(normalizeAdminInviteQuery(new URLSearchParams({
+        role: "season_admin",
+        season: largeInviteSeasonId,
+        state: "usable",
+        sort: "oldest",
+        page: "3",
+      })));
+      expect(largeInviteHistoryLastPage.total).toBe(52);
+      expect(largeInviteHistoryLastPage.page).toBe(3);
+      expect(largeInviteHistoryLastPage.rows).toHaveLength(2);
+      expect(largeInviteHistoryLastPage.rows[0]?.id).toBe(largeInviteIds[50]);
+      const superAdminHistory = await getAdminInviteHistory(normalizeAdminInviteQuery(new URLSearchParams({
+        role: "super_admin",
+      })));
+      expect(superAdminHistory.total).toBe(1);
 
       const usersPage = await getAdminUsersList(normalizeAdminUsersQuery(new URLSearchParams({ q: marker })));
       expect(usersPage.total).toBe(52);
@@ -166,16 +222,24 @@ describe("PR3 admin operational list read models", () => {
         seasonId,
         normalizeDisciplineAdminQuery(new URLSearchParams({ q: marker, status: "all" })),
       );
-      expect(sanctions.total).toBe(3);
+      expect(sanctions.total).toBe(26);
+      expect(sanctions.rows).toHaveLength(25);
+      expect(sanctions.totalPages).toBe(2);
       const revokedSanction = sanctions.rows.find((row) => row.id === caseIds[2]);
       expect(revokedSanction?.resolvedStatus).toBe("revoked");
       expect(revokedSanction?.subjectLabel).toContain(marker);
       expect(revokedSanction?.internalEvidence).toContain("internal evidence");
+      const sanctionsSecondPage = await getSeasonSanctionsAdminReadModel(
+        seasonId,
+        normalizeDisciplineAdminQuery(new URLSearchParams({ q: marker, status: "all", page: "2" })),
+      );
+      expect(sanctionsSecondPage.page).toBe(2);
+      expect(sanctionsSecondPage.rows).toHaveLength(1);
       const activeSanctions = await getSeasonSanctionsAdminReadModel(
         seasonId,
         normalizeDisciplineAdminQuery(new URLSearchParams({ q: marker })),
       );
-      expect(activeSanctions.total).toBe(1);
+      expect(activeSanctions.total).toBe(24);
       const expiredSanctions = await getSeasonSanctionsAdminReadModel(
         seasonId,
         normalizeDisciplineAdminQuery(new URLSearchParams({ q: marker, status: "expired" })),
@@ -190,14 +254,22 @@ describe("PR3 admin operational list read models", () => {
       expect(registrations.total).toBe(26);
       expect(registrations.rows).toHaveLength(25);
       expect(registrations.totalPages).toBe(2);
+      expect(registrations.rows[0]?.id).toBe(registrationIds[0]);
       expect(registrations.rows[0]?.steamProfileUrl).toBe("https://steamcommunity.com/id/pr3-player");
       const registrationsSecondPage = await getSoloRegistrationReview(
         seasonId,
         ["rifler", "awper"],
-        normalizeSoloRegistrationReviewQuery(new URLSearchParams({ q: marker, status: "all", page: "2" }), ["rifler", "awper"]),
+        normalizeSoloRegistrationReviewQuery(new URLSearchParams({ q: marker, status: "all", sort: "newest", page: "2" }), ["rifler", "awper"]),
       );
       expect(registrationsSecondPage.page).toBe(2);
       expect(registrationsSecondPage.rows).toHaveLength(1);
+      expect(registrationsSecondPage.rows[0]?.id).toBe(registrationIds[25]);
+      const oldestRegistrations = await getSoloRegistrationReview(
+        seasonId,
+        ["rifler", "awper"],
+        normalizeSoloRegistrationReviewQuery(new URLSearchParams({ q: marker, status: "all", sort: "oldest" }), ["rifler", "awper"]),
+      );
+      expect(oldestRegistrations.rows[0]?.id).toBe(registrationIds[25]);
       const byPosition = await getSoloRegistrationReview(
         seasonId,
         ["rifler", "awper"],
@@ -208,8 +280,9 @@ describe("PR3 admin operational list read models", () => {
       await pool.query("DELETE FROM disciplinary_cases WHERE id = ANY($1::uuid[])", [caseIds]).catch(() => {});
       await pool.query("DELETE FROM season_registrations WHERE id = ANY($1::uuid[])", [registrationIds]).catch(() => {});
       await pool.query("DELETE FROM admin_invites WHERE id = ANY($1::uuid[])", [inviteIds]).catch(() => {});
+      await pool.query("DELETE FROM admin_invites WHERE id = ANY($1::uuid[])", [largeInviteIds]).catch(() => {});
       await pool.query("DELETE FROM users WHERE id = ANY($1::uuid[])", [userIds]).catch(() => {});
-      await pool.query("DELETE FROM seasons WHERE id = $1", [seasonId]).catch(() => {});
+      await pool.query("DELETE FROM seasons WHERE id = ANY($1::uuid[])", [[seasonId, largeInviteSeasonId]]).catch(() => {});
       await pool.end();
     }
   });
