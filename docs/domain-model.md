@@ -24,6 +24,7 @@ CompetitivePlatform
 ```
 
 - platform 拥有稳定 key 和 rank ladder；season 只表达时间目录，不拥有另一份段位顺序。
+- 当前竞技平台身份、ladder 与 canonical Rating 属于产品定义的内置 domain；新增平台、改变段位体系或重新定义 canonical Rating 需要显式产品/迁移变更，不能由管理员临时创建另一套语义。
 - `rank`、`stars`、`rating` 是不同事实：rank 是稳定段位身份，stars 是星段位内部精确值，rating 是平台定义的 performance rating。
 - 缺失事实保持 unknown；不能为了展示或资格判断制造默认段位、默认星数或 `0`。
 - 跨平台比较使用版本化 `ConversionPolicy`。需要竞技资格的赛事在实际报名开放时冻结本届需要的 season/ladder/evidence/conversion context，之后全局目录变化不得重解释该届或历史 StageRun。
