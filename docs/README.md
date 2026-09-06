@@ -1,67 +1,60 @@
 # RivalHub 文档
 
-本目录维护 RivalHub 当前有效的产品、领域、工程与运营文档。按任务进入对应文档即可；这里不复制 GitHub Issues、代码或 Release 中的实时状态。
+本目录只维护当前有效、需要人类理解的产品与工程知识。实时进度看 GitHub Issues / PRs；精确实现以 code、schema、active migrations 和 tests 为准。
 
-## 从这里开始
+## 按任务进入
 
-| 我想做什么 | 先看这里 |
+| 任务 | 文档 |
 | --- | --- |
-| 第一次了解 RivalHub | [`../README.md`](../README.md) |
-| 参与开发或提交 PR | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) |
-| 理解系统架构 | [`architecture.md`](./architecture.md) |
-| 理解核心领域实体和边界 | [`domain-model.md`](./domain-model.md) |
-| 理解用户与赛事生命周期 | [`workflows.md`](./workflows.md) |
-| 本地启动开发环境 | [`operations/local-development.md`](./operations/local-development.md) |
-| 判断一个改动需要什么测试 | [`testing.md`](./testing.md) |
-| 查看 CI 行为与排障方法 | [`operations/ci.md`](./operations/ci.md) |
-| 查询生产日志、trace 与敏感字段治理 | [`operations/observability.md`](./operations/observability.md) |
-| 新增或审查数据库 migration | [`operations/database-migrations.md`](./operations/database-migrations.md) |
-| 做 staging 数据库演练 | [`operations/staging.md`](./operations/staging.md) |
-| 准备和执行正式发布 | [`operations/release.md`](./operations/release.md) |
-| 理解登录、角色和权限 | [`auth-and-permissions.md`](./auth-and-permissions.md) |
-| 理解 UI 与产品语言 | [`ui-system.md`](./ui-system.md) |
-| 查看长期产品方向 | [`roadmap.md`](./roadmap.md) |
-| 查看 NJU Major 赛事政策 | [`rules/nju-major.md`](./rules/nju-major.md) |
-| 查看历史材料 | [`archive/README.md`](./archive/README.md) |
+| 第一次了解项目 | [`../README.md`](../README.md) |
+| 开发、PR、Changeset | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) |
+| 系统边界与代码分层 | [`architecture.md`](./architecture.md) |
+| 核心领域实体与事实 ownership | [`domain-model.md`](./domain-model.md) |
+| 账号、报名、赛事与比赛生命周期 | [`workflows.md`](./workflows.md) |
+| 鉴权、权限、Data API | [`auth-and-permissions.md`](./auth-and-permissions.md) |
+| 测试证据与 CI | [`testing.md`](./testing.md)、[`operations/ci.md`](./operations/ci.md) |
+| 本地开发、migration、staging、release | [`operations/`](./operations/) |
+| UI 与交互 contract | [`ui-system.md`](./ui-system.md) |
+| 长期产品方向 | [`roadmap.md`](./roadmap.md) |
+| NJU Major 正式政策 | [`rules/nju-major.md`](./rules/nju-major.md) |
+| 重要决策及其理由 | [`decisions/`](./decisions/) |
+| 历史设计、验收与过程材料 | [`archive/`](./archive/) |
 
-## 文档分工
+## Authority
 
-RivalHub 尽量让一种稳定事实只由一个位置维护。
+一种事实只保留一个完整 owner：
 
-| 内容 | 以这里为准 |
+| 内容 | Authority |
 | --- | --- |
-| 当前业务实现 | code、schema、active migrations、tests |
-| 当前技术边界 | 对应技术文档 + code/tests |
-| 赛事政策 | [`rules/`](./rules/) |
-| 已接受但尚未实现的产品或架构决策 | [`decisions/`](./decisions/) |
-| 当前工作状态与优先级 | GitHub Issues / labels / PRs |
-| 版本内容 | Changesets、CHANGELOG、GitHub Releases |
-| 历史过程、旧设计与历史验收 | [`archive/`](./archive/) |
+| 当前实现、字段、约束、枚举 | code / schema / active migrations / tests |
+| 稳定架构、领域和交互边界 | 对应 active technical doc + code/tests |
+| 正式赛事政策 | [`rules/`](./rules/) |
+| 重要设计决策与 rationale | [`decisions/`](./decisions/) |
+| 当前工作、优先级、未完成设计 | GitHub Issues / labels / PRs |
+| 已发布版本 | Changesets / `CHANGELOG.md` / GitHub Releases |
+| 历史过程与旧设计 | [`archive/`](./archive/) |
 
-如果文档与 code、schema、migration 或 tests 冲突，应在同一变更中修正文档，而不是继续保留两套说法。
+生成式 reference 可以很长，但其源必须机器可追溯。例如 [`security/database-access-matrix.md`](./security/database-access-matrix.md) 由 `scripts/db/access-matrix.ts` 的 canonical config 生成并由数据库 verifier 校验。
 
-## 主要技术文档
+## 维护原则
 
-- [`architecture.md`](./architecture.md)：系统边界、赛事运行时与主要代码域。
-- [`domain-model.md`](./domain-model.md)：长期身份、Team、CompetitionEntry、比赛与赛事事实。
-- [`workflows.md`](./workflows.md)：账号、报名、选秀、Major、比赛、纪律与赛后流程。
-- [`auth-and-permissions.md`](./auth-and-permissions.md)：Auth、session、角色与 Data API 安全边界。
-- [`security/database-access-matrix.md`](./security/database-access-matrix.md)：public application tables 的访问分类与生成式安全 contract。
-- [`testing.md`](./testing.md)：不同验证层证明什么，以及一个改动需要哪些证据。
-- [`deployment.md`](./deployment.md)：local / preview / staging / production 的稳定边界。
-- [`ui-system.md`](./ui-system.md)：UI tokens、组件语言与交互约束。
-- [`roadmap.md`](./roadmap.md)：2.x 主线与 3.x 展望，不维护实时 TODO。
+1. **One fact, one owner.** 其它文档链接 owner，不复制同一规则、数字或状态。
+2. **Current docs describe current state.** 已被替代的设计、实施过程和历史验收进入 Git/Issue/archive，不在正文继续追加“后来又……”的补丁。
+3. **不要手抄高频变化事实。** 版本号、Issue 状态、表/migration/test 数量、当前目录内容等能从机器事实获得时不建立第二份手工清单。
+4. **改 contract 就重写相关段落。** 优先把旧解释替换成新的终态，而不是在后面继续追加例外说明。
+5. **代码与文档同 PR 收敛。** 变更稳定 boundary、workflow、policy 或 operation 时同步更新其 canonical doc；纯实现细节不要求写文档。
+6. **核心文档保持可完整阅读。** `architecture`、`domain-model`、`workflows`、`ui-system` 只保存跨模块理解所需知识；具体文件定位使用 repository search/IDE。
+
+如果 active doc 与 code/schema/migration/tests 冲突，应在同一变更中收敛为一个事实源，不保留“两套都可能对”的说明。
 
 ## Operations
 
-`operations/` 放具体操作步骤。Agent 或维护者只需要读取与当前任务有关的指南。
+`operations/` 是按任务执行的 runbook，不要求线性阅读：
 
-- [`operations/local-development.md`](./operations/local-development.md)
-- [`operations/ci.md`](./operations/ci.md)
-- [`operations/observability.md`](./operations/observability.md)
-- [`operations/database-migrations.md`](./operations/database-migrations.md)
-- [`operations/staging.md`](./operations/staging.md)
-- [`operations/release.md`](./operations/release.md)
-- [`operations/major-referee-guide.md`](./operations/major-referee-guide.md)
-
-精确代码定位使用 repository search、IDE 或 GitHub search；本文档不维护逐文件清单。
+- [`local-development.md`](./operations/local-development.md)
+- [`ci.md`](./operations/ci.md)
+- [`observability.md`](./operations/observability.md)
+- [`database-migrations.md`](./operations/database-migrations.md)
+- [`staging.md`](./operations/staging.md)
+- [`release.md`](./operations/release.md)
+- [`major-referee-guide.md`](./operations/major-referee-guide.md)
