@@ -13,7 +13,7 @@ export function normalizeChsiEvidenceCode(value: string): string | null {
 }
 
 export const educationSubmissionSchema = z.object({
-  institutionId: z.string().uuid(),
+  institutionId: z.guid(),
   academicStatus: z.enum(["enrolled", "graduated"]),
   evidenceCode: z.string().trim().min(1).max(64),
 });

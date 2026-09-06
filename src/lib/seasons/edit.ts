@@ -10,6 +10,7 @@ import {
   type CompetitiveFallbackConversion,
   type RegistrationConfig,
   type StagePlan,
+  type PlayerType,
   type TeamRegistrationConfig,
   type SeasonStatus,
 } from "@/types/season";
@@ -48,7 +49,7 @@ const registrationConfigSchema = z.object({
 });
 
 const seasonFormBaseSchema = z.object({
-  id: z.string().uuid().optional(),
+  id: z.guid().optional(),
   name: z.string().min(1, "请填写赛季名称"),
   slug: z.string().min(1, "请填写 slug").regex(/^[a-z0-9][a-z0-9-]*$/, "slug 只能使用小写字母、数字和连字符"),
   kind: z.string().min(1, "请填写赛事类型"),
@@ -104,41 +105,67 @@ const seasonFormBaseSchema = z.object({
         // evidence slot; empty placeholders are never persisted.
         version: z.string().max(128),
         seasonKeyMap: z.record(z.string().min(1).max(128), z.string().min(1).max(128)),
-        mapping: z.unknown(),
+        // Mapping validation belongs to the conversion-policy owner and is
+        // intentionally deferred until registration freeze.
+        mapping: z.any().optional(),
       }).optional(),
     }).optional(),
   }).optional(),
   affiliationRules: z.array(z.object({
     institutionCode: z.string().min(1),
-    eligibleAcademicStatuses: z.array(z.enum(["enrolled", "graduated"])).min(1),
+    eligibleAcademicStatuses: z.array(z.enum(["enrolled", "graduated"])).min(1).readonly(),
     minRosterMembers: z.number().int().min(0),
     minStartingMembers: z.number().int().min(0),
   })).optional(),
 });
 
 export const seasonFormSchema = withSeasonRefinements(seasonFormBaseSchema);
-export const seasonUpdateFormSchema = withSeasonRefinements(seasonFormBaseSchema.extend({ id: z.string().uuid() }));
+export const seasonUpdateFormSchema = withSeasonRefinements(seasonFormBaseSchema.extend({ id: z.guid() }));
 
-export type SeasonFormInput = z.input<typeof seasonFormSchema>;
+type SeasonFormSchemaInput = z.input<typeof seasonFormSchema>;
+type SeasonFormData = Omit<SeasonFormSchemaInput, "registrationConfig" | "teamRegistrationConfig" | "affiliationRules"> & {
+  registrationConfig: Omit<SeasonFormSchemaInput["registrationConfig"], "allowedPlayerTypes"> & {
+    allowedPlayerTypes: readonly PlayerType[];
+  };
+  teamRegistrationConfig?: TeamRegistrationConfig;
+  affiliationRules?: readonly InstitutionAffiliationRule[];
+};
+export type SeasonFormInput = SeasonFormData;
 // Keep planner input tied to the concrete object schema. The refinement helper
 // intentionally accepts a generic Zod schema, so inferring from the refined
 // value would otherwise erase the fields to `any`.
-type ParsedSeasonForm = z.infer<typeof seasonFormBaseSchema>;
+type ParsedSeasonForm = SeasonFormData;
 
-function withSeasonRefinements<T extends z.ZodTypeAny>(schema: T) {
+type SeasonRefinementFields = {
+  starterCount: number;
+  maxTeamSize: number;
+  minTeamSize: number;
+  registrationOpensAt: string | null;
+  registrationClosesAt: string | null;
+  rosterChangeClosesAt: string | null;
+};
+
+function withSeasonRefinements<T extends z.ZodType>(schema: T): T {
   return schema
-    .refine((data) => data.starterCount <= data.maxTeamSize, {
+    .refine((data) => {
+      const value = data as SeasonRefinementFields;
+      return value.starterCount <= value.maxTeamSize;
+    }, {
       path: ["starterCount"],
       message: "首发人数不能超过队伍上限",
     })
-    .refine((data) => data.minTeamSize <= data.maxTeamSize, {
+    .refine((data) => {
+      const value = data as SeasonRefinementFields;
+      return value.minTeamSize <= value.maxTeamSize;
+    }, {
       path: ["minTeamSize"],
       message: "最小人数不能超过最大人数",
     })
     .refine(
       (data) => {
-        if (!data.registrationOpensAt || !data.registrationClosesAt) return true;
-        return new Date(data.registrationClosesAt) > new Date(data.registrationOpensAt);
+        const value = data as SeasonRefinementFields;
+        if (!value.registrationOpensAt || !value.registrationClosesAt) return true;
+        return new Date(value.registrationClosesAt) > new Date(value.registrationOpensAt);
       },
       {
         path: ["registrationClosesAt"],
@@ -147,14 +174,15 @@ function withSeasonRefinements<T extends z.ZodTypeAny>(schema: T) {
     )
     .refine(
       (data) => {
-        if (!data.registrationClosesAt || !data.rosterChangeClosesAt) return true;
-        return new Date(data.rosterChangeClosesAt) >= new Date(data.registrationClosesAt);
+        const value = data as SeasonRefinementFields;
+        if (!value.registrationClosesAt || !value.rosterChangeClosesAt) return true;
+        return new Date(value.rosterChangeClosesAt) >= new Date(value.registrationClosesAt);
       },
       {
         path: ["rosterChangeClosesAt"],
         message: "名单调整截止时间不能早于报名截止时间",
       },
-    );
+    ) as unknown as T;
 }
 
 function assertUniqueStageKeys(stagePlan: StagePlan): void {

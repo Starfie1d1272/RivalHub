@@ -28,7 +28,7 @@ export interface MajorFinalPlacementGroup {
 const finalPlacementGroupSchema = z.object({
   from: z.number().int().positive(),
   to: z.number().int().positive(),
-  entryIds: z.array(z.string().uuid()).min(1),
+  entryIds: z.array(z.guid()).min(1),
 });
 
 /** The only parser for persisted official Major placement groups and champion pointer. */

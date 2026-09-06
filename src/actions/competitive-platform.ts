@@ -61,7 +61,7 @@ export async function createCompetitivePlatformSeason(input: unknown): Promise<A
     platform: z.string().trim().min(1).max(64),
     seasonKey: seasonKeySchema,
     label: labelSchema,
-    insertAt: z.object({ seasonId: z.string().uuid(), position: z.enum(["before", "after"]) }).optional(),
+    insertAt: z.object({ seasonId: z.guid(), position: z.enum(["before", "after"]) }).optional(),
   }).safeParse(input);
   if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请填写所属平台、赛季标识和显示名称。" });
   try {
@@ -113,7 +113,7 @@ export async function createCompetitivePlatformSeason(input: unknown): Promise<A
 }
 
 export async function updateCompetitivePlatformSeason(input: unknown): Promise<ActionResult<void>> {
-  const parsed = z.object({ id: z.string().uuid(), label: labelSchema }).safeParse(input);
+  const parsed = z.object({ id: z.guid(), label: labelSchema }).safeParse(input);
   if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请填写赛季显示名称。" });
   try {
     const session = await requireSuperAdmin();
@@ -130,7 +130,7 @@ export async function updateCompetitivePlatformSeason(input: unknown): Promise<A
 }
 
 export async function setCompetitivePlatformSeasonActive(input: unknown): Promise<ActionResult<void>> {
-  const parsed = z.object({ id: z.string().uuid(), active: z.boolean() }).safeParse(input);
+  const parsed = z.object({ id: z.guid(), active: z.boolean() }).safeParse(input);
   if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "赛季目录项无效。" });
   try {
     const session = await requireSuperAdmin();
@@ -148,7 +148,7 @@ export async function setCompetitivePlatformSeasonActive(input: unknown): Promis
 }
 
 export async function setCurrentCompetitivePlatformSeason(input: unknown): Promise<ActionResult<void>> {
-  const parsed = z.object({ id: z.string().uuid() }).safeParse(input);
+  const parsed = z.object({ id: z.guid() }).safeParse(input);
   if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "赛季目录项无效。" });
   try {
     const session = await requireSuperAdmin();
@@ -176,7 +176,7 @@ export async function setCurrentCompetitivePlatformSeason(input: unknown): Promi
  * never violated mid-transaction.
  */
 export async function moveCompetitivePlatformSeason(input: unknown): Promise<ActionResult<void>> {
-  const parsed = z.object({ id: z.string().uuid(), direction: z.enum(["earlier", "later"]) }).safeParse(input);
+  const parsed = z.object({ id: z.guid(), direction: z.enum(["earlier", "later"]) }).safeParse(input);
   if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "排序指令无效。" });
   try {
     const session = await requireSuperAdmin();
@@ -203,7 +203,7 @@ export async function moveCompetitivePlatformSeason(input: unknown): Promise<Act
 }
 
 export async function deleteCompetitivePlatformSeason(input: unknown): Promise<ActionResult<void>> {
-  const parsed = z.object({ id: z.string().uuid() }).safeParse(input);
+  const parsed = z.object({ id: z.guid() }).safeParse(input);
   if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "赛季目录项无效。" });
   try {
     const session = await requireSuperAdmin();
@@ -275,7 +275,7 @@ export async function createCompetitivePlatformRank(input: unknown): Promise<Act
 }
 
 export async function updateCompetitivePlatformRankLabel(input: unknown): Promise<ActionResult<void>> {
-  const parsed = z.object({ id: z.string().uuid(), label: labelSchema }).safeParse(input);
+  const parsed = z.object({ id: z.guid(), label: labelSchema }).safeParse(input);
   if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请填写段位显示名称。" });
   try {
     const session = await requireSuperAdmin();
@@ -294,7 +294,7 @@ export async function updateCompetitivePlatformRankLabel(input: unknown): Promis
 }
 
 export async function moveCompetitivePlatformRank(input: unknown): Promise<ActionResult<void>> {
-  const parsed = z.object({ id: z.string().uuid(), direction: z.enum(["up", "down"]) }).safeParse(input);
+  const parsed = z.object({ id: z.guid(), direction: z.enum(["up", "down"]) }).safeParse(input);
   if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "排序指令无效。" });
   try {
     const session = await requireSuperAdmin();
@@ -325,7 +325,7 @@ export async function moveCompetitivePlatformRank(input: unknown): Promise<Actio
 }
 
 export async function deleteCompetitivePlatformRank(input: unknown): Promise<ActionResult<void>> {
-  const parsed = z.object({ id: z.string().uuid() }).safeParse(input);
+  const parsed = z.object({ id: z.guid() }).safeParse(input);
   if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "段位无效。" });
   try {
     const session = await requireSuperAdmin();

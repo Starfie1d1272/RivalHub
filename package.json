@@ -90,7 +90,7 @@
     "server-only": "^0.0.1",
     "sonner": "^2.0.8",
     "tailwind-merge": "^3.6.0",
-    "zod": "^3.24.4"
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@changesets/cli": "^3.0.2",

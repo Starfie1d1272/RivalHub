@@ -1,17 +1,17 @@
 import { z } from "zod";
 
 export const castVoteSchema = z.object({
-  voterRegistrationId: z.string().uuid(),
-  candidateRegistrationId: z.string().uuid(),
+  voterRegistrationId: z.guid(),
+  candidateRegistrationId: z.guid(),
 });
 
 export const retractVoteSchema = z.object({
-  voterRegistrationId: z.string().uuid(),
-  candidateRegistrationId: z.string().uuid(),
+  voterRegistrationId: z.guid(),
+  candidateRegistrationId: z.guid(),
 });
 
 export const confirmCaptainsSchema = z.object({
-  seasonId: z.string().uuid(),
+  seasonId: z.guid(),
 });
 
 export type CastVoteInput = z.infer<typeof castVoteSchema>;

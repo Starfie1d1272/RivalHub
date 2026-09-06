@@ -33,8 +33,8 @@ import {
 const effectSchema = z.enum(SANCTION_EFFECTS as unknown as [SanctionEffect, ...SanctionEffect[]]);
 
 const issueSchema = z.object({
-  seasonId: z.string().uuid(),
-  subjectUserId: z.string().uuid(),
+  seasonId: z.guid(),
+  subjectUserId: z.guid(),
   effects: z.array(effectSchema).min(1),
   internalEvidence: z.string().trim().max(4000).optional().nullable(),
   publicExplanation: z.string().trim().max(1000).optional().nullable(),
@@ -80,7 +80,7 @@ export async function revokeSanction(
   input: { caseId: string; reason: string },
 ): Promise<ActionResult<{ alreadyRevoked: boolean; caseId: string }>> {
   const parsed = z
-    .object({ caseId: z.string().uuid(), reason: z.string().trim().min(1).max(1000) })
+    .object({ caseId: z.guid(), reason: z.string().trim().min(1).max(1000) })
     .safeParse(input);
   if (!parsed.success) return actionError("revokeSanction", new AppError(ErrorCode.VALIDATION_FAILED, "撤销参数不合法：必须填写撤销原因。"));
   try {
@@ -102,7 +102,7 @@ export async function revokeSanction(
 export async function expireSanction(
   input: { caseId: string },
 ): Promise<ActionResult<{ alreadyExpired: boolean; caseId: string }>> {
-  const parsed = z.object({ caseId: z.string().uuid() }).safeParse(input);
+  const parsed = z.object({ caseId: z.guid() }).safeParse(input);
   if (!parsed.success) return actionError("expireSanction", new AppError(ErrorCode.VALIDATION_FAILED, "参数不合法。"));
   try {
     const existing = await loadCase(parsed.data.caseId);
@@ -121,7 +121,7 @@ export async function searchSanctionSubjects(
   input: unknown,
 ): Promise<ActionResult<Array<{ id: string; label: string; detail: string | null }>>> {
   const parsed = z
-    .object({ seasonId: z.string().uuid(), query: z.string().trim().min(2).max(64) })
+    .object({ seasonId: z.guid(), query: z.string().trim().min(2).max(64) })
     .safeParse(input);
   if (!parsed.success) {
     return actionError("searchSanctionSubjects", new AppError(ErrorCode.VALIDATION_FAILED, "搜索词不合法：至少 2 个字符。"));

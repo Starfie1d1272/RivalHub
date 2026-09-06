@@ -25,7 +25,7 @@ import {
 import { fail, ok, type ActionResult } from "@/types/action";
 import { traceOperation } from "@/lib/observability/server";
 
-const uuid = z.string().uuid();
+const uuid = z.guid();
 function invalid(message: string): ActionResult<never> {
   return fail({ code: ErrorCode.VALIDATION_FAILED, message });
 }

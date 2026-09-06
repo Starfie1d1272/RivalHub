@@ -10,7 +10,7 @@ import { fail, ok, type ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { isHttpUrl } from "@/lib/external-url";
 import { revalidateMatchPaths } from "@/lib/revalidation";
-const uuid = z.string().uuid();
+const uuid = z.guid();
 const url = z.string().trim().max(2000).refine(isHttpUrl, "录像链接必须是 http 或 https URL");
 function invalid(message: string): ActionResult<never> { return fail({ code: ErrorCode.VALIDATION_FAILED, message }); }
 async function matchAndAdminOrThrow(matchId: string) { const match = await db.query.matches.findFirst({ where: eq(matches.id, matchId), columns: { id: true, seasonId: true } }); if (!match) throw new AppError(ErrorCode.MATCH_NOT_FOUND, "比赛不存在。"); const season = await db.query.seasons.findFirst({ where: eq(seasons.id, match.seasonId), columns: { slug: true } }); if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛季不存在。"); return { match, season, admin: await requireSeasonAdmin(match.seasonId) }; }

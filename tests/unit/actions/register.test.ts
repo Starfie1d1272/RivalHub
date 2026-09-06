@@ -118,7 +118,7 @@ const SESSION = mockUserSession({ userId: USER_ID, email: "player@example.com" }
 
 const USER = createFakeUser({ id: USER_ID, email: "player@example.com" });
 
-// VALID_INPUT 的 seasonId 必须是合法 UUID（registrationSeedSchema 用 z.string().uuid()）
+// VALID_INPUT 的 seasonId 必须是合法 UUID（registrationSeedSchema 用 z.guid()）
 const VALID_INPUT = {
   seasonId: SEASON_ID,
   email: "player@example.com",

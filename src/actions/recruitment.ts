@@ -18,7 +18,7 @@ import {
 import { ErrorCode } from "@/lib/errors";
 import { fail, ok, type ActionResult } from "@/types/action";
 
-const uuid = z.string().uuid();
+const uuid = z.guid();
 const position = z.enum(CS2_POSITION_VALUES);
 const optionalNote = z.string().trim().max(280).optional();
 const optionalSeason = uuid.nullable().optional();
