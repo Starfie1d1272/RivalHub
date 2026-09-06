@@ -175,7 +175,7 @@ async function prepareReadyMajor(
       ], profileRankOrder);
       await seedCompetitivePlatformCatalog(client, "fivee", [
         { seasonKey: ISSUE_461_PRIOR_SEASONS.fivee, label: "Issue 461 prior 5E", sortOrder: -1, isCurrent: false },
-      ], [...createPerfectWorldRankOrder().slice(0, 13), "SS", "SSS"]);
+      ], []);
       const liveSeasons = async (platform: string): Promise<string[]> => {
         const rows = await client.query<{ season_key: string; sort_order: number; is_current: boolean }>(
           "SELECT season_key, sort_order, is_current FROM competitive_platform_seasons WHERE platform = $1 AND active = true ORDER BY sort_order",
