@@ -8,7 +8,7 @@ import { LoginForm } from "@/components/auth/LoginForm";
 import { EducationVerificationPanel } from "@/components/settings/EducationVerificationPanel";
 import { EducationVerificationReviewQueue } from "@/components/admin/EducationVerificationReviewQueue";
 
-const { loginWithPasswordMock, signUpMock, resendSignupConfirmationMock, getInstitutionSearchMock, submitEducationVerificationMock, toastSuccessMock, toastErrorMock } = vi.hoisted(() => ({
+const { loginWithPasswordMock, signUpMock, resendSignupConfirmationMock, getInstitutionSearchMock, submitEducationVerificationMock, toastSuccessMock, toastErrorMock, refreshMock, replaceMock, pushMock, searchParamsMock } = vi.hoisted(() => ({
   loginWithPasswordMock: vi.fn(),
   signUpMock: vi.fn(),
   resendSignupConfirmationMock: vi.fn(),
@@ -16,8 +16,17 @@ const { loginWithPasswordMock, signUpMock, resendSignupConfirmationMock, getInst
   submitEducationVerificationMock: vi.fn(),
   toastSuccessMock: vi.fn(),
   toastErrorMock: vi.fn(),
+  refreshMock: vi.fn(),
+  replaceMock: vi.fn(),
+  pushMock: vi.fn(),
+  searchParamsMock: { get: vi.fn(() => null), toString: vi.fn(() => "") },
 }));
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: refreshMock, replace: replaceMock, push: pushMock }),
+  usePathname: () => "/admin/education-verifications",
+  useSearchParams: () => searchParamsMock,
+}));
 vi.mock("sonner", () => ({ toast: { success: toastSuccessMock, error: toastErrorMock } }));
 vi.mock("@/actions/auth", () => ({ loginWithPassword: loginWithPasswordMock, signUp: signUpMock, resendSignupConfirmation: resendSignupConfirmationMock, resendCurrentEmailVerification: vi.fn() }));
 vi.mock("@/actions/education-verifications", () => ({ declareInstitutionalEmailEducation: vi.fn(), getInstitutionSearch: getInstitutionSearchMock, submitEducationVerification: submitEducationVerificationMock, reviewEducationVerification: vi.fn() }));

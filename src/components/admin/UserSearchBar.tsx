@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useRef } from "react";
+import React from "react";
+import { ClearFilters, ListSearchField, ListToolbar, useListQueryParams } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 
 const FILTERS = [
@@ -10,45 +10,36 @@ const FILTERS = [
   { key: "none",         label: "仅注册" },
 ] as const;
 
-export function UserSearchBar({ q, filter }: { q: string; filter: string }) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+type UserFilter = (typeof FILTERS)[number]["key"];
 
-  const push = useCallback(
-    (updates: Record<string, string>) => {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("tab", "users");
-      for (const [k, v] of Object.entries(updates)) {
-        if (v) params.set(k, v);
-        else params.delete(k);
-      }
-      router.replace(`/admin/users?${params.toString()}`);
-    },
-    [router, searchParams],
-  );
-
-  function handleSearch(e: React.ChangeEvent<HTMLInputElement>) {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => push({ q: e.target.value }), 300);
-  }
-
+export function UserSearchBar({ filter }: { filter: UserFilter }) {
+  const { update } = useListQueryParams({ routeBase: "/admin/users", defaults: { filter: "all" } });
   return (
-    <div className="flex flex-col gap-3">
-      <input
-        type="search"
-        defaultValue={q}
-        onChange={handleSearch}
-        placeholder="搜索名字 / 邮箱…"
-        className="w-full max-w-sm rounded-sm border border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-1.5 text-sm text-[var(--color-fg)] placeholder:text-[var(--color-fg-dim)] outline-none focus:border-[var(--color-accent)] transition-colors"
+    <ListToolbar aria-label="用户搜索与筛选">
+      <ListSearchField
+        queryKey="q"
+        label="搜索用户"
+        placeholder="姓名 / 邮箱…"
+        routeBase="/admin/users"
+        className="min-w-0 flex-1 basis-full md:basis-auto"
       />
-      <div className="flex gap-1">
+      <div className="min-w-0">
+        <span className="mb-1.5 block text-xs text-[var(--color-fg-mid)]">参赛状态</span>
+        <div className="flex flex-wrap gap-1" role="group" aria-label="参赛状态">
         {FILTERS.map(({ key, label }) => (
-          <Button key={key} type="button" size="sm" variant={filter !== key ? "ghost" : "outline"} onClick={() => push({ filter: key })}>
-            {label}
-          </Button>
+            <Button
+              key={key}
+              type="button"
+              size="sm"
+              variant={filter !== key ? "ghost" : "outline"}
+              onClick={() => update({ tab: "users", filter: key }, { defaults: { filter: "all" } })}
+            >
+              {label}
+            </Button>
         ))}
+        </div>
       </div>
-    </div>
+      <ClearFilters defaults={{ q: "", filter: "all" }} routeBase="/admin/users" />
+    </ListToolbar>
   );
 }

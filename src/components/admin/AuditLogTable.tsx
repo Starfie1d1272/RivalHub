@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
 import { fetchAuditLogs, type AuditLogFilters } from "@/actions/audit";
+import { ClearFilters, ListSearchField, ListToolbar, PaginationControls, ResultSummary, useListQueryParams } from "@/components/rivalhub";
 import { formatCST } from "@/lib/utils/date";
 import {
   AUDIT_LOG_LOAD_ERROR_MESSAGE,
@@ -29,47 +29,20 @@ const ACTION_FILTER_GROUPS = ACTION_FILTER_OPTIONS.reduce<Array<{ label: string;
 }, []);
 
 export function AuditLogTable({ initialLogs, initialTotal, seasons, routeBase = "/admin/logs", seasonScopeId }: Props) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
+  const { searchParams, update } = useListQueryParams({ routeBase });
   const [isPending, startTransition] = useTransition();
 
   const [logs, setLogs] = useState(initialLogs);
   const [total, setTotal] = useState(initialTotal);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [localActor, setLocalActor] = useState(searchParams.get("actor") ?? "");
-  const actorTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  const currentPage = Number(searchParams.get("page") ?? "1");
+  const pageValue = Number(searchParams.get("page") ?? "1");
+  const currentPage = Number.isSafeInteger(pageValue) && pageValue > 0 ? pageValue : 1;
   const currentAction = searchParams.get("action") ?? "";
   const currentActor = searchParams.get("actor") ?? "";
   const currentSeason = searchParams.get("seasonId") ?? "";
   const currentDateFrom = searchParams.get("dateFrom") ?? "";
   const currentDateTo = searchParams.get("dateTo") ?? "";
-
-  useEffect(() => {
-    setLocalActor(currentActor);
-  }, [currentActor]);
-
-  const updateParams = useCallback(
-    (updates: Record<string, string>) => {
-      const params = new URLSearchParams(searchParams.toString());
-      for (const [key, value] of Object.entries(updates)) {
-        if (value) params.set(key, value);
-        else params.delete(key);
-      }
-      if (!updates.page) params.set("page", "1");
-      router.push(`${routeBase}?${params.toString()}` as never);
-    },
-    [routeBase, router, searchParams],
-  );
-
-  const debouncedUpdateParam = useCallback(
-    (key: string, value: string, timerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | undefined>) => {
-      clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => updateParams({ [key]: value }), 400);
-    },
-    [updateParams],
-  );
 
   const reload = useCallback(() => {
     const filters: AuditLogFilters = { page: currentPage, pageSize: PAGE_SIZE };
@@ -105,27 +78,19 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, routeBase = 
     reload();
   }, [reload]);
 
-  useEffect(() => {
-    const actorTimer = actorTimerRef.current;
-    return () => clearTimeout(actorTimer);
-  }, []);
-
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
     <div className="min-w-0 space-y-4">
-      <div
-        className="grid min-w-0 grid-cols-1 gap-3 rounded-sm p-4 sm:grid-cols-2 lg:grid-cols-6"
-        style={{ background: "var(--color-panel)", border: "1px solid var(--color-border)" }}
-      >
-        <div className="min-w-0 lg:col-span-2">
+      <ListToolbar className="items-start">
+        <div className="min-w-0 w-full sm:flex-1 sm:basis-[calc(50%-0.75rem)] lg:basis-[30%]">
           <label htmlFor="audit-action-filter" className="mb-1 block text-xs" style={{ color: "var(--color-fg-dim)" }}>
             操作类型
           </label>
           <select
             id="audit-action-filter"
             value={currentAction}
-            onChange={(event) => updateParams({ action: event.target.value })}
+            onChange={(event) => update({ action: event.target.value })}
             className="min-w-0 max-w-full w-full rounded px-2 py-1.5 text-xs"
             style={{ background: "var(--color-panel-low)", border: "1px solid var(--color-border)", color: "var(--color-fg)" }}
           >
@@ -143,32 +108,22 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, routeBase = 
           </select>
         </div>
 
-        <div className="min-w-0 lg:col-span-2">
-          <label htmlFor="audit-actor-filter" className="mb-1 block text-xs" style={{ color: "var(--color-fg-dim)" }}>
-            操作人
-          </label>
-          <input
-            id="audit-actor-filter"
-            type="text"
-            placeholder="用户 ID 或邮箱"
-            value={localActor}
-            onChange={(event) => {
-              setLocalActor(event.target.value);
-              debouncedUpdateParam("actor", event.target.value, actorTimerRef);
-            }}
-            className="min-w-0 max-w-full w-full rounded px-2 py-1.5 text-xs"
-            style={{ background: "var(--color-panel-low)", border: "1px solid var(--color-border)", color: "var(--color-fg)" }}
-          />
-        </div>
+        <ListSearchField
+          queryKey="actor"
+          label="操作人"
+          placeholder="用户 ID 或邮箱"
+          routeBase={routeBase}
+          className="w-full sm:flex-1 sm:basis-[calc(50%-0.75rem)] lg:basis-[30%]"
+        />
 
-        <div className="min-w-0 lg:col-span-2">
+        <div className="min-w-0 w-full sm:flex-1 sm:basis-[calc(50%-0.75rem)] lg:basis-[30%]">
           <label htmlFor="audit-season-filter" className="mb-1 block text-xs" style={{ color: "var(--color-fg-dim)" }}>
             赛季
           </label>
           <select
             id="audit-season-filter"
             value={currentSeason}
-            onChange={(event) => updateParams({ seasonId: event.target.value })}
+            onChange={(event) => update({ seasonId: event.target.value })}
             className="min-w-0 max-w-full w-full rounded px-2 py-1.5 text-xs"
             style={{ background: "var(--color-panel-low)", border: "1px solid var(--color-border)", color: "var(--color-fg)" }}
           >
@@ -177,8 +132,8 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, routeBase = 
           </select>
         </div>
 
-        <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:col-span-6">
-          <div className="min-w-0">
+        <div className="flex min-w-0 w-full flex-wrap gap-3 lg:col-span-6">
+          <div className="min-w-0 flex-1 basis-full sm:basis-[calc(50%-0.75rem)]">
             <label htmlFor="audit-date-from" className="mb-1 block text-xs" style={{ color: "var(--color-fg-dim)" }}>
               起始日期
             </label>
@@ -186,12 +141,12 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, routeBase = 
               id="audit-date-from"
               type="date"
               value={currentDateFrom}
-              onChange={(event) => updateParams({ dateFrom: event.target.value })}
+              onChange={(event) => update({ dateFrom: event.target.value })}
               className="min-w-0 max-w-full w-full rounded px-2 py-1.5 text-xs"
               style={{ background: "var(--color-panel-low)", border: "1px solid var(--color-border)", color: "var(--color-fg)" }}
             />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1 basis-full sm:basis-[calc(50%-0.75rem)]">
             <label htmlFor="audit-date-to" className="mb-1 block text-xs" style={{ color: "var(--color-fg-dim)" }}>
               结束日期
             </label>
@@ -199,13 +154,14 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, routeBase = 
               id="audit-date-to"
               type="date"
               value={currentDateTo}
-              onChange={(event) => updateParams({ dateTo: event.target.value })}
+              onChange={(event) => update({ dateTo: event.target.value })}
               className="min-w-0 max-w-full w-full rounded px-2 py-1.5 text-xs"
               style={{ background: "var(--color-panel-low)", border: "1px solid var(--color-border)", color: "var(--color-fg)" }}
             />
           </div>
         </div>
-      </div>
+        <ClearFilters defaults={{ action: "", actor: "", seasonId: "", dateFrom: "", dateTo: "" }} routeBase={routeBase} />
+      </ListToolbar>
 
       {loadError && (
         <div
@@ -218,9 +174,9 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, routeBase = 
         </div>
       )}
 
-      <div className="flex items-center justify-between text-xs" style={{ color: "var(--color-fg-dim)" }}>
-        <span>共 {total} 条记录{totalPages > 1 ? `，第 ${currentPage}/${totalPages} 页` : ""}</span>
-        {isPending && <span style={{ color: "var(--color-accent)" }}>加载中…</span>}
+      <div className="flex items-center justify-between gap-3">
+        <ResultSummary total={total} page={currentPage} pageSize={PAGE_SIZE} totalPages={totalPages} />
+        {isPending && <span className="text-xs text-[var(--color-accent)]">加载中…</span>}
       </div>
 
       <div className="min-w-0 overflow-x-auto rounded-sm" style={{ border: "1px solid var(--color-border)" }}>
@@ -269,23 +225,7 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, routeBase = 
         </table>
       </div>
 
-      {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2">
-          <button
-            disabled={currentPage <= 1}
-            onClick={() => updateParams({ page: String(currentPage - 1) })}
-            className="rounded px-3 py-1 text-xs disabled:opacity-30"
-            style={{ background: "var(--color-panel)", border: "1px solid var(--color-border)", color: "var(--color-fg)" }}
-          >上一页</button>
-          <span className="text-xs" style={{ color: "var(--color-fg-dim)" }}>{currentPage} / {totalPages}</span>
-          <button
-            disabled={currentPage >= totalPages}
-            onClick={() => updateParams({ page: String(currentPage + 1) })}
-            className="rounded px-3 py-1 text-xs disabled:opacity-30"
-            style={{ background: "var(--color-panel)", border: "1px solid var(--color-border)", color: "var(--color-fg)" }}
-          >下一页</button>
-        </div>
-      )}
+      <PaginationControls page={currentPage} totalPages={totalPages} routeBase={routeBase} />
     </div>
   );
 }
