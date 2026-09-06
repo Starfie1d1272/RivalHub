@@ -31,7 +31,7 @@ export { PLAYER_TYPE_LABELS };
 export const RANK_ORDER = REGISTRATION_DEFAULTS.ranks.values;
 
 export const registrationSeedSchema = z.object({
-  seasonId: z.string().uuid("赛季 ID 格式不正确"),
+  seasonId: z.guid("赛季 ID 格式不正确"),
 });
 
 function isAllowedRank(value: string): value is RankValue {
@@ -75,7 +75,7 @@ export function buildRegistrationSchema(
 
   return z
     .object({
-      seasonId: z.string().uuid("赛季 ID 格式不正确"),
+      seasonId: z.guid("赛季 ID 格式不正确"),
 
       // ── 基础信息 ──
       email: z
@@ -118,7 +118,7 @@ export function buildRegistrationSchema(
           const normalized = normalizeSteamProfileUrl(v);
           if (!normalized) {
             ctx.addIssue({
-              code: z.ZodIssueCode.custom,
+              code: "custom",
               message: "Steam 个人资料链接格式不正确",
             });
             return z.NEVER;
@@ -146,7 +146,7 @@ export function buildRegistrationSchema(
 
       // Rating：完美平台 Rating，0.01–3.00，两位小数
       peakRating: z
-        .number({ invalid_type_error: "请输入数字" })
+        .number({ error: "请输入数字" })
         .min(0.01, "Rating 最小 0.01")
         .max(3.00, "Rating 最大 3.00")
         .refine(
@@ -156,7 +156,7 @@ export function buildRegistrationSchema(
 
       // WE：Win Effect，0.0–16.0，一位小数
       peakWe: z
-        .number({ invalid_type_error: "请输入数字" })
+        .number({ error: "请输入数字" })
         .min(0, "WE 不能为负")
         .max(16.0, "WE 最大 16.0")
         .refine(
@@ -171,7 +171,7 @@ export function buildRegistrationSchema(
       }),
 
       currentRating: z
-        .number({ invalid_type_error: "请输入数字" })
+        .number({ error: "请输入数字" })
         .min(0.01, "Rating 最小 0.01")
         .max(3.00, "Rating 最大 3.00")
         .refine(
@@ -180,7 +180,7 @@ export function buildRegistrationSchema(
         ),
 
       currentWe: z
-        .number({ invalid_type_error: "请输入数字" })
+        .number({ error: "请输入数字" })
         .min(0, "WE 不能为负")
         .max(16.0, "WE 最大 16.0")
         .refine(
@@ -228,7 +228,7 @@ export function buildRegistrationSchema(
       notes: z.string().max(500, "备注不超过 500 字").optional(),
 
       antiCheatPledge: z.literal(true, {
-        errorMap: () => ({ message: "请勾选反作弊承诺方可提交" }),
+        error: "请勾选反作弊承诺方可提交",
       }),
     })
     .refine((data) => data.secondaryPosition !== data.primaryPosition, {

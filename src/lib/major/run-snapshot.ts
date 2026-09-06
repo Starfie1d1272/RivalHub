@@ -14,8 +14,8 @@ const stageSchema = z.object({
 });
 
 const frozenEntrantSchema = z.object({
-  entrantId: z.string().uuid(),
-  competitionEntryId: z.string().uuid(),
+  entrantId: z.guid(),
+  competitionEntryId: z.guid(),
   tournamentSeed: z.number().int().min(1).max(32),
 });
 
@@ -34,8 +34,8 @@ const qualificationFindingSnapshotSchema = z.object({
 });
 
 const frozenRestrictionOverrideSchema = z.object({
-  entryId: z.string().uuid(),
-  rosterRevisionId: z.string().uuid(),
+  entryId: z.guid(),
+  rosterRevisionId: z.guid(),
   restrictionCode: z.string().min(1),
   findingSnapshot: qualificationFindingSnapshotSchema,
   reason: z.string().min(1),
@@ -43,13 +43,13 @@ const frozenRestrictionOverrideSchema = z.object({
   grantedAt: z.string().min(1),
 }).superRefine((value, ctx) => {
   if (value.restrictionCode !== value.findingSnapshot.code) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "解除记录的 restrictionCode 必须与 finding snapshot code 一致" });
+    ctx.addIssue({ code: "custom", message: "解除记录的 restrictionCode 必须与 finding snapshot code 一致" });
   }
   if (!value.findingSnapshot.waivable) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "StageRun 只能冻结可解除的 qualification finding" });
+    ctx.addIssue({ code: "custom", message: "StageRun 只能冻结可解除的 qualification finding" });
   }
   if (!value.reason.trim()) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "解除记录必须包含具体理由" });
+    ctx.addIssue({ code: "custom", message: "解除记录必须包含具体理由" });
   }
 });
 
@@ -68,19 +68,21 @@ const frozenInputObject = z.object({
 const frozenInputSchema = frozenInputObject.superRefine((value, ctx) => {
   const keys = new Set<string>();
   for (const stage of value.stagePlan) {
-    if (keys.has(stage.key)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "重复的 StagePlan key" });
+    if (keys.has(stage.key)) ctx.addIssue({ code: "custom", message: "重复的 StagePlan key" });
     keys.add(stage.key);
   }
   if (value.rosterRules.starterCount > value.rosterRules.maxTeamSize || value.rosterRules.minTeamSize > value.rosterRules.maxTeamSize) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "无效的 roster policy" });
+    ctx.addIssue({ code: "custom", message: "无效的 roster policy" });
   }
 });
 
-function withFrozenInputInvariants<T extends z.ZodTypeAny>(schema: T): T {
+function withFrozenInputInvariants<T extends z.ZodType>(schema: T): T {
   return schema.superRefine((value, ctx) => {
     const result = frozenInputSchema.safeParse(value);
     if (!result.success) {
-      for (const issue of result.error.issues) ctx.addIssue(issue);
+      for (const issue of result.error.issues) {
+        ctx.addIssue(issue as z.core.$ZodSuperRefineIssue);
+      }
     }
   }) as unknown as T;
 }

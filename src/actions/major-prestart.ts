@@ -29,7 +29,7 @@ import { saveMajorPrestartRosterInTx } from "@/lib/major/prestart-roster";
 import { assertMajorPrestartEntrantsMutable, ensureMajorPrestartStateInTx } from "@/lib/major/prestart-state";
 import { confirmMajorTournamentSeedsInTx, saveMajorTournamentSeedsInTx } from "@/lib/major/prestart-seeds";
 
-const uuid = z.string().uuid();
+const uuid = z.guid();
 const issueCategory = z.enum(["qualification", "administration"]);
 const rosterRepairInput = z.object({ seasonId: uuid, entrantId: uuid, userIds: z.array(uuid).min(1).max(16), reason: z.string().trim().min(1).max(1000) });
 const rosterExceptionInput = z.object({ seasonId: uuid, entrantId: uuid, reason: z.string().trim().min(1).max(1000) });

@@ -135,7 +135,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
     initial?.stagePlan ?? defaultTemplate.stagePlan,
   );
   const [allowedPlayerTypes, setAllowedPlayerTypes] = useState<PlayerType[]>(
-    defaultConfig.allowedPlayerTypes,
+    [...defaultConfig.allowedPlayerTypes],
   );
   const [currentMin, setCurrentMin] = useState(defaultConfig.rankThreshold.currentMin ?? NO_RANK);
   const [peakMin, setPeakMin] = useState(defaultConfig.rankThreshold.peakMin ?? NO_RANK);
@@ -145,7 +145,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
   const [mapPool, setMapPool] = useState(defaultConfig.mapPool);
   const [teamConfig, setTeamConfig] = useState<TeamRegistrationConfig>(defaultTeamConfig);
   const [affiliationRules, setAffiliationRules] = useState<InstitutionAffiliationRule[]>(
-    initial?.affiliationRules ?? defaultTemplate.affiliationRules,
+    [...(initial?.affiliationRules ?? defaultTemplate.affiliationRules)],
   );
 
   const editCapabilities = getSeasonEditCapabilities({
@@ -256,7 +256,16 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
     };
   }
 
-  const standardMajorCheck = checkStandardMajorCapabilities(buildPayload() as SeasonCapabilities);
+  const payloadForCapabilities = buildPayload();
+  const standardMajorCheck = checkStandardMajorCapabilities({
+    ...payloadForCapabilities,
+    registrationConfig: {
+      ...payloadForCapabilities.registrationConfig,
+      allowedPlayerTypes: [...payloadForCapabilities.registrationConfig.allowedPlayerTypes],
+    },
+    teamRegistrationConfig: teamConfig,
+    affiliationRules,
+  });
   const isMajorDisplayContext = template === "major";
 
   function handleSubmit() {
@@ -295,8 +304,9 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
 
   function handleOpenRegistration() {
     if (!initial?.id) return;
+    const seasonId = initial.id;
     startTransition(async () => {
-      const result = await openSeasonRegistration(initial.id);
+      const result = await openSeasonRegistration(seasonId);
       if (result.success) {
         toast.success("报名已开放，竞技参考策略已冻结");
         router.refresh();

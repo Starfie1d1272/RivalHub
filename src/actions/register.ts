@@ -20,9 +20,9 @@ import { updatePublicPlayerTag } from "@/lib/revalidation";
 import { traceOperation } from "@/lib/observability/server";
 
 const draftSchema = z.object({
-  seasonId: z.string().uuid("赛季 ID 格式不正确"),
+  seasonId: z.guid("赛季 ID 格式不正确"),
   email: z.string().email("请先填写有效邮箱"),
-  payload: z.record(z.unknown()).default({}),
+  payload: z.record(z.string(), z.unknown()).default({}),
 });
 
 export async function saveRegistrationDraft(input: unknown) {

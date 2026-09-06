@@ -19,8 +19,8 @@ import {
 } from "@/lib/postevent/service";
 import { fail, ok, type ActionResult } from "@/types/action";
 
-const uuid = z.string().uuid();
-const clientRequestId = z.string().uuid();
+const uuid = z.guid();
+const clientRequestId = z.guid();
 const impactSchema = z.enum(ADJUDICATION_IMPACTS);
 
 function invalid(message: string): ActionResult<never> {

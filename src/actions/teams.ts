@@ -34,7 +34,7 @@ import { fail, ok, type ActionResult } from "@/types/action";
 
 const PENDING_DIRECT_INVITATION_CONSTRAINT = "team_invitations_one_pending_direct_per_user";
 
-const uuid = z.string().uuid();
+const uuid = z.guid();
 const teamName = z.string().trim().min(MIN_TEAM_NAME_LENGTH).max(MAX_TEAM_NAME_LENGTH);
 const description = z.string().trim().max(500);
 function invalid(message: string): ActionResult<never> {

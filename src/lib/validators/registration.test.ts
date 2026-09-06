@@ -72,7 +72,7 @@ describe("buildRegistrationSchema", () => {
     );
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.errors[0].path).toContain("secondaryPosition");
+      expect(result.error.issues[0].path).toContain("secondaryPosition");
     }
   });
 

@@ -20,7 +20,7 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import { isHttpUrl } from "@/lib/external-url";
 import { fail, ok, type ActionResult } from "@/types/action";
 
-const uuid = z.string().uuid();
+const uuid = z.guid();
 const optionalText = (max: number) => z.string().trim().max(max).nullable().optional();
 const awardInput = z.object({
   seasonId: uuid,

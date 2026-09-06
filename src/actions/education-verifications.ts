@@ -100,9 +100,9 @@ export async function declareInstitutionalEmailEducation(input: { academicStatus
 }
 
 export async function reviewEducationVerification(input: { id: string; decision: "approved" | "rejected"; reviewNote?: string }): Promise<ActionResult<void>> {
-  const reviewSchema = z.object({ id: z.string().uuid(), decision: z.enum(["approved", "rejected"]), reviewNote: z.string().trim().max(1000).optional() }).superRefine((value, ctx) => {
+  const reviewSchema = z.object({ id: z.guid(), decision: z.enum(["approved", "rejected"]), reviewNote: z.string().trim().max(1000).optional() }).superRefine((value, ctx) => {
     if (value.decision === "rejected" && !value.reviewNote) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["reviewNote"], message: "驳回原因不能为空。" });
+      ctx.addIssue({ code: "custom", path: ["reviewNote"], message: "驳回原因不能为空。" });
     }
   });
   const parsed = reviewSchema.safeParse(input);
