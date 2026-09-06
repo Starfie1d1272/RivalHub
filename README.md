@@ -19,7 +19,7 @@
   <img src="https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white" alt="TypeScript" />
   <img src="https://img.shields.io/badge/Drizzle-ORM-C5F74F?logo=drizzle&logoColor=black" alt="Drizzle ORM" />
   <img src="https://img.shields.io/badge/Supabase-Postgres%20%2F%20Auth-3FCF8E?logo=supabase&logoColor=white" alt="Supabase" />
-  <img src="https://img.shields.io/badge/pnpm-11-F69220?logo=pnpm&logoColor=white" alt="pnpm" />
+  <img src="https://img.shields.io/badge/pnpm-12-F69220?logo=pnpm&logoColor=white" alt="pnpm" />
   <a href="./CONTRIBUTING.md"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" /></a>
 </p>
 
@@ -79,7 +79,7 @@ RivalHub 2.x 先把官方实例和真实赛事运营做好。代码以 AGPL-3.0 
 | 依赖 | 版本 |
 | --- | --- |
 | Node.js | `24.x` |
-| pnpm | `11.x` |
+| pnpm | `12.x` |
 | Docker | Local Supabase 需要 |
 
 ### 快速开始

@@ -7,7 +7,7 @@
 仓库当前 runtime contract 由 `package.json` / lockfile 统一声明：
 
 - Node.js 24.x
-- pnpm 11.x
+- pnpm 12.x
 
 `packageManager`、`devEngines.runtime` 与 `engines.node` 共同声明仓库 runtime。pnpm 安装时会按 manifest 解析所需 Node，并把对应 runtime 记录到 lockfile；首次获取可能需要联网，后续可复用本机缓存。不要删除相关 lockfile runtime 条目，也不要在 workflow、脚本或个人环境里再维护另一份 Node/pnpm 版本常量；CI 同样从仓库 manifest/lockfile 取得 runtime。
 
