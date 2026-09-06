@@ -1,140 +1,154 @@
 # RivalHub 工作流
 
-本文件描述当前 2.0 实现的生命周期与 owner boundary。政策规则由 [`rules/`](./rules/) 定义；精确 action 输入和错误码以 code 为准。
+本文件只描述跨模块必须理解的生命周期与 owner boundary。领域实体见 [`domain-model.md`](./domain-model.md)；正式赛事规则见 [`rules/`](./rules/)；精确 action 输入、guard 和错误码以 code/tests 为准。
 
-## 1. Account / Auth
+## Account and long-lived profile
 
-用户通过 `/login` 进行 Supabase email/password 注册或登录。注册后邮件链接只会打开确认页；用户显式确认后才验证 token、建立 `rivalhub-session`。登录会同步应用账户并建立会话。密码恢复通过邮件跳转 `/reset-password`。
+```text
+signup → confirmation email → explicit confirmation → application session
+login  → password authentication → application session
+forgot password → recovery email → reset password
+```
 
-## 2. Long-lived participant profile
+Supabase Auth 负责凭据；成功确认/登录后同步应用账户并建立 `rivalhub-session`。长期资料、教育资格、竞技档案和 Team 独立于任何一届赛事维护；赛事只在需要时引用或冻结这些事实。
 
-`users` 承载 display/profile、QQ、Steam 与 Perfect World identity 等跨赛事 participant profile。现有 Rivals 个人报名仍保留部分历史报名字段和赛事快照；2.x 的“我的”聚合与长期 Team/赛事参与边界见 [`decisions/2.x-product-domains.md`](./decisions/2.x-product-domains.md)。
+## Season lifecycle
 
-## 3. Education verification
-
-用户提交长期教育资格材料；系统按 institution、academic status 和证据类型审核。Major eligibility 引用已验证的教育事实；`studentId` 不参与 Major eligibility。
-
-## 4. Competitive profile
-
-数据 owner 是 `competitive_platforms`、`competitive_platform_ranks`、`competitive_platform_seasons` 与 `competitive_rank_facts`：平台拥有 rank ladder，平台赛季只表达时间目录，竞技事实引用其中的稳定身份。`/settings/competitive` 直接读取全局目录，不依赖已发布 RivalHub 赛事；当前赛季、上一赛季置顶，其他仍启用的已编目赛季也可维护，未来赛季可以留空，历史赛季资料可补录。赛事 qualification evaluator 只检查该赛事冻结上下文要求的 exact season keys，因此目录推进不会让冻结了旧赛季的赛事资格失效。
-
-## 5. Rivals solo registration
-
-Rivals 用户在报名窗口填写个人报名并可保存草稿。提交由 Server Action 再次校验人数、位置与赛季窗口；管理员审核为 pending、approved、rejected 或 waitlisted。
-
-## 6. Captain voting
-
-已审核用户在投票阶段为候选队长投票或撤票。投票资格、上限和状态由服务端校验；管理员确认队长后创建 Rivals 的 CompetitionEntry（`teamId = null`）与选秀顺位。
-
-## 7. Rivals draft
-
-队长/管理员操作选秀时，系统以行锁锁定 `draft_state`，先判定 `clientRequestId` 幂等，再验证轮次、身份、位置与可选性，在同一事务写 pick、Entry participant / roster member / event roster member 与下一轮状态。commit 后由直播页面通过服务端刷新/轮询读取最新事实。
-
-## 8. Major entry registration
-
-长期 Team 的队长为赛事创建 CompetitionEntry（`createCompetitionEntry`），维护可编辑的报名名单 revision（`saveCompetitionEntryRoster`）并可把代表职责转给当前已确认成员（`transferCompetitionEntryRepresentative`）。一个用户在同届赛事只能保有一个符合 `competition_entry_active_claims` 约束的 active commitment。提交前由服务端 qualification owner（batch facts + pure evaluators）汇集身份、教育、竞技和 Entry 事实执行资格判断。长期 Team 本身的成员邀请、队长交接与解散独立于赛事进行。
-
-## 9. Participant confirmation
-
-受邀成员以 Entry participant 身份确认或拒绝参赛（`confirmCompetitionEntryParticipation` / `declineCompetitionEntryParticipation`）。未确认成员不能被当作已完成的参赛成员；成员变更会重新影响 Entry readiness。
-
-## 10. Entry review
-
-管理员对 submitted entry 审核为 approved、waitlisted、rejected 或 changes_requested（`reviewCompetitionEntry`）。changes_requested/rejected entry 可由队长编辑并再次提交。approved entry 收敛到 approved roster revision；这一步不等同于进入 Major tournament（见 prestart）。
-
-## 11. Major prestart
-
-Major prestart 将已批准的 CompetitionEntry 作为候选池。标准 Major 的最终 entrant 容量由 canonical stage plan 的 direct entrant cohorts 派生（阶段一、二、三为 16 / 8 / 8，当前合计 32）；管理员一次提交最终 Entry 集合，事务会从每个 Entry 的 `approvedRosterRevisionId` materialize / reconcile Entry-owned EventRoster，并保留主力与教育证据。名单调整必须由队长和成员在 Entry roster-change 流程中完成、重新审核后自动同步；管理员只处理明确 blocker/例外，再用一次统一动作冻结正式参赛队与 EventRoster。该统一 freeze command 随即读取每队恰好 5 名 frozen primary starters、event-owned competitive context 与 canonical `getPlayerStrengthBreakdown(...).weightedRank`，由排名 owner 使用整数缩放的简单平均生成 system rank/tie group；版本化 snapshot contract 同时保存实际被近期证据政策选中的 fact、每人 breakdown/provenance 和 frozen-set identity。snapshot 缺失、输入不一致或任何 strength evidence 不可计算时整个事务 fail closed。管理员随后在 `majorTournamentSeeds` 中编辑最终顺序；分析表展示已保存的最终 seed 与 canonical `analyzeFinalSeedOrder` 状态，按系统建议/参考值查看只改变展示顺序，不改变最终 seed。跨 recommendation group 必须提交持久化 override reason 并产生 audit，系统并列组内人工定序可记录原因但不变成系统二级比较；同一 snapshot 不因查看排序或人工调整而变化。readiness 必须给出具体 blocker 与下一步操作。锁定后的预启动事实和已有 snapshot 被 `startMajor` 消费，创建 Stage 1 运行时；start 不负责首次生成建议，预览 opening plan 不能替代完整 readiness。
-特殊的名单补正、重新开放或确认动作只用于处理明确例外，必须填写原因并产生审计记录；正常流程不提供逐队管理员名单选择器。
-
-赛事工作区按生命周期组织这些能力：`/admin/{seasonSlug}` 只展示 lifecycle、时间、按报名模式投影的摘要、当前赛前 readiness 和下一步 CTA；完整 Major 赛前操作位于 `/prestart`。Rivals 的队长确认和选秀保留 `/captains`、`/draft` URL，并作为 `/prestart` 下的 capability 入口展示。工作区 shell 消费 `hasCaptainVoting`、`hasDraft`、`hasCommunityAwards` 与 StagePlan，不为不同赛事模板复制导航。
-
-## 12. Stage runtime
-
-Major 的 Swiss 阶段由 managed StageRun 运行。每次 pairing、回合结算、推进和恢复都绑定 StageRun；canonical truth 来自 entrants 与已完成比赛。阶段 1、2 的普通比赛为 BO1，晋级/淘汰局为 BO3；阶段 3 全部为 BO3。淘汰赛 QF BO3、SF BO3、Final BO5。
-
-赛事级 `/admin/{seasonSlug}/matches` 是比赛总览 read-model：承载阶段、standings、赛程、筛选、批量截止时间和既有 Swiss/Playoff runtime 控件。总览只读取比赛摘要与阶段状态，不加载整届 event roster、match roster、BP/地图明细、赛后提交详情或 OCR 数据；其中解说有效场次统计只聚合已完成、有录像、已提交赛后资料且已登记解说的轻量比赛摘要。每场列表通过 `/admin/{seasonSlug}/matches/{matchId}` 进入单场比赛工作台。
-
-单场比赛工作台按概览、首发、BP/地图、结果、赛后资料和危险操作/恢复组织内容。它只读取当前比赛及双方 frozen event roster、实际 match roster、地图/结果、解说/赛后资料和开赛前 preflight，并复用既有 `src/actions/matches/`、roster、veto、post-match 与 OCR 组件。比赛 actual lineup 是本场事实，可以不同于赛事 primary starter；workbench 不新增 match truth source，也不复制 Major runtime。Swiss/Playoff 阶段推进不再挂在赛事 root。
-
-## 13. Match roster
-
-Entry 为具体比赛提交或由管理员选定阵容；阵容成员必须是该 Entry frozen event roster 的成员。Major roster 检查阶段冻结的 affiliation 和参赛事实；缺少或不符合要求的阵容不能被伪造为可用，数据库 invariant 拒绝引用其他 Entry 名单成员的 lineup。
-
-## 14. Match execution / result
-
-比赛可进行时间协商、BP、地图结果与赛果录入。正常比赛先由 BP 确定实际地图并建立 pending `match_maps`，再由 `recordMapResult` 写入实际地图回合比分，并从已完成地图推导 `matches` 的官方系列赛比分；弃赛只写官方系列赛结果，不制造未进行的地图。结果由对应 Server Action 验证、写审计并在适用时推进赛程。管理的 Major match 必须通过其 runtime owner 结算。
-
-## 15. Result correction
-
-管理员更正结果时，系统检查比赛、StageRun、后续阶段和恢复限制。更正不会以 UI projection 或 standings 覆盖 canonical facts；需要重新配对时走受控 recovery。
-
-## 16. Discipline
-
-管理员创建、执行、撤销或到期处理 disciplinary case。纪律与比赛、名次、荣誉通过明确的事实和审计连接，不做隐式递补。
-
-## 17. Community awards
-
-社区奖是独立的赛事 capability，不是 post-event 的子流程。新赛事默认启用；管理员只能在 draft 阶段显式关闭，发布后随赛事公开规则冻结。能力开启时，用户可提交社区奖，管理员可审核、要求补充、处理证据并记录或纠正结果；这些 transition 继续由 `src/lib/community-awards/service.ts` 的既有 owner 写入审计。
-
-`hasCommunityAwards = false` 时，公共和后台页面以现有 unavailable / `notFound()` contract fail closed，导航不显示社区奖入口，且 service 事务边界拒绝提交、修改、审核、补充、撤回、证据和结奖 mutation。是否可用不由 `season.status` 或结束时间推导，因此社区奖可以跨发布前、赛事进行中和赛后生命周期运行。
-
-## 18. Post-event / archive
-
-Major 最终结果先处于 `pending_confirmation`，确认后生成可引用的 final result、placement 与 honor。赛后 adjudication 与 archive 遵守各自的状态和权限边界；归档后通常比赛变更受限，专门的赛后工作流仍保留明确入口。非 Major 赛事的 `/post-event` 只提供通用 closure 摘要，不推导 Major 专属的官方名次或荣誉事实。
-
-赛事工作区的 `/admin/{seasonSlug}/post-event` 独立承载 capability 适用的 closure、官方结果、裁决、荣誉和归档；Major 使用完整 final-result editor，非 Major 只呈现通用 closure 摘要。root 只展示待处理摘要，不加载这些完整 editor。`/discipline` 与 `/logs` 属于跨生命周期的赛事治理 utility，继续复用原有 discipline/audit owner。
-
-## Compact state contracts
-
-状态枚举和 action guard 是精确 authority；下表保留跨模块修改时必须理解的稳定生命周期。
-
-### Season
+核心状态由 code enum/action guard 精确定义；稳定流程为：
 
 ```text
 Rivals: draft → registration → voting → drafting → playing → finished → archived
 Major:  draft → registration → playing → finished → archived
 ```
 
-Rivals 的 voting/drafting 由 capability 启用；Major start 在 readiness、entrants、final rosters 和 seeds 确认后创建 Stage 1。`archived` 是历史赛季终态，任何例外操作必须走明确的赛后 owner。
+关键边界：
 
-补充生命周期边界：
+- **publish ≠ registration open**：发布让赛事公开；实际开放报名才记录 `registrationOpenedAt` 并冻结需要的竞技/资格上下文。
+- 报名开放后，已经冻结的 policy/context 不随全局目录变化；运营 deadline 只在其允许的生命周期内调整。
+- draft 撤回/删除必须通过无既有业务事实的 guard；不能靠 UI 隐藏按钮代替 server validation。
+- 后台生命周期分组和首页 featured season 是 presentation projection，不创建全局 `currentSeason` 事实。
 
-- 发布（draft → registration）只让赛事公开；报名可处于待定或已排期状态，尚不冻结竞技上下文。
-- 实际报名开放由 `openSeasonRegistrationInTx` 在同一事务内记录 `registrationOpenedAt`、冻结 requireCompetitiveProfile 赛事的 current/previous/rank order 及证据策略，并写入审计。
-- 全局管理后台按 presentation-only 生命周期目录展示赛事：`playing`、`voting`、`drafting` 与已实际开放报名的 `registration` 归入“进行中”；`registration` 但 `registrationOpenedAt IS NULL` 归入“即将开始”；`draft`、`finished`、`archived` 分别归入草稿、最近结束和已归档。公共首页通过 `selectFeaturedSeason` 按 `playing` > `voting`/`drafting` > 已开放 `registration` > 未开放 `registration` > 最近 `finished` 的固定优先级选择主赛事，同一优先级按 `createdAt` 新到旧并以 `id` 稳定打破平局，`archived` 不进入选择，不产生全局 current-season 事实。
-- 撤回（registration → draft）与删除共用“无报名/队伍/赛程事实”guard；通过后撤回会解除 built-in 赛事的竞技冻结，下一次实际开放报名重新解析目录。
-- 删除（draft → deleted）拒绝已有 invite claim 的赛季；未领取的邀请码与其 claim ledger 随赛季删除，`season_admin_grants` 通过 season FK cascade 清理，`audit_logs.season_id` 为 SET NULL，并写入全局 `season.deleted` 审计。
-- 赛季设置的编辑能力由 `src/lib/seasons/edit.ts` 的纯 capability contract 统一派生：发布（`draft → registration`）即锁定 slug、模板、报名模式、投票/选秀能力、队伍规模、positions、stage plan、map pool、`registrationConfig`、归属/资格规则及其它公开赛事规则，不因报名尚未开放而继续改赛制。
-- `hasCommunityAwards` 同样属于公开赛事规则：新赛事默认启用，draft 可关闭；发布后锁定，关闭时 public/admin route、导航和全部社区奖 mutation 均不可用。
-- 已发布但尚未实际开放报名时（`status = registration` 且 `registrationOpenedAt IS NULL`），仍可调整报名开放/截止/名单调整时间、`endAt`、名称和主题色；当前过渡期的 Major event-owned 5E `fallbackConversion` 也仅在此阶段允许调整。实际开放由 `openSeasonRegistrationInTx` 记录不可变的 `registrationOpenedAt`，并冻结本届 competitive context、`CompetitiveEvidencePolicy.sourceSelection` 与 5E 等效换算快照。新 Major 按对应 evidence slot 在 Perfect 与 5E 等效事实中择高；缺字段的历史快照继续按 primary-first 解释。
-- 实际开放后到比赛开始前，`registrationOpensAt` 与 competitive context/fallback 永久冻结，但 `registrationClosesAt`、`rosterChangeClosesAt` 仍可运营调整；进入 `playing`、`finished` 或 `archived` 后，这两个报名运营 deadline 也锁定。名称、主题色与 `endAt` 仍属于允许的 metadata。
-- `revertSeasonToDraft` 成功后会清除实际开放事实并解除 built-in 竞技冻结，赛季重新获得 draft 的完整编辑能力；#365 的 versioned canonical 5E policy 不在本流程内。
+## Rivals
 
-管理端赛事设置页按“基本信息 / 时间与生命周期 / 报名与名单 / 资格规则 / 赛制与地图 / 竞技参考 / 功能 / 危险操作”组织现有设置。它复用上述 capability、lifecycle、qualification、StagePlan 与 ConversionPolicy owner；当规则或竞技上下文已冻结时，页面在对应分区同时展示状态、冻结原因与 canonical identity/version，而不是在客户端复制业务判断。
+Rivals 的主要链路：
 
-### Match
+```text
+个人报名草稿
+→ 提交并审核
+→ 队长投票
+→ 管理员确认队长
+→ 创建赛事原生 CompetitionEntry
+→ 蛇形选秀
+→ roster / Entry facts 同事务收敛
+→ playing runtime
+→ final results / archive
+```
+
+选秀 pick 使用锁和 `clientRequestId` 保证并发与幂等：成功请求推进轮次后，同一请求重试仍返回原结果。直播视图只读取已提交状态，不以客户端乐观状态成为选秀真相。
+
+## Major registration and review
+
+长期 Team 的队长为赛事创建 CompetitionEntry，并维护本届报名名单 revision：
+
+```text
+Team captain creates Entry
+→ maintain roster revision / primary starters
+→ members confirm participation
+→ canonical qualification
+→ submit
+→ admin review
+→ approved roster revision
+```
+
+一个用户在同一赛事不能同时占有多个 active Entry commitment。成员确认、教育/竞技资料和 qualification 都由各自 canonical owner 提供；长期 Team 的成员变化不会自动改写已经提交或冻结的赛事名单。
+
+管理员审核可以批准、候补、拒绝或要求补正。**approved Entry 只表示报名审核通过，不等于正式获得 Major 正赛席位。**
+
+## Major prestart
+
+赛前链路固定为：
+
+```text
+approved Entry candidate pool
+→ admin selects final entrant set
+→ approved roster revision materializes/reconciles EventRoster
+→ readiness / exception handling
+→ freeze final entrants + EventRosters
+→ create immutable seed recommendation snapshot
+→ admin confirms final seeds
+→ start Major
+```
+
+正常名单 owner 始终是队长/成员的 Entry roster flow；管理员只处理审核、明确例外和最终冻结。名单变更必须形成新 revision 并重新进入审核/同步，不提供另一套管理员手工 roster pipeline。
+
+系统种子建议与最终人工 seed 分离：freeze 时从同一批 frozen primary starters 和竞技上下文生成不可变 snapshot；管理员随后确认最终顺序。查看不同排序、人工调序或之后全局资料变化都不重写 snapshot。启动只消费并校验已存在的赛前事实，不在 `startMajor` 临时生成第一份建议。
+
+## Stage runtime
+
+Major 每个阶段由 managed StageRun 拥有：
+
+```text
+create StageRun with frozen rules/entrants
+→ schedule/pair matches
+→ record official results
+→ finalize round/stage
+→ derive qualifiers
+→ create next StageRun
+```
+
+推进依据是 StageRun entrants 与已完成比赛。standings/bracket/page summary 是 projection，不可直接覆盖 runtime truth。具体阶段人数、BO 规则和配对政策属于赛事规则与 runtime owner，不在本文件复制。
+
+## Match
 
 ```text
 scheduled → in_progress → finished
 scheduled / in_progress → cancelled
 ```
 
-forfeit 是 `finished` 的结果形态，不是额外比赛状态。结果更正、Major recovery 与赛后裁决使用各自受控 workflow，不能直接把已完成比赛改回进行中。
+forfeit 是 `finished` 的结果形态，不是额外比赛状态。
 
-### Major StageRun and final result
+正常比赛：
 
-`major_stage_runs` 不使用单独 status enum：创建 StageRun 即冻结规则与 entrant membership，`finalizedRound` 记录已被运营者接受的 Swiss 回合。来源阶段完整结算后才可创建下一阶段 StageRun。`major_final_results` 采用 `pending_confirmation → confirmed`；确认后的 placement、honor 与 archive 仍由明确的赛后流程拥有。
+```text
+EventRoster
+→ MatchRoster / starting lineup
+→ BP / actual maps
+→ map-level results
+→ official series result
+→ runtime settlement
+```
 
-## Rivals draft transaction invariants
+本场实际首发可以不同于赛事预定主力，但必须满足本届 frozen roster/eligibility 约束。正常结果由实际地图推导；弃赛不制造未进行地图。
 
-一个 pick 在同一 transaction 内完成：
+结果更正先检查 StageRun 和下游依赖。若会改变后续 pairing/stage，必须走受控 recovery；不能直接改 standings 或把 finished match 任意退回进行中。
 
-1. 对 `draft_state` 执行 `SELECT … FOR UPDATE`；
-2. 在当前轮次、队长和 deadline 校验之前查询 `clientRequestId`；同一请求的重试返回原 pick，跨 season/team/player 复用同一 id 则拒绝；
-3. 校验 draft active、当前队伍、deadline、队长、目标报名状态、未被选择和位置上限；
-4. 写入 `draft_picks`、Entry participant / roster member / event roster member 事实与 audit log；
-5. 推进 `draft_state`，最后一 pick 将赛季推进为 `playing`；
-6. commit 后 revalidate；直播页面只通过服务端刷新/轮询消费已提交的 `draft_state` 与 `draft_picks`。
+## Discipline and post-event
 
-幂等检查必须早于 turn/state 校验：第一次请求成功推进轮次后，安全重试仍需得到同一成功结果。
+纪律、比赛裁决、最终名次和荣誉是独立 workflow：
+
+```text
+sanction ───────────────┐
+match correction ───────┼─ explicit adjudication when effects interact
+final result confirmation│
+honor grant/revoke ─────┘
+```
+
+任何处罚或撤销都不隐式递补、改比分或改荣誉。Major final result 先进入待确认状态，确认后才成为长期可引用事实；归档不会把历史 snapshot 重新解释为当前 profile。
+
+## Community awards
+
+社区奖是独立赛事 capability，可以跨赛前、比赛中和赛后运行：
+
+```text
+submit → review/revise → evidence → resolve/correct
+```
+
+是否可用只由 capability 决定，不从 season status 推导。capability 关闭时入口和 server mutation 都 fail closed。社区奖不替代官方 `tournament_honors`。
+
+## Cross-workflow rules
+
+- transport/page 不复制 domain transition；所有 mutation 回到 canonical owner。
+- 高影响操作在服务端再次鉴权、校验，并在适用时与 audit 保持同一一致性边界。
+- frozen facts 不从 mutable profile 重新计算；历史恢复只消费当时 snapshot。
+- loading/empty/presentation 状态不能制造不存在的业务事实。
+- 需要理解精确 transaction lock、幂等顺序或 recovery algorithm 时直接读对应 code + real PostgreSQL tests，不把实现步骤继续追加到本文件。
