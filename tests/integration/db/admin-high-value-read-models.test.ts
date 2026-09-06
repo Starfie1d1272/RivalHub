@@ -183,7 +183,7 @@ describe("PR3 admin operational list read models", () => {
       expect(expiredSanctions.total).toBe(1);
 
       const registrationQuery = normalizeSoloRegistrationReviewQuery(
-        new URLSearchParams({ q: marker, status: "all" }),
+        new URLSearchParams({ q: marker, status: "all", sort: "newest" }),
         ["rifler", "awper"],
       );
       const registrations = await getSoloRegistrationReview(seasonId, ["rifler", "awper"], registrationQuery);
