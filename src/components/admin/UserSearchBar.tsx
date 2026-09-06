@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useRef } from "react";
-import { ClearFilters, ListSearchField, ListToolbar, type ListSearchFieldHandle, useListQueryParams } from "@/components/rivalhub";
+import { ClearFilters, ListSearchField, ListToolbar, type ListSearchFieldHandle } from "@/components/rivalhub";
+import type { ListQuerySearchParams, ListQueryUpdate } from "@/components/rivalhub/useListQueryParams";
 import { Button } from "@/components/ui/button";
+import { ADMIN_USERS_DEFAULTS } from "@/lib/admin/users-contract";
 
 const FILTERS = [
   { key: "all",          label: "全部" },
@@ -10,12 +12,15 @@ const FILTERS = [
   { key: "none",         label: "仅注册" },
 ] as const;
 
-type UserFilter = (typeof FILTERS)[number]["key"];
+export type UserFilter = (typeof FILTERS)[number]["key"];
 
-const QUERY_DEFAULTS = { q: "", filter: "all" } as const;
+interface UserSearchBarProps {
+  filter: UserFilter;
+  searchParams: ListQuerySearchParams;
+  update: ListQueryUpdate;
+}
 
-export function UserSearchBar({ filter }: { filter: UserFilter }) {
-  const { searchParams, update } = useListQueryParams({ routeBase: "/admin/users", defaults: QUERY_DEFAULTS });
+export function UserSearchBar({ filter, searchParams, update }: UserSearchBarProps) {
   const searchFieldRef = useRef<ListSearchFieldHandle>(null);
   return (
     <ListToolbar aria-label="用户搜索与筛选">
@@ -45,7 +50,7 @@ export function UserSearchBar({ filter }: { filter: UserFilter }) {
         </div>
       </div>
       <ClearFilters
-        defaults={QUERY_DEFAULTS}
+        defaults={ADMIN_USERS_DEFAULTS}
         searchParams={searchParams}
         onClear={(updates) => {
           searchFieldRef.current?.reset();
