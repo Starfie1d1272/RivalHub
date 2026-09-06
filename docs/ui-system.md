@@ -1,120 +1,93 @@
 # RivalHub UI 系统
 
-## 产品语言
+本文件只维护跨页面 presentation contract。具体 token 值以 `src/app/globals.css` 为准；domain IA、业务规则和 query 语义仍由对应 owner 负责。
 
-参赛者与管理员界面使用自然中文，优先表达当前目标、状态、未满足项和下一步。工程术语保留在代码与技术文档中；产品入口按赛事、报名、赛程、名单、资格和赛务等业务语义命名。
+## Product language
 
-不以语言本身判断文案质量：品牌名、CS2/赛事通用缩写，以及不承担业务判断的短英文 marker 可以保留。用户无需理解内部 key、enum 或领域实现词才能完成任务；状态、原因和 CTA 必须使用明确的 presentation 文案。账号入口统一区分「我的参赛」（私有参赛任务）、「个人主页」（公开资料）与「账号设置」。
+参赛者与管理员界面优先使用自然中文，直接表达当前目标、状态、未满足项和下一步。品牌、CS2 通用缩写及专有名词可保留英文；用户不应理解内部 enum/key 才能完成任务。
 
-CS2 canonical position names 保持英文：`igl`、`awper`、`opener`、`closer`、`anchor`。它们是数据值与产品标签的统一专有名词；说明文字可补充语境。
+账号入口稳定区分「我的参赛」（私有任务）、「个人主页」（公开资料）与「账号设置」。CS2 canonical position key 保持 `igl`、`awper`、`opener`、`closer`、`anchor`。
 
-赛事创建先选择 Rivals、Major 或自定义赛事。标准赛事界面只展示业务规则与必要设置；自定义赛事使用结构化阶段、位置与图池编辑器。公开 `/privacy` 是隐私说明入口，设置导航只保留可操作的资料页面。
+## Tokens and primitives
 
-## Token ownership
+视觉 token 的唯一数值来源是 `src/app/globals.css`；Tailwind/shadcn 名称只做 bridge，不为单页建立第二套色板、圆角或 spacing scale。
 
-视觉 token 的 source of truth 是 `src/app/globals.css` 的 `@theme` 与 `:root`。当前语义值直接定义在 `@theme`；shadcn/Tailwind 名称只是指向这些值的 bridge alias，不得重新引入一套 HSL 数值或单页色板。组件使用既有 token，不为单页创建平行色板。
+稳定 shared contract：
 
-| Token family | 用途 |
-|---|---|
-| `--color-bg` / `--color-panel*` / `--color-surface-*` | 页面、Panel 与浮层层级 |
-| `--color-scrim` | Dialog 等 overlay 的页面遮罩 |
-| `--color-border*` | 静态与交互边框 |
-| `--color-fg*` | 正文、辅助信息、禁用信息 |
-| `--color-accent*` / `--color-accent-b*` | 主操作与对阵实体 |
-| `--color-ok*` / `--color-warn*` / `--color-danger*` / `--color-info*` | 语义状态 |
-| `--font-sans` / `--font-display` / `--font-mono` | 正文、标题、标签/标识 |
-| `--radius*` | 紧凑一致的控件与卡片圆角 |
+| Primitive | Responsibility |
+| --- | --- |
+| `PageLayout` | 页面 gutter 与 `narrow/standard/wide/workbench` 宽度语义 |
+| `PageHeader` / `Section` | 语义标题与页面阅读层级 |
+| `Panel` | 同一业务区块的 surface；内容布局与外层几何分离 |
+| `DialogContent/Body/Footer` | viewport、滚动、focus、操作区与尺寸 contract |
+| `StatusBanner` / `StatusPill` / `Checklist` | 状态解释、紧凑状态与 readiness |
+| `EmptyState` / `ErrorState` / `Skeleton` | empty/error/loading 的明确三态 |
+| `InlineConfirm` | 高影响 mutation 的影响说明与二次确认 |
 
-组件 contract：
+颜色不能单独承担 success/warning/danger；状态同时使用文字、图标或结构表达。10–11px mono 只用于 code、marker、ticker 和 compact metadata，不承担正文解释。
 
-- `Panel.className` 只表达外层 surface 的几何、边框、宽度和交互；正文排版、间距与正文布局使用 `contentClassName`。`Panel` 不再接受数字 `pad`，避免同一组件存在两套 spacing API。
-- `PageHeader` 输出语义页面标题，可组合 eyebrow、description、status 与 actions；`SectionHeader`/`Section` 用于区块标题与垂直节奏。`Marker` 只保留给紧凑 tactical marker，不承担页面 heading。
-- `PageLayout` 统一页面 gutter，并提供 `narrow`、`standard`、`wide`、`workbench` 四种宽度变体；默认输出 `div`，不嵌套根布局已经提供的 `main`。密集赛务页面使用 `workbench`，其父级不得用窄的固定 `max-width` 截断子工作台。
-- `DialogContent` 统一 viewport gutter、最大高度、surface、边框、focus 与 reduced-motion 基线，并用 `size="sm|md|lg|xl"` 管理宽度；长内容放入 `DialogBody`，操作放入 `DialogFooter`，不在消费者重复实现滚动容器或 max-width contract。
-- `--color-scrim` 只用于页面遮罩；Dialog/AlertDialog surface 使用 `--color-surface-floating`，遮罩与浮层不得共用同一语义 token。
-- `EmptyState`、`ErrorState`、`StatusBanner`、`Checklist`、`InlineConfirm` 和 `Spinner` 的解释/反馈文字使用 readable secondary text；10–11px mono 仅保留给 code、marker、ticker 和 compact metadata。
+## Information hierarchy
 
-颜色表达语义时必须同时提供文字、图标或结构性反馈；accent 不替代 success、warning 或 danger。字体、字号和字重至少区分页面标题、区块标题、正文、辅助信息与数据值。
+页面顺序从当前任务与关键事实开始，再到历史和辅助操作。管理视图把可编辑事实、blocker/readiness、确认动作和危险操作分组，不把整个 domain 塞进一张万能 Card。
 
-## Information hierarchy and layout
+公开页面只消费 public DTO/read model。email、QQ、`studentId`、`authId`、教育证据、管理员范围和内部备注默认不进入 public HTML/Client props。
 
-- 页面先呈现当前任务与最关键事实，再呈现历史和辅助操作。
-- 管理视图把可编辑内容、资格/blocker、确认动作和危险操作分组。
-- `Panel` 承载同一业务区块；`StatusBanner` 用于状态解释；`Checklist` 用于多项 readiness；`StatusPill` 用于紧凑状态；`EmptyState`、`ErrorState` 和 `Skeleton` 表达专门状态。
-- 表格保持稳定列序、可扫描日期/状态和明确空态；窄屏提供卡片、摘要或可滚动替代布局。
+长期 Team membership、Entry roster、EventRoster、MatchRoster 和 StageRun entrant 是不同事实；UI 必须使用对应业务名称，不能为了简化展示把一种状态冒充另一种。
 
-## Dense data and overflow
+## Dense data
 
-Raw `<table>` 与 shadcn `Table` 继续由各自的 domain consumer 使用。本文件冻结跨页面的 presentation contract；Table implementation 以及 query、search、sort、filter 和 pagination 语义，仍由各自 owner 负责。
+表格和高密度列表遵守：
 
-- 表头与数据行保持清楚层级；密度来自稳定分组与行距，不靠不可读的小字号。
-- 数字列默认使用 `tabular-nums`，需要比较大小时优先右对齐或其它稳定对齐方式。
-- `null`、`unknown` 与未提供数据使用明确的 `—` 或对应状态；missing 与数值 `0` 保持可区分。
-- 横向二维数据由最近的局部容器拥有 `overflow-x-auto`，页面与 document 的宽度保持在自身 layout contract 内。
-- identity / label 列保持可扫描；sticky column 只有在真实任务明显受益时才使用。
-- 移动端若 primary metric 会因横滚而首屏不可读，应额外提供摘要、卡片或主指标呈现；具体页面转换由对应页面与列表 owner 负责。
+- 稳定列序和可扫描 identity/status/date；密度来自分组与行距，不靠不可读字号。
+- 数字使用稳定对齐和 `tabular-nums`；`null/unknown` 与数值 `0` 明确区分。
+- 二维 overflow 由最近的局部容器拥有，普通页面不产生 document-level 横向滚动。
+- 移动端首屏必须读到 primary identity + primary metric/action；必要时提供摘要/卡片，而不是只把桌面表格横向塞入。
+- `ScrollHint` 只表达局部横向内容是否仍可滚动，不拥有 domain navigation。
 
-`ScrollHint` 的责任是表达局部容器仍有可横向滚动内容：无 overflow 时不显示提示，滚动到一侧时只显示另一侧，滚动中间时显示两侧。它保留 `pointer-events-none` 与 `fromColor` 语义；domain navigation 由业务组件负责，页面级 overflow 由 page layout contract 负责。
+## List and query interaction
 
-## Loading, empty and error states
+RivalHub 2.6 后，高价值审核队列和 discovery list 共享薄的 interaction primitives：
 
-每个数据区显式处理三态：
+```text
+ListToolbar
+ListSearchField
+ResultSummary
+ClearFilters
+PaginationControls
+useListQueryParams
+```
 
-| 状态 | 要求 |
-|---|---|
-| Loading | 使用与最终内容尺寸接近的 `Skeleton`，不制造跳动布局 |
-| Empty | 说明当前没有什么、为何为空，以及可执行时的下一步 CTA |
-| Error | 保留页面上下文，显示可理解错误与重试/下一步；Toast 不替代页面内错误状态 |
+shared layer 只拥有 presentation / URL mechanics：
 
-资格、名单、预启动和赛前检查的不可用状态必须显示具体 blocker 与其 owner 的下一步，不能以空数组、默认值或伪造比分掩盖事实。
+- search/filter/sort/page 可分享、刷新恢复、back/forward 正确；
+- 改变 search/filter/sort 时重置 `page=1`，翻页保留其它 query；
+- 默认值从 URL 省略，非法 query 由 domain parser deterministic fallback；
+- search 可保留本地输入与 debounce，查询结果仍以 server/domain owner 为 authority；
+- toolbar 在窄屏正常换行，control 有 label，非默认筛选可一键清除；
+- result summary、loading、dataset empty、no match 和 server error 不互相伪装。
 
-## Forms and feedback
+shared layer **不拥有** allowed query、validation、SQL `WHERE/ORDER BY`、qualification、stats、relevance 或其它业务排序。Review queue 可以定义 actionable-first，discovery list 可以定义 domain relevance；不建立万能 DataTable 或中央业务 query engine。
 
-- 使用既有 shadcn/ui control 与 label；字段级校验贴近字段，服务端错误必须保留给用户。
-- 提交过程显示 pending、成功和失败，避免重复 mutation。
-- 表单按任务分组；长期 profile、赛事报名与单场 roster 不混成同一编辑面。
-- 文件上传在客户端提示格式/大小，在服务端再次校验；敏感材料只展示任务所需的最小信息。
-- 对成员确认、资格、种子、首发和开赛，UI 展示最新服务端判断，不以本地乐观状态替代最终结论。
+## Forms and mutations
 
-## Data and privacy presentation
+- 使用既有 labeled controls；字段级 validation 靠近字段，服务端错误保留给用户。
+- pending/success/failure 状态明确，避免重复 mutation。
+- 长期 profile、赛事报名和单场 roster 等不同事实不混成同一表单。
+- 文件上传客户端提示、服务端再次验证；敏感材料只呈现任务最小信息。
+- qualification、seed、lineup、start 等关键判断展示最新服务端事实，不让乐观 UI 成为最终结论。
 
-公开页面只使用 public DTO/read model。email、QQ、`studentId`、`authId`、管理员范围、教育证据、内部备注和审核材料默认不显示。长 email、Steam64、Perfect ID 等标识在窄屏使用 `break-all`、截断加复制操作或独立 mono 行，避免横向溢出。
+高影响操作（比分更正、纪律、裁决/荣誉撤销、归档、名单冻结、开赛等）使用 `InlineConfirm` 或等价明确确认，并继续由服务端授权、审计和 fail-closed validation 保护；浏览器原生 `confirm()` 不替代任务语义。
 
-比赛阵容、报名预定主力、正式 team membership 与 StageRun entrant 是不同层次的事实；界面必须使用对应业务名称，不把一种状态显示成另一种。
+## Responsive and accessibility
 
-## Dangerous actions
+- 320–390px 下关键任务仍可完整完成，按钮不依赖单行空间，长标识不撑破页面。
+- 所有操作可键盘到达并有可见 `:focus-visible`；图标按钮提供明确 accessible name。
+- heading、label、状态与动态更新可被辅助技术理解；颜色不是唯一信息通道。
+- Dialog/Toast 保持合理 focus management；动效支持 `prefers-reduced-motion`。
+- 桌面布局可以更密，但不能为了密度牺牲正文、状态和 primary metric 可读性。
 
-比分更正、纪律处理、裁决/荣誉撤销、归档、名单确认和开赛等高影响操作使用 `InlineConfirm` 或等效的明确确认：说明影响、指出不可逆或后续边界，并保留服务器端授权、审计和 fail-closed validation。浏览器原生确认框不能替代该任务语义。
+## Visual regression
 
-## Responsive behavior
+Visual regression 只锁定少量 deterministic reference；功能 E2E 继续验证真实任务。baseline 使用固定 viewport、关闭动画/caret，并尽量排除实时人数、动态时间和其它非确定内容。只有 presentation contract 有预期变化时更新 baseline。
 
-| 断点 | 优先级 |
-|---|---|
-| 320–390px | 单列任务流；操作按钮不依赖同一行空间；状态与长标识不溢出 |
-| 640px (`sm`) | 表单与信息卡开始使用紧凑双列 |
-| 768px (`md`) | 表格可切换为卡片/分段；资料和导航可双列 |
-| 1024px+ | 管理审核可并列展示资格摘要与名单；保持文本解释而非只靠密集表格 |
-
-关键用户任务必须在窄屏完成，不能把桌面表格作为唯一入口。
-
-## Accessibility
-
-- 所有操作可键盘到达并具有可见焦点；图标按钮提供可见文本或 aria label。
-- heading 层级、label、状态文本和对比度必须可被辅助技术理解。
-- Dialog、Toast 和动态更新保留合理焦点管理与读屏提示。
-- 颜色、形状与文本共同表达比赛、资格和错误状态。
-- `:focus-visible` 使用全局可见 focus ring；动效必须允许 `prefers-reduced-motion: reduce` 关闭或压缩。
-
-本文件维护跨页面的 UI contract。组件实现和页面组合可演进，但新增模式应先复用现有 token 与 shared component 语义。
-
-## Visual regression governance
-
-Visual regression 只锁定少量 deterministic reference，功能 E2E 继续验证真实用户任务。reference 应来自真实页面 consumer，并满足以下条件：
-
-- 以目标 heading 或页面内容可见作为 readiness；
-- 优先截图页面主内容区域，把动态导航、在线人数、实时赛事时间和随机内容排除在 baseline 外；
-- 使用固定 viewport、既有 Playwright project，并在截图时关闭动画与 caret；
-- baseline 命名包含页面与状态语义；只有预期的 presentation contract 变化才更新 baseline。
-- 当前没有稳定可复用的 admin/dense browser fixture，因此暂不建立 dense screenshot baseline；待首个稳定 fixture 建立后按本 contract 补入。
-
-页面应保持自身 layout contract；普通内容不产生页面级横向溢出，二维数据只在局部容器内滚动。本文件定义跨页面 presentation，页面 IA、domain rule 与列表 query/sort/filter semantics 由对应 owner 负责。
+新增 UI pattern 前先确认现有 primitive 是否已经拥有该职责；如果新模式确实跨页面稳定，再收口 shared contract，而不是在每个 consumer 各写一份样式和交互。
