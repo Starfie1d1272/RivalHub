@@ -5,6 +5,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import React from "react";
 import { useEffect } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
 import type { BracketData } from "@/lib/bracket";
 
 const push = vi.fn();
@@ -14,6 +15,11 @@ const renderBracket = vi.fn(async () => {
   match.setAttribute("data-match-id", "7");
   match.textContent = "Match 7";
   root?.append(match);
+
+  const unavailableMatch = document.createElement("div");
+  unavailableMatch.setAttribute("data-match-id", "8");
+  unavailableMatch.textContent = "TBD";
+  root?.append(unavailableMatch);
 });
 
 vi.mock("next/navigation", () => ({
@@ -80,7 +86,7 @@ describe("BracketView", () => {
     );
   });
 
-  it("binds bracket match clicks using brackets-viewer data-match-id nodes", async () => {
+  it("exposes mapped bracket matches as real links and preserves mouse navigation", async () => {
     const { BracketView } = await import("@/components/matches/BracketView");
 
     render(
@@ -91,8 +97,42 @@ describe("BracketView", () => {
       />,
     );
 
-    const matchNode = await screen.findByText("Match 7");
-    fireEvent.click(matchNode);
+    const matchLink = await screen.findByRole("link", {
+      name: "查看比赛详情：Team 1 对 Team 2",
+    });
+
+    expect(matchLink).toHaveAttribute("href", "/spring-2026/matches/match-uuid");
+    expect(matchLink).toHaveAttribute("aria-label", "查看比赛详情：Team 1 对 Team 2");
+    expect(matchLink).toHaveTextContent("Match 7");
+
+    fireEvent.click(matchLink);
+
+    expect(push).toHaveBeenCalledWith("/spring-2026/matches/match-uuid");
+  });
+
+  it("lets keyboard users focus and activate mapped matches while leaving TBD nodes unfocusable", async () => {
+    const { BracketView } = await import("@/components/matches/BracketView");
+    const user = userEvent.setup();
+
+    render(
+      <BracketView
+        data={bracketData}
+        matchNodeMap={new Map([["7", "match-uuid"]])}
+        seasonSlug="spring-2026"
+      />,
+    );
+
+    const matchLink = await screen.findByRole("link", {
+      name: "查看比赛详情：Team 1 对 Team 2",
+    });
+    const unavailableMatch = await screen.findByText("TBD");
+
+    await user.tab();
+    expect(matchLink).toHaveFocus();
+    expect(unavailableMatch).not.toHaveAttribute("href");
+    expect(unavailableMatch).not.toHaveAttribute("tabindex");
+
+    await user.keyboard("{Enter}");
 
     expect(push).toHaveBeenCalledWith("/spring-2026/matches/match-uuid");
   });

@@ -197,6 +197,23 @@ function computeSlotLabel(
   return "TBD";
 }
 
+function getMatchAccessibleLabel(
+  match: BracketMatch | undefined,
+  bracketId: string,
+  data: BracketData,
+  participantById: Map<number, string>,
+): string {
+  if (!match) return `查看比赛详情：比赛 ${bracketId}`;
+
+  const getSlotName = (slotIdx: 0 | 1) => {
+    const opponent = slotIdx === 0 ? match.opponent1 : match.opponent2;
+    if (opponent?.id != null) return participantById.get(opponent.id) ?? "TBD";
+    return computeSlotLabel(match, slotIdx, data, participantById);
+  };
+
+  return `查看比赛详情：${getSlotName(0)} 对 ${getSlotName(1)}`;
+}
+
 export function BracketView({ data, themeColor, matchNodeMap, seasonSlug }: BracketViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scriptReady, setScriptReady] = useState(false);
@@ -226,7 +243,10 @@ export function BracketView({ data, themeColor, matchNodeMap, seasonSlug }: Brac
         });
     }
 
-    window.bracketsViewer
+    let disposed = false;
+    let cleanupInteractions: (() => void) | undefined;
+
+    void window.bracketsViewer
       .render(
         {
           stages: data.stage,
@@ -237,11 +257,12 @@ export function BracketView({ data, themeColor, matchNodeMap, seasonSlug }: Brac
         { selector: "#bracket-container", clear: true }
       )
       .then(() => {
-        if (!containerRef.current) return;
+        if (disposed || !containerRef.current) return;
+        const container = containerRef.current;
 
         // 兜底：如果上面 addLocale 在 render 之前未生效，把残留的 BYE 字面量替换为 TBD
         const walker = document.createTreeWalker(
-          containerRef.current,
+          container,
           NodeFilter.SHOW_TEXT,
           null,
         );
@@ -258,7 +279,7 @@ export function BracketView({ data, themeColor, matchNodeMap, seasonSlug }: Brac
           data.match.map((m) => [m.id, m]),
         );
 
-        containerRef.current.querySelectorAll<HTMLElement>("[data-match-id]").forEach((el) => {
+        container.querySelectorAll<HTMLElement>("[data-match-id]").forEach((el) => {
           const bracketId = el.getAttribute("data-match-id");
           if (!bracketId) return;
           const match = matchById.get(parseInt(bracketId, 10));
@@ -281,20 +302,41 @@ export function BracketView({ data, themeColor, matchNodeMap, seasonSlug }: Brac
 
         // ── 点击跳转 & hover 视觉 ──────────────────────────────────────
         if (matchNodeMap && seasonSlug) {
-          const accentColor = getComputedStyle(containerRef.current)
+          const accentColor = getComputedStyle(container)
             .getPropertyValue("--color-accent")
             .trim() || "var(--color-accent)";
+          const removeNodeListeners: Array<() => void> = [];
 
-          containerRef.current.querySelectorAll<HTMLElement>("[data-match-id]").forEach((el) => {
+          container.querySelectorAll<HTMLElement>("[data-match-id]").forEach((el) => {
             const bracketId = el.getAttribute("data-match-id");
             if (!bracketId) return;
-            if (!matchNodeMap.has(bracketId)) {
+            const matchId = matchNodeMap.get(bracketId);
+            if (!matchId) {
               // 不可点击的比赛：去除 cursor，避免误导
               el.style.cursor = "default";
               return;
             }
+
             el.style.cursor = "pointer";
             el.title = "点击查看比赛详情";
+
+            // brackets-viewer 固定生成 div.match；用 wrapper 保留原有拓扑，
+            // 同时提供真实 link 语义、href 和浏览器原生 Enter 激活路径。
+            const match = matchById.get(parseInt(bracketId, 10));
+            const link = document.createElement("a");
+            link.className = "bracket-match-link";
+            link.href = `/${seasonSlug}/matches/${matchId}`;
+            link.setAttribute(
+              "aria-label",
+              getMatchAccessibleLabel(match, bracketId, data, participantById),
+            );
+            link.style.display = "block";
+            link.style.width = "100%";
+            link.style.color = "inherit";
+            link.style.textDecoration = "none";
+            while (el.firstChild) link.append(el.firstChild);
+            el.append(link);
+
             // 用 inline style 在 mouseenter/leave 上覆盖 brackets-viewer 自带样式
             const onEnter = () => {
               el.style.borderColor = accentColor;
@@ -304,28 +346,42 @@ export function BracketView({ data, themeColor, matchNodeMap, seasonSlug }: Brac
             };
             el.addEventListener("mouseenter", onEnter);
             el.addEventListener("mouseleave", onLeave);
+            removeNodeListeners.push(() => {
+              el.removeEventListener("mouseenter", onEnter);
+              el.removeEventListener("mouseleave", onLeave);
+            });
           });
 
           const handleClick = (e: MouseEvent) => {
-            const target = (e.target as HTMLElement).closest<HTMLElement>("[data-match-id]");
-            if (!target) return;
+            const target = e.target instanceof Element
+              ? e.target.closest<HTMLElement>("[data-match-id]")
+              : null;
+            if (!target || !container.contains(target)) return;
             const bracketId = target.getAttribute("data-match-id");
             if (!bracketId) return;
             const matchId = matchNodeMap.get(bracketId);
             if (!matchId) return;
+            e.preventDefault();
             e.stopPropagation();
             router.push(`/${seasonSlug}/matches/${matchId}`);
           };
-          containerRef.current.addEventListener("click", handleClick);
-          return () => {
-            containerRef.current?.removeEventListener("click", handleClick);
+          container.addEventListener("click", handleClick);
+          cleanupInteractions = () => {
+            container.removeEventListener("click", handleClick);
+            removeNodeListeners.forEach((remove) => remove());
           };
         }
       })
       .catch(() => {
+        if (disposed) return;
         setRenderError(true);
         console.warn("[RivalHub] bracket rendering unavailable; showing fallback.");
       });
+
+    return () => {
+      disposed = true;
+      cleanupInteractions?.();
+    };
   }, [scriptReady, data, matchNodeMap, seasonSlug, router]);
 
   if (data.stage.length === 0) {
