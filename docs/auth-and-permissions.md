@@ -1,67 +1,58 @@
 # 鉴权、权限与 Data API
 
-## Normal account path
+本文件只描述安全 contract。精确输入、错误码和 transaction 以 auth code/tests 为准；表级访问事实见生成式 [`security/database-access-matrix.md`](./security/database-access-matrix.md)。
 
-RivalHub 的唯一账户路径是 Supabase Auth email/password + `public.users` + `rivalhub-session`。`users.role` 只允许 `user` 与 `super_admin`；赛季管理员不是持久化全局角色，而是 `season_admin_grants` 中的精确用户—赛季授权事实。
+## Account path
+
+RivalHub 使用 Supabase Auth email/password + `public.users` + `rivalhub-session`：
 
 ```text
-signup → confirmation email → confirmation page → explicit confirmation POST → application session
+signup → confirmation email → explicit confirmation → application session
 login  → password authentication → application session
 forgot password → recovery email → /reset-password
 ```
 
-注册与登录采用 email/password；邮件链接用于注册确认、既有邮箱重新验证和密码恢复。注册 action 只消费 Auth 的结果并返回不泄露账号状态的统一提示，不根据 signup response 的 user id 写入 `public.users` 或绑定 `auth_id`。注册不会立即创建应用 session；确认页的 GET 不验证 token，而由用户显式确认后的 POST 在确认 `email_confirmed_at` 后同步 `users.emailVerifiedAt`、绑定 `auth_id` 并建立 session。已存在账号则由成功密码登录同步或修复应用账号，并在必要时检查 owner bootstrap。
+注册不会直接根据 signup response 建立应用身份或 session；确认/登录成功后才同步 `public.users`。对外提示不得泄露账号是否已存在等可枚举状态。
 
-## Owner bootstrap
-
-Fresh deployment 的标准 bootstrap 是 `RIVALHUB_OWNER_EMAIL`：当该配置邮箱完成正常注册/登录，且 `public.users` 尚不存在任一 `super_admin` 时，事务与锁保护下将其升级为 `super_admin`。一旦已有 super_admin，此路径永久失效。管理员不依赖额外的用户名/密码根账户。
+Fresh deployment 的 owner bootstrap 只通过 `RIVALHUB_OWNER_EMAIL`：当尚无 `super_admin` 时，该邮箱的正常账号流程可在锁保护下完成首次提权；一旦已有 super admin，此路径失效。
 
 ## Authorization
 
-| 层级 | Server-side guard | 范围 |
-|---|---|---|
-| 已登录用户 | `requireAuth()` | 自己的账户和允许的参与者操作 |
-| 赛季管理员 | `requireSeasonAdmin(seasonId)` | `season_admin_grants` 中与该赛季完全匹配的授权 |
-| 管理员 | `requireAdmin()` | super admin 或至少一个赛季授权 |
-| 超级管理员 | `requireSuperAdmin()` | 全局管理与高权限操作 |
+`users.role` 只有 `user` 与 `super_admin`；赛季管理员由 `season_admin_grants` 表达，不是第三个全局 role。
 
-客户端隐藏按钮不构成权限校验。所有业务 mutation 在 Server Action 内执行授权、输入校验、业务校验及适用的审计写入。
+| Guard | Scope |
+| --- | --- |
+| `requireAuth()` | 当前登录用户允许的 participant 操作 |
+| `requireSeasonAdmin(seasonId)` | 指定赛季授权 |
+| `requireAdmin()` | super admin 或至少一个 season grant |
+| `requireSuperAdmin()` | 全局高权限操作 |
 
-### Role and scope matrix
+客户端隐藏按钮不构成授权。所有 privileged mutation 必须在服务端重新鉴权，并在适用时写 audit。
 
-| 能力 | 普通 `user` | 持有 season grant 的用户 | `super_admin` |
-|---|---:|---:|---:|
-| 普通账户、报名与队伍参与操作 | ✓ | ✓ | ✓ |
-| 管理被授权赛季的报名、选秀、比赛、Major runtime、纪律与赛后 | — | ✓ | ✓ |
-| 创建或配置赛季、管理全局用户/机构与邀请码 | — | — | ✓ |
-| 全局 audit 查询 | — | — | ✓ |
+管理员邀请只给正常 Supabase 用户授予 `season_admin` scope 或 `super_admin`。invite usage、claim ledger、并发上限和重复领取由 transaction + DB constraint 保护；撤销授权读取当前数据库事实，不依赖客户端缓存。
 
-### Admin invitation workflow
+## Session
 
-`admin_invites` 是正常 Supabase 用户提权的标准路径。邀请码的 `role` 只有 `season_admin` 与 `super_admin`：前者必须绑定一个 `seasonId`，后者必须是 global invite。领取由 `claimAdminInviteInTx` 负责：锁定 invite、读取 `admin_invite_claims` 计数、检查有效性与 `maxUses`，再在同一事务中写入精确 grant 或全局角色、claim ledger 和 audit。`admin_invite_claims(inviteId, userId)` 的唯一约束禁止同一账号重复领取，并发领取不能超过 `maxUses`。
+`rivalhub-session` 只保存最小身份信息。当前 role 与 season grants 每次从数据库读取，因此撤销权限会在后续请求生效；session 不保存可长期延续的授权快照。
 
-管理员创建/撤销 invitation 与撤销用户授权本身要求 `requireSuperAdmin()`；撤销授权会删除用户的全部 `season_admin_grants` 并将 `users.role` 设回 `user`。
+## Data API baseline
 
-## Sessions
+业务数据库默认 **server-only**：`anon` / `authenticated` 对 application-owned public tables 无业务 grants，RLS 默认 deny。first-party browser Supabase client 只用于 Auth；业务 live view 使用 server refresh/polling，而不是旁路直连表。
 
-`rivalhub-session` 是唯一应用会话，受 `ADMIN_SESSION_SECRET` 保护，只保存 `userId` 与 `email`。角色和赛季范围每次由当前 `users` 与 `season_admin_grants` 读取，因此数据库撤销会在下一次请求生效；客户端不能提交或延续权限缓存。所有 audit actor 都使用 session 的 `userId`。
+如果未来新增 direct Data API 或 Realtime surface，同一变更必须同时定义：
 
-## Data API / RLS baseline
+1. 实际 browser consumer；
+2. 最小 `GRANT`；
+3. 对应 RLS policy/publication；
+4. 一致性与授权语义；
+5. 允许与拒绝路径测试；
+6. database access matrix 更新。
 
-当前安全基线是：业务数据库仅由 server-side application code 访问；`anon` 与 `authenticated` 对 public business tables 无业务 grants；Data API 默认拒绝。0034 active migration 对全部 application-owned public base tables 启用 RLS 并撤销 grants；完整的表级分类、consumer inventory 和 terminal facts 见 [`security/database-access-matrix.md`](./security/database-access-matrix.md)。Local Supabase 同时配置 `auto_expose_new_tables = false`。
+不得先在客户端接表、再把权限治理留作后续工作。
 
-这不是一份未来 direct-client 产品的 RLS policy matrix。若某一变更新增 direct Supabase client、公开数据面或 Realtime table，它必须在同一变更中明确提供：
+## Secrets
 
-1. 最小化的 `GRANT`；
-2. 匹配的 RLS policy；
-3. 正向与拒绝路径测试；
-4. 对应文档更新。
-
-当前 first-party browser Supabase client 仅用于 Auth。`DraftLiveRoom` 与 `CaptainVotingPanel` 的旧 Realtime 订阅已删除，UI 继续使用 server refresh/polling；任何未来 direct Data API 或 Realtime surface 都必须先更新访问矩阵并补齐实际 consumer、RLS/grant/publication 与正反例测试。
-
-## Secrets and recovery
-
-- `SUPABASE_SERVICE_ROLE_KEY` 仅在服务端使用，绝不放入 `NEXT_PUBLIC_*`。
-- `CRON_SECRET` 用于 Cron bearer authentication。
-- Turnstile site key 可以公开，`TURNSTILE_SECRET_KEY` 只能在服务端。
-- 忘记密码邮件的跳转目标为 `/reset-password`；重置请求对外不泄露账户枚举信息。
+- `SUPABASE_SERVICE_ROLE_KEY`、`ADMIN_SESSION_SECRET`、`CRON_SECRET`、Turnstile secret 等只在服务端使用。
+- secret 不进入 `NEXT_PUBLIC_*`、Client props、Issue/PR、fixture 或日志。
+- recovery/signup/token、Cookie、Authorization 和教育证据遵守相同的默认敏感边界。
+- runtime 日志的脱敏与安全序列化见 [`operations/observability.md`](./operations/observability.md)。
