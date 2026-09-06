@@ -2,7 +2,7 @@
 import React from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ClearFilters, ListSearchField, PaginationControls } from "@/components/rivalhub";
+import { ClearFilters, ListSearchField, PaginationControls, type ListSearchFieldHandle } from "@/components/rivalhub";
 import { applyListQueryUpdates, useListQueryParams } from "@/components/rivalhub/useListQueryParams";
 
 const { pushMock, replaceMock, searchState } = vi.hoisted(() => ({
@@ -63,11 +63,13 @@ function TestClearFilters() {
 
 function TestListSurface() {
   const { searchParams, update } = useListQueryParams({ routeBase: "/admin/users", defaults: TEST_SURFACE_DEFAULTS });
+  const searchFieldRef = React.useRef<ListSearchFieldHandle>(null);
   const pageValue = Number(searchParams.get("page") ?? "1");
   const page = Number.isSafeInteger(pageValue) && pageValue > 0 ? pageValue : 1;
   return (
     <>
       <ListSearchField
+        ref={searchFieldRef}
         queryKey="q"
         label="搜索用户"
         value={searchParams.get("q") ?? ""}
@@ -76,7 +78,10 @@ function TestListSurface() {
       <ClearFilters
         defaults={TEST_SURFACE_DEFAULTS}
         searchParams={searchParams}
-        onClear={(updates) => update(updates)}
+        onClear={(updates) => {
+          searchFieldRef.current?.reset();
+          update(updates);
+        }}
       />
       <PaginationControls
         page={page}
@@ -191,15 +196,23 @@ describe("shared list query mechanics", () => {
     }
   });
 
-  it("syncs the search input when URL state changes externally", () => {
-    setQuery("q=old");
-    const onDebouncedChange = vi.fn();
-    const view = render(<ListSearchField queryKey="q" label="搜索用户" value="old" onDebouncedChange={onDebouncedChange} />);
-    expect(screen.getByLabelText("搜索用户")).toHaveValue("old");
+  it("syncs the search input and cancels pending debounce when URL state changes externally", () => {
+    vi.useFakeTimers();
+    try {
+      setQuery("q=old");
+      const onDebouncedChange = vi.fn();
+      const view = render(<ListSearchField queryKey="q" label="搜索用户" value="old" onDebouncedChange={onDebouncedChange} />);
+      expect(screen.getByLabelText("搜索用户")).toHaveValue("old");
 
-    view.rerender(<ListSearchField queryKey="q" label="搜索用户" value="new" onDebouncedChange={onDebouncedChange} />);
+      fireEvent.change(screen.getByLabelText("搜索用户"), { target: { value: "alice" } });
+      view.rerender(<ListSearchField queryKey="q" label="搜索用户" value="new" onDebouncedChange={onDebouncedChange} />);
 
-    expect(screen.getByLabelText("搜索用户")).toHaveValue("new");
+      expect(screen.getByLabelText("搜索用户")).toHaveValue("new");
+      act(() => vi.advanceTimersByTime(300));
+      expect(onDebouncedChange).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("composes delayed search with clear filters through one controller", () => {
@@ -211,9 +224,11 @@ describe("shared list query mechanics", () => {
       fireEvent.change(screen.getByLabelText("搜索用户"), { target: { value: "alice" } });
       fireEvent.click(screen.getByRole("button", { name: "清除筛选" }));
       expect(replaceMock).toHaveBeenLastCalledWith("/admin/users");
+      expect(screen.getByLabelText("搜索用户")).toHaveValue("");
 
       act(() => vi.advanceTimersByTime(300));
-      expect(replaceMock).toHaveBeenLastCalledWith("/admin/users?q=alice");
+      expect(replaceMock).toHaveBeenCalledTimes(1);
+      expect(replaceMock).toHaveBeenLastCalledWith("/admin/users");
     } finally {
       vi.useRealTimers();
     }

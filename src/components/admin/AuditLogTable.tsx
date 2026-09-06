@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { fetchAuditLogs, type AuditLogFilters } from "@/actions/audit";
-import { ClearFilters, ListSearchField, ListToolbar, PaginationControls, ResultSummary, useListQueryParams } from "@/components/rivalhub";
+import { ClearFilters, ListSearchField, ListToolbar, PaginationControls, ResultSummary, type ListSearchFieldHandle, useListQueryParams } from "@/components/rivalhub";
 import { formatCST } from "@/lib/utils/date";
 import {
   AUDIT_LOG_LOAD_ERROR_MESSAGE,
@@ -37,6 +37,7 @@ const ACTION_FILTER_GROUPS = ACTION_FILTER_OPTIONS.reduce<Array<{ label: string;
 
 export function AuditLogTable({ initialLogs, initialTotal, seasons, routeBase = "/admin/logs", seasonScopeId }: Props) {
   const { searchParams, update } = useListQueryParams({ routeBase, defaults: AUDIT_QUERY_DEFAULTS });
+  const searchFieldRef = useRef<ListSearchFieldHandle>(null);
   const [isPending, startTransition] = useTransition();
 
   const [logs, setLogs] = useState(initialLogs);
@@ -116,6 +117,7 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, routeBase = 
         </div>
 
         <ListSearchField
+          ref={searchFieldRef}
           queryKey="actor"
           label="操作人"
           placeholder="用户 ID 或邮箱"
@@ -172,7 +174,10 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, routeBase = 
         <ClearFilters
           defaults={AUDIT_QUERY_DEFAULTS}
           searchParams={searchParams}
-          onClear={(updates) => update(updates)}
+          onClear={(updates) => {
+            searchFieldRef.current?.reset();
+            update(updates);
+          }}
         />
       </ListToolbar>
 

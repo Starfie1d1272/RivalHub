@@ -1,9 +1,14 @@
 "use client";
 
-import React, { useEffect, useRef, useState, type ChangeEvent } from "react";
+import React, { useCallback, useEffect, useImperativeHandle, useRef, useState, type ChangeEvent } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils/cn";
+
+export interface ListSearchFieldHandle {
+  reset(value?: string): void;
+  cancelPending(): void;
+}
 
 interface ListSearchFieldProps {
   queryKey: string;
@@ -20,7 +25,7 @@ function defaultId(queryKey: string): string {
   return `list-search-${queryKey.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 }
 
-export function ListSearchField({
+export const ListSearchField = React.forwardRef<ListSearchFieldHandle, ListSearchFieldProps>(function ListSearchField({
   queryKey,
   label,
   placeholder,
@@ -29,25 +34,40 @@ export function ListSearchField({
   debounceMs = 300,
   id,
   className,
-}: ListSearchFieldProps) {
+}, ref) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [localValue, setLocalValue] = useState(value);
   const inputId = id ?? defaultId(queryKey);
-
-  useEffect(() => {
-    setLocalValue(value);
+  const cancelPending = useCallback(() => {
     clearTimeout(timerRef.current);
-  }, [value]);
+    timerRef.current = undefined;
+  }, []);
+
+  useImperativeHandle(ref, () => ({
+    reset(nextValue = "") {
+      cancelPending();
+      setLocalValue(nextValue);
+    },
+    cancelPending,
+  }), [cancelPending]);
 
   useEffect(() => {
-    return () => clearTimeout(timerRef.current);
-  }, []);
+    cancelPending();
+    setLocalValue(value);
+  }, [cancelPending, value]);
+
+  useEffect(() => {
+    return cancelPending;
+  }, [cancelPending]);
 
   function handleChange(event: ChangeEvent<HTMLInputElement>) {
     const nextValue = event.target.value;
     setLocalValue(nextValue);
-    clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => onDebouncedChange(nextValue), debounceMs);
+    cancelPending();
+    timerRef.current = setTimeout(() => {
+      timerRef.current = undefined;
+      onDebouncedChange(nextValue);
+    }, debounceMs);
   }
 
   return (
@@ -65,4 +85,4 @@ export function ListSearchField({
       />
     </div>
   );
-}
+});

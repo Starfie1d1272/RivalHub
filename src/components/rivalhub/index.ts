@@ -16,7 +16,7 @@ export { ScrollHint } from "./ScrollHint";
 export { PhaseStep } from "./PhaseStep";
 export { Checklist, type ChecklistItem } from "./Checklist";
 export { ClearFilters } from "./ClearFilters";
-export { ListSearchField } from "./ListSearchField";
+export { ListSearchField, type ListSearchFieldHandle } from "./ListSearchField";
 export { ListToolbar } from "./ListToolbar";
 export { PaginationControls } from "./PaginationControls";
 export { ResultSummary } from "./ResultSummary";

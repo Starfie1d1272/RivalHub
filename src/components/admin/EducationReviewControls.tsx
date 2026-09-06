@@ -1,8 +1,10 @@
 "use client";
 
+import { useRef } from "react";
 import {
   ClearFilters,
   ListSearchField,
+  type ListSearchFieldHandle,
   ListToolbar,
   ResultSummary,
 } from "@/components/rivalhub";
@@ -61,6 +63,7 @@ export function EducationReviewControls({
   searchParams,
   update,
 }: EducationReviewControlsProps) {
+  const searchFieldRef = useRef<ListSearchFieldHandle>(null);
   const currentStatus = selectValue(searchParams.get("status"), STATUS_OPTIONS, normalizedQuery.status);
   const currentAcademic = selectValue(searchParams.get("academic"), ACADEMIC_OPTIONS, normalizedQuery.academic);
   const currentSort = selectValue(searchParams.get("sort"), SORT_OPTIONS, normalizedQuery.sort);
@@ -71,6 +74,7 @@ export function EducationReviewControls({
     <div className="min-w-0 space-y-4">
       <ListToolbar className="items-start">
         <ListSearchField
+          ref={searchFieldRef}
           queryKey="q"
           label="搜索认证记录"
           placeholder="姓名 / 邮箱 / 学校 / 在线验证码…"
@@ -126,7 +130,10 @@ export function EducationReviewControls({
         <ClearFilters
           defaults={EDUCATION_REVIEW_DEFAULTS}
           searchParams={searchParams}
-          onClear={(updates) => update(updates, { defaults: EDUCATION_REVIEW_DEFAULTS })}
+          onClear={(updates) => {
+            searchFieldRef.current?.reset();
+            update(updates, { defaults: EDUCATION_REVIEW_DEFAULTS });
+          }}
         />
       </ListToolbar>
 

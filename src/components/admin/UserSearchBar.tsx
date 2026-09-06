@@ -1,7 +1,7 @@
 "use client";
 
-import React from "react";
-import { ClearFilters, ListSearchField, ListToolbar, useListQueryParams } from "@/components/rivalhub";
+import React, { useRef } from "react";
+import { ClearFilters, ListSearchField, ListToolbar, type ListSearchFieldHandle, useListQueryParams } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 
 const FILTERS = [
@@ -16,9 +16,11 @@ const QUERY_DEFAULTS = { q: "", filter: "all" } as const;
 
 export function UserSearchBar({ filter }: { filter: UserFilter }) {
   const { searchParams, update } = useListQueryParams({ routeBase: "/admin/users", defaults: QUERY_DEFAULTS });
+  const searchFieldRef = useRef<ListSearchFieldHandle>(null);
   return (
     <ListToolbar aria-label="用户搜索与筛选">
       <ListSearchField
+        ref={searchFieldRef}
         queryKey="q"
         label="搜索用户"
         placeholder="姓名 / 邮箱…"
@@ -45,7 +47,10 @@ export function UserSearchBar({ filter }: { filter: UserFilter }) {
       <ClearFilters
         defaults={QUERY_DEFAULTS}
         searchParams={searchParams}
-        onClear={(updates) => update(updates)}
+        onClear={(updates) => {
+          searchFieldRef.current?.reset();
+          update(updates);
+        }}
       />
     </ListToolbar>
   );
