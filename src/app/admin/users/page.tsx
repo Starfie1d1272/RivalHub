@@ -16,11 +16,15 @@ interface PageProps {
   searchParams: Promise<{ tab?: string; q?: string; filter?: string }>;
 }
 
+const USER_FILTERS = ["all", "participated", "none"] as const;
+type UserFilter = (typeof USER_FILTERS)[number];
+
 export default async function AdminUsersPage({ searchParams }: PageProps) {
   const admin = await resolveAdminPageAccess(requireSuperAdmin);
   if (!admin) return <AdminAccessDenied />;
 
-  const { tab = "admins", q = "", filter = "all" } = await searchParams;
+  const { tab = "admins", q = "", filter: rawFilter = "all" } = await searchParams;
+  const filter: UserFilter = USER_FILTERS.includes(rawFilter as UserFilter) ? rawFilter as UserFilter : "all";
 
   // ── 管理员 Tab ──────────────────────────────────────────────────────────
   if (tab !== "users") {
@@ -168,7 +172,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
       </div>
 
       {/* 搜索 + 筛选 */}
-      <UserSearchBar q={q} filter={filter} />
+      <UserSearchBar filter={filter} />
 
       {/* 表格 */}
       <Panel contentClassName="p-0" className="overflow-hidden">

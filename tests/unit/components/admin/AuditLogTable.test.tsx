@@ -4,15 +4,17 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuditLogView } from "@/lib/audit/presentation";
 
-const { fetchAuditLogsMock, pushMock, searchParamsMock } = vi.hoisted(() => ({
+const { fetchAuditLogsMock, pushMock, replaceMock, searchParamsMock } = vi.hoisted(() => ({
   fetchAuditLogsMock: vi.fn(),
   pushMock: vi.fn(),
+  replaceMock: vi.fn(),
   searchParamsMock: { get: vi.fn(), toString: vi.fn() },
 }));
 
 vi.mock("@/actions/audit", () => ({ fetchAuditLogs: fetchAuditLogsMock }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: pushMock }),
+  useRouter: () => ({ push: pushMock, replace: replaceMock }),
+  usePathname: () => "/admin/logs",
   useSearchParams: () => searchParamsMock,
 }));
 

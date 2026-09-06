@@ -1,14 +1,64 @@
-import { desc, eq } from "drizzle-orm";
-import { EducationVerificationReviewQueue } from "@/components/admin/EducationVerificationReviewQueue";
+import { EducationReviewWorkspace } from "@/components/admin/EducationReviewWorkspace";
+import { type EducationReviewEmptyState } from "@/components/admin/EducationVerificationReviewQueue";
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
-import { db } from "@/db/client";
-import { educationVerifications, institutions, users } from "@/db/schema";
+import { ErrorState, PageHeader, PageLayout } from "@/components/rivalhub";
 import { requireSuperAdmin } from "@/lib/auth/session";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
+import { getEducationReviewQueue, normalizeEducationReviewQuery } from "@/lib/education/admin-review";
+import type { EducationReviewQuery } from "@/lib/education/admin-review-contract";
+import { captureException } from "@/lib/observability/server";
 
-export default async function EducationVerificationsAdminPage() {
+interface PageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+function isDefaultPendingQuery(query: EducationReviewQuery): boolean {
+  return !query.q
+    && query.status === "pending"
+    && !query.institution
+    && query.academic === "all"
+    && query.sort === "oldest";
+}
+
+export default async function EducationVerificationsAdminPage({ searchParams }: PageProps) {
   const admin = await resolveAdminPageAccess(requireSuperAdmin);
   if (!admin) return <AdminAccessDenied />;
-  const rows = await db.select({ id: educationVerifications.id, email: users.email, displayName: users.displayName, institution: institutions.name, code: institutions.moeInstitutionCode, academicStatus: educationVerifications.academicStatus, evidenceType: educationVerifications.evidenceType, evidenceCode: educationVerifications.evidenceCode, status: educationVerifications.status, submittedAt: educationVerifications.submittedAt, reviewNote: educationVerifications.reviewNote }).from(educationVerifications).innerJoin(users, eq(educationVerifications.userId, users.id)).innerJoin(institutions, eq(educationVerifications.institutionId, institutions.id)).orderBy(desc(educationVerifications.submittedAt));
-  return <main className="container mx-auto max-w-3xl px-4 py-10"><h1 className="mb-2 text-3xl font-semibold">教育身份认证审核</h1><p className="mb-6 text-sm text-[var(--color-fg-mid)]">仅在学信网官方页面人工核对；申请人声明学校不一致时请驳回，不要修改其学校。</p><EducationVerificationReviewQueue rows={rows.map((row) => ({ ...row, submittedAt: row.submittedAt.toISOString() }))} /></main>;
+
+  let queue;
+  try {
+    const normalizedQuery = normalizeEducationReviewQuery(await searchParams);
+    queue = await getEducationReviewQueue(normalizedQuery);
+  } catch (error) {
+    captureException("education.review_queue.load_failed", error, {
+      scope: "admin",
+      operation: "education.review_queue.load",
+      errorClass: "database",
+      retryable: true,
+    });
+    return (
+      <PageLayout variant="standard" className="space-y-6">
+        <PageHeader
+          title="教育身份认证审核"
+          description="仅在学信网官方页面人工核对；申请人声明学校不一致时请驳回，不要修改其学校。"
+        />
+        <ErrorState code="EDUCATION_REVIEW_LOAD_FAILED" title="无法加载教育认证审核队列" sub="请稍后重试；如果问题持续，请联系系统管理员。" />
+      </PageLayout>
+    );
+  }
+
+  const emptyState: EducationReviewEmptyState = !queue.hasAnyRecords
+    ? "no-records"
+    : isDefaultPendingQuery(queue.normalizedQuery)
+      ? "no-pending"
+      : "no-results";
+
+  return (
+    <PageLayout variant="standard" className="space-y-6">
+      <PageHeader
+        title="教育身份认证审核"
+        description="仅在学信网官方页面人工核对；申请人声明学校不一致时请驳回，不要修改其学校。"
+      />
+      <EducationReviewWorkspace queue={queue} emptyState={emptyState} />
+    </PageLayout>
+  );
 }

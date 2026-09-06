@@ -6,6 +6,7 @@ import { auditLogs, seasons, users } from "@/db/schema";
 import { actionError } from "@/lib/action-utils";
 import { requireSeasonAdmin, requireSuperAdmin } from "@/lib/auth/session";
 import { getDisplayName } from "@/lib/identity/display-name";
+import { escapeLikePattern } from "@/lib/db/search";
 import {
   getAuditActionPresentation,
   getAuditTargetTypeLabel,
@@ -14,10 +15,6 @@ import {
 } from "@/lib/audit/presentation";
 import { auditTargetKey, resolveAuditTargets } from "@/lib/audit/targets";
 import { ok } from "@/types/action";
-
-function escapeLike(s: string) {
-  return s.replace(/[%_\\]/g, (c) => `\\${c}`);
-}
 
 function parseCSTDateStart(value: string) {
   return new Date(`${value}T00:00:00+08:00`);
@@ -78,8 +75,8 @@ export async function fetchAuditLogs(filters: AuditLogFilters = {}) {
     const conditions = [];
     if (seasonScopeId) conditions.push(eq(auditLogs.seasonId, seasonScopeId));
     else if (seasonId) conditions.push(eq(auditLogs.seasonId, seasonId));
-    if (action) conditions.push(like(auditLogs.action, `%${escapeLike(action)}%`));
-    if (actorId) conditions.push(like(auditLogs.actorId, `%${escapeLike(actorId)}%`));
+    if (action) conditions.push(like(auditLogs.action, `%${escapeLikePattern(action)}%`));
+    if (actorId) conditions.push(like(auditLogs.actorId, `%${escapeLikePattern(actorId)}%`));
     if (dateFrom) conditions.push(gte(auditLogs.createdAt, parseCSTDateStart(dateFrom)));
     if (dateTo) conditions.push(lt(auditLogs.createdAt, parseCSTNextDateStart(dateTo)));
 
