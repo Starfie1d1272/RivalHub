@@ -33,6 +33,7 @@ describe("PR3 team registration review PostgreSQL integration", () => {
     const institutionCode = "4132010284";
     const paginationEntries = Array.from({ length: 50 }, (_, index) => ({
       id: randomUUID(),
+      userId: randomUUID(),
       participantId: randomUUID(),
       revisionId: randomUUID(),
       memberId: randomUUID(),
@@ -83,6 +84,27 @@ describe("PR3 team registration review PostgreSQL integration", () => {
          ) VALUES ($1, $2, 'enrolled', 'manual_other', 'approved', 'pr3-team-review', now())`,
         [ids.readyUser, institutionId],
       );
+      for (const entry of paginationEntries) {
+        await pool.query(
+          `INSERT INTO users (id, email, email_verified_at, display_name, perfect_name, steam_name)
+           VALUES ($1, $2, now(), $3, $4, $5)`,
+          [
+            entry.userId,
+            `${marker}-pagination-${entry.index}@local.test`,
+            `${marker} Pagination Representative ${entry.index}`,
+            `${marker} Pagination Perfect ${entry.index}`,
+            `${marker} Pagination Steam ${entry.index}`,
+          ],
+        );
+        if (entry.ready) {
+          await pool.query(
+            `INSERT INTO education_verifications (
+               user_id, institution_id, academic_status, evidence_type, status, reviewed_by, reviewed_at
+             ) VALUES ($1, $2, 'enrolled', 'manual_other', 'approved', 'pr3-team-review', now())`,
+            [entry.userId, institutionId],
+          );
+        }
+      }
 
       const client = await pool.connect();
       try {
@@ -185,26 +207,25 @@ describe("PR3 team registration review PostgreSQL integration", () => {
         // named fixtures below. This makes each derived qualification filter
         // cross its 25-row page boundary and preserves a deterministic page 2.
         for (const entry of paginationEntries) {
-          const userId = entry.ready ? ids.readyUser : ids.blockedUser;
           const submittedAt = new Date(now - (1_000 + entry.index) * 60 * 1000);
           await client.query(
             `INSERT INTO competition_entries (
                id, competition_id, source, name, representative_user_id,
                current_roster_revision_id, registration_status, submitted_at, created_at, updated_at
              ) VALUES ($1, $2, 'event_native', $3, $4, $5, 'submitted', $6, $6, $6)`,
-            [entry.id, ids.season, `${marker} Pagination ${entry.index}`, userId, entry.revisionId, submittedAt],
+            [entry.id, ids.season, `${marker} Pagination ${entry.index}`, entry.userId, entry.revisionId, submittedAt],
           );
           await client.query(
             `INSERT INTO competition_entry_representative_changes (
                entry_id, from_user_id, to_user_id, changed_by_actor_id
              ) VALUES ($1, NULL, $2, 'pr3-team-review')`,
-            [entry.id, userId],
+            [entry.id, entry.userId],
           );
           await client.query(
             `INSERT INTO competition_entry_participants (
                id, entry_id, user_id, status, confirmed_at, invited_by_user_id
              ) VALUES ($1, $2, $3, 'confirmed', now(), $3)`,
-            [entry.participantId, entry.id, userId],
+            [entry.participantId, entry.id, entry.userId],
           );
           await client.query(
             `INSERT INTO competition_entry_roster_revisions (
@@ -216,7 +237,7 @@ describe("PR3 team registration review PostgreSQL integration", () => {
             `INSERT INTO competition_entry_roster_members (
                id, revision_id, participant_id, user_id, is_primary_starter
              ) VALUES ($1, $2, $3, $4, true)`,
-            [entry.memberId, entry.revisionId, entry.participantId, userId],
+            [entry.memberId, entry.revisionId, entry.participantId, entry.userId],
           );
         }
         await client.query("COMMIT");
@@ -322,9 +343,9 @@ describe("PR3 team registration review PostgreSQL integration", () => {
         await cleanup.query("DELETE FROM competition_entry_roster_revisions WHERE id = ANY($1::uuid[])", [[...paginationEntries.map((entry) => entry.revisionId), ids.readyRevision, ids.blockedRevision, ids.approvedRevision]]);
         await cleanup.query("DELETE FROM competition_entry_representative_changes WHERE entry_id = ANY($1::uuid[])", [[...paginationEntries.map((entry) => entry.id), ids.readyEntry, ids.blockedEntry, ids.approvedEntry]]);
         await cleanup.query("DELETE FROM competition_entries WHERE id = ANY($1::uuid[])", [[...paginationEntries.map((entry) => entry.id), ids.readyEntry, ids.blockedEntry, ids.approvedEntry]]);
-        await cleanup.query("DELETE FROM education_verifications WHERE user_id = ANY($1::uuid[])", [[ids.readyUser, ids.blockedUser]]);
+        await cleanup.query("DELETE FROM education_verifications WHERE user_id = ANY($1::uuid[])", [[...paginationEntries.map((entry) => entry.userId), ids.readyUser, ids.blockedUser]]);
         await cleanup.query("DELETE FROM seasons WHERE id = $1", [ids.season]);
-        await cleanup.query("DELETE FROM users WHERE id = ANY($1::uuid[])", [[ids.readyUser, ids.blockedUser]]);
+        await cleanup.query("DELETE FROM users WHERE id = ANY($1::uuid[])", [[...paginationEntries.map((entry) => entry.userId), ids.readyUser, ids.blockedUser]]);
         await cleanup.query("COMMIT");
       } catch (error) {
         await cleanup.query("ROLLBACK").catch(() => undefined);
