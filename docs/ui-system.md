@@ -115,5 +115,6 @@ Visual regression 只锁定少量 deterministic reference，功能 E2E 继续验
 - 优先截图页面主内容区域，把动态导航、在线人数、实时赛事时间和随机内容排除在 baseline 外；
 - 使用固定 viewport、既有 Playwright project，并在截图时关闭动画与 caret；
 - baseline 命名包含页面与状态语义；只有预期的 presentation contract 变化才更新 baseline。
+- 当前没有稳定可复用的 admin/dense browser fixture，因此暂不建立 dense screenshot baseline；待首个稳定 fixture 建立后按本 contract 补入。
 
 页面应保持自身 layout contract；普通内容不产生页面级横向溢出，二维数据只在局部容器内滚动。本文件定义跨页面 presentation，页面 IA、domain rule 与列表 query/sort/filter semantics 由对应 owner 负责。
