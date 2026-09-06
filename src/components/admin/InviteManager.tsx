@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { createInviteCode, deactivateInviteCode } from "@/actions/admin";
 import { Button } from "@/components/ui/button";
@@ -20,40 +21,46 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { formatCSTShortDate } from "@/lib/utils/date";
-
-interface InviteRow {
-  id: string;
-  code: string;
-  role: "super_admin" | "season_admin";
-  seasonId: string | null;
-  maxUses: number;
-  claimCount: number;
-  expiresAt: string | null;
-  isActive: boolean;
-  createdAt: string;
-}
-
-interface SeasonOption {
-  id: string;
-  name: string;
-  slug: string;
-}
+import {
+  ClearFilters,
+  ListToolbar,
+  PaginationControls,
+  ResultSummary,
+  useListQueryParams,
+} from "@/components/rivalhub";
+import {
+  ADMIN_INVITE_DEFAULTS,
+  type AdminInviteHistoryResult,
+  type AdminInviteRoleFilter,
+  type AdminInviteSeasonOption,
+  type AdminInviteSort,
+  type AdminInviteState,
+} from "@/lib/admin/invites-contract";
 
 interface PendingSuperAdminInvite {
   maxUses: number;
   expiresInHours?: number;
 }
 
+const INVITE_STATE_LABELS: Record<Exclude<AdminInviteState, "all">, string> = {
+  usable: "可用",
+  expired: "已过期",
+  revoked: "已撤销",
+  exhausted: "已用尽",
+};
+
 type InviteCreateInput = Parameters<typeof createInviteCode>[0];
 
 export function InviteManager({
-  invites: initialInvites,
+  history,
   seasons,
 }: {
-  invites: InviteRow[];
-  seasons: SeasonOption[];
+  history: AdminInviteHistoryResult;
+  seasons: AdminInviteSeasonOption[];
 }) {
-  const [invites, setInvites] = useState(initialInvites);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { update } = useListQueryParams({ routeBase: "/admin/invites", defaults: ADMIN_INVITE_DEFAULTS });
   const [role, setRole] = useState<"season_admin" | "super_admin">("season_admin");
   const [seasonId, setSeasonId] = useState(seasons[0]?.id ?? "");
   const [maxUses, setMaxUses] = useState(1);
@@ -61,7 +68,22 @@ export function InviteManager({
   const [pendingSuperAdminInvite, setPendingSuperAdminInvite] =
     useState<PendingSuperAdminInvite | null>(null);
   const [isPending, startTransition] = useTransition();
-  const seasonNameById = new Map(seasons.map((season) => [season.id, season.name]));
+  const requestedRole = searchParams.get("role");
+  const currentRole = ["all", "season_admin", "super_admin"].includes(requestedRole ?? "")
+    ? requestedRole as AdminInviteRoleFilter
+    : history.normalizedQuery.role;
+  const requestedState = searchParams.get("state");
+  const currentState = ["all", "usable", "expired", "revoked", "exhausted"].includes(requestedState ?? "")
+    ? requestedState as AdminInviteState
+    : history.normalizedQuery.state;
+  const requestedSort = searchParams.get("sort");
+  const currentSort = ["newest", "oldest", "expires_soon"].includes(requestedSort ?? "")
+    ? requestedSort as AdminInviteSort
+    : history.normalizedQuery.sort;
+  const requestedSeason = searchParams.get("season") ?? "";
+  const currentSeason = seasons.some((season) => season.id === requestedSeason)
+    ? requestedSeason
+    : history.normalizedQuery.season ?? "";
 
   function submitInvite(input: InviteCreateInput) {
     startTransition(async () => {
@@ -70,20 +92,7 @@ export function InviteManager({
         toast.error(result.error.message);
       } else {
         toast.success(`邀请码已生成：${result.data.code}`);
-        setInvites((prev) => [
-          {
-            id: result.data.id,
-            code: result.data.code,
-            role: result.data.role,
-            seasonId: result.data.seasonId,
-            maxUses: result.data.maxUses,
-            claimCount: 0,
-            expiresAt: result.data.expiresAt,
-            isActive: true,
-            createdAt: new Date().toISOString(),
-          },
-          ...prev,
-        ]);
+        router.refresh();
       }
     });
   }
@@ -126,11 +135,7 @@ export function InviteManager({
         toast.error(result.error.message);
       } else {
         toast.success(`邀请码 ${code} 已失效`);
-        setInvites((prev) =>
-          prev.map((inv) =>
-            inv.id === inviteId ? { ...inv, isActive: false } : inv,
-          ),
-        );
+        router.refresh();
       }
     });
   }
@@ -269,11 +274,74 @@ export function InviteManager({
 
       {/* 邀请码列表 */}
       <h2 className="font-medium">历史邀请码</h2>
-      {invites.length === 0 ? (
-        <p className="text-sm text-[var(--color-fg-mid)]">暂无邀请码</p>
+      <ListToolbar className="items-start" aria-label="邀请码历史筛选">
+        <label className="min-w-0 w-full flex-1 basis-full sm:basis-[calc(50%-0.75rem)] lg:basis-[20%]">
+          <span className="mb-1.5 block text-xs text-[var(--color-fg-mid)]">角色</span>
+          <select
+            aria-label="邀请码角色"
+            value={currentRole}
+            onChange={(event) => update({ role: event.target.value })}
+            className="h-9 w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-panel-low)] px-3 text-sm text-[var(--color-fg)]"
+          >
+            <option value="all">全部角色</option>
+            <option value="season_admin">赛季管理员</option>
+            <option value="super_admin">超级管理员</option>
+          </select>
+        </label>
+        <label className="min-w-0 w-full flex-1 basis-full sm:basis-[calc(50%-0.75rem)] lg:basis-[20%]">
+          <span className="mb-1.5 block text-xs text-[var(--color-fg-mid)]">状态</span>
+          <select
+            aria-label="邀请码状态"
+            value={currentState}
+            onChange={(event) => update({ state: event.target.value })}
+            className="h-9 w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-panel-low)] px-3 text-sm text-[var(--color-fg)]"
+          >
+            <option value="all">全部状态</option>
+            <option value="usable">可用</option>
+            <option value="expired">已过期</option>
+            <option value="exhausted">已用尽</option>
+            <option value="revoked">已撤销</option>
+          </select>
+        </label>
+        <label className="min-w-0 w-full flex-1 basis-full sm:basis-[calc(50%-0.75rem)] lg:basis-[25%]">
+          <span className="mb-1.5 block text-xs text-[var(--color-fg-mid)]">赛季</span>
+          <select
+            aria-label="邀请码赛季"
+            value={currentSeason}
+            onChange={(event) => update({ season: event.target.value })}
+            className="h-9 w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-panel-low)] px-3 text-sm text-[var(--color-fg)]"
+          >
+            <option value="">全部赛季</option>
+            {seasons.map((season) => <option key={season.id} value={season.id}>{season.name}</option>)}
+          </select>
+        </label>
+        <label className="min-w-0 w-full flex-1 basis-full sm:basis-[calc(50%-0.75rem)] lg:basis-[20%]">
+          <span className="mb-1.5 block text-xs text-[var(--color-fg-mid)]">排序</span>
+          <select
+            aria-label="邀请码排序"
+            value={currentSort}
+            onChange={(event) => update({ sort: event.target.value })}
+            className="h-9 w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-panel-low)] px-3 text-sm text-[var(--color-fg)]"
+          >
+            <option value="newest">最新生成</option>
+            <option value="oldest">最早生成</option>
+            <option value="expires_soon">即将过期</option>
+          </select>
+        </label>
+        <ClearFilters
+          defaults={ADMIN_INVITE_DEFAULTS}
+          searchParams={searchParams}
+          onClear={(updates) => update(updates)}
+        />
+      </ListToolbar>
+
+      {history.rows.length === 0 ? (
+        <p className="text-sm text-[var(--color-fg-mid)]">
+          {history.hasAnyRecords ? "没有符合当前筛选条件的邀请码" : "暂无邀请码"}
+        </p>
       ) : (
         <div className="space-y-2">
-          {invites.map((inv) => (
+          {history.rows.map((inv) => (
             <Card
               key={inv.id || inv.code}
               className="p-3 flex items-center justify-between gap-4"
@@ -285,7 +353,7 @@ export function InviteManager({
                     {inv.role === "super_admin" ? "超级管理员" : "赛季管理员"}
                   </Badge>
                   {inv.role === "season_admin" && inv.seasonId && (
-                    <span>范围：{seasonNameById.get(inv.seasonId) ?? inv.seasonId}</span>
+                    <span>范围：{inv.seasonName ?? inv.seasonId}</span>
                   )}
                   <span>
                     使用 {inv.claimCount}/{inv.maxUses}
@@ -295,17 +363,10 @@ export function InviteManager({
                       过期：{formatCSTShortDate(inv.expiresAt)}
                     </span>
                   )}
-                  {!inv.isActive && (
-                    <Badge
-                      variant="outline"
-                      className="text-xs bg-[var(--color-danger-soft)] text-[var(--color-danger)] border-[var(--color-danger-edge)]"
-                    >
-                      已失效
-                    </Badge>
-                  )}
+                  <Badge variant="outline" className="text-xs">{INVITE_STATE_LABELS[inv.state]}</Badge>
                 </div>
               </div>
-              {inv.isActive && inv.claimCount < inv.maxUses && (
+              {inv.state === "usable" && (
                 <Button
                   size="sm"
                   variant="ghost"
@@ -319,6 +380,19 @@ export function InviteManager({
           ))}
         </div>
       )}
+      <div className="flex justify-between gap-3">
+        <ResultSummary
+          total={history.total}
+          page={history.page}
+          pageSize={history.pageSize}
+          totalPages={history.totalPages}
+        />
+      </div>
+      <PaginationControls
+        page={history.page}
+        totalPages={history.totalPages}
+        onPageChange={(page) => update({ page }, { defaults: { page: 1 }, history: "push" })}
+      />
     </div>
   );
 }

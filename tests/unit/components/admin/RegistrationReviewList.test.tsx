@@ -3,8 +3,18 @@
  */
 import React from "react";
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RegistrationReviewList, type RegistrationRow } from "@/components/admin/RegistrationReviewList";
+
+const { searchParamsMock } = vi.hoisted(() => ({
+  searchParamsMock: { get: vi.fn(), toString: vi.fn() },
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
+  usePathname: () => "/admin/rivals-s1/registrations",
+  useSearchParams: () => searchParamsMock,
+}));
 
 vi.mock("@/actions/admin", () => ({
   reviewRegistration: vi.fn(),
@@ -38,6 +48,11 @@ const baseRow: RegistrationRow = {
 };
 
 describe("RegistrationReviewList Steam link presentation", () => {
+  beforeEach(() => {
+    searchParamsMock.get.mockReturnValue(null);
+    searchParamsMock.toString.mockReturnValue("");
+  });
+
   it("renders clickable Steam profile link when steamProfileUrl is provided and safe", () => {
     render(<RegistrationReviewList registrations={[baseRow]} />);
 

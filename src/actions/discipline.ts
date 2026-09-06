@@ -18,11 +18,17 @@ import { revalidateSeasonPaths } from "@/lib/revalidation";
 import {
   issueSanctionInTx,
   markSanctionExpiredInTx,
-  resolveSanctionStatus,
   revokeSanctionInTx,
   SANCTION_EFFECTS,
   type SanctionEffect,
 } from "@/lib/discipline/service";
+import { getSeasonSanctionsAdminReadModel } from "@/lib/discipline/admin-review";
+import {
+  DISCIPLINE_ADMIN_DEFAULTS,
+  DISCIPLINE_ADMIN_PAGE_SIZE,
+  type DisciplineAdminQuery,
+  type DisciplineAdminResult,
+} from "@/lib/discipline/admin-review-contract";
 
 const effectSchema = z.enum(SANCTION_EFFECTS as unknown as [SanctionEffect, ...SanctionEffect[]]);
 
@@ -155,17 +161,16 @@ export async function searchSanctionSubjects(
 /** Admin-facing reader: internal evidence stays visible to privileged admins. */
 export async function getSeasonSanctions(
   seasonId: string,
-): Promise<ActionResult<
-  Array<DisciplinaryCase & { resolvedStatus: ReturnType<typeof resolveSanctionStatus> }>
->> {
+  query?: DisciplineAdminQuery,
+): Promise<ActionResult<DisciplineAdminResult>> {
   try {
     await requireSeasonAdmin(seasonId);
-    const rows = await db
-      .select()
-      .from(disciplinaryCases)
-      .where(eq(disciplinaryCases.seasonId, seasonId));
-    const now = new Date();
-    return ok(rows.map((row) => ({ ...row, resolvedStatus: resolveSanctionStatus(row, now) })));
+    const resolvedQuery: DisciplineAdminQuery = query ?? {
+      ...DISCIPLINE_ADMIN_DEFAULTS,
+      page: 1,
+      pageSize: DISCIPLINE_ADMIN_PAGE_SIZE,
+    };
+    return ok(await getSeasonSanctionsAdminReadModel(seasonId, resolvedQuery));
   } catch (e) {
     return actionError("getSeasonSanctions", e);
   }

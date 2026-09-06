@@ -6,14 +6,19 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DisciplineManagement, type DisciplineSanctionRow } from "@/components/admin/DisciplineManagement";
 
+const { searchParamsMock } = vi.hoisted(() => ({
+  searchParamsMock: { get: vi.fn(), toString: vi.fn() },
+}));
+
 Object.assign(globalThis, { React });
 
-const { issueSanctionMock, revokeSanctionMock, expireSanctionMock, searchSanctionSubjectsMock, refreshMock } = vi.hoisted(() => ({
+const { issueSanctionMock, revokeSanctionMock, expireSanctionMock, searchSanctionSubjectsMock, refreshMock, replaceMock } = vi.hoisted(() => ({
   issueSanctionMock: vi.fn(),
   revokeSanctionMock: vi.fn(),
   expireSanctionMock: vi.fn(),
   searchSanctionSubjectsMock: vi.fn(),
   refreshMock: vi.fn(),
+  replaceMock: vi.fn(),
 }));
 
 vi.mock("@/actions/discipline", () => ({
@@ -23,7 +28,9 @@ vi.mock("@/actions/discipline", () => ({
   searchSanctionSubjects: searchSanctionSubjectsMock,
 }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh: refreshMock }),
+  useRouter: () => ({ refresh: refreshMock, push: vi.fn(), replace: replaceMock }),
+  usePathname: () => "/admin/spring/discipline",
+  useSearchParams: () => searchParamsMock,
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -55,6 +62,8 @@ async function searchAndPickSubject() {
 describe("DisciplineManagement", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    searchParamsMock.get.mockReturnValue(null);
+    searchParamsMock.toString.mockReturnValue("");
     issueSanctionMock.mockResolvedValue({ success: true, data: { caseId: "new-case" } });
     revokeSanctionMock.mockResolvedValue({ success: true, data: { alreadyRevoked: false, caseId: "case-1" } });
     expireSanctionMock.mockResolvedValue({ success: true, data: { alreadyExpired: false, caseId: "case-1" } });
@@ -81,17 +90,19 @@ describe("DisciplineManagement", () => {
     expect(screen.getByText("本赛事暂无纪律处罚记录")).toBeInTheDocument();
   });
 
-  it("filters the list by resolved status", () => {
+  it("writes the resolved status filter to the list URL", () => {
     render(
       <DisciplineManagement
         seasonId="season-1"
+        seasonSlug="spring"
         sanctions={[row(), row({ id: "case-2", subjectLabel: "玩家乙", resolvedStatus: "revoked", storedStatus: "revoked", revocationReason: "误判" })]}
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "已撤销" }));
+    fireEvent.change(screen.getByLabelText("处罚状态"), { target: { value: "revoked" } });
+    expect(replaceMock).toHaveBeenCalledWith("/admin/spring/discipline?status=revoked");
     expect(screen.getByText("玩家乙")).toBeInTheDocument();
-    expect(screen.queryByText("玩家甲")).not.toBeInTheDocument();
+    expect(screen.getByText("玩家甲")).toBeInTheDocument();
     expect(screen.getByText("撤销原因：误判")).toBeInTheDocument();
   });
 

@@ -1,42 +1,38 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { expireSanction, issueSanction, revokeSanction, searchSanctionSubjects } from "@/actions/discipline";
-import type { ResolvedSanctionStatus, SanctionEffect } from "@/lib/discipline/service";
+import type { SanctionEffect } from "@/lib/discipline/service";
 import { SANCTION_EFFECTS } from "@/lib/discipline/service";
 import { formatCST, parseCSTInput } from "@/lib/utils/date";
-import { EmptyState, Panel } from "@/components/rivalhub";
+import {
+  ClearFilters,
+  EmptyState,
+  ListSearchField,
+  ListToolbar,
+  PaginationControls,
+  Panel,
+  ResultSummary,
+  type ListSearchFieldHandle,
+  useListQueryParams,
+} from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
+import {
+  DISCIPLINE_ADMIN_DEFAULTS,
+  type DisciplineAdminQuery,
+  type DisciplineSanctionRow,
+  type DisciplineSubjectOption,
+} from "@/lib/discipline/admin-review-contract";
+
+export type { DisciplineSanctionRow, DisciplineSubjectOption } from "@/lib/discipline/admin-review-contract";
 
 /**
  * 管理员专用 discipline 面板。`internalEvidence` 仅出现在本组件的
  * props（由 admin page 构造）中，任何公开 surface 都不得复用该类型。
  * Subject 不做批量下发，一律按需搜索。
  */
-export type DisciplineSanctionRow = {
-  id: string;
-  subjectUserId: string;
-  subjectLabel: string;
-  storedStatus: "draft" | "active" | "expired" | "revoked";
-  resolvedStatus: ResolvedSanctionStatus;
-  effects: string[];
-  internalEvidence: string | null;
-  publicExplanation: string | null;
-  effectiveFrom: string;
-  effectiveUntil: string | null;
-  revokedAt: string | null;
-  revocationReason: string | null;
-  createdAt: string;
-};
-
-export type DisciplineSubjectOption = {
-  id: string;
-  label: string;
-  detail: string | null;
-};
-
 const MIN_QUERY_LENGTH = 2;
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -46,23 +42,20 @@ const EFFECT_LABELS: Record<SanctionEffect, string> = {
   match_participation_block: "参赛拦截",
 };
 
-const STATUS_LABELS: Record<ResolvedSanctionStatus, string> = {
+const STATUS_LABELS: Record<DisciplineSanctionRow["resolvedStatus"], string> = {
   draft: "未生效",
   active: "生效中",
   expired: "已到期",
   revoked: "已撤销",
 };
 
-const FILTERS = ["all", "active", "draft", "expired", "revoked"] as const;
-type StatusFilter = (typeof FILTERS)[number];
-
-const FILTER_LABELS: Record<StatusFilter, string> = {
-  all: "全部",
-  active: "生效中",
-  draft: "未生效",
-  expired: "已到期",
-  revoked: "已撤销",
-};
+const STATUS_OPTIONS = [
+  { value: "active", label: "生效中" },
+  { value: "draft", label: "未生效" },
+  { value: "expired", label: "已到期" },
+  { value: "revoked", label: "已撤销" },
+  { value: "all", label: "全部状态" },
+] as const;
 
 function describeWindow(row: DisciplineSanctionRow): string {
   const from = formatCST(row.effectiveFrom);
@@ -72,15 +65,40 @@ function describeWindow(row: DisciplineSanctionRow): string {
 
 export function DisciplineManagement({
   seasonId,
+  seasonSlug = "discipline",
   sanctions,
+  total = sanctions.length,
+  page = 1,
+  pageSize = 25,
+  totalPages = Math.ceil(total / pageSize),
+  normalizedQuery = {
+    q: undefined,
+    status: DISCIPLINE_ADMIN_DEFAULTS.status,
+    sort: DISCIPLINE_ADMIN_DEFAULTS.sort,
+    page,
+    pageSize: 25,
+  },
+  hasAnyRecords = sanctions.length > 0,
 }: {
   seasonId: string;
+  seasonSlug?: string;
   sanctions: DisciplineSanctionRow[];
+  total?: number;
+  page?: number;
+  pageSize?: number;
+  totalPages?: number;
+  normalizedQuery?: DisciplineAdminQuery;
+  hasAnyRecords?: boolean;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { update } = useListQueryParams({
+    routeBase: `/admin/${seasonSlug}/discipline`,
+    defaults: DISCIPLINE_ADMIN_DEFAULTS,
+  });
+  const searchFieldRef = useRef<ListSearchFieldHandle>(null);
   const [pending, startTransition] = useTransition();
 
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [subjectQuery, setSubjectQuery] = useState("");
   const [subjectResults, setSubjectResults] = useState<DisciplineSubjectOption[]>([]);
   const [subjectSearchError, setSubjectSearchError] = useState<string | null>(null);
@@ -130,13 +148,10 @@ export function DisciplineManagement({
     return options;
   }, [subjectResults, selectedSubject]);
 
-  const visibleSanctions = useMemo(
-    () =>
-      [...sanctions]
-        .filter((row) => statusFilter === "all" || row.resolvedStatus === statusFilter)
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-    [sanctions, statusFilter],
-  );
+  const requestedStatus = searchParams.get("status");
+  const currentStatus = STATUS_OPTIONS.some((option) => option.value === requestedStatus)
+    ? requestedStatus as DisciplineAdminQuery["status"]
+    : normalizedQuery.status;
 
   function toggleEffect(effect: SanctionEffect) {
     setEffects((prev) =>
@@ -328,25 +343,42 @@ export function DisciplineManagement({
 
       <section className="space-y-3">
         <h2 className="text-base font-semibold text-[var(--color-fg)]">处罚记录</h2>
-        <div className="flex gap-1">
-          {FILTERS.map((key) => (
-            <Button
-              key={key}
-              type="button"
-              size="sm"
-              variant={statusFilter !== key ? "ghost" : "outline"}
-              onClick={() => setStatusFilter(key)}
+        <ListToolbar className="items-start" aria-label="处罚记录搜索与筛选">
+          <ListSearchField
+            ref={searchFieldRef}
+            queryKey="q"
+            label="搜索处罚记录"
+            placeholder="被处罚用户姓名 / 邮箱…"
+            value={searchParams.get("q") ?? ""}
+            onDebouncedChange={(value) => update({ q: value })}
+            className="min-w-0 w-full flex-1 basis-full lg:basis-[55%]"
+          />
+          <label className="min-w-0 w-full flex-1 basis-full sm:basis-[calc(50%-0.75rem)] lg:basis-[25%]">
+            <span className="mb-1.5 block text-xs text-[var(--color-fg-mid)]">状态</span>
+            <select
+              aria-label="处罚状态"
+              value={currentStatus}
+              onChange={(event) => update({ status: event.target.value })}
+              className="h-9 w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-panel-low)] px-3 text-sm text-[var(--color-fg)]"
             >
-              {FILTER_LABELS[key]}
-            </Button>
-          ))}
-        </div>
+              {STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </label>
+          <ClearFilters
+            defaults={DISCIPLINE_ADMIN_DEFAULTS}
+            searchParams={searchParams}
+            onClear={(updates) => {
+              searchFieldRef.current?.reset();
+              update(updates);
+            }}
+          />
+        </ListToolbar>
 
-        {visibleSanctions.length === 0 ? (
-          <EmptyState title="本赛事暂无纪律处罚记录" />
+        {sanctions.length === 0 ? (
+          <EmptyState title={hasAnyRecords ? "没有符合当前筛选条件的纪律处罚" : "本赛事暂无纪律处罚记录"} />
         ) : (
           <div className="space-y-3">
-            {visibleSanctions.map((row) => (
+            {sanctions.map((row) => (
               <Panel key={row.id} contentClassName="space-y-2 p-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-semibold text-[var(--color-fg)]">{row.subjectLabel}</span>
@@ -428,6 +460,14 @@ export function DisciplineManagement({
             ))}
           </div>
         )}
+        <div className="flex justify-between gap-3">
+          <ResultSummary total={total} page={page} pageSize={pageSize} totalPages={totalPages} />
+        </div>
+        <PaginationControls
+          page={page}
+          totalPages={totalPages}
+          onPageChange={(nextPage) => update({ page: nextPage }, { defaults: { page: 1 }, history: "push" })}
+        />
       </section>
     </div>
   );

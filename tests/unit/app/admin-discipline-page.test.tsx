@@ -2,12 +2,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import * as React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mockUserSession } from "tests/helpers";
-import type { DisciplinaryCase } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 
-const { seasonFindFirstMock, selectMock, requireSeasonAdminMock, getSeasonSanctionsMock, notFoundMock, redirectMock } = vi.hoisted(() => ({
+const { seasonFindFirstMock, requireSeasonAdminMock, getSeasonSanctionsMock, notFoundMock, redirectMock } = vi.hoisted(() => ({
   seasonFindFirstMock: vi.fn(),
-  selectMock: vi.fn(),
   requireSeasonAdminMock: vi.fn(),
   getSeasonSanctionsMock: vi.fn(),
   notFoundMock: vi.fn(() => {
@@ -23,7 +21,6 @@ vi.mock("@/db/client", () => ({
     query: {
       seasons: { findFirst: seasonFindFirstMock },
     },
-    select: selectMock,
   },
 }));
 
@@ -39,42 +36,11 @@ vi.mock("next/navigation", () => ({
   notFound: notFoundMock,
   redirect: redirectMock,
   useRouter: () => ({ refresh: vi.fn() }),
+  usePathname: () => "/admin/major-2027/discipline",
+  useSearchParams: () => ({ get: () => null, toString: () => "" }),
 }));
 
 import AdminDisciplinePage from "@/app/admin/[seasonSlug]/discipline/page";
-
-function makeCase(overrides: Partial<DisciplinaryCase> = {}): DisciplinaryCase & { resolvedStatus: string } {
-  const base: DisciplinaryCase = {
-    id: "case-1",
-    seasonId: "season-1",
-    subjectUserId: "user-1",
-    status: "active",
-    effects: [],
-    internalEvidence: null,
-    publicExplanation: null,
-    effectiveFrom: new Date("2026-08-01T00:00:00Z"),
-    effectiveUntil: null,
-    issuedBy: "admin-1",
-    revokedAt: null,
-    revokedBy: null,
-    revocationReason: null,
-    createdAt: new Date("2026-08-01T00:00:00Z"),
-    updatedAt: new Date("2026-08-01T00:00:00Z"),
-  };
-  return { ...base, ...overrides, resolvedStatus: "active" };
-}
-
-function chain<T>(value: T) {
-  const result = {
-    from: () => result,
-    innerJoin: () => result,
-    where: () => result,
-    orderBy: () => result,
-    then: (resolve: (value: T) => unknown, reject?: (reason: unknown) => unknown) =>
-      Promise.resolve(value).then(resolve, reject),
-  };
-  return result;
-}
 
 describe("admin discipline page", () => {
   beforeEach(() => {
@@ -82,20 +48,33 @@ describe("admin discipline page", () => {
     vi.stubGlobal("React", React);
     seasonFindFirstMock.mockResolvedValue({ id: "season-1", name: "RivalHub Major 2027" });
     requireSeasonAdminMock.mockResolvedValue(mockUserSession({ role: "super_admin" }));
-    selectMock.mockImplementation(() => chain([{ id: "user-1", displayName: "玩家甲", steamName: null, email: "a@example.test" }]));
     getSeasonSanctionsMock.mockResolvedValue({
       success: true as const,
-      data: [
-        makeCase({
-          id: "case-1",
-          seasonId: "season-1",
-          subjectUserId: "user-1",
-          status: "active",
-          effects: ["registration_block", "roster_block"],
-          internalEvidence: "私密证据：聊天记录截图链接 https://internal.example/secret",
-          publicExplanation: "违反赛场行为规范",
-        }),
-      ],
+      data: {
+        rows: [
+          {
+            id: "case-1",
+            subjectUserId: "user-1",
+            subjectLabel: "玩家甲",
+            storedStatus: "active",
+            resolvedStatus: "active",
+            effects: ["registration_block", "roster_block"],
+            internalEvidence: "私密证据：聊天记录截图链接 https://internal.example/secret",
+            publicExplanation: "违反赛场行为规范",
+            effectiveFrom: "2026-08-01T00:00:00.000Z",
+            effectiveUntil: null,
+            revokedAt: null,
+            revocationReason: null,
+            createdAt: "2026-08-01T00:00:00.000Z",
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 25,
+        totalPages: 1,
+        normalizedQuery: { status: "active", sort: "newest", page: 1, pageSize: 25 },
+        hasAnyRecords: true,
+      },
     });
   });
 

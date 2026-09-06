@@ -1,33 +1,33 @@
 "use client";
 
-import { useTransition } from "react";
+import { useRef, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { grantCompetitionEntryRestrictionOverride, reviewCompetitionEntry, revokeCompetitionEntryRestrictionOverride } from "@/actions/competition-entries";
 import { presentCompetitionEntryRegistration } from "@/lib/competition-entries/presentation";
-import { Checklist, Panel, StatusBanner } from "@/components/rivalhub";
+import {
+  Checklist,
+  ClearFilters,
+  ListSearchField,
+  ListToolbar,
+  PaginationControls,
+  Panel,
+  ResultSummary,
+  StatusBanner,
+  type ListSearchFieldHandle,
+  useListQueryParams,
+} from "@/components/rivalhub";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { QualificationFinding } from "@/lib/qualification/service";
+import type { QualificationFinding } from "@/lib/qualification/finding";
+import {
+  TEAM_REGISTRATION_REVIEW_DEFAULTS,
+  type TeamRegistrationReviewQuery,
+  type TeamRegistrationReviewRow,
+} from "@/lib/registrations/admin-review-contract";
 
-type EntryStatus = "draft" | "submitted" | "changes_requested" | "waitlisted" | "approved" | "rejected" | "withdrawn";
-type ParticipantStatus = "invited" | "confirmed" | "declined" | "withdrawn";
-
-interface ReviewEntry {
-  id: string;
-  name: string;
-  source: "linked_team" | "event_native";
-  status: EntryStatus;
-  reviewReason: string | null;
-  perfectTeamId: string | null;
-  representativeName: string;
-  minRoster: number;
-  maxRoster: number;
-  starterCount: number;
-  qualificationBlockers: string[];
-  qualificationFindings: QualificationFinding[];
-  activeRestrictionOverrides: Array<{ id: string; restrictionCode: string; findingSnapshot: unknown; reason: string; grantedBy: string; grantedAt: string; snapshotMatches: boolean }>;
-  members: Array<{ participantId: string; userId: string; email: string; label: string; status: ParticipantStatus; primary: boolean; readiness?: { ready: boolean; blockers: string[]; findings: QualificationFinding[]; educationApproved: boolean } }>;
-}
+type ReviewEntry = TeamRegistrationReviewRow;
+type ParticipantStatus = ReviewEntry["members"][number]["status"];
 
 const PARTICIPANT_STATUS: Record<ParticipantStatus, string> = {
   invited: "被邀请待确认",
@@ -36,7 +36,55 @@ const PARTICIPANT_STATUS: Record<ParticipantStatus, string> = {
   withdrawn: "已退出",
 };
 
-export function CompetitionEntryReviewList({ entries }: { entries: ReviewEntry[] }) {
+const STATUS_OPTIONS = [
+  { value: "submitted", label: "待审核" },
+  { value: "approved", label: "已通过" },
+  { value: "waitlisted", label: "候补" },
+  { value: "changes_requested", label: "需补正" },
+  { value: "rejected", label: "未通过" },
+  { value: "withdrawn", label: "已撤回" },
+  { value: "all", label: "全部状态" },
+] as const;
+
+const QUALIFICATION_OPTIONS = [
+  { value: "all", label: "全部资格" },
+  { value: "ready", label: "资格已通过" },
+  { value: "blocked", label: "资格待处理" },
+] as const;
+
+const SORT_OPTIONS = [
+  { value: "oldest", label: "最早提交" },
+  { value: "newest_updated", label: "最近更新" },
+] as const;
+
+const SELECT_CLASS_NAME = "min-w-0 max-w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-panel-low)] px-3 py-2 text-sm text-[var(--color-fg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-border-focus)]";
+
+export function CompetitionEntryReviewList({
+  seasonSlug,
+  entries,
+  total,
+  page,
+  pageSize,
+  totalPages,
+  normalizedQuery,
+  hasAnyRecords,
+}: {
+  seasonSlug: string;
+  entries: ReviewEntry[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  normalizedQuery: TeamRegistrationReviewQuery;
+  hasAnyRecords: boolean;
+}) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { update } = useListQueryParams({
+    routeBase: `/admin/${seasonSlug}/registrations`,
+    defaults: TEAM_REGISTRATION_REVIEW_DEFAULTS,
+  });
+  const searchFieldRef = useRef<ListSearchFieldHandle>(null);
   const [pending, startTransition] = useTransition();
   const review = (entryId: string, decision: "approved" | "waitlisted" | "changes_requested" | "rejected") => {
     const reason = decision === "changes_requested" || decision === "rejected"
@@ -46,7 +94,10 @@ export function CompetitionEntryReviewList({ entries }: { entries: ReviewEntry[]
     startTransition(async () => {
       const result = await reviewCompetitionEntry({ entryId, decision, reason });
       if (!result.success) toast.error(result.error.message);
-      else toast.success(`报名状态已更新为${presentCompetitionEntryRegistration(decision).label}`);
+      else {
+        toast.success(`报名状态已更新为${presentCompetitionEntryRegistration(decision).label}`);
+        router.refresh();
+      }
     });
   };
 
@@ -57,7 +108,10 @@ export function CompetitionEntryReviewList({ entries }: { entries: ReviewEntry[]
     startTransition(async () => {
       const result = await grantCompetitionEntryRestrictionOverride({ entryId: entry.id, restrictionCode: finding.code, reason });
       if (!result.success) toast.error(result.error.message);
-      else toast.success("资格限制已解除并记录审计");
+      else {
+        toast.success("资格限制已解除并记录审计");
+        router.refresh();
+      }
     });
   };
 
@@ -65,13 +119,72 @@ export function CompetitionEntryReviewList({ entries }: { entries: ReviewEntry[]
     startTransition(async () => {
       const result = await revokeCompetitionEntryRestrictionOverride({ entryId: entry.id, restrictionCode: finding.code });
       if (!result.success) toast.error(result.error.message);
-      else toast.success("资格限制解除已撤销");
+      else {
+        toast.success("资格限制解除已撤销");
+        router.refresh();
+      }
     });
   };
 
-  if (entries.length === 0) return <StatusBanner tone="info" title="暂无赛事报名" sub="报名草稿创建后会显示在这里。" />;
+  const requestedStatus = searchParams.get("status");
+  const currentStatus = STATUS_OPTIONS.some((option) => option.value === requestedStatus)
+    ? requestedStatus as TeamRegistrationReviewQuery["status"]
+    : normalizedQuery.status;
+  const requestedQualification = searchParams.get("qualification");
+  const currentQualification = QUALIFICATION_OPTIONS.some((option) => option.value === requestedQualification)
+    ? requestedQualification as TeamRegistrationReviewQuery["qualification"]
+    : normalizedQuery.qualification;
+  const requestedSort = searchParams.get("sort");
+  const currentSort = SORT_OPTIONS.some((option) => option.value === requestedSort)
+    ? requestedSort as TeamRegistrationReviewQuery["sort"]
+    : normalizedQuery.sort;
 
-  return <div className="space-y-5">{entries.map((entry) => {
+  return <div className="space-y-5">
+    <ListToolbar className="items-start" aria-label="队伍报名搜索与筛选">
+      <ListSearchField
+        ref={searchFieldRef}
+        queryKey="q"
+        label="搜索队伍报名"
+        placeholder="队伍名 / 负责人姓名 / 邮箱…"
+        value={searchParams.get("q") ?? ""}
+        onDebouncedChange={(value) => update({ q: value })}
+        className="min-w-0 w-full flex-1 basis-full lg:basis-[36%]"
+      />
+      <label className="min-w-0 w-full flex-1 basis-full sm:basis-[calc(50%-0.75rem)] lg:basis-[20%]">
+        <span className="mb-1.5 block text-xs text-[var(--color-fg-mid)]">状态</span>
+        <select aria-label="队伍报名状态" value={currentStatus} onChange={(event) => update({ status: event.target.value })} className={SELECT_CLASS_NAME}>
+          {STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+      </label>
+      <label className="min-w-0 w-full flex-1 basis-full sm:basis-[calc(50%-0.75rem)] lg:basis-[20%]">
+        <span className="mb-1.5 block text-xs text-[var(--color-fg-mid)]">资格</span>
+        <select aria-label="队伍资格状态" value={currentQualification} onChange={(event) => update({ qualification: event.target.value })} className={SELECT_CLASS_NAME}>
+          {QUALIFICATION_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+      </label>
+      <label className="min-w-0 w-full flex-1 basis-full sm:basis-[calc(50%-0.75rem)] lg:basis-[16%]">
+        <span className="mb-1.5 block text-xs text-[var(--color-fg-mid)]">排序</span>
+        <select aria-label="队伍报名排序" value={currentSort} onChange={(event) => update({ sort: event.target.value })} className={SELECT_CLASS_NAME}>
+          {SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+      </label>
+      <ClearFilters
+        defaults={TEAM_REGISTRATION_REVIEW_DEFAULTS}
+        searchParams={searchParams}
+        onClear={(updates) => {
+          searchFieldRef.current?.reset();
+          update(updates);
+        }}
+      />
+    </ListToolbar>
+
+    {entries.length === 0 ? (
+      <StatusBanner
+        tone="info"
+        title={hasAnyRecords ? "没有符合当前筛选条件的报名" : "暂无赛事报名"}
+        sub={hasAnyRecords ? "请调整搜索、状态或资格筛选。" : "报名草稿创建后会显示在这里。"}
+      />
+    ) : <div className="space-y-5">{entries.map((entry) => {
     const confirmed = entry.members.filter((member) => member.status === "confirmed").length;
     const starters = entry.members.filter((member) => member.primary).length;
     const rosterReady = entry.members.length >= entry.minRoster && entry.members.length <= entry.maxRoster;
@@ -108,5 +221,14 @@ export function CompetitionEntryReviewList({ entries }: { entries: ReviewEntry[]
       ]} /></div>
       <div className="mt-4 grid gap-2 lg:grid-cols-2">{entry.members.map((member) => <div key={member.participantId} className="border border-[var(--color-border)] p-3 text-sm"><div className="flex flex-wrap items-center gap-2"><span className="font-medium">{member.label}</span><Badge variant="outline">{PARTICIPANT_STATUS[member.status]}</Badge>{member.primary && <Badge variant="outline">预定主力</Badge>}</div><p className="mt-1 text-xs text-[var(--color-fg-mid)]">学籍：{member.readiness?.educationApproved ? "已通过" : "待核验"} · 竞技档案：{member.readiness ? (member.readiness.ready ? "完整" : "存在未满足项") : "不要求或待审核核验"}</p>{member.readiness && !member.readiness.ready && <p className="mt-1 text-xs text-[var(--color-warn)]">{member.readiness.blockers.join("；")}</p>}</div>)}</div>
     </Panel>;
-  })}</div>;
+    })}</div>}
+    <div className="flex justify-between gap-3">
+      <ResultSummary total={total} page={page} pageSize={pageSize} totalPages={totalPages} />
+    </div>
+    <PaginationControls
+      page={page}
+      totalPages={totalPages}
+      onPageChange={(nextPage) => update({ page: nextPage }, { defaults: { page: 1 }, history: "push" })}
+    />
+  </div>;
 }

@@ -6,10 +6,14 @@ import type { RegistrationRow } from "@/components/admin/RegistrationReviewList"
 const {
   seasonFindFirstMock,
   selectMock,
+  normalizeSoloRegistrationReviewQueryMock,
+  getSoloRegistrationReviewMock,
   registrationReviewListMock,
 } = vi.hoisted(() => ({
   seasonFindFirstMock: vi.fn(),
   selectMock: vi.fn(),
+  normalizeSoloRegistrationReviewQueryMock: vi.fn(),
+  getSoloRegistrationReviewMock: vi.fn(),
   registrationReviewListMock: vi.fn((props: { registrations: RegistrationRow[] }) => (
     <div data-testid="registration-review-list">{JSON.stringify(props.registrations)}</div>
   )),
@@ -28,6 +32,13 @@ vi.mock("next/navigation", () => ({
   notFound: vi.fn(() => {
     throw new Error("NEXT_NOT_FOUND");
   }),
+}));
+
+vi.mock("@/lib/registrations/admin-review", () => ({
+  getSoloRegistrationReview: getSoloRegistrationReviewMock,
+  getTeamRegistrationReview: vi.fn(),
+  normalizeSoloRegistrationReviewQuery: normalizeSoloRegistrationReviewQueryMock,
+  normalizeTeamRegistrationReviewQuery: vi.fn(),
 }));
 
 vi.mock("@/components/admin/RegistrationReviewList", () => ({
@@ -52,7 +63,7 @@ describe("AdminRegistrationsPage projection boundary", () => {
     vi.stubGlobal("React", React);
   });
 
-  it("normalizes valid steamProfileUrl and strips invalid legacy URLs to null before passing to RegistrationReviewList", async () => {
+  it("passes the server-projected registration rows to RegistrationReviewList", async () => {
     seasonFindFirstMock.mockResolvedValue({
       id: "season-1",
       slug: "rivals-s1",
@@ -60,6 +71,7 @@ describe("AdminRegistrationsPage projection boundary", () => {
       status: "registration",
       teamRegistrationConfig: null,
       affiliationRules: null,
+      positions: [],
     });
 
     const mockRows = [
@@ -69,7 +81,7 @@ describe("AdminRegistrationsPage projection boundary", () => {
         createdAt: new Date("2026-09-01T00:00:00.000Z"),
         email: "valid@example.com",
         steam64: "76561198000000001",
-        steamProfileUrl: " https://steamcommunity.com/id/valid_player/?ref=steam#profile ",
+        steamProfileUrl: "https://steamcommunity.com/id/valid_player",
       },
       {
         id: "reg-legacy-invalid",
@@ -77,7 +89,7 @@ describe("AdminRegistrationsPage projection boundary", () => {
         createdAt: new Date("2026-09-02T00:00:00.000Z"),
         email: "legacy@example.com",
         steam64: "76561198000000002",
-        steamProfileUrl: "https://steamcommunity.com/profiles/76561198000000002/edit",
+        steamProfileUrl: null,
       },
       {
         id: "reg-attacker-bypass",
@@ -85,29 +97,39 @@ describe("AdminRegistrationsPage projection boundary", () => {
         createdAt: new Date("2026-09-03T00:00:00.000Z"),
         email: "attacker@example.com",
         steam64: "76561198000000003",
-        steamProfileUrl: "https://steamcommunity.com.attacker.example/id/evil",
+        steamProfileUrl: null,
       },
     ];
 
-    // db.select().from(seasonRegistrations).leftJoin(users).where(...).orderBy(...)
-    // db.select().from(registrationDrafts).where(...).orderBy(...)
-    selectMock
-      .mockReturnValueOnce({
-        from: vi.fn().mockReturnValue({
-          leftJoin: vi.fn().mockReturnValue({
-            where: vi.fn().mockReturnValue({
-              orderBy: vi.fn().mockResolvedValue(mockRows),
-            }),
-          }),
+    normalizeSoloRegistrationReviewQueryMock.mockReturnValue({
+      status: "pending",
+      position: undefined,
+      sort: "oldest",
+      page: 1,
+      pageSize: 25,
+    });
+    getSoloRegistrationReviewMock.mockResolvedValue({
+      rows: mockRows,
+      total: mockRows.length,
+      page: 1,
+      pageSize: 25,
+      totalPages: 1,
+      normalizedQuery: {
+        status: "pending",
+        position: undefined,
+        sort: "oldest",
+        page: 1,
+        pageSize: 25,
+      },
+      hasAnyRecords: true,
+    });
+    selectMock.mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          orderBy: vi.fn().mockResolvedValue([]),
         }),
-      })
-      .mockReturnValueOnce({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            orderBy: vi.fn().mockResolvedValue([]),
-          }),
-        }),
-      });
+      }),
+    });
 
     const page = await AdminRegistrationsPage({
       params: Promise.resolve({ seasonSlug: "rivals-s1" }),
@@ -119,11 +141,8 @@ describe("AdminRegistrationsPage projection boundary", () => {
       registrationReviewListMock.mock.calls[0][0].registrations;
 
     expect(passedRegistrations).toHaveLength(3);
-    // Valid URL canonicalized
     expect(passedRegistrations[0].steamProfileUrl).toBe("https://steamcommunity.com/id/valid_player");
-    // Invalid legacy URL normalized to null
     expect(passedRegistrations[1].steamProfileUrl).toBeNull();
-    // Attacker CodeQL bypass URL normalized to null
     expect(passedRegistrations[2].steamProfileUrl).toBeNull();
   });
 });
