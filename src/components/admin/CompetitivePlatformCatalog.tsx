@@ -231,7 +231,7 @@ export function CompetitivePlatformCatalog({ platforms }: { platforms: Platform[
 
       <Dialog open={Boolean(newSeason)} onOpenChange={(open) => { if (!open) setNewSeason(null); }}>
         {newSeason && newSeasonPlatform && (
-          <DialogContent className="max-w-lg">
+          <DialogContent size="md">
             <DialogHeader>
               <DialogTitle>新增历史赛季</DialogTitle>
               <DialogDescription>补录赛季目录并选择它在时间线中的位置。创建后不会自动成为当前赛季。</DialogDescription>
@@ -324,7 +324,7 @@ export function CompetitivePlatformCatalog({ platforms }: { platforms: Platform[
       </Dialog>
 
       <Dialog open={Boolean(confirmAction)} onOpenChange={(open) => { if (!open) setConfirmAction(null); }}>
-        {confirmAction && <DialogContent className="max-w-md">
+        {confirmAction && <DialogContent size="sm">
           <DialogHeader><DialogTitle>{confirmAction.kind === "set-current" ? "切换当前赛季" : "确认删除"}</DialogTitle><DialogDescription className="sr-only">请确认这项竞技平台目录操作。</DialogDescription></DialogHeader>
           <DialogBody>
               {confirmAction.kind === "set-current" ? (

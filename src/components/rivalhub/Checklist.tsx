@@ -34,7 +34,7 @@ export function Checklist({ items, className = "" }: { items: ChecklistItem[]; c
             </span>
             <span className="min-w-0">
               <span className="block text-sm font-medium text-[var(--color-fg)]">{item.label}</span>
-              {item.detail && <span className="mt-0.5 block break-words font-mono text-[11px] leading-5 text-[var(--color-fg-mid)]">{item.detail}</span>}
+              {item.detail && <span className="mt-0.5 block break-words font-sans text-sm leading-6 text-[var(--color-fg-secondary)]">{item.detail}</span>}
             </span>
           </>
         );

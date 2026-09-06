@@ -331,7 +331,7 @@ export function AdminRosterDialog({
           管理名单
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl">
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>
             名单管理 · {teamAName} vs {teamBName}

@@ -16,7 +16,8 @@ CS2 canonical position names 保持英文：`igl`、`awper`、`opener`、`closer
 
 | Token family | 用途 |
 |---|---|
-| `--color-bg` / `--color-panel*` | 页面与 Panel 层级 |
+| `--color-bg` / `--color-panel*` / `--color-surface-*` | 页面、Panel 与浮层层级 |
+| `--color-scrim` | Dialog 等 overlay 的页面遮罩 |
 | `--color-border*` | 静态与交互边框 |
 | `--color-fg*` | 正文、辅助信息、禁用信息 |
 | `--color-accent*` / `--color-accent-b*` | 主操作与对阵实体 |
@@ -28,8 +29,10 @@ CS2 canonical position names 保持英文：`igl`、`awper`、`opener`、`closer
 
 - `Panel.className` 只表达外层 surface 的几何、边框、宽度和交互；正文排版、间距与正文布局使用 `contentClassName`。`Panel` 不再接受数字 `pad`，避免同一组件存在两套 spacing API。
 - `PageHeader` 输出语义页面标题，可组合 eyebrow、description、status 与 actions；`SectionHeader`/`Section` 用于区块标题与垂直节奏。`Marker` 只保留给紧凑 tactical marker，不承担页面 heading。
-- `PageLayout` 统一页面 gutter，并提供 `narrow`、`standard`、`wide`、`workbench` 四种宽度变体。密集赛务页面使用 `workbench`，其父级不得用窄的固定 `max-width` 截断子工作台。
-- `DialogContent` 统一 viewport gutter、最大高度、surface、边框、focus 与 reduced-motion 基线；长内容放入 `DialogBody`，操作放入 `DialogFooter`，不在消费者重复实现滚动容器。
+- `PageLayout` 统一页面 gutter，并提供 `narrow`、`standard`、`wide`、`workbench` 四种宽度变体；默认输出 `div`，不嵌套根布局已经提供的 `main`。密集赛务页面使用 `workbench`，其父级不得用窄的固定 `max-width` 截断子工作台。
+- `DialogContent` 统一 viewport gutter、最大高度、surface、边框、focus 与 reduced-motion 基线，并用 `size="sm|md|lg|xl"` 管理宽度；长内容放入 `DialogBody`，操作放入 `DialogFooter`，不在消费者重复实现滚动容器或 max-width contract。
+- `--color-scrim` 只用于页面遮罩；Dialog/AlertDialog surface 使用 `--color-surface-floating`，遮罩与浮层不得共用同一语义 token。
+- `EmptyState`、`ErrorState`、`StatusBanner`、`Checklist`、`InlineConfirm` 和 `Spinner` 的解释/反馈文字使用 readable secondary text；10–11px mono 仅保留给 code、marker、ticker 和 compact metadata。
 
 颜色表达语义时必须同时提供文字、图标或结构性反馈；accent 不替代 success、warning 或 danger。字体、字号和字重至少区分页面标题、区块标题、正文、辅助信息与数据值。
 

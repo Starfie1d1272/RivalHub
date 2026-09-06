@@ -16,7 +16,7 @@ const AlertDialogOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AlertDialogPrimitive.Overlay
     className={cn(
-      "fixed inset-0 z-[var(--z-overlay)] bg-[var(--color-overlay)] motion-reduce:animate-none",
+      "fixed inset-0 z-[var(--z-overlay)] bg-[var(--color-scrim)] motion-reduce:animate-none",
       className,
     )}
     ref={ref}
@@ -34,7 +34,7 @@ const AlertDialogContent = React.forwardRef<
     <AlertDialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed left-1/2 top-1/2 z-[var(--z-overlay)] grid w-[calc(100%-2rem)] max-h-[calc(100dvh-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-sm border border-[var(--color-border-static)] bg-[var(--color-surface-overlay)] p-4 text-[var(--color-fg-primary)] shadow-lg duration-[var(--duration-normal)] ease-[var(--ease-tactical)] motion-reduce:animate-none sm:w-full sm:max-w-lg sm:p-6",
+        "fixed left-1/2 top-1/2 z-[var(--z-overlay)] grid w-[calc(100%-2rem)] max-h-[calc(100dvh-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-sm border border-[var(--color-border-static)] bg-[var(--color-surface-floating)] p-4 text-[var(--color-fg-primary)] shadow-lg duration-[var(--duration-normal)] ease-[var(--ease-tactical)] motion-reduce:animate-none sm:w-full sm:max-w-lg sm:p-6",
         className,
       )}
       {...props}

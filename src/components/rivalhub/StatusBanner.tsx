@@ -63,16 +63,9 @@ export function StatusBanner({
           {title}
         </div>
         {sub && (
-          <div
-            className="mt-0.5"
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: 11,
-              color: "var(--color-fg-mid)",
-            }}
-          >
+          <p className="mt-1 font-sans text-sm leading-6 text-[var(--color-fg-secondary)]">
             {sub}
-          </div>
+          </p>
         )}
       </div>
       {action && <div>{action}</div>}

@@ -54,7 +54,7 @@ export function GeneratePlayoffCard({ seasonId, stageKey, stageName, standings }
           <DialogTrigger asChild>
             <Button className="font-bold">生成{stageName}</Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md">
+          <DialogContent size="sm">
             <DialogHeader>
               <DialogTitle>确认生成{stageName}？</DialogTitle>
               <DialogDescription>请确认按当前积分榜生成{stageName}对阵。</DialogDescription>

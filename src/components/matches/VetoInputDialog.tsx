@@ -235,7 +235,7 @@ export function VetoInputDialog({
           录入 BP
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl">
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>
             BP 选图 · {teamAName} vs {teamBName}（{format.toUpperCase()}）

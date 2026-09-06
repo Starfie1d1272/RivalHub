@@ -138,7 +138,7 @@ export default async function AdminRegistrationsPage({ params }: PageProps) {
       };
     }));
     return (
-      <div className="container mx-auto max-w-3xl px-4 py-8">
+      <div className="max-w-3xl space-y-6">
         <PageHeader title={`赛事报名审核 · ${season.name}`} description={`${entries.length} 支报名队伍 · 赛季状态：${presentSeasonStatus(season.status).label}`} />
         <CompetitionEntryReviewList entries={reviewRows} />
       </div>
@@ -204,7 +204,7 @@ export default async function AdminRegistrationsPage({ params }: PageProps) {
   }));
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-3xl">
+    <div className="max-w-3xl space-y-6">
       <PageHeader title={`报名审核 · ${season.name}`} description={`${registrations.length} 份已提交 · ${drafts.length} 份草稿 · 赛季状态：${presentSeasonStatus(season.status).label}`} />
 
       <RegistrationReviewList registrations={registrations} />

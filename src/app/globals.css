@@ -25,12 +25,12 @@
   --color-panel: #10131a;
   --color-panel-hi: #161a24;
   --color-panel-low: #0d1016;
-  --color-overlay: rgba(3, 6, 10, 0.84);
+  --color-scrim: rgba(3, 6, 10, 0.84);
   --color-surface-page: var(--color-bg);
   --color-surface-panel: var(--color-panel);
   --color-surface-raised: var(--color-panel-hi);
   --color-surface-inset: var(--color-panel-low);
-  --color-surface-overlay: var(--color-overlay);
+  --color-surface-floating: var(--color-panel-hi);
 
   /* Borders */
   --color-border: #1f2530;

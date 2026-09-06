@@ -1,3 +1,4 @@
+import React from "react";
 import { Button } from "@/components/ui/button";
 
 interface ErrorStateProps {
@@ -40,17 +41,9 @@ export function ErrorState({
         {title}
       </div>
       {sub && (
-        <div
-          className="mt-2 mx-auto max-w-[460px] leading-relaxed"
-          style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: 11,
-            color: "var(--color-fg-mid)",
-            letterSpacing: "var(--tracking-ticker)",
-          }}
-        >
+        <p className="mx-auto mt-2 max-w-[460px] font-sans text-sm leading-6 text-[var(--color-fg-secondary)]">
           {sub}
-        </div>
+        </p>
       )}
       {onRetry && (
         <div className="mt-4.5 flex justify-center gap-2">

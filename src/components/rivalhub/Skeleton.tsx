@@ -1,3 +1,5 @@
+import React from "react";
+
 export function Spinner({
   size = 18,
   label,
@@ -17,14 +19,7 @@ export function Spinner({
         }}
       />
       {label && (
-        <span
-          style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: 11,
-            color: "var(--color-fg-mid)",
-            letterSpacing: "var(--tracking-label)",
-          }}
-        >
+        <span className="font-sans text-sm leading-5 text-[var(--color-fg-secondary)]">
           {label}
         </span>
       )}

@@ -72,7 +72,7 @@ export function CreateMatchForm({ seasonId, teams, stages }: CreateMatchFormProp
           新增比赛
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent size="sm">
         <DialogHeader>
           <DialogTitle>新增比赛</DialogTitle>
           <DialogDescription>手动创建一场比赛，不关联 Bracket 节点。</DialogDescription>

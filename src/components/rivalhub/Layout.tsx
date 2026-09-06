@@ -13,7 +13,7 @@ const PAGE_LAYOUT_WIDTHS: Record<PageLayoutVariant, string> = {
 interface PageLayoutProps extends HTMLAttributes<HTMLElement> {
   children: ReactNode;
   variant?: PageLayoutVariant;
-  as?: "main" | "div" | "section";
+  as?: "div" | "section";
 }
 
 /** Shared page gutter and width contract for public and operator workflows. */
@@ -21,7 +21,7 @@ export function PageLayout({
   children,
   className,
   variant = "standard",
-  as = "main",
+  as = "div",
   ...props
 }: PageLayoutProps) {
   const Component = as;
