@@ -1,3 +1,5 @@
+> PR 标题必须符合 `type(scope): 摘要`；`[2.x]` 仅用于 Issue
+
 ## 关联
 
 Refs #
