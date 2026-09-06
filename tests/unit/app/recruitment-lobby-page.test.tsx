@@ -9,7 +9,11 @@ const { getRecruitmentLobbyDataMock, getUserSessionMock } = vi.hoisted(() => ({
 }));
 
 vi.mock("next/image", () => ({ default: (props: React.ImgHTMLAttributes<HTMLImageElement>) => React.createElement("img", props) }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn(), replace: vi.fn(), push: vi.fn() }),
+  usePathname: () => "/teams/recruitment",
+  useSearchParams: () => new URLSearchParams(),
+}));
 vi.mock("@/db/client", () => ({ db: {} }));
 vi.mock("@/lib/auth/session", () => ({ getUserSession: getUserSessionMock }));
 vi.mock("@/lib/recruitment/data", () => ({
