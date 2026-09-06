@@ -9,16 +9,18 @@ import { Button } from "@/components/ui/button";
 import { formatCST } from "@/lib/utils/date";
 import type { EducationReviewRow } from "@/lib/education/admin-review-contract";
 
+export type EducationReviewEmptyState = "no-records" | "no-pending" | "no-results";
+
 interface EducationVerificationReviewQueueProps {
   rows: EducationReviewRow[];
-  hasAnyRecords: boolean;
+  emptyState: EducationReviewEmptyState;
 }
 
 function isChsiEvidenceType(evidenceType: string): boolean {
   return evidenceType === "chsi_enrollment_report" || evidenceType === "chsi_education_report";
 }
 
-export function EducationVerificationReviewQueue({ rows, hasAnyRecords }: EducationVerificationReviewQueueProps) {
+export function EducationVerificationReviewQueue({ rows, emptyState }: EducationVerificationReviewQueueProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -53,8 +55,8 @@ export function EducationVerificationReviewQueue({ rows, hasAnyRecords }: Educat
       {rows.length === 0 ? (
         <Panel contentClassName="p-0">
           <EmptyState
-            title={hasAnyRecords ? "当前筛选没有匹配结果" : "当前没有教育认证记录"}
-            sub={hasAnyRecords ? "可以调整搜索条件或清除筛选。" : "新的教育认证提交后会出现在这里。"}
+            title={emptyState === "no-records" ? "当前没有教育认证记录" : emptyState === "no-pending" ? "当前没有待审核认证" : "当前筛选没有匹配结果"}
+            sub={emptyState === "no-records" ? "新的教育认证提交后会出现在这里。" : emptyState === "no-pending" ? "可以切换状态查看历史审核记录。" : "可以调整搜索条件或清除筛选。"}
           />
         </Panel>
       ) : (

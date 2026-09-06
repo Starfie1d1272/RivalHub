@@ -50,9 +50,9 @@ export function useListQueryParams({ routeBase, defaults = {} }: ListQueryParams
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const latestSearchParamsRef = useRef(searchParams);
+  const latestSearchParamsRef = useRef(new URLSearchParams(searchParams.toString()));
   useEffect(() => {
-    latestSearchParamsRef.current = searchParams;
+    latestSearchParamsRef.current = new URLSearchParams(searchParams.toString());
   }, [searchParams]);
 
   const update = useCallback(
@@ -60,6 +60,7 @@ export function useListQueryParams({ routeBase, defaults = {} }: ListQueryParams
       const next = applyListQueryUpdates(latestSearchParamsRef.current, updates, {
         defaults: { ...defaults, ...options.defaults },
       });
+      latestSearchParamsRef.current = next;
       const base = routeBase ?? pathname ?? "/";
       const query = next.toString();
       const href = query ? `${base}?${query}` : base;

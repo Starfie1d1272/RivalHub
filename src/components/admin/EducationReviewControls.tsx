@@ -5,7 +5,6 @@ import {
   ClearFilters,
   ListSearchField,
   ListToolbar,
-  PaginationControls,
   ResultSummary,
   useListQueryParams,
 } from "@/components/rivalhub";
@@ -76,8 +75,8 @@ export function EducationReviewControls({
           queryKey="q"
           label="搜索认证记录"
           placeholder="姓名 / 邮箱 / 学校 / 在线验证码…"
-          defaults={EDUCATION_REVIEW_DEFAULTS}
-          routeBase={ROUTE_BASE}
+          value={searchParams.get("q") ?? ""}
+          onDebouncedChange={(value) => update({ q: value }, { defaults: EDUCATION_REVIEW_DEFAULTS })}
           className="min-w-0 w-full flex-1 basis-full lg:basis-[30%]"
         />
         <label className="min-w-0 w-full flex-1 basis-full sm:basis-[calc(50%-0.75rem)] lg:basis-[15%]">
@@ -132,7 +131,6 @@ export function EducationReviewControls({
         <ResultSummary total={total} page={page} pageSize={pageSize} totalPages={totalPages} />
       </div>
 
-      <PaginationControls page={page} totalPages={totalPages} routeBase={ROUTE_BASE} />
     </div>
   );
 }

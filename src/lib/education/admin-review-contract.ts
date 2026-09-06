@@ -11,7 +11,7 @@ export const EDUCATION_REVIEW_DEFAULTS = {
 } as const;
 
 export type EducationReviewFilterStatus = EducationVerificationStatus | "all";
-export type EducationReviewAcademic = "all" | "enrolled" | "graduated";
+export type EducationReviewAcademic = AcademicStatus | "all";
 export type EducationReviewSort = "oldest" | "newest" | "recently_reviewed";
 
 export interface EducationReviewQuery {

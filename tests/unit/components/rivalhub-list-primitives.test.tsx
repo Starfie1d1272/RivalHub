@@ -1,9 +1,9 @@
 /** @vitest-environment jsdom */
 import React from "react";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ClearFilters, ListSearchField, PaginationControls } from "@/components/rivalhub";
-import { applyListQueryUpdates } from "@/components/rivalhub/useListQueryParams";
+import { applyListQueryUpdates, useListQueryParams } from "@/components/rivalhub/useListQueryParams";
 
 const { pushMock, replaceMock, searchState } = vi.hoisted(() => ({
   pushMock: vi.fn(),
@@ -28,6 +28,23 @@ function setQuery(query = "") {
     get: (key: string) => values.get(key),
     toString: () => values.toString(),
   };
+}
+
+const TEST_QUERY_DEFAULTS = { status: "pending" } as const;
+
+function TestListController() {
+  const { searchParams, update } = useListQueryParams({ routeBase: "/admin/users", defaults: TEST_QUERY_DEFAULTS });
+  return (
+    <>
+      <ListSearchField
+        queryKey="q"
+        label="搜索用户"
+        value={searchParams.get("q") ?? ""}
+        onDebouncedChange={(value) => update({ q: value })}
+      />
+      <button type="button" onClick={() => update({ status: "approved" })}>切换状态</button>
+    </>
+  );
 }
 
 describe("shared list query mechanics", () => {
@@ -92,17 +109,18 @@ describe("shared list query mechanics", () => {
   it("debounces search and submits only the last value", () => {
     vi.useFakeTimers();
     try {
-      render(<ListSearchField queryKey="q" label="搜索用户" routeBase="/admin/users" />);
+      const onDebouncedChange = vi.fn();
+      render(<ListSearchField queryKey="q" label="搜索用户" value="" onDebouncedChange={onDebouncedChange} />);
       const input = screen.getByLabelText("搜索用户");
 
       fireEvent.change(input, { target: { value: "alice" } });
       fireEvent.change(input, { target: { value: "alice z" } });
       act(() => vi.advanceTimersByTime(299));
-      expect(replaceMock).not.toHaveBeenCalled();
+      expect(onDebouncedChange).not.toHaveBeenCalled();
       act(() => vi.advanceTimersByTime(1));
 
-      expect(replaceMock).toHaveBeenCalledTimes(1);
-      expect(replaceMock).toHaveBeenCalledWith("/admin/users?q=alice+z");
+      expect(onDebouncedChange).toHaveBeenCalledTimes(1);
+      expect(onDebouncedChange).toHaveBeenCalledWith("alice z");
     } finally {
       vi.useRealTimers();
     }
@@ -112,42 +130,28 @@ describe("shared list query mechanics", () => {
     vi.useFakeTimers();
     try {
       setQuery("status=pending");
-      const view = render(
-        <ListSearchField
-          queryKey="q"
-          label="搜索用户"
-          defaults={{ status: "pending" }}
-          routeBase="/admin/users"
-        />,
-      );
+      render(<TestListController />);
 
       fireEvent.change(screen.getByLabelText("搜索用户"), { target: { value: "alice" } });
-      setQuery("status=approved");
-      view.rerender(
-        <ListSearchField
-          queryKey="q"
-          label="搜索用户"
-          defaults={{ status: "pending" }}
-          routeBase="/admin/users"
-        />,
-      );
+      fireEvent.click(screen.getByRole("button", { name: "切换状态" }));
+      expect(replaceMock).toHaveBeenLastCalledWith("/admin/users?status=approved");
       act(() => vi.advanceTimersByTime(300));
 
-      expect(replaceMock).toHaveBeenCalledWith("/admin/users?status=approved&q=alice");
+      expect(replaceMock).toHaveBeenLastCalledWith("/admin/users?status=approved&q=alice");
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it("syncs the search input when URL state changes externally", async () => {
+  it("syncs the search input when URL state changes externally", () => {
     setQuery("q=old");
-    const view = render(<ListSearchField queryKey="q" label="搜索用户" routeBase="/admin/users" />);
+    const onDebouncedChange = vi.fn();
+    const view = render(<ListSearchField queryKey="q" label="搜索用户" value="old" onDebouncedChange={onDebouncedChange} />);
     expect(screen.getByLabelText("搜索用户")).toHaveValue("old");
 
-    setQuery("q=new");
-    view.rerender(<ListSearchField queryKey="q" label="搜索用户" routeBase="/admin/users" />);
+    view.rerender(<ListSearchField queryKey="q" label="搜索用户" value="new" onDebouncedChange={onDebouncedChange} />);
 
-    await waitFor(() => expect(screen.getByLabelText("搜索用户")).toHaveValue("new"));
+    expect(screen.getByLabelText("搜索用户")).toHaveValue("new");
   });
 
   it("disables pagination controls at the first and last page", () => {

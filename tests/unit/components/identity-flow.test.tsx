@@ -169,7 +169,7 @@ describe("identity flow UI", () => {
   });
 
   it("renders the admin review queue with a protected CHSI verification path", () => {
-    render(<EducationVerificationReviewQueue hasAnyRecords rows={[{ id: "11111111-1111-4111-8111-111111111111", email: "player@example.test", displayName: null, institution: "南京大学", code: "4132010284", academicStatus: "graduated", evidenceType: "chsi_education_report", evidenceCode: "ABCD1234EFGH5678", status: "pending", submittedAt: new Date().toISOString(), reviewNote: null }]} />);
+    render(<EducationVerificationReviewQueue emptyState="no-pending" rows={[{ id: "11111111-1111-4111-8111-111111111111", email: "player@example.test", displayName: null, institution: "南京大学", code: "4132010284", academicStatus: "graduated", evidenceType: "chsi_education_report", evidenceCode: "ABCD1234EFGH5678", status: "pending", submittedAt: new Date().toISOString(), reviewNote: null }]} />);
     const link = screen.getByRole("link", { name: /在学信网核验/ });
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
@@ -179,10 +179,23 @@ describe("identity flow UI", () => {
   });
 
   it("shows cleared CHSI evidence as a retention-policy state", () => {
-    render(<EducationVerificationReviewQueue hasAnyRecords rows={[{ id: "22222222-2222-4222-8222-222222222222", email: "player@example.test", displayName: null, institution: "南京大学", code: "4132010284", academicStatus: "graduated", evidenceType: "chsi_education_report", evidenceCode: null, status: "approved", submittedAt: new Date().toISOString(), reviewNote: null }]} />);
+    render(<EducationVerificationReviewQueue emptyState="no-results" rows={[{ id: "22222222-2222-4222-8222-222222222222", email: "player@example.test", displayName: null, institution: "南京大学", code: "4132010284", academicStatus: "graduated", evidenceType: "chsi_education_report", evidenceCode: null, status: "approved", submittedAt: new Date().toISOString(), reviewNote: null }]} />);
 
     expect(screen.getByText("在线验证码：已按保留策略清理")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "复制验证码" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /在学信网核验/ })).not.toBeInTheDocument();
+  });
+
+  it("distinguishes empty history, default pending, and active-filter states", () => {
+    const view = render(<EducationVerificationReviewQueue emptyState="no-records" rows={[]} />);
+    expect(screen.getByText("当前没有教育认证记录")).toBeInTheDocument();
+
+    view.rerender(<EducationVerificationReviewQueue emptyState="no-pending" rows={[]} />);
+    expect(screen.getByText("当前没有待审核认证")).toBeInTheDocument();
+    expect(screen.getByText("可以切换状态查看历史审核记录。")).toBeInTheDocument();
+
+    view.rerender(<EducationVerificationReviewQueue emptyState="no-results" rows={[]} />);
+    expect(screen.getByText("当前筛选没有匹配结果")).toBeInTheDocument();
+    expect(screen.getByText("可以调整搜索条件或清除筛选。")).toBeInTheDocument();
   });
 });

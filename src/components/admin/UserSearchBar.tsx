@@ -12,15 +12,18 @@ const FILTERS = [
 
 type UserFilter = (typeof FILTERS)[number]["key"];
 
+const QUERY_DEFAULTS = { q: "", filter: "all" } as const;
+
 export function UserSearchBar({ filter }: { filter: UserFilter }) {
-  const { update } = useListQueryParams({ routeBase: "/admin/users", defaults: { filter: "all" } });
+  const { searchParams, update } = useListQueryParams({ routeBase: "/admin/users", defaults: QUERY_DEFAULTS });
   return (
     <ListToolbar aria-label="用户搜索与筛选">
       <ListSearchField
         queryKey="q"
         label="搜索用户"
         placeholder="姓名 / 邮箱…"
-        routeBase="/admin/users"
+        value={searchParams.get("q") ?? ""}
+        onDebouncedChange={(value) => update({ q: value })}
         className="min-w-0 flex-1 basis-full md:basis-auto"
       />
       <div className="min-w-0">
@@ -32,14 +35,14 @@ export function UserSearchBar({ filter }: { filter: UserFilter }) {
               type="button"
               size="sm"
               variant={filter !== key ? "ghost" : "outline"}
-              onClick={() => update({ tab: "users", filter: key }, { defaults: { filter: "all" } })}
+              onClick={() => update({ tab: "users", filter: key })}
             >
               {label}
             </Button>
         ))}
         </div>
       </div>
-      <ClearFilters defaults={{ q: "", filter: "all" }} routeBase="/admin/users" />
+      <ClearFilters defaults={QUERY_DEFAULTS} routeBase="/admin/users" />
     </ListToolbar>
   );
 }

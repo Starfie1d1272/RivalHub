@@ -1,18 +1,17 @@
 "use client";
 
-import React, { useEffect, useRef, useState, type ChangeEvent } from "react";
+import React, { useEffect, useRef, type ChangeEvent } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils/cn";
-import { useListQueryParams, type ListQueryDefaults } from "./useListQueryParams";
 
 interface ListSearchFieldProps {
   queryKey: string;
   label: string;
   placeholder?: string;
+  value: string;
+  onDebouncedChange: (value: string) => void;
   debounceMs?: number;
-  routeBase?: string;
-  defaults?: ListQueryDefaults;
   id?: string;
   className?: string;
 }
@@ -25,21 +24,18 @@ export function ListSearchField({
   queryKey,
   label,
   placeholder,
+  value,
+  onDebouncedChange,
   debounceMs = 300,
-  routeBase,
-  defaults,
   id,
   className,
 }: ListSearchFieldProps) {
-  const { searchParams, update } = useListQueryParams({ routeBase, defaults });
-  const externalValue = searchParams.get(queryKey) ?? "";
-  const [localValue, setLocalValue] = useState(externalValue);
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const inputId = id ?? defaultId(queryKey);
 
   useEffect(() => {
-    setLocalValue(externalValue);
-  }, [externalValue]);
+    clearTimeout(timerRef.current);
+  }, [value]);
 
   useEffect(() => {
     return () => clearTimeout(timerRef.current);
@@ -47,9 +43,8 @@ export function ListSearchField({
 
   function handleChange(event: ChangeEvent<HTMLInputElement>) {
     const value = event.target.value;
-    setLocalValue(value);
     clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => update({ [queryKey]: value }, { defaults }), debounceMs);
+    timerRef.current = setTimeout(() => onDebouncedChange(value), debounceMs);
   }
 
   return (
@@ -60,7 +55,7 @@ export function ListSearchField({
       <Input
         id={inputId}
         type="search"
-        value={localValue}
+        value={value}
         onChange={handleChange}
         placeholder={placeholder}
         className="min-w-0 max-w-full"

@@ -112,8 +112,9 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, routeBase = 
           queryKey="actor"
           label="操作人"
           placeholder="用户 ID 或邮箱"
+          value={currentActor}
+          onDebouncedChange={(value) => update({ actor: value })}
           debounceMs={400}
-          routeBase={routeBase}
           className="w-full sm:flex-1 sm:basis-[calc(50%-0.75rem)] lg:basis-[30%]"
         />
 
