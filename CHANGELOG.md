@@ -1,5 +1,59 @@
 # Changelog
 
+## [2.5.0]
+
+RivalHub 2.5 完成了新一轮赛事竞技规则与界面基础设施收口。标准 Major 现在会统一比较 Perfect World 与 5E 等效竞技事实，并在报名开放时冻结本届实际采用的竞技证据；同时，Tactical Grid 的页面布局、面板、Dialog、移动端交互和视觉回归基线进一步统一，为后续公共赛事页面与管理工具提供稳定的 UI 基础。
+
+### Changed
+
+#### Major 跨平台竞技证据
+
+标准 Major 现在会在 Perfect World 的原始竞技事实与经过本届 ConversionPolicy 换算后的 5E 等效事实之间自动采用更高的有效实力。
+
+报名开放时，赛事会同时冻结本届的竞技上下文、换算策略和最终选中的证据来源。后续的资格判断、种子建议、开赛检查与比赛运行时继续读取同一组冻结事实，避免用户之后更新个人资料、平台赛季变化或全局换算策略调整影响已经开始运营的赛事。
+
+5E 数据继续转换到 Perfect World 的统一比较尺度，并保留原始平台、原始段位与星数、换算版本和最终采用来源。外校参赛限制也统一使用 Perfect 等效的历史最高竞技事实进行判断。
+
+#### Tactical Grid UI 基础设施
+
+全站 UI 基础 contract 进一步收口。语义色彩、Card / Panel、页面标题、正文与辅助信息层级、页面宽度、响应式布局以及 Dialog 交互现在使用统一规则。
+
+Panel 的外层 surface 与内容布局职责已经分开，页面标题使用明确的语义结构；普通内容页、管理页面和高密度工作台可以根据任务选择对应的布局宽度。Dialog 统一处理移动端 viewport、内容滚动、焦点恢复和 reduced motion，减少不同页面自行实现交互细节造成的差异。
+
+横向内容的提示也会根据真实滚动位置动态显示。没有溢出时不再出现多余渐隐提示，到达内容边缘后对应方向的提示会自动消失。
+
+#### 视觉验证基线
+
+UI system 增加稳定的视觉验证 contract，并基于现有 Playwright 建立首批 deterministic screenshot baseline，覆盖典型移动端、桌面端和已登录页面状态。
+
+高密度数据页面同时统一了数字对齐、缺失值、局部横向滚动和移动端主信息可读性的设计原则。后续赛事、统计和管理页面可以直接沿用这些基础规则。
+
+### Fixed
+
+#### 移动端导航与比赛页面
+
+修复移动端全局导航展开后的 Header 布局。窄屏菜单现在会完整占据独立区域，展开与收起状态也具有正确的可访问语义。
+
+修复 BO5 比赛详情中地图标签撑宽整个页面的问题。地图导航现在只在自身区域横向滚动，并保持当前选中地图清晰可见。
+
+优化 BP 编辑 Dialog 的移动端布局，步骤、字段和底部操作在窄屏下均可正常浏览和操作。
+
+#### BP 状态与赛事入口
+
+BP 数据读取失败时不会再显示为一份可编辑的空模板，也不能在错误状态下继续保存，从而避免读取异常被误当成真实的“尚未填写 BP”。
+
+赛事首页的报名入口现在严格跟随实际报名状态。报名尚未开放时不会提前显示可报名 CTA。
+
+#### 淘汰赛键盘操作
+
+公开淘汰赛 Bracket 中可进入的比赛节点现在支持键盘聚焦和 Enter 打开比赛详情，并提供明确的可访问链接名称，使键盘用户能够完成与鼠标一致的比赛浏览路径。
+
+### Reliability & Testing
+
+本版本为新的 UI foundation 增加组件级回归测试和 Playwright 视觉基线，并继续通过真实 PostgreSQL、Local Supabase、浏览器 E2E、静态检查与 production build 验证。
+
+Major 竞技证据仍沿用赛事冻结事实与既有 ConversionPolicy 体系，不修改已经冻结的历史赛事，也不会因为之后的全局策略变化重新解释既有比赛运行时。
+
 ## [2.4.1]
 
 ### Fixed
@@ -1751,6 +1805,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.5.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.4.1...v2.5.0
 [2.4.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.4.0...v2.4.1
 [2.4.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.2.4...v2.3.0
