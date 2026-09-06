@@ -1,55 +1,34 @@
-# CompetitionEntry 终态迁移与退役验收
+# CompetitionEntry 作为赛事参赛方唯一身份
 
-状态：已实施（2.x）
+**Status:** implemented
 
-## 终态
+## Context
 
-长期队伍只描述跨赛事持续存在的队伍关系。每次参赛由一条独立的参赛记录承担，比赛、赛段参赛方和赛后结果均指向该记录。
+旧模型同时存在 season-bound team/application/runtime team 等多层参赛方身份，导致长期 Team、报名、比赛和历史事实边界不清。Rivals 的赛事临时队伍又不一定对应真实长期 Team，因此不能把 Team 直接当作所有比赛的稳定 identity。
+
+## Decision
+
+`CompetitionEntry` 是一届赛事中的唯一参赛方身份，并从报名延续到比赛与历史：
 
 ```text
-长期队伍 → 参赛记录 → 赛事名单 → 赛段参赛方 / 比赛 → 本场阵容
+Long-lived Team (optional)
+→ CompetitionEntry
+→ Roster Revision
+→ EventRoster
+→ MatchRoster / Stage entrant / Match / Final result
 ```
 
-`CompetitionEntry` 是参赛方的唯一规范标识。它从报名草稿存续到历史查询；不会再在参赛记录之下生成另一层运行时队伍。
+人员事实保持分层：长期 Team membership、本届 participant confirmation、报名 revision、正式 EventRoster 与单场 MatchRoster 分别拥有自己的语义，互不替代。
 
-人员事实严格分层：
+Rivals 的赛事原生队伍使用 `teamId = null` 的 CompetitionEntry；不为历史选秀队伪造长期 Team。长期 Team 后续变更也不重写历史 CompetitionEntry 或 roster snapshot。
 
-| 事实 | Owner | 不可替代的含义 |
-| --- | --- | --- |
-| 长期队伍成员 | `team_memberships` | 跨赛事的队伍归属和队长关系 |
-| 本届参赛承诺 | `competition_entry_participants` | 是否确认参加这一届赛事 |
-| 报名版本 | `competition_entry_roster_revisions` / `competition_entry_roster_members` | 可审核、可补正的报名内容 |
-| 赛事名单 | `event_rosters` / `event_roster_members` | 已冻结的资格与名单事实 |
-| 本场阵容 | `match_rosters` / `match_roster_players` | 本场实际出场人员 |
+## Consequences
 
-因此，本场阵容只关联 `event_roster_members`，不会回退依赖可变的报名成员或长期队伍成员。
+- 比赛、阶段参与方、赛后结果和历史查询都可以稳定引用同一个 Entry identity。
+- MatchRoster 只消费本届 EventRoster，不回退到可变 Team membership 或报名草稿。
+- 长期 Team 与赛事快照可以独立演进，同时保留明确互链。
+- 迁移 provenance 只用于历史来源追溯，不构成运行时兼容 API 或第二个参赛方 owner。
 
-## 存量转换
+## Migration note
 
-迁移 `0017_broad_doctor_octopus` 在一个事务内锁定并重命名旧表、建立新表、回填外键、验证无未映射事实，最后删除旧表。
-
-- 2026 Spring Rivals 的旧 `teams.id` 复用为 `event_native CompetitionEntry.id`；不创建长期队伍。原队名、队长、成员、对阵和赛果随参赛记录与赛事名单保留。
-- Major 的 `team_application.id = A → teams.id = B` 使用 `A` 作为唯一 `CompetitionEntry.id`，`B` 仅通过 `competition_entry_legacy_identities` 记录来源；如需长期队伍，使用 `B` 作为新长期 Team 的保留 ID。ID 保留服务于迁移，绝不引入第二个参赛方 ID。
-- `matches`、`major_stage_entrants`、`major_prestart_entrants`、Swiss standings、选秀、地图 veto、赛后裁决与荣誉均回填为 Entry 外键；历史阵容成员回填为 `event_roster_members`。
-
-## 退役计划与验收条件
-
-迁移完成即满足以下条件：
-
-1. active schema 不存在 `team_members`、`team_applications`、`team_application_members`、`team_application_active_claims` 或 `major_prestart_roster_members`。
-2. active schema 不存在任何 `runtime_team_id`，且所有比赛参赛方外键为 `entry_a_id` / `entry_b_id`。
-3. 每个历史 Match、StageEntrant、预开赛 entrant 和 roster player 均有可解析的 Entry 或赛事名单成员；发现缺失映射即让迁移失败并回滚。
-4. 新建长期队伍不会自动成为任一赛事参赛方；每届赛事均须创建独立报名记录。
-5. Data API 对新旧敏感表均默认拒绝，业务读写只通过服务器端流程。
-
-可复核命令：
-
-```bash
-pnpm db:check
-pnpm db:local:reset
-pnpm db:local:verify-migrations
-pnpm test:integration
-pnpm test
-```
-
-旧 ID 映射表只用于历史来源追溯、审计和迁移核对，不是运行时兼容 API。下一次数据保留期审查应确认无外部消费者后，按数据保留政策清理该 provenance 记录；不会恢复旧运行时表或写入路径。
+2.x 的 terminal migration 已完成旧 application/season team/runtime identity 的回填与退役，并对历史 Rivals/Major facts 保留可解析的 CompetitionEntry/EventRoster identity。精确 migration 与当前 schema 以 active migration ledger、schema 和 integration tests 为准，不在本 decision 重复维护旧表清单或验收命令。

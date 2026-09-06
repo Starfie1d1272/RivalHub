@@ -1,31 +1,32 @@
 # RivalHub Agent 入口
 
-RivalHub 是基于 Next.js App Router、TypeScript、Drizzle/PostgreSQL、Supabase、Vitest 与 Playwright 的高校电竞赛事管理平台，包含 Rivals 与 Major 两套内置赛事体系。
+RivalHub 是基于 Next.js App Router、TypeScript、Drizzle/PostgreSQL、Supabase、Vitest 与 Playwright 的高校电竞赛事管理平台。
 
 ## 先定位 authority
 
-- 文档索引与冲突处理：[`docs/README.md`](docs/README.md)。赛事政策在 `docs/rules/`，当前实现以 code/schema/active migrations/tests 为准，已接受未实现设计在 `docs/decisions/`，历史材料在 `docs/archive/`。
-- 架构、public/server boundary 与稳定代码域：[`docs/architecture.md`](docs/architecture.md)；领域实体和 owner：[`docs/domain-model.md`](docs/domain-model.md)。
-- 测试分层与 CI 证据：[`docs/testing.md`](docs/testing.md)；环境、迁移和发布安全：[`docs/deployment.md`](docs/deployment.md)。分支、Issue、PR、Changeset 与 release 协作：[`CONTRIBUTING.md`](CONTRIBUTING.md)。
-- 修改前先搜索现有 canonical owner。相同的 transition、derived fact、formatter 或验证规则只能有一个业务 owner；transport 或展示层复用它，不建立平行实现。
+- 文档入口与冲突处理：[`docs/README.md`](docs/README.md)。当前实现以 code/schema/active migrations/tests 为准；赛事政策在 `docs/rules/`，durable rationale 在 `docs/decisions/`，历史材料在 `docs/archive/`。
+- 架构边界：[`docs/architecture.md`](docs/architecture.md)；领域事实 ownership：[`docs/domain-model.md`](docs/domain-model.md)；生命周期：[`docs/workflows.md`](docs/workflows.md)。
+- 测试证据：[`docs/testing.md`](docs/testing.md)；环境/迁移/release：[`docs/deployment.md`](docs/deployment.md) 与 `docs/operations/`；协作规则：[`CONTRIBUTING.md`](CONTRIBUTING.md)。
+- 修改前先搜索 canonical owner。相同 transition、derived fact、validation、formatter 或 query/domain rule 只能有一个业务 owner；transport/presentation 复用它。
 
-## 跨域 contract
+## Cross-domain contract
 
-- entrypoint 校验不可信输入并完成服务端鉴权；公开 RSC payload 和 Client props 使用明确 projection/DTO，不序列化内部查询对象或 secret。
-- 数据库、secret、privileged SDK 与 persistence owner 保持 server-only；Client Component 按真实 browser/runtime 需求使用并尽量缩小 client graph。
-- active Drizzle migration chain 是唯一 schema authority；local、staging、production 严格隔离，禁止用 `db:push` 绕过 active chain。
-- 管理员或其它特权状态变更形成 audit fact，并尽可能与业务 mutation 处在同一一致性边界。
-- 第三方或特殊运行时通过 canonical adapter/contract 接入；`brackets-manager` 只能经 `@/lib/bracket`，新增 Realtime 或 direct Supabase surface 必须同时定义权限、RLS/GRANT、一致性语义和正反例测试。
-- runtime structured logs、错误分类与 tracing 只由 `src/lib/observability/` canonical owner 提供；Next server code 经带 `server-only` 的 `@/lib/observability/server` facade 访问，`src/db/client-runtime.ts` 是显式 Node application/CLI exception；`audit_logs` 仍只记录业务事实。Better Stack 仅使用 `BETTER_STACK_SOURCE_TOKEN` 与 `BETTER_STACK_INGESTING_HOST`，新增事件/span 或排障步骤先遵循 [`docs/operations/observability.md`](docs/operations/observability.md)。
+- entrypoint 校验不可信输入并完成 server-side authorization；public RSC payload / Client props 使用明确 DTO/read model，不序列化 internal query object 或 secret。
+- DB、secret、privileged SDK 与 persistence owner 保持 server-only。新增 direct Supabase Data API/Realtime surface 必须同时定义 consumer、GRANT/RLS、一致性语义和正反例测试。
+- active Drizzle migration chain 是唯一 schema evolution path；local/staging/production 严格隔离，禁止 `db:push` 或手工 remote patch 建立第二条路径。
+- privileged mutation 保留 audit fact；runtime logs/traces 由 `src/lib/observability/` 独立拥有，见 [`docs/operations/observability.md`](docs/operations/observability.md)。
+- third-party runtime 通过 canonical adapter 接入；例如 `brackets-manager` 只能经 `@/lib/bracket`。
+- frozen event/runtime facts 不从 mutable profile、catalog 或 presentation 重新解释。
 
-这些是跨域性质级约束，不是当前实现枚举：first-party UI mutation 通常使用 Server Action，但 HTTP/protocol integration 可以使用 Route Handler；Client Component、Realtime surface 和 transaction service 按实际 runtime 与 domain owner 判断。Draft locking/idempotency、capability 及具体 Realtime allowlist 由对应 domain docs/tests 维护。
+## Documentation changes
 
-## 验证入口
+变更稳定 boundary、workflow、policy 或 shared UI contract 时，同 PR 更新其 canonical doc。**重写被影响段落的终态，不在旧说明后继续追加实施过程或“后来又……”的补丁。** 能从 code/config/Issue 直接得到的高频变化事实不复制进 active docs。
 
-按变更风险选择最小证据；完整矩阵见 [`docs/testing.md`](docs/testing.md)。常用入口为 `pnpm type-check`、`pnpm lint`、`pnpm test`、`pnpm db:check`、`pnpm knip`、`pnpm knip --production` 与 `pnpm verify`。提交前检查完整 diff、未跟踪文件、敏感信息和临时产物。
+## Validation
 
-协作流程、changeset 判断、PR closure 语义与 release 操作不在本文件重复维护；以 `CONTRIBUTING.md` 为准。`CLAUDE.md` 只引用本文件，不建立平行规则集。
-- Agent 创建或修改 PR 时必须遵守 `CONTRIBUTING.md` 中的 PR title contract。
+按风险选择 [`docs/testing.md`](docs/testing.md) 中的最小 evidence。常用入口：`pnpm type-check`、`pnpm lint`、`pnpm test`、`pnpm db:check`、`pnpm knip`、`pnpm knip --production`、`pnpm verify`。提交前检查完整 diff、未跟踪文件、敏感信息和临时产物。
+
+PR title、Changeset、closure 与 release 语义只由 `CONTRIBUTING.md` 维护。`CLAUDE.md` 只引用本文件，不建立平行规则集。
 
 <!-- BEGIN:nextjs-agent-rules -->
 

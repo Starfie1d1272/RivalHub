@@ -1,72 +1,53 @@
 # RivalHub 部署与环境边界
 
-本文档描述 RivalHub 2.x 的稳定环境模型和发布边界。它不是第三方 self-hosting 教程，也不复制具体 workflow 中已经固定的 project ID、host、secret 名称或实现细节。
-
-## 2.x deployment scope
-
-RivalHub 2.x 的正式运维目标是官方实例。仓库支持本地开发和验证，但不承诺第三方 production self-hosting、通用安装器或跨云部署兼容性。
-
-当前官方运行栈以 Vercel + Supabase/PostgreSQL 为基础。具体 provider 配置由受保护的仓库 workflow、runtime environment 和 canonical scripts 管理。
+本文件定义稳定环境模型；具体命令见 [`operations/`](./operations/)。RivalHub 2.x 优先服务官方实例，不承诺第三方 production self-hosting。
 
 ## Environments
 
-| 环境 | 主要用途 | 数据边界 |
+| 环境 | 用途 | 写入边界 |
 | --- | --- | --- |
-| **local** | 开发、migration replay、integration、browser E2E | 只允许 loopback Local Supabase/PostgreSQL |
-| **preview** | PR / branch 的应用预览 | 不是 staging 数据库授权，不应获得远程写权限 |
-| **staging** | 受保护的远程 migration / schema rehearsal | 独立远程数据库，只通过受保护 workflow 访问 |
-| **production** | 正式赛事与真实用户 | 只执行正式发布和真实运营所需操作 |
+| local | 开发、migration replay、integration、E2E | 只允许 loopback Local Supabase/PostgreSQL |
+| preview | PR / branch 应用预览 | 不获得 staging/production 数据库写权限 |
+| staging | 远程 migration/schema rehearsal | 仅受保护 workflow |
+| production | 正式赛事与真实用户 | 仅正式 release path |
 
-最重要的边界是：**Preview ≠ staging authorization，main merge ≠ production deployment。**
+核心原则：**Preview ≠ staging authorization；main merge ≠ production deployment。**
 
 ## Release identity
 
-`main` 是唯一长期 integration / releasable trunk，但普通 `main` merge 只表示代码已经进入可发布基线。
+`main` 是唯一长期 releasable trunk；不可移动的 `vX.Y.Z` tag 才是 shipped production identity。正式发布围绕同一个 tag commit 完成 migration、verify、exact-source deployment、smoke 与 GitHub Release；失败时重试同一安全步骤，不移动已公开 tag。
 
-正式 production identity 是不可移动的 `vX.Y.Z` tag。release workflow 必须从同一个 tag commit 完成：
-
-```text
-exact release tag
-→ validate migration chain / compatibility
-→ migrate + verify production database
-→ deploy exact tag commit
-→ smoke
-→ publish/update GitHub Release metadata
-```
-
-任何一步失败都应围绕同一个 tag 安全重试，而不是临时从另一个 commit 继续发布。
+执行流程见 [`operations/release.md`](./operations/release.md)。
 
 ## Database authority
 
-- `drizzle/migrations/` 是 active migration chain；
-- `drizzle/legacy-migrations/` 只保留历史；
-- `pnpm db:push` 被显式阻止；
-- RLS、grant、trigger、policy、custom SQL 与 data backfill 都必须进入 active migration；
-- remote schema change 只能通过受保护的 staging / production wrapper 执行。
+- `src/db/schema/`：当前应用 schema；
+- `drizzle/migrations/`：active migration ledger；
+- `drizzle/legacy-migrations/`：历史只读；
+- `pnpm db:push`：禁止。
 
-Schema evolution 默认遵循 **expand → deploy → contract**。会让上一稳定版本失去兼容性的 contract cleanup，必须等旧应用不再依赖对应 owner 后再进入后续 release。
+RLS、GRANT、trigger、policy、backfill 和 custom SQL 都进入 active migration。schema evolution 默认遵守 expand → deploy → contract；会破坏上一稳定应用兼容性的 cleanup 必须等待旧 owner 不再被 shipped version 依赖。
 
-Migration 的具体开发流程见 [`operations/database-migrations.md`](./operations/database-migrations.md)。
+迁移开发见 [`operations/database-migrations.md`](./operations/database-migrations.md)。
 
 ## Remote write policy
 
-本地命令不应从 `.env.local` 静默继承远程数据库作为 fallback。远程写入必须同时满足：
+远程写入必须同时具备：
 
-1. 明确的 target environment；
-2. 受保护 workflow / environment；
-3. canonical wrapper 对目标进行 fail-closed 校验；
+1. 明确 target environment；
+2. 受保护 workflow/environment；
+3. canonical wrapper 的 fail-closed target 校验；
 4. 显式 remote-write authorization；
-5. migration / verify / smoke 按固定顺序执行。
+5. 固定 migrate/verify/deploy/smoke 顺序。
 
-不要在普通 shell、PR Preview、手工 SQL console 或裸 Drizzle CLI 中绕过这些边界。
+普通本地 shell、Vercel Preview、Dashboard 手工 patch 或裸 Drizzle CLI 都不是 production/staging write path。本地工具也不能从 `.env.local` 静默 fallback 到远程数据库。
 
 ## Operations
 
-具体执行步骤拆分到：
+- 本地环境：[`operations/local-development.md`](./operations/local-development.md)
+- migration：[`operations/database-migrations.md`](./operations/database-migrations.md)
+- staging：[`operations/staging.md`](./operations/staging.md)
+- release：[`operations/release.md`](./operations/release.md)
+- 测试证据：[`testing.md`](./testing.md)
 
-- [`operations/local-development.md`](./operations/local-development.md)：本地环境；
-- [`operations/database-migrations.md`](./operations/database-migrations.md)：migration 开发与验证；
-- [`operations/staging.md`](./operations/staging.md)：受保护 staging rehearsal；
-- [`operations/release.md`](./operations/release.md)：正式发布。
-
-测试证据模型见 [`testing.md`](./testing.md)，协作和 release branch 规则见 [`../CONTRIBUTING.md`](../CONTRIBUTING.md)。
+provider project ID、host、secret 和 workflow 具体实现由受保护配置/代码拥有，不在本文件复制。
