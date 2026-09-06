@@ -1788,7 +1788,7 @@ async function exerciseStartFailureBoundaries(context: MajorLifecycleContext): P
     }
 }
 
-describe.sequential("Major lifecycle PostgreSQL invariants", () => {
+describe("Major lifecycle PostgreSQL invariants", { concurrent: false }, () => {
   let context: MajorLifecycleContext;
 
   beforeAll(async () => {
