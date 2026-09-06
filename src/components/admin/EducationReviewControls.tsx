@@ -1,13 +1,12 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
 import {
   ClearFilters,
   ListSearchField,
   ListToolbar,
   ResultSummary,
-  useListQueryParams,
 } from "@/components/rivalhub";
+import type { ListQuerySearchParams, ListQueryUpdate } from "@/components/rivalhub/useListQueryParams";
 import {
   EDUCATION_REVIEW_DEFAULTS,
   type EducationReviewAcademic,
@@ -15,8 +14,6 @@ import {
   type EducationReviewQuery,
   type EducationReviewSort,
 } from "@/lib/education/admin-review-contract";
-
-const ROUTE_BASE = "/admin/education-verifications";
 
 const STATUS_OPTIONS: { value: EducationReviewFilterStatus; label: string }[] = [
   { value: "pending", label: "待审核" },
@@ -46,6 +43,8 @@ interface EducationReviewControlsProps {
   totalPages: number;
   institutionOptions: { id: string; name: string }[];
   normalizedQuery: EducationReviewQuery;
+  searchParams: ListQuerySearchParams;
+  update: ListQueryUpdate;
 }
 
 function selectValue<T extends string>(value: string | null, options: readonly { value: T; label: string }[], fallback: T): T {
@@ -59,9 +58,9 @@ export function EducationReviewControls({
   totalPages,
   institutionOptions,
   normalizedQuery,
+  searchParams,
+  update,
 }: EducationReviewControlsProps) {
-  const searchParams = useSearchParams();
-  const { update } = useListQueryParams({ routeBase: ROUTE_BASE, defaults: EDUCATION_REVIEW_DEFAULTS });
   const currentStatus = selectValue(searchParams.get("status"), STATUS_OPTIONS, normalizedQuery.status);
   const currentAcademic = selectValue(searchParams.get("academic"), ACADEMIC_OPTIONS, normalizedQuery.academic);
   const currentSort = selectValue(searchParams.get("sort"), SORT_OPTIONS, normalizedQuery.sort);
@@ -124,7 +123,11 @@ export function EducationReviewControls({
             {SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
         </label>
-        <ClearFilters defaults={EDUCATION_REVIEW_DEFAULTS} routeBase={ROUTE_BASE} />
+        <ClearFilters
+          defaults={EDUCATION_REVIEW_DEFAULTS}
+          searchParams={searchParams}
+          onClear={(updates) => update(updates, { defaults: EDUCATION_REVIEW_DEFAULTS })}
+        />
       </ListToolbar>
 
       <div className="flex items-center justify-between gap-3">

@@ -42,7 +42,11 @@ export function UserSearchBar({ filter }: { filter: UserFilter }) {
         ))}
         </div>
       </div>
-      <ClearFilters defaults={QUERY_DEFAULTS} routeBase="/admin/users" />
+      <ClearFilters
+        defaults={QUERY_DEFAULTS}
+        searchParams={searchParams}
+        onClear={(updates) => update(updates)}
+      />
     </ListToolbar>
   );
 }

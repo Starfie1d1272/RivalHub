@@ -1,7 +1,7 @@
-import { EducationReviewControls } from "@/components/admin/EducationReviewControls";
-import { EducationVerificationReviewQueue, type EducationReviewEmptyState } from "@/components/admin/EducationVerificationReviewQueue";
+import { EducationReviewWorkspace } from "@/components/admin/EducationReviewWorkspace";
+import { type EducationReviewEmptyState } from "@/components/admin/EducationVerificationReviewQueue";
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
-import { ErrorState, PageHeader, PageLayout, PaginationControls } from "@/components/rivalhub";
+import { ErrorState, PageHeader, PageLayout } from "@/components/rivalhub";
 import { requireSuperAdmin } from "@/lib/auth/session";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import { getEducationReviewQueue, normalizeEducationReviewQuery } from "@/lib/education/admin-review";
@@ -58,16 +58,7 @@ export default async function EducationVerificationsAdminPage({ searchParams }: 
         title="教育身份认证审核"
         description="仅在学信网官方页面人工核对；申请人声明学校不一致时请驳回，不要修改其学校。"
       />
-      <EducationReviewControls
-        total={queue.total}
-        page={queue.page}
-        pageSize={queue.pageSize}
-        totalPages={queue.totalPages}
-        institutionOptions={queue.institutionOptions}
-        normalizedQuery={queue.normalizedQuery}
-      />
-      <EducationVerificationReviewQueue rows={queue.rows} emptyState={emptyState} />
-      <PaginationControls page={queue.page} totalPages={queue.totalPages} routeBase="/admin/education-verifications" />
+      <EducationReviewWorkspace queue={queue} emptyState={emptyState} />
     </PageLayout>
   );
 }

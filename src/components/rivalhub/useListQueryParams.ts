@@ -7,10 +7,16 @@ export type ListQueryValue = string | number | boolean | null | undefined;
 export type ListQueryUpdates = Record<string, ListQueryValue>;
 export type ListQueryDefaults = Readonly<Record<string, ListQueryValue>>;
 
+export interface ListQuerySearchParams {
+  get(key: string): string | null;
+}
+
 export interface ListQueryUpdateOptions {
   defaults?: ListQueryDefaults;
   history?: "replace" | "push";
 }
+
+export type ListQueryUpdate = (updates: ListQueryUpdates, options?: ListQueryUpdateOptions) => void;
 
 export interface ListQueryParamsOptions {
   routeBase?: string;

@@ -20,6 +20,13 @@ interface Props {
 }
 
 const PAGE_SIZE = 50;
+const AUDIT_QUERY_DEFAULTS = {
+  action: "",
+  actor: "",
+  seasonId: "",
+  dateFrom: "",
+  dateTo: "",
+} as const;
 const ACTION_FILTER_OPTIONS = getAuditActionFilterOptions();
 const ACTION_FILTER_GROUPS = ACTION_FILTER_OPTIONS.reduce<Array<{ label: string; options: typeof ACTION_FILTER_OPTIONS }>>((groups, option) => {
   const group = groups.find((candidate) => candidate.label === option.categoryLabel);
@@ -29,7 +36,7 @@ const ACTION_FILTER_GROUPS = ACTION_FILTER_OPTIONS.reduce<Array<{ label: string;
 }, []);
 
 export function AuditLogTable({ initialLogs, initialTotal, seasons, routeBase = "/admin/logs", seasonScopeId }: Props) {
-  const { searchParams, update } = useListQueryParams({ routeBase });
+  const { searchParams, update } = useListQueryParams({ routeBase, defaults: AUDIT_QUERY_DEFAULTS });
   const [isPending, startTransition] = useTransition();
 
   const [logs, setLogs] = useState(initialLogs);
@@ -162,7 +169,11 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, routeBase = 
             />
           </div>
         </div>
-        <ClearFilters defaults={{ action: "", actor: "", seasonId: "", dateFrom: "", dateTo: "" }} routeBase={routeBase} />
+        <ClearFilters
+          defaults={AUDIT_QUERY_DEFAULTS}
+          searchParams={searchParams}
+          onClear={(updates) => update(updates)}
+        />
       </ListToolbar>
 
       {loadError && (
@@ -227,7 +238,11 @@ export function AuditLogTable({ initialLogs, initialTotal, seasons, routeBase = 
         </table>
       </div>
 
-      <PaginationControls page={currentPage} totalPages={totalPages} routeBase={routeBase} />
+      <PaginationControls
+        page={currentPage}
+        totalPages={totalPages}
+        onPageChange={(page) => update({ page }, { defaults: { page: 1 }, history: "push" })}
+      />
     </div>
   );
 }

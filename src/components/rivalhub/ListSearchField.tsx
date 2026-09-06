@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, type ChangeEvent } from "react";
+import React, { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils/cn";
@@ -31,9 +31,11 @@ export function ListSearchField({
   className,
 }: ListSearchFieldProps) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const [localValue, setLocalValue] = useState(value);
   const inputId = id ?? defaultId(queryKey);
 
   useEffect(() => {
+    setLocalValue(value);
     clearTimeout(timerRef.current);
   }, [value]);
 
@@ -42,9 +44,10 @@ export function ListSearchField({
   }, []);
 
   function handleChange(event: ChangeEvent<HTMLInputElement>) {
-    const value = event.target.value;
+    const nextValue = event.target.value;
+    setLocalValue(nextValue);
     clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => onDebouncedChange(value), debounceMs);
+    timerRef.current = setTimeout(() => onDebouncedChange(nextValue), debounceMs);
   }
 
   return (
@@ -55,7 +58,7 @@ export function ListSearchField({
       <Input
         id={inputId}
         type="search"
-        value={value}
+        value={localValue}
         onChange={handleChange}
         placeholder={placeholder}
         className="min-w-0 max-w-full"

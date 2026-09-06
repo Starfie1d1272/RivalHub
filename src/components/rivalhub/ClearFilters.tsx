@@ -2,12 +2,18 @@
 
 import React from "react";
 import { Button } from "@/components/ui/button";
-import { useListQueryParams, type ListQueryDefaults, type ListQueryValue } from "./useListQueryParams";
+import type {
+  ListQueryDefaults,
+  ListQuerySearchParams,
+  ListQueryUpdates,
+  ListQueryValue,
+} from "./useListQueryParams";
 
 interface ClearFiltersProps {
   defaults?: ListQueryDefaults;
   keys?: readonly string[];
-  routeBase?: string;
+  searchParams: ListQuerySearchParams;
+  onClear: (updates: ListQueryUpdates) => void;
   label?: string;
 }
 
@@ -15,8 +21,7 @@ function normalized(value: ListQueryValue): string | undefined {
   return value === null || value === undefined || value === "" ? undefined : String(value);
 }
 
-export function ClearFilters({ defaults = {}, keys, routeBase, label = "清除筛选" }: ClearFiltersProps) {
-  const { searchParams, update } = useListQueryParams({ routeBase, defaults });
+export function ClearFilters({ defaults = {}, keys, searchParams, onClear, label = "清除筛选" }: ClearFiltersProps) {
   const filterKeys = keys ?? Object.keys(defaults);
   const active = filterKeys.some((key) => {
     const defaultValue = normalized(defaults[key]);
@@ -25,9 +30,9 @@ export function ClearFilters({ defaults = {}, keys, routeBase, label = "清除�
   });
   if (!active) return null;
 
-  const clearUpdates = Object.fromEntries(filterKeys.map((key) => [key, defaults[key]]));
+  const clearUpdates: ListQueryUpdates = Object.fromEntries(filterKeys.map((key) => [key, defaults[key]]));
   return (
-    <Button type="button" size="sm" variant="ghost" onClick={() => update(clearUpdates, { defaults })}>
+    <Button type="button" size="sm" variant="ghost" onClick={() => onClear(clearUpdates)}>
       {label}
     </Button>
   );

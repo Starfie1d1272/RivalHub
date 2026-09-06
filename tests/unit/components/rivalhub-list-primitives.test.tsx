@@ -47,6 +47,46 @@ function TestListController() {
   );
 }
 
+const CLEAR_QUERY_DEFAULTS = { q: "", filter: "all" } as const;
+const TEST_SURFACE_DEFAULTS = { q: "", status: "pending" } as const;
+
+function TestClearFilters() {
+  const { searchParams, update } = useListQueryParams({ routeBase: "/admin/users", defaults: CLEAR_QUERY_DEFAULTS });
+  return (
+    <ClearFilters
+      defaults={CLEAR_QUERY_DEFAULTS}
+      searchParams={searchParams}
+      onClear={(updates) => update(updates)}
+    />
+  );
+}
+
+function TestListSurface() {
+  const { searchParams, update } = useListQueryParams({ routeBase: "/admin/users", defaults: TEST_SURFACE_DEFAULTS });
+  const pageValue = Number(searchParams.get("page") ?? "1");
+  const page = Number.isSafeInteger(pageValue) && pageValue > 0 ? pageValue : 1;
+  return (
+    <>
+      <ListSearchField
+        queryKey="q"
+        label="搜索用户"
+        value={searchParams.get("q") ?? ""}
+        onDebouncedChange={(value) => update({ q: value })}
+      />
+      <ClearFilters
+        defaults={TEST_SURFACE_DEFAULTS}
+        searchParams={searchParams}
+        onClear={(updates) => update(updates)}
+      />
+      <PaginationControls
+        page={page}
+        totalPages={3}
+        onPageChange={(nextPage) => update({ page: nextPage }, { defaults: { page: 1 }, history: "push" })}
+      />
+    </>
+  );
+}
+
 describe("shared list query mechanics", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -93,7 +133,7 @@ describe("shared list query mechanics", () => {
 
   it("clears filters back to the default URL", () => {
     setQuery("tab=users&q=alice&filter=participated&page=3");
-    render(<ClearFilters defaults={{ q: "", filter: "all" }} routeBase="/admin/users" />);
+    render(<TestClearFilters />);
 
     fireEvent.click(screen.getByRole("button", { name: "清除筛选" }));
 
@@ -101,7 +141,13 @@ describe("shared list query mechanics", () => {
   });
 
   it("does not mark omitted default filters as active", () => {
-    render(<ClearFilters defaults={{ status: "pending", sort: "oldest" }} routeBase="/admin/users" />);
+    render(
+      <ClearFilters
+        defaults={{ status: "pending", sort: "oldest" }}
+        searchParams={searchState.current}
+        onClear={vi.fn()}
+      />,
+    );
 
     expect(screen.queryByRole("button", { name: "清除筛选" })).not.toBeInTheDocument();
   });
@@ -113,14 +159,16 @@ describe("shared list query mechanics", () => {
       render(<ListSearchField queryKey="q" label="搜索用户" value="" onDebouncedChange={onDebouncedChange} />);
       const input = screen.getByLabelText("搜索用户");
 
+      fireEvent.change(input, { target: { value: "a" } });
+      expect(input).toHaveValue("a");
       fireEvent.change(input, { target: { value: "alice" } });
-      fireEvent.change(input, { target: { value: "alice z" } });
+      expect(input).toHaveValue("alice");
       act(() => vi.advanceTimersByTime(299));
       expect(onDebouncedChange).not.toHaveBeenCalled();
       act(() => vi.advanceTimersByTime(1));
 
       expect(onDebouncedChange).toHaveBeenCalledTimes(1);
-      expect(onDebouncedChange).toHaveBeenCalledWith("alice z");
+      expect(onDebouncedChange).toHaveBeenCalledWith("alice");
     } finally {
       vi.useRealTimers();
     }
@@ -154,19 +202,58 @@ describe("shared list query mechanics", () => {
     expect(screen.getByLabelText("搜索用户")).toHaveValue("new");
   });
 
+  it("composes delayed search with clear filters through one controller", () => {
+    vi.useFakeTimers();
+    try {
+      setQuery("q=old&status=approved&page=2");
+      render(<TestListSurface />);
+
+      fireEvent.change(screen.getByLabelText("搜索用户"), { target: { value: "alice" } });
+      fireEvent.click(screen.getByRole("button", { name: "清除筛选" }));
+      expect(replaceMock).toHaveBeenLastCalledWith("/admin/users");
+
+      act(() => vi.advanceTimersByTime(300));
+      expect(replaceMock).toHaveBeenLastCalledWith("/admin/users?q=alice");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("composes delayed search with pagination through one controller", () => {
+    vi.useFakeTimers();
+    try {
+      setQuery("q=old&page=1");
+      render(<TestListSurface />);
+
+      fireEvent.change(screen.getByLabelText("搜索用户"), { target: { value: "alice" } });
+      fireEvent.click(screen.getByRole("button", { name: "下一页" }));
+      expect(pushMock).toHaveBeenLastCalledWith("/admin/users?q=old&page=2");
+
+      act(() => vi.advanceTimersByTime(300));
+      expect(replaceMock).toHaveBeenLastCalledWith("/admin/users?q=alice");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("disables pagination controls at the first and last page", () => {
-    const view = render(<PaginationControls page={1} totalPages={3} routeBase="/admin/users" />);
+    const onPageChange = vi.fn();
+    const view = render(<PaginationControls page={1} totalPages={3} onPageChange={onPageChange} />);
     expect(screen.getByRole("button", { name: "上一页" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "下一页" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "下一页" }));
+    expect(onPageChange).toHaveBeenCalledWith(2);
 
-    view.rerender(<PaginationControls page={3} totalPages={3} routeBase="/admin/users" />);
+    view.rerender(<PaginationControls page={3} totalPages={3} onPageChange={onPageChange} />);
     expect(screen.getByRole("button", { name: "上一页" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "下一页" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "上一页" }));
+    expect(onPageChange).toHaveBeenLastCalledWith(2);
   });
 
   it("omits page when navigating back to the first page", () => {
     setQuery("q=alice&page=2");
-    render(<PaginationControls page={2} totalPages={3} routeBase="/admin/users" />);
+    render(<TestListSurface />);
 
     fireEvent.click(screen.getByRole("button", { name: "上一页" }));
 
