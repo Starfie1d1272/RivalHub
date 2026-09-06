@@ -105,7 +105,7 @@
     "@types/react-dom": "19.2.5",
     "@vitest/coverage-v8": "4.1.11",
     "drizzle-kit": "^0.31.1",
-    "eslint": "^9.39.5",
+    "eslint": "^10.10.0",
     "eslint-config-next": "16.3.4",
     "jsdom": "^26.1.0",
     "knip": "^6.34.0",

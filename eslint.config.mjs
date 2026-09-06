@@ -5,6 +5,13 @@ const eslintConfig = [
   ...nextCoreWebVitals,
   ...nextTypescript,
   {
+    settings: {
+      react: {
+        version: "19.2",
+      },
+    },
+  },
+  {
     ignores: [
       ".next/**",
       "out/**",
