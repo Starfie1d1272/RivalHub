@@ -46,7 +46,7 @@
 
 ## List and query interaction
 
-RivalHub 2.6 后，高价值审核队列和 discovery list 共享薄的 interaction primitives：
+高价值审核队列和 discovery list 共享薄的 interaction primitives：
 
 ```text
 ListToolbar
