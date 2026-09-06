@@ -167,9 +167,10 @@ describe("PR3 admin operational list read models", () => {
         normalizeDisciplineAdminQuery(new URLSearchParams({ q: marker, status: "all" })),
       );
       expect(sanctions.total).toBe(3);
-      expect(sanctions.rows[0]?.resolvedStatus).toBe("revoked");
-      expect(sanctions.rows[0]?.subjectLabel).toContain(marker);
-      expect(sanctions.rows[0]?.internalEvidence).toContain("internal evidence");
+      const revokedSanction = sanctions.rows.find((row) => row.id === caseIds[2]);
+      expect(revokedSanction?.resolvedStatus).toBe("revoked");
+      expect(revokedSanction?.subjectLabel).toContain(marker);
+      expect(revokedSanction?.internalEvidence).toContain("internal evidence");
       const activeSanctions = await getSeasonSanctionsAdminReadModel(
         seasonId,
         normalizeDisciplineAdminQuery(new URLSearchParams({ q: marker })),
