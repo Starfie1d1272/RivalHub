@@ -3,15 +3,16 @@ import "server-only";
 import { and, asc, count, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { educationVerifications, institutions, users } from "@/db/schema";
+import { escapeLikePattern } from "@/lib/db/search";
 import {
   EDUCATION_REVIEW_DEFAULTS,
   EDUCATION_REVIEW_PAGE_SIZE,
   type EducationReviewAcademic,
+  type EducationReviewFilterStatus,
   type EducationReviewQuery,
   type EducationReviewQueue,
   type EducationReviewSearchParams,
   type EducationReviewSort,
-  type EducationReviewStatus,
 } from "./admin-review-contract";
 
 function firstValue(value: string | string[] | undefined): string | undefined {
@@ -31,10 +32,6 @@ function positivePage(value: string | undefined): number {
   return Number.isSafeInteger(parsed) && parsed >= 1 ? parsed : 1;
 }
 
-function escapeLike(value: string): string {
-  return value.replace(/[%_\\]/g, (character) => `\\${character}`);
-}
-
 export function normalizeEducationReviewQuery(input: EducationReviewSearchParams): EducationReviewQuery {
   const q = readParam(input, "q")?.trim() || undefined;
   const statusValue = readParam(input, "status");
@@ -42,7 +39,7 @@ export function normalizeEducationReviewQuery(input: EducationReviewSearchParams
   const sortValue = readParam(input, "sort");
   const institutionValue = readParam(input, "institution");
 
-  const status: EducationReviewStatus = statusValue === "pending" || statusValue === "approved" || statusValue === "rejected" || statusValue === "all"
+  const status: EducationReviewFilterStatus = statusValue === "pending" || statusValue === "approved" || statusValue === "rejected" || statusValue === "all"
     ? statusValue
     : EDUCATION_REVIEW_DEFAULTS.status;
   const academic: EducationReviewAcademic = academicValue === "all" || academicValue === "enrolled" || academicValue === "graduated"
@@ -63,11 +60,10 @@ export function normalizeEducationReviewQuery(input: EducationReviewSearchParams
   };
 }
 
-export async function getEducationReviewQueue(input: EducationReviewSearchParams | EducationReviewQuery): Promise<EducationReviewQueue> {
-  const query = normalizeEducationReviewQuery(input as EducationReviewSearchParams);
+export async function getEducationReviewQueue(query: EducationReviewQuery): Promise<EducationReviewQueue> {
   const conditions = [];
   if (query.q) {
-    const pattern = `%${escapeLike(query.q)}%`;
+    const pattern = `%${escapeLikePattern(query.q)}%`;
     conditions.push(or(
       ilike(users.displayName, pattern),
       ilike(users.email, pattern),

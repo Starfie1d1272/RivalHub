@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 export type ListQueryValue = string | number | boolean | null | undefined;
 export type ListQueryUpdates = Record<string, ListQueryValue>;
@@ -50,10 +50,14 @@ export function useListQueryParams({ routeBase, defaults = {} }: ListQueryParams
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const latestSearchParamsRef = useRef(searchParams);
+  useEffect(() => {
+    latestSearchParamsRef.current = searchParams;
+  }, [searchParams]);
 
   const update = useCallback(
     (updates: ListQueryUpdates, options: ListQueryUpdateOptions = {}) => {
-      const next = applyListQueryUpdates(searchParams, updates, {
+      const next = applyListQueryUpdates(latestSearchParamsRef.current, updates, {
         defaults: { ...defaults, ...options.defaults },
       });
       const base = routeBase ?? pathname ?? "/";
@@ -62,7 +66,7 @@ export function useListQueryParams({ routeBase, defaults = {} }: ListQueryParams
       const navigate = options.history === "push" ? router.push : router.replace;
       navigate(href as never);
     },
-    [defaults, pathname, routeBase, router, searchParams],
+    [defaults, pathname, routeBase, router],
   );
 
   return { searchParams, update };

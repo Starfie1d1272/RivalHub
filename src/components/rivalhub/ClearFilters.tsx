@@ -18,7 +18,11 @@ function normalized(value: ListQueryValue): string | undefined {
 export function ClearFilters({ defaults = {}, keys, routeBase, label = "清除筛选" }: ClearFiltersProps) {
   const { searchParams, update } = useListQueryParams({ routeBase, defaults });
   const filterKeys = keys ?? Object.keys(defaults);
-  const active = filterKeys.some((key) => normalized(searchParams.get(key)) !== normalized(defaults[key]));
+  const active = filterKeys.some((key) => {
+    const defaultValue = normalized(defaults[key]);
+    const currentValue = normalized(searchParams.get(key)) ?? defaultValue;
+    return currentValue !== defaultValue;
+  });
   if (!active) return null;
 
   const clearUpdates = Object.fromEntries(filterKeys.map((key) => [key, defaults[key]]));

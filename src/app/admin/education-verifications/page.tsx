@@ -1,9 +1,11 @@
+import { EducationReviewControls } from "@/components/admin/EducationReviewControls";
 import { EducationVerificationReviewQueue } from "@/components/admin/EducationVerificationReviewQueue";
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { ErrorState, PageHeader, PageLayout } from "@/components/rivalhub";
 import { requireSuperAdmin } from "@/lib/auth/session";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
-import { getEducationReviewQueue } from "@/lib/education/admin-review";
+import { getEducationReviewQueue, normalizeEducationReviewQuery } from "@/lib/education/admin-review";
+import { captureException } from "@/lib/observability/server";
 
 interface PageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -15,8 +17,15 @@ export default async function EducationVerificationsAdminPage({ searchParams }: 
 
   let queue;
   try {
-    queue = await getEducationReviewQueue(await searchParams);
-  } catch {
+    const normalizedQuery = normalizeEducationReviewQuery(await searchParams);
+    queue = await getEducationReviewQueue(normalizedQuery);
+  } catch (error) {
+    captureException("education.review_queue.load_failed", error, {
+      scope: "admin",
+      operation: "education.review_queue.load",
+      errorClass: "database",
+      retryable: true,
+    });
     return (
       <PageLayout variant="standard" className="space-y-6">
         <PageHeader
@@ -33,8 +42,16 @@ export default async function EducationVerificationsAdminPage({ searchParams }: 
       <PageHeader
         title="教育身份认证审核"
         description="仅在学信网官方页面人工核对；申请人声明学校不一致时请驳回，不要修改其学校。"
-      />
-      <EducationVerificationReviewQueue {...queue} />
-    </PageLayout>
+        />
+        <EducationReviewControls
+          total={queue.total}
+          page={queue.page}
+          pageSize={queue.pageSize}
+          totalPages={queue.totalPages}
+          institutionOptions={queue.institutionOptions}
+          normalizedQuery={queue.normalizedQuery}
+        />
+        <EducationVerificationReviewQueue rows={queue.rows} hasAnyRecords={queue.hasAnyRecords} />
+      </PageLayout>
   );
 }

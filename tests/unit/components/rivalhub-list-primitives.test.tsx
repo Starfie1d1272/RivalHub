@@ -5,22 +5,29 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ClearFilters, ListSearchField, PaginationControls } from "@/components/rivalhub";
 import { applyListQueryUpdates } from "@/components/rivalhub/useListQueryParams";
 
-const { pushMock, replaceMock, searchParamsMock } = vi.hoisted(() => ({
+const { pushMock, replaceMock, searchState } = vi.hoisted(() => ({
   pushMock: vi.fn(),
   replaceMock: vi.fn(),
-  searchParamsMock: { get: vi.fn(), toString: vi.fn() },
+  searchState: {
+    current: {
+      get: () => null as string | null,
+      toString: () => "",
+    } as { get: (key: string) => string | null; toString: () => string },
+  },
 }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock, replace: replaceMock }),
   usePathname: () => "/admin/users",
-  useSearchParams: () => searchParamsMock,
+  useSearchParams: () => searchState.current,
 }));
 
 function setQuery(query = "") {
   const values = new URLSearchParams(query);
-  searchParamsMock.get.mockImplementation((key: string) => values.get(key));
-  searchParamsMock.toString.mockImplementation(() => values.toString());
+  searchState.current = {
+    get: (key: string) => values.get(key),
+    toString: () => values.toString(),
+  };
 }
 
 describe("shared list query mechanics", () => {
@@ -76,6 +83,12 @@ describe("shared list query mechanics", () => {
     expect(replaceMock).toHaveBeenCalledWith("/admin/users?tab=users");
   });
 
+  it("does not mark omitted default filters as active", () => {
+    render(<ClearFilters defaults={{ status: "pending", sort: "oldest" }} routeBase="/admin/users" />);
+
+    expect(screen.queryByRole("button", { name: "清除筛选" })).not.toBeInTheDocument();
+  });
+
   it("debounces search and submits only the last value", () => {
     vi.useFakeTimers();
     try {
@@ -90,6 +103,37 @@ describe("shared list query mechanics", () => {
 
       expect(replaceMock).toHaveBeenCalledTimes(1);
       expect(replaceMock).toHaveBeenCalledWith("/admin/users?q=alice+z");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("bases delayed search updates on the latest URL snapshot", () => {
+    vi.useFakeTimers();
+    try {
+      setQuery("status=pending");
+      const view = render(
+        <ListSearchField
+          queryKey="q"
+          label="搜索用户"
+          defaults={{ status: "pending" }}
+          routeBase="/admin/users"
+        />,
+      );
+
+      fireEvent.change(screen.getByLabelText("搜索用户"), { target: { value: "alice" } });
+      setQuery("status=approved");
+      view.rerender(
+        <ListSearchField
+          queryKey="q"
+          label="搜索用户"
+          defaults={{ status: "pending" }}
+          routeBase="/admin/users"
+        />,
+      );
+      act(() => vi.advanceTimersByTime(300));
+
+      expect(replaceMock).toHaveBeenCalledWith("/admin/users?status=approved&q=alice");
     } finally {
       vi.useRealTimers();
     }
@@ -114,5 +158,14 @@ describe("shared list query mechanics", () => {
     view.rerender(<PaginationControls page={3} totalPages={3} routeBase="/admin/users" />);
     expect(screen.getByRole("button", { name: "上一页" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "下一页" })).toBeDisabled();
+  });
+
+  it("omits page when navigating back to the first page", () => {
+    setQuery("q=alice&page=2");
+    render(<PaginationControls page={2} totalPages={3} routeBase="/admin/users" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "上一页" }));
+
+    expect(pushMock).toHaveBeenCalledWith("/admin/users?q=alice");
   });
 });

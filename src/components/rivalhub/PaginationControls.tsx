@@ -5,6 +5,8 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import { useListQueryParams } from "./useListQueryParams";
 
+const PAGINATION_DEFAULTS = { page: 1 } as const;
+
 interface PaginationControlsProps {
   page: number;
   totalPages: number;
@@ -13,7 +15,7 @@ interface PaginationControlsProps {
 }
 
 export function PaginationControls({ page, totalPages, routeBase, className }: PaginationControlsProps) {
-  const { update } = useListQueryParams({ routeBase });
+  const { update } = useListQueryParams({ routeBase, defaults: PAGINATION_DEFAULTS });
   if (totalPages <= 1) return null;
 
   const currentPage = Math.min(Math.max(page, 1), totalPages);

@@ -1,3 +1,5 @@
+import type { AcademicStatus, EducationVerificationStatus } from "./presentation";
+
 export const EDUCATION_REVIEW_PAGE_SIZE = 25;
 
 export const EDUCATION_REVIEW_DEFAULTS = {
@@ -8,13 +10,13 @@ export const EDUCATION_REVIEW_DEFAULTS = {
   sort: "oldest",
 } as const;
 
-export type EducationReviewStatus = "pending" | "approved" | "rejected" | "all";
+export type EducationReviewFilterStatus = EducationVerificationStatus | "all";
 export type EducationReviewAcademic = "all" | "enrolled" | "graduated";
 export type EducationReviewSort = "oldest" | "newest" | "recently_reviewed";
 
 export interface EducationReviewQuery {
   q?: string;
-  status: EducationReviewStatus;
+  status: EducationReviewFilterStatus;
   institution?: string;
   academic: EducationReviewAcademic;
   sort: EducationReviewSort;
@@ -30,10 +32,10 @@ export interface EducationReviewRow {
   displayName: string | null;
   institution: string;
   code: string | null;
-  academicStatus: "enrolled" | "graduated";
+  academicStatus: AcademicStatus;
   evidenceType: string;
   evidenceCode: string | null;
-  status: EducationReviewStatus;
+  status: EducationVerificationStatus;
   submittedAt: string;
   reviewNote: string | null;
 }

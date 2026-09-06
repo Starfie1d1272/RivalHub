@@ -1,7 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { getEducationReviewQueue } from "../../../src/lib/education/admin-review";
+import { getEducationReviewQueue, normalizeEducationReviewQuery } from "../../../src/lib/education/admin-review";
 import { createLocalPool } from "./harness/database";
+
+function loadQueue(params: Record<string, string>) {
+  return getEducationReviewQueue(normalizeEducationReviewQuery(new URLSearchParams(params)));
+}
 
 describe("education review queue PostgreSQL read model", () => {
   it("filters, sorts, paginates, and stops matching evidence after retention cleanup", async () => {
@@ -53,45 +57,45 @@ describe("education review queue PostgreSQL read model", () => {
         );
       }
 
-      const defaultQueue = await getEducationReviewQueue(new URLSearchParams({ q: marker }));
+      const defaultQueue = await loadQueue({ q: marker });
       expect(defaultQueue.normalizedQuery).toMatchObject({ status: "pending", sort: "oldest", page: 1, pageSize: 25 });
       expect(defaultQueue.total).toBe(28);
       expect(defaultQueue.rows[0]?.displayName).toBe(`EducationReviewDisplay-${marker}`);
       expect(defaultQueue.totalPages).toBe(2);
 
-      const byDisplayName = await getEducationReviewQueue(new URLSearchParams({ q: `EducationReviewDisplay-${marker}`, status: "all" }));
+      const byDisplayName = await loadQueue({ q: `EducationReviewDisplay-${marker}`, status: "all" });
       expect(byDisplayName.rows).toHaveLength(1);
       expect(byDisplayName.rows[0]?.displayName).toBe(`EducationReviewDisplay-${marker}`);
 
-      const byEvidence = await getEducationReviewQueue(new URLSearchParams({ q: `${evidenceMarker}A001`, status: "all" }));
+      const byEvidence = await loadQueue({ q: `${evidenceMarker}A001`, status: "all" });
       expect(byEvidence.rows).toHaveLength(1);
       expect(byEvidence.rows[0]?.status).toBe("approved");
 
-      const byInstitution = await getEducationReviewQueue(new URLSearchParams({ q: secondInstitution.name, institution: secondInstitution.id, status: "all" }));
+      const byInstitution = await loadQueue({ q: secondInstitution.name, institution: secondInstitution.id, status: "all" });
       expect(byInstitution.rows.some((row) => row.institution === secondInstitution.name)).toBe(true);
 
-      const approved = await getEducationReviewQueue(new URLSearchParams({ q: marker, status: "approved" }));
+      const approved = await loadQueue({ q: marker, status: "approved" });
       expect(approved.total).toBe(1);
-      const graduated = await getEducationReviewQueue(new URLSearchParams({ q: marker, academic: "graduated", status: "all" }));
+      const graduated = await loadQueue({ q: marker, academic: "graduated", status: "all" });
       expect(graduated.rows.every((row) => row.academicStatus === "graduated")).toBe(true);
 
-      const recentlyReviewed = await getEducationReviewQueue(new URLSearchParams({ q: marker, status: "all", sort: "recently_reviewed" }));
+      const recentlyReviewed = await loadQueue({ q: marker, status: "all", sort: "recently_reviewed" });
       expect(recentlyReviewed.rows.slice(0, 2).map((row) => row.status)).toEqual(["approved", "rejected"]);
       expect(recentlyReviewed.rows.slice(2).every((row) => row.status === "pending")).toBe(true);
 
-      const secondPage = await getEducationReviewQueue(new URLSearchParams({ q: marker, page: "2" }));
+      const secondPage = await loadQueue({ q: marker, page: "2" });
       expect(secondPage.page).toBe(2);
       expect(secondPage.rows).toHaveLength(3);
-      const clamped = await getEducationReviewQueue(new URLSearchParams({ q: marker, page: "999" }));
+      const clamped = await loadQueue({ q: marker, page: "999" });
       expect(clamped.page).toBe(2);
       expect(clamped.rows).toHaveLength(3);
 
       await pool.query("UPDATE education_verifications SET evidence_code = NULL WHERE id = $1", [verificationIds[0]]);
-      const afterRetention = await getEducationReviewQueue(new URLSearchParams({ q: `${evidenceMarker}R001`, status: "all" }));
+      const afterRetention = await loadQueue({ q: `${evidenceMarker}R001`, status: "all" });
       expect(afterRetention.total).toBe(0);
 
       await pool.query("UPDATE education_verifications SET status = 'approved', reviewed_at = $2 WHERE id = $1", [verificationIds[0], now]);
-      const afterReview = await getEducationReviewQueue(new URLSearchParams({ q: marker }));
+      const afterReview = await loadQueue({ q: marker });
       expect(afterReview.total).toBe(27);
     } finally {
       await pool.query("DELETE FROM education_verifications WHERE id = ANY($1::uuid[])", [verificationIds]).catch(() => {});
