@@ -326,11 +326,19 @@ function sameDate(left: Date | null | undefined, right: Date | null | undefined)
   return left.getTime() === right.getTime();
 }
 
-function withoutFallback(config: TeamRegistrationConfig): TeamRegistrationConfig {
+/**
+ * Published competitive-policy references are created by the publish/freeze
+ * owner, not by the Season form. Compare only the operator-editable rule
+ * projection so a normal form replay cannot look like a core-rule mutation
+ * merely because it omits those server-owned facts.
+ */
+function editableTeamConfig(config: TeamRegistrationConfig): TeamRegistrationConfig {
   const result = { ...config };
   if (config.competitiveProfile) {
     const profile = { ...config.competitiveProfile };
     delete profile.fallbackConversion;
+    delete profile.conversionPolicyId;
+    delete profile.conversionPolicyVersion;
     result.competitiveProfile = profile;
   }
   return result;
@@ -382,7 +390,7 @@ export function planSeasonUpdate(existing: SeasonRow, parsed: ParsedSeasonForm):
   const existingTeamConfig = normalizeTeamRegistrationConfig(existing.teamRegistrationConfig);
   const registrationConfig = normalizeRegistrationConfig(data.registrationConfig as RegistrationConfig);
   const affiliationRules = normalizeAffiliationRules(data.affiliationRules as InstitutionAffiliationRule[] | undefined);
-  const teamConfigChangedWithoutFallback = !sameJson(withoutFallback(existingTeamConfig), withoutFallback(normalizedTeamConfig));
+  const teamConfigChangedWithoutFallback = !sameJson(editableTeamConfig(existingTeamConfig), editableTeamConfig(normalizedTeamConfig));
   const fallbackChanged = !sameJson(
     existingTeamConfig.competitiveProfile?.fallbackConversion,
     normalizedTeamConfig.competitiveProfile?.fallbackConversion,

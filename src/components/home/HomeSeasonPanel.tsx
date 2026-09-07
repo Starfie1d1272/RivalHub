@@ -7,6 +7,7 @@ import {
   isRegistrationActuallyOpen,
   presentSeasonLifecycle,
   presentSeasonLifecycleSummary,
+  presentRegistrationSchedule,
   presentSeasonParticipationState,
   presentSeasonStatus,
 } from "@/lib/seasons/presentation";
@@ -56,11 +57,17 @@ export function HomeSeasonPanel({
   teamCount,
   playerCount,
 }: HomeSeasonPanelProps) {
+  const registrationSchedule = presentRegistrationSchedule(season);
   if (isRegistrationActuallyOpen(season)) {
     return (
       <Panel label="REGISTRATION">
         <div className="grid gap-3.5">
           <SeasonPanelTitle season={season} />
+          {registrationSchedule && (
+            <p className="text-sm text-[var(--color-fg-mid)]">
+              {registrationSchedule.primary}
+            </p>
+          )}
           <div className="grid gap-2">
             {season.positions.map((pos) => {
               const filled = positionCountMap.get(pos) ?? 0;
@@ -168,6 +175,11 @@ export function HomeSeasonPanel({
             {season.kind}
           </span>
         </div>
+        {registrationSchedule && (
+          <p className="text-sm text-[var(--color-fg-mid)]">
+            {registrationSchedule.primary}{registrationSchedule.secondary ? ` · ${registrationSchedule.secondary}` : ""}
+          </p>
+        )}
         <div className="py-3 border-y border-[var(--color-border)]">
           <PanelStats teamCount={teamCount} playerCount={playerCount} status={season.status} />
         </div>

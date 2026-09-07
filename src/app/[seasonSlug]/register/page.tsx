@@ -30,6 +30,8 @@ import { CompetitionEntryFlow } from "@/components/register/CompetitionEntryFlow
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { evaluateRosterQualificationFromFacts, getParticipantReadinessBatch, isHomeAffiliatedMember, loadParticipantQualificationFacts, resolveCompetitiveContext, resolveSeasonEducationVerification, type ParticipantQualificationFacts } from "@/lib/qualification/service";
 import { getPublicOrAuthorizedDraftSeason, getPublicSeasonBySlug } from "@/lib/data/public-seasons";
+import { presentRegistrationSchedule } from "@/lib/seasons/presentation";
+import { RegistrationScheduleCountdown } from "@/components/seasons/RegistrationScheduleCountdown";
 
 interface RegisterPageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -87,6 +89,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
   }
 
   const registrationWindow = getRegistrationWindowState(season);
+  const registrationSchedule = presentRegistrationSchedule(season);
   if (registrationWindow.phase === "unscheduled" || registrationWindow.phase === "upcoming") {
     return (
       <div className="container mx-auto max-w-2xl px-4 py-16">
@@ -94,8 +97,11 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
           <StatusBanner
             tone="info"
             title={season.name}
-            sub={registrationWindow.message}
+            sub={[registrationWindow.message, registrationSchedule?.primary, registrationSchedule?.secondary].filter(Boolean).join(" · ")}
           />
+          <div className="mt-3 text-center">
+            <RegistrationScheduleCountdown target={registrationSchedule?.countdownTarget ?? null} />
+          </div>
         </Panel>
       </div>
     );
@@ -218,8 +224,9 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
         <StatusBanner
           tone={getWindowTone(registrationWindow.phase, registrationWindow.canSubmit)}
           title={registrationWindow.message}
-          sub={season.rosterChangeClosesAt ? `名单可自行调整至 ${formatCST(season.rosterChangeClosesAt)}；正式名单冻结另行记录。` : "名单调整截止时间与报名截止时间一致；正式名单冻结另行记录。"}
+          sub={[registrationSchedule?.primary, registrationSchedule?.secondary, season.rosterChangeClosesAt ? `名单可自行调整至 ${formatCST(season.rosterChangeClosesAt)}` : "名单调整截止时间与报名截止时间一致"].filter(Boolean).join(" · ")}
         />
+        <RegistrationScheduleCountdown target={registrationSchedule?.countdownTarget ?? null} />
         <CompetitionEntryFlow
           competitionId={season.id}
           competitionName={season.name}
@@ -309,11 +316,12 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
           tone={getWindowTone(registrationWindow.phase, registrationWindow.canSubmit)}
           title={registrationWindow.message}
           sub={[
-            season.registrationOpensAt ? `报名开放：${formatCST(season.registrationOpensAt)}` : "报名开放：时间待定",
-            season.registrationClosesAt ? `报名截止：${formatCST(season.registrationClosesAt)}` : "报名截止：未设置",
+            registrationSchedule?.primary ?? "报名开放时间待定",
+            registrationSchedule?.secondary,
             season.rosterChangeClosesAt ? `名单调整截止：${formatCST(season.rosterChangeClosesAt)}` : "名单调整截止：与报名截止一致",
           ].join(" · ")}
         />
+        <RegistrationScheduleCountdown target={registrationSchedule?.countdownTarget ?? null} />
       </div>
 
       <div>

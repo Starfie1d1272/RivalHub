@@ -13,6 +13,7 @@ import type { SeasonStatus } from "@/types/season";
 import { showStats } from "@/lib/utils/season";
 import {
   isRegistrationActuallyOpen,
+  presentRegistrationSchedule,
   presentSeasonParticipationState,
   presentSeasonStatus,
   presentStageMarker,
@@ -24,6 +25,7 @@ import { StandingsTable } from "@/components/matches/StandingsTable";
 import { getStandings } from "@/lib/data/standings";
 import { getParticipantSummary } from "@/lib/participants/summary";
 import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
+import { RegistrationScheduleCountdown } from "@/components/seasons/RegistrationScheduleCountdown";
 
 const STATUS_IDX: Record<SeasonStatus, number> = {
   draft: 0, registration: 1, voting: 2, drafting: 3,
@@ -170,6 +172,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
 
   const isHistorical = season.status === "finished" || season.status === "archived";
   const registrationIsOpen = isRegistrationActuallyOpen(season);
+  const registrationSchedule = presentRegistrationSchedule(season);
   const quickLinks = [
     {
       href: `/${seasonSlug}/register`,
@@ -237,6 +240,13 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
             <AdminShortcutSlot href={`/admin/${seasonSlug}/settings`} />
           </Suspense>
         </div>
+        {registrationSchedule && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--color-fg-mid)]">
+            <span>{registrationSchedule.primary}</span>
+            {registrationSchedule.secondary && <span>{registrationSchedule.secondary}</span>}
+            <RegistrationScheduleCountdown target={registrationSchedule.countdownTarget} />
+          </div>
+        )}
       </div>
 
       {/* Phase tracker */}

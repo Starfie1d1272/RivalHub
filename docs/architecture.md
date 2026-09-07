@@ -57,7 +57,7 @@ DB/internal facts
 
 具体赛制属于赛事政策和 stage/runtime owner，不在架构文档复制当前轮次、人数或 BO 数字。
 
-Season capability 的代码 ownership 固定为：`src/types/season.ts` 只表达 canonical data contract；`src/lib/competition/templates.ts` 只拥有当前内置赛事默认值；`src/lib/config/cs2-maps.ts` 拥有稳定地图目录与当前 Active Duty 轮换，`src/lib/config/cs2-positions.ts` 拥有位置目录；`src/lib/seasons/compatibility.ts` 只把 legacy/partial persisted shape 投影为 canonical shape；`src/lib/seasons/presentation.ts` 拥有 Season status、player type 和 stage type 展示标签；`src/lib/maps.ts` 拥有地图展示与偏好 projection。current template 不依赖 historical compatibility fallback，frozen event facts 也不因 current preset/catalog 变化被重新解释。
+Season capability 的代码 ownership 固定为：`src/types/season.ts` 只表达 canonical data contract；`src/lib/competition/templates.ts` 只拥有当前内置赛事默认值；`src/lib/config/cs2-maps.ts` 拥有稳定地图目录与当前 Active Duty 轮换，`src/lib/config/cs2-positions.ts` 拥有位置目录；`src/lib/seasons/compatibility.ts` 只把 legacy/partial persisted shape 投影为 canonical shape；`src/lib/seasons/presentation.ts` 拥有 Season status、报名排期、player type 和 stage type 展示标签；`src/lib/maps.ts` 拥有地图展示与偏好 projection。current template 不依赖 historical compatibility fallback，frozen event facts 也不因 current preset/catalog 变化被重新解释。
 
 ## Runtime truth
 

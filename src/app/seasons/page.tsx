@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import { getPublicSeasonCatalog } from "@/lib/data/public-seasons";
-import { presentSeasonParticipationState } from "@/lib/seasons/presentation";
+import { presentRegistrationSchedule, presentSeasonParticipationState } from "@/lib/seasons/presentation";
 import { PageHeader, PageLayout, Panel, StatusPill } from "@/components/rivalhub";
 
 export const metadata: Metadata = { title: "所有赛季" };
@@ -28,7 +28,9 @@ async function SeasonsContent() {
         <p className="text-[var(--color-fg-dim)] text-center py-16">暂无赛季记录</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {allSeasons.map((season) => (
+          {allSeasons.map((season) => {
+            const registrationSchedule = presentRegistrationSchedule(season);
+            return (
             <Link
               key={season.id}
               href={`/${season.slug}` as never}
@@ -42,10 +44,12 @@ async function SeasonsContent() {
                     <span className="text-[var(--color-fg-dim)]">{season.kind}</span>
                   </div>
                   <h3 className="text-lg font-semibold text-[var(--color-fg)] mb-1">{season.name}</h3>
+                  {registrationSchedule && <p className="text-sm text-[var(--color-fg-mid)]">{registrationSchedule.primary}</p>}
                 </div>
               </Panel>
             </Link>
-          ))}
+            );
+          })}
         </div>
       )}
     </PageLayout>

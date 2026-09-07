@@ -47,7 +47,7 @@ CS2 地图同样区分稳定地图目录、当前轮换、长期用户熟练度�
 - 系统不存在持久化的“全局当前赛事”；首页 featured season 和后台生命周期分组都是 presentation projection。
 - 社区奖是否存在由独立 capability 表达，不从 `season.status` 推导。
 
-Season 配置的 owner 不按 `kind` 分支：`src/types/season.ts` 只定义 canonical contract；新赛事的当前默认值来自 `src/lib/competition/templates.ts`；读取 nullable/partial 历史 JSON 时才经过 `src/lib/seasons/compatibility.ts`。CS2 稳定地图目录与当前轮换由 `src/lib/config/cs2-maps.ts` 拥有，位置目录由 `src/lib/config/cs2-positions.ts` 拥有，Season 展示标签由 `src/lib/seasons/presentation.ts` 拥有，地图展示与偏好 projection 由 `src/lib/maps.ts` 拥有。compatibility fallback 是冻结历史语义，不反向定义当前产品默认值。
+Season 配置的 owner 不按 `kind` 分支：`src/types/season.ts` 只定义 canonical contract；新赛事的当前默认值来自 `src/lib/competition/templates.ts`；读取 nullable/partial 历史 JSON 时才经过 `src/lib/seasons/compatibility.ts`。CS2 稳定地图目录与当前轮换由 `src/lib/config/cs2-maps.ts` 拥有，位置目录由 `src/lib/config/cs2-positions.ts` 拥有，Season 状态标签与公开报名排期 projection 由 `src/lib/seasons/presentation.ts` 拥有，地图展示与偏好 projection 由 `src/lib/maps.ts` 拥有。compatibility fallback 是冻结历史语义，不反向定义当前产品默认值。
 
 ## Team → CompetitionEntry → roster facts
 

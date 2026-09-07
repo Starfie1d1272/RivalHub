@@ -2,6 +2,7 @@ import type { SemanticTone, StatusPresentation } from "@/lib/presentation";
 import type { PlayerType, SeasonStatus, StageConfig, StageType } from "@/types/season";
 import type { CompetitionTemplate } from "@/lib/competition/templates";
 import { getRegistrationWindowState, type RegistrationWindowSeason } from "@/lib/registration/window";
+import { formatCSTDateTime } from "@/lib/utils/date";
 
 export type SeasonLifecycleGroup = "active" | "upcoming" | "draft" | "recent" | "archived";
 
@@ -112,6 +113,50 @@ export function presentSeasonParticipationState(season: RegistrationWindowSeason
     case "open": return { label: "报名中", tone: "success" };
     case "closed": return { label: "报名已截止", tone: "neutral" };
     default: return presentSeasonStatus(season.status);
+  }
+}
+
+/** Shared public copy for registration schedules. Window state remains owned
+ * by registration/window; this only turns that fact into display-ready text. */
+export interface RegistrationSchedulePresentation {
+  primary: string;
+  secondary: string | null;
+  countdownTarget: string | null;
+}
+
+export function presentRegistrationSchedule(
+  season: RegistrationWindowSeason,
+  now: Date = new Date(),
+): RegistrationSchedulePresentation | null {
+  if (season.status !== "registration") return null;
+
+  const window = getRegistrationWindowState(season, now);
+  const opensAt = season.registrationOpensAt;
+  const closesAt = season.registrationClosesAt;
+
+  switch (window.phase) {
+    case "unscheduled":
+      return { primary: "报名开放时间待定", secondary: null, countdownTarget: null };
+    case "upcoming":
+      return {
+        primary: opensAt ? `${formatCSTDateTime(opensAt)} 开放报名` : "报名开放时间待定",
+        secondary: closesAt ? `${formatCSTDateTime(closesAt)} 截止` : null,
+        countdownTarget: opensAt ? new Date(opensAt).toISOString() : null,
+      };
+    case "open":
+      return {
+        primary: closesAt ? `${formatCSTDateTime(closesAt)} 截止` : "报名中",
+        secondary: null,
+        countdownTarget: closesAt ? new Date(closesAt).toISOString() : null,
+      };
+    case "closed":
+      return {
+        primary: closesAt ? `报名已于 ${formatCSTDateTime(closesAt)} 截止` : "报名已截止",
+        secondary: null,
+        countdownTarget: null,
+      };
+    default:
+      return null;
   }
 }
 
