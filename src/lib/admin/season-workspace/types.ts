@@ -47,7 +47,6 @@ export interface MajorPrestartPageData {
       submittedAt: string | null;
       reviewedAt: string | null;
       approvedAt: string | null;
-      approvedRosterRevisionId: string;
       qualificationStatus: "approved";
       selectedAsEntrant: boolean;
       roster: {
@@ -61,8 +60,7 @@ export interface MajorPrestartPageData {
       teamId: string;
       teamName: string;
       rosterStatus: "preparing" | "confirmed" | "frozen";
-      sourceRosterRevisionId: string | null;
-      roster: Array<{ userId: string; email: string; isPrimaryStarter: boolean; educationVerificationId: string | null }>;
+      roster: Array<{ userId: string; email: string; isPrimaryStarter: boolean; educationVerified: boolean }>;
     }>;
     issues: Array<{ id: string; category: "qualification" | "administration"; label: string; resolved: boolean }>;
   };

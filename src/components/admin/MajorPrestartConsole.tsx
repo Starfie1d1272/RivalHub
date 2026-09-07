@@ -1,14 +1,9 @@
 import { Checklist, Marker, Panel } from "@/components/rivalhub";
 import type { MajorPrestartReadiness } from "@/lib/major/prestart";
+import { presentMajorPrestartReadiness } from "@/lib/major/prestart-presentation";
 import { MajorPrestartManagement, type MajorPrestartManagementData } from "./MajorPrestartManagement";
 import { MajorTournamentSeedsManagement, type MajorTournamentSeedsManagementData } from "./MajorTournamentSeedsManagement";
 import { MajorStartManagement } from "./MajorStartManagement";
-
-const STATE_LABEL = {
-  ready: "已就绪",
-  blocked: "需处理",
-  unavailable: "尚未接入/不可确认",
-} as const;
 
 export function MajorPrestartConsole({
   seasonName,
@@ -23,6 +18,8 @@ export function MajorPrestartConsole({
   seedManagement: MajorTournamentSeedsManagementData;
   started: boolean;
 }) {
+  const { tasks, systemBlockers } = presentMajorPrestartReadiness(readiness);
+
   return (
     <div className="space-y-6">
       <div>
@@ -30,13 +27,17 @@ export function MajorPrestartConsole({
           赛事赛前 · {seasonName}
         </Marker>
         <p className="text-sm text-[var(--color-fg-mid)]">
-          按赛前检查、正式名单、种子和阶段推进依次完成。每次确认都会重新检查当前资料。
+          按正式参赛队、名单、运营事项、种子和开赛依次完成。每次确认都会重新检查当前资料。
         </p>
       </div>
 
-      <Panel label="赛前检查">
-        <Checklist items={readiness.checks.map((check) => ({ label: check.label, state: check.state === "ready" ? "complete" as const : check.state === "blocked" ? "blocked" as const : "pending" as const, detail: check.blockers.length ? check.blockers.join(" ") : STATE_LABEL[check.state] }))} />
-      </Panel>
+      {tasks.length > 0 && <Panel label="当前待办">
+        <Checklist items={tasks} />
+      </Panel>}
+
+      {systemBlockers.length > 0 && <Panel label="系统发现的待处理问题">
+        <Checklist items={systemBlockers} />
+      </Panel>}
 
       <MajorPrestartManagement data={management} />
       <MajorTournamentSeedsManagement data={seedManagement} />

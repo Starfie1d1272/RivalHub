@@ -44,7 +44,7 @@ async function loadCurrentFrozenSeedSetInTx(tx: TxDb, seasonId: string): Promise
     entrantRefs.map((entrant) => ({ competitionEntryId: entrant.entryId })),
   );
   if (coherent.some((row) => row.eventRoster.status !== "frozen")) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "正式参赛队和 EventRoster 尚未完成统一冻结，不能继续处理最终种子。 ");
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "正式参赛队和名单尚未完成统一冻结，不能继续处理最终种子。 ");
   }
 
   const entrants = await tx.select({
@@ -112,7 +112,7 @@ async function loadReadySnapshotInTx(
       ErrorCode.VALIDATION_FAILED,
       status === "missing"
         ? "系统种子建议快照尚未生成，不能处理最终种子。 "
-        : "系统种子建议快照与当前冻结的参赛队或 EventRoster 不一致，拒绝处理最终种子。 ",
+        : "系统种子建议与当前冻结的参赛队或名单不一致，暂时不能处理最终种子。 ",
     );
   }
   return snapshot!;

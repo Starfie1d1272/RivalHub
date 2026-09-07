@@ -62,7 +62,7 @@ function revalidateMajorPrestart(seasonSlug: string): void {
 export async function selectMajorEntrants(input: { seasonId: string; competitionEntryIds: string[] }): Promise<ActionResult<void>> {
   const parsed = entrantSelectionInput.safeParse(input);
   if (!parsed.success || new Set(parsed.data.competitionEntryIds).size !== parsed.data.competitionEntryIds.length) {
-    return failValidation("正式参赛队选择无效，不能包含重复 Entry。 ");
+    return failValidation("正式参赛队选择无效，不能重复选择同一支报名队伍。 ");
   }
   try {
     const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
@@ -224,7 +224,7 @@ export async function lockMajorPrestartEntrants(input: { seasonId: string }): Pr
 export async function saveMajorTournamentSeeds(input: { seasonId: string; entryIds: string[]; overrideReason?: string }): Promise<ActionResult<void>> {
   const parsed = tournamentSeedsInput.safeParse(input);
   if (!parsed.success) return failValidation("赛事种子或人工调整说明无效。 ");
-  if (new Set(parsed.data.entryIds).size !== parsed.data.entryIds.length) return failValidation("赛事种子不能包含重复 Entry。 ");
+  if (new Set(parsed.data.entryIds).size !== parsed.data.entryIds.length) return failValidation("赛事种子不能包含重复队伍。 ");
   try {
     const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
     await db.transaction(async (tx) => {

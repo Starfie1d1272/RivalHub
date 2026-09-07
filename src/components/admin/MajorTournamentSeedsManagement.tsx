@@ -70,10 +70,10 @@ function StarterSummary({ starter, platform }: { starter: RecommendationStarter;
         <FactLine label="前一完整赛季" fact={starter.previousSeasonPeak} platform={platform} />
         <FactLine label="当前赛季候选" fact={starter.currentSeasonPeak} platform={platform} />
         <FactLine label="近期（实际参与 30%）" fact={starter.effectiveRecentPeak} platform={platform} />
-        <p>weightedRank {starter.breakdown.weightedRank.toFixed(2)} · 段位值 {starter.breakdown.historicalValue}/{starter.breakdown.previousValue}/{starter.breakdown.currentValue}{starter.breakdown.historicalRating === null ? "" : ` · 历史 Rating ${starter.breakdown.historicalRating}`}</p>
+        <p>综合参考值 {starter.breakdown.weightedRank.toFixed(2)} · 历史/前一赛季/当前赛季参考 {starter.breakdown.historicalValue}/{starter.breakdown.previousValue}/{starter.breakdown.currentValue}{starter.breakdown.historicalRating === null ? "" : ` · 历史 Rating ${starter.breakdown.historicalRating}`}</p>
         {provenanceFacts.map((fact, index) => (
           <p key={`${starter.userId}-source-${index}`}>
-            来源：{sourceLabel(fact.sourcePlatform)}{fact.sourceSeasonKey ? ` · 赛季 ${fact.sourceSeasonKey}` : ""} · 原始 {fact.sourceRank}{fact.sourceStars === null ? "" : ` · ${fact.sourceStars} 星`} · conversion {fact.conversionVersion ?? "未记录"}
+            来源：{sourceLabel(fact.sourcePlatform)}{fact.sourceSeasonKey ? ` · 赛季 ${fact.sourceSeasonKey}` : ""} · 原始 {fact.sourceRank}{fact.sourceStars === null ? "" : ` · ${fact.sourceStars} 星`} · 换算版本 {fact.conversionVersion ?? "未记录"}
           </p>
         ))}
       </div>
@@ -143,7 +143,7 @@ export function MajorTournamentSeedsManagement({ data }: { data: MajorTournament
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <Marker sub={confirmed ? "当前排序已确认" : data.seeds.length > 0 ? "排序已变更，需要重新确认" : "尚未保存排序"}>{confirmed ? "种子已确认" : "种子待确认"}</Marker>
-            <p className="mt-1 text-sm text-[var(--color-fg-mid)]">系统建议是 immutable snapshot；下面的最终排序是管理员人工事实。查看分析表的排序不会改变最终种子。</p>
+            <p className="mt-1 text-sm text-[var(--color-fg-mid)]">系统建议会在名单锁定后固定保存；下面的最终排序由管理员确认。查看参考排序不会改变最终种子。</p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" disabled={isPending || !recommendationReady || order.length !== capacity} onClick={save}>保存排序</Button>
@@ -160,23 +160,23 @@ export function MajorTournamentSeedsManagement({ data }: { data: MajorTournament
 
         {data.recommendation && <section className="space-y-3">
           <div className="flex flex-wrap items-end justify-between gap-3">
-            <div><h3 className="font-medium text-[var(--color-fg)]">系统种子分析表</h3><p className="mt-1 text-xs text-[var(--color-fg-mid)]">快照 v{data.recommendation.version} · {sourceLabel(data.recommendation.platform)} · ConversionPolicy {data.recommendation.conversionPolicyId ?? "未指定"} / {data.recommendation.conversionPolicyVersion ?? "未指定版本"} · 生成于 {formatCST(data.recommendation.generatedAt)}</p></div>
-            <span className="text-xs text-[var(--color-fg-mid)]">按系统建议排序 · 不改变最终 seed</span>
+            <div><h3 className="font-medium text-[var(--color-fg)]">队伍实力参考</h3><p className="mt-1 text-xs text-[var(--color-fg-mid)]">依据 {sourceLabel(data.recommendation.platform)} 资料生成于 {formatCST(data.recommendation.generatedAt)}，用于辅助确认种子。</p></div>
+            <span className="text-xs text-[var(--color-fg-mid)]">按系统建议排序 · 不改变最终种子</span>
           </div>
           <div className="overflow-x-auto border border-[var(--color-border)]">
             <table className="min-w-[1160px] w-full text-left text-xs">
-              <thead className="bg-[var(--color-panel-low)] text-[var(--color-fg-mid)]"><tr><th className="px-3 py-2">系统建议</th><th className="px-3 py-2">TeamSeedStrength</th><th className="px-3 py-2">最终 seed / 调整状态</th><th className="px-3 py-2">5 名 frozen primary starters · 竞技资料</th></tr></thead>
+              <thead className="bg-[var(--color-panel-low)] text-[var(--color-fg-mid)]"><tr><th className="px-3 py-2">系统建议</th><th className="px-3 py-2">队伍参考实力</th><th className="px-3 py-2">最终种子 / 调整状态</th><th className="px-3 py-2">已确认主力 · 竞技资料</th></tr></thead>
               <tbody>{analysisRows.map((team) => <tr key={team.teamId} className="border-t border-[var(--color-border)] align-top"><td className="w-36 px-3 py-3"><p className="font-medium text-[var(--color-fg)]">#{team.recommendationRank} · {team.teamName}</p><p className="mt-1 text-[var(--color-fg-mid)]">{(tieGroupSizes.get(team.tieGroup) ?? 0) > 1 ? `系统并列 · 组 ${team.tieGroup}` : "无系统并列"}</p></td><td className="w-32 px-3 py-3 font-mono text-[var(--color-fg)]">{team.teamSeedStrength.toFixed(2)}</td><td className="w-28 px-3 py-3 font-mono text-[var(--color-fg)]">{team.finalSeed === null ? "未保存" : `#${team.finalSeed}`}<p className="mt-1 font-sans text-[11px] text-[var(--color-fg-mid)]">{FINAL_ORDER_STATUS_LABEL[team.finalOrderStatus]}</p></td><td className="px-3 py-3"><div className="grid gap-2 md:grid-cols-5">{team.starters.map((starter) => <StarterSummary key={starter.userId} starter={starter} platform={data.recommendation!.platform} />)}</div></td></tr>)}</tbody>
             </table>
           </div>
         </section>}
 
         <section>
-          <h3 className="font-medium text-[var(--color-fg)]">最终人工 seed 顺序</h3>
+          <h3 className="font-medium text-[var(--color-fg)]">最终种子顺序</h3>
           <ol className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{order.map((teamId, index) => <li key={teamId} className="flex items-center gap-2 border border-[var(--color-border)] px-2 py-1.5 text-sm"><span className="w-8 font-mono text-[var(--color-fg-mid)]">#{index + 1}</span><span className="min-w-0 flex-1 truncate">{teamById.get(teamId)?.teamName ?? teamId}</span><div className="flex gap-1"><Button type="button" size="sm" variant="ghost" disabled={isPending || index === 0} onClick={() => move(index, -1)}>↑</Button><Button type="button" size="sm" variant="ghost" disabled={isPending || index === order.length - 1} onClick={() => move(index, 1)}>↓</Button></div></li>)}</ol>
         </section>
 
-        <label className="block space-y-2 text-sm"><span className="font-medium text-[var(--color-fg)]">人工调整原因（偏离系统建议时必填；系统并列内部顺序可选填）</span><Textarea value={overrideReason} maxLength={500} onChange={(event) => setOverrideReason(event.target.value)} placeholder="例如：组内并列，依据赛委会人工复核顺序确定。" disabled={isPending} /><span className="text-xs text-[var(--color-fg-mid)]">保存后会持久化到赛前状态，并写入 audit；不会修改 immutable 系统快照。</span></label>
+        <label className="block space-y-2 text-sm"><span className="font-medium text-[var(--color-fg)]">人工调整原因（偏离系统建议时必填；系统并列内部顺序可选填）</span><Textarea value={overrideReason} maxLength={500} onChange={(event) => setOverrideReason(event.target.value)} placeholder="例如：组内并列，依据赛委会人工复核顺序确定。" disabled={isPending} /><span className="text-xs text-[var(--color-fg-mid)]">保存后会记录本次调整原因，不会改变系统参考。</span></label>
 
         {data.seeds.length === capacity ? <div className="grid gap-3 lg:grid-cols-3">
           <SeedCohort label="Stage 3 · #1–8" seeds={data.seeds.filter((seed) => seed.tournamentSeed <= 8)} teams={teamById} />
