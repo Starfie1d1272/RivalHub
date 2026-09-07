@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { createSeason, deleteSeason, openSeasonRegistration, publishSeason, updateSeason, revertSeasonToDraft, revertSeasonToRegistration, forceFinishSeason, archiveSeason, type SeasonFormInput } from "@/actions/seasons";
@@ -198,13 +198,12 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
     setAffiliationRules([...capabilities.affiliationRules]);
   }
 
-  // A create slug follows the name until the operator explicitly takes it over.
-  useEffect(() => {
+  function handleNameChange(nextName: string) {
+    setName(nextName);
     if (mode === "create" && !slugManuallyEdited) {
-      const nextSlug = slugFromName(name);
-      if (slug !== nextSlug) setSlug(nextSlug);
+      setSlug(slugFromName(nextName));
     }
-  }, [mode, name, slug, slugManuallyEdited]);
+  }
 
   function handleRegistrationModeChange(value: "solo" | "team") {
     setRegistrationMode(value);
@@ -382,15 +381,13 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
     });
   }
 
-  const SaveBtn = () => (
-    mode === "edit" ? (
-      <div className="flex justify-end pt-2">
-        <Button type="button" size="sm" disabled={isPending} onClick={handleSubmit}>
-          {isPending ? "保存中…" : "保存"}
-        </Button>
-      </div>
-    ) : null
-  );
+  const saveButton = mode === "edit" ? (
+    <div className="flex justify-end pt-2">
+      <Button type="button" size="sm" disabled={isPending} onClick={handleSubmit}>
+        {isPending ? "保存中…" : "保存"}
+      </Button>
+    </div>
+  ) : null;
 
   if (mode === "create") {
     return (
@@ -445,7 +442,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
         <section className="space-y-4">
           <h2 className="font-semibold">基础信息</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div><Label htmlFor="season-name">名称</Label><Input id="season-name" value={name} onChange={(e) => setName(e.target.value)} /></div>
+            <div><Label htmlFor="season-name">名称</Label><Input id="season-name" value={name} onChange={(e) => handleNameChange(e.target.value)} /></div>
             <div>
               <Label htmlFor="season-slug">Slug</Label>
               <Input id="season-slug" value={slug} aria-invalid={slugNeedsManualInput} onChange={(e) => { setSlugManuallyEdited(true); setSlug(e.target.value); }} />
@@ -587,7 +584,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <Label htmlFor="season-name">名称</Label>
-            <Input id="season-name" value={name} onChange={(e) => setName(e.target.value)} />
+            <Input id="season-name" value={name} onChange={(e) => handleNameChange(e.target.value)} />
           </div>
           <div>
             <Label htmlFor="season-slug">Slug</Label>
@@ -622,7 +619,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
             <ThemeColorPicker value={themeColor} onChange={setThemeColor} />
           </div>
         </div>
-        <SaveBtn />
+        {saveButton}
       </SettingsPanel>
 
       <SettingsPanel id="lifecycle" label="时间与生命周期">
@@ -653,7 +650,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
           {initial?.status === "draft" && <Button type="button" variant="outline" disabled={isPending} onClick={() => setPublishConfirmationOpen(true)}>发布赛季</Button>}
           {initial?.status === "registration" && !initial.registrationOpenedAt && <Button type="button" disabled={isPending} onClick={handleOpenRegistration}>立即开放报名</Button>}
         </div>
-        <SaveBtn />
+        {saveButton}
       </SettingsPanel>
 
       <SettingsPanel id="registration" label="报名与名单">
@@ -692,7 +689,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
             <TeamConfigForm view="team" value={teamConfig} maxTeamSize={maxTeamSize} competitivePlatforms={competitivePlatforms} disabled={!editCapabilities.canEditPublicRules} onChange={setTeamConfig} />
           </div>
         )}
-        <SaveBtn />
+        {saveButton}
       </SettingsPanel>
 
       <SettingsPanel id="qualification" label="资格规则">
@@ -744,7 +741,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
             <AffiliationRulesSummary rules={affiliationRules} />
           </div>
         )}
-        <SaveBtn />
+        {saveButton}
       </SettingsPanel>
 
       <SettingsPanel id="format" label="赛制与地图">
@@ -761,7 +758,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
             </div>
           )}
         </div>
-        <SaveBtn />
+        {saveButton}
       </SettingsPanel>
 
       <SettingsPanel id="competitive" label="竞技参考">
@@ -777,7 +774,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
         ) : (
           <CompetitiveReferenceSummary config={teamConfig} platforms={competitivePlatforms} frozen={Boolean(initial?.registrationOpenedAt)} />
         )}
-        <SaveBtn />
+        {saveButton}
       </SettingsPanel>
 
       <SettingsPanel id="features" label="功能">
@@ -789,7 +786,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
           </span>
         </label>
         {!editCapabilities.canEditPublicRules && <div className="mt-4"><FrozenFact title={`社区奖：${hasCommunityAwards ? "已启用" : "已关闭"}`}>社区奖是赛事公开 capability；发布后不能再改变，入口和服务端操作会继续消费这个事实。</FrozenFact></div>}
-        <SaveBtn />
+        {saveButton}
       </SettingsPanel>
 
       <SettingsPanel id="danger" label="危险操作">

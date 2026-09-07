@@ -40,7 +40,7 @@ export function MatchMvpVote({
 }: MatchMvpVoteProps) {
   const [optimisticVotes, setOptimisticVotes] = useState(currentVotes);
   const [votedName, setVotedName] = useState(userVotedPlayerName);
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
   const [isPending, startTransition] = useTransition();
 
   const deadline = useMemo(

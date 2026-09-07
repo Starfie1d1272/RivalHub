@@ -245,6 +245,8 @@ export function RegistrationForm({
         });
 
   const setMapLevel = (map: string, level: MapPreferenceLevel | null) => {
+    // React Hook Form's watch callback is intentionally read at the event boundary.
+    // eslint-disable-next-line react-hooks/incompatible-library
     const current = watch("mapPreferences") ?? defaultMapPreferences(registrationConfig.mapPool);
     const next = registrationConfig.mapPool.map((item) => ({
       map: item,

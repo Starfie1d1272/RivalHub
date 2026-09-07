@@ -54,6 +54,7 @@ export function MatchTimeNegotiation({
   // 0 缓冲（=与最晚完成时间一致）目前仅正赛使用，沿用作为是否显示解说时段提示的判据。
   const isPlayoff = bufferHours === 0;
   const [isPending, startTransition] = useTransition();
+  const [now, setNow] = useState(() => Date.now());
   const [proposedTime, setProposedTime] = useState("");
   const [rejectReasons, setRejectReasons] = useState<Record<string, string>>({});
   const [rejectingId, setRejectingId] = useState<string | null>(null);
@@ -63,18 +64,24 @@ export function MatchTimeNegotiation({
   const completionDeadline = currentCompletionDeadline
     ? new Date(currentCompletionDeadline)
     : null;
-  const confirmationCutoff = completionDeadline
-    ? new Date(completionDeadline.getTime() - bufferHours * 60 * 60 * 1000)
+  const confirmationCutoffTime = completionDeadline
+    ? completionDeadline.getTime() - bufferHours * 60 * 60 * 1000
     : null;
+  const confirmationCutoff = confirmationCutoffTime === null
+    ? null
+    : new Date(confirmationCutoffTime);
   const isNegotiationClosed =
-    confirmationCutoff !== null && Date.now() >= confirmationCutoff.getTime();
+    confirmationCutoffTime !== null && now >= confirmationCutoffTime;
 
   // 有 pending 提议时自动轮询，确保自动采纳后页面及时更新
   useEffect(() => {
-    if (pendingProposals.length === 0) return;
-    const timer = window.setInterval(() => router.refresh(), 30_000);
+    if (pendingProposals.length === 0 && confirmationCutoffTime === null) return;
+    const timer = window.setInterval(() => {
+      setNow(Date.now());
+      if (pendingProposals.length > 0) router.refresh();
+    }, 30_000);
     return () => window.clearInterval(timer);
-  }, [pendingProposals.length, router]);
+  }, [confirmationCutoffTime, pendingProposals.length, router]);
 
   // 检测被系统自动采纳的提议
   const autoAcceptedProposal = initialProposals.find((p) => {
@@ -169,7 +176,7 @@ export function MatchTimeNegotiation({
             );
             const hoursLeft = Math.max(
               0,
-              Math.round((autoAcceptAt.getTime() - Date.now()) / (60 * 60 * 1000) * 10) / 10,
+              Math.round((autoAcceptAt.getTime() - now) / (60 * 60 * 1000) * 10) / 10,
             );
 
             return (
