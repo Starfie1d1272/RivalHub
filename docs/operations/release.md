@@ -15,7 +15,7 @@ pnpm exec changeset version
 提交 PR 前确认：
 
 - `package.json` version 正确，未手工维护第二份版本号；
-- 当前版本 CHANGELOG 文案面向用户/管理员，不复制内部实现清单；
+- `changeset version` 产物只作初稿：按仓库既有 CHANGELOG 结构整理当前版本，按实际内容使用 `Added` / `Changed` / `Fixed` 等分类和必要的中文主题，合并重复条目、删除内部实现噪音，不保留 `Patch Changes` / `Minor Changes` / `Major Changes` 等默认标题；
 - release-relevant feat / fix / security / migration 无遗漏；
 - CHANGELOG 底部存在当前版本 compare 链接，例如 `[X.Y.Z]: https://github.com/Starfie1d1272/RivalHub/compare/vPREVIOUS...vX.Y.Z`；
 - 仍需 production / external acceptance 的事项已明确，不把未验收状态写成已完成。
