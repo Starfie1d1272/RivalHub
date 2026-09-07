@@ -10,7 +10,7 @@ login  → password authentication → application session
 forgot password → recovery email → reset password
 ```
 
-Supabase Auth 负责凭据；成功确认/登录后同步 credential 到 canonical `users.id` 并建立 `rivalhub-session`。用户可验证并绑定 secondary email；其中任一 verified institutional email 都可完成学校邮箱教育认证，不要求替换 primary 登录邮箱。若该 credential 已属于另一个 user，系统建立短期双重控制授权，用户选择 canonical account 后查看 deterministic merge preflight；任何 reconcile 或 blocker 都拒绝执行。安全归并在单个事务内写入 alias ledger 与 audit，迁移 person facts、保留历史 actor/frozen facts，随后 session 解析到 canonical user。长期资料、教育资格、竞技档案和 Team 独立于任何一届赛事维护；赛事只在需要时引用或冻结这些事实。
+Supabase Auth 负责登录身份；成功确认/登录后同步身份到对应的 `users.id` 并建立 `rivalhub-session`。用户可验证并绑定其他邮箱；其中任一已验证的学校邮箱都可完成学校邮箱教育认证，不要求替换当前登录邮箱。若该身份已属于另一个 user，系统建立短期双方控制授权，用户选择要保留的账号后查看归并影响；真实冲突会直接阻止执行。安全归并在单个事务内写入 alias ledger 与 audit，保留所选账号资料，归属不冲突的 person facts、登录身份和业务历史，关闭旧账号的临时状态，随后 session 解析到保留账号。长期资料、教育资格、竞技档案和 Team 独立于任何一届赛事维护；赛事只在需要时引用或冻结这些事实。
 
 ## Season lifecycle
 

@@ -97,7 +97,8 @@ export async function getAdminUsersList(query: AdminUsersQuery): Promise<AdminUs
       COUNT(DISTINCT sr.season_id)::int AS season_count
     FROM users u
     LEFT JOIN season_registrations sr ON sr.user_id = u.id
-    WHERE u.role = 'user'
+    WHERE u.status = 'active'
+      AND u.role = 'user'
       ${searchClause}
     GROUP BY u.id
     ${havingClause}
@@ -105,7 +106,7 @@ export async function getAdminUsersList(query: AdminUsersQuery): Promise<AdminUs
 
   const [countResult, datasetResult, rowsResult] = await Promise.all([
     db.execute(sql`WITH user_rows AS (${groupedUsers}) SELECT COUNT(*)::int AS total FROM user_rows`),
-    db.execute(sql`SELECT COUNT(*)::int AS total FROM users WHERE role = 'user'`),
+    db.execute(sql`SELECT COUNT(*)::int AS total FROM users WHERE status = 'active' AND role = 'user'`),
     db.execute(sql`
       WITH user_rows AS (${groupedUsers})
       SELECT *
@@ -152,6 +153,7 @@ export async function getAdminUserStats(): Promise<AdminUserStats> {
       SELECT u.id, u.created_at, COUNT(DISTINCT sr.season_id) AS season_count
       FROM users u
       LEFT JOIN season_registrations sr ON sr.user_id = u.id
+      WHERE u.status = 'active'
       GROUP BY u.id, u.created_at
     ) sub
   `);

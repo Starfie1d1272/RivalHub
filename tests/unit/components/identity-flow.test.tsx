@@ -111,7 +111,7 @@ describe("identity flow UI", () => {
 
   it("shows current email and education verification states without evidence URLs", () => {
     render(<EducationVerificationPanel email="player@example.test" emailVerified={false} institutionalIdentities={[]} verifications={[{ id: "1", institution: "南京大学", code: "4132010284", academicStatus: "enrolled", evidenceType: "chsi_enrollment_report", status: "rejected", reviewNote: "学校不一致", submittedAt: new Date().toISOString() }]} />);
-    expect(screen.getByText("邮箱尚未验证")).toBeInTheDocument();
+    expect(screen.getByText("当前登录邮箱尚未验证")).toBeInTheDocument();
     expect(screen.getByText("南京大学 · 在读 · 已驳回")).toBeInTheDocument();
     expect(screen.getByText("审核说明：学校不一致")).toBeInTheDocument();
     expect(screen.queryByText(/chsi\.com\.cn/)).not.toBeInTheDocument();

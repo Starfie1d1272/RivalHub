@@ -58,7 +58,10 @@ export async function resolveOrCreateCanonicalUserInTx(
     ));
   const legacyRows = await tx.select({ id: users.id })
     .from(users)
-    .where(or(eq(users.authId, input.authId), sql`lower(trim(${users.email})) = ${email}`));
+    .where(and(
+      eq(users.status, "active"),
+      or(eq(users.authId, input.authId), sql`lower(trim(${users.email})) = ${email}`),
+    ));
 
   const canonicalIds = new Set<string>();
   for (const candidate of [...identityRows.map((row) => row.userId), ...legacyRows.map((row) => row.id)]) {

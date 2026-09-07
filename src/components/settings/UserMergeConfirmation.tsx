@@ -47,10 +47,10 @@ export function UserMergeConfirmation({
         onChange={(event) => setConfirmed(event.target.checked)}
         disabled={!executable || pending}
       />
-      <span>我确认保留所选 canonical 用户。另一个账号会进入 merged 状态，其 credential 与可安全迁移的个人事实会归到 canonical 用户；历史 actor 与 frozen facts 保持原记录。</span>
+      <span>我确认保留所选账号。另一个账号会标记为已归并；可安全迁移的个人事实和登录身份会归到保留账号，历史执行人和冻结赛事事实保持原记录。</span>
     </label>
     <Button type="button" onClick={execute} disabled={!executable || !confirmed || pending}>
-      {pending ? "归并中…" : executable ? "确认并执行安全归并" : "存在未解决项，无法归并"}
+      {pending ? "归并中…" : executable ? "确认并归并账号" : "存在冲突，暂不能归并"}
     </Button>
   </div>;
 }

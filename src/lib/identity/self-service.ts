@@ -1,8 +1,8 @@
 import "server-only";
 
-import { and, eq, gt, inArray, isNotNull } from "drizzle-orm";
+import { and, eq, gt, inArray, isNotNull, isNull } from "drizzle-orm";
 import type { DB, TxDb } from "@/db/client";
-import { userIdentities, userMergeAuthorizations, users } from "@/db/schema";
+import { teamMemberships, teams, userIdentities, userMergeAuthorizations, users } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { getDisplayName } from "@/lib/identity/display-name";
 
@@ -13,7 +13,7 @@ export interface SelfServiceMergeAuthorization {
   initiatingUserId: string;
   counterpartyUserId: string;
   expiresAt: Date;
-  accounts: Array<{ id: string; email: string; label: string }>;
+  accounts: Array<{ id: string; email: string; label: string; steam64: string | null; teamName: string | null }>;
 }
 
 export async function loadSelfServiceMergeAuthorization(
@@ -49,6 +49,7 @@ export async function loadSelfServiceMergeAuthorization(
     displayName: users.displayName,
     perfectName: users.perfectName,
     steamName: users.steamName,
+    steam64: users.steam64,
   }).from(users).where(and(
     inArray(users.id, [authorization.initiatingUserId, authorization.counterpartyUserId]),
     eq(users.status, "active"),
@@ -57,12 +58,24 @@ export async function loadSelfServiceMergeAuthorization(
     throw new AppError(ErrorCode.VALIDATION_FAILED, "归并候选账号状态已变化，请重新开始。");
   }
 
+  const currentTeams = await reader.select({ userId: teamMemberships.userId, teamName: teams.name })
+    .from(teamMemberships)
+    .innerJoin(teams, eq(teams.id, teamMemberships.teamId))
+    .where(and(
+      inArray(teamMemberships.userId, accounts.map((account) => account.id)),
+      isNull(teamMemberships.endedAt),
+      eq(teams.status, "active"),
+    ));
+  const teamByUser = new Map(currentTeams.map((team) => [team.userId, team.teamName]));
+
   return {
     ...authorization,
     accounts: accounts.map((account) => ({
       id: account.id,
       email: account.email,
       label: getDisplayName(account),
+      steam64: account.steam64,
+      teamName: teamByUser.get(account.id) ?? null,
     })),
   };
 }

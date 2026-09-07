@@ -12,7 +12,7 @@ export default async function AccountSecurityPage() {
   const identities = await listVerifiedEmailIdentities(db, session.userId);
 
   return <div className="max-w-2xl space-y-6">
-    <PageHeader title="账号与安全" description="登录方式只是 credential；赛事历史、教育认证与竞技资料始终归属于同一个 RivalHub 用户身份。" />
+    <PageHeader title="账号与安全" description="登录方式可以有多个；赛事历史、教育认证与竞技资料始终归属于同一个 RivalHub 用户。" />
     <IdentityManager identities={identities.map((identity) => ({
       ...identity,
       verifiedAt: identity.verifiedAt.toISOString(),

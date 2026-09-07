@@ -35,6 +35,7 @@ export async function getTeamDirectory(query: TeamDirectoryQuery): Promise<TeamD
   const memberCounts = db
     .select({ teamId: teamMemberships.teamId, memberCount: sql<number>`count(*)::int`.as("member_count") })
     .from(teamMemberships)
+    .innerJoin(users, and(eq(teamMemberships.userId, users.id), eq(users.status, "active")))
     .where(isNull(teamMemberships.endedAt))
     .groupBy(teamMemberships.teamId)
     .as("team_directory_member_counts");
@@ -80,7 +81,7 @@ export async function getTeamDirectory(query: TeamDirectoryQuery): Promise<TeamD
       memberCount,
     })
       .from(teams)
-      .innerJoin(users, eq(users.id, teams.captainUserId))
+      .leftJoin(users, and(eq(users.id, teams.captainUserId), eq(users.status, "active")))
       .leftJoin(recruitmentIntents, openRecruitment)
       .leftJoin(seasons, eq(seasons.id, recruitmentIntents.targetSeasonId))
       .leftJoin(memberCounts, eq(memberCounts.teamId, teams.id))
@@ -88,7 +89,7 @@ export async function getTeamDirectory(query: TeamDirectoryQuery): Promise<TeamD
       .orderBy(...orderBy),
     db.select({ count: count() })
       .from(teams)
-      .innerJoin(users, eq(users.id, teams.captainUserId))
+      .leftJoin(users, and(eq(users.id, teams.captainUserId), eq(users.status, "active")))
       .leftJoin(recruitmentIntents, openRecruitment)
       .leftJoin(seasons, eq(seasons.id, recruitmentIntents.targetSeasonId))
       .where(where),

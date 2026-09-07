@@ -6,7 +6,7 @@ import { buildUserMergePreflight, executeUserMergeInTx } from "../../../src/lib/
 import { createLocalPool } from "./harness/database";
 
 describe("canonical user identity merge PostgreSQL invariants", () => {
-  it("reparents safe person facts, preserves historical actor identity, and leaves a durable alias", async () => {
+  it("keeps the selected profile intact, reparents person facts, retires loser competitive facts, and leaves a durable alias", async () => {
     const pool = createLocalPool();
     const ids = { canonical: randomUUID(), merged: randomUUID(), admin: randomUUID() };
     const database = drizzle(pool, { schema });
@@ -14,7 +14,7 @@ describe("canonical user identity merge PostgreSQL invariants", () => {
       const institution = await pool.query<{ id: string }>("SELECT id FROM institutions ORDER BY id LIMIT 1");
       if (!institution.rows[0]) throw new Error("Local fixture 需要高校目录记录。");
       await pool.query(
-        "INSERT INTO users (id, email, role) VALUES ($1, $2, 'user'), ($3, $4, 'user'), ($5, $6, 'super_admin')",
+        "INSERT INTO users (id, email, display_name, qq, role) VALUES ($1, $2, 'Selected profile', 'selected-qq', 'user'), ($3, $4, 'Loser profile', 'loser-qq', 'user'), ($5, $6, 'Merge admin', 'admin-qq', 'super_admin')",
         [ids.canonical, `canonical-${ids.canonical}@local.test`, ids.merged, `merged-${ids.merged}@local.test`, ids.admin, `merge-admin-${ids.admin}@local.test`],
       );
       await pool.query(
@@ -36,9 +36,9 @@ describe("canonical user identity merge PostgreSQL invariants", () => {
       });
       expect(preflight.executable).toBe(true);
       expect(preflight.items).toEqual(expect.arrayContaining([
-        expect.objectContaining({ category: "REPARENT", domain: "education verification" }),
-        expect.objectContaining({ category: "REPARENT", domain: "competitive rank facts" }),
-        expect.objectContaining({ category: "PRESERVE", domain: "schema coverage" }),
+        expect.objectContaining({ category: "AUTOMATIC", domain: "教育认证记录" }),
+        expect.objectContaining({ category: "AUTOMATIC", domain: "待归并竞技资料" }),
+        expect.objectContaining({ category: "PRESERVE", domain: "历史执行人" }),
       ]));
 
       await database.transaction((tx) => executeUserMergeInTx(tx, {
@@ -51,7 +51,8 @@ describe("canonical user identity merge PostgreSQL invariants", () => {
       }));
 
       await expect(pool.query("SELECT count(*)::text AS count FROM education_verifications WHERE user_id = $1", [ids.canonical])).resolves.toMatchObject({ rows: [{ count: "1" }] });
-      await expect(pool.query("SELECT count(*)::text AS count FROM competitive_rank_facts WHERE user_id = $1", [ids.canonical])).resolves.toMatchObject({ rows: [{ count: "1" }] });
+      await expect(pool.query("SELECT count(*)::text AS count FROM competitive_rank_facts WHERE user_id = $1", [ids.canonical])).resolves.toMatchObject({ rows: [{ count: "0" }] });
+      await expect(pool.query("SELECT display_name, qq FROM users WHERE id = $1", [ids.canonical])).resolves.toMatchObject({ rows: [{ display_name: "Selected profile", qq: "selected-qq" }] });
       await expect(pool.query("SELECT status::text, merged_into_user_id FROM users WHERE id = $1", [ids.merged])).resolves.toMatchObject({ rows: [{ status: "merged", merged_into_user_id: ids.canonical }] });
       await expect(pool.query("SELECT canonical_user_id, merged_user_id FROM user_merge_ledger WHERE merged_user_id = $1", [ids.merged])).resolves.toMatchObject({ rows: [{ canonical_user_id: ids.canonical, merged_user_id: ids.merged }] });
       await expect(pool.query("SELECT actor_id FROM audit_logs WHERE action = 'local.identity.history' AND target_id = $1", [ids.merged])).resolves.toMatchObject({ rows: [{ actor_id: ids.merged }] });

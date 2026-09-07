@@ -127,6 +127,7 @@ export async function getTeamRegistrationReview(
 ): Promise<TeamRegistrationReviewResult> {
   const conditions = [
     eq(competitionEntries.competitionId, season.id),
+    eq(users.status, "active"),
     query.status === "all"
       ? inArray(competitionEntries.registrationStatus, [...TEAM_REVIEW_STATUSES])
       : eq(competitionEntries.registrationStatus, query.status),
@@ -164,19 +165,21 @@ export async function getTeamRegistrationReview(
         },
       })
       .from(competitionEntries)
-      .innerJoin(users, eq(competitionEntries.representativeUserId, users.id))
+      .innerJoin(users, and(eq(competitionEntries.representativeUserId, users.id), eq(users.status, "active")))
       .where(where)
       .orderBy(...orderBy),
     db
       .select({ count: count() })
       .from(competitionEntries)
-      .innerJoin(users, eq(competitionEntries.representativeUserId, users.id))
+      .innerJoin(users, and(eq(competitionEntries.representativeUserId, users.id), eq(users.status, "active")))
       .where(where),
     db
       .select({ count: count() })
       .from(competitionEntries)
+      .innerJoin(users, and(eq(competitionEntries.representativeUserId, users.id), eq(users.status, "active")))
       .where(and(
         eq(competitionEntries.competitionId, season.id),
+        eq(users.status, "active"),
         inArray(competitionEntries.registrationStatus, [...TEAM_REVIEW_STATUSES]),
       )),
   ]);
@@ -210,7 +213,7 @@ export async function getTeamRegistrationReview(
           .from(competitionEntryRosterRevisions)
           .innerJoin(competitionEntryRosterMembers, eq(competitionEntryRosterMembers.revisionId, competitionEntryRosterRevisions.id))
           .innerJoin(competitionEntryParticipants, eq(competitionEntryParticipants.id, competitionEntryRosterMembers.participantId))
-          .innerJoin(users, eq(users.id, competitionEntryRosterMembers.userId))
+        .innerJoin(users, and(eq(users.id, competitionEntryRosterMembers.userId), eq(users.status, "active")))
           .where(inArray(competitionEntryRosterRevisions.entryId, entryIds)),
       ]);
 
@@ -325,7 +328,7 @@ export async function getSoloRegistrationReview(
   positions: readonly string[],
   query: SoloRegistrationReviewQuery,
 ): Promise<SoloRegistrationReviewResult> {
-  const conditions = [eq(seasonRegistrations.seasonId, seasonId)];
+  const conditions = [eq(seasonRegistrations.seasonId, seasonId), eq(users.status, "active")];
   if (query.q) {
     const pattern = `%${escapeLikePattern(query.q)}%`;
     conditions.push(or(
@@ -351,9 +354,9 @@ export async function getSoloRegistrationReview(
     db
       .select({ count: count() })
       .from(seasonRegistrations)
-      .leftJoin(users, eq(seasonRegistrations.userId, users.id))
+      .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
       .where(where),
-    db.select({ count: count() }).from(seasonRegistrations).where(eq(seasonRegistrations.seasonId, seasonId)),
+    db.select({ count: count() }).from(seasonRegistrations).innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active"))).where(eq(seasonRegistrations.seasonId, seasonId)),
   ]);
   const total = Number(totalRow?.count ?? 0);
   const totalPages = Math.ceil(total / SOLO_REGISTRATION_REVIEW_PAGE_SIZE);
@@ -386,7 +389,7 @@ export async function getSoloRegistrationReview(
       qq: users.qq,
     })
     .from(seasonRegistrations)
-    .leftJoin(users, eq(seasonRegistrations.userId, users.id))
+    .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
     .where(where)
     .orderBy(...orderBy)
     .limit(SOLO_REGISTRATION_REVIEW_PAGE_SIZE)

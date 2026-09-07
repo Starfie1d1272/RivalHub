@@ -1,7 +1,7 @@
 import "server-only";
 
 import { cacheLife, cacheTag } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { users } from "@/db/schema";
@@ -34,7 +34,7 @@ export async function getPublicPlayerById(userId: string): Promise<PublicPlayer 
   const [player] = await db
     .select(publicPlayerColumns)
     .from(users)
-    .where(eq(users.id, userId))
+    .where(and(eq(users.id, userId), eq(users.status, "active")))
     .limit(1);
 
   if (!player) return null;
@@ -44,4 +44,3 @@ export async function getPublicPlayerById(userId: string): Promise<PublicPlayer 
     steamProfileUrl: normalizeSteamProfileUrl(player.steamProfileUrl),
   };
 }
-

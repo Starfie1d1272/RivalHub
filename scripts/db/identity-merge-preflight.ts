@@ -29,6 +29,7 @@ try {
     fingerprint: plan.fingerprint,
     executable: plan.executable,
     summary: plan.summary,
+    impact: plan.impact,
     items: plan.items.map(({ category, domain, count, status, detail }) => ({ category, domain, count, status, detail })),
   }, null, 2));
 } catch (error) {

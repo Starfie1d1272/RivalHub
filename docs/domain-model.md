@@ -8,7 +8,7 @@
 
 `users.id` 是自然人的 canonical identity，也是长期公开资料的根实体。Supabase Auth、邮箱与未来 provider identity 都是由 `user_identities` 绑定的 credential，而不是 person id；同一 active external identity 全局只属于一个 canonical user。全局角色只有 `user` 与 `super_admin`；具体赛事管理权由 `season_admin_grants` 单独表达。授权不是客户端状态，也不从历史报名或队伍身份推导。
 
-credential linking 只证明并绑定新的 identity，不复制或移动赛事事实。两个已有 `users.id` 的归并必须先生成 fail-closed preflight：可安全 person fact 才 reparent，等价事实才 dedupe；profile/rank/map/role 冲突需 reconcile，current-state/roster/vote 等冲突必须 blocker，历史 actor 与 frozen facts preserve。成功归并后 loser 作为可追溯 alias 保留在 `user_merge_ledger`，不会被无痕删除。
+credential linking 只证明并绑定新的 identity，不复制或移动赛事事实。两个已有 `users.id` 的归并必须先生成 fail-closed preflight：用户选择的保留账号资料和竞技资料原样不变，待归并账号的竞技资料直接删除；登录身份、已确认的 person facts 和不冲突的业务历史归到保留账号，临时状态关闭，历史 actor/provenance 继续保留原账号。只有 Steam 身份、Team 时间线/队长状态、不同参赛身份或同一地图两份正式比赛数据等无法无歧义处理的事实才阻止自助归并。成功归并后 loser 作为可追溯 alias 保留在 `user_merge_ledger`，不会被无痕删除。
 
 ### Education
 

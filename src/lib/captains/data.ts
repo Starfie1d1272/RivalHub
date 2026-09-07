@@ -82,7 +82,7 @@ export async function getPublicCaptainVotingData(
       perfectName: users.perfectName,
     })
     .from(seasonRegistrations)
-    .leftJoin(users, eq(seasonRegistrations.userId, users.id))
+    .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
     .where(
       and(
         eq(seasonRegistrations.seasonId, seasonId),
