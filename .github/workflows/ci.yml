@@ -185,6 +185,17 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
+      - name: Validate current changelog compare link
+        shell: bash
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          PREFIX="[$VERSION]: https://github.com/Starfie1d1272/RivalHub/compare/"
+          LINE="$(grep -F "$PREFIX" CHANGELOG.md || true)"
+          if [[ -z "$LINE" || "$LINE" != *"...v$VERSION" ]]; then
+            echo "CHANGELOG.md must contain a compare link for version $VERSION." >&2
+            exit 1
+          fi
+
       - name: Validate required evidence
         run: node scripts/ci/gate.mjs
         env:
