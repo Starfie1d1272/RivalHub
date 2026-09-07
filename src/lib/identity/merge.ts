@@ -108,6 +108,20 @@ export const USER_REFERENCE_RULES: readonly UserReferenceRule[] = [
   { table: "users", column: "merged_into_user_id", domain: "旧账号别名", mode: "preserve" },
 ] as const;
 
+interface SeasonRegistrationReferenceRule {
+  table: string;
+  column: string;
+  domain: string;
+}
+
+/** Every direct FK to season_registrations.id has an explicit merge owner. */
+export const SEASON_REGISTRATION_REFERENCE_RULES: readonly SeasonRegistrationReferenceRule[] = [
+  { table: "competition_entries", column: "source_registration_id", domain: "参赛条目报名来源" },
+  { table: "draft_picks", column: "registration_id", domain: "选秀选手报名" },
+  { table: "captain_votes", column: "voter_registration_id", domain: "队长投票人报名" },
+  { table: "captain_votes", column: "candidate_registration_id", domain: "队长候选人报名" },
+] as const;
+
 type MergeQueryable = Pick<DB, "execute">;
 
 export async function assertUserReferenceRegistryCoverage(queryable: MergeQueryable): Promise<void> {
@@ -142,6 +156,38 @@ export async function assertUserReferenceRegistryCoverage(queryable: MergeQuerya
   }
 }
 
+export async function assertSeasonRegistrationReferenceRegistryCoverage(queryable: MergeQueryable): Promise<void> {
+  const result = await queryable.execute(sql`
+    SELECT child.relname AS table_name, child_column.attname AS column_name
+    FROM pg_constraint AS constraint_row
+    JOIN pg_class AS child ON child.oid = constraint_row.conrelid
+    JOIN pg_namespace AS child_namespace ON child_namespace.oid = child.relnamespace
+    JOIN pg_class AS parent ON parent.oid = constraint_row.confrelid
+    JOIN pg_namespace AS parent_namespace ON parent_namespace.oid = parent.relnamespace
+    JOIN LATERAL unnest(constraint_row.conkey) WITH ORDINALITY AS child_key(attnum, ordinal) ON true
+    JOIN LATERAL unnest(constraint_row.confkey) WITH ORDINALITY AS parent_key(attnum, ordinal) ON parent_key.ordinal = child_key.ordinal
+    JOIN pg_attribute AS child_column ON child_column.attrelid = child.oid AND child_column.attnum = child_key.attnum
+    JOIN pg_attribute AS parent_column ON parent_column.attrelid = parent.oid AND parent_column.attnum = parent_key.attnum
+    WHERE constraint_row.contype = 'f'
+      AND child_namespace.nspname = 'public'
+      AND parent_namespace.nspname = 'public'
+      AND parent.relname = 'season_registrations'
+      AND parent_column.attname = 'id'
+    ORDER BY child.relname, child_column.attname
+  `);
+  const actual = result.rows.map((row) => `${String(row.table_name)}.${String(row.column_name)}`).sort();
+  const expected = SEASON_REGISTRATION_REFERENCE_RULES.map((rule) => `${rule.table}.${rule.column}`).sort();
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    const expectedSet = new Set(expected);
+    const actualSet = new Set(actual);
+    const differences = [
+      ...actual.filter((key) => !expectedSet.has(key)).map((key) => `unclassified ${key}`),
+      ...expected.filter((key) => !actualSet.has(key)).map((key) => `missing ${key}`),
+    ];
+    throw new AppError(ErrorCode.INTERNAL_ERROR, `season registration owner registry 与 PostgreSQL schema 不一致：${differences.join("；")}`);
+  }
+}
+
 type CollisionFacts = Record<string, number>;
 
 export async function buildUserMergePreflight(
@@ -151,6 +197,7 @@ export async function buildUserMergePreflight(
 ): Promise<UserMergePreflight> {
   if (input.canonicalUserId === input.mergedUserId) throw new AppError(ErrorCode.VALIDATION_FAILED, "保留账号与待归并账号不能相同。");
   await assertUserReferenceRegistryCoverage(queryable);
+  await assertSeasonRegistrationReferenceRegistryCoverage(queryable);
   const pairResult = await queryable.execute(sql`
     SELECT id, status, role, steam64
     FROM users
@@ -204,6 +251,11 @@ export async function buildUserMergePreflight(
   pushCount(items, "team:same-team-dedupe", "AUTOMATIC", "同队重复成员关系", facts.same_team_membership_duplicate, "automatic", "同一队伍重叠成员关系按保留账号优先确定性去重。 ");
   pushCount(items, "registration:same-season", "AUTOMATIC", "同赛季报名", facts.registration_same_season, "automatic", "同赛季报名由保留账号优先；不会因为这一项阻断归并。 ");
   pushCount(items, "registration:approved-migrate", "AUTOMATIC", "已批准报名迁移", facts.registration_approved_migrate, "automatic", "待归并账号独有且已批准的报名迁移到保留账号。 ");
+  pushCount(items, "registration:draft-reference-blocker", "BLOCKER", "待删除报名的选秀记录", facts.registration_draft_reference_blocker, "blocked", "待删除报名仍被 draft pick 引用，且没有同赛季保留报名可以安全承接。 ");
+  pushCount(items, "registration:captain-voter-reference-blocker", "BLOCKER", "待删除报名的队长投票人引用", facts.registration_voter_reference_blocker, "blocked", "待删除报名仍作为 captain vote 投票人，且没有同赛季保留报名可以安全承接。 ");
+  pushCount(items, "registration:captain-candidate-reference-blocker", "BLOCKER", "待删除报名的队长候选人引用", facts.registration_candidate_reference_blocker, "blocked", "待删除报名仍作为 captain vote 候选人，且没有同赛季保留报名可以安全承接。 ");
+  pushCount(items, "registration:draft-pick-conflict", "BLOCKER", "同赛季选秀事实冲突", facts.draft_pick_conflict, "blocked", "两个报名都已有 draft pick，但 entry、轮次、顺序、自动选取或请求 provenance 不一致，不能自动择一。 ");
+  pushCount(items, "registration:captain-self-vote", "BLOCKER", "归并后的自投票", facts.captain_vote_self_conflict, "blocked", "报名引用重映射后会形成投票人给自己投票，必须保留原始语义并人工处理。 ");
   pushCount(items, "competition:participant-dedupe", "AUTOMATIC", "参赛条目重复参与人", facts.participant_duplicate, "automatic", "未形成确认承诺的重复参与人按保留账号优先去重。 ");
   pushCount(items, "competition:claim-union", "AUTOMATIC", "当前参赛承诺", facts.claim_union, "automatic", "不冲突的当前参赛承诺取并集；同一条目只保留一份。 ");
   pushCount(items, "competition:roster-dedupe", "AUTOMATIC", "可编辑参赛名单", facts.roster_duplicate, "automatic", "可编辑名单中的重复成员按保留账号优先去重。 ");
@@ -250,6 +302,26 @@ export async function buildUserMergePreflight(
 
 async function loadCollisionFacts(queryable: MergeQueryable, input: { canonicalUserId: string; mergedUserId: string }): Promise<CollisionFacts> {
   const result = await queryable.execute(sql`
+    WITH registration_pairs AS (
+      SELECT merged.id AS merged_registration_id, canonical.id AS canonical_registration_id
+      FROM season_registrations AS merged
+      JOIN season_registrations AS canonical
+        ON canonical.user_id = ${input.canonicalUserId}
+       AND canonical.season_id = merged.season_id
+      WHERE merged.user_id = ${input.mergedUserId}
+    ),
+    deletable_registrations AS (
+      SELECT merged.id
+      FROM season_registrations AS merged
+      WHERE merged.user_id = ${input.mergedUserId}
+        AND merged.status <> 'approved'
+        AND NOT EXISTS (
+          SELECT 1
+          FROM season_registrations AS canonical
+          WHERE canonical.user_id = ${input.canonicalUserId}
+            AND canonical.season_id = merged.season_id
+        )
+    )
     SELECT
       (SELECT count(*)::int FROM user_identities WHERE user_id = ${input.mergedUserId}) AS identity_rows,
       (SELECT count(*)::int FROM competitive_rank_facts WHERE user_id = ${input.mergedUserId})
@@ -269,6 +341,21 @@ async function loadCollisionFacts(queryable: MergeQueryable, input: { canonicalU
         WHERE b.user_id = ${input.mergedUserId}) AS registration_same_season,
       (SELECT count(*)::int FROM season_registrations b WHERE b.user_id = ${input.mergedUserId} AND b.status = 'approved'
         AND NOT EXISTS (SELECT 1 FROM season_registrations a WHERE a.user_id = ${input.canonicalUserId} AND a.season_id = b.season_id)) AS registration_approved_migrate,
+      (SELECT count(*)::int FROM draft_picks pick JOIN deletable_registrations registration ON registration.id = pick.registration_id) AS registration_draft_reference_blocker,
+      (SELECT count(*)::int FROM captain_votes vote JOIN deletable_registrations registration ON registration.id = vote.voter_registration_id) AS registration_voter_reference_blocker,
+      (SELECT count(*)::int FROM captain_votes vote JOIN deletable_registrations registration ON registration.id = vote.candidate_registration_id) AS registration_candidate_reference_blocker,
+      (SELECT count(*)::int FROM draft_picks merged_pick
+        JOIN registration_pairs pair ON pair.merged_registration_id = merged_pick.registration_id
+        JOIN draft_picks canonical_pick ON canonical_pick.registration_id = pair.canonical_registration_id
+          AND canonical_pick.season_id = merged_pick.season_id
+        WHERE (canonical_pick.entry_id, canonical_pick.round, canonical_pick.pick_number, canonical_pick.auto_picked, canonical_pick.client_request_id)
+          IS DISTINCT FROM (merged_pick.entry_id, merged_pick.round, merged_pick.pick_number, merged_pick.auto_picked, merged_pick.client_request_id)) AS draft_pick_conflict,
+      (SELECT count(*)::int FROM captain_votes vote
+        LEFT JOIN registration_pairs voter_pair ON voter_pair.merged_registration_id = vote.voter_registration_id
+        LEFT JOIN registration_pairs candidate_pair ON candidate_pair.merged_registration_id = vote.candidate_registration_id
+        WHERE (voter_pair.merged_registration_id IS NOT NULL OR candidate_pair.merged_registration_id IS NOT NULL)
+          AND coalesce(voter_pair.canonical_registration_id, vote.voter_registration_id)
+            = coalesce(candidate_pair.canonical_registration_id, vote.candidate_registration_id)) AS captain_vote_self_conflict,
       (SELECT count(*)::int FROM competition_entry_participants b JOIN competition_entry_participants a ON a.user_id = ${input.canonicalUserId} AND a.entry_id = b.entry_id
         WHERE b.user_id = ${input.mergedUserId}) AS participant_duplicate,
       (SELECT count(*)::int FROM competition_entry_active_claims b JOIN competition_entry_active_claims a ON a.user_id = ${input.canonicalUserId} AND a.competition_id = b.competition_id
@@ -325,12 +412,15 @@ async function loadSnapshotHash(queryable: MergeQueryable, input: { canonicalUse
       UNION ALL SELECT 'community_awards', id::text, row_to_json(a)::text FROM community_awards a WHERE submitted_by_user_id IN (${input.canonicalUserId}, ${input.mergedUserId}) OR reviewed_by_user_id IN (${input.canonicalUserId}, ${input.mergedUserId}) OR recipient_user_id IN (${input.canonicalUserId}, ${input.mergedUserId}) OR outcome_by_user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
       UNION ALL SELECT 'community_award_evidence', id::text, row_to_json(e)::text FROM community_award_evidence e WHERE submitted_by_user_id IN (${input.canonicalUserId}, ${input.mergedUserId}) OR candidate_user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
       UNION ALL SELECT 'entries', id::text, row_to_json(e)::text FROM competition_entries e WHERE representative_user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
+      UNION ALL SELECT 'entry_sources', id::text, row_to_json(e)::text FROM competition_entries e WHERE source_registration_id IN (SELECT id FROM season_registrations WHERE user_id IN (${input.canonicalUserId}, ${input.mergedUserId}))
       UNION ALL SELECT 'identities', id::text, row_to_json(i)::text FROM user_identities i WHERE user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
       UNION ALL SELECT 'participants', id::text, row_to_json(p)::text FROM competition_entry_participants p WHERE user_id IN (${input.canonicalUserId}, ${input.mergedUserId}) OR invited_by_user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
       UNION ALL SELECT 'claims', competition_id::text || ':' || user_id::text, row_to_json(c)::text FROM competition_entry_active_claims c WHERE user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
       UNION ALL SELECT 'roster_members', id::text, row_to_json(rm)::text FROM competition_entry_roster_members rm WHERE user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
       UNION ALL SELECT 'representative_changes', id::text, row_to_json(c)::text FROM competition_entry_representative_changes c WHERE from_user_id IN (${input.canonicalUserId}, ${input.mergedUserId}) OR to_user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
       UNION ALL SELECT 'registrations', id::text, row_to_json(r)::text FROM season_registrations r WHERE user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
+      UNION ALL SELECT 'draft_picks_by_registration', id::text, row_to_json(p)::text FROM draft_picks p WHERE registration_id IN (SELECT id FROM season_registrations WHERE user_id IN (${input.canonicalUserId}, ${input.mergedUserId}))
+      UNION ALL SELECT 'captain_votes_by_registration', id::text, row_to_json(v)::text FROM captain_votes v WHERE voter_registration_id IN (SELECT id FROM season_registrations WHERE user_id IN (${input.canonicalUserId}, ${input.mergedUserId})) OR candidate_registration_id IN (SELECT id FROM season_registrations WHERE user_id IN (${input.canonicalUserId}, ${input.mergedUserId}))
       UNION ALL SELECT 'memberships', id::text, row_to_json(m)::text FROM team_memberships m WHERE user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
       UNION ALL SELECT 'event_members', id::text, row_to_json(em)::text FROM event_roster_members em WHERE user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
       UNION ALL SELECT 'education', id::text, row_to_json(e)::text FROM education_verifications e WHERE user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
@@ -488,13 +578,154 @@ async function mergeTeamFactsInTx(tx: TxDb, canonicalUserId: string, mergedUserI
 
 async function mergeSeasonRegistrationsInTx(tx: TxDb, canonicalUserId: string, mergedUserId: string): Promise<void> {
   const bRows = (await tx.execute(sql`SELECT id, season_id, status FROM season_registrations WHERE user_id = ${mergedUserId} ORDER BY created_at, id`)).rows as Array<{ id: string; season_id: string; status: string }>;
+  const rows: SeasonRegistrationMergeRow[] = [];
   for (const row of bRows) {
-    const [winner] = (await tx.execute(sql`SELECT id FROM season_registrations WHERE user_id = ${canonicalUserId} AND season_id = ${row.season_id} LIMIT 1`)).rows as Array<{ id: string }>;
-    if (winner) await tx.execute(sql`UPDATE competition_entries SET source_registration_id = ${winner.id} WHERE source_registration_id = ${row.id}`);
-    else if (row.status === "approved") await tx.execute(sql`UPDATE season_registrations SET user_id = ${canonicalUserId}, updated_at = now() WHERE id = ${row.id}`);
-    else await tx.execute(sql`UPDATE competition_entries SET source_registration_id = NULL WHERE source_registration_id = ${row.id}`);
-    if (winner || row.status !== "approved") await tx.execute(sql`DELETE FROM season_registrations WHERE id = ${row.id}`);
+    const [winner] = (await tx.execute(sql`SELECT id FROM season_registrations WHERE user_id = ${canonicalUserId} AND season_id = ${row.season_id} ORDER BY id LIMIT 1`)).rows as Array<{ id: string }>;
+    rows.push({ ...row, canonicalRegistrationId: winner?.id ?? null });
   }
+  const registrationMap = new Map(rows.flatMap((row) => row.canonicalRegistrationId ? [[row.id, row.canonicalRegistrationId] as const] : []));
+
+  for (const row of rows) {
+    if (row.canonicalRegistrationId) {
+      await tx.execute(sql`UPDATE competition_entries SET source_registration_id = ${row.canonicalRegistrationId} WHERE source_registration_id = ${row.id}`);
+    } else if (row.status !== "approved") {
+      await tx.execute(sql`UPDATE competition_entries SET source_registration_id = NULL WHERE source_registration_id = ${row.id}`);
+    }
+  }
+  await mergeDraftPickReferencesInTx(tx, rows, registrationMap);
+  await mergeCaptainVoteReferencesInTx(tx, rows, registrationMap);
+
+  for (const row of rows) {
+    if (!row.canonicalRegistrationId && row.status === "approved") {
+      await tx.execute(sql`UPDATE season_registrations SET user_id = ${canonicalUserId}, updated_at = now() WHERE id = ${row.id}`);
+    }
+    if (row.canonicalRegistrationId || row.status !== "approved") await tx.execute(sql`DELETE FROM season_registrations WHERE id = ${row.id}`);
+  }
+}
+
+type SeasonRegistrationMergeRow = { id: string; season_id: string; status: string; canonicalRegistrationId: string | null };
+type DraftPickMergeRow = {
+  id: string;
+  season_id: string;
+  registration_id: string;
+  entry_id: string;
+  round: number;
+  pick_number: number;
+  auto_picked: boolean;
+  client_request_id: string | null;
+};
+type CaptainVoteMergeRow = {
+  id: string;
+  voter_registration_id: string;
+  candidate_registration_id: string;
+  created_at: Date;
+};
+
+async function mergeDraftPickReferencesInTx(
+  tx: TxDb,
+  registrations: SeasonRegistrationMergeRow[],
+  registrationMap: Map<string, string>,
+): Promise<void> {
+  if (!registrations.length) return;
+  const rows = (await tx.execute(sql`
+    SELECT pick.id, pick.season_id, pick.registration_id, pick.entry_id, pick.round, pick.pick_number, pick.auto_picked, pick.client_request_id
+    FROM draft_picks AS pick
+    JOIN season_registrations AS registration ON registration.id = pick.registration_id
+    WHERE registration.id IN (${sql.join(registrations.map((registration) => sql`${registration.id}`), sql`, `)})
+  `)).rows as unknown as DraftPickMergeRow[];
+  const registrationById = new Map(registrations.map((registration) => [registration.id, registration]));
+  for (const row of rows) {
+    const targetRegistrationId = registrationMap.get(row.registration_id);
+    if (!targetRegistrationId) {
+      if (registrationById.get(row.registration_id)?.status !== "approved") {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "待删除报名仍被 draft pick 引用，归并已拒绝。");
+      }
+      continue;
+    }
+    const [canonicalPick] = (await tx.execute(sql`
+      SELECT id, season_id, registration_id, entry_id, round, pick_number, auto_picked, client_request_id
+      FROM draft_picks
+      WHERE season_id = ${row.season_id} AND registration_id = ${targetRegistrationId}
+      ORDER BY id
+      LIMIT 1
+    `)).rows as unknown as DraftPickMergeRow[];
+    if (canonicalPick) {
+      if (!draftPickEquivalent(row, canonicalPick)) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "同赛季 draft pick 事实冲突，归并已拒绝。");
+      }
+      await tx.execute(sql`DELETE FROM draft_picks WHERE id = ${row.id}`);
+    } else {
+      await tx.execute(sql`UPDATE draft_picks SET registration_id = ${targetRegistrationId} WHERE id = ${row.id}`);
+    }
+  }
+}
+
+function draftPickEquivalent(left: DraftPickMergeRow, right: DraftPickMergeRow): boolean {
+  return left.season_id === right.season_id
+    && left.entry_id === right.entry_id
+    && left.round === right.round
+    && left.pick_number === right.pick_number
+    && left.auto_picked === right.auto_picked
+    && left.client_request_id === right.client_request_id;
+}
+
+async function mergeCaptainVoteReferencesInTx(
+  tx: TxDb,
+  registrations: SeasonRegistrationMergeRow[],
+  registrationMap: Map<string, string>,
+): Promise<void> {
+  const rows = (await tx.execute(sql`
+    SELECT id, voter_registration_id, candidate_registration_id, created_at
+    FROM captain_votes
+    ORDER BY created_at, id
+  `)).rows as unknown as CaptainVoteMergeRow[];
+  const registrationById = new Map(registrations.map((registration) => [registration.id, registration]));
+  for (const row of rows) {
+    const voter = registrationById.get(row.voter_registration_id);
+    const candidate = registrationById.get(row.candidate_registration_id);
+    if ((voter && !registrationMap.has(voter.id) && voter.status !== "approved") || (candidate && !registrationMap.has(candidate.id) && candidate.status !== "approved")) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "待删除报名仍被 captain vote 引用，归并已拒绝。");
+    }
+  }
+  if (!registrationMap.size) return;
+
+  const groups = new Map<string, CaptainVoteMergeRow[]>();
+  const targetById = new Map<string, { voter: string; candidate: string }>();
+  for (const row of rows) {
+    const target = {
+      voter: registrationMap.get(row.voter_registration_id) ?? row.voter_registration_id,
+      candidate: registrationMap.get(row.candidate_registration_id) ?? row.candidate_registration_id,
+    };
+    if ((target.voter !== row.voter_registration_id || target.candidate !== row.candidate_registration_id) && target.voter === target.candidate) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "归并后的 captain vote 会变成自投票，归并已拒绝。");
+    }
+    targetById.set(row.id, target);
+    const key = `${target.voter}:${target.candidate}`;
+    groups.set(key, [...(groups.get(key) ?? []), row]);
+  }
+
+  const loserIds: string[] = [];
+  const winners: CaptainVoteMergeRow[] = [];
+  for (const group of groups.values()) {
+    const [winner, ...losers] = [...group].sort((left, right) => compareCaptainVoteRows(left, right, registrationMap));
+    if (!winner) continue;
+    winners.push(winner);
+    loserIds.push(...losers.map((row) => row.id));
+  }
+  await deleteByIds(tx, "captain_votes", loserIds);
+  for (const row of winners) {
+    const target = targetById.get(row.id);
+    if (!target || (target.voter === row.voter_registration_id && target.candidate === row.candidate_registration_id)) continue;
+    await tx.execute(sql`UPDATE captain_votes SET voter_registration_id = ${target.voter}, candidate_registration_id = ${target.candidate} WHERE id = ${row.id}`);
+  }
+}
+
+function compareCaptainVoteRows(left: CaptainVoteMergeRow, right: CaptainVoteMergeRow, registrationMap: Map<string, string>): number {
+  const leftCanonical = !registrationMap.has(left.voter_registration_id) && !registrationMap.has(left.candidate_registration_id);
+  const rightCanonical = !registrationMap.has(right.voter_registration_id) && !registrationMap.has(right.candidate_registration_id);
+  return Number(rightCanonical) - Number(leftCanonical)
+    || dateValue(left.created_at) - dateValue(right.created_at)
+    || left.id.localeCompare(right.id);
 }
 
 async function mergeCompetitionFactsInTx(tx: TxDb, canonicalUserId: string, mergedUserId: string): Promise<void> {
@@ -633,6 +864,7 @@ async function deleteByIds(tx: TxDb, tableName: string, ids: string[]): Promise<
 
 async function assertMergePostflightInTx(tx: TxDb, canonicalUserId: string, mergedUserId: string): Promise<void> {
   await assertUserReferenceRegistryCoverage(tx);
+  await assertSeasonRegistrationReferenceRegistryCoverage(tx);
   const leftovers: string[] = [];
   for (const rule of USER_REFERENCE_RULES.filter((entry) => entry.mode === "reparent")) {
     const count = await countReference(tx, rule.table, rule.column, mergedUserId);

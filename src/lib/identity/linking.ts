@@ -72,9 +72,16 @@ export async function completeSecondaryIdentityLinkInTx(
 
   const existingOwnerId = ownerIds.values().next().value as string | undefined;
   if (existingOwnerId && existingOwnerId !== canonicalCurrentId) {
-    const provenIdentity = matchingIdentities.find((identity) => identity.userId === existingOwnerId)
-      ?? matchingIdentities[0];
+    const provenIdentity = matchingIdentities
+      .filter((identity) => identity.userId === existingOwnerId)
+      .sort((left, right) => identityProofPriority(left, normalizedEmail, input.authId) - identityProofPriority(right, normalizedEmail, input.authId) || left.id.localeCompare(right.id))[0];
     if (!provenIdentity) throw new AppError(ErrorCode.INTERNAL_ERROR, "缺少已验证的冲突 identity。");
+    if (!provenIdentity.verifiedAt) {
+      await tx.update(userIdentities).set({
+        verifiedAt: input.verifiedAt,
+        provenance: "user_verified_link",
+      }).where(eq(userIdentities.id, provenIdentity.id));
+    }
     const [authorization] = await tx.insert(userMergeAuthorizations).values({
       initiatingUserId: canonicalCurrentId,
       counterpartyUserId: existingOwnerId,
@@ -187,4 +194,14 @@ function safeHashEqual(left: string, right: string): boolean {
   const leftBuffer = Buffer.from(left, "hex");
   const rightBuffer = Buffer.from(right, "hex");
   return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function identityProofPriority(
+  identity: { kind: string; provider: string; providerSubject: string; normalizedValue: string | null },
+  normalizedEmail: string,
+  authId: string,
+): number {
+  if (identity.kind === "email" && identity.normalizedValue === normalizedEmail) return 0;
+  if (identity.provider === "supabase_auth" && identity.providerSubject === authId) return 1;
+  return 2;
 }
