@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.7.3
+
+### Patch Changes
+
+- 77c866f: 修复绑定第二邮箱时正确验证 Supabase 签发的邮箱确认 OTP 类型。
+
 ## [2.7.2]
 
 ### Fixed
@@ -1859,6 +1865,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.7.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.7.2...v2.7.3
 [2.7.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.7.1...v2.7.2
 [2.7.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.7.0...v2.7.1
 [2.7.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.6.1...v2.7.0
