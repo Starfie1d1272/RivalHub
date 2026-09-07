@@ -308,7 +308,9 @@ describe("canonical user identity merge PostgreSQL invariants", () => {
           expect(outcome.kind).toBe("merge_required");
           if (outcome.kind !== "merge_required") throw new Error("OTP proof should require self-service merge");
 
-          await expect(tx.execute(sql`SELECT id, verified_at, provenance FROM user_identities WHERE id = ${ids.emailIdentity}`)).resolves.toMatchObject({ rows: [{ id: ids.emailIdentity, verified_at: verifiedAt, provenance: "user_verified_link" }] });
+          const proofResult = await tx.execute(sql`SELECT id, verified_at, provenance FROM user_identities WHERE id = ${ids.emailIdentity}`);
+          expect(proofResult.rows).toMatchObject([{ id: ids.emailIdentity, provenance: "user_verified_link" }]);
+          expect(new Date(String(proofResult.rows[0]?.verified_at)).toISOString()).toBe(verifiedAt.toISOString());
           const authorization = await loadSelfServiceMergeAuthorization(tx, { authorizationId: outcome.authorizationId, actorUserId: ids.current });
           expect(authorization.counterpartyUserId).toBe(ids.counterparty);
           const pair = selectSelfServiceMergePair(authorization, ids.current);
