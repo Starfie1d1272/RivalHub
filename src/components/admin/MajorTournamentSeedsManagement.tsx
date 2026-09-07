@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { confirmMajorTournamentSeeds, saveMajorTournamentSeeds } from "@/actions/major-prestart";
 import { Button } from "@/components/ui/button";
@@ -95,11 +95,16 @@ export function MajorTournamentSeedsManagement({ data }: { data: MajorTournament
       ? recommendationOrder
       : data.entrants.map((entrant) => entrant.teamId);
   const initialOrderKey = initialOrder.join(",");
+  const initialStateKey = `${initialOrderKey}\u0000${data.overrideReason ?? ""}`;
+  const [seedStateKey, setSeedStateKey] = useState(initialStateKey);
   const [order, setOrder] = useState<string[]>(initialOrder);
   const [overrideReason, setOverrideReason] = useState(data.overrideReason ?? "");
 
-  useEffect(() => setOrder(initialOrderKey ? initialOrderKey.split(",") : []), [initialOrderKey]);
-  useEffect(() => setOverrideReason(data.overrideReason ?? ""), [data.overrideReason]);
+  if (seedStateKey !== initialStateKey) {
+    setSeedStateKey(initialStateKey);
+    setOrder(initialOrderKey ? initialOrderKey.split(",") : []);
+    setOverrideReason(data.overrideReason ?? "");
+  }
 
   const teamById = useMemo(() => new Map(data.entrants.map((entrant) => [entrant.teamId, entrant])), [data.entrants]);
   const recommendation = data.recommendation;

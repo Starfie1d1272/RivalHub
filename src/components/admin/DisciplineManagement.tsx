@@ -115,8 +115,6 @@ export function DisciplineManagement({
     if (debounceRef.current) clearTimeout(debounceRef.current);
     const query = subjectQuery.trim();
     if (query.length < MIN_QUERY_LENGTH) {
-      setSubjectResults([]);
-      setSubjectSearchError(null);
       return;
     }
     debounceRef.current = setTimeout(() => {
@@ -155,6 +153,14 @@ export function DisciplineManagement({
     );
   }
 
+  function handleSubjectQueryChange(value: string) {
+    setSubjectQuery(value);
+    if (value.trim().length < MIN_QUERY_LENGTH) {
+      setSubjectResults([]);
+      setSubjectSearchError(null);
+    }
+  }
+
   function refresh() {
     startTransition(() => router.refresh());
   }
@@ -184,6 +190,7 @@ export function DisciplineManagement({
         setSelectedSubject(null);
         setSubjectQuery("");
         setSubjectResults([]);
+        setSubjectSearchError(null);
         setEffects([]);
         setInternalEvidence("");
         setPublicExplanation("");
@@ -243,7 +250,7 @@ export function DisciplineManagement({
               id="discipline-subject-search"
               type="search"
               value={subjectQuery}
-              onChange={(e) => setSubjectQuery(e.target.value)}
+              onChange={(e) => handleSubjectQueryChange(e.target.value)}
               placeholder="输入关键字按需搜索…"
               className="w-full max-w-sm rounded-sm border border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-1.5 text-sm text-[var(--color-fg)] placeholder:text-[var(--color-fg-dim)] outline-none focus:border-[var(--color-accent)] transition-colors"
             />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
   addMajorPrestartIssue,
@@ -124,6 +124,8 @@ function SyncedEntrant({ entrant }: { entrant: MajorPrestartManagementData["entr
 
 export function MajorPrestartManagement({ data }: { data: MajorPrestartManagementData }) {
   const [isPending, startTransition] = useTransition();
+  const selectedEntrantIdsKey = data.entrants.map((entrant) => entrant.teamId).join(",");
+  const [selectionKey, setSelectionKey] = useState(selectedEntrantIdsKey);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set(data.entrants.map((entrant) => entrant.teamId)));
   const [issueLabel, setIssueLabel] = useState("");
   const [issueCategory, setIssueCategory] = useState<"qualification" | "administration">("qualification");
@@ -133,9 +135,10 @@ export function MajorPrestartManagement({ data }: { data: MajorPrestartManagemen
   const approvedCount = data.approvedCandidates.length;
   const requiresExactCapacity = approvedCount > entrantCapacity;
 
-  useEffect(() => {
+  if (selectionKey !== selectedEntrantIdsKey) {
+    setSelectionKey(selectedEntrantIdsKey);
     setSelectedIds(new Set(data.entrants.map((entrant) => entrant.teamId)));
-  }, [data.entrants]);
+  }
 
   const toggleSelection = (entryId: string) => {
     setSelectedIds((current) => {

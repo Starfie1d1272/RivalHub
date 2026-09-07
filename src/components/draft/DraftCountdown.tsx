@@ -9,7 +9,7 @@ interface DraftCountdownProps {
 }
 
 export function DraftCountdown({ deadline, isActive }: DraftCountdownProps) {
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     if (!deadline || !isActive) return;

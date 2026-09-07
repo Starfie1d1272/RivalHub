@@ -86,12 +86,6 @@ const eslintConfig = [
   },
   {
     rules: {
-      // React 19.2's compiler diagnostics are advisory for this existing
-      // client-component code; runtime behavior remains covered by unit/E2E.
-      "react-hooks/incompatible-library": "off",
-      "react-hooks/purity": "off",
-      "react-hooks/set-state-in-effect": "off",
-      "react-hooks/static-components": "off",
       "@next/next/no-css-tags": "off",
     },
   },

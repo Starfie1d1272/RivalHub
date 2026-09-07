@@ -75,18 +75,24 @@ export function DraftLiveRoom({
   // Watch for new picks via completedPicks changes
   const prevPickCountRef = useRef(completedPicks.length);
   useEffect(() => {
+    let notificationTimer: ReturnType<typeof setTimeout> | undefined;
     if (completedPicks.length > prevPickCountRef.current) {
       const latestPick = completedPicks[completedPicks.length - 1];
       if (latestPick) {
-        showPickNotification({
-          steamName: latestPick.steamName,
-          displayName: latestPick.displayName,
-          perfectName: latestPick.perfectName,
-          team_id: latestPick.entryId,
+        notificationTimer = setTimeout(() => {
+          showPickNotification({
+            steamName: latestPick.steamName,
+            displayName: latestPick.displayName,
+            perfectName: latestPick.perfectName,
+            team_id: latestPick.entryId,
+          });
         });
       }
     }
     prevPickCountRef.current = completedPicks.length;
+    return () => {
+      if (notificationTimer) clearTimeout(notificationTimer);
+    };
   }, [completedPicks, showPickNotification]);
 
   // 确定当前选秀队

@@ -223,8 +223,6 @@ export function BracketView({ data, themeColor, matchNodeMap, seasonSlug }: Brac
   useEffect(() => {
     if (!scriptReady || !window.bracketsViewer || data.stage.length === 0) return;
     if (data.match.length === 0) return;
-    setRenderError(false);
-
     // 注入中文 locale：把 BYE 翻译为 TBD，并将 origin hint 翻译为中文
     if (window.bracketsViewer.addLocale) {
       window.bracketsViewer
@@ -258,6 +256,7 @@ export function BracketView({ data, themeColor, matchNodeMap, seasonSlug }: Brac
       )
       .then(() => {
         if (disposed || !containerRef.current) return;
+        setRenderError(false);
         const container = containerRef.current;
 
         // 兜底：如果上面 addLocale 在 render 之前未生效，把残留的 BYE 字面量替换为 TBD
