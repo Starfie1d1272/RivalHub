@@ -27,7 +27,7 @@ RivalHub 是基于 Next.js App Router、TypeScript、Drizzle/PostgreSQL、Supaba
 
 按风险选择 [`docs/testing.md`](docs/testing.md) 中的最小 evidence。常用入口：`pnpm type-check`、`pnpm lint`、`pnpm test`、`pnpm db:check`、`pnpm knip`、`pnpm knip --production`、`pnpm verify`。提交前检查完整 diff、未跟踪文件、敏感信息和临时产物。
 
-PR title、Changeset、closure 与 release 语义只由 `CONTRIBUTING.md` 维护。
+PR title、Changeset 与 closure 语义由 [`CONTRIBUTING.md`](CONTRIBUTING.md) 维护；release procedure 只由 [`docs/operations/release.md`](docs/operations/release.md) 维护。
 
 <!-- BEGIN:nextjs-agent-rules -->
 
