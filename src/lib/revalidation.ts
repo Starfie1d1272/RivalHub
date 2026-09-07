@@ -1,4 +1,4 @@
-import * as nextCache from "next/cache";
+import { revalidatePath, revalidateTag, updateTag } from "next/cache";
 
 import {
   PUBLIC_SEASON_CATALOG_TAG,
@@ -28,28 +28,28 @@ type RevalidationMode = "action" | "route";
 
 /** Server Action semantics: invalidate immediately for read-your-own-writes. */
 export function updatePublicSeasonTags(slug: string, seasonId?: string): void {
-  nextCache.updateTag?.(PUBLIC_SEASON_CATALOG_TAG);
-  nextCache.updateTag?.(publicSeasonTag(slug));
+  updateTag(PUBLIC_SEASON_CATALOG_TAG);
+  updateTag(publicSeasonTag(slug));
   if (seasonId) {
-    nextCache.updateTag?.(seasonParticipantsTag(seasonId));
-    nextCache.updateTag?.(seasonMatchesTag(seasonId));
-    nextCache.updateTag?.(seasonStandingsTag(seasonId));
+    updateTag(seasonParticipantsTag(seasonId));
+    updateTag(seasonMatchesTag(seasonId));
+    updateTag(seasonStandingsTag(seasonId));
   }
 }
 
 /** Route Handler/webhook semantics: stale-while-revalidate the public tags. */
 export function revalidatePublicSeasonTags(slug: string, seasonId?: string): void {
-  nextCache.revalidateTag?.(PUBLIC_SEASON_CATALOG_TAG, "max");
-  nextCache.revalidateTag?.(publicSeasonTag(slug), "max");
+  revalidateTag(PUBLIC_SEASON_CATALOG_TAG, "max");
+  revalidateTag(publicSeasonTag(slug), "max");
   if (seasonId) {
-    nextCache.revalidateTag?.(seasonParticipantsTag(seasonId), "max");
-    nextCache.revalidateTag?.(seasonMatchesTag(seasonId), "max");
-    nextCache.revalidateTag?.(seasonStandingsTag(seasonId), "max");
+    revalidateTag(seasonParticipantsTag(seasonId), "max");
+    revalidateTag(seasonMatchesTag(seasonId), "max");
+    revalidateTag(seasonStandingsTag(seasonId), "max");
   }
 }
 
 export function updatePublicPlayerTag(userId: string): void {
-  nextCache.updateTag?.(publicPlayerTag(userId));
+  updateTag(publicPlayerTag(userId));
 }
 
 export function revalidateSeasonPaths(
@@ -63,7 +63,7 @@ export function revalidateSeasonPaths(
     updatePublicSeasonTags(slug);
   }
   for (const page of pages) {
-    nextCache.revalidatePath(seasonPages[page](slug));
+    revalidatePath(seasonPages[page](slug));
   }
 }
 
@@ -73,6 +73,6 @@ export function revalidateMatchPaths(
   options: { mode?: RevalidationMode } = {},
 ) {
   revalidateSeasonPaths(slug, ["matches", "adminMatches"], options);
-  nextCache.revalidatePath(`/admin/${slug}/matches/${matchId}`);
-  nextCache.revalidatePath(`/${slug}/matches/${matchId}`);
+  revalidatePath(`/admin/${slug}/matches/${matchId}`);
+  revalidatePath(`/${slug}/matches/${matchId}`);
 }

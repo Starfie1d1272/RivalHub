@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { competitionEntries } from "@/db/schema";
-import { actionError } from "@/lib/action-utils";
+import { actionError, failValidation } from "@/lib/action-utils";
 import { auditActorId, requireAuth, requireSeasonAdmin } from "@/lib/auth/session";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { requestCompetitionEntryRosterChangeInTx } from "@/lib/competition-entries/roster-change";
@@ -22,13 +22,10 @@ import {
   withdrawCompetitionEntryInTx,
   withdrawCompetitionEntryParticipationInTx,
 } from "@/lib/competition-entries/commands";
-import { fail, ok, type ActionResult } from "@/types/action";
+import { ok, type ActionResult } from "@/types/action";
 import { traceOperation } from "@/lib/observability/server";
 
 const uuid = z.guid();
-function invalid(message: string): ActionResult<never> {
-  return fail({ code: ErrorCode.VALIDATION_FAILED, message });
-}
 
 function revalidateEntry(seasonSlug: string, entryId?: string): void {
   revalidatePath(`/${seasonSlug}/register`);
@@ -39,7 +36,7 @@ function revalidateEntry(seasonSlug: string, entryId?: string): void {
 
 export async function createCompetitionEntry(input: { competitionId: string; teamId: string }): Promise<ActionResult<{ entryId: string }>> {
   const parsed = z.object({ competitionId: uuid, teamId: uuid }).safeParse(input);
-  if (!parsed.success) return invalid("赛事或队伍标识无效。");
+  if (!parsed.success) return failValidation("赛事或队伍标识无效。");
   try {
     const session = await requireAuth();
     const result = await db.transaction((tx) => createCompetitionEntryInTx(tx, { ...parsed.data, userId: session.userId, actorId: auditActorId(session) }));
@@ -50,7 +47,7 @@ export async function createCompetitionEntry(input: { competitionId: string; tea
 
 export async function saveCompetitionEntryRoster(input: { entryId: string; userIds: string[]; primaryStarterUserIds: string[]; perfectTeamId?: string }): Promise<ActionResult<void>> {
   const parsed = z.object({ entryId: uuid, userIds: z.array(uuid).min(1).max(9), primaryStarterUserIds: z.array(uuid).max(5), perfectTeamId: z.string().trim().max(128).optional() }).safeParse(input);
-  if (!parsed.success || new Set(parsed.data.userIds).size !== parsed.data.userIds.length || new Set(parsed.data.primaryStarterUserIds).size !== parsed.data.primaryStarterUserIds.length || parsed.data.primaryStarterUserIds.some((id) => !parsed.data.userIds.includes(id))) return invalid("赛事名单或预定主力无效。");
+  if (!parsed.success || new Set(parsed.data.userIds).size !== parsed.data.userIds.length || new Set(parsed.data.primaryStarterUserIds).size !== parsed.data.primaryStarterUserIds.length || parsed.data.primaryStarterUserIds.some((id) => !parsed.data.userIds.includes(id))) return failValidation("赛事名单或预定主力无效。");
   try {
     const session = await requireAuth();
     const result = await db.transaction((tx) => saveCompetitionEntryRosterInTx(tx, { ...parsed.data, userId: session.userId, actorId: auditActorId(session) }));
@@ -61,7 +58,7 @@ export async function saveCompetitionEntryRoster(input: { entryId: string; userI
 
 export async function confirmCompetitionEntryParticipation(input: { entryId: string }): Promise<ActionResult<void>> {
   const parsed = z.object({ entryId: uuid }).safeParse(input);
-  if (!parsed.success) return invalid("参赛条目标识无效。");
+  if (!parsed.success) return failValidation("参赛条目标识无效。");
   try {
     const session = await requireAuth();
     const result = await db.transaction((tx) => confirmCompetitionEntryParticipationInTx(tx, { entryId: parsed.data.entryId, userId: session.userId, actorId: auditActorId(session) }));
@@ -72,7 +69,7 @@ export async function confirmCompetitionEntryParticipation(input: { entryId: str
 
 export async function withdrawCompetitionEntryParticipation(input: { entryId: string }): Promise<ActionResult<void>> {
   const parsed = z.object({ entryId: uuid }).safeParse(input);
-  if (!parsed.success) return invalid("参赛条目标识无效。");
+  if (!parsed.success) return failValidation("参赛条目标识无效。");
   try {
     const session = await requireAuth();
     const result = await db.transaction((tx) => withdrawCompetitionEntryParticipationInTx(tx, { entryId: parsed.data.entryId, userId: session.userId, actorId: auditActorId(session) }));
@@ -83,7 +80,7 @@ export async function withdrawCompetitionEntryParticipation(input: { entryId: st
 
 export async function declineCompetitionEntryParticipation(input: { entryId: string }): Promise<ActionResult<void>> {
   const parsed = z.object({ entryId: uuid }).safeParse(input);
-  if (!parsed.success) return invalid("参赛条目标识无效。");
+  if (!parsed.success) return failValidation("参赛条目标识无效。");
   try {
     const session = await requireAuth();
     const result = await db.transaction((tx) => declineCompetitionEntryParticipationInTx(tx, { entryId: parsed.data.entryId, userId: session.userId, actorId: auditActorId(session) }));
@@ -94,7 +91,7 @@ export async function declineCompetitionEntryParticipation(input: { entryId: str
 
 export async function withdrawCompetitionEntry(input: { entryId: string }): Promise<ActionResult<void>> {
   const parsed = z.object({ entryId: uuid }).safeParse(input);
-  if (!parsed.success) return invalid("参赛条目标识无效。");
+  if (!parsed.success) return failValidation("参赛条目标识无效。");
   try {
     const session = await requireAuth();
     const result = await db.transaction((tx) => withdrawCompetitionEntryInTx(tx, {
@@ -109,7 +106,7 @@ export async function withdrawCompetitionEntry(input: { entryId: string }): Prom
 
 export async function requestCompetitionEntryRosterChange(input: { entryId: string }): Promise<ActionResult<void>> {
   const parsed = z.object({ entryId: uuid }).safeParse(input);
-  if (!parsed.success) return invalid("参赛条目标识无效。");
+  if (!parsed.success) return failValidation("参赛条目标识无效。");
   try {
     const session = await requireAuth();
     const result = await db.transaction((tx) => requestCompetitionEntryRosterChangeInTx(tx, {
@@ -124,7 +121,7 @@ export async function requestCompetitionEntryRosterChange(input: { entryId: stri
 
 export async function submitCompetitionEntry(input: { entryId: string }): Promise<ActionResult<void>> {
   const parsed = z.object({ entryId: uuid }).safeParse(input);
-  if (!parsed.success) return invalid("参赛条目标识无效。");
+  if (!parsed.success) return failValidation("参赛条目标识无效。");
   try {
     const session = await requireAuth();
     const result = await traceOperation("competition_entry.submit", {
@@ -143,7 +140,7 @@ export async function submitCompetitionEntry(input: { entryId: string }): Promis
 
 export async function reviewCompetitionEntry(input: { entryId: string; decision: "changes_requested" | "waitlisted" | "approved" | "rejected"; reason?: string }): Promise<ActionResult<void>> {
   const parsed = z.object({ entryId: uuid, decision: z.enum(["changes_requested", "waitlisted", "approved", "rejected"]), reason: z.string().trim().max(1000).optional() }).safeParse(input);
-  if (!parsed.success || ((parsed.data.decision === "changes_requested" || parsed.data.decision === "rejected") && !parsed.data.reason)) return invalid("审核决定或原因无效。");
+  if (!parsed.success || ((parsed.data.decision === "changes_requested" || parsed.data.decision === "rejected") && !parsed.data.reason)) return failValidation("审核决定或原因无效。");
   try {
     const existing = await db.query.competitionEntries.findFirst({ where: eq(competitionEntries.id, parsed.data.entryId), columns: { competitionId: true } });
     if (!existing) throw new AppError(ErrorCode.NOT_FOUND, "赛事参赛条目不存在。");
@@ -165,7 +162,7 @@ export async function reviewCompetitionEntry(input: { entryId: string; decision:
 
 export async function grantCompetitionEntryRestrictionOverride(input: { entryId: string; restrictionCode: string; reason: string }): Promise<ActionResult<void>> {
   const parsed = z.object({ entryId: uuid, restrictionCode: z.string().trim().min(1).max(128), reason: z.string().trim().min(1).max(1000) }).safeParse(input);
-  if (!parsed.success) return invalid("解除限制必须指定具体限制并填写非空理由。 ");
+  if (!parsed.success) return failValidation("解除限制必须指定具体限制并填写非空理由。 ");
   try {
     const existing = await db.query.competitionEntries.findFirst({ where: eq(competitionEntries.id, parsed.data.entryId), columns: { competitionId: true } });
     if (!existing) throw new AppError(ErrorCode.NOT_FOUND, "赛事参赛条目不存在。 ");
@@ -181,7 +178,7 @@ export async function grantCompetitionEntryRestrictionOverride(input: { entryId:
 
 export async function revokeCompetitionEntryRestrictionOverride(input: { entryId: string; restrictionCode: string }): Promise<ActionResult<void>> {
   const parsed = z.object({ entryId: uuid, restrictionCode: z.string().trim().min(1).max(128) }).safeParse(input);
-  if (!parsed.success) return invalid("解除限制标识无效。 ");
+  if (!parsed.success) return failValidation("解除限制标识无效。 ");
   try {
     const existing = await db.query.competitionEntries.findFirst({ where: eq(competitionEntries.id, parsed.data.entryId), columns: { competitionId: true } });
     if (!existing) throw new AppError(ErrorCode.NOT_FOUND, "赛事参赛条目不存在。 ");
@@ -197,7 +194,7 @@ export async function revokeCompetitionEntryRestrictionOverride(input: { entryId
 
 export async function transferCompetitionEntryRepresentative(input: { entryId: string; toUserId: string }): Promise<ActionResult<void>> {
   const parsed = z.object({ entryId: uuid, toUserId: uuid }).safeParse(input);
-  if (!parsed.success) return invalid("赛事负责人交接信息无效。");
+  if (!parsed.success) return failValidation("赛事负责人交接信息无效。");
   try {
     const session = await requireAuth();
     const result = await db.transaction((tx) => transferCompetitionEntryRepresentativeInTx(tx, {

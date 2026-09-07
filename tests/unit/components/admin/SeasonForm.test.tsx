@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createSeason, deleteSeason, updateSeason } from "@/actions/seasons";
 import { SeasonForm } from "@/components/admin/SeasonForm";
 import {
-  RIVALS_DEFAULT_CAPABILITIES,
+  CAPABILITY_PRESETS,
   MAJOR_DEFAULT_CAPABILITIES,
   type SeasonCapabilities,
 } from "@/types/season";
@@ -91,7 +91,7 @@ describe("SeasonForm presets", () => {
   });
 
   it("does not show Major status in a Rivals display context", () => {
-    render(<SeasonForm mode="create" competitivePlatforms={[{ key: "perfect_world", displayName: "完美世界竞技平台" }]} initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "选秀联赛")} />);
+    render(<SeasonForm mode="create" competitivePlatforms={[{ key: "perfect_world", displayName: "完美世界竞技平台" }]} initial={createInitial(structuredClone(CAPABILITY_PRESETS["draft-league"]), "选秀联赛")} />);
 
     expect(screen.queryByText(/标准 Major 摘要|当前配置已偏离标准 Major/)).not.toBeInTheDocument();
   });
@@ -118,7 +118,7 @@ describe("SeasonForm presets", () => {
 
   it("resets the registration total after applying Major then Rivals; built-in team size controls are fixed", async () => {
     const user = userEvent.setup();
-    render(<SeasonForm mode="create" competitivePlatforms={[{ key: "perfect_world", displayName: "完美世界竞技平台" }]} initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "选秀联赛")} />);
+    render(<SeasonForm mode="create" competitivePlatforms={[{ key: "perfect_world", displayName: "完美世界竞技平台" }]} initial={createInitial(structuredClone(CAPABILITY_PRESETS["draft-league"]), "选秀联赛")} />);
 
     // Built-in templates fix team size on the server, so the inputs are disabled.
     expect(screen.getByLabelText("每队人数上限")).toBeDisabled();
@@ -131,7 +131,7 @@ describe("SeasonForm presets", () => {
         registrationConfig: expect.objectContaining({
           maxPerPosition: 15,
           maxTotal: 56,
-          mapPool: RIVALS_DEFAULT_CAPABILITIES.registrationConfig.mapPool,
+          mapPool: CAPABILITY_PRESETS["draft-league"].registrationConfig.mapPool,
           screenshotCount: 1,
         }),
       }));
@@ -152,7 +152,7 @@ describe("SeasonForm presets", () => {
 
   it("requires an in-app confirmation before deleting a draft season", async () => {
     const user = userEvent.setup();
-    render(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "选秀联赛")} />);
+    render(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(CAPABILITY_PRESETS["draft-league"]), "选秀联赛")} />);
 
     await user.click(screen.getByRole("button", { name: "删除赛季" }));
     expect(screen.getByRole("alertdialog")).toHaveTextContent("确认删除这个草稿赛季？");
@@ -164,7 +164,7 @@ describe("SeasonForm presets", () => {
 
   it("keeps a create slug in sync with the full name until it is manually edited", async () => {
     const user = userEvent.setup();
-    render(<SeasonForm mode="create" competitivePlatforms={[]} initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "公开赛", "draft", { name: "", slug: "" })} />);
+    render(<SeasonForm mode="create" competitivePlatforms={[]} initial={createInitial(structuredClone(CAPABILITY_PRESETS["draft-league"]), "公开赛", "draft", { name: "", slug: "" })} />);
 
     const name = screen.getByLabelText("名称");
     const slug = screen.getByLabelText("Slug");
@@ -176,7 +176,7 @@ describe("SeasonForm presets", () => {
 
   it("stops following the name after the operator edits the create slug", async () => {
     const user = userEvent.setup();
-    render(<SeasonForm mode="create" competitivePlatforms={[]} initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "公开赛", "draft", { name: "", slug: "" })} />);
+    render(<SeasonForm mode="create" competitivePlatforms={[]} initial={createInitial(structuredClone(CAPABILITY_PRESETS["draft-league"]), "公开赛", "draft", { name: "", slug: "" })} />);
 
     const name = screen.getByLabelText("名称");
     const slug = screen.getByLabelText("Slug");
@@ -190,7 +190,7 @@ describe("SeasonForm presets", () => {
   });
 
   it("requires a manual slug for a name that has no ASCII slug", async () => {
-    render(<SeasonForm mode="create" competitivePlatforms={[]} initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "公开赛", "draft", { name: "", slug: "" })} />);
+    render(<SeasonForm mode="create" competitivePlatforms={[]} initial={createInitial(structuredClone(CAPABILITY_PRESETS["draft-league"]), "公开赛", "draft", { name: "", slug: "" })} />);
 
     fireEvent.change(screen.getByLabelText("名称"), { target: { value: "南京大学秋季赛" } });
     await waitFor(() => {
@@ -202,16 +202,16 @@ describe("SeasonForm presets", () => {
   });
 
   it("allows draft slug edits but locks a published slug", () => {
-    const { rerender } = render(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "公开赛")} />);
+    const { rerender } = render(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(CAPABILITY_PRESETS["draft-league"]), "公开赛")} />);
     expect(screen.getByLabelText("Slug")).toBeEnabled();
 
-    rerender(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "公开赛", "registration")} />);
+    rerender(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(CAPABILITY_PRESETS["draft-league"]), "公开赛", "registration")} />);
     expect(screen.getByLabelText("Slug")).toBeDisabled();
   });
 
   it("allows a draft template switch and keeps a published template read-only", async () => {
     const user = userEvent.setup();
-    const { rerender } = render(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "公开赛")} />);
+    const { rerender } = render(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(CAPABILITY_PRESETS["draft-league"]), "公开赛")} />);
     await user.click(screen.getByRole("button", { name: "Major" }));
     await user.click(screen.getByRole("button", { name: "确认" }));
     expect(screen.getByRole("heading", { name: "竞技参考" })).toBeInTheDocument();
@@ -278,29 +278,29 @@ describe("SeasonForm presets", () => {
   });
 
   it("keeps status-specific lifecycle actions in the settings sections", () => {
-    const { rerender } = render(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "公开赛", "draft")} />);
+    const { rerender } = render(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(CAPABILITY_PRESETS["draft-league"]), "公开赛", "draft")} />);
     expect(screen.getByRole("button", { name: "发布赛季" })).toBeInTheDocument();
 
-    rerender(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "公开赛", "registration")} />);
+    rerender(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(CAPABILITY_PRESETS["draft-league"]), "公开赛", "registration")} />);
     expect(screen.getByRole("button", { name: "立即开放报名" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "撤回至草稿" })).toBeInTheDocument();
 
-    rerender(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "公开赛", "voting")} />);
+    rerender(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(CAPABILITY_PRESETS["draft-league"]), "公开赛", "voting")} />);
     expect(screen.getByRole("button", { name: "撤回至报名阶段" })).toBeInTheDocument();
 
-    rerender(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "公开赛", "playing")} />);
+    rerender(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(CAPABILITY_PRESETS["draft-league"]), "公开赛", "playing")} />);
     expect(screen.getByRole("button", { name: "手动结束赛季" })).toBeInTheDocument();
 
-    rerender(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "公开赛", "finished")} />);
+    rerender(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(CAPABILITY_PRESETS["draft-league"]), "公开赛", "finished")} />);
     expect(screen.getByRole("button", { name: "归档赛季" })).toBeInTheDocument();
 
-    rerender(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "公开赛", "archived")} />);
+    rerender(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(CAPABILITY_PRESETS["draft-league"]), "公开赛", "archived")} />);
     expect(screen.getByText("当前状态没有可用的危险操作。")).toBeInTheDocument();
     expect(screen.getByTestId("season-lifecycle-explanation")).toHaveTextContent("赛事已结束");
   });
 
   it("locks custom public registration controls after publish", () => {
-    render(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "公开赛", "registration", { template: "custom" })} />);
+    render(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(CAPABILITY_PRESETS["draft-league"]), "公开赛", "registration", { template: "custom" })} />);
 
     expect(screen.getByLabelText("每位置上限")).toBeDisabled();
     expect(screen.getByLabelText("截图链接数量")).toBeDisabled();
@@ -315,27 +315,27 @@ describe("SeasonForm presets", () => {
   });
 
   it("keeps registration deadlines operational before and after opening, then locks them at playing", () => {
-    const { rerender } = render(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "公开赛", "registration", { registrationOpenedAt: new Date("2026-05-01T00:00:00.000Z") })} />);
+    const { rerender } = render(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(CAPABILITY_PRESETS["draft-league"]), "公开赛", "registration", { registrationOpenedAt: new Date("2026-05-01T00:00:00.000Z") })} />);
     expect(screen.getByLabelText("报名开放时间")).toBeDisabled();
     expect(screen.getByLabelText("报名截止时间")).toBeEnabled();
     expect(screen.getByLabelText("名单调整截止时间")).toBeEnabled();
 
-    rerender(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "公开赛", "playing", { registrationOpenedAt: new Date("2026-05-01T00:00:00.000Z") })} />);
+    rerender(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(CAPABILITY_PRESETS["draft-league"]), "公开赛", "playing", { registrationOpenedAt: new Date("2026-05-01T00:00:00.000Z") })} />);
     expect(screen.getByLabelText("报名截止时间")).toBeDisabled();
     expect(screen.getByLabelText("名单调整截止时间")).toBeDisabled();
   });
 
   it("explains each lifecycle edit boundary", () => {
-    const { rerender } = render(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "公开赛")} />);
+    const { rerender } = render(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(CAPABILITY_PRESETS["draft-league"]), "公开赛")} />);
     expect(screen.getByTestId("season-lifecycle-explanation")).toHaveTextContent("所有赛事定义仍可调整");
 
-    rerender(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "公开赛", "registration")} />);
+    rerender(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(CAPABILITY_PRESETS["draft-league"]), "公开赛", "registration")} />);
     expect(screen.getByTestId("season-lifecycle-explanation")).toHaveTextContent("公开赛事规则已锁定");
 
-    rerender(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "公开赛", "registration", { registrationOpenedAt: new Date("2026-05-01T00:00:00.000Z") })} />);
+    rerender(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(CAPABILITY_PRESETS["draft-league"]), "公开赛", "registration", { registrationOpenedAt: new Date("2026-05-01T00:00:00.000Z") })} />);
     expect(screen.getByTestId("season-lifecycle-explanation")).toHaveTextContent("竞技上下文、ConversionPolicy 策略身份与冻结快照、实际开放时间已冻结");
 
-    rerender(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(RIVALS_DEFAULT_CAPABILITIES), "公开赛", "playing", { registrationOpenedAt: new Date("2026-05-01T00:00:00.000Z") })} />);
+    rerender(<SeasonForm mode="edit" competitivePlatforms={[]} initial={createInitial(structuredClone(CAPABILITY_PRESETS["draft-league"]), "公开赛", "playing", { registrationOpenedAt: new Date("2026-05-01T00:00:00.000Z") })} />);
     expect(screen.getByTestId("season-lifecycle-explanation")).toHaveTextContent("比赛已开始");
   });
 
