@@ -286,6 +286,42 @@ describe("planSeasonUpdate template identity", () => {
     expect(() => planSeasonUpdate(openedRow, parseInput({ registrationOpensAt: "2026-05-02T10:00" }))).toThrowError(/不能修改报名开放时间/);
   });
 
+  it("keeps publish-owned ConversionPolicy references out of a published schedule replay", () => {
+    const conversionPolicyId = "00000000-0000-0000-0000-0000000000bb";
+    const row = seasonRow({
+      status: "registration",
+      teamRegistrationConfig: {
+        ...MAJOR_TEAM_CONFIG_FROZEN,
+        competitiveProfile: {
+          ...MAJOR_TEAM_CONFIG_FROZEN.competitiveProfile,
+          conversionPolicyId,
+          conversionPolicyVersion: "2026.09",
+        },
+      },
+    });
+
+    const parsed = parseInput({
+      registrationOpensAt: "2026-05-01T10:00",
+      rosterChangeClosesAt: null,
+      teamRegistrationConfig: {
+        ...MAJOR_TEAM_CONFIG_FROZEN,
+        competitiveProfile: {
+          ...MAJOR_TEAM_CONFIG_FROZEN.competitiveProfile,
+          conversionPolicyId: "00000000-0000-0000-0000-0000000000cc",
+          conversionPolicyVersion: "tampered",
+        },
+      },
+    });
+    const { set } = planSeasonUpdate(row, parsed);
+
+    expect(set.registrationOpensAt).toEqual(new Date("2026-05-01T02:00:00.000Z"));
+    expect(set).not.toHaveProperty("teamRegistrationConfig");
+    expect(parsed.teamRegistrationConfig?.competitiveProfile).not.toHaveProperty("conversionPolicyId");
+    expect(parsed.teamRegistrationConfig?.competitiveProfile).not.toHaveProperty("conversionPolicyVersion");
+    expect(row.teamRegistrationConfig.competitiveProfile?.conversionPolicyId).toBe(conversionPolicyId);
+    expect(row.teamRegistrationConfig.competitiveProfile?.conversionPolicyVersion).toBe("2026.09");
+  });
+
   it("allows only a Major fallback delta before open and freezes it at actual open", () => {
     const fallbackConversion = {
       sourcePlatform: "fivee" as const,

@@ -1,7 +1,7 @@
 import React from "react";
 import Link from "next/link";
 import type { SeasonStatus } from "@/types/season";
-import { presentSeasonParticipationState } from "@/lib/seasons/presentation";
+import { presentRegistrationSchedule, presentSeasonParticipationState } from "@/lib/seasons/presentation";
 import { Marker, Panel, StatusPill } from "@/components/rivalhub";
 
 interface SeasonCard {
@@ -38,7 +38,14 @@ export function SeasonCardGrid({
         {title}
       </Marker>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {seasons.map((season) => (
+        {seasons.map((season) => {
+          const registrationSchedule = presentRegistrationSchedule({
+            ...season,
+            registrationOpensAt: season.registrationOpensAt ?? null,
+            registrationOpenedAt: season.registrationOpenedAt ?? null,
+            registrationClosesAt: season.registrationClosesAt ?? null,
+          });
+          return (
           <Link key={season.id} href={`/${season.slug}` as never}>
             <Panel className="transition-colors hover:border-[var(--color-border-hi)]">
               <div className="flex items-center gap-2 mb-2">
@@ -63,9 +70,15 @@ export function SeasonCardGrid({
               >
                 {season.name}
               </div>
+              {registrationSchedule && (
+                <p className="mt-2 text-xs text-[var(--color-fg-mid)]">
+                  {registrationSchedule.primary}
+                </p>
+              )}
             </Panel>
           </Link>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
