@@ -399,7 +399,10 @@ export interface ExecuteUserMergeInput {
 export async function executeUserMergeInTx(tx: TxDb, input: ExecuteUserMergeInput): Promise<UserMergePreflight> {
   const locked = await tx.select({ id: users.id }).from(users).where(inArray(users.id, [input.canonicalUserId, input.mergedUserId].sort())).orderBy(users.id).for("update");
   if (locked.length !== 2) throw new AppError(ErrorCode.NOT_FOUND, "归并候选账号不存在。");
-  const preflight = await buildUserMergePreflight(tx, input, { evidenceClass: input.evidenceClass });
+  const preflight = await buildUserMergePreflight(tx, {
+    canonicalUserId: input.canonicalUserId,
+    mergedUserId: input.mergedUserId,
+  }, { evidenceClass: input.evidenceClass });
   if (preflight.fingerprint !== input.expectedFingerprint) throw new AppError(ErrorCode.VALIDATION_FAILED, "归并事实已变化，请重新查看并确认。");
   if (!preflight.executable) throw new AppError(ErrorCode.VALIDATION_FAILED, "存在未解决冲突，系统拒绝执行归并。");
   const authorizationId = await verifyMergeAuthorityInTx(tx, input);

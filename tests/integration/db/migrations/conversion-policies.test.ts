@@ -4,7 +4,7 @@ import { verifyDatabaseAccessMatrix } from "../../../../scripts/db/access-matrix
 import { capturePostgresError } from "../harness/database";
 import { migrationFiles, replayMigration, withScratchDatabase } from "../harness/migration-replay";
 
-const TARGET_MIGRATION = "0041_perpetual_grey_gargoyle.sql";
+const TARGET_MIGRATION = "0042_identity_foundation.sql";
 
 describe("conversion policies migration", () => {
   it("creates server-only conversion_policies table with RLS, denies anon/authenticated access, and seeds lead-approved 2026.09 policy", async () => {
