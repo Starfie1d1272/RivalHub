@@ -29,7 +29,7 @@ const seedRecommendationSnapshotMigration = readFileSync(
   "utf8",
 );
 const identityMigration = readFileSync(
-  join(root, "drizzle/migrations/0041_damp_scarecrow.sql"),
+  join(root, "drizzle/migrations/0042_identity_foundation.sql"),
   "utf8",
 );
 const migration = `${terminalMigration}\n${restrictionOverrideMigration}\n${conversionPolicyMigration}\n${seedRecommendationSnapshotMigration}\n${identityMigration}`;
@@ -48,7 +48,7 @@ function expectedFacts(): DatabaseAccessFacts[] {
 describe("database access matrix", () => {
   it("classifies every current public application table and keeps the generated document aligned", () => {
     const snapshot = JSON.parse(
-      readFileSync(join(root, "drizzle/migrations/meta/0041_snapshot.json"), "utf8"),
+      readFileSync(join(root, "drizzle/migrations/meta/0042_snapshot.json"), "utf8"),
     ) as { tables: Record<string, unknown> };
     const snapshotTables = Object.keys(snapshot.tables)
       .map((table) => table.replace(/^public\./, ""))
