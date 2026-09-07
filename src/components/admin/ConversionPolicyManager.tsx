@@ -307,12 +307,12 @@ export function ConversionPolicyManager({ initialPolicies }: { initialPolicies: 
             {selected && editor && (
               <>
                 <div className="flex flex-wrap items-center gap-2"><StatusPill label={policyStatusLabel(selected.status)} tone={policyStatusTone(selected.status)} />{selected.isCurrent && <StatusPill label="当前" tone="accent" />}</div>
-                <div className="grid gap-3 text-sm sm:grid-cols-2">
+                <dl className="grid gap-3 text-sm sm:grid-cols-2">
                   <Fact label="创建时间" value={formatDate(selected.createdAt)} />
                   <Fact label="更新时间" value={formatDate(selected.updatedAt)} />
                   <Fact label="批准时间" value={formatDate(selected.approvedAt)} />
                   <Fact label="批准人" value={selected.approvedByLabel ?? "未批准"} />
-                </div>
+                </dl>
 
                 <section className="space-y-3"><h3 className="text-sm font-semibold">来源与说明</h3><NotesEditor value={editor} onChange={(value) => setEditor(value)} includeInternal={selected.status === "draft" || Boolean(editor.internalNote)} readOnly={selected.status !== "draft"} /></section>
                 <section className="space-y-4"><h3 className="text-sm font-semibold">5E 非 S 段位映射</h3><div className="overflow-x-auto rounded-sm border border-[var(--color-border)]"><table className="w-full min-w-[520px] text-left text-sm"><thead className="border-b border-[var(--color-border)] bg-[var(--color-panel-low)] text-xs text-[var(--color-fg-mid)]"><tr><th className="px-3 py-2 font-medium">5E 段位</th><th className="px-3 py-2 font-medium">Perfect World 目标段位</th></tr></thead><tbody className="divide-y divide-[var(--color-border)]">{fiveeBelowSRanks.map((rank) => { const selectId = `conversion-policy-below-s-${rank.rankKey.replace(/[^a-zA-Z0-9_-]/g, "-")}`; return <tr key={rank.rankKey}><td className="px-3 py-2 font-medium">{rankLabel(rank)}</td><td className="px-3 py-2"><Label className="sr-only" htmlFor={selectId}>「{rankLabel(rank)}」对应的 Perfect World 目标段位</Label><Select disabled={selected.status !== "draft"} value={editor.mapping.belowSRankMap[rank.rankKey] ?? ""} onValueChange={(value) => updateBelowSRank(rank.rankKey, value)}><SelectTrigger id={selectId}><SelectValue /></SelectTrigger><SelectContent>{perfectWorldBelowSRanks.map((target) => <SelectItem key={target.rankKey} value={target.rankKey}>{rankLabel(target)}</SelectItem>)}</SelectContent></Select></td></tr>; })}</tbody></table></div></section>
