@@ -31,7 +31,7 @@ import { finalizeMajorPlayoffRoundInTransaction } from "../../../src/lib/major/p
 import { finalizeMajorSwissRoundInTransaction } from "../../../src/lib/major/swiss-runtime";
 import { generateNextMajorSwissRound } from "../../../src/lib/major/swiss";
 import { AppError, ErrorCode } from "../../../src/lib/errors";
-import { createMajorDefaultCapabilities } from "../../../src/types/season";
+import { createMajorDefaultCapabilities } from "../../../src/lib/competition/templates";
 import { capturePostgresError, localDatabaseUrl } from "./harness/database";
 
 const databaseUrl = localDatabaseUrl();

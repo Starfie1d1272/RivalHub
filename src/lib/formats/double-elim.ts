@@ -5,7 +5,7 @@ import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { generateBracket, loadBracketState, saveBracketState, seedPlayoff, type BracketStageRef, type BracketParticipantRef } from "@/lib/bracket";
 import { calculateStandings } from "@/lib/standings";
 import { getMatchMapRoundScores } from "@/lib/data/standings";
-import { getPreviousStage, normalizeStagePlan } from "@/types/season";
+import { getPreviousStage, normalizeStagePlan } from "@/lib/seasons/compatibility";
 import type { StageExecutor } from "./types";
 import type { QualifiedTeam } from "@/types/season";
 import { isStageComplete } from "./_shared";

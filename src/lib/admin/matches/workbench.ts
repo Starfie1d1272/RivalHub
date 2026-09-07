@@ -21,7 +21,7 @@ import { requireSeasonAdmin } from "@/lib/auth/session";
 import { getStartingLineupPreflightInTx } from "@/lib/match-rosters/service";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { getPostMatchCompletion, POST_MATCH_COMPLETION_LABEL } from "@/lib/postmatch/service";
-import { normalizeRegistrationConfig, normalizeStagePlan } from "@/types/season";
+import { normalizeRegistrationConfig, normalizeStagePlan } from "@/lib/seasons/compatibility";
 import type { AdminMatchWorkbenchData, RosterData, TeamMemberData } from "@/lib/admin/matches/types";
 import { mapCompletedMaps, mapFinishedMaps, mapPendingMaps } from "@/lib/admin/matches/shared";
 

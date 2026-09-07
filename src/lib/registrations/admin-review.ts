@@ -24,7 +24,8 @@ import { sameQualificationFindingSnapshot } from "@/lib/competition-entries/rest
 import { escapeLikePattern } from "@/lib/db/search";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { normalizeSteamProfileUrl } from "@/lib/external-url";
-import { normalizeAffiliationRules, normalizeTeamRegistrationConfig, type Season } from "@/types/season";
+import { normalizeAffiliationRules, normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
+import type { Season } from "@/types/season";
 import {
   SOLO_REGISTRATION_REVIEW_DEFAULTS,
   SOLO_REGISTRATION_REVIEW_PAGE_SIZE,

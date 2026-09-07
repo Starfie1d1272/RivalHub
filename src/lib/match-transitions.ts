@@ -1,5 +1,5 @@
 import { AppError, ErrorCode } from "@/lib/errors";
-import { normalizeStagePlan } from "@/types/season";
+import { normalizeStagePlan } from "@/lib/seasons/compatibility";
 
 export type MatchStatus = "scheduled" | "in_progress" | "finished" | "cancelled";
 

@@ -4,7 +4,7 @@ import {
   getTeamRegistrationReview,
   normalizeTeamRegistrationReviewQuery,
 } from "../../../src/lib/registrations/admin-review";
-import { normalizeTeamRegistrationConfig } from "../../../src/types/season";
+import { normalizeTeamRegistrationConfig } from "../../../src/lib/seasons/compatibility";
 import { createLocalPool } from "./harness/database";
 
 describe("PR3 team registration review PostgreSQL integration", () => {

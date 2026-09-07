@@ -1,5 +1,6 @@
 import { AppError, ErrorCode } from "@/lib/errors";
-import { normalizeAffiliationRules, type InstitutionAffiliationRule } from "@/types/season";
+import { normalizeAffiliationRules } from "@/lib/seasons/compatibility";
+import type { InstitutionAffiliationRule } from "@/types/season";
 
 /**
  * The tournament-facing affiliation contract. G1 match-roster validation must

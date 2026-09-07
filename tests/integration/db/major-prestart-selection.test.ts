@@ -9,7 +9,7 @@ import { requestCompetitionEntryRosterChangeInTx } from "../../../src/lib/compet
 import { reviewCompetitionEntryInTx, submitCompetitionEntryInTx } from "../../../src/lib/competition-entries/commands";
 import { AppError, ErrorCode } from "../../../src/lib/errors";
 import { checkStandardMajorCapabilities } from "../../../src/lib/competition/definition";
-import { createMajorDefaultCapabilities } from "../../../src/types/season";
+import { createMajorDefaultCapabilities } from "../../../src/lib/competition/templates";
 import { createPerfectWorldRankOrder } from "../../../src/lib/config/perfect-world";
 import { localDatabaseUrl } from "./harness/database";
 

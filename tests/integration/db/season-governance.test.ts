@@ -12,7 +12,7 @@ type Globals = {
   freezeCompetitiveContext: typeof import("../../../src/lib/seasons/lifecycle")["freezeCompetitiveContext"];
   openSeasonRegistrationInTx: typeof import("../../../src/lib/seasons/lifecycle")["openSeasonRegistrationInTx"];
   transitionSeasonStatusInTx: typeof import("../../../src/lib/seasons/lifecycle")["transitionSeasonStatusInTx"];
-  MAJOR_CONFIG: typeof import("../../../src/types/season")["MAJOR_TEAM_CONFIG"];
+  MAJOR_CONFIG: typeof import("../../../src/lib/competition/templates")["MAJOR_TEAM_CONFIG"];
 };
 const globals = {} as Globals;
 
@@ -25,7 +25,7 @@ async function main(): Promise<void> {
   process.env.DATABASE_URL = process.env.DATABASE_URL ?? databaseUrl;
   const schemaModule = await import("../../../src/db/schema");
   const { assertSeasonHasNoHistoricalFacts, freezeCompetitiveContext, openSeasonRegistrationInTx, transitionSeasonStatusInTx } = await import("../../../src/lib/seasons/lifecycle");
-  const typeSeasons = await import("../../../src/types/season");
+  const typeSeasons = await import("../../../src/lib/competition/templates");
   globals.schema = schemaModule;
   globals.assertSeasonHasNoHistoricalFacts = assertSeasonHasNoHistoricalFacts;
   globals.freezeCompetitiveContext = freezeCompetitiveContext;

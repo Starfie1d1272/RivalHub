@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeRegistrationConfig } from "@/types/season";
+import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 
 describe("normalizeRegistrationConfig()", () => {
   it("preserves null rank thresholds as no-threshold settings", () => {

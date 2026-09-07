@@ -11,7 +11,7 @@ import {
   roundWeightedAvg,
   simpleAvg,
 } from "@/lib/stats";
-import { normalizeStagePlan } from "@/types/season";
+import { normalizeStagePlan } from "@/lib/seasons/compatibility";
 import type { Metadata } from "next";
 import { getPublicOrAuthorizedDraftSeason, getPublicSeasonBySlug } from "@/lib/data/public-seasons";
 

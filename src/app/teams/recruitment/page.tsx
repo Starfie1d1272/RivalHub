@@ -16,7 +16,7 @@ import { CS2_POSITION_VALUES, type Cs2Position } from "@/lib/config/cs2-position
 import { getUserSession } from "@/lib/auth/session";
 import { getPublicPlayerLft, getRecruitmentLobbyData, type RecruitmentFilters, type RecruitmentTeamSize } from "@/lib/recruitment/data";
 import { formatCSTShortDate } from "@/lib/utils/date";
-import { CURRENT_CS2_ACTIVE_DUTY_MAP_POOL } from "@/types/season";
+import { CURRENT_CS2_ACTIVE_DUTY_MAP_POOL } from "@/lib/config/cs2-maps";
 
 // Search filters and viewer-specific recruiting actions are request-bound.
 export const instant = false;

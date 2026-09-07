@@ -5,7 +5,7 @@ import { db } from "@/db/client";
 import { competitionEntries, seasonRegistrations, users } from "@/db/schema";
 import { captainVotes } from "@/db/schema/votes";
 import { matches } from "@/db/schema/matches";
-import { normalizeRegistrationConfig } from "@/types/season";
+import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import { getPublicSeasonCatalog } from "@/lib/data/public-seasons";
 import {
   buildHomeEyebrow,

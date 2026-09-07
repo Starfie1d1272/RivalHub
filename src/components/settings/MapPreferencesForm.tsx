@@ -9,9 +9,11 @@ import { MapPreferenceSection } from "@/components/register/MapPreferenceSection
 import {
   CS2_MAP_CATALOG,
   CURRENT_CS2_ACTIVE_DUTY_MAP_POOL,
-  type MapPreference,
-  type MapPreferenceDraft,
-  type MapPreferenceLevel,
+} from "@/lib/config/cs2-maps";
+import type {
+  MapPreference,
+  MapPreferenceDraft,
+  MapPreferenceLevel,
 } from "@/types/season";
 import { projectMapPreferences, toMapPreferenceFacts } from "@/lib/maps";
 

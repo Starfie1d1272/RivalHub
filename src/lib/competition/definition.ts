@@ -1,10 +1,12 @@
 import { isStageExecutorSupported } from "@/lib/formats/supported";
+import { createMajorTemplate } from "@/lib/competition/templates";
 import {
-  MAJOR_DEFAULT_CAPABILITIES,
   normalizeAffiliationRules,
   normalizeRegistrationConfig,
   normalizeStagePlan,
   normalizeTeamRegistrationConfig,
+} from "@/lib/seasons/compatibility";
+import {
   type SeasonCapabilities,
   type StageConfig,
   type StagePlan,
@@ -191,7 +193,7 @@ export function isLegacyStandardMajorWithoutAffiliation(capabilities: SeasonCapa
   return normalizeAffiliationRules(capabilities.affiliationRules).length === 0 &&
     checkStandardMajorCapabilities({
       ...capabilities,
-      affiliationRules: MAJOR_DEFAULT_CAPABILITIES.affiliationRules,
+      affiliationRules: createMajorTemplate().affiliationRules,
     }).isStandardMajor;
 }
 

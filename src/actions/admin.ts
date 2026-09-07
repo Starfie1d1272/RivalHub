@@ -21,7 +21,7 @@ import {
   requireSeasonAdmin,
   requireSuperAdmin,
 } from "@/lib/auth/session";
-import { normalizeRegistrationConfig } from "@/types/season";
+import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import { maybeAdvanceFromRegistration } from "@/actions/transitions";
 import {
   type RegistrationStatus,

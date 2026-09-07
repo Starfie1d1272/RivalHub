@@ -5,7 +5,7 @@ import { communityAwardEvidence, communityAwards, competitionEntries, matches, u
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { presentMatchLabel } from "@/lib/matches/presentation";
 import { getSeasonAwardCandidates, isPublicCommunityAward, PUBLIC_COMMUNITY_AWARD_STATUSES } from "@/lib/community-awards/read-model";
-import { normalizeStagePlan } from "@/types/season";
+import { normalizeStagePlan } from "@/lib/seasons/compatibility";
 
 type CommunityAwardQueryable = Pick<TxDb, "select" | "selectDistinct">;
 type StagePlan = ReturnType<typeof normalizeStagePlan>;

@@ -3,7 +3,7 @@ import { db } from "@/db/client";
 import { matches, seasons } from "@/db/schema";
 import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { generateBracket, loadBracketState, saveBracketState, seedPlayoff, type BracketStageRef, type BracketParticipantRef } from "@/lib/bracket";
-import { getPreviousStage, normalizeStagePlan } from "@/types/season";
+import { getPreviousStage, normalizeStagePlan } from "@/lib/seasons/compatibility";
 import type { StageExecutor } from "./types";
 import type { QualifiedTeam } from "@/types/season";
 import type { CompetitionEntry } from "@/db/schema/competition-entries";

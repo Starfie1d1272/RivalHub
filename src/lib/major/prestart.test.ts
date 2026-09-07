@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createMajorDefaultCapabilities } from "@/types/season";
+import { createMajorDefaultCapabilities } from "@/lib/competition/templates";
 import {
   evaluateMajorPrestartReadiness,
   type MajorPrestartReadinessInput,

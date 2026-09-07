@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { createSeason, deleteSeason, openSeasonRegistration, publishSeason, updateSeason, revertSeasonToDraft, revertSeasonToRegistration, forceFinishSeason, archiveSeason, type SeasonFormInput } from "@/actions/seasons";
 import {
-  PLAYER_TYPE_LABELS,
   type PlayerType,
   type RegistrationConfig,
   type SeasonCapabilities,
@@ -16,6 +15,7 @@ import {
 import { checkStandardMajorCapabilities } from "@/lib/competition/definition";
 import { createCompetitionTemplate, type CompetitionTemplate } from "@/lib/competition/templates";
 import { getSeasonEditCapabilities, type SeasonEditPhase } from "@/lib/seasons/edit";
+import { PLAYER_TYPE_LABELS } from "@/lib/seasons/presentation";
 import { rankValues, RANK_LABELS } from "@/lib/validators/registration";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";

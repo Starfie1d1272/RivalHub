@@ -7,7 +7,9 @@ import { presentPublicCompetitiveSummary, type PublicCompetitiveProfilePlatform 
 import type { Cs2Position } from "@/lib/config/cs2-positions";
 import { PLAYABLE_MAP_LEVELS, projectMapPreferences } from "@/lib/maps";
 import { escapeLikePattern } from "@/lib/db/search";
-import { CURRENT_CS2_ACTIVE_DUTY_MAP_POOL, normalizeRegistrationConfig, type MapPreferenceDraft } from "@/types/season";
+import { CURRENT_CS2_ACTIVE_DUTY_MAP_POOL } from "@/lib/config/cs2-maps";
+import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
+import type { MapPreferenceDraft } from "@/types/season";
 import { isTeamRecruitmentTargetAvailable, recruitmentTargetAvailableCondition, teamRecruitmentTargetAvailableCondition } from "@/lib/recruitment/target-policy";
 import type { RecruitmentFilters, RecruitmentTeamSize } from "@/lib/recruitment/contract";
 

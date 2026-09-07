@@ -3,7 +3,7 @@ import { db } from "@/db/client";
 import { CommunityAwardsBoard } from "@/components/community-awards/CommunityAwardsBoard";
 import { getCurrentUserAuthorization } from "@/lib/auth/session";
 import { getPublicCommunityAwardBoardData } from "@/lib/community-awards/data";
-import { normalizeStagePlan } from "@/types/season";
+import { normalizeStagePlan } from "@/lib/seasons/compatibility";
 import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 
 export default async function CommunityAwardsPage({ params }: { params: Promise<{ seasonSlug: string }> }) {
