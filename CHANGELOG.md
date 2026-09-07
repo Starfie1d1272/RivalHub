@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.7.0]
+
+RivalHub 2.7 收口跨平台竞技资料与用户身份边界：管理员可以维护版本化的 5E → Perfect World 换算策略，用户可以安全绑定多个邮箱，并在重复账号场景中完成受控归并。
+
+### Added
+
+#### 跨平台换算策略管理
+
+管理员现在可以创建换算策略草稿，填写来源与变更说明，批准并切换当前版本，或退役不再使用的版本。赛事在注册开放后会继续引用已经冻结的策略版本与来源，避免全局策略更新重新解释已经开始运营的赛事。
+
+#### Canonical 用户身份与安全归并
+
+用户可以绑定额外的已验证邮箱；学校邮箱快速认证也可以使用该用户任一已验证邮箱。重复账号归并会先检查身份控制证明与事实冲突：保留账号的资料和竞技资料保持不变，已确认的个人事实与无冲突的赛事历史归到保留账号，并保留可追溯的归并记录。
+
 ## [2.6.1]
 
 v2.6.1 是 v2.6 后的维护版本，刷新认证、数据验证和部署相关依赖，完成运行时与开发工具链升级，并收口 pnpm 12 下的依赖更新自动化兼容策略。没有赛事规则或数据库 schema 变化。
@@ -1829,6 +1843,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.7.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.6.1...v2.7.0
 [2.6.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.6.0...v2.6.1
 [2.6.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.5.0...v2.6.0
 [2.5.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.4.1...v2.5.0
