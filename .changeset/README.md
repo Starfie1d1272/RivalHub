@@ -1,6 +1,6 @@
 # Changesets
 
-本目录只负责记录“某个已合入变更将如何进入后续版本说明”。完整 release procedure 只由 [`docs/operations/release.md`](../docs/operations/release.md) 维护。
+本目录只负责记录“某个变更将如何进入后续版本说明”。完整 release procedure 只由 [`docs/operations/release.md`](../docs/operations/release.md) 维护。
 
 ## 什么时候写
 
