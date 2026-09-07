@@ -4,7 +4,7 @@ import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
 import { requireSuperAdmin } from "@/lib/auth/session";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
-import { normalizeAffiliationRules, normalizeRegistrationConfig, normalizeStagePlan, normalizeTeamRegistrationConfig } from "@/types/season";
+import { normalizeAffiliationRules, normalizeRegistrationConfig, normalizeStagePlan, normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
 import { SeasonForm } from "@/components/admin/SeasonForm";
 import { toCSTDateTimeInput } from "@/lib/utils/date";
 import { loadCompetitivePlatformCatalog } from "@/lib/competitive/catalog";

@@ -19,7 +19,7 @@ import {
   projectLegacyBracketByStageName,
   resolveDefaultStageKey,
 } from "@/lib/matches/stage-views";
-import { normalizeStagePlan } from "@/types/season";
+import { normalizeStagePlan } from "@/lib/seasons/compatibility";
 import { presentStageMarker } from "@/lib/seasons/presentation";
 import { MatchTabsSection } from "@/components/matches/MatchTabsSection";
 import { AdminShortcutSlot } from "@/components/layout/AdminShortcutSlot";

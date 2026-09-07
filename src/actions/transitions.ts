@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { eq, count, and, not, inArray } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import { seasons, seasonRegistrations, auditLogs, matches } from "@/db/schema";
-import { normalizeRegistrationConfig, normalizeStagePlan } from "@/types/season";
+import { normalizeRegistrationConfig, normalizeStagePlan } from "@/lib/seasons/compatibility";
 import { revalidatePublicSeasonTags, updatePublicSeasonTags } from "@/lib/revalidation";
 
 async function getApprovedCountInTx(tx: TxDb, seasonId: string): Promise<number> {

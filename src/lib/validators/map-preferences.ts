@@ -1,11 +1,7 @@
 import { z } from "zod";
-import {
-  MAP_PREFERENCE_LEVELS,
-  SUPPORTED_CS2_MAP_KEYS,
-  type MapPreference,
-  type MapPreferenceLevel,
-} from "@/types/season";
-import { PLAYABLE_MAP_LEVELS } from "@/lib/maps";
+import { SUPPORTED_CS2_MAP_KEYS } from "@/lib/config/cs2-maps";
+import { MAP_PREFERENCE_LEVELS, PLAYABLE_MAP_LEVELS } from "@/lib/maps";
+import type { MapPreference, MapPreferenceLevel } from "@/types/season";
 
 const mapPreferenceLevelSchema = z.enum(
   MAP_PREFERENCE_LEVELS as [MapPreferenceLevel, ...MapPreferenceLevel[]],

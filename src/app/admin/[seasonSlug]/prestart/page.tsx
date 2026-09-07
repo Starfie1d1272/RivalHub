@@ -5,7 +5,7 @@ import { seasons } from "@/db/schema";
 import { MajorPrestartConsole } from "@/components/admin/MajorPrestartConsole";
 import { SeasonPrestartCapabilityPanel } from "@/components/admin/SeasonPrestartCapabilityPanel";
 import { loadMajorPrestartPageData } from "@/lib/admin/season-workspace/major-prestart";
-import { normalizeStagePlan } from "@/types/season";
+import { normalizeStagePlan } from "@/lib/seasons/compatibility";
 
 export default async function AdminSeasonPrestartPage({ params }: { params: Promise<{ seasonSlug: string }> }) {
   const { seasonSlug } = await params;

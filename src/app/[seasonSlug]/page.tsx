@@ -8,7 +8,7 @@ import { UserPlus, Vote, Users, Swords, Shuffle, BarChart3, UserRoundSearch } fr
 import { db } from "@/db/client";
 import { matches, competitionEntries } from "@/db/schema";
 import { formatCSTDateTime } from "@/lib/utils/date";
-import { normalizeStagePlan } from "@/types/season";
+import { normalizeStagePlan } from "@/lib/seasons/compatibility";
 import type { SeasonStatus } from "@/types/season";
 import { showStats } from "@/lib/utils/season";
 import {

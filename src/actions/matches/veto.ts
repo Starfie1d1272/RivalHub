@@ -8,7 +8,7 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import { requireSeasonAdmin, auditActorId } from "@/lib/auth/session";
 import { getMatchOrThrow, getSeasonOrThrow, actionError } from "@/lib/action-utils";
 import { revalidateMatchPaths } from "@/lib/revalidation";
-import { normalizeRegistrationConfig } from "@/types/season";
+import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import type { VetoActionType } from "@/types/match";
 import { lockMatchInTx } from "@/lib/match-rosters/service";
 import { assertVetoSequence } from "@/lib/matches/veto-sequence";

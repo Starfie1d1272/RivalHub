@@ -6,6 +6,8 @@ import {
   normalizeAffiliationRules,
   normalizeRegistrationConfig,
   normalizeTeamRegistrationConfig,
+} from "@/lib/seasons/compatibility";
+import {
   type InstitutionAffiliationRule,
   type CompetitiveFallbackConversion,
   type RegistrationConfig,
@@ -448,6 +450,7 @@ export function planSeasonUpdate(existing: SeasonRow, parsed: ParsedSeasonForm):
 export function planSeasonCreate(parsed: ParsedSeasonForm): { template: CompetitionTemplate; set: typeof seasons.$inferInsert } {
   const template = parsed.template ?? "custom";
   const data = resolveCompetitionDefinition(parsed, true);
+  const templateDefaults = createCompetitionTemplate(template);
   assertUniqueStageKeys(data.stagePlan as StagePlan);
   return {
     template,
@@ -468,11 +471,14 @@ export function planSeasonCreate(parsed: ParsedSeasonForm): { template: Competit
       starterCount: data.starterCount,
       positions: data.positions,
       stagePlan: data.stagePlan as StagePlan,
-      registrationConfig: normalizeRegistrationConfig(data.registrationConfig as RegistrationConfig),
-      teamRegistrationConfig: normalizeTeamRegistrationConfig(
-        (data.teamRegistrationConfig ?? {}) as TeamRegistrationConfig,
-      ),
-      affiliationRules: normalizeAffiliationRules(data.affiliationRules as InstitutionAffiliationRule[] | undefined),
+      registrationConfig: {
+        ...(data.registrationConfig as RegistrationConfig),
+        allowedPlayerTypes: [...data.registrationConfig.allowedPlayerTypes],
+        rankThreshold: { ...data.registrationConfig.rankThreshold },
+        mapPool: [...new Set(data.registrationConfig.mapPool)],
+      },
+      teamRegistrationConfig: data.teamRegistrationConfig ?? structuredClone(templateDefaults.teamRegistrationConfig),
+      affiliationRules: data.affiliationRules ?? structuredClone(templateDefaults.affiliationRules),
     },
   };
 }

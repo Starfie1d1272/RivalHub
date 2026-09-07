@@ -1,6 +1,6 @@
 import { db } from "../../src/db/client-runtime";
 import { seasons } from "../../src/db/schema";
-import { createMajorDefaultCapabilities } from "../../src/types/season";
+import { createMajorDefaultCapabilities } from "../../src/lib/competition/templates";
 import { assertDeclaredDatabaseTarget } from "./local-environment";
 
 async function main(): Promise<void> {

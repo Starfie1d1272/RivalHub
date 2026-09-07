@@ -14,7 +14,7 @@ import { evaluateRosterEducationEligibility, resolveSeasonEducationVerification 
 import { assertSinglePrestartEntryCoherenceInTx, type PrestartEntryCoherence } from "@/lib/major/prestart-entry";
 import { assertMajorPrestartEntrantsMutable, ensureMajorPrestartStateInTx } from "@/lib/major/prestart-state";
 import { loadParticipantQualificationFacts } from "@/lib/qualification/service";
-import { normalizeAffiliationRules } from "@/types/season";
+import { normalizeAffiliationRules } from "@/lib/seasons/compatibility";
 
 export interface SaveMajorPrestartRosterInput {
   seasonId: string;

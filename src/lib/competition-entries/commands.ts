@@ -38,7 +38,7 @@ import { isTeamRegistration } from "@/lib/utils/season";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { canMutateCompetitionEntryRoster } from "@/lib/competition-entries/remediation";
 import { reconcileMajorPrestartRosterAfterApprovalInTx } from "@/lib/major/prestart-roster";
-import { normalizeAffiliationRules, normalizeTeamRegistrationConfig } from "@/types/season";
+import { normalizeAffiliationRules, normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
 
 const editableStatuses = ["draft", "changes_requested"] as const;
 

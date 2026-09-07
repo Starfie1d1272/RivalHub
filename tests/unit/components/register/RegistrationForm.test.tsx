@@ -7,7 +7,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RegistrationForm } from "@/components/register/RegistrationForm";
 import { loadRegistrationDraft, saveRegistrationDraft, submitRegistration } from "@/actions/register";
-import { RIVALS_REGISTRATION_CONFIG } from "@/types/season";
+import { RIVALS_REGISTRATION_CONFIG } from "@/lib/competition/templates";
 
 vi.mock("sonner", () => ({
   toast: {

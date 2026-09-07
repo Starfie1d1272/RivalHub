@@ -5,7 +5,8 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import { fallbackCatalogReferencesExist, resolveLiveCompetitiveContext, type ResolvedCatalogContext } from "@/lib/competitive/catalog";
 import { resolveCompetitiveContext } from "@/lib/qualification/service";
 import { createCompetitionTemplate } from "@/lib/competition/templates";
-import { normalizeTeamRegistrationConfig, type CompetitiveFallbackConversion, type SeasonStatus, type TeamRegistrationConfig } from "@/types/season";
+import { normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
+import type { CompetitiveFallbackConversion, SeasonStatus, TeamRegistrationConfig } from "@/types/season";
 
 type Transaction = Parameters<Parameters<typeof dbClient.transaction>[0]>[0];
 

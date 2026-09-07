@@ -3,10 +3,7 @@ import {
   eventMapPreferencesSchema,
   longTermMapPreferencesSchema,
 } from "./map-preferences";
-import {
-  CURRENT_CS2_ACTIVE_DUTY_MAP_POOL,
-  SUPPORTED_CS2_MAP_KEYS,
-} from "@/types/season";
+import { CURRENT_CS2_ACTIVE_DUTY_MAP_POOL, SUPPORTED_CS2_MAP_KEYS } from "@/lib/config/cs2-maps";
 
 function eventPrefs(overrides: Record<string, string> = {}) {
   const base: Record<string, string> = {

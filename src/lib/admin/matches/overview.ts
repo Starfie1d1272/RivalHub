@@ -23,7 +23,7 @@ import {
   hasAdjacentLegacyQualifierPlayoff,
   resolveDefaultStageKey,
 } from "@/lib/matches/stage-views";
-import { getFirstStageOfType, normalizeStagePlan } from "@/types/season";
+import { getFirstStageOfType, normalizeStagePlan } from "@/lib/seasons/compatibility";
 import { buildMajorRuntimeData } from "@/lib/admin/major-runtime";
 import type { Match } from "@/db/schema";
 import type { AdminCommentaryEffectiveness, AdminMatchOverviewData } from "@/lib/admin/matches/types";

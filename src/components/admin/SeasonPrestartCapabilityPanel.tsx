@@ -1,13 +1,8 @@
 import React from "react";
 import Link from "next/link";
 import { Marker, Panel } from "@/components/rivalhub";
-
-const STAGE_TYPE_LABELS: Record<string, string> = {
-  round_robin: "循环赛",
-  swiss: "Swiss",
-  single_elim: "单败淘汰",
-  double_elim: "双败淘汰",
-};
+import { STAGE_TYPE_LABELS } from "@/lib/seasons/presentation";
+import type { StageType } from "@/types/season";
 
 export function SeasonPrestartCapabilityPanel({
   seasonSlug,
@@ -20,7 +15,7 @@ export function SeasonPrestartCapabilityPanel({
   seasonName: string;
   hasCaptainVoting: boolean;
   hasDraft: boolean;
-  stagePlan: Array<{ key: string; name: string; type: string }>;
+  stagePlan: Array<{ key: string; name: string; type: StageType }>;
 }) {
   const links = [
     hasCaptainVoting ? { label: "队长确认", href: `/admin/${seasonSlug}/captains`, detail: "保留的队长确认入口" } : null,

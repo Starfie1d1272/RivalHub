@@ -32,7 +32,7 @@ import {
   serializeSanctionPublic,
 } from "../../../src/lib/discipline/service";
 import { AppError } from "../../../src/lib/errors";
-import { createMajorDefaultCapabilities } from "../../../src/types/season";
+import { createMajorDefaultCapabilities } from "../../../src/lib/competition/templates";
 import { localDatabaseUrl } from "./harness/database";
 
 const databaseUrl = localDatabaseUrl();

@@ -2,8 +2,6 @@
 
 import type { ReactNode } from "react";
 import {
-  PLAYER_TYPE_LABELS,
-  STAGE_TYPE_LABELS,
   type InstitutionAffiliationRule,
   type PlayerType,
   type SeasonStatus,
@@ -12,7 +10,7 @@ import {
 } from "@/types/season";
 import type { CompetitionTemplate } from "@/lib/competition/templates";
 import { type SeasonEditPhase } from "@/lib/seasons/edit";
-import { presentSeasonStatus } from "@/lib/seasons/presentation";
+import { PLAYER_TYPE_LABELS, presentSeasonStatus, STAGE_TYPE_LABELS } from "@/lib/seasons/presentation";
 import { formatCST } from "@/lib/utils/date";
 import { RANK_LABELS } from "@/lib/validators/registration";
 import { Panel } from "@/components/rivalhub";

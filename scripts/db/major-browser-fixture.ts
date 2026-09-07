@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { Pool } from "pg";
-import { createMajorDefaultCapabilities } from "../../src/types/season";
+import { createMajorDefaultCapabilities } from "../../src/lib/competition/templates";
 import { createPerfectWorldRankOrder } from "../../src/lib/config/perfect-world";
 import { assertDeclaredDatabaseTarget, assertLocalDatabaseUrl, assertLocalHttpUrl } from "./local-environment";
 import {

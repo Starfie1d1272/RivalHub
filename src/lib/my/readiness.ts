@@ -28,7 +28,7 @@ import {
   loadParticipantQualificationFacts,
   type ParticipantQualificationFacts,
 } from "@/lib/qualification/service";
-import { normalizeTeamRegistrationConfig } from "@/types/season";
+import { normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
 
 export type MyReadinessState = "ready" | "incomplete" | "waiting" | "blocked" | "unknown" | "not_applicable";
 

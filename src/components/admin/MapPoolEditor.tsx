@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CS2_MAP_CATALOG, CURRENT_CS2_ACTIVE_DUTY_MAP_POOL } from "@/types/season";
+import { CS2_MAP_CATALOG, CURRENT_CS2_ACTIVE_DUTY_MAP_POOL } from "@/lib/config/cs2-maps";
 import { mapLabel } from "@/lib/maps";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

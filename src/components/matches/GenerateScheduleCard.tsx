@@ -15,7 +15,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { generateSchedule } from "@/actions/matches";
-import { STAGE_TYPE_LABELS, type StagePlan } from "@/types/season";
+import { STAGE_TYPE_LABELS } from "@/lib/seasons/presentation";
+import type { StagePlan } from "@/types/season";
 
 interface GenerateScheduleCardProps {
   seasonId: string;

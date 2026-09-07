@@ -5,7 +5,7 @@ vi.mock("@/db/client", () => ({ db: {} }));
 import { buildMyReadinessModel, isSettingsProfileReadinessReady, selectMyCompetitiveProfilePlatformKeys, type MyCompetitionSource, type MySanctionSource } from "@/lib/my/readiness";
 import type { SanctionEffect } from "@/lib/discipline/service";
 import type { ParticipantQualificationFacts } from "@/lib/qualification/service";
-import { MAJOR_TEAM_CONFIG } from "@/types/season";
+import { MAJOR_TEAM_CONFIG } from "@/lib/competition/templates";
 
 const USER_ID = "00000000-0000-0000-0000-000000000001";
 const CONTEXT = { platform: "perfect_world", previousSeasonKey: "S20", currentSeasonKey: "S21", rankOrder: ["A", "S"] };

@@ -1,5 +1,5 @@
 import type { SemanticTone, StatusPresentation } from "@/lib/presentation";
-import type { SeasonStatus, StageConfig } from "@/types/season";
+import type { PlayerType, SeasonStatus, StageConfig, StageType } from "@/types/season";
 import type { CompetitionTemplate } from "@/lib/competition/templates";
 import { getRegistrationWindowState, type RegistrationWindowSeason } from "@/lib/registration/window";
 
@@ -25,6 +25,19 @@ export const SEASON_LIFECYCLE_GROUPS: readonly SeasonLifecycleGroupDefinition[] 
   { key: "recent", label: "最近结束", marker: "RECENT", tone: "neutral" },
   { key: "archived", label: "已归档", marker: "ARCHIVE", tone: "neutral" },
 ];
+
+export const PLAYER_TYPE_LABELS: Record<PlayerType, string> = {
+  enrolled: "在校",
+  graduated: "毕业",
+  external: "外校",
+};
+
+export const STAGE_TYPE_LABELS: Record<StageType, string> = {
+  round_robin: "单循环",
+  double_elim: "双败淘汰",
+  single_elim: "单败淘汰",
+  swiss: "瑞士轮",
+};
 
 const SEASON_STATUS_PRESENTATIONS: Record<SeasonStatus, StatusPresentation> = {
   draft: { label: "草稿", tone: "neutral" },

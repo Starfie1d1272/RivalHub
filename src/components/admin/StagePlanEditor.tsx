@@ -13,12 +13,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  STAGE_TYPE_LABELS,
-  RIVALS_STAGE_PLAN,
   type StageConfig,
   type StagePlan,
   type StageType,
 } from "@/types/season";
+import { STAGE_TYPE_LABELS } from "@/lib/seasons/presentation";
+import { RIVALS_STAGE_PLAN } from "@/lib/competition/templates";
 import { InlineConfirm } from "@/components/rivalhub";
 
 const STAGE_TYPES: StageType[] = ["round_robin", "single_elim", "double_elim"];

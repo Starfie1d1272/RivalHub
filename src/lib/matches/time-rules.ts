@@ -1,5 +1,6 @@
 import { AppError, ErrorCode } from "@/lib/errors";
-import { getStageByKey, type StagePlan } from "@/types/season";
+import { getStageByKey } from "@/lib/seasons/compatibility";
+import type { StagePlan } from "@/types/season";
 
 export const TIME_CONFIRMATION_BUFFER_HOURS = 24;
 

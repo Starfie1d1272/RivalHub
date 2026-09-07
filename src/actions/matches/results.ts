@@ -21,7 +21,7 @@ import {
 } from "@/lib/match-rosters/service";
 import { maybeFinishSeason } from "@/actions/transitions";
 import { revalidateMatchPaths, revalidateSeasonPaths } from "@/lib/revalidation";
-import { normalizeRegistrationConfig, normalizeStagePlan } from "@/types/season";
+import { normalizeRegistrationConfig, normalizeStagePlan } from "@/lib/seasons/compatibility";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 import {
   computeSeriesScoreAfterMap,

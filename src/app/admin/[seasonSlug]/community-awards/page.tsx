@@ -5,7 +5,7 @@ import { seasons } from "@/db/schema";
 import { CommunityAwardsBoard } from "@/components/community-awards/CommunityAwardsBoard";
 import { requireSeasonAdmin } from "@/lib/auth/session";
 import { getAdminCommunityAwardBoardData } from "@/lib/community-awards/data";
-import { normalizeStagePlan } from "@/types/season";
+import { normalizeStagePlan } from "@/lib/seasons/compatibility";
 
 export default async function AdminCommunityAwardsPage({ params }: { params: Promise<{ seasonSlug: string }> }) {
   const { seasonSlug } = await params;

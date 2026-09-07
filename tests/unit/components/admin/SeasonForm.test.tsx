@@ -7,11 +7,11 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createSeason, deleteSeason, updateSeason } from "@/actions/seasons";
 import { SeasonForm } from "@/components/admin/SeasonForm";
-import {
-  CAPABILITY_PRESETS,
-  MAJOR_DEFAULT_CAPABILITIES,
-  type SeasonCapabilities,
-} from "@/types/season";
+import { createMajorDefaultCapabilities, createRivalsTemplate } from "@/lib/competition/templates";
+import type { SeasonCapabilities } from "@/types/season";
+
+const CAPABILITY_PRESETS = { "draft-league": createRivalsTemplate() };
+const MAJOR_DEFAULT_CAPABILITIES = createMajorDefaultCapabilities();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),

@@ -1,11 +1,21 @@
-import {
-  MAP_LABELS,
-  MAP_PREFERENCE_LABELS,
-  MAP_PREFERENCE_LEVELS,
-  type MapPreference,
-  type MapPreferenceDraft,
-  type MapPreferenceLevel,
-} from "@/types/season";
+import { CS2_MAP_CATALOG } from "@/lib/config/cs2-maps";
+import type { MapPreference, MapPreferenceDraft, MapPreferenceLevel } from "@/types/season";
+
+export const MAP_PREFERENCE_LEVELS: readonly MapPreferenceLevel[] = [
+  "none",
+  "basic",
+  "playable",
+  "proficient",
+  "strong",
+] as const;
+
+export const MAP_PREFERENCE_LABELS: Record<MapPreferenceLevel, string> = {
+  none: "不会",
+  basic: "认路",
+  playable: "能打",
+  proficient: "熟练",
+  strong: "强图",
+};
 
 export const PLAYABLE_MAP_LEVELS = new Set<MapPreferenceLevel>([
   "playable",
@@ -14,7 +24,7 @@ export const PLAYABLE_MAP_LEVELS = new Set<MapPreferenceLevel>([
 ]);
 
 export function mapLabel(map: string): string {
-  return MAP_LABELS[map] ?? map.replace(/^de_/, "");
+  return CS2_MAP_CATALOG.find((entry) => entry.key === map)?.label ?? map.replace(/^de_/, "");
 }
 
 export function mapPreferenceLabel(level: MapPreferenceLevel): string {

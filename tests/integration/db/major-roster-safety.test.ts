@@ -34,7 +34,7 @@ import {
   type MatchTransitionOutcome,
 } from "../../../src/lib/match-rosters/service";
 import { AppError, ErrorCode } from "../../../src/lib/errors";
-import { createMajorDefaultCapabilities } from "../../../src/types/season";
+import { createMajorDefaultCapabilities } from "../../../src/lib/competition/templates";
 import { capturePostgresError, localDatabaseUrl } from "./harness/database";
 
 const databaseUrl = localDatabaseUrl();

@@ -10,7 +10,7 @@ import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
 import { actionError } from "@/lib/action-utils";
 import { getUserSession } from "@/lib/auth/session";
 import { buildRegistrationSchema, registrationSeedSchema, type RegistrationFormData } from "@/lib/validators/registration";
-import { normalizeRegistrationConfig } from "@/types/season";
+import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import { getRegistrationWindowState } from "@/lib/registration/window";
 import { normalizeEmail } from "@/lib/utils/email";
 import { compactUndefined } from "@/lib/utils/object";

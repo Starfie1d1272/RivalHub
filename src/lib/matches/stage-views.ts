@@ -1,6 +1,7 @@
 import type { BracketData } from "@/lib/bracket";
 import type { SwissViewData } from "@/lib/swiss/data";
-import { getFirstStageOfType, getPreviousStage, type StagePlan } from "@/types/season";
+import { getFirstStageOfType, getPreviousStage } from "@/lib/seasons/compatibility";
+import type { StagePlan } from "@/types/season";
 
 interface StageMatch {
   stage: string;

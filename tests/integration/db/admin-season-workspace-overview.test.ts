@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { createMajorDefaultCapabilities } from "../../../src/types/season";
+import { createMajorDefaultCapabilities } from "../../../src/lib/competition/templates";
 import { loadSeasonWorkspaceOverview } from "../../../src/lib/admin/season-workspace/overview";
 import { createLocalPool } from "./harness/database";
 

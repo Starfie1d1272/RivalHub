@@ -6,7 +6,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { StagePlanEditor } from "@/components/admin/StagePlanEditor";
-import { RIVALS_STAGE_PLAN } from "@/types/season";
+import { RIVALS_STAGE_PLAN } from "@/lib/competition/templates";
 
 vi.mock("@/components/ui/select", async () => {
   const React = await import("react");

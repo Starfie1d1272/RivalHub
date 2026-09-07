@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { CS2_POSITION_VALUES } from "@/lib/config/cs2-positions";
+import { CURRENT_CS2_ACTIVE_DUTY_MAP_POOL } from "@/lib/config/cs2-maps";
 import {
-  CURRENT_CS2_ACTIVE_DUTY_MAP_POOL,
   MAJOR_REGISTRATION_CONFIG,
   OPEN_TOURNAMENT_PRESET,
-  CAPABILITY_PRESETS,
   createMajorDefaultCapabilities,
-  normalizeTeamRegistrationConfig,
-} from "@/types/season";
+  createRivalsTemplate,
+} from "@/lib/competition/templates";
+import { normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
 import { checkStandardMajorCapabilities } from "@/lib/competition/definition";
 
 function expectStandardMajorFailure(
@@ -39,9 +40,25 @@ describe("checkStandardMajorCapabilities()", () => {
     expect(MAJOR_REGISTRATION_CONFIG.mapPool).toEqual([
       "de_ancient", "de_anubis", "de_cache", "de_dust2", "de_inferno", "de_mirage", "de_nuke",
     ]);
-    expect(CAPABILITY_PRESETS["draft-league"].registrationConfig.mapPool).toEqual([...CURRENT_CS2_ACTIVE_DUTY_MAP_POOL]);
+    expect(createRivalsTemplate().registrationConfig.mapPool).toEqual([...CURRENT_CS2_ACTIVE_DUTY_MAP_POOL]);
     expect(MAJOR_REGISTRATION_CONFIG.mapPool).not.toContain("de_overpass");
-    expect(CAPABILITY_PRESETS["draft-league"].registrationConfig.mapPool).toContain("de_cache");
+    expect(createRivalsTemplate().registrationConfig.mapPool).toContain("de_cache");
+  });
+
+  it("keeps the current Rivals defaults and canonical position catalog", () => {
+    const rivals = createRivalsTemplate();
+    expect(rivals.stagePlan.map((stage) => stage.type)).toEqual(["round_robin", "double_elim"]);
+    expect(rivals.registrationConfig).toEqual({
+      allowedPlayerTypes: ["enrolled", "graduated"],
+      rankThreshold: { currentMin: "A", peakMin: "A+" },
+      maxPerPosition: 15,
+      screenshotCount: 1,
+      maxTotal: 56,
+      mapPool: [...CURRENT_CS2_ACTIVE_DUTY_MAP_POOL],
+    });
+    expect(rivals.teamRegistrationConfig.requireTeamLogo).toBe(false);
+    expect(rivals.positions).toEqual([...CS2_POSITION_VALUES]);
+    expect(OPEN_TOURNAMENT_PRESET.teamRegistrationConfig.requireTeamLogo).toBe(false);
   });
 
   it("accepts a deep clone of the standard Major defaults", () => {
@@ -197,7 +214,7 @@ describe("checkStandardMajorCapabilities()", () => {
 
 describe("createMajorDefaultCapabilities()", () => {
   it("returns a complete Major replacement without Rivals registration leftovers", () => {
-    const rivals = structuredClone(CAPABILITY_PRESETS["draft-league"]);
+    const rivals = createRivalsTemplate();
     const major = createMajorDefaultCapabilities();
 
     expect(rivals.registrationConfig.maxTotal).toBe(56);

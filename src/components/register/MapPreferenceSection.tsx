@@ -1,6 +1,6 @@
 import React, { type ReactNode } from "react";
-import { MAP_PREFERENCE_LABELS, MAP_PREFERENCE_LEVELS, type MapPreferenceDraft, type MapPreferenceLevel } from "@/types/season";
-import { mapLabel } from "@/lib/maps";
+import { MAP_PREFERENCE_LABELS, MAP_PREFERENCE_LEVELS, mapLabel } from "@/lib/maps";
+import type { MapPreferenceDraft, MapPreferenceLevel } from "@/types/season";
 import { RegistrationSectionTitle } from "./RegistrationSectionTitle";
 
 interface MapPreferenceSectionProps {

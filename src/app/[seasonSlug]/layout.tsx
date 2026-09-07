@@ -5,7 +5,7 @@ import { connection } from "next/server";
 import { Breadcrumb } from "@/components/layout/Breadcrumb";
 import { SeasonNav } from "@/components/layout/SeasonNav";
 import { hexToRgbString } from "@/lib/utils/color";
-import { normalizeStagePlan } from "@/types/season";
+import { normalizeStagePlan } from "@/lib/seasons/compatibility";
 import { showStats } from "@/lib/utils/season";
 import {
   getPublicOrAuthorizedDraftSeason,

@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
-import {
-  CURRENT_CS2_ACTIVE_DUTY_MAP_POOL,
-  type MapPreferenceDraft,
-} from "@/types/season";
-import { projectMapPreferences, toMapPreferenceFacts } from "./maps";
+import { CURRENT_CS2_ACTIVE_DUTY_MAP_POOL } from "@/lib/config/cs2-maps";
+import type { MapPreferenceDraft } from "@/types/season";
+import { mapLabel, projectMapPreferences, toMapPreferenceFacts } from "./maps";
 
 describe("map preference projections", () => {
+  it("derives catalog labels and preserves the unknown-map fallback", () => {
+    expect(mapLabel("de_mirage")).toBe("Mirage");
+    expect(mapLabel("de_custom_map")).toBe("custom_map");
+  });
+
   it("projects only the requested context and preserves missing maps as unfilled", () => {
     expect(projectMapPreferences(
       [{ map: "de_overpass", level: "strong" }],

@@ -1,13 +1,8 @@
 import { z } from "zod";
 import { normalizeSteamProfileUrl } from "@/lib/external-url";
 import { REGISTRATION_DEFAULTS } from "@/lib/config/registration-defaults";
-import {
-  PLAYER_TYPE_LABELS,
-  normalizeRegistrationConfig,
-  RIVALS_REGISTRATION_CONFIG,
-  type PlayerType,
-  type RegistrationConfig,
-} from "@/types/season";
+import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
+import type { PlayerType, RegistrationConfig } from "@/types/season";
 import { eventMapPreferencesSchema } from "@/lib/validators/map-preferences";
 import type { PositionValue, RankValue } from "@/lib/config/registration-defaults";
 
@@ -26,8 +21,6 @@ export const rankValues = REGISTRATION_DEFAULTS.ranks.values;
 export type Rank = RankValue;
 
 export const RANK_LABELS = REGISTRATION_DEFAULTS.ranks.labels;
-export { PLAYER_TYPE_LABELS };
-
 export const RANK_ORDER = REGISTRATION_DEFAULTS.ranks.values;
 
 export const registrationSeedSchema = z.object({
@@ -67,11 +60,8 @@ export function buildRegistrationSchema(
 ) {
   const config = normalizeRegistrationConfig(inputConfig);
   const positions = nonEmptyAllowed(inputPositions, positionValues);
-  const allowedPlayerTypes = nonEmptyAllowed<PlayerType>(
-    config.allowedPlayerTypes,
-    RIVALS_REGISTRATION_CONFIG.allowedPlayerTypes,
-  );
-  const mapPool = config.mapPool.length ? config.mapPool : RIVALS_REGISTRATION_CONFIG.mapPool;
+  const allowedPlayerTypes = config.allowedPlayerTypes;
+  const mapPool = config.mapPool;
 
   return z
     .object({

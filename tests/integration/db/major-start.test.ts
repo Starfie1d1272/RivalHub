@@ -16,7 +16,8 @@ import { transitionMajorSwissStageInTransaction } from "../../../src/lib/major/s
 import { finalizeMajorPlayoffRoundInTransaction, startMajorPlayoffInTransaction } from "../../../src/lib/major/playoff-runtime";
 import { projectMajorSwissStage, type MajorSwissMatchFact } from "../../../src/lib/major/swiss";
 import { AppError, ErrorCode } from "../../../src/lib/errors";
-import { createMajorDefaultCapabilities, type CompetitiveProfileConfig } from "../../../src/types/season";
+import { createMajorDefaultCapabilities } from "../../../src/lib/competition/templates";
+import type { CompetitiveProfileConfig } from "../../../src/types/season";
 import { createPerfectWorldRankOrder } from "../../../src/lib/config/perfect-world";
 import {
   applyResultCorrectionInTx,

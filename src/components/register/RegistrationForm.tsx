@@ -10,11 +10,12 @@ import {
   POSITION_LABELS,
   rankValues,
   RANK_LABELS,
-  PLAYER_TYPE_LABELS,
   type RegistrationFormData,
   type RegistrationInput,
 } from "@/lib/validators/registration";
-import { normalizeRegistrationConfig, type RegistrationConfig, type PlayerType } from "@/types/season";
+import { PLAYER_TYPE_LABELS } from "@/lib/seasons/presentation";
+import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
+import type { RegistrationConfig, PlayerType } from "@/types/season";
 import { type MapPreferenceLevel } from "@/types/season";
 
 import { loadRegistrationDraft, saveRegistrationDraft, submitRegistration } from "@/actions/register";

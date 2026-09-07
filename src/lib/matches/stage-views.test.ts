@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { BracketData } from "@/lib/bracket";
 import type { SwissViewData } from "@/lib/swiss/data";
-import { MAJOR_STAGE_PLAN, RIVALS_STAGE_PLAN } from "@/types/season";
+import { MAJOR_STAGE_PLAN, RIVALS_STAGE_PLAN } from "@/lib/competition/templates";
 import {
   buildStageViews,
   canUseLegacySwissView,

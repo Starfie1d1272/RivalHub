@@ -12,7 +12,7 @@ import {
   getFirstStage,
   getPreviousStage,
   normalizeStagePlan,
-} from "@/types/season";
+} from "@/lib/seasons/compatibility";
 import { actionError, getSeasonOrThrow } from "@/lib/action-utils";
 import { revalidateSeasonPaths } from "@/lib/revalidation";
 
