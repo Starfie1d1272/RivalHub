@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.6.1]
+
+v2.6.1 是 v2.6 后的维护版本，刷新认证、数据验证和部署相关依赖，完成运行时与开发工具链升级，并收口 pnpm 12 下的依赖更新自动化兼容策略。没有赛事规则或数据库 schema 变化。
+
 ## [2.6.0]
 
 RivalHub 2.6 统一了高价值列表的查询与分页体验。公共队伍发现与管理员运营队列现在都使用可分享、可恢复的 URL 状态，让筛选后的结果总数和页面位置始终对应同一组真实数据。
@@ -1825,6 +1829,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.6.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.6.0...v2.6.1
 [2.6.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.5.0...v2.6.0
 [2.5.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.4.1...v2.5.0
 [2.4.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.4.0...v2.4.1
