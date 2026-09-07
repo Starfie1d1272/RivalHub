@@ -1,39 +1,36 @@
 # Release operations
 
-RivalHub 使用 single-trunk + immutable tag 的发布模型。`main` 是 releasable trunk；只有 `vX.Y.Z` tag 表示 shipped production identity。
+RivalHub 使用 single-trunk + immutable tag。`main` 是唯一 releasable trunk；只有 `vX.Y.Z` / prerelease tag 表示 shipped production identity。
 
-协作规则和 Changeset 约定见 [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md)。
+本文件是 release procedure 的唯一 owner。协作与 Changeset 规则见 [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md)；可执行实现见 [`.github/workflows/release.yml`](../../.github/workflows/release.yml)。任何 release / tag / deploy / production mutation 前必须完整读完本文件；repository search / `rg` 只能用于定位，不能替代全文读取。
 
-## 1. 准备 release PR
+## 1. Release PR
 
-从最新 `main` 创建 release branch，消费待发布 Changesets，并审查：
+从最新 `main` 创建短期 release branch，消费待发布 Changesets：
 
-- package version；
-- CHANGELOG 文案；
-- 是否遗漏需要对用户说明的 feat/fix/security/migration；
-- 是否存在仍需 production / external config 验收的 Issue。
-
-Release PR 仍按普通 PR 进入 `main`，通过 required CI 后 squash merge。
-
-## 2. 确认 release commit
-
-Release PR 合入后，确认准备发布的 commit 已经位于 `main`，且该 commit 的完整 convergence CI 通过。
-
-普通 `main` merge **不会**自动 production deploy。
-
-## 3. 创建 immutable tag
-
-在准确的 release commit 上创建：
-
-```text
-vX.Y.Z
+```bash
+pnpm exec changeset version
 ```
 
-stable tag 创建后不移动、不删除。prerelease 使用显式 semver prerelease suffix。
+提交 PR 前确认：
 
-## 4. Protected release workflow
+- `package.json` version 正确，未手工维护第二份版本号；
+- 当前版本 CHANGELOG 文案面向用户/管理员，不复制内部实现清单；
+- release-relevant feat / fix / security / migration 无遗漏；
+- CHANGELOG 底部存在当前版本 compare 链接，例如 `[X.Y.Z]: https://github.com/Starfie1d1272/RivalHub/compare/vPREVIOUS...vX.Y.Z`；
+- 仍需 production / external acceptance 的事项已明确，不把未验收状态写成已完成。
 
-Tag push 触发 GitHub Actions **Release** workflow。它围绕同一个 immutable tag commit 完成：
+Release PR 按普通 PR 进入 `main`，通过 required CI 后 squash merge。
+
+## 2. Release commit 与 tag
+
+合并后从远端 `main` read back 实际 squash commit SHA，并确认该 commit 的完整 convergence CI 通过。
+
+只在这个 exact commit 上创建 immutable tag：stable 使用 `vX.Y.Z`，prerelease 使用显式 semver suffix。已公开 stable tag 不移动、不删除。普通 `main` merge 不会自动 production deploy。
+
+## 3. Protected Release workflow
+
+Push tag 后，GitHub Actions **Release** 围绕同一个 immutable tag commit 执行：
 
 ```text
 validate tag belongs to main
@@ -45,26 +42,19 @@ validate tag belongs to main
 → publish/update GitHub Release notes
 ```
 
-Production secret、target confirmation 和 remote-write authorization 只存在于受保护 release environment / canonical wrappers 中。
+Production secret、target confirmation 和 remote-write authorization 只存在于受保护 production environment / canonical wrappers 中。
 
-## 5. 失败与重试
+## 4. 失败与重试
 
-Release workflow 支持对**已经存在的同一个 tag**做安全 retry。失败后不要：
+可安全重试的外部失败使用 workflow dispatch 重跑**同一个已存在 tag**。不要移动 tag、替换 tag source、手工 patch production DB 后绕过 workflow，或用未经验证的本地 build 直接覆盖 production。
 
-- 移动 tag 到另一个 commit；
-- 在 production 手工补 migration 后假装 workflow 已完成；
-- 改用未经验证的本地 build 直接部署；
-- 从最新 `main` 替换失败 tag 的源代码。
+需要代码变更时，准备新的 release commit 和新版本。
 
-先修复可以安全重试的外部条件，或者在需要代码变更时准备新的 release commit / 新版本。
+## 5. Release 完成条件
 
-## 6. Release 后
-
-确认：
+只有以下条件都成立才算完成：
 
 - production smoke 通过；
 - GitHub Release 已发布且 notes 正确；
-- tag、release commit 和 production deployment 对齐；
-- 需要 production acceptance 才能完成的 Issue 已获得真实验收证据后再关闭。
-
-Release note、CHANGELOG 和 GitHub Release 描述“这次发布给用户带来了什么”，不要复制内部实现清单。
+- tag、release commit 与 production deployment 对齐；
+- 需要 production acceptance 的 Issue 已获得真实生产证据后再关闭。
