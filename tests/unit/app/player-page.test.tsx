@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const connectionMock = vi.hoisted(() => vi.fn());
 const getPublicPlayerByIdMock = vi.hoisted(() => vi.fn());
+const resolveCanonicalUserIdMock = vi.hoisted(() => vi.fn());
 const {
   userFindFirstMock,
   selectMock,
@@ -33,6 +34,7 @@ vi.mock("@/actions/hexagon", () => ({ getSeasonHexagonScores: getSeasonHexagonSc
 vi.mock("@/lib/recruitment/data", () => ({ getPublicPlayerLft: getPublicPlayerLftMock }));
 vi.mock("next/server", () => ({ connection: connectionMock }));
 vi.mock("@/lib/data/public-players", () => ({ getPublicPlayerById: getPublicPlayerByIdMock }));
+vi.mock("@/lib/identity/canonical", () => ({ resolveCanonicalUserId: resolveCanonicalUserIdMock }));
 
 import { PlayerPageContent } from "@/app/players/[userId]/page";
 
@@ -54,6 +56,7 @@ describe("player page education wiring", () => {
     vi.clearAllMocks();
     vi.stubGlobal("React", React);
     connectionMock.mockResolvedValue(undefined);
+    resolveCanonicalUserIdMock.mockImplementation(async (_db: unknown, userId: string) => userId);
     getPublicPlayerByIdMock.mockResolvedValue({
       id: "user-1",
       displayName: "玩家甲",

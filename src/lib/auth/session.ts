@@ -49,15 +49,11 @@ export const getUserSession = cache(async (): Promise<UserSession | null> => {
 
   const canonicalUserId = await resolveCanonicalUserId(db, session.userId);
   if (!canonicalUserId) return null;
-  const [canonicalUser] = await db.select({ email: users.email })
-    .from(users)
-    .where(eq(users.id, canonicalUserId))
-    .limit(1);
-  if (!canonicalUser) return null;
-
   return {
     userId: canonicalUserId,
-    email: canonicalUser.email,
+    // The cookie email is display-only; authorization is derived from the
+    // resolved canonical user id on every request.
+    email: session.email,
   };
 });
 

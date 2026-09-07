@@ -14,9 +14,9 @@ import { resolveCanonicalUserId } from "@/lib/identity/canonical";
 import type { MapPreference } from "@/types/season";
 
 export type UserMergeCategory = "REPARENT" | "DEDUPE" | "RECONCILE" | "BLOCKER" | "PRESERVE";
-export type UserMergeItemStatus = "automatic" | "preserved" | "unresolved";
+type UserMergeItemStatus = "automatic" | "preserved" | "unresolved";
 
-export interface UserMergePlanItem {
+interface UserMergePlanItem {
   key: string;
   category: UserMergeCategory;
   domain: string;

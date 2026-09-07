@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ErrorCode } from "@/lib/errors";
 
-const { requireAuthMock, requireSuperAdminMock, userFindFirstMock, institutionFindFirstMock, transactionMock, reviewFindFirstMock, updateSetMock, updateWhereMock, insertValuesMock } = vi.hoisted(() => ({
+const { requireAuthMock, requireSuperAdminMock, userFindFirstMock, institutionFindFirstMock, transactionMock, reviewFindFirstMock, updateSetMock, updateWhereMock, insertValuesMock, selectMock } = vi.hoisted(() => ({
   requireAuthMock: vi.fn(),
   requireSuperAdminMock: vi.fn(),
   userFindFirstMock: vi.fn(),
@@ -11,6 +11,7 @@ const { requireAuthMock, requireSuperAdminMock, userFindFirstMock, institutionFi
   updateSetMock: vi.fn(),
   updateWhereMock: vi.fn(),
   insertValuesMock: vi.fn(),
+  selectMock: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/session", () => ({
@@ -28,6 +29,7 @@ vi.mock("@/db/client", () => ({
       institutions: { findFirst: institutionFindFirstMock },
     },
     transaction: transactionMock,
+    select: selectMock,
   },
 }));
 
@@ -48,6 +50,7 @@ describe("submitEducationVerification email ownership boundary", () => {
       update: vi.fn(() => ({ set: updateSetMock })),
       insert: vi.fn(() => ({ values: insertValuesMock })),
     }));
+    selectMock.mockReturnValue({ from: () => ({ where: () => ({ limit: () => Promise.resolve([]) }) }) });
   });
 
   it("rejects an unverified authenticated account before any institution lookup or write", async () => {

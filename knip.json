@@ -46,6 +46,8 @@
     "scripts/db/staging.ts!",
     "scripts/db/production.ts!",
     "scripts/db/production-preflight.ts!",
+    "scripts/db/production-identity-merge-preflight.ts!",
+    "scripts/db/identity-merge-preflight.ts!",
     "scripts/seed.ts!",
     "scripts/vercel-build.ts!",
     "scripts/with-node-options.ts!",
