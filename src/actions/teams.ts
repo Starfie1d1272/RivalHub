@@ -37,9 +37,6 @@ const PENDING_DIRECT_INVITATION_CONSTRAINT = "team_invitations_one_pending_direc
 const uuid = z.guid();
 const teamName = z.string().trim().min(MIN_TEAM_NAME_LENGTH).max(MAX_TEAM_NAME_LENGTH);
 const description = z.string().trim().max(500);
-function invalid(message: string): ActionResult<never> {
-  return fail({ code: ErrorCode.VALIDATION_FAILED, message });
-}
 
 function revalidateTeam(slug?: string): void {
   revalidatePath("/teams");
@@ -50,7 +47,7 @@ function revalidateTeam(slug?: string): void {
 
 export async function createTeam(input: { name: string; description?: string }): Promise<ActionResult<{ teamId: string; slug: string }>> {
   const parsed = z.object({ name: teamName, description: description.optional() }).safeParse(input);
-  if (!parsed.success) return invalid(`队伍名称需为 ${MIN_TEAM_NAME_LENGTH}-${MAX_TEAM_NAME_LENGTH} 个字符，简介不超过 500 字。`);
+  if (!parsed.success) return failValidation(`队伍名称需为 ${MIN_TEAM_NAME_LENGTH}-${MAX_TEAM_NAME_LENGTH} 个字符，简介不超过 500 字。`);
   try {
     const session = await requireAuth();
     const result = await db.transaction((tx) => createTeamInTx(tx, { name: parsed.data.name, description: parsed.data.description, userId: session.userId, actorId: auditActorId(session) }));
@@ -61,7 +58,7 @@ export async function createTeam(input: { name: string; description?: string }):
 
 export async function updateTeamProfile(input: { teamId: string; name: string; description?: string }): Promise<ActionResult<{ slug: string }>> {
   const parsed = z.object({ teamId: uuid, name: teamName, description: description.optional() }).safeParse(input);
-  if (!parsed.success) return invalid("队伍资料无效。");
+  if (!parsed.success) return failValidation("队伍资料无效。");
   try {
     const session = await requireAuth();
     const result = await db.transaction((tx) => updateTeamProfileInTx(tx, { ...parsed.data, description: parsed.data.description, userId: session.userId, actorId: auditActorId(session) }));
@@ -95,7 +92,7 @@ export async function uploadTeamLogo(teamId: string, formData: FormData): Promis
 
 export async function inviteTeamMember(input: { teamId: string; email: string }): Promise<ActionResult<void>> {
   const parsed = z.object({ teamId: uuid, email: z.string().email() }).safeParse(input);
-  if (!parsed.success) return invalid("请输入已注册用户的有效邮箱。");
+  if (!parsed.success) return failValidation("请输入已注册用户的有效邮箱。");
   try {
     const session = await requireAuth();
     const user = await db.query.users.findFirst({ where: eq(users.email, normalizeEmail(parsed.data.email)) });
@@ -104,7 +101,7 @@ export async function inviteTeamMember(input: { teamId: string; email: string })
     revalidateTeam();
     return ok(undefined);
   } catch (error) {
-    if (isPgUniqueViolation(error, PENDING_DIRECT_INVITATION_CONSTRAINT)) return invalid("该邀请已存在。");
+    if (isPgUniqueViolation(error, PENDING_DIRECT_INVITATION_CONSTRAINT)) return failValidation("该邀请已存在。");
     return actionError("inviteTeamMember", error);
   }
 }
@@ -112,7 +109,7 @@ export async function inviteTeamMember(input: { teamId: string; email: string })
 /** A Lobby handoff; the canonical invitation command remains the only Team invite owner. */
 export async function inviteTeamMemberByUserId(input: { teamId: string; userId: string; recruitmentIntentId?: string }): Promise<ActionResult<void>> {
   const parsed = z.object({ teamId: uuid, userId: uuid, recruitmentIntentId: uuid.optional() }).safeParse(input);
-  if (!parsed.success) return invalid("邀请对象无效。");
+  if (!parsed.success) return failValidation("邀请对象无效。");
   try {
     const session = await requireAuth();
     await db.transaction(async (tx) => {
@@ -125,14 +122,14 @@ export async function inviteTeamMemberByUserId(input: { teamId: string; userId: 
     revalidateTeam();
     return ok(undefined);
   } catch (error) {
-    if (isPgUniqueViolation(error, PENDING_DIRECT_INVITATION_CONSTRAINT)) return invalid("该邀请已存在。");
+    if (isPgUniqueViolation(error, PENDING_DIRECT_INVITATION_CONSTRAINT)) return failValidation("该邀请已存在。");
     return actionError("inviteTeamMemberByUserId", error);
   }
 }
 
 export async function createTeamShareInvitation(input: { teamId: string }): Promise<ActionResult<{ token: string; expiresAt: string }>> {
   const parsed = z.object({ teamId: uuid }).safeParse(input);
-  if (!parsed.success) return invalid("队伍标识无效。");
+  if (!parsed.success) return failValidation("队伍标识无效。");
   try {
     const session = await requireAuth();
     const result = await db.transaction((tx) => createTeamShareInvitationInTx(tx, { teamId: parsed.data.teamId, userId: session.userId, actorId: auditActorId(session) }));
@@ -142,7 +139,7 @@ export async function createTeamShareInvitation(input: { teamId: string }): Prom
 
 export async function acceptTeamInvitation(input: { invitationId?: string; token?: string }): Promise<ActionResult<{ teamId: string; slug: string }>> {
   const parsed = z.object({ invitationId: uuid.optional(), token: z.string().min(32).optional() }).refine((value) => Boolean(value.invitationId) !== Boolean(value.token)).safeParse(input);
-  if (!parsed.success) return invalid("邀请标识无效。");
+  if (!parsed.success) return failValidation("邀请标识无效。");
   try {
     const session = await requireAuth();
     const result = await db.transaction((tx) => acceptTeamInvitationInTx(tx, {
@@ -162,7 +159,7 @@ export async function acceptTeamInvitation(input: { invitationId?: string; token
 
 export async function declineTeamInvitation(input: { invitationId: string }): Promise<ActionResult<void>> {
   const parsed = z.object({ invitationId: uuid }).safeParse(input);
-  if (!parsed.success) return invalid("邀请标识无效。");
+  if (!parsed.success) return failValidation("邀请标识无效。");
   try {
     const session = await requireAuth();
     await db.transaction((tx) => declineTeamInvitationInTx(tx, { invitationId: parsed.data.invitationId, userId: session.userId, actorId: auditActorId(session) }));
@@ -173,7 +170,7 @@ export async function declineTeamInvitation(input: { invitationId: string }): Pr
 
 export async function revokeTeamInvitation(input: { teamId: string; invitationId: string }): Promise<ActionResult<void>> {
   const parsed = z.object({ teamId: uuid, invitationId: uuid }).safeParse(input);
-  if (!parsed.success) return invalid("邀请标识无效。");
+  if (!parsed.success) return failValidation("邀请标识无效。");
   try {
     const session = await requireAuth();
     await db.transaction((tx) => revokeTeamInvitationInTx(tx, { ...parsed.data, userId: session.userId, actorId: auditActorId(session) }));
@@ -184,7 +181,7 @@ export async function revokeTeamInvitation(input: { teamId: string; invitationId
 
 export async function setTeamMembershipStatus(input: { teamId: string; userId: string; status: "active" | "benched" }): Promise<ActionResult<void>> {
   const parsed = z.object({ teamId: uuid, userId: uuid, status: z.enum(["active", "benched"]) }).safeParse(input);
-  if (!parsed.success) return invalid("成员状态无效。");
+  if (!parsed.success) return failValidation("成员状态无效。");
   try {
     const session = await requireAuth();
     await db.transaction((tx) => setTeamMembershipStatusInTx(tx, { teamId: parsed.data.teamId, userId: session.userId, targetUserId: parsed.data.userId, status: parsed.data.status, actorId: auditActorId(session) }));
@@ -195,7 +192,7 @@ export async function setTeamMembershipStatus(input: { teamId: string; userId: s
 
 export async function leaveTeam(input: { teamId: string }): Promise<ActionResult<void>> {
   const parsed = z.object({ teamId: uuid }).safeParse(input);
-  if (!parsed.success) return invalid("队伍标识无效。");
+  if (!parsed.success) return failValidation("队伍标识无效。");
   try {
     const session = await requireAuth();
     await db.transaction((tx) => leaveTeamInTx(tx, { teamId: parsed.data.teamId, userId: session.userId, actorId: auditActorId(session) }));
@@ -206,7 +203,7 @@ export async function leaveTeam(input: { teamId: string }): Promise<ActionResult
 
 export async function kickTeamMember(input: { teamId: string; userId: string }): Promise<ActionResult<void>> {
   const parsed = z.object({ teamId: uuid, userId: uuid }).safeParse(input);
-  if (!parsed.success) return invalid("成员标识无效。");
+  if (!parsed.success) return failValidation("成员标识无效。");
   try {
     const session = await requireAuth();
     await db.transaction((tx) => kickTeamMemberInTx(tx, { teamId: parsed.data.teamId, userId: session.userId, targetUserId: parsed.data.userId, actorId: auditActorId(session) }));
@@ -217,7 +214,7 @@ export async function kickTeamMember(input: { teamId: string; userId: string }):
 
 export async function transferTeamCaptain(input: { teamId: string; toUserId: string }): Promise<ActionResult<void>> {
   const parsed = z.object({ teamId: uuid, toUserId: uuid }).safeParse(input);
-  if (!parsed.success) return invalid("队长交接信息无效。");
+  if (!parsed.success) return failValidation("队长交接信息无效。");
   try {
     const actor = await requireAuth();
     const currentTeam = await db.query.teams.findFirst({ where: eq(teams.id, parsed.data.teamId), columns: { captainUserId: true } });
@@ -231,7 +228,7 @@ export async function transferTeamCaptain(input: { teamId: string; toUserId: str
 
 export async function disbandTeam(input: { teamId: string }): Promise<ActionResult<void>> {
   const parsed = z.object({ teamId: uuid }).safeParse(input);
-  if (!parsed.success) return invalid("队伍标识无效。");
+  if (!parsed.success) return failValidation("队伍标识无效。");
   try {
     const actor = await requireAuth();
     const currentTeam = await db.query.teams.findFirst({ where: eq(teams.id, parsed.data.teamId), columns: { captainUserId: true } });

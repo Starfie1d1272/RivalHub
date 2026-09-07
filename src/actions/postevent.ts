@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { postEventAdjudications, seasons, tournamentHonors } from "@/db/schema";
-import { actionError } from "@/lib/action-utils";
+import { actionError, failValidation } from "@/lib/action-utils";
 import { auditActorId, requireSeasonAdmin } from "@/lib/auth/session";
 import { AppError, ErrorCode } from "@/lib/errors";
 import {
@@ -17,15 +17,12 @@ import {
   revokePostEventAdjudicationInTx,
   revokeTournamentHonorInTx,
 } from "@/lib/postevent/service";
-import { fail, ok, type ActionResult } from "@/types/action";
+import { ok, type ActionResult } from "@/types/action";
 
 const uuid = z.guid();
 const clientRequestId = z.guid();
 const impactSchema = z.enum(ADJUDICATION_IMPACTS);
 
-function invalid(message: string): ActionResult<never> {
-  return fail({ code: ErrorCode.VALIDATION_FAILED, message });
-}
 
 async function seasonAndAdminOrThrow(seasonId: string) {
   const season = await db.query.seasons.findFirst({ where: eq(seasons.id, seasonId), columns: { id: true, slug: true } });
@@ -42,7 +39,7 @@ function revalidatePostEvent(slug: string): void {
 
 export async function confirmMajorFinalResult(input: unknown): Promise<ActionResult<{ resultId: string; alreadyConfirmed: boolean }>> {
   const parsed = z.object({ seasonId: uuid }).safeParse(input);
-  if (!parsed.success) return invalid("赛事结果确认参数无效。");
+  if (!parsed.success) return failValidation("赛事结果确认参数无效。");
   try {
     const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
     const result = await db.transaction((tx) => confirmMajorFinalResultInTx(tx, { seasonId: season.id, actorId: auditActorId(admin) }));
@@ -67,7 +64,7 @@ const createAdjudicationSchema = z.object({
 
 export async function createPostEventAdjudication(input: unknown): Promise<ActionResult<{ adjudicationId: string; created: boolean }>> {
   const parsed = createAdjudicationSchema.safeParse(input);
-  if (!parsed.success) return invalid("赛后裁决参数无效。");
+  if (!parsed.success) return failValidation("赛后裁决参数无效。");
   try {
     const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
     const result = await db.transaction((tx) => createPostEventAdjudicationInTx(tx, {
@@ -82,7 +79,7 @@ export async function createPostEventAdjudication(input: unknown): Promise<Actio
 
 export async function revokePostEventAdjudication(input: unknown): Promise<ActionResult<{ adjudicationId: string; alreadyRevoked: boolean }>> {
   const parsed = z.object({ adjudicationId: uuid, reason: z.string().trim().min(1).max(2000) }).safeParse(input);
-  if (!parsed.success) return invalid("撤销裁决参数无效。");
+  if (!parsed.success) return failValidation("撤销裁决参数无效。");
   try {
     const [adjudication] = await db.select({ seasonId: postEventAdjudications.seasonId }).from(postEventAdjudications)
       .where(eq(postEventAdjudications.id, parsed.data.adjudicationId));
@@ -114,7 +111,7 @@ const grantHonorSchema = z.object({
 
 export async function grantTournamentHonor(input: unknown): Promise<ActionResult<{ honorId: string; created: boolean }>> {
   const parsed = grantHonorSchema.safeParse(input);
-  if (!parsed.success) return invalid("荣誉授予参数无效。");
+  if (!parsed.success) return failValidation("荣誉授予参数无效。");
   try {
     const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
     const result = await db.transaction((tx) => grantTournamentHonorInTx(tx, {
@@ -129,7 +126,7 @@ export async function grantTournamentHonor(input: unknown): Promise<ActionResult
 
 export async function revokeTournamentHonor(input: unknown): Promise<ActionResult<{ honorId: string; alreadyRevoked: boolean }>> {
   const parsed = z.object({ honorId: uuid, reason: z.string().trim().min(1).max(2000) }).safeParse(input);
-  if (!parsed.success) return invalid("撤销荣誉参数无效。");
+  if (!parsed.success) return failValidation("撤销荣誉参数无效。");
   try {
     const [honor] = await db.select({ seasonId: tournamentHonors.seasonId }).from(tournamentHonors)
       .where(eq(tournamentHonors.id, parsed.data.honorId));
@@ -147,7 +144,7 @@ export async function revokeTournamentHonor(input: unknown): Promise<ActionResul
 
 export async function archiveMajorTournament(input: unknown): Promise<ActionResult<{ archived: boolean; alreadyArchived: boolean }>> {
   const parsed = z.object({ seasonId: uuid }).safeParse(input);
-  if (!parsed.success) return invalid("赛事归档参数无效。");
+  if (!parsed.success) return failValidation("赛事归档参数无效。");
   try {
     const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
     const result = await db.transaction((tx) => archiveTournamentInTx(tx, { seasonId: season.id, actorId: auditActorId(admin) }));

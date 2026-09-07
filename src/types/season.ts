@@ -452,8 +452,6 @@ export const CAPABILITY_PRESETS = {
   },
 } as const;
 
-/** @alias Compatibility name retained for existing admin/test consumers. */
-export const RIVALS_DEFAULT_CAPABILITIES = DRAFT_LEAGUE_PRESET;
 export const MAJOR_DEFAULT_CAPABILITIES = CAPABILITY_PRESETS.major;
 
 /**
