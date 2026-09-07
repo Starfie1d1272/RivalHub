@@ -17,7 +17,7 @@
 
 Changeset/CHANGELOG 只描述 release-relevant 可观察影响，不复制 commit message 或内部实现清单；不要手改 `package.json` version。
 
-Release 从最新 `main` 准备 release PR，消费 Changesets 并完成 CHANGELOG editorial review；合入后才在实际 release commit 上创建 immutable `vX.Y.Z` tag。migration、exact-source deploy、smoke 与 GitHub Release 见 [`docs/operations/release.md`](docs/operations/release.md)。已公开 stable tag 不移动、不删除。
+完整 release PR、CHANGELOG compare 链接、immutable tag、migration、exact-source deploy、smoke、retry 与 GitHub Release procedure 只由 [`docs/operations/release.md`](docs/operations/release.md) 维护。已公开 stable tag 不移动、不删除。
 
 ## Runtime
 
