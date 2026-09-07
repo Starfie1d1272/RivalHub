@@ -14,6 +14,7 @@ import { PLAYER_TYPE_LABELS, presentSeasonStatus, STAGE_TYPE_LABELS } from "@/li
 import { formatCST } from "@/lib/utils/date";
 import { RANK_LABELS } from "@/lib/validators/registration";
 import { Panel } from "@/components/rivalhub";
+import type { ConversionPolicyProvenance } from "@/lib/competitive/conversion-policy-admin";
 
 export const NO_RANK = "__none__";
 
@@ -188,10 +189,12 @@ export function CompetitiveReferenceSummary({
   config,
   platforms,
   frozen,
+  policyProvenance,
 }: {
   config: TeamRegistrationConfig;
   platforms: readonly CompetitivePlatformOption[];
   frozen: boolean;
+  policyProvenance?: ConversionPolicyProvenance | null;
 }) {
   const profile = config.competitiveProfile;
   if (!config.requireCompetitiveProfile || !profile) {
@@ -232,6 +235,13 @@ export function CompetitiveReferenceSummary({
             : "当前赛事绑定已批准的 policy identity；报名开放时会把对应赛季与换算快照一并冻结。"}
           {policyId && <span className="mt-1 block font-mono text-xs">策略 ID：{policyId}</span>}
           {profile.fallbackConversion?.version && <span className="mt-1 block text-xs">事件换算快照版本：{profile.fallbackConversion.version} · 来源：{sourcePlatform ?? "ConversionPolicy"}</span>}
+          {policyProvenance && (policyProvenance.sourceNote || policyProvenance.rationale || policyProvenance.changeSummary) && (
+            <dl className="mt-3 grid gap-2 border-t border-[var(--color-info-edge)] pt-3 text-xs sm:grid-cols-2">
+              {policyProvenance.sourceNote && <div><dt className="text-[var(--color-fg-mid)]">策略来源说明</dt><dd className="mt-1 leading-5">{policyProvenance.sourceNote}</dd></div>}
+              {policyProvenance.rationale && <div><dt className="text-[var(--color-fg-mid)]">采用理由</dt><dd className="mt-1 leading-5">{policyProvenance.rationale}</dd></div>}
+              {policyProvenance.changeSummary && <div className="sm:col-span-2"><dt className="text-[var(--color-fg-mid)]">版本变化</dt><dd className="mt-1 leading-5">{policyProvenance.changeSummary}</dd></div>}
+            </dl>
+          )}
         </FrozenFact>
       ) : (
         <FrozenFact title={`${conversionLabel} · ConversionPolicy 尚未绑定`}>

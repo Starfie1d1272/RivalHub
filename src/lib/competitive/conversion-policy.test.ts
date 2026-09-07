@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { convertFiveeToPerfect, FIVE_TO_PERFECT_2026_09 } from "./conversion-policy";
+import { convertFiveeToPerfect, FIVE_TO_PERFECT_2026_09, validateConversionPolicyMapping } from "./conversion-policy";
 
 describe("convertFiveeToPerfect (2026.09)", () => {
   const mapping = FIVE_TO_PERFECT_2026_09;
@@ -58,5 +58,34 @@ describe("convertFiveeToPerfect (2026.09)", () => {
     expect(convertFiveeToPerfect("constructor", null, mapping)).toBeNull();
     expect(convertFiveeToPerfect("toString", null, mapping)).toBeNull();
     expect(convertFiveeToPerfect("__proto__", null, mapping)).toBeNull();
+  });
+});
+
+describe("validateConversionPolicyMapping", () => {
+  it("accepts the complete current policy", () => {
+    expect(() => validateConversionPolicyMapping(FIVE_TO_PERFECT_2026_09)).not.toThrow();
+  });
+
+  it.each([
+    ["relative season alignment", { relativeSeasonAlignment: false }],
+    ["gap", { starSegments: [{ ...FIVE_TO_PERFECT_2026_09.starSegments[0]!, maxStar: 4 }, ...FIVE_TO_PERFECT_2026_09.starSegments.slice(1)] }],
+    ["overlap", { starSegments: [{ ...FIVE_TO_PERFECT_2026_09.starSegments[0]!, maxStar: 6 }, ...FIVE_TO_PERFECT_2026_09.starSegments.slice(1)] }],
+    ["non-zero start", { starSegments: [{ ...FIVE_TO_PERFECT_2026_09.starSegments[0]!, minStar: 1 }, ...FIVE_TO_PERFECT_2026_09.starSegments.slice(1)] }],
+    ["non-last open end", { starSegments: [{ ...FIVE_TO_PERFECT_2026_09.starSegments[0]!, maxStar: null }, ...FIVE_TO_PERFECT_2026_09.starSegments.slice(1)] }],
+    ["invalid rank", { starSegments: [{ ...FIVE_TO_PERFECT_2026_09.starSegments[0]!, targetRank: "UNKNOWN" }, ...FIVE_TO_PERFECT_2026_09.starSegments.slice(1)] }],
+    ["non-positive denominator", { starSegments: [{ ...FIVE_TO_PERFECT_2026_09.starSegments[0]!, slopeDen: 0 }, ...FIVE_TO_PERFECT_2026_09.starSegments.slice(1)] }],
+  ] as const)("rejects %s", (_name, patch) => {
+    expect(() => validateConversionPolicyMapping({ ...FIVE_TO_PERFECT_2026_09, ...patch } as unknown as typeof FIVE_TO_PERFECT_2026_09)).toThrow();
+  });
+
+  it("rejects a missing below-S source mapping", () => {
+    const belowSRankMap = { ...FIVE_TO_PERFECT_2026_09.belowSRankMap };
+    delete belowSRankMap.D;
+    expect(() => validateConversionPolicyMapping({ ...FIVE_TO_PERFECT_2026_09, belowSRankMap })).toThrow(/缺少/);
+  });
+
+  it("rejects a target star floor that does not match a star-based target rank", () => {
+    const starSegments = FIVE_TO_PERFECT_2026_09.starSegments.map((segment, index) => index === 1 ? { ...segment, targetStarFloor: 100 } : segment);
+    expect(() => validateConversionPolicyMapping({ ...FIVE_TO_PERFECT_2026_09, starSegments })).toThrow(/targetStarFloor/);
   });
 });

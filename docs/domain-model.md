@@ -27,7 +27,9 @@ CompetitivePlatform
 - 当前竞技平台身份、ladder 与 canonical Rating 属于产品定义的内置 domain；新增平台、改变段位体系或重新定义 canonical Rating 需要显式产品/迁移变更，不能由管理员临时创建另一套语义。
 - `rank`、`stars`、`rating` 是不同事实：rank 是稳定段位身份，stars 是星段位内部精确值，rating 是平台定义的 performance rating。
 - 缺失事实保持 unknown；不能为了展示或资格判断制造默认段位、默认星数或 `0`。
-- 跨平台比较使用版本化 `ConversionPolicy`。需要竞技资格的赛事在实际报名开放时冻结本届需要的 season/ladder/evidence/conversion context，之后全局目录变化不得重解释该届或历史 StageRun。
+- 跨平台比较使用版本化 `ConversionPolicy`。mapping 与 `sourceNote`、`rationale`、`changeSummary` 属于平台级可审计事实；`internalNote` 只属于 super admin 运营面，不进入赛事设置或冻结快照。
+- `ConversionPolicy` 由独立 lifecycle owner 管理：已有策略 clone 成 draft，draft 保存和 approve 共用 mapping validator，approved 版本可原子切换 current，只有非 current 的 approved 版本可以 retired；每个 mutation 都保留 `audit_logs`。
+- 需要竞技资格的赛事在实际报名开放时冻结本届需要的 season/ladder/evidence/conversion context。赛事只保存 policy identity/version 与当届 conversion snapshot；全局 current、provenance 或 policy retire 不得重解释该届或历史 StageRun。没有 stable policy id 的 legacy mapping 不伪造全局 policy 引用。
 
 CS2 地图同样区分稳定地图目录、当前轮换、长期用户熟练度与赛事自身图池。具体当前地图集合属于代码/config，不在本文件复制。
 

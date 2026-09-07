@@ -166,6 +166,11 @@ export const AUDIT_ACTION_DEFINITIONS: Readonly<Record<string, AuditActionDefini
   "competitive_platform_rank.delete": { label: "删除平台段位", category: "competitive" },
   "competitive_profile.self_declare": { label: "更新竞技段位资料", category: "competitive" },
   "competitive_roles.self_declare": { label: "更新竞技位置资料", category: "competitive" },
+  "conversion_policy.create_draft": { label: "创建换算策略草稿", category: "competitive" },
+  "conversion_policy.update_draft": { label: "更新换算策略草稿", category: "competitive" },
+  "conversion_policy.approve": { label: "批准换算策略", category: "competitive" },
+  "conversion_policy.set_current": { label: "切换当前换算策略", category: "competitive" },
+  "conversion_policy.retire": { label: "退役换算策略", category: "competitive" },
 
   "major.start": { label: "启动 Major", category: "major" },
   "major.archive": { label: "归档 Major", category: "major" },

@@ -40,7 +40,10 @@ const ADMIN_NAV_GROUPS: readonly AdminNavGroupDefinition[] = [
     key: "competitive",
     label: "竞技平台",
     superAdminOnly: true,
-    items: [{ href: "/admin/competitive-seasons", label: "平台与赛季目录" }],
+    items: [
+      { href: "/admin/competitive-seasons", label: "平台与赛季目录" },
+      { href: "/admin/competitive-seasons/conversion-policies", label: "跨平台换算策略" },
+    ],
   },
   {
     key: "logs",

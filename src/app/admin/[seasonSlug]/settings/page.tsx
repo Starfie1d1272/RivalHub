@@ -8,6 +8,7 @@ import { normalizeAffiliationRules, normalizeRegistrationConfig, normalizeStageP
 import { SeasonForm } from "@/components/admin/SeasonForm";
 import { toCSTDateTimeInput } from "@/lib/utils/date";
 import { loadCompetitivePlatformCatalog } from "@/lib/competitive/catalog";
+import { loadConversionPolicyProvenance } from "@/lib/competitive/conversion-policy-admin";
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 
 interface SeasonSettingsPageProps {
@@ -22,6 +23,7 @@ export default async function SeasonSettingsPage({ params }: SeasonSettingsPageP
     where: eq(seasons.slug, seasonSlug),
   }), loadCompetitivePlatformCatalog(db)]);
   if (!season) notFound();
+  const conversionPolicyProvenance = await loadConversionPolicyProvenance(db, season.teamRegistrationConfig);
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-3xl">
@@ -40,6 +42,7 @@ export default async function SeasonSettingsPage({ params }: SeasonSettingsPageP
           registrationClosesAt: toCSTDateTimeInput(season.registrationClosesAt),
           rosterChangeClosesAt: toCSTDateTimeInput(season.rosterChangeClosesAt),
           registrationOpenedAt: season.registrationOpenedAt,
+          conversionPolicyProvenance,
           endAt: toCSTDateTimeInput(season.endAt),
           registrationMode: season.registrationMode,
           hasCaptainVoting: season.hasCaptainVoting,
