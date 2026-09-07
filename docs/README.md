@@ -49,7 +49,7 @@
 
 ## Operations
 
-`operations/` 是按任务执行的 runbook，不要求线性阅读：
+`operations/` 按任务选择对应 runbook，不需要线性通读整个目录。执行 release / tag / deploy / production mutation 时，必须先完整阅读 [`release.md`](./operations/release.md)。
 
 - [`local-development.md`](./operations/local-development.md)
 - [`ci.md`](./operations/ci.md)
