@@ -10,6 +10,7 @@ import {
   users,
 } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
+import { MAX_CAPTAIN_VOTES } from "@/lib/captains/rules";
 import { resolveCanonicalUserId } from "@/lib/identity/canonical";
 
 export type UserMergeCategory = "AUTOMATIC" | "BLOCKER" | "PRESERVE";
@@ -256,6 +257,7 @@ export async function buildUserMergePreflight(
   pushCount(items, "registration:captain-candidate-reference-blocker", "BLOCKER", "待删除报名的队长候选人引用", facts.registration_candidate_reference_blocker, "blocked", "待删除报名仍作为 captain vote 候选人，且没有同赛季保留报名可以安全承接。 ");
   pushCount(items, "registration:draft-pick-conflict", "BLOCKER", "同赛季选秀事实冲突", facts.draft_pick_conflict, "blocked", "两个报名都已有 draft pick，但 entry、轮次、顺序、自动选取或请求 provenance 不一致，不能自动择一。 ");
   pushCount(items, "registration:captain-self-vote", "BLOCKER", "归并后的自投票", facts.captain_vote_self_conflict, "blocked", "报名引用重映射后会形成投票人给自己投票，必须保留原始语义并人工处理。 ");
+  pushCount(items, "registration:captain-vote-limit-conflict", "BLOCKER", "归并后的队长投票上限冲突", facts.captain_vote_limit_conflict, "blocked", `报名引用重映射后同一投票人会超过最多 ${MAX_CAPTAIN_VOTES} 票，不自动删除历史投票。 `);
   pushCount(items, "competition:participant-dedupe", "AUTOMATIC", "参赛条目重复参与人", facts.participant_duplicate, "automatic", "未形成确认承诺的重复参与人按保留账号优先去重。 ");
   pushCount(items, "competition:claim-union", "AUTOMATIC", "当前参赛承诺", facts.claim_union, "automatic", "不冲突的当前参赛承诺取并集；同一条目只保留一份。 ");
   pushCount(items, "competition:roster-dedupe", "AUTOMATIC", "可编辑参赛名单", facts.roster_duplicate, "automatic", "可编辑名单中的重复成员按保留账号优先去重。 ");
@@ -321,6 +323,14 @@ async function loadCollisionFacts(queryable: MergeQueryable, input: { canonicalU
           WHERE canonical.user_id = ${input.canonicalUserId}
             AND canonical.season_id = merged.season_id
         )
+    ),
+    mapped_captain_votes AS (
+      SELECT
+        coalesce(voter_pair.canonical_registration_id, vote.voter_registration_id) AS voter_registration_id,
+        coalesce(candidate_pair.canonical_registration_id, vote.candidate_registration_id) AS candidate_registration_id
+      FROM captain_votes AS vote
+      LEFT JOIN registration_pairs AS voter_pair ON voter_pair.merged_registration_id = vote.voter_registration_id
+      LEFT JOIN registration_pairs AS candidate_pair ON candidate_pair.merged_registration_id = vote.candidate_registration_id
     )
     SELECT
       (SELECT count(*)::int FROM user_identities WHERE user_id = ${input.mergedUserId}) AS identity_rows,
@@ -356,6 +366,13 @@ async function loadCollisionFacts(queryable: MergeQueryable, input: { canonicalU
         WHERE (voter_pair.merged_registration_id IS NOT NULL OR candidate_pair.merged_registration_id IS NOT NULL)
           AND coalesce(voter_pair.canonical_registration_id, vote.voter_registration_id)
             = coalesce(candidate_pair.canonical_registration_id, vote.candidate_registration_id)) AS captain_vote_self_conflict,
+      (SELECT count(*)::int
+       FROM (
+         SELECT voter_registration_id
+         FROM mapped_captain_votes
+         GROUP BY voter_registration_id
+         HAVING count(DISTINCT candidate_registration_id) > ${MAX_CAPTAIN_VOTES}
+       ) AS vote_limit_conflicts) AS captain_vote_limit_conflict,
       (SELECT count(*)::int FROM competition_entry_participants b JOIN competition_entry_participants a ON a.user_id = ${input.canonicalUserId} AND a.entry_id = b.entry_id
         WHERE b.user_id = ${input.mergedUserId}) AS participant_duplicate,
       (SELECT count(*)::int FROM competition_entry_active_claims b JOIN competition_entry_active_claims a ON a.user_id = ${input.canonicalUserId} AND a.competition_id = b.competition_id

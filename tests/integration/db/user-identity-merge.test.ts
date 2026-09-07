@@ -4,6 +4,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import type { TxDb } from "../../../src/db/client";
 import { describe, expect, it } from "vitest";
 import * as schema from "../../../src/db/schema";
+import { MAX_CAPTAIN_VOTES } from "../../../src/lib/captains/rules";
 import { completeSecondaryIdentityLinkInTx, hashIdentityLinkState } from "../../../src/lib/identity/linking";
 import { buildUserMergePreflight, executeUserMergeInTx } from "../../../src/lib/identity/merge";
 import { loadSelfServiceMergeAuthorization, selectSelfServiceMergePair } from "../../../src/lib/identity/self-service";
@@ -262,6 +263,77 @@ describe("canonical user identity merge PostgreSQL invariants", () => {
             expect.objectContaining({ key: "registration:captain-voter-reference-blocker", category: "BLOCKER", count: 1 }),
             expect.objectContaining({ key: "registration:captain-candidate-reference-blocker", category: "BLOCKER", count: 1 }),
           ]));
+
+          throw rollbackFixture;
+        });
+      } catch (error) {
+        if (error !== rollbackFixture) throw error;
+      }
+    } finally {
+      await pool.end();
+    }
+  });
+
+  it("blocks captain vote-limit conflicts after registration remap without executing the merge", async () => {
+    const pool = createLocalPool();
+    const ids = {
+      canonical: randomUUID(),
+      merged: randomUUID(),
+      admin: randomUUID(),
+      season: randomUUID(),
+      canonicalRegistration: randomUUID(),
+      mergedRegistration: randomUUID(),
+      candidateUsers: Array.from({ length: MAX_CAPTAIN_VOTES + 1 }, () => randomUUID()),
+      candidateRegistrations: Array.from({ length: MAX_CAPTAIN_VOTES + 1 }, () => randomUUID()),
+      voteIds: Array.from({ length: MAX_CAPTAIN_VOTES + 1 }, () => randomUUID()),
+    };
+    const rollbackFixture = Symbol("rollback fixture");
+    const database = drizzle(pool, { schema });
+    try {
+      try {
+        await database.transaction(async (tx) => {
+          await insertTestSeason(tx, ids.season);
+          await insertTestUser(tx, ids.canonical, `canonical-${ids.canonical}@local.test`);
+          await insertTestUser(tx, ids.merged, `merged-${ids.merged}@local.test`);
+          await insertTestUser(tx, ids.admin, `admin-${ids.admin}@local.test`, "super_admin");
+          for (const [index, userId] of ids.candidateUsers.entries()) {
+            await insertTestUser(tx, userId, `candidate-${index}-${userId}@local.test`);
+          }
+          await insertTestRegistration(tx, ids.canonicalRegistration, ids.canonical, ids.season, "approved");
+          await insertTestRegistration(tx, ids.mergedRegistration, ids.merged, ids.season, "approved");
+          for (const [index, registrationId] of ids.candidateRegistrations.entries()) {
+            await insertTestRegistration(tx, registrationId, ids.candidateUsers[index]!, ids.season, "approved");
+          }
+
+          const voteValues = ids.candidateRegistrations.map((candidateRegistrationId, index) => sql`(
+            ${ids.voteIds[index]!},
+            ${index < MAX_CAPTAIN_VOTES ? ids.canonicalRegistration : ids.mergedRegistration},
+            ${candidateRegistrationId}
+          )`);
+          await tx.execute(sql`
+            INSERT INTO captain_votes (id, voter_registration_id, candidate_registration_id)
+            VALUES ${sql.join(voteValues, sql`, `)}
+          `);
+
+          const preflight = await buildUserMergePreflight(tx, {
+            canonicalUserId: ids.canonical,
+            mergedUserId: ids.merged,
+          }, { evidenceClass: "super_admin_review" });
+          expect(preflight.executable).toBe(false);
+          expect(preflight.items).toEqual(expect.arrayContaining([
+            expect.objectContaining({ key: "registration:captain-vote-limit-conflict", category: "BLOCKER", count: 1 }),
+          ]));
+
+          await expect(executeUserMergeInTx(tx, {
+            canonicalUserId: ids.canonical,
+            mergedUserId: ids.merged,
+            actorUserId: ids.admin,
+            expectedFingerprint: preflight.fingerprint,
+            evidenceClass: "super_admin_review",
+            reason: "captain vote limit merge invariant test",
+          })).rejects.toThrow("存在未解决冲突");
+          await expect(tx.execute(sql`SELECT status::text, merged_into_user_id FROM users WHERE id = ${ids.merged}`)).resolves.toMatchObject({ rows: [{ status: "active", merged_into_user_id: null }] });
+          await expect(tx.execute(sql`SELECT count(*)::int AS count FROM captain_votes WHERE voter_registration_id IN (${ids.canonicalRegistration}, ${ids.mergedRegistration})`)).resolves.toMatchObject({ rows: [{ count: MAX_CAPTAIN_VOTES + 1 }] });
 
           throw rollbackFixture;
         });
