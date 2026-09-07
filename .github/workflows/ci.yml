@@ -185,10 +185,26 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - name: Validate current changelog compare link
+      - name: Validate current changelog release shape
         shell: bash
         run: |
           VERSION="$(node -p "require('./package.json').version")"
+          HEADING="## [$VERSION]"
+          if ! grep -Fxq "$HEADING" CHANGELOG.md; then
+            echo "CHANGELOG.md must contain heading $HEADING." >&2
+            exit 1
+          fi
+
+          SECTION="$(awk -v heading="$HEADING" '
+            $0 == heading { found=1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md)"
+          if grep -Eq '^### (Patch|Minor|Major) Changes$' <<< "$SECTION"; then
+            echo "CHANGELOG.md current version still contains a default Changesets heading; perform editorial cleanup before merge." >&2
+            exit 1
+          fi
+
           PREFIX="[$VERSION]: https://github.com/Starfie1d1272/RivalHub/compare/"
           LINE="$(grep -F "$PREFIX" CHANGELOG.md || true)"
           if [[ -z "$LINE" || "$LINE" != *"...v$VERSION" ]]; then
