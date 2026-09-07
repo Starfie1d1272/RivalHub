@@ -1,18 +1,19 @@
 import Link from "next/link";
 import { EmailConfirmationForm } from "@/components/auth/EmailConfirmationForm";
 import { SecondaryIdentityConfirmationForm } from "@/components/auth/SecondaryIdentityConfirmationForm";
+import { isSecondaryEmailOtpType } from "@/lib/auth/secondary-email-otp";
 
 export const instant = false;
 
 export default async function ConfirmationPage({
   searchParams,
 }: {
-  searchParams: Promise<{ flow?: string; token_hash?: string; next?: string; request?: string; state?: string }>;
+  searchParams: Promise<{ flow?: string; token_hash?: string; next?: string; request?: string; state?: string; type?: string }>;
 }) {
-  const { flow, token_hash: tokenHash, next, request, state } = await searchParams;
+  const { flow, token_hash: tokenHash, next, request, state, type } = await searchParams;
   const confirmationFlow = flow === "signup" || flow === "reverify" ? flow : null;
-  const identityLink = flow === "link_identity" && tokenHash && request && state
-    ? { tokenHash, requestId: request, stateToken: state }
+  const identityLink = flow === "link_identity" && tokenHash && request && state && isSecondaryEmailOtpType(type)
+    ? { tokenHash, requestId: request, stateToken: state, otpType: type }
     : null;
 
   return (

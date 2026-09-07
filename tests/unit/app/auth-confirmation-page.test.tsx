@@ -3,9 +3,13 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 const emailConfirmationFormMock = vi.hoisted(() => vi.fn(() => null));
+const secondaryIdentityConfirmationFormMock = vi.hoisted(() => vi.fn(() => null));
 
 vi.mock("@/components/auth/EmailConfirmationForm", () => ({
   EmailConfirmationForm: emailConfirmationFormMock,
+}));
+vi.mock("@/components/auth/SecondaryIdentityConfirmationForm", () => ({
+  SecondaryIdentityConfirmationForm: secondaryIdentityConfirmationFormMock,
 }));
 
 import ConfirmationPage from "@/app/auth/confirmation/page";
@@ -32,5 +36,46 @@ describe("email confirmation page", () => {
       { flow: "reverify", tokenHash: "opaque-token", next: "/settings/education" },
       undefined,
     );
+  });
+
+  it("把第二邮箱的受限 provider OTP 类型传给确认表单", async () => {
+    vi.stubGlobal("React", React);
+    const page = await ConfirmationPage({
+      searchParams: Promise.resolve({
+        flow: "link_identity",
+        token_hash: "opaque-token",
+        request: "11111111-1111-4111-8111-111111111111",
+        state: "opaque-state-token",
+        type: "email",
+      }),
+    });
+    renderToStaticMarkup(page);
+
+    expect(secondaryIdentityConfirmationFormMock).toHaveBeenCalledWith(
+      {
+        tokenHash: "opaque-token",
+        requestId: "11111111-1111-4111-8111-111111111111",
+        stateToken: "opaque-state-token",
+        otpType: "email",
+      },
+      undefined,
+    );
+  });
+
+  it("不为未允许的第二邮箱 OTP 类型渲染确认表单", async () => {
+    vi.stubGlobal("React", React);
+    const page = await ConfirmationPage({
+      searchParams: Promise.resolve({
+        flow: "link_identity",
+        token_hash: "opaque-token",
+        request: "11111111-1111-4111-8111-111111111111",
+        state: "opaque-state-token",
+        type: "recovery",
+      }),
+    });
+    const html = renderToStaticMarkup(page);
+
+    expect(html).toContain("邮箱验证未完成");
+    expect(secondaryIdentityConfirmationFormMock).not.toHaveBeenCalled();
   });
 });

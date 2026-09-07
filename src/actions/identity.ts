@@ -8,6 +8,7 @@ import { db } from "@/db/client";
 import { identityLinkRequests } from "@/db/schema";
 import { actionError } from "@/lib/action-utils";
 import { createPublicAuthClient } from "@/lib/auth/supabase-server";
+import { isSecondaryEmailOtpType } from "@/lib/auth/secondary-email-otp";
 import { requireAuth } from "@/lib/auth/session";
 import {
   completeSecondaryIdentityLinkInTx,
@@ -67,17 +68,23 @@ export async function confirmSecondaryEmailIdentity(input: {
   requestId: string;
   stateToken: string;
   tokenHash: string;
+  otpType: string;
 }): Promise<ActionResult<CompleteIdentityLinkOutcome & { redirectTo: string }>> {
-  const parsed = z.object({ requestId: uuidSchema, stateToken: z.string().min(20).max(200), tokenHash: z.string().min(1) }).safeParse(input);
+  const parsed = z.object({
+    requestId: uuidSchema,
+    stateToken: z.string().min(20).max(200),
+    tokenHash: z.string().min(1),
+    otpType: z.string().refine(isSecondaryEmailOtpType),
+  }).safeParse(input);
   if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "邮箱绑定链接无效，请重新发起。" });
   try {
     const session = await requireAuth();
     const { data, error } = await createPublicAuthClient().auth.verifyOtp({
       token_hash: parsed.data.tokenHash,
-      type: "magiclink",
+      type: parsed.data.otpType,
     });
     if (error || !data.user?.email || !data.user.email_confirmed_at) {
-      return fail({ code: ErrorCode.VALIDATION_FAILED, message: "邮箱绑定链接已失效或已被使用，请重新发起。" });
+      return fail({ code: ErrorCode.VALIDATION_FAILED, message: "无法验证这个邮箱绑定链接。链接可能已过期、已完成验证或验证信息不匹配，请重新发起绑定。" });
     }
     const outcome = await db.transaction((tx) => completeSecondaryIdentityLinkInTx(tx, {
       requestId: parsed.data.requestId,
