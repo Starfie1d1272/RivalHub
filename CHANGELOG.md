@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.7.1]
+
+### Fixed
+
+#### Major 赛前运营工作台
+
+收口 Major 报名审核与赛前准备后台的运营术语和诊断信息。管理员现在看到的状态、错误与操作提示更贴近实际运营任务，减少内部实现术语泄漏，并保持不同赛前页面的文案一致。
+
 ## [2.7.0]
 
 RivalHub 2.7 收口跨平台竞技资料与用户身份边界：管理员可以维护版本化的 5E → Perfect World 换算策略，用户可以安全绑定多个邮箱，并在重复账号场景中完成受控归并。
@@ -1843,6 +1851,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.7.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.7.0...v2.7.1
 [2.7.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.6.1...v2.7.0
 [2.6.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.6.0...v2.6.1
 [2.6.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.5.0...v2.6.0
