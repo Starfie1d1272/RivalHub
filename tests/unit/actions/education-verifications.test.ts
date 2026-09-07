@@ -9,7 +9,7 @@ describe("education verification action validation", () => {
   });
 
   it("fails closed for invalid institutional status and review input", async () => {
-    await expect(declareInstitutionalEmailEducation({ academicStatus: "other" as never })).resolves.toMatchObject({ success: false, error: { code: ErrorCode.VALIDATION_FAILED } });
+    await expect(declareInstitutionalEmailEducation({ identityId: "not-a-uuid", academicStatus: "other" as never })).resolves.toMatchObject({ success: false, error: { code: ErrorCode.VALIDATION_FAILED } });
     await expect(reviewEducationVerification({ id: "not-a-uuid", decision: "approved" })).resolves.toMatchObject({ success: false, error: { code: ErrorCode.VALIDATION_FAILED } });
   });
 

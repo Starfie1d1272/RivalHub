@@ -295,6 +295,20 @@
       "when": 1788767814938,
       "tag": "0041_perpetual_grey_gargoyle",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1788776870044,
+      "tag": "0042_identity_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1788776949783,
+      "tag": "0043_identity_merge_frozen_roster",
+      "breakpoints": true
     }
   ]
 }

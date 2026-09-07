@@ -1,20 +1,32 @@
 import Link from "next/link";
 import { EmailConfirmationForm } from "@/components/auth/EmailConfirmationForm";
+import { SecondaryIdentityConfirmationForm } from "@/components/auth/SecondaryIdentityConfirmationForm";
 
 export const instant = false;
 
 export default async function ConfirmationPage({
   searchParams,
 }: {
-  searchParams: Promise<{ flow?: string; token_hash?: string; next?: string }>;
+  searchParams: Promise<{ flow?: string; token_hash?: string; next?: string; request?: string; state?: string }>;
 }) {
-  const { flow, token_hash: tokenHash, next } = await searchParams;
+  const { flow, token_hash: tokenHash, next, request, state } = await searchParams;
   const confirmationFlow = flow === "signup" || flow === "reverify" ? flow : null;
+  const identityLink = flow === "link_identity" && tokenHash && request && state
+    ? { tokenHash, requestId: request, stateToken: state }
+    : null;
 
   return (
     <main className="min-h-screen flex items-center justify-center px-4">
       <section className="w-full max-w-sm space-y-4 rounded-sm border border-[var(--color-border)] p-5 text-center">
-        {confirmationFlow && tokenHash ? (
+        {identityLink ? (
+          <>
+            <h1 className="text-xl font-semibold">确认绑定身份</h1>
+            <p className="text-sm text-[var(--color-fg-mid)]">
+              点击后将验证这个邮箱。若它已属于另一个 RivalHub 账号，系统会先生成安全归并预检，不会直接改写数据。
+            </p>
+            <SecondaryIdentityConfirmationForm {...identityLink} />
+          </>
+        ) : confirmationFlow && tokenHash ? (
           <>
             <h1 className="text-xl font-semibold">确认邮箱</h1>
             <p className="text-sm text-[var(--color-fg-mid)]">

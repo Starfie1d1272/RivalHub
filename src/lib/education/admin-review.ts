@@ -61,7 +61,7 @@ export function normalizeEducationReviewQuery(input: EducationReviewSearchParams
 }
 
 export async function getEducationReviewQueue(query: EducationReviewQuery): Promise<EducationReviewQueue> {
-  const conditions = [];
+  const conditions = [eq(users.status, "active")];
   if (query.q) {
     const pattern = `%${escapeLikePattern(query.q)}%`;
     conditions.push(or(
@@ -69,7 +69,7 @@ export async function getEducationReviewQueue(query: EducationReviewQuery): Prom
       ilike(users.email, pattern),
       ilike(institutions.name, pattern),
       ilike(educationVerifications.evidenceCode, pattern),
-    ));
+    )!);
   }
   if (query.status !== "all") conditions.push(eq(educationVerifications.status, query.status));
   if (query.institution) conditions.push(eq(educationVerifications.institutionId, query.institution));
@@ -85,7 +85,7 @@ export async function getEducationReviewQueue(query: EducationReviewQuery): Prom
     db.select({ id: institutions.id, name: institutions.name })
       .from(institutions)
       .orderBy(asc(institutions.name), asc(institutions.id)),
-    db.select({ count: count() }).from(educationVerifications),
+    db.select({ count: count() }).from(educationVerifications).innerJoin(users, and(eq(educationVerifications.userId, users.id), eq(users.status, "active"))),
   ]);
 
   const total = Number(totalRow?.count ?? 0);

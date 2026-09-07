@@ -2,15 +2,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ErrorCode } from "@/lib/errors";
 
-const { cookiesMock, getIronSessionMock, selectMock } = vi.hoisted(() => ({
+const { cookiesMock, getIronSessionMock, selectMock, resolveCanonicalUserIdMock } = vi.hoisted(() => ({
   cookiesMock: vi.fn(),
   getIronSessionMock: vi.fn(),
   selectMock: vi.fn(),
+  resolveCanonicalUserIdMock: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({ cookies: cookiesMock }));
 vi.mock("iron-session", () => ({ getIronSession: getIronSessionMock }));
 vi.mock("@/db/client", () => ({ db: { select: selectMock } }));
+vi.mock("@/lib/identity/canonical", () => ({ resolveCanonicalUserId: resolveCanonicalUserIdMock }));
 
 import {
   auditActorId,
@@ -49,6 +51,7 @@ describe("auth session guards", () => {
     process.env.ADMIN_SESSION_SECRET = "local-test-session-secret-that-is-long-enough";
     vi.clearAllMocks();
     cookiesMock.mockResolvedValue({});
+    resolveCanonicalUserIdMock.mockImplementation(async (_db: unknown, userId: string) => userId);
   });
 
   it("session cookie 只读取并保存 userId/email，清除旧授权 payload", async () => {

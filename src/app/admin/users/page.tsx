@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { asc, eq, isNotNull, or } from "drizzle-orm";
+import { and, asc, eq, isNotNull, or } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasonAdminGrants, users } from "@/db/schema";
 import { requireSuperAdmin } from "@/lib/auth/session";
@@ -41,7 +41,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
         })
         .from(users)
         .leftJoin(seasonAdminGrants, eq(seasonAdminGrants.userId, users.id))
-        .where(or(eq(users.role, "super_admin"), isNotNull(seasonAdminGrants.userId)))
+        .where(and(eq(users.status, "active"), or(eq(users.role, "super_admin"), isNotNull(seasonAdminGrants.userId))))
         .orderBy(asc(users.createdAt)),
       db.query.seasons.findMany(),
     ]);

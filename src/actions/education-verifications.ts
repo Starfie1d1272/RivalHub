@@ -3,7 +3,7 @@
 import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db/client";
-import { auditLogs, educationVerifications, institutionEmailDomains, institutions, users } from "@/db/schema";
+import { auditLogs, educationVerifications, institutionEmailDomains, institutions, userIdentities, users } from "@/db/schema";
 import { actionError } from "@/lib/action-utils";
 import { auditActorId, requireAuth, requireSuperAdmin } from "@/lib/auth/session";
 import { emailDomain, educationSubmissionSchema, normalizeChsiEvidenceCode } from "@/lib/education/validation";
@@ -29,7 +29,13 @@ export async function submitEducationVerification(input: unknown): Promise<Actio
     // confirmation callback. UI visibility is advisory; the sensitive claim
     // must fail closed at the trusted write boundary.
     const user = await db.query.users.findFirst({ where: eq(users.id, session.userId) });
-    if (!user?.emailVerifiedAt) {
+    const [verifiedIdentity] = await db.select({ id: userIdentities.id }).from(userIdentities).where(and(
+      eq(userIdentities.userId, session.userId),
+      eq(userIdentities.kind, "email"),
+      eq(userIdentities.status, "active"),
+      sql`${userIdentities.verifiedAt} IS NOT NULL`,
+    )).limit(1);
+    if (!user || (!user.emailVerifiedAt && !verifiedIdentity)) {
       throw new AppError(ErrorCode.FORBIDDEN, "请先验证当前账号邮箱，验证后才能提交教育身份认证。 ");
     }
     const institution = await db.query.institutions.findFirst({ where: eq(institutions.id, parsed.data.institutionId) });
@@ -68,21 +74,30 @@ export async function submitEducationVerification(input: unknown): Promise<Actio
   } catch (error) { return actionError("submitEducationVerification", error); }
 }
 
-/** Convert a verified exact-domain credential into an approved immutable claim. */
-export async function declareInstitutionalEmailEducation(input: { academicStatus: "enrolled" | "graduated" }): Promise<ActionResult<void>> {
-  const parsed = z.object({ academicStatus: z.enum(["enrolled", "graduated"]) }).safeParse(input);
+/** Convert a selected verified exact-domain credential into an approved immutable claim. */
+export async function declareInstitutionalEmailEducation(input: { identityId: string; academicStatus: "enrolled" | "graduated" }): Promise<ActionResult<void>> {
+  const parsed = z.object({ identityId: z.uuid(), academicStatus: z.enum(["enrolled", "graduated"]) }).safeParse(input);
   if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请选择在读或已毕业。" });
   try {
     const session = await requireAuth();
-    const user = await db.query.users.findFirst({ where: eq(users.id, session.userId) });
-    if (!user?.emailVerifiedAt) throw new AppError(ErrorCode.FORBIDDEN, "请先验证当前账号邮箱。 ");
-    const domain = emailDomain(user.email);
-    if (!domain) throw new AppError(ErrorCode.VALIDATION_FAILED, "当前账号邮箱无效。 ");
+    const [identity] = await db.select({ email: userIdentities.normalizedValue })
+      .from(userIdentities)
+      .where(and(
+        eq(userIdentities.id, parsed.data.identityId),
+        eq(userIdentities.userId, session.userId),
+        eq(userIdentities.kind, "email"),
+        eq(userIdentities.status, "active"),
+        sql`${userIdentities.verifiedAt} IS NOT NULL`,
+      ))
+      .limit(1);
+    if (!identity?.email) throw new AppError(ErrorCode.FORBIDDEN, "请选择属于当前账号的 verified email identity。");
+    const domain = emailDomain(identity.email);
+    if (!domain) throw new AppError(ErrorCode.VALIDATION_FAILED, "所选 verified email identity 无效。");
     const [mapping] = await db.select({ institutionId: institutionEmailDomains.institutionId })
       .from(institutionEmailDomains)
       .where(and(eq(institutionEmailDomains.domain, domain), eq(institutionEmailDomains.autoVerify, true), eq(institutionEmailDomains.active, true)))
       .limit(1);
-    if (!mapping) throw new AppError(ErrorCode.FORBIDDEN, "当前账号邮箱不支持学校邮箱自动认证。 ");
+    if (!mapping) throw new AppError(ErrorCode.FORBIDDEN, "所选 verified email identity 不支持学校邮箱自动认证。");
     await db.transaction(async (tx) => {
       const existing = await tx.query.educationVerifications.findFirst({
         where: and(eq(educationVerifications.userId, session.userId), eq(educationVerifications.institutionId, mapping.institutionId), eq(educationVerifications.evidenceType, "institutional_email"), eq(educationVerifications.academicStatus, parsed.data.academicStatus), eq(educationVerifications.status, "approved")),

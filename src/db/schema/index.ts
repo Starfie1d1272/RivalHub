@@ -1,4 +1,5 @@
 export * from "./users";
+export * from "./identity";
 export * from "./education";
 export * from "./competitive-profile";
 export * from "./conversion-policies";

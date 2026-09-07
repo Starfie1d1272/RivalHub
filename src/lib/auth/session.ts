@@ -8,6 +8,7 @@ import { cache } from "react";
 import { db } from "@/db/client";
 import { seasonAdminGrants, users } from "@/db/schema";
 import { AppError, ErrorCode, ERROR_MESSAGES, isExpectedAuthFailure } from "@/lib/errors";
+import { resolveCanonicalUserId } from "@/lib/identity/canonical";
 
 export interface UserSession {
   userId: string;
@@ -46,8 +47,12 @@ export const getUserSession = cache(async (): Promise<UserSession | null> => {
   const session = await getIronSession<SessionPayload>(await cookies(), userSessionOptions());
   if (!session.userId || !session.email) return null;
 
+  const canonicalUserId = await resolveCanonicalUserId(db, session.userId);
+  if (!canonicalUserId) return null;
   return {
-    userId: session.userId,
+    userId: canonicalUserId,
+    // The cookie email is display-only; authorization is derived from the
+    // resolved canonical user id on every request.
     email: session.email,
   };
 });

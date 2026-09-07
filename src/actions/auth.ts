@@ -11,6 +11,7 @@ import type { ActionResult } from "@/types/action";
 import { actionError } from "@/lib/action-utils";
 import { MIN_PASSWORD_LENGTH, isPasswordPolicySatisfied, PASSWORD_POLICY_MESSAGE } from "@/lib/config/auth-config";
 import { normalizeEmail } from "@/lib/utils/email";
+import { resolveOrCreateCanonicalUserInTx } from "@/lib/identity/canonical";
 import { safeLocalRedirect } from "@/lib/auth/redirect";
 import { bootstrapConfiguredOwnerInTx } from "@/lib/auth/owner-bootstrap";
 import {
@@ -53,22 +54,14 @@ export async function loginWithPassword(
     }
 
     const userRow = await db.transaction(async (tx) => {
-      // 同步 public.users（密码登录不走 callback，这里兜底 upsert）
-      const [upsertedUser] = await tx
-        .insert(users)
-        .values({
-          email: normalizedEmail,
-          authId: data.user.id,
-          role: "user",
-          updatedAt: new Date(),
-        })
-        .onConflictDoUpdate({
-          target: users.email,
-          set: { authId: data.user.id, updatedAt: new Date() },
-        })
-        .returning();
-      if (!upsertedUser) throw new Error("登录后无法同步用户账号");
-      return bootstrapConfiguredOwnerInTx(tx, upsertedUser);
+      const canonicalUser = await resolveOrCreateCanonicalUserInTx(tx, {
+        authId: data.user.id,
+        email: normalizedEmail,
+        verifiedAt: new Date(data.user.email_confirmed_at ?? Date.now()),
+        source: "signup_confirmation",
+        allowCreate: true,
+      });
+      return bootstrapConfiguredOwnerInTx(tx, canonicalUser);
     });
 
     await createUserSession({

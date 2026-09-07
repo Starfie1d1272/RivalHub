@@ -23,7 +23,7 @@ describe("getParticipantSummary", () => {
     await expect(getParticipantSummary({ id: "season-1", registrationMode: "team" })).resolves.toEqual({ count: 6, hasPlayers: true });
     expect(select).toHaveBeenCalledOnce();
     expect(from).toHaveBeenCalledOnce();
-    expect(innerJoin).toHaveBeenCalledTimes(2);
+    expect(innerJoin).toHaveBeenCalledTimes(3);
   });
 
   it("uses approved registrations for a solo season", async () => {

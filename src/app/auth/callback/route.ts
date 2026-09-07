@@ -16,6 +16,13 @@ export async function GET(request: NextRequest) {
     confirmationUrl.searchParams.set("token_hash", tokenHash);
     const next = safeLocalRedirect(url.searchParams.get("next"), "");
     if (next) confirmationUrl.searchParams.set("next", next);
+    if (flow === "link_identity") {
+      const requestId = url.searchParams.get("request");
+      const state = url.searchParams.get("state");
+      if (!requestId || !state) return confirmationFailure(applicationOrigin);
+      confirmationUrl.searchParams.set("request", requestId);
+      confirmationUrl.searchParams.set("state", state);
+    }
     return NextResponse.redirect(confirmationUrl);
   });
 }
@@ -24,9 +31,9 @@ function confirmationFailure(applicationOrigin: string): NextResponse {
   return NextResponse.redirect(new URL("/auth/confirmation", applicationOrigin));
 }
 
-function callbackFlow(url: URL): "signup" | "reverify" | null {
+function callbackFlow(url: URL): "signup" | "reverify" | "link_identity" | null {
   const queryFlow = url.searchParams.get("flow");
-  if (queryFlow === "signup" || queryFlow === "reverify") return queryFlow;
+  if (queryFlow === "signup" || queryFlow === "reverify" || queryFlow === "link_identity") return queryFlow;
   const pathFlow = url.pathname.split("/").at(-1);
-  return pathFlow === "signup" || pathFlow === "reverify" ? pathFlow : null;
+  return pathFlow === "signup" || pathFlow === "reverify" || pathFlow === "link_identity" ? pathFlow : null;
 }

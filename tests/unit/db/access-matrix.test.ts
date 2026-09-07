@@ -28,7 +28,11 @@ const seedRecommendationSnapshotMigration = readFileSync(
   join(root, "drizzle/migrations/0040_major_seed_recommendation_snapshot.sql"),
   "utf8",
 );
-const migration = `${terminalMigration}\n${restrictionOverrideMigration}\n${conversionPolicyMigration}\n${seedRecommendationSnapshotMigration}`;
+const identityMigration = readFileSync(
+  join(root, "drizzle/migrations/0042_identity_foundation.sql"),
+  "utf8",
+);
+const migration = `${terminalMigration}\n${restrictionOverrideMigration}\n${conversionPolicyMigration}\n${seedRecommendationSnapshotMigration}\n${identityMigration}`;
 
 function expectedFacts(): DatabaseAccessFacts[] {
   return DATABASE_ACCESS_MATRIX.map((entry) => ({
@@ -44,13 +48,13 @@ function expectedFacts(): DatabaseAccessFacts[] {
 describe("database access matrix", () => {
   it("classifies every current public application table and keeps the generated document aligned", () => {
     const snapshot = JSON.parse(
-      readFileSync(join(root, "drizzle/migrations/meta/0040_snapshot.json"), "utf8"),
+      readFileSync(join(root, "drizzle/migrations/meta/0042_snapshot.json"), "utf8"),
     ) as { tables: Record<string, unknown> };
     const snapshotTables = Object.keys(snapshot.tables)
       .map((table) => table.replace(/^public\./, ""))
       .sort();
 
-    expect(DATABASE_ACCESS_MATRIX).toHaveLength(67);
+    expect(DATABASE_ACCESS_MATRIX).toHaveLength(71);
     expect(new Set(DATABASE_ACCESS_TABLES).size).toBe(DATABASE_ACCESS_TABLES.length);
     expect(snapshotTables).toEqual([...DATABASE_ACCESS_TABLES].sort());
     expect(renderDatabaseAccessMatrixMarkdown()).toBe(
@@ -74,7 +78,15 @@ describe("database access matrix", () => {
     expect(publicationTables).toEqual(
       [...DATABASE_ACCESS_TABLES]
         .filter((table) =>
-          !["competition_entry_restriction_overrides", "conversion_policies", "major_seed_recommendation_snapshots"].includes(table),
+          ![
+            "competition_entry_restriction_overrides",
+            "conversion_policies",
+            "major_seed_recommendation_snapshots",
+            "identity_link_requests",
+            "user_identities",
+            "user_merge_authorizations",
+            "user_merge_ledger",
+          ].includes(table),
         )
         .sort(),
     );

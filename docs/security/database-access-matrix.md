@@ -4,7 +4,7 @@
 
 ## 结论
 
-- 当前 active chain 的 67 张 application-owned `public` base table 全部归类为 `server_only`。业务数据库只由 server-side Drizzle 访问，browser Data API consumer 为零。
+- 当前 active chain 的 71 张 application-owned `public` base table 全部归类为 `server_only`。业务数据库只由 server-side Drizzle 访问，browser Data API consumer 为零。
 - `users`、`user_sessions`、`admin_invites`、`admin_invite_claims`、`season_admin_grants`、`audit_logs`、education evidence、Major prestart/runtime 和 bracket runtime 均按高敏感 server-only 处理。
 - 2026-09-03 production 只读 inventory 在 migration 前确认 `competition_bracket_states` 是明确的 anon/authenticated CRUD privilege 例外；Issue #395 的 forward migration 将其与其余表统一收口。
 - `DraftLiveRoom` 与 `CaptainVotingPanel` 的 Realtime subscription 已删除。两处继续使用既有 10 秒 polling fallback；`ResetPasswordForm` 保留 browser Supabase client，但仅调用 Supabase Auth，不调用 public table Data API。
@@ -44,6 +44,7 @@
 | event_rosters | 名单状态与冻结边界 | Major event roster | src/actions/major-prestart.ts; src/lib/match-rosters/service.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | preparing/confirmed/frozen transition 只能经服务端领域操作。 |
 | institution_email_domains | 内部高校邮箱规则 | 教育目录 | src/lib/qualification/service.ts; src/actions/education-verifications.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 邮箱域名目录用于资格验证，不能作为公开可写配置。 |
 | institutions | 高校目录与官方编码 | 教育目录 | src/lib/qualification/service.ts; src/actions/education-verifications.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 机构目录可能被公开 projection 间接使用，但原始表仍由服务端控制。 |
+| identity_link_requests | 高敏感邮箱绑定挑战 | 身份 / credential | src/lib/identity/linking.ts; src/actions/identity.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 绑定请求包含邮箱和一次性挑战状态，只能在服务端验证与消费。 |
 | major_final_results | 官方最终结果事实 | Major post-event | src/lib/postevent/service.ts; src/lib/major/placement.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 最终结果需 confirmation/adjudication 后归档，禁止客户端旁路写入。 |
 | major_prestart_issues | 开赛前内部 blocker 与审计 | Major prestart | src/actions/major-prestart.ts; src/lib/audit/targets.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | prestart issue 只供管理员修复和审计使用。 |
 | major_prestart_states | 开赛前状态与锁定事实 | Major prestart | src/actions/major-prestart.ts; src/lib/major/prestart-state.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | entrant/seed lock 是开赛门禁，不是客户端状态。 |
@@ -78,6 +79,9 @@
 | teams | 队伍身份、状态与队长 | 长期 Team | src/lib/teams/; src/actions/teams.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 公开队伍页消费显式 projection，原始队伍与 owner 事实仍 server-only。 |
 | tournament_honors | 官方荣誉与撤销状态 | 赛后 / 荣誉 | src/lib/postevent/service.ts; src/lib/community-awards/read-model.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 荣誉必须基于 final result/adjudication 的服务端事实形成。 |
 | user_competitive_roles | 个人位置偏好 | 个人竞技资料 | src/actions/competitive-profile.ts; src/lib/recruitment/data.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 位置资料用于资格和展示 projection，不能由客户端直接访问。 |
+| user_identities | 高敏感 credential 与 provider subject | 身份 / credential | src/lib/identity/; src/actions/identity.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | credential 绑定、撤销与归并只经服务端 identity owner，公开页面不读取原始标识。 |
 | user_map_preferences | 个人地图熟练度 | 个人竞技资料 | src/actions/competitive-profile.ts; src/lib/maps.ts; src/lib/recruitment/data.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 长期资料由服务端 action 更新；个人页与组队大厅只消费按当前 Active Duty 或目标赛事图池生成的最小 projection。 |
+| user_merge_authorizations | 高敏感双重 identity 控制证明 | 身份 / 数据归并 | src/lib/identity/linking.ts; src/lib/identity/merge.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | self-service merge 只消费短期、服务端验证的双重控制授权，不能由客户端伪造。 |
+| user_merge_ledger | 高敏感 canonical alias 与归并审计 | 身份 / 数据归并 | src/lib/identity/merge.ts; src/actions/user-merge.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | old user 到 canonical user 的 durable alias、证据类别和 domain summary 仅供服务端解析与审计。 |
 | user_sessions | 高敏感应用会话 | 鉴权 / 会话 | src/lib/auth/session.ts; src/db/schema/user-sessions.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 应用 session 与角色事实在服务端读取，绝不通过 Data API 暴露。 |
 | users | 高敏感 email、角色、教育与竞技身份 | 身份 / 账户 | src/lib/auth/; src/actions/account.ts; src/lib/identity/ | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | email、QQ、studentId、authId、审核材料和内部备注默认不是公开字段。 |

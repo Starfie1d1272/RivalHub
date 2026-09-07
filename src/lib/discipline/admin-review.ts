@@ -1,6 +1,6 @@
 import "server-only";
 
-import { asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { disciplinaryCases, users } from "@/db/schema";
 import { getDisplayName } from "@/lib/identity/display-name";
@@ -70,10 +70,10 @@ export async function getSeasonSanctionsAdminReadModel(
           email: users.email,
         })
         .from(users)
-        .where(inArray(users.id, subjectIds));
+        .where(and(inArray(users.id, subjectIds), eq(users.status, "active")));
   const subjectById = new Map(subjectRows.map((row) => [row.id, row]));
   const now = new Date();
-  const projected = rows.map<DisciplineSanctionRow>((row) => {
+  const projected = rows.filter((row) => subjectById.has(row.subjectUserId)).map<DisciplineSanctionRow>((row) => {
     const subject = subjectById.get(row.subjectUserId);
     return {
       id: row.id,
@@ -112,6 +112,6 @@ export async function getSeasonSanctionsAdminReadModel(
     pageSize: DISCIPLINE_ADMIN_PAGE_SIZE,
     totalPages,
     normalizedQuery: { ...query, page },
-    hasAnyRecords: rows.length > 0,
+    hasAnyRecords: projected.length > 0,
   };
 }

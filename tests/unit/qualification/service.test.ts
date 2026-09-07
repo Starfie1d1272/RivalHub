@@ -85,7 +85,9 @@ function queueFactSelects(options: {
   }));
   selectMock.mockImplementationOnce(() => ({
     from: vi.fn().mockReturnValue({
-      innerJoin: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(verifications) }),
+      innerJoin: vi.fn().mockReturnValue({
+        innerJoin: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(verifications) }),
+      }),
     }),
   }));
   selectMock.mockImplementationOnce(() => ({

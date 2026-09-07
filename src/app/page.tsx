@@ -72,9 +72,11 @@ async function HomeContent() {
             cnt: count(),
           })
           .from(seasonRegistrations)
+          .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
           .where(
             and(
               eq(seasonRegistrations.seasonId, featured.id),
+              eq(users.status, "active"),
               or(
                 eq(seasonRegistrations.status, "approved"),
                 eq(seasonRegistrations.status, "pending")
@@ -96,7 +98,7 @@ async function HomeContent() {
             seasonRegistrations,
             eq(captainVotes.candidateRegistrationId, seasonRegistrations.id),
           )
-          .innerJoin(users, eq(seasonRegistrations.userId, users.id))
+          .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
           .where(eq(seasonRegistrations.seasonId, featured.id))
           .groupBy(users.id, users.displayName, users.perfectName)
           .orderBy(desc(count()))

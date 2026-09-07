@@ -223,7 +223,7 @@ async function loadDraftBase(seasonId: string): Promise<DraftBaseData> {
             eq(eventRosterMembers.userId, seasonRegistrations.userId),
             eq(seasonRegistrations.seasonId, seasonId),
           ))
-          .leftJoin(users, eq(seasonRegistrations.userId, users.id))
+          .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
           .where(inArray(eventRosters.entryId, entryIds))
       : [];
 
@@ -244,7 +244,7 @@ async function loadDraftBase(seasonId: string): Promise<DraftBaseData> {
       seasonRegistrations,
       eq(draftPicks.registrationId, seasonRegistrations.id),
     )
-    .leftJoin(users, eq(seasonRegistrations.userId, users.id))
+    .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
     .where(eq(draftPicks.seasonId, seasonId))
     .orderBy(asc(draftPicks.pickNumber));
 
@@ -359,7 +359,7 @@ async function loadPublicRemainingPlayers(
       mapPreferences: seasonRegistrations.mapPreferences,
     })
     .from(seasonRegistrations)
-    .leftJoin(users, eq(seasonRegistrations.userId, users.id))
+    .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
     .where(
       and(
         eq(seasonRegistrations.seasonId, seasonId),
@@ -401,7 +401,7 @@ async function loadCaptainRemainingPlayers(
       createdAt: seasonRegistrations.createdAt,
     })
     .from(seasonRegistrations)
-    .leftJoin(users, eq(seasonRegistrations.userId, users.id))
+    .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
     .where(
       and(
         eq(seasonRegistrations.seasonId, seasonId),
@@ -457,6 +457,7 @@ export async function getDraftAdminData(seasonId: string): Promise<DraftAdminDat
   const [remainingRow] = await db
     .select({ count: count() })
     .from(seasonRegistrations)
+    .innerJoin(users, and(eq(seasonRegistrations.userId, users.id), eq(users.status, "active")))
     .where(and(...where));
 
   return {
