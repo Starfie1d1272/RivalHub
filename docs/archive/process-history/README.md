@@ -1,13 +1,9 @@
-# Superpowers 过程文档
+# 历史过程材料
 
-这个目录只保留过程性材料的索引。上线前有效的架构、数据模型、部署、规则实现对照，请优先阅读根目录 `README.md` 中列出的正式文档。
+本目录保存已完成或被替代的设计、计划和实现过程，仅用于追溯，不是当前 instruction 或 source of truth。
 
-## 归档说明
+其中可能包含已经失效的分支策略、命令、Agent skill、部署方式或文件路径；不得脱离其历史上下文直接执行。当前 authority 从 [`../../README.md`](../../README.md) 和 [`../../../AGENTS.md`](../../../AGENTS.md) 进入。
 
-| 目录 | 内容 |
-|---|---|
-| `archive/specs/` | 已完成或被吸收进正式文档的设计稿 |
-| `archive/plans/` | 已执行的开发计划 |
-| `archive/*.md` | 早期专题归档 |
-
-过程文档不再作为当前实现的 source of truth。若与 `docs/architecture.md`、`docs/data-model.md`、`docs/registration-flow.md`、`docs/launch-readiness.md` 冲突，以正式文档为准。
+- `archive/`：更早期的设计与实施计划；
+- `plans/`、`specs/`：后续阶段的过程材料；
+- `superpowers/`：历史 Agent / Superpowers 工作流产生的计划与设计。
