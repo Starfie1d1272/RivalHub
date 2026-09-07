@@ -1,4 +1,4 @@
-import { CS2_MAP_CATALOG, CURRENT_CS2_ACTIVE_DUTY_MAP_POOL } from "@/lib/config/cs2-maps";
+import { CURRENT_CS2_ACTIVE_DUTY_MAP_POOL } from "@/lib/config/cs2-maps";
 import { CS2_POSITION_VALUES } from "@/lib/config/cs2-positions";
 import type {
   RegistrationConfig,
@@ -175,7 +175,7 @@ function createBaseCompetitionTemplate(): SeasonCapabilities {
       maxPerPosition: 10,
       screenshotCount: 1,
       maxTotal: 128,
-      mapPool: CS2_MAP_CATALOG.slice(0, 3).map(({ key }) => key),
+      mapPool: ["de_mirage", "de_inferno", "de_nuke"],
     },
     teamRegistrationConfig: {
       allowExternal: true,
