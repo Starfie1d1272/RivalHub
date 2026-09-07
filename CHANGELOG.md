@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.7.2]
+
+### Fixed
+
+#### 已发布赛事报名排期
+
+修复已发布赛事保存报名时间时误判核心配置变更的问题，并在公开赛事页面展示报名开放与截止时间。
+
 ## [2.7.1]
 
 ### Fixed
@@ -1851,6 +1859,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.7.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.7.1...v2.7.2
 [2.7.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.7.0...v2.7.1
 [2.7.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.6.1...v2.7.0
 [2.6.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.6.0...v2.6.1
