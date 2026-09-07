@@ -49,12 +49,13 @@ import {
   templateLabel,
   type CompetitivePlatformOption,
 } from "@/components/admin/SeasonSettingsFacts";
+import type { ConversionPolicyProvenance } from "@/lib/competitive/conversion-policy-admin";
 
 const PLAYER_TYPES: PlayerType[] = ["enrolled", "graduated", "external"];
 
 interface SeasonFormProps {
   mode: "create" | "edit";
-  initial?: SeasonFormInput & { registrationOpenedAt?: Date | null };
+  initial?: SeasonFormInput & { registrationOpenedAt?: Date | null; conversionPolicyProvenance?: ConversionPolicyProvenance | null };
   competitivePlatforms: CompetitivePlatformOption[];
 }
 
@@ -772,7 +773,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
             <TeamConfigForm view="competitive" value={teamConfig} competitivePlatforms={competitivePlatforms} disabled={!editCapabilities.canEditPublicRules} onChange={setTeamConfig} />
           </>
         ) : (
-          <CompetitiveReferenceSummary config={teamConfig} platforms={competitivePlatforms} frozen={Boolean(initial?.registrationOpenedAt)} />
+          <CompetitiveReferenceSummary config={teamConfig} platforms={competitivePlatforms} frozen={Boolean(initial?.registrationOpenedAt)} policyProvenance={initial?.conversionPolicyProvenance} />
         )}
         {saveButton}
       </SettingsPanel>

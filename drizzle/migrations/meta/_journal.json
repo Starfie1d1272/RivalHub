@@ -288,6 +288,13 @@
       "when": 1788621800638,
       "tag": "0040_major_seed_recommendation_snapshot",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1788767814938,
+      "tag": "0041_perpetual_grey_gargoyle",
+      "breakpoints": true
     }
   ]
 }

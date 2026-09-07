@@ -4,7 +4,7 @@ import { verifyDatabaseAccessMatrix } from "../../../../scripts/db/access-matrix
 import { capturePostgresError } from "../harness/database";
 import { migrationFiles, replayMigration, withScratchDatabase } from "../harness/migration-replay";
 
-const TARGET_MIGRATION = "0040_major_seed_recommendation_snapshot.sql";
+const TARGET_MIGRATION = "0041_perpetual_grey_gargoyle.sql";
 
 describe("conversion policies migration", () => {
   it("creates server-only conversion_policies table with RLS, denies anon/authenticated access, and seeds lead-approved 2026.09 policy", async () => {
@@ -37,13 +37,17 @@ describe("conversion policies migration", () => {
         version: string;
         status: string;
         is_current: boolean;
+        source_note: string | null;
+        rationale: string | null;
+        change_summary: string | null;
+        internal_note: string | null;
         mapping: {
           relativeSeasonAlignment: boolean;
           starSegments: unknown[];
           belowSRankMap: Record<string, string>;
         };
       }>(
-        `SELECT id, source_platform, target_platform, version, status, is_current, mapping
+        `SELECT id, source_platform, target_platform, version, status, is_current, source_note, rationale, change_summary, internal_note, mapping
          FROM conversion_policies
          WHERE source_platform = 'fivee' AND target_platform = 'perfect_world' AND version = '2026.09'`,
       );
@@ -51,6 +55,10 @@ describe("conversion policies migration", () => {
       const policy = seeded.rows[0]!;
       expect(policy.status).toBe("approved");
       expect(policy.is_current).toBe(true);
+      expect(policy.source_note).toBe("2026 NJU Major 赛委会确认的 5E → Perfect World 等效换算标准。");
+      expect(policy.rationale).toBe("将 5E 竞技事实转换到 Perfect World 等效尺度，供赛事冻结后的跨平台竞技证据比较使用。");
+      expect(policy.change_summary).toBe("首个正式版本。");
+      expect(policy.internal_note).toBeNull();
       expect(policy.mapping.relativeSeasonAlignment).toBe(true);
       expect(policy.mapping.starSegments).toHaveLength(5);
       expect(policy.mapping.belowSRankMap["A"]).toBe("B++");

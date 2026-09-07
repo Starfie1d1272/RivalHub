@@ -28,6 +28,22 @@ Major:  draft → registration → playing → finished → archived
 - draft 撤回/删除必须通过无既有业务事实的 guard；不能靠 UI 隐藏按钮代替 server validation。
 - 后台生命周期分组和首页 featured season 是 presentation projection，不创建全局 `currentSeason` 事实。
 
+## ConversionPolicy lifecycle
+
+全局跨平台换算策略只由 super admin 管理，当前产品面向 `5E → Perfect World`：
+
+```text
+approved/current or historical policy
+→ clone
+→ draft mapping + provenance 编辑
+→ server validator
+→ approve（immutable）
+→ optional set current
+→ retire（仅非 current approved）
+```
+
+生命周期 mutation 与审计在同一服务端 transaction 内完成。赛事通过 `conversionPolicyId`、版本和冻结 mapping 引用策略；发布但未开放的赛事展示 locked reference，报名开放后的赛事展示 frozen reference。切换 current 或退役历史策略不会改写既有赛事配置。
+
 ## Rivals
 
 Rivals 的主要链路：

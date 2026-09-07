@@ -48,6 +48,7 @@ describe("AdminSidebar role visibility", () => {
     expect(html).toContain('href="/admin/education-verifications"');
     expect(html).toContain('href="/admin/invites"');
     expect(html).toContain('href="/admin/competitive-seasons"');
+    expect(html).toContain('href="/admin/competitive-seasons/conversion-policies"');
     expect(html).toContain('href="/admin/logs"');
     expect(html).toContain('href="/admin/settings"');
   });
