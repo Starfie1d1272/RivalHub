@@ -5,22 +5,16 @@ const {
   verifyOtpMock,
   createUserSessionMock,
   dbTransactionMock,
-  dbInsertMock,
-  dbUpdateMock,
-  insertValuesMock,
-  updateSetMock,
   normalizeEmailMock,
   bootstrapConfiguredOwnerInTxMock,
+  resolveOrCreateCanonicalUserInTxMock,
 } = vi.hoisted(() => ({
   verifyOtpMock: vi.fn(),
   createUserSessionMock: vi.fn(),
   dbTransactionMock: vi.fn(),
-  dbInsertMock: vi.fn(),
-  dbUpdateMock: vi.fn(),
-  insertValuesMock: vi.fn(),
-  updateSetMock: vi.fn(),
   normalizeEmailMock: vi.fn((email: string) => email),
   bootstrapConfiguredOwnerInTxMock: vi.fn(),
+  resolveOrCreateCanonicalUserInTxMock: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/supabase-server", () => ({
@@ -30,6 +24,9 @@ vi.mock("@/lib/auth/session", () => ({ createUserSession: createUserSessionMock 
 vi.mock("@/lib/utils/email", () => ({ normalizeEmail: normalizeEmailMock }));
 vi.mock("@/lib/auth/owner-bootstrap", () => ({
   bootstrapConfiguredOwnerInTx: bootstrapConfiguredOwnerInTxMock,
+}));
+vi.mock("@/lib/identity/canonical", () => ({
+  resolveOrCreateCanonicalUserInTx: resolveOrCreateCanonicalUserInTxMock,
 }));
 vi.mock("@/db/client", () => ({ db: { transaction: dbTransactionMock } }));
 
@@ -42,18 +39,11 @@ const userRow = {
 };
 
 function configureDb(): void {
-  dbInsertMock.mockReturnValue({
-    values: insertValuesMock.mockReturnValue({
-      onConflictDoUpdate: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([userRow]) }),
-    }),
-  });
-  dbUpdateMock.mockReturnValue({
-    set: updateSetMock.mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }),
-  });
   dbTransactionMock.mockImplementation((callback: (tx: unknown) => unknown) =>
-    callback({ insert: dbInsertMock, update: dbUpdateMock }),
+    callback("tx"),
   );
   bootstrapConfiguredOwnerInTxMock.mockImplementation((_: unknown, user: unknown) => user);
+  resolveOrCreateCanonicalUserInTxMock.mockResolvedValue(userRow);
 }
 
 function confirmedUser() {
@@ -83,10 +73,12 @@ describe("confirmEmailVerification", () => {
 
     expect(result).toEqual({ success: true, data: { redirectTo: "/seasons/current" } });
     expect(verifyOtpMock).toHaveBeenCalledWith({ token_hash: "signup-token", type: "email" });
-    expect(insertValuesMock).toHaveBeenCalledWith({ email: userRow.email, authId: "auth-user-1" });
-    expect(updateSetMock).toHaveBeenCalledWith(expect.objectContaining({
-      emailVerificationSource: "signup_confirmation",
-      emailVerifiedAt: expect.any(Date),
+    expect(resolveOrCreateCanonicalUserInTxMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      authId: "auth-user-1",
+      email: userRow.email,
+      source: "signup_confirmation",
+      allowCreate: true,
+      verifiedAt: expect.any(Date),
     }));
     expect(createUserSessionMock).toHaveBeenCalledWith({ userId: userRow.id, email: userRow.email });
   });
@@ -98,8 +90,9 @@ describe("confirmEmailVerification", () => {
 
     expect(result).toEqual({ success: true, data: { redirectTo: "/settings/education" } });
     expect(verifyOtpMock).toHaveBeenCalledWith({ token_hash: "reverify-token", type: "magiclink" });
-    expect(updateSetMock).toHaveBeenCalledWith(expect.objectContaining({
-      emailVerificationSource: "existing_account_reverification",
+    expect(resolveOrCreateCanonicalUserInTxMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      source: "existing_account_reverification",
+      allowCreate: false,
     }));
   });
 
@@ -135,7 +128,7 @@ describe("confirmEmailVerification", () => {
     expect(first.success).toBe(true);
     expect(second).toMatchObject({ success: false, error: { code: ErrorCode.VALIDATION_FAILED } });
     expect(dbTransactionMock).toHaveBeenCalledOnce();
-    expect(updateSetMock).toHaveBeenCalledOnce();
+    expect(resolveOrCreateCanonicalUserInTxMock).toHaveBeenCalledOnce();
     expect(createUserSessionMock).toHaveBeenCalledOnce();
   });
 });

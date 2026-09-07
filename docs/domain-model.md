@@ -6,11 +6,13 @@
 
 ### User and authorization
 
-`users` 是应用账户与长期公开资料的根实体，并关联 Supabase Auth。全局角色只有 `user` 与 `super_admin`；具体赛事管理权由 `season_admin_grants` 单独表达。授权不是客户端状态，也不从历史报名或队伍身份推导。
+`users.id` 是自然人的 canonical identity，也是长期公开资料的根实体。Supabase Auth、邮箱与未来 provider identity 都是由 `user_identities` 绑定的 credential，而不是 person id；同一 active external identity 全局只属于一个 canonical user。全局角色只有 `user` 与 `super_admin`；具体赛事管理权由 `season_admin_grants` 单独表达。授权不是客户端状态，也不从历史报名或队伍身份推导。
+
+credential linking 只证明并绑定新的 identity，不复制或移动赛事事实。两个已有 `users.id` 的归并必须先生成 fail-closed preflight：可安全 person fact 才 reparent，等价事实才 dedupe；profile/rank/map/role 冲突需 reconcile，current-state/roster/vote 等冲突必须 blocker，历史 actor 与 frozen facts preserve。成功归并后 loser 作为可追溯 alias 保留在 `user_merge_ledger`，不会被无痕删除。
 
 ### Education
 
-`institutions` 是机构目录，`education_verifications` 是长期教育资格事实。赛事资格只消费已验证教育事实和当届冻结规则；legacy `studentId` 不构成 Major eligibility。
+`institutions` 是机构目录，`education_verifications` 是长期教育资格事实。学校邮箱快速认证消费 canonical user 的任一 verified email credential 的精确 active domain mapping，而非仅 primary login email；认证事实仍写入 canonical `users.id`。赛事资格只消费已验证教育事实和当届冻结规则；legacy `studentId` 不构成 Major eligibility。
 
 ### Competitive profile
 

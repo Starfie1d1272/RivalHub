@@ -1,8 +1,6 @@
 "use server";
 
-import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { users } from "@/db/schema";
 import { actionError } from "@/lib/action-utils";
 import { createUserSession } from "@/lib/auth/session";
 import { createPublicAuthClient } from "@/lib/auth/supabase-server";
@@ -10,6 +8,7 @@ import { bootstrapConfiguredOwnerInTx } from "@/lib/auth/owner-bootstrap";
 import { safeLocalRedirect } from "@/lib/auth/redirect";
 import { ErrorCode } from "@/lib/errors";
 import { normalizeEmail } from "@/lib/utils/email";
+import { resolveOrCreateCanonicalUserInTx } from "@/lib/identity/canonical";
 import { fail, ok } from "@/types/action";
 import type { ActionResult } from "@/types/action";
 import { traceOperation } from "@/lib/observability/server";
@@ -41,30 +40,25 @@ export async function confirmEmailVerification(
       token_hash: tokenHash,
       type: flow === "signup" ? "email" : "magiclink",
     }));
-    if (error || !data.user?.email || !data.user.email_confirmed_at) {
+    const confirmedEmail = data.user?.email;
+    const confirmedAt = data.user?.email_confirmed_at;
+    if (error || !data.user || !confirmedEmail || !confirmedAt) {
       return confirmationFailure();
     }
 
-    const email = normalizeEmail(data.user.email);
-    const authId = data.user.id;
+    const confirmedUser = data.user;
+    const email = normalizeEmail(confirmedEmail);
+    const authId = confirmedUser.id;
     const source = flow === "signup" ? "signup_confirmation" : "existing_account_reverification";
     const user = await db.transaction(async (tx) => {
-      const [upsertedUser] = await tx
-        .insert(users)
-        .values({ email, authId })
-        .onConflictDoUpdate({
-          target: users.email,
-          set: { authId, updatedAt: new Date() },
-        })
-        .returning();
-      if (!upsertedUser) throw new Error("邮箱验证后无法同步用户账号");
-
-      await tx
-        .update(users)
-        .set({ emailVerifiedAt: new Date(), emailVerificationSource: source, updatedAt: new Date() })
-        .where(eq(users.id, upsertedUser.id));
-
-      return bootstrapConfiguredOwnerInTx(tx, upsertedUser);
+      const canonicalUser = await resolveOrCreateCanonicalUserInTx(tx, {
+        authId,
+        email,
+        verifiedAt: new Date(confirmedAt),
+        source,
+        allowCreate: flow === "signup",
+      });
+      return bootstrapConfiguredOwnerInTx(tx, canonicalUser);
     });
 
     await createUserSession({ userId: user.id, email: user.email });

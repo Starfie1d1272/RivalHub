@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
 import { eq, and, asc, desc, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
@@ -22,6 +22,7 @@ import { loadCompetitivePlatformCatalog } from "@/lib/competitive/catalog";
 import { presentCompetitiveRole, presentPublicCompetitiveProfile } from "@/lib/competitive/presentation";
 import { presentPublicEducationIdentities } from "@/lib/education/presentation";
 import { getPublicPlayerLft } from "@/lib/recruitment/data";
+import { resolveCanonicalUserId } from "@/lib/identity/canonical";
 
 /**
  * 统计玩家 MVP 获胜次数（从 matches.mvp_winner_user_id 直读，已持久化缓存）。
@@ -138,6 +139,9 @@ export default function PlayerPage({ params }: PlayerPageProps) {
 export async function PlayerPageContent({ params }: PlayerPageProps) {
   await connection();
   const { userId } = await params;
+  const canonicalUserId = await resolveCanonicalUserId(db, userId);
+  if (!canonicalUserId) notFound();
+  if (canonicalUserId !== userId) redirect(`/players/${canonicalUserId}`);
 
   const user = await getPublicPlayerById(userId);
   if (!user) notFound();

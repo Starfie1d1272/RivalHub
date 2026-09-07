@@ -12,15 +12,17 @@ import { Checklist, Panel, StatusBanner } from "@/components/rivalhub";
 
 type Verification = { id: string; institution: string; code: string | null; academicStatus: "enrolled" | "graduated"; evidenceType: string; status: "pending" | "approved" | "rejected"; reviewNote: string | null; submittedAt: string };
 type Institution = { id: string; name: string; code: string | null; province: string | null };
+type InstitutionalIdentity = { identityId: string; email: string; institution: string };
 const statusLabel = { pending: "待审核", approved: "已认证", rejected: "已驳回" };
 
-export function EducationVerificationPanel({ email, emailVerified, hasInstitutionalFastPath, verifications }: { email: string; emailVerified: boolean; hasInstitutionalFastPath: boolean; verifications: Verification[] }) {
+export function EducationVerificationPanel({ email, emailVerified, institutionalIdentities, verifications }: { email: string; emailVerified: boolean; institutionalIdentities: InstitutionalIdentity[]; verifications: Verification[] }) {
   const [pending, startTransition] = useTransition();
   const [academicStatus, setAcademicStatus] = useState<"enrolled" | "graduated">("enrolled");
   const [query, setQuery] = useState("");
   const [institutions, setInstitutions] = useState<Institution[]>([]);
   const [institution, setInstitution] = useState<Institution | null>(null);
   const [evidenceCode, setEvidenceCode] = useState("");
+  const [institutionalIdentityId, setInstitutionalIdentityId] = useState(institutionalIdentities[0]?.identityId ?? "");
   const run = <T,>(fn: () => Promise<{ success: true; data: T } | { success: false; error: { message: string } }>, message: string | ((data: T) => string)) => startTransition(async () => { const result = await fn(); if (result.success) toast.success(typeof message === "function" ? message(result.data) : message); else toast.error(result.error.message ?? "操作失败，请稍后重试"); });
   const search = () => run(async () => { const result = await getInstitutionSearch(query); if (result.success) setInstitutions(result.data); return result; }, "已更新学校搜索结果");
   const selectInstitution = (item: Institution) => { setInstitution(item); setQuery(item.name); setInstitutions([]); };
@@ -29,8 +31,8 @@ export function EducationVerificationPanel({ email, emailVerified, hasInstitutio
   return <div className="space-y-5">
     <StatusBanner tone={emailVerified ? "success" : "warn"} title={emailVerified ? "邮箱已验证" : "邮箱尚未验证"} sub={emailVerified ? `${email} 已完成邮箱所有权验证。` : "请先验证当前账号邮箱，验证后才能参加新的赛事报名或提交教育认证。"} />
     {!emailVerified && <Button disabled={pending} onClick={() => run(resendCurrentEmailVerification, "验证邮件已发送，请打开邮件完成验证")}>验证当前邮箱</Button>}
-    {emailVerified && hasInstitutionalFastPath && <Panel label="1 · 南京大学学生邮箱快速认证" contentClassName="p-5"><div className="space-y-4"><p className="text-sm leading-6 text-[var(--color-fg-mid)]">当前邮箱精确匹配南京大学学生邮箱。选择教育身份后即可走快速认证；不适用时可使用下方学信网或人工审核路径。</p><div className="flex flex-wrap gap-2"><Button variant={academicStatus === "enrolled" ? "default" : "outline"} onClick={() => setAcademicStatus("enrolled")}>在读</Button><Button variant={academicStatus === "graduated" ? "default" : "outline"} onClick={() => setAcademicStatus("graduated")}>已毕业</Button></div><Button disabled={pending} onClick={() => run(() => declareInstitutionalEmailEducation({ academicStatus }), "南京大学学校邮箱已认证")}>确认教育身份</Button></div></Panel>}
-    {emailVerified && <Panel label={hasInstitutionalFastPath ? "2 · 学信网材料人工审核" : "教育身份认证"} contentClassName="p-5">
+    {emailVerified && institutionalIdentities.length > 0 && <Panel label="1 · 学校邮箱快速认证" contentClassName="p-5"><div className="space-y-4"><p className="text-sm leading-6 text-[var(--color-fg-mid)]">选择当前 canonical 用户已验证的学校邮箱。它无需成为 primary 登录邮箱，认证事实仍归属同一个用户身份。</p><div className="space-y-1.5"><Label htmlFor="institutional-identity">Verified email identity</Label><select id="institutional-identity" className="w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-panel-low)] px-3 py-2 text-sm" value={institutionalIdentityId} onChange={(event) => setInstitutionalIdentityId(event.target.value)}>{institutionalIdentities.map((identity) => <option key={identity.identityId} value={identity.identityId}>{identity.email} · {identity.institution}</option>)}</select></div><div className="flex flex-wrap gap-2"><Button variant={academicStatus === "enrolled" ? "default" : "outline"} onClick={() => setAcademicStatus("enrolled")}>在读</Button><Button variant={academicStatus === "graduated" ? "default" : "outline"} onClick={() => setAcademicStatus("graduated")}>已毕业</Button></div><Button disabled={pending || !institutionalIdentityId} onClick={() => run(() => declareInstitutionalEmailEducation({ identityId: institutionalIdentityId, academicStatus }), "学校邮箱已完成教育身份认证")}>确认教育身份</Button></div></Panel>}
+    {emailVerified && <Panel label={institutionalIdentities.length > 0 ? "2 · 学信网材料人工审核" : "教育身份认证"} contentClassName="p-5">
       <div className="space-y-4">
         <p className="text-sm leading-6 text-[var(--color-fg-mid)]">无法使用南京大学学生邮箱的选手，请在学信档案申请在线验证报告。平台只会将报告中的在线验证码提供给超级管理员在学信网核验，不会公开展示，也不会保存学信网账号。</p>
         <a className="inline-flex text-sm underline" href="https://my.chsi.com.cn/archive/index.jsp" target="_blank" rel="noreferrer">前往学信档案申请在线验证报告</a>

@@ -19,6 +19,7 @@ const {
   dbInsertMock,
   dbTransactionMock,
   bootstrapConfiguredOwnerInTxMock,
+  resolveOrCreateCanonicalUserInTxMock,
 } = vi.hoisted(() => {
   return {
     requireAuthMock: vi.fn(),
@@ -34,6 +35,7 @@ const {
     dbInsertMock: vi.fn(),
     dbTransactionMock: vi.fn(),
     bootstrapConfiguredOwnerInTxMock: vi.fn(),
+    resolveOrCreateCanonicalUserInTxMock: vi.fn(),
   };
 });
 
@@ -69,6 +71,9 @@ vi.mock("@/lib/utils/email", () => ({
 vi.mock("@/lib/auth/owner-bootstrap", () => ({
   bootstrapConfiguredOwnerInTx: bootstrapConfiguredOwnerInTxMock,
 }));
+vi.mock("@/lib/identity/canonical", () => ({
+  resolveOrCreateCanonicalUserInTx: resolveOrCreateCanonicalUserInTxMock,
+}));
 
 vi.mock("@/db/client", () => {
   return {
@@ -83,19 +88,6 @@ import { loginWithPassword, signUp, resendSignupConfirmation, sendPasswordResetE
 import { MIN_PASSWORD_LENGTH } from "@/lib/config/auth-config";
 
 // ── helpers ───────────────────────────────────────────────────────────────
-
-/** 构造 db.insert(...).values(...).onConflictDoUpdate(...).returning() 链 */
-function makeInsertChain(returnValue: unknown[]) {
-  const chain = {
-    values: vi.fn().mockReturnValue({
-      onConflictDoUpdate: vi.fn().mockReturnValue({
-        returning: vi.fn().mockResolvedValue(returnValue),
-      }),
-    }),
-  };
-  dbInsertMock.mockReturnValue(chain);
-  return dbInsertMock;
-}
 
 const SHORT_PASSWORD = "x".repeat(MIN_PASSWORD_LENGTH - 1);
 const VALID_PASSWORD = "Aa1!xx";
@@ -115,6 +107,7 @@ describe("loginWithPassword", () => {
     dbTransactionMock.mockImplementation((callback: (tx: unknown) => unknown) => callback({ insert: dbInsertMock }));
     normalizeEmailMock.mockImplementation((e: string) => e);
     bootstrapConfiguredOwnerInTxMock.mockImplementation((_: unknown, user: unknown) => user);
+    resolveOrCreateCanonicalUserInTxMock.mockResolvedValue(MOCK_USER_ROW);
     delete process.env.RIVALHUB_OWNER_EMAIL;
   });
 
@@ -175,7 +168,6 @@ describe("loginWithPassword", () => {
       data: { user: { id: "auth-uuid-1" } },
       error: null,
     });
-    makeInsertChain([MOCK_USER_ROW]);
     createUserSessionMock.mockResolvedValue(undefined);
 
     const result = await loginWithPassword(VALID_EMAIL, VALID_PASSWORD);
@@ -188,6 +180,11 @@ describe("loginWithPassword", () => {
       userId: MOCK_USER_ROW.id,
       email: MOCK_USER_ROW.email,
     });
+    expect(resolveOrCreateCanonicalUserInTxMock).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      authId: "auth-uuid-1",
+      email: VALID_EMAIL,
+      allowCreate: true,
+    }));
   });
 
   it("在登录事务中把已认证用户交给 owner bootstrap", async () => {
@@ -196,8 +193,6 @@ describe("loginWithPassword", () => {
       data: { user: { id: "auth-uuid-owner" } },
       error: null,
     });
-    makeInsertChain([MOCK_USER_ROW]);
-
     const result = await loginWithPassword(VALID_EMAIL, VALID_PASSWORD);
 
     expect(result.success).toBe(true);

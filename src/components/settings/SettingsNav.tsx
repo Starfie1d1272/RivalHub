@@ -9,7 +9,7 @@ const items = [
   { href: "/settings", label: "参赛资料", description: "展示昵称、Steam64、完美平台 ID 与 QQ" },
   { href: "/settings/education", label: "教育身份", description: "高校邮箱、学信网材料与审核记录" },
   { href: "/settings/competitive", label: "竞技档案", description: "历史、上一赛季与当前赛季最高段位" },
-  { href: "/settings/password", label: "账号与安全", description: "密码与登录安全" },
+  { href: "/settings/security", label: "账号与安全", description: "登录密码、verified email 与账号归并" },
 ] as const;
 
 export function SettingsNav() {

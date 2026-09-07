@@ -110,7 +110,7 @@ describe("identity flow UI", () => {
   });
 
   it("shows current email and education verification states without evidence URLs", () => {
-    render(<EducationVerificationPanel email="player@example.test" emailVerified={false} hasInstitutionalFastPath={false} verifications={[{ id: "1", institution: "南京大学", code: "4132010284", academicStatus: "enrolled", evidenceType: "chsi_enrollment_report", status: "rejected", reviewNote: "学校不一致", submittedAt: new Date().toISOString() }]} />);
+    render(<EducationVerificationPanel email="player@example.test" emailVerified={false} institutionalIdentities={[]} verifications={[{ id: "1", institution: "南京大学", code: "4132010284", academicStatus: "enrolled", evidenceType: "chsi_enrollment_report", status: "rejected", reviewNote: "学校不一致", submittedAt: new Date().toISOString() }]} />);
     expect(screen.getByText("邮箱尚未验证")).toBeInTheDocument();
     expect(screen.getByText("南京大学 · 在读 · 已驳回")).toBeInTheDocument();
     expect(screen.getByText("审核说明：学校不一致")).toBeInTheDocument();
@@ -120,7 +120,7 @@ describe("identity flow UI", () => {
   it("keeps school search, selection, reset, and submission tied to the selected institution", async () => {
     getInstitutionSearchMock.mockResolvedValue({ success: true, data: [{ id: "institution-1", name: "南京大学", code: "4132010284", province: "江苏" }] });
     submitEducationVerificationMock.mockResolvedValue({ success: true, data: "created" });
-    render(<EducationVerificationPanel email="player@example.test" emailVerified hasInstitutionalFastPath={false} verifications={[]} />);
+    render(<EducationVerificationPanel email="player@example.test" emailVerified institutionalIdentities={[]} verifications={[]} />);
 
     expect(screen.getByLabelText("学校")).toBeInTheDocument();
     expect(screen.getByText("输入学校名称，并从教育部高校目录搜索结果中选择")).toBeInTheDocument();
@@ -156,7 +156,7 @@ describe("identity flow UI", () => {
   it("shows an already-approved outcome instead of a pending-submission toast", async () => {
     getInstitutionSearchMock.mockResolvedValue({ success: true, data: [{ id: "institution-1", name: "南京大学", code: "4132010284", province: "江苏" }] });
     submitEducationVerificationMock.mockResolvedValue({ success: true, data: "already_approved" });
-    render(<EducationVerificationPanel email="player@example.test" emailVerified hasInstitutionalFastPath={false} verifications={[]} />);
+    render(<EducationVerificationPanel email="player@example.test" emailVerified institutionalIdentities={[]} verifications={[]} />);
 
     fireEvent.change(screen.getByLabelText("学校"), { target: { value: "南京" } });
     fireEvent.click(screen.getByRole("button", { name: "搜索高校" }));
