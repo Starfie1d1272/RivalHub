@@ -80,7 +80,7 @@ export async function selectMajorEntrantsAndSyncRostersInTx(
   const approvedById = new Map(approvedEntries.map((entry) => [entry.id, entry]));
   for (const entryId of selectedEntryIds) {
     if (!approvedById.has(entryId)) {
-      throw new AppError(ErrorCode.NOT_FOUND, "只能选择当前赛事中已批准的 CompetitionEntry。 ");
+      throw new AppError(ErrorCode.NOT_FOUND, "只能选择当前赛事中已通过审核的报名队伍。 ");
     }
   }
 
@@ -99,13 +99,13 @@ export async function selectMajorEntrantsAndSyncRostersInTx(
     .for("update");
   const lockedEntryById = new Map(lockedEntries.map((entry) => [entry.id, entry]));
   if (lockedEntries.length !== entryIdsToLock.length) {
-    throw new AppError(ErrorCode.INTERNAL_ERROR, "正式参赛队引用了不存在的 CompetitionEntry。 ");
+    throw new AppError(ErrorCode.INTERNAL_ERROR, "正式参赛队资料不完整，暂时无法保存。 ");
   }
 
   const selectedEntries = selectedEntryIds.map((entryId) => {
     const entry = lockedEntryById.get(entryId);
     if (!entry || entry.registrationStatus !== "approved" || !entry.approvedRosterRevisionId) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, "已选择的 CompetitionEntry 缺少可用的 approved roster revision。 ");
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "已选择的报名队伍缺少已审核的有效名单。 ");
     }
     return entry;
   });
@@ -189,14 +189,14 @@ export async function selectMajorEntrantsAndSyncRostersInTx(
     .orderBy(asc(majorTournamentEntrants.competitionEntryId))
     .for("update");
   if (selectedEntrants.length !== selectedEntryIds.length) {
-    throw new AppError(ErrorCode.INTERNAL_ERROR, "正式参赛队 materialize 失败，拒绝继续。 ");
+    throw new AppError(ErrorCode.INTERNAL_ERROR, "正式参赛队保存失败，请刷新后重试。 ");
   }
   const entrantByEntryId = new Map(selectedEntrants.map((entrant) => [entrant.competitionEntryId, entrant]));
 
   let synchronizedRosterCount = 0;
   for (const row of coherent) {
     const entrant = entrantByEntryId.get(row.entry.id);
-    if (!entrant) throw new AppError(ErrorCode.INTERNAL_ERROR, "正式参赛队与 CompetitionEntry 映射丢失。 ");
+    if (!entrant) throw new AppError(ErrorCode.INTERNAL_ERROR, "正式参赛队资料不完整，暂时无法同步名单。 ");
     const result = await syncApprovedRosterToEventRosterInTx(tx, {
       season,
       coherent: row,

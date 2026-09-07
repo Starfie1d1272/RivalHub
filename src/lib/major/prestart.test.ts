@@ -132,6 +132,19 @@ describe("evaluateMajorPrestartReadiness", () => {
     expect(evaluateMajorPrestartReadiness(mismatch).blockers.join("\n")).toContain("不一致");
   });
 
+  it("uses operator labels when reporting a duplicate player", () => {
+    const input = makeInput();
+    input.teams = input.teams!.map((team, index) => {
+      if (index === 0) return { ...team, teamLabel: "队伍甲", playerLabels: { "player-1": "队长甲" } };
+      if (index === 1) return { ...team, teamLabel: "队伍乙", playerIds: ["player-1", ...team.playerIds.slice(1)] };
+      return team;
+    });
+
+    const result = evaluateMajorPrestartReadiness(input);
+
+    expect(result.blockers).toContain("选手 队长甲 同时出现在 队伍甲、队伍乙 的名单中。");
+  });
+
   it("requires a persisted reason when final seeds cross a system recommendation group", () => {
     const input = makeInput();
     input.seedOverride = { required: true, reason: null };

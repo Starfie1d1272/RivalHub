@@ -152,7 +152,9 @@ export function buildMajorReadiness(
     capabilities,
     teams: entrants.map((entrant) => ({
       teamId: entrant.teamId,
+      teamLabel: entrant.teamName ?? entrant.teamId,
       playerIds: (rosterByEntrant.get(entrant.id) ?? []).map((member) => member.userId),
+      playerLabels: Object.fromEntries((rosterByEntrant.get(entrant.id) ?? []).map((member) => [member.userId, member.email ?? member.userId])),
       educationVerificationIds: (rosterByEntrant.get(entrant.id) ?? []).map((member) => member.educationVerificationId),
     })),
     entrantsLocked: Boolean(state?.entrantsLockedAt),
@@ -219,8 +221,8 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
       teamId: majorTournamentEntrants.competitionEntryId,
       teamName: competitionEntries.name,
       eventRosterId: eventRosters.id,
-      rosterStatus: eventRosters.status,
       sourceRosterRevisionId: eventRosters.sourceRosterRevisionId,
+      rosterStatus: eventRosters.status,
     }).from(majorTournamentEntrants)
       .innerJoin(competitionEntries, eq(majorTournamentEntrants.competitionEntryId, competitionEntries.id))
       .innerJoin(eventRosters, eq(majorTournamentEntrants.competitionEntryId, eventRosters.entryId))
@@ -278,7 +280,6 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
         submittedAt: entry.submittedAt?.toISOString() ?? null,
         reviewedAt: entry.reviewedAt?.toISOString() ?? null,
         approvedAt: approvedAtByRevisionId.get(entry.approvedRosterRevisionId)?.toISOString() ?? null,
-        approvedRosterRevisionId: entry.approvedRosterRevisionId,
         qualificationStatus: "approved" as const,
         selectedAsEntrant: selectedEntryIds.has(entry.id),
         roster: {
@@ -288,12 +289,15 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
         },
       })),
       entrants: entrantRows.map((entrant) => ({
-        ...entrant,
+        id: entrant.id,
+        teamId: entrant.teamId,
+        teamName: entrant.teamName ?? entrant.teamId,
+        rosterStatus: entrant.rosterStatus,
         roster: (rosterByEntrant.get(entrant.id) ?? []).map((member) => ({
           userId: member.userId,
           email: member.email,
           isPrimaryStarter: member.isPrimaryStarter,
-          educationVerificationId: member.educationVerificationId,
+          educationVerified: Boolean(member.educationVerificationId),
         })),
       })),
       issues: issueRows.map((issue) => ({ id: issue.id, category: issue.category, label: issue.label, resolved: Boolean(issue.resolvedAt) })),

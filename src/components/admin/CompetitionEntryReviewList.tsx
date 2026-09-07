@@ -202,12 +202,11 @@ export function CompetitionEntryReviewList({
               <div><Badge variant="outline">{finding.waivable ? "可解除政策限制" : "资料/事实不足，不可解除"}</Badge><p className="mt-2 font-medium">{finding.message}</p></div>
               {finding.waivable && (override ? <Button size="sm" variant="outline" disabled={pending} onClick={() => revokeOverride(entry, finding)}>撤销解除</Button> : <Button size="sm" disabled={pending} onClick={() => grantOverride(entry, finding)}>解除限制</Button>)}
             </div>
-            {finding.metadata && <p className="mt-2 text-xs text-[var(--color-fg-mid)]">自动判断事实：{Object.entries(finding.metadata).map(([key, value]) => `${key}=${String(value)}`).join(" · ")}</p>}
             {override && <>
               <p className={`mt-2 text-xs ${override.snapshotMatches ? "text-[var(--color-ok)]" : "text-[var(--color-warn)]"}`}>
                 {override.snapshotMatches ? "已解除" : "解除记录对应的资格事实已变化，请先撤销旧记录后重新确认"}：{override.reason} · 操作者 {override.grantedBy} · {new Date(override.grantedAt).toLocaleString("zh-CN")}
               </p>
-              <p className="mt-1 break-all text-xs text-[var(--color-fg-dim)]">解除时 finding snapshot：{JSON.stringify(override.findingSnapshot)}</p>
+              <p className="mt-1 text-xs text-[var(--color-fg-dim)]">解除记录会保留资格判断依据，供后续复核。</p>
             </>}
           </div>;
         })}

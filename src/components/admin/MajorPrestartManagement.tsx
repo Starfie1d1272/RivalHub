@@ -26,7 +26,6 @@ export interface MajorPrestartManagementData {
     submittedAt: string | null;
     reviewedAt: string | null;
     approvedAt: string | null;
-    approvedRosterRevisionId: string;
     qualificationStatus: "approved";
     selectedAsEntrant: boolean;
     roster: {
@@ -40,8 +39,7 @@ export interface MajorPrestartManagementData {
     teamId: string;
     teamName: string;
     rosterStatus: "preparing" | "confirmed" | "frozen";
-    sourceRosterRevisionId: string | null;
-    roster: Array<{ userId: string; email: string; isPrimaryStarter: boolean; educationVerificationId: string | null }>;
+    roster: Array<{ userId: string; email: string; isPrimaryStarter: boolean; educationVerified: boolean }>;
   }>;
   issues: Array<{ id: string; category: "qualification" | "administration"; label: string; resolved: boolean }>;
 }
@@ -62,8 +60,8 @@ function rosterSummary(roster: { memberCount: number; primaryStarterCount: numbe
 
 function rosterStatusLabel(status: MajorPrestartManagementData["entrants"][number]["rosterStatus"]): string {
   if (status === "frozen") return "名单已冻结";
-  if (status === "confirmed") return "已从 approved revision 同步";
-  return "待同步";
+  if (status === "confirmed") return "名单已确认";
+  return "等待名单确认";
 }
 
 function ApprovedCandidate({
@@ -83,13 +81,13 @@ function ApprovedCandidate({
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-center justify-between gap-2 font-medium text-[var(--color-fg)]">
           <span>{candidate.name}</span>
-          <span className="text-xs text-[var(--color-ok)]">{candidate.selectedAsEntrant ? "已选择为正式参赛队" : "Entry 已批准 · 候选"}</span>
+          <span className="text-xs text-[var(--color-ok)]">{candidate.selectedAsEntrant ? "已选择为正式参赛队" : "报名已通过 · 候选"}</span>
         </span>
         <span className="mt-1 block text-xs text-[var(--color-fg-mid)]">
           代表：{candidate.representativeName} · 提交：{formatDate(candidate.submittedAt)} · 审核：{formatDate(candidate.reviewedAt)} · 批准：{formatDate(candidate.approvedAt)}
         </span>
         <span className="mt-1 block text-xs text-[var(--color-fg-mid)]">
-          approved roster：{rosterSummary(candidate.roster)} · revision：{candidate.approvedRosterRevisionId.slice(0, 8)}…
+          已审核报名名单：{rosterSummary(candidate.roster)}
         </span>
         <span className="mt-2 block text-xs text-[var(--color-fg-mid)]">
           {candidate.roster.members.map((member) => `${member.email}${member.isPrimaryStarter ? "（主力）" : ""}`).join("、") || "名单成员缺失"}
@@ -108,13 +106,10 @@ function SyncedEntrant({ entrant }: { entrant: MajorPrestartManagementData["entr
           {rosterStatusLabel(entrant.rosterStatus)}
         </span>
       </div>
-      <p className="mt-2 text-xs text-[var(--color-fg-mid)]">
-        EventRoster 来源：{entrant.sourceRosterRevisionId ? `${entrant.sourceRosterRevisionId.slice(0, 8)}…` : "未同步"}
-      </p>
       <ul className="mt-2 grid gap-1 text-sm text-[var(--color-fg-mid)]">
         {entrant.roster.map((member) => (
           <li key={member.userId}>
-            {member.email}{member.isPrimaryStarter ? " · 主力" : ""} · {member.educationVerificationId ? "教育证据已绑定" : "教育证据缺失"}
+            {member.email}{member.isPrimaryStarter ? " · 主力" : ""} · {member.educationVerified ? "学籍资料已确认" : "学籍资料待补全"}
           </li>
         ))}
       </ul>
@@ -154,22 +149,22 @@ export function MajorPrestartManagement({ data }: { data: MajorPrestartManagemen
       <Panel label="赛前准备生命周期">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <Marker sub={locked ? "正式参赛队与 EventRoster 已冻结" : "从已批准 Entry 选择并同步正式名单"}>
+            <Marker sub={locked ? "正式参赛队与名单已冻结" : "从已通过的报名中选择并确认正式名单"}>
               {locked ? "已锁定正式参赛队" : "选择正式参赛队"}
             </Marker>
             <p className="mt-1 text-sm text-[var(--color-fg-mid)]">
-              {locked ? "锁定后，本页不能再修改正式参赛队、EventRoster 或事项；下一步是独立保存并确认种子。" : "Entry approval 是候选资格；保存选择会从每个 Entry 的最新 approved roster revision 原子同步 EventRoster，最后统一冻结达到赛事容量的队伍。"}
+              {locked ? "锁定后，本页不能再修改正式参赛队、名单或事项；下一步是独立保存并确认种子。" : "报名通过后才会进入候选池；保存选择会同步已审核的报名名单，确认无误后再统一冻结达到赛事容量的队伍。"}
             </p>
           </div>
           {!locked && <Button disabled={isPending} onClick={() => startTransition(() => void showResult(
-            () => lockMajorPrestartEntrants({ seasonId: data.seasonId }), "正式参赛队和 EventRoster 已统一冻结",
+            () => lockMajorPrestartEntrants({ seasonId: data.seasonId }), "正式参赛队和名单已统一冻结",
           ))}>统一冻结正式名单</Button>}
         </div>
       </Panel>
 
       <Panel label={`最终参赛队选择 (${selectedCount}/${entrantCapacity})`}>
         <div className="mb-4 space-y-2 text-sm text-[var(--color-fg-mid)]">
-          <p>候选池只展示当前赛事中已批准的 CompetitionEntry；资格审核、成员确认、主力与教育事实由 Entry owner 维护，本页不再逐队手工选择 5–9 人。</p>
+          <p>候选池只展示当前赛事中已通过审核的报名队伍；资格审核、成员确认、主力和学籍资料均在报名流程中维护，本页不需要逐队重新编辑名单。</p>
           <p>{approvedCount <= entrantCapacity ? `当前 ${approvedCount} 支已批准队伍不超过容量，可一键选中全部。` : `当前 ${approvedCount} 支已批准队伍超过容量，请明确选择恰好 ${entrantCapacity} 支；选择依据由赛事运营者决定。`}</p>
         </div>
         {!locked && <div className="mb-4 flex flex-wrap gap-2">
@@ -177,18 +172,18 @@ export function MajorPrestartManagement({ data }: { data: MajorPrestartManagemen
             一键选择全部已批准
           </Button>}
           <Button size="sm" disabled={isPending || (requiresExactCapacity && selectedCount !== entrantCapacity)} onClick={() => startTransition(() => void showResult(
-            () => selectMajorEntrants({ seasonId: data.seasonId, competitionEntryIds: [...selectedIds] }), "正式参赛队已保存，EventRoster 已按 approved revision 同步",
+            () => selectMajorEntrants({ seasonId: data.seasonId, competitionEntryIds: [...selectedIds] }), "正式参赛队已保存，名单已同步",
           ))}>
-            保存选择并同步 EventRoster
+            保存选择并同步名单
           </Button>
         </div>}
-        {data.approvedCandidates.length === 0 ? <p className="text-sm text-[var(--color-fg-mid)]">尚无已批准的 CompetitionEntry；完成 Entry 审核后，队伍会自动出现在候选池。</p> : <div className="grid gap-3 md:grid-cols-2">
+        {data.approvedCandidates.length === 0 ? <p className="text-sm text-[var(--color-fg-mid)]">尚无已通过审核的报名队伍；完成报名审核后，队伍会自动出现在候选池。</p> : <div className="grid gap-3 md:grid-cols-2">
           {data.approvedCandidates.map((candidate) => <ApprovedCandidate key={candidate.id} candidate={candidate} checked={selectedIds.has(candidate.id)} disabled={locked || isPending} onToggle={() => toggleSelection(candidate.id)} />)}
         </div>}
       </Panel>
 
-      <Panel label={`已 materialize 的正式名单 (${data.entrants.length}/${entrantCapacity})`}>
-        <p className="mb-4 text-sm text-[var(--color-fg-mid)]">下方是当前最终选择对应的 Entry-owned EventRoster，只读展示同步来源、主力标记与教育证据；名单变更必须由队长和成员在 Entry roster-change 流程中完成并重新审核。</p>
+      <Panel label={`正式参赛名单 (${data.entrants.length}/${entrantCapacity})`}>
+        <p className="mb-4 text-sm text-[var(--color-fg-mid)]">下方展示当前正式参赛队的名单、主力标记和学籍资料状态；如需变更名单，应由队长和成员在报名页面完成修改并重新审核。</p>
         {data.entrants.length === 0 ? <p className="text-sm text-[var(--color-fg-mid)]">尚未保存最终选择。</p> : <div className="grid gap-3 md:grid-cols-2">
           {data.entrants.map((entrant) => <SyncedEntrant key={entrant.id} entrant={entrant} />)}
         </div>}
