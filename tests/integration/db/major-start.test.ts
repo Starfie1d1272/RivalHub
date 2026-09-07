@@ -1022,14 +1022,14 @@ async function exerciseSeedRecommendationReadinessBoundaries(
   fixtures.push(missingSnapshot);
   await pool.query("DELETE FROM major_seed_recommendation_snapshots WHERE season_id = $1", [missingSnapshot.seasonId]);
   await assertSeedMutationsBlockedBySnapshot(database, pool, missingSnapshot.seasonId);
-  await expectMajorStartFailure(database, missingSnapshot.seasonId, "系统种子建议快照");
+  await expectMajorStartFailure(database, missingSnapshot.seasonId, "系统种子参考");
   await assertNoStartFacts(pool, missingSnapshot.seasonId);
 
   const malformedSnapshot = await prepareReadyMajor(pool, "seed-snapshot-malformed");
   fixtures.push(malformedSnapshot);
   await pool.query("UPDATE major_seed_recommendation_snapshots SET context = '{}'::jsonb WHERE season_id = $1", [malformedSnapshot.seasonId]);
   await assertSeedMutationsBlockedBySnapshot(database, pool, malformedSnapshot.seasonId);
-  await expectMajorStartFailure(database, malformedSnapshot.seasonId, "系统种子建议快照");
+  await expectMajorStartFailure(database, malformedSnapshot.seasonId, "系统种子参考");
   await assertNoStartFacts(pool, malformedSnapshot.seasonId);
 
   const mismatchedSnapshot = await prepareReadyMajor(pool, "seed-snapshot-mismatch");
@@ -1039,7 +1039,7 @@ async function exerciseSeedRecommendationReadinessBoundaries(
     [mismatchedSnapshot.seasonId],
   );
   await assertSeedMutationsBlockedBySnapshot(database, pool, mismatchedSnapshot.seasonId);
-  await expectMajorStartFailure(database, mismatchedSnapshot.seasonId, "系统种子建议快照");
+  await expectMajorStartFailure(database, mismatchedSnapshot.seasonId, "系统种子参考");
   await assertNoStartFacts(pool, mismatchedSnapshot.seasonId);
 
   const incompleteSeeds = await prepareReadyMajor(pool, "seed-final-incomplete");

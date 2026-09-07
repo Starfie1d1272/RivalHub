@@ -113,7 +113,7 @@ export async function assertPrestartEntryCoherenceInTx(
     if (options.requireEventRosterSync !== false && eventRoster.sourceRosterRevisionId !== approvedRevision.id) {
       throw new AppError(
         ErrorCode.VALIDATION_FAILED,
-        `参赛队「${entry.name}」的正式名单尚未同步最新的已审核报名名单；请重新同步后再继续。`,
+        `参赛队「${entry.name}」的正式名单尚未同步最新的已审核报名名单；请重新同步最终名单后再继续。`,
       );
     }
     coherent.push({ entry, approvedRevision, eventRoster });
