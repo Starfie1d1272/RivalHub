@@ -8,6 +8,7 @@ RivalHub 是基于 Next.js App Router、TypeScript、Drizzle/PostgreSQL、Supaba
 - 架构边界：[`docs/architecture.md`](docs/architecture.md)；领域事实 ownership：[`docs/domain-model.md`](docs/domain-model.md)；生命周期：[`docs/workflows.md`](docs/workflows.md)。
 - 测试证据：[`docs/testing.md`](docs/testing.md)；环境/迁移/release：[`docs/deployment.md`](docs/deployment.md) 与 `docs/operations/`；协作规则：[`CONTRIBUTING.md`](CONTRIBUTING.md)。
 - 修改前先搜索 canonical owner。相同 transition、derived fact、validation、formatter 或 query/domain rule 只能有一个业务 owner；transport/presentation 复用它。
+- Release / tag / deploy / production mutation 有更严格入口：任何写操作或远端 mutation 前，必须完整读完 [`docs/operations/release.md`](docs/operations/release.md)；repository search / `rg` 只用于定位，不能替代全文读取。
 
 ## Cross-domain contract
 
@@ -26,7 +27,7 @@ RivalHub 是基于 Next.js App Router、TypeScript、Drizzle/PostgreSQL、Supaba
 
 按风险选择 [`docs/testing.md`](docs/testing.md) 中的最小 evidence。常用入口：`pnpm type-check`、`pnpm lint`、`pnpm test`、`pnpm db:check`、`pnpm knip`、`pnpm knip --production`、`pnpm verify`。提交前检查完整 diff、未跟踪文件、敏感信息和临时产物。
 
-PR title、Changeset、closure 与 release 语义只由 `CONTRIBUTING.md` 维护。`CLAUDE.md` 只引用本文件，不建立平行规则集。
+PR title、Changeset、closure 与 release 语义只由 `CONTRIBUTING.md` 维护。
 
 <!-- BEGIN:nextjs-agent-rules -->
 
