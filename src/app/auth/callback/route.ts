@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { safeLocalRedirect } from "@/lib/auth/redirect";
+import { isSecondaryEmailOtpType } from "@/lib/auth/secondary-email-otp";
 import { withRouteObservability } from "@/lib/observability/route";
 
 export async function GET(request: NextRequest) {
@@ -19,9 +20,11 @@ export async function GET(request: NextRequest) {
     if (flow === "link_identity") {
       const requestId = url.searchParams.get("request");
       const state = url.searchParams.get("state");
-      if (!requestId || !state) return confirmationFailure(applicationOrigin);
+      const otpType = url.searchParams.get("type");
+      if (!requestId || !state || !isSecondaryEmailOtpType(otpType)) return confirmationFailure(applicationOrigin);
       confirmationUrl.searchParams.set("request", requestId);
       confirmationUrl.searchParams.set("state", state);
+      confirmationUrl.searchParams.set("type", otpType);
     }
     return NextResponse.redirect(confirmationUrl);
   });
