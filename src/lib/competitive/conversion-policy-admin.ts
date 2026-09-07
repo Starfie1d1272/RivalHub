@@ -5,7 +5,8 @@ import { db, type DB, type TxDb } from "@/db/client";
 import { auditLogs, conversionPolicies, seasons, users } from "@/db/schema";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { normalizeTeamRegistrationConfig, type TeamRegistrationConfig } from "@/types/season";
+import { normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
+import type { TeamRegistrationConfig } from "@/types/season";
 import {
   validateConversionPolicyMapping,
   type ConversionPolicyMapping,
@@ -70,6 +71,9 @@ export interface ConversionPolicyDraftUpdateInput {
   internalNote?: string | null;
 }
 
+const SUPPORTED_SOURCE_PLATFORM = "fivee";
+const SUPPORTED_TARGET_PLATFORM = "perfect_world";
+
 function normalizedNote(value: string | null | undefined): string | null {
   const normalized = value?.trim();
   return normalized ? normalized : null;
@@ -87,7 +91,7 @@ function requireValidMapping(mapping: unknown): asserts mapping is ConversionPol
 }
 
 function assertSupportedPair(sourcePlatform: string, targetPlatform: string): void {
-  if (sourcePlatform !== "fivee" || targetPlatform !== "perfect_world") {
+  if (sourcePlatform !== SUPPORTED_SOURCE_PLATFORM || targetPlatform !== SUPPORTED_TARGET_PLATFORM) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, "2.x 只支持运营 5E → Perfect World 换算策略。 ");
   }
 }
@@ -158,7 +162,10 @@ export async function loadConversionPolicyAdminRows(
   executor: ConversionPolicyDatabaseExecutor = db,
 ): Promise<ConversionPolicyAdminRow[]> {
   const [policies, seasonRows] = await Promise.all([
-    executor.select().from(conversionPolicies).orderBy(desc(conversionPolicies.createdAt), desc(conversionPolicies.version)),
+    executor.select().from(conversionPolicies).where(and(
+      eq(conversionPolicies.sourcePlatform, SUPPORTED_SOURCE_PLATFORM),
+      eq(conversionPolicies.targetPlatform, SUPPORTED_TARGET_PLATFORM),
+    )).orderBy(desc(conversionPolicies.createdAt), desc(conversionPolicies.version)),
     executor.select({
       id: seasons.id,
       name: seasons.name,
@@ -334,14 +341,6 @@ export async function setCurrentConversionPolicyInTx(tx: TxDb, id: string, actor
     const [currentPolicy] = await tx.select().from(conversionPolicies).where(eq(conversionPolicies.id, id)).limit(1);
     if (!currentPolicy) throw new AppError(ErrorCode.NOT_FOUND, "换算策略不存在。 ");
     if (currentPolicy.status !== "approved") throw new AppError(ErrorCode.VALIDATION_FAILED, "只有已批准策略可以设为当前版本。 ");
-    await tx.insert(auditLogs).values({
-      seasonId: null,
-      action: "conversion_policy.set_current",
-      actorId,
-      targetId: currentPolicy.id,
-      targetType: "conversion_policy",
-      meta: { ...policyAuditMeta(currentPolicy), fromVersion: currentPolicy.version, toVersion: currentPolicy.version },
-    });
     return;
   }
   const [policy] = await tx.select().from(conversionPolicies).where(eq(conversionPolicies.id, id)).limit(1);
