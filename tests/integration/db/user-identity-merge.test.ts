@@ -33,7 +33,7 @@ describe("canonical user identity merge PostgreSQL invariants", () => {
       const preflight = await buildUserMergePreflight(database, {
         canonicalUserId: ids.canonical,
         mergedUserId: ids.merged,
-      });
+      }, { evidenceClass: "super_admin_review" });
       expect(preflight.executable).toBe(true);
       expect(preflight.items).toEqual(expect.arrayContaining([
         expect.objectContaining({ key: "reference:education_verifications.user_id", category: "AUTOMATIC", domain: "教育认证记录" }),
