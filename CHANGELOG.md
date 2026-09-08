@@ -1,5 +1,31 @@
 # Changelog
 
+## [2.7.6]
+
+### Added
+
+#### Major 候选队伍实力参考
+
+Major 正式参赛队候选阶段新增实时队伍实力参考。赛委会可以直接比较各支已通过报名审核队伍的五名预定主力、当前竞技资料、参考强度与排序；资料不足时会明确标记为不可计算，不再以缺失数据参与排序。
+
+该信息仅作为赛前运营参考，不自动改变资格判断、正式参赛队选择或最终种子。
+
+### Changed
+
+#### 赛事队伍公开详情
+
+赛事队伍与长期 Team 现在使用统一的公开资料页面，同时明确区分本届赛事事实与长期队伍资料。
+
+赛事页面以本届队名、图标、EventRoster、战绩和比赛记录为准；存在关联长期 Team 时会同时展示长期成员、招募与历史资料。没有长期 Team 的赛事原生队伍也可以使用同一套完整详情页。
+
+### Fixed
+
+#### Player Profile 长期选手资料
+
+修复选手打法自述与比赛经历长期读取历史 Rivals 报名数据的问题。
+
+选手现在可以在设置中维护当前打法与比赛经历，公开 Player Profile 会展示最新长期资料；个人报名会以长期资料作为默认值，而已经提交的历史赛事报名仍保留当时的快照，不会被之后的资料修改回写。
+
 ## [2.7.5]
 
 ### Added
@@ -1943,6 +1969,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.7.6]: https://github.com/Starfie1d1272/RivalHub/compare/v2.7.5...v2.7.6
 [2.7.5]: https://github.com/Starfie1d1272/RivalHub/compare/v2.7.4...v2.7.5
 [2.7.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.7.3...v2.7.4
 [2.7.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.7.2...v2.7.3
