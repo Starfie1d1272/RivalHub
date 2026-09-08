@@ -34,6 +34,12 @@
 
 长期 Team membership、Entry roster、EventRoster、MatchRoster 和 StageRun entrant 是不同事实；UI 必须使用对应业务名称，不能为了简化展示把一种状态冒充另一种。
 
+### Public Team profile composition
+
+公开队伍详情只有一个 canonical `TeamPublicProfile` composition owner。长期队伍路由 `/teams/[slug]` 只注入长期 Team read model；赛事队伍路由 `/[seasonSlug]/teams/[entryId]` 注入 CompetitionEntry/EventRoster 的本届 context，并在 `entry.teamId` 存在时一并注入长期 Team read model。两条路由保持各自的事实 owner，不把 CompetitionEntry 当作长期 Team。
+
+存在赛事 context 时，队名、图标、参赛名单、赛事战绩和比赛链接优先展示本届 CompetitionEntry/EventRoster facts；长期当前成员、招募、赛事履历、名称/队长历史仍明确标记为长期 Team facts。`teamId = null` 的 event-native entry 复用同一 shell，仅隐藏不存在的长期 Team sections。`TeamPublicProfile` 的本届参赛名单只展示 Player identity、首发/代表标记和 roster 状态，不从长期资料或 `seasonRegistrations` 补写本届位置。
+
 ## Dense data
 
 表格和高密度列表遵守：

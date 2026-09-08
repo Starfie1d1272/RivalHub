@@ -1,3 +1,5 @@
+import type { SemanticTone, StatusPresentation } from "@/lib/presentation";
+
 export type CompetitionEntryRegistrationStatus =
   | "draft"
   | "submitted"
@@ -15,6 +17,23 @@ export interface CompetitionEntryPresentation {
   state: CompetitionEntryPresentationState;
   detail: string;
   tone: SemanticTone;
+}
+
+export type CompetitionEntryRosterStatus = "preparing" | "confirmed" | "frozen";
+
+export function presentCompetitionEntryRosterStatus(
+  status: CompetitionEntryRosterStatus | null,
+): StatusPresentation {
+  switch (status) {
+    case "frozen":
+      return { label: "名单已冻结", tone: "success" };
+    case "confirmed":
+      return { label: "名单已确认", tone: "info" };
+    case "preparing":
+      return { label: "名单准备中", tone: "warn" };
+    default:
+      return { label: "名单尚未确认", tone: "neutral" };
+  }
 }
 
 export function presentCompetitionEntryRegistration(
@@ -58,4 +77,3 @@ export function presentCompetitionEntryParticipation(
   }
   return { label: "未在当前名单", state: "blocked", detail: "你当前未确认参加本届赛事。", tone: "neutral" };
 }
-import type { SemanticTone } from "@/lib/presentation";
