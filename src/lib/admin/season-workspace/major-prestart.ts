@@ -20,14 +20,25 @@ import { evaluateMajorPrestartReadiness, type MajorPrestartReadiness } from "@/l
 import { capabilitiesFromSeason } from "@/lib/competition/definition";
 import { getStandardMajorDefinition } from "@/lib/major/standard";
 import { getDisplayName } from "@/lib/identity/display-name";
-import { analyzeFinalSeedOrder, type SeedOrderDecision } from "@/lib/major/team-seed-recommendation";
+import {
+  analyzeFinalSeedOrder,
+  buildTeamSeedRecommendations,
+  type SeedOrderDecision,
+  type TeamSeedRecommendation,
+} from "@/lib/major/team-seed-recommendation";
 import {
   buildFrozenSetFingerprint,
   frozenTeamsForSnapshot,
   getSeedRecommendationSnapshotStatus,
 } from "@/lib/major/seed-recommendation-snapshot";
+import {
+  loadParticipantQualificationFacts,
+  resolveCompetitiveContext,
+  toPlayerStrengthInput,
+} from "@/lib/qualification/service";
+import type { CompetitiveProfileConfig } from "@/types/season";
 import type { Season } from "@/db/schema/seasons";
-import type { MajorPrestartPageData } from "./types";
+import type { MajorPrestartPageData, MajorPrestartStrengthPreview } from "./types";
 
 type MajorEntrantRow = {
   id: string;
@@ -57,24 +68,75 @@ type MajorIssueRow = {
 
 type MajorSeedRow = { teamId: string; tournamentSeed: number };
 
-function projectRecommendationFact(fact: {
+type ProjectableStrengthFact = {
   rank: string;
-  stars: number | null;
-  sourcePlatform: string | null;
-  sourceSeasonKey: string | null;
-  sourceRank: string | null;
-  sourceStars: number | null;
-  conversionVersion: string | null;
-} | null) {
+  stars?: number | null;
+  sourcePlatform?: string | null;
+  sourceSeasonKey?: string | null;
+  sourceRank?: string | null;
+  sourceStars?: number | null;
+  conversionVersion?: string | null;
+};
+
+function projectRecommendationFact(fact: ProjectableStrengthFact | null) {
   return fact ? {
     rank: fact.rank,
-    stars: fact.stars,
-    sourcePlatform: fact.sourcePlatform,
-    sourceSeasonKey: fact.sourceSeasonKey,
-    sourceRank: fact.sourceRank,
-    sourceStars: fact.sourceStars,
-    conversionVersion: fact.conversionVersion,
+    stars: fact.stars ?? null,
+    sourcePlatform: fact.sourcePlatform ?? null,
+    sourceSeasonKey: fact.sourceSeasonKey ?? null,
+    sourceRank: fact.sourceRank ?? null,
+    sourceStars: fact.sourceStars ?? null,
+    conversionVersion: fact.conversionVersion ?? null,
   } : null;
+}
+
+function projectLiveStrengthRecommendation(
+  recommendation: TeamSeedRecommendation,
+): MajorPrestartStrengthPreview["teams"][number] {
+  return {
+    teamId: recommendation.teamId,
+    teamName: recommendation.teamName,
+    available: recommendation.available,
+    blockers: recommendation.blockers,
+    teamSeedStrength: recommendation.teamSeedStrength,
+    teamSeedStrengthScaled: recommendation.teamSeedStrengthScaled,
+    recommendationRank: recommendation.recommendationRank,
+    tieGroup: recommendation.tieGroup,
+    displayOrder: recommendation.displayOrder,
+    starters: recommendation.starters.map((starter) => ({
+      userId: starter.userId,
+      label: starter.label,
+      historicalPeak: projectRecommendationFact(starter.input.historicalPeak),
+      previousSeasonPeak: projectRecommendationFact(starter.input.previousSeasonPeak),
+      currentSeasonPeak: projectRecommendationFact(starter.input.currentSeasonPeak),
+      recentSeasonPeaks: (starter.input.recentSeasonPeaks ?? []).map(projectRecommendationFact),
+      effectiveRecentPeak: projectRecommendationFact(starter.breakdown.effectiveRecentPeak),
+      breakdown: {
+        available: starter.breakdown.available,
+        blockers: starter.breakdown.blockers,
+        weightedRank: starter.breakdown.weightedRank,
+        historicalValue: starter.breakdown.historicalValue,
+        previousValue: starter.breakdown.previousValue,
+        currentValue: starter.breakdown.currentValue,
+        effectiveRecentPeak: projectRecommendationFact(starter.breakdown.effectiveRecentPeak),
+        historicalRating: starter.breakdown.historicalRating,
+      },
+    })),
+  };
+}
+
+function projectLiveStrengthPreview(
+  recommendations: readonly TeamSeedRecommendation[],
+  context: CompetitiveProfileConfig,
+): MajorPrestartStrengthPreview {
+  return {
+    status: "ready",
+    platform: context.platform,
+    conversionPolicyId: context.conversionPolicyId ?? null,
+    conversionPolicyVersion: context.conversionPolicyVersion ?? null,
+    blockers: [],
+    teams: recommendations.map(projectLiveStrengthRecommendation),
+  };
 }
 
 function projectRecommendationSnapshot(
@@ -167,7 +229,7 @@ export function buildMajorReadiness(
 }
 
 export async function loadMajorPrestartPageData(season: Season): Promise<MajorPrestartPageData> {
-  const { entrantCapacity } = getStandardMajorDefinition(season);
+  const { capabilities, entrantCapacity } = getStandardMajorDefinition(season);
   const approvedEntries = await db.select({
     id: competitionEntries.id,
     name: competitionEntries.name,
@@ -211,6 +273,66 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
     approvedMembersByEntryId.set(member.entryId, members);
   }
   const representativeNameById = new Map(representativeRows.map((user) => [user.id, getDisplayName(user)]));
+  const candidateEntries = approvedEntries.filter((entry): entry is typeof entry & { approvedRosterRevisionId: string } => Boolean(entry.approvedRosterRevisionId));
+  const configuredCompetitiveProfile = capabilities.teamRegistrationConfig.competitiveProfile ?? null;
+  const competitiveProfile = configuredCompetitiveProfile
+    ? await resolveCompetitiveContext(configuredCompetitiveProfile)
+    : null;
+  const candidateStarterUserIds = [...new Set(candidateEntries.flatMap((entry) =>
+    (approvedMembersByEntryId.get(entry.id) ?? [])
+      .filter((member) => member.isPrimaryStarter)
+      .map((member) => member.userId),
+  ))];
+  const qualificationFacts = competitiveProfile
+    ? await loadParticipantQualificationFacts(candidateStarterUserIds, {
+      platform: competitiveProfile.platform,
+      fallbackPlatform: competitiveProfile.fallbackConversion?.sourcePlatform,
+      includeCompetitiveFacts: true,
+    })
+    : new Map();
+  const liveStrengthInputs = candidateEntries.map((entry) => ({
+    teamId: entry.id,
+    teamName: entry.name,
+    starters: (approvedMembersByEntryId.get(entry.id) ?? [])
+      .filter((member) => member.isPrimaryStarter)
+      .map((member) => {
+        const fact = qualificationFacts.get(member.userId);
+        return fact && competitiveProfile
+          ? toPlayerStrengthInput(fact, competitiveProfile)
+          : {
+            userId: member.userId,
+            label: member.email || "未知选手",
+            historicalPeak: null,
+            previousSeasonPeak: null,
+            currentSeasonPeak: null,
+          };
+      }),
+  }));
+  const strengthPreview: MajorPrestartStrengthPreview = competitiveProfile
+    ? projectLiveStrengthPreview(buildTeamSeedRecommendations(liveStrengthInputs, competitiveProfile), competitiveProfile)
+    : {
+      status: "unavailable",
+      platform: configuredCompetitiveProfile?.platform ?? null,
+      conversionPolicyId: configuredCompetitiveProfile?.conversionPolicyId ?? null,
+      conversionPolicyVersion: configuredCompetitiveProfile?.conversionPolicyVersion ?? null,
+      blockers: [capabilities.teamRegistrationConfig.requireCompetitiveProfile
+        ? "本届冻结的竞技平台目录不完整，暂时无法计算实时队伍实力参考。"
+        : "本届赛事缺少实力参考所需的竞技上下文。"],
+      teams: candidateEntries.map((entry) => ({
+        teamId: entry.id,
+        teamName: entry.name,
+        available: false,
+        blockers: [capabilities.teamRegistrationConfig.requireCompetitiveProfile
+          ? "本届冻结的竞技平台目录不完整，暂时无法计算实时队伍实力参考。"
+          : "本届赛事缺少实力参考所需的竞技上下文。"],
+        teamSeedStrength: null,
+        teamSeedStrengthScaled: null,
+        recommendationRank: null,
+        tieGroup: null,
+        displayOrder: null,
+        starters: [],
+      })),
+    };
 
   const [state, entrantRows, rosterRows, issueRows, seedRows, snapshot, stageRunRows] = await Promise.all([
     db.query.majorPrestartStates.findFirst({ where: eq(majorPrestartStates.seasonId, season.id) }),
@@ -270,7 +392,8 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
       seasonId: season.id,
       entrantCapacity,
       entrantsLocked: Boolean(state?.entrantsLockedAt),
-      approvedCandidates: approvedEntries.filter((entry): entry is typeof entry & { approvedRosterRevisionId: string } => Boolean(entry.approvedRosterRevisionId)).map((entry) => ({
+      strengthPreview,
+      approvedCandidates: candidateEntries.map((entry) => ({
         id: entry.id,
         name: entry.name,
         representativeName: representativeNameById.get(entry.representativeUserId) ?? "未知用户",

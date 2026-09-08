@@ -33,6 +33,56 @@ export interface SeasonWorkspaceOverviewData {
   nextAction: SeasonWorkspaceNextAction;
 }
 
+export interface MajorPrestartStrengthFact {
+  rank: string;
+  stars: number | null;
+  sourcePlatform: string | null;
+  sourceSeasonKey: string | null;
+  sourceRank: string | null;
+  sourceStars: number | null;
+  conversionVersion: string | null;
+}
+
+export interface MajorPrestartStrengthStarter {
+  userId: string;
+  label: string;
+  historicalPeak: MajorPrestartStrengthFact | null;
+  previousSeasonPeak: MajorPrestartStrengthFact | null;
+  currentSeasonPeak: MajorPrestartStrengthFact | null;
+  recentSeasonPeaks: Array<MajorPrestartStrengthFact | null>;
+  effectiveRecentPeak: MajorPrestartStrengthFact | null;
+  breakdown: {
+    available: boolean;
+    blockers: string[];
+    weightedRank: number | null;
+    historicalValue: number | null;
+    previousValue: number | null;
+    currentValue: number | null;
+    effectiveRecentPeak: MajorPrestartStrengthFact | null;
+    historicalRating: number | null;
+  };
+}
+
+export interface MajorPrestartStrengthPreview {
+  status: "ready" | "unavailable";
+  platform: string | null;
+  conversionPolicyId: string | null;
+  conversionPolicyVersion: string | null;
+  blockers: string[];
+  teams: Array<{
+    teamId: string;
+    teamName: string;
+    available: boolean;
+    blockers: string[];
+    teamSeedStrength: number | null;
+    teamSeedStrengthScaled: number | null;
+    recommendationRank: number | null;
+    tieGroup: number | null;
+    displayOrder: number | null;
+    starters: MajorPrestartStrengthStarter[];
+  }>;
+}
+
 export interface MajorPrestartPageData {
   season: Pick<Season, "id" | "name" | "competitionTemplate">;
   readiness: MajorPrestartReadiness;
@@ -40,6 +90,7 @@ export interface MajorPrestartPageData {
     seasonId: string;
     entrantCapacity: number;
     entrantsLocked: boolean;
+    strengthPreview: MajorPrestartStrengthPreview;
     approvedCandidates: Array<{
       id: string;
       name: string;
