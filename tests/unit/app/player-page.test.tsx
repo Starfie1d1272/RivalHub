@@ -65,6 +65,8 @@ describe("player page education wiring", () => {
       steam64: null,
       steamProfileUrl: null,
       avatarUrl: null,
+      gameplayStyle: null,
+      competitionHistory: null,
     });
     loadCompetitivePlatformCatalogMock.mockResolvedValue([]);
     getSeasonHexagonScoresMock.mockResolvedValue(new Map());
@@ -100,5 +102,24 @@ describe("player page education wiring", () => {
     expect(educationSelection).not.toHaveProperty("evidenceType");
     expect(educationSelection).not.toHaveProperty("reviewNote");
     expect(educationSelection).not.toHaveProperty("reviewedBy");
+  });
+
+  it("renders the current long-lived player-declared profile without a registration snapshot", async () => {
+    getPublicPlayerByIdMock.mockResolvedValueOnce({
+      id: "user-1",
+      displayName: "玩家甲",
+      perfectName: null,
+      steamName: null,
+      steamProfileUrl: null,
+      avatarUrl: null,
+      gameplayStyle: "当前偏稳健控图",
+      competitionHistory: "参加过 NJU Major",
+    });
+
+    const page = await PlayerPageContent({ params: Promise.resolve({ userId: "user-1" }) });
+    const html = renderToStaticMarkup(page);
+
+    expect(html).toContain("当前偏稳健控图");
+    expect(html).toContain("参加过 NJU Major");
   });
 });

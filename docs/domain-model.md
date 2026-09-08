@@ -10,6 +10,14 @@
 
 credential linking 只证明并绑定新的 identity，不复制或移动赛事事实。两个已有 `users.id` 的归并必须先生成 fail-closed preflight：用户选择的保留账号资料和竞技资料原样不变，待归并账号的竞技资料直接删除；登录身份、已确认的 person facts 和不冲突的业务历史归到保留账号，临时状态关闭，历史 actor/provenance 继续保留原账号。只有 Steam 身份、Team 时间线/队长状态、不同参赛身份或同一地图两份正式比赛数据等无法无歧义处理的事实才阻止自助归并。成功归并后 loser 作为可追溯 alias 保留在 `user_merge_ledger`，不会被无痕删除。
 
+### Player-declared profile
+
+`users.gameplay_style` 与 `users.competition_history` 是 canonical user-owned long-lived profile，回答选手当前公开声明的打法/风格与比赛经历。设置页可以随时维护这两个字段，公开 Player Profile 只通过显式 `PublicPlayer` DTO 消费它们；空值保持 unknown，不从某届赛事推断当前资料。
+
+`season_registrations.gameplay_style` 与 `season_registrations.competition_history` 是单届 Rivals 报名时的 immutable historical snapshot。新 solo 报名从长期资料取得初始值，提交时由同一个 registration transaction 同步更新长期资料并写入当届 snapshot；后续编辑长期资料不会回写任何历史报名。
+
+首次迁移只对没有长期值的用户，从 approved registration 按 `seasons.created_at DESC`、registration `created_at DESC`、registration `id DESC` 选择同一条 deterministic snapshot 初始化，已有长期字段不覆盖，也不跨两届拼接字段。
+
 ### Education
 
 `institutions` 是机构目录，`education_verifications` 是长期教育资格事实。学校邮箱快速认证消费 canonical user 的任一 verified email credential 的精确 active domain mapping，而非仅 primary login email；认证事实仍写入 canonical `users.id`。赛事资格只消费已验证教育事实和当届冻结规则；legacy `studentId` 不构成 Major eligibility。

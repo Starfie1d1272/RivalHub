@@ -23,6 +23,8 @@ const validInput = {
   steam64: "76561198000000001",
   steamProfileUrl: "https://steamcommunity.com/id/test",
   qq: "12345678",
+  gameplayStyle: "",
+  competitionHistory: "",
 };
 
 beforeEach(() => {
@@ -116,5 +118,31 @@ describe("updateProfile Perfect identity boundary", () => {
     expect(set).toHaveBeenCalledWith(
       expect.objectContaining({ steamProfileUrl: null }),
     );
+  });
+
+  it("stores normalized long-lived player-declared profile fields", async () => {
+    await updateProfile({
+      ...validInput,
+      gameplayStyle: "  稳健控图  ",
+      competitionHistory: "  参加过校赛  ",
+    });
+
+    expect(updateMock.mock.results[0]?.value.set).toHaveBeenCalledWith(expect.objectContaining({
+      gameplayStyle: "稳健控图",
+      competitionHistory: "参加过校赛",
+    }));
+  });
+
+  it("clears blank long-lived player-declared profile fields", async () => {
+    await updateProfile({
+      ...validInput,
+      gameplayStyle: "  ",
+      competitionHistory: "  ",
+    });
+
+    expect(updateMock.mock.results[0]?.value.set).toHaveBeenCalledWith(expect.objectContaining({
+      gameplayStyle: null,
+      competitionHistory: null,
+    }));
   });
 });

@@ -15,6 +15,8 @@ export interface PublicPlayer {
   steamName: string | null;
   steamProfileUrl: string | null;
   avatarUrl: string | null;
+  gameplayStyle: string | null;
+  competitionHistory: string | null;
 }
 
 const publicPlayerColumns = {
@@ -24,6 +26,8 @@ const publicPlayerColumns = {
   steamName: users.steamName,
   steamProfileUrl: users.steamProfileUrl,
   avatarUrl: users.avatarUrl,
+  gameplayStyle: users.gameplayStyle,
+  competitionHistory: users.competitionHistory,
 } as const;
 
 export async function getPublicPlayerById(userId: string): Promise<PublicPlayer | null> {

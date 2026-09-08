@@ -243,6 +243,19 @@ describe("buildRegistrationSchema", () => {
     });
     expect(r.success).toBe(false);
   });
+
+  it("规范化长期自述字段的首尾空白", () => {
+    const r = schema.safeParse({
+      ...validInput(),
+      gameplayStyle: "  进攻型步枪手  ",
+      competitionHistory: "  参加过校级比赛  ",
+    });
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.gameplayStyle).toBe("进攻型步枪手");
+      expect(r.data.competitionHistory).toBe("参加过校级比赛");
+    }
+  });
 });
 
 describe("buildRegistrationSchema 位置配置化", () => {

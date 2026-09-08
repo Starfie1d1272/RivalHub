@@ -31,6 +31,8 @@ export function createFakeUser(overrides?: Record<string, unknown>) {
     steamName: null,
     steamProfileUrl: null,
     avatarUrl: null,
+    gameplayStyle: null,
+    competitionHistory: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,

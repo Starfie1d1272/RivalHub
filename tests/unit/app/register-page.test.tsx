@@ -6,6 +6,7 @@ const {
   seasonFindFirstMock,
   registrationFindFirstMock,
   userFindFirstMock,
+  selectMock,
   getPositionCountsMock,
   getApprovedCountMock,
   getUserSessionMock,
@@ -15,6 +16,7 @@ const {
   seasonFindFirstMock: vi.fn(),
   registrationFindFirstMock: vi.fn(),
   userFindFirstMock: vi.fn(),
+  selectMock: vi.fn(),
   getPositionCountsMock: vi.fn(),
   getApprovedCountMock: vi.fn(),
   getUserSessionMock: vi.fn(),
@@ -29,6 +31,7 @@ vi.mock("@/db/client", () => ({
       seasonRegistrations: { findFirst: registrationFindFirstMock },
       users: { findFirst: userFindFirstMock },
     },
+    select: selectMock,
   },
 }));
 
@@ -75,5 +78,49 @@ describe("team registration page", () => {
     expect(registrationFindFirstMock).not.toHaveBeenCalled();
     expect(userFindFirstMock).not.toHaveBeenCalled();
     expect(registrationFormMock).not.toHaveBeenCalled();
+  });
+
+  it("prefills a new solo registration from the current long-lived profile", async () => {
+    publicSeasonMock.mockResolvedValue({
+      id: "season-1",
+      slug: "major",
+      name: "RivalHub Major",
+      status: "registration",
+      registrationMode: "solo",
+      registrationOpensAt: new Date("2026-01-01T00:00:00Z"),
+      registrationOpenedAt: new Date("2026-01-01T00:00:00Z"),
+      registrationClosesAt: null,
+      rosterChangeClosesAt: null,
+      registrationConfig: null,
+      positions: ["opener", "closer", "anchor"],
+    });
+    getUserSessionMock.mockResolvedValue({ userId: "user-1", email: "player@example.com" });
+    getPositionCountsMock.mockResolvedValue({ opener: 0, closer: 0, anchor: 0 });
+    getApprovedCountMock.mockResolvedValue(0);
+    registrationFindFirstMock.mockResolvedValue(null);
+    userFindFirstMock.mockResolvedValue({
+      studentId: "20260001",
+      qq: "12345678",
+      perfectName: "Perfect Player",
+      steamName: "Steam Player",
+      steam64: "76561198000000001",
+      steamProfileUrl: "https://steamcommunity.com/id/player",
+      gameplayStyle: "长期控图型",
+      competitionHistory: "参加过校赛",
+    });
+    selectMock.mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([]),
+      }),
+    });
+
+    const page = await RegisterPage({ params: Promise.resolve({ seasonSlug: "major" }) });
+    renderToStaticMarkup(page);
+
+    const props = (registrationFormMock.mock.calls as unknown[][])[0]?.[0] as { initialValues?: Record<string, unknown> } | undefined;
+    expect(props?.initialValues).toEqual(expect.objectContaining({
+      gameplayStyle: "长期控图型",
+      competitionHistory: "参加过校赛",
+    }));
   });
 });

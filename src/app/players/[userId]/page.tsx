@@ -160,8 +160,6 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
         peakWe: seasonRegistrations.peakWe,
         mapPreferences: seasonRegistrations.mapPreferences,
         highlightVideoUrl: seasonRegistrations.highlightVideoUrl,
-        gameplayStyle: seasonRegistrations.gameplayStyle,
-        competitionHistory: seasonRegistrations.competitionHistory,
         status: seasonRegistrations.status,
         seasonName: seasons.name,
         seasonSlug: seasons.slug,
@@ -315,9 +313,8 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
 
   const played = totalWins + totalLosses;
 
-  // Registration snapshots remain event history only; current map facts come
-  // exclusively from the sparse user_map_preferences owner.
-  const latestReg = registrations[registrations.length - 1];
+  // Registration snapshots remain event history only; current profile facts
+  // come from the long-lived users owner exposed by the public DTO.
   const effectiveMapPrefs = mapPreferences[0]?.mapPreferences ?? [];
 
   // ── 生涯总计预计算 ──────────────────────────────────────────────────
@@ -393,16 +390,14 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
       </section>
 
       {/* 选手自述 */}
-      {latestReg &&
-        (latestReg.gameplayStyle?.trim() ||
-          latestReg.competitionHistory?.trim()) && (
+      {(user.gameplayStyle?.trim() || user.competitionHistory?.trim()) && (
           <section className="space-y-3">
             <SectionHeading>选手自述</SectionHeading>
             <Panel contentClassName="p-4">
               <div className="space-y-2">
                 {PUBLIC_PLAYER_INFO_FIELDS
                   .map(({ key, label }) => {
-                    const value = latestReg[key as keyof typeof latestReg] as string | null;
+                    const value = user[key];
                     return { value: value?.trim(), label };
                   })
                   .filter((s) => s.value)
