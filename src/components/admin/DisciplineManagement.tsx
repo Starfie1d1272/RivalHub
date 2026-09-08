@@ -244,7 +244,7 @@ export function DisciplineManagement({
         <Panel contentClassName="space-y-4 p-5">
           <div className="space-y-2">
             <label className="block text-sm text-[var(--color-fg-mid)]" htmlFor="discipline-subject-search">
-              搜索被处罚用户（姓名 / Steam 昵称 / 邮箱，至少 2 个字符）
+              搜索被处罚用户（展示昵称 / 完美昵称 / Steam 昵称 / 邮箱，至少 2 个字符）
             </label>
             <input
               id="discipline-subject-search"

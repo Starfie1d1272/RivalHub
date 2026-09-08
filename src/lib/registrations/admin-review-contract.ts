@@ -92,6 +92,8 @@ export interface TeamRegistrationReviewRow {
   status: Exclude<TeamRegistrationReviewStatus, "all">;
   reviewReason: string | null;
   perfectTeamId: string | null;
+  logoUrl: string | null;
+  updatedAt: string;
   representativeName: string;
   minRoster: number;
   maxRoster: number;
@@ -108,6 +110,35 @@ export interface TeamRegistrationReviewRow {
     snapshotMatches: boolean;
   }>;
   members: TeamRegistrationReviewMember[];
+}
+
+export interface TeamRegistrationProgressRow {
+  id: string;
+  name: string;
+  source: "linked_team" | "event_native";
+  representativeName: string;
+  updatedAt: string;
+  rosterCount: number;
+  minRoster: number;
+  maxRoster: number;
+  confirmedCount: number;
+  starterCount: number;
+  requiredStarterCount: number;
+  primaryBlockers: string[];
+}
+
+export interface TeamRegistrationProgressResult {
+  drafts: TeamRegistrationProgressRow[];
+  summary: {
+    total: number;
+    draft: number;
+    submitted: number;
+    approved: number;
+    changesRequested: number;
+    waitlisted: number;
+    rejected: number;
+    withdrawn: number;
+  };
 }
 
 export interface TeamRegistrationReviewResult {

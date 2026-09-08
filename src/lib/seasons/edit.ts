@@ -318,7 +318,19 @@ function toDbDates(data: SeasonDateInput): Pick<typeof seasons.$inferInsert, "re
 }
 
 function sameJson(left: unknown, right: unknown): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
+  if (Object.is(left, right)) return true;
+  if (left === null || right === null || typeof left !== "object" || typeof right !== "object") return false;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return Array.isArray(left) && Array.isArray(right) &&
+      left.length === right.length && left.every((value, index) => sameJson(value, right[index]));
+  }
+
+  const leftRecord = left as Record<string, unknown>;
+  const rightRecord = right as Record<string, unknown>;
+  const leftKeys = Object.keys(leftRecord);
+  return leftKeys.length === Object.keys(rightRecord).length && leftKeys.every((key) =>
+    Object.hasOwn(rightRecord, key) && sameJson(leftRecord[key], rightRecord[key]),
+  );
 }
 
 function sameDate(left: Date | null | undefined, right: Date | null | undefined): boolean {

@@ -20,6 +20,7 @@ import {
   type StarSegment,
 } from "@/lib/competitive/conversion-policy";
 import type { ConversionPolicyAdminRow } from "@/lib/competitive/conversion-policy-admin";
+import { formatCST } from "@/lib/utils/date";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -85,7 +86,7 @@ function platformLabel(key: string): string {
 
 function formatDate(value: Date | string | null): string {
   if (!value) return "未配置";
-  return new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  return formatCST(value);
 }
 
 function rankLabel(rank: BuiltInRankDefinition): string {

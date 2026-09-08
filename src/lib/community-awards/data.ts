@@ -4,6 +4,7 @@ import type { TxDb } from "@/db/client";
 import { communityAwardEvidence, communityAwards, competitionEntries, matches, users } from "@/db/schema";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { presentMatchLabel } from "@/lib/matches/presentation";
+import { formatCST } from "@/lib/utils/date";
 import { getSeasonAwardCandidates, isPublicCommunityAward, PUBLIC_COMMUNITY_AWARD_STATUSES } from "@/lib/community-awards/read-model";
 import { normalizeStagePlan } from "@/lib/seasons/compatibility";
 
@@ -75,7 +76,7 @@ export async function getAdminCommunityAwardBoardData(executor: CommunityAwardQu
   const evidenceByAward = new Map<string, CommunityAwardEvidenceModel[]>();
   for (const row of evidenceRows) {
     const list = evidenceByAward.get(row.awardId) ?? [];
-    list.push({ id: row.id, submitterName: getPublicDisplayName(row.submitter), candidateName: row.candidate ? getPublicDisplayName(row.candidate) : null, matchLabel: row.matchId ? matchLabels.get(row.matchId) ?? null : null, explanation: row.explanation, videoUrl: row.videoUrl, createdAt: row.createdAt.toLocaleString("zh-CN") });
+    list.push({ id: row.id, submitterName: getPublicDisplayName(row.submitter), candidateName: row.candidate ? getPublicDisplayName(row.candidate) : null, matchLabel: row.matchId ? matchLabels.get(row.matchId) ?? null : null, explanation: row.explanation, videoUrl: row.videoUrl, createdAt: formatCST(row.createdAt) });
     evidenceByAward.set(row.awardId, list);
   }
   return { awards: awardRows.map((row) => ({ ...row, submitterName: getPublicDisplayName(row.submitter), recipientName: row.recipient ? getPublicDisplayName(row.recipient) : null, evidence: evidenceByAward.get(row.id) ?? [] })), candidates, matches: matchOptions };

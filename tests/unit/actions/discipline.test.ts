@@ -77,7 +77,7 @@ describe("discipline actions", () => {
     });
 
     it("caps the result list at 10 users", async () => {
-      const chainObj = chain([{ id: "user-1", displayName: "玩家甲", steamName: null, email: "a@example.test" }]);
+      const chainObj = chain([{ id: "user-1", displayName: "玩家甲", perfectName: "完美甲", steamName: null, email: "a@example.test" }]);
       selectMock.mockReturnValue(chainObj);
 
       const result = await searchSanctionSubjects({
@@ -90,6 +90,18 @@ describe("discipline actions", () => {
       }
       expect(requireSeasonAdminMock).toHaveBeenCalledWith("11111111-1111-4111-8111-111111111111");
       expect(chainObj.calls.limit).toBe(10);
+    });
+
+    it("uses a Perfect nickname through the canonical internal display-name fallback", async () => {
+      const chainObj = chain([{ id: "user-1", displayName: null, perfectName: "完美昵称", steamName: "Steam Nick", email: "a@example.test" }]);
+      selectMock.mockReturnValue(chainObj);
+
+      const result = await searchSanctionSubjects({
+        seasonId: "11111111-1111-4111-8111-111111111111",
+        query: "完美",
+      });
+
+      expect(result).toMatchObject({ success: true, data: [{ id: "user-1", label: "完美昵称", detail: "a@example.test" }] });
     });
 
     it("propagates permission failures as action errors", async () => {

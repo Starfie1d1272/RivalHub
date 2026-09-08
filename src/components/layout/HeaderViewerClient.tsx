@@ -2,8 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import React from "react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
 import { toast } from "sonner";
 
 import { logoutUser } from "@/actions/auth";
@@ -15,6 +15,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { HeaderSession } from "./Header.types";
+import { useHeaderAvatarFailure } from "./HeaderAvatarFailureContext";
+import { getPublicDisplayName } from "@/lib/identity/display-name";
 
 export function getAccountNavigationLinks(userId: string, needsProfile: boolean) {
   return [
@@ -67,6 +69,7 @@ interface HeaderViewerClientProps {
   avatarUrl?: string | null;
   steamName?: string | null;
   displayName?: string | null;
+  perfectName?: string | null;
 }
 
 export function HeaderViewerClient({
@@ -75,10 +78,11 @@ export function HeaderViewerClient({
   avatarUrl,
   steamName,
   displayName,
+  perfectName,
 }: HeaderViewerClientProps) {
   const router = useRouter();
-  const [imgError, setImgError] = useState(false);
-  const userLabel = displayName ?? steamName ?? "RivalHub";
+  const { avatarFailed, markAvatarFailed } = useHeaderAvatarFailure(avatarUrl);
+  const userLabel = getPublicDisplayName({ displayName, perfectName, steamName });
 
   async function handleLogout() {
     const result = await logoutUser();
@@ -100,8 +104,8 @@ export function HeaderViewerClient({
                 <AvatarButton
                   label={userLabel}
                   avatarUrl={avatarUrl}
-                  imgError={imgError}
-                  onImgError={() => setImgError(true)}
+                  imgError={avatarFailed}
+                  onImgError={markAvatarFailed}
                 />
               </button>
             </DropdownMenuTrigger>
@@ -156,8 +160,8 @@ export function HeaderViewerClient({
         <AvatarButton
           label={userLabel}
           avatarUrl={avatarUrl}
-          imgError={imgError}
-          onImgError={() => setImgError(true)}
+          imgError={avatarFailed}
+          onImgError={markAvatarFailed}
         />
         <span className="text-sm text-[var(--color-fg-dim)] truncate">{userLabel}</span>
       </div>

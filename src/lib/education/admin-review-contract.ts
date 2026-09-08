@@ -46,7 +46,13 @@ export interface EducationReviewQueue {
   page: number;
   pageSize: typeof EDUCATION_REVIEW_PAGE_SIZE;
   totalPages: number;
-  institutionOptions: { id: string; name: string }[];
+  institutionOptions: { id: string; name: string; userCount: number }[];
+  overview: {
+    activeUserCount: number;
+    approvedUserCount: number;
+    institutionDistribution: { id: string; name: string; identityCount: number }[];
+    academicDistribution: { enrolled: number; graduated: number };
+  };
   normalizedQuery: EducationReviewQuery;
   hasAnyRecords: boolean;
 }

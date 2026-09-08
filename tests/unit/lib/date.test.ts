@@ -5,6 +5,7 @@ import {
   getCountdownSeconds,
   isDeadlinePassed,
   formatCSTDateTime,
+  formatCSTDate,
   formatCSTShortDate,
   parseCSTInput,
   toCSTDateTimeInput,
@@ -90,6 +91,16 @@ describe("formatCSTShortDate", () => {
     const d = new Date("2026-06-01T06:00:00.000Z");
     const result = formatCSTShortDate(d);
     expect(result).toMatch(/6月1日/);
+  });
+});
+
+describe("CST formatters", () => {
+  it("use Asia/Shanghai across the UTC date boundary", () => {
+    const value = "2026-06-01T17:30:00.000Z";
+    expect(formatCST(value)).toContain("2026/06/02 01:30");
+    expect(formatCSTDate(value)).toBe("2026/06/02");
+    expect(formatCSTShortDate(value)).toMatch(/6月2日/);
+    expect(formatCSTDateTime(value)).toMatch(/6月2日.*01:30/);
   });
 });
 

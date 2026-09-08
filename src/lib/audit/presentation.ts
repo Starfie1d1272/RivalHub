@@ -147,6 +147,10 @@ export const AUDIT_ACTION_DEFINITIONS: Readonly<Record<string, AuditActionDefini
   "user.change_password": { label: "修改密码", category: "user" },
   "user.claim_invite": { label: "使用管理员邀请码", category: "user" },
   "user.owner_bootstrap": { label: "初始化平台所有者", category: "user" },
+  "identity.link.merge_required": { label: "身份绑定需合并账号", category: "user" },
+  "identity.link.complete": { label: "完成身份绑定", category: "user" },
+  "identity.link.revoke": { label: "撤销身份绑定", category: "user" },
+  "user_identity.merge": { label: "合并用户身份", category: "user" },
 
   "education_verification.submit": { label: "提交教育认证", category: "education" },
   "education_verification.institutional_email": { label: "通过校邮箱完成认证", category: "education" },
@@ -166,6 +170,7 @@ export const AUDIT_ACTION_DEFINITIONS: Readonly<Record<string, AuditActionDefini
   "competitive_platform_rank.delete": { label: "删除平台段位", category: "competitive" },
   "competitive_profile.self_declare": { label: "更新竞技段位资料", category: "competitive" },
   "competitive_roles.self_declare": { label: "更新竞技位置资料", category: "competitive" },
+  "map_preferences.self_declare": { label: "更新地图熟练度", category: "competitive" },
   "conversion_policy.create_draft": { label: "创建换算策略草稿", category: "competitive" },
   "conversion_policy.update_draft": { label: "更新换算策略草稿", category: "competitive" },
   "conversion_policy.approve": { label: "批准换算策略", category: "competitive" },

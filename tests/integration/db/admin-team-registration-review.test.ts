@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
   getTeamRegistrationReview,
+  getTeamRegistrationProgress,
   normalizeTeamRegistrationReviewQuery,
 } from "../../../src/lib/registrations/admin-review";
 import { normalizeTeamRegistrationConfig } from "../../../src/lib/seasons/compatibility";
@@ -27,6 +28,14 @@ describe("PR3 team registration review PostgreSQL integration", () => {
       blockedMember: randomUUID(),
       approvedMember: randomUUID(),
       override: randomUUID(),
+      draftEntry: randomUUID(),
+      olderDraftEntry: randomUUID(),
+      draftParticipant: randomUUID(),
+      olderDraftParticipant: randomUUID(),
+      draftRevision: randomUUID(),
+      olderDraftRevision: randomUUID(),
+      draftMember: randomUUID(),
+      olderDraftMember: randomUUID(),
     };
     const marker = `team-review-${ids.season}`;
     const now = Date.now();
@@ -160,12 +169,29 @@ describe("PR3 team registration review PostgreSQL integration", () => {
           ],
         );
         await client.query(
+          `INSERT INTO competition_entries (
+             id, competition_id, source, name, representative_user_id,
+             current_roster_revision_id, registration_status, created_at, updated_at
+           ) VALUES
+             ($1, $2, 'event_native', $3, $4, $5, 'draft', $6, $6),
+             ($7, $2, 'linked_team', $8, $9, $10, 'draft', $11, $11)`,
+          [
+            ids.draftEntry, ids.season, `${marker} Recent Draft`, ids.blockedUser, ids.draftRevision, new Date(now),
+            ids.olderDraftEntry, `${marker} Older Draft`, ids.readyUser, ids.olderDraftRevision, new Date(now - 10 * 60 * 60 * 1000),
+          ],
+        );
+        await client.query(
           `INSERT INTO competition_entry_representative_changes (
              entry_id, from_user_id, to_user_id, changed_by_actor_id
            ) VALUES ($1, NULL, $2, 'pr3-team-review'),
                     ($3, NULL, $4, 'pr3-team-review'),
                     ($5, NULL, $6, 'pr3-team-review')`,
           [ids.readyEntry, ids.readyUser, ids.blockedEntry, ids.blockedUser, ids.approvedEntry, ids.readyUser],
+        );
+        await client.query(
+          `INSERT INTO competition_entry_representative_changes (entry_id, from_user_id, to_user_id, changed_by_actor_id)
+           VALUES ($1, NULL, $2, 'pr3-team-review'), ($3, NULL, $4, 'pr3-team-review')`,
+          [ids.draftEntry, ids.blockedUser, ids.olderDraftEntry, ids.readyUser],
         );
         await client.query(
           `INSERT INTO competition_entry_participants (
@@ -180,6 +206,11 @@ describe("PR3 team registration review PostgreSQL integration", () => {
           ],
         );
         await client.query(
+          `INSERT INTO competition_entry_participants (id, entry_id, user_id, status, invited_by_user_id, confirmed_at)
+           VALUES ($1, $2, $3, 'invited', $3, NULL), ($4, $5, $6, 'confirmed', $6, now())`,
+          [ids.draftParticipant, ids.draftEntry, ids.blockedUser, ids.olderDraftParticipant, ids.olderDraftEntry, ids.readyUser],
+        );
+        await client.query(
           `INSERT INTO competition_entry_roster_revisions (
              id, entry_id, revision_number, status, created_by
            ) VALUES ($1, $2, 1, 'submitted', 'pr3-team-review'),
@@ -192,6 +223,11 @@ describe("PR3 team registration review PostgreSQL integration", () => {
           ],
         );
         await client.query(
+          `INSERT INTO competition_entry_roster_revisions (id, entry_id, revision_number, status, created_by)
+           VALUES ($1, $2, 1, 'draft', 'pr3-team-review'), ($3, $4, 1, 'draft', 'pr3-team-review')`,
+          [ids.draftRevision, ids.draftEntry, ids.olderDraftRevision, ids.olderDraftEntry],
+        );
+        await client.query(
           `INSERT INTO competition_entry_roster_members (
              id, revision_id, participant_id, user_id, is_primary_starter
            ) VALUES ($1, $2, $3, $4, true),
@@ -201,6 +237,14 @@ describe("PR3 team registration review PostgreSQL integration", () => {
             ids.readyMember, ids.readyRevision, ids.readyParticipant, ids.readyUser,
             ids.blockedMember, ids.blockedRevision, ids.blockedParticipant, ids.blockedUser,
             ids.approvedMember, ids.approvedRevision, ids.approvedParticipant, ids.readyUser,
+          ],
+        );
+        await client.query(
+          `INSERT INTO competition_entry_roster_members (id, revision_id, participant_id, user_id, is_primary_starter)
+           VALUES ($1, $2, $3, $4, true), ($5, $6, $7, $8, true)`,
+          [
+            ids.draftMember, ids.draftRevision, ids.draftParticipant, ids.blockedUser,
+            ids.olderDraftMember, ids.olderDraftRevision, ids.olderDraftParticipant, ids.readyUser,
           ],
         );
         // Keep 25 derived-ready and 25 derived-blocked entries older than the
@@ -269,7 +313,7 @@ describe("PR3 team registration review PostgreSQL integration", () => {
 
       const season = {
         id: ids.season,
-        teamRegistrationConfig: normalizeTeamRegistrationConfig({}),
+        teamRegistrationConfig: normalizeTeamRegistrationConfig({ requireTeamLogo: true }),
         affiliationRules: [{
           institutionCode,
           eligibleAcademicStatuses: ["enrolled" as const],
@@ -285,6 +329,13 @@ describe("PR3 team registration review PostgreSQL integration", () => {
         normalizeTeamRegistrationReviewQuery(new URLSearchParams()),
       );
       expect(review).toMatchObject({ total: 52, page: 1, pageSize: 25, totalPages: 3, hasAnyRecords: true });
+
+      const progress = await getTeamRegistrationProgress(season);
+      expect(progress.summary).toMatchObject({ total: 55, draft: 2, submitted: 52, approved: 1, changesRequested: 0 });
+      expect(progress.drafts.map((row) => row.id)).toEqual([ids.draftEntry, ids.olderDraftEntry]);
+      expect(progress.drafts[0]).toMatchObject({ rosterCount: 1, confirmedCount: 0, starterCount: 1, requiredStarterCount: 1 });
+      expect(progress.drafts[0]?.primaryBlockers).toContain("还差 1 名成员确认");
+      expect(progress.drafts[0]?.primaryBlockers).toContain("队伍图标尚未上传");
 
       const newest = await getTeamRegistrationReview(
         season,
@@ -338,11 +389,11 @@ describe("PR3 team registration review PostgreSQL integration", () => {
         await cleanup.query("BEGIN");
         await cleanup.query("SET LOCAL session_replication_role = replica");
         await cleanup.query("DELETE FROM competition_entry_restriction_overrides WHERE id = $1", [ids.override]);
-        await cleanup.query("DELETE FROM competition_entry_roster_members WHERE id = ANY($1::uuid[])", [[...paginationEntries.map((entry) => entry.memberId), ids.readyMember, ids.blockedMember, ids.approvedMember]]);
-        await cleanup.query("DELETE FROM competition_entry_participants WHERE id = ANY($1::uuid[])", [[...paginationEntries.map((entry) => entry.participantId), ids.readyParticipant, ids.blockedParticipant, ids.approvedParticipant]]);
-        await cleanup.query("DELETE FROM competition_entry_roster_revisions WHERE id = ANY($1::uuid[])", [[...paginationEntries.map((entry) => entry.revisionId), ids.readyRevision, ids.blockedRevision, ids.approvedRevision]]);
-        await cleanup.query("DELETE FROM competition_entry_representative_changes WHERE entry_id = ANY($1::uuid[])", [[...paginationEntries.map((entry) => entry.id), ids.readyEntry, ids.blockedEntry, ids.approvedEntry]]);
-        await cleanup.query("DELETE FROM competition_entries WHERE id = ANY($1::uuid[])", [[...paginationEntries.map((entry) => entry.id), ids.readyEntry, ids.blockedEntry, ids.approvedEntry]]);
+        await cleanup.query("DELETE FROM competition_entry_roster_members WHERE id = ANY($1::uuid[])", [[...paginationEntries.map((entry) => entry.memberId), ids.readyMember, ids.blockedMember, ids.approvedMember, ids.draftMember, ids.olderDraftMember]]);
+        await cleanup.query("DELETE FROM competition_entry_participants WHERE id = ANY($1::uuid[])", [[...paginationEntries.map((entry) => entry.participantId), ids.readyParticipant, ids.blockedParticipant, ids.approvedParticipant, ids.draftParticipant, ids.olderDraftParticipant]]);
+        await cleanup.query("DELETE FROM competition_entry_roster_revisions WHERE id = ANY($1::uuid[])", [[...paginationEntries.map((entry) => entry.revisionId), ids.readyRevision, ids.blockedRevision, ids.approvedRevision, ids.draftRevision, ids.olderDraftRevision]]);
+        await cleanup.query("DELETE FROM competition_entry_representative_changes WHERE entry_id = ANY($1::uuid[])", [[...paginationEntries.map((entry) => entry.id), ids.readyEntry, ids.blockedEntry, ids.approvedEntry, ids.draftEntry, ids.olderDraftEntry]]);
+        await cleanup.query("DELETE FROM competition_entries WHERE id = ANY($1::uuid[])", [[...paginationEntries.map((entry) => entry.id), ids.readyEntry, ids.blockedEntry, ids.approvedEntry, ids.draftEntry, ids.olderDraftEntry]]);
         await cleanup.query("DELETE FROM education_verifications WHERE user_id = ANY($1::uuid[])", [[...paginationEntries.map((entry) => entry.userId), ids.readyUser, ids.blockedUser]]);
         await cleanup.query("DELETE FROM seasons WHERE id = $1", [ids.season]);
         await cleanup.query("DELETE FROM users WHERE id = ANY($1::uuid[])", [[...paginationEntries.map((entry) => entry.userId), ids.readyUser, ids.blockedUser]]);

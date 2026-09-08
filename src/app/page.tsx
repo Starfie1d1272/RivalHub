@@ -16,11 +16,10 @@ import {
 } from "@/lib/home/navigation";
 import { HomeHero } from "@/components/home/HomeHero";
 import { HomeNavigation } from "@/components/home/HomeNavigation";
-import { HomeSeasonPanel } from "@/components/home/HomeSeasonPanel";
+import { HomeSeasonPanel, shouldLoadRegistrationPositionCounts } from "@/components/home/HomeSeasonPanel";
 import { SeasonCardGrid } from "@/components/home/SeasonCardGrid";
 import { Panel, EmptyState } from "@/components/rivalhub";
 import { getParticipantSummary } from "@/lib/participants/summary";
-import { isRegistrationActuallyOpen } from "@/lib/seasons/presentation";
 
 export default function HomePage() {
   return (
@@ -66,7 +65,7 @@ async function HomeContent() {
     db.select({ value: count() }).from(competitionEntries).where(and(eq(competitionEntries.competitionId, featured.id), publicCompetitionEntryCondition())),
     getParticipantSummary(featured),
     // 仅 registration 状态时查询
-    isRegistrationActuallyOpen(featured)
+    shouldLoadRegistrationPositionCounts(featured)
       ? db
           .select({
             position: seasonRegistrations.primaryPosition,

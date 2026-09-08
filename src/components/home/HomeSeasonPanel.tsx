@@ -48,6 +48,10 @@ interface HomeSeasonPanelProps {
   playerCount: number;
 }
 
+export function shouldLoadRegistrationPositionCounts(season: Pick<HomePanelSeason, "status" | "registrationMode" | "registrationOpensAt" | "registrationOpenedAt" | "registrationClosesAt">): boolean {
+  return season.registrationMode === "solo" && isRegistrationActuallyOpen(season);
+}
+
 export function HomeSeasonPanel({
   season,
   maxPerPosition,
@@ -59,6 +63,29 @@ export function HomeSeasonPanel({
 }: HomeSeasonPanelProps) {
   const registrationSchedule = presentRegistrationSchedule(season);
   if (isRegistrationActuallyOpen(season)) {
+    if (season.registrationMode === "team") {
+      return (
+        <Panel label="REGISTRATION">
+          <div className="grid gap-3.5">
+            <SeasonPanelTitle season={season} />
+            {registrationSchedule && (
+              <p className="text-sm text-[var(--color-fg-mid)]">
+                {registrationSchedule.primary}{registrationSchedule.secondary ? ` · ${registrationSchedule.secondary}` : ""}
+              </p>
+            )}
+            <div className="py-3 border-y border-[var(--color-border)]">
+              <PanelStats teamCount={teamCount} playerCount={playerCount} status={season.status} registrationMode={season.registrationMode} />
+            </div>
+            <Button className="w-full" asChild>
+              <Link href={`/${season.slug}/register`} className="w-full">
+                组队报名 / 创建或加入队伍 →
+              </Link>
+            </Button>
+          </div>
+        </Panel>
+      );
+    }
+
     return (
       <Panel label="REGISTRATION">
         <div className="grid gap-3.5">
@@ -96,7 +123,7 @@ export function HomeSeasonPanel({
           </div>
           <Button className="w-full" asChild>
             <Link href={`/${season.slug}/register`} className="w-full">
-            {season.registrationMode === "team" ? "组队报名 / 创建或加入队伍 →" : "立即报名 →"}
+            立即报名 →
             </Link>
           </Button>
         </div>

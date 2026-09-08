@@ -31,10 +31,11 @@ export function EducationVerificationPanel({ email, emailVerified, institutional
   return <div className="space-y-5">
     <StatusBanner tone={emailVerified ? "success" : "warn"} title={emailVerified ? "当前登录邮箱已验证" : "当前登录邮箱尚未验证"} sub={emailVerified ? `${email} 已完成邮箱所有权验证。其他已验证邮箱不会改变当前登录邮箱的验证状态。` : "请先验证当前登录邮箱，验证后才能参加新的赛事报名或提交教育认证。"} />
     {!emailVerified && <Button disabled={pending} onClick={() => run(resendCurrentEmailVerification, "验证邮件已发送，请打开邮件完成验证")}>验证当前邮箱</Button>}
+    {emailVerified && institutionalIdentities.length === 0 && <StatusBanner tone="info" title="南京大学在读生可使用校邮箱快速认证" sub="当前登录邮箱无需更换。先绑定并验证 @smail.nju.edu.cn 邮箱，完成后会返回本页，可直接认证南京大学身份，无需提交学信网材料。" action={<Button size="sm" asChild><Link href="/settings/security#secondary-email">绑定南京大学邮箱</Link></Button>} />}
     {emailVerified && institutionalIdentities.length > 0 && <Panel label="1 · 学校邮箱快速认证" contentClassName="p-5"><div className="space-y-4"><p className="text-sm leading-6 text-[var(--color-fg-mid)]">选择当前账号已验证的学校邮箱。它无需成为当前登录邮箱，认证事实仍归属同一个用户。</p><div className="space-y-1.5"><Label htmlFor="institutional-identity">已验证学校邮箱</Label><select id="institutional-identity" className="w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-panel-low)] px-3 py-2 text-sm" value={institutionalIdentityId} onChange={(event) => setInstitutionalIdentityId(event.target.value)}>{institutionalIdentities.map((identity) => <option key={identity.identityId} value={identity.identityId}>{identity.email} · {identity.institution}</option>)}</select></div><div className="flex flex-wrap gap-2"><Button variant={academicStatus === "enrolled" ? "default" : "outline"} onClick={() => setAcademicStatus("enrolled")}>在读</Button><Button variant={academicStatus === "graduated" ? "default" : "outline"} onClick={() => setAcademicStatus("graduated")}>已毕业</Button></div><Button disabled={pending || !institutionalIdentityId} onClick={() => run(() => declareInstitutionalEmailEducation({ identityId: institutionalIdentityId, academicStatus }), "学校邮箱已完成教育身份认证")}>确认教育身份</Button></div></Panel>}
     {emailVerified && <Panel label={institutionalIdentities.length > 0 ? "2 · 学信网材料人工审核" : "教育身份认证"} contentClassName="p-5">
       <div className="space-y-4">
-        <p className="text-sm leading-6 text-[var(--color-fg-mid)]">无法使用南京大学学生邮箱的选手，请在学信档案申请在线验证报告。平台只会将报告中的在线验证码提供给超级管理员在学信网核验，不会公开展示，也不会保存学信网账号。</p>
+        <p className="text-sm leading-6 text-[var(--color-fg-mid)]">没有可用的学校邮箱、无法通过学校邮箱验证，或需要认证其他高校 / 毕业身份时，可在学信档案申请在线验证报告进行人工审核。平台只会将报告中的在线验证码提供给超级管理员在学信网核验，不会公开展示，也不会保存学信网账号。</p>
         <a className="inline-flex text-sm underline" href="https://my.chsi.com.cn/archive/index.jsp" target="_blank" rel="noreferrer">前往学信档案申请在线验证报告</a>
         {institution ? <div className="space-y-2">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -58,7 +59,7 @@ export function EducationVerificationPanel({ email, emailVerified, institutional
           </div>
           <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
             <Input id="institution-search" aria-describedby="institution-search-hint" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="例如：南京大学" />
-            <Button variant="outline" disabled={pending || !query.trim()} onClick={search}>搜索高校</Button>
+            <Button variant={query.trim() ? "default" : "outline"} disabled={pending || !query.trim()} onClick={search}>搜索高校</Button>
           </div>
           {institutions.length > 0 && <div className="overflow-hidden rounded-sm border border-[var(--color-border)] bg-[var(--color-panel-low)]">
             <p className="border-b border-[var(--color-border)] px-3 py-2 font-mono text-[11px] text-[var(--color-fg-mid)]">请选择搜索结果中的学校</p>
