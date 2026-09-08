@@ -1,4 +1,4 @@
-import type { MajorStrengthFact, MajorStrengthStarter, MajorStrengthTeam } from "./types";
+import type { MajorStrengthFact, MajorStrengthRecommendationTeam, MajorStrengthStarter, MajorStrengthTeam } from "./types";
 
 export type ProjectableStrengthFact = {
   rank: string;
@@ -78,6 +78,16 @@ export function projectStrengthStarter(starter: StrengthStarterProjection): Majo
   };
 }
 
+type CompleteStrengthTeamProjection = StrengthTeamProjection & {
+  teamSeedStrength: number;
+  teamSeedStrengthScaled: number;
+  recommendationRank: number;
+  tieGroup: number;
+  displayOrder: number;
+};
+
+export function projectStrengthTeam(team: CompleteStrengthTeamProjection): MajorStrengthRecommendationTeam;
+export function projectStrengthTeam(team: StrengthTeamProjection): MajorStrengthTeam;
 export function projectStrengthTeam(team: StrengthTeamProjection): MajorStrengthTeam {
   return {
     teamId: team.teamId,
