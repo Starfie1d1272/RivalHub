@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.7.4]
+
+### Fixed
+
+#### Major 报名开放前的公开与操作边界
+
+公开队伍、选手、比赛、积分与历史页面现在只展示已通过报名审核的队伍；报名页会结合赛程和名单状态给出下一步操作与资格提示。Major 赛前流程同时保留系统种子参考和最终名单审计，赛委会可直接确认最终种子。
+
 ## [2.7.3]
 
 ### Fixed
@@ -1867,6 +1875,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.7.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.7.3...v2.7.4
 [2.7.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.7.2...v2.7.3
 [2.7.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.7.1...v2.7.2
 [2.7.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.7.0...v2.7.1
