@@ -11,7 +11,7 @@ plan ─→ static ─────┐
    └─→ dependency-review（PR）
 ```
 
-`ci-gate` 是最终 required check：planner 明确允许跳过的 job 可以 skipped；本应运行却 failure / cancelled / unexpected skipped 的 capability 会阻断合并。
+`ci-gate` 是代码正确性 evidence 的 required check：planner 明确允许跳过的 job 可以 skipped；本应运行却 failure / cancelled / unexpected skipped 的 capability 会阻断合并。PR metadata policy 由独立的 `pr-title` check 负责；要使其阻断合并，Main ruleset 需与 `ci-gate` 一起要求该 check。
 
 ## Capabilities
 
@@ -61,6 +61,8 @@ Pull Request 使用 changed-surface planner：
 - rename/delete、workflow/toolchain、无法分类的变化 fail closed 到 full。
 
 `push` 到 `main`、merge queue、release 和手动 workflow 运行完整 convergence gate。
+
+`ci.yml` 只响应会改变代码 evidence 的 PR event（opened、synchronize、reopened、ready_for_review）。`.github/workflows/pr-metadata.yml` 在上述事件和 `edited` 上独立运行 `pr-title`；因此 title/body 编辑不会取消、覆盖或重跑当前 head 的 `ci-gate`，而新 commit 的 `synchronize` 仍会为其 SHA 重新产生 title check。
 
 不要在本文复制每个路径匹配规则；需要修改 planner 时同时更新 `scripts/ci/plan.mjs` 和对应 regression tests。
 
