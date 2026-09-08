@@ -30,12 +30,9 @@ const SYSTEM_ACTION_PREFIXES = [
 ];
 
 export function classifyChangedFiles(entries, options = {}) {
-  const { forceFull = false, metadataOnly = false } = options;
+  const { forceFull = false } = options;
   if (forceFull) {
     return resultFor(CAPABILITIES, true, "受保护分支、merge queue、release 或手动运行，强制 full gate");
-  }
-  if (metadataOnly) {
-    return resultFor([], false, "PR 标题或正文元数据编辑：只运行 planner、pr-title 与 ci-gate");
   }
   if (entries.length === 0) {
     return resultFor(CAPABILITIES, true, "无法取得 changed-surface，fail closed 到 full gate");
@@ -235,9 +232,8 @@ function gitChangedFiles() {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const forceFull = process.env.FORCE_FULL === "1" || process.env.FORCE_FULL === "true";
-  const metadataOnly = process.env.PR_METADATA_ONLY === "1" || process.env.PR_METADATA_ONLY === "true";
   const entries = gitChangedFiles();
-  const plan = classifyChangedFiles(entries, { forceFull, metadataOnly });
+  const plan = classifyChangedFiles(entries, { forceFull });
   console.log(`CI plan: ${plan.full ? "FULL" : plan.requiredJobs.join(" + ")} | ${plan.reason}`);
   for (const entry of entries) console.log(`changed ${entry.status}\t${entry.paths.join("\t")}`);
   output("full", String(plan.full));
@@ -245,5 +241,4 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   output("run_postgres", String(plan.runPostgres));
   output("run_system", String(plan.runSystem));
   output("required_jobs", JSON.stringify(plan.requiredJobs));
-  output("metadata_only", String(metadataOnly));
 }

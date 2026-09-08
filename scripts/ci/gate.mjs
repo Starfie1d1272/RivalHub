@@ -8,7 +8,6 @@ const statuses = {
 const dependencyReviewStatus = process.env.DEPENDENCY_REVIEW_RESULT;
 const titleStatus = process.env.TITLE_RESULT;
 const eventName = process.env.EVENT_NAME || process.env.GITHUB_EVENT_NAME;
-const metadataOnly = process.env.METADATA_ONLY === "true";
 
 if (statuses.plan !== "success") {
   fail(`plan 未成功：${statuses.plan ?? "missing"}`);
@@ -19,16 +18,10 @@ if (eventName === "pull_request") {
     fail(`pull_request 的 pr-title 未成功：${titleStatus ?? "missing"}`);
   }
   console.log("required pr-title: success");
-  if (metadataOnly) {
-    if (dependencyReviewStatus !== "skipped") {
-      fail(`metadata-only pull_request 的 dependency-review 应跳过：${dependencyReviewStatus ?? "missing"}`);
-    }
-    console.log("metadata-only pull_request: dependency-review skipped");
-  } else if (dependencyReviewStatus !== "success") {
+  if (dependencyReviewStatus !== "success") {
     fail(`pull_request 的 dependency-review 未成功：${dependencyReviewStatus ?? "missing"}`);
-  } else {
-    console.log("required dependency-review: success");
   }
+  console.log("required dependency-review: success");
 } else if (dependencyReviewStatus !== "skipped" && dependencyReviewStatus !== "success") {
   fail(`非 pull_request 的 dependency-review 出现异常状态：${dependencyReviewStatus ?? "missing"}`);
 } else if (titleStatus !== undefined && titleStatus !== "skipped" && titleStatus !== "success") {

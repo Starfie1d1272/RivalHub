@@ -45,12 +45,4 @@ describe("changed-surface planner", () => {
   it("fails closed when changed-surface cannot be obtained", () => {
     expect(classifyChangedFiles([]).requiredJobs).toEqual(["static", "postgres", "system"]);
   });
-
-  it("uses a metadata-only gate only when the workflow has already established a metadata edit", () => {
-    const metadataOnly = classifyChangedFiles([{ status: "M", paths: ["tooling/unknown.bin"] }], {
-      metadataOnly: true,
-    });
-    expect(metadataOnly).toMatchObject({ requiredJobs: [], full: false });
-
-  });
 });
