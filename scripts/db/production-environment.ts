@@ -47,6 +47,52 @@ export function buildProductionEnvironment(
   };
 }
 
+/**
+ * Build the narrowly scoped environment for the Auth consistency CLI. The
+ * general production builder deliberately strips Supabase credentials; this
+ * child process receives only the URL origin and service-role key after the
+ * production project identity has been checked.
+ */
+export function buildProductionAuthConsistencyEnvironment(
+  env: Environment = process.env,
+  options: { requiresWriteAuthorization: boolean },
+): NodeJS.ProcessEnv {
+  const databaseEnvironment = buildProductionEnvironment(env, options);
+  const supabaseUrl = assertProductionSupabaseUrl(env.NEXT_PUBLIC_SUPABASE_URL);
+  const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (!serviceRoleKey) throw new Error("SUPABASE_SERVICE_ROLE_KEY 未设置；拒绝启动 production Auth consistency audit。");
+  return {
+    ...databaseEnvironment,
+    NEXT_PUBLIC_SUPABASE_URL: supabaseUrl,
+    SUPABASE_SERVICE_ROLE_KEY: serviceRoleKey,
+    RIVALHUB_AUTH_CONSISTENCY_PROTECTED_TARGET: "production",
+    ...(options.requiresWriteAuthorization ? { RIVALHUB_ALLOW_REMOTE_DB_WRITE: "production" } : {}),
+  };
+}
+
+export function assertProductionSupabaseUrl(value: string | undefined): string {
+  if (!value?.trim()) throw new Error("NEXT_PUBLIC_SUPABASE_URL 未设置；拒绝启动 production Auth consistency audit。");
+  let url: URL;
+  try {
+    url = new URL(value.trim());
+  } catch {
+    throw new Error("NEXT_PUBLIC_SUPABASE_URL 格式无效；拒绝启动 production Auth consistency audit。");
+  }
+  const expectedHostname = `${PRODUCTION_PROJECT_REF}.supabase.co`;
+  if (
+    url.protocol !== "https:" ||
+    url.hostname !== expectedHostname ||
+    url.pathname !== "/" ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash
+  ) {
+    throw new Error(`NEXT_PUBLIC_SUPABASE_URL 未指向固定的 production Supabase project ${PRODUCTION_PROJECT_REF}。`);
+  }
+  return url.origin;
+}
+
 export function assertProductionDatabaseUrl(value: string | undefined): string {
   return assertProtectedRemoteDatabaseUrl(value, productionConfig);
 }

@@ -55,6 +55,7 @@
 - [`ci.md`](./operations/ci.md)
 - [`observability.md`](./operations/observability.md)
 - [`database-migrations.md`](./operations/database-migrations.md)
+- [`auth-consistency.md`](./operations/auth-consistency.md)
 - [`staging.md`](./operations/staging.md)
 - [`release.md`](./operations/release.md)
 - [`major-referee-guide.md`](./operations/major-referee-guide.md)

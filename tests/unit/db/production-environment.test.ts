@@ -4,6 +4,8 @@ import {
   PRODUCTION_POOLER_PORT,
   PRODUCTION_PROJECT_REF,
   assertProductionDatabaseUrl,
+  assertProductionSupabaseUrl,
+  buildProductionAuthConsistencyEnvironment,
   buildProductionEnvironment,
   buildVercelProductionVerificationEnvironment,
 } from "../../../scripts/db/production-environment";
@@ -14,6 +16,8 @@ const confirmation = {
   RIVALHUB_PRODUCTION_PROJECT_CONFIRM: PRODUCTION_PROJECT_REF,
   RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: `${PRODUCTION_POOLER_HOST}:${PRODUCTION_POOLER_PORT}`,
   DATABASE_URL: runtimeUrl,
+  NEXT_PUBLIC_SUPABASE_URL: `https://${PRODUCTION_PROJECT_REF}.supabase.co`,
+  SUPABASE_SERVICE_ROLE_KEY: "production-service-role-key",
 };
 
 describe("production database target guard", () => {
@@ -47,5 +51,27 @@ describe("production database target guard", () => {
       RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: `${PRODUCTION_POOLER_HOST}:${PRODUCTION_POOLER_PORT}`,
     });
     expect(vercelEnv.DATABASE_URL).toContain("pgbouncer=true");
+  });
+
+  it("only injects verified production Supabase credentials into the audit child", () => {
+    const auditEnv = buildProductionAuthConsistencyEnvironment(confirmation, { requiresWriteAuthorization: false });
+    expect(auditEnv.NEXT_PUBLIC_SUPABASE_URL).toBe(`https://${PRODUCTION_PROJECT_REF}.supabase.co`);
+    expect(auditEnv.SUPABASE_SERVICE_ROLE_KEY).toBe("production-service-role-key");
+    expect(auditEnv.RIVALHUB_ALLOW_REMOTE_DB_WRITE).toBeUndefined();
+    expect(auditEnv.RIVALHUB_AUTH_CONSISTENCY_PROTECTED_TARGET).toBe("production");
+
+    const applyEnv = buildProductionAuthConsistencyEnvironment({
+      ...confirmation,
+      RIVALHUB_ALLOW_REMOTE_DB_WRITE: "production",
+    }, { requiresWriteAuthorization: true });
+    expect(applyEnv.RIVALHUB_ALLOW_REMOTE_DB_WRITE).toBe("production");
+  });
+
+  it("rejects Supabase URLs whose project ref or credential-bearing parts are not production-safe", () => {
+    expect(() => assertProductionSupabaseUrl(undefined)).toThrow(/NEXT_PUBLIC_SUPABASE_URL/);
+    expect(() => assertProductionSupabaseUrl("https://other-project.supabase.co")).toThrow(/production Supabase project/);
+    expect(() => assertProductionSupabaseUrl(`https://${PRODUCTION_PROJECT_REF}.supabase.co/rest/v1`)).toThrow(/production Supabase project/);
+    expect(() => assertProductionSupabaseUrl(`https://key:secret@${PRODUCTION_PROJECT_REF}.supabase.co`)).toThrow(/production Supabase project/);
+    expect(() => buildProductionAuthConsistencyEnvironment({ ...confirmation, SUPABASE_SERVICE_ROLE_KEY: undefined }, { requiresWriteAuthorization: false })).toThrow(/SUPABASE_SERVICE_ROLE_KEY/);
   });
 });

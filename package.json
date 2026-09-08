@@ -27,6 +27,8 @@
     "db:production:migrate": "tsx scripts/db/production.ts migrate",
     "db:production:verify": "tsx scripts/db/production.ts verify",
     "db:production:identity-merge-preflight": "tsx scripts/db/production-identity-merge-preflight.ts",
+    "db:auth-consistency-audit": "tsx scripts/db/auth-consistency-runner.ts",
+    "db:production:auth-consistency-audit": "tsx scripts/db/production-auth-consistency-audit.ts",
     "db:studio": "tsx scripts/db/local.ts studio",
     "db:local:start": "tsx scripts/db/local.ts start",
     "db:local:start-db": "tsx scripts/db/local.ts start-db",
