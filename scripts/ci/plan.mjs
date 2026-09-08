@@ -75,15 +75,16 @@ export function parseNameStatus(raw) {
 }
 
 function classifyPath(path) {
+  if (path.startsWith(".changeset/")) {
+    return { capabilities: [], reason: `release metadata: ${path}` };
+  }
+
   const docs = path.startsWith("docs/") || path.endsWith(".md") || path.endsWith(".mdx");
   if (docs) return { capabilities: [], reason: `docs-only: ${path}` };
 
   const fullPrefixes = [
     ".github/",
-    ".changeset/",
     "scripts/",
-    "tests/integration/",
-    "tests/e2e/",
     "package.json",
     "pnpm-lock.yaml",
     "pnpm-workspace.yaml",
@@ -111,6 +112,16 @@ function classifyPath(path) {
   }
   if (path.startsWith("drizzle/") || path.startsWith("src/db/")) {
     return { capabilities: ["static", "postgres"], reason: `database surface: ${path}` };
+  }
+
+  if (path.startsWith("tests/integration/db/harness/") || path === "tests/integration/setup.ts") {
+    return { capabilities: "full", reason: `integration harness surface: ${path}` };
+  }
+  if (path.startsWith("tests/integration/db/")) {
+    return { capabilities: ["postgres"], reason: `real PostgreSQL integration surface: ${path}` };
+  }
+  if (path.startsWith("tests/e2e/")) {
+    return { capabilities: ["system"], reason: `browser and Local Supabase system surface: ${path}` };
   }
 
   const source = readSourceDependencies(path);
