@@ -342,7 +342,7 @@ describe("PR3 team registration review PostgreSQL integration", () => {
       expect(progress.drafts.map((row) => row.id)).toEqual([ids.draftEntry, ids.olderDraftEntry]);
       expect(progress.drafts[0]).toMatchObject({ rosterCount: 1, confirmedCount: 0, starterCount: 1, requiredStarterCount: 1 });
       expect(progress.drafts[0]?.primaryBlockers).toContain("所有名单成员都需确认代表本届赛事参赛。");
-      expect(progress.drafts[0]?.primaryBlockers).toContain("以下成员当前不能进入赛事名单：Blocked Perfect");
+      expect(progress.drafts[0]?.primaryBlockers).toContain("以下成员当前不能进入赛事名单：Blocked Representative");
 
       const newest = await getTeamRegistrationReview(
         season,
