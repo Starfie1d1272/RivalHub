@@ -1,5 +1,73 @@
 # Changelog
 
+## [2.7.5]
+
+### Added
+
+#### 组队赛事管理后台报名运营进度
+
+组队赛事管理后台新增报名运营进度，管理员可以查看进行中的报名草稿、成员确认、主力配置和主要待办，不再将“尚未提交审核”误判为“尚未开始报名”。
+
+#### 教育认证审核概览
+
+教育认证审核新增认证用户数、覆盖率、学校分布及在读 / 已毕业身份分布，并将学校筛选收口到真实认证数据。
+
+#### 教育认证与账号安全引导
+
+教育认证页为南京大学在读生补充校邮箱快速认证引导，账号安全页补充重复账号安全归并说明。
+
+### Changed
+
+#### 报名模式隔离
+
+组队报名与个人报名的首页展示和数据查询按报名模式严格分离；组队赛事不再消费个人位置容量。
+
+#### 组队报名 readiness contract
+
+组队报名草稿与正式提交共用 canonical readiness 判断，统一名单人数、成员确认、主力、资格、纪律处罚及队伍关系等阻塞条件。
+
+#### 后台赛事时间展示
+
+后台赛事时间展示统一回 Asia/Shanghai 时间 contract。
+
+#### Canonical 用户显示名
+
+Header 和管理员用户搜索统一使用 canonical 用户显示名规则，补齐 Perfect 昵称。
+
+#### 高校搜索交互
+
+高校搜索在存在搜索词时明确显示为当前主要操作。
+
+### Fixed
+
+#### 已发布赛事报名排期更新
+
+修复已发布赛事经过 PostgreSQL JSONB round-trip 后，因对象 key 顺序变化而错误拒绝报名排期更新的问题。
+
+#### Major 组队报名首页容量展示
+
+修复 Major 组队报名开放后首页错误显示个人位置 `0 / 50` 的问题。
+
+#### 组队报名草稿后台状态
+
+修复组队报名已经产生草稿时，管理后台仍显示“0 支报名 / 暂无赛事报名”的问题。
+
+#### 审计日志动作展示
+
+修复地图熟练度与部分账号身份操作在审计日志中显示“未知操作”的问题。
+
+#### Turnstile 失败恢复
+
+修复 Turnstile challenge / 脚本加载失败缺少客户端诊断与有效恢复提示的问题。
+
+#### Header 昵称与头像失败回退
+
+修复 Header 跳过 Perfect 昵称，以及移动端菜单重开后重复请求已知失败头像 URL 的问题。
+
+#### 管理页面时间展示
+
+修复部分新增管理页面依赖浏览器或运行环境本地时区展示时间的问题。
+
 ## [2.7.4]
 
 ### Fixed
@@ -1875,6 +1943,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.7.5]: https://github.com/Starfie1d1272/RivalHub/compare/v2.7.4...v2.7.5
 [2.7.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.7.3...v2.7.4
 [2.7.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.7.2...v2.7.3
 [2.7.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.7.1...v2.7.2
