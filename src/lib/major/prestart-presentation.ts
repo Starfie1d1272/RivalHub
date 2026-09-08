@@ -18,7 +18,6 @@ const OPERATOR_TASKS: Partial<Record<MajorPrestartCheckKey, string>> = {
   qualification: "处理资格事项",
   administration: "处理运营事项",
   seeds: "保存最终种子",
-  "seed-override": "补充种子调整说明",
   reconfirmations: "确认最终种子",
 };
 

@@ -36,7 +36,7 @@ export const majorPrestartStates = pgTable("major_prestart_states", {
   /** Explicit confirmation is cleared by every seed edit. */
   seedsConfirmedAt: timestamp("seeds_confirmed_at", { withTimezone: true }),
   seedsConfirmedBy: text("seeds_confirmed_by"),
-  /** Required when final human seeds cross a system recommendation group. */
+  /** Historical committee notes; preserved, no longer written or required by seed operations. */
   seedOverrideReason: text("seed_override_reason"),
   /** The confirmed 1–32 tournament order becomes immutable when the Major starts. */
   seedsLockedAt: timestamp("seeds_locked_at", { withTimezone: true }),

@@ -1,9 +1,10 @@
 import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
-import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   competitionEntries,
+  eventRosters,
   competitionEntryParticipants,
   competitionEntryRosterMembers,
   competitionEntryRosterRevisions,
@@ -32,6 +33,9 @@ import { evaluateRosterQualificationFromFacts, getParticipantReadinessBatch, isH
 import { getPublicOrAuthorizedDraftSeason, getPublicSeasonBySlug } from "@/lib/data/public-seasons";
 import { presentRegistrationSchedule } from "@/lib/seasons/presentation";
 import { RegistrationScheduleCountdown } from "@/components/seasons/RegistrationScheduleCountdown";
+
+import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
+import { getCompetitionEntryCapabilities } from "@/lib/competition-entries/capabilities";
 
 interface RegisterPageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -64,7 +68,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
   }
 
   // 报名未开放时显示状态提示
-  if (season.status !== "registration") {
+  if (season.status !== "registration" && (!isTeamRegistration(season) || season.status === "draft")) {
     const statusMessages: Record<string, string> = {
       draft:    "报名尚未开放，请关注后续公告。",
       voting:   "报名已截止，现在是队长投票阶段。",
@@ -112,7 +116,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
   }
 
   if (isTeamRegistration(season)) {
-    const [captainedTeams, entryRows] = await Promise.all([
+    const [captainedTeams, entryRows, [approvedCount]] = await Promise.all([
       db.select({ id: teams.id, name: teams.name }).from(teams)
         .where(and(eq(teams.status, "active"), eq(teams.captainUserId, userSession.userId)))
         .orderBy(teams.name),
@@ -125,14 +129,18 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
         ))
         .orderBy(desc(competitionEntries.updatedAt))
         .limit(1),
+      db.select({ value: count() }).from(competitionEntries).where(and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryCondition())),
     ]);
     const entry = entryRows[0]?.entry ?? null;
     let entryView: Parameters<typeof CompetitionEntryFlow>[0]["entry"] = null;
+    let capabilities = getCompetitionEntryCapabilities({ season, entry: null, revision: null, rosterFrozen: false });
     if (entry) {
-      const [revision] = await db.select({ id: competitionEntryRosterRevisions.id })
+      const [revision] = await db.select({ id: competitionEntryRosterRevisions.id, status: competitionEntryRosterRevisions.status, origin: competitionEntryRosterRevisions.origin })
         .from(competitionEntryRosterRevisions)
         .where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id)))
         .limit(1);
+      const [eventRoster] = await db.select({ status: eventRosters.status }).from(eventRosters).where(eq(eventRosters.entryId, entry.id));
+      capabilities = getCompetitionEntryCapabilities({ season, entry: { status: entry.registrationStatus, hasApprovedRoster: !!entry.approvedRosterRevisionId }, revision: revision ?? null, rosterFrozen: eventRoster?.status === "frozen" });
       const candidateRows = entry.teamId
         ? await db.select({ membershipId: teamMemberships.id, userId: teamMemberships.userId, status: teamMemberships.status, email: users.email, displayName: users.displayName, perfectName: users.perfectName, steamName: users.steamName })
             .from(teamMemberships).innerJoin(users, eq(users.id, teamMemberships.userId))
@@ -194,6 +202,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
       entryView = {
         id: entry.id,
         name: entry.name,
+        logoUrl: entry.logoUrl,
         status: entry.registrationStatus,
         representativeUserId: entry.representativeUserId,
         perfectTeamId: entry.perfectTeamId,
@@ -228,13 +237,17 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
         />
         <RegistrationScheduleCountdown target={registrationSchedule?.countdownTarget ?? null} />
         <CompetitionEntryFlow
+          key={entry ? `${entry.id}:${entry.updatedAt.toISOString()}` : "new"}
+          capabilities={capabilities}
+          requiresTeamLogo={normalizeTeamRegistrationConfig(season.teamRegistrationConfig).requireTeamLogo}
+          approvedTeamCount={approvedCount?.value ?? 0}
           competitionId={season.id}
           competitionName={season.name}
           currentUserId={userSession.userId}
           minRoster={season.minTeamSize}
           maxRoster={season.maxTeamSize}
-      starterCount={season.starterCount}
-      requiresPerfectTeamId={season.teamRegistrationConfig?.requireCompetitiveProfile ?? false}
+          starterCount={season.starterCount}
+          requiresPerfectTeamId={season.teamRegistrationConfig?.requireCompetitiveProfile ?? false}
           captainedTeams={captainedTeams}
           entry={entryView}
         />

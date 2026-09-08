@@ -1,3 +1,4 @@
+import { publicCompetitionEntryCondition, publicCompetitionEntryLabel } from "@/lib/competition-entries/public-visibility";
 import Link from "next/link";
 import { Suspense } from "react";
 import { connection } from "next/server";
@@ -92,7 +93,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
 
   const [[teamCountRow], participantSummary, [matchCountRow], upcomingMatches, standings] =
     await Promise.all([
-      db.select({ value: count() }).from(competitionEntries).where(eq(competitionEntries.competitionId, season.id)),
+      db.select({ value: count() }).from(competitionEntries).where(and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryCondition())),
       getParticipantSummary(season),
       db.select({
         total: count(),
@@ -368,7 +369,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
 
       {/* Stat 四格 */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Stat label="TEAMS" value={teamCountRow?.value ?? 0} />
+        <Stat label={publicCompetitionEntryLabel(season)} value={teamCountRow?.value ?? 0} />
         <Stat label="PLAYERS" value={participantSummary.count} />
         <Stat
           label="MATCHES"

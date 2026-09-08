@@ -147,7 +147,7 @@ export function HomeSeasonPanel({
               </div>
             )}
           </div>
-          <PanelStats teamCount={teamCount} playerCount={playerCount} status={season.status} />
+          <PanelStats teamCount={teamCount} playerCount={playerCount} status={season.status} registrationMode={season.registrationMode} />
           <Button className="w-full" asChild>
             <Link href={`/${season.slug}/matches`} className="w-full">
               查看赛程 →
@@ -181,7 +181,7 @@ export function HomeSeasonPanel({
           </p>
         )}
         <div className="py-3 border-y border-[var(--color-border)]">
-          <PanelStats teamCount={teamCount} playerCount={playerCount} status={season.status} />
+          <PanelStats teamCount={teamCount} playerCount={playerCount} status={season.status} registrationMode={season.registrationMode} />
         </div>
         <Button className="w-full" asChild>
           <Link href={`/${season.slug}`} className="w-full">
@@ -321,14 +321,16 @@ function PanelStats({
   teamCount,
   playerCount,
   status,
+  registrationMode,
 }: {
   teamCount: number;
   playerCount: number;
+  registrationMode: string;
   status: SeasonStatus;
 }) {
   return (
     <div className="grid grid-cols-3 gap-2">
-      <MiniStat label="TEAMS" value={teamCount} />
+      <MiniStat label={registrationMode === "team" && status === "registration" ? "已通过审核" : "TEAMS"} value={teamCount} />
       <MiniStat label="PLAYERS" value={playerCount} accent />
       <MiniStat label="STAGE" value={presentSeasonStatus(status).label} />
     </div>

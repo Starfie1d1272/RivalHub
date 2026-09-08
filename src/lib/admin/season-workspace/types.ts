@@ -70,7 +70,6 @@ export interface MajorPrestartPageData {
     entrants: Array<{ teamId: string; teamName: string }>;
     seeds: Array<{ teamId: string; tournamentSeed: number }>;
     seedsConfirmed: boolean;
-    overrideReason: string | null;
     recommendationStatus: "missing" | "ready" | "mismatch";
     recommendation: {
       version: 1;

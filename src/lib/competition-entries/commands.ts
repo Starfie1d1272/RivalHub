@@ -142,7 +142,7 @@ async function validateEntryRoster(
     const activeMemberships = await tx.select({ userId: teamMemberships.userId }).from(teamMemberships).where(and(eq(teamMemberships.teamId, entry.teamId), eq(teamMemberships.status, "active"), isNull(teamMemberships.endedAt), inArray(teamMemberships.userId, rows.map((row) => row.userId))));
     if (activeMemberships.length !== rows.length) throw new AppError(ErrorCode.VALIDATION_FAILED, "当前名单中有人已不再是这支队伍的当前成员；选择会保留，但提交前必须明确处理。");
   }
-  if (config.requireTeamLogo && !entry.logoUrl) throw new AppError(ErrorCode.VALIDATION_FAILED, "本届赛事要求 Entry logo。");
+  if (config.requireTeamLogo && !entry.logoUrl) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先上传队伍图标并保存本届名单。");
   if (config.requireCompetitiveProfile && !entry.perfectTeamId?.trim()) throw new AppError(ErrorCode.VALIDATION_FAILED, "本届赛事要求完美战队 ID。");
   if (needsQualificationFacts) {
     const members = rows.map((row) => {
@@ -234,7 +234,8 @@ export async function saveCompetitionEntryRosterInTx(tx: TxDb, input: { entryId:
   }
   await tx.delete(competitionEntryRosterMembers).where(eq(competitionEntryRosterMembers.revisionId, revision.id));
   await tx.insert(competitionEntryRosterMembers).values(input.userIds.map((userId) => ({ revisionId: revision.id, participantId: participantByUser.get(userId)!.id, userId, teamMembershipId: currentMemberships.find((row) => row.userId === userId)?.id ?? null, isPrimaryStarter: input.primaryStarterUserIds.includes(userId) })));
-  await tx.update(competitionEntries).set({ perfectTeamId: input.perfectTeamId || null, updatedAt: new Date() }).where(eq(competitionEntries.id, entry.id));
+  const [teamIdentity] = !entry.logoUrl ? await tx.select({ logoUrl: teams.logoUrl }).from(teams).where(eq(teams.id, entry.teamId)) : [];
+  await tx.update(competitionEntries).set({ perfectTeamId: input.perfectTeamId || null, ...(!entry.logoUrl && teamIdentity?.logoUrl ? { logoUrl: teamIdentity.logoUrl } : {}), updatedAt: new Date() }).where(eq(competitionEntries.id, entry.id));
   await auditEntry(tx, { action: "competition_entry.roster.save", actorId: input.actorId, entryId: entry.id, competitionId: entry.competitionId, meta: { revision: revision.revisionNumber, rosterSize: input.userIds.length, primaryStarterCount: input.primaryStarterUserIds.length } });
   return { seasonSlug: season.slug };
 }

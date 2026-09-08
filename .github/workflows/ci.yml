@@ -37,6 +37,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Protect published rulebooks
+        run: node scripts/ci/check-published-rules.mjs
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+
       - name: Plan changed surface
         id: plan
         run: node scripts/ci/plan.mjs

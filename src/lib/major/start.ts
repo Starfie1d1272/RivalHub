@@ -25,9 +25,6 @@ import { loadActiveRestrictionOverridesInTx, unresolvedQualificationFindings } f
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 import { getStandardMajorDefinition } from "@/lib/major/standard";
 import {
-  analyzeFinalSeedOrder,
-} from "@/lib/major/team-seed-recommendation";
-import {
   buildFrozenSetFingerprint,
   frozenTeamsForSnapshot,
   getSeedRecommendationSnapshotStatus,
@@ -194,9 +191,6 @@ export async function startMajorInTransaction(
     seasonId: season.id,
     frozenSetFingerprint,
   });
-  const seedDecision = recommendationStatus === "ready" && snapshot
-    ? analyzeFinalSeedOrder(seeds.map((seed) => seed.teamId), snapshot.recommendations)
-    : null;
   const readiness = evaluateMajorPrestartReadiness({
     competitionTemplate: season.competitionTemplate,
     capabilities,
@@ -217,7 +211,6 @@ export async function startMajorInTransaction(
     tournamentSeeds: seeds,
     seedConfirmation: { confirmed: state.seedsConfirmedAt !== null && state.seedsConfirmedBy !== null },
     seedRecommendation: { status: recommendationStatus },
-    seedOverride: { required: seedDecision?.divergesFromRecommendation ?? false, reason: state.seedOverrideReason ?? null },
   });
   if (!readiness.canStart || !readiness.openingPlan) {
     throw new AppError(ErrorCode.VALIDATION_FAILED, readiness.blockers[0] ?? "Major 赛前检查未通过。");

@@ -1,3 +1,4 @@
+import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import { Suspense } from "react";
 import { connection } from "next/server";
 import { and, eq, count, or, desc } from "drizzle-orm";
@@ -62,7 +63,7 @@ async function HomeContent() {
     topCandidatesWithNames,
     liveAndUpcomingMatches,
   ] = await Promise.all([
-    db.select({ value: count() }).from(competitionEntries).where(eq(competitionEntries.competitionId, featured.id)),
+    db.select({ value: count() }).from(competitionEntries).where(and(eq(competitionEntries.competitionId, featured.id), publicCompetitionEntryCondition())),
     getParticipantSummary(featured),
     // 仅 registration 状态时查询
     isRegistrationActuallyOpen(featured)

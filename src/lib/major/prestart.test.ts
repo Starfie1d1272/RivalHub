@@ -23,7 +23,6 @@ function makeInput(): MajorPrestartReadinessInput {
     tournamentSeeds: teamIds.map((teamId, index) => ({ teamId, tournamentSeed: index + 1 })),
     seedConfirmation: { confirmed: true },
     seedRecommendation: { status: "ready" },
-    seedOverride: { required: false, reason: null },
   };
 }
 
@@ -145,12 +144,10 @@ describe("evaluateMajorPrestartReadiness", () => {
     expect(result.blockers).toContain("选手 队长甲 同时出现在 队伍甲、队伍乙 的名单中。");
   });
 
-  it("requires a persisted reason when final seeds cross a system recommendation group", () => {
+  it("accepts any complete final order confirmed by the committee", () => {
     const input = makeInput();
-    input.seedOverride = { required: true, reason: null };
-    expect(evaluateMajorPrestartReadiness(input).checks.find((check) => check.key === "seed-override")).toMatchObject({ state: "blocked" });
-    input.seedOverride = { required: true, reason: "赛委会复核" };
-    expect(evaluateMajorPrestartReadiness(input).checks.find((check) => check.key === "seed-override")).toMatchObject({ state: "ready" });
+    input.tournamentSeeds = input.tournamentSeeds!.map((seed) => ({ ...seed, tournamentSeed: 33 - seed.tournamentSeed }));
+    expect(evaluateMajorPrestartReadiness(input).canStart).toBe(true);
   });
 
   it.each([

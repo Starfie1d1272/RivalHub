@@ -17,7 +17,6 @@ export type MajorPrestartCheckKey =
   | "administration"
   | "seeds"
   | "seed-recommendation"
-  | "seed-override"
   | "reconfirmations"
   | "opening-plan";
 
@@ -61,11 +60,6 @@ export interface MajorPrestartSeedRecommendationFact {
   status: "missing" | "ready" | "mismatch";
 }
 
-export interface MajorPrestartSeedOverrideFact {
-  required: boolean;
-  reason: string | null;
-}
-
 export interface MajorPrestartReadinessInput {
   competitionTemplate: CompetitionTemplate;
   capabilities: SeasonCapabilities;
@@ -77,7 +71,6 @@ export interface MajorPrestartReadinessInput {
   tournamentSeeds: readonly MajorPrestartTournamentSeedFact[] | null;
   seedConfirmation: { confirmed: boolean } | null;
   seedRecommendation: MajorPrestartSeedRecommendationFact | null;
-  seedOverride: MajorPrestartSeedOverrideFact | null;
 }
 
 export interface MajorPrestartReadiness {
@@ -277,14 +270,6 @@ function checkSeedRecommendation(
   );
 }
 
-function checkSeedOverride(
-  fact: MajorPrestartReadinessInput["seedOverride"],
-): MajorPrestartCheck {
-  if (fact === null) return unavailable("seed-override", "种子人工偏离说明");
-  if (!fact.required || Boolean(fact.reason?.trim())) return ready("seed-override", "种子人工偏离说明");
-  return blocked("seed-override", "种子人工偏离说明", ["最终种子偏离系统建议时，必须填写简短的人工调整原因。"]);
-}
-
 function checkSeeds(
   teams: readonly MajorPrestartTeamFact[] | null,
   facts: readonly MajorPrestartTournamentSeedFact[] | null,
@@ -368,7 +353,6 @@ export function evaluateMajorPrestartReadiness(
   const seedResult = checkSeeds(input.teams, input.tournamentSeeds, entrantCapacity);
   checks.push(seedResult.check);
   checks.push(checkSeedRecommendation(input.seedRecommendation));
-  checks.push(checkSeedOverride(input.seedOverride));
   checks.push(checkSeedConfirmation(input.seedConfirmation));
 
   let openingPlan: MajorOpeningPlan | null = null;
