@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { TeamCard } from "./TeamCard";
 
 const props = {
-  teamId: "team-1",
+  entryId: "entry-1",
   teamName: "Rival Orange",
   seasonSlug: "spring",
   draftOrder: 2,
@@ -15,16 +15,14 @@ const props = {
   players: [
     {
       name: "Captain Star",
-      primaryPosition: "igl",
       isStarter: true,
-      isCaptain: true,
+      isRepresentative: true,
       userId: "player-1",
     },
     {
       name: "Anchor Star",
-      primaryPosition: "anchor",
       isStarter: true,
-      isCaptain: false,
+      isRepresentative: false,
       userId: "player-2",
     },
   ],
@@ -44,5 +42,15 @@ describe("TeamCard", () => {
     expect(screen.getByText("75% WR")).toBeInTheDocument();
     expect(screen.getByText("1.14")).toBeInTheDocument();
     expect(screen.getByText("78.2")).toBeInTheDocument();
+  });
+
+  it("uses event roster facts without rendering registration positions", () => {
+    render(<TeamCard {...props} />);
+
+    expect(screen.getByText("代表人")).toBeInTheDocument();
+    expect(screen.getAllByText("Captain Star")).not.toHaveLength(0);
+    expect(screen.getByText("2 首发")).toBeInTheDocument();
+    expect(screen.queryByText("igl")).not.toBeInTheDocument();
+    expect(screen.queryByText("anchor")).not.toBeInTheDocument();
   });
 });

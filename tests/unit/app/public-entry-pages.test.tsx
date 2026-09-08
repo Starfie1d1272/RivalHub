@@ -2,13 +2,14 @@ import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { PgDialect } from "drizzle-orm/pg-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-const mocks = vi.hoisted(() => ({ season: vi.fn(), entries: vi.fn(), entry: vi.fn(), matches: vi.fn(), select: vi.fn() }));
+const mocks = vi.hoisted(() => ({ season: vi.fn(), entries: vi.fn(), entry: vi.fn(), eventRoster: vi.fn(), matches: vi.fn(), session: vi.fn(), select: vi.fn() }));
 vi.mock("next/navigation", () => ({ notFound: () => { throw new Error("NOT_FOUND"); } }));
 vi.mock("@/lib/data/public-seasons", () => ({ getPublicOrAuthorizedDraftSeason: mocks.season }));
+vi.mock("@/lib/auth/session", () => ({ getUserSession: mocks.session }));
 vi.mock("@/components/layout/AdminShortcutSlot", () => ({ AdminShortcutSlot: () => null }));
-vi.mock("@/db/client", () => ({ db: { query: { competitionEntries: { findMany: mocks.entries, findFirst: mocks.entry }, matches: { findMany: mocks.matches } }, select: mocks.select } }));
+vi.mock("@/db/client", () => ({ db: { query: { competitionEntries: { findMany: mocks.entries, findFirst: mocks.entry }, eventRosters: { findFirst: mocks.eventRoster }, matches: { findMany: mocks.matches } }, select: mocks.select } }));
 import ListPage from "@/app/[seasonSlug]/teams/page";
-import DetailPage from "@/app/[seasonSlug]/teams/[teamId]/page";
+import DetailPage from "@/app/[seasonSlug]/teams/[entryId]/page";
 function emptyChain() {
   const chain = { from: () => chain, innerJoin: () => chain, leftJoin: () => chain, where: () => Promise.resolve([]) };
   return chain;
@@ -17,7 +18,7 @@ describe("public entry routes", () => {
   beforeEach(() => {
     vi.clearAllMocks(); vi.stubGlobal("React", React);
     mocks.season.mockResolvedValue({ id: "season", name: "Major", registrationMode: "team", status: "registration" });
-    mocks.select.mockImplementation(emptyChain); mocks.matches.mockResolvedValue([]);
+    mocks.select.mockImplementation(emptyChain); mocks.matches.mockResolvedValue([]); mocks.eventRoster.mockResolvedValue(null); mocks.session.mockResolvedValue(null);
   });
   it.each(["draft", "submitted", "changes_requested", "waitlisted", "rejected", "withdrawn"])("filters %s even for a known detail id", async (status) => {
     mocks.entry.mockImplementation(({ where }) => {
@@ -26,7 +27,7 @@ describe("public entry routes", () => {
       expect(query.params).toContain("known-id");
       return query.params.includes(status) ? { id: "known-id", name: "PRIVATE ROSTER" } : undefined;
     });
-    await expect(DetailPage({ params: Promise.resolve({ seasonSlug: "major", teamId: "known-id" }) })).rejects.toThrow("NOT_FOUND");
+    await expect(DetailPage({ params: Promise.resolve({ seasonSlug: "major", entryId: "known-id" }) })).rejects.toThrow("NOT_FOUND");
     expect(mocks.select).not.toHaveBeenCalled();
   });
   it("uses the approved predicate and candidate wording even above 32 teams", async () => {

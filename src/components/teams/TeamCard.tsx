@@ -2,19 +2,17 @@ import React from "react";
 import Link from "next/link";
 import { Panel, PosChip } from "@/components/rivalhub";
 import { TeamLogo } from "@/components/teams/TeamLogo";
-import { positionLabel } from "@/lib/validators/registration";
 import { formatStat } from "@/lib/stats";
 
 interface PlayerPreview {
   name: string;
-  primaryPosition: string;
   isStarter: boolean;
-  isCaptain: boolean;
+  isRepresentative: boolean;
   userId?: string | null;
 }
 
 interface TeamCardProps {
-  teamId: string;
+  entryId: string;
   teamName: string;
   seasonSlug: string;
   draftOrder: number | null;
@@ -47,7 +45,7 @@ function SummaryStat({ label, value }: { label: string; value: string | number }
 }
 
 export function TeamCard({
-  teamId,
+  entryId,
   teamName,
   seasonSlug,
   draftOrder,
@@ -58,12 +56,12 @@ export function TeamCard({
 }: TeamCardProps) {
   const starters = players.filter((p) => p.isStarter);
   const subs = players.filter((p) => !p.isStarter);
-  const captain = players.find((p) => p.isCaptain);
+  const representative = players.find((p) => p.isRepresentative);
   return (
     <Panel className="h-full hover:border-[var(--color-border-hi)] transition-colors">
       <div className="space-y-4">
         <div className="flex items-start justify-between gap-3">
-          <Link href={`/${seasonSlug}/teams/${teamId}`} className="group flex min-w-0 items-center gap-3">
+          <Link href={`/${seasonSlug}/teams/${entryId}`} className="group flex min-w-0 items-center gap-3">
             <TeamLogo logoUrl={logoUrl ?? null} teamName={teamName} />
             <div className="min-w-0">
               <span className="text-xs text-[var(--color-fg-mid)]">{draftOrder === null ? "Team registration" : `Draft #${draftOrder}`}</span>
@@ -87,7 +85,7 @@ export function TeamCard({
 
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--color-fg-mid)]">
           <span>
-            队长 <span className="font-medium text-[var(--color-fg)]">{captain?.name ?? "TBD"}</span>
+            代表人 <span className="font-medium text-[var(--color-fg)]">{representative?.name ?? "TBD"}</span>
           </span>
           <span>{starters.length} 首发</span>
           {subs.length > 0 && <span>{subs.length} 替补</span>}
@@ -103,7 +101,7 @@ export function TeamCard({
           {starters.map((p) => (
             <div key={p.name} className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
-                {p.isCaptain && <PosChip pos="C" small />}
+                {p.isRepresentative && <PosChip pos="R" small />}
                 {p.userId ? (
                   <Link href={`/players/${p.userId}`} className="text-sm text-[var(--color-fg)] hover:text-[var(--color-accent)] transition-colors truncate">
                     {p.name}
@@ -112,7 +110,6 @@ export function TeamCard({
                   <span className="text-sm text-[var(--color-fg)] truncate">{p.name}</span>
                 )}
               </div>
-              <PosChip pos={positionLabel(p.primaryPosition)} small />
             </div>
           ))}
         </div>
