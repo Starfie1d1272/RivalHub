@@ -21,6 +21,8 @@ RivalHub 是基于 Next.js App Router、TypeScript、Drizzle/PostgreSQL、Supaba
 
 ## Documentation changes
 
+`docs/rules/published/**` 是已发布的赛事治理事实。已有文件禁止修改、删除或重命名；后续规则变化新增 supplement 或独立版本，见 [`docs/rules/README.md`](docs/rules/README.md)。
+
 变更稳定 boundary、workflow、policy 或 shared UI contract 时，同 PR 更新其 canonical doc。**重写被影响段落的终态，不在旧说明后继续追加实施过程或“后来又……”的补丁。** 能从 code/config/Issue 直接得到的高频变化事实不复制进 active docs。
 
 ## Validation

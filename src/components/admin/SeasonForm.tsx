@@ -79,13 +79,13 @@ function lifecycleExplanation(phase: SeasonEditPhase): string {
     case "draft":
       return "所有赛事定义仍可调整。发布后 URL 标识、赛事体系和公开竞赛规则将锁定。";
     case "published_preopen":
-      return "公开赛事规则已锁定。仍可调整报名时间；实际开放报名后竞技上下文、ConversionPolicy 策略身份与冻结快照、实际开放时间冻结。";
+      return "公开赛事规则与跨平台换算规则版本已在发布时锁定。仍可调整报名时间；平台参考赛季、段位顺序与换算数据在实际开放报名时确定并锁定。";
     case "registration_opened":
-      return "竞技上下文、ConversionPolicy 策略身份与冻结快照、实际开放时间已冻结；报名截止与名单调整截止在比赛开始前仍可运营调整。";
+      return "本届平台参考赛季、段位顺序、换算数据与实际开放时间已锁定；报名截止与名单调整截止在比赛开始前仍可调整。";
     case "playing":
-      return "比赛已开始，公开规则和报名期配置已经冻结，只保留允许的 metadata。";
+      return "比赛已开始，公开规则和报名期配置已经冻结，仍可更新赛事名称、展示信息与结束时间。";
     case "terminal":
-      return "赛事已结束，公开规则和报名期配置已经冻结，只保留允许的 metadata。";
+      return "赛事已结束，公开规则和报名期配置已经冻结，仍可更新赛事名称、展示信息与结束时间。";
   }
 }
 
@@ -690,7 +690,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
             <TeamConfigForm view="team" value={teamConfig} maxTeamSize={maxTeamSize} competitivePlatforms={competitivePlatforms} disabled={!editCapabilities.canEditPublicRules} onChange={setTeamConfig} />
           </div>
         )}
-        {saveButton}
+        {editCapabilities.canEditPublicRules && saveButton}
       </SettingsPanel>
 
       <SettingsPanel id="qualification" label="资格规则">
@@ -742,7 +742,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
             <AffiliationRulesSummary rules={affiliationRules} />
           </div>
         )}
-        {saveButton}
+        {editCapabilities.canEditPublicRules && registrationMode === "solo" && !isBuiltIn && saveButton}
       </SettingsPanel>
 
       <SettingsPanel id="format" label="赛制与地图">
@@ -759,23 +759,18 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
             </div>
           )}
         </div>
-        {saveButton}
+        {editCapabilities.canEditPublicRules && saveButton}
       </SettingsPanel>
 
       <SettingsPanel id="competitive" label="竞技参考">
-        {template === "custom" && registrationMode === "team" && !initial?.registrationOpenedAt ? (
+        {template === "custom" && registrationMode === "team" && editCapabilities.canEditPublicRules ? (
           <>
-            {!editCapabilities.canEditPublicRules && (
-              <div className="mb-4">
-                <FrozenFact title="竞技参考：已发布后不可修改">实际开放报名时由 canonical lifecycle owner 冻结平台赛季、段位顺序与策略快照。</FrozenFact>
-              </div>
-            )}
-            <TeamConfigForm view="competitive" value={teamConfig} competitivePlatforms={competitivePlatforms} disabled={!editCapabilities.canEditPublicRules} onChange={setTeamConfig} />
+            <TeamConfigForm view="competitive" value={teamConfig} competitivePlatforms={competitivePlatforms} onChange={setTeamConfig} />
+            {saveButton}
           </>
         ) : (
-          <CompetitiveReferenceSummary config={teamConfig} platforms={competitivePlatforms} frozen={Boolean(initial?.registrationOpenedAt)} policyProvenance={initial?.conversionPolicyProvenance} />
+          <CompetitiveReferenceSummary config={teamConfig} platforms={competitivePlatforms} phase={editCapabilities.phase} policyProvenance={initial?.conversionPolicyProvenance} />
         )}
-        {saveButton}
       </SettingsPanel>
 
       <SettingsPanel id="features" label="功能">
@@ -787,7 +782,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
           </span>
         </label>
         {!editCapabilities.canEditPublicRules && <div className="mt-4"><FrozenFact title={`社区奖：${hasCommunityAwards ? "已启用" : "已关闭"}`}>社区奖是赛事公开 capability；发布后不能再改变，入口和服务端操作会继续消费这个事实。</FrozenFact></div>}
-        {saveButton}
+        {editCapabilities.canEditPublicRules && saveButton}
       </SettingsPanel>
 
       <SettingsPanel id="danger" label="危险操作">

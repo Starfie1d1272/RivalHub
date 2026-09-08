@@ -1,3 +1,4 @@
+import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
@@ -263,7 +264,7 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
     .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
     .innerJoin(competitionEntries, eq(eventRosters.entryId, competitionEntries.id))
     .innerJoin(seasons, eq(competitionEntries.competitionId, seasons.id))
-    .where(eq(eventRosterMembers.userId, userId));
+    .where(and(eq(eventRosterMembers.userId, userId), publicCompetitionEntryCondition()));
 
   const teamBySeasonId = new Map(teamMemberRows.map((r) => [r.seasonId, r]));
   const publicCompetitiveProfile = presentPublicCompetitiveProfile(competitiveCatalog, competitiveFacts);

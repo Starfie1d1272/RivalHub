@@ -1,6 +1,7 @@
+import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import { eq, asc } from "drizzle-orm";
+import { and, eq, asc } from "drizzle-orm";
 import { db } from "@/db/client";
 import { majorFinalResults, matches, competitionEntries } from "@/db/schema";
 import { loadBracketState, serializeBracket } from "@/lib/bracket";
@@ -40,7 +41,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
 
   const [allTeams, allMatches, finalResult, bracketState] = await Promise.all([
     db.query.competitionEntries.findMany({
-      where: eq(competitionEntries.competitionId, season.id),
+      where: and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryCondition()),
       orderBy: [asc(competitionEntries.formationOrder)],
     }),
     db.query.matches.findMany({

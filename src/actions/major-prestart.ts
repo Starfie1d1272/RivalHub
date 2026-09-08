@@ -34,7 +34,7 @@ const issueCategory = z.enum(["qualification", "administration"]);
 const rosterRepairInput = z.object({ seasonId: uuid, entrantId: uuid, userIds: z.array(uuid).min(1).max(16), reason: z.string().trim().min(1).max(1000) });
 const rosterExceptionInput = z.object({ seasonId: uuid, entrantId: uuid, reason: z.string().trim().min(1).max(1000) });
 const entrantSelectionInput = z.object({ seasonId: uuid, competitionEntryIds: z.array(uuid) });
-const tournamentSeedsInput = z.object({ seasonId: uuid, entryIds: z.array(uuid), overrideReason: z.string().trim().max(500).optional() });
+const tournamentSeedsInput = z.object({ seasonId: uuid, entryIds: z.array(uuid) });
 
 
 function standardMajorOrThrow(season: typeof seasons.$inferSelect): void {
@@ -221,18 +221,16 @@ export async function lockMajorPrestartEntrants(input: { seasonId: string }): Pr
   } catch (error) { return actionError("lockMajorPrestartEntrants", error); }
 }
 
-export async function saveMajorTournamentSeeds(input: { seasonId: string; entryIds: string[]; overrideReason?: string }): Promise<ActionResult<void>> {
+export async function saveMajorTournamentSeeds(input: { seasonId: string; entryIds: string[] }): Promise<ActionResult<void>> {
   const parsed = tournamentSeedsInput.safeParse(input);
-  if (!parsed.success) return failValidation("赛事种子或人工调整说明无效。 ");
+  if (!parsed.success) return failValidation("赛事种子无效。 ");
   if (new Set(parsed.data.entryIds).size !== parsed.data.entryIds.length) return failValidation("赛事种子不能包含重复队伍。 ");
   try {
     const { season, admin } = await seasonAndAdminOrThrow(parsed.data.seasonId);
     await db.transaction(async (tx) => {
-      const overrideReason = parsed.data.overrideReason?.trim() || null;
       await saveMajorTournamentSeedsInTx(tx, {
         seasonId: season.id,
         entryIds: parsed.data.entryIds,
-        overrideReason,
         actorId: auditActorId(admin),
       });
     });

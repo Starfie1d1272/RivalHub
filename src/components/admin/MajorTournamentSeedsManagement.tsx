@@ -4,7 +4,6 @@ import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { confirmMajorTournamentSeeds, saveMajorTournamentSeeds } from "@/actions/major-prestart";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { isBuiltInStarRank } from "@/lib/competitive/builtins";
 import { presentCompetitiveRankSummary } from "@/lib/competitive/presentation";
 import { formatCST } from "@/lib/utils/date";
@@ -95,15 +94,13 @@ export function MajorTournamentSeedsManagement({ data }: { data: MajorTournament
       ? recommendationOrder
       : data.entrants.map((entrant) => entrant.teamId);
   const initialOrderKey = initialOrder.join(",");
-  const initialStateKey = `${initialOrderKey}\u0000${data.overrideReason ?? ""}`;
+  const initialStateKey = initialOrderKey;
   const [seedStateKey, setSeedStateKey] = useState(initialStateKey);
   const [order, setOrder] = useState<string[]>(initialOrder);
-  const [overrideReason, setOverrideReason] = useState(data.overrideReason ?? "");
 
   if (seedStateKey !== initialStateKey) {
     setSeedStateKey(initialStateKey);
     setOrder(initialOrderKey ? initialOrderKey.split(",") : []);
-    setOverrideReason(data.overrideReason ?? "");
   }
 
   const teamById = useMemo(() => new Map(data.entrants.map((entrant) => [entrant.teamId, entrant])), [data.entrants]);
@@ -131,7 +128,6 @@ export function MajorTournamentSeedsManagement({ data }: { data: MajorTournament
     const result = await saveMajorTournamentSeeds({
       seasonId: data.seasonId,
       entryIds: order,
-      overrideReason: overrideReason.trim() || undefined,
     });
     if (!result.success) toast.error(result.error.message);
     else toast.success("最终种子已保存，需重新确认");
@@ -176,7 +172,6 @@ export function MajorTournamentSeedsManagement({ data }: { data: MajorTournament
           <ol className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{order.map((teamId, index) => <li key={teamId} className="flex items-center gap-2 border border-[var(--color-border)] px-2 py-1.5 text-sm"><span className="w-8 font-mono text-[var(--color-fg-mid)]">#{index + 1}</span><span className="min-w-0 flex-1 truncate">{teamById.get(teamId)?.teamName ?? teamId}</span><div className="flex gap-1"><Button type="button" size="sm" variant="ghost" disabled={isPending || index === 0} onClick={() => move(index, -1)}>↑</Button><Button type="button" size="sm" variant="ghost" disabled={isPending || index === order.length - 1} onClick={() => move(index, 1)}>↓</Button></div></li>)}</ol>
         </section>
 
-        <label className="block space-y-2 text-sm"><span className="font-medium text-[var(--color-fg)]">人工调整原因（偏离系统建议时必填；系统并列内部顺序可选填）</span><Textarea value={overrideReason} maxLength={500} onChange={(event) => setOverrideReason(event.target.value)} placeholder="例如：组内并列，依据赛委会人工复核顺序确定。" disabled={isPending} /><span className="text-xs text-[var(--color-fg-mid)]">保存后会记录本次调整原因，不会改变系统参考。</span></label>
 
         {data.seeds.length === capacity ? <div className="grid gap-3 lg:grid-cols-3">
           <SeedCohort label="Stage 3 · #1–8" seeds={data.seeds.filter((seed) => seed.tournamentSeed <= 8)} teams={teamById} />

@@ -1,3 +1,4 @@
+import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import Link from "next/link";
 import { and, eq, inArray, or } from "drizzle-orm";
 import { notFound } from "next/navigation";
@@ -13,20 +14,20 @@ export default async function CompetitionEntryDetailPage({ params }: { params: P
   const { seasonSlug, teamId: entryId } = await params;
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
-  const entry = await db.query.competitionEntries.findFirst({ where: and(eq(competitionEntries.id, entryId), eq(competitionEntries.competitionId, season.id)) });
+  const entry = await db.query.competitionEntries.findFirst({ where: and(eq(competitionEntries.id, entryId), eq(competitionEntries.competitionId, season.id), publicCompetitionEntryCondition()) });
   if (!entry) notFound();
   const [roster, entryMatches] = await Promise.all([
     db.select({ userId: users.id, steamName: users.steamName, perfectName: users.perfectName, displayName: users.displayName, primaryPosition: seasonRegistrations.primaryPosition, isStarter: eventRosterMembers.isPrimaryStarter, rosterStatus: eventRosters.status }).from(eventRosterMembers).innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId)).innerJoin(users, eq(users.id, eventRosterMembers.userId)).leftJoin(seasonRegistrations, and(eq(seasonRegistrations.userId, users.id), eq(seasonRegistrations.seasonId, season.id))).where(eq(eventRosters.entryId, entry.id)),
     db.query.matches.findMany({ where: and(eq(matches.seasonId, season.id), or(eq(matches.entryAId, entry.id), eq(matches.entryBId, entry.id))) }),
   ]);
   const opponentIds = [...new Set(entryMatches.map((match) => match.entryAId === entry.id ? match.entryBId : match.entryAId))];
-  const opponents = opponentIds.length ? await db.query.competitionEntries.findMany({ where: inArray(competitionEntries.id, opponentIds) }) : [];
+  const opponents = opponentIds.length ? await db.query.competitionEntries.findMany({ where: and(inArray(competitionEntries.id, opponentIds), publicCompetitionEntryCondition()) }) : [];
   const names = new Map(opponents.map((opponent) => [opponent.id, opponent.name]));
   let wins = 0; let losses = 0;
   for (const match of entryMatches.filter((row) => row.status === "finished")) { const own = match.entryAId === entry.id ? match.scoreA : match.scoreB; const other = match.entryAId === entry.id ? match.scoreB : match.scoreA; if ((own ?? 0) > (other ?? 0)) wins += 1; else losses += 1; }
   return <PageLayout as="div" variant="standard" className="space-y-8">
     <PageHeader title={entry.name} eyebrow={season.name} actions={<Link href={`/${seasonSlug}/teams`} className="text-sm text-[var(--color-fg-secondary)] hover:text-[var(--color-fg-primary)]">返回赛事队伍</Link>} />
-    <StatusBanner tone={entry.registrationStatus === "approved" ? "success" : "info"} title={`报名状态：${presentCompetitionEntryRegistration(entry.registrationStatus).label}`} sub={entry.teamId ? "赛事期间会保留当时的队名和图标。" : "这是为本届赛事组成的队伍。"} />
+    <StatusBanner tone={entry.registrationStatus === "approved" ? "success" : "info"} title={`报名状态：${presentCompetitionEntryRegistration(entry.registrationStatus).label}`} sub={entry.teamId ? (season.status === "registration" ? "已通过报名审核 · 正式正赛名额待确认" : "赛事期间会保留当时的队名和图标。") : "这是为本届赛事组成的队伍。"} />
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4"><Stat label="PLAYED" value={wins + losses} /><Stat label="WINS" value={wins} /><Stat label="LOSSES" value={losses} /><Stat label="ROSTER" value={roster.length} accent /></div>
       <Panel label="参赛名单" contentClassName="p-5"><div className="divide-y divide-[var(--color-border)]">{roster.length ? roster.map((member) => <div key={member.userId} className="flex items-center justify-between py-3"><div className="flex items-center gap-2">{member.isStarter && <PosChip pos="S" small />}<Link href={`/players/${member.userId}`} className="font-medium hover:text-[var(--color-accent)]">{getPublicDisplayName(member)}</Link>{member.userId === entry.representativeUserId && <PosChip pos="R" small />}</div><span className="text-xs text-[var(--color-fg-mid)]">{member.primaryPosition ?? "—"} · {member.rosterStatus === "frozen" ? "名单已确认" : "名单准备中"}</span></div>) : <p className="text-sm text-[var(--color-fg-mid)]">名单尚未确认。</p>}</div></Panel>
     <Panel label="比赛" contentClassName="p-5"><div className="space-y-2">{entryMatches.length ? entryMatches.map((match) => { const opponentId = match.entryAId === entry.id ? match.entryBId : match.entryAId; return <Link key={match.id} href={`/${seasonSlug}/matches/${match.id}`} className="flex justify-between border border-[var(--color-border)] p-3 text-sm hover:bg-[var(--color-panel-hi)]"><span>对阵 {names.get(opponentId) ?? "待定"}</span><span>{presentMatchStatus(match.status, { isForfeit: match.isForfeit, scheduledAt: match.scheduledAt }).label}{match.scoreA !== null && match.scoreB !== null ? ` · ${match.scoreA}:${match.scoreB}` : ""}</span></Link>; }) : <p className="text-sm text-[var(--color-fg-mid)]">暂无比赛。</p>}</div></Panel>

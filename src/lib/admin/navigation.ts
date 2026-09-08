@@ -68,3 +68,10 @@ export function getAdminNavigation(role: AdminRole): AdminNavGroup[] {
       items: group.items,
     }));
 }
+
+/** Select the single most specific visible navigation destination. */
+export function getActiveAdminNavigationHref(pathname: string, groups: readonly AdminNavGroup[]): string | null {
+  return groups.flatMap((group) => group.items)
+    .filter(({ href }) => pathname === href || (href !== "/admin" && pathname.startsWith(`${href}/`)))
+    .sort((a, b) => b.href.length - a.href.length)[0]?.href ?? null;
+}

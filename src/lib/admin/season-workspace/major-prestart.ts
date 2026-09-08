@@ -134,8 +134,7 @@ export function buildMajorReadiness(
   seedRows: readonly MajorSeedRow[],
   options: {
     seedRecommendation: { status: "missing" | "ready" | "mismatch" };
-    seedOverride: { required: boolean; reason: string | null };
-  } = { seedRecommendation: { status: "missing" }, seedOverride: { required: false, reason: null } },
+  } = { seedRecommendation: { status: "missing" } },
 ): MajorPrestartReadiness {
   const entrantIds = new Set(entrants.map((entrant) => entrant.id));
   const rosterByEntrant = new Map<string, MajorRosterMemberRow[]>();
@@ -164,7 +163,6 @@ export function buildMajorReadiness(
     tournamentSeeds: seedRows,
     seedConfirmation: state ? { confirmed: state.seedsConfirmedAt !== null && state.seedsConfirmedBy !== null } : null,
     seedRecommendation: options.seedRecommendation,
-    seedOverride: options.seedOverride,
   });
 }
 
@@ -254,7 +252,6 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
     : null;
   const readiness = buildMajorReadiness(season, state, entrantRows, rosterRows, issueRows, seedRows, {
     seedRecommendation: { status: recommendationStatus },
-    seedOverride: { required: seedDecision?.divergesFromRecommendation ?? false, reason: state?.seedOverrideReason ?? null },
   });
   const entrantIds = new Set(entrantRows.map((entrant) => entrant.id));
   const selectedEntryIds = new Set(entrantRows.map((entrant) => entrant.teamId));
@@ -308,7 +305,6 @@ export async function loadMajorPrestartPageData(season: Season): Promise<MajorPr
       entrants: entrantRows.map((entrant) => ({ teamId: entrant.teamId, teamName: entrant.teamName ?? entrant.teamId })),
       seeds: seedRows,
       seedsConfirmed: Boolean(state?.seedsConfirmedAt && state.seedsConfirmedBy),
-      overrideReason: state?.seedOverrideReason ?? null,
       recommendationStatus,
       recommendation: projectRecommendationSnapshot(snapshot, recommendationStatus, seedDecision),
       firstRound: readiness.openingPlan?.firstRound.pairings.map((pairing) => ({

@@ -20,7 +20,6 @@ import {
 } from "@/db/schema";
 import type { Season } from "@/db/schema/seasons";
 import { buildMajorReadiness } from "./major-prestart";
-import { analyzeFinalSeedOrder } from "@/lib/major/team-seed-recommendation";
 import { buildFrozenSetFingerprint, frozenTeamsForSnapshot, getSeedRecommendationSnapshotStatus } from "@/lib/major/seed-recommendation-snapshot";
 import { projectRegistrationSummary, selectSeasonWorkspaceNextAction } from "./selectors";
 import type { SeasonWorkspaceOverviewData, SeasonWorkspaceOverviewSummary } from "./types";
@@ -32,7 +31,6 @@ type MajorOverviewFacts = {
   seedRows: Array<{ teamId: string; tournamentSeed: number }>;
   state: typeof majorPrestartStates.$inferSelect | undefined;
   seedRecommendation: { status: "missing" | "ready" | "mismatch" };
-  seedOverride: { required: boolean; reason: string | null };
   finalResultStatus: "pending_confirmation" | "confirmed" | null;
 };
 
@@ -83,9 +81,6 @@ async function loadMajorOverviewFacts(season: Season): Promise<MajorOverviewFact
   const frozenTeams = frozenTeamsForSnapshot(entrants, rosterRows);
   const frozenSetFingerprint = buildFrozenSetFingerprint(season.id, frozenTeams);
   const recommendationStatus = getSeedRecommendationSnapshotStatus({ snapshot, seasonId: season.id, frozenSetFingerprint });
-  const seedDecision = recommendationStatus === "ready" && snapshot
-    ? analyzeFinalSeedOrder(seedRows.map((seed) => seed.teamId), snapshot.recommendations)
-    : null;
   return {
     state,
     entrants,
@@ -93,7 +88,6 @@ async function loadMajorOverviewFacts(season: Season): Promise<MajorOverviewFact
     issueRows,
     seedRows,
     seedRecommendation: { status: recommendationStatus },
-    seedOverride: { required: seedDecision?.divergesFromRecommendation ?? false, reason: state?.seedOverrideReason ?? null },
     finalResultStatus: finalResult?.status ?? null,
   };
 }
@@ -146,7 +140,6 @@ export async function loadSeasonWorkspaceOverview(seasonSlug: string): Promise<S
   const readiness = majorFacts
     ? buildMajorReadiness(season, majorFacts.state, majorFacts.entrants, majorFacts.rosterRows, majorFacts.issueRows, majorFacts.seedRows, {
       seedRecommendation: majorFacts.seedRecommendation,
-      seedOverride: majorFacts.seedOverride,
     })
     : null;
 

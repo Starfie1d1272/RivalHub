@@ -1,3 +1,4 @@
+import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import { Suspense } from "react";
 import { and, asc, desc, eq, or, sql } from "drizzle-orm";
 import { notFound, redirect } from "next/navigation";
@@ -36,7 +37,7 @@ async function TeamProfileContent({ params }: { params: Promise<{ slug: string }
     db.select({ id: teamMemberships.id, userId: users.id, name: publicName, status: teamMemberships.status, startedAt: teamMemberships.startedAt, endedAt: teamMemberships.endedAt }).from(teamMemberships).innerJoin(users, eq(users.id, teamMemberships.userId)).where(eq(teamMemberships.teamId, team!.id)).orderBy(asc(teamMemberships.startedAt)),
     db.select().from(teamNameChanges).where(eq(teamNameChanges.teamId, team!.id)).orderBy(asc(teamNameChanges.changedAt)),
     db.select({ id: teamCaptainChanges.id, name: publicName, changedAt: teamCaptainChanges.changedAt }).from(teamCaptainChanges).innerJoin(users, eq(users.id, teamCaptainChanges.toUserId)).where(eq(teamCaptainChanges.teamId, team!.id)).orderBy(asc(teamCaptainChanges.changedAt)),
-    db.select({ id: competitionEntries.id, name: competitionEntries.name, status: competitionEntries.registrationStatus, seasonName: seasons.name, seasonSlug: seasons.slug, createdAt: competitionEntries.createdAt }).from(competitionEntries).innerJoin(seasons, eq(seasons.id, competitionEntries.competitionId)).where(eq(competitionEntries.teamId, team!.id)).orderBy(desc(competitionEntries.createdAt)),
+    db.select({ id: competitionEntries.id, name: competitionEntries.name, status: competitionEntries.registrationStatus, seasonName: seasons.name, seasonSlug: seasons.slug, createdAt: competitionEntries.createdAt }).from(competitionEntries).innerJoin(seasons, eq(seasons.id, competitionEntries.competitionId)).where(and(eq(competitionEntries.teamId, team!.id), publicCompetitionEntryCondition())).orderBy(desc(competitionEntries.createdAt)),
     getPublicTeamRecruitment(team.id),
   ]);
   const entryIds = entries.map((entry) => entry.id);

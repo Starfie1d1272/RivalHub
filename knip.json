@@ -30,6 +30,7 @@
     "eslint.config.mjs!",
     "scripts/ci/plan.mjs!",
     "scripts/ci/gate.mjs!",
+    "scripts/ci/check-published-rules.mjs!",
     "scripts/ci/validate-pr-title.mjs!",
     "scripts/db/block-drizzle-push.ts!",
     "scripts/db/local.ts!",

@@ -1,3 +1,4 @@
+import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import { notFound } from "next/navigation";
 import { eq, and, asc, or, sql } from "drizzle-orm";
 import Link from "next/link";
@@ -75,7 +76,7 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
     .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
     .innerJoin(competitionEntries, eq(eventRosters.entryId, competitionEntries.id))
     .leftJoin(seasonRegistrations, and(eq(seasonRegistrations.userId, eventRosterMembers.userId), eq(seasonRegistrations.seasonId, season.id)))
-    .where(eq(competitionEntries.competitionId, season.id));
+    .where(and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryCondition()));
 
   const teamByRegId = new Map(teamMemberRows.flatMap((row) => row.registrationId ? [[row.registrationId, row.teamName] as const] : []));
 
