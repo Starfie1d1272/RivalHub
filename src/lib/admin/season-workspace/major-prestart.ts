@@ -39,6 +39,7 @@ import {
 import type { CompetitiveProfileConfig } from "@/types/season";
 import type { Season } from "@/db/schema/seasons";
 import type { MajorPrestartPageData, MajorPrestartStrengthPreview } from "./types";
+import { projectStrengthTeam } from "./strength";
 
 type MajorEntrantRow = {
   id: string;
@@ -68,63 +69,6 @@ type MajorIssueRow = {
 
 type MajorSeedRow = { teamId: string; tournamentSeed: number };
 
-type ProjectableStrengthFact = {
-  rank: string;
-  stars?: number | null;
-  sourcePlatform?: string | null;
-  sourceSeasonKey?: string | null;
-  sourceRank?: string | null;
-  sourceStars?: number | null;
-  conversionVersion?: string | null;
-};
-
-function projectRecommendationFact(fact: ProjectableStrengthFact | null) {
-  return fact ? {
-    rank: fact.rank,
-    stars: fact.stars ?? null,
-    sourcePlatform: fact.sourcePlatform ?? null,
-    sourceSeasonKey: fact.sourceSeasonKey ?? null,
-    sourceRank: fact.sourceRank ?? null,
-    sourceStars: fact.sourceStars ?? null,
-    conversionVersion: fact.conversionVersion ?? null,
-  } : null;
-}
-
-function projectLiveStrengthRecommendation(
-  recommendation: TeamSeedRecommendation,
-): MajorPrestartStrengthPreview["teams"][number] {
-  return {
-    teamId: recommendation.teamId,
-    teamName: recommendation.teamName,
-    available: recommendation.available,
-    blockers: recommendation.blockers,
-    teamSeedStrength: recommendation.teamSeedStrength,
-    teamSeedStrengthScaled: recommendation.teamSeedStrengthScaled,
-    recommendationRank: recommendation.recommendationRank,
-    tieGroup: recommendation.tieGroup,
-    displayOrder: recommendation.displayOrder,
-    starters: recommendation.starters.map((starter) => ({
-      userId: starter.userId,
-      label: starter.label,
-      historicalPeak: projectRecommendationFact(starter.input.historicalPeak),
-      previousSeasonPeak: projectRecommendationFact(starter.input.previousSeasonPeak),
-      currentSeasonPeak: projectRecommendationFact(starter.input.currentSeasonPeak),
-      recentSeasonPeaks: (starter.input.recentSeasonPeaks ?? []).map(projectRecommendationFact),
-      effectiveRecentPeak: projectRecommendationFact(starter.breakdown.effectiveRecentPeak),
-      breakdown: {
-        available: starter.breakdown.available,
-        blockers: starter.breakdown.blockers,
-        weightedRank: starter.breakdown.weightedRank,
-        historicalValue: starter.breakdown.historicalValue,
-        previousValue: starter.breakdown.previousValue,
-        currentValue: starter.breakdown.currentValue,
-        effectiveRecentPeak: projectRecommendationFact(starter.breakdown.effectiveRecentPeak),
-        historicalRating: starter.breakdown.historicalRating,
-      },
-    })),
-  };
-}
-
 function projectLiveStrengthPreview(
   recommendations: readonly TeamSeedRecommendation[],
   context: CompetitiveProfileConfig,
@@ -135,7 +79,7 @@ function projectLiveStrengthPreview(
     conversionPolicyId: context.conversionPolicyId ?? null,
     conversionPolicyVersion: context.conversionPolicyVersion ?? null,
     blockers: [],
-    teams: recommendations.map(projectLiveStrengthRecommendation),
+    teams: recommendations.map(projectStrengthTeam),
   };
 }
 
@@ -157,8 +101,18 @@ function projectRecommendationSnapshot(
       .sort((left, right) => left.displayOrder! - right.displayOrder!)
       .map((recommendation) => ({
         entrantId: recommendation.entrantId,
-        teamId: recommendation.competitionEntryId,
-        teamName: recommendation.teamName,
+        ...projectStrengthTeam({
+          teamId: recommendation.competitionEntryId,
+          teamName: recommendation.teamName,
+          available: true,
+          blockers: [],
+          teamSeedStrength: recommendation.teamSeedStrength!,
+          teamSeedStrengthScaled: recommendation.teamSeedStrengthScaled!,
+          recommendationRank: recommendation.recommendationRank!,
+          tieGroup: recommendation.tieGroup!,
+          displayOrder: recommendation.displayOrder!,
+          starters: recommendation.starters,
+        }),
         teamSeedStrength: recommendation.teamSeedStrength!,
         teamSeedStrengthScaled: recommendation.teamSeedStrengthScaled!,
         recommendationRank: recommendation.recommendationRank!,
@@ -166,23 +120,6 @@ function projectRecommendationSnapshot(
         displayOrder: recommendation.displayOrder!,
         finalSeed: seedDecision?.finalSeedByTeamId[recommendation.competitionEntryId] ?? null,
         finalOrderStatus: seedDecision?.rowStatusByTeamId[recommendation.competitionEntryId] ?? "unsaved",
-        starters: recommendation.starters.map((starter) => ({
-          userId: starter.userId,
-          label: starter.label,
-          historicalPeak: projectRecommendationFact(starter.input.historicalPeak),
-          previousSeasonPeak: projectRecommendationFact(starter.input.previousSeasonPeak),
-          currentSeasonPeak: projectRecommendationFact(starter.input.currentSeasonPeak),
-          recentSeasonPeaks: starter.input.recentSeasonPeaks.map(projectRecommendationFact),
-          effectiveRecentPeak: projectRecommendationFact(starter.breakdown.effectiveRecentPeak),
-          breakdown: {
-            weightedRank: starter.breakdown.weightedRank!,
-            historicalValue: starter.breakdown.historicalValue!,
-            previousValue: starter.breakdown.previousValue!,
-            currentValue: starter.breakdown.currentValue!,
-            effectiveRecentPeak: projectRecommendationFact(starter.breakdown.effectiveRecentPeak),
-            historicalRating: starter.breakdown.historicalRating,
-          },
-        })),
       })),
   };
 }
