@@ -13,37 +13,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Marker, Panel } from "@/components/rivalhub";
+import { MajorStrengthStarterSummary, sourceLabel } from "@/components/admin/MajorStrengthStarterSummary";
+import type { MajorPrestartPageData, MajorPrestartStrengthPreview } from "@/lib/admin/season-workspace/types";
 import { formatCSTDate } from "@/lib/utils/date";
 import type { ActionResult } from "@/types/action";
 
-export interface MajorPrestartManagementData {
-  seasonId: string;
-  entrantCapacity: number;
-  entrantsLocked: boolean;
-  approvedCandidates: Array<{
-    id: string;
-    name: string;
-    representativeName: string;
-    submittedAt: string | null;
-    reviewedAt: string | null;
-    approvedAt: string | null;
-    qualificationStatus: "approved";
-    selectedAsEntrant: boolean;
-    roster: {
-      memberCount: number;
-      primaryStarterCount: number;
-      members: Array<{ userId: string; email: string; isPrimaryStarter: boolean }>;
-    };
-  }>;
-  entrants: Array<{
-    id: string;
-    teamId: string;
-    teamName: string;
-    rosterStatus: "preparing" | "confirmed" | "frozen";
-    roster: Array<{ userId: string; email: string; isPrimaryStarter: boolean; educationVerified: boolean }>;
-  }>;
-  issues: Array<{ id: string; category: "qualification" | "administration"; label: string; resolved: boolean }>;
-}
+export type MajorPrestartManagementData = MajorPrestartPageData["management"];
 
 async function showResult(work: () => Promise<ActionResult<void>>, success: string): Promise<void> {
   const result = await work();
@@ -63,6 +38,65 @@ function rosterStatusLabel(status: MajorPrestartManagementData["entrants"][numbe
   if (status === "frozen") return "名单已冻结";
   if (status === "confirmed") return "名单已确认";
   return "等待名单确认";
+}
+
+function StrengthPreview({ preview }: { preview: MajorPrestartStrengthPreview }) {
+  return (
+    <section className="mt-6 border-t border-[var(--color-border)] pt-5" aria-labelledby="major-live-strength-preview">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h3 id="major-live-strength-preview" className="font-medium text-[var(--color-fg)]">实时队伍实力参考</h3>
+          <p className="mt-1 text-xs text-[var(--color-fg-mid)]">
+            候选期只读辅助参考 · 使用已批准名单中的 5 名预定主力 · 当前{sourceLabel(preview.platform)}资料
+          </p>
+        </div>
+        <span className="text-xs text-[var(--color-fg-mid)]">不自动选择正式参赛队，不改变资格结论</span>
+      </div>
+      {preview.status !== "ready" && <div className="mt-3 border border-[var(--color-warn)] px-3 py-2 text-sm text-[var(--color-warn)]">
+        {preview.blockers.map((blocker) => <p key={blocker}>{blocker}</p>)}
+      </div>}
+      {preview.status === "ready" && (preview.teams.length === 0 ? <p className="mt-3 text-sm text-[var(--color-fg-mid)]">当前没有可比较的已批准候选队伍。</p> : <div className="mt-3 overflow-x-auto border border-[var(--color-border)]">
+        <table className="min-w-[980px] w-full text-left text-xs">
+          <thead className="bg-[var(--color-panel-low)] text-[var(--color-fg-mid)]">
+            <tr>
+              <th className="px-3 py-2">系统参考</th>
+              <th className="px-3 py-2">队伍参考实力</th>
+              <th className="px-3 py-2">5 名预定主力与证据</th>
+              <th className="px-3 py-2">资料状态</th>
+            </tr>
+          </thead>
+          <tbody>
+            {preview.teams.map((team) => (
+              <tr key={team.teamId} className="border-t border-[var(--color-border)] align-top">
+                <td className="w-44 px-3 py-3">
+                  <p className="font-medium text-[var(--color-fg)]">
+                    {team.recommendationRank === null ? "—" : `#${team.recommendationRank}`} · {team.teamName}
+                  </p>
+                  <p className="mt-1 text-[var(--color-fg-mid)]">
+                    {team.tieGroup === null ? "未进入参考排序" : `并列组 ${team.tieGroup}`}
+                  </p>
+                </td>
+                <td className="w-32 px-3 py-3 font-mono text-[var(--color-fg)]">
+                  {team.teamSeedStrength === null ? "无法计算" : team.teamSeedStrength.toFixed(2)}
+                </td>
+                <td className="px-3 py-3">
+                  {team.starters.length > 0 ? <div className="grid gap-2 md:grid-cols-5">
+                    {team.starters.map((starter) => <MajorStrengthStarterSummary key={starter.userId} starter={starter} platform={preview.platform} showProvenance />)}
+                  </div> : <span className="text-[var(--color-fg-mid)]">主力资料暂不可用</span>}
+                </td>
+                <td className="w-72 px-3 py-3">
+                  {team.available ? <span className="text-[var(--color-ok)]">可计算 · 仅供辅助比较</span> : <div className="text-[var(--color-warn)]">
+                    <p>无法计算，不按 0 参与排序</p>
+                    <ul className="mt-1 list-disc pl-4">{team.blockers.map((blocker) => <li key={blocker}>{blocker}</li>)}</ul>
+                  </div>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>)}
+    </section>
+  );
 }
 
 function ApprovedCandidate({
@@ -181,6 +215,7 @@ export function MajorPrestartManagement({ data }: { data: MajorPrestartManagemen
         {data.approvedCandidates.length === 0 ? <p className="text-sm text-[var(--color-fg-mid)]">尚无已通过审核的报名队伍；完成报名审核后，队伍会自动出现在候选池。</p> : <div className="grid gap-3 md:grid-cols-2">
           {data.approvedCandidates.map((candidate) => <ApprovedCandidate key={candidate.id} candidate={candidate} checked={selectedIds.has(candidate.id)} disabled={locked || isPending} onToggle={() => toggleSelection(candidate.id)} />)}
         </div>}
+        <StrengthPreview preview={data.strengthPreview} />
       </Panel>
 
       <Panel label={`正式参赛名单 (${data.entrants.length}/${entrantCapacity})`}>

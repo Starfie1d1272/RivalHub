@@ -99,6 +99,8 @@ approved Entry candidate pool
 
 系统种子建议与最终人工 seed 分离：freeze 时从同一批 frozen primary starters 和竞技上下文生成不可变 snapshot；管理员随后确认最终顺序。查看不同排序、人工调序或之后全局资料变化都不重写 snapshot。启动只消费并校验已存在的赛前事实，不在 `startMajor` 临时生成第一份建议。
 
+在最终 entrant set 尚未冻结的候选阶段，管理员可以看到基于每支 approved roster revision 的 5 名预定主力和当前可用竞技事实生成的 live strength preview。它是只读、非权威的辅助 read model：不自动选择正式参赛队、不改变 qualification，也不创建或改写 `SeedRecommendationSnapshot`。正式参赛队与 EventRoster 统一冻结后，系统才生成并保留 immutable seed snapshot。
+
 ## Stage runtime
 
 Major 每个阶段由 managed StageRun 拥有：
