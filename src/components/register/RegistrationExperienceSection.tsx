@@ -4,6 +4,7 @@ import type { RegistrationInput } from "@/lib/validators/registration";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { COMPETITION_HISTORY_MAX_LENGTH, GAMEPLAY_STYLE_MAX_LENGTH } from "@/lib/player-declared-profile";
 import { RegistrationSectionTitle } from "./RegistrationSectionTitle";
 
 interface RegistrationExperienceSectionProps {
@@ -30,14 +31,14 @@ export function RegistrationExperienceSection({
           <Textarea
             id="gameplayStyle"
             rows={3}
-            placeholder="简要描述你的游戏风格、擅长打法等（100 字以内）"
+            placeholder={`简要描述你的游戏风格、擅长打法等（${GAMEPLAY_STYLE_MAX_LENGTH} 字以内）`}
             className={`${inputClassName} resize-none`}
             {...register("gameplayStyle")}
           />
           <div className="flex justify-between mt-1">
             {renderError("gameplayStyle")}
             <span className="text-xs text-[var(--color-fg-dim)] ml-auto">
-              {watch("gameplayStyle")?.length ?? 0}/100
+              {watch("gameplayStyle")?.length ?? 0}/{GAMEPLAY_STYLE_MAX_LENGTH}
             </span>
           </div>
         </div>
@@ -56,7 +57,7 @@ export function RegistrationExperienceSection({
           <div className="flex justify-between mt-1">
             {renderError("competitionHistory")}
             <span className="text-xs text-[var(--color-fg-dim)] ml-auto">
-              {watch("competitionHistory")?.length ?? 0}/500
+              {watch("competitionHistory")?.length ?? 0}/{COMPETITION_HISTORY_MAX_LENGTH}
             </span>
           </div>
         </div>

@@ -145,4 +145,29 @@ describe("updateProfile Perfect identity boundary", () => {
       competitionHistory: null,
     }));
   });
+
+  it("does not overwrite long-lived player-declared profile fields when omitted", async () => {
+    await updateProfile({
+      ...validInput,
+      gameplayStyle: undefined,
+      competitionHistory: undefined,
+    });
+
+    const payload = updateMock.mock.results[0]?.value.set.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(Object.hasOwn(payload, "gameplayStyle")).toBe(false);
+    expect(Object.hasOwn(payload, "competitionHistory")).toBe(false);
+  });
+
+  it("treats explicit null long-lived player-declared profile fields as clears", async () => {
+    await updateProfile({
+      ...validInput,
+      gameplayStyle: null,
+      competitionHistory: null,
+    });
+
+    expect(updateMock.mock.results[0]?.value.set).toHaveBeenCalledWith(expect.objectContaining({
+      gameplayStyle: null,
+      competitionHistory: null,
+    }));
+  });
 });

@@ -68,8 +68,8 @@ export interface ProfileInput {
   steamProfileUrl: string;
   qq: string;
   liveStreamUrl?: string;
-  gameplayStyle?: string;
-  competitionHistory?: string;
+  gameplayStyle?: string | null;
+  competitionHistory?: string | null;
 }
 
 /** 更新个人信息（跨赛季字段） */
@@ -111,6 +111,10 @@ export async function updateProfile(
     return failValidation(declaredProfile.error.issues[0]?.message ?? "选手自述格式不正确");
   }
   const normalizedDeclaredProfile = normalizePlayerDeclaredProfile(declaredProfile.data);
+  const declaredProfileUpdate = {
+    ...(input.gameplayStyle !== undefined ? { gameplayStyle: normalizedDeclaredProfile.gameplayStyle } : {}),
+    ...(input.competitionHistory !== undefined ? { competitionHistory: normalizedDeclaredProfile.competitionHistory } : {}),
+  };
 
   try {
     const session = await requireAuth();
@@ -125,8 +129,7 @@ export async function updateProfile(
         steamProfileUrl,
         qq: qq || null,
         liveStreamUrl: liveStreamUrl || null,
-        gameplayStyle: normalizedDeclaredProfile.gameplayStyle,
-        competitionHistory: normalizedDeclaredProfile.competitionHistory,
+        ...declaredProfileUpdate,
         updatedAt: new Date(),
       })
       .where(eq(users.id, session.userId));

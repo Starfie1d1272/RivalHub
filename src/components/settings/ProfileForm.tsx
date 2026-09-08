@@ -7,6 +7,7 @@ import { Field } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { COMPETITION_HISTORY_MAX_LENGTH, GAMEPLAY_STYLE_MAX_LENGTH } from "@/lib/player-declared-profile";
 
 interface ProfileFormProps {
   current: {
@@ -77,12 +78,12 @@ export function ProfileForm({ current }: ProfileFormProps) {
           <Textarea
             id="gameplay-style"
             rows={3}
-            maxLength={100}
+            maxLength={GAMEPLAY_STYLE_MAX_LENGTH}
             value={form.gameplayStyle ?? ""}
             onChange={(event) => set("gameplayStyle")(event.target.value)}
-            placeholder="简要描述当前打法、擅长位置或配合方式（100 字以内）"
+            placeholder={`简要描述当前打法、擅长位置或配合方式（${GAMEPLAY_STYLE_MAX_LENGTH} 字以内）`}
           />
-          <p className="mt-1 text-right text-xs text-[var(--color-fg-dim)]">{form.gameplayStyle?.length ?? 0}/100</p>
+          <p className="mt-1 text-right text-xs text-[var(--color-fg-dim)]">{form.gameplayStyle?.length ?? 0}/{GAMEPLAY_STYLE_MAX_LENGTH}</p>
         </div>
         <div>
           <Label htmlFor="competition-history" className="mb-1.5 block font-bold uppercase" style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--color-fg-mid)", letterSpacing: "var(--tracking-label)" }}>
@@ -91,12 +92,12 @@ export function ProfileForm({ current }: ProfileFormProps) {
           <Textarea
             id="competition-history"
             rows={3}
-            maxLength={500}
+            maxLength={COMPETITION_HISTORY_MAX_LENGTH}
             value={form.competitionHistory ?? ""}
             onChange={(event) => set("competitionHistory")(event.target.value)}
-            placeholder="参加过的比赛、成绩等（500 字以内）"
+            placeholder={`参加过的比赛、成绩等（${COMPETITION_HISTORY_MAX_LENGTH} 字以内）`}
           />
-          <p className="mt-1 text-right text-xs text-[var(--color-fg-dim)]">{form.competitionHistory?.length ?? 0}/500</p>
+          <p className="mt-1 text-right text-xs text-[var(--color-fg-dim)]">{form.competitionHistory?.length ?? 0}/{COMPETITION_HISTORY_MAX_LENGTH}</p>
         </div>
       </div>
       <div className="space-y-1 border-t border-[var(--color-border)] pt-4">
