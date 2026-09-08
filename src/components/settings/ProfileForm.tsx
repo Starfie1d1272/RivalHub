@@ -5,6 +5,9 @@ import { toast } from "sonner";
 import { updateProfile, type ProfileInput } from "@/actions/account";
 import { Field } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { COMPETITION_HISTORY_MAX_LENGTH, GAMEPLAY_STYLE_MAX_LENGTH } from "@/lib/player-declared-profile";
 
 interface ProfileFormProps {
   current: {
@@ -15,6 +18,8 @@ interface ProfileFormProps {
     steamProfileUrl: string | null;
     qq: string | null;
     liveStreamUrl: string | null;
+    gameplayStyle: string | null;
+    competitionHistory: string | null;
   };
 }
 
@@ -27,6 +32,8 @@ export function ProfileForm({ current }: ProfileFormProps) {
     steamProfileUrl: current.steamProfileUrl ?? "",
     qq: current.qq ?? "",
     liveStreamUrl: current.liveStreamUrl ?? "",
+    gameplayStyle: current.gameplayStyle ?? "",
+    competitionHistory: current.competitionHistory ?? "",
   });
   const [isPending, startTransition] = useTransition();
 
@@ -59,6 +66,40 @@ export function ProfileForm({ current }: ProfileFormProps) {
         minLength={2}
         maxLength={20}
       />
+      <div className="space-y-4 border-t border-[var(--color-border)] pt-4">
+        <div className="space-y-1">
+          <p className="text-sm font-medium">选手自述</p>
+          <p className="text-xs text-[var(--color-fg-mid)]">这是长期公开资料，不属于某一届赛事报名；你可以随时更新，历史报名快照不会被改写。</p>
+        </div>
+        <div>
+          <Label htmlFor="gameplay-style" className="mb-1.5 block font-bold uppercase" style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--color-fg-mid)", letterSpacing: "var(--tracking-label)" }}>
+            当前打法 / 风格
+          </Label>
+          <Textarea
+            id="gameplay-style"
+            rows={3}
+            maxLength={GAMEPLAY_STYLE_MAX_LENGTH}
+            value={form.gameplayStyle ?? ""}
+            onChange={(event) => set("gameplayStyle")(event.target.value)}
+            placeholder={`简要描述当前打法、擅长位置或配合方式（${GAMEPLAY_STYLE_MAX_LENGTH} 字以内）`}
+          />
+          <p className="mt-1 text-right text-xs text-[var(--color-fg-dim)]">{form.gameplayStyle?.length ?? 0}/{GAMEPLAY_STYLE_MAX_LENGTH}</p>
+        </div>
+        <div>
+          <Label htmlFor="competition-history" className="mb-1.5 block font-bold uppercase" style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--color-fg-mid)", letterSpacing: "var(--tracking-label)" }}>
+            比赛经历（选填）
+          </Label>
+          <Textarea
+            id="competition-history"
+            rows={3}
+            maxLength={COMPETITION_HISTORY_MAX_LENGTH}
+            value={form.competitionHistory ?? ""}
+            onChange={(event) => set("competitionHistory")(event.target.value)}
+            placeholder={`参加过的比赛、成绩等（${COMPETITION_HISTORY_MAX_LENGTH} 字以内）`}
+          />
+          <p className="mt-1 text-right text-xs text-[var(--color-fg-dim)]">{form.competitionHistory?.length ?? 0}/{COMPETITION_HISTORY_MAX_LENGTH}</p>
+        </div>
+      </div>
       <div className="space-y-1 border-t border-[var(--color-border)] pt-4">
         <p className="text-sm font-medium">解说资料</p>
         <p className="text-xs text-[var(--color-fg-mid)]">用于你作为赛事解说时，在比赛页面向观众展示直播入口。不填写不会影响普通参赛资料。</p>

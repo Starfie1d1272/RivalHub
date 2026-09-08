@@ -5,6 +5,7 @@ import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import type { PlayerType, RegistrationConfig } from "@/types/season";
 import { eventMapPreferencesSchema } from "@/lib/validators/map-preferences";
 import type { PositionValue, RankValue } from "@/lib/config/registration-defaults";
+import { requiredPlayerDeclaredProfileSchema } from "@/lib/player-declared-profile";
 
 // ── 从配置派生位置常量 ──────────────────────────────
 export const positionValues = REGISTRATION_DEFAULTS.positions.values;
@@ -195,15 +196,7 @@ export function buildRegistrationSchema(
       mapPreferences: eventMapPreferencesSchema(mapPool),
 
       // ── 风格与经历 ──
-      gameplayStyle: z
-        .string()
-        .min(1, "请填写游戏风格自述")
-        .max(100, "游戏风格自述不超过 100 字"),
-
-      competitionHistory: z
-        .string()
-        .max(500, "历史比赛经历不超过 500 字")
-        .optional(),
+      ...requiredPlayerDeclaredProfileSchema.shape,
 
       highlightVideoUrl: z
         .string()

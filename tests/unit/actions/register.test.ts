@@ -17,6 +17,7 @@ const {
   updateMock,
   insertMock,
   deleteMock,
+  transactionMock,
   insertValuesCalls,
   getRegistrationWindowStateMock,
   getUserSessionMock,
@@ -35,6 +36,7 @@ const {
     updateMock: vi.fn(),
     insertMock: vi.fn(),
     deleteMock: vi.fn(),
+    transactionMock: vi.fn(),
     insertValuesCalls,
     getRegistrationWindowStateMock: vi.fn(),
     getUserSessionMock: vi.fn(),
@@ -58,6 +60,7 @@ vi.mock("@/db/client", () => ({
     update: updateMock,
     insert: insertMock,
     delete: deleteMock,
+    transaction: transactionMock,
   },
 }));
 
@@ -139,6 +142,7 @@ const VALID_INPUT = {
   screenshotUrls: ["https://njubox.example.com/ss1"],
   mapPreferences: [],
   gameplayStyle: "积极型",
+  competitionHistory: "参加过校赛",
   willingToBeCaptain: false,
   antiCheatPledge: true as const,
 };
@@ -211,6 +215,12 @@ function setupHappyPathBase() {
 describe("submitRegistration()", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    transactionMock.mockImplementation(async (callback: (tx: unknown) => unknown) => callback({
+      select: selectMock,
+      update: updateMock,
+      insert: insertMock,
+      delete: deleteMock,
+    }));
     resetAuditTracking(insertValuesCalls);
     getSteamAvatarMock.mockResolvedValue(null);
     assertUsersNotBlockedInTxMock.mockResolvedValue(undefined);
@@ -410,6 +420,16 @@ describe("submitRegistration()", () => {
 
     // audit_log action + fields
     expectAuditLog(insertValuesCalls, "registration.submit", { actorId: USER_ID, targetId: NEW_REG_ID });
+
+    expect(transactionMock).toHaveBeenCalledTimes(1);
+    expect(updateMock.mock.results[0]?.value.set).toHaveBeenCalledWith(expect.objectContaining({
+      gameplayStyle: VALID_INPUT.gameplayStyle,
+      competitionHistory: VALID_INPUT.competitionHistory,
+    }));
+    expect(insertMock.mock.results[0]?.value.values).toHaveBeenCalledWith(expect.objectContaining({
+      gameplayStyle: VALID_INPUT.gameplayStyle,
+      competitionHistory: VALID_INPUT.competitionHistory,
+    }));
 
     expect(revalidatePathMock).toHaveBeenCalledWith(`/${SEASON.slug}/register`);
   });

@@ -12,7 +12,7 @@ export default async function SettingsPage() {
   if (!session) redirect("/login");
 
   const [user, readiness] = await Promise.all([
-    db.query.users.findFirst({ where: eq(users.id, session.userId), columns: { displayName: true, steamName: true, perfectName: true, steam64: true, steamProfileUrl: true, qq: true, liveStreamUrl: true } }),
+    db.query.users.findFirst({ where: eq(users.id, session.userId), columns: { displayName: true, steamName: true, perfectName: true, steam64: true, steamProfileUrl: true, qq: true, liveStreamUrl: true, gameplayStyle: true, competitionHistory: true } }),
     loadSettingsProfileReadiness(session.userId),
   ]);
   const readyItems = [
@@ -28,7 +28,7 @@ export default async function SettingsPage() {
       : <StatusBanner tone="warn" title={`还缺 ${readyItems.length} 项长期参赛资料`} sub="完成以下项目可保持个人资料完整；具体赛事是否满足资格请在对应报名页查看。" />}
 
     <Panel label="参赛资料" contentClassName="p-5">
-      <ProfileForm current={{ displayName: user?.displayName ?? null, steamName: user?.steamName ?? null, perfectName: user?.perfectName ?? null, steam64: user?.steam64 ?? null, steamProfileUrl: user?.steamProfileUrl ?? null, qq: user?.qq ?? null, liveStreamUrl: user?.liveStreamUrl ?? null }} />
+      <ProfileForm current={{ displayName: user?.displayName ?? null, steamName: user?.steamName ?? null, perfectName: user?.perfectName ?? null, steam64: user?.steam64 ?? null, steamProfileUrl: user?.steamProfileUrl ?? null, qq: user?.qq ?? null, liveStreamUrl: user?.liveStreamUrl ?? null, gameplayStyle: user?.gameplayStyle ?? null, competitionHistory: user?.competitionHistory ?? null }} />
     </Panel>
     {readyItems.length > 0 && <Panel label="下一步" contentClassName="p-0"><Checklist items={readyItems} /></Panel>}
   </div>;

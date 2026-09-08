@@ -275,8 +275,12 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
   const existingStatusLabel = existingStatus ? REGISTRATION_STATUS_LABELS[existingStatus] : null;
   const canEditExisting = !!currentRegistration && currentRegistration.status !== "approved";
   const longTermMapPreferences = mapPreferences[0]?.mapPreferences;
-  const initialValues = currentRegistration
-    ? {
+  const initialValues = {
+    email: userSession.email,
+    gameplayStyle: currentRegistration?.gameplayStyle ?? currentUser?.gameplayStyle ?? "",
+    competitionHistory: currentRegistration?.competitionHistory ?? currentUser?.competitionHistory ?? "",
+    ...(currentRegistration
+      ? {
         email: userSession.email,
         studentId: currentUser?.studentId ?? "",
         qq: currentUser?.qq ?? "",
@@ -303,9 +307,11 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
         notes: currentRegistration.notes ?? "",
         antiCheatPledge: true as const,
       }
-    : longTermMapPreferences
+      : {}),
+    ...(longTermMapPreferences
       ? { mapPreferences: projectMapPreferences(longTermMapPreferences, regConfig.mapPool) }
-      : undefined;
+      : {}),
+  };
 
   // 位置容量数据
   const capacityEntries = season.positions.map((pos) => {

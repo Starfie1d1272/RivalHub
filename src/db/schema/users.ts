@@ -31,6 +31,8 @@ export const users = pgTable("users", {
   steamProfileUrl: text("steam_profile_url"), // Steam 个人资料链接
   liveStreamUrl: text("live_stream_url"), // 解说时向观众展示的长期个人直播间
   avatarUrl: text("avatar_url"),               // Steam 头像 URL（报名时写入缓存；存量 NULL 数据在 player page 有 runtime fallback）
+  gameplayStyle: text("gameplay_style"), // 当前打法 / 风格的长期自述
+  competitionHistory: text("competition_history"), // 当前比赛经历的长期自述
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

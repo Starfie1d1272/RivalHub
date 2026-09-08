@@ -28,6 +28,8 @@ const baseUserRow = {
   steamName: "Steam 1",
   steamProfileUrl: "https://steamcommunity.com/id/player1",
   avatarUrl: null,
+  gameplayStyle: "进攻型步枪手",
+  competitionHistory: "参加过校赛",
 };
 
 describe("getPublicPlayerById read-model safety", () => {
