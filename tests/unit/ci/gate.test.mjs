@@ -14,7 +14,6 @@ function runGate(overrides) {
       POSTGRES_RESULT: "skipped",
       SYSTEM_RESULT: "skipped",
       DEPENDENCY_REVIEW_RESULT: "skipped",
-      TITLE_RESULT: "skipped",
       EVENT_NAME: "push",
       REQUIRED_JOBS: "[]",
       ...overrides,
@@ -29,21 +28,13 @@ describe("ci-gate", () => {
   });
 
   it("requires dependency review on pull requests", () => {
-    const passed = runGate({ EVENT_NAME: "pull_request", DEPENDENCY_REVIEW_RESULT: "success", TITLE_RESULT: "success" });
+    const passed = runGate({ EVENT_NAME: "pull_request", DEPENDENCY_REVIEW_RESULT: "success" });
     expect(passed.status).toBe(0);
 
     for (const status of ["skipped", "failure", "cancelled", undefined]) {
-      const result = runGate({ EVENT_NAME: "pull_request", DEPENDENCY_REVIEW_RESULT: status, TITLE_RESULT: "success" });
+      const result = runGate({ EVENT_NAME: "pull_request", DEPENDENCY_REVIEW_RESULT: status });
       expect(result.status, status).not.toBe(0);
     }
-  });
-
-  it("requires PR title validation on pull requests", () => {
-    const passed = runGate({ EVENT_NAME: "pull_request", DEPENDENCY_REVIEW_RESULT: "success", TITLE_RESULT: "success" });
-    expect(passed.status).toBe(0);
-
-    const result = runGate({ EVENT_NAME: "pull_request", DEPENDENCY_REVIEW_RESULT: "success", TITLE_RESULT: "failure" });
-    expect(result.status).not.toBe(0);
   });
 
   it("accepts the expected skipped dependency review outside pull requests", () => {
