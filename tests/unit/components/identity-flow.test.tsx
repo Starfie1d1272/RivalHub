@@ -6,6 +6,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { EducationVerificationPanel } from "@/components/settings/EducationVerificationPanel";
+import { IdentityManager } from "@/components/settings/IdentityManager";
 import { EducationVerificationReviewQueue } from "@/components/admin/EducationVerificationReviewQueue";
 
 const { loginWithPasswordMock, signUpMock, resendSignupConfirmationMock, getInstitutionSearchMock, submitEducationVerificationMock, toastSuccessMock, toastErrorMock, refreshMock, replaceMock, pushMock, searchParamsMock } = vi.hoisted(() => ({
@@ -30,10 +31,12 @@ vi.mock("next/navigation", () => ({
 vi.mock("sonner", () => ({ toast: { success: toastSuccessMock, error: toastErrorMock } }));
 vi.mock("@/actions/auth", () => ({ loginWithPassword: loginWithPasswordMock, signUp: signUpMock, resendSignupConfirmation: resendSignupConfirmationMock, resendCurrentEmailVerification: vi.fn() }));
 vi.mock("@/actions/education-verifications", () => ({ declareInstitutionalEmailEducation: vi.fn(), getInstitutionSearch: getInstitutionSearchMock, submitEducationVerification: submitEducationVerificationMock, reviewEducationVerification: vi.fn() }));
+vi.mock("@/actions/identity", () => ({ requestSecondaryEmailIdentity: vi.fn(), revokeSecondaryEmailIdentity: vi.fn() }));
 vi.mock("@/components/auth/TurnstileWidget", () => ({
-  TurnstileWidget: ({ onVerify }: { onVerify: (token: string) => void }) => {
-    React.useEffect(() => onVerify("test-turnstile-token"), [onVerify]);
-    return <div data-testid="turnstile" />;
+  TurnstileWidget: ({ onVerify, onError }: { onVerify: (token: string) => void; onError: (failure: { kind: "challenge_error"; errorCode: string }) => void }) => {
+    const initialOnVerify = React.useRef(onVerify);
+    React.useEffect(() => initialOnVerify.current("test-turnstile-token"), []);
+    return <button type="button" data-testid="turnstile" onClick={() => onError({ kind: "challenge_error", errorCode: "110200" })}>模拟验证码错误</button>;
   },
 }));
 
@@ -115,6 +118,46 @@ describe("identity flow UI", () => {
     expect(screen.getByText("南京大学 · 在读 · 已驳回")).toBeInTheDocument();
     expect(screen.getByText("审核说明：学校不一致")).toBeInTheDocument();
     expect(screen.queryByText(/chsi\.com\.cn/)).not.toBeInTheDocument();
+  });
+
+  it("explains the verified-secondary-email path with one clear banner", () => {
+    render(<IdentityManager identities={[{ id: "identity-1", email: "player@example.test", primary: true, verifiedAt: new Date().toISOString() }]} />);
+
+    expect(screen.getByText("先证明邮箱控制权")).toBeInTheDocument();
+    expect(screen.getByText(/系统会进入安全归并预检并显示影响/)).toBeInTheDocument();
+    expect(screen.getAllByText("先证明邮箱控制权")).toHaveLength(1);
+    expect(document.getElementById("secondary-email")).toHaveClass("scroll-mt-6");
+    expect(screen.getByLabelText("邮箱")).toHaveAttribute("id", "secondary-email-input");
+  });
+
+  it("guides verified users without a school email to the existing fast-verification entry", () => {
+    render(<EducationVerificationPanel email="player@example.test" emailVerified institutionalIdentities={[]} verifications={[]} />);
+
+    expect(screen.getByText("南京大学在读生可使用校邮箱快速认证")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "绑定南京大学邮箱" })).toHaveAttribute("href", "/settings/security#secondary-email");
+    expect(screen.getByText(/没有可用的学校邮箱、无法通过学校邮箱验证/)).toBeInTheDocument();
+    const search = screen.getByRole("button", { name: "搜索高校" });
+    expect(search).toBeDisabled();
+    expect(search).toHaveClass("border");
+    fireEvent.change(screen.getByLabelText("学校"), { target: { value: "南京大学" } });
+    expect(search).not.toBeDisabled();
+    expect(search).toHaveClass("bg-primary");
+    expect(screen.getByRole("button", { name: "提交认证材料" })).toBeDisabled();
+  });
+
+  it("clears the Turnstile token and shows recovery guidance on a client challenge failure", async () => {
+    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    render(<LoginForm initialMode="register" />);
+    const submit = screen.getAllByRole("button", { name: "注册" })[1]!;
+    await waitFor(() => expect(submit).not.toBeDisabled());
+
+    fireEvent.click(screen.getByRole("button", { name: "模拟验证码错误" }));
+
+    await waitFor(() => expect(submit).toBeDisabled());
+    expect(toastErrorMock).toHaveBeenCalledWith("验证码加载失败，请刷新后重试；若仍失败，可尝试更换浏览器或网络。");
+    expect(consoleWarn).toHaveBeenCalledWith("[RivalHub] Turnstile client failure", { kind: "challenge_error", errorCode: "110200" });
+    expect(document.body).not.toHaveTextContent("110200");
+    consoleWarn.mockRestore();
   });
 
   it("keeps school search, selection, reset, and submission tied to the selected institution", async () => {

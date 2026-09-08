@@ -30,12 +30,14 @@ const CURRENT_PRODUCER_ACTIONS = [
   "competition_entry.changes_requested", "competition_entry.waitlisted", "competition_entry.approved", "competition_entry.rejected",
   "competition_entry.withdrawn", "competition_entry.representative.transfer", "competition_entry.restriction_override.grant",
   "competition_entry.restriction_override.revoke",
-  "user.change_password", "user.claim_invite", "user.owner_bootstrap",
+  "user.change_password", "user.claim_invite", "user.owner_bootstrap", "identity.link.merge_required",
+  "identity.link.complete", "identity.link.revoke", "user_identity.merge",
   "education_verification.submit", "education_verification.institutional_email", "education_verification.approved", "education_verification.rejected",
   "competitive_platform.update", "competitive_platform_season.create", "competitive_platform_season.update",
   "competitive_platform_season.set_active", "competitive_platform_season.set_current", "competitive_platform_season.move",
   "competitive_platform_season.delete", "competitive_platform_rank.create", "competitive_platform_rank.rename",
   "competitive_platform_rank.move", "competitive_platform_rank.delete", "competitive_profile.self_declare", "competitive_roles.self_declare",
+  "map_preferences.self_declare",
   "major.start", "major.archive", "major_prestart.add_entrant", "major_prestart.remove_entrant", "major_prestart.save_roster",
   "major_prestart.select_entrants", "major_prestart.reconcile_roster", "major_prestart.repair_roster",
   "major_prestart.confirm_roster", "major_prestart.reopen_roster", "major_prestart.add_issue", "major_prestart.resolve_issue",
@@ -68,6 +70,7 @@ describe("audit presentation owner", () => {
     expect(options.map((option) => option.value)).toEqual(AUDIT_ACTION_KEYS);
     expect(options.some((option) => option.value === "education_verification.approved")).toBe(true);
     expect(options.some((option) => option.value === "competitive_profile.self_declare")).toBe(true);
+    expect(options.some((option) => option.value === "map_preferences.self_declare")).toBe(true);
   });
 
   it("uses a human fallback for unknown actions", () => {

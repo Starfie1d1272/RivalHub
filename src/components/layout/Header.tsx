@@ -17,13 +17,14 @@ const getHeaderViewer = cache(async (): Promise<{
   avatarUrl: string | null;
   steamName: string | null;
   displayName: string | null;
+  perfectName: string | null;
 } | null> => {
   const authorization = await getCurrentUserAuthorization();
   if (!authorization) return null;
 
   const user = await db.query.users.findFirst({
     where: eq(users.id, authorization.userId),
-    columns: { avatarUrl: true, steamName: true, displayName: true },
+    columns: { avatarUrl: true, steamName: true, displayName: true, perfectName: true },
   });
 
   return {
@@ -35,6 +36,7 @@ const getHeaderViewer = cache(async (): Promise<{
     avatarUrl: user?.avatarUrl ?? null,
     steamName: user?.steamName ?? null,
     displayName: user?.displayName ?? null,
+    perfectName: user?.perfectName ?? null,
   };
 });
 
@@ -50,6 +52,7 @@ async function HeaderViewer({ variant }: { variant: "desktop" | "mobile" }) {
       avatarUrl={viewer?.avatarUrl}
       steamName={viewer?.steamName}
       displayName={viewer?.displayName}
+      perfectName={viewer?.perfectName}
     />
   );
 }

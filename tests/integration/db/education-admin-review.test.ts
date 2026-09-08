@@ -103,4 +103,64 @@ describe("education review queue PostgreSQL read model", () => {
       await pool.end();
     }
   });
+
+  it("builds active-data facets and a distinct latest-approved identity overview", async () => {
+    const pool = createLocalPool({ max: 4 });
+    const marker = randomUUID().slice(0, 8);
+    const institutionIds = [randomUUID(), randomUUID(), randomUUID()];
+    const userIds = [randomUUID(), randomUUID(), randomUUID()];
+    const verificationIds = Array.from({ length: 5 }, () => randomUUID());
+
+    try {
+      const baseline = await loadQueue({ status: "all" });
+      await pool.query(
+        `INSERT INTO institutions (id, name, source, source_version)
+         VALUES ($1, $4, 'manual', $7), ($2, $5, 'manual', $7), ($3, $6, 'manual', $7)`,
+        [institutionIds[0], institutionIds[1], institutionIds[2], `A-${marker}`, `B-${marker}`, `Unused-${marker}`, `test-${marker}`],
+      );
+      await pool.query(
+        `INSERT INTO users (id, email, display_name, perfect_name, steam_name)
+         VALUES ($1, $4, NULL, $7, 'Steam A'), ($2, $5, NULL, $8, 'Steam B'), ($3, $6, 'Rejected user', NULL, NULL)`,
+        [userIds[0], userIds[1], userIds[2], `${marker}-a@local.test`, `${marker}-b@local.test`, `${marker}-c@local.test`, `Perfect-${marker}-A`, `Perfect-${marker}-B`],
+      );
+      await pool.query(
+        `INSERT INTO education_verifications
+           (id, user_id, institution_id, academic_status, evidence_type, status, submitted_at)
+         VALUES
+           ($1, $6, $9, 'enrolled', 'manual_other', 'approved', '2026-09-01T00:00:00Z'),
+           ($2, $6, $9, 'graduated', 'manual_other', 'approved', '2026-09-02T00:00:00Z'),
+           ($3, $6, $10, 'enrolled', 'manual_other', 'approved', '2026-09-03T00:00:00Z'),
+           ($4, $7, $9, 'enrolled', 'manual_other', 'approved', '2026-09-04T00:00:00Z'),
+           ($5, $8, $10, 'graduated', 'manual_other', 'rejected', '2026-09-05T00:00:00Z')`,
+        [...verificationIds, ...userIds, ...institutionIds.slice(0, 2)],
+      );
+
+      const queue = await loadQueue({ status: "all" });
+      const aOption = queue.institutionOptions.find((item) => item.id === institutionIds[0]);
+      const bOption = queue.institutionOptions.find((item) => item.id === institutionIds[1]);
+      expect(aOption).toMatchObject({ name: `A-${marker}`, userCount: 2 });
+      expect(bOption).toMatchObject({ name: `B-${marker}`, userCount: 2 });
+      expect(queue.institutionOptions.findIndex((item) => item.id === institutionIds[0]))
+        .toBeLessThan(queue.institutionOptions.findIndex((item) => item.id === institutionIds[1]));
+      expect(queue.institutionOptions.some((item) => item.id === institutionIds[2])).toBe(false);
+
+      expect(queue.overview.activeUserCount).toBe(baseline.overview.activeUserCount + 3);
+      expect(queue.overview.approvedUserCount).toBe(baseline.overview.approvedUserCount + 2);
+      expect(queue.overview.academicDistribution).toEqual({
+        enrolled: baseline.overview.academicDistribution.enrolled + 2,
+        graduated: baseline.overview.academicDistribution.graduated + 1,
+      });
+      expect(queue.overview.institutionDistribution.find((item) => item.id === institutionIds[0])).toMatchObject({ identityCount: 2 });
+      expect(queue.overview.institutionDistribution.find((item) => item.id === institutionIds[1])).toMatchObject({ identityCount: 1 });
+
+      const byPerfectName = await loadQueue({ q: `Perfect-${marker}-B`, status: "all" });
+      expect(byPerfectName.rows).toHaveLength(1);
+      expect(byPerfectName.rows[0]?.displayName).toBe(`Perfect-${marker}-B`);
+    } finally {
+      await pool.query("DELETE FROM education_verifications WHERE id = ANY($1::uuid[])", [verificationIds]).catch(() => {});
+      await pool.query("DELETE FROM users WHERE id = ANY($1::uuid[])", [userIds]).catch(() => {});
+      await pool.query("DELETE FROM institutions WHERE id = ANY($1::uuid[])", [institutionIds]).catch(() => {});
+      await pool.end();
+    }
+  });
 });

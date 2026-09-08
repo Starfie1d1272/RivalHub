@@ -13,6 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Marker, Panel } from "@/components/rivalhub";
+import { formatCSTDate } from "@/lib/utils/date";
 import type { ActionResult } from "@/types/action";
 
 export interface MajorPrestartManagementData {
@@ -51,7 +52,7 @@ async function showResult(work: () => Promise<ActionResult<void>>, success: stri
 }
 
 function formatDate(value: string | null): string {
-  return value ? new Date(value).toLocaleDateString("zh-CN") : "未记录";
+  return value ? formatCSTDate(value) : "未记录";
 }
 
 function rosterSummary(roster: { memberCount: number; primaryStarterCount: number }): string {

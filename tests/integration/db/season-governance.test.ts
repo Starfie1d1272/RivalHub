@@ -38,9 +38,61 @@ async function main(): Promise<void> {
     await exerciseEmptySeasonGuards(pool);
     await exerciseQualificationPlatformIsolation(pool);
     await exerciseTerminalTransitions(pool);
-    console.log("Season Governance local integration passed: competitive freeze lifecycle, empty-season guards, qualification platform isolation, and row-locked terminal transitions with atomic audits.");
+    await exercisePersistedJsonReplay(pool);
+    console.log("Season Governance local integration passed: competitive freeze lifecycle, empty-season guards, qualification platform isolation, persisted JSON replay, and row-locked terminal transitions with atomic audits.");
   } finally {
     await pool.end();
+  }
+}
+
+async function exercisePersistedJsonReplay(pool: Pool): Promise<void> {
+  const { normalizeAffiliationRules, normalizeRegistrationConfig, normalizeTeamRegistrationConfig } = await import("../../../src/lib/seasons/compatibility");
+  const { planSeasonUpdate, seasonUpdateFormSchema } = await import("../../../src/lib/seasons/edit");
+  const { toCSTDateTimeInput } = await import("../../../src/lib/utils/date");
+  const seasonId = await createMajorDraft(pool, `gov-json-replay-${randomUUID()}`, `json-${randomUUID()}`);
+  const deadline = new Date("2027-05-10T08:00:00.000Z");
+  const db = drizzle(pool, { schema: globals.schema });
+
+  try {
+    await pool.query("UPDATE seasons SET status = 'registration' WHERE id = $1", [seasonId]);
+    const [persisted] = await db.select().from(globals.schema.seasons).where(eq(globals.schema.seasons.id, seasonId));
+    if (!persisted) throw new Error("Persisted JSON replay fixture 缺少赛季记录。");
+    const parsed = seasonUpdateFormSchema.parse({
+      id: persisted.id,
+      name: persisted.name,
+      slug: persisted.slug,
+      kind: persisted.kind,
+      template: persisted.competitionTemplate,
+      status: persisted.status,
+      themeColor: persisted.themeColor,
+      registrationOpensAt: toCSTDateTimeInput(persisted.registrationOpensAt),
+      registrationClosesAt: toCSTDateTimeInput(deadline),
+      rosterChangeClosesAt: toCSTDateTimeInput(persisted.rosterChangeClosesAt),
+      endAt: toCSTDateTimeInput(persisted.endAt),
+      registrationMode: persisted.registrationMode,
+      hasCaptainVoting: persisted.hasCaptainVoting,
+      hasDraft: persisted.hasDraft,
+      hasCommunityAwards: persisted.hasCommunityAwards,
+      minTeamSize: persisted.minTeamSize,
+      maxTeamSize: persisted.maxTeamSize,
+      starterCount: persisted.starterCount,
+      positions: persisted.positions,
+      stagePlan: persisted.stagePlan,
+      registrationConfig: normalizeRegistrationConfig(persisted.registrationConfig),
+      teamRegistrationConfig: normalizeTeamRegistrationConfig(persisted.teamRegistrationConfig),
+      affiliationRules: normalizeAffiliationRules(persisted.affiliationRules),
+    });
+    const plan = planSeasonUpdate(persisted, parsed);
+    expect(plan.set.registrationClosesAt).toEqual(deadline);
+    expect(plan.set).not.toHaveProperty("teamRegistrationConfig");
+    expect(plan.set).not.toHaveProperty("registrationConfig");
+
+    await db.update(globals.schema.seasons).set(plan.set).where(eq(globals.schema.seasons.id, seasonId));
+    const [reloaded] = await db.select().from(globals.schema.seasons).where(eq(globals.schema.seasons.id, seasonId));
+    expect(reloaded?.registrationClosesAt).toEqual(deadline);
+    expect(reloaded?.teamRegistrationConfig).toEqual(persisted.teamRegistrationConfig);
+  } finally {
+    await pool.query("DELETE FROM seasons WHERE id = $1", [seasonId]);
   }
 }
 

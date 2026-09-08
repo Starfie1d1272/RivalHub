@@ -20,6 +20,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { QualificationFinding } from "@/lib/qualification/finding";
+import { formatCST } from "@/lib/utils/date";
 import {
   TEAM_REGISTRATION_REVIEW_DEFAULTS,
   type TeamRegistrationReviewQuery,
@@ -68,6 +69,8 @@ export function CompetitionEntryReviewList({
   totalPages,
   normalizedQuery,
   hasAnyRecords,
+  startedCount,
+  draftCount,
 }: {
   seasonSlug: string;
   entries: ReviewEntry[];
@@ -77,6 +80,8 @@ export function CompetitionEntryReviewList({
   totalPages: number;
   normalizedQuery: TeamRegistrationReviewQuery;
   hasAnyRecords: boolean;
+  startedCount: number;
+  draftCount: number;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -181,8 +186,8 @@ export function CompetitionEntryReviewList({
     {entries.length === 0 ? (
       <StatusBanner
         tone="info"
-        title={hasAnyRecords ? "没有符合当前筛选条件的报名" : "暂无赛事报名"}
-        sub={hasAnyRecords ? "请调整搜索、状态或资格筛选。" : "报名草稿创建后会显示在这里。"}
+        title={hasAnyRecords ? "没有符合当前筛选条件的报名" : draftCount > 0 ? "暂时没有队伍提交审核" : "暂无队伍提交审核"}
+        sub={hasAnyRecords ? "请调整搜索、状态或资格筛选。" : draftCount > 0 ? `已有 ${draftCount} 支队伍正在填写报名。` : startedCount > 0 ? "已开始的报名当前处于其它状态。" : "尚无队伍开始报名。"}
       />
     ) : <div className="space-y-5">{entries.map((entry) => {
     const confirmed = entry.members.filter((member) => member.status === "confirmed").length;
@@ -204,7 +209,7 @@ export function CompetitionEntryReviewList({
             </div>
             {override && <>
               <p className={`mt-2 text-xs ${override.snapshotMatches ? "text-[var(--color-ok)]" : "text-[var(--color-warn)]"}`}>
-                {override.snapshotMatches ? "已解除" : "解除记录对应的资格事实已变化，请先撤销旧记录后重新确认"}：{override.reason} · 操作者 {override.grantedBy} · {new Date(override.grantedAt).toLocaleString("zh-CN")}
+                {override.snapshotMatches ? "已解除" : "解除记录对应的资格事实已变化，请先撤销旧记录后重新确认"}：{override.reason} · 操作者 {override.grantedBy} · {formatCST(override.grantedAt)}
               </p>
               <p className="mt-1 text-xs text-[var(--color-fg-dim)]">解除记录会保留资格判断依据，供后续复核。</p>
             </>}

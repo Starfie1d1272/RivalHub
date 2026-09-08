@@ -268,6 +268,25 @@ describe("planSeasonUpdate template identity", () => {
     expect(() => planSeasonUpdate(row, parsed)).toThrowError(/只有 draft 状态可修改核心赛季配置/);
   });
 
+  it("treats persisted JSON object key order as irrelevant while preserving array order", () => {
+    const reversedRankThreshold = {
+      peakMin: MAJOR_TEMPLATE.registrationConfig.rankThreshold.peakMin,
+      currentMin: MAJOR_TEMPLATE.registrationConfig.rankThreshold.currentMin,
+    };
+    const row = seasonRow({
+      status: "registration",
+      registrationConfig: {
+        ...MAJOR_TEMPLATE.registrationConfig,
+        rankThreshold: reversedRankThreshold,
+      },
+    });
+
+    expect(() => planSeasonUpdate(row, parseInput({ name: "Renamed Major" }))).not.toThrow();
+    expect(() => planSeasonUpdate(row, parseInput({
+      positions: [...MAJOR_TEMPLATE.positions].reverse(),
+    }))).toThrowError(/只有 draft 状态可修改核心赛季配置/);
+  });
+
   it("allows a published pre-open schedule edit but freezes the schedule after actual opening", () => {
     const openedAt = new Date("2026-05-01T02:00:00.000Z");
     const row = seasonRow({
