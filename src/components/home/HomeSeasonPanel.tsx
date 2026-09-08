@@ -63,67 +63,50 @@ export function HomeSeasonPanel({
 }: HomeSeasonPanelProps) {
   const registrationSchedule = presentRegistrationSchedule(season);
   if (isRegistrationActuallyOpen(season)) {
-    if (season.registrationMode === "team") {
-      return (
-        <Panel label="REGISTRATION">
-          <div className="grid gap-3.5">
-            <SeasonPanelTitle season={season} />
-            {registrationSchedule && (
-              <p className="text-sm text-[var(--color-fg-mid)]">
-                {registrationSchedule.primary}{registrationSchedule.secondary ? ` · ${registrationSchedule.secondary}` : ""}
-              </p>
-            )}
-            <div className="py-3 border-y border-[var(--color-border)]">
-              <PanelStats teamCount={teamCount} playerCount={playerCount} status={season.status} registrationMode={season.registrationMode} />
-            </div>
-            <Button className="w-full" asChild>
-              <Link href={`/${season.slug}/register`} className="w-full">
-                组队报名 / 创建或加入队伍 →
-              </Link>
-            </Button>
-          </div>
-        </Panel>
-      );
-    }
-
     return (
       <Panel label="REGISTRATION">
         <div className="grid gap-3.5">
           <SeasonPanelTitle season={season} />
           {registrationSchedule && (
             <p className="text-sm text-[var(--color-fg-mid)]">
-              {registrationSchedule.primary}
+              {registrationSchedule.primary}{season.registrationMode === "team" && registrationSchedule.secondary ? ` · ${registrationSchedule.secondary}` : ""}
             </p>
           )}
-          <div className="grid gap-2">
-            {season.positions.map((pos) => {
-              const filled = positionCountMap.get(pos) ?? 0;
-              const pct = maxPerPosition > 0
-                ? Math.min(100, Math.round((filled / maxPerPosition) * 100))
-                : 0;
+          {season.registrationMode === "team" ? (
+            <div className="py-3 border-y border-[var(--color-border)]">
+              <PanelStats teamCount={teamCount} playerCount={playerCount} status={season.status} registrationMode={season.registrationMode} />
+            </div>
+          ) : (
+            <div className="grid gap-2">
+              {season.positions.map((pos) => {
+                const filled = positionCountMap.get(pos) ?? 0;
+                const pct = maxPerPosition > 0
+                  ? Math.min(100, Math.round((filled / maxPerPosition) * 100))
+                  : 0;
 
-              return (
-                <div key={pos}>
-                  <div className="flex justify-between mb-1" style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--color-fg-dim)", letterSpacing: "var(--tracking-label)" }}>
-                    <span className="uppercase">{pos}</span>
-                    <span style={{ color: "var(--color-fg-mid)" }}>{filled} / {maxPerPosition}</span>
+                return (
+                  <div key={pos}>
+                    <div className="flex justify-between mb-1" style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--color-fg-dim)", letterSpacing: "var(--tracking-label)" }}>
+                      <span className="uppercase">{pos}</span>
+                      <span style={{ color: "var(--color-fg-mid)" }}>{filled} / {maxPerPosition}</span>
+                    </div>
+                    <div className="h-[3px] rounded-full" style={{ background: "var(--color-border)" }}>
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{
+                          width: `${pct}%`,
+                          background: pct >= 90 ? "var(--color-warn)" : "var(--color-accent)",
+                        }}
+                      />
+                    </div>
                   </div>
-                  <div className="h-[3px] rounded-full" style={{ background: "var(--color-border)" }}>
-                    <div
-                      className="h-full rounded-full transition-all"
-                      style={{
-                        width: `${pct}%`,
-                        background: pct >= 90 ? "var(--color-warn)" : "var(--color-accent)",
-                      }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
           <Button className="w-full" asChild>
             <Link href={`/${season.slug}/register`} className="w-full">
-            立即报名 →
+              {season.registrationMode === "team" ? "组队报名 / 创建或加入队伍 →" : "立即报名 →"}
             </Link>
           </Button>
         </div>

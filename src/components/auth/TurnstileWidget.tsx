@@ -58,7 +58,7 @@ export function TurnstileWidget({ onVerify, onError, resetSignal = 0 }: Turnstil
       callback: (token: string) => onVerifyRef.current(token),
       "error-callback": (errorCode?: string) => {
         onErrorRef.current?.({ kind: "challenge_error", errorCode: safeErrorCode(errorCode) });
-        return true;
+        return false;
       },
       "expired-callback": () => onVerifyRef.current(""),
     });

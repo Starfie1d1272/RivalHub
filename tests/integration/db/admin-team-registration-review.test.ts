@@ -28,6 +28,7 @@ describe("PR3 team registration review PostgreSQL integration", () => {
       blockedMember: randomUUID(),
       approvedMember: randomUUID(),
       override: randomUUID(),
+      rosterBlock: randomUUID(),
       draftEntry: randomUUID(),
       olderDraftEntry: randomUUID(),
       draftParticipant: randomUUID(),
@@ -310,6 +311,12 @@ describe("PR3 team registration review PostgreSQL integration", () => {
           }),
         ],
       );
+      await pool.query(
+        `INSERT INTO disciplinary_cases (
+           id, season_id, subject_user_id, status, effects, public_explanation, effective_from, issued_by
+         ) VALUES ($1, $2, $3, 'active', '["roster_block"]'::jsonb, 'fixture roster block', now() - interval '1 minute', 'pr3-team-review')`,
+        [ids.rosterBlock, ids.season, ids.blockedUser],
+      );
 
       const season = {
         id: ids.season,
@@ -334,8 +341,8 @@ describe("PR3 team registration review PostgreSQL integration", () => {
       expect(progress.summary).toMatchObject({ total: 55, draft: 2, submitted: 52, approved: 1, changesRequested: 0 });
       expect(progress.drafts.map((row) => row.id)).toEqual([ids.draftEntry, ids.olderDraftEntry]);
       expect(progress.drafts[0]).toMatchObject({ rosterCount: 1, confirmedCount: 0, starterCount: 1, requiredStarterCount: 1 });
-      expect(progress.drafts[0]?.primaryBlockers).toContain("还差 1 名成员确认");
-      expect(progress.drafts[0]?.primaryBlockers).toContain("队伍图标尚未上传");
+      expect(progress.drafts[0]?.primaryBlockers).toContain("所有名单成员都需确认代表本届赛事参赛。");
+      expect(progress.drafts[0]?.primaryBlockers).toContain("以下成员当前不能进入赛事名单：Blocked Perfect");
 
       const newest = await getTeamRegistrationReview(
         season,
@@ -389,6 +396,7 @@ describe("PR3 team registration review PostgreSQL integration", () => {
         await cleanup.query("BEGIN");
         await cleanup.query("SET LOCAL session_replication_role = replica");
         await cleanup.query("DELETE FROM competition_entry_restriction_overrides WHERE id = $1", [ids.override]);
+        await cleanup.query("DELETE FROM disciplinary_cases WHERE id = $1", [ids.rosterBlock]);
         await cleanup.query("DELETE FROM competition_entry_roster_members WHERE id = ANY($1::uuid[])", [[...paginationEntries.map((entry) => entry.memberId), ids.readyMember, ids.blockedMember, ids.approvedMember, ids.draftMember, ids.olderDraftMember]]);
         await cleanup.query("DELETE FROM competition_entry_participants WHERE id = ANY($1::uuid[])", [[...paginationEntries.map((entry) => entry.participantId), ids.readyParticipant, ids.blockedParticipant, ids.approvedParticipant, ids.draftParticipant, ids.olderDraftParticipant]]);
         await cleanup.query("DELETE FROM competition_entry_roster_revisions WHERE id = ANY($1::uuid[])", [[...paginationEntries.map((entry) => entry.revisionId), ids.readyRevision, ids.blockedRevision, ids.approvedRevision, ids.draftRevision, ids.olderDraftRevision]]);

@@ -20,7 +20,7 @@ describe("TurnstileWidget", () => {
     vi.unstubAllGlobals();
   });
 
-  it("forwards a safe challenge error code and marks the error as handled", () => {
+  it("forwards a safe challenge error code while preserving provider retry", () => {
     const onError = vi.fn();
     const renderMock = vi.fn().mockReturnValue("widget-1");
     vi.stubGlobal("turnstile", { render: renderMock, reset: vi.fn() });
@@ -30,7 +30,7 @@ describe("TurnstileWidget", () => {
       "error-callback": (errorCode?: string) => boolean | void;
     };
 
-    expect(options["error-callback"]("110200")).toBe(true);
+    expect(options["error-callback"]("110200")).toBe(false);
     expect(onError).toHaveBeenCalledWith({ kind: "challenge_error", errorCode: "110200" });
     options["error-callback"]("token=must-not-be-logged");
     expect(onError).toHaveBeenLastCalledWith({ kind: "challenge_error", errorCode: undefined });

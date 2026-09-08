@@ -120,11 +120,12 @@ describe("identity flow UI", () => {
     expect(screen.queryByText(/chsi\.com\.cn/)).not.toBeInTheDocument();
   });
 
-  it("explains that adding a verified secondary email is the duplicate-account merge entry", () => {
+  it("explains the verified-secondary-email path with one clear banner", () => {
     render(<IdentityManager identities={[{ id: "identity-1", email: "player@example.test", primary: true, verifiedAt: new Date().toISOString() }]} />);
 
-    expect(screen.getByText("需要合并重复账号？")).toBeInTheDocument();
-    expect(screen.getByText(/系统会自动进入安全归并预检/)).toBeInTheDocument();
+    expect(screen.getByText("先证明邮箱控制权")).toBeInTheDocument();
+    expect(screen.getByText(/系统会进入安全归并预检并显示影响/)).toBeInTheDocument();
+    expect(screen.getAllByText("先证明邮箱控制权")).toHaveLength(1);
     expect(document.getElementById("secondary-email")).toHaveClass("scroll-mt-6");
     expect(screen.getByLabelText("邮箱")).toHaveAttribute("id", "secondary-email-input");
   });

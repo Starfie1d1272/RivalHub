@@ -54,8 +54,7 @@ export function IdentityManager({ identities }: { identities: Identity[] }) {
     <div id="secondary-email" className="scroll-mt-6" tabIndex={-1}>
       <Panel label="添加备用邮箱" contentClassName="p-5">
         <div className="space-y-4">
-        <StatusBanner tone="info" title="需要合并重复账号？" sub="在这里填写另一个账号使用的邮箱并完成验证。如果该邮箱已属于另一 RivalHub 账号，系统会自动进入安全归并预检；确认前不会修改赛事数据。" />
-        <StatusBanner tone="info" title="先证明邮箱控制权" sub="验证不会更换当前登录邮箱。若该邮箱已属于另一个账号，会先显示归并影响，确认前不会写入赛事事实。" />
+        <StatusBanner tone="info" title="先证明邮箱控制权" sub="验证不会更换当前登录邮箱。若该邮箱已属于另一 RivalHub 账号，系统会进入安全归并预检并显示影响；确认前不会修改赛事数据。" />
         <div className="space-y-1.5">
           <Label htmlFor="secondary-email-input">邮箱</Label>
           <Input id="secondary-email-input" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@smail.nju.edu.cn" />

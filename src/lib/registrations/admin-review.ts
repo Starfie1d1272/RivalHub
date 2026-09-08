@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, count, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   competitionEntries,
@@ -9,6 +9,7 @@ import {
   competitionEntryRosterMembers,
   competitionEntryRosterRevisions,
   seasonRegistrations,
+  teamMemberships,
   users,
 } from "@/db/schema";
 import {
@@ -21,7 +22,9 @@ import {
   type ParticipantQualificationFacts,
 } from "@/lib/qualification/service";
 import { sameQualificationFindingSnapshot } from "@/lib/competition-entries/restriction-overrides";
+import { assessEntryRosterReadiness } from "@/lib/competition-entries/readiness";
 import { escapeLikePattern } from "@/lib/db/search";
+import { loadActiveSanctionsInTx } from "@/lib/discipline/service";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { normalizeSteamProfileUrl } from "@/lib/external-url";
 import { normalizeAffiliationRules, normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
@@ -128,6 +131,7 @@ type TeamEntryForProjection = {
   source: "linked_team" | "event_native";
   status: string;
   reviewReason: string | null;
+  teamId: string | null;
   perfectTeamId: string | null;
   logoUrl: string | null;
   updatedAt: Date;
@@ -174,6 +178,7 @@ export async function getTeamRegistrationReview(
         source: competitionEntries.source,
         status: competitionEntries.registrationStatus,
         reviewReason: competitionEntries.reviewReason,
+        teamId: competitionEntries.teamId,
         perfectTeamId: competitionEntries.perfectTeamId,
         logoUrl: competitionEntries.logoUrl,
         updatedAt: competitionEntries.updatedAt,
@@ -367,6 +372,7 @@ export async function getTeamRegistrationProgress(season: TeamReviewSeason): Pro
       source: competitionEntries.source,
       status: competitionEntries.registrationStatus,
       reviewReason: competitionEntries.reviewReason,
+      teamId: competitionEntries.teamId,
       perfectTeamId: competitionEntries.perfectTeamId,
       logoUrl: competitionEntries.logoUrl,
       updatedAt: competitionEntries.updatedAt,
@@ -390,36 +396,57 @@ export async function getTeamRegistrationProgress(season: TeamReviewSeason): Pro
   ]);
   const projectedDrafts = await projectTeamRegistrationRows(season, draftEntries, false);
   const counts = new Map(statusRows.map((row) => [row.status, Number(row.count)]));
-  const teamConfig = normalizeTeamRegistrationConfig(season.teamRegistrationConfig);
+  const draftUserIds = [...new Set(projectedDrafts.flatMap((entry) => entry.members.map((member) => member.userId)))];
+  const draftTeamIds = [...new Set(draftEntries.flatMap((entry) => entry.teamId ? [entry.teamId] : []))];
+  const [registrationBlocks, rosterBlocks, activeMemberships] = await Promise.all([
+    draftUserIds.length > 0
+      ? loadActiveSanctionsInTx(db, { seasonId: season.id, subjectUserIds: draftUserIds, effect: "registration_block" })
+      : Promise.resolve(new Map()),
+    draftUserIds.length > 0
+      ? loadActiveSanctionsInTx(db, { seasonId: season.id, subjectUserIds: draftUserIds, effect: "roster_block" })
+      : Promise.resolve(new Map()),
+    draftTeamIds.length > 0 && draftUserIds.length > 0
+      ? db.select({ teamId: teamMemberships.teamId, userId: teamMemberships.userId })
+        .from(teamMemberships)
+        .where(and(inArray(teamMemberships.teamId, draftTeamIds), inArray(teamMemberships.userId, draftUserIds), eq(teamMemberships.status, "active"), isNull(teamMemberships.endedAt)))
+      : Promise.resolve([]),
+  ]);
+  const draftEntryById = new Map(draftEntries.map((entry) => [entry.id, entry]));
+  const activeMembersByTeam = new Map<string, Set<string>>();
+  for (const membership of activeMemberships) {
+    const members = activeMembersByTeam.get(membership.teamId) ?? new Set<string>();
+    members.add(membership.userId);
+    activeMembersByTeam.set(membership.teamId, members);
+  }
 
   return {
     drafts: projectedDrafts.map((entry) => {
-      const rosterCount = entry.members.length;
-      const confirmedCount = entry.members.filter((member) => member.status === "confirmed").length;
-      const starterCount = entry.members.filter((member) => member.primary).length;
-      const blockers = [
-        ...(rosterCount < season.minTeamSize ? [`还差 ${season.minTeamSize - rosterCount} 名名单成员`] : []),
-        ...(rosterCount > season.maxTeamSize ? [`名单超出上限 ${rosterCount - season.maxTeamSize} 人`] : []),
-        ...(confirmedCount < rosterCount ? [`还差 ${rosterCount - confirmedCount} 名成员确认`] : []),
-        ...(starterCount < season.starterCount ? [`还差 ${season.starterCount - starterCount} 名预定主力`] : []),
-        ...(starterCount > season.starterCount ? [`预定主力超出要求 ${starterCount - season.starterCount} 人`] : []),
-        ...(teamConfig.requireTeamLogo && !entry.logoUrl ? ["队伍图标尚未上传"] : []),
-        ...(teamConfig.requireCompetitiveProfile && !entry.perfectTeamId?.trim() ? ["完美战队 ID 尚未填写"] : []),
-        ...entry.qualificationBlockers,
-      ];
+      const sourceEntry = draftEntryById.get(entry.id)!;
+      const draftUserIds = new Set(entry.members.map((member) => member.userId));
+      const readiness = assessEntryRosterReadiness({
+        entry: sourceEntry,
+        season,
+        members: entry.members.map((member) => ({ userId: member.userId, label: member.label, primary: member.primary, participantStatus: member.status })),
+        qualificationFindings: entry.qualificationFindings,
+        registrationBlockedUserIds: new Set([...registrationBlocks.keys()].filter((userId) => draftUserIds.has(userId))),
+        rosterBlockedUserIds: new Set([...rosterBlocks.keys()].filter((userId) => draftUserIds.has(userId))),
+        currentTeamMemberUserIds: sourceEntry.teamId ? activeMembersByTeam.get(sourceEntry.teamId) : undefined,
+        requireCurrentTeamMembership: true,
+        requireActiveRestrictionOverrides: false,
+      });
       return {
         id: entry.id,
         name: entry.name,
         source: entry.source,
         representativeName: entry.representativeName,
         updatedAt: entry.updatedAt,
-        rosterCount,
+        rosterCount: readiness.rosterSize,
         minRoster: season.minTeamSize,
         maxRoster: season.maxTeamSize,
-        confirmedCount,
-        starterCount,
+        confirmedCount: readiness.confirmedCount,
+        starterCount: readiness.primaryStarterCount,
         requiredStarterCount: season.starterCount,
-        primaryBlockers: [...new Set(blockers)].slice(0, 3),
+        primaryBlockers: readiness.blockers.slice(0, 3),
       };
     }),
     summary: {
