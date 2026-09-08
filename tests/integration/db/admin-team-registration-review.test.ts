@@ -174,7 +174,7 @@ describe("PR3 team registration review PostgreSQL integration", () => {
              current_roster_revision_id, registration_status, created_at, updated_at
            ) VALUES
              ($1, $2, 'event_native', $3, $4, $5, 'draft', $6, $6),
-             ($7, $2, 'linked_team', $8, $9, $10, 'draft', $11, $11)`,
+             ($7, $2, 'event_native', $8, $9, $10, 'draft', $11, $11)`,
           [
             ids.draftEntry, ids.season, `${marker} Recent Draft`, ids.blockedUser, ids.draftRevision, new Date(now),
             ids.olderDraftEntry, `${marker} Older Draft`, ids.readyUser, ids.olderDraftRevision, new Date(now - 10 * 60 * 60 * 1000),
