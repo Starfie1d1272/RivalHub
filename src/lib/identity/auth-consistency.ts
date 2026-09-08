@@ -1,4 +1,10 @@
 import { normalizeEmail } from "../utils/email";
+import {
+  CANONICAL_AUTH_PROVIDER,
+  CANONICAL_EMAIL_KIND,
+  matchesCanonicalEmailIdentity,
+  matchesCanonicalIdentity,
+} from "./canonical-ownership";
 
 export const AUTH_CONSISTENCY_GRACE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -112,19 +118,18 @@ export function buildAuthConsistencyReport(
   const legacyEmailOwners = buildCanonicalIndex(input.canonicalUsers, (user) => normalizeEmail(user.email));
   const identityByAuthSubject = buildIdentityIndex(
     input.identities,
-    (identity) => identity.provider === "supabase_auth" ? identity.providerSubject : null,
+    (identity) => identity.provider === CANONICAL_AUTH_PROVIDER ? identity.providerSubject : null,
   );
   const identityByNormalizedValue = buildIdentityIndex(
     input.identities,
-    (identity) => identity.normalizedValue ? normalizeEmail(identity.normalizedValue) : null,
+    (identity) => identity.kind === CANONICAL_EMAIL_KIND && identity.normalizedValue ? identity.normalizedValue : null,
   );
   const identitiesByUser = groupBy(input.identities, (identity) => identity.userId);
 
   const authRecords = input.authUsers.map((authUser) => {
     const emailKey = authUser.email ? normalizeEmail(authUser.email) : null;
     const matchedIdentities = input.identities.filter((identity) =>
-      (identity.provider === "supabase_auth" && identity.providerSubject === authUser.id) ||
-      (emailKey !== null && identity.normalizedValue !== null && normalizeEmail(identity.normalizedValue) === emailKey),
+      matchesCanonicalIdentity(identity, authUser.id, authUser.email),
     );
     const identityOwnerIds = uniqueSorted(matchedIdentities.map((identity) => identity.userId));
     const authSubjectOwnerIds = uniqueSorted(identityByAuthSubject.get(authUser.id) ?? []);
@@ -238,7 +243,7 @@ export function buildAuthConsistencyReport(
   for (const canonicalUser of input.canonicalUsers) {
     const emailKey = normalizeEmail(canonicalUser.email);
     const userIdentities = identitiesByUser.get(canonicalUser.id) ?? [];
-    const authIdentities = userIdentities.filter((identity) => identity.provider === "supabase_auth");
+    const authIdentities = userIdentities.filter((identity) => identity.provider === CANONICAL_AUTH_PROVIDER);
     const candidateAuthUsers = uniqueAuthUsers([
       canonicalUser.authId ? authById.get(canonicalUser.authId) : undefined,
       ...authIdentities.map((identity) => authById.get(identity.providerSubject)),
@@ -251,11 +256,16 @@ export function buildAuthConsistencyReport(
     });
     const hasMissingLegacyAuthId = canonicalUser.authId !== null && !authById.has(canonicalUser.authId);
     const hasMissingAuthIdentity = authIdentities.some((identity) => !authById.has(identity.providerSubject));
-    if (!hasMissingLegacyAuthId && !hasMissingAuthIdentity && (hasValidAuthIdentity || hasResolvableEmailOwner)) continue;
+    const hasResolvableLegacyAuthOwner = canonicalUser.authId !== null && authById.has(canonicalUser.authId);
+    if (
+      !hasMissingLegacyAuthId &&
+      !hasMissingAuthIdentity &&
+      (hasValidAuthIdentity || (hasResolvableEmailOwner && !hasResolvableLegacyAuthOwner))
+    ) continue;
 
     const identityRows = uniqueIdentities([
       ...userIdentities,
-      ...input.identities.filter((identity) => identity.normalizedValue !== null && normalizeEmail(identity.normalizedValue) === emailKey),
+      ...input.identities.filter((identity) => matchesCanonicalEmailIdentity(identity, canonicalUser.email)),
     ]);
     const ownership: AuthConsistencyIdentityOwnership = {
       identityIds: uniqueSorted(identityRows.map((identity) => identity.id)),
@@ -382,7 +392,7 @@ function appendUnmatchedIdentityConflicts(
     reportedIdentityIds,
     reportedConflictKeys,
     identityByAuthSubject,
-    (identity) => identity.provider === "supabase_auth" ? identity.providerSubject : null,
+    (identity) => identity.provider === CANONICAL_AUTH_PROVIDER ? identity.providerSubject : null,
     (subject) => authById.get(subject)?.id ?? null,
     "multiple_canonical_owners_for_auth_subject",
   );
@@ -392,7 +402,7 @@ function appendUnmatchedIdentityConflicts(
     reportedIdentityIds,
     reportedConflictKeys,
     identityByNormalizedValue,
-    (identity) => identity.normalizedValue ? normalizeEmail(identity.normalizedValue) : null,
+    (identity) => identity.kind === CANONICAL_EMAIL_KIND && identity.normalizedValue ? identity.normalizedValue : null,
     (email) => authByEmail.get(email)?.[0]?.id ?? null,
     "multiple_canonical_owners_for_normalized_email",
   );
@@ -435,8 +445,8 @@ function createSyntheticConflictRecord(
     identityOwnership: {
       identityIds: uniqueSorted(identities.map((identity) => identity.id)),
       identityOwnerIds: uniqueSorted(identities.map((identity) => identity.userId)),
-      authSubjectOwnerIds: uniqueSorted(identities.filter((identity) => identity.provider === "supabase_auth").map((identity) => identity.userId)),
-      normalizedEmailOwnerIds: uniqueSorted(identities.filter((identity) => identity.normalizedValue !== null).map((identity) => identity.userId)),
+      authSubjectOwnerIds: uniqueSorted(identities.filter((identity) => identity.provider === CANONICAL_AUTH_PROVIDER).map((identity) => identity.userId)),
+      normalizedEmailOwnerIds: uniqueSorted(identities.filter((identity) => identity.kind === CANONICAL_EMAIL_KIND && identity.normalizedValue !== null).map((identity) => identity.userId)),
       legacyAuthIdOwnerIds: [],
       legacyEmailOwnerIds: [],
       matchedAuthUserIds: authUserId ? [authUserId] : [],

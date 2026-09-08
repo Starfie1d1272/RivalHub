@@ -153,6 +153,27 @@ describe("Auth ↔ canonical user consistency", () => {
     });
   });
 
+  it("reports a legacy Auth binding whose active Auth identity is missing", () => {
+    const authId = "44444444-4444-4444-8444-444444444444";
+    const owner = canonicalUser({ authId, email: "legacy-binding@example.test" });
+    const target = authUser({
+      id: authId,
+      email: owner.email,
+      confirmedAt: new Date("2026-05-15T00:05:00.000Z"),
+    });
+    const records = report([target], [owner]);
+
+    expect(records).toContainEqual(expect.objectContaining({
+      classification: "public_without_auth",
+      canonicalUserId: owner.id,
+      severity: "high",
+      healability: "manual_review",
+      repairCode: null,
+      blockerCode: "primary_auth_identity_missing",
+      identityOwnership: expect.objectContaining({ matchedAuthUserIds: [authId] }),
+    }));
+  });
+
   it("fails closed when Auth subject and normalized email have different owners", () => {
     const first = canonicalUser({ id: "22222222-2222-4222-8222-222222222222", email: "first@example.test" });
     const second = canonicalUser({ id: "55555555-5555-4555-8555-555555555555", email: "second@example.test" });
@@ -167,11 +188,11 @@ describe("Auth ↔ canonical user consistency", () => {
       classification: "identity_owner_conflict",
       severity: "critical",
       healability: "blocked",
-      conflictCode: "multiple_canonical_owners_for_normalized_email",
+      conflictCode: "auth_and_email_owner_mismatch",
     });
     expect(buildAuthConsistencyRepairPlan(conflict, target)).toMatchObject({
       executable: false,
-      conflictCode: "multiple_canonical_owners_for_normalized_email",
+      conflictCode: "auth_and_email_owner_mismatch",
     });
   });
 
@@ -193,6 +214,28 @@ describe("Auth ↔ canonical user consistency", () => {
         authSubjectOwnerIds: [first.id, second.id],
       }),
     }));
+  });
+
+  it("does not treat a non-email identity normalized value as an email owner", () => {
+    const first = canonicalUser({ id: "22222222-2222-4222-8222-222222222222", email: "first@example.test" });
+    const second = canonicalUser({ id: "55555555-5555-4555-8555-555555555555", email: "second@example.test" });
+    const target = authUser({
+      id: "88888888-8888-4888-8888-888888888888",
+      email: first.email,
+      createdAt: new Date("2026-05-15T00:00:00.000Z"),
+      confirmedAt: new Date("2026-05-15T00:05:00.000Z"),
+    });
+    const records = report([target], [first, second], [
+      identity({ userId: first.id, providerSubject: target.id, normalizedValue: first.email }),
+      identity({ id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", userId: second.id, kind: "oauth", provider: "steam", providerSubject: "steam-subject", normalizedValue: first.email, isPrimary: false }),
+    ]);
+
+    expect(records.find((entry) => entry.authUserId === target.id)).toMatchObject({
+      classification: "consistent",
+      canonicalUserId: first.id,
+      conflictCode: null,
+    });
+    expect(records.filter((entry) => entry.conflictCode === "multiple_canonical_owners_for_normalized_email")).toHaveLength(0);
   });
 
   it("summarizes every fixed classification deterministically", () => {

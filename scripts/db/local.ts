@@ -36,6 +36,7 @@ const LOCKED_COMMANDS = new Set([
   "verify-supabase",
   "verify-migrations",
   "test-integration",
+  "test-auth-consistency",
   "test-e2e",
   "verify-local",
   "bootstrap",
@@ -85,6 +86,9 @@ try {
     case "test-integration":
       runLocalIntegrationSuite(process.argv.slice(3));
       break;
+    case "test-auth-consistency":
+      runAuthConsistencyIntegration();
+      break;
     case "test-e2e":
       runLocalE2E(process.argv.slice(3));
       break;
@@ -128,7 +132,7 @@ try {
       break;
     default:
       throw new Error(
-        "未知命令。可用命令：start | start-db | start-services | status | migrate | seed | verify | verify-db | verify-supabase | verify-migrations | test-integration | test-e2e | verify-local | bootstrap | bootstrap-db | bootstrap-services | reset | stop | studio | dev | build",
+        "未知命令。可用命令：start | start-db | start-services | status | migrate | seed | verify | verify-db | verify-supabase | verify-migrations | test-integration | test-auth-consistency | test-e2e | verify-local | bootstrap | bootstrap-db | bootstrap-services | reset | stop | studio | dev | build",
       );
   }
 } catch (error) {
@@ -241,6 +245,23 @@ function runLocalIntegrationSuite(args: readonly string[]): void {
       ...sanitizedEnvironment(),
       RIVALHUB_LOCAL_DATABASE_URL: status.databaseUrl,
       DATABASE_URL: status.databaseUrl,
+    },
+  });
+}
+
+function runAuthConsistencyIntegration(): void {
+  const status = readLocalStatus();
+  run(tsxBin, [
+    "scripts/db/integration-runner.ts",
+    "tests/integration/db/auth-consistency.test.ts",
+  ], {
+    env: {
+      ...sanitizedEnvironment(),
+      DATABASE_URL: status.databaseUrl,
+      RIVALHUB_LOCAL_DATABASE_URL: status.databaseUrl,
+      RIVALHUB_DB_TARGET: "local",
+      NEXT_PUBLIC_SUPABASE_URL: status.apiUrl,
+      SUPABASE_SERVICE_ROLE_KEY: status.serviceRoleKey,
     },
   });
 }

@@ -6,6 +6,8 @@
 
 审计脚本读取完整的 Supabase Auth user 分页和 PostgreSQL active user/identity 快照，在内存中完成 reconciliation。PostgreSQL 快照必须在 `READ ONLY` transaction 中读取，并确认 `transaction_read_only = on`。
 
+credential owner 匹配与 runtime resolver 保持同一规则：`provider=supabase_auth` 的 Auth subject，或 `kind=email` 的 normalized email，再叠加 legacy `users.auth_id/email`；其它 identity kind 的 `normalized_value` 不参与 email owner 判断。
+
 ## 分类
 
 | 分类 | 含义 | 处理边界 |
@@ -54,7 +56,7 @@ pnpm db:production:auth-consistency-audit
 pnpm db:auth-consistency-audit --repair-auth '<auth uuid>'
 ```
 
-只有显式加 `--apply` 才允许写入；production apply 还必须经过 production wrapper，并设置 `RIVALHUB_ALLOW_REMOTE_DB_WRITE=production`。repair 始终调用 `resolveOrCreateCanonicalUserInTx()`，使用 `admin_migration` provenance，并在同一事务中写入 `user_identity.auth_consistency_repair` audit fact。它不通过通用 SQL 绕过 identity invariant，也不删除 Supabase Auth user。
+只有显式加 `--apply` 才允许写入；local apply 仅允许 loopback 数据库，production apply 还必须经过 production wrapper，并设置 `RIVALHUB_ALLOW_REMOTE_DB_WRITE=production`。repair 始终调用 `resolveOrCreateCanonicalUserInTx()`，使用 `admin_migration` provenance，并在同一事务中写入 `user_identity.auth_consistency_repair` audit fact。它不通过通用 SQL 绕过 identity invariant，也不删除 Supabase Auth user。
 
 以下情况永远不会自动 repair：`public_without_auth`、任何 `identity_owner_conflict`、未确认 Auth email、缺失 Auth email，或执行期间 canonical owner 与 dry-run plan 不一致。冲突应转入既有 identity merge/reconciliation 人工流程。
 

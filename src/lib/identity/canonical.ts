@@ -5,6 +5,7 @@ import type { DB, TxDb } from "@/db/client";
 import { userIdentities, users } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { normalizeEmail } from "@/lib/utils/email";
+import { CANONICAL_AUTH_PROVIDER, CANONICAL_EMAIL_KIND } from "./canonical-ownership";
 
 type IdentityQueryable = Pick<DB, "select">;
 type VerificationSource = "signup_confirmation" | "existing_account_reverification" | "admin_migration";
@@ -42,6 +43,8 @@ export async function resolveOrCreateCanonicalUserInTx(
     verifiedAt: Date;
     source: VerificationSource;
     allowCreate: boolean;
+    /** When set, reject the transaction if the owner changed since a dry-run plan. */
+    expectedCanonicalUserId?: string | null;
   },
 ): Promise<typeof users.$inferSelect> {
   const email = normalizeEmail(input.email);
@@ -52,8 +55,8 @@ export async function resolveOrCreateCanonicalUserInTx(
     .where(and(
       eq(userIdentities.status, "active"),
       or(
-        and(eq(userIdentities.provider, "supabase_auth"), eq(userIdentities.providerSubject, input.authId)),
-        and(eq(userIdentities.kind, "email"), eq(userIdentities.normalizedValue, email)),
+        and(eq(userIdentities.provider, CANONICAL_AUTH_PROVIDER), eq(userIdentities.providerSubject, input.authId)),
+        and(eq(userIdentities.kind, CANONICAL_EMAIL_KIND), eq(userIdentities.normalizedValue, email)),
       ),
     ));
   const legacyRows = await tx.select({ id: users.id })
@@ -74,6 +77,9 @@ export async function resolveOrCreateCanonicalUserInTx(
 
   let user: typeof users.$inferSelect | undefined;
   const existingId = canonicalIds.values().next().value as string | undefined;
+  if (input.expectedCanonicalUserId !== undefined && (existingId ?? null) !== input.expectedCanonicalUserId) {
+    throw new AppError(ErrorCode.INTERNAL_ERROR, "Auth consistency repair 的 canonical owner 与 dry-run plan 不一致，已拒绝提交。");
+  }
   if (existingId) {
     [user] = await tx.select().from(users).where(and(eq(users.id, existingId), eq(users.status, "active"))).for("update");
   } else if (input.allowCreate) {

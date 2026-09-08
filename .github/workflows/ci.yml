@@ -164,6 +164,7 @@ jobs:
       - run: pnpm db:local:start-services
       - run: pnpm db:local:bootstrap-services
       - run: pnpm db:local:verify-supabase
+      - run: pnpm test:integration:auth-consistency
       - run: google-chrome --version
       - run: pnpm test:e2e
         env:

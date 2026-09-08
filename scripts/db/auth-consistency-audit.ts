@@ -1,7 +1,7 @@
-import { sql } from "drizzle-orm";
-import { createClient } from "@supabase/supabase-js";
+import { asc, eq, sql } from "drizzle-orm";
 import { db } from "../../src/db/client-runtime";
-import { auditLogs } from "../../src/db/schema";
+import { auditLogs, userIdentities, users } from "../../src/db/schema";
+import { createServiceClient } from "../../src/lib/auth/supabase-server";
 import { assertLocalDatabaseUrl, assertLocalHttpUrl } from "./local-environment";
 import {
   AUTH_CONSISTENCY_GRACE_WINDOW_MS,
@@ -153,21 +153,21 @@ function requireTarget(): string {
     assertLocalDatabaseUrl(process.env.DATABASE_URL, "DATABASE_URL");
     assertLocalHttpUrl(process.env.NEXT_PUBLIC_SUPABASE_URL, "NEXT_PUBLIC_SUPABASE_URL");
   }
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()) {
+    throw new Error("SUPABASE_SERVICE_ROLE_KEY 未设置；未生成 audit 结果。");
+  }
   return target;
 }
 
 function requireWriteAuthorization(target: string): void {
+  if (target === "local") return;
   if (process.env.RIVALHUB_ALLOW_REMOTE_DB_WRITE !== target) {
     throw new Error(`Auth consistency repair 未授权；必须显式设置 RIVALHUB_ALLOW_REMOTE_DB_WRITE=${target}。`);
   }
 }
 
 async function listAuthUsers(): Promise<AuthConsistencyAuthUser[]> {
-  const apiUrl = requiredSupabaseUrl(process.env.NEXT_PUBLIC_SUPABASE_URL);
-  const serviceRoleKey = required(process.env.SUPABASE_SERVICE_ROLE_KEY, "SUPABASE_SERVICE_ROLE_KEY");
-  const client = createClient(apiUrl, serviceRoleKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  const client = createServiceClient();
   const users: AuthConsistencyAuthUser[] = [];
   const seen = new Set<string>();
 
@@ -181,9 +181,9 @@ async function listAuthUsers(): Promise<AuthConsistencyAuthUser[]> {
       users.push({
         id: user.id,
         email: user.email ?? null,
-        createdAt: requiredDate(user.created_at, `Auth user ${user.id} created_at`),
-        confirmedAt: optionalDate(user.email_confirmed_at ?? user.confirmed_at, `Auth user ${user.id} confirmed_at`),
-        lastSignInAt: optionalDate(user.last_sign_in_at, `Auth user ${user.id} last_sign_in_at`),
+        createdAt: requiredAuthDate(user.created_at, `Auth user ${user.id} created_at`),
+        confirmedAt: optionalAuthDate(user.email_confirmed_at ?? user.confirmed_at, `Auth user ${user.id} confirmed_at`),
+        lastSignInAt: optionalAuthDate(user.last_sign_in_at, `Auth user ${user.id} last_sign_in_at`),
       });
     }
     if (pageUsers.length < AUTH_PAGE_SIZE) return users;
@@ -200,44 +200,26 @@ async function readDatabaseSnapshot(): Promise<DatabaseSnapshot> {
       throw new Error("PostgreSQL 未确认 read-only transaction，拒绝执行 Auth consistency audit。");
     }
 
-    const canonicalRows = await tx.execute(sql`
-      SELECT id::text AS id, auth_id::text AS "authId", email, created_at AS "createdAt"
-      FROM users
-      WHERE status = 'active'
-      ORDER BY id
-    `);
-    const identityRows = await tx.execute(sql`
-      SELECT
-        id::text AS id,
-        user_id::text AS "userId",
-        kind::text AS kind,
-        provider,
-        provider_subject AS "providerSubject",
-        normalized_value AS "normalizedValue",
-        verified_at AS "verifiedAt",
-        is_primary AS "isPrimary"
-      FROM user_identities
-      WHERE status = 'active'
-      ORDER BY id
-    `);
+    const canonicalRows = await tx.select({
+      id: users.id,
+      authId: users.authId,
+      email: users.email,
+      createdAt: users.createdAt,
+    }).from(users).where(eq(users.status, "active")).orderBy(asc(users.id));
+    const identityRows = await tx.select({
+      id: userIdentities.id,
+      userId: userIdentities.userId,
+      kind: userIdentities.kind,
+      provider: userIdentities.provider,
+      providerSubject: userIdentities.providerSubject,
+      normalizedValue: userIdentities.normalizedValue,
+      verifiedAt: userIdentities.verifiedAt,
+      isPrimary: userIdentities.isPrimary,
+    }).from(userIdentities).where(eq(userIdentities.status, "active")).orderBy(asc(userIdentities.id));
 
     return {
-      canonicalUsers: canonicalRows.rows.map((row) => ({
-        id: requiredString(row.id, "users.id"),
-        authId: optionalString(row.authId),
-        email: requiredString(row.email, "users.email"),
-        createdAt: requiredDate(row.createdAt, "users.created_at"),
-      })),
-      identities: identityRows.rows.map((row) => ({
-        id: requiredString(row.id, "user_identities.id"),
-        userId: requiredString(row.userId, "user_identities.user_id"),
-        kind: requiredString(row.kind, "user_identities.kind"),
-        provider: requiredString(row.provider, "user_identities.provider"),
-        providerSubject: requiredString(row.providerSubject, "user_identities.provider_subject"),
-        normalizedValue: optionalString(row.normalizedValue),
-        verifiedAt: optionalDate(row.verifiedAt, "user_identities.verified_at"),
-        isPrimary: row.isPrimary === true,
-      })),
+      canonicalUsers: canonicalRows,
+      identities: identityRows,
     };
   });
 }
@@ -264,6 +246,7 @@ async function applyRepair(
       verifiedAt,
       source: "admin_migration",
       allowCreate: true,
+      expectedCanonicalUserId: plan.canonicalUserId,
     });
     if (plan.canonicalUserId && canonicalUser.id !== plan.canonicalUserId) {
       throw new Error("Auth consistency repair 的 canonical owner 在执行期间发生变化，事务已拒绝提交。");
@@ -315,41 +298,13 @@ function formatRepairPlan(plan: AuthConsistencyRepairPlan): FormattedRepairPlan 
   };
 }
 
-function requiredSupabaseUrl(value: string | undefined): string {
-  if (!value?.trim()) throw new Error("NEXT_PUBLIC_SUPABASE_URL 未设置；未生成 audit 结果。");
-  let url: URL;
-  try {
-    url = new URL(value.trim());
-  } catch {
-    throw new Error("NEXT_PUBLIC_SUPABASE_URL 格式无效；未生成 audit 结果。");
-  }
-  if (!["http:", "https:"].includes(url.protocol) || url.pathname !== "/" || url.username || url.password || url.search || url.hash) {
-    throw new Error("NEXT_PUBLIC_SUPABASE_URL 必须是无 credential/query 的 HTTP(S) origin。");
-  }
-  return url.origin;
-}
-
-function required(value: string | undefined, label: string): string {
-  if (!value?.trim()) throw new Error(`${label} 未设置；未生成 audit 结果。`);
-  return value.trim();
-}
-
-function requiredString(value: unknown, label: string): string {
-  if (typeof value !== "string" || !value.trim()) throw new Error(`${label} 缺失；拒绝生成不完整 audit。`);
-  return value;
-}
-
-function optionalString(value: unknown): string | null {
-  return typeof value === "string" && value.trim() ? value : null;
-}
-
-function requiredDate(value: unknown, label: string): Date {
-  const date = optionalDate(value, label);
+function requiredAuthDate(value: unknown, label: string): Date {
+  const date = optionalAuthDate(value, label);
   if (!date) throw new Error(`${label} 不是有效 timestamp；拒绝生成不完整 audit。`);
   return date;
 }
 
-function optionalDate(value: unknown, label: string): Date | null {
+function optionalAuthDate(value: unknown, label: string): Date | null {
   if (value === null || value === undefined || value === "") return null;
   const date = value instanceof Date ? value : new Date(String(value));
   if (!Number.isFinite(date.getTime())) throw new Error(`${label} 不是有效 timestamp；拒绝生成不完整 audit。`);
