@@ -31,6 +31,14 @@ RivalHub 是基于 Next.js App Router、TypeScript、Drizzle/PostgreSQL、Supaba
 
 PR title、Changeset 与 closure 语义由 [`CONTRIBUTING.md`](CONTRIBUTING.md) 维护；release procedure 只由 [`docs/operations/release.md`](docs/operations/release.md) 维护。
 
+## CI 等待
+
+- 完成本地验证、push 并创建 Ready PR 后，不手写循环或每 10–15 秒调用 `gh pr checks`、`gh run view`、GitHub API/MCP workflow 查询等主动轮询。
+- 优先使用 `gh pr checks <PR> --required --watch --interval 60 --fail-fast` 等单个阻塞 watch。若当前 runtime 无法阻塞，主动检查间隔至少约 60 秒；pending 状态不重复总结。
+- 成功时只确认 required checks（尤其 `ci-gate`）成功，不读成功 job 的全量日志或逐步复述。
+- 失败时先读取失败 check/job 摘要，只有摘要不足以定位才读取 `--log-failed` 等失败范围日志；本地修复和验证完成后再统一 push，避免边试边连续触发 CI。
+- 不要用 `sleep 10 && query` 伪装等待，也不要为此增加 bot、server、daemon 或其他基础设施。
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know

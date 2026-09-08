@@ -62,6 +62,8 @@ Pull Request 使用 changed-surface planner：
 
 `push` 到 `main`、merge queue、release 和手动 workflow 运行完整 convergence gate。
 
+PR 标题或正文的 metadata 编辑会单独重跑 planner、`pr-title` 与 `ci-gate`，不重新启动 static、PostgreSQL、system 或 dependency review；若编辑改变 PR base，planner 仍按新的 diff 正常分类。`ci-gate` 继续是唯一 required check，因而标题校验不会脱离合并 gate。
+
 不要在本文复制每个路径匹配规则；需要修改 planner 时同时更新 `scripts/ci/plan.mjs` 和对应 regression tests。
 
 ## 本地复现

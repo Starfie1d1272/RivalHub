@@ -32,6 +32,7 @@ jobs:
       run_postgres: ${{ steps.plan.outputs.run_postgres }}
       run_system: ${{ steps.plan.outputs.run_system }}
       required_jobs: ${{ steps.plan.outputs.required_jobs }}
+      metadata_only: ${{ steps.plan.outputs.metadata_only }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -50,6 +51,7 @@ jobs:
           BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           HEAD_SHA: ${{ github.sha }}
           FORCE_FULL: ${{ github.event_name != 'pull_request' }}
+          PR_METADATA_ONLY: ${{ github.event_name == 'pull_request' && github.event.action == 'edited' && !github.event.changes.base }}
 
   pr_title:
     name: pr-title
@@ -153,7 +155,8 @@ jobs:
 
   dependency-review:
     name: dependency-review
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && needs.plan.outputs.metadata_only != 'true'
+    needs: plan
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -228,4 +231,5 @@ jobs:
           DEPENDENCY_REVIEW_RESULT: ${{ needs.dependency-review.result }}
           TITLE_RESULT: ${{ needs.pr_title.result }}
           EVENT_NAME: ${{ github.event_name }}
+          METADATA_ONLY: ${{ needs.plan.outputs.metadata_only }}
           REQUIRED_JOBS: ${{ needs.plan.outputs.required_jobs }}

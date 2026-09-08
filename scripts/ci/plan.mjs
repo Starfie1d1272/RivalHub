@@ -30,9 +30,12 @@ const SYSTEM_ACTION_PREFIXES = [
 ];
 
 export function classifyChangedFiles(entries, options = {}) {
-  const { forceFull = false } = options;
+  const { forceFull = false, metadataOnly = false } = options;
   if (forceFull) {
     return resultFor(CAPABILITIES, true, "受保护分支、merge queue、release 或手动运行，强制 full gate");
+  }
+  if (metadataOnly) {
+    return resultFor([], false, "PR 标题或正文元数据编辑：只运行 planner、pr-title 与 ci-gate");
   }
   if (entries.length === 0) {
     return resultFor(CAPABILITIES, true, "无法取得 changed-surface，fail closed 到 full gate");
@@ -75,15 +78,16 @@ export function parseNameStatus(raw) {
 }
 
 function classifyPath(path) {
+  if (path.startsWith(".changeset/")) {
+    return { capabilities: [], reason: `release metadata: ${path}` };
+  }
+
   const docs = path.startsWith("docs/") || path.endsWith(".md") || path.endsWith(".mdx");
   if (docs) return { capabilities: [], reason: `docs-only: ${path}` };
 
   const fullPrefixes = [
     ".github/",
-    ".changeset/",
     "scripts/",
-    "tests/integration/",
-    "tests/e2e/",
     "package.json",
     "pnpm-lock.yaml",
     "pnpm-workspace.yaml",
@@ -111,6 +115,16 @@ function classifyPath(path) {
   }
   if (path.startsWith("drizzle/") || path.startsWith("src/db/")) {
     return { capabilities: ["static", "postgres"], reason: `database surface: ${path}` };
+  }
+
+  if (path.startsWith("tests/integration/db/harness/") || path === "tests/integration/setup.ts") {
+    return { capabilities: "full", reason: `integration harness surface: ${path}` };
+  }
+  if (path.startsWith("tests/integration/db/")) {
+    return { capabilities: ["postgres"], reason: `real PostgreSQL integration surface: ${path}` };
+  }
+  if (path.startsWith("tests/e2e/")) {
+    return { capabilities: ["system"], reason: `browser and Local Supabase system surface: ${path}` };
   }
 
   const source = readSourceDependencies(path);
@@ -221,8 +235,9 @@ function gitChangedFiles() {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const forceFull = process.env.FORCE_FULL === "1" || process.env.FORCE_FULL === "true";
+  const metadataOnly = process.env.PR_METADATA_ONLY === "1" || process.env.PR_METADATA_ONLY === "true";
   const entries = gitChangedFiles();
-  const plan = classifyChangedFiles(entries, { forceFull });
+  const plan = classifyChangedFiles(entries, { forceFull, metadataOnly });
   console.log(`CI plan: ${plan.full ? "FULL" : plan.requiredJobs.join(" + ")} | ${plan.reason}`);
   for (const entry of entries) console.log(`changed ${entry.status}\t${entry.paths.join("\t")}`);
   output("full", String(plan.full));
@@ -230,4 +245,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   output("run_postgres", String(plan.runPostgres));
   output("run_system", String(plan.runSystem));
   output("required_jobs", JSON.stringify(plan.requiredJobs));
+  output("metadata_only", String(metadataOnly));
 }

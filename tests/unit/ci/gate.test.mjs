@@ -16,6 +16,7 @@ function runGate(overrides) {
       DEPENDENCY_REVIEW_RESULT: "skipped",
       TITLE_RESULT: "skipped",
       EVENT_NAME: "push",
+      METADATA_ONLY: "false",
       REQUIRED_JOBS: "[]",
       ...overrides,
     },
@@ -44,6 +45,24 @@ describe("ci-gate", () => {
 
     const result = runGate({ EVENT_NAME: "pull_request", DEPENDENCY_REVIEW_RESULT: "success", TITLE_RESULT: "failure" });
     expect(result.status).not.toBe(0);
+  });
+
+  it("accepts skipped dependency review only for metadata-only pull request validation", () => {
+    const passed = runGate({
+      EVENT_NAME: "pull_request",
+      METADATA_ONLY: "true",
+      DEPENDENCY_REVIEW_RESULT: "skipped",
+      TITLE_RESULT: "success",
+    });
+    expect(passed.status).toBe(0);
+
+    const failed = runGate({
+      EVENT_NAME: "pull_request",
+      METADATA_ONLY: "true",
+      DEPENDENCY_REVIEW_RESULT: "success",
+      TITLE_RESULT: "success",
+    });
+    expect(failed.status).not.toBe(0);
   });
 
   it("accepts the expected skipped dependency review outside pull requests", () => {
