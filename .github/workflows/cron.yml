@@ -9,26 +9,23 @@ permissions: {}
 
 jobs:
   trigger:
-    name: Cron / ${{ matrix.name }}
+    name: Cron / ${{ matrix.job_key }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: draft-timeout
-            path: /api/cron/draft-timeout
-          - name: check-registration-deadline
-            path: /api/cron/check-registration-deadline
-          - name: match-time-auto-award
-            path: /api/cron/match-time-auto-award
-          - name: cleanup-education-evidence
-            path: /api/cron/cleanup-education-evidence
+          - job_key: draft-timeout
+          - job_key: check-registration-deadline
+          - job_key: match-time-auto-award
+          - job_key: cleanup-education-evidence
     steps:
-      - name: Invoke ${{ matrix.name }}
+      - name: Invoke ${{ matrix.job_key }}
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          CRON_PATH: ${{ matrix.path }}
+          CRON_JOB_KEY: ${{ matrix.job_key }}
+          CRON_SOURCE: ${{ github.event_name == 'workflow_dispatch' && 'github-manual' || 'github-watchdog' }}
         run: |
           curl --fail --silent --show-error \
             --connect-timeout 10 \
@@ -38,4 +35,5 @@ jobs:
             --retry-delay 5 \
             --retry-max-time 180 \
             --header "Authorization: Bearer ${CRON_SECRET}" \
-            "https://match.starfie1d.top${CRON_PATH}"
+            --header "X-RivalHub-Cron-Source: ${CRON_SOURCE}" \
+            "https://match.starfie1d.top/api/cron/${CRON_JOB_KEY}"

@@ -39,6 +39,7 @@ import { canMutateCompetitionEntryRoster } from "@/lib/competition-entries/remed
 import { reconcileMajorPrestartRosterAfterApprovalInTx } from "@/lib/major/prestart-roster";
 import { normalizeAffiliationRules, normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
 import { assessEntryRosterReadiness } from "@/lib/competition-entries/readiness";
+import { ensureRegistrationOpenForParticipantInTx } from "@/lib/seasons/registration-recovery";
 
 const editableStatuses = ["draft", "changes_requested"] as const;
 
@@ -181,8 +182,14 @@ export async function validateApprovedCompetitionEntryRosterInTx(
 }
 
 export async function createCompetitionEntryInTx(tx: TxDb, input: { competitionId: string; teamId: string; userId: string; actorId: string }): Promise<{ entryId: string; seasonSlug: string }> {
-  const season = await loadSeasonOrThrow(tx, input.competitionId);
+  let season = await loadSeasonOrThrow(tx, input.competitionId);
   if (!isTeamRegistration(season)) throw new AppError(ErrorCode.SEASON_CAPABILITY_DISABLED, "当前赛事不使用队伍报名。");
+  const [teamScope] = await tx.select({ status: teams.status, captainUserId: teams.captainUserId }).from(teams).where(eq(teams.id, input.teamId));
+  if (!teamScope || teamScope.status !== "active") throw new AppError(ErrorCode.NOT_FOUND, "队伍不存在或已解散。");
+  if (teamScope.captainUserId !== input.userId) throw new AppError(ErrorCode.FORBIDDEN, "只有队伍队长可以创建参赛条目。");
+  if (getRegistrationWindowState(season).needsOpeningRecovery) {
+    season = (await ensureRegistrationOpenForParticipantInTx(tx, input.competitionId)).season;
+  }
   const window = getRegistrationWindowState(season);
   if (!window.canSubmit) throw new AppError(ErrorCode.REGISTRATION_CLOSED, window.message);
   const [team] = await tx.select().from(teams).where(eq(teams.id, input.teamId)).for("update");
@@ -202,11 +209,14 @@ export async function saveCompetitionEntryRosterInTx(tx: TxDb, input: { entryId:
   const entry = await lockRepresentativeEntry(tx, input.entryId, input.userId);
   if (!editableStatuses.includes(entry.registrationStatus as typeof editableStatuses[number])) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前报名版本不可编辑。");
   if (!entry.teamId) throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事组队报名不能通过队伍名单编辑入口修改。");
-  const season = await loadSeasonOrThrow(tx, entry.competitionId);
-  const currentMemberships = await tx.select().from(teamMemberships).where(and(eq(teamMemberships.teamId, entry.teamId), inArray(teamMemberships.userId, input.userIds), isNull(teamMemberships.endedAt)));
-  if (currentMemberships.length !== input.userIds.length) throw new AppError(ErrorCode.VALIDATION_FAILED, "新选择的名单成员必须当前仍属于这支队伍。");
+  let season = await loadSeasonOrThrow(tx, entry.competitionId);
   const [revision] = await tx.select().from(competitionEntryRosterRevisions).where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id))).for("update");
   if (!revision || revision.status !== "draft") throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前名单版本不可编辑。");
+  if (revision.origin !== "admin_remediation" && getRegistrationWindowState(season).needsOpeningRecovery) {
+    season = (await ensureRegistrationOpenForParticipantInTx(tx, entry.competitionId)).season;
+  }
+  const currentMemberships = await tx.select().from(teamMemberships).where(and(eq(teamMemberships.teamId, entry.teamId), inArray(teamMemberships.userId, input.userIds), isNull(teamMemberships.endedAt)));
+  if (currentMemberships.length !== input.userIds.length) throw new AppError(ErrorCode.VALIDATION_FAILED, "新选择的名单成员必须当前仍属于这支队伍。");
   const window = getRegistrationWindowState(season);
   if (!canMutateCompetitionEntryRoster(entry.registrationStatus as "draft" | "changes_requested", revision.origin, season)) throw new AppError(ErrorCode.REGISTRATION_CLOSED, window.message);
   const existingParticipants = await tx.select().from(competitionEntryParticipants).where(eq(competitionEntryParticipants.entryId, entry.id));
@@ -240,9 +250,12 @@ export async function confirmCompetitionEntryParticipationInTx(tx: TxDb, input: 
   if (!editableStatuses.includes(entry.registrationStatus as typeof editableStatuses[number])) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前报名阶段不能确认新成员。");
   const [participant] = await tx.select().from(competitionEntryParticipants).where(and(eq(competitionEntryParticipants.entryId, entry.id), eq(competitionEntryParticipants.userId, input.userId))).for("update");
   if (!participant) throw new AppError(ErrorCode.NOT_FOUND, "你不在当前本届名单中。");
-  const season = await loadSeasonOrThrow(tx, entry.competitionId);
+  let season = await loadSeasonOrThrow(tx, entry.competitionId);
   const [revision] = await tx.select().from(competitionEntryRosterRevisions).where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id))).for("update");
   if (!revision || revision.status !== "draft") throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前名单版本不可编辑。");
+  if (revision.origin !== "admin_remediation" && getRegistrationWindowState(season).needsOpeningRecovery) {
+    season = (await ensureRegistrationOpenForParticipantInTx(tx, entry.competitionId)).season;
+  }
   const window = getRegistrationWindowState(season);
   if (!canMutateCompetitionEntryRoster(entry.registrationStatus as "draft" | "changes_requested", revision.origin, season)) throw new AppError(ErrorCode.REGISTRATION_CLOSED, window.message);
   if (participant.status === "confirmed") return { seasonSlug: season.slug, alreadyConfirmed: true };
@@ -298,7 +311,12 @@ export async function withdrawCompetitionEntryInTx(tx: TxDb, input: { entryId: s
 export async function submitCompetitionEntryInTx(tx: TxDb, input: { entryId: string; userId: string; actorId: string }): Promise<{ seasonSlug: string }> {
   const entry = await lockRepresentativeEntry(tx, input.entryId, input.userId);
   if (!editableStatuses.includes(entry.registrationStatus as typeof editableStatuses[number])) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前报名状态不能提交。");
-  const season = await loadSeasonOrThrow(tx, entry.competitionId);
+  let season = await loadSeasonOrThrow(tx, entry.competitionId);
+  const [currentRevision] = await tx.select({ origin: competitionEntryRosterRevisions.origin }).from(competitionEntryRosterRevisions).where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id))).for("update");
+  if (!currentRevision) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前名单版本不可用于此操作。");
+  if (currentRevision.origin !== "admin_remediation" && getRegistrationWindowState(season).needsOpeningRecovery) {
+    season = (await ensureRegistrationOpenForParticipantInTx(tx, entry.competitionId)).season;
+  }
   const window = getRegistrationWindowState(season);
   const validated = await validateEntryRoster(tx, entry, season, ["draft"], { requireCurrentTeamMembership: true, requireActiveRestrictionOverrides: false });
   if (!canMutateCompetitionEntryRoster(entry.registrationStatus as "draft" | "changes_requested", validated.revision.origin, season)) throw new AppError(ErrorCode.REGISTRATION_CLOSED, window.message);

@@ -38,6 +38,8 @@ Fresh deployment 的 owner bootstrap 只通过 `RIVALHUB_OWNER_EMAIL`：当尚�
 
 管理员邀请只给正常 Supabase 用户授予 `season_admin` scope 或 `super_admin`。invite usage、claim ledger、并发上限和重复领取由 transaction + DB constraint 保护；撤销授权读取当前数据库事实，不依赖客户端缓存。
 
+系统状态页中的 scheduler health 和“立即运行一次”属于 `requireSuperAdmin()` 保护的 break-glass 能力。人工运行通过 shared scheduler execution owner 调用 canonical runner，并写入 `scheduler.manual_trigger` audit；按钮不是授权边界，也不允许客户端直接调用数据库或 endpoint。
+
 ## Session
 
 `rivalhub-session` 只保存最小身份信息。当前 role 与 season grants 每次从数据库读取，因此撤销权限会在后续请求生效；session 不保存可长期延续的授权快照。
@@ -59,7 +61,9 @@ Fresh deployment 的 owner bootstrap 只通过 `RIVALHUB_OWNER_EMAIL`：当尚�
 
 ## Secrets
 
-- `SUPABASE_SERVICE_ROLE_KEY`、`ADMIN_SESSION_SECRET`、`CRON_SECRET`、Turnstile secret 等只在服务端使用。
+- `SUPABASE_SERVICE_ROLE_KEY`、`ADMIN_SESSION_SECRET`、`CRON_SECRET`、Turnstile secret 等只在服务端使用。`CRON_SECRET` 是 provider-neutral 的 endpoint credential；Supabase primary 另从 Vault 的 `rivalhub_scheduler_base_url` 与 `rivalhub_cron_secret` 读取同一受保护凭据，GitHub watchdog 只从 protected secret 注入。
+- `X-RivalHub-Cron-Source` 只用于 primary/watchdog/manual/legacy execution 分支与健康投影，不替代 `Authorization: Bearer CRON_SECRET`；缺失 header 兼容 legacy，未知值拒绝。
+- `scheduled_job_health` 是 server-only 的有界当前投影，默认 RLS deny 且撤销 `anon`/`authenticated` grants；不提供浏览器 Data API 或 Realtime surface。
 - secret 不进入 `NEXT_PUBLIC_*`、Client props、Issue/PR、fixture 或日志。
 - recovery/signup/token、Cookie、Authorization 和教育证据遵守相同的默认敏感边界。
 - runtime 日志的脱敏与安全序列化见 [`operations/observability.md`](./operations/observability.md)。

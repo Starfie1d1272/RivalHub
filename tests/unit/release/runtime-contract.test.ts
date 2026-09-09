@@ -154,18 +154,18 @@ describe("deployment and operations contracts", () => {
 
   it("runs each production Cron endpoint independently with bounded retries", () => {
     const workflow = readProjectFile(".github/workflows/cron.yml");
-    const paths = [
-      "/api/cron/draft-timeout",
-      "/api/cron/check-registration-deadline",
-      "/api/cron/match-time-auto-award",
-      "/api/cron/cleanup-education-evidence",
+    const jobKeys = [
+      "draft-timeout",
+      "check-registration-deadline",
+      "match-time-auto-award",
+      "cleanup-education-evidence",
     ];
 
     expect(workflow).toContain("fail-fast: false");
     expect(workflow).toContain("timeout-minutes: 5");
     expect(workflow).toContain("matrix:");
-    for (const path of paths) expect(workflow).toContain(`path: ${path}`);
-    expect((workflow.match(/path: \/api\/cron\//g) ?? [])).toHaveLength(4);
+    for (const jobKey of jobKeys) expect(workflow).toContain(`- job_key: ${jobKey}`);
+    expect(workflow).toContain("/api/cron/${CRON_JOB_KEY}");
     expect(workflow).toContain("CRON_SECRET: ${{ secrets.CRON_SECRET }}");
     expect(workflow).toContain('Authorization: Bearer ${CRON_SECRET}');
     expect(workflow).toContain("--fail");
@@ -179,5 +179,16 @@ describe("deployment and operations contracts", () => {
     expect(workflow).toContain("--retry-max-time 180");
     expect(workflow).not.toContain("continue-on-error");
     expect(workflow).not.toContain("|| true");
+  });
+
+  it("provisions the primary scheduler only after production smoke", () => {
+    const release = readProjectFile(".github/workflows/release.yml");
+
+    expect(release).toContain("Provision and verify production scheduler");
+    expect(release).toContain("RIVALHUB_SCHEDULER_BASE_URL: https://match.starfie1d.top");
+    expect(release).toContain("RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:scheduler:provision");
+    expect(release).toContain("pnpm db:production:scheduler:verify");
+    expect(release.indexOf("Smoke test production deployment")).toBeLessThan(release.indexOf("Provision and verify production scheduler"));
+    expect(release.indexOf("Provision and verify production scheduler")).toBeLessThan(release.indexOf("Extract changelog for this version"));
   });
 });

@@ -36,6 +36,7 @@ const SAFE_CONTEXT_KEYS = new Set([
   "host",
   "httpStatus",
   "imageBytes",
+  "jobKey",
   "kind",
   "method",
   "mimeType",
@@ -57,6 +58,7 @@ const SAFE_CONTEXT_KEYS = new Set([
   "spanKind",
   "stage",
   "status",
+  "source",
   "table",
   "workflow",
 ]);

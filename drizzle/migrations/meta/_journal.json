@@ -316,6 +316,13 @@
       "when": 1788890094250,
       "tag": "0044_cultured_supernaut",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1788925356007,
+      "tag": "0045_fresh_blue_blade",
+      "breakpoints": true
     }
   ]
 }

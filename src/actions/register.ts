@@ -19,6 +19,7 @@ import { assertUsersNotBlockedInTx } from "@/lib/discipline/service";
 import { updatePublicPlayerTag } from "@/lib/revalidation";
 import { traceOperation } from "@/lib/observability/server";
 import { normalizePlayerDeclaredProfile } from "@/lib/player-declared-profile";
+import { ensureRegistrationOpenForParticipantInTx } from "@/lib/seasons/registration-recovery";
 
 const draftSchema = z.object({
   seasonId: z.guid("赛季 ID 格式不正确"),
@@ -61,10 +62,9 @@ export async function saveRegistrationDraft(input: unknown) {
     if (!season) {
       throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
     }
-
-    const windowState = getRegistrationWindowState(season);
-    if (!windowState.canSaveDraft) {
-      throw new AppError(ErrorCode.REGISTRATION_CLOSED, windowState.message);
+    const initialWindow = getRegistrationWindowState(season);
+    if (!initialWindow.canSaveDraft && !initialWindow.needsOpeningRecovery) {
+      throw new AppError(ErrorCode.REGISTRATION_CLOSED, initialWindow.message);
     }
 
     const payload = {
@@ -73,19 +73,29 @@ export async function saveRegistrationDraft(input: unknown) {
       email,
     };
 
-    await db
-      .insert(registrationDrafts)
-      .values({
-        seasonId: parsed.data.seasonId,
-        email,
-        payload,
-      })
-      .onConflictDoUpdate({
-        target: [registrationDrafts.seasonId, registrationDrafts.email],
-        set: { payload, updatedAt: new Date() },
-      });
+    const currentSeason = await db.transaction(async (tx) => {
+      const materializedSeason = initialWindow.needsOpeningRecovery
+        ? (await ensureRegistrationOpenForParticipantInTx(tx, parsed.data.seasonId)).season
+        : season;
+      const windowState = getRegistrationWindowState(materializedSeason);
+      if (!windowState.canSaveDraft) {
+        throw new AppError(ErrorCode.REGISTRATION_CLOSED, windowState.message);
+      }
+      await tx
+        .insert(registrationDrafts)
+        .values({
+          seasonId: parsed.data.seasonId,
+          email,
+          payload,
+        })
+        .onConflictDoUpdate({
+          target: [registrationDrafts.seasonId, registrationDrafts.email],
+          set: { payload, updatedAt: new Date() },
+        });
+      return materializedSeason;
+    });
 
-    revalidatePath(`/${season.slug}/register`);
+    revalidatePath(`/${currentSeason.slug}/register`);
     return ok({ email });
   } catch (e) {
     return actionError("saveRegistrationDraft", e);
@@ -164,7 +174,7 @@ export async function submitRegistration(input: RegistrationFormData) {
   }
 
   try {
-    const season = await db.query.seasons.findFirst({
+    let season = await db.query.seasons.findFirst({
       where: eq(seasons.id, seedParsed.data.seasonId),
     });
     if (!season) {
@@ -176,17 +186,27 @@ export async function submitRegistration(input: RegistrationFormData) {
         "队伍报名尚未开放，请联系赛事管理员",
       );
     }
-    const windowState = getRegistrationWindowState(season);
-    if (!windowState.canSubmit) {
-      throw new AppError(ErrorCode.REGISTRATION_CLOSED, windowState.message);
+    const initialWindow = getRegistrationWindowState(season);
+    if (!initialWindow.canSubmit && !initialWindow.needsOpeningRecovery) {
+      throw new AppError(ErrorCode.REGISTRATION_CLOSED, initialWindow.message);
     }
-
     const session = await getUserSession();
     if (!session) {
       return fail({
         code: ErrorCode.UNAUTHORIZED,
         message: "请先登录或注册账号后再报名",
       });
+    }
+
+    // Materialize the same canonical opening fact before doing validation and
+    // then repeat the gate inside the final mutation transaction below.
+    const seasonId = season.id;
+    if (initialWindow.needsOpeningRecovery) {
+      season = (await db.transaction((tx) => ensureRegistrationOpenForParticipantInTx(tx, seasonId))).season;
+    }
+    const windowState = getRegistrationWindowState(season);
+    if (!windowState.canSubmit) {
+      throw new AppError(ErrorCode.REGISTRATION_CLOSED, windowState.message);
     }
 
     const registrationConfig = normalizeRegistrationConfig(season.registrationConfig);
@@ -282,6 +302,13 @@ export async function submitRegistration(input: RegistrationFormData) {
       attributes: { "rivalhub.workflow": "rivals_registration" },
     }, async () => {
       return db.transaction(async (tx) => {
+        const currentSeason = initialWindow.needsOpeningRecovery
+          ? (await ensureRegistrationOpenForParticipantInTx(tx, data.seasonId)).season
+          : season;
+        const currentWindow = getRegistrationWindowState(currentSeason);
+        if (!currentWindow.canSubmit) {
+          throw new AppError(ErrorCode.REGISTRATION_CLOSED, currentWindow.message);
+        }
         const declaredProfile = normalizePlayerDeclaredProfile(data);
         const [updatedUser] = await tx
           .update(users)
@@ -362,13 +389,13 @@ export async function submitRegistration(input: RegistrationFormData) {
           meta: { email: data.email, primaryPosition: data.primaryPosition },
         });
 
-        return savedRegistration;
+        return { registration: savedRegistration, seasonSlug: currentSeason.slug };
       });
     });
 
     updatePublicPlayerTag(user.id);
-    revalidatePath(`/${season.slug}/register`);
-    return ok({ registrationId: registration.id, email: data.email });
+    revalidatePath(`/${registration.seasonSlug}/register`);
+    return ok({ registrationId: registration.registration.id, email: data.email });
   } catch (e) {
     return actionError("submitRegistration", e);
   }

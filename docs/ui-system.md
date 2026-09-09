@@ -84,6 +84,8 @@ shared layer **不拥有** allowed query、validation、SQL `WHERE/ORDER BY`、q
 
 高影响操作（比分更正、纪律、裁决/荣誉撤销、归档、名单冻结、开赛等）使用 `InlineConfirm` 或等价明确确认，并继续由服务端授权、审计和 fail-closed validation 保护；浏览器原生 `confirm()` 不替代任务语义。
 
+Super-admin 系统状态页的 scheduler health 只展示 job label、primary freshness、endpoint/fallback/manual/业务推进时间和“正常/已降级”状态；不展示 secret、raw error 或 provider response。“立即运行一次”是故障恢复 mutation，必须是可键盘到达的真实 button、可见 focus，并使用 `InlineConfirm` 解释可能推进业务状态后再调用受保护 Server Action。
+
 ## Responsive and accessibility
 
 - 320–390px 下关键任务仍可完整完成，按钮不依赖单行空间，长标识不撑破页面。

@@ -448,6 +448,13 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "管理员范围由当前数据库授权事实读取，客户端不能缓存或修改。",
   ),
   serverOnly(
+    "scheduled_job_health",
+    "Scheduler runtime",
+    "定时任务当前健康投影",
+    "src/lib/scheduler/health.ts; src/lib/scheduler/admin.ts",
+    "只保存每个 job 的有界当前状态，供服务端调度与超级管理员系统状态页读取；不形成浏览器 Data API 或 Realtime surface。",
+  ),
+  serverOnly(
     "season_registrations",
     "Rivals 报名",
     "报名、资格与个人竞技资料",
@@ -601,8 +608,9 @@ export function validateDatabaseAccessMatrixConfig(
 export async function verifyDatabaseAccessMatrix(
   pool: Pick<Pool, "query">,
   context: string,
+  entries: readonly DatabaseAccessEntry[] = DATABASE_ACCESS_MATRIX,
 ): Promise<readonly DatabaseAccessFacts[]> {
-  validateDatabaseAccessMatrixConfig();
+  validateDatabaseAccessMatrixConfig(entries);
 
   const roleResult = await pool.query<{ rolname: string }>(
     "SELECT rolname FROM pg_roles WHERE rolname = ANY($1::text[]) ORDER BY rolname",
@@ -670,10 +678,11 @@ export async function verifyDatabaseAccessMatrix(
   assertDatabaseAccessMatrixFacts(
     tableResult.rows.map((row) => row.table_name),
     facts,
+    entries,
   );
 
   console.log(
-    `${context} database access matrix passed: ${DATABASE_ACCESS_MATRIX.length} public base tables, deny-by-default, RLS/policy/publication contract aligned.`,
+    `${context} database access matrix passed: ${entries.length} public base tables, deny-by-default, RLS/policy/publication contract aligned.`,
   );
   return facts;
 }
@@ -681,12 +690,14 @@ export async function verifyDatabaseAccessMatrix(
 export function assertDatabaseAccessMatrixFacts(
   actualTables: readonly string[],
   actualFacts: readonly DatabaseAccessFacts[],
+  entries: readonly DatabaseAccessEntry[] = DATABASE_ACCESS_MATRIX,
 ): void {
-  const tableDiff = diffNames([...DATABASE_ACCESS_TABLES].sort(), [...actualTables].sort());
+  const expectedTables = entries.map((entry) => entry.table);
+  const tableDiff = diffNames([...expectedTables].sort(), [...actualTables].sort());
   const actualByTable = new Map(actualFacts.map((row) => [row.table_name, row]));
   const failures = [...tableDiff.map((item) => `public table ${item}`)];
 
-  for (const entry of DATABASE_ACCESS_MATRIX) {
+  for (const entry of entries) {
     const actual = actualByTable.get(entry.table);
     if (!actual) {
       failures.push(`${entry.table}: table missing from PostgreSQL`);

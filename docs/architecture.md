@@ -84,6 +84,7 @@ Major runtime 的阶段参与者和已完成比赛是推进依据；standings、
 - Supabase Auth 管理邮箱凭据；应用 session 只保存身份，当前角色和 season grants 每次从数据库读取。
 - 业务表默认 server-only；Data API/RLS terminal contract 见生成式 [`security/database-access-matrix.md`](./security/database-access-matrix.md)。新增 direct browser Data API 或 Realtime surface 必须同时定义最小 GRANT/RLS、consumer、一致性语义和正反例测试。
 - 管理 mutation 产生 `audit_logs` 业务审计；runtime logs/traces 由 `src/lib/observability/` 独立拥有。
+- 业务关键 scheduler 由 shared registry、Supabase primary dispatch、现有 Cron endpoint runner 和有界 health projection 组成；数据库 dispatch 只负责唤醒，不复制 domain transition。GitHub watchdog、participant opening recovery 和 super-admin break-glass 都复用同一 execution/domain owner。
 - local / preview / staging / production 的写权限严格分离，见 [`deployment.md`](./deployment.md)。
 - 时间持久化使用 UTC；产品展示按约定时区转换。
 
@@ -102,6 +103,7 @@ Major runtime 的阶段参与者和已完成比赛是推进依据；standings、
 | Major prestart / runtime | `src/lib/major/` |
 | Match / roster / result | `src/lib/matches/`, `src/lib/match-rosters/`, match actions |
 | Discipline / post-event / awards | corresponding `src/lib/` domain owners |
+| Scheduler / background recovery | `src/lib/scheduler/`, `src/lib/seasons/registration-recovery.ts`, protected `scripts/db/scheduler.ts` |
 | Persistence / migration | `src/db/schema/`, `drizzle/migrations/` |
 
 需要具体 owner 时先 repository search，再沿 tests 和 callers 确认；不要把本表扩成实时文件清单。

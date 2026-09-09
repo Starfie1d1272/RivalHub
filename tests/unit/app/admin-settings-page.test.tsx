@@ -2,10 +2,11 @@ import { renderToStaticMarkup } from "react-dom/server";
 import * as React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { resolveAdminPageAccessMock, requireSuperAdminMock, userFindFirstMock } = vi.hoisted(() => ({
+const { resolveAdminPageAccessMock, requireSuperAdminMock, userFindFirstMock, schedulerHealthMock } = vi.hoisted(() => ({
   resolveAdminPageAccessMock: vi.fn(),
   requireSuperAdminMock: vi.fn(),
   userFindFirstMock: vi.fn(),
+  schedulerHealthMock: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/admin-access", () => ({
@@ -17,6 +18,12 @@ vi.mock("@/lib/auth/session", () => ({
 vi.mock("@/db/client", () => ({
   db: { query: { users: { findFirst: userFindFirstMock } } },
 }));
+vi.mock("@/lib/scheduler/admin", () => ({
+  getSchedulerHealthView: schedulerHealthMock,
+}));
+vi.mock("@/components/admin/SchedulerHealthPanel", () => ({
+  SchedulerHealthPanel: () => React.createElement("div", null, "scheduler-health"),
+}));
 
 import AdminSettingsPage from "@/app/admin/settings/page";
 
@@ -24,6 +31,7 @@ describe("global system status access boundary", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal("React", React);
+    schedulerHealthMock.mockResolvedValue([]);
   });
 
   it("uses the super-admin authorization owner", async () => {

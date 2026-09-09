@@ -4,7 +4,7 @@
 
 ## 结论
 
-- 当前 active chain 的 71 张 application-owned `public` base table 全部归类为 `server_only`。业务数据库只由 server-side Drizzle 访问，browser Data API consumer 为零。
+- 当前 active chain 的 72 张 application-owned `public` base table 全部归类为 `server_only`。业务数据库只由 server-side Drizzle 访问，browser Data API consumer 为零。
 - `users`、`user_sessions`、`admin_invites`、`admin_invite_claims`、`season_admin_grants`、`audit_logs`、education evidence、Major prestart/runtime 和 bracket runtime 均按高敏感 server-only 处理。
 - 2026-09-03 production 只读 inventory 在 migration 前确认 `competition_bracket_states` 是明确的 anon/authenticated CRUD privilege 例外；Issue #395 的 forward migration 将其与其余表统一收口。
 - `DraftLiveRoom` 与 `CaptainVotingPanel` 的 Realtime subscription 已删除。两处继续使用既有 10 秒 polling fallback；`ResetPasswordForm` 保留 browser Supabase client，但仅调用 Supabase Auth，不调用 public table Data API。
@@ -68,6 +68,7 @@
 | recruitment_interests | 求职意向与用户关系 | Team recruitment | src/lib/recruitment/commands.ts; src/lib/recruitment/data.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 兴趣记录包含用户关系和 mutation 状态，只能由鉴权命令访问。 |
 | registration_drafts | 未提交报名草稿 | 报名 | src/actions/register.ts; src/components/admin/DraftRegistrationTable.tsx | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 草稿可能包含联系方式和未审核材料，不形成公开数据面。 |
 | season_admin_grants | 高敏感管理员授权事实 | 鉴权 / 赛季授权 | src/lib/auth/session.ts; src/actions/admin.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 管理员范围由当前数据库授权事实读取，客户端不能缓存或修改。 |
+| scheduled_job_health | 定时任务当前健康投影 | Scheduler runtime | src/lib/scheduler/health.ts; src/lib/scheduler/admin.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 只保存每个 job 的有界当前状态，供服务端调度与超级管理员系统状态页读取；不形成浏览器 Data API 或 Realtime surface。 |
 | season_registrations | 报名、资格与个人竞技资料 | Rivals 报名 | src/actions/register.ts; src/lib/qualification/service.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 报名状态和教育/竞技资料由服务端验证后投影。 |
 | seasons | 赛事生命周期与冻结配置 | 赛事配置 | src/actions/seasons.ts; src/lib/seasons/; src/db/schema/seasons.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 赛事 capability、注册窗口和冻结配置是业务控制面，不允许 Data API 旁路。 |
 | swiss_standings | 排名 projection 与阶段事实 | Major Swiss | src/lib/swiss/data.ts; src/lib/major/swiss-runtime.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | Swiss standings 不是独立真相，必须随 Major runtime 服务端更新。 |
