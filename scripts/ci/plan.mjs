@@ -58,7 +58,7 @@ const SYSTEM_FLOW_MAP = [
 ];
 
 const CODE_EXTENSIONS = /\.(?:[cm]?[jt]sx?|vue|svelte)$/;
-const LINT_EXTENSIONS = /\.(?:[cm]?[jt]sx?|json|jsonc)$/;
+const LINT_EXTENSIONS = /\.[cm]?[jt]sx?$/;
 const E2E_SPEC_FILE = /^tests\/e2e\/.+\.spec\.(?:[cm]?[jt]sx?)$/;
 const INTEGRATION_SPEC_FILE = /^tests\/integration\/db\/(?!harness\/).+\.(?:test|spec)\.(?:[cm]?[jt]sx?)$/;
 

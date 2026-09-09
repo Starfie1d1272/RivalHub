@@ -104,6 +104,18 @@ describe("changed-surface planner", () => {
     ]));
   });
 
+  it("does not send generated migration metadata to eslint", () => {
+    const result = classifyChangedFiles([
+      { status: "A", paths: ["drizzle/migrations/meta/0047_snapshot.json"] },
+      { status: "M", paths: ["drizzle/migrations/meta/_journal.json"] },
+      { status: "M", paths: ["scripts/db/scheduler.ts"] },
+    ], { draft: true });
+
+    expect(result.staticMatrix).toEqual(expect.arrayContaining([
+      expect.objectContaining({ task: "lint-changed", changedPaths: ["scripts/db/scheduler.ts"] }),
+    ]));
+  });
+
   it("direct-selects only test specs and falls back to full lane evidence for support files", () => {
     const e2eSpec = classifyChangedFiles([{ status: "M", paths: ["tests/e2e/flows/major-entry.spec.ts"] }], { draft: true });
     const e2eFixture = classifyChangedFiles([{ status: "M", paths: ["tests/e2e/fixtures.ts"] }], { draft: true });
