@@ -134,6 +134,7 @@ export const AUDIT_ACTION_DEFINITIONS: Readonly<Record<string, AuditActionDefini
   "competition_entry.roster_change.request": { label: "申请修改参赛阵容", category: "entry" },
   "competition_entry.withdraw": { label: "撤回参赛队报名", category: "entry" },
   "competition_entry.review.withdraw": { label: "撤回报名审核", category: "entry" },
+  "competition_entry.registration.restore": { label: "恢复赛事报名", category: "entry" },
   "competition_entry.submit": { label: "提交参赛队报名", category: "entry" },
   "competition_entry.submitted": { label: "参赛队进入待审核", category: "entry" },
   "competition_entry.changes_requested": { label: "要求修改参赛队报名", category: "entry" },

@@ -1,5 +1,29 @@
 # Changelog
 
+## [2.7.7]
+
+### Added
+
+#### 教育认证补充路径
+
+教育认证新增通用学生邮箱在读认证与新生录取通知书人工审核路径。敏感图片使用私有存储，并在审核完成七天后由调度任务清理。
+
+#### Major 公开参赛对象
+
+标准 Major 的公开页面现在统一展示报名审核、正式参赛队、当前或最终参赛名单与人工确认种子；队伍详情、选手名单和赛事首页共享同一组赛事事实。
+
+### Fixed
+
+#### 报名期阻塞与撤回语义
+
+完美战队 ID 改为不影响提交的可选资料；已提交的队伍报名可以撤回审核、回到同一个 Entry 的可编辑草稿，同时保留提交、名单版本与审计历史。
+
+学信网验证码被驳回后，用户延长报告有效期即可使用原验证码重新提交；旧审核记录保持不变，并发重提仍只创建一条新的待审核记录。
+
+#### 业务关键任务调度
+
+修复业务关键定时任务依赖 GitHub schedule 造成的调度漂移，改由 Supabase primary scheduler 执行，并保留 GitHub watchdog、健康投影与报名开放自愈。
+
 ## [2.7.6]
 
 ### Added
@@ -1969,6 +1993,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.7.7]: https://github.com/Starfie1d1272/RivalHub/compare/v2.7.6...v2.7.7
 [2.7.6]: https://github.com/Starfie1d1272/RivalHub/compare/v2.7.5...v2.7.6
 [2.7.5]: https://github.com/Starfie1d1272/RivalHub/compare/v2.7.4...v2.7.5
 [2.7.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.7.3...v2.7.4
