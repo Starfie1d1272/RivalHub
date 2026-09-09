@@ -17,7 +17,7 @@ export function getCompetitionEntryCapabilities(input: {
   const canRequestRosterChange = !rosterFrozen && entry?.status === "approved"
     && entry.hasApprovedRoster && canSelfChangeApprovedRoster(season, now);
   const canWithdrawFromReview = !rosterFrozen && entry?.status === "submitted"
-    && revision?.status === "submitted";
+    && revision?.status === "submitted" && window.canSubmit;
   const rosterChangeClosed = !canSelfChangeApprovedRoster(season, now);
   return {
     canStartRegistration: !entry && window.canSubmit,

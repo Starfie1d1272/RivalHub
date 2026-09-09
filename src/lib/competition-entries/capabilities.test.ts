@@ -39,4 +39,10 @@ describe("registration action capabilities", () => {
   it("does not allow review withdrawal after the roster is frozen", () => {
     expect(getCompetitionEntryCapabilities({ season, entry: { status: "submitted", hasApprovedRoster: false }, revision: { status: "submitted", origin: "initial" }, rosterFrozen: true }).canWithdrawFromReview).toBe(false);
   });
+  it("only allows review withdrawal before the registration deadline", () => {
+    const input = { season, entry: { status: "submitted" as const, hasApprovedRoster: false }, revision: { status: "submitted", origin: "initial" as const }, rosterFrozen: false };
+    expect(getCompetitionEntryCapabilities(input, new Date("2026-09-09T23:59:59.999Z")).canWithdrawFromReview).toBe(true);
+    expect(getCompetitionEntryCapabilities(input, new Date("2026-09-10T00:00:00.000Z")).canWithdrawFromReview).toBe(false);
+    expect(getCompetitionEntryCapabilities(input, new Date("2026-09-11T00:00:00.000Z")).canWithdrawFromReview).toBe(false);
+  });
 });

@@ -80,6 +80,13 @@ describe("registration opening PostgreSQL", () => {
       await submitCompetitionEntryInTx(tx, { entryId, userId, actorId: userId });
       expect((await database.query.competitionEntries.findFirst({ where: eq(schema.competitionEntries.id, entryId) }))?.registrationStatus).toBe("submitted");
       expect((await database.select({ value: count() }).from(schema.competitionEntrySubmissions).where(eq(schema.competitionEntrySubmissions.entryId, entryId)))[0]?.value).toBe(2);
+
+      await database.update(schema.seasons).set({ registrationClosesAt: new Date(Date.now() - 1000) }).where(eq(schema.seasons.id, seasonId));
+      const closedWithdrawal = await capturePostgresError(client, () => withdrawCompetitionEntryFromReviewInTx(tx, { entryId, userId, actorId: userId }));
+      expect(closedWithdrawal).toMatchObject({ code: "REGISTRATION_CLOSED", message: "报名提交已截止。" });
+      expect((await database.query.competitionEntries.findFirst({ where: eq(schema.competitionEntries.id, entryId) }))?.registrationStatus).toBe("submitted");
+      expect((await database.select({ value: count() }).from(schema.competitionEntryRosterRevisions).where(eq(schema.competitionEntryRosterRevisions.entryId, entryId)))[0]?.value).toBe(2);
+      expect((await database.select({ value: count() }).from(schema.auditLogs).where(and(eq(schema.auditLogs.targetId, entryId), eq(schema.auditLogs.action, "competition_entry.review.withdraw"))))[0]?.value).toBe(1);
     } finally { await client.query("ROLLBACK"); client.release(); await pool.end(); }
   });
 });
