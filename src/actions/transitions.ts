@@ -28,7 +28,7 @@ export async function maybeAdvanceFromRegistration(
   tx: TxDb,
   seasonId: string,
   options: { invalidation?: "action" | "route" } = {},
-): Promise<void> {
+): Promise<boolean> {
   const season = await tx.query.seasons.findFirst({
     where: eq(seasons.id, seasonId),
   });
@@ -37,7 +37,7 @@ export async function maybeAdvanceFromRegistration(
     season.status !== "registration" ||
     season.registrationMode !== "solo" ||
     !season.registrationOpenedAt
-  ) return;
+  ) return false;
 
   const registrationConfig = normalizeRegistrationConfig(season.registrationConfig);
   const approvedCount = await getApprovedCountInTx(tx, seasonId);
@@ -47,7 +47,7 @@ export async function maybeAdvanceFromRegistration(
     season.registrationClosesAt != null &&
     new Date(season.registrationClosesAt).getTime() <= Date.now();
 
-  if (!full && !deadlinePassed) return;
+  if (!full && !deadlinePassed) return false;
 
   const nextStatus = season.hasCaptainVoting ? "voting" : "playing";
 
@@ -79,6 +79,7 @@ export async function maybeAdvanceFromRegistration(
   }
   revalidatePath(`/${season.slug}`);
   revalidatePath(`/admin/${season.slug}/registrations`);
+  return true;
 }
 
 /**

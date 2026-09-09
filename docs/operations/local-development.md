@@ -83,3 +83,9 @@ pnpm db:local:stop
 数据库 bootstrap、migration、integration 和 E2E 会共享本机 Local Supabase 资源。仓库 wrapper 负责跨 worktree 串行化这些操作；普通 type-check、unit test 和 build 不需要等待数据库锁。
 
 遇到数据库相关失败时，优先确认当前目标仍是 loopback、本地服务状态正常，并通过 canonical wrapper 复现；不要为了“让测试跑起来”临时改用远程数据库。
+
+## Scheduler and registration recovery
+
+本地不启动或 provision production `pg_cron`/`pg_net`，也不把本地 workflow 当作 production scheduler evidence。active migration 在 plain PostgreSQL 上会对可用 extension 做条件处理；本地 migration replay 只证明 schema/function 文本可以回放，production named jobs、Vault secret 和 provider dispatch 由受保护 release workflow 的 `db:production:scheduler:*` 命令验证。
+
+调度 registry 的 pure contract、watchdog fresh/stale 分支、source 校验和 health projection 使用 unit tests 验证；真实 database lock、RLS、migration replay 和 HTTP dispatch 仍按 [`../testing.md`](../testing.md) 的对应层级执行。参与者报名的 due-opening recovery 只在 transaction 内 materialize opening fact，页面 GET 不承担此副作用。

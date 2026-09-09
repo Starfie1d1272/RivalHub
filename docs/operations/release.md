@@ -39,10 +39,11 @@ validate tag belongs to main
 → migrate + verify production database
 → deploy exact tag commit to Vercel Production
 → smoke deployment + canonical production domain
+→ provision + verify Supabase scheduler and protected Vault names
 → publish/update GitHub Release notes
 ```
 
-Production secret、target confirmation 和 remote-write authorization 只存在于受保护 production environment / canonical wrappers 中。
+Production secret、target confirmation 和 remote-write authorization 只存在于受保护 production environment / canonical wrappers 中。Scheduler provisioning 使用 `RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:scheduler:provision`，随后运行 verify；它会幂等替换 `rivalhub-<job-key>` named jobs，确认 pg_cron/pg_net、UTC schedule、dispatch command 与 Vault secret name，但不会输出 secret。
 
 ## 4. 失败与重试
 
@@ -55,6 +56,7 @@ Production secret、target confirmation 和 remote-write authorization 只存在
 只有以下条件都成立才算完成：
 
 - production smoke 通过；
+- production scheduler provision/verify 通过，且 primary named jobs 与 endpoint credential contract 已读回；
 - GitHub Release 已发布且 notes 正确；
 - tag、release commit 与 production deployment 对齐；
 - 需要 production acceptance 的 Issue 已获得真实生产证据后再关闭。

@@ -46,6 +46,7 @@
     "scripts/db/release-compat.ts!",
     "scripts/db/staging.ts!",
     "scripts/db/production.ts!",
+    "scripts/db/scheduler.ts!",
     "scripts/db/production-preflight.ts!",
     "scripts/db/production-identity-merge-preflight.ts!",
     "scripts/db/identity-merge-preflight.ts!",

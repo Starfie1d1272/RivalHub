@@ -33,6 +33,7 @@ import { evaluateRosterQualificationFromFacts, getParticipantReadinessBatch, isH
 import { getPublicOrAuthorizedDraftSeason, getPublicSeasonBySlug } from "@/lib/data/public-seasons";
 import { presentRegistrationSchedule } from "@/lib/seasons/presentation";
 import { RegistrationScheduleCountdown } from "@/components/seasons/RegistrationScheduleCountdown";
+import { RegistrationOpeningRecovery } from "@/components/register/RegistrationOpeningRecovery";
 
 import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import { getCompetitionEntryCapabilities } from "@/lib/competition-entries/capabilities";
@@ -95,6 +96,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
   const registrationWindow = getRegistrationWindowState(season);
   const registrationSchedule = presentRegistrationSchedule(season);
   if (registrationWindow.phase === "unscheduled" || registrationWindow.phase === "upcoming") {
+    const recoverySession = registrationWindow.needsOpeningRecovery ? await getUserSession() : null;
     return (
       <div className="container mx-auto max-w-2xl px-4 py-16">
         <Panel contentClassName="p-10">
@@ -105,6 +107,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
           />
           <div className="mt-3 text-center">
             <RegistrationScheduleCountdown target={registrationSchedule?.countdownTarget ?? null} />
+            {recoverySession && <RegistrationOpeningRecovery seasonId={season.id} />}
           </div>
         </Panel>
       </div>

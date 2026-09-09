@@ -6,6 +6,8 @@ import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { PageHeader, Panel, StatusPill } from "@/components/rivalhub";
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
+import { SchedulerHealthPanel } from "@/components/admin/SchedulerHealthPanel";
+import { getSchedulerHealthView } from "@/lib/scheduler/admin";
 
 const ENV_VARS = [
   {
@@ -16,8 +18,8 @@ const ENV_VARS = [
   },
   {
     key: "CRON_SECRET",
-    label: "Vercel Cron Secret",
-    description: "生产环境选秀超时自动 pick 所需，本地开发可不填。",
+    label: "定时任务服务凭据",
+    description: "用于生产环境业务定时任务；只展示是否配置，不展示凭据值。",
     required: false,
   },
   {
@@ -36,6 +38,7 @@ export default async function AdminSettingsPage() {
     columns: { steamName: true, displayName: true, perfectName: true },
   });
   const adminDisplayName = adminUser ? getDisplayName(adminUser) : admin.email;
+  const schedulerHealth = await getSchedulerHealthView();
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-2xl space-y-10">
@@ -77,6 +80,14 @@ export default async function AdminSettingsPage() {
               );
             })}
           </Panel>
+        </section>
+
+        <section className="space-y-4">
+          <div className="space-y-1">
+            <h2 className="text-base font-semibold text-[var(--color-fg)]">定时任务健康</h2>
+            <p className="text-xs text-[var(--color-fg-mid)]">展示当前健康投影；“立即运行一次”仅用于故障恢复，会检查并可能推进对应业务状态。</p>
+          </div>
+          <SchedulerHealthPanel jobs={schedulerHealth} />
         </section>
     </div>
   );

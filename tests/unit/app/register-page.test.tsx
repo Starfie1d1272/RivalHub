@@ -11,6 +11,7 @@ const {
   getApprovedCountMock,
   getUserSessionMock,
   registrationFormMock,
+  registrationOpeningRecoveryMock,
   publicSeasonMock,
 } = vi.hoisted(() => ({
   seasonFindFirstMock: vi.fn(),
@@ -21,6 +22,7 @@ const {
   getApprovedCountMock: vi.fn(),
   getUserSessionMock: vi.fn(),
   registrationFormMock: vi.fn(() => null),
+  registrationOpeningRecoveryMock: vi.fn(() => null),
   publicSeasonMock: vi.fn(),
 }));
 
@@ -48,6 +50,9 @@ vi.mock("@/lib/data/public-seasons", () => ({
 
 vi.mock("@/components/register/RegistrationForm", () => ({
   RegistrationForm: registrationFormMock,
+}));
+vi.mock("@/components/register/RegistrationOpeningRecovery", () => ({
+  RegistrationOpeningRecovery: registrationOpeningRecoveryMock,
 }));
 
 import RegisterPage from "@/app/[seasonSlug]/register/page";
@@ -122,5 +127,27 @@ describe("team registration page", () => {
       gameplayStyle: "长期控图型",
       competitionHistory: "参加过校赛",
     }));
+  });
+
+  it("offers one-shot participant recovery when opening is due but not materialized", async () => {
+    publicSeasonMock.mockResolvedValue({
+      id: "season-1",
+      slug: "major",
+      name: "RivalHub Major",
+      status: "registration",
+      registrationMode: "solo",
+      registrationOpensAt: new Date("2026-09-09T04:00:00.000Z"),
+      registrationOpenedAt: null,
+      registrationClosesAt: new Date("2026-09-10T04:00:00.000Z"),
+      rosterChangeClosesAt: null,
+      registrationConfig: null,
+      positions: ["opener", "closer", "anchor"],
+    });
+    getUserSessionMock.mockResolvedValue({ userId: "user-1", email: "player@example.com" });
+
+    const page = await RegisterPage({ params: Promise.resolve({ seasonSlug: "major" }) });
+    renderToStaticMarkup(page);
+
+    expect(registrationOpeningRecoveryMock).toHaveBeenCalledWith({ seasonId: "season-1" }, undefined);
   });
 });

@@ -121,6 +121,19 @@ jobs:
             --retry 8 --retry-all-errors --retry-delay 5 \
             "https://match.starfie1d.top/" >/dev/null
 
+      - name: Provision and verify production scheduler
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          RIVALHUB_SCHEDULER_BASE_URL: https://match.starfie1d.top
+        run: |
+          if [[ -z "$CRON_SECRET" || "$CRON_SECRET" == "[SENSITIVE]" ]]; then
+            echo "GitHub production environment secret CRON_SECRET is required." >&2
+            exit 1
+          fi
+          RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:scheduler:provision
+          pnpm db:production:scheduler:verify
+
       - name: Extract changelog for this version
         run: |
           VERSION="${RELEASE_TAG#v}"

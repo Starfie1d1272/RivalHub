@@ -6,10 +6,10 @@ import {
   competitionEntryRosterMembers,
   competitionEntryRosterRevisions,
   eventRosters,
-  seasons,
 } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { canSelfChangeApprovedRoster } from "@/lib/registration/window";
+import { ensureRegistrationOpenForParticipantInTx } from "@/lib/seasons/registration-recovery";
 
 /**
  * Canonical approved-roster change transition: the Entry representative reopens
@@ -28,12 +28,11 @@ export async function requestCompetitionEntryRosterChangeInTx(
   // atomic audit insert below references seasons; this keeps the full order
   // compatible with Major start/save while preserving Entry → eventRoster →
   // prestart entrant within the roster-remediation aggregate.
-  const [entryScope] = await tx.select({ competitionId: competitionEntries.competitionId })
+  const [entryScope] = await tx.select({ competitionId: competitionEntries.competitionId, representativeUserId: competitionEntries.representativeUserId })
     .from(competitionEntries).where(eq(competitionEntries.id, input.entryId));
   if (!entryScope) throw new AppError(ErrorCode.NOT_FOUND, "赛事参赛条目不存在。");
-  const [season] = await tx.select({ slug: seasons.slug, status: seasons.status, registrationOpensAt: seasons.registrationOpensAt, registrationOpenedAt: seasons.registrationOpenedAt, registrationClosesAt: seasons.registrationClosesAt, rosterChangeClosesAt: seasons.rosterChangeClosesAt })
-    .from(seasons).where(eq(seasons.id, entryScope.competitionId)).for("update");
-  if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛事不存在。");
+  if (entryScope.representativeUserId !== input.representativeUserId) throw new AppError(ErrorCode.FORBIDDEN, "只有本届赛事负责人可以执行此操作。");
+  const { season } = await ensureRegistrationOpenForParticipantInTx(tx, entryScope.competitionId);
   const [entry] = await tx.select().from(competitionEntries)
     .where(eq(competitionEntries.id, input.entryId)).for("update");
   if (!entry) throw new AppError(ErrorCode.NOT_FOUND, "赛事参赛条目不存在。");
