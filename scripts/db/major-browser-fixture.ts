@@ -24,8 +24,9 @@ const PROFILE = {
 const FIXTURE_RANK = PROFILE.rankOrder[10]!;
 const FIXTURE_STARS = 10;
 const PASSWORD = "Browser-Major-2026!";
-const ACCOUNT_KEYS = ["captain", "player1", "player2", "player3", "player4"] as const;
-const ACCOUNT_EMAILS = ACCOUNT_KEYS.map((key) => `major-browser-${key}@smail.nju.edu.cn`);
+const PLAYER_ACCOUNT_KEYS = ["captain", "player1", "player2", "player3", "player4"] as const;
+const ACCOUNT_KEYS = [...PLAYER_ACCOUNT_KEYS, "admin"] as const;
+const ACCOUNT_EMAILS = ACCOUNT_KEYS.map((key) => key === "admin" ? "major-browser-admin@rivalhub.local" : `major-browser-${key}@smail.nju.edu.cn`);
 const ACCOUNT_IDS = ACCOUNT_KEYS.map((key) => deterministicUuid(`major-browser-user-${key}`));
 
 async function main(): Promise<void> {
@@ -160,7 +161,7 @@ async function insertFixture(client: import("pg").PoolClient, authIds: Map<strin
      VALUES ($1, $2, 'Local Major Browser Acceptance', 'Major', 'registration', now() - interval '1 hour', now() - interval '1 hour', now() + interval '7 days', $3, $4, $5, $6::json, $7::json, $8::json, $9::json, $10, $11, $12, $13::text[])`,
     [FIXTURE_SEASON_ID, FIXTURE_SLUG, capabilities.registrationMode, capabilities.hasCaptainVoting, capabilities.hasDraft, JSON.stringify(capabilities.stagePlan), JSON.stringify(capabilities.registrationConfig), JSON.stringify(capabilities.teamRegistrationConfig), JSON.stringify(capabilities.affiliationRules), capabilities.minTeamSize, capabilities.maxTeamSize, capabilities.starterCount, capabilities.positions],
   );
-  for (const [index, key] of ACCOUNT_KEYS.entries()) {
+  for (const [index, key] of PLAYER_ACCOUNT_KEYS.entries()) {
     const ready = key !== "player1";
     const email = ACCOUNT_EMAILS[index]!;
     await client.query(
@@ -169,11 +170,18 @@ async function insertFixture(client: import("pg").PoolClient, authIds: Map<strin
       [ACCOUNT_IDS[index], authIds.get(email), email, ready ? `Browser ${key}` : null, ready ? `Browser Steam ${key}` : null, ready ? `Browser Perfect ${key}` : null, ready ? `7656119800000000${String(index + 1).padStart(2, "0")}` : null, ready ? `https://steamcommunity.com/id/browser-${key}` : null, ready ? `500000000${String(index + 1).padStart(2, "02")}` : null],
     );
   }
+  const adminIndex = ACCOUNT_KEYS.indexOf("admin");
+  const adminEmail = ACCOUNT_EMAILS[adminIndex]!;
+  await client.query(
+    `INSERT INTO users (id, auth_id, email, email_verified_at, display_name, role)
+     VALUES ($1, $2, $3, now(), 'Browser admin', 'super_admin')`,
+    [ACCOUNT_IDS[adminIndex], authIds.get(adminEmail), adminEmail],
+  );
   await seedCompetitivePlatformCatalog(client, PROFILE.platform, [
     { seasonKey: PROFILE.previousSeasonKey, label: "Browser 上一赛季", sortOrder: 0, isCurrent: false },
     { seasonKey: PROFILE.currentSeasonKey, label: "Browser 当前赛季", sortOrder: 1, isCurrent: true },
   ], PROFILE.rankOrder);
-  const facts = ACCOUNT_KEYS.filter((key) => key !== "player1").flatMap((key) => {
+  const facts = PLAYER_ACCOUNT_KEYS.filter((key) => key !== "player1").flatMap((key) => {
     const userId = ACCOUNT_IDS[ACCOUNT_KEYS.indexOf(key)]!;
     return [
       [deterministicUuid(`major-browser-fact-${key}-historical`), userId, "historical_peak", null, FIXTURE_RANK, "2.00", FIXTURE_STARS],
@@ -187,7 +195,7 @@ async function insertFixture(client: import("pg").PoolClient, authIds: Map<strin
       [id, userId, PROFILE.platform, kind, seasonKey, rank, rating, stars],
     );
   }
-  for (const key of ACCOUNT_KEYS.filter((item) => item !== "player1")) {
+  for (const key of PLAYER_ACCOUNT_KEYS.filter((item) => item !== "player1")) {
     const index = ACCOUNT_KEYS.indexOf(key);
     await client.query(
       `INSERT INTO education_verifications (id, user_id, institution_id, academic_status, evidence_type, status, reviewed_by, reviewed_at)

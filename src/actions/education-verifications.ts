@@ -3,10 +3,21 @@
 import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db/client";
-import { auditLogs, educationVerifications, institutionEmailDomains, institutions, userIdentities, users } from "@/db/schema";
+import { auditLogs, educationVerifications, institutionEmailDomains, institutions, userIdentities } from "@/db/schema";
 import { actionError } from "@/lib/action-utils";
 import { auditActorId, requireAuth, requireSuperAdmin } from "@/lib/auth/session";
-import { emailDomain, educationSubmissionSchema, normalizeChsiEvidenceCode } from "@/lib/education/validation";
+import {
+  submitAdmissionNoticeEducationCommand,
+  submitChsiEducationVerification,
+  type EducationSubmissionOutcome,
+} from "@/lib/education/commands";
+import { educationEvidenceStorage } from "@/lib/education/storage";
+import {
+  emailDomain,
+  educationSubmissionSchema,
+  normalizeChsiEvidenceCode,
+  validateEducationEvidenceFile,
+} from "@/lib/education/validation";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { fail, ok, type ActionResult } from "@/types/action";
 import { z } from "zod";
@@ -16,7 +27,7 @@ function refresh(): void {
   revalidatePath("/admin/education-verifications");
 }
 
-export type EducationSubmissionOutcome = "created" | "already_pending" | "already_approved";
+export type { EducationSubmissionOutcome } from "@/lib/education/commands";
 
 export async function submitEducationVerification(input: unknown): Promise<ActionResult<EducationSubmissionOutcome>> {
   const parsed = educationSubmissionSchema.safeParse(input);
@@ -25,59 +36,38 @@ export async function submitEducationVerification(input: unknown): Promise<Actio
   if (!evidenceCode) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请输入报告中的在线验证码（通常为 16 位）。" });
   try {
     const session = await requireAuth();
-    // This is an ownership fact maintained only after a successful Supabase
-    // confirmation callback. UI visibility is advisory; the sensitive claim
-    // must fail closed at the trusted write boundary.
-    const user = await db.query.users.findFirst({ where: eq(users.id, session.userId) });
-    const [verifiedIdentity] = await db.select({ id: userIdentities.id }).from(userIdentities).where(and(
-      eq(userIdentities.userId, session.userId),
-      eq(userIdentities.kind, "email"),
-      eq(userIdentities.status, "active"),
-      sql`${userIdentities.verifiedAt} IS NOT NULL`,
-    )).limit(1);
-    if (!user || (!user.emailVerifiedAt && !verifiedIdentity)) {
-      throw new AppError(ErrorCode.FORBIDDEN, "请先验证当前账号邮箱，验证后才能提交教育身份认证。 ");
-    }
-    const institution = await db.query.institutions.findFirst({ where: eq(institutions.id, parsed.data.institutionId) });
-    if (!institution) throw new AppError(ErrorCode.NOT_FOUND, "所选高校不存在，请刷新后重试。");
-    const outcome = await db.transaction(async (tx) => {
-      // There is intentionally no permanent fingerprint or unique constraint
-      // for evidence codes. Serialize only this user's normalized code for the
-      // duration of the transaction, so concurrent submissions cannot both pass
-      // the existing-row check while unrelated submissions remain independent.
-      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`education-verification:${session.userId}:${evidenceCode}`}, 0))`);
-      const existing = await tx.query.educationVerifications.findFirst({
-        where: and(eq(educationVerifications.userId, session.userId), eq(educationVerifications.evidenceCode, evidenceCode)),
-        columns: { status: true },
-      });
-      if (existing?.status === "pending") return "already_pending" as const;
-      if (existing?.status === "approved") return "already_approved" as const;
-      if (existing?.status === "rejected") {
-        throw new AppError(ErrorCode.VALIDATION_FAILED, "该验证码此前已被驳回，请提交新的有效验证码。");
-      }
-
-      const [verification] = await tx.insert(educationVerifications).values({
-        userId: session.userId,
-        institutionId: institution.id,
-        academicStatus: parsed.data.academicStatus,
-        evidenceType: parsed.data.academicStatus === "enrolled" ? "chsi_enrollment_report" : "chsi_education_report",
-        evidenceCode,
-      }).returning({ id: educationVerifications.id });
-      await tx.insert(auditLogs).values({
-        action: "education_verification.submit", actorId: auditActorId(session), targetId: verification?.id,
-        targetType: "education_verification", meta: { institutionId: institution.id, evidenceType: parsed.data.academicStatus === "enrolled" ? "chsi_enrollment_report" : "chsi_education_report" },
-      });
-      return "created" as const;
-    });
+    const outcome = await submitChsiEducationVerification({ ...parsed.data, evidenceCode, session });
     refresh();
     return ok(outcome);
   } catch (error) { return actionError("submitEducationVerification", error); }
 }
 
+export async function submitAdmissionNoticeEducation(formData: FormData): Promise<ActionResult<EducationSubmissionOutcome>> {
+  if (!(formData instanceof FormData)) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请提交录取通知书图片。" });
+  const keys = [...new Set(formData.keys())];
+  const institutionValues = formData.getAll("institutionId");
+  const fileValues = formData.getAll("file");
+  if (keys.some((key) => key !== "institutionId" && key !== "file") || institutionValues.length !== 1 || fileValues.length !== 1) {
+    return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请选择一所高校并上传一张录取通知书图片。" });
+  }
+  const institutionId = institutionValues[0];
+  if (typeof institutionId !== "string") return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请选择高校。" });
+  const parsed = z.object({ institutionId: z.uuid() }).strict().safeParse({ institutionId });
+  if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请选择目录中的高校。" });
+
+  try {
+    const session = await requireAuth();
+    const file = await validateEducationEvidenceFile(fileValues[0]);
+    const outcome = await submitAdmissionNoticeEducationCommand({ session, institutionId: parsed.data.institutionId, file });
+    refresh();
+    return ok(outcome);
+  } catch (error) { return actionError("submitAdmissionNoticeEducation", error); }
+}
+
 /** Convert a selected verified exact-domain credential into an approved immutable claim. */
-export async function declareInstitutionalEmailEducation(input: { identityId: string; academicStatus: "enrolled" | "graduated" }): Promise<ActionResult<void>> {
-  const parsed = z.object({ identityId: z.uuid(), academicStatus: z.enum(["enrolled", "graduated"]) }).safeParse(input);
-  if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请选择在读或已毕业。" });
+export async function declareInstitutionalEmailEducation(input: unknown): Promise<ActionResult<void>> {
+  const parsed = z.object({ identityId: z.uuid() }).strict().safeParse(input);
+  if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "请选择已验证的学生邮箱。" });
   try {
     const session = await requireAuth();
     const [identity] = await db.select({ email: userIdentities.normalizedValue })
@@ -95,16 +85,21 @@ export async function declareInstitutionalEmailEducation(input: { identityId: st
     if (!domain) throw new AppError(ErrorCode.VALIDATION_FAILED, "所选 verified email identity 无效。");
     const [mapping] = await db.select({ institutionId: institutionEmailDomains.institutionId })
       .from(institutionEmailDomains)
-      .where(and(eq(institutionEmailDomains.domain, domain), eq(institutionEmailDomains.autoVerify, true), eq(institutionEmailDomains.active, true)))
+      .where(and(
+        eq(institutionEmailDomains.domain, domain),
+        eq(institutionEmailDomains.autoVerify, true),
+        eq(institutionEmailDomains.active, true),
+        eq(institutionEmailDomains.credentialType, "student"),
+      ))
       .limit(1);
     if (!mapping) throw new AppError(ErrorCode.FORBIDDEN, "所选 verified email identity 不支持学校邮箱自动认证。");
     await db.transaction(async (tx) => {
       const existing = await tx.query.educationVerifications.findFirst({
-        where: and(eq(educationVerifications.userId, session.userId), eq(educationVerifications.institutionId, mapping.institutionId), eq(educationVerifications.evidenceType, "institutional_email"), eq(educationVerifications.academicStatus, parsed.data.academicStatus), eq(educationVerifications.status, "approved")),
+        where: and(eq(educationVerifications.userId, session.userId), eq(educationVerifications.institutionId, mapping.institutionId), eq(educationVerifications.evidenceType, "institutional_email"), eq(educationVerifications.academicStatus, "enrolled"), eq(educationVerifications.status, "approved")),
       });
       if (existing) return;
       const [verification] = await tx.insert(educationVerifications).values({
-        userId: session.userId, institutionId: mapping.institutionId, academicStatus: parsed.data.academicStatus,
+        userId: session.userId, institutionId: mapping.institutionId, academicStatus: "enrolled",
         evidenceType: "institutional_email", status: "approved", reviewedBy: "system:institutional_email", reviewedAt: new Date(),
       }).returning({ id: educationVerifications.id });
       await tx.insert(auditLogs).values({ action: "education_verification.institutional_email", actorId: auditActorId(session), targetId: verification?.id, targetType: "education_verification", meta: { institutionId: mapping.institutionId } });
@@ -112,6 +107,23 @@ export async function declareInstitutionalEmailEducation(input: { identityId: st
     refresh();
     return ok(undefined);
   } catch (error) { return actionError("declareInstitutionalEmailEducation", error); }
+}
+
+export async function getEducationManualEvidenceUrl(input: unknown): Promise<ActionResult<string>> {
+  const parsed = z.object({ id: z.uuid() }).strict().safeParse(input);
+  if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "教育材料标识无效。" });
+  try {
+    await requireSuperAdmin();
+    const verification = await db.query.educationVerifications.findFirst({
+      where: eq(educationVerifications.id, parsed.data.id),
+      columns: { evidenceType: true, evidenceObjectKey: true },
+    });
+    if (!verification) throw new AppError(ErrorCode.NOT_FOUND, "教育认证记录不存在。 ");
+    if (verification.evidenceType !== "manual_other" || !verification.evidenceObjectKey) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, "录取通知书材料当前不可查看。 ");
+    }
+    return ok(await educationEvidenceStorage.createSignedUrl(verification.evidenceObjectKey));
+  } catch (error) { return actionError("getEducationManualEvidenceUrl", error); }
 }
 
 export async function reviewEducationVerification(input: { id: string; decision: "approved" | "rejected"; reviewNote?: string }): Promise<ActionResult<void>> {
@@ -134,6 +146,9 @@ export async function reviewEducationVerification(input: { id: string; decision:
       const verification = await tx.query.educationVerifications.findFirst({ where: eq(educationVerifications.id, parsed.data.id) });
       if (!verification) throw new AppError(ErrorCode.NOT_FOUND, "教育认证记录不存在。 ");
       if (verification.status !== "pending") throw new AppError(ErrorCode.VALIDATION_FAILED, "该认证已经处理，不能重复审核。 ");
+      if (parsed.data.decision === "approved" && verification.evidenceType === "manual_other" && !verification.evidenceObjectKey) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, "录取通知书材料已按保留策略清理，无法通过该认证。 ");
+      }
       await tx.update(educationVerifications).set({ status: parsed.data.decision, reviewedBy: auditActorId(admin), reviewedAt: new Date(), reviewNote: parsed.data.reviewNote || null, updatedAt: new Date() }).where(eq(educationVerifications.id, verification.id));
       await tx.insert(auditLogs).values({ action: `education_verification.${parsed.data.decision}`, actorId: auditActorId(admin), targetId: verification.id, targetType: "education_verification", meta: { reviewNote: Boolean(parsed.data.reviewNote) } });
     });

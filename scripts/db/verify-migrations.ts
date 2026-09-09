@@ -98,17 +98,20 @@ async function main(): Promise<void> {
 
     const terminalSchema = await pool.query<{
       evidence_code: boolean;
+      evidence_object_key: boolean;
       evidence_url: boolean;
       perfect_id: boolean;
       roles: string[];
     }>(`
       SELECT
         EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'education_verifications' AND column_name = 'evidence_code') AS evidence_code,
+        EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'education_verifications' AND column_name = 'evidence_object_key') AS evidence_object_key,
         EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'education_verifications' AND column_name = 'evidence_url') AS evidence_url,
         EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'perfect_id') AS perfect_id,
         COALESCE((SELECT json_agg(enumlabel ORDER BY enumsortorder) FROM pg_enum WHERE enumtypid = 'public.cs2_role'::regtype), '[]'::json) AS roles
     `);
     assertCurrentTerminalSchema(terminalSchema.rows[0]);
+    await verifyEducationEvidenceBucket(pool);
     await verifyDatabaseAccessMatrix(pool, `Migration verification (${target})`);
 
     console.log(`Migration verification passed for ${target}: ${expected.length} active migrations; active terminal schema contract is present.`);
@@ -158,14 +161,38 @@ export function assertCompleteMigrationLedger(
 
 export function assertCurrentTerminalSchema(facts: {
   evidence_code: boolean;
+  evidence_object_key: boolean;
   evidence_url: boolean;
   perfect_id: boolean;
   roles: readonly string[];
 } | undefined): void {
   const canonicalRoles = ["igl", "awper", "opener", "closer", "anchor"];
-  if (!facts?.evidence_code || facts.evidence_url || facts.perfect_id || JSON.stringify(facts.roles) !== JSON.stringify(canonicalRoles)) {
-    throw new Error("Active terminal schema contract 不完整：需要 evidence_code、无 evidence_url/perfect_id，且 cs2_role 为 canonical 集合。");
+  if (!facts?.evidence_code || !facts.evidence_object_key || facts.evidence_url || facts.perfect_id || JSON.stringify(facts.roles) !== JSON.stringify(canonicalRoles)) {
+    throw new Error("Active terminal schema contract 不完整：需要 evidence_code/evidence_object_key、无 evidence_url/perfect_id，且 cs2_role 为 canonical 集合。");
   }
+}
+
+export async function verifyEducationEvidenceBucket(pool: Pick<Pool, "query">): Promise<"verified" | "skipped"> {
+  const schemaResult = await pool.query<{ storage_buckets: string | null }>(
+    "SELECT to_regclass('storage.buckets')::text AS storage_buckets",
+  );
+  if (!schemaResult.rows[0]?.storage_buckets) return "skipped";
+
+  const bucketResult = await pool.query<{
+    public: boolean;
+    file_size_limit: number | string | null;
+    allowed_mime_types: string[] | null;
+  }>(
+    `SELECT public, file_size_limit, allowed_mime_types
+     FROM storage.buckets WHERE id = $1 OR name = $1`,
+    ["education-evidence"],
+  );
+  const bucket = bucketResult.rows.length === 1 ? bucketResult.rows[0] : undefined;
+  const mimeTypes = bucket?.allowed_mime_types?.slice().sort();
+  if (!bucket || bucket.public || Number(bucket.file_size_limit) !== 5_242_880 || JSON.stringify(mimeTypes) !== JSON.stringify(["image/jpeg", "image/png", "image/webp"])) {
+    throw new Error("education-evidence Storage bucket contract 不完整：需要 private、5 MiB、JPEG/PNG/WebP allowlist。");
+  }
+  return "verified";
 }
 
 if (require.main === module) {

@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
-import { reviewEducationVerification } from "@/actions/education-verifications";
+import { getEducationManualEvidenceUrl, reviewEducationVerification } from "@/actions/education-verifications";
 import { EmptyState, Panel } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { formatCST } from "@/lib/utils/date";
@@ -11,13 +11,13 @@ import type { EducationReviewRow } from "@/lib/education/admin-review-contract";
 
 export type EducationReviewEmptyState = "no-records" | "no-pending" | "no-results";
 
+function isChsiEvidenceLabel(label: EducationReviewRow["evidenceLabel"]): boolean {
+  return label === "学信网学籍在线验证报告" || label === "学信网学历材料";
+}
+
 interface EducationVerificationReviewQueueProps {
   rows: EducationReviewRow[];
   emptyState: EducationReviewEmptyState;
-}
-
-function isChsiEvidenceType(evidenceType: string): boolean {
-  return evidenceType === "chsi_enrollment_report" || evidenceType === "chsi_education_report";
 }
 
 export function EducationVerificationReviewQueue({ rows, emptyState }: EducationVerificationReviewQueueProps) {
@@ -49,6 +49,24 @@ export function EducationVerificationReviewQueue({ rows, emptyState }: Education
     }
   });
 
+  const openManualEvidence = (id: string) => startTransition(async () => {
+    // Reserve the tab during the click gesture; the signed URL arrives after
+    // the server action and would otherwise be vulnerable to popup blocking.
+    const popup = window.open("about:blank", "_blank", "noopener,noreferrer");
+    const result = await getEducationManualEvidenceUrl({ id });
+    if (!result.success) {
+      popup?.close();
+      toast.error(result.error.message);
+      return;
+    }
+    if (popup) {
+      popup.location.href = result.data;
+      return;
+    }
+    const opened = window.open(result.data, "_blank", "noopener,noreferrer");
+    if (!opened) toast.error("浏览器阻止了材料窗口，请允许弹出窗口后重试。");
+  });
+
   return (
     <div className="min-w-0 space-y-4">
       {pending && <div className="flex justify-end"><span className="text-xs text-[var(--color-accent)]">处理中…</span></div>}
@@ -70,14 +88,18 @@ export function EducationVerificationReviewQueue({ rows, emptyState }: Education
                 <p className="text-sm text-[var(--color-fg-mid)]">账号：{row.email}</p>
                 <p className="text-sm">声明学校：{row.institution}{row.code ? `（${row.code}）` : ""} · {row.academicStatus === "enrolled" ? "在读" : "已毕业"}</p>
                 <p className="text-sm">提交时间：{formatCST(row.submittedAt)}</p>
-                <p className="text-sm">证据类型：{row.evidenceType}</p>
-                {row.evidenceCode ? (
+                <p className="text-sm">材料：{row.evidenceLabel}</p>
+                {row.chsiEvidenceCode ? (
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-sm">在线验证码：<span className="font-mono">{row.evidenceCode}</span></p>
-                    <Button size="sm" variant="outline" disabled={pending} onClick={() => copyEvidenceCode(row.evidenceCode!)}>复制验证码</Button>
+                    <p className="text-sm">在线验证码：<span className="font-mono">{row.chsiEvidenceCode}</span></p>
+                    <Button size="sm" variant="outline" disabled={pending} onClick={() => copyEvidenceCode(row.chsiEvidenceCode!)}>复制验证码</Button>
                     <a className="text-sm underline" href="https://www.chsi.com.cn/xlcx/bgcx.jsp" target="_blank" rel="noopener noreferrer">在学信网核验 ↗</a>
                   </div>
-                ) : row.status !== "pending" && isChsiEvidenceType(row.evidenceType) ? (
+                ) : row.evidenceLabel === "录取通知书材料" && row.manualEvidenceAvailable ? (
+                  <Button size="sm" variant="outline" disabled={pending} onClick={() => openManualEvidence(row.id)}>查看材料</Button>
+                ) : row.status !== "pending" && row.evidenceLabel === "录取通知书材料" ? (
+                  <p className="text-sm text-[var(--color-fg-mid)]">录取通知书材料：已按保留策略清理</p>
+                ) : row.status !== "pending" && isChsiEvidenceLabel(row.evidenceLabel) ? (
                   <p className="text-sm text-[var(--color-fg-mid)]">在线验证码：已按保留策略清理</p>
                 ) : null}
                 {row.reviewNote && <p className="text-sm text-[var(--color-fg-mid)]">审核备注：{row.reviewNote}</p>}

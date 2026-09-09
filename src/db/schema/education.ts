@@ -1,4 +1,5 @@
-import { index, pgEnum, pgTable, text, timestamp, unique, uuid, boolean } from "drizzle-orm/pg-core";
+import { boolean, check, index, pgEnum, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { users } from "./users";
 
 export const institutionSourceEnum = pgEnum("institution_source", ["moe", "manual", "other_official"]);
@@ -41,6 +42,8 @@ export const educationVerifications = pgTable("education_verifications", {
   evidenceType: educationEvidenceTypeEnum("evidence_type").notNull(),
   /** CHSI online verification code; never expose outside the owner/admin review paths. */
   evidenceCode: text("evidence_code"),
+  /** Private Storage object key for manually uploaded evidence; never expose to clients. */
+  evidenceObjectKey: text("evidence_object_key"),
   status: educationVerificationStatusEnum("status").notNull().default("pending"),
   submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
   reviewedBy: text("reviewed_by"),
@@ -51,4 +54,16 @@ export const educationVerifications = pgTable("education_verifications", {
 }, (t) => ({
   userStatusIndex: index("education_verifications_user_status_idx").on(t.userId, t.status),
   institutionStatusIndex: index("education_verifications_institution_status_idx").on(t.institutionId, t.status),
+  evidenceObjectTypeShape: check(
+    "education_verifications_evidence_object_type_shape_check",
+    sql`${t.evidenceObjectKey} IS NULL OR ${t.evidenceType} = 'manual_other'`,
+  ),
+  manualEvidenceCodeShape: check(
+    "education_verifications_manual_evidence_code_shape_check",
+    sql`${t.evidenceType} <> 'manual_other' OR ${t.evidenceCode} IS NULL`,
+  ),
+  manualPendingEvidenceObjectShape: check(
+    "education_verifications_manual_pending_object_shape_check",
+    sql`NOT (${t.evidenceType} = 'manual_other' AND ${t.status} = 'pending') OR ${t.evidenceObjectKey} IS NOT NULL`,
+  ),
 }));

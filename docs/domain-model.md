@@ -20,7 +20,9 @@ credential linking 只证明并绑定新的 identity，不复制或移动赛事�
 
 ### Education
 
-`institutions` 是机构目录，`education_verifications` 是长期教育资格事实。学校邮箱快速认证消费 canonical user 的任一 verified email credential 的精确 active domain mapping，而非仅 primary login email；认证事实仍写入 canonical `users.id`。赛事资格只消费已验证教育事实和当届冻结规则；legacy `studentId` 不构成 Major eligibility。
+`institutions` 是唯一高校目录，`institution_email_domains` 是唯一学校邮箱 registry，`education_verifications` 是长期教育资格事实。学校邮箱快速认证消费 canonical user 的任一 verified email credential 的精确 active domain mapping，且只有 active、auto-verify、`credentialType=student` 的 mapping 能即时产生固定的 `enrolled` 事实；不从 `.edu.cn`、DNS/MX 或官网主域推断学校身份。CHSI 报告和录取通知书图片都走现有人工审核 owner，后者只产生 `enrolled` 的 `manual_other` pending claim。
+
+录取通知书属于临时敏感证据：文件只保存在 server-only 管理的 private Storage 中，数据库只保存无 PII 的 object key；审核完成满七天后由既有教育 evidence cleanup owner 删除对象，再清空 key，认证结果和审核历史保留。`evidenceCode` 与 `evidenceObjectKey` 的形状由数据库约束共同保护。赛事资格只消费已验证教育事实和当届冻结规则；legacy `studentId` 不构成 Major eligibility。
 
 ### Competitive profile
 
