@@ -36,11 +36,13 @@ jobs:
       required_jobs: ${{ steps.plan.outputs.required_jobs }}
       static_matrix: ${{ steps.plan.outputs.static_matrix }}
       unit_mode: ${{ steps.plan.outputs.unit_mode }}
-      unit_changed_sources: ${{ steps.plan.outputs.unit_changed_sources }}
+      related_sources: ${{ steps.plan.outputs.related_sources }}
+      explicit_tests: ${{ steps.plan.outputs.explicit_tests }}
       postgres_mode: ${{ steps.plan.outputs.postgres_mode }}
       integration_specs: ${{ steps.plan.outputs.integration_specs }}
       system_mode: ${{ steps.plan.outputs.system_mode }}
       e2e_specs: ${{ steps.plan.outputs.e2e_specs }}
+      gate_name: ${{ steps.plan.outputs.gate_name }}
     steps:
       - name: Capture workflow timing start
         id: timing-start
@@ -94,8 +96,8 @@ jobs:
           RIVALHUB_TIMING_TEST_KIND: ${{ startsWith(matrix.task, 'unit-') && 'unit' || '' }}
           STATIC_TASK: ${{ matrix.task }}
           STATIC_PROJECT: ${{ matrix.project || '' }}
-          STATIC_MODE: ${{ matrix.mode || 'full' }}
-          STATIC_CHANGED_PATHS: ${{ toJSON(matrix.changedPaths) }}
+          STATIC_RELATED_SOURCES: ${{ toJSON(matrix.relatedSources) }}
+          STATIC_EXPLICIT_TESTS: ${{ toJSON(matrix.explicitTests) }}
         run: node scripts/ci/timing.mjs "static/${{ matrix.task }}" -- node scripts/ci/run-static-task.mjs
 
       - name: Write timing summary
@@ -232,8 +234,8 @@ jobs:
         if: always()
         run: node scripts/ci/timing.mjs summary
 
-  ci-gate:
-    name: ci-gate
+  gate:
+    name: ${{ needs.plan.outputs.gate_name }}
     if: ${{ always() }}
     needs: [plan, static, postgres, system, dependency-review]
     runs-on: ubuntu-24.04
@@ -277,6 +279,7 @@ jobs:
           DEPENDENCY_REVIEW_RESULT: ${{ needs.dependency-review.result }}
           EVENT_NAME: ${{ github.event_name }}
           REQUIRED_JOBS: ${{ needs.plan.outputs.required_jobs }}
+          GATE_NAME: ${{ needs.plan.outputs.gate_name }}
 
       - name: Record FULL wall time
         if: always()

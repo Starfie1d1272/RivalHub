@@ -59,16 +59,20 @@ const SYSTEM_FLOW_MAP = [
 
 const CODE_EXTENSIONS = /\.(?:[cm]?[jt]sx?|vue|svelte)$/;
 const LINT_EXTENSIONS = /\.(?:[cm]?[jt]sx?|json|jsonc)$/;
+const E2E_SPEC_FILE = /^tests\/e2e\/.+\.spec\.(?:[cm]?[jt]sx?)$/;
+const INTEGRATION_SPEC_FILE = /^tests\/integration\/db\/(?!harness\/).+\.(?:test|spec)\.(?:[cm]?[jt]sx?)$/;
 
 export function classifyChangedFiles(entries, options = {}) {
   const { forceFull = false, draft = true } = options;
+  const gateName = draft ? "draft-gate" : "ci-gate";
+  const result = (...args) => ({ ...resultFor(...args), gateName });
   if (forceFull || !draft) {
-    return resultFor(CAPABILITIES, true, forceFull
+    return result(CAPABILITIES, true, forceFull
       ? "受保护分支、merge queue、release 或手动运行，强制 full gate"
       : "Ready for review PR 使用 FULL evidence gate");
   }
   if (entries.length === 0) {
-    return resultFor(CAPABILITIES, true, "无法取得 changed-surface，fail closed 到 full gate");
+    return result(CAPABILITIES, true, "无法取得 changed-surface，fail closed 到 full gate");
   }
 
   const capabilities = new Set();
@@ -78,7 +82,8 @@ export function classifyChangedFiles(entries, options = {}) {
     typeTests: false,
     typeScripts: false,
     lintPaths: new Set(),
-    unitPaths: new Map(STATIC_PROJECTS.map((project) => [project, new Set()])),
+    unitRelatedSources: new Map(STATIC_PROJECTS.map((project) => [project, new Set()])),
+    unitExplicitTests: new Map(STATIC_PROJECTS.map((project) => [project, new Set()])),
     integrationSpecs: new Set(),
     e2eSpecs: new Set(),
   };
@@ -90,7 +95,7 @@ export function classifyChangedFiles(entries, options = {}) {
     const path = entry.paths[entry.paths.length - 1] ?? "";
     const classification = classifyPath(path);
     if (classification.capabilities === "full") {
-      return resultFor(CAPABILITIES, true, classification.reason);
+      return result(CAPABILITIES, true, classification.reason);
     }
     if (classification.capabilities.length > 0) docsOnly = false;
     for (const capability of classification.capabilities) capabilities.add(capability);
@@ -100,19 +105,20 @@ export function classifyChangedFiles(entries, options = {}) {
 
   if (capabilities.size === 0) {
     return docsOnly
-      ? resultFor([], false, "docs-only surface：只保留 planner + ci-gate")
-      : resultFor(CAPABILITIES, true, "changed-surface 未命中已声明 capability，fail closed 到 full gate");
+      ? result([], false, "docs-only surface：只保留 planner + draft-gate")
+      : result(CAPABILITIES, true, "changed-surface 未命中已声明 capability，fail closed 到 full gate");
   }
 
   const staticMatrix = buildStaticMatrix(evidence);
-  return resultFor(
+  return result(
     [...capabilities].sort((a, b) => CAPABILITIES.indexOf(a) - CAPABILITIES.indexOf(b)),
     false,
     [...reasons].join("；"),
     {
       staticMatrix,
-      unitMode: staticMatrix.some((item) => item.mode === "related") ? "affected" : "none",
-      unitChangedSources: unique([...evidence.unitPaths.values()].flatMap((paths) => [...paths])),
+      unitMode: staticMatrix.some((item) => item.mode === "related" || item.mode === "explicit") ? "affected" : "none",
+      relatedSources: unique([...evidence.unitRelatedSources.values()].flatMap((paths) => [...paths])),
+      explicitTests: unique([...evidence.unitExplicitTests.values()].flatMap((paths) => [...paths])),
       integrationSpecs: [...evidence.integrationSpecs].sort(),
       e2eSpecs: [...evidence.e2eSpecs].sort(),
     },
@@ -174,10 +180,14 @@ function classifyPath(path) {
     return { capabilities: "full", reason: `integration harness surface: ${path}` };
   }
   if (path.startsWith("tests/integration/db/")) {
-    return { capabilities: ["static", "postgres"], reason: `real PostgreSQL integration surface: ${path}`, integrationSpecs: [path] };
+    return isIntegrationSpec(path)
+      ? { capabilities: ["static", "postgres"], reason: `real PostgreSQL integration spec: ${path}`, integrationSpecs: [path] }
+      : { capabilities: ["static", "postgres"], reason: `integration support surface；PostgreSQL 使用 full suite: ${path}` };
   }
   if (path.startsWith("tests/e2e/")) {
-    return { capabilities: ["static", "system"], reason: `browser and Local Supabase system surface: ${path}`, e2eSpecs: [path] };
+    return isE2ESpec(path)
+      ? { capabilities: ["static", "system"], reason: `browser and Local Supabase E2E spec: ${path}`, e2eSpecs: [path] }
+      : { capabilities: ["static", "system"], reason: `E2E support surface；system 使用 full suite: ${path}` };
   }
 
   const source = readSourceDependencies(path);
@@ -271,11 +281,12 @@ function collectEvidence(path, classification, evidence) {
   if (classification.e2eSpecs) {
     for (const spec of classification.e2eSpecs) evidence.e2eSpecs.add(spec);
   }
-  if (path.startsWith("tests/e2e/")) evidence.unitPaths.get("unit-domain-node").add(GLOBAL_CONTRACTS.e2e.path);
+  if (path.startsWith("tests/e2e/")) evidence.unitExplicitTests.get("unit-domain-node").add(GLOBAL_CONTRACTS.e2e.path);
 
   const project = unitProjectFor(path);
-  if (project && (isCode || isTest)) evidence.unitPaths.get(project).add(path);
-  if (path.startsWith("src/")) evidence.unitPaths.get("unit-domain-node").add(GLOBAL_CONTRACTS.architecture.path);
+  if (project && isTest) evidence.unitExplicitTests.get(project).add(path);
+  if (project && isCode && !isTest) evidence.unitRelatedSources.get(project).add(path);
+  if (path.startsWith("src/")) evidence.unitExplicitTests.get("unit-domain-node").add(GLOBAL_CONTRACTS.architecture.path);
 
   for (const mapping of SYSTEM_FLOW_MAP) {
     if (mapping.prefixes.some((prefix) => path.startsWith(prefix))) {
@@ -312,9 +323,13 @@ function buildStaticMatrix(evidence) {
   if (lintPaths.length > 0) matrix.push({ task: "lint-changed", changedPaths: lintPaths });
 
   for (const project of STATIC_PROJECTS) {
-    const changedPaths = [...evidence.unitPaths.get(project)].sort();
-    if (changedPaths.length > 0) {
-      matrix.push({ task: `unit-related-${project}`, project, mode: "related", changedPaths });
+    const relatedSources = [...evidence.unitRelatedSources.get(project)].sort();
+    if (relatedSources.length > 0) {
+      matrix.push({ task: `unit-related-${project}`, project, mode: "related", relatedSources });
+    }
+    const explicitTests = [...evidence.unitExplicitTests.get(project)].sort();
+    if (explicitTests.length > 0) {
+      matrix.push({ task: `unit-explicit-${project}`, project, mode: "explicit", explicitTests });
     }
   }
 
@@ -349,11 +364,20 @@ function resultFor(requiredJobs, full, reason, evidence = {}) {
     runSystem: requiredJobs.includes("system"),
     staticMatrix,
     unitMode: full ? "full" : evidence.unitMode ?? "none",
-    unitChangedSources: full ? [] : evidence.unitChangedSources ?? [],
+    relatedSources: full ? [] : evidence.relatedSources ?? [],
+    explicitTests: full ? [] : evidence.explicitTests ?? [],
     integrationSpecs: full ? [] : evidence.integrationSpecs ?? [],
     e2eSpecs: full ? [] : evidence.e2eSpecs ?? [],
     reason,
   };
+}
+
+function isE2ESpec(path) {
+  return E2E_SPEC_FILE.test(path);
+}
+
+function isIntegrationSpec(path) {
+  return INTEGRATION_SPEC_FILE.test(path);
 }
 
 function unique(values) {
@@ -396,9 +420,11 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   output("required_jobs", JSON.stringify(plan.requiredJobs));
   output("static_matrix", JSON.stringify(plan.staticMatrix));
   output("unit_mode", plan.unitMode);
-  output("unit_changed_sources", JSON.stringify(plan.unitChangedSources));
+  output("related_sources", JSON.stringify(plan.relatedSources));
+  output("explicit_tests", JSON.stringify(plan.explicitTests));
   output("postgres_mode", plan.integrationSpecs.length > 0 ? "affected" : "full");
   output("integration_specs", JSON.stringify(plan.integrationSpecs));
   output("system_mode", plan.e2eSpecs.length > 0 ? "affected" : "full");
   output("e2e_specs", JSON.stringify(plan.e2eSpecs));
+  output("gate_name", plan.gateName);
 }

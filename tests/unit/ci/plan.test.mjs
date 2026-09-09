@@ -54,15 +54,40 @@ describe("changed-surface planner", () => {
     const entry = [{ status: "M", paths: ["tests/unit/components/Foo.test.tsx"] }];
     const draft = classifyChangedFiles(entry, { draft: true });
     expect(draft.full).toBe(false);
+    expect(draft.gateName).toBe("draft-gate");
     expect(draft.staticMatrix).toEqual(expect.arrayContaining([
       expect.objectContaining({ task: "type-tests" }),
-      expect.objectContaining({ task: "unit-related-unit-react-jsdom", mode: "related" }),
+      expect.objectContaining({ task: "unit-explicit-unit-react-jsdom", mode: "explicit", explicitTests: ["tests/unit/components/Foo.test.tsx"] }),
     ]));
 
     const ready = classifyChangedFiles(entry, { draft: false });
     expect(ready.full).toBe(true);
+    expect(ready.gateName).toBe("ci-gate");
     expect(ready.staticMatrix.map(({ task }) => task)).toContain("unit-react");
     expect(ready.staticMatrix.map(({ task }) => task)).toContain("build");
+  });
+
+  it("keeps Draft full fallback separate from the final merge gate", () => {
+    const draftFallback = classifyChangedFiles([{ status: "M", paths: ["pnpm-lock.yaml"] }], { draft: true });
+    const finalGate = classifyChangedFiles([{ status: "M", paths: ["docs/testing.md"] }], { forceFull: true, draft: false });
+
+    expect(draftFallback.full).toBe(true);
+    expect(draftFallback.gateName).toBe("draft-gate");
+    expect(finalGate.full).toBe(true);
+    expect(finalGate.gateName).toBe("ci-gate");
+  });
+
+  it("separates related sources from explicit tests and keeps global contracts executable", () => {
+    const sourceChange = classifyChangedFiles([{ status: "M", paths: ["src/lib/major/opening.ts"] }], { draft: true });
+    expect(sourceChange.staticMatrix).toEqual(expect.arrayContaining([
+      expect.objectContaining({ task: "unit-related-unit-domain-node", relatedSources: ["src/lib/major/opening.ts"] }),
+      expect.objectContaining({ task: "unit-explicit-unit-domain-node", explicitTests: ["tests/unit/quality/architecture-boundaries.test.ts"] }),
+    ]));
+
+    const e2eChange = classifyChangedFiles([{ status: "M", paths: ["tests/e2e/flows/major-entry.spec.ts"] }], { draft: true });
+    expect(e2eChange.staticMatrix).toEqual(expect.arrayContaining([
+      expect.objectContaining({ task: "unit-explicit-unit-domain-node", explicitTests: ["tests/unit/quality/e2e-contract.test.ts"] }),
+    ]));
   });
 
   it("selects conservative PG and browser evidence for affected draft changes", () => {
@@ -77,5 +102,23 @@ describe("changed-surface planner", () => {
       expect.objectContaining({ task: "type-app" }),
       expect.objectContaining({ task: "type-tests" }),
     ]));
+  });
+
+  it("direct-selects only test specs and falls back to full lane evidence for support files", () => {
+    const e2eSpec = classifyChangedFiles([{ status: "M", paths: ["tests/e2e/flows/major-entry.spec.ts"] }], { draft: true });
+    const e2eFixture = classifyChangedFiles([{ status: "M", paths: ["tests/e2e/fixtures.ts"] }], { draft: true });
+    const e2eHelper = classifyChangedFiles([{ status: "M", paths: ["tests/e2e/helpers/session.ts"] }], { draft: true });
+    const e2eSnapshot = classifyChangedFiles([{ status: "M", paths: ["tests/e2e/visual/ui-system.spec.ts-snapshots/privacy-1440x900-chromium.png"] }], { draft: true });
+    const integrationSpec = classifyChangedFiles([{ status: "M", paths: ["tests/integration/db/team-registration.test.ts"] }], { draft: true });
+    const integrationSupport = classifyChangedFiles([{ status: "M", paths: ["tests/integration/db/support.ts"] }], { draft: true });
+
+    expect(e2eSpec.e2eSpecs).toEqual(["tests/e2e/flows/major-entry.spec.ts"]);
+    for (const plan of [e2eFixture, e2eHelper, e2eSnapshot]) {
+      expect(plan.requiredJobs).toEqual(["static", "system"]);
+      expect(plan.e2eSpecs).toEqual([]);
+    }
+    expect(integrationSpec.integrationSpecs).toEqual(["tests/integration/db/team-registration.test.ts"]);
+    expect(integrationSupport.requiredJobs).toEqual(["static", "postgres"]);
+    expect(integrationSupport.integrationSpecs).toEqual([]);
   });
 });

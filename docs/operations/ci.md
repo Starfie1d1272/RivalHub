@@ -7,11 +7,12 @@ RivalHub 的 PR CI 按 changed surface 选择所需 evidence，而不是所有�
 ```text
 plan ─→ static ─────┐
    ├─→ postgres ────┤
-   ├─→ system ──────┼→ ci-gate
+   ├─→ system ──────┼→ draft-gate（Draft）
+   │                └→ ci-gate（Ready / protected FULL）
    └─→ dependency-review（PR）
 ```
 
-`ci-gate` 是代码正确性 evidence 的 required check：planner 明确允许跳过的 job 可以 skipped；本应运行却 failure / cancelled / unexpected skipped 的 capability 会阻断合并。PR metadata policy 由独立的 `pr-title` check 负责；要使其阻断合并，Main ruleset 需与 `ci-gate` 一起要求该 check。
+`draft-gate` 只汇总 Draft affected evidence，不能满足 ruleset 的 merge requirement。`ci-gate` 只由 Ready PR、Ready 后新 push、`main`、merge queue、release 和手动 FULL 运行产生；它是代码正确性 evidence 的 required check：planner 明确允许跳过的 job 可以 skipped；本应运行却 failure / cancelled / unexpected skipped 的 capability 会阻断合并。PR metadata policy 由独立的 `pr-title` check 负责；要使其阻断合并，Main ruleset 需与 `ci-gate` 一起要求该 check。
 
 ## Capabilities
 
@@ -57,7 +58,7 @@ Pull Request 额外运行 dependency review；达到 workflow 设定的严重度
 
 Pull Request 使用 Draft → Ready 两阶段流程。新 PR 默认保持 Draft：
 
-1. Draft 的 `opened` / `synchronize` 由 changed-surface planner 选择本次改动需要的 capability 和 evidence task。static 可以只跑 affected Vitest project 与 changed-file lint，postgres/system 可以只跑明确的 integration spec 或 semantic E2E flow。
+1. Draft 的 `opened` / `synchronize` 由 changed-surface planner 选择本次改动需要的 capability 和 evidence task，并以 `draft-gate` 汇总。static 可以只跑 affected Vitest project 与 changed-file lint，postgres/system 可以只跑明确的 integration spec 或 semantic E2E flow；只有真实 `*.test.*` / `*.spec.*` 文件可作为 direct selector，fixture、helper、snapshot 与 harness 改动会保留对应 lane 的 full suite。
 2. 实现完成并标记 Ready for review 时，`ready_for_review` 以 `PR_DRAFT=false` 重新运行 planner，直接输出 FULL matrix。该事件必须产生完整 static、postgres、system evidence，不得被 affected heuristic 削减。
 3. Ready PR 后续的每次 `synchronize` 仍然是 FULL；新 commit 产生后，旧 commit 的 FULL CI 不再是当前 merge evidence。
 
@@ -69,7 +70,7 @@ Draft planner 的 capability 规则为：
 - Auth、Supabase service 或 browser critical path 需要 system；
 - rename/delete、workflow/toolchain、无法分类的变化 fail closed 到 full。
 
-Draft PR 还会由同一个 planner 输出 static matrix、affected unit source、PG integration spec 和 semantic E2E flow；Vitest project 通过 `vitest related` 消费 changed source，动态路径/仓库扫描则叠加小型 global contract。affected plan 只用于 Draft 快速反馈，不降低最终 merge evidence。只有最新 commit 的 FULL CI、required `ci-gate` / `pr-title` 和 ruleset 要求的其它 checks 全绿，才能 merge。
+Draft PR 还会由同一个 planner 输出 static matrix、related source、explicit test、PG integration spec 和 semantic E2E flow；Vitest project 只把 source 交给 `vitest related`，而变更的 unit test 与 global contract 以 `vitest run <test path>` 直接执行。affected plan 只用于 Draft 快速反馈，不降低最终 merge evidence。只有最新 commit 的 FULL CI、required `ci-gate` / `pr-title` 和 ruleset 要求的其它 checks 全绿，才能 merge。
 
 `scripts/ci/timing.mjs` 的 command wrapper 是 project wall-time owner。`vitest-timing-reporter.ts` 只输出 per-project facts 与 top 15 per-file diagnostic duration，Step Summary 会明确区分两者。
 

@@ -33,8 +33,8 @@ DB unique/FK、transaction、row lock、migration/backfill 不用 mock 代替。
 
 PR CI 保留 `static`、`postgres`、`system` 三条 capability lane，并按 Draft → Ready 分为两个阶段：
 
-1. Draft PR 的每次 push 使用 Evidence Planner 根据 changed surface 选择 affected Vitest project、changed-file lint、明确的 PostgreSQL integration spec 和 semantic Playwright flow。它用于快速反馈；unknown、rename/delete、toolchain、workflow 或 harness surface 仍 fail closed 到 FULL。
-2. PR 标记为 Ready for review 时，`ready_for_review` 必须触发一次 FULL matrix，不再使用 affected heuristic。Ready PR 后续每次 push 也运行该 commit 的 FULL matrix。
+1. Draft PR 的每次 push 使用 Evidence Planner 根据 changed surface 选择 affected Vitest project、changed-file lint、明确的 PostgreSQL integration spec 和 semantic Playwright flow，并汇总为非 required 的 `draft-gate`。它用于快速反馈；unknown、rename/delete、toolchain、workflow 或 harness surface 仍 fail closed 到 FULL。
+2. PR 标记为 Ready for review 时，`ready_for_review` 必须触发一次 FULL matrix，不再使用 affected heuristic，并产生 ruleset required 的 `ci-gate`。Ready PR 后续每次 push 也运行该 commit 的 FULL matrix。
 
 只有最新 commit 的 FULL CI 与 required checks 全部成功，才能作为 merge evidence；新 push 会使之前 commit 的 FULL evidence 失效。`main`、merge queue、release 和手动运行同样强制 FULL。精确 planner 与 job 以 `.github/workflows/ci.yml`、`scripts/ci/plan.mjs` 为 authority，排障见 [`operations/ci.md`](./operations/ci.md)。
 
@@ -62,7 +62,7 @@ pnpm exec vitest run --project unit-react-jsdom path/to/related.spec.tsx
 
 环境启动和单层复现见 [`operations/local-development.md`](./operations/local-development.md)。
 
-Vitest 的三个 project（domain Node、server Node、React jsdom）是独立 evidence owner。FULL static 会并行执行三个 project；Draft affected static 使用 Vitest `related` 加上 architecture/E2E 等 repository contract。project 的 wall time 由外层 timing wrapper 记录，reporter 只记录 test count、failure/flaky count 和按文件排序的 diagnostic duration，不把并发文件 duration 总和伪装成 project wall time。
+Vitest 的三个 project（domain Node、server Node、React jsdom）是独立 evidence owner。FULL static 会并行执行三个 project；Draft affected static 将 source 交给 Vitest `related`，而变更的 test 文件与 architecture/E2E 等 repository contract 以显式 test path 直接运行。project 的 wall time 由外层 timing wrapper 记录，reporter 只记录 test count、failure/flaky count 和按文件排序的 diagnostic duration，不把并发文件 duration 总和伪装成 project wall time。
 
 System failure/flaky 时 Playwright 生成 failure screenshot；artifact sanitizer 仅从 test-results 保留小型 PNG/JPEG，trace archive 与所有文本继续脱敏，成功 run 不上传大体积 artifacts。每条 stateful E2E 使用自己的 fixture profile 与 attempt namespace。
 
