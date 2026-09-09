@@ -42,7 +42,7 @@ describe("team registration operations presentation", () => {
         confirmedCount: 3,
         starterCount: 4,
         requiredStarterCount: 5,
-        primaryBlockers: ["还差 3 名成员确认", "还差 1 名预定主力", "完美战队 ID 尚未填写"],
+        primaryBlockers: ["还差 3 名成员确认", "还差 1 名预定主力", "队伍图标尚未上传"],
       }],
       summary: { total: 7, draft: 7, submitted: 0, approved: 0, changesRequested: 0, waitlisted: 0, rejected: 0, withdrawn: 0 },
     }} />);

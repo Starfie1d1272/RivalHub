@@ -19,7 +19,7 @@ import {
   saveCompetitionEntryRosterInTx,
   submitCompetitionEntryInTx,
   transferCompetitionEntryRepresentativeInTx,
-  withdrawCompetitionEntryInTx,
+  withdrawCompetitionEntryFromReviewInTx,
   withdrawCompetitionEntryParticipationInTx,
 } from "@/lib/competition-entries/commands";
 import { ok, type ActionResult } from "@/types/action";
@@ -89,19 +89,19 @@ export async function declineCompetitionEntryParticipation(input: { entryId: str
   } catch (error) { return actionError("declineCompetitionEntryParticipation", error); }
 }
 
-export async function withdrawCompetitionEntry(input: { entryId: string }): Promise<ActionResult<void>> {
+export async function withdrawCompetitionEntryFromReview(input: { entryId: string }): Promise<ActionResult<void>> {
   const parsed = z.object({ entryId: uuid }).safeParse(input);
   if (!parsed.success) return failValidation("参赛条目标识无效。");
   try {
     const session = await requireAuth();
-    const result = await db.transaction((tx) => withdrawCompetitionEntryInTx(tx, {
+    const result = await db.transaction((tx) => withdrawCompetitionEntryFromReviewInTx(tx, {
       entryId: parsed.data.entryId,
       userId: session.userId,
       actorId: auditActorId(session),
     }));
     revalidateEntry(result.seasonSlug, parsed.data.entryId);
     return ok(undefined);
-  } catch (error) { return actionError("withdrawCompetitionEntry", error); }
+  } catch (error) { return actionError("withdrawCompetitionEntryFromReview", error); }
 }
 
 export async function requestCompetitionEntryRosterChange(input: { entryId: string }): Promise<ActionResult<void>> {

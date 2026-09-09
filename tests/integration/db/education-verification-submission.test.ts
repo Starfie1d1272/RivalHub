@@ -47,7 +47,11 @@ describe("education verification submission PostgreSQL invariants", () => {
       const second = await pool.query<{ id: string }>("SELECT id FROM education_verifications WHERE user_id = $1 AND evidence_code = $2", [userId, "123456789012"]);
       expect(second.rows).toHaveLength(1);
       await pool.query("UPDATE education_verifications SET status = 'rejected', reviewed_by = 'local-admin', reviewed_at = now(), review_note = '学校不一致' WHERE id = $1", [second.rows[0]!.id]);
-      await expect(submitEducationVerification({ institutionId: institution.id, academicStatus: "graduated", evidenceCode: "1234 5678 9012" })).resolves.toMatchObject({ success: false, error: { code: ErrorCode.VALIDATION_FAILED, message: expect.stringContaining("此前已被驳回") } });
+      const resubmissions = await Promise.all([
+        submitEducationVerification({ institutionId: institution.id, academicStatus: "graduated", evidenceCode: "1234 5678 9012" }),
+        submitEducationVerification({ institutionId: institution.id, academicStatus: "graduated", evidenceCode: secondCode }),
+      ]);
+      expect(resubmissions.map((result) => result.success ? result.data : result.error.code).sort()).toEqual(["already_pending", "created"]);
 
       const concurrentResults = await Promise.all([
         submitEducationVerification({ institutionId: concurrentInstitution.id, academicStatus: "enrolled", evidenceCode: concurrentCode }),
@@ -59,9 +63,10 @@ describe("education verification submission PostgreSQL invariants", () => {
       expect(finalRows.rows).toEqual([
         { evidence_code: "ABCD1234EFGH5678", status: "approved", review_note: null },
         { evidence_code: "123456789012", status: "rejected", review_note: "学校不一致" },
+        { evidence_code: "123456789012", status: "pending", review_note: null },
         { evidence_code: "QWER1234ASDF5678", status: "pending", review_note: null },
       ]);
-      await expect(pool.query("SELECT count(*)::text AS count FROM audit_logs WHERE actor_id = $1 AND action = 'education_verification.submit'", [userId])).resolves.toMatchObject({ rows: [{ count: "3" }] });
+      await expect(pool.query("SELECT count(*)::text AS count FROM audit_logs WHERE actor_id = $1 AND action = 'education_verification.submit'", [userId])).resolves.toMatchObject({ rows: [{ count: "4" }] });
     } finally {
       await pool.query("DELETE FROM audit_logs WHERE actor_id = $1", [userId]).catch(() => {});
       await pool.query("DELETE FROM education_verifications WHERE user_id = $1", [userId]).catch(() => {});

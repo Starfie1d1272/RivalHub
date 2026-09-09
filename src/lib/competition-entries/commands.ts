@@ -75,6 +75,36 @@ async function nextRepresentativeChangeAt(tx: TxDb, entryId: string): Promise<Da
   return new Date(Math.max(now, latest ? latest.changedAt.getTime() + 1 : now));
 }
 
+async function cloneRosterRevisionAsDraftInTx(
+  tx: TxDb,
+  revision: typeof competitionEntryRosterRevisions.$inferSelect,
+  createdBy: string,
+  origin = revision.origin,
+) {
+  const nextRevision = revision.revisionNumber + 1;
+  const [next] = await tx.insert(competitionEntryRosterRevisions).values({
+    entryId: revision.entryId,
+    revisionNumber: nextRevision,
+    status: "draft",
+    origin,
+    createdBy,
+  }).returning({ id: competitionEntryRosterRevisions.id });
+  const members = await tx.select().from(competitionEntryRosterMembers)
+    .where(eq(competitionEntryRosterMembers.revisionId, revision.id));
+  if (members.length > 0) {
+    await tx.insert(competitionEntryRosterMembers).values(members.map((member) => ({
+      revisionId: next.id,
+      participantId: member.participantId,
+      userId: member.userId,
+      teamMembershipId: member.teamMembershipId,
+      isPrimaryStarter: member.isPrimaryStarter,
+    })));
+  }
+  await tx.update(competitionEntryRosterRevisions).set({ status: "superseded" })
+    .where(eq(competitionEntryRosterRevisions.id, revision.id));
+  return { id: next.id, revisionNumber: nextRevision };
+}
+
 async function validateEntryRoster(
   tx: TxDb,
   entry: typeof competitionEntries.$inferSelect,
@@ -292,19 +322,30 @@ export async function declineCompetitionEntryParticipationInTx(tx: TxDb, input: 
   return { seasonSlug: (await loadSeasonOrThrow(tx, entry.competitionId)).slug };
 }
 
-export async function withdrawCompetitionEntryInTx(tx: TxDb, input: { entryId: string; userId: string; actorId: string }): Promise<{ seasonSlug: string }> {
+export async function withdrawCompetitionEntryFromReviewInTx(tx: TxDb, input: { entryId: string; userId: string; actorId: string }): Promise<{ seasonSlug: string }> {
   const entry = await lockRepresentativeEntry(tx, input.entryId, input.userId);
-  if (entry.registrationStatus === "approved") throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "已批准 Entry 必须由赛事管理员处理退赛和后续裁决。");
-  if (["rejected", "withdrawn"].includes(entry.registrationStatus)) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前 Entry 已经终止。");
+  if (entry.registrationStatus !== "submitted") throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "只有已提交审核的报名可以撤回审核。");
+  const [revision] = await tx.select().from(competitionEntryRosterRevisions)
+    .where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id)))
+    .for("update");
+  if (!revision || revision.status !== "submitted") throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前名单版本不在审核中。");
+  const next = await cloneRosterRevisionAsDraftInTx(tx, revision, input.actorId);
   const now = new Date();
-  await tx.delete(competitionEntryActiveClaims).where(eq(competitionEntryActiveClaims.entryId, entry.id));
-  await tx.update(competitionEntries).set({ registrationStatus: "withdrawn", updatedAt: now }).where(eq(competitionEntries.id, entry.id));
-  const [revision] = await tx.select().from(competitionEntryRosterRevisions).where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id))).limit(1);
-  if (revision) {
-    const [{ value }] = await tx.select({ value: count() }).from(competitionEntrySubmissions).where(eq(competitionEntrySubmissions.entryId, entry.id));
-    await tx.insert(competitionEntrySubmissions).values({ entryId: entry.id, rosterRevisionId: revision.id, sequence: Number(value) + 1, decision: "withdrawn", submittedBy: input.actorId, submittedAt: now, decidedBy: input.actorId, decidedAt: now });
-  }
-  await auditEntry(tx, { action: "competition_entry.withdraw", actorId: input.actorId, entryId: entry.id, competitionId: entry.competitionId, meta: { from: entry.registrationStatus } });
+  await tx.update(competitionEntries).set({
+    registrationStatus: "draft",
+    currentRosterRevisionId: next.id,
+    submittedAt: null,
+    reviewedAt: null,
+    reviewReason: null,
+    updatedAt: now,
+  }).where(eq(competitionEntries.id, entry.id));
+  await auditEntry(tx, {
+    action: "competition_entry.review.withdraw",
+    actorId: input.actorId,
+    entryId: entry.id,
+    competitionId: entry.competitionId,
+    meta: { from: "submitted", to: "draft", submittedRevision: revision.revisionNumber, nextRevision: next.revisionNumber },
+  });
   return { seasonSlug: (await loadSeasonOrThrow(tx, entry.competitionId)).slug };
 }
 
@@ -452,11 +493,7 @@ export async function reviewCompetitionEntryInTx(tx: TxDb, input: { entryId: str
   const now = new Date();
   await tx.update(competitionEntrySubmissions).set({ decision: input.decision, decidedBy: input.actorId, decidedAt: now, reason: input.reason || null }).where(eq(competitionEntrySubmissions.id, submission.id));
   if (input.decision === "changes_requested") {
-    const nextRevision = revision.revisionNumber + 1;
-    const [next] = await tx.insert(competitionEntryRosterRevisions).values({ entryId: entry.id, revisionNumber: nextRevision, status: "draft", origin: "admin_remediation", createdBy: input.actorId }).returning({ id: competitionEntryRosterRevisions.id });
-    const members = await tx.select().from(competitionEntryRosterMembers).where(eq(competitionEntryRosterMembers.revisionId, revision.id));
-    if (members.length > 0) await tx.insert(competitionEntryRosterMembers).values(members.map((member) => ({ revisionId: next.id, participantId: member.participantId, userId: member.userId, teamMembershipId: member.teamMembershipId, isPrimaryStarter: member.isPrimaryStarter })));
-    await tx.update(competitionEntryRosterRevisions).set({ status: "superseded" }).where(eq(competitionEntryRosterRevisions.id, revision.id));
+    const next = await cloneRosterRevisionAsDraftInTx(tx, revision, input.actorId, "admin_remediation");
     await tx.update(competitionEntries).set({ registrationStatus: "changes_requested", currentRosterRevisionId: next.id, reviewedAt: now, reviewReason: input.reason, updatedAt: now }).where(eq(competitionEntries.id, entry.id));
   } else {
     await tx.update(competitionEntries).set({ registrationStatus: input.decision, approvedRosterRevisionId: input.decision === "approved" ? revision.id : entry.approvedRosterRevisionId, reviewedAt: now, reviewReason: input.reason || null, updatedAt: now }).where(eq(competitionEntries.id, entry.id));

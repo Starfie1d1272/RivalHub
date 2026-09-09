@@ -77,10 +77,6 @@ export async function submitChsiEducationVerification(input: {
       .for("update");
     if (sameCode.some((row) => row.status === "pending")) return "already_pending";
     if (sameCode.some((row) => row.status === "approved")) return "already_approved";
-    if (sameCode.some((row) => row.status === "rejected")) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, "该验证码此前已被驳回，请提交新的有效验证码。");
-    }
-
     const existingClaim = await findPendingOrApprovedClaimInTx(tx, context, input.academicStatus);
     if (existingClaim === "approved") return "already_approved";
     if (existingClaim === "pending") return "already_pending";

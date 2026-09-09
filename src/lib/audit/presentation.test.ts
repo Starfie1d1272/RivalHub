@@ -26,7 +26,7 @@ const CURRENT_PRODUCER_ACTIONS = [
   "team.invite.revoke", "team.membership.status_change", "team.membership.leave", "team.membership.kick", "team.captain.transfer", "team.disband",
   "competition_entry.create", "competition_entry.participant.reinvite", "competition_entry.participant.confirm",
   "competition_entry.participant.withdraw", "competition_entry.participant.decline", "competition_entry.roster.save",
-  "competition_entry.roster_change.request", "competition_entry.withdraw", "competition_entry.submit", "competition_entry.submitted",
+  "competition_entry.roster_change.request", "competition_entry.withdraw", "competition_entry.review.withdraw", "competition_entry.submit", "competition_entry.submitted",
   "competition_entry.changes_requested", "competition_entry.waitlisted", "competition_entry.approved", "competition_entry.rejected",
   "competition_entry.withdrawn", "competition_entry.representative.transfer", "competition_entry.restriction_override.grant",
   "competition_entry.restriction_override.revoke",

@@ -34,6 +34,9 @@ describe("registration action capabilities", () => {
     expect(getCompetitionEntryCapabilities({ ...input, season: { ...season, rosterChangeClosesAt: null } }, now).canRequestRosterChange).toBe(false);
   });
   it.each(["submitted", "waitlisted", "rejected", "withdrawn"] as const)("does not expose edit or submit for %s", (status) => {
-    expect(getCompetitionEntryCapabilities({ season, entry: { status, hasApprovedRoster: false }, revision: { status: "submitted", origin: "initial" }, rosterFrozen: false }, new Date("2026-09-05"))).toMatchObject({ canEditCurrentRoster: false, canSubmitForReview: false, canRequestRosterChange: false });
+    expect(getCompetitionEntryCapabilities({ season, entry: { status, hasApprovedRoster: false }, revision: { status: "submitted", origin: "initial" }, rosterFrozen: false }, new Date("2026-09-05"))).toMatchObject({ canEditCurrentRoster: false, canSubmitForReview: false, canRequestRosterChange: false, canWithdrawFromReview: status === "submitted" });
+  });
+  it("does not allow review withdrawal after the roster is frozen", () => {
+    expect(getCompetitionEntryCapabilities({ season, entry: { status: "submitted", hasApprovedRoster: false }, revision: { status: "submitted", origin: "initial" }, rosterFrozen: true }).canWithdrawFromReview).toBe(false);
   });
 });
