@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.7.8]
+
+### Fixed
+
+#### 生产调度可靠性
+
+修复生产调度未实际派发任务的问题。调度配置现在可以安全地重复执行，发布验证会等待每项任务完成真实派发、端点成功响应与分钟级调度执行后才通过。
+
+#### 报名撤回截止边界
+
+报名撤回现在与提交共用同一报名窗口；截止后已提交的报名保持待审核状态，报名期内的撤回与后续编辑流程保持不变。
+
 ## [2.7.7]
 
 ### Added
@@ -1993,6 +2005,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.7.8]: https://github.com/Starfie1d1272/RivalHub/compare/v2.7.7...v2.7.8
 [2.7.7]: https://github.com/Starfie1d1272/RivalHub/compare/v2.7.6...v2.7.7
 [2.7.6]: https://github.com/Starfie1d1272/RivalHub/compare/v2.7.5...v2.7.6
 [2.7.5]: https://github.com/Starfie1d1272/RivalHub/compare/v2.7.4...v2.7.5
