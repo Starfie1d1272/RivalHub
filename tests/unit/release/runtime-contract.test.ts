@@ -73,7 +73,9 @@ describe("deployment and operations contracts", () => {
     expectPnpmSetup(staging, ["staging"]);
     expectPnpmSetup(release, ["release"]);
     expect(readWorkflowJob(ci, "plan")).not.toContain("pnpm/setup");
-    expect(readWorkflowJob(ci, "ci-gate")).not.toContain("pnpm/setup");
+    const gate = readWorkflowJob(ci, "gate");
+    expect(gate).toContain("name: ${{ needs.plan.outputs.gate_name }}");
+    expect(gate).not.toContain("pnpm/setup");
     expect(readWorkflowJob(ci, "dependency-review")).not.toContain("pnpm/setup");
   });
 
