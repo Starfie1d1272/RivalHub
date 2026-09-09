@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { scheduledJobHealth } from "@/db/schema";
 import { classifyError } from "@/lib/observability/errors";
-import { captureException, logEvent } from "@/lib/observability/server";
+import { captureException } from "@/lib/observability/server";
 import type { SchedulerJobDefinition, SchedulerJobKey, SchedulerSource } from "./definitions";
 
 export type SchedulerHealthRecord = typeof scheduledJobHealth.$inferSelect;
@@ -122,15 +122,6 @@ async function updateHealth(
 
 function recordHealthStorageFailure(operation: string, jobKey: string, error: unknown): void {
   captureException("scheduler.health_projection.failure", error, {
-    scope: "scheduler",
-    operation: `health.${operation}`,
-    errorClass: "database",
-    retryable: true,
-    safeContext: { jobKey },
-  });
-  logEvent({
-    level: "warn",
-    event: "scheduler.health_projection.unavailable",
     scope: "scheduler",
     operation: `health.${operation}`,
     errorClass: "database",
