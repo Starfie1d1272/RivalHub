@@ -26,6 +26,7 @@ test("新生可以提交录取通知书并由 super admin 查看后审核", asyn
   const player = credentials.accounts.find((account) => account.key === "player1");
   const admin = credentials.accounts.find((account) => account.key === "admin");
   if (!player || !admin) throw new Error("browser fixture 缺少 player1 或 admin 账号。");
+  const playerSearch = encodeURIComponent(player.email);
 
   await signIn(page, player.email, credentials.password, "/settings/education");
   await page.getByRole("button", { name: "暂时无法获取学信网材料？" }).click();
@@ -46,7 +47,7 @@ test("新生可以提交录取通知书并由 super admin 查看后审核", asyn
   try {
     const adminPage = await adminContext.newPage();
     await signIn(adminPage, admin.email, credentials.password, "/admin");
-    await adminPage.goto("/admin/education-verifications?status=all&q=Browser%20player1");
+    await adminPage.goto(`/admin/education-verifications?status=all&q=${playerSearch}`);
     await expect(adminPage.getByText("材料：录取通知书材料", { exact: true })).toBeVisible({ timeout: 20_000 });
 
     const viewEvidence = adminPage.getByRole("button", { name: "查看材料" }).last();
@@ -64,7 +65,7 @@ test("新生可以提交录取通知书并由 super admin 查看后审核", asyn
       await approve.click();
       await expect(adminPage.getByText("认证已通过", { exact: true })).toBeVisible({ timeout: 20_000 });
     }
-    await adminPage.goto("/admin/education-verifications?status=approved&q=Browser%20player1");
+    await adminPage.goto(`/admin/education-verifications?status=approved&q=${playerSearch}`);
     await expect(adminPage.getByText("声明学校：南京大学（4132010284） · 在读", { exact: false })).toBeVisible({ timeout: 20_000 });
   } finally {
     await adminContext.close();
