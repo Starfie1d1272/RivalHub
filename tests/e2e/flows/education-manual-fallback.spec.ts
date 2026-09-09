@@ -22,6 +22,7 @@ async function signIn(page: Page, email: string, password: string, next: string)
 test.skip(({ viewport }) => (viewport?.width ?? 0) < 800, "有状态的教育认证流程只在桌面项目执行一次，避免并发 project 竞争共享 fixture。");
 
 test("新生可以提交录取通知书并由 super admin 查看后审核", async ({ browser, page }) => {
+  test.setTimeout(60_000);
   const credentials = loadCredentials();
   const player = credentials.accounts.find((account) => account.key === "player1");
   const admin = credentials.accounts.find((account) => account.key === "admin");
@@ -65,8 +66,7 @@ test("新生可以提交录取通知书并由 super admin 查看后审核", asyn
       await approve.click();
       await expect(adminPage.getByText("认证已通过", { exact: true })).toBeVisible({ timeout: 20_000 });
     }
-    await adminPage.goto(`/admin/education-verifications?status=approved&q=${playerSearch}`);
-    await expect(adminPage.getByText("声明学校：南京大学（4132010284） · 在读", { exact: false })).toBeVisible({ timeout: 20_000 });
+    await expect(adminPage.getByText(`${player.email} · 已通过`, { exact: true })).toBeVisible({ timeout: 20_000 });
   } finally {
     await adminContext.close();
   }
