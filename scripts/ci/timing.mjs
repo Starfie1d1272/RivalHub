@@ -98,9 +98,27 @@ function renderSummary() {
   }
   const projectRecords = records.filter((entry) => entry.kind === "vitest-project");
   if (projectRecords.length > 0) {
-    lines.push("", "### Vitest projects", "", "| project | wall time | files | tests | failed | flaky |", "| --- | ---: | ---: | ---: | ---: | ---: |");
+    lines.push("", "### Vitest project facts", "", "| project | files | tests | failed | flaky |", "| --- | ---: | ---: | ---: | ---: |");
     for (const item of projectRecords) {
-      lines.push(`| ${item.project} | ${(item.milliseconds / 1000).toFixed(2)}s | ${item.files} | ${item.tests} | ${item.failed} | ${item.flaky} |`);
+      lines.push(`| ${item.project} | ${item.files} | ${item.tests} | ${item.failed} | ${item.flaky} |`);
+    }
+    const slowFiles = projectRecords
+      .flatMap((item) => (item.slowFiles ?? []).map((file) => ({ project: item.project, ...file })))
+      .sort((left, right) => right.milliseconds - left.milliseconds)
+      .slice(0, 15);
+    if (slowFiles.length > 0) {
+      lines.push(
+        "",
+        "### Slowest Vitest files",
+        "",
+        "Per-file diagnostic duration; this is not the project wall time.",
+        "",
+        "| project | file | diagnostic duration |",
+        "| --- | --- | ---: |",
+      );
+      for (const file of slowFiles) {
+        lines.push(`| ${file.project} | ${file.file} | ${(file.milliseconds / 1000).toFixed(2)}s |`);
+      }
     }
   }
   appendFileSync(summaryPath, `${lines.join("\n")}\n`, "utf8");

@@ -28,6 +28,10 @@ describe("system artifact sanitizer", () => {
       expect(existsSync(join(target, "safe", "screenshot.png"))).toBe(false);
       expect(existsSync(join(target, "safe", "session.webm"))).toBe(false);
       expect(existsSync(join(target, "safe", "credentials.json"))).toBe(false);
+
+      copySafeTree(source, join(target, "safe-with-screenshot"), false, { allowFailureScreenshots: true });
+      expect(existsSync(join(target, "safe-with-screenshot", "screenshot.png"))).toBe(true);
+      expect(existsSync(join(target, "safe-with-screenshot", "session.webm"))).toBe(false);
     } finally {
       rmSync(source, { recursive: true, force: true });
       rmSync(target, { recursive: true, force: true });

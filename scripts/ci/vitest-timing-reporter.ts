@@ -1,15 +1,15 @@
 import { appendFileSync, mkdirSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, relative, resolve } from "node:path";
 import type { Reporter, TestModule } from "vitest/node";
 
 type ProjectRecord = {
   kind: "vitest-project";
   project: string;
-  milliseconds: number;
   files: number;
   tests: number;
   failed: number;
   flaky: number;
+  slowFiles: Array<{ file: string; milliseconds: number }>;
 };
 
 function statePath(): string {
@@ -32,16 +32,22 @@ export default class VitestTimingReporter implements Reporter {
     const path = statePath();
     mkdirSync(dirname(path), { recursive: true });
     for (const [project, modules] of grouped) {
-      const diagnostics = modules.map((testModule) => testModule.diagnostic()).filter(Boolean);
       const tests = modules.flatMap((testModule) => [...testModule.children.allTests()]);
+      const slowFiles = modules
+        .map((testModule) => ({
+          file: relative(process.cwd(), testModule.moduleId),
+          milliseconds: Math.max(0, Math.round(testModule.diagnostic().duration)),
+        }))
+        .sort((left, right) => right.milliseconds - left.milliseconds)
+        .slice(0, 15);
       const record: ProjectRecord = {
         kind: "vitest-project",
         project,
-        milliseconds: diagnostics.reduce((total, diagnostic) => total + diagnostic!.duration, 0),
         files: modules.length,
         tests: tests.length,
         failed: tests.filter((test) => test.result().state === "failed").length,
         flaky: tests.filter((test) => test.diagnostic()?.flaky).length,
+        slowFiles,
       };
       appendFileSync(path, `${JSON.stringify(record)}\n`, "utf8");
     }

@@ -1,5 +1,7 @@
 import { expect, test, type E2EFixtureCredentials } from "../fixtures";
 
+test.use({ scenarioProfile: "major-entry" });
+
 /**
  * 2.0 真实用户任务 E2E（依赖 Local Supabase browser fixture）：
  * 每个 test attempt 都创建自己的 Local DB/Auth scenario，结束后按

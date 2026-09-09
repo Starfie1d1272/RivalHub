@@ -278,7 +278,7 @@ function runLocalE2E(args: readonly string[]): void {
   let testFailure: unknown;
   let cleanupFailure: unknown;
   try {
-    run(playwrightBin, ["test", ...normalizeCliArgs(args)], { env });
+    run(playwrightBin, ["test", ...readEvidenceSpecs(env.RIVALHUB_E2E_SPECS), ...normalizeCliArgs(args)], { env });
   } catch (error) {
     testFailure = error;
   } finally {
@@ -294,6 +294,21 @@ function runLocalE2E(args: readonly string[]): void {
   }
   if (testFailure) throw testFailure;
   if (cleanupFailure) throw cleanupFailure;
+}
+
+function readEvidenceSpecs(value: string | undefined): string[] {
+  const raw = value?.trim();
+  if (!raw || raw === "[]") return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error("RIVALHUB_E2E_SPECS 必须是 JSON 数组。");
+  }
+  if (!Array.isArray(parsed) || parsed.some((spec) => typeof spec !== "string" || !spec.trim())) {
+    throw new Error("RIVALHUB_E2E_SPECS 必须是字符串数组。");
+  }
+  return parsed;
 }
 
 function verifyServicesWorkflow(): void {

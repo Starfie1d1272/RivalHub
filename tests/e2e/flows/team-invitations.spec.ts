@@ -1,5 +1,7 @@
 import { expect, signInProgrammatically, test } from "../fixtures";
 
+test.use({ scenarioProfile: "team-invite" });
+
 test.skip(({ viewport }) => (viewport?.width ?? 0) < 800, "有状态的邀请流程只在桌面项目执行一次，避免并发 project 竞争共享 fixture。");
 
 test("未入队用户可以从 /my 和 /teams 发现并处理 direct invitation", async ({ browser, page, scenario }) => {

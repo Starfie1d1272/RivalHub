@@ -34,6 +34,13 @@ jobs:
       run_postgres: ${{ steps.plan.outputs.run_postgres }}
       run_system: ${{ steps.plan.outputs.run_system }}
       required_jobs: ${{ steps.plan.outputs.required_jobs }}
+      static_matrix: ${{ steps.plan.outputs.static_matrix }}
+      unit_mode: ${{ steps.plan.outputs.unit_mode }}
+      unit_changed_sources: ${{ steps.plan.outputs.unit_changed_sources }}
+      postgres_mode: ${{ steps.plan.outputs.postgres_mode }}
+      integration_specs: ${{ steps.plan.outputs.integration_specs }}
+      system_mode: ${{ steps.plan.outputs.system_mode }}
+      e2e_specs: ${{ steps.plan.outputs.e2e_specs }}
     steps:
       - name: Capture workflow timing start
         id: timing-start
@@ -56,6 +63,7 @@ jobs:
           BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           HEAD_SHA: ${{ github.sha }}
           FORCE_FULL: ${{ github.event_name != 'pull_request' }}
+          PR_DRAFT: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft || 'false' }}
 
   static:
     name: static / ${{ matrix.task }}
@@ -65,7 +73,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        task: [type-app, type-tests, type-scripts, lint, unit, dead-code, build]
+        include: ${{ fromJSON(needs.plan.outputs.static_matrix) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -83,19 +91,12 @@ jobs:
 
       - name: Run static task
         env:
-          RIVALHUB_TIMING_TEST_KIND: ${{ matrix.task == 'unit' && 'unit' || '' }}
-        run: |
-          case "${{ matrix.task }}" in
-            type-app) set -- pnpm type-check:app ;;
-            type-tests) set -- pnpm type-check:tests ;;
-            type-scripts) set -- pnpm type-check:scripts ;;
-            lint) set -- pnpm lint ;;
-            unit) set -- pnpm test ;;
-            dead-code) set -- bash -c 'pnpm knip && pnpm knip --production' ;;
-            build) set -- env -u DATABASE_URL pnpm build ;;
-            *) echo "unknown static task" >&2; exit 1 ;;
-          esac
-          node scripts/ci/timing.mjs "static/${{ matrix.task }}" -- "$@"
+          RIVALHUB_TIMING_TEST_KIND: ${{ startsWith(matrix.task, 'unit-') && 'unit' || '' }}
+          STATIC_TASK: ${{ matrix.task }}
+          STATIC_PROJECT: ${{ matrix.project || '' }}
+          STATIC_MODE: ${{ matrix.mode || 'full' }}
+          STATIC_CHANGED_PATHS: ${{ toJSON(matrix.changedPaths) }}
+        run: node scripts/ci/timing.mjs "static/${{ matrix.task }}" -- node scripts/ci/run-static-task.mjs
 
       - name: Write timing summary
         if: always()
@@ -129,6 +130,7 @@ jobs:
       RIVALHUB_PRODUCTION_STABLE_REF: origin/main
       RIVALHUB_INTEGRATION_WORKERS: 2
       RIVALHUB_TIMING: 1
+      RIVALHUB_INTEGRATION_SPECS: ${{ needs.plan.outputs.integration_specs }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -212,10 +214,11 @@ jobs:
           RIVALHUB_TIMING_TEST_KIND: e2e
           PLAYWRIGHT_CHANNEL: chrome
           PLAYWRIGHT_WORKERS: 1
+          RIVALHUB_E2E_SPECS: ${{ needs.plan.outputs.e2e_specs }}
         run: node scripts/ci/timing.mjs "system/E2E body" -- pnpm test:e2e
 
       - name: Prepare safe system artifacts
-        if: always()
+        if: failure()
         run: node scripts/ci/prepare-system-artifacts.mjs
       - name: Upload system failure artifacts
         if: failure()

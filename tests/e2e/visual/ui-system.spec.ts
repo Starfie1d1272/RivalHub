@@ -1,5 +1,7 @@
 import { expect, signInProgrammatically, test } from "../fixtures";
 
+test.use({ scenarioProfile: "auth" });
+
 const SCREENSHOT_OPTIONS = {
   animations: "disabled" as const,
   caret: "hide" as const,

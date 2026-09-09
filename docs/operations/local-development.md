@@ -11,7 +11,7 @@
 
 `packageManager`、`devEngines.runtime` 与 `engines.node` 共同声明仓库 runtime。pnpm 安装时会按 manifest 解析所需 Node，并把对应 runtime 记录到 lockfile；首次获取可能需要联网，后续可复用本机缓存。不要删除相关 lockfile runtime 条目，也不要在 workflow、脚本或个人环境里再维护另一份 Node/pnpm 版本常量；CI 同样从仓库 manifest/lockfile 取得 runtime。
 
-## 第一次启动
+## 需要真实服务时的第一次启动
 
 ```bash
 pnpm install
@@ -23,6 +23,20 @@ RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm dev:local
 
 本地 wrapper 不会把 `.env.local` 中的远程 `DATABASE_URL` 当作 fallback。
 默认 `pnpm check` / `pnpm verify` 只执行 host-only correctness、静态 guard、unit 和 production build，不启动 Docker、Local Supabase 或 PostgreSQL container。CI 运行重型 evidence；人工本地复现必须显式设置 `RIVALHUB_ALLOW_LOCAL_CONTAINERS=1`。
+
+## Draft → Ready 迭代流程
+
+日常开发默认在 Draft PR 中进行。每次 push 由 Evidence Planner 根据 changed surface 选择 affected evidence；本地只需运行与当前改动匹配的快速 host-only 检查。不要为了每次迭代重复启动 PostgreSQL、Local Supabase 或 browser 重型环境。
+
+常用匹配方式：
+
+- domain、formatter 或纯规则：`pnpm exec vitest run --project unit-domain-node path/to/related.spec.ts`；
+- server action、route、数据库访问或 API：`pnpm type-check:app`，并运行 `unit-server-node` 的相关 spec；
+- React component：`pnpm exec vitest run --project unit-react-jsdom path/to/related.spec.tsx`；
+- tests：`pnpm type-check:tests`；scripts：`pnpm type-check:scripts`；
+- 当前改动涉及的 TypeScript/JSON 文件：`pnpm exec eslint path/to/changed-file.ts`。
+
+`pnpm check` / `pnpm verify` 可以在需要时作为 broad host-only 检查，但不要求每次迭代或每次 push 都运行。真实 PostgreSQL、Local Supabase 和 browser evidence 由 Draft CI 按需运行；服务层本地复现只在排查失败、验证 migration/constraint，或需要检查真实浏览器组合行为时启动最小层级。准备交付时将 PR 标记为 Ready for review，由 `ready_for_review` 触发最终 FULL CI；Ready 后的新 push 还必须等待对应新 commit 的 FULL CI。
 
 ## 只启动需要的层级
 

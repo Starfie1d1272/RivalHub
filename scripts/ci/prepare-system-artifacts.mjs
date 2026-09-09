@@ -15,7 +15,7 @@ writeFileSync(resolve(destination, "e2e-attempts.json"), `${JSON.stringify({
   flakyCount: attempts.filter((attempt) => attempt.retry > 0 && attempt.status === "passed").length,
 }, null, 2)}\n`, "utf8");
 
-copySafeTree(resolve(root, "test-results"), resolve(destination, "test-results"), false);
+copySafeTree(resolve(root, "test-results"), resolve(destination, "test-results"), false, { allowFailureScreenshots: true });
 copySafeTree(resolve(root, "playwright-report"), resolve(destination, "playwright-report"), true);
 
 const nextLog = resolve(root, ".agent-tmp", "next-server.log");
@@ -34,6 +34,7 @@ function readAttemptRecords(directory) {
         if (!value || typeof value !== "object" || typeof value.scenarioId !== "string") return [];
         return [{
           scenarioId: value.scenarioId,
+          profile: typeof value.profile === "string" ? value.profile : "unknown",
           project: typeof value.project === "string" ? value.project : "unknown",
           retry: Number.isInteger(value.retry) ? value.retry : 0,
           repeatEachIndex: Number.isInteger(value.repeatEachIndex) ? value.repeatEachIndex : 0,

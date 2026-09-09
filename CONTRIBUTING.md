@@ -11,6 +11,13 @@
 - PR 关联 Issue 使用 `Refs #N`；是否关闭 Issue 由验收条件决定，不用 `Closes` 代替验收。
 - `main` PR 必须满足 required `ci-gate`、strict up-to-date 和已解决 review thread；真实规则以 GitHub ruleset 为准。
 
+## Draft → Ready 开发与 CI
+
+- 新功能、修复和文档工作默认以 **Draft PR** 开始。Draft 期间每次 push 由 Evidence Planner 根据 changed surface 选择 affected static、PostgreSQL integration spec 和 semantic browser flow；该结果用于快速反馈，不是最终 merge evidence。
+- 本地迭代只执行与当前改动匹配的 host-only 快速检查。不要为了每次修改重复启动 PostgreSQL、Local Supabase 或 browser 重型环境；对应真实环境证据由 Draft CI 按需运行，失败复现时再按 [`docs/operations/local-development.md`](docs/operations/local-development.md) 启动最小层级。
+- 实现和本地快速检查完成、准备交付时，才将 PR 标记为 **Ready for review**。`ready_for_review` 事件必须触发一次不受 affected planner 削减的 FULL CI，覆盖完整 static、postgres、system capability；Ready PR 后续每次 push 也必须重新产生该 commit 的 FULL CI。
+- 只有最新 commit 的 FULL CI、required `ci-gate` / `pr-title` 及 ruleset 要求的其它 checks 全部成功，且 strict up-to-date 与 review thread 条件满足后，才可以 merge。Ready PR 的新 push 会使旧 commit 的 FULL evidence 失效，不能沿用旧结果。
+
 ## Changeset and release
 
 影响 shipped 用户/管理员体验、production runtime/data contract 或版本发布的 feat/fix/refactor/migration/security 变更，在同一 feature PR 提交中文 Changeset。纯文档、纯测试、CI/开发工具和不改变 shipped behavior 的维护可不写，并在 PR 中说明原因。

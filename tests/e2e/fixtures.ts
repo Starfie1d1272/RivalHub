@@ -14,6 +14,7 @@ const fixtureScript = resolve(projectRoot, "scripts/db/major-browser-fixture.ts"
 
 export type E2EFixtureCredentials = {
   scenarioId: string;
+  profile: E2EFixtureProfile;
   shortKey: string;
   seasonId: string;
   slug: string;
@@ -24,6 +25,14 @@ export type E2EFixtureCredentials = {
 };
 
 type FixtureManifest = E2EFixtureCredentials & { authUserIds: string[] };
+export type E2EFixtureProfile = "auth" | "team-invite" | "major-entry" | "education";
+
+const PROFILE_ACCOUNT_KEYS: Record<E2EFixtureProfile, readonly E2EFixtureCredentials["accounts"][number]["key"][]> = {
+  auth: ["player3"],
+  "team-invite": ["player1", "player2"],
+  "major-entry": ["captain"],
+  education: ["player1", "admin"],
+};
 
 type E2EAttemptRecord = {
   scenarioId: string;
@@ -34,10 +43,12 @@ type E2EAttemptRecord = {
   expectedStatus: string;
   durationMs: number;
   outputDir: string;
+  profile: E2EFixtureProfile;
 };
 
-export const test = base.extend<{ scenario: E2EFixtureCredentials }>({
-  scenario: async ({}, applyFixture, testInfo) => {
+export const test = base.extend<{ scenario: E2EFixtureCredentials; scenarioProfile: E2EFixtureProfile }>({
+  scenarioProfile: ["major-entry", { option: true }],
+  scenario: async ({ scenarioProfile }, applyFixture, testInfo) => {
     const scenarioId = buildScenarioId(testInfo);
     const attemptDir = resolve(process.env.RIVALHUB_E2E_ARTIFACT_DIR ?? resolve(projectRoot, ".agent-tmp", "e2e-attempts"));
     const credentialsPath = resolve(attemptDir, `${scenarioId}.credentials.json`);
@@ -50,7 +61,7 @@ export const test = base.extend<{ scenario: E2EFixtureCredentials }>({
     let cleanupError: unknown;
     try {
       setupAttempted = true;
-      await runFixtureCommand(["create", scenarioId, credentialsPath], env, scenarioId);
+      await runFixtureCommand(["create", scenarioId, credentialsPath, scenarioProfile], env, scenarioId);
       const scenario = readCredentials(credentialsPath, scenarioId);
       await applyFixture(scenario);
     } catch (error) {
@@ -58,12 +69,12 @@ export const test = base.extend<{ scenario: E2EFixtureCredentials }>({
     } finally {
       if (setupAttempted) {
         try {
-          await runFixtureCommand(["cleanup", scenarioId, credentialsPath], env, scenarioId);
+          await runFixtureCommand(["cleanup", scenarioId, credentialsPath, scenarioProfile], env, scenarioId);
         } catch (error) {
           cleanupError = error;
         }
       }
-      writeAttemptRecord(attemptPath, testInfo, scenarioId);
+      writeAttemptRecord(attemptPath, testInfo, scenarioId, scenarioProfile);
       if (!cleanupError) rmSync(credentialsPath, { force: true });
     }
 
@@ -121,22 +132,24 @@ async function runFixtureCommand(args: readonly string[], env: NodeJS.ProcessEnv
 function readCredentials(path: string, scenarioId: string): E2EFixtureCredentials {
   try {
     const value = JSON.parse(readFileSync(path, "utf8")) as FixtureManifest;
+    const profile = value.profile;
     const accountKeys = new Set(value.accounts?.map((account) => account.key));
-    const expectedAccountKeys = new Set<E2EFixtureCredentials["accounts"][number]["key"]>(["captain", "player1", "player2", "player3", "player4", "admin"]);
+    const expectedAccountKeys = new Set(PROFILE_ACCOUNT_KEYS[profile]);
     const player2 = value.accounts?.find((account) => account.key === "player2");
     if (
       value.scenarioId !== scenarioId
+      || !Object.hasOwn(PROFILE_ACCOUNT_KEYS, profile)
       || !/^[0-9a-f]{12}$/.test(value.shortKey)
       || !value.password
       || !Array.isArray(value.authUserIds)
-      || value.authUserIds.length !== 6
+      || value.authUserIds.length !== expectedAccountKeys.size
       || !value.authUserIds.every((id) => isUuid(id))
       || !value.invitationTeam
       || !isUuid(value.invitationTeam.id)
       || !/^[a-z0-9-]+$/.test(value.invitationTeam.slug)
       || typeof value.invitationTeam.name !== "string"
-      || value.invitationTeam.captainUserId !== player2?.userId
-      || accountKeys.size !== 6
+      || (profile === "team-invite" && value.invitationTeam.captainUserId !== player2?.userId)
+      || accountKeys.size !== expectedAccountKeys.size
       || [...expectedAccountKeys].some((key) => !accountKeys.has(key))
       || !Array.isArray(value.accounts)
       || !value.accounts.every((account) => isUuid(account.userId) && /^[^@\s]+@[^@\s]+$/.test(account.email))
@@ -153,7 +166,7 @@ function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
-function writeAttemptRecord(path: string, testInfo: TestInfo, scenarioId: string): void {
+function writeAttemptRecord(path: string, testInfo: TestInfo, scenarioId: string, profile: E2EFixtureProfile): void {
   const record: E2EAttemptRecord = {
     scenarioId,
     project: testInfo.project.name,
@@ -163,6 +176,7 @@ function writeAttemptRecord(path: string, testInfo: TestInfo, scenarioId: string
     expectedStatus: testInfo.expectedStatus,
     durationMs: testInfo.duration,
     outputDir: relative(projectRoot, testInfo.outputDir),
+    profile,
   };
   writeFileSync(path, `${JSON.stringify(record)}\n`, "utf8");
 }

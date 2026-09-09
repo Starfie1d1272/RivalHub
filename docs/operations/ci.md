@@ -55,7 +55,13 @@ Pull Request 额外运行 dependency review；达到 workflow 设定的严重度
 
 ## Selective vs full
 
-Pull Request 使用 changed-surface planner：
+Pull Request 使用 Draft → Ready 两阶段流程。新 PR 默认保持 Draft：
+
+1. Draft 的 `opened` / `synchronize` 由 changed-surface planner 选择本次改动需要的 capability 和 evidence task。static 可以只跑 affected Vitest project 与 changed-file lint，postgres/system 可以只跑明确的 integration spec 或 semantic E2E flow。
+2. 实现完成并标记 Ready for review 时，`ready_for_review` 以 `PR_DRAFT=false` 重新运行 planner，直接输出 FULL matrix。该事件必须产生完整 static、postgres、system evidence，不得被 affected heuristic 削减。
+3. Ready PR 后续的每次 `synchronize` 仍然是 FULL；新 commit 产生后，旧 commit 的 FULL CI 不再是当前 merge evidence。
+
+Draft planner 的 capability 规则为：
 
 - docs-only 可以只保留 planner + gate；
 - pure app/domain/presentation 通常需要 static；
@@ -63,13 +69,19 @@ Pull Request 使用 changed-surface planner：
 - Auth、Supabase service 或 browser critical path 需要 system；
 - rename/delete、workflow/toolchain、无法分类的变化 fail closed 到 full。
 
+Draft PR 还会由同一个 planner 输出 static matrix、affected unit source、PG integration spec 和 semantic E2E flow；Vitest project 通过 `vitest related` 消费 changed source，动态路径/仓库扫描则叠加小型 global contract。affected plan 只用于 Draft 快速反馈，不降低最终 merge evidence。只有最新 commit 的 FULL CI、required `ci-gate` / `pr-title` 和 ruleset 要求的其它 checks 全绿，才能 merge。
+
+`scripts/ci/timing.mjs` 的 command wrapper 是 project wall-time owner。`vitest-timing-reporter.ts` 只输出 per-project facts 与 top 15 per-file diagnostic duration，Step Summary 会明确区分两者。
+
 `push` 到 `main`、merge queue、release 和手动 workflow 运行完整 convergence gate。
 
-`ci.yml` 只响应会改变代码 evidence 的 PR event（opened、synchronize、reopened、ready_for_review）。`.github/workflows/pr-metadata.yml` 在上述事件和 `edited` 上独立运行 `pr-title`；因此 title/body 编辑不会取消、覆盖或重跑当前 head 的 `ci-gate`，而新 commit 的 `synchronize` 仍会为其 SHA 重新产生 title check。
+`ci.yml` 只响应会改变代码 evidence 的 PR event（opened、synchronize、reopened、ready_for_review）。`.github/workflows/pr-metadata.yml` 在上述事件和 `edited` 上独立运行 `pr-title`；因此 title/body 编辑不会取消、覆盖或重跑当前 head 的 `ci-gate`，而新 commit 的 `synchronize` 仍会为其 SHA 重新产生 title check。Ready PR 的新 push 必须等待该 SHA 的 FULL CI 完成，不能沿用旧 SHA 的成功结果。
 
 不要在本文复制每个路径匹配规则；需要修改 planner 时同时更新 `scripts/ci/plan.mjs` 和对应 regression tests。
 
 ## 本地复现
+
+本地开发阶段默认只做 host-only 的 changed-surface 检查；不要为了每次迭代启动重型环境。以下命令只在需要复现对应失败或改动确实涉及该层时使用。
 
 ### Static
 
@@ -103,7 +115,7 @@ pnpm test:e2e
 RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm verify:services
 ```
 
-普通 `pnpm check` / `pnpm verify` 不会启动容器；所有会启动或使用本地重型 service evidence 的 canonical wrapper 都要求 `CI=true` 或显式 `RIVALHUB_ALLOW_LOCAL_CONTAINERS=1`，不会静默 fallback 到远程目标。
+普通 `pnpm check` / `pnpm verify` 不会启动容器，但它们是 broad host-only gate，不是每次迭代的默认要求。所有会启动或使用本地重型 service evidence 的 canonical wrapper 都要求 `CI=true` 或显式 `RIVALHUB_ALLOW_LOCAL_CONTAINERS=1`，不会静默 fallback 到远程目标。
 
 ## 排查顺序
 

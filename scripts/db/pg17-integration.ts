@@ -16,7 +16,7 @@ async function main(): Promise<void> {
   );
   await preparePg17Database(databaseUrl);
 
-  const result = spawnSync(tsxBin, ["scripts/db/integration-runner.ts"], {
+  const result = spawnSync(tsxBin, ["scripts/db/integration-runner.ts", ...integrationArgs()], {
     cwd: projectRoot,
     env: {
       ...process.env,
@@ -32,6 +32,23 @@ async function main(): Promise<void> {
   if ((result.status ?? 1) !== 0) {
     throw new Error(`PG17 integration 失败（exit ${result.status ?? "unknown"}）。`);
   }
+}
+
+function integrationArgs(): string[] {
+  const explicit = process.argv.slice(2).filter((arg) => arg !== "--");
+  if (explicit.length > 0) return explicit;
+  const raw = process.env.RIVALHUB_INTEGRATION_SPECS?.trim();
+  if (!raw || raw === "[]") return [];
+  let specs: unknown;
+  try {
+    specs = JSON.parse(raw);
+  } catch {
+    throw new Error("RIVALHUB_INTEGRATION_SPECS 必须是 JSON 数组。");
+  }
+  if (!Array.isArray(specs) || specs.some((spec) => typeof spec !== "string" || !spec.trim())) {
+    throw new Error("RIVALHUB_INTEGRATION_SPECS 必须是字符串数组。");
+  }
+  return specs;
 }
 
 main().catch((error) => {

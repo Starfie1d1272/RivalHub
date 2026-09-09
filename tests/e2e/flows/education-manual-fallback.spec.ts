@@ -1,5 +1,7 @@
 import { expect, signInProgrammatically, test } from "../fixtures";
 
+test.use({ scenarioProfile: "education" });
+
 test.skip(({ viewport }) => (viewport?.width ?? 0) < 800, "有状态的教育认证流程只在桌面项目执行一次，避免并发 project 竞争共享 fixture。");
 
 test("新生可以提交录取通知书并由 super admin 查看后审核", async ({ browser, page, scenario }) => {

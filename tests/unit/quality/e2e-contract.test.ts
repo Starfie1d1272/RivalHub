@@ -33,12 +33,22 @@ describe("browser evidence static contract", () => {
 
   it("keeps fixture cleanup tied to the private credentials manifest and reports redacted diagnostics", () => {
     const fixture = readFileSync(resolve(e2eRoot, "fixtures.ts"), "utf8");
-    expect(fixture).toContain('["cleanup", scenarioId, credentialsPath]');
+    expect(fixture).toContain('["cleanup", scenarioId, credentialsPath, scenarioProfile]');
     expect(fixture).toContain("redactText");
     expect(fixture).toContain("shortKey");
     expect(fixture).toContain("operation=${operation}");
     expect(fixture).toContain("exit=${exitCode}");
     expect(fixture).toContain("phase=${phase}");
+  });
+
+  it("keeps failure screenshots and flow-specific fixture profiles in the system evidence contract", () => {
+    const fixture = readFileSync(resolve(e2eRoot, "fixtures.ts"), "utf8");
+    const playwright = readFileSync(resolve(process.cwd(), "playwright.config.ts"), "utf8");
+    const artifactPreparation = readFileSync(resolve(process.cwd(), "scripts/ci/prepare-system-artifacts.mjs"), "utf8");
+    expect(playwright).toContain('screenshot: "only-on-failure"');
+    expect(artifactPreparation).toContain("allowFailureScreenshots: true");
+    expect(fixture).toContain("scenarioProfile");
+    expect(fixture).toContain("profile");
   });
 
   it("keeps constrained Team inputs on the short fixture key", () => {

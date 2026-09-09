@@ -20,9 +20,17 @@ const FIXTURE_PASSWORD = "Browser-Major-2026!";
 const TEMP_ROOT = resolve(process.cwd(), ".agent-tmp");
 
 export type MajorBrowserAccountKey = (typeof ACCOUNT_KEYS)[number];
+export const MAJOR_BROWSER_PROFILE_ACCOUNT_KEYS = {
+  auth: ["player3"],
+  "team-invite": ["player1", "player2"],
+  "major-entry": ["captain"],
+  education: ["player1", "admin"],
+} as const satisfies Record<string, readonly MajorBrowserAccountKey[]>;
+export type MajorBrowserScenarioProfile = keyof typeof MAJOR_BROWSER_PROFILE_ACCOUNT_KEYS;
 
 export interface MajorBrowserScenario {
   scenarioId: string;
+  profile: MajorBrowserScenarioProfile;
   shortKey: string;
   seasonId: string;
   slug: string;
@@ -47,10 +55,14 @@ interface ScenarioDefinition extends MajorBrowserScenario {
   fixtureStars: number;
 }
 
-export function createMajorBrowserScenario(scenarioId: string): MajorBrowserScenario {
-  const definition = scenarioDefinition(scenarioId);
+export function createMajorBrowserScenario(
+  scenarioId: string,
+  profile: MajorBrowserScenarioProfile = "major-entry",
+): MajorBrowserScenario {
+  const definition = scenarioDefinition(scenarioId, profile);
   return {
     scenarioId: definition.scenarioId,
+    profile: definition.profile,
     shortKey: definition.shortKey,
     seasonId: definition.seasonId,
     slug: definition.slug,
@@ -65,11 +77,12 @@ export function createMajorBrowserScenario(scenarioId: string): MajorBrowserScen
 export async function createMajorBrowserScenarioFixture(
   scenarioId: string,
   credentialsPath: string,
+  profile: MajorBrowserScenarioProfile = "major-entry",
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): Promise<MajorBrowserScenario> {
-  const scenario = scenarioDefinition(scenarioId);
+  const scenario = scenarioDefinition(scenarioId, profile);
   const outputPath = assertCredentialsPath(credentialsPath);
-  const staleAuthUserIds = readAuthUserIds(outputPath, scenario.scenarioId);
+  const staleAuthUserIds = readAuthUserIds(outputPath, scenario.scenarioId, false, scenario.accounts.length);
   const { auth, pool } = openLocalDependencies(env);
   try {
     await runPhase(scenario, "stale fixture cleanup", () => cleanupExistingScenario(scenario, auth, pool, staleAuthUserIds));
@@ -112,11 +125,13 @@ export async function createMajorBrowserScenarioFixture(
 export async function cleanupMajorBrowserScenarioFixture(
   scenarioId: string,
   credentialsPath: string,
+  profile?: MajorBrowserScenarioProfile,
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): Promise<void> {
-  const scenario = scenarioDefinition(scenarioId);
   const manifestPath = assertCredentialsPath(credentialsPath);
-  const authUserIds = readAuthUserIds(manifestPath, scenario.scenarioId, true);
+  const manifest = readFixtureManifest(manifestPath, scenarioId, true);
+  const scenario = scenarioDefinition(scenarioId, profile ?? manifest.profile);
+  const authUserIds = readAuthUserIds(manifestPath, scenario.scenarioId, true, scenario.accounts.length);
   const { auth, pool } = openLocalDependencies(env);
   try {
     await runPhase(scenario, "cleanup", () => cleanupExistingScenario(scenario, auth, pool, authUserIds));
@@ -131,34 +146,35 @@ async function main(): Promise<void> {
   const mode = process.argv[2] ?? "";
   const scenarioId = process.argv[3];
   if ((mode !== "create" && mode !== "cleanup") || !scenarioId) {
-    throw new Error("用法：major-browser-fixture.ts create|cleanup <scenario-id> [credentials-path]");
+    throw new Error("用法：major-browser-fixture.ts create|cleanup <scenario-id> [credentials-path] [profile]");
   }
   assertDeclaredDatabaseTarget(process.env);
   if (mode === "create") {
     const credentialsPath = process.argv[4];
     if (!credentialsPath) throw new Error("create 模式必须提供 credentials-path。");
-    await createMajorBrowserScenarioFixture(scenarioId, credentialsPath);
+    await createMajorBrowserScenarioFixture(scenarioId, credentialsPath, parseProfile(process.argv[5]));
   } else {
     const credentialsPath = process.argv[4];
     if (!credentialsPath) throw new Error("cleanup 模式必须提供 credentials-path。");
-    await cleanupMajorBrowserScenarioFixture(scenarioId, credentialsPath);
+    await cleanupMajorBrowserScenarioFixture(scenarioId, credentialsPath, parseOptionalProfile(process.argv[5]));
   }
 }
 
-function scenarioDefinition(rawScenarioId: string): ScenarioDefinition {
+function scenarioDefinition(rawScenarioId: string, profile: MajorBrowserScenarioProfile): ScenarioDefinition {
   const scenarioId = normalizeScenarioId(rawScenarioId);
   const shortKey = createHash("sha256").update(scenarioId).digest("hex").slice(0, 12);
   const rankOrder = createPerfectWorldRankOrder();
   const invitationTeamName = `E2E 邀请队伍 ${shortKey}`;
   if (!teamNameSchema.safeParse(invitationTeamName).success) throw new Error("fixture invitation team name exceeds the production contract");
   const player2UserId = deterministicUuid(`${scenarioId}:user:player2`);
-  const accounts = ACCOUNT_KEYS.map((key) => ({
+  const accounts = MAJOR_BROWSER_PROFILE_ACCOUNT_KEYS[profile].map((key) => ({
     key,
     email: `${shortKey}-${key}@smail.nju.edu.cn`,
     userId: deterministicUuid(`${scenarioId}:user:${key}`),
   }));
   return {
     scenarioId,
+    profile,
     shortKey,
     seasonId: deterministicUuid(`${scenarioId}:season`),
     slug: `local-major-${shortKey}`,
@@ -310,28 +326,49 @@ async function removeFixtureDatabaseRows(client: PoolClient, scenario: ScenarioD
 }
 
 async function insertFixture(client: PoolClient, scenario: ScenarioDefinition, authIds: Map<string, string>): Promise<void> {
+  if (scenario.profile === "major-entry") await insertMajorSeason(client, scenario);
+
+  for (const [index, account] of scenario.accounts.entries()) {
+    const ready = account.key !== "player1";
+    if (account.key === "admin") {
+      await client.query(
+        `INSERT INTO users (id, auth_id, email, email_verified_at, display_name, role)
+         VALUES ($1, $2, $3, now(), $4, 'super_admin')`,
+        [account.userId, authIds.get(account.email), account.email, "Browser admin"],
+      );
+    } else {
+      await client.query(
+        `INSERT INTO users (id, auth_id, email, email_verified_at, display_name, steam_name, perfect_name, steam64, steam_profile_url, qq)
+         VALUES ($1, $2, $3, now(), $4, $5, $6, $7, $8, $9)`,
+        [account.userId, authIds.get(account.email), account.email, ready ? `Browser ${account.key}` : null, ready ? `Browser Steam ${account.key}` : null, ready ? `Browser Perfect ${account.key}` : null, ready ? `7656119800000${String(index + 1).padStart(4, "0")}` : null, ready ? `https://steamcommunity.com/id/${scenario.scenarioId}-${account.key}` : null, ready ? `500000${String(index + 1).padStart(4, "0")}` : null],
+      );
+    }
+  }
+
+  if (scenario.profile === "education") return;
+  if (scenario.profile === "team-invite") await insertInvitationTeam(client, scenario);
+  if (scenario.profile === "major-entry") {
+    await seedCompetitivePlatformCatalog(client, scenario.platform, [
+      { seasonKey: scenario.previousSeasonKey, label: "Browser 上一赛季", sortOrder: 0, isCurrent: false },
+      { seasonKey: scenario.currentSeasonKey, label: "Browser 当前赛季", sortOrder: 1, isCurrent: true },
+    ], scenario.rankOrder, "Rating", "browser-perfect-world");
+    await insertRankFacts(client, scenario);
+    await insertEducationVerifications(client, scenario);
+  }
+}
+
+async function insertMajorSeason(client: PoolClient, scenario: ScenarioDefinition): Promise<void> {
   const capabilities = createCapabilities(scenario);
   await client.query(
     `INSERT INTO seasons (id, slug, name, kind, status, registration_opens_at, registration_opened_at, registration_closes_at, registration_mode, has_captain_voting, has_draft, stage_plan, registration_config, team_registration_config, affiliation_rules, min_team_size, max_team_size, starter_count, positions)
      VALUES ($1, $2, $3, 'Major', 'registration', now() - interval '1 hour', now() - interval '1 hour', now() + interval '7 days', $4, $5, $6, $7::json, $8::json, $9::json, $10::json, $11, $12, $13, $14::text[])`,
     [scenario.seasonId, scenario.slug, scenario.seasonName, capabilities.registrationMode, capabilities.hasCaptainVoting, capabilities.hasDraft, JSON.stringify(capabilities.stagePlan), JSON.stringify(capabilities.registrationConfig), JSON.stringify(capabilities.teamRegistrationConfig), JSON.stringify(capabilities.affiliationRules), capabilities.minTeamSize, capabilities.maxTeamSize, capabilities.starterCount, capabilities.positions],
   );
-  for (const [index, key] of PLAYER_ACCOUNT_KEYS.entries()) {
-    const ready = key !== "player1";
-    const account = scenario.accounts.find((candidate) => candidate.key === key)!;
-    await client.query(
-      `INSERT INTO users (id, auth_id, email, email_verified_at, display_name, steam_name, perfect_name, steam64, steam_profile_url, qq)
-       VALUES ($1, $2, $3, now(), $4, $5, $6, $7, $8, $9)`,
-      [account.userId, authIds.get(account.email), account.email, ready ? `Browser ${key}` : null, ready ? `Browser Steam ${key}` : null, ready ? `Browser Perfect ${key}` : null, ready ? `7656119800000${String(index + 1).padStart(4, "0")}` : null, ready ? `https://steamcommunity.com/id/${scenario.scenarioId}-${key}` : null, ready ? `500000${String(index + 1).padStart(4, "0")}` : null],
-    );
-  }
-  const admin = scenario.accounts.find((account) => account.key === "admin")!;
-  await client.query(
-    `INSERT INTO users (id, auth_id, email, email_verified_at, display_name, role)
-     VALUES ($1, $2, $3, now(), $4, 'super_admin')`,
-    [admin.userId, authIds.get(admin.email), admin.email, "Browser admin"],
-  );
-  const captain = scenario.accounts.find((account) => account.key === "player2")!;
+}
+
+async function insertInvitationTeam(client: PoolClient, scenario: ScenarioDefinition): Promise<void> {
+  const captain = scenario.accounts.find((account) => account.key === "player2");
+  if (!captain) throw new Error("team-invite fixture 缺少 player2 captain。");
   await client.query(
     `INSERT INTO teams (id, slug, name, description, creator_user_id, captain_user_id)
      VALUES ($1, $2, $3, $4, $5, $5)`,
@@ -349,31 +386,29 @@ async function insertFixture(client: PoolClient, scenario: ScenarioDefinition, a
     "INSERT INTO team_name_changes (team_id, old_name, new_name, changed_by_actor_id) VALUES ($1, NULL, $2, 'local-browser-fixture')",
     [scenario.invitationTeam.id, scenario.invitationTeam.name],
   );
-  await seedCompetitivePlatformCatalog(client, scenario.platform, [
-    { seasonKey: scenario.previousSeasonKey, label: "Browser 上一赛季", sortOrder: 0, isCurrent: false },
-    { seasonKey: scenario.currentSeasonKey, label: "Browser 当前赛季", sortOrder: 1, isCurrent: true },
-  ], scenario.rankOrder, "Rating", "browser-perfect-world");
-  const facts = PLAYER_ACCOUNT_KEYS.filter((key) => key !== "player1").flatMap((key) => {
-    const userId = scenario.accounts.find((account) => account.key === key)!.userId;
-    return [
-      [deterministicUuid(`${scenario.scenarioId}:fact:${key}:historical`), userId, "historical_peak", null, scenario.fixtureRank, "2.00", scenario.fixtureStars],
-      [deterministicUuid(`${scenario.scenarioId}:fact:${key}:previous`), userId, "season_peak", scenario.previousSeasonKey, scenario.fixtureRank, "1.90", scenario.fixtureStars],
-      [deterministicUuid(`${scenario.scenarioId}:fact:${key}:current`), userId, "season_peak", scenario.currentSeasonKey, scenario.fixtureRank, "1.80", scenario.fixtureStars],
-    ];
-  });
+}
+
+async function insertRankFacts(client: PoolClient, scenario: ScenarioDefinition): Promise<void> {
+  const facts = scenario.accounts.filter(({ key }) => key !== "player1" && key !== "admin").flatMap((account) => [
+    [deterministicUuid(`${scenario.scenarioId}:fact:${account.key}:historical`), account.userId, "historical_peak", null, scenario.fixtureRank, "2.00", scenario.fixtureStars],
+    [deterministicUuid(`${scenario.scenarioId}:fact:${account.key}:previous`), account.userId, "season_peak", scenario.previousSeasonKey, scenario.fixtureRank, "1.90", scenario.fixtureStars],
+    [deterministicUuid(`${scenario.scenarioId}:fact:${account.key}:current`), account.userId, "season_peak", scenario.currentSeasonKey, scenario.fixtureRank, "1.80", scenario.fixtureStars],
+  ]);
   for (const [id, userId, kind, seasonKey, rank, rating, stars] of facts) {
     await client.query(
       "INSERT INTO competitive_rank_facts (id, user_id, platform, kind, platform_season_key, rank, rating, stars) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
       [id, userId, scenario.platform, kind, seasonKey, rank, rating, stars],
     );
   }
-  for (const key of PLAYER_ACCOUNT_KEYS.filter((item) => item !== "player1")) {
-    const account = scenario.accounts.find((candidate) => candidate.key === key)!;
+}
+
+async function insertEducationVerifications(client: PoolClient, scenario: ScenarioDefinition): Promise<void> {
+  for (const account of scenario.accounts.filter(({ key }) => key !== "player1" && key !== "admin")) {
     await client.query(
       `INSERT INTO education_verifications (id, user_id, institution_id, academic_status, evidence_type, status, reviewed_by, reviewed_at)
        SELECT $1, $2, id, 'enrolled', 'institutional_email', 'approved', 'local-browser-admin', now()
        FROM institutions WHERE moe_institution_code = '4132010284'`,
-      [deterministicUuid(`${scenario.scenarioId}:education:${key}`), account.userId],
+      [deterministicUuid(`${scenario.scenarioId}:education:${account.key}`), account.userId],
     );
   }
 }
@@ -397,17 +432,32 @@ async function runPhase<T>(scenario: ScenarioDefinition, phase: string, operatio
   }
 }
 
-function readAuthUserIds(path: string, scenarioId: string, required = false): string[] {
+function readAuthUserIds(path: string, scenarioId: string, required = false, expectedCount: number = ACCOUNT_KEYS.length): string[] {
   if (!existsSync(path)) {
     if (required) throw new Error(`fixture credentials missing for scenario ${scenarioId}.`);
     return [];
   }
   try {
-    const value = JSON.parse(readFileSync(path, "utf8")) as { scenarioId?: unknown; authUserIds?: unknown };
-    if (value.scenarioId !== scenarioId || !Array.isArray(value.authUserIds) || value.authUserIds.length !== ACCOUNT_KEYS.length || !value.authUserIds.every((id) => typeof id === "string" && isUuid(id))) {
+    const value = readFixtureManifest(path, scenarioId, required);
+    if (value.authUserIds.length !== expectedCount || !value.authUserIds.every((id) => typeof id === "string" && isUuid(id))) {
       throw new Error("invalid fixture credentials");
     }
     return value.authUserIds;
+  } catch (error) {
+    throw new Error(`fixture credentials invalid for scenario ${scenarioId}: ${safeErrorSummary(error)}`, { cause: error });
+  }
+}
+
+function readFixtureManifest(path: string, scenarioId: string, required: boolean): { profile: MajorBrowserScenarioProfile; authUserIds: string[] } {
+  if (!existsSync(path)) {
+    if (required) throw new Error(`fixture credentials missing for scenario ${scenarioId}.`);
+    return { profile: "major-entry", authUserIds: [] };
+  }
+  try {
+    const value = JSON.parse(readFileSync(path, "utf8")) as { scenarioId?: unknown; profile?: unknown; authUserIds?: unknown };
+    const profile = parseProfile(typeof value.profile === "string" ? value.profile : undefined);
+    if (value.scenarioId !== scenarioId || !Array.isArray(value.authUserIds)) throw new Error("invalid fixture credentials");
+    return { profile, authUserIds: value.authUserIds.filter((id): id is string => typeof id === "string") };
   } catch (error) {
     throw new Error(`fixture credentials invalid for scenario ${scenarioId}: ${safeErrorSummary(error)}`, { cause: error });
   }
@@ -445,6 +495,16 @@ function deterministicUuid(scope: string): string {
 function required(value: string | undefined, label: string): string {
   if (!value?.trim()) throw new Error(`${label} 未设置。`);
   return value.trim();
+}
+
+function parseProfile(value: string | undefined): MajorBrowserScenarioProfile {
+  const profile = value?.trim() || "major-entry";
+  if (Object.hasOwn(MAJOR_BROWSER_PROFILE_ACCOUNT_KEYS, profile)) return profile as MajorBrowserScenarioProfile;
+  throw new Error(`未知 browser fixture profile: ${profile}`);
+}
+
+function parseOptionalProfile(value: string | undefined): MajorBrowserScenarioProfile | undefined {
+  return value?.trim() ? parseProfile(value) : undefined;
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { extname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -9,8 +9,10 @@ const TEXT_EXTENSIONS = new Set([
 const BINARY_EXTENSIONS = new Set([
   ".avi", ".bmp", ".gif", ".ico", ".jpeg", ".jpg", ".mov", ".mp3", ".mp4", ".pdf", ".png", ".webm", ".woff", ".woff2",
 ]);
+const FAILURE_SCREENSHOT_EXTENSIONS = new Set([".jpeg", ".jpg", ".png"]);
+const MAX_FAILURE_SCREENSHOT_BYTES = 10 * 1024 * 1024;
 
-export function copySafeTree(source, target, includeReportJson) {
+export function copySafeTree(source, target, includeReportJson, options = {}) {
   if (!isDirectory(source)) return;
   mkdirSync(target, { recursive: true });
   for (const name of readdirSync(source)) {
@@ -25,10 +27,20 @@ export function copySafeTree(source, target, includeReportJson) {
     }
     if (stat.isSymbolicLink()) continue;
     if (stat.isDirectory()) {
-      copySafeTree(sourcePath, targetPath, includeReportJson);
+      copySafeTree(sourcePath, targetPath, includeReportJson, options);
       continue;
     }
-    if (!stat.isFile() || isBinaryPath(sourcePath)) continue;
+    if (!stat.isFile()) continue;
+    if (isBinaryPath(sourcePath)) {
+      if (options.allowFailureScreenshots && isSafeFailureScreenshot(sourcePath, stat.size)) {
+        try {
+          copyFileSync(sourcePath, targetPath);
+        } catch {
+          // A transient report file must never hide the original test failure.
+        }
+      }
+      continue;
+    }
 
     const extension = extname(name).toLowerCase();
     try {
@@ -114,6 +126,10 @@ function readTextFile(path) {
 
 function isBinaryPath(path) {
   return BINARY_EXTENSIONS.has(extname(path).toLowerCase());
+}
+
+function isSafeFailureScreenshot(path, size) {
+  return size <= MAX_FAILURE_SCREENSHOT_BYTES && FAILURE_SCREENSHOT_EXTENSIONS.has(extname(path).toLowerCase());
 }
 
 function isDirectory(path) {
