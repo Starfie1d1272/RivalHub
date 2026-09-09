@@ -366,7 +366,7 @@ async function loadMajorPublicParticipantState(
         ? { label: "种子待确认", tone: "neutral" as const }
         : { label: `#${seed} 种子`, tone: "success" as const }
       : null;
-    const participation = isOfficial
+    const participation: PublicEventTeamContext["participation"] = isOfficial
       ? {
         label: "正式参赛队",
         tone: "success",
