@@ -59,6 +59,7 @@ export default defineConfig({
         test: {
           name: "unit-react-jsdom",
           environment: "jsdom",
+          pool: "forks",
           setupFiles: ["./tests/setup-dom.ts"],
           include: ["tests/unit/**/*.test.tsx", "src/**/*.test.tsx"],
         },
