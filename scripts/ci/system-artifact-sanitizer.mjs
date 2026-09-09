@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
-import { lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { extname, join, resolve } from "node:path";
-import { mkdtempSync, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 
 const TEXT_EXTENSIONS = new Set([
   ".css", ".csv", ".html", ".js", ".json", ".jsonl", ".log", ".md", ".mjs", ".svg", ".trace", ".ts", ".tsx", ".txt", ".xml", ".yaml", ".yml",

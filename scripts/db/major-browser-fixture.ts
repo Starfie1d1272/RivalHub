@@ -338,6 +338,10 @@ async function insertFixture(client: PoolClient, scenario: ScenarioDefinition, a
     [scenario.invitationTeam.id, scenario.invitationTeam.slug, scenario.invitationTeam.name, "验证 direct invitation 的预置长期队伍", captain.userId],
   );
   await client.query(
+    "INSERT INTO team_captain_changes (team_id, from_user_id, to_user_id, changed_by_actor_id) VALUES ($1, NULL, $2, 'local-browser-fixture')",
+    [scenario.invitationTeam.id, captain.userId],
+  );
+  await client.query(
     "INSERT INTO team_memberships (team_id, user_id, status, invited_by_user_id) VALUES ($1, $2, 'active', $2)",
     [scenario.invitationTeam.id, captain.userId],
   );
