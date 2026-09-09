@@ -28,6 +28,7 @@ test("新生可以提交录取通知书并由 super admin 查看后审核", asyn
   const admin = credentials.accounts.find((account) => account.key === "admin");
   if (!player || !admin) throw new Error("browser fixture 缺少 player1 或 admin 账号。");
   const playerSearch = encodeURIComponent(player.email);
+  const playerLabel = player.email.split("@")[0];
 
   await signIn(page, player.email, credentials.password, "/settings/education");
   await page.getByRole("button", { name: "暂时无法获取学信网材料？" }).click();
@@ -66,7 +67,7 @@ test("新生可以提交录取通知书并由 super admin 查看后审核", asyn
       await approve.click();
       await expect(adminPage.getByText("认证已通过", { exact: true })).toBeVisible({ timeout: 20_000 });
     }
-    await expect(adminPage.getByText(`${player.email} · 已通过`, { exact: true })).toBeVisible({ timeout: 20_000 });
+    await expect(adminPage.getByText(`${playerLabel} · 已通过`, { exact: true })).toBeVisible({ timeout: 20_000 });
   } finally {
     await adminContext.close();
   }
