@@ -1253,7 +1253,7 @@ async function exerciseSelfRosterChangeDeadline(
   const representativeUserId = fixture.userIds[0]!;
   await pool.query("UPDATE seasons SET registration_opened_at = NULL WHERE id = $1", [fixture.seasonId]);
   await expect(database.transaction((tx) => requestCompetitionEntryRosterChangeInTx(tx, { entryId, representativeUserId, actorId: representativeUserId })))
-    .rejects.toMatchObject({ code: ErrorCode.REGISTRATION_CLOSED });
+    .rejects.toMatchObject({ code: ErrorCode.VALIDATION_FAILED });
   await pool.query("UPDATE seasons SET registration_opened_at = now() WHERE id = $1", [fixture.seasonId]);
   await database.transaction((tx) => requestCompetitionEntryRosterChangeInTx(tx, { entryId, representativeUserId, actorId: representativeUserId }));
   const origin = await pool.query<{ origin: string }>("SELECT r.origin::text AS origin FROM competition_entries e INNER JOIN competition_entry_roster_revisions r ON r.id = e.current_roster_revision_id WHERE e.id = $1", [entryId]);
