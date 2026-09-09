@@ -25,11 +25,28 @@ const pnpmBin = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 // These names are the Supabase CLI's current --exclude values.
 const MINIMAL_SUPABASE_EXCLUDES =
   "realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor";
+const CONTAINER_GUARDED_COMMANDS = new Set([
+  "start",
+  "start-db",
+  "start-services",
+  "migrate",
+  "seed",
+  "verify",
+  "verify-db",
+  "verify-supabase",
+  "verify-migrations",
+  "test-integration",
+  "test-e2e",
+  "verify-services",
+  "bootstrap",
+  "bootstrap-db",
+  "bootstrap-services",
+  "reset",
+]);
 const LOCKED_COMMANDS = new Set([
   "start",
   "start-db",
   "start-services",
-  "stop",
   "migrate",
   "seed",
   "verify",
@@ -49,7 +66,7 @@ const command = process.argv[2];
 let releaseLocalLock: (() => void) | undefined;
 
 try {
-  if (command && LOCKED_COMMANDS.has(command)) {
+  if (command && CONTAINER_GUARDED_COMMANDS.has(command)) {
     assertLocalContainerAccess(`pnpm db:local:${command}`);
   }
   if (command && LOCKED_COMMANDS.has(command)) {
@@ -268,7 +285,7 @@ function runLocalE2E(args: readonly string[]): void {
     for (const name of readdirSync(attemptDirectory, { withFileTypes: true }).filter((entry) => entry.isFile() && entry.name.endsWith(".credentials.json")).map((entry) => entry.name)) {
       const scenarioId = name.slice(0, -".credentials.json".length);
       try {
-        run(tsxBin, ["scripts/db/major-browser-fixture.ts", "cleanup", scenarioId], { env });
+        run(tsxBin, ["scripts/db/major-browser-fixture.ts", "cleanup", scenarioId, resolve(attemptDirectory, name)], { env });
         rmSync(resolve(attemptDirectory, name), { force: true });
       } catch (error) {
         cleanupFailure ??= error;

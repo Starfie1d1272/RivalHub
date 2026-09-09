@@ -4,6 +4,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import { promisify } from "node:util";
 import { expect, test as base, type Page, type TestInfo } from "@playwright/test";
+import { redactText } from "../../src/lib/observability/redact";
 
 const execFileAsync = promisify(execFile);
 const projectRoot = process.cwd();
@@ -13,12 +14,16 @@ const fixtureScript = resolve(projectRoot, "scripts/db/major-browser-fixture.ts"
 
 export type E2EFixtureCredentials = {
   scenarioId: string;
+  shortKey: string;
   seasonId: string;
   slug: string;
   seasonName: string;
   password: string;
+  invitationTeam: { id: string; slug: string; name: string; captainUserId: string };
   accounts: Array<{ key: "captain" | "player1" | "player2" | "player3" | "player4" | "admin"; email: string; userId: string }>;
 };
+
+type FixtureManifest = E2EFixtureCredentials & { authUserIds: string[] };
 
 type E2EAttemptRecord = {
   scenarioId: string;
@@ -53,7 +58,7 @@ export const test = base.extend<{ scenario: E2EFixtureCredentials }>({
     } finally {
       if (setupAttempted) {
         try {
-          await runFixtureCommand(["cleanup", scenarioId], env, scenarioId);
+          await runFixtureCommand(["cleanup", scenarioId, credentialsPath], env, scenarioId);
         } catch (error) {
           cleanupError = error;
         }
@@ -90,25 +95,62 @@ function buildScenarioId(testInfo: TestInfo): string {
 }
 
 async function runFixtureCommand(args: readonly string[], env: NodeJS.ProcessEnv, scenarioId: string): Promise<void> {
+  const operation = args[0] ?? "unknown";
   try {
     await execFileAsync(tsxBin, [fixtureScript, ...args], {
       cwd: projectRoot,
       env,
       maxBuffer: 64 * 1024,
     });
-  } catch {
-    throw new Error(`E2E fixture command failed for scenario ${scenarioId}.`);
+  } catch (error) {
+    const detail = error instanceof Error && "stderr" in error && typeof error.stderr === "string" && error.stderr.trim()
+      ? error.stderr
+      : error instanceof Error && "stdout" in error && typeof error.stdout === "string" && error.stdout.trim()
+        ? error.stdout
+        : error instanceof Error
+          ? error.message
+          : "unknown fixture error";
+    const exitCode = error instanceof Error && "code" in error && (typeof error.code === "number" || typeof error.code === "string")
+      ? String(error.code)
+      : "unknown";
+    const phase = detail.match(/failed during ([^:.\n]+)/i)?.[1]?.trim() ?? "unknown";
+    throw new Error(`E2E fixture command failed: operation=${operation} scenario=${scenarioId} exit=${exitCode} phase=${phase}; ${redactText(detail)}`, { cause: error });
   }
 }
 
 function readCredentials(path: string, scenarioId: string): E2EFixtureCredentials {
   try {
-    const value = JSON.parse(readFileSync(path, "utf8")) as E2EFixtureCredentials;
-    if (value.scenarioId !== scenarioId || !value.password || !Array.isArray(value.accounts)) throw new Error("invalid");
-    return value;
+    const value = JSON.parse(readFileSync(path, "utf8")) as FixtureManifest;
+    const accountKeys = new Set(value.accounts?.map((account) => account.key));
+    const expectedAccountKeys = new Set<E2EFixtureCredentials["accounts"][number]["key"]>(["captain", "player1", "player2", "player3", "player4", "admin"]);
+    const player2 = value.accounts?.find((account) => account.key === "player2");
+    if (
+      value.scenarioId !== scenarioId
+      || !/^[0-9a-f]{12}$/.test(value.shortKey)
+      || !value.password
+      || !Array.isArray(value.authUserIds)
+      || value.authUserIds.length !== 6
+      || !value.authUserIds.every((id) => isUuid(id))
+      || !value.invitationTeam
+      || !isUuid(value.invitationTeam.id)
+      || !/^[a-z0-9-]+$/.test(value.invitationTeam.slug)
+      || typeof value.invitationTeam.name !== "string"
+      || value.invitationTeam.captainUserId !== player2?.userId
+      || accountKeys.size !== 6
+      || [...expectedAccountKeys].some((key) => !accountKeys.has(key))
+      || !Array.isArray(value.accounts)
+      || !value.accounts.every((account) => isUuid(account.userId) && /^[^@\s]+@[^@\s]+$/.test(account.email))
+    ) throw new Error("invalid");
+    const { authUserIds: _authUserIds, ...credentials } = value;
+    void _authUserIds;
+    return credentials;
   } catch {
     throw new Error(`E2E fixture credentials missing for scenario ${scenarioId}.`);
   }
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 function writeAttemptRecord(path: string, testInfo: TestInfo, scenarioId: string): void {

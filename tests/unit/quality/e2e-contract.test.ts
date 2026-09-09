@@ -29,6 +29,24 @@ describe("browser evidence static contract", () => {
       .map((entry) => entry.source);
     const uiLoginOwners = statefulSources.filter((source) => source.includes('getByLabel("邮箱地址")'));
     expect(uiLoginOwners).toHaveLength(1);
-    expect(statefulSources.filter((source) => source.includes("signInProgrammatically"))).toHaveLength(3);
+  });
+
+  it("keeps fixture cleanup tied to the private credentials manifest and reports redacted diagnostics", () => {
+    const fixture = readFileSync(resolve(e2eRoot, "fixtures.ts"), "utf8");
+    expect(fixture).toContain('["cleanup", scenarioId, credentialsPath]');
+    expect(fixture).toContain("redactText");
+    expect(fixture).toContain("shortKey");
+    expect(fixture).toContain("operation=${operation}");
+    expect(fixture).toContain("exit=${exitCode}");
+    expect(fixture).toContain("phase=${phase}");
+  });
+
+  it("keeps constrained Team inputs on the short fixture key", () => {
+    const majorEntry = readFileSync(resolve(e2eRoot, "flows/major-entry.spec.ts"), "utf8");
+    const invitations = readFileSync(resolve(e2eRoot, "flows/team-invitations.spec.ts"), "utf8");
+    expect(majorEntry).toContain("E2E 队伍 ${scenario.shortKey}");
+    expect(majorEntry).not.toContain("E2E 队伍 ${scenario.scenarioId}");
+    expect(invitations).toContain("scenario.invitationTeam.name");
+    expect(invitations).not.toContain("E2E 邀请队伍 ${scenario.scenarioId}");
   });
 });

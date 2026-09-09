@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   assertDeclaredDatabaseTarget,
@@ -8,6 +10,14 @@ import {
 import { assertLocalContainerAccess } from "../../../scripts/db/local-container-guard";
 
 describe("local database target guard", () => {
+  it("keeps stop outside both permission and verification-lock guards", () => {
+    const source = readFileSync(resolve(process.cwd(), "scripts/db/local.ts"), "utf8");
+    const guarded = source.match(/const CONTAINER_GUARDED_COMMANDS = new Set\(\[([\s\S]*?)\]\);/)?.[1] ?? "";
+    const locked = source.match(/const LOCKED_COMMANDS = new Set\(\[([\s\S]*?)\]\);/)?.[1] ?? "";
+    expect(guarded).not.toContain('"stop"');
+    expect(locked).not.toContain('"stop"');
+  });
+
   it("rejects service commands in an ordinary local environment", () => {
     expect(() => assertLocalContainerAccess("pnpm test:e2e", {})).toThrow(/PostgreSQL \/ Supabase|重型证据/);
   });

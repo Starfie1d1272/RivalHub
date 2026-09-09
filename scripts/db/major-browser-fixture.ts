@@ -1,10 +1,13 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { Pool, type PoolClient } from "pg";
 import { createMajorDefaultCapabilities } from "../../src/lib/competition/templates";
+import { redactText } from "../../src/lib/observability/redact";
 import { createPerfectWorldRankOrder } from "../../src/lib/config/perfect-world";
+import { teamNameSchema } from "../../src/lib/config/team-config";
 import { assertDeclaredDatabaseTarget, assertLocalDatabaseUrl, assertLocalHttpUrl } from "./local-environment";
 import {
   deleteCompetitivePlatformCatalog,
@@ -20,10 +23,18 @@ export type MajorBrowserAccountKey = (typeof ACCOUNT_KEYS)[number];
 
 export interface MajorBrowserScenario {
   scenarioId: string;
+  shortKey: string;
   seasonId: string;
   slug: string;
   seasonName: string;
   password: string;
+  authUserIds: string[];
+  invitationTeam: {
+    id: string;
+    slug: string;
+    name: string;
+    captainUserId: string;
+  };
   accounts: Array<{ key: MajorBrowserAccountKey; email: string; userId: string }>;
 }
 
@@ -40,10 +51,13 @@ export function createMajorBrowserScenario(scenarioId: string): MajorBrowserScen
   const definition = scenarioDefinition(scenarioId);
   return {
     scenarioId: definition.scenarioId,
+    shortKey: definition.shortKey,
     seasonId: definition.seasonId,
     slug: definition.slug,
     seasonName: definition.seasonName,
     password: definition.password,
+    authUserIds: [],
+    invitationTeam: definition.invitationTeam,
     accounts: definition.accounts,
   };
 }
@@ -55,9 +69,11 @@ export async function createMajorBrowserScenarioFixture(
 ): Promise<MajorBrowserScenario> {
   const scenario = scenarioDefinition(scenarioId);
   const outputPath = assertCredentialsPath(credentialsPath);
+  const staleAuthUserIds = readAuthUserIds(outputPath, scenario.scenarioId);
   const { auth, pool } = openLocalDependencies(env);
   try {
-    await runPhase(scenario, "stale fixture cleanup", () => cleanupExistingScenario(scenario, auth, pool));
+    await runPhase(scenario, "stale fixture cleanup", () => cleanupExistingScenario(scenario, auth, pool, staleAuthUserIds));
+    scenario.authUserIds = [];
     const authIds = await runPhase(scenario, "Auth setup", () => createAuthUsers(scenario, auth));
     await runPhase(scenario, "DB setup", async () => {
       const client = await pool.connect();
@@ -65,9 +81,9 @@ export async function createMajorBrowserScenarioFixture(
         await client.query("BEGIN");
         await insertFixture(client, scenario, authIds);
         await client.query("COMMIT");
-      } catch {
-        await client.query("ROLLBACK");
-        throw new Error("DB setup failed");
+      } catch (error) {
+        await client.query("ROLLBACK").catch(() => undefined);
+        throw new Error(`DB setup failed: ${safeErrorSummary(error)}`, { cause: error });
       } finally {
         client.release();
       }
@@ -78,10 +94,14 @@ export async function createMajorBrowserScenarioFixture(
     console.log(`Major browser scenario ready: ${scenario.scenarioId}.`);
     return scenario;
   } catch (error) {
+    let cleanupError: unknown;
     try {
-      await cleanupExistingScenario(scenario, auth, pool);
-    } catch {
-      // The original safe phase is more useful than a second cleanup error.
+      await cleanupExistingScenario(scenario, auth, pool, scenario.authUserIds);
+    } catch (candidate) {
+      cleanupError = candidate;
+    }
+    if (cleanupError) {
+      throw new Error(`${safeErrorSummary(error)} Cleanup also failed: ${safeErrorSummary(cleanupError)}`, { cause: error });
     }
     throw error;
   } finally {
@@ -91,12 +111,16 @@ export async function createMajorBrowserScenarioFixture(
 
 export async function cleanupMajorBrowserScenarioFixture(
   scenarioId: string,
+  credentialsPath: string,
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): Promise<void> {
   const scenario = scenarioDefinition(scenarioId);
+  const manifestPath = assertCredentialsPath(credentialsPath);
+  const authUserIds = readAuthUserIds(manifestPath, scenario.scenarioId, true);
   const { auth, pool } = openLocalDependencies(env);
   try {
-    await runPhase(scenario, "cleanup", () => cleanupExistingScenario(scenario, auth, pool));
+    await runPhase(scenario, "cleanup", () => cleanupExistingScenario(scenario, auth, pool, authUserIds));
+    rmSync(manifestPath, { force: true });
     console.log(`Major browser scenario cleaned: ${scenario.scenarioId}.`);
   } finally {
     await pool.end();
@@ -115,29 +139,42 @@ async function main(): Promise<void> {
     if (!credentialsPath) throw new Error("create 模式必须提供 credentials-path。");
     await createMajorBrowserScenarioFixture(scenarioId, credentialsPath);
   } else {
-    await cleanupMajorBrowserScenarioFixture(scenarioId);
+    const credentialsPath = process.argv[4];
+    if (!credentialsPath) throw new Error("cleanup 模式必须提供 credentials-path。");
+    await cleanupMajorBrowserScenarioFixture(scenarioId, credentialsPath);
   }
 }
 
 function scenarioDefinition(rawScenarioId: string): ScenarioDefinition {
   const scenarioId = normalizeScenarioId(rawScenarioId);
-  const suffix = createHash("sha256").update(scenarioId).digest("hex").slice(0, 12);
+  const shortKey = createHash("sha256").update(scenarioId).digest("hex").slice(0, 12);
   const rankOrder = createPerfectWorldRankOrder();
+  const invitationTeamName = `E2E 邀请队伍 ${shortKey}`;
+  if (!teamNameSchema.safeParse(invitationTeamName).success) throw new Error("fixture invitation team name exceeds the production contract");
+  const player2UserId = deterministicUuid(`${scenarioId}:user:player2`);
   const accounts = ACCOUNT_KEYS.map((key) => ({
     key,
-    email: `${scenarioId}-${key}@smail.nju.edu.cn`,
+    email: `${shortKey}-${key}@smail.nju.edu.cn`,
     userId: deterministicUuid(`${scenarioId}:user:${key}`),
   }));
   return {
     scenarioId,
+    shortKey,
     seasonId: deterministicUuid(`${scenarioId}:season`),
-    slug: `local-major-${suffix}`,
+    slug: `local-major-${shortKey}`,
     seasonName: "Local Major Browser Acceptance",
     password: FIXTURE_PASSWORD,
+    authUserIds: [],
+    invitationTeam: {
+      id: deterministicUuid(`${scenarioId}:team:invitation`),
+      slug: `e2e-invite-${shortKey}`,
+      name: invitationTeamName,
+      captainUserId: player2UserId,
+    },
     accounts,
-    platform: `browser-${suffix}`,
-    currentSeasonKey: `current-${suffix}`,
-    previousSeasonKey: `previous-${suffix}`,
+    platform: `browser-${shortKey}`,
+    currentSeasonKey: `current-${shortKey}`,
+    previousSeasonKey: `previous-${shortKey}`,
     rankOrder,
     fixtureRank: rankOrder[10]!,
     fixtureStars: 10,
@@ -162,26 +199,34 @@ async function createAuthUsers(scenario: ScenarioDefinition, auth: SupabaseClien
       password: scenario.password,
       email_confirm: true,
     });
-    if (created.error || !created.data.user) throw new Error("Auth setup failed");
+    if (created.error || !created.data.user) {
+      throw new Error(`Auth setup failed: ${safeErrorSummary(created.error ?? "missing user")}`);
+    }
     authIds.set(account.email, created.data.user.id);
+    scenario.authUserIds.push(created.data.user.id);
   }
   return authIds;
 }
 
-async function cleanupExistingScenario(scenario: ScenarioDefinition, auth: SupabaseClient, pool: Pool): Promise<void> {
+async function cleanupExistingScenario(
+  scenario: ScenarioDefinition,
+  auth: SupabaseClient,
+  pool: Pool,
+  authUserIds: readonly string[],
+): Promise<void> {
   const failures: string[] = [];
   for (const [phase, operation] of [
     ["Storage", () => removeScenarioStorageObjects(scenario, auth, pool)],
     ["DB", () => removeScenarioDatabaseRows(pool, scenario)],
-    ["Auth", () => removeScenarioAuthUsers(scenario, auth)],
+    ["Auth", () => removeScenarioAuthUsers(auth, authUserIds)],
   ] as const) {
     try {
       await operation();
-    } catch {
-      failures.push(phase);
+    } catch (error) {
+      failures.push(`${phase}: ${safeErrorSummary(error)}`);
     }
   }
-  if (failures.length > 0) throw new Error(`cleanup failed during ${failures.join(", ")}`);
+  if (failures.length > 0) throw new Error(`cleanup failed during ${failures.join("; ")}`);
 }
 
 async function removeScenarioStorageObjects(scenario: ScenarioDefinition, auth: SupabaseClient, pool: Pool): Promise<void> {
@@ -198,27 +243,14 @@ async function removeScenarioStorageObjects(scenario: ScenarioDefinition, auth: 
   }
   if (keys.length === 0) return;
   const { error } = await auth.storage.from("education-evidence").remove(keys);
-  if (error) throw new Error("Storage cleanup failed");
+  if (error) throw new Error(`Storage cleanup failed: ${safeErrorSummary(error)}`);
 }
 
-async function removeScenarioAuthUsers(scenario: ScenarioDefinition, auth: SupabaseClient): Promise<void> {
-  const existing = await findAuthUsers(auth);
-  for (const user of existing.filter((candidate) => scenario.accounts.some((account) => account.email === candidate.email))) {
-    const result = await auth.auth.admin.deleteUser(user.id);
-    if (result.error) throw new Error("Auth cleanup failed");
+async function removeScenarioAuthUsers(auth: SupabaseClient, authUserIds: readonly string[]): Promise<void> {
+  for (const userId of authUserIds) {
+    const result = await auth.auth.admin.deleteUser(userId);
+    if (result.error) throw new Error(`Auth cleanup failed: ${safeErrorSummary(result.error)}`);
   }
-}
-
-async function findAuthUsers(auth: SupabaseClient): Promise<Array<{ id: string; email?: string }>> {
-  const users: Array<{ id: string; email?: string }> = [];
-  for (let page = 1; page <= 10; page += 1) {
-    const result = await auth.auth.admin.listUsers({ page, perPage: 1000 });
-    if (result.error) throw new Error("Auth list failed");
-    const pageUsers = result.data.users.map((user) => ({ id: user.id, email: user.email }));
-    users.push(...pageUsers);
-    if (pageUsers.length < 1000) break;
-  }
-  return users;
 }
 
 async function removeScenarioDatabaseRows(pool: Pool, scenario: ScenarioDefinition): Promise<void> {
@@ -228,9 +260,9 @@ async function removeScenarioDatabaseRows(pool: Pool, scenario: ScenarioDefiniti
     await client.query("BEGIN");
     await removeFixtureDatabaseRows(client, scenario, ids);
     await client.query("COMMIT");
-  } catch {
-    await client.query("ROLLBACK");
-    throw new Error("DB cleanup failed");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw new Error(`DB cleanup failed: ${safeErrorSummary(error)}`, { cause: error });
   } finally {
     client.release();
   }
@@ -299,6 +331,20 @@ async function insertFixture(client: PoolClient, scenario: ScenarioDefinition, a
      VALUES ($1, $2, $3, now(), $4, 'super_admin')`,
     [admin.userId, authIds.get(admin.email), admin.email, "Browser admin"],
   );
+  const captain = scenario.accounts.find((account) => account.key === "player2")!;
+  await client.query(
+    `INSERT INTO teams (id, slug, name, description, creator_user_id, captain_user_id)
+     VALUES ($1, $2, $3, $4, $5, $5)`,
+    [scenario.invitationTeam.id, scenario.invitationTeam.slug, scenario.invitationTeam.name, "验证 direct invitation 的预置长期队伍", captain.userId],
+  );
+  await client.query(
+    "INSERT INTO team_memberships (team_id, user_id, status, invited_by_user_id) VALUES ($1, $2, 'active', $2)",
+    [scenario.invitationTeam.id, captain.userId],
+  );
+  await client.query(
+    "INSERT INTO team_name_changes (team_id, old_name, new_name, changed_by_actor_id) VALUES ($1, NULL, $2, 'local-browser-fixture')",
+    [scenario.invitationTeam.id, scenario.invitationTeam.name],
+  );
   await seedCompetitivePlatformCatalog(client, scenario.platform, [
     { seasonKey: scenario.previousSeasonKey, label: "Browser 上一赛季", sortOrder: 0, isCurrent: false },
     { seasonKey: scenario.currentSeasonKey, label: "Browser 当前赛季", sortOrder: 1, isCurrent: true },
@@ -342,15 +388,40 @@ function createCapabilities(scenario: ScenarioDefinition) {
 async function runPhase<T>(scenario: ScenarioDefinition, phase: string, operation: () => Promise<T>): Promise<T> {
   try {
     return await operation();
-  } catch {
-    throw new Error(`Major browser scenario ${scenario.scenarioId} failed during ${phase}.`);
+  } catch (error) {
+    throw new Error(`Major browser scenario ${scenario.scenarioId} failed during ${phase}: ${safeErrorSummary(error)}`, { cause: error });
   }
+}
+
+function readAuthUserIds(path: string, scenarioId: string, required = false): string[] {
+  if (!existsSync(path)) {
+    if (required) throw new Error(`fixture credentials missing for scenario ${scenarioId}.`);
+    return [];
+  }
+  try {
+    const value = JSON.parse(readFileSync(path, "utf8")) as { scenarioId?: unknown; authUserIds?: unknown };
+    if (value.scenarioId !== scenarioId || !Array.isArray(value.authUserIds) || value.authUserIds.length !== ACCOUNT_KEYS.length || !value.authUserIds.every((id) => typeof id === "string" && isUuid(id))) {
+      throw new Error("invalid fixture credentials");
+    }
+    return value.authUserIds;
+  } catch (error) {
+    throw new Error(`fixture credentials invalid for scenario ${scenarioId}: ${safeErrorSummary(error)}`, { cause: error });
+  }
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function safeErrorSummary(error: unknown): string {
+  const message = error instanceof Error ? error.message : typeof error === "string" ? error : "operation failed";
+  return redactText(message, 240) || "operation failed";
 }
 
 function assertCredentialsPath(value: string): string {
   const outputPath = resolve(process.cwd(), value);
   const relative = outputPath.startsWith(`${TEMP_ROOT}/`) ? outputPath.slice(TEMP_ROOT.length + 1) : "";
-  if (!relative || relative.includes("..")) throw new Error("credentials-path 必须位于 .agent-tmp 内。 ");
+  if (!relative || relative.includes("..") || relative.endsWith("/")) throw new Error("credentials-path 必须位于 .agent-tmp 内。 ");
   return outputPath;
 }
 
@@ -372,7 +443,9 @@ function required(value: string | undefined, label: string): string {
   return value.trim();
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : "Major browser scenario failed.");
-  process.exit(1);
-});
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : "Major browser scenario failed.");
+    process.exit(1);
+  });
+}

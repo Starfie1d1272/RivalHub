@@ -11,13 +11,8 @@ test("未入队用户可以从 /my 和 /teams 发现并处理 direct invitation"
   const inviteeContext = await browser.newContext();
   try {
     const inviteePage = await inviteeContext.newPage();
-    const createTeamButton = page.getByRole("button", { name: "创建队伍", exact: true });
     const captainWorkspace = page.getByText("队伍资料", { exact: true });
-    await expect(createTeamButton).toBeVisible();
-    const teamName = `E2E 邀请队伍 ${scenario.scenarioId}`;
-    await page.getByLabel("队伍名称").fill(teamName);
-    await page.getByLabel("简介").fill("验证邀请入口");
-    await createTeamButton.click();
+    const teamName = scenario.invitationTeam.name;
     await expect(captainWorkspace).toBeVisible();
 
     await signInProgrammatically(inviteePage, invitee, scenario, "/my/teams");

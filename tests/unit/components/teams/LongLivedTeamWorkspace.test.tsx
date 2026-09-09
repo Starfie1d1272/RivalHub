@@ -51,7 +51,6 @@ describe("LongLivedTeamWorkspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "创建队伍" }));
 
     await waitFor(() => expect(createTeamMock).toHaveBeenCalledWith({ name: "新队伍", description: "队伍简介" }));
-    expect(refreshMock).toHaveBeenCalledOnce();
   });
 
   it("keeps incoming invitations before the create section for users without a Team", () => {

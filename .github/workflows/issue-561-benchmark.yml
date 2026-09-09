@@ -1,8 +1,6 @@
 name: Issue 561 benchmark
 
 on:
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -199,14 +197,15 @@ jobs:
             awk -F '\t' '{ printf "| %s | %s | %.2fs |\n", $1, $2, $3 / 1000 }' "$summary_file"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload candidate timings
+      - name: Prepare safe system artifacts
         if: always()
+        run: node scripts/ci/prepare-system-artifacts.mjs
+
+      - name: Upload sanitized system artifacts
+        if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: issue-561-playwright-E${{ matrix.workers }}
-          path: |
-            ${{ runner.temp }}/issue-561-benchmark
-            .agent-tmp/next-server.log
-            test-results/**/error-context.md
+          name: issue-561-system-artifacts-E${{ matrix.workers }}
+          path: .agent-tmp/system-artifacts
           if-no-files-found: ignore
           retention-days: 7

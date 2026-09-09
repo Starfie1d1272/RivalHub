@@ -1,11 +1,11 @@
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { execFileSync } from "node:child_process";
-import { extname, join, relative, resolve } from "node:path";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { relative, resolve } from "node:path";
+import { copySafeTree, redact } from "./system-artifact-sanitizer.mjs";
 
 const root = process.cwd();
 const destination = resolve(root, ".agent-tmp", "system-artifacts");
 const attemptsDirectory = resolve(process.env.RIVALHUB_E2E_ARTIFACT_DIR ?? resolve(root, ".agent-tmp", "e2e-attempts"));
+rmSync(destination, { recursive: true, force: true });
 mkdirSync(destination, { recursive: true });
 
 const attempts = readAttemptRecords(attemptsDirectory);
@@ -45,72 +45,6 @@ function readAttemptRecords(directory) {
         return [];
       }
     });
-}
-
-function copySafeTree(source, target, includeReportJson) {
-  if (!existsSync(source)) return;
-  mkdirSync(target, { recursive: true });
-  for (const name of readdirSync(source)) {
-    if (name.includes("credentials") || name.includes("secret") || name.includes("token")) continue;
-    const sourcePath = resolve(source, name);
-    const targetPath = resolve(target, name);
-    if (statSync(sourcePath).isDirectory()) {
-      copySafeTree(sourcePath, targetPath, includeReportJson);
-      continue;
-    }
-    const extension = extname(name).toLowerCase();
-    try {
-      if (extension === ".json" && !includeReportJson) continue;
-      if (extension === ".zip") {
-        sanitizeTraceArchive(sourcePath, targetPath);
-        continue;
-      }
-      if ([".txt", ".md", ".html", ".json", ".js", ".css", ".svg"].includes(extension)) {
-        writeFileSync(targetPath, redact(readFileSync(sourcePath, "utf8")), "utf8");
-      } else {
-        cpSync(sourcePath, targetPath, { recursive: true, force: true });
-      }
-    } catch {
-      // Ignore a transient report file; failure diagnostics must never make
-      // the original system result less actionable.
-    }
-  }
-}
-
-function sanitizeTraceArchive(source, target) {
-  const temporaryDirectory = mkdtempSync(join(tmpdir(), "rivalhub-trace-"));
-  try {
-    execFileSync("unzip", ["-qq", source, "-d", temporaryDirectory], { stdio: "ignore" });
-    sanitizeTree(temporaryDirectory);
-    execFileSync("zip", ["-q", "-r", target, "."], { cwd: temporaryDirectory, stdio: "ignore" });
-  } finally {
-    rmSync(temporaryDirectory, { recursive: true, force: true });
-  }
-}
-
-function sanitizeTree(directory) {
-  for (const name of readdirSync(directory)) {
-    const path = resolve(directory, name);
-    if (statSync(path).isDirectory()) {
-      sanitizeTree(path);
-      continue;
-    }
-    if ([".png", ".jpg", ".jpeg", ".webm", ".woff", ".woff2"].includes(extname(name).toLowerCase())) continue;
-    try {
-      writeFileSync(path, redact(readFileSync(path, "utf8")), "utf8");
-    } catch {
-      // Binary trace resources are retained without attempting text redaction.
-    }
-  }
-}
-
-function redact(value) {
-  return value
-    .replace(/(["']?(?:SUPABASE_SERVICE_ROLE_KEY|SUPABASE_ANON_KEY|ADMIN_SESSION_SECRET|password|token|access_token|refresh_token|secret|signedUrl|signed_url|authorization)["']?\s*[:=]\s*)(["']?)[^\s,"'}]+["']?/gi, (_match, prefix, quote) => `${prefix}${quote}[REDACTED]${quote}`)
-    .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, "Bearer [REDACTED]")
-    .replace(/([?&](?:token|access_token|refresh_token|signature)=)[^&\s"']+/gi, "$1[REDACTED]")
-    .replace(/https?:\/\/[^\s"']+\/storage\/v1\/object\/[^\s"']+/gi, "[REDACTED_STORAGE_URL]")
-    .replace(/education-evidence\/[0-9a-f-]+\/[0-9a-f-]+\.[a-z]+/gi, "education-evidence/[REDACTED_OBJECT]");
 }
 
 console.log(`Prepared safe system artifacts: ${relative(root, destination)}; attempts=${readAttemptRecords(attemptsDirectory).length}.`);

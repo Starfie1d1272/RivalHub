@@ -32,7 +32,7 @@ test("队长可以登录、建立长期队伍并发起本届 Major 报名", asyn
   const createTeamButton = page.getByRole("button", { name: "创建队伍" });
   const workspace = page.getByText("队伍资料", { exact: true });
   await expect(createTeamButton).toBeVisible();
-  await page.getByLabel("队伍名称").fill(`E2E 队伍 ${scenario.scenarioId}`);
+  await page.getByLabel("队伍名称").fill(`E2E 队伍 ${scenario.shortKey}`);
   await createTeamButton.click();
   // Toast 不是持久的业务状态；RSC 刷新后的 Team workspace 才证明 Server Action
   // 已成功写入并由页面重新读取 canonical Team。

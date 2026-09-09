@@ -29,13 +29,12 @@ export function LongLivedTeamWorkspace({ team, currentUserId, memberships, incom
   const [email, setEmail] = useState("");
   const [shareLink, setShareLink] = useState<GeneratedShareLink | null>(null);
 
-  function run(work: () => Promise<{ success: boolean; error?: { message: string } }>, success: string, onSuccess?: () => void) {
+  function run(work: () => Promise<{ success: boolean; error?: { message: string } }>, success: string) {
     startTransition(async () => {
       const result = await work();
       if (result.success) {
         toast.success(success);
-        if (onSuccess) onSuccess();
-        else router.refresh();
+        router.refresh();
       } else toast.error(result.error?.message ?? "操作失败");
     });
   }

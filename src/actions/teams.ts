@@ -1,14 +1,14 @@
 "use server";
 
 import { eq } from "drizzle-orm";
-import { refresh, revalidatePath } from "next/cache";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { teams, users } from "@/db/schema";
 import { actionError, failValidation, isPgUniqueViolation } from "@/lib/action-utils";
 import { auditActorId, requireAuth, requireSuperAdmin } from "@/lib/auth/session";
 import { createServiceClient } from "@/lib/auth/supabase-server";
-import { MAX_TEAM_NAME_LENGTH, MIN_TEAM_NAME_LENGTH } from "@/lib/config/team-config";
+import { MAX_TEAM_NAME_LENGTH, MIN_TEAM_NAME_LENGTH, teamNameSchema } from "@/lib/config/team-config";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { TEAM_LOGO_BUCKET, TEAM_LOGO_EXTENSIONS } from "@/lib/config/team-logo";
 import { LOGO_ALLOWED_TYPES, LOGO_MAX_BYTES } from "@/lib/config/upload-limits";
@@ -35,7 +35,7 @@ import { fail, ok, type ActionResult } from "@/types/action";
 const PENDING_DIRECT_INVITATION_CONSTRAINT = "team_invitations_one_pending_direct_per_user";
 
 const uuid = z.guid();
-const teamName = z.string().trim().min(MIN_TEAM_NAME_LENGTH).max(MAX_TEAM_NAME_LENGTH);
+const teamName = teamNameSchema;
 const description = z.string().trim().max(500);
 
 function revalidateTeam(slug?: string): void {
@@ -43,7 +43,6 @@ function revalidateTeam(slug?: string): void {
   revalidatePath("/teams/recruitment");
   revalidatePath("/my/teams");
   if (slug) revalidatePath(`/teams/${slug}`);
-  refresh();
 }
 
 export async function createTeam(input: { name: string; description?: string }): Promise<ActionResult<{ teamId: string; slug: string }>> {
