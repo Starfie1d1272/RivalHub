@@ -10,7 +10,7 @@ import {
   requestCompetitionEntryRosterChange,
   saveCompetitionEntryRoster,
   submitCompetitionEntry,
-  withdrawCompetitionEntry,
+  withdrawCompetitionEntryFromReview,
 } from "@/actions/competition-entries";
 
 describe("CompetitionEntry action input boundary", () => {
@@ -23,7 +23,7 @@ describe("CompetitionEntry action input boundary", () => {
       success: false,
       error: { code: ErrorCode.VALIDATION_FAILED },
     });
-    await expect(withdrawCompetitionEntry({ entryId: "bad" })).resolves.toMatchObject({
+    await expect(withdrawCompetitionEntryFromReview({ entryId: "bad" })).resolves.toMatchObject({
       success: false,
       error: { code: ErrorCode.VALIDATION_FAILED },
     });

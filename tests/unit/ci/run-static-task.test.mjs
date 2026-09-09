@@ -2,6 +2,22 @@ import { describe, expect, it } from "vitest";
 import { commandFor } from "../../../scripts/ci/run-static-task.mjs";
 
 describe("affected static task commands", () => {
+  it("passes the planned changed paths to eslint", () => {
+    expect(commandFor(
+      "lint-changed",
+      undefined,
+      [],
+      [],
+      ["src/example.ts", "tests/unit/example.test.ts"],
+    )).toEqual([
+      "exec",
+      "eslint",
+      "--max-warnings=0",
+      "src/example.ts",
+      "tests/unit/example.test.ts",
+    ]);
+  });
+
   it("runs explicit global contracts directly instead of passing them to vitest related", () => {
     expect(commandFor(
       "unit-explicit-unit-domain-node",

@@ -16,7 +16,7 @@ Supabase Auth 负责登录身份；成功确认/登录后同步身份到对应�
 
 教育认证保持三条有明确优先级的路径：已验证且命中唯一学生邮箱 registry 的 identity 即时认证在读身份；CHSI 在线验证报告由 super admin 人工核验；暂时无法取得 CHSI 材料的新生可从 canonical 高校目录选择学校并提交一张录取通知书图片，由 super admin 人工核验。录取通知书路径固定写入 `enrolled + manual_other + pending`，不证明毕业身份，也不接受自由文本学校。
 
-提交者必须是当前 canonical user、拥有 verified email ownership fact，并选择存在的 canonical institution。manual claim 在同一 user、institution 和 enrolled 范围内使用事务 advisory lock：pending/approved claim 返回既有结果，rejected claim 才允许创建新的 immutable claim。图片只供审核使用，审核完成七天后由既有 cleanup scheduler 删除；cleanup 失败时保留 object key 供下一次重试，不改变认证或审核历史。
+提交者必须是当前 canonical user、拥有 verified email ownership fact，并选择存在的 canonical institution。人工审核 claim 使用事务 advisory lock：pending/approved claim 返回既有结果，rejected 后再次提交会创建新的 immutable claim，旧审核历史不改写；CHSI 同一规范化验证码的并发重提也只会产生一条新的 pending claim。图片只供审核使用，审核完成七天后由既有 cleanup scheduler 删除；cleanup 失败时保留 object key 供下一次重试，不改变认证或审核历史。
 
 ## Season lifecycle
 
@@ -78,11 +78,14 @@ Team captain creates Entry
 → members confirm participation
 → canonical qualification
 → submit
+→ optional withdraw from review into a new draft revision
 → admin review
 → approved roster revision
 ```
 
 一个用户在同一赛事不能同时占有多个 active Entry commitment。成员确认、教育/竞技资料和 qualification 都由各自 canonical owner 提供；长期 Team 的成员变化不会自动改写已经提交或冻结的赛事名单。
+
+草稿只表示尚未提交审核，不提供终止报名动作。负责人可以把 `submitted` 撤回为同一个 Entry 的新 draft revision 后继续编辑和再次提交；既有 submission、roster revision 与 audit 历史保留，成员 active claim 不释放。`changes_requested` 继续只表示管理员要求补正，`withdrawn` 不用于普通主动撤回审核。
 
 管理员审核可以批准、候补、拒绝或要求补正。**approved Entry 只表示报名审核通过，不等于正式获得 Major 正赛席位。**
 

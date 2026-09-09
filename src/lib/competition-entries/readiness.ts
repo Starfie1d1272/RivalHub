@@ -27,7 +27,7 @@ export interface EntryRosterReadiness {
  * the conditions that actually prevent submission.
  */
 export function assessEntryRosterReadiness(input: {
-  entry: Pick<typeof competitionEntries.$inferSelect, "teamId" | "logoUrl" | "perfectTeamId">;
+  entry: Pick<typeof competitionEntries.$inferSelect, "teamId" | "logoUrl">;
   season: Pick<Season, "teamRegistrationConfig" | "minTeamSize" | "maxTeamSize" | "starterCount">;
   members: readonly EntryReadinessMember[];
   qualificationFindings: readonly QualificationFinding[];
@@ -70,8 +70,6 @@ export function assessEntryRosterReadiness(input: {
     }
   }
   if (config.requireTeamLogo && !input.entry.logoUrl) blockers.push("请先上传队伍图标并保存本届名单。");
-  if (config.requireCompetitiveProfile && !input.entry.perfectTeamId?.trim()) blockers.push("本届赛事要求完美战队 ID。");
-
   if (input.qualificationFindings.length > 0) {
     const unresolved = input.requireActiveRestrictionOverrides
       ? unresolvedQualificationFindings(input.qualificationFindings, input.activeRestrictionOverrides ?? [])

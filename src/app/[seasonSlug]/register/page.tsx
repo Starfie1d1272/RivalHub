@@ -250,7 +250,8 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
           minRoster={season.minTeamSize}
           maxRoster={season.maxTeamSize}
           starterCount={season.starterCount}
-          requiresPerfectTeamId={season.teamRegistrationConfig?.requireCompetitiveProfile ?? false}
+          requiresCompetitiveProfile={season.teamRegistrationConfig?.requireCompetitiveProfile ?? false}
+          showsPerfectTeamId={season.teamRegistrationConfig?.competitiveProfile?.platform === "perfect_world"}
           captainedTeams={captainedTeams}
           entry={entryView}
         />

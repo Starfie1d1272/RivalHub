@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import type { TxDb } from "../../../src/db/client";
 import * as schema from "../../../src/db/schema";
 import { publicCompetitionEntryCondition } from "../../../src/lib/competition-entries/public-visibility";
-import { createCompetitionEntryInTx, saveCompetitionEntryRosterInTx, confirmCompetitionEntryParticipationInTx, submitCompetitionEntryInTx } from "../../../src/lib/competition-entries/commands";
+import { createCompetitionEntryInTx, saveCompetitionEntryRosterInTx, confirmCompetitionEntryParticipationInTx, submitCompetitionEntryInTx, withdrawCompetitionEntryFromReviewInTx } from "../../../src/lib/competition-entries/commands";
 import { createLocalPool, capturePostgresError } from "./harness/database";
 
 // Every fixture is rolled back, including the circular entry/revision facts.
@@ -48,6 +48,7 @@ describe("registration opening PostgreSQL", () => {
       await database.insert(schema.teams).values({ id: teamId, slug: teamId, name: "Logo team", creatorUserId: userId, captainUserId: userId });
       await database.insert(schema.teamMemberships).values({ teamId, userId });
       const { entryId } = await createCompetitionEntryInTx(tx, { competitionId: seasonId, teamId, userId, actorId: userId });
+      const originalRevisionId = (await database.query.competitionEntries.findFirst({ where: eq(schema.competitionEntries.id, entryId) }))!.currentRosterRevisionId;
       const save = () => saveCompetitionEntryRosterInTx(tx, { entryId, userId, actorId: userId, userIds: [userId], primaryStarterUserIds: [userId] });
       await save(); await confirmCompetitionEntryParticipationInTx(tx, { entryId, userId, actorId: userId });
       const missingLogo = await capturePostgresError(client, () => submitCompetitionEntryInTx(tx, { entryId, userId, actorId: userId }));
@@ -61,6 +62,24 @@ describe("registration opening PostgreSQL", () => {
       expect((await database.query.competitionEntries.findFirst({ where: eq(schema.competitionEntries.id, entryId) }))?.registrationStatus).toBe("submitted");
       const repeated = await capturePostgresError(client, () => submitCompetitionEntryInTx(tx, { entryId, userId, actorId: userId }));
       expect(repeated).toMatchObject({ message: "当前报名状态不能提交。" });
+
+      await withdrawCompetitionEntryFromReviewInTx(tx, { entryId, userId, actorId: userId });
+      const withdrawnFromReview = await database.query.competitionEntries.findFirst({ where: eq(schema.competitionEntries.id, entryId) });
+      expect(withdrawnFromReview).toMatchObject({ registrationStatus: "draft", submittedAt: null, reviewReason: null });
+      expect(withdrawnFromReview?.currentRosterRevisionId).not.toBe(originalRevisionId);
+      expect(await database.select({ status: schema.competitionEntryRosterRevisions.status, origin: schema.competitionEntryRosterRevisions.origin }).from(schema.competitionEntryRosterRevisions).where(eq(schema.competitionEntryRosterRevisions.entryId, entryId)).orderBy(schema.competitionEntryRosterRevisions.revisionNumber)).toEqual([
+        { status: "superseded", origin: "initial" },
+        { status: "draft", origin: "initial" },
+      ]);
+      expect((await database.select({ value: count() }).from(schema.competitionEntryRosterMembers).where(eq(schema.competitionEntryRosterMembers.revisionId, withdrawnFromReview!.currentRosterRevisionId)))[0]?.value).toBe(1);
+      expect((await database.select({ value: count() }).from(schema.competitionEntryActiveClaims).where(eq(schema.competitionEntryActiveClaims.entryId, entryId)))[0]?.value).toBe(1);
+      expect(await database.select({ decision: schema.competitionEntrySubmissions.decision }).from(schema.competitionEntrySubmissions).where(eq(schema.competitionEntrySubmissions.entryId, entryId))).toEqual([{ decision: "submitted" }]);
+      expect((await database.select({ value: count() }).from(schema.auditLogs).where(and(eq(schema.auditLogs.targetId, entryId), eq(schema.auditLogs.action, "competition_entry.review.withdraw"))))[0]?.value).toBe(1);
+
+      await save();
+      await submitCompetitionEntryInTx(tx, { entryId, userId, actorId: userId });
+      expect((await database.query.competitionEntries.findFirst({ where: eq(schema.competitionEntries.id, entryId) }))?.registrationStatus).toBe("submitted");
+      expect((await database.select({ value: count() }).from(schema.competitionEntrySubmissions).where(eq(schema.competitionEntrySubmissions.entryId, entryId)))[0]?.value).toBe(2);
     } finally { await client.query("ROLLBACK"); client.release(); await pool.end(); }
   });
 });

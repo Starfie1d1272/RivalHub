@@ -5,7 +5,7 @@ import { assessEntryRosterReadiness } from "./readiness";
 describe("assessEntryRosterReadiness", () => {
   it("uses the same blocker projection for discipline, confirmation, and team membership", () => {
     const result = assessEntryRosterReadiness({
-      entry: { teamId: "team-1", logoUrl: null, perfectTeamId: null },
+      entry: { teamId: "team-1", logoUrl: null },
       season: {
         teamRegistrationConfig: normalizeTeamRegistrationConfig({ requireTeamLogo: true, requireCompetitiveProfile: true }),
         minTeamSize: 1,
@@ -27,7 +27,6 @@ describe("assessEntryRosterReadiness", () => {
       "以下成员当前不能进入赛事名单：甲同学",
       "当前名单中有人已不再是这支队伍的当前成员；选择会保留，但提交前必须明确处理。",
       "请先上传队伍图标并保存本届名单。",
-      "本届赛事要求完美战队 ID。",
     ]);
   });
 });
