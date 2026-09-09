@@ -10,7 +10,7 @@ test("新生可以提交录取通知书并由 super admin 查看后审核", asyn
   const playerLabel = player.email.split("@")[0];
 
   await signInProgrammatically(page, player, scenario, "/settings/education");
-  const manualToggle = page.getByRole("button", { name: "暂时无法获取学信网材料？" });
+  const manualToggle = page.locator('button[aria-controls="education-manual-fallback"]');
   await expect.poll(async () => {
     if (await manualToggle.getAttribute("aria-expanded") !== "true") await manualToggle.click();
     return (await manualToggle.getAttribute("aria-expanded")) === "true";
