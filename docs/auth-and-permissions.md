@@ -36,6 +36,8 @@ Fresh deployment 的 owner bootstrap 只通过 `RIVALHUB_OWNER_EMAIL`：当尚�
 
 客户端隐藏按钮不构成授权。所有 privileged mutation 必须在服务端重新鉴权，并在适用时写 audit。
 
+教育证据是敏感的 server-only 数据。CHSI 与录取通知书提交必须重新验证当前 canonical user、verified email ownership 和 canonical institution；学校邮箱即时认证还必须命中 exact、active、auto-verify 且 `credentialType=student` 的 registry mapping。录取通知书图片只能由提交者经 Server Action 写入 private Storage，普通用户、season admin 和浏览器 Data API 没有 direct Storage 读策略；只有 `super_admin` 能通过 Server Action 获取 60 秒 signed URL。object key、signed URL、原始文件名、图片内容和 CHSI code 不进入 public/client DTO 或 runtime log。
+
 管理员邀请只给正常 Supabase 用户授予 `season_admin` scope 或 `super_admin`。invite usage、claim ledger、并发上限和重复领取由 transaction + DB constraint 保护；撤销授权读取当前数据库事实，不依赖客户端缓存。
 
 系统状态页中的 scheduler health 和“立即运行一次”属于 `requireSuperAdmin()` 保护的 break-glass 能力。人工运行通过 shared scheduler execution owner 调用 canonical runner，并写入 `scheduler.manual_trigger` audit；按钮不是授权边界，也不允许客户端直接调用数据库或 endpoint。

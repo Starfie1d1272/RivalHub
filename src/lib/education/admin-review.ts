@@ -8,6 +8,7 @@ import { getDisplayName } from "@/lib/identity/display-name";
 import {
   EDUCATION_REVIEW_DEFAULTS,
   EDUCATION_REVIEW_PAGE_SIZE,
+  type EducationEvidenceLabel,
   type EducationReviewAcademic,
   type EducationReviewFilterStatus,
   type EducationReviewQuery,
@@ -128,6 +129,7 @@ export async function getEducationReviewQueue(query: EducationReviewQuery): Prom
     academicStatus: educationVerifications.academicStatus,
     evidenceType: educationVerifications.evidenceType,
     evidenceCode: educationVerifications.evidenceCode,
+    evidenceObjectKey: educationVerifications.evidenceObjectKey,
     status: educationVerifications.status,
     submittedAt: educationVerifications.submittedAt,
     reviewNote: educationVerifications.reviewNote,
@@ -141,9 +143,12 @@ export async function getEducationReviewQueue(query: EducationReviewQuery): Prom
     .offset((page - 1) * EDUCATION_REVIEW_PAGE_SIZE);
 
   return {
-    rows: rows.map(({ perfectName, steamName, ...row }) => ({
+    rows: rows.map(({ perfectName, steamName, evidenceType, evidenceCode, evidenceObjectKey, ...row }) => ({
       ...row,
       displayName: getDisplayName({ ...row, perfectName, steamName }),
+      evidenceLabel: educationEvidenceLabel(evidenceType),
+      chsiEvidenceCode: isChsiEvidenceType(evidenceType) ? evidenceCode : null,
+      manualEvidenceAvailable: evidenceType === "manual_other" && Boolean(evidenceObjectKey),
       submittedAt: row.submittedAt.toISOString(),
     })),
     total,
@@ -155,6 +160,20 @@ export async function getEducationReviewQueue(query: EducationReviewQuery): Prom
     normalizedQuery: { ...query, page },
     hasAnyRecords: Number(datasetRow?.count ?? 0) > 0,
   };
+}
+
+function isChsiEvidenceType(evidenceType: string): boolean {
+  return evidenceType === "chsi_enrollment_report" || evidenceType === "chsi_education_report";
+}
+
+function educationEvidenceLabel(evidenceType: string): EducationEvidenceLabel {
+  switch (evidenceType) {
+    case "chsi_enrollment_report": return "学信网学籍在线验证报告";
+    case "chsi_education_report": return "学信网学历材料";
+    case "institutional_email": return "学校邮箱";
+    case "manual_other": return "录取通知书材料";
+    default: return "录取通知书材料";
+  }
 }
 
 function buildEducationOverview(

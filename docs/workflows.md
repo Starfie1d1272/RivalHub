@@ -12,6 +12,12 @@ forgot password → recovery email → reset password
 
 Supabase Auth 负责登录身份；成功确认/登录后同步身份到对应的 `users.id` 并建立 `rivalhub-session`。用户可验证并绑定其他邮箱；其中任一已验证的学校邮箱都可完成学校邮箱教育认证，不要求替换当前登录邮箱。若该身份已属于另一个 user，系统建立短期双方控制授权，用户选择要保留的账号后查看归并影响；真实冲突会直接阻止执行。安全归并在单个事务内写入 alias ledger 与 audit，保留所选账号资料，归属不冲突的 person facts、登录身份和业务历史，关闭旧账号的临时状态，随后 session 解析到保留账号。长期资料、教育资格、竞技档案和 Team 独立于任何一届赛事维护；其中 `users` 拥有当前 player-declared profile，`season_registrations` 只保存报名当时的自述 snapshot；赛事只在需要时引用或冻结这些事实。
 
+## Education verification
+
+教育认证保持三条有明确优先级的路径：已验证且命中唯一学生邮箱 registry 的 identity 即时认证在读身份；CHSI 在线验证报告由 super admin 人工核验；暂时无法取得 CHSI 材料的新生可从 canonical 高校目录选择学校并提交一张录取通知书图片，由 super admin 人工核验。录取通知书路径固定写入 `enrolled + manual_other + pending`，不证明毕业身份，也不接受自由文本学校。
+
+提交者必须是当前 canonical user、拥有 verified email ownership fact，并选择存在的 canonical institution。manual claim 在同一 user、institution 和 enrolled 范围内使用事务 advisory lock：pending/approved claim 返回既有结果，rejected claim 才允许创建新的 immutable claim。图片只供审核使用，审核完成七天后由既有 cleanup scheduler 删除；cleanup 失败时保留 object key 供下一次重试，不改变认证或审核历史。
+
 ## Season lifecycle
 
 核心状态由 code enum/action guard 精确定义；稳定流程为：

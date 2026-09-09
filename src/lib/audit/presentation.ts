@@ -403,7 +403,7 @@ const EVIDENCE_TYPE_LABELS: Readonly<Record<string, string>> = {
   institutional_email: "校邮箱",
   chsi_enrollment_report: "学信网在读报告",
   chsi_education_report: "学信网学历报告",
-  manual_other: "其他材料",
+  manual_other: "录取通知书材料",
 };
 
 function safeState(value: unknown): string | null {

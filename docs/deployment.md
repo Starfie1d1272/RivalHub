@@ -28,6 +28,8 @@
 
 RLS、GRANT、trigger、policy、backfill 和 custom SQL 都进入 active migration。schema evolution 默认遵守 expand → deploy → contract；会破坏上一稳定应用兼容性的 cleanup 必须等待旧 owner 不再被 shipped version 依赖。
 
+敏感教育证据使用 private Storage，bucket 的大小、MIME allowlist 和 private 属性与教育 verification schema 一起由 active migration 收敛；有 `storage.buckets` 的 Local/Hosted Supabase 才应用该 bucket contract，plain PostgreSQL replay 只验证 public schema。不得在 `supabase/config.toml`、Dashboard 或额外 provisioning workflow 建立第二个 bucket owner；Local Supabase 的真实 Storage/Auth/Data API/browser 证据由对应 system lane 提供。
+
 迁移开发见 [`operations/database-migrations.md`](./operations/database-migrations.md)。
 
 ## Remote write policy

@@ -13,6 +13,7 @@ export const EDUCATION_REVIEW_DEFAULTS = {
 export type EducationReviewFilterStatus = EducationVerificationStatus | "all";
 export type EducationReviewAcademic = AcademicStatus | "all";
 export type EducationReviewSort = "oldest" | "newest" | "recently_reviewed";
+export type EducationEvidenceLabel = "学信网学籍在线验证报告" | "学信网学历材料" | "学校邮箱" | "录取通知书材料";
 
 export interface EducationReviewQuery {
   q?: string;
@@ -33,8 +34,9 @@ export interface EducationReviewRow {
   institution: string;
   code: string | null;
   academicStatus: AcademicStatus;
-  evidenceType: string;
-  evidenceCode: string | null;
+  evidenceLabel: EducationEvidenceLabel;
+  chsiEvidenceCode: string | null;
+  manualEvidenceAvailable: boolean;
   status: EducationVerificationStatus;
   submittedAt: string;
   reviewNote: string | null;

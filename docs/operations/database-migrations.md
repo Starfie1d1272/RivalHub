@@ -25,6 +25,8 @@ pnpm db:generate
 
 生成后必须人工阅读 SQL。需要 RLS、policy、grant、trigger、backfill 或 fail-closed validation 时，把 custom SQL 放入同一个 active migration，而不是另建手工步骤。
 
+如果领域同时依赖 Supabase Storage，private bucket 的 contract 也必须由同一条 active migration 在 `storage.buckets` 可用时幂等收敛；plain PostgreSQL replay 可以条件跳过 Storage schema，但不能跳过对应的 public schema/constraint。不要在 Supabase Dashboard、`supabase/config.toml` 或第二条 provider migration chain 复制 bucket owner。
+
 ### 3. 运行 migration checks
 
 ```bash

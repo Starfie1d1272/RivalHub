@@ -9,6 +9,7 @@ import {
   assertLocalHttpUrl,
 } from "./local-environment";
 import { DATABASE_ACCESS_MATRIX, verifyDatabaseAccessMatrix } from "./access-matrix";
+import { verifyEducationEvidenceBucket } from "./verify-migrations";
 
 export async function verifyDatabaseContract(): Promise<void> {
   assertDeclaredDatabaseTarget(process.env);
@@ -45,6 +46,7 @@ export async function verifyDatabaseContract(): Promise<void> {
     }
 
     await verifyDatabaseAccessMatrix(pool, "Local PostgreSQL");
+    await verifyEducationEvidenceBucket(pool);
 
     console.log(
       `PostgreSQL verification passed: ${journal.entries.length} migrations, fixture, full public access matrix.`,
@@ -69,9 +71,13 @@ export async function verifySupabaseServices(): Promise<void> {
   const pool = new Pool({ connectionString: databaseUrl, ssl: false, max: 1 });
   let createdUserId: string | undefined;
   let createdBucketId: string | undefined;
+  const educationProbeKey = `verify/${randomUUID()}.png`;
 
   try {
     await verifyDatabaseAccessMatrix(pool, "Local Supabase");
+    if (await verifyEducationEvidenceBucket(pool) !== "verified") {
+      throw new Error("Local Supabase 缺少 education-evidence Storage bucket。");
+    }
 
     const email = `verify-${randomUUID()}@rivalhub.local`;
     const password = `Local-${randomUUID()}-pass`;
@@ -103,6 +109,18 @@ export async function verifySupabaseServices(): Promise<void> {
       throw new Error(`Local Storage download 验证失败：${downloaded.error?.message ?? "content mismatch"}`);
     }
 
+    const educationUploaded = await client.storage
+      .from("education-evidence")
+      .upload(educationProbeKey, new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])]), {
+        upsert: false,
+        contentType: "image/png",
+      });
+    if (educationUploaded.error) throw new Error("Local education evidence service upload 验证失败。");
+    const educationDownloaded = await client.storage.from("education-evidence").download(educationProbeKey);
+    if (educationDownloaded.error || !educationDownloaded.data) {
+      throw new Error("Local education evidence service download 验证失败。");
+    }
+
     const authenticatedClient = createClient(apiUrl, publishableKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
@@ -119,8 +137,38 @@ export async function verifySupabaseServices(): Promise<void> {
       "authenticated",
     );
 
+    const anonymousEvidence = await createClient(apiUrl, publishableKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    }).storage.from("education-evidence").download(educationProbeKey);
+    if (!anonymousEvidence.error || anonymousEvidence.data) {
+      throw new Error("Local education evidence bucket 对 anon 未明确拒绝。");
+    }
+    const authenticatedEvidence = await authenticatedClient.storage
+      .from("education-evidence")
+      .download(educationProbeKey);
+    if (!authenticatedEvidence.error || authenticatedEvidence.data) {
+      throw new Error("Local education evidence bucket 对 authenticated 未明确拒绝。");
+    }
+
+    const signed = await client.storage
+      .from("education-evidence")
+      .createSignedUrl(educationProbeKey, 60);
+    if (signed.error || !signed.data?.signedUrl) {
+      throw new Error("Local education evidence signed URL 验证失败。");
+    }
+    const signedResponse = await fetch(signed.data.signedUrl);
+    if (!signedResponse.ok) throw new Error("Local education evidence signed URL 读取验证失败。");
+
+    const removedEducation = await client.storage.from("education-evidence").remove([educationProbeKey]);
+    if (removedEducation.error) throw new Error("Local education evidence service remove 验证失败。");
+    const afterRemove = await client.storage.from("education-evidence").download(educationProbeKey);
+    if (!afterRemove.error || afterRemove.data) {
+      throw new Error("Local education evidence remove 后仍可读取。");
+    }
+
     console.log("Supabase service verification passed: Auth, Storage, full Data API deny-by-default.");
   } finally {
+    await client.storage.from("education-evidence").remove([educationProbeKey]);
     if (createdBucketId) {
       await client.storage.from(createdBucketId).remove(["probe.txt"]);
       await client.storage.deleteBucket(createdBucketId);
