@@ -1,6 +1,8 @@
 name: Issue 561 benchmark
 
 on:
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
