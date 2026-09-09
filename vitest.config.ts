@@ -11,7 +11,7 @@ export default defineConfig({
   },
   test: {
     globals: true,
-    pool: "forks",
+    pool: process.env.CI ? "threads" : "forks",
     isolate: true,
     reporters: [
       "default",

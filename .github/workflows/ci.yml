@@ -128,7 +128,7 @@ jobs:
       RIVALHUB_MIGRATION_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
       RIVALHUB_MIGRATION_HEAD_SHA: ${{ github.sha }}
       RIVALHUB_PRODUCTION_STABLE_REF: origin/main
-      RIVALHUB_INTEGRATION_WORKERS: 2
+      RIVALHUB_INTEGRATION_WORKERS: 3
       RIVALHUB_TIMING: 1
       RIVALHUB_INTEGRATION_SPECS: ${{ needs.plan.outputs.integration_specs }}
     steps:
