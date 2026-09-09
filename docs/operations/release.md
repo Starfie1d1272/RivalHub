@@ -43,7 +43,7 @@ validate tag belongs to main
 → publish/update GitHub Release notes
 ```
 
-Production secret、target confirmation 和 remote-write authorization 只存在于受保护 production environment / canonical wrappers 中。Scheduler provisioning 使用 `RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:scheduler:provision`，随后运行 verify；它会幂等替换 `rivalhub-<job-key>` named jobs，确认 pg_cron/pg_net、UTC schedule、dispatch command 与 Vault secret name，但不会输出 secret。
+Production secret、target confirmation 和 remote-write authorization 只存在于受保护 production environment / canonical wrappers 中。Scheduler provisioning 使用 `RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:scheduler:provision`，通过 pg_cron named schedule upsert 幂等收敛 `rivalhub-<job-key>` jobs，随后运行 verify。Verify 会确认 pg_cron/pg_net、UTC schedule、dispatch command 与 Vault secret name，实际 dispatch 每个 registry job，并在有界窗口内等待 fresh primary trigger、endpoint success 与分钟级 cron success；任一失败都阻止发布 GitHub Release，且全程不输出 secret。
 
 ## 4. 失败与重试
 
@@ -56,7 +56,7 @@ Production secret、target confirmation 和 remote-write authorization 只存在
 只有以下条件都成立才算完成：
 
 - production smoke 通过；
-- production scheduler provision/verify 通过，且 primary named jobs 与 endpoint credential contract 已读回；
+- production scheduler provision/verify 通过，且 primary named jobs、真实 dispatch、endpoint success 与分钟级 cron execution 已读回；
 - GitHub Release 已发布且 notes 正确；
 - tag、release commit 与 production deployment 对齐；
 - 需要 production acceptance 的 Issue 已获得真实生产证据后再关闭。

@@ -10,6 +10,7 @@ import {
 } from "./local-environment";
 import { DATABASE_ACCESS_MATRIX, verifyDatabaseAccessMatrix } from "./access-matrix";
 import { verifyEducationEvidenceBucket } from "./verify-migrations";
+import { SCHEDULER_JOB_DEFINITIONS } from "../../src/lib/scheduler/definitions";
 
 export async function verifyDatabaseContract(): Promise<void> {
   assertDeclaredDatabaseTarget(process.env);
@@ -78,6 +79,7 @@ export async function verifySupabaseServices(): Promise<void> {
     if (await verifyEducationEvidenceBucket(pool) !== "verified") {
       throw new Error("Local Supabase 缺少 education-evidence Storage bucket。");
     }
+    await verifySchedulerDispatch(pool, apiUrl);
 
     const email = `verify-${randomUUID()}@rivalhub.local`;
     const password = `Local-${randomUUID()}-pass`;
@@ -166,7 +168,7 @@ export async function verifySupabaseServices(): Promise<void> {
       throw new Error("Local education evidence remove 后仍可读取。");
     }
 
-    console.log("Supabase service verification passed: Auth, Storage, full Data API deny-by-default.");
+    console.log("Supabase service verification passed: Auth, Storage, scheduler dispatch, full Data API deny-by-default.");
   } finally {
     await client.storage.from("education-evidence").remove([educationProbeKey]);
     if (createdBucketId) {
@@ -177,6 +179,54 @@ export async function verifySupabaseServices(): Promise<void> {
       await client.auth.admin.deleteUser(createdUserId);
     }
     await pool.end();
+  }
+}
+
+async function verifySchedulerDispatch(pool: Pool, apiUrl: string): Promise<void> {
+  const definition = SCHEDULER_JOB_DEFINITIONS[0];
+  if (!definition) throw new Error("Scheduler registry 为空。");
+  await pool.query("BEGIN");
+  try {
+    for (const [name, value] of [
+      ["rivalhub_scheduler_base_url", new URL(apiUrl).origin],
+      ["rivalhub_cron_secret", `local-scheduler-probe-${randomUUID()}`],
+    ] as const) {
+      const existing = await pool.query<{ id: string }>(
+        "SELECT id::text FROM vault.decrypted_secrets WHERE name = $1 LIMIT 1",
+        [name],
+      );
+      if (existing.rows[0]?.id) {
+        await pool.query("SELECT vault.update_secret($1::uuid, $2, $3, $4)", [
+          existing.rows[0].id,
+          value,
+          name,
+          "Local scheduler dispatch verification",
+        ]);
+      } else {
+        await pool.query("SELECT vault.create_secret($1, $2, $3)", [
+          value,
+          name,
+          "Local scheduler dispatch verification",
+        ]);
+      }
+    }
+    const verifiedAt = (await pool.query<{ verified_at: Date }>(
+      "SELECT clock_timestamp() AS verified_at",
+    )).rows[0]?.verified_at;
+    const requestId = (await pool.query<{ request_id: string | null }>(
+      "SELECT public.dispatch_rivalhub_scheduler_job($1::text)::text AS request_id",
+      [definition.key],
+    )).rows[0]?.request_id;
+    const health = (await pool.query<{ last_primary_triggered_at: Date | null }>(`
+      SELECT last_primary_triggered_at
+      FROM public.scheduled_job_health
+      WHERE job_key = $1
+    `, [definition.key])).rows[0];
+    if (!verifiedAt || !requestId || !health?.last_primary_triggered_at || health.last_primary_triggered_at < verifiedAt) {
+      throw new Error("Local Supabase scheduler dispatch 未写入 fresh primary health。");
+    }
+  } finally {
+    await pool.query("ROLLBACK");
   }
 }
 
