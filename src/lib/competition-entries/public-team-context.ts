@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, inArray, or } from "drizzle-orm";
+import { and, asc, eq, inArray, or } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import {
@@ -19,15 +19,34 @@ import { getPublicDisplayName } from "@/lib/identity/display-name";
 import type { StatusPresentation } from "@/lib/presentation";
 import type { MatchStatus } from "@/types/match";
 
-export type PublicCompetitionEntryTeamSeason = {
+export type PublicEventTeamSeason = {
   id: string;
   slug: string;
   name: string;
   status: string;
 };
 
-export interface PublicCompetitionEntryTeamContext {
-  season: PublicCompetitionEntryTeamSeason;
+export type PublicEventTeamRecord = {
+  played: number;
+  wins: number;
+  losses: number;
+  winRate: string;
+};
+
+export type PublicEventTeamMatch = {
+  id: string;
+  opponentId: string;
+  opponentName: string | null;
+  status: MatchStatus;
+  isForfeit: boolean;
+  scheduledAt: Date | null;
+  completedAt: Date | null;
+  ownScore: number | null;
+  opponentScore: number | null;
+};
+
+export interface PublicEventTeamContext {
+  season: PublicEventTeamSeason;
   entry: {
     id: string;
     name: string;
@@ -36,6 +55,7 @@ export interface PublicCompetitionEntryTeamContext {
     representativeUserId: string;
     teamId: string | null;
   };
+  cardLabel: string;
   participation: {
     label: string;
     tone: StatusPresentation["tone"];
@@ -51,28 +71,193 @@ export interface PublicCompetitionEntryTeamContext {
   rosterStatus: "preparing" | "confirmed" | "frozen" | null;
   seed: number | null;
   seedPresentation: StatusPresentation | null;
-  record: {
-    played: number;
-    wins: number;
-    losses: number;
+  record: PublicEventTeamRecord;
+  matches: PublicEventTeamMatch[];
+}
+
+/** A list-card projection of the same event-team contract without match rows. */
+export type PublicEventTeamSummary = Omit<PublicEventTeamContext, "matches">;
+
+export interface PublicEventTeamMatchFacts {
+  record: PublicEventTeamRecord;
+  matches: PublicEventTeamMatch[];
+}
+
+export interface PublicEventTeamMatchSummary {
+  records: Map<string, PublicEventTeamRecord>;
+  total: number;
+  finished: number;
+}
+
+export function createEmptyPublicEventTeamRecord(): PublicEventTeamRecord {
+  return { played: 0, wins: 0, losses: 0, winRate: "—" };
+}
+
+function finishRecord(record: Omit<PublicEventTeamRecord, "winRate">): PublicEventTeamRecord {
+  return {
+    ...record,
+    winRate: record.played > 0 ? `${Math.round(record.wins / record.played * 100)}%` : "—",
   };
-  matches: Array<{
-    id: string;
-    opponentId: string;
-    opponentName: string | null;
-    status: MatchStatus;
-    isForfeit: boolean;
-    scheduledAt: Date | null;
-    completedAt: Date | null;
-    ownScore: number | null;
-    opponentScore: number | null;
-  }>;
+}
+
+function addResult(record: Omit<PublicEventTeamRecord, "winRate">, ownScore: number | null, opponentScore: number | null): void {
+  if (ownScore === null || opponentScore === null) return;
+  if (ownScore > opponentScore) {
+    record.wins += 1;
+  } else if (ownScore < opponentScore) {
+    record.losses += 1;
+  }
+  record.played = record.wins + record.losses;
+}
+
+function uniqueIds(ids: readonly string[]): string[] {
+  return [...new Set(ids)];
+}
+
+type CollectedMatchFacts = {
+  factsByEntryId: Map<string, PublicEventTeamMatchFacts>;
+  total: number;
+  finished: number;
+};
+
+type PublicMatchRow = {
+  id: string;
+  entryAId: string;
+  entryBId: string;
+  status: MatchStatus;
+  isForfeit: boolean;
+  scheduledAt: Date | null;
+  completedAt: Date | null;
+  scoreA: number | null;
+  scoreB: number | null;
+};
+
+function collectMatchFacts(
+  entryMatches: readonly PublicMatchRow[],
+  entryIds: readonly string[],
+  options: { publicEntryIds?: ReadonlySet<string>; opponentNames?: ReadonlyMap<string, string> } = {},
+): CollectedMatchFacts {
+  const targetIds = new Set(entryIds);
+  const factsByEntryId = new Map<string, PublicEventTeamMatchFacts>();
+  for (const entryId of targetIds) {
+    factsByEntryId.set(entryId, { record: createEmptyPublicEventTeamRecord(), matches: [] });
+  }
+
+  let total = 0;
+  let finished = 0;
+  for (const match of entryMatches) {
+    if (options.publicEntryIds && (!options.publicEntryIds.has(match.entryAId) || !options.publicEntryIds.has(match.entryBId))) continue;
+    total += 1;
+    if (match.status === "finished") finished += 1;
+    for (const side of [
+      { entryId: match.entryAId, opponentId: match.entryBId, ownScore: match.scoreA, opponentScore: match.scoreB },
+      { entryId: match.entryBId, opponentId: match.entryAId, ownScore: match.scoreB, opponentScore: match.scoreA },
+    ]) {
+      if (!targetIds.has(side.entryId)) continue;
+      const facts = factsByEntryId.get(side.entryId)!;
+      if (match.status === "finished") {
+        const record = { played: facts.record.played, wins: facts.record.wins, losses: facts.record.losses };
+        addResult(record, side.ownScore, side.opponentScore);
+        facts.record = finishRecord(record);
+      }
+      if (options.opponentNames) {
+        facts.matches.push({
+          id: match.id,
+          opponentId: side.opponentId,
+          opponentName: options.opponentNames.get(side.opponentId) ?? null,
+          status: match.status,
+          isForfeit: match.isForfeit,
+          scheduledAt: match.scheduledAt,
+          completedAt: match.completedAt,
+          ownScore: side.ownScore,
+          opponentScore: side.opponentScore,
+        });
+      }
+    }
+  }
+  return { factsByEntryId, total, finished };
+}
+
+async function loadMatchRows(seasonId: string, entryIds: readonly string[]) {
+  const targetIds = uniqueIds(entryIds);
+  return targetIds.length === 0
+    ? []
+    : db.query.matches.findMany({
+      where: and(
+        eq(matches.seasonId, seasonId),
+        or(inArray(matches.entryAId, targetIds), inArray(matches.entryBId, targetIds)),
+      ),
+      columns: {
+        id: true,
+        entryAId: true,
+        entryBId: true,
+        status: true,
+        isForfeit: true,
+        scheduledAt: true,
+        completedAt: true,
+        scoreA: true,
+        scoreB: true,
+      },
+      orderBy: [asc(matches.createdAt), asc(matches.id)],
+    });
+}
+
+/** Load match rows for one or more public entries and present them per entry. */
+export async function getPublicEventTeamMatchFacts(
+  seasonId: string,
+  entryIds: readonly string[],
+): Promise<Map<string, PublicEventTeamMatchFacts>> {
+  const targetIds = uniqueIds(entryIds);
+  if (targetIds.length === 0) return new Map();
+  const entryMatches = await loadMatchRows(seasonId, targetIds);
+  const targetIdSet = new Set(targetIds);
+  const opponentIds = uniqueIds(entryMatches.flatMap((match) => [
+    ...(targetIdSet.has(match.entryAId) ? [match.entryBId] : []),
+    ...(targetIdSet.has(match.entryBId) ? [match.entryAId] : []),
+  ]));
+  const opponents = opponentIds.length
+    ? await db.query.competitionEntries.findMany({
+      where: and(inArray(competitionEntries.id, opponentIds), publicCompetitionEntryCondition()),
+      columns: { id: true, name: true },
+    })
+    : [];
+  const publicEntryIds = new Set([...targetIds, ...opponents.map((opponent) => opponent.id)]);
+  return collectMatchFacts(
+    entryMatches,
+    targetIds,
+    {
+      publicEntryIds,
+      opponentNames: new Map(opponents.map((opponent) => [opponent.id, opponent.name])),
+    },
+  ).factsByEntryId;
+}
+
+/** Load only the record/count data needed by a public team list or overview. */
+export async function getPublicEventTeamMatchSummary(
+  seasonId: string,
+  entryIds: readonly string[],
+  publicEntryIds: readonly string[] = entryIds,
+): Promise<PublicEventTeamMatchSummary> {
+  const targetIds = uniqueIds(entryIds);
+  if (targetIds.length === 0 || publicEntryIds.length === 0) {
+    return { records: new Map(), total: 0, finished: 0 };
+  }
+  const collected = collectMatchFacts(
+    await loadMatchRows(seasonId, targetIds),
+    targetIds,
+    { publicEntryIds: new Set(publicEntryIds) },
+  );
+  return {
+    records: new Map([...collected.factsByEntryId].map(([entryId, facts]) => [entryId, facts.record])),
+    total: collected.total,
+    finished: collected.finished,
+  };
 }
 
 export async function getPublicCompetitionEntryTeamContext(
-  season: PublicCompetitionEntryTeamSeason,
+  season: PublicEventTeamSeason,
   entryId: string,
-): Promise<PublicCompetitionEntryTeamContext | null> {
+): Promise<PublicEventTeamContext | null> {
   const entry = await db.query.competitionEntries.findFirst({
     where: and(
       eq(competitionEntries.id, entryId),
@@ -90,7 +275,7 @@ export async function getPublicCompetitionEntryTeamContext(
   });
   if (!entry) return null;
 
-  const [eventRoster, rosterRows, entryMatches] = await Promise.all([
+  const [eventRoster, rosterRows, matchFactsByEntryId] = await Promise.all([
     db.query.eventRosters.findFirst({
       where: eq(eventRosters.entryId, entry.id),
       columns: { status: true },
@@ -107,38 +292,18 @@ export async function getPublicCompetitionEntryTeamContext(
       .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
       .innerJoin(users, eq(users.id, eventRosterMembers.userId))
       .where(eq(eventRosters.entryId, entry.id)),
-    db.query.matches.findMany({
-      where: and(
-        eq(matches.seasonId, season.id),
-        or(eq(matches.entryAId, entry.id), eq(matches.entryBId, entry.id)),
-      ),
-    }),
+    getPublicEventTeamMatchFacts(season.id, [entry.id]),
   ]);
-
-  const opponentIds = [...new Set(entryMatches.map((match) => match.entryAId === entry.id ? match.entryBId : match.entryAId))];
-  const opponents = opponentIds.length
-    ? await db.query.competitionEntries.findMany({
-      where: and(inArray(competitionEntries.id, opponentIds), publicCompetitionEntryCondition()),
-      columns: { id: true, name: true },
-    })
-    : [];
-  const opponentNames = new Map(opponents.map((opponent) => [opponent.id, opponent.name]));
-
+  const matchFacts = matchFactsByEntryId.get(entry.id) ?? {
+    record: createEmptyPublicEventTeamRecord(),
+    matches: [],
+  };
   const registrationPresentation = presentCompetitionEntryRegistration(entry.registrationStatus);
-
-  let wins = 0;
-  let losses = 0;
-  for (const match of entryMatches) {
-    if (match.status !== "finished" || match.scoreA === null || match.scoreB === null) continue;
-    const ownScore = match.entryAId === entry.id ? match.scoreA : match.scoreB;
-    const opponentScore = match.entryAId === entry.id ? match.scoreB : match.scoreA;
-    if (ownScore > opponentScore) wins += 1;
-    if (ownScore < opponentScore) losses += 1;
-  }
 
   return {
     season,
     entry,
+    cardLabel: entry.registrationStatus === "approved" ? "已通过报名审核" : registrationPresentation.label,
     participation: {
       label: registrationPresentation.label,
       tone: registrationPresentation.tone,
@@ -154,21 +319,7 @@ export async function getPublicCompetitionEntryTeamContext(
     rosterStatus: eventRoster?.status ?? null,
     seed: null,
     seedPresentation: null,
-    record: { played: wins + losses, wins, losses },
-    matches: entryMatches.map((match) => {
-      const isA = match.entryAId === entry.id;
-      const opponentId = isA ? match.entryBId : match.entryAId;
-      return {
-        id: match.id,
-        opponentId,
-        opponentName: opponentNames.get(opponentId) ?? null,
-        status: match.status,
-        isForfeit: match.isForfeit,
-        scheduledAt: match.scheduledAt,
-        completedAt: match.completedAt,
-        ownScore: isA ? match.scoreA : match.scoreB,
-        opponentScore: isA ? match.scoreB : match.scoreA,
-      };
-    }),
+    record: matchFacts.record,
+    matches: matchFacts.matches,
   };
 }

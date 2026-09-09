@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   season: vi.fn(),
+  summary: vi.fn(),
   seasonBySlug: vi.fn(),
   projection: vi.fn(),
   team: vi.fn(),
@@ -17,6 +18,7 @@ vi.mock("@/lib/data/public-seasons", () => ({
   getPublicSeasonBySlug: mocks.seasonBySlug,
 }));
 vi.mock("@/lib/major/public-participants", () => ({
+  getMajorPublicParticipantSummary: mocks.summary,
   getMajorPublicParticipantProjection: mocks.projection,
   getMajorPublicParticipantTeam: mocks.team,
 }));
@@ -68,7 +70,8 @@ const projection = {
   entrantCapacity: 32,
   approvedCandidateCount: 33,
   officialEntrantCount: 32,
-  teams: [team],
+  teamCount: 1,
+  playerCount: 1,
   players: [{
     userId: "player-1",
     entryId: "entry-1",
@@ -86,6 +89,14 @@ describe("Major public participant pages", () => {
     vi.stubGlobal("React", React);
     mocks.season.mockResolvedValue(season);
     mocks.seasonBySlug.mockResolvedValue(season);
+    mocks.summary.mockResolvedValue({
+      ...projection,
+      teams: [team],
+      teamCount: 1,
+      playerCount: 1,
+      matchCount: 0,
+      finishedMatchCount: 0,
+    });
     mocks.projection.mockResolvedValue(projection);
     mocks.team.mockResolvedValue(team);
     mocks.session.mockResolvedValue(null);
@@ -94,7 +105,7 @@ describe("Major public participant pages", () => {
   it("uses the shared final entrant projection for the teams list", async () => {
     const html = renderToStaticMarkup(await TeamsPage({ params: Promise.resolve({ seasonSlug: "nju-major" }) }));
 
-    expect(mocks.projection).toHaveBeenCalledWith(season);
+    expect(mocks.summary).toHaveBeenCalledWith(season);
     expect(html).toContain("正式参赛队");
     expect(html).toContain("正式队伍");
     expect(html).not.toContain("CompetitionEntry");

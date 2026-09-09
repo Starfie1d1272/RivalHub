@@ -1,6 +1,7 @@
 import React from "react";
 import Link from "next/link";
 import { Panel, PosChip } from "@/components/rivalhub";
+import { DirectoryMetric } from "@/components/players/DirectoryMetric";
 import { positionLabel } from "@/lib/validators/registration";
 import { formatNumber, formatStat } from "@/lib/stats";
 
@@ -21,19 +22,6 @@ export interface PlayerDirectoryData {
     avgAdr: number | null;
     avgKd: number | null;
   } | null;
-}
-
-function DirectoryMetric({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="min-w-[58px]">
-      <p className="text-[10px] uppercase text-[var(--color-fg-dim)]" style={{ fontFamily: "var(--font-mono)" }}>
-        {label}
-      </p>
-      <p className="mt-0.5 text-sm font-bold text-[var(--color-fg)] tabular-nums" style={{ fontFamily: "var(--font-mono)" }}>
-        {value}
-      </p>
-    </div>
-  );
 }
 
 export function PlayerDirectoryRow({ player }: { player: PlayerDirectoryData }) {

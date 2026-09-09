@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import {
@@ -12,15 +12,19 @@ import {
   majorPrestartStates,
   majorTournamentEntrants,
   majorTournamentSeeds,
-  matches,
   users,
 } from "@/db/schema";
+import {
+  createEmptyPublicEventTeamRecord,
+  getPublicEventTeamMatchFacts,
+  getPublicEventTeamMatchSummary,
+  type PublicEventTeamContext,
+  type PublicEventTeamSummary,
+} from "@/lib/competition-entries/public-team-context";
 import type { PublicSeason } from "@/lib/data/public-seasons";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { getStandardMajorDefinition } from "@/lib/major/standard";
-import { ratioOfSums, roundWeightedAvg, simpleAvg } from "@/lib/stats";
-import type { StatusPresentation } from "@/lib/presentation";
-import type { MatchStatus } from "@/types/match";
+import { getVerifiedPlayerStatsBySeason, type VerifiedPlayerSeasonStats } from "@/lib/stats/public-query";
 
 export type MajorPublicParticipantSeason = Pick<
   PublicSeason,
@@ -48,56 +52,27 @@ export type MajorPublicParticipantPhase =
   | "final_entrants"
   | "rosters_frozen";
 
-export interface MajorPublicParticipantStatus {
-  label: string;
-  tone: StatusPresentation["tone"];
-  detail: string;
+export interface MajorPublicParticipantPresentation {
+  teamCollectionLabel: string;
+  teamCollectionDescription: string;
+  playerHeading: string;
+  playerDescription: string;
 }
 
-export interface MajorPublicParticipantTeam {
-  season: {
-    id: string;
-    slug: string;
-    name: string;
-    status: PublicSeason["status"];
-  };
-  entry: {
-    id: string;
-    name: string;
-    logoUrl: string | null;
-    registrationStatus: "approved";
-    representativeUserId: string;
-    teamId: string | null;
-  };
-  cardLabel: string;
-  participation: MajorPublicParticipantStatus;
-  roster: Array<{
-    userId: string;
-    name: string;
-    isStarter: boolean;
-    isRepresentative: boolean;
-  }>;
-  rosterLabel: string;
-  rosterStatus: "preparing" | "confirmed" | "frozen" | null;
-  seed: number | null;
-  seedPresentation: StatusPresentation | null;
-  record: {
-    played: number;
-    wins: number;
-    losses: number;
-    winRate: string;
-  };
-  matches: Array<{
-    id: string;
-    opponentId: string;
-    opponentName: string | null;
-    status: MatchStatus;
-    isForfeit: boolean;
-    scheduledAt: Date | null;
-    completedAt: Date | null;
-    ownScore: number | null;
-    opponentScore: number | null;
-  }>;
+export interface MajorPublicParticipantOverview {
+  phase: MajorPublicParticipantPhase;
+  presentation: MajorPublicParticipantPresentation;
+  entrantCapacity: number;
+  approvedCandidateCount: number;
+  officialEntrantCount: number;
+  teamCount: number;
+  playerCount: number;
+}
+
+export interface MajorPublicParticipantSummary extends MajorPublicParticipantOverview {
+  teams: PublicEventTeamSummary[];
+  matchCount: number;
+  finishedMatchCount: number;
 }
 
 export interface MajorPublicParticipantPlayer {
@@ -107,28 +82,10 @@ export interface MajorPublicParticipantPlayer {
   name: string;
   isStarter: boolean;
   isRepresentative: boolean;
-  stats: {
-    maps: number;
-    avgRating: number | null;
-    avgAdr: number | null;
-    avgKd: number | null;
-  } | null;
+  stats: VerifiedPlayerSeasonStats | null;
 }
 
-export interface MajorPublicParticipantPresentation {
-  teamCollectionLabel: string;
-  teamCollectionDescription: string;
-  playerHeading: string;
-  playerDescription: string;
-}
-
-export interface MajorPublicParticipantProjection {
-  phase: MajorPublicParticipantPhase;
-  presentation: MajorPublicParticipantPresentation;
-  entrantCapacity: number;
-  approvedCandidateCount: number;
-  officialEntrantCount: number;
-  teams: MajorPublicParticipantTeam[];
+export interface MajorPublicParticipantProjection extends MajorPublicParticipantOverview {
   players: MajorPublicParticipantPlayer[];
 }
 
@@ -139,12 +96,7 @@ type PublicEntryRow = {
   registrationStatus: "approved";
   representativeUserId: string;
   teamId: string | null;
-  approvedRosterRevisionId: string | null;
-  formationOrder: number | null;
-  createdAt: Date;
 };
-
-type PublicMatch = MajorPublicParticipantTeam["matches"][number];
 
 type RosterMemberRow = {
   entryId: string;
@@ -159,6 +111,17 @@ type EventRosterFact = {
   entryId: string;
   status: "preparing" | "confirmed" | "frozen";
 };
+
+type MajorPublicParticipantTeamBase = Omit<PublicEventTeamSummary, "record">;
+
+interface MajorPublicParticipantState extends MajorPublicParticipantOverview {
+  approvedEntryIds: string[];
+  officialEntryIds: string[];
+  officialSetComplete: boolean;
+  visibleEntryIds: string[];
+  teams: MajorPublicParticipantTeamBase[];
+  players: Array<Omit<MajorPublicParticipantPlayer, "stats"> & { stats: null }>;
+}
 
 export interface MajorPublicParticipantLifecycleFacts {
   entrantCapacity: number;
@@ -222,15 +185,9 @@ export function resolveConfirmedMajorSeeds(
   return complete ? new Map(input.seedRows.map((row) => [row.entryId, row.seed])) : null;
 }
 
-type StatRow = {
-  user_id: string;
-  maps: number | string;
-  avg_rating: number | string | null;
-  avg_adr: number | string | null;
-  avg_kd: number | string | null;
-};
-
-export function presentMajorPublicParticipantPhase(phase: MajorPublicParticipantPhase): MajorPublicParticipantPresentation {
+export function presentMajorPublicParticipantPhase(
+  phase: MajorPublicParticipantPhase,
+): MajorPublicParticipantPresentation {
   switch (phase) {
     case "rosters_frozen":
       return {
@@ -260,10 +217,7 @@ function addToMap<T>(map: Map<string, T[]>, key: string, value: T): void {
   map.set(key, [...(map.get(key) ?? []), value]);
 }
 
-function publicRosterMember(
-  row: RosterMemberRow,
-  representativeUserId: string,
-) {
+function publicRosterMember(row: RosterMemberRow, representativeUserId: string) {
   return {
     userId: row.userId,
     name: getPublicDisplayName(row),
@@ -272,14 +226,11 @@ function publicRosterMember(
   };
 }
 
-async function loadMajorPublicParticipantReadModel(
+async function loadMajorPublicParticipantState(
   season: MajorPublicParticipantSeason,
-): Promise<{
-  projection: MajorPublicParticipantProjection;
-  allTeams: MajorPublicParticipantTeam[];
-}> {
+  options: { entryId?: string } = {},
+): Promise<MajorPublicParticipantState> {
   const { entrantCapacity } = getStandardMajorDefinition(season);
-
   const [approvedEntries, entrantRefs, prestartState] = await Promise.all([
     db
       .select({
@@ -289,25 +240,16 @@ async function loadMajorPublicParticipantReadModel(
         registrationStatus: competitionEntries.registrationStatus,
         representativeUserId: competitionEntries.representativeUserId,
         teamId: competitionEntries.teamId,
-        approvedRosterRevisionId: competitionEntries.approvedRosterRevisionId,
-        formationOrder: competitionEntries.formationOrder,
-        createdAt: competitionEntries.createdAt,
       })
       .from(competitionEntries)
       .where(and(
         eq(competitionEntries.competitionId, season.id),
         eq(competitionEntries.registrationStatus, "approved"),
       ))
-      .orderBy(
-        asc(competitionEntries.formationOrder),
-        asc(competitionEntries.createdAt),
-        asc(competitionEntries.id),
-      ),
+      .orderBy(asc(competitionEntries.formationOrder), asc(competitionEntries.createdAt), asc(competitionEntries.id)),
     db
       .select({
-        id: majorTournamentEntrants.id,
         entryId: majorTournamentEntrants.competitionEntryId,
-        createdAt: majorTournamentEntrants.createdAt,
       })
       .from(majorTournamentEntrants)
       .where(eq(majorTournamentEntrants.seasonId, season.id))
@@ -316,13 +258,20 @@ async function loadMajorPublicParticipantReadModel(
       where: eq(majorPrestartStates.seasonId, season.id),
       columns: { entrantsLockedAt: true, seedsConfirmedAt: true },
     }),
-  ]) as [PublicEntryRow[], Array<{ id: string; entryId: string; createdAt: Date }>, { entrantsLockedAt: Date | null; seedsConfirmedAt: Date | null } | undefined];
+  ]) as [PublicEntryRow[], Array<{ entryId: string }>, { entrantsLockedAt: Date | null; seedsConfirmedAt: Date | null } | undefined];
 
-  const officialEntryIds = entrantRefs.map((entrant) => entrant.entryId);
   const approvedEntryIds = approvedEntries.map((entry) => entry.id);
+  const officialEntryIds = entrantRefs.map((entrant) => entrant.entryId);
+  const lifecycleEntryIds = options.entryId
+    ? approvedEntryIds.filter((entryId) => entryId === options.entryId)
+    : approvedEntryIds;
+  const eventMemberEntryIds = options.entryId
+    ? officialEntryIds.includes(options.entryId) ? [options.entryId] : []
+    : officialEntryIds;
 
-  const [approvedRosterRows, eventRosterFacts, eventRosterMembersRows, seedRows, matchRows, statResult] = await Promise.all([
-    approvedEntryIds.length
+  // Roster membership is an event fact; a later user merge must not erase it from the public record.
+  const [approvedRosterRows, eventRosterFacts, eventRosterMembersRows, seedRows] = await Promise.all([
+    lifecycleEntryIds.length
       ? db
         .select({
           entryId: competitionEntries.id,
@@ -335,9 +284,9 @@ async function loadMajorPublicParticipantReadModel(
         .from(competitionEntryRosterMembers)
         .innerJoin(competitionEntryRosterRevisions, eq(competitionEntryRosterRevisions.id, competitionEntryRosterMembers.revisionId))
         .innerJoin(competitionEntries, eq(competitionEntries.approvedRosterRevisionId, competitionEntryRosterRevisions.id))
-        .innerJoin(users, and(eq(users.id, competitionEntryRosterMembers.userId), eq(users.status, "active")))
+        .innerJoin(users, eq(users.id, competitionEntryRosterMembers.userId))
         .where(and(
-          inArray(competitionEntries.id, approvedEntryIds),
+          inArray(competitionEntries.id, lifecycleEntryIds),
           eq(competitionEntryRosterRevisions.status, "approved"),
         ))
         .orderBy(asc(competitionEntries.id), asc(users.id))
@@ -352,7 +301,7 @@ async function loadMajorPublicParticipantReadModel(
         .where(inArray(eventRosters.entryId, officialEntryIds))
         .orderBy(asc(eventRosters.entryId))
       : Promise.resolve([] as EventRosterFact[]),
-    officialEntryIds.length
+    eventMemberEntryIds.length
       ? db
         .select({
           entryId: eventRosters.entryId,
@@ -364,8 +313,8 @@ async function loadMajorPublicParticipantReadModel(
         })
         .from(eventRosterMembers)
         .innerJoin(eventRosters, eq(eventRosters.id, eventRosterMembers.eventRosterId))
-        .innerJoin(users, and(eq(users.id, eventRosterMembers.userId), eq(users.status, "active")))
-        .where(inArray(eventRosters.entryId, officialEntryIds))
+        .innerJoin(users, eq(users.id, eventRosterMembers.userId))
+        .where(inArray(eventRosters.entryId, eventMemberEntryIds))
         .orderBy(asc(eventRosters.entryId), asc(users.id))
       : Promise.resolve([] as RosterMemberRow[]),
     db
@@ -376,36 +325,6 @@ async function loadMajorPublicParticipantReadModel(
       .from(majorTournamentSeeds)
       .innerJoin(majorTournamentEntrants, eq(majorTournamentEntrants.id, majorTournamentSeeds.tournamentEntrantId))
       .where(eq(majorTournamentSeeds.seasonId, season.id)),
-    db
-      .select({
-        id: matches.id,
-        entryAId: matches.entryAId,
-        entryBId: matches.entryBId,
-        status: matches.status,
-        isForfeit: matches.isForfeit,
-        scheduledAt: matches.scheduledAt,
-        completedAt: matches.completedAt,
-        scoreA: matches.scoreA,
-        scoreB: matches.scoreB,
-      })
-      .from(matches)
-      .where(eq(matches.seasonId, season.id))
-      .orderBy(asc(matches.createdAt), asc(matches.id)),
-    db.execute(sql`
-      SELECT
-        mps.user_id,
-        count(distinct mps.map_id)::int AS maps,
-        ${simpleAvg("mps.rating_pro")} AS avg_rating,
-        ${roundWeightedAvg("mps.adr")} AS avg_adr,
-        ${ratioOfSums("mps.kills", "mps.deaths")} AS avg_kd
-      FROM match_player_stats mps
-      JOIN matches m ON m.id = mps.match_id
-      JOIN match_maps mm ON mm.id = mps.map_id
-      WHERE m.season_id = ${season.id}
-        AND mps.verified_by_admin IS NOT NULL
-        AND mps.user_id IS NOT NULL
-      GROUP BY mps.user_id
-    `),
   ]);
 
   const lifecycle = resolveMajorPublicParticipantLifecycle({
@@ -415,73 +334,29 @@ async function loadMajorPublicParticipantReadModel(
     eventRosterFacts,
     entrantsLockedAt: prestartState?.entrantsLockedAt ?? null,
   });
+  const approvedEntryIdSet = new Set(approvedEntryIds);
   const officialEntryIdSet = new Set(officialEntryIds);
-  const { officialSetComplete } = lifecycle;
-  const eventRosterByEntryId = new Map(eventRosterFacts.map((roster) => [roster.entryId, roster]));
-  const phase = lifecycle.phase;
-  const presentation = presentMajorPublicParticipantPhase(phase);
-  const seedByEntryId = officialSetComplete
+  const visibleEntryIds = lifecycle.officialSetComplete
+    ? officialEntryIds.filter((entryId) => approvedEntryIdSet.has(entryId))
+    : approvedEntryIds;
+  const presentation = presentMajorPublicParticipantPhase(lifecycle.phase);
+  const confirmedSeeds = lifecycle.officialSetComplete
     ? resolveConfirmedMajorSeeds({
       entrantCapacity,
       officialEntryIds,
       seedsConfirmedAt: prestartState?.seedsConfirmedAt ?? null,
       seedRows,
-    }) ?? new Map<string, number>()
-    : new Map<string, number>();
-
+    })
+    : null;
+  const seedByEntryId = confirmedSeeds ?? new Map<string, number>();
+  const eventRosterByEntryId = new Map(eventRosterFacts.map((roster) => [roster.entryId, roster]));
   const approvedMembersByEntryId = new Map<string, RosterMemberRow[]>();
   for (const row of approvedRosterRows) addToMap(approvedMembersByEntryId, row.entryId, row);
   const eventMembersByEntryId = new Map<string, RosterMemberRow[]>();
   for (const row of eventRosterMembersRows) addToMap(eventMembersByEntryId, row.entryId, row);
-
-  const publicEntryNames = new Map(approvedEntries.map((entry) => [entry.id, entry.name]));
-  const matchByEntryId = new Map<string, PublicMatch[]>();
-  const winsByEntryId = new Map<string, number>();
-  const lossesByEntryId = new Map<string, number>();
-  for (const entry of approvedEntries) {
-    matchByEntryId.set(entry.id, []);
-    winsByEntryId.set(entry.id, 0);
-    lossesByEntryId.set(entry.id, 0);
-  }
-  for (const match of matchRows) {
-    if (!publicEntryNames.has(match.entryAId) || !publicEntryNames.has(match.entryBId)) continue;
-    const sides = [
-      { entryId: match.entryAId, opponentId: match.entryBId, ownScore: match.scoreA, opponentScore: match.scoreB },
-      { entryId: match.entryBId, opponentId: match.entryAId, ownScore: match.scoreB, opponentScore: match.scoreA },
-    ];
-    for (const side of sides) {
-      if (match.status === "finished" && side.ownScore !== null && side.opponentScore !== null) {
-        if (side.ownScore > side.opponentScore) winsByEntryId.set(side.entryId, (winsByEntryId.get(side.entryId) ?? 0) + 1);
-        if (side.ownScore < side.opponentScore) lossesByEntryId.set(side.entryId, (lossesByEntryId.get(side.entryId) ?? 0) + 1);
-      }
-      addToMap(matchByEntryId, side.entryId, {
-        id: match.id,
-        opponentId: side.opponentId,
-        opponentName: publicEntryNames.get(side.opponentId) ?? null,
-        status: match.status,
-        isForfeit: match.isForfeit,
-        scheduledAt: match.scheduledAt,
-        completedAt: match.completedAt,
-        ownScore: side.ownScore,
-        opponentScore: side.opponentScore,
-      });
-    }
-  }
-
-  const statsByUserId = new Map(
-    (statResult.rows as unknown as StatRow[]).map((row) => [
-      row.user_id,
-      {
-        maps: Number(row.maps),
-        avgRating: row.avg_rating == null ? null : Number(row.avg_rating),
-        avgAdr: row.avg_adr == null ? null : Number(row.avg_adr),
-        avgKd: row.avg_kd == null ? null : Number(row.avg_kd),
-      },
-    ]),
-  );
-
-  const allTeams = approvedEntries.map((entry) => {
-    const isOfficial = officialSetComplete && officialEntryIdSet.has(entry.id);
+  const requestedEntries = approvedEntries.filter((entry) => lifecycleEntryIds.includes(entry.id));
+  const teams = requestedEntries.map((entry) => {
+    const isOfficial = lifecycle.officialSetComplete && officialEntryIdSet.has(entry.id);
     const roster = isOfficial
       ? (eventMembersByEntryId.get(entry.id) ?? [])
       : (approvedMembersByEntryId.get(entry.id) ?? []);
@@ -491,27 +366,21 @@ async function loadMajorPublicParticipantReadModel(
         ? { label: "种子待确认", tone: "neutral" as const }
         : { label: `#${seed} 种子`, tone: "success" as const }
       : null;
-    const wins = winsByEntryId.get(entry.id) ?? 0;
-    const losses = lossesByEntryId.get(entry.id) ?? 0;
-    const played = wins + losses;
-    const participation: MajorPublicParticipantStatus = isOfficial
+    const participation = isOfficial
       ? {
         label: "正式参赛队",
         tone: "success",
-        detail: phase === "rosters_frozen"
+        detail: lifecycle.phase === "rosters_frozen"
           ? "已进入本届正式参赛队，最终参赛名单已经确认。"
           : "已进入本届正式参赛队，当前参赛名单仍可能调整。",
       }
       : {
         label: "已通过报名审核",
         tone: "info",
-        detail: officialSetComplete
+        detail: lifecycle.officialSetComplete
           ? "已通过报名审核，但未进入本届正式参赛名单。"
           : "已通过报名审核，正赛资格待确认。",
       };
-    const rosterLabel = isOfficial
-      ? phase === "rosters_frozen" ? "最终参赛名单" : "当前参赛名单"
-      : "已审核报名名单";
 
     return {
       season: {
@@ -524,66 +393,126 @@ async function loadMajorPublicParticipantReadModel(
         id: entry.id,
         name: entry.name,
         logoUrl: entry.logoUrl,
-        registrationStatus: "approved" as const,
+        registrationStatus: entry.registrationStatus,
         representativeUserId: entry.representativeUserId,
         teamId: entry.teamId,
       },
-      cardLabel: isOfficial ? (seedPresentation?.label === "种子待确认" ? "正式参赛队" : seedPresentation?.label ?? "正式参赛队") : "已通过报名审核",
+      cardLabel: isOfficial
+        ? seed === null ? "正式参赛队" : `#${seed} 种子`
+        : "已通过报名审核",
       participation,
       roster: roster.map((member) => publicRosterMember(member, entry.representativeUserId)),
-      rosterLabel,
+      rosterLabel: isOfficial
+        ? lifecycle.phase === "rosters_frozen" ? "最终参赛名单" : "当前参赛名单"
+        : "已审核报名名单",
       rosterStatus: isOfficial ? (eventRosterByEntryId.get(entry.id)?.status ?? null) : null,
       seed,
       seedPresentation,
-      record: {
-        played,
-        wins,
-        losses,
-        winRate: played > 0 ? `${Math.round(wins / played * 100)}%` : "—",
-      },
-      matches: matchByEntryId.get(entry.id) ?? [],
-    } satisfies MajorPublicParticipantTeam;
+    } satisfies MajorPublicParticipantTeamBase;
   });
-
-  const visibleEntryIdSet = officialSetComplete ? officialEntryIdSet : new Set(approvedEntryIds);
-  const visibleTeams = allTeams.filter((team) => visibleEntryIdSet.has(team.entry.id));
-  const players = visibleTeams
-    .flatMap((team) => team.roster.map((member) => ({
-      userId: member.userId,
-      entryId: team.entry.id,
-      entryName: team.entry.name,
-      name: member.name,
-      isStarter: member.isStarter,
-      isRepresentative: member.isRepresentative,
-      stats: statsByUserId.get(member.userId) ?? null,
-    })))
-    .sort((a, b) => a.entryName.localeCompare(b.entryName) || a.name.localeCompare(b.name));
+  const visibleTeams = teams.filter((team) => visibleEntryIds.includes(team.entry.id));
+  const players = visibleTeams.flatMap((team) => team.roster.map((member) => ({
+    userId: member.userId,
+    entryId: team.entry.id,
+    entryName: team.entry.name,
+    name: member.name,
+    isStarter: member.isStarter,
+    isRepresentative: member.isRepresentative,
+    stats: null,
+  })));
 
   return {
-    projection: {
-      phase,
-      presentation,
-      entrantCapacity,
-      approvedCandidateCount: approvedEntries.length,
-      officialEntrantCount: officialEntryIds.length,
-      teams: visibleTeams,
-      players,
-    },
-    allTeams,
+    phase: lifecycle.phase,
+    presentation,
+    entrantCapacity,
+    approvedCandidateCount: approvedEntries.length,
+    officialEntrantCount: officialEntryIds.length,
+    teamCount: visibleTeams.length,
+    playerCount: players.length,
+    approvedEntryIds,
+    officialEntryIds,
+    officialSetComplete: lifecycle.officialSetComplete,
+    visibleEntryIds,
+    teams,
+    players,
+  };
+}
+
+function overviewFromState(state: MajorPublicParticipantState): MajorPublicParticipantOverview {
+  return {
+    phase: state.phase,
+    presentation: state.presentation,
+    entrantCapacity: state.entrantCapacity,
+    approvedCandidateCount: state.approvedCandidateCount,
+    officialEntrantCount: state.officialEntrantCount,
+    teamCount: state.teamCount,
+    playerCount: state.playerCount,
+  };
+}
+
+export async function getMajorPublicParticipantOverview(
+  season: MajorPublicParticipantSeason,
+): Promise<MajorPublicParticipantOverview> {
+  return overviewFromState(await loadMajorPublicParticipantState(season));
+}
+
+export async function getMajorPublicParticipantSummary(
+  season: MajorPublicParticipantSeason,
+): Promise<MajorPublicParticipantSummary> {
+  const state = await loadMajorPublicParticipantState(season);
+  const matchSummary = await getPublicEventTeamMatchSummary(
+    season.id,
+    state.visibleEntryIds,
+    state.approvedEntryIds,
+  );
+  return {
+    ...overviewFromState(state),
+    teams: state.teams
+      .filter((team) => state.visibleEntryIds.includes(team.entry.id))
+      .map((team) => ({
+        ...team,
+        record: matchSummary.records.get(team.entry.id) ?? createEmptyPublicEventTeamRecord(),
+      })),
+    matchCount: matchSummary.total,
+    finishedMatchCount: matchSummary.finished,
   };
 }
 
 export async function getMajorPublicParticipantProjection(
   season: MajorPublicParticipantSeason,
 ): Promise<MajorPublicParticipantProjection> {
-  const { projection } = await loadMajorPublicParticipantReadModel(season);
-  return projection;
+  const state = await loadMajorPublicParticipantState(season);
+  const statsByUserId = await getVerifiedPlayerStatsBySeason(
+    season.id,
+    state.players.map((player) => player.userId),
+  );
+  return {
+    phase: state.phase,
+    presentation: state.presentation,
+    entrantCapacity: state.entrantCapacity,
+    approvedCandidateCount: state.approvedCandidateCount,
+    officialEntrantCount: state.officialEntrantCount,
+    teamCount: state.teamCount,
+    playerCount: state.playerCount,
+    players: state.players.map((player) => ({
+      ...player,
+      stats: statsByUserId.get(player.userId) ?? null,
+    })).sort((a, b) => a.entryName.localeCompare(b.entryName) || a.name.localeCompare(b.name)),
+  };
 }
 
 export async function getMajorPublicParticipantTeam(
   season: MajorPublicParticipantSeason,
   entryId: string,
-): Promise<MajorPublicParticipantTeam | null> {
-  const { allTeams } = await loadMajorPublicParticipantReadModel(season);
-  return allTeams.find((team) => team.entry.id === entryId) ?? null;
+): Promise<PublicEventTeamContext | null> {
+  const state = await loadMajorPublicParticipantState(season, { entryId });
+  const team = state.teams.find((candidate) => candidate.entry.id === entryId);
+  if (!team) return null;
+
+  const matchFacts = await getPublicEventTeamMatchFacts(season.id, [entryId]);
+  const facts = matchFacts.get(entryId) ?? {
+    record: createEmptyPublicEventTeamRecord(),
+    matches: [],
+  };
+  return { ...team, record: facts.record, matches: facts.matches };
 }

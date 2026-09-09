@@ -26,7 +26,7 @@ import { StandingsTable } from "@/components/matches/StandingsTable";
 import { getStandings } from "@/lib/data/standings";
 import { getParticipantSummary } from "@/lib/participants/summary";
 import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
-import { getMajorPublicParticipantProjection } from "@/lib/major/public-participants";
+import { getMajorPublicParticipantOverview } from "@/lib/major/public-participants";
 import { RegistrationScheduleCountdown } from "@/components/seasons/RegistrationScheduleCountdown";
 
 const STATUS_IDX: Record<SeasonStatus, number> = {
@@ -93,9 +93,9 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
     : null;
 
   const isMajor = season.competitionTemplate === "major";
-  const [majorParticipantProjection, [teamCountRow], participantSummary, [matchCountRow], upcomingMatches, standings] =
+  const [majorParticipantOverview, [teamCountRow], participantSummary, [matchCountRow], upcomingMatches, standings] =
     await Promise.all([
-      isMajor ? getMajorPublicParticipantProjection(season) : Promise.resolve(null),
+      isMajor ? getMajorPublicParticipantOverview(season) : Promise.resolve(null),
       isMajor
         ? Promise.resolve([] as { value: number }[])
         : db.select({ value: count() }).from(competitionEntries).where(and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryCondition())),
@@ -107,9 +107,9 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
       upcomingMatchesQuery ?? Promise.resolve([] as { id: string; status: string; scheduledAt: Date | null; stage: string; teamAName: string | null; teamBName: string | null }[]),
       season.status === "playing" ? getStandings(season.id) : Promise.resolve([]),
     ]);
-  const publicTeamCount = majorParticipantProjection?.teams.length ?? Number(teamCountRow?.value ?? 0);
-  const publicPlayerCount = majorParticipantProjection?.players.length ?? participantSummary?.count ?? 0;
-  const publicTeamLabel = majorParticipantProjection?.presentation.teamCollectionLabel ?? publicCompetitionEntryLabel(season);
+  const publicTeamCount = majorParticipantOverview?.teamCount ?? Number(teamCountRow?.value ?? 0);
+  const publicPlayerCount = majorParticipantOverview?.playerCount ?? participantSummary?.count ?? 0;
+  const publicTeamLabel = majorParticipantOverview?.presentation.teamCollectionLabel ?? publicCompetitionEntryLabel(season);
 
   // ── 动态阶段列表 ──────────────────────────────────────────
   interface Phase {
@@ -193,7 +193,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
     {
       href: `/${seasonSlug}/players`,
       label: "选手名单",
-      description: majorParticipantProjection?.presentation.playerDescription ?? "已通过审核的参赛选手",
+      description: majorParticipantOverview?.presentation.playerDescription ?? "已通过审核的参赛选手",
       icon: UserRoundSearch,
       show: true,
     },

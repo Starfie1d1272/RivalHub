@@ -5,13 +5,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
   connectionMock,
   getPublicOrAuthorizedDraftSeasonMock,
-  getMajorPublicParticipantProjectionMock,
+  getMajorPublicParticipantOverviewMock,
   selectDistinctMock,
   selectMock,
 } = vi.hoisted(() => ({
   connectionMock: vi.fn(),
   getPublicOrAuthorizedDraftSeasonMock: vi.fn(),
-  getMajorPublicParticipantProjectionMock: vi.fn(),
+  getMajorPublicParticipantOverviewMock: vi.fn(),
   selectDistinctMock: vi.fn(),
   selectMock: vi.fn(),
 }));
@@ -29,7 +29,7 @@ vi.mock("@/lib/data/public-seasons", () => ({
   getPublicOrAuthorizedDraftSeason: getPublicOrAuthorizedDraftSeasonMock,
 }));
 vi.mock("@/lib/participants/summary", () => ({ getParticipantSummary: vi.fn() }));
-vi.mock("@/lib/major/public-participants", () => ({ getMajorPublicParticipantProjection: getMajorPublicParticipantProjectionMock }));
+vi.mock("@/lib/major/public-participants", () => ({ getMajorPublicParticipantOverview: getMajorPublicParticipantOverviewMock }));
 
 import { SeasonPageContent } from "@/app/[seasonSlug]/page";
 
@@ -60,7 +60,7 @@ describe("season page navigation", () => {
       hasCaptainVoting: false,
       hasDraft: false,
     });
-    getMajorPublicParticipantProjectionMock.mockResolvedValue({
+    getMajorPublicParticipantOverviewMock.mockResolvedValue({
       phase: "approved_candidates",
       presentation: {
         teamCollectionLabel: "已通过报名审核的队伍",
@@ -71,8 +71,8 @@ describe("season page navigation", () => {
       entrantCapacity: 32,
       approvedCandidateCount: 0,
       officialEntrantCount: 0,
-      teams: [],
-      players: [],
+      teamCount: 0,
+      playerCount: 0,
     });
     selectDistinctMock.mockReturnValue(chain([]));
     selectMock

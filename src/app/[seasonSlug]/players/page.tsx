@@ -1,6 +1,6 @@
 import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import { notFound } from "next/navigation";
-import { eq, and, asc, or, sql } from "drizzle-orm";
+import { eq, and, asc, or } from "drizzle-orm";
 import Link from "next/link";
 import { db } from "@/db/client";
 import { competitionEntries, eventRosterMembers, eventRosters, seasonRegistrations, users } from "@/db/schema";
@@ -12,7 +12,7 @@ import { positionLabel, positionValues } from "@/lib/validators/registration";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { getPublicOrAuthorizedDraftSeason, getPublicSeasonBySlug } from "@/lib/data/public-seasons";
 import { getMajorPublicParticipantProjection } from "@/lib/major/public-participants";
-import { ratioOfSums, roundWeightedAvg, simpleAvg } from "@/lib/stats";
+import { getVerifiedPlayerStatsBySeason } from "@/lib/stats/public-query";
 import type { Metadata } from "next";
 
 interface PlayersPageProps {
@@ -38,7 +38,7 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
   if (season.competitionTemplate === "major") {
     const projection = await getMajorPublicParticipantProjection(season);
     const playersWithStats = projection.players.filter((player) => player.stats !== null).length;
-    const teamCount = new Set(projection.players.map((player) => player.entryId)).size;
+    const teamCount = projection.teamCount;
 
     return (
       <PageLayout as="div" variant="wide" className="space-y-8">
@@ -115,32 +115,9 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
 
   const teamByRegId = new Map(teamMemberRows.flatMap((row) => row.registrationId ? [[row.registrationId, row.teamName] as const] : []));
 
-  const playerStatResult = await db.execute(sql`
-    -- Keep the raw nullable values; presentation precision belongs to the row component.
-    SELECT
-      mps.user_id,
-      count(distinct mps.map_id)::int AS maps,
-      ${simpleAvg("mps.rating_pro")} AS avg_rating,
-      ${roundWeightedAvg("mps.adr")} AS avg_adr,
-      ${ratioOfSums("mps.kills", "mps.deaths")} AS avg_kd
-    FROM match_player_stats mps
-    JOIN matches m ON m.id = mps.match_id
-    JOIN match_maps mm ON mm.id = mps.map_id
-    WHERE m.season_id = ${season.id}
-      AND mps.verified_by_admin IS NOT NULL
-      AND mps.user_id IS NOT NULL
-    GROUP BY mps.user_id
-  `);
-  const statsByUserId = new Map(
-    playerStatResult.rows.map((row) => [
-      row.user_id as string,
-      {
-        maps: Number(row.maps),
-        avgRating: row.avg_rating == null ? null : Number(row.avg_rating),
-        avgAdr: row.avg_adr == null ? null : Number(row.avg_adr),
-        avgKd: row.avg_kd == null ? null : Number(row.avg_kd),
-      },
-    ]),
+  const statsByUserId = await getVerifiedPlayerStatsBySeason(
+    season.id,
+    registrations.map((registration) => registration.userId),
   );
 
   const positionFilters = [

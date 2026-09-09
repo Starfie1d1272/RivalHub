@@ -5,20 +5,19 @@ import { Button } from "@/components/ui/button";
 import { EmptyState, PageHeader, Panel, PosChip, Stat, StatusPill } from "@/components/rivalhub";
 import { TeamLogo } from "@/components/teams/TeamLogo";
 import { RecruitmentInterestButton } from "@/components/recruitment/RecruitmentInterestButton";
-import type { PublicCompetitionEntryTeamContext } from "@/lib/competition-entries/public-team-context";
+import type { PublicEventTeamContext } from "@/lib/competition-entries/public-team-context";
 import {
   presentCompetitionEntryRegistration,
   presentCompetitionEntryRosterStatus,
 } from "@/lib/competition-entries/presentation";
 import { presentMatchStatus } from "@/lib/matches/presentation";
-import type { MajorPublicParticipantTeam } from "@/lib/major/public-participants";
 import type { PublicTeamProfile } from "@/lib/teams/public-profile";
 import { presentTeamMembershipStatus, presentTeamStatus } from "@/lib/teams/presentation";
 import { formatCSTShortDate } from "@/lib/utils/date";
 
 export interface TeamPublicProfileProps {
   team: PublicTeamProfile | null;
-  event?: PublicCompetitionEntryTeamContext | MajorPublicParticipantTeam | null;
+  event?: PublicEventTeamContext | null;
 }
 
 export function TeamPublicProfile({ team, event = null }: TeamPublicProfileProps) {
