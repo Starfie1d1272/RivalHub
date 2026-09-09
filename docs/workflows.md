@@ -85,7 +85,7 @@ Team captain creates Entry
 
 一个用户在同一赛事不能同时占有多个 active Entry commitment。成员确认、教育/竞技资料和 qualification 都由各自 canonical owner 提供；长期 Team 的成员变化不会自动改写已经提交或冻结的赛事名单。
 
-草稿只表示尚未提交审核，不提供终止报名动作。负责人可以把 `submitted` 撤回为同一个 Entry 的新 draft revision 后继续编辑和再次提交；既有 submission、roster revision 与 audit 历史保留，成员 active claim 不释放。`changes_requested` 继续只表示管理员要求补正，`withdrawn` 不用于普通主动撤回审核。
+草稿只表示尚未提交审核，不提供终止报名动作。报名提交窗口仍开放时，负责人可以把 `submitted` 撤回为同一个 Entry 的新 draft revision 后继续编辑和再次提交；既有 submission、roster revision 与 audit 历史保留，成员 active claim 不释放。报名截止后保持 `submitted` 等待审核，不再撤成无法重新提交的草稿。`changes_requested` 继续只表示管理员要求补正，`withdrawn` 不用于普通主动撤回审核。
 
 管理员审核可以批准、候补、拒绝或要求补正。**approved Entry 只表示报名审核通过，不等于正式获得 Major 正赛席位。**
 

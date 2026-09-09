@@ -9,6 +9,8 @@ import {
 
 const BASE_URL_ENV = "RIVALHUB_SCHEDULER_BASE_URL";
 const VAULT_SECRET_NAMES = ["rivalhub_scheduler_base_url", "rivalhub_cron_secret"] as const;
+const DISPATCH_VERIFY_TIMEOUT_MS = 90_000;
+const DISPATCH_VERIFY_POLL_MS = 2_000;
 
 async function main(): Promise<void> {
   const command = process.argv[2];
@@ -29,12 +31,17 @@ async function main(): Promise<void> {
       const cronSecret = required(environment.CRON_SECRET, "CRON_SECRET");
       await upsertVaultSecret(pool, "rivalhub_scheduler_base_url", baseUrl, "RivalHub scheduler public base URL");
       await upsertVaultSecret(pool, "rivalhub_cron_secret", cronSecret, "RivalHub scheduler shared credential");
-      await replaceCronJobs(pool);
+      await upsertCronJobs(pool);
       console.log(`Production scheduler provisioned: ${SCHEDULER_JOB_DEFINITIONS.length} named jobs.`);
     }
     await verifyCronJobs(pool);
     await verifyVaultNames(pool);
-    console.log("Production scheduler verification passed: named jobs, UTC schedules, dispatch command, and Vault names are present.");
+    if (command === "verify") {
+      await verifyPrimaryDispatch(pool);
+      console.log("Production scheduler verification passed: named jobs, Vault names, primary dispatch, endpoint success, and minute cadence are healthy.");
+    } else {
+      console.log("Production scheduler provisioning contract passed: named jobs, UTC schedules, dispatch command, and Vault names are present.");
+    }
   } finally {
     await pool.end();
   }
@@ -71,10 +78,9 @@ async function upsertVaultSecret(pool: Pool, name: string, value: string, descri
   }
 }
 
-async function replaceCronJobs(pool: Pool): Promise<void> {
+export async function upsertCronJobs(pool: Pick<Pool, "query">): Promise<void> {
   for (const definition of SCHEDULER_JOB_DEFINITIONS) {
     const name = schedulerJobName(definition.key);
-    await pool.query("SELECT cron.unschedule($1::text)", [name]);
     await pool.query("SELECT cron.schedule($1::text, $2::text, $3::text)", [name, definition.primaryCron, dispatchCommand(definition)]);
   }
 }
@@ -106,6 +112,75 @@ async function verifyVaultNames(pool: Pool): Promise<void> {
   if (VAULT_SECRET_NAMES.some((name) => !names.has(name))) {
     throw new Error("Production scheduler Vault names 不完整。");
   }
+}
+
+type SchedulerHealthEvidence = {
+  job_key: string;
+  last_primary_triggered_at: Date | null;
+  last_primary_endpoint_succeeded_at: Date | null;
+};
+
+type SchedulerRunEvidence = { jobname: string; status: string };
+
+export function hasCompletePrimaryEvidence(
+  verifiedAt: Date,
+  healthRows: readonly SchedulerHealthEvidence[],
+  runRows: readonly SchedulerRunEvidence[],
+): boolean {
+  const healthByKey = new Map(healthRows.map((row) => [row.job_key, row]));
+  const healthReady = SCHEDULER_JOB_DEFINITIONS.every((definition) => {
+    const row = healthByKey.get(definition.key);
+    return !!row?.last_primary_triggered_at
+      && row.last_primary_triggered_at >= verifiedAt
+      && !!row.last_primary_endpoint_succeeded_at
+      && row.last_primary_endpoint_succeeded_at >= verifiedAt;
+  });
+  const minuteJobNames = new Set(SCHEDULER_JOB_DEFINITIONS
+    .filter((definition) => definition.primaryCron === "* * * * *")
+    .map((definition) => schedulerJobName(definition.key)));
+  const succeededMinuteJobs = new Set(runRows
+    .filter((row) => row.status === "succeeded" && minuteJobNames.has(row.jobname))
+    .map((row) => row.jobname));
+  return healthReady && [...minuteJobNames].every((name) => succeededMinuteJobs.has(name));
+}
+
+async function verifyPrimaryDispatch(pool: Pool): Promise<void> {
+  const [{ verified_at: verifiedAt }] = (await pool.query<{ verified_at: Date }>(
+    "SELECT clock_timestamp() AS verified_at",
+  )).rows;
+  if (!verifiedAt) throw new Error("Production scheduler 无法建立 dispatch 验证时间边界。");
+
+  for (const definition of SCHEDULER_JOB_DEFINITIONS) {
+    await pool.query("SELECT public.dispatch_rivalhub_scheduler_job($1::text)", [definition.key]);
+  }
+
+  const names = SCHEDULER_JOB_DEFINITIONS.map((definition) => schedulerJobName(definition.key));
+  const deadline = Date.now() + DISPATCH_VERIFY_TIMEOUT_MS;
+
+  while (Date.now() < deadline) {
+    const [healthResult, runResult] = await Promise.all([
+      pool.query<SchedulerHealthEvidence>(`
+        SELECT job_key, last_primary_triggered_at, last_primary_endpoint_succeeded_at
+        FROM public.scheduled_job_health
+        WHERE job_key = ANY($1::text[])
+      `, [SCHEDULER_JOB_DEFINITIONS.map((definition) => definition.key)]),
+      pool.query<SchedulerRunEvidence>(`
+        SELECT job.jobname, details.status
+        FROM cron.job_run_details AS details
+        INNER JOIN cron.job AS job ON job.jobid = details.jobid
+        WHERE job.jobname = ANY($1::text[])
+          AND details.start_time >= $2
+      `, [names, verifiedAt]),
+    ]);
+    const failedRun = runResult.rows.find((row) => row.status === "failed");
+    if (failedRun) {
+      throw new Error(`Production scheduler job ${failedRun.jobname} 在验证窗口内执行失败。`);
+    }
+    if (hasCompletePrimaryEvidence(verifiedAt, healthResult.rows, runResult.rows)) return;
+    await new Promise((resolve) => setTimeout(resolve, DISPATCH_VERIFY_POLL_MS));
+  }
+
+  throw new Error("Production scheduler 未在有界窗口内形成 fresh primary trigger、endpoint success 与分钟级 cron 成功证据。");
 }
 
 export function dispatchCommand(definition: SchedulerJobDefinition): string {

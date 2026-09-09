@@ -54,7 +54,7 @@ Production primary 使用 Supabase `pg_cron` + `pg_net`：`public.dispatch_rival
 
 参与者在报名页看到“已到开放时间但 canonical opening fact 尚未落库”时，页面只触发一次受保护的 recovery Server Action；真正的 `registrationOpenedAt` 物化、重读和后续报名写入仍在同一 transaction owner 中完成。GET/RSC 本身不执行 mutation。
 
-Release workflow 在 deployment smoke 成功后，使用受保护 production environment 执行 `pnpm db:production:scheduler:provision` 和 `pnpm db:production:scheduler:verify`，幂等更新 Vault secret 与 named `cron.job`，再发布 GitHub Release。普通本地命令不 provision production scheduler。
+Release workflow 在 deployment smoke 成功后，使用受保护 production environment 执行 `pnpm db:production:scheduler:provision` 和 `pnpm db:production:scheduler:verify`：前者通过 named schedule upsert 幂等收敛 Vault secret 与 `cron.job`，后者实际调用 dispatch，并在有界窗口内等到 fresh primary trigger、endpoint success 与分钟级 job 成功证据，再发布 GitHub Release。普通本地命令不 provision production scheduler。
 
 ## Operations
 

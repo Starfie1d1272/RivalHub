@@ -101,6 +101,6 @@ pnpm db:local:stop
 
 ## Scheduler and registration recovery
 
-本地不启动或 provision production `pg_cron`/`pg_net`，也不把本地 workflow 当作 production scheduler evidence。active migration 在 plain PostgreSQL 上会对可用 extension 做条件处理；本地 migration replay 只证明 schema/function 文本可以回放，production named jobs、Vault secret 和 provider dispatch 由受保护 release workflow 的 `db:production:scheduler:*` 命令验证。
+本地不启动或 provision production `pg_cron`，也不把本地 workflow 当作 production scheduler evidence。active migration 在 plain PostgreSQL 上会对可用 extension 做条件处理；Local Supabase provider verification 会在回滚事务内用真实 Vault 与 pg_net 实际调用 dispatch helper，并确认 primary health 写入，不留下探针凭据或请求。production named jobs、真实 endpoint success 与 cadence 仍由受保护 release workflow 的 `db:production:scheduler:*` 命令验证。
 
 调度 registry 的 pure contract、watchdog fresh/stale 分支、source 校验和 health projection 使用 unit tests 验证；真实 database lock、RLS、migration replay 和 HTTP dispatch 仍按 [`../testing.md`](../testing.md) 的对应层级执行。参与者报名的 due-opening recovery 只在 transaction 内 materialize opening fact，页面 GET 不承担此副作用。

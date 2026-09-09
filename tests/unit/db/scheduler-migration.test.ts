@@ -6,6 +6,10 @@ const migration = readFileSync(
   join(process.cwd(), "drizzle/migrations/0045_fresh_blue_blade.sql"),
   "utf8",
 );
+const reliabilityMigration = readFileSync(
+  join(process.cwd(), "drizzle/migrations/0047_scheduler_dispatch_reliability.sql"),
+  "utf8",
+);
 
 describe("scheduler migration contract", () => {
   it("keeps health and dispatch server-only", () => {
@@ -25,5 +29,13 @@ describe("scheduler migration contract", () => {
     expect(migration).not.toContain("route_segment := CASE");
     expect(migration).not.toContain("INSERT INTO \"scheduled_job_health\" (\"job_key\") VALUES");
     expect(migration).not.toContain("CRON_SECRET :=");
+  });
+
+  it("replaces the dispatch body without changing the published function identity", () => {
+    expect(reliabilityMigration).toContain('CREATE OR REPLACE FUNCTION "public"."dispatch_rivalhub_scheduler_job"(job_key text)');
+    expect(reliabilityMigration).toContain("p_job_key text := $1");
+    expect(reliabilityMigration).toContain("VALUES (p_job_key, clock_timestamp(), clock_timestamp())");
+    expect(reliabilityMigration).toContain("ON CONFLICT ON CONSTRAINT scheduled_job_health_pkey");
+    expect(reliabilityMigration).not.toContain("ON CONFLICT (job_key)");
   });
 });

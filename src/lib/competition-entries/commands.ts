@@ -329,6 +329,9 @@ export async function withdrawCompetitionEntryFromReviewInTx(tx: TxDb, input: { 
     .where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id)))
     .for("update");
   if (!revision || revision.status !== "submitted") throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前名单版本不在审核中。");
+  const season = await loadSeasonOrThrow(tx, entry.competitionId);
+  const window = getRegistrationWindowState(season);
+  if (!window.canSubmit) throw new AppError(ErrorCode.REGISTRATION_CLOSED, window.message);
   const next = await cloneRosterRevisionAsDraftInTx(tx, revision, input.actorId);
   const now = new Date();
   await tx.update(competitionEntries).set({
@@ -346,7 +349,7 @@ export async function withdrawCompetitionEntryFromReviewInTx(tx: TxDb, input: { 
     competitionId: entry.competitionId,
     meta: { from: "submitted", to: "draft", submittedRevision: revision.revisionNumber, nextRevision: next.revisionNumber },
   });
-  return { seasonSlug: (await loadSeasonOrThrow(tx, entry.competitionId)).slug };
+  return { seasonSlug: season.slug };
 }
 
 export async function submitCompetitionEntryInTx(tx: TxDb, input: { entryId: string; userId: string; actorId: string }): Promise<{ seasonSlug: string }> {
