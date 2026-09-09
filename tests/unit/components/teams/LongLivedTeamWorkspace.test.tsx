@@ -4,10 +4,11 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LongLivedTeamWorkspace } from "@/components/teams/LongLivedTeamWorkspace";
 
-const { createTeamMock, createShareInvitationMock, refreshMock } = vi.hoisted(() => ({
+const { createTeamMock, createShareInvitationMock, refreshMock, replaceMock } = vi.hoisted(() => ({
   createTeamMock: vi.fn(),
   createShareInvitationMock: vi.fn(),
   refreshMock: vi.fn(),
+  replaceMock: vi.fn(),
 }));
 
 vi.mock("react", async (importOriginal) => {
@@ -29,7 +30,7 @@ vi.mock("@/actions/teams", () => ({
   transferTeamCaptain: vi.fn(),
   updateTeamProfile: vi.fn(),
 }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: refreshMock }) }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: refreshMock, replace: replaceMock }) }));
 vi.mock("next/image", () => ({ default: () => null }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -51,6 +52,7 @@ describe("LongLivedTeamWorkspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "创建队伍" }));
 
     await waitFor(() => expect(createTeamMock).toHaveBeenCalledWith({ name: "新队伍", description: "队伍简介" }));
+    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith("/my/teams", { scroll: false }));
   });
 
   it("keeps incoming invitations before the create section for users without a Team", () => {
