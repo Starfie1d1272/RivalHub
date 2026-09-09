@@ -53,7 +53,7 @@ describe("education evidence object-key migration contract", () => {
           "UPDATE education_verifications SET evidence_code = 'ABCD1234EFGH5678' WHERE id = $1",
           [verificationIds[0]],
         ));
-        expect(wrongManualCode).toMatchObject({ code: "23514", constraint: "education_verifications_manual_evidence_code_shape_check" });
+        expect(wrongManualCode).toMatchObject({ code: "23514", constraint: "education_verifications_evidence_code_contract" });
 
         const missingPendingObject = await capturePostgresError(client, () => client.query(
           "INSERT INTO education_verifications (user_id, institution_id, academic_status, evidence_type, status) VALUES ($1, $2, 'enrolled', 'manual_other', 'pending')",

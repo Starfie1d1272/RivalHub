@@ -111,7 +111,7 @@ export async function verifySupabaseServices(): Promise<void> {
 
     const educationUploaded = await client.storage
       .from("education-evidence")
-      .upload(educationProbeKey, new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])]), {
+      .upload(educationProbeKey, new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])], { type: "image/png" }), {
         upsert: false,
         contentType: "image/png",
       });
