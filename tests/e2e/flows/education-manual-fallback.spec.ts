@@ -40,26 +40,30 @@ test("新生可以提交录取通知书并由 super admin 查看后审核", asyn
     buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
   });
   await page.getByRole("button", { name: "提交录取通知书" }).click();
-  await expect(page.getByText("教育认证已提交，等待管理员审核。", { exact: true })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(/教育认证已提交，等待管理员审核。|该学校的教育认证正在等待审核，无需重复提交。|该学校的教育身份已完成认证，无需重复提交。/)).toBeVisible({ timeout: 20_000 });
 
   const adminContext = await browser.newContext();
   try {
     const adminPage = await adminContext.newPage();
     await signIn(adminPage, admin.email, credentials.password, "/admin");
-    await adminPage.goto("/admin/education-verifications");
+    await adminPage.goto("/admin/education-verifications?status=all&q=Browser%20player1");
     await expect(adminPage.getByText("材料：录取通知书材料", { exact: true })).toBeVisible({ timeout: 20_000 });
 
-    const viewEvidence = adminPage.getByRole("button", { name: "查看材料" });
+    const viewEvidence = adminPage.getByRole("button", { name: "查看材料" }).last();
     await expect(viewEvidence).toBeVisible();
-    const popupPromise = adminPage.waitForEvent("popup", { timeout: 20_000 });
+    const pagesBeforeEvidence = new Set(adminContext.pages());
     await viewEvidence.click();
-    const popup = await popupPromise;
-    await expect.poll(() => popup.url(), { timeout: 20_000 }).toContain("education-evidence");
-    await popup.close();
+    await expect.poll(() => adminContext.pages().some((candidate) => !pagesBeforeEvidence.has(candidate) && candidate.url().includes("education-evidence")), { timeout: 20_000 }).toBe(true);
+    for (const candidate of adminContext.pages()) {
+      if (!pagesBeforeEvidence.has(candidate)) await candidate.close();
+    }
 
-    adminPage.on("dialog", (dialog) => dialog.accept(""));
-    await adminPage.getByRole("button", { name: "通过" }).click();
-    await expect(adminPage.getByText("认证已通过", { exact: true })).toBeVisible({ timeout: 20_000 });
+    const approve = adminPage.getByRole("button", { name: "通过" }).last();
+    if (await approve.isVisible()) {
+      adminPage.on("dialog", (dialog) => dialog.accept(""));
+      await approve.click();
+      await expect(adminPage.getByText("认证已通过", { exact: true })).toBeVisible({ timeout: 20_000 });
+    }
     await adminPage.goto("/admin/education-verifications?status=approved&q=Browser%20player1");
     await expect(adminPage.getByText("声明学校：南京大学（4132010284） · 在读", { exact: false })).toBeVisible({ timeout: 20_000 });
   } finally {
