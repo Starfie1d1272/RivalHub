@@ -31,6 +31,7 @@ describe("changed-surface planner", () => {
     ["src/actions/auth.ts", ["static", "postgres", "system"]],
     ["src/lib/auth/supabase.ts", ["static", "system"]],
     ["src/app/[seasonSlug]/register/page.tsx", ["static", "postgres", "system"]],
+    ["src/app/api/test/e2e/auth/route.ts", ["static", "system"]],
   ])("preserves source capability ownership for %s", (path, requiredJobs) => {
     expect(classifyChangedFiles([{ status: "M", paths: [path] }]).requiredJobs).toEqual(requiredJobs);
   });

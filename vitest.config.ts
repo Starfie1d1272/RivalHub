@@ -13,6 +13,11 @@ export default defineConfig({
     globals: true,
     pool: "forks",
     isolate: true,
+    reporters: [
+      "default",
+      ...(process.env.GITHUB_ACTIONS === "true" ? ["github-actions"] : []),
+      "./scripts/ci/vitest-timing-reporter.ts",
+    ],
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],

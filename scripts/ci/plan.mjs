@@ -21,6 +21,7 @@ const SYSTEM_APP_PREFIXES = [
   "src/app/reset-password/",
   "src/app/my/",
   "src/app/[seasonSlug]/register/",
+  "src/app/api/test/e2e/",
 ];
 const SYSTEM_ACTION_PREFIXES = [
   "src/actions/auth",

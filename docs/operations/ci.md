@@ -45,6 +45,9 @@ CI 不使用 mock 来替代 constraint、transaction、locking 或并发证据�
 - browser E2E。
 
 浏览器 lane 使用 runner 已有 Chrome，不需要在每个 run 重新安装 Playwright browser。
+同一个 system job 只启动一次 Supabase：`start-services → bootstrap-services → verify-supabase → test:e2e`。E2E 每个 test attempt 创建独立的 DB/Auth scenario；除 `major-entry` 的 canonical UI 登录外，其它已登录流程通过受保护的 test-only route 调用同一个 `loginWithPassword`，不会伪造应用 cookie。
+
+CI 会把 bootstrap、各 capability lane、Vitest project、真实 PG integration、E2E body 与 FULL wall time 写入 GitHub Step Summary。system 失败或 retry/flaky 时保留 trace、screenshot、HTML report、脱敏 Next 日志和 scenario/attempt manifest；成功 run 不上传这些大体积 artifact。Playwright 在 CI 使用一次 retry，并以 `failOnFlakyTests` 阻断“首次失败、重试成功”的假绿。
 
 ### dependency review
 
@@ -97,8 +100,10 @@ pnpm test:e2e
 或者运行：
 
 ```bash
-pnpm verify:local
+RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm verify:services
 ```
+
+普通 `pnpm check` / `pnpm verify` 不会启动容器；所有会启动或使用本地重型 service evidence 的 canonical wrapper 都要求 `CI=true` 或显式 `RIVALHUB_ALLOW_LOCAL_CONTAINERS=1`，不会静默 fallback 到远程目标。
 
 ## 排查顺序
 

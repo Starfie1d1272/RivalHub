@@ -51,8 +51,9 @@ pnpm test:integration
 pnpm test:e2e
 pnpm check
 pnpm verify
-pnpm verify:local
 ```
+
+`pnpm check` 与 `pnpm verify` 是默认 host-only gate，不会启动或连接本地 Docker、Supabase 或 PostgreSQL container。真实 PostgreSQL / Supabase / browser evidence 由 CI 承担；需要人工复现时使用 `pnpm verify:services`，并明确设置 `RIVALHUB_ALLOW_LOCAL_CONTAINERS=1`。
 
 环境启动和单层复现见 [`operations/local-development.md`](./operations/local-development.md)。
 

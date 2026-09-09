@@ -15,13 +15,14 @@
 
 ```bash
 pnpm install
-pnpm db:local:bootstrap
-pnpm dev:local
+RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm db:local:bootstrap
+RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm dev:local
 ```
 
 `db:local:bootstrap` 会准备 Local Supabase 所需服务、回放 active Drizzle migrations、加载开发 fixture 并执行验证。`dev:local` 使用 wrapper 注入 loopback 环境。
 
 本地 wrapper 不会把 `.env.local` 中的远程 `DATABASE_URL` 当作 fallback。
+默认 `pnpm check` / `pnpm verify` 只执行 host-only correctness、静态 guard、unit 和 production build，不启动 Docker、Local Supabase 或 PostgreSQL container。CI 运行重型 evidence；人工本地复现必须显式设置 `RIVALHUB_ALLOW_LOCAL_CONTAINERS=1`。
 
 ## 只启动需要的层级
 
@@ -30,10 +31,10 @@ pnpm dev:local
 适合 migration、真实约束、transaction 和 integration test：
 
 ```bash
-pnpm db:local:start-db
-pnpm db:local:bootstrap-db
-pnpm db:local:verify-db
-pnpm test:integration
+RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm db:local:start-db
+RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm db:local:bootstrap-db
+RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm db:local:verify-db
+RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm test:integration
 ```
 
 ### Supabase services
@@ -41,16 +42,16 @@ pnpm test:integration
 适合 Auth、Storage、Data API 和 browser E2E：
 
 ```bash
-pnpm db:local:start-services
-pnpm db:local:bootstrap-services
-pnpm db:local:verify-supabase
-pnpm test:e2e
+RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm db:local:start-services
+RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm db:local:bootstrap-services
+RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm db:local:verify-supabase
+RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm test:e2e
 ```
 
 ### 完整本地验证
 
 ```bash
-pnpm verify:local
+RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm verify:services
 ```
 
 它用于在本地组合 repository checks、real PostgreSQL 和 browser evidence。具体测试含义见 [`../testing.md`](../testing.md)。

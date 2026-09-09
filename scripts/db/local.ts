@@ -1,5 +1,5 @@
 import { spawnSync, type SpawnSyncOptions } from "node:child_process";
-import { rmSync } from "node:fs";
+import { mkdirSync, readdirSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   buildLocalAppEnvironment,
@@ -8,6 +8,7 @@ import {
   type LocalDatabaseStatus,
   type LocalSupabaseStatus,
 } from "./local-environment";
+import { assertLocalContainerAccess } from "./local-container-guard";
 import { acquireLocalVerificationLock } from "./local-lock";
 
 const PROJECT_ID = "rivalhub";
@@ -37,7 +38,7 @@ const LOCKED_COMMANDS = new Set([
   "verify-migrations",
   "test-integration",
   "test-e2e",
-  "verify-local",
+  "verify-services",
   "bootstrap",
   "bootstrap-db",
   "bootstrap-services",
@@ -48,6 +49,9 @@ const command = process.argv[2];
 let releaseLocalLock: (() => void) | undefined;
 
 try {
+  if (command && LOCKED_COMMANDS.has(command)) {
+    assertLocalContainerAccess(`pnpm db:local:${command}`);
+  }
   if (command && LOCKED_COMMANDS.has(command)) {
     releaseLocalLock = acquireLocalVerificationLock(command);
   }
@@ -88,8 +92,8 @@ try {
     case "test-e2e":
       runLocalE2E(process.argv.slice(3));
       break;
-    case "verify-local":
-      verifyLocalWorkflow();
+    case "verify-services":
+      verifyServicesWorkflow();
       break;
     case "bootstrap":
       startLocalStack();
@@ -128,7 +132,7 @@ try {
       break;
     default:
       throw new Error(
-        "未知命令。可用命令：start | start-db | start-services | status | migrate | seed | verify | verify-db | verify-supabase | verify-migrations | test-integration | test-e2e | verify-local | bootstrap | bootstrap-db | bootstrap-services | reset | stop | studio | dev | build",
+        "未知命令。可用命令：start | start-db | start-services | status | migrate | seed | verify | verify-db | verify-supabase | verify-migrations | test-integration | test-e2e | verify-services | bootstrap | bootstrap-db | bootstrap-services | reset | stop | studio | dev | build",
       );
   }
 } catch (error) {
@@ -248,20 +252,34 @@ function runLocalIntegrationSuite(args: readonly string[]): void {
 function runLocalE2E(args: readonly string[]): void {
   const status = readLocalStatus();
   const env = buildLocalAppEnvironment(status, sanitizedEnvironment());
-  let fixtureAttempted = false;
+  const artifactDirectory = resolve(projectRoot, ".agent-tmp");
+  const attemptDirectory = resolve(artifactDirectory, "e2e-attempts");
+  mkdirSync(artifactDirectory, { recursive: true });
+  mkdirSync(attemptDirectory, { recursive: true });
+  env.RIVALHUB_E2E_AUTH_BOOTSTRAP = "1";
+  env.RIVALHUB_E2E_ARTIFACT_DIR = attemptDirectory;
+  let testFailure: unknown;
+  let cleanupFailure: unknown;
   try {
-    fixtureAttempted = true;
-    run(tsxBin, ["scripts/db/major-browser-fixture.ts", "create"], { env });
     run(playwrightBin, ["test", ...normalizeCliArgs(args)], { env });
+  } catch (error) {
+    testFailure = error;
   } finally {
-    if (fixtureAttempted) {
-      run(tsxBin, ["scripts/db/major-browser-fixture.ts", "cleanup"], { env });
-      rmSync(resolve(projectRoot, ".agent-tmp", "major-browser-credentials.json"), { force: true });
+    for (const name of readdirSync(attemptDirectory, { withFileTypes: true }).filter((entry) => entry.isFile() && entry.name.endsWith(".credentials.json")).map((entry) => entry.name)) {
+      const scenarioId = name.slice(0, -".credentials.json".length);
+      try {
+        run(tsxBin, ["scripts/db/major-browser-fixture.ts", "cleanup", scenarioId], { env });
+        rmSync(resolve(attemptDirectory, name), { force: true });
+      } catch (error) {
+        cleanupFailure ??= error;
+      }
     }
   }
+  if (testFailure) throw testFailure;
+  if (cleanupFailure) throw cleanupFailure;
 }
 
-function verifyLocalWorkflow(): void {
+function verifyServicesWorkflow(): void {
   ensureLocalServices();
   migrateLocalDatabase();
   seedLocalDatabase();
