@@ -93,6 +93,12 @@ async function insertFixture(pool: Pool): Promise<Fixture> {
         [entry.entryId, seasonId, `审核队伍 ${entryIndex}`, entry.userIds[0], entry.revisionId],
       );
       await client.query(
+        `INSERT INTO competition_entry_representative_changes (
+           entry_id, from_user_id, to_user_id, changed_by_actor_id
+         ) VALUES ($1, NULL, $2, $3)`,
+        [entry.entryId, entry.userIds[0], ACTOR],
+      );
+      await client.query(
         `INSERT INTO competition_entry_roster_revisions (
            id, entry_id, revision_number, status, created_by, approved_at
          ) VALUES ($1, $2, 1, 'approved', $3, now())`,
@@ -262,6 +268,7 @@ async function cleanupFixture(pool: Pool, fixture: Fixture): Promise<void> {
     await client.query("DELETE FROM event_rosters WHERE entry_id = ANY($1::uuid[])", [fixture.entries.map((entry) => entry.entryId)]);
     await client.query("DELETE FROM major_prestart_states WHERE season_id = $1", [fixture.season.id]);
     await client.query("DELETE FROM competition_entry_roster_members WHERE revision_id = ANY($1::uuid[])", [fixture.entries.map((entry) => entry.revisionId)]);
+    await client.query("DELETE FROM competition_entry_representative_changes WHERE entry_id = ANY($1::uuid[])", [fixture.entries.map((entry) => entry.entryId)]);
     await client.query("DELETE FROM competition_entry_participants WHERE entry_id = ANY($1::uuid[])", [fixture.entries.map((entry) => entry.entryId)]);
     await client.query("DELETE FROM competition_entry_roster_revisions WHERE entry_id = ANY($1::uuid[])", [fixture.entries.map((entry) => entry.entryId)]);
     await client.query("DELETE FROM competition_entries WHERE competition_id = $1", [fixture.season.id]);
