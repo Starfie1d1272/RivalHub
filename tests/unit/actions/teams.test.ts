@@ -20,7 +20,6 @@ const {
   supabaseGetPublicUrlMock,
   // other
   revalidatePathMock,
-  refreshMock,
   revalidateSeasonPathsMock,
   // tracking
   txUpdateSetCalls,
@@ -42,7 +41,6 @@ const {
     supabaseUploadMock: vi.fn(),
     supabaseGetPublicUrlMock: vi.fn(),
     revalidatePathMock: vi.fn(),
-    refreshMock: vi.fn(),
     revalidateSeasonPathsMock: vi.fn(),
     txUpdateSetCalls,
     txInsertValuesCalls,
@@ -72,7 +70,6 @@ vi.mock("@/lib/revalidation", () => ({
 
 vi.mock("next/cache", () => ({
   revalidatePath: revalidatePathMock,
-  refresh: refreshMock,
 }));
 
 vi.mock("@/db/client", () => {
@@ -262,7 +259,6 @@ describe("uploadTeamLogo", () => {
     });
 
     expect(revalidatePathMock).toHaveBeenCalledWith("/teams");
-    expect(refreshMock).toHaveBeenCalledOnce();
   });
 
 });
