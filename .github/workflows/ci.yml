@@ -21,18 +21,33 @@ permissions:
 env:
   NEXT_TELEMETRY_DISABLED: 1
   CI: true
+  RIVALHUB_TIMING: 1
 
 jobs:
   plan:
     name: plan
     runs-on: ubuntu-24.04
     outputs:
+      run_started_at: ${{ steps.timing-start.outputs.run_started_at }}
       full: ${{ steps.plan.outputs.full }}
       run_static: ${{ steps.plan.outputs.run_static }}
       run_postgres: ${{ steps.plan.outputs.run_postgres }}
       run_system: ${{ steps.plan.outputs.run_system }}
       required_jobs: ${{ steps.plan.outputs.required_jobs }}
+      static_matrix: ${{ steps.plan.outputs.static_matrix }}
+      unit_mode: ${{ steps.plan.outputs.unit_mode }}
+      related_sources: ${{ steps.plan.outputs.related_sources }}
+      explicit_tests: ${{ steps.plan.outputs.explicit_tests }}
+      postgres_mode: ${{ steps.plan.outputs.postgres_mode }}
+      integration_specs: ${{ steps.plan.outputs.integration_specs }}
+      system_mode: ${{ steps.plan.outputs.system_mode }}
+      e2e_specs: ${{ steps.plan.outputs.e2e_specs }}
+      gate_name: ${{ steps.plan.outputs.gate_name }}
     steps:
+      - name: Capture workflow timing start
+        id: timing-start
+        run: echo "run_started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
@@ -50,6 +65,7 @@ jobs:
           BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           HEAD_SHA: ${{ github.sha }}
           FORCE_FULL: ${{ github.event_name != 'pull_request' }}
+          PR_DRAFT: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft || 'false' }}
 
   static:
     name: static / ${{ matrix.task }}
@@ -59,27 +75,34 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        task: [type-app, type-tests, type-scripts, lint, unit, dead-code, build]
+        include: ${{ fromJSON(needs.plan.outputs.static_matrix) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Start bootstrap/install timing
+        run: echo "RIVALHUB_BOOTSTRAP_STARTED_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
 
       - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
           cache: true
           require-lockfile: true
 
+      - name: Record bootstrap/install timing
+        if: always()
+        run: node scripts/ci/timing.mjs record --label "bootstrap/install" --start-ms "$RIVALHUB_BOOTSTRAP_STARTED_MS"
+
       - name: Run static task
-        run: |
-          case "${{ matrix.task }}" in
-            type-app) pnpm type-check:app ;;
-            type-tests) pnpm type-check:tests ;;
-            type-scripts) pnpm type-check:scripts ;;
-            lint) pnpm lint ;;
-            unit) pnpm test ;;
-            dead-code) pnpm knip && pnpm knip --production ;;
-            build) env -u DATABASE_URL pnpm build ;;
-            *) echo "unknown static task" >&2; exit 1 ;;
-          esac
+        env:
+          RIVALHUB_TIMING_TEST_KIND: ${{ startsWith(matrix.task, 'unit-') && 'unit' || '' }}
+          STATIC_TASK: ${{ matrix.task }}
+          STATIC_PROJECT: ${{ matrix.project || '' }}
+          STATIC_RELATED_SOURCES: ${{ toJSON(matrix.relatedSources) }}
+          STATIC_EXPLICIT_TESTS: ${{ toJSON(matrix.explicitTests) }}
+        run: node scripts/ci/timing.mjs "static/${{ matrix.task }}" -- node scripts/ci/run-static-task.mjs
+
+      - name: Write timing summary
+        if: always()
+        run: node scripts/ci/timing.mjs summary
 
   postgres:
     name: postgres
@@ -107,36 +130,49 @@ jobs:
       RIVALHUB_MIGRATION_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
       RIVALHUB_MIGRATION_HEAD_SHA: ${{ github.sha }}
       RIVALHUB_PRODUCTION_STABLE_REF: origin/main
-      RIVALHUB_INTEGRATION_WORKERS: 2
+      RIVALHUB_INTEGRATION_WORKERS: 3
       RIVALHUB_TIMING: 1
+      RIVALHUB_INTEGRATION_SPECS: ${{ needs.plan.outputs.integration_specs }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
 
+      - name: Start bootstrap/install timing
+        run: echo "RIVALHUB_BOOTSTRAP_STARTED_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
+
       - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
           cache: true
           require-lockfile: true
+      - name: Record bootstrap/install timing
+        if: always()
+        run: node scripts/ci/timing.mjs record --label "bootstrap/install" --start-ms "$RIVALHUB_BOOTSTRAP_STARTED_MS"
       - name: Fetch production stable lineage
         run: git fetch origin main --tags
       - name: Measure PostgreSQL readiness
-        shell: bash
         run: |
-          started_ms=$(date +%s%3N)
-          for attempt in {1..120}; do
-            if PGPASSWORD=postgres pg_isready -h 127.0.0.1 -p 5432 -U postgres -d postgres >/dev/null 2>&1; then
-              ended_ms=$(date +%s%3N)
-              echo "timing pg-ready: $((ended_ms - started_ms))ms"
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "PostgreSQL service did not become ready within 120 seconds" >&2
-          exit 1
-      - run: pnpm db:check
-      - run: pnpm db:release-compat
-      - run: pnpm test:integration:pg17
+          node scripts/ci/timing.mjs "postgres/service ready" -- bash -c '
+            started_ms=$(date +%s%3N)
+            for attempt in {1..120}; do
+              if PGPASSWORD=postgres pg_isready -h 127.0.0.1 -p 5432 -U postgres -d postgres >/dev/null 2>&1; then
+                echo "timing pg-ready: $(( $(date +%s%3N) - started_ms ))ms"
+                exit 0
+              fi
+              sleep 1
+            done
+            echo "PostgreSQL service did not become ready within 120 seconds" >&2
+            exit 1
+          '
+      - name: PostgreSQL migration checks
+        run: node scripts/ci/timing.mjs "postgres/migration" -- bash -c 'pnpm db:check && pnpm db:release-compat'
+      - name: PostgreSQL integration
+        env:
+          RIVALHUB_TIMING_TEST_KIND: integration
+        run: node scripts/ci/timing.mjs "postgres/integration body" -- pnpm test:integration:pg17
+      - name: Write timing summary
+        if: always()
+        run: node scripts/ci/timing.mjs summary
 
   dependency-review:
     name: dependency-review
@@ -157,21 +193,49 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
+      - name: Start bootstrap/install timing
+        run: echo "RIVALHUB_BOOTSTRAP_STARTED_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
+
       - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
           cache: true
           require-lockfile: true
-      - run: pnpm db:local:start-services
-      - run: pnpm db:local:bootstrap-services
-      - run: pnpm db:local:verify-supabase
-      - run: google-chrome --version
-      - run: pnpm test:e2e
+      - name: Record bootstrap/install timing
+        if: always()
+        run: node scripts/ci/timing.mjs record --label "bootstrap/install" --start-ms "$RIVALHUB_BOOTSTRAP_STARTED_MS"
+      - name: Supabase startup
+        run: node scripts/ci/timing.mjs "system/Supabase startup" -- pnpm db:local:start-services
+      - name: System bootstrap
+        run: node scripts/ci/timing.mjs "system/bootstrap" -- pnpm db:local:bootstrap-services
+      - name: Provider contract
+        run: node scripts/ci/timing.mjs "system/provider verify" -- pnpm db:local:verify-supabase
+      - name: Browser runtime
+        run: google-chrome --version
+      - name: E2E body
         env:
+          RIVALHUB_TIMING_TEST_KIND: e2e
           PLAYWRIGHT_CHANNEL: chrome
           PLAYWRIGHT_WORKERS: 1
+          RIVALHUB_E2E_SPECS: ${{ needs.plan.outputs.e2e_specs }}
+        run: node scripts/ci/timing.mjs "system/E2E body" -- pnpm test:e2e
 
-  ci-gate:
-    name: ci-gate
+      - name: Prepare safe system artifacts
+        if: failure()
+        run: node scripts/ci/prepare-system-artifacts.mjs
+      - name: Upload system failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: system-failure-evidence
+          path: .agent-tmp/system-artifacts
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Write timing summary
+        if: always()
+        run: node scripts/ci/timing.mjs summary
+
+  gate:
+    name: ${{ needs.plan.outputs.gate_name }}
     if: ${{ always() }}
     needs: [plan, static, postgres, system, dependency-review]
     runs-on: ubuntu-24.04
@@ -215,3 +279,13 @@ jobs:
           DEPENDENCY_REVIEW_RESULT: ${{ needs.dependency-review.result }}
           EVENT_NAME: ${{ github.event_name }}
           REQUIRED_JOBS: ${{ needs.plan.outputs.required_jobs }}
+          GATE_NAME: ${{ needs.plan.outputs.gate_name }}
+
+      - name: Record FULL wall time
+        if: always()
+        env:
+          RUN_STARTED_AT: ${{ needs.plan.outputs.run_started_at }}
+        run: node scripts/ci/timing.mjs record --label "FULL wall time" --start-iso "$RUN_STARTED_AT"
+      - name: Write timing summary
+        if: always()
+        run: node scripts/ci/timing.mjs summary

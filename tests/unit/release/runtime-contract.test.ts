@@ -73,7 +73,9 @@ describe("deployment and operations contracts", () => {
     expectPnpmSetup(staging, ["staging"]);
     expectPnpmSetup(release, ["release"]);
     expect(readWorkflowJob(ci, "plan")).not.toContain("pnpm/setup");
-    expect(readWorkflowJob(ci, "ci-gate")).not.toContain("pnpm/setup");
+    const gate = readWorkflowJob(ci, "gate");
+    expect(gate).toContain("name: ${{ needs.plan.outputs.gate_name }}");
+    expect(gate).not.toContain("pnpm/setup");
     expect(readWorkflowJob(ci, "dependency-review")).not.toContain("pnpm/setup");
   });
 
@@ -129,10 +131,10 @@ describe("deployment and operations contracts", () => {
     expect(ci).toContain("RIVALHUB_MIGRATION_BASE_SHA:");
     expect(ci).toContain("RIVALHUB_PRODUCTION_STABLE_REF: origin/main");
     expect(ci).toContain("git fetch origin main --tags");
-    expect(ci).toContain("- run: pnpm db:check");
-    expect(ci).toContain("- run: pnpm db:release-compat");
-    expect(ci.indexOf("- run: pnpm db:release-compat")).toBeGreaterThan(ci.indexOf("- run: pnpm db:check"));
-    expect(ci.indexOf("- run: pnpm test:integration:pg17")).toBeGreaterThan(ci.indexOf("- run: pnpm db:release-compat"));
+    expect(ci).toContain("pnpm db:check");
+    expect(ci).toContain("pnpm db:release-compat");
+    expect(ci.indexOf("pnpm db:release-compat")).toBeGreaterThan(ci.indexOf("pnpm db:check"));
+    expect(ci.indexOf("pnpm test:integration:pg17")).toBeGreaterThan(ci.indexOf("pnpm db:release-compat"));
 
     expect(release).toContain("fetch-depth: 0");
     expect(release).toContain("RIVALHUB_PRODUCTION_STABLE_REF: origin/main");

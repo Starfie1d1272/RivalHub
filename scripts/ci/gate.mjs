@@ -7,6 +7,7 @@ const statuses = {
 };
 const dependencyReviewStatus = process.env.DEPENDENCY_REVIEW_RESULT;
 const eventName = process.env.EVENT_NAME || process.env.GITHUB_EVENT_NAME;
+const gateName = process.env.GATE_NAME || "ci-gate";
 
 if (statuses.plan !== "success") {
   fail(`plan 未成功：${statuses.plan ?? "missing"}`);
@@ -35,7 +36,7 @@ for (const job of ["static", "postgres", "system"]) {
   }
 }
 
-console.log(`ci-gate passed: required jobs = ${requiredJobs.join(",") || "none"}`);
+console.log(`${gateName} passed: required jobs = ${requiredJobs.join(",") || "none"}`);
 
 function parseRequiredJobs(raw) {
   if (!raw) fail("plan 没有输出 required_jobs");
@@ -51,6 +52,6 @@ function parseRequiredJobs(raw) {
 }
 
 function fail(message) {
-  console.error(`ci-gate failed: ${message}`);
+  console.error(`${gateName} failed: ${message}`);
   process.exit(1);
 }

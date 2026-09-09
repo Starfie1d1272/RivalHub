@@ -31,7 +31,12 @@ DB unique/FK、transaction、row lock、migration/backfill 不用 mock 代替。
 
 ## CI
 
-PR CI 根据 changed surface 选择 `static`、`postgres`、`system` capability；`main`、merge queue、release 等收敛事件运行完整 gate。精确 planner 与 job 以 `.github/workflows/ci.yml`、`scripts/ci/plan.mjs` 为 authority，排障见 [`operations/ci.md`](./operations/ci.md)。
+PR CI 保留 `static`、`postgres`、`system` 三条 capability lane，并按 Draft → Ready 分为两个阶段：
+
+1. Draft PR 的每次 push 使用 Evidence Planner 根据 changed surface 选择 affected Vitest project、changed-file lint、明确的 PostgreSQL integration spec 和 semantic Playwright flow，并汇总为非 required 的 `draft-gate`。它用于快速反馈；unknown、rename/delete、toolchain、workflow 或 harness surface 仍 fail closed 到 FULL。
+2. PR 标记为 Ready for review 时，`ready_for_review` 必须触发一次 FULL matrix，不再使用 affected heuristic，并产生 ruleset required 的 `ci-gate`。Ready PR 后续每次 push 也运行该 commit 的 FULL matrix。
+
+只有最新 commit 的 FULL CI 与 required checks 全部成功，才能作为 merge evidence；新 push 会使之前 commit 的 FULL evidence 失效。`main`、merge queue、release 和手动运行同样强制 FULL。精确 planner 与 job 以 `.github/workflows/ci.yml`、`scripts/ci/plan.mjs` 为 authority，排障见 [`operations/ci.md`](./operations/ci.md)。
 
 CI 只负责选择和阻断 evidence，不成为业务测试语义的第二 owner。
 
@@ -41,20 +46,25 @@ Staging 是受保护的远程 migration/schema rehearsal，不是每个 PR 的�
 
 Production 只做最小、可重复、低破坏 smoke。邮件投递、真实报名、比赛运营等外部事实应在真实运营中验证，不能把测试环境成功描述成 production evidence。
 
-## Common commands
+## 本地迭代命令
 
 ```bash
-pnpm type-check
-pnpm lint
-pnpm test
-pnpm test:integration
-pnpm test:e2e
-pnpm check
-pnpm verify
-pnpm verify:local
+pnpm type-check:app       # src/app、server action 或 route 改动
+pnpm type-check:tests     # 测试改动
+pnpm type-check:scripts   # scripts 改动
+pnpm exec eslint path/to/changed-file.ts
+pnpm exec vitest run --project unit-domain-node path/to/related.spec.ts
+pnpm exec vitest run --project unit-server-node path/to/related.spec.ts
+pnpm exec vitest run --project unit-react-jsdom path/to/related.spec.tsx
 ```
 
+以上命令按 changed surface 选择，不要求每次迭代运行全仓库检查。`pnpm check` 与 `pnpm verify` 是可选的 broad host-only gate，不会启动或连接本地 Docker、Supabase 或 PostgreSQL container；它们也不是每次 push 的默认要求。真实 PostgreSQL / Supabase / browser evidence 由 CI 承担；需要人工复现时使用 `pnpm verify:services`，并明确设置 `RIVALHUB_ALLOW_LOCAL_CONTAINERS=1`。
+
 环境启动和单层复现见 [`operations/local-development.md`](./operations/local-development.md)。
+
+Vitest 的三个 project（domain Node、server Node、React jsdom）是独立 evidence owner。FULL static 会并行执行三个 project；Draft affected static 将 source 交给 Vitest `related`，而变更的 test 文件与 architecture/E2E 等 repository contract 以显式 test path 直接运行。project 的 wall time 由外层 timing wrapper 记录，reporter 只记录 test count、failure/flaky count 和按文件排序的 diagnostic duration，不把并发文件 duration 总和伪装成 project wall time。
+
+System failure/flaky 时 Playwright 生成 failure screenshot；artifact sanitizer 仅从 test-results 保留小型 PNG/JPEG，trace archive 与所有文本继续脱敏，成功 run 不上传大体积 artifacts。每条 stateful E2E 使用自己的 fixture profile 与 attempt namespace。
 
 ## Maintenance rules
 

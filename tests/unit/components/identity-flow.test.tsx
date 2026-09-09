@@ -109,8 +109,8 @@ describe("identity flow UI", () => {
     const resend = await screen.findByRole("button", { name: "重新发送验证邮件" });
     fireEvent.click(resend);
 
-    await waitFor(() => expect(resendSignupConfirmationMock).toHaveBeenCalledTimes(1), { timeout: 10_000 });
-    await waitFor(() => expect(screen.getByRole("button", { name: "请等待 60 秒后重试" })).toBeDisabled(), { timeout: 5_000 });
+    await waitFor(() => expect(resendSignupConfirmationMock).toHaveBeenCalledTimes(1));
+    expect(await screen.findByRole("button", { name: "请等待 60 秒后重试" })).toBeDisabled();
     expect(toastSuccessMock).toHaveBeenCalledWith("已提交验证邮件重发请求；如果该邮箱仍待验证，请检查收件箱及垃圾邮件等分类。");
   });
 

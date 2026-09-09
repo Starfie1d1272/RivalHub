@@ -11,8 +11,13 @@ export default defineConfig({
   },
   test: {
     globals: true,
-    pool: "forks",
+    pool: process.env.CI ? "threads" : "forks",
     isolate: true,
+    reporters: [
+      "default",
+      ...(process.env.GITHUB_ACTIONS === "true" ? ["github-actions"] : []),
+      "./scripts/ci/vitest-timing-reporter.ts",
+    ],
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],
@@ -54,6 +59,7 @@ export default defineConfig({
         test: {
           name: "unit-react-jsdom",
           environment: "jsdom",
+          pool: "forks",
           setupFiles: ["./tests/setup-dom.ts"],
           include: ["tests/unit/**/*.test.tsx", "src/**/*.test.tsx"],
         },
