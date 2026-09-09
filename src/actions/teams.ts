@@ -1,7 +1,7 @@
 "use server";
 
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { refresh, revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { teams, users } from "@/db/schema";
@@ -43,6 +43,7 @@ function revalidateTeam(slug?: string): void {
   revalidatePath("/teams/recruitment");
   revalidatePath("/my/teams");
   if (slug) revalidatePath(`/teams/${slug}`);
+  refresh();
 }
 
 export async function createTeam(input: { name: string; description?: string }): Promise<ActionResult<{ teamId: string; slug: string }>> {
