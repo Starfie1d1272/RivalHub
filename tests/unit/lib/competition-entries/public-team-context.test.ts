@@ -50,6 +50,17 @@ describe("getPublicCompetitionEntryTeamContext", () => {
       scoreB: 0,
       scheduledAt: new Date("2026-08-10T00:00:00Z"),
       completedAt: new Date("2026-08-10T01:00:00Z"),
+    }, {
+      id: "private-match",
+      seasonId: "season-1",
+      entryAId: "entry-1",
+      entryBId: "entry-private",
+      status: "finished",
+      isForfeit: false,
+      scoreA: 1,
+      scoreB: 0,
+      scheduledAt: new Date("2026-08-11T00:00:00Z"),
+      completedAt: new Date("2026-08-11T01:00:00Z"),
     }]);
     mocks.opponents.mockResolvedValue([{ id: "entry-2", name: "Opponent Snapshot" }]);
     const selectChain = {
@@ -79,6 +90,7 @@ describe("getPublicCompetitionEntryTeamContext", () => {
       record: { played: 1, wins: 1, losses: 0 },
       matches: [{ opponentName: "Opponent Snapshot", ownScore: 1, opponentScore: 0 }],
     });
+    expect(context?.matches).toHaveLength(1);
     expect(JSON.stringify(context)).not.toContain("primaryPosition");
   });
 });

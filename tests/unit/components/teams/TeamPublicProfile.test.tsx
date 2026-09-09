@@ -4,7 +4,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { TeamPublicProfile } from "@/components/teams/TeamPublicProfile";
-import type { PublicCompetitionEntryTeamContext } from "@/lib/competition-entries/public-team-context";
+import type { PublicEventTeamContext } from "@/lib/competition-entries/public-team-context";
 import type { PublicTeamProfile } from "@/lib/teams/public-profile";
 
 vi.mock("next/image", () => ({ default: () => null }));
@@ -24,16 +24,21 @@ const longLivedTeam: PublicTeamProfile = {
   loggedIn: true,
 };
 
-const linkedEvent: PublicCompetitionEntryTeamContext = {
+const linkedEvent: PublicEventTeamContext = {
   season: { id: "season-1", slug: "autumn-2026", name: "2026 秋季赛", status: "playing" },
   entry: { id: "entry-1", name: "Frozen Entry", logoUrl: null, registrationStatus: "approved", representativeUserId: "captain-1", teamId: "team-1" },
+  cardLabel: "已通过报名审核",
+  participation: { label: "已通过", tone: "success", detail: "报名已通过审核。" },
   roster: [{ userId: "captain-1", name: "赛事队长", isStarter: true, isRepresentative: true }, { userId: "event-only-player", name: "赛事选手", isStarter: false, isRepresentative: false }],
+  rosterLabel: "本届参赛名单",
   rosterStatus: "frozen",
-  record: { played: 2, wins: 1, losses: 1 },
+  seed: null,
+  seedPresentation: null,
+  record: { played: 2, wins: 1, losses: 1, winRate: "50%" },
   matches: [{ id: "match-1", opponentId: "entry-2", opponentName: "Opponent", status: "finished", isForfeit: false, scheduledAt: new Date("2026-08-10T00:00:00Z"), completedAt: new Date("2026-08-10T01:00:00Z"), ownScore: 1, opponentScore: 0 }],
 };
 
-const eventNative: PublicCompetitionEntryTeamContext = {
+const eventNative: PublicEventTeamContext = {
   ...linkedEvent,
   entry: { ...linkedEvent.entry, id: "entry-native", name: "Event Native Entry", teamId: null, representativeUserId: "event-only-player" },
   roster: [{ userId: "event-only-player", name: "赛事选手", isStarter: true, isRepresentative: true }],

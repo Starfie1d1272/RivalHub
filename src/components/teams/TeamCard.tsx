@@ -15,7 +15,7 @@ interface TeamCardProps {
   entryId: string;
   teamName: string;
   seasonSlug: string;
-  draftOrder: number | null;
+  eyebrow: string;
   logoUrl?: string | null;
   players: PlayerPreview[];
   record?: {
@@ -48,7 +48,7 @@ export function TeamCard({
   entryId,
   teamName,
   seasonSlug,
-  draftOrder,
+  eyebrow,
   logoUrl,
   players,
   record,
@@ -64,7 +64,7 @@ export function TeamCard({
           <Link href={`/${seasonSlug}/teams/${entryId}`} className="group flex min-w-0 items-center gap-3">
             <TeamLogo logoUrl={logoUrl ?? null} teamName={teamName} />
             <div className="min-w-0">
-              <span className="text-xs text-[var(--color-fg-mid)]">{draftOrder === null ? "Team registration" : `Draft #${draftOrder}`}</span>
+              <span className="text-xs text-[var(--color-fg-mid)]">{eyebrow}</span>
               <h3 className="font-bold text-lg text-[var(--color-fg)] leading-tight break-words group-hover:text-[var(--color-accent)] transition-colors">
                 {teamName}
               </h3>
@@ -77,7 +77,7 @@ export function TeamCard({
                 {record.wins}-{record.losses}
               </p>
               <p className="text-[10px] uppercase text-[var(--color-fg-mid)]" style={{ fontFamily: "var(--font-mono)" }}>
-                {record.played > 0 ? `${record.winRate} WR` : "No results"}
+                {record.played > 0 ? `胜率 ${record.winRate}` : "暂无赛果"}
               </p>
             </div>
           )}
@@ -85,14 +85,14 @@ export function TeamCard({
 
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--color-fg-mid)]">
           <span>
-            代表人 <span className="font-medium text-[var(--color-fg)]">{representative?.name ?? "TBD"}</span>
+            代表人 <span className="font-medium text-[var(--color-fg)]">{representative?.name ?? "待定"}</span>
           </span>
           <span>{starters.length} 首发</span>
           {subs.length > 0 && <span>{subs.length} 替补</span>}
         </div>
 
         <div className="grid grid-cols-3 gap-2">
-          <SummaryStat label="Maps" value={summary?.maps ?? "—"} />
+          <SummaryStat label="地图" value={summary?.maps ?? "—"} />
           <SummaryStat label="Rating" value={formatStat("ratingPro", summary?.avgRating)} />
           <SummaryStat label="ADR" value={formatStat("adr", summary?.avgAdr)} />
         </div>

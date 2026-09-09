@@ -31,8 +31,8 @@ describe("PlayerDirectoryRow", () => {
       />,
     );
 
-    expect(screen.getByText("Maps")).toBeInTheDocument();
-    expect(screen.getByText("Secondary Closer")).toBeInTheDocument();
+    expect(screen.getByText("地图")).toBeInTheDocument();
+    expect(screen.getByText("副位置 Closer")).toBeInTheDocument();
     expect(screen.getByText("8")).toBeInTheDocument();
     expect(screen.getByText("1.21")).toBeInTheDocument();
     expect(screen.getByText("82.4")).toBeInTheDocument();
@@ -42,12 +42,12 @@ describe("PlayerDirectoryRow", () => {
   it("keeps registration context when verified stats are missing", () => {
     render(<PlayerDirectoryRow player={player} />);
 
-    expect(screen.getByText("No verified stats")).toBeInTheDocument();
-    expect(screen.getByText("Peak Rank")).toBeInTheDocument();
+    expect(screen.getByText("暂无已验证数据")).toBeInTheDocument();
+    expect(screen.getByText("峰值段位")).toBeInTheDocument();
     expect(screen.getByText("S")).toBeInTheDocument();
-    expect(screen.getByText("Peak RT")).toBeInTheDocument();
+    expect(screen.getByText("峰值 Rating")).toBeInTheDocument();
     expect(screen.getByText("1.42")).toBeInTheDocument();
-    expect(screen.getByText("Current Rank")).toBeInTheDocument();
+    expect(screen.getByText("当前段位")).toBeInTheDocument();
     expect(screen.getByText("A+")).toBeInTheDocument();
   });
 });

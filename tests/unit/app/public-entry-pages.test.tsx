@@ -39,4 +39,21 @@ describe("public entry routes", () => {
     expect(html).toContain("已通过报名审核的队伍");
     expect(html).toContain("正赛候选池"); expect(html).toContain("Approved 32");
   });
+
+  it("presents Rivals formation order at the page caller", async () => {
+    mocks.season.mockResolvedValue({ id: "season", name: "Rivals", competitionTemplate: "rivals", registrationMode: "solo", status: "draft" });
+    mocks.entries.mockResolvedValue([{
+      id: "team-2",
+      name: "Drafted Team",
+      registrationStatus: "approved",
+      formationOrder: 2,
+      logoUrl: null,
+      representativeUserId: "user",
+    }]);
+
+    const html = renderToStaticMarkup(await ListPage({ params: Promise.resolve({ seasonSlug: "rivals" }) }));
+
+    expect(html).toContain("选秀第 2 顺位");
+    expect(html).not.toContain("Draft #2");
+  });
 });

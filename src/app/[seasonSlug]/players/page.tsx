@@ -1,16 +1,18 @@
 import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import { notFound } from "next/navigation";
-import { eq, and, asc, or, sql } from "drizzle-orm";
+import { eq, and, asc, or } from "drizzle-orm";
 import Link from "next/link";
 import { db } from "@/db/client";
 import { competitionEntries, eventRosterMembers, eventRosters, seasonRegistrations, users } from "@/db/schema";
 import { PageHeader, PageLayout, Stat } from "@/components/rivalhub";
+import { MajorPlayerDirectoryRow } from "@/components/players/MajorPlayerDirectoryRow";
 import { PlayerDirectoryRow } from "@/components/players/PlayerDirectoryRow";
 import { countDirectoryPlayersWithTeam, sortPlayerDirectory } from "@/lib/players/directory-order";
 import { positionLabel, positionValues } from "@/lib/validators/registration";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { getPublicOrAuthorizedDraftSeason, getPublicSeasonBySlug } from "@/lib/data/public-seasons";
-import { ratioOfSums, roundWeightedAvg, simpleAvg } from "@/lib/stats";
+import { getMajorPublicParticipantProjection } from "@/lib/major/public-participants";
+import { getVerifiedPlayerStatsBySeason } from "@/lib/stats/public-query";
 import type { Metadata } from "next";
 
 interface PlayersPageProps {
@@ -32,6 +34,39 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
 
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
+
+  if (season.competitionTemplate === "major") {
+    const projection = await getMajorPublicParticipantProjection(season);
+    const playersWithStats = projection.players.filter((player) => player.stats !== null).length;
+    const teamCount = projection.teamCount;
+
+    return (
+      <PageLayout as="div" variant="wide" className="space-y-8">
+        <PageHeader
+          title={projection.presentation.playerHeading}
+          eyebrow={season.name}
+          description={projection.presentation.playerDescription}
+        />
+
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+          <Stat label="选手" value={projection.players.length} />
+          <Stat label="所属队伍" value={teamCount} />
+          <Stat label="已验证数据" value={playersWithStats} accent />
+          <Stat label="队伍范围" value={projection.presentation.teamCollectionLabel} />
+        </div>
+
+        {projection.players.length === 0 ? (
+          <div className="py-16 text-center text-[var(--color-fg-mid)]">暂无符合条件的选手</div>
+        ) : (
+          <div className="space-y-3">
+            {projection.players.map((player) => (
+              <MajorPlayerDirectoryRow key={`${player.entryId}-${player.userId}`} player={player} seasonSlug={seasonSlug} />
+            ))}
+          </div>
+        )}
+      </PageLayout>
+    );
+  }
 
   const whereConditions = position
     ? and(
@@ -80,36 +115,13 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
 
   const teamByRegId = new Map(teamMemberRows.flatMap((row) => row.registrationId ? [[row.registrationId, row.teamName] as const] : []));
 
-  const playerStatResult = await db.execute(sql`
-    -- Keep the raw nullable values; presentation precision belongs to the row component.
-    SELECT
-      mps.user_id,
-      count(distinct mps.map_id)::int AS maps,
-      ${simpleAvg("mps.rating_pro")} AS avg_rating,
-      ${roundWeightedAvg("mps.adr")} AS avg_adr,
-      ${ratioOfSums("mps.kills", "mps.deaths")} AS avg_kd
-    FROM match_player_stats mps
-    JOIN matches m ON m.id = mps.match_id
-    JOIN match_maps mm ON mm.id = mps.map_id
-    WHERE m.season_id = ${season.id}
-      AND mps.verified_by_admin IS NOT NULL
-      AND mps.user_id IS NOT NULL
-    GROUP BY mps.user_id
-  `);
-  const statsByUserId = new Map(
-    playerStatResult.rows.map((row) => [
-      row.user_id as string,
-      {
-        maps: Number(row.maps),
-        avgRating: row.avg_rating == null ? null : Number(row.avg_rating),
-        avgAdr: row.avg_adr == null ? null : Number(row.avg_adr),
-        avgKd: row.avg_kd == null ? null : Number(row.avg_kd),
-      },
-    ]),
+  const statsByUserId = await getVerifiedPlayerStatsBySeason(
+    season.id,
+    registrations.map((registration) => registration.userId),
   );
 
   const positionFilters = [
-    { value: "", label: "All" },
+    { value: "", label: "全部" },
     ...positionValues.map((p) => ({ value: p, label: positionLabel(p) })),
   ];
   const filteredPlayersWithStats = registrations.filter((reg) => statsByUserId.has(reg.userId)).length;
@@ -139,10 +151,10 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <Stat label="PLAYERS" value={registrations.length} />
-        <Stat label="WITH TEAM" value={countDirectoryPlayersWithTeam(registrations, teamByRegId)} />
-        <Stat label="DATA READY" value={filteredPlayersWithStats} accent />
-        <Stat label="POSITION" value={position ? positionLabel(position) : "ALL"} />
+        <Stat label="选手" value={registrations.length} />
+        <Stat label="已分配队伍" value={countDirectoryPlayersWithTeam(registrations, teamByRegId)} />
+        <Stat label="已有数据" value={filteredPlayersWithStats} accent />
+        <Stat label="位置" value={position ? positionLabel(position) : "全部"} />
       </div>
 
       {/* 位置筛选 */}
