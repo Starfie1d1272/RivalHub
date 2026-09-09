@@ -11,8 +11,12 @@ import {
   users,
 } from "@/db/schema";
 import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
-import type { CompetitionEntryRegistrationStatus } from "@/lib/competition-entries/presentation";
+import {
+  presentCompetitionEntryRegistration,
+  type CompetitionEntryRegistrationStatus,
+} from "@/lib/competition-entries/presentation";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
+import type { StatusPresentation } from "@/lib/presentation";
 import type { MatchStatus } from "@/types/match";
 
 export type PublicCompetitionEntryTeamSeason = {
@@ -32,13 +36,21 @@ export interface PublicCompetitionEntryTeamContext {
     representativeUserId: string;
     teamId: string | null;
   };
+  participation: {
+    label: string;
+    tone: StatusPresentation["tone"];
+    detail: string;
+  };
   roster: Array<{
     userId: string;
     name: string;
     isStarter: boolean;
     isRepresentative: boolean;
   }>;
+  rosterLabel: string;
   rosterStatus: "preparing" | "confirmed" | "frozen" | null;
+  seed: number | null;
+  seedPresentation: StatusPresentation | null;
   record: {
     played: number;
     wins: number;
@@ -112,6 +124,8 @@ export async function getPublicCompetitionEntryTeamContext(
     : [];
   const opponentNames = new Map(opponents.map((opponent) => [opponent.id, opponent.name]));
 
+  const registrationPresentation = presentCompetitionEntryRegistration(entry.registrationStatus);
+
   let wins = 0;
   let losses = 0;
   for (const match of entryMatches) {
@@ -125,13 +139,21 @@ export async function getPublicCompetitionEntryTeamContext(
   return {
     season,
     entry,
+    participation: {
+      label: registrationPresentation.label,
+      tone: registrationPresentation.tone,
+      detail: registrationPresentation.detail,
+    },
     roster: rosterRows.map((member) => ({
       userId: member.userId,
       name: getPublicDisplayName(member),
       isStarter: member.isStarter,
       isRepresentative: member.userId === entry.representativeUserId,
     })),
+    rosterLabel: "本届参赛名单",
     rosterStatus: eventRoster?.status ?? null,
+    seed: null,
+    seedPresentation: null,
     record: { played: wins + losses, wins, losses },
     matches: entryMatches.map((match) => {
       const isA = match.entryAId === entry.id;

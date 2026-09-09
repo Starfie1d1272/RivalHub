@@ -27,8 +27,12 @@ const longLivedTeam: PublicTeamProfile = {
 const linkedEvent: PublicCompetitionEntryTeamContext = {
   season: { id: "season-1", slug: "autumn-2026", name: "2026 秋季赛", status: "playing" },
   entry: { id: "entry-1", name: "Frozen Entry", logoUrl: null, registrationStatus: "approved", representativeUserId: "captain-1", teamId: "team-1" },
+  participation: { label: "已通过", tone: "success", detail: "报名已通过审核。" },
   roster: [{ userId: "captain-1", name: "赛事队长", isStarter: true, isRepresentative: true }, { userId: "event-only-player", name: "赛事选手", isStarter: false, isRepresentative: false }],
+  rosterLabel: "本届参赛名单",
   rosterStatus: "frozen",
+  seed: null,
+  seedPresentation: null,
   record: { played: 2, wins: 1, losses: 1 },
   matches: [{ id: "match-1", opponentId: "entry-2", opponentName: "Opponent", status: "finished", isForfeit: false, scheduledAt: new Date("2026-08-10T00:00:00Z"), completedAt: new Date("2026-08-10T01:00:00Z"), ownScore: 1, opponentScore: 0 }],
 };

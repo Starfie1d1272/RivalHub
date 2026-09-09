@@ -5,11 +5,13 @@ import Link from "next/link";
 import { db } from "@/db/client";
 import { competitionEntries, eventRosterMembers, eventRosters, seasonRegistrations, users } from "@/db/schema";
 import { PageHeader, PageLayout, Stat } from "@/components/rivalhub";
+import { MajorPlayerDirectoryRow } from "@/components/players/MajorPlayerDirectoryRow";
 import { PlayerDirectoryRow } from "@/components/players/PlayerDirectoryRow";
 import { countDirectoryPlayersWithTeam, sortPlayerDirectory } from "@/lib/players/directory-order";
 import { positionLabel, positionValues } from "@/lib/validators/registration";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { getPublicOrAuthorizedDraftSeason, getPublicSeasonBySlug } from "@/lib/data/public-seasons";
+import { getMajorPublicParticipantProjection } from "@/lib/major/public-participants";
 import { ratioOfSums, roundWeightedAvg, simpleAvg } from "@/lib/stats";
 import type { Metadata } from "next";
 
@@ -32,6 +34,39 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
 
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
+
+  if (season.competitionTemplate === "major") {
+    const projection = await getMajorPublicParticipantProjection(season);
+    const playersWithStats = projection.players.filter((player) => player.stats !== null).length;
+    const teamCount = new Set(projection.players.map((player) => player.entryId)).size;
+
+    return (
+      <PageLayout as="div" variant="wide" className="space-y-8">
+        <PageHeader
+          title={projection.presentation.playerHeading}
+          eyebrow={season.name}
+          description={projection.presentation.playerDescription}
+        />
+
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+          <Stat label="选手" value={projection.players.length} />
+          <Stat label="所属队伍" value={teamCount} />
+          <Stat label="已验证数据" value={playersWithStats} accent />
+          <Stat label="队伍范围" value={projection.presentation.teamCollectionLabel} />
+        </div>
+
+        {projection.players.length === 0 ? (
+          <div className="py-16 text-center text-[var(--color-fg-mid)]">暂无符合条件的选手</div>
+        ) : (
+          <div className="space-y-3">
+            {projection.players.map((player) => (
+              <MajorPlayerDirectoryRow key={`${player.entryId}-${player.userId}`} player={player} seasonSlug={seasonSlug} />
+            ))}
+          </div>
+        )}
+      </PageLayout>
+    );
+  }
 
   const whereConditions = position
     ? and(
@@ -109,7 +144,7 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
   );
 
   const positionFilters = [
-    { value: "", label: "All" },
+    { value: "", label: "全部" },
     ...positionValues.map((p) => ({ value: p, label: positionLabel(p) })),
   ];
   const filteredPlayersWithStats = registrations.filter((reg) => statsByUserId.has(reg.userId)).length;
@@ -139,10 +174,10 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <Stat label="PLAYERS" value={registrations.length} />
-        <Stat label="WITH TEAM" value={countDirectoryPlayersWithTeam(registrations, teamByRegId)} />
-        <Stat label="DATA READY" value={filteredPlayersWithStats} accent />
-        <Stat label="POSITION" value={position ? positionLabel(position) : "ALL"} />
+        <Stat label="选手" value={registrations.length} />
+        <Stat label="已分配队伍" value={countDirectoryPlayersWithTeam(registrations, teamByRegId)} />
+        <Stat label="已有数据" value={filteredPlayersWithStats} accent />
+        <Stat label="位置" value={position ? positionLabel(position) : "全部"} />
       </div>
 
       {/* 位置筛选 */}

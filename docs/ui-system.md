@@ -36,9 +36,13 @@
 
 ### Public Team profile composition
 
-公开队伍详情只有一个 canonical `TeamPublicProfile` composition owner。长期队伍路由 `/teams/[slug]` 只注入长期 Team read model；赛事队伍路由 `/[seasonSlug]/teams/[entryId]` 注入 CompetitionEntry/EventRoster 的本届 context，并在 `entry.teamId` 存在时一并注入长期 Team read model。两条路由保持各自的事实 owner，不把 CompetitionEntry 当作长期 Team。
+公开队伍详情只有一个 canonical `TeamPublicProfile` composition owner。长期队伍路由 `/teams/[slug]` 只注入长期 Team read model；赛事队伍路由 `/[seasonSlug]/teams/[entryId]` 注入本届赛事的 public event context，并在 `entry.teamId` 存在时一并注入长期 Team read model。两条路由保持各自的事实 owner，不把一届赛事中的参赛队伍当作长期 Team。
 
-存在赛事 context 时，队名、图标、参赛名单、赛事战绩和比赛链接优先展示本届 CompetitionEntry/EventRoster facts；长期当前成员、招募、赛事履历、名称/队长历史仍明确标记为长期 Team facts。`teamId = null` 的 event-native entry 复用同一 shell，仅隐藏不存在的长期 Team sections。`TeamPublicProfile` 的本届参赛名单只展示 Player identity、首发/代表标记和 roster 状态，不从长期资料或 `seasonRegistrations` 补写本届位置。
+存在赛事 context 时，队名、图标、参赛名单、赛事战绩、比赛链接、参赛状态和种子优先展示本届赛事事实；长期当前成员、招募、赛事履历、名称/队长历史仍明确标记为长期 Team facts。没有长期 Team 的 event-native entry 复用同一 shell，仅隐藏不存在的长期 Team sections。
+
+标准 Major 的公开队伍列表、赛事队伍详情、`/[seasonSlug]/players` 和赛事首页摘要共享一个 server-only public participant read model。审核期只显示「已通过报名审核的队伍」及「已审核报名名单」；正式参赛队集合完整后切换为「正式参赛队」，冻结前显示「当前参赛名单」，冻结后显示「最终参赛名单」。官方种子只有在赛委会确认且完整覆盖全部正式参赛队时显示，否则保持「种子待确认」。这些页面只接收显式 public DTO，不在页面内重算生命周期或把报名名单冒充赛事名单。
+
+`TeamPublicProfile` 的本届参赛名单只展示 Player identity、首发/代表标记、公开参赛状态和 roster 状态，不从长期资料或 `seasonRegistrations` 补写本届位置；Major 选手目录同样只展示本届队伍、首发/替补、Player link 和已有的本届已验证统计。`CompetitionEntry`、`EventRoster`、revision、snapshot 等实现术语不进入正常公开文案。
 
 ## Dense data
 

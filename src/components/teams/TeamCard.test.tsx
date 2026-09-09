@@ -10,7 +10,7 @@ const props = {
   entryId: "entry-1",
   teamName: "Rival Orange",
   seasonSlug: "spring",
-  draftOrder: 2,
+  eyebrow: "正式参赛队",
   logoUrl: null,
   players: [
     {
@@ -39,7 +39,7 @@ describe("TeamCard", () => {
     );
 
     expect(screen.getByText("3-1")).toBeInTheDocument();
-    expect(screen.getByText("75% WR")).toBeInTheDocument();
+    expect(screen.getByText("胜率 75%")).toBeInTheDocument();
     expect(screen.getByText("1.14")).toBeInTheDocument();
     expect(screen.getByText("78.2")).toBeInTheDocument();
   });
@@ -52,5 +52,6 @@ describe("TeamCard", () => {
     expect(screen.getByText("2 首发")).toBeInTheDocument();
     expect(screen.queryByText("igl")).not.toBeInTheDocument();
     expect(screen.queryByText("anchor")).not.toBeInTheDocument();
+    expect(screen.getByText("地图")).toBeInTheDocument();
   });
 });

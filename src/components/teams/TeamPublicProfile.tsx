@@ -11,13 +11,14 @@ import {
   presentCompetitionEntryRosterStatus,
 } from "@/lib/competition-entries/presentation";
 import { presentMatchStatus } from "@/lib/matches/presentation";
+import type { MajorPublicParticipantTeam } from "@/lib/major/public-participants";
 import type { PublicTeamProfile } from "@/lib/teams/public-profile";
 import { presentTeamMembershipStatus, presentTeamStatus } from "@/lib/teams/presentation";
 import { formatCSTShortDate } from "@/lib/utils/date";
 
 export interface TeamPublicProfileProps {
   team: PublicTeamProfile | null;
-  event?: PublicCompetitionEntryTeamContext | null;
+  event?: PublicCompetitionEntryTeamContext | MajorPublicParticipantTeam | null;
 }
 
 export function TeamPublicProfile({ team, event = null }: TeamPublicProfileProps) {
@@ -29,7 +30,7 @@ export function TeamPublicProfile({ team, event = null }: TeamPublicProfileProps
   const membershipLabel = currentUserMembership && team
     ? `我的队伍 · ${team.team.captainUserId === currentUserMembership.userId ? "队长" : "成员"}`
     : null;
-  const registration = event ? presentCompetitionEntryRegistration(event.entry.registrationStatus) : null;
+  const participation = event?.participation ?? null;
   const rosterStatus = event ? presentCompetitionEntryRosterStatus(event.rosterStatus) : null;
 
   return (
@@ -43,13 +44,14 @@ export function TeamPublicProfile({ team, event = null }: TeamPublicProfileProps
         )}
         eyebrow={event ? `${event.season.name} · ${event.roster.length} 名参赛成员` : `${currentMembers.length} 名当前成员`}
         description={event
-          ? (team ? "队名与图标保留本届赛事快照；下方分别展示长期队伍资料与本届参赛事实。" : "这是本届赛事的参赛队伍；本页展示本届赛事快照。")
+          ? `${participation?.detail ?? "本页展示本届赛事事实。"} 本页队名、图标、名单和赛果按本届赛事记录展示。${team ? " 下方另列长期队伍资料。" : ""}`
           : (team?.team.description ?? "暂无队伍简介。")}
         status={(
           <div className="flex flex-wrap items-center gap-1.5">
             {team && <StatusPill {...presentTeamStatus(team.team.status)} />}
             {team?.team.status === "active" && team.recruitment && <StatusPill label="招募中" tone="accent" />}
-            {registration && <StatusPill {...registration} />}
+            {participation && <StatusPill {...participation} />}
+            {event?.seedPresentation && <StatusPill {...event.seedPresentation} />}
             {currentUserMembership && <StatusPill label={membershipLabel ?? "我的队伍 · 成员"} tone="accent" />}
           </div>
         )}
@@ -66,10 +68,11 @@ export function TeamPublicProfile({ team, event = null }: TeamPublicProfileProps
         <Panel label={`${event.season.name} · 本届赛事`} contentClassName="p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-1.5">
-              {registration && <StatusPill {...registration} />}
+              {participation && <StatusPill {...participation} />}
               {rosterStatus && <StatusPill {...rosterStatus} />}
+              {event.seedPresentation && <StatusPill {...event.seedPresentation} />}
             </div>
-            <p className="text-sm text-[var(--color-fg-mid)]">本届队名、图标、名单和赛果来自赛事事实。</p>
+            <p className="text-sm text-[var(--color-fg-mid)]">{participation?.detail}</p>
           </div>
         </Panel>
 
@@ -80,9 +83,8 @@ export function TeamPublicProfile({ team, event = null }: TeamPublicProfileProps
           <Stat label="本届名单" value={event.roster.length} />
         </div>
 
-        <Panel label="本届参赛名单" contentClassName="p-5">
+        <Panel label={event.rosterLabel} contentClassName="p-5">
           <div className="mb-3 flex flex-wrap items-center gap-2 text-sm text-[var(--color-fg-mid)]">
-            <span>EventRoster</span>
             {rosterStatus && <StatusPill {...rosterStatus} />}
           </div>
           <div className="divide-y divide-[var(--color-border)]">
@@ -95,7 +97,7 @@ export function TeamPublicProfile({ team, event = null }: TeamPublicProfileProps
                 </div>
                 <span className="text-xs text-[var(--color-fg-mid)]">{member.isStarter ? "首发" : "替补"}</span>
               </div>
-            )) : <p className="text-sm text-[var(--color-fg-mid)]">本届名单尚未确认。</p>}
+            )) : <p className="text-sm text-[var(--color-fg-mid)]">{event.rosterLabel}暂无可展示成员。</p>}
           </div>
         </Panel>
 
