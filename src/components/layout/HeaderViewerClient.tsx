@@ -144,7 +144,7 @@ export function HeaderViewerClient({
         ) : (
           <Link
             href="/login"
-            className="inline-flex h-7 min-w-12 items-center justify-center rounded-sm border border-[var(--color-border)] px-2 text-xs font-bold text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] transition-colors"
+            className="px-2 py-1 rounded-sm text-xs font-bold text-[var(--color-fg-mid)] hover:text-[var(--color-fg)] border border-[var(--color-border)] transition-colors"
             style={{ fontFamily: "var(--font-mono)", letterSpacing: "var(--tracking-label)" }}
           >
             登录
