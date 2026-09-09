@@ -4,11 +4,12 @@ import { pathToFileURL } from "node:url";
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const task = required(process.env.STATIC_TASK, "STATIC_TASK");
   const project = process.env.STATIC_PROJECT?.trim();
+  const changedPaths = parseJsonArray(process.env.STATIC_CHANGED_PATHS, "STATIC_CHANGED_PATHS");
   const relatedSources = parseJsonArray(process.env.STATIC_RELATED_SOURCES, "STATIC_RELATED_SOURCES");
   const explicitTests = parseJsonArray(process.env.STATIC_EXPLICIT_TESTS, "STATIC_EXPLICIT_TESTS");
   const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 
-  const args = commandFor(task, project, relatedSources, explicitTests);
+  const args = commandFor(task, project, relatedSources, explicitTests, changedPaths);
   const result = spawnSync(pnpm, args, {
     cwd: process.cwd(),
     env: process.env,
@@ -20,7 +21,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   process.exit(result.status ?? 1);
 }
 
-export function commandFor(name, projectName, relatedSources = [], explicitTests = []) {
+export function commandFor(name, projectName, relatedSources = [], explicitTests = [], changedPaths = []) {
   switch (name) {
     case "type-app":
       return ["type-check:app"];
@@ -31,7 +32,7 @@ export function commandFor(name, projectName, relatedSources = [], explicitTests
     case "lint":
       return ["lint"];
     case "lint-changed":
-      return ["exec", "eslint", "--max-warnings=0", ...paths];
+      return ["exec", "eslint", "--max-warnings=0", ...changedPaths];
     case "dead-code":
       return ["exec", "bash", "-c", "pnpm knip && pnpm knip --production"];
     case "build":

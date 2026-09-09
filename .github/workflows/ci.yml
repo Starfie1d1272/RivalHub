@@ -96,6 +96,7 @@ jobs:
           RIVALHUB_TIMING_TEST_KIND: ${{ startsWith(matrix.task, 'unit-') && 'unit' || '' }}
           STATIC_TASK: ${{ matrix.task }}
           STATIC_PROJECT: ${{ matrix.project || '' }}
+          STATIC_CHANGED_PATHS: ${{ toJSON(matrix.changedPaths) }}
           STATIC_RELATED_SOURCES: ${{ toJSON(matrix.relatedSources) }}
           STATIC_EXPLICIT_TESTS: ${{ toJSON(matrix.explicitTests) }}
         run: node scripts/ci/timing.mjs "static/${{ matrix.task }}" -- node scripts/ci/run-static-task.mjs
