@@ -15,13 +15,6 @@ CREATE TABLE "scheduled_job_health" (
 ALTER TABLE "scheduled_job_health" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 REVOKE ALL PRIVILEGES ON TABLE "scheduled_job_health" FROM anon, authenticated;--> statement-breakpoint
 
-INSERT INTO "scheduled_job_health" ("job_key") VALUES
-  ('draft-timeout'),
-  ('check-registration-deadline'),
-  ('match-time-auto-award'),
-  ('cleanup-education-evidence')
-ON CONFLICT ("job_key") DO NOTHING;--> statement-breakpoint
-
 -- Local PostgreSQL normally has neither extension. Supabase production may
 -- expose both extensions, so enable them when the server can load them while
 -- keeping plain migration replay valid. Release provisioning verifies that
@@ -53,20 +46,15 @@ SECURITY DEFINER
 SET search_path = public, pg_catalog
 AS $$
 DECLARE
-  route_segment text;
   base_url text;
   cron_secret text;
   request_id bigint;
 BEGIN
-  route_segment := CASE job_key
-    WHEN 'draft-timeout' THEN 'draft-timeout'
-    WHEN 'check-registration-deadline' THEN 'check-registration-deadline'
-    WHEN 'match-time-auto-award' THEN 'match-time-auto-award'
-    WHEN 'cleanup-education-evidence' THEN 'cleanup-education-evidence'
-    ELSE NULL
-  END;
-  IF route_segment IS NULL THEN
-    RAISE EXCEPTION 'unknown scheduler job key' USING ERRCODE = '22023';
+  -- The protected TypeScript provisioning command owns the registered job
+  -- set. Keep the DB helper limited to safe route segments so it cannot be
+  -- used to construct an arbitrary URL path or query.
+  IF job_key IS NULL OR job_key !~ '^[a-z0-9]+(-[a-z0-9]+)*$' THEN
+    RAISE EXCEPTION 'invalid scheduler job key' USING ERRCODE = '22023';
   END IF;
 
   INSERT INTO public.scheduled_job_health (job_key, last_primary_triggered_at, updated_at)
@@ -93,7 +81,7 @@ BEGIN
   EXECUTE 'SELECT net.http_get($1, $2::jsonb, $3::jsonb, $4)'
     INTO request_id
     USING
-      base_url || '/api/cron/' || route_segment,
+      base_url || '/api/cron/' || job_key,
       '{}'::jsonb,
       jsonb_build_object(
         'Authorization', 'Bearer ' || cron_secret,

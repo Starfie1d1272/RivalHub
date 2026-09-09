@@ -14,7 +14,7 @@ describe("scheduler definitions", () => {
       primaryCron: "0 22 * * *",
       staleAfterMs: 36 * 60 * 60 * 1000,
     });
-    expect(getSchedulerRoute(SCHEDULER_JOB_DEFINITIONS[0]!)).toBe("/api/cron/draft-timeout");
+    expect(getSchedulerRoute(SCHEDULER_JOB_DEFINITIONS[0]!.key)).toBe("/api/cron/draft-timeout");
     expect(schedulerJobName("draft-timeout")).toBe("rivalhub-draft-timeout");
   });
 

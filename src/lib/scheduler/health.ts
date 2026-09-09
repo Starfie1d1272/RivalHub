@@ -5,9 +5,28 @@ import { db } from "@/db/client";
 import { scheduledJobHealth } from "@/db/schema";
 import { classifyError } from "@/lib/observability/errors";
 import { captureException, logEvent } from "@/lib/observability/server";
-import type { SchedulerJobKey, SchedulerSource } from "./definitions";
+import type { SchedulerJobDefinition, SchedulerJobKey, SchedulerSource } from "./definitions";
 
 export type SchedulerHealthRecord = typeof scheduledJobHealth.$inferSelect;
+
+function isFresh(lastAt: Date, staleAfterMs: number, now = new Date()): boolean {
+  const age = now.getTime() - lastAt.getTime();
+  return age >= 0 && age <= staleAfterMs;
+}
+
+/** Primary is healthy only after both dispatch and endpoint execution are fresh. */
+export function isPrimaryHealthy(
+  record: Pick<SchedulerHealthRecord, "lastPrimaryTriggeredAt" | "lastPrimaryEndpointSucceededAt"> | null | undefined,
+  definition: Pick<SchedulerJobDefinition, "staleAfterMs">,
+  now = new Date(),
+): boolean {
+  return Boolean(
+    record?.lastPrimaryTriggeredAt &&
+    record.lastPrimaryEndpointSucceededAt &&
+    isFresh(record.lastPrimaryTriggeredAt, definition.staleAfterMs, now) &&
+    isFresh(record.lastPrimaryEndpointSucceededAt, definition.staleAfterMs, now),
+  );
+}
 
 const databaseConfigured = (): boolean => Boolean(process.env.DATABASE_URL?.trim());
 

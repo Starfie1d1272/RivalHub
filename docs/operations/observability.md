@@ -78,7 +78,7 @@ PostgreSQL 分类必须复用 `src/db/errors.ts` 的 `extractPgError()`。日志
 - Rivals registration submit；CompetitionEntry submit/review；
 - Major prestart final entrant selection/reconciliation and lock, Major start、Swiss round finalize、stage transition、playoff start；
 - match result record、result correction plan/apply/adjudication。
-- scheduler primary dispatch、endpoint execution、watchdog no-op/fallback、人工 break-glass run。
+- scheduler endpoint failure、watchdog fallback、人工 break-glass run；正常 primary success 与 fresh watchdog no-op 不逐条写 runtime log。
 
 Span name、`rivalhub.*`、`db.*`、HTTP method/status 和 provider 等属性必须是低基数值。默认不加 user/team/entry ID、email、昵称或业务 payload。跨 provider 的 trace propagation 只对自有 deployment URL 开启；Supabase、Steam、SiliconFlow、Cloudflare Turnstile 和 Better Stack 均不接收 RivalHub trace headers。
 
@@ -130,7 +130,7 @@ return traceOperation("competition_entry.submit", {
 
 不要为正常成功路径逐条记录日志，不要复制领域 transition/错误分类，不要在 component 中配置外部 sink。Client Component 只有在存在明确 fallback 时才可输出固定、非敏感的浏览器诊断，不能输出 raw exception/payload 或用空 catch 静默吞错。新增 safeContext key 时必须同时补 redaction 单测，并检查它不会成为 ID、body、query 或 secret 的旁路。
 
-Scheduler 的 `scheduled_job_health` 只保存有界 current projection，不是 runtime log 或 execution ledger。primary trigger、primary endpoint start/success、watchdog/manual success、最近业务推进和最近失败分别由 shared scheduler owner 更新；失败只保存稳定 source/code/classification，不保存 raw error、URL、Authorization 或 Vault secret。`jobKey`、`source` 等 safeContext 仍必须经过 allowlist。
+Scheduler 的 `scheduled_job_health` 只保存有界 current projection，不是 runtime log 或 execution ledger。primary trigger、primary endpoint start/success、watchdog fallback/manual success、最近业务推进和最近失败分别由 shared scheduler owner 更新；fresh watchdog no-op 不写 projection。失败只保存稳定 source/code/classification，不保存 raw error、URL、Authorization 或 Vault secret。`jobKey`、`source` 等 safeContext 仍必须经过 allowlist。
 
 ## 告警原则
 

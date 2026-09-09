@@ -1,8 +1,7 @@
 import "server-only";
 
-import { readAllSchedulerHealth, type SchedulerHealthRecord } from "./health";
+import { isPrimaryHealthy, readAllSchedulerHealth, type SchedulerHealthRecord } from "./health";
 import { SCHEDULER_JOB_DEFINITIONS, type SchedulerJobKey } from "./definitions";
-import { isFresh } from "./execution";
 
 export interface SchedulerHealthView {
   jobKey: SchedulerJobKey;
@@ -21,11 +20,11 @@ export async function getSchedulerHealthView(now = new Date()): Promise<Schedule
   const byKey = new Map(records.map((record) => [record.jobKey, record]));
   return SCHEDULER_JOB_DEFINITIONS.map((definition) => {
     const record = byKey.get(definition.key);
-    const primaryFresh = Boolean(record?.lastPrimaryTriggeredAt && isFresh(record.lastPrimaryTriggeredAt, definition.staleAfterMs, now));
+    const primaryHealthy = isPrimaryHealthy(record, definition, now);
     return {
       jobKey: definition.key,
       label: definition.label,
-      status: primaryFresh ? "normal" : "degraded",
+      status: primaryHealthy ? "normal" : "degraded",
       primaryTriggeredAt: record?.lastPrimaryTriggeredAt?.toISOString() ?? null,
       endpointSucceededAt: record?.lastPrimaryEndpointSucceededAt?.toISOString() ?? null,
       businessTransitionAt: record?.lastBusinessTransitionAt?.toISOString() ?? null,

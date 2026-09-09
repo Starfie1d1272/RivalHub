@@ -1,7 +1,7 @@
 import "server-only";
 
 import { NextResponse } from "next/server";
-import { captureException, logEvent } from "@/lib/observability/server";
+import { captureException } from "@/lib/observability/server";
 import {
   getSchedulerJobDefinition,
   getSchedulerRoute,
@@ -14,6 +14,7 @@ import {
   markEndpointStarted,
   markJobFailed,
   markJobSucceeded,
+  isPrimaryHealthy,
   readSchedulerHealth,
 } from "./health";
 
@@ -65,15 +66,7 @@ async function executeScheduledJobCore<T>(input: {
   const now = new Date();
   if (input.source === "github-watchdog") {
     const health = await readSchedulerHealth(input.jobKey);
-    if (health?.lastPrimaryTriggeredAt && isFresh(health.lastPrimaryTriggeredAt, definition.staleAfterMs, now)) {
-      await markJobSucceeded(input.jobKey, input.source, now);
-      logEvent({
-        level: "info",
-        event: "scheduler.watchdog.noop",
-        scope: "scheduler",
-        operation: "watchdog",
-        safeContext: { jobKey: input.jobKey, source: input.source, outcome: "primary_fresh" },
-      });
+    if (isPrimaryHealthy(health, definition, now)) {
       return {
         source: input.source,
         skipped: true,
@@ -89,18 +82,6 @@ async function executeScheduledJobCore<T>(input: {
     const businessTransitions = normalizeTransitionCount(run.businessTransitions);
     await markJobSucceeded(input.jobKey, input.source, new Date());
     await markBusinessTransition(input.jobKey, businessTransitions, new Date());
-    logEvent({
-      level: "info",
-      event: "scheduler.job.succeeded",
-      scope: "scheduler",
-      operation: "job.execute",
-      safeContext: {
-        jobKey: input.jobKey,
-        source: input.source,
-        outcome: "success",
-        count: businessTransitions,
-      },
-    });
     return {
       source: input.source,
       skipped: false,
@@ -112,7 +93,7 @@ async function executeScheduledJobCore<T>(input: {
     captureException("scheduler.job.failure", error, {
       scope: "scheduler",
       operation: "job.execute",
-      route: getSchedulerRoute(definition),
+      route: getSchedulerRoute(input.jobKey),
       safeContext: { jobKey: input.jobKey, source: input.source },
     });
     throw error;
@@ -125,11 +106,6 @@ function parseSchedulerSource(request: Request): SchedulerSource | Response {
   const source = value.trim();
   if (isSchedulerSource(source)) return source;
   return NextResponse.json({ error: "Invalid scheduler source" }, { status: 400 });
-}
-
-export function isFresh(lastTriggeredAt: Date, staleAfterMs: number, now = new Date()): boolean {
-  const age = now.getTime() - lastTriggeredAt.getTime();
-  return age >= 0 && age <= staleAfterMs;
 }
 
 function normalizeTransitionCount(value: number): number {

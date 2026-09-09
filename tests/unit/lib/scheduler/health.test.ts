@@ -17,7 +17,7 @@ vi.mock("@/lib/observability/server", () => ({
   logEvent: logEventMock,
 }));
 
-import { markBusinessTransition, markJobFailed } from "@/lib/scheduler/health";
+import { isPrimaryHealthy, markBusinessTransition, markJobFailed } from "@/lib/scheduler/health";
 
 describe("scheduler health projection", () => {
   beforeEach(() => {
@@ -28,6 +28,19 @@ describe("scheduler health projection", () => {
         onConflictDoUpdate: vi.fn().mockResolvedValue(undefined),
       }),
     });
+  });
+
+  it("requires both a fresh primary trigger and a fresh endpoint success", () => {
+    const definition = { staleAfterMs: 3 * 60 * 1000 };
+    const now = new Date("2026-09-09T06:00:00.000Z");
+    expect(isPrimaryHealthy({
+      lastPrimaryTriggeredAt: new Date("2026-09-09T05:59:00.000Z"),
+      lastPrimaryEndpointSucceededAt: new Date("2026-09-09T05:59:30.000Z"),
+    }, definition, now)).toBe(true);
+    expect(isPrimaryHealthy({
+      lastPrimaryTriggeredAt: new Date("2026-09-09T05:59:00.000Z"),
+      lastPrimaryEndpointSucceededAt: new Date("2026-09-09T05:55:00.000Z"),
+    }, definition, now)).toBe(false);
   });
 
   it("does not create a fake business transition for zero work", async () => {

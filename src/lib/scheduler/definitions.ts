@@ -19,28 +19,24 @@ export const SCHEDULER_JOB_DEFINITIONS = [
   {
     key: SCHEDULER_JOB_KEYS[0],
     label: "选秀超时处理",
-    routeSegment: "draft-timeout",
     primaryCron: "* * * * *",
     staleAfterMs: 3 * 60 * 1000,
   },
   {
     key: SCHEDULER_JOB_KEYS[1],
     label: "报名状态推进",
-    routeSegment: "check-registration-deadline",
     primaryCron: "* * * * *",
     staleAfterMs: 3 * 60 * 1000,
   },
   {
     key: SCHEDULER_JOB_KEYS[2],
     label: "比赛时间自动裁定",
-    routeSegment: "match-time-auto-award",
     primaryCron: "*/5 * * * *",
     staleAfterMs: 15 * 60 * 1000,
   },
   {
     key: SCHEDULER_JOB_KEYS[3],
     label: "教育凭证清理",
-    routeSegment: "cleanup-education-evidence",
     // 06:00 Asia/Shanghai, persisted as UTC because pg_cron uses UTC.
     primaryCron: "0 22 * * *",
     staleAfterMs: 36 * 60 * 60 * 1000,
@@ -58,8 +54,8 @@ export function getSchedulerJobDefinition(key: string): SchedulerJobDefinition |
   return definitionsByKey.get(key as SchedulerJobKey);
 }
 
-export function getSchedulerRoute(definition: SchedulerJobDefinition): string {
-  return `/api/cron/${definition.routeSegment}`;
+export function getSchedulerRoute(key: SchedulerJobKey): string {
+  return `/api/cron/${key}`;
 }
 
 export function isSchedulerSource(value: string | null): value is SchedulerSource {

@@ -21,6 +21,9 @@ describe("scheduler migration contract", () => {
     expect(migration).toContain("rivalhub_cron_secret");
     expect(migration).toContain("net.http_get");
     expect(migration).toContain("X-RivalHub-Cron-Source");
+    expect(migration).toContain("base_url || '/api/cron/' || job_key");
+    expect(migration).not.toContain("route_segment := CASE");
+    expect(migration).not.toContain("INSERT INTO \"scheduled_job_health\" (\"job_key\") VALUES");
     expect(migration).not.toContain("CRON_SECRET :=");
   });
 });
