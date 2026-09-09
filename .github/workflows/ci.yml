@@ -28,12 +28,17 @@ jobs:
     name: plan
     runs-on: ubuntu-24.04
     outputs:
+      run_started_at: ${{ steps.timing-start.outputs.run_started_at }}
       full: ${{ steps.plan.outputs.full }}
       run_static: ${{ steps.plan.outputs.run_static }}
       run_postgres: ${{ steps.plan.outputs.run_postgres }}
       run_system: ${{ steps.plan.outputs.run_system }}
       required_jobs: ${{ steps.plan.outputs.required_jobs }}
     steps:
+      - name: Capture workflow timing start
+        id: timing-start
+        run: echo "run_started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
@@ -273,7 +278,7 @@ jobs:
       - name: Record FULL wall time
         if: always()
         env:
-          RUN_STARTED_AT: ${{ github.run_started_at }}
+          RUN_STARTED_AT: ${{ needs.plan.outputs.run_started_at }}
         run: node scripts/ci/timing.mjs record --label "FULL wall time" --start-iso "$RUN_STARTED_AT"
       - name: Write timing summary
         if: always()
