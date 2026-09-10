@@ -52,23 +52,28 @@ describe("recovery restore seed collision and auth invariant regression", () => 
         source_note: "Snapshot canonical data truth",
       };
 
-      const collisionError = await capturePostgresError(client, () =>
-        client.query(
-          `INSERT INTO public.conversion_policies (id, source_platform, target_platform, version, status, mapping, is_current, source_note)
-           VALUES ($1, $2, $3, $4, $5::public.conversion_policy_status, $6::jsonb, $7, $8)`,
-          [
-            snapshotRow.id,
-            snapshotRow.source_platform,
-            snapshotRow.target_platform,
-            snapshotRow.version,
-            snapshotRow.status,
-            snapshotRow.mapping,
-            snapshotRow.is_current,
-            snapshotRow.source_note,
-          ],
-        ),
-      );
-      expect(collisionError).toMatchObject({ code: "23505" });
+      await client.query("BEGIN");
+      try {
+        const collisionError = await capturePostgresError(client, () =>
+          client.query(
+            `INSERT INTO public.conversion_policies (id, source_platform, target_platform, version, status, mapping, is_current, source_note)
+             VALUES ($1, $2, $3, $4, $5::public.conversion_policy_status, $6::jsonb, $7, $8)`,
+            [
+              snapshotRow.id,
+              snapshotRow.source_platform,
+              snapshotRow.target_platform,
+              snapshotRow.version,
+              snapshotRow.status,
+              snapshotRow.mapping,
+              snapshotRow.is_current,
+              snapshotRow.source_note,
+            ],
+          ),
+        );
+        expect(collisionError).toMatchObject({ code: "23505" });
+      } finally {
+        await client.query("ROLLBACK");
+      }
 
       // 5. Run generic prepareTargetForDataImport on the disposable target
       const truncatedTables = await prepareTargetForDataImport(client);
