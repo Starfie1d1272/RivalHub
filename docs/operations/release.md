@@ -38,12 +38,12 @@ validate tag belongs to main
 → validate previous-release compatibility
 → migrate + verify production database
 → deploy exact tag commit to Vercel Production
-→ smoke deployment + canonical production domain
+→ smoke deployment + canonical production domain，并从两者读回 exact release identity
 → provision + verify Supabase scheduler and protected Vault names
 → publish/update GitHub Release notes
 ```
 
-Production secret、target confirmation 和 remote-write authorization 只存在于受保护 production environment / canonical wrappers 中。Scheduler provisioning 使用 `RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:scheduler:provision`，通过 pg_cron named schedule upsert 幂等收敛 `rivalhub-<job-key>` jobs，随后运行 verify。Verify 会确认 pg_cron/pg_net、UTC schedule、dispatch command 与 Vault secret name，实际 dispatch 每个 registry job，并在有界窗口内等待 fresh primary trigger、endpoint success 与分钟级 cron success；任一失败都阻止发布 GitHub Release，且全程不输出 secret。
+Production secret、target confirmation 和 remote-write authorization 只存在于受保护 production environment / canonical wrappers 中。deployment URL 与 canonical production domain 都必须通过 `/api/system/release` 返回仅含 `releaseTag` 和 `releaseCommit` 的 identity，且分别精确等于当前 immutable tag 与该 tag commit；任一读回失败都阻止后续发布。Scheduler provisioning 使用 `RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:scheduler:provision`，通过 pg_cron named schedule upsert 幂等收敛 `rivalhub-<job-key>` jobs，随后运行 verify。Verify 会确认 pg_cron/pg_net、UTC schedule、dispatch command 与 Vault secret name，实际 dispatch 每个 registry job，并在有界窗口内等待 fresh primary trigger、endpoint success 与分钟级 cron success；任一失败都阻止发布 GitHub Release，且全程不输出 secret。
 
 ## 4. 失败与重试
 
@@ -55,7 +55,7 @@ Production secret、target confirmation 和 remote-write authorization 只存在
 
 只有以下条件都成立才算完成：
 
-- production smoke 通过；
+- production smoke 通过，且 deployment URL 与 canonical production domain 的 `/api/system/release` 均精确读回该 immutable tag 与 tag commit；
 - production scheduler provision/verify 通过，且 primary named jobs、真实 dispatch、endpoint success 与分钟级 cron execution 已读回；
 - GitHub Release 已发布且 notes 正确；
 - tag、release commit 与 production deployment 对齐；

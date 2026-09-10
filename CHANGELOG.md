@@ -1,5 +1,31 @@
 # Changelog
 
+## [2.8.0]
+
+### Changed
+
+#### 多阶段赛事运行时
+
+多阶段赛事的运行时归属完成收口。通用赛事的淘汰赛与循环赛状态现在按具体阶段独立管理，参赛队使用稳定的赛事身份关联，不再依赖队名或第三方内部编号。
+
+Major Swiss 的排名、轮次与晋级展示统一由 StageRun、阶段参赛队和正式比赛事实生成；公开赛程与管理后台共享同一套阶段化数据模型。阶段推进也统一经过赛事运行时，不再依赖页面中的独立“生成正赛”或手工同步入口。
+
+本版本保留旧赛事运行时数据结构作为兼容壳，不删除历史数据；后续版本将在生产稳定验证后完成最终清理。
+
+#### 全站页面布局
+
+统一全站页面宽度、水平留白和基础页面间距的管理方式，修复赛事后台报名审核、比赛详情等页面被旧式页面容器异常锁窄的问题。
+
+页面正常态、加载态、错误态和空态现在使用一致的布局规则，并改善桌面端与移动端的页面宽度一致性。
+
+### Added
+
+#### Production 发布身份校验
+
+Production 部署现在提供可验证的 release identity。每次正式发布会将不可变的版本 Tag 与 Commit 固化进部署产物，并在发布完成时同时从实际部署地址和正式域名读回校验。
+
+这为后续 production 灾难恢复、备份来源确认和发布前保护机制提供可信的线上版本基准。
+
 ## [2.7.8]
 
 ### Fixed
@@ -2005,6 +2031,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.8.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.7.8...v2.8.0
 [2.7.8]: https://github.com/Starfie1d1272/RivalHub/compare/v2.7.7...v2.7.8
 [2.7.7]: https://github.com/Starfie1d1272/RivalHub/compare/v2.7.6...v2.7.7
 [2.7.6]: https://github.com/Starfie1d1272/RivalHub/compare/v2.7.5...v2.7.6
