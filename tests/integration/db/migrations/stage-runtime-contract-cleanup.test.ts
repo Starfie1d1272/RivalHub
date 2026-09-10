@@ -254,6 +254,11 @@ describe("Release N+1 stage runtime contract cleanup", () => {
         [otherEntryId, otherSeasonId, otherUserId, otherRevisionId],
       );
       await client.query(
+        `INSERT INTO competition_entry_representative_changes (entry_id, from_user_id, to_user_id, changed_by_actor_id)
+         VALUES ($1, NULL, $2, '0049-contract-test')`,
+        [otherEntryId, otherUserId],
+      );
+      await client.query(
         `INSERT INTO competition_entry_roster_revisions (id, entry_id, revision_number, status, created_by, approved_at)
          VALUES ($1, $2, 1, 'approved', '0049-contract-test', now())`,
         [otherRevisionId, otherEntryId],

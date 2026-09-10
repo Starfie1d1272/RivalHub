@@ -19,7 +19,9 @@ DECLARE
   canonical_match_count bigint;
   canonical_participant_count bigint;
   managed_match_count bigint;
+  unmatched_legacy_provider_matches bigint;
   unmatched_provider_matches bigint;
+  unmatched_db_matches_from_legacy bigint;
   unmatched_db_matches bigint;
   legacy_participants_normalized jsonb;
   stripped_canonical_participants jsonb;
@@ -87,7 +89,7 @@ BEGIN
     AND "stage" = 'playoff'
     AND "bracket_node_id" IS NOT NULL;
 
-  -- Anti-join 1: provider match node ids not found in DB matches
+  -- Anti-join 1: canonical provider match node ids not found in DB matches
   SELECT count(*) INTO unmatched_provider_matches
   FROM jsonb_array_elements(COALESCE(canonical_data->'match', '[]'::jsonb)) AS provider_match(item)
   WHERE NOT EXISTS (
@@ -97,7 +99,7 @@ BEGIN
       AND db_match."bracket_node_id" = provider_match.item->>'id'
   );
 
-  -- Anti-join 2: DB match bracket_node_ids not found in provider matches
+  -- Anti-join 2: DB match bracket_node_ids not found in canonical provider matches
   SELECT count(*) INTO unmatched_db_matches
   FROM "matches" AS db_match
   WHERE db_match."season_id" = legacy_competition_id
@@ -109,15 +111,43 @@ BEGIN
       WHERE provider_match.item->>'id' = db_match."bracket_node_id"
     );
 
+  -- Repeat the same two anti-joins against the original legacy provider state.
+  -- The participant-only projection check above proves the non-participant
+  -- facts are equal, while these checks make legacy-node coverage explicit.
+  SELECT count(*) INTO unmatched_legacy_provider_matches
+  FROM jsonb_array_elements(COALESCE(legacy_data->'match', '[]'::jsonb)) AS provider_match(item)
+  WHERE NOT EXISTS (
+    SELECT 1 FROM "matches" AS db_match
+    WHERE db_match."season_id" = legacy_competition_id
+      AND db_match."stage" = 'playoff'
+      AND db_match."bracket_node_id" = provider_match.item->>'id'
+  );
+
+  SELECT count(*) INTO unmatched_db_matches_from_legacy
+  FROM "matches" AS db_match
+  WHERE db_match."season_id" = legacy_competition_id
+    AND db_match."stage" = 'playoff'
+    AND db_match."bracket_node_id" IS NOT NULL
+    AND NOT EXISTS (
+      SELECT 1
+      FROM jsonb_array_elements(COALESCE(legacy_data->'match', '[]'::jsonb)) AS provider_match(item)
+      WHERE provider_match.item->>'id' = db_match."bracket_node_id"
+    );
+
   IF canonical_match_count <> 14
       OR managed_match_count <> 14
       OR unmatched_provider_matches <> 0
-      OR unmatched_db_matches <> 0 THEN
-    RAISE EXCEPTION '0049 legacy-data precondition failed: exact match set equality failed (canonical: %, db: %, unmatched provider: %, unmatched db: %)',
+      OR unmatched_db_matches <> 0
+      OR unmatched_legacy_provider_matches <> 0
+      OR unmatched_db_matches_from_legacy <> 0 THEN
+    RAISE EXCEPTION '0049 legacy-data precondition failed: exact match set equality failed (canonical: %, legacy: %, db: %, unmatched canonical: %, unmatched legacy: %, unmatched db canonical: %, unmatched db legacy: %)',
       canonical_match_count,
+      COALESCE(jsonb_array_length(legacy_data->'match'), 0),
       managed_match_count,
       unmatched_provider_matches,
-      unmatched_db_matches;
+      unmatched_legacy_provider_matches,
+      unmatched_db_matches,
+      unmatched_db_matches_from_legacy;
   END IF;
 
   -- 7. Canonical participant stripped of rivalhubEntryId must be deterministically equivalent to legacy participant
