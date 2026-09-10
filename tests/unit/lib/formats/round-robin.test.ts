@@ -1,9 +1,10 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 // ── mock db ───────────────────────────────────────────────────────────────────
-const { mockMatchFindMany, mockEntriesFindMany, mockSelectWhere } = vi.hoisted(() => ({
+const { mockMatchFindMany, mockEntriesFindMany, mockStageStateFindFirst, mockSelectWhere } = vi.hoisted(() => ({
   mockMatchFindMany: vi.fn(),
   mockEntriesFindMany: vi.fn(),
+  mockStageStateFindFirst: vi.fn(),
   mockSelectWhere: vi.fn(),
 }));
 
@@ -17,12 +18,14 @@ vi.mock("@/db/client", () => ({
     query: {
       matches: { findMany: mockMatchFindMany },
       competitionEntries: { findMany: mockEntriesFindMany },
+      competitionStageBracketStates: { findFirst: mockStageStateFindFirst },
     },
   },
 }));
 
 vi.mock("@/db/schema", () => ({
   matches: { id: {}, seasonId: {}, stage: {}, status: {}, entryAId: {}, entryBId: {}, scoreA: {}, scoreB: {} },
+  competitionStageBracketStates: { competitionId: {}, stageKey: {} },
   matchMaps: { matchId: {}, scoreA: {}, scoreB: {} },
   competitionEntries: { id: {}, name: {}, competitionId: {}, draftOrder: {} },
 }));
@@ -51,6 +54,15 @@ const mockConfig = {
 beforeEach(() => {
   vi.clearAllMocks();
   mockSelectWhere.mockResolvedValue([{ value: 0 }]);
+  mockStageStateFindFirst.mockResolvedValue({
+    data: {
+      participant: [
+        { id: 1, name: "A队", rivalhubEntryId: "t1" },
+        { id: 2, name: "B队", rivalhubEntryId: "t2" },
+        { id: 3, name: "C队", rivalhubEntryId: "t3" },
+      ],
+    },
+  });
 });
 
 describe("roundRobinExecutor", () => {

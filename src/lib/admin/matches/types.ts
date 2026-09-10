@@ -2,6 +2,7 @@ import type { CompetitionEntry, Match, MatchMap, Season } from "@/db/schema";
 import type { MajorPlayoffRuntimeData, MajorSwissRuntimeData } from "@/lib/admin/major-runtime";
 import type { TeamStanding } from "@/lib/standings";
 import type { StageConfig, StagePlan } from "@/types/season";
+import type { MajorSwissStageReadModel } from "@/lib/matches/stage-read-model";
 
 export interface TeamMemberData {
   id: string;
@@ -85,12 +86,10 @@ export interface AdminMatchOverviewData {
   stagePlan: StagePlan;
   matches: AdminMatchSummary[];
   stageViews: { stage: StageConfig; matches: AdminMatchSummary[] }[];
+  stageReadModels: Map<string, MajorSwissStageReadModel>;
   commentaryEffectiveness: AdminCommentaryEffectiveness[];
   unconfiguredMatches: AdminMatchSummary[];
   standingsByStage: Map<string, TeamStanding[]>;
-  qualifierStandings: TeamStanding[];
-  qualifierStage: StageConfig | null;
-  playoffStage: StageConfig | null;
   batchDeadlineGroups: {
     label: string;
     stage: string;
@@ -99,8 +98,6 @@ export interface AdminMatchOverviewData {
     matchCount: number;
   }[];
   canGenerate: boolean;
-  canGeneratePlayoff: boolean;
-  hasLegacyAdjacentPlayoff: boolean;
   hasSwissStage: boolean;
   defaultStageKey: string | null;
   swissRuntime: MajorSwissRuntimeData | null;

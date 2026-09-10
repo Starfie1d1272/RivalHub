@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { makeMajorRunSnapshotV4, parseMajorRunSnapshot } from "@/lib/major/run-snapshot";
+import { makeMajorRunSnapshotV4, parseMajorRunSnapshot, resolveMajorStagePlan } from "@/lib/major/run-snapshot";
+import type { MajorRunSnapshot } from "@/lib/major/run-snapshot";
+import type { StagePlan } from "@/types/season";
 
 const v4 = {
   version: 4,
-  stagePlan: [{ key: "stage-1", name: "Stage 1", type: "swiss", teamCount: 16, matchFormat: "bo1", finalFormat: null, advanceTiers: [] }],
+  stagePlan: [{ key: "stage-1", name: "Stage 1", type: "swiss" as const, teamCount: 16, matchFormat: "bo1" as const, finalFormat: null, advanceTiers: [] }],
   rosterRules: { minTeamSize: 5, maxTeamSize: 9, starterCount: 5 },
   affiliationRules: [],
   competitiveProfile: null,
@@ -12,6 +14,26 @@ const v4 = {
 };
 
 describe("parseMajorRunSnapshot", () => {
+  it("uses the frozen stage plan for started-stage presentation", () => {
+    const frozenPlan: MajorRunSnapshot["stagePlan"] = [
+      ...v4.stagePlan,
+      { key: "playoff", name: "Frozen playoff", type: "single_elim", teamCount: 8, matchFormat: "bo3", finalFormat: "bo5", advanceTiers: [] },
+    ];
+    const livePlan: StagePlan = [
+      { key: "playoff", name: "Live first", type: "single_elim", teamCount: 8, matchFormat: "bo3", finalFormat: "bo5", advanceTiers: [] },
+      { key: "stage-1", name: "Live Swiss", type: "swiss", teamCount: 16, matchFormat: "bo1", advanceTiers: [] },
+    ];
+    const resolved = resolveMajorStagePlan(
+      livePlan,
+      [{ stageKey: "stage-1", ruleSnapshot: { ...v4, stagePlan: frozenPlan } }],
+    );
+
+    expect(resolved.map((stage) => [stage.key, stage.name])).toEqual([
+      ["stage-1", "Stage 1"],
+      ["playoff", "Frozen playoff"],
+    ]);
+  });
+
   it("normalizes v4 stage lookup without persisted entrant outputs", () => {
     const parsed = parseMajorRunSnapshot(v4, "stage-1");
     expect(parsed.version).toBe(4);

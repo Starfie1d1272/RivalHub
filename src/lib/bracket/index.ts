@@ -1,33 +1,40 @@
-// Bracket 适配层——所有 brackets-manager 调用必须经过此模块
-// 禁止在业务代码中直接 import brackets-manager
-//
-// 持久化策略：bracket 完整状态（Database JSON）存储在
-// competition_bracket_states.data；业务读写统一经过本适配层。
-// 每次 advanceMatch 调用时：读取 → 重建内存 manager → 更新 → 序列化写回
-//
-// 参与者 ID 映射：seeding 按 draft_order ASC 排列
-// 即 participant[n].id === n 对应 teams[n]（draft_order = n+1 的队伍）
+// Bracket 适配层——所有 brackets-manager 调用必须经过此模块。
+// 业务代码只持有 StageConfig.key 与 CompetitionEntry.id；provider 的
+// stage name 和 participant 数字 id 不得成为 RivalHub 的领域 identity。
 
 import { BracketsManager } from "brackets-manager";
 import { InMemoryDatabase } from "brackets-memory-db";
 import { Status } from "brackets-model";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import type { DB, TxDb } from "@/db/client";
-import { competitionBracketStates } from "@/db/schema/competition-bracket-states";
+import { competitionStageBracketStates } from "@/db/schema/competition-bracket-states";
+import { matches, type Match } from "@/db/schema/matches";
 import type { Database } from "brackets-manager";
-export type { Database as BracketDatabase } from "brackets-manager";
 import type { CompetitionEntry } from "@/db/schema/competition-entries";
+import type { StageConfig } from "@/types/season";
 
-type QualifierFormat = "round_robin" | "swiss";
-type PlayoffFormat = "double_elim" | "single_elim";
+export type { Database as BracketDatabase } from "brackets-manager";
 
-/** brackets-manager stage 的轻量引用（仅 id + name） */
-export type BracketStageRef = { id: number; name: string };
-/** brackets-manager participant 的轻量引用 */
-export type BracketParticipantRef = { id: number; name: string };
-/** brackets-manager round 的轻量引用 */
-export type BracketRoundRef = { id: number; stage_id: number; group_id: number; number: number };
-/** brackets-manager group 的轻量引用（number: 1=winner_bracket, 2=loser_bracket, 3=grand_final） */
+export type BracketStageRef = {
+  id: number;
+  name: string;
+  type?: string;
+};
+
+export type BracketParticipantRef = {
+  id: number;
+  name: string;
+  /** Stable RivalHub identity; provider participant ids are not domain ids. */
+  rivalhubEntryId: string;
+};
+
+export type BracketRoundRef = {
+  id: number;
+  stage_id: number;
+  group_id: number;
+  number: number;
+};
+
 export type BracketGroupRef = { id: number; stage_id: number; number: number };
 
 export interface BracketStage {
@@ -46,8 +53,6 @@ export interface BracketMatch {
   round_id: number;
   number: number;
   status: number;
-  // brackets-viewer 用 `"child_count" in t` 区分 match 与 match-game。
-  // 不传这个字段会被当成 match-game，导致元素挂的是 data-match-game-id 而非 data-match-id。
   child_count: number;
   opponent1: { id: number | null; score?: number; result?: "win" | "loss" } | null;
   opponent2: { id: number | null; score?: number; result?: "win" | "loss" } | null;
@@ -67,318 +72,300 @@ export interface BracketData {
   stage: BracketStage[];
   match: BracketMatch[];
   match_game: BracketMatchGame[];
-  participant: { id: number; name: string }[];
+  participant: BracketParticipantRef[];
   group: BracketGroupRef[];
   round: BracketRoundRef[];
 }
 
-// 封装的"已确定双方"比赛信息，供调用者批量创建 DB match 记录
+/** A provider match whose two RivalHub entries are already known. */
 export interface ResolvedBracketMatch {
   bracketMatchId: number;
   stageId: number;
-  teamAParticipantId: number;
-  teamBParticipantId: number;
+  entryAId: string;
+  entryBId: string;
   roundNumber: number;
-  /** 所在 bracket 分组：1=winner_bracket, 2=loser_bracket, 3=grand_final。单淘汰/循环恒为 1。 */
+  /** 1=winner bracket, 2=loser bracket, 3=grand final. */
   groupNumber: number;
+}
+
+export interface ResolvedBracketMatchInput {
+  seasonId: string;
+  stageKey: string;
+  resolved: ResolvedBracketMatch;
+  format: "bo1" | "bo3" | "bo5";
+  entryRound?: string | null;
 }
 
 type BracketStateDatabase = DB | TxDb;
 
-/** Load the one bracket state owned by a competition. */
-export async function loadBracketState(
+/** Load one provider state owned by one logical stage. */
+export async function loadStageBracketState(
   database: BracketStateDatabase,
   competitionId: string,
+  stageKey: string,
 ): Promise<Database | null> {
-  const row = await database.query.competitionBracketStates.findFirst({
-    where: eq(competitionBracketStates.competitionId, competitionId),
+  const row = await database.query.competitionStageBracketStates.findFirst({
+    where: and(
+      eq(competitionStageBracketStates.competitionId, competitionId),
+      eq(competitionStageBracketStates.stageKey, stageKey),
+    ),
   });
   return row?.data ?? null;
 }
 
-/** Persist the bracket state without exposing the storage table to callers. */
-export async function saveBracketState(
+/** Load serialized provider views through the adapter; callers never read the provider table. */
+export async function loadStageBracketViews(
   database: BracketStateDatabase,
   competitionId: string,
+): Promise<Map<string, BracketData>> {
+  const rows = await database.query.competitionStageBracketStates.findMany({
+    where: eq(competitionStageBracketStates.competitionId, competitionId),
+  });
+  return new Map(rows.map((row) => [row.stageKey, serializeStageBracket(row.data)]));
+}
+
+/** Load only stable RivalHub entrants for standings/read-model consumers. */
+export async function loadStageBracketEntrantIds(
+  database: BracketStateDatabase,
+  competitionId: string,
+): Promise<Map<string, string[]>> {
+  const views = await loadStageBracketViews(database, competitionId);
+  return new Map([...views.entries()].map(([stageKey, data]) => [
+    stageKey,
+    data.participant.map((participant) => participant.rivalhubEntryId),
+  ]));
+}
+
+/** Persist one provider state without exposing its storage table to callers. */
+export async function saveStageBracketState(
+  database: BracketStateDatabase,
+  competitionId: string,
+  stageKey: string,
   data: Database,
 ): Promise<void> {
   const updatedAt = new Date();
   await database
-    .insert(competitionBracketStates)
-    .values({ competitionId, data, updatedAt })
+    .insert(competitionStageBracketStates)
+    .values({ competitionId, stageKey, data, updatedAt })
     .onConflictDoUpdate({
-      target: competitionBracketStates.competitionId,
+      target: [competitionStageBracketStates.competitionId, competitionStageBracketStates.stageKey],
       set: { data, updatedAt },
     });
 }
 
-function buildManager(data: Database): { manager: BracketsManager; db: InMemoryDatabase } {
-  const db = new InMemoryDatabase();
-  db.setData(data);
-  const manager = new BracketsManager(db);
-  return { manager, db };
+/**
+ * Persist one resolved provider node without hiding divergent existing facts.
+ * Retries are idempotent only when identity, stage and format all agree.
+ */
+export async function ensureResolvedBracketMatch(
+  database: BracketStateDatabase,
+  input: ResolvedBracketMatchInput,
+): Promise<void> {
+  const nodeId = input.resolved.bracketMatchId.toString();
+  await database.insert(matches).values({
+    seasonId: input.seasonId,
+    entryAId: input.resolved.entryAId,
+    entryBId: input.resolved.entryBId,
+    stage: input.stageKey,
+    format: input.format,
+    status: "scheduled",
+    bracketNodeId: nodeId,
+    ...(input.entryRound === undefined ? {} : { entryRound: input.entryRound }),
+  }).onConflictDoNothing();
+
+  const existing = await database.query.matches.findFirst({
+    where: and(
+      eq(matches.seasonId, input.seasonId),
+      eq(matches.stage, input.stageKey),
+      eq(matches.bracketNodeId, nodeId),
+    ),
+  });
+  if (!existing) {
+    throw new Error(`bracket node ${nodeId} 写入后无法读取，拒绝继续`);
+  }
+  assertResolvedBracketMatchCompatible(existing, input);
 }
 
-/**
- * 根据队伍列表与赛季 capability 初始化赛季 bracket。
- * 返回序列化后的 Database JSON 以及所有已确定对阵的 bracket match。
- * 调用方负责：将 data 写入 competition_bracket_states，对每个 resolved match 创建 DB 记录。
- *
- * teams 必须按 draft_order ASC 排列（draft_order=1 → participantId=0）。
- */
-export async function generateBracket(
-  teams: CompetitionEntry[],
-  config: {
-    qualifierFormat: QualifierFormat | null;
-    playoffFormat: PlayoffFormat | null;
-    qualifierName?: string;
-    playoffName?: string;
+export function assertResolvedBracketMatchCompatible(
+  existing: Pick<Match, "seasonId" | "entryAId" | "entryBId" | "stage" | "format" | "bracketNodeId" | "entryRound">,
+  input: ResolvedBracketMatchInput,
+): void {
+  const expectedNodeId = input.resolved.bracketMatchId.toString();
+  const compatible = existing.seasonId === input.seasonId &&
+    existing.entryAId === input.resolved.entryAId &&
+    existing.entryBId === input.resolved.entryBId &&
+    existing.stage === input.stageKey &&
+    existing.format === input.format &&
+    existing.bracketNodeId === expectedNodeId &&
+    (input.entryRound === undefined || existing.entryRound === input.entryRound);
+  if (!compatible) {
+    throw new Error(`bracket node ${expectedNodeId} 与现有比赛事实不一致，拒绝静默复用`);
   }
+}
+
+function buildManager(data: Database): { manager: BracketsManager; db: InMemoryDatabase } {
+  const memoryDb = new InMemoryDatabase();
+  memoryDb.setData(data);
+  return { manager: new BracketsManager(memoryDb), db: memoryDb };
+}
+
+function providerType(type: StageConfig["type"]): "double_elimination" | "single_elimination" | "round_robin" {
+  if (type === "double_elim") return "double_elimination";
+  if (type === "single_elim") return "single_elimination";
+  if (type === "round_robin") return "round_robin";
+  throw new Error("Swiss 必须由 src/lib/major/swiss.ts 拥有，不能经过通用 bracket adapter");
+}
+
+function stableSeeding(entries: CompetitionEntry[]): Array<{ name: string; rivalhubEntryId: string }> {
+  return entries.map((entry) => ({ name: entry.name, rivalhubEntryId: entry.id }));
+}
+
+/** Create exactly one provider stage for one logical StageConfig. */
+export async function createStageBracket(
+  config: Pick<StageConfig, "key" | "name" | "type">,
+  entries: CompetitionEntry[],
 ): Promise<{ data: Database; resolvedMatches: ResolvedBracketMatch[] }> {
-  const db = new InMemoryDatabase();
-  const manager = new BracketsManager(db);
-
-  const seeding = teams.map((t) => t.name);
-
-  if (config.qualifierFormat !== null) {
-    // 排位赛 stage（round_robin 或 swiss；swiss 暂不支持，统一用 round_robin）
-    await manager.create.stage({
-      tournamentId: 0,
-      name: config.qualifierName ?? "排位赛",
-      type: "round_robin",
-      seeding,
-      settings: {
-        groupCount: 1,
-        roundRobinMode: "simple",
-      },
-    });
-  }
-
-  if (config.playoffFormat !== null) {
-    const type =
-      config.playoffFormat === "double_elim" ? "double_elimination" : "single_elimination";
-    await manager.create.stage({
-      tournamentId: 0,
-      name: config.playoffName ?? "正赛",
-      type,
-      seeding: config.qualifierFormat !== null
-        // 排位赛结束后才确定晋级顺序；先全部 TBD
-        ? new Array(teams.length).fill(null)
-        : seeding,
-      settings: {
-        grandFinal: "simple",
-        seedOrdering: ["inner_outer"],
-      },
-    });
-  }
+  const memoryDb = new InMemoryDatabase();
+  const manager = new BracketsManager(memoryDb);
+  await manager.create.stage({
+    tournamentId: 0,
+    // This name is presentation-only. The row is loaded by config.key.
+    name: config.name,
+    type: providerType(config.type),
+    seeding: stableSeeding(entries),
+    settings: config.type === "round_robin"
+      ? { groupCount: 1, roundRobinMode: "simple" }
+      : { grandFinal: "simple", seedOrdering: ["inner_outer"] },
+  });
 
   const data = await manager.export();
-  const resolvedMatches = collectResolvedMatches(data);
-
-  return { data, resolvedMatches };
+  return { data, resolvedMatches: collectResolvedMatches(data) };
 }
 
-/**
- * 推进一场比赛结果，更新 bracket 状态机，写回序列化数据。
- * 返回新出现的已确定对阵（供调用方创建新 DB match 记录）。
- *
- * @param bracketNodeId  matches.bracket_node_id（brackets-manager match ID 字符串）
- * @param scoreA         TeamA 系列赛胜图数
- * @param scoreB         TeamB 系列赛胜图数
- * @param currentData    当前 competition_bracket_states.data
- */
-export async function advanceMatch(
+/** Advance one provider node in a stage-scoped state. */
+export async function advanceStageBracket(
+  stageKey: string,
   bracketNodeId: string,
-  scoreA: number,
-  scoreB: number,
-  currentData: Database
+  result: { scoreA: number; scoreB: number },
+  currentData: Database,
 ): Promise<{ updatedData: Database; newResolvedMatches: ResolvedBracketMatch[] }> {
+  if (!stageKey.trim()) throw new Error("stageKey 不能为空");
   const { manager } = buildManager(currentData);
-
-  // 必须在 manager.update.match() 之前快照，否则 InMemoryDatabase.setData()
-  // 存的是引用，manager 更新内存后 currentData 也会被同步修改，导致 diff 永远为空。
-  const prevResolved = new Set(collectResolvedMatches(currentData).map((m) => m.bracketMatchId));
-
-  const matchId = parseInt(bracketNodeId, 10);
-  const isWinA = scoreA > scoreB;
+  const previousResolved = new Set(collectResolvedMatches(currentData).map((match) => match.bracketMatchId));
+  const matchId = Number.parseInt(bracketNodeId, 10);
+  if (!Number.isInteger(matchId)) throw new Error(`无效的 bracket node id: ${bracketNodeId}`);
+  if (result.scoreA === result.scoreB) throw new Error("bracket 比赛不能以平局结束");
 
   await manager.update.match({
     id: matchId,
-    opponent1: { score: scoreA, result: isWinA ? "win" : "loss" },
-    opponent2: { score: scoreB, result: isWinA ? "loss" : "win" },
+    opponent1: { score: result.scoreA, result: result.scoreA > result.scoreB ? "win" : "loss" },
+    opponent2: { score: result.scoreB, result: result.scoreA > result.scoreB ? "loss" : "win" },
     status: Status.Completed,
   });
 
   const updatedData = await manager.export();
-
-  const allResolved = collectResolvedMatches(updatedData);
-  const newResolvedMatches = allResolved.filter((m) => !prevResolved.has(m.bracketMatchId));
-
+  const newResolvedMatches = collectResolvedMatches(updatedData)
+    .filter((match) => !previousResolved.has(match.bracketMatchId));
   return { updatedData, newResolvedMatches };
 }
 
-/**
- * 从 competition_bracket_states.data 序列化为 brackets-viewer 可消费的格式。
- * 若 bracket 尚未生成（data 为 null），返回空结构。
- */
-export function serializeBracket(
-  data: Database | null,
-): BracketData {
-  if (!data) {
-    return { stage: [], match: [], match_game: [], participant: [], group: [], round: [] };
-  }
+/** Project provider state into the brackets-viewer contract. */
+export function serializeStageBracket(data: Database | null): BracketData {
+  if (!data) return { stage: [], match: [], match_game: [], participant: [], group: [], round: [] };
 
-  // participant 表只有 name；id 顺序对应 teams 按 draft_order 排列
-  const participant = (data.participant as BracketParticipantRef[]).map((p) => ({
-    id: p.id,
-    name: p.name,
+  const participant = (data.participant as unknown as BracketParticipantRef[]).map((item) => ({
+    id: item.id,
+    name: item.name,
+    rivalhubEntryId: item.rivalhubEntryId,
   }));
-
-  const stage: BracketStage[] = (
-    data.stage as Array<{
-      id: number;
-      tournament_id?: number;
-      name: string;
-      number?: number;
-      type: string;
-      settings?: Record<string, unknown>;
-    }>
-  ).map((s) => ({
-    id: s.id,
-    tournament_id: s.tournament_id,
-    name: s.name,
-    number: s.number,
-    type: s.type as BracketStage["type"],
-    settings: s.settings ?? {},
+  const stage = (data.stage as Array<BracketStage & { type: string }>).map((item) => ({
+    id: item.id,
+    tournament_id: item.tournament_id,
+    name: item.name,
+    number: item.number,
+    type: item.type as BracketStage["type"],
+    settings: item.settings ?? {},
   }));
-
-  const match: BracketMatch[] = (
-    data.match as Array<{
-      id: number;
-      stage_id: number;
-      group_id: number;
-      round_id: number;
-      number: number;
-      status: number;
-      child_count?: number;
-      opponent1: { id: number | null; score: number | null; result?: string } | null;
-      opponent2: { id: number | null; score: number | null; result?: string } | null;
-    }>
-  ).map((m) => ({
-    id: m.id,
-    stage_id: m.stage_id,
-    group_id: m.group_id,
-    round_id: m.round_id,
-    number: m.number,
-    status: m.status,
-    child_count: m.child_count ?? 0,
-    opponent1: m.opponent1
-      ? {
-          id: m.opponent1.id,
-          // 注意：brackets-viewer 用 `void 0 === e.score` 判断空分数，
-          // 必须传 undefined（JSON 序列化后字段缺失）而非 null，否则会渲染成字符串 "null"。
-          score: m.opponent1.score ?? undefined,
-          result: m.opponent1.result as "win" | "loss" | undefined,
-        }
-      : null,
-    opponent2: m.opponent2
-      ? {
-          id: m.opponent2.id,
-          score: m.opponent2.score ?? undefined,
-          result: m.opponent2.result as "win" | "loss" | undefined,
-        }
-      : null,
-  }));
-
-  const group: BracketGroupRef[] = (data.group as BracketGroupRef[]).map((g) => ({
-    id: g.id,
-    stage_id: g.stage_id,
-    number: g.number,
-  }));
-
-  const round: BracketRoundRef[] = (data.round as BracketRoundRef[]).map((r) => ({
-    id: r.id,
-    stage_id: r.stage_id,
-    group_id: r.group_id,
-    number: r.number,
+  const match = (data.match as Array<{
+    id: number;
+    stage_id: number;
+    group_id: number;
+    round_id: number;
+    number: number;
+    status: number;
+    child_count?: number;
+    opponent1: { id: number | null; score: number | null; result?: string } | null;
+    opponent2: { id: number | null; score: number | null; result?: string } | null;
+  }>).map((item) => ({
+    id: item.id,
+    stage_id: item.stage_id,
+    group_id: item.group_id,
+    round_id: item.round_id,
+    number: item.number,
+    status: item.status,
+    child_count: item.child_count ?? 0,
+    opponent1: projectOpponent(item.opponent1),
+    opponent2: projectOpponent(item.opponent2),
   }));
 
   return {
     stage,
     match,
-    match_game: (data.match_game as unknown as BracketMatchGame[] | undefined) ?? [],
+    match_game: (data.match_game as BracketMatchGame[] | undefined) ?? [],
     participant,
-    group,
-    round,
+    group: (data.group as BracketGroupRef[]).map((item) => ({ id: item.id, stage_id: item.stage_id, number: item.number })),
+    round: (data.round as BracketRoundRef[]).map((item) => ({
+      id: item.id,
+      stage_id: item.stage_id,
+      group_id: item.group_id,
+      number: item.number,
+    })),
   };
 }
 
-/**
- * 用积分榜顺序更新正赛 stage 的种子，并返回确定的第一轮对阵。
- * 在所有排位赛结束后、管理员点击「生成正赛」时调用。
- *
- * @param seededTeamNames  按种子排序的队伍名称数组（seed 1 在 index 0）
- * @param currentData      当前 competition_bracket_states.data
- */
-export async function seedPlayoff(
-  seededTeamNames: string[],
-  currentData: Database,
-  stageName = "正赛",
-): Promise<{ updatedData: Database; resolvedMatches: ResolvedBracketMatch[] }> {
-  const { manager } = buildManager(currentData);
-
-  const stages = currentData.stage as BracketStageRef[];
-  const playoffStage = stages.find((s) => s.name === stageName);
-  if (!playoffStage) throw new Error(`${stageName} stage 未找到，请先生成赛程`);
-
-  // 用实际队伍名替换 TBD seed
-  await manager.update.seeding(playoffStage.id, seededTeamNames);
-
-  // 重新导出，找出已确定双方的第一轮对阵
-  const updatedData = await manager.export();
-  const resolvedMatches = collectResolvedMatches(updatedData);
-
-  return { updatedData, resolvedMatches };
+function projectOpponent(
+  opponent: { id: number | null; score: number | null; result?: string } | null,
+): BracketMatch["opponent1"] {
+  if (!opponent) return null;
+  return {
+    id: opponent.id,
+    score: opponent.score ?? undefined,
+    result: opponent.result as "win" | "loss" | undefined,
+  };
 }
 
-// ─── 内部工具 ───────────────────────────────────────────────────────────────
-
-/**
- * 从 Database JSON 中筛选出双方参与者均已确定的比赛（非 TBD/BYE）。
- */
+/** Resolve provider participants using stable metadata, never array position or name. */
 export function collectResolvedMatches(data: Database): ResolvedBracketMatch[] {
-  const groupNumberById = new Map<number, number>();
-  for (const g of data.group as BracketGroupRef[]) {
-    groupNumberById.set(g.id, g.number);
-  }
-  const roundMap = new Map<number, { stageId: number; number: number; groupId: number }>();
-  for (const r of data.round as BracketRoundRef[]) {
-    roundMap.set(r.id, { stageId: r.stage_id, number: r.number, groupId: r.group_id });
-  }
+  const participantById = new Map<number, BracketParticipantRef>(
+    (data.participant as unknown as BracketParticipantRef[]).map((participant) => [participant.id, participant]),
+  );
+  const groupNumberById = new Map<number, number>(
+    (data.group as BracketGroupRef[]).map((group) => [group.id, group.number]),
+  );
+  const roundById = new Map<number, BracketRoundRef>(
+    (data.round as BracketRoundRef[]).map((round) => [round.id, round]),
+  );
 
   const resolved: ResolvedBracketMatch[] = [];
-  for (const m of data.match as Array<{
+  for (const match of data.match as Array<{
     id: number;
+    group_id: number;
     round_id: number;
     opponent1: { id: number | null } | null;
     opponent2: { id: number | null } | null;
   }>) {
-    if (
-      m.opponent1?.id !== null &&
-      m.opponent1?.id !== undefined &&
-      m.opponent2?.id !== null &&
-      m.opponent2?.id !== undefined
-    ) {
-      const round = roundMap.get(m.round_id);
-      resolved.push({
-        bracketMatchId: m.id,
-        stageId: round?.stageId ?? 0,
-        teamAParticipantId: m.opponent1.id,
-        teamBParticipantId: m.opponent2.id,
-        roundNumber: round?.number ?? 0,
-        groupNumber: round ? (groupNumberById.get(round.groupId) ?? 1) : 1,
-      });
-    }
+    const participantA = match.opponent1?.id == null ? undefined : participantById.get(match.opponent1.id);
+    const participantB = match.opponent2?.id == null ? undefined : participantById.get(match.opponent2.id);
+    if (!participantA?.rivalhubEntryId || !participantB?.rivalhubEntryId) continue;
+    const round = roundById.get(match.round_id);
+    resolved.push({
+      bracketMatchId: match.id,
+      stageId: round?.stage_id ?? 0,
+      entryAId: participantA.rivalhubEntryId,
+      entryBId: participantB.rivalhubEntryId,
+      roundNumber: round?.number ?? 0,
+      groupNumber: groupNumberById.get(match.group_id) ?? 1,
+    });
   }
   return resolved;
 }

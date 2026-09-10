@@ -2,6 +2,7 @@ import type { CompetitionEntry } from "@/db/schema/competition-entries";
 import type { StageConfig, QualifiedTeam } from "@/types/season";
 
 export interface StageExecutor {
+  /** `teams` is the canonical stage-seed order produced by the transition boundary. */
   initialize(
     seasonId: string,
     config: StageConfig,

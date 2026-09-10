@@ -36,7 +36,11 @@ const schedulerMigration = readFileSync(
   join(root, "drizzle/migrations/0045_fresh_blue_blade.sql"),
   "utf8",
 );
-const migration = `${terminalMigration}\n${restrictionOverrideMigration}\n${conversionPolicyMigration}\n${seedRecommendationSnapshotMigration}\n${identityMigration}\n${schedulerMigration}`;
+const stageConvergenceMigration = readFileSync(
+  join(root, "drizzle/migrations/0048_same_epoch.sql"),
+  "utf8",
+);
+const migration = `${terminalMigration}\n${restrictionOverrideMigration}\n${conversionPolicyMigration}\n${seedRecommendationSnapshotMigration}\n${identityMigration}\n${schedulerMigration}\n${stageConvergenceMigration}`;
 
 function expectedFacts(): DatabaseAccessFacts[] {
   return DATABASE_ACCESS_MATRIX.map((entry) => ({
@@ -52,13 +56,13 @@ function expectedFacts(): DatabaseAccessFacts[] {
 describe("database access matrix", () => {
   it("classifies every current public application table and keeps the generated document aligned", () => {
     const snapshot = JSON.parse(
-      readFileSync(join(root, "drizzle/migrations/meta/0045_snapshot.json"), "utf8"),
+      readFileSync(join(root, "drizzle/migrations/meta/0048_snapshot.json"), "utf8"),
     ) as { tables: Record<string, unknown> };
     const snapshotTables = Object.keys(snapshot.tables)
       .map((table) => table.replace(/^public\./, ""))
       .sort();
 
-    expect(DATABASE_ACCESS_MATRIX).toHaveLength(72);
+    expect(DATABASE_ACCESS_MATRIX).toHaveLength(73);
     expect(new Set(DATABASE_ACCESS_TABLES).size).toBe(DATABASE_ACCESS_TABLES.length);
     expect(snapshotTables).toEqual([...DATABASE_ACCESS_TABLES].sort());
     expect(renderDatabaseAccessMatrixMarkdown()).toBe(
@@ -76,8 +80,8 @@ describe("database access matrix", () => {
       /SELECT unnest\(ARRAY\[([\s\S]*?)\]::text\[\]\)/,
     )?.[1];
     expect(publicationTablesBlock).toBeDefined();
-    const publicationTables = [...(publicationTablesBlock ?? "").matchAll(/'([^']+)'/g)]
-      .map((match) => match[1])
+    const publicationTables = [...migration.matchAll(/SELECT unnest\(ARRAY\[([\s\S]*?)\]::text\[\]\)/g)]
+      .flatMap((block) => [...block[1].matchAll(/'([^']+)'/g)].map((match) => match[1]))
       .sort();
     expect(publicationTables).toEqual(
       [...DATABASE_ACCESS_TABLES]
@@ -91,6 +95,7 @@ describe("database access matrix", () => {
             "user_merge_authorizations",
             "user_merge_ledger",
             "scheduled_job_health",
+            "competition_stage_bracket_states",
           ].includes(table),
         )
         .sort(),

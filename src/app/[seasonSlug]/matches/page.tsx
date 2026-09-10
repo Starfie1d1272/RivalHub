@@ -3,29 +3,28 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { and, eq, asc } from "drizzle-orm";
 import { db } from "@/db/client";
-import { majorFinalResults, matches, competitionEntries } from "@/db/schema";
-import { loadBracketState, serializeBracket } from "@/lib/bracket";
+import { majorFinalResults, majorStageRuns, matches, competitionEntries } from "@/db/schema";
+import { loadStageBracketViews } from "@/lib/bracket";
 import { calculateStandings } from "@/lib/standings";
 import { PageHeader, PageLayout, Panel } from "@/components/rivalhub";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BracketView } from "@/components/matches/BracketView";
+import { SwissBracket } from "@/components/matches/SwissBracket";
 import { MatchTeamFilter } from "@/components/matches/MatchTeamFilter";
 import { StandingsTable } from "@/components/matches/StandingsTable";
-import { SwissBracket } from "@/components/matches/SwissBracket";
-import { getSwissViewData } from "@/lib/swiss/data";
 import {
   buildStageViews,
-  canUseLegacySwissView,
-  getTeamsReferencedByMatches,
-  projectLegacyBracketByStageName,
   resolveDefaultStageKey,
 } from "@/lib/matches/stage-views";
+import { resolveStrictHistoricalRoundRobinEntryIds } from "@/lib/matches/historical-round-robin";
 import { normalizeStagePlan } from "@/lib/seasons/compatibility";
 import { presentStageMarker } from "@/lib/seasons/presentation";
 import { MatchTabsSection } from "@/components/matches/MatchTabsSection";
 import { AdminShortcutSlot } from "@/components/layout/AdminShortcutSlot";
 import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 import { getMatchMapRoundScores } from "@/lib/data/standings";
+import { loadMajorSwissStageReadModel } from "@/lib/matches/stage-read-model";
+import { resolveMajorStagePlan } from "@/lib/major/run-snapshot";
 
 interface MatchesPageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -39,7 +38,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
 
-  const [allTeams, allMatches, finalResult, bracketState] = await Promise.all([
+  const [allTeams, allMatches, finalResult, stageRunRows] = await Promise.all([
     db.query.competitionEntries.findMany({
       where: and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryCondition()),
       orderBy: [asc(competitionEntries.formationOrder)],
@@ -49,15 +48,31 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
       orderBy: [asc(matches.createdAt)],
     }),
     db.query.majorFinalResults.findFirst({ where: eq(majorFinalResults.seasonId, season.id) }),
-    loadBracketState(db, season.id),
+    season.competitionTemplate === "major"
+      ? db.select({ stageKey: majorStageRuns.stageKey, ruleSnapshot: majorStageRuns.ruleSnapshot })
+          .from(majorStageRuns)
+          .where(eq(majorStageRuns.seasonId, season.id))
+      : Promise.resolve([] as { stageKey: string; ruleSnapshot: unknown }[]),
   ]);
 
   const teamMap = new Map(allTeams.map((team) => [team.id, team.name]));
   const roundScoresByMatchId = await getMatchMapRoundScores(
     allMatches.filter((match) => match.status === "finished").map((match) => match.id),
   );
-  const stagePlan = normalizeStagePlan(season.stagePlan);
-  const { views: stageViews, unconfiguredMatches } = buildStageViews(stagePlan, allMatches);
+  const stagePlan = season.competitionTemplate === "major"
+    ? resolveMajorStagePlan(normalizeStagePlan(season.stagePlan), stageRunRows)
+    : normalizeStagePlan(season.stagePlan);
+  const { views: stageViews, unconfiguredMatches } = buildStageViews<typeof allMatches[number]>(stagePlan, allMatches);
+  const swissReadModels = new Map(
+    (await Promise.all(
+      stagePlan
+        .filter((stage) => stage.type === "swiss")
+        .map(async (stage) => [
+          stage.key,
+          await loadMajorSwissStageReadModel(season.id, stage.key),
+        ] as const),
+    )).filter((entry): entry is readonly [string, NonNullable<typeof entry[1]>] => entry[1] !== null),
+  );
   const matchFilter = (match: { entryAId: string; entryBId: string }) =>
     !filterTeamId || match.entryAId === filterTeamId || match.entryBId === filterTeamId;
 
@@ -81,21 +96,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
     ),
   });
 
-  const swissDataByStage = new Map(
-    await Promise.all(
-      stageViews
-        .filter(({ stage, matches: stageMatches }) => stage.type === "swiss" && stageMatches.length > 0)
-        .map(async ({ stage }) => [
-          stage.key,
-          await getSwissViewData(
-            season.id,
-            stage.key,
-            presentStageMarker(stage, season.competitionTemplate),
-          ),
-        ] as const),
-    ),
-  );
-  const fullBracketData = serializeBracket(bracketState);
+  const bracketDataByStage = await loadStageBracketViews(db, season.id);
   const defaultStageKey = resolveDefaultStageKey(stagePlan, allMatches);
 
   if (allMatches.length === 0 && allTeams.length === 0) {
@@ -155,19 +156,24 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
               const stageLabel = presentStageMarker(stage, season.competitionTemplate);
               const stageMatches = allStageMatches.filter(matchFilter);
               const { active, done } = splitMatches(stageMatches);
-              const swissData = swissDataByStage.get(stage.key);
-              const canShowSwissBracket = canUseLegacySwissView(stage, allStageMatches, swissData);
+              const swissReadModel = swissReadModels.get(stage.key);
               const standings = stage.type === "round_robin" && allStageMatches.length > 0
-                ? calculateStandings(
-                    getTeamsReferencedByMatches(allTeams, allStageMatches),
-                    allStageMatches.filter((match) => match.status === "finished"),
-                    roundScoresByMatchId,
-                  )
+                ? (() => {
+                    const providerEntryIds = bracketDataByStage.get(stage.key)?.participant.map((participant) => participant.rivalhubEntryId) ?? [];
+                    const entryIds = providerEntryIds.length > 0
+                      ? providerEntryIds
+                      : resolveStrictHistoricalRoundRobinEntryIds(stage.teamCount, allStageMatches);
+                    if (!entryIds) return [];
+                    const stageEntries = allTeams.filter((team) => entryIds.includes(team.id));
+                    return calculateStandings(
+                      stageEntries,
+                      allStageMatches.filter((match) => match.status === "finished"),
+                      roundScoresByMatchId,
+                    );
+                  })()
                 : [];
               const isPlayoff = stage.type === "double_elim" || stage.type === "single_elim";
-              const bracketProjection = isPlayoff
-                ? projectLegacyBracketByStageName(fullBracketData, stage.name)
-                : null;
+              const bracketData = isPlayoff ? bracketDataByStage.get(stage.key) ?? null : null;
               const matchNodeMap = new Map<string, string>(
                 allStageMatches
                   .filter((match) => match.bracketNodeId !== null)
@@ -176,25 +182,10 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
 
               return (
                 <TabsContent key={stage.key} value={stage.key} className="space-y-8">
-                  {canShowSwissBracket ? (
-                    <section className="space-y-3">
-                      <h2 className="text-lg font-semibold text-[var(--color-fg)]">{stageLabel}</h2>
-                      <SwissBracket data={swissData} seasonSlug={seasonSlug} />
-                    </section>
-                  ) : (
-                    <>
-                      {stage.type === "swiss" && allStageMatches.length > 0 && (
-                        <p className="text-sm text-[var(--color-warn)]">
-                          瑞士轮统计投影暂不可用。
-                        </p>
+                  <>
+                      {swissReadModel && (
+                        <SwissBracket data={swissReadModel} seasonSlug={seasonSlug} />
                       )}
-
-                      {bracketProjection?.status === "ambiguous" && (
-                        <p className="text-sm text-[var(--color-warn)]">
-                          对阵图映射异常。
-                        </p>
-                      )}
-
                       {standings.length > 0 && (
                         <section className="space-y-3">
                           <div className="flex items-center justify-between">
@@ -208,11 +199,11 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
                         </section>
                       )}
 
-                      {bracketProjection?.status === "ok" && (
+                      {bracketData && bracketData.stage.length > 0 && (
                         <section className="space-y-3">
                           <h2 className="text-lg font-semibold text-[var(--color-fg)]">对阵图</h2>
                           <BracketView
-                            data={bracketProjection.data}
+                            data={bracketData}
                             themeColor={season.themeColor}
                             matchNodeMap={matchNodeMap}
                             seasonSlug={seasonSlug}
@@ -228,7 +219,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
                             stageLabel={stageLabel}
                             seasonSlug={seasonSlug}
                             teamMap={teamMap}
-                            unknownTeamName={isPlayoff ? "TBD" : "未知队伍"}
+                            unknownTeamName={isPlayoff ? "待定" : "未知队伍"}
                           />
                         </section>
                       )}
@@ -238,8 +229,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
                           {stageLabel} 赛程尚未生成
                         </div>
                       )}
-                    </>
-                  )}
+                  </>
                 </TabsContent>
               );
             })}

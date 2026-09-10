@@ -125,6 +125,8 @@ create StageRun with frozen rules/entrants
 
 推进依据是 StageRun entrants 与已完成比赛。standings/bracket/page summary 是 projection，不可直接覆盖 runtime truth。具体阶段人数、BO 规则和配对政策属于赛事规则与 runtime owner，不在本文件复制。
 
+通用阶段初始化由 canonical transition boundary 解析 previous/current/next stage、上一阶段完成状态和本阶段 entrant input；管理员页面不自行推断邻接阶段或执行“生成正赛”旁路。generic provider 每次只初始化当前 `StageConfig.key` 的 state；Major Swiss/Playoff 由各自 managed runtime owner 管理。
+
 ## Match
 
 ```text

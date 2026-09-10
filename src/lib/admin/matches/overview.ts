@@ -19,11 +19,13 @@ import { getDisplayName } from "@/lib/identity/display-name";
 import { calculateStandings } from "@/lib/standings";
 import {
   buildStageViews,
-  getTeamsReferencedByMatches,
-  hasAdjacentLegacyQualifierPlayoff,
   resolveDefaultStageKey,
 } from "@/lib/matches/stage-views";
-import { getFirstStageOfType, normalizeStagePlan } from "@/lib/seasons/compatibility";
+import { resolveStrictHistoricalRoundRobinEntryIds } from "@/lib/matches/historical-round-robin";
+import { loadStageBracketEntrantIds } from "@/lib/bracket";
+import { loadMajorSwissStageReadModel } from "@/lib/matches/stage-read-model";
+import { normalizeStagePlan } from "@/lib/seasons/compatibility";
+import { resolveMajorStagePlan } from "@/lib/major/run-snapshot";
 import { buildMajorRuntimeData } from "@/lib/admin/major-runtime";
 import type { Match } from "@/db/schema";
 import type { AdminCommentaryEffectiveness, AdminMatchOverviewData } from "@/lib/admin/matches/types";
@@ -118,20 +120,28 @@ export async function loadAdminMatchOverview({
     }),
     isMajor
       ? db
-          .select({ id: majorStageRuns.id, stageKey: majorStageRuns.stageKey, finalizedRound: majorStageRuns.finalizedRound })
+          .select({ id: majorStageRuns.id, stageKey: majorStageRuns.stageKey, finalizedRound: majorStageRuns.finalizedRound, ruleSnapshot: majorStageRuns.ruleSnapshot })
           .from(majorStageRuns)
           .where(eq(majorStageRuns.seasonId, season.id))
-      : Promise.resolve([] as { id: string; stageKey: string; finalizedRound: number }[]),
+      : Promise.resolve([] as { id: string; stageKey: string; finalizedRound: number; ruleSnapshot: unknown }[]),
     isMajor
       ? db.query.majorFinalResults.findFirst({ where: eq(majorFinalResults.seasonId, season.id) })
       : Promise.resolve(undefined),
   ]);
 
-  const stagePlan = normalizeStagePlan(season.stagePlan);
+  const stagePlan = isMajor
+    ? resolveMajorStagePlan(normalizeStagePlan(season.stagePlan), stageRunRows)
+    : normalizeStagePlan(season.stagePlan);
+  const stageReadModels = new Map(
+    (await Promise.all(
+      stagePlan
+        .filter((stage) => stage.type === "swiss")
+        .map(async (stage) => [stage.key, await loadMajorSwissStageReadModel(season.id, stage.key)] as const),
+    )).filter((entry): entry is readonly [string, NonNullable<typeof entry[1]>] => entry[1] !== null),
+  );
   const { swissRuntime, playoffRuntime } = isMajor
     ? buildMajorRuntimeData({
         seasonId: season.id,
-        stagePlan,
         stageRuns: stageRunRows,
         matches: allMatches,
         finalResultStatus: finalResult?.status,
@@ -157,41 +167,26 @@ export async function loadAdminMatchOverview({
     .filter((match) => match.status === "finished")
     .map((match) => match.id);
   const roundScoresByMatchId = await getMatchMapRoundScores(finishedMatchIds);
+  const stageEntrantIdsByKey = await loadStageBracketEntrantIds(db, season.id);
 
-  const qualifierStage = getFirstStageOfType(stagePlan, ["round_robin", "swiss"]);
-  const playoffStage = getFirstStageOfType(stagePlan, ["double_elim", "single_elim"]);
   const standingsByStage = new Map(
     allStageViews
       .filter((view) => view.stage.type === "round_robin" && view.matches.length > 0)
       .map((view) => [
         view.stage.key,
         calculateStandings(
-          getTeamsReferencedByMatches(allTeams, view.matches),
+          allTeams.filter((team) => {
+            const providerIds = stageEntrantIdsByKey.get(view.stage.key);
+            const entryIds = providerIds && providerIds.length > 0
+              ? providerIds
+              : resolveStrictHistoricalRoundRobinEntryIds(view.stage.teamCount, view.matches);
+            return entryIds?.includes(team.id) ?? false;
+          }),
           view.matches.filter((match) => match.status === "finished"),
           roundScoresByMatchId,
         ),
       ]),
   );
-  const qualifierStandings = qualifierStage ? standingsByStage.get(qualifierStage.key) ?? [] : [];
-
-  const qualifierView = qualifierStage
-    ? allStageViews.find((view) => view.stage.key === qualifierStage.key)
-    : null;
-  const playoffView = playoffStage
-    ? allStageViews.find((view) => view.stage.key === playoffStage.key)
-    : null;
-  const hasTerminalLegacyQualifierMatches =
-    qualifierView != null &&
-    qualifierView.matches.length > 0 &&
-    qualifierView.matches.every((match) => match.status === "finished" || match.status === "cancelled");
-  const canGeneratePlayoff =
-    !!qualifierStage &&
-    !!playoffStage &&
-    hasAdjacentLegacyQualifierPlayoff(stagePlan) &&
-    hasTerminalLegacyQualifierMatches &&
-    playoffView?.matches.length === 0;
-  const hasLegacyAdjacentPlayoff = hasAdjacentLegacyQualifierPlayoff(stagePlan);
-
   const matchCount = allMatches.length;
   const hasSwissStage = stagePlan.some((stage) => stage.type === "swiss");
   const canGenerate = season.status === "playing" && matchCount === 0 && allTeams.length >= 2 && !hasSwissStage;
@@ -207,16 +202,12 @@ export async function loadAdminMatchOverview({
     stagePlan,
     matches: projectedMatches,
     stageViews,
+    stageReadModels,
     commentaryEffectiveness,
     unconfiguredMatches: unconfiguredMatches.map(projectAdminMatchSummary),
     standingsByStage,
-    qualifierStandings,
-    qualifierStage,
-    playoffStage,
     batchDeadlineGroups: buildBatchDeadlineGroups(allMatches, stagePlan),
     canGenerate,
-    canGeneratePlayoff,
-    hasLegacyAdjacentPlayoff,
     hasSwissStage,
     defaultStageKey: resolveDefaultStageKey(stagePlan, allMatches, filterStage),
     swissRuntime,
