@@ -12,7 +12,7 @@ import {
   getFirstStage,
   normalizeStagePlan,
 } from "@/lib/seasons/compatibility";
-import { resolveStageTransitionBoundary } from "@/lib/matches/stage-transition";
+import { resolveStageTransitionBoundary, resolveStageTransitionTopology } from "@/lib/matches/stage-transition";
 import { actionError, getSeasonOrThrow } from "@/lib/action-utils";
 import { revalidateSeasonPaths } from "@/lib/revalidation";
 
@@ -46,7 +46,11 @@ export async function generateSchedule(
         stageKey: firstStage.key,
         entries: seasonTeams,
       });
-      const { matchCount } = await getExecutor(firstStage.type).initialize(seasonId, firstStage, transition.stageEntries);
+      const { matchCount } = await getExecutor(firstStage.type).initialize(
+        seasonId,
+        firstStage,
+        transition.orderedEntrants.map(({ entry }) => entry),
+      );
       await tx.insert(auditLogs).values({ seasonId, action: "match.generate_schedule", actorId: session.email, targetId: seasonId, targetType: "season", meta: { matchCount, stageKey: firstStage.key } });
       return { matchCount, slug: season.slug };
     });
@@ -135,12 +139,11 @@ export async function initializeStage(
       throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "只有在赛季进行中才能初始化阶段");
     }
     const stagePlan = normalizeStagePlan(season.stagePlan);
-    const initialTransition = resolveStageTransitionBoundary({
+    const topology = resolveStageTransitionTopology({
       stagePlan,
       stageKey,
-      entries: [],
     });
-    const { stage, previousStage } = initialTransition;
+    const { stage, previousStage } = topology;
     if (!previousStage) {
       throw new AppError(ErrorCode.SEASON_INVALID_STATUS, "首个阶段请使用一键生成赛程");
     }
@@ -187,7 +190,12 @@ export async function initializeStage(
       );
     }
 
-    const { matchCount } = await getExecutor(stage.type).initialize(seasonId, stage, transition.stageEntries, qualifiers);
+    const { matchCount } = await getExecutor(stage.type).initialize(
+      seasonId,
+      stage,
+      transition.orderedEntrants.map(({ entry }) => entry),
+      qualifiers,
+    );
 
     await db.insert(auditLogs).values({
       seasonId,

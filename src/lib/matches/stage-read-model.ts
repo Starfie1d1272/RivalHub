@@ -1,7 +1,8 @@
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { competitionEntries, majorStageEntrants, majorStageRuns, majorTournamentEntrants, matches } from "@/db/schema";
-import { projectMajorSwissStage, type MajorSwissFinalizedRound, type MajorSwissMatchFact, type MajorSwissStatus } from "@/lib/major/swiss";
+import { parseMajorRunSnapshot } from "@/lib/major/run-snapshot";
+import { projectMajorSwissStage, projectMajorSwissStageByRound, type MajorSwissFinalizedRound, type MajorSwissMatchFact, type MajorSwissStatus } from "@/lib/major/swiss";
 
 export interface StageSwissMatchRow {
   matchId: string;
@@ -30,7 +31,6 @@ export interface StageSwissRoundColumn {
 export interface MajorSwissStageReadModel {
   stageName: string;
   stageKey: string;
-  stageRunId: string;
   finalizedRound: MajorSwissFinalizedRound;
   teamCount: number;
   advanceCount: number;
@@ -42,7 +42,6 @@ export interface MajorSwissStageReadModel {
     wins: number;
     losses: number;
     status: MajorSwissStatus;
-    difficultyScore: number;
   }>;
 }
 
@@ -54,12 +53,12 @@ export interface MajorSwissStageReadModel {
 export async function loadMajorSwissStageReadModel(
   seasonId: string,
   stageKey: string,
-  stageName: string,
 ): Promise<MajorSwissStageReadModel | null> {
   const [stageRun] = await db.select().from(majorStageRuns)
     .where(and(eq(majorStageRuns.seasonId, seasonId), eq(majorStageRuns.stageKey, stageKey)))
     .limit(1);
   if (!stageRun) return null;
+  const frozenSnapshot = parseMajorRunSnapshot(stageRun.ruleSnapshot, stageKey);
 
   const entrantRows = await db.select({
     entryId: majorTournamentEntrants.competitionEntryId,
@@ -105,15 +104,19 @@ export async function loadMajorSwissStageReadModel(
     return null;
   }
 
-  const stateByEntryId = new Map(projection.teams.map((team) => [team.teamId, team]));
+  const roundProjections = projectMajorSwissStageByRound({
+    entrants: entrantRows.map((row) => ({ teamId: row.entryId, initialStageSeed: row.seed })),
+    matches: completedFacts,
+    finalizedRound,
+  });
   const matchRows = managedMatches
     .filter((match) => match.round !== null)
     .map((match) => ({
       matchId: match.id,
       entryAId: match.entryAId,
       entryBId: match.entryBId,
-      teamAName: nameByEntryId.get(match.entryAId) ?? "TBD",
-      teamBName: nameByEntryId.get(match.entryBId) ?? "TBD",
+      teamAName: nameByEntryId.get(match.entryAId) ?? "待定",
+      teamBName: nameByEntryId.get(match.entryBId) ?? "待定",
       scoreA: match.scoreA,
       scoreB: match.scoreB,
       status: match.status,
@@ -123,12 +126,14 @@ export async function loadMajorSwissStageReadModel(
   const rounds: StageSwissRoundColumn[] = [];
   for (let round = 1; round <= 5; round += 1) {
     const rows = matchRows.filter((match) => match.round === round);
+    const beforeRound = round <= finalizedRound ? roundProjections[round - 1] : projection;
+    const stateByEntryId = new Map(beforeRound?.teams.map((team) => [team.teamId, team]) ?? []);
     const groups = new Map<string, StageSwissMatchRow[]>();
     for (const row of rows) {
       const recordA = stateByEntryId.get(row.entryAId);
       const recordB = stateByEntryId.get(row.entryBId);
-      const keyA = recordA ? `${recordA.wins}:${recordA.losses}` : "TBD";
-      const keyB = recordB ? `${recordB.wins}:${recordB.losses}` : "TBD";
+      const keyA = recordA ? `${recordA.wins}:${recordA.losses}` : "待定";
+      const keyB = recordB ? `${recordB.wins}:${recordB.losses}` : "待定";
       const key = keyA === keyB ? keyA : `${keyA} | ${keyB}`;
       const bucket = groups.get(key) ?? [];
       bucket.push(row);
@@ -142,9 +147,8 @@ export async function loadMajorSwissStageReadModel(
   }
 
   return {
-    stageName,
+    stageName: frozenSnapshot.stage.name,
     stageKey,
-    stageRunId: stageRun.id,
     finalizedRound,
     teamCount: projection.teams.length,
     advanceCount: projection.advanced.length,
@@ -156,7 +160,6 @@ export async function loadMajorSwissStageReadModel(
       wins: team.wins,
       losses: team.losses,
       status: team.status,
-      difficultyScore: team.difficultyScore,
     })),
   };
 }

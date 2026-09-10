@@ -3,6 +3,7 @@ import { MAJOR_STAGE_PLAN, RIVALS_STAGE_PLAN } from "@/lib/competition/templates
 import { buildStageViews, resolveDefaultStageKey } from "./stage-views";
 import { resolveStrictHistoricalRoundRobinEntryIds } from "./historical-round-robin";
 import { resolveStageTransitionBoundary } from "./stage-transition";
+import { createStageBracket } from "@/lib/bracket";
 
 const match = (stage: string, status = "scheduled", entryAId = `${stage}-a`, entryBId = `${stage}-b`) => ({
   stage,
@@ -39,7 +40,7 @@ describe("stage views", () => {
   });
 
   it("resolves generic transition entrants without UI-side adjacent-stage logic", () => {
-    const entries = ["a", "b", "c", "d"].map((id, index) => ({ id, formationOrder: index + 1 })) as never[];
+    const entries = ["b", "a", "c", "d"].map((id, index) => ({ id, formationOrder: index + 1 })) as never[];
     const boundary = resolveStageTransitionBoundary({
       stagePlan: RIVALS_STAGE_PLAN,
       stageKey: "playoff",
@@ -50,6 +51,28 @@ describe("stage views", () => {
     expect(boundary.previousStage?.key).toBe("qualifier");
     expect(boundary.nextStage).toBeNull();
     expect(boundary.stageEntries.map((entry) => entry.id)).toEqual(["a", "b"]);
+    expect(boundary.orderedEntrants.map(({ entry, stageSeed, source }) => [entry.id, stageSeed, source])).toEqual([
+      ["a", 1, "qualified"],
+      ["b", 2, "qualified"],
+    ]);
     expect(boundary.readiness).toBe("invalid_entrant_count");
+  });
+
+  it("seeds the first provider pairing from qualifier ranking, not formation order", async () => {
+    const stagePlan = [
+      { key: "qualifier", name: "Qualifier", type: "round_robin" as const, teamCount: 2, matchFormat: "bo1" as const, advanceTiers: [{ placement: "*", count: 2 }] },
+      { key: "final", name: "Final", type: "single_elim" as const, teamCount: 2, matchFormat: "bo3" as const, advanceTiers: [{ placement: "1st", count: 1 }] },
+    ];
+    const entries = ["b", "a"].map((id, index) => ({ id, name: id, formationOrder: index + 1 })) as never[];
+    const boundary = resolveStageTransitionBoundary({
+      stagePlan,
+      stageKey: "final",
+      entries,
+      qualifiers: [{ teamId: "a", placement: "1st" }, { teamId: "b", placement: "2nd" }],
+      previousComplete: true,
+    });
+
+    const bracket = await createStageBracket(stagePlan[1]!, boundary.stageEntries);
+    expect(bracket.resolvedMatches[0]).toMatchObject({ entryAId: "a", entryBId: "b" });
   });
 });

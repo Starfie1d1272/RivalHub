@@ -8,6 +8,7 @@ import { Status } from "brackets-model";
 import { eq, and } from "drizzle-orm";
 import type { DB, TxDb } from "@/db/client";
 import { competitionStageBracketStates } from "@/db/schema/competition-bracket-states";
+import { matches, type Match } from "@/db/schema/matches";
 import type { Database } from "brackets-manager";
 import type { CompetitionEntry } from "@/db/schema/competition-entries";
 import type { StageConfig } from "@/types/season";
@@ -87,6 +88,14 @@ export interface ResolvedBracketMatch {
   groupNumber: number;
 }
 
+export interface ResolvedBracketMatchInput {
+  seasonId: string;
+  stageKey: string;
+  resolved: ResolvedBracketMatch;
+  format: "bo1" | "bo3" | "bo5";
+  entryRound?: string | null;
+}
+
 type BracketStateDatabase = DB | TxDb;
 
 /** Load one provider state owned by one logical stage. */
@@ -104,6 +113,29 @@ export async function loadStageBracketState(
   return row?.data ?? null;
 }
 
+/** Load serialized provider views through the adapter; callers never read the provider table. */
+export async function loadStageBracketViews(
+  database: BracketStateDatabase,
+  competitionId: string,
+): Promise<Map<string, BracketData>> {
+  const rows = await database.query.competitionStageBracketStates.findMany({
+    where: eq(competitionStageBracketStates.competitionId, competitionId),
+  });
+  return new Map(rows.map((row) => [row.stageKey, serializeStageBracket(row.data)]));
+}
+
+/** Load only stable RivalHub entrants for standings/read-model consumers. */
+export async function loadStageBracketEntrantIds(
+  database: BracketStateDatabase,
+  competitionId: string,
+): Promise<Map<string, string[]>> {
+  const views = await loadStageBracketViews(database, competitionId);
+  return new Map([...views.entries()].map(([stageKey, data]) => [
+    stageKey,
+    data.participant.map((participant) => participant.rivalhubEntryId),
+  ]));
+}
+
 /** Persist one provider state without exposing its storage table to callers. */
 export async function saveStageBracketState(
   database: BracketStateDatabase,
@@ -119,6 +151,56 @@ export async function saveStageBracketState(
       target: [competitionStageBracketStates.competitionId, competitionStageBracketStates.stageKey],
       set: { data, updatedAt },
     });
+}
+
+/**
+ * Persist one resolved provider node without hiding divergent existing facts.
+ * Retries are idempotent only when identity, stage and format all agree.
+ */
+export async function ensureResolvedBracketMatch(
+  database: BracketStateDatabase,
+  input: ResolvedBracketMatchInput,
+): Promise<void> {
+  const nodeId = input.resolved.bracketMatchId.toString();
+  await database.insert(matches).values({
+    seasonId: input.seasonId,
+    entryAId: input.resolved.entryAId,
+    entryBId: input.resolved.entryBId,
+    stage: input.stageKey,
+    format: input.format,
+    status: "scheduled",
+    bracketNodeId: nodeId,
+    ...(input.entryRound === undefined ? {} : { entryRound: input.entryRound }),
+  }).onConflictDoNothing();
+
+  const existing = await database.query.matches.findFirst({
+    where: and(
+      eq(matches.seasonId, input.seasonId),
+      eq(matches.stage, input.stageKey),
+      eq(matches.bracketNodeId, nodeId),
+    ),
+  });
+  if (!existing) {
+    throw new Error(`bracket node ${nodeId} 写入后无法读取，拒绝继续`);
+  }
+  assertResolvedBracketMatchCompatible(existing, input);
+}
+
+export function assertResolvedBracketMatchCompatible(
+  existing: Pick<Match, "seasonId" | "entryAId" | "entryBId" | "stage" | "format" | "bracketNodeId" | "entryRound">,
+  input: ResolvedBracketMatchInput,
+): void {
+  const expectedNodeId = input.resolved.bracketMatchId.toString();
+  const compatible = existing.seasonId === input.seasonId &&
+    existing.entryAId === input.resolved.entryAId &&
+    existing.entryBId === input.resolved.entryBId &&
+    existing.stage === input.stageKey &&
+    existing.format === input.format &&
+    existing.bracketNodeId === expectedNodeId &&
+    (input.entryRound === undefined || existing.entryRound === input.entryRound);
+  if (!compatible) {
+    throw new Error(`bracket node ${expectedNodeId} 与现有比赛事实不一致，拒绝静默复用`);
+  }
 }
 
 function buildManager(data: Database): { manager: BracketsManager; db: InMemoryDatabase } {

@@ -4,7 +4,6 @@ import { asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   competitionEntries,
-  competitionStageBracketStates,
   majorFinalResults,
   majorStageRuns,
   matchCommentators,
@@ -23,9 +22,10 @@ import {
   resolveDefaultStageKey,
 } from "@/lib/matches/stage-views";
 import { resolveStrictHistoricalRoundRobinEntryIds } from "@/lib/matches/historical-round-robin";
-import { serializeStageBracket } from "@/lib/bracket";
+import { loadStageBracketEntrantIds } from "@/lib/bracket";
 import { loadMajorSwissStageReadModel } from "@/lib/matches/stage-read-model";
 import { normalizeStagePlan } from "@/lib/seasons/compatibility";
+import { resolveMajorStagePlan } from "@/lib/major/run-snapshot";
 import { buildMajorRuntimeData } from "@/lib/admin/major-runtime";
 import type { Match } from "@/db/schema";
 import type { AdminCommentaryEffectiveness, AdminMatchOverviewData } from "@/lib/admin/matches/types";
@@ -109,7 +109,7 @@ export async function loadAdminMatchOverview({
   await requireSeasonAdmin(season.id);
 
   const isMajor = season.competitionTemplate === "major";
-  const [allTeams, allMatches, stageRunRows, finalResult, bracketStateRows] = await Promise.all([
+  const [allTeams, allMatches, stageRunRows, finalResult] = await Promise.all([
     db.query.competitionEntries.findMany({
       where: eq(competitionEntries.competitionId, season.id),
       orderBy: [asc(competitionEntries.formationOrder)],
@@ -127,17 +127,16 @@ export async function loadAdminMatchOverview({
     isMajor
       ? db.query.majorFinalResults.findFirst({ where: eq(majorFinalResults.seasonId, season.id) })
       : Promise.resolve(undefined),
-    db.query.competitionStageBracketStates.findMany({
-      where: eq(competitionStageBracketStates.competitionId, season.id),
-    }),
   ]);
 
-  const stagePlan = normalizeStagePlan(season.stagePlan);
+  const stagePlan = isMajor
+    ? resolveMajorStagePlan(normalizeStagePlan(season.stagePlan), stageRunRows)
+    : normalizeStagePlan(season.stagePlan);
   const stageReadModels = new Map(
     (await Promise.all(
       stagePlan
         .filter((stage) => stage.type === "swiss")
-        .map(async (stage) => [stage.key, await loadMajorSwissStageReadModel(season.id, stage.key, stage.name)] as const),
+        .map(async (stage) => [stage.key, await loadMajorSwissStageReadModel(season.id, stage.key)] as const),
     )).filter((entry): entry is readonly [string, NonNullable<typeof entry[1]>] => entry[1] !== null),
   );
   const { swissRuntime, playoffRuntime } = isMajor
@@ -168,12 +167,7 @@ export async function loadAdminMatchOverview({
     .filter((match) => match.status === "finished")
     .map((match) => match.id);
   const roundScoresByMatchId = await getMatchMapRoundScores(finishedMatchIds);
-  const stageEntrantIdsByKey = new Map(
-    bracketStateRows.map((row) => [
-      row.stageKey,
-      serializeStageBracket(row.data).participant.map((participant) => participant.rivalhubEntryId),
-    ]),
-  );
+  const stageEntrantIdsByKey = await loadStageBracketEntrantIds(db, season.id);
 
   const standingsByStage = new Map(
     allStageViews

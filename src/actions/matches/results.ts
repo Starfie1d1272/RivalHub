@@ -7,7 +7,7 @@ import { ok } from "@/types/action";
 import type { ActionResult } from "@/types/action";
 import { AppError, ErrorCode } from "@/lib/errors";
 import { requireSeasonAdmin, auditActorId } from "@/lib/auth/session";
-import { advanceStageBracket, loadStageBracketState, saveStageBracketState, type ResolvedBracketMatch } from "@/lib/bracket";
+import { advanceStageBracket, ensureResolvedBracketMatch, loadStageBracketState, saveStageBracketState, type ResolvedBracketMatch } from "@/lib/bracket";
 import {
   assertMatchTransition,
   resolveMatchFormat,
@@ -28,10 +28,7 @@ import {
 } from "@/lib/matches/result-rules";
 import { traceOperation } from "@/lib/observability/server";
 
-/**
- * 将 bracket 推进后解析出的新对阵批量写入 matches 表。
- * recordMapResult 使用。
- */
+/** Persist provider-resolved nodes through the fail-closed bracket boundary. */
 async function insertResolvedBracketMatches(
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
   seasonId: string,
@@ -39,16 +36,13 @@ async function insertResolvedBracketMatches(
   resolvedMatches: ResolvedBracketMatch[],
   stagePlan: ReturnType<typeof normalizeStagePlan>,
 ) {
-  for (const bm of resolvedMatches) {
-    await tx.insert(matches).values({
+  for (const resolved of resolvedMatches) {
+    await ensureResolvedBracketMatch(tx, {
       seasonId,
-      entryAId: bm.entryAId,
-      entryBId: bm.entryBId,
-      stage: stageKey,
-      format: resolveMatchFormat(stagePlan, stageKey, bm.roundNumber, bm.groupNumber),
-      status: "scheduled",
-      bracketNodeId: bm.bracketMatchId.toString(),
-    }).onConflictDoNothing();
+      stageKey,
+      resolved,
+      format: resolveMatchFormat(stagePlan, stageKey, resolved.roundNumber, resolved.groupNumber),
+    });
   }
 }
 

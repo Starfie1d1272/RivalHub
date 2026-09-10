@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockCreateStageBracket, mockSaveStageBracketState, mockInsert, mockInsertValues, mockMatchFindMany } = vi.hoisted(() => ({
+const { mockCreateStageBracket, mockEnsureResolvedBracketMatch, mockSaveStageBracketState, mockInsert, mockInsertValues, mockMatchFindMany } = vi.hoisted(() => ({
   mockCreateStageBracket: vi.fn(),
+  mockEnsureResolvedBracketMatch: vi.fn(),
   mockSaveStageBracketState: vi.fn(),
   mockInsert: vi.fn(),
   mockInsertValues: vi.fn(),
@@ -10,6 +11,7 @@ const { mockCreateStageBracket, mockSaveStageBracketState, mockInsert, mockInser
 
 vi.mock("@/lib/bracket", () => ({
   createStageBracket: mockCreateStageBracket,
+  ensureResolvedBracketMatch: mockEnsureResolvedBracketMatch,
   saveStageBracketState: mockSaveStageBracketState,
 }));
 
@@ -67,12 +69,16 @@ describe("singleElimExecutor", () => {
     expect(mockSaveStageBracketState).toHaveBeenCalledWith(
       expect.anything(), "season-1", "playoff", expect.anything(),
     );
-    expect(mockInsertValues).toHaveBeenCalledWith(expect.objectContaining({
-      entryAId: "entry-0",
-      entryBId: "entry-3",
-      stage: "playoff",
-      bracketNodeId: "1",
+    expect(mockEnsureResolvedBracketMatch).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      seasonId: "season-1",
+      stageKey: "playoff",
+      format: "bo3",
       entryRound: "semifinal",
+      resolved: expect.objectContaining({
+        entryAId: "entry-0",
+        entryBId: "entry-3",
+        bracketMatchId: 1,
+      }),
     }));
     expect(result).toEqual({ matchCount: 2 });
   });

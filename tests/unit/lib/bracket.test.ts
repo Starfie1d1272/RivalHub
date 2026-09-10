@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { createStageBracket, serializeStageBracket } from "@/lib/bracket";
+import { describe, expect, it, vi } from "vitest";
+import { createStageBracket, ensureResolvedBracketMatch, serializeStageBracket } from "@/lib/bracket";
 
 function makeTeams(count: number) {
   return Array.from({ length: count }, (_, index) => ({
@@ -43,5 +43,57 @@ describe("stage-scoped bracket adapter", () => {
       number: expect.any(Number),
       status: expect.any(Number),
     }));
+  });
+
+  it("treats an exact resolved node as idempotent and rejects divergent reuse", async () => {
+    const resolved = {
+      bracketMatchId: 7,
+      stageId: 1,
+      entryAId: "entry-a",
+      entryBId: "entry-b",
+      roundNumber: 1,
+      groupNumber: 1,
+    };
+    const insertValues = vi.fn().mockReturnValue({ onConflictDoNothing: vi.fn().mockResolvedValue(undefined) });
+    const mockFindFirst = vi.fn().mockResolvedValue({
+      seasonId: "season-1",
+      entryAId: "entry-a",
+      entryBId: "entry-b",
+      stage: "playoff",
+      format: "bo3",
+      bracketNodeId: "7",
+      entryRound: null,
+    });
+    const database = {
+      insert: vi.fn().mockReturnValue({ values: insertValues }),
+      query: {
+        matches: {
+          findFirst: mockFindFirst,
+        },
+      },
+    } as never;
+
+    await expect(ensureResolvedBracketMatch(database, {
+      seasonId: "season-1",
+      stageKey: "playoff",
+      resolved,
+      format: "bo3",
+    })).resolves.toBeUndefined();
+
+    mockFindFirst.mockResolvedValueOnce({
+      seasonId: "season-1",
+      entryAId: "entry-other",
+      entryBId: "entry-b",
+      stage: "playoff",
+      format: "bo3",
+      bracketNodeId: "7",
+      entryRound: null,
+    });
+    await expect(ensureResolvedBracketMatch(database, {
+      seasonId: "season-1",
+      stageKey: "playoff",
+      resolved,
+      format: "bo3",
+    })).rejects.toThrow("拒绝静默复用");
   });
 });

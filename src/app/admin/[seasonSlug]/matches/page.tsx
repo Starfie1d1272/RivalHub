@@ -106,8 +106,8 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                         stageName: data.stagePlan.find((stage) => stage.key === match.stage)?.name,
                         round: match.round,
                         entryRound: match.entryRound,
-                        teamAName: teamNameById.get(match.entryAId) ?? "TBD",
-                        teamBName: teamNameById.get(match.entryBId) ?? "TBD",
+                        teamAName: teamNameById.get(match.entryAId) ?? "待定",
+                        teamBName: teamNameById.get(match.entryBId) ?? "待定",
                       })}
                     </li>
                   ))}
@@ -158,8 +158,8 @@ export default async function AdminMatchesPage({ params, searchParams }: AdminMa
                         <AdminMatchRow
                           key={match.id}
                           match={match}
-                          teamAName={teamNameById.get(match.entryAId) ?? (isPlayoff ? "TBD" : "未知队伍")}
-                          teamBName={teamNameById.get(match.entryBId) ?? (isPlayoff ? "TBD" : "未知队伍")}
+                          teamAName={teamNameById.get(match.entryAId) ?? (isPlayoff ? "待定" : "未知队伍")}
+                          teamBName={teamNameById.get(match.entryBId) ?? (isPlayoff ? "待定" : "未知队伍")}
                           seasonSlug={seasonSlug}
                           stageName={stage.name}
                         />

@@ -3,7 +3,7 @@ import { db } from "@/db/client";
 import { matches, competitionEntries } from "@/db/schema";
 import { calculateStandings } from "@/lib/standings";
 import { getMatchMapRoundScores } from "@/lib/data/standings";
-import { createStageBracket, loadStageBracketState, saveStageBracketState, type BracketParticipantRef } from "@/lib/bracket";
+import { createStageBracket, ensureResolvedBracketMatch, loadStageBracketState, saveStageBracketState, type BracketParticipantRef } from "@/lib/bracket";
 import type { StageExecutor } from "./types";
 import { isStageComplete } from "./_shared";
 
@@ -11,15 +11,7 @@ export const roundRobinExecutor: StageExecutor = {
   async initialize(seasonId, config, entries) {
     const { data, resolvedMatches } = await createStageBracket(config, entries);
     for (const resolved of resolvedMatches) {
-      await db.insert(matches).values({
-        seasonId,
-        entryAId: resolved.entryAId,
-        entryBId: resolved.entryBId,
-        stage: config.key,
-        format: "bo1",
-        status: "scheduled",
-        bracketNodeId: resolved.bracketMatchId.toString(),
-      });
+      await ensureResolvedBracketMatch(db, { seasonId, stageKey: config.key, resolved, format: "bo1" });
     }
     await saveStageBracketState(db, seasonId, config.key, data);
     return { matchCount: resolvedMatches.length };

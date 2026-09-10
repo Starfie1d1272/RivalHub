@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matches } from "@/db/schema";
-import { createStageBracket, saveStageBracketState } from "@/lib/bracket";
+import { createStageBracket, ensureResolvedBracketMatch, saveStageBracketState } from "@/lib/bracket";
 import type { StageExecutor } from "./types";
 import type { QualifiedTeam } from "@/types/season";
 import { isStageComplete } from "./_shared";
@@ -10,14 +10,11 @@ export const doubleElimExecutor: StageExecutor = {
   async initialize(seasonId, config, entries) {
     const { data, resolvedMatches } = await createStageBracket(config, entries);
     for (const resolved of resolvedMatches) {
-      await db.insert(matches).values({
+      await ensureResolvedBracketMatch(db, {
         seasonId,
-        entryAId: resolved.entryAId,
-        entryBId: resolved.entryBId,
-        stage: config.key,
+        stageKey: config.key,
+        resolved,
         format: config.matchFormat ?? "bo3",
-        status: "scheduled",
-        bracketNodeId: resolved.bracketMatchId.toString(),
       });
     }
     await saveStageBracketState(db, seasonId, config.key, data);

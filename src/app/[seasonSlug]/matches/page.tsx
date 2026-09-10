@@ -3,8 +3,8 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { and, eq, asc } from "drizzle-orm";
 import { db } from "@/db/client";
-import { majorFinalResults, matches, competitionEntries, competitionStageBracketStates } from "@/db/schema";
-import { serializeStageBracket } from "@/lib/bracket";
+import { majorFinalResults, majorStageRuns, matches, competitionEntries } from "@/db/schema";
+import { loadStageBracketViews } from "@/lib/bracket";
 import { calculateStandings } from "@/lib/standings";
 import { PageHeader, PageLayout, Panel } from "@/components/rivalhub";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -24,6 +24,7 @@ import { AdminShortcutSlot } from "@/components/layout/AdminShortcutSlot";
 import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 import { getMatchMapRoundScores } from "@/lib/data/standings";
 import { loadMajorSwissStageReadModel } from "@/lib/matches/stage-read-model";
+import { resolveMajorStagePlan } from "@/lib/major/run-snapshot";
 
 interface MatchesPageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -37,7 +38,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
 
-  const [allTeams, allMatches, finalResult, bracketStates] = await Promise.all([
+  const [allTeams, allMatches, finalResult, stageRunRows] = await Promise.all([
     db.query.competitionEntries.findMany({
       where: and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryCondition()),
       orderBy: [asc(competitionEntries.formationOrder)],
@@ -47,16 +48,20 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
       orderBy: [asc(matches.createdAt)],
     }),
     db.query.majorFinalResults.findFirst({ where: eq(majorFinalResults.seasonId, season.id) }),
-    db.query.competitionStageBracketStates.findMany({
-      where: eq(competitionStageBracketStates.competitionId, season.id),
-    }),
+    season.competitionTemplate === "major"
+      ? db.select({ stageKey: majorStageRuns.stageKey, ruleSnapshot: majorStageRuns.ruleSnapshot })
+          .from(majorStageRuns)
+          .where(eq(majorStageRuns.seasonId, season.id))
+      : Promise.resolve([] as { stageKey: string; ruleSnapshot: unknown }[]),
   ]);
 
   const teamMap = new Map(allTeams.map((team) => [team.id, team.name]));
   const roundScoresByMatchId = await getMatchMapRoundScores(
     allMatches.filter((match) => match.status === "finished").map((match) => match.id),
   );
-  const stagePlan = normalizeStagePlan(season.stagePlan);
+  const stagePlan = season.competitionTemplate === "major"
+    ? resolveMajorStagePlan(normalizeStagePlan(season.stagePlan), stageRunRows)
+    : normalizeStagePlan(season.stagePlan);
   const { views: stageViews, unconfiguredMatches } = buildStageViews<typeof allMatches[number]>(stagePlan, allMatches);
   const swissReadModels = new Map(
     (await Promise.all(
@@ -64,7 +69,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
         .filter((stage) => stage.type === "swiss")
         .map(async (stage) => [
           stage.key,
-          await loadMajorSwissStageReadModel(season.id, stage.key, presentStageMarker(stage, season.competitionTemplate)),
+          await loadMajorSwissStageReadModel(season.id, stage.key),
         ] as const),
     )).filter((entry): entry is readonly [string, NonNullable<typeof entry[1]>] => entry[1] !== null),
   );
@@ -91,9 +96,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
     ),
   });
 
-  const bracketDataByStage = new Map(
-    bracketStates.map((row) => [row.stageKey, serializeStageBracket(row.data)]),
-  );
+  const bracketDataByStage = await loadStageBracketViews(db, season.id);
   const defaultStageKey = resolveDefaultStageKey(stagePlan, allMatches);
 
   if (allMatches.length === 0 && allTeams.length === 0) {
@@ -216,7 +219,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
                             stageLabel={stageLabel}
                             seasonSlug={seasonSlug}
                             teamMap={teamMap}
-                            unknownTeamName={isPlayoff ? "TBD" : "未知队伍"}
+                            unknownTeamName={isPlayoff ? "待定" : "未知队伍"}
                           />
                         </section>
                       )}
