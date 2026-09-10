@@ -80,6 +80,7 @@ describe("changed-surface planner", () => {
   it("separates related sources from explicit tests and keeps global contracts executable", () => {
     const sourceChange = classifyChangedFiles([{ status: "M", paths: ["src/lib/major/opening.ts"] }], { draft: true });
     expect(sourceChange.staticMatrix).toEqual(expect.arrayContaining([
+      expect.objectContaining({ task: "architecture" }),
       expect.objectContaining({ task: "unit-related-unit-domain-node", relatedSources: ["src/lib/major/opening.ts"] }),
       expect.objectContaining({ task: "unit-explicit-unit-domain-node", explicitTests: ["tests/unit/quality/architecture-boundaries.test.ts"] }),
     ]));

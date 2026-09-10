@@ -7,6 +7,9 @@ import {
   type DisciplinaryCase,
 } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
+import { SANCTION_EFFECTS, type SanctionEffect } from "./contract";
+export { SANCTION_EFFECTS } from "./contract";
+export type { SanctionEffect } from "./contract";
 
 /**
  * H1 — personal disciplinary facts and eligibility blockers.
@@ -17,17 +20,6 @@ import { AppError, ErrorCode } from "@/lib/errors";
  * honors. A sanction blocks exactly the capabilities it lists, for exactly
  * its subject, during exactly its effective window.
  */
-
-export type SanctionEffect =
-  | "registration_block"
-  | "roster_block"
-  | "match_participation_block";
-
-export const SANCTION_EFFECTS: readonly SanctionEffect[] = [
-  "registration_block",
-  "roster_block",
-  "match_participation_block",
-];
 
 export type ResolvedSanctionStatus = "draft" | "active" | "expired" | "revoked";
 

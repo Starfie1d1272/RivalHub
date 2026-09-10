@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { eq, and, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons, matches, matchMaps, matchVetoSteps, matchRosters, matchRosterPlayers, competitionEntries, auditLogs, matchTimeProposals } from "@/db/schema";
@@ -19,8 +20,8 @@ import {
   applyMatchStatusTransitionInTx,
   lockMatchInTx,
 } from "@/lib/match-rosters/service";
-import { maybeFinishSeason } from "@/actions/transitions";
-import { revalidateMatchPaths, revalidateSeasonPaths } from "@/lib/revalidation";
+import { maybeFinishSeason } from "@/lib/seasons/transitions";
+import { revalidateMatchPaths, revalidateSeasonPaths, updatePublicSeasonTags } from "@/lib/revalidation";
 import { normalizeRegistrationConfig, normalizeStagePlan } from "@/lib/seasons/compatibility";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 import {
@@ -89,6 +90,7 @@ export async function updateMatchStatus(
     assertMatchTransition(match.status, nextStatus);
 
     const seasonForStatus = await getSeasonOrThrow(match.seasonId);
+    let finishedSlug: string | null = null;
     await traceOperation("match.status.transition", {
       scope: "match",
       operation: "status.transition",
@@ -101,11 +103,15 @@ export async function updateMatchStatus(
       });
 
       if (nextStatus === "cancelled") {
-        await maybeFinishSeason(tx, match.seasonId);
+        finishedSlug = await maybeFinishSeason(tx, match.seasonId);
       }
     }));
 
     revalidateMatchPaths(seasonForStatus.slug, matchId);
+    if (finishedSlug) {
+      updatePublicSeasonTags(finishedSlug, match.seasonId);
+      revalidatePath(`/${finishedSlug}`);
+    }
 
     return ok(undefined);
   } catch (e) {
@@ -153,6 +159,7 @@ export async function recordMapResult(
 
     // 所有写操作及其依赖的读操作放入同一事务，防止 TOCTOU
     let seriesFinished = false;
+    let finishedSlug: string | null = null;
 
     await traceOperation("match.result.record", {
       scope: "match",
@@ -238,7 +245,7 @@ export async function recordMapResult(
           );
         }
 
-        await maybeFinishSeason(tx, match.seasonId);
+        finishedSlug = await maybeFinishSeason(tx, match.seasonId);
       }
 
       await tx.insert(auditLogs).values({
@@ -252,6 +259,10 @@ export async function recordMapResult(
     }));
 
     revalidateMatchPaths(season.slug, matchId);
+    if (finishedSlug) {
+      updatePublicSeasonTags(finishedSlug, match.seasonId);
+      revalidatePath(`/${finishedSlug}`);
+    }
 
     return ok({ seriesFinished });
   } catch (e) {
@@ -769,6 +780,7 @@ export async function forfeitMatch(
     const scoreB = isLoserA ? winnerScore : 0;
 
     const season = await getSeasonOrThrow(match.seasonId);
+    let finishedSlug: string | null = null;
 
     await db.transaction(async (tx) => {
       await assertSeasonAllowsTournamentMutationInTx(tx, match.seasonId);
@@ -804,7 +816,7 @@ export async function forfeitMatch(
         );
       }
 
-      await maybeFinishSeason(tx, match.seasonId);
+      finishedSlug = await maybeFinishSeason(tx, match.seasonId);
 
       await tx.insert(auditLogs).values({
         seasonId: match.seasonId,
@@ -817,6 +829,10 @@ export async function forfeitMatch(
     });
 
     revalidateMatchPaths(season.slug, matchId);
+    if (finishedSlug) {
+      updatePublicSeasonTags(finishedSlug, match.seasonId);
+      revalidatePath(`/${finishedSlug}`);
+    }
     return ok(undefined);
   } catch (e) {
     return actionError("forfeitMatch", e);
