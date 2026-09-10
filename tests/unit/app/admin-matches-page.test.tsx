@@ -15,10 +15,8 @@ vi.mock("@/lib/admin/matches/overview", () => ({ loadAdminMatchOverview: loadOve
 vi.mock("@/components/matches/AdminMatchRow", () => ({ AdminMatchRow: matchRowMock }));
 vi.mock("@/components/matches/AdminMatchFilter", () => ({ AdminMatchFilter: () => null }));
 vi.mock("@/components/matches/CreateMatchForm", () => ({ CreateMatchForm: () => null }));
-vi.mock("@/components/matches/GeneratePlayoffCard", () => ({ GeneratePlayoffCard: () => null }));
 vi.mock("@/components/matches/GenerateScheduleCard", () => ({ GenerateScheduleCard: () => null }));
 vi.mock("@/components/matches/BatchDeadlineCard", () => ({ BatchDeadlineCard: () => null }));
-vi.mock("@/components/matches/SyncBracketButton", () => ({ SyncBracketButton: () => null }));
 vi.mock("@/components/admin/MajorSwissRuntimeManagement", () => ({ MajorSwissRuntimeManagement: () => null }));
 vi.mock("@/components/admin/MajorPlayoffRuntimeManagement", () => ({ MajorPlayoffRuntimeManagement: () => null }));
 vi.mock("@/components/matches/StandingsTable", () => ({ StandingsTable: () => null }));
@@ -66,16 +64,12 @@ function overviewData(): AdminMatchOverviewData {
     stagePlan: [stage],
     matches: [match],
     stageViews: [{ stage, matches: [match] }],
+    stageReadModels: new Map(),
     commentaryEffectiveness: [],
     unconfiguredMatches: [],
     standingsByStage: new Map(),
-    qualifierStandings: [],
-    qualifierStage: null,
-    playoffStage: null,
     batchDeadlineGroups: [],
     canGenerate: false,
-    canGeneratePlayoff: false,
-    hasLegacyAdjacentPlayoff: false,
     hasSwissStage: true,
     defaultStageKey: "swiss",
     swissRuntime: null,

@@ -1,149 +1,27 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matches, seasons } from "@/db/schema";
-import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
-import { generateBracket, loadBracketState, saveBracketState, seedPlayoff, type BracketStageRef, type BracketParticipantRef } from "@/lib/bracket";
-import { calculateStandings } from "@/lib/standings";
-import { getMatchMapRoundScores } from "@/lib/data/standings";
-import { getPreviousStage, normalizeStagePlan } from "@/lib/seasons/compatibility";
+import { matches } from "@/db/schema";
+import { createStageBracket, saveStageBracketState } from "@/lib/bracket";
 import type { StageExecutor } from "./types";
 import type { QualifiedTeam } from "@/types/season";
 import { isStageComplete } from "./_shared";
 
 export const doubleElimExecutor: StageExecutor = {
-  async initialize(seasonId, config, teams) {
-    const season = await db.query.seasons.findFirst({
-      where: eq(seasons.id, seasonId),
-    });
-    if (!season) {
-      throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
-    }
-
-    const stagePlan = normalizeStagePlan(season.stagePlan);
-    const bracketState = await loadBracketState(db, seasonId);
-    const previousStage = getPreviousStage(stagePlan, config.key);
-    const playoffFormat = config.type === "double_elim" ? "double_elim" : "single_elim";
-
-    if (!previousStage) {
-      const { data, resolvedMatches } = await generateBracket(teams, {
-        qualifierFormat: null,
-        playoffFormat,
-        playoffName: config.name,
-      });
-      const bracketStages = data.stage as BracketStageRef[];
-      const stageId = bracketStages.find((stage) => stage.name === config.name)?.id ?? null;
-      let matchCount = 0;
-
-      for (const bm of resolvedMatches) {
-        if (stageId !== null && bm.stageId !== stageId) continue;
-        const teamA = teams[bm.teamAParticipantId];
-        const teamB = teams[bm.teamBParticipantId];
-        if (!teamA || !teamB) continue;
-
-        await db.insert(matches).values({
-          seasonId,
-          entryAId: teamA.id,
-          entryBId: teamB.id,
-          stage: config.key,
-          format: "bo3",
-          status: "scheduled",
-          bracketNodeId: bm.bracketMatchId.toString(),
-        });
-        matchCount++;
-      }
-
-      await saveBracketState(db, seasonId, data);
-
-      return { matchCount };
-    }
-
-    const finishedMatches = await db.query.matches.findMany({
-      where: and(
-        eq(matches.seasonId, seasonId),
-        eq(matches.stage, previousStage.key),
-        eq(matches.status, "finished"),
-      ),
-    });
-    const roundScores = await getMatchMapRoundScores(finishedMatches.map((match) => match.id));
-    const standings = calculateStandings(teams, finishedMatches, roundScores);
-
-    if (!bracketState) {
-      // Fallback: qualifier matches were created manually, so the bracket skeleton
-      // was never persisted. Build the playoff bracket fresh using standings as seeds.
-      const seededTeams = standings
-        .slice(0, config.teamCount)
-        .map((s) => teams.find((t) => t.id === s.teamId))
-        .filter((t): t is NonNullable<typeof t> => !!t);
-
-      const { data, resolvedMatches } = await generateBracket(seededTeams, {
-        qualifierFormat: null,
-        playoffFormat,
-        playoffName: config.name,
-      });
-      const bracketStages = data.stage as BracketStageRef[];
-      const stageId = bracketStages.find((stage) => stage.name === config.name)?.id ?? null;
-      let matchCount = 0;
-
-      for (const bm of resolvedMatches) {
-        if (stageId !== null && bm.stageId !== stageId) continue;
-        const teamA = seededTeams[bm.teamAParticipantId];
-        const teamB = seededTeams[bm.teamBParticipantId];
-        if (!teamA || !teamB) continue;
-
-        await db.insert(matches).values({
-          seasonId,
-          entryAId: teamA.id,
-          entryBId: teamB.id,
-          stage: config.key,
-          format: "bo3",
-          status: "scheduled",
-          bracketNodeId: bm.bracketMatchId.toString(),
-        });
-        matchCount++;
-      }
-
-      await saveBracketState(db, seasonId, data);
-
-      return { matchCount };
-    }
-
-    const seededNames = standings.slice(0, config.teamCount).map((standing) => standing.teamName);
-    const { updatedData, resolvedMatches } = await seedPlayoff(
-      seededNames,
-      bracketState,
-      config.name,
-    );
-
-    await saveBracketState(db, seasonId, updatedData);
-
-    const nameToTeam = new Map(teams.map((team) => [team.name, team]));
-    const participants = updatedData.participant as BracketParticipantRef[];
-    const participantIdToTeam = new Map(
-      participants.map((participant) => [participant.id, nameToTeam.get(participant.name)]),
-    );
-    const bracketStages = updatedData.stage as BracketStageRef[];
-    const stageId = bracketStages.find((stage) => stage.name === config.name)?.id ?? null;
-    let matchCount = 0;
-
-    for (const bm of resolvedMatches) {
-      if (stageId === null || bm.stageId !== stageId) continue;
-      const teamA = participantIdToTeam.get(bm.teamAParticipantId);
-      const teamB = participantIdToTeam.get(bm.teamBParticipantId);
-      if (!teamA || !teamB) continue;
-
+  async initialize(seasonId, config, entries) {
+    const { data, resolvedMatches } = await createStageBracket(config, entries);
+    for (const resolved of resolvedMatches) {
       await db.insert(matches).values({
         seasonId,
-        entryAId: teamA.id,
-        entryBId: teamB.id,
+        entryAId: resolved.entryAId,
+        entryBId: resolved.entryBId,
         stage: config.key,
-        format: "bo3",
+        format: config.matchFormat ?? "bo3",
         status: "scheduled",
-        bracketNodeId: bm.bracketMatchId.toString(),
+        bracketNodeId: resolved.bracketMatchId.toString(),
       });
-      matchCount++;
     }
-
-    return { matchCount };
+    await saveStageBracketState(db, seasonId, config.key, data);
+    return { matchCount: resolvedMatches.length };
   },
 
   async isComplete(seasonId, stageKey) {
@@ -157,26 +35,22 @@ export const doubleElimExecutor: StageExecutor = {
         eq(matches.stage, config.key),
         eq(matches.status, "finished"),
       ),
-      orderBy: (matches, { desc }) => [desc(matches.createdAt)],
+      orderBy: (match, { desc: orderDesc }) => [orderDesc(match.createdAt)],
     });
-
     if (stageMatches.length === 0) return [];
 
-    // createdAt 倒序：双败淘汰的场次动态插入，最后插入的即大决赛（含 bracket reset）。
+    // Provider-driven matches are inserted as their nodes become resolved;
+    // the latest completed match is the terminal grand-final result.
     const finalMatch = stageMatches[0];
-
-    if (finalMatch.scoreA === null || finalMatch.scoreB === null) return [];
-    if (finalMatch.scoreA === finalMatch.scoreB) return [];
-
+    if (finalMatch.scoreA === null || finalMatch.scoreB === null || finalMatch.scoreA === finalMatch.scoreB) {
+      return [];
+    }
     const winnerId = finalMatch.scoreA > finalMatch.scoreB ? finalMatch.entryAId : finalMatch.entryBId;
     const loserId = finalMatch.scoreA > finalMatch.scoreB ? finalMatch.entryBId : finalMatch.entryAId;
-
     const result: QualifiedTeam[] = [{ teamId: winnerId, placement: "1st" }];
-
-    if (config.advanceTiers.some((t) => t.placement === "2nd")) {
+    if (config.advanceTiers.some((tier) => tier.placement === "2nd")) {
       result.push({ teamId: loserId, placement: "2nd" });
     }
-
     return result;
   },
 };

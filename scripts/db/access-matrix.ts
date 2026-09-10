@@ -115,8 +115,15 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "competition_bracket_states",
     "赛事 bracket runtime",
     "高敏感运行时 JSON",
+    "无（Release-N compatibility shell；stage-scoped owner 见下一项）",
+    "Release-N 保留旧表结构供兼容迁移与回滚观察；应用不再读取或写入，N+1 contract 才删除。",
+  ),
+  serverOnly(
+    "competition_stage_bracket_states",
+    "赛事 bracket runtime",
+    "高敏感、阶段范围运行时 JSON",
     "src/lib/bracket/index.ts",
-    "2026-09-03 production inventory 确认该表曾是 anon/authenticated CRUD 暴露例外；0034 forward migration 收口为 server-only。",
+    "每个 logical Stage 由 (competition_id, stage_key) 独立拥有 provider state；阶段 key 是领域 identity，浏览器不直连。",
   ),
   serverOnly(
     "competition_entries",
@@ -472,8 +479,8 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "swiss_standings",
     "Major Swiss",
     "排名 projection 与阶段事实",
-    "src/lib/swiss/data.ts; src/lib/major/swiss-runtime.ts",
-    "Swiss standings 不是独立真相，必须随 Major runtime 服务端更新。",
+    "无（Release-N compatibility shell；Major Swiss read model 由 StageEntrants + managed matches + finalizedRound 投影）",
+    "保留旧表结构供兼容迁移与回滚观察；应用不再读取或写入，N+1 contract 才删除。",
   ),
   serverOnly(
     "team_captain_changes",

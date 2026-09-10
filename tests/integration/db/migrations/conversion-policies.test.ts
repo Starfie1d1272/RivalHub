@@ -5,7 +5,9 @@ import { capturePostgresError } from "../harness/database";
 import { migrationFiles, replayMigration, withScratchDatabase } from "../harness/migration-replay";
 
 const TARGET_MIGRATION = "0042_identity_foundation.sql";
-const ACCESS_MATRIX_AT_TARGET = DATABASE_ACCESS_MATRIX.filter((entry) => entry.table !== "scheduled_job_health");
+const ACCESS_MATRIX_AT_TARGET = DATABASE_ACCESS_MATRIX.filter(
+  (entry) => entry.table !== "scheduled_job_health" && entry.table !== "competition_stage_bracket_states",
+);
 
 describe("conversion policies migration", () => {
   it("creates server-only conversion_policies table with RLS, denies anon/authenticated access, and seeds lead-approved 2026.09 policy", async () => {

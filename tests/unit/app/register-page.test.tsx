@@ -130,15 +130,16 @@ describe("team registration page", () => {
   });
 
   it("offers one-shot participant recovery when opening is due but not materialized", async () => {
+    const now = Date.now();
     publicSeasonMock.mockResolvedValue({
       id: "season-1",
       slug: "major",
       name: "RivalHub Major",
       status: "registration",
       registrationMode: "solo",
-      registrationOpensAt: new Date("2026-09-09T04:00:00.000Z"),
+      registrationOpensAt: new Date(now - 60_000),
       registrationOpenedAt: null,
-      registrationClosesAt: new Date("2026-09-10T04:00:00.000Z"),
+      registrationClosesAt: new Date(now + 60_000),
       rosterChangeClosesAt: null,
       registrationConfig: null,
       positions: ["opener", "closer", "anchor"],

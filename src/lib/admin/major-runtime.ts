@@ -1,4 +1,4 @@
-import type { StagePlan } from "@/types/season";
+import { parseMajorRunSnapshot } from "@/lib/major/run-snapshot";
 
 export interface MajorSwissRuntimeData {
   seasonId: string;
@@ -34,17 +34,16 @@ interface RuntimeStageRun {
   id: string;
   stageKey: string;
   finalizedRound: number;
+  ruleSnapshot: unknown;
 }
 
 export function buildMajorRuntimeData({
   seasonId,
-  stagePlan,
   stageRuns,
   matches,
   finalResultStatus,
 }: {
   seasonId: string;
-  stagePlan: StagePlan;
   stageRuns: RuntimeStageRun[];
   matches: RuntimeMatch[];
   finalResultStatus: string | null | undefined;
@@ -52,10 +51,21 @@ export function buildMajorRuntimeData({
   swissRuntime: MajorSwissRuntimeData | null;
   playoffRuntime: MajorPlayoffRuntimeData | null;
 } {
-  const stageRun = [...stagePlan].reverse()
-    .map((stage) => stageRuns.find((run) => run.stageKey === stage.key))
-    .find((run) => run !== undefined) ?? null;
-  const configuredStage = stageRun ? stagePlan.find((stage) => stage.key === stageRun.stageKey) : null;
+  const runsWithSnapshots = stageRuns.map((run) => {
+    const snapshot = parseMajorRunSnapshot(run.ruleSnapshot, run.stageKey);
+    return {
+      run,
+      snapshot,
+      order: snapshot.stagePlan.findIndex((stage) => stage.key === run.stageKey),
+    };
+  });
+  const activeRun = [...runsWithSnapshots]
+    .sort((a, b) => b.order - a.order)
+    .at(0) ?? null;
+  const stageRun = activeRun?.run ?? null;
+  const frozenSnapshot = activeRun?.snapshot ?? null;
+  const configuredStage = frozenSnapshot?.stage ?? null;
+  const frozenStagePlan = frozenSnapshot?.stagePlan ?? [];
   let swissRuntime: MajorSwissRuntimeData | null = null;
   let playoffRuntime: MajorPlayoffRuntimeData | null = null;
 
@@ -64,7 +74,7 @@ export function buildMajorRuntimeData({
     const currentRound = (finalizedRound === 5 ? 5 : finalizedRound + 1) as 1 | 2 | 3 | 4 | 5;
     const currentMatches = matches.filter((match) => match.majorStageRunId === stageRun.id && match.ownership === "major_stage" && match.round === currentRound);
     const nextStage = finalizedRound === 5
-      ? stagePlan[stagePlan.findIndex((stage) => stage.key === stageRun.stageKey) + 1] ?? null
+      ? frozenStagePlan[frozenStagePlan.findIndex((stage) => stage.key === stageRun.stageKey) + 1] ?? null
       : null;
     swissRuntime = {
       seasonId,

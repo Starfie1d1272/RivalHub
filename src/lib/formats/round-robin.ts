@@ -1,61 +1,28 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { matches, seasons, competitionEntries } from "@/db/schema";
-import { AppError, ErrorCode, ERROR_MESSAGES } from "@/lib/errors";
-import { generateBracket, saveBracketState, type BracketStageRef } from "@/lib/bracket";
+import { matches, competitionEntries } from "@/db/schema";
 import { calculateStandings } from "@/lib/standings";
 import { getMatchMapRoundScores } from "@/lib/data/standings";
-import { getFirstStageOfType, normalizeStagePlan } from "@/lib/seasons/compatibility";
+import { createStageBracket, loadStageBracketState, saveStageBracketState, type BracketParticipantRef } from "@/lib/bracket";
 import type { StageExecutor } from "./types";
 import { isStageComplete } from "./_shared";
 
 export const roundRobinExecutor: StageExecutor = {
-  async initialize(seasonId, config, competitionEntries) {
-    const season = await db.query.seasons.findFirst({
-      where: eq(seasons.id, seasonId),
-    });
-    if (!season) {
-      throw new AppError(ErrorCode.SEASON_NOT_FOUND, ERROR_MESSAGES.SEASON_NOT_FOUND);
-    }
-
-    const playoffStage = getFirstStageOfType(
-      normalizeStagePlan(season.stagePlan),
-      ["double_elim", "single_elim"],
-    );
-    const { data, resolvedMatches } = await generateBracket(competitionEntries, {
-      qualifierFormat: "round_robin",
-      playoffFormat: playoffStage
-        ? (playoffStage.type === "double_elim" ? "double_elim" : "single_elim")
-        : null,
-      qualifierName: config.name,
-      playoffName: playoffStage?.name,
-    });
-
-    const bracketStages = data.stage as BracketStageRef[];
-    const stageId = bracketStages.find((stage) => stage.name === config.name)?.id ?? null;
-    let matchCount = 0;
-
-    for (const bm of resolvedMatches) {
-      if (stageId !== null && bm.stageId !== stageId) continue;
-      const teamA = competitionEntries[bm.teamAParticipantId];
-      const teamB = competitionEntries[bm.teamBParticipantId];
-      if (!teamA || !teamB) continue;
-
+  async initialize(seasonId, config, entries) {
+    const { data, resolvedMatches } = await createStageBracket(config, entries);
+    for (const resolved of resolvedMatches) {
       await db.insert(matches).values({
         seasonId,
-        entryAId: teamA.id,
-        entryBId: teamB.id,
+        entryAId: resolved.entryAId,
+        entryBId: resolved.entryBId,
         stage: config.key,
         format: "bo1",
         status: "scheduled",
-        bracketNodeId: bm.bracketMatchId.toString(),
+        bracketNodeId: resolved.bracketMatchId.toString(),
       });
-      matchCount++;
     }
-
-    await saveBracketState(db, seasonId, data);
-
-    return { matchCount };
+    await saveStageBracketState(db, seasonId, config.key, data);
+    return { matchCount: resolvedMatches.length };
   },
 
   async isComplete(seasonId, stageKey) {
@@ -63,9 +30,19 @@ export const roundRobinExecutor: StageExecutor = {
   },
 
   async getQualifiers(seasonId, config) {
-    const seasonTeams = await db.query.competitionEntries.findMany({
-      where: eq(competitionEntries.competitionId, seasonId),
+    const state = await loadStageBracketState(db, seasonId, config.key);
+    const stageEntryIds = state
+      ? (state.participant as unknown as BracketParticipantRef[]).map((participant) => participant.rivalhubEntryId)
+      : [];
+    if (stageEntryIds.length === 0) return [];
+    const entries = await db.query.competitionEntries.findMany({
+      where: and(
+        eq(competitionEntries.competitionId, seasonId),
+        inArray(competitionEntries.id, stageEntryIds),
+      ),
     });
+    const teamById = new Map(entries.map((entry) => [entry.id, entry]));
+    const seasonTeams = stageEntryIds.map((entryId) => teamById.get(entryId)).filter((entry): entry is NonNullable<typeof entry> => entry !== undefined);
     const finishedMatches = await db.query.matches.findMany({
       where: and(
         eq(matches.seasonId, seasonId),
@@ -75,9 +52,9 @@ export const roundRobinExecutor: StageExecutor = {
     });
     const roundScores = await getMatchMapRoundScores(finishedMatches.map((match) => match.id));
     const standings = calculateStandings(seasonTeams, finishedMatches, roundScores);
-    const advanceCount = config.advanceTiers.reduce((sum, t) => sum + t.count, 0);
-    return standings.slice(0, advanceCount).map((s) => ({
-      teamId: s.teamId,
+    const advanceCount = config.advanceTiers.reduce((sum, tier) => sum + tier.count, 0);
+    return standings.slice(0, advanceCount).map((standing) => ({
+      teamId: standing.teamId,
       placement: "*",
     }));
   },
