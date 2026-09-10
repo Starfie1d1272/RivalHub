@@ -6,7 +6,12 @@ import { migrationFiles, replayMigration, withScratchDatabase } from "../harness
 
 const TARGET_MIGRATION = "0042_identity_foundation.sql";
 const ACCESS_MATRIX_AT_TARGET = DATABASE_ACCESS_MATRIX.filter(
-  (entry) => entry.table !== "scheduled_job_health" && entry.table !== "competition_stage_bracket_states",
+  (entry) => ![
+    "scheduled_job_health",
+    "competition_stage_bracket_states",
+    "competition_bracket_states",
+    "swiss_standings",
+  ].includes(entry.table),
 );
 
 describe("conversion policies migration", () => {
