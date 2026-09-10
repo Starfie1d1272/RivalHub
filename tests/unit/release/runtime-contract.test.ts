@@ -79,6 +79,18 @@ describe("deployment and operations contracts", () => {
     expect(readWorkflowJob(ci, "dependency-review")).not.toContain("pnpm/setup");
   });
 
+  it("freezes the exact release identity into Vercel builds and reads it back after deploy", () => {
+    const release = readProjectFile(".github/workflows/release.yml");
+    const nextConfig = readProjectFile("next.config.ts");
+
+    expect(release).toContain('--build-env RIVALHUB_RELEASE_TAG="$RELEASE_TAG"');
+    expect(release).toContain('--build-env RIVALHUB_RELEASE_COMMIT="$RELEASE_SHA"');
+    expect(release).toContain("$BASE_URL/api/system/release");
+    expect(release).toContain('(keys | sort) == ["releaseCommit", "releaseTag"]');
+    expect(nextConfig).toContain('RIVALHUB_RELEASE_TAG: process.env.RIVALHUB_RELEASE_TAG ?? ""');
+    expect(nextConfig).toContain('RIVALHUB_RELEASE_COMMIT: process.env.RIVALHUB_RELEASE_COMMIT ?? ""');
+  });
+
   it("uses main as the sole long-lived CI ref", () => {
     const ci = readProjectFile(".github/workflows/ci.yml");
 

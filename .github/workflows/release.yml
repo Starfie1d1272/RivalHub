@@ -120,6 +120,16 @@ jobs:
           curl --fail --silent --show-error \
             --retry 8 --retry-all-errors --retry-delay 5 \
             "https://match.starfie1d.top/" >/dev/null
+          for BASE_URL in "$DEPLOYMENT_URL" "https://match.starfie1d.top"; do
+            identity="$(curl --fail --silent --show-error \
+              --retry 8 --retry-all-errors --retry-delay 5 \
+              "$BASE_URL/api/system/release")"
+            jq -e --arg tag "$RELEASE_TAG" --arg commit "$RELEASE_SHA" '
+              (keys | sort) == ["releaseCommit", "releaseTag"]
+              and .releaseTag == $tag
+              and .releaseCommit == $commit
+            ' <<<"$identity" >/dev/null
+          done
 
       - name: Provision and verify production scheduler
         env:
