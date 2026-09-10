@@ -15,6 +15,11 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: rivalhub-production-state-serialization
+  queue: max
+  cancel-in-progress: false
+
 jobs:
   retention:
     name: r2-retention / ${{ inputs.operation }}

@@ -1,12 +1,14 @@
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("node:child_process", () => ({ spawnSync: vi.fn() }));
 
 import { spawnSync } from "node:child_process";
-import { createR2Client } from "../../scripts/db/recovery/r2";
+import { createR2Client, createR2ReadOnlyClient } from "../../scripts/db/recovery/r2";
 import {
   applyR2RetentionConfig,
+  assertNoConflictingLockRules,
   assertNoConflictingLifecycleRules,
   R2_LIFECYCLE_RULES,
   R2_LOCK_RULES,
@@ -86,6 +88,28 @@ describe("recovery R2 provider command contract", () => {
     expect(message.length).toBeLessThan(1_500);
   });
 
+  it("exposes no PUT operation and uses the independent read-only credential", () => {
+    spawnSyncMock.mockClear();
+    spawnSyncMock.mockReturnValue(mockAwsResult({
+      stdout: JSON.stringify({ ContentLength: 1, Metadata: { sha256: "a".repeat(64) } }),
+    }));
+    const client = createR2ReadOnlyClient({
+      accountId: "0123456789abcdef0123456789abcdef",
+      bucket: "rivalhub-recovery",
+      endpoint: "https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com",
+      accessKeyId: "read-access",
+      secretAccessKey: "read-secret",
+    });
+
+    expect("put" in client).toBe(false);
+    client.head("production/hourly/2026-09-10/run.tar.gz.age");
+    const options = spawnSyncMock.mock.calls[0]?.[2] as { env?: NodeJS.ProcessEnv } | undefined;
+    expect(options?.env?.AWS_ACCESS_KEY_ID).toBe("read-access");
+    expect(options?.env?.AWS_SECRET_ACCESS_KEY).toBe("read-secret");
+    expect(options?.env?.RIVALHUB_R2_ACCESS_KEY_ID).toBeUndefined();
+    expect(options?.env?.RIVALHUB_R2_SECRET_ACCESS_KEY).toBeUndefined();
+  });
+
   describe("R2 provider retention and privacy contract", () => {
     const originalFetch = globalThis.fetch;
 
@@ -112,6 +136,43 @@ describe("recovery R2 provider command contract", () => {
       ])).toThrow(/destructive rule/);
     });
 
+    it("does not misclassify Cloudflare's default multipart-abort rule as object deletion", () => {
+      const fixture = JSON.parse(readFileSync(resolve(process.cwd(), "tests/fixtures/cloudflare-r2-default-lifecycle.json"), "utf8")) as {
+        success: boolean;
+        result: { rules: Record<string, unknown>[] };
+      };
+      expect(fixture.success).toBe(true);
+      expect(() => assertNoConflictingLifecycleRules(fixture.result.rules)).not.toThrow();
+    });
+
+    it("uses one lifecycle and lock retention window per backup class", () => {
+      expect(R2_LIFECYCLE_RULES.map((rule) => [rule.id, (rule.conditions as { prefix: string }).prefix, (rule.deleteObjectsTransition as { condition: { maxAge: number } }).condition.maxAge])).toEqual([
+        ["rivalhub-hourly-48h", "production/hourly/", 172800],
+        ["rivalhub-daily-30d", "production/daily/", 2592000],
+        ["rivalhub-pre-release-30d", "production/pre-release/", 2592000],
+        ["rivalhub-manual-30d", "production/manual/", 2592000],
+      ]);
+      expect(R2_LOCK_RULES.map((rule) => [rule.id, rule.prefix, (rule.condition as { maxAgeSeconds: number }).maxAgeSeconds])).toEqual([
+        ["rivalhub-hourly-lock", "production/hourly/", 172800],
+        ["rivalhub-daily-lock", "production/daily/", 2592000],
+        ["rivalhub-pre-release-lock", "production/pre-release/", 2592000],
+        ["rivalhub-manual-lock", "production/manual/", 2592000],
+      ]);
+      expect(R2_LOCK_RULES.some((rule) => rule.prefix === "production/")).toBe(false);
+    });
+
+    it("rejects unknown overlapping lock rules while preserving unrelated locks", () => {
+      expect(() => assertNoConflictingLockRules([
+        { id: "logs-lock", enabled: true, prefix: "logs/", condition: { type: "Age", maxAgeSeconds: 86400 } },
+      ])).not.toThrow();
+      expect(() => assertNoConflictingLockRules([
+        { id: "unknown-prod-lock", enabled: true, prefix: "production/", condition: { type: "Age", maxAgeSeconds: 86400 } },
+      ])).toThrow(/overlapping rule/);
+      expect(() => assertNoConflictingLockRules([
+        { id: "unknown-hourly-lock", enabled: true, prefix: "production/hourly/", condition: { type: "Age", maxAgeSeconds: 86400 } },
+      ])).toThrow(/overlapping rule/);
+    });
+
     it("fails closed when canonical bucket has managed r2.dev public access enabled", async () => {
       const config = {
         accountId: "0123456789abcdef0123456789abcdef",
@@ -122,7 +183,7 @@ describe("recovery R2 provider command contract", () => {
       globalThis.fetch = vi.fn(async (url: RequestInfo | URL) => {
         const urlStr = String(url);
         if (urlStr.includes("/domains/managed")) {
-          return new Response(JSON.stringify({ success: true, result: { enabled: true, domain: "rivalhub.r2.dev" } }), { status: 200 });
+          return new Response(JSON.stringify({ success: true, result: { bucketId: "bucket-id", enabled: true, domain: "rivalhub.r2.dev" } }), { status: 200 });
         }
         return new Response(JSON.stringify({ success: true, result: {} }), { status: 200 });
       });
@@ -159,6 +220,21 @@ describe("recovery R2 provider command contract", () => {
       }
     });
 
+    it("fails closed on malformed Cloudflare GET results instead of treating them as private", async () => {
+      const config = {
+        accountId: "0123456789abcdef0123456789abcdef",
+        bucket: "rivalhub-recovery",
+        apiToken: "cloudflare-token",
+      };
+      globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({ success: true, result: {} }), { status: 200 }));
+      try {
+        await expect(verifyR2NoManagedPublicAccess(config)).rejects.toThrow(/managed domain response/);
+        await expect(verifyR2NoCustomDomains(config)).rejects.toThrow(/custom domain response/);
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
     it("applies bucket lock first, verifies lock, then applies lifecycle, and performs full read-back", async () => {
       const callLog: string[] = [];
 
@@ -182,7 +258,7 @@ describe("recovery R2 provider command contract", () => {
         }
         if (urlStr.endsWith("/domains/managed")) {
           callLog.push(`${method} domains/managed`);
-          return new Response(JSON.stringify({ success: true, result: { enabled: false } }), { status: 200 });
+          return new Response(JSON.stringify({ success: true, result: { bucketId: "bucket-id", enabled: false, domain: "rivalhub.r2.dev" } }), { status: 200 });
         }
         if (urlStr.endsWith("/domains/custom")) {
           callLog.push(`${method} domains/custom`);

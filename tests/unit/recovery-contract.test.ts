@@ -1,10 +1,13 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readExpectedMigrations } from "../../scripts/db/production-preflight";
 import {
   assertProductionBackupEnvironment,
+  assertRecoveryFetchEnvironment,
+  assertR2EndpointForRecoveryFetch,
   assertR2BucketName,
   buildIsolatedRecoveryEnvironment,
 } from "../../scripts/db/recovery/environment";
@@ -19,8 +22,13 @@ import { buildRecoveryMigrationPlan, resolveProductionSourceIdentity } from "../
 import {
   assertActiveStorageReferencesCaptured,
   assertActiveStorageReferencesStable,
+  readStorageBuckets,
 } from "../../scripts/db/recovery/storage";
 import { buildRecoveryR2Keys, assertR2ContentReadback, assertR2HeadReadback, serializeR2Metadata } from "../../scripts/db/recovery/r2";
+import { assertBackupHeartbeatUrl, BACKUP_HEARTBEAT_TIMEOUT_MS, sendBackupHeartbeat } from "../../scripts/db/recovery/heartbeat";
+import { fetchRecoveryObjects } from "../../scripts/db/recovery/fetch";
+import { assertRecoveryFormatCompatibility, RECOVERY_FORMAT_VERSION, RECOVERY_READER_FORMAT_VERSIONS } from "../../scripts/db/recovery/manifest";
+import { assertSupportedStorageBucket, getStorageRecoveryPolicy, readManagedStorageReferences } from "../../scripts/db/recovery/storage-policy";
 import { assertManifestMigrationMatches, verifyRecoveryDatabase } from "../../scripts/db/recovery/verify";
 import { purgeExpiredEducationEvidence } from "../../src/lib/education/retention-core";
 import { describe, expect, it } from "vitest";
@@ -120,6 +128,7 @@ describe("recovery contracts", () => {
       SUPABASE_SECRET_KEY: "sb_secret-modern",
       SUPABASE_SERVICE_ROLE_KEY: "service-role-secret",
       RIVALHUB_BACKUP_AGE_RECIPIENT: "age1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",
+      RIVALHUB_BACKUP_HEARTBEAT_URL: "https://uptime.betterstack.com/api/v1/heartbeat/test-token",
       RIVALHUB_R2_ACCOUNT_ID: "0123456789abcdef0123456789abcdef",
       RIVALHUB_R2_BUCKET: "rivalhub-recovery",
       RIVALHUB_R2_ACCESS_KEY_ID: "access-key",
@@ -150,6 +159,7 @@ describe("recovery contracts", () => {
       RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: "aws-0-ap-northeast-1.pooler.supabase.com:6543",
       DATABASE_URL: "postgresql://postgres.sucokfotkypwqkckfynp:secret@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true",
       RIVALHUB_BACKUP_AGE_RECIPIENT: "age1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",
+      RIVALHUB_BACKUP_HEARTBEAT_URL: "https://uptime.betterstack.com/api/v1/heartbeat/test-token",
       RIVALHUB_R2_ACCOUNT_ID: "0123456789abcdef0123456789abcdef",
       RIVALHUB_R2_BUCKET: "rivalhub-recovery",
       RIVALHUB_R2_ACCESS_KEY_ID: "access-key",
@@ -170,6 +180,190 @@ describe("recovery contracts", () => {
     );
   });
 
+  it("requires a Better Stack heartbeat and bounds no-start/failure notification calls", async () => {
+    expect(assertBackupHeartbeatUrl("https://uptime.betterstack.com/api/v1/heartbeat/test-token")).toBe(
+      "https://uptime.betterstack.com/api/v1/heartbeat/test-token",
+    );
+    expect(BACKUP_HEARTBEAT_TIMEOUT_MS).toBe(10_000);
+    expect(() => assertBackupHeartbeatUrl("https://example.test/api/v1/heartbeat/test-token")).toThrow();
+    expect(() => assertBackupHeartbeatUrl("https://uptime.betterstack.com/api/v1/heartbeat/test-token?secret=echo")).toThrow();
+
+    const requested: string[] = [];
+    const fetchImpl: typeof fetch = (async (input) => {
+      requested.push(String(input));
+      return new Response(null, { status: 200 });
+    }) as typeof fetch;
+    await sendBackupHeartbeat("https://uptime.betterstack.com/api/v1/heartbeat/test-token", "success", fetchImpl);
+    await sendBackupHeartbeat("https://uptime.betterstack.com/api/v1/heartbeat/test-token", "failure", fetchImpl);
+    expect(requested).toEqual([
+      "https://uptime.betterstack.com/api/v1/heartbeat/test-token",
+      "https://uptime.betterstack.com/api/v1/heartbeat/test-token/fail",
+    ]);
+  });
+
+  it("keeps the format-2 reader available before the format-2 writer emits artifacts", () => {
+    expect(RECOVERY_READER_FORMAT_VERSIONS).toContain(RECOVERY_FORMAT_VERSION);
+    expect(() => assertRecoveryFormatCompatibility()).not.toThrow();
+    const manifestSource = readFileSync(join(process.cwd(), "scripts/db/recovery/manifest.ts"), "utf8");
+    expect(manifestSource.indexOf("RECOVERY_FORMAT_VERSION = 2")).toBeLessThan(manifestSource.indexOf("RECOVERY_READER_FORMAT_VERSIONS"));
+  });
+
+  it("uses the storage policy registry for supported buckets and managed references", async () => {
+    expect(getStorageRecoveryPolicy("team-logos")).toEqual({
+      bucket: "team-logos",
+      recoveryClass: "durable",
+      restoreMode: "always",
+    });
+    expect(getStorageRecoveryPolicy("education-evidence")).toEqual({
+      bucket: "education-evidence",
+      recoveryClass: "temporary-sensitive",
+      restoreMode: "active-reference-only",
+    });
+    expect(() => getStorageRecoveryPolicy("unknown-bucket")).toThrow(/no recovery policy/);
+    expect(() => assertSupportedStorageBucket({ name: "team-logos" })).toThrow(/missing or unsupported/);
+    expect(() => assertSupportedStorageBucket({ name: "team-logos", type: "OBJECT" })).toThrow(/missing or unsupported/);
+    expect(assertSupportedStorageBucket({ name: "team-logos", type: "STANDARD" })).toEqual(getStorageRecoveryPolicy("team-logos"));
+
+    const references = await readManagedStorageReferences({
+      query: async () => ({ rows: [
+        { evidence_object_key: "verification/one.png" },
+        { evidence_object_key: "verification/one.png" },
+      ] }),
+    } as never);
+    expect(references).toEqual([{ bucket: "education-evidence", objectPath: "verification/one.png" }]);
+  });
+
+  it("rejects Storage inventories without an explicit STANDARD type", () => {
+    const root = mkdtempSync(join(tmpdir(), "rivalhub-storage-policy-"));
+    const path = join(root, "buckets.json");
+    try {
+      writeFileSync(path, JSON.stringify([{ id: "logos", name: "team-logos", public: false, fileSizeLimit: null, allowedMimeTypes: null }]));
+      expect(() => readStorageBuckets(path)).toThrow(/缺少字段/);
+      writeFileSync(path, JSON.stringify([{ id: "logos", name: "team-logos", type: "OBJECT", public: false, fileSizeLimit: null, allowedMimeTypes: null }]));
+      expect(() => readStorageBuckets(path)).toThrow(/缺少字段/);
+      writeFileSync(path, JSON.stringify([{ id: "logos", name: "team-logos", type: "STANDARD", public: false, fileSizeLimit: null, allowedMimeTypes: null }]));
+      expect(readStorageBuckets(path)).toEqual([{
+        id: "logos",
+        name: "team-logos",
+        type: "STANDARD",
+        public: false,
+        fileSizeLimit: null,
+        allowedMimeTypes: null,
+      }]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("accepts only the offline account-scoped R2 read endpoint", () => {
+    const accountId = "0123456789abcdef0123456789abcdef";
+    expect(assertR2EndpointForRecoveryFetch(`https://${accountId}.r2.cloudflarestorage.com`, accountId)).toBe(
+      `https://${accountId}.r2.cloudflarestorage.com`,
+    );
+    expect(() => assertR2EndpointForRecoveryFetch("http://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com", accountId)).toThrow();
+    expect(() => assertRecoveryFetchEnvironment({
+      RIVALHUB_R2_ACCOUNT_ID: accountId,
+      RIVALHUB_R2_BUCKET: "rivalhub-recovery",
+      RIVALHUB_R2_ENDPOINT: `https://${accountId}.r2.cloudflarestorage.com`,
+      RIVALHUB_R2_READ_ACCESS_KEY_ID: "read-access",
+      RIVALHUB_R2_READ_SECRET_ACCESS_KEY: "read-secret",
+      RIVALHUB_R2_ACCESS_KEY_ID: "writer-access",
+    })).toThrow(/writer/);
+    expect(() => assertRecoveryFetchEnvironment({
+      RIVALHUB_R2_ACCOUNT_ID: accountId,
+      RIVALHUB_R2_BUCKET: "rivalhub-recovery",
+      RIVALHUB_R2_ENDPOINT: `https://${accountId}.r2.cloudflarestorage.com`,
+      RIVALHUB_R2_READ_ACCESS_KEY_ID: "read-access",
+      RIVALHUB_R2_READ_SECRET_ACCESS_KEY: "read-secret",
+      AWS_SESSION_TOKEN: "session-token",
+    })).toThrow(/writer/);
+    expect(() => assertRecoveryFetchEnvironment({
+      RIVALHUB_R2_ACCOUNT_ID: accountId,
+      RIVALHUB_R2_BUCKET: "rivalhub-recovery",
+      RIVALHUB_R2_ENDPOINT: `https://${accountId}.r2.cloudflarestorage.com`,
+      RIVALHUB_R2_READ_ACCESS_KEY_ID: "read-access",
+      RIVALHUB_R2_READ_SECRET_ACCESS_KEY: "read-secret",
+      RIVALHUB_RECOVERY_SERVICE_ROLE_KEY: "isolated-writer",
+    })).toThrow(/writer/);
+    expect(assertRecoveryFetchEnvironment({
+      RIVALHUB_R2_ACCOUNT_ID: accountId,
+      RIVALHUB_R2_BUCKET: "rivalhub-recovery",
+      RIVALHUB_R2_ENDPOINT: `https://${accountId}.r2.cloudflarestorage.com`,
+      RIVALHUB_R2_READ_ACCESS_KEY_ID: "read-access",
+      RIVALHUB_R2_READ_SECRET_ACCESS_KEY: "read-secret",
+    }).endpoint).toBe(`https://${accountId}.r2.cloudflarestorage.com`);
+  });
+
+  it("fetches completion then sidecar then encrypted artifact into a new restricted directory", async () => {
+    const root = mkdtempSync(join(tmpdir(), "rivalhub-fetch-contract-"));
+    const completionKey = `production/hourly/2026-09-10/${RUN_ID}.complete.json`;
+    const artifactKey = `production/hourly/2026-09-10/${RUN_ID}.tar.gz.age`;
+    const manifestKey = `production/hourly/2026-09-10/${RUN_ID}.manifest.json`;
+    const artifact = Buffer.from("encrypted artifact bytes");
+    const artifactSha256 = sha256Bytes(artifact);
+    const sidecarValue = {
+      formatVersion: 2,
+      runId: RUN_ID,
+      artifactKey,
+      artifactBytes: artifact.byteLength,
+      artifactSha256,
+      manifestSha256: "d".repeat(64),
+      createdAt: CREATED_AT,
+      backupClass: "hourly",
+    } as const;
+    const completionValue = {
+      formatVersion: 2,
+      runId: RUN_ID,
+      artifactKey,
+      artifactSha256,
+      manifestSha256: sidecarValue.manifestSha256,
+      completedAt: CREATED_AT,
+    } as const;
+    const objects = new Map<string, Buffer>([
+      [completionKey, Buffer.from(`${JSON.stringify(completionValue)}\n`)],
+      [manifestKey, Buffer.from(`${JSON.stringify(sidecarValue)}\n`)],
+      [artifactKey, artifact],
+    ]);
+    const order: string[] = [];
+    const client = {
+      endpoint: "https://r2.example.invalid",
+      bucket: "rivalhub-recovery",
+      head: (key: string) => {
+        const bytes = objects.get(key);
+        if (!bytes) throw new Error("missing object");
+        return { bytes: bytes.byteLength, sha256: sha256Bytes(bytes) };
+      },
+      download: (key: string, path: string) => {
+        const bytes = objects.get(key);
+        if (!bytes) throw new Error("missing object");
+        order.push(key);
+        writeFileSync(path, bytes, { flag: "wx" });
+      },
+    };
+
+    try {
+      const output = await fetchRecoveryObjects(
+        {
+          accountId: "0123456789abcdef0123456789abcdef",
+          bucket: "rivalhub-recovery",
+          endpoint: "https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com",
+          accessKeyId: "read-access",
+          secretAccessKey: "read-secret",
+        },
+        completionKey,
+        join(root, "verified-run"),
+        client,
+      );
+      expect(order).toEqual([completionKey, manifestKey, artifactKey]);
+      expect(statSync(output).mode & 0o777).toBe(0o700);
+      expect(readFileSync(join(output, "artifact.tar.gz.age"))).toEqual(artifact);
+      expect(readFileSync(join(output, "sidecar.json"), "utf8")).toContain(RUN_ID);
+      expect(readFileSync(join(output, "completion.json"), "utf8")).toContain(RUN_ID);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("enforces session pooler :5432 for production backup and rejects :6543 transaction mode", () => {
     const baseEnvironment = {
       RIVALHUB_DB_TARGET: "production",
@@ -178,6 +372,7 @@ describe("recovery contracts", () => {
       DATABASE_URL: "postgresql://postgres.sucokfotkypwqkckfynp:secret@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true",
       SUPABASE_SECRET_KEY: "sb_secret-modern",
       RIVALHUB_BACKUP_AGE_RECIPIENT: "age1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",
+      RIVALHUB_BACKUP_HEARTBEAT_URL: "https://uptime.betterstack.com/api/v1/heartbeat/test-token",
       RIVALHUB_R2_ACCOUNT_ID: "0123456789abcdef0123456789abcdef",
       RIVALHUB_R2_BUCKET: "rivalhub-recovery",
       RIVALHUB_R2_ACCESS_KEY_ID: "access-key",
@@ -228,10 +423,10 @@ describe("recovery contracts", () => {
 
   it("checks managed Storage references around the complete snapshot window", () => {
     const backupSource = readFileSync(join(process.cwd(), "scripts/db/recovery/backup.ts"), "utf8");
-    const firstReferenceRead = backupSource.indexOf("readActiveStorageReferences(environment.databaseUrl)");
+    const firstReferenceRead = backupSource.indexOf("readManagedStorageReferencesFromProduction(environment.databaseUrl)");
     const databaseSnapshot = backupSource.indexOf("createDatabaseSnapshot(environment.databaseUrl, stagingRoot)");
     const storageSnapshot = backupSource.indexOf("snapshotStorage(");
-    const secondReferenceRead = backupSource.indexOf("readActiveStorageReferences(environment.databaseUrl)", firstReferenceRead + 1);
+    const secondReferenceRead = backupSource.indexOf("readManagedStorageReferencesFromProduction(environment.databaseUrl)", firstReferenceRead + 1);
     const stabilityCheck = backupSource.indexOf("assertActiveStorageReferencesStable(");
     const captureCheck = backupSource.indexOf("assertActiveStorageReferencesCaptured(");
 
@@ -241,6 +436,16 @@ describe("recovery contracts", () => {
     expect(storageSnapshot).toBeLessThan(secondReferenceRead);
     expect(secondReferenceRead).toBeLessThan(stabilityCheck);
     expect(stabilityCheck).toBeLessThan(captureCheck);
+
+    const completionReadback = backupSource.indexOf("verifyR2Object(r2, keys.completion");
+    const successHeartbeat = backupSource.indexOf('sendBackupHeartbeat(environment.backupHeartbeatUrl, "success")');
+    const failureHeartbeat = backupSource.indexOf('sendBackupHeartbeat(environment.backupHeartbeatUrl, "failure")');
+    expect(completionReadback).toBeGreaterThan(-1);
+    expect(completionReadback).toBeLessThan(successHeartbeat);
+    expect(successHeartbeat).toBeLessThan(failureHeartbeat);
+    expect(backupSource).toContain("Better Stack failure heartbeat could not be delivered.");
+    expect(backupSource).not.toContain("education_verifications");
+    expect(backupSource).toContain("readManagedStorageReferences(pool)");
   });
 
   it("keeps R2 bucket names within the provider length contract", () => {
@@ -457,6 +662,10 @@ function createReleaseGitFixture(): { directory: string; tag: string; commit: st
   const tag = "v1.0.0";
   git(["tag", tag]);
   return { directory, tag, commit };
+}
+
+function sha256Bytes(value: Uint8Array): string {
+  return createHash("sha256").update(value).digest("hex");
 }
 
 class RecoveryQueryStub {

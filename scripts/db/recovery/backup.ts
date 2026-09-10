@@ -12,6 +12,7 @@ import {
 } from "./environment";
 import {
   RECOVERY_FORMAT_VERSION,
+  assertRecoveryFormatCompatibility,
   digestFile,
   serializeCompletionMarker,
   serializeManifest,
@@ -27,6 +28,8 @@ import {
   assertActiveStorageReferencesStable,
   snapshotStorage,
 } from "./storage";
+import { sendBackupHeartbeat } from "./heartbeat";
+import { readManagedStorageReferences, type ManagedStorageReference } from "./storage-policy";
 import { resolveProductionSourceIdentity } from "./source";
 import {
   assertActiveChainPrefix,
@@ -38,6 +41,7 @@ const projectRoot = resolve(process.cwd());
 const pnpmBin = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 
 async function main(): Promise<void> {
+  assertRecoveryFormatCompatibility();
   const backupClass = assertBackupClass(process.argv[2] ?? process.env.RIVALHUB_BACKUP_CLASS);
   const environment = assertProductionBackupEnvironment(process.env);
   const runId = randomUUID();
@@ -46,11 +50,12 @@ async function main(): Promise<void> {
   const stagingRoot = join(tempRoot, "backup");
   mkdirSync(stagingRoot, { recursive: true });
 
+  let backupCompleted = false;
   try {
     const supabaseCliVersion = readSupabaseCliVersion();
     const migration = await readProductionMigrationIdentity(environment.databaseUrl);
     const source = await resolveProductionSourceIdentity();
-    const activeStorageReferencesBeforeSnapshot = await readActiveStorageReferences(environment.databaseUrl);
+    const activeStorageReferencesBeforeSnapshot = await readManagedStorageReferencesFromProduction(environment.databaseUrl);
     const databaseRoot = await createDatabaseSnapshot(environment.databaseUrl, stagingRoot);
     const storage = await snapshotStorage(
       createClient(environment.supabaseUrl, environment.supabaseSecretKey, {
@@ -58,7 +63,7 @@ async function main(): Promise<void> {
       }),
       join(stagingRoot, "storage"),
     );
-    const activeStorageReferencesAfterSnapshot = await readActiveStorageReferences(environment.databaseUrl);
+    const activeStorageReferencesAfterSnapshot = await readManagedStorageReferencesFromProduction(environment.databaseUrl);
     assertActiveStorageReferencesStable(activeStorageReferencesBeforeSnapshot, activeStorageReferencesAfterSnapshot);
     assertActiveStorageReferencesCaptured(activeStorageReferencesBeforeSnapshot, storage.records);
 
@@ -152,10 +157,23 @@ async function main(): Promise<void> {
       metadata: { sha256: completionSha256, "run-id": runId, "backup-class": backupClass },
     });
     verifyR2Object(r2, keys.completion, completionPath, join(tempRoot, "completion.readback"));
+    await sendBackupHeartbeat(environment.backupHeartbeatUrl, "success");
+    backupCompleted = true;
 
     console.log(
       `Production backup complete: class=${backupClass}, run=${runId}, artifactBytes=${artifactBytes}, storageObjects=${storage.objectCount}, storageBytes=${storage.totalBytes}, artifactSha256=${artifactSha256}.`,
     );
+  } catch (error) {
+    if (!backupCompleted) {
+      try {
+        await sendBackupHeartbeat(environment.backupHeartbeatUrl, "failure");
+      } catch {
+        // The heartbeat endpoint must never echo provider diagnostics or
+        // secrets into the Actions log; the original failure remains primary.
+        console.error("Better Stack failure heartbeat could not be delivered.");
+      }
+    }
+    throw error;
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -250,13 +268,10 @@ function readGitCommit(): string {
   return result.stdout.trim();
 }
 
-async function readActiveStorageReferences(databaseUrl: string): Promise<ReadonlyArray<{ bucket: string; objectPath: string }>> {
+async function readManagedStorageReferencesFromProduction(databaseUrl: string): Promise<readonly ManagedStorageReference[]> {
   const pool = new Pool({ connectionString: databaseUrl, ssl: { rejectUnauthorized: false }, max: 1 });
   try {
-    const result = await pool.query<{ evidence_object_key: string }>(
-      "SELECT evidence_object_key FROM public.education_verifications WHERE evidence_object_key IS NOT NULL",
-    );
-    return result.rows.map((row) => ({ bucket: "education-evidence", objectPath: row.evidence_object_key }));
+    return await readManagedStorageReferences(pool);
   } finally {
     await pool.end();
   }

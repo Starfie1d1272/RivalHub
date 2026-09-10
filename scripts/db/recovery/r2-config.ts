@@ -1,25 +1,37 @@
-import { assertCloudflareAccountId, assertR2BucketName } from "./environment";
+import { assertCloudflareAccountId, assertR2BucketName, type BackupClass } from "./environment";
 
 const CLOUDFLARE_API_BASE = "https://api.cloudflare.com/client/v4";
-const LOCK_7_DAYS_SECONDS = 7 * 24 * 60 * 60;
 const HOURS_48_SECONDS = 48 * 60 * 60;
 const DAYS_30_SECONDS = 30 * 24 * 60 * 60;
 
-export const R2_LIFECYCLE_RULES = [
-  lifecycleRule("rivalhub-hourly-48h", "production/hourly/", HOURS_48_SECONDS),
-  lifecycleRule("rivalhub-daily-30d", "production/daily/", DAYS_30_SECONDS),
-  lifecycleRule("rivalhub-pre-release-30d", "production/pre-release/", DAYS_30_SECONDS),
-  lifecycleRule("rivalhub-manual-30d", "production/manual/", DAYS_30_SECONDS),
-] as const;
+const RETENTION_SECONDS: Readonly<Record<BackupClass, number>> = {
+  hourly: HOURS_48_SECONDS,
+  daily: DAYS_30_SECONDS,
+  "pre-release": DAYS_30_SECONDS,
+  manual: DAYS_30_SECONDS,
+};
 
-export const R2_LOCK_RULES = [
-  {
-    id: "rivalhub-production-7d-lock",
-    enabled: true,
-    prefix: "production/",
-    condition: { type: "Age", maxAgeSeconds: LOCK_7_DAYS_SECONDS },
-  },
-] as const;
+const LIFECYCLE_IDS: Readonly<Record<BackupClass, string>> = {
+  hourly: "rivalhub-hourly-48h",
+  daily: "rivalhub-daily-30d",
+  "pre-release": "rivalhub-pre-release-30d",
+  manual: "rivalhub-manual-30d",
+};
+
+export const R2_LIFECYCLE_RULES = (Object.keys(RETENTION_SECONDS) as BackupClass[]).map((backupClass) =>
+  lifecycleRule(
+    LIFECYCLE_IDS[backupClass],
+    `production/${backupClass}/`,
+    RETENTION_SECONDS[backupClass],
+  )
+) as readonly Record<string, unknown>[];
+
+export const R2_LOCK_RULES = (Object.keys(RETENTION_SECONDS) as BackupClass[]).map((backupClass) => ({
+  id: `rivalhub-${backupClass}-lock`,
+  enabled: true,
+  prefix: `production/${backupClass}/`,
+  condition: { type: "Age", maxAgeSeconds: RETENTION_SECONDS[backupClass] },
+})) as readonly Record<string, unknown>[];
 
 export interface R2RetentionConfig {
   lifecycleRules: readonly unknown[];
@@ -33,6 +45,7 @@ export async function applyR2RetentionConfig(
   const existingLifecycle = await readRules(config, "lifecycle");
   assertNoConflictingLifecycleRules(existingLifecycle);
   const existingLocks = await readRules(config, "lock");
+  assertNoConflictingLockRules(existingLocks);
 
   // 1. 优先建立并验证 bucket lock
   const lockRules = mergeRules(existingLocks, R2_LOCK_RULES, "lock");
@@ -55,6 +68,7 @@ export async function verifyR2RetentionConfig(
   const lifecycleRules = await readRules(config, "lifecycle");
   assertNoConflictingLifecycleRules(lifecycleRules);
   const lockRules = await readRules(config, "lock");
+  assertNoConflictingLockRules(lockRules);
   for (const expected of R2_LIFECYCLE_RULES) {
     const actual = lifecycleRules.find((rule) => ruleId(rule) === expected.id);
     if (!actual || !matchesLifecycleRule(actual, expected)) {
@@ -74,7 +88,7 @@ export async function verifyR2RetentionConfig(
   // 验证 canonical bucket 没有 enabled custom domain
   await verifyR2NoCustomDomains(config);
 
-  console.log("R2 retention contract verified: lifecycle rules, 7-day bucket lock, and private bucket access are active.");
+  console.log("R2 retention contract verified: per-class lifecycle/lock rules and private bucket access are active.");
   return { lifecycleRules, lockRules };
 }
 
@@ -89,20 +103,17 @@ async function verifyLockRules(config: R2Config): Promise<void> {
 }
 
 export async function verifyR2NoManagedPublicAccess(config: R2Config): Promise<void> {
-  const result = await cloudflareRequest<{ enabled?: boolean }>(config, "domains/managed", "GET");
-  if (result.enabled === true) {
+  const result = await cloudflareRequest<unknown>(config, "domains/managed", "GET");
+  const managed = assertManagedDomainResult(result);
+  if (managed.enabled) {
     throw new Error("R2 canonical bucket 启用了 managed r2.dev public access；recovery bucket 必须是完全私有的。");
   }
 }
 
 export async function verifyR2NoCustomDomains(config: R2Config): Promise<void> {
   const result = await cloudflareRequest<unknown>(config, "domains/custom", "GET");
-  const domains = Array.isArray(result)
-    ? result
-    : isRecord(result) && Array.isArray(result.domains)
-      ? result.domains
-      : [];
-  const activeDomains = domains.filter((d) => isRecord(d) && d.enabled !== false);
+  const domains = assertCustomDomainResult(result);
+  const activeDomains = domains.filter((domain) => domain.enabled);
   if (activeDomains.length > 0) {
     throw new Error("R2 canonical bucket 存在已启用的 custom domain；recovery bucket 必须是完全私有的。");
   }
@@ -111,32 +122,39 @@ export async function verifyR2NoCustomDomains(config: R2Config): Promise<void> {
 export function assertNoConflictingLifecycleRules(
   existingRules: readonly Record<string, unknown>[],
 ): void {
+  validateLifecycleRules(existingRules);
   const expectedIds = new Set(R2_LIFECYCLE_RULES.map((r) => r.id));
   for (const rule of existingRules) {
     if (expectedIds.has(ruleId(rule))) continue;
     if (rule.enabled === false) continue;
 
-    const conditions = rule.conditions as { prefix?: unknown } | undefined;
-    const prefix = typeof conditions?.prefix === "string"
-      ? conditions.prefix
-      : (typeof rule.prefix === "string" ? rule.prefix : "");
+    // Aborting incomplete multipart uploads is not completed-object deletion
+    // and must not be treated as a retention conflict.
+    if (!rule.deleteObjectsTransition) continue;
 
-    const isDestructive = !!(
-      rule.deleteObjectsTransition
-      || rule.abortMultipartUploadsTransition
-      || (rule as { expiration?: unknown }).expiration
-    );
-    if (!isDestructive) continue;
+    const prefix = lifecyclePrefix(rule);
 
     // Check if prefix overlaps with "production/"
-    const overlaps = prefix === ""
-      || prefix === "production"
-      || prefix.startsWith("production/")
-      || "production/".startsWith(prefix);
+    const overlaps = prefixesOverlap(prefix, "production/");
 
     if (overlaps) {
       throw new Error(
         `R2 lifecycle 存在未知或冲突的 destructive rule ${ruleId(rule)} (prefix=${JSON.stringify(prefix)})，可能缩短 production/ retention；拒绝操作。`,
+      );
+    }
+  }
+}
+
+export function assertNoConflictingLockRules(
+  existingRules: readonly Record<string, unknown>[],
+): void {
+  validateLockRules(existingRules);
+  const expectedIds = new Set(R2_LOCK_RULES.map((rule) => rule.id));
+  for (const rule of existingRules) {
+    if (expectedIds.has(ruleId(rule)) || rule.enabled === false) continue;
+    if (prefixesOverlap(lockPrefix(rule), "production/")) {
+      throw new Error(
+        `R2 bucket lock 存在未知或冲突的 production overlapping rule ${ruleId(rule)}；拒绝操作。`,
       );
     }
   }
@@ -159,11 +177,14 @@ function buildConfig(env: Readonly<Record<string, string | undefined>>): R2Confi
 }
 
 async function readRules(config: R2Config, kind: RuleKind): Promise<Record<string, unknown>[]> {
-  const response = await cloudflareRequest<{ rules?: unknown[] }>(config, kind, "GET");
-  if (!Array.isArray(response.rules) || !response.rules.every(isRecord)) {
+  const response = await cloudflareRequest<unknown>(config, kind, "GET");
+  if (!isRecord(response) || !Array.isArray(response.rules) || !response.rules.every(isRecord)) {
     throw new Error(`R2 ${kind} response rules 格式无效；拒绝覆盖 provider 配置。 `);
   }
-  return response.rules;
+  const rules = response.rules;
+  if (kind === "lifecycle") validateLifecycleRules(rules);
+  else validateLockRules(rules);
+  return rules;
 }
 
 async function putRules(
@@ -203,7 +224,10 @@ export async function cloudflareRequest<T>(
   if (!response.ok || !isRecord(payload) || payload.success !== true) {
     throw new Error(`Cloudflare R2 ${subpath} request rejected (HTTP ${response.status}). `);
   }
-  return (payload.result ?? {}) as T;
+  if (method === "GET" && !isRecord(payload.result)) {
+    throw new Error(`Cloudflare R2 ${subpath} GET result 格式无效；拒绝信任 provider response。 `);
+  }
+  return payload.result as T;
 }
 
 function mergeRules(
@@ -255,12 +279,133 @@ function lifecycleRule(id: string, prefix: string, maxAge: number): Record<strin
   };
 }
 
+function validateLifecycleRules(rules: readonly Record<string, unknown>[]): void {
+  const ids = new Set<string>();
+  for (const rule of rules) {
+    const id = ruleId(rule);
+    if (!id || ids.has(id) || typeof rule.enabled !== "boolean") {
+      throw new Error("R2 lifecycle response contains an invalid rule identity or enabled flag; refuse provider configuration. ");
+    }
+    ids.add(id);
+    const conditions = rule.conditions;
+    if (!isRecord(conditions) || typeof conditions.prefix !== "string") {
+      throw new Error("R2 lifecycle response contains an invalid conditions.prefix; refuse provider configuration. ");
+    }
+    if (rule.abortMultipartUploadsTransition !== undefined) {
+      assertLifecycleAgeTransition(rule.abortMultipartUploadsTransition, "abortMultipartUploadsTransition");
+    }
+    if (rule.deleteObjectsTransition !== undefined) {
+      assertLifecycleDeleteTransition(rule.deleteObjectsTransition);
+    }
+    if (rule.storageClassTransitions !== undefined) {
+      assertStorageClassTransitions(rule.storageClassTransitions);
+    }
+    if (rule.expiration !== undefined) {
+      throw new Error("R2 lifecycle response contains unsupported expiration semantics; refuse provider configuration. ");
+    }
+  }
+}
+
+function validateLockRules(rules: readonly Record<string, unknown>[]): void {
+  const ids = new Set<string>();
+  for (const rule of rules) {
+    const id = ruleId(rule);
+    if (!id || ids.has(id) || typeof rule.enabled !== "boolean") {
+      throw new Error("R2 lock response contains an invalid rule identity or enabled flag; refuse provider configuration. ");
+    }
+    ids.add(id);
+    if (rule.prefix !== undefined && typeof rule.prefix !== "string") {
+      throw new Error("R2 lock response contains an invalid prefix; refuse provider configuration. ");
+    }
+    assertLockCondition(rule.condition);
+  }
+}
+
+function assertManagedDomainResult(value: unknown): { bucketId: string; domain: string; enabled: boolean } {
+  if (!isRecord(value) || typeof value.bucketId !== "string" || typeof value.domain !== "string" || typeof value.enabled !== "boolean") {
+    throw new Error("R2 managed domain response 格式无效；拒绝信任 provider state。 ");
+  }
+  return value as { bucketId: string; domain: string; enabled: boolean };
+}
+
+function assertCustomDomainResult(value: unknown): Array<{ domain: string; enabled: boolean }> {
+  if (!isRecord(value) || !Array.isArray(value.domains)) {
+    throw new Error("R2 custom domain response 格式无效；拒绝信任 provider state。 ");
+  }
+  if (!value.domains.every(isRecord)) {
+    throw new Error("R2 custom domain response contains an invalid domain record; refuse provider state. ");
+  }
+  return value.domains.map((domain) => {
+    if (typeof domain.domain !== "string" || typeof domain.enabled !== "boolean") {
+      throw new Error("R2 custom domain response contains an invalid domain identity or enabled flag; refuse provider state. ");
+    }
+    return domain as { domain: string; enabled: boolean };
+  });
+}
+
+function assertLifecycleAgeTransition(value: unknown, label: string): void {
+  if (!isRecord(value) || !isRecord(value.condition) || value.condition.type !== "Age" || !isPositiveInteger(value.condition.maxAge)) {
+    throw new Error(`R2 lifecycle ${label} response 格式无效；拒绝信任 provider state。 `);
+  }
+}
+
+function assertLifecycleDeleteTransition(value: unknown): void {
+  if (!isRecord(value) || !isRecord(value.condition)) {
+    throw new Error("R2 lifecycle deleteObjectsTransition response 格式无效；拒绝信任 provider state。 ");
+  }
+  if (value.condition.type === "Age" && isPositiveInteger(value.condition.maxAge)) return;
+  if (value.condition.type === "Date" && typeof value.condition.date === "string" && !Number.isNaN(Date.parse(value.condition.date))) return;
+  throw new Error("R2 lifecycle deleteObjectsTransition condition 无效；拒绝信任 provider state。 ");
+}
+
+function assertStorageClassTransitions(value: unknown): void {
+  if (!Array.isArray(value)) throw new Error("R2 lifecycle storageClassTransitions 格式无效；拒绝信任 provider state。 ");
+  for (const transition of value) {
+    if (!isRecord(transition) || typeof transition.storageClass !== "string") {
+      throw new Error("R2 lifecycle storageClassTransitions record 无效；拒绝信任 provider state。 ");
+    }
+    assertLifecycleDeleteTransition({ condition: transition.condition });
+  }
+}
+
+function assertLockCondition(value: unknown): void {
+  if (!isRecord(value) || typeof value.type !== "string") {
+    throw new Error("R2 lock condition 格式无效；拒绝信任 provider state。 ");
+  }
+  if (value.type === "Age" && isPositiveInteger(value.maxAgeSeconds)) return;
+  if (value.type === "Date" && typeof value.date === "string" && !Number.isNaN(Date.parse(value.date))) return;
+  if (value.type === "Indefinite") return;
+  throw new Error("R2 lock condition type/value 无效；拒绝信任 provider state。 ");
+}
+
+function lifecyclePrefix(rule: Record<string, unknown>): string {
+  const conditions = rule.conditions;
+  if (!isRecord(conditions) || typeof conditions.prefix !== "string") {
+    throw new Error("R2 lifecycle rule prefix 无效；拒绝继续。 ");
+  }
+  return conditions.prefix;
+}
+
+function lockPrefix(rule: Record<string, unknown>): string {
+  return typeof rule.prefix === "string" ? rule.prefix : "";
+}
+
+function prefixesOverlap(left: string, right: string): boolean {
+  return left === right
+    || left.startsWith(right)
+    || right.startsWith(left);
+}
+
 function ruleId(rule: Record<string, unknown>): string {
   return typeof rule.id === "string" ? rule.id : "";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function isPositiveInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
 
 function required(value: string | undefined, name: string): string {

@@ -31,6 +31,7 @@
     "db:production:scheduler:verify": "tsx scripts/db/scheduler.ts verify",
     "db:production:identity-merge-preflight": "tsx scripts/db/production-identity-merge-preflight.ts",
     "db:recovery:backup": "tsx scripts/db/recovery/backup.ts",
+    "db:recovery:fetch": "tsx scripts/db/recovery/fetch.ts",
     "db:recovery:restore": "tsx scripts/db/recovery/restore.ts",
     "db:recovery:verify": "tsx scripts/db/recovery/verify.ts",
     "db:recovery:lifecycle": "tsx scripts/db/recovery/lifecycle.ts",

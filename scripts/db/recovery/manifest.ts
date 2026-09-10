@@ -4,6 +4,18 @@ import { basename } from "node:path";
 import { assertBackupClass, type BackupClass } from "./environment";
 
 export const RECOVERY_FORMAT_VERSION = 2 as const;
+export const RECOVERY_READER_FORMAT_VERSIONS = [RECOVERY_FORMAT_VERSION] as const;
+
+/**
+ * Recovery format changes are deliberately read-new-before-write-new: a new
+ * writer version may only ship after this reader list and its compatibility
+ * tests already accept that version.
+ */
+export function assertRecoveryFormatCompatibility(): void {
+  if (!RECOVERY_READER_FORMAT_VERSIONS.includes(RECOVERY_FORMAT_VERSION)) {
+    throw new Error("Recovery writer format is not supported by the shipped reader; refuse to emit artifacts. ");
+  }
+}
 
 export interface RecoveryFileDigest {
   path: string;
