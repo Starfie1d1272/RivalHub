@@ -79,6 +79,12 @@ Major runtime 的阶段参与者和已完成比赛是推进依据；standings、
 
 `brackets-manager` 只能经 `src/lib/bracket/` adapter 使用，避免第三方结构扩散成领域 contract。
 
+## Spectator predictions
+
+`src/lib/predictions/` owns spectator simulations, stage picks, judging and points. Its simulator composes the canonical Major Swiss, seeding and playoff rules and never writes official matches. Public baselines contain only stage rules, entrant identities, display fields and official match results; frozen qualification/roster snapshots remain private.
+
+Prediction mutations serialize by canonical user → season lifecycle guard → relevant official match rows → prediction outbox → event program. Settlement workers read official facts without taking tournament row locks. Lightweight triggers enqueue durable work in the same transaction as official edits and permanently close affected windows; settlement failures leave retryable work and do not execute inside official result transactions. The protected reconciliation Cron and fresh spectator reads consume the same owner. Browser clocks are presentation only.
+
 ## Security and operations
 
 - Supabase Auth 管理邮箱凭据；应用 session 只保存身份，当前角色和 season grants 每次从数据库读取。
@@ -100,6 +106,7 @@ Major runtime 的阶段参与者和已完成比赛是推进依据；standings、
 | Teams / CompetitionEntry / recruitment | `src/lib/teams/`, `src/lib/competition-entries/`, `src/lib/recruitment/` |
 | Rivals voting / draft | `src/lib/captains/`, `src/lib/draft/`, corresponding actions |
 | Major prestart / runtime | `src/lib/major/` |
+| Spectator predictions / points | `src/lib/predictions/` |
 | Match / roster / result | `src/lib/matches/`, `src/lib/match-rosters/`, match actions |
 | Discipline / post-event / awards | corresponding `src/lib/` domain owners |
 | Persistence / migration | `src/db/schema/`, `drizzle/migrations/` |

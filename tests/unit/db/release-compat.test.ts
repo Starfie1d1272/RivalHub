@@ -221,7 +221,7 @@ interface Fixture {
 function createFixture(options: FixtureOptions): Fixture {
   const directory = mkdtempSync(join(tmpdir(), "rivalhub-release-compat-"));
   fixtureDirectories.push(directory);
-  runGit(directory, ["init", "-q"]);
+  runGit(directory, ["init", "-q", "--initial-branch=fixture-base"]);
   runGit(directory, ["config", "user.email", "release-compat@example.test"]);
   runGit(directory, ["config", "user.name", "Release Compat Test"]);
 
@@ -249,7 +249,7 @@ function createFixture(options: FixtureOptions): Fixture {
 function createSingleMainTopologyFixture(): Fixture & { candidateCommit: string; productionCommit: string } {
   const directory = mkdtempSync(join(tmpdir(), "rivalhub-release-topology-"));
   fixtureDirectories.push(directory);
-  runGit(directory, ["init", "-q"]);
+  runGit(directory, ["init", "-q", "--initial-branch=fixture-base"]);
   runGit(directory, ["config", "user.email", "release-compat@example.test"]);
   runGit(directory, ["config", "user.name", "Release Compat Test"]);
 

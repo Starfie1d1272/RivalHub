@@ -262,3 +262,37 @@ export function projectMajorPlayoff(input: {
     ],
   };
 }
+
+/** Partial bracket projection shared by the official runtime and spectator tools. */
+export function generateMajorPlayoffNextRound(input: {
+  entrants: readonly MajorPlayoffEntrant[];
+  matches: readonly MajorPlayoffMatchFact[];
+}): readonly MajorPlayoffPairing[] {
+  let pairs = generateMajorPlayoffQuarterfinals(input.entrants);
+  const seen = new Set<string>();
+  for (const round of ["quarterfinal", "semifinal", "final"] as const) {
+    const facts = input.matches.filter((m) => m.round === round);
+    for (const fact of facts) {
+      const pair = pairs.find((p) => p.slot === fact.slot);
+      if (!pair || seen.has(`${round}:${fact.slot}`)) throw new Error("Invalid playoff slot");
+      seen.add(`${round}:${fact.slot}`);
+      assertExpectedPair(fact, pair.higherSeedTeamId, pair.lowerSeedTeamId);
+      if (![fact.entryAId, fact.entryBId].includes(fact.winnerId)) throw new Error("Invalid playoff winner");
+    }
+    if (facts.length !== pairs.length) {
+      if (input.matches.some((m) => m.round !== "third_place" && !seen.has(`${m.round}:${m.slot}`))) throw new Error("Playoff has results beyond an incomplete round");
+      return pairs;
+    }
+    if (round === "final") return [];
+    const bySlot = new Map(facts.map((f) => [f.slot, f]));
+    const next = round === "quarterfinal" ? "semifinal" : "final";
+    pairs = Array.from({ length: pairs.length / 2 }, (_, i) => {
+      const a = bySlot.get(i * 2 + 1)!.winnerId;
+      const b = bySlot.get(i * 2 + 2)!.winnerId;
+      const as = input.entrants.find((e) => e.teamId === a)!.playoffSeed;
+      const bs = input.entrants.find((e) => e.teamId === b)!.playoffSeed;
+      return { round: next, slot: i + 1, higherSeedTeamId: a, lowerSeedTeamId: b, higherSeed: as, lowerSeed: bs };
+    });
+  }
+  return [];
+}

@@ -56,6 +56,10 @@ pnpm verify:local
 
 环境启动和单层复现见 [`operations/local-development.md`](./operations/local-development.md)。
 
+## Spectator prediction acceptance
+
+Pure tests exercise full Major simulation, upstream invalidation, exact slot judgement, bracket dependencies and integer pool conservation. PostgreSQL tests exercise submission versions, server locks, idempotency, concurrent ALL IN, append-only records, official settlement/reversal/debt, account merge blockers and public-data isolation. Major runtime regression is required when shared pairing helpers change. Browser acceptance uses real Local Supabase login, slot dialogs, independent draft/submission state, PNG download and point transactions on desktop and mobile.
+
 ## Maintenance rules
 
 - regression test 保护明确 contract，而不是只覆盖代码行。

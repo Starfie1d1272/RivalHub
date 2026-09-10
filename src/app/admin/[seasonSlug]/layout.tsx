@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
@@ -9,7 +9,14 @@ import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { SeasonSubNav } from "@/components/admin/SeasonSubNav";
 import { PageLayout } from "@/components/rivalhub";
 
-export default async function AdminSeasonLayout({
+export default function AdminSeasonLayout(props: {
+  children: ReactNode;
+  params: Promise<{ seasonSlug: string }>;
+}) {
+  return <Suspense fallback={<div className="p-8" role="status">正在加载赛事管理…</div>}><AdminSeasonContent {...props} /></Suspense>;
+}
+
+async function AdminSeasonContent({
   children,
   params,
 }: {
@@ -21,6 +28,7 @@ export default async function AdminSeasonLayout({
     where: eq(seasons.slug, seasonSlug),
     columns: {
       id: true,
+      competitionTemplate: true,
       registrationMode: true,
       hasCaptainVoting: true,
       hasDraft: true,
@@ -46,6 +54,7 @@ export default async function AdminSeasonLayout({
         hasDraft={season.hasDraft}
         hasCommunityAwards={season.hasCommunityAwards}
         hasMatches={hasMatches}
+        hasPredictions={season.competitionTemplate === "major"}
         showSettings={isSuperAdmin}
       />
       {children}

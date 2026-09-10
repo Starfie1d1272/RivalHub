@@ -5,7 +5,7 @@ import { AppError, ErrorCode } from "@/lib/errors";
 import { validateSeriesScore } from "@/lib/matches/result-rules";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
 import { buildFinalMajorPlacements, parseMajorFinalPlacementGroups } from "@/lib/major/placement";
-import { generateMajorPlayoffQuarterfinals, projectMajorPlayoff, seedMajorPlayoffEntrants, type MajorPlayoffMatchFact, type MajorPlayoffRound } from "@/lib/major/playoff";
+import { generateMajorPlayoffNextRound, generateMajorPlayoffQuarterfinals, projectMajorPlayoff, seedMajorPlayoffEntrants, type MajorPlayoffMatchFact, type MajorPlayoffRound } from "@/lib/major/playoff";
 import { getMajorSwissQualifiers, projectMajorSwissStage, type MajorSwissMatchFact } from "@/lib/major/swiss";
 import { makeMajorRunSnapshotV4, parseMajorRunSnapshot } from "@/lib/major/run-snapshot";
 import { loadMajorStageEntrantsInTx, loadMajorTournamentEntrantsInTx } from "@/lib/major/run-entrants";
@@ -177,10 +177,7 @@ export async function finalizeMajorPlayoffRoundInTransaction(
     const existingSemifinals = managed.filter((match) => match.entryRound === "semifinal");
     if (existingSemifinals.length > 2) throw new AppError(ErrorCode.VALIDATION_FAILED, "半决赛托管比赛数量异常。 ");
     const qfFacts = qfs.map(playoffFact);
-    const expectedSemifinals = [
-      { managedKey: "sf-1", entryAId: qfFacts[0]!.winnerId, entryBId: qfFacts[1]!.winnerId },
-      { managedKey: "sf-2", entryAId: qfFacts[2]!.winnerId, entryBId: qfFacts[3]!.winnerId },
-    ] as const;
+    const expectedSemifinals = generateMajorPlayoffNextRound({ entrants: seeded, matches: qfFacts }).map(pair => ({ managedKey: `sf-${pair.slot}`, entryAId: pair.higherSeedTeamId, entryBId: pair.lowerSeedTeamId }));
     const expectedKeys = new Set<string>(expectedSemifinals.map((semifinal) => semifinal.managedKey));
     if (existingSemifinals.some((match) => match.managedKey === null || !expectedKeys.has(match.managedKey))) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, "半决赛托管槽位不可识别。 ");
@@ -221,8 +218,9 @@ export async function finalizeMajorPlayoffRoundInTransaction(
     const existingFinal = managed.filter((match) => match.entryRound === "final");
     if (existingFinal.length > 0) return { stageRunId: run.id, finalizedRound: "semifinal", createdNextRound: 0, resultPendingConfirmation: false, alreadyFinalized: true };
     const sfFacts = semifinals.map(playoffFact);
+    const finalPair = generateMajorPlayoffNextRound({ entrants: seeded, matches: [...qfFacts, ...sfFacts] })[0]!;
     const created = await tx.insert(matches).values([
-      { seasonId: input.seasonId, entryAId: sfFacts[0]!.winnerId, entryBId: sfFacts[1]!.winnerId, stage: run.stageKey, entryRound: "final", format: "bo5", status: "scheduled", ownership: "major_stage", majorStageRunId: run.id, managedKey: "final-1" },
+      { seasonId: input.seasonId, entryAId: finalPair.higherSeedTeamId, entryBId: finalPair.lowerSeedTeamId, stage: run.stageKey, entryRound: "final", format: "bo5", status: "scheduled", ownership: "major_stage", majorStageRunId: run.id, managedKey: "final-1" },
       ...(frozen.hasThirdPlaceMatch ? [{ seasonId: input.seasonId, entryAId: sfFacts[0]!.winnerId === semifinals[0]!.entryAId ? semifinals[0]!.entryBId : semifinals[0]!.entryAId, entryBId: sfFacts[1]!.winnerId === semifinals[1]!.entryAId ? semifinals[1]!.entryBId : semifinals[1]!.entryAId, stage: run.stageKey, entryRound: "third_place" as const, format: "bo3" as const, status: "scheduled" as const, ownership: "major_stage" as const, majorStageRunId: run.id, managedKey: "third-1" }] : []),
     ]).returning({ id: matches.id });
     if (created.length !== (frozen.hasThirdPlaceMatch ? 2 : 1)) throw new AppError(ErrorCode.INTERNAL_ERROR, "淘汰赛后续比赛创建失败。 ");

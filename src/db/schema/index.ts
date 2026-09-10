@@ -32,3 +32,5 @@ export * from "./discipline";
 export * from "./postevent";
 export * from "./postmatch";
 export * from "./community-awards";
+
+export * from "./predictions";

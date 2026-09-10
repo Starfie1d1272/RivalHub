@@ -4,7 +4,7 @@ import { auditLogs, majorStageEntrants, majorStageRuns, matches } from "@/db/sch
 import { AppError, ErrorCode } from "@/lib/errors";
 import { validateSeriesScore } from "@/lib/matches/result-rules";
 import { assertSeasonAllowsTournamentMutationInTx } from "@/lib/postevent/guard";
-import { seedMajorLaterStageEntrants } from "@/lib/major/seeding";
+import { directSeedRange, seedMajorLaterStageEntrants } from "@/lib/major/seeding";
 import { makeMajorRunSnapshotV4, parseMajorRunSnapshot } from "@/lib/major/run-snapshot";
 import { loadMajorStageEntrantsInTx, loadMajorTournamentEntrantsInTx } from "@/lib/major/run-entrants";
 import {
@@ -52,12 +52,6 @@ function completedFact(match: typeof matches.$inferSelect): MajorSwissMatchFact 
   };
 }
 
-function directSeedRange(stages: readonly FrozenStage[], targetIndex: number, count: number): readonly [number, number] {
-  const laterDirectCount = stages.slice(targetIndex + 1)
-    .filter((stage) => stage.type === "swiss")
-    .reduce((sum, stage) => sum + (stage.entrySeeds ?? 0), 0);
-  return [laterDirectCount + 1, laterDirectCount + count];
-}
 
 /**
  * Materialize a later Swiss stage only from frozen StageRun facts. The source

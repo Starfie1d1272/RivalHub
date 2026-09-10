@@ -16,6 +16,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - name: reconcile-predictions
+            path: /api/cron/reconcile-predictions
           - name: draft-timeout
             path: /api/cron/draft-timeout
           - name: check-registration-deadline

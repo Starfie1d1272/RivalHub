@@ -86,6 +86,12 @@ shared layer **不拥有** allowed query、validation、SQL `WHERE/ORDER BY`、q
 - Dialog/Toast 保持合理 focus management；动效支持 `prefers-reduced-motion`。
 - 桌面布局可以更密，但不能为了密度牺牲正文、状态和 primary metric 可读性。
 
+## Spectator prediction interaction
+
+Desktop prediction pages place a locally scrollable round view beside a collapsible Pick’Em panel. Mobile uses simulation/pick tabs and one round at a time. Team selection supports a labelled dialog and keyboard focus; drag is not required. Upstream edits explain downstream invalidation before applying and preserve independent submitted picks.
+
+Official results, assumptions and pending choices use explicit text. Simulation displays winners and series format without inventing scores. Draft save, PNG export, snapshot share and formal submission are distinct actions. Export status must derive from a fresh server submission; unmatched local edits export as a draft. Pool shares are labelled community investment shares, never win probabilities.
+
 ## Visual regression
 
 Visual regression 只锁定少量 deterministic reference；功能 E2E 继续验证真实任务。baseline 使用固定 viewport、关闭动画/caret，并尽量排除实时人数、动态时间和其它非确定内容。只有 presentation contract 有预期变化时更新 baseline。

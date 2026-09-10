@@ -12,6 +12,7 @@ export function SeasonSubNav({
   hasDraft,
   hasCommunityAwards,
   hasMatches,
+  hasPredictions,
   showSettings,
 }: {
   seasonSlug: string;
@@ -20,6 +21,7 @@ export function SeasonSubNav({
   hasDraft: boolean;
   hasCommunityAwards: boolean;
   hasMatches: boolean;
+  hasPredictions?: boolean;
   showSettings: boolean;
 }) {
   const pathname = usePathname();
@@ -36,6 +38,7 @@ export function SeasonSubNav({
     },
     ...(hasMatches ? [{ label: "比赛", href: `${root}/matches` }] : []),
     ...(hasCommunityAwards ? [{ label: "社区奖", href: `${root}/community-awards` }] : []),
+    ...(hasPredictions ? [{ label: "观赛预测", href: `${root}/predictions` }] : []),
     { label: "赛后", href: `${root}/post-event` },
   ];
   const governanceTabs = [

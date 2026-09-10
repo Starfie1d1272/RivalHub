@@ -161,6 +161,16 @@ submit → review/revise → evidence → resolve/correct
 
 是否可用只由 capability 决定，不从 season status 推导。capability 关闭时入口和 server mutation 都 fail closed。社区奖不替代官方 `tournament_honors`。
 
+## Spectator predictions
+
+The season administrator enables and freezes event prediction rules, then opens stage windows only after official entrants are materialized. Match pools require fixed official opponents and a future cutoff. New submissions and stakes may be paused; existing windows cannot be extended or reopened. Earlier official schedules tighten deadlines and an official start permanently closes the relevant window.
+
+Spectators may simulate independently without submitting. Importing a completed eligible simulation edits a draft; explicit submission registers a version. At lock, the latest accepted submission supplies participation challenges. Accepted Swiss stages and confirmed playoffs supply accuracy challenges. Stage cancellation invalidates challenges and reverses any optional participation reward while retaining submissions and judgement history.
+
+Joining grants the event's initial free points once. Later official stage launches grant uniform configured supplies only to accounts that already joined; late joiners do not receive historical grants. A user may add positive integer stakes to the same side, including all available points, but cannot switch or withdraw. Settlement uses accepted official results, an integer no-rake pool, and stable largest-remainder allocation. Cancellations, replaced opponents and single-sided pools refund. Corrections can produce debt; new legitimate receipts offset it. The leaderboard counts settled profit, excluding grants and pending stakes.
+
+Saved scenarios are independent public snapshots with an engine version. Opening a normal page or resetting uses current official state. Old incompatible snapshots are read-only. Operational recovery is described in [`operations/spectator-predictions.md`](operations/spectator-predictions.md).
+
 ## Cross-workflow rules
 
 - transport/page 不复制 domain transition；所有 mutation 回到 canonical owner。

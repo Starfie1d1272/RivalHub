@@ -17,6 +17,7 @@ const AUDIT_CATEGORIES = {
   user: { label: "用户", color: "var(--color-fg-mid)" },
   education: { label: "教育认证", color: "var(--color-ok)" },
   competitive: { label: "竞技资料", color: "var(--color-info)" },
+  predictions: { label: "观赛预测", color: "var(--color-accent)" },
   major: { label: "Major", color: "var(--color-accent-b)" },
   postevent: { label: "赛后裁定", color: "var(--color-warn)" },
   postmatch: { label: "赛后资料", color: "var(--color-accent-b)" },
@@ -38,6 +39,9 @@ interface AuditActionDefinition {
  * producer has been retired.
  */
 export const AUDIT_ACTION_DEFINITIONS: Readonly<Record<string, AuditActionDefinition>> = {
+  "predictions.enable": { label: "开放观赛预测并冻结规则", category: "predictions" },
+  "predictions.open_window": { label: "开放预测窗口", category: "predictions" },
+  "predictions.moderate": { label: "调整预测参与状态", category: "predictions" },
   "admin.create_invite": { label: "创建管理员邀请码", category: "admin" },
   "admin.deactivate_invite": { label: "停用管理员邀请码", category: "admin" },
   "admin.register": { label: "管理员注册", category: "admin" },
@@ -331,6 +335,9 @@ const TARGET_TYPE_LABELS: Readonly<Record<string, string>> = {
   major_prestart_entrant: "Major 赛前参赛队",
   major_prestart_issue: "Major 赛前问题",
   major_tournament_entrant: "Major 参赛队",
+  prediction_program: "观赛预测项目",
+  prediction_contest: "阶段预测窗口",
+  prediction_market: "单场积分池",
   major_stage_run: "Major 阶段",
   major_final_result: "Major 最终赛果",
   post_event_adjudication: "赛后裁定",

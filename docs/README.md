@@ -58,3 +58,4 @@
 - [`staging.md`](./operations/staging.md)
 - [`release.md`](./operations/release.md)
 - [`major-referee-guide.md`](./operations/major-referee-guide.md)
+- [`spectator-predictions.md`](./operations/spectator-predictions.md)

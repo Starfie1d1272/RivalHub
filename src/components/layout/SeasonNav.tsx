@@ -15,6 +15,7 @@ interface SeasonNavProps {
   hasCommunityAwards: boolean;
   hasMatches: boolean;
   hasStats: boolean;
+  hasPredictions?: boolean;
 }
 
 interface NavItem {
@@ -30,6 +31,7 @@ export function SeasonNav({
   hasCommunityAwards,
   hasMatches,
   hasStats,
+  hasPredictions,
 }: SeasonNavProps) {
   const pathname = usePathname();
   const isHistorical = status === "finished" || status === "archived";
@@ -43,6 +45,7 @@ export function SeasonNav({
     { label: "选手", href: `/${slug}/players` },
     ...(hasMatches ? [{ label: "赛程", href: `/${slug}/matches` }] : []),
     ...(hasCommunityAwards ? [{ label: "社区奖", href: `/${slug}/community-awards` }] : []),
+    ...(hasPredictions ? [{ label: "观赛预测", href: `/${slug}/predictions` }] : []),
     ...(hasStats ? [{ label: "数据统计", href: `/${slug}/stats` }] : []),
   ];
 

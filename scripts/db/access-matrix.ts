@@ -69,6 +69,19 @@ function serverOnly(
  * adding a table without adding an explicit classification fails closed.
  */
 export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
+  serverOnly("prediction_stage_milestones", "观赛预测", "阶段首次开放事实", "src/lib/predictions/service.ts", "恢复比赛不能重发历史阶段补给。"),
+  serverOnly("prediction_programs", "观赛预测", "服务端预测事实与积分流水", "src/lib/predictions/", "不开放浏览器 Data API；只返回明确的公开或本人 DTO。"),
+  serverOnly("prediction_contests", "观赛预测", "服务端预测事实与积分流水", "src/lib/predictions/", "不开放浏览器 Data API；只返回明确的公开或本人 DTO。"),
+  serverOnly("prediction_accounts", "观赛预测", "服务端预测事实与积分流水", "src/lib/predictions/", "不开放浏览器 Data API；只返回明确的公开或本人 DTO。"),
+  serverOnly("prediction_picks", "观赛预测", "服务端预测事实与积分流水", "src/lib/predictions/", "不开放浏览器 Data API；只返回明确的公开或本人 DTO。"),
+  serverOnly("prediction_judgements", "观赛预测", "服务端预测事实与积分流水", "src/lib/predictions/", "不开放浏览器 Data API；只返回明确的公开或本人 DTO。"),
+  serverOnly("prediction_markets", "观赛预测", "服务端预测事实与积分流水", "src/lib/predictions/", "不开放浏览器 Data API；只返回明确的公开或本人 DTO。"),
+  serverOnly("prediction_stakes", "观赛预测", "服务端预测事实与积分流水", "src/lib/predictions/", "不开放浏览器 Data API；只返回明确的公开或本人 DTO。"),
+  serverOnly("prediction_settlements", "观赛预测", "服务端预测事实与积分流水", "src/lib/predictions/", "不开放浏览器 Data API；只返回明确的公开或本人 DTO。"),
+  serverOnly("prediction_ledger", "观赛预测", "服务端预测事实与积分流水", "src/lib/predictions/", "不开放浏览器 Data API；只返回明确的公开或本人 DTO。"),
+  serverOnly("prediction_scenarios", "观赛预测", "服务端预测事实与积分流水", "src/lib/predictions/", "不开放浏览器 Data API；只返回明确的公开或本人 DTO。"),
+  serverOnly("prediction_jobs", "观赛预测", "服务端预测事实与积分流水", "src/lib/predictions/", "不开放浏览器 Data API；只返回明确的公开或本人 DTO。"),
+
   serverOnly(
     "admin_invite_claims",
     "鉴权 / 管理员提权",

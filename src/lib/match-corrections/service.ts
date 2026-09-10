@@ -1,3 +1,4 @@
+import { playoffDescendants, type PlayoffManagedKey } from "@/lib/major/playoff-dependencies";
 import { and, eq, ne } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import {
@@ -135,7 +136,7 @@ export function classifyDownstreamManagedMatches(
   return impacts;
 }
 
-type PlayoffManagedKey = "qf-1" | "qf-2" | "qf-3" | "qf-4" | "sf-1" | "sf-2" | "third-1" | "final-1";
+
 
 function parsePlayoffManagedKey(value: string | null | undefined, entryRound: string | null): PlayoffManagedKey | null {
   if (!value || !entryRound) return null;
@@ -166,22 +167,6 @@ function playoffStepRank(entryRound: string | null): 0 | 1 | 2 | null {
   return null;
 }
 
-function playoffDescendants(source: PlayoffManagedKey): ReadonlySet<PlayoffManagedKey> {
-  switch (source) {
-    case "qf-1":
-    case "qf-2":
-      return new Set(["sf-1", "final-1", "third-1"]);
-    case "qf-3":
-    case "qf-4":
-      return new Set(["sf-2", "final-1", "third-1"]);
-    case "sf-1":
-    case "sf-2":
-      return new Set(["final-1", "third-1"]);
-    case "third-1":
-    case "final-1":
-      return new Set();
-  }
-}
 
 /**
  * The acceptance cursor a swiss correction must roll back to, or null when no
