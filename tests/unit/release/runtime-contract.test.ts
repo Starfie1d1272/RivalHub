@@ -85,7 +85,8 @@ describe("deployment and operations contracts", () => {
 
     expect(release).toContain('--build-env RIVALHUB_RELEASE_TAG="$RELEASE_TAG"');
     expect(release).toContain('--build-env RIVALHUB_RELEASE_COMMIT="$RELEASE_SHA"');
-    expect(release).toContain("$BASE_URL/api/system/release");
+    expect(release).toContain('vercel curl /api/system/release --deployment "$DEPLOYMENT_URL"');
+    expect(release).toContain("https://match.starfie1d.top/api/system/release");
     expect(release).toContain('(keys | sort) == ["releaseCommit", "releaseTag"]');
     expect(nextConfig).toContain('RIVALHUB_RELEASE_TAG: process.env.RIVALHUB_RELEASE_TAG ?? ""');
     expect(nextConfig).toContain('RIVALHUB_RELEASE_COMMIT: process.env.RIVALHUB_RELEASE_COMMIT ?? ""');
