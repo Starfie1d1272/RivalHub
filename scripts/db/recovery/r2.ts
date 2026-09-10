@@ -1,8 +1,17 @@
 import { spawnSync } from "node:child_process";
 import { statSync } from "node:fs";
 import { resolve } from "node:path";
+import { redactText } from "../../../src/lib/observability/redact";
 import type { BackupClass, R2ObjectEnvironment } from "./environment";
 import { sha256File } from "./manifest";
+
+const MAX_PROVIDER_DIAGNOSTIC_LENGTH = 1_200;
+const CREDENTIAL_ENV_NAMES = [
+  "AWS_ACCESS_KEY_ID",
+  "AWS_SECRET_ACCESS_KEY",
+  "AWS_SESSION_TOKEN",
+  "AWS_SECURITY_TOKEN",
+] as const;
 
 export interface R2Head {
   bytes: number;
@@ -72,7 +81,6 @@ export function createR2Client(config: R2ObjectEnvironment): RecoveryR2Client {
         config.bucket,
         "--key",
         key,
-        "--outfile",
         resolve(path),
       ], environment);
     },
@@ -149,7 +157,26 @@ function runAws(args: readonly string[], env: NodeJS.ProcessEnv): string {
     stdio: ["ignore", "pipe", "pipe"],
   });
   if (result.error || result.status !== 0 || result.signal) {
-    throw new Error("R2 S3 operation failed; canonical recovery artifact is not complete. ");
+    const diagnostic = sanitizeProviderDiagnostic(result.stderr, env);
+    const status = result.signal ? `signal ${result.signal}` : `exit ${result.status ?? "unknown"}`;
+    throw new Error(
+      `R2 S3 operation failed (${status}); canonical recovery artifact is not complete.${diagnostic ? ` Diagnostic: ${diagnostic}` : ""}`,
+    );
   }
   return result.stdout.trim();
+}
+
+function sanitizeProviderDiagnostic(
+  stderr: string | Buffer | undefined,
+  env: NodeJS.ProcessEnv,
+): string {
+  let safe = typeof stderr === "string" ? stderr : stderr?.toString("utf8") ?? "";
+  for (const name of CREDENTIAL_ENV_NAMES) {
+    const value = env[name]?.trim();
+    if (value) safe = safe.split(value).join("[REDACTED]");
+  }
+  safe = safe
+    .replace(/((?:AWS_)?(?:ACCESS_KEY_ID|SECRET_ACCESS_KEY|SESSION_TOKEN|SECURITY_TOKEN)\s*[=:]\s*)\S+/gi, "$1[REDACTED]")
+    .replace(/((?:--)?(?:access-key-id|secret-access-key|session-token|security-token)\s+)\S+/gi, "$1[REDACTED]");
+  return redactText(safe, MAX_PROVIDER_DIAGNOSTIC_LENGTH);
 }

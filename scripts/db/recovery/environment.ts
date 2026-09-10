@@ -17,7 +17,7 @@ const BACKUP_CLASSES: readonly BackupClass[] = ["hourly", "daily", "pre-release"
 export interface ProductionBackupEnvironment {
   databaseUrl: string;
   supabaseUrl: string;
-  serviceRoleKey: string;
+  supabaseSecretKey: string;
   ageRecipient: string;
   r2: R2ObjectEnvironment;
 }
@@ -49,7 +49,10 @@ export function assertProductionBackupEnvironment(
   return {
     databaseUrl: assertProductionDatabaseUrl(protectedEnvironment.DATABASE_URL),
     supabaseUrl,
-    serviceRoleKey: required(env.SUPABASE_SERVICE_ROLE_KEY, "SUPABASE_SERVICE_ROLE_KEY"),
+    supabaseSecretKey: required(
+      env.SUPABASE_SECRET_KEY?.trim() || env.SUPABASE_SERVICE_ROLE_KEY?.trim(),
+      "SUPABASE_SECRET_KEY/SUPABASE_SERVICE_ROLE_KEY",
+    ),
     ageRecipient: assertAgeRecipient(required(env.RIVALHUB_BACKUP_AGE_RECIPIENT, "RIVALHUB_BACKUP_AGE_RECIPIENT")),
     r2: {
       accountId: assertCloudflareAccountId(required(env.RIVALHUB_R2_ACCOUNT_ID, "RIVALHUB_R2_ACCOUNT_ID")),

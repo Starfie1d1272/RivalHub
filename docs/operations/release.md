@@ -59,6 +59,21 @@ Production secret、target confirmation 和 remote-write authorization 只存在
 
 Issuer 由 GitHub Actions provider 固定为 `https://token.actions.githubusercontent.com`。当前配置使用引导表单即可；raw claims/editor 是可选的 advanced mode，`sub` 或 `environment` claim 不是本配置的 Dashboard 必填字段。本 workflow 同时支持 tag push 与同一 tag 的手动 retry；`Any branch` 允许这些合法 ref，由 workflow 自己校验 tag 必须属于 `main`。代码只能申请 token 并发送 header，不能替代 owner 的 Dashboard 配置；在该配置存在且 exact deployment smoke 真实通过前，protected smoke 保持未验收。
 
+### Recovery capability release gate
+
+PR `#577` 必须先独立进入一个 patch release；这个 release 才把 recovery workflows、GitHub OIDC protected smoke 与 production pre-release backup hard gate 作为 shipped capability。该 release 不得同时包含 destructive migration PR `#585` 的 `drizzle/migrations/0049_ambiguous_brood.sql`。
+
+在 PR `#585` 允许合并或发布之前，必须先完成一次真实的 recovery acceptance：
+
+```text
+production encrypted backup
+→ private R2 真实 GET + 内容 hash read-back
+→ 使用本地离线 age private key 解密
+→ disposable isolated target restore / verify / application smoke
+```
+
+只有上述 restore rehearsal 成功并保留安全摘要后，才允许继续 #585 的 merge/release gate；如果 restore 未成功，#585 必须保持未合并、未发布。#577 与 #585 不得第一次共同进入同一 release。
+
 ## 4. 失败与重试
 
 可安全重试的外部失败使用 workflow dispatch 重跑**同一个已存在 tag**。不要移动 tag、替换 tag source、手工 patch production DB 后绕过 workflow，或用未经验证的本地 build 直接覆盖 production。

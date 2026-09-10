@@ -114,6 +114,7 @@ describe("recovery contracts", () => {
       RIVALHUB_PRODUCTION_PROJECT_CONFIRM: "sucokfotkypwqkckfynp",
       RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: "aws-0-ap-northeast-1.pooler.supabase.com:6543",
       DATABASE_URL: "postgresql://postgres.sucokfotkypwqkckfynp:secret@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true",
+      SUPABASE_SECRET_KEY: "sb_secret-modern",
       SUPABASE_SERVICE_ROLE_KEY: "service-role-secret",
       RIVALHUB_BACKUP_AGE_RECIPIENT: "age1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",
       RIVALHUB_R2_ACCOUNT_ID: "0123456789abcdef0123456789abcdef",
@@ -123,6 +124,7 @@ describe("recovery contracts", () => {
     });
 
     expect(environment.databaseUrl).toContain("pgbouncer=true");
+    expect(environment.supabaseSecretKey).toBe("sb_secret-modern");
     expect(() => assertProductionBackupEnvironment({
       RIVALHUB_DB_TARGET: "local",
       DATABASE_URL: "postgresql://postgres:postgres@127.0.0.1:5432/postgres",
@@ -134,6 +136,33 @@ describe("recovery contracts", () => {
       RIVALHUB_RECOVERY_PUBLISHABLE_KEY: "publishable",
       RIVALHUB_RECOVERY_SERVICE_ROLE_KEY: "service-role",
     })).toThrow();
+  });
+
+  it("uses the modern Supabase secret key first and only falls back to the legacy name", () => {
+    const baseEnvironment = {
+      RIVALHUB_DB_TARGET: "production",
+      RIVALHUB_PRODUCTION_PROJECT_CONFIRM: "sucokfotkypwqkckfynp",
+      RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: "aws-0-ap-northeast-1.pooler.supabase.com:6543",
+      DATABASE_URL: "postgresql://postgres.sucokfotkypwqkckfynp:secret@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true",
+      RIVALHUB_BACKUP_AGE_RECIPIENT: "age1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",
+      RIVALHUB_R2_ACCOUNT_ID: "0123456789abcdef0123456789abcdef",
+      RIVALHUB_R2_BUCKET: "rivalhub-recovery",
+      RIVALHUB_R2_ACCESS_KEY_ID: "access-key",
+      RIVALHUB_R2_SECRET_ACCESS_KEY: "secret-key",
+    };
+
+    expect(assertProductionBackupEnvironment({
+      ...baseEnvironment,
+      SUPABASE_SECRET_KEY: "  sb_secret-modern  ",
+      SUPABASE_SERVICE_ROLE_KEY: "legacy-service-role",
+    }).supabaseSecretKey).toBe("sb_secret-modern");
+    expect(assertProductionBackupEnvironment({
+      ...baseEnvironment,
+      SUPABASE_SERVICE_ROLE_KEY: "legacy-service-role",
+    }).supabaseSecretKey).toBe("legacy-service-role");
+    expect(() => assertProductionBackupEnvironment(baseEnvironment)).toThrow(
+      /SUPABASE_SECRET_KEY\/SUPABASE_SERVICE_ROLE_KEY 未设置/,
+    );
   });
 
   it("keeps R2 bucket names within the provider length contract", () => {

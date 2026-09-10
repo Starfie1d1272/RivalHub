@@ -96,6 +96,8 @@ describe("deployment and operations contracts", () => {
     expect(backup).toContain("RIVALHUB_DB_TARGET: production");
     expect(backup).toContain("RIVALHUB_PRODUCTION_BASE_URL: https://match.starfie1d.top");
     expect(backup).not.toContain("RIVALHUB_PRODUCTION_STABLE_REF");
+    expect(backup).toContain("SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}");
+    expect(backup).toContain("SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}");
     expect(backup).toContain("RIVALHUB_BACKUP_AGE_RECIPIENT: ${{ vars.RIVALHUB_BACKUP_AGE_RECIPIENT }}");
     expect(backup).toContain("RIVALHUB_R2_ACCESS_KEY_ID: ${{ secrets.RIVALHUB_R2_ACCESS_KEY_ID }}");
     expect(backup).toContain("pnpm db:recovery:backup \"$RIVALHUB_BACKUP_CLASS\"");
@@ -110,6 +112,8 @@ describe("deployment and operations contracts", () => {
     expect(release).toContain("RIVALHUB_PRODUCTION_BASE_URL: https://match.starfie1d.top");
     expect(release.indexOf("Create protected pre-release backup")).toBeLessThan(release.indexOf("pnpm db:production:migrate"));
     expect(release).toContain("pnpm db:recovery:backup pre-release");
+    expect(release).toContain("SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}");
+    expect(release).toContain("SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}");
     expect(release).toContain("contents: write\n      id-token: write");
     expect(release).toContain("Mint GitHub OIDC token for Vercel Trusted Sources");
     expect(release).toContain("ACTIONS_ID_TOKEN_REQUEST_URL");
@@ -163,6 +167,22 @@ describe("deployment and operations contracts", () => {
       expect(runbook).not.toContain("raw claims 必须精确匹配");
       expect(runbook).not.toContain("sub=repo:Starfie1d1272/RivalHub:environment:production");
     }
+  });
+
+  it("keeps recovery capability and destructive migration on separate release gates", () => {
+    const releaseRunbook = readProjectFile("docs/operations/release.md");
+    const recoveryRunbook = readProjectFile("docs/operations/disaster-recovery.md");
+
+    expect(releaseRunbook).toContain("PR `#577` 必须先独立进入一个 patch release");
+    expect(releaseRunbook).toContain("destructive migration PR `#585`");
+    expect(releaseRunbook).toContain("drizzle/migrations/0049_ambiguous_brood.sql");
+    expect(releaseRunbook).toContain("production encrypted backup");
+    expect(releaseRunbook).toContain("private R2 真实 GET + 内容 hash read-back");
+    expect(releaseRunbook).toContain("使用本地离线 age private key 解密");
+    expect(releaseRunbook).toContain("disposable isolated target restore / verify / application smoke");
+    expect(releaseRunbook).toContain("#577 与 #585 不得第一次共同进入同一 release");
+    expect(recoveryRunbook).toContain("PR `#577`");
+    expect(recoveryRunbook).toContain("destructive migration PR `#585`");
   });
 
   it("uses main as the sole long-lived CI ref", () => {

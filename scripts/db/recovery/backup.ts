@@ -48,7 +48,7 @@ async function main(): Promise<void> {
     const source = await resolveProductionSourceIdentity();
     const databaseRoot = await createDatabaseSnapshot(environment.databaseUrl, stagingRoot);
     const storage = await snapshotStorage(
-      createClient(environment.supabaseUrl, environment.serviceRoleKey, {
+      createClient(environment.supabaseUrl, environment.supabaseSecretKey, {
         auth: { autoRefreshToken: false, persistSession: false },
       }),
       join(stagingRoot, "storage"),

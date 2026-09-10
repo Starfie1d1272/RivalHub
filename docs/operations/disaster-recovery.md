@@ -53,12 +53,13 @@ R2 key 是不可猜测的 run-specific key：`production/<class>/<UTC-date>/<run
 
 ## Provider 配置与凭据
 
-GitHub `production` Environment 需要由维护者配置以下值。值本身不得写入仓库、Issue、PR 或日志。
+GitHub `production` job 需要能读取以下值；secret 可以放在该 job 可访问的 repository、organization 或 `production` Environment scope，具体以 workflow 的 `secrets` / `vars` 引用为准。值本身不得写入仓库、Issue、PR 或日志。
 
 | 名称 | 类型 | 用途 |
 | --- | --- | --- |
 | `DATABASE_URL` | secret | 已由 production wrapper 校验的 Transaction Pooler URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | secret | 供 runner 执行受控 dump 与 Storage snapshot 读取；credential 本身是 service-role，不是 read-only credential，脚本不执行应用 mutation |
+| `SUPABASE_SECRET_KEY` | secret | recovery/backup lane 的 canonical Supabase secret API key（通常为 `sb_secret_...`）；供 runner 执行受控 dump 与 Storage snapshot 读取；credential 本身是 elevated access，不是 read-only credential，脚本不执行应用 mutation |
+| `SUPABASE_SERVICE_ROLE_KEY` | secret（legacy fallback，可选） | 兼容已经存在的 JWT-based `service_role` 配置；只有未提供 `SUPABASE_SECRET_KEY` 时才读取，新部署不需要创建此 legacy key |
 | `RIVALHUB_BACKUP_AGE_RECIPIENT` | environment variable | age 公钥；backup runner 只能加密 |
 | `RIVALHUB_PRODUCTION_BASE_URL` | environment variable | production canonical HTTPS origin；未设置时默认 `https://match.starfie1d.top`，runner 从其 `/api/system/release` read back deployed release identity |
 | `RIVALHUB_R2_ACCOUNT_ID` | environment variable | R2 account identifier |
@@ -67,6 +68,8 @@ GitHub `production` Environment 需要由维护者配置以下值。值本身不
 | `RIVALHUB_R2_SECRET_ACCESS_KEY` | secret | bucket-scoped R2 S3 credential |
 | `CLOUDFLARE_API_TOKEN` | secret | 仅 R2 retention workflow 的 provider read/apply |
 | `VERCEL_TOKEN` | secret | project-scoped `rivalhub-release` token，仅供 release deploy |
+
+`recovery-backup.yml` 与 release 的 pre-release backup 会先读取 `SUPABASE_SECRET_KEY`，只有在它为空时才 fallback 到 `SUPABASE_SERVICE_ROLE_KEY`。因此新的 production 配置只需要创建现代 Supabase secret key；本次只收口 recovery/backup lane，应用其它 server-only 代码仍保留现有变量名，未扩大成全仓库 key migration。
 
 age private key只保存在离线 recovery kit/password manager。解密演练时通过本地 `RIVALHUB_BACKUP_AGE_IDENTITY_FILE` 指向权限受限的临时 identity file，演练结束后删除临时明文和 identity 副本；不得把 private key 放入 GitHub Environment、仓库或 R2。Vercel protected smoke 不使用长期 bypass secret，而由 release job 的 GitHub OIDC 短期 token 完成；Trusted Source 是 Vercel owner 的 Dashboard 配置，不是 recovery artifact 或 GitHub secret。
 
@@ -112,7 +115,7 @@ pnpm db:recovery:backup manual
 pnpm db:recovery:backup pre-release
 ```
 
-command 必须同时满足 `RIVALHUB_DB_TARGET=production`、固定 project confirmation、固定 pooler host confirmation、production URL 校验、service role、age 公钥和 R2 credentials。它不要求 production write authorization，也不执行 application mutation。任一 database dump、Storage 下载、加密、上传或 R2 read-back 失败，整个 run 失败且不产生 completion marker；workflow 不上传明文 Actions artifact。
+command 必须同时满足 `RIVALHUB_DB_TARGET=production`、固定 project confirmation、固定 pooler host confirmation、production URL 校验、Supabase secret API key（canonical 为 `SUPABASE_SECRET_KEY`，兼容 fallback 为 `SUPABASE_SERVICE_ROLE_KEY`）、age 公钥和 R2 credentials。它不要求 production write authorization，也不执行 application mutation。任一 database dump、Storage 下载、加密、上传或 R2 read-back 失败，整个 run 失败且不产生 completion marker；workflow 不上传明文 Actions artifact。
 
 Release 顺序是：
 
@@ -231,6 +234,8 @@ Application smoke 要用兼容 snapshot 的 shipped code，在专用 isolated UR
 Production destructive restore、provider project cutover 和真实 incident freeze 都不属于普通 `db:recovery:*` 命令；必须另建 emergency approval path，确认 exact target、snapshot、write authorization、rollback/communication plan 后由 operator 执行。
 
 ## Rehearsal closeout
+
+本演练必须在 recovery capability 的独立 patch release（PR `#577`）之后执行，并作为允许 destructive migration PR `#585` 合并/发布的前置条件；两者不得第一次共同进入同一 release。具体发布顺序由 [`operations/release.md`](release.md) 的 Recovery capability release gate 维护。
 
 关闭 Issue 前的最低真实证据是：canonical production backup 成功并在 private R2 完成真实 GET 内容 hash read-back，使用离线 private key 解密，在 disposable isolated target 以 snapshot terminal 对应的 migration prefix restore，完成 DB/Auth/Storage/domain/privacy verification，以及兼容 shipped code 的 public/admin smoke。记录以下安全摘要即可：
 
