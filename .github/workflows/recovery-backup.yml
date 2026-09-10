@@ -2,7 +2,7 @@ name: Production recovery backup
 
 on:
   schedule:
-    - cron: "0 * * * *"
+    - cron: "17 * * * *"
     - cron: "15 0 * * *"
   workflow_dispatch:
     inputs:

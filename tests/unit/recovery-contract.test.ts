@@ -16,7 +16,10 @@ import {
   serializeManifest,
 } from "../../scripts/db/recovery/manifest";
 import { buildRecoveryMigrationPlan, resolveProductionSourceIdentity } from "../../scripts/db/recovery/source";
-import { assertActiveStorageReferencesCaptured } from "../../scripts/db/recovery/storage";
+import {
+  assertActiveStorageReferencesCaptured,
+  assertActiveStorageReferencesStable,
+} from "../../scripts/db/recovery/storage";
 import { buildRecoveryR2Keys, assertR2ContentReadback, assertR2HeadReadback, serializeR2Metadata } from "../../scripts/db/recovery/r2";
 import { assertManifestMigrationMatches, verifyRecoveryDatabase } from "../../scripts/db/recovery/verify";
 import { purgeExpiredEducationEvidence } from "../../src/lib/education/retention-core";
@@ -204,6 +207,40 @@ describe("recovery contracts", () => {
     expect(backupSource).toContain("assertProductionBackupEnvironment(process.env)");
     expect(backupSource).toContain("createDatabaseSnapshot(environment.databaseUrl, stagingRoot)");
     expect(backupSource).not.toMatch(/databaseUrl.*6543/);
+  });
+
+  it("fails closed when managed Storage references drift during the backup window", () => {
+    const before = [
+      { bucket: "education-evidence", objectPath: "verification/first.png" },
+      { bucket: "education-evidence", objectPath: "verification/second.png" },
+    ];
+
+    expect(() => assertActiveStorageReferencesStable(before, [...before].reverse())).not.toThrow();
+    expect(() => assertActiveStorageReferencesStable(
+      before,
+      [...before, { bucket: "education-evidence", objectPath: "verification/new.png" }],
+    )).toThrow(/changed during the backup window/);
+    expect(() => assertActiveStorageReferencesStable(
+      before,
+      [before[0]!],
+    )).toThrow(/changed during the backup window/);
+  });
+
+  it("checks managed Storage references around the complete snapshot window", () => {
+    const backupSource = readFileSync(join(process.cwd(), "scripts/db/recovery/backup.ts"), "utf8");
+    const firstReferenceRead = backupSource.indexOf("readActiveStorageReferences(environment.databaseUrl)");
+    const databaseSnapshot = backupSource.indexOf("createDatabaseSnapshot(environment.databaseUrl, stagingRoot)");
+    const storageSnapshot = backupSource.indexOf("snapshotStorage(");
+    const secondReferenceRead = backupSource.indexOf("readActiveStorageReferences(environment.databaseUrl)", firstReferenceRead + 1);
+    const stabilityCheck = backupSource.indexOf("assertActiveStorageReferencesStable(");
+    const captureCheck = backupSource.indexOf("assertActiveStorageReferencesCaptured(");
+
+    expect(firstReferenceRead).toBeGreaterThan(-1);
+    expect(firstReferenceRead).toBeLessThan(databaseSnapshot);
+    expect(databaseSnapshot).toBeLessThan(storageSnapshot);
+    expect(storageSnapshot).toBeLessThan(secondReferenceRead);
+    expect(secondReferenceRead).toBeLessThan(stabilityCheck);
+    expect(stabilityCheck).toBeLessThan(captureCheck);
   });
 
   it("keeps R2 bucket names within the provider length contract", () => {

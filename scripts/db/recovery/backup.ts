@@ -22,7 +22,11 @@ import {
   type RecoverySidecar,
 } from "./manifest";
 import { buildRecoveryR2Keys, createR2Client, assertR2ContentReadback, assertR2HeadReadback } from "./r2";
-import { snapshotStorage, assertActiveStorageReferencesCaptured } from "./storage";
+import {
+  assertActiveStorageReferencesCaptured,
+  assertActiveStorageReferencesStable,
+  snapshotStorage,
+} from "./storage";
 import { resolveProductionSourceIdentity } from "./source";
 import {
   assertActiveChainPrefix,
@@ -46,6 +50,7 @@ async function main(): Promise<void> {
     const supabaseCliVersion = readSupabaseCliVersion();
     const migration = await readProductionMigrationIdentity(environment.databaseUrl);
     const source = await resolveProductionSourceIdentity();
+    const activeStorageReferencesBeforeSnapshot = await readActiveStorageReferences(environment.databaseUrl);
     const databaseRoot = await createDatabaseSnapshot(environment.databaseUrl, stagingRoot);
     const storage = await snapshotStorage(
       createClient(environment.supabaseUrl, environment.supabaseSecretKey, {
@@ -53,10 +58,9 @@ async function main(): Promise<void> {
       }),
       join(stagingRoot, "storage"),
     );
-    assertActiveStorageReferencesCaptured(
-      await readActiveStorageReferences(environment.databaseUrl),
-      storage.records,
-    );
+    const activeStorageReferencesAfterSnapshot = await readActiveStorageReferences(environment.databaseUrl);
+    assertActiveStorageReferencesStable(activeStorageReferencesBeforeSnapshot, activeStorageReferencesAfterSnapshot);
+    assertActiveStorageReferencesCaptured(activeStorageReferencesBeforeSnapshot, storage.records);
 
     const manifest: RecoveryManifest = {
       formatVersion: RECOVERY_FORMAT_VERSION,

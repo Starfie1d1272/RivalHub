@@ -89,7 +89,8 @@ describe("deployment and operations contracts", () => {
     const release = readProjectFile(".github/workflows/release.yml");
     const nextConfig = readProjectFile("next.config.ts");
 
-    expect(backup).toContain('cron: "0 * * * *"');
+    expect(backup).toContain('cron: "17 * * * *"');
+    expect(backup).not.toContain('cron: "0 * * * *"');
     expect(backup).toContain('cron: "15 0 * * *"');
     expect(backup).toContain("github.event.schedule == '15 0 * * *' && 'daily'");
     expect(backup).toContain("environment: production");

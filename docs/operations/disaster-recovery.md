@@ -19,7 +19,7 @@
 
 | Owner | 作用 |
 | --- | --- |
-| `.github/workflows/recovery-backup.yml` | 每小时执行；也支持受保护的 daily/manual dispatch |
+| `.github/workflows/recovery-backup.yml` | 每小时 UTC 第 17 分钟执行；也支持受保护的 daily/manual dispatch |
 | `.github/workflows/release.yml` | production migration 前执行 `pre-release` backup hard gate |
 | `scripts/db/recovery/backup.ts` | 唯一 logical backup、Storage snapshot、age、R2 read-back owner |
 | `scripts/db/recovery/restore.ts` | 仅允许 isolated loopback target 的恢复入口 |
@@ -47,7 +47,7 @@ Supabase CLI 的 canonical dump 保留应用 schema 与 `auth.users` 数据，�
 
 ### 跨系统一致性边界
 
-数据库 dump 与 Storage inventory/download 是顺序操作，不是跨系统原子快照；`createdAt` 是本次 run 的 identity，不代表某个可回到的单一瞬间。第一版接受低流量赛事站的这个边界，不能把 artifact 描述为严格 point-in-time backup。Storage snapshot 完成后，backup 会再次读取当前数据库中的所有 managed object references；当前 schema 的 `education_verifications.evidence_object_key` 必须全部出现在同一份 Storage inventory 中，否则整个 run 失败。未来对高风险赛事窗口应增加 quiesce/freeze window；在此之前，manual/pre-release backup 仍必须把该 reference-inventory check 作为完成条件。
+数据库 dump 与 Storage inventory/download 是顺序操作，不是跨系统原子快照；`createdAt` 是本次 run 的 identity，不代表某个可回到的单一瞬间。第一版接受低流量赛事站的这个边界，不能把 artifact 描述为严格 point-in-time backup。backup 在数据库 dump 前读取一次当前 schema 的 managed object references，并在 Storage snapshot 完成后再次读取；两次引用集合必须 exact equal，否则检测到 retention cleanup 或其它引用变更时整个 run fail closed。只有这组稳定引用通过检查后，`education_verifications.evidence_object_key` 才必须全部出现在同一份 Storage inventory 中。hourly backup 固定在每个 UTC 小时的第 17 分钟运行，与每天 `22:00 UTC`（北京时间 `06:00`）的教育凭证清理错开；时间错开只是降低竞态概率，不能替代前后引用集合校验。未来对高风险赛事窗口应增加 quiesce/freeze window；在此之前，manual/pre-release backup 仍必须把该 stability-and-capture check 作为完成条件。
 
 R2 key 是不可猜测的 run-specific key：`production/<class>/<UTC-date>/<run-uuid>.*`。Artifact、sidecar、completion marker 使用同一 run identity；completion marker 最后上传，且只有 artifact 与 sidecar 已完成 R2 HEAD metadata/size 检查和真实 GET 内容 hash read-back 后才会出现。PutObject 使用 `If-None-Match: *`，同名 artifact 不允许覆盖。
 

@@ -39,6 +39,19 @@ export interface StorageObjectReference {
   objectPath: string;
 }
 
+export function assertActiveStorageReferencesStable(
+  before: readonly StorageObjectReference[],
+  after: readonly StorageObjectReference[],
+): void {
+  const beforeKeys = new Set(before.map(storageObjectReferenceKey));
+  const afterKeys = new Set(after.map(storageObjectReferenceKey));
+  const drifted = beforeKeys.size !== afterKeys.size
+    || [...beforeKeys].some((key) => !afterKeys.has(key));
+  if (drifted) {
+    throw new Error("Active Storage object references changed during the backup window; canonical backup aborted. ");
+  }
+}
+
 export async function snapshotStorage(
   client: SupabaseClient,
   storageRoot: string,
@@ -91,11 +104,15 @@ export function assertActiveStorageReferencesCaptured(
   references: readonly StorageObjectReference[],
   records: readonly StorageObjectRecord[],
 ): void {
-  const captured = new Set(records.map((record) => `${record.bucket}\u0000${record.objectPath}`));
-  const missing = references.filter((reference) => !captured.has(`${reference.bucket}\u0000${reference.objectPath}`));
+  const captured = new Set(records.map((record) => storageObjectReferenceKey(record)));
+  const missing = references.filter((reference) => !captured.has(storageObjectReferenceKey(reference)));
   if (missing.length) {
     throw new Error("Active Storage object reference is missing from the snapshot; canonical backup aborted. ");
   }
+}
+
+function storageObjectReferenceKey(reference: StorageObjectReference): string {
+  return `${reference.bucket}\u0000${reference.objectPath}`;
 }
 
 export async function restoreStorageSnapshot(
