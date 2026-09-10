@@ -84,7 +84,7 @@ active `education-evidence` business copy 继续是 7 天 retention；encrypted 
 
 Recovery acceptance 还要人工确认 Supabase plan/physical backup/PITR、Auth/API keys、Realtime、required DB extensions/settings、Storage config、Vercel Trusted Source、GitHub Environment/OIDC/secrets/vars、R2 30d lifecycle/lock/private domains 和 scheduler pg_cron/pg_net/Vault names。只记录 presence/owner/capability/retention，不记录 secret value、PII、signed URL 或 dump。Supabase database backup 不包含 Storage objects，provider clone/restore 后必须单独重建这些配置。
 
-这次变更不迁移 PostgreSQL TLS 配置，不把现有 `service_role` 变量做全仓库改名或权限扩大；recovery/backup 只使用现代 `SUPABASE_SECRET_KEY`，并为既有配置保留明确的 legacy fallback。offline fetch 复用标准 R2 credential 但代码路径严格只读，绝不读取 deploy/write/decrypt credential。
+这次变更不迁移 PostgreSQL TLS 配置，不把现有 `service_role` 变量做全仓库改名或权限扩大；recovery/backup 只使用现代 `SUPABASE_SECRET_KEY`，并为既有配置保留明确的 legacy fallback。offline fetch 复用标准 R2 credential；该 credential 本身可能具备写权限，但 fetch 代码路径只暴露 `HEAD/GET`，不调用 R2 写接口，也不读取数据库、deploy 或 age private-key credential。
 
 ## 7. Release 完成条件
 
