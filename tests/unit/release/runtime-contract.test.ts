@@ -68,15 +68,77 @@ describe("deployment and operations contracts", () => {
     const ci = readProjectFile(".github/workflows/ci.yml");
     const staging = readProjectFile(".github/workflows/staging.yml");
     const release = readProjectFile(".github/workflows/release.yml");
+    const recoveryBackup = readProjectFile(".github/workflows/recovery-backup.yml");
+    const recoveryR2 = readProjectFile(".github/workflows/recovery-r2.yml");
 
     expectPnpmSetup(ci, ["static", "postgres", "system"]);
     expectPnpmSetup(staging, ["staging"]);
     expectPnpmSetup(release, ["release"]);
+    expectPnpmSetup(recoveryBackup, ["backup"]);
+    expectPnpmSetup(recoveryR2, ["retention"]);
     expect(readWorkflowJob(ci, "plan")).not.toContain("pnpm/setup");
     const gate = readWorkflowJob(ci, "gate");
     expect(gate).toContain("name: ${{ needs.plan.outputs.gate_name }}");
     expect(gate).not.toContain("pnpm/setup");
     expect(readWorkflowJob(ci, "dependency-review")).not.toContain("pnpm/setup");
+  });
+
+  it("keeps production recovery snapshots encrypted and outside GitHub artifacts", () => {
+    const backup = readProjectFile(".github/workflows/recovery-backup.yml");
+    const r2 = readProjectFile(".github/workflows/recovery-r2.yml");
+    const release = readProjectFile(".github/workflows/release.yml");
+    const nextConfig = readProjectFile("next.config.ts");
+
+    expect(backup).toContain('cron: "17 * * * *"');
+    expect(backup).not.toContain('cron: "0 * * * *"');
+    expect(backup).toContain('cron: "15 0 * * *"');
+    expect(backup).toContain("github.event.schedule == '15 0 * * *' && 'daily'");
+    expect(backup).toContain("environment: production");
+    expect(backup).toContain("RIVALHUB_DB_TARGET: production");
+    expect(backup).toContain("RIVALHUB_PRODUCTION_BASE_URL: https://match.starfie1d.top");
+    expect(backup).not.toContain("RIVALHUB_PRODUCTION_STABLE_REF");
+    expect(backup).toContain("SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}");
+    expect(backup).toContain("SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}");
+    expect(backup).toContain("RIVALHUB_BACKUP_AGE_RECIPIENT: ${{ vars.RIVALHUB_BACKUP_AGE_RECIPIENT }}");
+    expect(backup).toContain("RIVALHUB_R2_ACCESS_KEY_ID: ${{ secrets.RIVALHUB_R2_ACCESS_KEY_ID }}");
+    expect(backup).toContain("pnpm db:recovery:backup \"$RIVALHUB_BACKUP_CLASS\"");
+    expect(backup).not.toContain("upload-artifact");
+
+    expect(r2).toContain("type: choice");
+    expect(r2).toContain("pnpm db:recovery:r2:verify");
+    expect(r2).toContain("pnpm db:recovery:r2:apply");
+    expect(r2).toContain("environment: production");
+
+    expect(release).toContain("Create protected pre-release backup");
+    expect(release).toContain("RIVALHUB_PRODUCTION_BASE_URL: https://match.starfie1d.top");
+    expect(release.indexOf("Create protected pre-release backup")).toBeLessThan(release.indexOf("pnpm db:production:migrate"));
+    expect(release).toContain("pnpm db:recovery:backup pre-release");
+    expect(release).toContain("SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}");
+    expect(release).toContain("SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}");
+    expect(release).toContain("contents: write\n      id-token: write");
+    expect(release).toContain("Mint GitHub OIDC token for Vercel Trusted Sources");
+    expect(release).toContain("ACTIONS_ID_TOKEN_REQUEST_URL");
+    expect(release).toContain("ACTIONS_ID_TOKEN_REQUEST_TOKEN");
+    expect(release).toContain("audience=$VERCEL_TRUSTED_SOURCE_AUDIENCE");
+    expect(release).toContain('echo "::add-mask::$oidc_token"');
+    expect(release).toContain("VERCEL_TRUSTED_SOURCE_AUDIENCE: https://github.com/Starfie1d1272");
+    expect(release).toContain("x-vercel-trusted-oidc-idp-token: $VERCEL_TRUSTED_OIDC_IDP_TOKEN");
+    expect(release).not.toContain("VERCEL_AUTOMATION_BYPASS_SECRET");
+    expect(release).not.toContain("protection-bypass");
+    expect(release).not.toContain("x-vercel-protection-bypass");
+    const smokeStart = release.indexOf("      - name: Smoke test production deployment");
+    const schedulerStart = release.indexOf("      - name: Provision and verify production scheduler");
+    const smoke = release.slice(smokeStart, schedulerStart);
+    expect(smoke).toContain("^https://[a-z0-9][a-z0-9-]*\\.vercel\\.app/?$");
+    expect(smoke).not.toContain("VERCEL_TOKEN");
+    const canonicalIdentity = smoke.slice(smoke.indexOf("canonical_identity="));
+    expect(canonicalIdentity).not.toContain("x-vercel-trusted-oidc-idp-token");
+    expect(backup).toContain("concurrency:\n  group: rivalhub-production-state-serialization\n  cancel-in-progress: false");
+    expect(release).toContain("concurrency:\n  group: rivalhub-production-state-serialization\n  cancel-in-progress: false");
+    expect(release).toContain("$RIVALHUB_PRODUCTION_BASE_URL/api/system/release");
+    expect(release).toContain('(keys | sort) == ["releaseCommit", "releaseTag"]');
+    expect(nextConfig).toContain("RIVALHUB_RELEASE_TAG: process.env.RIVALHUB_RELEASE_TAG ?? \"\"");
+    expect(nextConfig).toContain("RIVALHUB_RELEASE_COMMIT: process.env.RIVALHUB_RELEASE_COMMIT ?? \"\"");
   });
 
   it("freezes the exact release identity into Vercel builds and reads it back after deploy", () => {
@@ -85,11 +147,51 @@ describe("deployment and operations contracts", () => {
 
     expect(release).toContain('--build-env RIVALHUB_RELEASE_TAG="$RELEASE_TAG"');
     expect(release).toContain('--build-env RIVALHUB_RELEASE_COMMIT="$RELEASE_SHA"');
-    expect(release).toContain('vercel curl /api/system/release --deployment "$DEPLOYMENT_URL"');
-    expect(release).toContain("https://match.starfie1d.top/api/system/release");
+    expect(release).toContain('deployment_identity="$(curl --fail');
+    expect(release).toContain('"$DEPLOYMENT_URL/api/system/release"');
+    expect(release).toContain("$RIVALHUB_PRODUCTION_BASE_URL/api/system/release");
     expect(release).toContain('(keys | sort) == ["releaseCommit", "releaseTag"]');
     expect(nextConfig).toContain('RIVALHUB_RELEASE_TAG: process.env.RIVALHUB_RELEASE_TAG ?? ""');
     expect(nextConfig).toContain('RIVALHUB_RELEASE_COMMIT: process.env.RIVALHUB_RELEASE_COMMIT ?? ""');
+  });
+
+  it("documents the current Vercel Trusted Source fields and raw claims", () => {
+    const releaseRunbook = readProjectFile("docs/operations/release.md");
+    const recoveryRunbook = readProjectFile("docs/operations/disaster-recovery.md");
+
+    for (const runbook of [releaseRunbook, recoveryRunbook]) {
+      expect(runbook).toContain("GitHub account | `Starfie1d1272`");
+      expect(runbook).toContain("Repository | `RivalHub`");
+      expect(runbook).toContain("Branch | 留空（release 使用版本 tag，不是固定 branch）");
+      expect(runbook).toContain("GitHub Actions environment | `production`");
+      expect(runbook).toContain("Audience | `https://github.com/Starfie1d1272`");
+      expect(runbook).toContain("Applies to environments | `Production`");
+      expect(runbook).toContain("Edit raw claims");
+      expect(runbook).toContain("`repository_id` | `1231811932`");
+      expect(runbook).toContain("`workflow` | `Release`");
+      expect(runbook).toContain("`environment` | `production`");
+      expect(runbook).toContain("`sub` | `repo:Starfie1d1272/RivalHub:environment:production`");
+      expect(runbook).toContain("`event_name` | `push`, `workflow_dispatch`");
+      expect(runbook).toContain("不填写 `ref` 或 `workflow_ref`");
+      expect(runbook).not.toContain("Workflow | `Release`");
+      expect(runbook).not.toContain("Branch | `Any branch`");
+    }
+  });
+
+  it("keeps recovery capability and destructive migration on separate release gates", () => {
+    const releaseRunbook = readProjectFile("docs/operations/release.md");
+    const recoveryRunbook = readProjectFile("docs/operations/disaster-recovery.md");
+
+    expect(releaseRunbook).toContain("PR `#577` 必须先独立进入一个 patch release");
+    expect(releaseRunbook).toContain("destructive migration PR `#585`");
+    expect(releaseRunbook).toContain("drizzle/migrations/0049_ambiguous_brood.sql");
+    expect(releaseRunbook).toContain("production encrypted backup");
+    expect(releaseRunbook).toContain("private R2 真实 GET + 内容 hash read-back");
+    expect(releaseRunbook).toContain("使用本地离线 age private key 解密");
+    expect(releaseRunbook).toContain("disposable isolated target restore / verify / application smoke");
+    expect(releaseRunbook).toContain("#577 与 #585 不得第一次共同进入同一 release");
+    expect(recoveryRunbook).toContain("PR `#577`");
+    expect(recoveryRunbook).toContain("destructive migration PR `#585`");
   });
 
   it("uses main as the sole long-lived CI ref", () => {

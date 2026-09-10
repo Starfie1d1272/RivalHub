@@ -17,6 +17,8 @@
 
 `main` 是唯一长期 releasable trunk；不可移动的 `vX.Y.Z` tag 才是 shipped production identity。正式发布围绕同一个 tag commit 完成 migration、verify、exact-source deployment、smoke 与 GitHub Release；失败时重试同一安全步骤，不移动已公开 tag。
 
+Production 对外提供 public、no-store 的 `/api/system/release` read-back endpoint，只返回 deployed `releaseTag` 与 `releaseCommit`；受保护 backup runner 以该响应作为 production source identity，并在本地 checkout 验证 tag 到 commit 的关系。
+
 执行流程见 [`operations/release.md`](./operations/release.md)。
 
 ## Database authority

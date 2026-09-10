@@ -1,0 +1,67 @@
+name: Production recovery backup
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+    - cron: "15 0 * * *"
+  workflow_dispatch:
+    inputs:
+      backup_class:
+        description: "备份类别"
+        required: true
+        default: manual
+        type: choice
+        options:
+          - hourly
+          - daily
+          - manual
+
+concurrency:
+  group: rivalhub-production-state-serialization
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    name: backup / ${{ github.event_name == 'schedule' && github.event.schedule == '15 0 * * *' && 'daily' || github.event_name == 'schedule' && 'hourly' || inputs.backup_class }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: production
+    permissions:
+      contents: read
+    env:
+      RIVALHUB_BACKUP_CLASS: ${{ github.event_name == 'schedule' && github.event.schedule == '15 0 * * *' && 'daily' || github.event_name == 'schedule' && 'hourly' || inputs.backup_class }}
+      RIVALHUB_DB_TARGET: production
+      RIVALHUB_PRODUCTION_BASE_URL: https://match.starfie1d.top
+      RIVALHUB_PRODUCTION_PROJECT_CONFIRM: sucokfotkypwqkckfynp
+      RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: aws-0-ap-northeast-1.pooler.supabase.com:6543
+      RIVALHUB_PRODUCTION_SUPABASE_URL: https://sucokfotkypwqkckfynp.supabase.co
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      RIVALHUB_BACKUP_AGE_RECIPIENT: ${{ vars.RIVALHUB_BACKUP_AGE_RECIPIENT }}
+      RIVALHUB_R2_ACCOUNT_ID: ${{ vars.RIVALHUB_R2_ACCOUNT_ID }}
+      RIVALHUB_R2_BUCKET: ${{ vars.RIVALHUB_R2_BUCKET }}
+      RIVALHUB_R2_ACCESS_KEY_ID: ${{ secrets.RIVALHUB_R2_ACCESS_KEY_ID }}
+      RIVALHUB_R2_SECRET_ACCESS_KEY: ${{ secrets.RIVALHUB_R2_SECRET_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          cache: true
+          require-lockfile: true
+
+      - name: Install age encryption tool
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install --yes --no-install-recommends age
+          age --version
+          aws --version
+
+      - name: Create, encrypt, upload, and read back production snapshot
+        run: pnpm db:recovery:backup "$RIVALHUB_BACKUP_CLASS"
