@@ -145,6 +145,12 @@ describe("database access matrix", () => {
       [...DATABASE_ACCESS_TABLES, "future_table"],
       expectedFacts(),
     )).toThrow("public table unclassified future_table");
+    expect(() => assertDatabaseAccessMatrixFacts(
+      [...DATABASE_ACCESS_TABLES, "historical_table"],
+      expectedFacts(),
+      DATABASE_ACCESS_MATRIX,
+      ["historical_table"],
+    )).not.toThrow();
 
     const invalidClientEntry: DatabaseAccessEntry = {
       ...DATABASE_ACCESS_MATRIX[0],

@@ -9,10 +9,9 @@ const ACCESS_MATRIX_AT_TARGET = DATABASE_ACCESS_MATRIX.filter(
   (entry) => ![
     "scheduled_job_health",
     "competition_stage_bracket_states",
-    "competition_bracket_states",
-    "swiss_standings",
   ].includes(entry.table),
 );
+const IGNORED_TABLES_AT_TARGET = ["competition_bracket_states", "swiss_standings"] as const;
 
 describe("conversion policies migration", () => {
   it("creates server-only conversion_policies table with RLS, denies anon/authenticated access, and seeds lead-approved 2026.09 policy", async () => {
@@ -22,7 +21,12 @@ describe("conversion policies migration", () => {
         await replayMigration(client, migration);
       }
 
-      await verifyDatabaseAccessMatrix(client, "0038 conversion policies replay", ACCESS_MATRIX_AT_TARGET);
+      await verifyDatabaseAccessMatrix(
+        client,
+        "0038 conversion policies replay",
+        ACCESS_MATRIX_AT_TARGET,
+        IGNORED_TABLES_AT_TARGET,
+      );
 
       const table = await client.query<{ relrowsecurity: boolean }>(
         `SELECT relrowsecurity FROM pg_class

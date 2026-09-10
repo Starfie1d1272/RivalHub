@@ -602,6 +602,7 @@ export async function verifyDatabaseAccessMatrix(
   pool: Pick<Pool, "query">,
   context: string,
   entries: readonly DatabaseAccessEntry[] = DATABASE_ACCESS_MATRIX,
+  ignoredTables: readonly string[] = [],
 ): Promise<readonly DatabaseAccessFacts[]> {
   validateDatabaseAccessMatrixConfig(entries);
 
@@ -672,6 +673,7 @@ export async function verifyDatabaseAccessMatrix(
     tableResult.rows.map((row) => row.table_name),
     facts,
     entries,
+    ignoredTables,
   );
 
   console.log(
@@ -684,9 +686,14 @@ export function assertDatabaseAccessMatrixFacts(
   actualTables: readonly string[],
   actualFacts: readonly DatabaseAccessFacts[],
   entries: readonly DatabaseAccessEntry[] = DATABASE_ACCESS_MATRIX,
+  ignoredTables: readonly string[] = [],
 ): void {
   const expectedTables = entries.map((entry) => entry.table);
-  const tableDiff = diffNames([...expectedTables].sort(), [...actualTables].sort());
+  const ignored = new Set(ignoredTables);
+  const tableDiff = diffNames(
+    [...expectedTables].sort(),
+    actualTables.filter((table) => !ignored.has(table)).sort(),
+  );
   const actualByTable = new Map(actualFacts.map((row) => [row.table_name, row]));
   const failures = [...tableDiff.map((item) => `public table ${item}`)];
 
