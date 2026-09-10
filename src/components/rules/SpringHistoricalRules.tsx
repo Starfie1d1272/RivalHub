@@ -1,10 +1,12 @@
 import React from "react";
 import { Marker } from "@/components/rivalhub/Marker";
+import { PageLayout } from "@/components/rivalhub/Layout";
 import { Panel } from "@/components/rivalhub/Panel";
 
 export function SpringHistoricalRules() {
   return (
-    <div className="max-w-4xl mx-auto py-12 px-4 space-y-6">
+    <PageLayout variant="standard">
+      <div className="mx-auto max-w-4xl space-y-6">
       {/* Hero */}
       <section className="space-y-2 pb-6" style={{ borderBottom: "1px solid var(--color-border)" }}>
         <h1
@@ -440,7 +442,8 @@ export function SpringHistoricalRules() {
           <p className="font-bold">若规则书未覆盖特殊情况，赛委会有权基于赛事公平性、可执行性与整体观赛体验进行临时裁定。</p>
         </div>
       </Panel>
-    </div>
+      </div>
+    </PageLayout>
   );
 }
 

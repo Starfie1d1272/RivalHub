@@ -24,6 +24,12 @@
 | `EmptyState` / `ErrorState` / `Skeleton` | empty/error/loading 的明确三态 |
 | `InlineConfirm` | 高影响 mutation 的影响说明与二次确认 |
 
+### Page geometry ownership
+
+`PageLayout` 是 page width、horizontal gutter 和 base vertical padding 的唯一 owner。route page、loading、error、fallback 应复用同一个 route-level `PageLayout` variant；已经由父级 `PageLayout` 包裹的子页面只声明 section、grid、spacing、`min-w-0`、局部 overflow，以及真实阅读/表单所需的 inner `max-w-*`。
+
+不要在页面级重新组合 `container`、`mx-auto`、`max-w-*`、`px-*`、`py-*`。局部表单或长文的 inner width 可以保留，但不能再次拥有整页 gutter。赛事导航条和 breadcrumb 等 full-bleed/navigation surface 内部的 alignment frame 是例外：它只对齐导航内容，不负责 page body 的宽度或垂直几何。
+
 颜色不能单独承担 success/warning/danger；状态同时使用文字、图标或结构表达。10–11px mono 只用于 code、marker、ticker 和 compact metadata，不承担正文解释。
 
 ## Information hierarchy

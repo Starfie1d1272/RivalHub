@@ -101,9 +101,9 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
 
   if (allMatches.length === 0 && allTeams.length === 0) {
     return (
-      <div className="container mx-auto px-4 py-16 text-center text-[var(--color-fg-mid)]">
+      <PageLayout variant="standard" className="py-16 text-center text-[var(--color-fg-mid)]">
         赛程尚未生成，敬请期待
-      </div>
+      </PageLayout>
     );
   }
 

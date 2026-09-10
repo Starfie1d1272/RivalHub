@@ -4,7 +4,7 @@ import { users } from "@/db/schema";
 import { requireSuperAdmin } from "@/lib/auth/session";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
 import { getDisplayName } from "@/lib/identity/display-name";
-import { PageHeader, Panel, StatusPill } from "@/components/rivalhub";
+import { PageHeader, PageLayout, Panel, StatusPill } from "@/components/rivalhub";
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { SchedulerHealthPanel } from "@/components/admin/SchedulerHealthPanel";
 import { getSchedulerHealthView } from "@/lib/scheduler/admin";
@@ -41,7 +41,7 @@ export default async function AdminSettingsPage() {
   const schedulerHealth = await getSchedulerHealthView();
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-2xl space-y-10">
+    <PageLayout variant="narrow" className="space-y-10">
         <PageHeader title="系统状态" description={`当前登录：${adminDisplayName}`} />
 
         {/* 密码管理 */}
@@ -89,6 +89,6 @@ export default async function AdminSettingsPage() {
           </div>
           <SchedulerHealthPanel jobs={schedulerHealth} />
         </section>
-    </div>
+    </PageLayout>
   );
 }

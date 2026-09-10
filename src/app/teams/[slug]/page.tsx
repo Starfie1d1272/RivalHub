@@ -36,5 +36,9 @@ async function TeamProfileContent({ params }: { params: Promise<{ slug: string }
 }
 
 function TeamProfileFallback() {
-  return <div className="container mx-auto min-h-[60vh] max-w-6xl px-4 py-12" aria-busy="true" />;
+  return (
+    <PageLayout variant="standard" className="min-h-[60vh]" aria-busy="true">
+      <span className="sr-only">正在加载队伍页面…</span>
+    </PageLayout>
+  );
 }

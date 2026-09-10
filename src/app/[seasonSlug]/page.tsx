@@ -19,7 +19,7 @@ import {
   presentSeasonStatus,
   presentStageMarker,
 } from "@/lib/seasons/presentation";
-import { SectionHeader, StatusPill, Panel, ScrollHint, Stat, PhaseStep } from "@/components/rivalhub";
+import { PageLayout, SectionHeader, StatusPill, Panel, ScrollHint, Stat, PhaseStep } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { AdminShortcutSlot } from "@/components/layout/AdminShortcutSlot";
 import { StandingsTable } from "@/components/matches/StandingsTable";
@@ -235,7 +235,7 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
   ].filter((l) => l.show);
 
   return (
-    <div className="container mx-auto px-4 py-10 space-y-8">
+    <PageLayout variant="wide" className="space-y-8">
       <div className="relative mb-12 pt-6">
         <div className="flex items-center gap-3 mb-4 text-xs uppercase tracking-wider">
           <StatusPill {...presentSeasonParticipationState(season)} />
@@ -387,10 +387,14 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
         />
         <Stat label="STAGE" value={presentSeasonStatus(season.status).label} accent />
       </div>
-    </div>
+    </PageLayout>
   );
 }
 
 function SeasonPageFallback() {
-  return <div className="container mx-auto min-h-[60vh] px-4 py-10" aria-busy="true" />;
+  return (
+    <PageLayout variant="wide" className="min-h-[60vh]" aria-busy="true">
+      <span className="sr-only">正在加载赛季首页…</span>
+    </PageLayout>
+  );
 }
