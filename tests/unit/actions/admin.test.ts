@@ -38,7 +38,7 @@ vi.mock("@/lib/auth/session", () => ({
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
-vi.mock("@/actions/transitions", () => ({ maybeAdvanceFromRegistration: vi.fn() }));
+vi.mock("@/lib/seasons/transitions", () => ({ maybeAdvanceFromRegistration: vi.fn() }));
 vi.mock("@/db/client", () => ({
   db: {
     query: { seasons: { findFirst: seasonsFindFirstMock } },

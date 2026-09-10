@@ -36,6 +36,7 @@
     "scripts/ci/timing.mjs!",
     "scripts/ci/validate-pr-title.mjs!",
     "scripts/ci/vitest-timing-reporter.ts!",
+    "scripts/architecture/check.ts!",
     "scripts/db/block-drizzle-push.ts!",
     "scripts/db/local.ts!",
     "scripts/db/integration-runner.ts!",

@@ -1,13 +1,15 @@
 import "server-only";
 
 import { eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 import { db } from "@/db/client";
 import { seasons } from "@/db/schema";
-import { maybeAdvanceFromRegistration } from "@/actions/transitions";
-import { runDraftTimeoutCron } from "@/actions/draft";
-import { runMatchTimeAutoAwardCron } from "@/actions/matches";
+import { maybeAdvanceFromRegistration } from "@/lib/seasons/transitions";
+import { runDraftTimeoutCron } from "@/lib/draft/operations";
+import { runMatchTimeAutoAwardCron } from "@/lib/matches/time-auto-award";
 import { purgeExpiredEducationEvidence } from "@/lib/education/retention";
 import { ensureRegistrationOpenForParticipantInTx } from "@/lib/seasons/registration-recovery";
+import { revalidateMatchPaths, revalidatePublicSeasonTags, revalidateSeasonPaths } from "@/lib/revalidation";
 import type { SchedulerJobKey } from "./definitions";
 import type { SchedulerRunnerResult } from "./execution";
 
@@ -26,11 +28,18 @@ export async function runRegistrationDeadlineJob(): Promise<SchedulerRunnerResul
   let opened = 0;
 
   for (const season of activeSeasons) {
+    let advancedSlug: string | null = null;
     await db.transaction(async (tx) => {
       const openResult = await ensureRegistrationOpenForParticipantInTx(tx, season.id);
       if (openResult.opened) opened += 1;
-      if (await maybeAdvanceFromRegistration(tx, season.id, { invalidation: "route" })) advanced += 1;
+      advancedSlug = await maybeAdvanceFromRegistration(tx, season.id);
+      if (advancedSlug) advanced += 1;
     });
+    if (advancedSlug) {
+      revalidatePublicSeasonTags(advancedSlug, season.id);
+      revalidatePath(`/${advancedSlug}`);
+      revalidatePath(`/admin/${advancedSlug}/registrations`);
+    }
   }
 
   return {
@@ -45,7 +54,9 @@ export async function runRegistrationDeadlineJob(): Promise<SchedulerRunnerResul
 }
 
 export async function runDraftTimeoutJob() {
-  const result = await runDraftTimeoutCron();
+  const result = await runDraftTimeoutCron((slug) => {
+    revalidateSeasonPaths(slug, ["draft", "draftCaptain", "teams", "adminDraft"], { mode: "route" });
+  });
   return {
     result: {
       processed: result.picked + result.skipped,
@@ -61,7 +72,9 @@ export async function runDraftTimeoutJob() {
 }
 
 export async function runMatchTimeAutoAwardJob() {
-  const result = await runMatchTimeAutoAwardCron();
+  const result = await runMatchTimeAutoAwardCron(new Date(), (seasonSlug, matchId) => {
+    revalidateMatchPaths(seasonSlug, matchId, { mode: "route" });
+  });
   return {
     result,
     businessTransitions: result.awarded,

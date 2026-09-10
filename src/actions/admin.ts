@@ -22,7 +22,8 @@ import {
   requireSuperAdmin,
 } from "@/lib/auth/session";
 import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
-import { maybeAdvanceFromRegistration } from "@/actions/transitions";
+import { maybeAdvanceFromRegistration } from "@/lib/seasons/transitions";
+import { updatePublicSeasonTags } from "@/lib/revalidation";
 import {
   type RegistrationStatus,
   validateTransition,
@@ -53,6 +54,7 @@ export async function reviewRegistration(input: ReviewInput) {
     }
     const admin = await requireSeasonAdmin(existingReg.seasonId);
 
+    let advancedSlug: string | null = null;
     // 事务内完成状态校验 + 位置检查 + 更新 + audit_log
     await db.transaction(async (tx) => {
       const reg = await tx.query.seasonRegistrations.findFirst({
@@ -123,7 +125,7 @@ export async function reviewRegistration(input: ReviewInput) {
       });
 
       if (targetStatus === "approved") {
-        await maybeAdvanceFromRegistration(tx, reg.seasonId);
+        advancedSlug = await maybeAdvanceFromRegistration(tx, reg.seasonId);
       }
     });
 
@@ -139,6 +141,10 @@ export async function reviewRegistration(input: ReviewInput) {
         })
       : null;
 
+    if (advancedSlug) {
+      updatePublicSeasonTags(advancedSlug, reg?.seasonId);
+      revalidatePath(`/${advancedSlug}`);
+    }
     if (season) revalidatePath(`/admin/${season.slug}/registrations`);
     return ok({ id: registrationId, status: targetStatus });
   } catch (e) {

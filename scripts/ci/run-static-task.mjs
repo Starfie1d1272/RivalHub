@@ -31,6 +31,8 @@ export function commandFor(name, projectName, relatedSources = [], explicitTests
       return ["type-check:scripts"];
     case "lint":
       return ["lint"];
+    case "architecture":
+      return ["architecture:check"];
     case "lint-changed":
       return ["exec", "eslint", "--max-warnings=0", ...changedPaths];
     case "dead-code":

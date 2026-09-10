@@ -87,7 +87,7 @@ vi.mock("@/lib/revalidation", () => ({
   revalidateMatchPaths: revalidateMatchPathsMock,
 }));
 
-import { runMatchTimeAutoAwardCron } from "@/actions/matches/scheduling";
+import { runMatchTimeAutoAwardCron } from "@/lib/matches/time-auto-award";
 
 describe("runMatchTimeAutoAwardCron", () => {
   const now = new Date("2026-05-14T12:00:00.000Z");
@@ -129,7 +129,9 @@ describe("runMatchTimeAutoAwardCron", () => {
     });
     txSeasonFindFirstMock.mockResolvedValue({ slug: "spring" });
 
-    const result = await runMatchTimeAutoAwardCron(now);
+    const result = await runMatchTimeAutoAwardCron(now, (slug, matchId) => {
+      revalidateMatchPathsMock(slug, matchId, { mode: "route" });
+    });
 
     expect(result).toEqual({ processed: 1, awarded: 1, skipped: 0, failed: 0 });
     expect(updateSetCalls).toContainEqual({ scheduledAt: proposedTime, updatedAt: now });
@@ -165,7 +167,9 @@ describe("runMatchTimeAutoAwardCron", () => {
     }]);
     txProposalFindFirstMock.mockResolvedValue(null);
 
-    const result = await runMatchTimeAutoAwardCron(now);
+    const result = await runMatchTimeAutoAwardCron(now, (slug, matchId) => {
+      revalidateMatchPathsMock(slug, matchId, { mode: "route" });
+    });
 
     expect(result).toEqual({ processed: 1, awarded: 0, skipped: 1, failed: 0 });
     expect(updateSetCalls).toEqual([]);

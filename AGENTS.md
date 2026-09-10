@@ -8,6 +8,7 @@ RivalHub 是基于 Next.js App Router、TypeScript、Drizzle/PostgreSQL、Supaba
 - 架构边界：[`docs/architecture.md`](docs/architecture.md)；领域事实 ownership：[`docs/domain-model.md`](docs/domain-model.md)；生命周期：[`docs/workflows.md`](docs/workflows.md)。
 - 测试证据：[`docs/testing.md`](docs/testing.md)；环境/迁移/release：[`docs/deployment.md`](docs/deployment.md) 与 `docs/operations/`；协作规则：[`CONTRIBUTING.md`](CONTRIBUTING.md)。
 - 修改前先搜索 canonical owner。相同 transition、derived fact、validation、formatter 或 query/domain rule 只能有一个业务 owner；transport/presentation 复用它。
+- 可执行架构契约见 `pnpm architecture:check`；Client 只能经 `use server` action boundary 进入 server workflow，`src/lib/` 不反向依赖 entrypoint/presentation。
 - Release / tag / deploy / production mutation 有更严格入口：任何写操作或远端 mutation 前，必须完整读完 [`docs/operations/release.md`](docs/operations/release.md)；repository search / `rg` 只用于定位，不能替代全文读取。
 
 ## Cross-domain contract

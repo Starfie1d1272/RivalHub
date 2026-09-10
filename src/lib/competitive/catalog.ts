@@ -4,6 +4,14 @@ import { competitivePlatformRanks, competitivePlatformSeasons, competitivePlatfo
 import { AppError, ErrorCode } from "@/lib/errors";
 import type { CompetitiveFallbackConversion, CompetitiveProfileConfig } from "@/types/season";
 import { compareCompetitivePlatformPriority } from "./builtins";
+import { resolveCatalogSeasonRoles } from "./catalog-contract";
+import type { CompetitivePlatformCatalogEntry } from "./catalog-contract";
+export type {
+  CatalogRank,
+  CatalogSeason,
+  CatalogSeasonRoles,
+  CompetitivePlatformCatalogEntry,
+} from "./catalog-contract";
 
 /**
  * Single read-model owner for the competitive platform catalog: platforms,
@@ -13,37 +21,6 @@ import { compareCompetitivePlatformPriority } from "./builtins";
  */
 
 export type DatabaseExecutor = typeof dbClient | Parameters<Parameters<typeof dbClient.transaction>[0]>[0];
-
-export interface CatalogSeason {
-  id: string;
-  seasonKey: string;
-  label: string;
-  /** Chronology position; higher = later season. */
-  sortOrder: number;
-  active: boolean;
-  isCurrent: boolean;
-}
-
-export interface CatalogRank {
-  id: string;
-  rankKey: string;
-  label: string;
-  /** Lowest → highest position on the ladder. */
-  sortOrder: number;
-  /** Inclusive lower bound for stars; null/null means this rank has no stars. */
-  starMin: number | null;
-  /** Inclusive upper bound; null with starMin means open-ended. */
-  starMax: number | null;
-}
-
-export interface CompetitivePlatformCatalogEntry {
-  key: string;
-  displayName: string;
-  /** The platform's canonical performance-rating label (never a ladder/MMR score). */
-  ratingLabel: string;
-  ranks: CatalogRank[];
-  seasons: CatalogSeason[];
-}
 
 export async function loadCompetitivePlatformCatalog(
   executor: DatabaseExecutor,
@@ -81,12 +58,6 @@ export interface CatalogResolution {
   rankOrder: string[];
 }
 
-export interface CatalogSeasonRoles {
-  current: CatalogSeason | null;
-  /** Latest active season before current. Archived seasons are historical only. */
-  previous: CatalogSeason | null;
-}
-
 /** Uses slots below every existing value, never magic -1/-2 positions. */
 export function temporarySortOrders(existing: readonly number[]): readonly [number, number] {
   const minimum = Math.min(...existing);
@@ -96,21 +67,7 @@ export function temporarySortOrders(existing: readonly number[]): readonly [numb
   return [minimum - 2, minimum - 1];
 }
 
-/**
- * Canonical chronology owner for all catalog callers. `previous` deliberately
- * considers only active seasons, matching the publish-time qualification
- * semantics; inactive seasons remain visible as historical catalog entries.
- */
-export function resolveCatalogSeasonRoles(
-  entry: Pick<CompetitivePlatformCatalogEntry, "seasons"> | undefined,
-): CatalogSeasonRoles {
-  const current = entry?.seasons.find((season) => season.isCurrent && season.active) ?? null;
-  if (!current) return { current: null, previous: null };
-  const previous = entry!.seasons
-    .filter((season) => season.active && season.sortOrder < current.sortOrder)
-    .sort((a, b) => b.sortOrder - a.sortOrder)[0] ?? null;
-  return { current, previous };
-}
+export { resolveCatalogSeasonRoles } from "./catalog-contract";
 
 /**
  * Resolve the effective current/previous season and platform ladder for a

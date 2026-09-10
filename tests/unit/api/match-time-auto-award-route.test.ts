@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const runMatchTimeAutoAwardCronMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/actions/matches", () => ({
+vi.mock("@/lib/matches/time-auto-award", () => ({
   runMatchTimeAutoAwardCron: runMatchTimeAutoAwardCronMock,
 }));
 
@@ -33,6 +33,6 @@ describe("match time auto-award cron route", () => {
 
     expect(response.status).toBe(200);
     expect(body).toEqual({ ok: true, processed: 1, awarded: 1, skipped: 0 });
-    expect(runMatchTimeAutoAwardCronMock).toHaveBeenCalledWith();
+    expect(runMatchTimeAutoAwardCronMock).toHaveBeenCalledWith(expect.any(Date), expect.any(Function));
   });
 });
