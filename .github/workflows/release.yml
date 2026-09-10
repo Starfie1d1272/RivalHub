@@ -23,12 +23,14 @@ jobs:
       contents: write
     env:
       NEXT_TELEMETRY_DISABLED: 1
-      # Fixed non-secret Vercel target. VERCEL_TOKEN authorizes the exact
-      # production deployment; DATABASE_URL is a GitHub production Environment
-      # secret dedicated to the protected migration runner below.
+      # Fixed non-secret Vercel target. VERCEL_TOKEN is the project-scoped
+      # deployment credential; protected smoke uses the separate Automation
+      # Bypass secret below. DATABASE_URL is a GitHub production Environment
+      # secret dedicated to the protected migration runner.
       VERCEL_ORG_ID: team_0eIkBawGTdVjwYHdyrb20ZVV
       VERCEL_PROJECT_ID: prj_3bjmfKrSqRh4szrkEE4HpavnhI0E
       RIVALHUB_DB_TARGET: production
+      RIVALHUB_PRODUCTION_BASE_URL: https://match.starfie1d.top
       RIVALHUB_PRODUCTION_STABLE_REF: origin/main
       RIVALHUB_PRODUCTION_PROJECT_CONFIRM: sucokfotkypwqkckfynp
       RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: aws-0-ap-northeast-1.pooler.supabase.com:6543
@@ -68,17 +70,21 @@ jobs:
       - name: Install pinned Vercel CLI
         run: pnpm add --global vercel@59.11.7
 
-      - name: Require Vercel release credential
+      - name: Require Vercel release and smoke credentials
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: |
-          if [[ -z "$VERCEL_TOKEN" ]]; then
+          if [[ -z "$VERCEL_TOKEN" || "$VERCEL_TOKEN" == "[SENSITIVE]" ]]; then
             echo "GitHub production environment secret VERCEL_TOKEN is required." >&2
             exit 1
           fi
-          # Project-scoped tokens can deploy but cannot read project settings
-          # or export Sensitive values. The later exact deployment is the
-          # authoritative capability check; this step must not call `pull`.
+          if [[ -z "$VERCEL_AUTOMATION_BYPASS_SECRET" || "$VERCEL_AUTOMATION_BYPASS_SECRET" == "[SENSITIVE]" ]]; then
+            echo "GitHub production environment secret VERCEL_AUTOMATION_BYPASS_SECRET is required for protected smoke." >&2
+            exit 1
+          fi
+          # VERCEL_TOKEN must remain project-scoped (`rivalhub-release`). The
+          # bypass secret is only for HTTP smoke and must never replace it.
 
       - name: Validate active migration chain locally
         run: |
@@ -87,6 +93,23 @@ jobs:
 
       - name: Validate previous release compatibility
         run: pnpm db:release-compat
+
+      - name: Install age encryption tool
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install --yes --no-install-recommends age
+          age --version
+
+      - name: Create protected pre-release backup
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RIVALHUB_BACKUP_AGE_RECIPIENT: ${{ vars.RIVALHUB_BACKUP_AGE_RECIPIENT }}
+          RIVALHUB_R2_ACCOUNT_ID: ${{ vars.RIVALHUB_R2_ACCOUNT_ID }}
+          RIVALHUB_R2_BUCKET: ${{ vars.RIVALHUB_R2_BUCKET }}
+          RIVALHUB_R2_ACCESS_KEY_ID: ${{ secrets.RIVALHUB_R2_ACCESS_KEY_ID }}
+          RIVALHUB_R2_SECRET_ACCESS_KEY: ${{ secrets.RIVALHUB_R2_SECRET_ACCESS_KEY }}
+        run: pnpm db:recovery:backup pre-release
 
       - name: Migrate and verify production database
         env:
@@ -114,15 +137,23 @@ jobs:
         env:
           DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: |
-          vercel curl / --deployment "$DEPLOYMENT_URL" >/dev/null
+          vercel curl / --deployment "$DEPLOYMENT_URL" \
+            --protection-bypass "$VERCEL_AUTOMATION_BYPASS_SECRET" \
+            --token "$VERCEL_TOKEN" --yes --non-interactive >/dev/null
           curl --fail --silent --show-error \
             --retry 8 --retry-all-errors --retry-delay 5 \
-            "https://match.starfie1d.top/" >/dev/null
-          deployment_identity="$(vercel curl /api/system/release --deployment "$DEPLOYMENT_URL")"
+            -H "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" \
+            "$RIVALHUB_PRODUCTION_BASE_URL/" >/dev/null
+          deployment_identity="$(vercel curl /api/system/release \
+            --deployment "$DEPLOYMENT_URL" \
+            --protection-bypass "$VERCEL_AUTOMATION_BYPASS_SECRET" \
+            --token "$VERCEL_TOKEN" --yes --non-interactive)"
           canonical_identity="$(curl --fail --silent --show-error \
             --retry 8 --retry-all-errors --retry-delay 5 \
-            "https://match.starfie1d.top/api/system/release")"
+            -H "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" \
+            "$RIVALHUB_PRODUCTION_BASE_URL/api/system/release")"
           for identity in "$deployment_identity" "$canonical_identity"; do
             jq -e --arg tag "$RELEASE_TAG" --arg commit "$RELEASE_SHA" '
               (keys | sort) == ["releaseCommit", "releaseTag"]

@@ -4,8 +4,7 @@ import { and, eq, isNotNull, lte, ne } from "drizzle-orm";
 import { db } from "@/db/client";
 import { educationVerifications } from "@/db/schema";
 import { educationEvidenceStorage } from "./storage";
-
-const EDUCATION_EVIDENCE_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+import { purgeExpiredEducationEvidence as purgeWithStore } from "./retention-core";
 
 /**
  * 清理已完成教育认证的临时核验凭证。
@@ -15,42 +14,35 @@ const EDUCATION_EVIDENCE_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
  * 清空；缺失 object 由 Storage owner 按幂等删除成功处理。
  */
 export async function purgeExpiredEducationEvidence(now = new Date()): Promise<number> {
-  const reviewedBefore = new Date(now.getTime() - EDUCATION_EVIDENCE_RETENTION_MS);
-  const manualRows = await db
-    .select({ id: educationVerifications.id, evidenceObjectKey: educationVerifications.evidenceObjectKey })
-    .from(educationVerifications)
-    .where(and(
-      ne(educationVerifications.status, "pending"),
-      lte(educationVerifications.reviewedAt, reviewedBefore),
-      eq(educationVerifications.evidenceType, "manual_other"),
-      isNotNull(educationVerifications.evidenceObjectKey),
-    ));
-
-  let manualCleared = 0;
-  for (const row of manualRows) {
-    if (!row.evidenceObjectKey) continue;
-    await educationEvidenceStorage.remove(row.evidenceObjectKey);
-    const cleared = await db
+  return purgeWithStore({
+    findExpiredManualEvidence: async (reviewedBefore) => db
+      .select({ id: educationVerifications.id, evidenceObjectKey: educationVerifications.evidenceObjectKey })
+      .from(educationVerifications)
+      .where(and(
+        ne(educationVerifications.status, "pending"),
+        lte(educationVerifications.reviewedAt, reviewedBefore),
+        eq(educationVerifications.evidenceType, "manual_other"),
+        isNotNull(educationVerifications.evidenceObjectKey),
+      ))
+      .then((rows) => rows.flatMap((row) => row.evidenceObjectKey ? [{ id: row.id, evidenceObjectKey: row.evidenceObjectKey }] : [])),
+    removeEvidenceObject: (objectKey) => educationEvidenceStorage.remove(objectKey),
+    clearManualEvidence: async (id, objectKey) => (await db
       .update(educationVerifications)
       .set({ evidenceObjectKey: null })
       .where(and(
-        eq(educationVerifications.id, row.id),
-        eq(educationVerifications.evidenceObjectKey, row.evidenceObjectKey),
+        eq(educationVerifications.id, id),
+        eq(educationVerifications.evidenceObjectKey, objectKey),
       ))
-      .returning({ id: educationVerifications.id });
-    manualCleared += cleared.length;
-  }
-
-  const chsiCleared = await db
-    .update(educationVerifications)
-    .set({ evidenceCode: null })
-    .where(and(
-      ne(educationVerifications.status, "pending"),
-      lte(educationVerifications.reviewedAt, reviewedBefore),
-      ne(educationVerifications.evidenceType, "manual_other"),
-      isNotNull(educationVerifications.evidenceCode),
-    ))
-    .returning({ id: educationVerifications.id });
-
-  return manualCleared + chsiCleared.length;
+      .returning({ id: educationVerifications.id })).length,
+    clearExpiredChsiCodes: async (reviewedBefore) => (await db
+      .update(educationVerifications)
+      .set({ evidenceCode: null })
+      .where(and(
+        ne(educationVerifications.status, "pending"),
+        lte(educationVerifications.reviewedAt, reviewedBefore),
+        ne(educationVerifications.evidenceType, "manual_other"),
+        isNotNull(educationVerifications.evidenceCode),
+      ))
+      .returning({ id: educationVerifications.id })).length,
+  }, now);
 }

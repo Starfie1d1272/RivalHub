@@ -68,15 +68,55 @@ describe("deployment and operations contracts", () => {
     const ci = readProjectFile(".github/workflows/ci.yml");
     const staging = readProjectFile(".github/workflows/staging.yml");
     const release = readProjectFile(".github/workflows/release.yml");
+    const recoveryBackup = readProjectFile(".github/workflows/recovery-backup.yml");
+    const recoveryR2 = readProjectFile(".github/workflows/recovery-r2.yml");
 
     expectPnpmSetup(ci, ["static", "postgres", "system"]);
     expectPnpmSetup(staging, ["staging"]);
     expectPnpmSetup(release, ["release"]);
+    expectPnpmSetup(recoveryBackup, ["backup"]);
+    expectPnpmSetup(recoveryR2, ["retention"]);
     expect(readWorkflowJob(ci, "plan")).not.toContain("pnpm/setup");
     const gate = readWorkflowJob(ci, "gate");
     expect(gate).toContain("name: ${{ needs.plan.outputs.gate_name }}");
     expect(gate).not.toContain("pnpm/setup");
     expect(readWorkflowJob(ci, "dependency-review")).not.toContain("pnpm/setup");
+  });
+
+  it("keeps production recovery snapshots encrypted and outside GitHub artifacts", () => {
+    const backup = readProjectFile(".github/workflows/recovery-backup.yml");
+    const r2 = readProjectFile(".github/workflows/recovery-r2.yml");
+    const release = readProjectFile(".github/workflows/release.yml");
+    const nextConfig = readProjectFile("next.config.ts");
+
+    expect(backup).toContain('cron: "0 * * * *"');
+    expect(backup).toContain('cron: "15 0 * * *"');
+    expect(backup).toContain("github.event.schedule == '15 0 * * *' && 'daily'");
+    expect(backup).toContain("environment: production");
+    expect(backup).toContain("RIVALHUB_DB_TARGET: production");
+    expect(backup).toContain("RIVALHUB_PRODUCTION_BASE_URL: https://match.starfie1d.top");
+    expect(backup).not.toContain("RIVALHUB_PRODUCTION_STABLE_REF");
+    expect(backup).toContain("RIVALHUB_BACKUP_AGE_RECIPIENT: ${{ vars.RIVALHUB_BACKUP_AGE_RECIPIENT }}");
+    expect(backup).toContain("RIVALHUB_R2_ACCESS_KEY_ID: ${{ secrets.RIVALHUB_R2_ACCESS_KEY_ID }}");
+    expect(backup).toContain("pnpm db:recovery:backup \"$RIVALHUB_BACKUP_CLASS\"");
+    expect(backup).not.toContain("upload-artifact");
+
+    expect(r2).toContain("type: choice");
+    expect(r2).toContain("pnpm db:recovery:r2:verify");
+    expect(r2).toContain("pnpm db:recovery:r2:apply");
+    expect(r2).toContain("environment: production");
+
+    expect(release).toContain("Create protected pre-release backup");
+    expect(release).toContain("RIVALHUB_PRODUCTION_BASE_URL: https://match.starfie1d.top");
+    expect(release.indexOf("Create protected pre-release backup")).toBeLessThan(release.indexOf("pnpm db:production:migrate"));
+    expect(release).toContain("pnpm db:recovery:backup pre-release");
+    expect(release).toContain('VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}');
+    expect(release).toContain('--protection-bypass "$VERCEL_AUTOMATION_BYPASS_SECRET"');
+    expect(release).toContain('x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET');
+    expect(release).toContain("$RIVALHUB_PRODUCTION_BASE_URL/api/system/release");
+    expect(release).toContain('(keys | sort) == ["releaseCommit", "releaseTag"]');
+    expect(nextConfig).toContain("RIVALHUB_RELEASE_TAG: process.env.RIVALHUB_RELEASE_TAG ?? \"\"");
+    expect(nextConfig).toContain("RIVALHUB_RELEASE_COMMIT: process.env.RIVALHUB_RELEASE_COMMIT ?? \"\"");
   });
 
   it("freezes the exact release identity into Vercel builds and reads it back after deploy", () => {
@@ -85,8 +125,8 @@ describe("deployment and operations contracts", () => {
 
     expect(release).toContain('--build-env RIVALHUB_RELEASE_TAG="$RELEASE_TAG"');
     expect(release).toContain('--build-env RIVALHUB_RELEASE_COMMIT="$RELEASE_SHA"');
-    expect(release).toContain('vercel curl /api/system/release --deployment "$DEPLOYMENT_URL"');
-    expect(release).toContain("https://match.starfie1d.top/api/system/release");
+    expect(release).toContain('vercel curl /api/system/release');
+    expect(release).toContain("$RIVALHUB_PRODUCTION_BASE_URL/api/system/release");
     expect(release).toContain('(keys | sort) == ["releaseCommit", "releaseTag"]');
     expect(nextConfig).toContain('RIVALHUB_RELEASE_TAG: process.env.RIVALHUB_RELEASE_TAG ?? ""');
     expect(nextConfig).toContain('RIVALHUB_RELEASE_COMMIT: process.env.RIVALHUB_RELEASE_COMMIT ?? ""');
