@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.8.3]
+
+### Added
+
+#### Production 灾难恢复与发布前备份保护
+
+建立生产灾难恢复备份与验证契约。生产备份使用独立 Session Pooler 端口与只读契约执行导出，备份快照接入 Cloudflare R2 私有存储，并在写入后执行内容哈希回读验证。
+
+正式发布流程接入发布前备份硬门禁，并在工作流并发层面与生产发布串行化，防止发布迁移与定时备份产生竞态。隔离恢复支持 migrations-first 通用数据预清理与 replica 批量导入语义，并在恢复验证中强制校验用户身份关联完整性。
+
+生产灾备完整演练（离线私钥解密与隔离目标恢复验收）仍需后续具备真实环境时完成验证。
+
+### Changed
+
+#### 赛事阶段历史运行时数据清理
+
+移除上个版本作为兼容保留的旧版淘汰赛与瑞士轮表结构（`competition_bracket_states` 及 `swiss_standings`），并在数据库迁移中清理旧有关联。多阶段赛事的运行时状态完全统一由 StageRun 体系独立管理。
+
 ## [2.8.2]
 
 ### Fixed
@@ -2047,6 +2065,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.8.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.8.2...v2.8.3
 [2.8.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.8.1...v2.8.2
 [2.8.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.8.0...v2.8.1
 [2.8.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.7.8...v2.8.0
