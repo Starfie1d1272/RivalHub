@@ -8,7 +8,7 @@ import { competitionEntries, educationVerifications, eventRosterMembers, eventRo
 import { getPublicPlayerById } from "@/lib/data/public-players";
 import { PUBLIC_PLAYER_INFO_FIELDS } from "@/lib/utils/player-info-fields";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
-import { Panel, Stat, PosChip } from "@/components/rivalhub";
+import { PageLayout, Panel, Stat, PosChip } from "@/components/rivalhub";
 import { MapPreferenceChips } from "@/components/rivalhub/MapPreferenceChips";
 import Image from "next/image";
 import Link from "next/link";
@@ -322,7 +322,7 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
   const mvpCount = mvpWinCount;
 
   return (
-    <div className="container mx-auto px-4 py-12 max-w-3xl space-y-10">
+    <PageLayout variant="narrow" className="space-y-10">
 
       {/* 头像 + 基本信息 */}
       <div className="flex items-center gap-6">
@@ -608,10 +608,14 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
           <p className="text-[var(--color-fg-mid)]">暂无参赛记录</p>
         </Panel>
       )}
-    </div>
+    </PageLayout>
   );
 }
 
 function PlayerPageFallback() {
-  return <div className="container mx-auto min-h-[60vh] max-w-3xl px-4 py-12" aria-busy="true" />;
+  return (
+    <PageLayout variant="narrow" className="min-h-[60vh]" aria-busy="true">
+      <span className="sr-only">正在加载选手页面…</span>
+    </PageLayout>
+  );
 }

@@ -5,7 +5,7 @@ import { matches, competitionEntries, eventRosters, eventRosterMembers, matchCom
 import { matchPlayerStats } from "@/db/schema/player-stats";
 import { matchMvpVotes } from "@/db/schema/mvp-votes";
 import { MatchMvpVote } from "@/components/matches/MatchMvpVote";
-import { Panel, PosChip } from "@/components/rivalhub";
+import { PageLayout, Panel, PosChip } from "@/components/rivalhub";
 import { mapLabel } from "@/lib/maps";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { MATCH_FORMAT_LABELS, SIDE_LABELS } from "@/types/match";
@@ -378,7 +378,7 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
   const defaultTab = showSummaryTab ? "summary" : (visibleMaps[0]?.id ?? "");
 
   return (
-    <div className="container mx-auto px-4 py-12 max-w-3xl space-y-8">
+    <PageLayout variant="standard" className="space-y-8">
       <MatchHeroHeader
         seasonSlug={seasonSlug}
         match={match}
@@ -632,6 +632,6 @@ export default async function MatchDetailPage({ params }: MatchDetailPageProps) 
           completedAt={match.completedAt?.toISOString() ?? null}
         />
       )}
-    </div>
+    </PageLayout>
   );
 }

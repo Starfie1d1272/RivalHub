@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { LoginForm } from "@/components/auth/LoginForm";
-import { Panel } from "@/components/rivalhub";
+import { PageLayout, Panel } from "@/components/rivalhub";
 import { getUserSession } from "@/lib/auth/session";
 import { safeLocalRedirect } from "@/lib/auth/redirect";
 import { redirect } from "next/navigation";
@@ -16,7 +16,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   if (session) redirect(safeLocalRedirect(next, "/settings") as never);
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
+    <PageLayout variant="narrow" className="min-h-screen flex items-center justify-center">
       <Panel className="w-full max-w-sm">
         <div className="space-y-1 text-center mb-6">
           <h1
@@ -46,6 +46,6 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           </Link>
         </p>
       </Panel>
-    </div>
+    </PageLayout>
   );
 }

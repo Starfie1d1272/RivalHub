@@ -4,7 +4,7 @@ import { db } from "@/db/client";
 import { seasonAdminGrants, users } from "@/db/schema";
 import { requireSuperAdmin } from "@/lib/auth/session";
 import { resolveAdminPageAccess } from "@/lib/auth/admin-access";
-import { PageHeader, Panel, ResultSummary } from "@/components/rivalhub";
+import { PageHeader, PageLayout, Panel, ResultSummary } from "@/components/rivalhub";
 import { AdminAccessDenied } from "@/components/admin/AdminAccessDenied";
 import { Button } from "@/components/ui/button";
 import { AdminUserList } from "@/components/admin/AdminUserList";
@@ -76,7 +76,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
     const adminUsers = [...adminById.values()];
 
     return (
-      <div className="container mx-auto px-4 py-8 max-w-3xl space-y-6">
+      <PageLayout variant="wide" className="space-y-6">
         <PageHeader title="用户管理" />
         <TabBar tab="admins" />
         <AdminUserList
@@ -93,7 +93,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
           seasonMap={seasonMap}
           currentUserId={admin.userId}
         />
-      </div>
+      </PageLayout>
     );
   }
 
@@ -105,7 +105,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
   ]);
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl space-y-6">
+    <PageLayout variant="wide" className="space-y-6">
       <PageHeader title="用户管理" />
       <TabBar tab="users" />
 
@@ -205,7 +205,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps) {
           />
         </div>
       </AdminUsersListWorkspace>
-    </div>
+    </PageLayout>
   );
 }
 

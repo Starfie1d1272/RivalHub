@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { EmailConfirmationForm } from "@/components/auth/EmailConfirmationForm";
 import { SecondaryIdentityConfirmationForm } from "@/components/auth/SecondaryIdentityConfirmationForm";
+import { PageLayout } from "@/components/rivalhub";
 import { isSecondaryEmailOtpType } from "@/lib/auth/secondary-email-otp";
 
 export const instant = false;
@@ -17,7 +18,7 @@ export default async function ConfirmationPage({
     : null;
 
   return (
-    <main className="min-h-screen flex items-center justify-center px-4">
+    <PageLayout variant="narrow" className="min-h-screen flex items-center justify-center">
       <section className="w-full max-w-sm space-y-4 rounded-sm border border-[var(--color-border)] p-5 text-center">
         {identityLink ? (
           <>
@@ -47,6 +48,6 @@ export default async function ConfirmationPage({
           </>
         )}
       </section>
-    </main>
+    </PageLayout>
   );
 }

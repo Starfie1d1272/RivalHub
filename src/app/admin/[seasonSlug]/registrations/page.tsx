@@ -39,7 +39,7 @@ export default async function AdminRegistrationsPage({ params, searchParams }: P
       getTeamRegistrationProgress(season),
     ]);
     return (
-      <div className="max-w-3xl space-y-6">
+      <div className="min-w-0 space-y-6">
         <PageHeader
           title={`赛事报名审核 · ${season.name}`}
           description={`${progress.summary.total} 支队伍已开始报名 · ${review.total} 支符合当前审核筛选 · 赛季状态：${presentSeasonStatus(season.status).label}`}
@@ -72,7 +72,7 @@ export default async function AdminRegistrationsPage({ params, searchParams }: P
   ]);
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="min-w-0 space-y-6">
       <PageHeader
         title={`报名审核 · ${season.name}`}
         description={`${review.total} 份报名 · ${drafts.length} 份草稿 · 赛季状态：${presentSeasonStatus(season.status).label}`}

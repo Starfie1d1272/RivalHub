@@ -18,7 +18,7 @@ import { HomeHero } from "@/components/home/HomeHero";
 import { HomeNavigation } from "@/components/home/HomeNavigation";
 import { HomeSeasonPanel, shouldLoadRegistrationPositionCounts } from "@/components/home/HomeSeasonPanel";
 import { SeasonCardGrid } from "@/components/home/SeasonCardGrid";
-import { Panel, EmptyState } from "@/components/rivalhub";
+import { EmptyState, PageLayout, Panel } from "@/components/rivalhub";
 import { getParticipantSummary } from "@/lib/participants/summary";
 
 export default function HomePage() {
@@ -39,14 +39,14 @@ async function HomeContent() {
 
   if (!featured) {
     return (
-      <div className="mx-auto px-4 lg:px-9 py-8 max-w-[1240px]">
+      <PageLayout variant="wide">
         <Panel>
           <EmptyState
             title="暂无进行中的赛季"
             sub="请通过管理后台创建赛季。"
           />
         </Panel>
-      </div>
+      </PageLayout>
     );
   }
 
@@ -147,7 +147,7 @@ async function HomeContent() {
   );
 
   return (
-    <div className="mx-auto px-4 lg:px-9 py-8 max-w-[1240px] grid gap-7">
+    <PageLayout variant="wide" className="grid gap-7">
       {/* Hero */}
       <div className="grid gap-6 grid-cols-1 lg:grid-cols-[1.6fr_1fr]">
         <HomeHero season={featured} eyebrow={eyebrow} />
@@ -174,16 +174,16 @@ async function HomeContent() {
         title="历届赛季"
         seasons={archivedSeasons}
       />
-    </div>
+    </PageLayout>
   );
 }
 
 function HomeFallback() {
   return (
-    <div className="mx-auto px-4 lg:px-9 py-8 max-w-[1240px]">
+    <PageLayout variant="wide">
       <Panel>
         <EmptyState title="正在加载赛季" sub="请稍候。" />
       </Panel>
-    </div>
+    </PageLayout>
   );
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { PageLayout } from "@/components/rivalhub";
+
 export default function MatchDetailError({
   error,
   reset,
@@ -8,7 +10,7 @@ export default function MatchDetailError({
   reset: () => void;
 }) {
   return (
-    <div className="container mx-auto px-4 py-12 max-w-3xl">
+    <PageLayout variant="standard">
       <div className="rounded-sm bg-[var(--color-danger-soft)] border border-[var(--color-danger-edge)] p-8 text-center space-y-4">
         <div className="text-4xl text-[var(--color-danger)]">×</div>
         <h2 className="text-lg font-semibold text-[var(--color-fg)]">加载比赛详情失败</h2>
@@ -24,6 +26,6 @@ export default function MatchDetailError({
           重试
         </button>
       </div>
-    </div>
+    </PageLayout>
   );
 }

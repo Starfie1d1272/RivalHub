@@ -19,7 +19,7 @@ import { getPositionCounts, getApprovedCount } from "@/actions/register";
 import { RegistrationForm } from "@/components/register/RegistrationForm";
 import { normalizeAffiliationRules, normalizeRegistrationConfig, normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
 import { REGISTRATION_STATUS_LABELS } from "@/types/registration";
-import { Panel, StatusBanner, PosChip } from "@/components/rivalhub";
+import { PageLayout, Panel, StatusBanner, PosChip } from "@/components/rivalhub";
 import { positionLabel } from "@/lib/validators/registration";
 import { getRegistrationWindowState, getWindowTone } from "@/lib/registration/window";
 import { formatCST } from "@/lib/utils/date";
@@ -56,15 +56,17 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
 
   if (!isSoloRegistration(season) && !isTeamRegistration(season)) {
     return (
-      <div className="container mx-auto px-4 py-16 max-w-2xl">
-        <Panel contentClassName="p-10">
-          <StatusBanner
-            tone="info"
-            title={season.name}
-            sub="队伍报名尚未开放，请联系赛事管理员。"
-          />
-        </Panel>
-      </div>
+      <PageLayout variant="standard">
+        <div className="mx-auto w-full max-w-2xl">
+          <Panel contentClassName="p-10">
+            <StatusBanner
+              tone="info"
+              title={season.name}
+              sub="队伍报名尚未开放，请联系赛事管理员。"
+            />
+          </Panel>
+        </div>
+      </PageLayout>
     );
   }
 
@@ -79,17 +81,19 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
       archived: "该赛季已归档。",
     };
     return (
-      <div className="container mx-auto px-4 py-16 max-w-2xl">
-        <Panel contentClassName="p-10">
-        <div className="text-center">
-          <StatusBanner
-            tone="info"
-            title={season.name}
-            sub={statusMessages[season.status] ?? "报名通道当前不可用。"}
-          />
+      <PageLayout variant="standard">
+        <div className="mx-auto w-full max-w-2xl">
+          <Panel contentClassName="p-10">
+            <div className="text-center">
+              <StatusBanner
+                tone="info"
+                title={season.name}
+                sub={statusMessages[season.status] ?? "报名通道当前不可用。"}
+              />
+            </div>
+          </Panel>
         </div>
-      </Panel>
-      </div>
+      </PageLayout>
     );
   }
 
@@ -98,19 +102,21 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
   if (registrationWindow.phase === "unscheduled" || registrationWindow.phase === "upcoming") {
     const recoverySession = registrationWindow.needsOpeningRecovery ? await getUserSession() : null;
     return (
-      <div className="container mx-auto max-w-2xl px-4 py-16">
-        <Panel contentClassName="p-10">
-          <StatusBanner
-            tone="info"
-            title={season.name}
-            sub={[registrationWindow.message, registrationSchedule?.primary, registrationSchedule?.secondary].filter(Boolean).join(" · ")}
-          />
-          <div className="mt-3 text-center">
-            <RegistrationScheduleCountdown target={registrationSchedule?.countdownTarget ?? null} />
-            {recoverySession && <RegistrationOpeningRecovery seasonId={season.id} />}
-          </div>
-        </Panel>
-      </div>
+      <PageLayout variant="standard">
+        <div className="mx-auto w-full max-w-2xl">
+          <Panel contentClassName="p-10">
+            <StatusBanner
+              tone="info"
+              title={season.name}
+              sub={[registrationWindow.message, registrationSchedule?.primary, registrationSchedule?.secondary].filter(Boolean).join(" · ")}
+            />
+            <div className="mt-3 text-center">
+              <RegistrationScheduleCountdown target={registrationSchedule?.countdownTarget ?? null} />
+              {recoverySession && <RegistrationOpeningRecovery seasonId={season.id} />}
+            </div>
+          </Panel>
+        </div>
+      </PageLayout>
     );
   }
   const userSession = await getUserSession();
@@ -228,34 +234,36 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
     }
 
     return (
-      <div className="container mx-auto max-w-2xl space-y-6 px-4 py-10">
-        <div>
-          <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--color-accent)]">{season.name} · TEAM REGISTER</p>
-          <h1 className="text-3xl font-semibold tracking-tight text-[var(--color-fg)]">队伍报名</h1>
+      <PageLayout variant="standard">
+        <div className="mx-auto w-full max-w-2xl space-y-6">
+          <div>
+            <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--color-accent)]">{season.name} · TEAM REGISTER</p>
+            <h1 className="text-3xl font-semibold tracking-tight text-[var(--color-fg)]">队伍报名</h1>
+          </div>
+          <StatusBanner
+            tone={getWindowTone(registrationWindow.phase, registrationWindow.canSubmit)}
+            title={registrationWindow.message}
+            sub={[registrationSchedule?.primary, registrationSchedule?.secondary, season.rosterChangeClosesAt ? `名单可自行调整至 ${formatCST(season.rosterChangeClosesAt)}` : "名单调整截止时间与报名截止时间一致"].filter(Boolean).join(" · ")}
+          />
+          <RegistrationScheduleCountdown target={registrationSchedule?.countdownTarget ?? null} />
+          <CompetitionEntryFlow
+            key={entry ? `${entry.id}:${entry.updatedAt.toISOString()}` : "new"}
+            capabilities={capabilities}
+            requiresTeamLogo={normalizeTeamRegistrationConfig(season.teamRegistrationConfig).requireTeamLogo}
+            approvedTeamCount={approvedCount?.value ?? 0}
+            competitionId={season.id}
+            competitionName={season.name}
+            currentUserId={userSession.userId}
+            minRoster={season.minTeamSize}
+            maxRoster={season.maxTeamSize}
+            starterCount={season.starterCount}
+            requiresCompetitiveProfile={season.teamRegistrationConfig?.requireCompetitiveProfile ?? false}
+            showsPerfectTeamId={season.teamRegistrationConfig?.competitiveProfile?.platform === "perfect_world"}
+            captainedTeams={captainedTeams}
+            entry={entryView}
+          />
         </div>
-        <StatusBanner
-          tone={getWindowTone(registrationWindow.phase, registrationWindow.canSubmit)}
-          title={registrationWindow.message}
-          sub={[registrationSchedule?.primary, registrationSchedule?.secondary, season.rosterChangeClosesAt ? `名单可自行调整至 ${formatCST(season.rosterChangeClosesAt)}` : "名单调整截止时间与报名截止时间一致"].filter(Boolean).join(" · ")}
-        />
-        <RegistrationScheduleCountdown target={registrationSchedule?.countdownTarget ?? null} />
-        <CompetitionEntryFlow
-          key={entry ? `${entry.id}:${entry.updatedAt.toISOString()}` : "new"}
-          capabilities={capabilities}
-          requiresTeamLogo={normalizeTeamRegistrationConfig(season.teamRegistrationConfig).requireTeamLogo}
-          approvedTeamCount={approvedCount?.value ?? 0}
-          competitionId={season.id}
-          competitionName={season.name}
-          currentUserId={userSession.userId}
-          minRoster={season.minTeamSize}
-          maxRoster={season.maxTeamSize}
-          starterCount={season.starterCount}
-          requiresCompetitiveProfile={season.teamRegistrationConfig?.requireCompetitiveProfile ?? false}
-          showsPerfectTeamId={season.teamRegistrationConfig?.competitiveProfile?.platform === "perfect_world"}
-          captainedTeams={captainedTeams}
-          entry={entryView}
-        />
-      </div>
+      </PageLayout>
     );
   }
 
@@ -325,7 +333,8 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
   });
 
   return (
-    <div className="container mx-auto px-4 py-10 max-w-2xl space-y-6">
+    <PageLayout variant="standard">
+      <div className="mx-auto w-full max-w-2xl space-y-6">
       <div className="mb-8">
         <p className="font-mono text-[11px] tracking-[0.18em] text-[var(--color-accent)] uppercase mb-1">
           {season.name} · REGISTER
@@ -432,6 +441,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
       <p className="text-xs text-[var(--color-fg-dim)] text-center mt-6">
         提交即视为同意参赛规则。审核通过前可自行修改；审核通过后如需更改请联系管理员。
       </p>
-    </div>
+      </div>
+    </PageLayout>
   );
 }
