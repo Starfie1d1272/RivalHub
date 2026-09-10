@@ -6,12 +6,12 @@ import { readExpectedMigrations } from "../../../../scripts/db/production-prefli
 import { prepareTargetForDataImport } from "../../../../scripts/db/recovery/restore";
 import { verifyRecoveryDatabase } from "../../../../scripts/db/recovery/verify";
 
-const TARGET_MIGRATION = "0042_identity_foundation.sql";
+const TARGET_MIGRATION = "0048_same_epoch.sql";
 
 describe("recovery restore seed collision and auth invariant regression", () => {
   it("prevents duplicate key collision via generic pre-data-import preparation and enforces auth invariant", async () => {
     await withScratchDatabase("rivalhub_recovery_restore", async (client: Client) => {
-      // 1. Replay migrations up to TARGET_MIGRATION, which includes 0038_conversion_policies.sql
+      // 1. Replay the complete active schema through TARGET_MIGRATION, including 0038_conversion_policies.sql
       const migrations = migrationFiles((name) => /^\d{4}_.*\.sql$/.test(name));
       for (const migration of migrations.filter((name) => name <= TARGET_MIGRATION)) {
         await replayMigration(client, migration);
