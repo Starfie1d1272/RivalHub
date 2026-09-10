@@ -103,6 +103,8 @@ describe("deployment and operations contracts", () => {
     expect(backup).not.toContain("RIVALHUB_BACKUP_HEARTBEAT_URL");
     expect(backup).toContain("RIVALHUB_R2_ACCESS_KEY_ID: ${{ secrets.RIVALHUB_R2_ACCESS_KEY_ID }}");
     expect(backup).toContain("pnpm db:recovery:backup \"$RIVALHUB_BACKUP_CLASS\"");
+    expect(backup).not.toContain("inputs:");
+    expect(backup).not.toContain("backup_class:");
     expect(backup).not.toContain("upload-artifact");
 
     expect(r2).toContain("type: choice");
@@ -192,6 +194,15 @@ describe("deployment and operations contracts", () => {
     expect(releaseRunbook).toContain("temporary-sensitive/active-reference-only");
     expect(recoveryRunbook).toContain("30d");
     expect(recoveryRunbook).toContain("Cold-start provider configuration inventory");
+    expect(recoveryRunbook).not.toContain("每小时");
+    expect(recoveryRunbook).not.toContain("Better Stack");
+    expect(recoveryRunbook).not.toContain("read-new-before-write-new");
+    expect(recoveryRunbook).not.toContain("RIVALHUB_R2_READ_");
+    expect(recoveryRunbook).not.toContain("RIVALHUB_R2_ENDPOINT");
+    expect(recoveryRunbook).not.toContain("48h");
+    expect(recoveryRunbook).not.toContain("compatibility guard");
+    expect(releaseRunbook).not.toContain("Better Stack");
+    expect(releaseRunbook).not.toContain("RIVALHUB_R2_READ_");
     expect(releaseRunbook).toContain("production encrypted backup");
     expect(releaseRunbook).toContain("private R2 artifact/sidecar/completion PUT + HEAD + real GET/hash read-back");
     expect(releaseRunbook).toContain("local offline age private key decrypt");

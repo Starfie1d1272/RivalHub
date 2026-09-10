@@ -78,13 +78,13 @@ active `education-evidence` business copy 继续是 7 天 retention；encrypted 
 
 ## 5. 并发与重试
 
-`release.yml`、`recovery-backup.yml` 与 `recovery-r2.yml` 共享 `rivalhub-production-state-serialization` group，配置 `queue: max` 与 `cancel-in-progress: false`。这样 release migration、backup reference window 和 R2 provider read/apply 不会被互相取消或覆盖。workflow dispatch 可重试同一个已存在 tag 或对应操作；不得移动 tag、手工 patch production DB、用未经验证的本地 build 覆盖 production，或绕过 failed hard gate。
+`release.yml` 与 `recovery-backup.yml` 共享 `rivalhub-production-state-serialization` group，配置 `queue: max` 与 `cancel-in-progress: false`。这样 release migration 与 backup reference window 不会被互相取消或产生竞态覆盖；`recovery-r2.yml` 是独立的 provider 配置校验工作流，不参与数据库串行排队。workflow dispatch 可重试同一个已存在 tag 或对应操作；不得移动 tag、手工 patch production DB、用未经验证的本地 build 覆盖 production，或绕过 failed hard gate。
 
 ## 6. Cold-start 配置 read-back
 
-Recovery acceptance 还要人工确认 Supabase plan/physical backup/PITR、Auth/API keys、Realtime、required DB extensions/settings、Storage config、Vercel Trusted Source、GitHub Environment/OIDC/secrets/vars、Better Stack period/grace/no-start timeout、R2 per-class lifecycle/lock/private domains 和 scheduler pg_cron/pg_net/Vault names。只记录 presence/owner/capability/retention，不记录 secret value、PII、signed URL 或 dump。Supabase database backup 不包含 Storage objects，provider clone/restore 后必须单独重建这些配置。
+Recovery acceptance 还要人工确认 Supabase plan/physical backup/PITR、Auth/API keys、Realtime、required DB extensions/settings、Storage config、Vercel Trusted Source、GitHub Environment/OIDC/secrets/vars、R2 30d lifecycle/lock/private domains 和 scheduler pg_cron/pg_net/Vault names。只记录 presence/owner/capability/retention，不记录 secret value、PII、signed URL 或 dump。Supabase database backup 不包含 Storage objects，provider clone/restore 后必须单独重建这些配置。
 
-这次变更不迁移 PostgreSQL TLS 配置，不把现有 `service_role` 变量做全仓库改名或权限扩大；recovery/backup 只使用现代 `SUPABASE_SECRET_KEY`，并为既有配置保留明确的 legacy fallback。offline fetch 使用独立 R2 Object Read-only credential，绝不读取 deploy/write/decrypt credential。
+这次变更不迁移 PostgreSQL TLS 配置，不把现有 `service_role` 变量做全仓库改名或权限扩大；recovery/backup 只使用现代 `SUPABASE_SECRET_KEY`，并为既有配置保留明确的 legacy fallback。offline fetch 复用标准 R2 credential 但代码路径严格只读，绝不读取 deploy/write/decrypt credential。
 
 ## 7. Release 完成条件
 

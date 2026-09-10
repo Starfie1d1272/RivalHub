@@ -4,15 +4,6 @@ on:
   schedule:
     - cron: "15 0 * * *"
   workflow_dispatch:
-    inputs:
-      backup_class:
-        description: "备份类别"
-        required: true
-        default: manual
-        type: choice
-        options:
-          - daily
-          - manual
 
 concurrency:
   group: rivalhub-production-state-serialization
@@ -24,14 +15,14 @@ permissions:
 
 jobs:
   backup:
-    name: backup / ${{ github.event_name == 'schedule' && 'daily' || inputs.backup_class }}
+    name: backup / ${{ github.event_name == 'schedule' && 'daily' || 'manual' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment: production
     permissions:
       contents: read
     env:
-      RIVALHUB_BACKUP_CLASS: ${{ github.event_name == 'schedule' && 'daily' || inputs.backup_class }}
+      RIVALHUB_BACKUP_CLASS: ${{ github.event_name == 'schedule' && 'daily' || 'manual' }}
       RIVALHUB_DB_TARGET: production
       RIVALHUB_PRODUCTION_BASE_URL: https://match.starfie1d.top
       RIVALHUB_PRODUCTION_PROJECT_CONFIRM: sucokfotkypwqkckfynp
