@@ -42,7 +42,8 @@ describe("recovery restore seed collision and auth invariant regression", () => 
         )
       `);
       const expected = readExpectedMigrations();
-      const targetIndex = expected.findIndex((e) => e.sqlFile === TARGET_MIGRATION);
+      const targetTag = TARGET_MIGRATION.replace(/\.sql$/, "");
+      const targetIndex = expected.findIndex((e) => e.tag === targetTag);
       const prefix = expected.slice(0, targetIndex + 1);
       for (const item of prefix) {
         await client.query(
@@ -50,9 +51,12 @@ describe("recovery restore seed collision and auth invariant regression", () => 
           [item.hash, item.when],
         );
       }
+      const terminalItem = prefix.at(-1);
+      if (!terminalItem) throw new Error("Expected migration prefix cannot be empty");
       const terminalExpectedMigration = {
-        terminalHash: prefix.at(-1)?.hash ?? "",
-        terminalTag: prefix.at(-1)?.tag ?? "",
+        terminalHash: terminalItem.hash,
+        terminalTag: terminalItem.tag,
+        terminalWhen: terminalItem.when,
       };
 
       // 3. Verify migration 0038 created the seed row
