@@ -154,20 +154,26 @@ describe("deployment and operations contracts", () => {
     expect(nextConfig).toContain('RIVALHUB_RELEASE_COMMIT: process.env.RIVALHUB_RELEASE_COMMIT ?? ""');
   });
 
-  it("documents the current guided Vercel Trusted Source fields", () => {
+  it("documents the current Vercel Trusted Source fields and raw claims", () => {
     const releaseRunbook = readProjectFile("docs/operations/release.md");
     const recoveryRunbook = readProjectFile("docs/operations/disaster-recovery.md");
 
     for (const runbook of [releaseRunbook, recoveryRunbook]) {
       expect(runbook).toContain("GitHub account | `Starfie1d1272`");
       expect(runbook).toContain("Repository | `RivalHub`");
-      expect(runbook).toContain("Workflow | `Release`");
-      expect(runbook).toContain("Branch | `Any branch`");
+      expect(runbook).toContain("Branch | 留空（release 使用版本 tag，不是固定 branch）");
+      expect(runbook).toContain("GitHub Actions environment | `production`");
       expect(runbook).toContain("Audience | `https://github.com/Starfie1d1272`");
       expect(runbook).toContain("Applies to environments | `Production`");
-      expect(runbook).toContain("raw claims/editor 是可选的 advanced mode");
-      expect(runbook).not.toContain("raw claims 必须精确匹配");
-      expect(runbook).not.toContain("sub=repo:Starfie1d1272/RivalHub:environment:production");
+      expect(runbook).toContain("Edit raw claims");
+      expect(runbook).toContain("`repository_id` | `1231811932`");
+      expect(runbook).toContain("`workflow` | `Release`");
+      expect(runbook).toContain("`environment` | `production`");
+      expect(runbook).toContain("`sub` | `repo:Starfie1d1272/RivalHub:environment:production`");
+      expect(runbook).toContain("`event_name` | `push`, `workflow_dispatch`");
+      expect(runbook).toContain("不填写 `ref` 或 `workflow_ref`");
+      expect(runbook).not.toContain("Workflow | `Release`");
+      expect(runbook).not.toContain("Branch | `Any branch`");
     }
   });
 

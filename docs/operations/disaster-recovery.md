@@ -76,18 +76,30 @@ age private key只保存在离线 recovery kit/password manager。解密演练�
 
 ### Vercel Trusted Source（owner-only）
 
-首次受保护 release 前，Vercel owner 必须在 `Settings → Deployment Protection → Trusted Sources → External Services → Add → GitHub Actions` 建立 Trusted Source，并按当前 GitHub Actions 引导表单配置：
+首次受保护 release 前，Vercel owner 必须在 `Settings → Deployment Protection → Trusted Sources → External Services → Add → GitHub Actions` 建立 Trusted Source。先在引导表单选择真实项目范围，再切换 `Edit raw claims` 把 release workflow 锁死：
 
 | Dashboard 字段 | 当前值 |
 | --- | --- |
 | GitHub account | `Starfie1d1272` |
 | Repository | `RivalHub` |
-| Workflow | `Release` |
-| Branch | `Any branch` |
+| Branch | 留空（release 使用版本 tag，不是固定 branch） |
+| GitHub Actions environment | `production` |
 | Audience | `https://github.com/Starfie1d1272` |
 | Applies to environments | `Production` |
 
-Issuer 由 GitHub Actions provider 固定为 `https://token.actions.githubusercontent.com`。raw claims/editor 是可选的 advanced mode；`sub` 或 `environment` claim 不是当前引导配置的 Dashboard 必填字段。release job 仍运行在 GitHub `production` Environment 中，但该运行时上下文不要求 owner 手工填写 raw claim。代码只负责申请 OIDC token 和发送 `x-vercel-trusted-oidc-idp-token`，不能代替 Dashboard 配置；配置缺失时，release exact-deployment smoke 必须 fail closed。
+Issuer 由 GitHub Actions provider 固定为 `https://token.actions.githubusercontent.com`。在 raw claims editor 中加入以下精确值（claim 名称和值均区分大小写）：
+
+| Raw claim | 精确值 |
+| --- | --- |
+| `aud` | `https://github.com/Starfie1d1272` |
+| `repository` | `Starfie1d1272/RivalHub` |
+| `repository_id` | `1231811932` |
+| `workflow` | `Release` |
+| `environment` | `production` |
+| `sub` | `repo:Starfie1d1272/RivalHub:environment:production` |
+| `event_name` | `push`, `workflow_dispatch` |
+
+不填写 `ref` 或 `workflow_ref`：tag push 的实际 ref 是 `refs/tags/v<version>`，手动 retry 的 dispatch ref 也不是一个固定值，而 Vercel claim matching 是 exact match、没有通配符。workflow 自己仍会验证 tag commit 属于 `main`；Trusted Source 则由 repository、repository_id、workflow、environment、sub 和 event_name 共同收窄。release job 仍运行在 GitHub `production` Environment 中；代码只负责申请 OIDC token 和发送 `x-vercel-trusted-oidc-idp-token`，不能代替 Dashboard 配置；配置缺失时，release exact-deployment smoke 必须 fail closed。
 
 本 PR 不代替 provider account/Dashboard 核验：Supabase plan、automatic backup、PITR 与 provider retention 当前状态保持 `unverified / pending operator read-back`，不能作为本 Issue 已完成的 acceptance evidence。
 
