@@ -161,6 +161,137 @@ describe("Release N+1 stage runtime contract cleanup", () => {
     });
   });
 
+  it("fails closed and keeps both relations when two participant rivalhubEntryId mappings are swapped", async () => {
+    await withScratchDatabase("rivalhub_stage_runtime_swapped_participants", async (client) => {
+      await replayBeforeMigration(client, BACKFILL_MIGRATION);
+      const { seasonId } = await seedHistoricalRivals(client);
+      await replayMigration(client, BACKFILL_MIGRATION);
+
+      // Mutate canonical playoff state to swap participant 1 and participant 2 rivalhubEntryId mappings
+      await client.query(
+        `UPDATE competition_stage_bracket_states
+         SET data = jsonb_set(
+           jsonb_set(
+             data,
+             '{participant,0,rivalhubEntryId}',
+             data->'participant'->1->'rivalhubEntryId'
+           ),
+           '{participant,1,rivalhubEntryId}',
+           data->'participant'->0->'rivalhubEntryId'
+         )
+         WHERE competition_id = $1 AND stage_key = 'playoff'`,
+        [seasonId],
+      );
+
+      await expect(replayMigration(client, CONTRACT_MIGRATION)).rejects.toThrow(
+        "does not match proven candidate",
+      );
+      await expectLegacyRelationsToRemain(client);
+
+      const legacyRows = await client.query<{ count: string }>(
+        "SELECT count(*)::text AS count FROM competition_bracket_states",
+      );
+      expect(legacyRows.rows[0]?.count).toBe("1");
+    });
+  });
+
+  it("fails closed and keeps both relations when 14 managed matches exist but a bracket node id is tampered", async () => {
+    await withScratchDatabase("rivalhub_stage_runtime_tampered_node", async (client) => {
+      await replayBeforeMigration(client, BACKFILL_MIGRATION);
+      const { seasonId } = await seedHistoricalRivals(client);
+      await replayMigration(client, BACKFILL_MIGRATION);
+
+      // Keep managed match count at exactly 14, but tamper with one bracket_node_id
+      await client.query(
+        `UPDATE matches
+         SET bracket_node_id = 'historical-playoff-tampered'
+         WHERE id = (
+           SELECT id FROM matches
+           WHERE season_id = $1 AND stage = 'playoff' AND bracket_node_id = 'historical-playoff-1'
+           LIMIT 1
+         )`,
+        [seasonId],
+      );
+
+      await expect(replayMigration(client, CONTRACT_MIGRATION)).rejects.toThrow(
+        "exact match set equality failed",
+      );
+      await expectLegacyRelationsToRemain(client);
+
+      const legacyRows = await client.query<{ count: string }>(
+        "SELECT count(*)::text AS count FROM competition_bracket_states",
+      );
+      expect(legacyRows.rows[0]?.count).toBe("1");
+    });
+  });
+
+  it("fails closed and keeps both relations when a participant rivalhubEntryId points to another competition", async () => {
+    await withScratchDatabase("rivalhub_stage_runtime_foreign_entry", async (client) => {
+      await replayBeforeMigration(client, BACKFILL_MIGRATION);
+      const { seasonId } = await seedHistoricalRivals(client);
+      await replayMigration(client, BACKFILL_MIGRATION);
+
+      // Create an entry in a different competition
+      const otherSeasonId = randomUUID();
+      const otherUserId = randomUUID();
+      const otherEntryId = randomUUID();
+      const otherRevisionId = randomUUID();
+
+      await client.query(
+        "INSERT INTO seasons (id, slug, name, kind, status) VALUES ($1, 'other-rivals-season', 'Other Rivals Season', 'Rivals', 'finished')",
+        [otherSeasonId],
+      );
+      await client.query("INSERT INTO users (id, email) VALUES ($1, $2)", [
+        otherUserId,
+        "other-user@local.test",
+      ]);
+      await client.query(
+        `INSERT INTO competition_entries (
+           id, competition_id, source, name, representative_user_id,
+           current_roster_revision_id, approved_roster_revision_id, registration_status
+         ) VALUES ($1, $2, 'event_native', 'Other Entry', $3, $4, $4, 'approved')`,
+        [otherEntryId, otherSeasonId, otherUserId, otherRevisionId],
+      );
+
+      // Point participant 1 to the foreign competition entry
+      await client.query(
+        `UPDATE competition_stage_bracket_states
+         SET data = jsonb_set(
+           data,
+           '{participant,0,rivalhubEntryId}',
+           to_jsonb($2::text)
+         )
+         WHERE competition_id = $1 AND stage_key = 'playoff'`,
+        [seasonId, otherEntryId],
+      );
+
+      await expect(replayMigration(client, CONTRACT_MIGRATION)).rejects.toThrow(
+        "does not belong to competition",
+      );
+      await expectLegacyRelationsToRemain(client);
+    });
+  });
+
+  it("fails closed and keeps both relations when canonical updated_at does not match legacy updated_at", async () => {
+    await withScratchDatabase("rivalhub_stage_runtime_updated_at_mismatch", async (client) => {
+      await replayBeforeMigration(client, BACKFILL_MIGRATION);
+      const { seasonId } = await seedHistoricalRivals(client);
+      await replayMigration(client, BACKFILL_MIGRATION);
+
+      await client.query(
+        `UPDATE competition_stage_bracket_states
+         SET updated_at = updated_at + interval '1 day'
+         WHERE competition_id = $1 AND stage_key = 'playoff'`,
+        [seasonId],
+      );
+
+      await expect(replayMigration(client, CONTRACT_MIGRATION)).rejects.toThrow(
+        "canonical playoff updated_at",
+      );
+      await expectLegacyRelationsToRemain(client);
+    });
+  });
+
   it("fails closed and keeps both relations when an unknown legacy bracket row exists", async () => {
     await withScratchDatabase("rivalhub_stage_runtime_unknown_row", async (client) => {
       await replayBeforeMigration(client, BACKFILL_MIGRATION);
