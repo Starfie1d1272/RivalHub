@@ -46,7 +46,7 @@ History / Analytics / Spectator
 
 Page、Server Action、Route Handler 和 Client Component 是 entrypoint/presentation 层，只调用 canonical `src/lib/` owner；`src/lib/` domain/library 代码不得反向依赖 `src/actions/`、`src/app/` 或 `src/components/`。Client graph 只能通过 `use server` action boundary 进入 server workflow，不能到达数据库、secret/provider owner 或 server-only observability facade。
 
-这条方向由 `pnpm architecture:check` 执行检查。检查器解析 alias、relative、runtime dynamic import，并对 `src/lib/` 的 entrypoint 反向依赖、Client→Server 泄漏和 canonical third-party provider ownership fail closed；DTO/serializer 的字段泄漏仍由对应 serializer tests 负责。
+这条方向由 `pnpm architecture:check` 执行检查。检查器读取项目 tsconfig 并使用 TypeScript module resolver 解析 alias、relative 和 runtime dynamic import；Client→Server 泄漏只沿 runtime graph 检查，而 canonical third-party provider ownership 连 type-only edge 也 fail closed。DTO/serializer 的字段泄漏仍由对应 serializer tests 负责。
 
 ### Public data
 

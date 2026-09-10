@@ -22,7 +22,7 @@ describe("match time auto-award cron route", () => {
   });
 
   it("runs match time auto-award when authorized", async () => {
-    runMatchTimeAutoAwardCronMock.mockResolvedValue({ processed: 1, awarded: 1, skipped: 0 });
+    runMatchTimeAutoAwardCronMock.mockResolvedValue({ processed: 1, awarded: 1, skipped: 0, failed: 0, affectedMatches: [] });
 
     const response = await GET(
       new Request("http://localhost/api/cron/match-time-auto-award", {
@@ -32,7 +32,7 @@ describe("match time auto-award cron route", () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(body).toEqual({ ok: true, processed: 1, awarded: 1, skipped: 0 });
-    expect(runMatchTimeAutoAwardCronMock).toHaveBeenCalledWith(expect.any(Date), expect.any(Function));
+    expect(body).toEqual({ ok: true, processed: 1, awarded: 1, skipped: 0, failed: 0 });
+    expect(runMatchTimeAutoAwardCronMock).toHaveBeenCalledWith(expect.any(Date));
   });
 });

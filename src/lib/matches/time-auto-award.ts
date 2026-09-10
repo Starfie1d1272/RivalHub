@@ -16,15 +16,13 @@ export interface MatchTimeAutoAwardCronSummary {
   awarded: number;
   skipped: number;
   failed: number;
+  affectedMatches: Array<{ seasonSlug: string; matchId: string }>;
 }
-
-type AwardCallback = (seasonSlug: string, matchId: string) => void;
 
 export async function runMatchTimeAutoAwardCron(
   now = new Date(),
-  onAward?: AwardCallback,
 ): Promise<MatchTimeAutoAwardCronSummary> {
-  const proposalTimeoutResult = await autoAcceptExpiredProposals(now, onAward);
+  const proposalTimeoutResult = await autoAcceptExpiredProposals(now);
 
   const cutoffThreshold = new Date(
     now.getTime() + TIME_CONFIRMATION_BUFFER_HOURS * 60 * 60 * 1000,
@@ -49,6 +47,7 @@ export async function runMatchTimeAutoAwardCron(
   let awarded = proposalTimeoutResult.awarded;
   let skipped = proposalTimeoutResult.skipped;
   let failed = proposalTimeoutResult.failed;
+  const affectedMatches = [...proposalTimeoutResult.affectedMatches];
   for (const item of settled) {
     if (item.status === "rejected") {
       failed += 1;
@@ -57,7 +56,7 @@ export async function runMatchTimeAutoAwardCron(
     const { matchId, result } = item.value;
     if (result.awarded) {
       awarded += 1;
-      onAward?.(result.seasonSlug, matchId);
+      affectedMatches.push({ seasonSlug: result.seasonSlug, matchId });
     } else {
       skipped += 1;
     }
@@ -68,13 +67,19 @@ export async function runMatchTimeAutoAwardCron(
     awarded,
     skipped,
     failed,
+    affectedMatches,
   };
 }
 
 async function autoAcceptExpiredProposals(
   now: Date,
-  onAward?: AwardCallback,
-): Promise<{ processed: number; awarded: number; skipped: number; failed: number }> {
+): Promise<{
+  processed: number;
+  awarded: number;
+  skipped: number;
+  failed: number;
+  affectedMatches: Array<{ seasonSlug: string; matchId: string }>;
+}> {
   const expiredBefore = new Date(
     now.getTime() - PROPOSAL_AUTO_ACCEPT_HOURS * 60 * 60 * 1000,
   );
@@ -93,6 +98,7 @@ async function autoAcceptExpiredProposals(
   let awarded = 0;
   let skipped = 0;
   let failed = 0;
+  const affectedMatches: Array<{ seasonSlug: string; matchId: string }> = [];
   for (const item of settled) {
     if (item.status === "rejected") {
       failed += 1;
@@ -100,13 +106,13 @@ async function autoAcceptExpiredProposals(
     }
     if (item.value.awarded) {
       awarded += 1;
-      onAward?.(item.value.seasonSlug, item.value.matchId);
+      affectedMatches.push({ seasonSlug: item.value.seasonSlug, matchId: item.value.matchId });
     } else {
       skipped += 1;
     }
   }
 
-  return { processed: expiredProposals.length, awarded, skipped, failed };
+  return { processed: expiredProposals.length, awarded, skipped, failed, affectedMatches };
 }
 
 async function autoAcceptSingleProposal(

@@ -38,6 +38,23 @@ describe("architecture import boundaries", () => {
     expect(violations).toHaveLength(2);
   });
 
+  it("rejects a client root that imports server-only directly", () => {
+    const violations = checkArchitecture({
+      files: {
+        "src/components/client.tsx": '"use client";\nimport "server-only";\n',
+      },
+    });
+
+    expect(violations).toEqual([
+      expect.objectContaining({
+        ruleId: "ARCH_CLIENT_SERVER",
+        file: "src/components/client.tsx",
+        target: "server-only",
+        message: expect.stringContaining("use server"),
+      }),
+    ]);
+  });
+
   it("rejects client access to database and server-owned facades", () => {
     const violations = checkArchitecture({
       files: {
@@ -127,6 +144,23 @@ describe("architecture import boundaries", () => {
       expect.objectContaining({ ruleId: "ARCH_CANONICAL_PROVIDER", file: "src/lib/standings/supabase.ts", target: "@supabase/supabase-js" }),
     ]));
     expect(violations).toHaveLength(2);
+  });
+
+  it("rejects type-only canonical provider imports", () => {
+    const violations = checkArchitecture({
+      files: {
+        "src/lib/standings/type-only-bracket.ts": 'import type { Database } from "brackets-manager";\n',
+      },
+    });
+
+    expect(violations).toEqual([
+      expect.objectContaining({
+        ruleId: "ARCH_CANONICAL_PROVIDER",
+        file: "src/lib/standings/type-only-bracket.ts",
+        target: "brackets-manager",
+        message: expect.stringContaining("canonical bracket owner"),
+      }),
+    ]);
   });
 
   it("rejects direct brackets-manager imports outside the adapter", async () => {

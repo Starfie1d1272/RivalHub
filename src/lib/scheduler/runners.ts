@@ -72,13 +72,15 @@ export async function runDraftTimeoutJob() {
 }
 
 export async function runMatchTimeAutoAwardJob() {
-  const result = await runMatchTimeAutoAwardCron(new Date(), (seasonSlug, matchId) => {
+  const result = await runMatchTimeAutoAwardCron(new Date());
+  const { affectedMatches, ...summary } = result;
+  for (const { seasonSlug, matchId } of affectedMatches) {
     revalidateMatchPaths(seasonSlug, matchId, { mode: "route" });
-  });
+  }
   return {
-    result,
+    result: summary,
     businessTransitions: result.awarded,
-  } satisfies SchedulerRunnerResult<typeof result>;
+  } satisfies SchedulerRunnerResult<typeof summary>;
 }
 
 export async function runEducationEvidenceCleanupJob() {

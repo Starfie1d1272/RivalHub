@@ -4,7 +4,6 @@ import { pathToFileURL } from "node:url";
 import ts from "typescript";
 
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mts", ".cts"]);
-const LOCAL_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mts", ".cts"];
 const CLIENT_BOUNDARY_PATHS = ["src/db/"];
 const SERVER_OWNER_PATHS = [
   "src/lib/auth/supabase-server.ts",
@@ -36,6 +35,7 @@ interface SourceRecord {
   useClient: boolean;
   useServer: boolean;
   serverOnly: boolean;
+  allEdges: ModuleEdge[];
   runtimeEdges: ModuleEdge[];
 }
 
@@ -46,12 +46,25 @@ interface ModuleEdge {
 
 interface ModuleGraph {
   records: Map<string, SourceRecord>;
+  resolver: ModuleResolver;
   violations: ArchitectureViolation[];
 }
 
+interface ModuleResolver {
+  rootDir: string;
+  compilerOptions: ts.CompilerOptions;
+  host: ts.ModuleResolutionHost;
+  cache: Map<string, string | null>;
+}
+
 export function checkArchitecture(options: ArchitectureCheckOptions = {}): ArchitectureViolation[] {
-  const records = loadRecords(options);
-  const graph: ModuleGraph = { records, violations: [] };
+  const rootDir = resolve(options.rootDir ?? process.cwd());
+  const records = loadRecords(options, rootDir);
+  const graph: ModuleGraph = {
+    records,
+    resolver: createModuleResolver(rootDir, options.files),
+    violations: [],
+  };
   const seenViolations = new Set<string>();
 
   const report = (violation: ArchitectureViolation) => {
@@ -63,7 +76,7 @@ export function checkArchitecture(options: ArchitectureCheckOptions = {}): Archi
   };
 
   for (const record of records.values()) {
-    for (const edge of record.runtimeEdges) {
+    for (const edge of record.allEdges) {
       checkCanonicalProvider(record, edge.specifier, report);
     }
   }
@@ -90,10 +103,10 @@ export function formatArchitectureViolation(violation: ArchitectureViolation): s
   return `${violation.ruleId} ${violation.file}${target}: ${violation.message}`;
 }
 
-function loadRecords(options: ArchitectureCheckOptions): Map<string, SourceRecord> {
+function loadRecords(options: ArchitectureCheckOptions, rootDir: string): Map<string, SourceRecord> {
   const files = options.files
     ? new Map(Object.entries(options.files).map(([path, source]) => [normalizePath(path), source]))
-    : readRepositoryFiles(resolve(options.rootDir ?? process.cwd(), "src"));
+    : readRepositoryFiles(resolve(rootDir, "src"));
 
   return new Map(
     [...files.entries()]
@@ -111,10 +124,53 @@ function loadRecords(options: ArchitectureCheckOptions): Map<string, SourceRecor
           useClient: hasDirective(ast, "use client"),
           useServer: hasDirective(ast, "use server"),
           serverOnly: runtimeEdges.some((edge) => edge.specifier === "server-only"),
+          allEdges,
           runtimeEdges,
         } satisfies SourceRecord];
       }),
   );
+}
+
+function createModuleResolver(rootDir: string, files?: Record<string, string>): ModuleResolver {
+  const inMemoryFiles = new Map<string, string>();
+  if (files) {
+    for (const [path, source] of Object.entries(files)) {
+      inMemoryFiles.set(resolve(rootDir, normalizePath(path)), source);
+    }
+  }
+
+  const normalizeAbsolutePath = (path: string) => resolve(path);
+  const hasInMemoryFileUnder = (directory: string) => {
+    const normalizedDirectory = normalizeAbsolutePath(directory).replace(/[\\/]$/, "");
+    return [...inMemoryFiles.keys()].some((fileName) => fileName.startsWith(`${normalizedDirectory}/`));
+  };
+
+  const host: ts.ModuleResolutionHost = {
+    fileExists: (fileName) => inMemoryFiles.has(normalizeAbsolutePath(fileName)) || ts.sys.fileExists(fileName),
+    readFile: (fileName) => inMemoryFiles.get(normalizeAbsolutePath(fileName)) ?? ts.sys.readFile(fileName),
+    directoryExists: (directory) => hasInMemoryFileUnder(directory) || ts.sys.directoryExists(directory),
+    realpath: (fileName) => ts.sys.realpath?.(fileName) ?? fileName,
+  };
+
+  const configPath = ts.findConfigFile(rootDir, ts.sys.fileExists, "tsconfig.app.json")
+    ?? ts.findConfigFile(rootDir, ts.sys.fileExists, "tsconfig.json");
+  if (!configPath) {
+    throw new Error(`Architecture checker could not find tsconfig.app.json or tsconfig.json under ${rootDir}`);
+  }
+
+  const parsed = ts.getParsedCommandLineOfConfigFile(configPath, {}, {
+    ...ts.sys,
+    onUnRecoverableConfigFileDiagnostic: (diagnostic) => {
+      throw new Error(
+        `Architecture checker could not parse ${configPath}: ${ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n")}`,
+      );
+    },
+  });
+  if (!parsed) {
+    throw new Error(`Architecture checker could not parse ${configPath}`);
+  }
+
+  return { rootDir, compilerOptions: parsed.options, host, cache: new Map() };
 }
 
 function readRepositoryFiles(sourceDir: string): Map<string, string> {
@@ -251,7 +307,7 @@ function traverseLibrary(
   visited.add(record.path);
 
   for (const edge of record.runtimeEdges) {
-    const target = resolveLocalModule(record.path, edge.specifier, graph.records);
+    const target = resolveLocalModule(record.path, edge.specifier, graph.records, graph.resolver);
     if (!target) continue;
     if (target.path.startsWith("src/actions/") || target.path.startsWith("src/app/") || target.path.startsWith("src/components/")) {
       report({
@@ -274,8 +330,17 @@ function traverseClient(
   if (visited.has(record.path)) return;
   visited.add(record.path);
 
+  if (record.serverOnly) {
+    report({
+      ruleId: "ARCH_CLIENT_SERVER",
+      file: record.path,
+      target: "server-only",
+      message: "use client 模块不能直接导入 server-only；通过 use server action 返回显式 DTO。",
+    });
+  }
+
   for (const edge of record.runtimeEdges) {
-    const target = resolveLocalModule(record.path, edge.specifier, graph.records);
+    const target = resolveLocalModule(record.path, edge.specifier, graph.records, graph.resolver);
     if (!target) continue;
     if (target.useServer) continue;
     if (isClientForbiddenTarget(target)) {
@@ -301,29 +366,23 @@ function resolveLocalModule(
   importer: string,
   specifier: string,
   records: Map<string, SourceRecord>,
+  resolver: ModuleResolver,
 ): SourceRecord | undefined {
-  let base: string | undefined;
-  if (specifier.startsWith("@/")) {
-    base = `src/${specifier.slice(2)}`;
-  } else if (specifier.startsWith(".")) {
-    base = normalizePath(posix.join(posix.dirname(importer), specifier));
+  const cacheKey = `${importer}\0${specifier}`;
+  if (!resolver.cache.has(cacheKey)) {
+    const resolved = ts.resolveModuleName(
+      specifier,
+      resolve(resolver.rootDir, importer),
+      resolver.compilerOptions,
+      resolver.host,
+    ).resolvedModule;
+    const resolvedPath = resolved
+      ? normalizePath(relative(resolver.rootDir, resolved.resolvedFileName))
+      : null;
+    resolver.cache.set(cacheKey, resolvedPath);
   }
-  if (!base) return undefined;
-
-  for (const candidate of moduleCandidates(normalizePath(base))) {
-    const record = records.get(candidate);
-    if (record) return record;
-  }
-  return undefined;
-}
-
-function moduleCandidates(base: string): string[] {
-  const candidates = [base];
-  if (!extname(base)) {
-    for (const extension of LOCAL_EXTENSIONS) candidates.push(`${base}${extension}`);
-    for (const extension of LOCAL_EXTENSIONS) candidates.push(`${base}/index${extension}`);
-  }
-  return candidates;
+  const resolvedPath = resolver.cache.get(cacheKey);
+  return resolvedPath ? records.get(resolvedPath) : undefined;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
