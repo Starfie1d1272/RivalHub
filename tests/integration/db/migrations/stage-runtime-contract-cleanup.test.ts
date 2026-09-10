@@ -3,7 +3,8 @@ import { Client } from "pg";
 import { describe, expect, it } from "vitest";
 import { migrationFiles, replayMigration, withScratchDatabase } from "../harness/migration-replay";
 
-const TARGET_MIGRATION = "0048_same_epoch.sql";
+const BACKFILL_MIGRATION = "0048_same_epoch.sql";
+const CONTRACT_MIGRATION = "0049_ambiguous_brood.sql";
 const HISTORICAL_PARTICIPANTS = Array.from({ length: 8 }, (_, index) => ({
   id: index + 1,
   name: `Historical entrant ${index + 1}`,
@@ -13,16 +14,16 @@ const HISTORICAL_MATCHUPS: ReadonlyArray<readonly [number, number]> = [
   [1, 3], [2, 4], [3, 5], [4, 6], [5, 7], [6, 8],
 ];
 
-async function replayBeforeTarget(client: Client): Promise<void> {
-  for (const migration of migrationFiles((name) => name.endsWith(".sql") && name < TARGET_MIGRATION)) {
+async function replayBeforeMigration(client: Client, migrationName: string): Promise<void> {
+  for (const migration of migrationFiles((name) => name.endsWith(".sql") && name < migrationName)) {
     await replayMigration(client, migration);
   }
 }
 
-describe("2026 Rivals stage-scoped bracket backfill", () => {
-  it("migrates the complete historical playoff fixture into the stage owner", async () => {
-    await withScratchDatabase("rivalhub_0048_rivals_backfill", async (client) => {
-      await replayBeforeTarget(client);
+describe("Release N+1 stage runtime contract cleanup", () => {
+  it("preserves the canonical backfill and physically drops both legacy relations", async () => {
+    await withScratchDatabase("rivalhub_stage_runtime_cleanup", async (client) => {
+      await replayBeforeMigration(client, BACKFILL_MIGRATION);
 
       const seasonId = randomUUID();
       const userIds = HISTORICAL_PARTICIPANTS.map(() => randomUUID());
@@ -63,12 +64,12 @@ describe("2026 Rivals stage-scoped bracket backfill", () => {
           );
           await client.query(
             `INSERT INTO competition_entry_representative_changes (entry_id, from_user_id, to_user_id, changed_by_actor_id)
-             VALUES ($1, NULL, $2, '0048-backfill-test')`,
+             VALUES ($1, NULL, $2, '0049-contract-test')`,
             [entryIds[index], userIds[index]],
           );
           await client.query(
             `INSERT INTO competition_entry_roster_revisions (id, entry_id, revision_number, status, created_by, approved_at)
-             VALUES ($1, $2, 1, 'approved', '0048-backfill-test', now())`,
+             VALUES ($1, $2, 1, 'approved', '0049-contract-test', now())`,
             [revisionIds[index], entryIds[index]],
           );
         }
@@ -91,16 +92,16 @@ describe("2026 Rivals stage-scoped bracket backfill", () => {
         throw error;
       }
 
-      await replayMigration(client, TARGET_MIGRATION);
+      await replayMigration(client, BACKFILL_MIGRATION);
 
-      const stageState = await client.query<{ competition_id: string; stage_key: string; data: unknown; updated_at: Date }>(
+      const beforeCleanup = await client.query<{ competition_id: string; stage_key: string; data: unknown; updated_at: Date }>(
         "SELECT competition_id, stage_key, data, updated_at FROM competition_stage_bracket_states",
       );
-      expect(stageState.rows).toHaveLength(1);
-      expect(stageState.rows[0]?.competition_id).toBe(seasonId);
-      expect(stageState.rows[0]?.stage_key).toBe("playoff");
-      expect(stageState.rows[0]?.updated_at.toISOString()).toBe(updatedAt);
-      expect(stageState.rows[0]?.data).toEqual({
+      expect(beforeCleanup.rows).toHaveLength(1);
+      expect(beforeCleanup.rows[0]?.competition_id).toBe(seasonId);
+      expect(beforeCleanup.rows[0]?.stage_key).toBe("playoff");
+      expect(beforeCleanup.rows[0]?.updated_at.toISOString()).toBe(updatedAt);
+      expect(beforeCleanup.rows[0]?.data).toEqual({
         ...sourceData,
         participant: HISTORICAL_PARTICIPANTS.map((participant) => ({
           ...participant,
@@ -108,11 +109,27 @@ describe("2026 Rivals stage-scoped bracket backfill", () => {
         })),
       });
 
-      const legacyState = await client.query<{ data: unknown }>(
-        "SELECT data FROM competition_bracket_states WHERE competition_id = $1",
+      await replayMigration(client, CONTRACT_MIGRATION);
+
+      const afterCleanup = await client.query<{ data: unknown }>(
+        "SELECT data FROM competition_stage_bracket_states WHERE competition_id = $1 AND stage_key = 'playoff'",
         [seasonId],
       );
-      expect(legacyState.rows[0]?.data).toEqual(sourceData);
+      expect(afterCleanup.rows[0]?.data).toEqual(beforeCleanup.rows[0]?.data);
+
+      const managedMatches = await client.query<{ count: string }>(
+        `SELECT count(*)::text AS count
+         FROM matches
+         WHERE season_id = $1 AND stage = 'playoff' AND bracket_node_id IS NOT NULL`,
+        [seasonId],
+      );
+      expect(managedMatches.rows[0]?.count).toBe("14");
+
+      const legacyRelations = await client.query<{ bracket_table: string | null; standings_table: string | null }>(
+        `SELECT to_regclass('public.competition_bracket_states')::text AS bracket_table,
+                to_regclass('public.swiss_standings')::text AS standings_table`,
+      );
+      expect(legacyRelations.rows[0]).toEqual({ bracket_table: null, standings_table: null });
     });
   });
 });

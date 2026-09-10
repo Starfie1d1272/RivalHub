@@ -2,20 +2,8 @@ import { jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/p
 import type { BracketDatabase as Database } from "@/lib/bracket";
 import { seasons } from "./seasons";
 
-/** The one persisted brackets-manager state owned by a competition. */
-export const competitionBracketStates = pgTable("competition_bracket_states", {
-  competitionId: uuid("competition_id")
-    .primaryKey()
-    .references(() => seasons.id, { onDelete: "cascade" }),
-  data: jsonb("data").$type<Database>().notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
-
-export type CompetitionBracketState = typeof competitionBracketStates.$inferSelect;
-export type NewCompetitionBracketState = typeof competitionBracketStates.$inferInsert;
-
 /**
- * Release-N owner for generic brackets-manager state.
+ * Persisted brackets-manager state for a logical stage.
  *
  * The stage key is part of the storage identity.  A competition may contain
  * more than one provider-backed stage and provider ids are only meaningful

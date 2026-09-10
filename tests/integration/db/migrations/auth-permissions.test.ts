@@ -172,7 +172,7 @@ describe("auth-permissions migration", () => {
     });
   });
 
-  it("preserves prior Team/Entry and bracket invariants across auth migration", async () => {
+  it("preserves prior Team/Entry invariants across auth migration", async () => {
     await withScratchDatabase("rivalhub_auth_preserves_prior_invariants", async (client) => {
       await replayBeforeAuthMigration(client);
       await replayMigration(client, TERMINAL_MIGRATION);
@@ -191,12 +191,6 @@ describe("auth-permissions migration", () => {
         { conname: "competition_entries_current_roster_revision_scope_fk", condeferrable: true, condeferred: true },
       ]);
 
-      const bracketOwner = await client.query<{ table_name: string | null; old_column_count: string }>(
-        `SELECT to_regclass('public.competition_bracket_states')::text AS table_name,
-                (SELECT count(*)::text FROM information_schema.columns
-                 WHERE table_schema = 'public' AND table_name = 'seasons' AND column_name = 'bracket_data') AS old_column_count`,
-      );
-      expect(bracketOwner.rows[0]).toEqual({ table_name: "competition_bracket_states", old_column_count: "0" });
     });
   });
 

@@ -4,9 +4,9 @@
 
 ## 结论
 
-- 当前 active chain 的 73 张 application-owned `public` base table 全部归类为 `server_only`。业务数据库只由 server-side Drizzle 访问，browser Data API consumer 为零。
+- 当前 active chain 的 71 张 application-owned `public` base table 全部归类为 `server_only`。业务数据库只由 server-side Drizzle 访问，browser Data API consumer 为零。
 - `users`、`user_sessions`、`admin_invites`、`admin_invite_claims`、`season_admin_grants`、`audit_logs`、education evidence、Major prestart/runtime 和 bracket runtime 均按高敏感 server-only 处理。
-- 2026-09-03 production 只读 inventory 在 migration 前确认 `competition_bracket_states` 是明确的 anon/authenticated CRUD privilege 例外；Issue #395 的 forward migration 将其与其余表统一收口。
+- 通用 provider bracket state 按 `(competition_id, stage_key)` 归属 canonical logical Stage；Major Swiss standings 只由 StageRun entrants、managed matches 与 finalized round 投影。
 - `DraftLiveRoom` 与 `CaptainVotingPanel` 的 Realtime subscription 已删除。两处继续使用既有 10 秒 polling fallback；`ResetPasswordForm` 保留 browser Supabase client，但仅调用 Supabase Auth，不调用 public table Data API。
 - `supabase_realtime` publication 不应包含本矩阵中的任何表；若新增 direct Data API 或 Realtime surface，必须先新增明确 classification、最小 privilege、RLS policy、publication 说明和正反例测试。
 
@@ -20,7 +20,6 @@
 | captain_votes | 参赛者投票事实 | Rivals 队长投票 | src/actions/captains.ts; src/lib/captains/data.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 投票 mutation 与结果读取通过 Server Action/Server Component；浏览器只轮询刷新。 |
 | community_award_evidence | 内部证据与提交人信息 | 赛后 / 社区奖项 | src/lib/community-awards/service.ts; src/lib/audit/targets.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 证据用于审核和审计，公开奖项只消费显式 read model。 |
 | community_awards | 审核、结果与奖项内部事实 | 赛后 / 社区奖项 | src/lib/community-awards/service.ts; src/actions/community-awards.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | public_note 等公开字段由服务端 projection 决定，原始审核记录仍为 server-only。 |
-| competition_bracket_states | 高敏感运行时 JSON | 赛事 bracket runtime | 无（Release-N compatibility shell；stage-scoped owner 见下一项） | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | Release-N 保留旧表结构供兼容迁移与回滚观察；应用不再读取或写入，N+1 contract 才删除。 |
 | competition_stage_bracket_states | 高敏感、阶段范围运行时 JSON | 赛事 bracket runtime | src/lib/bracket/index.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 每个 logical Stage 由 (competition_id, stage_key) 独立拥有 provider state；阶段 key 是领域 identity，浏览器不直连。 |
 | competition_entries | 参赛身份、代表人与报名状态 | CompetitionEntry / 报名 | src/lib/competition-entries/; src/actions/competition-entries.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | CompetitionEntry 是报名与 runtime 的 canonical aggregate，不通过 Data API 旁路访问。 |
 | competition_entry_active_claims | 并发占用 ledger | CompetitionEntry integrity | src/lib/competition-entries/commands.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 用于跨 Entry 用户占用约束和并发收敛。 |
@@ -72,7 +71,6 @@
 | scheduled_job_health | 定时任务当前健康投影 | Scheduler runtime | src/lib/scheduler/health.ts; src/lib/scheduler/admin.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 只保存每个 job 的有界当前状态，供服务端调度与超级管理员系统状态页读取；不形成浏览器 Data API 或 Realtime surface。 |
 | season_registrations | 报名、资格与个人竞技资料 | Rivals 报名 | src/actions/register.ts; src/lib/qualification/service.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 报名状态和教育/竞技资料由服务端验证后投影。 |
 | seasons | 赛事生命周期与冻结配置 | 赛事配置 | src/actions/seasons.ts; src/lib/seasons/; src/db/schema/seasons.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 赛事 capability、注册窗口和冻结配置是业务控制面，不允许 Data API 旁路。 |
-| swiss_standings | 排名 projection 与阶段事实 | Major Swiss | 无（Release-N compatibility shell；Major Swiss read model 由 StageEntrants + managed matches + finalizedRound 投影） | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 保留旧表结构供兼容迁移与回滚观察；应用不再读取或写入，N+1 contract 才删除。 |
 | team_captain_changes | 队长变更历史 | 长期 Team | src/lib/teams/commands.ts; src/app/teams/[slug]/page.tsx | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 队长 tenure/变更审计只由 Team command owner 写入。 |
 | team_invitations | 邀请 token 与成员关系 | 长期 Team | src/lib/teams/invitations.ts; src/actions/teams.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 邀请状态和 token 是高敏感 mutation 事实。 |
 | team_memberships | 用户队伍归属 | 长期 Team | src/lib/teams/invitations.ts; src/lib/teams/commands.ts | 无（仅服务端 Drizzle；浏览器不直连业务表） | 无（Realtime 已移除；使用现有 polling fallback） | 无 | 无 | 是 | 无（RLS deny） | 无 | server_only | 成员状态和结束原因由 Team command owner 维护。 |

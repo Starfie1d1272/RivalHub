@@ -70,7 +70,7 @@ function completedFact(match: typeof matches.$inferSelect): MajorSwissMatchFact 
 /**
  * Atomically accepts one already-complete Major Swiss round and creates the
  * next round's managed matches. The locked StageRun row serializes retries and
- * concurrent operator clicks; no legacy swiss_standings data is consulted.
+ * concurrent operator clicks.
  */
 export async function finalizeMajorSwissRoundInTransaction(
   tx: TxDb,
