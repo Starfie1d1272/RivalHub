@@ -79,7 +79,8 @@ describe("audit log pages", () => {
     const page = await AdminLogsPage({ searchParams: Promise.resolve({}) });
     const html = renderToStaticMarkup(page);
 
-    expect(html).toContain("max-w-6xl");
+    expect(html).toContain('data-layout-variant="wide"');
+    expect(html).toContain("max-w-7xl");
     expect(html).not.toContain("max-w-4xl");
     expect(html).toContain('data-testid="audit-log-table"');
   });
