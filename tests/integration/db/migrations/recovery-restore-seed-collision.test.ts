@@ -171,7 +171,7 @@ describe("recovery restore seed collision and auth invariant regression", () => 
       // Add a primary user identity so identity invariants also pass
       await client.query(
         `INSERT INTO public.user_identities (id, user_id, provider, provider_subject, kind, status, is_primary)
-         VALUES ('66666666-6666-4666-8666-666666666666', $1, 'email', 'dangling@example.test', 'account_login', 'active', true)`,
+         VALUES ('66666666-6666-4666-8666-666666666666', $1, 'email', 'dangling@example.test', 'email', 'active', true)`,
         [userId],
       );
 
