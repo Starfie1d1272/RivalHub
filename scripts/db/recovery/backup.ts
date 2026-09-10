@@ -12,7 +12,6 @@ import {
 } from "./environment";
 import {
   RECOVERY_FORMAT_VERSION,
-  assertRecoveryFormatCompatibility,
   digestFile,
   serializeCompletionMarker,
   serializeManifest,
@@ -28,7 +27,6 @@ import {
   assertActiveStorageReferencesStable,
   snapshotStorage,
 } from "./storage";
-import { sendBackupHeartbeat } from "./heartbeat";
 import { readManagedStorageReferences, type ManagedStorageReference } from "./storage-policy";
 import { resolveProductionSourceIdentity } from "./source";
 import {
@@ -41,7 +39,6 @@ const projectRoot = resolve(process.cwd());
 const pnpmBin = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 
 async function main(): Promise<void> {
-  assertRecoveryFormatCompatibility();
   const backupClass = assertBackupClass(process.argv[2] ?? process.env.RIVALHUB_BACKUP_CLASS);
   const environment = assertProductionBackupEnvironment(process.env);
   const runId = randomUUID();
@@ -50,7 +47,6 @@ async function main(): Promise<void> {
   const stagingRoot = join(tempRoot, "backup");
   mkdirSync(stagingRoot, { recursive: true });
 
-  let backupCompleted = false;
   try {
     const supabaseCliVersion = readSupabaseCliVersion();
     const migration = await readProductionMigrationIdentity(environment.databaseUrl);
@@ -157,23 +153,10 @@ async function main(): Promise<void> {
       metadata: { sha256: completionSha256, "run-id": runId, "backup-class": backupClass },
     });
     verifyR2Object(r2, keys.completion, completionPath, join(tempRoot, "completion.readback"));
-    await sendBackupHeartbeat(environment.backupHeartbeatUrl, "success");
-    backupCompleted = true;
 
     console.log(
       `Production backup complete: class=${backupClass}, run=${runId}, artifactBytes=${artifactBytes}, storageObjects=${storage.objectCount}, storageBytes=${storage.totalBytes}, artifactSha256=${artifactSha256}.`,
     );
-  } catch (error) {
-    if (!backupCompleted) {
-      try {
-        await sendBackupHeartbeat(environment.backupHeartbeatUrl, "failure");
-      } catch {
-        // The heartbeat endpoint must never echo provider diagnostics or
-        // secrets into the Actions log; the original failure remains primary.
-        console.error("Better Stack failure heartbeat could not be delivered.");
-      }
-    }
-    throw error;
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }

@@ -23,7 +23,7 @@ Push tag 或显式 retry 已存在 tag 后，GitHub Actions **Release** 围绕�
 ```text
 validate tag belongs to main
 → validate active migration chain + previous-release compatibility
-→ fresh pre-release backup + R2 read-back + Better Stack heartbeat
+→ fresh pre-release backup + R2 read-back
 → migrate + verify production database
 → deploy exact tag commit to Vercel Production
 → protected deployment smoke + canonical production identity read-back
@@ -69,7 +69,6 @@ Recovery hardening 作为独立 release capability 进入 `main` 后，仍须完
 ```text
 production encrypted backup
 → private R2 artifact/sidecar/completion PUT + HEAD + real GET/hash read-back
-→ Better Stack success heartbeat
 → offline read-only fetch
 → local offline age private key decrypt
 → disposable isolated target restore/verify/application smoke
@@ -92,7 +91,7 @@ Recovery acceptance 还要人工确认 Supabase plan/physical backup/PITR、Auth
 只有以下条件全部成立才算 release 完成：
 
 - tag、实际 release commit、production deployment identity 对齐；
-- pre-release backup、R2 HEAD/real GET/hash read-back 与 Better Stack success heartbeat 通过；
+- pre-release backup、R2 HEAD/real GET/hash read-back 通过；
 - production migration/verify、Vercel protected smoke、canonical identity read-back、scheduler provision/verify 通过；
 - GitHub Release notes 与 compare link 正确；
 - Vercel Trusted Source 已由 owner 配置并以短期 GitHub OIDC exact deployment smoke 证明；

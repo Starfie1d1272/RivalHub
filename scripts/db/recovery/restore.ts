@@ -12,7 +12,6 @@ import {
 } from "./environment";
 import {
   assertRecoveryCompletionMarker,
-  assertRecoveryFormatCompatibility,
   assertRecoveryManifest,
   assertRecoverySidecar,
   sha256File,
@@ -43,7 +42,6 @@ interface RestoreArguments {
 }
 
 async function main(): Promise<void> {
-  assertRecoveryFormatCompatibility();
   const args = parseArguments(process.argv.slice(2));
   const target = readRecoveryTarget();
   const tempRoot = mkdtempSync(join(tmpdir(), "rivalhub-restore-"));

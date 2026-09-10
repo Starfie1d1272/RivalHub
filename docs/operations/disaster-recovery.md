@@ -21,7 +21,7 @@ RivalHub 使用 Recovery format 2 的全量 logical snapshot：production Supaba
 | --- | --- |
 | `.github/workflows/recovery-backup.yml` | 每小时 UTC 第 17 分钟执行，并支持受保护的 daily/manual dispatch |
 | `.github/workflows/release.yml` | production migration 前执行 `pre-release` backup hard gate |
-| `scripts/db/recovery/backup.ts` | 唯一 logical backup、Storage snapshot、age、R2 PUT/HEAD/GET read-back 与 heartbeat owner |
+| `scripts/db/recovery/backup.ts` | 唯一 logical backup、Storage snapshot、age、R2 PUT/HEAD/GET read-back owner |
 | `scripts/db/recovery/storage-policy.ts` | Storage recovery policy 与 managed DB reference owner |
 | `scripts/db/recovery/r2-config.ts` | R2 lifecycle、per-class bucket lock、private-access provider contract owner |
 | `scripts/db/recovery/fetch.ts` | offline R2 read-only completion → sidecar → artifact fetch owner，不解密、不连接数据库 |
@@ -43,7 +43,7 @@ backup/
 └── manifest.json
 ```
 
-`manifest.json` 包含 format version、UTC 时间、固定 production project identity、PostgreSQL/Supabase CLI identity、SQL digest、Storage count/bytes/inventory digest 和 backup class。Storage private object key 只存在于 encrypted artifact 的 `index.ndjson`，不进入 CI summary、Issue、PR 或 heartbeat。
+`manifest.json` 包含 format version、UTC 时间、固定 production project identity、PostgreSQL/Supabase CLI identity、SQL digest、Storage count/bytes/inventory digest 和 backup class。Storage private object key 只存在于 encrypted artifact 的 `index.ndjson`，不进入 CI summary、Issue 或 PR。
 
 ## Storage policy 与 retention 语义
 
@@ -69,14 +69,13 @@ GitHub `production` job 读取以下名称；值不得写入仓库、Issue、PR�
 | `SUPABASE_SECRET_KEY` | secret | backup 的 canonical Supabase API credential；脚本只执行受控 dump/Storage read |
 | `SUPABASE_SERVICE_ROLE_KEY` | secret，legacy fallback，可选 | 只兼容已有配置；新 recovery 配置不要求创建，不能借此扩大全仓库 migration |
 | `RIVALHUB_BACKUP_AGE_RECIPIENT` | environment variable | backup runner 只能使用的 age 公钥 |
-| `RIVALHUB_BACKUP_HEARTBEAT_URL` | secret | Better Stack heartbeat URL；不得记录 URL 或 token |
 | `RIVALHUB_PRODUCTION_BASE_URL` | environment variable | canonical production HTTPS origin 与 release identity read-back |
 | `RIVALHUB_R2_ACCOUNT_ID` / `RIVALHUB_R2_BUCKET` | environment variables | private recovery bucket identity |
 | `RIVALHUB_R2_ACCESS_KEY_ID` / `RIVALHUB_R2_SECRET_ACCESS_KEY` | secrets | 仅 backup writer；由 bucket-scoped R2 credential 提供 |
 | `CLOUDFLARE_API_TOKEN` | secret | 仅 R2 retention workflow 的 provider read/apply |
 | `VERCEL_TOKEN` | secret | project-scoped deploy credential，仅 release deploy |
 
-这次 hardening 不进行 PostgreSQL TLS 设置迁移，也不进行 `service_role` 全仓库改名或权限扩大；现有 backup connection 的 TLS 行为保持其既有 owner。`db:recovery:fetch` 另用 offline kit 的 `RIVALHUB_R2_READ_ACCESS_KEY_ID`、`RIVALHUB_R2_READ_SECRET_ACCESS_KEY`、`RIVALHUB_R2_ENDPOINT`，并拒绝携带 writer、database、Supabase 或 age identity credential。
+这次 hardening 不进行 PostgreSQL TLS 设置迁移，也不进行 `service_role` 全仓库改名或权限扩大；现有 backup connection 的 TLS 行为保持其既有 owner。`db:recovery:fetch` 复用标准 R2 credential（`RIVALHUB_R2_ACCESS_KEY_ID`、`RIVALHUB_R2_SECRET_ACCESS_KEY`、`RIVALHUB_R2_ACCOUNT_ID`、`RIVALHUB_R2_BUCKET`），在完全隔离的离线环境中抓取加密备份产物。
 
 age private key 只保存在离线 recovery kit/password manager。它不能进入 GitHub Environment、仓库或 R2；只在本地 isolated restore 时短暂提供给 `restore.ts`。
 
@@ -107,12 +106,6 @@ issuer 固定为 `https://token.actions.githubusercontent.com`。切换 `Edit ra
 
 不填写 `ref` 或 `workflow_ref`，因为版本 tag 与手动 dispatch ref 都是变量；代码只能申请短期 OIDC token，不能代替 owner Dashboard 配置。
 
-## Better Stack backup heartbeat
-
-Better Stack monitor 的 token URL 存在 `RIVALHUB_BACKUP_HEARTBEAT_URL`。backup 只有在 artifact、sidecar、completion 三个 object 都完成 PUT、HEAD metadata/size、真实 GET 内容 hash read-back 后，才发送 success heartbeat。任一前置步骤或 success heartbeat 失败，runner 尝试访问同一 endpoint 的 `/fail`，failure 请求不带原始 error/body/secret；原始 backup error 仍按既有脱敏规则处理。
-
-GitHub scheduled workflow 可能延迟或丢失，不能单独证明 RPO 或 backup freshness；Better Stack heartbeat 才是持续 freshness evidence。monitor 必须由 owner 配置 expected period 与 grace/no-start timeout，使“没有开始/没有成功 heartbeat”在一个有界窗口内触发 incident；heartbeat 网络请求本身也有 10 秒 timeout。具体 endpoint 与 `/fail` 语义以 [Better Stack heartbeat documentation](https://betterstack.com/docs/uptime/cron-and-heartbeat-monitor/) 为准。heartbeat 是告警证据，不替代 R2 read-back。
-
 ## R2 retention contract
 
 首次配置或变更时，在 production Environment approval 下运行 `.github/workflows/recovery-r2.yml` 的 `apply`；日常/变更后运行 `verify` 做 provider read-back。脚本先严格读取并验证 Cloudflare GET shape，再读取既有 rules，保留真正不重叠的 unrelated rules；未知或冲突的 production-overlapping delete/lock rule 一律拒绝覆盖。
@@ -137,13 +130,13 @@ release、scheduled backup、R2 retention workflow 共享 `rivalhub-production-s
 普通本地 shell 不应运行 production backup。受保护 workflow 调用：
 
 ```bash
-pnpm db:recovery:backup hourly
+pnpm db:recovery:backup daily
 pnpm db:recovery:backup daily
 pnpm db:recovery:backup manual
 pnpm db:recovery:backup pre-release
 ```
 
-命令必须通过 production target/project/host/URL、Session Pooler、Supabase key、age recipient、R2 writer 与 heartbeat 校验；它不要求 remote DB write authorization，也不执行 application mutation。任何 database dump、policy-owned reference read、Storage snapshot、加密、R2 PUT/HEAD/real GET/hash read-back 或 success heartbeat 失败，整个 run 失败且不得产生可信 completion 状态；workflow 不上传明文 Actions artifact。
+命令必须通过 production target/project/host/URL、Session Pooler、Supabase key、age recipient与 R2 writer 校验；它不要求 remote DB write authorization，也不执行 application mutation。任何 database dump、policy-owned reference read、Storage snapshot、加密、R2 PUT/HEAD/real GET/hash read-back 失败，整个 run 失败且不得产生可信 completion 状态；workflow 不上传明文 Actions artifact。
 
 ## Offline read-only fetch
 
@@ -153,8 +146,6 @@ pnpm db:recovery:backup pre-release
 export RIVALHUB_R2_ACCOUNT_ID='...'
 export RIVALHUB_R2_BUCKET='rivalhub-recovery'
 export RIVALHUB_R2_ENDPOINT='https://<account>.r2.cloudflarestorage.com'
-export RIVALHUB_R2_READ_ACCESS_KEY_ID='...'
-export RIVALHUB_R2_READ_SECRET_ACCESS_KEY='...'
 unset RIVALHUB_R2_ACCESS_KEY_ID RIVALHUB_R2_SECRET_ACCESS_KEY
 unset DATABASE_URL SUPABASE_SECRET_KEY SUPABASE_SERVICE_ROLE_KEY RIVALHUB_BACKUP_AGE_IDENTITY_FILE
 unset RIVALHUB_RECOVERY_DATABASE_URL RIVALHUB_RECOVERY_SUPABASE_URL RIVALHUB_RECOVERY_SERVICE_ROLE_KEY
@@ -223,7 +214,6 @@ Verifier 复用现有 canonical owner，至少检查 migration terminal、关键
 | Cloudflare R2 | account/bucket identity；per-class lifecycle/lock；managed/custom domain disabled；read-only fetch credential owner |
 | Vercel | project/Production target；Trusted Source issuer/audience/claims；deployment protection remains enabled |
 | GitHub | `production` Environment；required secrets/vars presence；OIDC `id-token: write`；release/recovery workflow permissions；concurrency group |
-| Better Stack | backup heartbeat monitor URL owner；expected period；grace/no-start timeout；failure notification route |
 | Scheduler | pg_cron/pg_net capability；named schedules；Vault secret names；provision/verify owner |
 
 Supabase database backup 不包含 Storage objects；clone/restore 还需人工重建上述 Storage/Auth/Realtime/extension/provider 配置。没有 provider read-back 时，不能把 automatic backup、PITR、scheduler 或 cutover 写成已可用；R2 logical snapshot 也不能代替 provider physical backup。
@@ -235,7 +225,6 @@ Issue 只有在以下真实 evidence 全部完成后才允许关闭：
 ```text
 production encrypted backup
 → private R2 artifact/sidecar/completion PUT + HEAD + real GET/hash read-back
-→ Better Stack success heartbeat
 → offline read-only fetch
 → 离线 private key 解密
 → disposable isolated target restore/verify
@@ -244,4 +233,4 @@ production encrypted backup
 → measured RPO/RTO 与 target gap
 ```
 
-记录安全摘要即可：run identity、snapshot/restore 时间、migration terminal、producer/source identity、DB/object count/bytes、verification、heartbeat 状态、RPO/RTO、isolated target cleanup。不得把 raw dump、PII、教育 evidence、object key 明文、secret 或 private key 作为 Issue/PR evidence。Production destructive restore、provider cutover 和 incident freeze 仍须另建 emergency approval path；普通 `db:recovery:*` 命令永远不承担这些写操作。
+记录安全摘要即可：run identity、snapshot/restore 时间、migration terminal、producer/source identity、DB/object count/bytes、verification、RPO/RTO、isolated target cleanup。不得把 raw dump、PII、教育 evidence、object key 明文、secret 或 private key 作为 Issue/PR evidence。Production destructive restore、provider cutover 和 incident freeze 仍须另建 emergency approval path；普通 `db:recovery:*` 命令永远不承担这些写操作。

@@ -5,37 +5,27 @@ import {
   PRODUCTION_PROJECT_REF,
 } from "../production-environment";
 import { assertLocalDatabaseUrl, assertLocalHttpUrl, parseLocalSupabaseStatus, type LocalSupabaseStatus } from "../local-environment";
-import { assertBackupHeartbeatUrl } from "./heartbeat";
 
 export { PRODUCTION_PROJECT_REF } from "../production-environment";
 
 const PRODUCTION_SUPABASE_URL = `https://${PRODUCTION_PROJECT_REF}.supabase.co`;
 const RECOVERY_TARGET = "isolated" as const;
 
-export type BackupClass = "hourly" | "daily" | "pre-release" | "manual";
+export type BackupClass = "daily" | "pre-release" | "manual";
 
-const BACKUP_CLASSES: readonly BackupClass[] = ["hourly", "daily", "pre-release", "manual"];
+const BACKUP_CLASSES: readonly BackupClass[] = ["daily", "pre-release", "manual"];
 
 export interface ProductionBackupEnvironment {
   databaseUrl: string;
   supabaseUrl: string;
   supabaseSecretKey: string;
   ageRecipient: string;
-  backupHeartbeatUrl: string;
   r2: R2ObjectEnvironment;
 }
 
 export interface R2ObjectEnvironment {
   accountId: string;
   bucket: string;
-  accessKeyId: string;
-  secretAccessKey: string;
-}
-
-export interface R2ReadOnlyEnvironment {
-  accountId: string;
-  bucket: string;
-  endpoint: string;
   accessKeyId: string;
   secretAccessKey: string;
 }
@@ -72,7 +62,6 @@ export function assertProductionBackupEnvironment(
       "SUPABASE_SECRET_KEY/SUPABASE_SERVICE_ROLE_KEY",
     ),
     ageRecipient: assertAgeRecipient(required(env.RIVALHUB_BACKUP_AGE_RECIPIENT, "RIVALHUB_BACKUP_AGE_RECIPIENT")),
-    backupHeartbeatUrl: assertBackupHeartbeatUrl(env.RIVALHUB_BACKUP_HEARTBEAT_URL),
     r2: {
       accountId: assertCloudflareAccountId(required(env.RIVALHUB_R2_ACCOUNT_ID, "RIVALHUB_R2_ACCOUNT_ID")),
       bucket: assertR2BucketName(required(env.RIVALHUB_R2_BUCKET, "RIVALHUB_R2_BUCKET")),
@@ -84,41 +73,12 @@ export function assertProductionBackupEnvironment(
 
 export function assertRecoveryFetchEnvironment(
   env: Readonly<Record<string, string | undefined>> = process.env,
-): R2ReadOnlyEnvironment {
-  const forbidden = [
-    "RIVALHUB_R2_ACCESS_KEY_ID",
-    "RIVALHUB_R2_SECRET_ACCESS_KEY",
-    "RIVALHUB_PRODUCTION_BACKUP_DATABASE_URL",
-    "RIVALHUB_BACKUP_DATABASE_URL",
-    "RIVALHUB_ALLOW_REMOTE_DB_WRITE",
-    "RIVALHUB_DB_TARGET",
-    "CLOUDFLARE_API_TOKEN",
-    "RIVALHUB_BACKUP_AGE_IDENTITY_FILE",
-    "AWS_ACCESS_KEY_ID",
-    "AWS_SECRET_ACCESS_KEY",
-    "AWS_SESSION_TOKEN",
-    "AWS_SECURITY_TOKEN",
-    "AWS_PROFILE",
-    "SUPABASE_SECRET_KEY",
-    "SUPABASE_SERVICE_ROLE_KEY",
-    "DATABASE_URL",
-    "RIVALHUB_RECOVERY_DATABASE_URL",
-    "RIVALHUB_RECOVERY_SUPABASE_URL",
-    "RIVALHUB_RECOVERY_PUBLISHABLE_KEY",
-    "RIVALHUB_RECOVERY_SERVICE_ROLE_KEY",
-  ];
-  if (forbidden.some((name) => env[name]?.trim())) {
-    throw new Error("db:recovery:fetch 拒绝携带 writer、decrypt 或 database credential；请使用离线 read-only kit。 ");
-  }
-  const accountId = assertCloudflareAccountId(required(env.RIVALHUB_R2_ACCOUNT_ID, "RIVALHUB_R2_ACCOUNT_ID"));
-  const bucket = assertR2BucketName(required(env.RIVALHUB_R2_BUCKET, "RIVALHUB_R2_BUCKET"));
-  const endpoint = assertR2EndpointForRecoveryFetch(required(env.RIVALHUB_R2_ENDPOINT, "RIVALHUB_R2_ENDPOINT"), accountId);
+): R2ObjectEnvironment {
   return {
-    accountId,
-    bucket,
-    endpoint,
-    accessKeyId: required(env.RIVALHUB_R2_READ_ACCESS_KEY_ID, "RIVALHUB_R2_READ_ACCESS_KEY_ID"),
-    secretAccessKey: required(env.RIVALHUB_R2_READ_SECRET_ACCESS_KEY, "RIVALHUB_R2_READ_SECRET_ACCESS_KEY"),
+    accountId: assertCloudflareAccountId(required(env.RIVALHUB_R2_ACCOUNT_ID, "RIVALHUB_R2_ACCOUNT_ID")),
+    bucket: assertR2BucketName(required(env.RIVALHUB_R2_BUCKET, "RIVALHUB_R2_BUCKET")),
+    accessKeyId: required(env.RIVALHUB_R2_ACCESS_KEY_ID, "RIVALHUB_R2_ACCESS_KEY_ID"),
+    secretAccessKey: required(env.RIVALHUB_R2_SECRET_ACCESS_KEY, "RIVALHUB_R2_SECRET_ACCESS_KEY"),
   };
 }
 
@@ -169,28 +129,6 @@ export function assertBackupClass(value: string | undefined): BackupClass {
     throw new Error(`backup class 必须是 ${BACKUP_CLASSES.join(" | ")}。`);
   }
   return value as BackupClass;
-}
-
-export function assertR2EndpointForRecoveryFetch(value: string, accountId: string): string {
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    throw new Error("RIVALHUB_R2_ENDPOINT 格式无效；必须是固定的 R2 S3 endpoint。 ");
-  }
-  if (
-    url.protocol !== "https:"
-    || url.hostname !== `${accountId}.r2.cloudflarestorage.com`
-    || url.port
-    || url.pathname !== "/"
-    || url.search
-    || url.hash
-    || url.username
-    || url.password
-  ) {
-    throw new Error("RIVALHUB_R2_ENDPOINT 必须是 account-scoped HTTPS R2 endpoint。 ");
-  }
-  return url.origin;
 }
 
 export function buildIsolatedRecoveryEnvironment(

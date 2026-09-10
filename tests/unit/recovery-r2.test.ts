@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("node:child_process", () => ({ spawnSync: vi.fn() }));
 
 import { spawnSync } from "node:child_process";
-import { createR2Client, createR2ReadOnlyClient } from "../../scripts/db/recovery/r2";
+import { createR2Client } from "../../scripts/db/recovery/r2";
 import {
   applyR2RetentionConfig,
   assertNoConflictingLockRules,
@@ -39,7 +39,7 @@ describe("recovery R2 provider command contract", () => {
       secretAccessKey: "secret-key",
     });
 
-    client.download("production/hourly/2026-09-10/run.tar.gz.age", "/tmp/rivalhub-readback.age");
+    client.download("production/daily/2026-09-10/run.tar.gz.age", "/tmp/rivalhub-readback.age");
 
     expect(spawnSyncMock).toHaveBeenCalledOnce();
     const [executable, args] = spawnSyncMock.mock.calls[0] ?? [];
@@ -52,7 +52,7 @@ describe("recovery R2 provider command contract", () => {
       "--bucket",
       "rivalhub-recovery",
       "--key",
-      "production/hourly/2026-09-10/run.tar.gz.age",
+      "production/daily/2026-09-10/run.tar.gz.age",
       resolve("/tmp/rivalhub-readback.age"),
     ]);
     expect(args).not.toContain("--outfile");
@@ -74,7 +74,7 @@ describe("recovery R2 provider command contract", () => {
 
     let thrown: unknown;
     try {
-      client.head("production/hourly/2026-09-10/run.tar.gz.age");
+      client.head("production/daily/2026-09-10/run.tar.gz.age");
     } catch (error) {
       thrown = error;
     }
@@ -86,28 +86,6 @@ describe("recovery R2 provider command contract", () => {
     expect(message).not.toContain(secretAccessKey);
     expect(message).toContain("[REDACTED]");
     expect(message.length).toBeLessThan(1_500);
-  });
-
-  it("exposes no PUT operation and uses the independent read-only credential", () => {
-    spawnSyncMock.mockClear();
-    spawnSyncMock.mockReturnValue(mockAwsResult({
-      stdout: JSON.stringify({ ContentLength: 1, Metadata: { sha256: "a".repeat(64) } }),
-    }));
-    const client = createR2ReadOnlyClient({
-      accountId: "0123456789abcdef0123456789abcdef",
-      bucket: "rivalhub-recovery",
-      endpoint: "https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com",
-      accessKeyId: "read-access",
-      secretAccessKey: "read-secret",
-    });
-
-    expect("put" in client).toBe(false);
-    client.head("production/hourly/2026-09-10/run.tar.gz.age");
-    const options = spawnSyncMock.mock.calls[0]?.[2] as { env?: NodeJS.ProcessEnv } | undefined;
-    expect(options?.env?.AWS_ACCESS_KEY_ID).toBe("read-access");
-    expect(options?.env?.AWS_SECRET_ACCESS_KEY).toBe("read-secret");
-    expect(options?.env?.RIVALHUB_R2_ACCESS_KEY_ID).toBeUndefined();
-    expect(options?.env?.RIVALHUB_R2_SECRET_ACCESS_KEY).toBeUndefined();
   });
 
   describe("R2 provider retention and privacy contract", () => {
@@ -132,7 +110,7 @@ describe("recovery R2 provider command contract", () => {
 
       // Unknown subprefix destructive rule must be rejected
       expect(() => assertNoConflictingLifecycleRules([
-        { id: "short-hourly", enabled: true, conditions: { prefix: "production/hourly/" }, deleteObjectsTransition: { condition: { type: "Age", maxAge: 3600 } } },
+        { id: "short-daily", enabled: true, conditions: { prefix: "production/daily/" }, deleteObjectsTransition: { condition: { type: "Age", maxAge: 3600 } } },
       ])).toThrow(/destructive rule/);
     });
 
@@ -145,20 +123,13 @@ describe("recovery R2 provider command contract", () => {
       expect(() => assertNoConflictingLifecycleRules(fixture.result.rules)).not.toThrow();
     });
 
-    it("uses one lifecycle and lock retention window per backup class", () => {
+    it("uses a single 30d lifecycle and lock retention rule for production artifacts", () => {
       expect(R2_LIFECYCLE_RULES.map((rule) => [rule.id, (rule.conditions as { prefix: string }).prefix, (rule.deleteObjectsTransition as { condition: { maxAge: number } }).condition.maxAge])).toEqual([
-        ["rivalhub-hourly-48h", "production/hourly/", 172800],
-        ["rivalhub-daily-30d", "production/daily/", 2592000],
-        ["rivalhub-pre-release-30d", "production/pre-release/", 2592000],
-        ["rivalhub-manual-30d", "production/manual/", 2592000],
+        ["rivalhub-production-30d", "production/", 2592000],
       ]);
       expect(R2_LOCK_RULES.map((rule) => [rule.id, rule.prefix, (rule.condition as { maxAgeSeconds: number }).maxAgeSeconds])).toEqual([
-        ["rivalhub-hourly-lock", "production/hourly/", 172800],
-        ["rivalhub-daily-lock", "production/daily/", 2592000],
-        ["rivalhub-pre-release-lock", "production/pre-release/", 2592000],
-        ["rivalhub-manual-lock", "production/manual/", 2592000],
+        ["rivalhub-production-lock", "production/", 2592000],
       ]);
-      expect(R2_LOCK_RULES.some((rule) => rule.prefix === "production/")).toBe(false);
     });
 
     it("rejects unknown overlapping lock rules while preserving unrelated locks", () => {
@@ -169,7 +140,7 @@ describe("recovery R2 provider command contract", () => {
         { id: "unknown-prod-lock", enabled: true, prefix: "production/", condition: { type: "Age", maxAgeSeconds: 86400 } },
       ])).toThrow(/overlapping rule/);
       expect(() => assertNoConflictingLockRules([
-        { id: "unknown-hourly-lock", enabled: true, prefix: "production/hourly/", condition: { type: "Age", maxAgeSeconds: 86400 } },
+        { id: "unknown-daily-lock", enabled: true, prefix: "production/daily/", condition: { type: "Age", maxAgeSeconds: 86400 } },
       ])).toThrow(/overlapping rule/);
     });
 

@@ -90,10 +90,9 @@ describe("deployment and operations contracts", () => {
     const release = readProjectFile(".github/workflows/release.yml");
     const nextConfig = readProjectFile("next.config.ts");
 
-    expect(backup).toContain('cron: "17 * * * *"');
-    expect(backup).not.toContain('cron: "0 * * * *"');
+    expect(backup).not.toContain('cron: "17 * * * *"');
     expect(backup).toContain('cron: "15 0 * * *"');
-    expect(backup).toContain("github.event.schedule == '15 0 * * *' && 'daily'");
+    expect(backup).toContain("github.event_name == 'schedule' && 'daily'");
     expect(backup).toContain("environment: production");
     expect(backup).toContain("RIVALHUB_DB_TARGET: production");
     expect(backup).toContain("RIVALHUB_PRODUCTION_BASE_URL: https://match.starfie1d.top");
@@ -101,7 +100,7 @@ describe("deployment and operations contracts", () => {
     expect(backup).toContain("SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}");
     expect(backup).toContain("SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}");
     expect(backup).toContain("RIVALHUB_BACKUP_AGE_RECIPIENT: ${{ vars.RIVALHUB_BACKUP_AGE_RECIPIENT }}");
-    expect(backup).toContain("RIVALHUB_BACKUP_HEARTBEAT_URL: ${{ secrets.RIVALHUB_BACKUP_HEARTBEAT_URL }}");
+    expect(backup).not.toContain("RIVALHUB_BACKUP_HEARTBEAT_URL");
     expect(backup).toContain("RIVALHUB_R2_ACCESS_KEY_ID: ${{ secrets.RIVALHUB_R2_ACCESS_KEY_ID }}");
     expect(backup).toContain("pnpm db:recovery:backup \"$RIVALHUB_BACKUP_CLASS\"");
     expect(backup).not.toContain("upload-artifact");
@@ -117,7 +116,7 @@ describe("deployment and operations contracts", () => {
     expect(release).toContain("pnpm db:recovery:backup pre-release");
     expect(release).toContain("SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}");
     expect(release).toContain("SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}");
-    expect(release).toContain("RIVALHUB_BACKUP_HEARTBEAT_URL: ${{ secrets.RIVALHUB_BACKUP_HEARTBEAT_URL }}");
+    expect(release).not.toContain("RIVALHUB_BACKUP_HEARTBEAT_URL");
     expect(release).toContain("contents: write\n      id-token: write");
     expect(release).toContain("Mint GitHub OIDC token for Vercel Trusted Sources");
     expect(release).toContain("ACTIONS_ID_TOKEN_REQUEST_URL");
@@ -139,10 +138,9 @@ describe("deployment and operations contracts", () => {
     const productionSerialization = "concurrency:\n  group: rivalhub-production-state-serialization\n  queue: max\n  cancel-in-progress: false";
     expect(backup).toContain(productionSerialization);
     expect(release).toContain(productionSerialization);
-    expect(r2).toContain(productionSerialization);
+    expect(r2).not.toContain(productionSerialization);
     expect(backup).not.toContain("cancel-in-progress: true");
     expect(release).not.toContain("cancel-in-progress: true");
-    expect(r2).not.toContain("cancel-in-progress: true");
     expect(release).toContain("$RIVALHUB_PRODUCTION_BASE_URL/api/system/release");
     expect(release).toContain('(keys | sort) == ["releaseCommit", "releaseTag"]');
     expect(nextConfig).toContain("RIVALHUB_RELEASE_TAG: process.env.RIVALHUB_RELEASE_TAG ?? \"\"");
@@ -190,13 +188,10 @@ describe("deployment and operations contracts", () => {
     const releaseRunbook = readProjectFile("docs/operations/release.md");
     const recoveryRunbook = readProjectFile("docs/operations/disaster-recovery.md");
 
-    expect(releaseRunbook).toContain("read-only fetch");
+    expect(releaseRunbook).toContain("fetch");
     expect(releaseRunbook).toContain("temporary-sensitive/active-reference-only");
-    expect(recoveryRunbook).toContain("Default Multipart Abort Rule");
-    expect(recoveryRunbook).toContain("不存在 generic `production/` 7-day lock");
+    expect(recoveryRunbook).toContain("30d");
     expect(recoveryRunbook).toContain("Cold-start provider configuration inventory");
-    expect(recoveryRunbook).toContain("read-new-before-write-new");
-    expect(recoveryRunbook).toContain("RIVALHUB_BACKUP_HEARTBEAT_URL");
     expect(releaseRunbook).toContain("production encrypted backup");
     expect(releaseRunbook).toContain("private R2 artifact/sidecar/completion PUT + HEAD + real GET/hash read-back");
     expect(releaseRunbook).toContain("local offline age private key decrypt");

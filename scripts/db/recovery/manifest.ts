@@ -4,18 +4,6 @@ import { basename } from "node:path";
 import { assertBackupClass, type BackupClass } from "./environment";
 
 export const RECOVERY_FORMAT_VERSION = 2 as const;
-export const RECOVERY_READER_FORMAT_VERSIONS = [RECOVERY_FORMAT_VERSION] as const;
-
-/**
- * Recovery format changes are deliberately read-new-before-write-new: a new
- * writer version may only ship after this reader list and its compatibility
- * tests already accept that version.
- */
-export function assertRecoveryFormatCompatibility(): void {
-  if (!RECOVERY_READER_FORMAT_VERSIONS.includes(RECOVERY_FORMAT_VERSION)) {
-    throw new Error("Recovery writer format is not supported by the shipped reader; refuse to emit artifacts. ");
-  }
-}
 
 export interface RecoveryFileDigest {
   path: string;
@@ -269,7 +257,7 @@ export function assertRecoveryCompletionMarker(value: unknown): RecoveryCompleti
 }
 
 function assertRecoveryArtifactKey(value: string): string {
-  if (!/^production\/(?:hourly|daily|pre-release|manual)\/\d{4}-\d{2}-\d{2}\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.tar\.gz\.age$/i.test(value)) {
+  if (!/^production\/(?:daily|pre-release|manual)\/\d{4}-\d{2}-\d{2}\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.tar\.gz\.age$/i.test(value)) {
     throw new Error("Recovery artifact key identity 无效。 ");
   }
   return value;

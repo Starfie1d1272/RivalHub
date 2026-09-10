@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { statSync } from "node:fs";
 import { resolve } from "node:path";
 import { redactText } from "../../../src/lib/observability/redact";
-import type { BackupClass, R2ObjectEnvironment, R2ReadOnlyEnvironment } from "./environment";
+import type { BackupClass, R2ObjectEnvironment } from "./environment";
 import { sha256File } from "./manifest";
 
 const MAX_PROVIDER_DIAGNOSTIC_LENGTH = 1_200;
@@ -28,13 +28,6 @@ export interface RecoveryR2Client {
   readonly endpoint: string;
   readonly bucket: string;
   put(path: string, key: string, options: { contentType: string; metadata: Record<string, string> }): void;
-  head(key: string): R2Head;
-  download(key: string, path: string): void;
-}
-
-export interface RecoveryR2ReadOnlyClient {
-  readonly endpoint: string;
-  readonly bucket: string;
   head(key: string): R2Head;
   download(key: string, path: string): void;
 }
@@ -120,42 +113,6 @@ export function createR2Client(config: R2ObjectEnvironment): RecoveryR2Client {
   }
 }
 
-export function createR2ReadOnlyClient(config: R2ReadOnlyEnvironment): RecoveryR2ReadOnlyClient {
-  const environment: NodeJS.ProcessEnv = {
-    ...process.env,
-    AWS_ACCESS_KEY_ID: config.accessKeyId,
-    AWS_SECRET_ACCESS_KEY: config.secretAccessKey,
-    AWS_REGION: "auto",
-    AWS_EC2_METADATA_DISABLED: "true",
-  };
-  delete environment.AWS_PROFILE;
-  delete environment.AWS_SESSION_TOKEN;
-  delete environment.AWS_SECURITY_TOKEN;
-  delete environment.RIVALHUB_R2_ACCESS_KEY_ID;
-  delete environment.RIVALHUB_R2_SECRET_ACCESS_KEY;
-
-  return {
-    endpoint: config.endpoint,
-    bucket: config.bucket,
-    head(key) {
-      return readR2Head(config.endpoint, config.bucket, key, environment);
-    },
-    download(key, path) {
-      runAws([
-        "s3api",
-        "get-object",
-        "--endpoint-url",
-        config.endpoint,
-        "--bucket",
-        config.bucket,
-        "--key",
-        key,
-        resolve(path),
-      ], environment);
-    },
-  };
-}
-
 export function buildRecoveryR2Keys(
   backupClass: BackupClass,
   runId: string,
@@ -207,37 +164,6 @@ function runAws(args: readonly string[], env: NodeJS.ProcessEnv): string {
     );
   }
   return result.stdout.trim();
-}
-
-function readR2Head(
-  endpoint: string,
-  bucket: string,
-  key: string,
-  environment: NodeJS.ProcessEnv,
-): R2Head {
-  const raw = runAws([
-    "s3api",
-    "head-object",
-    "--endpoint-url",
-    endpoint,
-    "--bucket",
-    bucket,
-    "--key",
-    key,
-    "--output",
-    "json",
-  ], environment);
-  let value: unknown;
-  try {
-    value = JSON.parse(raw);
-  } catch {
-    throw new Error("R2 head-object response invalid; recovery artifact is not trusted. ");
-  }
-  const record = value as { ContentLength?: unknown; Metadata?: { sha256?: unknown } };
-  if (!isNonNegativeInteger(record.ContentLength) || !isSha256(record.Metadata?.sha256)) {
-    throw new Error("R2 object is missing checksum metadata; recovery artifact is not trusted. ");
-  }
-  return { bytes: record.ContentLength, sha256: record.Metadata.sha256 };
 }
 
 function sanitizeProviderDiagnostic(
