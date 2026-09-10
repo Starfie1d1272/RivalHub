@@ -110,9 +110,24 @@ describe("deployment and operations contracts", () => {
     expect(release).toContain("RIVALHUB_PRODUCTION_BASE_URL: https://match.starfie1d.top");
     expect(release.indexOf("Create protected pre-release backup")).toBeLessThan(release.indexOf("pnpm db:production:migrate"));
     expect(release).toContain("pnpm db:recovery:backup pre-release");
-    expect(release).toContain('VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}');
-    expect(release).toContain('--protection-bypass "$VERCEL_AUTOMATION_BYPASS_SECRET"');
-    expect(release).toContain('x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET');
+    expect(release).toContain("contents: write\n      id-token: write");
+    expect(release).toContain("Mint GitHub OIDC token for Vercel Trusted Sources");
+    expect(release).toContain("ACTIONS_ID_TOKEN_REQUEST_URL");
+    expect(release).toContain("ACTIONS_ID_TOKEN_REQUEST_TOKEN");
+    expect(release).toContain("audience=$VERCEL_TRUSTED_SOURCE_AUDIENCE");
+    expect(release).toContain('echo "::add-mask::$oidc_token"');
+    expect(release).toContain("VERCEL_TRUSTED_SOURCE_AUDIENCE: https://github.com/Starfie1d1272");
+    expect(release).toContain("x-vercel-trusted-oidc-idp-token: $VERCEL_TRUSTED_OIDC_IDP_TOKEN");
+    expect(release).not.toContain("VERCEL_AUTOMATION_BYPASS_SECRET");
+    expect(release).not.toContain("protection-bypass");
+    expect(release).not.toContain("x-vercel-protection-bypass");
+    const smokeStart = release.indexOf("      - name: Smoke test production deployment");
+    const schedulerStart = release.indexOf("      - name: Provision and verify production scheduler");
+    const smoke = release.slice(smokeStart, schedulerStart);
+    expect(smoke).toContain("^https://[a-z0-9][a-z0-9-]*\\.vercel\\.app/?$");
+    expect(smoke).not.toContain("VERCEL_TOKEN");
+    const canonicalIdentity = smoke.slice(smoke.indexOf("canonical_identity="));
+    expect(canonicalIdentity).not.toContain("x-vercel-trusted-oidc-idp-token");
     expect(release).toContain("$RIVALHUB_PRODUCTION_BASE_URL/api/system/release");
     expect(release).toContain('(keys | sort) == ["releaseCommit", "releaseTag"]');
     expect(nextConfig).toContain("RIVALHUB_RELEASE_TAG: process.env.RIVALHUB_RELEASE_TAG ?? \"\"");
@@ -125,7 +140,8 @@ describe("deployment and operations contracts", () => {
 
     expect(release).toContain('--build-env RIVALHUB_RELEASE_TAG="$RELEASE_TAG"');
     expect(release).toContain('--build-env RIVALHUB_RELEASE_COMMIT="$RELEASE_SHA"');
-    expect(release).toContain('vercel curl /api/system/release');
+    expect(release).toContain('deployment_identity="$(curl --fail');
+    expect(release).toContain('"$DEPLOYMENT_URL/api/system/release"');
     expect(release).toContain("$RIVALHUB_PRODUCTION_BASE_URL/api/system/release");
     expect(release).toContain('(keys | sort) == ["releaseCommit", "releaseTag"]');
     expect(nextConfig).toContain('RIVALHUB_RELEASE_TAG: process.env.RIVALHUB_RELEASE_TAG ?? ""');

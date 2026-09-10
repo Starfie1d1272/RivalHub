@@ -21,11 +21,12 @@ jobs:
     environment: production
     permissions:
       contents: write
+      id-token: write
     env:
       NEXT_TELEMETRY_DISABLED: 1
       # Fixed non-secret Vercel target. VERCEL_TOKEN is the project-scoped
-      # deployment credential; protected smoke uses the separate Automation
-      # Bypass secret below. DATABASE_URL is a GitHub production Environment
+      # deployment credential. Protected smoke obtains a short-lived GitHub
+      # OIDC token at runtime. DATABASE_URL is a GitHub production Environment
       # secret dedicated to the protected migration runner.
       VERCEL_ORG_ID: team_0eIkBawGTdVjwYHdyrb20ZVV
       VERCEL_PROJECT_ID: prj_3bjmfKrSqRh4szrkEE4HpavnhI0E
@@ -70,21 +71,16 @@ jobs:
       - name: Install pinned Vercel CLI
         run: pnpm add --global vercel@59.11.7
 
-      - name: Require Vercel release and smoke credentials
+      - name: Require Vercel deploy credential
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: |
           if [[ -z "$VERCEL_TOKEN" || "$VERCEL_TOKEN" == "[SENSITIVE]" ]]; then
             echo "GitHub production environment secret VERCEL_TOKEN is required." >&2
             exit 1
           fi
-          if [[ -z "$VERCEL_AUTOMATION_BYPASS_SECRET" || "$VERCEL_AUTOMATION_BYPASS_SECRET" == "[SENSITIVE]" ]]; then
-            echo "GitHub production environment secret VERCEL_AUTOMATION_BYPASS_SECRET is required for protected smoke." >&2
-            exit 1
-          fi
-          # VERCEL_TOKEN must remain project-scoped (`rivalhub-release`). The
-          # bypass secret is only for HTTP smoke and must never replace it.
+          # VERCEL_TOKEN must remain project-scoped (`rivalhub-release`) and is
+          # used only by the exact production deploy command below.
 
       - name: Validate active migration chain locally
         run: |
@@ -133,26 +129,47 @@ jobs:
           echo "url=$DEPLOYMENT_URL" >> "$GITHUB_OUTPUT"
           echo "Production deployment: $DEPLOYMENT_URL"
 
+      - name: Mint GitHub OIDC token for Vercel Trusted Sources
+        id: oidc
+        env:
+          VERCEL_TRUSTED_SOURCE_AUDIENCE: https://github.com/Starfie1d1272
+        run: |
+          set -euo pipefail
+          if [[ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" || -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]]; then
+            echo "GitHub Actions OIDC request endpoint is unavailable." >&2
+            exit 1
+          fi
+          oidc_response="$(curl --fail --silent --show-error --get \
+            -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            --data-urlencode "audience=$VERCEL_TRUSTED_SOURCE_AUDIENCE" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL")"
+          oidc_token="$(jq -er '.value | strings | select(length > 0)' <<<"$oidc_response")"
+          echo "::add-mask::$oidc_token"
+          echo "token=$oidc_token" >> "$GITHUB_OUTPUT"
+
       - name: Smoke test production deployment
         env:
           DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          VERCEL_TRUSTED_OIDC_IDP_TOKEN: ${{ steps.oidc.outputs.token }}
         run: |
-          vercel curl / --deployment "$DEPLOYMENT_URL" \
-            --protection-bypass "$VERCEL_AUTOMATION_BYPASS_SECRET" \
-            --token "$VERCEL_TOKEN" --yes --non-interactive >/dev/null
+          set -euo pipefail
+          if [[ ! "$DEPLOYMENT_URL" =~ ^https://[a-z0-9][a-z0-9-]*\.vercel\.app/?$ ]]; then
+            echo "Vercel deployment URL is not an exact *.vercel.app HTTPS target: $DEPLOYMENT_URL" >&2
+            exit 1
+          fi
           curl --fail --silent --show-error \
             --retry 8 --retry-all-errors --retry-delay 5 \
-            -H "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" \
+            -H "x-vercel-trusted-oidc-idp-token: $VERCEL_TRUSTED_OIDC_IDP_TOKEN" \
+            "$DEPLOYMENT_URL/" >/dev/null
+          deployment_identity="$(curl --fail --silent --show-error \
+            --retry 8 --retry-all-errors --retry-delay 5 \
+            -H "x-vercel-trusted-oidc-idp-token: $VERCEL_TRUSTED_OIDC_IDP_TOKEN" \
+            "$DEPLOYMENT_URL/api/system/release")"
+          curl --fail --silent --show-error \
+            --retry 8 --retry-all-errors --retry-delay 5 \
             "$RIVALHUB_PRODUCTION_BASE_URL/" >/dev/null
-          deployment_identity="$(vercel curl /api/system/release \
-            --deployment "$DEPLOYMENT_URL" \
-            --protection-bypass "$VERCEL_AUTOMATION_BYPASS_SECRET" \
-            --token "$VERCEL_TOKEN" --yes --non-interactive)"
           canonical_identity="$(curl --fail --silent --show-error \
             --retry 8 --retry-all-errors --retry-delay 5 \
-            -H "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET" \
             "$RIVALHUB_PRODUCTION_BASE_URL/api/system/release")"
           for identity in "$deployment_identity" "$canonical_identity"; do
             jq -e --arg tag "$RELEASE_TAG" --arg commit "$RELEASE_SHA" '

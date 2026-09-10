@@ -67,9 +67,12 @@ GitHub `production` Environment 需要由维护者配置以下值。值本身不
 | `RIVALHUB_R2_SECRET_ACCESS_KEY` | secret | bucket-scoped R2 S3 credential |
 | `CLOUDFLARE_API_TOKEN` | secret | 仅 R2 retention workflow 的 provider read/apply |
 | `VERCEL_TOKEN` | secret | project-scoped `rivalhub-release` token，仅供 release deploy |
-| `VERCEL_AUTOMATION_BYPASS_SECRET` | secret | Vercel protected smoke 的 Automation Bypass；不替代 deploy token |
 
-age private key只保存在离线 recovery kit/password manager。解密演练时通过本地 `RIVALHUB_BACKUP_AGE_IDENTITY_FILE` 指向权限受限的临时 identity file，演练结束后删除临时明文和 identity 副本；不得把 private key 放入 GitHub Environment、仓库或 R2。`VERCEL_AUTOMATION_BYPASS_SECRET` 由 owner 在 Vercel Project Settings → Deployment Protection → Protection Bypass for Automation 生成，并以同名 GitHub production secret 注入；缺失时 release workflow 在 production migration 前 fail closed。
+age private key只保存在离线 recovery kit/password manager。解密演练时通过本地 `RIVALHUB_BACKUP_AGE_IDENTITY_FILE` 指向权限受限的临时 identity file，演练结束后删除临时明文和 identity 副本；不得把 private key 放入 GitHub Environment、仓库或 R2。Vercel protected smoke 不使用长期 bypass secret，而由 release job 的 GitHub OIDC 短期 token 完成；Trusted Source 是 Vercel owner 的 Dashboard 配置，不是 recovery artifact 或 GitHub secret。
+
+### Vercel Trusted Source（owner-only）
+
+首次受保护 release 前，Vercel owner 必须在 `Settings → Deployment Protection → Trusted Sources → External Services → Add → GitHub Actions` 建立 Trusted Source，并将 applies-to 限定为 Vercel `Production`。Issuer 使用 `https://token.actions.githubusercontent.com`，audience 使用 `https://github.com/Starfie1d1272`；raw claims 必须精确匹配：`repository=Starfie1d1272/RivalHub`、`workflow=Release`、`environment=production`、`sub=repo:Starfie1d1272/RivalHub:environment:production`。tag push 与同一 tag 的 manual retry 共用该 production Environment；`ref` / `workflow_ref` 会随 tag 或 retry ref 变化，不能填写猜测的固定值或宽泛 wildcard，`event_name` 也不能限制掉任一合法触发方式。代码只负责申请 OIDC token 和发送 `x-vercel-trusted-oidc-idp-token`，不能代替 Dashboard 配置；配置缺失时，release exact-deployment smoke 必须 fail closed。
 
 本 PR 不代替 provider account/Dashboard 核验：Supabase plan、automatic backup、PITR 与 provider retention 当前状态保持 `unverified / pending operator read-back`，不能作为本 Issue 已完成的 acceptance evidence。
 
@@ -109,7 +112,7 @@ immutable tag/source validation
 → fresh pre-release backup + R2 read-back
 → production migration
 → production verify
-→ exact deploy/smoke
+→ exact deploy/smoke（GitHub OIDC → Vercel Trusted Source；canonical identity ordinary HTTPS）
 → scheduler provision/verify
 ```
 
