@@ -148,6 +148,23 @@ describe("deployment and operations contracts", () => {
     expect(nextConfig).toContain('RIVALHUB_RELEASE_COMMIT: process.env.RIVALHUB_RELEASE_COMMIT ?? ""');
   });
 
+  it("documents the current guided Vercel Trusted Source fields", () => {
+    const releaseRunbook = readProjectFile("docs/operations/release.md");
+    const recoveryRunbook = readProjectFile("docs/operations/disaster-recovery.md");
+
+    for (const runbook of [releaseRunbook, recoveryRunbook]) {
+      expect(runbook).toContain("GitHub account | `Starfie1d1272`");
+      expect(runbook).toContain("Repository | `RivalHub`");
+      expect(runbook).toContain("Workflow | `Release`");
+      expect(runbook).toContain("Branch | `Any branch`");
+      expect(runbook).toContain("Audience | `https://github.com/Starfie1d1272`");
+      expect(runbook).toContain("Applies to environments | `Production`");
+      expect(runbook).toContain("raw claims/editor 是可选的 advanced mode");
+      expect(runbook).not.toContain("raw claims 必须精确匹配");
+      expect(runbook).not.toContain("sub=repo:Starfie1d1272/RivalHub:environment:production");
+    }
+  });
+
   it("uses main as the sole long-lived CI ref", () => {
     const ci = readProjectFile(".github/workflows/ci.yml");
 

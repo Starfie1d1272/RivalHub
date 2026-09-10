@@ -72,7 +72,18 @@ age private key只保存在离线 recovery kit/password manager。解密演练�
 
 ### Vercel Trusted Source（owner-only）
 
-首次受保护 release 前，Vercel owner 必须在 `Settings → Deployment Protection → Trusted Sources → External Services → Add → GitHub Actions` 建立 Trusted Source，并将 applies-to 限定为 Vercel `Production`。Issuer 使用 `https://token.actions.githubusercontent.com`，audience 使用 `https://github.com/Starfie1d1272`；raw claims 必须精确匹配：`repository=Starfie1d1272/RivalHub`、`workflow=Release`、`environment=production`、`sub=repo:Starfie1d1272/RivalHub:environment:production`。tag push 与同一 tag 的 manual retry 共用该 production Environment；`ref` / `workflow_ref` 会随 tag 或 retry ref 变化，不能填写猜测的固定值或宽泛 wildcard，`event_name` 也不能限制掉任一合法触发方式。代码只负责申请 OIDC token 和发送 `x-vercel-trusted-oidc-idp-token`，不能代替 Dashboard 配置；配置缺失时，release exact-deployment smoke 必须 fail closed。
+首次受保护 release 前，Vercel owner 必须在 `Settings → Deployment Protection → Trusted Sources → External Services → Add → GitHub Actions` 建立 Trusted Source，并按当前 GitHub Actions 引导表单配置：
+
+| Dashboard 字段 | 当前值 |
+| --- | --- |
+| GitHub account | `Starfie1d1272` |
+| Repository | `RivalHub` |
+| Workflow | `Release` |
+| Branch | `Any branch` |
+| Audience | `https://github.com/Starfie1d1272` |
+| Applies to environments | `Production` |
+
+Issuer 由 GitHub Actions provider 固定为 `https://token.actions.githubusercontent.com`。raw claims/editor 是可选的 advanced mode；`sub` 或 `environment` claim 不是当前引导配置的 Dashboard 必填字段。release job 仍运行在 GitHub `production` Environment 中，但该运行时上下文不要求 owner 手工填写 raw claim。代码只负责申请 OIDC token 和发送 `x-vercel-trusted-oidc-idp-token`，不能代替 Dashboard 配置；配置缺失时，release exact-deployment smoke 必须 fail closed。
 
 本 PR 不代替 provider account/Dashboard 核验：Supabase plan、automatic backup、PITR 与 provider retention 当前状态保持 `unverified / pending operator read-back`，不能作为本 Issue 已完成的 acceptance evidence。
 

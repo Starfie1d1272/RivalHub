@@ -46,7 +46,18 @@ validate tag belongs to main
 
 Production secret、target confirmation 和 remote-write authorization 只存在于受保护 production environment / canonical wrappers 中。`VERCEL_TOKEN` 必须是 project-scoped `rivalhub-release`，只负责 exact production deploy。Deploy 后 job 通过 `id-token: write` 在运行时向 GitHub OIDC endpoint 申请短期 token，使用 audience `https://github.com/Starfie1d1272`；protected `https://*.vercel.app` smoke 只通过 `x-vercel-trusted-oidc-idp-token` header 访问 exact deployment URL，canonical `https://match.starfie1d.top` 则用普通 HTTPS read-back，不携带 OIDC header。不得使用长期 bypass secret、Full Account/user/team token 或关闭 Deployment Protection 代替。deployment URL 与 canonical production domain 都必须通过 `/api/system/release` 返回仅含 `releaseTag` 和 `releaseCommit` 的 identity，且分别精确等于当前 immutable tag 与该 tag commit；任一读回失败都阻止后续发布。Scheduler provisioning 使用 `RIVALHUB_ALLOW_REMOTE_DB_WRITE=production pnpm db:production:scheduler:provision`，通过 pg_cron named schedule upsert 幂等收敛 `rivalhub-<job-key>` jobs，随后运行 verify。Verify 会确认 pg_cron/pg_net、UTC schedule、dispatch command 与 Vault secret name，实际 dispatch 每个 registry job，并在有界窗口内等待 fresh primary trigger、endpoint success 与分钟级 cron success；任一失败都阻止发布 GitHub Release，且全程不输出 secret。
 
-首次受保护 release 前，Vercel owner 必须在 `Settings → Deployment Protection → Trusted Sources → External Services → Add → GitHub Actions` 建立 GitHub Actions Trusted Source，并将 applies-to 限定为 Vercel `Production`。Issuer 使用 `https://token.actions.githubusercontent.com`，audience 使用 `https://github.com/Starfie1d1272`；若使用 raw claims，必须精确匹配以下稳定 claims：`repository=Starfie1d1272/RivalHub`、`workflow=Release`、`environment=production`、`sub=repo:Starfie1d1272/RivalHub:environment:production`。本 workflow 同时支持 tag push 与同一 tag 的手动 retry；由于 Vercel claims 是 exact match，不要猜测或填写会随 release 变化的 `ref` / `workflow_ref`，也不要把 `event_name` 限成单一触发方式。代码只能申请 token 并发送 header，不能替代 owner 的 Dashboard 配置；在该配置存在且 exact deployment smoke 真实通过前，protected smoke 保持未验收。
+首次受保护 release 前，Vercel owner 必须在 `Settings → Deployment Protection → Trusted Sources → External Services → Add → GitHub Actions` 建立 Trusted Source，并按当前 GitHub Actions 引导表单配置：
+
+| Dashboard 字段 | 当前值 |
+| --- | --- |
+| GitHub account | `Starfie1d1272` |
+| Repository | `RivalHub` |
+| Workflow | `Release` |
+| Branch | `Any branch` |
+| Audience | `https://github.com/Starfie1d1272` |
+| Applies to environments | `Production` |
+
+Issuer 由 GitHub Actions provider 固定为 `https://token.actions.githubusercontent.com`。当前配置使用引导表单即可；raw claims/editor 是可选的 advanced mode，`sub` 或 `environment` claim 不是本配置的 Dashboard 必填字段。本 workflow 同时支持 tag push 与同一 tag 的手动 retry；`Any branch` 允许这些合法 ref，由 workflow 自己校验 tag 必须属于 `main`。代码只能申请 token 并发送 header，不能替代 owner 的 Dashboard 配置；在该配置存在且 exact deployment smoke 真实通过前，protected smoke 保持未验收。
 
 ## 4. 失败与重试
 
@@ -59,7 +70,7 @@ Production secret、target confirmation 和 remote-write authorization 只存在
 只有以下条件都成立才算完成：
 
 - production smoke 通过，且 deployment URL 与 canonical production domain 的 `/api/system/release` 均精确读回该 immutable tag 与 tag commit；
-- Vercel Trusted Source 已由 owner 配置并限定为该 repository、`Release` workflow、`production` Environment 与 Vercel `Production`，运行时 OIDC protected exact-deployment smoke 通过；`VERCEL_TOKEN` 仍为 project-scoped `rivalhub-release`；
+- Vercel Trusted Source 已由 owner 按上述 GitHub Actions 引导字段配置（`Starfie1d1272` / `RivalHub` / `Release` / `Any branch` / audience / Vercel `Production`），运行时 OIDC protected exact-deployment smoke 通过；`VERCEL_TOKEN` 仍为 project-scoped `rivalhub-release`；
 - production scheduler provision/verify 通过，且 primary named jobs、真实 dispatch、endpoint success 与分钟级 cron execution 已读回；
 - GitHub Release 已发布且 notes 正确；
 - tag、release commit 与 production deployment 对齐；
