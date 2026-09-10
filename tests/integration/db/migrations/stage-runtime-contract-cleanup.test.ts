@@ -237,6 +237,7 @@ describe("Release N+1 stage runtime contract cleanup", () => {
       const otherEntryId = randomUUID();
       const otherRevisionId = randomUUID();
 
+      await client.query("BEGIN");
       await client.query(
         "INSERT INTO seasons (id, slug, name, kind, status) VALUES ($1, 'other-rivals-season', 'Other Rivals Season', 'Rivals', 'finished')",
         [otherSeasonId],
@@ -252,6 +253,12 @@ describe("Release N+1 stage runtime contract cleanup", () => {
          ) VALUES ($1, $2, 'event_native', 'Other Entry', $3, $4, $4, 'approved')`,
         [otherEntryId, otherSeasonId, otherUserId, otherRevisionId],
       );
+      await client.query(
+        `INSERT INTO competition_entry_roster_revisions (id, entry_id, revision_number, status, created_by, approved_at)
+         VALUES ($1, $2, 1, 'approved', '0049-contract-test', now())`,
+        [otherRevisionId, otherEntryId],
+      );
+      await client.query("COMMIT");
 
       // Point participant 1 to the foreign competition entry
       await client.query(
