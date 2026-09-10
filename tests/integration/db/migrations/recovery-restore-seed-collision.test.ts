@@ -31,6 +31,17 @@ describe("recovery restore seed collision and auth invariant regression", () => 
       `);
       await client.query(`INSERT INTO auth.schema_migrations (version) VALUES ('20240101000000') ON CONFLICT DO NOTHING`);
 
+      // Ensure drizzle schema and ledger exist to verify preservation
+      await client.query(`CREATE SCHEMA IF NOT EXISTS drizzle`);
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS drizzle.__drizzle_migrations (
+          id serial PRIMARY KEY,
+          hash text NOT NULL,
+          created_at bigint
+        )
+      `);
+      await client.query(`INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('test_hash', 1)`);
+
       // 3. Verify migration 0038 created the seed row
       const initialSeed = await client.query<{ id: string; version: string; source_note: string }>(
         `SELECT id, version, source_note FROM public.conversion_policies
