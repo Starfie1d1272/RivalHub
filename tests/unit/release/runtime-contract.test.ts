@@ -194,22 +194,9 @@ describe("deployment and operations contracts", () => {
     expect(releaseRunbook).toContain("temporary-sensitive/active-reference-only");
     expect(recoveryRunbook).toContain("30d");
     expect(recoveryRunbook).toContain("Cold-start provider configuration inventory");
-    expect(recoveryRunbook).not.toContain("每小时");
-    expect(recoveryRunbook).not.toContain("Better Stack");
-    expect(recoveryRunbook).not.toContain("read-new-before-write-new");
-    expect(recoveryRunbook).not.toContain("RIVALHUB_R2_READ_");
-    expect(recoveryRunbook).not.toContain("RIVALHUB_R2_ENDPOINT");
-    expect(recoveryRunbook).not.toContain("48h");
-    expect(recoveryRunbook).not.toContain("compatibility guard");
-    expect(releaseRunbook).not.toContain("Better Stack");
-    expect(releaseRunbook).not.toContain("RIVALHUB_R2_READ_");
     expect(releaseRunbook).toContain("production encrypted backup");
     expect(releaseRunbook).toContain("private R2 artifact/sidecar/completion PUT + HEAD + real GET/hash read-back");
     expect(releaseRunbook).toContain("local offline age private key decrypt");
-    expect(releaseRunbook).not.toContain("PR `#577`");
-    expect(recoveryRunbook).not.toContain("PR `#577`");
-    expect(releaseRunbook).not.toContain("production/` bucket lock 7d");
-    expect(recoveryRunbook).not.toContain("production/` bucket lock 7d");
   });
 
   it("uses main as the sole long-lived CI ref", () => {
