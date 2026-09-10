@@ -44,13 +44,33 @@ describe("release compatibility gate", () => {
     const source = _label === "DROP"
       ? `export const oldTeams = pgTable("old_teams", { id: uuid("id") });\n`
       : OLD_TEAMS_SOURCE;
-    const fixture = createFixture({ migration: `${MIGRATION_CONTRACT_ANNOTATION}\n${sql}`, source });
+    const fixture = createFixture({
+      migration: `${MIGRATION_CONTRACT_ANNOTATION}\n${sql}`,
+      source,
+      extraFiles: _label === "DROP"
+        ? { "src/lib/legacy-reader.ts": "import { oldTeams } from \"@/db/schema\"; export const read = oldTeams;\n" }
+        : undefined,
+    });
     const result = checkReleaseCompatibility(fixture.directory);
 
     expect(result.failures).toHaveLength(1);
     expect(result.failures[0]).toMatch(/drizzle\/migrations\/0002_next\.sql:2 \[(?:drop|rename)\]/);
     expect(result.failures[0]).toContain("src/db/schema/teams.ts:");
     expect(result.failures[0]).toContain("previous stable");
+  });
+
+  it("allows an unconsumed legacy relation declaration in previous stable source", () => {
+    const fixture = createFixture({
+      migration: `${MIGRATION_CONTRACT_ANNOTATION}\nDROP TABLE "old_teams";`,
+      source: `export const oldTeams = pgTable("old_teams", { id: uuid("id") });
+export type OldTeam = typeof oldTeams.$inferSelect;
+export type NewOldTeam = typeof oldTeams.$inferInsert;
+`,
+    });
+    const result = checkReleaseCompatibility(fixture.directory);
+
+    expect(result.failures).toEqual([]);
+    expect(result.findings[0]).toMatchObject({ status: "pass", finding: { category: "drop" }, evidence: [] });
   });
 
   it("fails a column contract even when migration-risk annotation exists", () => {

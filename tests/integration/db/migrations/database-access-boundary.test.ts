@@ -5,7 +5,7 @@ import { verifyDatabaseAccessMatrix } from "../../../../scripts/db/access-matrix
 import { capturePostgresError } from "../harness/database";
 import { migrationFiles, replayMigration, withScratchDatabase } from "../harness/migration-replay";
 
-const TERMINAL_MIGRATION = "0035_colorful_black_widow.sql";
+const TERMINAL_MIGRATION = "0049_ambiguous_brood.sql";
 
 describe("database access boundary migration", () => {
   it("replays the terminal contract, keeps the trusted server path, and denies anon/authenticated CRUD", async () => {
@@ -24,8 +24,8 @@ describe("database access boundary migration", () => {
         [seasonId, `access-boundary-${seasonId}`, probeSeasonId, `access-boundary-probe-${probeSeasonId}`],
       );
       await client.query(
-        `INSERT INTO competition_bracket_states (competition_id, data)
-         VALUES ($1, $2::jsonb)`,
+        `INSERT INTO competition_stage_bracket_states (competition_id, stage_key, data)
+         VALUES ($1, 'playoff', $2::jsonb)`,
         [seasonId, JSON.stringify({ stage: [] })],
       );
 
@@ -33,38 +33,39 @@ describe("database access boundary migration", () => {
       for (const migration of migrations.filter((name) => name > TERMINAL_MIGRATION)) {
         await replayMigration(client, migration);
       }
-      await verifyDatabaseAccessMatrix(client, "0035 migration replay");
+      await verifyDatabaseAccessMatrix(client, "0049 migration replay");
 
       const trustedRead = await client.query<{ data: unknown }>(
-        "SELECT data FROM competition_bracket_states WHERE competition_id = $1",
+        "SELECT data FROM competition_stage_bracket_states WHERE competition_id = $1 AND stage_key = 'playoff'",
         [seasonId],
       );
       expect(trustedRead.rows[0]?.data).toEqual({ stage: [] });
 
       await client.query(
-        "UPDATE competition_bracket_states SET data = $2::jsonb WHERE competition_id = $1",
+        "UPDATE competition_stage_bracket_states SET data = $2::jsonb WHERE competition_id = $1 AND stage_key = 'playoff'",
         [seasonId, JSON.stringify({ stage: [], trustedServerWrite: true })],
       );
       const trustedUpdate = await client.query<{ data: unknown }>(
-        "SELECT data FROM competition_bracket_states WHERE competition_id = $1",
+        "SELECT data FROM competition_stage_bracket_states WHERE competition_id = $1 AND stage_key = 'playoff'",
         [seasonId],
       );
       expect(trustedUpdate.rows[0]?.data).toEqual({ stage: [], trustedServerWrite: true });
 
-      const inserted = await client.query<{ competition_id: string }>(
-        `INSERT INTO competition_bracket_states (competition_id, data)
-         VALUES ($1, $2::jsonb)
-         RETURNING competition_id`,
+      const inserted = await client.query<{ competition_id: string; stage_key: string }>(
+        `INSERT INTO competition_stage_bracket_states (competition_id, stage_key, data)
+         VALUES ($1, 'probe', $2::jsonb)
+         RETURNING competition_id, stage_key`,
         [probeSeasonId, JSON.stringify({ stage: [], trustedServerInsert: true })],
       );
       expect(inserted.rows[0]?.competition_id).toBe(probeSeasonId);
+      expect(inserted.rows[0]?.stage_key).toBe("probe");
 
       await client.query("BEGIN");
       for (const role of ["anon", "authenticated"] as const) {
         await client.query(`SET LOCAL ROLE ${role}`);
         const deniedSelect = await capturePostgresError(client, () =>
           client.query(
-            "SELECT competition_id FROM competition_bracket_states WHERE competition_id = $1",
+            "SELECT competition_id FROM competition_stage_bracket_states WHERE competition_id = $1",
             [seasonId],
           ),
         );
@@ -72,8 +73,8 @@ describe("database access boundary migration", () => {
 
         const deniedInsert = await capturePostgresError(client, () =>
           client.query(
-            `INSERT INTO competition_bracket_states (competition_id, data)
-             VALUES ($1, $2::jsonb)`,
+            `INSERT INTO competition_stage_bracket_states (competition_id, stage_key, data)
+             VALUES ($1, 'denied', $2::jsonb)`,
             [randomUUID(), JSON.stringify({ stage: [] })],
           ),
         );
@@ -81,7 +82,7 @@ describe("database access boundary migration", () => {
 
         const deniedUpdate = await capturePostgresError(client, () =>
           client.query(
-            "UPDATE competition_bracket_states SET data = data WHERE competition_id = $1",
+            "UPDATE competition_stage_bracket_states SET data = data WHERE competition_id = $1",
             [seasonId],
           ),
         );
@@ -89,7 +90,7 @@ describe("database access boundary migration", () => {
 
         const deniedDelete = await capturePostgresError(client, () =>
           client.query(
-            "DELETE FROM competition_bracket_states WHERE competition_id = $1",
+            "DELETE FROM competition_stage_bracket_states WHERE competition_id = $1",
             [probeSeasonId],
           ),
         );
@@ -99,7 +100,7 @@ describe("database access boundary migration", () => {
       await client.query("COMMIT");
 
       await client.query(
-        "DELETE FROM competition_bracket_states WHERE competition_id = $1",
+        "DELETE FROM competition_stage_bracket_states WHERE competition_id = $1",
         [probeSeasonId],
       );
       await client.query("DELETE FROM seasons WHERE id IN ($1, $2)", [seasonId, probeSeasonId]);

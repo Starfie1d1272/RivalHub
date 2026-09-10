@@ -46,9 +46,8 @@ export interface MajorSwissStageReadModel {
 }
 
 /**
- * Public/admin Swiss projection. The old swiss_standings table is deliberately
- * not read: StageRun membership, managed match facts, and finalizedRound are
- * the only inputs to this read model.
+ * Public/admin Swiss projection. StageRun membership, managed match facts, and
+ * finalizedRound are the only inputs to this read model.
  */
 export async function loadMajorSwissStageReadModel(
   seasonId: string,

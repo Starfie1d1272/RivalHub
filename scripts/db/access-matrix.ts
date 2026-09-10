@@ -112,13 +112,6 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "public_note 等公开字段由服务端 projection 决定，原始审核记录仍为 server-only。",
   ),
   serverOnly(
-    "competition_bracket_states",
-    "赛事 bracket runtime",
-    "高敏感运行时 JSON",
-    "无（Release-N compatibility shell；stage-scoped owner 见下一项）",
-    "Release-N 保留旧表结构供兼容迁移与回滚观察；应用不再读取或写入，N+1 contract 才删除。",
-  ),
-  serverOnly(
     "competition_stage_bracket_states",
     "赛事 bracket runtime",
     "高敏感、阶段范围运行时 JSON",
@@ -476,13 +469,6 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "赛事 capability、注册窗口和冻结配置是业务控制面，不允许 Data API 旁路。",
   ),
   serverOnly(
-    "swiss_standings",
-    "Major Swiss",
-    "排名 projection 与阶段事实",
-    "无（Release-N compatibility shell；Major Swiss read model 由 StageEntrants + managed matches + finalizedRound 投影）",
-    "保留旧表结构供兼容迁移与回滚观察；应用不再读取或写入，N+1 contract 才删除。",
-  ),
-  serverOnly(
     "team_captain_changes",
     "长期 Team",
     "队长变更历史",
@@ -616,6 +602,7 @@ export async function verifyDatabaseAccessMatrix(
   pool: Pick<Pool, "query">,
   context: string,
   entries: readonly DatabaseAccessEntry[] = DATABASE_ACCESS_MATRIX,
+  ignoredTables: readonly string[] = [],
 ): Promise<readonly DatabaseAccessFacts[]> {
   validateDatabaseAccessMatrixConfig(entries);
 
@@ -686,6 +673,7 @@ export async function verifyDatabaseAccessMatrix(
     tableResult.rows.map((row) => row.table_name),
     facts,
     entries,
+    ignoredTables,
   );
 
   console.log(
@@ -698,9 +686,14 @@ export function assertDatabaseAccessMatrixFacts(
   actualTables: readonly string[],
   actualFacts: readonly DatabaseAccessFacts[],
   entries: readonly DatabaseAccessEntry[] = DATABASE_ACCESS_MATRIX,
+  ignoredTables: readonly string[] = [],
 ): void {
   const expectedTables = entries.map((entry) => entry.table);
-  const tableDiff = diffNames([...expectedTables].sort(), [...actualTables].sort());
+  const ignored = new Set(ignoredTables);
+  const tableDiff = diffNames(
+    [...expectedTables].sort(),
+    actualTables.filter((table) => !ignored.has(table)).sort(),
+  );
   const actualByTable = new Map(actualFacts.map((row) => [row.table_name, row]));
   const failures = [...tableDiff.map((item) => `public table ${item}`)];
 
@@ -770,7 +763,7 @@ export function renderDatabaseAccessMatrixMarkdown(): string {
     "",
     `- 当前 active chain 的 ${DATABASE_ACCESS_MATRIX.length} 张 application-owned \`public\` base table 全部归类为 \`server_only\`。业务数据库只由 server-side Drizzle 访问，browser Data API consumer 为零。`,
     "- `users`、`user_sessions`、`admin_invites`、`admin_invite_claims`、`season_admin_grants`、`audit_logs`、education evidence、Major prestart/runtime 和 bracket runtime 均按高敏感 server-only 处理。",
-    "- 2026-09-03 production 只读 inventory 在 migration 前确认 `competition_bracket_states` 是明确的 anon/authenticated CRUD privilege 例外；Issue #395 的 forward migration 将其与其余表统一收口。",
+    "- 通用 provider bracket state 按 `(competition_id, stage_key)` 归属 canonical logical Stage；Major Swiss standings 只由 StageRun entrants、managed matches 与 finalized round 投影。",
     "- `DraftLiveRoom` 与 `CaptainVotingPanel` 的 Realtime subscription 已删除。两处继续使用既有 10 秒 polling fallback；`ResetPasswordForm` 保留 browser Supabase client，但仅调用 Supabase Auth，不调用 public table Data API。",
     "- `supabase_realtime` publication 不应包含本矩阵中的任何表；若新增 direct Data API 或 Realtime surface，必须先新增明确 classification、最小 privilege、RLS policy、publication 说明和正反例测试。",
     "",

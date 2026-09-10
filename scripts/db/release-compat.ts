@@ -243,11 +243,15 @@ function findOwnerEvidence(sources: readonly ShippedSource[], owner: MigrationCo
   for (const source of sources) {
     if (owner.kind === "relation") {
       for (const declaration of tableDeclarations) {
-        if (matchesRelation(declaration, owner) && declaration.path === source.path) {
+        if (
+          matchesRelation(declaration, owner)
+          && declaration.path === source.path
+          && tableDeclarationHasShippedConsumer(declaration, sources)
+        ) {
           addEvidence(evidence, {
             path: source.path,
             line: lineNumberAt(source.content, declaration.start),
-            reason: `Drizzle pgTable(${owner.identifier}) declaration`,
+            reason: `Drizzle pgTable(${owner.identifier}) declaration with shipped consumer`,
           });
         }
       }
@@ -336,6 +340,20 @@ function findOwnerEvidence(sources: readonly ShippedSource[], owner: MigrationCo
   return dedupeEvidence(evidence);
 }
 
+function tableDeclarationHasShippedConsumer(
+  declaration: TableDeclaration,
+  sources: readonly ShippedSource[],
+): boolean {
+  // A relation declaration retained only as an N/N+1 compatibility shell is
+  // not itself a shipped consumer. Any import, alias, or other reference from
+  // another shipped source is still a dependency and must block a DROP.
+  return sources.some((source) => {
+    if (source.path === declaration.path) return false;
+    const symbolPattern = new RegExp(`\\b${escapeRegExp(declaration.symbol)}\\b`);
+    return symbolPattern.test(source.searchableContent);
+  });
+}
+
 function collectTableDeclarations(source: ShippedSource): TableDeclaration[] {
   const declarations: TableDeclaration[] = [];
   const pattern = /\b(?:export\s+)?const\s+([A-Za-z_$][\w$]*)\s*=\s*pgTable\s*\(\s*(["'`])([^"'`]+)\2\s*,/g;
@@ -406,7 +424,7 @@ function tableUsagePattern(symbols: readonly string[]): RegExp {
   if (symbols.length === 0) return /(?!)/g;
   const names = symbols.map(escapeRegExp).join("|");
   return new RegExp(
-    `(?:\\b(?:${names})\\s*\\.|\\.(?:from|insert|update|delete)\\s*\\(\\s*(?:${names})\\b|\\b(?:db|tx)\\s*\\.\\s*query\\s*\\.\\s*(?:${names})\\b)`,
+    `(?:\\b(?:${names})\\s*\\.(?!\\$infer(?:Select|Insert)\\b)|\\.(?:from|insert|update|delete)\\s*\\(\\s*(?:${names})\\b|\\b(?:db|tx)\\s*\\.\\s*query\\s*\\.\\s*(?:${names})\\b)`,
     "g",
   );
 }

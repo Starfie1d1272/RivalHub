@@ -132,7 +132,7 @@ approved CompetitionEntry candidates
 
 通用阶段的 identity 是 `(seasonId, StageConfig.key)`，name 只负责展示。provider bracket state 按 `(competition_id, stage_key)` 隔离；participant 的 RivalHub identity 必须来自 `rivalhubEntryId`，不能从名称或 participant 数组位置反推。`matches` 的 provider node 唯一性也按 `(season_id, stage, bracket_node_id)` 约束，允许不同阶段复用 provider numeric node。
 
-Major Swiss 的 public/admin read model 只从 `major_stage_entrants`、`matches(ownership = major_stage)` 与 `major_stage_runs.finalized_round` 投影；`swiss_standings` 不再是应用真相或 active consumer。
+Major Swiss 的 public/admin read model 只从 `major_stage_entrants`、`matches(ownership = major_stage)` 与 `major_stage_runs.finalized_round` 投影。
 
 历史 snapshot 保留当时事实，即使 live profile、目录或政策后来变化也不重解释。
 
