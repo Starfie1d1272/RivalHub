@@ -104,7 +104,7 @@ export function TeamQualificationSummary({ config }: { config: TeamRegistrationC
         <div><dt className="text-[var(--color-fg-mid)]">在读成员下限</dt><dd className="mt-1 font-medium">{config.minEnrolledMembers} 人</dd></div>
         <div><dt className="text-[var(--color-fg-mid)]">外校成员上限</dt><dd className="mt-1 font-medium">{config.maxExternalMembers} 人</dd></div>
       </dl>
-      <p className="text-xs leading-5 text-[var(--color-fg-dim)]">以上是当前赛事配置的 canonical 资格事实；实际报名、名单与首发资格由对应 qualification owner 在服务端复核。</p>
+      <p className="text-xs leading-5 text-[var(--color-fg-dim)]">报名名单和每场首发均需符合本届资格要求。</p>
     </div>
   );
 }
@@ -121,7 +121,7 @@ export function TeamRegistrationSummary({ config }: { config: TeamRegistrationCo
         <div><dt className="text-[var(--color-fg-mid)]">报名后锁定名单</dt><dd className="mt-1 font-medium">{config.lockAfterRegistration ? "是" : "否"}</dd></div>
         <div><dt className="text-[var(--color-fg-mid)]">位置要求</dt><dd className="mt-1 font-medium">{config.requirePositions ? `每位置最多 ${config.maxPerPositionPerTeam} 人` : "无额外位置要求"}</dd></div>
       </dl>
-      <p className="text-xs leading-5 text-[var(--color-fg-dim)]">这些是当前赛事保存的 roster/registration canonical facts；内置赛事由 template owner 固定。</p>
+      <p className="text-xs leading-5 text-[var(--color-fg-dim)]">内置赛事的报名和名单规则由赛事体系统一确定。</p>
     </div>
   );
 }
@@ -154,7 +154,7 @@ export function SoloQualificationSummary({
         <div><dt className="text-[var(--color-fg-mid)]">每位置上限</dt><dd className="mt-1 font-medium">{maxPerPosition} 人</dd></div>
         <div><dt className="text-[var(--color-fg-mid)]">截图链接数量</dt><dd className="mt-1 font-medium">{screenshotCount}</dd></div>
       </dl>
-      <p className="text-xs leading-5 text-[var(--color-fg-dim)]">这里展示当前赛事保存的 canonical registrationConfig；报名时由服务端 qualification owner 复核。</p>
+      <p className="text-xs leading-5 text-[var(--color-fg-dim)]">提交报名时将按以上要求核验参赛资格。</p>
     </div>
   );
 }
@@ -180,7 +180,7 @@ export function AffiliationRulesSummary({ rules }: { rules: readonly Institution
           ))}
         </ul>
       )}
-      <p className="text-xs leading-5 text-[var(--color-fg-dim)]">这里仅展示赛事保存的 canonical affiliation rule，不在页面复制 qualification evaluator。</p>
+      <p className="text-xs leading-5 text-[var(--color-fg-dim)]">报名名单和首发阵容均按以上学校归属要求核验。</p>
     </div>
   );
 }
@@ -258,7 +258,7 @@ export function StagePlanSummary({ stagePlan }: { stagePlan: StagePlan }) {
   if (stagePlan.length === 0) return <p className="text-sm text-[var(--color-fg-mid)]">当前没有配置比赛阶段。</p>;
   return (
     <div className="space-y-3">
-      <p className="text-xs text-[var(--color-fg-dim)]">内置赛事的 StagePlan 由 template canonical owner 固定；此处只读展示阶段与赛制事实。</p>
+      <p className="text-xs text-[var(--color-fg-dim)]">以下为本届赛事的比赛阶段与赛制安排。</p>
       <ol className="space-y-2">
         {stagePlan.map((stage, index) => (
           <li key={`${stage.key}-${index}`} className="rounded-sm border border-[var(--color-border)] px-3 py-2.5 text-sm">

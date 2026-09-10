@@ -18,7 +18,7 @@ export interface ConversionPolicyEventReference {
   seasonId: string;
   seasonName: string;
   seasonSlug: string;
-  seasonStatus: string;
+  seasonStatus: typeof seasons.$inferSelect.status;
   policyId: string;
   policyVersion: string | null;
   registrationOpenedAt: Date | null;
@@ -85,7 +85,7 @@ function requireValidMapping(mapping: unknown): asserts mapping is ConversionPol
   } catch (error) {
     throw new AppError(
       ErrorCode.VALIDATION_FAILED,
-      error instanceof Error ? error.message : "换算策略 mapping 无效。",
+      error instanceof Error ? error.message : "换算规则内容无效。",
     );
   }
 }

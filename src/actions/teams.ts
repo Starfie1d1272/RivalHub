@@ -14,7 +14,6 @@ import { TEAM_LOGO_BUCKET, TEAM_LOGO_EXTENSIONS } from "@/lib/config/team-logo";
 import { LOGO_ALLOWED_TYPES, LOGO_MAX_BYTES } from "@/lib/config/upload-limits";
 import { normalizeEmail } from "@/lib/utils/email";
 import { acceptTeamInvitationInTx } from "@/lib/teams/invitations";
-import { removeInterestAfterInvitationInTx } from "@/lib/recruitment/commands";
 import {
   createTeamInTx,
   createTeamShareInvitationInTx,
@@ -107,17 +106,12 @@ export async function inviteTeamMember(input: { teamId: string; email: string })
 }
 
 /** A Lobby handoff; the canonical invitation command remains the only Team invite owner. */
-export async function inviteTeamMemberByUserId(input: { teamId: string; userId: string; recruitmentIntentId?: string }): Promise<ActionResult<void>> {
-  const parsed = z.object({ teamId: uuid, userId: uuid, recruitmentIntentId: uuid.optional() }).safeParse(input);
+export async function inviteTeamMemberByUserId(input: { teamId: string; userId: string }): Promise<ActionResult<void>> {
+  const parsed = z.object({ teamId: uuid, userId: uuid }).safeParse(input);
   if (!parsed.success) return failValidation("邀请对象无效。");
   try {
     const session = await requireAuth();
-    await db.transaction(async (tx) => {
-      await inviteTeamMemberInTx(tx, { teamId: parsed.data.teamId, userId: session.userId, invitedUserId: parsed.data.userId, actorId: auditActorId(session) });
-      if (parsed.data.recruitmentIntentId) {
-        await removeInterestAfterInvitationInTx(tx, { recruitmentIntentId: parsed.data.recruitmentIntentId, teamId: parsed.data.teamId, userId: parsed.data.userId });
-      }
-    });
+    await db.transaction((tx) => inviteTeamMemberInTx(tx, { teamId: parsed.data.teamId, userId: session.userId, invitedUserId: parsed.data.userId, actorId: auditActorId(session) }));
     revalidatePath(`/players/${parsed.data.userId}`);
     revalidateTeam();
     return ok(undefined);

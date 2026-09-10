@@ -66,7 +66,7 @@ function frozenCompetitiveProfile(ruleSnapshot: unknown): CompetitiveProfileConf
   }
   const fallback = profile.fallbackConversion;
   if (fallback && (fallback.sourcePlatform !== "fivee" || typeof fallback.version !== "string" || !fallback.seasonKeyMap || typeof fallback.seasonKeyMap !== "object" || (!fallback.mapping && !fallback.rankMap) || (fallback.mapping && typeof fallback.mapping !== "object") || (fallback.rankMap && typeof fallback.rankMap !== "object"))) {
-    throw new AppError(ErrorCode.INTERNAL_ERROR, "StageRun 冻结的 5E fallback 映射不可用。");
+    throw new AppError(ErrorCode.INTERNAL_ERROR, "本阶段已锁定的 5E 换算规则不可用，请联系赛事管理员。");
   }
   return {
     platform: profile.platform,
@@ -161,7 +161,7 @@ async function loadFrozenRosterUserIdsInTx(
   if (!roster || roster.status !== "frozen") {
     throw new AppError(
       ErrorCode.INTERNAL_ERROR,
-      "CompetitionEntry 缺少 frozen event roster，无法校验本场名单。",
+      "本队缺少已锁定的赛事名单，无法校验本场阵容。",
     );
   }
 

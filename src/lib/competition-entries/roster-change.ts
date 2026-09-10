@@ -37,9 +37,9 @@ export async function requestCompetitionEntryRosterChangeInTx(
     .where(eq(competitionEntries.id, input.entryId)).for("update");
   if (!entry) throw new AppError(ErrorCode.NOT_FOUND, "赛事参赛条目不存在。");
   if (entry.representativeUserId !== input.representativeUserId) throw new AppError(ErrorCode.FORBIDDEN, "只有本届赛事负责人可以执行此操作。");
-  if (entry.registrationStatus !== "approved" || entry.approvedRosterRevisionId === null) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "只有已批准 Entry 可以发起 roster change。");
+  if (entry.registrationStatus !== "approved" || entry.approvedRosterRevisionId === null) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "只有报名已通过审核的队伍可以发起名单变更。");
   const [prestartRoster] = await tx.select({ id: eventRosters.id, status: eventRosters.status }).from(eventRosters).where(eq(eventRosters.entryId, entry.id)).for("update");
-  if (prestartRoster?.status === "frozen") throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "event roster 已冻结；名单变化必须走赛事运营裁决，不能回写报名事实。");
+  if (prestartRoster?.status === "frozen") throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "最终名单已锁定；如需调整，请联系赛事管理员处理。");
   let prestartInvalidated = false;
   if (prestartRoster) {
     // 重新进入补正后，未冻结的赛前名单回到待同步/待确认状态，旧审批事实不再继续向上传递。
@@ -48,14 +48,14 @@ export async function requestCompetitionEntryRosterChangeInTx(
   }
   if (!canSelfChangeApprovedRoster(season)) throw new AppError(ErrorCode.REGISTRATION_CLOSED, "名单调整窗口当前不可用；请联系赛事管理员发起变更。");
   const [approved] = await tx.select().from(competitionEntryRosterRevisions).where(and(eq(competitionEntryRosterRevisions.id, entry.approvedRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id))).for("update");
-  if (!approved) throw new AppError(ErrorCode.INTERNAL_ERROR, "已批准 roster revision 不存在。");
+  if (!approved) throw new AppError(ErrorCode.INTERNAL_ERROR, "已通过审核的名单记录不可用，请联系赛事管理员。");
   const [current] = await tx.select().from(competitionEntryRosterRevisions).where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id))).for("update");
-  if (!current) throw new AppError(ErrorCode.INTERNAL_ERROR, "当前 roster revision 不存在。");
+  if (!current) throw new AppError(ErrorCode.INTERNAL_ERROR, "当前名单记录不可用，请联系赛事管理员。");
   const nextRevision = current.revisionNumber + 1;
   const [next] = await tx.insert(competitionEntryRosterRevisions).values({ entryId: entry.id, revisionNumber: nextRevision, status: "draft", origin: "self_roster_change", createdBy: input.actorId }).returning({ id: competitionEntryRosterRevisions.id });
   const members = await tx.select().from(competitionEntryRosterMembers).where(eq(competitionEntryRosterMembers.revisionId, approved.id));
   if (members.length > 0) await tx.insert(competitionEntryRosterMembers).values(members.map((member) => ({ revisionId: next.id, participantId: member.participantId, userId: member.userId, teamMembershipId: member.teamMembershipId, isPrimaryStarter: member.isPrimaryStarter })));
-  await tx.update(competitionEntries).set({ registrationStatus: "changes_requested", currentRosterRevisionId: next.id, reviewReason: "Entry representative requested an approved-roster change", updatedAt: new Date() }).where(eq(competitionEntries.id, entry.id));
+  await tx.update(competitionEntries).set({ registrationStatus: "changes_requested", currentRosterRevisionId: next.id, reviewReason: null, updatedAt: new Date() }).where(eq(competitionEntries.id, entry.id));
   await tx.insert(auditLogs).values({ seasonId: entry.competitionId, action: "competition_entry.roster_change.request", actorId: input.actorId, targetId: entry.id, targetType: "competition_entry", meta: { approvedRevision: approved.revisionNumber, nextRevision, prestartInvalidated } });
   return { seasonSlug: season.slug };
 }

@@ -14,7 +14,7 @@ import { normalizeRegistrationConfig } from "@/lib/seasons/compatibility";
 import { getRegistrationWindowState } from "@/lib/registration/window";
 import { normalizeEmail } from "@/lib/utils/email";
 import { compactUndefined } from "@/lib/utils/object";
-import { getSteamAvatar } from "@/lib/steam";
+import { resolveSteamAvatarForProfile } from "@/lib/steam";
 import { assertUsersNotBlockedInTx } from "@/lib/discipline/service";
 import { updatePublicPlayerTag } from "@/lib/revalidation";
 import { traceOperation } from "@/lib/observability/server";
@@ -290,11 +290,7 @@ export async function submitRegistration(input: RegistrationFormData) {
       throw new AppError(ErrorCode.POSITION_FULL, ERROR_MESSAGES.POSITION_FULL);
     }
 
-    // 更新用户资料，首次报名或更换 steam 账号时刷新头像缓存；steam64 为空时清除旧头像
-    const steamChanged = user.steam64 !== data.steam64;
-    const avatarUrl = !steamChanged
-      ? user.avatarUrl
-      : (data.steam64 ? (await getSteamAvatar(data.steam64)) ?? null : null);
+    const avatarUrl = await resolveSteamAvatarForProfile(user, data.steam64 || null);
 
     const registration = await traceOperation("registration.submit", {
       scope: "registration",
@@ -319,7 +315,7 @@ export async function submitRegistration(input: RegistrationFormData) {
             perfectName: data.perfectName,
             steamName: data.steamName,
             steamProfileUrl: data.steamProfileUrl,
-            avatarUrl: avatarUrl ?? undefined,
+            avatarUrl,
             gameplayStyle: declaredProfile.gameplayStyle ?? data.gameplayStyle,
             competitionHistory: declaredProfile.competitionHistory,
             updatedAt: new Date(),

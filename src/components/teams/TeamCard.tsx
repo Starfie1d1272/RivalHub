@@ -1,4 +1,5 @@
 import React from "react";
+import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import Link from "next/link";
 import { Panel, PosChip } from "@/components/rivalhub";
 import { TeamLogo } from "@/components/teams/TeamLogo";
@@ -6,6 +7,7 @@ import { formatStat } from "@/lib/stats";
 
 interface PlayerPreview {
   name: string;
+  avatarUrl?: string | null;
   isStarter: boolean;
   isRepresentative: boolean;
   userId?: string | null;
@@ -101,6 +103,7 @@ export function TeamCard({
           {starters.map((p) => (
             <div key={p.name} className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
+                <PlayerAvatar name={p.name} avatarUrl={p.avatarUrl} size="sm" />
                 {p.isRepresentative && <PosChip pos="R" small />}
                 {p.userId ? (
                   <Link href={`/players/${p.userId}`} className="text-sm text-[var(--color-fg)] hover:text-[var(--color-accent)] transition-colors truncate">
@@ -118,6 +121,7 @@ export function TeamCard({
           <div className="border-t border-[var(--color-border)] pt-2 flex flex-wrap gap-x-3 gap-y-1 opacity-70">
             {subs.map((p) => (
               <span key={p.name} className="inline-flex items-center gap-1 text-xs text-[var(--color-fg-mid)]">
+                <PlayerAvatar name={p.name} avatarUrl={p.avatarUrl} size="sm" />
                 {p.userId ? (
                   <Link href={`/players/${p.userId}`} className="hover:text-[var(--color-accent)] transition-colors">
                     {p.name}

@@ -18,6 +18,7 @@ const FULL_STATIC_MATRIX = [
 ];
 
 const GLOBAL_CONTRACTS = {
+  productLanguage: { project: "unit-domain-node", path: "tests/unit/quality/product-language.test.ts" },
   e2e: { project: "unit-domain-node", path: "tests/unit/quality/e2e-contract.test.ts" },
   architecture: { project: "unit-domain-node", path: "tests/unit/quality/architecture-boundaries.test.ts" },
 };
@@ -289,7 +290,10 @@ function collectEvidence(path, classification, evidence) {
   const project = unitProjectFor(path);
   if (project && isTest) evidence.unitExplicitTests.get(project).add(path);
   if (project && isCode && !isTest) evidence.unitRelatedSources.get(project).add(path);
-  if (path.startsWith("src/")) evidence.unitExplicitTests.get("unit-domain-node").add(GLOBAL_CONTRACTS.architecture.path);
+  if (path.startsWith("src/")) {
+    evidence.unitExplicitTests.get("unit-domain-node").add(GLOBAL_CONTRACTS.architecture.path);
+    evidence.unitExplicitTests.get("unit-domain-node").add(GLOBAL_CONTRACTS.productLanguage.path);
+  }
 
   for (const mapping of SYSTEM_FLOW_MAP) {
     if (mapping.prefixes.some((prefix) => path.startsWith(prefix))) {

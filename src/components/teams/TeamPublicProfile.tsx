@@ -1,4 +1,5 @@
 import React from "react";
+import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
@@ -90,6 +91,7 @@ export function TeamPublicProfile({ team, event = null }: TeamPublicProfileProps
             {event.roster.length > 0 ? event.roster.map((member) => (
               <div key={member.userId} className="flex flex-wrap items-center justify-between gap-3 py-3">
                 <div className="flex min-w-0 items-center gap-2">
+                  <PlayerAvatar name={member.name} avatarUrl={member.avatarUrl} size="sm" />
                   {member.isStarter && <PosChip pos="S" small />}
                   <Link href={`/players/${member.userId}`} className="min-w-0 break-words font-medium hover:text-[var(--color-accent)]">{member.name}</Link>
                   {member.isRepresentative && <PosChip pos="R" small />}
@@ -148,6 +150,7 @@ export function TeamPublicProfile({ team, event = null }: TeamPublicProfileProps
               {currentMembers.length > 0 ? currentMembers.map((member) => (
                 <div key={member.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                   <div className="flex min-w-0 items-center gap-2">
+                    <PlayerAvatar name={member.name} avatarUrl={member.avatarUrl} size="sm" />
                     {member.userId === team.team.captainUserId && <PosChip pos="C" small />}
                     <Link href={`/players/${member.userId}`} className="min-w-0 break-words text-sm hover:text-[var(--color-accent)]">{member.name}</Link>
                   </div>

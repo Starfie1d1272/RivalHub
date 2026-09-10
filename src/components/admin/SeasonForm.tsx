@@ -611,7 +611,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
             )}
             {!editCapabilities.canEditTemplate && (
               <div className="mt-3">
-                <FrozenFact title={`赛事体系：${templateLabel(template)}`}>已发布后不可修改赛事体系与其 canonical 公开规则。</FrozenFact>
+                <FrozenFact title={`赛事体系：${templateLabel(template)}`}>发布后不能修改赛事体系与已公布的规则。</FrozenFact>
               </div>
             )}
           </div>
@@ -644,7 +644,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
           <div>
             <Label htmlFor="end-at">赛季结束时间</Label>
             <Input id="end-at" type="datetime-local" value={endAt ?? ""} onChange={(e) => setEndAt(e.target.value)} />
-            <p className="mt-1 text-xs text-[var(--color-fg-dim)]">仅作为赛事 metadata 与赛后收尾参考，不替代生命周期 transition owner。</p>
+            <p className="mt-1 text-xs text-[var(--color-fg-dim)]">用于赛事信息展示与赛后收尾；修改此时间不会自动结束赛事。</p>
           </div>
         </div>
         <div className="mt-5 flex flex-wrap items-center justify-end gap-3 border-t border-[var(--color-border)] pt-4">
@@ -674,7 +674,7 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
         {isBuiltIn && registrationMode === "team" && (
           <>
             <FrozenFact title={`${templateLabel(template)} · 队伍报名规则`}>
-              报名模式、队伍规模和首发人数由当前赛事 template canonical owner 固定；页面不会让客户端绕过标准规则提交另一套值。
+              报名模式、队伍规模和首发人数由当前赛事体系统一确定。
             </FrozenFact>
             <TeamRegistrationSummary config={teamConfig} />
           </>
@@ -789,9 +789,9 @@ export function SeasonForm({ mode, initial, competitivePlatforms }: SeasonFormPr
         <div className="space-y-3">
           {initial?.status === "draft" && <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-medium">删除草稿赛季</p><p className="text-sm text-[var(--color-fg-mid)]">只有尚未产生报名、队伍或赛程事实的草稿可以删除。</p></div><Button type="button" variant="destructive" disabled={isPending} onClick={() => setDangerAction("delete")}>删除赛季</Button></div>}
           {initial?.status === "registration" && <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-medium">撤回至草稿</p><p className="text-sm text-[var(--color-fg-mid)]">撤回前由服务端检查赛事是否仍没有历史事实。</p></div><Button type="button" variant="outline" disabled={isPending} onClick={() => setDangerAction("revert-draft")}>撤回至草稿</Button></div>}
-          {initial?.status === "voting" && <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-medium">撤回至报名阶段</p><p className="text-sm text-[var(--color-fg-mid)]">该操作会清空投票事实，并继续由现有 transition owner 校验。</p></div><Button type="button" variant="outline" disabled={isPending} onClick={() => setDangerAction("revert-registration")}>撤回至报名阶段</Button></div>}
-          {initial?.status === "playing" && <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-medium">手动结束赛事</p><p className="text-sm text-[var(--color-fg-mid)]">仅用于无法自动结束的极端情况；结果与审计仍由服务端 owner 处理。</p></div><Button type="button" variant="outline" disabled={isPending} onClick={() => setDangerAction("finish")}>手动结束赛季</Button></div>}
-          {initial?.status === "finished" && <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-medium">归档赛事</p><p className="text-sm text-[var(--color-fg-mid)]">归档后赛事进入历史记录，后续收尾由赛后 owner 按允许范围处理。</p></div><Button type="button" variant="outline" disabled={isPending} onClick={() => setDangerAction("archive")}>归档赛季</Button></div>}
+          {initial?.status === "voting" && <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-medium">撤回至报名阶段</p><p className="text-sm text-[var(--color-fg-mid)]">该操作会清空本届投票，请确认需要重新投票。</p></div><Button type="button" variant="outline" disabled={isPending} onClick={() => setDangerAction("revert-registration")}>撤回至报名阶段</Button></div>}
+          {initial?.status === "playing" && <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-medium">手动结束赛事</p><p className="text-sm text-[var(--color-fg-mid)]">仅用于无法自动结束的情况；操作会记录赛事结果和处理记录。</p></div><Button type="button" variant="outline" disabled={isPending} onClick={() => setDangerAction("finish")}>手动结束赛季</Button></div>}
+          {initial?.status === "finished" && <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-medium">归档赛事</p><p className="text-sm text-[var(--color-fg-mid)]">归档后赛事进入历史记录，后续仅允许规定的赛后处理。</p></div><Button type="button" variant="outline" disabled={isPending} onClick={() => setDangerAction("archive")}>归档赛季</Button></div>}
           {!(["draft", "registration", "voting", "playing", "finished"] as const).includes(initial?.status as never) && <p className="text-sm text-[var(--color-fg-mid)]">当前状态没有可用的危险操作。</p>}
         </div>
         <SeasonDangerConfirmation action={dangerAction} onOpenChange={(open) => { if (!open) setDangerAction(null); }} onConfirm={() => { const action = dangerAction; setDangerAction(null); if (action === "delete") handleDelete(); if (action === "revert-draft") handleRevertToDraft(); if (action === "revert-registration") handleRevertToRegistration(); if (action === "finish") handleForceFinish(); if (action === "archive") handleArchive(); }} />

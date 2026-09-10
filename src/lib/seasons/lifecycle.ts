@@ -179,7 +179,7 @@ async function resolveFallbackConversionForFreeze(
       throw new AppError(ErrorCode.VALIDATION_FAILED, "赛事选用的 5E 换算策略不存在，不能开放报名。");
     }
     if (found.status !== "approved") {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, `赛事选用的 5E 换算策略 (${found.version}) 状态为 ${found.status}，只有 approved 策略可以开放报名。`);
+      throw new AppError(ErrorCode.VALIDATION_FAILED, `赛事选用的 5E 换算策略 (${found.version}) 尚未批准或已停用；请选用已批准的换算规则后开放报名。`);
     }
     policy = found;
   } else if (selectedPolicyVersion) {
@@ -194,7 +194,7 @@ async function resolveFallbackConversionForFreeze(
       throw new AppError(ErrorCode.VALIDATION_FAILED, `赛事选用的 5E 换算策略版本 (${selectedPolicyVersion}) 不存在，不能开放报名。`);
     }
     if (found.status !== "approved") {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, `赛事选用的 5E 换算策略 (${found.version}) 状态为 ${found.status}，只有 approved 策略可以开放报名。`);
+      throw new AppError(ErrorCode.VALIDATION_FAILED, `赛事选用的 5E 换算策略 (${found.version}) 尚未批准或已停用；请选用已批准的换算规则后开放报名。`);
     }
     policy = found;
   } else {
@@ -284,10 +284,10 @@ export async function freezeCompetitiveContext(
     fallbackConversion,
   };
   if (!await resolveCompetitiveContext(competitiveProfile)) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "5E fallback 映射必须覆盖本届冻结的全部赛季证据槽，并映射到已公布的 Perfect 段位后才能开放报名。");
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "5E 换算规则须覆盖本届所需的全部赛季，并对应到已公布的 Perfect World 段位后才能开放报名。");
   }
   if (competitiveProfile.fallbackConversion && !await fallbackCatalogReferencesExist(tx, competitiveProfile.fallbackConversion)) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "5E fallback 映射引用的赛季或段位已不在竞技目录中，不能开放报名。");
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "5E 换算规则引用的赛季或段位已不在竞技目录中，不能开放报名。");
   }
   return {
     ...config,

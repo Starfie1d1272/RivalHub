@@ -8,6 +8,7 @@ const {
   revalidateMatchPathsMock: vi.fn(),
 }));
 
+vi.mock("@/lib/steam-avatars", () => ({ refreshSteamAvatars: vi.fn().mockResolvedValue({ processed: 2, updated: 1, unresolved: 0 }) }));
 vi.mock("@/db/client", () => ({ db: {} }));
 vi.mock("@/db/schema", () => ({ seasons: { status: "seasons.status" } }));
 vi.mock("drizzle-orm", () => ({ eq: vi.fn() }));
@@ -25,11 +26,15 @@ vi.mock("@/lib/revalidation", () => ({
   revalidateSeasonPaths: vi.fn(),
 }));
 
-import { runMatchTimeAutoAwardJob } from "@/lib/scheduler/runners";
+import { runMatchTimeAutoAwardJob, runSteamAvatarRefreshJob } from "@/lib/scheduler/runners";
 
 describe("scheduler match time auto-award runner", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("refreshes avatar cache without reporting a business transition", async () => {
+    expect(await runSteamAvatarRefreshJob()).toEqual({ result: { processed: 2, updated: 1, unresolved: 0 }, businessTransitions: 0 });
   });
 
   it("revalidates affected matches outside the core operation and returns the public summary", async () => {

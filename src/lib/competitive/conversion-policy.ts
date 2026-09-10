@@ -68,7 +68,7 @@ export function validateConversionPolicyMapping(mapping: ConversionPolicyMapping
   for (const [index, segment] of mapping.starSegments.entries()) {
     assertInteger(segment.minStar, `第 ${index + 1} 段的起始星数`);
     if (segment.minStar !== expectedMinStar || segment.minStar < 0) {
-      throw new Error("S 段星数映射必须从 0 开始连续排列，不能有 gap 或 overlap。 ");
+      throw new Error("S 段星数映射必须从 0 开始连续排列，不能有空缺或重叠。 ");
     }
     const isLast = index === mapping.starSegments.length - 1;
     if (isLast && segment.maxStar !== null) throw new Error("最后一段 S 段星数映射必须使用开放上限。 ");
@@ -85,13 +85,13 @@ export function validateConversionPolicyMapping(mapping: ConversionPolicyMapping
     const target = targetRanks.get(segment.targetRank);
     if (!target) throw new Error(`第 ${index + 1} 段的目标段位 ${segment.targetRank} 无效。`);
     if (target.starMin === null) {
-      if (segment.targetStarFloor !== null) throw new Error(`无星目标段位 ${segment.targetRank} 不能设置 targetStarFloor。`);
+      if (segment.targetStarFloor !== null) throw new Error(`无星目标段位 ${segment.targetRank} 不能设置目标起始星数。`);
       continue;
     }
     const targetStarFloor = segment.targetStarFloor;
     assertInteger(targetStarFloor, `第 ${index + 1} 段的目标起始星数`);
     if (targetStarFloor < target.starMin || (target.starMax !== null && targetStarFloor > target.starMax)) {
-      throw new Error(`第 ${index + 1} 段的 targetStarFloor 不符合目标段位 ${segment.targetRank} 的星数范围。`);
+      throw new Error(`第 ${index + 1} 段的目标起始星数不符合目标段位 ${segment.targetRank} 的星数范围。`);
     }
     if (segment.maxStar !== null && target.starMax !== null) {
       const convertedMax = targetStarFloor + Math.ceil((segment.maxStar - segment.minStar) * segment.slopeNum / segment.slopeDen);

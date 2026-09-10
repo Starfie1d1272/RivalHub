@@ -125,7 +125,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
   }
 
   if (isTeamRegistration(season)) {
-    const [captainedTeams, entryRows, [approvedCount]] = await Promise.all([
+    const [captainedTeams, entryRows, [approvedCount], currentTeamRows] = await Promise.all([
       db.select({ id: teams.id, name: teams.name }).from(teams)
         .where(and(eq(teams.status, "active"), eq(teams.captainUserId, userSession.userId)))
         .orderBy(teams.name),
@@ -139,6 +139,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
         .orderBy(desc(competitionEntries.updatedAt))
         .limit(1),
       db.select({ value: count() }).from(competitionEntries).where(and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryCondition())),
+      db.select({ id: teams.id, name: teams.name }).from(teamMemberships).innerJoin(teams, eq(teams.id, teamMemberships.teamId)).where(and(eq(teamMemberships.userId, userSession.userId), isNull(teamMemberships.endedAt), eq(teams.status, "active"))).limit(1),
     ]);
     const entry = entryRows[0]?.entry ?? null;
     let entryView: Parameters<typeof CompetitionEntryFlow>[0]["entry"] = null;
@@ -213,9 +214,10 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
         name: entry.name,
         logoUrl: entry.logoUrl,
         status: entry.registrationStatus,
+        revisionOrigin: revision?.origin ?? null,
         representativeUserId: entry.representativeUserId,
         perfectTeamId: entry.perfectTeamId,
-        reviewReason: entry.reviewReason,
+        reviewReason: revision?.origin === "self_roster_change" ? null : entry.reviewReason,
         qualificationFindings: qualification.findings,
         candidates,
         roster: rosterRows.map((row) => ({
@@ -259,6 +261,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
             starterCount={season.starterCount}
             requiresCompetitiveProfile={season.teamRegistrationConfig?.requireCompetitiveProfile ?? false}
             showsPerfectTeamId={season.teamRegistrationConfig?.competitiveProfile?.platform === "perfect_world"}
+            currentTeam={currentTeamRows[0] ?? null}
             captainedTeams={captainedTeams}
             entry={entryView}
           />
@@ -351,7 +354,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
             registrationSchedule?.primary ?? "报名开放时间待定",
             registrationSchedule?.secondary,
             season.rosterChangeClosesAt ? `名单调整截止：${formatCST(season.rosterChangeClosesAt)}` : "名单调整截止：与报名截止一致",
-          ].join(" · ")}
+          ].filter(Boolean).join(" · ")}
         />
         <RegistrationScheduleCountdown target={registrationSchedule?.countdownTarget ?? null} />
       </div>
@@ -384,14 +387,14 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
                     }}
                   >
                     {cur} / {max}
-                    {full && <span className="ml-1">FULL</span>}
+                    {full && <span className="ml-1">已满</span>}
                   </div>
                 </div>
               );
             })}
             <div className="flex justify-between items-center pt-2" style={{ borderTop: "1px solid var(--color-border)" }}>
               <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--color-fg-dim)", fontFamily: "var(--font-display)" }}>
-                Approved
+                已通过
               </span>
               <span className="font-bold" style={{ fontFamily: "var(--font-mono)", fontSize: 13, color: "var(--color-fg)" }}>
                 {approvedCount} / {regConfig.maxTotal}

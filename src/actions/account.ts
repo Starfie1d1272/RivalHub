@@ -1,5 +1,7 @@
 "use server";
 
+import { resolveSteamAvatarForProfile } from "@/lib/steam";
+
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db/client";
@@ -119,6 +121,10 @@ export async function updateProfile(
   try {
     const session = await requireAuth();
 
+    const currentUser = await db.query.users.findFirst({ where: eq(users.id, session.userId) });
+    if (!currentUser) return failValidation("用户资料不存在");
+    const avatarUrl = await resolveSteamAvatarForProfile(currentUser, steam64 || null);
+
     await db
       .update(users)
       .set({
@@ -126,6 +132,7 @@ export async function updateProfile(
         steamName: steamName || null,
         perfectName: perfectName || null,
         steam64: steam64 || null,
+        avatarUrl,
         steamProfileUrl,
         qq: qq || null,
         liveStreamUrl: liveStreamUrl || null,

@@ -52,7 +52,7 @@ export function SchedulerHealthPanel({ jobs }: { jobs: SchedulerHealthView[] }) 
             <div><dt className="inline">最近人工运行：</dt><dd className="inline">{formatHealthTime(job.manualSucceededAt)}</dd></div>
             {job.failureAt && <div className="sm:col-span-2"><dt className="inline text-[var(--color-warn)]">最近失败：</dt><dd className="inline">{formatHealthTime(job.failureAt)}</dd></div>}
           </dl>
-          {confirming === job.jobKey && <InlineConfirm title={`运行“${job.label}”？`} sub="这会检查并可能推进对应业务状态，仅用于故障恢复。" confirmLabel="确认运行" onCancel={() => setConfirming(null)} onConfirm={() => run(job.jobKey)} />}
+          {confirming === job.jobKey && <InlineConfirm title={`运行“${job.label}”？`} sub="这会立即执行该定时任务，并可能更新对应系统状态，仅用于故障恢复。" confirmLabel="确认运行" onCancel={() => setConfirming(null)} onConfirm={() => run(job.jobKey)} />}
         </Panel>
       ))}
     </div>

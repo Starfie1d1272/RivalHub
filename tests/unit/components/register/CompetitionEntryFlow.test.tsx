@@ -51,10 +51,21 @@ describe("CompetitionEntryFlow", () => {
     render(<CompetitionEntryFlow {...props(size)} />);
     expect(!!screen.queryByText(/已满足最低人数/)).toBe(size < 9);
   });
+  it("makes a confirmed roster removal explicit during a self-service change", () => {
+    const p = props();
+    p.entry!.status = "changes_requested";
+    p.entry!.revisionOrigin = "self_roster_change";
+    p.capabilities = getCompetitionEntryCapabilities({ season, entry: { status: "changes_requested", hasApprovedRoster: true }, revision: { status: "draft", origin: "self_roster_change" }, rosterFrozen: false });
+    render(<CompetitionEntryFlow {...p} />);
+
+    expect(screen.getByText(/名单变更中/)).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("checkbox", { name: "从本届名单移除" })[0]!);
+    expect(screen.getByText(/从本届名单移除 选手1/)).toBeInTheDocument();
+  });
   it("preserves recruitment context and the normal creation path", () => {
     const p = props(); p.entry = null; p.captainedTeams = [{ id: "team", name: "队伍" }]; p.capabilities.canStartRegistration = true;
     render(<CompetitionEntryFlow {...p} />);
-    expect(screen.getByRole("link", { name: "查看招募中的队伍" })).toHaveAttribute("href", "/teams/recruitment?event=event");
+    expect(screen.getByRole("link", { name: "查看招募中的队伍" })).toHaveAttribute("href", "/teams/recruitment?view=teams&event=event");
     expect(screen.getByRole("button", { name: "开始报名" })).toBeEnabled();
   });
   it("uses the approved count for the non-blocking qualifier reminder", () => {
@@ -72,7 +83,7 @@ describe("CompetitionEntryFlow", () => {
     const p = props(); p.entry!.status = "approved"; p.capabilities.canEditCurrentRoster = false; p.capabilities.canRequestRosterChange = false; p.capabilities.readOnlyReason = reason;
     render(<CompetitionEntryFlow {...p} />);
     expect(screen.getByText(reason)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "申请修改名单" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "发起名单变更" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "提交审核" })).not.toBeInTheDocument();
   });
 });

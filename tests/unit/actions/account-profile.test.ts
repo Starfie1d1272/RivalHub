@@ -3,15 +3,18 @@ import { ErrorCode } from "@/lib/errors";
 
 const USER_ID = "11111111-1111-4111-8111-111111111111";
 
-const { requireAuthMock, updateMock, revalidatePathMock } = vi.hoisted(() => ({
+const { requireAuthMock, updateMock, revalidatePathMock, findUserMock, avatarMock } = vi.hoisted(() => ({
   requireAuthMock: vi.fn(),
+  findUserMock: vi.fn(),
+  avatarMock: vi.fn(),
   updateMock: vi.fn(),
   revalidatePathMock: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/session", () => ({ requireAuth: requireAuthMock }));
 vi.mock("@/lib/auth/supabase-server", () => ({ createServiceClient: vi.fn() }));
-vi.mock("@/db/client", () => ({ db: { update: updateMock } }));
+vi.mock("@/db/client", () => ({ db: { update: updateMock, query: { users: { findFirst: findUserMock } } } }));
+vi.mock("@/lib/steam", () => ({ resolveSteamAvatarForProfile: avatarMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock, updateTag: vi.fn() }));
 
 import { updateProfile } from "@/actions/account";
@@ -29,6 +32,8 @@ const validInput = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  findUserMock.mockResolvedValue({ steam64: null, avatarUrl: null });
+  avatarMock.mockResolvedValue(null);
   requireAuthMock.mockResolvedValue({ userId: USER_ID, email: "user@local.test" });
   updateMock.mockReturnValue({
     set: vi.fn().mockReturnValue({
@@ -38,6 +43,17 @@ beforeEach(() => {
 });
 
 describe("updateProfile Perfect identity boundary", () => {
+  it("uses the shared avatar owner and persists a cleared avatar on provider failure", async () => {
+    findUserMock.mockResolvedValue({ steam64: "76561198000000002", avatarUrl: "old-avatar" });
+    avatarMock.mockResolvedValue(null);
+    expect(await updateProfile(validInput)).toMatchObject({ success: true });
+    expect(avatarMock).toHaveBeenCalledWith({ steam64: "76561198000000002", avatarUrl: "old-avatar" }, validInput.steam64);
+    expect(updateMock.mock.results[0].value.set).toHaveBeenCalledWith(expect.objectContaining({ steam64: validInput.steam64, avatarUrl: null }));
+  });
+  it("clears Steam64 and avatar together", async () => {
+    expect(await updateProfile({ ...validInput, steam64: "" })).toMatchObject({ success: true });
+    expect(updateMock.mock.results[0].value.set).toHaveBeenCalledWith(expect.objectContaining({ steam64: null, avatarUrl: null }));
+  });
   it("trims and stores the one canonical Perfect nickname", async () => {
     const result = await updateProfile(validInput);
 

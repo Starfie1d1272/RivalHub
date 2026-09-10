@@ -78,7 +78,7 @@ export function CompetitiveProfileForm({ contexts }: { contexts: CompetitiveSeas
         </div>
       </div>
       {allowUnrecorded && <div className="max-w-56 space-y-1.5"><Label>资料状态</Label><Select value={fact.status} onValueChange={(status) => { setSaved(false); setFact(status === "ranked" ? { ...fact, status } : { status: status as FactStatus, rank: "", rating: status === "unranked" ? fact.rating : "", stars: "" }); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="unrecorded">未录入</SelectItem><SelectItem value="unranked">未定级</SelectItem><SelectItem value="ranked">已定级</SelectItem></SelectContent></Select></div>}
-      {fact.status === "unrecorded" && <p className="text-sm text-[var(--color-fg-mid)]">尚未对这届作出声明；赛事若明确要求这届且没有可用 fallback，会提示你补充资料。</p>}
+      {fact.status === "unrecorded" && <p className="text-sm text-[var(--color-fg-mid)]">尚未填写这届资料；赛事要求时，请补充这届成绩或有效的跨平台换算资料。</p>}
       {fact.status === "unranked" && <div className="max-w-sm space-y-1.5"><Label>对应 {context!.ratingLabel}（可选）</Label><Input value={fact.rating} onChange={(event) => { setSaved(false); setFact({ ...fact, rating: event.target.value }); }} inputMode="decimal" placeholder="没有可留空" /></div>}
       {fact.status === "ranked" && <div className={`grid gap-3 ${hasStars ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
         <div className="space-y-1.5"><Label>段位</Label><Select value={fact.rank || undefined} onValueChange={(rank) => { setSaved(false); setFact({ ...fact, rank, stars: "" }); }}><SelectTrigger><SelectValue placeholder="选择段位" /></SelectTrigger><SelectContent>{context!.ladder.map((entry) => <SelectItem key={entry.rankKey} value={entry.rankKey}>{entry.label}</SelectItem>)}</SelectContent></Select></div>

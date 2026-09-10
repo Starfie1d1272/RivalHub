@@ -63,6 +63,7 @@ export interface PublicEventTeamContext {
   };
   roster: Array<{
     userId: string;
+    avatarUrl?: string | null;
     name: string;
     isStarter: boolean;
     isRepresentative: boolean;
@@ -286,6 +287,7 @@ export async function getPublicCompetitionEntryTeamContext(
         displayName: users.displayName,
         perfectName: users.perfectName,
         steamName: users.steamName,
+        avatarUrl: users.avatarUrl,
         isStarter: eventRosterMembers.isPrimaryStarter,
       })
       .from(eventRosterMembers)
@@ -312,6 +314,7 @@ export async function getPublicCompetitionEntryTeamContext(
     roster: rosterRows.map((member) => ({
       userId: member.userId,
       name: getPublicDisplayName(member),
+      avatarUrl: member.avatarUrl,
       isStarter: member.isStarter,
       isRepresentative: member.userId === entry.representativeUserId,
     })),

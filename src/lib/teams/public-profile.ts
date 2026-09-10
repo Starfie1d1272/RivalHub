@@ -42,6 +42,7 @@ export interface PublicTeamProfile {
   currentMembers: Array<{
     id: string;
     userId: string;
+    avatarUrl?: string | null;
     name: string;
     status: PublicTeamMembershipStatus;
   }>;
@@ -137,6 +138,7 @@ export async function getPublicTeamProfile(
       .select({
         id: teamMemberships.id,
         userId: users.id,
+        avatarUrl: users.avatarUrl,
         name: publicName,
         status: teamMemberships.status,
         endedAt: teamMemberships.endedAt,
@@ -183,7 +185,7 @@ export async function getPublicTeamProfile(
 
   const currentMembers = members
     .filter((member): member is typeof member & { status: PublicTeamMembershipStatus } => member.endedAt === null && member.status !== "left")
-    .map(({ id, userId, name, status }) => ({ id, userId, name, status }));
+    .map(({ id, userId, name, status, avatarUrl }) => ({ id, userId, name, status, avatarUrl }));
   const entryIds = entries.map((entry) => entry.id);
   const played = entryIds.length
     ? await db

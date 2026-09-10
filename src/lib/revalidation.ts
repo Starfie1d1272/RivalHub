@@ -48,6 +48,10 @@ export function revalidatePublicSeasonTags(slug: string, seasonId?: string): voi
   }
 }
 
+export function revalidatePublicPlayerTag(userId: string): void {
+  revalidateTag(publicPlayerTag(userId), "max");
+}
+
 export function updatePublicPlayerTag(userId: string): void {
   updateTag(publicPlayerTag(userId));
 }

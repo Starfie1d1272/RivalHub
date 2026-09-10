@@ -1,7 +1,7 @@
 import { alias } from "drizzle-orm/pg-core";
 import { and, desc, eq, gt, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { competitiveRankFacts, competitionEntries, recruitmentIntents, recruitmentInterests, seasons, teamMemberships, teams, userCompetitiveRoles, userMapPreferences, users } from "@/db/schema";
+import { competitiveRankFacts, competitionEntries, recruitmentIntents, recruitmentInterests, seasons, teamMemberships, teams, teamInvitations, userCompetitiveRoles, userMapPreferences, users } from "@/db/schema";
 import { loadCompetitivePlatformCatalog } from "@/lib/competitive/catalog";
 import { presentPublicCompetitiveSummary, type PublicCompetitiveProfilePlatform } from "@/lib/competitive/presentation";
 import type { Cs2Position } from "@/lib/config/cs2-positions";
@@ -34,6 +34,7 @@ export interface TeamRecruitmentCardData extends PublicRecruitmentIntent {
   logoUrl: string | null;
   captainName: string;
   memberCount: number;
+  targetMinRoster: number | null;
 }
 
 export interface PlayerLftCardData extends PublicRecruitmentIntent {
@@ -109,6 +110,7 @@ export async function getRecruitmentLobbyData(filters: RecruitmentFilters, viewe
       positions: recruitmentIntents.positions,
       targetSeasonId: recruitmentIntents.targetSeasonId,
       targetSeasonName: seasons.name,
+      targetMinRoster: seasons.minTeamSize,
       note: recruitmentIntents.note,
       expiresAt: recruitmentIntents.expiresAt,
       updatedAt: recruitmentIntents.updatedAt,
@@ -217,7 +219,7 @@ export async function getPublicPlayerLft(userId: string): Promise<PublicRecruitm
 export async function getTeamRecruitmentWorkspace(teamId: string, includeInterests: boolean): Promise<{
   recruitment: (PublicRecruitmentIntent & { status: "open" | "closed"; isPubliclyActive: boolean }) | null;
   targetSeasons: Array<{ id: string; name: string }>;
-  interests: Array<{ userId: string; name: string; positions: Cs2Position[] }>;
+  interests: Array<{ userId: string; name: string; positions: Cs2Position[]; currentTeamName: string | null }>;
 }> {
   const now = new Date();
   const [intents, targetSeasons] = await Promise.all([
@@ -229,10 +231,39 @@ export async function getTeamRecruitmentWorkspace(teamId: string, includeInteres
   const isPubliclyActive = Boolean(rawIntent && rawIntent.status === "open" && rawIntent.expiresAt > now && (!rawIntent.targetSeasonId || (rawIntent.targetSeasonStatus && isTeamRecruitmentTargetAvailable({ status: rawIntent.targetSeasonStatus, registrationClosesAt: rawIntent.targetSeasonRegistrationClosesAt, rosterChangeClosesAt: rawIntent.targetSeasonRosterChangeClosesAt }, rawIntent.hasEffectiveEntry, now))));
   const intent = rawIntent ? { id: rawIntent.id, positions: rawIntent.positions as Cs2Position[], targetSeasonId: rawIntent.targetSeasonId, targetSeasonName: rawIntent.targetSeasonName, note: rawIntent.note, status: rawIntent.status, expiresAt: rawIntent.expiresAt, updatedAt: rawIntent.updatedAt, isPubliclyActive } : null;
   if (!intent || !includeInterests || !isPubliclyActive) return { recruitment: intent, targetSeasons, interests: [] };
-  const interestRows = await db.select({ userId: users.id, name: publicName }).from(recruitmentInterests).innerJoin(users, and(eq(users.id, recruitmentInterests.userId), eq(users.status, "active"))).where(eq(recruitmentInterests.recruitmentIntentId, intent.id));
+  const currentTeam = alias(teams, "interest_current_team");
+  const interestRows = await db.select({ userId: users.id, name: publicName, currentTeamName: currentTeam.name }).from(recruitmentInterests)
+    .innerJoin(recruitmentIntents, eq(recruitmentIntents.id, recruitmentInterests.recruitmentIntentId))
+    .innerJoin(teams, eq(teams.id, recruitmentIntents.teamId))
+    .innerJoin(users, eq(users.id, recruitmentInterests.userId))
+    .leftJoin(seasons, eq(seasons.id, recruitmentIntents.targetSeasonId))
+    .leftJoin(teamMemberships, and(eq(teamMemberships.userId, users.id), isNull(teamMemberships.endedAt)))
+    .leftJoin(currentTeam, and(eq(currentTeam.id, teamMemberships.teamId), eq(currentTeam.status, "active")))
+    .where(and(eq(recruitmentIntents.id, intent.id), actionableInterestCondition(now)));
   const interestedUserIds = interestRows.map((row) => row.userId);
   const roles = interestedUserIds.length ? await db.select({ userId: userCompetitiveRoles.userId, role: userCompetitiveRoles.role }).from(userCompetitiveRoles).where(inArray(userCompetitiveRoles.userId, interestedUserIds)) : [];
   const rolesByUser = new Map<string, Cs2Position[]>();
   for (const role of roles) rolesByUser.set(role.userId, [...(rolesByUser.get(role.userId) ?? []), role.role]);
   return { recruitment: intent, targetSeasons, interests: interestRows.map((row) => ({ ...row, positions: rolesByUser.get(row.userId) ?? [] })) };
+}
+
+/** Actionable interests have the same meaning in the captain workspace and /my. */
+function actionableInterestCondition(now: Date) {
+  return and(
+    eq(recruitmentIntents.kind, "team_recruiting"), eq(recruitmentIntents.status, "open"), gt(recruitmentIntents.expiresAt, now),
+    eq(teams.status, "active"), eq(users.status, "active"),
+    or(isNull(recruitmentIntents.targetSeasonId), teamRecruitmentTargetAvailableCondition(now, recruitmentIntents.teamId)),
+    sql`not exists (select 1 from ${teamMemberships} where ${teamMemberships.teamId} = ${teams.id} and ${teamMemberships.userId} = ${users.id} and ${teamMemberships.endedAt} is null)`,
+    sql`not exists (select 1 from ${teamInvitations} where ${teamInvitations.teamId} = ${teams.id} and ${teamInvitations.invitedUserId} = ${users.id} and ${teamInvitations.kind} = 'direct' and ${teamInvitations.status} = 'pending' and ${teamInvitations.expiresAt} > ${now})`,
+  );
+}
+
+export async function countActionableRecruitmentInterests(captainUserId: string): Promise<number> {
+  const [row] = await db.select({ count: sql<number>`count(*)::int` }).from(recruitmentInterests)
+    .innerJoin(recruitmentIntents, eq(recruitmentIntents.id, recruitmentInterests.recruitmentIntentId))
+    .innerJoin(teams, eq(teams.id, recruitmentIntents.teamId))
+    .innerJoin(users, eq(users.id, recruitmentInterests.userId))
+    .leftJoin(seasons, eq(seasons.id, recruitmentIntents.targetSeasonId))
+    .where(and(eq(teams.captainUserId, captainUserId), actionableInterestCondition(new Date())));
+  return row?.count ?? 0;
 }

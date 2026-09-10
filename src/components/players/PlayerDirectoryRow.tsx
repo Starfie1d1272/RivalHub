@@ -1,4 +1,5 @@
 import React from "react";
+import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import Link from "next/link";
 import { Panel, PosChip } from "@/components/rivalhub";
 import { DirectoryMetric } from "@/components/players/DirectoryMetric";
@@ -8,6 +9,7 @@ import { formatNumber, formatStat } from "@/lib/stats";
 export interface PlayerDirectoryData {
   userId: string;
   registrationId: string;
+  avatarUrl?: string | null;
   displayName: string;
   primaryPosition: string;
   secondaryPosition: string | null;
@@ -30,6 +32,7 @@ export function PlayerDirectoryRow({ player }: { player: PlayerDirectoryData }) 
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1.15fr)_auto] lg:items-center">
         <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <PlayerAvatar name={player.displayName} avatarUrl={player.avatarUrl} size="sm" />
             <Link
               href={`/players/${player.userId}`}
               className="truncate text-sm font-semibold text-[var(--color-fg)] hover:text-[var(--color-accent)] transition-colors sm:text-base"

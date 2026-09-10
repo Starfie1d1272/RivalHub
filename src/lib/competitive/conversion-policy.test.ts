@@ -86,6 +86,6 @@ describe("validateConversionPolicyMapping", () => {
 
   it("rejects a target star floor that does not match a star-based target rank", () => {
     const starSegments = FIVE_TO_PERFECT_2026_09.starSegments.map((segment, index) => index === 1 ? { ...segment, targetStarFloor: 100 } : segment);
-    expect(() => validateConversionPolicyMapping({ ...FIVE_TO_PERFECT_2026_09, starSegments })).toThrow(/targetStarFloor/);
+    expect(() => validateConversionPolicyMapping({ ...FIVE_TO_PERFECT_2026_09, starSegments })).toThrow(/目标起始星数/);
   });
 });

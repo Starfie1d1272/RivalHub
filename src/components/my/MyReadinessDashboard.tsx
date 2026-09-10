@@ -47,6 +47,8 @@ export function MyReadinessDashboard({ model }: { model: MyReadinessModel }) {
         sub={blockedSanctions ? "处罚效果按具体赛事和能力生效；请查看下方赛事卡。" : "报名审核、正式参赛名单、单场首发与纪律限制不会由资料状态替代。"}
       />
 
+      {model.recruitment && <ReadinessCard item={model.recruitment} />}
+
       <Section>
         <div>
           <h2 className="text-lg font-semibold">长期参与者资料</h2>

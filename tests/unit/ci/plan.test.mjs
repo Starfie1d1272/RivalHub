@@ -82,7 +82,7 @@ describe("changed-surface planner", () => {
     expect(sourceChange.staticMatrix).toEqual(expect.arrayContaining([
       expect.objectContaining({ task: "architecture" }),
       expect.objectContaining({ task: "unit-related-unit-domain-node", relatedSources: ["src/lib/major/opening.ts"] }),
-      expect.objectContaining({ task: "unit-explicit-unit-domain-node", explicitTests: ["tests/unit/quality/architecture-boundaries.test.ts"] }),
+      expect.objectContaining({ task: "unit-explicit-unit-domain-node", explicitTests: ["tests/unit/quality/architecture-boundaries.test.ts", "tests/unit/quality/product-language.test.ts"] }),
     ]));
 
     const e2eChange = classifyChangedFiles([{ status: "M", paths: ["tests/e2e/flows/major-entry.spec.ts"] }], { draft: true });

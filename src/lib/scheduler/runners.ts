@@ -1,5 +1,6 @@
 import "server-only";
 
+import { refreshSteamAvatars } from "@/lib/steam-avatars";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db/client";
@@ -91,8 +92,13 @@ export async function runEducationEvidenceCleanupJob() {
   } satisfies SchedulerRunnerResult<{ cleared: number }>;
 }
 
+export async function runSteamAvatarRefreshJob() {
+  return { result: await refreshSteamAvatars(), businessTransitions: 0 };
+}
+
 export async function runSchedulerJobByKey(key: SchedulerJobKey): Promise<SchedulerRunnerResult<unknown>> {
   switch (key) {
+    case "refresh-steam-avatars": return runSteamAvatarRefreshJob();
     case "draft-timeout": return runDraftTimeoutJob();
     case "check-registration-deadline": return runRegistrationDeadlineJob();
     case "match-time-auto-award": return runMatchTimeAutoAwardJob();
