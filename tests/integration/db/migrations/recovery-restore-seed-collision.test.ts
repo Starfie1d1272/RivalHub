@@ -2,6 +2,7 @@ import { Client } from "pg";
 import { describe, expect, it } from "vitest";
 import { capturePostgresError } from "../harness/database";
 import { migrationFiles, replayMigration, withScratchDatabase } from "../harness/migration-replay";
+import { readExpectedMigrations } from "../../../../scripts/db/production-preflight";
 import { prepareTargetForDataImport } from "../../../../scripts/db/recovery/restore";
 import { verifyRecoveryDatabase } from "../../../../scripts/db/recovery/verify";
 
@@ -31,7 +32,7 @@ describe("recovery restore seed collision and auth invariant regression", () => 
       `);
       await client.query(`INSERT INTO auth.schema_migrations (version) VALUES ('20240101000000') ON CONFLICT DO NOTHING`);
 
-      // Ensure drizzle schema and ledger exist to verify preservation
+      // Ensure drizzle schema and ledger exist with valid prefix up to TARGET_MIGRATION
       await client.query(`CREATE SCHEMA IF NOT EXISTS drizzle`);
       await client.query(`
         CREATE TABLE IF NOT EXISTS drizzle.__drizzle_migrations (
@@ -40,7 +41,19 @@ describe("recovery restore seed collision and auth invariant regression", () => 
           created_at bigint
         )
       `);
-      await client.query(`INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('test_hash', 1)`);
+      const expected = readExpectedMigrations();
+      const targetIndex = expected.findIndex((e) => e.sqlFile === TARGET_MIGRATION);
+      const prefix = expected.slice(0, targetIndex + 1);
+      for (const item of prefix) {
+        await client.query(
+          `INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ($1, $2)`,
+          [item.hash, item.when],
+        );
+      }
+      const terminalExpectedMigration = {
+        terminalHash: prefix.at(-1)?.hash ?? "",
+        terminalTag: prefix.at(-1)?.tag ?? "",
+      };
 
       // 3. Verify migration 0038 created the seed row
       const initialSeed = await client.query<{ id: string; version: string; source_note: string }>(
@@ -141,7 +154,7 @@ describe("recovery restore seed collision and auth invariant regression", () => 
         [userId, danglingAuthId, "dangling@example.test"],
       );
 
-      await expect(verifyRecoveryDatabase(client)).rejects.toThrow(
+      await expect(verifyRecoveryDatabase(client, { expectedMigration: terminalExpectedMigration })).rejects.toThrow(
         /Recovery invariant failed: auth\.active_users_auth_id_mapping/,
       );
 
@@ -158,7 +171,7 @@ describe("recovery restore seed collision and auth invariant regression", () => 
         [userId],
       );
 
-      const verificationResult = await verifyRecoveryDatabase(client);
+      const verificationResult = await verifyRecoveryDatabase(client, { expectedMigration: terminalExpectedMigration });
       expect(verificationResult.invariantCount).toBeGreaterThan(0);
     });
   });
