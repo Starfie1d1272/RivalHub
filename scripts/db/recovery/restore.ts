@@ -68,7 +68,8 @@ async function main(): Promise<void> {
       const expectedBuckets = readStorageBuckets(resolve(stagingRoot, "storage/buckets.json"));
       await assertRecoveryTargetIsEmpty(pool, expectedBuckets);
       await ensureTargetMigration(pool, manifest, target.databaseUrl, tempRoot);
-      applyDatabaseData(target.databaseUrl, resolve(stagingRoot, "data.sql"));
+      await prepareTargetForDataImport(pool);
+      applyDatabaseData(target.databaseUrl, resolve(stagingRoot, "data.sql"), tempRoot);
 
       await verifyRecoveryDatabase(pool, {
         expectedMigration: manifest.source.databaseMigrationTerminal,
@@ -374,8 +375,59 @@ function prepareRecoveryTargetMigration(
   );
 }
 
-function applyDatabaseData(databaseUrl: string, dataPath: string): void {
-  runCommand("psql", ["--dbname", databaseUrl, "--set", "ON_ERROR_STOP=1", "--single-transaction", "--file", dataPath]);
+export async function prepareTargetForDataImport(pool: Pick<Pool, "query">): Promise<string[]> {
+  // Query all application tables in public and auth schemas, preserving
+  // migration ledger (drizzle.__drizzle_migrations) and provider migration
+  // metadata (auth.schema_migrations, storage.migrations).
+  const tables = await pool.query<{ schema_name: string; table_name: string }>(
+    `SELECT schemaname AS schema_name, tablename AS table_name
+     FROM pg_catalog.pg_tables
+     WHERE schemaname = ANY($1::text[])
+       AND NOT (schemaname = 'auth' AND tablename = 'schema_migrations')
+       AND NOT (schemaname = 'storage' AND tablename = 'migrations')
+       AND NOT (schemaname = 'drizzle' AND tablename = '__drizzle_migrations')
+     ORDER BY schemaname, tablename`,
+    [["public", "auth"]],
+  );
+
+  if (tables.rows.length === 0) return [];
+
+  const qualifiedTables = tables.rows.map((table) => quoteQualified(table.schema_name, table.table_name));
+
+  // Truncate under replica role with CASCADE so all migration-seeded rows
+  // (e.g. 0038 conversion_policies) are cleaned before snapshot import,
+  // making the snapshot data the single application truth.
+  await pool.query("SET session_replication_role = 'replica'");
+  try {
+    await pool.query(`TRUNCATE TABLE ${qualifiedTables.join(", ")} CASCADE`);
+  } finally {
+    await pool.query("SET session_replication_role = 'origin'");
+  }
+
+  return tables.rows.map((table) => `${table.schema_name}.${table.table_name}`);
+}
+
+export function applyDatabaseData(databaseUrl: string, dataPath: string, tempRoot: string): void {
+  // Supabase restore semantics: import with session_replication_role=replica
+  // in a single transaction, then restore to origin/default.
+  const wrapperScriptPath = join(tempRoot, "restore-import-wrapper.sql");
+  const absoluteDataPath = resolve(dataPath).replaceAll("\\", "/");
+  writeFileSync(
+    wrapperScriptPath,
+    [
+      "SET session_replication_role = 'replica';",
+      `\\i '${absoluteDataPath}'`,
+      "SET session_replication_role = 'origin';",
+      "",
+    ].join("\n"),
+    { flag: "wx" },
+  );
+  runCommand("psql", [
+    "--dbname", databaseUrl,
+    "--set", "ON_ERROR_STOP=1",
+    "--single-transaction",
+    "--file", wrapperScriptPath,
+  ]);
 }
 
 function runLifecycleReconciliation(target: IsolatedRecoveryEnvironment): void {

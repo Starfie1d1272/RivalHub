@@ -173,6 +173,15 @@ async function verifyForeignKeys(pool: Pick<Pool, "query">): Promise<number> {
 
 const RECOVERY_INVARIANTS: readonly RecoveryInvariant[] = [
   {
+    key: "auth.active_users_auth_id_mapping",
+    query: `SELECT count(*)::text AS count
+            FROM public.users u
+            LEFT JOIN auth.users au ON au.id = u.auth_id
+            WHERE u.status = 'active'
+              AND u.auth_id IS NOT NULL
+              AND au.id IS NULL`,
+  },
+  {
     key: "identity.user_identities_dangling",
     query: `SELECT count(*)::text AS count
             FROM public.user_identities i

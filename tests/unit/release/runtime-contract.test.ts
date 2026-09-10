@@ -132,6 +132,8 @@ describe("deployment and operations contracts", () => {
     expect(smoke).not.toContain("VERCEL_TOKEN");
     const canonicalIdentity = smoke.slice(smoke.indexOf("canonical_identity="));
     expect(canonicalIdentity).not.toContain("x-vercel-trusted-oidc-idp-token");
+    expect(backup).toContain("concurrency:\n  group: rivalhub-production-state-serialization\n  cancel-in-progress: false");
+    expect(release).toContain("concurrency:\n  group: rivalhub-production-state-serialization\n  cancel-in-progress: false");
     expect(release).toContain("$RIVALHUB_PRODUCTION_BASE_URL/api/system/release");
     expect(release).toContain('(keys | sort) == ["releaseCommit", "releaseTag"]');
     expect(nextConfig).toContain("RIVALHUB_RELEASE_TAG: process.env.RIVALHUB_RELEASE_TAG ?? \"\"");

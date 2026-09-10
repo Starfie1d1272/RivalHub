@@ -57,7 +57,8 @@ GitHub `production` job 需要能读取以下值；secret 可以放在该 job �
 
 | 名称 | 类型 | 用途 |
 | --- | --- | --- |
-| `DATABASE_URL` | secret | 已由 production wrapper 校验的 Transaction Pooler URL |
+| `DATABASE_URL` | secret | production runtime / migration 使用的 Transaction Pooler URL（`:6543 / pgbouncer=true`）；现有 application/migration ownership 保持不变 |
+| `RIVALHUB_PRODUCTION_BACKUP_DATABASE_URL` | secret（可选） | 经过 production project/host 校验的 Session Pooler（`:5432`）backup connection，只用于 backup dump 和只读 DB read；未设置时由 runner 从 `DATABASE_URL` 自动派生，复用相同凭据，不无必要增加第二份密码 |
 | `SUPABASE_SECRET_KEY` | secret | recovery/backup lane 的 canonical Supabase secret API key（通常为 `sb_secret_...`）；供 runner 执行受控 dump 与 Storage snapshot 读取；credential 本身是 elevated access，不是 read-only credential，脚本不执行应用 mutation |
 | `SUPABASE_SERVICE_ROLE_KEY` | secret（legacy fallback，可选） | 兼容已经存在的 JWT-based `service_role` 配置；只有未提供 `SUPABASE_SECRET_KEY` 时才读取，新部署不需要创建此 legacy key |
 | `RIVALHUB_BACKUP_AGE_RECIPIENT` | environment variable | age 公钥；backup runner 只能加密 |
@@ -92,7 +93,9 @@ Issuer 由 GitHub Actions provider 固定为 `https://token.actions.githubuserco
 
 ### R2 retention contract
 
-使用 `.github/workflows/recovery-r2.yml` 的 `verify` 实际 read back provider 配置；首次配置或变更时，在 production Environment approval 下选择 `apply`。脚本先读取现有规则，保留无关规则；同名 RivalHub rule 若不匹配则 fail closed，不覆盖未知配置。
+使用 `.github/workflows/recovery-r2.yml` 的 `verify` 实际 read back provider 配置；首次配置或变更时，在 production Environment approval 下选择 `apply`。首次 apply 优先建立并验证 7-day bucket lock，再 apply lifecycle，最终完整 read-back。脚本先读取现有规则，保留真正无冲突的 unrelated provider rules（如 `staging/`、`logs/`）；同名 RivalHub rule 若不匹配则 fail closed，并严格拒绝可能缩短 `production/` retention 的未知 overlapping destructive lifecycle rule。
+
+`verify` 同时还会 read-back 并证明 canonical recovery bucket 没有启用 managed `r2.dev` public access，且没有任何已启用的 custom domain，确保 recovery 备份完全私有。
 
 期望规则：
 
@@ -100,7 +103,7 @@ Issuer 由 GitHub Actions provider 固定为 `https://token.actions.githubuserco
 - `production/daily/`、`production/pre-release/`、`production/manual/` lifecycle 30d；
 - `production/` bucket lock 7d。
 
-Bucket lock 优先于 lifecycle，因此 hourly object 的有效最低保护期至少为 7d；48h 是 rolling hourly lifecycle 目标，不得把它解释成 48h 后一定可删除。字段和 API payload 以 [Cloudflare R2 Lifecycle API](https://developers.cloudflare.com/api/resources/r2/subresources/buckets/subresources/lifecycle/) 与 [Cloudflare R2 Bucket Lock API](https://developers.cloudflare.com/api/resources/r2/subresources/buckets/subresources/locks/) 为准。R2 的 lifecycle 与 lock 配置在首次真实 provider `verify` 前仍是 `unverified`，不能用仓库常量代替 read-back 证据。
+Bucket lock 优先于 lifecycle，因此 hourly object 的有效最低保护期至少为 7d；48h 是 rolling hourly lifecycle 目标，不得把它解释成 48h 后一定可删除。字段和 API payload 以 [Cloudflare R2 Lifecycle API](https://developers.cloudflare.com/api/resources/r2/subresources/buckets/subresources/lifecycle/) 与 [Cloudflare R2 Bucket Lock API](https://developers.cloudflare.com/api/resources/r2/subresources/buckets/subresources/locks/) 为准。R2 的 lifecycle、lock 与私有访问配置在首次真实 provider `verify` 前仍是 `unverified`，不能用仓库常量代替 read-back 证据。
 
 Supabase 当前 plan、automatic backup、PITR 和 provider retention 也必须在 Dashboard/provider account 中人工读取并记录安全摘要（plan/capability/retention，不记录 credential、用户数据或下载的 dump）。没有该记录时，不能把 provider physical backup/PITR 写成已可用；R2 logical snapshot 仍是 RivalHub 自己可验证的 baseline。
 
@@ -131,6 +134,8 @@ immutable tag/source validation
 ```
 
 pre-release backup 失败会阻止 production migration。hourly 与 release 不复制 dump 逻辑。
+
+为了消除 release production migration 与 scheduled/manual backup 之间的竞态，`release.yml` 与 `recovery-backup.yml` 共享 canonical 串行化并发组 `rivalhub-production-state-serialization`（`cancel-in-progress: false`），确保两者严格互斥执行，避免在 backup identity read-back 与 dump 之间发生并发 migration。
 
 `source` identity 必须从 `RIVALHUB_PRODUCTION_BASE_URL` 指向的 canonical production endpoint `/api/system/release` 通过 HTTPS read back；成功响应严格只包含 `releaseTag` 与 `releaseCommit`。runner 随后在本地 Git 中解析该 tag 并要求其 commit 与 endpoint 返回值完全一致，任何 endpoint 不可达、响应异常、tag 缺失或 tag/commit 不匹配都会 fail closed。`RIVALHUB_PRODUCTION_STABLE_REF` 只服务 release-compat 的 migration lineage 检查，不能作为 production deployed identity；backup 不使用 Git 推断 fallback，也不接受手工 tag/commit override。
 
@@ -180,7 +185,8 @@ sidecar/completion/artifact checksum
 → age decrypt + safe archive inspection
 → recovery format/source identity/compatible shipped application release
 → fresh target empty check + exact migration terminal check (必要时 replay active prefix)
-→ data-only DB restore
+→ generic pre-data-import preparation (清空 public/auth 应用数据，保留 migration ledger 与 provider metadata)
+→ data-only DB restore (session_replication_role=replica 单事务导入并恢复 origin)
 → migration/constraint/FK/domain/identity verification
 → education retention reconciliation
 → Storage bucket/object restore with per-object read-back
@@ -194,7 +200,7 @@ sidecar/completion/artifact checksum
 Verifier 至少检查：
 
 - active Drizzle migration terminal、critical tables、primary/unique/check constraint validation 和所有相关 FK orphan；
-- Auth 与 RivalHub identity 的 dangling reference、active primary/provider subject uniqueness、merge target、admin grant；
+- Auth 与 RivalHub identity 映射（active `public.users.auth_id IS NOT NULL → auth.users.id exists`，不采用脆弱的 user count equality 比较）、dangling reference、active primary/provider subject uniqueness、merge target、admin grant；
 - CompetitionEntry、participant、roster revision、active claim、frozen EventRoster 的 scope coherence；
 - StageRun/StageEntrant、Major match ownership、match/map/stats scope、FinalResult/honor coherence；
 - education temporary evidence 的 retention predicate。

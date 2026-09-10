@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readExpectedMigrations } from "../../scripts/db/production-preflight";
@@ -123,7 +123,9 @@ describe("recovery contracts", () => {
       RIVALHUB_R2_SECRET_ACCESS_KEY: "secret-key",
     });
 
-    expect(environment.databaseUrl).toContain("pgbouncer=true");
+    expect(environment.databaseUrl).toBe("postgresql://postgres.sucokfotkypwqkckfynp:secret@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres");
+    expect(environment.databaseUrl).not.toContain(":6543");
+    expect(environment.databaseUrl).not.toContain("pgbouncer");
     expect(environment.supabaseSecretKey).toBe("sb_secret-modern");
     expect(() => assertProductionBackupEnvironment({
       RIVALHUB_DB_TARGET: "local",
@@ -163,6 +165,45 @@ describe("recovery contracts", () => {
     expect(() => assertProductionBackupEnvironment(baseEnvironment)).toThrow(
       /SUPABASE_SECRET_KEY\/SUPABASE_SERVICE_ROLE_KEY 未设置/,
     );
+  });
+
+  it("enforces session pooler :5432 for production backup and rejects :6543 transaction mode", () => {
+    const baseEnvironment = {
+      RIVALHUB_DB_TARGET: "production",
+      RIVALHUB_PRODUCTION_PROJECT_CONFIRM: "sucokfotkypwqkckfynp",
+      RIVALHUB_PRODUCTION_DB_HOST_CONFIRM: "aws-0-ap-northeast-1.pooler.supabase.com:6543",
+      DATABASE_URL: "postgresql://postgres.sucokfotkypwqkckfynp:secret@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true",
+      SUPABASE_SECRET_KEY: "sb_secret-modern",
+      RIVALHUB_BACKUP_AGE_RECIPIENT: "age1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",
+      RIVALHUB_R2_ACCOUNT_ID: "0123456789abcdef0123456789abcdef",
+      RIVALHUB_R2_BUCKET: "rivalhub-recovery",
+      RIVALHUB_R2_ACCESS_KEY_ID: "access-key",
+      RIVALHUB_R2_SECRET_ACCESS_KEY: "secret-key",
+    };
+
+    const derived = assertProductionBackupEnvironment(baseEnvironment);
+    expect(derived.databaseUrl).toBe(
+      "postgresql://postgres.sucokfotkypwqkckfynp:secret@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres",
+    );
+    expect(derived.databaseUrl).not.toContain("6543");
+    expect(derived.databaseUrl).not.toContain("pgbouncer");
+
+    // Rejects an explicit backup URL targeting the 6543 transaction pooler or setting pgbouncer=true
+    expect(() => assertProductionBackupEnvironment({
+      ...baseEnvironment,
+      RIVALHUB_PRODUCTION_BACKUP_DATABASE_URL: "postgresql://postgres.sucokfotkypwqkckfynp:secret@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true",
+    })).toThrow(/Transaction Pooler/);
+
+    expect(() => assertProductionBackupEnvironment({
+      ...baseEnvironment,
+      RIVALHUB_PRODUCTION_BACKUP_DATABASE_URL: "postgresql://postgres.sucokfotkypwqkckfynp:secret@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?pgbouncer=true",
+    })).toThrow(/Session Pooler/);
+
+    // Static code contract proving backup.ts passes the verified session pooler URL to dump
+    const backupSource = readFileSync(join(process.cwd(), "scripts/db/recovery/backup.ts"), "utf8");
+    expect(backupSource).toContain("assertProductionBackupEnvironment(process.env)");
+    expect(backupSource).toContain("createDatabaseSnapshot(environment.databaseUrl, stagingRoot)");
+    expect(backupSource).not.toMatch(/databaseUrl.*6543/);
   });
 
   it("keeps R2 bucket names within the provider length contract", () => {
@@ -290,12 +331,15 @@ describe("recovery contracts", () => {
     )).rejects.toThrow(/HTTPS origin/);
   });
 
-  it("fails closed on a representative broken domain invariant", async () => {
+  it("fails closed on representative broken domain and auth invariants", async () => {
     const healthy = new RecoveryQueryStub();
     await expect(verifyRecoveryDatabase(healthy as never)).resolves.toMatchObject({ foreignKeyCount: 0 });
 
-    const broken = new RecoveryQueryStub("public.user_identities i");
-    await expect(verifyRecoveryDatabase(broken as never)).rejects.toThrow(/identity\.user_identities_dangling/);
+    const brokenIdentity = new RecoveryQueryStub("public.user_identities i");
+    await expect(verifyRecoveryDatabase(brokenIdentity as never)).rejects.toThrow(/identity\.user_identities_dangling/);
+
+    const brokenAuth = new RecoveryQueryStub("auth.users au");
+    await expect(verifyRecoveryDatabase(brokenAuth as never)).rejects.toThrow(/auth\.active_users_auth_id_mapping/);
   });
 
   it("shares the seven-day retention algorithm with the application adapter", async () => {

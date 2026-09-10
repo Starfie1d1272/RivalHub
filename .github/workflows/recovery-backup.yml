@@ -17,7 +17,7 @@ on:
           - manual
 
 concurrency:
-  group: rivalhub-production-recovery-backup
+  group: rivalhub-production-state-serialization
   cancel-in-progress: false
 
 permissions:

@@ -12,7 +12,7 @@ on:
         type: string
 
 concurrency:
-  group: rivalhub-production-release
+  group: rivalhub-production-state-serialization
   cancel-in-progress: false
 
 jobs:

@@ -1,6 +1,7 @@
 import {
-  assertProductionDatabaseUrl,
+  assertProductionBackupDatabaseUrl,
   buildProductionEnvironment,
+  deriveProductionBackupDatabaseUrl,
   PRODUCTION_PROJECT_REF,
 } from "../production-environment";
 import { assertLocalDatabaseUrl, assertLocalHttpUrl, parseLocalSupabaseStatus, type LocalSupabaseStatus } from "../local-environment";
@@ -45,9 +46,16 @@ export function assertProductionBackupEnvironment(
   const supabaseUrl = assertProductionSupabaseUrl(
     env.RIVALHUB_PRODUCTION_SUPABASE_URL ?? PRODUCTION_SUPABASE_URL,
   );
+  const backupDatabaseUrl = env.RIVALHUB_PRODUCTION_BACKUP_DATABASE_URL?.trim()
+    || env.RIVALHUB_BACKUP_DATABASE_URL?.trim()
+    ? assertProductionBackupDatabaseUrl(
+        env.RIVALHUB_PRODUCTION_BACKUP_DATABASE_URL?.trim()
+        || env.RIVALHUB_BACKUP_DATABASE_URL?.trim(),
+      )
+    : deriveProductionBackupDatabaseUrl(protectedEnvironment.DATABASE_URL);
 
   return {
-    databaseUrl: assertProductionDatabaseUrl(protectedEnvironment.DATABASE_URL),
+    databaseUrl: backupDatabaseUrl,
     supabaseUrl,
     supabaseSecretKey: required(
       env.SUPABASE_SECRET_KEY?.trim() || env.SUPABASE_SERVICE_ROLE_KEY?.trim(),

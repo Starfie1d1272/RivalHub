@@ -31,11 +31,19 @@ export async function applyR2RetentionConfig(
 ): Promise<R2RetentionConfig> {
   const config = buildConfig(env);
   const existingLifecycle = await readRules(config, "lifecycle");
+  assertNoConflictingLifecycleRules(existingLifecycle);
   const existingLocks = await readRules(config, "lock");
-  const lifecycleRules = mergeRules(existingLifecycle, R2_LIFECYCLE_RULES, "lifecycle");
+
+  // 1. 优先建立并验证 bucket lock
   const lockRules = mergeRules(existingLocks, R2_LOCK_RULES, "lock");
-  await putRules(config, "lifecycle", lifecycleRules);
   await putRules(config, "lock", lockRules);
+  await verifyLockRules(config);
+
+  // 2. 再 apply lifecycle
+  const lifecycleRules = mergeRules(existingLifecycle, R2_LIFECYCLE_RULES, "lifecycle");
+  await putRules(config, "lifecycle", lifecycleRules);
+
+  // 3. 最终完整 read-back
   await verifyR2RetentionConfig(env);
   return { lifecycleRules, lockRules };
 }
@@ -45,6 +53,7 @@ export async function verifyR2RetentionConfig(
 ): Promise<R2RetentionConfig> {
   const config = buildConfig(env);
   const lifecycleRules = await readRules(config, "lifecycle");
+  assertNoConflictingLifecycleRules(lifecycleRules);
   const lockRules = await readRules(config, "lock");
   for (const expected of R2_LIFECYCLE_RULES) {
     const actual = lifecycleRules.find((rule) => ruleId(rule) === expected.id);
@@ -58,8 +67,79 @@ export async function verifyR2RetentionConfig(
       throw new Error(`R2 bucket lock rule ${expected.id} 缺失或不匹配。 `);
     }
   }
-  console.log("R2 retention contract verified: lifecycle rules and 7-day bucket lock are active.");
+
+  // 验证 canonical bucket 没有启用 managed r2.dev public access
+  await verifyR2NoManagedPublicAccess(config);
+
+  // 验证 canonical bucket 没有 enabled custom domain
+  await verifyR2NoCustomDomains(config);
+
+  console.log("R2 retention contract verified: lifecycle rules, 7-day bucket lock, and private bucket access are active.");
   return { lifecycleRules, lockRules };
+}
+
+async function verifyLockRules(config: R2Config): Promise<void> {
+  const lockRules = await readRules(config, "lock");
+  for (const expected of R2_LOCK_RULES) {
+    const actual = lockRules.find((rule) => ruleId(rule) === expected.id);
+    if (!actual || !matchesLockRule(actual, expected)) {
+      throw new Error(`R2 bucket lock rule ${expected.id} apply 验证失败。 `);
+    }
+  }
+}
+
+export async function verifyR2NoManagedPublicAccess(config: R2Config): Promise<void> {
+  const result = await cloudflareRequest<{ enabled?: boolean }>(config, "domains/managed", "GET");
+  if (result.enabled === true) {
+    throw new Error("R2 canonical bucket 启用了 managed r2.dev public access；recovery bucket 必须是完全私有的。");
+  }
+}
+
+export async function verifyR2NoCustomDomains(config: R2Config): Promise<void> {
+  const result = await cloudflareRequest<unknown>(config, "domains/custom", "GET");
+  const domains = Array.isArray(result)
+    ? result
+    : isRecord(result) && Array.isArray(result.domains)
+      ? result.domains
+      : [];
+  const activeDomains = domains.filter((d) => isRecord(d) && d.enabled !== false);
+  if (activeDomains.length > 0) {
+    throw new Error("R2 canonical bucket 存在已启用的 custom domain；recovery bucket 必须是完全私有的。");
+  }
+}
+
+export function assertNoConflictingLifecycleRules(
+  existingRules: readonly Record<string, unknown>[],
+): void {
+  const expectedIds = new Set(R2_LIFECYCLE_RULES.map((r) => r.id));
+  for (const rule of existingRules) {
+    if (expectedIds.has(ruleId(rule))) continue;
+    if (rule.enabled === false) continue;
+
+    const conditions = rule.conditions as { prefix?: unknown } | undefined;
+    const prefix = typeof conditions?.prefix === "string"
+      ? conditions.prefix
+      : (typeof rule.prefix === "string" ? rule.prefix : "");
+
+    const isDestructive = !!(
+      rule.deleteObjectsTransition
+      || rule.abortMultipartUploadsTransition
+      || (rule as { expiration?: unknown }).expiration
+    );
+    if (!isDestructive) continue;
+
+    // Check if prefix overlaps with "production/"
+    const overlaps = prefix === ""
+      || prefix === "production"
+      || prefix.startsWith("production/")
+      || "production/".startsWith(prefix);
+
+    if (overlaps) {
+      throw new Error(
+        `R2 lifecycle 存在未知或冲突的 destructive rule ${ruleId(rule)} (prefix=${JSON.stringify(prefix)})，可能缩短 production/ retention；拒绝操作。`,
+      );
+    }
+  }
 }
 
 interface R2Config {
@@ -94,13 +174,13 @@ async function putRules(
   await cloudflareRequest(config, kind, "PUT", { rules });
 }
 
-async function cloudflareRequest<T extends { rules?: unknown[] }>(
+export async function cloudflareRequest<T>(
   config: R2Config,
-  kind: RuleKind,
+  subpath: string,
   method: "GET" | "PUT",
   body?: unknown,
 ): Promise<T> {
-  const path = `${CLOUDFLARE_API_BASE}/accounts/${config.accountId}/r2/buckets/${encodeURIComponent(config.bucket)}/${kind}`;
+  const path = `${CLOUDFLARE_API_BASE}/accounts/${config.accountId}/r2/buckets/${encodeURIComponent(config.bucket)}/${subpath}`;
   let response: Response;
   try {
     response = await fetch(path, {
@@ -112,16 +192,16 @@ async function cloudflareRequest<T extends { rules?: unknown[] }>(
       body: body ? JSON.stringify(body) : undefined,
     });
   } catch {
-    throw new Error(`Cloudflare R2 ${kind} request failed. `);
+    throw new Error(`Cloudflare R2 ${subpath} request failed. `);
   }
   let payload: unknown;
   try {
     payload = await response.json();
   } catch {
-    throw new Error(`Cloudflare R2 ${kind} response invalid. `);
+    throw new Error(`Cloudflare R2 ${subpath} response invalid. `);
   }
   if (!response.ok || !isRecord(payload) || payload.success !== true) {
-    throw new Error(`Cloudflare R2 ${kind} request rejected (HTTP ${response.status}). `);
+    throw new Error(`Cloudflare R2 ${subpath} request rejected (HTTP ${response.status}). `);
   }
   return (payload.result ?? {}) as T;
 }
