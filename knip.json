@@ -56,6 +56,7 @@
     "scripts/db/production-identity-merge-preflight.ts!",
     "scripts/db/identity-merge-preflight.ts!",
     "scripts/db/recovery/backup.ts!",
+    "scripts/db/recovery/fetch.ts!",
     "scripts/db/recovery/restore.ts!",
     "scripts/db/recovery/verify.ts!",
     "scripts/db/recovery/lifecycle.ts!",

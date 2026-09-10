@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
@@ -7,6 +8,7 @@ import { spawnSync } from "node:child_process";
 import { createR2Client } from "../../scripts/db/recovery/r2";
 import {
   applyR2RetentionConfig,
+  assertNoConflictingLockRules,
   assertNoConflictingLifecycleRules,
   R2_LIFECYCLE_RULES,
   R2_LOCK_RULES,
@@ -37,7 +39,7 @@ describe("recovery R2 provider command contract", () => {
       secretAccessKey: "secret-key",
     });
 
-    client.download("production/hourly/2026-09-10/run.tar.gz.age", "/tmp/rivalhub-readback.age");
+    client.download("production/daily/2026-09-10/run.tar.gz.age", "/tmp/rivalhub-readback.age");
 
     expect(spawnSyncMock).toHaveBeenCalledOnce();
     const [executable, args] = spawnSyncMock.mock.calls[0] ?? [];
@@ -50,7 +52,7 @@ describe("recovery R2 provider command contract", () => {
       "--bucket",
       "rivalhub-recovery",
       "--key",
-      "production/hourly/2026-09-10/run.tar.gz.age",
+      "production/daily/2026-09-10/run.tar.gz.age",
       resolve("/tmp/rivalhub-readback.age"),
     ]);
     expect(args).not.toContain("--outfile");
@@ -72,7 +74,7 @@ describe("recovery R2 provider command contract", () => {
 
     let thrown: unknown;
     try {
-      client.head("production/hourly/2026-09-10/run.tar.gz.age");
+      client.head("production/daily/2026-09-10/run.tar.gz.age");
     } catch (error) {
       thrown = error;
     }
@@ -108,8 +110,38 @@ describe("recovery R2 provider command contract", () => {
 
       // Unknown subprefix destructive rule must be rejected
       expect(() => assertNoConflictingLifecycleRules([
-        { id: "short-hourly", enabled: true, conditions: { prefix: "production/hourly/" }, deleteObjectsTransition: { condition: { type: "Age", maxAge: 3600 } } },
+        { id: "short-daily", enabled: true, conditions: { prefix: "production/daily/" }, deleteObjectsTransition: { condition: { type: "Age", maxAge: 3600 } } },
       ])).toThrow(/destructive rule/);
+    });
+
+    it("does not misclassify Cloudflare's default multipart-abort rule as object deletion", () => {
+      const fixture = JSON.parse(readFileSync(resolve(process.cwd(), "tests/fixtures/cloudflare-r2-default-lifecycle.json"), "utf8")) as {
+        success: boolean;
+        result: { rules: Record<string, unknown>[] };
+      };
+      expect(fixture.success).toBe(true);
+      expect(() => assertNoConflictingLifecycleRules(fixture.result.rules)).not.toThrow();
+    });
+
+    it("uses a single 30d lifecycle and lock retention rule for production artifacts", () => {
+      expect(R2_LIFECYCLE_RULES.map((rule) => [rule.id, (rule.conditions as { prefix: string }).prefix, (rule.deleteObjectsTransition as { condition: { maxAge: number } }).condition.maxAge])).toEqual([
+        ["rivalhub-production-30d", "production/", 2592000],
+      ]);
+      expect(R2_LOCK_RULES.map((rule) => [rule.id, rule.prefix, (rule.condition as { maxAgeSeconds: number }).maxAgeSeconds])).toEqual([
+        ["rivalhub-production-lock", "production/", 2592000],
+      ]);
+    });
+
+    it("rejects unknown overlapping lock rules while preserving unrelated locks", () => {
+      expect(() => assertNoConflictingLockRules([
+        { id: "logs-lock", enabled: true, prefix: "logs/", condition: { type: "Age", maxAgeSeconds: 86400 } },
+      ])).not.toThrow();
+      expect(() => assertNoConflictingLockRules([
+        { id: "unknown-prod-lock", enabled: true, prefix: "production/", condition: { type: "Age", maxAgeSeconds: 86400 } },
+      ])).toThrow(/overlapping rule/);
+      expect(() => assertNoConflictingLockRules([
+        { id: "unknown-daily-lock", enabled: true, prefix: "production/daily/", condition: { type: "Age", maxAgeSeconds: 86400 } },
+      ])).toThrow(/overlapping rule/);
     });
 
     it("fails closed when canonical bucket has managed r2.dev public access enabled", async () => {
@@ -122,7 +154,7 @@ describe("recovery R2 provider command contract", () => {
       globalThis.fetch = vi.fn(async (url: RequestInfo | URL) => {
         const urlStr = String(url);
         if (urlStr.includes("/domains/managed")) {
-          return new Response(JSON.stringify({ success: true, result: { enabled: true, domain: "rivalhub.r2.dev" } }), { status: 200 });
+          return new Response(JSON.stringify({ success: true, result: { bucketId: "bucket-id", enabled: true, domain: "rivalhub.r2.dev" } }), { status: 200 });
         }
         return new Response(JSON.stringify({ success: true, result: {} }), { status: 200 });
       });
@@ -159,6 +191,21 @@ describe("recovery R2 provider command contract", () => {
       }
     });
 
+    it("fails closed on malformed Cloudflare GET results instead of treating them as private", async () => {
+      const config = {
+        accountId: "0123456789abcdef0123456789abcdef",
+        bucket: "rivalhub-recovery",
+        apiToken: "cloudflare-token",
+      };
+      globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({ success: true, result: {} }), { status: 200 }));
+      try {
+        await expect(verifyR2NoManagedPublicAccess(config)).rejects.toThrow(/managed domain response/);
+        await expect(verifyR2NoCustomDomains(config)).rejects.toThrow(/custom domain response/);
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
     it("applies bucket lock first, verifies lock, then applies lifecycle, and performs full read-back", async () => {
       const callLog: string[] = [];
 
@@ -182,7 +229,7 @@ describe("recovery R2 provider command contract", () => {
         }
         if (urlStr.endsWith("/domains/managed")) {
           callLog.push(`${method} domains/managed`);
-          return new Response(JSON.stringify({ success: true, result: { enabled: false } }), { status: 200 });
+          return new Response(JSON.stringify({ success: true, result: { bucketId: "bucket-id", enabled: false, domain: "rivalhub.r2.dev" } }), { status: 200 });
         }
         if (urlStr.endsWith("/domains/custom")) {
           callLog.push(`${method} domains/custom`);

@@ -1,10 +1,12 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readExpectedMigrations } from "../../scripts/db/production-preflight";
 import {
   assertProductionBackupEnvironment,
+  assertRecoveryFetchEnvironment,
   assertR2BucketName,
   buildIsolatedRecoveryEnvironment,
 } from "../../scripts/db/recovery/environment";
@@ -14,13 +16,17 @@ import {
   assertRecoverySidecar,
   sha256File,
   serializeManifest,
+  RECOVERY_FORMAT_VERSION,
 } from "../../scripts/db/recovery/manifest";
 import { buildRecoveryMigrationPlan, resolveProductionSourceIdentity } from "../../scripts/db/recovery/source";
 import {
   assertActiveStorageReferencesCaptured,
   assertActiveStorageReferencesStable,
+  readStorageBuckets,
 } from "../../scripts/db/recovery/storage";
 import { buildRecoveryR2Keys, assertR2ContentReadback, assertR2HeadReadback, serializeR2Metadata } from "../../scripts/db/recovery/r2";
+import { fetchRecoveryObjects } from "../../scripts/db/recovery/fetch";
+import { assertSupportedStorageBucket, getStorageRecoveryPolicy, readManagedStorageReferences } from "../../scripts/db/recovery/storage-policy";
 import { assertManifestMigrationMatches, verifyRecoveryDatabase } from "../../scripts/db/recovery/verify";
 import { purgeExpiredEducationEvidence } from "../../src/lib/education/retention-core";
 import { describe, expect, it } from "vitest";
@@ -36,7 +42,7 @@ function validManifest() {
   const terminal = expected.at(-1);
   if (!terminal) throw new Error("migration journal is empty");
   return {
-    formatVersion: 2 as const,
+    formatVersion: RECOVERY_FORMAT_VERSION,
     runId: RUN_ID,
     createdAt: CREATED_AT,
     sourceEnvironment: "production" as const,
@@ -44,7 +50,7 @@ function validManifest() {
     postgresVersion: "17.6",
     supabaseCliVersion: "2.116.0",
     producer: {
-      recoveryFormatVersion: 2 as const,
+      recoveryFormatVersion: RECOVERY_FORMAT_VERSION,
       gitCommit: GIT_COMMIT,
       packageVersion: "2.7.8",
     },
@@ -57,7 +63,7 @@ function validManifest() {
         terminalWhen: terminal.when,
       },
     },
-    backupClass: "hourly" as const,
+    backupClass: "daily" as const,
     database: {
       schemas: ["public", "auth"] as const,
       files: [
@@ -89,7 +95,7 @@ describe("recovery contracts", () => {
     const manifest = validManifest();
     expect(() => assertRecoveryManifest({ ...manifest, database: { ...manifest.database, files: [] } })).toThrow();
 
-    const keys = buildRecoveryR2Keys("hourly", RUN_ID, CREATED_AT);
+    const keys = buildRecoveryR2Keys("daily", RUN_ID, CREATED_AT);
     const sidecar = assertRecoverySidecar({
       formatVersion: 2,
       runId: RUN_ID,
@@ -98,7 +104,7 @@ describe("recovery contracts", () => {
       artifactSha256: SHA256,
       manifestSha256: SHA256,
       createdAt: CREATED_AT,
-      backupClass: "hourly",
+      backupClass: "daily",
     });
     expect(() => assertRecoveryCompletionMarker({
       formatVersion: 2,
@@ -108,7 +114,7 @@ describe("recovery contracts", () => {
       manifestSha256: SHA256,
       completedAt: CREATED_AT,
     })).not.toThrow();
-    expect(() => assertRecoverySidecar({ ...sidecar, artifactKey: "production/hourly/unsafe.age" })).toThrow();
+    expect(() => assertRecoverySidecar({ ...sidecar, artifactKey: "production/daily/unsafe.age" })).toThrow();
   });
 
   it("keeps production backup read-only and rejects loopback/remote target confusion", () => {
@@ -170,6 +176,120 @@ describe("recovery contracts", () => {
     );
   });
 
+  it("uses the storage policy registry for supported buckets and managed references", async () => {
+    expect(getStorageRecoveryPolicy("team-logos")).toEqual({
+      bucket: "team-logos",
+      recoveryClass: "durable",
+      restoreMode: "always",
+    });
+    expect(getStorageRecoveryPolicy("education-evidence")).toEqual({
+      bucket: "education-evidence",
+      recoveryClass: "temporary-sensitive",
+      restoreMode: "active-reference-only",
+    });
+    expect(() => getStorageRecoveryPolicy("unknown-bucket")).toThrow(/no recovery policy/);
+    expect(() => assertSupportedStorageBucket({ name: "team-logos" })).toThrow(/missing or unsupported/);
+    expect(() => assertSupportedStorageBucket({ name: "team-logos", type: "OBJECT" })).toThrow(/missing or unsupported/);
+    expect(assertSupportedStorageBucket({ name: "team-logos", type: "STANDARD" })).toEqual(getStorageRecoveryPolicy("team-logos"));
+
+    const references = await readManagedStorageReferences({
+      query: async () => ({ rows: [
+        { evidence_object_key: "verification/one.png" },
+        { evidence_object_key: "verification/one.png" },
+      ] }),
+    } as never);
+    expect(references).toEqual([{ bucket: "education-evidence", objectPath: "verification/one.png" }]);
+  });
+
+  it("rejects Storage inventories without an explicit STANDARD type", () => {
+    const root = mkdtempSync(join(tmpdir(), "rivalhub-storage-policy-"));
+    const path = join(root, "buckets.json");
+    try {
+      writeFileSync(path, JSON.stringify([{ id: "logos", name: "team-logos", public: false, fileSizeLimit: null, allowedMimeTypes: null }]));
+      expect(() => readStorageBuckets(path)).toThrow(/缺少字段/);
+      writeFileSync(path, JSON.stringify([{ id: "logos", name: "team-logos", type: "OBJECT", public: false, fileSizeLimit: null, allowedMimeTypes: null }]));
+      expect(() => readStorageBuckets(path)).toThrow(/缺少字段/);
+      writeFileSync(path, JSON.stringify([{ id: "logos", name: "team-logos", type: "STANDARD", public: false, fileSizeLimit: null, allowedMimeTypes: null }]));
+      expect(readStorageBuckets(path)).toEqual([{
+        id: "logos",
+        name: "team-logos",
+        type: "STANDARD",
+        public: false,
+        fileSizeLimit: null,
+        allowedMimeTypes: null,
+      }]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("fetches completion then sidecar then encrypted artifact into a new restricted directory", async () => {
+    const root = mkdtempSync(join(tmpdir(), "rivalhub-fetch-contract-"));
+    const completionKey = `production/daily/2026-09-10/${RUN_ID}.complete.json`;
+    const artifactKey = `production/daily/2026-09-10/${RUN_ID}.tar.gz.age`;
+    const manifestKey = `production/daily/2026-09-10/${RUN_ID}.manifest.json`;
+    const artifact = Buffer.from("encrypted artifact bytes");
+    const artifactSha256 = sha256Bytes(artifact);
+    const sidecarValue = {
+      formatVersion: 2,
+      runId: RUN_ID,
+      artifactKey,
+      artifactBytes: artifact.byteLength,
+      artifactSha256,
+      manifestSha256: "d".repeat(64),
+      createdAt: CREATED_AT,
+      backupClass: "daily",
+    } as const;
+    const completionValue = {
+      formatVersion: 2,
+      runId: RUN_ID,
+      artifactKey,
+      artifactSha256,
+      manifestSha256: sidecarValue.manifestSha256,
+      completedAt: CREATED_AT,
+    } as const;
+    const objects = new Map<string, Buffer>([
+      [completionKey, Buffer.from(`${JSON.stringify(completionValue)}\n`)],
+      [manifestKey, Buffer.from(`${JSON.stringify(sidecarValue)}\n`)],
+      [artifactKey, artifact],
+    ]);
+    const order: string[] = [];
+    const client = {
+      head: (key: string) => {
+        const bytes = objects.get(key);
+        if (!bytes) throw new Error("missing object");
+        return { bytes: bytes.byteLength, sha256: sha256Bytes(bytes) };
+      },
+      download: (key: string, path: string) => {
+        const bytes = objects.get(key);
+        if (!bytes) throw new Error("missing object");
+        order.push(key);
+        writeFileSync(path, bytes, { flag: "wx" });
+      },
+    };
+
+    try {
+      const output = await fetchRecoveryObjects(
+        {
+          accountId: "0123456789abcdef0123456789abcdef",
+          bucket: "rivalhub-recovery",
+          accessKeyId: "access-key",
+          secretAccessKey: "secret-key",
+        },
+        completionKey,
+        join(root, "verified-run"),
+        client as never,
+      );
+      expect(order).toEqual([completionKey, manifestKey, artifactKey]);
+      expect(statSync(output).mode & 0o777).toBe(0o700);
+      expect(readFileSync(join(output, "artifact.tar.gz.age"))).toEqual(artifact);
+      expect(readFileSync(join(output, "sidecar.json"), "utf8")).toContain(RUN_ID);
+      expect(readFileSync(join(output, "completion.json"), "utf8")).toContain(RUN_ID);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("enforces session pooler :5432 for production backup and rejects :6543 transaction mode", () => {
     const baseEnvironment = {
       RIVALHUB_DB_TARGET: "production",
@@ -228,10 +348,10 @@ describe("recovery contracts", () => {
 
   it("checks managed Storage references around the complete snapshot window", () => {
     const backupSource = readFileSync(join(process.cwd(), "scripts/db/recovery/backup.ts"), "utf8");
-    const firstReferenceRead = backupSource.indexOf("readActiveStorageReferences(environment.databaseUrl)");
+    const firstReferenceRead = backupSource.indexOf("readManagedStorageReferencesFromProduction(environment.databaseUrl)");
     const databaseSnapshot = backupSource.indexOf("createDatabaseSnapshot(environment.databaseUrl, stagingRoot)");
     const storageSnapshot = backupSource.indexOf("snapshotStorage(");
-    const secondReferenceRead = backupSource.indexOf("readActiveStorageReferences(environment.databaseUrl)", firstReferenceRead + 1);
+    const secondReferenceRead = backupSource.indexOf("readManagedStorageReferencesFromProduction(environment.databaseUrl)", firstReferenceRead + 1);
     const stabilityCheck = backupSource.indexOf("assertActiveStorageReferencesStable(");
     const captureCheck = backupSource.indexOf("assertActiveStorageReferencesCaptured(");
 
@@ -241,6 +361,12 @@ describe("recovery contracts", () => {
     expect(storageSnapshot).toBeLessThan(secondReferenceRead);
     expect(secondReferenceRead).toBeLessThan(stabilityCheck);
     expect(stabilityCheck).toBeLessThan(captureCheck);
+
+    const completionReadback = backupSource.indexOf("verifyR2Object(r2, keys.completion");
+    expect(completionReadback).toBeGreaterThan(-1);
+    expect(backupSource).not.toContain("heartbeat");
+    expect(backupSource).not.toContain("education_verifications");
+    expect(backupSource).toContain("readManagedStorageReferences(pool)");
   });
 
   it("keeps R2 bucket names within the provider length contract", () => {
@@ -372,11 +498,11 @@ describe("recovery contracts", () => {
     const healthy = new RecoveryQueryStub();
     await expect(verifyRecoveryDatabase(healthy as never)).resolves.toMatchObject({ foreignKeyCount: 0 });
 
-    const brokenIdentity = new RecoveryQueryStub("public.user_identities i");
-    await expect(verifyRecoveryDatabase(brokenIdentity as never)).rejects.toThrow(/identity\.user_identities_dangling/);
+    const brokenMerged = new RecoveryQueryStub("public.users merged");
+    await expect(verifyRecoveryDatabase(brokenMerged as never)).rejects.toThrow(/identity.merged_target_invalid/);
 
     const brokenAuth = new RecoveryQueryStub("auth.users au");
-    await expect(verifyRecoveryDatabase(brokenAuth as never)).rejects.toThrow(/auth\.active_users_auth_id_mapping/);
+    await expect(verifyRecoveryDatabase(brokenAuth as never)).rejects.toThrow(/auth.active_users_auth_id_mapping/);
   });
 
   it("shares the seven-day retention algorithm with the application adapter", async () => {
@@ -459,6 +585,10 @@ function createReleaseGitFixture(): { directory: string; tag: string; commit: st
   return { directory, tag, commit };
 }
 
+function sha256Bytes(value: Uint8Array): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
 class RecoveryQueryStub {
   constructor(private readonly failingNeedle?: string) {}
 
@@ -474,12 +604,8 @@ class RecoveryQueryStub {
           "user_identities",
           "seasons",
           "competition_entries",
-          "competition_entry_participants",
-          "competition_entry_roster_revisions",
           "event_rosters",
           "matches",
-          "match_maps",
-          "match_player_stats",
           "audit_logs",
         ].map((table_name) => ({ table_name })) as T[],
       };

@@ -27,6 +27,7 @@ import {
   assertActiveStorageReferencesStable,
   snapshotStorage,
 } from "./storage";
+import { readManagedStorageReferences, type ManagedStorageReference } from "./storage-policy";
 import { resolveProductionSourceIdentity } from "./source";
 import {
   assertActiveChainPrefix,
@@ -50,7 +51,7 @@ async function main(): Promise<void> {
     const supabaseCliVersion = readSupabaseCliVersion();
     const migration = await readProductionMigrationIdentity(environment.databaseUrl);
     const source = await resolveProductionSourceIdentity();
-    const activeStorageReferencesBeforeSnapshot = await readActiveStorageReferences(environment.databaseUrl);
+    const activeStorageReferencesBeforeSnapshot = await readManagedStorageReferencesFromProduction(environment.databaseUrl);
     const databaseRoot = await createDatabaseSnapshot(environment.databaseUrl, stagingRoot);
     const storage = await snapshotStorage(
       createClient(environment.supabaseUrl, environment.supabaseSecretKey, {
@@ -58,7 +59,7 @@ async function main(): Promise<void> {
       }),
       join(stagingRoot, "storage"),
     );
-    const activeStorageReferencesAfterSnapshot = await readActiveStorageReferences(environment.databaseUrl);
+    const activeStorageReferencesAfterSnapshot = await readManagedStorageReferencesFromProduction(environment.databaseUrl);
     assertActiveStorageReferencesStable(activeStorageReferencesBeforeSnapshot, activeStorageReferencesAfterSnapshot);
     assertActiveStorageReferencesCaptured(activeStorageReferencesBeforeSnapshot, storage.records);
 
@@ -250,13 +251,10 @@ function readGitCommit(): string {
   return result.stdout.trim();
 }
 
-async function readActiveStorageReferences(databaseUrl: string): Promise<ReadonlyArray<{ bucket: string; objectPath: string }>> {
+async function readManagedStorageReferencesFromProduction(databaseUrl: string): Promise<readonly ManagedStorageReference[]> {
   const pool = new Pool({ connectionString: databaseUrl, ssl: { rejectUnauthorized: false }, max: 1 });
   try {
-    const result = await pool.query<{ evidence_object_key: string }>(
-      "SELECT evidence_object_key FROM public.education_verifications WHERE evidence_object_key IS NOT NULL",
-    );
-    return result.rows.map((row) => ({ bucket: "education-evidence", objectPath: row.evidence_object_key }));
+    return await readManagedStorageReferences(pool);
   } finally {
     await pool.end();
   }

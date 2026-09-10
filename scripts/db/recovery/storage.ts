@@ -2,6 +2,11 @@ import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  assertSupportedStorageBucket,
+  getStorageRecoveryPolicy,
+  type ManagedStorageReference,
+} from "./storage-policy";
 
 const LIST_PAGE_SIZE = 100;
 const BUCKET_PAGE_SIZE = 1000;
@@ -19,6 +24,7 @@ export interface StorageObjectRecord {
 export interface StorageBucketRecord {
   id: string;
   name: string;
+  type: "STANDARD";
   public: boolean;
   fileSizeLimit: number | null;
   allowedMimeTypes: readonly string[] | null;
@@ -34,10 +40,7 @@ export interface StorageSnapshot {
   records: readonly StorageObjectRecord[];
 }
 
-export interface StorageObjectReference {
-  bucket: string;
-  objectPath: string;
-}
+export type StorageObjectReference = ManagedStorageReference;
 
 export function assertActiveStorageReferencesStable(
   before: readonly StorageObjectReference[],
@@ -118,26 +121,21 @@ function storageObjectReferenceKey(reference: StorageObjectReference): string {
 export async function restoreStorageSnapshot(
   client: SupabaseClient,
   storageRoot: string,
-  activeEducationObjectKeys: ReadonlySet<string>,
-): Promise<{ restoredObjects: number; restoredBytes: number; skippedExpiredEvidence: number; skippedExpiredEvidenceBytes: number }> {
+  activeReferences: readonly StorageObjectReference[],
+): Promise<{ restoredObjects: number; restoredBytes: number; skippedInactiveTemporaryObjects: number; skippedInactiveTemporaryObjectBytes: number }> {
   const records = readStorageIndex(resolve(storageRoot, "index.ndjson"));
-  const snapshotEducationObjectKeys = new Set(
-    records
-      .filter((record) => record.bucket === "education-evidence")
-      .map((record) => record.objectPath),
-  );
-  if ([...activeEducationObjectKeys].some((key) => !snapshotEducationObjectKeys.has(key))) {
-    throw new Error("Active education evidence is missing from the Storage snapshot; restore aborted. ");
-  }
+  assertActiveStorageReferencesCaptured(activeReferences, records);
+  const activeReferenceKeys = new Set(activeReferences.map(storageObjectReferenceKey));
   let restoredObjects = 0;
   let restoredBytes = 0;
-  let skippedExpiredEvidence = 0;
-  let skippedExpiredEvidenceBytes = 0;
+  let skippedInactiveTemporaryObjects = 0;
+  let skippedInactiveTemporaryObjectBytes = 0;
 
   for (const record of records) {
-    if (record.bucket === "education-evidence" && !activeEducationObjectKeys.has(record.objectPath)) {
-      skippedExpiredEvidence += 1;
-      skippedExpiredEvidenceBytes += record.bytes;
+    const policy = getStorageRecoveryPolicy(record.bucket);
+    if (policy.restoreMode === "active-reference-only" && !activeReferenceKeys.has(storageObjectReferenceKey(record))) {
+      skippedInactiveTemporaryObjects += 1;
+      skippedInactiveTemporaryObjectBytes += record.bytes;
       continue;
     }
     const localPath = resolve(storageRoot, record.archivePath);
@@ -163,7 +161,12 @@ export async function restoreStorageSnapshot(
     restoredBytes += record.bytes;
   }
 
-  return { restoredObjects, restoredBytes, skippedExpiredEvidence, skippedExpiredEvidenceBytes };
+  return {
+    restoredObjects,
+    restoredBytes,
+    skippedInactiveTemporaryObjects,
+    skippedInactiveTemporaryObjectBytes,
+  };
 }
 
 export async function restoreStorageBuckets(
@@ -172,6 +175,7 @@ export async function restoreStorageBuckets(
 ): Promise<number> {
   const buckets = readStorageBuckets(resolve(storageRoot, "buckets.json"));
   for (const bucket of buckets) {
+    assertSupportedStorageBucket(bucket);
     const existing = await client.storage.getBucket(bucket.name);
     if (existing.error && !isMissingBucketError(existing.error)) {
       throw new Error("Storage bucket read failed; restore aborted. ");
@@ -218,12 +222,11 @@ async function listAllBuckets(client: SupabaseClient): Promise<StorageBucketReco
       throw new Error("Supabase Storage bucket inventory failed; canonical backup aborted. ");
     }
     for (const bucket of result.data) {
-      if (bucket.type && bucket.type !== "STANDARD") {
-        throw new Error("Supabase Storage contains an unsupported bucket type; canonical backup aborted. ");
-      }
+      assertSupportedStorageBucket(bucket);
       buckets.push({
         id: bucket.id,
         name: bucket.name,
+        type: "STANDARD",
         public: bucket.public,
         fileSizeLimit: bucket.file_size_limit ?? null,
         allowedMimeTypes: bucket.allowed_mime_types ?? null,
@@ -297,6 +300,7 @@ function parseStorageRecord(line: string): StorageObjectRecord {
   ) {
     throw new Error("Storage index record 缺少字段；restore aborted. ");
   }
+  getStorageRecoveryPolicy(record.bucket);
   return record as StorageObjectRecord;
 }
 
@@ -314,11 +318,13 @@ export function readStorageBuckets(path: string): StorageBucketRecord[] {
     if (
       typeof bucket.id !== "string"
       || typeof bucket.name !== "string"
+      || bucket.type !== "STANDARD"
       || typeof bucket.public !== "boolean"
       || !isStorageBucketName(bucket.name)
       || (bucket.fileSizeLimit !== null && !isNonNegativeInteger(bucket.fileSizeLimit))
       || (bucket.allowedMimeTypes !== null && (!Array.isArray(bucket.allowedMimeTypes) || bucket.allowedMimeTypes.some((mime) => typeof mime !== "string")))
     ) throw new Error("Storage bucket record 缺少字段；restore aborted. ");
+    assertSupportedStorageBucket(bucket);
     return bucket as StorageBucketRecord;
   });
 }

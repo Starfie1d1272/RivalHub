@@ -11,9 +11,9 @@ export { PRODUCTION_PROJECT_REF } from "../production-environment";
 const PRODUCTION_SUPABASE_URL = `https://${PRODUCTION_PROJECT_REF}.supabase.co`;
 const RECOVERY_TARGET = "isolated" as const;
 
-export type BackupClass = "hourly" | "daily" | "pre-release" | "manual";
+export type BackupClass = "daily" | "pre-release" | "manual";
 
-const BACKUP_CLASSES: readonly BackupClass[] = ["hourly", "daily", "pre-release", "manual"];
+const BACKUP_CLASSES: readonly BackupClass[] = ["daily", "pre-release", "manual"];
 
 export interface ProductionBackupEnvironment {
   databaseUrl: string;
@@ -68,6 +68,17 @@ export function assertProductionBackupEnvironment(
       accessKeyId: required(env.RIVALHUB_R2_ACCESS_KEY_ID, "RIVALHUB_R2_ACCESS_KEY_ID"),
       secretAccessKey: required(env.RIVALHUB_R2_SECRET_ACCESS_KEY, "RIVALHUB_R2_SECRET_ACCESS_KEY"),
     },
+  };
+}
+
+export function assertRecoveryFetchEnvironment(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): R2ObjectEnvironment {
+  return {
+    accountId: assertCloudflareAccountId(required(env.RIVALHUB_R2_ACCOUNT_ID, "RIVALHUB_R2_ACCOUNT_ID")),
+    bucket: assertR2BucketName(required(env.RIVALHUB_R2_BUCKET, "RIVALHUB_R2_BUCKET")),
+    accessKeyId: required(env.RIVALHUB_R2_ACCESS_KEY_ID, "RIVALHUB_R2_ACCESS_KEY_ID"),
+    secretAccessKey: required(env.RIVALHUB_R2_SECRET_ACCESS_KEY, "RIVALHUB_R2_SECRET_ACCESS_KEY"),
   };
 }
 

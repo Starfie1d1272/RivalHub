@@ -106,7 +106,7 @@ export function createR2Client(config: R2ObjectEnvironment): RecoveryR2Client {
       throw new Error("R2 head-object response invalid; recovery artifact is not trusted. ");
     }
     const record = value as { ContentLength?: unknown; Metadata?: { sha256?: unknown } };
-    if (typeof record.ContentLength !== "number" || typeof record.Metadata?.sha256 !== "string") {
+    if (!isNonNegativeInteger(record.ContentLength) || !isSha256(record.Metadata?.sha256)) {
       throw new Error("R2 object is missing checksum metadata; recovery artifact is not trusted. ");
     }
     return { bytes: record.ContentLength, sha256: record.Metadata.sha256 };
@@ -179,4 +179,12 @@ function sanitizeProviderDiagnostic(
     .replace(/((?:AWS_)?(?:ACCESS_KEY_ID|SECRET_ACCESS_KEY|SESSION_TOKEN|SECURITY_TOKEN)\s*[=:]\s*)\S+/gi, "$1[REDACTED]")
     .replace(/((?:--)?(?:access-key-id|secret-access-key|session-token|security-token)\s+)\S+/gi, "$1[REDACTED]");
   return redactText(safe, MAX_PROVIDER_DIAGNOSTIC_LENGTH);
+}
+
+function isSha256(value: unknown): value is string {
+  return typeof value === "string" && /^[0-9a-f]{64}$/i.test(value);
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }

@@ -26,6 +26,7 @@ import {
   restoreStorageSnapshot,
   type StorageBucketRecord,
 } from "./storage";
+import { readManagedStorageReferences } from "./storage-policy";
 import { buildRecoveryR2Keys } from "./r2";
 import { buildRecoveryMigrationPlan } from "./source";
 import { assertManifestMigrationMatches, verifyRecoveryDatabase } from "./verify";
@@ -76,7 +77,7 @@ async function main(): Promise<void> {
         skipExpiredSensitiveEvidence: true,
       });
       runLifecycleReconciliation(target);
-      const activeEducationObjectKeys = await readActiveEducationObjectKeys(pool);
+      const activeStorageReferences = await readManagedStorageReferences(pool);
       const storageClient = createClient(target.supabase.apiUrl, target.supabase.serviceRoleKey, {
         auth: { autoRefreshToken: false, persistSession: false },
       });
@@ -87,17 +88,17 @@ async function main(): Promise<void> {
       const storageResult = await restoreStorageSnapshot(
         storageClient,
         resolve(stagingRoot, "storage"),
-        activeEducationObjectKeys,
+        activeStorageReferences,
       );
-      if (storageResult.restoredObjects + storageResult.skippedExpiredEvidence !== manifest.storage.objectCount) {
+      if (storageResult.restoredObjects + storageResult.skippedInactiveTemporaryObjects !== manifest.storage.objectCount) {
         throw new Error("Restored Storage object count does not match the backup manifest; restore aborted. ");
       }
-      if (storageResult.restoredBytes + storageResult.skippedExpiredEvidenceBytes !== manifest.storage.totalBytes) {
+      if (storageResult.restoredBytes + storageResult.skippedInactiveTemporaryObjectBytes !== manifest.storage.totalBytes) {
         throw new Error("Restored Storage byte count does not match the backup manifest; restore aborted. ");
       }
       await verifyRecoveryDatabase(pool, { expectedMigration: manifest.source.databaseMigrationTerminal });
       console.log(
-        `Isolated recovery restore verified: run=${manifest.runId}, migration=${manifest.source.databaseMigrationTerminal.terminalTag}, storageObjects=${storageResult.restoredObjects}, skippedExpiredEvidence=${storageResult.skippedExpiredEvidence}.`,
+        `Isolated recovery restore verified: run=${manifest.runId}, migration=${manifest.source.databaseMigrationTerminal.terminalTag}, storageObjects=${storageResult.restoredObjects}, skippedInactiveTemporaryObjects=${storageResult.skippedInactiveTemporaryObjects}.`,
       );
     } finally {
       await pool.end();
@@ -452,13 +453,6 @@ function runLifecycleReconciliation(target: IsolatedRecoveryEnvironment): void {
     stdio: ["ignore", "pipe", "pipe"],
   });
   if (result.error || result.status !== 0) throw new Error("Recovery lifecycle reconciliation failed; restore aborted. ");
-}
-
-async function readActiveEducationObjectKeys(pool: Pool): Promise<Set<string>> {
-  const result = await pool.query<{ evidence_object_key: string }>(
-    "SELECT evidence_object_key FROM public.education_verifications WHERE evidence_object_key IS NOT NULL",
-  );
-  return new Set(result.rows.map((row) => row.evidence_object_key));
 }
 
 function readJson<T>(path: string, parser: (value: unknown) => T): T {
