@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.8.1]
+
+### Fixed
+
+#### 2026 Rivals 历史淘汰赛迁移
+
+修复历史淘汰赛状态迁移在 PostgreSQL 上无法执行的问题。阶段范围的对阵状态现在会安全回填到对应的 2026 Rivals 比赛身份，旧状态保留为兼容壳。
+
 ## [2.8.0]
 
 ### Changed
@@ -2031,6 +2039,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.8.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.8.0...v2.8.1
 [2.8.0]: https://github.com/Starfie1d1272/RivalHub/compare/v2.7.8...v2.8.0
 [2.7.8]: https://github.com/Starfie1d1272/RivalHub/compare/v2.7.7...v2.7.8
 [2.7.7]: https://github.com/Starfie1d1272/RivalHub/compare/v2.7.6...v2.7.7

@@ -48,6 +48,7 @@ DECLARE
   candidate_count bigint;
   candidate_entry uuid;
   participant_count bigint;
+  mapping_count bigint;
   mapping jsonb := '{}'::jsonb;
 BEGIN
   SELECT "id" INTO rivals_id FROM "seasons" WHERE "slug" = '2026-nju-rivals';
@@ -129,7 +130,8 @@ BEGIN
     mapping := mapping || jsonb_build_object(participant_id::text, candidate_entry::text);
   END LOOP;
 
-  IF participant_count <> jsonb_object_length(mapping) THEN
+  SELECT count(*) INTO mapping_count FROM jsonb_object_keys(mapping);
+  IF participant_count <> mapping_count THEN
     RAISE EXCEPTION '2026 Rivals participant metadata backfill is incomplete';
   END IF;
 
