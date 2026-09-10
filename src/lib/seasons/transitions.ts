@@ -1,11 +1,9 @@
-"use server";
+import "server-only";
 
-import { revalidatePath } from "next/cache";
-import { eq, count, and, not, inArray } from "drizzle-orm";
+import { and, count, eq, inArray, not } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
-import { seasons, seasonRegistrations, auditLogs, matches } from "@/db/schema";
+import { auditLogs, matches, seasonRegistrations, seasons } from "@/db/schema";
 import { normalizeRegistrationConfig, normalizeStagePlan } from "@/lib/seasons/compatibility";
-import { revalidatePublicSeasonTags, updatePublicSeasonTags } from "@/lib/revalidation";
 
 async function getApprovedCountInTx(tx: TxDb, seasonId: string): Promise<number> {
   const [row] = await tx
@@ -22,13 +20,12 @@ async function getApprovedCountInTx(tx: TxDb, seasonId: string): Promise<number>
 
 /**
  * 如果条件满足（通过数满 / 截止过期），自动推进 registration → 下一状态。
- * 必须在事务中调用——审批场景用外层的 tx，cron 场景自己包 transaction。
+ * 必须在事务中调用；缓存刷新由事务外的 entrypoint 负责。
  */
 export async function maybeAdvanceFromRegistration(
   tx: TxDb,
   seasonId: string,
-  options: { invalidation?: "action" | "route" } = {},
-): Promise<boolean> {
+): Promise<string | null> {
   const season = await tx.query.seasons.findFirst({
     where: eq(seasons.id, seasonId),
   });
@@ -37,7 +34,7 @@ export async function maybeAdvanceFromRegistration(
     season.status !== "registration" ||
     season.registrationMode !== "solo" ||
     !season.registrationOpenedAt
-  ) return false;
+  ) return null;
 
   const registrationConfig = normalizeRegistrationConfig(season.registrationConfig);
   const approvedCount = await getApprovedCountInTx(tx, seasonId);
@@ -47,7 +44,7 @@ export async function maybeAdvanceFromRegistration(
     season.registrationClosesAt != null &&
     new Date(season.registrationClosesAt).getTime() <= Date.now();
 
-  if (!full && !deadlinePassed) return false;
+  if (!full && !deadlinePassed) return null;
 
   const nextStatus = season.hasCaptainVoting ? "voting" : "playing";
 
@@ -72,25 +69,17 @@ export async function maybeAdvanceFromRegistration(
     },
   });
 
-  if (options.invalidation === "route") {
-    revalidatePublicSeasonTags(season.slug, season.id);
-  } else {
-    updatePublicSeasonTags(season.slug, season.id);
-  }
-  revalidatePath(`/${season.slug}`);
-  revalidatePath(`/admin/${season.slug}/registrations`);
-  return true;
+  return season.slug;
 }
 
 /**
  * 如果赛季是 playing 状态且所有比赛都已结束（finished 或 cancelled），
- * 自动将赛季推进到 finished。
- * 必须在事务中调用。
+ * 自动将赛季推进到 finished。必须在事务中调用；缓存刷新由 entrypoint 负责。
  */
 export async function maybeFinishSeason(
   tx: TxDb,
   seasonId: string,
-): Promise<void> {
+): Promise<string | null> {
   const season = await tx.query.seasons.findFirst({
     where: eq(seasons.id, seasonId),
   });
@@ -98,9 +87,8 @@ export async function maybeFinishSeason(
     !season ||
     season.status !== "playing" ||
     normalizeStagePlan(season.stagePlan).some((stage) => stage.type === "swiss")
-  ) return;
+  ) return null;
 
-  // 检查是否所有比赛都已结束（finished 或 cancelled）
   const [pendingMatch] = await tx
     .select({ count: count() })
     .from(matches)
@@ -111,7 +99,7 @@ export async function maybeFinishSeason(
       ),
     );
 
-  if (Number(pendingMatch?.count ?? 0) > 0) return;
+  if (Number(pendingMatch?.count ?? 0) > 0) return null;
 
   await tx
     .update(seasons)
@@ -127,6 +115,5 @@ export async function maybeFinishSeason(
     meta: { from: "playing", to: "finished", reason: "all_matches_completed" },
   });
 
-  updatePublicSeasonTags(season.slug, season.id);
-  revalidatePath(`/${season.slug}`);
+  return season.slug;
 }

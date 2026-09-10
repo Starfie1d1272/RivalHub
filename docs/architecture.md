@@ -26,6 +26,28 @@ Entrypoint 负责不可信输入、鉴权、transport result 和 revalidation；
 
 预期业务结果统一使用 `ActionResult<T>`；unexpected runtime failure 进入 canonical observability，而不是把 exception 当业务状态。
 
+### Stable dependency direction
+
+跨领域依赖沿着稳定的业务方向收敛：
+
+```text
+Identity / Catalog
+        ↓
+Competition Definition
+        ↓
+Participation
+        ↓
+Tournament Runtime
+        ↓
+Match / Official Result
+        ↓
+History / Analytics / Spectator
+```
+
+Page、Server Action、Route Handler 和 Client Component 是 entrypoint/presentation 层，只调用 canonical `src/lib/` owner；`src/lib/` domain/library 代码不得反向依赖 `src/actions/`、`src/app/` 或 `src/components/`。Client graph 只能通过 `use server` action boundary 进入 server workflow，不能到达数据库、secret/provider owner 或 server-only observability facade。
+
+这条方向由 `pnpm architecture:check` 执行检查。检查器读取项目 tsconfig 并使用 TypeScript module resolver 解析 alias、relative 和 runtime dynamic import；Client→Server 泄漏只沿 runtime graph 检查，而 canonical third-party provider ownership 连 type-only edge 也 fail closed。DTO/serializer 的字段泄漏仍由对应 serializer tests 负责。
+
 ### Public data
 
 ```text

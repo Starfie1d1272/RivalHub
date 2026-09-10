@@ -4,8 +4,8 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { expireSanction, issueSanction, revokeSanction, searchSanctionSubjects } from "@/actions/discipline";
-import type { SanctionEffect } from "@/lib/discipline/service";
-import { SANCTION_EFFECTS } from "@/lib/discipline/service";
+import type { SanctionEffect } from "@/lib/discipline/contract";
+import { SANCTION_EFFECTS } from "@/lib/discipline/contract";
 import { formatCST, parseCSTInput } from "@/lib/utils/date";
 import {
   ClearFilters,

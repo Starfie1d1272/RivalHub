@@ -11,6 +11,7 @@ const FULL_STATIC_MATRIX = [
   { task: "type-tests", changedPaths: [] },
   { task: "type-scripts", changedPaths: [] },
   { task: "lint", changedPaths: [] },
+  { task: "architecture", changedPaths: [] },
   ...STATIC_PROJECTS.map((project) => ({ task: taskNameForProject(project), project, mode: "full", changedPaths: [] })),
   { task: "dead-code", changedPaths: [] },
   { task: "build", changedPaths: [] },
@@ -81,6 +82,7 @@ export function classifyChangedFiles(entries, options = {}) {
     typeApp: false,
     typeTests: false,
     typeScripts: false,
+    architecture: false,
     lintPaths: new Set(),
     unitRelatedSources: new Map(STATIC_PROJECTS.map((project) => [project, new Set()])),
     unitExplicitTests: new Map(STATIC_PROJECTS.map((project) => [project, new Set()])),
@@ -273,6 +275,7 @@ function collectEvidence(path, classification, evidence) {
   evidence.typeApp ||= path.startsWith("src/");
   evidence.typeTests ||= isTest;
   evidence.typeScripts ||= isScript;
+  evidence.architecture ||= path.startsWith("src/") || path.startsWith("scripts/architecture/");
   if (isCode || LINT_EXTENSIONS.test(path)) evidence.lintPaths.add(path);
 
   if (classification.integrationSpecs) {
@@ -318,6 +321,7 @@ function buildStaticMatrix(evidence) {
   if (evidence.typeApp) matrix.push({ task: "type-app", changedPaths: [] });
   if (evidence.typeTests) matrix.push({ task: "type-tests", changedPaths: [] });
   if (evidence.typeScripts) matrix.push({ task: "type-scripts", changedPaths: [] });
+  if (evidence.architecture) matrix.push({ task: "architecture", changedPaths: [] });
 
   const lintPaths = [...evidence.lintPaths].filter((path) => LINT_EXTENSIONS.test(path)).sort();
   if (lintPaths.length > 0) matrix.push({ task: "lint-changed", changedPaths: lintPaths });

@@ -11,7 +11,6 @@ const {
   insertMock,
   updateSetCalls,
   insertValuesCalls,
-  revalidateMatchPathsMock,
 } = vi.hoisted(() => {
   const updateSetCalls: unknown[] = [];
   const insertValuesCalls: unknown[] = [];
@@ -26,7 +25,6 @@ const {
     insertMock: vi.fn(),
     updateSetCalls,
     insertValuesCalls,
-    revalidateMatchPathsMock: vi.fn(),
   };
 });
 
@@ -83,11 +81,7 @@ vi.mock("drizzle-orm", () => ({
   sql: vi.fn((strings: TemplateStringsArray) => strings.join("")),
 }));
 
-vi.mock("@/lib/revalidation", () => ({
-  revalidateMatchPaths: revalidateMatchPathsMock,
-}));
-
-import { runMatchTimeAutoAwardCron } from "@/actions/matches/scheduling";
+import { runMatchTimeAutoAwardCron } from "@/lib/matches/time-auto-award";
 
 describe("runMatchTimeAutoAwardCron", () => {
   const now = new Date("2026-05-14T12:00:00.000Z");
@@ -131,7 +125,13 @@ describe("runMatchTimeAutoAwardCron", () => {
 
     const result = await runMatchTimeAutoAwardCron(now);
 
-    expect(result).toEqual({ processed: 1, awarded: 1, skipped: 0, failed: 0 });
+    expect(result).toEqual({
+      processed: 1,
+      awarded: 1,
+      skipped: 0,
+      failed: 0,
+      affectedMatches: [{ seasonSlug: "spring", matchId: "match-1" }],
+    });
     expect(updateSetCalls).toContainEqual({ scheduledAt: proposedTime, updatedAt: now });
     expect(updateSetCalls).toContainEqual({ status: "expired", updatedAt: now });
     expect(updateSetCalls).toContainEqual({
@@ -151,7 +151,6 @@ describe("runMatchTimeAutoAwardCron", () => {
         scheduledAt: proposedTime.toISOString(),
       },
     });
-    expect(revalidateMatchPathsMock).toHaveBeenCalledWith("spring", "match-1", { mode: "route" });
   });
 
   it("skips matches without pending proposals", async () => {
@@ -167,9 +166,14 @@ describe("runMatchTimeAutoAwardCron", () => {
 
     const result = await runMatchTimeAutoAwardCron(now);
 
-    expect(result).toEqual({ processed: 1, awarded: 0, skipped: 1, failed: 0 });
+    expect(result).toEqual({
+      processed: 1,
+      awarded: 0,
+      skipped: 1,
+      failed: 0,
+      affectedMatches: [],
+    });
     expect(updateSetCalls).toEqual([]);
     expect(insertValuesCalls).toEqual([]);
-    expect(revalidateMatchPathsMock).not.toHaveBeenCalled();
   });
 });

@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import { commandFor } from "../../../scripts/ci/run-static-task.mjs";
 
 describe("affected static task commands", () => {
+  it("runs the executable architecture contract", () => {
+    expect(commandFor("architecture")).toEqual(["architecture:check"]);
+  });
+
   it("passes the planned changed paths to eslint", () => {
     expect(commandFor(
       "lint-changed",

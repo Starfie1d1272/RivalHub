@@ -22,6 +22,7 @@ plan ─→ static ─────┐
 
 - app / tests / scripts TypeScript；
 - ESLint；
+- architecture dependency contract；
 - Vitest unit suite；
 - dead-code / dependency hygiene；
 - production build。
@@ -89,6 +90,7 @@ Draft PR 还会由同一个 planner 输出 static matrix、related source、expl
 ```bash
 pnpm type-check
 pnpm lint
+pnpm architecture:check
 pnpm test
 pnpm build
 ```
