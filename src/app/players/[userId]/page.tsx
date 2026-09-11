@@ -339,7 +339,7 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
       {/* Immutable event-registration snapshots, deliberately separate from the long-lived profile above. */}
       {registrations.length > 0 && (
         <section className="space-y-3">
-          <SectionHeading>参赛记录</SectionHeading>
+          <SectionHeading>报名档案（报名时资料）</SectionHeading>
           <div className="space-y-2">
             {[...registrations].reverse().map((reg) => {
               const teamInfo = teamBySeasonId.get(reg.seasonId);

@@ -40,7 +40,7 @@ async function HomeContent() {
   const allSeasons = await getPublicSeasonCatalog();
   const featured = selectFeaturedSeason(allSeasons);
   const others = allSeasons.filter(
-    (season) => season.status !== "archived" && season.id !== featured?.id,
+    (season) => !["finished", "archived"].includes(season.status) && season.id !== featured?.id,
   );
 
   if (!featured) {
@@ -62,7 +62,7 @@ async function HomeContent() {
   ]);
   const results = ["finished", "archived"].includes(featured.status) ? await getPublicSeasonResults(featured) : null;
   const archivedSeasons = allSeasons
-    .filter((season) => season.status === "archived" && season.id !== featured.id)
+    .filter((season) => ["finished", "archived"].includes(season.status) && season.id !== featured.id)
     .slice(0, 6);
 
   // 并行查询：基础统计 + 按状态的动态数据

@@ -9,7 +9,6 @@ import {
   presentSeasonLifecycleSummary,
   presentRegistrationSchedule,
   presentSeasonParticipationState,
-  presentSeasonStatus,
 } from "@/lib/seasons/presentation";
 import { MiniStat, Panel, StatusPill } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
@@ -342,10 +341,9 @@ function PanelStats({
   status: SeasonStatus;
 }) {
   return (
-    <div className="grid grid-cols-3 gap-2">
+    <div className="grid grid-cols-2 gap-2">
       <MiniStat label={registrationMode === "team" && status === "registration" ? "已通过审核" : "TEAMS"} value={teamCount} />
       <MiniStat label="PLAYERS" value={playerCount} accent />
-      <MiniStat label="STAGE" value={presentSeasonStatus(status).label} />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import type { StatusPresentation } from "@/lib/presentation";
 import type { MatchFormat, MatchStatus } from "@/types/match";
+import { isHttpUrl } from "@/lib/external-url";
 
 const MATCH_STATUS_PRESENTATIONS: Record<MatchStatus, StatusPresentation> = {
   scheduled: { label: "待进行", tone: "neutral" },
@@ -27,4 +28,15 @@ export function presentMatchFormat(format: MatchFormat): StatusPresentation {
 export function presentMatchLabel(input: { stage: string; round?: number | null; entryRound?: string | null; teamAName: string; teamBName: string; stageName?: string | null }): string {
   const phase = input.round != null ? `第 ${input.round} 轮` : input.entryRound ?? null;
   return [input.stageName ?? input.stage, phase, `${input.teamAName} vs ${input.teamBName}`].filter(Boolean).join(" · ");
+}
+
+export function getPublicLiveCommentators<T extends { liveStreamUrl: string | null }>(
+  status: "scheduled" | "in_progress" | "finished" | "cancelled",
+  commentators: T[],
+): T[] {
+  return status === "scheduled" || status === "in_progress"
+    ? commentators.filter(
+        (commentator) => commentator.liveStreamUrl !== null && isHttpUrl(commentator.liveStreamUrl),
+      )
+    : [];
 }

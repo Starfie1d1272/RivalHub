@@ -166,7 +166,14 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
         <Stat label="位置" value={position ? positionLabel(position) : "全部"} />
       </div>
 
-      <ParticipantDirectoryToolbar query={query.q} team={query.team} teams={teamOptions} total={visiblePlayers.length} />
+      <ParticipantDirectoryToolbar
+        query={query.q}
+        team={query.team}
+        teams={teamOptions}
+        position={position}
+        positions={positionValues.map((v) => ({ value: v, label: positionLabel(v) }))}
+        total={visiblePlayers.length}
+      />
 
       {visiblePlayers.length === 0 ? (
         <div className="text-center py-16 text-[var(--color-fg-mid)]">暂无符合条件的选手</div>

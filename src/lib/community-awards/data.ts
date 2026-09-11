@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray, isNotNull, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { TxDb } from "@/db/client";
-import { communityAwardEvidence, communityAwards, competitionEntries, matches, users } from "@/db/schema";
+import { communityAwardEvidence, communityAwards, competitionEntries, eventRosterMembers, eventRosters, matches, seasonRegistrations, users } from "@/db/schema";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { presentMatchLabel } from "@/lib/matches/presentation";
 import { formatCST } from "@/lib/utils/date";
@@ -35,6 +35,7 @@ export type CommunityAwardModel = {
   submitterName: string;
   recipientName: string | null;
   recipientUserId: string | null;
+  recipientTarget: string | null;
   evidence?: CommunityAwardEvidenceModel[];
 };
 
@@ -60,7 +61,43 @@ export async function getPublicCommunityAwardBoardData(executor: CommunityAwardQ
     getSeasonAwardCandidates(executor, args.seasonId),
     getMatchOptions(executor, args.seasonId, args.stagePlan),
   ]);
-  return { awards: rows.filter((row) => row.submittedByUserId === args.currentUserId || isPublicCommunityAward(row.status, row.reviewedAt)).map((row) => ({ id: row.id, submittedByUserId: row.submittedByUserId, name: row.name, condition: row.condition, prize: row.prize, supplementaryNote: row.supplementaryNote, publicNote: row.publicNote, reviewNote: row.submittedByUserId === args.currentUserId ? row.reviewNote : null, status: row.status, submitterName: getPublicDisplayName(row.submitter), recipientName: row.recipient ? getPublicDisplayName(row.recipient) : null, recipientUserId: row.recipientUserId, outcomeNote: row.outcomeNote })), candidates, matches: matchOptions };
+  const recipientUserIds = [...new Set(rows.map((r) => r.recipientUserId).filter((id): id is string => Boolean(id)))];
+  const [playerRosterRows, regRows] = await Promise.all([
+    recipientUserIds.length > 0 ? executor
+      .select({ userId: eventRosterMembers.userId })
+      .from(eventRosterMembers)
+      .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
+      .innerJoin(competitionEntries, eq(eventRosters.entryId, competitionEntries.id))
+      .where(and(eq(competitionEntries.competitionId, args.seasonId), inArray(eventRosterMembers.userId, recipientUserIds)))
+      : [],
+    recipientUserIds.length > 0 ? executor
+      .select({ userId: seasonRegistrations.userId })
+      .from(seasonRegistrations)
+      .where(and(eq(seasonRegistrations.seasonId, args.seasonId), eq(seasonRegistrations.status, "approved"), inArray(seasonRegistrations.userId, recipientUserIds)))
+      : [],
+  ]);
+  const playerUserIdSet = new Set([...playerRosterRows.map((r) => r.userId), ...regRows.map((r) => r.userId)]);
+
+  return {
+    awards: rows.filter((row) => row.submittedByUserId === args.currentUserId || isPublicCommunityAward(row.status, row.reviewedAt)).map((row) => ({
+      id: row.id,
+      submittedByUserId: row.submittedByUserId,
+      name: row.name,
+      condition: row.condition,
+      prize: row.prize,
+      supplementaryNote: row.supplementaryNote,
+      publicNote: row.publicNote,
+      reviewNote: row.submittedByUserId === args.currentUserId ? row.reviewNote : null,
+      status: row.status,
+      submitterName: getPublicDisplayName(row.submitter),
+      recipientName: row.recipient ? getPublicDisplayName(row.recipient) : null,
+      recipientUserId: row.recipientUserId,
+      recipientTarget: row.recipientUserId && playerUserIdSet.has(row.recipientUserId) ? `/players/${row.recipientUserId}` : null,
+      outcomeNote: row.outcomeNote,
+    })),
+    candidates,
+    matches: matchOptions,
+  };
 }
 
 export async function getAdminCommunityAwardBoardData(executor: CommunityAwardQueryable, args: { seasonId: string; stagePlan: StagePlan }): Promise<CommunityAwardBoardData> {
@@ -80,5 +117,5 @@ export async function getAdminCommunityAwardBoardData(executor: CommunityAwardQu
     list.push({ id: row.id, submitterName: getPublicDisplayName(row.submitter), candidateName: row.candidate ? getPublicDisplayName(row.candidate) : null, matchLabel: row.matchId ? matchLabels.get(row.matchId) ?? null : null, explanation: row.explanation, videoUrl: row.videoUrl, createdAt: formatCST(row.createdAt) });
     evidenceByAward.set(row.awardId, list);
   }
-  return { awards: awardRows.map((row) => ({ ...row, submitterName: getPublicDisplayName(row.submitter), recipientName: row.recipient ? getPublicDisplayName(row.recipient) : null, evidence: evidenceByAward.get(row.id) ?? [] })), candidates, matches: matchOptions };
+  return { awards: awardRows.map((row) => ({ ...row, submitterName: getPublicDisplayName(row.submitter), recipientName: row.recipient ? getPublicDisplayName(row.recipient) : null, recipientTarget: row.recipientUserId ? `/players/${row.recipientUserId}` : null, evidence: evidenceByAward.get(row.id) ?? [] })), candidates, matches: matchOptions };
 }

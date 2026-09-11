@@ -1,5 +1,6 @@
 import type { RegistrationMode, SeasonStatus } from "@/types/season";
 import { getSeasonLifecycleGroup, isRegistrationActuallyOpen } from "@/lib/seasons/presentation";
+import { showStats } from "@/lib/utils/season";
 
 export interface FeaturedSeasonInput {
   id: string;
@@ -147,7 +148,7 @@ export function buildHomeNavEntries(
       label: "数据排行",
       mono: "STATS",
       meta: "Rating · ADR",
-      show: true,
+      show: showStats(season),
     },
     { key: "players", href: `/${season.slug}/players`, label: "选手", mono: "PLAYERS", meta: "本届选手", show: true },
     { key: "awards", href: `/${season.slug}/community-awards`, label: "社区奖", mono: "AWARDS", meta: "创意与荣誉", show: Boolean(season.hasCommunityAwards) },

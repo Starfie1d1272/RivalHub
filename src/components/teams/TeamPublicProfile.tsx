@@ -11,7 +11,6 @@ import { TeamLogo } from "@/components/teams/TeamLogo";
 import { RecruitmentInterestButton } from "@/components/recruitment/RecruitmentInterestButton";
 import type { PublicEventTeamContext } from "@/lib/competition-entries/public-team-context";
 import {
-  presentCompetitionEntryRegistration,
   presentCompetitionEntryRosterStatus,
 } from "@/lib/competition-entries/presentation";
 import { presentMatchStatus } from "@/lib/matches/presentation";
@@ -49,38 +48,37 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results }: T
           </span>
         )}
         eyebrow={event ? `${event.season.name} · ${event.roster.length} 名参赛成员` : `${currentMembers.length} 名当前成员`}
-        description={event
-          ? `${participation?.detail ?? "本页展示本届赛事事实。"} 本页队名、图标、名单和赛果按本届赛事记录展示。${team ? " 下方另列长期队伍资料。" : ""}`
-          : (team?.team.description ?? "暂无队伍简介。")}
+        description={event ? (participation?.detail ?? null) : (team?.team.description ?? "暂无队伍简介。")}
         status={(
           <div className="flex flex-wrap items-center gap-1.5">
-            {team && <StatusPill {...presentTeamStatus(team.team.status)} />}
-            {team?.team.status === "active" && team.recruitment && <StatusPill label="招募中" tone="accent" />}
-            {participation && <StatusPill {...participation} />}
-            {event?.seedPresentation && <StatusPill {...event.seedPresentation} />}
-            {currentUserMembership && <StatusPill label={membershipLabel ?? "我的队伍 · 成员"} tone="accent" />}
+            {event ? (
+              <>
+                {participation && <StatusPill {...participation} />}
+                {rosterStatus && <StatusPill {...rosterStatus} />}
+                {event.seedPresentation && <StatusPill {...event.seedPresentation} />}
+              </>
+            ) : (
+              <>
+                {team && <StatusPill {...presentTeamStatus(team.team.status)} />}
+                {team?.team.status === "active" && team.recruitment && <StatusPill label="招募中" tone="accent" />}
+                {currentUserMembership && <StatusPill label={membershipLabel ?? "我的队伍 · 成员"} tone="accent" />}
+              </>
+            )}
           </div>
         )}
-        actions={(event || (team && currentUserMembership && team.team.status === "active")) && (
+        actions={event ? (
           <div className="flex flex-wrap items-center gap-2">
-            {event && team && <Button size="sm" variant="outline" asChild><Link href={`/teams/${team.team.slug}`}>长期队伍资料</Link></Button>}
-            {event && <Link href={`/${event.season.slug}/teams`} className="text-sm text-[var(--color-fg-secondary)] hover:text-[var(--color-fg-primary)]">返回赛事队伍</Link>}
-            {team && currentUserMembership && team.team.status === "active" && <Button size="sm" asChild><Link href="/my/teams">管理我的队伍</Link></Button>}
+            {team && <Button size="sm" variant="outline" asChild><Link href={`/teams/${team.team.slug}`}>长期队伍资料</Link></Button>}
+            <Link href={`/${event.season.slug}/teams`} className="text-sm text-[var(--color-fg-secondary)] hover:text-[var(--color-fg-primary)]">返回赛事队伍</Link>
           </div>
-        )}
+        ) : (team && currentUserMembership && team.team.status === "active") ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" asChild><Link href="/my/teams">管理我的队伍</Link></Button>
+          </div>
+        ) : null}
       />
 
       {event && <>
-        <Panel label={`${event.season.name} · 本届赛事`} contentClassName="p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-1.5">
-              {participation && <StatusPill {...participation} />}
-              {rosterStatus && <StatusPill {...rosterStatus} />}
-              {event.seedPresentation && <StatusPill {...event.seedPresentation} />}
-            </div>
-            <p className="text-sm text-[var(--color-fg-mid)]">{participation?.detail}</p>
-          </div>
-        </Panel>
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Stat label="本届比赛" value={event.record.played} />
@@ -132,11 +130,18 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results }: T
               <div className="flex flex-wrap items-center gap-2">
                 <Link href={`/teams/${team.team.slug}`} className="font-semibold hover:text-[var(--color-accent)]">{team.team.name}</Link>
                 <StatusPill {...presentTeamStatus(team.team.status)} />
+                {team.team.status === "active" && team.recruitment && <StatusPill label="招募中" tone="accent" />}
+                {currentUserMembership && <StatusPill label={membershipLabel ?? "我的队伍 · 成员"} tone="accent" />}
               </div>
               <p className="text-sm leading-6 text-[var(--color-fg-mid)]">{team.team.description ?? "暂无队伍简介。"}</p>
             </div>
           </div>
-          <Link href={`/teams/${team.team.slug}`} className="shrink-0 text-sm text-[var(--color-accent)] hover:underline">查看完整长期资料</Link>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            {currentUserMembership && team.team.status === "active" && (
+              <Button size="sm" asChild><Link href="/my/teams">管理我的队伍</Link></Button>
+            )}
+            <Link href={`/teams/${team.team.slug}`} className="text-sm text-[var(--color-accent)] hover:underline">查看完整长期资料</Link>
+          </div>
         </div>
       </Panel>}
 
@@ -171,7 +176,9 @@ export function TeamPublicProfile({ team, event = null, mapProfile, results }: T
               {team.entries.length > 0 ? team.entries.map((entry) => (
                 <Link key={entry.id} href={`/${entry.seasonSlug}/teams/${entry.id}`} className="flex flex-wrap items-center justify-between gap-3 py-3 hover:bg-[var(--color-panel-hi)]">
                   <span className="flex min-w-0 flex-col gap-1 text-sm"><span className="break-words font-medium">{entry.seasonName}</span><span className="break-words text-xs text-[var(--color-fg-mid)]">{entry.name}</span></span>
-                  <span className="flex shrink-0 flex-col items-end gap-1"><StatusPill {...presentCompetitionEntryRegistration(entry.status)} /><span className="text-xs text-[var(--color-fg-dim)]">{formatCSTShortDate(entry.createdAt)}</span></span>
+                  <span className="flex shrink-0 flex-col items-end gap-1">
+                    <StatusPill label={["finished", "archived"].includes(entry.seasonStatus) ? "完赛" : "参赛中"} tone={["finished", "archived"].includes(entry.seasonStatus) ? "neutral" : "accent"} />
+                  </span>
                 </Link>
               )) : <EmptyState title="尚无赛事记录。" />}
             </div>

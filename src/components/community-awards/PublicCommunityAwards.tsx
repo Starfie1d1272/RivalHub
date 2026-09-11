@@ -2,6 +2,7 @@
 import React from "react";
 
 import Link from "next/link";
+import type { Route } from "next";
 import { Panel, StatusPill } from "@/components/rivalhub";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogDescription } from "@/components/ui/dialog";
@@ -26,7 +27,7 @@ export function PublicCommunityAwards({ seasonId, awards, currentUserId, candida
       if (!items.length) return null;
       return <section key={group.title} className="space-y-4"><h2 className="text-xl font-semibold">{group.title}</h2><div className="grid gap-4 md:grid-cols-2">{items.map((award) => <Panel key={award.id} contentClassName="space-y-3 p-5">
         <h3 className="text-lg font-bold">{award.name}</h3>
-        {award.status === "awarded" && award.recipientUserId && <Link className="block text-xl font-bold text-[var(--color-accent)]" href={`/players/${award.recipientUserId}`}>{award.recipientName}</Link>}
+        {award.status === "awarded" && (award.recipientTarget ? <Link className="block text-xl font-bold text-[var(--color-accent)]" href={award.recipientTarget as Route}>{award.recipientName}</Link> : award.recipientName ? <p className="text-xl font-bold">{award.recipientName}</p> : null)}
         <StatusPill label={award.status === "approved" ? "征集候选证据" : award.status === "awarded" ? "已结奖" : award.status === "not_awarded" ? "本届不颁" : award.status === "withdrawn" ? "已撤回" : "已取消"} tone="neutral" />
         <p className="text-sm">{award.condition}</p><p className="text-sm text-[var(--color-fg-mid)]">奖品 · {award.prize}</p>
         {award.outcomeNote && <p className="text-sm">{award.outcomeNote}</p>}

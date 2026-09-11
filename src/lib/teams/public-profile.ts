@@ -159,7 +159,12 @@ export async function getPublicTeamProfile(
       .where(eq(teamNameChanges.teamId, team.id))
       .orderBy(asc(teamNameChanges.changedAt)),
     db
-      .select({ id: teamCaptainChanges.id, name: publicName, changedAt: teamCaptainChanges.changedAt })
+      .select({
+        id: teamCaptainChanges.id,
+        fromUserId: teamCaptainChanges.fromUserId,
+        name: publicName,
+        changedAt: teamCaptainChanges.changedAt,
+      })
       .from(teamCaptainChanges)
       .innerJoin(users, eq(users.id, teamCaptainChanges.toUserId))
       .where(eq(teamCaptainChanges.teamId, team.id))
@@ -221,8 +226,8 @@ export async function getPublicTeamProfile(
     team,
     currentMembers,
     entries,
-    nameChanges: names,
-    captainChanges: captains,
+    nameChanges: names.filter((n) => n.oldName !== null),
+    captainChanges: captains.filter((c) => c.fromUserId !== null),
     playedCount: played.length,
     wins,
     currentUserMembership,
