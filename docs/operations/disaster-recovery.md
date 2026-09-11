@@ -50,6 +50,7 @@ Storage inventory 只接受 `STANDARD` bucket，并且每个 bucket 必须命中
 | Bucket | Recovery class | Restore mode | 语义 |
 | --- | --- | --- | --- |
 | `team-logos` | `durable` | `always` | 作为长期业务资产恢复 |
+| `season-public-assets` | `durable` | `always` | 公开赛事运营图片（当前为群二维码）作为长期业务资产恢复 |
 | `education-evidence` | `temporary-sensitive` | `active-reference-only` | 只恢复恢复后数据库仍 active reference 的 object |
 
 `education-evidence` 的 active business copy 仍由应用 canonical retention policy 管理：审核完成后 7 天清理，顺序是先删 Storage object、再清空数据库 reference。private encrypted DR copy 统一按 `production/` 的 30 天 retention 保留；这只是灾备证据窗口，不延长 active business copy 的生命周期。恢复时，snapshot 中已过期或已不再是 active reference 的 evidence 永远不会重新上传或重新激活，只在安全 summary 中计数。

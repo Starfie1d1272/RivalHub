@@ -9,7 +9,7 @@ import {
   assertLocalHttpUrl,
 } from "./local-environment";
 import { DATABASE_ACCESS_MATRIX, verifyDatabaseAccessMatrix } from "./access-matrix";
-import { verifyEducationEvidenceBucket } from "./verify-migrations";
+import { verifyEducationEvidenceBucket, verifySeasonPublicAssetsBucket } from "./verify-migrations";
 import { SCHEDULER_JOB_DEFINITIONS } from "../../src/lib/scheduler/definitions";
 
 export async function verifyDatabaseContract(): Promise<void> {
@@ -48,6 +48,7 @@ export async function verifyDatabaseContract(): Promise<void> {
 
     await verifyDatabaseAccessMatrix(pool, "Local PostgreSQL");
     await verifyEducationEvidenceBucket(pool);
+    await verifySeasonPublicAssetsBucket(pool);
 
     console.log(
       `PostgreSQL verification passed: ${journal.entries.length} migrations, fixture, full public access matrix.`,
@@ -78,6 +79,9 @@ export async function verifySupabaseServices(): Promise<void> {
     await verifyDatabaseAccessMatrix(pool, "Local Supabase");
     if (await verifyEducationEvidenceBucket(pool) !== "verified") {
       throw new Error("Local Supabase 缺少 education-evidence Storage bucket。");
+    }
+    if (await verifySeasonPublicAssetsBucket(pool) !== "verified") {
+      throw new Error("Local Supabase 缺少 season-public-assets Storage bucket。");
     }
     await verifySchedulerDispatch(pool, apiUrl);
 

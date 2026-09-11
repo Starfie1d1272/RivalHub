@@ -7,6 +7,8 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Toaster } from "@/components/ui/sonner";
 import { APP_BRAND } from "@/lib/branding";
+import { GlobalInformationFeedbackLauncher } from "@/components/operations/GlobalInformationFeedbackLauncher";
+import { Suspense } from "react";
 
 const geist = Geist({
   variable: "--font-geist",
@@ -55,6 +57,7 @@ export default function RootLayout({
         <Header />
         <main className="flex-1">{children}</main>
         <Footer />
+        <Suspense fallback={null}><GlobalInformationFeedbackLauncher /></Suspense>
         <Toaster richColors position="top-right" />
         <Analytics />
         <SpeedInsights />

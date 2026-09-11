@@ -187,6 +187,11 @@ describe("recovery contracts", () => {
       recoveryClass: "temporary-sensitive",
       restoreMode: "active-reference-only",
     });
+    expect(getStorageRecoveryPolicy("season-public-assets")).toEqual({
+      bucket: "season-public-assets",
+      recoveryClass: "durable",
+      restoreMode: "always",
+    });
     expect(() => getStorageRecoveryPolicy("unknown-bucket")).toThrow(/no recovery policy/);
     expect(() => assertSupportedStorageBucket({ name: "team-logos" })).toThrow(/missing or unsupported/);
     expect(() => assertSupportedStorageBucket({ name: "team-logos", type: "OBJECT" })).toThrow(/missing or unsupported/);

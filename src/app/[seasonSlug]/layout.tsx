@@ -11,6 +11,7 @@ import {
   getPublicOrAuthorizedDraftSeason,
   getPublicSeasonBySlug,
 } from "@/lib/data/public-seasons";
+import { SeasonInformationFeedbackLauncher } from "@/components/operations/GlobalInformationFeedbackLauncher";
 
 interface SeasonLayoutProps {
   children: React.ReactNode;
@@ -66,6 +67,7 @@ async function SeasonLayoutContent({ children, params }: SeasonLayoutProps) {
         hasStats={showStats(season)}
       />
       {children}
+      <SeasonInformationFeedbackLauncher season={{ id: season.id, slug: season.slug }} />
     </div>
   );
 }

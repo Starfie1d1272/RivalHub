@@ -74,7 +74,7 @@ production encrypted backup
 → disposable isolated target restore/verify/application smoke
 ```
 
-active `education-evidence` business copy 继续是 7 天 retention；encrypted DR copy 最多 30 天，过期 evidence 不会在 restore 中重新激活。Recovery policy registry 只允许 `team-logos` durable/always 与 `education-evidence` temporary-sensitive/active-reference-only；未知 bucket/type 必须 fail closed。
+active `education-evidence` business copy 继续是 7 天 retention；encrypted DR copy 最多 30 天，过期 evidence 不会在 restore 中重新激活。Recovery policy registry 允许 `team-logos` 与 `season-public-assets` durable/always，以及 `education-evidence` temporary-sensitive/active-reference-only；未知 bucket/type 必须 fail closed。`season-public-assets` 是公开赛事运营图片 bucket，当前用于群二维码，迁移、Storage verification 与 recovery inventory 必须共同证明其 public、1 MiB、JPEG/PNG/WebP contract。
 
 ## 5. 并发与重试
 

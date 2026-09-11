@@ -28,6 +28,8 @@ import { getParticipantSummary } from "@/lib/participants/summary";
 import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 import { getMajorPublicParticipantOverview } from "@/lib/major/public-participants";
 import { RegistrationScheduleCountdown } from "@/components/seasons/RegistrationScheduleCountdown";
+import { getLatestSeasonAnnouncement } from "@/lib/announcements/read-model";
+import { getPublicSeasonInfo } from "@/lib/season-public-info/read-model";
 
 const STATUS_IDX: Record<SeasonStatus, number> = {
   draft: 0, registration: 1, voting: 2, drafting: 3,
@@ -52,6 +54,10 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
 
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
+  const [latestSeasonAnnouncement, seasonInfo] = await Promise.all([
+    getLatestSeasonAnnouncement(season.id),
+    getPublicSeasonInfo(season.id),
+  ]);
   const stagePlan = normalizeStagePlan(season.stagePlan);
   const stageLabelByKey = new Map(
     stagePlan.map((stage) => [stage.key, presentStageMarker(stage, season.competitionTemplate)]),
@@ -257,6 +263,20 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
           </div>
         )}
       </div>
+
+      {(latestSeasonAnnouncement || seasonInfo.groups.some((group) => group.status === "active") || seasonInfo.contacts.length > 0) && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {latestSeasonAnnouncement && <Panel label={<div className="flex w-full items-center justify-between gap-3"><span>最新公告</span><Button size="sm" variant="ghost" asChild><Link href={`/${seasonSlug}/announcements`}>历史公告 →</Link></Button></div>}>
+            <p className="font-semibold text-[var(--color-fg)]">{latestSeasonAnnouncement.title}</p>
+            <p className="mt-1 text-xs text-[var(--color-fg-dim)]">发布于 {new Date(latestSeasonAnnouncement.publishedAt).toLocaleString("zh-CN")}{latestSeasonAnnouncement.updatedAt !== latestSeasonAnnouncement.publishedAt && ` · 更新于 ${new Date(latestSeasonAnnouncement.updatedAt).toLocaleString("zh-CN")}`}</p>
+            <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-sm text-[var(--color-fg-mid)]">{latestSeasonAnnouncement.body}</p>
+          </Panel>}
+          <Panel label="赛事信息">
+            <div className="flex flex-wrap gap-2 text-sm"><Link href={`/${seasonSlug}/info`} className="text-[var(--color-accent)] hover:underline">{seasonInfo.rules.label}</Link><span className="text-[var(--color-fg-dim)]">·</span><Link href={`/${seasonSlug}/info`} className="text-[var(--color-accent)] hover:underline">交流群（{seasonInfo.groups.filter((group) => group.status === "active").length} 个）</Link><span className="text-[var(--color-fg-dim)]">·</span><Link href={`/${seasonSlug}/info`} className="text-[var(--color-accent)] hover:underline">联系方式</Link></div>
+            <Link href={`/${seasonSlug}/info`} className="mt-3 inline-flex text-sm text-[var(--color-accent)] hover:underline">查看完整赛事信息 →</Link>
+          </Panel>
+        </div>
+      )}
 
       {/* Phase tracker */}
       <Panel contentClassName="p-6">

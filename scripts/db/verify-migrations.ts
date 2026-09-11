@@ -112,6 +112,7 @@ async function main(): Promise<void> {
     `);
     assertCurrentTerminalSchema(terminalSchema.rows[0]);
     await verifyEducationEvidenceBucket(pool);
+    await verifySeasonPublicAssetsBucket(pool);
     await verifyDatabaseAccessMatrix(pool, `Migration verification (${target})`);
 
     console.log(`Migration verification passed for ${target}: ${expected.length} active migrations; active terminal schema contract is present.`);
@@ -191,6 +192,29 @@ export async function verifyEducationEvidenceBucket(pool: Pick<Pool, "query">): 
   const mimeTypes = bucket?.allowed_mime_types?.slice().sort();
   if (!bucket || bucket.public || Number(bucket.file_size_limit) !== 5_242_880 || JSON.stringify(mimeTypes) !== JSON.stringify(["image/jpeg", "image/png", "image/webp"])) {
     throw new Error("education-evidence Storage bucket contract 不完整：需要 private、5 MiB、JPEG/PNG/WebP allowlist。");
+  }
+  return "verified";
+}
+
+export async function verifySeasonPublicAssetsBucket(pool: Pick<Pool, "query">): Promise<"verified" | "skipped"> {
+  const schemaResult = await pool.query<{ storage_buckets: string | null }>(
+    "SELECT to_regclass('storage.buckets')::text AS storage_buckets",
+  );
+  if (!schemaResult.rows[0]?.storage_buckets) return "skipped";
+
+  const bucketResult = await pool.query<{
+    public: boolean;
+    file_size_limit: number | string | null;
+    allowed_mime_types: string[] | null;
+  }>(
+    `SELECT public, file_size_limit, allowed_mime_types
+     FROM storage.buckets WHERE id = $1 OR name = $1`,
+    ["season-public-assets"],
+  );
+  const bucket = bucketResult.rows.length === 1 ? bucketResult.rows[0] : undefined;
+  const mimeTypes = bucket?.allowed_mime_types?.slice().sort();
+  if (!bucket || !bucket.public || Number(bucket.file_size_limit) !== 1_048_576 || JSON.stringify(mimeTypes) !== JSON.stringify(["image/jpeg", "image/png", "image/webp"])) {
+    throw new Error("season-public-assets Storage bucket contract 不完整：需要 public、1 MiB、JPEG/PNG/WebP allowlist。");
   }
   return "verified";
 }

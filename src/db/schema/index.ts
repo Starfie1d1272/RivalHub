@@ -32,3 +32,6 @@ export * from "./postevent";
 export * from "./postmatch";
 export * from "./community-awards";
 export * from "./scheduler";
+export * from "./announcements";
+export * from "./season-public-info";
+export * from "./feedback";
