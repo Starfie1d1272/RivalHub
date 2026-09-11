@@ -12,4 +12,18 @@ describe("feedback validation", () => {
   it("normalizes user-entered body whitespace", () => {
     expect(normalizeFeedbackBody("  页面  在\n手机上  溢出  ")).toBe("页面 在 手机上 溢出");
   });
+
+  describe("feedback contract and constraints", () => {
+    it("safely normalizes feedback body and strips consecutive whitespace", () => {
+      expect(normalizeFeedbackBody("  这是    一段测试\n\n反馈内容   ")).toBe("这是 一段测试 反馈内容");
+    });
+
+    it("rejects pathnames with protocol, double slash, query params, or hash", () => {
+      expect(safePublicPathname("https://malicious.com")).toBe(null);
+      expect(safePublicPathname("//malicious.com")).toBe(null);
+      expect(safePublicPathname("/2026-spring/matches?param=1")).toBe(null);
+      expect(safePublicPathname("/2026-spring#section")).toBe(null);
+      expect(safePublicPathname("/2026-spring/matches")).toBe("/2026-spring/matches");
+    });
+  });
 });

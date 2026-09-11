@@ -29,7 +29,9 @@ import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 import { getMajorPublicParticipantOverview } from "@/lib/major/public-participants";
 import { RegistrationScheduleCountdown } from "@/components/seasons/RegistrationScheduleCountdown";
 import { getLatestSeasonAnnouncement } from "@/lib/announcements/read-model";
+import { toAnnouncementExcerpt } from "@/lib/announcements/presentation";
 import { getPublicSeasonInfo } from "@/lib/season-public-info/read-model";
+import { hasPublicSeasonInfo, activeGroupCount } from "@/lib/season-public-info/presentation";
 
 const STATUS_IDX: Record<SeasonStatus, number> = {
   draft: 0, registration: 1, voting: 2, drafting: 3,
@@ -264,19 +266,41 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
         )}
       </div>
 
-      {(latestSeasonAnnouncement || seasonInfo.groups.some((group) => group.status === "active") || seasonInfo.contacts.length > 0) && (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {latestSeasonAnnouncement && <Panel label={<div className="flex w-full items-center justify-between gap-3"><span>最新公告</span><Button size="sm" variant="ghost" asChild><Link href={`/${seasonSlug}/announcements`}>历史公告 →</Link></Button></div>}>
-            <p className="font-semibold text-[var(--color-fg)]">{latestSeasonAnnouncement.title}</p>
-            <p className="mt-1 text-xs text-[var(--color-fg-dim)]">发布于 {new Date(latestSeasonAnnouncement.publishedAt).toLocaleString("zh-CN")}{latestSeasonAnnouncement.updatedAt !== latestSeasonAnnouncement.publishedAt && ` · 更新于 ${new Date(latestSeasonAnnouncement.updatedAt).toLocaleString("zh-CN")}`}</p>
-            <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-sm text-[var(--color-fg-mid)]">{latestSeasonAnnouncement.body}</p>
-          </Panel>}
-          <Panel label="赛事信息">
-            <div className="flex flex-wrap gap-2 text-sm"><Link href={`/${seasonSlug}/info`} className="text-[var(--color-accent)] hover:underline">{seasonInfo.rules.label}</Link><span className="text-[var(--color-fg-dim)]">·</span><Link href={`/${seasonSlug}/info`} className="text-[var(--color-accent)] hover:underline">交流群（{seasonInfo.groups.filter((group) => group.status === "active").length} 个）</Link><span className="text-[var(--color-fg-dim)]">·</span><Link href={`/${seasonSlug}/info`} className="text-[var(--color-accent)] hover:underline">联系方式</Link></div>
-            <Link href={`/${seasonSlug}/info`} className="mt-3 inline-flex text-sm text-[var(--color-accent)] hover:underline">查看完整赛事信息 →</Link>
-          </Panel>
-        </div>
-      )}
+      {(() => {
+        const hasSeasonInfo = hasPublicSeasonInfo(seasonInfo);
+        if (!latestSeasonAnnouncement && !hasSeasonInfo) return null;
+        return (
+          <div className={latestSeasonAnnouncement && hasSeasonInfo ? "grid gap-4 lg:grid-cols-2" : "grid gap-4"}>
+            {latestSeasonAnnouncement && (
+              <Panel label={<div className="flex w-full items-center justify-between gap-3"><span>最新公告</span><Button size="sm" variant="ghost" asChild><Link href={`/${seasonSlug}/announcements`}>历史公告 →</Link></Button></div>}>
+                <p className="font-semibold text-[var(--color-fg)]">{latestSeasonAnnouncement.title}</p>
+                <p className="mt-1 text-xs text-[var(--color-fg-dim)]">发布于 {new Date(latestSeasonAnnouncement.publishedAt).toLocaleString("zh-CN")}{latestSeasonAnnouncement.updatedAt !== latestSeasonAnnouncement.publishedAt && ` · 更新于 ${new Date(latestSeasonAnnouncement.updatedAt).toLocaleString("zh-CN")}`}</p>
+                <p className="mt-1 line-clamp-3 text-sm text-[var(--color-fg-mid)]">{toAnnouncementExcerpt(latestSeasonAnnouncement.body)}</p>
+              </Panel>
+            )}
+            {hasSeasonInfo && (
+              <Panel label="赛事信息">
+                <div className="flex flex-wrap gap-2 text-sm">
+                  <Link href={`/${seasonSlug}/info`} className="text-[var(--color-accent)] hover:underline">
+                    {seasonInfo.rules.label}
+                  </Link>
+                  <span className="text-[var(--color-fg-dim)]">·</span>
+                  <Link href={`/${seasonSlug}/info`} className="text-[var(--color-accent)] hover:underline">
+                    交流群（{activeGroupCount(seasonInfo)} 个）
+                  </Link>
+                  <span className="text-[var(--color-fg-dim)]">·</span>
+                  <Link href={`/${seasonSlug}/info`} className="text-[var(--color-accent)] hover:underline">
+                    联系方式
+                  </Link>
+                </div>
+                <Link href={`/${seasonSlug}/info`} className="mt-3 inline-flex text-sm text-[var(--color-accent)] hover:underline">
+                  查看完整赛事信息 →
+                </Link>
+              </Panel>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Phase tracker */}
       <Panel contentClassName="p-6">

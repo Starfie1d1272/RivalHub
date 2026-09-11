@@ -109,3 +109,7 @@ export function toPublicSeasonInfo(
 export function activeGroupCount(info: PublicSeasonInfo): number {
   return info.groups.filter((group) => group.status === "active").length;
 }
+
+export function hasPublicSeasonInfo(info: PublicSeasonInfo): boolean {
+  return Boolean(info.rules.href) || activeGroupCount(info) > 0 || info.contacts.length > 0;
+}

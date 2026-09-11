@@ -128,4 +128,22 @@ describe("season page navigation", () => {
       expect(html).not.toContain("立即报名");
     }
   });
+  it("renders compact season information entry when only rules exist without announcement, groups, or contacts", async () => {
+    getLatestSeasonAnnouncementMock.mockResolvedValue(null);
+    getPublicSeasonInfoMock.mockResolvedValue({
+      rules: { label: "赛事规则", href: "/rules" },
+      groups: [],
+      contacts: [],
+    });
+
+    const page = await SeasonPageContent({
+      params: Promise.resolve({ seasonSlug: "2026-nju-major" }),
+    });
+    const html = renderToStaticMarkup(page);
+
+    expect(html).toContain("赛事信息");
+    expect(html).toContain("赛事规则");
+    expect(html).toContain('href="/2026-nju-major/info"');
+    expect(html).not.toContain("最新公告");
+  });
 });

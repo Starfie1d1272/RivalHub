@@ -6,7 +6,6 @@ import { join } from "node:path";
 import { readExpectedMigrations } from "../../scripts/db/production-preflight";
 import {
   assertProductionBackupEnvironment,
-  assertRecoveryFetchEnvironment,
   assertR2BucketName,
   buildIsolatedRecoveryEnvironment,
 } from "../../scripts/db/recovery/environment";

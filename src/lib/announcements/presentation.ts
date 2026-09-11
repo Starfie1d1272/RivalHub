@@ -95,3 +95,23 @@ export function selectAttentionAnnouncement<T extends {
         || b.id.localeCompare(a.id);
     })[0] ?? null;
 }
+export function stripMarkdown(markdown: string): string {
+  return markdown
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/(\*{1,3}|_{1,3})(.*?)\1/g, "$2")
+    .replace(/^>\s+/gm, "")
+    .replace(/^[-*+]\s+/gm, "")
+    .replace(/^\d+\.\s+/gm, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function toAnnouncementExcerpt(body: string, maxLength = 120): string {
+  const stripped = stripMarkdown(body);
+  if (stripped.length <= maxLength) return stripped;
+  return `${stripped.slice(0, maxLength)}…`;
+}
