@@ -10,7 +10,7 @@ vi.mock("@/actions/competition-entries", () => ({
 const season = { status: "registration" as const, registrationOpensAt: new Date("2026-01-01"), registrationOpenedAt: new Date("2026-01-01"), registrationClosesAt: new Date("2027-01-01") };
 function props(size = 5): Parameters<typeof CompetitionEntryFlow>[0] {
   const roster = Array.from({ length: size }, (_, i) => ({ membershipId: `m${i}`, userId: `u${i}`, participantId: `p${i}`, label: `选手${i}`, status: "active" as const, roles: [], primaryRole: null, confirmation: "confirmed" as const, primary: i < 5 }));
-  return { competitionId: "event", competitionName: "Major", currentUserId: "u0", minRoster: 5, maxRoster: 9, starterCount: 5, requiresCompetitiveProfile: false, showsPerfectTeamId: true, requiresTeamLogo: true, approvedTeamCount: 0, captainedTeams: [], capabilities: getCompetitionEntryCapabilities({ season, entry: { status: "draft", hasApprovedRoster: false }, revision: { status: "draft", origin: "initial" }, rosterFrozen: false }), entry: { id: "entry", name: "队伍", status: "draft", logoUrl: "/logo.png", representativeUserId: "u0", perfectTeamId: null, reviewReason: null, qualificationFindings: [], roster, candidates: roster } };
+  return { competitionId: "event", competitionName: "Major", currentUserId: "u0", minRoster: 5, maxRoster: 9, starterCount: 5, requiresCompetitiveProfile: false, showsPerfectTeamId: true, requiresTeamLogo: true, approvedTeamCount: 0, captainedTeams: [], invitationConflict: null, capabilities: getCompetitionEntryCapabilities({ season, entry: { status: "draft", hasApprovedRoster: false }, revision: { status: "draft", origin: "initial" }, rosterFrozen: false }), entry: { id: "entry", name: "队伍", status: "draft", logoUrl: "/logo.png", representativeUserId: "u0", perfectTeamId: null, reviewReason: null, qualificationFindings: [], roster, candidates: roster } };
 }
 describe("CompetitionEntryFlow", () => {
   beforeEach(() => vi.stubGlobal("React", React));
@@ -81,6 +81,43 @@ describe("CompetitionEntryFlow", () => {
     render(<CompetitionEntryFlow {...p} />);
 
     expect(screen.getByText("最终名单已锁定；如需处理名单或参赛状态，请联系赛事管理员。")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "退出本届赛事" })).not.toBeInTheDocument();
+  });
+  it("shows the active team's withdrawal path before a pending invitation", () => {
+    const p = props();
+    p.currentUserId = "u1";
+    p.entry!.status = "approved";
+    p.invitationConflict = { pendingInvitationCount: 1, latestPendingInvitationName: "新队" };
+    p.capabilities = getCompetitionEntryCapabilities({ season, entry: { status: "approved", hasApprovedRoster: true }, revision: { status: "approved", origin: "initial" }, rosterFrozen: false });
+    render(<CompetitionEntryFlow {...p} />);
+
+    expect(screen.getByText("还有来自「新队」的本届参赛邀请待处理")).toBeInTheDocument();
+    expect(screen.getByText(/你目前已确认代表「队伍」参加本届赛事。/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "退出本届赛事" })).toBeEnabled();
+    expect(screen.queryByText(/active claim|CompetitionEntry|revision/)).not.toBeInTheDocument();
+  });
+  it("tells a representative to transfer responsibility before changing teams", () => {
+    const p = props();
+    p.entry!.status = "approved";
+    p.invitationConflict = { pendingInvitationCount: 2, latestPendingInvitationName: "新队" };
+    p.capabilities = getCompetitionEntryCapabilities({ season, entry: { status: "approved", hasApprovedRoster: true }, revision: { status: "approved", origin: "initial" }, rosterFrozen: false });
+    render(<CompetitionEntryFlow {...p} />);
+
+    expect(screen.getByText("还有 2 个本届参赛邀请待处理")).toBeInTheDocument();
+    expect(screen.getByText(/先在下方把赛事负责人交接给另一位已确认成员/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "交接给 选手1" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "退出本届赛事" })).not.toBeInTheDocument();
+  });
+  it("keeps a frozen conflict fail closed and points the player to an administrator", () => {
+    const p = props();
+    p.currentUserId = "u1";
+    p.entry!.status = "approved";
+    p.invitationConflict = { pendingInvitationCount: 1, latestPendingInvitationName: "新队" };
+    p.capabilities = getCompetitionEntryCapabilities({ season, entry: { status: "approved", hasApprovedRoster: true }, revision: { status: "approved", origin: "initial" }, rosterFrozen: true });
+    render(<CompetitionEntryFlow {...p} />);
+
+    expect(screen.getByText("还有来自「新队」的本届参赛邀请待处理")).toBeInTheDocument();
+    expect(screen.getAllByText("最终名单已锁定；如需处理名单或参赛状态，请联系赛事管理员。")).toHaveLength(2);
     expect(screen.queryByRole("button", { name: "退出本届赛事" })).not.toBeInTheDocument();
   });
   it("preserves recruitment context and the normal creation path", () => {
