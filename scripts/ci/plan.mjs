@@ -111,7 +111,7 @@ export function classifyChangedFiles(entries, options = {}) {
   let docsOnly = true;
   for (const entry of entries) {
     if (entry.status === "R" || entry.status === "D" || entry.status.startsWith("R") || entry.status.startsWith("D")) {
-      return resultFor(CAPABILITIES, true, `检测到 ${entry.status} rename/delete：${entry.paths.join(" -> ")}`);
+      return result(CAPABILITIES, true, `检测到 ${entry.status} rename/delete：${entry.paths.join(" -> ")}`);
     }
     const path = entry.paths[entry.paths.length - 1] ?? "";
     const classification = classifyPath(path);
