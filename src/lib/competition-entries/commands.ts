@@ -399,7 +399,7 @@ export async function grantCompetitionEntryRestrictionOverrideInTx(
 ): Promise<{ seasonSlug: string; overrideId: string; alreadyGranted: boolean }> {
   const entry = await lockEntry(tx, input.entryId);
   if (!["submitted", "waitlisted"].includes(entry.registrationStatus)) {
-    throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "只有已提交或候补的报名 可以解除资格限制。 ");
+    throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "只有已提交或候补的报名可以解除资格限制。");
   }
   const reason = input.reason.trim();
   const restrictionCode = input.restrictionCode.trim();
@@ -465,7 +465,7 @@ export async function revokeCompetitionEntryRestrictionOverrideInTx(
 ): Promise<{ seasonSlug: string }> {
   const entry = await lockEntry(tx, input.entryId);
   if (!["submitted", "waitlisted"].includes(entry.registrationStatus)) {
-    throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "只有待审核或候补的报名 可以撤销解除限制。 ");
+    throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "只有待审核或候补的报名可以撤销解除限制。");
   }
   const [override] = await tx.select().from(competitionEntryRestrictionOverrides)
     .where(and(
@@ -504,7 +504,7 @@ export async function reviewCompetitionEntryInTx(tx: TxDb, input: { entryId: str
   const [season] = await tx.select().from(seasons).where(eq(seasons.id, entryScope.competitionId)).for("update");
   if (!season) throw new AppError(ErrorCode.SEASON_NOT_FOUND, "赛事不存在。 ");
   const entry = await lockEntry(tx, input.entryId);
-  if (!["submitted", "waitlisted"].includes(entry.registrationStatus)) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "只有已提交或候补的报名 可以审核。");
+  if (!["submitted", "waitlisted"].includes(entry.registrationStatus)) throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "只有已提交或候补的报名可以审核。");
   const [revision] = await tx.select().from(competitionEntryRosterRevisions).where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id))).for("update");
   if (!revision) throw new AppError(ErrorCode.INTERNAL_ERROR, "报名名单记录不完整，请联系赛事管理员。");
   const [submission] = await tx.select().from(competitionEntrySubmissions).where(and(eq(competitionEntrySubmissions.entryId, entry.id), eq(competitionEntrySubmissions.rosterRevisionId, revision.id))).for("update");
