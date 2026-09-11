@@ -86,6 +86,29 @@ describe("changed-surface planner", () => {
     const storageProvider = classifyChangedFiles([{ status: "M", paths: ["src/lib/education/storage.ts"] }], { draft: false });
     expect(storageProvider.requiredJobs).toContain("system");
     expect(storageProvider.e2eSpecs).toEqual(["tests/e2e/flows/education-manual-fallback.spec.ts"]);
+
+    const educationCommands = classifyChangedFiles([{ status: "M", paths: ["src/lib/education/commands.ts"] }], { draft: false });
+    expect(educationCommands.requiredJobs).toContain("system");
+    expect(educationCommands.e2eSpecs).toEqual(["tests/e2e/flows/education-manual-fallback.spec.ts"]);
+
+    const educationAction = classifyChangedFiles([{ status: "M", paths: ["src/actions/education-verifications.ts"] }], { draft: false });
+    expect(educationAction.requiredJobs).toContain("system");
+    expect(educationAction.e2eSpecs).toEqual(["tests/e2e/flows/education-manual-fallback.spec.ts"]);
+
+    const educationPanel = classifyChangedFiles([{ status: "M", paths: ["src/components/settings/EducationVerificationPanel.tsx"] }], { draft: false });
+    expect(educationPanel.requiredJobs).toContain("system");
+    expect(educationPanel.e2eSpecs).toEqual(["tests/e2e/flows/education-manual-fallback.spec.ts"]);
+
+    const educationValidation = classifyChangedFiles([{ status: "M", paths: ["src/lib/education/validation.ts"] }], { draft: false });
+    expect(educationValidation.runSystem).toBe(false);
+    expect(educationValidation.requiredJobs).not.toContain("system");
+  });
+
+  it("enforces invariant: any evidence with e2eSpecs must activate system capability", () => {
+    const plan = classifyChangedFiles([{ status: "M", paths: ["src/actions/education-verifications.ts"] }], { draft: true });
+    expect(plan.e2eSpecs.length).toBeGreaterThan(0);
+    expect(plan.runSystem).toBe(true);
+    expect(plan.requiredJobs).toContain("system");
   });
 
   it("keeps migration on PG without triggering system", () => {

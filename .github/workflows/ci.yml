@@ -12,14 +12,9 @@ on:
   release:
     types: [published]
   workflow_dispatch:
-    inputs:
-      force_full:
-        description: 'Force full evidence matrix'
-        type: boolean
-        default: true
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -71,7 +66,7 @@ jobs:
         env:
           BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           HEAD_SHA: ${{ github.sha }}
-          FORCE_FULL: ${{ github.event_name == 'workflow_dispatch' && (inputs.force_full != false) || github.event_name == 'schedule' || github.event_name == 'release' || github.event_name == 'merge_group' || (github.event_name == 'push' && (github.event.before == '0000000000000000000000000000000000000000' || github.event.before == '')) }}
+          FORCE_FULL: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || github.event_name == 'release' || github.event_name == 'merge_group' || (github.event_name == 'push' && (github.event.before == '0000000000000000000000000000000000000000' || github.event.before == '')) }}
           PR_DRAFT: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft || 'false' }}
 
   static:

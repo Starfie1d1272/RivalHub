@@ -45,9 +45,39 @@ const SYSTEM_ACTION_PREFIXES = [
 ];
 
 const SYSTEM_FLOW_MAP = [
-  { prefixes: ["src/app/auth/", "src/app/login/", "src/app/forgot-password/", "src/app/reset-password/", "src/actions/auth", "src/lib/auth/", "src/lib/session/"], specs: ["tests/e2e/flows/major-entry.spec.ts"] },
-  { prefixes: ["src/app/settings/education", "src/actions/education", "src/lib/education/"], specs: ["tests/e2e/flows/education-manual-fallback.spec.ts"] },
+  {
+    prefixes: [
+      "src/app/auth/",
+      "src/app/login/",
+      "src/app/forgot-password/",
+      "src/app/reset-password/",
+      "src/actions/auth",
+      "src/lib/auth/",
+      "src/lib/session/",
+    ],
+    specs: ["tests/e2e/flows/major-entry.spec.ts"],
+  },
+  {
+    prefixes: [
+      "src/lib/education/storage.ts",
+      "src/lib/education/commands.ts",
+      "src/actions/education-verifications.ts",
+      "src/components/settings/EducationVerificationPanel.tsx",
+      "src/app/settings/education",
+    ],
+    specs: ["tests/e2e/flows/education-manual-fallback.spec.ts"],
+  },
 ];
+
+function systemSpecsForPath(path) {
+  const specs = new Set();
+  for (const mapping of SYSTEM_FLOW_MAP) {
+    if (mapping.prefixes.some((prefix) => path === prefix || path.startsWith(prefix))) {
+      for (const spec of mapping.specs) specs.add(spec);
+    }
+  }
+  return [...specs];
+}
 
 const CODE_EXTENSIONS = /\.(?:[cm]?[jt]sx?|vue|svelte)$/;
 const LINT_EXTENSIONS = /\.[cm]?[jt]sx?$/;
@@ -92,6 +122,10 @@ export function classifyChangedFiles(entries, options = {}) {
     for (const capability of classification.capabilities) capabilities.add(capability);
     reasons.add(classification.reason);
     collectEvidence(path, classification, evidence);
+  }
+
+  if (evidence.e2eSpecs.size > 0) {
+    capabilities.add("system");
   }
 
   if (capabilities.size === 0) {
@@ -188,9 +222,11 @@ function classifyPath(path) {
 
   if (path.startsWith("scripts/")) return classifyScriptPath(path);
 
+  const flowSpecs = systemSpecsForPath(path);
+
   if (path.startsWith("src/actions/")) {
     const capabilities = ["static", "postgres"];
-    if (SYSTEM_ACTION_PREFIXES.some((prefix) => path.startsWith(prefix)) || source.usesSupabase) {
+    if (SYSTEM_ACTION_PREFIXES.some((prefix) => path.startsWith(prefix)) || source.usesSupabase || flowSpecs.length > 0) {
       capabilities.push("system");
     }
     return {
@@ -204,7 +240,7 @@ function classifyPath(path) {
     if (DB_BACKED_APP_PREFIXES.some((prefix) => path.startsWith(prefix)) || source.usesDatabase) {
       capabilities.push("postgres");
     }
-    if (SYSTEM_APP_PREFIXES.some((prefix) => path.startsWith(prefix)) || source.usesSupabase) {
+    if (SYSTEM_APP_PREFIXES.some((prefix) => path.startsWith(prefix)) || source.usesSupabase || flowSpecs.length > 0) {
       capabilities.push("system");
     }
     return { capabilities, reason: `App Router surface: ${path}` };
@@ -213,7 +249,7 @@ function classifyPath(path) {
   if (path.startsWith("src/components/")) {
     const capabilities = ["static"];
     if (source.usesDatabase) capabilities.push("postgres");
-    if (source.usesSupabase) capabilities.push("system");
+    if (source.usesSupabase || flowSpecs.length > 0) capabilities.push("system");
     return { capabilities, reason: `UI surface: ${path}` };
   }
 
@@ -224,7 +260,7 @@ function classifyPath(path) {
   if (path.startsWith("src/lib/")) {
     const capabilities = ["static"];
     if (source.usesDatabase) capabilities.push("postgres");
-    if (source.usesSupabase || path === "src/lib/auth/session.ts" || path.startsWith("src/lib/session/")) {
+    if (source.usesSupabase || path === "src/lib/auth/session.ts" || path.startsWith("src/lib/session/") || flowSpecs.length > 0) {
       capabilities.push("system");
     }
     return { capabilities, reason: `library surface: ${path}` };
@@ -283,10 +319,8 @@ function collectEvidence(path, classification, evidence) {
     evidence.unitExplicitTests.get("unit-domain-node").add(GLOBAL_CONTRACTS.productLanguage.path);
   }
 
-  for (const mapping of SYSTEM_FLOW_MAP) {
-    if (mapping.prefixes.some((prefix) => path.startsWith(prefix))) {
-      for (const spec of mapping.specs) evidence.e2eSpecs.add(spec);
-    }
+  for (const spec of systemSpecsForPath(path)) {
+    evidence.e2eSpecs.add(spec);
   }
 }
 

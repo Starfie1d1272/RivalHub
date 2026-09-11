@@ -36,7 +36,7 @@ RIVALHUB_ALLOW_LOCAL_CONTAINERS=1 pnpm dev:local
 - tests：`pnpm type-check:tests`；scripts：`pnpm type-check:scripts`；
 - 当前改动涉及的 TypeScript/JSON 文件：`pnpm exec eslint path/to/changed-file.ts`。
 
-`pnpm check` / `pnpm verify` 可以在需要时作为 broad host-only 检查，但不要求每次迭代或每次 push 都运行。真实 PostgreSQL、Local Supabase 和 browser evidence 由 Draft CI 按需运行；服务层本地复现只在排查失败、验证 migration/constraint，或需要检查真实浏览器组合行为时启动最小层级。准备交付时将 PR 标记为 Ready for review，由 `ready_for_review` 触发最终 FULL CI；Ready 后的新 push 还必须等待对应新 commit 的 FULL CI。
+`pnpm check` / `pnpm verify` 可以在需要时作为 broad host-only 检查，但不要求每次迭代或每次 push 都运行。真实 PostgreSQL、Local Supabase 和 browser evidence 由 CI 按需运行；服务层本地复现只在排查失败、验证 migration/constraint，或需要检查真实浏览器组合行为时启动最小层级。准备交付时将 PR 标记为 Ready for review，由 Evidence Planner 按变更风险产生 required 的 `ci-gate`；Ready 后的新 push 会使旧 commit 的 evidence 失效，需等待新 commit 的 CI 检查。
 
 ## 只启动需要的层级
 
