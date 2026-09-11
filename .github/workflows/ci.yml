@@ -7,9 +7,16 @@ on:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
   merge_group:
+  schedule:
+    - cron: '0 2 * * *'
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      force_full:
+        description: 'Force full evidence matrix'
+        type: boolean
+        default: true
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -64,7 +71,7 @@ jobs:
         env:
           BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           HEAD_SHA: ${{ github.sha }}
-          FORCE_FULL: ${{ github.event_name != 'pull_request' }}
+          FORCE_FULL: ${{ github.event_name == 'workflow_dispatch' && (inputs.force_full != false) || github.event_name == 'schedule' || github.event_name == 'release' || github.event_name == 'merge_group' || (github.event_name == 'push' && (github.event.before == '0000000000000000000000000000000000000000' || github.event.before == '')) }}
           PR_DRAFT: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft || 'false' }}
 
   static:

@@ -38,25 +38,15 @@ const SYSTEM_APP_PREFIXES = [
   "src/app/login/",
   "src/app/forgot-password/",
   "src/app/reset-password/",
-  "src/app/my/",
-  "src/app/team-invites/",
-  "src/app/teams/",
-  "src/app/[seasonSlug]/register/",
   "src/app/api/test/e2e/",
 ];
 const SYSTEM_ACTION_PREFIXES = [
   "src/actions/auth",
-  "src/actions/competition-entries.ts",
-  "src/actions/major-prestart.ts",
-  "src/actions/register.ts",
 ];
 
 const SYSTEM_FLOW_MAP = [
-  { prefixes: ["src/app/auth/", "src/app/login/", "src/actions/auth", "src/lib/auth/", "src/lib/session/"], specs: ["tests/e2e/flows/major-entry.spec.ts"] },
+  { prefixes: ["src/app/auth/", "src/app/login/", "src/app/forgot-password/", "src/app/reset-password/", "src/actions/auth", "src/lib/auth/", "src/lib/session/"], specs: ["tests/e2e/flows/major-entry.spec.ts"] },
   { prefixes: ["src/app/settings/education", "src/actions/education", "src/lib/education/"], specs: ["tests/e2e/flows/education-manual-fallback.spec.ts"] },
-  { prefixes: ["src/app/team-invites/", "src/app/teams/", "src/actions/team"], specs: ["tests/e2e/flows/team-invitations.spec.ts"] },
-  { prefixes: ["src/app/[seasonSlug]/register/", "src/actions/competition-entries.ts", "src/actions/register.ts", "src/actions/major-prestart.ts"], specs: ["tests/e2e/flows/major-entry.spec.ts"] },
-  { prefixes: ["src/app/teams/", "src/app/players/"], specs: ["tests/e2e/flows/public-discovery.spec.ts"] },
 ];
 
 const CODE_EXTENSIONS = /\.(?:[cm]?[jt]sx?|vue|svelte)$/;
@@ -68,10 +58,8 @@ export function classifyChangedFiles(entries, options = {}) {
   const { forceFull = false, draft = true } = options;
   const gateName = draft ? "draft-gate" : "ci-gate";
   const result = (...args) => ({ ...resultFor(...args), gateName });
-  if (forceFull || !draft) {
-    return result(CAPABILITIES, true, forceFull
-      ? "受保护分支、merge queue、release 或手动运行，强制 full gate"
-      : "Ready for review PR 使用 FULL evidence gate");
+  if (forceFull) {
+    return result(CAPABILITIES, true, "受保护分支、merge queue、release 或手动运行，强制 full gate");
   }
   if (entries.length === 0) {
     return result(CAPABILITIES, true, "无法取得 changed-surface，fail closed 到 full gate");
@@ -108,7 +96,7 @@ export function classifyChangedFiles(entries, options = {}) {
 
   if (capabilities.size === 0) {
     return docsOnly
-      ? result([], false, "docs-only surface：只保留 planner + draft-gate")
+      ? result([], false, `docs-only surface：只保留 planner + ${gateName}`)
       : result(CAPABILITIES, true, "changed-surface 未命中已声明 capability，fail closed 到 full gate");
   }
 
@@ -414,8 +402,7 @@ function gitChangedFiles() {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const eventName = process.env.GITHUB_EVENT_NAME ?? "";
-  const forceFull = process.env.FORCE_FULL === "1" || process.env.FORCE_FULL === "true" || eventName !== "pull_request";
+  const forceFull = process.env.FORCE_FULL === "1" || process.env.FORCE_FULL === "true";
   const draft = process.env.PR_DRAFT !== "false";
   const entries = gitChangedFiles();
   const plan = classifyChangedFiles(entries, { forceFull, draft });
