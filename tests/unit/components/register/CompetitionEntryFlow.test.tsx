@@ -73,14 +73,14 @@ describe("CompetitionEntryFlow", () => {
     expect(screen.getByText("退出只影响本届赛事参赛名单，不会退出你的长期队伍；退出后该队本届名单需要重新调整并再次提交审核。")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "确认退出本届赛事" })).toBeEnabled();
   });
-  it("hides the self-withdraw action after the EventRoster is frozen", () => {
+  it("hides the self-withdraw action after the EventRoster is frozen and gives an escalation path", () => {
     const p = props();
     p.currentUserId = "u1";
     p.entry!.status = "approved";
     p.capabilities = getCompetitionEntryCapabilities({ season, entry: { status: "approved", hasApprovedRoster: true }, revision: { status: "approved", origin: "initial" }, rosterFrozen: true });
     render(<CompetitionEntryFlow {...p} />);
 
-    expect(screen.getByText("最终名单已锁定")).toBeInTheDocument();
+    expect(screen.getByText("最终名单已锁定；如需处理名单或参赛状态，请联系赛事管理员。")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "退出本届赛事" })).not.toBeInTheDocument();
   });
   it("preserves recruitment context and the normal creation path", () => {
@@ -100,7 +100,7 @@ describe("CompetitionEntryFlow", () => {
     render(<CompetitionEntryFlow {...p} />);
     expect(screen.queryByText(/5–9/)).not.toBeInTheDocument();
   });
-  it.each(["名单调整已截止", "最终名单已锁定"])("shows %s without a roster-change button", (reason) => {
+  it.each(["名单调整已截止；如需处理名单或参赛状态，请联系赛事管理员。", "最终名单已锁定；如需处理名单或参赛状态，请联系赛事管理员。"])("shows %s without a roster-change button", (reason) => {
     const p = props(); p.entry!.status = "approved"; p.capabilities.canEditCurrentRoster = false; p.capabilities.canRequestRosterChange = false; p.capabilities.readOnlyReason = reason;
     render(<CompetitionEntryFlow {...p} />);
     expect(screen.getByText(reason)).toBeInTheDocument();
