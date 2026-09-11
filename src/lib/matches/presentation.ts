@@ -3,7 +3,7 @@ import type { MatchFormat, MatchStatus } from "@/types/match";
 
 const MATCH_STATUS_PRESENTATIONS: Record<MatchStatus, StatusPresentation> = {
   scheduled: { label: "待进行", tone: "neutral" },
-  in_progress: { label: "LIVE", tone: "info" },
+  in_progress: { label: "待进行", tone: "neutral" },
   finished: { label: "FT", tone: "success" },
   cancelled: { label: "已取消", tone: "danger" },
 };

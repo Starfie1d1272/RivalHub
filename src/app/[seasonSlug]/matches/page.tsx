@@ -73,9 +73,6 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
         ] as const),
     )).filter((entry): entry is readonly [string, NonNullable<typeof entry[1]>] => entry[1] !== null),
   );
-  const matchFilter = (match: { entryAId: string; entryBId: string }) =>
-    !filterTeamId || match.entryAId === filterTeamId || match.entryBId === filterTeamId;
-
   const sortActiveMatches = (stageMatches: typeof allMatches) =>
     [...stageMatches].sort((a, b) => {
       const timeDifference = (a.scheduledAt?.getTime() ?? Infinity) - (b.scheduledAt?.getTime() ?? Infinity);
@@ -110,7 +107,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
   return (
     <PageLayout as="div" variant="standard" className="space-y-8">
       <PageHeader
-        title="赛程总览"
+        title="赛程"
         eyebrow={season.name}
         actions={(
           <Suspense fallback={null}>
@@ -133,7 +130,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
 
       {finalResult?.status === "pending_confirmation" && (
         <Panel contentClassName="p-4" className="border-[var(--color-warn-edge)] bg-[var(--color-warn-soft)]">
-          <p className="text-sm text-[var(--color-warn)]">淘汰赛已结束，冠军和正式名次正在等待赛事方确认；赛事不会静默归档。</p>
+          <p className="text-sm text-[var(--color-warn)]">淘汰赛已结束，冠军和正式名次正在等待赛事方确认。</p>
         </Panel>
       )}
 
@@ -154,7 +151,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
 
             {stageViews.map(({ stage, matches: allStageMatches }) => {
               const stageLabel = presentStageMarker(stage, season.competitionTemplate);
-              const stageMatches = allStageMatches.filter(matchFilter);
+              const stageMatches = [...allStageMatches];
               const { active, done } = splitMatches(stageMatches);
               const swissReadModel = swissReadModels.get(stage.key);
               const standings = stage.type === "round_robin" && allStageMatches.length > 0
@@ -194,7 +191,7 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
                           <StandingsTable
                             standings={standings}
                             seasonSlug={seasonSlug}
-                            isFinal={false}
+                            isFinal={season.status === "finished" || season.status === "archived"}
                           />
                         </section>
                       )}
@@ -219,6 +216,8 @@ export default async function MatchesPage({ params, searchParams }: MatchesPageP
                             stageLabel={stageLabel}
                             seasonSlug={seasonSlug}
                             teamMap={teamMap}
+                            highlightTeamId={filterTeamId}
+                            isHistorical={season.status === "finished" || season.status === "archived"}
                             unknownTeamName={isPlayoff ? "待定" : "未知队伍"}
                           />
                         </section>

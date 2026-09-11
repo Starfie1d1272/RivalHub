@@ -42,12 +42,8 @@ describe("PlayerDirectoryRow", () => {
   it("keeps registration context when verified stats are missing", () => {
     render(<PlayerDirectoryRow player={player} />);
 
-    expect(screen.getByText("暂无已验证数据")).toBeInTheDocument();
-    expect(screen.getByText("峰值段位")).toBeInTheDocument();
-    expect(screen.getAllByText("S")).toHaveLength(2);
-    expect(screen.getByText("峰值 Rating")).toBeInTheDocument();
-    expect(screen.getByText("1.42")).toBeInTheDocument();
-    expect(screen.getByText("当前段位")).toBeInTheDocument();
-    expect(screen.getByText("A+")).toBeInTheDocument();
+    expect(screen.getByText("暂无正式比赛数据")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Star Entry" })).toHaveAttribute("href", "/players/player-1");
+    expect(screen.queryByText("峰值 Rating")).not.toBeInTheDocument();
   });
 });

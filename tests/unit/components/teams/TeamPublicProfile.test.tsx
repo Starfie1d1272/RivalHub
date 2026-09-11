@@ -13,7 +13,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 const longLivedTeam: PublicTeamProfile = {
   team: { id: "team-1", slug: "rival-team", name: "Rival Team", logoUrl: null, description: "队伍简介", status: "active", captainUserId: "captain-1" },
   currentMembers: [{ id: "member-1", userId: "captain-1", name: "队长甲", status: "active" }, { id: "member-2", userId: "member-1", name: "选手乙", status: "benched" }],
-  entries: [{ id: "entry-1", name: "Rival Entry", status: "approved", seasonName: "2026 秋季赛", seasonSlug: "autumn-2026", createdAt: new Date("2026-08-01T00:00:00Z") }],
+  entries: [{ id: "entry-1", name: "Rival Entry", status: "approved", seasonName: "2026 秋季赛", seasonSlug: "autumn-2026", seasonStatus: "finished", createdAt: new Date("2026-08-01T00:00:00Z") }],
   nameChanges: [{ id: "name-1", oldName: null, newName: "Rival Team", changedAt: new Date("2026-08-01T00:00:00Z") }],
   captainChanges: [{ id: "captain-1", name: "队长甲", changedAt: new Date("2026-08-01T00:00:00Z") }],
   playedCount: 4,

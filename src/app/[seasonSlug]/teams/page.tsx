@@ -1,3 +1,7 @@
+import { getPublicTeamMapProfile } from "@/lib/teams/map-profile";
+import { getPublicSeasonResults } from "@/lib/seasons/public-results";
+import { ParticipantDirectoryToolbar } from "@/components/season/ParticipantDirectoryToolbar";
+import { parseParticipantDirectoryQuery, matchesDirectorySearch } from "@/lib/players/directory-query";
 import { publicCompetitionEntryCondition, publicCompetitionEntryLabel } from "@/lib/competition-entries/public-visibility";
 import { Suspense } from "react";
 import { and, asc, eq, inArray } from "drizzle-orm";
@@ -12,14 +16,17 @@ import { createEmptyPublicEventTeamRecord, getPublicEventTeamMatchSummary } from
 import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 import { getMajorPublicParticipantSummary } from "@/lib/major/public-participants";
 
-export default async function CompetitionEntriesPage({ params }: { params: Promise<{ seasonSlug: string }> }) {
+export default async function CompetitionEntriesPage({ params, searchParams }: { params: Promise<{ seasonSlug: string }>; searchParams?: Promise<{ q?: string }> }) {
   const { seasonSlug } = await params;
+  const { q } = parseParticipantDirectoryQuery(await searchParams);
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
 
   if (season.competitionTemplate === "major") {
     const summary = await getMajorPublicParticipantSummary(season);
 
+    const visibleTeams = summary.teams.filter((team) => matchesDirectorySearch(q, team.entry.name, ...team.roster.map((member) => member.name)));
+    const [maps, results] = await Promise.all([Promise.all(visibleTeams.map((team) => getPublicTeamMapProfile([team.entry.id], []))), getPublicSeasonResults(season)]);
     return <PageLayout as="div" variant="wide" className="space-y-8">
       <PageHeader
         title={summary.presentation.teamCollectionLabel}
@@ -32,11 +39,12 @@ export default async function CompetitionEntriesPage({ params }: { params: Promi
         <Stat label="选手" value={summary.playerCount} />
         <Stat label="比赛" value={`${summary.finishedMatchCount}/${summary.matchCount}`} />
       </div>
-      {summary.teams.length === 0 ? (
-        <div className="py-16 text-center text-[var(--color-fg-mid)]">{summary.presentation.teamCollectionLabel}尚未形成</div>
+      <ParticipantDirectoryToolbar query={q} total={visibleTeams.length} />
+      {visibleTeams.length === 0 ? (
+        <div className="py-16 text-center text-[var(--color-fg-mid)]">{q ? "没有匹配的队伍或选手" : `${summary.presentation.teamCollectionLabel}尚未形成`}</div>
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {summary.teams.map((team) => (
+          {visibleTeams.map((team, index) => (
             <TeamCard
               key={team.entry.id}
               entryId={team.entry.id}
@@ -46,6 +54,9 @@ export default async function CompetitionEntriesPage({ params }: { params: Promi
               logoUrl={team.entry.logoUrl}
               players={team.roster}
               record={team.record}
+              maps={maps[index].own}
+              stages={maps[index].playedStages?.map((key) => results.stageNames?.[key]).filter((name): name is string => Boolean(name))}
+              placement={results.placements.find((placement) => placement.entryId === team.entry.id)?.label}
               summary={null}
             />
           ))}
@@ -67,10 +78,14 @@ export default async function CompetitionEntriesPage({ params }: { params: Promi
     : formationOrder !== null
       ? `选秀第 ${formationOrder} 顺位`
       : "赛事队伍";
+  const visibleEntries = entries.filter((entry) => matchesDirectorySearch(q, entry.name, ...(membersByEntry.get(entry.id) ?? []).map(getPublicDisplayName)));
+  const [maps, results] = await Promise.all([Promise.all(visibleEntries.map((entry) => getPublicTeamMapProfile([entry.id], []))), getPublicSeasonResults(season)]);
   return <PageLayout as="div" variant="wide" className="space-y-8">
     <PageHeader title={publicCompetitionEntryLabel(season)} eyebrow={season.name} actions={<Suspense fallback={null}><AdminShortcutSlot href={`/admin/${seasonSlug}/settings`} label="赛事管理" /></Suspense>} />
     <div className="grid grid-cols-3 gap-3 sm:gap-4"><Stat label={publicCompetitionEntryLabel(season)} value={entries.length} /><Stat label="正式选手" value={members.length} /><Stat label="比赛" value={`${matchSummary.finished}/${matchSummary.total}`} /></div>
     <p className="text-xs text-[var(--color-fg-dim)]">{season.registrationMode === "team" && season.status === "registration" ? "审核通过后进入正赛候选池，正式正赛名额由赛委会确认。" : "这里展示本届赛事队伍；队伍资料与历史请到队伍页面查看。"}</p>
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">{entries.map((entry) => <TeamCard key={entry.id} entryId={entry.id} teamName={entry.name} seasonSlug={seasonSlug} eyebrow={entryEyebrow(entry.formationOrder)} logoUrl={entry.logoUrl} players={(membersByEntry.get(entry.id) ?? []).map((member) => ({ name: getPublicDisplayName(member), avatarUrl: member.avatarUrl, isStarter: member.isStarter, isRepresentative: member.userId === entry.representativeUserId, userId: member.userId }))} record={record(entry.id)} summary={null} />)}</div>
+    <ParticipantDirectoryToolbar query={q} total={visibleEntries.length} />
+    {visibleEntries.length === 0 && <p>没有匹配的队伍或选手</p>}
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">{visibleEntries.map((entry, index) => <TeamCard stages={maps[index].playedStages?.map((key) => results.stageNames?.[key]).filter((name): name is string => Boolean(name))} maps={maps[index].own} placement={results.placements.find((placement) => placement.entryId === entry.id)?.label} key={entry.id} entryId={entry.id} teamName={entry.name} seasonSlug={seasonSlug} eyebrow={entryEyebrow(entry.formationOrder)} logoUrl={entry.logoUrl} players={(membersByEntry.get(entry.id) ?? []).map((member) => ({ name: getPublicDisplayName(member), avatarUrl: member.avatarUrl, isStarter: member.isStarter, isRepresentative: member.userId === entry.representativeUserId, userId: member.userId }))} record={record(entry.id)} summary={null} />)}</div>
   </PageLayout>;
 }

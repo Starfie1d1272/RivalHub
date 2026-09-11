@@ -44,13 +44,23 @@
 
 公开队伍详情只有一个 canonical `TeamPublicProfile` composition owner。长期队伍路由 `/teams/[slug]` 只注入长期 Team read model；赛事队伍路由 `/[seasonSlug]/teams/[entryId]` 注入本届赛事的 public event context，并在 `entry.teamId` 存在时一并注入长期 Team read model。两条路由保持各自的事实 owner，不把一届赛事中的参赛队伍当作长期 Team。
 
-存在赛事 context 时，队名、图标、参赛名单、赛事战绩、比赛链接、参赛状态和种子优先展示本届赛事事实；长期当前成员、招募、赛事履历、名称/队长历史仍明确标记为长期 Team facts。没有长期 Team 的 event-native entry 复用同一 shell，仅隐藏不存在的长期 Team sections。
+存在赛事 context 时，队名、图标、参赛名单、赛事战绩、地图表现、比赛链接、参赛状态和种子展示本届赛事事实；长期 Team 以简短入口承接当前成员、招募、赛事履历、名称/队长历史。没有长期 Team 的 event-native entry 复用同一 shell，省略长期 Team 入口。
 
 标准 Major 的公开队伍列表、赛事队伍详情、`/[seasonSlug]/players` 和赛事首页摘要共享一个 server-only public participant read model。审核期只显示「已通过报名审核的队伍」及「已审核报名名单」；正式参赛队集合完整后切换为「正式参赛队」，冻结前显示「当前参赛名单」，冻结后显示「最终参赛名单」。官方种子只有在赛委会确认且完整覆盖全部正式参赛队时显示，否则保持「种子待确认」。这些页面只接收显式 public DTO，不在页面内重算生命周期或把报名名单冒充赛事名单。
 
-`TeamPublicProfile` 的本届参赛名单只展示 Player identity、首发/代表标记、公开参赛状态和 roster 状态，不从长期资料或 `seasonRegistrations` 补写本届位置；Major 选手目录同样只展示本届队伍、首发/替补、Player link 和已有的本届已验证统计。`CompetitionEntry`、`EventRoster`、revision、snapshot 等实现术语不进入正常公开文案。
+`TeamPublicProfile` 的本届参赛名单只展示 Player identity、首发/替补标记、公开参赛状态和 roster 状态，不从长期资料或 `seasonRegistrations` 补写本届位置；Major 选手目录同样只展示本届队伍、首发/替补、Player link 和已有的本届已验证统计。`CompetitionEntry`、`EventRoster`、revision、snapshot 等实现术语不进入正常公开文案。
 
 玩家身份浏览/卡片界面统一使用 `PlayerAvatar`：公开页面只消费已持久化的头像 URL，缺失或加载失败时显示姓名首字母；页面不在渲染路径请求 Steam，也不各自实现平行回退逻辑。高密度比赛表格保持文字优先。
+
+### Public event browsing
+
+首页保留赛事 Hero、状态侧栏与快捷入口，登录者的报名阻塞事项使用 readiness owner 的个人投影。赛事目录按生命周期分组；已结束赛事以正式冠军、决赛、排名与荣誉组织历史入口。冠军和名次来自明确赛果/荣誉事实，撤销荣誉不自动递补。选手目录标题固定为「选手」，队伍与选手搜索使用共享列表工具及 URL 查询参数。
+
+队伍地图画像依次展示三类事实：赛事队伍自身本届正式地图表现（长期队伍为自身正式历史）、当前阵容成员历史正式赛事地图经验、成员自报地图熟练度。队伍 W/L 只归属于实际参赛队伍；成员经验按选手出场地图计数，供 cold-start/scouting 使用，不能转换为当前队伍 W/L 或合成地图强度分。自身无样本时展开成员经验，有样本时仍保留可访问的补充层。
+
+赛程的阶段与对阵上下文在队伍筛选时保持完整，通过高亮定位相关比赛；历史赛事默认展示结果。未知比分显示破折号，排期/比赛状态和直播资源不推导实时 LIVE 状态。Match Detail 赛前以本场名单、对比分析、BP 为主；赛后以比分、地图、已验证统计、MVP、BP 和名单为主。赛前及比赛期存在有效直播资源时，在 Hero 附近提供「进入直播间」入口及解说信息；结束后隐藏直播入口，录像/VOD 作为历史资料置于页面后部。
+
+社区奖公开页面以进行中、已结奖、未颁/取消及个人提交组织浏览。申报与证据表单由 CTA 打开，复用既有 action workflow；获奖者通过稳定 public user ID 链接个人主页，公开 DTO 与管理审核字段保持分离。
 
 ### Public information and feedback entry
 

@@ -95,6 +95,7 @@ describe("home navigation helpers", () => {
     ]);
     expect(tiers.tier3Entries.map((entry) => entry.key)).toEqual([
       "stats",
+      "players",
       "seasons",
       "login",
     ]);
@@ -115,6 +116,7 @@ describe("home navigation helpers", () => {
       "teams",
       "matches",
       "stats",
+      "players",
       "seasons",
       "login",
     ]);

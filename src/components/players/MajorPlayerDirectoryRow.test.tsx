@@ -25,7 +25,7 @@ describe("MajorPlayerDirectoryRow", () => {
     expect(screen.getByRole("link", { name: "选手甲" })).toHaveAttribute("href", "/players/player-1");
     expect(screen.getByRole("link", { name: "Entry Alpha" })).toHaveAttribute("href", "/nju-major/teams/entry-1");
     expect(screen.getByText("首发")).toBeInTheDocument();
-    expect(screen.getByText("队伍代表")).toBeInTheDocument();
+    expect(screen.queryByText("队伍代表")).not.toBeInTheDocument();
     expect(screen.getByText("1.21")).toBeInTheDocument();
   });
 
@@ -46,7 +46,7 @@ describe("MajorPlayerDirectoryRow", () => {
     );
 
     expect(screen.getByText("替补")).toBeInTheDocument();
-    expect(screen.getByText("暂无本届已验证数据")).toBeInTheDocument();
+    expect(screen.getByText("暂无本届正式比赛数据")).toBeInTheDocument();
     expect(screen.queryByText("报名位置")).not.toBeInTheDocument();
   });
 });

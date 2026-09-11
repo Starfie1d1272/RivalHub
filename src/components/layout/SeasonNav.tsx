@@ -37,8 +37,8 @@ export function SeasonNav({
   const items: NavItem[] = [
     { label: "首页", href: `/${slug}` },
     ...(!isHistorical ? [{ label: "报名", href: `/${slug}/register` }] : []),
-    ...(hasCaptainVoting ? [{ label: isHistorical ? "队长投票结果" : "队长投票", href: `/${slug}/captains` }] : []),
-    ...(hasDraft ? [{ label: isHistorical ? "选秀回顾" : "选秀", href: `/${slug}/draft` }] : []),
+    ...(hasCaptainVoting ? [{ label: "队长投票", href: `/${slug}/captains` }] : []),
+    ...(hasDraft ? [{ label: "选秀", href: `/${slug}/draft` }] : []),
     { label: "队伍", href: `/${slug}/teams` },
     { label: "选手", href: `/${slug}/players` },
     ...(hasMatches ? [{ label: "赛程", href: `/${slug}/matches` }] : []),

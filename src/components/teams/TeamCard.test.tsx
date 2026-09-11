@@ -47,11 +47,11 @@ describe("TeamCard", () => {
   it("uses event roster facts without rendering registration positions", () => {
     render(<TeamCard {...props} />);
 
-    expect(screen.getByText("代表人")).toBeInTheDocument();
+    expect(screen.queryByText("代表人")).not.toBeInTheDocument();
     expect(screen.getAllByText("Captain Star")).not.toHaveLength(0);
     expect(screen.getByText("2 首发")).toBeInTheDocument();
     expect(screen.queryByText("igl")).not.toBeInTheDocument();
     expect(screen.queryByText("anchor")).not.toBeInTheDocument();
-    expect(screen.getByText("地图")).toBeInTheDocument();
+    expect(screen.queryByText("地图")).not.toBeInTheDocument();
   });
 });

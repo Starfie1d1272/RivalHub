@@ -29,11 +29,6 @@ export function MajorPlayerDirectoryRow({
             <span className="border border-[var(--color-border)] px-1.5 py-0.5 text-[11px] text-[var(--color-fg-mid)]">
               {player.isStarter ? "首发" : "替补"}
             </span>
-            {player.isRepresentative && (
-              <span className="border border-[var(--color-border)] px-1.5 py-0.5 text-[11px] text-[var(--color-fg-mid)]">
-                队伍代表
-              </span>
-            )}
           </div>
           <Link
             href={`/${seasonSlug}/teams/${player.entryId}`}
@@ -52,7 +47,7 @@ export function MajorPlayerDirectoryRow({
           </div>
         ) : (
           <div className="border-t border-[var(--color-border)] pt-2 text-xs text-[var(--color-fg-dim)] lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0 lg:text-right">
-            暂无本届已验证数据
+            暂无本届正式比赛数据
           </div>
         )}
       </div>

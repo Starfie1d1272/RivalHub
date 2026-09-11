@@ -108,7 +108,7 @@ export function MatchHeroHeader({
                 letterSpacing: "var(--tracking-label)",
               }}
             >
-              ● LIVE
+              待进行
             </div>
           )}
           {isFinished ? (
@@ -121,9 +121,9 @@ export function MatchHeroHeader({
                 lineHeight: 1,
               }}
             >
-              {match.scoreA ?? 0}
+              {match.scoreA ?? "—"}
               <span className="mx-3" style={{ color: "var(--color-fg-dim)", fontSize: 24 }}>:</span>
-              {match.scoreB ?? 0}
+              {match.scoreB ?? "—"}
             </div>
           ) : (
             <div

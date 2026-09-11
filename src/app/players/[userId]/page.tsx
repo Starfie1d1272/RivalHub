@@ -1,10 +1,13 @@
+import { getPublicPlayerRecord } from "@/lib/players/public-record";
+import { getPublicPlayerMapExperience } from "@/lib/stats/public-query";
+import { mapLabel } from "@/lib/maps";
 import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
-import { eq, and, asc, desc, inArray, sql } from "drizzle-orm";
+import { eq, and, asc, desc, sql, ne, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
-import { competitionEntries, educationVerifications, eventRosterMembers, eventRosters, institutions, seasonRegistrations, seasons, matches, matchMaps, competitiveRankFacts, userCompetitiveRoles, userMapPreferences } from "@/db/schema";
+import { teamMemberships, teams, competitionEntries, educationVerifications, eventRosterMembers, eventRosters, institutions, seasonRegistrations, seasons, matches, matchMaps, competitiveRankFacts, userCompetitiveRoles, userMapPreferences } from "@/db/schema";
 import { getPublicPlayerById } from "@/lib/data/public-players";
 import { PUBLIC_PLAYER_INFO_FIELDS } from "@/lib/utils/player-info-fields";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
@@ -135,6 +138,10 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
   if (!canonicalUserId) notFound();
   if (canonicalUserId !== userId) redirect(`/players/${canonicalUserId}`);
 
+  const [mapExperience, currentTeams] = await Promise.all([
+    getPublicPlayerMapExperience([userId]),
+    db.select({ slug: teams.slug, name: teams.name }).from(teamMemberships).innerJoin(teams, eq(teams.id, teamMemberships.teamId)).where(and(eq(teamMemberships.userId, userId), isNull(teamMemberships.endedAt), eq(teams.status, "active"))),
+  ]);
   const user = await getPublicPlayerById(userId);
   if (!user) notFound();
 
@@ -161,6 +168,7 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
         and(
           eq(seasonRegistrations.userId, userId),
           eq(seasonRegistrations.status, "approved"),
+          ne(seasons.status, "draft"),
         )
       )
       .orderBy(asc(seasons.createdAt)),
@@ -194,6 +202,8 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
       .where(
         and(
           eq(matchPlayerStats.userId, userId),
+          eq(matches.status, "finished"),
+          ne(seasons.status, "draft"),
           sql`${matchPlayerStats.verifiedByAdmin} IS NOT NULL`,
         )
       )
@@ -248,12 +258,14 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
       teamId: competitionEntries.id,
       teamName: competitionEntries.name,
       seasonSlug: seasons.slug,
+      seasonName: seasons.name,
+      seasonStatus: seasons.status,
     })
     .from(eventRosterMembers)
     .innerJoin(eventRosters, eq(eventRosterMembers.eventRosterId, eventRosters.id))
     .innerJoin(competitionEntries, eq(eventRosters.entryId, competitionEntries.id))
     .innerJoin(seasons, eq(competitionEntries.competitionId, seasons.id))
-    .where(and(eq(eventRosterMembers.userId, userId), publicCompetitionEntryCondition()));
+    .where(and(eq(eventRosterMembers.userId, userId), ne(seasons.status, "draft"), publicCompetitionEntryCondition()));
 
   const teamBySeasonId = new Map(teamMemberRows.map((r) => [r.seasonId, r]));
   const publicCompetitiveProfile = presentPublicCompetitiveProfile(competitiveCatalog, competitiveFacts);
@@ -263,46 +275,7 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
     .filter((role): role is string => role !== null);
   const publicEducationIdentities = presentPublicEducationIdentities(educationVerificationRows);
 
-  // ── 跨赛季比赛战绩（以个人 OCR 出场记录为准）───────────────────────
-  const teamIds = [...new Set(teamMemberRows.map((r) => r.teamId).filter(Boolean))];
-
-  const ocrMatchIdRows = await db
-    .selectDistinct({ matchId: matchPlayerStats.matchId })
-    .from(matchPlayerStats)
-    .where(
-      and(
-        eq(matchPlayerStats.userId, userId),
-        sql`${matchPlayerStats.verifiedByAdmin} IS NOT NULL`,
-      )
-    );
-  const ocrMatchIds = ocrMatchIdRows.map((r) => r.matchId);
-
-  const allMatches = ocrMatchIds.length
-    ? await db.query.matches.findMany({
-        where: and(
-          eq(matches.status, "finished"),
-          inArray(matches.id, ocrMatchIds),
-        ),
-      })
-    : [];
-
-  // 聚合：总场次/胜负（基于个人有 OCR 数据的比赛）
-  const teamIdSet = new Set(teamIds);
-  let totalWins = 0;
-  let totalLosses = 0;
-  let totalNetRounds = 0;
-
-  for (const m of allMatches) {
-    const myTeamId = teamIdSet.has(m.entryAId) ? m.entryAId : m.entryBId;
-    const isA = m.entryAId === myTeamId;
-    const myScore = isA ? (m.scoreA ?? 0) : (m.scoreB ?? 0);
-    const oppScore = isA ? (m.scoreB ?? 0) : (m.scoreA ?? 0);
-    if (myScore > oppScore) totalWins++;
-    else totalLosses++;
-    totalNetRounds += myScore - oppScore;
-  }
-
-  const played = totalWins + totalLosses;
+  const { wins: totalWins, losses: totalLosses, played } = await getPublicPlayerRecord(userId);
 
   // Registration snapshots remain event history only; current profile facts
   // come from the long-lived users owner exposed by the public DTO.
@@ -359,54 +332,69 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
         </div>
       </div>
 
+      <Panel label="当前活动"><div className="space-y-3">{currentTeams.map((team) => <Link key={team.slug} className="block font-semibold" href={`/teams/${team.slug}`}>当前队伍 · {team.name} →</Link>)}{teamMemberRows.filter((entry) => !["finished", "archived"].includes(entry.seasonStatus)).map((entry) => <Link key={entry.teamId} className="block text-sm" href={`/${entry.seasonSlug}/teams/${entry.teamId}`}>{entry.seasonName} · {entry.teamName} →</Link>)}{currentTeams.length === 0 && <p className="text-sm text-[var(--color-fg-mid)]">暂无长期队伍</p>}</div></Panel>
       {playerLft && <section className="space-y-3"><SectionHeading>正在找队</SectionHeading><Panel contentClassName="p-4"><div className="space-y-3"><div className="flex flex-wrap gap-2">{playerLft.positions.map((position) => <PosChip key={position} pos={position} />)}</div>{playerLft.targetSeasonName && <p className="text-sm text-[var(--color-fg-mid)]">目标赛事 · {playerLft.targetSeasonName}</p>}{playerLft.note && <p className="text-sm leading-6 text-[var(--color-fg-mid)]">{playerLft.note}</p>}<Link href="/teams/recruitment?view=players" className="text-sm text-[var(--color-accent)]">查看组队大厅 →</Link></div></Panel></section>}
 
-      {publicCompetitiveProfile.length > 0 && <section className="space-y-3"><SectionHeading>公开竞技档案</SectionHeading><Panel contentClassName="p-4"><div className="space-y-4 text-sm">{publicCompetitiveProfile.map((platform) => <div key={platform.displayName} className="space-y-2"><p className="font-semibold text-[var(--color-fg)]">{platform.displayName}</p>{platform.facts.map((fact) => <p key={`${platform.displayName}-${fact.label}`}><span className="text-[var(--color-fg-mid)]">{fact.label}</span> · {fact.rankLabel}{fact.stars !== null ? ` ${fact.stars} 星` : ""}{fact.ratingLabel && fact.rating !== null ? ` · ${fact.ratingLabel} ${fact.rating}` : ""}</p>)}</div>)}</div></Panel></section>}
-
-      <section className="space-y-3">
-        <SectionHeading>地图熟练度</SectionHeading>
-        <Panel>
-          <MapPreferenceChips preferences={effectiveMapPrefs} minLevel="none" showUnfilled />
-        </Panel>
-      </section>
-
-      {/* 选手自述 */}
-      {(user.gameplayStyle?.trim() || user.competitionHistory?.trim()) && (
-          <section className="space-y-3">
-            <SectionHeading>选手自述</SectionHeading>
-            <Panel contentClassName="p-4">
-              <div className="space-y-2">
-                {PUBLIC_PLAYER_INFO_FIELDS
-                  .map(({ key, label }) => {
-                    const value = user[key];
-                    return { value: value?.trim(), label };
-                  })
-                  .filter((s) => s.value)
-                  .map(({ value, label }) => (
-                    <div key={label}>
-                      <span
-                        className="text-xs font-semibold"
-                        style={{
-                          fontFamily: "var(--font-mono)",
-                          color: "var(--color-fg-mid)",
-                        }}
-                      >
-                        {label}
-                      </span>
-                      <p className="text-sm text-[var(--color-fg)] mt-0.5">
-                        {value}
-                      </p>
+      <section className="space-y-3"><SectionHeading>赛事履历</SectionHeading>{teamMemberRows.map((entry) => <Link key={entry.teamId} className="block text-sm" href={`/${entry.seasonSlug}/teams/${entry.teamId}`}>{entry.seasonName} · {entry.teamName} →</Link>)}</section>
+      {/* Immutable event-registration snapshots, deliberately separate from the long-lived profile above. */}
+      {registrations.length > 0 && (
+        <section className="space-y-3">
+          <SectionHeading>参赛记录</SectionHeading>
+          <div className="space-y-2">
+            {[...registrations].reverse().map((reg) => {
+              const teamInfo = teamBySeasonId.get(reg.seasonId);
+              const posLabel = POSITION_LABELS[reg.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? reg.primaryPosition;
+              const peakParts = [`${reg.peakRank} (${reg.peakRankSeason})`, `Rating ${reg.peakRating.toFixed(2)}`];
+              if (reg.peakWe != null) peakParts.push(`WE ${reg.peakWe.toFixed(1)}`);
+              return (
+                <Panel key={reg.id} contentClassName="p-4">
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-sm text-[var(--color-fg)]">{reg.seasonName}</span>
+                        {teamInfo && (
+                          <Link
+                            href={`/${teamInfo.seasonSlug}/teams/${teamInfo.teamId}`}
+                            className="text-xs text-[var(--color-fg-mid)] hover:text-[var(--color-accent)] transition-colors"
+                          >
+                            {teamInfo.teamName} ↗
+                          </Link>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <PosChip pos={posLabel} />
+                        <span className="text-xs text-[var(--color-fg-mid)]">
+                          {peakParts.join(" · ")}
+                        </span>
+                      </div>
                     </div>
-                  ))}
-              </div>
-            </Panel>
-          </section>
-        )}
+                    {reg.highlightVideoUrl && (
+                      <a
+                        href={reg.highlightVideoUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-[var(--color-accent)] hover:underline shrink-0"
+                      >
+                        🎬 高光视频
+                      </a>
+                    )}
+                  </div>
+                </Panel>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
-      {/* 职业生涯战绩 */}
+      {registrations.length === 0 && (
+        <Panel contentClassName="p-8 text-center">
+          <p className="text-[var(--color-fg-mid)]">暂无个人报名记录</p>
+        </Panel>
+      )}
+      {/* 正式出场战绩 */}
       {played > 0 && (
         <section className="space-y-3">
-          <SectionHeading>职业生涯战绩</SectionHeading>
+          <SectionHeading>正式出场战绩</SectionHeading>
           <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
             <Stat label="出场" value={played} />
             <Stat label="胜" value={totalWins} />
@@ -414,14 +402,6 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
             <Stat label="胜率" value={pct(totalWins, played)} />
             <Stat label="单场MVP" value={mvpCount > 0 ? mvpCount : "—"} />
           </div>
-          {totalNetRounds !== 0 && (
-            <p className="text-xs text-[var(--color-fg-mid)] px-1">
-              净胜回合：
-              <span style={{ color: totalNetRounds > 0 ? "var(--color-ok)" : "var(--color-danger)" }}>
-                {totalNetRounds > 0 ? "+" : ""}{totalNetRounds}
-              </span>
-            </p>
-          )}
         </section>
       )}
 
@@ -507,10 +487,10 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
             </Panel>
           ))}
 
-          {/* 六维能力图 */}
+          {/* 竞技轮廓 */}
           {hexagonBySeasonSlug.size > 0 && (
             <div className="space-y-3 mt-4">
-              <SectionHeading>六维能力图</SectionHeading>
+              <SectionHeading>竞技轮廓</SectionHeading>
               {[...playerStats].reverse().map((ps) => {
                 const scores = hexagonBySeasonSlug.get(ps.seasonSlug);
                 if (!scores) return null;
@@ -534,61 +514,49 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
         </section>
       )}
 
-      {/* Immutable event-registration snapshots, deliberately separate from the long-lived profile above. */}
-      {registrations.length > 0 && (
-        <section className="space-y-3">
-          <SectionHeading>参赛记录</SectionHeading>
-          <div className="space-y-2">
-            {[...registrations].reverse().map((reg) => {
-              const teamInfo = teamBySeasonId.get(reg.seasonId);
-              const posLabel = POSITION_LABELS[reg.primaryPosition as keyof typeof POSITION_LABELS]?.cn ?? reg.primaryPosition;
-              const peakParts = [`${reg.peakRank} (${reg.peakRankSeason})`, `Rating ${reg.peakRating.toFixed(2)}`];
-              if (reg.peakWe != null) peakParts.push(`WE ${reg.peakWe.toFixed(1)}`);
-              return (
-                <Panel key={reg.id} contentClassName="p-4">
-                  <div className="flex items-start justify-between gap-3 flex-wrap">
-                    <div className="min-w-0 space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold text-sm text-[var(--color-fg)]">{reg.seasonName}</span>
-                        {teamInfo && (
-                          <Link
-                            href={`/${teamInfo.seasonSlug}/teams/${teamInfo.teamId}`}
-                            className="text-xs text-[var(--color-fg-mid)] hover:text-[var(--color-accent)] transition-colors"
-                          >
-                            {teamInfo.teamName} ↗
-                          </Link>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <PosChip pos={posLabel} />
-                        <span className="text-xs text-[var(--color-fg-mid)]">
-                          {peakParts.join(" · ")}
-                        </span>
-                      </div>
-                    </div>
-                    {reg.highlightVideoUrl && (
-                      <a
-                        href={reg.highlightVideoUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-[var(--color-accent)] hover:underline shrink-0"
-                      >
-                        🎬 高光视频
-                      </a>
-                    )}
-                  </div>
-                </Panel>
-              );
-            })}
-          </div>
-        </section>
-      )}
+      {mapExperience.length > 0 && <Panel label="正式赛事地图表现"><div className="grid gap-4 sm:grid-cols-2">{mapExperience.map((map) => <div key={map.mapName}><h2 className="font-semibold">{mapLabel(map.mapName)}</h2><p className="text-xs text-[var(--color-fg-mid)]">{map.samples} 图 · Rating {formatStat("ratingPro", map.rating)} · ADR {formatStat("adr", map.adr)} · K/D {formatStat("kd", map.kd)}</p></div>)}</div></Panel>}
+      {publicCompetitiveProfile.length > 0 && <section className="space-y-3"><SectionHeading>公开竞技档案</SectionHeading><Panel contentClassName="p-4"><div className="space-y-4 text-sm">{publicCompetitiveProfile.map((platform) => <div key={platform.displayName} className="space-y-2"><p className="font-semibold text-[var(--color-fg)]">{platform.displayName}</p>{platform.facts.map((fact) => <p key={`${platform.displayName}-${fact.label}`}><span className="text-[var(--color-fg-mid)]">{fact.label}</span> · {fact.rankLabel}{fact.stars !== null ? ` ${fact.stars} 星` : ""}{fact.ratingLabel && fact.rating !== null ? ` · ${fact.ratingLabel} ${fact.rating}` : ""}</p>)}</div>)}</div></Panel></section>}
 
-      {registrations.length === 0 && (
-        <Panel contentClassName="p-8 text-center">
-          <p className="text-[var(--color-fg-mid)]">暂无参赛记录</p>
+      <section className="space-y-3">
+        <SectionHeading>自报地图熟练度</SectionHeading>
+        <Panel>
+          <MapPreferenceChips preferences={effectiveMapPrefs} minLevel="none" showUnfilled />
         </Panel>
-      )}
+      </section>
+
+      {/* 选手自述 */}
+      {(user.gameplayStyle?.trim() || user.competitionHistory?.trim()) && (
+          <section className="space-y-3">
+            <SectionHeading>选手自述</SectionHeading>
+            <Panel contentClassName="p-4">
+              <div className="space-y-2">
+                {PUBLIC_PLAYER_INFO_FIELDS
+                  .map(({ key, label }) => {
+                    const value = user[key];
+                    return { value: value?.trim(), label };
+                  })
+                  .filter((s) => s.value)
+                  .map(({ value, label }) => (
+                    <div key={label}>
+                      <span
+                        className="text-xs font-semibold"
+                        style={{
+                          fontFamily: "var(--font-mono)",
+                          color: "var(--color-fg-mid)",
+                        }}
+                      >
+                        {label}
+                      </span>
+                      <p className="text-sm text-[var(--color-fg)] mt-0.5">
+                        {value}
+                      </p>
+                    </div>
+                  ))}
+              </div>
+            </Panel>
+          </section>
+        )}
+
     </PageLayout>
   );
 }

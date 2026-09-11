@@ -45,7 +45,7 @@ const SEASON_STATUS_PRESENTATIONS: Record<SeasonStatus, StatusPresentation> = {
   registration: { label: "已发布", tone: "success" },
   voting: { label: "投票中", tone: "warn" },
   drafting: { label: "选秀中", tone: "accent" },
-  playing: { label: "LIVE", tone: "danger" },
+  playing: { label: "比赛中", tone: "accent" },
   finished: { label: "FT", tone: "neutral" },
   archived: { label: "已归档", tone: "neutral" },
 };

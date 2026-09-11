@@ -1,3 +1,4 @@
+import { getPublicTeamMapProfile } from "@/lib/teams/map-profile";
 import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
@@ -27,10 +28,11 @@ async function TeamProfileContent({ params }: { params: Promise<{ slug: string }
 
   const team = await getPublicTeamProfile(target.id, session?.userId, target);
   if (!team) notFound();
+  const mapProfile = await getPublicTeamMapProfile(team.entries.map((entry) => entry.id), team.currentMembers.map((member) => member.userId));
 
   return (
     <PageLayout as="div" variant="standard" className="space-y-8">
-      <TeamPublicProfile team={team} />
+      <TeamPublicProfile team={team} mapProfile={mapProfile} />
     </PageLayout>
   );
 }

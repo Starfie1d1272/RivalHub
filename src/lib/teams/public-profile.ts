@@ -52,6 +52,7 @@ export interface PublicTeamProfile {
     status: CompetitionEntryRegistrationStatus;
     seasonName: string;
     seasonSlug: string;
+    seasonStatus: string;
     createdAt: Date;
   }>;
   nameChanges: Array<{
@@ -170,6 +171,7 @@ export async function getPublicTeamProfile(
         status: competitionEntries.registrationStatus,
         seasonName: seasons.name,
         seasonSlug: seasons.slug,
+        seasonStatus: seasons.status,
         createdAt: competitionEntries.createdAt,
       })
       .from(competitionEntries)

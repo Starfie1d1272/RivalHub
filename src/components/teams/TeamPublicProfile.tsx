@@ -1,3 +1,6 @@
+import { TeamMapProfile } from "@/components/teams/TeamMapProfile";
+import type { PublicTeamMapProfile } from "@/lib/teams/map-profile";
+import type { PublicSeasonResults } from "@/lib/seasons/public-results";
 import React from "react";
 import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import Link from "next/link";
@@ -18,10 +21,12 @@ import { formatCSTShortDate } from "@/lib/utils/date";
 
 export interface TeamPublicProfileProps {
   team: PublicTeamProfile | null;
+  mapProfile?: PublicTeamMapProfile;
+  results?: PublicSeasonResults;
   event?: PublicEventTeamContext | null;
 }
 
-export function TeamPublicProfile({ team, event = null }: TeamPublicProfileProps) {
+export function TeamPublicProfile({ team, event = null, mapProfile, results }: TeamPublicProfileProps) {
   const identity = event?.entry ?? team?.team;
   if (!identity) return null;
 
@@ -31,6 +36,7 @@ export function TeamPublicProfile({ team, event = null }: TeamPublicProfileProps
     ? `我的队伍 · ${team.team.captainUserId === currentUserMembership.userId ? "队长" : "成员"}`
     : null;
   const participation = event?.participation ?? null;
+  const nextMatch = event?.matches.filter((match) => match.status === "scheduled" || match.status === "in_progress").sort((a, b) => (a.scheduledAt?.getTime() ?? Infinity) - (b.scheduledAt?.getTime() ?? Infinity))[0];
   const rosterStatus = event ? presentCompetitionEntryRosterStatus(event.rosterStatus) : null;
 
   return (
@@ -83,6 +89,7 @@ export function TeamPublicProfile({ team, event = null }: TeamPublicProfileProps
           <Stat label="本届名单" value={event.roster.length} />
         </div>
 
+
         <Panel label={event.rosterLabel} contentClassName="p-5">
           <div className="mb-3 flex flex-wrap items-center gap-2 text-sm text-[var(--color-fg-mid)]">
             {rosterStatus && <StatusPill {...rosterStatus} />}
@@ -94,7 +101,6 @@ export function TeamPublicProfile({ team, event = null }: TeamPublicProfileProps
                   <PlayerAvatar name={member.name} avatarUrl={member.avatarUrl} size="sm" />
                   {member.isStarter && <PosChip pos="S" small />}
                   <Link href={`/players/${member.userId}`} className="min-w-0 break-words font-medium hover:text-[var(--color-accent)]">{member.name}</Link>
-                  {member.isRepresentative && <PosChip pos="R" small />}
                 </div>
                 <span className="text-xs text-[var(--color-fg-mid)]">{member.isStarter ? "首发" : "替补"}</span>
               </div>
@@ -102,6 +108,10 @@ export function TeamPublicProfile({ team, event = null }: TeamPublicProfileProps
           </div>
         </Panel>
 
+        {mapProfile && <TeamMapProfile profile={mapProfile} event />}
+        {nextMatch && <Panel label="下一场"><Link className="font-semibold" href={`/${event.season.slug}/matches/${nextMatch.id}`}>{nextMatch.stage && results?.stageNames?.[nextMatch.stage] ? `${results.stageNames[nextMatch.stage]} · ` : ""}对阵 {nextMatch.opponentName ?? "待定"} →</Link><p className="mt-1 text-sm text-[var(--color-fg-mid)]">待进行{nextMatch.scheduledAt ? ` · ${formatCSTShortDate(nextMatch.scheduledAt)}` : " · 时间待定"}</p></Panel>}
+        {results?.placements.filter((entry) => entry.entryId === event.entry.id).map((entry) => <Panel key={entry.entryId} label="本届最终名次"><p className="text-2xl font-bold">{entry.label}</p></Panel>)}
+        {results?.honors.filter((honor) => honor.entryId === event.entry.id).map((honor) => <p key={honor.id} className="font-semibold text-[var(--color-accent)]">{honor.label}</p>)}
         <Panel label="本届比赛" contentClassName="p-5">
           <div className="space-y-2">
             {event.matches.length > 0 ? event.matches.map((match) => (
@@ -130,13 +140,8 @@ export function TeamPublicProfile({ team, event = null }: TeamPublicProfileProps
         </div>
       </Panel>}
 
-      {team?.recruitment && <Panel label="正在招募" contentClassName="p-5">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div className="space-y-3"><div className="flex flex-wrap items-center gap-2"><span className="text-sm text-[var(--color-fg-mid)]">需要位置</span>{team.recruitment.positions.length ? team.recruitment.positions.map((position) => <PosChip key={position} pos={position} />) : <span className="text-sm">位置不限</span>}</div>{team.recruitment.targetSeasonName && <p className="text-sm text-[var(--color-fg-mid)]">目标赛事 · {team.recruitment.targetSeasonName}</p>}{team.recruitment.note && <p className="max-w-2xl text-sm leading-6 text-[var(--color-fg-mid)]">{team.recruitment.note}</p>}<p className="text-xs text-[var(--color-fg-dim)]">更新于 {formatCSTShortDate(team.recruitment.updatedAt)}</p></div>{!currentUserMembership && <RecruitmentInterestButton recruitmentIntentId={team.recruitment.id} interested={team.viewerInterested} loggedIn={team.loggedIn} />}
-        </div>
-      </Panel>}
-
-      {team && <>
+      {!event && team && <>
+        <Panel label="当前赛事"><div className="space-y-2">{team.entries.filter((entry) => !["finished", "archived"].includes(entry.seasonStatus)).map((entry) => <Link key={entry.id} className="block text-sm" href={`/${entry.seasonSlug}/teams/${entry.id}`}>{entry.seasonName} · {entry.name} →</Link>)}{team.entries.every((entry) => ["finished", "archived"].includes(entry.seasonStatus)) && <p className="text-sm text-[var(--color-fg-mid)]">暂无进行中的赛事</p>}</div></Panel>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Stat label="当前成员" value={currentMembers.length} />
           <Stat label="赛事记录" value={team.entries.length} />
@@ -144,7 +149,7 @@ export function TeamPublicProfile({ team, event = null }: TeamPublicProfileProps
           <Stat label="获胜场次" value={team.wins} />
         </div>
 
-        <div className="grid gap-5 lg:grid-cols-2">
+        <div className="grid gap-5">
           <Panel label="当前成员" contentClassName="p-5">
             <div className="divide-y divide-[var(--color-border)]">
               {currentMembers.length > 0 ? currentMembers.map((member) => (
@@ -160,6 +165,7 @@ export function TeamPublicProfile({ team, event = null }: TeamPublicProfileProps
             </div>
           </Panel>
 
+          {mapProfile && <TeamMapProfile profile={mapProfile} />}
           <Panel label="赛事履历" contentClassName="p-5">
             <div className="divide-y divide-[var(--color-border)]">
               {team.entries.length > 0 ? team.entries.map((entry) => (
@@ -171,6 +177,12 @@ export function TeamPublicProfile({ team, event = null }: TeamPublicProfileProps
             </div>
           </Panel>
         </div>
+
+      {!event && team?.recruitment && <Panel label="正在招募" contentClassName="p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="space-y-3"><div className="flex flex-wrap items-center gap-2"><span className="text-sm text-[var(--color-fg-mid)]">需要位置</span>{team.recruitment.positions.length ? team.recruitment.positions.map((position) => <PosChip key={position} pos={position} />) : <span className="text-sm">位置不限</span>}</div>{team.recruitment.targetSeasonName && <p className="text-sm text-[var(--color-fg-mid)]">目标赛事 · {team.recruitment.targetSeasonName}</p>}{team.recruitment.note && <p className="max-w-2xl text-sm leading-6 text-[var(--color-fg-mid)]">{team.recruitment.note}</p>}<p className="text-xs text-[var(--color-fg-dim)]">更新于 {formatCSTShortDate(team.recruitment.updatedAt)}</p></div>{!currentUserMembership && <RecruitmentInterestButton recruitmentIntentId={team.recruitment.id} interested={team.viewerInterested} loggedIn={team.loggedIn} />}
+        </div>
+      </Panel>}
 
         <Panel label="队伍历史" contentClassName="p-5">
           <div className="grid gap-6 md:grid-cols-2">

@@ -1,3 +1,4 @@
+vi.mock("@/lib/players/public-record", () => ({ getPublicPlayerRecord: vi.fn().mockResolvedValue({ wins: 0, losses: 0, played: 0 }) }));
 import { renderToStaticMarkup } from "react-dom/server";
 import * as React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -123,3 +124,4 @@ describe("player page education wiring", () => {
     expect(html).toContain("参加过 NJU Major");
   });
 });
+vi.mock("@/lib/stats/public-query", () => ({ getPublicPlayerMapExperience: vi.fn().mockResolvedValue([]) }));

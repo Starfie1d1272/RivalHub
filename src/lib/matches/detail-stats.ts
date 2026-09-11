@@ -18,6 +18,7 @@ export function computeRecord(
   let wins = 0;
   let losses = 0;
   for (const m of matchList) {
+    if (m.scoreA === null || m.scoreB === null || ![m.entryAId, m.entryBId].includes(teamId)) continue;
     const isA = m.entryAId === teamId;
     const myScore = isA ? (m.scoreA ?? 0) : (m.scoreB ?? 0);
     const oppScore = isA ? (m.scoreB ?? 0) : (m.scoreA ?? 0);

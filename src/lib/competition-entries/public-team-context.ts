@@ -41,6 +41,7 @@ export type PublicEventTeamMatch = {
   isForfeit: boolean;
   scheduledAt: Date | null;
   completedAt: Date | null;
+  stage?: string;
   ownScore: number | null;
   opponentScore: number | null;
 };
@@ -122,6 +123,7 @@ type CollectedMatchFacts = {
 };
 
 type PublicMatchRow = {
+  stage?: string;
   id: string;
   entryAId: string;
   entryBId: string;
@@ -170,6 +172,7 @@ function collectMatchFacts(
           isForfeit: match.isForfeit,
           scheduledAt: match.scheduledAt,
           completedAt: match.completedAt,
+          stage: match.stage,
           ownScore: side.ownScore,
           opponentScore: side.opponentScore,
         });
@@ -190,6 +193,7 @@ async function loadMatchRows(seasonId: string, entryIds: readonly string[]) {
       ),
       columns: {
         id: true,
+        stage: true,
         entryAId: true,
         entryBId: true,
         status: true,

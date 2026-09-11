@@ -3,7 +3,7 @@ import { presentMatchFormat, presentMatchLabel, presentMatchStatus } from "@/lib
 
 describe("match status presentation", () => {
   it("uses intentional broadcast vocabulary only where it is user-facing", () => {
-    expect(presentMatchStatus("in_progress")).toEqual({ label: "LIVE", tone: "info" });
+    expect(presentMatchStatus("in_progress")).toEqual({ label: "待进行", tone: "neutral" });
     expect(presentMatchStatus("finished")).toEqual({ label: "FT", tone: "success" });
     expect(presentMatchFormat("bo3")).toEqual({ label: "BO3", tone: "neutral" });
   });

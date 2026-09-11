@@ -13,6 +13,7 @@ export interface HomeNavSeason {
   registrationMode: RegistrationMode;
   hasCaptainVoting: boolean;
   hasDraft: boolean;
+  hasCommunityAwards?: boolean;
   status: SeasonStatus;
   registrationOpenedAt?: Date | string | null;
 }
@@ -62,6 +63,7 @@ function getFeaturedSeasonPriority(season: FeaturedSeasonInput): number | null {
   if (season.status === "voting" || season.status === "drafting") return 1;
   if (season.status === "registration") return isRegistrationActuallyOpen(season) ? 2 : 3;
   if (getSeasonLifecycleGroup(season) === "recent") return 4;
+  if (season.status === "archived") return 5;
   return null;
 }
 
@@ -105,7 +107,7 @@ export function buildHomeNavEntries(
       label: season.registrationMode === "team" ? "组队报名" : "报名参赛",
       mono: "REGISTER",
       meta: season.registrationMode === "team" ? "创建或加入队伍" : "个人报名",
-      show: !isHistorical && (season.status !== "registration" || isRegistrationActuallyOpen(season)),
+      show: season.status === "registration" && isRegistrationActuallyOpen(season),
     },
     {
       key: "captains",
@@ -118,9 +120,9 @@ export function buildHomeNavEntries(
     {
       key: "draft",
       href: `/${season.slug}/draft`,
-      label: isHistorical ? "选秀回顾" : "选秀直播间",
+      label: isHistorical ? "选秀回顾" : "选秀",
       mono: "DRAFT ROOM",
-      meta: isHistorical ? "完整选人记录" : "● LIVE",
+      meta: season.status === "drafting" ? "选人进行中" : "选人记录",
       show: season.hasDraft,
     },
     {
@@ -147,10 +149,12 @@ export function buildHomeNavEntries(
       meta: "Rating · ADR",
       show: true,
     },
+    { key: "players", href: `/${season.slug}/players`, label: "选手", mono: "PLAYERS", meta: "本届选手", show: true },
+    { key: "awards", href: `/${season.slug}/community-awards`, label: "社区奖", mono: "AWARDS", meta: "创意与荣誉", show: Boolean(season.hasCommunityAwards) },
     {
       key: "seasons",
       href: "/seasons",
-      label: "历史赛季",
+      label: "赛事中心",
       mono: "ARCHIVE",
       meta: "浏览回顾",
       show: true,
@@ -196,6 +200,7 @@ export function selectHomeNavTiers(entries: HomeNavEntry[], status: SeasonStatus
 function getPrimaryNavKey(status: SeasonStatus): string | null {
   if (status === "registration") return "register";
   if (status === "voting") return "captains";
-  if (status === "playing") return "matches";
+  if (status === "drafting") return "draft";
+  if (["playing", "finished", "archived"].includes(status)) return "matches";
   return null;
 }

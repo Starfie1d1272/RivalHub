@@ -49,7 +49,7 @@ describe("season lifecycle directory presentation", () => {
 describe("season status presentation", () => {
   it("keeps normal UI labels out of internal enum vocabulary", () => {
     expect(presentSeasonStatus("registration")).toEqual({ label: "已发布", tone: "success" });
-    expect(presentSeasonStatus("playing")).toEqual({ label: "LIVE", tone: "danger" });
+    expect(presentSeasonStatus("playing")).toEqual({ label: "比赛中", tone: "accent" });
   });
 
   it("derives public participation labels from the canonical registration window", () => {

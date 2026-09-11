@@ -83,8 +83,7 @@ describe("season page navigation", () => {
     getLatestSeasonAnnouncementMock.mockResolvedValue(null);
     getPublicSeasonInfoMock.mockResolvedValue({ rules: { label: "赛事规则", href: "/rules" }, groups: [], contacts: [] });
     selectDistinctMock.mockReturnValue(chain([]));
-    selectMock
-      .mockImplementationOnce(() => chain([{ total: 0, finished: 0 }]));
+    selectMock.mockImplementation((fields) => chain(fields.stageKey ? [] : [{ total: 0, finished: 0 }]));
   });
 
   it("routes the visible team roster shortcut to the canonical teams page", async () => {
@@ -147,3 +146,5 @@ describe("season page navigation", () => {
     expect(html).not.toContain("最新公告");
   });
 });
+vi.mock("@/lib/seasons/public-next-step", () => ({ getSeasonPersonalNextStep: vi.fn().mockResolvedValue(null) }));
+vi.mock("@/lib/seasons/public-results", () => ({ getPublicSeasonResults: vi.fn().mockResolvedValue({ champion: null, final: null, placements: [], honors: [] }) }));

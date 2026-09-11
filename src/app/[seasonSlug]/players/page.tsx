@@ -1,7 +1,8 @@
+import { ParticipantDirectoryToolbar } from "@/components/season/ParticipantDirectoryToolbar";
+import { parseParticipantDirectoryQuery, matchesDirectorySearch } from "@/lib/players/directory-query";
 import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import { notFound } from "next/navigation";
 import { eq, and, asc, or } from "drizzle-orm";
-import Link from "next/link";
 import { db } from "@/db/client";
 import { competitionEntries, eventRosterMembers, eventRosters, seasonRegistrations, users } from "@/db/schema";
 import { PageHeader, PageLayout, Stat } from "@/components/rivalhub";
@@ -17,33 +18,37 @@ import type { Metadata } from "next";
 
 interface PlayersPageProps {
   params: Promise<{ seasonSlug: string }>;
-  searchParams: Promise<{ position?: string }>;
+  searchParams: Promise<{ position?: string; q?: string; team?: string }>;
 }
 
 export async function generateMetadata({ params }: PlayersPageProps): Promise<Metadata> {
   const { seasonSlug } = await params;
   const season = await getPublicSeasonBySlug(seasonSlug);
   return {
-    title: season ? `${season.name} · 选手名单` : "选手名单",
+    title: season ? `${season.name} · 选手` : "选手",
   };
 }
 
 export default async function PlayersPage({ params, searchParams }: PlayersPageProps) {
   const { seasonSlug } = await params;
-  const { position = "" } = await searchParams;
+  const rawQuery = await searchParams;
+  const position = positionValues.includes(rawQuery.position as typeof positionValues[number]) ? rawQuery.position! : "";
 
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
 
   if (season.competitionTemplate === "major") {
     const projection = await getMajorPublicParticipantProjection(season);
+    const teamOptions = [...new Map(projection.players.map((player) => [player.entryId, { id: player.entryId, name: player.entryName }])).values()];
+    const query = parseParticipantDirectoryQuery(rawQuery, teamOptions);
+    const visiblePlayers = projection.players.filter((player) => (!query.team || query.team === player.entryId) && matchesDirectorySearch(query.q, player.name));
     const playersWithStats = projection.players.filter((player) => player.stats !== null).length;
     const teamCount = projection.teamCount;
 
     return (
       <PageLayout as="div" variant="wide" className="space-y-8">
         <PageHeader
-          title={projection.presentation.playerHeading}
+          title="选手"
           eyebrow={season.name}
           description={projection.presentation.playerDescription}
         />
@@ -51,15 +56,16 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           <Stat label="选手" value={projection.players.length} />
           <Stat label="所属队伍" value={teamCount} />
-          <Stat label="已验证数据" value={playersWithStats} accent />
+          <Stat label="正式比赛数据" value={playersWithStats} accent />
           <Stat label="队伍范围" value={projection.presentation.teamCollectionLabel} />
         </div>
 
-        {projection.players.length === 0 ? (
+        <ParticipantDirectoryToolbar query={query.q} team={query.team} teams={teamOptions} total={visiblePlayers.length} />
+        {visiblePlayers.length === 0 ? (
           <div className="py-16 text-center text-[var(--color-fg-mid)]">暂无符合条件的选手</div>
         ) : (
           <div className="space-y-3">
-            {projection.players.map((player) => (
+            {visiblePlayers.map((player) => (
               <MajorPlayerDirectoryRow key={`${player.entryId}-${player.userId}`} player={player} seasonSlug={seasonSlug} />
             ))}
           </div>
@@ -121,10 +127,6 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
     registrations.map((registration) => registration.userId),
   );
 
-  const positionFilters = [
-    { value: "", label: "全部" },
-    ...positionValues.map((p) => ({ value: p, label: positionLabel(p) })),
-  ];
   const filteredPlayersWithStats = registrations.filter((reg) => statsByUserId.has(reg.userId)).length;
   const directoryPlayers = sortPlayerDirectory(
     registrations.map((reg) => ({
@@ -140,14 +142,19 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
       currentRank: reg.currentRank,
       currentRating: reg.currentRating,
       teamName: teamByRegId.get(reg.registrationId) ?? null,
+      teamId: teamMemberRows.find((row) => row.registrationId === reg.registrationId)?.teamId ?? null,
       stats: statsByUserId.get(reg.userId) ?? null,
     })),
   );
 
+  const teamOptions = [...new Map(teamMemberRows.map((row) => [row.teamId, { id: row.teamId, name: row.teamName }])).values()];
+  const query = parseParticipantDirectoryQuery(rawQuery, teamOptions);
+  const visiblePlayers = directoryPlayers.filter((player) => (!query.team || player.teamId === query.team) && matchesDirectorySearch(query.q, player.displayName));
+
   return (
     <PageLayout as="div" variant="wide" className="space-y-8">
       <PageHeader
-        title="选手名单"
+        title="选手"
         eyebrow={season.name}
         description={`${registrations.length} 人已通过审核`}
       />
@@ -159,36 +166,17 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
         <Stat label="位置" value={position ? positionLabel(position) : "全部"} />
       </div>
 
-      {/* 位置筛选 */}
-      <div className="flex gap-2 flex-wrap">
-        {positionFilters.map(({ value, label }) => {
-          const isActive = position === value;
-          const href = value ? `/${seasonSlug}/players?position=${value}` : `/${seasonSlug}/players`;
-          return (
-            <Link
-              key={value}
-              href={href as never}
-              className={[
-                "px-3 py-1.5 rounded text-sm font-medium border transition-colors",
-                isActive
-                  ? "bg-[var(--color-accent)] text-[var(--color-accent-fg)] border-[var(--color-accent)]"
-                  : "border-[var(--color-border)] text-[var(--color-fg-mid)] hover:text-[var(--color-fg)]",
-              ].join(" ")}
-            >
-              {label}
-            </Link>
-          );
-        })}
-      </div>
+      <ParticipantDirectoryToolbar query={query.q} team={query.team} teams={teamOptions} total={visiblePlayers.length} />
 
-      {registrations.length === 0 ? (
+      {visiblePlayers.length === 0 ? (
         <div className="text-center py-16 text-[var(--color-fg-mid)]">暂无符合条件的选手</div>
       ) : (
         <div className="space-y-3">
-          {directoryPlayers.map((player) => (
+          {visiblePlayers.map((player) => (
             <PlayerDirectoryRow
               key={player.registrationId}
               player={player}
+              seasonSlug={seasonSlug}
             />
           ))}
         </div>

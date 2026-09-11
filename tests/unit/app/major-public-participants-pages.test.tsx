@@ -25,6 +25,9 @@ vi.mock("@/lib/major/public-participants", () => ({
 vi.mock("@/lib/auth/session", () => ({ getUserSession: mocks.session }));
 vi.mock("@/lib/teams/public-profile", () => ({ getPublicTeamProfile: vi.fn().mockResolvedValue(null) }));
 
+vi.mock("@/components/season/ParticipantDirectoryToolbar", () => ({ ParticipantDirectoryToolbar: () => <div /> }));
+vi.mock("@/lib/teams/map-profile", () => ({ getPublicTeamMapProfile: vi.fn().mockResolvedValue({ own: [], experience: [], preferences: [] }) }));
+vi.mock("@/lib/seasons/public-results", () => ({ getPublicSeasonResults: vi.fn().mockResolvedValue({ champion: null, final: null, placements: [], honors: [], completedAt: null, finishedMatches: 0 }) }));
 import TeamsPage from "@/app/[seasonSlug]/teams/page";
 import PlayersPage from "@/app/[seasonSlug]/players/page";
 import DetailPage from "@/app/[seasonSlug]/teams/[entryId]/page";
@@ -127,10 +130,10 @@ describe("Major public participant pages", () => {
       searchParams: Promise.resolve({}),
     }));
 
-    expect(html).toContain("正式参赛队选手");
+    expect(html).toContain("选手");
     expect(html).toContain("选手甲");
     expect(html).toContain("/nju-major/teams/entry-1");
-    expect(html).toContain("暂无本届已验证数据");
+    expect(html).toContain("暂无本届正式比赛数据");
     expect(html).not.toContain("Peak Rank");
     expect(html).not.toContain("registrationId");
   });

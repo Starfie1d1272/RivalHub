@@ -1,5 +1,5 @@
 import React from "react";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { db } from "@/db/client";
 import { matchPlayerStats } from "@/db/schema/player-stats";
 import { eventRosterMembers, eventRosters } from "@/db/schema";
@@ -19,7 +19,7 @@ async function getStatsGroupedByTeam(
   entryBId: string,
 ) {
   const stats = await db.query.matchPlayerStats.findMany({
-    where: eq(matchPlayerStats.mapId, mapId),
+    where: and(eq(matchPlayerStats.mapId, mapId), isNotNull(matchPlayerStats.verifiedByAdmin)),
     orderBy: (t, { desc }) => [desc(t.ratingPro)],
   });
 
@@ -41,14 +41,12 @@ async function getStatsGroupedByTeam(
 
   const teamARows = stats.filter((s) => s.userId && userIdToTeam.get(s.userId) === entryAId);
   const teamBRows = stats.filter((s) => s.userId && userIdToTeam.get(s.userId) === entryBId);
-  const unmatched = stats.filter((s) => !s.userId || !userIdToTeam.has(s.userId));
-  const half = Math.ceil(unmatched.length / 2);
 
   return {
-    teamA: [...teamARows, ...unmatched.slice(0, half)].map((s) =>
+    teamA: teamARows.map((s) =>
       toSummaryPlayer(s, entryAId),
     ),
-    teamB: [...teamBRows, ...unmatched.slice(half)].map((s) =>
+    teamB: teamBRows.map((s) =>
       toSummaryPlayer(s, entryBId),
     ),
   };
