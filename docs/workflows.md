@@ -89,6 +89,8 @@ Team captain creates Entry
 
 管理员审核可以批准、候补、拒绝或要求补正。**approved Entry 只表示报名审核通过，不等于正式获得 Major 正赛席位。**
 
+在 EventRoster 尚未冻结且名单调整窗口仍开放时，已确认的普通成员可以本人退出本届赛事；服务端会复用现有名单变更 transition，保留原 approved revision，创建或复用可编辑的 self roster change draft，从新 draft 移除该成员并释放本届 active commitment。Entry 随后需要重新完成成员确认、资格检查和管理员审核。退出长期 Team 不会被这个动作隐式改变；名单冻结或调整窗口关闭后继续由服务端 fail closed，并提示联系赛事管理员。
+
 ## Major prestart
 
 赛前链路固定为：

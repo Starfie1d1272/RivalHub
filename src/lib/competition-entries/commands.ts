@@ -32,11 +32,12 @@ import {
   sameQualificationFindingSnapshot,
   snapshotQualificationFinding,
 } from "@/lib/competition-entries/restriction-overrides";
-import { getRegistrationWindowState } from "@/lib/registration/window";
+import { canSelfChangeApprovedRoster, getRegistrationWindowState } from "@/lib/registration/window";
 import { loadActiveSanctionsInTx } from "@/lib/discipline/service";
 import { isTeamRegistration } from "@/lib/utils/season";
 import { getDisplayName } from "@/lib/identity/display-name";
 import { canMutateCompetitionEntryRoster } from "@/lib/competition-entries/remediation";
+import { requestCompetitionEntryRosterChangeInTx } from "@/lib/competition-entries/roster-change";
 import { reconcileMajorPrestartRosterAfterApprovalInTx } from "@/lib/major/prestart-roster";
 import { normalizeAffiliationRules, normalizeTeamRegistrationConfig } from "@/lib/seasons/compatibility";
 import { assessEntryRosterReadiness } from "@/lib/competition-entries/readiness";
@@ -316,15 +317,61 @@ export async function confirmCompetitionEntryParticipationInTx(tx: TxDb, input: 
 }
 
 export async function withdrawCompetitionEntryParticipationInTx(tx: TxDb, input: { entryId: string; userId: string; actorId: string }): Promise<{ seasonSlug: string }> {
+  // Approved self-withdrawal reuses the representative's canonical roster-change
+  // transition. Do not lock Entry before calling it: that transition locks the
+  // season first, so preserving season → Entry avoids a cross-flow deadlock.
+  const [entryScope] = await tx.select({
+    competitionId: competitionEntries.competitionId,
+    representativeUserId: competitionEntries.representativeUserId,
+    registrationStatus: competitionEntries.registrationStatus,
+  }).from(competitionEntries).where(eq(competitionEntries.id, input.entryId));
+  if (!entryScope) throw new AppError(ErrorCode.NOT_FOUND, "赛事参赛条目不存在。");
+  if (entryScope.representativeUserId === input.userId) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先将赛事负责人交接给另一位已确认成员，再退出本届赛事。");
+  const startsRosterChange = entryScope.registrationStatus === "approved";
+  if (startsRosterChange) {
+    await requestCompetitionEntryRosterChangeInTx(tx, {
+      entryId: input.entryId,
+      representativeUserId: entryScope.representativeUserId,
+      actorId: input.actorId,
+      source: "participant_self_withdrawal",
+    });
+  }
+
   const entry = await lockEntry(tx, input.entryId);
   await assertRosterNotFrozen(tx, entry.id);
-  if (entry.registrationStatus === "approved") throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "已通过审核的名单请先由赛事负责人发起名单变更，再退出本届赛事。");
   const [participant] = await tx.select().from(competitionEntryParticipants).where(and(eq(competitionEntryParticipants.entryId, entry.id), eq(competitionEntryParticipants.userId, input.userId))).for("update");
   if (!participant || participant.status !== "confirmed") throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "当前没有可退出的已确认承诺。");
   if (entry.representativeUserId === input.userId) throw new AppError(ErrorCode.VALIDATION_FAILED, "请先将赛事负责人交接给另一位已确认成员，再退出本届赛事。");
+  let selfRosterChangeRevisionId: string | null = null;
+  if (entry.registrationStatus === "approved") {
+    throw new AppError(ErrorCode.REGISTRATION_INVALID_TRANSITION, "已通过审核的名单暂时不能退出，请刷新后重试或联系赛事管理员。");
+  }
+  if (startsRosterChange || entry.registrationStatus === "changes_requested") {
+    const [revision] = await tx.select().from(competitionEntryRosterRevisions)
+      .where(and(eq(competitionEntryRosterRevisions.id, entry.currentRosterRevisionId), eq(competitionEntryRosterRevisions.entryId, entry.id)))
+      .for("update");
+    if (revision?.status === "draft" && revision.origin === "self_roster_change") {
+      const season = await loadSeasonOrThrow(tx, entry.competitionId);
+      if (!canSelfChangeApprovedRoster(season)) throw new AppError(ErrorCode.REGISTRATION_CLOSED, "名单调整窗口当前不可用；请联系赛事管理员处理。");
+      selfRosterChangeRevisionId = revision.id;
+    }
+  }
   await tx.delete(competitionEntryActiveClaims).where(eq(competitionEntryActiveClaims.participantId, participant.id));
-  await tx.update(competitionEntryParticipants).set({ status: "withdrawn", withdrawnAt: new Date(), updatedAt: new Date() }).where(eq(competitionEntryParticipants.id, participant.id));
-  await auditEntry(tx, { action: "competition_entry.participant.withdraw", actorId: input.actorId, entryId: entry.id, competitionId: entry.competitionId, meta: { participantId: participant.id, userId: input.userId } });
+  const now = new Date();
+  await tx.update(competitionEntryParticipants).set({ status: "withdrawn", withdrawnAt: now, updatedAt: now }).where(eq(competitionEntryParticipants.id, participant.id));
+  if (selfRosterChangeRevisionId) {
+    await tx.delete(competitionEntryRosterMembers).where(and(
+      eq(competitionEntryRosterMembers.revisionId, selfRosterChangeRevisionId),
+      eq(competitionEntryRosterMembers.participantId, participant.id),
+    ));
+  }
+  await auditEntry(tx, {
+    action: "competition_entry.participant.withdraw",
+    actorId: input.actorId,
+    entryId: entry.id,
+    competitionId: entry.competitionId,
+    meta: { participantId: participant.id, userId: input.userId, source: "participant_self_withdrawal", ...(selfRosterChangeRevisionId ? { revisionId: selfRosterChangeRevisionId } : {}) },
+  });
   return { seasonSlug: (await loadSeasonOrThrow(tx, entry.competitionId)).slug };
 }
 

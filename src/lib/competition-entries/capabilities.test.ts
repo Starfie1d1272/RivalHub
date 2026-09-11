@@ -29,9 +29,15 @@ describe("registration action capabilities", () => {
   it("only allows approved roster changes within their window and before freeze", () => {
     const input = { season, entry: { status: "approved" as const, hasApprovedRoster: true }, revision: { status: "approved", origin: "initial" as const }, rosterFrozen: false };
     expect(getCompetitionEntryCapabilities(input, now).canRequestRosterChange).toBe(canSelfChangeApprovedRoster(season, now));
-    expect(getCompetitionEntryCapabilities(input, new Date("2026-09-20"))).toMatchObject({ canRequestRosterChange: false, readOnlyReason: "名单调整已截止" });
-    expect(getCompetitionEntryCapabilities({ ...input, rosterFrozen: true }, now)).toMatchObject({ canRequestRosterChange: false, canEditCurrentRoster: false, readOnlyReason: "最终名单已锁定" });
+    expect(getCompetitionEntryCapabilities(input, new Date("2026-09-20"))).toMatchObject({ canRequestRosterChange: false, readOnlyReason: "名单调整已截止；如需处理名单或参赛状态，请联系赛事管理员。" });
+    expect(getCompetitionEntryCapabilities({ ...input, rosterFrozen: true }, now)).toMatchObject({ canRequestRosterChange: false, canEditCurrentRoster: false, readOnlyReason: "最终名单已锁定；如需处理名单或参赛状态，请联系赛事管理员。" });
     expect(getCompetitionEntryCapabilities({ ...input, season: { ...season, rosterChangeClosesAt: null } }, now).canRequestRosterChange).toBe(false);
+  });
+  it("allows an approved participant to withdraw while the roster-change window is open", () => {
+    const input = { season, entry: { status: "approved" as const, hasApprovedRoster: true }, revision: { status: "approved", origin: "initial" as const }, rosterFrozen: false };
+    expect(getCompetitionEntryCapabilities(input, now).canWithdrawParticipation).toBe(true);
+    expect(getCompetitionEntryCapabilities(input, new Date("2026-09-20"))).toMatchObject({ canWithdrawParticipation: false, readOnlyReason: "名单调整已截止；如需处理名单或参赛状态，请联系赛事管理员。" });
+    expect(getCompetitionEntryCapabilities({ ...input, rosterFrozen: true }, now)).toMatchObject({ canWithdrawParticipation: false, readOnlyReason: "最终名单已锁定；如需处理名单或参赛状态，请联系赛事管理员。" });
   });
   it.each(["submitted", "waitlisted", "rejected", "withdrawn"] as const)("does not expose edit or submit for %s", (status) => {
     expect(getCompetitionEntryCapabilities({ season, entry: { status, hasApprovedRoster: false }, revision: { status: "submitted", origin: "initial" }, rosterFrozen: false }, new Date("2026-09-05"))).toMatchObject({ canEditCurrentRoster: false, canSubmitForReview: false, canRequestRosterChange: false, canWithdrawFromReview: status === "submitted" });
