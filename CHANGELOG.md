@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.8.4]
+
+### Added
+
+#### 报名、组队与玩家头像体验
+
+已通过审核的队伍报名现在可由负责人发起名单变更，在新草稿中移除已确认成员，并保留已审核名单、资格占用释放和审计记录。
+
+组队大厅补齐默认视图、赛事上下文回跳、报名人数提示和队长待处理意向；发出直接邀请后，同队对应待处理意向会自动结束。
+
+玩家 Steam 头像统一写入缓存，每六小时后台刷新，并在选手目录、队伍、选秀、招募和页面头部使用一致展示。
+
+### Changed
+
+#### 运营与报名界面中文产品语言
+
+清理用户和运营者可见的实现术语，统一报名状态提示与换算策略说明的中文表达。
+
 ## [2.8.3]
 
 ### Added
@@ -2065,6 +2083,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions Cron（选秀超时 + 报名截止自动推进）
 - Vercel + Supabase 生产部署
 
+[2.8.4]: https://github.com/Starfie1d1272/RivalHub/compare/v2.8.3...v2.8.4
 [2.8.3]: https://github.com/Starfie1d1272/RivalHub/compare/v2.8.2...v2.8.3
 [2.8.2]: https://github.com/Starfie1d1272/RivalHub/compare/v2.8.1...v2.8.2
 [2.8.1]: https://github.com/Starfie1d1272/RivalHub/compare/v2.8.0...v2.8.1
