@@ -50,12 +50,11 @@ describe("InformationFeedbackLauncher", () => {
       />,
     );
 
-    await waitFor(() => expect(screen.getByLabelText("有新公告")).toBeInTheDocument());
-    const launcher = screen.getByRole("button", { name: "信息与反馈" });
+    const launcher = await screen.findByRole("button", { name: "信息与反馈，有新公告" });
     fireEvent.click(launcher);
 
     expect(window.localStorage.getItem("rivalhub:announcement-ack:announcement-1")).toBe(announcement.updatedAt);
-    await waitFor(() => expect(screen.queryByLabelText("有新公告")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: "信息与反馈" })).toBeInTheDocument());
     expect(screen.getByRole("dialog", { name: "信息与反馈" })).toBeInTheDocument();
     expect(launcher).toHaveAttribute("aria-expanded", "true");
   });

@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { describe, expect, it } from "vitest";
 import * as schema from "../../../src/db/schema";
-import { announcements, communityGroups, feedbackReports, seasons, users } from "../../../src/db/schema";
+import { announcements, auditLogs, communityGroups, feedbackReports, seasons, users } from "../../../src/db/schema";
 import { eq } from "drizzle-orm";
 import { createAnnouncementInTx, updateAnnouncementInTx, setAnnouncementStatusInTx } from "../../../src/lib/announcements/commands";
 import { getRelevantAttentionAnnouncement, listPublicAnnouncements } from "../../../src/lib/announcements/read-model";
@@ -135,6 +135,8 @@ describe("operations real PostgreSQL lifecycle & abuse hardening", () => {
       const publicAfterWithdraw = await listPublicAnnouncements(seasonId);
       expect(publicAfterWithdraw.some((a) => a.id === draft.id)).toBe(false);
     } finally {
+      await database.delete(announcements).where(eq(announcements.createdBy, actorId));
+      await database.delete(auditLogs).where(eq(auditLogs.actorId, actorId));
       await database.delete(seasons).where(eq(seasons.id, seasonId));
       await database.delete(users).where(eq(users.id, actorId));
       client.release();
@@ -231,6 +233,7 @@ describe("operations real PostgreSQL lifecycle & abuse hardening", () => {
         qrImageUrl: null,
       });
     } finally {
+      await database.delete(auditLogs).where(eq(auditLogs.actorId, actorId));
       await database.delete(seasons).where(eq(seasons.id, seasonId));
       await database.delete(users).where(eq(users.id, actorId));
       client.release();
@@ -245,6 +248,7 @@ describe("operations real PostgreSQL lifecycle & abuse hardening", () => {
     const actorId = randomUUID();
     const userId = randomUUID();
     const seasonId = randomUUID();
+    const feedbackReleaseVersion = `ops-test-${seasonId}`;
 
     try {
       await database.insert(users).values([
@@ -278,7 +282,7 @@ describe("operations real PostgreSQL lifecycle & abuse hardening", () => {
           body: duplicateBody,
           pathname: "/test",
           seasonId: null,
-          releaseVersion: "test",
+          releaseVersion: feedbackReleaseVersion,
         })
       );
 
@@ -291,7 +295,7 @@ describe("operations real PostgreSQL lifecycle & abuse hardening", () => {
             body: duplicateBody,
             pathname: "/test",
             seasonId: null,
-            releaseVersion: "test",
+            releaseVersion: feedbackReleaseVersion,
           })
         )
       ).rejects.toThrowError(/相同反馈刚刚已经提交过了/);
@@ -304,7 +308,7 @@ describe("operations real PostgreSQL lifecycle & abuse hardening", () => {
           body: `User first submission ${randomUUID()}`,
           pathname: "/test",
           seasonId: null,
-          releaseVersion: "test",
+          releaseVersion: feedbackReleaseVersion,
         })
       );
 
@@ -316,7 +320,7 @@ describe("operations real PostgreSQL lifecycle & abuse hardening", () => {
             body: `User second submission within cooldown ${randomUUID()}`,
             pathname: "/test",
             seasonId: null,
-            releaseVersion: "test",
+            releaseVersion: feedbackReleaseVersion,
           })
         )
       ).rejects.toThrowError(/反馈提交较频繁/);
@@ -329,7 +333,7 @@ describe("operations real PostgreSQL lifecycle & abuse hardening", () => {
           body: "Specific issue for triage lifecycle test",
           pathname: "/seasons/test",
           seasonId,
-          releaseVersion: "test",
+          releaseVersion: feedbackReleaseVersion,
         })
       );
 
@@ -356,7 +360,7 @@ describe("operations real PostgreSQL lifecycle & abuse hardening", () => {
           body: `Unique problem body #${i} ${randomUUID()}`,
           pathname: "/test",
           seasonId: null,
-          releaseVersion: "test",
+          releaseVersion: feedbackReleaseVersion,
         }));
       }
       await expect(
@@ -366,10 +370,12 @@ describe("operations real PostgreSQL lifecycle & abuse hardening", () => {
           body: `21st problem body ${randomUUID()}`,
           pathname: "/test",
           seasonId: null,
-          releaseVersion: "test",
+          releaseVersion: feedbackReleaseVersion,
         })),
       ).rejects.toThrowError(/反馈较多，请稍后再试/);
     } finally {
+      await database.delete(feedbackReports).where(eq(feedbackReports.releaseVersion, feedbackReleaseVersion));
+      await database.delete(auditLogs).where(eq(auditLogs.actorId, actorId));
       await database.delete(seasons).where(eq(seasons.id, seasonId));
       await database.delete(users).where(eq(users.id, actorId));
       await database.delete(users).where(eq(users.id, userId));

@@ -135,7 +135,7 @@ export function InformationFeedbackLauncher(props: Props) {
           type="button"
           data-launcher-button
           ref={launcherButtonRef}
-          aria-label="信息与反馈"
+          aria-label={hasUnread ? "信息与反馈，有新公告" : "信息与反馈"}
           aria-expanded={panelOpen}
           aria-controls={panelOpen ? panelId : undefined}
           onClick={handleOpenPanel}
@@ -143,12 +143,12 @@ export function InformationFeedbackLauncher(props: Props) {
         >
           <Info className="size-5" />
           {hasUnread && (
-            <span aria-label="有新公告" className="absolute -right-1 -top-1 size-3 rounded-full bg-[var(--color-accent)] ring-2 ring-[var(--color-surface-floating)]" />
+            <span aria-hidden="true" className="absolute -right-1 -top-1 size-3 rounded-full bg-[var(--color-accent)] ring-2 ring-[var(--color-surface-floating)]" />
           )}
         </button>
 
         {/* Lightweight Tooltip on Desktop */}
-        <div className="pointer-events-none absolute bottom-full right-0 mb-2 hidden whitespace-nowrap rounded bg-[var(--color-surface-tooltip)] px-2.5 py-1 text-xs text-[var(--color-fg-inverse)] opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 md:block">
+        <div className="pointer-events-none absolute bottom-full right-0 mb-2 hidden whitespace-nowrap rounded border border-[var(--color-border-static)] bg-[var(--color-surface-floating)] px-2.5 py-1 text-xs text-[var(--color-fg-primary)] opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 md:block">
           信息与反馈
         </div>
       </div>
