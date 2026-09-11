@@ -130,7 +130,7 @@ describe("changed-surface planner", () => {
   it("plans main ordinary business merge as affected instead of FULL", () => {
     const mainPushChanges = [
       { status: "M", paths: ["src/actions/register.ts"] },
-      { status: "M", paths: ["src/components/ui/Button.tsx"] },
+      { status: "M", paths: ["src/components/ui/button.tsx"] },
     ];
     // on main push: forceFull=false, draft=false
     const mainPlan = classifyChangedFiles(mainPushChanges, { forceFull: false, draft: false });
@@ -141,7 +141,7 @@ describe("changed-surface planner", () => {
   });
 
   it("forces FULL for manual, release, or scheduled convergence", () => {
-    const plan = classifyChangedFiles([{ status: "M", paths: ["src/components/ui/Button.tsx"] }], { forceFull: true, draft: false });
+    const plan = classifyChangedFiles([{ status: "M", paths: ["src/components/ui/button.tsx"] }], { forceFull: true, draft: false });
     expect(plan.full).toBe(true);
     expect(plan.requiredJobs).toEqual(["static", "postgres", "system"]);
     expect(plan.gateName).toBe("ci-gate");
