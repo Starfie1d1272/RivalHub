@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
-import { and, count, desc, eq, inArray, isNull, or } from "drizzle-orm";
+import { and, count, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   competitionEntries,
@@ -37,6 +37,7 @@ import { RegistrationOpeningRecovery } from "@/components/register/RegistrationO
 
 import { publicCompetitionEntryCondition } from "@/lib/competition-entries/public-visibility";
 import { getCompetitionEntryCapabilities } from "@/lib/competition-entries/capabilities";
+import { loadCompetitionEntryParticipantContext } from "@/lib/competition-entries/participant-context";
 
 interface RegisterPageProps {
   params: Promise<{ seasonSlug: string }>;
@@ -125,23 +126,15 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
   }
 
   if (isTeamRegistration(season)) {
-    const [captainedTeams, entryRows, [approvedCount], currentTeamRows] = await Promise.all([
+    const [captainedTeams, participantContext, [approvedCount], currentTeamRows] = await Promise.all([
       db.select({ id: teams.id, name: teams.name }).from(teams)
         .where(and(eq(teams.status, "active"), eq(teams.captainUserId, userSession.userId)))
         .orderBy(teams.name),
-      db.select({ entry: competitionEntries })
-        .from(competitionEntries)
-        .leftJoin(competitionEntryParticipants, eq(competitionEntryParticipants.entryId, competitionEntries.id))
-        .where(and(
-          eq(competitionEntries.competitionId, season.id),
-          or(eq(competitionEntries.representativeUserId, userSession.userId), eq(competitionEntryParticipants.userId, userSession.userId)),
-        ))
-        .orderBy(desc(competitionEntries.updatedAt))
-        .limit(1),
+      loadCompetitionEntryParticipantContext({ competitionId: season.id, userId: userSession.userId }),
       db.select({ value: count() }).from(competitionEntries).where(and(eq(competitionEntries.competitionId, season.id), publicCompetitionEntryCondition())),
       db.select({ id: teams.id, name: teams.name }).from(teamMemberships).innerJoin(teams, eq(teams.id, teamMemberships.teamId)).where(and(eq(teamMemberships.userId, userSession.userId), isNull(teamMemberships.endedAt), eq(teams.status, "active"))).limit(1),
     ]);
-    const entry = entryRows[0]?.entry ?? null;
+    const entry = participantContext.primaryEntry;
     let entryView: Parameters<typeof CompetitionEntryFlow>[0]["entry"] = null;
     let capabilities = getCompetitionEntryCapabilities({ season, entry: null, revision: null, rosterFrozen: false });
     if (entry) {
@@ -263,6 +256,7 @@ export default async function RegisterPage({ params }: RegisterPageProps) {
             showsPerfectTeamId={season.teamRegistrationConfig?.competitiveProfile?.platform === "perfect_world"}
             currentTeam={currentTeamRows[0] ?? null}
             captainedTeams={captainedTeams}
+            invitationConflict={participantContext.invitationConflict}
             entry={entryView}
           />
         </div>
