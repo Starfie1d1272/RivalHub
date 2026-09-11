@@ -62,6 +62,27 @@ describe("CompetitionEntryFlow", () => {
     fireEvent.click(screen.getAllByRole("checkbox", { name: "从本届名单移除" })[0]!);
     expect(screen.getByText(/从本届名单移除 选手1/)).toBeInTheDocument();
   });
+  it("lets a non-representative approved member confirm self-withdrawal without leaving the long-lived team", () => {
+    const p = props();
+    p.currentUserId = "u1";
+    p.entry!.status = "approved";
+    p.capabilities = getCompetitionEntryCapabilities({ season, entry: { status: "approved", hasApprovedRoster: true }, revision: { status: "approved", origin: "initial" }, rosterFrozen: false });
+    render(<CompetitionEntryFlow {...p} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "退出本届赛事" }));
+    expect(screen.getByText("退出只影响本届赛事参赛名单，不会退出你的长期队伍；退出后该队本届名单需要重新调整并再次提交审核。")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "确认退出本届赛事" })).toBeEnabled();
+  });
+  it("hides the self-withdraw action after the EventRoster is frozen", () => {
+    const p = props();
+    p.currentUserId = "u1";
+    p.entry!.status = "approved";
+    p.capabilities = getCompetitionEntryCapabilities({ season, entry: { status: "approved", hasApprovedRoster: true }, revision: { status: "approved", origin: "initial" }, rosterFrozen: true });
+    render(<CompetitionEntryFlow {...p} />);
+
+    expect(screen.getByText("最终名单已锁定")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "退出本届赛事" })).not.toBeInTheDocument();
+  });
   it("preserves recruitment context and the normal creation path", () => {
     const p = props(); p.entry = null; p.captainedTeams = [{ id: "team", name: "队伍" }]; p.capabilities.canStartRegistration = true;
     render(<CompetitionEntryFlow {...p} />);

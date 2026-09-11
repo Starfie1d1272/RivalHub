@@ -21,7 +21,7 @@ import { ensureRegistrationOpenForParticipantInTx } from "@/lib/seasons/registra
  */
 export async function requestCompetitionEntryRosterChangeInTx(
   tx: TxDb,
-  input: { entryId: string; representativeUserId: string; actorId: string },
+  input: { entryId: string; representativeUserId: string; actorId: string; source?: "representative_roster_change" | "participant_self_withdrawal" },
 ): Promise<{ seasonSlug: string }> {
   // The Entry id is the only input, so derive the season before taking the
   // aggregate locks. The season lock is needed before Entry because the
@@ -56,6 +56,6 @@ export async function requestCompetitionEntryRosterChangeInTx(
   const members = await tx.select().from(competitionEntryRosterMembers).where(eq(competitionEntryRosterMembers.revisionId, approved.id));
   if (members.length > 0) await tx.insert(competitionEntryRosterMembers).values(members.map((member) => ({ revisionId: next.id, participantId: member.participantId, userId: member.userId, teamMembershipId: member.teamMembershipId, isPrimaryStarter: member.isPrimaryStarter })));
   await tx.update(competitionEntries).set({ registrationStatus: "changes_requested", currentRosterRevisionId: next.id, reviewReason: null, updatedAt: new Date() }).where(eq(competitionEntries.id, entry.id));
-  await tx.insert(auditLogs).values({ seasonId: entry.competitionId, action: "competition_entry.roster_change.request", actorId: input.actorId, targetId: entry.id, targetType: "competition_entry", meta: { approvedRevision: approved.revisionNumber, nextRevision, prestartInvalidated } });
+  await tx.insert(auditLogs).values({ seasonId: entry.competitionId, action: "competition_entry.roster_change.request", actorId: input.actorId, targetId: entry.id, targetType: "competition_entry", meta: { approvedRevision: approved.revisionNumber, nextRevision, prestartInvalidated, source: input.source ?? "representative_roster_change" } });
   return { seasonSlug: season.slug };
 }

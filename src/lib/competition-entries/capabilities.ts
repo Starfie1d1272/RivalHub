@@ -16,6 +16,8 @@ export function getCompetitionEntryCapabilities(input: {
     && canMutateCompetitionEntryRoster(entry.status, revision.origin, season, now);
   const canRequestRosterChange = !rosterFrozen && entry?.status === "approved"
     && entry.hasApprovedRoster && canSelfChangeApprovedRoster(season, now);
+  const canWithdrawParticipation = !rosterFrozen && !!entry
+    && (entry.status !== "approved" || (entry.hasApprovedRoster && canSelfChangeApprovedRoster(season, now)));
   const canWithdrawFromReview = !rosterFrozen && entry?.status === "submitted"
     && revision?.status === "submitted" && window.canSubmit;
   const rosterChangeClosed = !canSelfChangeApprovedRoster(season, now);
@@ -24,6 +26,7 @@ export function getCompetitionEntryCapabilities(input: {
     canEditCurrentRoster: editable,
     canSubmitForReview: editable,
     canWithdrawFromReview,
+    canWithdrawParticipation,
     canRequestRosterChange,
     canConfirmParticipation: editable,
     canRespondToAdminRemediation: editable && revision?.origin === "admin_remediation",
