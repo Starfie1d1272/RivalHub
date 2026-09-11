@@ -84,6 +84,13 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "包含角色、赛季范围和使用限制，不是公开配置。",
   ),
   serverOnly(
+    "announcements",
+    "运营公告",
+    "公告内容、发布状态与 actor metadata",
+    "src/lib/announcements/commands.ts; src/lib/announcements/read-model.ts",
+    "公告 fact 与 actor metadata 由服务端维护，公开公告只经安全 Markdown projection。",
+  ),
+  serverOnly(
     "audit_logs",
     "审计",
     "高敏感管理操作记录",
@@ -110,6 +117,13 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "审核、结果与奖项内部事实",
     "src/lib/community-awards/service.ts; src/actions/community-awards.ts",
     "public_note 等公开字段由服务端 projection 决定，原始审核记录仍为 server-only。",
+  ),
+  serverOnly(
+    "community_groups",
+    "赛事公开运营信息",
+    "赛事群组与二维码运营事实",
+    "src/lib/season-public-info/commands.ts; src/lib/season-public-info/read-model.ts",
+    "公开 projection 仍由服务端生成，群号、二维码路径和关闭状态不能由客户端旁路修改。",
   ),
   serverOnly(
     "competition_stage_bracket_states",
@@ -264,6 +278,13 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "名单状态与冻结边界",
     "src/actions/major-prestart.ts; src/lib/match-rosters/service.ts",
     "preparing/confirmed/frozen transition 只能经服务端领域操作。",
+  ),
+  serverOnly(
+    "feedback_reports",
+    "用户反馈",
+    "反馈内容、fingerprint 与匿名上下文",
+    "src/lib/feedback/commands.ts; src/lib/feedback/read-model.ts",
+    "反馈正文、fingerprint 和匿名上下文只在服务端处理，运营 triage 不形成浏览器数据面。",
   ),
   serverOnly(
     "institution_email_domains",
@@ -448,11 +469,25 @@ export const DATABASE_ACCESS_MATRIX: readonly DatabaseAccessEntry[] = [
     "管理员范围由当前数据库授权事实读取，客户端不能缓存或修改。",
   ),
   serverOnly(
+    "season_contacts",
+    "赛事公开运营信息",
+    "赛事联系方式与运营配置",
+    "src/lib/season-public-info/commands.ts; src/lib/season-public-info/read-model.ts",
+    "显式公开字段由服务端 projection 投影，联系方式原始配置保持 server-only。",
+  ),
+  serverOnly(
     "scheduled_job_health",
     "Scheduler runtime",
     "定时任务当前健康投影",
     "src/lib/scheduler/health.ts; src/lib/scheduler/admin.ts",
     "只保存每个 job 的有界当前状态，供服务端调度与超级管理员系统状态页读取；不形成浏览器 Data API 或 Realtime surface。",
+  ),
+  serverOnly(
+    "season_public_info",
+    "赛事公开运营信息",
+    "赛事规则入口配置",
+    "src/lib/season-public-info/commands.ts; src/lib/season-public-info/read-model.ts",
+    "规则入口通过服务端 projection 暴露，规则配置与赛季绑定不能由客户端旁路修改。",
   ),
   serverOnly(
     "season_registrations",

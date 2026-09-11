@@ -109,6 +109,53 @@ CREATE INDEX "community_groups_season_sort_order_idx" ON "community_groups" USIN
 -- rivalhub:migration-risk: locking-reviewed new season contact index is bounded to the empty table at creation
 CREATE INDEX "season_contacts_season_sort_order_idx" ON "season_contacts" USING btree ("season_id","sort_order","created_at");
 --> statement-breakpoint
+-- Issue #557: the newly introduced operations tables remain server-only.
+-- Keep browser Data API privileges revoked, add RLS as defense in depth, and
+-- remove any accidental Realtime membership from the active publication.
+REVOKE ALL PRIVILEGES ON TABLE "announcements", "community_groups", "feedback_reports", "season_contacts", "season_public_info" FROM anon, authenticated;
+--> statement-breakpoint
+ALTER TABLE "announcements" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "community_groups" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "feedback_reports" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "season_contacts" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "season_public_info" ENABLE ROW LEVEL SECURITY;
+--> statement-breakpoint
+DO $$
+DECLARE
+  table_name text;
+BEGIN
+  FOR table_name IN
+    SELECT unnest(ARRAY[
+      'announcements',
+      'community_groups',
+      'feedback_reports',
+      'season_contacts',
+      'season_public_info'
+    ]::text[])
+  LOOP
+    IF EXISTS (
+      SELECT 1
+      FROM pg_publication AS publication
+      JOIN pg_publication_rel AS publication_relation
+        ON publication_relation.prpubid = publication.oid
+      JOIN pg_class AS table_object
+        ON table_object.oid = publication_relation.prrelid
+      JOIN pg_namespace AS table_schema
+        ON table_schema.oid = table_object.relnamespace
+      WHERE publication.pubname = 'supabase_realtime'
+        AND table_schema.nspname = 'public'
+        AND table_object.relname = table_name
+    ) THEN
+      EXECUTE format(
+        'ALTER PUBLICATION %I DROP TABLE %I.%I',
+        'supabase_realtime',
+        'public',
+        table_name
+      );
+    END IF;
+  END LOOP;
+END $$;
+--> statement-breakpoint
 -- Supabase Storage is optional during plain PostgreSQL replay. When present,
 -- this migration remains the sole owner of the public QR asset bucket.
 DO $$
