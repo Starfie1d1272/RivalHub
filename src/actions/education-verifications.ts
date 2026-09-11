@@ -11,7 +11,6 @@ import {
   submitChsiEducationVerification,
   type EducationSubmissionOutcome,
 } from "@/lib/education/commands";
-import { educationEvidenceStorage } from "@/lib/education/storage";
 import {
   emailDomain,
   educationSubmissionSchema,
@@ -107,23 +106,6 @@ export async function declareInstitutionalEmailEducation(input: unknown): Promis
     refresh();
     return ok(undefined);
   } catch (error) { return actionError("declareInstitutionalEmailEducation", error); }
-}
-
-export async function getEducationManualEvidenceUrl(input: unknown): Promise<ActionResult<string>> {
-  const parsed = z.object({ id: z.uuid() }).strict().safeParse(input);
-  if (!parsed.success) return fail({ code: ErrorCode.VALIDATION_FAILED, message: "教育材料标识无效。" });
-  try {
-    await requireSuperAdmin();
-    const verification = await db.query.educationVerifications.findFirst({
-      where: eq(educationVerifications.id, parsed.data.id),
-      columns: { evidenceType: true, evidenceObjectKey: true },
-    });
-    if (!verification) throw new AppError(ErrorCode.NOT_FOUND, "教育认证记录不存在。 ");
-    if (verification.evidenceType !== "manual_other" || !verification.evidenceObjectKey) {
-      throw new AppError(ErrorCode.VALIDATION_FAILED, "录取通知书材料当前不可查看。 ");
-    }
-    return ok(await educationEvidenceStorage.createSignedUrl(verification.evidenceObjectKey));
-  } catch (error) { return actionError("getEducationManualEvidenceUrl", error); }
 }
 
 export async function reviewEducationVerification(input: { id: string; decision: "approved" | "rejected"; reviewNote?: string }): Promise<ActionResult<void>> {

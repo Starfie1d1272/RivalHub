@@ -37,14 +37,16 @@ test("新生可以提交录取通知书并由 super admin 查看后审核", asyn
     await adminPage.goto(`/admin/education-verifications?status=all&q=${playerSearch}`);
     await expect(adminPage.getByText("材料：录取通知书材料", { exact: true })).toBeVisible();
 
-    const viewEvidence = adminPage.getByRole("button", { name: "查看材料" }).last();
+    const viewEvidence = adminPage.getByRole("link", { name: "查看材料" }).last();
     await expect(viewEvidence).toBeVisible();
-    const pagesBeforeEvidence = new Set(adminContext.pages());
-    await viewEvidence.click();
-    await expect.poll(() => adminContext.pages().some((candidate) => !pagesBeforeEvidence.has(candidate) && candidate.url().includes("education-evidence"))).toBe(true);
-    for (const candidate of adminContext.pages()) {
-      if (!pagesBeforeEvidence.has(candidate)) await candidate.close();
-    }
+    await expect(viewEvidence).toHaveAttribute("target", "_blank");
+    await expect(viewEvidence).toHaveAttribute("rel", "noopener noreferrer");
+    const [evidencePage] = await Promise.all([
+      adminContext.waitForEvent("page"),
+      viewEvidence.click(),
+    ]);
+    await evidencePage.waitForURL(/education-evidence/);
+    await evidencePage.close();
 
     const approve = adminPage.getByRole("button", { name: "通过" }).last();
     await expect(approve).toBeVisible();
