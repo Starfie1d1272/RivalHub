@@ -2,7 +2,6 @@ import { and, eq } from "drizzle-orm";
 import type { TxDb } from "@/db/client";
 import { auditLogs, matchCommentators, matches, postMatchReports, seasonAdminGrants } from "@/db/schema";
 import { AppError, ErrorCode } from "@/lib/errors";
-import { isHttpUrl } from "@/lib/external-url";
 
 async function lockMatchInTx(tx: TxDb, matchId: string) {
   const [match] = await tx.select().from(matches).where(eq(matches.id, matchId)).for("update");
