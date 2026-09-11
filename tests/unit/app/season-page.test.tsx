@@ -6,12 +6,16 @@ const {
   connectionMock,
   getPublicOrAuthorizedDraftSeasonMock,
   getMajorPublicParticipantOverviewMock,
+  getLatestSeasonAnnouncementMock,
+  getPublicSeasonInfoMock,
   selectDistinctMock,
   selectMock,
 } = vi.hoisted(() => ({
   connectionMock: vi.fn(),
   getPublicOrAuthorizedDraftSeasonMock: vi.fn(),
   getMajorPublicParticipantOverviewMock: vi.fn(),
+  getLatestSeasonAnnouncementMock: vi.fn(),
+  getPublicSeasonInfoMock: vi.fn(),
   selectDistinctMock: vi.fn(),
   selectMock: vi.fn(),
 }));
@@ -30,6 +34,8 @@ vi.mock("@/lib/data/public-seasons", () => ({
 }));
 vi.mock("@/lib/participants/summary", () => ({ getParticipantSummary: vi.fn() }));
 vi.mock("@/lib/major/public-participants", () => ({ getMajorPublicParticipantOverview: getMajorPublicParticipantOverviewMock }));
+vi.mock("@/lib/announcements/read-model", () => ({ getLatestSeasonAnnouncement: getLatestSeasonAnnouncementMock }));
+vi.mock("@/lib/season-public-info/read-model", () => ({ getPublicSeasonInfo: getPublicSeasonInfoMock }));
 
 import { SeasonPageContent } from "@/app/[seasonSlug]/page";
 
@@ -74,6 +80,8 @@ describe("season page navigation", () => {
       teamCount: 0,
       playerCount: 0,
     });
+    getLatestSeasonAnnouncementMock.mockResolvedValue(null);
+    getPublicSeasonInfoMock.mockResolvedValue({ rules: { label: "赛事规则", href: "/rules" }, groups: [], contacts: [] });
     selectDistinctMock.mockReturnValue(chain([]));
     selectMock
       .mockImplementationOnce(() => chain([{ total: 0, finished: 0 }]));
@@ -119,5 +127,23 @@ describe("season page navigation", () => {
       expect(html).not.toContain("/2026-nju-major/register");
       expect(html).not.toContain("立即报名");
     }
+  });
+  it("renders compact season information entry when only rules exist without announcement, groups, or contacts", async () => {
+    getLatestSeasonAnnouncementMock.mockResolvedValue(null);
+    getPublicSeasonInfoMock.mockResolvedValue({
+      rules: { label: "赛事规则", href: "/rules" },
+      groups: [],
+      contacts: [],
+    });
+
+    const page = await SeasonPageContent({
+      params: Promise.resolve({ seasonSlug: "2026-nju-major" }),
+    });
+    const html = renderToStaticMarkup(page);
+
+    expect(html).toContain("赛事信息");
+    expect(html).toContain("赛事规则");
+    expect(html).toContain('href="/2026-nju-major/info"');
+    expect(html).not.toContain("最新公告");
   });
 });

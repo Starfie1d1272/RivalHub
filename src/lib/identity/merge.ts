@@ -54,6 +54,8 @@ interface UserReferenceRule {
 /** Every direct FK to users.id has an explicit owner and merge policy. */
 export const USER_REFERENCE_RULES: readonly UserReferenceRule[] = [
   { table: "admin_invite_claims", column: "user_id", domain: "管理员邀请领取", mode: "special" },
+  { table: "announcements", column: "created_by", domain: "公告创建人", mode: "preserve" },
+  { table: "announcements", column: "updated_by", domain: "公告最后更新人", mode: "preserve" },
   { table: "community_awards", column: "submitted_by_user_id", domain: "社区奖项提交人", mode: "preserve" },
   { table: "community_awards", column: "reviewed_by_user_id", domain: "社区奖项审核人", mode: "preserve" },
   { table: "community_awards", column: "recipient_user_id", domain: "社区奖项获奖人", mode: "reparent" },
@@ -68,6 +70,7 @@ export const USER_REFERENCE_RULES: readonly UserReferenceRule[] = [
   { table: "competition_entry_representative_changes", column: "from_user_id", domain: "代表人变更历史", mode: "preserve" },
   { table: "competition_entry_representative_changes", column: "to_user_id", domain: "代表人变更历史", mode: "preserve" },
   { table: "event_roster_members", column: "user_id", domain: "赛事冻结名单成员", mode: "special" },
+  { table: "feedback_reports", column: "user_id", domain: "用户反馈提交人", mode: "preserve" },
   { table: "competitive_rank_facts", column: "user_id", domain: "竞技段位资料", mode: "special" },
   { table: "user_competitive_roles", column: "user_id", domain: "竞技位置资料", mode: "special" },
   { table: "user_map_preferences", column: "user_id", domain: "地图熟练度资料", mode: "special" },
@@ -400,8 +403,10 @@ async function loadCollisionFacts(queryable: MergeQueryable, input: { canonicalU
         + (SELECT count(*)::int FROM user_sessions WHERE user_id = ${input.mergedUserId}) AS transient_rows,
       (SELECT count(*)::int FROM community_awards WHERE submitted_by_user_id = ${input.mergedUserId} OR reviewed_by_user_id = ${input.mergedUserId} OR outcome_by_user_id = ${input.mergedUserId})
         + (SELECT count(*)::int FROM community_award_evidence WHERE submitted_by_user_id = ${input.mergedUserId})
+        + (SELECT count(*)::int FROM announcements WHERE created_by = ${input.mergedUserId} OR updated_by = ${input.mergedUserId})
         + (SELECT count(*)::int FROM competition_entry_participants WHERE invited_by_user_id = ${input.mergedUserId})
         + (SELECT count(*)::int FROM competition_entry_representative_changes WHERE from_user_id = ${input.mergedUserId} OR to_user_id = ${input.mergedUserId})
+        + (SELECT count(*)::int FROM feedback_reports WHERE user_id = ${input.mergedUserId})
         + (SELECT count(*)::int FROM match_commentators WHERE added_by_user_id = ${input.mergedUserId})
         + (SELECT count(*)::int FROM post_match_reports WHERE submitted_by_user_id = ${input.mergedUserId})
         + (SELECT count(*)::int FROM season_admin_grants WHERE granted_by_user_id = ${input.mergedUserId})
@@ -426,6 +431,7 @@ async function loadSnapshotHash(queryable: MergeQueryable, input: { canonicalUse
     WITH snapshot AS (
       SELECT 'users' AS source, id::text AS item_key, row_to_json(u)::text AS item_value FROM users u WHERE id IN (${input.canonicalUserId}, ${input.mergedUserId})
       UNION ALL SELECT 'admin_invite_claims', invite_id::text || ':' || user_id::text, row_to_json(c)::text FROM admin_invite_claims c WHERE user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
+      UNION ALL SELECT 'announcements', id::text, row_to_json(a)::text FROM announcements a WHERE created_by IN (${input.canonicalUserId}, ${input.mergedUserId}) OR updated_by IN (${input.canonicalUserId}, ${input.mergedUserId})
       UNION ALL SELECT 'community_awards', id::text, row_to_json(a)::text FROM community_awards a WHERE submitted_by_user_id IN (${input.canonicalUserId}, ${input.mergedUserId}) OR reviewed_by_user_id IN (${input.canonicalUserId}, ${input.mergedUserId}) OR recipient_user_id IN (${input.canonicalUserId}, ${input.mergedUserId}) OR outcome_by_user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
       UNION ALL SELECT 'community_award_evidence', id::text, row_to_json(e)::text FROM community_award_evidence e WHERE submitted_by_user_id IN (${input.canonicalUserId}, ${input.mergedUserId}) OR candidate_user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
       UNION ALL SELECT 'entries', id::text, row_to_json(e)::text FROM competition_entries e WHERE representative_user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
@@ -440,6 +446,7 @@ async function loadSnapshotHash(queryable: MergeQueryable, input: { canonicalUse
       UNION ALL SELECT 'captain_votes_by_registration', id::text, row_to_json(v)::text FROM captain_votes v WHERE voter_registration_id IN (SELECT id FROM season_registrations WHERE user_id IN (${input.canonicalUserId}, ${input.mergedUserId})) OR candidate_registration_id IN (SELECT id FROM season_registrations WHERE user_id IN (${input.canonicalUserId}, ${input.mergedUserId}))
       UNION ALL SELECT 'memberships', id::text, row_to_json(m)::text FROM team_memberships m WHERE user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
       UNION ALL SELECT 'event_members', id::text, row_to_json(em)::text FROM event_roster_members em WHERE user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
+      UNION ALL SELECT 'feedback_reports', id::text, row_to_json(f)::text FROM feedback_reports f WHERE user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
       UNION ALL SELECT 'education', id::text, row_to_json(e)::text FROM education_verifications e WHERE user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
       UNION ALL SELECT 'discipline', id::text, row_to_json(d)::text FROM disciplinary_cases d WHERE subject_user_id IN (${input.canonicalUserId}, ${input.mergedUserId})
       UNION ALL SELECT 'adjudications', id::text, row_to_json(a)::text FROM post_event_adjudications a WHERE target_user_id IN (${input.canonicalUserId}, ${input.mergedUserId})

@@ -1,6 +1,6 @@
 import { publicCompetitionEntryCondition, publicCompetitionEntryLabel } from "@/lib/competition-entries/public-visibility";
 import Link from "next/link";
-import { Suspense } from "react";
+import { Fragment, Suspense, type ReactNode } from "react";
 import { connection } from "next/server";
 import { notFound } from "next/navigation";
 import { eq, count, or, and, sql } from "drizzle-orm";
@@ -28,6 +28,10 @@ import { getParticipantSummary } from "@/lib/participants/summary";
 import { getPublicOrAuthorizedDraftSeason } from "@/lib/data/public-seasons";
 import { getMajorPublicParticipantOverview } from "@/lib/major/public-participants";
 import { RegistrationScheduleCountdown } from "@/components/seasons/RegistrationScheduleCountdown";
+import { getLatestSeasonAnnouncement } from "@/lib/announcements/read-model";
+import { toAnnouncementExcerpt } from "@/lib/announcements/presentation";
+import { getPublicSeasonInfo } from "@/lib/season-public-info/read-model";
+import { hasPublicSeasonInfo, activeGroupCount } from "@/lib/season-public-info/presentation";
 
 const STATUS_IDX: Record<SeasonStatus, number> = {
   draft: 0, registration: 1, voting: 2, drafting: 3,
@@ -52,6 +56,10 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
 
   const season = await getPublicOrAuthorizedDraftSeason(seasonSlug);
   if (!season) notFound();
+  const [latestSeasonAnnouncement, seasonInfo] = await Promise.all([
+    getLatestSeasonAnnouncement(season.id),
+    getPublicSeasonInfo(season.id),
+  ]);
   const stagePlan = normalizeStagePlan(season.stagePlan);
   const stageLabelByKey = new Map(
     stagePlan.map((stage) => [stage.key, presentStageMarker(stage, season.competitionTemplate)]),
@@ -257,6 +265,62 @@ export async function SeasonPageContent({ params }: SeasonPageProps) {
           </div>
         )}
       </div>
+
+      {(() => {
+        const hasSeasonInfo = hasPublicSeasonInfo(seasonInfo);
+        if (!latestSeasonAnnouncement && !hasSeasonInfo) return null;
+        return (
+          <div className={latestSeasonAnnouncement && hasSeasonInfo ? "grid gap-4 lg:grid-cols-2" : "grid gap-4"}>
+            {latestSeasonAnnouncement && (
+              <Panel label={<div className="flex w-full items-center justify-between gap-3"><span>最新公告</span><Button size="sm" variant="ghost" asChild><Link href={`/${seasonSlug}/announcements`}>历史公告 →</Link></Button></div>}>
+                <p className="font-semibold text-[var(--color-fg)]">{latestSeasonAnnouncement.title}</p>
+                <p className="mt-1 text-xs text-[var(--color-fg-dim)]">发布于 {new Date(latestSeasonAnnouncement.publishedAt).toLocaleString("zh-CN")}{latestSeasonAnnouncement.updatedAt !== latestSeasonAnnouncement.publishedAt && ` · 更新于 ${new Date(latestSeasonAnnouncement.updatedAt).toLocaleString("zh-CN")}`}</p>
+                <p className="mt-1 line-clamp-3 text-sm text-[var(--color-fg-mid)]">{toAnnouncementExcerpt(latestSeasonAnnouncement.body)}</p>
+              </Panel>
+            )}
+            {hasSeasonInfo && (
+              <Panel label="赛事信息">
+                {(() => {
+                  const groupCount = activeGroupCount(seasonInfo);
+                  const hasContacts = seasonInfo.contacts.length > 0;
+                  const parts: ReactNode[] = [
+                    <Link key="rules" href={`/${seasonSlug}/info`} className="text-[var(--color-accent)] hover:underline">
+                      {seasonInfo.rules.label}
+                    </Link>,
+                  ];
+                  if (groupCount > 0) {
+                    parts.push(
+                      <Link key="groups" href={`/${seasonSlug}/info`} className="text-[var(--color-accent)] hover:underline">
+                        交流群（{groupCount} 个）
+                      </Link>
+                    );
+                  }
+                  if (hasContacts) {
+                    parts.push(
+                      <Link key="contacts" href={`/${seasonSlug}/info`} className="text-[var(--color-accent)] hover:underline">
+                        联系方式
+                      </Link>
+                    );
+                  }
+                  return (
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                      {parts.map((part, idx) => (
+                        <Fragment key={idx}>
+                          {idx > 0 && <span className="text-[var(--color-fg-dim)]">·</span>}
+                          {part}
+                        </Fragment>
+                      ))}
+                    </div>
+                  );
+                })()}
+                <Link href={`/${seasonSlug}/info`} className="mt-3 inline-flex text-sm text-[var(--color-accent)] hover:underline">
+                  查看完整赛事信息 →
+                </Link>
+              </Panel>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Phase tracker */}
       <Panel contentClassName="p-6">

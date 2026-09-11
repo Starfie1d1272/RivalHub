@@ -16,6 +16,7 @@ export interface ManagedStorageReference {
 
 export const STORAGE_RECOVERY_POLICIES: readonly StorageRecoveryPolicy[] = [
   { bucket: "team-logos", recoveryClass: "durable", restoreMode: "always" },
+  { bucket: "season-public-assets", recoveryClass: "durable", restoreMode: "always" },
   { bucket: "education-evidence", recoveryClass: "temporary-sensitive", restoreMode: "active-reference-only" },
 ] as const;
 

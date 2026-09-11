@@ -7,6 +7,9 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Toaster } from "@/components/ui/sonner";
 import { APP_BRAND } from "@/lib/branding";
+import { GlobalInformationFeedbackLauncher } from "@/components/operations/GlobalInformationFeedbackLauncher";
+import { OperationsProvider } from "@/components/operations/OperationsContext";
+import { Suspense } from "react";
 
 const geist = Geist({
   variable: "--font-geist",
@@ -52,9 +55,14 @@ export default function RootLayout({
         <link rel="stylesheet" href="/brackets-viewer.min.css" />
       </head>
       <body className={`${geist.variable} ${jetbrainsMono.variable} ${notoSansSC.variable} antialiased min-h-screen flex flex-col`}>
-        <Header />
-        <main className="flex-1">{children}</main>
-        <Footer />
+        <OperationsProvider>
+          <Header />
+          <main className="flex-1">{children}</main>
+          <Footer />
+          <Suspense fallback={null}>
+            <GlobalInformationFeedbackLauncher />
+          </Suspense>
+        </OperationsProvider>
         <Toaster richColors position="top-right" />
         <Analytics />
         <SpeedInsights />

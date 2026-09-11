@@ -52,6 +52,12 @@
 
 玩家身份浏览/卡片界面统一使用 `PlayerAvatar`：公开页面只消费已持久化的头像 URL，缺失或加载失败时显示姓名首字母；页面不在渲染路径请求 Steam，也不各自实现平行回退逻辑。高密度比赛表格保持文字优先。
 
+### Public information and feedback entry
+
+公开页面使用一个固定的「信息与反馈」入口。入口里的最新公告、重要提醒和赛事公开信息由 server-side public read model 提供；客户端只负责本地确认状态、Dialog 展开和反馈表单交互，不自行推导公告范围、赛事内容或权限。重要提醒的确认记录只保存在当前浏览器的 `localStorage`，公告更新后以新的 `updatedAt` 重新提示；管理员页面不显示该入口。
+
+反馈表单只提交明确的反馈类型、正文、当前同站 pathname、可选赛事上下文和版本标识。服务端负责正文规范化、honeypot、匿名频率限制、已登录用户冷却、重复正文去重与最终持久化；公开 DTO 不包含 fingerprint、secret、cookie、完整 URL 或内部运行时日志。赛事规则与交流群加入链接只接受同站路径或显式 HTTP(S) 地址，公开联系方式另外允许显式 `mailto:`；展示层对历史脏数据仍 fail closed。
+
 ## Dense data
 
 表格和高密度列表遵守：

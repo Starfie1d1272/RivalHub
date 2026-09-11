@@ -6,7 +6,6 @@ import { join } from "node:path";
 import { readExpectedMigrations } from "../../scripts/db/production-preflight";
 import {
   assertProductionBackupEnvironment,
-  assertRecoveryFetchEnvironment,
   assertR2BucketName,
   buildIsolatedRecoveryEnvironment,
 } from "../../scripts/db/recovery/environment";
@@ -186,6 +185,11 @@ describe("recovery contracts", () => {
       bucket: "education-evidence",
       recoveryClass: "temporary-sensitive",
       restoreMode: "active-reference-only",
+    });
+    expect(getStorageRecoveryPolicy("season-public-assets")).toEqual({
+      bucket: "season-public-assets",
+      recoveryClass: "durable",
+      restoreMode: "always",
     });
     expect(() => getStorageRecoveryPolicy("unknown-bucket")).toThrow(/no recovery policy/);
     expect(() => assertSupportedStorageBucket({ name: "team-logos" })).toThrow(/missing or unsupported/);

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { assertCompleteMigrationLedger, assertCurrentTerminalSchema, verifyEducationEvidenceBucket } from "../../../scripts/db/verify-migrations";
+import { assertCompleteMigrationLedger, assertCurrentTerminalSchema, verifyEducationEvidenceBucket, verifySeasonPublicAssetsBucket } from "../../../scripts/db/verify-migrations";
 import { assertActiveChainPrefix } from "../../../scripts/db/production-preflight";
 
 const expected = [
@@ -42,5 +42,17 @@ describe("active Drizzle ledger verification", () => {
       .mockResolvedValueOnce({ rows: [{ storage_buckets: "storage.buckets" }] })
       .mockResolvedValueOnce({ rows: [{ public: true, file_size_limit: "5242880", allowed_mime_types: ["image/jpeg", "image/png", "image/webp"] }] });
     await expect(verifyEducationEvidenceBucket({ query: invalidQuery })).rejects.toThrow(/education-evidence Storage bucket contract/);
+  });
+
+  it("checks the public 1 MiB exact MIME bucket contract", async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [{ storage_buckets: "storage.buckets" }] })
+      .mockResolvedValueOnce({ rows: [{ public: true, file_size_limit: "1048576", allowed_mime_types: ["image/webp", "image/jpeg", "image/png"] }] });
+
+    await expect(verifySeasonPublicAssetsBucket({ query })).resolves.toBe("verified");
+    const invalidQuery = vi.fn()
+      .mockResolvedValueOnce({ rows: [{ storage_buckets: "storage.buckets" }] })
+      .mockResolvedValueOnce({ rows: [{ public: false, file_size_limit: "1048576", allowed_mime_types: ["image/jpeg", "image/png", "image/webp"] }] });
+    await expect(verifySeasonPublicAssetsBucket({ query: invalidQuery })).rejects.toThrow(/season-public-assets Storage bucket contract/);
   });
 });
