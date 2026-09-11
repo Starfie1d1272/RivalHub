@@ -37,7 +37,7 @@ describe("competition-entry participant context", () => {
     }
   });
 
-  it("keeps the active participation visible until the player withdraws, then exposes the newer invitation", async () => {
+  it("exposes the newer invitation after approved self-withdrawal refreshes the old Entry", async () => {
     const pool = createLocalPool();
     const client = await pool.connect();
     const database = drizzle(client, { schema });
@@ -67,6 +67,7 @@ describe("competition-entry participant context", () => {
         registrationOpensAt: new Date(Date.now() - 60_000),
         registrationOpenedAt: new Date(Date.now() - 60_000),
         registrationClosesAt: new Date(Date.now() + 86_400_000),
+        rosterChangeClosesAt: new Date(Date.now() + 172_800_000),
         minTeamSize: 1,
         maxTeamSize: 9,
         starterCount: 1,
@@ -80,11 +81,11 @@ describe("competition-entry participant context", () => {
         { id: ids.newMembership, teamId: ids.newTeam, userId: ids.player, status: "active" },
       ]);
       await database.insert(schema.competitionEntries).values([
-        { id: ids.oldEntry, competitionId: ids.season, source: "linked_team", teamId: ids.oldTeam, name: "旧队", representativeUserId: ids.oldCaptain, registrationStatus: "draft", currentRosterRevisionId: ids.oldRevision, updatedAt: earlier },
+        { id: ids.oldEntry, competitionId: ids.season, source: "linked_team", teamId: ids.oldTeam, name: "旧队", representativeUserId: ids.oldCaptain, registrationStatus: "approved", currentRosterRevisionId: ids.oldRevision, approvedRosterRevisionId: ids.oldRevision, updatedAt: earlier },
         { id: ids.newEntry, competitionId: ids.season, source: "linked_team", teamId: ids.newTeam, name: "新队", representativeUserId: ids.newCaptain, registrationStatus: "draft", currentRosterRevisionId: ids.newRevision, updatedAt: later },
       ]);
       await database.insert(schema.competitionEntryRosterRevisions).values([
-        { id: ids.oldRevision, entryId: ids.oldEntry, revisionNumber: 1, status: "draft", createdBy: ids.player },
+        { id: ids.oldRevision, entryId: ids.oldEntry, revisionNumber: 1, status: "approved", createdBy: ids.player, approvedAt: earlier },
         { id: ids.newRevision, entryId: ids.newEntry, revisionNumber: 1, status: "draft", createdBy: ids.player },
       ]);
       await database.insert(schema.competitionEntryParticipants).values([
@@ -114,6 +115,11 @@ describe("competition-entry participant context", () => {
       await withdrawCompetitionEntryParticipationInTx(tx, { entryId: ids.oldEntry, userId: ids.player, actorId: ids.player });
       expect(await database.query.competitionEntryParticipants.findFirst({ where: eq(schema.competitionEntryParticipants.id, ids.oldParticipant) })).toMatchObject({ status: "withdrawn" });
       expect(await database.query.teamMemberships.findFirst({ where: eq(schema.teamMemberships.id, ids.oldMembership) })).toMatchObject({ status: "left", endedAt: earlier });
+      const changedOldEntry = await database.query.competitionEntries.findFirst({ where: eq(schema.competitionEntries.id, ids.oldEntry) });
+      expect(changedOldEntry).toMatchObject({ registrationStatus: "changes_requested" });
+      expect(changedOldEntry!.updatedAt.getTime()).toBeGreaterThan(later.getTime());
+      const selfRosterChange = await database.query.competitionEntryRosterRevisions.findFirst({ where: eq(schema.competitionEntryRosterRevisions.id, changedOldEntry!.currentRosterRevisionId) });
+      expect(selfRosterChange).toMatchObject({ status: "draft", origin: "self_roster_change" });
 
       const afterWithdrawal = await loadCompetitionEntryParticipantContext({ competitionId: ids.season, userId: ids.player }, tx);
       expect(afterWithdrawal.primaryEntry?.id).toBe(ids.newEntry);

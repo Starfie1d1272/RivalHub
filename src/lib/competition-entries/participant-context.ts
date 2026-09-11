@@ -21,7 +21,7 @@ export interface CompetitionEntryParticipantContext {
 
 /**
  * Select the registration-page Entry from the user's active event commitment.
- * A recently edited invitation is only a fallback when no active commitment exists.
+ * Without one, a pending invitation takes precedence over a recently edited past Entry.
  */
 export async function loadCompetitionEntryParticipantContext(
   input: { competitionId: string; userId: string },
@@ -62,14 +62,15 @@ export async function loadCompetitionEntryParticipantContext(
   const fallbackEntries = [...relatedEntries.values()].sort((left, right) =>
     right.updatedAt.getTime() - left.updatedAt.getTime() || left.id.localeCompare(right.id),
   );
+  const pendingInvitationRows = participantRows
+    .filter((row) => row.participantStatus === "invited")
+    .sort((left, right) => right.entry.updatedAt.getTime() - left.entry.updatedAt.getTime() || left.entry.id.localeCompare(right.entry.id));
   const invitationRows = activeClaimEntry
-    ? participantRows
-      .filter((row) => row.entry.id !== activeClaimEntry.id && row.participantStatus === "invited")
-      .sort((left, right) => right.entry.updatedAt.getTime() - left.entry.updatedAt.getTime() || left.entry.id.localeCompare(right.entry.id))
+    ? pendingInvitationRows.filter((row) => row.entry.id !== activeClaimEntry.id)
     : [];
 
   return {
-    primaryEntry: activeClaimEntry ?? fallbackEntries[0] ?? null,
+    primaryEntry: activeClaimEntry ?? pendingInvitationRows[0]?.entry ?? fallbackEntries[0] ?? null,
     activeClaimEntryId: activeClaimEntry?.id ?? null,
     invitationConflict: invitationRows.length === 0
       ? null
