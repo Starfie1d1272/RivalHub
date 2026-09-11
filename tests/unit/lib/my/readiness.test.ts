@@ -100,6 +100,16 @@ describe("我的 readiness read model", () => {
     expect(result.team.secondaryCta).toBeUndefined();
   });
 
+  it("projects captain recruitment interests as a task without duplicating the recruitment read model", () => {
+    const result = model({ actionableInterestCount: 3 });
+
+    expect(result.recruitment).toMatchObject({
+      state: "waiting",
+      detail: "3 名选手向你的队伍表达加入意向",
+      cta: { href: "/my/teams#recruitment-interests", label: "查看并处理" },
+    });
+  });
+
   it("keeps a fully prepared profile separate from the approved CompetitionEntry", () => {
     const result = model();
 

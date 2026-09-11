@@ -39,6 +39,7 @@ export interface DraftTeamSlot {
 /** Fields allowed on the anonymous spectator draft page. */
 export interface PublicDraftPlayer {
   userId: string;
+  avatarUrl?: string | null;
   steamName: string;
   perfectName: string | null;
   displayName: string | null;
@@ -113,6 +114,7 @@ export interface DraftAdminData {
 
 interface DraftPlayerSource {
   registrationId: string;
+  avatarUrl?: string | null;
   userId: string;
   steamName: string | null;
   perfectName: string | null;
@@ -141,6 +143,7 @@ export function serializePublicDraftPlayer(row: DraftPlayerSource): PublicDraftP
   return {
     userId: row.userId,
     steamName: row.steamName ?? "未知选手",
+    avatarUrl: row.avatarUrl ?? null,
     perfectName: row.perfectName ?? null,
     displayName: row.displayName ?? null,
     primaryPosition: row.primaryPosition,
@@ -213,6 +216,7 @@ async function loadDraftBase(seasonId: string): Promise<DraftBaseData> {
             entryId: eventRosters.entryId,
             registrationId: seasonRegistrations.id,
             steamName: users.steamName,
+      avatarUrl: users.avatarUrl,
             perfectName: users.perfectName,
             displayName: users.displayName,
             primaryPosition: seasonRegistrations.primaryPosition,
@@ -235,6 +239,7 @@ async function loadDraftBase(seasonId: string): Promise<DraftBaseData> {
       pickNumber: draftPicks.pickNumber,
       autoPicked: draftPicks.autoPicked,
       steamName: users.steamName,
+      avatarUrl: users.avatarUrl,
       displayName: users.displayName,
       perfectName: users.perfectName,
       primaryPosition: seasonRegistrations.primaryPosition,
@@ -348,6 +353,7 @@ async function loadPublicRemainingPlayers(
       registrationId: seasonRegistrations.id,
       userId: seasonRegistrations.userId,
       steamName: users.steamName,
+      avatarUrl: users.avatarUrl,
       perfectName: users.perfectName,
       displayName: users.displayName,
       primaryPosition: seasonRegistrations.primaryPosition,
@@ -386,6 +392,7 @@ async function loadCaptainRemainingPlayers(
       registrationId: seasonRegistrations.id,
       userId: seasonRegistrations.userId,
       steamName: users.steamName,
+      avatarUrl: users.avatarUrl,
       perfectName: users.perfectName,
       displayName: users.displayName,
       primaryPosition: seasonRegistrations.primaryPosition,

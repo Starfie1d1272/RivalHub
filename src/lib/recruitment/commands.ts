@@ -151,7 +151,7 @@ export async function dismissRecruitmentInterestInTx(tx: TxDb, input: { recruitm
   await auditRecruitment(tx, "recruitment.interest.dismiss", input.actorId, interest.id, "recruitment_interest", { recruitmentIntentId: input.recruitmentIntentId, teamId, userId: input.interestUserId });
 }
 
-export async function removeInterestAfterInvitationInTx(tx: TxDb, input: { recruitmentIntentId: string; teamId: string; userId: string }): Promise<void> {
-  await lockTeamRecruitmentIntent(tx, input.recruitmentIntentId, input.teamId);
-  await tx.delete(recruitmentInterests).where(and(eq(recruitmentInterests.recruitmentIntentId, input.recruitmentIntentId), eq(recruitmentInterests.userId, input.userId)));
+export async function clearTeamInterestAfterDirectInvitationInTx(tx: TxDb, teamId: string, userId: string): Promise<void> {
+  const intents = await tx.select({ id: recruitmentIntents.id }).from(recruitmentIntents).where(and(eq(recruitmentIntents.teamId, teamId), eq(recruitmentIntents.kind, "team_recruiting"))).for("update");
+  for (const intent of intents) await tx.delete(recruitmentInterests).where(and(eq(recruitmentInterests.recruitmentIntentId, intent.id), eq(recruitmentInterests.userId, userId)));
 }

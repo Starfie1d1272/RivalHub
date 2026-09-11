@@ -1,5 +1,7 @@
 "use client";
 
+import { presentSeasonStatus } from "@/lib/seasons/presentation";
+
 import React, { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -187,7 +189,7 @@ export function ConversionPolicyManager({ initialPolicies }: { initialPolicies: 
     try {
       validateConversionPolicyMapping(editor.mapping);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "mapping 无效。 ");
+      toast.error(error instanceof Error ? error.message : "换算规则内容无效。 ");
       return;
     }
     runAction(
@@ -227,7 +229,7 @@ export function ConversionPolicyManager({ initialPolicies }: { initialPolicies: 
     <Panel label="策略版本目录" contentClassName="p-0">
       <div className="space-y-4 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-[var(--color-fg-mid)]">完整 mapping 只在详情中查看；批准后版本与 mapping 均不可修改。</p>
+          <p className="text-sm text-[var(--color-fg-mid)]">详情中可查看完整换算关系；批准后的规则内容与版本号不能修改。</p>
           <Button
             type="button"
             size="sm"
@@ -239,7 +241,7 @@ export function ConversionPolicyManager({ initialPolicies }: { initialPolicies: 
         </div>
 
         {initialPolicies.length === 0 ? (
-          <p className="rounded-sm border border-[var(--color-border)] px-4 py-6 text-sm text-[var(--color-fg-mid)]">尚未有可复制的 ConversionPolicy。请先通过 migration 准备首个 approved policy。</p>
+          <p className="rounded-sm border border-[var(--color-border)] px-4 py-6 text-sm text-[var(--color-fg-mid)]">尚无可复制的换算规则，请联系系统维护者完成初始规则配置。</p>
         ) : (
           <div className="overflow-x-auto rounded-sm border border-[var(--color-border)]">
             <table className="w-full min-w-[760px] text-left text-sm">
@@ -280,8 +282,8 @@ export function ConversionPolicyManager({ initialPolicies }: { initialPolicies: 
       <Dialog open={Boolean(newDraft)} onOpenChange={(open) => { if (!open && !pending) setNewDraft(null); }}>
         <DialogContent size="lg">
           <DialogHeader>
-            <DialogTitle>新建 ConversionPolicy 版本</DialogTitle>
-            <DialogDescription>必须从已有 policy 复制 mapping；新版本初始为草稿，批准前仍可修改。</DialogDescription>
+            <DialogTitle>新建换算规则版本</DialogTitle>
+            <DialogDescription>从已有规则复制换算关系，新版本初始为草稿，批准前可修改。</DialogDescription>
           </DialogHeader>
           <DialogBody className="space-y-5">
             {newDraft && (
@@ -301,8 +303,8 @@ export function ConversionPolicyManager({ initialPolicies }: { initialPolicies: 
       <Dialog open={Boolean(selected && editor)} onOpenChange={(open) => { if (!open) closePolicy(); }}>
         <DialogContent size="xl">
           <DialogHeader>
-            <DialogTitle>{selected ? `ConversionPolicy ${selected.version}` : "ConversionPolicy"}</DialogTitle>
-            <DialogDescription>{selected ? `${platformLabel(selected.sourcePlatform)} → ${platformLabel(selected.targetPlatform)} · stable ID ${selected.id}` : ""}</DialogDescription>
+            <DialogTitle>{selected ? `换算规则 ${selected.version}` : "换算规则"}</DialogTitle>
+            <DialogDescription>{selected ? `${platformLabel(selected.sourcePlatform)} → ${platformLabel(selected.targetPlatform)}` : ""}</DialogDescription>
           </DialogHeader>
           <DialogBody className="space-y-6">
             {selected && editor && (
@@ -315,14 +317,14 @@ export function ConversionPolicyManager({ initialPolicies }: { initialPolicies: 
                   <Fact label="批准人" value={selected.approvedByLabel ?? "未批准"} />
                 </dl>
 
-                <section className="space-y-3"><h3 className="text-sm font-semibold">来源与说明</h3><NotesEditor value={editor} onChange={(value) => setEditor(value)} includeInternal={selected.status === "draft" || Boolean(editor.internalNote)} readOnly={selected.status !== "draft"} /></section>
+                <details className="text-sm"><summary className="cursor-pointer focus-visible:ring-2">技术详情</summary><p className="mt-2 break-all">技术标识：{selected.id}</p></details><section className="space-y-3"><h3 className="text-sm font-semibold">来源与说明</h3><NotesEditor value={editor} onChange={(value) => setEditor(value)} includeInternal={selected.status === "draft" || Boolean(editor.internalNote)} readOnly={selected.status !== "draft"} /></section>
                 <section className="space-y-4"><h3 className="text-sm font-semibold">5E 非 S 段位映射</h3><div className="overflow-x-auto rounded-sm border border-[var(--color-border)]"><table className="w-full min-w-[520px] text-left text-sm"><thead className="border-b border-[var(--color-border)] bg-[var(--color-panel-low)] text-xs text-[var(--color-fg-mid)]"><tr><th className="px-3 py-2 font-medium">5E 段位</th><th className="px-3 py-2 font-medium">Perfect World 目标段位</th></tr></thead><tbody className="divide-y divide-[var(--color-border)]">{fiveeBelowSRanks.map((rank) => { const selectId = `conversion-policy-below-s-${rank.rankKey.replace(/[^a-zA-Z0-9_-]/g, "-")}`; return <tr key={rank.rankKey}><td className="px-3 py-2 font-medium">{rankLabel(rank)}</td><td className="px-3 py-2"><Label className="sr-only" htmlFor={selectId}>「{rankLabel(rank)}」对应的 Perfect World 目标段位</Label><Select disabled={selected.status !== "draft"} value={editor.mapping.belowSRankMap[rank.rankKey] ?? ""} onValueChange={(value) => updateBelowSRank(rank.rankKey, value)}><SelectTrigger id={selectId}><SelectValue /></SelectTrigger><SelectContent>{perfectWorldBelowSRanks.map((target) => <SelectItem key={target.rankKey} value={target.rankKey}>{rankLabel(target)}</SelectItem>)}</SelectContent></Select></td></tr>; })}</tbody></table></div></section>
-                <section className="space-y-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-sm font-semibold">S 段星数分段</h3><p className="mt-1 text-xs text-[var(--color-fg-mid)]">min / max 为 5E 总星数；最后一段的 max 留空表示开放上限。</p></div>{selected.status === "draft" && <Button type="button" size="sm" variant="outline" onClick={addSegment}>+ 增加分段</Button>}</div><div className="space-y-3">{editor.mapping.starSegments.map((segment, index) => <StarSegmentEditor key={`${index}-${segment.minStar}`} segment={segment} index={index} editable={selected.status === "draft"} onChange={updateSegment} onRemove={removeSegment} canRemove={editor.mapping.starSegments.length > 1} />)}</div></section>
+                <section className="space-y-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-sm font-semibold">S 段星数分段</h3><p className="mt-1 text-xs text-[var(--color-fg-mid)]">最低 / 最高星数为 5E 总星数；最后一段最高星数留空表示开放上限。</p></div>{selected.status === "draft" && <Button type="button" size="sm" variant="outline" onClick={addSegment}>+ 增加分段</Button>}</div><div className="space-y-3">{editor.mapping.starSegments.map((segment, index) => <StarSegmentEditor key={`${index}-${segment.minStar}`} segment={segment} index={index} editable={selected.status === "draft"} onChange={updateSegment} onRemove={removeSegment} canRemove={editor.mapping.starSegments.length > 1} />)}</div></section>
 
-                {selected.eventReferences.length > 0 && <section className="space-y-3"><h3 className="text-sm font-semibold">赛事引用</h3><ul className="space-y-2">{selected.eventReferences.map((reference) => <li key={reference.seasonId} className="rounded-sm border border-[var(--color-border)] px-3 py-2 text-sm"><div className="flex flex-wrap items-center justify-between gap-2"><span className="font-medium">{reference.seasonName} <span className="font-mono text-xs text-[var(--color-fg-dim)]">{reference.seasonSlug}</span></span><StatusPill label={reference.referenceState === "registration_frozen" ? "已开放并冻结" : "已发布锁定版本"} tone="info" /></div><p className="mt-1 text-xs text-[var(--color-fg-mid)]">版本 {reference.policyVersion ?? "未记录"} · 赛事状态 {reference.seasonStatus} · {reference.registrationOpenedAt ? `开放于 ${formatDate(reference.registrationOpenedAt)}` : "报名尚未开放"}</p></li>)}</ul></section>}
+                {selected.eventReferences.length > 0 && <section className="space-y-3"><h3 className="text-sm font-semibold">赛事引用</h3><ul className="space-y-2">{selected.eventReferences.map((reference) => <li key={reference.seasonId} className="rounded-sm border border-[var(--color-border)] px-3 py-2 text-sm"><div className="flex flex-wrap items-center justify-between gap-2"><span className="font-medium">{reference.seasonName} <span className="font-mono text-xs text-[var(--color-fg-dim)]">{reference.seasonSlug}</span></span><StatusPill label={reference.referenceState === "registration_frozen" ? "已开放并冻结" : "已发布锁定版本"} tone="info" /></div><p className="mt-1 text-xs text-[var(--color-fg-mid)]">版本 {reference.policyVersion ?? "未记录"} · 赛事状态 {presentSeasonStatus(reference.seasonStatus).label} · {reference.registrationOpenedAt ? `开放于 ${formatDate(reference.registrationOpenedAt)}` : "报名尚未开放"}</p></li>)}</ul></section>}
               </>
             )}
-            {confirmation && selected && <InlineConfirm danger={confirmation === "retire"} title={confirmation === "approve" ? "批准这份 policy 版本？" : confirmation === "set-current" ? "将这份 policy 设为当前版本？" : "退役这份历史 policy？"} sub={confirmation === "set-current" ? "已发布或已开放赛事的锁定版本不会被修改。" : confirmation === "retire" ? "退役后不能恢复或编辑，但历史赛事引用仍可读取。" : "批准后 mapping 与版本身份将不可修改。"} confirmLabel="确认操作" onCancel={() => setConfirmation(null)} onConfirm={confirmLifecycleAction} />}
+            {confirmation && selected && <InlineConfirm danger={confirmation === "retire"} title={confirmation === "approve" ? "批准这份换算规则？" : confirmation === "set-current" ? "将这份换算规则设为当前版本？" : "停用这份历史换算规则？"} sub={confirmation === "set-current" ? "已发布或已开放赛事的锁定版本不会被修改。" : confirmation === "retire" ? "退役后不能恢复或编辑，但历史赛事引用仍可读取。" : "批准后换算内容与版本号将不可修改。"} confirmLabel="确认操作" onCancel={() => setConfirmation(null)} onConfirm={confirmLifecycleAction} />}
           </DialogBody>
           <DialogFooter>
             {selected?.status === "draft" && <Button type="button" variant="outline" disabled={pending} onClick={saveDraft}>保存草稿</Button>}
@@ -343,7 +345,7 @@ function Fact({ label, value }: { label: string; value: string }) {
 
 function NotesEditor<T extends { sourceNote: string; rationale: string; changeSummary: string; internalNote: string }>({ value, onChange, includeInternal, readOnly = false }: { value: T; onChange: (value: T) => void; includeInternal: boolean; readOnly?: boolean }) {
   const update = (key: keyof T, nextValue: string) => onChange({ ...value, [key]: nextValue });
-  return <div className="grid gap-4 sm:grid-cols-2"><NoteField id="conversion-source-note" label="来源说明" value={value.sourceNote} onChange={(nextValue) => update("sourceNote", nextValue)} readOnly={readOnly} /><NoteField id="conversion-rationale" label="采用理由" value={value.rationale} onChange={(nextValue) => update("rationale", nextValue)} readOnly={readOnly} /><NoteField id="conversion-change-summary" label="相对上一版的变化" value={value.changeSummary} onChange={(nextValue) => update("changeSummary", nextValue)} readOnly={readOnly} /><div className="sm:col-span-2">{includeInternal && <NoteField id="conversion-internal-note" label="内部备注（仅 super admin）" value={value.internalNote} onChange={(nextValue) => update("internalNote", nextValue)} readOnly={readOnly} />}</div></div>;
+  return <div className="grid gap-4 sm:grid-cols-2"><NoteField id="conversion-source-note" label="来源说明" value={value.sourceNote} onChange={(nextValue) => update("sourceNote", nextValue)} readOnly={readOnly} /><NoteField id="conversion-rationale" label="采用理由" value={value.rationale} onChange={(nextValue) => update("rationale", nextValue)} readOnly={readOnly} /><NoteField id="conversion-change-summary" label="相对上一版的变化" value={value.changeSummary} onChange={(nextValue) => update("changeSummary", nextValue)} readOnly={readOnly} /><div className="sm:col-span-2">{includeInternal && <NoteField id="conversion-internal-note" label="内部备注（仅系统管理员）" value={value.internalNote} onChange={(nextValue) => update("internalNote", nextValue)} readOnly={readOnly} />}</div></div>;
 }
 
 function NoteField({ id, label, value, onChange, readOnly }: { id: string; label: string; value: string; onChange: (value: string) => void; readOnly: boolean }) {
@@ -353,7 +355,7 @@ function NoteField({ id, label, value, onChange, readOnly }: { id: string; label
 function StarSegmentEditor({ segment, index, editable, onChange, onRemove, canRemove }: { segment: StarSegment; index: number; editable: boolean; onChange: (index: number, key: keyof StarSegment, value: string) => void; onRemove: (index: number) => void; canRemove: boolean }) {
   const fieldId = (name: string) => `conversion-policy-segment-${index}-${name}`;
   const targetRankId = fieldId("target-rank");
-  return <div className="rounded-sm border border-[var(--color-border)] p-3"><div className="mb-3 flex items-center justify-between gap-2"><span className="text-xs font-semibold text-[var(--color-fg-mid)]">分段 {index + 1}</span>{editable && <Button type="button" size="sm" variant="ghost" disabled={!canRemove} onClick={() => onRemove(index)}>删除</Button>}</div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><NumberField id={fieldId("min-star")} label="minStar" value={segment.minStar} disabled={!editable} onChange={(value) => onChange(index, "minStar", value)} /><NumberField id={fieldId("max-star")} label="maxStar（最后一段可空）" value={segment.maxStar ?? ""} disabled={!editable} onChange={(value) => onChange(index, "maxStar", value)} /><div className="space-y-2"><Label htmlFor={targetRankId}>目标段位</Label><Select disabled={!editable} value={segment.targetRank} onValueChange={(value) => onChange(index, "targetRank", value)}><SelectTrigger id={targetRankId}><SelectValue /></SelectTrigger><SelectContent>{perfectWorldRanks.map((rank) => <SelectItem key={rank.rankKey} value={rank.rankKey}>{rankLabel(rank)}</SelectItem>)}</SelectContent></Select></div><NumberField id={fieldId("target-star-floor")} label="targetStarFloor（无星目标可空）" value={segment.targetStarFloor ?? ""} disabled={!editable} onChange={(value) => onChange(index, "targetStarFloor", value)} /><NumberField id={fieldId("slope-num")} label="slopeNum" value={segment.slopeNum} disabled={!editable} onChange={(value) => onChange(index, "slopeNum", value)} /><NumberField id={fieldId("slope-den")} label="slopeDen" value={segment.slopeDen} disabled={!editable} onChange={(value) => onChange(index, "slopeDen", value)} /></div></div>;
+  return <div className="rounded-sm border border-[var(--color-border)] p-3"><div className="mb-3 flex items-center justify-between gap-2"><span className="text-xs font-semibold text-[var(--color-fg-mid)]">分段 {index + 1}</span>{editable && <Button type="button" size="sm" variant="ghost" disabled={!canRemove} onClick={() => onRemove(index)}>删除</Button>}</div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><NumberField id={fieldId("min-star")} label="最低星数" value={segment.minStar} disabled={!editable} onChange={(value) => onChange(index, "minStar", value)} /><NumberField id={fieldId("max-star")} label="最高星数（最后一段可空）" value={segment.maxStar ?? ""} disabled={!editable} onChange={(value) => onChange(index, "maxStar", value)} /><div className="space-y-2"><Label htmlFor={targetRankId}>目标段位</Label><Select disabled={!editable} value={segment.targetRank} onValueChange={(value) => onChange(index, "targetRank", value)}><SelectTrigger id={targetRankId}><SelectValue /></SelectTrigger><SelectContent>{perfectWorldRanks.map((rank) => <SelectItem key={rank.rankKey} value={rank.rankKey}>{rankLabel(rank)}</SelectItem>)}</SelectContent></Select></div><NumberField id={fieldId("target-star-floor")} label="目标起始星数（无星段位可空）" value={segment.targetStarFloor ?? ""} disabled={!editable} onChange={(value) => onChange(index, "targetStarFloor", value)} /><NumberField id={fieldId("slope-num")} label="换算倍率分子" value={segment.slopeNum} disabled={!editable} onChange={(value) => onChange(index, "slopeNum", value)} /><NumberField id={fieldId("slope-den")} label="换算倍率分母" value={segment.slopeDen} disabled={!editable} onChange={(value) => onChange(index, "slopeDen", value)} /></div></div>;
 }
 
 function NumberField({ id, label, value, disabled, onChange }: { id: string; label: string; value: number | string; disabled: boolean; onChange: (value: string) => void }) {

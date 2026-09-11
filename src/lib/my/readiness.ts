@@ -1,8 +1,10 @@
+import { countActionableRecruitmentInterests } from "@/lib/recruitment/data";
 import { and, desc, eq, isNull, or } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   competitionEntries,
   competitionEntryParticipants,
+  competitionEntryRosterRevisions,
   competitiveRankFacts,
   disciplinaryCases,
   seasons,
@@ -54,6 +56,7 @@ export interface MyCompetitionSource {
   seasonName: string;
   seasonSlug: string;
   registrationStatus: CompetitionEntryRegistrationStatus;
+  revisionOrigin?: import("@/lib/competition-entries/remediation").CompetitionEntryRosterRevisionOrigin | null;
   participantStatus: CompetitionEntryParticipantStatus | null;
   representativeUserId: string;
   teamRegistrationConfig: Parameters<typeof normalizeTeamRegistrationConfig>[0];
@@ -85,6 +88,7 @@ export interface MyReadinessModel {
   education: MyReadinessItem;
   competitiveProfiles: MyCompetitiveProfileSource[];
   team: MyReadinessItem;
+  recruitment?: MyReadinessItem;
   competitions: Array<{
     id: string;
     name: string;
@@ -181,12 +185,12 @@ function entryState(source: MyCompetitionSource, userId: string): MyReadinessIte
   const href = `/${source.seasonSlug}/register`;
   const representative = source.representativeUserId === userId;
   const presentation = representative
-    ? presentCompetitionEntryRegistration(source.registrationStatus)
+    ? presentCompetitionEntryRegistration(source.registrationStatus, source.revisionOrigin)
     : presentCompetitionEntryParticipation(source.participantStatus, source.registrationStatus);
   if (!representative) {
     const awaitingConfirmation = source.participantStatus === "invited";
     if (source.participantStatus === "confirmed") {
-      const registration = presentCompetitionEntryRegistration(source.registrationStatus);
+      const registration = presentCompetitionEntryRegistration(source.registrationStatus, source.revisionOrigin);
       const owner = source.registrationStatus === "changes_requested"
         ? "赛事负责人和赛事管理员"
         : source.registrationStatus === "withdrawn"
@@ -211,7 +215,7 @@ function entryState(source: MyCompetitionSource, userId: string): MyReadinessIte
     );
   }
   const cta = source.registrationStatus === "changes_requested"
-    ? { href, label: "处理补正" }
+    ? { href, label: source.revisionOrigin === "self_roster_change" ? "继续调整名单" : "处理补正" }
     : source.registrationStatus === "draft"
       ? { href, label: "继续报名" }
       : source.registrationStatus === "rejected"
@@ -251,6 +255,7 @@ export function buildMyReadinessModel(input: {
   baseFact: ParticipantQualificationFacts | null;
   currentTeam: { id: string; name: string; role: string } | null;
   pendingDirectInvitationCount: number;
+  actionableInterestCount?: number;
   competitiveProfiles: MyCompetitiveProfileSource[];
   competitions: MyCompetitionSource[];
   qualificationFactsByPlatform: Map<string, ParticipantQualificationFacts | null>;
@@ -269,6 +274,7 @@ export function buildMyReadinessModel(input: {
     education: latestEducationState(input.baseFact),
     competitiveProfiles: input.competitiveProfiles,
     team: teamState(input.currentTeam, input.pendingDirectInvitationCount),
+    ...(input.actionableInterestCount ? { recruitment: item("recruitment", "队伍加入意向", "waiting", `${input.actionableInterestCount} 名选手向你的队伍表达加入意向`, undefined, { href: "/my/teams#recruitment-interests", label: "查看并处理" }) } : {}),
     competitions: input.competitions.map((competition) => {
       const config = normalizeTeamRegistrationConfig(competition.teamRegistrationConfig);
       const fact = config.competitiveProfile
@@ -374,7 +380,7 @@ export async function loadSettingsProfileReadiness(userId: string): Promise<Sett
 }
 
 export async function loadMyReadiness(userId: string): Promise<MyReadinessModel> {
-  const [baseFacts, catalog, currentTeamRows, pendingDirectInvitationCount, competitionRows, sanctionRows, platformFactRows] = await Promise.all([
+  const [baseFacts, catalog, currentTeamRows, pendingDirectInvitationCount, actionableInterestCount, competitionRows, sanctionRows, platformFactRows] = await Promise.all([
     loadParticipantQualificationFacts([userId]),
     loadCompetitivePlatformCatalog(db),
     db.select({ id: teams.id, name: teams.name, captainUserId: teams.captainUserId })
@@ -383,6 +389,7 @@ export async function loadMyReadiness(userId: string): Promise<MyReadinessModel>
       .where(and(eq(teamMemberships.userId, userId), isNull(teamMemberships.endedAt), eq(teams.status, "active")))
       .limit(1),
     countPendingDirectTeamInvitations(userId),
+    countActionableRecruitmentInterests(userId),
     db.select({
       id: competitionEntries.id,
       name: competitionEntries.name,
@@ -390,12 +397,14 @@ export async function loadMyReadiness(userId: string): Promise<MyReadinessModel>
       seasonName: seasons.name,
       seasonSlug: seasons.slug,
       registrationStatus: competitionEntries.registrationStatus,
+      revisionOrigin: competitionEntryRosterRevisions.origin,
       participantStatus: competitionEntryParticipants.status,
       representativeUserId: competitionEntries.representativeUserId,
       teamRegistrationConfig: seasons.teamRegistrationConfig,
     })
       .from(competitionEntries)
       .innerJoin(seasons, eq(seasons.id, competitionEntries.competitionId))
+      .leftJoin(competitionEntryRosterRevisions, eq(competitionEntryRosterRevisions.id, competitionEntries.currentRosterRevisionId))
       .leftJoin(competitionEntryParticipants, and(eq(competitionEntryParticipants.entryId, competitionEntries.id), eq(competitionEntryParticipants.userId, userId)))
       .where(or(eq(competitionEntries.representativeUserId, userId), eq(competitionEntryParticipants.userId, userId)))
       .orderBy(desc(competitionEntries.createdAt)),
@@ -443,6 +452,7 @@ export async function loadMyReadiness(userId: string): Promise<MyReadinessModel>
     baseFact,
     currentTeam: currentTeamRows[0] ? { ...currentTeamRows[0], role: currentTeamRows[0].captainUserId === userId ? "captain" : "member" } : null,
     pendingDirectInvitationCount,
+    actionableInterestCount,
     competitiveProfiles,
     competitions: competitionRows,
     qualificationFactsByPlatform: factsByPlatform,
@@ -453,6 +463,6 @@ export async function loadMyReadiness(userId: string): Promise<MyReadinessModel>
 
 export const SANCTION_EFFECT_LABELS: Record<SanctionEffect, string> = {
   registration_block: "阻止报名",
-  roster_block: "阻止进入赛事 roster",
+  roster_block: "阻止进入赛事名单",
   match_participation_block: "阻止单场出场",
 };

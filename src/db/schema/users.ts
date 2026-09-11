@@ -30,7 +30,7 @@ export const users = pgTable("users", {
   steam64: text("steam64"),               // Steam 64 位 ID
   steamProfileUrl: text("steam_profile_url"), // Steam 个人资料链接
   liveStreamUrl: text("live_stream_url"), // 解说时向观众展示的长期个人直播间
-  avatarUrl: text("avatar_url"),               // Steam 头像 URL（报名时写入缓存；存量 NULL 数据在 player page 有 runtime fallback）
+  avatarUrl: text("avatar_url"),               // Steam 头像 URL（由资料保存与后台定时刷新维护，公开页面只读取缓存）
   gameplayStyle: text("gameplay_style"), // 当前打法 / 风格的长期自述
   competitionHistory: text("competition_history"), // 当前比赛经历的长期自述
 

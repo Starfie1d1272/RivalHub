@@ -22,7 +22,7 @@ const {
   getRegistrationWindowStateMock,
   getUserSessionMock,
   buildRegistrationSchemaMock,
-  getSteamAvatarMock,
+  resolveSteamAvatarForProfileMock,
   revalidatePathMock,
   assertUsersNotBlockedInTxMock,
 } = vi.hoisted(() => {
@@ -41,7 +41,7 @@ const {
     getRegistrationWindowStateMock: vi.fn(),
     getUserSessionMock: vi.fn(),
     buildRegistrationSchemaMock: vi.fn(),
-    getSteamAvatarMock: vi.fn(),
+    resolveSteamAvatarForProfileMock: vi.fn(),
     revalidatePathMock: vi.fn(),
     assertUsersNotBlockedInTxMock: vi.fn(),
   };
@@ -89,7 +89,7 @@ vi.mock("@/lib/utils/object", () => ({
 }));
 
 vi.mock("@/lib/steam", () => ({
-  getSteamAvatar: getSteamAvatarMock,
+  resolveSteamAvatarForProfile: resolveSteamAvatarForProfileMock,
 }));
 
 vi.mock("@/lib/discipline/service", () => ({
@@ -222,7 +222,7 @@ describe("submitRegistration()", () => {
       delete: deleteMock,
     }));
     resetAuditTracking(insertValuesCalls);
-    getSteamAvatarMock.mockResolvedValue(null);
+    resolveSteamAvatarForProfileMock.mockResolvedValue(null);
     assertUsersNotBlockedInTxMock.mockResolvedValue(undefined);
   });
 

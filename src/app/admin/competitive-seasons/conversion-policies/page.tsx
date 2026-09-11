@@ -12,9 +12,9 @@ export default async function ConversionPoliciesAdminPage() {
   return (
     <PageLayout variant="wide" className="space-y-8">
       <PageHeader
-        eyebrow="竞技平台 / CONVERSION POLICY"
+        eyebrow="竞技平台 / 段位换算"
         title="跨平台换算策略"
-        description="运营 5E → Perfect World 的版本化等效换算规则。赛事在发布与开放报名时锁定策略事实；这里的 current 切换不会重解释已经冻结的赛事。"
+        description="运营 5E → Perfect World 的版本化等效换算规则。赛事在发布与开放报名时锁定规则事实；切换当前版本不会重解释已经冻结的赛事。"
       />
       <Section>
         <ConversionPolicyManager initialPolicies={policies} />

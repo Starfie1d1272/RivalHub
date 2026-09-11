@@ -1,4 +1,5 @@
 import React from "react";
+import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import Link from "next/link";
 
 import { Panel } from "@/components/rivalhub";
@@ -18,6 +19,7 @@ export function MajorPlayerDirectoryRow({
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1.15fr)_auto] lg:items-center">
         <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <PlayerAvatar name={player.name} avatarUrl={player.avatarUrl} size="sm" />
             <Link
               href={`/players/${player.userId}`}
               className="truncate text-sm font-semibold text-[var(--color-fg)] hover:text-[var(--color-accent)] transition-colors sm:text-base"

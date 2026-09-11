@@ -86,7 +86,7 @@ export function selectSelfServiceMergePair(
 ): { canonicalUserId: string; mergedUserId: string } {
   const ids = new Set([authorization.initiatingUserId, authorization.counterpartyUserId]);
   if (!ids.has(canonicalUserId)) {
-    throw new AppError(ErrorCode.VALIDATION_FAILED, "canonical user 必须是已证明控制的两个账号之一。");
+    throw new AppError(ErrorCode.VALIDATION_FAILED, "请选择已验证归属的两个账号之一作为保留账号。");
   }
   const mergedUserId = canonicalUserId === authorization.initiatingUserId
     ? authorization.counterpartyUserId

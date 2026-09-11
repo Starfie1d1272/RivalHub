@@ -44,7 +44,7 @@ describe("PlayerDirectoryRow", () => {
 
     expect(screen.getByText("暂无已验证数据")).toBeInTheDocument();
     expect(screen.getByText("峰值段位")).toBeInTheDocument();
-    expect(screen.getByText("S")).toBeInTheDocument();
+    expect(screen.getAllByText("S")).toHaveLength(2);
     expect(screen.getByText("峰值 Rating")).toBeInTheDocument();
     expect(screen.getByText("1.42")).toBeInTheDocument();
     expect(screen.getByText("当前段位")).toBeInTheDocument();

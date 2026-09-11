@@ -20,6 +20,7 @@ jobs:
           - job_key: check-registration-deadline
           - job_key: match-time-auto-award
           - job_key: cleanup-education-evidence
+          - job_key: refresh-steam-avatars
     steps:
       - name: Invoke ${{ matrix.job_key }}
         env:

@@ -13,6 +13,7 @@ export const SCHEDULER_JOB_KEYS = [
   "check-registration-deadline",
   "match-time-auto-award",
   "cleanup-education-evidence",
+  "refresh-steam-avatars",
 ] as const;
 
 export const SCHEDULER_JOB_DEFINITIONS = [
@@ -40,6 +41,12 @@ export const SCHEDULER_JOB_DEFINITIONS = [
     // 06:00 Asia/Shanghai, persisted as UTC because pg_cron uses UTC.
     primaryCron: "0 22 * * *",
     staleAfterMs: 36 * 60 * 60 * 1000,
+  },
+  {
+    key: SCHEDULER_JOB_KEYS[4],
+    label: "Steam 头像刷新",
+    primaryCron: "0 */6 * * *",
+    staleAfterMs: 18 * 60 * 60 * 1000,
   },
 ] as const;
 

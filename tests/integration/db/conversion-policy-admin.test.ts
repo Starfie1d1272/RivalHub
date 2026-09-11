@@ -82,7 +82,7 @@ describe("conversion policy admin lifecycle", () => {
       await expect(executor.transaction((tx) => updateConversionPolicyDraftInTx(tx, {
         id: draft.id,
         mapping: { ...base.mapping, starSegments: [{ ...base.mapping.starSegments[0]!, maxStar: 4 }, ...base.mapping.starSegments.slice(1)] },
-      }, actorId))).rejects.toThrow("gap 或 overlap");
+      }, actorId))).rejects.toThrow("空缺或重叠");
 
       await executor.transaction((tx) => updateConversionPolicyDraftInTx(tx, {
         id: draft.id,

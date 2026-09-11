@@ -24,6 +24,7 @@ export function actionError(scope: string, e: unknown): ActionResult<never> {
         errorClass: "application",
         errorCode: e.code,
       });
+      return fail({ code: e.code, message: ERROR_MESSAGES.INTERNAL_ERROR });
     }
     return fail({ code: e.code, message: e.message });
   }

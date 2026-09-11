@@ -77,6 +77,7 @@ export interface MajorPublicParticipantSummary extends MajorPublicParticipantOve
 
 export interface MajorPublicParticipantPlayer {
   userId: string;
+  avatarUrl?: string | null;
   entryId: string;
   entryName: string;
   name: string;
@@ -100,6 +101,7 @@ type PublicEntryRow = {
 
 type RosterMemberRow = {
   entryId: string;
+  avatarUrl?: string | null;
   userId: string;
   displayName: string | null;
   perfectName: string | null;
@@ -221,6 +223,7 @@ function publicRosterMember(row: RosterMemberRow, representativeUserId: string) 
   return {
     userId: row.userId,
     name: getPublicDisplayName(row),
+    avatarUrl: row.avatarUrl ?? null,
     isStarter: row.isStarter,
     isRepresentative: row.userId === representativeUserId,
   };
@@ -279,6 +282,7 @@ async function loadMajorPublicParticipantState(
           displayName: users.displayName,
           perfectName: users.perfectName,
           steamName: users.steamName,
+          avatarUrl: users.avatarUrl,
           isStarter: competitionEntryRosterMembers.isPrimaryStarter,
         })
         .from(competitionEntryRosterMembers)
@@ -309,6 +313,7 @@ async function loadMajorPublicParticipantState(
           displayName: users.displayName,
           perfectName: users.perfectName,
           steamName: users.steamName,
+          avatarUrl: users.avatarUrl,
           isStarter: eventRosterMembers.isPrimaryStarter,
         })
         .from(eventRosterMembers)

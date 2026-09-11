@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import * as schema from "../../../src/db/schema";
 import { loadCompetitivePlatformCatalog } from "../../../src/lib/competitive/catalog";
 import { acceptTeamInvitationInTx } from "../../../src/lib/teams/invitations";
+import { inviteTeamMemberInTx } from "../../../src/lib/teams/commands";
 import { closeTeamRecruitmentInTx, expressRecruitmentInterestInTx, upsertPlayerLftInTx, upsertTeamRecruitmentInTx } from "../../../src/lib/recruitment/commands";
 import { getPublicTeamRecruitment, getRecruitmentLobbyData, getTeamRecruitmentWorkspace } from "../../../src/lib/recruitment/data";
 import { ErrorCode } from "../../../src/lib/errors";
@@ -68,6 +69,16 @@ describe("recruitment PostgreSQL invariants", () => {
         .rejects.toMatchObject({ code: ErrorCode.REGISTRATION_DUPLICATE, message: "你已表达过加入意向。" });
       const membershipCount = await pool.query<{ count: string }>("SELECT count(*)::text AS count FROM team_memberships WHERE team_id = $1 AND user_id = $2 AND ended_at IS NULL", [ids.team, ids.interested]);
       expect(membershipCount.rows[0]?.count === "0", "interest 不是成员关系。").toBe(true);
+      expect((await getTeamRecruitmentWorkspace(ids.team, true)).interests.map((interest) => interest.userId)).toContain(ids.interested);
+
+      // Direct invitations from every surface use the Team command. That
+      // command clears every pending interest for the same Team/user pair,
+      // while keeping the invitation as the sole membership handoff.
+      await database.transaction((tx) => inviteTeamMemberInTx(tx, { teamId: ids.team, userId: ids.captain, invitedUserId: ids.interested, actorId: ids.captain }));
+      const afterInvite = await getTeamRecruitmentWorkspace(ids.team, true);
+      expect(afterInvite.interests.map((interest) => interest.userId)).not.toContain(ids.interested);
+      const pendingInvite = await pool.query<{ count: string }>("SELECT count(*)::text AS count FROM team_invitations WHERE team_id = $1 AND invited_user_id = $2 AND kind = 'direct' AND status = 'pending'", [ids.team, ids.interested]);
+      expect(pendingInvite.rows[0]?.count).toBe("1");
 
       await database.transaction((tx) => closeTeamRecruitmentInTx(tx, { teamId: ids.team, userId: ids.captain, actorId: ids.captain }));
       const afterClose = await pool.query<{ status: string; interests: string }>(

@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import Link from "next/link";
 import React from "react";
 import { useRouter } from "next/navigation";
@@ -24,43 +24,6 @@ export function getAccountNavigationLinks(userId: string, needsProfile: boolean)
     { href: `/players/${userId}`, label: "个人主页" },
     { href: "/settings", label: "账号设置", needsProfile },
   ];
-}
-
-function AvatarButton({
-  label,
-  avatarUrl,
-  imgError,
-  onImgError,
-}: {
-  label: string;
-  avatarUrl?: string | null;
-  imgError: boolean;
-  onImgError: () => void;
-}) {
-  const initial = label.charAt(0).toUpperCase();
-
-  if (avatarUrl && !imgError) {
-    return (
-      <Image
-        src={avatarUrl}
-        alt={label}
-        width={32}
-        height={32}
-        className="inline-flex w-8 h-8 rounded-full border border-[var(--color-border)] object-cover"
-        referrerPolicy="no-referrer"
-        onError={onImgError}
-      />
-    );
-  }
-
-  return (
-    <span
-      className="inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-semibold text-white"
-      style={{ backgroundColor: "var(--color-accent)" }}
-    >
-      {initial}
-    </span>
-  );
 }
 
 interface HeaderViewerClientProps {
@@ -101,11 +64,11 @@ export function HeaderViewerClient({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] rounded-full">
-                <AvatarButton
-                  label={userLabel}
+                <PlayerAvatar
+                  name={userLabel} size="sm"
                   avatarUrl={avatarUrl}
-                  imgError={avatarFailed}
-                  onImgError={markAvatarFailed}
+                  failed={avatarFailed}
+                  onError={markAvatarFailed}
                 />
               </button>
             </DropdownMenuTrigger>
@@ -157,11 +120,11 @@ export function HeaderViewerClient({
   return session ? (
     <>
       <div className="flex items-center gap-2 px-3 py-1.5">
-        <AvatarButton
-          label={userLabel}
+        <PlayerAvatar
+          name={userLabel} size="sm"
           avatarUrl={avatarUrl}
-          imgError={avatarFailed}
-          onImgError={markAvatarFailed}
+          failed={avatarFailed}
+          onError={markAvatarFailed}
         />
         <span className="text-sm text-[var(--color-fg-dim)] truncate">{userLabel}</span>
       </div>

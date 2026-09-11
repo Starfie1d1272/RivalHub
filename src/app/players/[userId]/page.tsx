@@ -10,7 +10,7 @@ import { PUBLIC_PLAYER_INFO_FIELDS } from "@/lib/utils/player-info-fields";
 import { getPublicDisplayName } from "@/lib/identity/display-name";
 import { PageLayout, Panel, Stat, PosChip } from "@/components/rivalhub";
 import { MapPreferenceChips } from "@/components/rivalhub/MapPreferenceChips";
-import Image from "next/image";
+import { PlayerAvatar } from "@/components/players/PlayerAvatar";
 import Link from "next/link";
 import { POSITION_LABELS } from "@/lib/validators/registration";
 import { matchPlayerStats, type MatchPlayerStat } from "@/db/schema/player-stats";
@@ -116,15 +116,6 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--color-fg-mid)", letterSpacing: "var(--tracking-label)", textTransform: "uppercase", marginBottom: 12 }}>
       {children}
-    </div>
-  );
-}
-
-function AvatarFallback({ name }: { name: string }) {
-  const initials = name.slice(0, 2).toUpperCase();
-  return (
-    <div className="w-24 h-24 rounded-full bg-[var(--color-panel-hi)] border border-[var(--color-border)] flex items-center justify-center text-2xl font-bold text-[var(--color-fg-mid)]">
-      {initials}
     </div>
   );
 }
@@ -326,17 +317,7 @@ export async function PlayerPageContent({ params }: PlayerPageProps) {
 
       {/* 头像 + 基本信息 */}
       <div className="flex items-center gap-6">
-        {user.avatarUrl ? (
-          <Image
-            src={user.avatarUrl}
-            alt={getPublicDisplayName(user)}
-            width={96}
-            height={96}
-            className="rounded-full border border-[var(--color-border)] object-cover"
-          />
-        ) : (
-          <AvatarFallback name={getPublicDisplayName(user)} />
-        )}
+        <PlayerAvatar name={getPublicDisplayName(user)} avatarUrl={user.avatarUrl} size="lg" />
 
         <div className="space-y-2">
           <h1 className="text-3xl font-black text-[var(--color-fg)]">

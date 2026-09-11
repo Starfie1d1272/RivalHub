@@ -113,10 +113,18 @@ describe("MyReadinessDashboard", () => {
     expect(screen.getByText("暂时无法确认")).toBeInTheDocument();
   });
 
+  it("renders the captain recruitment task above long-lived profile cards", () => {
+    render(<MyReadinessDashboard model={{ ...model, recruitment: {
+      id: "recruitment", title: "队伍加入意向", state: "waiting", detail: "3 名选手向你的队伍表达加入意向", cta: { href: "/my/teams#recruitment-interests", label: "查看并处理" },
+    } }} />);
+
+    expect(screen.getByRole("link", { name: "查看并处理" })).toHaveAttribute("href", "/my/teams#recruitment-interests");
+  });
+
   it("renders all three sanction effects without private evidence", () => {
     render(<MyReadinessDashboard model={model} />);
 
-    expect(screen.getByText(/阻止报名、阻止进入赛事 roster、阻止单场出场/)).toBeInTheDocument();
+    expect(screen.getByText(/阻止报名、阻止进入赛事名单、阻止单场出场/)).toBeInTheDocument();
     expect(screen.getByText("说明：公开说明")).toBeInTheDocument();
     expect(screen.queryByText(/internalEvidence|私密证据|管理员备注/)).not.toBeInTheDocument();
   });

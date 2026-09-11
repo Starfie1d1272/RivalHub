@@ -199,7 +199,7 @@ export function AdminMatchWorkbench({
               首发名单
             </h2>
             <p className="mt-1 text-xs leading-5 text-[var(--color-fg-mid)]">
-              这里记录本场实际出场阵容；它可以与赛事主力名单不同，但只能选择对应 frozen event roster 成员。
+              这里记录本场实际出场阵容；可与赛事主力名单不同，但只能从已锁定的本届名单中选择。
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -231,7 +231,7 @@ export function AdminMatchWorkbench({
                 BP、地图与比赛时间
               </h2>
               <p className="mt-1 text-xs leading-5 text-[var(--color-fg-mid)]">
-                先记录实际 BP，再按地图录入回合比分；系列赛比分由既有 match result owner 推导。
+                先记录实际 BP，再按地图录入回合比分；系统将自动计算系列赛比分。
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">

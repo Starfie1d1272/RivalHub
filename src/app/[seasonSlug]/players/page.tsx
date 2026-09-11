@@ -94,6 +94,7 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
       currentRating: seasonRegistrations.currentRating,
       perfectName: users.perfectName,
       steamName: users.steamName,
+      avatarUrl: users.avatarUrl,
     })
     .from(seasonRegistrations)
     .innerJoin(users, eq(seasonRegistrations.userId, users.id))
@@ -130,6 +131,7 @@ export default async function PlayersPage({ params, searchParams }: PlayersPageP
       userId: reg.userId,
       registrationId: reg.registrationId,
       displayName: getPublicDisplayName(reg),
+      avatarUrl: reg.avatarUrl,
       name: getPublicDisplayName(reg),
       primaryPosition: reg.primaryPosition,
       secondaryPosition: reg.secondaryPosition,
